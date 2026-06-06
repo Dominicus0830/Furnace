@@ -41,3 +41,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+# Furnace run artifacts
+furnace-run.log*
+furnace.properties
