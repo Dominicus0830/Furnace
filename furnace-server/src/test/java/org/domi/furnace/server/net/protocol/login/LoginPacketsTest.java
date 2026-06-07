@@ -19,6 +19,7 @@ class LoginPacketsTest {
         LoginStart p = LoginStart.read(buf);
         assertEquals("Dominicus", p.name());
         assertEquals(id, p.uuid());
+        buf.release();
     }
 
     @Test
