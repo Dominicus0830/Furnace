@@ -7,6 +7,9 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ConnectionState;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.handshake.Handshake;
+import org.domi.furnace.server.net.protocol.status.PongResponse;
+import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,15 +29,30 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int packetId = Types.readVarInt(frame);
         switch (state) {
             case HANDSHAKE -> handleHandshake(ctx, packetId, frame);
-            default -> {
-                // Task 5+에서 단계별 분기를 채운다.
-                log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
-            }
+            case STATUS -> handleStatus(ctx, packetId, frame);
+            default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
     }
 
     private void handleHandshake(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
-        // Task 5에서 구현.
+        if (packetId != Handshake.ID) {
+            ctx.close();
+            return;
+        }
+        Handshake hs = Handshake.read(frame);
+        state = switch (hs.nextState()) {
+            case 1 -> ConnectionState.STATUS;
+            case 2 -> ConnectionState.LOGIN;
+            default -> { ctx.close(); yield ConnectionState.HANDSHAKE; }
+        };
+    }
+
+    private void handleStatus(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
+        switch (packetId) {
+            case 0x00 -> send(ctx, StatusResponse.of(serverName));        // Status Request
+            case 0x01 -> send(ctx, new PongResponse(frame.readLong()));   // Ping Request
+            default -> ctx.close();
+        }
     }
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
