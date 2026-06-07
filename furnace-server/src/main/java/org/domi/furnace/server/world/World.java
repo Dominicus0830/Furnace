@@ -1,11 +1,15 @@
 // region 컨테이너 + 공유 자원. 스레드별 region 맵을 들고 매 틱 자기 region들을 틱한다.
 package org.domi.furnace.server.world;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.api.sched.RegionPos;
+import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.world.gen.WorldSource;
 
@@ -22,6 +26,9 @@ public final class World {
 
     // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
     private final Map<RegionPos, Region>[] regionsByThread;
+
+    // 교차region 가시성 스냅샷: region 스레드가 공개, 인접 region 스레드가 락프리로 읽음.
+    private final ConcurrentHashMap<RegionPos, List<EntityView>> snapshots = new ConcurrentHashMap<>();
 
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
@@ -62,6 +69,28 @@ public final class World {
         ThreadOwner owner = (ThreadOwner) scheduler.region(pos);
         assert owner.isOwnerThread()
                 : "region " + pos + " 를 비소유 스레드서 접근: " + Thread.currentThread().getName();
+    }
+
+    /** region이 자기 플레이어 스냅샷을 공개(덮어쓰기). views는 불변이어야 한다. */
+    public void publishSnapshot(RegionPos pos, List<EntityView> views) {
+        snapshots.put(pos, views);
+    }
+
+    /** center±radius region들의 스냅샷을 모아 반환. */
+    public List<EntityView> candidatesAround(RegionPos center, int radius) {
+        List<EntityView> out = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                List<EntityView> s = snapshots.get(new RegionPos(center.x() + dx, center.z() + dz));
+                if (s != null) out.addAll(s);
+            }
+        }
+        return out;
+    }
+
+    /** view거리가 닿는 인접 region 반경(region 단위). */
+    public int neighborRadius() {
+        return (int) Math.ceil((double) viewDistance / regionSize) + 1;
     }
 
     public FurnaceScheduler scheduler() { return scheduler; }
