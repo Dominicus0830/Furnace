@@ -19,7 +19,10 @@ import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
+import org.domi.furnace.server.net.protocol.play.GameEvent;
 import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
@@ -153,14 +156,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         send(ctx, new LoginPlay(1, "minecraft:overworld", dimIndex));
-        send(ctx, new SyncPlayerPosition(0, 64, 0, 1));
-        send(ctx, new SetDefaultSpawnPosition(0, 64, 0));
+        // superflat 표면 grass at y=−61 → 플레이어는 그 위 y=−60에 선다.
+        send(ctx, new SyncPlayerPosition(0, -60, 0, 1));
+        send(ctx, new SetDefaultSpawnPosition(0, -60, 0));
+        // 청크 전송 전 "대기 시작" 알림 — 없으면 클라가 로딩 화면서 30초 타임아웃.
+        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
         sendChunks(ctx);
         scheduleKeepAlive();
     }
 
     private void sendChunks(ChannelHandlerContext ctx) {
         send(ctx, new SetCenterChunk(0, 0));
+        int side = 2 * viewDistance + 1;
+        int total = side * side;
+        send(ctx, new ChunkBatchStart()); // 배치 시작 — 클라가 처리율 추정 시작
+        java.util.concurrent.atomic.AtomicInteger sent = new java.util.concurrent.atomic.AtomicInteger();
         for (int cx = -viewDistance; cx <= viewDistance; cx++) {
             for (int cz = -viewDistance; cz <= viewDistance; cz++) {
                 final int fx = cx;
@@ -171,8 +181,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     ChunkSerializer.serialize(body, fx, fz, col, blockDirectBits, biomeDirectBits);
                     return body;
                 }).thenAccept(body ->
-                        ctx.channel().eventLoop().execute(() ->
-                                send(ctx, new LevelChunkWithLight(body))));
+                        ctx.channel().eventLoop().execute(() -> {
+                            send(ctx, new LevelChunkWithLight(body));
+                            if (sent.incrementAndGet() == total) {
+                                send(ctx, new ChunkBatchFinished(total)); // 모든 청크 후 배치 종료
+                            }
+                        }));
             }
         }
     }
