@@ -9,11 +9,8 @@ import java.util.List;
 import java.util.Map;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
-import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
-import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
 import org.domi.furnace.server.net.protocol.play.MoveEntityRot;
 import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
@@ -148,10 +145,8 @@ public final class World {
     }
 
     private void streamLoads(Player p, List<ChunkPos> toLoad) {
-        if (toLoad.isEmpty()) return;
-        p.send(new ChunkBatchStart());
-        int total = toLoad.size();
-        AtomicInteger done = new AtomicInteger();
+        // 배치(ChunkBatchStart/Finished) 미사용: per-crossing 배치가 async 청크와 겹치면
+        // 클라 배칭이 중첩 Start로 깨진다. 로딩 화면은 GameEvent13가 처리하므로 배치 불필요.
         for (ChunkPos cp : toLoad) {
             p.loadedChunks().add(cp);
             chunkPool.submit(() -> {
@@ -159,11 +154,7 @@ public final class World {
                 ByteBuf body = Unpooled.buffer();
                 ChunkSerializer.serialize(body, cp.x(), cp.z(), col, blockDirectBits, biomeDirectBits);
                 return body;
-            }).thenAccept(body -> {
-                p.send(new LevelChunkWithLight(body));
-                // 모든 청크 전송 후에 배치 종료 — 청크가 배치 안에서 도착해야 클라 배칭 정상.
-                if (done.incrementAndGet() == total) p.send(new ChunkBatchFinished(total));
-            });
+            }).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
         }
     }
 }
