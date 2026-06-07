@@ -50,7 +50,14 @@ public final class NetworkServer {
                                 .addLast("handler", new ConnectionHandler(serverName));
                     }
                 });
-        channel = b.bind(port).syncUninterruptibly().channel();
+        try {
+            channel = b.bind(port).syncUninterruptibly().channel();
+        } catch (RuntimeException e) {
+            // bind 실패(포트 점유 등) 시 non-daemon 이벤트루프 스레드가 JVM을 붙잡지 않게 정리.
+            workerGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully();
+            throw e;
+        }
         int boundPort = ((InetSocketAddress) channel.localAddress()).getPort();
         log.info("네트워크 서버 listen: 포트 {} (압축 임계값 {})", boundPort, compressionThreshold);
         return boundPort;

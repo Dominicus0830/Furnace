@@ -22,15 +22,17 @@ public final class FurnaceMain {
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos());
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), config.serverName());
-        network.start();
         CountDownLatch shutdown = new CountDownLatch(1);
 
+        // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("종료 중...");
             network.stop();
             scheduler.close();
             shutdown.countDown();
         }, "furnace-shutdown"));
+
+        network.start();
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler), 100);
