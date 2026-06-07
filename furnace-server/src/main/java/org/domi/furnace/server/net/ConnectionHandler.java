@@ -4,10 +4,13 @@ package org.domi.furnace.server.net;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import java.util.UUID;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ConnectionState;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
+import org.domi.furnace.server.net.protocol.login.LoginStart;
+import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.slf4j.Logger;
@@ -19,6 +22,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private final String serverName;
     private ConnectionState state = ConnectionState.HANDSHAKE;
+    private String playerName;
+    private UUID playerUuid;
 
     public ConnectionHandler(String serverName) {
         this.serverName = serverName;
@@ -30,6 +35,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         switch (state) {
             case HANDSHAKE -> handleHandshake(ctx, packetId, frame);
             case STATUS -> handleStatus(ctx, packetId, frame);
+            case LOGIN -> handleLogin(ctx, packetId, frame);
             default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
     }
@@ -53,6 +59,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x01 -> send(ctx, new PongResponse(frame.readLong()));   // Ping Request
             default -> ctx.close();
         }
+    }
+
+    private void handleLogin(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
+        switch (packetId) {
+            case 0x00 -> { // Login Start
+                LoginStart start = LoginStart.read(frame);
+                this.playerName = start.name();
+                this.playerUuid = LoginStart.offlineUuid(start.name());
+                // (압축은 Task 10에서: 여기서 Set Compression 전송 후 코덱 삽입)
+                send(ctx, new LoginSuccess(playerUuid, playerName));
+            }
+            case 0x03 -> { // Login Acknowledged
+                state = ConnectionState.CONFIGURATION;
+                onEnterConfiguration(ctx); // Task 8에서 구현
+            }
+            default -> ctx.close();
+        }
+    }
+
+    private void onEnterConfiguration(ChannelHandlerContext ctx) {
+        // Task 8에서 구현(Known Packs 전송 등).
     }
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
