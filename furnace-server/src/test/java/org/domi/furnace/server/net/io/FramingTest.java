@@ -32,6 +32,18 @@ class FramingTest {
         assertTrue(dec.writeInbound(Unpooled.wrappedBuffer(new byte[]{9})));
         ByteBuf out = dec.readInbound();
         assertEquals(3, out.readableBytes());
+        // payload는 길이 프리픽스를 뺀 [9,9,9]여야 함(리더 인덱스가 한 칸 밀리면 [3,9,9]가 됨).
+        for (int i = 0; i < 3; i++) assertEquals(9, out.readByte());
         out.release();
+        dec.finishAndReleaseAll();
+    }
+
+    @Test
+    void decoder_throws_whenLengthExceedsMax() {
+        EmbeddedChannel dec = new EmbeddedChannel(new FrameDecoder());
+        ByteBuf buf = Unpooled.buffer();
+        Types.writeVarInt(buf, 2 * 1024 * 1024 + 1); // 2 MiB 상한 초과
+        assertThrows(Exception.class, () -> dec.writeInbound(buf));
+        dec.finishAndReleaseAll();
     }
 }
