@@ -2,6 +2,7 @@
 package org.domi.furnace.server.net;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import java.util.UUID;
@@ -18,13 +19,18 @@ import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
+import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
+import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
+import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
 import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.gen.WorldSource;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +43,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final String serverName;
     private final int compressionThreshold;
     private final FurnaceScheduler scheduler;
+    private final WorldSource worldSource;
+    private final ChunkWorkerPool chunkPool;
+    private final int viewDistance;
+    private final int blockDirectBits;
+    private final int biomeDirectBits;
 
     private volatile ChannelHandlerContext ctx;
     private final AtomicBoolean awaitingKeepAlive = new AtomicBoolean(false);
@@ -46,10 +57,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private String playerName;
     private UUID playerUuid;
 
-    public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler) {
+    public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
+                             WorldSource worldSource, ChunkWorkerPool chunkPool, int viewDistance,
+                             int blockDirectBits, int biomeDirectBits) {
         this.serverName = serverName;
         this.compressionThreshold = compressionThreshold;
         this.scheduler = scheduler;
+        this.worldSource = worldSource;
+        this.chunkPool = chunkPool;
+        this.viewDistance = viewDistance;
+        this.blockDirectBits = blockDirectBits;
+        this.biomeDirectBits = biomeDirectBits;
     }
 
     @Override
@@ -137,7 +155,26 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new LoginPlay(1, "minecraft:overworld", dimIndex));
         send(ctx, new SyncPlayerPosition(0, 64, 0, 1));
         send(ctx, new SetDefaultSpawnPosition(0, 64, 0));
+        sendChunks(ctx);
         scheduleKeepAlive();
+    }
+
+    private void sendChunks(ChannelHandlerContext ctx) {
+        send(ctx, new SetCenterChunk(0, 0));
+        for (int cx = -viewDistance; cx <= viewDistance; cx++) {
+            for (int cz = -viewDistance; cz <= viewDistance; cz++) {
+                final int fx = cx;
+                final int fz = cz;
+                chunkPool.submit(() -> {
+                    ChunkColumn col = worldSource.generate(fx, fz);
+                    ByteBuf body = Unpooled.buffer();
+                    ChunkSerializer.serialize(body, fx, fz, col, blockDirectBits, biomeDirectBits);
+                    return body;
+                }).thenAccept(body ->
+                        ctx.channel().eventLoop().execute(() ->
+                                send(ctx, new LevelChunkWithLight(body))));
+            }
+        }
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
