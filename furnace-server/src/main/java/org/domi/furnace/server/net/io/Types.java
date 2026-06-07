@@ -64,4 +64,9 @@ public final class Types {
         buf.writeLong(value.getMostSignificantBits());
         buf.writeLong(value.getLeastSignificantBits());
     }
+
+    /** 회전 각도를 256분할 byte로. degrees * 256 / 360. */
+    public static void writeAngle(ByteBuf buf, float degrees) {
+        buf.writeByte((int) (degrees * 256.0f / 360.0f) & 0xFF);
+    }
 }
