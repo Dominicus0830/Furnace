@@ -25,7 +25,7 @@
 | 블록 ID | blocks.json 전체 데이터주도 | 팰릿이 전역 state id 요구. M1 레지스트리 패턴(데이터주도)과 일관 |
 | 월드 생성 | 클래식 superflat (bedrock/dirt×2/grass) | 바닐라 기본 flat과 동일, "바닥 안 빠짐" verify 쉬움 |
 | 팰릿 | 단일+간접+직접 전체 구현 (바닐라 정석) | 최적화 목표. 대역폭 최소. direct-only 단순화 거부 |
-| 오프스레드 | 워커풀서 직렬화 → channel.eventLoop로 순서전송 | 설계서 "첫 MT 이득". 수백 청크 직렬화가 IO 스레드 안 막음 |
+| 오프스레드 | 전용 `ChunkWorkerPool`(CPU 코어 수) 병렬 직렬화 → channel.eventLoop로 전송 | 설계서 "첫 MT 이득". M0 스케줄러 global()은 단일 스레드라 병렬 불가 → 전용 풀. 청크 직렬화는 불변 스냅샷 순수함수라 소유권 모델 무관 |
 | NBT | 최소 write만 (compound/long_array/end) | heightmap만 필요. reader는 M4 |
 
 ## 4. 아키텍처
@@ -58,13 +58,15 @@ onEnterPlay (channel eventLoop)
   ├─ send LoginPlay, SyncPlayerPosition, SetDefaultSpawnPosition  (M1 기존)
   ├─ send SetCenterChunk(0, 0)
   └─ for each (cx,cz) in radius:
-        scheduler.global/worker.submit:                 ← 워커 스레드 (CPU)
+        chunkWorkerPool.submit:                          ← 워커풀 스레드 (CPU, 병렬)
            ChunkColumn col = worldSource.generate(cx,cz)  (불변)
            ByteBuf buf = ChunkSerializer.serialize(col)
         .thenAccept(buf ->
            ctx.channel().eventLoop().execute(() ->        ← IO 스레드 (전송)
               send(LevelChunkWithLight(buf))))
 ```
+
+`ChunkWorkerPool` = 고정 크기 ExecutorService(코어 수), `CompletableFuture<ByteBuf> submit(Supplier)`. NetworkServer 생애주기로 생성/셧다운.
 
 `ChunkColumn`은 생성 후 불변 → 워커 직렬화 중 레이스 없음. 청크는 SetCenterChunk 뒤면 도착 순서 무관(클라가 좌표로 배치).
 
@@ -174,9 +176,10 @@ VarInt blockLightArrayCount = 0 + arrays
 | `net/protocol/play/ChunkSerializer.java` | ChunkColumn → ByteBuf |
 | `net/protocol/play/LevelChunkWithLight.java` | clientbound 청크 패킷 |
 | `net/protocol/play/SetCenterChunk.java` | clientbound 센터청크 |
+| `net/ChunkWorkerPool.java` | 전용 고정 스레드풀, 청크 병렬 생성+직렬화 |
 | `resources/blocks/1.21.1.txt` | distill 생성물 |
 | `net/ConnectionHandler.java` | (modify) onEnterPlay 청크 스트림 |
 | `config/Config.java`, `ConfigLoader.java` | (modify) view-distance |
-| `net/NetworkServer.java` | (modify) WorldSource 주입 |
+| `net/NetworkServer.java` | (modify) WorldSource + ChunkWorkerPool 주입 |
 
 각 신규 클래스는 단위 테스트 동반(TDD). BitStorage·Palette·NbtWriter·ChunkSerializer는 라운드트립/벡터 테스트, 통합은 실 클라 접속(verify).
