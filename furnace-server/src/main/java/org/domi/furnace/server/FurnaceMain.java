@@ -3,6 +3,7 @@ package org.domi.furnace.server;
 
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.config.ConfigLoader;
+import org.domi.furnace.server.net.NetworkServer;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +20,19 @@ public final class FurnaceMain {
         log.info("Furnace 부팅: name='{}', tickNanos={}", config.serverName(), config.tickNanos());
 
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos());
+        NetworkServer network = new NetworkServer(
+                config.port(), config.compressionThreshold(), config.serverName(), scheduler);
         CountDownLatch shutdown = new CountDownLatch(1);
 
+        // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("종료 중...");
+            network.stop();
             scheduler.close();
             shutdown.countDown();
         }, "furnace-shutdown"));
+
+        network.start();
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler), 100);

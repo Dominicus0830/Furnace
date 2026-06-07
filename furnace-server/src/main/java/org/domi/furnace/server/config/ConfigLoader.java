@@ -24,6 +24,11 @@ public final class ConfigLoader {
         String name = props.getProperty("server-name", Config.DEFAULT.serverName());
         long tick = Long.parseLong(
                 props.getProperty("tick-nanos", Long.toString(Config.DEFAULT.tickNanos())));
-        return new Config(name, tick);
+        int port = Integer.parseInt(
+                props.getProperty("port", Integer.toString(Config.DEFAULT.port())));
+        int compression = Integer.parseInt(
+                props.getProperty("compression-threshold",
+                        Integer.toString(Config.DEFAULT.compressionThreshold())));
+        return new Config(name, tick, port, compression);
     }
 }
