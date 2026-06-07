@@ -13,7 +13,9 @@ import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
+import org.domi.furnace.server.net.protocol.play.MoveEntityRot;
 import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
 import org.domi.furnace.server.net.protocol.play.RemoveEntities;
 import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
@@ -78,7 +80,7 @@ public final class World {
                 a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
                 a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
                 a.send(new SetHeadRotation(b.entityId(), b.yaw()));
-                a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z()});
+                a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch()});
             } else if (!near && tracking) {     // 이탈 → 제거
                 a.send(new RemoveEntities(java.util.List.of(b.entityId())));
                 a.tracked().remove(b.entityId());
@@ -96,17 +98,23 @@ public final class World {
 
     private void broadcastMove(Player a, Player b, double[] last) {
         double ddx = b.x() - last[0], ddy = b.y() - last[1], ddz = b.z() - last[2];
+        boolean posChanged = ddx != 0 || ddy != 0 || ddz != 0;
+        boolean rotChanged = b.yaw() != last[3] || b.pitch() != last[4];
+        if (!posChanged && !rotChanged) return; // 변화 없으면 침묵(idle 스팸 방지)
+
         boolean big = Math.abs(ddx) >= 8 || Math.abs(ddy) >= 8 || Math.abs(ddz) >= 8;
         if (big) {
             a.send(new TeleportEntity(b.entityId(), b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.onGround()));
-        } else if (ddx != 0 || ddy != 0 || ddz != 0) {
+        } else if (posChanged) {
             short sdx = (short) Math.round(ddx * 4096);
             short sdy = (short) Math.round(ddy * 4096);
             short sdz = (short) Math.round(ddz * 4096);
             a.send(new MoveEntityPosRot(b.entityId(), sdx, sdy, sdz, b.yaw(), b.pitch(), b.onGround()));
+        } else {                                // 제자리 회전 → 몸통 yaw 갱신
+            a.send(new MoveEntityRot(b.entityId(), b.yaw(), b.pitch(), b.onGround()));
         }
         a.send(new SetHeadRotation(b.entityId(), b.yaw()));
-        last[0] = b.x(); last[1] = b.y(); last[2] = b.z();
+        last[0] = b.x(); last[1] = b.y(); last[2] = b.z(); last[3] = b.yaw(); last[4] = b.pitch();
     }
 
     private void updateChunks(Player p) {
@@ -142,6 +150,8 @@ public final class World {
     private void streamLoads(Player p, List<ChunkPos> toLoad) {
         if (toLoad.isEmpty()) return;
         p.send(new ChunkBatchStart());
+        int total = toLoad.size();
+        AtomicInteger done = new AtomicInteger();
         for (ChunkPos cp : toLoad) {
             p.loadedChunks().add(cp);
             chunkPool.submit(() -> {
@@ -149,8 +159,11 @@ public final class World {
                 ByteBuf body = Unpooled.buffer();
                 ChunkSerializer.serialize(body, cp.x(), cp.z(), col, blockDirectBits, biomeDirectBits);
                 return body;
-            }).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
+            }).thenAccept(body -> {
+                p.send(new LevelChunkWithLight(body));
+                // 모든 청크 전송 후에 배치 종료 — 청크가 배치 안에서 도착해야 클라 배칭 정상.
+                if (done.incrementAndGet() == total) p.send(new ChunkBatchFinished(total));
+            });
         }
-        p.send(new ChunkBatchFinished(toLoad.size()));
     }
 }
