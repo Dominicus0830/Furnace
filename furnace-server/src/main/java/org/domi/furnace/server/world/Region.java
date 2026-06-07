@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.domi.furnace.api.sched.RegionPos;
+import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
@@ -64,8 +65,14 @@ public final class Region {
             }
             updateChunks(p);
         }
+        // 자기 플레이어 스냅샷 공개(불변 리스트).
+        List<EntityView> views = new ArrayList<>(players.size());
+        for (Player p : players.values()) views.add(EntityView.of(p));
+        world.publishSnapshot(pos, List.copyOf(views));
+        // 인접 region 스냅샷까지 후보로 가시성 계산.
+        List<EntityView> candidates = world.candidatesAround(pos, world.neighborRadius());
         for (Player p : players.values()) {
-            updateVisibility(p);
+            updateVisibility(p, candidates);
         }
         for (Player p : handoff) {
             RegionPos target = p.regionPos(world.regionSize());
@@ -121,9 +128,9 @@ public final class Region {
         }
     }
 
-    private void updateVisibility(Player a) {
+    private void updateVisibility(Player a, List<EntityView> candidates) {
         double range = world.viewDistance() * 16.0;
-        for (Player b : players.values()) {
+        for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;
             boolean near = within(a, b, range);
             boolean tracking = a.tracked().containsKey(b.entityId());
@@ -141,13 +148,13 @@ public final class Region {
         }
     }
 
-    private static boolean within(Player a, Player b, double range) {
+    private static boolean within(Player a, EntityView b, double range) {
         double dx = a.x() - b.x();
         double dz = a.z() - b.z();
         return dx * dx + dz * dz <= range * range;
     }
 
-    private void broadcastMove(Player a, Player b, double[] last) {
+    private void broadcastMove(Player a, EntityView b, double[] last) {
         double ddx = b.x() - last[0], ddy = b.y() - last[1], ddz = b.z() - last[2];
         boolean posChanged = ddx != 0 || ddy != 0 || ddz != 0;
         boolean rotChanged = b.yaw() != last[3] || b.pitch() != last[4];
