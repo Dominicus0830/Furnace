@@ -8,17 +8,22 @@ import java.util.UUID;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ConnectionState;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.configuration.FinishConfiguration;
+import org.domi.furnace.server.net.protocol.configuration.KnownPacksClientbound;
+import org.domi.furnace.server.net.protocol.configuration.RegistryData;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
+import org.domi.furnace.server.net.registry.RegistrySet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     private static final Logger log = LoggerFactory.getLogger(ConnectionHandler.class);
+    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
 
     private final String serverName;
     private ConnectionState state = ConnectionState.HANDSHAKE;
@@ -36,6 +41,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case HANDSHAKE -> handleHandshake(ctx, packetId, frame);
             case STATUS -> handleStatus(ctx, packetId, frame);
             case LOGIN -> handleLogin(ctx, packetId, frame);
+            case CONFIGURATION -> handleConfiguration(ctx, packetId, frame);
             default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
     }
@@ -79,7 +85,28 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private void onEnterConfiguration(ChannelHandlerContext ctx) {
-        // Task 8에서 구현(Known Packs 전송 등).
+        send(ctx, new KnownPacksClientbound());
+    }
+
+    private void handleConfiguration(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
+        switch (packetId) {
+            case 0x00, 0x02 -> { /* Client Information / Plugin Message(brand): 읽지 않고 무시 */ }
+            case 0x07 -> { // Serverbound Known Packs → 레지스트리 전송 후 종료
+                for (String registry : REGISTRIES.registryKeys()) {
+                    send(ctx, new RegistryData(registry, REGISTRIES.entries(registry)));
+                }
+                send(ctx, new FinishConfiguration());
+            }
+            case 0x03 -> { // Acknowledge Finish Configuration
+                state = ConnectionState.PLAY;
+                onEnterPlay(ctx); // Task 9에서 구현
+            }
+            default -> log.debug("미처리 config 패킷 id=0x{}", Integer.toHexString(packetId));
+        }
+    }
+
+    private void onEnterPlay(ChannelHandlerContext ctx) {
+        // Task 9에서 구현.
     }
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
