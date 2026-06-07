@@ -13,7 +13,13 @@ import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
+import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
+import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
+import org.domi.furnace.server.net.protocol.play.RemoveEntities;
 import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
+import org.domi.furnace.server.net.protocol.play.SetHeadRotation;
+import org.domi.furnace.server.net.protocol.play.SpawnEntity;
+import org.domi.furnace.server.net.protocol.play.TeleportEntity;
 import org.domi.furnace.server.net.protocol.play.UnloadChunk;
 import org.domi.furnace.server.world.gen.WorldSource;
 
@@ -47,6 +53,60 @@ public final class World {
         for (Player p : players.values()) {
             updateChunks(p);
         }
+        for (Player p : players.values()) {
+            updateVisibility(p);
+        }
+    }
+
+    /** 플레이어 제거 + 그를 추적하던 모두에게 디스폰 전송(region 스레드). */
+    public void removePlayerAndBroadcast(int entityId) {
+        players.remove(entityId);
+        for (Player other : players.values()) {
+            if (other.tracked().remove(entityId) != null) {
+                other.send(new RemoveEntities(java.util.List.of(entityId)));
+            }
+        }
+    }
+
+    private void updateVisibility(Player a) {
+        double range = viewDistance * 16.0;
+        for (Player b : players.values()) {
+            if (b.entityId() == a.entityId()) continue;
+            boolean near = within(a, b, range);
+            boolean tracking = a.tracked().containsKey(b.entityId());
+            if (near && !tracking) {            // 신규 진입 → 스폰
+                a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
+                a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
+                a.send(new SetHeadRotation(b.entityId(), b.yaw()));
+                a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z()});
+            } else if (!near && tracking) {     // 이탈 → 제거
+                a.send(new RemoveEntities(java.util.List.of(b.entityId())));
+                a.tracked().remove(b.entityId());
+            } else if (near) {                  // 유지 → 이동 갱신
+                broadcastMove(a, b, a.tracked().get(b.entityId()));
+            }
+        }
+    }
+
+    private static boolean within(Player a, Player b, double range) {
+        double dx = a.x() - b.x();
+        double dz = a.z() - b.z();
+        return dx * dx + dz * dz <= range * range;
+    }
+
+    private void broadcastMove(Player a, Player b, double[] last) {
+        double ddx = b.x() - last[0], ddy = b.y() - last[1], ddz = b.z() - last[2];
+        boolean big = Math.abs(ddx) >= 8 || Math.abs(ddy) >= 8 || Math.abs(ddz) >= 8;
+        if (big) {
+            a.send(new TeleportEntity(b.entityId(), b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.onGround()));
+        } else if (ddx != 0 || ddy != 0 || ddz != 0) {
+            short sdx = (short) Math.round(ddx * 4096);
+            short sdy = (short) Math.round(ddy * 4096);
+            short sdz = (short) Math.round(ddz * 4096);
+            a.send(new MoveEntityPosRot(b.entityId(), sdx, sdy, sdz, b.yaw(), b.pitch(), b.onGround()));
+        }
+        a.send(new SetHeadRotation(b.entityId(), b.yaw()));
+        last[0] = b.x(); last[1] = b.y(); last[2] = b.z();
     }
 
     private void updateChunks(Player p) {
