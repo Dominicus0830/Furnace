@@ -1,25 +1,32 @@
-// FurnaceScheduler 파사드 구현. M0는 전역 owner 1개 + region owner 1개(월드 전체).
+// FurnaceScheduler 파사드 구현. M3b: 전역 owner 1개 + region owner N개(고정 그리드).
 package org.domi.furnace.server.sched;
 
+import java.util.function.IntConsumer;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.api.sched.GlobalScheduler;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.api.sched.TaskScheduler;
+import org.domi.furnace.server.world.RegionGrid;
 
 public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseable {
 
     private final GlobalThread global;
-    private final RegionThread region; // M0: 모든 RegionPos가 이 하나에 매핑
-    private volatile Runnable regionTick = () -> {};
+    private final RegionThread[] regions;
+    private volatile IntConsumer regionTick = i -> {};
 
+    /** 백호환: region 스레드 1개. */
     public FurnaceSchedulerImpl(long tickNanos) {
-        this.global = new GlobalThread("furnace-global");
-        this.region = new RegionThread("furnace-region-0", tickNanos, () -> regionTick.run());
+        this(tickNanos, 1);
     }
 
-    /** region 틱마다 실행할 콜백 등록(World.tick 연결용). */
-    public void setRegionTick(Runnable tick) {
-        this.regionTick = tick;
+    public FurnaceSchedulerImpl(long tickNanos, int regionThreads) {
+        this.global = new GlobalThread("furnace-global");
+        this.regions = new RegionThread[regionThreads];
+        for (int i = 0; i < regionThreads; i++) {
+            int idx = i;
+            this.regions[i] = new RegionThread("furnace-region-" + i, tickNanos,
+                    () -> regionTick.accept(idx));
+        }
     }
 
     @Override
@@ -29,17 +36,26 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
 
     @Override
     public TaskScheduler region(RegionPos pos) {
-        return region; // M0: pos 무시, 단일 region
+        return regions[RegionGrid.threadIndex(pos, regions.length)];
     }
 
-    /** M0 내부/테스트용 — 단일 region 스레드 직접 접근. */
+    /** region 틱 콜백(스레드 인덱스 전달). World.tickThread 연결용. */
+    public void setRegionTick(IntConsumer tick) {
+        this.regionTick = tick;
+    }
+
+    public int regionThreadCount() {
+        return regions.length;
+    }
+
+    /** M0/테스트용 — 첫 region 스레드 접근. */
     public RegionThread regionThread() {
-        return region;
+        return regions[0];
     }
 
     @Override
     public void close() {
-        region.close();
+        for (RegionThread r : regions) r.close();
         global.close();
     }
 }
