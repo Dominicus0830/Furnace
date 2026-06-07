@@ -23,8 +23,8 @@ class StatusPingTest {
     void handshakeThenStatusRequest_returnsJsonWithProtocol767() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        World world = new World(new SuperflatWorldSource(reg, 0),
-                new ChunkWorkerPool(1), 2, reg.directBits(), 7);
+        World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
+                sched, sched.regionThreadCount(), 16, 2, reg.directBits(), 7);
         NetworkServer server = new NetworkServer(0, -1, "Furnace Server", sched,
                 world, new EntityIdAllocator());
         int port = server.start();

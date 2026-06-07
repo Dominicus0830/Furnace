@@ -16,17 +16,21 @@ class ConfigLoaderTest {
         assertEquals(25565, c.port());
         assertEquals(256, c.compressionThreshold());
         assertEquals(5, c.viewDistance());
+        assertEquals(16, c.regionSize());
+        assertTrue(c.regionThreads() >= 1);
     }
 
     @Test
     void load_overridesFromFile(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("furnace.properties");
-        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\nport=25500\ncompression-threshold=-1\nview-distance=8\n");
+        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\nport=25500\ncompression-threshold=-1\nview-distance=8\nregion-size=8\nregion-threads=2\n");
         Config c = ConfigLoader.load(f);
         assertEquals("My Server", c.serverName());
         assertEquals(25_000_000L, c.tickNanos());
         assertEquals(25500, c.port());
         assertEquals(-1, c.compressionThreshold());
         assertEquals(8, c.viewDistance());
+        assertEquals(8, c.regionSize());
+        assertEquals(2, c.regionThreads());
     }
 }

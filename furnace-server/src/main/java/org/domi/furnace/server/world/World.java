@@ -1,174 +1,74 @@
-// region 소유자: 플레이어를 소유하고 매 틱 청크/가시성/이동을 처리한다. M3a는 region 1개.
+// region 컨테이너 + 공유 자원. 스레드별 region 맵을 들고 매 틱 자기 region들을 틱한다.
 package org.domi.furnace.server.world;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.api.concurrent.ThreadOwner;
+import org.domi.furnace.api.sched.FurnaceScheduler;
+import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.net.ChunkWorkerPool;
-import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
-import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
-import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
-import org.domi.furnace.server.net.protocol.play.MoveEntityRot;
-import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
-import org.domi.furnace.server.net.protocol.play.RemoveEntities;
-import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
-import org.domi.furnace.server.net.protocol.play.SetHeadRotation;
-import org.domi.furnace.server.net.protocol.play.SpawnEntity;
-import org.domi.furnace.server.net.protocol.play.TeleportEntity;
-import org.domi.furnace.server.net.protocol.play.UnloadChunk;
 import org.domi.furnace.server.world.gen.WorldSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class World {
 
-    private static final Logger log = LoggerFactory.getLogger(World.class);
-
     private final WorldSource worldSource;
     private final ChunkWorkerPool chunkPool;
+    private final FurnaceScheduler scheduler;
+    private final int regionThreads;
+    private final int regionSize;
     private final int viewDistance;
     private final int blockDirectBits;
     private final int biomeDirectBits;
 
-    private final Map<Integer, Player> players = new HashMap<>();
+    // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
+    private final Map<RegionPos, Region>[] regionsByThread;
 
-    public World(WorldSource worldSource, ChunkWorkerPool chunkPool, int viewDistance,
+    @SuppressWarnings("unchecked")
+    public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
+                 int regionThreads, int regionSize, int viewDistance,
                  int blockDirectBits, int biomeDirectBits) {
         this.worldSource = worldSource;
         this.chunkPool = chunkPool;
+        this.scheduler = scheduler;
+        this.regionThreads = regionThreads;
+        this.regionSize = regionSize;
         this.viewDistance = viewDistance;
         this.blockDirectBits = blockDirectBits;
         this.biomeDirectBits = biomeDirectBits;
+        this.regionsByThread = new Map[regionThreads];
+        for (int i = 0; i < regionThreads; i++) regionsByThread[i] = new HashMap<>();
     }
 
-    public void addPlayer(Player p) { players.put(p.entityId(), p); }
+    /** region 스레드 i가 매 틱 호출 — 자기 region들 틱. */
+    public void tickThread(int index) {
+        for (Region r : regionsByThread[index].values()) {
+            try {
+                r.tick();
+            } catch (Throwable t) {
+                org.slf4j.LoggerFactory.getLogger(World.class)
+                        .error("[TICK] region {} 실패", r.pos(), t);
+            }
+        }
+    }
 
-    public void removePlayer(int entityId) { players.remove(entityId); }
+    /** pos의 region을 그 소유 스레드서 get/create. */
+    public Region regionAt(RegionPos pos) {
+        int idx = RegionGrid.threadIndex(pos, regionThreads);
+        return regionsByThread[idx].computeIfAbsent(pos, p -> new Region(p, this));
+    }
 
-    public Map<Integer, Player> players() { return players; }
+    /** 디버그 소유권 가드: pos를 소유한 스레드서 호출 중인지 확인. */
+    public void assertOwns(RegionPos pos) {
+        ThreadOwner owner = (ThreadOwner) scheduler.region(pos);
+        assert owner.isOwnerThread()
+                : "region " + pos + " 를 비소유 스레드서 접근: " + Thread.currentThread().getName();
+    }
 
+    public FurnaceScheduler scheduler() { return scheduler; }
+    public WorldSource worldSource() { return worldSource; }
+    public ChunkWorkerPool chunkPool() { return chunkPool; }
+    public int regionSize() { return regionSize; }
     public int viewDistance() { return viewDistance; }
-
-    /** region 스레드서 매 틱 호출. */
-    public void tick() {
-        for (Player p : players.values()) {
-            try {
-                updateChunks(p);
-            } catch (Throwable t) {
-                log.error("[TICK] updateChunks 실패 eid={}", p.entityId(), t);
-            }
-        }
-        for (Player p : players.values()) {
-            try {
-                updateVisibility(p);
-            } catch (Throwable t) {
-                log.error("[TICK] updateVisibility 실패 eid={}", p.entityId(), t);
-            }
-        }
-    }
-
-    /** 플레이어 제거 + 그를 추적하던 모두에게 디스폰 전송(region 스레드). */
-    public void removePlayerAndBroadcast(int entityId) {
-        players.remove(entityId);
-        for (Player other : players.values()) {
-            if (other.tracked().remove(entityId) != null) {
-                other.send(new RemoveEntities(java.util.List.of(entityId)));
-            }
-        }
-    }
-
-    private void updateVisibility(Player a) {
-        double range = viewDistance * 16.0;
-        for (Player b : players.values()) {
-            if (b.entityId() == a.entityId()) continue;
-            boolean near = within(a, b, range);
-            boolean tracking = a.tracked().containsKey(b.entityId());
-            if (near && !tracking) {            // 신규 진입 → 스폰
-                a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
-                a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
-                a.send(new SetHeadRotation(b.entityId(), b.yaw()));
-                a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch()});
-            } else if (!near && tracking) {     // 이탈 → 제거
-                a.send(new RemoveEntities(java.util.List.of(b.entityId())));
-                a.tracked().remove(b.entityId());
-            } else if (near) {                  // 유지 → 이동 갱신
-                broadcastMove(a, b, a.tracked().get(b.entityId()));
-            }
-        }
-    }
-
-    private static boolean within(Player a, Player b, double range) {
-        double dx = a.x() - b.x();
-        double dz = a.z() - b.z();
-        return dx * dx + dz * dz <= range * range;
-    }
-
-    private void broadcastMove(Player a, Player b, double[] last) {
-        double ddx = b.x() - last[0], ddy = b.y() - last[1], ddz = b.z() - last[2];
-        boolean posChanged = ddx != 0 || ddy != 0 || ddz != 0;
-        boolean rotChanged = b.yaw() != last[3] || b.pitch() != last[4];
-        if (!posChanged && !rotChanged) return; // 변화 없으면 침묵(idle 스팸 방지)
-
-        boolean big = Math.abs(ddx) >= 8 || Math.abs(ddy) >= 8 || Math.abs(ddz) >= 8;
-        if (big) {
-            a.send(new TeleportEntity(b.entityId(), b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.onGround()));
-        } else if (posChanged) {
-            short sdx = (short) Math.round(ddx * 4096);
-            short sdy = (short) Math.round(ddy * 4096);
-            short sdz = (short) Math.round(ddz * 4096);
-            a.send(new MoveEntityPosRot(b.entityId(), sdx, sdy, sdz, b.yaw(), b.pitch(), b.onGround()));
-        } else {                                // 제자리 회전 → 몸통 yaw 갱신
-            a.send(new MoveEntityRot(b.entityId(), b.yaw(), b.pitch(), b.onGround()));
-        }
-        a.send(new SetHeadRotation(b.entityId(), b.yaw()));
-        last[0] = b.x(); last[1] = b.y(); last[2] = b.z(); last[3] = b.yaw(); last[4] = b.pitch();
-    }
-
-    private void updateChunks(Player p) {
-        ChunkPos center = p.chunkPos();
-        if (center.equals(p.lastCenter())) return; // 센터 안 바뀌면 no-op
-
-        // 새 반경 집합
-        List<ChunkPos> toLoad = new ArrayList<>();
-        for (int dx = -viewDistance; dx <= viewDistance; dx++) {
-            for (int dz = -viewDistance; dz <= viewDistance; dz++) {
-                ChunkPos cp = new ChunkPos(center.x() + dx, center.z() + dz);
-                if (!p.loadedChunks().contains(cp)) toLoad.add(cp);
-            }
-        }
-        // 언로드: 새 반경 밖
-        List<ChunkPos> toUnload = new ArrayList<>();
-        for (ChunkPos cp : p.loadedChunks()) {
-            if (Math.abs(cp.x() - center.x()) > viewDistance
-                    || Math.abs(cp.z() - center.z()) > viewDistance) {
-                toUnload.add(cp);
-            }
-        }
-
-        p.send(new SetCenterChunk(center.x(), center.z()));
-        streamLoads(p, toLoad);
-        for (ChunkPos cp : toUnload) {
-            p.send(new UnloadChunk(cp.x(), cp.z()));
-            p.loadedChunks().remove(cp);
-        }
-        p.lastCenter(center);
-    }
-
-    private void streamLoads(Player p, List<ChunkPos> toLoad) {
-        // 배치(ChunkBatchStart/Finished) 미사용: per-crossing 배치가 async 청크와 겹치면
-        // 클라 배칭이 중첩 Start로 깨진다. 로딩 화면은 GameEvent13가 처리하므로 배치 불필요.
-        for (ChunkPos cp : toLoad) {
-            p.loadedChunks().add(cp);
-            chunkPool.submit(() -> {
-                ChunkColumn col = worldSource.generate(cp.x(), cp.z());
-                ByteBuf body = Unpooled.buffer();
-                ChunkSerializer.serialize(body, cp.x(), cp.z(), col, blockDirectBits, biomeDirectBits);
-                return body;
-            }).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
-        }
-    }
+    public int blockDirectBits() { return blockDirectBits; }
+    public int biomeDirectBits() { return biomeDirectBits; }
 }

@@ -25,7 +25,7 @@ public final class FurnaceMain {
         Config config = ConfigLoader.load(Path.of("furnace.properties"));
         log.info("Furnace 부팅: name='{}', tickNanos={}", config.serverName(), config.tickNanos());
 
-        FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos());
+        FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         int plainsBiome = Math.max(0,
@@ -34,8 +34,9 @@ public final class FurnaceMain {
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
         World world = new World(new SuperflatWorldSource(blockRegistry, plainsBiome), chunkPool,
-                config.viewDistance(), blockRegistry.directBits(), biomeDirectBits);
-        scheduler.setRegionTick(i -> world.tick()); // Task 7서 world::tickThread로 교체
+                scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
+                blockRegistry.directBits(), biomeDirectBits);
+        scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), config.serverName(), scheduler,

@@ -29,6 +29,7 @@ import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.world.RegionGrid;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -153,11 +154,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 청크 전송 전 "대기 시작" 알림 — 없으면 클라가 로딩 화면서 30초 타임아웃.
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
 
-        // 플레이어를 World(region 소유)에 등록 — 첫 틱부터 청크/가시성 처리.
-        this.player = new Player(eid, playerUuid, playerName, ctx.channel());
-        this.player.applyMove(0, -60, 0, 0f, 0f, true);
-        Player p = this.player;
-        scheduler.region(new RegionPos(0, 0)).execute(() -> world.addPlayer(p));
+        // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
+        Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        p.publishPosition(0, -60, 0, 0f, 0f, true);
+        this.player = p;
+        RegionPos spawn = RegionGrid.regionPos(0, 0, world.regionSize());
+        scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
         scheduleKeepAlive();
     }
 
@@ -173,36 +175,30 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x1A -> { // move_player_pos: Double x,y,z, Boolean onGround
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 boolean g = frame.readBoolean();
-                marshalMove(x, y, z, player == null ? 0 : player.yaw(),
-                        player == null ? 0 : player.pitch(), g);
+                Player p = player;
+                if (p != null) p.publishPosition(x, y, z, p.yaw(), p.pitch(), g);
             }
             case 0x1B -> { // move_player_pos_rot: Double x,y,z, Float yaw,pitch, Boolean onGround
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
-                marshalMove(x, y, z, yaw, pitch, g);
+                Player p = player;
+                if (p != null) p.publishPosition(x, y, z, yaw, pitch, g);
             }
             case 0x1C -> { // move_player_rot: Float yaw,pitch, Boolean onGround
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null) scheduler.region(new RegionPos(0, 0)).execute(() -> p.applyRotation(yaw, pitch, g));
+                if (p != null) p.publishPosition(p.x(), p.y(), p.z(), yaw, pitch, g);
             }
             default -> { /* 그 외 무시 */ }
         }
     }
 
-    private void marshalMove(double x, double y, double z, float yaw, float pitch, boolean g) {
-        Player p = player;
-        if (p != null) scheduler.region(new RegionPos(0, 0)).execute(() -> p.applyMove(x, y, z, yaw, pitch, g));
-    }
-
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         Player p = player;
-        if (p != null) {
-            scheduler.region(new RegionPos(0, 0)).execute(() -> world.removePlayerAndBroadcast(p.entityId()));
-        }
+        if (p != null) p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
     }
 
     private void scheduleKeepAlive() {
