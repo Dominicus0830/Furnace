@@ -21,8 +21,12 @@ import org.domi.furnace.server.net.protocol.play.SpawnEntity;
 import org.domi.furnace.server.net.protocol.play.TeleportEntity;
 import org.domi.furnace.server.net.protocol.play.UnloadChunk;
 import org.domi.furnace.server.world.gen.WorldSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class World {
+
+    private static final Logger log = LoggerFactory.getLogger(World.class);
 
     private final WorldSource worldSource;
     private final ChunkWorkerPool chunkPool;
@@ -52,10 +56,18 @@ public final class World {
     /** region 스레드서 매 틱 호출. */
     public void tick() {
         for (Player p : players.values()) {
-            updateChunks(p);
+            try {
+                updateChunks(p);
+            } catch (Throwable t) {
+                log.error("[TICK] updateChunks 실패 eid={}", p.entityId(), t);
+            }
         }
         for (Player p : players.values()) {
-            updateVisibility(p);
+            try {
+                updateVisibility(p);
+            } catch (Throwable t) {
+                log.error("[TICK] updateVisibility 실패 eid={}", p.entityId(), t);
+            }
         }
     }
 

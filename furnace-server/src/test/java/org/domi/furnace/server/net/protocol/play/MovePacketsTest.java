@@ -35,13 +35,14 @@ class MovePacketsTest {
     }
 
     @Test
-    void unloadChunk_writesCoords() {
+    void unloadChunk_writesPackedLong() {
         UnloadChunk p = new UnloadChunk(3, -5);
         assertEquals(0x21, p.id());
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
-        assertEquals(3, buf.readInt());
-        assertEquals(-5, buf.readInt());
+        long packed = buf.readLong();
+        assertEquals(3, (int) (packed & 0xFFFFFFFFL)); // x = 하위 32비트
+        assertEquals(-5, (int) (packed >> 32));         // z = 상위 32비트
         buf.release();
     }
 
