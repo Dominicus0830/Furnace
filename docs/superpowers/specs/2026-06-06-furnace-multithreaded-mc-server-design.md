@@ -127,6 +127,7 @@ furnace/
 > 크기가 커 3개로 분해: **M3a**(플레이어 이동·멀티플레이 가시성, S1→S2, region 1개 틱) · **M3b**(region N개 분할·병렬 틱, S2→S3) · **M3c**(교차지역 핸드오프·원자연산 §4.5 확정). 각자 spec→plan→구현.
 > M3a 상세: `docs/superpowers/specs/2026-06-07-m3a-player-movement-design.md`
 > M3b 상세: `docs/superpowers/specs/2026-06-08-m3b-region-parallel-tick-design.md`
+> M3c 상세: `docs/superpowers/specs/2026-06-08-m3c-cross-region-visibility-design.md` (교차region 가시성=스냅샷. 교차region 원자 블록연산은 가변블록이 생기는 M4로 이동.)
 - 플레이어 엔티티, 이동 패킷, 위치 동기.
 - 엔티티 베이스 + region 내 틱.
 - 월드를 region으로 분할, 각 region이 자기 청크+엔티티 소유, 스레드풀서 병렬 틱.
