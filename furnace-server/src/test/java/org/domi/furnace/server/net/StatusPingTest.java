@@ -42,6 +42,7 @@ class StatusPingTest {
             String json = Types.readString(resp, 32767);
             assertTrue(json.contains("\"protocol\":767"), json);
             assertTrue(json.contains("Furnace Server"), json);
+            resp.release();
         } finally {
             server.stop();
         }
@@ -55,6 +56,8 @@ class StatusPingTest {
         framed.readBytes(arr);
         out.write(arr);
         out.flush();
+        framed.release();
+        body.release(); // 호출부가 소유권을 넘김
     }
 
     private static int readVarInt(InputStream in) throws Exception {
