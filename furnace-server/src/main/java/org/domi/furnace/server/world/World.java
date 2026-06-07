@@ -47,6 +47,8 @@ public final class World {
 
     public Map<Integer, Player> players() { return players; }
 
+    public int viewDistance() { return viewDistance; }
+
     /** region 스레드서 매 틱 호출. */
     public void tick() {
         for (Player p : players.values()) {

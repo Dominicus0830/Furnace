@@ -9,8 +9,10 @@ import org.domi.furnace.server.net.protocol.Packet;
  * @param entityId        플레이어 엔티티 id
  * @param dimensionName   차원 식별자(예: "minecraft:overworld")
  * @param dimensionType   dimension_type 레지스트리 내 인덱스(VarInt)
+ * @param viewDistance    서버가 실제 전송하는 청크 반경(클라 렌더 클램프). 전송량과 일치해야 공허 링이 안 생긴다.
  */
-public record LoginPlay(int entityId, String dimensionName, int dimensionType) implements Packet {
+public record LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance)
+        implements Packet {
 
     public static final int ID = 0x2B;
 
@@ -26,8 +28,8 @@ public record LoginPlay(int entityId, String dimensionName, int dimensionType) i
         Types.writeVarInt(buf, 1);       // Dimension count
         Types.writeString(buf, dimensionName); // Dimension names[0]
         Types.writeVarInt(buf, 20);      // Max players (무시됨)
-        Types.writeVarInt(buf, 10);      // View distance
-        Types.writeVarInt(buf, 10);      // Simulation distance
+        Types.writeVarInt(buf, viewDistance);      // View distance(전송량과 일치)
+        Types.writeVarInt(buf, viewDistance);      // Simulation distance
         buf.writeBoolean(false);         // Reduced debug info
         buf.writeBoolean(true);          // Enable respawn screen
         buf.writeBoolean(false);         // Do limited crafting

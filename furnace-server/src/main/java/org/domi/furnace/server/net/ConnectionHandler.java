@@ -146,7 +146,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int eid = idAllocator.next();
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
-        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex));
+        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
         // superflat 표면 grass at y=−61 → 플레이어는 그 위 y=−60에 선다.
         send(ctx, new SyncPlayerPosition(0, -60, 0, 1));
         send(ctx, new SetDefaultSpawnPosition(0, -60, 0));
