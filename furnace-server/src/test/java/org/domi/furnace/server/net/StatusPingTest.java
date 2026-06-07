@@ -9,8 +9,11 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.entity.EntityIdAllocator;
+import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.Test;
 
@@ -20,8 +23,10 @@ class StatusPingTest {
     void handshakeThenStatusRequest_returnsJsonWithProtocol767() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        World world = new World(new SuperflatWorldSource(reg, 0),
+                new ChunkWorkerPool(1), 2, reg.directBits(), 7);
         NetworkServer server = new NetworkServer(0, -1, "Furnace Server", sched,
-                new SuperflatWorldSource(reg, 0), 2, reg.directBits(), 7);
+                world, new EntityIdAllocator());
         int port = server.start();
         try (Socket s = new Socket()) {
             s.connect(new InetSocketAddress("127.0.0.1", port), 2000);

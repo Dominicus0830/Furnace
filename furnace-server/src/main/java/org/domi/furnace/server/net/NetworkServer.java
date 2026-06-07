@@ -13,7 +13,8 @@ import java.net.InetSocketAddress;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.server.net.io.FrameDecoder;
 import org.domi.furnace.server.net.io.FrameEncoder;
-import org.domi.furnace.server.world.gen.WorldSource;
+import org.domi.furnace.server.entity.EntityIdAllocator;
+import org.domi.furnace.server.world.World;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,28 +26,21 @@ public final class NetworkServer {
     private final int compressionThreshold;
     private final String serverName;
     private final FurnaceScheduler scheduler;
-    private final WorldSource worldSource;
-    private final int viewDistance;
-    private final int blockDirectBits;
-    private final int biomeDirectBits;
-    private final ChunkWorkerPool chunkPool;
+    private final World world;
+    private final EntityIdAllocator idAllocator;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel channel;
 
     public NetworkServer(int port, int compressionThreshold, String serverName,
-                         FurnaceScheduler scheduler, WorldSource worldSource,
-                         int viewDistance, int blockDirectBits, int biomeDirectBits) {
+                         FurnaceScheduler scheduler, World world, EntityIdAllocator idAllocator) {
         this.port = port;
         this.compressionThreshold = compressionThreshold;
         this.serverName = serverName;
         this.scheduler = scheduler;
-        this.worldSource = worldSource;
-        this.viewDistance = viewDistance;
-        this.blockDirectBits = blockDirectBits;
-        this.biomeDirectBits = biomeDirectBits;
-        this.chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
+        this.world = world;
+        this.idAllocator = idAllocator;
     }
 
     /** 서버 기동. 실제 바인딩된 포트 반환(port=0이면 OS 배정 포트). */
@@ -65,8 +59,7 @@ public final class NetworkServer {
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",
                                         new ConnectionHandler(serverName, compressionThreshold,
-                                                scheduler, worldSource, chunkPool,
-                                                viewDistance, blockDirectBits, biomeDirectBits));
+                                                scheduler, world, idAllocator));
                     }
                 });
         try {
@@ -83,7 +76,6 @@ public final class NetworkServer {
     }
 
     public void stop() {
-        chunkPool.shutdown();
         if (channel != null) channel.close().syncUninterruptibly();
         if (workerGroup != null) workerGroup.shutdownGracefully();
         if (bossGroup != null) bossGroup.shutdownGracefully();

@@ -6,9 +6,11 @@ import org.domi.furnace.server.config.ConfigLoader;
 import org.domi.furnace.server.net.NetworkServer;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.domi.furnace.server.entity.EntityIdAllocator;
+import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
-import org.domi.furnace.server.world.gen.WorldSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,16 +32,21 @@ public final class FurnaceMain {
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
-        WorldSource worldSource = new SuperflatWorldSource(blockRegistry, plainsBiome);
+        ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
+        World world = new World(new SuperflatWorldSource(blockRegistry, plainsBiome), chunkPool,
+                config.viewDistance(), blockRegistry.directBits(), biomeDirectBits);
+        scheduler.setRegionTick(world::tick);
+        EntityIdAllocator idAllocator = new EntityIdAllocator();
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), config.serverName(), scheduler,
-                worldSource, config.viewDistance(), blockRegistry.directBits(), biomeDirectBits);
+                world, idAllocator);
         CountDownLatch shutdown = new CountDownLatch(1);
 
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("종료 중...");
             network.stop();
+            chunkPool.shutdown();
             scheduler.close();
             shutdown.countDown();
         }, "furnace-shutdown"));

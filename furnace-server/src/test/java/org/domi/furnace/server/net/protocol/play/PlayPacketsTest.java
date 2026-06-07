@@ -10,7 +10,7 @@ class PlayPacketsTest {
 
     @Test
     void loginPlay_writesWithoutError() {
-        LoginPlay p = new LoginPlay(1, "minecraft:overworld", 0);
+        LoginPlay p = new LoginPlay(1, "minecraft:overworld", 0, 8);
         assertEquals(0x2B, p.id());
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
