@@ -10,10 +10,16 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
 
     private final GlobalThread global;
     private final RegionThread region; // M0: 모든 RegionPos가 이 하나에 매핑
+    private volatile Runnable regionTick = () -> {};
 
     public FurnaceSchedulerImpl(long tickNanos) {
         this.global = new GlobalThread("furnace-global");
-        this.region = new RegionThread("furnace-region-0", tickNanos, () -> {});
+        this.region = new RegionThread("furnace-region-0", tickNanos, () -> regionTick.run());
+    }
+
+    /** region 틱마다 실행할 콜백 등록(World.tick 연결용). */
+    public void setRegionTick(Runnable tick) {
+        this.regionTick = tick;
     }
 
     @Override
