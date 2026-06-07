@@ -13,14 +13,18 @@ class ConfigLoaderTest {
         Config c = ConfigLoader.load(dir.resolve("absent.properties"));
         assertEquals("Furnace Server", c.serverName());
         assertEquals(50_000_000L, c.tickNanos());
+        assertEquals(25565, c.port());
+        assertEquals(256, c.compressionThreshold());
     }
 
     @Test
     void load_overridesFromFile(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("furnace.properties");
-        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\n");
+        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\nport=25500\ncompression-threshold=-1\n");
         Config c = ConfigLoader.load(f);
         assertEquals("My Server", c.serverName());
         assertEquals(25_000_000L, c.tickNanos());
+        assertEquals(25500, c.port());
+        assertEquals(-1, c.compressionThreshold());
     }
 }

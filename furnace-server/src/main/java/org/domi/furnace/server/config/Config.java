@@ -1,7 +1,8 @@
 // 서버 런타임 설정 값
 package org.domi.furnace.server.config;
 
-public record Config(String serverName, long tickNanos) {
+public record Config(String serverName, long tickNanos, int port, int compressionThreshold) {
 
-    public static final Config DEFAULT = new Config("Furnace Server", 50_000_000L);
+    public static final Config DEFAULT =
+            new Config("Furnace Server", 50_000_000L, 25565, 256);
 }
