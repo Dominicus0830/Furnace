@@ -28,16 +28,17 @@ public final class RegistrySet {
             if (in == null) {
                 throw new IllegalStateException("레지스트리 리소스 없음: " + resourcePath);
             }
-            BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-            String line;
-            while ((line = r.readLine()) != null) {
-                line = line.strip();
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                int sp = line.indexOf(' ');
-                if (sp < 0) continue;
-                String registry = line.substring(0, sp);
-                String entry = line.substring(sp + 1).strip();
-                map.computeIfAbsent(registry, k -> new ArrayList<>()).add(entry);
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    line = line.strip();
+                    if (line.isEmpty() || line.startsWith("#")) continue;
+                    int sp = line.indexOf(' ');
+                    if (sp < 0) continue;
+                    String registry = line.substring(0, sp);
+                    String entry = line.substring(sp + 1).strip();
+                    map.computeIfAbsent(registry, k -> new ArrayList<>()).add(entry);
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
