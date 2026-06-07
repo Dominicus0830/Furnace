@@ -15,7 +15,7 @@ public record SetDefaultSpawnPosition(int x, int y, int z) implements Packet {
 
     @Override
     public void write(ByteBuf buf) {
-        // Position = (x<<38) | (z<<12 & 0x3FFFFFF) | (y & 0xFFF)
+        // Position = ((x & 0x3FFFFFF) << 38) | ((z & 0x3FFFFFF) << 12) | (y & 0xFFF)
         long encoded = ((long) (x & 0x3FFFFFF) << 38)
                 | ((long) (z & 0x3FFFFFF) << 12)
                 | (y & 0xFFF);
