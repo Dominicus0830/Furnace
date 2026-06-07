@@ -29,6 +29,9 @@ public final class ConfigLoader {
         int compression = Integer.parseInt(
                 props.getProperty("compression-threshold",
                         Integer.toString(Config.DEFAULT.compressionThreshold())));
-        return new Config(name, tick, port, compression);
+        int viewDistance = Integer.parseInt(
+                props.getProperty("view-distance",
+                        Integer.toString(Config.DEFAULT.viewDistance())));
+        return new Config(name, tick, port, compression, viewDistance);
     }
 }

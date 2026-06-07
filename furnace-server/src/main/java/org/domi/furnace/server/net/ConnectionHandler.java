@@ -2,6 +2,7 @@
 package org.domi.furnace.server.net;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import java.util.UUID;
@@ -18,13 +19,21 @@ import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
+import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
+import org.domi.furnace.server.net.protocol.play.GameEvent;
 import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
+import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
+import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
 import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.gen.WorldSource;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +46,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final String serverName;
     private final int compressionThreshold;
     private final FurnaceScheduler scheduler;
+    private final WorldSource worldSource;
+    private final ChunkWorkerPool chunkPool;
+    private final int viewDistance;
+    private final int blockDirectBits;
+    private final int biomeDirectBits;
 
     private volatile ChannelHandlerContext ctx;
     private final AtomicBoolean awaitingKeepAlive = new AtomicBoolean(false);
@@ -46,10 +60,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private String playerName;
     private UUID playerUuid;
 
-    public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler) {
+    public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
+                             WorldSource worldSource, ChunkWorkerPool chunkPool, int viewDistance,
+                             int blockDirectBits, int biomeDirectBits) {
         this.serverName = serverName;
         this.compressionThreshold = compressionThreshold;
         this.scheduler = scheduler;
+        this.worldSource = worldSource;
+        this.chunkPool = chunkPool;
+        this.viewDistance = viewDistance;
+        this.blockDirectBits = blockDirectBits;
+        this.biomeDirectBits = biomeDirectBits;
     }
 
     @Override
@@ -135,9 +156,39 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         send(ctx, new LoginPlay(1, "minecraft:overworld", dimIndex));
-        send(ctx, new SyncPlayerPosition(0, 64, 0, 1));
-        send(ctx, new SetDefaultSpawnPosition(0, 64, 0));
+        // superflat 표면 grass at y=−61 → 플레이어는 그 위 y=−60에 선다.
+        send(ctx, new SyncPlayerPosition(0, -60, 0, 1));
+        send(ctx, new SetDefaultSpawnPosition(0, -60, 0));
+        // 청크 전송 전 "대기 시작" 알림 — 없으면 클라가 로딩 화면서 30초 타임아웃.
+        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
+        sendChunks(ctx);
         scheduleKeepAlive();
+    }
+
+    private void sendChunks(ChannelHandlerContext ctx) {
+        send(ctx, new SetCenterChunk(0, 0));
+        int side = 2 * viewDistance + 1;
+        int total = side * side;
+        send(ctx, new ChunkBatchStart()); // 배치 시작 — 클라가 처리율 추정 시작
+        java.util.concurrent.atomic.AtomicInteger sent = new java.util.concurrent.atomic.AtomicInteger();
+        for (int cx = -viewDistance; cx <= viewDistance; cx++) {
+            for (int cz = -viewDistance; cz <= viewDistance; cz++) {
+                final int fx = cx;
+                final int fz = cz;
+                chunkPool.submit(() -> {
+                    ChunkColumn col = worldSource.generate(fx, fz);
+                    ByteBuf body = Unpooled.buffer();
+                    ChunkSerializer.serialize(body, fx, fz, col, blockDirectBits, biomeDirectBits);
+                    return body;
+                }).thenAccept(body ->
+                        ctx.channel().eventLoop().execute(() -> {
+                            send(ctx, new LevelChunkWithLight(body));
+                            if (sent.incrementAndGet() == total) {
+                                send(ctx, new ChunkBatchFinished(total)); // 모든 청크 후 배치 종료
+                            }
+                        }));
+            }
+        }
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {

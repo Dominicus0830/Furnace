@@ -4,7 +4,11 @@ package org.domi.furnace.server;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.config.ConfigLoader;
 import org.domi.furnace.server.net.NetworkServer;
+import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.domi.furnace.server.world.gen.WorldSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,8 +24,16 @@ public final class FurnaceMain {
         log.info("Furnace 부팅: name='{}', tickNanos={}", config.serverName(), config.tickNanos());
 
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos());
+        BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        int plainsBiome = Math.max(0,
+                registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
+        int biomeCount = registries.entries("minecraft:worldgen/biome").size();
+        int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
+        WorldSource worldSource = new SuperflatWorldSource(blockRegistry, plainsBiome);
         NetworkServer network = new NetworkServer(
-                config.port(), config.compressionThreshold(), config.serverName(), scheduler);
+                config.port(), config.compressionThreshold(), config.serverName(), scheduler,
+                worldSource, config.viewDistance(), blockRegistry.directBits(), biomeDirectBits);
         CountDownLatch shutdown = new CountDownLatch(1);
 
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
