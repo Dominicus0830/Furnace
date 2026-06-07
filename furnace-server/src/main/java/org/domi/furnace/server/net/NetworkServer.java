@@ -10,6 +10,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import java.net.InetSocketAddress;
+import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.server.net.io.FrameDecoder;
 import org.domi.furnace.server.net.io.FrameEncoder;
 import org.slf4j.Logger;
@@ -22,15 +23,17 @@ public final class NetworkServer {
     private final int port;
     private final int compressionThreshold;
     private final String serverName;
+    private final FurnaceScheduler scheduler;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel channel;
 
-    public NetworkServer(int port, int compressionThreshold, String serverName) {
+    public NetworkServer(int port, int compressionThreshold, String serverName, FurnaceScheduler scheduler) {
         this.port = port;
         this.compressionThreshold = compressionThreshold;
         this.serverName = serverName;
+        this.scheduler = scheduler;
     }
 
     /** 서버 기동. 실제 바인딩된 포트 반환(port=0이면 OS 배정 포트). */
@@ -47,7 +50,8 @@ public final class NetworkServer {
                         ch.pipeline()
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
-                                .addLast("handler", new ConnectionHandler(serverName));
+                                .addLast("handler",
+                                        new ConnectionHandler(serverName, compressionThreshold, scheduler));
                     }
                 });
         try {

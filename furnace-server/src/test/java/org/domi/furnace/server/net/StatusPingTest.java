@@ -9,13 +9,15 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.junit.jupiter.api.Test;
 
 class StatusPingTest {
 
     @Test
     void handshakeThenStatusRequest_returnsJsonWithProtocol767() throws Exception {
-        NetworkServer server = new NetworkServer(0, -1, "Furnace Server");
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L);
+        NetworkServer server = new NetworkServer(0, -1, "Furnace Server", sched);
         int port = server.start();
         try (Socket s = new Socket()) {
             s.connect(new InetSocketAddress("127.0.0.1", port), 2000);
@@ -45,6 +47,7 @@ class StatusPingTest {
             resp.release();
         } finally {
             server.stop();
+            sched.close();
         }
     }
 

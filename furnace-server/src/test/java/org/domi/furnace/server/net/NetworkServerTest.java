@@ -4,19 +4,22 @@ package org.domi.furnace.server.net;
 import static org.junit.jupiter.api.Assertions.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.junit.jupiter.api.Test;
 
 class NetworkServerTest {
 
     @Test
     void server_acceptsTcpConnection() throws Exception {
-        NetworkServer server = new NetworkServer(0, -1, "Furnace Server"); // port 0 = OS가 빈 포트 배정
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L);
+        NetworkServer server = new NetworkServer(0, -1, "Furnace Server", sched); // port 0 = OS가 빈 포트 배정
         int port = server.start();
         try (Socket s = new Socket()) {
             s.connect(new InetSocketAddress("127.0.0.1", port), 2000);
             assertTrue(s.isConnected());
         } finally {
             server.stop();
+            sched.close();
         }
     }
 }

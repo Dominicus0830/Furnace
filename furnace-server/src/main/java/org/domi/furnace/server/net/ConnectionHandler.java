@@ -5,6 +5,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import java.util.UUID;
+import org.domi.furnace.api.sched.FurnaceScheduler;
+import org.domi.furnace.server.net.io.CompressionDecoder;
+import org.domi.furnace.server.net.io.CompressionEncoder;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ConnectionState;
 import org.domi.furnace.server.net.protocol.Packet;
@@ -14,12 +17,15 @@ import org.domi.furnace.server.net.protocol.configuration.RegistryData;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
+import org.domi.furnace.server.net.protocol.login.SetCompression;
+import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
 import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.domi.furnace.server.net.registry.RegistrySet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,16 +35,26 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
 
     private final String serverName;
+    private final int compressionThreshold;
+    private final FurnaceScheduler scheduler;
+
+    private volatile ChannelHandlerContext ctx;
+    private final AtomicBoolean awaitingKeepAlive = new AtomicBoolean(false);
+    private volatile long lastKeepAliveId;
+
     private ConnectionState state = ConnectionState.HANDSHAKE;
     private String playerName;
     private UUID playerUuid;
 
-    public ConnectionHandler(String serverName) {
+    public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler) {
         this.serverName = serverName;
+        this.compressionThreshold = compressionThreshold;
+        this.scheduler = scheduler;
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf frame) {
+        this.ctx = ctx;
         int packetId = Types.readVarInt(frame);
         switch (state) {
             case HANDSHAKE -> handleHandshake(ctx, packetId, frame);
@@ -77,7 +93,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 LoginStart start = LoginStart.read(frame);
                 this.playerName = start.name();
                 this.playerUuid = LoginStart.offlineUuid(start.name());
-                // (압축은 Task 10에서: 여기서 Set Compression 전송 후 코덱 삽입)
+                if (compressionThreshold >= 0) {
+                    send(ctx, new SetCompression(compressionThreshold)); // 비압축으로 나감
+                    ctx.pipeline().addAfter("frameDecoder", "decompress",
+                            new CompressionDecoder(compressionThreshold));
+                    ctx.pipeline().addAfter("frameEncoder", "compress",
+                            new CompressionEncoder(compressionThreshold));
+                }
                 send(ctx, new LoginSuccess(playerUuid, playerName));
             }
             case 0x03 -> { // Login Acknowledged
@@ -115,14 +137,40 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new LoginPlay(1, "minecraft:overworld", dimIndex));
         send(ctx, new SyncPlayerPosition(0, 64, 0, 1));
         send(ctx, new SetDefaultSpawnPosition(0, 64, 0));
-        // KeepAlive는 Task 10에서 시작.
+        scheduleKeepAlive();
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> { /* Confirm Teleportation: teleportId 확인(현재는 무시) */ }
-            default -> { /* 그 외 play 패킷은 M1에서 무시 */ }
+            case 0x00 -> { /* Confirm Teleportation */ }
+            case 0x18 -> { // Keep Alive (serverbound)
+                long echoed = frame.readLong();
+                if (echoed == lastKeepAliveId) {
+                    awaitingKeepAlive.set(false);
+                }
+            }
+            default -> { /* 그 외 무시 */ }
         }
+    }
+
+    private void scheduleKeepAlive() {
+        // 타이밍은 global 스케줄러로(설계 결정), 실제 전송/검사는 채널 eventLoop로 되돌림.
+        scheduler.global().executeDelayed(() -> {
+            if (ctx == null || !ctx.channel().isActive()) return;
+            ctx.channel().eventLoop().execute(this::sendKeepAlive);
+        }, 300); // 15초(300틱)
+    }
+
+    private void sendKeepAlive() {
+        if (awaitingKeepAlive.get()) {
+            log.info("KeepAlive 응답 없음, 종료: {}", playerName);
+            ctx.close();
+            return;
+        }
+        lastKeepAliveId = System.nanoTime();
+        awaitingKeepAlive.set(true);
+        send(ctx, new KeepAliveClientbound(lastKeepAliveId));
+        scheduleKeepAlive(); // 다음 주기 재예약
     }
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */

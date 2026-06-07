@@ -21,7 +21,7 @@ public final class FurnaceMain {
 
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos());
         NetworkServer network = new NetworkServer(
-                config.port(), config.compressionThreshold(), config.serverName());
+                config.port(), config.compressionThreshold(), config.serverName(), scheduler);
         CountDownLatch shutdown = new CountDownLatch(1);
 
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
