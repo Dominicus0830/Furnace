@@ -6,7 +6,7 @@ import org.domi.furnace.server.net.protocol.Packet;
 
 public record KeepAliveClientbound(long keepAliveId) implements Packet {
 
-    public static final int ID = 0x27;
+    public static final int ID = 0x26;
 
     @Override
     public int id() {

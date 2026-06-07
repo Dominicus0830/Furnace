@@ -31,7 +31,7 @@ class PlayPacketsTest {
     @Test
     void setDefaultSpawn_writes() {
         SetDefaultSpawnPosition p = new SetDefaultSpawnPosition(0, 64, 0);
-        assertEquals(0x54, p.id());
+        assertEquals(0x56, p.id());
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
         assertTrue(buf.readableBytes() > 0);

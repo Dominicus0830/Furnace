@@ -6,7 +6,7 @@ import org.domi.furnace.server.net.protocol.Packet;
 
 public record SetDefaultSpawnPosition(int x, int y, int z) implements Packet {
 
-    public static final int ID = 0x54;
+    public static final int ID = 0x56;
 
     @Override
     public int id() {
