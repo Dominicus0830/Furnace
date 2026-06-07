@@ -11,7 +11,7 @@ class SchedulerTickHookTest {
     void setRegionTick_runsEachTick() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(10_000_000L); // 10ms 틱
         AtomicInteger ticks = new AtomicInteger();
-        sched.setRegionTick(ticks::incrementAndGet);
+        sched.setRegionTick(i -> ticks.incrementAndGet());
         Thread.sleep(120); // ~12틱
         sched.close();
         assertTrue(ticks.get() >= 3, "ticks=" + ticks.get());
