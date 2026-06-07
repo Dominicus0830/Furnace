@@ -14,6 +14,9 @@ import org.domi.furnace.server.net.protocol.configuration.RegistryData;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
+import org.domi.furnace.server.net.protocol.play.LoginPlay;
+import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
+import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -42,6 +45,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case STATUS -> handleStatus(ctx, packetId, frame);
             case LOGIN -> handleLogin(ctx, packetId, frame);
             case CONFIGURATION -> handleConfiguration(ctx, packetId, frame);
+            case PLAY -> handlePlay(ctx, packetId, frame);
             default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
     }
@@ -106,7 +110,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private void onEnterPlay(ChannelHandlerContext ctx) {
-        // Task 9에서 구현.
+        int dimIndex = Math.max(0,
+                REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
+        send(ctx, new LoginPlay(1, "minecraft:overworld", dimIndex));
+        send(ctx, new SyncPlayerPosition(0, 64, 0, 1));
+        send(ctx, new SetDefaultSpawnPosition(0, 64, 0));
+        // KeepAlive는 Task 10에서 시작.
+    }
+
+    private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
+        switch (packetId) {
+            case 0x00 -> { /* Confirm Teleportation: teleportId 확인(현재는 무시) */ }
+            default -> { /* 그 외 play 패킷은 M1에서 무시 */ }
+        }
     }
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
