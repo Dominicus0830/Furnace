@@ -128,6 +128,7 @@ furnace/
 > M3a 상세: `docs/superpowers/specs/2026-06-07-m3a-player-movement-design.md`
 > M3b 상세: `docs/superpowers/specs/2026-06-08-m3b-region-parallel-tick-design.md`
 > M3c 상세: `docs/superpowers/specs/2026-06-08-m3c-cross-region-visibility-design.md` (교차region 가시성=스냅샷. 교차region 원자 블록연산은 가변블록이 생기는 M4로 이동.)
+> M3d 상세: `docs/superpowers/specs/2026-06-08-m3d-entity-view-distance-design.md` (엔티티 가시 거리를 view-distance에서 분리. 시뮬레이션 거리(틱 범위)는 M4+로 미룸.)
 - 플레이어 엔티티, 이동 패킷, 위치 동기.
 - 엔티티 베이스 + region 내 틱.
 - 월드를 region으로 분할, 각 region이 자기 청크+엔티티 소유, 스레드풀서 병렬 틱.
