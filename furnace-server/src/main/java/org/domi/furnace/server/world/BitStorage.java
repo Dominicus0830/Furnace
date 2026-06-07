@@ -21,6 +21,19 @@ public final class BitStorage {
         this.data = new long[longCount];
     }
 
+    private BitStorage(int bitsPerEntry, int size, long[] data) {
+        this.bitsPerEntry = bitsPerEntry;
+        this.valuesPerLong = 64 / bitsPerEntry;
+        this.mask = (1L << bitsPerEntry) - 1;
+        this.size = size;
+        this.data = data;
+    }
+
+    /** 기존 long[]를 감싼다(읽기용). */
+    public static BitStorage wrap(int bitsPerEntry, int size, long[] data) {
+        return new BitStorage(bitsPerEntry, size, data);
+    }
+
     public void set(int index, int value) {
         int longIndex = index / valuesPerLong;
         int offset = (index % valuesPerLong) * bitsPerEntry;
