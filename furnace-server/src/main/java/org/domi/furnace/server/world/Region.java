@@ -12,6 +12,8 @@ import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.BlockUpdate;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
@@ -209,16 +211,28 @@ public final class Region {
     }
 
     private void streamLoads(Player p, List<ChunkPos> toLoad) {
+        if (toLoad.isEmpty()) return;
+        // 배치로 감싸 클라가 첫 배치 도착까지 물리 정지(스폰 낙하 방지).
+        p.send(new ChunkBatchStart());
+        List<CompletableFuture<?>> sends = new ArrayList<>(toLoad.size());
         for (ChunkPos cp : toLoad) {
             p.loadedChunks().add(cp);
             world.subscribeChunk(cp, p);
             // 청크 소유 region에서 스냅샷을 받아(단일 소유) pool서 직렬화 후 전송.
-            world.snapshotChunk(cp).thenCompose(snap -> world.chunkPool().submit(() -> {
+            CompletableFuture<?> f = world.snapshotChunk(cp).thenCompose(snap -> world.chunkPool().submit(() -> {
                 ByteBuf body = Unpooled.buffer();
                 ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
                 return body;
-            })).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
+            })).thenAccept(body -> p.send(new LevelChunkWithLight(body)))
+                    .exceptionally(ex -> {           // 실패해도 배치 닫아 클라 무한 로딩 방지
+                        org.slf4j.LoggerFactory.getLogger(Region.class)
+                                .warn("[CHUNK] 전송 실패 {}", cp, ex);
+                        return null;
+                    });
+            sends.add(f);
         }
+        CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
+                .thenRun(() -> p.send(new ChunkBatchFinished(toLoad.size())));
     }
 
     private void updateVisibility(Player a, List<EntityView> candidates) {
