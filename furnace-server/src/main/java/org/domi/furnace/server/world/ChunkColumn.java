@@ -9,6 +9,7 @@ public final class ChunkColumn {
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음)
+    private boolean dirty;
 
     public ChunkColumn(int biomeId) {
         for (int i = 0; i < SECTION_COUNT; i++) {
@@ -25,7 +26,11 @@ public final class ChunkColumn {
     public void setBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - MIN_Y;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        dirty = true;
     }
+
+    public boolean dirty() { return dirty; }
+    public void clearDirty() { dirty = false; }
 
     /** worldY 절대좌표 블록 조회. */
     public int getBlock(int x, int worldY, int z) {
