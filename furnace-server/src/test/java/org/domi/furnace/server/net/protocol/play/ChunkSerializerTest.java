@@ -7,6 +7,7 @@ import io.netty.buffer.Unpooled;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.ChunkSnapshot;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +18,7 @@ class ChunkSerializerTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 6).generate(3, -5);
         ByteBuf buf = Unpooled.buffer();
-        ChunkSerializer.serialize(buf, 3, -5, col, reg.directBits(), 7); // biomeDirectBits=7(128 biome 가정)
+        ChunkSerializer.serialize(buf, ChunkSnapshot.of(3, -5, col), reg.directBits(), 7); // biomeDirectBits=7(128 biome 가정)
 
         assertEquals(3, buf.readInt());   // chunkX
         assertEquals(-5, buf.readInt());  // chunkZ

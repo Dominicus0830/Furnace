@@ -6,7 +6,7 @@ import io.netty.buffer.Unpooled;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.world.ChunkColumn;
-import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.ChunkSnapshot;
 import org.domi.furnace.server.world.Palette;
 
 public final class ChunkSerializer {
@@ -15,20 +15,20 @@ public final class ChunkSerializer {
 
     private ChunkSerializer() {}
 
-    public static void serialize(ByteBuf buf, int chunkX, int chunkZ, ChunkColumn col,
+    public static void serialize(ByteBuf buf, ChunkSnapshot snap,
                                  int blockDirectBits, int biomeDirectBits) {
-        buf.writeInt(chunkX);
-        buf.writeInt(chunkZ);
+        buf.writeInt(snap.chunkX());
+        buf.writeInt(snap.chunkZ());
 
         // heightmap NBT
         NbtWriter nbt = new NbtWriter(buf);
         nbt.beginRootCompound();
-        nbt.writeLongArray("MOTION_BLOCKING", col.motionBlockingHeightmap());
+        nbt.writeLongArray("MOTION_BLOCKING", snap.heightmap());
         nbt.endCompound();
 
         // 섹션 데이터(별도 버퍼 후 길이 prefix)
         ByteBuf data = Unpooled.buffer();
-        for (ChunkSection s : col.sections()) {
+        for (ChunkSnapshot.Section s : snap.sections()) {
             data.writeShort(s.nonAirCount());
             Palette.write(data, s.blocks(), blockDirectBits, 4, 8);  // 블록
             Palette.write(data, s.biomes(), biomeDirectBits, 1, 3);  // 바이옴

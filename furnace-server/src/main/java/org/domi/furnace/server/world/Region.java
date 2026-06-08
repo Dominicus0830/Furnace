@@ -27,6 +27,7 @@ public final class Region {
     private final RegionPos pos;
     private final World world;
     private final Map<Integer, Player> players = new HashMap<>();
+    private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
 
     public Region(RegionPos pos, World world) {
         this.pos = pos;
@@ -35,6 +36,11 @@ public final class Region {
 
     public RegionPos pos() { return pos; }
     public Map<Integer, Player> players() { return players; }
+
+    /** 소유 스레드서 청크 get-or-load(보관). */
+    public ChunkColumn chunkAt(ChunkPos cp) {
+        return chunks.computeIfAbsent(cp, p -> world.worldSource().generate(p.x(), p.z()));
+    }
 
     /** 소유 스레드서 플레이어 편입. */
     public void adopt(Player p) {
@@ -52,6 +58,7 @@ public final class Region {
             Player p = it.next();
             if (p.isDisconnected()) {
                 it.remove();
+                for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
                 broadcastRemove(p.entityId());
                 continue;
             }
@@ -111,6 +118,7 @@ public final class Region {
         for (ChunkPos cp : toUnload) {
             p.send(new UnloadChunk(cp.x(), cp.z()));
             p.loadedChunks().remove(cp);
+            world.unsubscribeChunk(cp, p);
         }
         p.lastCenter(center);
     }
@@ -118,11 +126,11 @@ public final class Region {
     private void streamLoads(Player p, List<ChunkPos> toLoad) {
         for (ChunkPos cp : toLoad) {
             p.loadedChunks().add(cp);
+            world.subscribeChunk(cp, p);
+            ChunkSnapshot snap = ChunkSnapshot.of(cp.x(), cp.z(), chunkAt(cp)); // region 스레드서 카피
             world.chunkPool().submit(() -> {
-                ChunkColumn col = world.worldSource().generate(cp.x(), cp.z());
                 ByteBuf body = Unpooled.buffer();
-                ChunkSerializer.serialize(body, cp.x(), cp.z(), col,
-                        world.blockDirectBits(), world.biomeDirectBits());
+                ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
                 return body;
             }).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
         }
