@@ -2,6 +2,7 @@
 package org.domi.furnace.server.net;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import java.util.UUID;
@@ -18,8 +19,12 @@ import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
+import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
+import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.GameEvent;
 import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
+import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
 import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
@@ -29,6 +34,8 @@ import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.world.ChunkPos;
+import org.domi.furnace.server.world.ChunkSnapshot;
 import org.domi.furnace.server.world.RegionGrid;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,6 +61,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private String playerName;
     private UUID playerUuid;
     private Player player; // play 진입 후 생성
+    // 스폰 텔레포트 게이트 ID(-1=해제). 설정 중엔 클라 이동 무시(vanilla awaitingPositionFromClient식) — 청크 로드 갭 중 떨어진 위치 수용 방지.
+    // confirm이 아니라 스폰 청크 도착 후(타이머)에 해제 + 위치 재확정.
+    private int pendingTeleportId = -1;
+    private double spawnX, spawnY, spawnZ;
+    private float spawnYaw, spawnPitch;
 
     public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
                              World world, EntityIdAllocator idAllocator) {
@@ -155,23 +167,62 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         double sz = saved != null ? saved[2] : 0;
         float syaw = saved != null ? (float) saved[3] : 0f;
         float spitch = saved != null ? (float) saved[4] : 0f;
-        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
-        send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
-        // 청크 전송 전 "대기 시작" 알림 — 없으면 클라가 로딩 화면서 30초 타임아웃.
+        sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
+        spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
+        // GE13 먼저 — 클라가 "청크 대기" 상태(로딩화면 정지)에 들어간 뒤 위치를 받게 해 위치-유발 중력 억제.
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
+        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
+        pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
+        send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
 
         // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         this.player = p;
+        // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
+        // adopt 전이라 p.loadedChunks는 이 스레드 전용(레이스 없음). region streamLoads는 이미 로드된 중앙을 건너뜀.
+        ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
+        try {
+            ChunkSnapshot snap = world.snapshotChunk(centerCp).get(2, java.util.concurrent.TimeUnit.SECONDS);
+            ByteBuf body = Unpooled.buffer();
+            ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
+            send(ctx, new ChunkBatchStart());
+            send(ctx, new LevelChunkWithLight(body));
+            send(ctx, new ChunkBatchFinished(1));
+            p.loadedChunks().add(centerCp);
+            world.subscribeChunk(centerCp, p);
+        } catch (Exception e) {
+            log.warn("스폰 청크 동기 전송 실패 {}", centerCp, e);
+        }
         RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
         scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
         scheduleKeepAlive();
+        scheduleSpawnGateRelease();
+    }
+
+    /** 게이트 해제 fallback(6틱) — 보통 confirm(0x00)이 먼저 해제. confirm 유실 시 위치 재확정 후 해제. */
+    private void scheduleSpawnGateRelease() {
+        scheduler.global().executeDelayed(() -> {
+            if (ctx == null || !ctx.channel().isActive()) return;
+            ctx.channel().eventLoop().execute(this::releaseSpawnGate);
+        }, 6);
+    }
+
+    private void releaseSpawnGate() {
+        if (pendingTeleportId == -1) return;
+        // 스폰 좌표로 위치 재확정(클라가 갭 중 떨어졌으면 끌어올림) 후 클라 이동 수용 시작.
+        send(ctx, new SyncPlayerPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, 2));
+        pendingTeleportId = -1;
+        Player p = player;
+        if (p != null) p.publishPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, true);
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> { /* Confirm Teleportation */ }
+            case 0x00 -> { // Confirm Teleportation: 일치하면 즉시 게이트 해제(스폰 청크 동기 전송됐으므로 안전)
+                int tpId = Types.readVarInt(frame);
+                if (tpId == pendingTeleportId) pendingTeleportId = -1;
+            }
             case 0x18 -> { // Keep Alive (serverbound)
                 long echoed = frame.readLong();
                 if (echoed == lastKeepAliveId) {
@@ -182,20 +233,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null) p.publishPosition(x, y, z, p.yaw(), p.pitch(), g);
+                if (p != null && pendingTeleportId == -1) p.publishPosition(x, y, z, p.yaw(), p.pitch(), g);
             }
             case 0x1B -> { // move_player_pos_rot: Double x,y,z, Float yaw,pitch, Boolean onGround
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null) p.publishPosition(x, y, z, yaw, pitch, g);
+                if (p != null && pendingTeleportId == -1) p.publishPosition(x, y, z, yaw, pitch, g);
             }
             case 0x1C -> { // move_player_rot: Float yaw,pitch, Boolean onGround
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null) p.publishPosition(p.x(), p.y(), p.z(), yaw, pitch, g);
+                if (p != null && pendingTeleportId == -1) p.publishPosition(p.x(), p.y(), p.z(), yaw, pitch, g);
             }
             case 0x24 -> { // player_action (digging)
                 int status = Types.readVarInt(frame);

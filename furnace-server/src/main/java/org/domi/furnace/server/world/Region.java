@@ -30,6 +30,8 @@ public final class Region {
 
     // 추적 엔티티가 후보 스냅샷서 사라진 뒤 despawn까지 견디는 틱 수(핸드오프 갭 흡수).
     private static final int ENTITY_DESPAWN_GRACE = 3;
+    // 틱당 전송 청크 수 상한(vanilla PlayerChunkSender식 스로틀; 스폰 청크 우선 도착 보장).
+    private static final int CHUNKS_PER_TICK = 16;
 
     private final RegionPos pos;
     private final World world;
@@ -157,6 +159,7 @@ public final class Region {
                 continue;
             }
             updateChunks(p);
+            sendQueuedChunks(p);
         }
         // 자기 플레이어 스냅샷 공개(불변 리스트).
         List<EntityView> views = new ArrayList<>(players.size());
@@ -187,35 +190,37 @@ public final class Region {
         }
     }
 
+    /** 중심 이동 시 시야 청크를 pending 큐에 적재(+구독), 시야 밖은 언로드. 전송은 sendQueuedChunks가 틱당 스로틀. */
     private void updateChunks(Player p) {
         ChunkPos center = p.chunkPos();
         if (center.equals(p.lastCenter())) return;
         int vd = world.viewDistance();
-        List<ChunkPos> toLoad = new ArrayList<>();
         for (int dx = -vd; dx <= vd; dx++) {
             for (int dz = -vd; dz <= vd; dz++) {
                 ChunkPos cp = new ChunkPos(center.x() + dx, center.z() + dz);
-                if (!p.loadedChunks().contains(cp)) toLoad.add(cp);
+                if (p.loadedChunks().add(cp)) {   // 새로 시야 진입
+                    world.subscribeChunk(cp, p);
+                    p.pendingChunks().add(cp);    // 전송 대기열(아직 미전송)
+                }
             }
         }
-        List<ChunkPos> toUnload = new ArrayList<>();
-        for (ChunkPos cp : p.loadedChunks()) {
+        List<ChunkPos> toForget = new ArrayList<>();
+        var it = p.loadedChunks().iterator();
+        while (it.hasNext()) {
+            ChunkPos cp = it.next();
             if (Math.abs(cp.x() - center.x()) > vd || Math.abs(cp.z() - center.z()) > vd) {
-                toUnload.add(cp);
+                it.remove();
+                world.unsubscribeChunk(cp, p);
+                // 아직 안 보낸(pending) 청크면 forget 패킷 불필요 — 큐서만 제거.
+                if (!p.pendingChunks().remove(cp)) toForget.add(cp);
             }
         }
-        orderNearestFirst(center, toLoad);
         p.send(new SetCenterChunk(center.x(), center.z()));
-        streamLoads(p, toLoad);
-        for (ChunkPos cp : toUnload) {
-            p.send(new UnloadChunk(cp.x(), cp.z()));
-            p.loadedChunks().remove(cp);
-            world.unsubscribeChunk(cp, p);
-        }
+        for (ChunkPos cp : toForget) p.send(new UnloadChunk(cp.x(), cp.z()));
         p.lastCenter(center);
     }
 
-    /** toLoad를 중심 청크 거리 오름차순 정렬 — 스폰/근접 청크 먼저 전송해 클라가 즉시 "로드된 청크"에 스폰(낙하 방지). */
+    /** chunks를 중심 거리 오름차순 정렬 — 스폰/근접 청크 먼저 전송해 클라가 즉시 "로드된 청크"에 스폰(낙하 방지). */
     static void orderNearestFirst(ChunkPos center, List<ChunkPos> chunks) {
         chunks.sort(java.util.Comparator.comparingInt(cp -> {
             int dx = cp.x() - center.x(), dz = cp.z() - center.z();
@@ -223,14 +228,19 @@ public final class Region {
         }));
     }
 
-    private void streamLoads(Player p, List<ChunkPos> toLoad) {
-        if (toLoad.isEmpty()) return;
-        // 배치로 감싸 클라가 첫 배치 도착까지 물리 정지(스폰 낙하 방지).
+    /** 매 틱: pending 큐서 최대 CHUNKS_PER_TICK개를 nearest-first로 한 배치 전송(vanilla PlayerChunkSender식 스로틀).
+     *  스폰 청크가 첫 틱 소량 배치에 들어가 빨리 도착 → 클라가 즉시 안착(289개 일괄 async fan-out 회피). */
+    private void sendQueuedChunks(Player p) {
+        if (p.pendingChunks().isEmpty()) return;
+        ChunkPos center = p.chunkPos();
+        List<ChunkPos> batch = new ArrayList<>(p.pendingChunks());
+        orderNearestFirst(center, batch);
+        if (batch.size() > CHUNKS_PER_TICK) batch = batch.subList(0, CHUNKS_PER_TICK);
+        p.pendingChunks().removeAll(batch);
+
         p.send(new ChunkBatchStart());
-        List<CompletableFuture<?>> sends = new ArrayList<>(toLoad.size());
-        for (ChunkPos cp : toLoad) {
-            p.loadedChunks().add(cp);
-            world.subscribeChunk(cp, p);
+        List<CompletableFuture<?>> sends = new ArrayList<>(batch.size());
+        for (ChunkPos cp : batch) {
             // 청크 소유 region에서 스냅샷을 받아(단일 소유) pool서 직렬화 후 전송.
             CompletableFuture<?> f = world.snapshotChunk(cp).thenCompose(snap -> world.chunkPool().submit(() -> {
                 ByteBuf body = Unpooled.buffer();
@@ -244,8 +254,9 @@ public final class Region {
                     });
             sends.add(f);
         }
+        int n = batch.size();
         CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
-                .thenRun(() -> p.send(new ChunkBatchFinished(toLoad.size())));
+                .thenRun(() -> p.send(new ChunkBatchFinished(n)));
     }
 
     private void updateVisibility(Player a, List<EntityView> candidates) {

@@ -27,6 +27,7 @@ public final class Player {
 
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
+    private final Set<ChunkPos> pendingChunks = new HashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(틱당 스로틀 전송). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
 
@@ -99,6 +100,7 @@ public final class Player {
     public ChunkPos lastCenter() { return lastCenter; }
     public void lastCenter(ChunkPos c) { this.lastCenter = c; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
+    public Set<ChunkPos> pendingChunks() { return pendingChunks; }
     public Map<Integer, double[]> tracked() { return tracked; }
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
 }
