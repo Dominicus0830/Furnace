@@ -19,7 +19,7 @@ class HandoffVisibilityTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         // regionSize 1 → 16블록 셀. A·B 처음 같은 region(0,0).
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
-                sched, sched.regionThreadCount(), 1, 8, 8, reg.directBits(), 7);
+                sched, sched.regionThreadCount(), 1, 8, 8, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
         RegionPos r00 = new RegionPos(0, 0);
         Player a = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
         a.applyMove(0, -60, 0, 0, 0, true);

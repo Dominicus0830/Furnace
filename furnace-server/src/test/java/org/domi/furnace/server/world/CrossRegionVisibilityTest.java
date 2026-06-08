@@ -18,7 +18,7 @@ class CrossRegionVisibilityTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
-                sched, sched.regionThreadCount(), 1, 5, 5, reg.directBits(), 7); // regionSize 1 → 16블록
+                sched, sched.regionThreadCount(), 1, 5, 5, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor()); // regionSize 1 → 16블록
         // A는 region(0,0), B는 region(1,0) — 다른 region이지만 16블록 거리(view 5청크=80블록 내)
         Player a = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
         a.applyMove(0, -60, 0, 0, 0, true);

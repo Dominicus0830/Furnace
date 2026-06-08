@@ -16,7 +16,7 @@ class SnapshotRegistryTest {
     private static World world(FurnaceSchedulerImpl sched, int regionSize, int viewDistance, int entityViewDistance) {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
-                sched, sched.regionThreadCount(), regionSize, viewDistance, entityViewDistance, reg.directBits(), 7);
+                sched, sched.regionThreadCount(), regionSize, viewDistance, entityViewDistance, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
     }
 
     @Test

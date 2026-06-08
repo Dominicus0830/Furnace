@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.Player;
@@ -29,6 +30,7 @@ public final class Region {
     private final World world;
     private final Map<Integer, Player> players = new HashMap<>();
     private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
+    private final Map<ChunkPos, CompletableFuture<ChunkColumn>> loading = new HashMap<>();
 
     public Region(RegionPos pos, World world) {
         this.pos = pos;
@@ -38,9 +40,32 @@ public final class Region {
     public RegionPos pos() { return pos; }
     public Map<Integer, Player> players() { return players; }
 
-    /** 소유 스레드서 청크 get-or-load(보관). */
+    /** 소유 스레드서 로드된 청크 반환. 없으면 동기 generate 폴백(편집은 로드된 청크 대상). */
     public ChunkColumn chunkAt(ChunkPos cp) {
-        return chunks.computeIfAbsent(cp, p -> world.worldSource().generate(p.x(), p.z()));
+        return chunks.computeIfAbsent(cp, p -> {
+            ChunkColumn c = world.worldSource().generate(p.x(), p.z());
+            c.clearDirty();
+            return c;
+        });
+    }
+
+    /** 소유 스레드서 비동기 청크 로드(IO 풀 read+decode). in-flight dedup. */
+    public CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp) {
+        world.assertOwns(pos);
+        ChunkColumn present = chunks.get(cp);
+        if (present != null) return CompletableFuture.completedFuture(present);
+        CompletableFuture<ChunkColumn> inflight = loading.get(cp);
+        if (inflight != null) return inflight;
+        CompletableFuture<ChunkColumn> f = CompletableFuture
+                .supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.ioPool())
+                .thenApplyAsync(col -> {
+                    col.clearDirty();
+                    chunks.put(cp, col);
+                    loading.remove(cp);
+                    return col;
+                }, r -> world.scheduler().region(pos).execute(r));
+        loading.put(cp, f);
+        return f;
     }
 
     /** 소유 스레드서 블록 파괴(air) + 청크 구독자에게 BlockUpdate. */

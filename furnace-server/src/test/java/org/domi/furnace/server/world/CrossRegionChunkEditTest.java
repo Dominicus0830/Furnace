@@ -16,7 +16,7 @@ class CrossRegionChunkEditTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         // regionSize 1 → chunk (5,0)은 region (5,0) 소유, 다른 스레드(floorMod(5*31,4)=3)
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
-                sched, sched.regionThreadCount(), 1, 8, 8, reg.directBits(), 7);
+                sched, sched.regionThreadCount(), 1, 8, 8, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
         ChunkPos cp = new ChunkPos(5, 0);
         int bx = 5 * 16, by = -61, bz = 0; // 청크 (5,0) 안의 블록
         RegionPos owner = RegionGrid.regionPosOfChunk(5, 0, 1);

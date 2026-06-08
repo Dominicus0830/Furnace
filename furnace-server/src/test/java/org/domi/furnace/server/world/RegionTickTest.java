@@ -16,7 +16,7 @@ class RegionTickTest {
     private static World world(FurnaceSchedulerImpl sched) {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2),
-                sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7);
+                sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
     }
 
     @Test

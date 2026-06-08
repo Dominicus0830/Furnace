@@ -33,9 +33,11 @@ public final class FurnaceMain {
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
+        java.util.concurrent.ExecutorService ioPool =
+                java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
         World world = new World(new SuperflatWorldSource(blockRegistry, plainsBiome), chunkPool,
                 scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
-                config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits);
+                config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool);
         scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         NetworkServer network = new NetworkServer(

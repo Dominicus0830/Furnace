@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.api.sched.RegionPos;
@@ -27,6 +28,7 @@ public final class World {
     private final int entityViewDistance;
     private final int blockDirectBits;
     private final int biomeDirectBits;
+    private final ExecutorService ioPool;
 
     // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
     private final Map<RegionPos, Region>[] regionsByThread;
@@ -40,8 +42,9 @@ public final class World {
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
                  int regionThreads, int regionSize, int viewDistance, int entityViewDistance,
-                 int blockDirectBits, int biomeDirectBits) {
+                 int blockDirectBits, int biomeDirectBits, ExecutorService ioPool) {
         this.worldSource = worldSource;
+        this.ioPool = ioPool;
         this.chunkPool = chunkPool;
         this.scheduler = scheduler;
         this.regionThreads = regionThreads;
@@ -72,8 +75,11 @@ public final class World {
      */
     public CompletableFuture<ChunkSnapshot> snapshotChunk(ChunkPos cp) {
         RegionPos owner = RegionGrid.regionPosOfChunk(cp.x(), cp.z(), regionSize);
-        return scheduler.region(owner).submit(() ->
-                ChunkSnapshot.of(cp.x(), cp.z(), regionAt(owner).chunkAt(cp)));
+        return scheduler.region(owner)
+                .submit(() -> regionAt(owner).loadChunk(cp))
+                .thenCompose(f -> f)
+                .thenApplyAsync(col -> ChunkSnapshot.of(cp.x(), cp.z(), col),
+                        r -> scheduler.region(owner).execute(r));
     }
 
     /** pos의 region을 그 소유 스레드서 get/create. */
@@ -133,6 +139,7 @@ public final class World {
         return Math.min(entityViewDistance, viewDistance);
     }
 
+    public ExecutorService ioPool() { return ioPool; }
     public FurnaceScheduler scheduler() { return scheduler; }
     public WorldSource worldSource() { return worldSource; }
     public ChunkWorkerPool chunkPool() { return chunkPool; }

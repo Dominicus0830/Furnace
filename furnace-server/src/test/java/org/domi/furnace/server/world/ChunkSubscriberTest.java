@@ -18,7 +18,7 @@ class ChunkSubscriberTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
-                sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7);
+                sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
         Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
         ChunkPos cp = new ChunkPos(0, 0);
         assertTrue(w.subscribers(cp).isEmpty());
