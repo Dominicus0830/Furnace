@@ -137,13 +137,21 @@ furnace/
 - ✅ verify: 서로 다른 region의 두 플레이어가 다른 스레드서 틱(스레드 id 단언), 경계 넘어도 크래시/레이스 없음, 스트레스 테스트 통과.
 
 ### M4 — 상호작용 + 게임플레이 코어 + 영속성
-> 크기가 커 분해: **M4a**(가변 블록=파괴 + region 청크 소유 + 교차region 블록 브로드캐스트) · **M4b**(Anvil read+write 영속성 + 청크 퇴출 + 플레이어 위치 + 바닐라 월드 로드[속성 근사]) · **M4c**(인벤토리/아이템/블록엔티티 + 블록 설치) · **M4d**(팰릿 속성 정확 — 전체 state 테이블 + 속성인식 레지스트리, 방향성 블록 정확). 순서 a→b→c, M4d는 독립(언제든). 물리 전파·교차region 원자연산(§4.5)은 M5.
+> 크기가 커 분해: **M4a**(가변 블록=파괴 + region 청크 소유 + 교차region 블록 브로드캐스트) · **M4b**(Anvil read+write 영속성 + 청크 퇴출 + 플레이어 위치 + 바닐라 월드 로드[속성 근사]) · **M4c**(인벤토리/아이템/블록엔티티 + 블록 설치; **M4c-1** 크리에이티브 블록설치 → **M4c-2** 인벤/아이템스택 → **M4c-3** 블록엔티티/컨테이너) · **M4g**(절차적 월드 생성, 아래) · **M4d**(팰릿 속성 정확 — 전체 state 테이블 + 속성인식 레지스트리, 방향성 블록 정확). **실행 순서: a→b→c-1→M4g→c-2→c-3**, M4d는 독립(언제든). 물리 전파·교차region 원자연산(§4.5)은 M5.
 > M4a 상세: `docs/superpowers/specs/2026-06-08-m4a-mutable-blocks-design.md`
 > M4b 상세: `docs/superpowers/specs/2026-06-08-m4b-anvil-persistence-design.md`
 - 블록 파괴/설치, 블록 업데이트.
 - 인벤토리 + 아이템 처리(기본), 블록 엔티티.
 - 영속성. 청크/플레이어 저장 = **Anvil read+write 한 단위**(NBT reader 도입, M2 write와 합쳐 완성). 기존 월드 .mca 로드 + 저장 라운드트립.
 - ✅ verify: 설치/파괴가 재시작 후 유지, 월드 save/load 라운드트립 일치.
+
+### M4g — 절차적 월드 생성 (바닐라 시드 일치)
+> 실행 순서: M4c-1 다음, M4c-2 전. 크기가 매우 커 도달 시 자체 spec서 분해: **M4g-a** 기본 노이즈 지형 → **b** multi-noise 바이옴 → **c** surface rule + carver(동굴/협곡) + aquifer + 광맥 → **d** features(나무/식생/광석 등 configured+placed) → **e** 구조물(jigsaw 마을 등).
+- **목표 = 시드 비트 일치.** 같은 시드 → 바닐라 마크(싱글플레이/Paper)와 **똑같은 월드** 생성(지형·바이옴·생태·구조물). vanilla-like 근사 아님.
+- **방식 = 알고리즘 비트정확 재구현 + 바닐라 데이터팩 데이터 주입.** 노이즈(XoroshiroRandomSource/LegacyRandomSource 비트단위 시딩), density function 평가 그래프, multi-noise 기후→바이옴, surface rule, carver, feature 시드(setFeatureSeed), 구조물 배치를 바닐라와 동일하게 구현([[mc-vanilla-decompiled-source]] 정독). 데이터(density_functions/noise_settings/biome climate/surface_rules/feature 목록/structure)는 손하드코딩 X — 바닐라 worldgen 데이터팩서 추출(M2 블록/레지스트리 distill 방식). 알고리즘=재구현, 데이터=추출, 둘 다 정확해야 시드 일치.
+- **멀티스레드(최적화 정체성):** ① 오프스레드 생성(gen 워커풀, region 틱 비차단 — 기존 IO풀 async 패턴) ② 스테이지 파이프라인(바닐라 청크 status: empty→biomes→noise→surface→carvers→features→light→full; features는 이웃 8청크 의존 → 의존성 그래프 비동기, C2ME식) ③ 노이즈 셀 보간(4×8×4 셀 샘플 후 삼선형, 블록단위 노이즈 회피=최대 이득) ④ density function 컴파일/플래튼 + 캐시(FlatCache/Cache2D) ⑤ Vector API(SIMD 노이즈) ⑥ thread-local 버퍼 재사용(할당 0 지향) ⑦ 위치기반 시드라 순서무관 병렬 ⑧ 바이옴 quart 캐시, ForkJoin work-stealing.
+- AnvilWorldSource의 superflat 폴백을 이 생성기로 교체(WorldSource 구현, 인터페이스 자리는 M2에 있음).
+- ✅ verify: 알려진 바닐라 시드로 생성 → 바닐라 클라/싱글플레이 월드와 청크 비교 일치(스폿 좌표 블록·바이옴·구조물 위치).
 
 ### M5 — 엔티티/AI + 조명 + 확장 게임플레이
 - 조명 엔진(오프스레드).
