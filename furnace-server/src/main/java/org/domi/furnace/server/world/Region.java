@@ -137,12 +137,12 @@ public final class Region {
         for (ChunkPos cp : toLoad) {
             p.loadedChunks().add(cp);
             world.subscribeChunk(cp, p);
-            ChunkSnapshot snap = ChunkSnapshot.of(cp.x(), cp.z(), chunkAt(cp)); // region 스레드서 카피
-            world.chunkPool().submit(() -> {
+            // 청크 소유 region에서 스냅샷을 받아(단일 소유) pool서 직렬화 후 전송.
+            world.snapshotChunk(cp).thenCompose(snap -> world.chunkPool().submit(() -> {
                 ByteBuf body = Unpooled.buffer();
                 ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
                 return body;
-            }).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
+            })).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
         }
     }
 

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.sched.FurnaceScheduler;
@@ -63,6 +64,16 @@ public final class World {
                         .error("[TICK] region {} 실패", r.pos(), t);
             }
         }
+    }
+
+    /**
+     * 청크의 canonical 불변 스냅샷을 비동기로 반환. 청크 소유 region 스레드서
+     * get-or-load 후 스냅샷을 떠 — 단일 소유 보장(교차region 로더도 같은 청크를 본다).
+     */
+    public CompletableFuture<ChunkSnapshot> snapshotChunk(ChunkPos cp) {
+        RegionPos owner = RegionGrid.regionPosOfChunk(cp.x(), cp.z(), regionSize);
+        return scheduler.region(owner).submit(() ->
+                ChunkSnapshot.of(cp.x(), cp.z(), regionAt(owner).chunkAt(cp)));
     }
 
     /** pos의 region을 그 소유 스레드서 get/create. */

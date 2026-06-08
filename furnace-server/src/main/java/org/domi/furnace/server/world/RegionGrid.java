@@ -14,6 +14,11 @@ public final class RegionGrid {
         return new RegionPos(Math.floorDiv(chunkX, regionSize), Math.floorDiv(chunkZ, regionSize));
     }
 
+    /** 청크 좌표 → 그 청크를 소유한 region 좌표. */
+    public static RegionPos regionPosOfChunk(int chunkX, int chunkZ, int regionSize) {
+        return new RegionPos(Math.floorDiv(chunkX, regionSize), Math.floorDiv(chunkZ, regionSize));
+    }
+
     /** RegionPos → 스레드 인덱스 [0, n). 결정적. */
     public static int threadIndex(RegionPos pos, int n) {
         return Math.floorMod(pos.x() * 31 + pos.z(), n);
