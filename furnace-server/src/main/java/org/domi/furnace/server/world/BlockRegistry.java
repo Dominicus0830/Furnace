@@ -14,10 +14,13 @@ public final class BlockRegistry {
 
     private final Map<String, Integer> defaultStateIds;
     private final int totalStateCount;
+    private final Map<Integer, String> nameByDefaultId;
 
     private BlockRegistry(Map<String, Integer> ids, int totalStateCount) {
         this.defaultStateIds = ids;
         this.totalStateCount = totalStateCount;
+        this.nameByDefaultId = new HashMap<>();
+        for (var e : ids.entrySet()) nameByDefaultId.put(e.getValue(), e.getKey());
     }
 
     public static BlockRegistry load(String resourcePath) {
@@ -55,6 +58,17 @@ public final class BlockRegistry {
         Integer id = defaultStateIds.get(blockId);
         if (id == null) throw new IllegalArgumentException("미지원 블록: " + blockId);
         return id;
+    }
+
+    /** state id → 블록명. default state만 매핑(우리 블록셋 한정); 미지원 id는 air. */
+    public String nameOf(int stateId) {
+        return nameByDefaultId.getOrDefault(stateId, "minecraft:air");
+    }
+
+    /** 블록명 → state id. 미지원이면 air(0). 바닐라 read 폴백용. */
+    public int stateIdOrAir(String blockName) {
+        Integer id = defaultStateIds.get(blockName);
+        return id == null ? 0 : id;
     }
 
     public int totalStateCount() {
