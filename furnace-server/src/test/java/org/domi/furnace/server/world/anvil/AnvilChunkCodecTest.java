@@ -26,4 +26,14 @@ class AnvilChunkCodecTest {
         assertEquals(grass, back.getBlock(1, -61, 0));                 // 미편집 grass
         assertEquals(reg.defaultStateId("minecraft:bedrock"), back.getBlock(0, -64, 0));
     }
+
+    @Test
+    void roundTrip_recomputesHeightmap() {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
+        ChunkColumn fresh = new SuperflatWorldSource(reg, 0).generate(2, -3);
+        ChunkColumn back = codec.fromNbt(codec.toNbt(fresh, 2, -3));
+        // fromNbt가 블록서 heightmap 재계산 — 원본과 일치(라운드트립서 surface 손실 방지).
+        assertArrayEquals(fresh.motionBlockingHeightmap(), back.motionBlockingHeightmap());
+    }
 }

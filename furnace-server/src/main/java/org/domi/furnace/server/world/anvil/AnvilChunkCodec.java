@@ -104,7 +104,25 @@ public final class AnvilChunkCodec {
             if (!s.contains("block_states")) continue;
             applyBlockStates(col, sectionIdx, s.getCompound("block_states"));
         }
+        recomputeHeightmap(col);
         return col;
+    }
+
+    // NBT엔 Heightmaps가 있으나 신뢰 않고 블록서 재계산(바닐라 월드도 정확). 최상단 비공기 → surface.
+    private void recomputeHeightmap(ChunkColumn col) {
+        int top = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1;
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                int h = 0;
+                for (int wy = top; wy >= ChunkColumn.MIN_Y; wy--) {
+                    if (col.getBlock(x, wy, z) != ChunkSection.AIR) {
+                        h = (wy - ChunkColumn.MIN_Y) + 1;
+                        break;
+                    }
+                }
+                col.setSurface(x, z, h);
+            }
+        }
     }
 
     private void applyBlockStates(ChunkColumn col, int sectionIdx, NbtCompound bs) {
