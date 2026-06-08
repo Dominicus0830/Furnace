@@ -5,11 +5,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
+import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.world.gen.WorldSource;
 
@@ -30,6 +32,9 @@ public final class World {
 
     // 교차region 가시성 스냅샷: region 스레드가 공개, 인접 region 스레드가 락프리로 읽음.
     private final ConcurrentHashMap<RegionPos, List<EntityView>> snapshots = new ConcurrentHashMap<>();
+
+    // 청크별 구독자(그 청크를 로드한 플레이어). 블록 변경 시 이들에게만 전송.
+    private final ConcurrentHashMap<ChunkPos, Set<Player>> chunkSubscribers = new ConcurrentHashMap<>();
 
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
@@ -88,6 +93,23 @@ public final class World {
             }
         }
         return out;
+    }
+
+    /** 플레이어가 청크를 로드 — 블록 변경 수신 등록. */
+    public void subscribeChunk(ChunkPos cp, Player p) {
+        chunkSubscribers.computeIfAbsent(cp, k -> ConcurrentHashMap.newKeySet()).add(p);
+    }
+
+    /** 플레이어가 청크를 언로드 — 등록 해제. */
+    public void unsubscribeChunk(ChunkPos cp, Player p) {
+        Set<Player> s = chunkSubscribers.get(cp);
+        if (s != null) s.remove(p);
+    }
+
+    /** 청크 구독자(블록 변경 브로드캐스트 대상). 비었으면 빈 Set. */
+    public Set<Player> subscribers(ChunkPos cp) {
+        Set<Player> s = chunkSubscribers.get(cp);
+        return s == null ? Set.of() : s;
     }
 
     /** 엔티티 가시 거리(view-distance로 클램프)가 닿는 인접 region 반경(region 단위). */
