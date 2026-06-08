@@ -31,6 +31,7 @@ public final class Region {
     private final Map<Integer, Player> players = new HashMap<>();
     private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
     private final Map<ChunkPos, CompletableFuture<ChunkColumn>> loading = new HashMap<>();
+    private final Map<ChunkPos, Integer> evictGrace = new HashMap<>();
 
     public Region(RegionPos pos, World world) {
         this.pos = pos;
@@ -77,6 +78,37 @@ public final class Region {
         for (Player sub : world.subscribers(cp)) sub.send(pkt);
     }
 
+    /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
+    public void saveDirtyChunks() {
+        for (var e : chunks.entrySet()) {
+            ChunkColumn col = e.getValue();
+            if (col.dirty()) {
+                world.saveChunkAsync(ChunkSnapshot.of(e.getKey().x(), e.getKey().z(), col));
+                col.clearDirty();
+            }
+        }
+    }
+
+    /** 구독자 0인 청크를 grace 후 퇴출(dirty면 저장). 매 틱 호출. */
+    private void evictIdleChunks() {
+        var it = chunks.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            ChunkPos cp = e.getKey();
+            if (!world.subscribers(cp).isEmpty()) { evictGrace.remove(cp); continue; }
+            int g = evictGrace.merge(cp, 1, Integer::sum);
+            if (g >= world.chunkEvictionGraceTicks()) {
+                ChunkColumn col = e.getValue();
+                if (col.dirty()) {
+                    world.saveChunkAsync(ChunkSnapshot.of(cp.x(), cp.z(), col));
+                    col.clearDirty();
+                }
+                it.remove();
+                evictGrace.remove(cp);
+            }
+        }
+    }
+
     /** 소유 스레드서 플레이어 편입. */
     public void adopt(Player p) {
         world.assertOwns(pos);
@@ -121,6 +153,8 @@ public final class Region {
             RegionPos target = p.regionPos(world.regionSize());
             world.scheduler().region(target).execute(() -> world.regionAt(target).adopt(p));
         }
+        evictIdleChunks();
+        if (world.consumeAutosaveFlag()) saveDirtyChunks();
     }
 
     /** 이 region의 타 플레이어들이 eid를 추적 중이면 디스폰. */

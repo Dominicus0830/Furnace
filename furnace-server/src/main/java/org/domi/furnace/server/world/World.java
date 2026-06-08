@@ -15,7 +15,12 @@ import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 
 public final class World {
 
@@ -29,6 +34,12 @@ public final class World {
     private final int blockDirectBits;
     private final int biomeDirectBits;
     private final ExecutorService ioPool;
+
+    // 영속성 설정(FurnaceMain서 configurePersistence로 주입; 테스트는 기본 비활성).
+    private int autosaveTicks = Integer.MAX_VALUE; // 기본 비활성(테스트)
+    private int chunkEvictionGraceTicks = 100;
+    private volatile boolean autosaveFlag;
+    private int autosaveCounter;
 
     // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
     private final Map<RegionPos, Region>[] regionsByThread;
@@ -59,6 +70,10 @@ public final class World {
 
     /** region 스레드 i가 매 틱 호출 — 자기 region들 틱. */
     public void tickThread(int index) {
+        if (index == 0 && ++autosaveCounter >= autosaveTicks) {
+            autosaveCounter = 0;
+            autosaveFlag = true;
+        }
         for (Region r : regionsByThread[index].values()) {
             try {
                 r.tick();
@@ -67,7 +82,35 @@ public final class World {
                         .error("[TICK] region {} 실패", r.pos(), t);
             }
         }
+        // 마지막 스레드가 autosave 플래그 리셋(모든 region이 본 후 — 근사, 정밀 배리어는 향후).
+        if (index == regionThreads - 1) clearAutosaveFlag();
     }
+
+    /** owner 스레드서 스냅샷 뜬 뒤 IO 풀서 .mca write. worldSource가 AnvilWorldSource일 때만. */
+    public void saveChunkAsync(ChunkSnapshot snap) {
+        if (!(worldSource instanceof AnvilWorldSource anvil)) return;
+        ioPool.execute(() -> {
+            try {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                NbtCompound nbt = anvil.codec().toNbt(snap);
+                NbtIo.write(new DataOutputStream(bos), nbt, "");
+                anvil.store().writeChunk(snap.chunkX(), snap.chunkZ(), bos.toByteArray());
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(World.class)
+                        .error("[SAVE] 청크 {},{} 저장 실패", snap.chunkX(), snap.chunkZ(), e);
+            }
+        });
+    }
+
+    public void configurePersistence(int autosaveTicks, int graceTicks) {
+        this.autosaveTicks = autosaveTicks;
+        this.chunkEvictionGraceTicks = graceTicks;
+    }
+    public int chunkEvictionGraceTicks() { return chunkEvictionGraceTicks; }
+    /** autosave 플래그를 읽고 끈다(각 region이 한 번씩 자기 청크 flush). */
+    public boolean consumeAutosaveFlag() { return autosaveFlag; }
+    /** tickThread 마지막에 플래그 리셋(모든 region이 본 후). */
+    public void clearAutosaveFlag() { autosaveFlag = false; }
 
     /**
      * 청크의 canonical 불변 스냅샷을 비동기로 반환. 청크 소유 region 스레드서
