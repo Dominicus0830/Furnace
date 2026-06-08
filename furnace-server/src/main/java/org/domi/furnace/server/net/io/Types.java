@@ -69,4 +69,18 @@ public final class Types {
     public static void writeAngle(ByteBuf buf, float degrees) {
         buf.writeByte((int) (degrees * 256.0f / 360.0f) & 0xFF);
     }
+
+    /** 블록 좌표를 바닐라 Position long으로 패킹. */
+    public static void writeBlockPos(ByteBuf buf, int x, int y, int z) {
+        buf.writeLong(((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF));
+    }
+
+    /** Position long 언패킹 → {x, y, z}. 각 필드 부호 확장. */
+    public static int[] readBlockPos(ByteBuf buf) {
+        long v = buf.readLong();
+        int x = (int) (v >> 38);
+        int y = (int) (v << 52 >> 52);
+        int z = (int) (v << 26 >> 38);
+        return new int[]{x, y, z};
+    }
 }
