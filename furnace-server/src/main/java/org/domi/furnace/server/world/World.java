@@ -40,6 +40,7 @@ public final class World {
     private int chunkEvictionGraceTicks = 100;
     private volatile boolean autosaveFlag;
     private int autosaveCounter;
+    private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
 
     // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
     private final Map<RegionPos, Region>[] regionsByThread;
@@ -107,6 +108,8 @@ public final class World {
         this.chunkEvictionGraceTicks = graceTicks;
     }
     public int chunkEvictionGraceTicks() { return chunkEvictionGraceTicks; }
+    public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
+    public java.nio.file.Path worldDir() { return worldDir; }
     /** autosave 플래그를 읽고 끈다(각 region이 한 번씩 자기 청크 flush). */
     public boolean consumeAutosaveFlag() { return autosaveFlag; }
     /** tickThread 마지막에 플래그 리셋(모든 region이 본 후). */

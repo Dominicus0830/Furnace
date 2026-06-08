@@ -126,6 +126,9 @@ public final class Region {
             if (p.isDisconnected()) {
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
+                final Player fp = p;
+                world.ioPool().execute(() -> org.domi.furnace.server.entity.PlayerData.save(
+                        world.worldDir(), fp.uuid(), fp.x(), fp.y(), fp.z(), fp.yaw(), fp.pitch(), fp.onGround()));
                 broadcastRemove(p.entityId());
                 continue;
             }
