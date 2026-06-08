@@ -26,6 +26,9 @@ import org.domi.furnace.server.net.protocol.play.UnloadChunk;
 
 public final class Region {
 
+    // 추적 엔티티가 후보 스냅샷서 사라진 뒤 despawn까지 견디는 틱 수(핸드오프 갭 흡수).
+    private static final int ENTITY_DESPAWN_GRACE = 3;
+
     private final RegionPos pos;
     private final World world;
     private final Map<Integer, Player> players = new HashMap<>();
@@ -220,8 +223,10 @@ public final class Region {
 
     private void updateVisibility(Player a, List<EntityView> candidates) {
         double range = world.effectiveEntityChunks() * 16.0;
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;
+            seen.add(b.entityId());
             boolean near = within(a, b, range);
             boolean tracking = a.tracked().containsKey(b.entityId());
             if (near && !tracking) {
@@ -234,6 +239,18 @@ public final class Region {
                 a.tracked().remove(b.entityId());
             } else if (near) {
                 broadcastMove(a, b, a.tracked().get(b.entityId()));
+            }
+        }
+        // 후보서 완전히 사라진 추적 엔티티: grace 틱 후 despawn(퇴장·스냅샷 범위 이탈).
+        // 핸드오프는 인접 region 스냅샷 갭이 1틱 정도라 grace 미만 → 깜빡임 없음.
+        var ti = a.tracked().keySet().iterator();
+        while (ti.hasNext()) {
+            int eid = ti.next();
+            if (seen.contains(eid)) { a.missingTicks().remove(eid); continue; }
+            if (a.missingTicks().merge(eid, 1, Integer::sum) >= ENTITY_DESPAWN_GRACE) {
+                a.send(new RemoveEntities(java.util.List.of(eid)));
+                ti.remove();
+                a.missingTicks().remove(eid);
             }
         }
     }

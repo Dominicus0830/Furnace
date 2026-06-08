@@ -28,6 +28,7 @@ public final class Player {
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
+    private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
@@ -99,4 +100,5 @@ public final class Player {
     public void lastCenter(ChunkPos c) { this.lastCenter = c; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Map<Integer, double[]> tracked() { return tracked; }
+    public Map<Integer, Integer> missingTicks() { return missingTicks; }
 }
