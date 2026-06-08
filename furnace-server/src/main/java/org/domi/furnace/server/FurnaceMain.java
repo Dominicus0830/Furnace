@@ -33,11 +33,19 @@ public final class FurnaceMain {
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
+        Path worldDir = Path.of(config.levelName());
+        var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
+        var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome);
+        var superflat = new SuperflatWorldSource(blockRegistry, plainsBiome);
+        var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
+                worldDir, regionStore, chunkCodec, superflat);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
-        World world = new World(new SuperflatWorldSource(blockRegistry, plainsBiome), chunkPool,
+        World world = new World(anvilSource, chunkPool,
                 scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
                 config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool);
+        world.worldDir(worldDir);
+        world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
         scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         NetworkServer network = new NetworkServer(
@@ -47,8 +55,22 @@ public final class FurnaceMain {
 
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("종료 중...");
+            log.info("종료 중 — dirty 청크/플레이어 flush");
             network.stop();
+            try {
+                // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
+                java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
+                for (int i = 0; i < config.regionThreads(); i++) {
+                    final int idx = i;
+                    fs.add(scheduler.region(regionPosForThread(idx, config)).execute(() -> world.flushThread(idx)));
+                }
+                for (var f : fs) f.get();
+                ioPool.shutdown();
+                ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
+                regionStore.closeAll();
+            } catch (Exception e) {
+                log.error("[STOP] flush 실패", e);
+            }
             chunkPool.shutdown();
             scheduler.close();
             shutdown.countDown();
@@ -61,6 +83,15 @@ public final class FurnaceMain {
 
         log.info("Furnace 기동 완료. Ctrl+C로 종료.");
         shutdown.await();
+    }
+
+    /** idx 스레드가 소유하는 RegionPos 하나(flush 타겟팅용). */
+    private static org.domi.furnace.api.sched.RegionPos regionPosForThread(int idx, Config cfg) {
+        for (int x = 0; x < cfg.regionThreads() * 2 + 1; x++) {
+            org.domi.furnace.api.sched.RegionPos rp = new org.domi.furnace.api.sched.RegionPos(x, 0);
+            if (org.domi.furnace.server.world.RegionGrid.threadIndex(rp, cfg.regionThreads()) == idx) return rp;
+        }
+        return new org.domi.furnace.api.sched.RegionPos(idx, 0);
     }
 
     /** 5초(100틱)마다 region TPS를 로그하고 자신을 재예약하는 하트비트. */

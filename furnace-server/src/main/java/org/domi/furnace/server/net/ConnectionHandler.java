@@ -148,17 +148,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
-        // superflat 표면 grass at y=−61 → 플레이어는 그 위 y=−60에 선다.
-        send(ctx, new SyncPlayerPosition(0, -60, 0, 1));
-        send(ctx, new SetDefaultSpawnPosition(0, -60, 0));
+        // 저장된 위치 있으면 그 자리, 없으면 superflat 표면(grass y=−61 위 y=−60).
+        double[] saved = org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
+        double sx = saved != null ? saved[0] : 0;
+        double sy = saved != null ? saved[1] : -60;
+        double sz = saved != null ? saved[2] : 0;
+        float syaw = saved != null ? (float) saved[3] : 0f;
+        float spitch = saved != null ? (float) saved[4] : 0f;
+        send(ctx, new SyncPlayerPosition(sx, sy, sz, 1));
+        send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
         // 청크 전송 전 "대기 시작" 알림 — 없으면 클라가 로딩 화면서 30초 타임아웃.
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
 
         // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
-        p.publishPosition(0, -60, 0, 0f, 0f, true);
+        p.publishPosition(sx, sy, sz, syaw, spitch, true);
         this.player = p;
-        RegionPos spawn = RegionGrid.regionPos(0, 0, world.regionSize());
+        RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
         scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
         scheduleKeepAlive();
     }

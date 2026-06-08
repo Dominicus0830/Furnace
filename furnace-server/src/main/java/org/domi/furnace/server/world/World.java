@@ -87,6 +87,14 @@ public final class World {
         if (index == regionThreads - 1) clearAutosaveFlag();
     }
 
+    /** 종료용: 스레드 idx의 모든 region의 dirty 청크 + 접속 플레이어 저장(owner 스레드서 호출). */
+    public void flushThread(int index) {
+        for (Region r : regionsByThread[index].values()) {
+            r.saveDirtyChunks();
+            r.savePlayers(worldDir, ioPool);
+        }
+    }
+
     /** owner 스레드서 스냅샷 뜬 뒤 IO 풀서 .mca write. worldSource가 AnvilWorldSource일 때만. */
     public void saveChunkAsync(ChunkSnapshot snap) {
         if (!(worldSource instanceof AnvilWorldSource anvil)) return;
