@@ -32,12 +32,15 @@ public final class ConfigLoader {
         int viewDistance = Integer.parseInt(
                 props.getProperty("view-distance",
                         Integer.toString(Config.DEFAULT.viewDistance())));
+        int entityViewDistance = Integer.parseInt(
+                props.getProperty("entity-view-distance",
+                        Integer.toString(Config.DEFAULT.entityViewDistance())));
         int regionSize = Integer.parseInt(
                 props.getProperty("region-size",
                         Integer.toString(Config.DEFAULT.regionSize())));
         int regionThreads = Integer.parseInt(
                 props.getProperty("region-threads",
                         Integer.toString(Config.DEFAULT.regionThreads())));
-        return new Config(name, tick, port, compression, viewDistance, regionSize, regionThreads);
+        return new Config(name, tick, port, compression, viewDistance, entityViewDistance, regionSize, regionThreads);
     }
 }
