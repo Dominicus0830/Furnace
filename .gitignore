@@ -44,3 +44,7 @@ bin/
 # Furnace run artifacts
 furnace-run.log*
 furnace.properties
+
+### Furnace runtime data ###
+furnace-server/world/
+furnace-server/furnace.properties
