@@ -41,6 +41,15 @@ public final class ConfigLoader {
         int regionThreads = Integer.parseInt(
                 props.getProperty("region-threads",
                         Integer.toString(Config.DEFAULT.regionThreads())));
-        return new Config(name, tick, port, compression, viewDistance, entityViewDistance, regionSize, regionThreads);
+        String levelName = props.getProperty("level-name", Config.DEFAULT.levelName());
+        int ioThreads = Integer.parseInt(
+                props.getProperty("io-threads", Integer.toString(Config.DEFAULT.ioThreads())));
+        int autosaveTicks = Integer.parseInt(
+                props.getProperty("autosave-ticks", Integer.toString(Config.DEFAULT.autosaveTicks())));
+        int evictionGrace = Integer.parseInt(
+                props.getProperty("chunk-eviction-grace-ticks",
+                        Integer.toString(Config.DEFAULT.chunkEvictionGraceTicks())));
+        return new Config(name, tick, port, compression, viewDistance, entityViewDistance,
+                regionSize, regionThreads, levelName, ioThreads, autosaveTicks, evictionGrace);
     }
 }

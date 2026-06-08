@@ -19,12 +19,17 @@ class ConfigLoaderTest {
         assertEquals(8, c.entityViewDistance());
         assertEquals(16, c.regionSize());
         assertTrue(c.regionThreads() >= 1);
+        assertEquals("world", c.levelName());
+        assertEquals(4, c.ioThreads());
+        assertEquals(6000, c.autosaveTicks());
+        assertEquals(100, c.chunkEvictionGraceTicks());
     }
 
     @Test
     void load_overridesFromFile(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("furnace.properties");
-        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\nport=25500\ncompression-threshold=-1\nview-distance=8\nentity-view-distance=12\nregion-size=8\nregion-threads=2\n");
+        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\nport=25500\ncompression-threshold=-1\nview-distance=8\nentity-view-distance=12\nregion-size=8\nregion-threads=2\n"
+                + "level-name=myworld\nio-threads=2\nautosave-ticks=1200\nchunk-eviction-grace-ticks=40\n");
         Config c = ConfigLoader.load(f);
         assertEquals("My Server", c.serverName());
         assertEquals(25_000_000L, c.tickNanos());
@@ -34,5 +39,9 @@ class ConfigLoaderTest {
         assertEquals(12, c.entityViewDistance());
         assertEquals(8, c.regionSize());
         assertEquals(2, c.regionThreads());
+        assertEquals("myworld", c.levelName());
+        assertEquals(2, c.ioThreads());
+        assertEquals(1200, c.autosaveTicks());
+        assertEquals(40, c.chunkEvictionGraceTicks());
     }
 }
