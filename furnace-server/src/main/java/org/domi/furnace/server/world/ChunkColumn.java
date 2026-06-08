@@ -27,6 +27,12 @@ public final class ChunkColumn {
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
     }
 
+    /** worldY 절대좌표 블록 조회. */
+    public int getBlock(int x, int worldY, int z) {
+        int local = worldY - MIN_Y;
+        return sections[local >> 4].getBlock(x, local & 15, z);
+    }
+
     /** (x,z) heightmap 값(= surfaceWorldY − minY + 1). */
     public void setSurface(int x, int z, int value) {
         surface[z * 16 + x] = value;
