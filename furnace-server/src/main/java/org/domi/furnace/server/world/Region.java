@@ -76,7 +76,8 @@ public final class Region {
             RegionPos now = p.regionPos(world.regionSize());
             if (!now.equals(pos)) {     // 경계 넘음 → 핸드오프
                 it.remove();
-                broadcastRemove(p.entityId());
+                // broadcastRemove 안 함 — 가시성은 스냅샷 구동. 인접 region으로 넘어가도
+                // candidatesAround가 계속 후보로 보므로 관찰자는 끊김 없이 추적 유지(깜빡임 방지).
                 handoff.add(p);
                 continue;
             }
