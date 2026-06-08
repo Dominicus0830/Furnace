@@ -10,6 +10,7 @@ import java.util.Map;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.net.protocol.play.BlockUpdate;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
@@ -40,6 +41,15 @@ public final class Region {
     /** 소유 스레드서 청크 get-or-load(보관). */
     public ChunkColumn chunkAt(ChunkPos cp) {
         return chunks.computeIfAbsent(cp, p -> world.worldSource().generate(p.x(), p.z()));
+    }
+
+    /** 소유 스레드서 블록 파괴(air) + 청크 구독자에게 BlockUpdate. */
+    public void breakBlock(int bx, int by, int bz) {
+        world.assertOwns(pos);
+        ChunkPos cp = ChunkPos.ofBlock(bx, bz);
+        chunkAt(cp).setBlock(bx & 15, by, bz & 15, ChunkSection.AIR);
+        BlockUpdate pkt = new BlockUpdate(bx, by, bz, ChunkSection.AIR);
+        for (Player sub : world.subscribers(cp)) sub.send(pkt);
     }
 
     /** 소유 스레드서 플레이어 편입. */

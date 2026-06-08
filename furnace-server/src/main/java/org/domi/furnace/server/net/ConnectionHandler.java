@@ -191,6 +191,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null) p.publishPosition(p.x(), p.y(), p.z(), yaw, pitch, g);
             }
+            case 0x24 -> { // player_action (digging)
+                int status = Types.readVarInt(frame);
+                int[] bp = Types.readBlockPos(frame);
+                frame.readByte();        // face
+                Types.readVarInt(frame); // sequence(예측 ack) — 읽고 무시
+                if (status == 0) {       // start digging = 크리에이티브 즉시 파괴
+                    int bx = bp[0], by = bp[1], bz = bp[2];
+                    RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
+                    scheduler.region(br).execute(() -> world.regionAt(br).breakBlock(bx, by, bz));
+                }
+            }
             default -> { /* 그 외 무시 */ }
         }
     }
