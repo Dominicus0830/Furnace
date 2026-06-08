@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
-public record SyncPlayerPosition(double x, double y, double z, int teleportId) implements Packet {
+public record SyncPlayerPosition(double x, double y, double z, float yaw, float pitch, int teleportId) implements Packet {
 
     public static final int ID = 0x40;
 
@@ -19,8 +19,8 @@ public record SyncPlayerPosition(double x, double y, double z, int teleportId) i
         buf.writeDouble(x);
         buf.writeDouble(y);
         buf.writeDouble(z);
-        buf.writeFloat(0f);          // Yaw
-        buf.writeFloat(0f);          // Pitch
+        buf.writeFloat(yaw);
+        buf.writeFloat(pitch);
         buf.writeByte(0);            // Flags (모두 절대값)
         Types.writeVarInt(buf, teleportId);
     }

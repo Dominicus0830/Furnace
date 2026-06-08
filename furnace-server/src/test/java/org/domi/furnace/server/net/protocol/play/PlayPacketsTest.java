@@ -19,12 +19,14 @@ class PlayPacketsTest {
     }
 
     @Test
-    void syncPlayerPosition_writes_teleportId() {
-        SyncPlayerPosition p = new SyncPlayerPosition(0, 64, 0, 42);
+    void syncPlayerPosition_writes_yawPitchAndTeleportId() {
+        SyncPlayerPosition p = new SyncPlayerPosition(0, 64, 0, 90f, 10f, 42);
         assertEquals(0x40, p.id());
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
-        assertTrue(buf.readableBytes() > 0);
+        buf.skipBytes(Double.BYTES * 3); // x, y, z
+        assertEquals(90f, buf.readFloat());
+        assertEquals(10f, buf.readFloat());
         buf.release();
     }
 

@@ -155,7 +155,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         double sz = saved != null ? saved[2] : 0;
         float syaw = saved != null ? (float) saved[3] : 0f;
         float spitch = saved != null ? (float) saved[4] : 0f;
-        send(ctx, new SyncPlayerPosition(sx, sy, sz, 1));
+        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
         // 청크 전송 전 "대기 시작" 알림 — 없으면 클라가 로딩 화면서 30초 타임아웃.
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
