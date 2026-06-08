@@ -204,6 +204,7 @@ public final class Region {
                 toUnload.add(cp);
             }
         }
+        orderNearestFirst(center, toLoad);
         p.send(new SetCenterChunk(center.x(), center.z()));
         streamLoads(p, toLoad);
         for (ChunkPos cp : toUnload) {
@@ -212,6 +213,14 @@ public final class Region {
             world.unsubscribeChunk(cp, p);
         }
         p.lastCenter(center);
+    }
+
+    /** toLoad를 중심 청크 거리 오름차순 정렬 — 스폰/근접 청크 먼저 전송해 클라가 즉시 "로드된 청크"에 스폰(낙하 방지). */
+    static void orderNearestFirst(ChunkPos center, List<ChunkPos> chunks) {
+        chunks.sort(java.util.Comparator.comparingInt(cp -> {
+            int dx = cp.x() - center.x(), dz = cp.z() - center.z();
+            return dx * dx + dz * dz;
+        }));
     }
 
     private void streamLoads(Player p, List<ChunkPos> toLoad) {
