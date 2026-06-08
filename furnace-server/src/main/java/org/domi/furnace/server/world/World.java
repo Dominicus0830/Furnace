@@ -38,8 +38,6 @@ public final class World {
     // 영속성 설정(FurnaceMain서 configurePersistence로 주입; 테스트는 기본 비활성).
     private int autosaveTicks = Integer.MAX_VALUE; // 기본 비활성(테스트)
     private int chunkEvictionGraceTicks = 100;
-    private volatile boolean autosaveFlag;
-    private int autosaveCounter;
     private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
 
     // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
@@ -71,10 +69,6 @@ public final class World {
 
     /** region 스레드 i가 매 틱 호출 — 자기 region들 틱. */
     public void tickThread(int index) {
-        if (index == 0 && ++autosaveCounter >= autosaveTicks) {
-            autosaveCounter = 0;
-            autosaveFlag = true;
-        }
         for (Region r : regionsByThread[index].values()) {
             try {
                 r.tick();
@@ -83,8 +77,6 @@ public final class World {
                         .error("[TICK] region {} 실패", r.pos(), t);
             }
         }
-        // 마지막 스레드가 autosave 플래그 리셋(모든 region이 본 후 — 근사, 정밀 배리어는 향후).
-        if (index == regionThreads - 1) clearAutosaveFlag();
     }
 
     /** 종료용: 스레드 idx의 모든 region의 dirty 청크 + 접속 플레이어 저장(owner 스레드서 호출). */
@@ -116,12 +108,9 @@ public final class World {
         this.chunkEvictionGraceTicks = graceTicks;
     }
     public int chunkEvictionGraceTicks() { return chunkEvictionGraceTicks; }
+    public int autosaveTicks() { return autosaveTicks; }
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
     public java.nio.file.Path worldDir() { return worldDir; }
-    /** autosave 플래그를 읽고 끈다(각 region이 한 번씩 자기 청크 flush). */
-    public boolean consumeAutosaveFlag() { return autosaveFlag; }
-    /** tickThread 마지막에 플래그 리셋(모든 region이 본 후). */
-    public void clearAutosaveFlag() { autosaveFlag = false; }
 
     /**
      * 청크의 canonical 불변 스냅샷을 비동기로 반환. 청크 소유 region 스레드서

@@ -37,6 +37,7 @@ public final class Region {
     private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
     private final Map<ChunkPos, CompletableFuture<ChunkColumn>> loading = new HashMap<>();
     private final Map<ChunkPos, Integer> evictGrace = new HashMap<>();
+    private int autosaveCounter; // region별 독립 autosave 카운터(스레드간 공유 플래그 없음 — 경쟁 제거).
 
     public Region(RegionPos pos, World world) {
         this.pos = pos;
@@ -171,7 +172,10 @@ public final class Region {
             world.scheduler().region(target).execute(() -> world.regionAt(target).adopt(p));
         }
         evictIdleChunks();
-        if (world.consumeAutosaveFlag()) saveDirtyChunks();
+        if (++autosaveCounter >= world.autosaveTicks()) {
+            autosaveCounter = 0;
+            saveDirtyChunks();
+        }
     }
 
     /** 이 region의 타 플레이어들이 eid를 추적 중이면 디스폰. */
