@@ -13,16 +13,16 @@ import java.util.UUID;
 
 class SnapshotRegistryTest {
 
-    private static World world(FurnaceSchedulerImpl sched, int regionSize, int viewDistance) {
+    private static World world(FurnaceSchedulerImpl sched, int regionSize, int viewDistance, int entityViewDistance) {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
-                sched, sched.regionThreadCount(), regionSize, viewDistance, reg.directBits(), 7);
+                sched, sched.regionThreadCount(), regionSize, viewDistance, entityViewDistance, reg.directBits(), 7);
     }
 
     @Test
     void candidatesAround_collectsNeighbors() {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        World w = world(sched, 16, 5);
+        World w = world(sched, 16, 5, 5);
         EntityView v = new EntityView(1, UUID.randomUUID(), "A", 0, -60, 0, 0, 0, true);
         w.publishSnapshot(new RegionPos(0, 0), List.of(v));
         w.publishSnapshot(new RegionPos(1, 0), List.of(
@@ -33,10 +33,18 @@ class SnapshotRegistryTest {
     }
 
     @Test
-    void neighborRadius_coversViewDistance() {
+    void neighborRadius_basedOnEntityDistance() {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        World w = world(sched, 4, 10); // vd 10, regionSize 4 → ceil(10/4)+1 = 4
-        assertEquals(4, w.neighborRadius());
+        World w = world(sched, 4, 20, 16); // entity 16, regionSize 4 → ceil(16/4)+1 = 5 (vd 20 무관)
+        assertEquals(5, w.neighborRadius());
+        sched.close();
+    }
+
+    @Test
+    void neighborRadius_clampsEntityToViewDistance() {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        World w = world(sched, 4, 5, 20); // entity 20 > vd 5 → 유효 5 → ceil(5/4)+1 = 3
+        assertEquals(3, w.neighborRadius());
         sched.close();
     }
 }

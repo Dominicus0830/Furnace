@@ -129,7 +129,7 @@ public final class Region {
     }
 
     private void updateVisibility(Player a, List<EntityView> candidates) {
-        double range = world.viewDistance() * 16.0;
+        double range = world.effectiveEntityChunks() * 16.0;
         for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;
             boolean near = within(a, b, range);

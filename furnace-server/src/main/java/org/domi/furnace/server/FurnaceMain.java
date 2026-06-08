@@ -35,7 +35,7 @@ public final class FurnaceMain {
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
         World world = new World(new SuperflatWorldSource(blockRegistry, plainsBiome), chunkPool,
                 scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
-                blockRegistry.directBits(), biomeDirectBits);
+                config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits);
         scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         NetworkServer network = new NetworkServer(

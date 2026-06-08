@@ -21,6 +21,7 @@ public final class World {
     private final int regionThreads;
     private final int regionSize;
     private final int viewDistance;
+    private final int entityViewDistance;
     private final int blockDirectBits;
     private final int biomeDirectBits;
 
@@ -32,7 +33,7 @@ public final class World {
 
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
-                 int regionThreads, int regionSize, int viewDistance,
+                 int regionThreads, int regionSize, int viewDistance, int entityViewDistance,
                  int blockDirectBits, int biomeDirectBits) {
         this.worldSource = worldSource;
         this.chunkPool = chunkPool;
@@ -40,6 +41,7 @@ public final class World {
         this.regionThreads = regionThreads;
         this.regionSize = regionSize;
         this.viewDistance = viewDistance;
+        this.entityViewDistance = entityViewDistance;
         this.blockDirectBits = blockDirectBits;
         this.biomeDirectBits = biomeDirectBits;
         this.regionsByThread = new Map[regionThreads];
@@ -88,9 +90,14 @@ public final class World {
         return out;
     }
 
-    /** view거리가 닿는 인접 region 반경(region 단위). */
+    /** 엔티티 가시 거리(view-distance로 클램프)가 닿는 인접 region 반경(region 단위). */
     public int neighborRadius() {
-        return (int) Math.ceil((double) viewDistance / regionSize) + 1;
+        return (int) Math.ceil((double) effectiveEntityChunks() / regionSize) + 1;
+    }
+
+    /** 실제 엔티티 가시 거리(청크). view-distance를 넘으면 미렌더 청크 방지 위해 클램프. */
+    public int effectiveEntityChunks() {
+        return Math.min(entityViewDistance, viewDistance);
     }
 
     public FurnaceScheduler scheduler() { return scheduler; }
@@ -98,6 +105,7 @@ public final class World {
     public ChunkWorkerPool chunkPool() { return chunkPool; }
     public int regionSize() { return regionSize; }
     public int viewDistance() { return viewDistance; }
+    public int entityViewDistance() { return entityViewDistance; }
     public int blockDirectBits() { return blockDirectBits; }
     public int biomeDirectBits() { return biomeDirectBits; }
 }
