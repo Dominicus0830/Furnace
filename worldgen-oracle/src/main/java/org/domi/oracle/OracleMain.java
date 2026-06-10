@@ -2,6 +2,7 @@
 package org.domi.oracle;
 
 import com.mojang.serialization.Lifecycle;
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.DetectedVersion;
 import net.minecraft.SharedConstants;
@@ -121,6 +122,9 @@ public class OracleMain {
             } else if (arg.startsWith("improved:")) {
                 long noiseSeed = Long.parseLong(arg.substring("improved:".length()));
                 dumpImprovedNoise(noiseSeed, outDir);
+            } else if (arg.startsWith("normal:")) {
+                long noiseSeed = Long.parseLong(arg.substring("normal:".length()));
+                dumpNormalNoise(noiseSeed, outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -130,6 +134,45 @@ public class OracleMain {
         }
 
         System.out.println("Oracle done. Output: " + outDir.toAbsolutePath());
+    }
+
+    /**
+     * Dumps 50 NormalNoise samples built from vanilla XoroshiroRandomSource(noiseSeed).
+     * Parameters: firstOctave=-7, amplitudes=[1.0, 1.0, 1.0, 1.0] (4 octaves).
+     * Coordinate set (i=0..49): x = i*12.3 - 100, y = i*4.7 + 3, z = -i*8.1 + 50.
+     * Format: little-endian int32 firstOctave; int32 ampCount; ampCount×double amplitudes;
+     *         int32 N; then N records of (double x, double y, double z, double value).
+     */
+    private static void dumpNormalNoise(long noiseSeed, Path outDir) throws Exception {
+        int firstOctave = -7;
+        double[] amps = {1.0, 1.0, 1.0, 1.0};
+        NormalNoise.NoiseParameters params = new NormalNoise.NoiseParameters(firstOctave, new DoubleArrayList(amps));
+        NormalNoise noise = NormalNoise.create(new XoroshiroRandomSource(noiseSeed), params);
+        int n = 50;
+        // header: int32 firstOctave + int32 ampCount + ampCount*double + int32 N
+        // data:   N * 4 * double
+        int headerBytes = 4 + 4 + amps.length * 8 + 4;
+        int dataBytes = n * 4 * 8;
+        ByteBuffer buf = ByteBuffer.allocate(headerBytes + dataBytes).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(firstOctave);
+        buf.putInt(amps.length);
+        for (double a : amps) buf.putDouble(a);
+        buf.putInt(n);
+        for (int i = 0; i < n; i++) {
+            double x = i * 12.3 - 100.0;
+            double y = i * 4.7 + 3.0;
+            double z = -i * 8.1 + 50.0;
+            double value = noise.getValue(x, y, z);
+            buf.putDouble(x);
+            buf.putDouble(y);
+            buf.putDouble(z);
+            buf.putDouble(value);
+        }
+        Path out = outDir.resolve("noise_normal_" + noiseSeed + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes, n=" + n + ")");
     }
 
     /**
