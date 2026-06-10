@@ -37,6 +37,10 @@ public final class ChunkSection {
         return biomes[biomeIndex(x, y, z)];
     }
 
+    public void setBiome(int x, int y, int z, int biomeId) {
+        biomes[biomeIndex(x, y, z)] = biomeId;
+    }
+
     public short nonAirCount() {
         return nonAirCount;
     }

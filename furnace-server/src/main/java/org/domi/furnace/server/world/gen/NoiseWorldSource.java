@@ -1,6 +1,7 @@
 // 바닐라 비트일치 노이즈 지형 WorldSource. final_density>0=stone, else lava(y<-54)/water(y<63)/air
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
@@ -20,28 +21,29 @@ public final class NoiseWorldSource implements WorldSource {
 
     private final NoiseRouter router;
     private final NoiseSettings settings;
+    private final BiomeSampler biomeSampler;
     private final int stoneId;
     private final int waterId;
     private final int lavaId;
-    private final int biomeId;
 
-    private NoiseWorldSource(NoiseRouter router, NoiseSettings settings,
-                              int stoneId, int waterId, int lavaId, int biomeId) {
-        this.router   = router;
-        this.settings = settings;
-        this.stoneId  = stoneId;
-        this.waterId  = waterId;
-        this.lavaId   = lavaId;
-        this.biomeId  = biomeId;
+    private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
+                              int stoneId, int waterId, int lavaId) {
+        this.router       = router;
+        this.settings     = settings;
+        this.biomeSampler = biomeSampler;
+        this.stoneId      = stoneId;
+        this.waterId      = waterId;
+        this.lavaId       = lavaId;
     }
 
     /**
      * 오버월드 NoiseWorldSource 를 생성한다.
      *
-     * @param seed 월드 시드
-     * @param reg  블록 레지스트리 (state id 해석용)
+     * @param seed       월드 시드
+     * @param reg        블록 레지스트리 (state id 해석용)
+     * @param registries 바이옴 레지스트리 (BiomeSampler 로드용)
      */
-    public static NoiseWorldSource overworld(long seed, BlockRegistry reg) {
+    public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries) {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter router = NoiseRouter.build(data, settings, seed);
@@ -50,10 +52,9 @@ public final class NoiseWorldSource implements WorldSource {
         int waterId = reg.defaultStateId(settings.defaultFluid());  // minecraft:water
         int lavaId  = reg.defaultStateId("minecraft:lava");
 
-        // biomeId 0 = plains 위치이나, 바이옴 밀스톤은 다음 단계. 0으로 placeholder.
-        int biomeId = 0;
+        BiomeSampler biomeSampler = BiomeSampler.load(data, registries);
 
-        return new NoiseWorldSource(router, settings, stoneId, waterId, lavaId, biomeId);
+        return new NoiseWorldSource(router, settings, biomeSampler, stoneId, waterId, lavaId);
     }
 
     @Override
@@ -66,7 +67,16 @@ public final class NoiseWorldSource implements WorldSource {
         int seaLevel  = settings.seaLevel();   // 63
         int lavaFloor = settings.lavaFloorY(); // -54
 
-        ChunkColumn col = new ChunkColumn(biomeId);
+        ChunkColumn col = new ChunkColumn(0);
+
+        int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, router);
+        for (int qy = 0; qy < 96; qy++) {
+            for (int qz = 0; qz < 4; qz++) {
+                for (int qx = 0; qx < 4; qx++) {
+                    col.setBiome(qx, qy, qz, biomeIds[qy * 16 + qz * 4 + qx]);
+                }
+            }
+        }
 
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {

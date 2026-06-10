@@ -38,6 +38,14 @@ public final class ChunkColumn {
         return sections[local >> 4].getBlock(x, local & 15, z);
     }
 
+    /**
+     * 청크 내 quart 좌표(quartX,quartY,quartZ)에 바이옴 id 설정.
+     * quartX, quartZ 0..3, quartY 0..95 (블록 y = -64 + quartY*4).
+     */
+    public void setBiome(int quartX, int quartY, int quartZ, int biomeId) {
+        sections[quartY / 4].setBiome(quartX, quartY % 4, quartZ, biomeId);
+    }
+
     /** (x,z) heightmap 값(= surfaceWorldY − minY + 1). */
     public void setSurface(int x, int z, int value) {
         surface[z * 16 + x] = value;

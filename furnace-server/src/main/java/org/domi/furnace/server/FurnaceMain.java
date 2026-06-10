@@ -39,7 +39,7 @@ public final class FurnaceMain {
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome);
         // 시드 0L 기본값 사용 (level-seed 설정 연동은 추후 milestone). furnace.properties에 seed= 추가 예정.
-        var noiseSource = NoiseWorldSource.overworld(0L, blockRegistry);
+        var noiseSource = NoiseWorldSource.overworld(0L, blockRegistry, registries);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, noiseSource);
         java.util.concurrent.ExecutorService ioPool =

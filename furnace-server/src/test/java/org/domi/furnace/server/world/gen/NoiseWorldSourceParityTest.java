@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
 import org.junit.jupiter.api.Test;
+import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
@@ -13,10 +14,11 @@ class NoiseWorldSourceParityTest {
 
     private void assertChunkParity(long seed, int cx, int cz) throws Exception {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         int stoneId = reg.defaultStateId("minecraft:stone");
         int waterId = reg.defaultStateId("minecraft:water");
         int lavaId  = reg.defaultStateId("minecraft:lava");
-        NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg);
+        NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, registries);
         ChunkColumn col = src.generate(cx, cz);
         byte[] fx;
         try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/chunk_"+seed+"_"+cx+"_"+cz+".bin")) {
