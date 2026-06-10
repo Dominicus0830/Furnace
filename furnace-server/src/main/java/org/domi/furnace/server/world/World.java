@@ -39,6 +39,8 @@ public final class World {
     private int autosaveTicks = Integer.MAX_VALUE; // 기본 비활성(테스트)
     private int chunkEvictionGraceTicks = 100;
     private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
+    private BlockRegistry blockRegistry;
+    private ItemRegistry itemRegistry;
 
     // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
     private final Map<RegionPos, Region>[] regionsByThread;
@@ -111,6 +113,17 @@ public final class World {
     public int autosaveTicks() { return autosaveTicks; }
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
     public java.nio.file.Path worldDir() { return worldDir; }
+
+    public void setRegistries(BlockRegistry blocks, ItemRegistry items) {
+        this.blockRegistry = blocks;
+        this.itemRegistry = items;
+    }
+
+    /** 아이템 id → 설치할 블록 default state id. 블록 아닌 아이템/미설정이면 0(air=설치 안 함). */
+    public int itemToBlockState(int itemId) {
+        if (blockRegistry == null || itemRegistry == null) return 0;
+        return blockRegistry.stateIdOrAir(itemRegistry.nameOf(itemId));
+    }
 
     /**
      * 청크의 canonical 불변 스냅샷을 비동기로 반환. 청크 소유 region 스레드서
