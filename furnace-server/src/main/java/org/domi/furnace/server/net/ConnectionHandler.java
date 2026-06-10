@@ -16,6 +16,7 @@ import org.domi.furnace.server.net.protocol.configuration.FinishConfiguration;
 import org.domi.furnace.server.net.protocol.configuration.KnownPacksClientbound;
 import org.domi.furnace.server.net.protocol.configuration.RegistryData;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
+import org.domi.furnace.server.net.protocol.play.BlockChangedAck;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
@@ -254,11 +255,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int status = Types.readVarInt(frame);
                 int[] bp = Types.readBlockPos(frame);
                 frame.readByte();        // face
-                Types.readVarInt(frame); // sequence(예측 ack) — 읽고 무시
+                int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
+                Player actor = player;
                 if (status == 0) {       // start digging = 크리에이티브 즉시 파괴
                     int bx = bp[0], by = bp[1], bz = bp[2];
                     RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
-                    scheduler.region(br).execute(() -> world.regionAt(br).breakBlock(bx, by, bz));
+                    scheduler.region(br).execute(() -> {
+                        world.regionAt(br).breakBlock(bx, by, bz);
+                        actor.send(new BlockChangedAck(seq)); // block_update 다음에 ack → 클라 예측 reconcile
+                    });
+                } else {
+                    actor.send(new BlockChangedAck(seq)); // 블록 변경 없음 — ack만(예측 정리)
                 }
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
@@ -277,14 +284,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int face = Types.readVarInt(frame);
                 frame.readFloat(); frame.readFloat(); frame.readFloat(); // cursor X/Y/Z
                 frame.readBoolean(); // insideBlock
-                Types.readVarInt(frame); // sequence
-                if (hand != 0) break; // 메인핸드만
-                int stateId = world.itemToBlockState(hotbar[selectedSlot]);
-                if (stateId == 0) break; // 설치 불가 아이템(블록 아님)
+                int seq = Types.readVarInt(frame); // 예측 sequence
+                Player actor = player;
+                int stateId = hand != 0 ? 0 : world.itemToBlockState(hotbar[selectedSlot]);
+                if (stateId == 0) { // 오프핸드 / 비블록 아이템 — 변경 없음, ack만(클라 예측 정리)
+                    actor.send(new BlockChangedAck(seq));
+                    break;
+                }
                 int[] o = org.domi.furnace.server.world.Region.placeOffset(face);
                 int px = bp[0] + o[0], py = bp[1] + o[1], pz = bp[2] + o[2];
                 RegionPos rp = RegionGrid.regionPos(px, pz, world.regionSize());
-                scheduler.region(rp).execute(() -> world.regionAt(rp).placeBlock(px, py, pz, stateId));
+                scheduler.region(rp).execute(() -> {
+                    world.regionAt(rp).placeBlock(px, py, pz, stateId);
+                    actor.send(new BlockChangedAck(seq)); // 설치(또는 충돌거부) 후 ack → 거부 시 고스트 reverts
+                });
             }
             default -> { /* 그 외 무시 */ }
         }
