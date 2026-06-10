@@ -69,4 +69,20 @@ public interface DensityFunction {
             provider.fillAllDirectly(array, this);
         }
     }
+
+    // ---------------------------------------------------------------
+    // mapAll: 트리 전체를 방문자로 재변환 (NoiseChunk wrap 용)
+    // 기본 구현은 자기 자신을 visitor 에 그대로 통과 (leaf 노드).
+    // 복합 노드는 자식을 먼저 재귀 변환한 뒤 visitor 를 적용한다.
+    // ---------------------------------------------------------------
+
+    @FunctionalInterface
+    interface Visitor {
+        DensityFunction apply(DensityFunction df);
+    }
+
+    /** 기본 구현: 리프 노드 — 자기 자신을 visitor 에 전달한다. */
+    default DensityFunction mapAll(Visitor visitor) {
+        return visitor.apply(this);
+    }
 }

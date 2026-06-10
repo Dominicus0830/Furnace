@@ -342,6 +342,11 @@ public final class DensityFunctionParser {
         public float maxValue() {
             return (float) function.maxValue();
         }
+
+        /** DensityFunction.Visitor 로 내부 함수를 재귀 변환한다. */
+        public SplineCoordinate mapAll(DensityFunction.Visitor visitor) {
+            return new SplineCoordinate(function.mapAll(visitor));
+        }
     }
 
     // ------------------------------------------------------------------

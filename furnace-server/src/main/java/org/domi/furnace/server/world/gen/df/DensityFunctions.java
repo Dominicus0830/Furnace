@@ -230,6 +230,12 @@ public final class DensityFunctions {
                 }
             }
         }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(TwoArgFn.create(type,
+                argument1.mapAll(visitor), argument2.mapAll(visitor)));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -255,6 +261,11 @@ public final class DensityFunctions {
 
         @Override public double transform(double v) {
             return specificType == SubType.MUL ? v * argument : v + argument;
+        }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(TwoArgFn.create(type(), constant(argument), input.mapAll(visitor)));
         }
     }
 
@@ -284,6 +295,11 @@ public final class DensityFunctions {
 
     record Clamp(DensityFunction input, double minValue, double maxValue) implements PureTransformer {
         @Override public double transform(double v) { return MathHelper.clamp(v, minValue, maxValue); }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(new Clamp(input.mapAll(visitor), minValue, maxValue));
+        }
     }
 
     // ================================================================
@@ -323,6 +339,11 @@ public final class DensityFunctions {
         }
 
         @Override public double transform(double v) { return transform(type, v); }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(Mapped.create(type, input.mapAll(visitor)));
+        }
     }
 
     // ================================================================
@@ -377,6 +398,13 @@ public final class DensityFunctions {
 
         @Override public double minValue() { return Math.min(whenInRange.minValue(), whenOutOfRange.minValue()); }
         @Override public double maxValue() { return Math.max(whenInRange.maxValue(), whenOutOfRange.maxValue()); }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(new RangeChoice(
+                input.mapAll(visitor), minInclusive, maxExclusive,
+                whenInRange.mapAll(visitor), whenOutOfRange.mapAll(visitor)));
+        }
     }
 
     // ================================================================
@@ -411,6 +439,13 @@ public final class DensityFunctions {
         @Override public void fillArray(double[] arr, DensityFunction.ContextProvider p) { p.fillAllDirectly(arr, this); }
         @Override public double minValue() { return -noise.maxValue(); }
         @Override public double maxValue() { return  noise.maxValue(); }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(new ShiftedNoise(
+                shiftX.mapAll(visitor), shiftY.mapAll(visitor), shiftZ.mapAll(visitor),
+                xzScale, yScale, noise));
+        }
     }
 
     // ================================================================
@@ -504,6 +539,11 @@ public final class DensityFunctions {
         @Override public void fillArray(double[] arr, DensityFunction.ContextProvider p) { p.fillAllDirectly(arr, this); }
         @Override public double minValue() { return 0.0; }
         @Override public double maxValue() { return rarityValueMapper.maxRarity() * noise.maxValue(); }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(new WeirdScaledSampler(input.mapAll(visitor), noise, rarityValueMapper));
+        }
     }
 
     // ================================================================
@@ -541,6 +581,15 @@ public final class DensityFunctions {
         public void fillArray(double[] arr, DensityFunction.ContextProvider p) { wrapped.fillArray(arr, p); }
         @Override public double minValue() { return wrapped.minValue(); }
         @Override public double maxValue() { return wrapped.maxValue(); }
+
+        /**
+         * 자식을 먼저 재귀 변환한 새 Marker 를 visitor 에 전달한다.
+         * NoiseChunk.wrap() 은 여기서 Marker 를 셀 인식 구현체로 교체한다.
+         */
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(new Marker(type, wrapped.mapAll(visitor)));
+        }
     }
 
     // ================================================================
@@ -572,6 +621,11 @@ public final class DensityFunctions {
         public void fillArray(double[] arr, DensityFunction.ContextProvider p) { input.fillArray(arr, p); }
         @Override public double minValue() { return Double.NEGATIVE_INFINITY; }
         @Override public double maxValue() { return Double.POSITIVE_INFINITY; }
+
+        @Override
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            return visitor.apply(new BlendDensity(input.mapAll(visitor)));
+        }
     }
 
     // ================================================================
@@ -598,5 +652,23 @@ public final class DensityFunctions {
 
         @Override public double minValue() { return spline.minValue(); }
         @Override public double maxValue() { return spline.maxValue(); }
+
+        /**
+         * SplineCoordinate.mapAll(visitor) 를 통해 스플라인 트리 안의
+         * DensityFunction 도 재귀적으로 방문자에 전달한다.
+         */
+        @Override
+        @SuppressWarnings("unchecked")
+        public DensityFunction mapAll(DensityFunction.Visitor visitor) {
+            // coordinate 타입이 SplineCoordinate 인 경우에만 재귀 변환
+            CubicSpline<DensityFunction.FunctionContext, ?> s =
+                (CubicSpline<DensityFunction.FunctionContext, ?>) spline;
+            CubicSpline<DensityFunction.FunctionContext,
+                org.domi.furnace.server.world.gen.df.DensityFunctionParser.SplineCoordinate> mapped =
+                ((CubicSpline<DensityFunction.FunctionContext,
+                    org.domi.furnace.server.world.gen.df.DensityFunctionParser.SplineCoordinate>) s)
+                    .mapAll(coord -> coord.mapAll(visitor));
+            return visitor.apply(new Spline<>(mapped));
+        }
     }
 }
