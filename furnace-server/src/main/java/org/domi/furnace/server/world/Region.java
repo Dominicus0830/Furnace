@@ -86,6 +86,38 @@ public final class Region {
         for (Player sub : world.subscribers(cp)) sub.send(pkt);
     }
 
+    /** 면 인덱스(0~5) → 설치 위치 오프셋 {dx,dy,dz}. 0down 1up 2north 3south 4west 5east. */
+    static int[] placeOffset(int face) {
+        return switch (face) {
+            case 0 -> new int[]{0, -1, 0};
+            case 1 -> new int[]{0, 1, 0};
+            case 2 -> new int[]{0, 0, -1};
+            case 3 -> new int[]{0, 0, 1};
+            case 4 -> new int[]{-1, 0, 0};
+            case 5 -> new int[]{1, 0, 0};
+            default -> new int[]{0, 0, 0};
+        };
+    }
+
+    /** 소유 스레드서 블록 설치. 플레이어 바운딩박스와 겹치면 거부(false). 성공 시 setBlock+BlockUpdate. */
+    public boolean placeBlock(int bx, int by, int bz, int stateId) {
+        world.assertOwns(pos);
+        if (stateId == ChunkSection.AIR) return false;
+        // 플레이어 충돌 거부: 블록 AABB [bx,bx+1]×[by,by+1]×[bz,bz+1] vs 플레이어(가로±0.3,높이1.8).
+        for (Player pl : players.values()) {
+            double px = pl.x(), py = pl.y(), pz = pl.z();
+            boolean overlap = px + 0.3 > bx && px - 0.3 < bx + 1
+                    && py + 1.8 > by && py < by + 1
+                    && pz + 0.3 > bz && pz - 0.3 < bz + 1;
+            if (overlap) return false;
+        }
+        ChunkPos cp = ChunkPos.ofBlock(bx, bz);
+        chunkAt(cp).setBlock(bx & 15, by, bz & 15, stateId);
+        BlockUpdate pkt = new BlockUpdate(bx, by, bz, stateId);
+        for (Player sub : world.subscribers(cp)) sub.send(pkt);
+        return true;
+    }
+
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
     public void saveDirtyChunks() {
         for (var e : chunks.entrySet()) {
