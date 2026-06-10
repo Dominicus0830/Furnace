@@ -1,0 +1,11 @@
+plugins { id 'java'; id 'application' }
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+application { mainClass = 'org.domi.oracle.OracleMain' }
+tasks.named('run') { workingDir = rootProject.projectDir } // fixture 출력 경로를 repo 루트 기준으로
+def pwRoot = file("${System.getProperty('user.home')}/.gradle/caches/paperweight-userdev/v2/work")
+def vanillaJar = fileTree(dir: pwRoot, includes: ['remapMinecraft_*/output.jar']).singleFile
+def mcLibs = fileTree(dir: pwRoot, includes: ['extractFromBundler_*/minecraftLibraries/**/*.jar'])
+dependencies {
+    implementation files(vanillaJar)
+    implementation mcLibs
+}

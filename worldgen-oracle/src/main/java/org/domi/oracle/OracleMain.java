@@ -1,0 +1,228 @@
+// 바닐라 노이즈 지형 생성을 실행해 bin fixture를 덤프하는 오라클 진입점
+package org.domi.oracle;
+
+import com.mojang.serialization.Lifecycle;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.minecraft.DetectedVersion;
+import net.minecraft.SharedConstants;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.MappedRegistry;
+import net.minecraft.core.RegistrationInfo;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.data.registries.VanillaRegistries;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.LevelHeightAccessor;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
+import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterList;
+import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ProtoChunk;
+import net.minecraft.world.level.chunk.UpgradeData;
+import net.minecraft.world.level.levelgen.Aquifer;
+import net.minecraft.world.level.levelgen.Beardifier;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.NoiseChunk;
+import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
+import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
+import net.minecraft.world.level.levelgen.blending.Blender;
+import net.minecraft.world.level.levelgen.structure.pools.JigsawJunction;
+import net.minecraft.world.level.levelgen.synth.NormalNoise;
+
+import java.io.FileOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+public class OracleMain {
+
+    public static void main(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: OracleMain <seed> <cx:cz|rng:N> [...]");
+            System.exit(1);
+        }
+
+        SharedConstants.setVersion(DetectedVersion.BUILT_IN);
+        Bootstrap.bootStrap();
+
+        long seed = Long.parseLong(args[0]);
+
+        // Output directory: furnace-server/src/test/resources/worldgen/fixtures/
+        Path outDir = Paths.get("furnace-server", "src", "test", "resources", "worldgen", "fixtures");
+        Files.createDirectories(outDir);
+
+        // Build vanilla registry lookup (includes all worldgen registries)
+        HolderLookup.Provider registries = VanillaRegistries.createLookup();
+
+        // Get OVERWORLD NoiseGeneratorSettings and clone with aquifer + oreVeins disabled
+        HolderLookup<NoiseGeneratorSettings> noiseSettingsReg = registries.lookupOrThrow(Registries.NOISE_SETTINGS);
+        NoiseGeneratorSettings overworldSettings = noiseSettingsReg.getOrThrow(NoiseGeneratorSettings.OVERWORLD).value();
+
+        NoiseGeneratorSettings noAquiferSettings = new NoiseGeneratorSettings(
+            overworldSettings.noiseSettings(),
+            overworldSettings.defaultBlock(),
+            overworldSettings.defaultFluid(),
+            overworldSettings.noiseRouter(),
+            overworldSettings.surfaceRule(),
+            overworldSettings.spawnTarget(),
+            overworldSettings.seaLevel(),
+            overworldSettings.disableMobGeneration(),
+            false, // aquifersEnabled
+            false, // oreVeinsEnabled
+            overworldSettings.useLegacyRandomSource()
+        );
+
+        // Wrap in a Holder (direct holder)
+        Holder<NoiseGeneratorSettings> settingsHolder = Holder.direct(noAquiferSettings);
+
+        // Build RandomState: needs the noise parameter getter
+        HolderLookup<NormalNoise.NoiseParameters> noiseGetter = registries.lookupOrThrow(Registries.NOISE);
+        RandomState randomState = RandomState.create(noAquiferSettings, noiseGetter, seed);
+
+        // Build biome source from the OVERWORLD preset
+        HolderLookup<MultiNoiseBiomeSourceParameterList> mnbsplLookup =
+            registries.lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST);
+        Holder<MultiNoiseBiomeSourceParameterList> overworldPreset =
+            mnbsplLookup.getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD);
+        MultiNoiseBiomeSource biomeSource = MultiNoiseBiomeSource.createFromPreset(overworldPreset);
+
+        // Chunk generator
+        NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(biomeSource, settingsHolder);
+
+        // Fluid picker (mirrors NoiseBasedChunkGenerator.createFluidPicker)
+        int seaLevel = noAquiferSettings.seaLevel();
+        Aquifer.FluidStatus lavaStatus = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
+        Aquifer.FluidStatus seaStatus = new Aquifer.FluidStatus(seaLevel, noAquiferSettings.defaultFluid());
+        Aquifer.FluidPicker fluidPicker = (x, y, z) -> y < Math.min(-54, seaLevel) ? lavaStatus : seaStatus;
+
+        // Build a real Registry<Biome> from the lookup, needed by ProtoChunk constructor.
+        // HolderLookup.RegistryLookup is not a Registry, so we populate a MappedRegistry.
+        HolderLookup.RegistryLookup<Biome> biomeLookup = registries.lookupOrThrow(Registries.BIOME);
+        MappedRegistry<Biome> biomeRegistry = new MappedRegistry<>(Registries.BIOME, Lifecycle.stable());
+        biomeLookup.listElements().forEach(ref ->
+            biomeRegistry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN)
+        );
+        Registry<Biome> frozenBiomeRegistry = biomeRegistry.freeze();
+
+        // Process each argument
+        for (int i = 1; i < args.length; i++) {
+            String arg = args[i];
+            if (arg.startsWith("rng:")) {
+                int n = Integer.parseInt(arg.substring(4));
+                dumpRng(seed, n, outDir);
+            } else {
+                String[] parts = arg.split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpChunk(seed, cx, cz, generator, randomState, noAquiferSettings, fluidPicker, frozenBiomeRegistry, outDir);
+            }
+        }
+
+        System.out.println("Oracle done. Output: " + outDir.toAbsolutePath());
+    }
+
+    private static void dumpRng(long seed, int n, Path outDir) throws Exception {
+        XoroshiroRandomSource rng = new XoroshiroRandomSource(seed);
+        ByteBuffer buf = ByteBuffer.allocate(4 + n * 8).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(n);
+        for (int i = 0; i < n; i++) {
+            buf.putLong(rng.nextLong());
+        }
+        Path out = outDir.resolve("rng_" + seed + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes)");
+    }
+
+    private static void dumpChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        Path outDir
+    ) throws Exception {
+        ChunkPos chunkPos = new ChunkPos(cx, cz);
+
+        // LevelHeightAccessor for overworld: min_y=-64, height=384
+        LevelHeightAccessor heightAccessor = LevelHeightAccessor.create(FixtureFormat.MIN_Y, FixtureFormat.HEIGHT);
+
+        // Build ProtoChunk with no blending data and no upgrade data
+        ProtoChunk chunk = new ProtoChunk(chunkPos, UpgradeData.EMPTY, heightAccessor, biomeRegistry, null);
+
+        // Pre-seed the noise chunk cache with an empty Beardifier (no structures).
+        // This avoids needing a real StructureManager: the cache is checked first in
+        // getOrCreateNoiseChunk(), so fillFromNoise will reuse this and never call
+        // Beardifier.forStructuresInChunk().
+        Beardifier emptyBeardifier = new Beardifier(
+            new ObjectArrayList<Beardifier.Rigid>().iterator(),
+            new ObjectArrayList<JigsawJunction>().iterator()
+        );
+        chunk.getOrCreateNoiseChunk(ca ->
+            NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty())
+        );
+
+        // Run fillFromNoise — passes null for StructureManager since the noise chunk is
+        // already cached and createNoiseChunk (which uses StructureManager) won't be called.
+        generator.fillFromNoise(Blender.empty(), randomState, null, chunk).join();
+
+        // Collect categories
+        int totalBlocks = FixtureFormat.HEIGHT * 16 * 16;
+        byte[] categories = new byte[totalBlocks];
+
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = chunk.getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    categories[FixtureFormat.blockIndex(localX, y, localZ)] = classify(state);
+                }
+            }
+        }
+
+        // Write fixture
+        int headerSize = 4 + 8 + 4 + 4; // magic + seed + cx + cz
+        ByteBuffer buf = ByteBuffer.allocate(headerSize + totalBlocks).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0x46584331); // "FXC1"
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+        buf.put(categories);
+
+        Path out = outDir.resolve("chunk_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+
+        // Count categories for sanity report
+        int[] counts = new int[5];
+        for (byte b : categories) counts[b & 0xFF]++;
+        System.out.printf("Wrote %s (%d bytes) air=%d stone=%d water=%d lava=%d other=%d%n",
+            out, buf.capacity(), counts[0], counts[1], counts[2], counts[3], counts[4]);
+
+        if (counts[4] > 0) {
+            System.err.println("WARNING: " + counts[4] + " OTHER blocks in chunk " + cx + "," + cz);
+        }
+    }
+
+    private static byte classify(BlockState state) {
+        if (state.isAir()) return FixtureFormat.AIR;
+        if (state.is(Blocks.STONE)) return FixtureFormat.STONE;
+        net.minecraft.world.level.material.FluidState fluid = state.getFluidState();
+        if (!fluid.isEmpty()) {
+            if (fluid.getType() == net.minecraft.world.level.material.Fluids.WATER) return FixtureFormat.WATER;
+            if (fluid.getType() == net.minecraft.world.level.material.Fluids.LAVA) return FixtureFormat.LAVA;
+        }
+        return FixtureFormat.OTHER;
+    }
+}
