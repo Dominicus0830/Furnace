@@ -17,8 +17,10 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Climate;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterList;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -130,6 +132,9 @@ public class OracleMain {
             } else if (arg.startsWith("blended:")) {
                 long noiseSeed = Long.parseLong(arg.substring("blended:".length()));
                 dumpBlendedNoise(noiseSeed, outDir);
+            } else if (arg.equals("params")) {
+                Path mainResDir = Paths.get("furnace-server", "src", "main", "resources", "worldgen", "1.21.1");
+                dumpBiomeParams(mainResDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -265,6 +270,38 @@ public class OracleMain {
             fos.write(buf.array());
         }
         System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes)");
+    }
+
+    private static void dumpBiomeParams(Path outDir) throws Exception {
+        Climate.ParameterList<ResourceKey<Biome>> paramList =
+            MultiNoiseBiomeSourceParameterList.knownPresets()
+                .get(MultiNoiseBiomeSourceParameterList.Preset.OVERWORLD);
+
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (com.mojang.datafixers.util.Pair<Climate.ParameterPoint, ResourceKey<Biome>> pair
+                : paramList.values()) {
+            Climate.ParameterPoint pp = pair.getFirst();
+            String biomeName = pair.getSecond().location().toString();
+            if (!first) sb.append(",");
+            sb.append("\n  {")
+              .append("\"biome\":\"").append(biomeName).append("\"")
+              .append(",\"temperature\":[").append(pp.temperature().min()).append(",").append(pp.temperature().max()).append("]")
+              .append(",\"humidity\":[").append(pp.humidity().min()).append(",").append(pp.humidity().max()).append("]")
+              .append(",\"continentalness\":[").append(pp.continentalness().min()).append(",").append(pp.continentalness().max()).append("]")
+              .append(",\"erosion\":[").append(pp.erosion().min()).append(",").append(pp.erosion().max()).append("]")
+              .append(",\"depth\":[").append(pp.depth().min()).append(",").append(pp.depth().max()).append("]")
+              .append(",\"weirdness\":[").append(pp.weirdness().min()).append(",").append(pp.weirdness().max()).append("]")
+              .append(",\"offset\":").append(pp.offset())
+              .append("}");
+            first = false;
+        }
+        sb.append("\n]\n");
+
+        java.nio.file.Files.createDirectories(outDir);
+        Path out = outDir.resolve("biome_parameters.json");
+        java.nio.file.Files.writeString(out, sb.toString());
+        System.out.println("Wrote " + out + " (" + paramList.values().size() + " entries)");
     }
 
     private static void dumpChunk(
