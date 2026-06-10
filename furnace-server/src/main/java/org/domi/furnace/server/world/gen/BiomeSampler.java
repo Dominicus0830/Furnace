@@ -84,6 +84,7 @@ public final class BiomeSampler {
         long qw = quantize((float) router.ridges().compute(ctx));
         long[] target = {qt, qh, qc, qe, qd, qw};
 
+        if (entries.isEmpty()) return 0;
         int bestId = entries.get(0).registryId();
         long bestFitness = Long.MAX_VALUE;
         for (BiomeEntry entry : entries) {
