@@ -33,6 +33,8 @@ import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.blending.Blender;
 import net.minecraft.world.level.levelgen.structure.pools.JigsawJunction;
+import net.minecraft.world.level.levelgen.DensityFunction;
+import net.minecraft.world.level.levelgen.synth.BlendedNoise;
 import net.minecraft.world.level.levelgen.synth.ImprovedNoise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
 
@@ -125,6 +127,9 @@ public class OracleMain {
             } else if (arg.startsWith("normal:")) {
                 long noiseSeed = Long.parseLong(arg.substring("normal:".length()));
                 dumpNormalNoise(noiseSeed, outDir);
+            } else if (arg.startsWith("blended:")) {
+                long noiseSeed = Long.parseLong(arg.substring("blended:".length()));
+                dumpBlendedNoise(noiseSeed, outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -197,6 +202,51 @@ public class OracleMain {
             buf.putDouble(value);
         }
         Path out = outDir.resolve("noise_improved_" + noiseSeed + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes, n=" + n + ")");
+    }
+
+    /**
+     * Dumps 50 BlendedNoise samples using overworld params (xzScale=0.25, yScale=0.125,
+     * xzFactor=80.0, yFactor=160.0, smearScaleMultiplier=8.0) seeded with XoroshiroRandomSource(noiseSeed).
+     * Integer block coords (i=0..49): x = i*7-150, y = i*3-30, z = i*-5+64.
+     * Format: little-endian 5×double params + int32 N + N×(int32 x, int32 y, int32 z, double value).
+     */
+    private static void dumpBlendedNoise(long noiseSeed, Path outDir) throws Exception {
+        // Overworld old_blended_noise params (from density_function/overworld/base_3d_noise.json)
+        double xzScale = 0.25;
+        double yScale  = 0.125;
+        double xzFactor = 80.0;
+        double yFactor  = 160.0;
+        double smear    = 8.0;
+
+        BlendedNoise noise = BlendedNoise.createUnseeded(xzScale, yScale, xzFactor, yFactor, smear)
+            .withNewRandom(new XoroshiroRandomSource(noiseSeed));
+
+        int n = 50;
+        // 5 doubles (params) + int32 N + N * (3 int32 + 1 double)
+        int headerBytes = 5 * 8 + 4;
+        int dataBytes   = n * (3 * 4 + 8);
+        ByteBuffer buf = ByteBuffer.allocate(headerBytes + dataBytes).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putDouble(xzScale);
+        buf.putDouble(yScale);
+        buf.putDouble(xzFactor);
+        buf.putDouble(yFactor);
+        buf.putDouble(smear);
+        buf.putInt(n);
+        for (int i = 0; i < n; i++) {
+            int x = i * 7 - 150;
+            int y = i * 3 - 30;
+            int z = i * -5 + 64;
+            double value = noise.compute(new DensityFunction.SinglePointContext(x, y, z));
+            buf.putInt(x);
+            buf.putInt(y);
+            buf.putInt(z);
+            buf.putDouble(value);
+        }
+        Path out = outDir.resolve("noise_blended_" + noiseSeed + ".bin");
         try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
             fos.write(buf.array());
         }
