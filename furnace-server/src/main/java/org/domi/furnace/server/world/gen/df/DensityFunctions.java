@@ -632,6 +632,90 @@ public final class DensityFunctions {
     // Spline  — wraps a CubicSpline; compute casts to float then back to double
     // ================================================================
 
+    // ================================================================
+    // cellBounds: 셀 내부 df 값의 보수적 [lo, hi] 구간 전파 (NoiseChunk 셀 skip 용)
+    // ================================================================
+
+    /** cellBounds 가 모르는 노드(NoiseChunk 래퍼 등)의 구간을 제공. null 반환 시 글로벌 min/max 폴백. */
+    public interface CellBoundsOracle {
+        double[] boundsOf(DensityFunction df);
+    }
+
+    /**
+     * 현재 셀 범위에서 df 가 가질 수 있는 값의 보수적 구간 [lo, hi] 를 반환한다.
+     * 항상 실제 범위를 포함(⊇)하므로 lo > 0 ⇒ 셀 전체 양수, hi < 0 ⇒ 셀 전체 음수가 보장된다.
+     *
+     * @param yMin 셀 최저 블록 Y (YClampedGradient 평가용)
+     * @param yMax 셀 최고 블록 Y
+     */
+    public static double[] cellBounds(DensityFunction df, CellBoundsOracle oracle, int yMin, int yMax) {
+        double[] o = oracle.boundsOf(df);
+        if (o != null) return o;
+
+        if (df instanceof Constant c) {
+            return new double[]{c.value(), c.value()};
+        }
+        if (df instanceof TwoArgFn t) {
+            double[] a = cellBounds(t.argument1(), oracle, yMin, yMax);
+            double[] b = cellBounds(t.argument2(), oracle, yMin, yMax);
+            return switch (t.type()) {
+                case ADD -> new double[]{a[0] + b[0], a[1] + b[1]};
+                case MIN -> new double[]{Math.min(a[0], b[0]), Math.min(a[1], b[1])};
+                case MAX -> new double[]{Math.max(a[0], b[0]), Math.max(a[1], b[1])};
+                case MUL -> {
+                    double p1 = a[0] * b[0], p2 = a[0] * b[1], p3 = a[1] * b[0], p4 = a[1] * b[1];
+                    yield new double[]{
+                        Math.min(Math.min(p1, p2), Math.min(p3, p4)),
+                        Math.max(Math.max(p1, p2), Math.max(p3, p4))
+                    };
+                }
+            };
+        }
+        if (df instanceof Clamp cl) {
+            double[] a = cellBounds(cl.input(), oracle, yMin, yMax);
+            return new double[]{
+                MathHelper.clamp(a[0], cl.minValue(), cl.maxValue()),
+                MathHelper.clamp(a[1], cl.minValue(), cl.maxValue())
+            };
+        }
+        if (df instanceof Mapped m) {
+            double[] a = cellBounds(m.input(), oracle, yMin, yMax);
+            double tlo = m.transform(a[0]);
+            double thi = m.transform(a[1]);
+            if (m.type() == Mapped.Type.ABS || m.type() == Mapped.Type.SQUARE) {
+                // 비단조: 0 을 포함하면 최소 0
+                if (a[0] <= 0.0 && a[1] >= 0.0) return new double[]{0.0, Math.max(tlo, thi)};
+                return new double[]{Math.min(tlo, thi), Math.max(tlo, thi)};
+            }
+            // CUBE / HALF_NEGATIVE / QUARTER_NEGATIVE / SQUEEZE 는 단조증가
+            return new double[]{tlo, thi};
+        }
+        if (df instanceof YClampedGradient g) {
+            double denom = (double) g.toY() - g.fromY();
+            double v0 = MathHelper.clampedLerp(g.fromValue(), g.toValue(), ((double) yMin - g.fromY()) / denom);
+            double v1 = MathHelper.clampedLerp(g.fromValue(), g.toValue(), ((double) yMax - g.fromY()) / denom);
+            return new double[]{Math.min(v0, v1), Math.max(v0, v1)};
+        }
+        if (df instanceof RangeChoice rc) {
+            double[] in = cellBounds(rc.input(), oracle, yMin, yMax);
+            boolean canInRange  = in[1] >= rc.minInclusive() && in[0] < rc.maxExclusive();
+            boolean canOutRange = in[0] < rc.minInclusive() || in[1] >= rc.maxExclusive();
+            if (canInRange && !canOutRange) return cellBounds(rc.whenInRange(), oracle, yMin, yMax);
+            if (!canInRange) return cellBounds(rc.whenOutOfRange(), oracle, yMin, yMax);
+            double[] a = cellBounds(rc.whenInRange(), oracle, yMin, yMax);
+            double[] b = cellBounds(rc.whenOutOfRange(), oracle, yMin, yMax);
+            return new double[]{Math.min(a[0], b[0]), Math.max(a[1], b[1])};
+        }
+        if (df instanceof BlendDensity bd) {
+            return cellBounds(bd.input(), oracle, yMin, yMax); // pass-through (min/maxValue 가 ±∞라 재귀 필수)
+        }
+        if (df instanceof Marker mk) {
+            return cellBounds(mk.wrapped(), oracle, yMin, yMax);
+        }
+        // Noise/ShiftedNoise/OldBlendedNoise/WeirdScaledSampler/Spline/Blend* 등: 글로벌 범위 (보수적)
+        return new double[]{df.minValue(), df.maxValue()};
+    }
+
     record Spline<C, I extends ToFloatFunction<C>>(CubicSpline<C, I> spline) implements DensityFunction {
 
         @Override

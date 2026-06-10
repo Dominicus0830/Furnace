@@ -262,7 +262,10 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     // 슬라이스 채우기 (vanilla fillSlice)
     // ─────────────────────────────────────────────────────────────────────
 
+    long sliceFillNanos = 0; // 벤치마크용 — fillSlice(코너 DF 평가) 누적 시간
+
     private void fillSlice(boolean isSlice0, int cellX) {
+        long t0 = System.nanoTime();
         this.cellStartBlockX = cellX * this.cellWidth;
         this.inCellX = 0;
 
@@ -279,6 +282,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         }
 
         this.arrayInterpolationCounter++;
+        this.sliceFillNanos += System.nanoTime() - t0;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -300,9 +304,13 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         for (NoiseInterpolator interp : this.interpolators) {
             interp.selectCellYZ(iy, iz);
         }
-        this.fillingCell = true;
         this.cellStartBlockY = (iy + this.cellNoiseMinY) * this.cellHeight;
         this.cellStartBlockZ = (this.firstCellZ + iz) * this.cellWidth;
+    }
+
+    /** 셀 skip 판정 후에만 호출 — CacheAllInCell 채우기 (vanilla selectCellYZ 후반부) */
+    private void fillCellCaches() {
+        this.fillingCell = true;
         this.arrayInterpolationCounter++;
 
         for (CacheAllInCell cache : this.cellCaches) {
@@ -311,6 +319,31 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
         this.arrayInterpolationCounter++;
         this.fillingCell = false;
+    }
+
+    // ── 셀 skip: final_density 의 셀 내 보수적 구간으로 부호가 자명한 셀의 블록 루프 생략 ──
+
+    /** 부호 판정 마진. 보간 lerp 의 부동소수점 오차(~수 ulp)에 대한 보험. */
+    private static final double SKIP_EPS = 1e-9;
+
+    int skippedCells = 0; // 벤치마크용
+
+    private double[] cellBoundsOracle(DensityFunction df) {
+        if (df instanceof NoiseInterpolator ni) return ni.cornerBounds();
+        if (df instanceof FlatCache fc) {
+            double v = fc.compute(new DensityFunction.SinglePointContext(
+                cellStartBlockX, cellStartBlockY, cellStartBlockZ));
+            return new double[]{v, v};
+        }
+        if (df instanceof Cache2D c)        return cellBoundsOf(c.wrapped());
+        if (df instanceof CacheOnce c)      return cellBoundsOf(c.wrapped());
+        if (df instanceof CacheAllInCell c) return cellBoundsOf(c.wrapped());
+        return null; // DensityFunctions.cellBounds 가 처리
+    }
+
+    private double[] cellBoundsOf(DensityFunction df) {
+        return DensityFunctions.cellBounds(df, this::cellBoundsOracle,
+            cellStartBlockY, cellStartBlockY + cellHeight - 1);
     }
 
     private void updateForY(int blockY, double t) {
@@ -383,6 +416,31 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             for (int cz = 0; cz < this.cellCountXZ; cz++) {
                 for (int cy = this.cellCountY - 1; cy >= 0; cy--) {
                     selectCellYZ(cy, cz);
+
+                    // 셀 skip: 보수적 구간으로 부호 자명하면 블록 루프 생략 (결과 비트일치)
+                    double[] bounds = cellBoundsOf(this.wrappedFinalDensity);
+                    if (bounds[1] < -SKIP_EPS) {
+                        skippedCells++;
+                        continue; // 전부 비돌 — mask 기본값 false 유지
+                    }
+                    if (bounds[0] > SKIP_EPS) {
+                        skippedCells++;
+                        int yBase = cy * this.cellHeight;
+                        int xBase = cx * this.cellWidth;
+                        int zBase = cz * this.cellWidth;
+                        for (int iy = 0; iy < this.cellHeight; iy++) {
+                            int rowBase = (yBase + iy) * 256;
+                            for (int iz = 0; iz < this.cellWidth; iz++) {
+                                int rb = rowBase + (zBase + iz) * 16 + xBase;
+                                for (int ix = 0; ix < this.cellWidth; ix++) {
+                                    mask[rb + ix] = true; // 전부 돌
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    fillCellCaches();
 
                     // Y 방향 in-cell 루프: top-down (cellHeight-1 .. 0)
                     for (int iy = this.cellHeight - 1; iy >= 0; iy--) {
@@ -481,6 +539,15 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             this.noise011 = slice0[iz + 1][iy + 1];
             this.noise110 = slice1[iz    ][iy + 1];
             this.noise111 = slice1[iz + 1][iy + 1];
+        }
+
+        /** 현재 셀 8 코너의 [min, max]. 삼선형 보간값은 항상 이 구간 안(볼록결합). */
+        double[] cornerBounds() {
+            double lo = Math.min(Math.min(Math.min(noise000, noise001), Math.min(noise100, noise101)),
+                                 Math.min(Math.min(noise010, noise011), Math.min(noise110, noise111)));
+            double hi = Math.max(Math.max(Math.max(noise000, noise001), Math.max(noise100, noise101)),
+                                 Math.max(Math.max(noise010, noise011), Math.max(noise110, noise111)));
+            return new double[]{lo, hi};
         }
 
         void updateForY(double t) {
