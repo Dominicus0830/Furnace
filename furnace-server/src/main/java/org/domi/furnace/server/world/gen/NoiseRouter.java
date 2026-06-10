@@ -38,4 +38,24 @@ public final class NoiseRouter {
     public DensityFunction finalDensity() {
         return finalDensity;
     }
+
+    // -- Climate DF 스텁 (Task 4에서 실제 구현으로 교체) --
+
+    /** 온도 밀도 함수. Task 4에서 구현된다. */
+    public DensityFunction temperature() { throw new UnsupportedOperationException("Task 4 미구현"); }
+
+    /** 습도 밀도 함수. Task 4에서 구현된다. */
+    public DensityFunction humidity() { throw new UnsupportedOperationException("Task 4 미구현"); }
+
+    /** 대륙성 밀도 함수. Task 4에서 구현된다. */
+    public DensityFunction continents() { throw new UnsupportedOperationException("Task 4 미구현"); }
+
+    /** 침식 밀도 함수. Task 4에서 구현된다. */
+    public DensityFunction erosion() { throw new UnsupportedOperationException("Task 4 미구현"); }
+
+    /** 깊이 밀도 함수. Task 4에서 구현된다. */
+    public DensityFunction depth() { throw new UnsupportedOperationException("Task 4 미구현"); }
+
+    /** 능선 밀도 함수. Task 4에서 구현된다. */
+    public DensityFunction ridges() { throw new UnsupportedOperationException("Task 4 미구현"); }
 }

@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
+import org.domi.furnace.server.net.registry.RegistrySet;
 
 class BiomeSamplerTest {
 
@@ -39,5 +40,16 @@ class BiomeSamplerTest {
         long[] t  = { 3000,     0,     0,     0,     0,     0}; // temperature 2000 above max
         // sq(2000) = 4_000_000
         assertEquals(4_000_000L, BiomeSampler.fitness(mn, mx, 0L, t));
+    }
+
+    @Test
+    void load_entry_count() {
+        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        RegistrySet reg = RegistrySet.load("registries/1.21.1.txt");
+        BiomeSampler sampler = BiomeSampler.load(data, reg);
+        // After filtering out 1.21.4-only biomes (pale_garden etc), expect 7000+ entries
+        assertTrue(sampler.entries().size() > 1000, "Expected >1000 entries, got " + sampler.entries().size());
+        // And some entries should map to known biome IDs (>= 0)
+        assertTrue(sampler.entries().get(0).registryId() >= 0);
     }
 }

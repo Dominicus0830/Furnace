@@ -1,6 +1,7 @@
 // 바닐라 worldgen JSON 리소스를 Gson으로 로드하는 데이터 접근 계층
 package org.domi.furnace.server.world.gen;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -67,6 +68,18 @@ public final class WorldgenData {
             throw new IllegalArgumentException("Noise params not found: " + id + " (path: " + path + ")");
         }
         return el;
+    }
+
+    /**
+     * biome_parameters.json 배열을 반환한다.
+     * 파일 경로: basePath/biome_parameters.json
+     */
+    public JsonArray biomeParameters() {
+        JsonElement el = loadResource(basePath + "/biome_parameters.json");
+        if (el == null) {
+            throw new IllegalStateException("biome_parameters.json not found: " + basePath + "/biome_parameters.json");
+        }
+        return el.getAsJsonArray();
     }
 
     /**
