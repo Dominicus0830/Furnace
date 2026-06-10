@@ -48,3 +48,9 @@ furnace.properties
 ### Furnace runtime data ###
 furnace-server/world/
 furnace-server/furnace.properties
+
+# worldgen-oracle 런타임 로그
+worldgen-oracle/logs/
+
+# 런타임 로그(서버/오라클)
+logs/

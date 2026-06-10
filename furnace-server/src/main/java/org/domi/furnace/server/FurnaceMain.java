@@ -11,7 +11,7 @@ import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ItemRegistry;
 import org.domi.furnace.server.world.World;
-import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,9 +38,10 @@ public final class FurnaceMain {
         Path worldDir = Path.of(config.levelName());
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome);
-        var superflat = new SuperflatWorldSource(blockRegistry, plainsBiome);
+        // 시드 0L 기본값 사용 (level-seed 설정 연동은 추후 milestone). furnace.properties에 seed= 추가 예정.
+        var noiseSource = NoiseWorldSource.overworld(0L, blockRegistry);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
-                worldDir, regionStore, chunkCodec, superflat);
+                worldDir, regionStore, chunkCodec, noiseSource);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
         World world = new World(anvilSource, chunkPool,
