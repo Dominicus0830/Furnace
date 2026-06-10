@@ -11,6 +11,7 @@ public final class NormalNoise {
     private static final double INPUT_FACTOR = 1.0181268882175227;
 
     private final double valueFactor;
+    private final double maxValue;
     private final PerlinNoise first;
     private final PerlinNoise second;
 
@@ -38,10 +39,16 @@ public final class NormalNoise {
             }
         }
         this.valueFactor = 0.16666666666666666 / expectedDeviation(i2 - i1);
+        // 바닐라: maxValue = (first.maxValue() + second.maxValue()) * valueFactor
+        this.maxValue = (this.first.maxValue() + this.second.maxValue()) * this.valueFactor;
     }
 
     private static double expectedDeviation(int octaves) {
         return 0.1 * (1.0 + 1.0 / (octaves + 1));
+    }
+
+    public double maxValue() {
+        return this.maxValue;
     }
 
     public double getValue(double x, double y, double z) {
