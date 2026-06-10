@@ -135,6 +135,11 @@ public class OracleMain {
             } else if (arg.equals("params")) {
                 Path mainResDir = Paths.get("furnace-server", "src", "main", "resources", "worldgen", "1.21.1");
                 dumpBiomeParams(mainResDir);
+            } else if (arg.startsWith("biome:")) {
+                String[] parts = arg.substring("biome:".length()).split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpBiomeChunk(seed, cx, cz, biomeSource, randomState, outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -375,6 +380,55 @@ public class OracleMain {
         if (counts[4] > 0) {
             System.err.println("WARNING: " + counts[4] + " OTHER blocks in chunk " + cx + "," + cz);
         }
+    }
+
+    private static void dumpBiomeChunk(
+        long seed, int cx, int cz,
+        MultiNoiseBiomeSource biomeSource,
+        RandomState randomState,
+        Path outDir
+    ) throws Exception {
+        Climate.Sampler sampler = randomState.sampler();
+
+        String[] biomeNames = new String[1536];
+        for (int qy = 0; qy < 96; qy++) {
+            int vanillaQY = qy - 16;
+            for (int qz = 0; qz < 4; qz++) {
+                for (int qx = 0; qx < 4; qx++) {
+                    int worldQX = cx * 4 + qx;
+                    int worldQZ = cz * 4 + qz;
+                    Holder<Biome> holder = biomeSource.getNoiseBiome(worldQX, vanillaQY, worldQZ, sampler);
+                    biomeNames[qy * 16 + qz * 4 + qx] =
+                        holder.unwrapKey().orElseThrow().location().toString();
+                }
+            }
+        }
+
+        // Calculate body size for ByteBuffer allocation
+        byte[][] nameBytes = new byte[1536][];
+        int bodySize = 0;
+        for (int i = 0; i < 1536; i++) {
+            nameBytes[i] = biomeNames[i].getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            bodySize += 2 + nameBytes[i].length;
+        }
+
+        // Header: int32 magic + int64 seed + int32 cx + int32 cz = 4+8+4+4 = 20 bytes
+        ByteBuffer buf = ByteBuffer.allocate(20 + bodySize)
+            .order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0x42494F4D);  // "BIOM" magic
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+        for (byte[] nb : nameBytes) {
+            buf.putShort((short) nb.length);
+            buf.put(nb);
+        }
+
+        Path out = outDir.resolve("biome_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.printf("Wrote %s (%d bytes, 1536 quarts)%n", out, buf.capacity());
     }
 
     private static byte classify(BlockState state) {
