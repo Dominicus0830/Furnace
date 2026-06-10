@@ -9,6 +9,7 @@ import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ItemRegistry;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.slf4j.Logger;
@@ -27,6 +28,7 @@ public final class FurnaceMain {
 
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
+        ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         int plainsBiome = Math.max(0,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
@@ -46,6 +48,7 @@ public final class FurnaceMain {
                 config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool);
         world.worldDir(worldDir);
         world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
+        world.setRegistries(blockRegistry, itemRegistry);
         scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         NetworkServer network = new NetworkServer(

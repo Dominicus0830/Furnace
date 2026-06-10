@@ -87,7 +87,7 @@ public final class Region {
     }
 
     /** 면 인덱스(0~5) → 설치 위치 오프셋 {dx,dy,dz}. 0down 1up 2north 3south 4west 5east. */
-    static int[] placeOffset(int face) {
+    public static int[] placeOffset(int face) {
         return switch (face) {
             case 0 -> new int[]{0, -1, 0};
             case 1 -> new int[]{0, 1, 0};

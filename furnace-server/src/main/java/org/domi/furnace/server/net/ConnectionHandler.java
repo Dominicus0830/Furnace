@@ -64,6 +64,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 스폰 텔레포트 게이트 ID(-1=해제). 설정 중엔 클라 이동 무시(vanilla awaitingPositionFromClient식) — 청크 로드 갭 중 떨어진 위치 수용 방지.
     // confirm이 아니라 스폰 청크 도착 후(타이머)에 해제 + 위치 재확정.
     private int pendingTeleportId = -1;
+    private final int[] hotbar = new int[9]; // 핫바 슬롯 아이템 id(0=air). Netty 스레드 전용.
+    private int selectedSlot;                // 0~8
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
 
@@ -258,6 +260,31 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
                     scheduler.region(br).execute(() -> world.regionAt(br).breakBlock(bx, by, bz));
                 }
+            }
+            case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
+                int slot = frame.readShort();
+                if (slot >= 0 && slot < 9) selectedSlot = slot;
+            }
+            case 0x32 -> { // Set Creative Mode Slot: Short slot + Slot
+                int slot = frame.readShort();
+                int count = Types.readVarInt(frame);   // itemCount
+                int itemId = count > 0 ? Types.readVarInt(frame) : 0; // >0이면 item id(components는 무시)
+                if (slot >= 36 && slot <= 44) hotbar[slot - 36] = itemId;
+            }
+            case 0x38 -> { // Use Item On: hand, pos, face, cursorXYZ, insideBlock, sequence
+                int hand = Types.readVarInt(frame);
+                int[] bp = Types.readBlockPos(frame);
+                int face = Types.readVarInt(frame);
+                frame.readFloat(); frame.readFloat(); frame.readFloat(); // cursor X/Y/Z
+                frame.readBoolean(); // insideBlock
+                Types.readVarInt(frame); // sequence
+                if (hand != 0) break; // 메인핸드만
+                int stateId = world.itemToBlockState(hotbar[selectedSlot]);
+                if (stateId == 0) break; // 설치 불가 아이템(블록 아님)
+                int[] o = org.domi.furnace.server.world.Region.placeOffset(face);
+                int px = bp[0] + o[0], py = bp[1] + o[1], pz = bp[2] + o[2];
+                RegionPos rp = RegionGrid.regionPos(px, pz, world.regionSize());
+                scheduler.region(rp).execute(() -> world.regionAt(rp).placeBlock(px, py, pz, stateId));
             }
             default -> { /* 그 외 무시 */ }
         }
