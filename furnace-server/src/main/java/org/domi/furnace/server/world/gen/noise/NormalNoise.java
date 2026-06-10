@@ -16,6 +16,24 @@ public final class NormalNoise {
     private final PerlinNoise second;
 
     /**
+     * 바닐라 NormalNoise.NoiseParameters 에 대응하는 간단한 record.
+     * DensityFunctionParser 가 JSON 에서 읽은 파라미터를 전달할 때 사용.
+     */
+    public record NoiseParameters(int firstOctave, double[] amplitudes) {
+        public NoiseParameters(int firstOctave, double[] amplitudes) {
+            this.firstOctave = firstOctave;
+            this.amplitudes = amplitudes.clone();
+        }
+    }
+
+    /**
+     * NoiseParameters 를 받는 팩토리 — 파서용.
+     */
+    public static NormalNoise create(XoroshiroRandomSource random, NoiseParameters params) {
+        return new NormalNoise(random, params.firstOctave(), params.amplitudes());
+    }
+
+    /**
      * 표준 팩토리: double[] 가변 인자 형태.
      * 바닐라 NormalNoise.create(random, firstOctave, double... amplitudes) 에 대응.
      */
