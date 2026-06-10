@@ -185,6 +185,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     }
 
     /** @deprecated 테스트 전용 — 프로덕션은 fillTarget 사용 */
+    @Deprecated
     public double[] climateAt(int localQX, int absQY, int localQZ) {
         int cy = absQY >>> 1;
         double ty = (absQY & 1) * 0.5;
