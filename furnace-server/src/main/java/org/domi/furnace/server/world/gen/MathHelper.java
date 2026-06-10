@@ -18,4 +18,12 @@ public final class MathHelper {
         return l >> 16;
     }
     public static double square(double v) { return v * v; }
+    public static double lerp2(double d1, double d2, double s1, double e1, double s2, double e2) {
+        return lerp(d2, lerp(d1, s1, e1), lerp(d1, s2, e2));
+    }
+    public static double lerp3(double d1, double d2, double d3,
+                               double s1, double e1, double s2, double e2,
+                               double s3, double e3, double s4, double e4) {
+        return lerp(d3, lerp2(d1, d2, s1, e1, s2, e2), lerp2(d1, d2, s3, e3, s4, e4));
+    }
 }

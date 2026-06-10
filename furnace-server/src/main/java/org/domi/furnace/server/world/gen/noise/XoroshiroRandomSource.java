@@ -5,7 +5,8 @@ import org.domi.furnace.server.world.gen.MathHelper;
 
 public class XoroshiroRandomSource {
     private static final float FLOAT_UNIT = 5.9604645E-8F;
-    private static final double DOUBLE_UNIT = 1.110223E-16F;
+    // 바닐라 bytecode: ldc2_w (double constant) 1.1102230246251565E-16d — 디컴파일러가 F(float) 접미사로 잘못 표기
+    private static final double DOUBLE_UNIT = 1.1102230246251565E-16;
     private Xoroshiro128PlusPlus randomNumberGenerator;
 
     public XoroshiroRandomSource(long seed) {
@@ -67,7 +68,7 @@ public class XoroshiroRandomSource {
     }
 
     public double nextDouble() {
-        return this.nextBits(53) * 1.110223E-16F;
+        return this.nextBits(53) * DOUBLE_UNIT;
     }
 
     public void consumeCount(int count) {

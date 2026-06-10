@@ -32,6 +32,7 @@ import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.blending.Blender;
 import net.minecraft.world.level.levelgen.structure.pools.JigsawJunction;
+import net.minecraft.world.level.levelgen.synth.ImprovedNoise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
 
 import java.io.FileOutputStream;
@@ -117,6 +118,9 @@ public class OracleMain {
             if (arg.startsWith("rng:")) {
                 int n = Integer.parseInt(arg.substring(4));
                 dumpRng(seed, n, outDir);
+            } else if (arg.startsWith("improved:")) {
+                long noiseSeed = Long.parseLong(arg.substring("improved:".length()));
+                dumpImprovedNoise(noiseSeed, outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -126,6 +130,34 @@ public class OracleMain {
         }
 
         System.out.println("Oracle done. Output: " + outDir.toAbsolutePath());
+    }
+
+    /**
+     * Dumps 50 ImprovedNoise samples built from vanilla XoroshiroRandomSource(noiseSeed).
+     * Coordinate set (i=0..49): x = i*12.3 - 100, y = i*4.7 + 3, z = -i*8.1 + 50.
+     * Format: little-endian int32 N; then N records of (double x, double y, double z, double value).
+     */
+    private static void dumpImprovedNoise(long noiseSeed, Path outDir) throws Exception {
+        ImprovedNoise noise = new ImprovedNoise(new XoroshiroRandomSource(noiseSeed));
+        int n = 50;
+        // 4 bytes N + 50 * (3 coords + 1 value) * 8 bytes each = 4 + 50*32 = 1604 bytes
+        ByteBuffer buf = ByteBuffer.allocate(4 + n * 4 * 8).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(n);
+        for (int i = 0; i < n; i++) {
+            double x = i * 12.3 - 100.0;
+            double y = i * 4.7 + 3.0;
+            double z = -i * 8.1 + 50.0;
+            double value = noise.noise(x, y, z);
+            buf.putDouble(x);
+            buf.putDouble(y);
+            buf.putDouble(z);
+            buf.putDouble(value);
+        }
+        Path out = outDir.resolve("noise_improved_" + noiseSeed + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes, n=" + n + ")");
     }
 
     private static void dumpRng(long seed, int n, Path outDir) throws Exception {
