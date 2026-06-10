@@ -69,7 +69,7 @@ public final class NoiseWorldSource implements WorldSource {
 
         ChunkColumn col = new ChunkColumn(0);
 
-        int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, router);
+        int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
         for (int qy = 0; qy < 96; qy++) {
             for (int qz = 0; qz < 4; qz++) {
                 for (int qx = 0; qx < 4; qx++) {

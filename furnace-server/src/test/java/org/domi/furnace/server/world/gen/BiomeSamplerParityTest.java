@@ -19,7 +19,8 @@ class BiomeSamplerParityTest {
         NoiseRouter router = NoiseRouter.build(data, settings, seed);
         BiomeSampler sampler = BiomeSampler.load(data, registries);
 
-        int[] got = sampler.sampleChunk(cx, cz, router);
+        NoiseChunk noiseChunk = new NoiseChunk(cx, cz, router, settings);
+        int[] got = sampler.sampleChunk(cx, cz, noiseChunk);
 
         // Load fixture
         String fixtureName = "/worldgen/fixtures/biome_" + seed + "_" + cx + "_" + cz + ".bin";

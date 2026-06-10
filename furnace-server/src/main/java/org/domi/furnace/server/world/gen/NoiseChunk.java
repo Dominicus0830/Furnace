@@ -56,6 +56,12 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     // ── 보간 대상 함수 ────────────────────────────────────────────────────
     private final DensityFunction wrappedFinalDensity;
 
+    // ── 기후 DF (mapAll 래핑) — FlatCache pre-fill 활성화, dim: 0=temp 1=hum 2=cont 3=ero 4=depth 5=ridges ──
+    private final DensityFunction[] wrappedClimate;
+
+    // ── 기후 DF 셀코너 캐시 [dim 0..5][qx 0..noiseSizeXZ][cy 0..cellCountY][qz 0..noiseSizeXZ] ──
+    private final double[][][][] climateCache;
+
     // ── sliceFillingContextProvider: 셀 Y 슬라이스를 채울 때 사용 ─────────
     private final DensityFunction.ContextProvider sliceFillingContextProvider =
         new DensityFunction.ContextProvider() {
@@ -107,8 +113,88 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         this.firstNoiseZ = quartFromBlock(firstNoiseBlockZ); // chunkZ*4
         this.noiseSizeXZ = quartFromBlock(this.cellCountXZ * this.cellWidth); // 4
 
-        // wrap 이 호출되면 Marker 노드를 셀 인식 구현체로 교체한다
+        // wrap 이 호출되면 Marker 노드를 셀 인식 구현체로 교체한다.
+        // finalDensity 먼저 wrap → wrapped HashMap 채움 → climate DF wrap 시 sub-DF 공유
         this.wrappedFinalDensity = router.finalDensity().mapAll(this::wrap);
+        this.wrappedClimate = new DensityFunction[]{
+            router.temperature().mapAll(this::wrap),
+            router.humidity().mapAll(this::wrap),
+            router.continents().mapAll(this::wrap),
+            router.erosion().mapAll(this::wrap),
+            router.depth().mapAll(this::wrap),
+            router.ridges().mapAll(this::wrap)
+        };
+        this.climateCache = buildClimateCache();
+    }
+
+    private double[][][][] buildClimateCache() {
+        int xn = noiseSizeXZ + 1;   // 5
+        int yn = cellCountY + 1;    // 49
+        int zn = noiseSizeXZ + 1;   // 5
+        double[][][][] cache = new double[6][xn][yn][zn];
+        for (int i = 0; i < xn; i++) {
+            int bx = (firstNoiseX + i) * 4;
+            for (int j = 0; j < yn; j++) {
+                int by = (cellNoiseMinY + j) * cellHeight;
+                for (int k = 0; k < zn; k++) {
+                    int bz = (firstNoiseZ + k) * 4;
+                    DensityFunction.SinglePointContext ctx =
+                        new DensityFunction.SinglePointContext(bx, by, bz);
+                    for (int d = 0; d < 6; d++) {
+                        cache[d][i][j][k] = wrappedClimate[d].compute(ctx);
+                    }
+                }
+            }
+        }
+        return cache;
+    }
+
+    /**
+     * 청크 로컬 quart 좌표에서 기후 6개를 quantized long 으로 직접 채운다 (allocation 없음).
+     * out[d] = BiomeSampler.quantize((float) interpolated_climate[d])
+     *
+     * @param localQX 0..3
+     * @param absQY   0..95
+     * @param localQZ 0..3
+     * @param out     길이 ≥ 6 의 pre-allocated long 배열
+     */
+    public void fillTarget(int localQX, int absQY, int localQZ, long[] out) {
+        int cy = absQY >>> 1;
+        double ty = (absQY & 1) * 0.5;
+        for (int d = 0; d < 6; d++) {
+            double v0 = climateCache[d][localQX][cy][localQZ];
+            double v1 = climateCache[d][localQX][cy + 1][localQZ];
+            double v = v0 + ty * (v1 - v0);
+            out[d] = BiomeSampler.quantize((float) v);
+        }
+    }
+
+    /**
+     * 컬럼(localQX, localQZ)에서 depth(d=4) 제외 5개 기후 차원이 전부 Y-불변인지.
+     * FlatCache 래핑된 DF는 항상 true — false 면 BiomeSampler 가 일반 경로로 폴백한다.
+     */
+    public boolean isClimateColumnYInvariant(int localQX, int localQZ) {
+        for (int d = 0; d < 6; d++) {
+            if (d == 4) continue;
+            double v0 = climateCache[d][localQX][0][localQZ];
+            for (int cy = 1; cy <= cellCountY; cy++) {
+                if (climateCache[d][localQX][cy][localQZ] != v0) return false;
+            }
+        }
+        return true;
+    }
+
+    /** @deprecated 테스트 전용 — 프로덕션은 fillTarget 사용 */
+    public double[] climateAt(int localQX, int absQY, int localQZ) {
+        int cy = absQY >>> 1;
+        double ty = (absQY & 1) * 0.5;
+        double[] result = new double[6];
+        for (int d = 0; d < 6; d++) {
+            double v0 = climateCache[d][localQX][cy][localQZ];
+            double v1 = climateCache[d][localQX][cy + 1][localQZ];
+            result[d] = v0 + ty * (v1 - v0);
+        }
+        return result;
     }
 
     // ─────────────────────────────────────────────────────────────────────
