@@ -191,23 +191,25 @@ include 'worldgen-oracle'
 
 - [ ] **Step 2: 오라클 build.gradle — mojang-mapped 서버 + 라이브러리 의존**
 
-mojang-mapped 컴파일 산출물 경로 확인(1회):
+**확인됨(2026-06-10): `remapMinecraft_*/output.jar` = mojang-mapped 컴파일 순수 바닐라**(readable 메서드명 fillFromNoise/doFill/globalFluidPicker/applyCarvers 검증). `applyDevBundlePatches`는 소스(.java)라 **쓰지 말 것**. glob로 머신별 해시 자동 처리:
 ```bash
-ls ~/.gradle/caches/paperweight-userdev/v2/work/applyDevBundlePatches_*/output.jar
-ls ~/.gradle/caches/paperweight-userdev/v2/work/extractFromBundler_*/minecraftLibraries
+ls ~/.gradle/caches/paperweight-userdev/v2/work/remapMinecraft_*/output.jar
+ls -d ~/.gradle/caches/paperweight-userdev/v2/work/extractFromBundler_*/minecraftLibraries
 ```
 `worldgen-oracle/build.gradle`:
 ```gradle
-plugins { id 'java' }
+plugins { id 'java'; id 'application' }
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
-def pw = "${System.getProperty('user.home')}/.gradle/caches/paperweight-userdev/v2/work"
+application { mainClass = 'org.domi.oracle.OracleMain' }
+def pwRoot = file("${System.getProperty('user.home')}/.gradle/caches/paperweight-userdev/v2/work")
+def vanillaJar = fileTree(dir: pwRoot, includes: ['remapMinecraft_*/output.jar']).singleFile
+def mcLibs = fileTree(dir: pwRoot, includes: ['extractFromBundler_*/minecraftLibraries/**/*.jar'])
 dependencies {
-    // mojang-mapped 서버(remap 산출). 경로는 위 ls로 확정해 정확히 기입.
-    implementation files("${pw}/applyDevBundlePatches_8296811d0593b352ab16b08f005df682241489b414761d106df4bd30e1e65809/output.jar")
-    implementation fileTree(dir: "${pw}/extractFromBundler_5e4288fdbb90bffa23bfa44f32efe07f3099cd8dafaabcef917fe9b93b503f6b/minecraftLibraries", include: '**/*.jar')
+    implementation files(vanillaJar)   // mojang-mapped 순수 바닐라(Paper 패치 없음 → 바닐라 비트일치 정확)
+    implementation mcLibs               // datafixerupper/gson/guava 등 vanilla 런타임 의존
 }
 ```
-> 해시 디렉토리명은 머신마다 다름 — Step의 ls 결과로 교체. output.jar이 mojang-mapped 아니면(spigot-mapped) 폴백: 사용자 Paper 플러그인 dev 환경서 동일 OracleMain 실행해 fixture 생성·커밋(spec 리스크 폴백). fixture만 커밋되면 furnace-server 테스트는 동일 동작.
+> glob가 머신별 해시 디렉토리 자동 해결. remapMinecraft = 순수 바닐라라 Paper-dev 폴백 불필요. 캐시 비었으면(새 머신) Furnace 빌드 1회로 paperweight 캐시 채운 뒤 진행.
 
 - [ ] **Step 3: FixtureFormat — 공유 바이너리 포맷**
 
