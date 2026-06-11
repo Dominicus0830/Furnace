@@ -62,7 +62,7 @@ public final class NoiseWorldSource implements WorldSource {
 
         java.util.List<String> biomeEntries = registries.entries("minecraft:worldgen/biome");
         String[] registryBiomeNames = biomeEntries.toArray(new String[0]);
-        SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed);
+        SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed, registryBiomeNames);
 
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId);
@@ -117,25 +117,8 @@ public final class NoiseWorldSource implements WorldSource {
             }
         }
 
-        String[] colBiomeNames = buildBiomeNames(biomeIds, registryBiomeNames);
-        surfaceSystem.buildSurface(col, biomeIds, colBiomeNames, nc, chunkX, chunkZ);
+        surfaceSystem.buildSurface(col, biomeIds, nc, chunkX, chunkZ);
 
         return col;
-    }
-
-    private static String[] buildBiomeNames(int[] biomeIds, String[] registryBiomeNames) {
-        String[] names = new String[256]; // 16×16
-        for (int lz = 0; lz < 16; lz++) {
-            for (int lx = 0; lx < 16; lx++) {
-                int qx = lx >> 2;
-                int qz = lz >> 2;
-                // 표면 근처 쿼트 y(qy=72 ≈ y=288)에서 바이옴 id 조회
-                int qy = 72;
-                int biomeId = biomeIds[qy * 16 + qz * 4 + qx];
-                names[lz * 16 + lx] = biomeId >= 0 && biomeId < registryBiomeNames.length
-                    ? registryBiomeNames[biomeId] : "minecraft:plains";
-            }
-        }
-        return names;
     }
 }

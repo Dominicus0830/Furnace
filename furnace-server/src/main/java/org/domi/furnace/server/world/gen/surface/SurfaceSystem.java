@@ -12,8 +12,8 @@ import org.domi.furnace.server.world.gen.noise.NormalNoise;
 import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 import org.domi.furnace.server.world.BlockRegistry;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class SurfaceSystem {
 
@@ -21,27 +21,31 @@ public final class SurfaceSystem {
     private final NoiseSettings settings;
     private final WorldgenData worldgenData;
     private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory randomFactory;
-    private final Map<String, NormalNoise> noiseCache = new HashMap<>();
+    private final Map<String, NormalNoise> noiseCache = new ConcurrentHashMap<>();
     private final NormalNoise surfaceNoise;
     private final int waterId;
+    private final String[] registryBiomeNames;
 
     private SurfaceSystem(SurfaceRule rule, NoiseSettings settings,
-                          WorldgenData worldgenData, int waterId, long seed) {
-        this.rule          = rule;
-        this.settings      = settings;
-        this.worldgenData  = worldgenData;
-        this.waterId       = waterId;
-        this.randomFactory = new XoroshiroRandomSource(seed).forkPositional();
-        this.surfaceNoise  = buildNoise("minecraft:surface");
+                          WorldgenData worldgenData, int waterId, long seed,
+                          String[] registryBiomeNames) {
+        this.rule                = rule;
+        this.settings            = settings;
+        this.worldgenData        = worldgenData;
+        this.waterId             = waterId;
+        this.randomFactory       = new XoroshiroRandomSource(seed).forkPositional();
+        this.surfaceNoise        = buildNoise("minecraft:surface");
+        this.registryBiomeNames  = registryBiomeNames;
     }
 
     public static SurfaceSystem create(WorldgenData data, NoiseSettings settings,
-                                       BlockRegistry reg, long seed) {
+                                       BlockRegistry reg, long seed,
+                                       String[] registryBiomeNames) {
         var noiseSettingsJson = data.noiseSettings("minecraft:overworld");
         SurfaceRule rule = new SurfaceRuleParser(reg).parse(
             noiseSettingsJson.get("surface_rule").getAsJsonObject());
         int waterId = reg.defaultStateId(settings.defaultFluid());
-        return new SurfaceSystem(rule, settings, data, waterId, seed);
+        return new SurfaceSystem(rule, settings, data, waterId, seed, registryBiomeNames);
     }
 
     private NormalNoise buildNoise(String noiseId) {
@@ -57,7 +61,7 @@ public final class SurfaceSystem {
         });
     }
 
-    public void buildSurface(ChunkColumn col, int[] biomeIds, String[] biomeNames,
+    public void buildSurface(ChunkColumn col, int[] biomeIds,
                              NoiseChunk nc, int chunkX, int chunkZ) {
         int minY     = settings.minY();
         int maxY     = minY + settings.height() - 1;
@@ -89,7 +93,13 @@ public final class SurfaceSystem {
                 int worldX = chunkX * 16 + lx;
                 int worldZ = chunkZ * 16 + lz;
 
-                ctx.biomeName = biomeNames[lz * 16 + lx];
+                int surfaceY = surfaceYGrid[lz * 16 + lx];
+                int qy = Math.max(0, Math.min(95, (surfaceY - minY) >> 2));
+                int qx = lx >> 2;
+                int qz = lz >> 2;
+                int biomeId = biomeIds[qy * 16 + qz * 4 + qx];
+                ctx.biomeName = (biomeId >= 0 && biomeId < registryBiomeNames.length)
+                    ? registryBiomeNames[biomeId] : "minecraft:plains";
                 ctx.surfaceY  = surfaceYGrid[lz * 16 + lx];
                 ctx.preliminarySurfaceLevel = nc.getPreliminarySurfaceLevel(worldX >> 2, worldZ >> 2);
                 ctx.surfaceDepth = (int)(surfaceNoise.getValue(worldX, 0, worldZ) * 2.75 + 3.0
