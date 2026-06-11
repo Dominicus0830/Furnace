@@ -49,10 +49,10 @@ public final class NoiseRouter {
 
     public DensityFunction finalDensity() { return finalDensity; }
     public DensityFunction initialDensityWithoutJaggedness() { return initialDensityWithoutJaggedness; }
-    public DensityFunction temperature()                       { return temperature;                       }
-    public DensityFunction humidity()     { return humidity;     }
-    public DensityFunction continents()   { return continents;   }
-    public DensityFunction erosion()      { return erosion;      }
-    public DensityFunction depth()        { return depth;        }
-    public DensityFunction ridges()       { return ridges;       }
+    public DensityFunction temperature() { return temperature; }
+    public DensityFunction humidity() { return humidity; }
+    public DensityFunction continents() { return continents; }
+    public DensityFunction erosion() { return erosion; }
+    public DensityFunction depth() { return depth; }
+    public DensityFunction ridges() { return ridges; }
 }
