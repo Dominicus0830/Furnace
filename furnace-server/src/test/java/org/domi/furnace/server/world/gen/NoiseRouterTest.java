@@ -26,7 +26,9 @@ class NoiseRouterTest {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter router = NoiseRouter.build(data, settings, 0L);
-        assertNotNull(router.initialDensityWithoutJaggedness());
+        DensityFunction.SinglePointContext ctx = new DensityFunction.SinglePointContext(0, 64, 0);
+        double v = router.initialDensityWithoutJaggedness().compute(ctx);
+        assertTrue(Double.isFinite(v), "initialDensityWithoutJaggedness must be finite");
     }
 
     @Test
