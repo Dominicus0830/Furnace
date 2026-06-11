@@ -14,6 +14,8 @@ public sealed interface SurfaceRule {
 
     record Block(int blockStateId) implements SurfaceRule {}
 
+    record Bandlands() implements SurfaceRule {}
+
     // ── Condition 타입 ────────────────────────────────────────────────────
 
     sealed interface SurfaceCondition {
