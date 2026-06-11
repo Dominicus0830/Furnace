@@ -10,6 +10,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 바닐라 worldgen JSON 을 클래스패스 리소스에서 지연 로드한다.
@@ -23,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 public final class WorldgenData {
 
     private final String basePath; // e.g. "worldgen/1.21.1"
+    private Map<String, Float> biomeTemperatures; // lazy-loaded
 
     private WorldgenData(String basePath) {
         this.basePath = basePath;
@@ -95,6 +98,17 @@ public final class WorldgenData {
         return el.getAsJsonObject();
     }
 
+    /**
+     * 바이옴의 온도값을 반환한다. 기본값 0.5f.
+     * 파일 경로: basePath/biome_temperatures.json
+     */
+    public float biomeTemperature(String biomeName) {
+        if (biomeTemperatures == null) {
+            biomeTemperatures = loadBiomeTemperatures();
+        }
+        return biomeTemperatures.getOrDefault(biomeName, 0.5f);
+    }
+
     // ------------------------------------------------------------------
     // Internals
     // ------------------------------------------------------------------
@@ -107,6 +121,18 @@ public final class WorldgenData {
         // strip "minecraft:" namespace prefix if present
         String localPath = id.contains(":") ? id.substring(id.indexOf(':') + 1) : id;
         return basePath + "/" + subdir + "/" + localPath + ".json";
+    }
+
+    private Map<String, Float> loadBiomeTemperatures() {
+        JsonElement el = loadResource(basePath + "/biome_temperatures.json");
+        if (el == null) {
+            throw new IllegalStateException("biome_temperatures.json not found: " + basePath + "/biome_temperatures.json");
+        }
+        Map<String, Float> map = new HashMap<>();
+        for (var entry : el.getAsJsonObject().entrySet()) {
+            map.put(entry.getKey(), entry.getValue().getAsFloat());
+        }
+        return map;
     }
 
     private JsonElement loadResource(String resourcePath) {
