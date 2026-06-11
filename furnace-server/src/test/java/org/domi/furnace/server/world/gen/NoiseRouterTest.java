@@ -22,6 +22,14 @@ class NoiseRouterTest {
     }
 
     @Test
+    void initialDensityWithoutJaggednessNotNull() {
+        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
+        NoiseRouter router = NoiseRouter.build(data, settings, 0L);
+        assertNotNull(router.initialDensityWithoutJaggedness());
+    }
+
+    @Test
     void router_has_climate_dfs() {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));

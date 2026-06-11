@@ -1,4 +1,4 @@
-// 바닐라 NoiseRouter의 경량 포트. final_density + 6개 기후 DF 보유.
+// 바닐라 NoiseRouter의 경량 포트. final_density + initialDensityWithoutJaggedness + 6개 기후 DF 보유.
 package org.domi.furnace.server.world.gen;
 
 import com.google.gson.JsonObject;
@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.df.DensityFunctionParser;
 public final class NoiseRouter {
 
     private final DensityFunction finalDensity;
+    private final DensityFunction initialDensityWithoutJaggedness;
     private final DensityFunction temperature;
     private final DensityFunction humidity;   // JSON 필드명: "vegetation"
     private final DensityFunction continents;
@@ -16,10 +17,12 @@ public final class NoiseRouter {
     private final DensityFunction ridges;     // JSON 필드명: "ridges" (= weirdness)
 
     private NoiseRouter(DensityFunction finalDensity,
+                        DensityFunction initialDensityWithoutJaggedness,
                         DensityFunction temperature, DensityFunction humidity,
                         DensityFunction continents, DensityFunction erosion,
                         DensityFunction depth, DensityFunction ridges) {
         this.finalDensity = finalDensity;
+        this.initialDensityWithoutJaggedness = initialDensityWithoutJaggedness;
         this.temperature  = temperature;
         this.humidity     = humidity;
         this.continents   = continents;
@@ -34,6 +37,7 @@ public final class NoiseRouter {
                                     .get("noise_router").getAsJsonObject();
         return new NoiseRouter(
             parser.parseElement(routerJson.get("final_density")),
+            parser.parseElement(routerJson.get("initial_density_without_jaggedness")),
             parser.parseElement(routerJson.get("temperature")),
             parser.parseElement(routerJson.get("vegetation")),   // humidity
             parser.parseElement(routerJson.get("continents")),
@@ -43,8 +47,9 @@ public final class NoiseRouter {
         );
     }
 
-    public DensityFunction finalDensity() { return finalDensity; }
-    public DensityFunction temperature()  { return temperature;  }
+    public DensityFunction finalDensity()                      { return finalDensity;                      }
+    public DensityFunction initialDensityWithoutJaggedness()   { return initialDensityWithoutJaggedness;   }
+    public DensityFunction temperature()                       { return temperature;                       }
     public DensityFunction humidity()     { return humidity;     }
     public DensityFunction continents()   { return continents;   }
     public DensityFunction erosion()      { return erosion;      }
