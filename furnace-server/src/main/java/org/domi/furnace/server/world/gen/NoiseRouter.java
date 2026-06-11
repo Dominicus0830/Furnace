@@ -15,12 +15,20 @@ public final class NoiseRouter {
     private final DensityFunction erosion;
     private final DensityFunction depth;
     private final DensityFunction ridges;     // JSON 필드명: "ridges" (= weirdness)
+    private final DensityFunction barrierNoise;
+    private final DensityFunction fluidLevelFloodednessNoise;
+    private final DensityFunction fluidLevelSpreadNoise;
+    private final DensityFunction lavaNoise;
 
     private NoiseRouter(DensityFunction finalDensity,
                         DensityFunction initialDensityWithoutJaggedness,
                         DensityFunction temperature, DensityFunction humidity,
                         DensityFunction continents, DensityFunction erosion,
-                        DensityFunction depth, DensityFunction ridges) {
+                        DensityFunction depth, DensityFunction ridges,
+                        DensityFunction barrierNoise,
+                        DensityFunction fluidLevelFloodednessNoise,
+                        DensityFunction fluidLevelSpreadNoise,
+                        DensityFunction lavaNoise) {
         this.finalDensity = finalDensity;
         this.initialDensityWithoutJaggedness = initialDensityWithoutJaggedness;
         this.temperature  = temperature;
@@ -29,6 +37,10 @@ public final class NoiseRouter {
         this.erosion      = erosion;
         this.depth        = depth;
         this.ridges       = ridges;
+        this.barrierNoise = barrierNoise;
+        this.fluidLevelFloodednessNoise = fluidLevelFloodednessNoise;
+        this.fluidLevelSpreadNoise = fluidLevelSpreadNoise;
+        this.lavaNoise = lavaNoise;
     }
 
     public static NoiseRouter build(WorldgenData data, NoiseSettings settings, long seed) {
@@ -43,7 +55,11 @@ public final class NoiseRouter {
             parser.parseElement(routerJson.get("continents")),
             parser.parseElement(routerJson.get("erosion")),
             parser.parseElement(routerJson.get("depth")),
-            parser.parseElement(routerJson.get("ridges"))
+            parser.parseElement(routerJson.get("ridges")),
+            parser.parseElement(routerJson.get("barrier")),
+            parser.parseElement(routerJson.get("fluid_level_floodedness")),
+            parser.parseElement(routerJson.get("fluid_level_spread")),
+            parser.parseElement(routerJson.get("lava"))
         );
     }
 
@@ -55,4 +71,8 @@ public final class NoiseRouter {
     public DensityFunction erosion() { return erosion; }
     public DensityFunction depth() { return depth; }
     public DensityFunction ridges() { return ridges; }
+    public DensityFunction barrierNoise() { return barrierNoise; }
+    public DensityFunction fluidLevelFloodednessNoise() { return fluidLevelFloodednessNoise; }
+    public DensityFunction fluidLevelSpreadNoise() { return fluidLevelSpreadNoise; }
+    public DensityFunction lavaNoise() { return lavaNoise; }
 }
