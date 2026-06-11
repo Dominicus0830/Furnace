@@ -42,6 +42,11 @@ public final class DensityFunctionParser {
         this.positionalFactory = new XoroshiroRandomSource(seed).forkPositional();
     }
 
+    /** 바닐라 RandomState: aquiferRandom = positionalFactory.fromHashOf("minecraft:aquifer").forkPositional() */
+    public XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom() {
+        return positionalFactory.fromHashOf("minecraft:aquifer").forkPositional();
+    }
+
     // ------------------------------------------------------------------
     // Public entry point
     // ------------------------------------------------------------------

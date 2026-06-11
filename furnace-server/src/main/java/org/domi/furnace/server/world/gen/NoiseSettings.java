@@ -21,7 +21,8 @@ public record NoiseSettings(
         int seaLevel,
         String defaultBlock,
         String defaultFluid,
-        int lavaFloorY
+        int lavaFloorY,
+        boolean aquifersEnabled
 ) {
 
     /** 오버월드 lava floor Y 상수 */
@@ -46,7 +47,9 @@ public record NoiseSettings(
                 .get("default_fluid").getAsJsonObject()
                 .get("Name").getAsString();
 
+        boolean aquifersEnabled = noiseSettingsJson.get("aquifers_enabled").getAsBoolean();
+
         return new NoiseSettings(minY, height, cellWidth, cellHeight, seaLevel,
-                defaultBlock, defaultFluid, LAVA_FLOOR_Y);
+                defaultBlock, defaultFluid, LAVA_FLOOR_Y, aquifersEnabled);
     }
 }

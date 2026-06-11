@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 import org.domi.furnace.server.world.gen.df.DensityFunctionParser;
+import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 
 public final class NoiseRouter {
 
@@ -19,6 +20,7 @@ public final class NoiseRouter {
     private final DensityFunction fluidLevelFloodednessNoise;
     private final DensityFunction fluidLevelSpreadNoise;
     private final DensityFunction lavaNoise;
+    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom;
 
     private NoiseRouter(DensityFunction finalDensity,
                         DensityFunction initialDensityWithoutJaggedness,
@@ -28,7 +30,8 @@ public final class NoiseRouter {
                         DensityFunction barrierNoise,
                         DensityFunction fluidLevelFloodednessNoise,
                         DensityFunction fluidLevelSpreadNoise,
-                        DensityFunction lavaNoise) {
+                        DensityFunction lavaNoise,
+                        XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom) {
         this.finalDensity = finalDensity;
         this.initialDensityWithoutJaggedness = initialDensityWithoutJaggedness;
         this.temperature  = temperature;
@@ -41,6 +44,7 @@ public final class NoiseRouter {
         this.fluidLevelFloodednessNoise = fluidLevelFloodednessNoise;
         this.fluidLevelSpreadNoise = fluidLevelSpreadNoise;
         this.lavaNoise = lavaNoise;
+        this.aquiferRandom = aquiferRandom;
     }
 
     public static NoiseRouter build(WorldgenData data, NoiseSettings settings, long seed) {
@@ -59,7 +63,8 @@ public final class NoiseRouter {
             parser.parseElement(routerJson.get("barrier")),
             parser.parseElement(routerJson.get("fluid_level_floodedness")),
             parser.parseElement(routerJson.get("fluid_level_spread")),
-            parser.parseElement(routerJson.get("lava"))
+            parser.parseElement(routerJson.get("lava")),
+            parser.aquiferRandom()
         );
     }
 
@@ -75,4 +80,5 @@ public final class NoiseRouter {
     public DensityFunction fluidLevelFloodednessNoise() { return fluidLevelFloodednessNoise; }
     public DensityFunction fluidLevelSpreadNoise() { return fluidLevelSpreadNoise; }
     public DensityFunction lavaNoise() { return lavaNoise; }
+    public XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom() { return aquiferRandom; }
 }
