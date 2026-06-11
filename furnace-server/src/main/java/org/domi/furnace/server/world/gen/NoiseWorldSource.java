@@ -1,4 +1,4 @@
-// 바닐라 비트일치 노이즈 지형 WorldSource. final_density>0=stone, else lava(y<-54)/water(y<63)/air
+// 바닐라 비트일치 노이즈 지형 WorldSource. generateBlockIds + Aquifer 기반 블록 결정
 package org.domi.furnace.server.world.gen;
 
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -70,13 +70,15 @@ public final class NoiseWorldSource implements WorldSource {
 
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
-        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
-        boolean[] stone = nc.stoneMask();
-
         int minY      = settings.minY();       // -64
         int height    = settings.height();     // 384
         int seaLevel  = settings.seaLevel();   // 63
         int lavaFloor = settings.lavaFloorY(); // -54
+
+        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
+        // Task 9: switch to NoiseBasedAquifer when aquifersEnabled=true once fully implemented
+        Aquifer aquifer = new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
+        int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
 
         ChunkColumn col = new ChunkColumn(0);
 
@@ -91,23 +93,12 @@ public final class NoiseWorldSource implements WorldSource {
 
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
-                // 표면 높이 계산을 위해 위에서 아래로 한 번 스캔 (top-down, topmost non-air).
-                int surfaceHeight = 0; // 0 = all-air sentinel
+                int surfaceHeight = 0;
                 for (int y = minY + height - 1; y >= minY; y--) {
                     int idx = (y - minY) * 256 + lz * 16 + lx;
-                    int state;
-                    if (stone[idx]) {
-                        state = stoneId;
-                    } else if (y < lavaFloor) {
-                        state = lavaId;
-                    } else if (y < seaLevel) {
-                        state = waterId;
-                    } else {
-                        state = ChunkSection.AIR;
-                    }
+                    int state = blockIds[idx];
 
                     if (state != ChunkSection.AIR && surfaceHeight == 0) {
-                        // y - minY + 1 mirrors SuperflatWorldSource convention
                         surfaceHeight = (y - minY) + 1;
                     }
 
