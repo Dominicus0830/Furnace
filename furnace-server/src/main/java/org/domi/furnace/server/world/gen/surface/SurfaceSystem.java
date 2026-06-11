@@ -24,15 +24,17 @@ public final class SurfaceSystem {
     private final Map<String, NormalNoise> noiseCache = new ConcurrentHashMap<>();
     private final NormalNoise surfaceNoise;
     private final int waterId;
+    private final int defaultBlockId;
     private final String[] registryBiomeNames;
 
     private SurfaceSystem(SurfaceRule rule, NoiseSettings settings,
-                          WorldgenData worldgenData, int waterId, long seed,
-                          String[] registryBiomeNames) {
+                          WorldgenData worldgenData, int waterId, int defaultBlockId,
+                          long seed, String[] registryBiomeNames) {
         this.rule                = rule;
         this.settings            = settings;
         this.worldgenData        = worldgenData;
         this.waterId             = waterId;
+        this.defaultBlockId      = defaultBlockId;
         this.randomFactory       = new XoroshiroRandomSource(seed).forkPositional();
         this.surfaceNoise        = buildNoise("minecraft:surface");
         this.registryBiomeNames  = registryBiomeNames;
@@ -44,8 +46,9 @@ public final class SurfaceSystem {
         var noiseSettingsJson = data.noiseSettings("minecraft:overworld");
         SurfaceRule rule = new SurfaceRuleParser(reg).parse(
             noiseSettingsJson.get("surface_rule").getAsJsonObject());
-        int waterId = reg.defaultStateId(settings.defaultFluid());
-        return new SurfaceSystem(rule, settings, data, waterId, seed, registryBiomeNames);
+        int waterId       = reg.defaultStateId(settings.defaultFluid());
+        int defaultBlockId = reg.defaultStateId(settings.defaultBlock());
+        return new SurfaceSystem(rule, settings, data, waterId, defaultBlockId, seed, registryBiomeNames);
     }
 
     private NormalNoise buildNoise(String noiseId) {
@@ -67,7 +70,7 @@ public final class SurfaceSystem {
         int maxY     = minY + settings.height() - 1;
         int seaLevel = settings.seaLevel();
 
-        // pre-build surfaceY grid [lz*16+lx]
+        // pre-build surfaceY grid [lz*16+lx] — topmost non-air block
         int[] surfaceYGrid = new int[256];
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
@@ -100,36 +103,55 @@ public final class SurfaceSystem {
                 int biomeId = biomeIds[qy * 16 + qz * 4 + qx];
                 ctx.biomeName = (biomeId >= 0 && biomeId < registryBiomeNames.length)
                     ? registryBiomeNames[biomeId] : "minecraft:plains";
-                ctx.surfaceY  = surfaceYGrid[lz * 16 + lx];
+                ctx.surfaceY  = surfaceY;
                 ctx.preliminarySurfaceLevel = nc.getPreliminarySurfaceLevel(worldX >> 2, worldZ >> 2);
                 ctx.surfaceDepth = (int)(surfaceNoise.getValue(worldX, 0, worldZ) * 2.75 + 3.0
                     + randomFactory.at(worldX, 0, worldZ).nextDouble() * 0.25);
 
-                // waterY: highest y that is water
-                ctx.waterY = -1;
-                for (int y = maxY; y >= minY; y--) {
-                    if (col.getBlock(lx, y, lz) == waterId) { ctx.waterY = y; break; }
-                }
-
                 ctx.blockX = worldX;
                 ctx.blockZ = worldZ;
                 ctx.stoneDepthAbove = 0;
+                // waterY: Y one above the topmost fluid block (vanilla waterHeight = i9+1).
+                // Integer.MIN_VALUE = no fluid found.
+                ctx.waterY = Integer.MIN_VALUE;
+
+                // stoneBottomY: cached bottom of current solid column for stoneDepthBelow.
+                int stoneBottomY = Integer.MAX_VALUE;
 
                 for (int y = maxY; y >= minY; y--) {
+                    int block = col.getBlock(lx, y, lz);
                     ctx.blockY = y;
-                    boolean solid = (col.getBlock(lx, y, lz) != ChunkSection.AIR);
-                    ctx.stoneDepthAbove = solid ? ctx.stoneDepthAbove + 1 : 0;
-                    // stoneDepthBelow: count solid blocks going down from y-1
-                    ctx.stoneDepthBelow = 0;
-                    if (solid) {
-                        for (int by = y - 1; by >= minY; by--) {
-                            if (col.getBlock(lx, by, lz) != ChunkSection.AIR) ctx.stoneDepthBelow++;
-                            else break;
+
+                    if (block == ChunkSection.AIR) {
+                        ctx.stoneDepthAbove = 0;
+                        ctx.waterY = Integer.MIN_VALUE;
+                    } else if (block == waterId) {
+                        // fluid: update waterHeight (Y above topmost fluid), reset stoneDepthAbove
+                        if (ctx.waterY == Integer.MIN_VALUE) ctx.waterY = y + 1;
+                        ctx.stoneDepthAbove = 0;
+                    } else {
+                        // solid non-fluid block
+                        ctx.stoneDepthAbove++;
+
+                        // compute stoneDepthBelow via cached stoneBottomY
+                        if (stoneBottomY >= y) {
+                            stoneBottomY = minY;  // assume solid to the bottom of the world
+                            for (int by = y - 1; by >= minY; by--) {
+                                int below = col.getBlock(lx, by, lz);
+                                if (below == ChunkSection.AIR || below == waterId) {
+                                    stoneBottomY = by + 1;
+                                    break;
+                                }
+                            }
+                        }
+                        ctx.stoneDepthBelow = y - stoneBottomY + 1;
+
+                        // only apply surface rule to the defaultBlock (stone)
+                        if (block == defaultBlockId) {
+                            Integer result = eval(rule, ctx);
+                            if (result != null) col.setBlock(lx, y, lz, result);
                         }
                     }
-
-                    Integer result = eval(rule, ctx);
-                    if (result != null) col.setBlock(lx, y, lz, result);
                 }
             }
         }
@@ -176,7 +198,7 @@ public final class SurfaceSystem {
         if (ctx.blockY <= trueY)  return true;
         if (ctx.blockY >= falseY) return false;
         double gradient = (double)(ctx.blockY - trueY) / (double)(falseY - trueY);
-        XoroshiroRandomSource rng = randomFactory.fromHashOfPositional(vg.randomName()).at(ctx.blockX, ctx.blockY, ctx.blockZ);
+        XoroshiroRandomSource rng = randomFactory.fromHashOf(vg.randomName()).forkPositional().at(ctx.blockX, ctx.blockY, ctx.blockZ);
         return rng.nextFloat() < (1.0f - (float)gradient);
     }
 
@@ -197,8 +219,11 @@ public final class SurfaceSystem {
     }
 
     private boolean evalWater(SurfaceRule.SurfaceCondition.Water w, SurfaceContext ctx) {
-        if (ctx.waterY == -1) return w.offset() < 0;
-        return ctx.waterY >= ctx.blockY + w.offset();
+        // ctx.waterY == Integer.MIN_VALUE means no fluid found above → always above water
+        if (ctx.waterY == Integer.MIN_VALUE) return true;
+        int addDepth = w.addStoneDepth() ? ctx.stoneDepthAbove : 0;
+        return ctx.blockY + addDepth >= ctx.waterY + w.offset()
+            + w.surfaceDepthMultiplier() * ctx.surfaceDepth;
     }
 
     private boolean evalNoiseThreshold(SurfaceRule.SurfaceCondition.NoiseThreshold nt,
