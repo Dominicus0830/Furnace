@@ -35,7 +35,9 @@ import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.blending.Blender;
 import net.minecraft.world.level.levelgen.structure.pools.JigsawJunction;
+import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.levelgen.DensityFunction;
+import net.minecraft.world.level.levelgen.WorldGenerationContext;
 import net.minecraft.world.level.levelgen.synth.BlendedNoise;
 import net.minecraft.world.level.levelgen.synth.ImprovedNoise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
@@ -140,6 +142,12 @@ public class OracleMain {
                 int cx = Integer.parseInt(parts[0]);
                 int cz = Integer.parseInt(parts[1]);
                 dumpBiomeChunk(seed, cx, cz, biomeSource, randomState, outDir);
+            } else if (arg.startsWith("surface:")) {
+                String[] parts = arg.substring("surface:".length()).split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpSurfaceChunk(seed, cx, cz, generator, randomState, noAquiferSettings,
+                                 fluidPicker, frozenBiomeRegistry, biomeSource, outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -380,6 +388,68 @@ public class OracleMain {
         if (counts[4] > 0) {
             System.err.println("WARNING: " + counts[4] + " OTHER blocks in chunk " + cx + "," + cz);
         }
+    }
+
+    private static void dumpSurfaceChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        MultiNoiseBiomeSource biomeSource,
+        Path outDir
+    ) throws Exception {
+        ChunkPos chunkPos = new ChunkPos(cx, cz);
+        LevelHeightAccessor heightAccessor = LevelHeightAccessor.create(FixtureFormat.MIN_Y, FixtureFormat.HEIGHT);
+        ProtoChunk chunk = new ProtoChunk(chunkPos, UpgradeData.EMPTY, heightAccessor, biomeRegistry, null);
+
+        // Pre-seed noise chunk cache (avoids StructureManager NPE in fillFromNoise)
+        Beardifier emptyBeardifier = new Beardifier(
+            new ObjectArrayList<Beardifier.Rigid>().iterator(),
+            new ObjectArrayList<JigsawJunction>().iterator()
+        );
+        chunk.getOrCreateNoiseChunk(ca ->
+            NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty())
+        );
+
+        // 1. Noise fill
+        generator.fillFromNoise(Blender.empty(), randomState, null, chunk).join();
+
+        // 2. Surface rules — adapt biomeSource to BiomeManager.NoiseBiomeSource via lambda
+        BiomeManager biomeManager = new BiomeManager(
+            (x, y, z) -> biomeSource.getNoiseBiome(x, y, z, randomState.sampler()),
+            BiomeManager.obfuscateSeed(seed)
+        );
+        WorldGenerationContext worldGenContext = new WorldGenerationContext(generator, heightAccessor);
+        generator.buildSurface(chunk, worldGenContext, randomState, null, biomeManager, biomeRegistry, Blender.empty());
+
+        // 3. Dump full block state IDs as shorts
+        int totalBlocks = FixtureFormat.HEIGHT * 16 * 16;
+        int headerSize  = 4 + 8 + 4 + 4; // magic + seed + cx + cz
+        ByteBuffer buf  = ByteBuffer.allocate(headerSize + totalBlocks * 2).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(FixtureFormat.SURFACE_MAGIC);
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = chunk.getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    short id = (short) net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state);
+                    buf.putShort(id);
+                }
+            }
+        }
+
+        Path out = outDir.resolve("surface_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
     }
 
     private static void dumpBiomeChunk(
