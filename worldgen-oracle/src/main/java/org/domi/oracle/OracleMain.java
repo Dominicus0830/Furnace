@@ -104,6 +104,14 @@ public class OracleMain {
         // Chunk generator
         NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(biomeSource, settingsHolder);
 
+        // Aquifer-enabled resources (real overworld settings)
+        Holder<NoiseGeneratorSettings> aquiferSettingsHolder = noiseSettingsReg.getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        RandomState aquiferRandomState = RandomState.create(aquiferSettingsHolder.value(), noiseGetter, seed);
+        NoiseBasedChunkGenerator aquiferGenerator = new NoiseBasedChunkGenerator(biomeSource, aquiferSettingsHolder);
+        Aquifer.FluidStatus lavaStatusAq = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
+        Aquifer.FluidStatus seaStatusAq = new Aquifer.FluidStatus(aquiferSettingsHolder.value().seaLevel(), aquiferSettingsHolder.value().defaultFluid());
+        Aquifer.FluidPicker aquiferFluidPicker = (x, y, z) -> y < Math.min(-54, aquiferSettingsHolder.value().seaLevel()) ? lavaStatusAq : seaStatusAq;
+
         // Fluid picker (mirrors NoiseBasedChunkGenerator.createFluidPicker)
         int seaLevel = noAquiferSettings.seaLevel();
         Aquifer.FluidStatus lavaStatus = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
@@ -148,6 +156,13 @@ public class OracleMain {
                 int cz = Integer.parseInt(parts[1]);
                 dumpSurfaceChunk(seed, cx, cz, generator, randomState, noAquiferSettings,
                                  fluidPicker, frozenBiomeRegistry, biomeSource, outDir);
+            } else if (arg.startsWith("aquifer:")) {
+                String[] parts = arg.substring("aquifer:".length()).split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpAquiferChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
+                                 aquiferSettingsHolder.value(), aquiferFluidPicker,
+                                 frozenBiomeRegistry, biomeSource, outDir);
             } else if (arg.equals("blocks")) {
                 Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
                 dumpBlocks(blocksResDir);
@@ -449,6 +464,64 @@ public class OracleMain {
         }
 
         Path out = outDir.resolve("surface_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
+    }
+
+    private static void dumpAquiferChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        MultiNoiseBiomeSource biomeSource,
+        Path outDir
+    ) throws Exception {
+        ChunkPos chunkPos = new ChunkPos(cx, cz);
+        LevelHeightAccessor heightAccessor = LevelHeightAccessor.create(FixtureFormat.MIN_Y, FixtureFormat.HEIGHT);
+        ProtoChunk chunk = new ProtoChunk(chunkPos, UpgradeData.EMPTY, heightAccessor, biomeRegistry, null);
+
+        Beardifier emptyBeardifier = new Beardifier(
+            new ObjectArrayList<Beardifier.Rigid>().iterator(),
+            new ObjectArrayList<JigsawJunction>().iterator()
+        );
+        chunk.getOrCreateNoiseChunk(ca ->
+            NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty())
+        );
+
+        generator.fillFromNoise(Blender.empty(), randomState, null, chunk).join();
+
+        BiomeManager biomeManager = new BiomeManager(
+            (x, y, z) -> biomeSource.getNoiseBiome(x, y, z, randomState.sampler()),
+            BiomeManager.obfuscateSeed(seed)
+        );
+        WorldGenerationContext worldGenContext = new WorldGenerationContext(generator, heightAccessor);
+        generator.buildSurface(chunk, worldGenContext, randomState, null, biomeManager, biomeRegistry, Blender.empty());
+
+        int totalBlocks = FixtureFormat.HEIGHT * 16 * 16;
+        int headerSize  = 4 + 8 + 4 + 4;
+        ByteBuffer buf  = ByteBuffer.allocate(headerSize + totalBlocks * 2).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0x41515546);
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = chunk.getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    short id = (short) net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state);
+                    buf.putShort(id);
+                }
+            }
+        }
+
+        Path out = outDir.resolve("aquifer_" + seed + "_" + cx + "_" + cz + ".bin");
         try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
             fos.write(buf.array());
         }
