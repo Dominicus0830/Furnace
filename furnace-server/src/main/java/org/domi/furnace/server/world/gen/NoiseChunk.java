@@ -494,18 +494,19 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      * 0.390625 threshold = 25/64 (vanilla SurfaceSystem.hasPreliminarySurface)
      */
     public int getPreliminarySurfaceLevel(int quartX, int quartZ) {
-        // 셀 Y 위→아래 순회
-        for (int cellY = cellNoiseMinY + cellCountY; cellY >= cellNoiseMinY; cellY--) {
-            int blockY = cellY * cellHeight;
-            int bx = quartX * 4;
-            int bz = quartZ * 4;
+        // quart-Y 해상도 (4-block 단위) 샘플링 - 바닐라 호환
+        int maxBlockY = (cellNoiseMinY + cellCountY) * cellHeight;
+        int minBlockY = cellNoiseMinY * cellHeight;
+        int bx = quartX * 4;
+        int bz = quartZ * 4;
+        for (int blockY = maxBlockY; blockY >= minBlockY; blockY -= 4) {
             double density = wrappedInitialDensity.compute(
                 new DensityFunction.SinglePointContext(bx, blockY, bz));
             if (density > 0.390625) {
                 return blockY;
             }
         }
-        return cellNoiseMinY * cellHeight - 1; // minY - 1 sentinel
+        return minBlockY - 1; // minY - 1 sentinel
     }
 
     // ─────────────────────────────────────────────────────────────────────
