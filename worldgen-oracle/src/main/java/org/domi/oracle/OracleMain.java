@@ -148,6 +148,9 @@ public class OracleMain {
                 int cz = Integer.parseInt(parts[1]);
                 dumpSurfaceChunk(seed, cx, cz, generator, randomState, noAquiferSettings,
                                  fluidPicker, frozenBiomeRegistry, biomeSource, outDir);
+            } else if (arg.equals("blocks")) {
+                Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
+                dumpBlocks(blocksResDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -499,6 +502,30 @@ public class OracleMain {
             fos.write(buf.array());
         }
         System.out.printf("Wrote %s (%d bytes, 1536 quarts)%n", out, buf.capacity());
+    }
+
+    /**
+     * Dumps all block default state IDs from vanilla BLOCK_STATE_REGISTRY.
+     * Format: "# states <total>\n" + one line per block: "minecraft:name defaultStateId\n"
+     * Overwrites furnace-server/src/main/resources/blocks/1.21.1.txt
+     */
+    private static void dumpBlocks(Path outDir) throws Exception {
+        Files.createDirectories(outDir);
+        int totalStates = net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.size();
+        StringBuilder sb = new StringBuilder();
+        sb.append("# states ").append(totalStates).append("\n");
+        // Iterate all registered blocks and get their default state ID
+        for (net.minecraft.world.level.block.Block block :
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK) {
+            String name = net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .getKey(block).toString();
+            int defaultId = net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY
+                .getId(block.defaultBlockState());
+            sb.append(name).append(" ").append(defaultId).append("\n");
+        }
+        Path out = outDir.resolve("1.21.1.txt");
+        Files.writeString(out, sb.toString());
+        System.out.println("Wrote " + out + " (" + totalStates + " total states)");
     }
 
     private static byte classify(BlockState state) {
