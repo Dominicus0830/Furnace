@@ -485,6 +485,88 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     }
 
     /**
+     * 전체 청크(16×height×16)에 대해 블록 state ID를 반환한다.
+     * density > 0 → stoneId, density ≤ 0 → aquifer.computeSubstance(this, density).
+     * 인덱스 = (y - minY) * 256 + lz * 16 + lx (stoneMask 와 동일).
+     * all-fluid 셀은 aquifer에 정확한 density를 전달하기 위해 skip 하지 않는다.
+     */
+    public int[] generateBlockIds(int stoneId, Aquifer aquifer) {
+        int minY   = this.cellNoiseMinY * this.cellHeight;
+        int height = this.cellCountY   * this.cellHeight;
+        int[] blocks = new int[height * 16 * 16];
+
+        initializeForFirstCellX();
+
+        int chunkBlockX = this.firstCellX * this.cellWidth;
+        int chunkBlockZ = this.firstCellZ * this.cellWidth;
+
+        for (int cx = 0; cx < this.cellCountXZ; cx++) {
+            advanceCellX(cx);
+
+            for (int cz = 0; cz < this.cellCountXZ; cz++) {
+                for (int cy = this.cellCountY - 1; cy >= 0; cy--) {
+                    selectCellYZ(cy, cz);
+
+                    double[] bounds = cellBoundsOf(this.wrappedFinalDensity);
+                    if (bounds[0] > SKIP_EPS) {
+                        // all-stone skip (aquifer not called)
+                        int yBase = cy * this.cellHeight;
+                        int zBase = cz * this.cellWidth;
+                        int xBase = cx * this.cellWidth;
+                        for (int iy = 0; iy < this.cellHeight; iy++) {
+                            int rowBase = (yBase + iy) * 256;
+                            for (int iz = 0; iz < this.cellWidth; iz++) {
+                                int rb = rowBase + (zBase + iz) * 16 + xBase;
+                                for (int ix = 0; ix < this.cellWidth; ix++) {
+                                    blocks[rb + ix] = stoneId;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    // NOTE: all-fluid skip removed — aquifer needs exact per-block density
+
+                    fillCellCaches();
+
+                    for (int iy = this.cellHeight - 1; iy >= 0; iy--) {
+                        int blockY = (this.cellNoiseMinY + cy) * this.cellHeight + iy;
+                        double ty = (double) iy / this.cellHeight;
+                        updateForY(blockY, ty);
+
+                        for (int ix = 0; ix < this.cellWidth; ix++) {
+                            int blockX = chunkBlockX + cx * this.cellWidth + ix;
+                            double tx = (double) ix / this.cellWidth;
+                            updateForX(blockX, tx);
+
+                            for (int iz = 0; iz < this.cellWidth; iz++) {
+                                int blockZ = chunkBlockZ + cz * this.cellWidth + iz;
+                                double tz = (double) iz / this.cellWidth;
+                                updateForZ(blockZ, tz);
+
+                                double density = this.wrappedFinalDensity.compute(this);
+                                int lx = blockX & 15;
+                                int lz = blockZ & 15;
+                                int yOff = blockY - minY;
+                                int idx = yOff * 256 + lz * 16 + lx;
+                                if (idx >= 0 && idx < blocks.length) {
+                                    blocks[idx] = density > 0.0
+                                        ? stoneId
+                                        : aquifer.computeSubstance(this, density);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            swapSlices();
+        }
+
+        stopInterpolation();
+        return blocks;
+    }
+
+    /**
      * quart 좌표(quartX, quartZ)에서 initialDensityWithoutJaggedness > 0.390625 인
      * 최상단 셀 Y 블록 좌표를 반환한다. 없으면 minY - 1.
      *
