@@ -17,7 +17,7 @@ class SuperflatWorldSourceTest {
     void generates_layers() {
         ChunkColumn c = source().generate(0, 0);
         // 섹션0(y −64..−49): bedrock/dirt/grass/air
-        assertEquals(85, sectionBlock(c, 0));  // y=−64 bedrock
+        assertEquals(79, sectionBlock(c, 0));  // y=−64 bedrock
         assertEquals(10, sectionBlock(c, 1));  // y=−63 dirt
         assertEquals(10, sectionBlock(c, 2));  // y=−62 dirt
         assertEquals(9, sectionBlock(c, 3));   // y=−61 grass

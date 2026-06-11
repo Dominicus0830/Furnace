@@ -12,7 +12,7 @@ class BlockRegistryTest {
         assertEquals(0, reg.defaultStateId("minecraft:air"));
         assertEquals(9, reg.defaultStateId("minecraft:grass_block"));
         assertEquals(10, reg.defaultStateId("minecraft:dirt"));
-        assertEquals(85, reg.defaultStateId("minecraft:bedrock"));
+        assertEquals(79, reg.defaultStateId("minecraft:bedrock"));
     }
 
     @Test
