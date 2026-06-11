@@ -166,7 +166,7 @@ public final class SurfaceSystem {
         if (ctx.blockY <= trueY)  return true;
         if (ctx.blockY >= falseY) return false;
         double gradient = (double)(ctx.blockY - trueY) / (double)(falseY - trueY);
-        XoroshiroRandomSource rng = randomFactory.fromHashOf(vg.randomName()).forkPositional().at(ctx.blockX, ctx.blockY, ctx.blockZ);
+        XoroshiroRandomSource rng = randomFactory.fromHashOfPositional(vg.randomName()).at(ctx.blockX, ctx.blockY, ctx.blockZ);
         return rng.nextFloat() < (1.0f - (float)gradient);
     }
 

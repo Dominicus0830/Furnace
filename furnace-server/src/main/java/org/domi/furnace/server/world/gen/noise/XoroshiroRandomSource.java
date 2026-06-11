@@ -101,6 +101,12 @@ public class XoroshiroRandomSource {
             return new XoroshiroRandomSource(seed128bit.xor(this.seedLo, this.seedHi));
         }
 
+        // 바닐라 XoroshiroPositionalRandomFactory.fromHashOf 동작: 이름-파생 시드로 새 위치기반 팩토리 반환
+        public XoroshiroPositionalRandomFactory fromHashOfPositional(String name) {
+            RandomSupport.Seed128bit hash = RandomSupport.seedFromHashOf(name);
+            return new XoroshiroPositionalRandomFactory(hash.seedLo() ^ seedLo, hash.seedHi() ^ seedHi);
+        }
+
         public XoroshiroRandomSource fromSeed(long seed) {
             return new XoroshiroRandomSource(seed ^ this.seedLo, seed ^ this.seedHi);
         }
