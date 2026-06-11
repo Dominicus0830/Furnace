@@ -51,4 +51,17 @@ class NoiseChunkTest {
         assertEquals(0, mismatches,
                 "first mismatch @local(" + firstX + "," + firstY + "," + firstZ + "), total " + mismatches);
     }
+
+    @Test
+    void preliminarySurfaceLevelInRange() {
+        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
+        NoiseRouter router = NoiseRouter.build(data, settings, 0L);
+        NoiseChunk nc = new NoiseChunk(0, 0, router, settings);
+
+        int level = nc.getPreliminarySurfaceLevel(0, 0);
+        // overworld seed=0 origin: surface should be roughly sea level range
+        assertTrue(level >= -64 && level <= 320,
+                "preliminary surface level out of range: " + level);
+    }
 }
