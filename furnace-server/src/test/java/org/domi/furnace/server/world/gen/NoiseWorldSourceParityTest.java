@@ -1,4 +1,4 @@
-// NoiseWorldSource 전 청크 카테고리(stone/water/lava/air) 바닐라 픽스처 일치 검증
+// NoiseWorldSource 청크 형태(solid/water/lava/air) 픽스처 일치 검증. 표층 블록 종류는 SurfaceParityTest가 담당.
 package org.domi.furnace.server.world.gen;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,7 +36,9 @@ class NoiseWorldSourceParityTest {
             else if (got == waterId) gotCat = 2;
             else if (got == lavaId) gotCat = 3;
             else gotCat = 4;
-            if (want != gotCat) { mism++; if (first==null) first = "@local("+lx+","+y+","+lz+") want="+want+" got="+gotCat; }
+            // cat 1 (stone) and cat 4 (other solid, e.g. bedrock/grass placed by surface rules) both mean "solid"
+            boolean match = (want == gotCat) || (want == 1 && gotCat == 4) || (want == 4 && gotCat == 1);
+            if (!match) { mism++; if (first==null) first = "@local("+lx+","+y+","+lz+") want="+want+" got="+gotCat; }
         }
         assertEquals(0, mism, "seed="+seed+" cx="+cx+" cz="+cz+" mismatches="+mism+" "+first);
     }
