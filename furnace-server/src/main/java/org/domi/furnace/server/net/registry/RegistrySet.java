@@ -60,4 +60,15 @@ public final class RegistrySet {
     public int indexOf(String registry, String entry) {
         return entries(registry).indexOf(entry);
     }
+
+    /** 주어진 레지스트리에서 id 인덱스에 해당하는 이름(범위 밖이면 null). */
+    public String nameAt(String registry, int id) {
+        List<String> list = entries(registry);
+        return (id >= 0 && id < list.size()) ? list.get(id) : null;
+    }
+
+    /** 주어진 레지스트리의 엔트리 수(없으면 0). */
+    public int size(String registry) {
+        return entries(registry).size();
+    }
 }

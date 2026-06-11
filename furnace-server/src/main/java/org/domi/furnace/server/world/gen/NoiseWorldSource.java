@@ -5,6 +5,7 @@ import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 /**
  * NoiseChunk 밀도 엔진을 사용해 바닐라 1.21.1 오버월드 지형을 생성하는 WorldSource.
@@ -22,18 +23,23 @@ public final class NoiseWorldSource implements WorldSource {
     private final NoiseRouter router;
     private final NoiseSettings settings;
     private final BiomeSampler biomeSampler;
+    private final SurfaceSystem surfaceSystem;
+    private final String[] registryBiomeNames;
     private final int stoneId;
     private final int waterId;
     private final int lavaId;
 
     private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
+                              SurfaceSystem surfaceSystem, String[] registryBiomeNames,
                               int stoneId, int waterId, int lavaId) {
-        this.router       = router;
-        this.settings     = settings;
-        this.biomeSampler = biomeSampler;
-        this.stoneId      = stoneId;
-        this.waterId      = waterId;
-        this.lavaId       = lavaId;
+        this.router             = router;
+        this.settings           = settings;
+        this.biomeSampler       = biomeSampler;
+        this.surfaceSystem      = surfaceSystem;
+        this.registryBiomeNames = registryBiomeNames;
+        this.stoneId            = stoneId;
+        this.waterId            = waterId;
+        this.lavaId             = lavaId;
     }
 
     /**
@@ -54,7 +60,12 @@ public final class NoiseWorldSource implements WorldSource {
 
         BiomeSampler biomeSampler = BiomeSampler.load(data, registries);
 
-        return new NoiseWorldSource(router, settings, biomeSampler, stoneId, waterId, lavaId);
+        java.util.List<String> biomeEntries = registries.entries("minecraft:worldgen/biome");
+        String[] registryBiomeNames = biomeEntries.toArray(new String[0]);
+        SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed);
+
+        return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
+                                    registryBiomeNames, stoneId, waterId, lavaId);
     }
 
     @Override
@@ -106,6 +117,25 @@ public final class NoiseWorldSource implements WorldSource {
             }
         }
 
+        String[] colBiomeNames = buildBiomeNames(biomeIds, registryBiomeNames);
+        surfaceSystem.buildSurface(col, biomeIds, colBiomeNames, nc, chunkX, chunkZ);
+
         return col;
+    }
+
+    private static String[] buildBiomeNames(int[] biomeIds, String[] registryBiomeNames) {
+        String[] names = new String[256]; // 16×16
+        for (int lz = 0; lz < 16; lz++) {
+            for (int lx = 0; lx < 16; lx++) {
+                int qx = lx >> 2;
+                int qz = lz >> 2;
+                // 표면 근처 쿼트 y(qy=72 ≈ y=288)에서 바이옴 id 조회
+                int qy = 72;
+                int biomeId = biomeIds[qy * 16 + qz * 4 + qx];
+                names[lz * 16 + lx] = biomeId >= 0 && biomeId < registryBiomeNames.length
+                    ? registryBiomeNames[biomeId] : "minecraft:plains";
+            }
+        }
+        return names;
     }
 }
