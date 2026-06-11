@@ -2,10 +2,7 @@
 package org.domi.furnace.server.world.gen.surface;
 
 import org.domi.furnace.server.world.gen.WorldgenData;
-import org.domi.furnace.server.world.gen.noise.NormalNoise;
 import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
-
-import java.util.Map;
 
 public final class SurfaceContext {
     public int blockX, blockY, blockZ;
@@ -19,7 +16,6 @@ public final class SurfaceContext {
     public int minY;
     public int maxY;
     public int seaLevel;
-    public Map<String, NormalNoise> noises;
     public XoroshiroRandomSource.XoroshiroPositionalRandomFactory randomFactory;
     public WorldgenData worldgenData;
     // 16×16 surfaceY grid for steep condition

@@ -86,7 +86,6 @@ public final class SurfaceSystem {
         ctx.minY          = minY;
         ctx.maxY          = maxY;
         ctx.seaLevel      = seaLevel;
-        ctx.noises        = noiseCache;
         ctx.randomFactory = randomFactory;
         ctx.worldgenData  = worldgenData;
         ctx.surfaceYGrid  = surfaceYGrid;
