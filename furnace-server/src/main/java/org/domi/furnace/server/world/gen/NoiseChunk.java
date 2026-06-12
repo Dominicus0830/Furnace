@@ -55,7 +55,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     // ── 보간 대상 함수 ────────────────────────────────────────────────────
     private final DensityFunction wrappedFinalDensity;
-    private final DensityFunction wrappedInitialDensity; // for getPreliminarySurfaceLevel
+    private final DensityFunction rawInitialDensity; // raw (unwrapped) — vanilla uses raw for PSL scan
 
     // ── 기후 DF (mapAll 래핑) — FlatCache pre-fill 활성화, dim: 0=temp 1=hum 2=cont 3=ero 4=depth 5=ridges ──
     private final DensityFunction[] wrappedClimate;
@@ -117,7 +117,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         // wrap 이 호출되면 Marker 노드를 셀 인식 구현체로 교체한다.
         // finalDensity 먼저 wrap → wrapped HashMap 채움 → climate DF wrap 시 sub-DF 공유
         this.wrappedFinalDensity = router.finalDensity().mapAll(this::wrap);
-        this.wrappedInitialDensity = router.initialDensityWithoutJaggedness().mapAll(this::wrap);
+        this.rawInitialDensity = router.initialDensityWithoutJaggedness(); // vanilla uses unwrapped for PSL
         this.wrappedClimate = new DensityFunction[]{
             router.temperature().mapAll(this::wrap),
             router.humidity().mapAll(this::wrap),
@@ -576,19 +576,16 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      * 0.390625 threshold = 25/64 (vanilla SurfaceSystem.hasPreliminarySurface)
      */
     public int getPreliminarySurfaceLevel(int quartX, int quartZ) {
-        // quart-Y 해상도 (4-block 단위) 샘플링 - 바닐라 호환
-        int maxBlockY = (cellNoiseMinY + cellCountY) * cellHeight;
-        int minBlockY = cellNoiseMinY * cellHeight;
-        int bx = quartX * 4;
-        int bz = quartZ * 4;
-        for (int blockY = maxBlockY; blockY >= minBlockY; blockY -= 4) {
-            double density = wrappedInitialDensity.compute(
-                new DensityFunction.SinglePointContext(bx, blockY, bz));
-            if (density > 0.390625) {
-                return blockY;
+        int bx = quartToBlock(quartX);
+        int bz = quartToBlock(quartZ);
+        int minY = cellNoiseMinY * cellHeight;
+        for (int y = minY + cellCountY * cellHeight; y >= minY; y -= cellHeight) {
+            double d = rawInitialDensity.compute(new DensityFunction.SinglePointContext(bx, y, bz));
+            if (d > 0.390625) {
+                return y;
             }
         }
-        return minBlockY - 1; // minY - 1 sentinel
+        return Integer.MAX_VALUE;
     }
 
     // ─────────────────────────────────────────────────────────────────────

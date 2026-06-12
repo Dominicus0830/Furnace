@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.gen.MathHelper;
 import org.domi.furnace.server.world.gen.NoiseChunk;
 import org.domi.furnace.server.world.gen.NoiseSettings;
 import org.domi.furnace.server.world.gen.WorldgenData;
@@ -82,6 +83,12 @@ public final class SurfaceSystem {
             }
         }
 
+        // 4 PSL corners at chunk boundaries (16-block surface cell = one chunk)
+        int psl00 = nc.getPreliminarySurfaceLevel(chunkX * 4,     chunkZ * 4);
+        int psl10 = nc.getPreliminarySurfaceLevel(chunkX * 4 + 4, chunkZ * 4);
+        int psl01 = nc.getPreliminarySurfaceLevel(chunkX * 4,     chunkZ * 4 + 4);
+        int psl11 = nc.getPreliminarySurfaceLevel(chunkX * 4 + 4, chunkZ * 4 + 4);
+
         SurfaceContext ctx = new SurfaceContext();
         ctx.minY          = minY;
         ctx.maxY          = maxY;
@@ -103,9 +110,11 @@ public final class SurfaceSystem {
                 ctx.biomeName = (biomeId >= 0 && biomeId < registryBiomeNames.length)
                     ? registryBiomeNames[biomeId] : "minecraft:plains";
                 ctx.surfaceY  = surfaceY;
-                ctx.preliminarySurfaceLevel = nc.getPreliminarySurfaceLevel(worldX >> 2, worldZ >> 2);
                 ctx.surfaceDepth = (int)(surfaceNoise.getValue(worldX, 0, worldZ) * 2.75 + 3.0
                     + randomFactory.at(worldX, 0, worldZ).nextDouble() * 0.25);
+                int lerpedPsl = (int) Math.floor(MathHelper.lerp2(
+                    lx / 16.0, lz / 16.0, psl00, psl10, psl01, psl11));
+                ctx.preliminarySurfaceLevel = lerpedPsl + ctx.surfaceDepth - 8;
 
                 ctx.blockX = worldX;
                 ctx.blockZ = worldZ;
@@ -125,9 +134,8 @@ public final class SurfaceSystem {
                         ctx.stoneDepthAbove = 0;
                         ctx.waterY = Integer.MIN_VALUE;
                     } else if (block == waterId) {
-                        // fluid: update waterHeight (Y above topmost fluid), reset stoneDepthAbove
+                        // fluid: update waterHeight only. vanilla does NOT reset stoneDepthAbove on fluid.
                         if (ctx.waterY == Integer.MIN_VALUE) ctx.waterY = y + 1;
-                        ctx.stoneDepthAbove = 0;
                     } else {
                         // solid non-fluid block
                         ctx.stoneDepthAbove++;
@@ -165,10 +173,12 @@ public final class SurfaceSystem {
                 }
                 yield null;
             }
-            case SurfaceRule.IfTrue ifTrue ->
-                evalCondition(ifTrue.condition(), ctx) ? eval(ifTrue.then(), ctx) : null;
+            case SurfaceRule.IfTrue ifTrue -> {
+                boolean cond = evalCondition(ifTrue.condition(), ctx);
+                yield cond ? eval(ifTrue.then(), ctx) : null;
+            }
             case SurfaceRule.Block block -> block.blockStateId();
-            case SurfaceRule.Bandlands __ -> null; // terracotta stripes — M4g-c1 범위 외
+            case SurfaceRule.Bandlands __ -> null;
         };
     }
 
@@ -186,7 +196,7 @@ public final class SurfaceSystem {
                 ctx.worldgenData.biomeTemperature(ctx.biomeName) < 0.15f;
             case SurfaceRule.SurfaceCondition.Steep __ -> evalSteep(ctx);
             case SurfaceRule.SurfaceCondition.Not n -> !evalCondition(n.inner(), ctx);
-            case SurfaceRule.SurfaceCondition.Hole __ -> ctx.surfaceY < ctx.seaLevel;
+            case SurfaceRule.SurfaceCondition.Hole __ -> ctx.surfaceDepth <= 0;
         };
     }
 
