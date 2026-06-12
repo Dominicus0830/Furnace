@@ -5,6 +5,9 @@ import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.gen.carver.CarvingMask;
+import org.domi.furnace.server.world.gen.carver.OverworldCarvers;
+import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 /**
@@ -28,10 +31,14 @@ public final class NoiseWorldSource implements WorldSource {
     private final int stoneId;
     private final int waterId;
     private final int lavaId;
+    private final long seed;
+    private final BlockRegistry reg;
+    private final OverworldCarvers overworldCarvers;
 
     private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
                               SurfaceSystem surfaceSystem, String[] registryBiomeNames,
-                              int stoneId, int waterId, int lavaId) {
+                              int stoneId, int waterId, int lavaId,
+                              long seed, BlockRegistry reg, OverworldCarvers overworldCarvers) {
         this.router             = router;
         this.settings           = settings;
         this.biomeSampler       = biomeSampler;
@@ -40,6 +47,9 @@ public final class NoiseWorldSource implements WorldSource {
         this.stoneId            = stoneId;
         this.waterId            = waterId;
         this.lavaId             = lavaId;
+        this.seed               = seed;
+        this.reg                = reg;
+        this.overworldCarvers   = overworldCarvers;
     }
 
     /**
@@ -64,8 +74,11 @@ public final class NoiseWorldSource implements WorldSource {
         String[] registryBiomeNames = biomeEntries.toArray(new String[0]);
         SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed, registryBiomeNames);
 
+        OverworldCarvers overworldCarvers = OverworldCarvers.load();
+
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
-                                    registryBiomeNames, stoneId, waterId, lavaId);
+                                    registryBiomeNames, stoneId, waterId, lavaId,
+                                    seed, reg, overworldCarvers);
     }
 
     @Override
@@ -111,6 +124,36 @@ public final class NoiseWorldSource implements WorldSource {
 
         surfaceSystem.buildSurface(col, biomeIds, nc, chunkX, chunkZ);
 
+        return col;
+    }
+
+    private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc) {
+        CarvingMask mask = new CarvingMask(settings.minY(), settings.height());
+        Aquifer aquifer = settings.aquifersEnabled()
+            ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
+            : new DisabledAquifer(settings.seaLevel(), settings.lavaFloorY(), waterId, lavaId);
+
+        WorldgenRandom worldgenRandom = new WorldgenRandom();
+
+        for (int originX = chunkX - 8; originX <= chunkX + 8; originX++) {
+            for (int originZ = chunkZ - 8; originZ <= chunkZ + 8; originZ++) {
+                org.domi.furnace.server.world.gen.carver.WorldCarver.ChunkPos originPos =
+                    new org.domi.furnace.server.world.gen.carver.WorldCarver.ChunkPos(originX, originZ);
+                for (OverworldCarvers.Entry entry : overworldCarvers.entries()) {
+                    worldgenRandom.setLargeFeatureSeed(this.seed, originX, originZ);
+                    if (entry.carver().isStartChunk(entry.config(), worldgenRandom)) {
+                        entry.carver().carve(col, entry.config(), chunkX, chunkZ,
+                            settings, aquifer, reg, mask, worldgenRandom, originPos);
+                    }
+                }
+            }
+        }
+    }
+
+    public ChunkColumn generateWithCarvers(int chunkX, int chunkZ) {
+        ChunkColumn col = generate(chunkX, chunkZ);
+        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
+        applyCarvers(col, chunkX, chunkZ, nc);
         return col;
     }
 }
