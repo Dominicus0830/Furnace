@@ -76,8 +76,9 @@ public final class NoiseWorldSource implements WorldSource {
         int lavaFloor = settings.lavaFloorY(); // -54
 
         NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
-        // Task 9: switch to NoiseBasedAquifer when aquifersEnabled=true once fully implemented
-        Aquifer aquifer = new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
+        Aquifer aquifer = settings.aquifersEnabled()
+            ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
+            : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
         int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
 
         ChunkColumn col = new ChunkColumn(0);

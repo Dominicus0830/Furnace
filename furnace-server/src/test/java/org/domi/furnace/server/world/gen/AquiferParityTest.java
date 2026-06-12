@@ -103,6 +103,8 @@ class AquiferParityTest {
 
                     if (expected11Id != got) {
                         mismatch++;
+                        System.out.printf("MM seed=%d cx=%d cz=%d lx=%d y=%d lz=%d oracle14=%d(%s) expected11=%d got=%d%n",
+                            seed, cx, cz, lx, y, lz, oracle14Id, name, expected11Id, got);
                         if (first == null) {
                             first = String.format("lx=%d y=%d lz=%d oracle14=%d(%s) expected11=%d got=%d",
                                 lx, y, lz, oracle14Id, name, expected11Id, got);
