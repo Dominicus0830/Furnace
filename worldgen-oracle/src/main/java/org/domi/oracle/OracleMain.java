@@ -29,8 +29,8 @@ import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.levelgen.Aquifer;
 import net.minecraft.world.level.levelgen.Beardifier;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
-import net.minecraft.world.level.levelgen.NoiseChunk;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
+import net.minecraft.world.level.levelgen.NoiseChunk;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.blending.Blender;
@@ -101,9 +101,6 @@ public class OracleMain {
             mnbsplLookup.getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD);
         MultiNoiseBiomeSource biomeSource = MultiNoiseBiomeSource.createFromPreset(overworldPreset);
 
-        // Chunk generator
-        NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(biomeSource, settingsHolder);
-
         // Aquifer-enabled resources (real overworld settings)
         Holder<NoiseGeneratorSettings> aquiferSettingsHolder = noiseSettingsReg.getOrThrow(NoiseGeneratorSettings.OVERWORLD);
         RandomState aquiferRandomState = RandomState.create(aquiferSettingsHolder.value(), noiseGetter, seed);
@@ -111,12 +108,6 @@ public class OracleMain {
         Aquifer.FluidStatus lavaStatusAq = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
         Aquifer.FluidStatus seaStatusAq = new Aquifer.FluidStatus(aquiferSettingsHolder.value().seaLevel(), aquiferSettingsHolder.value().defaultFluid());
         Aquifer.FluidPicker aquiferFluidPicker = (x, y, z) -> y < Math.min(-54, aquiferSettingsHolder.value().seaLevel()) ? lavaStatusAq : seaStatusAq;
-
-        // Fluid picker (mirrors NoiseBasedChunkGenerator.createFluidPicker)
-        int seaLevel = noAquiferSettings.seaLevel();
-        Aquifer.FluidStatus lavaStatus = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
-        Aquifer.FluidStatus seaStatus = new Aquifer.FluidStatus(seaLevel, noAquiferSettings.defaultFluid());
-        Aquifer.FluidPicker fluidPicker = (x, y, z) -> y < Math.min(-54, seaLevel) ? lavaStatus : seaStatus;
 
         // Build a real Registry<Biome> from the lookup, needed by ProtoChunk constructor.
         // HolderLookup.RegistryLookup is not a Registry, so we populate a MappedRegistry.
@@ -126,6 +117,17 @@ public class OracleMain {
             biomeRegistry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN)
         );
         Registry<Biome> frozenBiomeRegistry = biomeRegistry.freeze();
+
+        if (args.length > 1 && args[1].equals("dumpsurfacerule")) {
+            com.mojang.serialization.Codec<net.minecraft.world.level.levelgen.SurfaceRules.RuleSource> codec =
+                net.minecraft.world.level.levelgen.SurfaceRules.RuleSource.CODEC;
+            com.google.gson.JsonElement json = codec.encodeStart(
+                net.minecraft.resources.RegistryOps.create(
+                    com.mojang.serialization.JsonOps.INSTANCE, registries),
+                overworldSettings.surfaceRule()).getOrThrow();
+            System.out.println(new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(json));
+            return;
+        }
 
         // Process each argument
         for (int i = 1; i < args.length; i++) {
@@ -154,8 +156,8 @@ public class OracleMain {
                 String[] parts = arg.substring("surface:".length()).split(":");
                 int cx = Integer.parseInt(parts[0]);
                 int cz = Integer.parseInt(parts[1]);
-                dumpSurfaceChunk(seed, cx, cz, generator, randomState, noAquiferSettings,
-                                 fluidPicker, frozenBiomeRegistry, biomeSource, outDir);
+                dumpSurfaceChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState, aquiferSettingsHolder.value(),
+                                 aquiferFluidPicker, frozenBiomeRegistry, biomeSource, outDir);
             } else if (arg.startsWith("aquifer:")) {
                 String[] parts = arg.substring("aquifer:".length()).split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -170,7 +172,7 @@ public class OracleMain {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
                 int cz = Integer.parseInt(parts[1]);
-                dumpChunk(seed, cx, cz, generator, randomState, noAquiferSettings, fluidPicker, frozenBiomeRegistry, outDir);
+                dumpChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState, aquiferSettingsHolder.value(), aquiferFluidPicker, frozenBiomeRegistry, outDir);
             }
         }
 
