@@ -10,6 +10,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.RegistrationInfo;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
@@ -34,6 +35,7 @@ import net.minecraft.world.level.levelgen.NoiseChunk;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.blending.Blender;
+import net.minecraft.world.level.levelgen.carver.ConfiguredWorldCarver;
 import net.minecraft.world.level.levelgen.structure.pools.JigsawJunction;
 import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.levelgen.DensityFunction;
@@ -118,6 +120,21 @@ public class OracleMain {
         );
         Registry<Biome> frozenBiomeRegistry = biomeRegistry.freeze();
 
+        // Build a RegistryAccess from data-driven registries needed by carvers.
+        // VanillaRegistries.createLookup() returns HolderLookup.Provider which is NOT a
+        // RegistryAccess, so we populate MappedRegistry instances and wrap them.
+        HolderLookup.RegistryLookup<ConfiguredWorldCarver<?>> carverLookup =
+            registries.lookupOrThrow(Registries.CONFIGURED_CARVER);
+        MappedRegistry<ConfiguredWorldCarver<?>> carverRegistry =
+            new MappedRegistry<>(Registries.CONFIGURED_CARVER, Lifecycle.stable());
+        carverLookup.listElements().forEach(ref ->
+            carverRegistry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN)
+        );
+        Registry<ConfiguredWorldCarver<?>> frozenCarverRegistry = carverRegistry.freeze();
+
+        RegistryAccess registryAccess = new RegistryAccess.ImmutableRegistryAccess(
+            java.util.List.of(frozenBiomeRegistry, frozenCarverRegistry));
+
         if (args.length > 1 && args[1].equals("dumpsurfacerule")) {
             com.mojang.serialization.Codec<net.minecraft.world.level.levelgen.SurfaceRules.RuleSource> codec =
                 net.minecraft.world.level.levelgen.SurfaceRules.RuleSource.CODEC;
@@ -171,7 +188,7 @@ public class OracleMain {
                 int cz = Integer.parseInt(parts[1]);
                 dumpCarverChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
                                 aquiferSettingsHolder.value(), aquiferFluidPicker,
-                                frozenBiomeRegistry, biomeSource, registries, outDir);
+                                frozenBiomeRegistry, biomeSource, registryAccess, outDir);
             } else if (arg.equals("blocks")) {
                 Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
                 dumpBlocks(blocksResDir);
@@ -545,7 +562,7 @@ public class OracleMain {
         Aquifer.FluidPicker fluidPicker,
         Registry<Biome> biomeRegistry,
         MultiNoiseBiomeSource biomeSource,
-        HolderLookup.Provider registries,
+        net.minecraft.core.RegistryAccess registryAccess,
         Path outDir
     ) throws Exception {
         ChunkPos chunkPos = new ChunkPos(cx, cz);
@@ -577,8 +594,7 @@ public class OracleMain {
                 NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty()));
         net.minecraft.world.level.levelgen.Aquifer aquifer = noiseChunk.aquifer();
 
-        // 4. Build CarvingContext — VanillaRegistries.createLookup() returns RegistryAccess.Frozen
-        net.minecraft.core.RegistryAccess registryAccess = (net.minecraft.core.RegistryAccess) registries;
+        // 4. Build CarvingContext
         net.minecraft.world.level.levelgen.carver.CarvingContext carvingCtx =
             new net.minecraft.world.level.levelgen.carver.CarvingContext(
                 generator, registryAccess, heightAccessor,
