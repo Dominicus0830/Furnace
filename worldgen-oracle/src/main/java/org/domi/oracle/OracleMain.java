@@ -165,6 +165,13 @@ public class OracleMain {
                 dumpAquiferChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
                                  aquiferSettingsHolder.value(), aquiferFluidPicker,
                                  frozenBiomeRegistry, biomeSource, outDir);
+            } else if (arg.startsWith("carver:")) {
+                String[] parts = arg.substring("carver:".length()).split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpCarverChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
+                                aquiferSettingsHolder.value(), aquiferFluidPicker,
+                                frozenBiomeRegistry, biomeSource, registries, outDir);
             } else if (arg.equals("blocks")) {
                 Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
                 dumpBlocks(blocksResDir);
@@ -524,6 +531,118 @@ public class OracleMain {
         }
 
         Path out = outDir.resolve("aquifer_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
+    }
+
+    private static void dumpCarverChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        MultiNoiseBiomeSource biomeSource,
+        HolderLookup.Provider registries,
+        Path outDir
+    ) throws Exception {
+        ChunkPos chunkPos = new ChunkPos(cx, cz);
+        LevelHeightAccessor heightAccessor = LevelHeightAccessor.create(FixtureFormat.MIN_Y, FixtureFormat.HEIGHT);
+        ProtoChunk chunk = new ProtoChunk(chunkPos, UpgradeData.EMPTY, heightAccessor, biomeRegistry, null);
+
+        Beardifier emptyBeardifier = new Beardifier(
+            new ObjectArrayList<Beardifier.Rigid>().iterator(),
+            new ObjectArrayList<JigsawJunction>().iterator()
+        );
+        chunk.getOrCreateNoiseChunk(ca ->
+            NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty())
+        );
+
+        // 1. Fill terrain
+        generator.fillFromNoise(Blender.empty(), randomState, null, chunk).join();
+
+        // 2. Surface rules
+        BiomeManager biomeManager = new BiomeManager(
+            (x, y, z) -> biomeSource.getNoiseBiome(x, y, z, randomState.sampler()),
+            BiomeManager.obfuscateSeed(seed)
+        );
+        WorldGenerationContext worldGenContext = new WorldGenerationContext(generator, heightAccessor);
+        generator.buildSurface(chunk, worldGenContext, randomState, null, biomeManager, biomeRegistry, Blender.empty());
+
+        // 3. Get noise chunk and aquifer
+        net.minecraft.world.level.levelgen.NoiseChunk noiseChunk =
+            chunk.getOrCreateNoiseChunk(ca ->
+                NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty()));
+        net.minecraft.world.level.levelgen.Aquifer aquifer = noiseChunk.aquifer();
+
+        // 4. Build CarvingContext — VanillaRegistries.createLookup() returns RegistryAccess.Frozen
+        net.minecraft.core.RegistryAccess registryAccess = (net.minecraft.core.RegistryAccess) registries;
+        net.minecraft.world.level.levelgen.carver.CarvingContext carvingCtx =
+            new net.minecraft.world.level.levelgen.carver.CarvingContext(
+                generator, registryAccess, heightAccessor,
+                noiseChunk, randomState, settings.surfaceRule());
+
+        // 5. Hard-code 3 overworld configured carvers
+        var carverReg = registryAccess.lookupOrThrow(net.minecraft.core.registries.Registries.CONFIGURED_CARVER);
+        var caveCarver = carverReg.getOrThrow(net.minecraft.resources.ResourceKey.create(
+            net.minecraft.core.registries.Registries.CONFIGURED_CARVER,
+            net.minecraft.resources.ResourceLocation.parse("minecraft:cave")));
+        var caveExtraCarver = carverReg.getOrThrow(net.minecraft.resources.ResourceKey.create(
+            net.minecraft.core.registries.Registries.CONFIGURED_CARVER,
+            net.minecraft.resources.ResourceLocation.parse("minecraft:cave_extra_underground")));
+        var canyonCarver = carverReg.getOrThrow(net.minecraft.resources.ResourceKey.create(
+            net.minecraft.core.registries.Registries.CONFIGURED_CARVER,
+            net.minecraft.resources.ResourceLocation.parse("minecraft:canyon")));
+
+        java.util.List<net.minecraft.world.level.levelgen.carver.ConfiguredWorldCarver<?>> carvers =
+            java.util.List.of(caveCarver.value(), caveExtraCarver.value(), canyonCarver.value());
+
+        net.minecraft.world.level.chunk.CarvingMask carvingMask =
+            ((ProtoChunk) chunk).getOrCreateCarvingMask();
+
+        net.minecraft.world.level.levelgen.WorldgenRandom worldgenRandom =
+            new net.minecraft.world.level.levelgen.WorldgenRandom(
+                new net.minecraft.world.level.levelgen.LegacyRandomSource(0L));
+
+        java.util.function.Function<net.minecraft.core.BlockPos, net.minecraft.core.Holder<Biome>> biomeAccessor =
+            pos -> biomeSource.getNoiseBiome(pos.getX() >> 2, 0, pos.getZ() >> 2, randomState.sampler());
+
+        for (int originX = cx - 8; originX <= cx + 8; originX++) {
+            for (int originZ = cz - 8; originZ <= cz + 8; originZ++) {
+                ChunkPos originPos = new ChunkPos(originX, originZ);
+                for (var carver : carvers) {
+                    worldgenRandom.setLargeFeatureSeed(seed, originX, originZ);
+                    if (carver.isStartChunk(worldgenRandom)) {
+                        carver.carve(carvingCtx, chunk, biomeAccessor, worldgenRandom, aquifer, originPos, carvingMask);
+                    }
+                }
+            }
+        }
+
+        // 6. Dump blocks as uint16 state IDs
+        int totalBlocks = FixtureFormat.HEIGHT * 16 * 16;
+        int headerSize  = 4 + 8 + 4 + 4;
+        ByteBuffer buf  = ByteBuffer.allocate(headerSize + totalBlocks * 2).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0x43525652); // "CRVR" magic
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = chunk.getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    short id = (short) net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state);
+                    buf.putShort(id);
+                }
+            }
+        }
+
+        Path out = outDir.resolve("carver_" + seed + "_" + cx + "_" + cz + ".bin");
         try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
             fos.write(buf.array());
         }
