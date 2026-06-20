@@ -260,9 +260,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> { // Confirm Teleportation: 일치하면 즉시 게이트 해제(스폰 청크 동기 전송됐으므로 안전)
+            case 0x00 -> { // Confirm Teleportation: 스폰 텔포 confirm이면 spawn 좌표로 재고정+게이트 해제.
+                // bare 해제(pendingTeleportId=-1)만 하면 갭 중 클라 추락이 보정 안 됨 → 땅 끼임.
+                // Pumpkin식: confirm 시 위치를 텔포 목표로 되돌림(releaseSpawnGate가 SyncPlayerPosition+publish).
+                // 발밑 청크는 onEnterPlay서 confirm 처리 전 동기 전송됨 → 클라는 GE13 로딩 중이라 재싱크 안 보임.
                 int tpId = Types.readVarInt(frame);
-                if (tpId == pendingTeleportId) pendingTeleportId = -1;
+                if (tpId == pendingTeleportId) releaseSpawnGate();
             }
             case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
             case 0x18 -> { // Keep Alive (serverbound)
