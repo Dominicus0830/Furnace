@@ -47,6 +47,7 @@ public final class NoiseWorldSource implements WorldSource {
     private final int lavaId;
     private final long seed;
     private final BlockRegistry reg;
+    private final int biomeDirectBits;
     private final OverworldCarvers overworldCarvers;
     private final FeaturePlacer featurePlacer;
     private final List<SpawnTarget> spawnTargets;
@@ -55,7 +56,7 @@ public final class NoiseWorldSource implements WorldSource {
     private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
                               SurfaceSystem surfaceSystem, String[] registryBiomeNames,
                               int stoneId, int waterId, int lavaId,
-                              long seed, BlockRegistry reg, OverworldCarvers overworldCarvers,
+                              long seed, BlockRegistry reg, int biomeDirectBits, OverworldCarvers overworldCarvers,
                               FeaturePlacer featurePlacer, List<SpawnTarget> spawnTargets) {
         this.router             = router;
         this.settings           = settings;
@@ -67,6 +68,7 @@ public final class NoiseWorldSource implements WorldSource {
         this.lavaId             = lavaId;
         this.seed               = seed;
         this.reg                = reg;
+        this.biomeDirectBits    = biomeDirectBits;
         this.overworldCarvers   = overworldCarvers;
         this.featurePlacer      = featurePlacer;
         this.spawnTargets       = spawnTargets;
@@ -92,6 +94,8 @@ public final class NoiseWorldSource implements WorldSource {
 
         java.util.List<String> biomeEntries = registries.entries("minecraft:worldgen/biome");
         String[] registryBiomeNames = biomeEntries.toArray(new String[0]);
+        int biomeCount = registryBiomeNames.length;
+        int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed,
             registryBiomeNames, biomeSampler, router);
 
@@ -103,7 +107,7 @@ public final class NoiseWorldSource implements WorldSource {
 
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
-                                    seed, reg, overworldCarvers, featurePlacer, spawnTargets);
+                                    seed, reg, biomeDirectBits, overworldCarvers, featurePlacer, spawnTargets);
     }
 
     /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
@@ -316,7 +320,7 @@ public final class NoiseWorldSource implements WorldSource {
             : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
         int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
 
-        ChunkColumn col = new ChunkColumn(0);
+        ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits);
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
         col.loadGenerated(blockIds, biomeIds);
@@ -365,6 +369,7 @@ public final class NoiseWorldSource implements WorldSource {
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, centerNoise);
         FeatureWorldView view = new FeatureWorldView(col, chunkX, chunkZ, biomeIds);
         featurePlacer.decorate(view, collectNeighborBiomes(chunkX, chunkZ), chunkX, chunkZ);
+        col.compactSections();
         col.clearDirty();
         return col;
     }

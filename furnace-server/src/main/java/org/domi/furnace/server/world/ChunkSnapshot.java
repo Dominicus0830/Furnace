@@ -10,7 +10,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, Section[] 
         ChunkSection[] src = col.sections();
         Section[] out = new Section[src.length];
         for (int i = 0; i < src.length; i++) {
-            out[i] = new Section(src[i].nonAirCount(), src[i].blocks().clone(), src[i].biomes().clone());
+            out[i] = new Section(src[i].nonAirCount(), src[i].blocks(), src[i].biomes());
         }
         return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), out);
     }

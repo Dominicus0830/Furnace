@@ -6,6 +6,7 @@ public final class ChunkColumn {
     public static final int SECTION_COUNT = 24;
     public static final int MIN_Y = -64;
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
+    public static final int DEFAULT_BIOME_DIRECT_BITS = 7;
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음)
@@ -21,12 +22,23 @@ public final class ChunkColumn {
         }
     }
 
+    public ChunkColumn(int biomeId, int directBits, int biomeDirectBits) {
+        for (int i = 0; i < SECTION_COUNT; i++) {
+            sections[i] = new ChunkSection(directBits, biomeDirectBits);
+            sections[i].fillBiome(biomeId);
+        }
+    }
+
     public ChunkSection[] sections() {
         return sections;
     }
 
     public int[] sectionBlocks(int sectionIndex) {
-        return sections[sectionIndex].blocks();
+        return sections[sectionIndex].openScratch();
+    }
+
+    public void compactSections() {
+        for (ChunkSection section : sections) section.compact();
     }
 
     /** worldY 절대좌표에 블록 설정. */

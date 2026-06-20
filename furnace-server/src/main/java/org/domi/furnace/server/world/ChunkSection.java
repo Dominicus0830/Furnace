@@ -1,13 +1,25 @@
-// 청크 섹션: 블록 16³ + 바이옴 4³ + 비공기 수. 인덱스는 바닐라 YZX 순.
+// 청크 섹션: 블록 16³ + 바이옴 4³ palette 저장 + 비공기 수. 인덱스는 바닐라 YZX 순.
 package org.domi.furnace.server.world;
 
 public final class ChunkSection {
 
     public static final int AIR = 0;
+    private static final int DEFAULT_DIRECT_BITS = 15;
+    private static final int DEFAULT_BIOME_DIRECT_BITS = 7;
 
-    private final int[] blocks = new int[4096]; // 전부 0(air)
-    private final int[] biomes = new int[64];
+    private final PaletteStorage blocks;
+    private final PaletteStorage biomes;
     private short nonAirCount = 0;
+    private int[] scratch;
+
+    public ChunkSection() {
+        this(DEFAULT_DIRECT_BITS, DEFAULT_BIOME_DIRECT_BITS);
+    }
+
+    public ChunkSection(int directBits, int biomeDirectBits) {
+        this.blocks = new PaletteStorage(4096, 4, 8, directBits, AIR);
+        this.biomes = new PaletteStorage(64, 1, 3, biomeDirectBits, 0);
+    }
 
     private static int blockIndex(int x, int y, int z) {
         return y * 256 + z * 16 + x;
@@ -19,39 +31,43 @@ public final class ChunkSection {
 
     public void setBlock(int x, int y, int z, int stateId) {
         int idx = blockIndex(x, y, z);
-        int old = blocks[idx];
+        int old = scratch != null ? scratch[idx] : blocks.get(idx);
         if (old == AIR && stateId != AIR) nonAirCount++;
         else if (old != AIR && stateId == AIR) nonAirCount--;
-        blocks[idx] = stateId;
+        if (scratch != null) scratch[idx] = stateId;
+        else blocks.set(idx, stateId);
     }
 
     public int getBlock(int x, int y, int z) {
-        return blocks[blockIndex(x, y, z)];
+        int idx = blockIndex(x, y, z);
+        return scratch != null ? scratch[idx] : blocks.get(idx);
     }
 
     public void fillBiome(int biomeId) {
-        java.util.Arrays.fill(biomes, biomeId);
+        for (int i = 0; i < 64; i++) biomes.set(i, biomeId);
     }
 
     public int getBiome(int x, int y, int z) {
-        return biomes[biomeIndex(x, y, z)];
+        return biomes.get(biomeIndex(x, y, z));
     }
 
     public void setBiome(int x, int y, int z, int biomeId) {
-        biomes[biomeIndex(x, y, z)] = biomeId;
+        biomes.set(biomeIndex(x, y, z), biomeId);
     }
 
     public void replaceBlocks(int[] source, int sourceOffset) {
-        System.arraycopy(source, sourceOffset, blocks, 0, blocks.length);
-        int count = 0;
-        for (int state : blocks) {
-            if (state != AIR) count++;
+        if (scratch != null) {
+            System.arraycopy(source, sourceOffset, scratch, 0, 4096);
+        } else {
+            blocks.load(source, sourceOffset);
         }
+        int count = 0;
+        for (int i = 0; i < 4096; i++) if (source[sourceOffset + i] != AIR) count++;
         nonAirCount = (short) count;
     }
 
     public void replaceBiomes(int[] source, int sourceOffset) {
-        System.arraycopy(source, sourceOffset, biomes, 0, biomes.length);
+        biomes.load(source, sourceOffset);
     }
 
     public short nonAirCount() {
@@ -59,10 +75,24 @@ public final class ChunkSection {
     }
 
     public int[] blocks() {
-        return blocks;
+        return scratch != null ? scratch.clone() : blocks.unpack();
     }
 
     public int[] biomes() {
-        return biomes;
+        return biomes.unpack();
+    }
+
+    int[] openScratch() {
+        if (scratch == null) scratch = blocks.unpack();
+        return scratch;
+    }
+
+    void compact() {
+        if (scratch == null) return;
+        blocks.load(scratch, 0);
+        int count = 0;
+        for (int value : scratch) if (value != AIR) count++;
+        nonAirCount = (short) count;
+        scratch = null;
     }
 }

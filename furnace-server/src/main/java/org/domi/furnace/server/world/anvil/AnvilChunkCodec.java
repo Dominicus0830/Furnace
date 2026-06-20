@@ -94,7 +94,7 @@ public final class AnvilChunkCodec {
     }
 
     public ChunkColumn fromNbt(NbtCompound root) {
-        ChunkColumn col = new ChunkColumn(biomeId);
+        ChunkColumn col = new ChunkColumn(biomeId, registry.directBits(), ChunkColumn.DEFAULT_BIOME_DIRECT_BITS);
         NbtList sections = root.getList("sections");
         for (Object o : sections.items()) {
             NbtCompound s = (NbtCompound) o;
