@@ -71,6 +71,61 @@ public class OracleMain {
         // Build vanilla registry lookup (includes all worldgen registries)
         HolderLookup.Provider registries = VanillaRegistries.createLookup();
 
+        // Bind block tags to BuiltInRegistries.BLOCK so carver state.is(tagKey) works.
+        // VanillaRegistries.createLookup() runs datagen-mode; its RegistryLookup throws
+        // UnsupportedOperationException on listTagIds(). Hardcode the tags we need instead.
+        {
+            java.util.Map<net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block>,
+                         java.util.List<net.minecraft.core.Holder<net.minecraft.world.level.block.Block>>> tagMap = new java.util.LinkedHashMap<>();
+
+            java.util.function.BiConsumer<String, String[]> addTag = (tagPath, blockNames) -> {
+                net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tagKey =
+                    net.minecraft.tags.TagKey.create(Registries.BLOCK,
+                        net.minecraft.resources.ResourceLocation.parse(tagPath));
+                java.util.List<net.minecraft.core.Holder<net.minecraft.world.level.block.Block>> holders = new java.util.ArrayList<>();
+                for (String name : blockNames) {
+                    net.minecraft.resources.ResourceKey<net.minecraft.world.level.block.Block> key =
+                        net.minecraft.resources.ResourceKey.create(Registries.BLOCK,
+                            net.minecraft.resources.ResourceLocation.parse(name));
+                    net.minecraft.core.registries.BuiltInRegistries.BLOCK.getHolder(key).ifPresent(holders::add);
+                }
+                tagMap.put(tagKey, holders);
+            };
+
+            addTag.accept("minecraft:base_stone_overworld", new String[]{
+                "minecraft:stone","minecraft:granite","minecraft:diorite","minecraft:andesite","minecraft:tuff","minecraft:deepslate"});
+            addTag.accept("minecraft:dirt", new String[]{
+                "minecraft:dirt","minecraft:grass_block","minecraft:podzol","minecraft:coarse_dirt","minecraft:mycelium",
+                "minecraft:rooted_dirt","minecraft:moss_block","minecraft:pale_moss_block","minecraft:mud","minecraft:muddy_mangrove_roots"});
+            addTag.accept("minecraft:sand", new String[]{
+                "minecraft:sand","minecraft:red_sand","minecraft:suspicious_sand"});
+            addTag.accept("minecraft:terracotta", new String[]{
+                "minecraft:terracotta","minecraft:white_terracotta","minecraft:orange_terracotta","minecraft:magenta_terracotta",
+                "minecraft:light_blue_terracotta","minecraft:yellow_terracotta","minecraft:lime_terracotta","minecraft:pink_terracotta",
+                "minecraft:gray_terracotta","minecraft:light_gray_terracotta","minecraft:cyan_terracotta","minecraft:purple_terracotta",
+                "minecraft:blue_terracotta","minecraft:brown_terracotta","minecraft:green_terracotta","minecraft:red_terracotta","minecraft:black_terracotta"});
+            addTag.accept("minecraft:iron_ores", new String[]{"minecraft:iron_ore","minecraft:deepslate_iron_ore"});
+            addTag.accept("minecraft:copper_ores", new String[]{"minecraft:copper_ore","minecraft:deepslate_copper_ore"});
+            addTag.accept("minecraft:snow", new String[]{"minecraft:snow","minecraft:snow_block","minecraft:powder_snow"});
+            addTag.accept("minecraft:overworld_carver_replaceables", new String[]{
+                "minecraft:stone","minecraft:granite","minecraft:diorite","minecraft:andesite","minecraft:tuff","minecraft:deepslate",
+                "minecraft:dirt","minecraft:grass_block","minecraft:podzol","minecraft:coarse_dirt","minecraft:mycelium",
+                "minecraft:rooted_dirt","minecraft:moss_block","minecraft:pale_moss_block","minecraft:mud","minecraft:muddy_mangrove_roots",
+                "minecraft:sand","minecraft:red_sand","minecraft:suspicious_sand",
+                "minecraft:terracotta","minecraft:white_terracotta","minecraft:orange_terracotta","minecraft:magenta_terracotta",
+                "minecraft:light_blue_terracotta","minecraft:yellow_terracotta","minecraft:lime_terracotta","minecraft:pink_terracotta",
+                "minecraft:gray_terracotta","minecraft:light_gray_terracotta","minecraft:cyan_terracotta","minecraft:purple_terracotta",
+                "minecraft:blue_terracotta","minecraft:brown_terracotta","minecraft:green_terracotta","minecraft:red_terracotta","minecraft:black_terracotta",
+                "minecraft:iron_ore","minecraft:deepslate_iron_ore",
+                "minecraft:copper_ore","minecraft:deepslate_copper_ore",
+                "minecraft:snow","minecraft:snow_block","minecraft:powder_snow",
+                "minecraft:water","minecraft:gravel","minecraft:suspicious_gravel",
+                "minecraft:sandstone","minecraft:red_sandstone","minecraft:calcite","minecraft:packed_ice","minecraft:raw_iron_block","minecraft:raw_copper_block"});
+
+            ((net.minecraft.core.MappedRegistry<net.minecraft.world.level.block.Block>)
+                (Object) net.minecraft.core.registries.BuiltInRegistries.BLOCK).bindTags(tagMap);
+        }
+
         // Get OVERWORLD NoiseGeneratorSettings and clone with aquifer + oreVeins disabled
         HolderLookup<NoiseGeneratorSettings> noiseSettingsReg = registries.lookupOrThrow(Registries.NOISE_SETTINGS);
         NoiseGeneratorSettings overworldSettings = noiseSettingsReg.getOrThrow(NoiseGeneratorSettings.OVERWORLD).value();
@@ -169,6 +224,12 @@ public class OracleMain {
                 int cx = Integer.parseInt(parts[0]);
                 int cz = Integer.parseInt(parts[1]);
                 dumpBiomeChunk(seed, cx, cz, biomeSource, randomState, outDir);
+            } else if (arg.startsWith("biomeblock:")) {
+                String[] parts = arg.substring("biomeblock:".length()).split(":");
+                int x = Integer.parseInt(parts[0]);
+                int y = Integer.parseInt(parts[1]);
+                int z = Integer.parseInt(parts[2]);
+                dumpBiomeBlock(seed, x, y, z, biomeSource, randomState);
             } else if (arg.startsWith("surface:")) {
                 String[] parts = arg.substring("surface:".length()).split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -593,12 +654,18 @@ public class OracleMain {
             chunk.getOrCreateNoiseChunk(ca ->
                 NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty()));
         net.minecraft.world.level.levelgen.Aquifer aquifer = noiseChunk.aquifer();
+        // DEBUG: check aquifer at (3,-47,0) with density=0.0 (carver call)
+        if (cx == 0 && cz == 0) {
+            net.minecraft.world.level.block.state.BlockState aq0 = aquifer.computeSubstance(
+                new DensityFunction.SinglePointContext(3, -47, 0), 0.0);
+            System.out.printf("DBG_AQ aquifer(3,-47,0) density=0.0 → %s%n", aq0);
+        }
 
         // 4. Build CarvingContext
         net.minecraft.world.level.levelgen.carver.CarvingContext carvingCtx =
             new net.minecraft.world.level.levelgen.carver.CarvingContext(
                 generator, registryAccess, heightAccessor,
-                noiseChunk, randomState, settings.surfaceRule());
+                noiseChunk, randomState, settings.surfaceRule(), null);
 
         // 5. Hard-code 3 overworld configured carvers
         var carverReg = registryAccess.lookupOrThrow(net.minecraft.core.registries.Registries.CONFIGURED_CARVER);
@@ -616,7 +683,7 @@ public class OracleMain {
             java.util.List.of(caveCarver.value(), caveExtraCarver.value(), canyonCarver.value());
 
         net.minecraft.world.level.chunk.CarvingMask carvingMask =
-            ((ProtoChunk) chunk).getOrCreateCarvingMask();
+            ((ProtoChunk) chunk).getOrCreateCarvingMask(net.minecraft.world.level.levelgen.GenerationStep.Carving.AIR);
 
         net.minecraft.world.level.levelgen.WorldgenRandom worldgenRandom =
             new net.minecraft.world.level.levelgen.WorldgenRandom(
@@ -625,15 +692,329 @@ public class OracleMain {
         java.util.function.Function<net.minecraft.core.BlockPos, net.minecraft.core.Holder<Biome>> biomeAccessor =
             pos -> biomeSource.getNoiseBiome(pos.getX() >> 2, 0, pos.getZ() >> 2, randomState.sampler());
 
+        // Track who carves (0, 2, 12) for seed=0; (13, 18, 8) for seed=123456789
+        net.minecraft.core.BlockPos trackPos = (seed == 0 && cx == 0 && cz == 0)
+            ? new net.minecraft.core.BlockPos(0, 2, 12)
+            : (seed == 123456789L && cx == 0 && cz == 0)
+            ? new net.minecraft.core.BlockPos(13, 18, 8)
+            : null;
+        net.minecraft.world.level.block.state.BlockState trackBefore = trackPos != null ? chunk.getBlockState(trackPos) : null;
+        // Multi-track: all y=2..3 blocks in lz=12..15 for seed=0 cx=0 cz=0
+        boolean multiTrack = (seed == 0 && cx == 0 && cz == 0);
+        java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.state.BlockState> multiTrackBefore = new java.util.LinkedHashMap<>();
+        if (multiTrack) {
+            for (int mty = 2; mty <= 3; mty++)
+                for (int mtz = 12; mtz <= 15; mtz++)
+                    for (int mtx = 0; mtx <= 6; mtx++) {
+                        net.minecraft.core.BlockPos mp = new net.minecraft.core.BlockPos(mtx, mty, mtz);
+                        multiTrackBefore.put(mp, chunk.getBlockState(mp));
+                    }
+        }
+
         for (int originX = cx - 8; originX <= cx + 8; originX++) {
             for (int originZ = cz - 8; originZ <= cz + 8; originZ++) {
                 ChunkPos originPos = new ChunkPos(originX, originZ);
                 for (var carver : carvers) {
                     worldgenRandom.setLargeFeatureSeed(seed, originX, originZ);
-                    if (carver.isStartChunk(worldgenRandom)) {
-                        carver.carve(carvingCtx, chunk, biomeAccessor, worldgenRandom, aquifer, originPos, carvingMask);
+                    boolean starts = carver.isStartChunk(worldgenRandom);
+                    if (originX == 0 && originZ == -1 && seed == 123456789L) {
+                        System.out.printf("DBG_ORA origin(0,-1) carver=%s starts=%b%n",
+                            carver.getClass().getSimpleName(), starts);
+                    }
+                    // Debug canyon at origin(5,-5) for seed=123456789 (we over-carve there)
+                    if (originX == 5 && originZ == -5 && seed == 123456789L) {
+                        System.out.printf("DBG_ORA origin(5,-5) carver=%s starts=%b%n",
+                            carver.getClass().getSimpleName(), starts);
+                    }
+                    // Print canyon params for origin(5,-5) seed=123456789 by replaying random
+                    if (originX == 5 && originZ == -5 && seed == 123456789L && starts
+                            && carver.config() instanceof net.minecraft.world.level.levelgen.carver.CanyonCarverConfiguration) {
+                        net.minecraft.world.level.levelgen.WorldgenRandom snap =
+                            new net.minecraft.world.level.levelgen.WorldgenRandom(
+                                new net.minecraft.world.level.levelgen.LegacyRandomSource(0L));
+                        snap.setLargeFeatureSeed(seed, 5, -5);
+                        snap.nextFloat(); // isStartChunk
+                        int xRaw = snap.nextInt(16);
+                        int yRaw = snap.nextInt(58); // uniform(10,67) = nextInt(58)+10
+                        int zRaw = snap.nextInt(16);
+                        float yaw = snap.nextFloat() * 6.2831855f;
+                        float vRot = -0.125f + snap.nextFloat() * 0.25f; // uniform(-0.125, 0.125)
+                        // yScale = constant 3.0 (no random)
+                        float trapH = snap.nextFloat();
+                        net.minecraft.world.level.levelgen.carver.CanyonCarverConfiguration canyonCfg =
+                            (net.minecraft.world.level.levelgen.carver.CanyonCarverConfiguration) carver.config();
+                        // Compute thickness from vanilla TrapezoidFloat
+                        net.minecraft.util.valueproviders.TrapezoidFloat thickProvider =
+                            (net.minecraft.util.valueproviders.TrapezoidFloat) canyonCfg.shape.thickness;
+                        // Since we can't call sample() with a fixed h, let's print the raw float
+                        float distH = snap.nextFloat();
+                        long tSeed = snap.nextLong();
+                        System.out.printf("DBG_ORA_CYN origin(5,-5) xRaw=%d yRaw=%d(%d) zRaw=%d yaw=%.6f vRot=%.6f trapH=%.8f distH=%.8f tunnelSeed=%d%n",
+                            xRaw, yRaw, 5*16+xRaw, zRaw, yaw, vRot, trapH, distH, tSeed);
+                        System.out.printf("DBG_ORA_CYN world: x=%.1f y=%d z=%.1f%n", 5.0*16+xRaw, 10+yRaw, -5.0*16+zRaw);
+                    }
+                    // Debug canyon at origin(3,0) for seed=0 (oracle carves (0,2,12) but we don't)
+                    if (originX == 3 && originZ == 0 && seed == 0L) {
+                        System.out.printf("DBG_ORA origin(3,0) carver=%s starts=%b%n",
+                            carver.getClass().getSimpleName(), starts);
+                    }
+                    // Simulate canyon path for seed=0 origin(3,0) to trace where oracle's path goes
+                    if (originX == 3 && originZ == 0 && seed == 0L && starts
+                            && carver.config() instanceof net.minecraft.world.level.levelgen.carver.CanyonCarverConfiguration canyonCfg0) {
+                        // Replay random using ACTUAL config methods to exactly match vanilla's carve() random consumption
+                        net.minecraft.world.level.levelgen.WorldgenRandom snap0 =
+                            new net.minecraft.world.level.levelgen.WorldgenRandom(
+                                new net.minecraft.world.level.levelgen.LegacyRandomSource(0L));
+                        snap0.setLargeFeatureSeed(seed, 3, 0);
+                        snap0.nextFloat(); // isStartChunk
+                        double sx0 = (double) new net.minecraft.world.level.ChunkPos(3, 0).getBlockX(snap0.nextInt(16));
+                        int sy0 = canyonCfg0.y.sample(snap0, carvingCtx);  // use actual config method
+                        double sz0 = (double) new net.minecraft.world.level.ChunkPos(3, 0).getBlockZ(snap0.nextInt(16));
+                        float yaw0 = snap0.nextFloat() * (float)(Math.PI * 2);
+                        float vRot0 = canyonCfg0.verticalRotation.sample(snap0);  // actual provider
+                        double yScaleD = (double) canyonCfg0.yScale.sample(snap0);   // actual provider
+                        float thickness0 = canyonCfg0.shape.thickness.sample(snap0); // actual provider
+                        int maxStep0 = (int)((float)240 * canyonCfg0.shape.distanceFactor.sample(snap0)); // 240=(getRange()*2-1)*16, getRange()=8 for canyon
+                        long tSeed0 = snap0.nextLong();
+                        System.out.printf("DBG_SIM0 origin(3,0) x=%.1f y=%d z=%.1f yaw=%.6f vRot=%.6f yScale=%.4f thick=%.6f maxStep=%d tSeed=%d%n",
+                            sx0, sy0, sz0, yaw0, vRot0, yScaleD, thickness0, maxStep0, tSeed0);
+                        // Simulate doCarve path using vanilla LegacyRandom
+                        net.minecraft.world.level.levelgen.LegacyRandomSource br0 =
+                            new net.minecraft.world.level.levelgen.LegacyRandomSource(tSeed0);
+                        // initWidthFactors — use actual config values
+                        int genDepth0 = carvingCtx.getGenDepth();
+                        float[] wf0 = new float[genDepth0];
+                        float f0 = 1.0f;
+                        for (int i0 = 0; i0 < genDepth0; i0++) {
+                            if (i0 == 0 || br0.nextInt(canyonCfg0.shape.widthSmoothness) == 0) {
+                                f0 = 1.0f + br0.nextFloat() * br0.nextFloat();
+                            }
+                            wf0[i0] = f0 * f0;
+                        }
+                        System.out.printf("SIM_WF wf[65]=%.6f wf[66]=%.6f (by=2 idx=65, by=3 idx=66)%n", wf0[65], wf0[66]);
+                        // Now simulate step loop — hDistBase as double (matches vanilla/Furnace)
+                        double bx0 = sx0, by0 = sy0, bz0 = sz0;
+                        float pitch0 = vRot0, yawV0 = yaw0, pitchDir0 = 0, yawDir0 = 0;
+                        int minY0 = -64;
+                        for (int step0 = 0; step0 < maxStep0; step0++) {
+                            // 1. hDist/vDist — use actual config sample methods via br0
+                            double hDistBase0 = 1.5 + (double)(net.minecraft.util.Mth.sin((float)step0 * (float)Math.PI / (float)maxStep0) * thickness0);
+                            double eVert0 = hDistBase0 * yScaleD;
+                            double hDist0 = hDistBase0 * (double)canyonCfg0.shape.horizontalRadiusFactor.sample(br0);
+                            // updateVerticalRadius: vrDefaultFactor + vrCenterFactor * f, then * Mth.randomBetween(br0, 0.75, 1.0)
+                            float vrf0 = canyonCfg0.shape.verticalRadiusDefaultFactor + canyonCfg0.shape.verticalRadiusCenterFactor * (1.0f - net.minecraft.util.Mth.abs(0.5f - (float)step0/(float)maxStep0)*2.0f);
+                            double vDist0 = (double)vrf0 * eVert0 * (double)net.minecraft.util.Mth.randomBetween(br0, 0.75f, 1.0f);
+                            // 2. Position update
+                            float cosp0 = net.minecraft.util.Mth.cos(pitch0);
+                            bx0 += net.minecraft.util.Mth.cos(yawV0) * cosp0;
+                            by0 += net.minecraft.util.Mth.sin(pitch0);
+                            bz0 += net.minecraft.util.Mth.sin(yawV0) * cosp0;
+                            // 3. Pitch/yaw decay + random
+                            pitch0 *= 0.7f; pitch0 += pitchDir0 * 0.05f;
+                            yawV0 += yawDir0 * 0.05f;
+                            pitchDir0 *= 0.8f; yawDir0 *= 0.5f;
+                            pitchDir0 += (br0.nextFloat() - br0.nextFloat()) * br0.nextFloat() * 2.0f;
+                            yawDir0 += (br0.nextFloat() - br0.nextFloat()) * br0.nextFloat() * 4.0f;
+                            // 4. Skip check
+                            int skip0 = br0.nextInt(4);
+                            // Compute yMin like Furnace
+                            int yMinRaw0 = (int)Math.floor(by0 - vDist0) - 1;
+                            int yMin0 = Math.max(minY0 + 1, yMinRaw0);
+                            // Print ALL steps with yMin<=1 (can reach y=2), or yMin<=3 near chunk 0
+                            // genDepth sanity: print once
+                            if (step0 == 0) System.out.printf("SIM_GDEPTH genDepth=%d wSmooth=%d%n", genDepth0, canyonCfg0.shape.widthSmoothness);
+                            boolean nearChunk0 = bx0 >= -5 && bx0 <= 17 && bz0 >= 10 && bz0 <= 18;
+                            if ((yMin0 <= 1) || (yMin0 <= 4 && nearChunk0)) {
+                                System.out.printf("SIM_LOW step=%d center=(%.3f,%.3f,%.3f) hDist=%.4f vDist=%.4f yMin=%d skip=%d%n",
+                                        step0, bx0, by0, bz0, hDist0, vDist0, yMin0, skip0 == 0 ? 1 : 0);
+                                // When yMin<=1 (loop can reach y=2), check if block (0,2,12) passes skipCheck
+                                if (yMin0 <= 1 && hDist0 > 0 && skip0 != 0) {
+                                    double relX02 = (0.5 - bx0) / hDist0;
+                                    double relZ02 = (12.5 - bz0) / hDist0;
+                                    double hz0 = relX02*relX02 + relZ02*relZ02;
+                                    if (hz0 < 1.0) {
+                                        double relY02 = (2 - 0.5 - by0) / vDist0;
+                                        double skipVal0 = hz0 * wf0[65] + relY02*relY02/6.0;
+                                        System.out.printf("  -> (0,2,12) relX=%.3f relZ=%.3f hz=%.3f relY=%.3f skipVal=%.3f %s%n",
+                                            relX02, relZ02, hz0, relY02, skipVal0, skipVal0 < 1.0 ? "CARVED" : "skipped");
+                                    } else {
+                                        System.out.printf("  -> (0,2,12) OUTSIDE horizontal: hz=%.3f%n", hz0);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (starts) {
+                        if (originX == 0 && originZ == -1
+                                && carver.config() instanceof net.minecraft.world.level.levelgen.carver.CaveCarverConfiguration caveCfg
+                                && caveCfg.probability == 0.15f) {
+                            // Snapshot random state after isStartChunk consumed 1 float
+                            net.minecraft.world.level.levelgen.WorldgenRandom snap = new net.minecraft.world.level.levelgen.WorldgenRandom(new net.minecraft.world.level.levelgen.LegacyRandomSource(0));
+                            snap.setLargeFeatureSeed(seed, 0, -1);
+                            snap.nextFloat(); // isStartChunk
+                            // count cascade: nextInt(nextInt(nextInt(15)+1)+1) = nextInt(nextInt(R1+1)+1) = nextInt(R2+1) = count
+                            int R1 = snap.nextInt(15); int a = R1 + 1;
+                            int R2 = snap.nextInt(a);  int b = R2 + 1;
+                            int cnt = snap.nextInt(b);
+                            int sx16 = snap.nextInt(16); // startX candidate (i=0)
+                            System.out.printf("DBG_ORA_CAVE origin(0,-1) a=%d b=%d count=%d startX_raw=%d%n", a, b, cnt, sx16);
+                            // Now simulate i=0 to get to i=1
+                            // i=0: we already consumed startX. continue: startY, startZ, hRad, vRad, floor, room?
+                            snap.nextInt(237); // startY = nextInt(237) for [-56,180]
+                            snap.nextInt(16);  // startZ
+                            snap.nextFloat();  // hRadMult
+                            snap.nextFloat();  // vRadMult
+                            snap.nextFloat();  // floorLevel
+                            int room0 = snap.nextInt(4);
+                            if (room0 == 0) {
+                                snap.nextFloat(); // yScale
+                                snap.nextFloat(); // roomThick
+                                snap.nextInt(4);  // tunnelCount bonus
+                            }
+                            // tunnel 0: yaw, pitch, thickness
+                            snap.nextFloat(); // yaw
+                            snap.nextFloat(); // pitch
+                            float t0 = snap.nextFloat() * 2.0f + snap.nextFloat(); // thickness base
+                            if (snap.nextInt(10) == 0) { snap.nextFloat(); snap.nextFloat(); } // thickness rare
+                            snap.nextInt(28); // maxStep variance
+                            long seed1 = snap.nextLong(); // tunnel seed for i=0 t=0
+                            System.out.printf("DBG_ORA_CAVE i=0 tunnelSeed=%d%n", seed1);
+                            // i=1: startX, startY, startZ, hRad, vRad, floor
+                            int i1sx = snap.nextInt(16); // startX_raw for i=1
+                            int i1sy = snap.nextInt(237); // startY_raw
+                            int i1sz = snap.nextInt(16);  // startZ_raw
+                            float i1hrad = 0.7f + snap.nextFloat() * 0.7f;
+                            float i1vrad = 0.8f + snap.nextFloat() * 0.5f;
+                            float i1fl = -1.0f + snap.nextFloat() * 0.6f;
+                            System.out.printf("DBG_ORA_CAVE i=1 startX_raw=%d startY_raw=%d(%d) startZ_raw=%d%n", i1sx, i1sy, -56+i1sy, i1sz);
+                            int room1 = snap.nextInt(4);
+                            if (room1 == 0) { snap.nextFloat(); snap.nextFloat(); snap.nextInt(4); }
+                            snap.nextFloat(); // yaw
+                            snap.nextFloat(); // pitch
+                            float t1 = snap.nextFloat() * 2.0f + snap.nextFloat();
+                            if (snap.nextInt(10) == 0) { snap.nextFloat(); snap.nextFloat(); }
+                            snap.nextInt(28);
+                            long seed2 = snap.nextLong();
+                            System.out.printf("DBG_ORA_CAVE i=1 tunnelSeed=%d%n", seed2);
+                        }
+                        // Check carvingMask at (3,-47,0) before and after carve (local x=3, y=-47, local z=0)
+                        boolean maskBefore = carvingMask.get(3, -47, 0);
+                        // Before cave_extra_underground(0,-1): re-check aquifer and lavaLevel
+                        if (originX == 0 && originZ == -1
+                                && carver.config() instanceof net.minecraft.world.level.levelgen.carver.CaveCarverConfiguration cc2
+                                && Math.abs(cc2.probability - 0.07f) < 0.001f) {
+                            net.minecraft.world.level.block.state.BlockState aqPre = aquifer.computeSubstance(
+                                new DensityFunction.SinglePointContext(3, -47, 0), 0.0);
+                            System.out.printf("DBG_AQ_PRE cave_extra aquifer(3,-47,0) → %s%n", aqPre);
+                            System.out.printf("DBG_LAVA carvingCtx.getMinGenY()=%d lavaLevel=%d%n",
+                                carvingCtx.getMinGenY(),
+                                cc2.lavaLevel.resolveY(carvingCtx));
+                            // Check replaceable tag for deepslate
+                            net.minecraft.core.BlockPos chkPos = new net.minecraft.core.BlockPos(3, -47, 0);
+                            net.minecraft.world.level.block.state.BlockState chkState = chunk.getBlockState(chkPos);
+                            boolean chkRepl = chkState.is(cc2.replaceable);
+                            System.out.printf("DBG_REPL block(3,-47,0)=%s is(replaceable)=%b tag=%s%n", chkState, chkRepl, cc2.replaceable);
+                            // Scan y=-50 to -44 after carve to see what changed
+                        }
+                        // Snapshot before origin(3,0) canyon for seed=0
+                        boolean snapOrigin30 = (seed == 0L && originX == 3 && originZ == 0
+                            && carver.config() instanceof net.minecraft.world.level.levelgen.carver.CanyonCarverConfiguration);
+                        net.minecraft.world.level.block.state.BlockState[] snap30 = null;
+                        if (snapOrigin30) {
+                            snap30 = new net.minecraft.world.level.block.state.BlockState[16 * 384 * 16];
+                            int idx30 = 0;
+                            for (int sy = -64; sy < 320; sy++) {
+                                for (int sz = 0; sz < 16; sz++) {
+                                    for (int sx = 0; sx < 16; sx++) {
+                                        snap30[idx30++] = chunk.getBlockState(new net.minecraft.core.BlockPos(sx, sy, sz));
+                                    }
+                                }
+                            }
+                        }
+                        // For origin(3,0) canyon seed=0: use logging mask to trace low-y set() calls
+                        net.minecraft.world.level.chunk.CarvingMask activeCarvePhase = carvingMask;
+                        if (snapOrigin30) {
+                            activeCarvePhase = new net.minecraft.world.level.chunk.CarvingMask(carvingCtx.getGenDepth(), carvingCtx.getMinGenY()) {
+                                @Override public void set(int offsetX, int y, int offsetZ) {
+                                    if (y <= 5) System.out.printf("ORA_SET lx=%d y=%d lz=%d%n", offsetX, y, offsetZ);
+                                    super.set(offsetX, y, offsetZ);
+                                    carvingMask.set(offsetX, y, offsetZ);
+                                }
+                                @Override public boolean get(int offsetX, int y, int offsetZ) {
+                                    return super.get(offsetX, y, offsetZ) || carvingMask.get(offsetX, y, offsetZ);
+                                }
+                            };
+                        }
+                        carver.carve(carvingCtx, chunk, biomeAccessor, worldgenRandom, aquifer, originPos, activeCarvePhase);
+                        // Print all blocks carved by origin(3,0) canyon for seed=0
+                        if (snapOrigin30 && snap30 != null) {
+                            int idx30 = 0;
+                            for (int sy = -64; sy < 320; sy++) {
+                                for (int sz = 0; sz < 16; sz++) {
+                                    for (int sx = 0; sx < 16; sx++) {
+                                        net.minecraft.world.level.block.state.BlockState after30 = chunk.getBlockState(new net.minecraft.core.BlockPos(sx, sy, sz));
+                                        if (!after30.equals(snap30[idx30])) {
+                                            System.out.printf("SNAP30 (%d,%d,%d): %s->%s%n", sx, sy, sz, snap30[idx30], after30);
+                                        }
+                                        idx30++;
+                                    }
+                                }
+                            }
+                        }
+                        // Track (0,2,12) changes for seed=0 debugging
+                        if (trackPos != null) {
+                            net.minecraft.world.level.block.state.BlockState trackAfter = chunk.getBlockState(trackPos);
+                            if (!trackAfter.equals(trackBefore)) {
+                                System.out.printf("TRK_CARVED (0,2,12): origin=(%d,%d) carver=%s config=%s %s->%s%n",
+                                    originX, originZ, carver.getClass().getSimpleName(),
+                                    carver.config().getClass().getSimpleName(), trackBefore, trackAfter);
+                                trackBefore = trackAfter;
+                            }
+                        }
+                        // Multi-track: report any y=2..3 block that just changed
+                        if (multiTrack) {
+                            for (var mte : multiTrackBefore.entrySet()) {
+                                net.minecraft.world.level.block.state.BlockState after = chunk.getBlockState(mte.getKey());
+                                if (!after.equals(mte.getValue())) {
+                                    net.minecraft.core.BlockPos mp = mte.getKey();
+                                    System.out.printf("TRK_LOW (%d,%d,%d): origin=(%d,%d) carver=%s %s->%s%n",
+                                        mp.getX(), mp.getY(), mp.getZ(), originX, originZ,
+                                        carver.config().getClass().getSimpleName().replace("CarverConfiguration",""),
+                                        mte.getValue(), after);
+                                    mte.setValue(after);
+                                }
+                            }
+                        }
+                        // After carve, check block at (3,-47,0)
+                        if (originX == 0 && originZ == -1 && seed == 123456789L) {
+                            net.minecraft.world.level.block.state.BlockState b347 = chunk.getBlockState(
+                                new net.minecraft.core.BlockPos(3, -47, 0));
+                            boolean maskAfter = carvingMask.get(3, -47, 0);
+                            System.out.printf("DBG_ORA after carver(0,-1) block(3,-47,0)=%s maskBefore=%b maskAfter=%b%n", b347, maskBefore, maskAfter);
+                            // If cave_extra, scan y range around -47
+                            if (carver.config() instanceof net.minecraft.world.level.levelgen.carver.CaveCarverConfiguration cc3
+                                    && Math.abs(cc3.probability - 0.07f) < 0.001f) {
+                                for (int sy = -52; sy <= -42; sy++) {
+                                    net.minecraft.world.level.block.state.BlockState sy_state = chunk.getBlockState(new net.minecraft.core.BlockPos(3, sy, 0));
+                                    System.out.printf("DBG_SCAN y=%d block=%s mask=%b%n", sy, sy_state, carvingMask.get(3, sy, 0));
+                                }
+                                // Also check aquifer post-carve
+                                net.minecraft.world.level.block.state.BlockState aqPost = aquifer.computeSubstance(
+                                    new DensityFunction.SinglePointContext(3, -47, 0), 0.0);
+                                System.out.printf("DBG_AQ_POST cave_extra aquifer(3,-47,0) → %s%n", aqPost);
+                            }
+                        }
                     }
                 }
+            }
+        }
+
+        // DBG: dump column x=0,z=12 from y=-2 to y=25 to see oracle carve depth
+        if (seed == 0L && cx == 0 && cz == 0) {
+            System.out.println("DBG_COL x=0,z=12:");
+            for (int dy = 25; dy >= -2; dy--) {
+                BlockState s = chunk.getBlockState(new net.minecraft.core.BlockPos(0, dy, 12));
+                System.out.printf("  y=%-3d %s%n", dy, s);
             }
         }
 
@@ -712,6 +1093,26 @@ public class OracleMain {
             fos.write(buf.array());
         }
         System.out.printf("Wrote %s (%d bytes, 1536 quarts)%n", out, buf.capacity());
+    }
+
+    private static void dumpBiomeBlock(
+        long seed, int x, int y, int z,
+        MultiNoiseBiomeSource biomeSource,
+        RandomState randomState
+    ) {
+        BiomeManager biomeManager = new BiomeManager(
+            (qx, qy, qz) -> biomeSource.getNoiseBiome(qx, qy, qz, randomState.sampler()),
+            BiomeManager.obfuscateSeed(seed)
+        );
+        Holder<Biome> managerBiome = biomeManager.getBiome(new net.minecraft.core.BlockPos(x, y, z));
+        int qx = net.minecraft.core.QuartPos.fromBlock(x);
+        int qy = net.minecraft.core.QuartPos.fromBlock(y);
+        int qz = net.minecraft.core.QuartPos.fromBlock(z);
+        Holder<Biome> rawBiome = biomeSource.getNoiseBiome(qx, qy, qz, randomState.sampler());
+        System.out.printf("BIOMEBLOCK seed=%d block=(%d,%d,%d) rawQuart=(%d,%d,%d) raw=%s manager=%s%n",
+            seed, x, y, z, qx, qy, qz,
+            rawBiome.unwrapKey().orElseThrow().location(),
+            managerBiome.unwrapKey().orElseThrow().location());
     }
 
     /**
