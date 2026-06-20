@@ -220,25 +220,42 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 c -> Math.max(Math.abs(c.x() - centerCp.x()), Math.abs(c.z() - centerCp.z()))));
         java.util.List<java.util.concurrent.CompletableFuture<byte[]>> futs =
                 spawnChunks.stream().map(world::serializedChunkBody).toList();
-        send(ctx, new ChunkBatchStart());
-        int sent = 0;
-        for (int i = 0; i < spawnChunks.size(); i++) {
-            ChunkPos cp = spawnChunks.get(i);
-            try {
-                byte[] bodyBytes = futs.get(i).get(2, java.util.concurrent.TimeUnit.SECONDS);
-                send(ctx, new LevelChunkWithLight(Unpooled.wrappedBuffer(bodyBytes)));
-                p.loadedChunks().add(cp);
-                world.subscribeChunk(cp, p);
-                sent++;
-            } catch (Exception e) {
-                log.warn("스폰 청크 동기 전송 실패 {}", cp, e);
-            }
-        }
-        send(ctx, new ChunkBatchFinished(sent));
-        RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
-        scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
+        sendSpawnChunkBatchAsync(ctx, p, spawnChunks, futs, sx, sz);
         scheduleKeepAlive();
         scheduleSpawnGateRelease();
+    }
+
+    /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.
+     *  재접속처럼 gen이 2초를 넘겨도 TimeoutException 없이, 완료되면 전송. 완료 후 region에 adopt. */
+    private void sendSpawnChunkBatchAsync(ChannelHandlerContext ctx, Player p,
+            java.util.List<ChunkPos> spawnChunks,
+            java.util.List<java.util.concurrent.CompletableFuture<byte[]>> futs,
+            double sx, double sz) {
+        java.util.concurrent.CompletableFuture
+                .allOf(futs.toArray(new java.util.concurrent.CompletableFuture[0]))
+                .whenComplete((v, err) -> {
+                    if (!ctx.channel().isActive()) return;
+                    ctx.channel().eventLoop().execute(() -> {
+                        send(ctx, new ChunkBatchStart());
+                        int sent = 0;
+                        for (int i = 0; i < spawnChunks.size(); i++) {
+                            ChunkPos cp = spawnChunks.get(i);
+                            try {
+                                byte[] bodyBytes = futs.get(i).getNow(null);
+                                if (bodyBytes == null) continue;
+                                send(ctx, new LevelChunkWithLight(Unpooled.wrappedBuffer(bodyBytes)));
+                                p.loadedChunks().add(cp);
+                                world.subscribeChunk(cp, p);
+                                sent++;
+                            } catch (Exception e) {
+                                log.warn("스폰 청크 전송 실패 {}", cp, e);
+                            }
+                        }
+                        send(ctx, new ChunkBatchFinished(sent));
+                        RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
+                        scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
+                    });
+                });
     }
 
     /** 게이트 해제 fallback(6틱) — 보통 confirm(0x00)이 먼저 해제. confirm 유실 시 위치 재확정 후 해제. */

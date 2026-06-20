@@ -13,10 +13,16 @@ import org.domi.furnace.server.world.gen.carver.CarvingMask;
 import org.domi.furnace.server.world.gen.carver.OverworldCarvers;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
+import org.domi.furnace.server.world.gen.feature.BiomeFeatureData;
+import org.domi.furnace.server.world.gen.feature.FeaturePlacer;
+import org.domi.furnace.server.world.gen.feature.FeatureSorter;
+import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * NoiseChunk 밀도 엔진을 사용해 바닐라 1.21.1 오버월드 지형을 생성하는 WorldSource.
@@ -42,6 +48,7 @@ public final class NoiseWorldSource implements WorldSource {
     private final long seed;
     private final BlockRegistry reg;
     private final OverworldCarvers overworldCarvers;
+    private final FeaturePlacer featurePlacer;
     private final List<SpawnTarget> spawnTargets;
     private volatile SpawnPoint defaultSpawn;
 
@@ -49,7 +56,7 @@ public final class NoiseWorldSource implements WorldSource {
                               SurfaceSystem surfaceSystem, String[] registryBiomeNames,
                               int stoneId, int waterId, int lavaId,
                               long seed, BlockRegistry reg, OverworldCarvers overworldCarvers,
-                              List<SpawnTarget> spawnTargets) {
+                              FeaturePlacer featurePlacer, List<SpawnTarget> spawnTargets) {
         this.router             = router;
         this.settings           = settings;
         this.biomeSampler       = biomeSampler;
@@ -61,6 +68,7 @@ public final class NoiseWorldSource implements WorldSource {
         this.seed               = seed;
         this.reg                = reg;
         this.overworldCarvers   = overworldCarvers;
+        this.featurePlacer      = featurePlacer;
         this.spawnTargets       = spawnTargets;
     }
 
@@ -88,11 +96,38 @@ public final class NoiseWorldSource implements WorldSource {
             registryBiomeNames, biomeSampler, router);
 
         OverworldCarvers overworldCarvers = OverworldCarvers.load();
+        // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=biome_parameters.json 첫등장 distinct).
+        // registry 전체 순서를 쓰면 nether/end biome이 섞여 광석 index가 어긋난다.
+        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possibleBiomeOrder(data, registries), reg, seed);
         List<SpawnTarget> spawnTargets = loadSpawnTargets(data.noiseSettings("minecraft:overworld"));
 
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
-                                    seed, reg, overworldCarvers, spawnTargets);
+                                    seed, reg, overworldCarvers, featurePlacer, spawnTargets);
+    }
+
+    /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
+    private static List<String> possibleBiomeOrder(WorldgenData data, RegistrySet registries) {
+        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+        for (com.google.gson.JsonElement el : data.biomeParameters()) {
+            String name = el.getAsJsonObject().get("biome").getAsString();
+            if (registries.indexOf("minecraft:worldgen/biome", name) < 0) continue;
+            seen.add(name);
+        }
+        return new java.util.ArrayList<>(seen);
+    }
+
+    private static FeaturePlacer loadFeaturePlacer(
+            WorldgenData data, List<String> biomeEntries, BlockRegistry reg, long seed) {
+        try {
+            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, biomeEntries, reg);
+            return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData));
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("Worldgen resource not found:")) {
+                return null;
+            }
+            throw e;
+        }
     }
 
     public SpawnPoint defaultSpawn() {
@@ -320,6 +355,36 @@ public final class NoiseWorldSource implements WorldSource {
         NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
         applyCarvers(col, chunkX, chunkZ, nc);
         return col;
+    }
+
+    public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {
+        ChunkColumn col = generateWithCarvers(chunkX, chunkZ);
+        if (featurePlacer == null) return col;
+
+        NoiseChunk centerNoise = new NoiseChunk(chunkX, chunkZ, router, settings);
+        int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, centerNoise);
+        FeatureWorldView view = new FeatureWorldView(col, chunkX, chunkZ, biomeIds);
+        featurePlacer.decorate(view, collectNeighborBiomes(chunkX, chunkZ), chunkX, chunkZ);
+        col.clearDirty();
+        return col;
+    }
+
+    private Set<String> collectNeighborBiomes(int chunkX, int chunkZ) {
+        HashSet<String> result = new HashSet<>();
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                int nx = chunkX + dx;
+                int nz = chunkZ + dz;
+                NoiseChunk noiseChunk = new NoiseChunk(nx, nz, router, settings);
+                int[] biomeIds = biomeSampler.sampleChunk(nx, nz, noiseChunk);
+                for (int biomeId : biomeIds) {
+                    if (biomeId >= 0 && biomeId < registryBiomeNames.length) {
+                        result.add(registryBiomeNames[biomeId]);
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     private enum HeightKind {

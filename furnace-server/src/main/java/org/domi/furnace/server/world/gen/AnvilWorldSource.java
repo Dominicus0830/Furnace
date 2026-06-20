@@ -41,7 +41,7 @@ public final class AnvilWorldSource implements WorldSource {
         } catch (IOException e) {
             throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
         }
-        ChunkColumn col = base.generate(chunkX, chunkZ);
+        ChunkColumn col = generateFallback(chunkX, chunkZ);
         col.clearDirty();
         return col;
     }
@@ -58,11 +58,18 @@ public final class AnvilWorldSource implements WorldSource {
                 return CompletableFuture.completedFuture(decodeChunk(nbtBytes));
             }
             return CompletableFuture.supplyAsync(() -> {
-                ChunkColumn col = base.generate(chunkX, chunkZ);
+                ChunkColumn col = generateFallback(chunkX, chunkZ);
                 col.clearDirty();
                 return col;
             }, genExecutor);
         });
+    }
+
+    private ChunkColumn generateFallback(int chunkX, int chunkZ) {
+        if (base instanceof NoiseWorldSource noise) {
+            return noise.generateWithFeatures(chunkX, chunkZ);
+        }
+        return base.generate(chunkX, chunkZ);
     }
 
     private ChunkColumn decodeChunk(byte[] nbtBytes) {

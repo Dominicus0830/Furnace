@@ -30,6 +30,7 @@ public final class Region {
 
     // 추적 엔티티가 후보 스냅샷서 사라진 뒤 despawn까지 견디는 틱 수(핸드오프 갭 흡수).
     private static final int ENTITY_DESPAWN_GRACE = 3;
+    private static final int MAX_PENDING_CHUNKS_PER_PLAYER = 512;
 
     private final RegionPos pos;
     private final World world;
@@ -246,6 +247,11 @@ public final class Region {
     private void updateChunks(Player p) {
         ChunkPos center = p.chunkPos();
         if (center.equals(p.lastCenter())) return;
+        if (p.pendingChunks().size() > MAX_PENDING_CHUNKS_PER_PLAYER) {
+            p.lastCenter(center);
+            p.send(new SetCenterChunk(center.x(), center.z()));
+            return;
+        }
         int vd = Math.min(world.viewDistance(), p.viewDistance()); // 서버 상한 + 클라 요청
         List<ChunkPos> toQueue = new ArrayList<>();
         for (int dx = -vd; dx <= vd; dx++) {

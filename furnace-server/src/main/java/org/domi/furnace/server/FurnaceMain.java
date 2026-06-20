@@ -43,8 +43,9 @@ public final class FurnaceMain {
                 worldDir, regionStore, chunkCodec, noiseSource);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
+        int genThreads = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()));
         java.util.concurrent.ExecutorService genPool =
-                java.util.concurrent.Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors()));
+                java.util.concurrent.Executors.newFixedThreadPool(genThreads);
         World world = new World(anvilSource, chunkPool,
                 scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
                 config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);

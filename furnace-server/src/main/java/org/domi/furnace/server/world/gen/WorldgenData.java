@@ -98,6 +98,24 @@ public final class WorldgenData {
         return el.getAsJsonObject();
     }
 
+    public JsonObject biome(String id) {
+        return jsonResource(idToPath(id, "worldgen/biome")).getAsJsonObject();
+    }
+
+    public JsonObject placedFeature(String id) {
+        return jsonResource(idToPath(id, "worldgen/placed_feature")).getAsJsonObject();
+    }
+
+    public JsonObject configuredFeature(String id) {
+        return jsonResource(idToPath(id, "worldgen/configured_feature")).getAsJsonObject();
+    }
+
+    public JsonElement jsonResource(String resourcePath) {
+        JsonElement el = loadResource(resourcePath);
+        if (el == null) throw new IllegalArgumentException("Worldgen resource not found: " + resourcePath);
+        return el;
+    }
+
     /**
      * 바이옴의 온도값을 반환한다. 기본값 0.5f.
      * 파일 경로: basePath/biome_temperatures.json

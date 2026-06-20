@@ -1,0 +1,27 @@
+# Feature Parity 체크리스트
+
+## Phase 1 — FeatureSorter vanilla parity  ✅ (2026-06-21, 전체 테스트 green)
+- [x] `BiomeFeatureData`: 미구현 feature를 drop하지 말고 no-op placeholder PlacedFeature로 유지
+- [x] no-op `ConfiguredFeature` 구현 (`NoopFeature`, place → false)
+- [x] Loader.configuredFeature: 미구현 타입 → `NoopFeature.INSTANCE` (placedFeature id별 캐시로 identity 유지)
+- [x] `FeatureSorter.build`: vanilla 위상정렬(DFS post-order + reverse) 이식 — step별 전역 정렬 목록 + index
+- [x] biome 순서 결정적화 (LinkedHashMap + `orderedBiomes()` = load=registry 순서)
+- [x] self-edge(같은 feature 연속) 가드로 거짓 사이클 방지
+- [~] 단위 테스트: 기존 FeatureSorterTest/BiomeFeatureDataTest 통과. 결정성 전용 테스트는 미추가(필요시)
+
+## Phase 1b — oracle index/순서 검증  ✅ (2026-06-21)
+- [x] OracleMain `featureorder` 모드: vanilla possibleBiomes 순서 + step별 정렬 feature id 덤프 (`feature_order.txt`)
+- [x] vanilla possibleBiomes() 순서 = biome_parameters.json 첫등장 distinct 확인
+- [x] **production 버그 발견·수정**: NoiseWorldSource가 registry 전체 biome으로 FeatureSorter 빌드 → possibleBiomes(53)로 교체(`possibleBiomeOrder`). 안 고쳤으면 실게임 광석 index 어긋남
+- [x] `FeatureOrderParityTest`: step6(광석 34개) 포함 step0~8·10 vanilla와 정확 일치 + production biome 순서 == vanilla
+- [~] 알려진 갭: step9 해양식생(seagrass_simple 누락, kelp 순서) — Furnace biome JSON 데이터 차이. 테스트서 제외. Phase 2 데이터 보정.
+- 주의: WorldGenRegion 기반 실좌표 덤프는 미구현(무거움). index/순서 일치로 좌표 parity 입증(구현 feature의 random 소비는 기존 OreFeatureTest 등이 담보).
+
+## Phase 2 — 미구현 feature/modifier (점진)
+- [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, block_predicate_filter, noise_threshold/based_count, random_offset 등)
+- [ ] feature 타입: tree, flower/random_patch, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
+- [ ] 각 타입 추가 시 placeholder 교체 → 좌표 parity 회귀 테스트
+
+## 검증 명령
+- 전체: `./gradlew :furnace-server:test`
+- 인게임: seed 123456 새 월드, vanilla 1.21.1과 같은 좌표 대조

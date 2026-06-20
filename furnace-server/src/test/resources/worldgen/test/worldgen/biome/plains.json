@@ -1,0 +1,24 @@
+{
+  "features": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      "minecraft:ore_test",
+      "minecraft:ore_test"
+    ],
+    [
+      "minecraft:disk_test"
+    ],
+    [
+      "minecraft:spring_test"
+    ],
+    [],
+    [
+      "minecraft:freeze_test"
+    ]
+  ]
+}

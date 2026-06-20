@@ -136,14 +136,23 @@ public final class FeatureSorter {
     private final List<StepFeatureData> featuresPerStep; // 11개
 
     public record StepFeatureData(
-        List<PlacedFeature> features,           // 정렬된 전체 feature 리스트
-        Object2IntMap<PlacedFeature> indexMap   // feature → 리스트 내 위치 (O(1))
+        List<PlacedFeature> features,                // 정렬된 전체 feature 리스트
+        Reference2IntMap<PlacedFeature> indexMap     // feature → 리스트 내 위치 (IDENTITY, O(1))
     ) {}
 
     // 모든 바이옴을 고려해 위상 정렬 → featuresPerStep 구성
     public static FeatureSorter build(BiomeFeatureData allBiomes) { ... }
 }
 ```
+
+> **[리뷰 반영 — interning 필수]** 바닐라 `StepFeatureData`의 indexMapping은
+> `Util.createIndexIdentityLookup` = **레퍼런스 동일성(identity) 맵**이다 (equals 아님).
+> 동작 전제: placed_feature id 1개당 인스턴스 **딱 1개**, 모든 바이옴이 그 단일
+> 인스턴스를 공유. 따라서 `indexMap`은 `Object2IntOpenHashMap`(equals)이 아니라
+> **`Reference2IntOpenHashMap`(identity)** 로 둔다.
+> **선행 요구**: `WorldgenData`가 placed_feature를 id 키로 **인터닝**해 단일 인스턴스를
+> 캐시하고, biome·sorter·collect 전부 그 인스턴스를 참조해야 한다. 바이옴마다 JSON
+> 재파싱해 별개 인스턴스를 만들면 identity 룩업이 전부 부재 → 조용히 feature 누락.
 
 바닐라 위상 정렬 알고리즘 (DFS):
 1. 각 바이옴의 feature 목록 순서로 "A → B" 의존 엣지 추가
@@ -221,8 +230,11 @@ public final class FeaturePlacer {
         for (String biome : biomes) {
             List<PlacedFeature> features = biomeData.featuresForStep(biome, step);
             for (PlacedFeature f : features) {
-                int idx = data.indexMap().getInt(f);
-                if (idx >= 0) result.add(idx);
+                int idx = data.indexMap().getInt(f); // identity 룩업
+                // 부재(-1)는 interning 깨짐 신호 → 조용히 버리지 말고 즉시 실패
+                if (idx < 0) throw new IllegalStateException(
+                    "PlacedFeature not interned: " + f + " (step " + step + ")");
+                result.add(idx);
             }
         }
         return result;
@@ -260,6 +272,16 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
     }
 }
 ```
+
+> **[리뷰 반영 — Stream 게으름(laziness) 보존 필수]** 위 코드는 겉보기 2단계
+> ("위치 다 만들고 → 다 배치")지만, **반드시 게으른 Java Stream으로 유지**해야 한다.
+> 단일 공유 `random`을 modifier 체인과 `feature.place`가 함께 소비하며, 게으른
+> flatMap+forEach는 시작점 하나당 **깊이우선으로 modifier-random과 feature-random을
+> 교차 소비**한다 (바닐라 `PlacedFeature.placeWithContext` 그대로).
+> **절대 금지**: `positions`를 `List`로 모아(eager) "전체 modifier 소비 후 전체 배치"로
+> 바꾸기 → random 소비 순서 역전 → 전 청크 parity 붕괴.
+> 또한 각 `PlacementModifier.filter`는 random 소비 **시점**(호출 즉시 sample vs
+> 원소당)을 바닐라 해당 modifier와 동일하게 복제해야 한다 — modifier별 단위테스트로 검증.
 
 ### PlacementModifier (주요 구현 대상)
 
@@ -331,7 +353,18 @@ Amethyst geode. step 2(LOCAL_MODIFICATIONS). 복잡하나 독립적.
 // 대안: applyBiomeDecoration 로직을 직접 펼쳐서 WorldGenLevel stub 최소화
 ```
 
-> Oracle 구현 시 `WorldGenRegion` 생성 패턴은 구현 단계에서 탐색.
+> **[리뷰 반영 — oracle 충실도 = 최대 리스크]** fixture가 parity의 ground truth라
+> oracle이 틀리면 Furnace가 **틀린 정답을 쫓는다**. `applyBiomeDecoration`이 요구하는 것:
+> - `registryAccess()` → STRUCTURE + PLACED_FEATURE 레지스트리
+> - `getChunk(x,z)` 9개 이웃, biome 섹션 채워진 ChunkAccess
+> - `getSeed`, `setCurrentlyGenerating`
+> - BiomeFilter modifier → `level.getBiome(pos)`
+> - 각 feature → getBlockState/setBlock/getHeight
+>
+> 손으로 깎은 stub은 biome 룩업·height accessor 한 군데만 어긋나도 fixture 오염.
+> **방침 확정**: stub 새로 짜지 말고 **실제 `WorldGenRegion`(9-chunk ProtoChunk) 재사용**.
+> **oracle 자가검증 선행**: fixture 박제 전, 같은 seed로 vanilla 서버가 실제 생성한
+> 청크 dump vs oracle dump를 최소 1개 대조해 oracle 자체를 먼저 검증한다.
 
 ### Fixture 포맷
 
@@ -435,8 +468,11 @@ private Set<String> collectNeighborBiomes(int cx, int cz) {
   C/Kotlin 등 다른 언어 포팅 시 괄호 명시.
 - **이웃 청크 biome 수집**: 3×3 범위. `collectNeighborBiomes`가 center 청크 nc를
   2번 생성하지 않도록 주의 (dx=0,dz=0 케이스 재사용).
-- **OreFeature discard_chance**: 블록 루프 안 random 소비 순서가 바닐라와 일치해야 함.
-  먼저 전체 위치 목록 생성 후 discard 검사, 아니면 루프 안 즉시 검사 — 바닐라 소스 확인.
+- **OreFeature discard_chance** (소스 확인 완료 — `OreFeature.java:178,182`): 배치 아님,
+  **블록 루프 안 인라인·단락**. 후보 블록마다 `target.test(state, random)` 먼저 →
+  `&&` 단락 → `shouldSkipAirCheck(random, discardChance)`. test가 거짓이면 discard random
+  안 씀. `shouldSkipAirCheck`는 `discardChance > 0`일 때만 `nextFloat()` 소비
+  (`chance <= 0`이면 nextFloat 전에 return). 이 인라인·단락 순서 그대로 포팅.
 - **이웃 청크 쓰기 lazy init**: 나무/geode가 이웃에 쓸 경우 lazy 생성. 생성된 이웃 청크는
   features 미적용 상태(carvers까지만) — 이웃 청크 feature 적용은 그 청크가 자체 decoration
   호출될 때 처리됨 (바닐라 동일 방식).

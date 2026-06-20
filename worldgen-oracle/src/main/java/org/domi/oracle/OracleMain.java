@@ -43,7 +43,10 @@ import net.minecraft.world.level.levelgen.WorldGenerationContext;
 import net.minecraft.world.level.levelgen.synth.BlendedNoise;
 import net.minecraft.world.level.levelgen.synth.ImprovedNoise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
+import net.minecraft.world.level.levelgen.placement.PlacedFeature;
+import net.minecraft.world.level.biome.FeatureSorter;
 
+import java.util.IdentityHashMap;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -250,6 +253,8 @@ public class OracleMain {
                 dumpCarverChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
                                 aquiferSettingsHolder.value(), aquiferFluidPicker,
                                 frozenBiomeRegistry, biomeSource, registryAccess, outDir);
+            } else if (arg.equals("featureorder")) {
+                dumpFeatureOrder(registries, biomeSource, outDir);
             } else if (arg.equals("blocks")) {
                 Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
                 dumpBlocks(blocksResDir);
@@ -374,6 +379,43 @@ public class OracleMain {
             fos.write(buf.array());
         }
         System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes, n=" + n + ")");
+    }
+
+    /**
+     * vanilla possibleBiomes() 순서 + vanilla FeatureSorter의 step별 정렬된 placed feature id를 덤프.
+     * Furnace FeatureSorter parity 검증용 (광석 좌표 결정자 = step별 index).
+     */
+    private static void dumpFeatureOrder(
+        net.minecraft.core.HolderLookup.Provider registries,
+        MultiNoiseBiomeSource biomeSource,
+        Path outDir
+    ) throws Exception {
+        net.minecraft.core.HolderLookup.RegistryLookup<PlacedFeature> pfLookup =
+            registries.lookupOrThrow(Registries.PLACED_FEATURE);
+        IdentityHashMap<PlacedFeature, String> idByValue = new IdentityHashMap<>();
+        pfLookup.listElements().forEach(ref -> idByValue.put(ref.value(), ref.key().location().toString()));
+
+        java.util.List<Holder<Biome>> biomes = java.util.List.copyOf(biomeSource.possibleBiomes());
+        java.util.List<String> biomeIds = new java.util.ArrayList<>();
+        for (Holder<Biome> b : biomes) biomeIds.add(b.unwrapKey().orElseThrow().location().toString());
+
+        java.util.List<FeatureSorter.StepFeatureData> steps = FeatureSorter.buildFeaturesPerStep(
+            biomes, b -> b.value().getGenerationSettings().features(), true);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("BIOMES ").append(biomeIds.size()).append("\n");
+        for (String id : biomeIds) sb.append(id).append("\n");
+        for (int s = 0; s < steps.size(); s++) {
+            java.util.List<PlacedFeature> feats = steps.get(s).features();
+            sb.append("STEP ").append(s).append(" ").append(feats.size()).append("\n");
+            for (PlacedFeature pf : feats) {
+                String id = idByValue.get(pf);
+                sb.append(id == null ? "?UNKNOWN" : id).append("\n");
+            }
+        }
+        Path out = outDir.resolve("feature_order.txt");
+        Files.writeString(out, sb.toString());
+        System.out.println("Wrote " + out + " biomes=" + biomeIds.size() + " steps=" + steps.size());
     }
 
     private static void dumpRng(long seed, int n, Path outDir) throws Exception {

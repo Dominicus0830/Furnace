@@ -241,7 +241,10 @@ public final class World {
     /** 플레이어가 청크를 언로드 — 등록 해제. */
     public void unsubscribeChunk(ChunkPos cp, Player p) {
         Set<Player> s = chunkSubscribers.get(cp);
-        if (s != null) s.remove(p);
+        if (s != null) {
+            s.remove(p);
+            if (s.isEmpty()) chunkSubscribers.remove(cp, s);
+        }
     }
 
     /** 청크 구독자(블록 변경 브로드캐스트 대상). 비었으면 빈 Set. */
