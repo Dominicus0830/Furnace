@@ -62,7 +62,7 @@ class AquiferParityTest {
 
     private void assertAquiferParity(long seed, int cx, int cz) throws Exception {
         BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> id14ToName = loadIdToName("/blocks/1.21.4.txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
 
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
@@ -88,26 +88,26 @@ class AquiferParityTest {
         for (int y = MIN_Y; y < MIN_Y + HEIGHT; y++) {
             for (int lz = 0; lz < 16; lz++) {
                 for (int lx = 0; lx < 16; lx++) {
-                    int oracle14Id = ByteBuffer.wrap(fx, pos, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
+                    int oracleId = ByteBuffer.wrap(fx, pos, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
                     pos += 2;
                     int got = col.getBlock(lx, y, lz);
 
-                    String name = id14ToName.get(oracle14Id);
-                    int expected11Id;
+                    String name = oracleIdToName.get(oracleId);
+                    int expectedId;
                     if (name == null) {
-                        expected11Id = oracle14Id;
+                        expectedId = oracleId;
                     } else {
-                        try { expected11Id = reg11.defaultStateId(name); }
-                        catch (IllegalArgumentException e) { expected11Id = oracle14Id; }
+                        try { expectedId = reg11.defaultStateId(name); }
+                        catch (IllegalArgumentException e) { expectedId = oracleId; }
                     }
 
-                    if (expected11Id != got) {
+                    if (expectedId != got) {
                         mismatch++;
-                        System.out.printf("MM seed=%d cx=%d cz=%d lx=%d y=%d lz=%d oracle14=%d(%s) expected11=%d got=%d%n",
-                            seed, cx, cz, lx, y, lz, oracle14Id, name, expected11Id, got);
+                        System.out.printf("MM seed=%d cx=%d cz=%d lx=%d y=%d lz=%d oracle=%d(%s) expected=%d got=%d%n",
+                            seed, cx, cz, lx, y, lz, oracleId, name, expectedId, got);
                         if (first == null) {
-                            first = String.format("lx=%d y=%d lz=%d oracle14=%d(%s) expected11=%d got=%d",
-                                lx, y, lz, oracle14Id, name, expected11Id, got);
+                            first = String.format("lx=%d y=%d lz=%d oracle=%d(%s) expected=%d got=%d",
+                                lx, y, lz, oracleId, name, expectedId, got);
                         }
                     }
                 }

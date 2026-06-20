@@ -11,6 +11,8 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 public final class AnvilWorldSource implements WorldSource {
 
@@ -42,6 +44,36 @@ public final class AnvilWorldSource implements WorldSource {
         ChunkColumn col = base.generate(chunkX, chunkZ);
         col.clearDirty();
         return col;
+    }
+
+    public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor genExecutor) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return store.readChunk(chunkX, chunkZ);
+            } catch (IOException e) {
+                throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
+            }
+        }, ioExecutor).thenCompose(nbtBytes -> {
+            if (nbtBytes != null) {
+                return CompletableFuture.completedFuture(decodeChunk(nbtBytes));
+            }
+            return CompletableFuture.supplyAsync(() -> {
+                ChunkColumn col = base.generate(chunkX, chunkZ);
+                col.clearDirty();
+                return col;
+            }, genExecutor);
+        });
+    }
+
+    private ChunkColumn decodeChunk(byte[] nbtBytes) {
+        try {
+            NbtCompound nbt = NbtIo.read(new DataInputStream(new ByteArrayInputStream(nbtBytes)));
+            ChunkColumn col = codec.fromNbt(nbt);
+            col.clearDirty();
+            return col;
+        } catch (IOException e) {
+            throw new UncheckedIOException("청크 디코드 실패", e);
+        }
     }
 
     public RegionFileStore store() { return store; }

@@ -7,11 +7,11 @@ public final class WorldgenRandom extends LegacyRandom {
         super(0L);
     }
 
-    /** 바닐라 WorldgenRandom.setLargeFeatureSeed(worldSeed, chunkX, chunkZ) */
+    /** 바닐라 WorldgenRandom.setLargeFeatureSeed — vanilla: chunkX*rand ^ chunkZ*rand1 ^ baseSeed */
     public void setLargeFeatureSeed(long worldSeed, int x, int z) {
         setSeed(worldSeed);
-        long a = nextLong() | 1L;
-        long b = nextLong() | 1L;
-        setSeed((long)x * a + (long)z * b ^ worldSeed);
+        long randomLong  = nextLong();
+        long randomLong1 = nextLong();
+        setSeed((long)x * randomLong ^ (long)z * randomLong1 ^ worldSeed);
     }
 }

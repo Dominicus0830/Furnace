@@ -41,6 +41,19 @@ public final class ChunkSection {
         biomes[biomeIndex(x, y, z)] = biomeId;
     }
 
+    public void replaceBlocks(int[] source, int sourceOffset) {
+        System.arraycopy(source, sourceOffset, blocks, 0, blocks.length);
+        int count = 0;
+        for (int state : blocks) {
+            if (state != AIR) count++;
+        }
+        nonAirCount = (short) count;
+    }
+
+    public void replaceBiomes(int[] source, int sourceOffset) {
+        System.arraycopy(source, sourceOffset, biomes, 0, biomes.length);
+    }
+
     public short nonAirCount() {
         return nonAirCount;
     }

@@ -38,7 +38,9 @@ public class LegacyRandom {
     }
 
     public long nextLong() {
-        return ((long)next(32) << 32) + (next(32) & 0xFFFFFFFFL);
+        int hi = next(32);
+        int lo = next(32);
+        return ((long)hi << 32) + lo;  // lo is signed (matches vanilla BitRandomSource)
     }
 
     public float nextFloat() {

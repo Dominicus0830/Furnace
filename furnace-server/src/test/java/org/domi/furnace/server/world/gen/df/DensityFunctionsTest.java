@@ -26,4 +26,15 @@ class DensityFunctionsTest {
         assertEquals(2.0, DensityFunctions.constant(-2.0).abs().compute(at(0,0,0)), 0.0);
         assertEquals(9.0, DensityFunctions.constant(3.0).square().compute(at(0,0,0)), 0.0);
     }
+    @Test void cellBoundsInto_matchesAllocatingVersion(){
+        var f = DensityFunctions.mul(
+            DensityFunctions.add(DensityFunctions.constant(-2.0), DensityFunctions.constant(5.0)),
+            DensityFunctions.yClampedGradient(-64, 320, -1.0, 1.0).clamp(-0.5, 0.75)
+        );
+        double[] expected = DensityFunctions.cellBounds(f, df -> null, -16, 31);
+        double[] actual = new double[2];
+        DensityFunctions.cellBounds(f, (df, out) -> false, -16, 31, actual);
+        assertEquals(expected[0], actual[0], 0.0);
+        assertEquals(expected[1], actual[1], 0.0);
+    }
 }

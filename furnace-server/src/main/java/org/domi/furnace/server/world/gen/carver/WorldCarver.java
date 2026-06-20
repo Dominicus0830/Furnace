@@ -46,7 +46,7 @@ public abstract class WorldCarver {
         double dx = x - midX;
         double dz = z - midZ;
         double remaining = maxStep - step;
-        double radius = thickness + 18.0;
+        double radius = thickness + 18.0f; // match vanilla: float add before double widen
         return dx*dx + dz*dz - remaining*remaining <= radius*radius;
     }
 
@@ -63,12 +63,10 @@ public abstract class WorldCarver {
                                   int lavaId) {
         int current = col.getBlock(lx, y, lz);
         String name = reg.nameOf(current);
-
         if (!REPLACEABLE_NAMES.contains(name)) return false;
-
         int carved = getCarveState(worldX, y, worldZ, lavaLevelY, aquifer, lavaId);
+        if (carved == Aquifer.NO_CARVE) return false;
         col.setBlock(lx, y, lz, carved);
-        mask.set(lx, y, lz);
         return true;
     }
 
@@ -114,9 +112,10 @@ public abstract class WorldCarver {
                 if (relX * relX + relZ * relZ >= 1.0) continue;
 
                 for (int by = yMax; by > yMin; by--) {
-                    if (mask.get(lx, by, lz)) continue;
                     double relY = (by - 0.5 - y) / vRadius;
-                    if (skipChecker.shouldSkip(relX, relY, relZ)) continue;
+                    if (skipChecker.shouldSkip(relX, relY, relZ, by)) continue;
+                    if (mask.get(lx, by, lz)) continue;
+                    mask.set(lx, by, lz);
                     carved |= carveBlock(col, lx, by, lz, worldX, worldZ,
                         lavaLevelY, aquifer, mask, reg, lavaId);
                 }
@@ -127,7 +126,7 @@ public abstract class WorldCarver {
 
     @FunctionalInterface
     protected interface SkipChecker {
-        boolean shouldSkip(double relX, double relY, double relZ);
+        boolean shouldSkip(double relX, double relY, double relZ, int y);
     }
 
     public record ChunkPos(int x, int z) {

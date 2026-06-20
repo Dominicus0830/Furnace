@@ -1,14 +1,22 @@
 // 바닐라 비트일치 노이즈 지형 WorldSource. generateBlockIds + Aquifer 기반 블록 결정
 package org.domi.furnace.server.world.gen;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.gen.carver.CarvingMask;
 import org.domi.furnace.server.world.gen.carver.OverworldCarvers;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
+import org.domi.furnace.server.world.gen.df.DensityFunction;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * NoiseChunk 밀도 엔진을 사용해 바닐라 1.21.1 오버월드 지형을 생성하는 WorldSource.
@@ -34,11 +42,14 @@ public final class NoiseWorldSource implements WorldSource {
     private final long seed;
     private final BlockRegistry reg;
     private final OverworldCarvers overworldCarvers;
+    private final List<SpawnTarget> spawnTargets;
+    private volatile SpawnPoint defaultSpawn;
 
     private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
                               SurfaceSystem surfaceSystem, String[] registryBiomeNames,
                               int stoneId, int waterId, int lavaId,
-                              long seed, BlockRegistry reg, OverworldCarvers overworldCarvers) {
+                              long seed, BlockRegistry reg, OverworldCarvers overworldCarvers,
+                              List<SpawnTarget> spawnTargets) {
         this.router             = router;
         this.settings           = settings;
         this.biomeSampler       = biomeSampler;
@@ -50,6 +61,7 @@ public final class NoiseWorldSource implements WorldSource {
         this.seed               = seed;
         this.reg                = reg;
         this.overworldCarvers   = overworldCarvers;
+        this.spawnTargets       = spawnTargets;
     }
 
     /**
@@ -72,13 +84,188 @@ public final class NoiseWorldSource implements WorldSource {
 
         java.util.List<String> biomeEntries = registries.entries("minecraft:worldgen/biome");
         String[] registryBiomeNames = biomeEntries.toArray(new String[0]);
-        SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed, registryBiomeNames);
+        SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed,
+            registryBiomeNames, biomeSampler, router);
 
         OverworldCarvers overworldCarvers = OverworldCarvers.load();
+        List<SpawnTarget> spawnTargets = loadSpawnTargets(data.noiseSettings("minecraft:overworld"));
 
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
-                                    seed, reg, overworldCarvers);
+                                    seed, reg, overworldCarvers, spawnTargets);
+    }
+
+    public SpawnPoint defaultSpawn() {
+        SpawnPoint cached = defaultSpawn;
+        if (cached != null) return cached;
+        synchronized (this) {
+            if (defaultSpawn == null) defaultSpawn = computeDefaultSpawn();
+            return defaultSpawn;
+        }
+    }
+
+    private SpawnPoint computeDefaultSpawn() {
+        SpawnSearchResult climateSpawn = findClimateSpawnPosition();
+        int spawnChunkX = Math.floorDiv(climateSpawn.x(), 16);
+        int spawnChunkZ = Math.floorDiv(climateSpawn.z(), 16);
+
+        int fallbackX = spawnChunkX * 16 + 8;
+        int fallbackY = 64;
+        int fallbackZ = spawnChunkZ * 16 + 8;
+        SpawnPoint fallback = new SpawnPoint(fallbackX, fallbackY, fallbackZ, 0.0f);
+
+        int j = 0;
+        int k = 0;
+        int l = 0;
+        int i1 = -1;
+        for (int j1 = 0; j1 < 121; j1++) {
+            if (j >= -5 && j <= 5 && k >= -5 && k <= 5) {
+                SpawnPoint safe = getSpawnPosInChunk(spawnChunkX + j, spawnChunkZ + k);
+                if (safe != null) return safe;
+            }
+
+            if (j == k || (j < 0 && j == -k) || (j > 0 && j == 1 - k)) {
+                int k1 = l;
+                l = -i1;
+                i1 = k1;
+            }
+
+            j += l;
+            k += i1;
+        }
+
+        return fallback;
+    }
+
+    private SpawnPoint getSpawnPosInChunk(int chunkX, int chunkZ) {
+        ChunkColumn col = generate(chunkX, chunkZ);
+        int minX = chunkX * 16;
+        int minZ = chunkZ * 16;
+        for (int x = minX; x <= minX + 15; x++) {
+            for (int z = minZ; z <= minZ + 15; z++) {
+                SpawnPoint pos = getOverworldRespawnPos(col, x, z);
+                if (pos != null) return pos;
+            }
+        }
+        return null;
+    }
+
+    private SpawnPoint getOverworldRespawnPos(ChunkColumn col, int blockX, int blockZ) {
+        int lx = blockX & 15;
+        int lz = blockZ & 15;
+        int motionBlocking = height(col, lx, lz, HeightKind.MOTION_BLOCKING);
+        if (motionBlocking < settings.minY()) return null;
+
+        int worldSurface = height(col, lx, lz, HeightKind.WORLD_SURFACE);
+        int oceanFloor = height(col, lx, lz, HeightKind.OCEAN_FLOOR);
+        if (worldSurface <= motionBlocking && worldSurface > oceanFloor) return null;
+
+        for (int y = motionBlocking + 1; y >= settings.minY(); y--) {
+            int state = col.getBlock(lx, y, lz);
+            if (isFluid(state)) break;
+            if (isSolid(state)) return new SpawnPoint(blockX, y + 1, blockZ, 0.0f);
+        }
+        return null;
+    }
+
+    private int height(ChunkColumn col, int lx, int lz, HeightKind kind) {
+        int maxY = settings.minY() + settings.height() - 1;
+        for (int y = maxY; y >= settings.minY(); y--) {
+            int state = col.getBlock(lx, y, lz);
+            boolean hit = switch (kind) {
+                case WORLD_SURFACE, MOTION_BLOCKING -> state != ChunkSection.AIR;
+                case OCEAN_FLOOR -> isSolid(state);
+            };
+            if (hit) return y + 1;
+        }
+        return settings.minY();
+    }
+
+    private boolean isFluid(int state) {
+        return state == waterId || state == lavaId;
+    }
+
+    private boolean isSolid(int state) {
+        return state != ChunkSection.AIR && !isFluid(state);
+    }
+
+    private SpawnSearchResult findClimateSpawnPosition() {
+        if (spawnTargets.isEmpty()) return new SpawnSearchResult(0, 0, Long.MAX_VALUE);
+        SpawnSearchResult result = spawnFitness(0, 0);
+        result = radialSearch(result, 2048.0f, 512.0f);
+        return radialSearch(result, 512.0f, 32.0f);
+    }
+
+    private SpawnSearchResult radialSearch(SpawnSearchResult current, float maxDistance, float step) {
+        float angle = 0.0f;
+        float distance = step;
+        int originX = current.x();
+        int originZ = current.z();
+        SpawnSearchResult best = current;
+
+        while (distance <= maxDistance) {
+            int x = originX + (int)(Math.sin(angle) * distance);
+            int z = originZ + (int)(Math.cos(angle) * distance);
+            SpawnSearchResult candidate = spawnFitness(x, z);
+            if (candidate.fitness() < best.fitness()) best = candidate;
+
+            angle += step / distance;
+            if (angle > Math.PI * 2.0) {
+                angle = 0.0f;
+                distance += step;
+            }
+        }
+        return best;
+    }
+
+    private SpawnSearchResult spawnFitness(int x, int z) {
+        double distanceSquared = (double)x * (double)x + (double)z * (double)z;
+        long distancePenalty = (long)(100_000_000.0 * Math.pow(distanceSquared / 6_250_000.0, 2.0));
+
+        DensityFunction.SinglePointContext ctx =
+            new DensityFunction.SinglePointContext((x >> 2) * 4, 0, (z >> 2) * 4);
+        long[] target = {
+            BiomeSampler.quantize((float) router.temperature().compute(ctx)),
+            BiomeSampler.quantize((float) router.humidity().compute(ctx)),
+            BiomeSampler.quantize((float) router.continents().compute(ctx)),
+            BiomeSampler.quantize((float) router.erosion().compute(ctx)),
+            0L,
+            BiomeSampler.quantize((float) router.ridges().compute(ctx))
+        };
+
+        long best = Long.MAX_VALUE;
+        for (SpawnTarget spawnTarget : spawnTargets) {
+            best = Math.min(best, spawnTarget.fitness(target));
+        }
+        return new SpawnSearchResult(x, z, distancePenalty + best);
+    }
+
+    private static List<SpawnTarget> loadSpawnTargets(JsonObject noiseSettings) {
+        JsonArray targets = noiseSettings.getAsJsonArray("spawn_target");
+        List<SpawnTarget> result = new ArrayList<>(targets.size());
+        for (JsonElement el : targets) {
+            JsonObject obj = el.getAsJsonObject();
+            result.add(new SpawnTarget(
+                parameter(obj.get("temperature")),
+                parameter(obj.get("humidity")),
+                parameter(obj.get("continentalness")),
+                parameter(obj.get("erosion")),
+                parameter(obj.get("depth")),
+                parameter(obj.get("weirdness")),
+                BiomeSampler.quantize(obj.get("offset").getAsFloat())
+            ));
+        }
+        return List.copyOf(result);
+    }
+
+    private static Parameter parameter(JsonElement element) {
+        if (element.isJsonArray()) {
+            JsonArray arr = element.getAsJsonArray();
+            return new Parameter(BiomeSampler.quantize(arr.get(0).getAsFloat()),
+                BiomeSampler.quantize(arr.get(1).getAsFloat()));
+        }
+        long point = BiomeSampler.quantize(element.getAsFloat());
+        return new Parameter(point, point);
     }
 
     @Override
@@ -97,32 +284,10 @@ public final class NoiseWorldSource implements WorldSource {
         ChunkColumn col = new ChunkColumn(0);
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
-        for (int qy = 0; qy < 96; qy++) {
-            for (int qz = 0; qz < 4; qz++) {
-                for (int qx = 0; qx < 4; qx++) {
-                    col.setBiome(qx, qy, qz, biomeIds[qy * 16 + qz * 4 + qx]);
-                }
-            }
-        }
-
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                int surfaceHeight = 0;
-                for (int y = minY + height - 1; y >= minY; y--) {
-                    int idx = (y - minY) * 256 + lz * 16 + lx;
-                    int state = blockIds[idx];
-
-                    if (state != ChunkSection.AIR && surfaceHeight == 0) {
-                        surfaceHeight = (y - minY) + 1;
-                    }
-
-                    col.setBlock(lx, y, lz, state);
-                }
-                col.setSurface(lx, lz, surfaceHeight);
-            }
-        }
+        col.loadGenerated(blockIds, biomeIds);
 
         surfaceSystem.buildSurface(col, biomeIds, nc, chunkX, chunkZ);
+        col.clearDirty();
 
         return col;
     }
@@ -155,5 +320,46 @@ public final class NoiseWorldSource implements WorldSource {
         NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
         applyCarvers(col, chunkX, chunkZ, nc);
         return col;
+    }
+
+    private enum HeightKind {
+        WORLD_SURFACE,
+        MOTION_BLOCKING,
+        OCEAN_FLOOR
+    }
+
+    private record SpawnSearchResult(int x, int z, long fitness) {}
+
+    private record Parameter(long min, long max) {
+        long distance(long value) {
+            long above = value - max;
+            long below = min - value;
+            return above > 0L ? above : Math.max(below, 0L);
+        }
+    }
+
+    private record SpawnTarget(
+        Parameter temperature,
+        Parameter humidity,
+        Parameter continentalness,
+        Parameter erosion,
+        Parameter depth,
+        Parameter weirdness,
+        long offset
+    ) {
+        long fitness(long[] target) {
+            long fit = offset * offset;
+            fit += square(temperature.distance(target[0]));
+            fit += square(humidity.distance(target[1]));
+            fit += square(continentalness.distance(target[2]));
+            fit += square(erosion.distance(target[3]));
+            fit += square(depth.distance(target[4]));
+            fit += square(weirdness.distance(target[5]));
+            return fit;
+        }
+
+        private static long square(long value) {
+            return value * value;
+        }
     }
 }

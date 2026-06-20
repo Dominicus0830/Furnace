@@ -55,7 +55,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     // ── 보간 대상 함수 ────────────────────────────────────────────────────
     private final DensityFunction wrappedFinalDensity;
-    private final DensityFunction rawInitialDensity; // raw (unwrapped) — vanilla uses raw for PSL scan
+    private final DensityFunction pslDensity; // PSL 스캔용 initial density — cache_2d 동적 캐시로 컬럼당 2D 1회
 
     // ── 기후 DF (mapAll 래핑) — FlatCache pre-fill 활성화, dim: 0=temp 1=hum 2=cont 3=ero 4=depth 5=ridges ──
     private final DensityFunction[] wrappedClimate;
@@ -117,7 +117,9 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         // wrap 이 호출되면 Marker 노드를 셀 인식 구현체로 교체한다.
         // finalDensity 먼저 wrap → wrapped HashMap 채움 → climate DF wrap 시 sub-DF 공유
         this.wrappedFinalDensity = router.finalDensity().mapAll(this::wrap);
-        this.rawInitialDensity = router.initialDensityWithoutJaggedness(); // vanilla uses unwrapped for PSL
+        // PSL은 청크 밖 ±halo 컬럼도 샘플 → FlatCache(셀바운드) 대신 cache_2d만 동적 Cache2D로 교체.
+        // top-down 스캔(x,z 고정) 시 비싼 2D 스플라인(continents/erosion/ridges)이 컬럼당 1회만 계산됨.
+        this.pslDensity = router.initialDensityWithoutJaggedness().mapAll(this::wrapPsl);
         this.wrappedClimate = new DensityFunction[]{
             router.temperature().mapAll(this::wrap),
             router.humidity().mapAll(this::wrap),
@@ -248,6 +250,19 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         return wrapped.computeIfAbsent(df, this::wrapNew);
     }
 
+    /**
+     * PSL 전용 래핑: cache_2d Marker만 동적 Cache2D(컬럼 단위, halo 포함 어디서나 동작)로 교체.
+     * FlatCache는 셀바운드라 청크 밖 컬럼을 못 캐시 → bare passthrough 유지(정확). 나머지도 passthrough.
+     * 결과는 raw 트리와 비트일치(메모이즈만) — top-down 스캔서 2D 스플라인을 컬럼당 1회로 줄인다.
+     */
+    private DensityFunction wrapPsl(DensityFunction df) {
+        if (df instanceof DensityFunctions.Marker marker
+                && marker.type() == DensityFunctions.Marker.Type.Cache2D) {
+            return new Cache2D(marker.wrapped());
+        }
+        return df;
+    }
+
     private DensityFunction wrapNew(DensityFunction df) {
         if (df instanceof DensityFunctions.Marker marker) {
             return switch (marker.type()) {
@@ -266,6 +281,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     // ─────────────────────────────────────────────────────────────────────
 
     long sliceFillNanos = 0; // 벤치마크용 — fillSlice(코너 DF 평가) 누적 시간
+    private final double[] cellBoundsScratch = new double[2];
 
     private void fillSlice(boolean isSlice0, int cellX) {
         long t0 = System.nanoTime();
@@ -331,22 +347,36 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     int skippedCells = 0; // 벤치마크용
 
-    private double[] cellBoundsOracle(DensityFunction df) {
-        if (df instanceof NoiseInterpolator ni) return ni.cornerBounds();
+    private boolean cellBoundsOracle(DensityFunction df, double[] out) {
+        if (df instanceof NoiseInterpolator ni) {
+            ni.cornerBounds(out);
+            return true;
+        }
         if (df instanceof FlatCache fc) {
             double v = fc.compute(new DensityFunction.SinglePointContext(
                 cellStartBlockX, cellStartBlockY, cellStartBlockZ));
-            return new double[]{v, v};
+            out[0] = v;
+            out[1] = v;
+            return true;
         }
-        if (df instanceof Cache2D c)        return cellBoundsOf(c.wrapped());
-        if (df instanceof CacheOnce c)      return cellBoundsOf(c.wrapped());
-        if (df instanceof CacheAllInCell c) return cellBoundsOf(c.wrapped());
-        return null; // DensityFunctions.cellBounds 가 처리
+        if (df instanceof Cache2D c) {
+            cellBoundsOf(c.wrapped(), out);
+            return true;
+        }
+        if (df instanceof CacheOnce c) {
+            cellBoundsOf(c.wrapped(), out);
+            return true;
+        }
+        if (df instanceof CacheAllInCell c) {
+            cellBoundsOf(c.wrapped(), out);
+            return true;
+        }
+        return false; // DensityFunctions.cellBounds 가 처리
     }
 
-    private double[] cellBoundsOf(DensityFunction df) {
-        return DensityFunctions.cellBounds(df, this::cellBoundsOracle,
-            cellStartBlockY, cellStartBlockY + cellHeight - 1);
+    private void cellBoundsOf(DensityFunction df, double[] out) {
+        DensityFunctions.cellBounds(df, this::cellBoundsOracle,
+            cellStartBlockY, cellStartBlockY + cellHeight - 1, out);
     }
 
     private void updateForY(int blockY, double t) {
@@ -421,12 +451,12 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     selectCellYZ(cy, cz);
 
                     // 셀 skip: 보수적 구간으로 부호 자명하면 블록 루프 생략 (결과 비트일치)
-                    double[] bounds = cellBoundsOf(this.wrappedFinalDensity);
-                    if (bounds[1] < -SKIP_EPS) {
+                    cellBoundsOf(this.wrappedFinalDensity, cellBoundsScratch);
+                    if (cellBoundsScratch[1] < -SKIP_EPS) {
                         skippedCells++;
                         continue; // 전부 비돌 — mask 기본값 false 유지
                     }
-                    if (bounds[0] > SKIP_EPS) {
+                    if (cellBoundsScratch[0] > SKIP_EPS) {
                         skippedCells++;
                         int yBase = cy * this.cellHeight;
                         int xBase = cx * this.cellWidth;
@@ -507,8 +537,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                 for (int cy = this.cellCountY - 1; cy >= 0; cy--) {
                     selectCellYZ(cy, cz);
 
-                    double[] bounds = cellBoundsOf(this.wrappedFinalDensity);
-                    if (bounds[0] > SKIP_EPS) {
+                    cellBoundsOf(this.wrappedFinalDensity, cellBoundsScratch);
+                    if (cellBoundsScratch[0] > SKIP_EPS) {
                         // all-stone skip (aquifer not called)
                         int yBase = cy * this.cellHeight;
                         int zBase = cz * this.cellWidth;
@@ -549,9 +579,13 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                 int yOff = blockY - minY;
                                 int idx = yOff * 256 + lz * 16 + lx;
                                 if (idx >= 0 && idx < blocks.length) {
-                                    blocks[idx] = density > 0.0
-                                        ? stoneId
-                                        : aquifer.computeSubstance(this, density);
+                                    if (density > 0.0) {
+                                        blocks[idx] = stoneId;
+                                    } else {
+                                        int substance = aquifer.computeSubstance(this, density);
+                                        // NO_CARVE (-1) means barrier prevents fluid: use defaultBlock (stone)
+                                        blocks[idx] = substance == Aquifer.NO_CARVE ? stoneId : substance;
+                                    }
                                 }
                             }
                         }
@@ -580,7 +614,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         int bz = quartToBlock(quartZ);
         int minY = cellNoiseMinY * cellHeight;
         for (int y = minY + cellCountY * cellHeight; y >= minY; y -= cellHeight) {
-            double d = rawInitialDensity.compute(new DensityFunction.SinglePointContext(bx, y, bz));
+            double d = pslDensity.compute(new DensityFunction.SinglePointContext(bx, y, bz));
             if (d > 0.390625) {
                 return y;
             }
@@ -649,12 +683,11 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         }
 
         /** 현재 셀 8 코너의 [min, max]. 삼선형 보간값은 항상 이 구간 안(볼록결합). */
-        double[] cornerBounds() {
-            double lo = Math.min(Math.min(Math.min(noise000, noise001), Math.min(noise100, noise101)),
-                                 Math.min(Math.min(noise010, noise011), Math.min(noise110, noise111)));
-            double hi = Math.max(Math.max(Math.max(noise000, noise001), Math.max(noise100, noise101)),
-                                 Math.max(Math.max(noise010, noise011), Math.max(noise110, noise111)));
-            return new double[]{lo, hi};
+        void cornerBounds(double[] out) {
+            out[0] = Math.min(Math.min(Math.min(noise000, noise001), Math.min(noise100, noise101)),
+                              Math.min(Math.min(noise010, noise011), Math.min(noise110, noise111)));
+            out[1] = Math.max(Math.max(Math.max(noise000, noise001), Math.max(noise100, noise101)),
+                              Math.max(Math.max(noise010, noise011), Math.max(noise110, noise111)));
         }
 
         void updateForY(double t) {

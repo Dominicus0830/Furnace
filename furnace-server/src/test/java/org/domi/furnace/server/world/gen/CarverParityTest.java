@@ -1,11 +1,22 @@
-// carver parity 테스트 — LegacyRandom 시드 검증 + 픽스처 비트일치
+// carver parity 테스트 — LegacyRandom 검증 + carver-enabled oracle 픽스처 비트일치
 package org.domi.furnace.server.world.gen;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.*;
 import org.junit.jupiter.api.Test;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
 class CarverParityTest {
+
+    private static final int MIN_Y        = -64;
+    private static final int HEIGHT       = 384;
+    private static final int CARVER_MAGIC = 0x43525652;
 
     @Test
     void worldgenRandom_largeFeatureSeed() {
@@ -14,4 +25,82 @@ class CarverParityTest {
         float v = r.nextFloat();
         assertTrue(v >= 0.0f && v < 1.0f);
     }
+
+    private static Map<Integer, String> loadIdToName(String resourcePath) throws Exception {
+        Map<Integer, String> map = new HashMap<>();
+        try (InputStream in = CarverParityTest.class.getResourceAsStream(resourcePath);
+             BufferedReader br = new BufferedReader(new InputStreamReader(in))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.startsWith("#") || line.isBlank()) continue;
+                String[] parts = line.split(" ");
+                if (parts.length == 2) map.put(Integer.parseInt(parts[1]), parts[0]);
+            }
+        }
+        return map;
+    }
+
+    private void assertCarverParity(long seed, int cx, int cz) throws Exception {
+        BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
+        // worldgen-oracle uses Paper's 1.21.1 dev bundle, so fixture state IDs
+        // must be decoded with the 1.21.1 block-state table.
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+
+        NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
+        ChunkColumn col = source.generateWithCarvers(cx, cz);
+
+        String fixtureName = "/worldgen/fixtures/carver_" + seed + "_" + cx + "_" + cz + ".bin";
+        byte[] fx;
+        try (InputStream in = getClass().getResourceAsStream(fixtureName)) {
+            assertNotNull(in, "fixture not found: " + fixtureName);
+            fx = in.readAllBytes();
+        }
+
+        ByteBuffer header = ByteBuffer.wrap(fx, 0, 20).order(ByteOrder.LITTLE_ENDIAN);
+        assertEquals(CARVER_MAGIC, header.getInt(), "magic mismatch");
+        assertEquals(seed, header.getLong(), "seed mismatch");
+        assertEquals(cx, header.getInt(), "cx mismatch");
+        assertEquals(cz, header.getInt(), "cz mismatch");
+
+        int mismatch = 0;
+        String first = null;
+        int pos = 20;
+
+        for (int y = MIN_Y; y < MIN_Y + HEIGHT; y++) {
+            for (int lz = 0; lz < 16; lz++) {
+                for (int lx = 0; lx < 16; lx++) {
+                    int oracleId = ByteBuffer.wrap(fx, pos, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
+                    pos += 2;
+                    int got = col.getBlock(lx, y, lz);
+
+                    String name = oracleIdToName.get(oracleId);
+                    int expectedId = (name == null) ? oracleId : tryId(reg11, name, oracleId);
+
+                    if (expectedId != got) {
+                        mismatch++;
+                        if (first == null) first = String.format(
+                            "lx=%d y=%d lz=%d oracle=%d(%s) expected=%d got=%d",
+                            lx, y, lz, oracleId, name, expectedId, got);
+                        if (mismatch <= 20) System.out.printf(
+                            "MM seed=%d cx=%d cz=%d lx=%d y=%d lz=%d oracle=%d(%s) exp=%d got=%d%n",
+                            seed, cx, cz, lx, y, lz, oracleId, name, expectedId, got);
+                    }
+                }
+            }
+        }
+
+        System.out.printf("carver seed=%d cx=%d cz=%d: %d mismatches%n", seed, cx, cz, mismatch);
+        assertEquals(0, mismatch, "seed=" + seed + " cx=" + cx + " cz=" + cz
+            + " mismatches=" + mismatch + (first != null ? " first=" + first : ""));
+    }
+
+    private static int tryId(BlockRegistry reg, String name, int fallback) {
+        try { return reg.defaultStateId(name); }
+        catch (Exception e) { return fallback; }
+    }
+
+    @Test void carver_seed0_coord1()  throws Exception { assertCarverParity(0L,          0,  0); }
+    @Test void carver_seed0_coord2()  throws Exception { assertCarverParity(0L,         -5,  3); }
+    @Test void carver_seedB()         throws Exception { assertCarverParity(123456789L,   0,  0); }
 }

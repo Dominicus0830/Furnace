@@ -5,14 +5,19 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.gen.BiomeSampler;
 import org.domi.furnace.server.world.gen.MathHelper;
 import org.domi.furnace.server.world.gen.NoiseChunk;
+import org.domi.furnace.server.world.gen.NoiseRouter;
 import org.domi.furnace.server.world.gen.NoiseSettings;
 import org.domi.furnace.server.world.gen.WorldgenData;
 import org.domi.furnace.server.world.gen.noise.NormalNoise;
 import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 import org.domi.furnace.server.world.BlockRegistry;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -24,13 +29,18 @@ public final class SurfaceSystem {
     private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory randomFactory;
     private final Map<String, NormalNoise> noiseCache = new ConcurrentHashMap<>();
     private final NormalNoise surfaceNoise;
+    private final NormalNoise surfaceSecondaryNoise;
     private final int waterId;
     private final int defaultBlockId;
     private final String[] registryBiomeNames;
+    private final BiomeSampler biomeSampler;
+    private final NoiseRouter router;
+    private final long biomeZoomSeed;
 
     private SurfaceSystem(SurfaceRule rule, NoiseSettings settings,
                           WorldgenData worldgenData, int waterId, int defaultBlockId,
-                          long seed, String[] registryBiomeNames) {
+                          long seed, String[] registryBiomeNames,
+                          BiomeSampler biomeSampler, NoiseRouter router) {
         this.rule                = rule;
         this.settings            = settings;
         this.worldgenData        = worldgenData;
@@ -38,18 +48,24 @@ public final class SurfaceSystem {
         this.defaultBlockId      = defaultBlockId;
         this.randomFactory       = new XoroshiroRandomSource(seed).forkPositional();
         this.surfaceNoise        = buildNoise("minecraft:surface");
+        this.surfaceSecondaryNoise = buildNoise("minecraft:surface_secondary");
         this.registryBiomeNames  = registryBiomeNames;
+        this.biomeSampler        = biomeSampler;
+        this.router              = router;
+        this.biomeZoomSeed       = obfuscateSeed(seed);
     }
 
     public static SurfaceSystem create(WorldgenData data, NoiseSettings settings,
                                        BlockRegistry reg, long seed,
-                                       String[] registryBiomeNames) {
+                                       String[] registryBiomeNames,
+                                       BiomeSampler biomeSampler, NoiseRouter router) {
         var noiseSettingsJson = data.noiseSettings("minecraft:overworld");
         SurfaceRule rule = new SurfaceRuleParser(reg).parse(
             noiseSettingsJson.get("surface_rule").getAsJsonObject());
         int waterId       = reg.defaultStateId(settings.defaultFluid());
         int defaultBlockId = reg.defaultStateId(settings.defaultBlock());
-        return new SurfaceSystem(rule, settings, data, waterId, defaultBlockId, seed, registryBiomeNames);
+        return new SurfaceSystem(rule, settings, data, waterId, defaultBlockId, seed,
+            registryBiomeNames, biomeSampler, router);
     }
 
     private NormalNoise buildNoise(String noiseId) {
@@ -70,16 +86,15 @@ public final class SurfaceSystem {
         int minY     = settings.minY();
         int maxY     = minY + settings.height() - 1;
         int seaLevel = settings.seaLevel();
+        int[][] sectionBlocks = new int[ChunkColumn.SECTION_COUNT][];
+        for (int i = 0; i < ChunkColumn.SECTION_COUNT; i++) {
+            sectionBlocks[i] = col.sectionBlocks(i);
+        }
 
-        // pre-build surfaceY grid [lz*16+lx] — topmost non-air block
         int[] surfaceYGrid = new int[256];
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
-                int sy = minY - 1;
-                for (int y = maxY; y >= minY; y--) {
-                    if (col.getBlock(lx, y, lz) != ChunkSection.AIR) { sy = y; break; }
-                }
-                surfaceYGrid[lz * 16 + lx] = sy;
+                surfaceYGrid[lz * 16 + lx] = col.surfaceBlockY(lx, lz);
             }
         }
 
@@ -96,6 +111,7 @@ public final class SurfaceSystem {
         ctx.randomFactory = randomFactory;
         ctx.worldgenData  = worldgenData;
         ctx.surfaceYGrid  = surfaceYGrid;
+        ctx.biomeCache = new HashMap<>();
 
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
@@ -103,12 +119,6 @@ public final class SurfaceSystem {
                 int worldZ = chunkZ * 16 + lz;
 
                 int surfaceY = surfaceYGrid[lz * 16 + lx];
-                int qy = Math.max(0, Math.min(95, (surfaceY - minY) >> 2));
-                int qx = lx >> 2;
-                int qz = lz >> 2;
-                int biomeId = biomeIds[qy * 16 + qz * 4 + qx];
-                ctx.biomeName = (biomeId >= 0 && biomeId < registryBiomeNames.length)
-                    ? registryBiomeNames[biomeId] : "minecraft:plains";
                 ctx.surfaceY  = surfaceY;
                 ctx.surfaceDepth = (int)(surfaceNoise.getValue(worldX, 0, worldZ) * 2.75 + 3.0
                     + randomFactory.at(worldX, 0, worldZ).nextDouble() * 0.25);
@@ -125,9 +135,14 @@ public final class SurfaceSystem {
 
                 // stoneBottomY: cached bottom of current solid column for stoneDepthBelow.
                 int stoneBottomY = Integer.MAX_VALUE;
+                int columnIndex = lz * 16 + lx;
+                int sectionIndex = ChunkColumn.SECTION_COUNT - 1;
+                int localY = 15;
+                int[] blocks = sectionBlocks[sectionIndex];
+                int blockIndex = localY * 256 + columnIndex;
 
                 for (int y = maxY; y >= minY; y--) {
-                    int block = col.getBlock(lx, y, lz);
+                    int block = blocks[blockIndex];
                     ctx.blockY = y;
 
                     if (block == ChunkSection.AIR) {
@@ -143,11 +158,25 @@ public final class SurfaceSystem {
                         // compute stoneDepthBelow via cached stoneBottomY
                         if (stoneBottomY >= y) {
                             stoneBottomY = minY;  // assume solid to the bottom of the world
-                            for (int by = y - 1; by >= minY; by--) {
-                                int below = col.getBlock(lx, by, lz);
+                            int searchSectionIndex = sectionIndex;
+                            int searchLocalY = localY - 1;
+                            int belowY = y - 1;
+                            if (searchLocalY < 0) {
+                                searchSectionIndex--;
+                                searchLocalY = 15;
+                            }
+                            while (belowY >= minY && searchSectionIndex >= 0) {
+                                int[] searchBlocks = sectionBlocks[searchSectionIndex];
+                                int below = searchBlocks[searchLocalY * 256 + columnIndex];
                                 if (below == ChunkSection.AIR || below == waterId) {
-                                    stoneBottomY = by + 1;
+                                    stoneBottomY = belowY + 1;
                                     break;
+                                }
+                                belowY--;
+                                searchLocalY--;
+                                if (searchLocalY < 0 && belowY >= minY) {
+                                    searchSectionIndex--;
+                                    searchLocalY = 15;
                                 }
                             }
                         }
@@ -155,8 +184,21 @@ public final class SurfaceSystem {
 
                         // only apply surface rule to the defaultBlock (stone)
                         if (block == defaultBlockId) {
+                            ctx.biomeName = null;
                             Integer result = eval(rule, ctx);
-                            if (result != null) col.setBlock(lx, y, lz, result);
+                            if (result != null) blocks[blockIndex] = result;
+                        }
+                    }
+
+                    if (y > minY) {
+                        if (localY == 0) {
+                            sectionIndex--;
+                            localY = 15;
+                            blocks = sectionBlocks[sectionIndex];
+                            blockIndex = localY * 256 + columnIndex;
+                        } else {
+                            localY--;
+                            blockIndex -= 256;
                         }
                     }
                 }
@@ -182,13 +224,128 @@ public final class SurfaceSystem {
         };
     }
 
+    private String biomeName(SurfaceContext ctx) {
+        if (ctx.biomeName != null) return ctx.biomeName;
+        int biomeId = biomeAtBlock(ctx.blockX, ctx.blockY, ctx.blockZ, ctx.biomeCache);
+        ctx.biomeName = (biomeId >= 0 && biomeId < registryBiomeNames.length)
+            ? registryBiomeNames[biomeId] : "minecraft:plains";
+        return ctx.biomeName;
+    }
+
+    private int biomeAtBlock(int blockX, int blockY, int blockZ, Map<Long, Integer> cache) {
+        QuartKey q = biomeManagerQuart(blockX, blockY, blockZ);
+        long key = packQuart(q.x(), q.y(), q.z());
+        Integer cached = cache.get(key);
+        if (cached != null) return cached;
+        int biomeId = biomeSampler.sampleQuart(q.x(), q.y(), q.z(), router);
+        cache.put(key, biomeId);
+        return biomeId;
+    }
+
+    private static long packQuart(int x, int y, int z) {
+        return ((long)(x & 0x3FFFFFF) << 38)
+            | ((long)(y & 0xFFF) << 26)
+            | (long)(z & 0x3FFFFFF);
+    }
+
+    private QuartKey biomeManagerQuart(int blockX, int blockY, int blockZ) {
+        int x = blockX - 2;
+        int y = blockY - 2;
+        int z = blockZ - 2;
+        int quartX = x >> 2;
+        int quartY = y >> 2;
+        int quartZ = z >> 2;
+        double fracX = (double)(x & 3) / 4.0;
+        double fracY = (double)(y & 3) / 4.0;
+        double fracZ = (double)(z & 3) / 4.0;
+
+        int best = 0;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < 8; i++) {
+            boolean useX0 = (i & 4) == 0;
+            boolean useY0 = (i & 2) == 0;
+            boolean useZ0 = (i & 1) == 0;
+            int candidateX = useX0 ? quartX : quartX + 1;
+            int candidateY = useY0 ? quartY : quartY + 1;
+            int candidateZ = useZ0 ? quartZ : quartZ + 1;
+            double dx = useX0 ? fracX : fracX - 1.0;
+            double dy = useY0 ? fracY : fracY - 1.0;
+            double dz = useZ0 ? fracZ : fracZ - 1.0;
+            double distance = fiddledDistance(biomeZoomSeed, candidateX, candidateY, candidateZ, dx, dy, dz);
+            if (bestDistance > distance) {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+
+        return new QuartKey(
+            (best & 4) == 0 ? quartX : quartX + 1,
+            (best & 2) == 0 ? quartY : quartY + 1,
+            (best & 1) == 0 ? quartZ : quartZ + 1
+        );
+    }
+
+    private static double fiddledDistance(long seed, int x, int y, int z,
+                                          double dx, double dy, double dz) {
+        long mixed = lcgNext(seed, x);
+        mixed = lcgNext(mixed, y);
+        mixed = lcgNext(mixed, z);
+        mixed = lcgNext(mixed, x);
+        mixed = lcgNext(mixed, y);
+        mixed = lcgNext(mixed, z);
+        double xFiddle = fiddle(mixed);
+        mixed = lcgNext(mixed, seed);
+        double yFiddle = fiddle(mixed);
+        mixed = lcgNext(mixed, seed);
+        double zFiddle = fiddle(mixed);
+        return square(dz + zFiddle) + square(dy + yFiddle) + square(dx + xFiddle);
+    }
+
+    private static long lcgNext(long seed, long salt) {
+        seed *= seed * 6364136223846793005L + 1442695040888963407L;
+        return seed + salt;
+    }
+
+    private static double fiddle(long seed) {
+        double d = (double)Math.floorMod(seed >> 24, 1024) / 1024.0;
+        return (d - 0.5) * 0.9;
+    }
+
+    private static double square(double v) {
+        return v * v;
+    }
+
+    private static double map(double value, double fromMin, double fromMax, double toMin, double toMax) {
+        return toMin + (value - fromMin) * (toMax - toMin) / (fromMax - fromMin);
+    }
+
+    private static long obfuscateSeed(long seed) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] input = new byte[Long.BYTES];
+            for (int i = 0; i < Long.BYTES; i++) {
+                input[i] = (byte)(seed >>> (i * 8));
+            }
+            byte[] hash = digest.digest(input);
+            long result = 0L;
+            for (int i = 0; i < Long.BYTES; i++) {
+                result |= (hash[i] & 0xFFL) << (i * 8);
+            }
+            return result;
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    private record QuartKey(int x, int y, int z) {}
+
     private boolean evalCondition(SurfaceRule.SurfaceCondition cond, SurfaceContext ctx) {
         return switch (cond) {
             case SurfaceRule.SurfaceCondition.VerticalGradient vg -> evalVerticalGradient(vg, ctx);
             case SurfaceRule.SurfaceCondition.AbovePreliminarySurface __ ->
                 ctx.blockY >= ctx.preliminarySurfaceLevel;
             case SurfaceRule.SurfaceCondition.StoneDepth sd -> evalStoneDepth(sd, ctx);
-            case SurfaceRule.SurfaceCondition.BiomeIs bi -> bi.biomes().contains(ctx.biomeName);
+            case SurfaceRule.SurfaceCondition.BiomeIs bi -> bi.biomes().contains(biomeName(ctx));
             case SurfaceRule.SurfaceCondition.YAbove ya -> evalYAbove(ya, ctx);
             case SurfaceRule.SurfaceCondition.Water w  -> evalWater(w, ctx);
             case SurfaceRule.SurfaceCondition.NoiseThreshold nt -> evalNoiseThreshold(nt, ctx);
@@ -216,7 +373,10 @@ public final class SurfaceSystem {
             case FLOOR   -> ctx.stoneDepthAbove;
             case CEILING -> ctx.stoneDepthBelow;
         };
-        int maxDepth = sd.offset() + 1;
+        int secondaryDepth = sd.secondaryDepthRange() == 0 ? 0
+            : (int) map(surfaceSecondaryNoise.getValue(ctx.blockX, 0, ctx.blockZ),
+                -1.0, 1.0, 0.0, sd.secondaryDepthRange());
+        int maxDepth = sd.offset() + 1 + secondaryDepth;
         if (sd.addSurfaceDepth()) maxDepth += ctx.surfaceDepth;
         return depth <= maxDepth;
     }
@@ -239,7 +399,7 @@ public final class SurfaceSystem {
                                         SurfaceContext ctx) {
         NormalNoise noise = buildNoise(nt.noiseId());
         double v = noise.getValue(ctx.blockX, 0, ctx.blockZ);
-        return v >= nt.minInclusive() && v < nt.maxExclusive();
+        return v >= nt.minInclusive() && v <= nt.maxExclusive();
     }
 
     private boolean evalSteep(SurfaceContext ctx) {

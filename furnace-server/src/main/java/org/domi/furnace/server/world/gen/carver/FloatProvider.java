@@ -44,12 +44,10 @@ public interface FloatProvider {
 
     record Trapezoid(float min, float max, float plateau) implements FloatProvider {
         @Override public float sample(LegacyRandom r) {
-            float span = max - min;
-            float halfSpan = span / 2.0f;
-            float value = (halfSpan - plateau / 2.0f) + r.nextFloat() * span;
-            float sign = Math.signum(value);
-            float flatOffset = (plateau / 2.0f) * sign;
-            return (value * value / halfSpan - flatOffset) * sign + (min + max) / 2.0f;
+            float f  = max - min;
+            float f1 = (f - plateau) / 2.0f;
+            float f2 = f - f1;
+            return min + r.nextFloat() * f2 + r.nextFloat() * f1;
         }
     }
 

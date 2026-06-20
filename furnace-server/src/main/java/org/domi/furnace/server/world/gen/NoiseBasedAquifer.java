@@ -27,6 +27,9 @@ public final class NoiseBasedAquifer implements Aquifer {
 
     private final FluidStatus[] aquiferCache;
     private final long[] aquiferLocationCache;
+    private final int[] aquiferLocationXCache;
+    private final int[] aquiferLocationYCache;
+    private final int[] aquiferLocationZCache;
 
     private final int seaLevel;
     private final int lavaFloorY;
@@ -36,6 +39,13 @@ public final class NoiseBasedAquifer implements Aquifer {
 
     private final int minGridX, minGridY, minGridZ;
     private final int gridSizeX, gridSizeZ;
+    private final int minSurfaceQuartX, minSurfaceQuartZ;
+    private final int surfaceQuartSizeX, surfaceQuartSizeZ;
+    private final int[] preliminarySurfaceLevelCache;
+    private final FluidStatus globalWaterStatus;
+    private final FluidStatus globalLavaStatus;
+    private final MutableContext mutableContext = new MutableContext();
+    private final BarrierCache barrierCache = new BarrierCache();
 
     private boolean shouldScheduleFluidUpdate;
 
@@ -59,6 +69,8 @@ public final class NoiseBasedAquifer implements Aquifer {
         this.stoneId = stoneId;
         this.waterId = waterId;
         this.lavaId = lavaId;
+        this.globalWaterStatus = new FluidStatus(this.seaLevel, this.waterId);
+        this.globalLavaStatus = new FluidStatus(this.lavaFloorY, this.lavaId);
 
         int minBlockX = chunkX * 16;
         int maxBlockX = chunkX * 16 + 15;
@@ -79,9 +91,25 @@ public final class NoiseBasedAquifer implements Aquifer {
         int maxGridZ = gridZ(maxBlockZ) + 1;
         this.gridSizeZ = maxGridZ - this.minGridZ + 1;
 
+        int minAquiferX = this.minGridX * 16;
+        int maxAquiferX = maxGridX * 16 + 9;
+        int minAquiferZ = this.minGridZ * 16;
+        int maxAquiferZ = maxGridZ * 16 + 9;
+        this.minSurfaceQuartX = Math.floorDiv(minAquiferX - 48, 4);
+        int maxSurfaceQuartX = Math.floorDiv(maxAquiferX + 16, 4);
+        this.surfaceQuartSizeX = maxSurfaceQuartX - this.minSurfaceQuartX + 1;
+        this.minSurfaceQuartZ = Math.floorDiv(minAquiferZ - 48, 4);
+        int maxSurfaceQuartZ = Math.floorDiv(maxAquiferZ + 16, 4);
+        this.surfaceQuartSizeZ = maxSurfaceQuartZ - this.minSurfaceQuartZ + 1;
+        this.preliminarySurfaceLevelCache = new int[this.surfaceQuartSizeX * this.surfaceQuartSizeZ];
+        Arrays.fill(this.preliminarySurfaceLevelCache, Integer.MIN_VALUE);
+
         int total = this.gridSizeX * gridSizeY * this.gridSizeZ;
         this.aquiferCache = new FluidStatus[total];
         this.aquiferLocationCache = new long[total];
+        this.aquiferLocationXCache = new int[total];
+        this.aquiferLocationYCache = new int[total];
+        this.aquiferLocationZCache = new int[total];
         Arrays.fill(this.aquiferLocationCache, Long.MAX_VALUE);
     }
 
@@ -107,7 +135,11 @@ public final class NoiseBasedAquifer implements Aquifer {
         int i4 = Math.floorDiv(i1 + 1, 12);
         int i5 = Math.floorDiv(i2 - 5, 16);
         int i6 = Integer.MAX_VALUE, i7 = Integer.MAX_VALUE, i8 = Integer.MAX_VALUE, i9 = Integer.MAX_VALUE;
-        long l = 0L, l1 = 0L, l2 = 0L, l3 = 0L;
+        int idx0 = -1, idx1 = -1, idx2 = -1, idx3 = -1;
+        int x0 = 0, y0 = 0, z0 = 0;
+        int x1 = 0, y1 = 0, z1 = 0;
+        int x2 = 0, y2 = 0, z2 = 0;
+        int x3 = 0, y3 = 0, z3 = 0;
 
         for (int i10 = 0; i10 <= 1; i10++) {
             for (int i11 = -1; i11 <= 1; i11++) {
@@ -118,59 +150,85 @@ public final class NoiseBasedAquifer implements Aquifer {
                     int index = getIndex(i13, i14, i15);
                     long l4 = this.aquiferLocationCache[index];
                     long l5;
+                    int locationX;
+                    int locationY;
+                    int locationZ;
                     if (l4 != Long.MAX_VALUE) {
                         l5 = l4;
+                        locationX = this.aquiferLocationXCache[index];
+                        locationY = this.aquiferLocationYCache[index];
+                        locationZ = this.aquiferLocationZCache[index];
                     } else {
                         XoroshiroRandomSource random = this.positionalRandomFactory.at(i13, i14, i15);
+                        locationX = i13 * 16 + random.nextInt(10);
+                        locationY = i14 * 12 + random.nextInt(9);
+                        locationZ = i15 * 16 + random.nextInt(10);
                         l5 = packPos(
-                            i13 * 16 + random.nextInt(10),
-                            i14 * 12 + random.nextInt(9),
-                            i15 * 16 + random.nextInt(10)
+                            locationX,
+                            locationY,
+                            locationZ
                         );
                         this.aquiferLocationCache[index] = l5;
+                        this.aquiferLocationXCache[index] = locationX;
+                        this.aquiferLocationYCache[index] = locationY;
+                        this.aquiferLocationZCache[index] = locationZ;
                     }
-                    int i16 = unpackX(l5) - i;
-                    int i17 = unpackY(l5) - i1;
-                    int i18 = unpackZ(l5) - i2;
+                    int i16 = locationX - i;
+                    int i17 = locationY - i1;
+                    int i18 = locationZ - i2;
                     int i19 = i16 * i16 + i17 * i17 + i18 * i18;
-                    if (i6 >= i19) { l3 = l2; l2 = l1; l1 = l; l = l5; i9 = i8; i8 = i7; i7 = i6; i6 = i19; }
-                    else if (i7 >= i19) { l3 = l2; l2 = l1; l1 = l5; i9 = i8; i8 = i7; i7 = i19; }
-                    else if (i8 >= i19) { l3 = l2; l2 = l5; i9 = i8; i8 = i19; }
-                    else if (i9 >= i19) { l3 = l5; i9 = i19; }
+                    if (i6 >= i19) {
+                        x3 = x2; y3 = y2; z3 = z2; idx3 = idx2;
+                        x2 = x1; y2 = y1; z2 = z1; idx2 = idx1;
+                        x1 = x0; y1 = y0; z1 = z0; idx1 = idx0;
+                        x0 = locationX; y0 = locationY; z0 = locationZ; idx0 = index;
+                        i9 = i8; i8 = i7; i7 = i6; i6 = i19;
+                    } else if (i7 >= i19) {
+                        x3 = x2; y3 = y2; z3 = z2; idx3 = idx2;
+                        x2 = x1; y2 = y1; z2 = z1; idx2 = idx1;
+                        x1 = locationX; y1 = locationY; z1 = locationZ; idx1 = index;
+                        i9 = i8; i8 = i7; i7 = i19;
+                    } else if (i8 >= i19) {
+                        x3 = x2; y3 = y2; z3 = z2; idx3 = idx2;
+                        x2 = locationX; y2 = locationY; z2 = locationZ; idx2 = index;
+                        i9 = i8; i8 = i19;
+                    } else if (i9 >= i19) {
+                        x3 = locationX; y3 = locationY; z3 = locationZ; idx3 = index; i9 = i19;
+                    }
                 }
             }
         }
 
-        FluidStatus aquiferStatus = getAquiferStatus(l);
+        FluidStatus aquiferStatus = getAquiferStatus(idx0, x0, y0, z0);
         double d = similarity(i6, i7);
         int blockState = aquiferStatus.at(i1);
 
         if (d <= 0.0) {
             if (d >= FLOWING_UPDATE_SIMULARITY) {
-                FluidStatus aquiferStatus1 = getAquiferStatus(l1);
+                FluidStatus aquiferStatus1 = getAquiferStatus(idx1, x1, y1, z1);
                 this.shouldScheduleFluidUpdate = !aquiferStatus.equals(aquiferStatus1);
             } else {
                 this.shouldScheduleFluidUpdate = false;
             }
             return blockState;
-        } else if (blockState == waterId && globalFluidPicker(i, i1 - 1, i2).at(i1 - 1) == lavaId) {
+        } else if (blockState == waterId && i1 - 1 < lavaFloorY) {
             this.shouldScheduleFluidUpdate = true;
             return blockState;
         } else {
-            double[] barrierCache = {Double.NaN};
-            FluidStatus aquiferStatus2 = getAquiferStatus(l1);
+            barrierCache.reset();
+            FluidStatus aquiferStatus2 = getAquiferStatus(idx1, x1, y1, z1);
             double d1 = d * calculatePressure(context, barrierCache, aquiferStatus, aquiferStatus2);
             if (substance + d1 > 0.0) {
                 this.shouldScheduleFluidUpdate = false;
-                return stoneId;
+                return Aquifer.NO_CARVE;
             }
-            FluidStatus aquiferStatus3 = getAquiferStatus(l2);
+            FluidStatus aquiferStatus3 = getAquiferStatus(idx2, x2, y2, z2);
             double d2 = similarity(i6, i8);
             if (d2 > 0.0) {
                 double d3 = d * d2 * calculatePressure(context, barrierCache, aquiferStatus, aquiferStatus3);
                 if (substance + d3 > 0.0) {
                     this.shouldScheduleFluidUpdate = false;
-                    return stoneId;
+                    return Aquifer.NO_CARVE;
                 }
             }
             double d3 = similarity(i7, i8);
@@ -178,7 +236,7 @@ public final class NoiseBasedAquifer implements Aquifer {
                 double d4 = d * d3 * calculatePressure(context, barrierCache, aquiferStatus2, aquiferStatus3);
                 if (substance + d4 > 0.0) {
                     this.shouldScheduleFluidUpdate = false;
-                    return stoneId;
+                    return Aquifer.NO_CARVE;
                 }
             }
             boolean flag = !aquiferStatus.equals(aquiferStatus2);
@@ -187,7 +245,7 @@ public final class NoiseBasedAquifer implements Aquifer {
             if (!flag && !flag1 && !flag2) {
                 this.shouldScheduleFluidUpdate = d2 >= FLOWING_UPDATE_SIMULARITY
                     && similarity(i6, i9) >= FLOWING_UPDATE_SIMULARITY
-                    && !aquiferStatus.equals(getAquiferStatus(l3));
+                    && !aquiferStatus.equals(getAquiferStatus(idx3, x3, y3, z3));
             } else {
                 this.shouldScheduleFluidUpdate = true;
             }
@@ -199,7 +257,7 @@ public final class NoiseBasedAquifer implements Aquifer {
         return 1.0 - Math.abs(secondDistance - firstDistance) / 25.0;
     }
 
-    private double calculatePressure(DensityFunction.FunctionContext context, double[] substance,
+    private double calculatePressure(DensityFunction.FunctionContext context, BarrierCache substance,
                                      FluidStatus firstFluid, FluidStatus secondFluid) {
         int i = context.blockY();
         int blockState = firstFluid.at(i);
@@ -225,10 +283,10 @@ public final class NoiseBasedAquifer implements Aquifer {
                 }
                 double d12;
                 if (!(d11 < -2.0) && !(d11 > 2.0)) {
-                    double value = substance[0];
+                    double value = substance.value;
                     if (Double.isNaN(value)) {
                         double d13 = this.barrierNoise.compute(context);
-                        substance[0] = d13;
+                        substance.value = d13;
                         d12 = d13;
                     } else {
                         d12 = value;
@@ -250,6 +308,14 @@ public final class NoiseBasedAquifer implements Aquifer {
         int i1 = gridY - this.minGridY;
         int i2 = gridZ - this.minGridZ;
         return (i1 * this.gridSizeZ + i2) * this.gridSizeX + i;
+    }
+
+    private FluidStatus getAquiferStatus(int index, int x, int y, int z) {
+        FluidStatus fluidStatus = this.aquiferCache[index];
+        if (fluidStatus != null) return fluidStatus;
+        FluidStatus computed = computeFluid(x, y, z);
+        this.aquiferCache[index] = computed;
+        return computed;
     }
 
     private FluidStatus getAquiferStatus(long packedPos) {
@@ -280,7 +346,7 @@ public final class NoiseBasedAquifer implements Aquifer {
         for (int[] ints : SURFACE_SAMPLING_OFFSETS_IN_CHUNKS) {
             int i3 = x + ints[0] * 16;
             int i4 = z + ints[1] * 16;
-            int i5 = this.noiseChunk.getPreliminarySurfaceLevel(Math.floorDiv(i3, 4), Math.floorDiv(i4, 4));
+            int i5 = getPreliminarySurfaceLevel(Math.floorDiv(i3, 4), Math.floorDiv(i4, 4));
             int i6 = i5 + 8;
             boolean flag1 = ints[0] == 0 && ints[1] == 0;
             if (flag1 && i2 > i6) {
@@ -302,7 +368,7 @@ public final class NoiseBasedAquifer implements Aquifer {
     }
 
     private int computeSurfaceLevel(int x, int y, int z, FluidStatus fluidStatus, int maxSurfaceLevel, boolean fluidPresent) {
-        DensityFunction.SinglePointContext ctx = new DensityFunction.SinglePointContext(x, y, z);
+        MutableContext ctx = this.mutableContext.set(x, y, z);
         double d, d1;
         if (isDeepDarkRegion(ctx)) {
             d = -1.0;
@@ -336,7 +402,7 @@ public final class NoiseBasedAquifer implements Aquifer {
         int i3 = Math.floorDiv(y, 40);
         int i4 = Math.floorDiv(z, 16);
         int i5 = i3 * 40 + 20;
-        double d = this.fluidLevelSpreadNoise.compute(new DensityFunction.SinglePointContext(i2, i3, i4)) * 10.0;
+        double d = this.fluidLevelSpreadNoise.compute(this.mutableContext.set(i2, i3, i4)) * 10.0;
         int i7 = quantize(d, 3);
         int i8 = i5 + i7;
         return Math.min(maxSurfaceLevel, i8);
@@ -348,7 +414,7 @@ public final class NoiseBasedAquifer implements Aquifer {
             int i2 = Math.floorDiv(x, 64);
             int i3 = Math.floorDiv(y, 40);
             int i4 = Math.floorDiv(z, 64);
-            double d = this.lavaNoise.compute(new DensityFunction.SinglePointContext(i2, i3, i4));
+            double d = this.lavaNoise.compute(this.mutableContext.set(i2, i3, i4));
             if (Math.abs(d) > 0.3) {
                 blockState = lavaId;
             }
@@ -357,10 +423,18 @@ public final class NoiseBasedAquifer implements Aquifer {
     }
 
     private FluidStatus globalFluidPicker(int x, int y, int z) {
-        if (y < Math.min(this.lavaFloorY, this.seaLevel)) {
-            return new FluidStatus(this.lavaFloorY, this.lavaId);
-        }
-        return new FluidStatus(this.seaLevel, this.waterId);
+        return y < this.lavaFloorY ? this.globalLavaStatus : this.globalWaterStatus;
+    }
+
+    private int getPreliminarySurfaceLevel(int quartX, int quartZ) {
+        int x = quartX - this.minSurfaceQuartX;
+        int z = quartZ - this.minSurfaceQuartZ;
+        int index = z * this.surfaceQuartSizeX + x;
+        int cached = this.preliminarySurfaceLevelCache[index];
+        if (cached != Integer.MIN_VALUE) return cached;
+        int computed = this.noiseChunk.getPreliminarySurfaceLevel(quartX, quartZ);
+        this.preliminarySurfaceLevelCache[index] = computed;
+        return computed;
     }
 
     // ── Mth helpers ──────────────────────────────────────────────────────
@@ -393,5 +467,27 @@ public final class NoiseBasedAquifer implements Aquifer {
 
     record FluidStatus(int fluidLevel, int fluidBlockId) {
         int at(int y) { return y < this.fluidLevel ? this.fluidBlockId : 0; }
+    }
+
+    private static final class MutableContext implements DensityFunction.FunctionContext {
+        private int blockX;
+        private int blockY;
+        private int blockZ;
+
+        MutableContext set(int x, int y, int z) {
+            this.blockX = x;
+            this.blockY = y;
+            this.blockZ = z;
+            return this;
+        }
+
+        @Override public int blockX() { return blockX; }
+        @Override public int blockY() { return blockY; }
+        @Override public int blockZ() { return blockZ; }
+    }
+
+    private static final class BarrierCache {
+        private double value = Double.NaN;
+        void reset() { this.value = Double.NaN; }
     }
 }

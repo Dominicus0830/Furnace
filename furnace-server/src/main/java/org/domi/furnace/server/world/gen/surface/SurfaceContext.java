@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.surface;
 
 import org.domi.furnace.server.world.gen.WorldgenData;
 import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
+import java.util.Map;
 
 public final class SurfaceContext {
     public int blockX, blockY, blockZ;
@@ -18,6 +19,7 @@ public final class SurfaceContext {
     public int seaLevel;
     public XoroshiroRandomSource.XoroshiroPositionalRandomFactory randomFactory;
     public WorldgenData worldgenData;
+    public Map<Long, Integer> biomeCache;
     // 16×16 surfaceY grid for steep condition
     public int[] surfaceYGrid;  // [lz*16+lx]
 }

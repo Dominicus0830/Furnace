@@ -119,8 +119,13 @@ public final class BiomeSampler {
 
     /** quarter-block 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
     public int sample(int worldQuartX, int absQuartY, int worldQuartZ, NoiseRouter router) {
+        return sampleQuart(worldQuartX, absQuartY - 16, worldQuartZ, router);
+    }
+
+    /** Vanilla noise-biome quart 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
+    public int sampleQuart(int worldQuartX, int worldQuartY, int worldQuartZ, NoiseRouter router) {
         int bx = worldQuartX * 4;
-        int by = -64 + absQuartY * 4;
+        int by = worldQuartY * 4;
         int bz = worldQuartZ * 4;
         DensityFunction.SinglePointContext ctx = new DensityFunction.SinglePointContext(bx, by, bz);
 
