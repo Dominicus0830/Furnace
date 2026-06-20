@@ -1,12 +1,13 @@
 // region 그리드 셀: 자기 플레이어를 소유하고 매 틱 청크/가시성/핸드오프를 처리한다.
 package org.domi.furnace.server.world;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
@@ -14,7 +15,6 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.BlockUpdate;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
-import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
 import org.domi.furnace.server.net.protocol.play.MoveEntityRot;
@@ -30,8 +30,6 @@ public final class Region {
 
     // 추적 엔티티가 후보 스냅샷서 사라진 뒤 despawn까지 견디는 틱 수(핸드오프 갭 흡수).
     private static final int ENTITY_DESPAWN_GRACE = 3;
-    // 틱당 전송 청크 수 상한(vanilla PlayerChunkSender식 스로틀; 스폰 청크 우선 도착 보장).
-    private static final int CHUNKS_PER_TICK = 16;
 
     private final RegionPos pos;
     private final World world;
@@ -39,6 +37,7 @@ public final class Region {
     private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
     private final Map<ChunkPos, CompletableFuture<ChunkColumn>> loading = new HashMap<>();
     private final Map<ChunkPos, Integer> evictGrace = new HashMap<>();
+    private final Set<ChunkPos> dirtyChunks = new HashSet<>();
     private int autosaveCounter; // region별 독립 autosave 카운터(스레드간 공유 플래그 없음 — 경쟁 제거).
 
     public Region(RegionPos pos, World world) {
@@ -65,14 +64,16 @@ public final class Region {
         if (present != null) return CompletableFuture.completedFuture(present);
         CompletableFuture<ChunkColumn> inflight = loading.get(cp);
         if (inflight != null) return inflight;
-        CompletableFuture<ChunkColumn> f = CompletableFuture
-                .supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.ioPool())
-                .thenApplyAsync(col -> {
-                    col.clearDirty();
-                    chunks.put(cp, col);
-                    loading.remove(cp);
-                    return col;
-                }, r -> world.scheduler().region(pos).execute(r));
+        CompletableFuture<ChunkColumn> sourceFuture =
+                world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
+                        ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioPool(), world.genPool())
+                        : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
+        CompletableFuture<ChunkColumn> f = sourceFuture.thenApplyAsync(col -> {
+            col.clearDirty();
+            chunks.put(cp, col);
+            loading.remove(cp);
+            return col;
+        }, r -> world.scheduler().region(pos).execute(r));
         loading.put(cp, f);
         return f;
     }
@@ -82,6 +83,7 @@ public final class Region {
         world.assertOwns(pos);
         ChunkPos cp = ChunkPos.ofBlock(bx, bz);
         chunkAt(cp).setBlock(bx & 15, by, bz & 15, ChunkSection.AIR);
+        dirtyChunks.add(cp);
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, ChunkSection.AIR);
         for (Player sub : world.subscribers(cp)) sub.send(pkt);
     }
@@ -113,6 +115,7 @@ public final class Region {
         }
         ChunkPos cp = ChunkPos.ofBlock(bx, bz);
         chunkAt(cp).setBlock(bx & 15, by, bz & 15, stateId);
+        dirtyChunks.add(cp);
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, stateId);
         for (Player sub : world.subscribers(cp)) sub.send(pkt);
         return true;
@@ -120,12 +123,14 @@ public final class Region {
 
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
     public void saveDirtyChunks() {
-        for (var e : chunks.entrySet()) {
-            ChunkColumn col = e.getValue();
-            if (col.dirty()) {
-                world.saveChunkAsync(ChunkSnapshot.of(e.getKey().x(), e.getKey().z(), col));
+        if (dirtyChunks.isEmpty()) return;
+        for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
+            ChunkColumn col = chunks.get(cp);
+            if (col != null && col.dirty()) {
+                world.saveChunkAsync(ChunkSnapshot.of(cp.x(), cp.z(), col));
                 col.clearDirty();
             }
+            dirtyChunks.remove(cp);
         }
     }
 
@@ -145,8 +150,18 @@ public final class Region {
                 }
                 it.remove();
                 evictGrace.remove(cp);
+                dirtyChunks.remove(cp);
             }
         }
+    }
+
+    int dirtyChunkCount() {
+        return dirtyChunks.size();
+    }
+
+    /** 플레이어·청크·로딩중 모두 없으면 true — tickThread가 빈 region을 regionsByThread서 제거. */
+    boolean isEmpty() {
+        return players.isEmpty() && chunks.isEmpty() && loading.isEmpty();
     }
 
     /** 접속 중 플레이어 위치 저장(종료 flush용). */
@@ -193,14 +208,19 @@ public final class Region {
             updateChunks(p);
             sendQueuedChunks(p);
         }
-        // 자기 플레이어 스냅샷 공개(불변 리스트).
-        List<EntityView> views = new ArrayList<>(players.size());
-        for (Player p : players.values()) views.add(EntityView.of(p));
-        world.publishSnapshot(pos, List.copyOf(views));
-        // 인접 region 스냅샷까지 후보로 가시성 계산.
-        List<EntityView> candidates = world.candidatesAround(pos, world.neighborRadius());
-        for (Player p : players.values()) {
-            updateVisibility(p, candidates);
+        // 플레이어 없는 region은 가시성 계산(candidatesAround)·스냅샷 빌드 생략 — 빈 region tick 비용 제거.
+        // 스냅샷은 빈 리스트로 갱신해 이전 틱 엔티티가 스테일로 남지 않게 한다.
+        if (!players.isEmpty()) {
+            List<EntityView> views = new ArrayList<>(players.size());
+            for (Player p : players.values()) views.add(EntityView.of(p));
+            world.publishSnapshot(pos, List.copyOf(views));
+            // 인접 region 스냅샷까지 후보로 가시성 계산.
+            List<EntityView> candidates = world.candidatesAround(pos, world.neighborRadius());
+            for (Player p : players.values()) {
+                updateVisibility(p, candidates);
+            }
+        } else {
+            world.publishSnapshot(pos, List.of());
         }
         for (Player p : handoff) {
             RegionPos target = p.regionPos(world.regionSize());
@@ -226,13 +246,14 @@ public final class Region {
     private void updateChunks(Player p) {
         ChunkPos center = p.chunkPos();
         if (center.equals(p.lastCenter())) return;
-        int vd = world.viewDistance();
+        int vd = Math.min(world.viewDistance(), p.viewDistance()); // 서버 상한 + 클라 요청
+        List<ChunkPos> toQueue = new ArrayList<>();
         for (int dx = -vd; dx <= vd; dx++) {
             for (int dz = -vd; dz <= vd; dz++) {
                 ChunkPos cp = new ChunkPos(center.x() + dx, center.z() + dz);
                 if (p.loadedChunks().add(cp)) {   // 새로 시야 진입
                     world.subscribeChunk(cp, p);
-                    p.pendingChunks().add(cp);    // 전송 대기열(아직 미전송)
+                    toQueue.add(cp);              // 전송 대기열(아직 미전송)
                 }
             }
         }
@@ -247,6 +268,9 @@ public final class Region {
                 if (!p.pendingChunks().remove(cp)) toForget.add(cp);
             }
         }
+        orderNearestFirst(center, toQueue);
+        p.pendingChunks().addAll(toQueue);
+        reorderPendingNearestFirst(center, p.pendingChunks());
         p.send(new SetCenterChunk(center.x(), center.z()));
         for (ChunkPos cp : toForget) p.send(new UnloadChunk(cp.x(), cp.z()));
         p.lastCenter(center);
@@ -260,25 +284,41 @@ public final class Region {
         }));
     }
 
+    static void reorderPendingNearestFirst(ChunkPos center, java.util.Set<ChunkPos> pending) {
+        if (pending.size() < 2) return;
+        List<ChunkPos> ordered = new ArrayList<>(pending);
+        orderNearestFirst(center, ordered);
+        pending.clear();
+        pending.addAll(ordered);
+    }
+
     /** 매 틱: pending 큐서 최대 CHUNKS_PER_TICK개를 nearest-first로 한 배치 전송(vanilla PlayerChunkSender식 스로틀).
      *  스폰 청크가 첫 틱 소량 배치에 들어가 빨리 도착 → 클라가 즉시 안착(289개 일괄 async fan-out 회피). */
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
-        ChunkPos center = p.chunkPos();
-        List<ChunkPos> batch = new ArrayList<>(p.pendingChunks());
-        orderNearestFirst(center, batch);
-        if (batch.size() > CHUNKS_PER_TICK) batch = batch.subList(0, CHUNKS_PER_TICK);
-        p.pendingChunks().removeAll(batch);
+        int perTick = world.chunksPerTick();
+        List<ChunkPos> batch = new ArrayList<>(Math.min(perTick, p.pendingChunks().size()));
+        var it = p.pendingChunks().iterator();
+        while (it.hasNext() && batch.size() < perTick) {
+            batch.add(it.next());
+            it.remove();
+        }
 
         p.send(new ChunkBatchStart());
+        // 실제 전송 수(stale 드롭으로 batch.size와 다를 수 있음) — ChunkBatchFinished에 정확히 보고.
+        java.util.concurrent.atomic.AtomicInteger sent = new java.util.concurrent.atomic.AtomicInteger();
         List<CompletableFuture<?>> sends = new ArrayList<>(batch.size());
         for (ChunkPos cp : batch) {
-            // 청크 소유 region에서 스냅샷을 받아(단일 소유) pool서 직렬화 후 전송.
-            CompletableFuture<?> f = world.snapshotChunk(cp).thenCompose(snap -> world.chunkPool().submit(() -> {
-                ByteBuf body = Unpooled.buffer();
-                ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
-                return body;
-            })).thenAccept(body -> p.send(new LevelChunkWithLight(body)))
+            CompletableFuture<?> f = world.serializedChunkBody(cp)
+                    .thenApply(Unpooled::wrappedBuffer)
+                    .thenAccept(body -> {
+                        // gen 지연 동안 플레이어가 시야 밖으로 이동했으면 보내봐야 클라가 "not in view
+                        // range"로 버림 → 드롭. 위치는 volatile이라 완료 스레드서 안전하게 읽음.
+                        if (inView(p, cp)) {
+                            p.send(new LevelChunkWithLight(body));
+                            sent.incrementAndGet();
+                        }
+                    })
                     .exceptionally(ex -> {           // 실패해도 배치 닫아 클라 무한 로딩 방지
                         org.slf4j.LoggerFactory.getLogger(Region.class)
                                 .warn("[CHUNK] 전송 실패 {}", cp, ex);
@@ -286,9 +326,16 @@ public final class Region {
                     });
             sends.add(f);
         }
-        int n = batch.size();
+        // allOf로 모든 future(전송/예외) 완료 후 Finished 1회 — 마샬 누락에 의한 batch 미종료(클라 stall) 방지.
         CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
-                .thenRun(() -> p.send(new ChunkBatchFinished(n)));
+                .thenRun(() -> p.send(new ChunkBatchFinished(sent.get())));
+    }
+
+    /** 청크가 플레이어의 현재 시야(per-player view distance, Chebyshev) 안인지. stale 드롭·전송 게이트용. */
+    private boolean inView(Player p, ChunkPos cp) {
+        ChunkPos c = p.chunkPos();
+        int vd = Math.min(world.viewDistance(), p.viewDistance());
+        return Math.abs(cp.x() - c.x()) <= vd && Math.abs(cp.z() - c.z()) <= vd;
     }
 
     private void updateVisibility(Player a, List<EntityView> candidates) {

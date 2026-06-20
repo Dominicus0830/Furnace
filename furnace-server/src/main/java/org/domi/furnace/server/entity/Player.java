@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -21,19 +22,22 @@ public final class Player {
     private final String name;
     private final Channel channel;
 
-    private double x, y, z;
+    private volatile double x, y, z; // volatile — region 외 스레드(청크 전송 완료 콜백)서 chunkPos 읽음
     private float yaw, pitch;
     private boolean onGround;
 
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
-    private final Set<ChunkPos> pendingChunks = new HashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(틱당 스로틀 전송). region 스레드 전용.
+    private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
     private volatile RegionPos currentRegion;     // 현재 소유 region(adopt가 설정)
+    // 유효 view distance = min(서버 view-distance, 클라 요청). ClientInformation(config 0x00/play 0x0A)서 갱신.
+    // 게임중 클라가 렌더거리 바꾸면 0x0A로 다시 옴 → 갱신. onEnterPlay서 초기 설정.
+    private volatile int viewDistance = 10;
 
     public Player(int entityId, UUID uuid, String name, Channel channel) {
         this.entityId = entityId;
@@ -75,6 +79,8 @@ public final class Player {
 
     public void markDisconnected() { this.disconnected = true; }
     public boolean isDisconnected() { return disconnected; }
+    public int viewDistance() { return viewDistance; }
+    public void viewDistance(int vd) { this.viewDistance = Math.max(2, vd); }
     public RegionPos currentRegion() { return currentRegion; }
     public void currentRegion(RegionPos r) { this.currentRegion = r; }
 

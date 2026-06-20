@@ -42,6 +42,7 @@ public final class ConfigLoader {
                 props.getProperty("region-threads",
                         Integer.toString(Config.DEFAULT.regionThreads())));
         String levelName = props.getProperty("level-name", Config.DEFAULT.levelName());
+        long levelSeed = parseSeed(props.getProperty("level-seed", Long.toString(Config.DEFAULT.levelSeed())));
         int ioThreads = Integer.parseInt(
                 props.getProperty("io-threads", Integer.toString(Config.DEFAULT.ioThreads())));
         int autosaveTicks = Integer.parseInt(
@@ -49,7 +50,24 @@ public final class ConfigLoader {
         int evictionGrace = Integer.parseInt(
                 props.getProperty("chunk-eviction-grace-ticks",
                         Integer.toString(Config.DEFAULT.chunkEvictionGraceTicks())));
+        int spawnChunkRadius = Integer.parseInt(
+                props.getProperty("spawn-chunk-radius",
+                        Integer.toString(Config.DEFAULT.spawnChunkRadius())));
+        int chunksPerTick = Integer.parseInt(
+                props.getProperty("chunks-per-tick",
+                        Integer.toString(Config.DEFAULT.chunksPerTick())));
         return new Config(name, tick, port, compression, viewDistance, entityViewDistance,
-                regionSize, regionThreads, levelName, ioThreads, autosaveTicks, evictionGrace);
+                regionSize, regionThreads, levelName, levelSeed, ioThreads, autosaveTicks, evictionGrace,
+                spawnChunkRadius, chunksPerTick);
+    }
+
+    private static long parseSeed(String raw) {
+        String seed = raw == null ? "" : raw.trim();
+        if (seed.isEmpty()) return 0L;
+        try {
+            return Long.parseLong(seed);
+        } catch (NumberFormatException ignored) {
+            return seed.hashCode();
+        }
     }
 }

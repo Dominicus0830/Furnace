@@ -1,6 +1,8 @@
 // region 컨테이너 + 공유 자원. 스레드별 region 맵을 들고 매 틱 자기 region들을 틱한다.
 package org.domi.furnace.server.world;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +19,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
 import java.io.ByteArrayOutputStream;
@@ -34,13 +37,18 @@ public final class World {
     private final int blockDirectBits;
     private final int biomeDirectBits;
     private final ExecutorService ioPool;
+    private final ExecutorService genPool;
 
     // 영속성 설정(FurnaceMain서 configurePersistence로 주입; 테스트는 기본 비활성).
     private int autosaveTicks = Integer.MAX_VALUE; // 기본 비활성(테스트)
     private int chunkEvictionGraceTicks = 100;
+    // 청크 스트리밍 설정(FurnaceMain서 주입). 테스트 기본값.
+    private int spawnChunkRadius = 2;   // join 동기 전송 스폰 청크 반경
+    private int chunksPerTick = 16;     // 플레이어당 틱 전송 상한
     private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
     private BlockRegistry blockRegistry;
     private ItemRegistry itemRegistry;
+    private SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
 
     // 인덱스 i 맵은 region 스레드 i만 접근(스레드 확정). 동기화 불필요.
     private final Map<RegionPos, Region>[] regionsByThread;
@@ -54,9 +62,10 @@ public final class World {
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
                  int regionThreads, int regionSize, int viewDistance, int entityViewDistance,
-                 int blockDirectBits, int biomeDirectBits, ExecutorService ioPool) {
+                 int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
         this.worldSource = worldSource;
         this.ioPool = ioPool;
+        this.genPool = genPool;
         this.chunkPool = chunkPool;
         this.scheduler = scheduler;
         this.regionThreads = regionThreads;
@@ -69,14 +78,28 @@ public final class World {
         for (int i = 0; i < regionThreads; i++) regionsByThread[i] = new HashMap<>();
     }
 
+    public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
+                 int regionThreads, int regionSize, int viewDistance, int entityViewDistance,
+                 int blockDirectBits, int biomeDirectBits, ExecutorService ioPool) {
+        this(worldSource, chunkPool, scheduler, regionThreads, regionSize, viewDistance,
+            entityViewDistance, blockDirectBits, biomeDirectBits, ioPool, ioPool);
+    }
+
     /** region 스레드 i가 매 틱 호출 — 자기 region들 틱. */
     public void tickThread(int index) {
-        for (Region r : regionsByThread[index].values()) {
+        var it = regionsByThread[index].values().iterator();
+        while (it.hasNext()) {
+            Region r = it.next();
             try {
                 r.tick();
             } catch (Throwable t) {
                 org.slf4j.LoggerFactory.getLogger(World.class)
                         .error("[TICK] region {} 실패", r.pos(), t);
+            }
+            // 빈 region(플레이어·청크·로딩 0) 제거 — 매 틱 순찰 비용·누수 방지. 재방문 시 regionAt이 재생성.
+            if (r.isEmpty()) {
+                it.remove();
+                snapshots.remove(r.pos());
             }
         }
     }
@@ -113,6 +136,8 @@ public final class World {
     public int autosaveTicks() { return autosaveTicks; }
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
     public java.nio.file.Path worldDir() { return worldDir; }
+    public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
+    public SpawnPoint defaultSpawn() { return defaultSpawn; }
 
     public void setRegistries(BlockRegistry blocks, ItemRegistry items) {
         this.blockRegistry = blocks;
@@ -134,8 +159,48 @@ public final class World {
         return scheduler.region(owner)
                 .submit(() -> regionAt(owner).loadChunk(cp))
                 .thenCompose(f -> f)
-                .thenApplyAsync(col -> ChunkSnapshot.of(cp.x(), cp.z(), col),
-                        r -> scheduler.region(owner).execute(r));
+                .thenApplyAsync(col -> {
+                    ChunkSnapshot cached = col.cachedSnapshot();
+                    if (!col.dirty() && cached != null) return cached;
+                    ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
+                    if (!col.dirty()) col.cachedSnapshot(snapshot);
+                    return snapshot;
+                }, r -> scheduler.region(owner).execute(r));
+    }
+
+    public CompletableFuture<byte[]> serializedChunkBody(ChunkPos cp) {
+        RegionPos owner = RegionGrid.regionPosOfChunk(cp.x(), cp.z(), regionSize);
+        return scheduler.region(owner)
+                .submit(() -> regionAt(owner).loadChunk(cp))
+                .thenCompose(f -> f)
+                .thenCompose(col -> {
+                    byte[] cached = col.cachedSerializedBody();
+                    if (!col.dirty() && cached != null) return CompletableFuture.completedFuture(cached);
+
+                    ChunkSnapshot snapshot = col.cachedSnapshot();
+                    if (snapshot == null || col.dirty()) {
+                        snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
+                        if (!col.dirty()) col.cachedSnapshot(snapshot);
+                    }
+                    boolean cacheable = !col.dirty();
+                    ChunkSnapshot finalSnapshot = snapshot;
+                    return chunkPool.submit(() -> serializeChunkBody(finalSnapshot)).thenApplyAsync(body -> {
+                        if (cacheable && !col.dirty()) col.cachedSerializedBody(body);
+                        return body;
+                    }, r -> scheduler.region(owner).execute(r));
+                });
+    }
+
+    private byte[] serializeChunkBody(ChunkSnapshot snap) {
+        ByteBuf body = Unpooled.buffer();
+        try {
+            ChunkSerializer.serialize(body, snap, blockDirectBits, biomeDirectBits);
+            byte[] out = new byte[body.readableBytes()];
+            body.getBytes(0, out);
+            return out;
+        } finally {
+            if (body.refCnt() > 0) body.release();
+        }
     }
 
     /** pos의 region을 그 소유 스레드서 get/create. */
@@ -196,10 +261,26 @@ public final class World {
     }
 
     public ExecutorService ioPool() { return ioPool; }
+    public ExecutorService genPool() { return genPool; }
     public FurnaceScheduler scheduler() { return scheduler; }
     public WorldSource worldSource() { return worldSource; }
     public ChunkWorkerPool chunkPool() { return chunkPool; }
     public int regionSize() { return regionSize; }
+
+    /** 청크 스트리밍 설정 주입(FurnaceMain). */
+    public void configureStreaming(int spawnChunkRadius, int chunksPerTick) {
+        this.spawnChunkRadius = Math.max(0, spawnChunkRadius);
+        this.chunksPerTick = Math.max(1, chunksPerTick);
+    }
+    public int spawnChunkRadius() { return spawnChunkRadius; }
+    public int chunksPerTick() { return chunksPerTick; }
+
+    /** 로드된 region 총 개수(테스트·모니터링용). owner 스레드 idle 시 호출. */
+    public int regionCount() {
+        int n = 0;
+        for (var m : regionsByThread) n += m.size();
+        return n;
+    }
     public int viewDistance() { return viewDistance; }
     public int entityViewDistance() { return entityViewDistance; }
     public int blockDirectBits() { return blockDirectBits; }

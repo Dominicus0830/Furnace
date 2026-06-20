@@ -22,10 +22,10 @@ import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
-import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.protocol.play.GameEvent;
 import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
+import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
 import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
@@ -36,8 +36,8 @@ import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
-import org.domi.furnace.server.world.ChunkSnapshot;
 import org.domi.furnace.server.world.RegionGrid;
+import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -69,6 +69,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private int selectedSlot;                // 0~8
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
+    private volatile int clientViewDistance = 32; // 클라가 ClientInformation서 요청한 view distance. 기본 최대.
 
     public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
                              World world, EntityIdAllocator idAllocator) {
@@ -143,7 +144,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void handleConfiguration(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00, 0x02 -> { /* Client Information / Plugin Message(brand): 읽지 않고 무시 */ }
+            case 0x00 -> readClientInformation(frame); // Client Information: view distance 읽음
+            case 0x02 -> { /* Plugin Message(brand): 무시 */ }
             case 0x07 -> { // Serverbound Known Packs → 레지스트리 전송 후 종료
                 for (String registry : REGISTRIES.registryKeys()) {
                     send(ctx, new RegistryData(registry, REGISTRIES.entries(registry)));
@@ -158,17 +160,37 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
+    /** ClientInformation 파싱 — locale 건너뛰고 view distance(byte) 읽음. config·play 양쪽서 호출. */
+    private void readClientInformation(ByteBuf frame) {
+        try {
+            Types.readString(frame, 16);                 // locale (무시)
+            int vd = frame.readByte();                   // view distance (chunks)
+            this.clientViewDistance = Math.max(2, Math.min(32, vd));
+            Player p = this.player;
+            if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
+        } catch (Exception e) {
+            log.debug("ClientInformation 파싱 실패", e);
+        }
+    }
+
+    /** 서버 view-distance와 클라 요청의 최솟값 — 과전송·"not in view range" 방지. */
+    private int effectiveViewDistance() {
+        return Math.max(2, Math.min(world.viewDistance(), clientViewDistance));
+    }
+
     private void onEnterPlay(ChannelHandlerContext ctx) {
         int eid = idAllocator.next();
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
-        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
-        // 저장된 위치 있으면 그 자리, 없으면 superflat 표면(grass y=−61 위 y=−60).
+        int effVd = effectiveViewDistance();
+        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, effVd));
+        // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
         double[] saved = org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
-        double sx = saved != null ? saved[0] : 0;
-        double sy = saved != null ? saved[1] : -60;
-        double sz = saved != null ? saved[2] : 0;
-        float syaw = saved != null ? (float) saved[3] : 0f;
+        SpawnPoint defaultSpawn = world.defaultSpawn();
+        double sx = saved != null ? saved[0] : defaultSpawn.playerX();
+        double sy = saved != null ? saved[1] : defaultSpawn.playerY();
+        double sz = saved != null ? saved[2] : defaultSpawn.playerZ();
+        float syaw = saved != null ? (float) saved[3] : defaultSpawn.yaw();
         float spitch = saved != null ? (float) saved[4] : 0f;
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
@@ -181,22 +203,38 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
+        p.viewDistance(effVd);
         this.player = p;
         // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
         // adopt 전이라 p.loadedChunks는 이 스레드 전용(레이스 없음). region streamLoads는 이미 로드된 중앙을 건너뜀.
         ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
-        try {
-            ChunkSnapshot snap = world.snapshotChunk(centerCp).get(2, java.util.concurrent.TimeUnit.SECONDS);
-            ByteBuf body = Unpooled.buffer();
-            ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
-            send(ctx, new ChunkBatchStart());
-            send(ctx, new LevelChunkWithLight(body));
-            send(ctx, new ChunkBatchFinished(1));
-            p.loadedChunks().add(centerCp);
-            world.subscribeChunk(centerCp, p);
-        } catch (Exception e) {
-            log.warn("스폰 청크 동기 전송 실패 {}", centerCp, e);
+        // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
+        send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
+        // spawn-chunk-radius 반경을 nearest-first로 동기 전송. gen은 genPool 병렬, 여기선 순서대로 수거.
+        int r = world.spawnChunkRadius();
+        java.util.List<ChunkPos> spawnChunks = new java.util.ArrayList<>();
+        for (int dx = -r; dx <= r; dx++)
+            for (int dz = -r; dz <= r; dz++)
+                spawnChunks.add(new ChunkPos(centerCp.x() + dx, centerCp.z() + dz));
+        spawnChunks.sort(java.util.Comparator.comparingInt(
+                c -> Math.max(Math.abs(c.x() - centerCp.x()), Math.abs(c.z() - centerCp.z()))));
+        java.util.List<java.util.concurrent.CompletableFuture<byte[]>> futs =
+                spawnChunks.stream().map(world::serializedChunkBody).toList();
+        send(ctx, new ChunkBatchStart());
+        int sent = 0;
+        for (int i = 0; i < spawnChunks.size(); i++) {
+            ChunkPos cp = spawnChunks.get(i);
+            try {
+                byte[] bodyBytes = futs.get(i).get(2, java.util.concurrent.TimeUnit.SECONDS);
+                send(ctx, new LevelChunkWithLight(Unpooled.wrappedBuffer(bodyBytes)));
+                p.loadedChunks().add(cp);
+                world.subscribeChunk(cp, p);
+                sent++;
+            } catch (Exception e) {
+                log.warn("스폰 청크 동기 전송 실패 {}", cp, e);
+            }
         }
+        send(ctx, new ChunkBatchFinished(sent));
         RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
         scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
         scheduleKeepAlive();
@@ -226,6 +264,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int tpId = Types.readVarInt(frame);
                 if (tpId == pendingTeleportId) pendingTeleportId = -1;
             }
+            case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
             case 0x18 -> { // Keep Alive (serverbound)
                 long echoed = frame.readLong();
                 if (echoed == lastKeepAliveId) {

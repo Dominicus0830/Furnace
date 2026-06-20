@@ -38,17 +38,23 @@ public final class FurnaceMain {
         Path worldDir = Path.of(config.levelName());
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome);
-        // 시드 0L 기본값 사용 (level-seed 설정 연동은 추후 milestone). furnace.properties에 seed= 추가 예정.
-        var noiseSource = NoiseWorldSource.overworld(0L, blockRegistry, registries);
+        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, noiseSource);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
+        java.util.concurrent.ExecutorService genPool =
+                java.util.concurrent.Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors()));
         World world = new World(anvilSource, chunkPool,
                 scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
-                config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool);
+                config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
+        var defaultSpawn = noiseSource.defaultSpawn();
+        world.defaultSpawn(defaultSpawn);
+        log.info("월드 시드={}, 기본 스폰=({}, {}, {})",
+                config.levelSeed(), defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z());
         world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
+        world.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
         world.setRegistries(blockRegistry, itemRegistry);
         scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
@@ -70,7 +76,9 @@ public final class FurnaceMain {
                 }
                 for (var f : fs) f.get();
                 ioPool.shutdown();
+                genPool.shutdown();
                 ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
+                genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                 regionStore.closeAll();
             } catch (Exception e) {
                 log.error("[STOP] flush 실패", e);
