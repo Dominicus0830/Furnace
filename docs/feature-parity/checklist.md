@@ -34,7 +34,13 @@
       noise는 vanilla LegacyRandomSource 경로 → LegacyNormalNoise 신규(oracle legacynormal:2345 fixture
       0.0 delta byte-exact). StateProvider 추상화(Simple/NoiseThreshold), minecraft:flower 라우팅. 전체 green.
       - 잔여: weighted_state_provider(flower_default 등)·dual_noise_provider·noise_provider는 Noop 유지.
-- [ ] weighted/noise/dual_noise state provider (random 소비) → flower(random_patch) 활성
+- [x] **slice 4 (2026-06-21, 커밋 0176563): weighted/noise/dual_noise state provider.** flower_default
+      (weighted)·flower_flower_forest(noise) 활성. 멀티에이전트(claude-main→codex-critic→반영). MathHelper
+      clampedMap/inverseLerp 추가. codex-critic HIGH 반영: blocks table=base id만→Properties 보유 state는
+      매핑 불가 → Properties 있으면 provider Noop 가드(byte-exact 보존, 잘못된 블록 금지). MED/LOW(weighted
+      overflow/empty) 가드. 전체 green.
+- [ ] **slice 5: full blockstate(Name+Properties) 해석** — blocks table에 per-state id 데이터 필요(현재 base만).
+      해결 시 propertied state(tall_grass[half]·pink_petals[…]) 정확 매핑 → flower_meadow/flower_cherry 등 활성.
 - [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, random_offset 등)
 - [ ] feature 타입: tree, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
 - [ ] 각 타입 추가 시 placeholder 교체 → 좌표 parity 회귀 테스트
