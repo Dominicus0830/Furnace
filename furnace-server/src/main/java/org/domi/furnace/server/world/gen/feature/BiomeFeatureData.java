@@ -215,10 +215,67 @@ public final class BiomeFeatureData {
                         parseState(toPlace.getAsJsonObject("default_state")),
                         lowStates, highStates);
                 }
+                case "minecraft:weighted_state_provider" -> {
+                    JsonArray entries = toPlace.getAsJsonArray("entries");
+                    // blocks table은 base(default) state id만 보유 → Properties(non-default 가능) 있으면
+                    // 정확 state 매핑 불가 → byte-exact 위해 Noop 유지(잘못된 블록 배치 금지).
+                    for (JsonElement el : entries) {
+                        if (el.getAsJsonObject().getAsJsonObject("data").has("Properties")) return null;
+                    }
+                    int[] wStates = new int[entries.size()];
+                    int[] weights = new int[entries.size()];
+                    for (int i = 0; i < entries.size(); i++) {
+                        JsonObject entry = entries.get(i).getAsJsonObject();
+                        wStates[i] = parseState(entry.getAsJsonObject("data"));
+                        weights[i] = entry.get("weight").getAsInt();
+                    }
+                    return new WeightedStateProvider(wStates, weights);
+                }
+                case "minecraft:noise_provider" -> {
+                    JsonArray states = toPlace.getAsJsonArray("states");
+                    if (statesHaveProperties(states)) return null;
+                    JsonObject noise = toPlace.getAsJsonObject("noise");
+                    return new NoiseProvider(
+                        toPlace.get("seed").getAsLong(),
+                        noise.get("firstOctave").getAsInt(),
+                        amplitudeArray(noise),
+                        toPlace.get("scale").getAsFloat(),
+                        blockStateArray(states));
+                }
+                case "minecraft:dual_noise_provider" -> {
+                    JsonArray states = toPlace.getAsJsonArray("states");
+                    if (statesHaveProperties(states)) return null;
+                    JsonObject noise = toPlace.getAsJsonObject("noise");
+                    JsonObject slow = toPlace.getAsJsonObject("slow_noise");
+                    JsonArray variety = toPlace.getAsJsonArray("variety");
+                    long seed = toPlace.get("seed").getAsLong();
+                    return new DualNoiseProvider(
+                        variety.get(0).getAsInt(), variety.get(1).getAsInt(),
+                        seed, slow.get("firstOctave").getAsInt(), amplitudeArray(slow),
+                        toPlace.get("slow_scale").getAsFloat(),
+                        seed, noise.get("firstOctave").getAsInt(), amplitudeArray(noise),
+                        toPlace.get("scale").getAsFloat(),
+                        blockStateArray(states));
+                }
                 default -> {
                     return null;
                 }
             }
+        }
+
+        /** state에 Properties(non-default 가능)가 하나라도 있으면 true — base id 매핑이 byte-exact 깨짐. */
+        private static boolean statesHaveProperties(JsonArray states) {
+            for (JsonElement el : states) {
+                if (el.getAsJsonObject().has("Properties")) return true;
+            }
+            return false;
+        }
+
+        private static double[] amplitudeArray(JsonObject noise) {
+            JsonArray ampArr = noise.getAsJsonArray("amplitudes");
+            double[] amplitudes = new double[ampArr.size()];
+            for (int i = 0; i < amplitudes.length; i++) amplitudes[i] = ampArr.get(i).getAsDouble();
+            return amplitudes;
         }
 
         private int[] blockStateArray(JsonArray arr) {

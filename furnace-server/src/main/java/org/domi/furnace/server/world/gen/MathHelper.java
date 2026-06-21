@@ -9,6 +9,10 @@ public final class MathHelper {
     public static double clampedLerp(double a, double b, double t) {
         if (t < 0.0) return a; return t > 1.0 ? b : lerp(t, a, b);
     }
+    public static double inverseLerp(double delta, double start, double end) { return (delta - start) / (end - start); }
+    public static double clampedMap(double input, double inputMin, double inputMax, double outputMin, double outputMax) {
+        return clampedLerp(outputMin, outputMax, inverseLerp(input, inputMin, inputMax));
+    }
     public static double smoothstep(double v) { return v * v * v * (v * (v * 6.0 - 15.0) + 10.0); }
     public static double clamp(double v, double lo, double hi) { return v < lo ? lo : Math.min(v, hi); }
     public static int clamp(int v, int lo, int hi) { return v < lo ? lo : Math.min(v, hi); }
