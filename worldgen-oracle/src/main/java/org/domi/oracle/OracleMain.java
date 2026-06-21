@@ -258,6 +258,8 @@ public class OracleMain {
             } else if (arg.equals("blocks")) {
                 Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
                 dumpBlocks(blocksResDir);
+            } else if (arg.equals("biomeinfonoise")) {
+                dumpBiomeInfoNoise(outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -416,6 +418,30 @@ public class OracleMain {
         Path out = outDir.resolve("feature_order.txt");
         Files.writeString(out, sb.toString());
         System.out.println("Wrote " + out + " biomes=" + biomeIds.size() + " steps=" + steps.size());
+    }
+
+    /**
+     * vanilla Biome.BIOME_INFO_NOISE (PerlinSimplexNoise, LegacyRandomSource(2345), octaves=[0]) 값 덤프.
+     * noise_threshold_count/noise_based_count parity 검증용. 실사용대로 getValue(bx/200, bz/200, false).
+     * Format: little-endian int32 N; N×(int32 bx, int32 bz, double value).
+     */
+    private static void dumpBiomeInfoNoise(Path outDir) throws Exception {
+        int n = 40;
+        ByteBuffer buf = ByteBuffer.allocate(4 + n * (4 + 4 + 8)).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(n);
+        for (int i = 0; i < n; i++) {
+            int bx = i * 37 - 300;
+            int bz = -i * 53 + 250;
+            double value = Biome.BIOME_INFO_NOISE.getValue(bx / 200.0, bz / 200.0, false);
+            buf.putInt(bx);
+            buf.putInt(bz);
+            buf.putDouble(value);
+        }
+        Path out = outDir.resolve("biome_info_noise.bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes, n=" + n + ")");
     }
 
     private static void dumpRng(long seed, int n, Path outDir) throws Exception {

@@ -333,6 +333,10 @@ public final class BiomeFeatureData {
                 case "minecraft:height_range" -> out.add(new PlacementModifier.HeightRangePlacement(heightProvider(json.getAsJsonObject("height"))));
                 case "minecraft:biome" -> out.add(new PlacementModifier.BiomeFilter());
                 case "minecraft:heightmap" -> out.add(new PlacementModifier.HeightmapPlacement());
+                case "minecraft:noise_threshold_count" -> out.add(new PlacementModifier.NoiseThresholdCountPlacement(
+                    json.get("noise_level").getAsDouble(),
+                    json.get("below_noise").getAsInt(),
+                    json.get("above_noise").getAsInt()));
                 case "minecraft:block_predicate_filter" -> {
                     Set<Integer> allowed = blockPredicateStates(json.getAsJsonObject("predicate"));
                     if (allowed != null) out.add(new PlacementModifier.BlockPredicateFilter(allowed));

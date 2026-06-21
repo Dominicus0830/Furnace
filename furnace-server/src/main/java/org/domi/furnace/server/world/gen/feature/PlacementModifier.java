@@ -4,7 +4,9 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
+import org.domi.furnace.server.world.gen.noise.SimplexNoise;
 
 public sealed interface PlacementModifier
         permits PlacementModifier.CountPlacement,
@@ -13,7 +15,11 @@ public sealed interface PlacementModifier
                 PlacementModifier.BiomeFilter,
                 PlacementModifier.HeightRangePlacement,
                 PlacementModifier.HeightmapPlacement,
-                PlacementModifier.BlockPredicateFilter {
+                PlacementModifier.BlockPredicateFilter,
+                PlacementModifier.NoiseThresholdCountPlacement {
+
+    // 바닐라 Biome.BIOME_INFO_NOISE = PerlinSimplexNoise(LegacyRandomSource(2345), octaves=[0]) = 단일 SimplexNoise 2D.
+    SimplexNoise BIOME_INFO_NOISE = new SimplexNoise(new LegacyRandom(2345L));
 
     Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos);
 
@@ -52,6 +58,16 @@ public sealed interface PlacementModifier
             int surfaceY = view.getSurfaceY(pos.x(), pos.z());
             if (surfaceY < ChunkColumn.MIN_Y) return Stream.empty();
             return Stream.of(new BlockPos(pos.x(), surfaceY + 1, pos.z()));
+        }
+    }
+
+    /** noise_threshold_count — BIOME_INFO_NOISE(x/200,z/200) < level면 below, 아니면 above회 반복. random 0소비. */
+    record NoiseThresholdCountPlacement(double noiseLevel, int belowNoise, int aboveNoise) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            double value = BIOME_INFO_NOISE.getValue(pos.x() / 200.0, pos.z() / 200.0);
+            int count = value < noiseLevel ? belowNoise : aboveNoise;
+            return IntStream.range(0, count).mapToObj(__ -> pos);
         }
     }
 
