@@ -260,6 +260,9 @@ public class OracleMain {
                 dumpBlocks(blocksResDir);
             } else if (arg.equals("biomeinfonoise")) {
                 dumpBiomeInfoNoise(outDir);
+            } else if (arg.startsWith("legacynormal:")) {
+                long noiseSeed = Long.parseLong(arg.substring("legacynormal:".length()));
+                dumpLegacyNormalNoise(noiseSeed, outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -438,6 +441,48 @@ public class OracleMain {
             buf.putDouble(value);
         }
         Path out = outDir.resolve("biome_info_noise.bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes, n=" + n + ")");
+    }
+
+    /**
+     * vanilla NormalNoise (LegacyRandomSource 경로 = state provider noise) 값 덤프.
+     * params: firstOctave=0, amplitudes=[1.0] (flower noise_threshold_provider 설정).
+     * 좌표: flower 실사용대로 block*scale(0.005). i=0..39.
+     * Format: int32 firstOctave; int32 ampCount; ampCount×double amps; int64 seed; int32 N;
+     *         N×(double x, double y, double z, double value). LITTLE_ENDIAN.
+     */
+    private static void dumpLegacyNormalNoise(long noiseSeed, Path outDir) throws Exception {
+        int firstOctave = 0;
+        double[] amps = {1.0};
+        double scale = 0.005;
+        NormalNoise.NoiseParameters params =
+            new NormalNoise.NoiseParameters(firstOctave, new DoubleArrayList(amps));
+        NormalNoise noise = NormalNoise.create(
+            new net.minecraft.world.level.levelgen.WorldgenRandom(
+                new net.minecraft.world.level.levelgen.LegacyRandomSource(noiseSeed)),
+            params);
+        int n = 40;
+        int headerBytes = 4 + 4 + amps.length * 8 + 8 + 4;
+        ByteBuffer buf = ByteBuffer.allocate(headerBytes + n * 4 * 8).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(firstOctave);
+        buf.putInt(amps.length);
+        for (double a : amps) buf.putDouble(a);
+        buf.putLong(noiseSeed);
+        buf.putInt(n);
+        for (int i = 0; i < n; i++) {
+            double x = (i * 37 - 300) * scale;
+            double y = (i * 11 + 60) * scale;
+            double z = (-i * 53 + 250) * scale;
+            double value = noise.getValue(x, y, z);
+            buf.putDouble(x);
+            buf.putDouble(y);
+            buf.putDouble(z);
+            buf.putDouble(value);
+        }
+        Path out = outDir.resolve("legacy_normal_" + noiseSeed + ".bin");
         try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
             fos.write(buf.array());
         }

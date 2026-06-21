@@ -16,7 +16,8 @@ public sealed interface PlacementModifier
                 PlacementModifier.HeightRangePlacement,
                 PlacementModifier.HeightmapPlacement,
                 PlacementModifier.BlockPredicateFilter,
-                PlacementModifier.NoiseThresholdCountPlacement {
+                PlacementModifier.NoiseThresholdCountPlacement,
+                PlacementModifier.NoiseBasedCountPlacement {
 
     // 바닐라 Biome.BIOME_INFO_NOISE = PerlinSimplexNoise(LegacyRandomSource(2345), octaves=[0]) = 단일 SimplexNoise 2D.
     SimplexNoise BIOME_INFO_NOISE = new SimplexNoise(new LegacyRandom(2345L));
@@ -67,6 +68,17 @@ public sealed interface PlacementModifier
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             double value = BIOME_INFO_NOISE.getValue(pos.x() / 200.0, pos.z() / 200.0);
             int count = value < noiseLevel ? belowNoise : aboveNoise;
+            return IntStream.range(0, count).mapToObj(__ -> pos);
+        }
+    }
+
+    /** noise_based_count — ceil((BIOME_INFO_NOISE(x/factor,z/factor)+offset)*ratio)회 pos 반복. random 0소비. */
+    record NoiseBasedCountPlacement(int noiseToCountRatio, double noiseFactor, double noiseOffset)
+            implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            double value = BIOME_INFO_NOISE.getValue(pos.x() / noiseFactor, pos.z() / noiseFactor);
+            int count = (int) Math.ceil((value + noiseOffset) * noiseToCountRatio);
             return IntStream.range(0, count).mapToObj(__ -> pos);
         }
     }

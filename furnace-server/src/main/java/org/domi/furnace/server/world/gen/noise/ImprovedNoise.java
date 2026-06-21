@@ -2,6 +2,7 @@
 package org.domi.furnace.server.world.gen.noise;
 
 import org.domi.furnace.server.world.gen.MathHelper;
+import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
 /**
  * 바닐라 net.minecraft.world.level.levelgen.synth.ImprovedNoise 를 비트정확하게 포팅.
@@ -37,6 +38,25 @@ public final class ImprovedNoise {
 
     public ImprovedNoise(XoroshiroRandomSource random) {
         // RNG 소비 순서 바닐라와 동일: 오프셋 3개 → Fisher-Yates 셔플 256회
+        this.xo = random.nextDouble() * 256.0;
+        this.yo = random.nextDouble() * 256.0;
+        this.zo = random.nextDouble() * 256.0;
+        this.p = new byte[256];
+
+        for (int i = 0; i < 256; i++) {
+            this.p[i] = (byte) i;
+        }
+
+        for (int i = 0; i < 256; i++) {
+            int randomInt = random.nextInt(256 - i);
+            byte b = this.p[i];
+            this.p[i] = this.p[i + randomInt];
+            this.p[i + randomInt] = b;
+        }
+    }
+
+    /** LegacyRandomSource 경로 — state provider noise(LegacyNormalNoise)용. 소비순서 동일. */
+    public ImprovedNoise(LegacyRandom random) {
         this.xo = random.nextDouble() * 256.0;
         this.yo = random.nextDouble() * 256.0;
         this.zo = random.nextDouble() * 256.0;

@@ -143,7 +143,8 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:disk")) {
                 return parseDisk(config);
             }
-            if (type.equals("minecraft:random_patch")) {
+            if (type.equals("minecraft:random_patch") || type.equals("minecraft:flower")) {
+                // FlowerFeature는 RandomPatchFeature와 place 동일.
                 return parseRandomPatch(config);
             }
             if (type.equals("minecraft:simple_block")) {
@@ -181,12 +182,51 @@ public final class BiomeFeatureData {
         }
 
         private ConfiguredFeature parseSimpleBlock(JsonObject config) {
-            JsonObject toPlace = config.getAsJsonObject("to_place");
-            // 상수 provider만 지원. weighted/noise provider(random 소비)는 추후 슬라이스 → placeholder.
-            if (toPlace.has("type") && !toPlace.get("type").getAsString().equals("minecraft:simple_state_provider")) {
+            StateProvider provider = parseToPlaceProvider(config.getAsJsonObject("to_place"));
+            if (provider == null) {
+                // 미지원 provider(weighted/dual_noise/noise) → placeholder(거짓 parity 방지).
                 return NoopFeature.INSTANCE;
             }
-            return new SimpleBlockFeature(parseStateProvider(toPlace), plantGround());
+            return new SimpleBlockFeature(provider, plantGround());
+        }
+
+        /** simple_state_provider / noise_threshold_provider 지원. 그외 → null(미지원). */
+        private StateProvider parseToPlaceProvider(JsonObject toPlace) {
+            String type = toPlace.has("type")
+                ? toPlace.get("type").getAsString() : "minecraft:simple_state_provider";
+            switch (type) {
+                case "minecraft:simple_state_provider" -> {
+                    return new SimpleStateProvider(parseStateProvider(toPlace));
+                }
+                case "minecraft:noise_threshold_provider" -> {
+                    JsonObject noise = toPlace.getAsJsonObject("noise");
+                    JsonArray ampArr = noise.getAsJsonArray("amplitudes");
+                    double[] amplitudes = new double[ampArr.size()];
+                    for (int i = 0; i < amplitudes.length; i++) amplitudes[i] = ampArr.get(i).getAsDouble();
+                    int[] lowStates = blockStateArray(toPlace.getAsJsonArray("low_states"));
+                    int[] highStates = blockStateArray(toPlace.getAsJsonArray("high_states"));
+                    return new NoiseThresholdProvider(
+                        toPlace.get("seed").getAsLong(),
+                        noise.get("firstOctave").getAsInt(),
+                        amplitudes,
+                        toPlace.get("scale").getAsFloat(),
+                        toPlace.get("threshold").getAsFloat(),
+                        toPlace.get("high_chance").getAsFloat(),
+                        parseState(toPlace.getAsJsonObject("default_state")),
+                        lowStates, highStates);
+                }
+                default -> {
+                    return null;
+                }
+            }
+        }
+
+        private int[] blockStateArray(JsonArray arr) {
+            int[] ids = new int[arr.size()];
+            for (int i = 0; i < ids.length; i++) {
+                ids[i] = parseState(arr.get(i).getAsJsonObject());
+            }
+            return ids;
         }
 
         // BushBlock.mayPlaceOn 근사 = dirt 태그 + farmland. grass/fern 등 지면식물 생존 판정용.
@@ -337,6 +377,10 @@ public final class BiomeFeatureData {
                     json.get("noise_level").getAsDouble(),
                     json.get("below_noise").getAsInt(),
                     json.get("above_noise").getAsInt()));
+                case "minecraft:noise_based_count" -> out.add(new PlacementModifier.NoiseBasedCountPlacement(
+                    json.get("noise_to_count_ratio").getAsInt(),
+                    json.get("noise_factor").getAsDouble(),
+                    json.has("noise_offset") ? json.get("noise_offset").getAsDouble() : 0.0));
                 case "minecraft:block_predicate_filter" -> {
                     Set<Integer> allowed = blockPredicateStates(json.getAsJsonObject("predicate"));
                     if (allowed != null) out.add(new PlacementModifier.BlockPredicateFilter(allowed));
