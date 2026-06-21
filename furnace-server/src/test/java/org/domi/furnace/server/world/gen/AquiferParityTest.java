@@ -124,4 +124,10 @@ class AquiferParityTest {
     @Test void aquifer_seed0_coord2() throws Exception { assertAquiferParity(0L,           15, -30); }
     @Test void aquifer_seed0_coord3() throws Exception { assertAquiferParity(0L,            0, -40); }
     @Test void aquifer_seedB()        throws Exception { assertAquiferParity(123456789L,    0,   0); }
+
+    // ore vein parity — vein 함유 청크(seed0): copper(y0~50). raw_copper는 vein 전용 → veins byte-exact 검증.
+    @Test void oreVein_seed0_0_5() throws Exception { assertAquiferParity(0L, 0, 5); } // 113 copper + 4 raw_copper
+    @Test void oreVein_seed0_0_4() throws Exception { assertAquiferParity(0L, 0, 4); }
+    @Test void oreVein_seed0_1_5() throws Exception { assertAquiferParity(0L, 1, 5); }
+    @Test void oreVein_seed0_1_4() throws Exception { assertAquiferParity(0L, 1, 4); }
 }

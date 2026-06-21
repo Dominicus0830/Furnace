@@ -20,7 +20,11 @@ public final class NoiseRouter {
     private final DensityFunction fluidLevelFloodednessNoise;
     private final DensityFunction fluidLevelSpreadNoise;
     private final DensityFunction lavaNoise;
+    private final DensityFunction veinToggle;
+    private final DensityFunction veinRidged;
+    private final DensityFunction veinGap;
     private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom;
+    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory oreRandom;
 
     private NoiseRouter(DensityFunction finalDensity,
                         DensityFunction initialDensityWithoutJaggedness,
@@ -31,7 +35,9 @@ public final class NoiseRouter {
                         DensityFunction fluidLevelFloodednessNoise,
                         DensityFunction fluidLevelSpreadNoise,
                         DensityFunction lavaNoise,
-                        XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom) {
+                        DensityFunction veinToggle, DensityFunction veinRidged, DensityFunction veinGap,
+                        XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom,
+                        XoroshiroRandomSource.XoroshiroPositionalRandomFactory oreRandom) {
         this.finalDensity = finalDensity;
         this.initialDensityWithoutJaggedness = initialDensityWithoutJaggedness;
         this.temperature  = temperature;
@@ -44,7 +50,11 @@ public final class NoiseRouter {
         this.fluidLevelFloodednessNoise = fluidLevelFloodednessNoise;
         this.fluidLevelSpreadNoise = fluidLevelSpreadNoise;
         this.lavaNoise = lavaNoise;
+        this.veinToggle = veinToggle;
+        this.veinRidged = veinRidged;
+        this.veinGap = veinGap;
         this.aquiferRandom = aquiferRandom;
+        this.oreRandom = oreRandom;
     }
 
     public static NoiseRouter build(WorldgenData data, NoiseSettings settings, long seed) {
@@ -64,7 +74,11 @@ public final class NoiseRouter {
             parser.parseElement(routerJson.get("fluid_level_floodedness")),
             parser.parseElement(routerJson.get("fluid_level_spread")),
             parser.parseElement(routerJson.get("lava")),
-            parser.aquiferRandom()
+            parser.parseElement(routerJson.get("vein_toggle")),
+            parser.parseElement(routerJson.get("vein_ridged")),
+            parser.parseElement(routerJson.get("vein_gap")),
+            parser.aquiferRandom(),
+            parser.oreRandom()
         );
     }
 
@@ -80,5 +94,9 @@ public final class NoiseRouter {
     public DensityFunction fluidLevelFloodednessNoise() { return fluidLevelFloodednessNoise; }
     public DensityFunction fluidLevelSpreadNoise() { return fluidLevelSpreadNoise; }
     public DensityFunction lavaNoise() { return lavaNoise; }
+    public DensityFunction veinToggle() { return veinToggle; }
+    public DensityFunction veinRidged() { return veinRidged; }
+    public DensityFunction veinGap() { return veinGap; }
     public XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom() { return aquiferRandom; }
+    public XoroshiroRandomSource.XoroshiroPositionalRandomFactory oreRandom() { return oreRandom; }
 }

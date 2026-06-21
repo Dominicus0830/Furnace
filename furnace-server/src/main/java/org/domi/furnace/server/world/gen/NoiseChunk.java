@@ -57,6 +57,9 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     private final DensityFunction wrappedFinalDensity;
     private final DensityFunction pslDensity; // PSL 스캔용 initial density — cache_2d 동적 캐시로 컬럼당 2D 1회
 
+    // ── ore vein: solid 블록 override (overworld 전용, 항상 활성) ──
+    private final OreVeinifier oreVeinifier;
+
     // ── 기후 DF (mapAll 래핑) — FlatCache pre-fill 활성화, dim: 0=temp 1=hum 2=cont 3=ero 4=depth 5=ridges ──
     private final DensityFunction[] wrappedClimate;
 
@@ -99,7 +102,13 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      * @param router    최종 밀도 함수를 담은 NoiseRouter
      * @param settings  NoiseSettings (minY, height, cellWidth, cellHeight)
      */
+    /** ore vein 비활성(reg 없음) — climate/biome 등 vein 무관 테스트 호환용. */
     public NoiseChunk(int chunkX, int chunkZ, NoiseRouter router, NoiseSettings settings) {
+        this(chunkX, chunkZ, router, settings, null);
+    }
+
+    public NoiseChunk(int chunkX, int chunkZ, NoiseRouter router, NoiseSettings settings,
+                      org.domi.furnace.server.world.BlockRegistry reg) {
         this.cellWidth  = settings.cellWidth();
         this.cellHeight = settings.cellHeight();
         this.cellCountXZ = 16 / this.cellWidth;   // 4
@@ -128,6 +137,19 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             router.depth().mapAll(this::wrap),
             router.ridges().mapAll(this::wrap)
         };
+        // vein DF는 NoiseChunk context로 평가 → 반드시 wrap(interpolated 노드 등록·셀 보간).
+        // overworld는 ore_veins_enabled=true. reg 없으면(테스트) 비활성.
+        this.oreVeinifier = reg == null ? null : new OreVeinifier(
+            router.veinToggle().mapAll(this::wrap),
+            router.veinRidged().mapAll(this::wrap),
+            router.veinGap().mapAll(this::wrap),
+            router.oreRandom(),
+            reg.stateIdOrAir("minecraft:copper_ore"),
+            reg.stateIdOrAir("minecraft:raw_copper_block"),
+            reg.stateIdOrAir("minecraft:granite"),
+            reg.stateIdOrAir("minecraft:deepslate_iron_ore"),
+            reg.stateIdOrAir("minecraft:raw_iron_block"),
+            reg.stateIdOrAir("minecraft:tuff"));
         this.climateCache = buildClimateCache();
     }
 
@@ -538,8 +560,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     selectCellYZ(cy, cz);
 
                     cellBoundsOf(this.wrappedFinalDensity, cellBoundsScratch);
-                    if (cellBoundsScratch[0] > SKIP_EPS) {
-                        // all-stone skip (aquifer not called)
+                    if (cellBoundsScratch[0] > SKIP_EPS && !cellOverlapsVeinRange(cy)) {
+                        // all-stone skip (aquifer not called). vein y범위 셀은 skip 금지 — per-block oreVeinifier 실행.
                         int yBase = cy * this.cellHeight;
                         int zBase = cz * this.cellWidth;
                         int xBase = cx * this.cellWidth;
@@ -580,7 +602,11 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                 int idx = yOff * 256 + lz * 16 + lx;
                                 if (idx >= 0 && idx < blocks.length) {
                                     if (density > 0.0) {
-                                        blocks[idx] = stoneId;
+                                        // 바닐라 material rule: solid → aquifer null → oreVeinifier 실행.
+                                        // vein!=NO_VEIN이면 vein id, 아니면 stoneId.
+                                        int vein = this.oreVeinifier == null
+                                            ? OreVeinifier.NO_VEIN : this.oreVeinifier.veinStateId(this);
+                                        blocks[idx] = vein != OreVeinifier.NO_VEIN ? vein : stoneId;
                                     } else {
                                         int substance = aquifer.computeSubstance(this, density);
                                         // NO_CARVE (-1) means barrier prevents fluid: use defaultBlock (stone)
@@ -598,6 +624,14 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
         stopInterpolation();
         return blocks;
+    }
+
+    /** 셀 cy의 블록 y범위가 vein y범위 [-60,50]와 겹치면 true(all-stone skip 금지→per-block oreVeinifier). vein 비활성 시 false. */
+    private boolean cellOverlapsVeinRange(int cy) {
+        if (this.oreVeinifier == null) return false;
+        int cellMinY = (this.cellNoiseMinY + cy) * this.cellHeight;
+        int cellMaxY = cellMinY + this.cellHeight - 1;
+        return cellMaxY >= OreVeinifier.VEIN_MIN_Y && cellMinY <= OreVeinifier.VEIN_MAX_Y;
     }
 
     /**

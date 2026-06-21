@@ -314,7 +314,7 @@ public final class NoiseWorldSource implements WorldSource {
         int seaLevel  = settings.seaLevel();   // 63
         int lavaFloor = settings.lavaFloorY(); // -54
 
-        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
+        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings, reg);
         Aquifer aquifer = settings.aquifersEnabled()
             ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
             : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
@@ -356,7 +356,7 @@ public final class NoiseWorldSource implements WorldSource {
 
     public ChunkColumn generateWithCarvers(int chunkX, int chunkZ) {
         ChunkColumn col = generate(chunkX, chunkZ);
-        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings);
+        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings, reg);
         applyCarvers(col, chunkX, chunkZ, nc);
         return col;
     }
@@ -365,7 +365,7 @@ public final class NoiseWorldSource implements WorldSource {
         ChunkColumn col = generateWithCarvers(chunkX, chunkZ);
         if (featurePlacer == null) return col;
 
-        NoiseChunk centerNoise = new NoiseChunk(chunkX, chunkZ, router, settings);
+        NoiseChunk centerNoise = new NoiseChunk(chunkX, chunkZ, router, settings, reg);
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, centerNoise);
         FeatureWorldView view = new FeatureWorldView(col, chunkX, chunkZ, biomeIds);
         featurePlacer.decorate(view, collectNeighborBiomes(chunkX, chunkZ), chunkX, chunkZ);
@@ -380,7 +380,7 @@ public final class NoiseWorldSource implements WorldSource {
             for (int dx = -1; dx <= 1; dx++) {
                 int nx = chunkX + dx;
                 int nz = chunkZ + dz;
-                NoiseChunk noiseChunk = new NoiseChunk(nx, nz, router, settings);
+                NoiseChunk noiseChunk = new NoiseChunk(nx, nz, router, settings, reg);
                 int[] biomeIds = biomeSampler.sampleChunk(nx, nz, noiseChunk);
                 for (int biomeId : biomeIds) {
                     if (biomeId >= 0 && biomeId < registryBiomeNames.length) {
