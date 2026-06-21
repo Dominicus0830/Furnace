@@ -39,8 +39,11 @@
       clampedMap/inverseLerp 추가. codex-critic HIGH 반영: blocks table=base id만→Properties 보유 state는
       매핑 불가 → Properties 있으면 provider Noop 가드(byte-exact 보존, 잘못된 블록 금지). MED/LOW(weighted
       overflow/empty) 가드. 전체 green.
-- [ ] **slice 5: full blockstate(Name+Properties) 해석** — blocks table에 per-state id 데이터 필요(현재 base만).
-      해결 시 propertied state(tall_grass[half]·pink_petals[…]) 정확 매핑 → flower_meadow/flower_cherry 등 활성.
+- [x] **slice 5 (2026-06-21, 커밋 964b388): full blockstate(Name+Properties) 해석.** oracle allstates
+      모드로 per-state id 덤프(blocks/blockstates_1.21.1.txt, 26684) + BlockStateKey canonical key +
+      BlockRegistry.stateIdOrAir(name,props) + parseState Properties. slice4 Properties Noop 가드 제거 →
+      flower_meadow/flower_cherry 등 propertied flower 활성. canonical key oracle↔Furnace byte-identical
+      (BlockRegistryStateTest lower≠upper로 런타임 검증). codex-critic 전항목 OK. back-compat(default 폴백). green.
 - [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, random_offset 등)
 - [ ] feature 타입: tree, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
 - [ ] 각 타입 추가 시 placeholder 교체 → 좌표 parity 회귀 테스트
