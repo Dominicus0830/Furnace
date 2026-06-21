@@ -45,8 +45,12 @@
       flower_meadow/flower_cherry 등 propertied flower 활성. canonical key oracle↔Furnace byte-identical
       (BlockRegistryStateTest lower≠upper로 런타임 검증). codex-critic 전항목 OK. back-compat(default 폴백). green.
 - [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, random_offset 등)
-- [ ] feature 타입: tree, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
-- [ ] 각 타입 추가 시 placeholder 교체 → 좌표 parity 회귀 테스트
+- [~] **feature 타입 tree/lake/geode/vegetation_patch 등 = 보류(아키텍처 블로커).** 이들은 청크경계를 넘어
+      블록 배치 + tree updateLeaves는 이웃청크 읽기 필요. 현 decoration은 center 청크 1개(ChunkColumn)만
+      read/write(NoiseWorldSource.decorate→FeatureWorldView 단일 col). **byte-exact엔 다중청크 decoration
+      (vanilla WorldGenRegion급) 선행 필요 = 별도 core 마일스톤.** 현 마일스톤(M4g-c4 등 in-chunk)엔 premature
+      → 보류. grass/flower(slice1~5)는 대부분 in-chunk라 Phase2 실가치 확보됨(경계 식물 minor 갭은 그 마일스톤서 동반 해소).
+- [ ] (그 마일스톤 내) tree(trunk/foliage placer)·vegetation_patch·lake·geode + 좌표 parity 회귀 테스트
 
 ## 검증 명령
 - 전체: `./gradlew :furnace-server:test`
