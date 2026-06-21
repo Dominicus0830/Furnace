@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -10,7 +11,9 @@ public sealed interface PlacementModifier
                 PlacementModifier.InSquarePlacement,
                 PlacementModifier.RarityFilterPlacement,
                 PlacementModifier.BiomeFilter,
-                PlacementModifier.HeightRangePlacement {
+                PlacementModifier.HeightRangePlacement,
+                PlacementModifier.HeightmapPlacement,
+                PlacementModifier.BlockPredicateFilter {
 
     Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos);
 
@@ -39,6 +42,27 @@ public sealed interface PlacementModifier
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             return Stream.of(pos);
+        }
+    }
+
+    /** heightmap — 표면(top solid) 바로 위 칸으로 y 이동. WORLD_SURFACE_WG/MOTION_BLOCKING 등 근사. */
+    final class HeightmapPlacement implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            int surfaceY = view.getSurfaceY(pos.x(), pos.z());
+            if (surfaceY < ChunkColumn.MIN_Y) return Stream.empty();
+            return Stream.of(new BlockPos(pos.x(), surfaceY + 1, pos.z()));
+        }
+    }
+
+    /** block_predicate_filter — pos의 블록이 allowed 집합에 들면 통과(matching_blocks). random 0소비. */
+    record BlockPredicateFilter(Set<Integer> allowed) implements PlacementModifier {
+        public BlockPredicateFilter {
+            allowed = Set.copyOf(allowed);
+        }
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            return allowed.contains(view.getBlock(pos.x(), pos.y(), pos.z())) ? Stream.of(pos) : Stream.empty();
         }
     }
 

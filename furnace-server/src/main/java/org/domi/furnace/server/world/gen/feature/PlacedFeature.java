@@ -7,7 +7,12 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> placement) {
 
     public boolean place(FeatureWorldView view, WorldgenRandom random, int blockX, int blockZ) {
-        Stream<BlockPos> positions = Stream.of(new BlockPos(blockX, 0, blockZ));
+        return placeAt(view, random, new BlockPos(blockX, 0, blockZ));
+    }
+
+    /** 주어진 origin에서 placement modifier 적용 후 feature 배치. 내포 placed feature(random_patch inner 등)용. */
+    public boolean placeAt(FeatureWorldView view, WorldgenRandom random, BlockPos origin) {
+        Stream<BlockPos> positions = Stream.of(origin);
         for (PlacementModifier modifier : placement) {
             positions = positions.flatMap(pos -> modifier.filter(view, random, pos));
         }

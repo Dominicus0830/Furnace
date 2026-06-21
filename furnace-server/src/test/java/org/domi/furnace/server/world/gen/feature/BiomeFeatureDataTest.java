@@ -47,11 +47,16 @@ class BiomeFeatureDataTest {
             data, List.of("minecraft:plains"), registry);
 
         assertFalse(features.featuresForStep("minecraft:plains", 6).isEmpty());
-        // step9(VEGETAL_DECORATION)은 미구현 feature가 placeholder(NoopFeature)로 보존됨 — index parity용.
+        // step9(VEGETAL_DECORATION): grass(random_patch+simple_state_provider)는 구현됨,
+        // 미구현(weighted provider 꽃 등)은 placeholder(NoopFeature)로 보존 — index 슬롯 유지.
         List<PlacedFeature> step9 = features.featuresForStep("minecraft:plains", 9);
         assertFalse(step9.isEmpty());
+        boolean hasGrass = false;
         for (PlacedFeature f : step9) {
-            assertInstanceOf(NoopFeature.class, f.feature());
+            assertTrue(f.feature() instanceof RandomPatchFeature || f.feature() instanceof NoopFeature,
+                "step9 entry는 구현된 RandomPatchFeature이거나 placeholder Noop이어야 함: " + f.feature());
+            if (f.feature() instanceof RandomPatchFeature) hasGrass = true;
         }
+        assertTrue(hasGrass, "plains step9에 구현된 grass random_patch가 있어야 함");
     }
 }

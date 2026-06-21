@@ -128,29 +128,80 @@ public final class BiomeFeatureData {
         }
 
         ConfiguredFeature configuredFeature(String id) {
-            return configuredCache.computeIfAbsent(id, key -> {
-                JsonObject json = data.configuredFeature(key);
-                String type = json.get("type").getAsString();
-                if (type.equals("minecraft:ore") || type.equals("minecraft:scattered_ore")) {
-                    return parseOre(json.getAsJsonObject("config"));
-                }
-                if (type.equals("minecraft:spring_feature")) {
-                    return parseSpring(json.getAsJsonObject("config"));
-                }
-                if (type.equals("minecraft:disk")) {
-                    return parseDisk(json.getAsJsonObject("config"));
-                }
-                if (type.equals("minecraft:freeze_top_layer")) {
-                    return new FreezeTopLayerFeature(
-                        registry.stateIdOrAir("minecraft:water"),
-                        registry.stateIdOrAir("minecraft:ice"),
-                        registry.stateIdOrAir("minecraft:snow"),
-                        biomeTemps);
-                }
-                // 미구현 feature 타입 → placeholder. index parity 유지(Phase 2에서 실제 구현으로 교체).
-                return NoopFeature.INSTANCE;
-            });
+            return configuredCache.computeIfAbsent(id, key -> parseConfigured(data.configuredFeature(key)));
         }
+
+        private ConfiguredFeature parseConfigured(JsonObject json) {
+            String type = json.get("type").getAsString();
+            JsonObject config = json.getAsJsonObject("config");
+            if (type.equals("minecraft:ore") || type.equals("minecraft:scattered_ore")) {
+                return parseOre(config);
+            }
+            if (type.equals("minecraft:spring_feature")) {
+                return parseSpring(config);
+            }
+            if (type.equals("minecraft:disk")) {
+                return parseDisk(config);
+            }
+            if (type.equals("minecraft:random_patch")) {
+                return parseRandomPatch(config);
+            }
+            if (type.equals("minecraft:simple_block")) {
+                return parseSimpleBlock(config);
+            }
+            if (type.equals("minecraft:freeze_top_layer")) {
+                return new FreezeTopLayerFeature(
+                    registry.stateIdOrAir("minecraft:water"),
+                    registry.stateIdOrAir("minecraft:ice"),
+                    registry.stateIdOrAir("minecraft:snow"),
+                    biomeTemps);
+            }
+            // 미구현 feature 타입 → placeholder. index parity 유지(Phase 2에서 실제 구현으로 교체).
+            return NoopFeature.INSTANCE;
+        }
+
+        private ConfiguredFeature parseRandomPatch(JsonObject config) {
+            // config.feature = 인라인 placed feature {feature: configured, placement: [...]}
+            JsonObject inlinePlaced = config.getAsJsonObject("feature");
+            ConfiguredFeature inner = parseConfigured(inlinePlaced.getAsJsonObject("feature"));
+            // 비상수 provider 등 미지원 inner → placeholder 유지(거짓 parity 방지)
+            if (!(inner instanceof SimpleBlockFeature)) {
+                return NoopFeature.INSTANCE;
+            }
+            ArrayList<PlacementModifier> placement = new ArrayList<>();
+            JsonArray arr = inlinePlaced.getAsJsonArray("placement");
+            if (arr != null) {
+                for (JsonElement el : arr) parsePlacement(el.getAsJsonObject(), placement);
+            }
+            PlacedFeature innerPlaced = new PlacedFeature(inner, List.copyOf(placement));
+            int tries = config.has("tries") ? config.get("tries").getAsInt() : 128;
+            int xz = config.has("xz_spread") ? config.get("xz_spread").getAsInt() : 7;
+            int y = config.has("y_spread") ? config.get("y_spread").getAsInt() : 3;
+            return new RandomPatchFeature(tries, xz, y, innerPlaced);
+        }
+
+        private ConfiguredFeature parseSimpleBlock(JsonObject config) {
+            JsonObject toPlace = config.getAsJsonObject("to_place");
+            // 상수 provider만 지원. weighted/noise provider(random 소비)는 추후 슬라이스 → placeholder.
+            if (toPlace.has("type") && !toPlace.get("type").getAsString().equals("minecraft:simple_state_provider")) {
+                return NoopFeature.INSTANCE;
+            }
+            return new SimpleBlockFeature(parseStateProvider(toPlace), plantGround());
+        }
+
+        // BushBlock.mayPlaceOn 근사 = dirt 태그 + farmland. grass/fern 등 지면식물 생존 판정용.
+        // 블록별 정확 survival은 추후(여기선 흙 계열로 근사).
+        private Set<Integer> plantGround() {
+            if (plantGroundCache == null) {
+                plantGroundCache = new HashSet<>(states(
+                    "minecraft:grass_block", "minecraft:dirt", "minecraft:coarse_dirt",
+                    "minecraft:podzol", "minecraft:mycelium", "minecraft:rooted_dirt",
+                    "minecraft:moss_block", "minecraft:mud", "minecraft:muddy_mangrove_roots",
+                    "minecraft:farmland"));
+            }
+            return plantGroundCache;
+        }
+        private Set<Integer> plantGroundCache;
 
         private OreFeature parseOre(JsonObject config) {
             ArrayList<OreFeature.Target> targets = new ArrayList<>();
@@ -235,6 +286,16 @@ public final class BiomeFeatureData {
             return ids;
         }
 
+        // matching_blocks predicate만 지원. 그외 타입은 null → modifier 생략(통과). random 미소비라 스트림 영향 없음.
+        private Set<Integer> blockPredicateStates(JsonObject predicate) {
+            if (predicate == null) return null;
+            String type = predicate.get("type").getAsString();
+            if (type.equals("minecraft:matching_blocks")) {
+                return parseBlockSet(predicate.get("blocks"));
+            }
+            return null;
+        }
+
         private static int intProviderValue(JsonElement el, int fallback) {
             if (el == null || el.isJsonNull()) return fallback;
             if (el.isJsonPrimitive()) return el.getAsInt();
@@ -271,6 +332,11 @@ public final class BiomeFeatureData {
                 case "minecraft:in_square" -> out.add(new PlacementModifier.InSquarePlacement());
                 case "minecraft:height_range" -> out.add(new PlacementModifier.HeightRangePlacement(heightProvider(json.getAsJsonObject("height"))));
                 case "minecraft:biome" -> out.add(new PlacementModifier.BiomeFilter());
+                case "minecraft:heightmap" -> out.add(new PlacementModifier.HeightmapPlacement());
+                case "minecraft:block_predicate_filter" -> {
+                    Set<Integer> allowed = blockPredicateStates(json.getAsJsonObject("predicate"));
+                    if (allowed != null) out.add(new PlacementModifier.BlockPredicateFilter(allowed));
+                }
                 default -> {
                     // Unsupported modifiers are intentionally ignored until their feature type is implemented.
                 }
