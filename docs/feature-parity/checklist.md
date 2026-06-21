@@ -29,8 +29,11 @@
       활성. SimplexNoise byte-exact 포팅(oracle biome_info_noise.bin fixture 40샘플 0.0 delta 검증).
       BIOME_INFO_NOISE=SimplexNoise(2345). oracle에 biomeinfonoise 모드 추가. 전체 green.
       - 잔여: noise_based_count(flower_plains 등 일부)는 미구현. weighted provider 슬라이스서 같이.
-- [ ] slice 3: weighted/noise/dual_noise state provider (random 소비) → flower(random_patch) 활성
-      + noise_based_count modifier
+- [x] **slice 3 (2026-06-21, 커밋 0485dca): noise_threshold_provider + noise_based_count → flower 활성.**
+      멀티에이전트(claude-main 구현 → codex-critic 비평 green → Orchestrator 반영). 핵심: state provider
+      noise는 vanilla LegacyRandomSource 경로 → LegacyNormalNoise 신규(oracle legacynormal:2345 fixture
+      0.0 delta byte-exact). StateProvider 추상화(Simple/NoiseThreshold), minecraft:flower 라우팅. 전체 green.
+      - 잔여: weighted_state_provider(flower_default 등)·dual_noise_provider·noise_provider는 Noop 유지.
 - [ ] weighted/noise/dual_noise state provider (random 소비) → flower(random_patch) 활성
 - [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, random_offset 등)
 - [ ] feature 타입: tree, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
