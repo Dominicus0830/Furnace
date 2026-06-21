@@ -25,7 +25,12 @@
       - 근사/한계(추후): canSurvive = dirt 태그로 근사(블록별 정확 survival 미구현). heightmap =
         getSurfaceY+1(WORLD_SURFACE_WG/MOTION_BLOCKING 미구분). plains는 noise_threshold_count
         미구현이라 아직 grass 안 나옴(다음 슬라이스). forest/savanna/taiga 등 count-path만 활성.
-- [ ] slice 2: noise_threshold_count / noise_based_count modifier → plains 계열 grass 활성
+- [x] **slice 2 (2026-06-21, 커밋 72b5db3): SimplexNoise + noise_threshold_count.** plains 계열 grass
+      활성. SimplexNoise byte-exact 포팅(oracle biome_info_noise.bin fixture 40샘플 0.0 delta 검증).
+      BIOME_INFO_NOISE=SimplexNoise(2345). oracle에 biomeinfonoise 모드 추가. 전체 green.
+      - 잔여: noise_based_count(flower_plains 등 일부)는 미구현. weighted provider 슬라이스서 같이.
+- [ ] slice 3: weighted/noise/dual_noise state provider (random 소비) → flower(random_patch) 활성
+      + noise_based_count modifier
 - [ ] weighted/noise/dual_noise state provider (random 소비) → flower(random_patch) 활성
 - [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, random_offset 등)
 - [ ] feature 타입: tree, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
