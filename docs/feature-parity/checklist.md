@@ -18,8 +18,17 @@
 - 주의: WorldGenRegion 기반 실좌표 덤프는 미구현(무거움). index/순서 일치로 좌표 parity 입증(구현 feature의 random 소비는 기존 OreFeatureTest 등이 담보).
 
 ## Phase 2 — 미구현 feature/modifier (점진)
-- [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, block_predicate_filter, noise_threshold/based_count, random_offset 등)
-- [ ] feature 타입: tree, flower/random_patch, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
+- [x] **slice 1 (2026-06-21, 커밋 4518266): random_patch + simple_block.** short_grass 등
+      simple_state_provider 지면식물 생성. 추가 modifier: heightmap, block_predicate_filter
+      (matching_blocks). PlacedFeature.placeAt(origin) 내포 지원. 정직성 가드 = 상수 provider만
+      활성화, weighted(꽃)는 Noop 유지. 테스트 RandomPatchFeatureTest 3종, 전체 240 green.
+      - 근사/한계(추후): canSurvive = dirt 태그로 근사(블록별 정확 survival 미구현). heightmap =
+        getSurfaceY+1(WORLD_SURFACE_WG/MOTION_BLOCKING 미구분). plains는 noise_threshold_count
+        미구현이라 아직 grass 안 나옴(다음 슬라이스). forest/savanna/taiga 등 count-path만 활성.
+- [ ] slice 2: noise_threshold_count / noise_based_count modifier → plains 계열 grass 활성
+- [ ] weighted/noise/dual_noise state provider (random 소비) → flower(random_patch) 활성
+- [ ] placement modifier 추가분 (surface_water_depth_filter, count_on_every_layer, environment_scan, random_offset 등)
+- [ ] feature 타입: tree, vegetation_patch, fossil, geode, lake, glow_lichen, ... (빈도순 우선)
 - [ ] 각 타입 추가 시 placeholder 교체 → 좌표 parity 회귀 테스트
 
 ## 검증 명령
