@@ -217,11 +217,6 @@ public final class BiomeFeatureData {
                 }
                 case "minecraft:weighted_state_provider" -> {
                     JsonArray entries = toPlace.getAsJsonArray("entries");
-                    // blocks table은 base(default) state id만 보유 → Properties(non-default 가능) 있으면
-                    // 정확 state 매핑 불가 → byte-exact 위해 Noop 유지(잘못된 블록 배치 금지).
-                    for (JsonElement el : entries) {
-                        if (el.getAsJsonObject().getAsJsonObject("data").has("Properties")) return null;
-                    }
                     int[] wStates = new int[entries.size()];
                     int[] weights = new int[entries.size()];
                     for (int i = 0; i < entries.size(); i++) {
@@ -233,7 +228,6 @@ public final class BiomeFeatureData {
                 }
                 case "minecraft:noise_provider" -> {
                     JsonArray states = toPlace.getAsJsonArray("states");
-                    if (statesHaveProperties(states)) return null;
                     JsonObject noise = toPlace.getAsJsonObject("noise");
                     return new NoiseProvider(
                         toPlace.get("seed").getAsLong(),
@@ -244,7 +238,6 @@ public final class BiomeFeatureData {
                 }
                 case "minecraft:dual_noise_provider" -> {
                     JsonArray states = toPlace.getAsJsonArray("states");
-                    if (statesHaveProperties(states)) return null;
                     JsonObject noise = toPlace.getAsJsonObject("noise");
                     JsonObject slow = toPlace.getAsJsonObject("slow_noise");
                     JsonArray variety = toPlace.getAsJsonArray("variety");
@@ -261,14 +254,6 @@ public final class BiomeFeatureData {
                     return null;
                 }
             }
-        }
-
-        /** state에 Properties(non-default 가능)가 하나라도 있으면 true — base id 매핑이 byte-exact 깨짐. */
-        private static boolean statesHaveProperties(JsonArray states) {
-            for (JsonElement el : states) {
-                if (el.getAsJsonObject().has("Properties")) return true;
-            }
-            return false;
         }
 
         private static double[] amplitudeArray(JsonObject noise) {
@@ -347,7 +332,14 @@ public final class BiomeFeatureData {
         }
 
         private int parseState(JsonObject state) {
-            return registry.stateIdOrAir(state.get("Name").getAsString());
+            String name = state.get("Name").getAsString();
+            if (!state.has("Properties")) {
+                return registry.stateIdOrAir(name);
+            }
+            JsonObject props = state.getAsJsonObject("Properties");
+            java.util.TreeMap<String, String> map = new java.util.TreeMap<>();
+            for (var e : props.entrySet()) map.put(e.getKey(), e.getValue().getAsString());
+            return registry.stateIdOrAir(name, map);
         }
 
         private int parseStateProvider(JsonObject provider) {

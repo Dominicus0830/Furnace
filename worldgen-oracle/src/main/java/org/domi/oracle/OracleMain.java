@@ -260,6 +260,9 @@ public class OracleMain {
                 dumpBlocks(blocksResDir);
             } else if (arg.equals("biomeinfonoise")) {
                 dumpBiomeInfoNoise(outDir);
+            } else if (arg.equals("allstates")) {
+                Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
+                dumpAllStates(blocksResDir);
             } else if (arg.startsWith("legacynormal:")) {
                 long noiseSeed = Long.parseLong(arg.substring("legacynormal:".length()));
                 dumpLegacyNormalNoise(noiseSeed, outDir);
@@ -487,6 +490,51 @@ public class OracleMain {
             fos.write(buf.array());
         }
         System.out.println("Wrote " + out + " (" + buf.capacity() + " bytes, n=" + n + ")");
+    }
+
+    /**
+     * 모든 블록의 모든 possibleState → exact global state id 덤프.
+     * canonical key (Furnace BlockStateKey.of와 byte-match):
+     *   props 없음: "name" / props 있음: "name;k1=v1,k2=v2" (property 이름 오름차순, value=Property.getName(value)).
+     * Format: "# states <total>" + 상태별 "<canonicalKey> <id>". → blocks/blockstates_1.21.1.txt
+     */
+    private static void dumpAllStates(Path outDir) throws Exception {
+        Files.createDirectories(outDir);
+        int totalStates = net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.size();
+        StringBuilder sb = new StringBuilder();
+        sb.append("# states ").append(totalStates).append("\n");
+        for (net.minecraft.world.level.block.Block block :
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK) {
+            String name = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block).toString();
+            for (net.minecraft.world.level.block.state.BlockState state :
+                    block.getStateDefinition().getPossibleStates()) {
+                sb.append(canonicalKey(name, state)).append(' ')
+                  .append(net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state)).append('\n');
+            }
+        }
+        Path out = outDir.resolve("blockstates_1.21.1.txt");
+        Files.writeString(out, sb.toString());
+        System.out.println("Wrote " + out + " (" + totalStates + " total states)");
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static String canonicalKey(String name, net.minecraft.world.level.block.state.BlockState state) {
+        java.util.Map<net.minecraft.world.level.block.state.properties.Property<?>, Comparable<?>>
+            values = state.getValues();
+        if (values.isEmpty()) return name;
+        java.util.TreeMap<String, String> sorted = new java.util.TreeMap<>();
+        for (var e : values.entrySet()) {
+            net.minecraft.world.level.block.state.properties.Property prop = e.getKey();
+            sorted.put(prop.getName(), prop.getName((Comparable) e.getValue()));
+        }
+        StringBuilder sb = new StringBuilder(name).append(';');
+        boolean first = true;
+        for (var e : sorted.entrySet()) {
+            if (!first) sb.append(',');
+            sb.append(e.getKey()).append('=').append(e.getValue());
+            first = false;
+        }
+        return sb.toString();
     }
 
     private static void dumpRng(long seed, int n, Path outDir) throws Exception {
