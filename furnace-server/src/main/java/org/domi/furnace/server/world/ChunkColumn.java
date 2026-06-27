@@ -7,9 +7,27 @@ public final class ChunkColumn {
     public static final int MIN_Y = -64;
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
     public static final int DEFAULT_BIOME_DIRECT_BITS = 7;
+    private static final int UNSET_HEIGHT = Integer.MIN_VALUE;
+    private static final int WATER_MIN_STATE = 80;
+    private static final int WATER_MAX_STATE = 95;
+    private static final int LAVA_MIN_STATE = 96;
+    private static final int LAVA_MAX_STATE = 111;
+    private static final int LEAVES_MIN_STATE = 237;
+    private static final int LEAVES_MAX_STATE = 376;
+    private static final int CAVE_AIR_STATE = 12958;
+    private static final int VOID_AIR_STATE = 12959;
+    // 수중 식물: vanilla OCEAN_FLOOR heightmap에서 제외됨 (Material.PLANT = not solid)
+    private static final int SEAGRASS_STATE = 2008;
+    private static final int TALL_SEAGRASS_UPPER_STATE = 2009;
+    private static final int TALL_SEAGRASS_LOWER_STATE = 2010;
+    private static final int KELP_PLANT_STATE = 12786;
+    private static final int KELP_MIN_STATE = 12760;
+    private static final int KELP_MAX_STATE = 12785;
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음)
+    private final int[] oceanFloor = new int[256];
+    private final int[] wgOceanFloor = new int[256];
     private boolean dirty;
     private byte[] cachedSerializedBody;
     private long[] cachedMotionBlockingHeightmap;
@@ -20,6 +38,8 @@ public final class ChunkColumn {
             sections[i] = new ChunkSection();
             sections[i].fillBiome(biomeId);
         }
+        java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
+        java.util.Arrays.fill(wgOceanFloor, UNSET_HEIGHT);
     }
 
     public ChunkColumn(int biomeId, int directBits, int biomeDirectBits) {
@@ -27,6 +47,8 @@ public final class ChunkColumn {
             sections[i] = new ChunkSection(directBits, biomeDirectBits);
             sections[i].fillBiome(biomeId);
         }
+        java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
+        java.util.Arrays.fill(wgOceanFloor, UNSET_HEIGHT);
     }
 
     public ChunkSection[] sections() {
@@ -45,6 +67,7 @@ public final class ChunkColumn {
     public void setBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - MIN_Y;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         dirty = true;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
@@ -54,6 +77,7 @@ public final class ChunkColumn {
     public void setGeneratedBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - MIN_Y;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
         cachedSnapshot = null;
@@ -87,6 +111,7 @@ public final class ChunkColumn {
             sections[i].replaceBiomes(biomeIds, i * 64);
         }
         rebuildSurface(blockIds);
+        System.arraycopy(oceanFloor, 0, wgOceanFloor, 0, oceanFloor.length);
         dirty = false;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
@@ -96,15 +121,24 @@ public final class ChunkColumn {
     private void rebuildSurface(int[] blockIds) {
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
-                int value = 0;
+                int surfaceValue = 0;
+                int oceanFloorValue = 0;
                 for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
                     int idx = (y - MIN_Y) * 256 + lz * 16 + lx;
-                    if (blockIds[idx] != ChunkSection.AIR) {
-                        value = (y - MIN_Y) + 1;
+                    int stateId = blockIds[idx];
+                    if (surfaceValue == 0 && stateId != ChunkSection.AIR) {
+                        surfaceValue = (y - MIN_Y) + 1;
+                    }
+                    if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) {
+                        oceanFloorValue = (y - MIN_Y) + 1;
+                    }
+                    if (surfaceValue != 0 && oceanFloorValue != 0) {
                         break;
                     }
                 }
-                surface[lz * 16 + lx] = value;
+                int index = lz * 16 + lx;
+                surface[index] = surfaceValue;
+                oceanFloor[index] = oceanFloorValue;
             }
         }
     }
@@ -121,11 +155,62 @@ public final class ChunkColumn {
         return MIN_Y + surface[z * 16 + x] - 1;
     }
 
+    public int oceanFloorBlockY(int x, int z) {
+        int index = z * 16 + x;
+        int value = oceanFloor[index];
+        if (value == UNSET_HEIGHT) {
+            value = recomputeOceanFloorHeight(x, z);
+            oceanFloor[index] = value;
+        }
+        return MIN_Y + value - 1;
+    }
+
+    public int wgOceanFloorHeight(int x, int z) {
+        int value = wgOceanFloor[z * 16 + x];
+        if (value == UNSET_HEIGHT || value == 0) {
+            return MIN_Y;
+        }
+        return MIN_Y + value;
+    }
+
     public long[] motionBlockingHeightmap() {
         if (cachedMotionBlockingHeightmap != null) return cachedMotionBlockingHeightmap;
         BitStorage bs = new BitStorage(HEIGHTMAP_BITS, 256);
         for (int i = 0; i < 256; i++) bs.set(i, surface[i]);
         cachedMotionBlockingHeightmap = bs.data();
         return cachedMotionBlockingHeightmap;
+    }
+
+    private int recomputeOceanFloorHeight(int x, int z) {
+        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
+            if (isOceanFloorBlock(getBlock(x, y, z))) {
+                return (y - MIN_Y) + 1;
+            }
+        }
+        return 0;
+    }
+
+    private static boolean isOceanFloorBlock(int stateId) {
+        return stateId != ChunkSection.AIR && stateId != CAVE_AIR_STATE && stateId != VOID_AIR_STATE
+            && !isFluid(stateId)
+            && !isLeaves(stateId)
+            && !isWaterPlant(stateId);
+    }
+
+    private static boolean isWaterPlant(int stateId) {
+        return stateId == SEAGRASS_STATE
+            || stateId == TALL_SEAGRASS_UPPER_STATE
+            || stateId == TALL_SEAGRASS_LOWER_STATE
+            || stateId == KELP_PLANT_STATE
+            || (stateId >= KELP_MIN_STATE && stateId <= KELP_MAX_STATE);
+    }
+
+    private static boolean isFluid(int stateId) {
+        return stateId >= WATER_MIN_STATE && stateId <= WATER_MAX_STATE
+            || stateId >= LAVA_MIN_STATE && stateId <= LAVA_MAX_STATE;
+    }
+
+    private static boolean isLeaves(int stateId) {
+        return stateId >= LEAVES_MIN_STATE && stateId <= LEAVES_MAX_STATE;
     }
 }
