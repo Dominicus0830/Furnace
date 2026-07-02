@@ -52,6 +52,8 @@ import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.placement.PlacementContext;
 import net.minecraft.world.level.WorldGenLevel;
+import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadType;
 
 import java.util.IdentityHashMap;
 import java.io.FileOutputStream;
@@ -327,6 +329,13 @@ public class OracleMain {
             } else if (arg.startsWith("legacynormal:")) {
                 long noiseSeed = Long.parseLong(arg.substring("legacynormal:".length()));
                 dumpLegacyNormalNoise(noiseSeed, outDir);
+            } else if (arg.startsWith("structplacement:")) {
+                String[] parts = arg.substring("structplacement:".length()).split(":");
+                int cx1 = Integer.parseInt(parts[0]);
+                int cz1 = Integer.parseInt(parts[1]);
+                int cx2 = Integer.parseInt(parts[2]);
+                int cz2 = Integer.parseInt(parts[3]);
+                dumpStructPlacement(seed, cx1, cz1, cx2, cz2, outDir);
             } else {
                 String[] parts = arg.split(":");
                 int cx = Integer.parseInt(parts[0]);
@@ -514,6 +523,38 @@ public class OracleMain {
         Path out = outDir.resolve("feature_order.txt");
         Files.writeString(out, sb.toString());
         System.out.println("Wrote " + out + " biomes=" + biomeIds.size() + " steps=" + steps.size());
+    }
+
+    /**
+     * vanilla RandomSpreadStructurePlacement (desert_pyramids, shipwrecks) placement 판정 덤프.
+     * 두 StructureSet 모두 frequency=1.0/exclusion_zone 없음(구조물 registry 실측, §Issues 가정 A) →
+     * isStructureChunk == isPlacementChunk(candidate==self)만으로 충분, ChunkGeneratorStructureState 불요.
+     * Format: 텍스트. "CHUNK cx cz N" 다음 N줄 setId (cx1..cx2, cz1..cz2 순회, set 순서 desert_pyramids,shipwrecks 고정).
+     */
+    private static void dumpStructPlacement(long seed, int cx1, int cz1, int cx2, int cz2, Path outDir) throws Exception {
+        // 실측: data/minecraft/worldgen/structure_set/{desert_pyramids,shipwrecks}.json
+        RandomSpreadStructurePlacement desertPyramids =
+            new RandomSpreadStructurePlacement(32, 8, RandomSpreadType.LINEAR, 14357617);
+        RandomSpreadStructurePlacement shipwrecks =
+            new RandomSpreadStructurePlacement(24, 4, RandomSpreadType.LINEAR, 165745295);
+
+        StringBuilder sb = new StringBuilder();
+        int chunkCount = 0;
+        for (int cx = cx1; cx <= cx2; cx++) {
+            for (int cz = cz1; cz <= cz2; cz++) {
+                java.util.List<String> matches = new java.util.ArrayList<>();
+                ChunkPos dp = desertPyramids.getPotentialStructureChunk(seed, cx, cz);
+                if (dp.x == cx && dp.z == cz) matches.add("minecraft:desert_pyramids");
+                ChunkPos sw = shipwrecks.getPotentialStructureChunk(seed, cx, cz);
+                if (sw.x == cx && sw.z == cz) matches.add("minecraft:shipwrecks");
+                sb.append("CHUNK ").append(cx).append(" ").append(cz).append(" ").append(matches.size()).append("\n");
+                for (String id : matches) sb.append(id).append("\n");
+                chunkCount++;
+            }
+        }
+        Path out = outDir.resolve("structplacement_" + seed + "_" + cx1 + "_" + cz1 + "_" + cx2 + "_" + cz2 + ".txt");
+        Files.writeString(out, sb.toString());
+        System.out.println("Wrote " + out + " chunks=" + chunkCount);
     }
 
     /**

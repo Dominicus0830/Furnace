@@ -18,6 +18,8 @@ import org.domi.furnace.server.world.gen.feature.FeaturePlacer;
 import org.domi.furnace.server.world.gen.feature.FeatureSorter;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.pipeline.ChunkPipeline;
+import org.domi.furnace.server.world.gen.structure.StructurePlacementCatalog;
+import org.domi.furnace.server.world.gen.structure.StructureSetPlacement;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 import java.util.ArrayList;
@@ -51,6 +53,7 @@ public final class NoiseWorldSource implements WorldSource {
     private final int biomeDirectBits;
     private final OverworldCarvers overworldCarvers;
     private final FeaturePlacer featurePlacer;
+    private final StructurePlacementCatalog structurePlacementCatalog;
     private final List<SpawnTarget> spawnTargets;
     private final ChunkPipeline pipeline;
     private volatile SpawnPoint defaultSpawn;
@@ -59,7 +62,8 @@ public final class NoiseWorldSource implements WorldSource {
                               SurfaceSystem surfaceSystem, String[] registryBiomeNames,
                               int stoneId, int waterId, int lavaId,
                               long seed, BlockRegistry reg, int biomeDirectBits, OverworldCarvers overworldCarvers,
-                              FeaturePlacer featurePlacer, List<SpawnTarget> spawnTargets) {
+                              FeaturePlacer featurePlacer, StructurePlacementCatalog structurePlacementCatalog,
+                              List<SpawnTarget> spawnTargets) {
         this.router             = router;
         this.settings           = settings;
         this.biomeSampler       = biomeSampler;
@@ -73,6 +77,7 @@ public final class NoiseWorldSource implements WorldSource {
         this.biomeDirectBits    = biomeDirectBits;
         this.overworldCarvers   = overworldCarvers;
         this.featurePlacer      = featurePlacer;
+        this.structurePlacementCatalog = structurePlacementCatalog;
         this.spawnTargets       = spawnTargets;
         this.pipeline           = new ChunkPipeline(this);
     }
@@ -106,11 +111,13 @@ public final class NoiseWorldSource implements WorldSource {
         // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=biome_parameters.json 첫등장 distinct).
         // registry 전체 순서를 쓰면 nether/end biome이 섞여 광석 index가 어긋난다.
         FeaturePlacer featurePlacer = loadFeaturePlacer(data, possibleBiomeOrder(data, registries), biomeEntries, reg, seed);
+        StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
         List<SpawnTarget> spawnTargets = loadSpawnTargets(data.noiseSettings("minecraft:overworld"));
 
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
-                                    seed, reg, biomeDirectBits, overworldCarvers, featurePlacer, spawnTargets);
+                                    seed, reg, biomeDirectBits, overworldCarvers,
+                                    featurePlacer, structurePlacementCatalog, spawnTargets);
     }
 
     /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
@@ -377,6 +384,10 @@ public final class NoiseWorldSource implements WorldSource {
     /** M4g-e placeholder — structure starts (jigsaw/placement) not yet implemented. */
     public void applyStructureStarts(ChunkColumn col, int cx, int cz) {
         // no-op until M4g-e
+    }
+
+    public List<StructureSetPlacement> structurePlacementCandidates(int chunkX, int chunkZ) {
+        return structurePlacementCatalog.placementsForChunk(seed, chunkX, chunkZ);
     }
 
     public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {

@@ -15,6 +15,11 @@ public class WorldgenRandom extends LegacyRandom {
         setSeed((long)x * randomLong ^ (long)z * randomLong1 ^ worldSeed);
     }
 
+    /** 바닐라 WorldgenRandom.setLargeFeatureWithSalt — random_spread placement용 region seed. */
+    public void setLargeFeatureWithSalt(long worldSeed, int regionX, int regionZ, int salt) {
+        setSeed((long) regionX * 341873128712L + (long) regionZ * 132897987541L + worldSeed + salt);
+    }
+
     /** 바닐라 WorldgenRandom.setDecorationSeed — features/decoration per-chunk seed. */
     public long setDecorationSeed(long worldSeed, int blockX, int blockZ) {
         setSeed(worldSeed);
