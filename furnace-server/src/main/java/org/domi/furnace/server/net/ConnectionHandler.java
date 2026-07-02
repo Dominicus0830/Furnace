@@ -5,8 +5,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import java.util.Arrays;
 import java.util.UUID;
 import org.domi.furnace.api.sched.FurnaceScheduler;
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.CompressionDecoder;
 import org.domi.furnace.server.net.io.CompressionEncoder;
 import org.domi.furnace.server.net.io.Types;
@@ -65,7 +67,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 스폰 텔레포트 게이트 ID(-1=해제). 설정 중엔 클라 이동 무시(vanilla awaitingPositionFromClient식) — 청크 로드 갭 중 떨어진 위치 수용 방지.
     // confirm이 아니라 스폰 청크 도착 후(타이머)에 해제 + 위치 재확정.
     private int pendingTeleportId = -1;
-    private final int[] hotbar = new int[9]; // 핫바 슬롯 아이템 id(0=air). Netty 스레드 전용.
+    private final ItemStack[] slots = new ItemStack[46];
     private int selectedSlot;                // 0~8
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
@@ -78,6 +80,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.scheduler = scheduler;
         this.world = world;
         this.idAllocator = idAllocator;
+        Arrays.fill(slots, ItemStack.EMPTY);
     }
 
     @Override
@@ -185,13 +188,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int effVd = effectiveViewDistance();
         send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, effVd));
         // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
-        double[] saved = org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
+        org.domi.furnace.server.entity.PlayerData.Snapshot saved =
+                org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
         SpawnPoint defaultSpawn = world.defaultSpawn();
-        double sx = saved != null ? saved[0] : defaultSpawn.playerX();
-        double sy = saved != null ? saved[1] : defaultSpawn.playerY();
-        double sz = saved != null ? saved[2] : defaultSpawn.playerZ();
-        float syaw = saved != null ? (float) saved[3] : defaultSpawn.yaw();
-        float spitch = saved != null ? (float) saved[4] : 0f;
+        double sx = saved != null ? saved.x() : defaultSpawn.playerX();
+        double sy = saved != null ? saved.y() : defaultSpawn.playerY();
+        double sz = saved != null ? saved.z() : defaultSpawn.playerZ();
+        float syaw = saved != null ? saved.yaw() : defaultSpawn.yaw();
+        float spitch = saved != null ? saved.pitch() : 0f;
+        if (saved != null) System.arraycopy(saved.slots(), 0, slots, 0, slots.length);
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
         // GE13 먼저 — 클라가 "청크 대기" 상태(로딩화면 정지)에 들어간 뒤 위치를 받게 해 위치-유발 중력 억제.
@@ -333,9 +338,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x32 -> { // Set Creative Mode Slot: Short slot + Slot
                 int slot = frame.readShort();
-                int count = Types.readVarInt(frame);   // itemCount
-                int itemId = count > 0 ? Types.readVarInt(frame) : 0; // >0이면 item id(components는 무시)
-                if (slot >= 36 && slot <= 44) hotbar[slot - 36] = itemId;
+                ItemStack stack = readSlot(frame);
+                if (slot >= 0 && slot < slots.length) slots[slot] = stack;
             }
             case 0x38 -> { // Use Item On: hand, pos, face, cursorXYZ, insideBlock, sequence
                 int hand = Types.readVarInt(frame);
@@ -345,7 +349,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 frame.readBoolean(); // insideBlock
                 int seq = Types.readVarInt(frame); // 예측 sequence
                 Player actor = player;
-                int stateId = hand != 0 ? 0 : world.itemToBlockState(hotbar[selectedSlot]);
+                ItemStack held = hand == 0 ? slots[36 + selectedSlot] : ItemStack.EMPTY;
+                int stateId = held.isEmpty() ? 0 : world.itemToBlockState(held.itemId());
                 if (stateId == 0) { // 오프핸드 / 비블록 아이템 — 변경 없음, ack만(클라 예측 정리)
                     actor.send(new BlockChangedAck(seq));
                     break;
@@ -365,7 +370,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         Player p = player;
-        if (p != null) p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
+        if (p != null) {
+            ItemStack[] snapshot = copySlots();
+            scheduler.global().execute(() -> org.domi.furnace.server.entity.PlayerData.save(
+                    world.worldDir(), p.uuid(), p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround(), snapshot));
+            p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
+        }
     }
 
     private void scheduleKeepAlive() {
@@ -404,5 +414,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         log.warn("커넥션 오류, 종료: {}", cause.toString());
         ctx.close();
+    }
+
+    private ItemStack readSlot(ByteBuf frame) {
+        int count = Types.readVarInt(frame);
+        if (count == 0) return ItemStack.EMPTY;
+        int itemId = Types.readVarInt(frame);
+        byte[] components = null;
+        if (frame.isReadable()) {
+            components = new byte[frame.readableBytes()];
+            frame.readBytes(components);
+        }
+        return new ItemStack(itemId, count, components);
+    }
+
+    private ItemStack[] copySlots() {
+        ItemStack[] copy = new ItemStack[slots.length];
+        System.arraycopy(slots, 0, copy, 0, slots.length);
+        return copy;
     }
 }

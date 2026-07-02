@@ -14,6 +14,7 @@ public final class NbtCompound {
     public void putByte(String k, byte v) { tags.put(k, v); }
     public void putInt(String k, int v) { tags.put(k, v); }
     public void putLong(String k, long v) { tags.put(k, v); }
+    public void putByteArray(String k, byte[] v) { tags.put(k, v); }
     public void putString(String k, String v) { tags.put(k, v); }
     public void putLongArray(String k, long[] v) { tags.put(k, v); }
     public void putList(String k, NbtList v) { tags.put(k, v); }
@@ -23,6 +24,7 @@ public final class NbtCompound {
     public byte getByte(String k) { return (Byte) tags.get(k); }
     public int getInt(String k) { return (Integer) tags.get(k); }
     public long getLong(String k) { return (Long) tags.get(k); }
+    public byte[] getByteArray(String k) { return (byte[]) tags.get(k); }
     public String getString(String k) { return (String) tags.get(k); }
     public long[] getLongArray(String k) { return (long[]) tags.get(k); }
     public NbtList getList(String k) { return (NbtList) tags.get(k); }

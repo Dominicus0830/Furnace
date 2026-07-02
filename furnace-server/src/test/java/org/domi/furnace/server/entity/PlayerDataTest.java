@@ -12,15 +12,21 @@ class PlayerDataTest {
     @Test
     void writeRead_position(@TempDir Path dir) throws Exception {
         UUID id = UUID.randomUUID();
-        PlayerData.save(dir, id, 12.5, -60, -7.25, 90f, 10f, true);
-        double[] pos = PlayerData.load(dir, id);
-        assertNotNull(pos);
-        assertEquals(12.5, pos[0]);
-        assertEquals(-60, pos[1]);
-        assertEquals(-7.25, pos[2]);
-        assertEquals(90f, (float) pos[3]);
-        assertEquals(10f, (float) pos[4]);
-        assertEquals(1.0, pos[5]); // onGround
+        ItemStack[] slots = new ItemStack[46];
+        java.util.Arrays.fill(slots, ItemStack.EMPTY);
+        slots[36] = new ItemStack(123, 64, new byte[]{1, 2, 3});
+        PlayerData.save(dir, id, 12.5, -60, -7.25, 90f, 10f, true, slots);
+        PlayerData.Snapshot snapshot = PlayerData.load(dir, id);
+        assertNotNull(snapshot);
+        assertEquals(12.5, snapshot.x());
+        assertEquals(-60, snapshot.y());
+        assertEquals(-7.25, snapshot.z());
+        assertEquals(90f, snapshot.yaw());
+        assertEquals(10f, snapshot.pitch());
+        assertTrue(snapshot.onGround());
+        assertEquals(123, snapshot.slots()[36].itemId());
+        assertEquals(64, snapshot.slots()[36].count());
+        assertArrayEquals(new byte[]{1, 2, 3}, snapshot.slots()[36].components());
         assertNull(PlayerData.load(dir, UUID.randomUUID())); // 없음
     }
 }
