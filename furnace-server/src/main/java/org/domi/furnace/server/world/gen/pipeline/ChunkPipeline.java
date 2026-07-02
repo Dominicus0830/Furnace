@@ -28,7 +28,7 @@ public final class ChunkPipeline {
             proto.status = GenStatus.SURFACE;
             source.applyCarvers(proto.col, cx, cz);
             proto.status = GenStatus.CARVERS;
-            source.applyStructureStarts(proto.col, cx, cz);
+            proto.starts = source.applyStructureStarts(cx, cz);
             proto.status = GenStatus.STRUCTURE_STARTS;
             return proto;
         }, genPool);

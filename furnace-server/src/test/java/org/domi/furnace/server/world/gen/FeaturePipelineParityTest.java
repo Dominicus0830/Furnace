@@ -134,7 +134,7 @@ class FeaturePipelineParityTest {
                 int gridIndex = (dz + 1) * 3 + (dx + 1);
                 ChunkColumn column = source.generate(gx, gz);
                 source.applyCarvers(column, gx, gz);
-                source.applyStructureStarts(column, gx, gz);
+                source.applyStructureStarts(gx, gz);
                 grid[gridIndex] = column;
                 biomeIdsGrid[gridIndex] = source.sampleBiomes(gx, gz);
             }

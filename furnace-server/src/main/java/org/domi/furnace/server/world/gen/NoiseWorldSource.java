@@ -381,9 +381,45 @@ public final class NoiseWorldSource implements WorldSource {
         return col;
     }
 
-    /** M4g-e placeholder — structure starts (jigsaw/placement) not yet implemented. */
-    public void applyStructureStarts(ChunkColumn col, int cx, int cz) {
-        // no-op until M4g-e
+    /**
+     * M4g-e S2a — placement 판정된 청크에서 지원 구조물(현재 desert_pyramid)의 StructureStart 를 생성한다.
+     * 블록은 쓰지 않는다(S2b 이후). 높이 조회는 매 호출마다 해당 청크를 SURFACE 상태로 재생성해 조회한다(캐시는 S3+).
+     */
+    public List<org.domi.furnace.server.world.gen.structure.StructureStart> applyStructureStarts(int cx, int cz) {
+        List<StructureSetPlacement> placements = structurePlacementCatalog.placementsForChunk(seed, cx, cz);
+        if (placements.isEmpty()) return List.of();
+
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> result = new ArrayList<>();
+        for (StructureSetPlacement set : placements) {
+            for (String structureId : set.structureIds()) {
+                if (!org.domi.furnace.server.world.gen.structure.DesertPyramidStructure.ID.equals(structureId)) {
+                    continue; // 다른 구조물은 S4+ 범위
+                }
+                org.domi.furnace.server.world.gen.structure.DesertPyramidStructure.generate(
+                    seed, cx, cz, settings.seaLevel(), this::worldSurfaceHeightAt, this::biomeNameAt
+                ).ifPresent(result::add);
+            }
+        }
+        return result;
+    }
+
+    /** vanilla getFirstOccupiedHeight(WORLD_SURFACE_WG) 근사 — 대상 청크를 SURFACE 상태로 생성해 최상단 비-공기 y 조회. */
+    private int worldSurfaceHeightAt(int blockX, int blockZ) {
+        int cx = Math.floorDiv(blockX, 16);
+        int cz = Math.floorDiv(blockZ, 16);
+        ChunkColumn c = generate(cx, cz);
+        int lx = blockX - cx * 16;
+        int lz = blockZ - cz * 16;
+        return height(c, lx, lz, HeightKind.WORLD_SURFACE) - 1;
+    }
+
+    /** vanilla getNoiseBiome(quart 좌표) — 구조물 validBiome 판정용. */
+    private String biomeNameAt(int blockX, int blockY, int blockZ) {
+        int qx = Math.floorDiv(blockX, 4);
+        int qy = Math.floorDiv(blockY, 4);
+        int qz = Math.floorDiv(blockZ, 4);
+        int id = biomeSampler.sampleQuart(qx, qy, qz, router);
+        return (id >= 0 && id < registryBiomeNames.length) ? registryBiomeNames[id] : "";
     }
 
     public List<StructureSetPlacement> structurePlacementCandidates(int chunkX, int chunkZ) {
