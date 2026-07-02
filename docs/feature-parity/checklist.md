@@ -55,3 +55,14 @@
 ## 검증 명령
 - 전체: `./gradlew :furnace-server:test`
 - 인게임: seed 123456 새 월드, vanilla 1.21.1과 같은 좌표 대조
+
+## Phase 3 — featurefull 파이프라인 byte-exact (2026-07-02)
+- [x] oracle fluid(water/lava)·leaves·replaceable_by_trees 태그 바인딩 (fixture 오염 원인)
+- [x] oracle 3×3 이웃 쓰기 허용 (vanilla writeRadius=1)
+- [x] featurefull fixture 6개 재생성
+- [x] DiskFeature: radius IntProvider 샘플 + rule_based provider(air아래→sandstone) + vanilla y 루프
+- [x] GlowLichen: 탐색 비전진 quirk 재현 + spread의 validDirections 오적용 제거
+- [x] SeagrassFeature tall: source-water 가드
+- [x] FeaturePipelineParityTest 3좌표 0 mismatch
+- [ ] tree fixture 3개(9,-64 / -49,-30 / -53,-26) 재검증 — 태그 픽스로 oracle 트리가 달라졌으므로
+      라운드 3~10의 트리 디버깅 결론 재평가 필요
