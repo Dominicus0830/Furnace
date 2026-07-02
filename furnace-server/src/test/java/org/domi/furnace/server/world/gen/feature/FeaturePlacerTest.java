@@ -19,7 +19,7 @@ class FeaturePlacerTest {
             "minecraft:plains", steps(List.of(shared)),
             "minecraft:forest", steps(List.of(shared))
         ));
-        FeaturePlacer placer = new FeaturePlacer(1234L, data, FeatureSorter.build(data));
+        FeaturePlacer placer = new FeaturePlacer(1234L, data, FeatureSorter.build(data), null);
         FeatureWorldView view = new FeatureWorldView(
             new ChunkColumn(6), 0, 0, new int[ChunkColumn.SECTION_COUNT * 64]);
 

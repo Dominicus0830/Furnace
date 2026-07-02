@@ -17,4 +17,27 @@ public enum Direction {
     public boolean isXAxis() {
         return this == WEST || this == EAST;
     }
+
+    /** 바닐라 Direction.get2DDataValue() — SOUTH=0,WEST=1,NORTH=2,EAST=3. */
+    public int get2DDataValue() {
+        return switch (this) {
+            case SOUTH -> 0;
+            case WEST -> 1;
+            case NORTH -> 2;
+            case EAST -> 3;
+        };
+    }
+
+    /** 바닐라 Direction.getStepX(). */
+    public int stepX() {
+        return this == WEST ? -1 : this == EAST ? 1 : 0;
+    }
+
+    /** 바닐라 Direction.getStepZ(). */
+    public int stepZ() {
+        return this == NORTH ? -1 : this == SOUTH ? 1 : 0;
+    }
+
+    /** 바닐라 Direction.Plane.HORIZONTAL 순회 순서(선언 순서) — NORTH,SOUTH,WEST,EAST. */
+    public static final Direction[] PLANE_HORIZONTAL_ORDER = {NORTH, SOUTH, WEST, EAST};
 }

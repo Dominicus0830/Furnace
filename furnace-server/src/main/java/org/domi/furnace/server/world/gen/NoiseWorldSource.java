@@ -135,7 +135,7 @@ public final class NoiseWorldSource implements WorldSource {
             WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed) {
         try {
             BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg);
-            return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData));
+            return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData), reg);
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().startsWith("Worldgen resource not found:")) {
                 return null;
@@ -441,9 +441,10 @@ public final class NoiseWorldSource implements WorldSource {
         col.clearDirty();
     }
 
-    public void decorateOrigin(FeatureWorldView view, Set<String> neighborBiomes, int ox, int oz) {
+    public void decorateOrigin(FeatureWorldView view, Set<String> neighborBiomes, int ox, int oz,
+                                List<org.domi.furnace.server.world.gen.structure.StructureStart> starts) {
         if (featurePlacer == null) return;
-        featurePlacer.decorate(view, neighborBiomes, ox, oz);
+        featurePlacer.decorate(view, neighborBiomes, ox, oz, starts);
     }
 
     public FeaturePlacer featurePlacer() {

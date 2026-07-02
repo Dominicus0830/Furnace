@@ -1,21 +1,31 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.RandomTrace;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.carver.XoroshiroWorldgenRandom;
+import org.domi.furnace.server.world.gen.structure.BoundingBox;
+import org.domi.furnace.server.world.gen.structure.StructurePiece;
+import org.domi.furnace.server.world.gen.structure.StructureStart;
 
 public final class FeaturePlacer {
+
+    /** vanilla GenerationStep.Decoration.SURFACE_STRUCTURES.ordinal() — 구조물 postProcess가 이 step 앞에서 실행된다(F1). */
+    private static final int STRUCTURE_STEP = 4;
 
     private final long seed;
     private final BiomeFeatureData biomeData;
     private final FeatureSorter sorter;
+    private final BlockRegistry blocks;
 
-    public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter) {
+    public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter, BlockRegistry blocks) {
         this.seed = seed;
         this.biomeData = biomeData;
         this.sorter = sorter;
+        this.blocks = blocks;
     }
 
     // 진단용 플래그 — 디버깅 완료 후 제거
@@ -23,9 +33,20 @@ public final class FeaturePlacer {
     private static final boolean BLOCK_DEBUG = Boolean.getBoolean("furnace.featureBlockDebug");
 
     public void decorate(FeatureWorldView view, Set<String> biomeSet, int cx, int cz) {
+        decorate(view, biomeSet, cx, cz, List.of());
+    }
+
+    /**
+     * starts: 이 청크(cx,cz)가 자신의 ProtoColumn에서 직접 생성한 StructureStart 목록(현재 desert_pyramid만).
+     * vanilla ChunkGenerator.applyBiomeDecoration — 구조물 postProcess는 해당 step(F1: SURFACE_STRUCTURES)의
+     * feature들보다 먼저, 같은 featureRandom 시퀀스(F3)로 실행된다. writableArea는 이 청크(F2, 16x16)만.
+     */
+    public void decorate(FeatureWorldView view, Set<String> biomeSet, int cx, int cz, List<StructureStart> starts) {
         WorldgenRandom random = new XoroshiroWorldgenRandom();
         long decorationSeed = random.setDecorationSeed(seed, cx * 16, cz * 16);
         WorldgenRandom featureRandom = new XoroshiroWorldgenRandom();
+        BoundingBox writableBox = new BoundingBox(
+            cx * 16, Integer.MIN_VALUE / 2, cz * 16, cx * 16 + 15, Integer.MAX_VALUE / 2, cz * 16 + 15);
 
         if (DEBUG) {
             System.out.printf("FURNACE decorate cx=%d cz=%d decorationSeed=%d biomes=%s%n",
@@ -33,6 +54,17 @@ public final class FeaturePlacer {
         }
 
         for (int step = 0; step < BiomeFeatureData.STEP_COUNT; step++) {
+            if (step == STRUCTURE_STEP && !starts.isEmpty()) {
+                // vanilla: structure 타입별로 1회 setFeatureSeed(l, i1, step) — 현재 지원 구조물이 desert_pyramid 뿐이라 i1=0 고정.
+                featureRandom.setFeatureSeed(decorationSeed, 0, step);
+                for (StructureStart start : starts) {
+                    for (StructurePiece piece : start.pieces()) {
+                        if (piece.boundingBox().intersects(writableBox)) {
+                            piece.postProcess(view, blocks, featureRandom, writableBox);
+                        }
+                    }
+                }
+            }
             FeatureSorter.StepFeatureData stepData = sorter.featuresPerStep().get(step);
             TreeSet<Integer> indices = new TreeSet<>();
             for (String biome : biomeSet) {

@@ -59,7 +59,7 @@ public final class ChunkPipeline {
                 }
                 FeatureWorldView view = new FeatureWorldView(viewGrid, viewBiomeGrid, cx, cz, false, source.seed());
                 Set<String> neighborBiomes = source.collectNeighborBiomes(cx, cz);
-                source.decorateOrigin(view, neighborBiomes, cx, cz);
+                source.decorateOrigin(view, neighborBiomes, cx, cz, grid[4].starts);
 
                 grid[4].col.compactSections();
                 grid[4].col.clearDirty();

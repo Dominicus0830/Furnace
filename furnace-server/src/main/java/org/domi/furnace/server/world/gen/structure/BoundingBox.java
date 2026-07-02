@@ -2,12 +2,12 @@
 package org.domi.furnace.server.world.gen.structure;
 
 public final class BoundingBox {
-    private final int minX;
-    private final int minY;
-    private final int minZ;
-    private final int maxX;
-    private final int maxY;
-    private final int maxZ;
+    private int minX;
+    private int minY;
+    private int minZ;
+    private int maxX;
+    private int maxY;
+    private int maxZ;
 
     public BoundingBox(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         this.minX = Math.min(minX, maxX);
@@ -33,6 +33,13 @@ public final class BoundingBox {
 
     public boolean isInside(int x, int y, int z) {
         return x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
+    }
+
+    /** 바닐라 BoundingBox.move — 조각의 heightPosition 보정(updateHeightPositionToLowestGroundHeight)에 사용. */
+    public void move(int dx, int dy, int dz) {
+        minX += dx; maxX += dx;
+        minY += dy; maxY += dy;
+        minZ += dz; maxZ += dz;
     }
 
     /** 이 박스와 다른 박스를 모두 포함하는 최소 박스. */
