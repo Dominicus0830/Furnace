@@ -8,6 +8,7 @@ application { mainClass = 'org.domi.oracle.OracleMain' }
 tasks.named('run', JavaExec) {
     workingDir = rootProject.projectDir
     classpath = sourceSets.main.output + configurations.compileClasspath
+    systemProperties = System.properties.findAll { it.key.toString().startsWith("oracle.") }
 }
 dependencies {
     paperweight.paperDevBundle("1.21.1-R0.1-SNAPSHOT")

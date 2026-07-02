@@ -8,10 +8,12 @@ import net.minecraft.DetectedVersion;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.RegistrationInfo;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.Registry;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.server.Bootstrap;
@@ -26,6 +28,7 @@ import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ProtoChunk;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.levelgen.Aquifer;
 import net.minecraft.world.level.levelgen.Beardifier;
@@ -45,9 +48,14 @@ import net.minecraft.world.level.levelgen.synth.ImprovedNoise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraft.world.level.biome.FeatureSorter;
+import net.minecraft.world.level.levelgen.GenerationStep;
+import net.minecraft.world.level.levelgen.WorldgenRandom;
+import net.minecraft.world.level.levelgen.placement.PlacementContext;
+import net.minecraft.world.level.WorldGenLevel;
 
 import java.util.IdentityHashMap;
 import java.io.FileOutputStream;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
@@ -55,6 +63,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class OracleMain {
+    private static final OracleRngTrace ORACLE_RNG_TRACE = new OracleRngTrace();
 
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
@@ -97,6 +106,10 @@ public class OracleMain {
 
             addTag.accept("minecraft:base_stone_overworld", new String[]{
                 "minecraft:stone","minecraft:granite","minecraft:diorite","minecraft:andesite","minecraft:tuff","minecraft:deepslate"});
+            addTag.accept("minecraft:stone_ore_replaceables", new String[]{
+                "minecraft:stone","minecraft:granite","minecraft:diorite","minecraft:andesite"});
+            addTag.accept("minecraft:deepslate_ore_replaceables", new String[]{
+                "minecraft:deepslate","minecraft:tuff"});
             addTag.accept("minecraft:dirt", new String[]{
                 "minecraft:dirt","minecraft:grass_block","minecraft:podzol","minecraft:coarse_dirt","minecraft:mycelium",
                 "minecraft:rooted_dirt","minecraft:moss_block","minecraft:pale_moss_block","minecraft:mud","minecraft:muddy_mangrove_roots"});
@@ -125,8 +138,48 @@ public class OracleMain {
                 "minecraft:water","minecraft:gravel","minecraft:suspicious_gravel",
                 "minecraft:sandstone","minecraft:red_sandstone","minecraft:calcite","minecraft:packed_ice","minecraft:raw_iron_block","minecraft:raw_copper_block"});
 
+            // data/minecraft/tags/block/leaves.json (1.21.1)
+            String[] leavesBlocks = {
+                "minecraft:jungle_leaves","minecraft:oak_leaves","minecraft:spruce_leaves","minecraft:dark_oak_leaves",
+                "minecraft:acacia_leaves","minecraft:birch_leaves","minecraft:azalea_leaves","minecraft:flowering_azalea_leaves",
+                "minecraft:mangrove_leaves","minecraft:cherry_leaves"};
+            addTag.accept("minecraft:leaves", leavesBlocks);
+            // data/minecraft/tags/block/replaceable_by_trees.json (1.21.1) — #minecraft:leaves 확장 포함
+            java.util.List<String> replaceableByTrees = new java.util.ArrayList<>(java.util.List.of(leavesBlocks));
+            replaceableByTrees.addAll(java.util.List.of(
+                "minecraft:short_grass","minecraft:fern","minecraft:dead_bush","minecraft:vine","minecraft:glow_lichen",
+                "minecraft:sunflower","minecraft:lilac","minecraft:rose_bush","minecraft:peony","minecraft:tall_grass",
+                "minecraft:large_fern","minecraft:hanging_roots","minecraft:pitcher_plant","minecraft:water",
+                "minecraft:seagrass","minecraft:tall_seagrass","minecraft:warped_roots","minecraft:nether_sprouts","minecraft:crimson_roots"));
+            addTag.accept("minecraft:replaceable_by_trees", replaceableByTrees.toArray(new String[0]));
+
             ((net.minecraft.core.MappedRegistry<net.minecraft.world.level.block.Block>)
                 (Object) net.minecraft.core.registries.BuiltInRegistries.BLOCK).bindTags(tagMap);
+        }
+
+        // Fluid tags — data/minecraft/tags/fluid/{water,lava}.json (1.21.1).
+        // 미바인딩 시 FluidTags.WATER가 빈 태그 → TallSeagrassBlock.canSurvive 등 fluid 태그 검사가
+        // 전부 false → fixture가 바닐라와 달라짐 (tall_seagrass 전멸 버그의 원인).
+        {
+            java.util.Map<net.minecraft.tags.TagKey<net.minecraft.world.level.material.Fluid>,
+                         java.util.List<net.minecraft.core.Holder<net.minecraft.world.level.material.Fluid>>> fluidTagMap = new java.util.LinkedHashMap<>();
+            java.util.function.BiConsumer<String, String[]> addFluidTag = (tagPath, fluidNames) -> {
+                net.minecraft.tags.TagKey<net.minecraft.world.level.material.Fluid> tagKey =
+                    net.minecraft.tags.TagKey.create(Registries.FLUID,
+                        net.minecraft.resources.ResourceLocation.parse(tagPath));
+                java.util.List<net.minecraft.core.Holder<net.minecraft.world.level.material.Fluid>> holders = new java.util.ArrayList<>();
+                for (String name : fluidNames) {
+                    net.minecraft.resources.ResourceKey<net.minecraft.world.level.material.Fluid> key =
+                        net.minecraft.resources.ResourceKey.create(Registries.FLUID,
+                            net.minecraft.resources.ResourceLocation.parse(name));
+                    net.minecraft.core.registries.BuiltInRegistries.FLUID.getHolder(key).ifPresent(holders::add);
+                }
+                fluidTagMap.put(tagKey, holders);
+            };
+            addFluidTag.accept("minecraft:water", new String[]{"minecraft:water","minecraft:flowing_water"});
+            addFluidTag.accept("minecraft:lava", new String[]{"minecraft:lava","minecraft:flowing_lava"});
+            ((net.minecraft.core.MappedRegistry<net.minecraft.world.level.material.Fluid>)
+                (Object) net.minecraft.core.registries.BuiltInRegistries.FLUID).bindTags(fluidTagMap);
         }
 
         // Get OVERWORLD NoiseGeneratorSettings and clone with aquifer + oreVeins disabled
@@ -190,8 +243,7 @@ public class OracleMain {
         );
         Registry<ConfiguredWorldCarver<?>> frozenCarverRegistry = carverRegistry.freeze();
 
-        RegistryAccess registryAccess = new RegistryAccess.ImmutableRegistryAccess(
-            java.util.List.of(frozenBiomeRegistry, frozenCarverRegistry));
+        RegistryAccess registryAccess = buildRegistryAccess(registries, frozenBiomeRegistry, frozenCarverRegistry);
 
         if (args.length > 1 && args[1].equals("dumpsurfacerule")) {
             com.mojang.serialization.Codec<net.minecraft.world.level.levelgen.SurfaceRules.RuleSource> codec =
@@ -253,8 +305,17 @@ public class OracleMain {
                 dumpCarverChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
                                 aquiferSettingsHolder.value(), aquiferFluidPicker,
                                 frozenBiomeRegistry, biomeSource, registryAccess, outDir);
+            } else if (arg.startsWith("featurefull:")) {
+                String[] parts = arg.substring("featurefull:".length()).split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpFeatureFullChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
+                                    aquiferSettingsHolder.value(), aquiferFluidPicker,
+                                    frozenBiomeRegistry, biomeSource, registryAccess, registries, outDir);
             } else if (arg.equals("featureorder")) {
                 dumpFeatureOrder(registries, biomeSource, outDir);
+            } else if (arg.equals("xortest")) {
+                dumpXoroshiroCheck();
             } else if (arg.equals("blocks")) {
                 Path blocksResDir = Paths.get("furnace-server", "src", "main", "resources", "blocks");
                 dumpBlocks(blocksResDir);
@@ -275,6 +336,35 @@ public class OracleMain {
         }
 
         System.out.println("Oracle done. Output: " + outDir.toAbsolutePath());
+    }
+
+    private static RegistryAccess buildRegistryAccess(
+        HolderLookup.Provider registries,
+        Registry<Biome> frozenBiomeRegistry,
+        Registry<ConfiguredWorldCarver<?>> frozenCarverRegistry
+    ) {
+        java.util.List<Registry<?>> copied = new java.util.ArrayList<>();
+        registries.listRegistries().forEach(key -> {
+            if (key.equals(Registries.BIOME)) {
+                copied.add(frozenBiomeRegistry);
+            } else if (key.equals(Registries.CONFIGURED_CARVER)) {
+                copied.add(frozenCarverRegistry);
+            } else {
+                copied.add(copyRegistry(registries, (ResourceKey) key));
+            }
+        });
+        return new RegistryAccess.ImmutableRegistryAccess(copied);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Registry<?> copyRegistry(HolderLookup.Provider registries, ResourceKey key) {
+        HolderLookup.RegistryLookup lookup = registries.lookupOrThrow(key);
+        MappedRegistry registry = new MappedRegistry(key, Lifecycle.stable());
+        lookup.listElements().forEach(refObj -> {
+            Holder.Reference ref = (Holder.Reference) refObj;
+            registry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN);
+        });
+        return registry.freeze();
     }
 
     /**
@@ -1207,6 +1297,476 @@ public class OracleMain {
         System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
     }
 
+    private static void dumpFeatureFullChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        MultiNoiseBiomeSource biomeSource,
+        RegistryAccess registryAccess,
+        HolderLookup.Provider registries,
+        Path outDir
+    ) throws Exception {
+        ProtoChunk[] grid = new ProtoChunk[9];
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                grid[(dz + 1) * 3 + (dx + 1)] = buildCarvedProtoChunk(
+                    seed, cx + dx, cz + dz, generator, randomState, settings,
+                    fluidPicker, biomeRegistry, biomeSource, registryAccess);
+            }
+        }
+
+        BlockState[] before = snapshotChunk(grid[4], cx, cz);
+
+        OracleWorldGenLevel level = new OracleWorldGenLevel(
+            grid, cx, cz, seed, biomeSource, randomState, registryAccess, registries);
+
+        // 디버그: -Doracle.dumpColumns="x,z[,yFrom,yTo];..." — decoration 전 컬럼 상태·heightmap 출력
+        String dumpColumns = System.getProperty("oracle.dumpColumns");
+        if (dumpColumns != null) {
+            for (String pair : dumpColumns.split(";")) {
+                String[] xz = pair.split(",");
+                int wx = Integer.parseInt(xz[0].trim());
+                int wz = Integer.parseInt(xz[1].trim());
+                int yFrom;
+                int yTo;
+                if (xz.length >= 4) {
+                    yFrom = Integer.parseInt(xz[2].trim());
+                    yTo = Integer.parseInt(xz[3].trim());
+                } else {
+                    int h = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.OCEAN_FLOOR, wx, wz);
+                    System.out.printf("ORACLE_COL wx=%d wz=%d oceanFloorHeight=%d%n", wx, wz, h);
+                    yFrom = h - 4;
+                    yTo = h + 3;
+                }
+                for (int y = yFrom; y <= yTo; y++) {
+                    BlockState st = level.getBlockState(new net.minecraft.core.BlockPos(wx, y, wz));
+                    System.out.printf("ORACLE_COL wx=%d y=%d wz=%d state=%s fluid=%s sturdyUp=%s%n",
+                        wx, y, wz, st,
+                        st.getFluidState().is(net.minecraft.tags.FluidTags.WATER) ? "water" + st.getFluidState().getAmount() : st.getFluidState(),
+                        st.isFaceSturdy(level, new net.minecraft.core.BlockPos(wx, y, wz), net.minecraft.core.Direction.UP));
+                }
+            }
+        }
+
+        placeVanillaFeatures(level, grid[4], generator, biomeSource, registryAccess);
+
+        int changed = 0;
+        int idx = 0;
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = grid[4].getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    if (!state.equals(before[idx++])) {
+                        changed++;
+                    }
+                }
+            }
+        }
+
+        int totalBlocks = FixtureFormat.HEIGHT * 16 * 16;
+        int headerSize = 4 + 8 + 4 + 4;
+        ByteBuffer buf = ByteBuffer.allocate(headerSize + totalBlocks * 2).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0x46464C42); // "FFLB"
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = grid[4].getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    buf.putShort((short) net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state));
+                }
+            }
+        }
+
+        Path out = outDir.resolve("featurefull_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
+        System.out.printf("carver→featurefull 블록 변화 수: %d%n", changed);
+    }
+
+    private static BlockState[] snapshotChunk(ProtoChunk chunk, int cx, int cz) {
+        BlockState[] states = new BlockState[FixtureFormat.HEIGHT * 16 * 16];
+        int idx = 0;
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    states[idx++] = chunk.getBlockState(new net.minecraft.core.BlockPos(cx * 16 + localX, y, cz * 16 + localZ));
+                }
+            }
+        }
+        return states;
+    }
+
+    private static ProtoChunk buildCarvedProtoChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        MultiNoiseBiomeSource biomeSource,
+        RegistryAccess registryAccess
+    ) throws Exception {
+        ChunkPos chunkPos = new ChunkPos(cx, cz);
+        LevelHeightAccessor heightAccessor = LevelHeightAccessor.create(FixtureFormat.MIN_Y, FixtureFormat.HEIGHT);
+        ProtoChunk chunk = new ProtoChunk(chunkPos, UpgradeData.EMPTY, heightAccessor, biomeRegistry, null);
+
+        Beardifier emptyBeardifier = new Beardifier(
+            new ObjectArrayList<Beardifier.Rigid>().iterator(),
+            new ObjectArrayList<JigsawJunction>().iterator()
+        );
+        chunk.getOrCreateNoiseChunk(ca ->
+            NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty())
+        );
+
+        generator.createBiomes(randomState, Blender.empty(), null, chunk).join();
+        generator.fillFromNoise(Blender.empty(), randomState, null, chunk).join();
+
+        BiomeManager biomeManager = new BiomeManager(
+            (x, y, z) -> biomeSource.getNoiseBiome(x, y, z, randomState.sampler()),
+            BiomeManager.obfuscateSeed(seed)
+        );
+        WorldGenerationContext worldGenContext = new WorldGenerationContext(generator, heightAccessor);
+        generator.buildSurface(chunk, worldGenContext, randomState, null, biomeManager, biomeRegistry, Blender.empty());
+
+        NoiseChunk noiseChunk = chunk.getOrCreateNoiseChunk(ca ->
+            NoiseChunk.forChunk(ca, randomState, emptyBeardifier, settings, fluidPicker, Blender.empty()));
+        Aquifer aquifer = noiseChunk.aquifer();
+        net.minecraft.world.level.levelgen.carver.CarvingContext carvingCtx =
+            new net.minecraft.world.level.levelgen.carver.CarvingContext(
+                generator, registryAccess, heightAccessor,
+                noiseChunk, randomState, settings.surfaceRule(), null);
+
+        var carverReg = registryAccess.lookupOrThrow(Registries.CONFIGURED_CARVER);
+        var caveCarver = carverReg.getOrThrow(ResourceKey.create(
+            Registries.CONFIGURED_CARVER, net.minecraft.resources.ResourceLocation.parse("minecraft:cave")));
+        var caveExtraCarver = carverReg.getOrThrow(ResourceKey.create(
+            Registries.CONFIGURED_CARVER, net.minecraft.resources.ResourceLocation.parse("minecraft:cave_extra_underground")));
+        var canyonCarver = carverReg.getOrThrow(ResourceKey.create(
+            Registries.CONFIGURED_CARVER, net.minecraft.resources.ResourceLocation.parse("minecraft:canyon")));
+        java.util.List<ConfiguredWorldCarver<?>> carvers =
+            java.util.List.of(caveCarver.value(), caveExtraCarver.value(), canyonCarver.value());
+
+        net.minecraft.world.level.chunk.CarvingMask carvingMask =
+            chunk.getOrCreateCarvingMask(GenerationStep.Carving.AIR);
+        WorldgenRandom worldgenRandom = new WorldgenRandom(
+            new net.minecraft.world.level.levelgen.LegacyRandomSource(0L));
+        java.util.function.Function<net.minecraft.core.BlockPos, Holder<Biome>> biomeAccessor =
+            pos -> biomeSource.getNoiseBiome(pos.getX() >> 2, 0, pos.getZ() >> 2, randomState.sampler());
+
+        for (int originX = cx - 8; originX <= cx + 8; originX++) {
+            for (int originZ = cz - 8; originZ <= cz + 8; originZ++) {
+                ChunkPos originPos = new ChunkPos(originX, originZ);
+                for (ConfiguredWorldCarver<?> carver : carvers) {
+                    worldgenRandom.setLargeFeatureSeed(seed, originX, originZ);
+                    if (carver.isStartChunk(worldgenRandom)) {
+                        carver.carve(carvingCtx, chunk, biomeAccessor, worldgenRandom, aquifer, originPos, carvingMask);
+                    }
+                }
+            }
+        }
+
+        return chunk;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void placeVanillaFeatures(
+        OracleWorldGenLevel level,
+        ProtoChunk center,
+        NoiseBasedChunkGenerator generator,
+        MultiNoiseBiomeSource biomeSource,
+        RegistryAccess registryAccess
+    ) throws Exception {
+        ChunkPos chunkPos = center.getPos();
+        SectionPos sectionPos = SectionPos.of(chunkPos, level.getMinSection());
+        net.minecraft.core.BlockPos origin = sectionPos.origin();
+
+        java.lang.reflect.Field featuresField = net.minecraft.world.level.chunk.ChunkGenerator.class.getDeclaredField("featuresPerStep");
+        featuresField.setAccessible(true);
+        java.util.function.Supplier<java.util.List<FeatureSorter.StepFeatureData>> supplier =
+            (java.util.function.Supplier<java.util.List<FeatureSorter.StepFeatureData>>) featuresField.get(generator);
+        java.util.List<FeatureSorter.StepFeatureData> steps = supplier.get();
+
+        it.unimi.dsi.fastutil.objects.ObjectArraySet<Holder<Biome>> biomes =
+            new it.unimi.dsi.fastutil.objects.ObjectArraySet<>();
+        ChunkPos.rangeClosed(sectionPos.chunk(), 1).forEach(pos -> {
+            ChunkAccess chunk = level.getChunk(pos.x, pos.z);
+            for (net.minecraft.world.level.chunk.LevelChunkSection section : chunk.getSections()) {
+                section.getBiomes().getAll(biomes::add);
+            }
+        });
+        biomes.retainAll(biomeSource.possibleBiomes());
+
+        boolean debug = Boolean.getBoolean("oracle.featureDebug");
+        boolean blockDebug = Boolean.getBoolean("oracle.featureBlockDebug");
+        boolean rngTraceForChunk = ORACLE_RNG_TRACE.matchesChunk(chunkPos.x, chunkPos.z);
+        if (debug) {
+            java.util.TreeSet<String> biomeNames = new java.util.TreeSet<>();
+            biomes.forEach(b -> biomeNames.add(b.unwrapKey().get().location().toString()));
+            System.out.printf("ORACLE decorate cx=%d cz=%d biomes=%s%n",
+                chunkPos.x, chunkPos.z, biomeNames);
+        }
+
+        WorldgenRandom random = rngTraceForChunk
+            ? new TraceWorldgenRandom(
+                new net.minecraft.world.level.levelgen.XoroshiroRandomSource(
+                    net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed()))
+            : new WorldgenRandom(
+                new net.minecraft.world.level.levelgen.XoroshiroRandomSource(
+                    net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed()));
+        long decorationSeed = random.setDecorationSeed(level.getSeed(), origin.getX(), origin.getZ());
+
+        int stepCount = Math.max(GenerationStep.Decoration.values().length, steps.size());
+        for (int step = 0; step < stepCount; step++) {
+            if (step >= steps.size()) {
+                continue;
+            }
+            it.unimi.dsi.fastutil.ints.IntArraySet featureIndexes =
+                new it.unimi.dsi.fastutil.ints.IntArraySet();
+            for (Holder<Biome> biome : biomes) {
+                java.util.List<HolderSet<PlacedFeature>> biomeFeatures =
+                    biome.value().getGenerationSettings().features();
+                if (step < biomeFeatures.size()) {
+                    HolderSet<PlacedFeature> holderSet = biomeFeatures.get(step);
+                    FeatureSorter.StepFeatureData stepData = steps.get(step);
+                    holderSet.stream().map(Holder::value)
+                        .forEach(feature -> featureIndexes.add(stepData.indexMapping().applyAsInt(feature)));
+                }
+            }
+
+            int[] sorted = featureIndexes.toIntArray();
+            java.util.Arrays.sort(sorted);
+            if (debug && sorted.length > 0) {
+                System.out.printf("ORACLE step=%d indices=%s%n", step, java.util.Arrays.toString(sorted));
+            }
+            FeatureSorter.StepFeatureData stepData = steps.get(step);
+            for (int featureIndex : sorted) {
+                PlacedFeature feature = stepData.features().get(featureIndex);
+                String featureId = feature.feature().unwrapKey().map(k -> k.location().toString()).orElse("?");
+                long featureSeed = decorationSeed + featureIndex + 10000L * step;
+                random.setFeatureSeed(decorationSeed, featureIndex, step);
+                BlockState[] before = blockDebug ? snapshotCenter(center) : null;
+                if (debug) {
+                    System.out.printf("ORACLE step=%d idx=%d featureSeed=%d id=%s%n",
+                        step, featureIndex, featureSeed, featureId);
+                }
+                boolean trace = ORACLE_RNG_TRACE.shouldTrace(chunkPos.x, chunkPos.z, step, featureIndex, featureId);
+                if (trace) ORACLE_RNG_TRACE.begin(level.getSeed(), chunkPos.x, chunkPos.z, step, featureIndex, featureId, featureSeed);
+                if (trace && "minecraft:birch_tall".equals(featureId)) {
+                    logOracleTreePlacements(feature, level, generator, decorationSeed, featureIndex, step, origin);
+                }
+                boolean placed;
+                try {
+                    placed = feature.placeWithBiomeCheck(level, generator, random, origin);
+                } finally {
+                    if (trace) ORACLE_RNG_TRACE.end();
+                }
+                if (blockDebug) {
+                    BlockState[] after = snapshotCenter(center);
+                    int changed = countChanged(before, after);
+                    if (placed || changed > 0) {
+                        System.out.printf(
+                            "  ORACLE step=%d idx=%d id=%s placed=%s changed=%d firstChange=%s%n",
+                            step, featureIndex, featureId, placed, changed, firstChange(before, after, chunkPos));
+                        logChangedBlocks(before, after, chunkPos, step, featureIndex, featureId);
+                    }
+                }
+            }
+        }
+        level.setCurrentlyGenerating(null);
+    }
+
+    private static void logOracleTreePlacements(
+        PlacedFeature feature,
+        WorldGenLevel level,
+        NoiseBasedChunkGenerator generator,
+        long decorationSeed,
+        int featureIndex,
+        int step,
+        net.minecraft.core.BlockPos origin
+    ) {
+        WorldgenRandom replayRandom = new WorldgenRandom(
+            new net.minecraft.world.level.levelgen.XoroshiroRandomSource(
+                net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed()));
+        replayRandom.setFeatureSeed(decorationSeed, featureIndex, step);
+        PlacementContext context = new PlacementContext(level, generator, java.util.Optional.of(feature));
+        int[] tree = {0};
+        java.util.stream.Stream<net.minecraft.core.BlockPos> positions = java.util.stream.Stream.of(origin);
+        for (Object modifier : feature.placement()) {
+            Method method = resolvePlacementMethod(modifier);
+            positions = positions.flatMap(pos -> invokePlacementModifier(method, modifier, context, replayRandom, pos));
+        }
+        positions.forEach(pos -> System.out.printf(
+            "ORACLE_TREE_PLACE origin=(%d,%d,%d) tree=%d%n",
+            pos.getX(), pos.getY(), pos.getZ(), ++tree[0]));
+    }
+
+    private static Method resolvePlacementMethod(Object modifier) {
+        for (Method method : modifier.getClass().getMethods()) {
+            Class<?>[] params = method.getParameterTypes();
+            if (params.length != 3) continue;
+            if (!java.util.stream.Stream.class.isAssignableFrom(method.getReturnType())) continue;
+            if (!params[0].getSimpleName().equals("PlacementContext")) continue;
+            if (!params[2].getSimpleName().equals("BlockPos")) continue;
+            method.setAccessible(true);
+            return method;
+        }
+        for (Method method : modifier.getClass().getMethods()) {
+            System.out.printf("ORACLE_MODIFIER_METHOD class=%s method=%s%n", modifier.getClass().getName(), method);
+        }
+        throw new IllegalStateException("No placement stream method for " + modifier.getClass());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.stream.Stream<net.minecraft.core.BlockPos> invokePlacementModifier(
+        Method method,
+        Object modifier,
+        PlacementContext context,
+        WorldgenRandom replayRandom,
+        net.minecraft.core.BlockPos pos
+    ) {
+        try {
+            return (java.util.stream.Stream<net.minecraft.core.BlockPos>) method.invoke(modifier, context, replayRandom, pos);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Failed to invoke placement modifier " + modifier.getClass(), e);
+        }
+    }
+
+    private static BlockState[] snapshotCenter(ProtoChunk center) {
+        ChunkPos chunkPos = center.getPos();
+        BlockState[] snapshot = new BlockState[FixtureFormat.HEIGHT * 16 * 16];
+        int index = 0;
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int lz = 0; lz < 16; lz++) {
+                for (int lx = 0; lx < 16; lx++) {
+                    snapshot[index++] = center.getBlockState(new net.minecraft.core.BlockPos(
+                        chunkPos.getMinBlockX() + lx, y, chunkPos.getMinBlockZ() + lz));
+                }
+            }
+        }
+        return snapshot;
+    }
+
+    private static int countChanged(BlockState[] before, BlockState[] after) {
+        int changed = 0;
+        for (int i = 0; i < before.length; i++) {
+            if (before[i] != after[i]) changed++;
+        }
+        return changed;
+    }
+
+    private static String firstChange(BlockState[] before, BlockState[] after, ChunkPos chunkPos) {
+        for (int i = 0; i < before.length; i++) {
+            if (before[i] == after[i]) continue;
+            int yIndex = i / 256;
+            int yz = i % 256;
+            int lz = yz / 16;
+            int lx = yz % 16;
+            int y = FixtureFormat.MIN_Y + yIndex;
+            return String.format("lx=%d y=%d lz=%d %s->%s",
+                lx, y, lz, before[i], after[i]);
+        }
+        return "-";
+    }
+
+    private static void logChangedBlocks(BlockState[] before, BlockState[] after, ChunkPos chunkPos, int step, int idx, String featureId) {
+        for (int i = 0; i < before.length; i++) {
+            if (before[i] == after[i]) continue;
+            int yIndex = i / 256;
+            int yz = i % 256;
+            int lz = yz / 16;
+            int lx = yz % 16;
+            int y = FixtureFormat.MIN_Y + yIndex;
+            System.out.printf(
+                "BLOCK_DELTA source=ORACLE step=%d idx=%d id=%s wx=%d y=%d wz=%d old=%s new=%s%n",
+                step, idx, featureId, chunkPos.getMinBlockX() + lx, y, chunkPos.getMinBlockZ() + lz,
+                before[i], after[i]);
+        }
+    }
+
+    private static void dumpXoroshiroCheck() {
+        net.minecraft.world.level.levelgen.XoroshiroRandomSource src =
+            new net.minecraft.world.level.levelgen.XoroshiroRandomSource(
+                net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed());
+        src.setSeed(1234L);
+        System.out.print("xoro setSeed(1234) nextLong x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(src.nextLong() + " ");
+        System.out.println();
+
+        src.setSeed(1234L);
+        System.out.print("xoro setSeed(1234) nextInt(16) x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(src.nextInt(16) + " ");
+        System.out.println();
+
+        net.minecraft.world.level.levelgen.WorldgenRandom wr =
+            new net.minecraft.world.level.levelgen.WorldgenRandom(
+                new net.minecraft.world.level.levelgen.XoroshiroRandomSource(
+                    net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed()));
+        long ds = wr.setDecorationSeed(1234L, 0, 0);
+        System.out.println("decorationSeed(1234,0,0): " + ds);
+        wr.setFeatureSeed(ds, 0, 0);
+        System.out.print("after setFeatureSeed(ds,0,0) nextInt(16) x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(wr.nextInt(16) + " ");
+        System.out.println();
+
+        net.minecraft.world.level.levelgen.WorldgenRandom wr2 =
+            new net.minecraft.world.level.levelgen.WorldgenRandom(
+                new net.minecraft.world.level.levelgen.XoroshiroRandomSource(
+                    net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed()));
+        wr2.setSeed(1234L);
+        System.out.print("WGR setSeed(1234) nextInt() x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(wr2.nextInt() + " ");
+        System.out.println();
+
+        wr2.setSeed(1234L);
+        System.out.print("WGR setSeed(1234) nextLong() x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(wr2.nextLong() + " ");
+        System.out.println();
+
+        wr2.setSeed(1234L);
+        System.out.print("WGR setSeed(1234) nextDouble() x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(wr2.nextDouble() + " ");
+        System.out.println();
+
+        wr2.setSeed(1234L);
+        System.out.print("WGR setSeed(1234) nextFloat() x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(wr2.nextFloat() + " ");
+        System.out.println();
+
+        wr2.setSeed(1234L);
+        System.out.print("WGR setSeed(1234) nextBoolean() x5: ");
+        for (int i = 0; i < 5; i++) System.out.print(wr2.nextBoolean() + " ");
+        System.out.println();
+
+        // featureSeed for cx=7,cz=-2 step=6 idx=10 (ore_coal_lower)
+        long featureSeed7m2 = 1031541745140545356L;
+        net.minecraft.world.level.levelgen.WorldgenRandom wr3 =
+            new net.minecraft.world.level.levelgen.WorldgenRandom(
+                new net.minecraft.world.level.levelgen.XoroshiroRandomSource(
+                    net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed()));
+        wr3.setSeed(featureSeed7m2);
+        System.out.print("WGR setSeed(featureSeed_7m2) nextFloat nextInt(3) nextInt(3) nextInt(16) nextInt(16) nextInt(97) nextInt(97): ");
+        System.out.print(wr3.nextFloat() + " ");
+        System.out.print(wr3.nextInt(3) + " ");
+        System.out.print(wr3.nextInt(3) + " ");
+        System.out.print(wr3.nextInt(16) + " ");
+        System.out.print(wr3.nextInt(16) + " ");
+        System.out.print(wr3.nextInt(97) + " ");
+        System.out.print(wr3.nextInt(97));
+        System.out.println();
+    }
+
     private static void dumpBiomeChunk(
         long seed, int cx, int cz,
         MultiNoiseBiomeSource biomeSource,
@@ -1309,5 +1869,124 @@ public class OracleMain {
             if (fluid.getType() == net.minecraft.world.level.material.Fluids.LAVA) return FixtureFormat.LAVA;
         }
         return FixtureFormat.OTHER;
+    }
+
+    private static final class OracleRngTrace {
+        private final boolean enabled = Boolean.getBoolean("oracle.rngTrace");
+        private final int targetCx = Integer.getInteger("oracle.rngTraceCx", Integer.MIN_VALUE);
+        private final int targetCz = Integer.getInteger("oracle.rngTraceCz", Integer.MIN_VALUE);
+        private final int targetStep = Integer.getInteger("oracle.rngTraceStep", Integer.MIN_VALUE);
+        private final int targetIdx = Integer.getInteger("oracle.rngTraceIdx", Integer.MIN_VALUE);
+        private final String targetId = System.getProperty("oracle.rngTraceId");
+        private final ThreadLocal<Integer> calls = new ThreadLocal<>();
+
+        boolean matchesChunk(int cx, int cz) {
+            if (!enabled) return false;
+            if (targetCx != Integer.MIN_VALUE && targetCx != cx) return false;
+            return targetCz == Integer.MIN_VALUE || targetCz == cz;
+        }
+
+        boolean shouldTrace(int cx, int cz, int step, int idx, String id) {
+            if (!matchesChunk(cx, cz)) return false;
+            if (targetStep != Integer.MIN_VALUE && targetStep != step) return false;
+            if (targetIdx != Integer.MIN_VALUE && targetIdx != idx) return false;
+            return targetId == null || targetId.equals(id);
+        }
+
+        void begin(long seed, int cx, int cz, int step, int idx, String id, long featureSeed) {
+            calls.set(0);
+            System.out.printf(
+                "ORACLE_RNG_BEGIN seed=%d cx=%d cz=%d step=%d idx=%d id=%s featureSeed=%d%n",
+                seed, cx, cz, step, idx, id, featureSeed);
+        }
+
+        void end() {
+            Integer value = calls.get();
+            if (value != null) {
+                System.out.printf("ORACLE_RNG_END calls=%d%n", value);
+            }
+            calls.remove();
+        }
+
+        void nextInt(int value) {
+            Integer call = calls.get();
+            if (call == null) return;
+            call++;
+            calls.set(call);
+            System.out.printf("ORACLE_RNG call=%d method=nextInt value=%d%n", call, value);
+        }
+
+        void nextInt(int bound, int value) {
+            Integer call = calls.get();
+            if (call == null) return;
+            call++;
+            calls.set(call);
+            System.out.printf("ORACLE_RNG call=%d method=nextInt bound=%d value=%d%n", call, bound, value);
+        }
+
+        void nextFloat(float value) {
+            Integer call = calls.get();
+            if (call == null) return;
+            call++;
+            calls.set(call);
+            System.out.printf("ORACLE_RNG call=%d method=nextFloat value=%s%n", call, Float.toString(value));
+        }
+
+        void nextDouble(double value) {
+            Integer call = calls.get();
+            if (call == null) return;
+            call++;
+            calls.set(call);
+            System.out.printf("ORACLE_RNG call=%d method=nextDouble value=%s%n", call, Double.toString(value));
+        }
+
+        void nextBoolean(boolean value) {
+            Integer call = calls.get();
+            if (call == null) return;
+            call++;
+            calls.set(call);
+            System.out.printf("ORACLE_RNG call=%d method=nextBoolean value=%s%n", call, Boolean.toString(value));
+        }
+    }
+
+    private static final class TraceWorldgenRandom extends WorldgenRandom {
+        private TraceWorldgenRandom(XoroshiroRandomSource randomSource) {
+            super(randomSource);
+        }
+
+        @Override
+        public int nextInt() {
+            int value = super.nextInt();
+            ORACLE_RNG_TRACE.nextInt(value);
+            return value;
+        }
+
+        @Override
+        public int nextInt(int bound) {
+            int value = super.nextInt(bound);
+            ORACLE_RNG_TRACE.nextInt(bound, value);
+            return value;
+        }
+
+        @Override
+        public float nextFloat() {
+            float value = super.nextFloat();
+            ORACLE_RNG_TRACE.nextFloat(value);
+            return value;
+        }
+
+        @Override
+        public double nextDouble() {
+            double value = super.nextDouble();
+            ORACLE_RNG_TRACE.nextDouble(value);
+            return value;
+        }
+
+        @Override
+        public boolean nextBoolean() {
+            boolean value = super.nextBoolean();
+            ORACLE_RNG_TRACE.nextBoolean(value);
+            return value;
+        }
     }
 }
