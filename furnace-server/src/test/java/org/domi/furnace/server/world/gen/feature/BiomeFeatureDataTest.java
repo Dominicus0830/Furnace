@@ -47,16 +47,62 @@ class BiomeFeatureDataTest {
             data, List.of("minecraft:plains"), registry);
 
         assertFalse(features.featuresForStep("minecraft:plains", 6).isEmpty());
-        // step9(VEGETAL_DECORATION): grass(random_patch+simple_state_provider)는 구현됨,
-        // 미구현(weighted provider 꽃 등)은 placeholder(NoopFeature)로 보존 — index 슬롯 유지.
+        // step9(VEGETAL_DECORATION): grass/random selector/tree/noop이 섞일 수 있다.
         List<PlacedFeature> step9 = features.featuresForStep("minecraft:plains", 9);
         assertFalse(step9.isEmpty());
-        boolean hasGrass = false;
+        boolean hasVegetation = false;
         for (PlacedFeature f : step9) {
-            assertTrue(f.feature() instanceof RandomPatchFeature || f.feature() instanceof NoopFeature,
-                "step9 entry는 구현된 RandomPatchFeature이거나 placeholder Noop이어야 함: " + f.feature());
-            if (f.feature() instanceof RandomPatchFeature) hasGrass = true;
+            assertTrue(
+                f.feature() instanceof RandomPatchFeature
+                    || f.feature() instanceof NoopFeature
+                    || f.feature() instanceof RandomSelectorFeature
+                    || f.feature() instanceof GlowLichenFeature
+                    || f.feature() instanceof TreeFeature,
+                "step9 entry는 구현된 vegetation feature 또는 placeholder여야 함: " + f.feature());
+            if (f.feature() instanceof RandomPatchFeature || f.feature() instanceof RandomSelectorFeature) {
+                hasVegetation = true;
+            }
         }
-        assertTrue(hasGrass, "plains step9에 구현된 grass random_patch가 있어야 함");
+        assertTrue(hasVegetation, "plains step9에 구현된 vegetation feature가 있어야 함");
+    }
+
+    @Test
+    void load_parsesUniformCountPlacement() {
+        WorldgenData data = WorldgenData.load("worldgen/test");
+        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+
+        BiomeFeatureData features = BiomeFeatureData.load(
+            data, List.of("minecraft:uniform_count_biome"), registry);
+
+        List<PlacedFeature> step6 = features.featuresForStep("minecraft:uniform_count_biome", 6);
+        assertEquals(1, step6.size());
+        assertInstanceOf(PlacementModifier.UniformCountPlacement.class, step6.get(0).placement().get(0));
+    }
+
+    @Test
+    void load_parsesOakTreeAndSelectorFeatures() {
+        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+
+        BiomeFeatureData features = BiomeFeatureData.load(
+            data, List.of("minecraft:plains", "minecraft:taiga", "minecraft:savanna"), registry);
+
+        boolean foundTreeSelector = false;
+        for (PlacedFeature placed : features.featuresForStep("minecraft:plains", 9)) {
+            if (placed.feature() instanceof RandomSelectorFeature) {
+                foundTreeSelector = true;
+                break;
+            }
+        }
+        assertTrue(foundTreeSelector, "plains step9 should include a random_selector tree feature");
+
+        boolean foundConcreteTree = false;
+        for (PlacedFeature placed : features.featuresForStep("minecraft:taiga", 9)) {
+            if (placed.feature() instanceof RandomSelectorFeature) {
+                foundConcreteTree = true;
+                break;
+            }
+        }
+        assertTrue(foundConcreteTree, "taiga step9 should include a tree selector backed by tree features");
     }
 }

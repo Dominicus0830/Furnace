@@ -23,17 +23,24 @@ public class LegacyRandom {
     }
 
     public int nextInt() {
-        return next(32);
+        int value = next(32);
+        RandomTrace.nextInt(value);
+        return value;
     }
 
     public int nextInt(int bound) {
         if (bound <= 0) throw new IllegalArgumentException();
-        if ((bound & -bound) == bound) return (int)((bound * (long)next(31)) >> 31);
+        if ((bound & -bound) == bound) {
+            int value = (int)((bound * (long)next(31)) >> 31);
+            RandomTrace.nextInt(bound, value);
+            return value;
+        }
         int bits, val;
         do {
             bits = next(31);
             val  = bits % bound;
         } while (bits - val + (bound - 1) < 0);
+        RandomTrace.nextInt(bound, val);
         return val;
     }
 
@@ -44,14 +51,20 @@ public class LegacyRandom {
     }
 
     public float nextFloat() {
-        return next(24) / (float)(1 << 24);
+        float value = next(24) / (float)(1 << 24);
+        RandomTrace.nextFloat(value);
+        return value;
     }
 
     public double nextDouble() {
-        return (((long)next(26) << 27) + next(27)) * (1.0 / (1L << 53));
+        double value = (((long)next(26) << 27) + next(27)) * (1.0 / (1L << 53));
+        RandomTrace.nextDouble(value);
+        return value;
     }
 
     public boolean nextBoolean() {
-        return next(1) != 0;
+        boolean value = next(1) != 0;
+        RandomTrace.nextBoolean(value);
+        return value;
     }
 }

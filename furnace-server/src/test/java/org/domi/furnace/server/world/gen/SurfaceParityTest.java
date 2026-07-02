@@ -103,4 +103,8 @@ class SurfaceParityTest {
     @Test void seed0_aquifer_surface_coord1() throws Exception { assertSurfaceParity(0L, -20, 10); }
     @Test void seed0_aquifer_surface_coord2() throws Exception { assertSurfaceParity(0L, 15, -30); }
     @Test void seed0_aquifer_surface_coord3() throws Exception { assertSurfaceParity(0L, 0, -40); }
+
+    @Test void seed1234_coord1() throws Exception { assertSurfaceParity(1234L, 0,  0); }
+    @Test void seed1234_coord2() throws Exception { assertSurfaceParity(1234L, -5, 3); }
+    @Test void seed1234_coord3() throws Exception { assertSurfaceParity(1234L, 7, -2); }
 }

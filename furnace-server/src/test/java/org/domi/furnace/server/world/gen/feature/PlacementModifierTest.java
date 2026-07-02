@@ -2,6 +2,8 @@ package org.domi.furnace.server.world.gen.feature;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
+import com.google.gson.JsonParser;
+import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.junit.jupiter.api.Test;
 
@@ -35,5 +37,45 @@ class PlacementModifierTest {
         assertTrue(pos.x() >= 32 && pos.x() < 48);
         assertEquals(10, pos.y());
         assertTrue(pos.z() >= -16 && pos.z() < 0);
+    }
+
+    @Test
+    void absoluteYOrDefault_clampsAnchorsToWorldBounds() {
+        assertEquals(ChunkColumn.MIN_Y,
+            PlacementModifier.absoluteYOrDefault(JsonParser.parseString("{\"above_bottom\":-80}"), 0));
+        assertEquals(ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1,
+            PlacementModifier.absoluteYOrDefault(JsonParser.parseString("{\"below_top\":-10}"), 0));
+        assertEquals(ChunkColumn.MIN_Y,
+            PlacementModifier.absoluteYOrDefault(JsonParser.parseString("-999"), 0));
+    }
+
+    @Test
+    void worldgenYOrDefault_keepsOutOfBoundsAnchorsForSampling() {
+        assertEquals(ChunkColumn.MIN_Y - 80,
+            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("{\"above_bottom\":-80}"), 0));
+        assertEquals(ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1 + 10,
+            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("{\"below_top\":-10}"), 0));
+        assertEquals(-999,
+            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("-999"), 0));
+    }
+
+    @Test
+    void heightmapPlacement_usesConfiguredOceanFloorType() {
+        ChunkColumn col = new ChunkColumn(0);
+        int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 16 * 16 * 16];
+        int[] biomeIds = new int[ChunkColumn.SECTION_COUNT * 64];
+        int floorY = 4;
+        blockIds[(floorY - ChunkColumn.MIN_Y) * 256] = 1;
+        blockIds[(floorY + 1 - ChunkColumn.MIN_Y) * 256] = 80;
+        blockIds[(floorY + 2 - ChunkColumn.MIN_Y) * 256] = 80;
+        col.loadGenerated(blockIds, biomeIds);
+
+        FeatureWorldView view = new FeatureWorldView(col, 0, 0, biomeIds);
+        BlockPos pos = new PlacementModifier.HeightmapPlacement(PlacementModifier.HeightmapPlacement.Type.OCEAN_FLOOR_WG)
+            .filter(view, new WorldgenRandom(), new BlockPos(0, 0, 0))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals(floorY + 1, pos.y());
     }
 }

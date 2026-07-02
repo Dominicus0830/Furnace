@@ -1,0 +1,106 @@
+package org.domi.furnace.server.world.gen.carver;
+
+public final class RandomTrace {
+    private static final boolean ENABLED = Boolean.getBoolean("furnace.rngTrace");
+    private static final int TARGET_CX = Integer.getInteger("furnace.rngTraceCx", Integer.MIN_VALUE);
+    private static final int TARGET_CZ = Integer.getInteger("furnace.rngTraceCz", Integer.MIN_VALUE);
+    private static final int TARGET_STEP = Integer.getInteger("furnace.rngTraceStep", Integer.MIN_VALUE);
+    private static final int TARGET_IDX = Integer.getInteger("furnace.rngTraceIdx", Integer.MIN_VALUE);
+    private static final String TARGET_ID = System.getProperty("furnace.rngTraceId");
+
+    private static final ThreadLocal<Session> CURRENT = new ThreadLocal<>();
+
+    private RandomTrace() {
+    }
+
+    public static boolean shouldTrace(int cx, int cz, int step, int idx, String id) {
+        if (!ENABLED) return false;
+        if (TARGET_CX != Integer.MIN_VALUE && TARGET_CX != cx) return false;
+        if (TARGET_CZ != Integer.MIN_VALUE && TARGET_CZ != cz) return false;
+        if (TARGET_STEP != Integer.MIN_VALUE && TARGET_STEP != step) return false;
+        if (TARGET_IDX != Integer.MIN_VALUE && TARGET_IDX != idx) return false;
+        return TARGET_ID == null || TARGET_ID.equals(id);
+    }
+
+    public static void begin(long seed, int cx, int cz, int step, int idx, String id, long featureSeed) {
+        Session session = new Session();
+        CURRENT.set(session);
+        System.out.printf(
+            "FURNACE_RNG_BEGIN seed=%d cx=%d cz=%d step=%d idx=%d id=%s featureSeed=%d%n",
+            seed, cx, cz, step, idx, id, featureSeed);
+    }
+
+    public static void end() {
+        Session session = CURRENT.get();
+        if (session != null) {
+            System.out.printf("FURNACE_RNG_END calls=%d%n", session.calls);
+        }
+        CURRENT.remove();
+    }
+
+    public static boolean isActive() {
+        return CURRENT.get() != null;
+    }
+
+    public static int beginTreePlacement(int x, int y, int z) {
+        Session session = CURRENT.get();
+        if (session == null) return -1;
+        int ordinal = ++session.treePlacements;
+        session.currentTreeOrdinal = ordinal;
+        System.out.printf(
+            "FURNACE_TREE_PLACE origin=(%d,%d,%d) tree=%d%n",
+            x, y, z, ordinal);
+        return ordinal;
+    }
+
+    public static void endTreePlacement() {
+        Session session = CURRENT.get();
+        if (session != null) session.currentTreeOrdinal = -1;
+    }
+
+    public static int currentTreeOrdinal() {
+        Session session = CURRENT.get();
+        return session == null ? -1 : session.currentTreeOrdinal;
+    }
+
+    public static void log(String message) {
+        if (!isActive()) return;
+        System.out.printf("FURNACE_RNG_CTX %s%n", message);
+    }
+
+    public static void nextInt(int value) {
+        Session session = CURRENT.get();
+        if (session == null) return;
+        System.out.printf("FURNACE_RNG call=%d method=nextInt value=%d%n", ++session.calls, value);
+    }
+
+    public static void nextInt(int bound, int value) {
+        Session session = CURRENT.get();
+        if (session == null) return;
+        System.out.printf("FURNACE_RNG call=%d method=nextInt bound=%d value=%d%n", ++session.calls, bound, value);
+    }
+
+    public static void nextFloat(float value) {
+        Session session = CURRENT.get();
+        if (session == null) return;
+        System.out.printf("FURNACE_RNG call=%d method=nextFloat value=%s%n", ++session.calls, Float.toString(value));
+    }
+
+    public static void nextDouble(double value) {
+        Session session = CURRENT.get();
+        if (session == null) return;
+        System.out.printf("FURNACE_RNG call=%d method=nextDouble value=%s%n", ++session.calls, Double.toString(value));
+    }
+
+    public static void nextBoolean(boolean value) {
+        Session session = CURRENT.get();
+        if (session == null) return;
+        System.out.printf("FURNACE_RNG call=%d method=nextBoolean value=%s%n", ++session.calls, Boolean.toString(value));
+    }
+
+    private static final class Session {
+        private int calls;
+        private int treePlacements;
+        private int currentTreeOrdinal = -1;
+    }
+}

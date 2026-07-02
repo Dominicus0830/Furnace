@@ -7,8 +7,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class BlockRegistry {
 
@@ -113,6 +115,22 @@ public final class BlockRegistry {
 
     public int totalStateCount() {
         return totalStateCount;
+    }
+
+    /** 블록명에 속한 모든 state id 집합. exact blockstate 테이블이 없으면 default state만 반환. */
+    public Set<Integer> stateIdsForBlock(String blockName) {
+        HashSet<Integer> ids = new HashSet<>();
+        Integer def = defaultStateIds.get(blockName);
+        if (def != null) ids.add(def);
+        if (stateIds.isEmpty()) return ids;
+        String prefix = blockName + ";";
+        for (var e : stateIds.entrySet()) {
+            String key = e.getKey();
+            if (key.equals(blockName) || key.startsWith(prefix)) {
+                ids.add(e.getValue());
+            }
+        }
+        return ids;
     }
 
     /** direct 팰릿 bitsPerEntry = ceil(log2(전체 state 수)). */

@@ -103,4 +103,18 @@ class CarverParityTest {
     @Test void carver_seed0_coord1()  throws Exception { assertCarverParity(0L,          0,  0); }
     @Test void carver_seed0_coord2()  throws Exception { assertCarverParity(0L,         -5,  3); }
     @Test void carver_seedB()         throws Exception { assertCarverParity(123456789L,   0,  0); }
+
+    @Test void carver_seed1234_coord1() throws Exception { assertCarverParity(1234L, 0,  0); }
+    @Test void carver_seed1234_coord2() throws Exception { assertCarverParity(1234L, -5, 3); }
+    @Test void carver_seed1234_coord3() throws Exception { assertCarverParity(1234L, 7, -2); }
+
+    // 이웃 청크 terrain 검증 (cx=7,cz=-2 feature parity 디버그용)
+    @Test void carver_seed1234_n6m3() throws Exception { assertCarverParity(1234L, 6, -3); }
+    @Test void carver_seed1234_n6m2() throws Exception { assertCarverParity(1234L, 6, -2); }
+    @Test void carver_seed1234_n6m1() throws Exception { assertCarverParity(1234L, 6, -1); }
+    @Test void carver_seed1234_n7m3() throws Exception { assertCarverParity(1234L, 7, -3); }
+    @Test void carver_seed1234_n7m1() throws Exception { assertCarverParity(1234L, 7, -1); }
+    @Test void carver_seed1234_n8m3() throws Exception { assertCarverParity(1234L, 8, -3); }
+    @Test void carver_seed1234_n8m2() throws Exception { assertCarverParity(1234L, 8, -2); }
+    @Test void carver_seed1234_n8m1() throws Exception { assertCarverParity(1234L, 8, -1); }
 }

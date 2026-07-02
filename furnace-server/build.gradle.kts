@@ -30,4 +30,8 @@ application {
 tasks.test {
     useJUnitPlatform()
     enableAssertions = true
+    testLogging { showStandardStreams = true }
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
 }

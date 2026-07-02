@@ -7,6 +7,17 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
 public final class OreFeature implements ConfiguredFeature {
 
+    public static volatile boolean DEBUG_PLACE = false;
+
+    private static final float[] MTH_SIN;
+
+    static {
+        MTH_SIN = new float[65536];
+        for (int i = 0; i < 65536; i++) {
+            MTH_SIN[i] = (float) Math.sin(i * Math.PI * 2.0 / 65536.0);
+        }
+    }
+
     private final List<Target> targets;
     private final int size;
     private final float discardChanceOnAirExposure;
@@ -34,13 +45,21 @@ public final class OreFeature implements ConfiguredFeature {
         int horizontalSize = 2 * ((int) Math.ceil(horizontalScale) + padding);
         int verticalSize = 2 * (2 + padding);
 
+        boolean debugPlace = DEBUG_PLACE;
         for (int bx = minX; bx <= minX + horizontalSize; bx++) {
             for (int bz = minZ; bz <= minZ + horizontalSize; bz++) {
-                if (minY <= view.getSurfaceY(bx, bz)) {
+                int wgFloor = view.getWgOceanFloorHeight(bx, bz);
+                if (minY <= wgFloor) {
+                    if (debugPlace) {
+                        System.out.println("PLACE_PASS x=" + x + " y=" + y + " z=" + z + " minY=" + minY + " wgFloor=" + wgFloor);
+                    }
                     return doPlace(view, random, startX, endX, startZ, endZ, startY, endY,
                         minX, minY, minZ, horizontalSize, verticalSize);
                 }
             }
+        }
+        if (debugPlace) {
+            System.out.println("PLACE_FAIL x=" + x + " y=" + y + " z=" + z + " minY=" + minY);
         }
         return false;
     }
@@ -68,7 +87,7 @@ public final class OreFeature implements ConfiguredFeature {
             double centerY = lerp(progress, startY, endY);
             double centerZ = lerp(progress, startZ, endZ);
             double randomScale = random.nextDouble() * (double) size / 16.0;
-            double radius = ((Math.sin(Math.PI * (double) progress) + 1.0) * randomScale + 1.0) / 2.0;
+            double radius = ((double) (mthSin((float) Math.PI * progress) + 1.0f) * randomScale + 1.0) / 2.0;
             samples[i * 4] = centerX;
             samples[i * 4 + 1] = centerY;
             samples[i * 4 + 2] = centerZ;
@@ -86,11 +105,10 @@ public final class OreFeature implements ConfiguredFeature {
             double centerY = samples[i * 4 + 1];
             double centerZ = samples[i * 4 + 2];
             int fromX = Math.max((int) Math.floor(centerX - radius), minX);
-            int fromY = Math.max((int) Math.floor(centerY - radius), ChunkColumn.MIN_Y);
+            int fromY = Math.max((int) Math.floor(centerY - radius), minY);
             int fromZ = Math.max((int) Math.floor(centerZ - radius), minZ);
             int toX = Math.max((int) Math.floor(centerX + radius), fromX);
-            int toY = Math.min(Math.max((int) Math.floor(centerY + radius), fromY),
-                ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1);
+            int toY = Math.max((int) Math.floor(centerY + radius), fromY);
             int toZ = Math.max((int) Math.floor(centerZ + radius), fromZ);
 
             for (int bx = fromX; bx <= toX; bx++) {
@@ -101,11 +119,11 @@ public final class OreFeature implements ConfiguredFeature {
                     if (dx * dx + dy * dy >= 1.0) continue;
                     for (int bz = fromZ; bz <= toZ; bz++) {
                         double dz = ((double) bz + 0.5 - centerZ) / radius;
-                        if (dx * dx + dy * dy + dz * dz >= 1.0) continue;
+                        if (dx * dx + dy * dy + dz * dz >= 1.0 || !inWorldY(by)) continue;
 
                         int index = bx - minX + (by - minY) * horizontalSize
                             + (bz - minZ) * horizontalSize * verticalSize;
-                        if (index < 0 || index >= visited.size() || visited.get(index)) continue;
+                        if (visited.get(index)) continue;
                         visited.set(index);
                         placed |= tryPlace(view, random, bx, by, bz);
                     }
@@ -151,18 +169,33 @@ public final class OreFeature implements ConfiguredFeature {
         return start + (double) progress * (end - start);
     }
 
+    private static float mthSin(float value) {
+        return MTH_SIN[(int) (value * (65536.0f / (float) (Math.PI * 2.0))) & 65535];
+    }
+
     private boolean shouldPlace(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
         if (discardChanceOnAirExposure <= 0.0f) return true;
-        return !isAdjacentToAir(view, x, y, z) || random.nextFloat() >= discardChanceOnAirExposure;
+        if (discardChanceOnAirExposure >= 1.0f) return !isAdjacentToAir(view, x, y, z);
+        boolean skipAirCheck = random.nextFloat() >= discardChanceOnAirExposure;
+        return skipAirCheck || !isAdjacentToAir(view, x, y, z);
     }
 
     private static boolean isAdjacentToAir(FeatureWorldView view, int x, int y, int z) {
-        return view.getBlock(x + 1, y, z) == 0
-            || view.getBlock(x - 1, y, z) == 0
-            || view.getBlock(x, y + 1, z) == 0
-            || view.getBlock(x, y - 1, z) == 0
-            || view.getBlock(x, y, z + 1) == 0
-            || view.getBlock(x, y, z - 1) == 0;
+        return isAirBlock(view.getBlock(x + 1, y, z))
+            || isAirBlock(view.getBlock(x - 1, y, z))
+            || isAirBlock(view.getBlock(x, y + 1, z))
+            || isAirBlock(view.getBlock(x, y - 1, z))
+            || isAirBlock(view.getBlock(x, y, z + 1))
+            || isAirBlock(view.getBlock(x, y, z - 1));
+    }
+
+    // vanilla BlockState.isAir() — air(0), cave_air, void_air 모두 공기로 처리
+    private static boolean isAirBlock(int stateId) {
+        return stateId == 0 || stateId == 12958 || stateId == 12959;
+    }
+
+    private static boolean inWorldY(int y) {
+        return y >= ChunkColumn.MIN_Y && y < ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16;
     }
 
     public record Target(List<Integer> replaceStateIds, int stateId) {

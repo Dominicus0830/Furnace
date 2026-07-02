@@ -1,7 +1,7 @@
 // 바닐라 WorldgenRandom 포팅 — carver origin chunk별 시드 초기화
 package org.domi.furnace.server.world.gen.carver;
 
-public final class WorldgenRandom extends LegacyRandom {
+public class WorldgenRandom extends LegacyRandom {
 
     public WorldgenRandom() {
         super(0L);

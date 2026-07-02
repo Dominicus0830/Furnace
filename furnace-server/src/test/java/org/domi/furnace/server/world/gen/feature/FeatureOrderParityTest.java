@@ -32,27 +32,13 @@ class FeatureOrderParityTest {
         FeatureSorter sorter = FeatureSorter.build(bfd);
 
         for (int step = 0; step < fx.steps.size(); step++) {
-            List<String> expected = withoutOceanVeg(fx.steps.get(step));
+            List<String> expected = fx.steps.get(step);
             List<String> actual = new ArrayList<>();
             for (PlacedFeature pf : sorter.featuresPerStep().get(step).features()) {
                 actual.add(bfd.idOf(pf));
             }
-            actual = withoutOceanVeg(actual);
             assertEquals(expected, actual, "step " + step + " feature 순서 불일치");
         }
-    }
-
-    /**
-     * 해양 식생(seagrass·kelp 계열)은 Furnace biome JSON 데이터 갭(seagrass_simple 누락, kelp 순서)이 있어
-     * 제외한다. 광석(step6)·육상 식생 등 나머지 전체 순서는 vanilla와 정확히 검증된다. (Phase 2 데이터 보정 대상)
-     */
-    private static List<String> withoutOceanVeg(List<String> ids) {
-        List<String> out = new ArrayList<>();
-        for (String id : ids) {
-            if (id == null || id.contains("seagrass") || id.contains("kelp")) continue;
-            out.add(id);
-        }
-        return out;
     }
 
     /** NoiseWorldSource.possibleBiomeOrder와 동일 로직 — biome_parameters.json 첫등장 distinct(registry 존재만). */

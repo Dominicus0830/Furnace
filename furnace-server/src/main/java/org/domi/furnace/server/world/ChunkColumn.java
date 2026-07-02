@@ -23,6 +23,9 @@ public final class ChunkColumn {
     private static final int KELP_PLANT_STATE = 12786;
     private static final int KELP_MIN_STATE = 12760;
     private static final int KELP_MAX_STATE = 12785;
+    // glow_lichen: Material.REPLACEABLE_PLANT, blocksMotion=false → OCEAN_FLOOR 제외 대상
+    private static final int GLOW_LICHEN_MIN_STATE = 6869;
+    private static final int GLOW_LICHEN_MAX_STATE = 6996;
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음)
@@ -202,7 +205,8 @@ public final class ChunkColumn {
             || stateId == TALL_SEAGRASS_UPPER_STATE
             || stateId == TALL_SEAGRASS_LOWER_STATE
             || stateId == KELP_PLANT_STATE
-            || (stateId >= KELP_MIN_STATE && stateId <= KELP_MAX_STATE);
+            || (stateId >= KELP_MIN_STATE && stateId <= KELP_MAX_STATE)
+            || (stateId >= GLOW_LICHEN_MIN_STATE && stateId <= GLOW_LICHEN_MAX_STATE);
     }
 
     private static boolean isFluid(int stateId) {

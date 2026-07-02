@@ -22,7 +22,8 @@ class DiskFeatureTest {
         }
         col.setBlock(8, 63, 8, stone);
         FeatureWorldView view = new FeatureWorldView(col, 0, 0, new int[ChunkColumn.SECTION_COUNT * 64]);
-        DiskFeature disk = new DiskFeature(gravel, 2, 1, Set.of(dirt));
+        DiskFeature disk = new DiskFeature(
+            gravel, java.util.List.of(), new TreeIntProvider.Constant(2), 1, Set.of(dirt));
 
         assertTrue(disk.place(view, new WorldgenRandom(), 8, 63, 8));
 

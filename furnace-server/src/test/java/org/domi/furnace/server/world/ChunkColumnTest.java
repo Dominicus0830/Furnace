@@ -10,6 +10,14 @@ class ChunkColumnTest {
         return (int) ChunkColumn.class.getMethod("surfaceBlockY", int.class, int.class).invoke(c, x, z);
     }
 
+    private static int oceanFloorBlockY(ChunkColumn c, int x, int z) throws Exception {
+        return (int) ChunkColumn.class.getMethod("oceanFloorBlockY", int.class, int.class).invoke(c, x, z);
+    }
+
+    private static int wgOceanFloorHeight(ChunkColumn c, int x, int z) throws Exception {
+        return (int) ChunkColumn.class.getMethod("wgOceanFloorHeight", int.class, int.class).invoke(c, x, z);
+    }
+
     @Test
     void section_setBlock_countsNonAir() {
         ChunkSection s = new ChunkSection();
@@ -77,5 +85,37 @@ class ChunkColumnTest {
 
         assertFalse(c.dirty());
         assertEquals(79, c.getBlock(0, ChunkColumn.MIN_Y, 0));
+    }
+
+    @Test
+    void oceanFloorBlockY_ignoresFluids() throws Exception {
+        ChunkColumn c = new ChunkColumn(6);
+
+        c.setGeneratedBlock(0, ChunkColumn.MIN_Y, 0, 1);
+        c.setGeneratedBlock(0, ChunkColumn.MIN_Y + 1, 0, 80);
+        c.setGeneratedBlock(0, ChunkColumn.MIN_Y + 2, 0, 80);
+        c.setSurface(0, 0, 3);
+
+        assertEquals(ChunkColumn.MIN_Y + 2, surfaceBlockY(c, 0, 0));
+        assertEquals(ChunkColumn.MIN_Y, oceanFloorBlockY(c, 0, 0));
+    }
+
+    @Test
+    void wgOceanFloorHeight_preservesPreCarverHeight() throws Exception {
+        ChunkColumn c = new ChunkColumn(6);
+        int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 16 * 16 * 16];
+        int[] biomeIds = new int[ChunkColumn.SECTION_COUNT * 64];
+
+        int topY = ChunkColumn.MIN_Y + 5;
+        for (int y = ChunkColumn.MIN_Y; y <= topY; y++) {
+            int idx = (y - ChunkColumn.MIN_Y) * 256;
+            blockIds[idx] = 1;
+        }
+
+        c.loadGenerated(blockIds, biomeIds);
+        c.setBlock(0, topY, 0, 0);
+
+        assertEquals(topY - 1, oceanFloorBlockY(c, 0, 0));
+        assertEquals(topY + 1, wgOceanFloorHeight(c, 0, 0));
     }
 }

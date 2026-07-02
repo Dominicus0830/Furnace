@@ -17,6 +17,7 @@ import org.domi.furnace.server.world.gen.feature.BiomeFeatureData;
 import org.domi.furnace.server.world.gen.feature.FeaturePlacer;
 import org.domi.furnace.server.world.gen.feature.FeatureSorter;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
+import org.domi.furnace.server.world.gen.pipeline.ChunkPipeline;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 import java.util.ArrayList;
@@ -51,6 +52,7 @@ public final class NoiseWorldSource implements WorldSource {
     private final OverworldCarvers overworldCarvers;
     private final FeaturePlacer featurePlacer;
     private final List<SpawnTarget> spawnTargets;
+    private final ChunkPipeline pipeline;
     private volatile SpawnPoint defaultSpawn;
 
     private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
@@ -72,6 +74,7 @@ public final class NoiseWorldSource implements WorldSource {
         this.overworldCarvers   = overworldCarvers;
         this.featurePlacer      = featurePlacer;
         this.spawnTargets       = spawnTargets;
+        this.pipeline           = new ChunkPipeline(this);
     }
 
     /**
@@ -102,7 +105,7 @@ public final class NoiseWorldSource implements WorldSource {
         OverworldCarvers overworldCarvers = OverworldCarvers.load();
         // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=biome_parameters.json 첫등장 distinct).
         // registry 전체 순서를 쓰면 nether/end biome이 섞여 광석 index가 어긋난다.
-        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possibleBiomeOrder(data, registries), reg, seed);
+        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possibleBiomeOrder(data, registries), biomeEntries, reg, seed);
         List<SpawnTarget> spawnTargets = loadSpawnTargets(data.noiseSettings("minecraft:overworld"));
 
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
@@ -122,9 +125,9 @@ public final class NoiseWorldSource implements WorldSource {
     }
 
     private static FeaturePlacer loadFeaturePlacer(
-            WorldgenData data, List<String> biomeEntries, BlockRegistry reg, long seed) {
+            WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed) {
         try {
-            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, biomeEntries, reg);
+            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg);
             return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData));
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().startsWith("Worldgen resource not found:")) {
@@ -354,6 +357,16 @@ public final class NoiseWorldSource implements WorldSource {
         }
     }
 
+    public void applyCarvers(ChunkColumn col, int cx, int cz) {
+        NoiseChunk nc = new NoiseChunk(cx, cz, router, settings, reg);
+        applyCarvers(col, cx, cz, nc);
+    }
+
+    public int[] sampleBiomes(int cx, int cz) {
+        NoiseChunk nc = new NoiseChunk(cx, cz, router, settings, reg);
+        return biomeSampler.sampleChunk(cx, cz, nc);
+    }
+
     public ChunkColumn generateWithCarvers(int chunkX, int chunkZ) {
         ChunkColumn col = generate(chunkX, chunkZ);
         NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings, reg);
@@ -361,20 +374,40 @@ public final class NoiseWorldSource implements WorldSource {
         return col;
     }
 
-    public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {
-        ChunkColumn col = generateWithCarvers(chunkX, chunkZ);
-        if (featurePlacer == null) return col;
-
-        NoiseChunk centerNoise = new NoiseChunk(chunkX, chunkZ, router, settings, reg);
-        int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, centerNoise);
-        FeatureWorldView view = new FeatureWorldView(col, chunkX, chunkZ, biomeIds);
-        featurePlacer.decorate(view, collectNeighborBiomes(chunkX, chunkZ), chunkX, chunkZ);
-        col.compactSections();
-        col.clearDirty();
-        return col;
+    /** M4g-e placeholder — structure starts (jigsaw/placement) not yet implemented. */
+    public void applyStructureStarts(ChunkColumn col, int cx, int cz) {
+        // no-op until M4g-e
     }
 
-    private Set<String> collectNeighborBiomes(int chunkX, int chunkZ) {
+    public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {
+        return pipeline.generateFull(chunkX, chunkZ).join();
+    }
+
+    public void decorateCenter(ChunkColumn col, int cx, int cz) {
+        if (featurePlacer == null) return;
+
+        NoiseChunk nc = new NoiseChunk(cx, cz, router, settings, reg);
+        int[] biomeIds = biomeSampler.sampleChunk(cx, cz, nc);
+        FeatureWorldView view = new FeatureWorldView(col, cx, cz, biomeIds, seed);
+        featurePlacer.decorate(view, collectNeighborBiomes(cx, cz), cx, cz);
+        col.compactSections();
+        col.clearDirty();
+    }
+
+    public void decorateOrigin(FeatureWorldView view, Set<String> neighborBiomes, int ox, int oz) {
+        if (featurePlacer == null) return;
+        featurePlacer.decorate(view, neighborBiomes, ox, oz);
+    }
+
+    public FeaturePlacer featurePlacer() {
+        return featurePlacer;
+    }
+
+    public long seed() {
+        return seed;
+    }
+
+    public Set<String> collectNeighborBiomes(int chunkX, int chunkZ) {
         HashSet<String> result = new HashSet<>();
         for (int dz = -1; dz <= 1; dz++) {
             for (int dx = -1; dx <= 1; dx++) {

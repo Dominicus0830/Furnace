@@ -50,9 +50,9 @@ public final class FeatureSorter {
             }
             for (int k = 0; k < seq.size(); k++) {
                 Set<FeatureData> set = edges.computeIfAbsent(seq.get(k), x -> new TreeSet<>(cmp));
-                // 같은 feature가 연속 등장하면 self-edge(=거짓 사이클)이 되므로 건너뜀.
-                if (k < seq.size() - 1 && cmp.compare(seq.get(k), seq.get(k + 1)) != 0) {
-                    set.add(seq.get(k + 1));
+                if (k < seq.size() - 1) {
+                    FeatureData next = seq.get(k + 1);
+                    if (!seq.get(k).equals(next)) set.add(next);
                 }
             }
         }
@@ -70,12 +70,14 @@ public final class FeatureSorter {
         ArrayList<StepFeatureData> result = new ArrayList<>(BiomeFeatureData.STEP_COUNT);
         for (int step = 0; step < BiomeFeatureData.STEP_COUNT; step++) {
             ArrayList<PlacedFeature> ordered = new ArrayList<>();
-            IdentityHashMap<PlacedFeature, Integer> index = new IdentityHashMap<>();
             for (FeatureData fd : postOrder) {
-                if (fd.step() == step && !index.containsKey(fd.feature())) {
-                    index.put(fd.feature(), ordered.size());
+                if (fd.step() == step) {
                     ordered.add(fd.feature());
                 }
+            }
+            IdentityHashMap<PlacedFeature, Integer> index = new IdentityHashMap<>();
+            for (int i = 0; i < ordered.size(); i++) {
+                index.putIfAbsent(ordered.get(i), i);
             }
             result.add(new StepFeatureData(ordered, index));
         }

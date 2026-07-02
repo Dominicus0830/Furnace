@@ -77,4 +77,8 @@ class BiomeSamplerParityTest {
     @Test void seed0_spawn() throws Exception { assertBiomeParity(0L, 0, 0); }
     @Test void seed0_far()   throws Exception { assertBiomeParity(0L, 5, 5); }
     @Test void seedB()       throws Exception { assertBiomeParity(123456789L, 0, 0); }
+
+    @Test void seed1234_coord1() throws Exception { assertBiomeParity(1234L, 0,  0); }
+    @Test void seed1234_coord2() throws Exception { assertBiomeParity(1234L, -5, 3); }
+    @Test void seed1234_coord3() throws Exception { assertBiomeParity(1234L, 7, -2); }
 }
