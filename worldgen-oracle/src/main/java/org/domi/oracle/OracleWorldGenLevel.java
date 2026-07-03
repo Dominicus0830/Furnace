@@ -59,6 +59,7 @@ final class OracleWorldGenLevel implements WorldGenLevel {
     private final ProtoChunk[] grid;
     private final int cx;
     private final int cz;
+    private final int radius;
     private final long seed;
     private final MultiNoiseBiomeSource biomeSource;
     private final RandomState randomState;
@@ -79,9 +80,25 @@ final class OracleWorldGenLevel implements WorldGenLevel {
         RegistryAccess registryAccess,
         HolderLookup.Provider registries
     ) {
+        this(grid, cx, cz, 1, seed, biomeSource, randomState, registryAccess, registries);
+    }
+
+    // radius > 1 지원 — M4g-e featurestruct: createReferences가 center±8 청크를 조회해야 함
+    OracleWorldGenLevel(
+        ProtoChunk[] grid,
+        int cx,
+        int cz,
+        int radius,
+        long seed,
+        MultiNoiseBiomeSource biomeSource,
+        RandomState randomState,
+        RegistryAccess registryAccess,
+        HolderLookup.Provider registries
+    ) {
         this.grid = grid;
         this.cx = cx;
         this.cz = cz;
+        this.radius = radius;
         this.seed = seed;
         this.biomeSource = biomeSource;
         this.randomState = randomState;
@@ -134,14 +151,15 @@ final class OracleWorldGenLevel implements WorldGenLevel {
     }
 
     @Override public boolean setBlock(BlockPos pos, BlockState state, int flags, int maxUpdateDepth) {
-        // vanilla WorldGenRegion: FEATURES writeRadius=1 → 3×3 이웃 쓰기 허용.
+        // vanilla WorldGenRegion: FEATURES writeRadius=1 → 3×3 이웃 쓰기 허용 (구조물 postProcess는 자기 청크로 이미 클램프됨).
         // center만 허용하면 이웃에 걸친 배치(tall_seagrass 등)가 드롭돼 이후 world-state가 바닐라와 어긋남.
+        // 이 writeRadius=1 제약은 grid 조회 radius(구조물 references 탐색용)와 별개 — 항상 1로 고정.
         int dx = chunkX(pos) - cx;
         int dz = chunkZ(pos) - cz;
         if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
             return false;
         }
-        return grid[(dz + 1) * 3 + (dx + 1)].setBlockState(pos, state, false) != null;
+        return getChunkAt(chunkX(pos), chunkZ(pos)).setBlockState(pos, state, false) != null;
     }
 
     @Override public boolean removeBlock(BlockPos pos, boolean move) {
@@ -159,7 +177,7 @@ final class OracleWorldGenLevel implements WorldGenLevel {
     @Override public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus leastStatus, boolean create) {
         ProtoChunk chunk = getChunkAt(chunkX, chunkZ);
         if (chunk == null) {
-            throw new IllegalStateException("Oracle chunk outside 3x3 grid: " + chunkX + "," + chunkZ);
+            throw new IllegalStateException("Oracle chunk outside grid (radius=" + radius + "): " + chunkX + "," + chunkZ);
         }
         return chunk;
     }
@@ -259,9 +277,10 @@ final class OracleWorldGenLevel implements WorldGenLevel {
     private ProtoChunk getChunkAt(int chunkX, int chunkZ) {
         int dx = chunkX - cx;
         int dz = chunkZ - cz;
-        if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
+        if (Math.abs(dx) > radius || Math.abs(dz) > radius) {
             return null;
         }
-        return grid[(dz + 1) * 3 + (dx + 1)];
+        int size = 2 * radius + 1;
+        return grid[(dz + radius) * size + (dx + radius)];
     }
 }

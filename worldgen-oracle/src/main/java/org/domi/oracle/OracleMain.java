@@ -329,6 +329,13 @@ public class OracleMain {
             } else if (arg.startsWith("legacynormal:")) {
                 long noiseSeed = Long.parseLong(arg.substring("legacynormal:".length()));
                 dumpLegacyNormalNoise(noiseSeed, outDir);
+            } else if (arg.startsWith("featurestruct:")) {
+                String[] parts = arg.substring("featurestruct:".length()).split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpFeatureStructChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
+                                    aquiferSettingsHolder.value(), aquiferFluidPicker,
+                                    frozenBiomeRegistry, biomeSource, registryAccess, registries, outDir);
             } else if (arg.startsWith("structplacement:")) {
                 String[] parts = arg.substring("structplacement:".length()).split(":");
                 int cx1 = Integer.parseInt(parts[0]);
@@ -1436,6 +1443,143 @@ public class OracleMain {
         System.out.printf("carver→featurefull 블록 변화 수: %d%n", changed);
     }
 
+    /**
+     * featurefull과 동일하되 실제 StructureManager+ChunkGeneratorStructureState로
+     * createStructures→createReferences(17x17, radius 8)→applyBiomeDecoration(구조물 postProcess 포함)을
+     * 실행한다. Beardifier는 여전히 EMPTY(F9 — beardify는 이 마일스톤 범위 밖).
+     */
+    private static void dumpFeatureStructChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        MultiNoiseBiomeSource biomeSource,
+        RegistryAccess registryAccess,
+        HolderLookup.Provider registries,
+        Path outDir
+    ) throws Exception {
+        final int radius = 8;
+        final int size = 2 * radius + 1;
+        ProtoChunk[] grid = new ProtoChunk[size * size];
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                grid[(dz + radius) * size + (dx + radius)] = buildCarvedProtoChunk(
+                    seed, cx + dx, cz + dz, generator, randomState, settings,
+                    fluidPicker, biomeRegistry, biomeSource, registryAccess);
+            }
+        }
+
+        int centerIdx = radius * size + radius;
+        BlockState[] before = snapshotChunk(grid[centerIdx], cx, cz);
+
+        OracleWorldGenLevel level = new OracleWorldGenLevel(
+            grid, cx, cz, radius, seed, biomeSource, randomState, registryAccess, registries);
+
+        // 실 StructureManager 구성 — 스크래치 저장소(디스크에 실제 청크 저장 없음, DirectoryLock만 생성)
+        //
+        // (가정/이슈) Paper 서버 클래스패스에서는 ChunkGeneratorStructureState.createForNormal이
+        // 5번째 인자로 org.spigotmc.SpigotWorldConfig를 요구한다(순정 vanilla엔 없음, Paper 추가 파라미터).
+        // SpigotWorldConfig 생성자는 즉시 init()을 호출하고, init()은 정적 SpigotConfig.config(YamlConfiguration)를
+        // 읽는데 이 헤드리스 오라클 환경엔 실 Bukkit 서버가 없어 그 static이 null → NPE.
+        // 우회: createForNormal(공개 팩토리, injectSpigot 경유)을 쓰지 않고 private 전체-인자 생성자를
+        // 리플렉션으로 직접 호출해 SpigotWorldConfig 관여(=injectSpigot의 seed override) 자체를 건너뛴다.
+        // possibleStructureSets도 desert_pyramids 단일 set으로 제한 — Furnace가 구현한 유일한 구조물이므로
+        // (S4+ 범위인 shipwrecks 등 다른 set의 salt가 SpigotWorldConfig 미초기화로 오염되는 것도 함께 방지).
+        net.minecraft.core.HolderLookup<net.minecraft.world.level.levelgen.structure.StructureSet> structureSetLookup =
+            registries.lookupOrThrow(Registries.STRUCTURE_SET);
+        net.minecraft.core.Holder<net.minecraft.world.level.levelgen.structure.StructureSet> desertPyramidsSet =
+            structureSetLookup.get(net.minecraft.resources.ResourceKey.create(Registries.STRUCTURE_SET,
+                net.minecraft.resources.ResourceLocation.parse("minecraft:desert_pyramids"))).orElseThrow();
+
+        java.lang.reflect.Constructor<net.minecraft.world.level.chunk.ChunkGeneratorStructureState> stateCtor =
+            net.minecraft.world.level.chunk.ChunkGeneratorStructureState.class.getDeclaredConstructor(
+                RandomState.class, net.minecraft.world.level.biome.BiomeSource.class, long.class, long.class,
+                java.util.List.class, org.spigotmc.SpigotWorldConfig.class);
+        stateCtor.setAccessible(true);
+        net.minecraft.world.level.chunk.ChunkGeneratorStructureState structureState = stateCtor.newInstance(
+            randomState, biomeSource, seed, seed, java.util.List.of(desertPyramidsSet), null);
+
+        // fixture 출력 디렉터리(outDir)가 아니라 시스템 임시 폴더에 스크래치 락파일을 둔다 —
+        // StructureTemplateManager 생성자가 요구하는 LevelStorageAccess용, 실제 청크 저장 안 함.
+        Path scratchSaves = Files.createTempDirectory("furnace_oracle_scratch");
+        net.minecraft.world.level.storage.LevelStorageSource storageSource =
+            net.minecraft.world.level.storage.LevelStorageSource.createDefault(scratchSaves);
+        net.minecraft.world.level.storage.LevelStorageSource.LevelStorageAccess levelStorageAccess =
+            storageSource.createAccess("oracle_featurestruct",
+                net.minecraft.world.level.dimension.LevelStem.OVERWORLD);
+
+        com.mojang.datafixers.DataFixer dataFixer = net.minecraft.util.datafix.DataFixers.getDataFixer();
+        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templateManager =
+            new net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager(
+                net.minecraft.server.packs.resources.ResourceManager.Empty.INSTANCE,
+                levelStorageAccess, dataFixer, registryAccess.lookupOrThrow(Registries.BLOCK));
+
+        net.minecraft.world.level.chunk.storage.ChunkScanAccess scanStub =
+            (chunkPos, visitor) -> java.util.concurrent.CompletableFuture.completedFuture(null);
+        net.minecraft.world.level.levelgen.structure.StructureCheck structureCheck =
+            new net.minecraft.world.level.levelgen.structure.StructureCheck(
+                scanStub, registryAccess, templateManager, net.minecraft.world.level.dimension.LevelStem.OVERWORLD,
+                generator, randomState, level, biomeSource, seed, dataFixer);
+
+        net.minecraft.world.level.levelgen.WorldOptions worldOptions =
+            new net.minecraft.world.level.levelgen.WorldOptions(seed, true, false);
+        net.minecraft.world.level.StructureManager structureManager =
+            new net.minecraft.world.level.StructureManager(level, worldOptions, structureCheck);
+
+        for (ProtoChunk chunk : grid) {
+            generator.createStructures(registryAccess, structureState, structureManager, chunk, templateManager);
+        }
+        // createReferences(center)만 실행 — StructureManager.startsForStructure(centerSectionPos, ..)는
+        // center 청크 자신의 참조 집합만 읽으므로(StructureManager.java:64-71) 이웃 청크에서 createReferences를
+        // 또 돌릴 필요 없다. 모든 289개 청크에 대해 돌리면 그 청크의 ±8 추가 조회가 radius=8 grid 밖으로 나가 실패한다.
+        generator.createReferences(level, structureManager, grid[centerIdx]);
+
+        placeVanillaFeatures(level, grid[centerIdx], generator, biomeSource, registryAccess, structureManager, registries);
+
+        int changed = 0;
+        int idx = 0;
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = grid[centerIdx].getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    if (!state.equals(before[idx++])) {
+                        changed++;
+                    }
+                }
+            }
+        }
+
+        int totalBlocks = FixtureFormat.HEIGHT * 16 * 16;
+        int headerSize = 4 + 8 + 4 + 4;
+        ByteBuffer buf = ByteBuffer.allocate(headerSize + totalBlocks * 2).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0x53464C42); // "SFLB" (structure feature label block)
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = grid[centerIdx].getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    buf.putShort((short) net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state));
+                }
+            }
+        }
+
+        Path out = outDir.resolve("featurestruct_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
+        System.out.printf("carver→featurestruct 블록 변화 수: %d%n", changed);
+    }
+
     private static BlockState[] snapshotChunk(ProtoChunk chunk, int cx, int cz) {
         BlockState[] states = new BlockState[FixtureFormat.HEIGHT * 16 * 16];
         int idx = 0;
@@ -1529,6 +1673,66 @@ public class OracleMain {
         MultiNoiseBiomeSource biomeSource,
         RegistryAccess registryAccess
     ) throws Exception {
+        placeVanillaFeatures(level, center, generator, biomeSource, registryAccess, null, null);
+    }
+
+    private static java.util.Map<Integer, java.util.List<net.minecraft.world.level.levelgen.structure.Structure>>
+            STRUCTURES_BY_STEP;
+
+    /**
+     * vanilla applyBiomeDecoration line ~321 미러:
+     * registry.stream().collect(groupingBy(structure.step().ordinal())) — registry stream 순서 유지.
+     * 각 step 그룹 내 순번이 setFeatureSeed의 구조물 인덱스 i1이 된다.
+     */
+    private static java.util.Map<Integer, java.util.List<net.minecraft.world.level.levelgen.structure.Structure>>
+            structuresByStep(HolderLookup.Provider registries) {
+        if (STRUCTURES_BY_STEP == null) {
+            java.util.Map<Integer, java.util.List<net.minecraft.world.level.levelgen.structure.Structure>> map =
+                new java.util.LinkedHashMap<>();
+            java.util.Map<net.minecraft.world.level.levelgen.structure.Structure, String> names =
+                new java.util.IdentityHashMap<>();
+            registries.lookupOrThrow(Registries.STRUCTURE).listElements().forEach(ref -> {
+                net.minecraft.world.level.levelgen.structure.Structure s = ref.value();
+                map.computeIfAbsent(s.step().ordinal(), k -> new java.util.ArrayList<>()).add(s);
+                names.put(s, ref.key().location().toString());
+            });
+            for (var e : map.entrySet()) {
+                for (int i = 0; i < e.getValue().size(); i++) {
+                    String id = names.get(e.getValue().get(i));
+                    if ("minecraft:desert_pyramid".equals(id)) {
+                        System.out.printf("ORACLE structure index: step=%d i1=%d id=%s (group size=%d)%n",
+                            e.getKey(), i, id, e.getValue().size());
+                        for (int j = 0; j < e.getValue().size(); j++) {
+                            System.out.printf("ORACLE step=%d group[%d]=%s%n",
+                                e.getKey(), j, names.get(e.getValue().get(j)));
+                        }
+                    }
+                }
+            }
+            STRUCTURES_BY_STEP = map;
+        }
+        return STRUCTURES_BY_STEP;
+    }
+
+    /**
+     * featurestruct 전용 오버로드 — structureManager!=null이면 vanilla ChunkGenerator.applyBiomeDecoration의
+     * 실제 로직(구조물 placeInChunk가 매 step의 feature 배치보다 먼저)을 직접 미러링한다.
+     * generator.applyBiomeDecoration을 직접 호출하지 않는 이유: Paper 서버 addVanillaDecorations가
+     * WorldGenLevel.getMinecraftWorld().paperConfig()(Paper의 feature-seed override 설정)를 참조하는데
+     * 이 헤드리스 오라클엔 실 ServerLevel이 없어 NPE — 어차피 기본 설정에서는 override map이 비어 있어
+     * (getLong==-1L) 항상 no-op이므로, 그 경로를 우회하고 vanilla 핵심 로직만 손으로 재현한다.
+     * (desert_pyramid만 지원 — Furnace가 구현한 유일한 구조물, S4+ 범위 외 구조물은 대상 아님)
+     */
+    @SuppressWarnings("unchecked")
+    private static void placeVanillaFeatures(
+        OracleWorldGenLevel level,
+        ProtoChunk center,
+        NoiseBasedChunkGenerator generator,
+        MultiNoiseBiomeSource biomeSource,
+        RegistryAccess registryAccess,
+        net.minecraft.world.level.StructureManager structureManager,
+        HolderLookup.Provider registries
+    ) throws Exception {
         ChunkPos chunkPos = center.getPos();
         SectionPos sectionPos = SectionPos.of(chunkPos, level.getMinSection());
         net.minecraft.core.BlockPos origin = sectionPos.origin();
@@ -1570,6 +1774,27 @@ public class OracleMain {
 
         int stepCount = Math.max(GenerationStep.Decoration.values().length, steps.size());
         for (int step = 0; step < stepCount; step++) {
+            if (structureManager != null && structureManager.shouldGenerateStructures()) {
+                // vanilla ChunkGenerator.applyBiomeDecoration 미러 (F1):
+                // 전체 Structure registry stream을 step ordinal로 groupingBy(registry 순서 유지),
+                // step 그룹의 모든 구조물에 대해 setFeatureSeed(l, i1, step) 재시드 후 i1++ —
+                // start가 없는 구조물도 i1을 소비한다. 인덱스 하드코딩 금지(desert_pyramid ≠ 0).
+                java.util.List<net.minecraft.world.level.levelgen.structure.Structure> stepStructures =
+                    structuresByStep(registries).getOrDefault(step, java.util.List.of());
+                net.minecraft.world.level.levelgen.structure.BoundingBox writableArea =
+                    new net.minecraft.world.level.levelgen.structure.BoundingBox(
+                        chunkPos.getMinBlockX(), level.getMinBuildHeight() + 1, chunkPos.getMinBlockZ(),
+                        chunkPos.getMinBlockX() + 15, level.getMaxBuildHeight() - 1, chunkPos.getMinBlockZ() + 15);
+                int i1 = 0;
+                for (net.minecraft.world.level.levelgen.structure.Structure structure : stepStructures) {
+                    random.setFeatureSeed(decorationSeed, i1, step);
+                    for (net.minecraft.world.level.levelgen.structure.StructureStart start :
+                            structureManager.startsForStructure(sectionPos, structure)) {
+                        start.placeInChunk(level, structureManager, generator, random, writableArea, chunkPos);
+                    }
+                    i1++;
+                }
+            }
             if (step >= steps.size()) {
                 continue;
             }

@@ -16,6 +16,14 @@ public final class FeaturePlacer {
     /** vanilla GenerationStep.Decoration.SURFACE_STRUCTURES.ordinal() — 구조물 postProcess가 이 step 앞에서 실행된다(F1). */
     private static final int STRUCTURE_STEP = 4;
 
+    /**
+     * desert_pyramid의 구조물 시드 인덱스 i1 (F1). vanilla applyBiomeDecoration은 전체 Structure registry를
+     * step ordinal로 groupingBy(registry stream 순서)한 뒤 그룹 내 순번을 setFeatureSeed(l, i1, step)에 넣는다 —
+     * start 유무와 무관하게 그룹의 모든 구조물이 i1을 소비. oracle 실측(OracleMain.structuresByStep, seed 무관 상수):
+     * step=4 그룹 26개 중 desert_pyramid는 index 22. 다른 구조물 지원 시(S4+) registry 그룹핑으로 일반화할 것.
+     */
+    private static final int DESERT_PYRAMID_STRUCTURE_INDEX = 22;
+
     private final long seed;
     private final BiomeFeatureData biomeData;
     private final FeatureSorter sorter;
@@ -55,8 +63,8 @@ public final class FeaturePlacer {
 
         for (int step = 0; step < BiomeFeatureData.STEP_COUNT; step++) {
             if (step == STRUCTURE_STEP && !starts.isEmpty()) {
-                // vanilla: structure 타입별로 1회 setFeatureSeed(l, i1, step) — 현재 지원 구조물이 desert_pyramid 뿐이라 i1=0 고정.
-                featureRandom.setFeatureSeed(decorationSeed, 0, step);
+                // vanilla: step 그룹의 구조물마다 setFeatureSeed(l, i1, step) — desert_pyramid의 i1은 registry 그룹 순번 22 (상수 주석 참조).
+                featureRandom.setFeatureSeed(decorationSeed, DESERT_PYRAMID_STRUCTURE_INDEX, step);
                 for (StructureStart start : starts) {
                     for (StructurePiece piece : start.pieces()) {
                         if (piece.boundingBox().intersects(writableBox)) {
