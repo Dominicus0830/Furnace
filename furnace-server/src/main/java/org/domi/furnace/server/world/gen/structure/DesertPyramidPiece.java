@@ -48,10 +48,10 @@ public final class DesertPyramidPiece extends StructurePiece {
         int air = 0;
         // 로컬(피라미드 설계상 의도) facing → 조각 orientation에 따른 world-space facing으로 변환
         // (바닐라 StructurePiece.placeBlock의 blockstate.mirror/rotate 상당, rotateFacing 참고).
-        int stairsNorth = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.NORTH))));
-        int stairsSouth = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.SOUTH))));
-        int stairsEast = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.EAST))));
-        int stairsWest = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.WEST))));
+        int stairsNorth = stairsState(blocks, rotateFacing(Direction.NORTH));
+        int stairsSouth = stairsState(blocks, rotateFacing(Direction.SOUTH));
+        int stairsEast = stairsState(blocks, rotateFacing(Direction.EAST));
+        int stairsWest = stairsState(blocks, rotateFacing(Direction.WEST));
         int chest = blocks.stateIdOrAir("minecraft:chest");
 
         generateBox(view, writableBox, 0, -4, 0, WIDTH - 1, 0, DEPTH - 1, sandstone, sandstone, false);
@@ -246,6 +246,19 @@ public final class DesertPyramidPiece extends StructurePiece {
         return d.name().toLowerCase(java.util.Locale.ROOT);
     }
 
+    /**
+     * facing만 넘기면 blockstates 테이블(full-property canonical key)에 매칭이 안 돼 default(facing=north)로
+     * 폴백하는 버그가 있었다 — 나머지 프로퍼티를 vanilla 배치 상태 그대로 명시한다.
+     * shape=straight 근거: vanilla StructurePiece.placeBlock은 defaultBlockState 기반 상태를 mirror/rotate만
+     * 해서 setBlock(flags=2)하고(StairBlock.rotate는 FACING만 변경), WorldGenRegion.setBlock은 updateShape를
+     * 호출하지 않는다. stairs는 SHAPE_CHECK_BLOCKS(StructurePiece.java:50-70, 펜스·횃불만)에도 없어
+     * postprocessing 마킹조차 없음 — 월드젠 단계 산출물은 항상 shape=straight (oracle 픽스처 실측 일치).
+     */
+    private int stairsState(BlockRegistry blocks, Direction facing) {
+        return blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of(
+            "facing", facingName(facing), "half", "bottom", "shape", "straight", "waterlogged", "false"));
+    }
+
     /** 바닐라 ScatteredFeaturePiece.updateHeightPositionToLowestGroundHeight — MOTION_BLOCKING_NO_LEAVES 최소값(≈getSurfaceY, SURFACE_STRUCTURES 단계엔 나뭇잎 없음). */
     private boolean updateHeightPositionToLowestGroundHeight(FeatureWorldView view, int height) {
         if (heightPosition >= 0) {
@@ -274,7 +287,7 @@ public final class DesertPyramidPiece extends StructurePiece {
                             int orangeTerracotta, int blueTerracotta) {
         // 바닐라 Blocks.SANDSTONE_STAIRS.defaultBlockState()(facing=north).rotate(COUNTERCLOCKWISE_90) == facing west(로컬).
         // 이 로컬 facing도 placeBlock을 거치므로 조각 orientation에 따라 world-space facing으로 변환한다.
-        int stairsCcw = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.WEST))));
+        int stairsCcw = stairsState(blocks, rotateFacing(Direction.WEST));
         int px = 16, py = -4, pz = 13;
         addCellarStairs(view, writableBox, regionRandom, stairsCcw, sand, sandstone, px, py, pz);
         addCellarRoom(view, writableBox, regionRandom, px, py, pz, sandstone, sand, cutSandstone, chiseledSandstone, orangeTerracotta, blueTerracotta);
