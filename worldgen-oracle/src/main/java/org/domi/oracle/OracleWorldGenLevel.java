@@ -200,7 +200,19 @@ final class OracleWorldGenLevel implements WorldGenLevel {
 
     @Override public BlockEntity getBlockEntity(BlockPos pos) {
         ProtoChunk chunk = getChunkAt(chunkX(pos), chunkZ(pos));
-        return chunk == null ? null : chunk.getBlockEntity(pos);
+        BlockEntity be = chunk == null ? null : chunk.getBlockEntity(pos);
+        // NoBukkitEvent 미러: Paper의 setLootTable이 CraftBlockStates(CraftChest) 생성을 시도해
+        // 헤드리스에선 "The blockState must be placed" IllegalStateException으로 죽는다.
+        // vanilla 의미론은 필드 저장뿐이고 fixture는 블록만 기록하므로 setLootTable을 no-op으로 차단.
+        // RNG parity: createChest의 random.nextLong()은 setLootTable 호출 전에 인자 평가로 이미 소비됨.
+        if (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest) {
+            return new net.minecraft.world.level.block.entity.ChestBlockEntity(pos, chest.getBlockState()) {
+                @Override public void setLootTable(ResourceKey<net.minecraft.world.level.storage.loot.LootTable> lootTable, long seed) {
+                    // no-op — Paper Bukkit hook 우회
+                }
+            };
+        }
+        return be;
     }
 
     @Override public boolean isStateAtPosition(BlockPos pos, Predicate<BlockState> state) {
@@ -254,8 +266,16 @@ final class OracleWorldGenLevel implements WorldGenLevel {
     }
     @Override public MinecraftServer getServer() { return null; }
     @Override public ChunkSource getChunkSource() { throw new UnsupportedOperationException("No chunk source in oracle"); }
+    // vanilla WorldGenRegion.getRandom() 미러 — randomState 기반 positional random을 center 청크
+    // 원점에 fork한 인스턴스 하나를 유지(호출마다 새 인스턴스 금지 — 순차 소비가 결정적 시퀀스).
+    private net.minecraft.util.RandomSource regionRandom;
     @Override public net.minecraft.util.RandomSource getRandom() {
-        return new net.minecraft.world.level.levelgen.XoroshiroRandomSource(seed);
+        if (regionRandom == null) {
+            regionRandom = randomState.getOrCreateRandomFactory(
+                    net.minecraft.resources.ResourceLocation.withDefaultNamespace("worldgen_region_random"))
+                .at(new ChunkPos(cx, cz).getWorldPosition());
+        }
+        return regionRandom;
     }
     @Override public void playSound(Player source, BlockPos pos, SoundEvent sound, SoundSource category, float volume, float pitch) {}
     @Override public void addParticle(ParticleOptions parameters, double x, double y, double z, double velocityX, double velocityY, double velocityZ) {}

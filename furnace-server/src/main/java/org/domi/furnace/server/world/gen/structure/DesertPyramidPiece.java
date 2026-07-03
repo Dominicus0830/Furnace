@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
+import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 
 import java.util.Map;
 
@@ -27,7 +28,8 @@ public final class DesertPyramidPiece extends StructurePiece {
     }
 
     @Override
-    public void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random, BoundingBox writableBox) {
+    public void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random,
+            XoroshiroRandomSource regionRandom, BoundingBox writableBox) {
         // vanilla: this.updateHeightPositionToLowestGroundHeight(level, -random.nextInt(3)) — 인자가 항상 먼저 평가된다.
         int heightArg = -random.nextInt(3);
         if (!updateHeightPositionToLowestGroundHeight(view, heightArg)) {
@@ -35,6 +37,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         }
 
         int sandstone = blocks.stateIdOrAir("minecraft:sandstone");
+        int sand = blocks.stateIdOrAir("minecraft:sand");
         int cutSandstone = blocks.stateIdOrAir("minecraft:cut_sandstone");
         int chiseledSandstone = blocks.stateIdOrAir("minecraft:chiseled_sandstone");
         int sandstoneSlab = blocks.stateIdOrAir("minecraft:sandstone_slab");
@@ -43,10 +46,12 @@ public final class DesertPyramidPiece extends StructurePiece {
         int tnt = blocks.stateIdOrAir("minecraft:tnt");
         int pressurePlate = blocks.stateIdOrAir("minecraft:stone_pressure_plate");
         int air = 0;
-        int stairsNorth = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", "north"));
-        int stairsSouth = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", "south"));
-        int stairsEast = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", "east"));
-        int stairsWest = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", "west"));
+        // 로컬(피라미드 설계상 의도) facing → 조각 orientation에 따른 world-space facing으로 변환
+        // (바닐라 StructurePiece.placeBlock의 blockstate.mirror/rotate 상당, rotateFacing 참고).
+        int stairsNorth = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.NORTH))));
+        int stairsSouth = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.SOUTH))));
+        int stairsEast = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.EAST))));
+        int stairsWest = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.WEST))));
         int chest = blocks.stateIdOrAir("minecraft:chest");
 
         generateBox(view, writableBox, 0, -4, 0, WIDTH - 1, 0, DEPTH - 1, sandstone, sandstone, false);
@@ -233,8 +238,12 @@ public final class DesertPyramidPiece extends StructurePiece {
             }
         }
 
-        addCellar(view, writableBox, blocks, sandstone, cutSandstone, chiseledSandstone,
+        addCellar(view, writableBox, blocks, regionRandom, sandstone, sand, cutSandstone, chiseledSandstone,
             orangeTerracotta, blueTerracotta);
+    }
+
+    private static String facingName(Direction d) {
+        return d.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     /** 바닐라 ScatteredFeaturePiece.updateHeightPositionToLowestGroundHeight — MOTION_BLOCKING_NO_LEAVES 최소값(≈getSurfaceY, SURFACE_STRUCTURES 단계엔 나뭇잎 없음). */
@@ -257,26 +266,43 @@ public final class DesertPyramidPiece extends StructurePiece {
         return true;
     }
 
-    // ---- 지하실(addCellar) — 바닐라와 동일 블록 배치. level.getRandom()/forkPositional 대체는 result.md Issues 참조 ----
+    // ---- 지하실(addCellar) — 바닐라와 동일 블록 배치 + level.getRandom()(regionRandom) 소비 재현 ----
 
     private void addCellar(FeatureWorldView view, BoundingBox writableBox, BlockRegistry blocks,
-                            int sandstone, int cutSandstone, int chiseledSandstone,
+                            XoroshiroRandomSource regionRandom,
+                            int sandstone, int sand, int cutSandstone, int chiseledSandstone,
                             int orangeTerracotta, int blueTerracotta) {
-        // 바닐라 Blocks.SANDSTONE_STAIRS.defaultBlockState()(facing=north).rotate(COUNTERCLOCKWISE_90) == facing west.
-        int stairsCcw = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", "west"));
+        // 바닐라 Blocks.SANDSTONE_STAIRS.defaultBlockState()(facing=north).rotate(COUNTERCLOCKWISE_90) == facing west(로컬).
+        // 이 로컬 facing도 placeBlock을 거치므로 조각 orientation에 따라 world-space facing으로 변환한다.
+        int stairsCcw = blocks.stateIdOrAir("minecraft:sandstone_stairs", Map.of("facing", facingName(rotateFacing(Direction.WEST))));
         int px = 16, py = -4, pz = 13;
-        addCellarStairs(view, writableBox, stairsCcw);
-        addCellarRoom(view, writableBox, px, py, pz, sandstone, cutSandstone, chiseledSandstone, orangeTerracotta, blueTerracotta);
+        addCellarStairs(view, writableBox, regionRandom, stairsCcw, sand, sandstone, px, py, pz);
+        addCellarRoom(view, writableBox, regionRandom, px, py, pz, sandstone, sand, cutSandstone, chiseledSandstone, orangeTerracotta, blueTerracotta);
     }
 
-    private void addCellarStairs(FeatureWorldView view, BoundingBox writableBox, int stairsCcw) {
+    private void addCellarStairs(FeatureWorldView view, BoundingBox writableBox, XoroshiroRandomSource regionRandom,
+                                  int stairsCcw, int sand, int sandstone, int x, int y, int z) {
         placeBlock(view, writableBox, stairsCcw, 13, -1, 17);
         placeBlock(view, writableBox, stairsCcw, 14, -2, 17);
         placeBlock(view, writableBox, stairsCcw, 15, -3, 17);
+        // vanilla addCellarStairs: level.getRandom().nextBoolean() — 순서상 이 지점에서 1회 소비.
+        boolean randomBoolean = regionRandom.nextBoolean();
+        placeBlock(view, writableBox, sand, x - 4, y + 4, z + 4);
+        placeBlock(view, writableBox, sand, x - 3, y + 4, z + 4);
+        placeBlock(view, writableBox, sand, x - 2, y + 4, z + 4);
+        placeBlock(view, writableBox, sand, x - 1, y + 4, z + 4);
+        placeBlock(view, writableBox, sand, x, y + 4, z + 4);
+        placeBlock(view, writableBox, sand, x - 2, y + 3, z + 4);
+        placeBlock(view, writableBox, randomBoolean ? sand : sandstone, x - 1, y + 3, z + 4);
+        placeBlock(view, writableBox, !randomBoolean ? sand : sandstone, x, y + 3, z + 4);
+        placeBlock(view, writableBox, sand, x - 1, y + 2, z + 4);
+        placeBlock(view, writableBox, sandstone, x, y + 2, z + 4);
+        placeBlock(view, writableBox, sand, x, y + 1, z + 4);
     }
 
-    private void addCellarRoom(FeatureWorldView view, BoundingBox writableBox, int x, int y, int z,
-                                int sandstone, int cutSandstone, int chiseledSandstone, int orangeTerracotta, int blueTerracotta) {
+    private void addCellarRoom(FeatureWorldView view, BoundingBox writableBox, XoroshiroRandomSource regionRandom,
+                                int x, int y, int z,
+                                int sandstone, int sand, int cutSandstone, int chiseledSandstone, int orangeTerracotta, int blueTerracotta) {
         generateBox(view, writableBox, x - 3, y + 1, z - 3, x - 3, y + 1, z + 2, cutSandstone, cutSandstone, true);
         generateBox(view, writableBox, x + 3, y + 1, z - 3, x + 3, y + 1, z + 2, cutSandstone, cutSandstone, true);
         generateBox(view, writableBox, x - 3, y + 1, z - 3, x + 3, y + 1, z - 2, cutSandstone, cutSandstone, true);
@@ -289,9 +315,18 @@ public final class DesertPyramidPiece extends StructurePiece {
         generateBox(view, writableBox, x + 3, -1, z - 3, x + 3, -1, z + 2, cutSandstone, cutSandstone, true);
         generateBox(view, writableBox, x - 3, -1, z - 3, x + 3, -1, z - 2, cutSandstone, cutSandstone, true);
         generateBox(view, writableBox, x - 3, -1, z + 3, x + 3, -1, z + 3, cutSandstone, cutSandstone, true);
-        // placeSandBox/placeCollapsedRoof(suspicious sand 후보 위치, 붕괴 지붕) — 블록 미배치(오직 위치 기록/장식용, S2c 전 보류)
-        int blueTerracottaLocal = blueTerracotta;
-        placeBlock(view, writableBox, blueTerracottaLocal, x, y, z);
+        // placeSandBox(suspicious sand 후보 위치) — 블록 미배치(위치 기록/장식용, RNG 미소비)
+        // placeCollapsedRoof: 5x5(x-2..x+2, z-2..z+2) 각 칸마다 level.getRandom().nextFloat()<0.33F 소비 후 블록 배치.
+        // 이후 randomCollapsedRoofPos 계산용 별도 RandomSource.create(level.getSeed())...는 regionRandom을 소비하지 않고
+        // 블록도 배치하지 않으므로(장식용 위치 마커) 재현 불필요.
+        int roofY = y + 4;
+        for (int rx = x - 2; rx <= x + 2; rx++) {
+            for (int rz = z - 2; rz <= z + 2; rz++) {
+                int roofState = (regionRandom.nextFloat() < 0.33F) ? sandstone : sand;
+                placeBlock(view, writableBox, roofState, rx, roofY, rz);
+            }
+        }
+        placeBlock(view, writableBox, blueTerracotta, x, y, z);
         placeBlock(view, writableBox, orangeTerracotta, x + 1, y, z - 1);
         placeBlock(view, writableBox, orangeTerracotta, x + 1, y, z + 1);
         placeBlock(view, writableBox, orangeTerracotta, x - 1, y, z - 1);

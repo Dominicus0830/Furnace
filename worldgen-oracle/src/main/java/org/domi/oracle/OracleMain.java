@@ -1493,6 +1493,40 @@ public class OracleMain {
             structureSetLookup.get(net.minecraft.resources.ResourceKey.create(Registries.STRUCTURE_SET,
                 net.minecraft.resources.ResourceLocation.parse("minecraft:desert_pyramids"))).orElseThrow();
 
+        // (S3) datagen-mode 트랩: structure.biomes()의 #has_structure/desert_pyramid 태그(HolderSet.Named)가
+        // 바인딩되지 않아 isValidBiome이 전부 false → 어떤 청크에서도 start가 안 생겼다(F-신규, S2c 픽스처 (a)는
+        // start 없는 청크라 이 경로가 한 번도 검증 안 됨). biomeSource가 실제로 반환하는 desert holder 인스턴스로
+        // 태그를 리플렉션 bind해 실서버(태그 로드됨)와 동일하게 만든다.
+        net.minecraft.world.level.levelgen.structure.Structure pyramidStructure =
+            desertPyramidsSet.value().structures().get(0).structure().value();
+        {
+            net.minecraft.core.HolderSet<Biome> biomesSet = pyramidStructure.biomes();
+            if (biomesSet instanceof net.minecraft.core.HolderSet.Named<Biome> named) {
+                // HolderSet.Named.contains(holder)는 holder.is(tagKey)로 위임 → holder 쪽 tags에 바인딩해야 한다.
+                java.util.List<Holder<Biome>> desertHolders = new java.util.ArrayList<>();
+                for (Holder<Biome> h : biomeSource.possibleBiomes()) {
+                    if (h.is(net.minecraft.world.level.biome.Biomes.DESERT)) desertHolders.add(h);
+                }
+                desertHolders.add(registries.lookupOrThrow(Registries.BIOME)
+                    .getOrThrow(net.minecraft.world.level.biome.Biomes.DESERT));
+                java.lang.reflect.Method bind = net.minecraft.core.HolderSet.Named.class
+                    .getDeclaredMethod("bind", java.util.List.class);
+                bind.setAccessible(true);
+                bind.invoke(named, desertHolders);
+                java.lang.reflect.Method bindTags = net.minecraft.core.Holder.Reference.class
+                    .getDeclaredMethod("bindTags", java.util.Collection.class);
+                bindTags.setAccessible(true);
+                for (Holder<Biome> h : desertHolders) {
+                    if (h instanceof Holder.Reference<Biome> ref) {
+                        bindTags.invoke(ref, java.util.Set.of(named.key()));
+                    }
+                }
+                System.out.printf("ORACLE_TAGBIND named=%s bound=%d%n", named.key(), desertHolders.size());
+            } else {
+                System.out.printf("ORACLE_TAGBIND skip class=%s%n", biomesSet.getClass().getName());
+            }
+        }
+
         java.lang.reflect.Constructor<net.minecraft.world.level.chunk.ChunkGeneratorStructureState> stateCtor =
             net.minecraft.world.level.chunk.ChunkGeneratorStructureState.class.getDeclaredConstructor(
                 RandomState.class, net.minecraft.world.level.biome.BiomeSource.class, long.class, long.class,
@@ -1529,14 +1563,20 @@ public class OracleMain {
             new net.minecraft.world.level.StructureManager(level, worldOptions, structureCheck);
 
         for (ProtoChunk chunk : grid) {
-            generator.createStructures(registryAccess, structureState, structureManager, chunk, templateManager);
+            // vanilla generator.createStructures(...) 대신 직접 미러링한다 — Paper 패치가
+            // tryGenerateStructure 안에서 실 Bukkit 서버 필요한 AsyncStructureSpawnEvent를 무조건
+            // 발사하는데(structureAccessor.level.getMinecraftWorld().getWorld() 호출) 이 헤드리스
+            // 오라클엔 Bukkit.setServer()된 서버가 없어 유효한 StructureStart가 하나라도 생기면
+            // NPE로 죽는다(S3 태그바인드 수정 전엔 isValidBiome이 항상 false라 이 경로를 탄 적이 없어서
+            // 미발견). 플러그인 리스너가 없는 환경이므로 이벤트 미발사는 취소되지 않은 기본 동작과 동일.
+            createStructuresNoBukkitEvent(registryAccess, structureState, structureManager, chunk, templateManager, generator);
         }
         // createReferences(center)만 실행 — StructureManager.startsForStructure(centerSectionPos, ..)는
         // center 청크 자신의 참조 집합만 읽으므로(StructureManager.java:64-71) 이웃 청크에서 createReferences를
         // 또 돌릴 필요 없다. 모든 289개 청크에 대해 돌리면 그 청크의 ±8 추가 조회가 radius=8 grid 밖으로 나가 실패한다.
         generator.createReferences(level, structureManager, grid[centerIdx]);
 
-        placeVanillaFeatures(level, grid[centerIdx], generator, biomeSource, registryAccess, structureManager, registries);
+        placeVanillaFeatures(level, grid[centerIdx], generator, biomeSource, registryAccess, structureManager, registries, pyramidStructure);
 
         int changed = 0;
         int idx = 0;
@@ -1578,6 +1618,110 @@ public class OracleMain {
         }
         System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
         System.out.printf("carver→featurestruct 블록 변화 수: %d%n", changed);
+    }
+
+    /** vanilla ChunkGenerator.createStructures 미러 (CraftBukkit AsyncStructureSpawnEvent 생략 — 근거는 위 호출부 주석). */
+    private static void createStructuresNoBukkitEvent(
+        RegistryAccess registryAccess,
+        net.minecraft.world.level.chunk.ChunkGeneratorStructureState structureState,
+        net.minecraft.world.level.StructureManager structureManager,
+        ProtoChunk chunk,
+        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templateManager,
+        NoiseBasedChunkGenerator generator
+    ) {
+        ChunkPos chunkPos = chunk.getPos();
+        SectionPos sectionPos = SectionPos.bottomOf(chunk);
+        RandomState randomState = structureState.randomState();
+
+        for (Holder<net.minecraft.world.level.levelgen.structure.StructureSet> holder : structureState.possibleStructureSets()) {
+            net.minecraft.world.level.levelgen.structure.placement.StructurePlacement placement = holder.value().placement();
+            java.util.List<net.minecraft.world.level.levelgen.structure.StructureSet.StructureSelectionEntry> list = holder.value().structures();
+
+            boolean alreadyHasValidStart = false;
+            for (net.minecraft.world.level.levelgen.structure.StructureSet.StructureSelectionEntry entry : list) {
+                net.minecraft.world.level.levelgen.structure.StructureStart start =
+                    structureManager.getStartForStructure(sectionPos, entry.structure().value(), chunk);
+                if (start != null && start.isValid()) { alreadyHasValidStart = true; break; }
+            }
+            if (alreadyHasValidStart) continue;
+
+            if (!placement.isStructureChunk(structureState, chunkPos.x, chunkPos.z)) continue;
+
+            // 오라클은 possibleStructureSets를 desert_pyramids 단일 set(단일 entry)으로 제한해두었으므로
+            // vanilla의 가중치-다중 entry 분기(weight 기반 랜덤 선택)는 이 하네스에서 도달 불가.
+            if (list.size() != 1) {
+                throw new IllegalStateException("oracle harness only mirrors single-entry structure sets: " + list.size());
+            }
+            tryGenerateStructureNoBukkitEvent(
+                list.get(0), structureManager, registryAccess, randomState, templateManager,
+                structureState.getLevelSeed(), chunk, chunkPos, sectionPos, generator);
+        }
+    }
+
+    private static boolean tryGenerateStructureNoBukkitEvent(
+        net.minecraft.world.level.levelgen.structure.StructureSet.StructureSelectionEntry weightedEntry,
+        net.minecraft.world.level.StructureManager structureManager,
+        RegistryAccess registryAccess,
+        RandomState randomState,
+        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templateManager,
+        long seed,
+        ProtoChunk chunk,
+        ChunkPos chunkPos,
+        SectionPos sectionPos,
+        NoiseBasedChunkGenerator generator
+    ) {
+        net.minecraft.world.level.levelgen.structure.Structure structure = weightedEntry.structure().value();
+        net.minecraft.world.level.levelgen.structure.StructureStart existingStart =
+            structureManager.getStartForStructure(sectionPos, structure, chunk);
+        int references = existingStart != null ? existingStart.getReferences() : 0;
+        net.minecraft.core.HolderSet<Biome> biomes = structure.biomes();
+        java.util.function.Predicate<Holder<Biome>> validBiome = biomes::contains;
+        net.minecraft.world.level.levelgen.structure.StructureStart structureStart = structure.generate(
+            registryAccess, generator, generator.getBiomeSource(), randomState, templateManager,
+            seed, chunkPos, references, chunk, validBiome);
+        if (structureStart.isValid()) {
+            structureManager.setStartForStructure(sectionPos, structure, structureStart, chunk);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * vanilla(+Paper) StructureStart.placeInChunk 미러 — Paper의 CraftStructureTransformer가
+     * AsyncStructureGenerateEvent용 structuremanager.level.getMinecraftWorld().getWorld()를 무조건
+     * 호출해 헤드리스 오라클에서 NPE(위 createStructuresNoBukkitEvent와 동일 근본 원인)가 난다.
+     * 리스너 없는 두 번째 CraftStructureTransformer 생성자(빈 transformer 목록)로 이벤트 발사를 생략한다.
+     * afterPlace(suspicious sand/collapsed roof 배치, 블록에 실제 영향)는 그대로 호출한다.
+     */
+    private static void placeInChunkNoBukkitEvent(
+        net.minecraft.world.level.levelgen.structure.StructureStart start,
+        OracleWorldGenLevel level,
+        net.minecraft.world.level.StructureManager structureManager,
+        NoiseBasedChunkGenerator generator,
+        net.minecraft.world.level.levelgen.WorldgenRandom random,
+        net.minecraft.world.level.levelgen.structure.BoundingBox chunkBox,
+        ChunkPos chunkPos
+    ) {
+        java.util.List<net.minecraft.world.level.levelgen.structure.StructurePiece> pieces = start.getPieces();
+        if (pieces.isEmpty()) return;
+
+        net.minecraft.world.level.levelgen.structure.BoundingBox firstBox =
+            pieces.get(0).getBoundingBox();
+        net.minecraft.core.BlockPos center = firstBox.getCenter();
+        net.minecraft.core.BlockPos boundsCenter = new net.minecraft.core.BlockPos(center.getX(), firstBox.minY(), center.getZ());
+
+        // Paper의 CraftStructureTransformer 래퍼(AsyncStructureGenerateEvent + CraftLimitedRegion)는 둘 다
+        // access.getMinecraftWorld().getWorld()를 무조건 요구해 헤드리스 오라클에서 NPE — 플러그인 리스너가
+        // 없으면 이 래퍼는 블록 출력에 아무 영향이 없으므로, vanilla 원본 로직(Paper 패치가 주석 처리한
+        // "CraftBukkit start/end" 블록의 vanilla 부분)대로 piece.postProcess를 level에 직접 호출한다.
+        java.util.List<net.minecraft.world.level.levelgen.structure.StructurePiece> intersecting =
+            pieces.stream().filter(p -> p.getBoundingBox().intersects(chunkBox)).toList();
+        for (net.minecraft.world.level.levelgen.structure.StructurePiece piece : intersecting) {
+            piece.postProcess(level, structureManager, generator, random, chunkBox, chunkPos, boundsCenter);
+        }
+
+        start.getStructure().afterPlace(level, structureManager, generator, random, chunkBox, chunkPos,
+            new net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer(pieces));
     }
 
     private static BlockState[] snapshotChunk(ProtoChunk chunk, int cx, int cz) {
@@ -1673,7 +1817,7 @@ public class OracleMain {
         MultiNoiseBiomeSource biomeSource,
         RegistryAccess registryAccess
     ) throws Exception {
-        placeVanillaFeatures(level, center, generator, biomeSource, registryAccess, null, null);
+        placeVanillaFeatures(level, center, generator, biomeSource, registryAccess, null, null, null);
     }
 
     private static java.util.Map<Integer, java.util.List<net.minecraft.world.level.levelgen.structure.Structure>>
@@ -1731,7 +1875,8 @@ public class OracleMain {
         MultiNoiseBiomeSource biomeSource,
         RegistryAccess registryAccess,
         net.minecraft.world.level.StructureManager structureManager,
-        HolderLookup.Provider registries
+        HolderLookup.Provider registries,
+        net.minecraft.world.level.levelgen.structure.Structure canonicalPyramid
     ) throws Exception {
         ChunkPos chunkPos = center.getPos();
         SectionPos sectionPos = SectionPos.of(chunkPos, level.getMinSection());
@@ -1787,10 +1932,47 @@ public class OracleMain {
                         chunkPos.getMinBlockX() + 15, level.getMaxBuildHeight() - 1, chunkPos.getMinBlockZ() + 15);
                 int i1 = 0;
                 for (net.minecraft.world.level.levelgen.structure.Structure structure : stepStructures) {
-                    random.setFeatureSeed(decorationSeed, i1, step);
+                    // S3 주의: VanillaRegistries.createLookup().listElements() 순서는 JVM 실행마다 다르다
+                    // (identity-hash 기반 — 한 프로세스 안에서는 고정, 재실행 시 랜덤). 실측: i1이 3~24 사이로 요동.
+                    // 실서버(RegistryDataLoader/MappedRegistry.stream())는 등록 순서 고정이므로 이 요동은 oracle 한정.
+                    // 블록에 영향 주는 건 start가 있는 구조물(현재 desert_pyramid)의 자기 i1뿐이므로,
+                    // 프로젝트 동결 상수 22(FeaturePlacer.DESERT_PYRAMID_STRUCTURE_INDEX)로 핀 고정해
+                    // 픽스처 재생성을 재현 가능하게 만든다. 진짜 실서버 순서 검증은 .mca 자가검증 게이트(스펙 §3) 몫.
+                    // instanceof 판별 — vanilla에서 DesertPyramidStructure 인스턴스는 desert_pyramid 하나뿐.
+                    // (listElements() 재호출 기반 identity 비교는 datagen lookup이 holder를 재생성해 실패한다)
+                    boolean isDesertPyramid = structure instanceof
+                        net.minecraft.world.level.levelgen.structure.structures.DesertPyramidStructure;
+                    // startsForStructure는 Structure identity 키 조회 — structuresByStep의 인스턴스가
+                    // createStructures가 쓴 인스턴스(structure set 경유)와 다를 수 있어 canonical로 조회한다.
+                    net.minecraft.world.level.levelgen.structure.Structure queryStructure =
+                        isDesertPyramid ? canonicalPyramid : structure;
+                    int effectiveI1 = isDesertPyramid ? 22 : i1;
+                    random.setFeatureSeed(decorationSeed, effectiveI1, step);
+                    if (isDesertPyramid) { // TEMP S3 debug — remove before ship
+                        System.out.printf("ORACLE_STARTS center count=%d%n",
+                            structureManager.startsForStructure(sectionPos, queryStructure).size());
+                        int peek = random.nextInt(3);
+                        for (net.minecraft.world.level.levelgen.structure.StructureStart start :
+                                structureManager.startsForStructure(sectionPos, queryStructure)) {
+                            for (net.minecraft.world.level.levelgen.structure.StructurePiece p : start.getPieces()) {
+                                var bb = p.getBoundingBox();
+                                int min = Integer.MAX_VALUE;
+                                for (int z = bb.minZ(); z <= bb.maxZ(); z++) {
+                                    for (int x = bb.minX(); x <= bb.maxX(); x++) {
+                                        min = Math.min(min, level.getHeightmapPos(
+                                            net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                                            new net.minecraft.core.BlockPos(x, 0, z)).getY());
+                                    }
+                                }
+                                System.out.printf("ORACLE_HEIGHT min=%d heightArgPeek=%d bbox=[%d..%d]x[%d..%d]%n",
+                                    min, -peek, bb.minX(), bb.maxX(), bb.minZ(), bb.maxZ());
+                            }
+                        }
+                        random.setFeatureSeed(decorationSeed, effectiveI1, step);
+                    }
                     for (net.minecraft.world.level.levelgen.structure.StructureStart start :
-                            structureManager.startsForStructure(sectionPos, structure)) {
-                        start.placeInChunk(level, structureManager, generator, random, writableArea, chunkPos);
+                            structureManager.startsForStructure(sectionPos, queryStructure)) {
+                        placeInChunkNoBukkitEvent(start, level, structureManager, generator, random, writableArea, chunkPos);
                     }
                     i1++;
                 }

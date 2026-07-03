@@ -33,8 +33,47 @@ public abstract class StructurePiece {
             : new BoundingBox(x, y, z, x + offsetX - 1, y + offsetY - 1, z + offsetZ - 1);
     }
 
-    /** 블록 배치 — 바닐라 StructurePiece.postProcess 상당. */
-    public abstract void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random, BoundingBox writableBox);
+    /**
+     * 블록 배치 — 바닐라 StructurePiece.postProcess 상당.
+     * regionRandom: 바닐라 WorldGenLevel.getRandom() 미러(순수 XoroshiroRandomSource, decoration용 WorldgenRandom과는 별개 소비 규칙).
+     */
+    public abstract void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random,
+            org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource regionRandom, BoundingBox writableBox);
+
+    /**
+     * 바닐라 StructurePiece.placeBlock 의 blockstate.mirror(this.mirror).rotate(this.rotation) 상당
+     * — orientation별 mirror/rotation은 vanilla StructurePiece.setOrientation과 동일하게 매핑한다:
+     * NORTH: mirror NONE/rotation NONE, SOUTH: mirror LEFT_RIGHT(N/S swap)/rotation NONE,
+     * EAST: mirror NONE/rotation CW90, WEST: mirror LEFT_RIGHT/rotation CW90 (mirror 먼저 적용 후 rotate).
+     * facing 프로퍼티를 가진(HorizontalDirectionalBlock 계열, 예: 계단) 블록에 로컬 facing을 지정해
+     * placeBlock으로 넘기기 전에 호출해 world-space facing으로 변환한다.
+     */
+    protected Direction rotateFacing(Direction local) {
+        Direction mirrored = (orientation == Direction.SOUTH || orientation == Direction.WEST)
+            ? mirrorLeftRight(local)
+            : local;
+        return (orientation == Direction.EAST || orientation == Direction.WEST)
+            ? rotateClockwise90(mirrored)
+            : mirrored;
+    }
+
+    /** 바닐라 Mirror.LEFT_RIGHT.mirror(Direction) — Z축(NORTH/SOUTH)만 반전, X축(EAST/WEST)은 불변. */
+    private static Direction mirrorLeftRight(Direction d) {
+        return switch (d) {
+            case NORTH -> Direction.SOUTH;
+            case SOUTH -> Direction.NORTH;
+            default -> d;
+        };
+    }
+
+    private static Direction rotateClockwise90(Direction d) {
+        return switch (d) {
+            case NORTH -> Direction.EAST;
+            case EAST -> Direction.SOUTH;
+            case SOUTH -> Direction.WEST;
+            case WEST -> Direction.NORTH;
+        };
+    }
 
     // ---- 바닐라 StructurePiece 좌표변환 헬퍼 (getWorldX/Y/Z) ----
 

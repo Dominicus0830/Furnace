@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.RandomTrace;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.carver.XoroshiroWorldgenRandom;
+import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 import org.domi.furnace.server.world.gen.structure.BoundingBox;
 import org.domi.furnace.server.world.gen.structure.StructurePiece;
 import org.domi.furnace.server.world.gen.structure.StructureStart;
@@ -19,8 +20,11 @@ public final class FeaturePlacer {
     /**
      * desert_pyramid의 구조물 시드 인덱스 i1 (F1). vanilla applyBiomeDecoration은 전체 Structure registry를
      * step ordinal로 groupingBy(registry stream 순서)한 뒤 그룹 내 순번을 setFeatureSeed(l, i1, step)에 넣는다 —
-     * start 유무와 무관하게 그룹의 모든 구조물이 i1을 소비. oracle 실측(OracleMain.structuresByStep, seed 무관 상수):
-     * step=4 그룹 26개 중 desert_pyramid는 index 22. 다른 구조물 지원 시(S4+) registry 그룹핑으로 일반화할 것.
+     * start 유무와 무관하게 그룹의 모든 구조물이 i1을 소비. "측정값 22"는 oracle의
+     * VanillaRegistries.createLookup().listElements() 순서(datagen lookup, identity-hash 기반이라 JVM 실행마다 요동)에서
+     * 뽑은 것으로, 실서버 registry 순서(RegistryDataLoader/MappedRegistry.stream(), 등록 순서 고정)와 같다는 보장이 없다.
+     * 22는 oracle 픽스처와 Furnace가 공유하는 핀 고정 컨벤션일 뿐 — 진짜 실서버 순서 검증은 .mca 자가검증 게이트(스펙 §3) 몫.
+     * 다른 구조물 지원 시(S4+) registry 그룹핑으로 일반화할 것.
      */
     private static final int DESERT_PYRAMID_STRUCTURE_INDEX = 22;
 
@@ -28,12 +32,16 @@ public final class FeaturePlacer {
     private final BiomeFeatureData biomeData;
     private final FeatureSorter sorter;
     private final BlockRegistry blocks;
+    /** 바닐라 RandomState.getOrCreateRandomFactory("minecraft:worldgen_region_random") 미러 — WorldGenLevel.getRandom()의 원천. */
+    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory regionRandomFactory;
 
     public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter, BlockRegistry blocks) {
         this.seed = seed;
         this.biomeData = biomeData;
         this.sorter = sorter;
         this.blocks = blocks;
+        this.regionRandomFactory = new XoroshiroRandomSource(seed).forkPositional()
+            .fromHashOf("minecraft:worldgen_region_random").forkPositional();
     }
 
     // 진단용 플래그 — 디버깅 완료 후 제거
@@ -53,6 +61,8 @@ public final class FeaturePlacer {
         WorldgenRandom random = new XoroshiroWorldgenRandom();
         long decorationSeed = random.setDecorationSeed(seed, cx * 16, cz * 16);
         WorldgenRandom featureRandom = new XoroshiroWorldgenRandom();
+        // 바닐라 WorldGenRegion.getRandom() — 이 청크(cx,cz) 원점에 fork, 구조물+feature 전체가 순차 공유 소비.
+        XoroshiroRandomSource regionRandom = regionRandomFactory.at(cx * 16, 0, cz * 16);
         BoundingBox writableBox = new BoundingBox(
             cx * 16, Integer.MIN_VALUE / 2, cz * 16, cx * 16 + 15, Integer.MAX_VALUE / 2, cz * 16 + 15);
 
@@ -68,7 +78,7 @@ public final class FeaturePlacer {
                 for (StructureStart start : starts) {
                     for (StructurePiece piece : start.pieces()) {
                         if (piece.boundingBox().intersects(writableBox)) {
-                            piece.postProcess(view, blocks, featureRandom, writableBox);
+                            piece.postProcess(view, blocks, featureRandom, regionRandom, writableBox);
                         }
                     }
                 }
