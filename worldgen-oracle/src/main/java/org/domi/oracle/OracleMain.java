@@ -228,7 +228,7 @@ public class OracleMain {
         // HolderLookup.RegistryLookup is not a Registry, so we populate a MappedRegistry.
         HolderLookup.RegistryLookup<Biome> biomeLookup = registries.lookupOrThrow(Registries.BIOME);
         MappedRegistry<Biome> biomeRegistry = new MappedRegistry<>(Registries.BIOME, Lifecycle.stable());
-        biomeLookup.listElements().forEach(ref ->
+        sortedElements(biomeLookup).forEach(ref ->
             biomeRegistry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN)
         );
         Registry<Biome> frozenBiomeRegistry = biomeRegistry.freeze();
@@ -240,7 +240,7 @@ public class OracleMain {
             registries.lookupOrThrow(Registries.CONFIGURED_CARVER);
         MappedRegistry<ConfiguredWorldCarver<?>> carverRegistry =
             new MappedRegistry<>(Registries.CONFIGURED_CARVER, Lifecycle.stable());
-        carverLookup.listElements().forEach(ref ->
+        sortedElements(carverLookup).forEach(ref ->
             carverRegistry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN)
         );
         Registry<ConfiguredWorldCarver<?>> frozenCarverRegistry = carverRegistry.freeze();
@@ -316,6 +316,8 @@ public class OracleMain {
                                     frozenBiomeRegistry, biomeSource, registryAccess, registries, outDir);
             } else if (arg.equals("featureorder")) {
                 dumpFeatureOrder(registries, biomeSource, outDir);
+            } else if (arg.equals("structorder")) {
+                dumpStructureOrder(registryAccess, outDir);
             } else if (arg.equals("xortest")) {
                 dumpXoroshiroCheck();
             } else if (arg.equals("blocks")) {
@@ -376,11 +378,24 @@ public class OracleMain {
     private static Registry<?> copyRegistry(HolderLookup.Provider registries, ResourceKey key) {
         HolderLookup.RegistryLookup lookup = registries.lookupOrThrow(key);
         MappedRegistry registry = new MappedRegistry(key, Lifecycle.stable());
-        lookup.listElements().forEach(refObj -> {
-            Holder.Reference ref = (Holder.Reference) refObj;
-            registry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN);
-        });
+        java.util.List<Holder.Reference> refs = new java.util.ArrayList<>();
+        lookup.listElements().forEach(refObj -> refs.add((Holder.Reference) refObj));
+        refs.sort(java.util.Comparator.comparing(ref -> ref.key().location().toString()));
+        refs.forEach(ref -> registry.register(ref.key(), ref.value(), RegistrationInfo.BUILT_IN));
         return registry.freeze();
+    }
+
+    /**
+     * VanillaRegistries.createLookup()의 HolderLookup.RegistryLookup.listElements() 순서는 JVM 실행마다
+     * 요동한다 (실측: d3, structure_order.txt 5회 중 4회 diff). 등록 순서를 재현할 신뢰 가능한 실서버 근거가
+     * 없으므로(.mca 게이트 이연) id 사전순으로 결정적 핀 고정 — 실서버(RegistryDataLoader) 순서와의 일치는
+     * 미보장이나, 최소한 oracle 재실행 간 fixture가 결정적이 되도록 한다.
+     */
+    private static <T> java.util.List<Holder.Reference<T>> sortedElements(HolderLookup.RegistryLookup<T> lookup) {
+        java.util.List<Holder.Reference<T>> refs = new java.util.ArrayList<>();
+        lookup.listElements().forEach(refs::add);
+        refs.sort(java.util.Comparator.comparing(ref -> ref.key().location().toString()));
+        return refs;
     }
 
     /**
@@ -530,6 +545,32 @@ public class OracleMain {
         Path out = outDir.resolve("feature_order.txt");
         Files.writeString(out, sb.toString());
         System.out.println("Wrote " + out + " biomes=" + biomeIds.size() + " steps=" + steps.size());
+    }
+
+    /**
+     * vanilla ChunkGenerator.applyBiomeDecoration의 registry.stream().collect(groupingBy(step ordinal))
+     * 순서를 그대로 재현해 덤프 (d3 — registry 순서 JVM-랜덤 여부 실측용). FeaturePlacer.DESERT_PYRAMID_STRUCTURE_INDEX(=22)의
+     * 근거인 STRUCTURE_STEP(=4) 그룹 내 desert_pyramid 순번을 재현한다.
+     * Format: 텍스트. 각 줄 "STEP <step> <count>", 그 아래 그룹 내 순서대로 structure id.
+     */
+    private static void dumpStructureOrder(RegistryAccess registryAccess, Path outDir) throws Exception {
+        Registry<net.minecraft.world.level.levelgen.structure.Structure> registry =
+            registryAccess.registryOrThrow(Registries.STRUCTURE);
+        java.util.Map<Integer, java.util.List<net.minecraft.world.level.levelgen.structure.Structure>> map =
+            registry.stream().collect(java.util.stream.Collectors.groupingBy(
+                s -> s.step().ordinal()));
+
+        StringBuilder sb = new StringBuilder();
+        for (int step : new java.util.TreeSet<>(map.keySet())) {
+            java.util.List<net.minecraft.world.level.levelgen.structure.Structure> group = map.get(step);
+            sb.append("STEP ").append(step).append(" ").append(group.size()).append("\n");
+            for (net.minecraft.world.level.levelgen.structure.Structure s : group) {
+                sb.append(registry.getResourceKey(s).map(Object::toString).orElse("?UNKNOWN")).append("\n");
+            }
+        }
+        Path out = outDir.resolve("structure_order.txt");
+        Files.writeString(out, sb.toString());
+        System.out.println("Wrote " + out);
     }
 
     /**
@@ -1932,11 +1973,13 @@ public class OracleMain {
                         chunkPos.getMinBlockX() + 15, level.getMaxBuildHeight() - 1, chunkPos.getMinBlockZ() + 15);
                 int i1 = 0;
                 for (net.minecraft.world.level.levelgen.structure.Structure structure : stepStructures) {
-                    // S3 주의: VanillaRegistries.createLookup().listElements() 순서는 JVM 실행마다 다르다
-                    // (identity-hash 기반 — 한 프로세스 안에서는 고정, 재실행 시 랜덤). 실측: i1이 3~24 사이로 요동.
-                    // 실서버(RegistryDataLoader/MappedRegistry.stream())는 등록 순서 고정이므로 이 요동은 oracle 한정.
-                    // 블록에 영향 주는 건 start가 있는 구조물(현재 desert_pyramid)의 자기 i1뿐이므로,
-                    // 프로젝트 동결 상수 22(FeaturePlacer.DESERT_PYRAMID_STRUCTURE_INDEX)로 핀 고정해
+                    // d3: VanillaRegistries.createLookup().listElements() 원순서는 JVM 실행마다 요동함이
+                    // 실측 확인됨(structure_order.txt, 5회 중 4회 diff — i1이 3~24 사이로 관측). d3에서 OracleMain의
+                    // copyRegistry/biomeRegistry/carverRegistry 빌드를 ResourceLocation 사전순 정렬로 핀 고정했으나
+                    // (sortedElements 메서드), 이 structuresByStep()은 별도의 원본 registries(HolderLookup.Provider,
+                    // 정렬 미적용) 인스턴스를 직접 참조하므로 위 핀과 무관하게 여전히 요동한다. 블록에 영향 주는 건
+                    // start가 있는 구조물(현재 desert_pyramid)의 자기 i1뿐이므로, FeaturePlacer.DESERT_PYRAMID_STRUCTURE_INDEX와
+                    // 동일한 값(사전순 STEP 4 그룹 내 순번 = 1, structure_order.txt 실측)으로 핀 고정해
                     // 픽스처 재생성을 재현 가능하게 만든다. 진짜 실서버 순서 검증은 .mca 자가검증 게이트(스펙 §3) 몫.
                     // instanceof 판별 — vanilla에서 DesertPyramidStructure 인스턴스는 desert_pyramid 하나뿐.
                     // (listElements() 재호출 기반 identity 비교는 datagen lookup이 holder를 재생성해 실패한다)
@@ -1946,7 +1989,7 @@ public class OracleMain {
                     // createStructures가 쓴 인스턴스(structure set 경유)와 다를 수 있어 canonical로 조회한다.
                     net.minecraft.world.level.levelgen.structure.Structure queryStructure =
                         isDesertPyramid ? canonicalPyramid : structure;
-                    int effectiveI1 = isDesertPyramid ? 22 : i1;
+                    int effectiveI1 = isDesertPyramid ? 1 : i1;
                     random.setFeatureSeed(decorationSeed, effectiveI1, step);
                     if (isDesertPyramid) { // TEMP S3 debug — remove before ship
                         System.out.printf("ORACLE_STARTS center count=%d%n",

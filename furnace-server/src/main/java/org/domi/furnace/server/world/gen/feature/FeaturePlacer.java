@@ -20,13 +20,18 @@ public final class FeaturePlacer {
     /**
      * desert_pyramid의 구조물 시드 인덱스 i1 (F1). vanilla applyBiomeDecoration은 전체 Structure registry를
      * step ordinal로 groupingBy(registry stream 순서)한 뒤 그룹 내 순번을 setFeatureSeed(l, i1, step)에 넣는다 —
-     * start 유무와 무관하게 그룹의 모든 구조물이 i1을 소비. "측정값 22"는 oracle의
-     * VanillaRegistries.createLookup().listElements() 순서(datagen lookup, identity-hash 기반이라 JVM 실행마다 요동)에서
-     * 뽑은 것으로, 실서버 registry 순서(RegistryDataLoader/MappedRegistry.stream(), 등록 순서 고정)와 같다는 보장이 없다.
-     * 22는 oracle 픽스처와 Furnace가 공유하는 핀 고정 컨벤션일 뿐 — 진짜 실서버 순서 검증은 .mca 자가검증 게이트(스펙 §3) 몫.
+     * start 유무와 무관하게 그룹의 모든 구조물이 i1을 소비.
+     * "측정값 22"는 VanillaRegistries.createLookup().listElements() 원순서(datagen lookup)에서 뽑은 것으로,
+     * d3 실측 결과 JVM 실행마다 요동함이 확인됨 (structure_order.txt 5회 중 4회 diff). 실서버 registry 순서
+     * (RegistryDataLoader/MappedRegistry.stream(), 등록 순서 고정)와 같다는 보장도 없었음 — 이중 비결정성.
+     * d3 핀 고정: oracle의 copyRegistry/biomeRegistry/carverRegistry 빌드 시 listElements()를 ResourceLocation
+     * id 사전순으로 정렬 후 등록(OracleMain.sortedElements) → STRUCTURE registry stream 순서가 재실행 간 결정적.
+     * 이 사전순 기준 STEP 4(SURFACE_STRUCTURES) 그룹 내 desert_pyramid 순번 = **1**
+     * (bastion_remnant=0, desert_pyramid=1 — structure_order.txt 실측, oracle 5회 재실행 byte-diff 없음).
+     * 실서버(RegistryDataLoader) 순서와 일치한다는 보장은 없음 — 진짜 실서버 순서 검증은 .mca 자가검증 게이트(스펙 §3) 몫.
      * 다른 구조물 지원 시(S4+) registry 그룹핑으로 일반화할 것.
      */
-    private static final int DESERT_PYRAMID_STRUCTURE_INDEX = 22;
+    private static final int DESERT_PYRAMID_STRUCTURE_INDEX = 1;
 
     private final long seed;
     private final BiomeFeatureData biomeData;
