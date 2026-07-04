@@ -75,7 +75,8 @@ class FeatureWorldViewTest {
 
         FeatureWorldView view = new FeatureWorldView(col, 0, 0, biomeIds);
 
-        assertEquals(topY + 1, view.getWgOceanFloorHeight(0, 0));
+        // vanilla와 동일: setBlock(air)가 OCEAN_FLOOR_WG를 라이브 갱신 → 최상단 carve 후 topY로 하강.
+        assertEquals(topY, view.getWgOceanFloorHeight(0, 0));
         assertEquals(topY - 1, view.getOceanFloorY(0, 0));
     }
 

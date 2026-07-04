@@ -71,6 +71,7 @@ public final class ChunkColumn {
         int local = worldY - MIN_Y;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
+        updateWgOceanFloor(x, worldY, z, stateId);
         dirty = true;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
@@ -166,6 +167,30 @@ public final class ChunkColumn {
             oceanFloor[index] = value;
         }
         return MIN_Y + value - 1;
+    }
+
+    /**
+     * vanilla Heightmap.update(OCEAN_FLOOR_WG) 미러 — ProtoChunk.setBlockState가 worldgen 중 매 블록 쓰기마다
+     * WG 계열 heightmap을 라이브 갱신하는 것과 동일(Heightmap.java:76-103). carver·구조물·feature가 setBlock으로
+     * 쓴 변경이 이후 OreFeature.place의 OCEAN_FLOOR_WG 게이트에 반영돼야 RNG 소비가 vanilla와 일치한다.
+     */
+    private void updateWgOceanFloor(int x, int worldY, int z, int stateId) {
+        int index = z * 16 + x;
+        int first = wgOceanFloor[index]; // firstAvailable - MIN_Y
+        if (first == UNSET_HEIGHT) return; // loadGenerated 이전 — 미프라임 상태는 갱신 대상 아님
+        int y = worldY - MIN_Y;
+        if (y <= first - 2) return;
+        if (isOceanFloorBlock(stateId)) {
+            if (y >= first) wgOceanFloor[index] = y + 1;
+        } else if (first - 1 == y) {
+            for (int i = y - 1; i >= 0; i--) {
+                if (isOceanFloorBlock(getBlock(x, MIN_Y + i, z))) {
+                    wgOceanFloor[index] = i + 1;
+                    return;
+                }
+            }
+            wgOceanFloor[index] = 0;
+        }
     }
 
     public int wgOceanFloorHeight(int x, int z) {

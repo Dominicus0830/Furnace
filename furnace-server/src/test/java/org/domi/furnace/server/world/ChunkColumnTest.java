@@ -100,8 +100,9 @@ class ChunkColumnTest {
         assertEquals(ChunkColumn.MIN_Y, oceanFloorBlockY(c, 0, 0));
     }
 
+    /** vanilla ProtoChunk.setBlockState는 OCEAN_FLOOR_WG를 라이브 갱신한다(Heightmap.update) — 최상단 carve 시 아래로 재스캔. */
     @Test
-    void wgOceanFloorHeight_preservesPreCarverHeight() throws Exception {
+    void wgOceanFloorHeight_tracksCarvedTopLikeVanilla() throws Exception {
         ChunkColumn c = new ChunkColumn(6);
         int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 16 * 16 * 16];
         int[] biomeIds = new int[ChunkColumn.SECTION_COUNT * 64];
@@ -116,6 +117,6 @@ class ChunkColumnTest {
         c.setBlock(0, topY, 0, 0);
 
         assertEquals(topY - 1, oceanFloorBlockY(c, 0, 0));
-        assertEquals(topY + 1, wgOceanFloorHeight(c, 0, 0));
+        assertEquals(topY, wgOceanFloorHeight(c, 0, 0));
     }
 }
