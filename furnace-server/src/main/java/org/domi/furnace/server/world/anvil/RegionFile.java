@@ -20,7 +20,14 @@ public final class RegionFile implements Closeable {
             raf.setLength(2L * SECTOR); // 빈 헤더 2섹터
         }
         raf.seek(0);
-        for (int i = 0; i < 1024; i++) locations[i] = raf.readInt();
+        byte[] header = new byte[1024 * 4];
+        raf.readFully(header); // 1024회 readInt(각 4syscall) 대신 1회 벌크 read
+        for (int i = 0; i < 1024; i++) locations[i] = readIntAt(header, i * 4);
+    }
+
+    private static int readIntAt(byte[] b, int off) {
+        return ((b[off] & 0xFF) << 24) | ((b[off + 1] & 0xFF) << 16)
+                | ((b[off + 2] & 0xFF) << 8) | (b[off + 3] & 0xFF);
     }
 
     private static int index(int chunkX, int chunkZ) {
@@ -33,9 +40,11 @@ public final class RegionFile implements Closeable {
         if (loc == 0) return null;
         int offset = loc >>> 8;
         raf.seek((long) offset * SECTOR);
-        int len = raf.readInt();
+        byte[] head = new byte[5];
+        raf.readFully(head); // len(4)+type(1) 단건 readInt/readByte(5syscall) 대신 1회 벌크 read
+        int len = readIntAt(head, 0);
         if (len <= 0) return null;
-        int compType = raf.readByte();
+        int compType = head[4];
         byte[] comp = new byte[len - 1];
         raf.readFully(comp);
         return Compression.decompress(compType, comp);
