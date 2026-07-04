@@ -28,6 +28,9 @@ public final class SurfaceSystem {
     private final WorldgenData worldgenData;
     private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory randomFactory;
     private final Map<String, NormalNoise> noiseCache = new ConcurrentHashMap<>();
+    // vertical_gradient용 positional factory 캐시 — fromHashOf는 매 호출 MD5 다이제스트를 수행하는
+    // randomName만의 순수 함수라 캐시해도 RNG 스트림 불변 (M-opt P0, buildNoise의 noiseCache와 동일 패턴).
+    private final Map<String, XoroshiroRandomSource.XoroshiroPositionalRandomFactory> gradientFactoryCache = new ConcurrentHashMap<>();
     private final NormalNoise surfaceNoise;
     private final NormalNoise surfaceSecondaryNoise;
     private final int waterId;
@@ -364,7 +367,9 @@ public final class SurfaceSystem {
         if (ctx.blockY <= trueY)  return true;
         if (ctx.blockY >= falseY) return false;
         double gradient = (double)(ctx.blockY - trueY) / (double)(falseY - trueY);
-        XoroshiroRandomSource rng = randomFactory.fromHashOf(vg.randomName()).forkPositional().at(ctx.blockX, ctx.blockY, ctx.blockZ);
+        XoroshiroRandomSource rng = gradientFactoryCache
+            .computeIfAbsent(vg.randomName(), name -> randomFactory.fromHashOf(name).forkPositional())
+            .at(ctx.blockX, ctx.blockY, ctx.blockZ);
         return rng.nextFloat() < (1.0f - (float)gradient);
     }
 
