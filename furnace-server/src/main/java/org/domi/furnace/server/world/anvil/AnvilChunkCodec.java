@@ -1,11 +1,13 @@
 // ChunkColumn ↔ 표준 Anvil 청크 NBT. 팰릿 속성 무시(Name→default state id 근사).
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.BitStorage;
 import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 import java.util.ArrayList;
@@ -16,6 +18,7 @@ import java.util.Map;
 public final class AnvilChunkCodec {
 
     private static final int DATA_VERSION = 3955; // 1.21.1
+    private static final String CHEST_ID = "furnace:chest"; // 자체 포맷 상수(vanilla id 호환 불필요, §2.2)
     private final BlockRegistry registry;
     private final int biomeId; // 단일 바이옴(superflat/근사). 바닐라 read 시 바이옴은 무시하고 이 값 사용.
 
@@ -45,6 +48,12 @@ public final class AnvilChunkCodec {
         NbtCompound heightmaps = new NbtCompound();
         heightmaps.putLongArray("MOTION_BLOCKING", col.motionBlockingHeightmap());
         root.putCompound("Heightmaps", heightmaps);
+
+        NbtList blockEntities = new NbtList(NbtIo.TAG_COMPOUND);
+        for (ChestBlockEntity ce : col.blockEntities().values()) {
+            blockEntities.add(chestEntityNbt(ce.x, ce.y, ce.z, ce.items));
+        }
+        root.putList("block_entities", blockEntities);
         return root;
     }
 
@@ -67,7 +76,44 @@ public final class AnvilChunkCodec {
         NbtCompound heightmaps = new NbtCompound();
         heightmaps.putLongArray("MOTION_BLOCKING", snap.heightmap());
         root.putCompound("Heightmaps", heightmaps);
+
+        NbtList blockEntities = new NbtList(NbtIo.TAG_COMPOUND);
+        for (org.domi.furnace.server.world.ChunkSnapshot.BlockEntitySnapshot be : snap.blockEntities()) {
+            int x = snap.chunkX() * 16 + be.localX();
+            int z = snap.chunkZ() * 16 + be.localZ();
+            NbtCompound e = new NbtCompound();
+            e.putInt("x", x);
+            e.putInt("y", be.y());
+            e.putInt("z", z);
+            e.putString("id", CHEST_ID);
+            NbtCompound tag = be.tag();
+            NbtList items = (tag != null && tag.contains("Items")) ? tag.getList("Items") : new NbtList(NbtIo.TAG_COMPOUND);
+            e.putList("Items", items);
+            blockEntities.add(e);
+        }
+        root.putList("block_entities", blockEntities);
         return root;
+    }
+
+    private NbtCompound chestEntityNbt(int x, int y, int z, ItemStack[] items) {
+        NbtCompound e = new NbtCompound();
+        e.putInt("x", x);
+        e.putInt("y", y);
+        e.putInt("z", z);
+        e.putString("id", CHEST_ID);
+        NbtList itemsList = new NbtList(NbtIo.TAG_COMPOUND);
+        for (int i = 0; i < items.length; i++) {
+            ItemStack s = items[i];
+            if (s == null || s.isEmpty()) continue;
+            NbtCompound ie = new NbtCompound();
+            ie.putByte("Slot", (byte) i);
+            ie.putInt("Id", s.itemId());
+            ie.putInt("Count", s.count());
+            if (s.components() != null) ie.putByteArray("Comp", s.components());
+            itemsList.add(ie);
+        }
+        e.putList("Items", itemsList);
+        return e;
     }
 
     private NbtCompound blockStatesFromArray(int[] blocks) {
@@ -105,7 +151,30 @@ public final class AnvilChunkCodec {
             applyBlockStates(col, sectionIdx, s.getCompound("block_states"));
         }
         recomputeHeightmap(col);
+        if (root.contains("block_entities")) {
+            for (Object o : root.getList("block_entities").items()) {
+                col.putChest(chestFromNbt((NbtCompound) o));
+            }
+        }
         return col;
+    }
+
+    private ChestBlockEntity chestFromNbt(NbtCompound e) {
+        int x = e.getInt("x");
+        int y = e.getInt("y");
+        int z = e.getInt("z");
+        ItemStack[] items = new ItemStack[ChestBlockEntity.SLOTS];
+        java.util.Arrays.fill(items, ItemStack.EMPTY);
+        if (e.contains("Items")) {
+            for (Object io : e.getList("Items").items()) {
+                NbtCompound ie = (NbtCompound) io;
+                int slot = ie.getByte("Slot") & 0xFF;
+                if (slot < 0 || slot >= items.length) continue;
+                byte[] comp = ie.contains("Comp") ? ie.getByteArray("Comp") : null;
+                items[slot] = new ItemStack(ie.getInt("Id"), ie.getInt("Count"), comp);
+            }
+        }
+        return new ChestBlockEntity(x, y, z, items);
     }
 
     // NBT엔 Heightmaps가 있으나 신뢰 않고 블록서 재계산(바닐라 월드도 정확). 최상단 비공기 → surface.

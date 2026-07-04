@@ -30,4 +30,69 @@ class NbtWriterTest {
         assertFalse(buf.isReadable());
         buf.release();
     }
+
+    @Test
+    void writeCompound_emptyCompound_isTypeThenEnd() {
+        ByteBuf buf = Unpooled.buffer();
+        new NbtWriter(buf).writeCompound(new NbtCompound());
+
+        assertEquals(0x0a, buf.readByte()); // TAG_COMPOUND
+        assertEquals(0x00, buf.readByte()); // TAG_END
+        assertFalse(buf.isReadable());
+        buf.release();
+    }
+
+    @Test
+    void writeCompound_scalarAndNestedFields_matchByteLayout() {
+        NbtCompound inner = new NbtCompound();
+        inner.putString("Name", "hi");
+
+        NbtCompound root = new NbtCompound();
+        root.putByte("Slot", (byte) 3);
+        root.putInt("Id", 42);
+        root.putByteArray("Comp", new byte[]{9, 8});
+        root.putCompound("Nested", inner);
+
+        ByteBuf buf = Unpooled.buffer();
+        new NbtWriter(buf).writeCompound(root);
+
+        assertEquals(0x0a, buf.readByte());       // 루트 TAG_COMPOUND
+
+        assertEquals(0x01, buf.readByte());       // Slot: TAG_BYTE
+        assertEquals(4, buf.readUnsignedShort());
+        assertEquals("Slot", readAscii(buf, 4));
+        assertEquals(3, buf.readByte());
+
+        assertEquals(0x03, buf.readByte());       // Id: TAG_INT
+        assertEquals(2, buf.readUnsignedShort());
+        assertEquals("Id", readAscii(buf, 2));
+        assertEquals(42, buf.readInt());
+
+        assertEquals(0x07, buf.readByte());       // Comp: TAG_BYTE_ARRAY
+        assertEquals(4, buf.readUnsignedShort());
+        assertEquals("Comp", readAscii(buf, 4));
+        assertEquals(2, buf.readInt());
+        assertEquals(9, buf.readByte());
+        assertEquals(8, buf.readByte());
+
+        assertEquals(0x0a, buf.readByte());       // Nested: TAG_COMPOUND
+        assertEquals(6, buf.readUnsignedShort());
+        assertEquals("Nested", readAscii(buf, 6));
+        assertEquals(0x08, buf.readByte());       //   Name: TAG_STRING
+        assertEquals(4, buf.readUnsignedShort());
+        assertEquals("Name", readAscii(buf, 4));
+        assertEquals(2, buf.readUnsignedShort());
+        assertEquals("hi", readAscii(buf, 2));
+        assertEquals(0x00, buf.readByte());       // Nested compound 종료
+
+        assertEquals(0x00, buf.readByte());       // 루트 compound 종료
+        assertFalse(buf.isReadable());
+        buf.release();
+    }
+
+    private static String readAscii(ByteBuf buf, int len) {
+        byte[] bytes = new byte[len];
+        buf.readBytes(bytes);
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+    }
 }

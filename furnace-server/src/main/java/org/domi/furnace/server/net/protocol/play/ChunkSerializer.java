@@ -4,6 +4,7 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSnapshot;
@@ -41,8 +42,19 @@ public final class ChunkSerializer {
         buf.writeBytes(data);
         data.release();
 
-        // 블록 엔티티 0개
-        Types.writeVarInt(buf, 0);
+        // 블록 엔티티: [byte packedXZ][short y][VarInt typeId][NBT tag-or-TAG_END]
+        Types.writeVarInt(buf, snap.blockEntities().size());
+        for (ChunkSnapshot.BlockEntitySnapshot be : snap.blockEntities()) {
+            buf.writeByte(((be.localX() & 0xF) << 4) | (be.localZ() & 0xF));
+            buf.writeShort(be.y());
+            Types.writeVarInt(buf, be.typeId());
+            NbtCompound tag = be.tag();
+            if (tag == null) {
+                buf.writeByte(0x00); // TAG_END = 빈 tag(vanilla null 관례)
+            } else {
+                new NbtWriter(buf).writeCompound(tag);
+            }
+        }
 
         // --- 라이트 ---
         long allSectionsMask = (1L << LIGHT_SECTIONS) - 1; // 26비트

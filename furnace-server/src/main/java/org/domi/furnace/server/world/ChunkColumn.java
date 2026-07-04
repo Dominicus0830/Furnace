@@ -31,6 +31,7 @@ public final class ChunkColumn {
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음)
     private final int[] oceanFloor = new int[256];
     private final int[] wgOceanFloor = new int[256];
+    private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
     private boolean dirty;
     private byte[] cachedSerializedBody;
     private long[] cachedMotionBlockingHeightmap;
@@ -60,6 +61,29 @@ public final class ChunkColumn {
 
     public int[] sectionBlocks(int sectionIndex) {
         return sections[sectionIndex].openScratch();
+    }
+
+    // key = ((x&0x3FFFFFF)<<38) | ((z&0x3FFFFFF)<<12) | (y&0xFFF) — Types.writeBlockPos와 동형(자체 인코딩, 프로토콜과 무관)
+    private static long blockEntityKey(int x, int y, int z) {
+        return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFFL);
+    }
+
+    public ChestBlockEntity chestAt(int x, int y, int z) {
+        return blockEntities.get(blockEntityKey(x, y, z));
+    }
+
+    public void putChest(ChestBlockEntity chest) {
+        blockEntities.put(blockEntityKey(chest.x, chest.y, chest.z), chest);
+        cachedSnapshot = null;
+    }
+
+    public void removeBlockEntityAt(int x, int y, int z) {
+        blockEntities.remove(blockEntityKey(x, y, z));
+        cachedSnapshot = null;
+    }
+
+    public java.util.Map<Long, ChestBlockEntity> blockEntities() {
+        return blockEntities;
     }
 
     public void compactSections() {
