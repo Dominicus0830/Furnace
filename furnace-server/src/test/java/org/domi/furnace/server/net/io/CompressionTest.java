@@ -43,4 +43,28 @@ class CompressionTest {
         assertEquals(10, out.readableBytes());
         out.release();
     }
+
+    // 재사용 스크래치 버퍼 성장/축소 경계 fuzz: 0바이트, 임계치 부근, 수 MB, 감소하는 순서까지
+    @Test
+    void roundTrips_fuzzSizesAcrossThreshold() {
+        int threshold = 64;
+        EmbeddedChannel enc = new EmbeddedChannel(new CompressionEncoder(threshold));
+        EmbeddedChannel dec = new EmbeddedChannel(new CompressionDecoder(threshold));
+
+        int[] sizes = {0, 1, 63, 64, 65, 100, 8192, 8193, 1_000_000, 2 * 1024 * 1024, 1, 0, 500_000};
+        for (int size : sizes) {
+            int fill = (size % 251) + 1; // 0 회피(가변 패턴)
+            enc.writeOutbound(bytes(size, fill));
+            ByteBuf frame = enc.readOutbound();
+            dec.writeInbound(frame);
+            ByteBuf out = dec.readInbound();
+            assertEquals(size, out.readableBytes(), "size=" + size);
+            byte[] actual = new byte[size];
+            out.readBytes(actual);
+            byte[] expected = new byte[size];
+            java.util.Arrays.fill(expected, (byte) fill);
+            assertArrayEquals(expected, actual, "content mismatch size=" + size);
+            out.release();
+        }
+    }
 }

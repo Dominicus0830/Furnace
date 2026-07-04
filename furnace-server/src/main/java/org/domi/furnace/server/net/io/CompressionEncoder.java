@@ -10,6 +10,7 @@ public final class CompressionEncoder extends MessageToByteEncoder<ByteBuf> {
 
     private final int threshold;
     private final Deflater deflater = new Deflater();
+    private byte[] inputScratch = new byte[0]; // 채널당 재사용, 필요 시 성장(Netty encoder는 이벤트루프 단일스레드 순차 처리라 채널 간 공유 없이 안전)
 
     public CompressionEncoder(int threshold) {
         this.threshold = threshold;
@@ -23,10 +24,13 @@ public final class CompressionEncoder extends MessageToByteEncoder<ByteBuf> {
             out.writeBytes(msg);
             return;
         }
-        byte[] input = new byte[dataLen];
-        msg.readBytes(input);
+        if (inputScratch.length < dataLen) {
+            inputScratch = new byte[dataLen];
+        }
+        byte[] input = inputScratch;
+        msg.readBytes(input, 0, dataLen);
         Types.writeVarInt(out, dataLen); // 압축 해제 후 크기
-        deflater.setInput(input);
+        deflater.setInput(input, 0, dataLen);
         deflater.finish();
         byte[] buffer = new byte[8192];
         while (!deflater.finished()) {
