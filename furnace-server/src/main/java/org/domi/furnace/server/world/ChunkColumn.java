@@ -12,8 +12,6 @@ public final class ChunkColumn {
     private static final int WATER_MAX_STATE = 95;
     private static final int LAVA_MIN_STATE = 96;
     private static final int LAVA_MAX_STATE = 111;
-    private static final int LEAVES_MIN_STATE = 237;
-    private static final int LEAVES_MAX_STATE = 376;
     private static final int CAVE_AIR_STATE = 12958;
     private static final int VOID_AIR_STATE = 12959;
     // 수중 식물: vanilla OCEAN_FLOOR heightmap에서 제외됨 (Material.PLANT = not solid)
@@ -250,10 +248,11 @@ public final class ChunkColumn {
         return 0;
     }
 
+    // vanilla OCEAN_FLOOR/OCEAN_FLOOR_WG의 isOpaque 술어는 BlockBehaviour::blocksMotion —
+    // 잎(leaves)은 blocksMotion=true라서 vanilla는 잎도 바닥으로 센다(MOTION_BLOCKING_NO_LEAVES와만 다름).
     private static boolean isOceanFloorBlock(int stateId) {
         return stateId != ChunkSection.AIR && stateId != CAVE_AIR_STATE && stateId != VOID_AIR_STATE
             && !isFluid(stateId)
-            && !isLeaves(stateId)
             && !isWaterPlant(stateId);
     }
 
@@ -271,7 +270,4 @@ public final class ChunkColumn {
             || stateId >= LAVA_MIN_STATE && stateId <= LAVA_MAX_STATE;
     }
 
-    private static boolean isLeaves(int stateId) {
-        return stateId >= LEAVES_MIN_STATE && stateId <= LEAVES_MAX_STATE;
-    }
 }
