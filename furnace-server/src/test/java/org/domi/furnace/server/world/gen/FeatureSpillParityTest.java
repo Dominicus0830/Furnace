@@ -136,9 +136,10 @@ class FeatureSpillParityTest {
 
         System.out.printf(
             "featurespill(border-tree, diagnostic-only) seed=%d cx=%d cz=%d: %d mismatches "
-                + "(9-origin decorate 적용 전 1882 대비 대폭 감소 — 잔여분은 기존 tree feature parity 격차, Issues 참조)%n",
+                + "(9-origin decorate 적용 전 1882, disk matching_fluids 수정 전 738 대비 대폭 감소 — 잔여분은 기존 tree feature parity 격차, Issues 참조)%n",
             seed, cx, cz, mismatch);
-        // 0을 assert하지 않는다(위 주석 참조) — spill 수정만으로 개선됐음을 상한선으로 확인.
-        assertTrue(mismatch < 1000, "border-tree spill 회귀: mismatch=" + mismatch + " (기존 1882 수준으로 되돌아감)");
+        // 0을 assert하지 않는다(위 주석 참조) — gridview-feature-parity task(disk_sand/disk_clay/disk_gravel의
+        // matching_fluids 필터 누락 수정)로 738→564까지 개선. 잔여는 tree feature parity 격차(M5·M6 범위)라 상한만 조임.
+        assertTrue(mismatch < 700, "border-tree spill 회귀: mismatch=" + mismatch + " (738/1882 수준으로 되돌아감)");
     }
 }

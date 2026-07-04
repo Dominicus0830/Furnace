@@ -900,12 +900,18 @@ public final class BiomeFeatureData {
             return ids;
         }
 
-        // matching_blocks predicate만 지원. 그외 타입은 null → modifier 생략(통과). random 미소비라 스트림 영향 없음.
+        // matching_blocks/matching_fluids predicate만 지원. 그외 타입은 null → modifier 생략(통과). random 미소비라 스트림 영향 없음.
+        // matching_fluids: Furnace는 waterlogged 블록에 별도 fluid 레이어를 두지 않고 water를 단일 블록 상태로
+        // 등록하므로(blocks/1.21.1.txt: minecraft:water 단일 id), fluid 검사를 블록 상태 검사로 근사한다 —
+        // disk_sand/disk_clay/disk_gravel이 이 필터로 요구하는 "표면이 물"인지 확인에는 충분하다.
         private Set<Integer> blockPredicateStates(JsonObject predicate) {
             if (predicate == null) return null;
             String type = predicate.get("type").getAsString();
             if (type.equals("minecraft:matching_blocks")) {
                 return parseBlockSet(predicate.get("blocks"));
+            }
+            if (type.equals("minecraft:matching_fluids")) {
+                return parseBlockSet(predicate.get("fluids"));
             }
             return null;
         }
