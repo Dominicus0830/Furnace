@@ -60,6 +60,11 @@ final class OracleWorldGenLevel implements WorldGenLevel {
     private final int cx;
     private final int cz;
     private final int radius;
+    // featurespill: 하나의 level 인스턴스로 9개 origin을 순차 decorate할 때, 쓰기 클램프(writeRadius=1)와
+    // getRandom() fork 지점은 매번 "지금 decorate 중인 origin" 기준이어야 한다(vanilla WorldGenRegion은
+    // origin마다 새로 생성되므로). cx/cz(grid 인덱싱 기준, 항상 고정)와 분리해 setDecorationOrigin으로 전환.
+    private int originX;
+    private int originZ;
     private final long seed;
     private final MultiNoiseBiomeSource biomeSource;
     private final RandomState randomState;
@@ -99,6 +104,8 @@ final class OracleWorldGenLevel implements WorldGenLevel {
         this.cx = cx;
         this.cz = cz;
         this.radius = radius;
+        this.originX = cx;
+        this.originZ = cz;
         this.seed = seed;
         this.biomeSource = biomeSource;
         this.randomState = randomState;
@@ -154,8 +161,10 @@ final class OracleWorldGenLevel implements WorldGenLevel {
         // vanilla WorldGenRegion: FEATURES writeRadius=1 → 3×3 이웃 쓰기 허용 (구조물 postProcess는 자기 청크로 이미 클램프됨).
         // center만 허용하면 이웃에 걸친 배치(tall_seagrass 등)가 드롭돼 이후 world-state가 바닐라와 어긋남.
         // 이 writeRadius=1 제약은 grid 조회 radius(구조물 references 탐색용)와 별개 — 항상 1로 고정.
-        int dx = chunkX(pos) - cx;
-        int dz = chunkZ(pos) - cz;
+        // origin(현재 decorate 중인 청크) 기준 — featurespill처럼 하나의 level로 여러 origin을 순차
+        // decorate할 때도 각 origin 자신의 3×3만 쓰기 허용(vanilla가 origin마다 WorldGenRegion을 새로 만드는 것과 동일 효과).
+        int dx = chunkX(pos) - originX;
+        int dz = chunkZ(pos) - originZ;
         if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
             return false;
         }
@@ -171,7 +180,14 @@ final class OracleWorldGenLevel implements WorldGenLevel {
     }
 
     @Override public boolean ensureCanWrite(BlockPos pos) {
-        return Math.abs(chunkX(pos) - cx) <= 1 && Math.abs(chunkZ(pos) - cz) <= 1;
+        return Math.abs(chunkX(pos) - originX) <= 1 && Math.abs(chunkZ(pos) - originZ) <= 1;
+    }
+
+    // featurespill: 다음 origin을 decorate하기 전에 호출 — 쓰기 클램프와 getRandom() fork 지점을 전환한다.
+    void setDecorationOrigin(int ox, int oz) {
+        this.originX = ox;
+        this.originZ = oz;
+        this.regionRandom = null;
     }
 
     @Override public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus leastStatus, boolean create) {
@@ -273,7 +289,7 @@ final class OracleWorldGenLevel implements WorldGenLevel {
         if (regionRandom == null) {
             regionRandom = randomState.getOrCreateRandomFactory(
                     net.minecraft.resources.ResourceLocation.withDefaultNamespace("worldgen_region_random"))
-                .at(new ChunkPos(cx, cz).getWorldPosition());
+                .at(new ChunkPos(originX, originZ).getWorldPosition());
         }
         return regionRandom;
     }

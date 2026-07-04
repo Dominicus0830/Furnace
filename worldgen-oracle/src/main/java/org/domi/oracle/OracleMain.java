@@ -314,6 +314,13 @@ public class OracleMain {
                 dumpFeatureFullChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
                                     aquiferSettingsHolder.value(), aquiferFluidPicker,
                                     frozenBiomeRegistry, biomeSource, registryAccess, registries, outDir);
+            } else if (arg.startsWith("featurespill:")) {
+                String[] parts = arg.substring("featurespill:".length()).split(":");
+                int cx = Integer.parseInt(parts[0]);
+                int cz = Integer.parseInt(parts[1]);
+                dumpFeatureSpillChunk(seed, cx, cz, aquiferGenerator, aquiferRandomState,
+                                    aquiferSettingsHolder.value(), aquiferFluidPicker,
+                                    frozenBiomeRegistry, biomeSource, registryAccess, registries, outDir);
             } else if (arg.equals("featureorder")) {
                 dumpFeatureOrder(registries, biomeSource, outDir);
             } else if (arg.equals("structorder")) {
@@ -1482,6 +1489,95 @@ public class OracleMain {
         }
         System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
         System.out.printf("carver→featurefull 블록 변화 수: %d%n", changed);
+    }
+
+    /**
+     * featurefull의 반쪽 의미(center origin만 decorate) 버그를 드러내는 fixture.
+     * 5×5 carved grid를 만들고 안쪽 3×3 origin 9개를 전부(vanilla applyBiomeDecoration 미러, 구조물 없음 —
+     * featurefull과 동일하게 structureManager=null) decorate한 뒤 center만 덤프한다. 이웃 origin decoration이
+     * center로 넘어오는 spill(나무 캐노피 등)이 포함된다는 점이 featurefull과의 유일한 차이.
+     * origin 순회 순서는 dz 오름차순→dx 오름차순(행 우선)으로 고정 — ChunkPipeline.generateFull과 반드시 동일해야
+     * byte-exact가 성립한다(진짜 바닐라의 청크 로드 순서는 런타임 의존적이라 재현 불가 — Issues 참조).
+     */
+    private static void dumpFeatureSpillChunk(
+        long seed, int cx, int cz,
+        NoiseBasedChunkGenerator generator,
+        RandomState randomState,
+        NoiseGeneratorSettings settings,
+        Aquifer.FluidPicker fluidPicker,
+        Registry<Biome> biomeRegistry,
+        MultiNoiseBiomeSource biomeSource,
+        RegistryAccess registryAccess,
+        HolderLookup.Provider registries,
+        Path outDir
+    ) throws Exception {
+        final int radius = 2;
+        final int size = 2 * radius + 1;
+        ProtoChunk[] grid = new ProtoChunk[size * size];
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                grid[(dz + radius) * size + (dx + radius)] = buildCarvedProtoChunk(
+                    seed, cx + dx, cz + dz, generator, randomState, settings,
+                    fluidPicker, biomeRegistry, biomeSource, registryAccess);
+            }
+        }
+
+        int centerIdx = radius * size + radius;
+        BlockState[] before = snapshotChunk(grid[centerIdx], cx, cz);
+
+        OracleWorldGenLevel level = new OracleWorldGenLevel(
+            grid, cx, cz, radius, seed, biomeSource, randomState, registryAccess, registries);
+
+        for (int ddz = -1; ddz <= 1; ddz++) {
+            for (int ddx = -1; ddx <= 1; ddx++) {
+                int ox = cx + ddx;
+                int oz = cz + ddz;
+                ProtoChunk originChunk = grid[(ddz + radius) * size + (ddx + radius)];
+                level.setDecorationOrigin(ox, oz);
+                placeVanillaFeatures(level, originChunk, generator, biomeSource, registryAccess);
+            }
+        }
+
+        int changed = 0;
+        int idx = 0;
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = grid[centerIdx].getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    if (!state.equals(before[idx++])) {
+                        changed++;
+                    }
+                }
+            }
+        }
+
+        int totalBlocks = FixtureFormat.HEIGHT * 16 * 16;
+        int headerSize = 4 + 8 + 4 + 4;
+        ByteBuffer buf = ByteBuffer.allocate(headerSize + totalBlocks * 2).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0x46534C42); // "FSLB" — featurefull(FFLB)/featurestruct(SFLB)와 구분되는 신규 매직
+        buf.putLong(seed);
+        buf.putInt(cx);
+        buf.putInt(cz);
+
+        for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
+            for (int localZ = 0; localZ < 16; localZ++) {
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = cx * 16 + localX;
+                    int worldZ = cz * 16 + localZ;
+                    BlockState state = grid[centerIdx].getBlockState(new net.minecraft.core.BlockPos(worldX, y, worldZ));
+                    buf.putShort((short) net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state));
+                }
+            }
+        }
+
+        Path out = outDir.resolve("featurespill_" + seed + "_" + cx + "_" + cz + ".bin");
+        try (FileOutputStream fos = new FileOutputStream(out.toFile())) {
+            fos.write(buf.array());
+        }
+        System.out.printf("Wrote %s (%d bytes)%n", out, buf.capacity());
+        System.out.printf("carver→featurespill 블록 변화 수: %d%n", changed);
     }
 
     /**
