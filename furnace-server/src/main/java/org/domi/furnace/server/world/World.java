@@ -144,6 +144,8 @@ public final class World {
         this.itemRegistry = items;
     }
 
+    public BlockRegistry blockRegistry() { return blockRegistry; }
+
     /** 아이템 id → 설치할 블록 default state id. 블록 아닌 아이템/미설정이면 0(air=설치 안 함). */
     public int itemToBlockState(int itemId) {
         if (blockRegistry == null || itemRegistry == null) return 0;

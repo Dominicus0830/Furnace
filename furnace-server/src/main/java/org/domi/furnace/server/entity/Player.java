@@ -38,6 +38,9 @@ public final class Player {
     // 유효 view distance = min(서버 view-distance, 클라 요청). ClientInformation(config 0x00/play 0x0A)서 갱신.
     // 게임중 클라가 렌더거리 바꾸면 0x0A로 다시 옴 → 갱신. onEnterPlay서 초기 설정.
     private volatile int viewDistance = 10;
+    // 열어둔 체스트 세션(M4c-3 슬라이스 B) — netty 스레드가 쓰고 region 스레드(breakBlock 강제닫기)가 읽음.
+    private volatile int openContainerId = -1;
+    private volatile int openChestX, openChestY, openChestZ;
 
     public Player(int entityId, UUID uuid, String name, Channel channel) {
         this.entityId = entityId;
@@ -109,4 +112,19 @@ public final class Player {
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
     public Map<Integer, double[]> tracked() { return tracked; }
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
+
+    /** 체스트 열기 기록(containerId + 좌표). netty 스레드 전용 writer. */
+    public void openChest(int containerId, int x, int y, int z) {
+        this.openChestX = x; this.openChestY = y; this.openChestZ = z;
+        this.openContainerId = containerId;
+    }
+
+    public void closeChest() { this.openContainerId = -1; }
+
+    public int openContainerId() { return openContainerId; }
+
+    /** 열려있으면 {x,y,z}, 아니면 null. */
+    public int[] openChestPos() {
+        return openContainerId == -1 ? null : new int[]{openChestX, openChestY, openChestZ};
+    }
 }

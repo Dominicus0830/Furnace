@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.BlockUpdate;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
@@ -79,14 +80,49 @@ public final class Region {
         return f;
     }
 
-    /** 소유 스레드서 블록 파괴(air) + 청크 구독자에게 BlockUpdate. */
+    /** 소유 스레드서 블록 파괴(air) + 청크 구독자에게 BlockUpdate. 체스트면 엔티티 제거 + 열어둔 플레이어 강제닫기. */
     public void breakBlock(int bx, int by, int bz) {
         world.assertOwns(pos);
         ChunkPos cp = ChunkPos.ofBlock(bx, bz);
         chunkAt(cp).setBlock(bx & 15, by, bz & 15, ChunkSection.AIR);
+        chunkAt(cp).removeBlockEntityAt(bx, by, bz);
         dirtyChunks.add(cp);
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, ChunkSection.AIR);
         for (Player sub : world.subscribers(cp)) sub.send(pkt);
+        // 이 region 소속 플레이어 중 그 체스트를 열어둔 사람에게 강제 ContainerClose(§3.5).
+        // 다른 region 소속 플레이어가 열어둔 경우는 범위 밖(design result.md Issues #5).
+        for (Player pl : players.values()) {
+            int[] open = pl.openChestPos();
+            if (open != null && open[0] == bx && open[1] == by && open[2] == bz) {
+                pl.send(new org.domi.furnace.server.net.protocol.play.ContainerClose(pl.openContainerId()));
+                pl.closeChest();
+            }
+        }
+    }
+
+    /** 소유 스레드서 블록 조회(0x38 체스트 판별용). */
+    public int getBlock(int x, int y, int z) {
+        world.assertOwns(pos);
+        ChunkPos cp = ChunkPos.ofBlock(x, z);
+        return chunkAt(cp).getBlock(x & 15, y, z & 15);
+    }
+
+    /** 소유 스레드서 체스트 블록엔티티 조회(없으면 null). */
+    public ChestBlockEntity chestAt(int x, int y, int z) {
+        world.assertOwns(pos);
+        ChunkPos cp = ChunkPos.ofBlock(x, z);
+        return chunkAt(cp).chestAt(x, y, z);
+    }
+
+    /** 체스트 슬롯 갱신(Container Click). 존재하지 않으면 무시. 청크 dirty 마크(영속, §3.6). */
+    public void setChestItem(int cx, int cy, int cz, int slot, ItemStack item) {
+        world.assertOwns(pos);
+        ChunkPos cp = ChunkPos.ofBlock(cx, cz);
+        ChestBlockEntity chest = chunkAt(cp).chestAt(cx, cy, cz);
+        if (chest == null || slot < 0 || slot >= chest.items.length) return;
+        chest.items[slot] = item;
+        chunkAt(cp).markDirty();
+        dirtyChunks.add(cp);
     }
 
     /** 면 인덱스(0~5) → 설치 위치 오프셋 {dx,dy,dz}. 0down 1up 2north 3south 4west 5east. */
@@ -117,6 +153,10 @@ public final class Region {
         ChunkPos cp = ChunkPos.ofBlock(bx, bz);
         chunkAt(cp).setBlock(bx & 15, by, bz & 15, stateId);
         dirtyChunks.add(cp);
+        BlockRegistry breg = world.blockRegistry();
+        if (breg != null && "minecraft:chest".equals(breg.nameOf(stateId))) {
+            chunkAt(cp).putChest(ChestBlockEntity.empty(bx, by, bz));
+        }
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, stateId);
         for (Player sub : world.subscribers(cp)) sub.send(pkt);
         return true;

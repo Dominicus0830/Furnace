@@ -113,6 +113,14 @@ public final class ChunkColumn {
 
     public boolean dirty() { return dirty; }
     public void clearDirty() { dirty = false; }
+
+    /** 블록 자체는 안 바뀌었지만(체스트 아이템 등 블록엔티티 내용 변경) 저장이 필요할 때 호출(§3.6). */
+    public void markDirty() {
+        dirty = true;
+        cachedSerializedBody = null;
+        cachedMotionBlockingHeightmap = null;
+        cachedSnapshot = null;
+    }
     public byte[] cachedSerializedBody() { return cachedSerializedBody; }
     public void cachedSerializedBody(byte[] body) { this.cachedSerializedBody = body; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }

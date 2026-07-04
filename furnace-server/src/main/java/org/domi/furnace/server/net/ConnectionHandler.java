@@ -19,6 +19,11 @@ import org.domi.furnace.server.net.protocol.configuration.KnownPacksClientbound;
 import org.domi.furnace.server.net.protocol.configuration.RegistryData;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.play.BlockChangedAck;
+import org.domi.furnace.server.net.protocol.play.ContainerClose;
+import org.domi.furnace.server.net.protocol.play.ContainerSetContent;
+import org.domi.furnace.server.net.protocol.play.OpenScreen;
+import org.domi.furnace.server.world.ChestBlockEntity;
+import org.domi.furnace.server.world.Region;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
@@ -69,6 +74,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private int pendingTeleportId = -1;
     private final ItemStack[] slots = new ItemStack[46];
     private int selectedSlot;                // 0~8
+    private int nextContainerId = 1;         // 체스트 세션 id(1..100 순환, 0은 플레이어 자기 인벤 예약)
+    private ItemStack carried = ItemStack.EMPTY; // Container Click의 carried(커서에 든 아이템)
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
     private volatile int clientViewDistance = 32; // 클라가 ClientInformation서 요청한 view distance. 기본 최대.
@@ -349,19 +356,85 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 frame.readBoolean(); // insideBlock
                 int seq = Types.readVarInt(frame); // 예측 sequence
                 Player actor = player;
-                ItemStack held = hand == 0 ? slots[36 + selectedSlot] : ItemStack.EMPTY;
-                int stateId = held.isEmpty() ? 0 : world.itemToBlockState(held.itemId());
-                if (stateId == 0) { // 오프핸드 / 비블록 아이템 — 변경 없음, ack만(클라 예측 정리)
-                    actor.send(new BlockChangedAck(seq));
-                    break;
-                }
-                int[] o = org.domi.furnace.server.world.Region.placeOffset(face);
-                int px = bp[0] + o[0], py = bp[1] + o[1], pz = bp[2] + o[2];
-                RegionPos rp = RegionGrid.regionPos(px, pz, world.regionSize());
-                scheduler.region(rp).execute(() -> {
-                    world.regionAt(rp).placeBlock(px, py, pz, stateId);
-                    actor.send(new BlockChangedAck(seq)); // 설치(또는 충돌거부) 후 ack → 거부 시 고스트 reverts
+                // 클릭 블록 조회는 region 스레드서만(소유권) — 조회 후 netty로 복귀해 배치 여부 판단(§3.2).
+                RegionPos clickedRp = RegionGrid.regionPos(bp[0], bp[2], world.regionSize());
+                scheduler.region(clickedRp).execute(() -> {
+                    int clickedState = world.regionAt(clickedRp).getBlock(bp[0], bp[1], bp[2]);
+                    boolean isChest = "minecraft:chest".equals(world.blockRegistry().nameOf(clickedState));
+                    ctx.channel().eventLoop().execute(() -> {
+                        if (isChest) { // 배치 대신 열기(§3.2) — 더블체스트·방향 무관, 싱글체스트만
+                            openChest(bp[0], bp[1], bp[2]);
+                            actor.send(new BlockChangedAck(seq));
+                            return;
+                        }
+                        ItemStack held = hand == 0 ? slots[36 + selectedSlot] : ItemStack.EMPTY;
+                        int stateId = held.isEmpty() ? 0 : world.itemToBlockState(held.itemId());
+                        if (stateId == 0) { // 오프핸드 / 비블록 아이템 — 변경 없음, ack만(클라 예측 정리)
+                            actor.send(new BlockChangedAck(seq));
+                            return;
+                        }
+                        int[] o = Region.placeOffset(face);
+                        int px = bp[0] + o[0], py = bp[1] + o[1], pz = bp[2] + o[2];
+                        RegionPos rp = RegionGrid.regionPos(px, pz, world.regionSize());
+                        scheduler.region(rp).execute(() -> {
+                            world.regionAt(rp).placeBlock(px, py, pz, stateId);
+                            actor.send(new BlockChangedAck(seq)); // 설치(또는 충돌거부) 후 ack → 거부 시 고스트 reverts
+                        });
+                    });
                 });
+            }
+            case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
+                int containerId = Types.readVarInt(frame);
+                Types.readVarInt(frame);  // stateId(§ 검증 생략, 항상 클라 예측 수용)
+                frame.readShort();        // slotNum(사용 안 함 — changedSlots가 실제 변경 진실)
+                frame.readByte();         // buttonNum
+                int clickType = Types.readVarInt(frame);
+                int numChanged = Types.readVarInt(frame);
+                java.util.Map<Integer, ItemStack> changed = new java.util.HashMap<>();
+                boolean parseOk = true;
+                for (int i = 0; i < numChanged && parseOk; i++) {
+                    int changedSlot = frame.readShort();
+                    try {
+                        changed.put(changedSlot, readSlotStrict(frame));
+                    } catch (UnsupportedComponentException e) {
+                        log.debug("Container Click: components 있는 아이템 — 파싱 범위 밖(§2.3), 이후 바이트 폐기");
+                        parseOk = false;
+                    }
+                }
+                ItemStack newCarried = parseOk ? readSlotStrict(frame) : null;
+                if (!parseOk) break; // 경계 유실 — 이 패킷 전체 폐기(범위 밖 케이스)
+                Player p = player;
+                int expectedContainerId = p.openContainerId();
+                if (clickType != 0 || expectedContainerId == -1 || containerId != expectedContainerId) {
+                    break; // PICKUP만 처리, 컨테이너 불일치·미오픈 무시(§3.3)
+                }
+                this.carried = newCarried;
+                int[] chestPos = p.openChestPos();
+                java.util.Map<Integer, ItemStack> chestUpdates = new java.util.HashMap<>();
+                for (var e : changed.entrySet()) {
+                    int menuSlot = e.getKey();
+                    if (menuSlot >= 0 && menuSlot < 27) {
+                        chestUpdates.put(menuSlot, e.getValue());
+                    } else if (menuSlot >= 27 && menuSlot <= 53) {
+                        slots[9 + (menuSlot - 27)] = e.getValue();
+                    } else if (menuSlot >= 54 && menuSlot <= 62) {
+                        slots[36 + (menuSlot - 54)] = e.getValue();
+                    }
+                }
+                if (!chestUpdates.isEmpty() && chestPos != null) {
+                    RegionPos rp = RegionGrid.regionPos(chestPos[0], chestPos[2], world.regionSize());
+                    scheduler.region(rp).execute(() -> {
+                        Region region = world.regionAt(rp);
+                        for (var e : chestUpdates.entrySet()) {
+                            region.setChestItem(chestPos[0], chestPos[1], chestPos[2], e.getKey(), e.getValue());
+                        }
+                    });
+                }
+            }
+            case 0x0F -> { // Container Close(serverbound): VarInt containerId
+                Types.readVarInt(frame);
+                Player p = player;
+                if (p != null) p.closeChest();
             }
             default -> { /* 그 외 무시 */ }
         }
@@ -426,6 +499,48 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             frame.readBytes(components);
         }
         return new ItemStack(itemId, count, components);
+    }
+
+    /**
+     * 여러 Slot이 한 프레임에 연속으로 오는 패킷(Container Click)용 정밀 파싱(§2.3) —
+     * numComponentsToAdd/Remove를 읽어 정확한 경계를 찾는다. 둘 다 0(컴포넌트 없음)인 경우만 지원 범위.
+     * 컴포넌트가 실제로 붙은 아이템이면 이후 바이트 경계를 알 수 없어 예외로 신호한다.
+     */
+    private ItemStack readSlotStrict(ByteBuf frame) {
+        int count = Types.readVarInt(frame);
+        if (count == 0) return ItemStack.EMPTY;
+        int itemId = Types.readVarInt(frame);
+        int numAdd = Types.readVarInt(frame);
+        int numRemove = Types.readVarInt(frame);
+        if (numAdd != 0 || numRemove != 0) throw new UnsupportedComponentException();
+        return new ItemStack(itemId, count, null);
+    }
+
+    /** readSlotStrict가 components 있는 아이템을 만났을 때 신호용(§2.3 범위 밖). */
+    private static final class UnsupportedComponentException extends RuntimeException {}
+
+    /** Use Item On이 체스트를 클릭했을 때 화면 열기(§3.2) — 싱글체스트만, 더블체스트 병합 없음. */
+    private void openChest(int x, int y, int z) {
+        Player p = player;
+        if (p == null) return;
+        int containerId = nextContainerId;
+        nextContainerId = nextContainerId % 100 + 1; // 1..100 순환(vanilla 관례), 0은 자기 인벤 예약
+        p.openChest(containerId, x, y, z);
+        RegionPos rp = RegionGrid.regionPos(x, z, world.regionSize());
+        scheduler.region(rp).submit(() -> {
+            ChestBlockEntity chest = world.regionAt(rp).chestAt(x, y, z);
+            ItemStack[] out = new ItemStack[ChestBlockEntity.SLOTS];
+            if (chest != null) System.arraycopy(chest.items, 0, out, 0, ChestBlockEntity.SLOTS);
+            else Arrays.fill(out, ItemStack.EMPTY);
+            return out;
+        }).thenAccept(chestItems -> ctx.channel().eventLoop().execute(() -> {
+            send(ctx, new OpenScreen(containerId, 2, "Chest")); // menuTypeId=2 GENERIC_9x3(§0.2)
+            ItemStack[] contents = new ItemStack[63]; // 0~26 체스트 + 27~53 main + 54~62 hotbar
+            System.arraycopy(chestItems, 0, contents, 0, 27);
+            System.arraycopy(slots, 9, contents, 27, 27);
+            System.arraycopy(slots, 36, contents, 54, 9);
+            send(ctx, new ContainerSetContent(containerId, 0, contents, carried));
+        }));
     }
 
     private ItemStack[] copySlots() {
