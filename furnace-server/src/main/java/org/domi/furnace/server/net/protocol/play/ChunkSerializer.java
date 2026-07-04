@@ -12,6 +12,10 @@ import org.domi.furnace.server.world.Palette;
 public final class ChunkSerializer {
 
     private static final int LIGHT_SECTIONS = ChunkColumn.SECTION_COUNT + 2; // 26
+    private static final byte[] FULL_SKYLIGHT = new byte[2048];
+    static {
+        java.util.Arrays.fill(FULL_SKYLIGHT, (byte) 0xFF);
+    }
 
     private ChunkSerializer() {}
 
@@ -48,11 +52,9 @@ public final class ChunkSerializer {
         writeBitSet(buf, new long[]{allSectionsMask});  // emptyBlockLightMask
 
         Types.writeVarInt(buf, LIGHT_SECTIONS); // skyLight 배열 수
-        byte[] full = new byte[2048];
-        java.util.Arrays.fill(full, (byte) 0xFF);
         for (int i = 0; i < LIGHT_SECTIONS; i++) {
             Types.writeVarInt(buf, 2048);
-            buf.writeBytes(full);
+            buf.writeBytes(FULL_SKYLIGHT);
         }
         Types.writeVarInt(buf, 0); // blockLight 배열 수
     }
