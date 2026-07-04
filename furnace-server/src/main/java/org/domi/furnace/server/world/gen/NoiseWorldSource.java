@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * NoiseChunk 밀도 엔진을 사용해 바닐라 1.21.1 오버월드 지형을 생성하는 WorldSource.
@@ -57,6 +58,9 @@ public final class NoiseWorldSource implements WorldSource {
     private final List<SpawnTarget> spawnTargets;
     private final ChunkPipeline pipeline;
     private volatile SpawnPoint defaultSpawn;
+    // worldSurfaceHeightAt 캐시 — 청크당 SURFACE 높이 256개(16x16)를 1회만 generate()로 계산해 재사용.
+    // 키: (cx<<32)^cz, 값: lz*16+lx 인덱스의 (height-1). generate()는 seed+좌표만의 순수 함수라 메모이제이션 안전.
+    private final ConcurrentHashMap<Long, int[]> surfaceHeightCache = new ConcurrentHashMap<>();
 
     private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
                               SurfaceSystem surfaceSystem, String[] registryBiomeNames,
@@ -403,14 +407,42 @@ public final class NoiseWorldSource implements WorldSource {
         return result;
     }
 
-    /** vanilla getFirstOccupiedHeight(WORLD_SURFACE_WG) 근사 — 대상 청크를 SURFACE 상태로 생성해 최상단 비-공기 y 조회. */
-    private int worldSurfaceHeightAt(int blockX, int blockZ) {
+    /**
+     * vanilla getFirstOccupiedHeight(WORLD_SURFACE_WG) 근사 — 대상 청크를 SURFACE 상태로 생성해 최상단 비-공기 y 조회.
+     * 청크당 결과를 {@link #surfaceHeightCache}에 메모이제이션해 동일 청크 반복 조회 시 재생성(42ms 실측)을 제거한다.
+     */
+    int worldSurfaceHeightAt(int blockX, int blockZ) {
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
-        ChunkColumn c = generate(cx, cz);
+        int[] heights = surfaceHeightCache.computeIfAbsent(chunkKey(cx, cz), k -> computeSurfaceHeights(cx, cz));
         int lx = blockX - cx * 16;
         int lz = blockZ - cz * 16;
-        return height(c, lx, lz, HeightKind.WORLD_SURFACE) - 1;
+        return heights[lz * 16 + lx];
+    }
+
+    private int[] computeSurfaceHeights(int cx, int cz) {
+        ChunkColumn c = generate(cx, cz);
+        int[] heights = new int[256];
+        for (int lz = 0; lz < 16; lz++) {
+            for (int lx = 0; lx < 16; lx++) {
+                heights[lz * 16 + lx] = height(c, lx, lz, HeightKind.WORLD_SURFACE) - 1;
+            }
+        }
+        return heights;
+    }
+
+    private static long chunkKey(int cx, int cz) {
+        return (((long) cx) << 32) ^ (cz & 0xFFFFFFFFL);
+    }
+
+    /** 테스트 전용 — surfaceHeightCache에 실제로 캐시된(재생성이 아닌) 청크 수. */
+    int surfaceHeightCacheSize() {
+        return surfaceHeightCache.size();
+    }
+
+    /** 테스트 전용 — 캐시 전/후 실측 비교를 위해 캐시 맵 자체를 노출. */
+    ConcurrentHashMap<Long, int[]> surfaceHeightCache() {
+        return surfaceHeightCache;
     }
 
     /** vanilla getNoiseBiome(quart 좌표) — 구조물 validBiome 판정용. */
