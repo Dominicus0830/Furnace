@@ -59,6 +59,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     // ── ore vein: solid 블록 override (overworld 전용, 항상 활성) ──
     private final OreVeinifier oreVeinifier;
+    private final DensityFunction wrappedVeinToggle;
 
     // ── 기후 DF (mapAll 래핑) — FlatCache pre-fill 활성화, dim: 0=temp 1=hum 2=cont 3=ero 4=depth 5=ridges ──
     private final DensityFunction[] wrappedClimate;
@@ -139,8 +140,9 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         };
         // vein DF는 NoiseChunk context로 평가 → 반드시 wrap(interpolated 노드 등록·셀 보간).
         // overworld는 ore_veins_enabled=true. reg 없으면(테스트) 비활성.
+        this.wrappedVeinToggle = reg == null ? null : router.veinToggle().mapAll(this::wrap);
         this.oreVeinifier = reg == null ? null : new OreVeinifier(
-            router.veinToggle().mapAll(this::wrap),
+            this.wrappedVeinToggle,
             router.veinRidged().mapAll(this::wrap),
             router.veinGap().mapAll(this::wrap),
             router.oreRandom(),
@@ -304,6 +306,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     long sliceFillNanos = 0; // 벤치마크용 — fillSlice(코너 DF 평가) 누적 시간
     private final double[] cellBoundsScratch = new double[2];
+    private final double[] veinBoundsScratch = new double[2];
 
     private void fillSlice(boolean isSlice0, int cellX) {
         long t0 = System.nanoTime();
@@ -560,8 +563,10 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     selectCellYZ(cy, cz);
 
                     cellBoundsOf(this.wrappedFinalDensity, cellBoundsScratch);
-                    if (cellBoundsScratch[0] > SKIP_EPS && !cellOverlapsVeinRange(cy)) {
-                        // all-stone skip (aquifer not called). vein y범위 셀은 skip 금지 — per-block oreVeinifier 실행.
+                    if (cellBoundsScratch[0] > SKIP_EPS
+                        && (!cellOverlapsVeinRange(cy) || canSkipVeinForCell(cy))) {
+                        // all-stone skip (aquifer not called). vein y범위 셀이어도 veinToggle bound로
+                        // 셀 전체 NO_VEIN이 보장되면(canSkipVeinForCell) per-block oreVeinifier 없이 skip.
                         int yBase = cy * this.cellHeight;
                         int zBase = cz * this.cellWidth;
                         int xBase = cx * this.cellWidth;
@@ -632,6 +637,22 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         int cellMinY = (this.cellNoiseMinY + cy) * this.cellHeight;
         int cellMaxY = cellMinY + this.cellHeight - 1;
         return cellMaxY >= OreVeinifier.VEIN_MIN_Y && cellMinY <= OreVeinifier.VEIN_MAX_Y;
+    }
+
+    /**
+     * all-stone(final_density 셀 전체 양수)이면서 vein y범위와 겹치는 셀에서, veinToggle의 셀 bound로
+     * 셀 전체 NO_VEIN이 보장되면 true(per-block oreVeinifier 없이 skip 가능). 판정 로직/증명은
+     * OreVeinifier.canSkipCell 참조. package-private(테스트용 — fuzz 테스트가 예측치를 직접 검증).
+     */
+    boolean canSkipVeinForCell(int cy) {
+        if (this.oreVeinifier == null) return false;
+
+        cellBoundsOf(this.wrappedVeinToggle, veinBoundsScratch);
+
+        int cellMinY = (this.cellNoiseMinY + cy) * this.cellHeight;
+        int cellMaxY = cellMinY + this.cellHeight - 1;
+
+        return OreVeinifier.canSkipCell(veinBoundsScratch[0], veinBoundsScratch[1], cellMinY, cellMaxY);
     }
 
     /**
