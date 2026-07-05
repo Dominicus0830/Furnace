@@ -39,6 +39,12 @@ class FeatureSpillParityTest {
     }
 
     private void assertSpillParity(long seed, int cx, int cz) throws Exception {
+        assertSpillParity(seed, cx, cz, 0);
+    }
+
+    // maxMismatch>0: 아직 root cause가 안 잡힌 잔여 mismatch를 회귀 없이 상한만 고정(기존
+    // spill_seed51532_5_7_improves/borderTree_improves와 동일 패턴).
+    private void assertSpillParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
@@ -81,7 +87,12 @@ class FeatureSpillParityTest {
         }
 
         System.out.printf("featurespill seed=%d cx=%d cz=%d: %d mismatches%n", seed, cx, cz, mismatch);
-        assertEquals(0, mismatch, "seed=" + seed + " cx=" + cx + " cz=" + cz + " mismatches=" + mismatch);
+        if (maxMismatch > 0) {
+            assertTrue(mismatch <= maxMismatch,
+                "seed=" + seed + " cx=" + cx + " cz=" + cz + " mismatches=" + mismatch + " > 상한 " + maxMismatch);
+        } else {
+            assertEquals(0, mismatch, "seed=" + seed + " cx=" + cx + " cz=" + cz + " mismatches=" + mismatch);
+        }
     }
 
     private static int tryId(BlockRegistry reg, String name, int fallback) {
@@ -132,5 +143,20 @@ class FeatureSpillParityTest {
      */
     @Test void spill_seed51532_1_0_fancyOak() throws Exception {
         assertSpillParity(51532L, 1, 0);
+    }
+
+    /**
+     * (2,0)/(3,3): realserver-fixes task ③(ChunkPipeline spill 창 확장) 조사 대상 좌표. FeatureWorldView의
+     * 읽기(read) 범위를 origin ±1에서 grid center ±GRID_RADIUS(oracle의 OracleWorldGenLevel.getChunk와 동일
+     * 범위)로 넓혔으나(쓰기는 oracle과 동일하게 origin ±1 유지) 이 두 좌표의 mismatch 수는 변화 없었다 —
+     * (2,0)/(3,0)는 애초에 서로 ±1 이내라 이 폭 확장으로는 영향받지 않는 케이스였다(가설 반증). 남은 원인은
+     * 미확정(별도 RNG 소비 순서 발산 등으로 추정) — 회귀 방지용 상한만 고정한다. 후속 조사 필요.
+     */
+    @Test void spill_seed51532_2_0_fancyOak_improves() throws Exception {
+        assertSpillParity(51532L, 2, 0, 20);
+    }
+
+    @Test void spill_seed51532_3_3_fancyOak_improves() throws Exception {
+        assertSpillParity(51532L, 3, 3, 1);
     }
 }

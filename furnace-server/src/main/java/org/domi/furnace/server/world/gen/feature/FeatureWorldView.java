@@ -12,6 +12,11 @@ public final class FeatureWorldView {
     private final int[][] biomeIdsGrid;
     private final boolean writeCenterOnly;
     private final long worldSeed;
+    // 조회(read) 범위 — oracle의 OracleWorldGenLevel.getChunk와 동일하게, 쓰기 범위(origin ±1)보다 넓게
+    // 파이프라인 grid center 기준 ±gridReadRadius까지 볼 수 있어야 한다(fancy oak makeLimb의 isFree 판정 등).
+    private final int gridCenterX;
+    private final int gridCenterZ;
+    private final int gridReadRadius;
     private int debugSetBlockCalls;
 
     public FeatureWorldView(ChunkColumn col, int cx, int cz, int[] biomeIds) {
@@ -27,6 +32,9 @@ public final class FeatureWorldView {
         this.biomeIdsGrid = null;
         this.writeCenterOnly = false;
         this.worldSeed = worldSeed;
+        this.gridCenterX = cx;
+        this.gridCenterZ = cz;
+        this.gridReadRadius = 1;
     }
 
     public FeatureWorldView(ChunkColumn[] grid, int[][] biomeIdsGrid, int cx, int cz) {
@@ -41,6 +49,18 @@ public final class FeatureWorldView {
     public int cz() { return cz; }
 
     public FeatureWorldView(ChunkColumn[] grid, int[][] biomeIdsGrid, int cx, int cz, boolean writeCenterOnly, long worldSeed) {
+        this(grid, biomeIdsGrid, cx, cz, cx, cz, 1, writeCenterOnly, worldSeed);
+    }
+
+    /**
+     * ChunkPipeline 전용 — grid는 gridCenter 기준 ±gridReadRadius 크기(예: 5x5, radius=2)이고, 이 view가
+     * 나타내는 origin(cx,cz)은 grid 내부의 한 청크다. 읽기는 gridCenter±gridReadRadius 전체를 허용하되,
+     * 쓰기는 oracle(OracleWorldGenLevel writeRadius=1 고정)과 동일하게 origin(cx,cz) ±1로 제한한다.
+     */
+    public FeatureWorldView(
+            ChunkColumn[] grid, int[][] biomeIdsGrid, int cx, int cz,
+            int gridCenterX, int gridCenterZ, int gridReadRadius,
+            boolean writeCenterOnly, long worldSeed) {
         this.col = null;
         this.gridCols = grid;
         this.cx = cx;
@@ -49,6 +69,9 @@ public final class FeatureWorldView {
         this.biomeIdsGrid = biomeIdsGrid;
         this.writeCenterOnly = writeCenterOnly;
         this.worldSeed = worldSeed;
+        this.gridCenterX = gridCenterX;
+        this.gridCenterZ = gridCenterZ;
+        this.gridReadRadius = gridReadRadius;
     }
 
     public int getBlock(int worldX, int worldY, int worldZ) {
@@ -124,7 +147,7 @@ public final class FeatureWorldView {
     private int getGridBlock(int worldX, int worldY, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inGridRange(nx, nz) || !inWorldY(worldY)) return ChunkSection.AIR;
+        if (!inReadRange(nx, nz) || !inWorldY(worldY)) return ChunkSection.AIR;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
         if (neighbor == null) return ChunkSection.AIR;
         return neighbor.getBlock(worldX - nx * 16, worldY, worldZ - nz * 16);
@@ -134,7 +157,7 @@ public final class FeatureWorldView {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (writeCenterOnly && (nx != cx || nz != cz)) return;
-        if (!inGridRange(nx, nz) || !inWorldY(worldY)) return;
+        if (!inWriteRange(nx, nz) || !inWorldY(worldY)) return;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
         if (neighbor == null) return;
         debugSetBlockCalls++;
@@ -144,7 +167,7 @@ public final class FeatureWorldView {
     private int getGridSurfaceY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inGridRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
         if (neighbor == null) return ChunkColumn.MIN_Y - 1;
         return neighbor.surfaceBlockY(worldX - nx * 16, worldZ - nz * 16);
@@ -153,7 +176,7 @@ public final class FeatureWorldView {
     private int getGridWorldSurfaceWgY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inGridRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
         if (neighbor == null) return ChunkColumn.MIN_Y - 1;
         return neighbor.worldSurfaceWgBlockY(worldX - nx * 16, worldZ - nz * 16);
@@ -162,7 +185,7 @@ public final class FeatureWorldView {
     private int getGridOceanFloorY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inGridRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
         if (neighbor == null) return ChunkColumn.MIN_Y - 1;
         return neighbor.oceanFloorBlockY(worldX - nx * 16, worldZ - nz * 16);
@@ -171,7 +194,7 @@ public final class FeatureWorldView {
     private int getGridWgOceanFloorHeight(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inGridRange(nx, nz)) return ChunkColumn.MIN_Y;
+        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
         if (neighbor == null) return ChunkColumn.MIN_Y;
         return neighbor.wgOceanFloorHeight(worldX - nx * 16, worldZ - nz * 16);
@@ -182,7 +205,7 @@ public final class FeatureWorldView {
         if (qy < 0 || qy >= ChunkColumn.SECTION_COUNT * 4) return 0;
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inGridRange(nx, nz)) return 0;
+        if (!inReadRange(nx, nz)) return 0;
         int[] neighborBiomeIds = biomeIdsGrid[gridIndex(nx, nz)];
         if (neighborBiomeIds == null) return 0;
         int qx = (worldX - nx * 16) >> 2;
@@ -190,12 +213,20 @@ public final class FeatureWorldView {
         return neighborBiomeIds[(qy * 4 + qz) * 4 + qx];
     }
 
-    private boolean inGridRange(int chunkX, int chunkZ) {
+    // 읽기(makeLimb의 isFree 등) — 파이프라인 grid center 기준 ±gridReadRadius. oracle의
+    // OracleWorldGenLevel.getChunk(radius=grid 전체)와 동일한 범위여야 fancy oak 분기(dry-run) 판정이 일치한다.
+    private boolean inReadRange(int chunkX, int chunkZ) {
+        return Math.abs(chunkX - gridCenterX) <= gridReadRadius && Math.abs(chunkZ - gridCenterZ) <= gridReadRadius;
+    }
+
+    // 쓰기 — oracle의 OracleWorldGenLevel.setBlock(writeRadius=1 고정)과 동일하게 origin(cx,cz) ±1로 제한.
+    private boolean inWriteRange(int chunkX, int chunkZ) {
         return Math.abs(chunkX - cx) <= 1 && Math.abs(chunkZ - cz) <= 1;
     }
 
     private int gridIndex(int chunkX, int chunkZ) {
-        return (chunkZ - cz + 1) * 3 + (chunkX - cx + 1);
+        int size = 2 * gridReadRadius + 1;
+        return (chunkZ - gridCenterZ + gridReadRadius) * size + (chunkX - gridCenterX + gridReadRadius);
     }
 
     private static boolean inWorldY(int worldY) {

@@ -104,17 +104,18 @@ public final class ChunkPipeline {
                         int ox = cx + ddx;
                         int oz = cz + ddz;
 
-                        ChunkColumn[] viewGrid = new ChunkColumn[9];
-                        int[][] viewBiomeGrid = new int[9][];
-                        for (int sdz = -1; sdz <= 1; sdz++) {
-                            for (int sdx = -1; sdx <= 1; sdx++) {
-                                ProtoColumn p = grid[gridIndex(ddx + sdx, ddz + sdz)];
-                                int subIdx = (sdz + 1) * 3 + (sdx + 1);
-                                viewGrid[subIdx] = p.col;
-                                viewBiomeGrid[subIdx] = p.biomeIds;
-                            }
+                        // 읽기는 5x5 grid 전체(oracle OracleWorldGenLevel의 getChunk radius=2와 동일 범위)를 그대로
+                        // 넘긴다 — origin 기준 3x3로 잘라 넘기면 fancy oak makeLimb의 isFree 판정(읽기)이 grid
+                        // 경계 밖을 조기에 air로 간주해 oracle과 분기 판정이 달라진다(§3 참조). 쓰기는
+                        // FeatureWorldView 내부에서 origin(ox,oz) ±1로 별도 제한되므로 안전하다.
+                        ChunkColumn[] viewGrid = new ChunkColumn[GRID_SIZE * GRID_SIZE];
+                        int[][] viewBiomeGrid = new int[GRID_SIZE * GRID_SIZE][];
+                        for (int i = 0; i < grid.length; i++) {
+                            viewGrid[i] = grid[i].col;
+                            viewBiomeGrid[i] = grid[i].biomeIds;
                         }
-                        FeatureWorldView view = new FeatureWorldView(viewGrid, viewBiomeGrid, ox, oz, false, source.seed());
+                        FeatureWorldView view = new FeatureWorldView(
+                            viewGrid, viewBiomeGrid, ox, oz, cx, cz, GRID_RADIUS, false, source.seed());
                         Set<String> neighborBiomes = source.collectNeighborBiomes(ox, oz);
 
                         // STRUCTURE_REFERENCES 상당: radius 8 내 모든 start 중 BoundingBox가 이 origin 청크에
