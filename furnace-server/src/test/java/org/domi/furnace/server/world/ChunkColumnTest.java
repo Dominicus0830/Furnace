@@ -68,6 +68,48 @@ class ChunkColumnTest {
     }
 
     @Test
+    void worldSurfaceHeightmap_packs9Bit_andMirrorsMotionBlocking() {
+        ChunkColumn c = new ChunkColumn(6);
+        c.setSurface(0, 0, 4); // (x=0,z=0) 표면 높이값 4
+        long[] hm = c.worldSurfaceHeightmap();
+        assertEquals(37, hm.length);
+        BitStorage bs = BitStorage.wrap(9, 256, hm);
+        assertEquals(4, bs.get(0));
+    }
+
+    @Test
+    void worldSurfaceHeightmap_liveUpdatesOnManualBlockPlacement() {
+        ChunkColumn c = new ChunkColumn(6);
+        int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 4096]; // (0,0) 컬럼에 y=MIN_Y 바닥돌 1개만 프라임
+        blockIds[0 * 256 + 0 * 16 + 0] = 79; // idx = (y-MIN_Y)*256 + lz*16 + lx, y=MIN_Y → idx=0
+        int[] biomeIds = new int[ChunkColumn.SECTION_COUNT * 64];
+        c.loadGenerated(blockIds, biomeIds);
+        assertEquals(ChunkColumn.MIN_Y, c.surfaceBlockY(0, 0), "프라임 직후 (0,0) 표면은 y=MIN_Y");
+
+        c.setBlock(0, ChunkColumn.MIN_Y + 3, 0, 79); // (0,0)에 y=MIN_Y+3 bedrock 수동 배치(표면 갱신 대상)
+        assertEquals(ChunkColumn.MIN_Y + 3, c.surfaceBlockY(0, 0));
+
+        long[] hm = c.worldSurfaceHeightmap();
+        BitStorage bs = BitStorage.wrap(9, 256, hm);
+        assertEquals(4, bs.get(0)); // surfaceValue = (y - MIN_Y) + 1 = 4
+    }
+
+    @Test
+    void worldSurfaceHeightmap_isCached_untilSurfaceChanges() {
+        ChunkColumn c = new ChunkColumn(6);
+        c.setSurface(0, 0, 4);
+
+        long[] first = c.worldSurfaceHeightmap();
+        long[] second = c.worldSurfaceHeightmap();
+        assertSame(first, second, "변경 없으면 heightmap 재계산 없이 재사용해야");
+
+        c.setSurface(0, 0, 7);
+        long[] third = c.worldSurfaceHeightmap();
+        assertNotSame(first, third, "표면 변경 후에는 캐시 무효화돼야");
+        assertEquals(7, BitStorage.wrap(9, 256, third).get(0));
+    }
+
+    @Test
     void surfaceBlockY_readsPrecomputedSurface() throws Exception {
         ChunkColumn c = new ChunkColumn(6);
         c.setSurface(0, 0, 4);

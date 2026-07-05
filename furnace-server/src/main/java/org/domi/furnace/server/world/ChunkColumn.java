@@ -38,6 +38,7 @@ public final class ChunkColumn {
     private boolean wgHeightmapsFrozen;
     private byte[] cachedSerializedBody;
     private long[] cachedMotionBlockingHeightmap;
+    private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
 
     public ChunkColumn(int biomeId) {
@@ -104,6 +105,7 @@ public final class ChunkColumn {
         dirty = true;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
+        cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
     }
 
@@ -113,6 +115,7 @@ public final class ChunkColumn {
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
+        cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
     }
 
@@ -124,6 +127,7 @@ public final class ChunkColumn {
         dirty = true;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
+        cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
     }
     public byte[] cachedSerializedBody() { return cachedSerializedBody; }
@@ -157,6 +161,7 @@ public final class ChunkColumn {
         dirty = false;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
+        cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
     }
 
@@ -190,6 +195,7 @@ public final class ChunkColumn {
         surface[z * 16 + x] = value;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
+        cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
     }
 
@@ -307,6 +313,18 @@ public final class ChunkColumn {
         for (int i = 0; i < 256; i++) bs.set(i, surface[i]);
         cachedMotionBlockingHeightmap = bs.data();
         return cachedMotionBlockingHeightmap;
+    }
+
+    /**
+     * vanilla WORLD_SURFACE(isOpaque = not air) 미러 — surface[]는 updateSurface의 !isAir 술어로
+     * 라이브 갱신되므로(§updateSurface 문서 참조) WORLD_SURFACE semantics와 동일한 소스다.
+     */
+    public long[] worldSurfaceHeightmap() {
+        if (cachedWorldSurfaceHeightmap != null) return cachedWorldSurfaceHeightmap;
+        BitStorage bs = new BitStorage(HEIGHTMAP_BITS, 256);
+        for (int i = 0; i < 256; i++) bs.set(i, surface[i]);
+        cachedWorldSurfaceHeightmap = bs.data();
+        return cachedWorldSurfaceHeightmap;
     }
 
     private int recomputeOceanFloorHeight(int x, int z) {

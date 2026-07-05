@@ -8,8 +8,8 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import java.util.ArrayList;
 import java.util.List;
 
-public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, Section[] sections,
-                             List<BlockEntitySnapshot> blockEntities) {
+public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] worldSurfaceHeightmap,
+                             Section[] sections, List<BlockEntitySnapshot> blockEntities) {
 
     /** 체스트 block_entity_type id(§0.2 BlockEntityType 등록순서: FURNACE=0, CHEST=1). */
     public static final int CHEST_TYPE_ID = 1;
@@ -32,7 +32,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, Section[] 
             int localZ = ce.z & 15;
             beOut.add(new BlockEntitySnapshot(localX, ce.y, localZ, CHEST_TYPE_ID, chestTag(ce.items)));
         }
-        return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), out, beOut);
+        return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), col.worldSurfaceHeightmap(), out, beOut);
     }
 
     /** §2.1 스키마: Compound{ Items: List<Compound>{Slot,Id,Count,Comp?} }, 빈 체스트면 null(=updateTag 없음). */

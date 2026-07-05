@@ -29,6 +29,7 @@ public final class ChunkSerializer {
         NbtWriter nbt = new NbtWriter(buf);
         nbt.beginRootCompound();
         nbt.writeLongArray("MOTION_BLOCKING", snap.heightmap());
+        nbt.writeLongArray("WORLD_SURFACE", snap.worldSurfaceHeightmap());
         nbt.endCompound();
 
         // 섹션 데이터(별도 버퍼 후 길이 prefix)

@@ -30,6 +30,47 @@ class ChunkSerializerTest {
     }
 
     @Test
+    void serialize_writesMotionBlockingAndWorldSurfaceHeightmapTags() {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        ChunkColumn col = new SuperflatWorldSource(reg, 6).generate(0, 0);
+        ByteBuf buf = Unpooled.buffer();
+        ChunkSerializer.serialize(buf, ChunkSnapshot.of(0, 0, col), reg.directBits(), 7);
+
+        buf.readInt(); // chunkX
+        buf.readInt(); // chunkZ
+        buf.readByte(); // TAG_COMPOUND (root)
+
+        assertEquals(0x0c, buf.readByte()); // TAG_LONG_ARRAY
+        assertEquals("MOTION_BLOCKING", readNbtString(buf));
+        long[] motionBlocking = readLongArray(buf);
+
+        assertEquals(0x0c, buf.readByte()); // TAG_LONG_ARRAY
+        assertEquals("WORLD_SURFACE", readNbtString(buf));
+        long[] worldSurface = readLongArray(buf);
+
+        // SuperflatWorldSource(air 위 없음)에서는 MOTION_BLOCKING(surface[])과 WORLD_SURFACE(surface[])가
+        // 같은 소스 배열에서 나오므로 값이 동일해야 한다.
+        assertArrayEquals(motionBlocking, worldSurface);
+
+        assertEquals(0x00, buf.readByte()); // TAG_END(root 종료)
+        buf.release();
+    }
+
+    private static String readNbtString(ByteBuf buf) {
+        int len = buf.readShort();
+        byte[] bytes = new byte[len];
+        buf.readBytes(bytes);
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static long[] readLongArray(ByteBuf buf) {
+        int len = buf.readInt();
+        long[] out = new long[len];
+        for (int i = 0; i < len; i++) out[i] = buf.readLong();
+        return out;
+    }
+
+    @Test
     void serialize_noBlockEntities_writesZeroCount() {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 6).generate(0, 0);
@@ -61,19 +102,24 @@ class ChunkSerializerTest {
         buf.release();
     }
 
-    /** heightmap NBT(고정 MOTION_BLOCKING 1개 태그) + 섹션 블롭을 건너뛰어 블록엔티티 배열 시작 위치로 이동. */
+    /** heightmap NBT(MOTION_BLOCKING + WORLD_SURFACE 2개 태그) + 섹션 블롭을 건너뛰어 블록엔티티 배열 시작 위치로 이동. */
     private static void skipToBlockEntities(ByteBuf buf) {
         buf.readInt(); // chunkX
         buf.readInt(); // chunkZ
         buf.readByte(); // TAG_COMPOUND (root)
-        buf.readByte(); // TAG_LONG_ARRAY
-        int nameLen = buf.readShort();
-        buf.skipBytes(nameLen); // "MOTION_BLOCKING"
-        int arrLen = buf.readInt();
-        buf.skipBytes(arrLen * 8);
+        skipLongArrayTag(buf); // MOTION_BLOCKING
+        skipLongArrayTag(buf); // WORLD_SURFACE
         buf.readByte(); // TAG_END(root 종료)
         int sectionDataLen = Types.readVarInt(buf);
         buf.skipBytes(sectionDataLen);
+    }
+
+    private static void skipLongArrayTag(ByteBuf buf) {
+        buf.readByte(); // TAG_LONG_ARRAY
+        int nameLen = buf.readShort();
+        buf.skipBytes(nameLen);
+        int arrLen = buf.readInt();
+        buf.skipBytes(arrLen * 8);
     }
 
     @Test
