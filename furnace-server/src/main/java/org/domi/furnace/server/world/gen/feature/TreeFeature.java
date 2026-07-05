@@ -250,14 +250,37 @@ public final class TreeFeature implements ConfiguredFeature {
         return HORIZONTAL_DIRECTIONS[random.nextInt(4)];
     }
 
+    // vanilla TreeFeature.validTreePos == isAir || is(#minecraft:replaceable_by_trees).
+    // 태그 구성원(data/minecraft/tags/block/replaceable_by_trees.json, 1.21.1 —
+    // worldgen-oracle/OracleMain 바인딩과 동일 목록): leaves(전종)·water·short_grass·fern·
+    // dead_bush·seagrass·tall_seagrass·vine·glow_lichen·sunflower/lilac/rose_bush/peony/
+    // tall_grass/large_fern·pitcher_plant·warped_roots·nether_sprouts·crimson_roots·hanging_roots.
+    // leaves는 의도적으로 제외 — isLeaves(state)를 추가하면 (51532,5,7) 169→364, (1234,-49,-20)
+    // 541→692로 fixture mismatch가 오히려 증가함을 A/B 측정으로 확인(round 5). 9-grid origin
+    // decoration 순서가 vanilla와 달라, "잎을 나무가 뚫고 지나가도 되는" 경우의 최종 승자(어느
+    // origin의 캐노피가 남는지)가 달라지는 기존 버그를 노출시키는 것으로 보임 — 그 순서 버그를
+    // 먼저 잡기 전까지는 leaves 포함을 보류한다. result5.md Issues 참조.
     public static boolean validTreePos(FeatureWorldView view, BlockPos pos, TreeConfig config) {
         int state = view.getBlock(pos.x(), pos.y(), pos.z());
         return isAir(state)
-            || state == 0
-            || state == 31 || state == 32 || state == 192 || state == 193
-            || state == 432 || state == 433 || state == 434 || state == 435
-            || state == 460 || state == 461 || state == 462 || state == 463
-            || state == 511 || state == 512 || state == 513 || state == 514;
+            || isWater(state)
+            || isReplaceableByTreesPlant(state);
+    }
+
+    private static boolean isReplaceableByTreesPlant(int stateId) {
+        return stateId == 2005 // short_grass
+            || stateId == 2006 // fern
+            || stateId == 2007 // dead_bush
+            || stateId == 2008 // seagrass
+            || (stateId >= 2009 && stateId <= 2010) // tall_seagrass
+            || (stateId >= 6837 && stateId <= 6868) // vine
+            || (stateId >= 6869 && stateId <= 6996) // glow_lichen
+            || (stateId >= 10747 && stateId <= 10758) // sunflower·lilac·rose_bush·peony·tall_grass·large_fern
+            || (stateId >= 12507 && stateId <= 12508) // pitcher_plant
+            || stateId == 18594 // warped_roots
+            || stateId == 18595 // nether_sprouts
+            || stateId == 18665 // crimson_roots
+            || (stateId >= 24900 && stateId <= 24901); // hanging_roots
     }
 
     public static boolean isWater(int stateId) {
@@ -276,8 +299,11 @@ public final class TreeFeature implements ConfiguredFeature {
         return stateId >= 130 && stateId <= 150 && stateId != 145 && stateId != 146 && stateId != 147;
     }
 
+    // 기존 4933-4964는 실제로는 spruce/birch_hanging_sign 상태 id 범위였음(blockstates_1.21.1.txt
+    // 대조로 확인) — vine의 실제 범위(6837-6868)로 수정. isFree/ignoreVines 판정과 무관하게(vine이
+    // fixture에서 거의 등장하지 않아) mismatch 카운트엔 영향 없었으나, 의미상 확실한 버그라 고침.
     private static boolean isVine(int stateId) {
-        return stateId >= 4933 && stateId <= 4964;
+        return stateId >= 6837 && stateId <= 6868;
     }
 
     private static boolean isAir(int stateId) {
