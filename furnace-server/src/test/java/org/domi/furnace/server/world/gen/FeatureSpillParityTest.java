@@ -123,4 +123,14 @@ class FeatureSpillParityTest {
     @Test void spill_seed51532_5_7_improves() throws Exception {
         assertSpillParity(51532L, 5, 7);
     }
+
+    /**
+     * fancy_oak(fancy_trunk_placer + fancy_foliage_placer)가 실제로 배치되는 좌표 — 이전에는
+     * fancy_trunk_placer/fancy_foliage_placer가 미구현이라 BiomeFeatureData의 default 분기(straight_trunk_placer
+     * + blob_foliage_placer)로 대체 생성되던 지점(사용자 실서버 제보: 큰 나무만 이상 생성). 두 placer를
+     * 새로 포팅하고 BiomeFeatureData에 연결한 뒤 0 mismatch 도달.
+     */
+    @Test void spill_seed51532_1_0_fancyOak() throws Exception {
+        assertSpillParity(51532L, 1, 0);
+    }
 }

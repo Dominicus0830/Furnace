@@ -27,8 +27,13 @@ public abstract class TrunkPlacer {
         FeatureWorldView view, WorldgenRandom random, int height, BlockPos origin, TreeConfig config, List<BlockPos> logs);
 
     protected final boolean placeLog(FeatureWorldView view, BlockPos pos, TreeConfig config, List<BlockPos> logs) {
+        return placeLog(view, pos, config.trunkStateId(), config, logs);
+    }
+
+    // fancy_trunk_placer의 대각선 가지처럼 axis가 y가 아닌 로그를 심을 때 사용.
+    protected final boolean placeLog(FeatureWorldView view, BlockPos pos, int stateId, TreeConfig config, List<BlockPos> logs) {
         if (!TreeFeature.validTreePos(view, pos, config)) return false;
-        view.setBlock(pos.x(), pos.y(), pos.z(), config.trunkStateId());
+        view.setBlock(pos.x(), pos.y(), pos.z(), stateId);
         logs.add(pos);
         return true;
     }

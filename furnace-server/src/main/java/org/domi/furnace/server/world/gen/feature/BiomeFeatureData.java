@@ -23,6 +23,7 @@ import org.domi.furnace.server.world.gen.feature.decorator.TrunkVineDecorator;
 import org.domi.furnace.server.world.gen.feature.foliage.AcaciaFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.BlobFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.DarkOakFoliagePlacer;
+import org.domi.furnace.server.world.gen.feature.foliage.FancyFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.FoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.PineFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.SpruceFoliagePlacer;
@@ -30,6 +31,7 @@ import org.domi.furnace.server.world.gen.feature.size.FeatureSize;
 import org.domi.furnace.server.world.gen.feature.size.ThreeLayersFeatureSize;
 import org.domi.furnace.server.world.gen.feature.size.TwoLayersFeatureSize;
 import org.domi.furnace.server.world.gen.feature.trunk.DarkOakTrunkPlacer;
+import org.domi.furnace.server.world.gen.feature.trunk.FancyTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.ForkingTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.StraightTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
@@ -770,6 +772,7 @@ public final class BiomeFeatureData {
                 case "minecraft:straight_trunk_placer" -> new StraightTrunkPlacer(baseHeight, randA, randB);
                 case "minecraft:forking_trunk_placer" -> new ForkingTrunkPlacer(baseHeight, randA, randB);
                 case "minecraft:dark_oak_trunk_placer" -> new DarkOakTrunkPlacer(baseHeight, randA, randB);
+                case "minecraft:fancy_trunk_placer" -> new FancyTrunkPlacer(baseHeight, randA, randB);
                 default -> new StraightTrunkPlacer(baseHeight, randA, randB);
             };
         }
@@ -783,6 +786,7 @@ public final class BiomeFeatureData {
                 case "minecraft:pine_foliage_placer" -> new PineFoliagePlacer(radius, offset, treeIntProvider(obj.get("height"), 3));
                 case "minecraft:acacia_foliage_placer" -> new AcaciaFoliagePlacer(radius, offset);
                 case "minecraft:dark_oak_foliage_placer" -> new DarkOakFoliagePlacer(radius, offset);
+                case "minecraft:fancy_foliage_placer" -> new FancyFoliagePlacer(radius, offset, obj.get("height").getAsInt());
                 default -> new BlobFoliagePlacer(radius, offset, 3);
             };
         }

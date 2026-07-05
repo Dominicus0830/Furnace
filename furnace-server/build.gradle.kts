@@ -24,7 +24,7 @@ dependencies {
 
 application {
     mainClass = "org.domi.furnace.server.FurnaceMain"
-    applicationDefaultJvmArgs = listOf("-Xmx3G")
+    applicationDefaultJvmArgs = listOf("-Xmx6G")
 }
 
 tasks.test {
