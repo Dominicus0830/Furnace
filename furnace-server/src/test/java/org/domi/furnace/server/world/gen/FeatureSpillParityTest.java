@@ -138,8 +138,54 @@ class FeatureSpillParityTest {
             "featurespill(border-tree, diagnostic-only) seed=%d cx=%d cz=%d: %d mismatches "
                 + "(9-origin decorate 적용 전 1882, disk matching_fluids 수정 전 738 대비 대폭 감소 — 잔여분은 기존 tree feature parity 격차, Issues 참조)%n",
             seed, cx, cz, mismatch);
-        // 0을 assert하지 않는다(위 주석 참조) — gridview-feature-parity task(disk_sand/disk_clay/disk_gravel의
-        // matching_fluids 필터 누락 수정)로 738→564까지 개선. 잔여는 tree feature parity 격차(M5·M6 범위)라 상한만 조임.
-        assertTrue(mismatch < 700, "border-tree spill 회귀: mismatch=" + mismatch + " (738/1882 수준으로 되돌아감)");
+        // 0을 assert하지 않는다(위 주석 참조) — round9(ChunkColumn.surface[] WORLD_SURFACE_WG heightmap
+        // 라이브 갱신 누락 수정: setBlock 시 wgOceanFloor처럼 surface[]도 즉시 갱신)로 692→147까지 대폭 개선.
+        // 잔여는 아직 남은 tree feature parity 격차(M5·M6 범위)라 상한만 조인다.
+        assertTrue(mismatch < 200, "border-tree spill 회귀: mismatch=" + mismatch + " (692/738/1882 수준으로 되돌아감)");
+    }
+
+    /**
+     * seed 51532 origin(5,7): round7~8에서 발견된 「origin (5,7) 자신의 birch_tall candidate 4가
+     * WouldSurviveFilter에서 below=birch_leaves로 실패, oracle은 통과」 스필 경로 — round9에서 근본 원인을
+     * ChunkColumn.surface[](WORLD_SURFACE_WG heightmap)가 feature decoration 중 setBlock 시 라이브 갱신되지
+     * 않던 버그로 특정, 수정(updateSurface 추가)함. 이 fixture는 364→357로만 개선되어(같은 origin·같은
+     * 청크 내 또 다른 잔여 tree-spill 경로가 남아있음) 0을 assert하지 않는다 — 상한만 조여 회귀를 방지한다.
+     */
+    @Test void spill_seed51532_5_7_improves() throws Exception {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+
+        long seed = 51532L;
+        int cx = 5, cz = 7;
+        NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
+        ChunkColumn col = source.generateWithFeatures(cx, cz);
+
+        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
+        byte[] fx;
+        try (InputStream in = FeatureSpillParityTest.class.getResourceAsStream(fixtureName)) {
+            assertNotNull(in, "fixture not found: " + fixtureName);
+            fx = in.readAllBytes();
+        }
+
+        int mismatch = 0;
+        int pos = 20;
+        for (int y = MIN_Y; y < MIN_Y + HEIGHT; y++) {
+            for (int lz = 0; lz < 16; lz++) {
+                for (int lx = 0; lx < 16; lx++) {
+                    int oracleId = ByteBuffer.wrap(fx, pos, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
+                    pos += 2;
+                    int got = col.getBlock(lx, y, lz);
+                    String name = oracleIdToName.get(oracleId);
+                    int expectedId = (name == null) ? oracleId : tryId(reg, name, oracleId);
+                    if (expectedId != got) mismatch++;
+                }
+            }
+        }
+        System.out.printf(
+            "featurespill(51532/5,7, diagnostic-only) seed=%d cx=%d cz=%d: %d mismatches "
+                + "(round9 heightmap 라이브 갱신 수정 전 364)%n",
+            seed, cx, cz, mismatch);
+        assertTrue(mismatch < 400, "51532/(5,7) spill 회귀: mismatch=" + mismatch + " (364 수준으로 되돌아감)");
     }
 }

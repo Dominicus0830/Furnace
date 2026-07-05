@@ -94,6 +94,7 @@ public final class ChunkColumn {
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         updateWgOceanFloor(x, worldY, z, stateId);
+        updateSurface(x, worldY, z, stateId);
         dirty = true;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
@@ -220,6 +221,34 @@ public final class ChunkColumn {
                 }
             }
             wgOceanFloor[index] = 0;
+        }
+    }
+
+    /**
+     * vanilla Heightmap.update(WORLD_SURFACE_WG/MOTION_BLOCKING 등)의 라이브 갱신 미러 — updateWgOceanFloor와
+     * 동일 패턴이나 술어가 "!isAir"(surface[] 초기값은 rebuildSurface가 이미 이 술어로 계산). 이 갱신이 없으면
+     * feature decoration 도중 나무가 심은 log/leaf가 같은 스텝 내 이후 candidate의 WORLD_SURFACE_WG heightmap
+     * 조회(HeightmapPlacement, getSurfaceY)에 반영되지 않아 vanilla ProtoChunk.setBlockState의 라이브 heightmap과
+     * 어긋난다(같은 origin 내 tree-tree spill 시 heightmap 불일치로 이어짐).
+     */
+    private void updateSurface(int x, int worldY, int z, int stateId) {
+        int index = z * 16 + x;
+        int first = surface[index];
+        if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
+        int y = worldY - MIN_Y;
+        if (y <= first - 2) return;
+        boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
+        if (!isAir) {
+            if (y >= first) surface[index] = y + 1;
+        } else if (first - 1 == y) {
+            for (int i = y - 1; i >= 0; i--) {
+                int below = getBlock(x, MIN_Y + i, z);
+                if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
+                    surface[index] = i + 1;
+                    return;
+                }
+            }
+            surface[index] = 0;
         }
     }
 
