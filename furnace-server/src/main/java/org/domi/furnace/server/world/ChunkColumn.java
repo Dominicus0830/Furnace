@@ -26,7 +26,8 @@ public final class ChunkColumn {
     private static final int GLOW_LICHEN_MAX_STATE = 6996;
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
-    private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음)
+    private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음) — MOTION_BLOCKING류(항상 라이브)
+    private final int[] surfaceWg = new int[256]; // WORLD_SURFACE_WG 미러 — carve 완료 시 얼어붙음(wgOceanFloor와 동일 패턴)
     private final int[] oceanFloor = new int[256];
     private final int[] wgOceanFloor = new int[256];
     private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
@@ -99,6 +100,7 @@ public final class ChunkColumn {
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         updateWgOceanFloor(x, worldY, z, stateId);
         updateSurface(x, worldY, z, stateId);
+        updateSurfaceWg(x, worldY, z, stateId);
         dirty = true;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
@@ -151,6 +153,7 @@ public final class ChunkColumn {
         }
         rebuildSurface(blockIds);
         System.arraycopy(oceanFloor, 0, wgOceanFloor, 0, oceanFloor.length);
+        System.arraycopy(surface, 0, surfaceWg, 0, surface.length);
         dirty = false;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
@@ -192,6 +195,11 @@ public final class ChunkColumn {
 
     public int surfaceBlockY(int x, int z) {
         return MIN_Y + surface[z * 16 + x] - 1;
+    }
+
+    /** WORLD_SURFACE_WG 전용 조회 — carve 완료 이후 값이 얼어붙는다(oceanFloorBlockY의 WG류와 대응). */
+    public int worldSurfaceWgBlockY(int x, int z) {
+        return MIN_Y + surfaceWg[z * 16 + x] - 1;
     }
 
     public int oceanFloorBlockY(int x, int z) {
@@ -259,6 +267,29 @@ public final class ChunkColumn {
                 }
             }
             surface[index] = 0;
+        }
+    }
+
+    /** WORLD_SURFACE_WG 미러 — updateWgOceanFloor와 동일 패턴(freeze 이후 no-op)으로 surfaceWg[]를 라이브 갱신. */
+    private void updateSurfaceWg(int x, int worldY, int z, int stateId) {
+        if (wgHeightmapsFrozen) return;
+        int index = z * 16 + x;
+        int first = surfaceWg[index];
+        if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
+        int y = worldY - MIN_Y;
+        if (y <= first - 2) return;
+        boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
+        if (!isAir) {
+            if (y >= first) surfaceWg[index] = y + 1;
+        } else if (first - 1 == y) {
+            for (int i = y - 1; i >= 0; i--) {
+                int below = getBlock(x, MIN_Y + i, z);
+                if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
+                    surfaceWg[index] = i + 1;
+                    return;
+                }
+            }
+            surfaceWg[index] = 0;
         }
     }
 

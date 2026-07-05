@@ -117,7 +117,8 @@ public sealed interface PlacementModifier
             int y = switch (type) {
                 case OCEAN_FLOOR -> view.getOceanFloorY(pos.x(), pos.z()) + 1;
                 case OCEAN_FLOOR_WG -> view.getWgOceanFloorHeight(pos.x(), pos.z());
-                case WORLD_SURFACE_WG, MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES ->
+                case WORLD_SURFACE_WG -> view.getWorldSurfaceWgY(pos.x(), pos.z()) + 1;
+                case MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES ->
                     view.getSurfaceY(pos.x(), pos.z()) + 1;
             };
             if (y < ChunkColumn.MIN_Y) return Stream.empty();
@@ -187,7 +188,8 @@ public sealed interface PlacementModifier
             int surfaceY = switch (heightmap) {
                 case OCEAN_FLOOR_WG -> view.getWgOceanFloorHeight(pos.x(), pos.z());
                 case OCEAN_FLOOR -> view.getOceanFloorY(pos.x(), pos.z());
-                case WORLD_SURFACE_WG, MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES -> view.getSurfaceY(pos.x(), pos.z());
+                case WORLD_SURFACE_WG -> view.getWorldSurfaceWgY(pos.x(), pos.z());
+                case MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES -> view.getSurfaceY(pos.x(), pos.z());
             };
             int relativeY = pos.y() - surfaceY;
             return relativeY >= minRelative && relativeY <= maxRelative ? Stream.of(pos) : Stream.empty();

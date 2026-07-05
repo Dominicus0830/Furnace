@@ -73,6 +73,13 @@ public final class FeatureWorldView {
         return col.surfaceBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
+    /** WORLD_SURFACE_WG 전용 — carve 완료 이후 값이 얼어붙는다(getSurfaceY의 MOTION_BLOCKING류와 대응). */
+    public int getWorldSurfaceWgY(int worldX, int worldZ) {
+        if (gridCols != null) return getGridWorldSurfaceWgY(worldX, worldZ);
+        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        return col.worldSurfaceWgBlockY(worldX - cx * 16, worldZ - cz * 16);
+    }
+
     public int getOceanFloorY(int worldX, int worldZ) {
         if (gridCols != null) return getGridOceanFloorY(worldX, worldZ);
         if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
@@ -141,6 +148,15 @@ public final class FeatureWorldView {
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
         if (neighbor == null) return ChunkColumn.MIN_Y - 1;
         return neighbor.surfaceBlockY(worldX - nx * 16, worldZ - nz * 16);
+    }
+
+    private int getGridWorldSurfaceWgY(int worldX, int worldZ) {
+        int nx = Math.floorDiv(worldX, 16);
+        int nz = Math.floorDiv(worldZ, 16);
+        if (!inGridRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+        if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+        return neighbor.worldSurfaceWgBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridOceanFloorY(int worldX, int worldZ) {

@@ -102,51 +102,11 @@ class FeatureSpillParityTest {
      * 정량적으로 검증해 spill 수정이 방향적으로 옳음을 증명한다. 나무 fixture 자체의 완전한 byte-exact는
      * 별도 트리 기능 파리티 작업(project memory: 남음 M5·M6) 몫이다.
      */
+    // round13: TreeFeature.Direction enum 선언 순서를 vanilla net.minecraft.core.Direction.values()
+    // (DOWN,UP,NORTH,SOUTH,WEST,EAST)와 일치시켜 leaf-distance BFS의 이웃 순회·enqueue 순서가 일치하도록
+    // 수정 — 남은 1건(patch_grass 아님, birch_leaves distance 프로퍼티 불일치)이 해소되어 79→1→0 byte-exact 도달.
     @Test void spill_seed1234_borderTree_improves() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
-
-        long seed = 1234L;
-        int cx = -49, cz = -20;
-        NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
-        ChunkColumn col = source.generateWithFeatures(cx, cz);
-
-        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
-        byte[] fx;
-        try (InputStream in = FeatureSpillParityTest.class.getResourceAsStream(fixtureName)) {
-            assertNotNull(in, "fixture not found: " + fixtureName);
-            fx = in.readAllBytes();
-        }
-
-        int mismatch = 0;
-        int pos = 20;
-        for (int y = MIN_Y; y < MIN_Y + HEIGHT; y++) {
-            for (int lz = 0; lz < 16; lz++) {
-                for (int lx = 0; lx < 16; lx++) {
-                    int oracleId = ByteBuffer.wrap(fx, pos, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
-                    pos += 2;
-                    int got = col.getBlock(lx, y, lz);
-                    String name = oracleIdToName.get(oracleId);
-                    int expectedId = (name == null) ? oracleId : tryId(reg, name, oracleId);
-                    if (expectedId != got) mismatch++;
-                }
-            }
-        }
-
-        System.out.printf(
-            "featurespill(border-tree, diagnostic-only) seed=%d cx=%d cz=%d: %d mismatches "
-                + "(9-origin decorate 적용 전 1882, disk matching_fluids 수정 전 738, round9 heightmap 라이브 갱신 전 147, "
-                + "round11 oracle CARVERS 상태 수정 전 79 대비 대폭 감소 — 잔여분은 기존 tree feature parity 격차, Issues 참조)%n",
-            seed, cx, cz, mismatch);
-        // 0을 assert하지 않는다(위 주석 참조) — round9(ChunkColumn.surface[] WORLD_SURFACE_WG heightmap
-        // 라이브 갱신 누락 수정: setBlock 시 wgOceanFloor처럼 surface[]도 즉시 갱신)로 692→147,
-        // round11(oracle의 OCEAN_FLOOR 라이브 갱신 누락 수정: OracleMain.buildCarvedProtoChunk에
-        // setPersistedStatus(CARVERS) 추가)로 147→79,
-        // round12(Furnace의 OCEAN_FLOOR_WG가 carve 이후에도 계속 라이브 갱신되던 버그 수정: ChunkColumn에
-        // wgHeightmapsFrozen 플래그 추가, applyCarvers 완료 시 freezeWgHeightmaps() 호출)로 79→1까지 대폭 개선.
-        // 잔여 1건은 patch_grass/나무 잎 자리 관련 별건 tree feature parity 격차(M5·M6 범위)라 상한만 조인다.
-        assertTrue(mismatch < 20, "border-tree spill 회귀: mismatch=" + mismatch + " (79/147/738/1882 수준으로 되돌아감)");
+        assertSpillParity(1234L, -49, -20);
     }
 
     /**
@@ -156,52 +116,11 @@ class FeatureSpillParityTest {
      * 않던 버그로 특정, 수정(updateSurface 추가)함. 이 fixture는 364→357로만 개선되어(같은 origin·같은
      * 청크 내 또 다른 잔여 tree-spill 경로가 남아있음) 0을 assert하지 않는다 — 상한만 조여 회귀를 방지한다.
      */
+    // round13: patch_grass_forest의 WORLD_SURFACE_WG heightmap 조회가 carve 완료 이후에도 decoration 중
+    // (이웃 origin의 나무 캐노피 등에) 계속 라이브 갱신되던 버그 수정 — ChunkColumn에 surfaceWg[](wgOceanFloor와
+    // 동일 패턴, freeze 이후 no-op) 분리 도입, WORLD_SURFACE_WG 타입 heightmap 질의만 이 얼어붙은 값을 쓰도록
+    // PlacementModifier·FeatureWorldView 분기 — 231→7→0 byte-exact 도달.
     @Test void spill_seed51532_5_7_improves() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
-
-        long seed = 51532L;
-        int cx = 5, cz = 7;
-        NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
-        ChunkColumn col = source.generateWithFeatures(cx, cz);
-
-        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
-        byte[] fx;
-        try (InputStream in = FeatureSpillParityTest.class.getResourceAsStream(fixtureName)) {
-            assertNotNull(in, "fixture not found: " + fixtureName);
-            fx = in.readAllBytes();
-        }
-
-        int mismatch = 0;
-        int pos = 20;
-        for (int y = MIN_Y; y < MIN_Y + HEIGHT; y++) {
-            for (int lz = 0; lz < 16; lz++) {
-                for (int lx = 0; lx < 16; lx++) {
-                    int oracleId = ByteBuffer.wrap(fx, pos, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
-                    pos += 2;
-                    int got = col.getBlock(lx, y, lz);
-                    String name = oracleIdToName.get(oracleId);
-                    int expectedId = (name == null) ? oracleId : tryId(reg, name, oracleId);
-                    if (expectedId != got) mismatch++;
-                }
-            }
-        }
-        System.out.printf(
-            "featurespill(51532/5,7, diagnostic-only) seed=%d cx=%d cz=%d: %d mismatches "
-                + "(round9 heightmap 라이브 갱신 수정 전 364, round11 oracle CARVERS 상태 수정 전 357, "
-                + "round12 Furnace OCEAN_FLOOR_WG 동결 수정 전 231)%n",
-            seed, cx, cz, mismatch);
-        // round11: oracle의 ProtoChunk.setPersistedStatus 누락(EMPTY 고정)으로 OCEAN_FLOOR가 carve 직후
-        // 값에 얼어붙어 있던 버그를 수정(OracleMain.buildCarvedProtoChunk) — brief11 (b) 판별에서
-        // ORACLE_LEAF_WRITE 추적으로 실측 확인. 357→231까지 대폭 개선.
-        // round12: 반대로 Furnace 쪽 ChunkColumn.updateWgOceanFloor가 carve 완료 이후에도(decoration 중
-        // 이웃 origin의 나무 캐노피 등 cross-chunk write에) 계속 라이브 갱신되던 버그를 발견 — vanilla
-        // ChunkStatus.CARVERS/FEATURES의 heightmapsAfter()는 FINAL_HEIGHTMAPS(OCEAN_FLOOR 등)만 포함하고
-        // OCEAN_FLOOR_WG/WORLD_SURFACE_WG는 WORLDGEN_HEIGHTMAPS(EMPTY..SURFACE)에서 carve 완료 시점 값으로
-        // 얼어붙는다(ChunkStatus.java 실측). OreFeature.place()의 wgFloor 게이트가 이 얼어붙은 값을 읽어야
-        // vanilla와 RNG 소비가 일치한다 — ChunkColumn.freezeWgHeightmaps()(applyCarvers 종료 시 호출)로 수정.
-        // 231→7까지 대폭 개선. 잔여 7건은 patch_grass 관련 별건 tree feature parity 격차(M5·M6 범위).
-        assertTrue(mismatch < 30, "51532/(5,7) spill 회귀: mismatch=" + mismatch + " (231/357 수준으로 되돌아감)");
+        assertSpillParity(51532L, 5, 7);
     }
 }

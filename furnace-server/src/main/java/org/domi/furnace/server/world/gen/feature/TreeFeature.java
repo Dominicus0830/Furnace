@@ -311,13 +311,16 @@ public final class TreeFeature implements ConfiguredFeature {
         return stateId == AIR || stateId == CAVE_AIR || stateId == VOID_AIR;
     }
 
+    // vanilla net.minecraft.core.Direction.values() 순서(DOWN,UP,NORTH,SOUTH,WEST,EAST)와 일치시킨다 —
+    // TreeFeature.updateLeaves의 BFS가 이 순서로 이웃을 순회·enqueue하므로, values() 순서가 다르면
+    // 동일 좌표가 이중 버킷에 들어가는 경합(양쪽 엔진 모두 구조적으로 존재) 발생 시 최종 distance 값이 갈린다.
     public enum Direction {
+        DOWN(0, -1, 0, -1, "down"),
+        UP(0, 1, 0, -1, "up"),
+        NORTH(0, 0, -1, 2, "north"),
         SOUTH(0, 0, 1, 0, "south"),
         WEST(-1, 0, 0, 1, "west"),
-        NORTH(0, 0, -1, 2, "north"),
-        EAST(1, 0, 0, 3, "east"),
-        DOWN(0, -1, 0, -1, "down"),
-        UP(0, 1, 0, -1, "up");
+        EAST(1, 0, 0, 3, "east");
 
         private final int dx;
         private final int dy;
