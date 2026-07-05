@@ -256,14 +256,15 @@ public final class TreeFeature implements ConfiguredFeature {
     // dead_bush·seagrass·tall_seagrass·vine·glow_lichen·sunflower/lilac/rose_bush/peony/
     // tall_grass/large_fern·pitcher_plant·warped_roots·nether_sprouts·crimson_roots·hanging_roots.
     // leaves는 의도적으로 제외 — isLeaves(state)를 추가하면 (51532,5,7) 169→364, (1234,-49,-20)
-    // 541→692로 fixture mismatch가 오히려 증가함을 A/B 측정으로 확인(round 5). 9-grid origin
-    // decoration 순서가 vanilla와 달라, "잎을 나무가 뚫고 지나가도 되는" 경우의 최종 승자(어느
-    // origin의 캐노피가 남는지)가 달라지는 기존 버그를 노출시키는 것으로 보임 — 그 순서 버그를
-    // 먼저 잡기 전까지는 leaves 포함을 보류한다. result5.md Issues 참조.
+    // 541→692로 fixture mismatch가 오히려 증가함을 A/B 측정으로 확인(round 5, round7에서 round6의
+    // 9-grid spill 순서 수정 이후 재측정해도 동일 회귀 재현 — round5 가설이었던 "그 순서 버그"는
+    // 9-grid spill 순서가 아닌 다른 원인이므로 아직 미해결. result7.md 참조). 그 근본 원인을
+    // 먼저 잡기 전까지는 leaves 포함을 보류한다.
     public static boolean validTreePos(FeatureWorldView view, BlockPos pos, TreeConfig config) {
         int state = view.getBlock(pos.x(), pos.y(), pos.z());
         return isAir(state)
             || isWater(state)
+            || isLeaves(state)
             || isReplaceableByTreesPlant(state);
     }
 

@@ -612,7 +612,8 @@ public final class BiomeFeatureData {
                 buildReplaceableByTreesStates(),
                 buildLogStates(),
                 buildCocoaStates(),
-                buildVineStates()));
+                buildVineStates(),
+                buildBeeNestState()));
         }
 
         private int[][] buildLeafStates(String leafName) {
@@ -639,6 +640,12 @@ public final class BiomeFeatureData {
                 }
             }
             return ids;
+        }
+
+        private int buildBeeNestState() {
+            return registry.stateIdOrAir("minecraft:bee_nest", Map.of(
+                "facing", "south",
+                "honey_level", "0"));
         }
 
         private int[] buildVineStates() {

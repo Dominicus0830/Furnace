@@ -23,7 +23,8 @@ public record TreeConfig(
     Set<Integer> replaceableStates,
     Set<Integer> logStates,
     int[] cocoaStates,
-    int[] vineStates
+    int[] vineStates,
+    int beeNestStateId
 ) {
     public int leafStateId(int replacedStateId, int distance) {
         int water = TreeFeature.isWater(replacedStateId) ? 1 : 0;

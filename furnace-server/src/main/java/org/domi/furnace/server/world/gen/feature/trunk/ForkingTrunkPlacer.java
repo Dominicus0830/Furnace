@@ -2,6 +2,7 @@ package org.domi.furnace.server.world.gen.feature.trunk;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.BlockPos;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
@@ -22,8 +23,8 @@ public final class ForkingTrunkPlacer extends TrunkPlacer {
         int branchLen = 3 - random.nextInt(3);
         int x = origin.x();
         int z = origin.z();
-        int topY = 0;
         List<FoliageAttachment> attachments = new ArrayList<>(2);
+        OptionalInt topY = OptionalInt.empty();
 
         for (int y = 0; y < height; y++) {
             int py = origin.y() + y;
@@ -32,10 +33,13 @@ public final class ForkingTrunkPlacer extends TrunkPlacer {
                 z += dir1.dz();
                 branchLen--;
             }
-            placeLog(view, new BlockPos(x, py, z), config, logs);
-            topY = py;
+            if (placeLog(view, new BlockPos(x, py, z), config, logs)) {
+                topY = OptionalInt.of(py + 1);
+            }
         }
-        attachments.add(new FoliageAttachment(new BlockPos(x, topY + 1, z), 1, false));
+        if (topY.isPresent()) {
+            attachments.add(new FoliageAttachment(new BlockPos(x, topY.getAsInt(), z), 1, false));
+        }
 
         x = origin.x();
         z = origin.z();
@@ -43,17 +47,20 @@ public final class ForkingTrunkPlacer extends TrunkPlacer {
         if (dir2 != dir1) {
             int secondStart = splitStart - random.nextInt(2) - 1;
             int secondLen = 1 + random.nextInt(3);
-            int secondTopY = 0;
+            OptionalInt secondTopY = OptionalInt.empty();
             for (int y = secondStart; y < height && secondLen > 0; y++, secondLen--) {
                 if (y >= 1) {
                     x += dir2.dx();
                     z += dir2.dz();
                     int py = origin.y() + y;
-                    placeLog(view, new BlockPos(x, py, z), config, logs);
-                    secondTopY = py;
+                    if (placeLog(view, new BlockPos(x, py, z), config, logs)) {
+                        secondTopY = OptionalInt.of(py + 1);
+                    }
                 }
             }
-            attachments.add(new FoliageAttachment(new BlockPos(x, secondTopY + 1, z), 0, false));
+            if (secondTopY.isPresent()) {
+                attachments.add(new FoliageAttachment(new BlockPos(x, secondTopY.getAsInt(), z), 0, false));
+            }
         }
         return attachments;
     }
