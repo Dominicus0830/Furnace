@@ -72,6 +72,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 스폰 텔레포트 게이트 ID(-1=해제). 설정 중엔 클라 이동 무시(vanilla awaitingPositionFromClient식) — 청크 로드 갭 중 떨어진 위치 수용 방지.
     // confirm이 아니라 스폰 청크 도착 후(타이머)에 해제 + 위치 재확정.
     private int pendingTeleportId = -1;
+    // 스폰 게이트 해제 조건: confirm 왕복과 스폰 청크 배치 전송 완료 둘 다 필요(둘 다 채널 이벤트루프에서만 갱신 — 레이스 없음).
+    private boolean spawnConfirmReceived = false;
+    private boolean spawnChunksDelivered = false;
     private final ItemStack[] slots = new ItemStack[46];
     private int selectedSlot;                // 0~8
     private int nextContainerId = 1;         // 체스트 세션 id(1..100 순환, 0은 플레이어 자기 인벤 예약)
@@ -266,11 +269,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         send(ctx, new ChunkBatchFinished(sent));
                         RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
                         scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
+                        spawnChunksDelivered = true;
+                        maybeReleaseSpawnGate();
                     });
                 });
     }
 
-    /** 게이트 해제 fallback(6틱) — 보통 confirm(0x00)이 먼저 해제. confirm 유실 시 위치 재확정 후 해제. */
+    /** confirm과 스폰 청크 전송 완료 둘 다 충족했을 때만 게이트 해제. 채널 이벤트루프에서만 호출됨. */
+    private void maybeReleaseSpawnGate() {
+        if (shouldReleaseSpawnGate(spawnConfirmReceived, spawnChunksDelivered)) {
+            releaseSpawnGate();
+        }
+    }
+
+    /** 순수 게이트 판정 — confirm 왕복과 스폰 청크 배치 전송이 둘 다 끝났을 때만 해제. */
+    static boolean shouldReleaseSpawnGate(boolean confirmReceived, boolean chunksDelivered) {
+        return confirmReceived && chunksDelivered;
+    }
+
+    /** 게이트 해제 fallback(6틱) — confirm+청크완료가 그전에 둘 다 안 갖춰지면 무조건 해제(위치 재확정 포함). */
     private void scheduleSpawnGateRelease() {
         scheduler.global().executeDelayed(() -> {
             if (ctx == null || !ctx.channel().isActive()) return;
@@ -292,9 +309,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x00 -> { // Confirm Teleportation: 스폰 텔포 confirm이면 spawn 좌표로 재고정+게이트 해제.
                 // bare 해제(pendingTeleportId=-1)만 하면 갭 중 클라 추락이 보정 안 됨 → 땅 끼임.
                 // Pumpkin식: confirm 시 위치를 텔포 목표로 되돌림(releaseSpawnGate가 SyncPlayerPosition+publish).
-                // 발밑 청크는 onEnterPlay서 confirm 처리 전 동기 전송됨 → 클라는 GE13 로딩 중이라 재싱크 안 보임.
+                // 스폰 청크 전송은 비동기(sendSpawnChunkBatchAsync)라 confirm이 먼저 올 수 있음 —
+                // confirm만으로는 해제 안 하고 스폰 청크 배치 전송 완료(spawnChunksDelivered)까지 기다림(maybeReleaseSpawnGate).
                 int tpId = Types.readVarInt(frame);
-                if (tpId == pendingTeleportId) releaseSpawnGate();
+                if (tpId == pendingTeleportId) {
+                    spawnConfirmReceived = true;
+                    maybeReleaseSpawnGate();
+                }
             }
             case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
             case 0x18 -> { // Keep Alive (serverbound)
