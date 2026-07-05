@@ -340,8 +340,32 @@ public final class BiomeFeatureData {
                 // 미지원 provider(weighted/dual_noise/noise) → placeholder(거짓 parity 방지).
                 return NoopFeature.INSTANCE;
             }
-            return new SimpleBlockFeature(provider, plantGround());
+            return new SimpleBlockFeature(provider, plantGround(),
+                isMushroomState(config) ? mushroomGrowGround() : null);
         }
+
+        /** brown_mushroom/red_mushroom을 심는 simple_block인지 — vanilla MushroomBlock.canSurvive 적용 대상 판별용. */
+        private static boolean isMushroomState(JsonObject config) {
+            JsonObject toPlace = config.getAsJsonObject("to_place");
+            if (toPlace == null) return false;
+            String type = toPlace.has("type") ? toPlace.get("type").getAsString() : "minecraft:simple_state_provider";
+            if (!"minecraft:simple_state_provider".equals(type)) return false;
+            JsonObject state = toPlace.getAsJsonObject("state");
+            if (state == null || !state.has("Name")) return false;
+            String name = state.get("Name").getAsString();
+            return "minecraft:brown_mushroom".equals(name) || "minecraft:red_mushroom".equals(name);
+        }
+
+        // vanilla BlockTags.MUSHROOM_GROW_BLOCK — 이 지면 위에서는 광량과 무관하게 항상 생존.
+        private Set<Integer> mushroomGrowGround() {
+            if (mushroomGrowGroundCache == null) {
+                mushroomGrowGroundCache = new HashSet<>(states(
+                    "minecraft:mycelium", "minecraft:podzol",
+                    "minecraft:crimson_nylium", "minecraft:warped_nylium"));
+            }
+            return mushroomGrowGroundCache;
+        }
+        private Set<Integer> mushroomGrowGroundCache;
 
         /** simple_state_provider / noise_threshold_provider 지원. 그외 → null(미지원). */
         private StateProvider parseToPlaceProvider(JsonObject toPlace) {

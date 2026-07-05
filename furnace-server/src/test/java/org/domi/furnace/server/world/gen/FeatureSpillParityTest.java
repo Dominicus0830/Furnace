@@ -162,19 +162,26 @@ class FeatureSpillParityTest {
 
     /**
      * carver-regrass task — 사용자 제보 "연못 부재" 좌표(seed 51532, 청크 -3,-6)의 feature 단계 검증.
-     * regrass 적용 전: 47 mismatch, 전부 y=62 dirt(furnace)/grass_block(oracle) — carver 단계 root cause와
-     * 동일. regrass 적용 후: 이 47건은 전부 해소됐지만 대신 16건의 새 mismatch(y=63~64, oracle=air/
-     * got=brown_mushroom)가 나타났다 — 두 목록을 대조한 결과 (lx,lz)=(12,10)/(11,11)/(10,12) 등 다수가
-     * regrass로 dirt→grass_block이 된 바로 그 칸의 바로 위(patch_brown_mushroom의 ground 판정 대상)와
-     * 겹친다. 원인은 SimpleBlockFeature.plantGround()(BiomeFeatureData.java L427-438, "BushBlock.mayPlaceOn
-     * 근사")가 모든 simple_block feature에 공용 "흙 계열 태그" 세트를 쓰는 것 — 실제 vanilla MushroomBlock.
-     * canSurvive는 mushroom_grow_block 태그(mycelium/podzol/nylium만, dirt·grass_block 제외) + 광량<13 예외를
-     * 따로 검사하는데 이 근사는 그 구분이 없어 dirt/grass_block 지면에서도 항상 통과시킨다. dirt 지면에서도
-     * 이미 존재하던 근사 오차이므로(회귀 원인이 아니라 regrass가 같은 칸의 재질을 바꾸며 노출시킨 기존 결함)
-     * 수정 규모는 M(SimpleBlockFeature에 블록별 실제 canSurvive 분기 + 광량 계산 배관 필요, mushroom 전용
-     * 아니라 여러 simple_block 사용처에 영향) — 이번 세션 범위를 벗어나 상한만 고정한다.
+     * regrass 적용 전: 47 mismatch(y=62 dirt/grass_block, carver 단계 root cause). regrass 적용 후: 47건은
+     * 해소됐지만 16건의 새 mismatch(y=63~64, oracle=air/got=brown_mushroom)가 나타났었다.
+     *
+     * root cause(pond-tree-residual task에서 확정) — vanilla SimpleBlockFeature.place는 배치 전
+     * `blockState.canSurvive(level,pos)`를 호출하는데, `MushroomBlock.canSurvive`
+     * (mcpal `MushroomBlock.java` L84-88)는 `below.is(MUSHROOM_GROW_BLOCK)`(mycelium/podzol/nylium)이거나
+     * `getRawBrightness(pos,0) < 13 && mayPlaceOn(below)`일 때만 생존한다. Furnace의
+     * `SimpleBlockFeature.place`(수정 전)는 이 분기 자체가 없이 `validGround`(dirt/grass 등 흙 계열) 하나로만
+     * 판정해 하늘이 완전히 열린 연못 위에서도 항상 통과시켰다(patch_brown_mushroom.json에는 애초에
+     * `would_survive` predicate가 없다 — 생존 판정은 feature 자신의 책임).
+     *
+     * 수정: `SimpleBlockFeature`에 mushroom 전용 3번째 생성자 인자(`mushroomGrowGround`, nullable)를 추가해
+     * `mushroomGrowGround.contains(below) || (!view.isOpenToSky(x,y,z) && validGround.contains(below))`로
+     * 분기(mushroom이 아닌 다른 simple_block feature는 기존 2-인자 경로 그대로 — 회귀 없음).
+     * `isOpenToSky`는 정밀 스카이라이트 계산 대신, carve 완료 시 얼어붙는 `getWorldSurfaceWgY`보다 pos가
+     * 높으면 완전 개방(skylight=15)으로 근사한다(라이브 MOTION_BLOCKING을 썼다면 같은 patch 안에서 먼저 놓인
+     * mushroom 자신이 "지면"으로 잡혀 다음 시도를 오염시키는 자기간섭이 생겨 16→7까지만 줄었었다 — WG는
+     * decoration 이전에 얼어붙어 이 자기간섭이 없다).
      */
     @Test void spill_seed51532_m3_m6_pondEdgeRegrass_improves() throws Exception {
-        assertSpillParity(51532L, -3, -6, 16);
+        assertSpillParity(51532L, -3, -6);
     }
 }

@@ -96,6 +96,18 @@ public final class FeatureWorldView {
         return col.surfaceBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
+    /**
+     * vanilla LevelReader.getRawBrightness(pos,0) &lt; 13 근사 — 정밀 광량 계산 대신, carve 완료 시점에
+     * 얼어붙는 WORLD_SURFACE_WG(getWorldSurfaceWgY)보다 위면 완전히 열린 하늘로 보고 skylight=15로 취급한다.
+     * (라이브 MOTION_BLOCKING 대신 얼어붙은 WG를 쓰는 이유: 같은 decoration 패스에서 먼저 놓인 mushroom
+     * 자신이 "지면"으로 잡혀 다음 시도의 판정을 오염시키는 자기간섭을 피하기 위함 — mushroom은 vanilla에서
+     * 빛을 막지 않는 블록이라 원래 광량 계산에 영향을 주면 안 된다.)
+     * MushroomBlock.canSurvive(하늘이 열린 곳은 mushroom_grow_block 지면이 아니면 생존 불가) 판정에만 쓰인다.
+     */
+    public boolean isOpenToSky(int worldX, int worldY, int worldZ) {
+        return getWorldSurfaceWgY(worldX, worldZ) < worldY;
+    }
+
     /** WORLD_SURFACE_WG 전용 — carve 완료 이후 값이 얼어붙는다(getSurfaceY의 MOTION_BLOCKING류와 대응). */
     public int getWorldSurfaceWgY(int worldX, int worldZ) {
         if (gridCols != null) return getGridWorldSurfaceWgY(worldX, worldZ);
