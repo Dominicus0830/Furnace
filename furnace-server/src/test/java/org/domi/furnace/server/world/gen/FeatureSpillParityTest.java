@@ -159,4 +159,22 @@ class FeatureSpillParityTest {
     @Test void spill_seed51532_3_3_fancyOak_improves() throws Exception {
         assertSpillParity(51532L, 3, 3, 1);
     }
+
+    /**
+     * carver-regrass task — 사용자 제보 "연못 부재" 좌표(seed 51532, 청크 -3,-6)의 feature 단계 검증.
+     * regrass 적용 전: 47 mismatch, 전부 y=62 dirt(furnace)/grass_block(oracle) — carver 단계 root cause와
+     * 동일. regrass 적용 후: 이 47건은 전부 해소됐지만 대신 16건의 새 mismatch(y=63~64, oracle=air/
+     * got=brown_mushroom)가 나타났다 — 두 목록을 대조한 결과 (lx,lz)=(12,10)/(11,11)/(10,12) 등 다수가
+     * regrass로 dirt→grass_block이 된 바로 그 칸의 바로 위(patch_brown_mushroom의 ground 판정 대상)와
+     * 겹친다. 원인은 SimpleBlockFeature.plantGround()(BiomeFeatureData.java L427-438, "BushBlock.mayPlaceOn
+     * 근사")가 모든 simple_block feature에 공용 "흙 계열 태그" 세트를 쓰는 것 — 실제 vanilla MushroomBlock.
+     * canSurvive는 mushroom_grow_block 태그(mycelium/podzol/nylium만, dirt·grass_block 제외) + 광량<13 예외를
+     * 따로 검사하는데 이 근사는 그 구분이 없어 dirt/grass_block 지면에서도 항상 통과시킨다. dirt 지면에서도
+     * 이미 존재하던 근사 오차이므로(회귀 원인이 아니라 regrass가 같은 칸의 재질을 바꾸며 노출시킨 기존 결함)
+     * 수정 규모는 M(SimpleBlockFeature에 블록별 실제 canSurvive 분기 + 광량 계산 배관 필요, mushroom 전용
+     * 아니라 여러 simple_block 사용처에 영향) — 이번 세션 범위를 벗어나 상한만 고정한다.
+     */
+    @Test void spill_seed51532_m3_m6_pondEdgeRegrass_improves() throws Exception {
+        assertSpillParity(51532L, -3, -6, 16);
+    }
 }
