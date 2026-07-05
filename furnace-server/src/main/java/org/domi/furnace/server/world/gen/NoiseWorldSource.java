@@ -366,6 +366,7 @@ public final class NoiseWorldSource implements WorldSource {
                 }
             }
         }
+        col.freezeWgHeightmaps();
     }
 
     public void applyCarvers(ChunkColumn col, int cx, int cz) {

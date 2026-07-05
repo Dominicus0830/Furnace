@@ -31,6 +31,10 @@ public final class ChunkColumn {
     private final int[] wgOceanFloor = new int[256];
     private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
     private boolean dirty;
+    // vanilla ChunkStatus: OCEAN_FLOOR_WG/WORLD_SURFACE_WG는 WORLDGEN_HEIGHTMAPS(EMPTY..SURFACE)에만 속하고
+    // CARVERS 이후(FINAL_HEIGHTMAPS)에는 라이브 갱신 대상에서 제외된다 — carve 완료 시점의 값으로 얼어붙는다
+    // (round12: OreFeature의 OCEAN_FLOOR_WG 게이트가 carve 이후 decoration 중 라이브로 계속 갱신되던 버그 수정).
+    private boolean wgHeightmapsFrozen;
     private byte[] cachedSerializedBody;
     private long[] cachedMotionBlockingHeightmap;
     private ChunkSnapshot cachedSnapshot;
@@ -205,7 +209,13 @@ public final class ChunkColumn {
      * WG 계열 heightmap을 라이브 갱신하는 것과 동일(Heightmap.java:76-103). carver·구조물·feature가 setBlock으로
      * 쓴 변경이 이후 OreFeature.place의 OCEAN_FLOOR_WG 게이트에 반영돼야 RNG 소비가 vanilla와 일치한다.
      */
+    /** carve 완료 시점 이후로는 OCEAN_FLOOR_WG를 더 이상 갱신하지 않는다(vanilla CARVERS 상태부터 FINAL_HEIGHTMAPS만 라이브). */
+    public void freezeWgHeightmaps() {
+        wgHeightmapsFrozen = true;
+    }
+
     private void updateWgOceanFloor(int x, int worldY, int z, int stateId) {
+        if (wgHeightmapsFrozen) return;
         int index = z * 16 + x;
         int first = wgOceanFloor[index]; // firstAvailable - MIN_Y
         if (first == UNSET_HEIGHT) return; // loadGenerated 이전 — 미프라임 상태는 갱신 대상 아님
