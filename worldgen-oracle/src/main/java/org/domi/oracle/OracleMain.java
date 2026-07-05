@@ -1943,6 +1943,17 @@ public class OracleMain {
             }
         }
 
+        // round11: 실서버는 carve 완료 시 chunk.setStatus(CARVERS)로 진행 상태를 올린다.
+        // ProtoChunk.setBlockState는 getPersistedStatus().heightmapsAfter()에 포함된 타입만 라이브
+        // 갱신하는데, EMPTY 상태(기본값, 이전까지 이 오라클이 한 번도 setPersistedStatus를 호출하지
+        // 않았음)의 heightmapsAfter는 WORLDGEN_HEIGHTMAPS(OCEAN_FLOOR_WG·WORLD_SURFACE_WG)뿐이라
+        // OCEAN_FLOOR(라이브 타입, birch_tall 등 HeightmapPlacement가 실제 참조)는 decorate 중 setBlock으로
+        // 전혀 갱신되지 않고 carve 직후 최초 프라임 값에 그대로 고정됐었다(브리프11 (b) 판별로 실측 확인:
+        // ORACLE_LEAF_WRITE 추적 시 여러 candidate가 같은 컬럼에 leaf/log를 써도 oceanFloorAfter가 87로
+        // 불변). CARVERS/FEATURES 모두 FINAL_HEIGHTMAPS(OCEAN_FLOOR 포함)를 쓰므로 여기서 상태를 올려야
+        // 실서버와 동일하게 decorate 중 OCEAN_FLOOR가 매 setBlock마다 라이브 갱신된다.
+        chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.CARVERS);
+
         return chunk;
     }
 

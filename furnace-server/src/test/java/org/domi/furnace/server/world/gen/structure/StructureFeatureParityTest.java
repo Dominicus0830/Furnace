@@ -126,8 +126,11 @@ class StructureFeatureParityTest {
      * (b) 경계 걸침 이웃 청크 — start는 (-781,-299), bbox x[-12496..-12476] z[-4784..-4764]가
      * 이 청크(-780,-298: x[-12480..-12465] z[-4768..-4753])에 x[-12480..-12476]로 걸친다.
      * references 경로로만 조각을 받는다(자기 start 아님).
+     * round11: oracle의 ProtoChunk가 carve 이후 setPersistedStatus(CARVERS)를 호출하지 않아 OCEAN_FLOOR
+     * 라이브 갱신이 아예 안 되던 버그를 수정(OracleMain.buildCarvedProtoChunk) — 이 청크 fixture도 재생성되며
+     * 1700→1810으로 정당하게 증가(다른 heightmap 의존 feature의 배치도 이제 실서버처럼 반영됨). 상한만 조임.
      */
-    @Test void desertPyramidNeighborChunk() throws Exception { assertStructureFeatureParity(1234L, -780, -298, 1700); }
+    @Test void desertPyramidNeighborChunk() throws Exception { assertStructureFeatureParity(1234L, -780, -298, 1850); }
 
     /** (c) 구조물 없는 청크 — feature 무회귀 확인용(구조물 코드가 feature byte를 안 깨는지). */
     @Test void noStructureChunkRegression() throws Exception { assertStructureFeatureParity(1234L, 0, 0, 700); }
