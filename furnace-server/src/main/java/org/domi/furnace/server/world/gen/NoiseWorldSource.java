@@ -352,6 +352,8 @@ public final class NoiseWorldSource implements WorldSource {
             : new DisabledAquifer(settings.seaLevel(), settings.lavaFloorY(), waterId, lavaId);
 
         WorldgenRandom worldgenRandom = new WorldgenRandom();
+        // carve regrass용 스냅샷 — vanilla WORLD_SURFACE_WG처럼 carve 이전(buildSurface 직후) 상태로 고정.
+        int[] surfaceYGrid = surfaceSystem.surfaceYGrid(col);
 
         for (int originX = chunkX - 8; originX <= chunkX + 8; originX++) {
             for (int originZ = chunkZ - 8; originZ <= chunkZ + 8; originZ++) {
@@ -361,7 +363,8 @@ public final class NoiseWorldSource implements WorldSource {
                     worldgenRandom.setLargeFeatureSeed(this.seed, originX, originZ);
                     if (entry.carver().isStartChunk(entry.config(), worldgenRandom)) {
                         entry.carver().carve(col, entry.config(), chunkX, chunkZ,
-                            settings, aquifer, reg, mask, worldgenRandom, originPos);
+                            settings, aquifer, reg, mask, worldgenRandom, originPos,
+                            surfaceSystem, nc, surfaceYGrid);
                     }
                 }
             }

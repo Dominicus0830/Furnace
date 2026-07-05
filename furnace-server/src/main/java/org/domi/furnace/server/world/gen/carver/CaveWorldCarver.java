@@ -4,7 +4,9 @@ package org.domi.furnace.server.world.gen.carver;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.Aquifer;
+import org.domi.furnace.server.world.gen.NoiseChunk;
 import org.domi.furnace.server.world.gen.NoiseSettings;
+import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 public final class CaveWorldCarver extends WorldCarver {
 
@@ -22,7 +24,8 @@ public final class CaveWorldCarver extends WorldCarver {
     @Override
     public boolean carve(ChunkColumn col, CarverConfig config, int chunkX, int chunkZ,
                           NoiseSettings settings, Aquifer aquifer, BlockRegistry reg,
-                          CarvingMask mask, LegacyRandom random, ChunkPos originChunk) {
+                          CarvingMask mask, LegacyRandom random, ChunkPos originChunk,
+                          SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid) {
         CarverConfig.Cave cave = (CarverConfig.Cave) config;
 
         boolean dbg = debugOrigin01;
@@ -55,7 +58,8 @@ public final class CaveWorldCarver extends WorldCarver {
                 float yScale    = cave.yScale().sample(random);
                 float roomThick = 1.0f + random.nextFloat() * 6.0f;
                 createRoom(col, cave, chunkX, chunkZ, settings, aquifer, reg, mask,
-                    startX, startY, startZ, roomThick, yScale, lavaId, skipChecker);
+                    startX, startY, startZ, roomThick, yScale, lavaId, skipChecker,
+                    surfaceSystem, nc, surfaceYGrid);
                 tunnelCount += random.nextInt(4);
             }
 
@@ -72,7 +76,8 @@ public final class CaveWorldCarver extends WorldCarver {
                 createTunnel(col, cave, chunkX, chunkZ, settings, aquifer, reg,
                     tunnelSeed, startX, startY, startZ,
                     hRadMult, vRadMult, thickness, yaw, pitch,
-                    0, maxStep, 1.0f, mask, lavaId, skipChecker);
+                    0, maxStep, 1.0f, mask, lavaId, skipChecker,
+                    surfaceSystem, nc, surfaceYGrid);
             }
         }
         return true;
@@ -90,11 +95,13 @@ public final class CaveWorldCarver extends WorldCarver {
                              NoiseSettings settings, Aquifer aquifer, BlockRegistry reg,
                              CarvingMask mask,
                              double x, double y, double z, float thickness, float yScale,
-                             int lavaId, SkipChecker skipChecker) {
+                             int lavaId, SkipChecker skipChecker,
+                             SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid) {
         double hDist = 1.5 + Mth.sin((float)(Math.PI / 2)) * thickness;
         double vDist = hDist * yScale;
         carveEllipsoid(col, chunkX, chunkZ, config, settings, aquifer, reg,
-            x + 1.0, y, z, hDist, vDist, mask, skipChecker, lavaId);
+            x + 1.0, y, z, hDist, vDist, mask, skipChecker, lavaId,
+            surfaceSystem, nc, surfaceYGrid);
     }
 
     private void createTunnel(
@@ -104,7 +111,8 @@ public final class CaveWorldCarver extends WorldCarver {
             float hRadMult, float vRadMult,
             float thickness, float yaw, float pitch,
             int startStep, int maxStep, float yScale,
-            CarvingMask mask, int lavaId, SkipChecker skipChecker) {
+            CarvingMask mask, int lavaId, SkipChecker skipChecker,
+            SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid) {
 
         boolean dbgTunnel = debugOrigin01 && worldSeed == 5586391736412127207L && startStep == 0;
 
@@ -146,11 +154,13 @@ public final class CaveWorldCarver extends WorldCarver {
                 createTunnel(col, config, chunkX, chunkZ, settings, aquifer, reg,
                     bSeed1, x, y, z, hRadMult, vRadMult, bThick1,
                     yaw - (float)(Math.PI / 2), pitch / 3.0f,
-                    step, maxStep, 1.0f, mask, lavaId, skipChecker);
+                    step, maxStep, 1.0f, mask, lavaId, skipChecker,
+                    surfaceSystem, nc, surfaceYGrid);
                 createTunnel(col, config, chunkX, chunkZ, settings, aquifer, reg,
                     bSeed2, x, y, z, hRadMult, vRadMult, bThick2,
                     yaw + (float)(Math.PI / 2), pitch / 3.0f,
-                    step, maxStep, 1.0f, mask, lavaId, skipChecker);
+                    step, maxStep, 1.0f, mask, lavaId, skipChecker,
+                    surfaceSystem, nc, surfaceYGrid);
                 return;
             }
 
@@ -161,7 +171,8 @@ public final class CaveWorldCarver extends WorldCarver {
             carveEllipsoid(col, chunkX, chunkZ, config, settings, aquifer, reg,
                 x, y, z,
                 hDist * hRadMult, vDist * vRadMult,
-                mask, skipChecker, lavaId);
+                mask, skipChecker, lavaId,
+                surfaceSystem, nc, surfaceYGrid);
         }
     }
 }

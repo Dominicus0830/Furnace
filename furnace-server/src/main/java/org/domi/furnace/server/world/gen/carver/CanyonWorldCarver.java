@@ -4,7 +4,9 @@ package org.domi.furnace.server.world.gen.carver;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.Aquifer;
+import org.domi.furnace.server.world.gen.NoiseChunk;
 import org.domi.furnace.server.world.gen.NoiseSettings;
+import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 public final class CanyonWorldCarver extends WorldCarver {
 
@@ -21,7 +23,8 @@ public final class CanyonWorldCarver extends WorldCarver {
     @Override
     public boolean carve(ChunkColumn col, CarverConfig config, int chunkX, int chunkZ,
                           NoiseSettings settings, Aquifer aquifer, BlockRegistry reg,
-                          CarvingMask mask, LegacyRandom random, ChunkPos originChunk) {
+                          CarvingMask mask, LegacyRandom random, ChunkPos originChunk,
+                          SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid) {
         CarverConfig.Canyon canyon = (CarverConfig.Canyon) config;
 
         int lavaId = reg.defaultStateId("minecraft:lava");
@@ -50,7 +53,8 @@ public final class CanyonWorldCarver extends WorldCarver {
         }
 
         doCarve(col, canyon, chunkX, chunkZ, settings, aquifer, reg,
-            tunnelSeed, x, y, z, initThick, yaw, vertRot, 0, maxStep, yScale, mask, lavaId);
+            tunnelSeed, x, y, z, initThick, yaw, vertRot, 0, maxStep, yScale, mask, lavaId,
+            surfaceSystem, nc, surfaceYGrid);
 
         return true;
     }
@@ -64,7 +68,8 @@ public final class CanyonWorldCarver extends WorldCarver {
             long seed, double x, double y, double z,
             float thickness, float yaw, float pitch,
             int startStep, int maxStep, double yScale,
-            CarvingMask mask, int lavaId) {
+            CarvingMask mask, int lavaId,
+            SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid) {
 
         LegacyRandom br = new LegacyRandom(seed);
         float[] widthFactors = initWidthFactors(settings.height(), config, br);
@@ -116,7 +121,8 @@ public final class CanyonWorldCarver extends WorldCarver {
             }
 
             carveEllipsoid(col, chunkX, chunkZ, config, settings, aquifer, reg,
-                x, y, z, hDist, vDist, mask, skipChecker, lavaId);
+                x, y, z, hDist, vDist, mask, skipChecker, lavaId,
+                surfaceSystem, nc, surfaceYGrid);
         }
         if (debugSteps) System.out.printf("DBG_DONE canyon doCarve finished step loop%n");
     }

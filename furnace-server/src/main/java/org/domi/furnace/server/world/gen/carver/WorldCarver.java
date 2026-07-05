@@ -5,8 +5,10 @@ import java.util.Set;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.Aquifer;
+import org.domi.furnace.server.world.gen.NoiseChunk;
 import org.domi.furnace.server.world.gen.NoiseSettings;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
+import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 public abstract class WorldCarver {
 
@@ -37,7 +39,8 @@ public abstract class WorldCarver {
         ChunkColumn col, CarverConfig config, int chunkX, int chunkZ,
         NoiseSettings settings, Aquifer aquifer,
         BlockRegistry reg,
-        CarvingMask mask, LegacyRandom random, ChunkPos originChunk);
+        CarvingMask mask, LegacyRandom random, ChunkPos originChunk,
+        SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid);
 
     protected static boolean canReach(int targetChunkX, int targetChunkZ,
                                        double x, double z, int step, int maxStep, float thickness) {
@@ -60,13 +63,30 @@ public abstract class WorldCarver {
                                   int lavaLevelY, Aquifer aquifer,
                                   CarvingMask mask,
                                   BlockRegistry reg,
-                                  int lavaId) {
+                                  int lavaId,
+                                  boolean[] reachedSurface,
+                                  SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid,
+                                  int chunkX, int chunkZ, int minY) {
         int current = col.getBlock(lx, y, lz);
         String name = reg.nameOf(current);
+        if (name.equals("minecraft:grass_block") || name.equals("minecraft:mycelium")) {
+            reachedSurface[0] = true;
+        }
         if (!REPLACEABLE_NAMES.contains(name)) return false;
         int carved = getCarveState(worldX, y, worldZ, lavaLevelY, aquifer, lavaId);
         if (carved == Aquifer.NO_CARVE) return false;
         col.setBlock(lx, y, lz, carved);
+
+        // vanilla WorldCarver.carveBlock L151-161 — carve가 표면을 관통하면 노출된 dirt를 topMaterial로 승격.
+        if (reachedSurface[0] && y - 1 >= minY) {
+            int below = col.getBlock(lx, y - 1, lz);
+            if (reg.nameOf(below).equals("minecraft:dirt")) {
+                String carvedName = reg.nameOf(carved);
+                boolean hasFluid = carvedName.equals("minecraft:water") || carvedName.equals("minecraft:lava");
+                Integer top = surfaceSystem.topMaterial(worldX, y - 1, worldZ, hasFluid, nc, chunkX, chunkZ, surfaceYGrid);
+                if (top != null) col.setBlock(lx, y - 1, lz, top);
+            }
+        }
         return true;
     }
 
@@ -75,7 +95,8 @@ public abstract class WorldCarver {
             NoiseSettings settings, Aquifer aquifer,
             BlockRegistry reg,
             double x, double y, double z, double hRadius, double vRadius,
-            CarvingMask mask, SkipChecker skipChecker, int lavaId) {
+            CarvingMask mask, SkipChecker skipChecker, int lavaId,
+            SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid) {
 
         int chunkMinX = chunkX * 16;
         int chunkMinZ = chunkZ * 16;
@@ -111,13 +132,16 @@ public abstract class WorldCarver {
 
                 if (relX * relX + relZ * relZ >= 1.0) continue;
 
+                // vanilla: MutableBoolean reachedSurface — 컬럼(lx,lz)당 하나, y-loop 전체에서 공유·리셋.
+                boolean[] reachedSurface = new boolean[1];
                 for (int by = yMax; by > yMin; by--) {
                     double relY = (by - 0.5 - y) / vRadius;
                     if (skipChecker.shouldSkip(relX, relY, relZ, by)) continue;
                     if (mask.get(lx, by, lz)) continue;
                     mask.set(lx, by, lz);
                     carved |= carveBlock(col, lx, by, lz, worldX, worldZ,
-                        lavaLevelY, aquifer, mask, reg, lavaId);
+                        lavaLevelY, aquifer, mask, reg, lavaId,
+                        reachedSurface, surfaceSystem, nc, surfaceYGrid, chunkX, chunkZ, minY);
                 }
             }
         }

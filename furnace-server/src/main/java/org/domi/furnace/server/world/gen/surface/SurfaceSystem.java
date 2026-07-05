@@ -94,12 +94,7 @@ public final class SurfaceSystem {
             sectionBlocks[i] = col.sectionBlocks(i);
         }
 
-        int[] surfaceYGrid = new int[256];
-        for (int lz = 0; lz < 16; lz++) {
-            for (int lx = 0; lx < 16; lx++) {
-                surfaceYGrid[lz * 16 + lx] = col.surfaceBlockY(lx, lz);
-            }
-        }
+        int[] surfaceYGrid = surfaceYGrid(col);
 
         // 4 PSL corners at chunk boundaries (16-block surface cell = one chunk)
         int psl00 = nc.getPreliminarySurfaceLevel(chunkX * 4,     chunkZ * 4);
@@ -123,8 +118,7 @@ public final class SurfaceSystem {
 
                 int surfaceY = surfaceYGrid[lz * 16 + lx];
                 ctx.surfaceY  = surfaceY;
-                ctx.surfaceDepth = (int)(surfaceNoise.getValue(worldX, 0, worldZ) * 2.75 + 3.0
-                    + randomFactory.at(worldX, 0, worldZ).nextDouble() * 0.25);
+                ctx.surfaceDepth = surfaceDepthAt(worldX, worldZ);
                 int lerpedPsl = (int) Math.floor(MathHelper.lerp2(
                     lx / 16.0, lz / 16.0, psl00, psl10, psl01, psl11));
                 ctx.preliminarySurfaceLevel = lerpedPsl + ctx.surfaceDepth - 8;
@@ -207,6 +201,65 @@ public final class SurfaceSystem {
                 }
             }
         }
+    }
+
+    /** 청크 전체 16×16 surfaceY(WORLD_SURFACE) 스냅샷 — buildSurface·carver regrass가 공유. */
+    public int[] surfaceYGrid(ChunkColumn col) {
+        int[] grid = new int[256];
+        for (int lz = 0; lz < 16; lz++) {
+            for (int lx = 0; lx < 16; lx++) {
+                grid[lz * 16 + lx] = col.surfaceBlockY(lx, lz);
+            }
+        }
+        return grid;
+    }
+
+    private int surfaceDepthAt(int worldX, int worldZ) {
+        return (int)(surfaceNoise.getValue(worldX, 0, worldZ) * 2.75 + 3.0
+            + randomFactory.at(worldX, 0, worldZ).nextDouble() * 0.25);
+    }
+
+    /**
+     * carver regrass 전용 — vanilla {@code CarvingContext.topMaterial}(SurfaceSystem.topMaterial 단일 포인트
+     * 재호출) 이식. carve가 지표를 관통해 노출시킨 dirt를 biome에 맞는 표면 블록으로 되돌릴 때 쓴다.
+     * stoneDepthAbove/Below=1, waterY=hasFluid?y+1:MIN_VALUE로 고정하는 것까지 vanilla와 동일
+     * (SurfaceSystem.topMaterial의 {@code context1.updateY(1, 1, ...)} 호출과 대응).
+     * surfaceYGrid는 carve 이전(buildSurface 직후) 스냅샷을 그대로 넘겨야 한다 — vanilla WORLD_SURFACE_WG도
+     * carve 중에는 갱신되지 않는다.
+     */
+    public Integer topMaterial(int worldX, int y, int worldZ, boolean hasFluid,
+                                NoiseChunk nc, int chunkX, int chunkZ, int[] surfaceYGrid) {
+        int lx = worldX - chunkX * 16;
+        int lz = worldZ - chunkZ * 16;
+        int surfaceDepth = surfaceDepthAt(worldX, worldZ);
+
+        int psl00 = nc.getPreliminarySurfaceLevel(chunkX * 4,     chunkZ * 4);
+        int psl10 = nc.getPreliminarySurfaceLevel(chunkX * 4 + 4, chunkZ * 4);
+        int psl01 = nc.getPreliminarySurfaceLevel(chunkX * 4,     chunkZ * 4 + 4);
+        int psl11 = nc.getPreliminarySurfaceLevel(chunkX * 4 + 4, chunkZ * 4 + 4);
+        int lerpedPsl = (int) Math.floor(MathHelper.lerp2(
+            lx / 16.0, lz / 16.0, psl00, psl10, psl01, psl11));
+
+        SurfaceContext ctx = new SurfaceContext();
+        ctx.minY          = settings.minY();
+        ctx.maxY          = ctx.minY + settings.height() - 1;
+        ctx.seaLevel      = settings.seaLevel();
+        ctx.randomFactory = randomFactory;
+        ctx.worldgenData  = worldgenData;
+        ctx.surfaceYGrid  = surfaceYGrid;
+        ctx.biomeCache    = new HashMap<>();
+        ctx.surfaceY      = surfaceYGrid[lz * 16 + lx];
+        ctx.surfaceDepth  = surfaceDepth;
+        ctx.preliminarySurfaceLevel = lerpedPsl + surfaceDepth - 8;
+        ctx.blockX = worldX;
+        ctx.blockZ = worldZ;
+        ctx.blockY = y;
+        ctx.stoneDepthAbove = 1;
+        ctx.stoneDepthBelow = 1;
+        ctx.waterY = hasFluid ? y + 1 : Integer.MIN_VALUE;
+        ctx.biomeName = null;
+
+        return eval(rule, ctx);
     }
 
     private Integer eval(SurfaceRule rule, SurfaceContext ctx) {
