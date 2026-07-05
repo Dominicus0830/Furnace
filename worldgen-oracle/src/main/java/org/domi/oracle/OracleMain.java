@@ -2143,7 +2143,7 @@ public class OracleMain {
                 String featureId = feature.feature().unwrapKey().map(k -> k.location().toString()).orElse("?");
                 long featureSeed = decorationSeed + featureIndex + 10000L * step;
                 random.setFeatureSeed(decorationSeed, featureIndex, step);
-                BlockState[] before = blockDebug ? snapshotCenter(center) : null;
+                BlockState[] before = blockDebug ? snapshotGrid(level, chunkPos) : null;
                 if (debug) {
                     System.out.printf("ORACLE step=%d idx=%d featureSeed=%d id=%s%n",
                         step, featureIndex, featureSeed, featureId);
@@ -2160,7 +2160,7 @@ public class OracleMain {
                     if (trace) ORACLE_RNG_TRACE.end();
                 }
                 if (blockDebug) {
-                    BlockState[] after = snapshotCenter(center);
+                    BlockState[] after = snapshotGrid(level, chunkPos);
                     int changed = countChanged(before, after);
                     if (placed || changed > 0) {
                         System.out.printf(
@@ -2230,15 +2230,18 @@ public class OracleMain {
         }
     }
 
-    private static BlockState[] snapshotCenter(ProtoChunk center) {
-        ChunkPos chunkPos = center.getPos();
-        BlockState[] snapshot = new BlockState[FixtureFormat.HEIGHT * 16 * 16];
+    /** origin 청크(chunkPos)의 3x3 grid 전체(48x48)를 level(=OracleWorldGenLevel, 이웃 청크로 dispatch됨)을 통해
+     * 스냅샷 — cross-origin spill(이웃 청크로 유출되는 나무 캐노피) 탐지용. ProtoChunk.getBlockState는 자기
+     * 청크 밖을 지원하지 않으므로 level.getBlockState를 사용(Furnace 쪽 snapshotGrid와 대응). */
+    private static BlockState[] snapshotGrid(WorldGenLevel level, ChunkPos chunkPos) {
+        int minX = chunkPos.getMinBlockX() - 16;
+        int minZ = chunkPos.getMinBlockZ() - 16;
+        BlockState[] snapshot = new BlockState[FixtureFormat.HEIGHT * 48 * 48];
         int index = 0;
         for (int y = FixtureFormat.MIN_Y; y < FixtureFormat.MIN_Y + FixtureFormat.HEIGHT; y++) {
-            for (int lz = 0; lz < 16; lz++) {
-                for (int lx = 0; lx < 16; lx++) {
-                    snapshot[index++] = center.getBlockState(new net.minecraft.core.BlockPos(
-                        chunkPos.getMinBlockX() + lx, y, chunkPos.getMinBlockZ() + lz));
+            for (int lz = 0; lz < 48; lz++) {
+                for (int lx = 0; lx < 48; lx++) {
+                    snapshot[index++] = level.getBlockState(new net.minecraft.core.BlockPos(minX + lx, y, minZ + lz));
                 }
             }
         }
@@ -2256,13 +2259,14 @@ public class OracleMain {
     private static String firstChange(BlockState[] before, BlockState[] after, ChunkPos chunkPos) {
         for (int i = 0; i < before.length; i++) {
             if (before[i] == after[i]) continue;
-            int yIndex = i / 256;
-            int yz = i % 256;
-            int lz = yz / 16;
-            int lx = yz % 16;
+            int plane = 48 * 48;
+            int yIndex = i / plane;
+            int rem = i % plane;
+            int lz = rem / 48 - 16;
+            int lx = rem % 48 - 16;
             int y = FixtureFormat.MIN_Y + yIndex;
-            return String.format("lx=%d y=%d lz=%d %s->%s",
-                lx, y, lz, before[i], after[i]);
+            return String.format("originCx=%d originCz=%d gridLx=%d y=%d gridLz=%d %s->%s",
+                chunkPos.x, chunkPos.z, lx, y, lz, before[i], after[i]);
         }
         return "-";
     }
@@ -2270,14 +2274,15 @@ public class OracleMain {
     private static void logChangedBlocks(BlockState[] before, BlockState[] after, ChunkPos chunkPos, int step, int idx, String featureId) {
         for (int i = 0; i < before.length; i++) {
             if (before[i] == after[i]) continue;
-            int yIndex = i / 256;
-            int yz = i % 256;
-            int lz = yz / 16;
-            int lx = yz % 16;
+            int plane = 48 * 48;
+            int yIndex = i / plane;
+            int rem = i % plane;
+            int lz = rem / 48 - 16;
+            int lx = rem % 48 - 16;
             int y = FixtureFormat.MIN_Y + yIndex;
             System.out.printf(
-                "BLOCK_DELTA source=ORACLE step=%d idx=%d id=%s wx=%d y=%d wz=%d old=%s new=%s%n",
-                step, idx, featureId, chunkPos.getMinBlockX() + lx, y, chunkPos.getMinBlockZ() + lz,
+                "BLOCK_DELTA source=ORACLE originCx=%d originCz=%d step=%d idx=%d id=%s wx=%d y=%d wz=%d old=%s new=%s%n",
+                chunkPos.x, chunkPos.z, step, idx, featureId, chunkPos.getMinBlockX() + lx, y, chunkPos.getMinBlockZ() + lz,
                 before[i], after[i]);
         }
     }

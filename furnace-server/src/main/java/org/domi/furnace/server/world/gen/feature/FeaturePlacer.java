@@ -107,7 +107,7 @@ public final class FeaturePlacer {
                 PlacedFeature pf = stepData.features().get(idx);
                 String featureId = biomeData.idOf(pf);
                 long featureSeed = decorationSeed + idx + 10000L * step;
-                int[] before = BLOCK_DEBUG ? snapshotCenter(view) : null;
+                int[] before = BLOCK_DEBUG ? snapshotGrid(view) : null;
                 if (DEBUG) {
                     System.out.printf("FURNACE step=%d idx=%d featureSeed=%d id=%s%n",
                         step, idx, featureSeed, featureId);
@@ -122,7 +122,7 @@ public final class FeaturePlacer {
                     if (trace) RandomTrace.end();
                 }
                 if (BLOCK_DEBUG) {
-                    int[] after = snapshotCenter(view);
+                    int[] after = snapshotGrid(view);
                     int changed = countChanged(before, after);
                     if (placed || changed > 0) {
                         System.out.printf(
@@ -135,14 +135,16 @@ public final class FeaturePlacer {
         }
     }
 
-    private static int[] snapshotCenter(FeatureWorldView view) {
-        int[] snapshot = new int[384 * 16 * 16];
+    /** 현재 origin(view.cx/cz) 뿐 아니라 3x3 grid 전체(48x48)를 스냅샷 — cross-origin spill(이웃 청크로의
+     * 나무 캐노피 유출) 탐지용. 좌표는 view.cx()*16-16 ~ +31 범위(중심 청크 기준 -1..+2 offset). */
+    private static int[] snapshotGrid(FeatureWorldView view) {
+        int[] snapshot = new int[384 * 48 * 48];
         int index = 0;
-        int minX = view.cx() * 16;
-        int minZ = view.cz() * 16;
+        int minX = view.cx() * 16 - 16;
+        int minZ = view.cz() * 16 - 16;
         for (int y = -64; y < 320; y++) {
-            for (int lz = 0; lz < 16; lz++) {
-                for (int lx = 0; lx < 16; lx++) {
+            for (int lz = 0; lz < 48; lz++) {
+                for (int lx = 0; lx < 48; lx++) {
                     snapshot[index++] = view.getBlock(minX + lx, y, minZ + lz);
                 }
             }
@@ -161,12 +163,13 @@ public final class FeaturePlacer {
     private static String firstChange(int[] before, int[] after, int cx, int cz) {
         for (int i = 0; i < before.length; i++) {
             if (before[i] == after[i]) continue;
-            int plane = 16 * 16;
+            int plane = 48 * 48;
             int y = -64 + i / plane;
             int rem = i % plane;
-            int lz = rem / 16;
-            int lx = rem % 16;
-            return String.format("lx=%d y=%d lz=%d %d->%d", lx, y, lz, before[i], after[i]);
+            int lz = rem / 48 - 16;
+            int lx = rem % 48 - 16;
+            return String.format("originCx=%d originCz=%d gridLx=%d y=%d gridLz=%d %d->%d",
+                cx, cz, lx, y, lz, before[i], after[i]);
         }
         return "-";
     }
@@ -174,16 +177,16 @@ public final class FeaturePlacer {
     private static void logChangedBlocks(int[] before, int[] after, int cx, int cz, int step, int idx, String id) {
         for (int i = 0; i < before.length; i++) {
             if (before[i] == after[i]) continue;
-            int plane = 16 * 16;
+            int plane = 48 * 48;
             int y = -64 + i / plane;
             int rem = i % plane;
-            int lz = rem / 16;
-            int lx = rem % 16;
+            int lz = rem / 48 - 16;
+            int lx = rem % 48 - 16;
             int wx = cx * 16 + lx;
             int wz = cz * 16 + lz;
             System.out.printf(
-                "BLOCK_DELTA source=FURNACE step=%d idx=%d id=%s wx=%d y=%d wz=%d old=%d new=%d%n",
-                step, idx, id, wx, y, wz, before[i], after[i]);
+                "BLOCK_DELTA source=FURNACE originCx=%d originCz=%d step=%d idx=%d id=%s wx=%d y=%d wz=%d old=%d new=%d%n",
+                cx, cz, step, idx, id, wx, y, wz, before[i], after[i]);
         }
     }
 
