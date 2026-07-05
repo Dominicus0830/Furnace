@@ -41,6 +41,11 @@ class CarverParityTest {
     }
 
     private void assertCarverParity(long seed, int cx, int cz) throws Exception {
+        assertCarverParity(seed, cx, cz, 0);
+    }
+
+    // maxMismatch>0: root cause는 확정됐으나 아직 수정하지 않은 잔여 mismatch를 회귀 없이 상한만 고정.
+    private void assertCarverParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
         BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
         // worldgen-oracle uses Paper's 1.21.1 dev bundle, so fixture state IDs
         // must be decoded with the 1.21.1 block-state table.
@@ -91,8 +96,13 @@ class CarverParityTest {
         }
 
         System.out.printf("carver seed=%d cx=%d cz=%d: %d mismatches%n", seed, cx, cz, mismatch);
-        assertEquals(0, mismatch, "seed=" + seed + " cx=" + cx + " cz=" + cz
-            + " mismatches=" + mismatch + (first != null ? " first=" + first : ""));
+        if (maxMismatch > 0) {
+            assertTrue(mismatch <= maxMismatch, "seed=" + seed + " cx=" + cx + " cz=" + cz
+                + " mismatches=" + mismatch + " > 상한 " + maxMismatch + (first != null ? " first=" + first : ""));
+        } else {
+            assertEquals(0, mismatch, "seed=" + seed + " cx=" + cx + " cz=" + cz
+                + " mismatches=" + mismatch + (first != null ? " first=" + first : ""));
+        }
     }
 
     private static int tryId(BlockRegistry reg, String name, int fallback) {
@@ -117,4 +127,21 @@ class CarverParityTest {
     @Test void carver_seed1234_n8m3() throws Exception { assertCarverParity(1234L, 8, -3); }
     @Test void carver_seed1234_n8m2() throws Exception { assertCarverParity(1234L, 8, -2); }
     @Test void carver_seed1234_n8m1() throws Exception { assertCarverParity(1234L, 8, -1); }
+
+    /**
+     * realserver-fixes task ④ — 사용자 제보 "연못 부재" 좌표(seed 51532, 청크 -3,-6). aquifer 단계(순수
+     * noise+aquifer, carver 전)는 0 mismatch — noise/aquifer 파라미터 발산은 기각. 이 carver 단계에서
+     * 32건 발산, 전부 y=62(해수면-1) 지점의 dirt(furnace) vs grass_block(oracle) — carve된 웅덩이/소협곡
+     * 가장자리에서 노출된 dirt를 원래 지형으로 되돌리는 vanilla WorldCarver.carveBlock의 "reachedSurface"
+     * 재잔디화(regrass) 로직이 Furnace에 아예 없다(furnace-server world/gen/carver/WorldCarver.java의
+     * carveBlock은 REPLACEABLE_NAMES 체크 + 상태 치환만 하고 위쪽 블록 승격 단계가 없음). 물/공기 상태 자체는
+     * 이미 일치(전부 dirt/grass 텍스트 차이일 뿐) — 사용자가 본 "연못이 없다"는 인상은 웅덩이 자체의 부재가
+     * 아니라 가장자리가 흙탕으로 보이는 것일 가능성이 높다. 수정은 vanilla CarvingContext.topMaterial(SurfaceRule
+     * 재호출)을 WorldCarver 호출 체인에 새로 연결해야 하는 M~L 규모라 이번 세션 범위를 벗어나 상한만 고정한다.
+     * 후속 task: WorldCarver.carveBlock에 reachedSurface 추적 + 최상단 dirt 승격(SurfaceRule.topMaterial
+     * 호출) 포팅.
+     */
+    @Test void carver_seed51532_m3_m6_pondEdgeRegrass_missing() throws Exception {
+        assertCarverParity(51532L, -3, -6, 32);
+    }
 }

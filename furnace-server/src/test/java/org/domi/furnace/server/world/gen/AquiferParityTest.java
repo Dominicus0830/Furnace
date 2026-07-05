@@ -130,4 +130,8 @@ class AquiferParityTest {
     @Test void oreVein_seed0_0_4() throws Exception { assertAquiferParity(0L, 0, 4); }
     @Test void oreVein_seed0_1_5() throws Exception { assertAquiferParity(0L, 1, 5); }
     @Test void oreVein_seed0_1_4() throws Exception { assertAquiferParity(0L, 1, 4); }
+
+    // realserver-fixes task ④ — 사용자 제보 연못 부재 좌표(seed 51532, 청크 -3,-6)의 noise+aquifer(carver 전)
+    // 단계. 0 mismatch — noise/aquifer 파라미터 발산 가설 기각, 실제 발산은 carver 단계(CarverParityTest 참조).
+    @Test void aquifer_seed51532_m3_m6_pondCoord() throws Exception { assertAquiferParity(51532L, -3, -6); }
 }
