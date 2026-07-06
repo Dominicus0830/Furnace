@@ -45,7 +45,7 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
             RandomTrace.log("placed_feature_origin x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
                 + " feature=" + feature.getClass().getSimpleName());
             if (validBiomeIds != null && !validBiomeIds.isEmpty()) {
-                int biomeId = view.getBiomeId(pos.x(), pos.y(), pos.z());
+                int biomeId = view.getBlendedBiomeId(pos.x(), pos.y(), pos.z());
                 if (!validBiomeIds.contains(biomeId)) {
                     RandomTrace.log("placed_feature_skip_biome biomeId=" + biomeId);
                     return;

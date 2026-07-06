@@ -160,14 +160,21 @@ class FeatureSpillParityTest {
     }
 
     /**
-     * (3,3): round2에서 위 (2,0)과 같은 원인으로 20→0까지는 해소됐으나, 잔여 1건은 **다른 feature**
-     * (`minecraft:flower_default`, poppy/dandelion patch — tree/OCEAN_FLOOR와 무관)에서 발생해 미해소.
-     * lx=15 y=79 lz=14(world 63,79,62)에서 oracle=poppy/got=air. origin(3,3) 자신과 이웃 origin(4,3) 양쪽의
-     * `flower_default` RNG 세션을 트레이스했으나 둘 다 1 call로 양 엔진 동일 — 이 두 origin이 원인이 아니다.
-     * 더 넓은 범위(다른 이웃 origin 또는 `forest_flowers`)의 조사가 필요한 별개 이슈로 남긴다.
+     * (3,3): round4에서 root cause 확정 — origin(4,4)의 `birch_tall`(old_growth_birch_forest 전용
+     * tree feature) count-loop 첫 후보 world(66,~,68)가 old_growth_birch_forest/forest biome 경계
+     * 바로 위였다. vanilla의 `BiomeFilter`는 `BiomeManager.getBiome(pos)`(8개 인접 quart를 결정론적
+     * "biome zoom" 지터로 블렌딩)를 쓰는데, 이 위치의 블렌딩 결과는 `forest`(birch_tall 서식지 아님)라
+     * vanilla가 스킵한다. Furnace의 `PlacedFeature.placeAt`는 블렌딩 없는 단순 quart 조회
+     * (`getBiomeId`)를 썼고, 그 raw quart 값은 `old_growth_birch_forest`(서식지 맞음)라서 통과시켜
+     * RNG 소비 순서가 그 즉시 갈렸다(FURNACE nextFloat vs ORACLE nextInt(16), origin(4,4) birch_tall
+     * 세션 call=4). oracle 측 `BiomeManager.getBiome`/`BiomeGenerationSettings.hasFeature`를 직접
+     * 계측해 raw=old_growth_birch_forest, blended=forest, hasFeature(blended)=false를 실측 확인 후
+     * 확정했다. `FeatureWorldView.getBlendedBiomeId`(vanilla BiomeManager 알고리즘 이식, 8-corner
+     * fiddledDistance)를 추가해 `PlacedFeature`의 biome 게이트를 이 블렌딩된 값으로 교체 — 0
+     * mismatch(exact) 도달.
      */
     @Test void spill_seed51532_3_3_fancyOak_improves() throws Exception {
-        assertSpillParity(51532L, 3, 3, 1);
+        assertSpillParity(51532L, 3, 3);
     }
 
     /**

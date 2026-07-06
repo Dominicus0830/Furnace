@@ -138,6 +138,100 @@ public final class FeatureWorldView {
         return biomeIds[(qy * 4 + qz) * 4 + qx];
     }
 
+    /**
+     * vanilla BiomeManager.getBiome(pos) 미러 — 단순 quart 조회(getBiomeId)가 아니라, 8개 인접 quart를
+     * 결정론적 "biome zoom" 지터(fiddledDistance, SurfaceSystem.biomeManagerQuart와 동일 알고리즘)로 블렌딩한
+     * 결과다. 실제 vanilla의 BiomeFilter(placement modifier "biome")·FreezeTopLayer 등 게임플레이 biome
+     * 질의는 전부 이 블렌딩된 값을 쓴다 — 청크에 저장되는 raw quart biome과는 다른 값일 수 있다(biome 경계
+     * 근처에서 특히 그렇다). tree-overlap-residual task round4에서 확정: origin(4,4)의 birch_tall이
+     * old_growth_birch_forest/forest 경계 근처 후보에서 raw quart(old_growth_birch_forest, birch_tall
+     * 서식지)와 블렌딩 결과(forest, 서식지 아님)가 달라 vanilla가 스킵하는데 Furnace(raw 조회)는 통과시켜
+     * RNG 소비 순서가 어긋났었다.
+     */
+    public int getBlendedBiomeId(int worldX, int worldY, int worldZ) {
+        long biomeZoomSeed = obfuscateSeed(worldSeed);
+        int x = worldX - 2;
+        int y = worldY - 2;
+        int z = worldZ - 2;
+        int qx = x >> 2;
+        int qy = y >> 2;
+        int qz = z >> 2;
+        double fx = (x & 3) / 4.0;
+        double fy = (y & 3) / 4.0;
+        double fz = (z & 3) / 4.0;
+        int bestQx = qx;
+        int bestQy = qy;
+        int bestQz = qz;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < 8; i++) {
+            boolean useX0 = (i & 4) == 0;
+            boolean useY0 = (i & 2) == 0;
+            boolean useZ0 = (i & 1) == 0;
+            int cqx = useX0 ? qx : qx + 1;
+            int cqy = useY0 ? qy : qy + 1;
+            int cqz = useZ0 ? qz : qz + 1;
+            double dx = useX0 ? fx : fx - 1.0;
+            double dy = useY0 ? fy : fy - 1.0;
+            double dz = useZ0 ? fz : fz - 1.0;
+            double distance = fiddledDistance(biomeZoomSeed, cqx, cqy, cqz, dx, dy, dz);
+            if (bestDistance > distance) {
+                bestDistance = distance;
+                bestQx = cqx;
+                bestQy = cqy;
+                bestQz = cqz;
+            }
+        }
+        int rx = bestQx * 4;
+        int rz = bestQz * 4;
+        int ry = bestQy * 4 + ChunkColumn.MIN_Y;
+        return getBiomeId(rx, ry, rz);
+    }
+
+    private static double fiddledDistance(long seed, int x, int y, int z, double dx, double dy, double dz) {
+        long mixed = lcgNext(seed, x);
+        mixed = lcgNext(mixed, y);
+        mixed = lcgNext(mixed, z);
+        mixed = lcgNext(mixed, x);
+        mixed = lcgNext(mixed, y);
+        mixed = lcgNext(mixed, z);
+        double xFiddle = fiddle(mixed);
+        mixed = lcgNext(mixed, seed);
+        double yFiddle = fiddle(mixed);
+        mixed = lcgNext(mixed, seed);
+        double zFiddle = fiddle(mixed);
+        return (dz + zFiddle) * (dz + zFiddle) + (dy + yFiddle) * (dy + yFiddle) + (dx + xFiddle) * (dx + xFiddle);
+    }
+
+    private static long lcgNext(long seed, long salt) {
+        seed *= seed * 6364136223846793005L + 1442695040888963407L;
+        return seed + salt;
+    }
+
+    private static double fiddle(long seed) {
+        double d = Math.floorMod(seed >> 24, 1024) / 1024.0;
+        return (d - 0.5) * 0.9;
+    }
+
+    // SurfaceSystem.obfuscateSeed와 동일 알고리즘(리틀엔디안 바이트 순서) — vanilla
+    // Hashing.sha256().hashLong(seed).asLong()의 실제 바이트 순서와 일치시킨 것을 그대로 재사용한다.
+    private static long obfuscateSeed(long seed) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] input = new byte[Long.BYTES];
+            for (int i = 0; i < Long.BYTES; i++) {
+                input[i] = (byte) (seed >>> (i * 8));
+            }
+            byte[] hash = digest.digest(input);
+            long result = 0L;
+            for (int i = 0; i < Long.BYTES; i++) {
+                result |= (hash[i] & 0xFFL) << (i * 8);
+            }
+            return result;
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
     public long worldSeed() {
         return worldSeed;
     }
