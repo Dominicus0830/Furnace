@@ -24,6 +24,13 @@ public final class ChunkColumn {
     // glow_lichen: Material.REPLACEABLE_PLANT, blocksMotion=false → OCEAN_FLOOR 제외 대상
     private static final int GLOW_LICHEN_MIN_STATE = 6869;
     private static final int GLOW_LICHEN_MAX_STATE = 6996;
+    // 지상 식물(short_grass/fern/dead_bush): blocksMotion=false → vanilla OCEAN_FLOOR heightmap에서 제외됨.
+    // patch_grass_forest 등 grass 계열 feature가 이 블록을 심으면(스크린 이전 지형은 여전히 dirt/grass_block),
+    // OCEAN_FLOOR가 이를 바닥으로 잘못 세면 surface_water_depth_filter(WORLD_SURFACE - OCEAN_FLOOR)가
+    // diff=0으로 오판해 vanilla가 스킵할 후보를 통과시킨다(tree-overlap-residual task, round2 확정).
+    private static final int SHORT_GRASS_STATE = 2005;
+    private static final int FERN_STATE = 2006;
+    private static final int DEAD_BUSH_STATE = 2007;
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음) — MOTION_BLOCKING류(항상 라이브)
@@ -341,7 +348,12 @@ public final class ChunkColumn {
     private static boolean isOceanFloorBlock(int stateId) {
         return stateId != ChunkSection.AIR && stateId != CAVE_AIR_STATE && stateId != VOID_AIR_STATE
             && !isFluid(stateId)
-            && !isWaterPlant(stateId);
+            && !isWaterPlant(stateId)
+            && !isLandPlant(stateId);
+    }
+
+    private static boolean isLandPlant(int stateId) {
+        return stateId == SHORT_GRASS_STATE || stateId == FERN_STATE || stateId == DEAD_BUSH_STATE;
     }
 
     private static boolean isWaterPlant(int stateId) {

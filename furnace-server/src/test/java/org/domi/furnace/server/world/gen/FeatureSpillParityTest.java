@@ -146,16 +146,26 @@ class FeatureSpillParityTest {
     }
 
     /**
-     * (2,0)/(3,3): realserver-fixes task ③(ChunkPipeline spill 창 확장) 조사 대상 좌표. FeatureWorldView의
-     * 읽기(read) 범위를 origin ±1에서 grid center ±GRID_RADIUS(oracle의 OracleWorldGenLevel.getChunk와 동일
-     * 범위)로 넓혔으나(쓰기는 oracle과 동일하게 origin ±1 유지) 이 두 좌표의 mismatch 수는 변화 없었다 —
-     * (2,0)/(3,0)는 애초에 서로 ±1 이내라 이 폭 확장으로는 영향받지 않는 케이스였다(가설 반증). 남은 원인은
-     * 미확정(별도 RNG 소비 순서 발산 등으로 추정) — 회귀 방지용 상한만 고정한다. 후속 조사 필요.
+     * (2,0): tree-overlap-residual task round2에서 root cause 확정 — origin(3,0)의 trees_birch_and_oak
+     * count-loop 후보(world 58,72,1)에서 SurfaceWaterDepthFilterPlacement가 OCEAN_FLOOR와 WORLD_SURFACE를
+     * 동일한 값(둘 다 71)으로 오판해 통과시켰다. 원인은 `ChunkColumn.isOceanFloorBlock`이 short_grass/fern/
+     * dead_bush 같은 non-motion-blocking 지상 식물을 "바닥"으로 잘못 세는 것 — vanilla OCEAN_FLOOR 술어
+     * (BlockBehaviour::blocksMotion)는 이들을 바닥에서 제외하므로, 이웃 origin(3,-1)의 patch_grass_forest가
+     * 심은 short_grass(y=71) 위에서 vanilla는 diff=1(>max_water_depth=0)로 이 후보를 스킵하지만 Furnace는
+     * diff=0으로 통과시켜 RNG 소비 순서가 call27부터 어긋났다(FURNACE nextFloat vs ORACLE nextInt(16)).
+     * `isOceanFloorBlock`에 short_grass/fern/dead_bush 제외를 추가해 0 mismatch(exact) 도달.
      */
     @Test void spill_seed51532_2_0_fancyOak_improves() throws Exception {
-        assertSpillParity(51532L, 2, 0, 20);
+        assertSpillParity(51532L, 2, 0);
     }
 
+    /**
+     * (3,3): round2에서 위 (2,0)과 같은 원인으로 20→0까지는 해소됐으나, 잔여 1건은 **다른 feature**
+     * (`minecraft:flower_default`, poppy/dandelion patch — tree/OCEAN_FLOOR와 무관)에서 발생해 미해소.
+     * lx=15 y=79 lz=14(world 63,79,62)에서 oracle=poppy/got=air. origin(3,3) 자신과 이웃 origin(4,3) 양쪽의
+     * `flower_default` RNG 세션을 트레이스했으나 둘 다 1 call로 양 엔진 동일 — 이 두 origin이 원인이 아니다.
+     * 더 넓은 범위(다른 이웃 origin 또는 `forest_flowers`)의 조사가 필요한 별개 이슈로 남긴다.
+     */
     @Test void spill_seed51532_3_3_fancyOak_improves() throws Exception {
         assertSpillParity(51532L, 3, 3, 1);
     }
