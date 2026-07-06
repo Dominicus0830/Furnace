@@ -38,37 +38,62 @@ class ChunkColumnTest {
         assertEquals(6, c.sections()[0].getBiome(0, 0, 0));
     }
 
+    // rail(레일): blocksMotion=false — blocks/1.21.1.txt의 실제 state id.
+    private static final int RAIL_STATE = 4663;
+
     @Test
-    void heightmap_packs9Bit() {
+    void motionBlockingHeightmap_packs9Bit_fromRealBlock() {
         ChunkColumn c = new ChunkColumn(6);
-        c.setSurface(0, 0, 4); // (x=0,z=0) 표면 높이값 4
+        c.setBlock(0, ChunkColumn.MIN_Y + 3, 0, 79); // bedrock → height=(3)+1=4
         long[] hm = c.motionBlockingHeightmap();
         // 9비트 256칸 valuesPerLong=7 → ceil(256/7)=37 long
         assertEquals(37, hm.length);
-        // 첫 칸 값 4 복원
         BitStorage bs = BitStorage.wrap(9, 256, hm);
         assertEquals(4, bs.get(0));
     }
 
     @Test
-    void heightmap_isCached_untilSurfaceChanges() {
+    void motionBlockingHeightmap_isCached_untilBlockChanges() {
         ChunkColumn c = new ChunkColumn(6);
-        c.setSurface(0, 0, 4);
+        c.setBlock(0, ChunkColumn.MIN_Y + 3, 0, 79);
 
         long[] first = c.motionBlockingHeightmap();
         long[] second = c.motionBlockingHeightmap();
 
         assertSame(first, second, "변경 없으면 heightmap 재계산 없이 재사용해야");
 
-        c.setSurface(0, 0, 7);
+        c.setBlock(0, ChunkColumn.MIN_Y + 6, 0, 79);
         long[] third = c.motionBlockingHeightmap();
 
-        assertNotSame(first, third, "표면 변경 후에는 캐시 무효화돼야");
-        assertEquals(7, BitStorage.wrap(9, 256, third).get(0));
+        assertNotSame(first, third, "블록 변경 후에는 캐시 무효화돼야");
+        assertEquals(7, BitStorage.wrap(9, 256, third).get(0)); // height = (MIN_Y+6 - MIN_Y) + 1 = 7
     }
 
     @Test
-    void worldSurfaceHeightmap_packs9Bit_andMirrorsMotionBlocking() {
+    void motionBlockingHeightmap_excludesNonMotionBlockingBlock_butWorldSurfaceIncludesIt() {
+        ChunkColumn c = new ChunkColumn(6);
+        // surface[](WORLD_SURFACE)는 loadGenerated로 프라임해야 라이브 갱신 가드(first==0)를 통과한다(round1 교훈).
+        int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 4096];
+        blockIds[0] = 79; // (0,0) y=MIN_Y 바닥돌 1개만 프라임
+        c.loadGenerated(blockIds, new int[ChunkColumn.SECTION_COUNT * 64]);
+        c.setBlock(0, ChunkColumn.MIN_Y + 3, 0, RAIL_STATE); // 레일(blocksMotion=false)
+
+        assertEquals(ChunkColumn.MIN_Y, c.motionBlockingBlockY(0, 0),
+            "레일은 blocksMotion=false라 MOTION_BLOCKING엔 안 잡히고 밑의 바닥돌만 카운트돼야");
+        assertEquals(ChunkColumn.MIN_Y + 3, c.surfaceBlockY(0, 0),
+            "WORLD_SURFACE(!isAir)는 레일도 바닥으로 센다 — 두 heightmap이 이제 서로 달라야 함");
+    }
+
+    @Test
+    void motionBlockingHeightmap_countsFluidAsBlocking() {
+        ChunkColumn c = new ChunkColumn(6);
+        c.setBlock(0, ChunkColumn.MIN_Y, 0, 80); // water(유체)
+        assertEquals(ChunkColumn.MIN_Y, c.motionBlockingBlockY(0, 0),
+            "vanilla MOTION_BLOCKING = blocksMotion() || fluid — 유체도 바닥으로 세야 함");
+    }
+
+    @Test
+    void worldSurfaceHeightmap_packs9Bit() {
         ChunkColumn c = new ChunkColumn(6);
         c.setSurface(0, 0, 4); // (x=0,z=0) 표면 높이값 4
         long[] hm = c.worldSurfaceHeightmap();

@@ -33,10 +33,11 @@ public final class ChunkColumn {
     private static final int DEAD_BUSH_STATE = 2007;
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
-    private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음) — MOTION_BLOCKING류(항상 라이브)
+    private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음) — WORLD_SURFACE(!isAir, 항상 라이브)
     private final int[] surfaceWg = new int[256]; // WORLD_SURFACE_WG 미러 — carve 완료 시 얼어붙음(wgOceanFloor와 동일 패턴)
     private final int[] oceanFloor = new int[256];
     private final int[] wgOceanFloor = new int[256];
+    private final int[] motionBlocking = new int[256]; // vanilla MOTION_BLOCKING(blocksMotion || fluid) 전용, 항상 라이브
     private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
     private boolean dirty;
     // vanilla ChunkStatus: OCEAN_FLOOR_WG/WORLD_SURFACE_WG는 WORLDGEN_HEIGHTMAPS(EMPTY..SURFACE)에만 속하고
@@ -55,6 +56,7 @@ public final class ChunkColumn {
         }
         java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
         java.util.Arrays.fill(wgOceanFloor, UNSET_HEIGHT);
+        java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
     }
 
     public ChunkColumn(int biomeId, int directBits, int biomeDirectBits) {
@@ -64,6 +66,7 @@ public final class ChunkColumn {
         }
         java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
         java.util.Arrays.fill(wgOceanFloor, UNSET_HEIGHT);
+        java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
     }
 
     public ChunkSection[] sections() {
@@ -106,6 +109,7 @@ public final class ChunkColumn {
         int local = worldY - MIN_Y;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
+        motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         updateWgOceanFloor(x, worldY, z, stateId);
         updateSurface(x, worldY, z, stateId);
         updateSurfaceWg(x, worldY, z, stateId);
@@ -120,6 +124,7 @@ public final class ChunkColumn {
         int local = worldY - MIN_Y;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
+        motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
         cachedWorldSurfaceHeightmap = null;
@@ -165,6 +170,7 @@ public final class ChunkColumn {
         rebuildSurface(blockIds);
         System.arraycopy(oceanFloor, 0, wgOceanFloor, 0, oceanFloor.length);
         System.arraycopy(surface, 0, surfaceWg, 0, surface.length);
+        java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
         dirty = false;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
@@ -314,12 +320,41 @@ public final class ChunkColumn {
         return MIN_Y + value;
     }
 
+    /**
+     * vanilla MOTION_BLOCKING(blocksMotion() || fluid) 미러 — surface[](WORLD_SURFACE, !isAir)와 달리
+     * 유리·레일·토치·버튼·압력판 등 blocksMotion=false 블록은 바닥으로 세지 않는다(motionblocking-predicate task).
+     * oceanFloor[]와 동일한 "invalidate to UNSET_HEIGHT + lazy 전체 재스캔" 패턴 — 증분 갱신 로직 없이도
+     * setBlock/setGeneratedBlock/loadGenerated 시 무효화되면 다음 조회에서 항상 실제 블록 기준으로 재계산된다.
+     */
     public long[] motionBlockingHeightmap() {
         if (cachedMotionBlockingHeightmap != null) return cachedMotionBlockingHeightmap;
         BitStorage bs = new BitStorage(HEIGHTMAP_BITS, 256);
-        for (int i = 0; i < 256; i++) bs.set(i, surface[i]);
+        for (int i = 0; i < 256; i++) bs.set(i, motionBlockingHeightValue(i & 15, i >> 4));
         cachedMotionBlockingHeightmap = bs.data();
         return cachedMotionBlockingHeightmap;
+    }
+
+    public int motionBlockingBlockY(int x, int z) {
+        return MIN_Y + motionBlockingHeightValue(x, z) - 1;
+    }
+
+    private int motionBlockingHeightValue(int x, int z) {
+        int index = z * 16 + x;
+        int value = motionBlocking[index];
+        if (value == UNSET_HEIGHT) {
+            value = recomputeMotionBlockingHeight(x, z);
+            motionBlocking[index] = value;
+        }
+        return value;
+    }
+
+    private int recomputeMotionBlockingHeight(int x, int z) {
+        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
+            if (isMotionBlockingBlock(getBlock(x, y, z))) {
+                return (y - MIN_Y) + 1;
+            }
+        }
+        return 0;
     }
 
     /**
@@ -341,6 +376,69 @@ public final class ChunkColumn {
             }
         }
         return 0;
+    }
+
+    // MOTION_BLOCKING 전용 이름 분류에 쓰는 지연 로드 레지스트리(ChunkColumn은 생성자에 registry를 받지 않는
+    // 기존 설계라, 다른 곳들처럼 명시적 주입 대신 FurnaceMain과 동일 리소스를 1회 지연 로드해 재사용한다).
+    private static volatile BlockRegistry motionBlockingNameRegistry;
+
+    private static BlockRegistry motionBlockingNameRegistry() {
+        BlockRegistry r = motionBlockingNameRegistry;
+        if (r == null) {
+            r = BlockRegistry.load("blocks/1.21.1.txt");
+            motionBlockingNameRegistry = r;
+        }
+        return r;
+    }
+
+    /**
+     * vanilla MOTION_BLOCKING(blocksMotion() || fluid) 술어 — isOceanFloorBlock(blocksMotion 근사: 공기/유체/
+     * 식물 제외)에서 fluid를 다시 포함시키고, blocksMotion=false인 무충돌 장식 블록(레일·레드스톤류·버튼·
+     * 압력판·토치·표지판·현수막·사다리·덩굴 등, isNonMotionBlockingByName 참조)을 추가로 제외한다.
+     */
+    private static boolean isMotionBlockingBlock(int stateId) {
+        if (isFluid(stateId)) return true;
+        if (!isOceanFloorBlock(stateId)) return false;
+        return !isNonMotionBlockingByName(motionBlockingNameRegistry().nameOf(stateId));
+    }
+
+    /**
+     * 근사: vanilla BlockBehaviour::blocksMotion은 실제로는 콜리전 shape 부피(≥0.7291666)로 계산되는데,
+     * 이 저장소엔 블록별 콜리전 shape 데이터가 없다(motionblocking-predicate task 조사 결과) — 이름 기반으로
+     * "무충돌/얇은 장식" 블록을 화이트리스트해 blocksMotion=false로 근사한다. 범위: 레일류, 레드스톤 부품
+     * (와이어·리피터·컴퍼레이터·레버·트립와이어·버튼·압력판), 토치·랜턴·양초, 표지판·현수막, 사다리, 덩굴류
+     * (vine/lily_pad/sea_pickle/cobweb/end_rod), 새싹, 짧은/키큰 식물·꽃·버섯·작물류(짧은잔디/양치/죽은덤불은
+     * isLandPlant가 이미 처리). **커버 안 된 항목**(포인티드 드립스톤, 이끼 카펫 예외 케이스, 눈더미 높이별
+     * 콜리전, 스캐폴딩, 조각술 감지기 등)은 기존 동작대로 blocksMotion=true로 남는다 — 이번 조사에서 실측
+     * 확증하지 못해 회귀 위험 최소화 차원에서 손대지 않았다(surgical 원칙, 아래 result.md Issues 참조).
+     */
+    private static boolean isNonMotionBlockingByName(String name) {
+        String n = name.startsWith("minecraft:") ? name.substring("minecraft:".length()) : name;
+        if (n.endsWith("_rail") || n.equals("rail")) return true;
+        if (n.endsWith("_button")) return true;
+        if (n.endsWith("_pressure_plate")) return true;
+        if (n.endsWith("torch")) return true; // torch/wall_torch/redstone_torch/redstone_wall_torch/soul_torch/soul_wall_torch
+        if (n.endsWith("_sign")) return true; // 서있는/벽/현수 표지판 전부 "_sign"으로 끝남
+        if (n.endsWith("_banner")) return true;
+        if (n.endsWith("candle")) return true; // *_candle_cake는 "cake"로 끝나 매치 안 됨(별개 취급, 미확인)
+        if (n.endsWith("lantern")) return true;
+        if (n.endsWith("_sapling") || n.equals("sapling")) return true;
+        switch (n) {
+            case "redstone_wire", "repeater", "comparator", "lever", "tripwire", "tripwire_hook",
+                 "ladder", "vine", "lily_pad", "sea_pickle", "end_rod", "cobweb", "bamboo_sapling",
+                 "sugar_cane", "bamboo", "sweet_berry_bush",
+                 "wheat", "carrots", "potatoes", "beetroots", "nether_wart",
+                 "tall_grass", "large_fern", "sunflower", "lilac", "rose_bush", "peony",
+                 "brown_mushroom", "red_mushroom",
+                 "dandelion", "poppy", "blue_orchid", "allium", "azure_bluet",
+                 "red_tulip", "orange_tulip", "white_tulip", "pink_tulip",
+                 "oxeye_daisy", "cornflower", "lily_of_the_valley", "wither_rose" -> {
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
     }
 
     // vanilla OCEAN_FLOOR/OCEAN_FLOOR_WG의 isOpaque 술어는 BlockBehaviour::blocksMotion —
