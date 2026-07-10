@@ -1,4 +1,4 @@
-// ChunkColumn ↔ 표준 Anvil 청크 NBT. 팰릿 속성 무시(Name→default state id 근사).
+// ChunkColumn ↔ 표준 Anvil 청크 NBT. 팰릿 엔트리는 Name + Properties(비-default state만)로 정확히 왕복한다.
 package org.domi.furnace.server.world.anvil;
 
 import org.domi.furnace.server.entity.ItemStack;
@@ -124,9 +124,7 @@ public final class AnvilChunkCodec {
         }
         NbtList paletteList = new NbtList(NbtIo.TAG_COMPOUND);
         for (int stateId : palette) {
-            NbtCompound entry = new NbtCompound();
-            entry.putString("Name", registry.nameOf(stateId));
-            paletteList.add(entry);
+            paletteList.add(paletteEntryOf(stateId));
         }
         NbtCompound bs = new NbtCompound();
         bs.putList("palette", paletteList);
@@ -137,6 +135,30 @@ public final class AnvilChunkCodec {
             bs.putLongArray("data", store.data());
         }
         return bs;
+    }
+
+    // 팰릿 엔트리: canonical key(name 또는 name;k=v,...)를 Name + Properties(있으면)로 분해해 왕복 시 state 보존.
+    private NbtCompound paletteEntryOf(int stateId) {
+        NbtCompound entry = new NbtCompound();
+        String key = registry.canonicalKeyOf(stateId);
+        if (key == null) {
+            entry.putString("Name", registry.nameOf(stateId));
+            return entry;
+        }
+        int semi = key.indexOf(';');
+        if (semi < 0) {
+            entry.putString("Name", key);
+            return entry;
+        }
+        entry.putString("Name", key.substring(0, semi));
+        NbtCompound props = new NbtCompound();
+        for (String kv : key.substring(semi + 1).split(",")) {
+            int eq = kv.indexOf('=');
+            if (eq < 0) continue;
+            props.putString(kv.substring(0, eq), kv.substring(eq + 1));
+        }
+        entry.putCompound("Properties", props);
+        return entry;
     }
 
     public ChunkColumn fromNbt(NbtCompound root) {
@@ -199,7 +221,16 @@ public final class AnvilChunkCodec {
         int[] paletteIds = new int[paletteList.size()];
         for (int i = 0; i < paletteIds.length; i++) {
             NbtCompound entry = (NbtCompound) paletteList.get(i);
-            paletteIds[i] = registry.stateIdOrAir(entry.getString("Name"));
+            String name = entry.getString("Name");
+            if (entry.contains("Properties")) {
+                Map<String, String> props = new HashMap<>();
+                for (var e : entry.getCompound("Properties").tags().entrySet()) {
+                    props.put(e.getKey(), (String) e.getValue());
+                }
+                paletteIds[i] = registry.stateIdOrAir(name, props);
+            } else {
+                paletteIds[i] = registry.stateIdOrAir(name);
+            }
         }
         int baseY = ChunkColumn.MIN_Y + sectionIdx * 16;
         if (!bs.contains("data")) {

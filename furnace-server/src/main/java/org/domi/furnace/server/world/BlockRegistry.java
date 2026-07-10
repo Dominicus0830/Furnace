@@ -18,6 +18,7 @@ public final class BlockRegistry {
     private final int totalStateCount;
     private final Map<Integer, String> nameByDefaultId;
     private final Map<String, Integer> stateIds; // canonical key → exact global id (리소스 없으면 빈 맵)
+    private final Map<Integer, String> keyByAnyId; // exact global id → canonical key(name 또는 name;k=v,...). stateIds 없으면 빈 맵
 
     private BlockRegistry(Map<String, Integer> ids, int totalStateCount, Map<String, Integer> stateIds) {
         this.defaultStateIds = ids;
@@ -25,6 +26,8 @@ public final class BlockRegistry {
         this.nameByDefaultId = new HashMap<>();
         for (var e : ids.entrySet()) nameByDefaultId.put(e.getValue(), e.getKey());
         this.stateIds = stateIds;
+        this.keyByAnyId = new HashMap<>();
+        for (var e : stateIds.entrySet()) keyByAnyId.put(e.getValue(), e.getKey());
     }
 
     public static BlockRegistry load(String resourcePath) {
@@ -93,9 +96,19 @@ public final class BlockRegistry {
         return id;
     }
 
-    /** state id → 블록명. default state만 매핑(우리 블록셋 한정); 미지원 id는 air. */
+    /** state id → 블록명. exact blockstate 테이블 있으면 전체 state id 커버(props 제외); 없으면(back-compat) default state만. 미지원 id는 air. */
     public String nameOf(int stateId) {
+        String key = keyByAnyId.get(stateId);
+        if (key != null) {
+            int semi = key.indexOf(';');
+            return semi < 0 ? key : key.substring(0, semi);
+        }
         return nameByDefaultId.getOrDefault(stateId, "minecraft:air");
+    }
+
+    /** state id → canonical key(name 또는 name;k=v,...). exact blockstate 테이블 없거나 미지원 id면 null. */
+    public String canonicalKeyOf(int stateId) {
+        return keyByAnyId.get(stateId);
     }
 
     /** 블록명 → default state id. 미지원이면 air(0). */

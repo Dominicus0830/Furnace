@@ -48,9 +48,8 @@ class ChunkPipelinePersistenceParityTest {
         assertPersistedParity(seed, cx, cz, 0);
     }
 
-    // maxMismatch>0: AnvilChunkCodec 왕복 후 특정 블록이 air로 소실되는 기존 버그(이 task에서 최초 발견,
-    // Issues·Caveats 참조)를 회귀 없이 상한만 고정. 원인 규명·수정은 이 task 범위 밖(브리프 지시: 프로덕션 코드는
-    // 계측 최소한만, 미구현/버그 수정 금지).
+    // maxMismatch: 회귀 감지용 상한(0이면 exact). 현재 모든 호출부는 0(anvil-roundtrip-airloss task에서
+    // 왕복 후 air 소실 버그 수정 완료 — BlockRegistry.nameOf).
     private void assertPersistedParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
@@ -118,11 +117,9 @@ class ChunkPipelinePersistenceParityTest {
 
     // FeatureSpillParityTest에서 0 mismatch로 확인된 좌표만 사용 — 저장 왕복이 "이미 맞는" 생성 결과를
     // 깨뜨리는지만 격리해서 본다(생성 자체의 기존 gap과 섞이지 않도록).
-    /**
-     * (0,0): 왕복 후 22개 블록이 air로 소실(이 task에서 최초 발견, Issues·Caveats 참조 — 원인 미상, y분포에
-     * 뚜렷한 섹션 경계 규칙 없음). 0 mismatch를 assert하지 않고 실측치를 상한만 고정해 회귀만 방지한다.
-     */
-    @Test void persist_seed1234_coord1_improves() throws Exception { assertPersistedParity(1234L, 0, 0, 22); }
-    @Test void persist_seed1234_coord2_improves() throws Exception { assertPersistedParity(1234L, -5, 3, 31); }
-    @Test void persist_seed1234_coord3_improves() throws Exception { assertPersistedParity(1234L, 7, -2, 73); }
+    // 왕복 후 블록이 air로 소실되던 버그(BlockRegistry.nameOf가 non-default state id를 못 찾아 air로 폴백)를
+    // BlockRegistry.nameOf 수정으로 해결 — 0 mismatch로 승격(anvil-roundtrip-airloss task).
+    @Test void persist_seed1234_coord1_improves() throws Exception { assertPersistedParity(1234L, 0, 0); }
+    @Test void persist_seed1234_coord2_improves() throws Exception { assertPersistedParity(1234L, -5, 3); }
+    @Test void persist_seed1234_coord3_improves() throws Exception { assertPersistedParity(1234L, 7, -2); }
 }
