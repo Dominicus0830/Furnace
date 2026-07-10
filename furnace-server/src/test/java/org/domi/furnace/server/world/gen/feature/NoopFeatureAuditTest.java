@@ -1,0 +1,105 @@
+// configured_feature 전체를 스캔해 BiomeFeatureData.parseConfigured가 NoopFeature로 폴백하는 루트 타입이
+// 알려진 허용목록(KNOWN_UNIMPLEMENTED_TYPES) 밖으로 새로 생기지 않는지 감시한다.
+// (worldgen-gap-survey task에서 조사한 17종 미구현 타입 — coral_tree/huge_red_mushroom/monster_room 등)
+package org.domi.furnace.server.world.gen.feature;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.google.gson.JsonObject;
+import java.net.URI;
+import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Stream;
+import org.domi.furnace.server.world.gen.WorldgenData;
+import org.junit.jupiter.api.Test;
+
+class NoopFeatureAuditTest {
+
+    private static final String DIR = "worldgen/1.21.1/worldgen/configured_feature";
+
+    // survey(tasks/worldgen-gap-survey) 확인된 미구현 루트 타입. 이 목록 밖의 새 폴백은 fail.
+    private static final Set<String> KNOWN_UNIMPLEMENTED_TYPES = Set.of(
+        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom",
+        "minecraft:sea_pickle", "minecraft:root_system",
+        "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom",
+        "minecraft:chorus_plant", "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch",
+        "minecraft:nether_forest_vegetation", "minecraft:huge_fungus",
+        "minecraft:twisting_vines", "minecraft:weeping_vines", "minecraft:sculk_patch",
+        "minecraft:netherrack_replace_blobs", "minecraft:block_pile",
+        "minecraft:iceberg", "minecraft:fossil",
+        "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
+        "minecraft:glowstone_blob", "minecraft:dripstone_cluster", "minecraft:large_dripstone",
+        "minecraft:ice_spike", "minecraft:forest_rock", "minecraft:monster_room",
+        "minecraft:lake", "minecraft:desert_well", "minecraft:bonus_chest", "minecraft:blue_ice",
+        "minecraft:bamboo", "minecraft:block_column",
+        "minecraft:end_island", "minecraft:end_spike", "minecraft:end_platform", "minecraft:end_gateway",
+        // 이 audit(파일 스캔) 실행 중 신규 확인된 미구현 타입(survey 목록에 없었음) — 각각 vines.json(엔드 코러스
+        // 나무 옆 덩굴), void_start_platform.json(엔드 스폰 발판) 1개 파일뿐이라 영향 범위 작음.
+        "minecraft:vines", "minecraft:void_start_platform"
+    );
+
+    @Test
+    void allConfiguredFeatureFiles_fallbackTypesAreAllowlisted() throws Exception {
+        List<String> ids = listConfiguredFeatureIds();
+        assertFalse(ids.isEmpty(), "configured_feature 디렉토리에서 파일을 찾지 못함: " + DIR);
+
+        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        Map<String, String> newFallbacks = new TreeMap<>(); // id -> type, 리포트용(허용목록 밖)
+        Map<String, String> knownFallbacks = new TreeMap<>(); // id -> type, 리포트용(허용목록 안)
+
+        for (String id : ids) {
+            JsonObject json = data.configuredFeature(id);
+            String type = json.get("type").getAsString();
+            if (BiomeFeatureData.HANDLED_CONFIGURED_FEATURE_TYPES.contains(type)) continue;
+            if (KNOWN_UNIMPLEMENTED_TYPES.contains(type)) {
+                knownFallbacks.put(id, type);
+            } else {
+                newFallbacks.put(id, type);
+            }
+        }
+
+        System.out.println("NoopFeature 폴백 목록 (허용목록 안, " + knownFallbacks.size() + "건):");
+        knownFallbacks.forEach((id, type) -> System.out.println("  " + id + " (" + type + ")"));
+        System.out.println("NoopFeature 폴백 목록 (허용목록 밖, " + newFallbacks.size() + "건):");
+        newFallbacks.forEach((id, type) -> System.out.println("  " + id + " (" + type + ")"));
+
+        assertTrue(newFallbacks.isEmpty(),
+            "허용목록 밖의 새 NoopFeature 폴백 발견 — parseConfigured에 구현을 추가하거나, 의도된 것이면 " +
+            "NoopFeatureAuditTest.KNOWN_UNIMPLEMENTED_TYPES에 타입을 추가할 것: " + newFallbacks);
+    }
+
+    /** configured_feature/**.json 전체를 minecraft:<상대경로(확장자 제거)> id로 나열한다. */
+    private static List<String> listConfiguredFeatureIds() throws Exception {
+        URL dirUrl = NoopFeatureAuditTest.class.getClassLoader().getResource(DIR);
+        assertNotNull(dirUrl, "classpath에서 " + DIR + " 를 찾지 못함");
+        URI uri = dirUrl.toURI();
+        List<String> ids = new ArrayList<>();
+        if ("jar".equals(uri.getScheme())) {
+            try (FileSystem fs = FileSystems.newFileSystem(uri, Map.of())) {
+                collectIds(fs.getPath(DIR), ids);
+            }
+        } else {
+            collectIds(Path.of(uri), ids);
+        }
+        return ids;
+    }
+
+    private static void collectIds(Path root, List<String> ids) throws Exception {
+        try (Stream<Path> walk = Files.walk(root)) {
+            walk.filter(p -> p.toString().endsWith(".json")).forEach(p -> {
+                Path rel = root.relativize(p);
+                String relStr = rel.toString().replace('\\', '/').replace(".json", "");
+                ids.add("minecraft:" + relStr);
+            });
+        }
+    }
+}

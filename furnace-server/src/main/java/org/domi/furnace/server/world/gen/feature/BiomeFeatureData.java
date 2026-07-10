@@ -40,6 +40,16 @@ public final class BiomeFeatureData {
 
     public static final int STEP_COUNT = 11;
 
+    // parseConfigured가 실제로 처리하는 configured_feature 루트 타입 — NoopFeatureAuditTest가 참조한다.
+    // parseConfigured의 if-chain과 반드시 동기화(타입 추가/제거 시 여기도 갱신).
+    public static final Set<String> HANDLED_CONFIGURED_FEATURE_TYPES = Set.of(
+        "minecraft:ore", "minecraft:scattered_ore", "minecraft:spring_feature", "minecraft:disk",
+        "minecraft:random_patch", "minecraft:flower", "minecraft:simple_block", "minecraft:seagrass",
+        "minecraft:kelp", "minecraft:freeze_top_layer", "minecraft:geode", "minecraft:tree",
+        "minecraft:random_selector", "minecraft:random_boolean_selector", "minecraft:simple_random_selector",
+        "minecraft:underwater_magma", "minecraft:multiface_growth"
+    );
+
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
     private final Map<PlacedFeature, String> idByFeature; // identity → placed feature id (parity 검증용)
     private final IdentityHashMap<PlacedFeature, Set<Integer>> featureBiomeIds; // feature → biome ID set (biome filter용)
