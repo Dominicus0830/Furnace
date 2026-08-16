@@ -359,13 +359,15 @@ public final class NoiseWorldSource implements WorldSource {
             for (int originZ = chunkZ - 8; originZ <= chunkZ + 8; originZ++) {
                 org.domi.furnace.server.world.gen.carver.WorldCarver.ChunkPos originPos =
                     new org.domi.furnace.server.world.gen.carver.WorldCarver.ChunkPos(originX, originZ);
+                int carverIndex = 0;
                 for (OverworldCarvers.Entry entry : overworldCarvers.entries()) {
-                    worldgenRandom.setLargeFeatureSeed(this.seed, originX, originZ);
+                    worldgenRandom.setLargeFeatureSeed(this.seed + carverIndex, originX, originZ);
                     if (entry.carver().isStartChunk(entry.config(), worldgenRandom)) {
                         entry.carver().carve(col, entry.config(), chunkX, chunkZ,
                             settings, aquifer, reg, mask, worldgenRandom, originPos,
                             surfaceSystem, nc, surfaceYGrid);
                     }
+                    carverIndex++;
                 }
             }
         }

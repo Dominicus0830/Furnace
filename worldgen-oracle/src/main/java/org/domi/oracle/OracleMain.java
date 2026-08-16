@@ -1061,8 +1061,9 @@ public class OracleMain {
         for (int originX = cx - 8; originX <= cx + 8; originX++) {
             for (int originZ = cz - 8; originZ <= cz + 8; originZ++) {
                 ChunkPos originPos = new ChunkPos(originX, originZ);
+                int carverIndex = 0;
                 for (var carver : carvers) {
-                    worldgenRandom.setLargeFeatureSeed(seed, originX, originZ);
+                    worldgenRandom.setLargeFeatureSeed(seed + carverIndex, originX, originZ);
                     boolean starts = carver.isStartChunk(worldgenRandom);
                     if (originX == 0 && originZ == -1 && seed == 123456789L) {
                         System.out.printf("DBG_ORA origin(0,-1) carver=%s starts=%b%n",
@@ -1352,6 +1353,7 @@ public class OracleMain {
                             }
                         }
                     }
+                    carverIndex++;
                 }
             }
         }
@@ -1934,11 +1936,13 @@ public class OracleMain {
         for (int originX = cx - 8; originX <= cx + 8; originX++) {
             for (int originZ = cz - 8; originZ <= cz + 8; originZ++) {
                 ChunkPos originPos = new ChunkPos(originX, originZ);
+                int carverIndex = 0;
                 for (ConfiguredWorldCarver<?> carver : carvers) {
-                    worldgenRandom.setLargeFeatureSeed(seed, originX, originZ);
+                    worldgenRandom.setLargeFeatureSeed(seed + carverIndex, originX, originZ);
                     if (carver.isStartChunk(worldgenRandom)) {
                         carver.carve(carvingCtx, chunk, biomeAccessor, worldgenRandom, aquifer, originPos, carvingMask);
                     }
+                    carverIndex++;
                 }
             }
         }
