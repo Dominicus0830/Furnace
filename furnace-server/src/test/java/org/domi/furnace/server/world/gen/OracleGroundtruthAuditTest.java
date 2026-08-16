@@ -130,4 +130,18 @@ class OracleGroundtruthAuditTest {
     @Test void audit_seed1234_0_0() throws Exception { auditCoord(1234L, 0, 0); }
     @Test void audit_seed1234_m5_3() throws Exception { auditCoord(1234L, -5, 3); }
     @Test void audit_seed1234_7_m2() throws Exception { auditCoord(1234L, 7, -2); }
+
+    /**
+     * 임의 좌표 감사 — {@code -Dfurnace.oracle.audit.coords="<seed>:<cx>:<cz>,..."}.
+     * worldDir은 seed 하나에 대응하므로 한 번에 한 seed만 넘길 것.
+     */
+    @Test void audit_customCoords() throws Exception {
+        String coords = System.getProperty("furnace.oracle.audit.coords");
+        assumeTrue(coords != null && !coords.isBlank(), "furnace.oracle.audit.coords not set");
+        for (String spec : coords.split(",")) {
+            String[] p = spec.trim().split(":");
+            assertEquals(3, p.length, "coord spec must be seed:cx:cz but was: " + spec);
+            auditCoord(Long.parseLong(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]));
+        }
+    }
 }
