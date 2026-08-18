@@ -283,9 +283,11 @@ class FeaturePipelineParityTest {
         catch (Exception e) { return fallback; }
     }
 
-    @Test void feature_seed1234_coord1() throws Exception { assertFeatureParity(1234L, 0, 0, 700); }
-    @Test void feature_seed1234_coord2() throws Exception { assertFeatureParity(1234L, -5, 3, 3000); }
-    @Test void feature_seed1234_coord3() throws Exception { assertFeatureParity(1234L, 7, -2, 1200); }
+    // sweep-mca-migration(2026-08-17): parity 테스트 3건(1234의 (0,0)·(-5,3)·(7,-2), 상한 700/3000/1200)
+    // 삭제. 같은 좌표를 FeatureSpillParityTest가 순정 vanilla 실서버 .mca 기준으로 더 엄격하게 검증한다
+    // (상한 0/12/61). 여기 남은 테스트들은 oracle featurefull fixture를 읽는 **디버깅 보조**이지
+    // 정확성 게이트가 아니다 — oracle은 feature 단계에서 실서버와 발산하는 것이 확정됐다
+    // (tasks/oracle-farcoord-divergence).
 
     /** Furnace step 6 feature 순서가 oracle feature_order.txt와 일치하는지 검증. */
     @Test void verifyStep6FeatureOrder() throws Exception {

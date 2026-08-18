@@ -1,18 +1,18 @@
-// 광역 스윕 parity 테스트 — seed·중심·반경으로 N×N 청크를 oracle featurefull fixture와 일괄 대조한다.
+// 광역 스윕 parity 테스트 — seed·중심·반경으로 N×N 청크를 순정 vanilla 실서버 .mca 기준 fixture와 일괄 대조한다.
 //
 // 기존 파리티 테스트는 청크 10개 안팎만 검증해, birch 나무·연못·버섯처럼 fixture에 없는 좌표의 회귀를
 // 사용자 육안(실서버)이 먼저 발견하는 일이 있었다(task parity-verification-infra 배경). 이 테스트는 그
 // 갭을 메우려는 광역 회귀 그물이며, 기본 suite에는 포함되지 않는다(opt-in, -Dfurnace.sweep=true 필요) —
 // 289청크(반경 8) 기준 oracle 배치 실행에만 4~5분이 걸려 기본 suite 시간을 폭증시키기 때문이다.
 //
-// featurefull fixture는 center origin만 decorate하는 "반쪽 의미"라 청크 경계 spill 잔차가 항상 섞여
-// 나온다(FeatureSpillParityTest가 별도로 담당) — 이 테스트는 그 잔차를 포함한 채로 청크별 mismatch 총량을
-// baseline과 비교해 "새로운 대형 회귀"만 잡는다. mismatch를 0으로 만드는 것은 이 테스트의 목표가 아니다
-// (brief 지시: 발견해도 고치지 말고 분해·기록만).
+// sweep-mca-migration(2026-08-17): 정답지를 oracle featurefull → 순정 vanilla 실서버 .mca featurespill로
+// 전환했다. 이전에는 spill 완료된 Furnace 출력(generateWithFeatures)을 center-only decorate인 featurefull
+// fixture와 비교해 의미론이 어긋나 있었고, 그 잔차가 baseline(청크당 1000~3800)에 그대로 박혀 있었다.
+// 이제 양쪽 의미론이 일치하므로 baseline은 실제 발산만 담는다.
 //
 // 사용자용 실행법(oracle 배치 먼저 실행 → fixture 생성, 그 다음 테스트):
-//   ./gradlew :worldgen-oracle:run --args="51532 featurefull:-8:-8 featurefull:-7:-8 ... featurefull:8:8"
-//     (cx,cz 각각 -radius..radius 전체 조합, 기본 seed=51532 cx=0 cz=0 radius=8 → 17x17=289개)
+//   순정 vanilla 서버로 월드 생성(generate-structures=false + /tick freeze) 후
+//   FeatureSpillFixtureGenTool로 fixture 생성 — tasks/sweep-mca-migration 참조
 //   ./gradlew :furnace-server:test --tests "*ChunkSweepParityTest*" -Dfurnace.sweep=true
 //   (다른 seed/중심/반경: -Dfurnace.sweep.seed=<seed> -Dfurnace.sweep.cx=<cx> -Dfurnace.sweep.cz=<cz> -Dfurnace.sweep.radius=<r>)
 package org.domi.furnace.server.world.gen;
@@ -37,7 +37,10 @@ class ChunkSweepParityTest {
 
     private static final int MIN_Y             = -64;
     private static final int HEIGHT             = 384;
-    private static final int FEATUREFULL_MAGIC  = 0x46464C42;
+    private static final int FEATURESPILL_MAGIC = 0x46534C42;
+
+    /** true면 baseline 비교 대신 실측치를 put 문 형태로 출력한다(-Dfurnace.sweep.recompute=true). */
+    private static final boolean RECOMPUTE_BASELINE = Boolean.getBoolean("furnace.sweep.recompute");
 
     private record ChunkResult(int cx, int cz, int mismatch, boolean fixtureFound, List<String> samples) {}
 
@@ -74,12 +77,17 @@ class ChunkSweepParityTest {
             results.stream().mapToInt(ChunkResult::mismatch).sum());
 
         assertEquals(0, missingFixtures,
-            "fixture 누락 " + missingFixtures + "건 — oracle featurefull 배치를 먼저 실행할 것 (클래스 헤더 실행법 참조)");
+            "fixture 누락 " + missingFixtures + "건 — 실서버 월드 생성 + FeatureSpillFixtureGenTool을 먼저 실행할 것 (클래스 헤더 참조)");
 
         // baseline: 반경 8, seed 51532, center(0,0) 실측(2026-07-06). 다른 파라미터로 실행 시 baseline이 없어
         // 회귀 감지 없이 리포트만 출력한다(정보성) — 새 기본 파라미터로 baseline을 갱신하려면 SWEEP_BASELINE_51532_0_0을
         // 직접 갱신할 것.
-        if (seed == 51532L && centerX == 0 && centerZ == 0 && radius == 8) {
+        if (RECOMPUTE_BASELINE) {
+            System.out.println("=== BASELINE_RECOMPUTE (put 문 생성용) ===");
+            for (ChunkResult r : results) {
+                System.out.printf("put(%d,%d,%d);%n", r.cx(), r.cz(), r.mismatch());
+            }
+        } else if (seed == 51532L && centerX == 0 && centerZ == 0 && radius == 8) {
             for (ChunkResult r : results) {
                 Integer baseline = SWEEP_BASELINE_51532_0_0.get(key(r.cx(), r.cz()));
                 assertNotNull(baseline, "baseline 없음: (" + r.cx() + "," + r.cz() + ") — SWEEP_BASELINE_51532_0_0 갱신 필요");
@@ -93,14 +101,14 @@ class ChunkSweepParityTest {
 
     private ChunkResult compareChunk(NoiseWorldSource source, BlockRegistry reg,
             Map<Integer, String> oracleIdToName, long seed, int cx, int cz) throws Exception {
-        String fixtureName = "/worldgen/fixtures/featurefull_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = ChunkSweepParityTest.class.getResourceAsStream(fixtureName)) {
             if (in == null) return new ChunkResult(cx, cz, 0, false, List.of());
             fx = in.readAllBytes();
         }
         ByteBuffer header = ByteBuffer.wrap(fx, 0, 20).order(ByteOrder.LITTLE_ENDIAN);
-        assertEquals(FEATUREFULL_MAGIC, header.getInt(), "magic mismatch cx=" + cx + " cz=" + cz);
+        assertEquals(FEATURESPILL_MAGIC, header.getInt(), "magic mismatch cx=" + cx + " cz=" + cz);
 
         ChunkColumn col = source.generateWithFeatures(cx, cz);
 
@@ -183,47 +191,51 @@ class ChunkSweepParityTest {
         catch (Exception e) { return fallback; }
     }
 
-    // seed=51532 center=(0,0) radius=8 실측 baseline(2026-08-16 재실측, carver seed+i3 오프셋 수정 후,
-    // 289청크 전체). featurefull은 center-only decorate라 청크 경계 spill 잔차가 항상 섞여 나온다(클래스
-    // 헤더 참조) — 이 값은 "정답(0)"이 아니라 현재 실측치를 그대로 상한으로 고정한 회귀 감지선이다
-    // (FeatureSpillParityTest의 border-tree 패턴과 동일). carver seed 오프셋 수정으로 carve 결과 자체가
-    // 달라져 이전 baseline(2026-07-06)은 더 이상 유효하지 않다 — carver-seed-offset 태스크 참조.
+    // seed=51532 center=(0,0) radius=8 실측 baseline — sweep-mca-migration(2026-08-17)에서 순정 vanilla
+    // 실서버 .mca 기준으로 재산출. 이전 값(총 516,471)은 spill 완료 출력을 center-only featurefull과
+    // 비교한 의미론 불일치 잔차가 대부분이었고, 정답지 교체 후 총 46,789로 떨어졌다(-91%).
+    // 청크당 평균 161.9 / 중앙값 51 / 최대 1,285 / 0인 청크 26개 (98,304 blocks 기준 평균 0.16%).
+    // 이 값들은 "정답(0)"이 아니라 현재 실측치를 상한으로 고정한 회귀 감지선이다.
+    // 갱신하려면 -Dfurnace.sweep.recompute=true 로 실행해 출력된 put 문으로 교체할 것.
     private static final Map<Long, Integer> SWEEP_BASELINE_51532_0_0 = new TreeMap<>();
     private static void put(int cx, int cz, int v) { SWEEP_BASELINE_51532_0_0.put(key(cx, cz), v); }
     static {
-        put(-8,-8,1285); put(-7,-8,2168); put(-6,-8,1295); put(-5,-8,1132); put(-4,-8,926); put(-3,-8,1812); put(-2,-8,2517); put(-1,-8,2132);
-        put(0,-8,954); put(1,-8,1970); put(2,-8,2155); put(3,-8,3530); put(4,-8,1130); put(5,-8,1170); put(6,-8,2038); put(7,-8,1400); put(8,-8,1362);
-        put(-8,-7,1174); put(-7,-7,2082); put(-6,-7,1753); put(-5,-7,1369); put(-4,-7,2681); put(-3,-7,1051); put(-2,-7,1455); put(-1,-7,2762);
-        put(0,-7,1132); put(1,-7,1799); put(2,-7,2103); put(3,-7,1896); put(4,-7,1028); put(5,-7,2853); put(6,-7,2818); put(7,-7,1134); put(8,-7,1801);
-        put(-8,-6,1584); put(-7,-6,1152); put(-6,-6,1500); put(-5,-6,2661); put(-4,-6,3427); put(-3,-6,1433); put(-2,-6,2004); put(-1,-6,1437);
-        put(0,-6,1892); put(1,-6,2323); put(2,-6,1430); put(3,-6,2200); put(4,-6,1379); put(5,-6,1599); put(6,-6,1555); put(7,-6,1615); put(8,-6,1599);
-        put(-8,-5,1695); put(-7,-5,2347); put(-6,-5,1980); put(-5,-5,2217); put(-4,-5,1184); put(-3,-5,1639); put(-2,-5,2270); put(-1,-5,2013);
-        put(0,-5,1708); put(1,-5,2673); put(2,-5,1925); put(3,-5,2312); put(4,-5,2530); put(5,-5,2584); put(6,-5,910); put(7,-5,1054); put(8,-5,1562);
-        put(-8,-4,2219); put(-7,-4,1661); put(-6,-4,1761); put(-5,-4,1749); put(-4,-4,1004); put(-3,-4,648); put(-2,-4,669); put(-1,-4,1177);
-        put(0,-4,1258); put(1,-4,1313); put(2,-4,1756); put(3,-4,1005); put(4,-4,1996); put(5,-4,1791); put(6,-4,2171); put(7,-4,1936); put(8,-4,1643);
-        put(-8,-3,1153); put(-7,-3,1675); put(-6,-3,1804); put(-5,-3,2458); put(-4,-3,2154); put(-3,-3,2454); put(-2,-3,1996); put(-1,-3,1786);
-        put(0,-3,1275); put(1,-3,1198); put(2,-3,1346); put(3,-3,2048); put(4,-3,3042); put(5,-3,1799); put(6,-3,1774); put(7,-3,1454); put(8,-3,2844);
-        put(-8,-2,1259); put(-7,-2,1927); put(-6,-2,1094); put(-5,-2,1534); put(-4,-2,1759); put(-3,-2,1953); put(-2,-2,1450); put(-1,-2,987);
-        put(0,-2,2036); put(1,-2,1875); put(2,-2,2343); put(3,-2,1907); put(4,-2,1692); put(5,-2,2493); put(6,-2,1463); put(7,-2,1853); put(8,-2,1268);
-        put(-8,-1,2115); put(-7,-1,1349); put(-6,-1,2391); put(-5,-1,1318); put(-4,-1,1449); put(-3,-1,783); put(-2,-1,784); put(-1,-1,878);
-        put(0,-1,1920); put(1,-1,1718); put(2,-1,1454); put(3,-1,1994); put(4,-1,1629); put(5,-1,2116); put(6,-1,2169); put(7,-1,1883); put(8,-1,918);
-        put(-8,0,2170); put(-7,0,930); put(-6,0,1852); put(-5,0,1998); put(-4,0,1672); put(-3,0,2630); put(-2,0,1480); put(-1,0,2362);
-        put(0,0,3394); put(1,0,2328); put(2,0,1865); put(3,0,2277); put(4,0,2598); put(5,0,2670); put(6,0,2365); put(7,0,2071); put(8,0,1103);
-        put(-8,1,1248); put(-7,1,2008); put(-6,1,1014); put(-5,1,1070); put(-4,1,1210); put(-3,1,1983); put(-2,1,2054); put(-1,1,1447);
-        put(0,1,1334); put(1,1,1640); put(2,1,1778); put(3,1,3815); put(4,1,2314); put(5,1,1498); put(6,1,1388); put(7,1,1732); put(8,1,1377);
-        put(-8,2,1425); put(-7,2,2438); put(-6,2,1644); put(-5,2,1497); put(-4,2,2125); put(-3,2,1727); put(-2,2,2165); put(-1,2,937);
-        put(0,2,1507); put(1,2,1471); put(2,2,2587); put(3,2,2524); put(4,2,2118); put(5,2,1060); put(6,2,2162); put(7,2,2485); put(8,2,1577);
-        put(-8,3,1769); put(-7,3,3003); put(-6,3,1553); put(-5,3,913); put(-4,3,1874); put(-3,3,1077); put(-2,3,1479); put(-1,3,1667);
-        put(0,3,865); put(1,3,1392); put(2,3,2012); put(3,3,1391); put(4,3,2334); put(5,3,1581); put(6,3,1530); put(7,3,2508); put(8,3,2150);
-        put(-8,4,910); put(-7,4,1967); put(-6,4,1855); put(-5,4,1730); put(-4,4,2286); put(-3,4,1168); put(-2,4,828); put(-1,4,1480);
-        put(0,4,2337); put(1,4,1346); put(2,4,1665); put(3,4,1232); put(4,4,1494); put(5,4,2078); put(6,4,1032); put(7,4,1850); put(8,4,1947);
-        put(-8,5,2031); put(-7,5,1802); put(-6,5,1387); put(-5,5,2508); put(-4,5,1921); put(-3,5,1389); put(-2,5,1616); put(-1,5,1546);
-        put(0,5,1326); put(1,5,2939); put(2,5,2454); put(3,5,1590); put(4,5,1345); put(5,5,1129); put(6,5,891); put(7,5,1732); put(8,5,1537);
-        put(-8,6,1891); put(-7,6,2795); put(-6,6,2290); put(-5,6,1791); put(-4,6,2003); put(-3,6,1840); put(-2,6,1651); put(-1,6,1262);
-        put(0,6,1905); put(1,6,1851); put(2,6,1798); put(3,6,2158); put(4,6,1324); put(5,6,1343); put(6,6,1945); put(7,6,2537); put(8,6,1730);
-        put(-8,7,1575); put(-7,7,1692); put(-6,7,1603); put(-5,7,2608); put(-4,7,894); put(-3,7,1098); put(-2,7,2532); put(-1,7,1030);
-        put(0,7,2101); put(1,7,1529); put(2,7,2025); put(3,7,1720); put(4,7,1057); put(5,7,2005); put(6,7,1163); put(7,7,2031); put(8,7,1884);
-        put(-8,8,858); put(-7,8,2119); put(-6,8,1659); put(-5,8,1904); put(-4,8,1731); put(-3,8,2798); put(-2,8,2451); put(-1,8,1746);
-        put(0,8,1134); put(1,8,2378); put(2,8,2844); put(3,8,1331); put(4,8,1518); put(5,8,1772); put(6,8,2084); put(7,8,1800); put(8,8,1099);
+        put(-8,-8,552); put(-7,-8,126); put(-6,-8,94); put(-5,-8,39); put(-4,-8,24); put(-3,-8,233); put(-2,-8,30); put(-1,-8,7);
+        put(0,-8,1); put(1,-8,231); put(2,-8,40); put(3,-8,59); put(4,-8,17); put(5,-8,20); put(6,-8,7); put(7,-8,74);
+        put(8,-8,230); put(-8,-7,6); put(-7,-7,85); put(-6,-7,99); put(-5,-7,433); put(-4,-7,479); put(-3,-7,332); put(-2,-7,89);
+        put(-1,-7,13); put(0,-7,9); put(1,-7,494); put(2,-7,7); put(3,-7,80); put(4,-7,25); put(5,-7,14); put(6,-7,48);
+        put(7,-7,90); put(8,-7,93); put(-8,-6,7); put(-7,-6,6); put(-6,-6,27); put(-5,-6,774); put(-4,-6,639); put(-3,-6,102);
+        put(-2,-6,716); put(-1,-6,402); put(0,-6,25); put(1,-6,224); put(2,-6,854); put(3,-6,501); put(4,-6,1); put(5,-6,0);
+        put(6,-6,51); put(7,-6,286); put(8,-6,85); put(-8,-5,86); put(-7,-5,285); put(-6,-5,152); put(-5,-5,359); put(-4,-5,72);
+        put(-3,-5,11); put(-2,-5,153); put(-1,-5,119); put(0,-5,9); put(1,-5,245); put(2,-5,806); put(3,-5,358); put(4,-5,145);
+        put(5,-5,21); put(6,-5,14); put(7,-5,15); put(8,-5,6); put(-8,-4,33); put(-7,-4,9); put(-6,-4,14); put(-5,-4,520);
+        put(-4,-4,852); put(-3,-4,179); put(-2,-4,0); put(-1,-4,168); put(0,-4,193); put(1,-4,381); put(2,-4,121); put(3,-4,107);
+        put(4,-4,362); put(5,-4,444); put(6,-4,33); put(7,-4,28); put(8,-4,0); put(-8,-3,8); put(-7,-3,3); put(-6,-3,11);
+        put(-5,-3,114); put(-4,-3,153); put(-3,-3,426); put(-2,-3,660); put(-1,-3,388); put(0,-3,153); put(1,-3,4); put(2,-3,13);
+        put(3,-3,87); put(4,-3,9); put(5,-3,1); put(6,-3,79); put(7,-3,0); put(8,-3,15); put(-8,-2,0); put(-7,-2,14);
+        put(-6,-2,15); put(-5,-2,21); put(-4,-2,113); put(-3,-2,39); put(-2,-2,1285); put(-1,-2,778); put(0,-2,713); put(1,-2,360);
+        put(2,-2,291); put(3,-2,179); put(4,-2,749); put(5,-2,1117); put(6,-2,0); put(7,-2,30); put(8,-2,0); put(-8,-1,0);
+        put(-7,-1,67); put(-6,-1,0); put(-5,-1,23); put(-4,-1,7); put(-3,-1,17); put(-2,-1,534); put(-1,-1,324); put(0,-1,484);
+        put(1,-1,392); put(2,-1,324); put(3,-1,702); put(4,-1,58); put(5,-1,2); put(6,-1,6); put(7,-1,522); put(8,-1,57);
+        put(-8,0,4); put(-7,0,5); put(-6,0,9); put(-5,0,363); put(-4,0,257); put(-3,0,420); put(-2,0,853); put(-1,0,643);
+        put(0,0,234); put(1,0,315); put(2,0,409); put(3,0,10); put(4,0,17); put(5,0,2); put(6,0,207); put(7,0,657);
+        put(8,0,168); put(-8,1,4); put(-7,1,2); put(-6,1,18); put(-5,1,75); put(-4,1,64); put(-3,1,273); put(-2,1,373);
+        put(-1,1,307); put(0,1,232); put(1,1,231); put(2,1,225); put(3,1,798); put(4,1,937); put(5,1,98); put(6,1,12);
+        put(7,1,63); put(8,1,69); put(-8,2,39); put(-7,2,16); put(-6,2,21); put(-5,2,317); put(-4,2,45); put(-3,2,65);
+        put(-2,2,553); put(-1,2,394); put(0,2,254); put(1,2,307); put(2,2,260); put(3,2,42); put(4,2,25); put(5,2,486);
+        put(6,2,25); put(7,2,0); put(8,2,22); put(-8,3,53); put(-7,3,135); put(-6,3,60); put(-5,3,387); put(-4,3,117);
+        put(-3,3,28); put(-2,3,7); put(-1,3,5); put(0,3,74); put(1,3,0); put(2,3,0); put(3,3,0); put(4,3,6);
+        put(5,3,171); put(6,3,49); put(7,3,584); put(8,3,38); put(-8,4,26); put(-7,4,0); put(-6,4,8); put(-5,4,318);
+        put(-4,4,431); put(-3,4,22); put(-2,4,119); put(-1,4,139); put(0,4,180); put(1,4,3); put(2,4,41); put(3,4,25);
+        put(4,4,200); put(5,4,35); put(6,4,3); put(7,4,207); put(8,4,32); put(-8,5,51); put(-7,5,23); put(-6,5,68);
+        put(-5,5,17); put(-4,5,602); put(-3,5,117); put(-2,5,13); put(-1,5,0); put(0,5,133); put(1,5,0); put(2,5,482);
+        put(3,5,15); put(4,5,126); put(5,5,0); put(6,5,1); put(7,5,54); put(8,5,412); put(-8,6,21); put(-7,6,50);
+        put(-6,6,150); put(-5,6,49); put(-4,6,529); put(-3,6,37); put(-2,6,11); put(-1,6,0); put(0,6,0); put(1,6,0);
+        put(2,6,8); put(3,6,16); put(4,6,3); put(5,6,2); put(6,6,0); put(7,6,8); put(8,6,231); put(-8,7,0);
+        put(-7,7,12); put(-6,7,2); put(-5,7,69); put(-4,7,387); put(-3,7,21); put(-2,7,172); put(-1,7,118); put(0,7,0);
+        put(1,7,6); put(2,7,1); put(3,7,0); put(4,7,1); put(5,7,0); put(6,7,20); put(7,7,22); put(8,7,4);
+        put(-8,8,333); put(-7,8,51); put(-6,8,47); put(-5,8,21); put(-4,8,9); put(-3,8,132); put(-2,8,95); put(-1,8,63);
+        put(0,8,47); put(1,8,25); put(2,8,20); put(3,8,29); put(4,8,0); put(5,8,22); put(6,8,460); put(7,8,102);
+        put(8,8,14);
     }
 }

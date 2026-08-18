@@ -213,9 +213,17 @@ class FeatureSpillParityTest {
      * decoration 이전에 얼어붙어 이 자기간섭이 없다).
      */
     // mca-groundtruth-migration(2026-08-17): 위 root cause 확정은 전부 oracle fixture 기준. 실서버 .mca
-    // 기준 재측정 36 mismatch — 원인 미조사(backlog).
+    // 기준 재측정 102 mismatch — 원인 미조사(backlog).
+    //
+    // sweep-mca-migration(2026-08-17) 주의: 같은 seed·같은 설정이라도 실서버 월드를 **다른 forceload
+    // 범위로 재생성하면** 이 좌표의 정답지가 114블록 달라진다(실측). 차이는 청크 경계(74/114, lz 0~3
+    // 집중)의 ore blob 종류 교체(granite/diorite -> andesite)와 경계 나무 잎이다.
+    // 원인: 이웃 청크 feature는 writeRadius=1로 서로 겹쳐 쓰고, 겹친 위치의 최종 값은 어느 청크가 먼저
+    // decorate 되는지에 달린다. 실서버는 그 순서가 생성 순서에 따라 달라지고 Furnace는 9-origin 고정
+    // 순서라 결정적이다. 즉 이 방법의 노이즈 바닥이 청크당 ~100블록(0.1%)이며 그 아래를 쫓는 것은
+    // 의미가 없다. fixture는 seed당 한 월드에서 일괄 생성해 내부 일관성을 유지할 것.
     @Test void spill_seed51532_m3_m6_pondEdgeRegrass_improves() throws Exception {
-        assertSpillParity(51532L, -3, -6, 36);
+        assertSpillParity(51532L, -3, -6, 102);
     }
 
     /**
