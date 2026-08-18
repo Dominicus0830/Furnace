@@ -1036,8 +1036,16 @@ public class OracleMain {
             new net.minecraft.world.level.levelgen.WorldgenRandom(
                 new net.minecraft.world.level.levelgen.LegacyRandomSource(0L));
 
+        // vanilla NoiseBasedChunkGenerator.applyCarvers: carve()에 넘기는 biomeAccessor는
+        // y=0 고정이 아니라 BiomeManager(fiddled-distance smoothing)를 통한 실제 3D 위치 기반 조회다.
+        // (carver.carve의 biomeGenerationSettings 결정용 y=0 샘플과는 별개 — 그건 어떤 carver 목록을 쓸지
+        // 고르는 용도라 y=0이 맞고, 여기 carve() 인자용은 위치별 실제 biome이어야 한다.)
+        net.minecraft.world.level.biome.BiomeManager carveBiomeManager = new net.minecraft.world.level.biome.BiomeManager(
+            (x, y, z) -> biomeSource.getNoiseBiome(x, y, z, randomState.sampler()),
+            net.minecraft.world.level.biome.BiomeManager.obfuscateSeed(seed)
+        );
         java.util.function.Function<net.minecraft.core.BlockPos, net.minecraft.core.Holder<Biome>> biomeAccessor =
-            pos -> biomeSource.getNoiseBiome(pos.getX() >> 2, 0, pos.getZ() >> 2, randomState.sampler());
+            carveBiomeManager::getBiome;
 
         // Track who carves (0, 2, 12) for seed=0; (13, 18, 8) for seed=123456789
         net.minecraft.core.BlockPos trackPos = (seed == 0 && cx == 0 && cz == 0)
@@ -1930,8 +1938,14 @@ public class OracleMain {
             chunk.getOrCreateCarvingMask(GenerationStep.Carving.AIR);
         WorldgenRandom worldgenRandom = new WorldgenRandom(
             new net.minecraft.world.level.levelgen.LegacyRandomSource(0L));
+        // vanilla NoiseBasedChunkGenerator.applyCarvers와 동일 — carve()의 biomeAccessor는 y=0 고정이 아니라
+        // BiomeManager(fiddled-distance smoothing) 기반 실제 3D 위치 조회여야 한다.
+        BiomeManager carveBiomeManager = new BiomeManager(
+            (x, y, z) -> biomeSource.getNoiseBiome(x, y, z, randomState.sampler()),
+            BiomeManager.obfuscateSeed(seed)
+        );
         java.util.function.Function<net.minecraft.core.BlockPos, Holder<Biome>> biomeAccessor =
-            pos -> biomeSource.getNoiseBiome(pos.getX() >> 2, 0, pos.getZ() >> 2, randomState.sampler());
+            carveBiomeManager::getBiome;
 
         for (int originX = cx - 8; originX <= cx + 8; originX++) {
             for (int originZ = cz - 8; originZ <= cz + 8; originZ++) {
