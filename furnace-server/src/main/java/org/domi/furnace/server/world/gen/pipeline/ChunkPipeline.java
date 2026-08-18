@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.gen.structure.BoundingBox;
 import org.domi.furnace.server.world.gen.structure.StructureStart;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,27 +24,57 @@ public final class ChunkPipeline {
     // decoration에 필요한 5x5 grid 반경(±2) — 안쪽 3x3 origin 각각 자신의 3x3 view를 가지려면 필요.
     private static final int GRID_RADIUS = 2;
     private static final int GRID_SIZE = 2 * GRID_RADIUS + 1;
+    // pristine(CARVERS 상태, 장식 이전) 캐시 크기 — bounded 필수. 서빙 패턴은 5x5 grid(25칸)가 1칸씩
+    // 이동하므로 20개가 겹친다; 128이면 그 작업 집합 + 여러 동시 generateFull 호출의 여유분까지 충분히 커버한다.
+    private static final int PRISTINE_CACHE_SIZE = 128;
 
     private final NoiseWorldSource source;
     private final ForkJoinPool genPool;
+    // decoration이 col을 변형하므로 여기 캐시된 값은 절대 그대로 넘기지 않고 항상 copy()해서 쓴다(toStructureStarts 참조).
+    // synchronized LinkedHashMap(accessOrder=true) + removeEldestEntry로 단순 LRU — 동시성 정확성만 필요, 정교함 불필요.
+    private final LinkedHashMap<Long, CompletableFuture<PristineChunk>> pristineCache =
+        new LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, CompletableFuture<PristineChunk>> eldest) {
+                return size() > PRISTINE_CACHE_SIZE;
+            }
+        };
 
     public ChunkPipeline(NoiseWorldSource source) {
         this.source = source;
         this.genPool = new ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors()));
     }
 
+    private static long chunkKey(int cx, int cz) {
+        return (((long) cx) << 32) ^ (cz & 0xFFFFFFFFL);
+    }
+
+    private CompletableFuture<PristineChunk> pristineFor(int cx, int cz) {
+        long key = chunkKey(cx, cz);
+        synchronized (pristineCache) {
+            CompletableFuture<PristineChunk> existing = pristineCache.get(key);
+            if (existing != null) return existing;
+            CompletableFuture<PristineChunk> future = CompletableFuture.supplyAsync(() -> {
+                ChunkColumn col = source.generate(cx, cz);
+                int[] biomeIds = source.sampleBiomes(cx, cz);
+                source.applyCarvers(col, cx, cz);
+                List<StructureStart> starts = source.applyStructureStarts(cx, cz);
+                return new PristineChunk(col, biomeIds, starts);
+            }, genPool);
+            pristineCache.put(key, future);
+            return future;
+        }
+    }
+
     private CompletableFuture<ProtoColumn> toStructureStarts(int cx, int cz) {
-        return CompletableFuture.supplyAsync(() -> {
+        return pristineFor(cx, cz).thenApply(pristine -> {
             ProtoColumn proto = new ProtoColumn(cx, cz);
-            proto.col = source.generate(cx, cz);
-            proto.biomeIds = source.sampleBiomes(cx, cz);
-            proto.status = GenStatus.SURFACE;
-            source.applyCarvers(proto.col, cx, cz);
-            proto.status = GenStatus.CARVERS;
-            proto.starts = source.applyStructureStarts(cx, cz);
+            proto.col = pristine.col().copy();
+            proto.biomeIds = pristine.biomeIds();
+            proto.starts = pristine.starts();
             proto.status = GenStatus.STRUCTURE_STARTS;
             return proto;
-        }, genPool);
+        });
     }
 
     private int gridIndex(int dx, int dz) {

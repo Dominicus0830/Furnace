@@ -69,6 +69,28 @@ public final class ChunkColumn {
         java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
     }
 
+    private ChunkColumn() {}
+
+    /**
+     * 독립된 상태를 가진 깊은 복사본(ChunkPipeline pristine 캐시용 — CARVERS 상태를 캐시해두고 매 요청마다
+     * 이 메서드로 복사해서 쓴다, decoration이 원본을 변형하지 않도록). 클래스 필드 전수 포함 —
+     * sections(블록+바이옴), heightmap 5종, freeze 플래그, blockEntities, dirty. cached* 필드는 이 시점에
+     * 항상 null이므로(decoration 전에는 조회된 적 없음) 복사하지 않고 null로 둔다(최초 조회 시 재계산, 기존과 동일 동작).
+     */
+    public ChunkColumn copy() {
+        ChunkColumn c = new ChunkColumn();
+        for (int i = 0; i < SECTION_COUNT; i++) c.sections[i] = sections[i].copy();
+        System.arraycopy(surface, 0, c.surface, 0, surface.length);
+        System.arraycopy(surfaceWg, 0, c.surfaceWg, 0, surfaceWg.length);
+        System.arraycopy(oceanFloor, 0, c.oceanFloor, 0, oceanFloor.length);
+        System.arraycopy(wgOceanFloor, 0, c.wgOceanFloor, 0, wgOceanFloor.length);
+        System.arraycopy(motionBlocking, 0, c.motionBlocking, 0, motionBlocking.length);
+        c.blockEntities.putAll(blockEntities);
+        c.dirty = dirty;
+        c.wgHeightmapsFrozen = wgHeightmapsFrozen;
+        return c;
+    }
+
     public ChunkSection[] sections() {
         return sections;
     }

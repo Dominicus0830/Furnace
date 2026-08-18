@@ -21,6 +21,18 @@ public final class ChunkSection {
         this.biomes = new PaletteStorage(64, 1, 3, biomeDirectBits, 0);
     }
 
+    private ChunkSection(PaletteStorage blocks, PaletteStorage biomes, short nonAirCount, int[] scratch) {
+        this.blocks = blocks;
+        this.biomes = biomes;
+        this.nonAirCount = nonAirCount;
+        this.scratch = scratch;
+    }
+
+    /** 독립된 backing 저장소를 가진 깊은 복사본(pristine 청크 캐시용, ChunkPipeline 참조). */
+    ChunkSection copy() {
+        return new ChunkSection(blocks.copy(), biomes.copy(), nonAirCount, scratch == null ? null : scratch.clone());
+    }
+
     private static int blockIndex(int x, int y, int z) {
         return y * 256 + z * 16 + x;
     }

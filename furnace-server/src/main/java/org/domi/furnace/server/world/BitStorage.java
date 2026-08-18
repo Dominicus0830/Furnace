@@ -53,6 +53,11 @@ public final class BitStorage {
         return data;
     }
 
+    /** 독립된 backing 배열을 가진 깊은 복사본. */
+    public BitStorage copy() {
+        return new BitStorage(bitsPerEntry, size, data.clone());
+    }
+
     public int size() {
         return size;
     }

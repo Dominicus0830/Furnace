@@ -25,8 +25,8 @@ import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * NoiseChunk 밀도 엔진을 사용해 바닐라 1.21.1 오버월드 지형을 생성하는 WorldSource.
@@ -60,7 +60,15 @@ public final class NoiseWorldSource implements WorldSource {
     private volatile SpawnPoint defaultSpawn;
     // worldSurfaceHeightAt 캐시 — 청크당 SURFACE 높이 256개(16x16)를 1회만 generate()로 계산해 재사용.
     // 키: (cx<<32)^cz, 값: lz*16+lx 인덱스의 (height-1). generate()는 seed+좌표만의 순수 함수라 메모이제이션 안전.
-    private final ConcurrentHashMap<Long, int[]> surfaceHeightCache = new ConcurrentHashMap<>();
+    // bounded LRU(256) — 무제한 ConcurrentHashMap이던 것을 pristine 캐시와 같은 이유로 bounded화.
+    private static final int SURFACE_HEIGHT_CACHE_SIZE = 256;
+    private final Map<Long, int[]> surfaceHeightCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, int[]> eldest) {
+                return size() > SURFACE_HEIGHT_CACHE_SIZE;
+            }
+        });
 
     private NoiseWorldSource(NoiseRouter router, NoiseSettings settings, BiomeSampler biomeSampler,
                               SurfaceSystem surfaceSystem, String[] registryBiomeNames,
@@ -447,7 +455,7 @@ public final class NoiseWorldSource implements WorldSource {
     }
 
     /** 테스트 전용 — 캐시 전/후 실측 비교를 위해 캐시 맵 자체를 노출. */
-    ConcurrentHashMap<Long, int[]> surfaceHeightCache() {
+    Map<Long, int[]> surfaceHeightCache() {
         return surfaceHeightCache;
     }
 

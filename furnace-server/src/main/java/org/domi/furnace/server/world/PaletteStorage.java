@@ -121,6 +121,16 @@ final class PaletteStorage {
         this.storage = new BitStorage(directBits, size);
     }
 
+    /** 독립된 backing 배열을 가진 깊은 복사본(pristine 청크 캐시용, ChunkPipeline 참조). */
+    PaletteStorage copy() {
+        PaletteStorage c = new PaletteStorage(size, minIndirect, maxIndirect, directBits, singleValue);
+        c.bits = bits;
+        c.palette = palette == null ? null : palette.clone();
+        c.paletteSize = paletteSize;
+        c.storage = storage == null ? null : storage.copy();
+        return c;
+    }
+
     private int countDistinct(int[] src, int offset) {
         int[] seen = new int[Math.min(size, (1 << maxIndirect) + 1)];
         int n = 0;

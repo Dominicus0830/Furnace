@@ -186,4 +186,60 @@ class ChunkGenBenchmark {
         System.out.printf("  total mirrored generate:                               %4d ms%n",
             (construct + blocksTime + biome + column + surface) / samples / 1_000_000);
     }
+
+    /**
+     * 실서버 청크 서빙 경로(generateWithFeatures → ChunkPipeline.generateFull) 실측.
+     * 인접 청크를 순차 요청하는 실제 사용 패턴에서 이웃 재생성 비용이 얼마인지 본다.
+     */
+    @Test
+    void benchmarkPipelineNeighborRedundancy() throws Exception {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        NoiseWorldSource source = NoiseWorldSource.overworld(4242L, reg, registries);
+
+        source.generateWithFeatures(500, 500); // warmup
+
+        int n = 9;
+        long start = System.nanoTime();
+        for (int i = 0; i < n; i++) {
+            source.generateWithFeatures(1000 + i, 1000);
+        }
+        long elapsed = System.nanoTime() - start;
+        long perChunkMs = elapsed / n / 1_000_000;
+
+        System.out.println("=== ChunkPipeline.generateFull (실서버 서빙 경로) ===");
+        System.out.printf("  인접 %d청크 순차 요청: %d ms/chunk (wall, 병렬 포함)%n", n, perChunkMs);
+        System.out.printf("  총 소요: %d ms%n", elapsed / 1_000_000);
+        System.out.printf("  단일 generate 52ms 대비 배수: %.1fx%n", perChunkMs / 52.0);
+        System.out.printf("  view-distance 10(441청크) 추정: %d s%n", perChunkMs * 441 / 1000);
+    }
+
+    /**
+     * generateFull의 비용 분해 — 같은 청크를 두 번 요청한다.
+     * 1회차: grid 25청크 cold(생성) + decoration 9 origin
+     * 2회차: grid 전부 캐시 히트(복사만) + decoration 9 origin
+     * 차이 = grid 생성 비용, 2회차 = decoration + 복사 비용.
+     */
+    @Test
+    void benchmarkPipelinePhaseSplit() throws Exception {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        NoiseWorldSource source = NoiseWorldSource.overworld(4242L, reg, registries);
+        source.generateWithFeatures(500, 500); // JIT warmup
+
+        int cx = 2000, cz = 2000;
+        long t0 = System.nanoTime();
+        source.generateWithFeatures(cx, cz);
+        long cold = (System.nanoTime() - t0) / 1_000_000;
+
+        long t1 = System.nanoTime();
+        source.generateWithFeatures(cx, cz);
+        long warm = (System.nanoTime() - t1) / 1_000_000;
+
+        System.out.println("=== generateFull 비용 분해 ===");
+        System.out.printf("  1회차(grid cold + decoration): %4d ms%n", cold);
+        System.out.printf("  2회차(grid 캐시 + decoration): %4d ms%n", warm);
+        System.out.printf("  → grid 생성 비용:              %4d ms%n", cold - warm);
+        System.out.printf("  → decoration + 복사 비용:      %4d ms  (%d%%)%n", warm, warm * 100 / Math.max(1, cold));
+    }
 }
