@@ -36,8 +36,8 @@ public record BeehiveDecorator(float probability) implements TreeDecorator {
 
         BlockPos chosen = null;
         for (BlockPos pos : candidates) {
-            boolean thisAir = context.view().getBlock(pos.x(), pos.y(), pos.z()) == 0;
-            boolean southAir = context.view().getBlock(pos.x(), pos.y(), pos.z() + 1) == 0;
+            boolean thisAir = TreeFeature.isAir(context.view().getBlock(pos.x(), pos.y(), pos.z()));
+            boolean southAir = TreeFeature.isAir(context.view().getBlock(pos.x(), pos.y(), pos.z() + 1));
             if (thisAir && southAir) {
                 chosen = pos;
                 break;

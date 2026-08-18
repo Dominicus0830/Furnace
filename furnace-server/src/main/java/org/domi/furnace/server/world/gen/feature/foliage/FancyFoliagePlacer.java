@@ -9,7 +9,7 @@ import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 
 // vanilla FancyFoliagePlacer 포팅 (fancy_oak 등). BlobFoliagePlacer가 final이라 상속 대신
-// FoliagePlacer를 직접 확장 — foliageHeight/createFoliage/shouldSkipLocationSigned를 vanilla와 동일하게 구현.
+// FoliagePlacer를 직접 확장 — foliageHeight/createFoliage/shouldSkipLocation을 vanilla와 동일하게 구현.
 public final class FancyFoliagePlacer extends FoliagePlacer {
     private final int height;
 
@@ -34,9 +34,9 @@ public final class FancyFoliagePlacer extends FoliagePlacer {
     }
 
     @Override
-    protected boolean shouldSkipLocationSigned(WorldgenRandom random, int dx, int y, int dz, int radius, boolean giantTrunk) {
-        float lx = dx + 0.5F;
-        float lz = dz + 0.5F;
+    protected boolean shouldSkipLocation(WorldgenRandom random, int absX, int y, int absZ, int radius, boolean giantTrunk) {
+        float lx = absX + 0.5F;
+        float lz = absZ + 0.5F;
         return lx * lx + lz * lz > (float) (radius * radius);
     }
 }

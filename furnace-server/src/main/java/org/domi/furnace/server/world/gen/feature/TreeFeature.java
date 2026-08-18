@@ -36,19 +36,24 @@ public final class TreeFeature implements ConfiguredFeature {
         int foliageHeight = config.foliagePlacer().foliageHeight(random, treeHeight, config);
         int trunkHeight = treeHeight - foliageHeight;
         int foliageRadius = config.foliagePlacer().foliageRadius(random, trunkHeight);
+        // vanilla doPlace: rootPlacer가 있으면 trunkOrigin = rootPlacer.getTrunkOrigin(pos, random)
+        // (trunk_offset_y 샘플로 RNG 소비) — 몸통이 origin보다 위에서 시작하고 그 사이를 뿌리가 채운다.
+        BlockPos trunkOrigin = config.rootPlacer() != null
+            ? config.rootPlacer().getTrunkOrigin(origin, random)
+            : origin;
         RandomTrace.log("tree_begin x=" + x + " y=" + y + " z=" + z
             + " treeHeight=" + treeHeight
             + " foliageHeight=" + foliageHeight
             + " trunkHeight=" + trunkHeight
             + " foliageRadius=" + foliageRadius);
-        int minY = origin.y();
-        int maxY = origin.y() + treeHeight + 1;
+        int minY = Math.min(origin.y(), trunkOrigin.y());
+        int maxY = Math.max(origin.y(), trunkOrigin.y()) + treeHeight + 1;
         if (minY < ChunkColumn.MIN_Y + 1 || maxY > ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16) {
             RandomTrace.log("tree_fail height_bounds minY=" + minY + " maxY=" + maxY);
             return false;
         }
 
-        int freeHeight = getMaxFreeTreeHeight(view, treeHeight, origin);
+        int freeHeight = getMaxFreeTreeHeight(view, treeHeight, trunkOrigin);
         int minClippedHeight = config.minimumSize().minClippedHeight();
         if (freeHeight < treeHeight && (minClippedHeight < 0 || freeHeight < minClippedHeight)) {
             RandomTrace.log("tree_fail free_height freeHeight=" + freeHeight + " treeHeight=" + treeHeight
@@ -61,8 +66,14 @@ public final class TreeFeature implements ConfiguredFeature {
         List<BlockPos> leaves = new ArrayList<>();
         List<BlockPos> deco = new ArrayList<>();
 
+        if (config.rootPlacer() != null
+                && !config.rootPlacer().placeRoots(view, random, origin, trunkOrigin, config, roots)) {
+            RandomTrace.log("tree_fail root_placement");
+            return false;
+        }
+
         List<TrunkPlacer.FoliageAttachment> attachments =
-            config.trunkPlacer().placeTrunk(view, random, freeHeight, origin, config, logs);
+            config.trunkPlacer().placeTrunk(view, random, freeHeight, trunkOrigin, config, logs);
         for (TrunkPlacer.FoliageAttachment attachment : attachments) {
             config.foliagePlacer().createFoliage(view, random, config, freeHeight, attachment, foliageHeight, foliageRadius, leaves);
         }
@@ -73,11 +84,13 @@ public final class TreeFeature implements ConfiguredFeature {
         }
 
         if (!config.decorators().isEmpty()) {
-            logs.sort(Comparator.comparingInt(BlockPos::y).thenComparingInt(BlockPos::x).thenComparingInt(BlockPos::z));
-            leaves.sort(Comparator.comparingInt(BlockPos::y).thenComparingInt(BlockPos::x).thenComparingInt(BlockPos::z));
-            roots.sort(Comparator.comparingInt(BlockPos::y).thenComparingInt(BlockPos::x).thenComparingInt(BlockPos::z));
+            // vanilla TreeDecorator.Context — HashSet(중복 붕괴 + 삽입 순서에 따른 해시 순회 순서) 복사본을
+            // Y만으로 stable sort한 리스트. Furnace BlockPos.hashCode가 vanilla Vec3i.hashCode와 동일하고
+            // 삽입 순서(배치 순서)도 동일하므로 HashSet 순회 순서가 vanilla와 일치한다. 이전의 (y,x,z) 전체
+            // 정렬은 같은 y 안의 순서가 vanilla와 달라 RNG 소비형 decorator(leave_vine·alter_ground·
+            // attached_to_leaves 등)의 대상-draw 매핑이 어긋났다(mega-tree-placers task에서 수정).
             TreeDecorator.Context ctx = new TreeDecorator.Context(
-                view, random, roots, logs, leaves, deco, config);
+                view, random, vanillaContextOrder(roots), vanillaContextOrder(logs), vanillaContextOrder(leaves), deco, config);
             for (TreeDecorator decorator : config.decorators()) decorator.place(ctx);
         }
 
@@ -93,9 +106,19 @@ public final class TreeFeature implements ConfiguredFeature {
             }
         }
 
-        updateLeaves(view, logs, deco, leaves);
+        updateLeaves(view, roots, logs, deco, leaves);
         RandomTrace.log("tree_success logs=" + logs.size() + " leaves=" + leaves.size() + " deco=" + deco.size());
         return true;
+    }
+
+    // vanilla Sets.newHashSet() 증분 삽입(용량 16에서 시작해 요소별 add)을 재현한 뒤 Y만으로 stable sort.
+    // new HashSet<>(collection) 생성자는 초기 테이블 크기가 달라져 순회 순서가 어긋나므로 쓰지 않는다.
+    private static List<BlockPos> vanillaContextOrder(List<BlockPos> placed) {
+        HashSet<BlockPos> set = new HashSet<>();
+        for (BlockPos pos : placed) set.add(pos);
+        List<BlockPos> list = new ArrayList<>(set);
+        list.sort(Comparator.comparingInt(BlockPos::y));
+        return list;
     }
 
     private int getMaxFreeTreeHeight(FeatureWorldView view, int trunkHeight, BlockPos origin) {
@@ -113,8 +136,11 @@ public final class TreeFeature implements ConfiguredFeature {
         return trunkHeight;
     }
 
-    private void updateLeaves(FeatureWorldView view, List<BlockPos> trunkPositions, List<BlockPos> decorationPositions, List<BlockPos> foliagePositions) {
-        Bounds bounds = Bounds.enclosing(trunkPositions, decorationPositions, foliagePositions);
+    // vanilla updateLeaves 대응 — BFS 소스는 logs, 사전 방문 처리(fill)는 decorations ∪ roots
+    // (vanilla place()의 updateLeaves(level, box, set1=logs, set3=deco, set=roots) 인자 매핑).
+    private void updateLeaves(FeatureWorldView view, List<BlockPos> rootPositions, List<BlockPos> trunkPositions,
+                              List<BlockPos> decorationPositions, List<BlockPos> foliagePositions) {
+        Bounds bounds = Bounds.enclosing(rootPositions, trunkPositions, decorationPositions, foliagePositions);
         if (bounds == null) return;
 
         if (RandomTrace.isActive()) {
@@ -131,6 +157,9 @@ public final class TreeFeature implements ConfiguredFeature {
         for (int i = 0; i < 7; i++) buckets.add(new HashSet<>());
         buckets.get(0).addAll(trunkPositions);
         for (BlockPos pos : decorationPositions) {
+            if (bounds.contains(pos)) mask.fill(pos);
+        }
+        for (BlockPos pos : rootPositions) {
             if (bounds.contains(pos)) mask.fill(pos);
         }
 
@@ -246,8 +275,16 @@ public final class TreeFeature implements ConfiguredFeature {
         }
     }
 
+    // vanilla Direction.Plane.HORIZONTAL faces 순서 (NORTH, EAST, SOUTH, WEST) — 1.21.1 trunk placer 전종이
+    // Plane.HORIZONTAL.getRandomDirection을 쓴다. HORIZONTAL_DIRECTIONS(2D-data 순서 SOUTH,WEST,NORTH,EAST)와
+    // 다름에 주의 — 이전에는 getRandomDirection이 HORIZONTAL_DIRECTIONS를 인덱싱해 방향 매핑이 vanilla와
+    // 달랐다(acacia/dark oak가 assert되는 fixture가 없어 미검출이던 잠재 버그, mega-tree-placers task에서 수정).
+    private static final Direction[] PLANE_HORIZONTAL = {
+        Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
+    };
+
     public static Direction getRandomDirection(WorldgenRandom random) {
-        return HORIZONTAL_DIRECTIONS[random.nextInt(4)];
+        return PLANE_HORIZONTAL[random.nextInt(4)];
     }
 
     // vanilla TreeFeature.validTreePos == isAir || is(#minecraft:replaceable_by_trees).
@@ -307,7 +344,7 @@ public final class TreeFeature implements ConfiguredFeature {
         return stateId >= 6837 && stateId <= 6868;
     }
 
-    private static boolean isAir(int stateId) {
+    public static boolean isAir(int stateId) {
         return stateId == AIR || stateId == CAVE_AIR || stateId == VOID_AIR;
     }
 

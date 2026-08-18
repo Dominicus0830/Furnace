@@ -21,6 +21,7 @@ public sealed interface PlacementModifier
                 PlacementModifier.HeightmapPlacement,
                 PlacementModifier.SurfaceWaterDepthFilterPlacement,
                 PlacementModifier.BlockPredicateFilter,
+                PlacementModifier.CompositeBlockPredicateFilter,
                 PlacementModifier.WouldSurviveFilter,
                 PlacementModifier.NoiseThresholdCountPlacement,
                 PlacementModifier.NoiseBasedCountPlacement,
@@ -155,6 +156,51 @@ public sealed interface PlacementModifier
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             return allowed.contains(view.getBlock(pos.x(), pos.y(), pos.z())) ? Stream.of(pos) : Stream.empty();
+        }
+    }
+
+    /**
+     * block_predicate_filter 일반형 — matching_blocks(offset)/not/all_of/any_of 조합 predicate 트리 평가.
+     * patch_grass_jungle의 all_of(air, not(podzol below)) 등 복합 predicate용. random 0소비.
+     */
+    record CompositeBlockPredicateFilter(BlockPred pred) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            return pred.test(view, pos) ? Stream.of(pos) : Stream.empty();
+        }
+    }
+
+    sealed interface BlockPred permits MatchingBlocksPred, NotPred, AllOfPred, AnyOfPred {
+        boolean test(FeatureWorldView view, BlockPos pos);
+    }
+
+    record MatchingBlocksPred(Set<Integer> states, int ox, int oy, int oz) implements BlockPred {
+        @Override
+        public boolean test(FeatureWorldView view, BlockPos pos) {
+            return states.contains(view.getBlock(pos.x() + ox, pos.y() + oy, pos.z() + oz));
+        }
+    }
+
+    record NotPred(BlockPred inner) implements BlockPred {
+        @Override
+        public boolean test(FeatureWorldView view, BlockPos pos) {
+            return !inner.test(view, pos);
+        }
+    }
+
+    record AllOfPred(java.util.List<BlockPred> preds) implements BlockPred {
+        @Override
+        public boolean test(FeatureWorldView view, BlockPos pos) {
+            for (BlockPred p : preds) if (!p.test(view, pos)) return false;
+            return true;
+        }
+    }
+
+    record AnyOfPred(java.util.List<BlockPred> preds) implements BlockPred {
+        @Override
+        public boolean test(FeatureWorldView view, BlockPos pos) {
+            for (BlockPred p : preds) if (p.test(view, pos)) return true;
+            return false;
         }
     }
 

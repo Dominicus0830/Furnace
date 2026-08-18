@@ -22,19 +22,32 @@ import org.domi.furnace.server.world.gen.feature.decorator.TreeDecorator;
 import org.domi.furnace.server.world.gen.feature.decorator.TrunkVineDecorator;
 import org.domi.furnace.server.world.gen.feature.foliage.AcaciaFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.BlobFoliagePlacer;
+import org.domi.furnace.server.world.gen.feature.foliage.BushFoliagePlacer;
+import org.domi.furnace.server.world.gen.feature.foliage.CherryFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.DarkOakFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.FancyFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.FoliagePlacer;
+import org.domi.furnace.server.world.gen.feature.foliage.JungleFoliagePlacer;
+import org.domi.furnace.server.world.gen.feature.foliage.MegaPineFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.PineFoliagePlacer;
+import org.domi.furnace.server.world.gen.feature.foliage.RandomSpreadFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.foliage.SpruceFoliagePlacer;
 import org.domi.furnace.server.world.gen.feature.size.FeatureSize;
 import org.domi.furnace.server.world.gen.feature.size.ThreeLayersFeatureSize;
 import org.domi.furnace.server.world.gen.feature.size.TwoLayersFeatureSize;
+import org.domi.furnace.server.world.gen.feature.decorator.AlterGroundDecorator;
+import org.domi.furnace.server.world.gen.feature.decorator.AttachedToLeavesDecorator;
+import org.domi.furnace.server.world.gen.feature.root.MangroveRootPlacer;
+import org.domi.furnace.server.world.gen.feature.trunk.BendingTrunkPlacer;
+import org.domi.furnace.server.world.gen.feature.trunk.CherryTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.DarkOakTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.FancyTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.ForkingTrunkPlacer;
+import org.domi.furnace.server.world.gen.feature.trunk.GiantTrunkPlacer;
+import org.domi.furnace.server.world.gen.feature.trunk.MegaJungleTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.StraightTrunkPlacer;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
+import org.domi.furnace.server.world.gen.feature.trunk.UpwardsBranchingTrunkPlacer;
 
 public final class BiomeFeatureData {
 
@@ -47,7 +60,7 @@ public final class BiomeFeatureData {
         "minecraft:random_patch", "minecraft:flower", "minecraft:simple_block", "minecraft:seagrass",
         "minecraft:kelp", "minecraft:freeze_top_layer", "minecraft:geode", "minecraft:tree",
         "minecraft:random_selector", "minecraft:random_boolean_selector", "minecraft:simple_random_selector",
-        "minecraft:underwater_magma", "minecraft:multiface_growth"
+        "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -91,12 +104,17 @@ public final class BiomeFeatureData {
      */
     public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
                                         List<String> registryOrder, BlockRegistry registry) {
-        // biome id(= biomeIds 열거 순서, registry biome 팔레트와 동일)별 base 온도 — FreezeTopLayer 동결 게이트용.
+        // biome id별 base 온도 — FreezeTopLayer 동결 게이트용. FreezeTopLayer가 조회에 쓰는
+        // FeatureWorldView.getBiomeId는 REGISTRY 순서 인덱스를 돌려주므로 registryOrder로 인덱싱해야 한다.
+        // 이전에는 biomeIds(=possibleBiomes, biome_parameters 첫등장 순서)로 인덱싱해 온도가 서로 다른
+        // biome에 매핑됐다(순수 jungle 청크에 눈이 쌓이는 실측 증상 — 냉대 biome이 있는 green fixture가
+        // 없어 미검출이던 잠재 버그, mega-tree-placers task에서 수정).
         // 온도 데이터 없는 픽스처(worldgen/test 등)면 빈 배열 → 기본 0.5(동결 안 함)로 폴백.
         float[] biomeTemps;
         try {
+            Iterable<String> tempOrder = registryOrder != null ? registryOrder : biomeIds;
             ArrayList<Float> temps = new ArrayList<>();
-            for (String biomeId : biomeIds) temps.add(data.biomeTemperature(biomeId));
+            for (String biomeId : tempOrder) temps.add(data.biomeTemperature(biomeId));
             biomeTemps = new float[temps.size()];
             for (int i = 0; i < biomeTemps.length; i++) biomeTemps[i] = temps.get(i);
         } catch (IllegalStateException e) {
@@ -267,6 +285,17 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:multiface_growth")) {
                 return parseMultifaceGrowth(config);
+            }
+            if (type.equals("minecraft:forest_rock")) {
+                return new ForestRockFeature(
+                    parseState(config.getAsJsonObject("state")),
+                    buildTreeDirtStates(),
+                    Set.copyOf(states(
+                        "minecraft:stone", "minecraft:granite", "minecraft:diorite",
+                        "minecraft:andesite", "minecraft:tuff", "minecraft:deepslate")));
+            }
+            if (type.equals("minecraft:vines")) {
+                return parseVines();
             }
             // 미구현 feature 타입 → placeholder. index parity 유지(Phase 2에서 실제 구현으로 교체).
             return NoopFeature.INSTANCE;
@@ -639,6 +668,7 @@ public final class BiomeFeatureData {
                 buildLeafStates(leafName),
                 parseTrunkPlacer(config.getAsJsonObject("trunk_placer")),
                 parseFoliagePlacer(config.getAsJsonObject("foliage_placer")),
+                config.has("root_placer") ? parseRootPlacer(config.getAsJsonObject("root_placer")) : null,
                 parseFeatureSize(config.getAsJsonObject("minimum_size")),
                 parseTreeDecorators(config.getAsJsonArray("decorators")),
                 config.has("ignore_vines") && config.get("ignore_vines").getAsBoolean(),
@@ -684,10 +714,50 @@ public final class BiomeFeatureData {
                 "honey_level", "0"));
         }
 
+        // VinesFeature용 부착 불가 블록 집합 — vanilla canAttachTo(지지면/충돌면 full 판정)의 블랙리스트 근사.
+        // 잎(leaves)은 충돌면이 full이라 부착 가능하므로 포함하지 않는다.
+        private ConfiguredFeature parseVines() {
+            HashSet<Integer> nonAttachable = new HashSet<>();
+            for (String name : new String[]{
+                "minecraft:air", "minecraft:cave_air", "minecraft:void_air",
+                "minecraft:water", "minecraft:lava",
+                "minecraft:short_grass", "minecraft:fern", "minecraft:dead_bush", "minecraft:tall_grass",
+                "minecraft:large_fern", "minecraft:sunflower", "minecraft:lilac", "minecraft:rose_bush",
+                "minecraft:peony", "minecraft:seagrass", "minecraft:tall_seagrass",
+                "minecraft:vine", "minecraft:glow_lichen", "minecraft:hanging_roots", "minecraft:pitcher_plant",
+                "minecraft:dandelion", "minecraft:poppy", "minecraft:blue_orchid", "minecraft:allium",
+                "minecraft:azure_bluet", "minecraft:red_tulip", "minecraft:orange_tulip", "minecraft:white_tulip",
+                "minecraft:pink_tulip", "minecraft:oxeye_daisy", "minecraft:cornflower", "minecraft:lily_of_the_valley",
+                "minecraft:brown_mushroom", "minecraft:red_mushroom", "minecraft:cocoa",
+                "minecraft:melon_stem", "minecraft:pumpkin_stem", "minecraft:attached_melon_stem", "minecraft:attached_pumpkin_stem",
+                "minecraft:lily_pad", "minecraft:sugar_cane", "minecraft:bamboo", "minecraft:bamboo_sapling",
+                "minecraft:snow", "minecraft:cactus", "minecraft:moss_carpet", "minecraft:pink_petals",
+                "minecraft:oak_sapling", "minecraft:spruce_sapling", "minecraft:birch_sapling", "minecraft:jungle_sapling",
+                "minecraft:acacia_sapling", "minecraft:dark_oak_sapling", "minecraft:cherry_sapling", "minecraft:mangrove_propagule",
+                "minecraft:sweet_berry_bush", "minecraft:torch", "minecraft:sea_pickle", "minecraft:spore_blossom",
+                "minecraft:small_dripleaf", "minecraft:big_dripleaf", "minecraft:big_dripleaf_stem",
+                "minecraft:cave_vines", "minecraft:cave_vines_plant", "minecraft:pointed_dripstone",
+                "minecraft:azalea", "minecraft:flowering_azalea", "minecraft:sculk_vein"
+            }) {
+                nonAttachable.addAll(registry.stateIdsForBlock(name));
+            }
+            Map<String, String> upProps = new LinkedHashMap<>(Map.of(
+                "east", "false", "north", "false", "south", "false", "up", "false", "west", "false"));
+            upProps.put("up", "true");
+            return new VinesFeature(Set.copyOf(nonAttachable), buildVineStates(),
+                registry.stateIdOrAir("minecraft:vine", upProps));
+        }
+
         private int[] buildVineStates() {
+            // vine의 canonical key는 east/north/south/up/west 5개 프로퍼티 전부를 요구한다 — 이전처럼 방향
+            // 1개만 넣으면 exact 매치가 없어 default state(전부 false)로 폴백해 4방향 모두 같은 id가 됐다
+            // (vine이 등장하는 green fixture가 없어 미검출이던 잠재 버그, mega-tree-placers task에서 수정).
             int[] ids = new int[4];
             for (TreeFeature.Direction dir : TreeFeature.HORIZONTAL_DIRECTIONS) {
-                ids[dir.horizontalIndex()] = registry.stateIdOrAir("minecraft:vine", Map.of(dir.propertyName(), "true"));
+                Map<String, String> props = new LinkedHashMap<>(Map.of(
+                    "east", "false", "north", "false", "south", "false", "up", "false", "west", "false"));
+                props.put(dir.propertyName(), "true");
+                ids[dir.horizontalIndex()] = registry.stateIdOrAir("minecraft:vine", props);
             }
             return ids;
         }
@@ -807,6 +877,23 @@ public final class BiomeFeatureData {
                 case "minecraft:forking_trunk_placer" -> new ForkingTrunkPlacer(baseHeight, randA, randB);
                 case "minecraft:dark_oak_trunk_placer" -> new DarkOakTrunkPlacer(baseHeight, randA, randB);
                 case "minecraft:fancy_trunk_placer" -> new FancyTrunkPlacer(baseHeight, randA, randB);
+                case "minecraft:giant_trunk_placer" -> new GiantTrunkPlacer(baseHeight, randA, randB);
+                case "minecraft:mega_jungle_trunk_placer" -> new MegaJungleTrunkPlacer(baseHeight, randA, randB);
+                case "minecraft:upwards_branching_trunk_placer" -> new UpwardsBranchingTrunkPlacer(
+                    baseHeight, randA, randB,
+                    treeIntProvider(obj.get("extra_branch_steps"), 1),
+                    obj.get("place_branch_per_log_probability").getAsFloat(),
+                    treeIntProvider(obj.get("extra_branch_length"), 0));
+                case "minecraft:cherry_trunk_placer" -> new CherryTrunkPlacer(
+                    baseHeight, randA, randB,
+                    treeIntProvider(obj.get("branch_count"), 1),
+                    treeIntProvider(obj.get("branch_horizontal_length"), 2),
+                    (TreeIntProvider.Uniform) treeIntProvider(obj.get("branch_start_offset_from_top"), -4),
+                    treeIntProvider(obj.get("branch_end_offset_from_top"), -1));
+                case "minecraft:bending_trunk_placer" -> new BendingTrunkPlacer(
+                    baseHeight, randA, randB,
+                    obj.has("min_height_for_leaves") ? obj.get("min_height_for_leaves").getAsInt() : 1,
+                    treeIntProvider(obj.get("bend_length"), 1));
                 default -> new StraightTrunkPlacer(baseHeight, randA, randB);
             };
         }
@@ -821,6 +908,19 @@ public final class BiomeFeatureData {
                 case "minecraft:acacia_foliage_placer" -> new AcaciaFoliagePlacer(radius, offset);
                 case "minecraft:dark_oak_foliage_placer" -> new DarkOakFoliagePlacer(radius, offset);
                 case "minecraft:fancy_foliage_placer" -> new FancyFoliagePlacer(radius, offset, obj.get("height").getAsInt());
+                case "minecraft:mega_pine_foliage_placer" -> new MegaPineFoliagePlacer(radius, offset, treeIntProvider(obj.get("crown_height"), 15));
+                case "minecraft:jungle_foliage_placer" -> new JungleFoliagePlacer(radius, offset, obj.get("height").getAsInt());
+                case "minecraft:cherry_foliage_placer" -> new CherryFoliagePlacer(
+                    radius, offset, treeIntProvider(obj.get("height"), 5),
+                    obj.get("wide_bottom_layer_hole_chance").getAsFloat(),
+                    obj.get("corner_hole_chance").getAsFloat(),
+                    obj.get("hanging_leaves_chance").getAsFloat(),
+                    obj.get("hanging_leaves_extension_chance").getAsFloat());
+                case "minecraft:random_spread_foliage_placer" -> new RandomSpreadFoliagePlacer(
+                    radius, offset,
+                    treeIntProvider(obj.get("foliage_height"), 2),
+                    obj.get("leaf_placement_attempts").getAsInt());
+                case "minecraft:bush_foliage_placer" -> new BushFoliagePlacer(radius, offset, obj.get("height").getAsInt());
                 default -> new BlobFoliagePlacer(radius, offset, 3);
             };
         }
@@ -854,11 +954,76 @@ public final class BiomeFeatureData {
                     case "minecraft:cocoa" -> decorators.add(new CocoaDecorator(obj.get("probability").getAsFloat()));
                     case "minecraft:trunk_vine" -> decorators.add(new TrunkVineDecorator());
                     case "minecraft:leave_vine" -> decorators.add(new LeaveVineDecorator(obj.get("probability").getAsFloat()));
+                    case "minecraft:alter_ground" -> decorators.add(new AlterGroundDecorator(
+                        parseStateProvider(obj.getAsJsonObject("provider"))));
+                    case "minecraft:attached_to_leaves" -> decorators.add(parseAttachedToLeaves(obj));
                     default -> {
                     }
                 }
             }
             return List.copyOf(decorators);
+        }
+
+        // attached_to_leaves의 block_provider는 mangrove 데이터에서 항상 randomized_int_state_provider
+        // (source=mangrove_propagule, property=age, values=uniform) — age별 state id 배열로 전개한다.
+        private AttachedToLeavesDecorator parseAttachedToLeaves(JsonObject obj) {
+            JsonObject provider = obj.getAsJsonObject("block_provider");
+            JsonObject sourceState = provider.getAsJsonObject("source").getAsJsonObject("state");
+            String blockName = sourceState.get("Name").getAsString();
+            String property = provider.get("property").getAsString();
+            TreeIntProvider values = treeIntProvider(provider.get("values"), 0);
+
+            Map<String, String> baseProps = new LinkedHashMap<>();
+            if (sourceState.has("Properties")) {
+                for (Map.Entry<String, JsonElement> entry : sourceState.getAsJsonObject("Properties").entrySet()) {
+                    baseProps.put(entry.getKey(), entry.getValue().getAsString());
+                }
+            }
+            // values의 최대치까지 state id를 전개 — mangrove age는 uniform 0..4.
+            int maxValue = values instanceof TreeIntProvider.Uniform u ? u.maxInclusive() : 0;
+            int[] stateIds = new int[maxValue + 1];
+            for (int v = 0; v <= maxValue; v++) {
+                baseProps.put(property, Integer.toString(v));
+                stateIds[v] = registry.stateIdOrAir(blockName, Map.copyOf(baseProps));
+            }
+
+            JsonArray dirs = obj.getAsJsonArray("directions");
+            TreeFeature.Direction[] directions = new TreeFeature.Direction[dirs.size()];
+            for (int i = 0; i < dirs.size(); i++) {
+                directions[i] = TreeFeature.Direction.valueOf(dirs.get(i).getAsString().toUpperCase(java.util.Locale.ROOT));
+            }
+
+            return new AttachedToLeavesDecorator(
+                obj.get("probability").getAsFloat(),
+                obj.get("exclusion_radius_xz").getAsInt(),
+                obj.get("exclusion_radius_y").getAsInt(),
+                obj.get("required_empty_blocks").getAsInt(),
+                directions,
+                values,
+                stateIds);
+        }
+
+        private MangroveRootPlacer parseRootPlacer(JsonObject obj) {
+            JsonObject mangrove = obj.getAsJsonObject("mangrove_root_placement");
+            JsonObject above = obj.has("above_root_placement") ? obj.getAsJsonObject("above_root_placement") : null;
+
+            HashSet<Integer> muddyIn = new HashSet<>();
+            for (JsonElement el : mangrove.getAsJsonArray("muddy_roots_in")) {
+                muddyIn.addAll(registry.stateIdsForBlock(el.getAsString()));
+            }
+            muddyIn.remove(0);
+
+            return new MangroveRootPlacer(
+                treeIntProvider(obj.get("trunk_offset_y"), 0),
+                registry.stateIdOrAir("minecraft:mangrove_roots", Map.of("waterlogged", "false")),
+                registry.stateIdOrAir("minecraft:mangrove_roots", Map.of("waterlogged", "true")),
+                above != null ? above.get("above_root_placement_chance").getAsFloat() : 0.0f,
+                above != null ? parseStateProvider(above.getAsJsonObject("above_root_provider")) : 0,
+                mangrove.get("max_root_width").getAsInt(),
+                mangrove.get("max_root_length").getAsInt(),
+                mangrove.get("random_skew_chance").getAsFloat(),
+                Set.copyOf(muddyIn),
+                parseStateProvider(mangrove.getAsJsonObject("muddy_roots_provider")));
         }
 
         private TreeIntProvider treeIntProvider(JsonElement el, int fallback) {
@@ -867,6 +1032,15 @@ public final class BiomeFeatureData {
             JsonObject obj = el.getAsJsonObject();
             String type = obj.has("type") ? obj.get("type").getAsString() : "";
             if (obj.has("value")) return new TreeIntProvider.Constant(obj.get("value").getAsInt());
+            if ("minecraft:weighted_list".equals(type) || obj.has("distribution")) {
+                ArrayList<TreeIntProvider.WeightedList.Entry> entries = new ArrayList<>();
+                for (JsonElement entryEl : obj.getAsJsonArray("distribution")) {
+                    JsonObject entryObj = entryEl.getAsJsonObject();
+                    entries.add(new TreeIntProvider.WeightedList.Entry(
+                        entryObj.get("weight").getAsInt(), treeIntProvider(entryObj.get("data"), fallback)));
+                }
+                return new TreeIntProvider.WeightedList(List.copyOf(entries));
+            }
             if ("minecraft:uniform".equals(type) || (obj.has("min_inclusive") && obj.has("max_inclusive"))) {
                 return new TreeIntProvider.Uniform(obj.get("min_inclusive").getAsInt(), obj.get("max_inclusive").getAsInt());
             }
@@ -946,6 +1120,49 @@ public final class BiomeFeatureData {
         }
 
         // matching_blocks/matching_fluids predicate만 지원. 그외 타입은 null → modifier 생략(통과). random 미소비라 스트림 영향 없음.
+        /**
+         * block_predicate 트리 파서 — matching_blocks(offset 지원)/not/all_of/any_of 조합만.
+         * 지원하지 않는 하위 타입이 섞여 있으면 null(호출부에서 기존 폴백 경로 사용).
+         */
+        private PlacementModifier.BlockPred parseBlockPred(JsonObject predicate) {
+            if (predicate == null) return null;
+            String type = predicate.get("type").getAsString();
+            switch (type) {
+                case "minecraft:matching_blocks" -> {
+                    Set<Integer> matchStates = parseBlockSet(predicate.get("blocks"));
+                    if (matchStates == null) return null;
+                    int ox = 0;
+                    int oy = 0;
+                    int oz = 0;
+                    if (predicate.has("offset")) {
+                        JsonArray off = predicate.getAsJsonArray("offset");
+                        ox = off.get(0).getAsInt();
+                        oy = off.get(1).getAsInt();
+                        oz = off.get(2).getAsInt();
+                    }
+                    return new PlacementModifier.MatchingBlocksPred(Set.copyOf(matchStates), ox, oy, oz);
+                }
+                case "minecraft:not" -> {
+                    PlacementModifier.BlockPred inner = parseBlockPred(predicate.getAsJsonObject("predicate"));
+                    return inner == null ? null : new PlacementModifier.NotPred(inner);
+                }
+                case "minecraft:all_of", "minecraft:any_of" -> {
+                    ArrayList<PlacementModifier.BlockPred> children = new ArrayList<>();
+                    for (JsonElement el : predicate.getAsJsonArray("predicates")) {
+                        PlacementModifier.BlockPred child = parseBlockPred(el.getAsJsonObject());
+                        if (child == null) return null;
+                        children.add(child);
+                    }
+                    return type.equals("minecraft:all_of")
+                        ? new PlacementModifier.AllOfPred(List.copyOf(children))
+                        : new PlacementModifier.AnyOfPred(List.copyOf(children));
+                }
+                default -> {
+                    return null;
+                }
+            }
+        }
+
         // matching_fluids: Furnace는 waterlogged 블록에 별도 fluid 레이어를 두지 않고 water를 단일 블록 상태로
         // 등록하므로(blocks/1.21.1.txt: minecraft:water 단일 id), fluid 검사를 블록 상태 검사로 근사한다 —
         // disk_sand/disk_clay/disk_gravel이 이 필터로 요구하는 "표면이 물"인지 확인에는 충분하다.
@@ -1018,10 +1235,15 @@ public final class BiomeFeatureData {
                     json.has("noise_offset") ? json.get("noise_offset").getAsDouble() : 0.0));
                 case "minecraft:block_predicate_filter" -> {
                     JsonObject predicate = json.getAsJsonObject("predicate");
-                    Set<Integer> allowed = blockPredicateStates(predicate);
-                    if (allowed != null) out.add(new PlacementModifier.BlockPredicateFilter(allowed));
-                    if (predicate != null && "minecraft:would_survive".equals(predicate.get("type").getAsString())) {
-                        out.add(new PlacementModifier.WouldSurviveFilter(plantGround()));
+                    PlacementModifier.BlockPred pred = parseBlockPred(predicate);
+                    if (pred != null) {
+                        out.add(new PlacementModifier.CompositeBlockPredicateFilter(pred));
+                    } else {
+                        Set<Integer> allowed = blockPredicateStates(predicate);
+                        if (allowed != null) out.add(new PlacementModifier.BlockPredicateFilter(allowed));
+                        if (predicate != null && "minecraft:would_survive".equals(predicate.get("type").getAsString())) {
+                            out.add(new PlacementModifier.WouldSurviveFilter(plantGround()));
+                        }
                     }
                 }
                 case "minecraft:carving_mask" -> out.add(new PlacementModifier.CarvingMaskPlacement(

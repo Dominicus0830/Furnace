@@ -131,11 +131,19 @@ public final class FeatureWorldView {
         if (gridCols != null) return getGridBiomeId(worldX, worldY, worldZ);
         int qx = (worldX - cx * 16) >> 2;
         int qz = (worldZ - cz * 16) >> 2;
-        int qy = Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4);
-        if (qx < 0 || qx >= 4 || qz < 0 || qz >= 4 || qy < 0 || qy >= ChunkColumn.SECTION_COUNT * 4) {
+        // vanilla ChunkAccess.getNoiseBiome — 월드 높이 밖 quart Y는 [min,max]로 clamp해 최상/최하단
+        // quart의 biome을 돌려준다(0 반환이 아님). ore_emerald(트라페조이드 상한 y=480)처럼 월드 밖 후보의
+        // biome 게이트 판정이 vanilla와 일치해야 한다(mega-tree-placers task에서 수정).
+        int qy = clampQuartY(Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4));
+        if (qx < 0 || qx >= 4 || qz < 0 || qz >= 4) {
             return 0;
         }
         return biomeIds[(qy * 4 + qz) * 4 + qx];
+    }
+
+    private static int clampQuartY(int qy) {
+        if (qy < 0) return 0;
+        return Math.min(qy, ChunkColumn.SECTION_COUNT * 4 - 1);
     }
 
     /**
@@ -181,9 +189,13 @@ public final class FeatureWorldView {
                 bestQz = cqz;
             }
         }
+        // bestQy는 절대 quart 좌표(world y >> 2)이므로 world block y = bestQy*4. 이전의 "+ MIN_Y"는
+        // 64블록 아래의 quart를 읽는 오프셋 버그 — 지표 위 조회는 대개 같은 biome 기둥이라 티가 안 났지만,
+        // 아래에 동굴 biome(deep_dark·dripstone_caves 등)이 있는 지역에서는 biome 게이트가 어긋나
+        // ore_infested/ore_emerald 등의 후보가 잘못 기각됐다(mega-tree-placers task에서 수정).
         int rx = bestQx * 4;
         int rz = bestQz * 4;
-        int ry = bestQy * 4 + ChunkColumn.MIN_Y;
+        int ry = bestQy * 4;
         return getBiomeId(rx, ry, rz);
     }
 
@@ -307,8 +319,7 @@ public final class FeatureWorldView {
     }
 
     private int getGridBiomeId(int worldX, int worldY, int worldZ) {
-        int qy = Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4);
-        if (qy < 0 || qy >= ChunkColumn.SECTION_COUNT * 4) return 0;
+        int qy = clampQuartY(Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4));
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return 0;
