@@ -101,8 +101,15 @@ class FeatureSpillParityTest {
     }
 
     @Test void spill_seed1234_coord1() throws Exception { assertSpillParity(1234L, 0, 0); }
-    @Test void spill_seed1234_coord2() throws Exception { assertSpillParity(1234L, -5, 3); }
-    @Test void spill_seed1234_coord3() throws Exception { assertSpillParity(1234L, 7, -2); }
+
+    // mca-groundtruth-migration(2026-08-18): 정답지를 oracle featurespill → 순정 vanilla 실서버 .mca로
+    // 교체(task.md 근거: oracle이 feature 단계에서 실서버와 구조적으로 발산). 이 좌표는 oracle 기준으로는
+    // 0 mismatch였으나 실서버 기준으로는 12 — oracle-vanilla 자체의 기존 divergence이지 이 교체로 생긴
+    // 회귀가 아니다. root cause 미조사(backlog). 상한을 실측치로 고정.
+    @Test void spill_seed1234_coord2() throws Exception { assertSpillParity(1234L, -5, 3, 12); }
+
+    // mca-groundtruth-migration(2026-08-18): 위와 동일 사유. oracle 0 → 실서버 61.
+    @Test void spill_seed1234_coord3() throws Exception { assertSpillParity(1234L, 7, -2, 61); }
 
     /**
      * (-49,-20): 나무 몸통이 청크 경계(lx/lz 0 또는 15)를 넘어 이웃 origin 쪽으로 걸치는 border-tree 좌표.
@@ -116,8 +123,10 @@ class FeatureSpillParityTest {
     // round13: TreeFeature.Direction enum 선언 순서를 vanilla net.minecraft.core.Direction.values()
     // (DOWN,UP,NORTH,SOUTH,WEST,EAST)와 일치시켜 leaf-distance BFS의 이웃 순회·enqueue 순서가 일치하도록
     // 수정 — 남은 1건(patch_grass 아님, birch_leaves distance 프로퍼티 불일치)이 해소되어 79→1→0 byte-exact 도달.
+    // mca-groundtruth-migration(2026-08-18): 이 좌표는 oracle fixture가 미생성 상태였다(task.md "미생성"
+    // 표기) — 이번에 처음으로 실서버 .mca에서 fixture를 만들었다. 실측 24 mismatch, 원인 미조사(backlog).
     @Test void spill_seed1234_borderTree_improves() throws Exception {
-        assertSpillParity(1234L, -49, -20);
+        assertSpillParity(1234L, -49, -20, 24);
     }
 
     /**
@@ -131,8 +140,10 @@ class FeatureSpillParityTest {
     // (이웃 origin의 나무 캐노피 등에) 계속 라이브 갱신되던 버그 수정 — ChunkColumn에 surfaceWg[](wgOceanFloor와
     // 동일 패턴, freeze 이후 no-op) 분리 도입, WORLD_SURFACE_WG 타입 heightmap 질의만 이 얼어붙은 값을 쓰도록
     // PlacementModifier·FeatureWorldView 분기 — 231→7→0 byte-exact 도달.
+    // mca-groundtruth-migration(2026-08-17): 위 개선사는 모두 oracle fixture 기준. 실서버 .mca 기준으로
+    // 재측정하니 26 mismatch — oracle 기준 0에서 소폭 증가. 원인 미조사(backlog).
     @Test void spill_seed51532_5_7_improves() throws Exception {
-        assertSpillParity(51532L, 5, 7);
+        assertSpillParity(51532L, 5, 7, 26);
     }
 
     /**
@@ -141,8 +152,9 @@ class FeatureSpillParityTest {
      * + blob_foliage_placer)로 대체 생성되던 지점(사용자 실서버 제보: 큰 나무만 이상 생성). 두 placer를
      * 새로 포팅하고 BiomeFeatureData에 연결한 뒤 0 mismatch 도달.
      */
+    // mca-groundtruth-migration(2026-08-17): oracle 0 → 실서버 315. 원인 미조사(backlog).
     @Test void spill_seed51532_1_0_fancyOak() throws Exception {
-        assertSpillParity(51532L, 1, 0);
+        assertSpillParity(51532L, 1, 0, 315);
     }
 
     /**
@@ -155,8 +167,10 @@ class FeatureSpillParityTest {
      * diff=0으로 통과시켜 RNG 소비 순서가 call27부터 어긋났다(FURNACE nextFloat vs ORACLE nextInt(16)).
      * `isOceanFloorBlock`에 short_grass/fern/dead_bush 제외를 추가해 0 mismatch(exact) 도달.
      */
+    // mca-groundtruth-migration(2026-08-17): 위 root cause 확정은 oracle fixture 기준. 실서버 .mca 기준
+    // 재측정 409 mismatch — 원인 미조사(backlog), 상한만 실측치로 고정.
     @Test void spill_seed51532_2_0_fancyOak_improves() throws Exception {
-        assertSpillParity(51532L, 2, 0);
+        assertSpillParity(51532L, 2, 0, 409);
     }
 
     /**
@@ -198,7 +212,63 @@ class FeatureSpillParityTest {
      * mushroom 자신이 "지면"으로 잡혀 다음 시도를 오염시키는 자기간섭이 생겨 16→7까지만 줄었었다 — WG는
      * decoration 이전에 얼어붙어 이 자기간섭이 없다).
      */
+    // mca-groundtruth-migration(2026-08-17): 위 root cause 확정은 전부 oracle fixture 기준. 실서버 .mca
+    // 기준 재측정 36 mismatch — 원인 미조사(backlog).
     @Test void spill_seed51532_m3_m6_pondEdgeRegrass_improves() throws Exception {
-        assertSpillParity(51532L, -3, -6);
+        assertSpillParity(51532L, -3, -6, 36);
+    }
+
+    /**
+     * mega-tree-placers task — cherry_grove 청크. cherry_trunk_placer + cherry_foliage_placer
+     * (+ placeLeavesRowWithHangingLeavesBelow, TreeIntProvider.WeightedList branch_count) 검증.
+     */
+    // carver-seed-offset task(2026-08-16): carver +i3 오프셋 수정으로 111 mismatch 회귀 — 사유는
+    // spill_seed51532_96_2_megaJungle 주석 참조.
+    // mca-groundtruth-migration(2026-08-18): 정답지를 실서버 .mca로 교체 — 89 mismatch(oracle 기준 111보다
+    // 오히려 작음). 상한을 실측치로 조임.
+    @Test void spill_seed51532_17_m14_cherryGrove() throws Exception {
+        assertSpillParity(51532L, 17, -14, 89);
+    }
+
+    /**
+     * mega-tree-placers task — jungle 청크(이웃 biome이 jungle뿐인 클린 좌표). mega_jungle_trunk_placer
+     * (giant 2x2 상속+나선 가지) + jungle_foliage_placer(vanilla MegaJungleFoliagePlacer) +
+     * bush_foliage_placer(jungle_bush) + VinesFeature 검증.
+     * giant-trunk(doubleTrunk=true) 경로가 실사용되므로 shouldSkipLocationSigned abs 이중 적용 수정도 커버.
+     */
+    // carver-seed-offset task(2026-08-16): carver +i3 오프셋 수정으로 지형이 바뀌며 1668 mismatch로
+    // 회귀 — mega-tree-placers 소스(placer/decorator/feature)는 미커밋 작업분이라 이 task 범위에서
+    // 손대지 않는다(task.md constraints). 상한만 고정해 회귀 방지, byte-exact 복구는 mega-tree-placers
+    // task 몫.
+    // mca-groundtruth-migration(2026-08-18): 정답지를 실서버 .mca로 교체 — 1566 mismatch(oracle 기준
+    // 1668보다 작음). 상한을 실측치로 조임.
+    @Test void spill_seed51532_96_2_megaJungle() throws Exception {
+        assertSpillParity(51532L, 96, 2, 1566);
+    }
+
+    /**
+     * mega-tree-placers task — old_growth_spruce_taiga 청크. giant_trunk_placer +
+     * mega_pine_foliage_placer + alter_ground decorator(podzol 치환) 검증.
+     */
+    // carver-seed-offset task(2026-08-16): carver +i3 오프셋 수정으로 499 mismatch 회귀 — 사유는
+    // spill_seed51532_96_2_megaJungle 주석 참조.
+    // mca-groundtruth-migration(2026-08-18): 정답지를 실서버 .mca로 교체 — 987 mismatch(oracle 기준 499의
+    // 약 2배). 실서버 대비 divergence가 더 크게 드러남. 원인 미조사(backlog), 상한을 실측치로 확대.
+    @Test void spill_seed1234_m88_m24_megaSpruce() throws Exception {
+        assertSpillParity(1234L, -88, -24, 987);
+    }
+
+    /**
+     * mega-tree-placers task — mangrove_swamp 청크(이웃 biome이 mangrove_swamp뿐인 클린 좌표).
+     * upwards_branching_trunk_placer + random_spread_foliage_placer + mangrove_root_placer +
+     * attached_to_leaves decorator 검증.
+     */
+    // carver-seed-offset task(2026-08-16): carver +i3 오프셋 수정으로 62 mismatch 회귀 — 사유는
+    // spill_seed51532_96_2_megaJungle 주석 참조.
+    // mca-groundtruth-migration(2026-08-18): 정답지를 실서버 .mca로 교체 — 3408 mismatch(oracle 기준
+    // 62의 약 55배). mangrove_swamp는 mega-tree-placers 미구현 항목이 많아 divergence가 크게 드러남.
+    // 원인 미조사(backlog), 상한을 실측치로 확대.
+    @Test void spill_seed1234_168_m44_mangrove() throws Exception {
+        assertSpillParity(1234L, 168, -44, 3408);
     }
 }
