@@ -51,3 +51,25 @@
 - 샘플은 스폰 근처 |chunk|≤8, 시드 4개. 사막·악지·늪·맹그로브·깊은 바다는 이번에 안 봄(과거 fixture상 맹그로브 3,408/청크, 정글 1,566/청크로 나쁨).
 - 네더·엔드 미검증, 청크 NBT의 엔티티·상자 loot·유체 틱 미비교(`/tick freeze` 상태).
 - 카테고리 분류는 블록 이름 기반 근사.
+
+## 후속 과제 — 버그별 코드 위치와 우선순위
+위치는 2026-10-07 시점 HEAD 기준. "확정"은 이번 대조로 재현된 것, "추정"은 코드 읽기로만 본 원인.
+
+| # | 버그 | 위치 | 상태 |
+|---|---|---|---|
+| 1 | 편집 청크 바이옴 유실 — 저장에 `biomes` 없음, 로드 시 plains 강제 | `AnvilChunkCodec.java:30`(toNbt), `:165`(fromNbt), `FurnaceMain.java:40` | 확정(종단 간 재현). 수정 시 옛 청크는 plains 폴백 유지 필요 |
+| 2 | MOTION_BLOCKING에 얇은 `snow` 레이어 포함 | `ChunkColumn.java:437` `isNonMotionBlockingByName`(주석에 "눈더미 높이별 콜리전" 미커버로 명시) | 확정(설산 98% 컬럼). 레이어 높이 기반 규칙 필요 |
+| 3 | 스폰 Y — 장식 전 지형으로 높이 계산 | `NoiseWorldSource.java:201` `getSpawnPosInChunk`가 `generate()` 사용 | 불일치는 확정(424242: 순정 112, Furnace 105), 원인은 추정 |
+| 4 | 나무 위치 불일치(hard의 46%) | TreeFeature·트렁크/폴리지 placer 전반 | 확정, 원인 불명(거대 버섯 Noop 가설은 실험으로 기각) |
+| 5 | 바이옴 쿼트 컬럼 오차 0.03% | `BiomeSampler`/`NoiseChunk.fillTarget` 부근 | 확정·결정적, 원인 불명 |
+| 6 | 지형 단독 잔차(광맥 granite·copper·tuff, 산봉우리 눈, 소수 물) | `OreVeinifier`, `SurfaceSystem` | 확정·결정적. 순정 지형 월드(features 제거)로 0까지 닫을 수 있음 |
+| 7 | 감사 테스트 사각지대 | `NoopFeatureAuditTest.java:61` 루트 `type`만 검사 | 확정. `no_bonemeal_flower`는 `forest_flowers.json` 안에 인라인으로만 있어 허용목록에 없는데도 통과. 중첩 Noop 자식은 `BiomeFeatureData.java:301`, `:309`에서 조용히 Noop이 된다 |
+
+미구현(버그가 아니라 작업량) — 점적석·라임 동굴·sculk·거대 버섯·던전·용암 호수·`block_column`(사탕수수·선인장), 구조물 33/34종, 조명, 몹 스폰.
+
+우선순위(판단 — 근거 데이터가 아니라 영향/난이도 추정)
+1. #1, #2 — 확정이고 작다. 각각 한 커밋.
+2. #6 — 결정적 정답지가 있어 0까지 닫기 쉽다.
+3. #4 — 영향이 가장 크므로 원인 규명부터.
+4. 점적석 → 라임 동굴 → sculk 포팅(시드별 hard 중 미구현 feature 비중 22~65%).
+5. #7 — 중첩 Noop을 세는 테스트로 보강하면 이후 포팅 진척을 수치로 볼 수 있다.
