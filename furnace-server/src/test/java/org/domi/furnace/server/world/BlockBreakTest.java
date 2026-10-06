@@ -26,7 +26,8 @@ class BlockBreakTest {
         ChunkPos cp = new ChunkPos(0, 0);
         EmbeddedChannel ch = new EmbeddedChannel();
         Player viewer = new Player(1, UUID.randomUUID(), "V", ch);
-        w.subscribeChunk(cp, viewer); // viewer가 (0,0) 청크 구독
+        World.Subscription sub = w.subscribeChunk(cp, viewer); // viewer가 (0,0) 청크 구독
+        w.chunkDelivered(cp, viewer, sub); // 청크가 이미 전달됐다고 보고 ready로 — 이후 변경은 즉시 전송
         int grass = reg.defaultStateId("minecraft:grass_block");
 
         sched.region(rp).execute(() -> {

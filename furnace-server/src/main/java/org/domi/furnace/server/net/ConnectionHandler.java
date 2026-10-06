@@ -233,9 +233,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 spawnChunks.add(new ChunkPos(centerCp.x() + dx, centerCp.z() + dz));
         spawnChunks.sort(java.util.Comparator.comparingInt(
                 c -> Math.max(Math.abs(c.x() - centerCp.x()), Math.abs(c.z() - centerCp.z()))));
+        // 스냅샷을 뜨기 전에 먼저 구독한다 — 구독이 청크 전달 전까지 블록 변경을 보류했다가 청크 뒤에 보낸다.
+        // (예전엔 청크를 보낸 뒤 구독해, 스냅샷과 구독 사이의 편집이 아예 전달되지 않았다.)
+        java.util.Map<ChunkPos, World.Subscription> subs = new java.util.HashMap<>();
+        for (ChunkPos cp : spawnChunks) subs.put(cp, world.subscribeChunk(cp, p));
         java.util.List<java.util.concurrent.CompletableFuture<byte[]>> futs =
                 spawnChunks.stream().map(world::serializedChunkBody).toList();
-        sendSpawnChunkBatchAsync(ctx, p, spawnChunks, futs, sx, sz);
+        sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
         scheduleSpawnGateRelease();
     }
@@ -244,12 +248,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      *  재접속처럼 gen이 2초를 넘겨도 TimeoutException 없이, 완료되면 전송. 완료 후 region에 adopt. */
     private void sendSpawnChunkBatchAsync(ChannelHandlerContext ctx, Player p,
             java.util.List<ChunkPos> spawnChunks,
+            java.util.Map<ChunkPos, World.Subscription> subs,
             java.util.List<java.util.concurrent.CompletableFuture<byte[]>> futs,
             double sx, double sz) {
         java.util.concurrent.CompletableFuture
                 .allOf(futs.toArray(new java.util.concurrent.CompletableFuture[0]))
                 .whenComplete((v, err) -> {
-                    if (!ctx.channel().isActive()) return;
+                    if (!ctx.channel().isActive()) {
+                        // adopt 전이라 region이 구독을 정리해 주지 않는다 — 직접 해제해 누수를 막는다.
+                        for (ChunkPos cp : spawnChunks) world.unsubscribeChunk(cp, p);
+                        return;
+                    }
                     ctx.channel().eventLoop().execute(() -> {
                         send(ctx, new ChunkBatchStart());
                         int sent = 0;
@@ -257,12 +266,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             ChunkPos cp = spawnChunks.get(i);
                             try {
                                 byte[] bodyBytes = futs.get(i).getNow(null);
-                                if (bodyBytes == null) continue;
+                                if (bodyBytes == null) { world.unsubscribeChunk(cp, p); continue; }
                                 send(ctx, new LevelChunkWithLight(Unpooled.wrappedBuffer(bodyBytes)));
                                 p.loadedChunks().add(cp);
-                                world.subscribeChunk(cp, p);
+                                world.chunkDelivered(cp, p, subs.get(cp));   // 청크를 쓴 뒤 보류된 변경을 흘려보낸다
                                 sent++;
                             } catch (Exception e) {
+                                world.unsubscribeChunk(cp, p);
                                 log.warn("스폰 청크 전송 실패 {}", cp, e);
                             }
                         }

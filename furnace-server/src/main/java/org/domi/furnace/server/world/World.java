@@ -19,6 +19,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
@@ -26,6 +27,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 
 public final class World {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(World.class);
 
     private final WorldSource worldSource;
     private final ChunkWorkerPool chunkPool;
@@ -56,8 +59,18 @@ public final class World {
     // 교차region 가시성 스냅샷: region 스레드가 공개, 인접 region 스레드가 락프리로 읽음.
     private final ConcurrentHashMap<RegionPos, List<EntityView>> snapshots = new ConcurrentHashMap<>();
 
-    // 청크별 구독자(그 청크를 로드한 플레이어). 블록 변경 시 이들에게만 전송.
-    private final ConcurrentHashMap<ChunkPos, Set<Player>> chunkSubscribers = new ConcurrentHashMap<>();
+    /**
+     * 청크 구독 상태. 청크가 클라에 전달되기 전(ready=false)의 블록 변경은 pending에 쌓았다가 청크 뒤에 보낸다 —
+     * 스냅샷 이후·전송 이전의 변경이 청크보다 먼저 도착해 클라가 "청크 미로드"로 버리면 그 변경을 영구히 놓친다.
+     * ready/pending은 청크 소유 region 스레드서만 접근한다(브로드캐스트와 전달 완료 처리가 같은 스레드라 직렬화됨).
+     */
+    public static final class Subscription {
+        boolean ready;
+        final List<Packet> pending = new ArrayList<>();
+    }
+
+    // 청크별 구독자(그 청크를 로드한 플레이어)와 구독 상태. 블록 변경 시 이들에게만 전송.
+    private final ConcurrentHashMap<ChunkPos, ConcurrentHashMap<Player, Subscription>> chunkSubscribers = new ConcurrentHashMap<>();
 
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
@@ -235,14 +248,19 @@ public final class World {
         return out;
     }
 
-    /** 플레이어가 청크를 로드 — 블록 변경 수신 등록. */
-    public void subscribeChunk(ChunkPos cp, Player p) {
-        chunkSubscribers.computeIfAbsent(cp, k -> ConcurrentHashMap.newKeySet()).add(p);
+    /**
+     * 플레이어가 청크를 로드 — 블록 변경 수신 등록. 반환된 구독은 아직 ready=false이므로 청크 패킷을 보낸 뒤
+     * {@link #chunkDelivered}를 불러야 보류된 변경이 청크 뒤에 흘러간다. 같은 청크를 다시 구독하면 이전 구독은 무효가 된다.
+     */
+    public Subscription subscribeChunk(ChunkPos cp, Player p) {
+        Subscription sub = new Subscription();
+        chunkSubscribers.computeIfAbsent(cp, k -> new ConcurrentHashMap<>()).put(p, sub);
+        return sub;
     }
 
-    /** 플레이어가 청크를 언로드 — 등록 해제. */
+    /** 플레이어가 청크를 언로드 — 등록 해제(보류된 변경도 버린다). */
     public void unsubscribeChunk(ChunkPos cp, Player p) {
-        Set<Player> s = chunkSubscribers.get(cp);
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
         if (s != null) {
             s.remove(p);
             if (s.isEmpty()) chunkSubscribers.remove(cp, s);
@@ -251,8 +269,52 @@ public final class World {
 
     /** 청크 구독자(블록 변경 브로드캐스트 대상). 비었으면 빈 Set. */
     public Set<Player> subscribers(ChunkPos cp) {
-        Set<Player> s = chunkSubscribers.get(cp);
-        return s == null ? Set.of() : s;
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        return s == null ? Set.of() : s.keySet();
+    }
+
+    /** 현재 유효한 구독(없으면 null). 구독이 재생성됐으면 최신 것을 돌려준다. */
+    public Subscription subscriptionOf(ChunkPos cp, Player p) {
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        return s == null ? null : s.get(p);
+    }
+
+    /** sub가 아직 유효한 구독인가(전달 도중 언로드·재구독됐으면 false → 그 청크는 버린다). */
+    public boolean isSubscribed(ChunkPos cp, Player p, Subscription sub) {
+        return sub != null && subscriptionOf(cp, p) == sub;
+    }
+
+    /**
+     * 청크 패킷을 채널에 넘긴 직후 호출 — 소유 region 스레드로 돌아가 구독을 ready로 바꾸고 보류된 변경을 청크 뒤에 보낸다.
+     * (청크 패킷이 채널 큐에 먼저 들어갔으므로 이후 enqueue되는 변경 패킷은 항상 청크보다 늦게 나간다.)
+     */
+    public void chunkDelivered(ChunkPos cp, Player p, Subscription sub) {
+        RegionPos owner = RegionGrid.regionPosOfChunk(cp.x(), cp.z(), regionSize);
+        runOn(owner, () -> {
+            if (!isSubscribed(cp, p, sub)) return;   // 전달 중 언로드/재구독됨
+            sub.ready = true;
+            for (Packet u : sub.pending) p.send(u);
+            sub.pending.clear();
+        });
+    }
+
+    /** 청크 소유 region 스레드서 호출 — 전달 완료(ready)된 구독자에겐 즉시, 아닌 구독자에겐 청크 뒤로 보류. */
+    public void broadcastBlockUpdate(ChunkPos cp, Packet pkt) {
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        if (s == null) return;
+        for (Map.Entry<Player, Subscription> e : s.entrySet()) {
+            Subscription sub = e.getValue();
+            if (sub.ready) e.getKey().send(pkt);
+            else sub.pending.add(pkt);
+        }
+    }
+
+    /** pos 소유 스레드서 task 실행. 실패가 조용히 사라지지 않게 로그로 남긴다(스케줄러는 예외를 future에만 담는다). */
+    public void runOn(RegionPos pos, Runnable task) {
+        scheduler.region(pos).execute(task).exceptionally(t -> {
+            log.error("[TASK] region {} 작업 실패", pos, t);
+            return null;
+        });
     }
 
     /** 엔티티 가시 거리(view-distance로 클램프)가 닿는 인접 region 반경(region 단위). */

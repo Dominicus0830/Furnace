@@ -88,7 +88,7 @@ public final class Region {
         chunkAt(cp).removeBlockEntityAt(bx, by, bz);
         dirtyChunks.add(cp);
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, ChunkSection.AIR);
-        for (Player sub : world.subscribers(cp)) sub.send(pkt);
+        world.broadcastBlockUpdate(cp, pkt);   // 청크가 아직 안 간 구독자는 청크 뒤로 보류
         // 이 region 소속 플레이어 중 그 체스트를 열어둔 사람에게 강제 ContainerClose(§3.5).
         // 다른 region 소속 플레이어가 열어둔 경우는 범위 밖(design result.md Issues #5).
         for (Player pl : players.values()) {
@@ -158,7 +158,7 @@ public final class Region {
             chunkAt(cp).putChest(ChestBlockEntity.empty(bx, by, bz));
         }
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, stateId);
-        for (Player sub : world.subscribers(cp)) sub.send(pkt);
+        world.broadcastBlockUpdate(cp, pkt);   // 청크가 아직 안 간 구독자는 청크 뒤로 보류
         return true;
     }
 
@@ -355,14 +355,18 @@ public final class Region {
         java.util.concurrent.atomic.AtomicInteger sent = new java.util.concurrent.atomic.AtomicInteger();
         List<CompletableFuture<?>> sends = new ArrayList<>(batch.size());
         for (ChunkPos cp : batch) {
+            // 구독은 updateChunks에서 큐에 넣을 때 했다. 이 구독이 청크 전달 전까지 블록 변경을 보류한다.
+            World.Subscription sub = world.subscriptionOf(cp, p);
+            if (sub == null) continue;   // 그 사이 언로드됨 — 보낼 것 없음
             CompletableFuture<?> f = world.serializedChunkBody(cp)
                     .thenApply(Unpooled::wrappedBuffer)
                     .thenAccept(body -> {
-                        // gen 지연 동안 플레이어가 시야 밖으로 이동했으면 보내봐야 클라가 "not in view
-                        // range"로 버림 → 드롭. 위치는 volatile이라 완료 스레드서 안전하게 읽음.
-                        if (inView(p, cp)) {
+                        // gen 지연 동안 플레이어가 시야 밖으로 이동했거나(재구독 포함) 언로드됐으면 보내봐야 클라가
+                        // "not in view range"로 버림 → 드롭. 위치는 volatile이라 완료 스레드서 안전하게 읽음.
+                        if (inView(p, cp) && world.isSubscribed(cp, p, sub)) {
                             p.send(new LevelChunkWithLight(body));
                             sent.incrementAndGet();
+                            world.chunkDelivered(cp, p, sub);   // 청크가 채널 큐에 들어간 뒤 보류된 변경을 흘려보낸다
                         }
                     })
                     .exceptionally(ex -> {           // 실패해도 배치 닫아 클라 무한 로딩 방지
