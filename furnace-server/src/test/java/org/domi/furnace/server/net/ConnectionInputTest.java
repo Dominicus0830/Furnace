@@ -110,6 +110,39 @@ class ConnectionInputTest {
         ch.writeInbound(frame(0x1A, b -> { b.writeDouble(x); b.writeDouble(y); b.writeDouble(z); b.writeBoolean(true); }));
     }
 
+    /** 위치 패킷과 회전 전용 패킷이 region이 drain하기 전에 연달아 오면 서로의 값을 덮어쓰면 안 된다. */
+    @Test
+    void positionThenRotationInSameTick_keepsBoth() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        move(ch, 10, -60, 3);
+        ch.writeInbound(frame(0x1C, b -> { b.writeFloat(45f); b.writeFloat(10f); b.writeBoolean(true); }));
+        p.drainPending();
+        assertEquals(10.0, p.x(), "회전 전용 패킷이 대기 중인 새 위치를 옛 위치로 덮어썼다");
+        assertEquals(45f, p.yaw());
+    }
+
+    @Test
+    void rotationThenPositionInSameTick_keepsBoth() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        ch.writeInbound(frame(0x1C, b -> { b.writeFloat(90f); b.writeFloat(0f); b.writeBoolean(true); }));
+        move(ch, 20, -60, 0);
+        p.drainPending();
+        assertEquals(20.0, p.x());
+        assertEquals(90f, p.yaw(), "위치 전용 패킷이 대기 중인 새 회전을 옛 회전으로 덮어썼다");
+    }
+
+    @Test
+    void positionRotationPacket_thenRotationOnly_keepsPosition() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        ch.writeInbound(frame(0x1B, b -> { b.writeDouble(7); b.writeDouble(-60); b.writeDouble(7);
+            b.writeFloat(30f); b.writeFloat(5f); b.writeBoolean(true); }));
+        ch.writeInbound(frame(0x1C, b -> { b.writeFloat(60f); b.writeFloat(15f); b.writeBoolean(true); }));
+        p.drainPending();
+        assertEquals(7.0, p.x());
+        assertEquals(7.0, p.z());
+        assertEquals(60f, p.yaw());
+    }
+
     @Test
     void teleportAndNonFinite_areRejected_withSingleCorrection_thenResumeAfterConfirm() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));

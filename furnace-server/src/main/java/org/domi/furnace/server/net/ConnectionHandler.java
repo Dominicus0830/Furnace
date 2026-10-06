@@ -83,7 +83,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
     // 이동 검증용(채널 이벤트루프 전용): 마지막으로 수락한 클라 위치. 스폰 좌표로 시작한다(월드 기본 스폰/저장 위치는 임의 좌표).
+    // 회전·onGround도 같이 들고 있다 — 부분 패킷(회전만/위치만)이 region이 drain하기 전의 대기 값을 덮어쓰지 않도록
+    // 항상 "마지막 수락 값들의 합"을 발행한다(Player.x() 등은 region이 아직 drain 안 한 옛 값일 수 있다).
     private double ix, iy, iz;
+    private float iyaw, ipitch;
+    private boolean ig = true;
     // 서버가 보낸 보정 텔레포트의 id(-1=없음). 보정 중엔 클라가 confirm할 때까지 위치 패킷을 무시한다(옛 위치 패킷이 연쇄 보정을 부르지 않게).
     private int correctionTpId = -1;
     private int teleportId = 2;                  // 다음 보정 id는 ++teleportId (스폰이 1·2를 썼다)
@@ -218,7 +222,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (saved != null) System.arraycopy(saved.slots(), 0, slots, 0, slots.length);
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
-        ix = sx; iy = sy; iz = sz;
+        ix = sx; iy = sy; iz = sz; iyaw = syaw; ipitch = spitch; ig = true;
         // GE13 먼저 — 클라가 "청크 대기" 상태(로딩화면 정지)에 들어간 뒤 위치를 받게 해 위치-유발 중력 억제.
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
@@ -320,8 +324,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 스폰 좌표로 위치 재확정(클라가 갭 중 떨어졌으면 끌어올림) 후 클라 이동 수용 시작.
         send(ctx, new SyncPlayerPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, 2));
         pendingTeleportId = -1;
+        ix = spawnX; iy = spawnY; iz = spawnZ; iyaw = spawnYaw; ipitch = spawnPitch; ig = true;   // 클라가 스폰으로 되돌아간다
         Player p = player;
-        if (p != null) p.publishPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, true);
+        if (p != null) publishInput(p);
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
@@ -351,7 +356,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 boolean g = frame.readBoolean();
                 Player p = player;
                 if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
-                    p.publishPosition(x, y, z, p.yaw(), p.pitch(), g);
+                    ig = g;
+                    publishInput(p);
                 }
             }
             case 0x1B -> { // move_player_pos_rot: Double x,y,z, Float yaw,pitch, Boolean onGround
@@ -360,7 +366,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 boolean g = frame.readBoolean();
                 Player p = player;
                 if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
-                    p.publishPosition(x, y, z, finiteOr0(yaw), finiteOr0(pitch), g);
+                    iyaw = finiteOr0(yaw);
+                    ipitch = finiteOr0(pitch);
+                    ig = g;
+                    publishInput(p);
                 }
             }
             case 0x1C -> { // move_player_rot: Float yaw,pitch, Boolean onGround
@@ -368,7 +377,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 boolean g = frame.readBoolean();
                 Player p = player;
                 if (p != null && pendingTeleportId == -1) {
-                    p.publishPosition(p.x(), p.y(), p.z(), finiteOr0(yaw), finiteOr0(pitch), g);
+                    iyaw = finiteOr0(yaw);
+                    ipitch = finiteOr0(pitch);
+                    ig = g;
+                    publishInput(p);
                 }
             }
             case 0x24 -> { // player_action (digging)
@@ -510,6 +522,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             default -> { /* 그 외 무시 */ }
         }
+    }
+
+    /** 마지막으로 수락한 위치·회전·onGround의 합을 발행한다(region 스레드가 다음 틱에 drain). */
+    private void publishInput(Player p) {
+        p.publishPosition(ix, iy, iz, iyaw, ipitch, ig);
     }
 
     private static float finiteOr0(float v) {
