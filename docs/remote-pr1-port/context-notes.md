@@ -30,3 +30,9 @@
 ## 4단계 — ConfigLoader 값 검증
 - 원격은 7개 키만 검증했지만 로컬에는 io-threads·autosave-ticks·chunk-eviction-grace-ticks·spawn-chunk-radius·chunks-per-tick·level-name이 더 있어 함께 검증(빈 level-name은 작업 디렉터리를 월드로 쓰게 됨).
 - **동작 변경 주의** — `view-distance`가 2~32 밖이면 기동이 거부된다. 과거에 `view-distance=64`로 테스트한 적이 있다(메모리 기록). 서버 값이 32를 넘어도 클라이언트 최대가 32라 `effectiveViewDistance`가 32로 잘려 효과가 없었으므로 거부가 맞다고 판단. 현재 저장소의 furnace.properties(16)는 통과하며 테스트로 고정.
+
+## 5단계 — PlayerInfoRemove (탭 목록 제거)
+- 패킷 ID 0x3D는 바닐라 datagen(`build/generated/reports/packets.json`, player_info_remove=61)으로 확인.
+- **원격과 다른 설계**: 원격은 엔티티가 시야 범위 밖으로 나갈 때마다 PlayerInfoRemove를 보내는데, 바닐라는 접속 중인 플레이어를 거리와 무관하게 탭에 둔다. 고칠 버그는 "퇴장한 플레이어가 탭에 영구히 남는 것"이므로, 후보에서 완전히 사라졌을 때(퇴장·유예 틱 경과)만 제거한다. 시야 밖 이동은 엔티티만 디스폰하고 탭 항목은 유지(`outOfEntityRange_keepsTabEntry_thenRemovedOnDisconnect`).
+- 이를 위해 `Player.listed`(탭에 올린 항목 → uuid)를 `tracked`와 분리했다. 유예 디스폰 루프를 `listed` 기준으로 돌려, 시야 밖이라 엔티티는 이미 사라졌어도 탭 항목은 남은 상태에서 퇴장한 경우도 정리된다.
+- 한계 — 이 서버의 탭 목록은 "후보 region 안에서 한 번 이상 본 플레이어"만 담는다(전체 접속자 탭이 아님). 접속자 전체 탭은 World 수준 목록이 필요해 이번 범위 밖. 후보 범위를 벗어난 접속자도 같은 경로로 제거된다.

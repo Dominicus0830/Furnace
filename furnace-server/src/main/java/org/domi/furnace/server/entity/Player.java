@@ -31,6 +31,9 @@ public final class Player {
     private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
+    // 이 플레이어의 탭 목록에 올려둔 엔티티 → uuid. 시야 밖으로 나가 엔티티가 디스폰돼도 접속 중이면 탭엔 남기고,
+    // 후보에서 완전히 사라졌을 때(퇴장 등)만 PlayerInfoRemove로 뺀다. region 스레드 전용.
+    private final Map<Integer, UUID> listed = new HashMap<>();
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
@@ -112,6 +115,7 @@ public final class Player {
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
     public Map<Integer, double[]> tracked() { return tracked; }
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
+    public Map<Integer, UUID> listed() { return listed; }
 
     /** 체스트 열기 기록(containerId + 좌표). netty 스레드 전용 writer. */
     public void openChest(int containerId, int x, int y, int z) {

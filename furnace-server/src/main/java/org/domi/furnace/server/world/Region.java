@@ -19,6 +19,7 @@ import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
 import org.domi.furnace.server.net.protocol.play.MoveEntityRot;
+import org.domi.furnace.server.net.protocol.play.PlayerInfoRemove;
 import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
 import org.domi.furnace.server.net.protocol.play.RemoveEntities;
 import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
@@ -288,13 +289,21 @@ public final class Region {
         }
     }
 
-    /** 이 region의 타 플레이어들이 eid를 추적 중이면 디스폰. */
+    /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */
     private void broadcastRemove(int eid) {
         for (Player other : players.values()) {
             if (other.tracked().remove(eid) != null) {
                 other.send(new RemoveEntities(java.util.List.of(eid)));
             }
+            removeFromTabList(other, eid);
         }
+    }
+
+    /** 탭 목록에 올려둔 eid가 있으면 PlayerInfoRemove로 빼고 기록을 지운다. */
+    private static void removeFromTabList(Player a, int eid) {
+        java.util.UUID uuid = a.listed().remove(eid);
+        a.missingTicks().remove(eid);
+        if (uuid != null) a.send(new PlayerInfoRemove(java.util.List.of(uuid)));
     }
 
     /** 중심 이동 시 시야 청크를 pending 큐에 적재(+구독), 시야 밖은 언로드. 전송은 sendQueuedChunks가 틱당 스로틀. */
@@ -412,6 +421,7 @@ public final class Region {
             boolean tracking = a.tracked().containsKey(b.entityId());
             if (near && !tracking) {
                 a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
+                a.listed().put(b.entityId(), b.uuid());   // 탭에 올려둔 항목 — 퇴장(후보서 완전히 사라짐) 때 제거한다
                 a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
                 a.send(new SetHeadRotation(b.entityId(), b.yaw()));
                 a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch()});
@@ -422,15 +432,18 @@ public final class Region {
                 broadcastMove(a, b, a.tracked().get(b.entityId()));
             }
         }
-        // 후보서 완전히 사라진 추적 엔티티: grace 틱 후 despawn(퇴장·스냅샷 범위 이탈).
+        // 후보서 완전히 사라진 엔티티: grace 틱 후 despawn + 탭 제거(퇴장·스냅샷 범위 이탈).
         // 핸드오프는 인접 region 스냅샷 갭이 1틱 정도라 grace 미만 → 깜빡임 없음.
-        var ti = a.tracked().keySet().iterator();
-        while (ti.hasNext()) {
-            int eid = ti.next();
+        // 탭에 올린 항목(listed)을 기준으로 돈다 — 시야 밖이라 엔티티는 이미 디스폰됐어도 탭 항목은 남아 있을 수 있다.
+        var li = a.listed().entrySet().iterator();
+        while (li.hasNext()) {
+            var e = li.next();
+            int eid = e.getKey();
             if (seen.contains(eid)) { a.missingTicks().remove(eid); continue; }
             if (a.missingTicks().merge(eid, 1, Integer::sum) >= ENTITY_DESPAWN_GRACE) {
-                a.send(new RemoveEntities(java.util.List.of(eid)));
-                ti.remove();
+                if (a.tracked().remove(eid) != null) a.send(new RemoveEntities(java.util.List.of(eid)));
+                a.send(new PlayerInfoRemove(java.util.List.of(e.getValue())));
+                li.remove();
                 a.missingTicks().remove(eid);
             }
         }
