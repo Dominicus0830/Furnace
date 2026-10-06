@@ -21,6 +21,8 @@ class CrossRegionChunkEditTest {
         int bx = 5 * 16, by = -61, bz = 0; // 청크 (5,0) 안의 블록
         RegionPos owner = RegionGrid.regionPosOfChunk(5, 0, 1);
 
+        w.snapshotChunk(cp).get(); // 청크가 로드돼 있어야 파괴가 적용된다(임의 좌표로 청크를 만들지 않음)
+
         // 소유 region에서 블록 파괴
         sched.region(owner).execute(() -> w.regionAt(owner).breakBlock(bx, by, bz)).get();
 

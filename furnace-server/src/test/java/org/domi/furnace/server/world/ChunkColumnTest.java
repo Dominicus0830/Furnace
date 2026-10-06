@@ -37,4 +37,18 @@ class ChunkColumnTest {
         BitStorage bs = BitStorage.wrap(9, 256, hm);
         assertEquals(4, bs.get(0));
     }
+
+    @Test
+    void heightmap_followsEdits() {
+        ChunkColumn c = new ChunkColumn(6);
+        c.setBlock(0, -64, 0, 79); // 바닥 → 높이 1
+        c.setBlock(0, -63, 0, 10); // → 2
+        c.setBlock(0, -61, 0, 9);  // 중간 빈칸(-62) 두고 최상단 → 4
+        assertEquals(4, BitStorage.wrap(9, 256, c.motionBlockingHeightmap()).get(0));
+        c.setBlock(0, -61, 0, 0);  // 최상단 제거 → 아래 비공기(-63)까지 내려가 2
+        assertEquals(2, BitStorage.wrap(9, 256, c.motionBlockingHeightmap()).get(0));
+        assertTrue(c.isDirty());
+        c.markClean();
+        assertFalse(c.isDirty());
+    }
 }

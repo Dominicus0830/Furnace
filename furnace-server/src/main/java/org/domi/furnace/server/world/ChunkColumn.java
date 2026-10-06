@@ -5,10 +5,12 @@ public final class ChunkColumn {
 
     public static final int SECTION_COUNT = 24;
     public static final int MIN_Y = -64;
+    public static final int MAX_Y = MIN_Y + SECTION_COUNT * 16 - 1; // 319
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음)
+    private boolean dirty;                      // 로드/생성 이후 편집됨 — 퇴출하면 편집이 사라진다
 
     public ChunkColumn(int biomeId) {
         for (int i = 0; i < SECTION_COUNT; i++) {
@@ -21,11 +23,26 @@ public final class ChunkColumn {
         return sections;
     }
 
-    /** worldY 절대좌표에 블록 설정. */
+    /** worldY 절대좌표에 블록 설정. heightmap(표면 높이)도 함께 갱신한다. */
     public void setBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - MIN_Y;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        dirty = true;
+        int idx = z * 16 + x;
+        int top = local + 1;
+        if (stateId != ChunkSection.AIR) {
+            if (top > surface[idx]) surface[idx] = top;
+        } else if (surface[idx] == top) { // 최상단 블록 제거 → 아래로 재탐색
+            int y = local - 1;
+            while (y >= 0 && getBlock(x, y + MIN_Y, z) == ChunkSection.AIR) y--;
+            surface[idx] = y + 1;
+        }
     }
+
+    public boolean isDirty() { return dirty; }
+
+    /** 방금 생성/로드한 상태를 "편집 안 됨"으로 표시. */
+    public void markClean() { dirty = false; }
 
     /** worldY 절대좌표 블록 조회. */
     public int getBlock(int x, int worldY, int z) {

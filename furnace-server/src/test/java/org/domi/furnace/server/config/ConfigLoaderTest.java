@@ -35,4 +35,24 @@ class ConfigLoaderTest {
         assertEquals(8, c.regionSize());
         assertEquals(2, c.regionThreads());
     }
+
+    @Test
+    void load_rejectsInvalidValues_withKeyName(@TempDir Path dir) throws Exception {
+        for (String bad : new String[]{"region-size=0", "region-threads=0", "view-distance=1",
+                "view-distance=99", "port=70000", "tick-nanos=0", "compression-threshold=-5"}) {
+            Path f = dir.resolve("bad.properties");
+            Files.writeString(f, bad + "\n");
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> ConfigLoader.load(f), bad);
+            assertTrue(e.getMessage().contains(bad.substring(0, bad.indexOf('='))), e.getMessage());
+        }
+    }
+
+    @Test
+    void load_rejectsNonNumeric(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("bad.properties");
+        Files.writeString(f, "port=abc\n");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(e.getMessage().contains("port"));
+    }
 }

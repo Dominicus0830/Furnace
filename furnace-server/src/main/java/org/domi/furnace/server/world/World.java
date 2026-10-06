@@ -3,9 +3,9 @@ package org.domi.furnace.server.world;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.api.concurrent.ThreadOwner;
@@ -15,8 +15,12 @@ import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.world.gen.WorldSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class World {
+
+    private static final Logger log = LoggerFactory.getLogger(World.class);
 
     private final WorldSource worldSource;
     private final ChunkWorkerPool chunkPool;
@@ -34,8 +38,9 @@ public final class World {
     // 교차region 가시성 스냅샷: region 스레드가 공개, 인접 region 스레드가 락프리로 읽음.
     private final ConcurrentHashMap<RegionPos, List<EntityView>> snapshots = new ConcurrentHashMap<>();
 
-    // 청크별 구독자(그 청크를 로드한 플레이어). 블록 변경 시 이들에게만 전송.
-    private final ConcurrentHashMap<ChunkPos, Set<Player>> chunkSubscribers = new ConcurrentHashMap<>();
+    // 핸드오프 중(떠난 region은 스냅샷서 뺐고 새 region은 아직 편입 전)인 엔티티.
+    // 후보에 계속 포함해야 "후보에서 사라짐 = 진짜 사라짐"이 성립한다.
+    private final ConcurrentHashMap<Integer, EntityView> inTransit = new ConcurrentHashMap<>();
 
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
@@ -60,8 +65,7 @@ public final class World {
             try {
                 r.tick();
             } catch (Throwable t) {
-                org.slf4j.LoggerFactory.getLogger(World.class)
-                        .error("[TICK] region {} 실패", r.pos(), t);
+                log.error("[TICK] region {} 실패", r.pos(), t);
             }
         }
     }
@@ -94,33 +98,49 @@ public final class World {
         snapshots.put(pos, views);
     }
 
-    /** center±radius region들의 스냅샷을 모아 반환. */
+    /** 핸드오프 시작 — 편입이 끝나 새 region 스냅샷에 실릴 때까지 후보로 유지. */
+    public void markTransit(EntityView view) {
+        inTransit.put(view.entityId(), view);
+    }
+
+    public void clearTransit(int entityId) {
+        inTransit.remove(entityId);
+    }
+
+    /** center±radius region들의 스냅샷(+핸드오프 중 엔티티)을 모아 entityId 중복 제거해 반환. */
     public List<EntityView> candidatesAround(RegionPos center, int radius) {
-        List<EntityView> out = new ArrayList<>();
+        Map<Integer, EntityView> out = new LinkedHashMap<>();
+        for (EntityView v : inTransit.values()) out.put(v.entityId(), v);
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 List<EntityView> s = snapshots.get(new RegionPos(center.x() + dx, center.z() + dz));
-                if (s != null) out.addAll(s);
+                if (s != null) for (EntityView v : s) out.put(v.entityId(), v); // 스냅샷이 transit보다 최신
             }
         }
-        return out;
+        return new ArrayList<>(out.values());
     }
 
-    /** 플레이어가 청크를 로드 — 블록 변경 수신 등록. */
-    public void subscribeChunk(ChunkPos cp, Player p) {
-        chunkSubscribers.computeIfAbsent(cp, k -> ConcurrentHashMap.newKeySet()).add(p);
+    /** pos 소유 스레드서 task 실행. 실패는 조용히 사라지지 않게 로그로 남긴다. */
+    public void runOn(RegionPos pos, Runnable task) {
+        scheduler.region(pos).execute(task).exceptionally(t -> {
+            log.error("[TASK] region {} 작업 실패", pos, t);
+            return null;
+        });
     }
 
-    /** 플레이어가 청크를 언로드 — 등록 해제. */
-    public void unsubscribeChunk(ChunkPos cp, Player p) {
-        Set<Player> s = chunkSubscribers.get(cp);
-        if (s != null) s.remove(p);
+    /**
+     * 플레이어가 청크를 로드 — 소유 region이 구독 등록·스냅샷·전송을 한 스레드서 순서대로 처리한다.
+     * (스냅샷 이후의 블록 변경이 청크보다 먼저 도착하는 레이스 방지)
+     */
+    public void requestChunk(ChunkPos cp, Player p) {
+        RegionPos owner = RegionGrid.regionPosOfChunk(cp.x(), cp.z(), regionSize);
+        runOn(owner, () -> regionAt(owner).openChunk(cp, p));
     }
 
-    /** 청크 구독자(블록 변경 브로드캐스트 대상). 비었으면 빈 Set. */
-    public Set<Player> subscribers(ChunkPos cp) {
-        Set<Player> s = chunkSubscribers.get(cp);
-        return s == null ? Set.of() : s;
+    /** 플레이어가 청크를 언로드 — 소유 region의 구독 해제. */
+    public void releaseChunk(ChunkPos cp, Player p) {
+        RegionPos owner = RegionGrid.regionPosOfChunk(cp.x(), cp.z(), regionSize);
+        runOn(owner, () -> regionAt(owner).closeChunk(cp, p));
     }
 
     /** 엔티티 가시 거리(view-distance로 클램프)가 닿는 인접 region 반경(region 단위). */

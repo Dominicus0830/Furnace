@@ -8,7 +8,7 @@ public interface FurnaceScheduler {
 
     /**
      * 주어진 region 좌표를 소유한 스레드의 스케줄러. 절대 null이 아니다.
-     * M0에서는 모든 RegionPos가 단일 region에 매핑되어 pos와 무관하게 같은 스케줄러를 반환한다.
+     * 같은 RegionPos는 항상 같은 스레드로 라우팅되며(결정적 매핑), 여러 RegionPos가 한 스레드를 공유할 수 있다.
      */
     TaskScheduler region(RegionPos pos);
 }
