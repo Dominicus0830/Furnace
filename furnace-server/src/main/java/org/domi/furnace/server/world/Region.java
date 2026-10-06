@@ -42,6 +42,9 @@ public final class Region {
     private final RegionPos pos;
     private final World world;
     private final Map<Integer, Player> players = new HashMap<>();
+    private static final int EVICT_AFTER_TICKS = 600;   // 구독자 0 상태로 30초 지나면 퇴출 후보
+    private final Map<ChunkPos, Long> idleSince = new HashMap<>();
+    private long tickCount;
     private final Set<Integer> justAdopted = new HashSet<>(); // 이번 틱 스냅샷에 실린 뒤 transit 해제할 엔티티
     private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
     // 소유 청크별 구독자(소유 스레드 전용). 구독·스냅샷·전송·블록변경이 한 스레드서 직렬화된다.
@@ -57,14 +60,20 @@ public final class Region {
 
     /** 소유 스레드서 청크 get-or-load(보관). */
     public ChunkColumn chunkAt(ChunkPos cp) {
-        return chunks.computeIfAbsent(cp, p -> world.worldSource().generate(p.x(), p.z()));
+        return chunks.computeIfAbsent(cp, p -> {
+            ChunkColumn c = world.worldSource().generate(p.x(), p.z());
+            c.markClean();
+            return c;
+        });
     }
 
     /** 소유 스레드서 블록 파괴(air) + 청크 구독자에게 BlockUpdate. */
     public void breakBlock(int bx, int by, int bz) {
         world.assertOwns(pos);
         ChunkPos cp = ChunkPos.ofBlock(bx, bz);
-        chunkAt(cp).setBlock(bx & 15, by, bz & 15, ChunkSection.AIR);
+        ChunkColumn col = chunks.get(cp);     // 로드된 청크만 — 임의 좌표로 청크를 만들어내지 않는다
+        if (col == null || by < ChunkColumn.MIN_Y || by > ChunkColumn.MAX_Y) return;
+        col.setBlock(bx & 15, by, bz & 15, ChunkSection.AIR);
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, ChunkSection.AIR);
         Map<Player, Subscription> subs = subscribers.get(cp);
         if (subs == null) return;
@@ -82,6 +91,7 @@ public final class Region {
     public void openChunk(ChunkPos cp, Player p) {
         world.assertOwns(pos);
         Subscription sub = new Subscription();
+        idleSince.remove(cp);
         subscribers.computeIfAbsent(cp, k -> new HashMap<>()).put(p, sub);
         ChunkSnapshot snap = ChunkSnapshot.of(cp.x(), cp.z(), chunkAt(cp));
         world.chunkPool().submit(() -> {
@@ -116,7 +126,26 @@ public final class Region {
         Map<Player, Subscription> subs = subscribers.get(cp);
         if (subs == null) return;
         subs.remove(p);
-        if (subs.isEmpty()) subscribers.remove(cp);
+        if (subs.isEmpty()) {
+            subscribers.remove(cp);
+            idleSince.put(cp, tickCount);
+        }
+    }
+
+    /** 구독자 없이 오래 방치된 "편집 안 된" 청크를 내린다(superflat은 결정적이라 다시 만들면 같다). 편집된 청크는 M4b(영속성)까지 보관. */
+    private void evictIdleChunks() {
+        var it = idleSince.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            if (tickCount - e.getValue() < EVICT_AFTER_TICKS) continue;
+            ChunkColumn col = chunks.get(e.getKey());
+            if (col != null && !col.isDirty()) chunks.remove(e.getKey());
+            it.remove();
+        }
+    }
+
+    public boolean chunkLoaded(ChunkPos cp) {
+        return chunks.containsKey(cp);
     }
 
     /** 소유 스레드서 플레이어 편입. */
@@ -130,6 +159,7 @@ public final class Region {
     /** 소유 스레드서 매 틱 호출. */
     public void tick() {
         world.assertOwns(pos);
+        if (++tickCount % 100 == 0) evictIdleChunks();
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();
         while (it.hasNext()) {
@@ -240,6 +270,12 @@ public final class Region {
         if (uuid != null) a.send(new PlayerInfoRemove(List.of(uuid)));
     }
 
+    /** 상대 이동 패킷(short, 1/4096블록)에 오버플로 없이 담기는지. */
+    static boolean fitsDelta(double d) {
+        long v = Math.round(d * 4096);
+        return v >= Short.MIN_VALUE && v <= Short.MAX_VALUE;
+    }
+
     private static boolean within(Player a, EntityView b, double range) {
         double dx = a.x() - b.x();
         double dz = a.z() - b.z();
@@ -251,7 +287,7 @@ public final class Region {
         boolean posChanged = ddx != 0 || ddy != 0 || ddz != 0;
         boolean rotChanged = b.yaw() != last[3] || b.pitch() != last[4];
         if (!posChanged && !rotChanged) return;
-        boolean big = Math.abs(ddx) >= 8 || Math.abs(ddy) >= 8 || Math.abs(ddz) >= 8;
+        boolean big = !fitsDelta(ddx) || !fitsDelta(ddy) || !fitsDelta(ddz);
         if (big) {
             a.send(new TeleportEntity(b.entityId(), b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.onGround()));
         } else if (posChanged) {
