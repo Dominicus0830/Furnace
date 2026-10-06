@@ -44,4 +44,36 @@ class ConfigLoaderTest {
         assertEquals(1200, c.autosaveTicks());
         assertEquals(40, c.chunkEvictionGraceTicks());
     }
+
+    @Test
+    void load_rejectsInvalidValues_withKeyName(@TempDir Path dir) throws Exception {
+        for (String bad : new String[]{"region-size=0", "region-threads=0", "view-distance=1", "view-distance=99",
+                "port=70000", "tick-nanos=0", "compression-threshold=-5", "io-threads=0", "autosave-ticks=0",
+                "chunk-eviction-grace-ticks=0", "chunks-per-tick=0", "spawn-chunk-radius=-1", "level-name= "}) {
+            Path f = dir.resolve("bad.properties");
+            Files.writeString(f, bad + "\n");
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> ConfigLoader.load(f), bad);
+            assertTrue(e.getMessage().contains(bad.substring(0, bad.indexOf('='))), e.getMessage());
+        }
+    }
+
+    @Test
+    void load_rejectsNonNumeric_andOutOfIntRange(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("bad.properties");
+        Files.writeString(f, "port=abc\n");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(e.getMessage().contains("port"));
+        Files.writeString(f, "region-size=99999999999\n");
+        e = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(e.getMessage().contains("region-size"));
+    }
+
+    /** 저장소의 실제 furnace.properties 가 새 검증을 통과해야 서버가 기동한다. */
+    @Test
+    void load_acceptsRepositoryFurnaceProperties() {
+        Path real = Path.of("furnace.properties");
+        if (!Files.exists(real)) return; // 테스트 작업 디렉터리에 없으면 건너뜀
+        assertDoesNotThrow(() -> ConfigLoader.load(real));
+    }
 }

@@ -26,3 +26,7 @@
 - ④ 설치 대상 위치도 높이 범위·로드 여부를 검사. 로드 여부는 `Region.chunkLoaded`(소유 스레드 전용). 기존 `breakBlock`/`placeBlock` 시그니처는 유지(기존 테스트 호환) — 게이트는 ConnectionHandler 쪽.
 - ⑤ region 작업은 `World.runOn`으로 실행해 예외가 로그로 남는다(스케줄러는 future에만 담고 버렸다). 회전 값은 NaN/무한대면 0으로 정규화.
 - 남은 것 — Container Click(0x0E)의 상자 좌표는 `openChest` 시점에 검증된 클릭에서 오므로 별도 검증 안 함. 이동 패킷 병합(회전 전용이 위치를 덮어씀)은 6단계.
+
+## 4단계 — ConfigLoader 값 검증
+- 원격은 7개 키만 검증했지만 로컬에는 io-threads·autosave-ticks·chunk-eviction-grace-ticks·spawn-chunk-radius·chunks-per-tick·level-name이 더 있어 함께 검증(빈 level-name은 작업 디렉터리를 월드로 쓰게 됨).
+- **동작 변경 주의** — `view-distance`가 2~32 밖이면 기동이 거부된다. 과거에 `view-distance=64`로 테스트한 적이 있다(메모리 기록). 서버 값이 32를 넘어도 클라이언트 최대가 32라 `effectiveViewDistance`가 32로 잘려 효과가 없었으므로 거부가 맞다고 판단. 현재 저장소의 furnace.properties(16)는 통과하며 테스트로 고정.
