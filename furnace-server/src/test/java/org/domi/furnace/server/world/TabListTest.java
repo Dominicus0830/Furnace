@@ -120,4 +120,19 @@ class TabListTest {
         assertTrue(all.contains(PlayerInfoRemove.ID), "시야 밖에서 퇴장해도 탭 항목은 결국 제거돼야 한다: " + all);
         assertFalse(all.contains(RemoveEntities.ID), "엔티티는 이미 디스폰됨: " + all);
     }
+
+    /** 접속은 유지한 채 후보 region 밖으로 순간이동 — 관찰자에게 유령으로 남지 않아야 한다(원격 GhostEntityTest 시나리오). */
+    @Test
+    void teleportFarAway_isDespawnedForObserver() throws Exception {
+        setup(300);
+        meet(B);
+        tgt.publishPosition(50_000, -60, 10, 0, 0, true);   // 후보(이웃 region) 범위 밖
+        RegionPos far = RegionGrid.regionPos(50_000, 10, 16);
+        tick(B);                                             // B가 drain 후 대상을 handoff
+        sched.region(far).execute(() -> w.regionAt(far).adopt(tgt)).get();
+        tick(far);
+        List<Integer> all = new ArrayList<>();
+        for (int t = 0; t < 6; t++) { tick(A); all.addAll(ids()); }
+        assertTrue(all.contains(RemoveEntities.ID), "후보 밖으로 간 플레이어는 디스폰돼야 한다: " + all);
+    }
 }

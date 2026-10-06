@@ -51,4 +51,18 @@ class SpawnPacketsTest {
         assertEquals(9, Types.readVarInt(buf));
         buf.release();
     }
+
+    @Test
+    void playerInfoRemove_listsUuids() {
+        UUID a = UUID.randomUUID(), b = UUID.randomUUID();
+        PlayerInfoRemove p = new PlayerInfoRemove(java.util.List.of(a, b));
+        assertEquals(0x3D, p.id());               // 바닐라 datagen player_info_remove = 61
+        ByteBuf buf = Unpooled.buffer();
+        p.write(buf);
+        assertEquals(2, Types.readVarInt(buf));    // count
+        assertEquals(a, Types.readUuid(buf));
+        assertEquals(b, Types.readUuid(buf));
+        assertFalse(buf.isReadable());
+        buf.release();
+    }
 }

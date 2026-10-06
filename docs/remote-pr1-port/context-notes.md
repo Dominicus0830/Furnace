@@ -46,3 +46,10 @@
 - 전체 407개(스킵 6) 실패 0 — 기준선 388에 새 테스트 19개(ChunkDeliveryOrder 3, DeltaMoveOverflow 3, ConnectionInput 7, ConfigLoader +3, TabList 3).
 - **push 주의** — `merge -s ours`로 이력만 합쳤으므로 로컬 main을 push하면 원격 `main` 트리에서 PR #1의 변경 내용이 사라진다(이력은 남음). 필요한 수정은 위 포팅으로 대체했고, 로컬에 이미 있던 유령 엔티티·유휴 청크 퇴출·heightmap 편집 반영은 로컬 구현을 유지했다. 원격 브랜치 `claude/work-continuation-u597cw`는 그대로 남아 있다.
 - 포팅하지 않은 원격 변경 — 유령 엔티티 transit 방식(로컬 유예 틱 방식이 교차 region 퇴장을 3틱 만에 처리함을 실행으로 확인), 유휴 청크 퇴출(로컬이 저장과 연동해 이미 구현), heightmap 편집 반영(로컬 이미 구현), gradlew 실행 권한·스케줄러 javadoc(사소).
+
+## 제3자 검토 (push 직전)
+머지 구조는 정상이었다 — 머지 커밋 892ed26의 트리는 첫 부모(로컬)와 동일(원격 내용 미유입), origin/main은 main의 조상이라 빨리감기 push 가능. 검토에서 아래 빈틈이 나와 보강했다.
+- **gradlew 실행 권한 누락** — 원격은 100755인데 main은 100644였다. push하면 원격이 고친 권한이 되돌아가 Linux(OCI Ubuntu)에서 `./gradlew`가 실패한다. 처음에 "사소"로 분류해 포팅하지 않은 것이 오판이었다. `git update-index --chmod=+x`로 복원.
+- **"로컬에 이미 있음"을 코드만 보고 판단한 3건에 테스트가 없었다** — (1) 청크 퇴출: 로컬엔 퇴출 테스트가 아예 없었다. 원격은 "편집 청크 보관", 로컬은 "저장 후 퇴출"이라 의미가 달라 로컬 의미론으로 새로 작성(`ChunkEvictionTest`: 미편집은 저장 안 하고 퇴출, 편집은 저장 후 퇴출·재로딩 보존, 구독 중은 보관). (2) heightmap 편집 반영: `ChunkColumnTest.heightmap_followsEdits`로 MOTION_BLOCKING·WORLD_SURFACE 모두 확인. 처음 실패한 건 새로 만든 빈 컬럼이 WORLD_SURFACE를 라이브 갱신하지 않는 "미초기화" 상태라서이며(운영에선 loadGenerated/fromNbt로 초기화되고 오버월드 컬럼은 기반암 때문에 높이 0이 될 수 없음), 운영 경로(loadGenerated)로 초기화하도록 테스트를 고쳤다. (3) 유령 엔티티: 원격 GhostEntityTest의 "후보 밖으로 순간이동" 시나리오가 로컬 테스트에 없어 `TabListTest.teleportFarAway_isDespawnedForObserver`로 추가.
+- `PlayerInfoRemove` 와이어 포맷 테스트(`SpawnPacketsTest`) 추가 — ID 0x3D와 바이트 구성이 하드코딩인데 검증이 없었다.
+- push 시 원격에서 사라지는 것 — 원격 전용 `GhostEntityTest`(transit 방식 전용 케이스 포함)·`ChunkEvictionTest`(원격 의미론). 같은 동작은 위 로컬 테스트들이 검증한다.

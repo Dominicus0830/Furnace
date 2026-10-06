@@ -186,4 +186,29 @@ class ChunkColumnTest {
         assertEquals(topY - 1, oceanFloorBlockY(c, 0, 0));
         assertEquals(topY, wgOceanFloorHeight(c, 0, 0));
     }
+
+    @Test
+    void heightmap_followsEdits() {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        int bedrock = reg.defaultStateId("minecraft:bedrock");
+        int dirt = reg.defaultStateId("minecraft:dirt");
+        int grass = reg.defaultStateId("minecraft:grass_block");
+        // 운영과 같은 경로로 초기화 — 새로 만든 빈 컬럼은 WORLD_SURFACE를 라이브 갱신하지 않는 "미초기화" 상태다
+        // (오버월드 컬럼은 바닥 기반암 때문에 높이 0이 될 수 없어 운영에선 문제 없음).
+        int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 4096];
+        for (int i = 0; i < 256; i++) blockIds[i] = bedrock;   // y=-64 층 전체가 기반암 → 높이 1
+        ChunkColumn c = new ChunkColumn(6);
+        c.loadGenerated(blockIds, new int[1536]);
+        assertEquals(1, BitStorage.wrap(9, 256, c.worldSurfaceHeightmap()).get(0));
+        c.setBlock(0, -63, 0, dirt);    // → 2
+        c.setBlock(0, -61, 0, grass);   // 중간 빈칸(-62)을 두고 최상단 → 4
+        assertEquals(4, BitStorage.wrap(9, 256, c.motionBlockingHeightmap()).get(0));
+        assertEquals(4, BitStorage.wrap(9, 256, c.worldSurfaceHeightmap()).get(0));
+        c.setBlock(0, -61, 0, ChunkSection.AIR); // 최상단 제거 → 아래 비공기(-63)까지 내려가 2
+        assertEquals(2, BitStorage.wrap(9, 256, c.motionBlockingHeightmap()).get(0));
+        assertEquals(2, BitStorage.wrap(9, 256, c.worldSurfaceHeightmap()).get(0));
+        assertTrue(c.dirty());
+        c.clearDirty();
+        assertFalse(c.dirty());
+    }
 }
