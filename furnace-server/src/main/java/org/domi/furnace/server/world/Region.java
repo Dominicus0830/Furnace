@@ -22,13 +22,25 @@ import org.domi.furnace.server.net.protocol.play.SetHeadRotation;
 import org.domi.furnace.server.net.protocol.play.SpawnEntity;
 import org.domi.furnace.server.net.protocol.play.TeleportEntity;
 import org.domi.furnace.server.net.protocol.play.UnloadChunk;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class Region {
+
+    private static final Logger log = LoggerFactory.getLogger(Region.class);
+
+    /** 청크 구독 상태. 청크가 클라에 전달되기 전(ready=false)의 변경은 쌓았다가 청크 뒤에 보낸다. */
+    private static final class Subscription {
+        boolean ready;
+        final List<BlockUpdate> pending = new ArrayList<>();
+    }
 
     private final RegionPos pos;
     private final World world;
     private final Map<Integer, Player> players = new HashMap<>();
     private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
+    // 소유 청크별 구독자(소유 스레드 전용). 구독·스냅샷·전송·블록변경이 한 스레드서 직렬화된다.
+    private final Map<ChunkPos, Map<Player, Subscription>> subscribers = new HashMap<>();
 
     public Region(RegionPos pos, World world) {
         this.pos = pos;
@@ -49,7 +61,57 @@ public final class Region {
         ChunkPos cp = ChunkPos.ofBlock(bx, bz);
         chunkAt(cp).setBlock(bx & 15, by, bz & 15, ChunkSection.AIR);
         BlockUpdate pkt = new BlockUpdate(bx, by, bz, ChunkSection.AIR);
-        for (Player sub : world.subscribers(cp)) sub.send(pkt);
+        Map<Player, Subscription> subs = subscribers.get(cp);
+        if (subs == null) return;
+        for (Map.Entry<Player, Subscription> e : subs.entrySet()) {
+            Subscription sub = e.getValue();
+            if (sub.ready) e.getKey().send(pkt);
+            else sub.pending.add(pkt);   // 청크가 아직 안 갔다 — 청크 뒤에 보낸다
+        }
+    }
+
+    /**
+     * 소유 스레드서 플레이어에게 청크를 연다: 구독 등록 + 스냅샷을 한 번에 하고(이후 변경은 전부 구독을 거침),
+     * 직렬화는 풀서 한 뒤 소유 스레드로 돌아와 전송 → 청크가 항상 뒤따르는 BlockUpdate보다 먼저 간다.
+     */
+    public void openChunk(ChunkPos cp, Player p) {
+        world.assertOwns(pos);
+        Subscription sub = new Subscription();
+        subscribers.computeIfAbsent(cp, k -> new HashMap<>()).put(p, sub);
+        ChunkSnapshot snap = ChunkSnapshot.of(cp.x(), cp.z(), chunkAt(cp));
+        world.chunkPool().submit(() -> {
+            ByteBuf body = Unpooled.buffer();
+            ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
+            return body;
+        }).whenComplete((body, err) ->
+                world.runOn(pos, () -> deliverChunk(cp, p, sub, body, err)));
+    }
+
+    private void deliverChunk(ChunkPos cp, Player p, Subscription sub, ByteBuf body, Throwable err) {
+        Map<Player, Subscription> subs = subscribers.get(cp);
+        boolean current = subs != null && subs.get(p) == sub;
+        if (err != null) {
+            log.error("[CHUNK] {} 직렬화 실패(플레이어 {})", cp, p.name(), err);
+            if (current) subs.remove(p);
+            return;
+        }
+        if (!current) {            // 전달 전에 언로드/재구독됨 — 이 청크는 버린다
+            body.release();
+            return;
+        }
+        p.send(new LevelChunkWithLight(body));
+        sub.ready = true;
+        for (BlockUpdate u : sub.pending) p.send(u);
+        sub.pending.clear();
+    }
+
+    /** 소유 스레드서 구독 해제. */
+    public void closeChunk(ChunkPos cp, Player p) {
+        world.assertOwns(pos);
+        Map<Player, Subscription> subs = subscribers.get(cp);
+        if (subs == null) return;
+        subs.remove(p);
+        if (subs.isEmpty()) subscribers.remove(cp);
     }
 
     /** 소유 스레드서 플레이어 편입. */
@@ -68,7 +130,7 @@ public final class Region {
             Player p = it.next();
             if (p.isDisconnected()) {
                 it.remove();
-                for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
+                for (ChunkPos cp : p.loadedChunks()) world.releaseChunk(cp, p);
                 broadcastRemove(p.entityId());
                 continue;
             }
@@ -94,7 +156,7 @@ public final class Region {
         }
         for (Player p : handoff) {
             RegionPos target = p.regionPos(world.regionSize());
-            world.scheduler().region(target).execute(() -> world.regionAt(target).adopt(p));
+            world.runOn(target, () -> world.regionAt(target).adopt(p));
         }
     }
 
@@ -129,7 +191,7 @@ public final class Region {
         for (ChunkPos cp : toUnload) {
             p.send(new UnloadChunk(cp.x(), cp.z()));
             p.loadedChunks().remove(cp);
-            world.unsubscribeChunk(cp, p);
+            world.releaseChunk(cp, p);
         }
         p.lastCenter(center);
     }
@@ -137,13 +199,7 @@ public final class Region {
     private void streamLoads(Player p, List<ChunkPos> toLoad) {
         for (ChunkPos cp : toLoad) {
             p.loadedChunks().add(cp);
-            world.subscribeChunk(cp, p);
-            // 청크 소유 region에서 스냅샷을 받아(단일 소유) pool서 직렬화 후 전송.
-            world.snapshotChunk(cp).thenCompose(snap -> world.chunkPool().submit(() -> {
-                ByteBuf body = Unpooled.buffer();
-                ChunkSerializer.serialize(body, snap, world.blockDirectBits(), world.biomeDirectBits());
-                return body;
-            })).thenAccept(body -> p.send(new LevelChunkWithLight(body)));
+            world.requestChunk(cp, p);
         }
     }
 
