@@ -1,0 +1,217 @@
+chunks=289 positions=28409856 nonFullChunks(cumulative)=0 worlds=2
+furnaceMismatch=170346 (0.5996%)
+vanillaUnstablePositions=49270 (0.1734%)  A1!=A2:49270  A1!=B:0
+hard(furnace!=vanilla, all variants agree)=147629 (0.5196%)
+ambiguous explained(furnace==some variant)=21181 novel(furnace==no variant)=1536
+biome mismatch cells=158/443904 (0.0356%)
+heightmap WORLD_SURFACE col mismatch=9976/73984, MOTION_BLOCKING=9721/73984
+=== hard mismatches by category ===
+      95724 ( 64.8% of hard)  A. 미구현 feature 블록(순정에만 존재)
+      36076 ( 24.4% of hard)  B. 나무/덩굴(잎·통나무·vine)
+      14097 (  9.5% of hard)  C. 광석/치환 블롭·지표·유체 (구현된 feature 간 충돌)
+       1732 (  1.2% of hard)  D. 기타(식물·꽃·블록 상태 등)
+=== by dominant surface biome (avg per chunk: furnaceMM, hard, A1!=A2, unstable) ===
+  minecraft:forest                   n=130  F=    629  hard=    558  vvA2=    165  unst=    165
+  minecraft:dripstone_caves          n= 62  F=    670  hard=    480  vvA2=    388  unst=    388
+  minecraft:river                    n= 54  F=    233  hard=    214  vvA2=     30  unst=     30
+  minecraft:savanna                  n= 20  F=    540  hard=    510  vvA2=     86  unst=     86
+  minecraft:jungle                   n= 15  F=   1478  hard=   1474  vvA2=      7  unst=      7
+  minecraft:sparse_jungle            n=  7  F=    191  hard=    177  vvA2=     42  unst=     42
+  minecraft:desert                   n=  1  F=    185  hard=    185  vvA2=      0  unst=      0
+--- hard pairs in biome minecraft:desert (n=1 chunks; counts are per-chunk avg) ---
+         88.0  minecraft:dripstone_block -> minecraft:deepslate
+         47.0  minecraft:pointed_dripstone -> minecraft:air
+         28.0  minecraft:dripstone_block -> minecraft:stone
+         13.0  minecraft:dripstone_block -> minecraft:tuff
+          4.0  minecraft:dripstone_block -> minecraft:diorite
+          3.0  minecraft:dead_bush -> minecraft:air
+          2.0  minecraft:tall_grass -> minecraft:air
+--- hard pairs in biome minecraft:forest (n=130 chunks; counts are per-chunk avg) ---
+        120.7  minecraft:dripstone_block -> minecraft:stone
+        108.0  minecraft:dripstone_block -> minecraft:deepslate
+         64.7  minecraft:pointed_dripstone -> minecraft:air
+         63.1  minecraft:dripstone_block -> minecraft:air
+         29.4  minecraft:air -> minecraft:oak_leaves
+         28.7  minecraft:oak_leaves -> minecraft:air
+         17.9  minecraft:dripstone_block -> minecraft:andesite
+         14.4  minecraft:dripstone_block -> minecraft:granite
+--- hard pairs in biome minecraft:sparse_jungle (n=7 chunks; counts are per-chunk avg) ---
+         60.3  minecraft:dripstone_block -> minecraft:stone
+         25.4  minecraft:pointed_dripstone -> minecraft:air
+         23.1  minecraft:dripstone_block -> minecraft:deepslate
+         14.6  minecraft:dripstone_block -> minecraft:diorite
+          9.3  minecraft:short_grass -> minecraft:air
+          9.0  minecraft:air -> minecraft:short_grass
+          5.0  minecraft:diorite -> minecraft:andesite
+          4.0  minecraft:dripstone_block -> minecraft:granite
+--- hard pairs in biome minecraft:jungle (n=15 chunks; counts are per-chunk avg) ---
+        183.7  minecraft:air -> minecraft:oak_leaves
+        175.4  minecraft:jungle_leaves -> minecraft:air
+        154.1  minecraft:vine -> minecraft:air
+        147.4  minecraft:air -> minecraft:jungle_leaves
+        140.7  minecraft:air -> minecraft:vine
+        132.2  minecraft:oak_leaves -> minecraft:air
+         50.3  minecraft:dripstone_block -> minecraft:deepslate
+         47.9  minecraft:dripstone_block -> minecraft:stone
+--- hard pairs in biome minecraft:river (n=54 chunks; counts are per-chunk avg) ---
+         63.4  minecraft:dripstone_block -> minecraft:stone
+         56.5  minecraft:dripstone_block -> minecraft:deepslate
+         28.9  minecraft:pointed_dripstone -> minecraft:air
+          9.6  minecraft:dripstone_block -> minecraft:air
+          6.8  minecraft:dripstone_block -> minecraft:andesite
+          6.6  minecraft:dripstone_block -> minecraft:diorite
+          4.8  minecraft:dripstone_block -> minecraft:tuff
+          4.5  minecraft:pointed_dripstone -> minecraft:water
+--- hard pairs in biome minecraft:savanna (n=20 chunks; counts are per-chunk avg) ---
+        136.0  minecraft:dripstone_block -> minecraft:deepslate
+         96.7  minecraft:dripstone_block -> minecraft:stone
+         59.1  minecraft:air -> minecraft:acacia_leaves
+         51.6  minecraft:pointed_dripstone -> minecraft:air
+         26.9  minecraft:acacia_leaves -> minecraft:air
+         15.0  minecraft:dripstone_block -> minecraft:air
+         12.9  minecraft:granite -> minecraft:andesite
+         11.5  minecraft:dripstone_block -> minecraft:tuff
+--- hard pairs in biome minecraft:dripstone_caves (n=62 chunks; counts are per-chunk avg) ---
+        156.1  minecraft:dripstone_block -> minecraft:stone
+         56.1  minecraft:pointed_dripstone -> minecraft:air
+         55.9  minecraft:dripstone_block -> minecraft:air
+         23.5  minecraft:air -> minecraft:oak_leaves
+         22.3  minecraft:stone -> minecraft:coal_ore
+         20.1  minecraft:coal_ore -> minecraft:stone
+         18.1  minecraft:dripstone_block -> minecraft:andesite
+         13.5  minecraft:dripstone_block -> minecraft:diorite
+hard mismatches by y band (32 blocks each from y=-64):
+  y[ -64.. -32) 6385
+  y[ -32..   0) 22715
+  y[   0..  32) 50927
+  y[  32..  64) 24991
+  y[  64..  96) 34639
+  y[  96.. 128) 7363
+  y[ 128.. 160) 609
+  y[ 160.. 192) 0
+  y[ 192.. 224) 0
+  y[ 224.. 256) 0
+  y[ 256.. 288) 0
+  y[ 288.. 320) 0
+=== top pairs (hard) vanilla -> furnace ===
+      31894  minecraft:dripstone_block -> minecraft:stone
+      21514  minecraft:dripstone_block -> minecraft:deepslate
+      15108  minecraft:pointed_dripstone -> minecraft:air
+      12577  minecraft:dripstone_block -> minecraft:air
+       8289  minecraft:air -> minecraft:oak_leaves
+       6481  minecraft:oak_leaves -> minecraft:air
+       4085  minecraft:dripstone_block -> minecraft:andesite
+       3066  minecraft:dripstone_block -> minecraft:diorite
+       3063  minecraft:dripstone_block -> minecraft:granite
+       2757  minecraft:jungle_leaves -> minecraft:air
+       2451  minecraft:vine -> minecraft:air
+       2226  minecraft:air -> minecraft:jungle_leaves
+       2223  minecraft:stone -> minecraft:coal_ore
+       2176  minecraft:air -> minecraft:vine
+       1775  props:minecraft:oak_leaves
+       1742  minecraft:coal_ore -> minecraft:stone
+       1591  minecraft:dripstone_block -> minecraft:tuff
+       1257  minecraft:granite -> minecraft:andesite
+       1182  minecraft:air -> minecraft:acacia_leaves
+       1178  minecraft:granite -> minecraft:diorite
+       1166  minecraft:air -> minecraft:birch_leaves
+       1114  minecraft:andesite -> minecraft:granite
+       1088  minecraft:andesite -> minecraft:diorite
+       1062  minecraft:diorite -> minecraft:andesite
+        870  minecraft:birch_leaves -> minecraft:air
+        811  minecraft:pointed_dripstone -> minecraft:water
+        802  minecraft:diorite -> minecraft:granite
+        618  minecraft:air -> minecraft:jungle_log
+        604  minecraft:air -> minecraft:oak_log
+        562  minecraft:jungle_log -> minecraft:air
+        538  minecraft:acacia_leaves -> minecraft:air
+        462  minecraft:oak_log -> minecraft:air
+        404  minecraft:cave_air -> minecraft:deepslate
+        366  minecraft:air -> minecraft:short_grass
+        365  minecraft:cave_air -> minecraft:stone
+        362  minecraft:birch_leaves -> minecraft:oak_leaves
+        356  minecraft:cobblestone -> minecraft:deepslate
+        312  minecraft:short_grass -> minecraft:air
+        301  minecraft:dripstone_block -> minecraft:dirt
+        259  props:minecraft:jungle_leaves
+        251  minecraft:grass_block -> minecraft:dirt
+        243  minecraft:vine -> minecraft:oak_leaves
+        234  minecraft:dirt -> minecraft:grass_block
+        228  minecraft:dripstone_block -> minecraft:gravel
+        228  minecraft:jungle_leaves -> minecraft:vine
+        223  minecraft:oak_leaves -> minecraft:birch_leaves
+        215  minecraft:water -> minecraft:stone
+        213  minecraft:water -> minecraft:deepslate
+        209  minecraft:jungle_leaves -> minecraft:oak_leaves
+        199  minecraft:dripstone_block -> minecraft:water
+        187  minecraft:oak_leaves -> minecraft:vine
+        177  minecraft:vine -> minecraft:jungle_leaves
+        172  minecraft:short_grass -> minecraft:oak_leaves
+        165  minecraft:oak_leaves -> minecraft:jungle_leaves
+        162  minecraft:mossy_cobblestone -> minecraft:deepslate
+        158  minecraft:dripstone_block -> minecraft:copper_ore
+        150  minecraft:air -> minecraft:lilac
+        146  minecraft:oak_leaves -> minecraft:short_grass
+        136  minecraft:air -> minecraft:birch_log
+        130  props:minecraft:vine
+=== top pairs (all) vanilla -> furnace ===
+      35701  minecraft:dripstone_block -> minecraft:stone
+      23179  minecraft:dripstone_block -> minecraft:deepslate
+      18119  minecraft:pointed_dripstone -> minecraft:air
+      12727  minecraft:dripstone_block -> minecraft:air
+      11105  minecraft:air -> minecraft:oak_leaves
+      10012  minecraft:oak_leaves -> minecraft:air
+       4346  minecraft:dripstone_block -> minecraft:andesite
+       3456  minecraft:dripstone_block -> minecraft:diorite
+       3316  minecraft:dripstone_block -> minecraft:granite
+       2780  minecraft:stone -> minecraft:coal_ore
+       2763  minecraft:jungle_leaves -> minecraft:air
+       2534  minecraft:coal_ore -> minecraft:stone
+       2466  minecraft:vine -> minecraft:air
+       2440  props:minecraft:oak_leaves
+       2226  minecraft:air -> minecraft:jungle_leaves
+       2178  minecraft:air -> minecraft:vine
+       1714  minecraft:air -> minecraft:birch_leaves
+       1660  minecraft:dripstone_block -> minecraft:tuff
+       1555  minecraft:andesite -> minecraft:diorite
+       1547  minecraft:granite -> minecraft:andesite
+       1366  minecraft:granite -> minecraft:diorite
+       1340  minecraft:birch_leaves -> minecraft:air
+       1335  minecraft:andesite -> minecraft:granite
+       1275  minecraft:diorite -> minecraft:andesite
+       1182  minecraft:air -> minecraft:acacia_leaves
+        963  minecraft:diorite -> minecraft:granite
+        847  minecraft:air -> minecraft:oak_log
+        819  minecraft:pointed_dripstone -> minecraft:water
+        759  minecraft:oak_log -> minecraft:air
+        619  minecraft:air -> minecraft:jungle_log
+        562  minecraft:jungle_log -> minecraft:air
+        538  minecraft:acacia_leaves -> minecraft:air
+        492  minecraft:birch_leaves -> minecraft:oak_leaves
+        404  minecraft:cave_air -> minecraft:deepslate
+        397  minecraft:air -> minecraft:short_grass
+        366  minecraft:oak_leaves -> minecraft:birch_leaves
+        365  minecraft:short_grass -> minecraft:air
+        365  minecraft:cave_air -> minecraft:stone
+        356  minecraft:cobblestone -> minecraft:deepslate
+        336  minecraft:dripstone_block -> minecraft:gravel
+        334  minecraft:dripstone_block -> minecraft:dirt
+        307  minecraft:grass_block -> minecraft:dirt
+        304  minecraft:dirt -> minecraft:grass_block
+        262  minecraft:water -> minecraft:stone
+        261  props:minecraft:jungle_leaves
+        254  minecraft:water -> minecraft:deepslate
+        243  minecraft:vine -> minecraft:oak_leaves
+        229  minecraft:jungle_leaves -> minecraft:vine
+        209  minecraft:jungle_leaves -> minecraft:oak_leaves
+        199  minecraft:air -> minecraft:birch_log
+        199  minecraft:dripstone_block -> minecraft:water
+        193  minecraft:dripstone_block -> minecraft:copper_ore
+        187  minecraft:oak_leaves -> minecraft:vine
+        182  minecraft:short_grass -> minecraft:oak_leaves
+        177  minecraft:vine -> minecraft:jungle_leaves
+        172  props:minecraft:birch_leaves
+        165  minecraft:oak_leaves -> minecraft:jungle_leaves
+        162  minecraft:mossy_cobblestone -> minecraft:deepslate
+        161  minecraft:oak_log -> minecraft:oak_leaves
+        159  minecraft:granite -> minecraft:coal_ore

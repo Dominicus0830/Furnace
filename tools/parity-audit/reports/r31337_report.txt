@@ -1,0 +1,198 @@
+chunks=289 positions=28409856 nonFullChunks(cumulative)=0 worlds=2
+furnaceMismatch=334467 (1.1773%)
+vanillaUnstablePositions=78691 (0.2770%)  A1!=A2:78691  A1!=B:0
+hard(furnace!=vanilla, all variants agree)=289077 (1.0175%)
+ambiguous explained(furnace==some variant)=39089 novel(furnace==no variant)=6301
+biome mismatch cells=13/443904 (0.0029%)
+heightmap WORLD_SURFACE col mismatch=42695/73984, MOTION_BLOCKING=72186/73984
+=== hard mismatches by category ===
+      85562 ( 29.6% of hard)  A. 미구현 feature 블록(순정에만 존재)
+     114456 ( 39.6% of hard)  B. 나무/덩굴(잎·통나무·vine)
+      23839 (  8.2% of hard)  C. 광석/치환 블롭·지표·유체 (구현된 feature 간 충돌)
+      65220 ( 22.6% of hard)  D. 기타(식물·꽃·블록 상태 등)
+=== by dominant surface biome (avg per chunk: furnaceMM, hard, A1!=A2, unstable) ===
+  minecraft:grove                    n=182  F=   1078  hard=    955  vvA2=    207  unst=    207
+  minecraft:dripstone_caves          n= 64  F=   1240  hard=   1103  vvA2=    232  unst=    232
+  minecraft:jagged_peaks             n= 25  F=   1458  hard=   1028  vvA2=    808  unst=    808
+  minecraft:lush_caves               n= 12  F=   1398  hard=   1207  vvA2=    389  unst=    389
+  minecraft:snowy_taiga              n=  6  F=    931  hard=    743  vvA2=    228  unst=    228
+--- hard pairs in biome minecraft:grove (n=182 chunks; counts are per-chunk avg) ---
+        180.9  minecraft:air -> minecraft:spruce_leaves
+        149.1  minecraft:spruce_leaves -> minecraft:air
+        135.5  minecraft:air -> minecraft:snow
+        128.6  minecraft:sculk -> minecraft:deepslate
+         99.4  minecraft:snow -> minecraft:air
+         39.0  minecraft:sculk_vein -> minecraft:air
+         22.3  props:minecraft:spruce_leaves
+         22.0  minecraft:air -> minecraft:spruce_log
+--- hard pairs in biome minecraft:lush_caves (n=12 chunks; counts are per-chunk avg) ---
+        229.9  minecraft:sculk -> minecraft:deepslate
+        204.1  minecraft:spruce_leaves -> minecraft:air
+        180.8  minecraft:air -> minecraft:spruce_leaves
+        142.1  minecraft:air -> minecraft:snow
+        125.8  minecraft:snow -> minecraft:air
+         63.3  minecraft:sculk_vein -> minecraft:air
+         35.9  props:minecraft:spruce_leaves
+         23.8  minecraft:air -> minecraft:spruce_log
+--- hard pairs in biome minecraft:snowy_taiga (n=6 chunks; counts are per-chunk avg) ---
+        181.0  minecraft:air -> minecraft:spruce_leaves
+        153.0  minecraft:spruce_leaves -> minecraft:air
+        120.8  minecraft:air -> minecraft:snow
+         90.7  minecraft:snow -> minecraft:air
+         83.3  props:minecraft:grass_block
+         20.8  props:minecraft:spruce_leaves
+         19.3  minecraft:spruce_leaves -> minecraft:snow
+         17.7  minecraft:air -> minecraft:spruce_log
+--- hard pairs in biome minecraft:dripstone_caves (n=64 chunks; counts are per-chunk avg) ---
+        182.0  minecraft:sculk -> minecraft:deepslate
+        177.6  minecraft:air -> minecraft:spruce_leaves
+        172.4  minecraft:spruce_leaves -> minecraft:air
+        128.8  minecraft:air -> minecraft:snow
+        114.0  minecraft:snow -> minecraft:air
+         59.5  minecraft:dripstone_block -> minecraft:stone
+         48.1  minecraft:sculk_vein -> minecraft:air
+         22.6  props:minecraft:spruce_leaves
+--- hard pairs in biome minecraft:jagged_peaks (n=25 chunks; counts are per-chunk avg) ---
+        187.4  minecraft:sculk -> minecraft:deepslate
+        141.2  minecraft:sculk -> minecraft:stone
+        122.0  minecraft:moss_block -> minecraft:stone
+         98.4  minecraft:clay -> minecraft:stone
+         48.1  minecraft:dripstone_block -> minecraft:stone
+         42.6  minecraft:sculk_vein -> minecraft:air
+         41.3  minecraft:stone -> minecraft:snow_block
+         28.2  minecraft:sculk -> minecraft:andesite
+hard mismatches by y band (32 blocks each from y=-64):
+  y[ -64.. -32) 26050
+  y[ -32..   0) 32555
+  y[   0..  32) 15933
+  y[  32..  64) 10003
+  y[  64..  96) 23923
+  y[  96.. 128) 121442
+  y[ 128.. 160) 56877
+  y[ 160.. 192) 2158
+  y[ 192.. 224) 136
+  y[ 224.. 256) 0
+  y[ 256.. 288) 0
+  y[ 288.. 320) 0
+=== top pairs (hard) vanilla -> furnace ===
+      47981  minecraft:air -> minecraft:spruce_leaves
+      42495  minecraft:sculk -> minecraft:deepslate
+      41644  minecraft:spruce_leaves -> minecraft:air
+      35848  minecraft:air -> minecraft:snow
+      27645  minecraft:snow -> minecraft:air
+      11997  minecraft:sculk_vein -> minecraft:air
+       6081  props:minecraft:spruce_leaves
+       5819  minecraft:air -> minecraft:spruce_log
+       5577  minecraft:dripstone_block -> minecraft:stone
+       4968  minecraft:sculk -> minecraft:stone
+       4582  minecraft:spruce_log -> minecraft:air
+       4193  minecraft:moss_block -> minecraft:stone
+       4115  minecraft:stone -> minecraft:coal_ore
+       3673  minecraft:coal_ore -> minecraft:stone
+       3359  minecraft:sculk -> minecraft:tuff
+       3187  minecraft:clay -> minecraft:stone
+       2784  minecraft:spruce_leaves -> minecraft:snow
+       2764  minecraft:snow -> minecraft:spruce_leaves
+       1575  minecraft:granite -> minecraft:diorite
+       1366  minecraft:pointed_dripstone -> minecraft:air
+       1293  minecraft:cave_air -> minecraft:stone
+       1238  minecraft:andesite -> minecraft:granite
+       1057  minecraft:sculk -> minecraft:gravel
+       1038  minecraft:stone -> minecraft:snow_block
+       1002  minecraft:sculk -> minecraft:andesite
+        931  minecraft:snow_block -> minecraft:dirt
+        892  minecraft:andesite -> minecraft:diorite
+        856  minecraft:diorite -> minecraft:andesite
+        812  minecraft:dirt -> minecraft:snow_block
+        808  props:minecraft:grass_block
+        805  minecraft:granite -> minecraft:andesite
+        803  minecraft:spruce_leaves -> minecraft:spruce_log
+        789  minecraft:sculk -> minecraft:granite
+        745  minecraft:snow_block -> minecraft:air
+        693  minecraft:sculk -> minecraft:diorite
+        689  minecraft:spruce_log -> minecraft:spruce_leaves
+        687  minecraft:snow -> minecraft:spruce_log
+        615  minecraft:spruce_log -> minecraft:snow
+        597  minecraft:short_grass -> minecraft:air
+        572  minecraft:cave_vines_plant -> minecraft:air
+        549  minecraft:lava -> minecraft:stone
+        436  minecraft:dripstone_block -> minecraft:air
+        350  minecraft:cobblestone -> minecraft:deepslate
+        320  minecraft:water -> minecraft:stone
+        303  minecraft:cobblestone -> minecraft:stone
+        300  minecraft:diorite -> minecraft:granite
+        285  minecraft:moss_carpet -> minecraft:air
+        280  minecraft:tuff -> minecraft:diorite
+        275  minecraft:cave_air -> minecraft:deepslate
+        275  minecraft:cave_vines -> minecraft:air
+        267  minecraft:powder_snow -> minecraft:air
+        258  minecraft:sculk_sensor -> minecraft:air
+        247  minecraft:air -> minecraft:glow_lichen
+        213  minecraft:clay -> minecraft:andesite
+        208  minecraft:tall_grass -> minecraft:air
+        206  minecraft:snow_block -> minecraft:stone
+        198  minecraft:air -> minecraft:deepslate
+        177  minecraft:dripstone_block -> minecraft:andesite
+        164  minecraft:sculk -> minecraft:dirt
+        149  minecraft:cave_air -> minecraft:granite
+=== top pairs (all) vanilla -> furnace ===
+      52173  minecraft:sculk -> minecraft:deepslate
+      49464  minecraft:air -> minecraft:spruce_leaves
+      48325  minecraft:spruce_leaves -> minecraft:air
+      37419  minecraft:air -> minecraft:snow
+      31276  minecraft:snow -> minecraft:air
+      20806  minecraft:sculk_vein -> minecraft:air
+       7198  minecraft:sculk -> minecraft:stone
+       7001  props:minecraft:spruce_leaves
+       6043  minecraft:air -> minecraft:spruce_log
+       5616  minecraft:dripstone_block -> minecraft:stone
+       5351  minecraft:spruce_log -> minecraft:air
+       4952  minecraft:stone -> minecraft:coal_ore
+       4893  minecraft:coal_ore -> minecraft:stone
+       4437  minecraft:moss_block -> minecraft:stone
+       4138  minecraft:sculk -> minecraft:tuff
+       3310  minecraft:spruce_leaves -> minecraft:snow
+       3233  minecraft:clay -> minecraft:stone
+       3190  minecraft:snow -> minecraft:spruce_leaves
+       2025  minecraft:granite -> minecraft:diorite
+       1466  minecraft:diorite -> minecraft:andesite
+       1389  minecraft:andesite -> minecraft:granite
+       1366  minecraft:pointed_dripstone -> minecraft:air
+       1293  minecraft:cave_air -> minecraft:stone
+       1248  minecraft:sculk -> minecraft:andesite
+       1244  minecraft:sculk -> minecraft:gravel
+       1233  minecraft:granite -> minecraft:andesite
+       1232  minecraft:andesite -> minecraft:diorite
+       1090  minecraft:sculk -> minecraft:granite
+       1038  minecraft:stone -> minecraft:snow_block
+        981  minecraft:spruce_leaves -> minecraft:spruce_log
+        948  minecraft:dirt -> minecraft:snow_block
+        945  minecraft:snow_block -> minecraft:dirt
+        902  minecraft:sculk -> minecraft:diorite
+        858  props:minecraft:grass_block
+        809  minecraft:spruce_log -> minecraft:spruce_leaves
+        765  minecraft:snow -> minecraft:spruce_log
+        746  minecraft:snow_block -> minecraft:air
+        719  minecraft:spruce_log -> minecraft:snow
+        708  minecraft:short_grass -> minecraft:air
+        687  minecraft:cave_vines_plant -> minecraft:air
+        549  minecraft:lava -> minecraft:stone
+        527  minecraft:diorite -> minecraft:granite
+        494  minecraft:sculk_sensor -> minecraft:air
+        436  minecraft:dripstone_block -> minecraft:air
+        359  minecraft:moss_carpet -> minecraft:air
+        350  minecraft:cobblestone -> minecraft:deepslate
+        330  minecraft:water -> minecraft:stone
+        329  minecraft:cave_vines -> minecraft:air
+        303  minecraft:cobblestone -> minecraft:stone
+        295  minecraft:air -> minecraft:glow_lichen
+        280  minecraft:tuff -> minecraft:diorite
+        275  minecraft:cave_air -> minecraft:deepslate
+        267  minecraft:powder_snow -> minecraft:air
+        266  minecraft:tall_grass -> minecraft:air
+        214  minecraft:clay -> minecraft:andesite
+        208  minecraft:air -> minecraft:deepslate
+        206  minecraft:snow_block -> minecraft:stone
+        191  minecraft:sculk -> minecraft:dirt
+        177  minecraft:dripstone_block -> minecraft:andesite
+        165  minecraft:coal_ore -> minecraft:granite

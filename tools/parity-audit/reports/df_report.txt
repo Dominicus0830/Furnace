@@ -1,0 +1,198 @@
+chunks=225 positions=22118400 nonFullChunks(cumulative)=0 worlds=2
+furnaceMismatch=405586 (1.8337%)
+vanillaUnstablePositions=135047 (0.6106%)  A1!=A2:135047  A1!=B:0
+hard(furnace!=vanilla, all variants agree)=328072 (1.4833%)
+ambiguous explained(furnace==some variant)=50870 novel(furnace==no variant)=26644
+biome mismatch cells=92/345600 (0.0266%)
+heightmap WORLD_SURFACE col mismatch=44410/57600, MOTION_BLOCKING=44891/57600
+=== hard mismatches by category ===
+      66885 ( 20.4% of hard)  A. 미구현 feature 블록(순정에만 존재)
+     191944 ( 58.5% of hard)  B. 나무/덩굴(잎·통나무·vine)
+      62824 ( 19.1% of hard)  C. 광석/치환 블롭·지표·유체 (구현된 feature 간 충돌)
+       6419 (  2.0% of hard)  D. 기타(식물·꽃·블록 상태 등)
+=== by dominant surface biome (avg per chunk: furnaceMM, hard, A1!=A2, unstable) ===
+  minecraft:dark_forest              n=128  F=   1696  hard=   1377  vvA2=    557  unst=    557
+  minecraft:lush_caves               n= 86  F=   2076  hard=   1675  vvA2=    697  unst=    697
+  minecraft:river                    n=  8  F=    837  hard=    565  vvA2=    464  unst=    464
+  minecraft:grove                    n=  2  F=   1084  hard=   1079  vvA2=     15  unst=     15
+  minecraft:jagged_peaks             n=  1  F=   1042  hard=   1040  vvA2=      5  unst=      5
+--- hard pairs in biome minecraft:dark_forest (n=128 chunks; counts are per-chunk avg) ---
+        288.2  minecraft:air -> minecraft:dark_oak_leaves
+        141.3  minecraft:dark_oak_leaves -> minecraft:air
+         95.7  props:minecraft:dark_oak_leaves
+         84.0  minecraft:moss_block -> minecraft:deepslate
+         80.9  minecraft:moss_block -> minecraft:stone
+         72.7  minecraft:clay -> minecraft:deepslate
+         67.6  minecraft:dark_oak_log -> minecraft:air
+         57.4  minecraft:clay -> minecraft:stone
+--- hard pairs in biome minecraft:grove (n=2 chunks; counts are per-chunk avg) ---
+        237.0  minecraft:air -> minecraft:dark_oak_leaves
+        109.0  minecraft:air -> minecraft:snow
+         85.5  minecraft:snow -> minecraft:air
+         75.5  minecraft:spruce_leaves -> minecraft:air
+         71.5  minecraft:dark_oak_leaves -> minecraft:air
+         71.5  minecraft:air -> minecraft:spruce_leaves
+         54.5  minecraft:oak_leaves -> minecraft:air
+         37.0  minecraft:air -> minecraft:oak_leaves
+--- hard pairs in biome minecraft:river (n=8 chunks; counts are per-chunk avg) ---
+        211.5  minecraft:moss_block -> minecraft:deepslate
+        107.4  minecraft:clay -> minecraft:deepslate
+         62.0  minecraft:air -> minecraft:dark_oak_leaves
+         25.9  minecraft:dark_oak_leaves -> minecraft:air
+         19.9  minecraft:short_grass -> minecraft:air
+         17.0  minecraft:oak_leaves -> minecraft:air
+         14.1  minecraft:cave_vines_plant -> minecraft:air
+          9.6  minecraft:moss_carpet -> minecraft:air
+--- hard pairs in biome minecraft:lush_caves (n=86 chunks; counts are per-chunk avg) ---
+        333.9  minecraft:air -> minecraft:dark_oak_leaves
+        179.6  minecraft:dark_oak_leaves -> minecraft:air
+        170.4  minecraft:moss_block -> minecraft:stone
+        125.7  minecraft:clay -> minecraft:stone
+        101.6  props:minecraft:dark_oak_leaves
+         86.8  minecraft:dark_oak_log -> minecraft:air
+         57.6  minecraft:air -> minecraft:dark_oak_log
+         54.6  minecraft:oak_leaves -> minecraft:air
+--- hard pairs in biome minecraft:jagged_peaks (n=1 chunks; counts are per-chunk avg) ---
+        443.0  minecraft:clay -> minecraft:stone
+        160.0  minecraft:moss_block -> minecraft:stone
+         62.0  minecraft:spruce_leaves -> minecraft:air
+         57.0  minecraft:air -> minecraft:spruce_leaves
+         38.0  minecraft:snow -> minecraft:air
+         36.0  minecraft:air -> minecraft:snow
+         33.0  minecraft:cave_vines_plant -> minecraft:air
+         26.0  minecraft:air -> minecraft:dark_oak_leaves
+hard mismatches by y band (32 blocks each from y=-64):
+  y[ -64.. -32) 6709
+  y[ -32..   0) 30462
+  y[   0..  32) 48845
+  y[  32..  64) 35093
+  y[  64..  96) 105715
+  y[  96.. 128) 101209
+  y[ 128.. 160) 39
+  y[ 160.. 192) 0
+  y[ 192.. 224) 0
+  y[ 224.. 256) 0
+  y[ 256.. 288) 0
+  y[ 288.. 320) 0
+=== top pairs (hard) vanilla -> furnace ===
+      66598  minecraft:air -> minecraft:dark_oak_leaves
+      33880  minecraft:dark_oak_leaves -> minecraft:air
+      25238  minecraft:moss_block -> minecraft:stone
+      21044  props:minecraft:dark_oak_leaves
+      18620  minecraft:clay -> minecraft:stone
+      16237  minecraft:dark_oak_log -> minecraft:air
+      14425  minecraft:moss_block -> minecraft:deepslate
+      13781  minecraft:clay -> minecraft:deepslate
+      12192  minecraft:air -> minecraft:dark_oak_log
+      11771  minecraft:oak_leaves -> minecraft:air
+       8384  minecraft:air -> minecraft:oak_leaves
+       4651  minecraft:cave_vines_plant -> minecraft:air
+       4644  minecraft:dark_oak_log -> minecraft:dark_oak_leaves
+       4168  minecraft:short_grass -> minecraft:air
+       3527  minecraft:sculk -> minecraft:deepslate
+       3256  minecraft:moss_block -> minecraft:andesite
+       2750  minecraft:clay -> minecraft:andesite
+       2627  minecraft:moss_block -> minecraft:diorite
+       2536  minecraft:moss_block -> minecraft:granite
+       2499  minecraft:clay -> minecraft:diorite
+       2418  minecraft:stone -> minecraft:coal_ore
+       2282  minecraft:birch_leaves -> minecraft:air
+       2165  minecraft:dark_oak_leaves -> minecraft:dark_oak_log
+       2130  minecraft:cave_vines -> minecraft:air
+       2002  minecraft:dirt -> minecraft:grass_block
+       1944  minecraft:clay -> minecraft:granite
+       1814  minecraft:air -> minecraft:birch_leaves
+       1613  minecraft:moss_carpet -> minecraft:air
+       1528  minecraft:coal_ore -> minecraft:stone
+       1527  minecraft:grass_block -> minecraft:dirt
+       1445  minecraft:cave_air -> minecraft:stone
+       1436  minecraft:water -> minecraft:stone
+       1426  minecraft:andesite -> minecraft:granite
+       1422  minecraft:oak_leaves -> minecraft:dark_oak_leaves
+       1235  minecraft:sculk_vein -> minecraft:air
+       1160  minecraft:oak_log -> minecraft:air
+       1081  minecraft:tall_grass -> minecraft:air
+       1045  minecraft:water -> minecraft:deepslate
+       1043  minecraft:dark_oak_leaves -> minecraft:oak_leaves
+       1023  minecraft:clay -> minecraft:tuff
+        865  minecraft:moss_block -> minecraft:clay
+        826  minecraft:moss_block -> minecraft:dirt
+        812  minecraft:diorite -> minecraft:andesite
+        781  minecraft:air -> minecraft:oak_log
+        739  props:minecraft:oak_leaves
+        716  minecraft:birch_leaves -> minecraft:dark_oak_leaves
+        689  minecraft:granite -> minecraft:diorite
+        677  minecraft:oak_leaves -> minecraft:dark_oak_log
+        646  minecraft:dark_oak_log -> minecraft:oak_leaves
+        643  minecraft:lava -> minecraft:stone
+        640  minecraft:clay -> minecraft:gravel
+        637  minecraft:andesite -> minecraft:diorite
+        577  minecraft:clay -> minecraft:dirt
+        556  minecraft:rooted_dirt -> minecraft:stone
+        554  minecraft:air -> minecraft:snow
+        493  minecraft:moss_block -> minecraft:tuff
+        432  minecraft:air -> minecraft:spruce_leaves
+        393  minecraft:granite -> minecraft:andesite
+        393  minecraft:azalea -> minecraft:air
+        379  minecraft:snow -> minecraft:air
+=== top pairs (all) vanilla -> furnace ===
+      70438  minecraft:air -> minecraft:dark_oak_leaves
+      40629  minecraft:dark_oak_leaves -> minecraft:air
+      31328  minecraft:moss_block -> minecraft:stone
+      25269  minecraft:clay -> minecraft:stone
+      25020  props:minecraft:dark_oak_leaves
+      19222  minecraft:dark_oak_log -> minecraft:air
+      17953  minecraft:moss_block -> minecraft:deepslate
+      17796  minecraft:clay -> minecraft:deepslate
+      14505  minecraft:oak_leaves -> minecraft:air
+      12817  minecraft:air -> minecraft:dark_oak_log
+       9871  minecraft:cave_vines_plant -> minecraft:air
+       8762  minecraft:air -> minecraft:oak_leaves
+       8374  minecraft:short_grass -> minecraft:air
+       5498  minecraft:dark_oak_log -> minecraft:dark_oak_leaves
+       5099  minecraft:cave_vines -> minecraft:air
+       4087  minecraft:moss_carpet -> minecraft:air
+       3819  minecraft:moss_block -> minecraft:andesite
+       3699  minecraft:clay -> minecraft:andesite
+       3527  minecraft:sculk -> minecraft:deepslate
+       3327  minecraft:clay -> minecraft:diorite
+       3261  minecraft:moss_block -> minecraft:diorite
+       3232  minecraft:moss_block -> minecraft:granite
+       3191  minecraft:tall_grass -> minecraft:air
+       3007  minecraft:birch_leaves -> minecraft:air
+       2923  minecraft:stone -> minecraft:coal_ore
+       2665  minecraft:coal_ore -> minecraft:stone
+       2628  minecraft:dark_oak_leaves -> minecraft:dark_oak_log
+       2540  minecraft:clay -> minecraft:granite
+       2397  minecraft:dirt -> minecraft:grass_block
+       2167  minecraft:water -> minecraft:stone
+       1982  minecraft:air -> minecraft:birch_leaves
+       1943  minecraft:oak_leaves -> minecraft:dark_oak_leaves
+       1556  minecraft:grass_block -> minecraft:dirt
+       1477  minecraft:cave_air -> minecraft:stone
+       1471  minecraft:water -> minecraft:deepslate
+       1457  minecraft:andesite -> minecraft:granite
+       1413  minecraft:oak_log -> minecraft:air
+       1325  minecraft:dark_oak_leaves -> minecraft:oak_leaves
+       1294  minecraft:moss_block -> minecraft:clay
+       1235  minecraft:sculk_vein -> minecraft:air
+       1165  minecraft:clay -> minecraft:tuff
+       1134  minecraft:azalea -> minecraft:air
+       1010  minecraft:moss_block -> minecraft:dirt
+        955  minecraft:clay -> minecraft:gravel
+        942  props:minecraft:oak_leaves
+        935  minecraft:diorite -> minecraft:andesite
+        919  minecraft:andesite -> minecraft:diorite
+        915  minecraft:birch_leaves -> minecraft:dark_oak_leaves
+        837  minecraft:oak_leaves -> minecraft:dark_oak_log
+        836  minecraft:dark_oak_log -> minecraft:oak_leaves
+        819  minecraft:air -> minecraft:oak_log
+        818  minecraft:big_dripleaf_stem -> minecraft:air
+        731  minecraft:rooted_dirt -> minecraft:stone
+        710  minecraft:granite -> minecraft:diorite
+        706  minecraft:clay -> minecraft:dirt
+        661  minecraft:granite -> minecraft:andesite
+        648  minecraft:lava -> minecraft:stone
+        646  minecraft:flowering_azalea -> minecraft:air
+        621  minecraft:big_dripleaf -> minecraft:air
+        620  minecraft:moss_block -> minecraft:tuff

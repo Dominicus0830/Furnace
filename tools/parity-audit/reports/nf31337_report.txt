@@ -1,0 +1,65 @@
+chunks=289 positions=28409856 nonFullChunks(cumulative)=0 worlds=1
+furnaceMismatch=2729 (0.0096%)
+vanillaUnstablePositions=0 (0.0000%)  A1!=A2:0  A1!=B:0
+hard(furnace!=vanilla, all variants agree)=2729 (0.0096%)
+ambiguous explained(furnace==some variant)=0 novel(furnace==no variant)=0
+biome mismatch cells=13/443904 (0.0029%)
+heightmap WORLD_SURFACE col mismatch=1067/73984, MOTION_BLOCKING=7950/73984
+=== hard mismatches by category ===
+       2425 ( 88.9% of hard)  C. 광석/치환 블롭·지표·유체 (구현된 feature 간 충돌)
+        304 ( 11.1% of hard)  D. 기타(식물·꽃·블록 상태 등)
+=== by dominant surface biome (avg per chunk: furnaceMM, hard, A1!=A2, unstable) ===
+  minecraft:grove                    n=182  F=      3  hard=      3  vvA2=      0  unst=      0
+  minecraft:dripstone_caves          n= 64  F=     10  hard=     10  vvA2=      0  unst=      0
+  minecraft:jagged_peaks             n= 25  F=     56  hard=     56  vvA2=      0  unst=      0
+  minecraft:lush_caves               n= 12  F=      5  hard=      5  vvA2=      0  unst=      0
+  minecraft:snowy_taiga              n=  6  F=      0  hard=      0  vvA2=      0  unst=      0
+--- hard pairs in biome minecraft:grove (n=182 chunks; counts are per-chunk avg) ---
+          2.7  minecraft:snow_block -> minecraft:air
+          0.7  minecraft:powder_snow -> minecraft:air
+          0.0  minecraft:water -> minecraft:air
+          0.0  minecraft:stone -> minecraft:snow_block
+--- hard pairs in biome minecraft:lush_caves (n=12 chunks; counts are per-chunk avg) ---
+          4.5  minecraft:snow_block -> minecraft:air
+          0.6  minecraft:powder_snow -> minecraft:air
+--- hard pairs in biome minecraft:snowy_taiga (n=6 chunks; counts are per-chunk avg) ---
+--- hard pairs in biome minecraft:dripstone_caves (n=64 chunks; counts are per-chunk avg) ---
+          4.2  minecraft:snow_block -> minecraft:air
+          3.1  minecraft:air -> minecraft:deepslate
+          2.7  minecraft:powder_snow -> minecraft:air
+          0.2  minecraft:air -> minecraft:lava
+          0.0  minecraft:stone -> minecraft:snow_block
+--- hard pairs in biome minecraft:jagged_peaks (n=25 chunks; counts are per-chunk avg) ---
+         42.8  minecraft:stone -> minecraft:snow_block
+          8.4  minecraft:snow_block -> minecraft:stone
+          3.7  minecraft:snow_block -> minecraft:air
+          0.6  minecraft:water -> minecraft:air
+hard mismatches by y band (32 blocks each from y=-64):
+  y[ -64.. -32) 0
+  y[ -32..   0) 212
+  y[   0..  32) 8
+  y[  32..  64) 1
+  y[  64..  96) 135
+  y[  96.. 128) 866
+  y[ 128.. 160) 317
+  y[ 160.. 192) 1089
+  y[ 192.. 224) 101
+  y[ 224.. 256) 0
+  y[ 256.. 288) 0
+  y[ 288.. 320) 0
+=== top pairs (hard) vanilla -> furnace ===
+       1075  minecraft:stone -> minecraft:snow_block
+        904  minecraft:snow_block -> minecraft:air
+        304  minecraft:powder_snow -> minecraft:air
+        209  minecraft:snow_block -> minecraft:stone
+        198  minecraft:air -> minecraft:deepslate
+         25  minecraft:water -> minecraft:air
+         14  minecraft:air -> minecraft:lava
+=== top pairs (all) vanilla -> furnace ===
+       1075  minecraft:stone -> minecraft:snow_block
+        904  minecraft:snow_block -> minecraft:air
+        304  minecraft:powder_snow -> minecraft:air
+        209  minecraft:snow_block -> minecraft:stone
+        198  minecraft:air -> minecraft:deepslate
+         25  minecraft:water -> minecraft:air
+         14  minecraft:air -> minecraft:lava
