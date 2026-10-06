@@ -80,6 +80,20 @@ public final class Region {
         return f;
     }
 
+    /** 소유 스레드서 그 청크가 이미 로드돼 있는가. 클라 요청이 임의 좌표의 청크를 새로 생성시키지 못하게 하는 게이트용. */
+    public boolean chunkLoaded(ChunkPos cp) {
+        world.assertOwns(pos);
+        return chunks.containsKey(cp);
+    }
+
+    /** 거부된 요청의 클라 예측을 되돌린다 — 로드된 청크면 서버의 실제 블록 상태를 actor에게 다시 보낸다(미로드면 보낼 게 없음). */
+    public void resendBlock(Player actor, int bx, int by, int bz) {
+        world.assertOwns(pos);
+        ChunkColumn col = chunks.get(ChunkPos.ofBlock(bx, bz));
+        if (col == null) return;
+        actor.send(new BlockUpdate(bx, by, bz, col.getBlock(bx & 15, by, bz & 15)));
+    }
+
     /** 소유 스레드서 블록 파괴(air) + 청크 구독자에게 BlockUpdate. 체스트면 엔티티 제거 + 열어둔 플레이어 강제닫기. */
     public void breakBlock(int bx, int by, int bz) {
         world.assertOwns(pos);

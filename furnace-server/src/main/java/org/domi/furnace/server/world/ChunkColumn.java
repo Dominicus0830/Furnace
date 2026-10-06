@@ -5,6 +5,7 @@ public final class ChunkColumn {
 
     public static final int SECTION_COUNT = 24;
     public static final int MIN_Y = -64;
+    public static final int MAX_Y = MIN_Y + SECTION_COUNT * 16 - 1; // 319 — 블록 좌표 상한(포함)
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
     public static final int DEFAULT_BIOME_DIRECT_BITS = 7;
     private static final int UNSET_HEIGHT = Integer.MIN_VALUE;

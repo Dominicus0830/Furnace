@@ -23,6 +23,7 @@ import org.domi.furnace.server.net.protocol.play.ContainerClose;
 import org.domi.furnace.server.net.protocol.play.ContainerSetContent;
 import org.domi.furnace.server.net.protocol.play.OpenScreen;
 import org.domi.furnace.server.world.ChestBlockEntity;
+import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.Region;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
@@ -81,6 +82,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private ItemStack carried = ItemStack.EMPTY; // Container Click의 carried(커서에 든 아이템)
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
+    // 이동 검증용(채널 이벤트루프 전용): 마지막으로 수락한 클라 위치. 스폰 좌표로 시작한다(월드 기본 스폰/저장 위치는 임의 좌표).
+    private double ix, iy, iz;
+    // 서버가 보낸 보정 텔레포트의 id(-1=없음). 보정 중엔 클라가 confirm할 때까지 위치 패킷을 무시한다(옛 위치 패킷이 연쇄 보정을 부르지 않게).
+    private int correctionTpId = -1;
+    private int teleportId = 2;                  // 다음 보정 id는 ++teleportId (스폰이 1·2를 썼다)
+    private static final double MAX_COORD = 3.0e7;   // 월드 경계 수준
+    private static final double MAX_STEP = 100;       // 패킷당 허용 이동(블록) — 넘으면 되돌림
+    private static final double REACH_SQ = 8 * 8;     // 블록 요청 도달 거리²(크리에이티브 5 + 여유), 눈 높이 기준
     private volatile int clientViewDistance = 32; // 클라가 ClientInformation서 요청한 view distance. 기본 최대.
 
     public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
@@ -209,6 +218,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (saved != null) System.arraycopy(saved.slots(), 0, slots, 0, slots.length);
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
+        ix = sx; iy = sy; iz = sz;
         // GE13 먼저 — 클라가 "청크 대기" 상태(로딩화면 정지)에 들어간 뒤 위치를 받게 해 위치-유발 중력 억제.
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
@@ -278,7 +288,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         }
                         send(ctx, new ChunkBatchFinished(sent));
                         RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
-                        scheduler.region(spawn).execute(() -> world.regionAt(spawn).adopt(p));
+                        world.runOn(spawn, () -> world.regionAt(spawn).adopt(p));
                         spawnChunksDelivered = true;
                         maybeReleaseSpawnGate();
                     });
@@ -325,6 +335,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (tpId == pendingTeleportId) {
                     spawnConfirmReceived = true;
                     maybeReleaseSpawnGate();
+                } else if (tpId == correctionTpId) {
+                    correctionTpId = -1;   // 보정 완료 — 이후 위치 패킷 수락 재개
                 }
             }
             case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
@@ -338,20 +350,26 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1) p.publishPosition(x, y, z, p.yaw(), p.pitch(), g);
+                if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
+                    p.publishPosition(x, y, z, p.yaw(), p.pitch(), g);
+                }
             }
             case 0x1B -> { // move_player_pos_rot: Double x,y,z, Float yaw,pitch, Boolean onGround
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1) p.publishPosition(x, y, z, yaw, pitch, g);
+                if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
+                    p.publishPosition(x, y, z, finiteOr0(yaw), finiteOr0(pitch), g);
+                }
             }
             case 0x1C -> { // move_player_rot: Float yaw,pitch, Boolean onGround
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1) p.publishPosition(p.x(), p.y(), p.z(), yaw, pitch, g);
+                if (p != null && pendingTeleportId == -1) {
+                    p.publishPosition(p.x(), p.y(), p.z(), finiteOr0(yaw), finiteOr0(pitch), g);
+                }
             }
             case 0x24 -> { // player_action (digging)
                 int status = Types.readVarInt(frame);
@@ -361,11 +379,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player actor = player;
                 if (status == 0) {       // start digging = 크리에이티브 즉시 파괴
                     int bx = bp[0], by = bp[1], bz = bp[2];
-                    RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
-                    scheduler.region(br).execute(() -> {
-                        world.regionAt(br).breakBlock(bx, by, bz);
-                        actor.send(new BlockChangedAck(seq)); // block_update 다음에 ack → 클라 예측 reconcile
-                    });
+                    if (!blockRequestAllowed(bx, by, bz)) {
+                        rejectBlockRequest(actor, seq, bx, by, bz);
+                    } else {
+                        RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
+                        world.runOn(br, () -> {
+                            Region region = world.regionAt(br);
+                            // 이미 로드된 청크만 수정 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
+                            if (region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) region.breakBlock(bx, by, bz);
+                            actor.send(new BlockChangedAck(seq)); // block_update 다음에 ack → 클라 예측 reconcile
+                        });
+                    }
                 } else {
                     actor.send(new BlockChangedAck(seq)); // 블록 변경 없음 — ack만(예측 정리)
                 }
@@ -387,10 +411,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 frame.readBoolean(); // insideBlock
                 int seq = Types.readVarInt(frame); // 예측 sequence
                 Player actor = player;
+                int[] o0 = Region.placeOffset(face);
+                if (!blockRequestAllowed(bp[0], bp[1], bp[2])) {
+                    // 클릭 지점이 범위/도달 거리 밖 — 클라가 예측으로 놓았을 설치 위치를 되돌리고 ack.
+                    rejectBlockRequest(actor, seq, bp[0] + o0[0], bp[1] + o0[1], bp[2] + o0[2]);
+                    break;
+                }
                 // 클릭 블록 조회는 region 스레드서만(소유권) — 조회 후 netty로 복귀해 배치 여부 판단(§3.2).
                 RegionPos clickedRp = RegionGrid.regionPos(bp[0], bp[2], world.regionSize());
-                scheduler.region(clickedRp).execute(() -> {
-                    int clickedState = world.regionAt(clickedRp).getBlock(bp[0], bp[1], bp[2]);
+                world.runOn(clickedRp, () -> {
+                    Region clickedRegion = world.regionAt(clickedRp);
+                    if (!clickedRegion.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2]))) { // 미로드 청크는 생성하지 않는다
+                        actor.send(new BlockChangedAck(seq));
+                        return;
+                    }
+                    int clickedState = clickedRegion.getBlock(bp[0], bp[1], bp[2]);
                     boolean isChest = "minecraft:chest".equals(world.blockRegistry().nameOf(clickedState));
                     ctx.channel().eventLoop().execute(() -> {
                         if (isChest) { // 배치 대신 열기(§3.2) — 더블체스트·방향 무관, 싱글체스트만
@@ -406,9 +441,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         }
                         int[] o = Region.placeOffset(face);
                         int px = bp[0] + o[0], py = bp[1] + o[1], pz = bp[2] + o[2];
+                        if (py < ChunkColumn.MIN_Y || py > ChunkColumn.MAX_Y) { // 월드 높이 밖(예: 최상단 블록 위에 설치)
+                            actor.send(new BlockChangedAck(seq));
+                            return;
+                        }
                         RegionPos rp = RegionGrid.regionPos(px, pz, world.regionSize());
-                        scheduler.region(rp).execute(() -> {
-                            world.regionAt(rp).placeBlock(px, py, pz, stateId);
+                        world.runOn(rp, () -> {
+                            Region region = world.regionAt(rp);
+                            // 설치 대상이 미로드 청크(시야 가장자리 너머)면 생성하지 않고 거부한다.
+                            if (region.chunkLoaded(ChunkPos.ofBlock(px, pz))) region.placeBlock(px, py, pz, stateId);
                             actor.send(new BlockChangedAck(seq)); // 설치(또는 충돌거부) 후 ack → 거부 시 고스트 reverts
                         });
                     });
@@ -454,7 +495,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
                 if (!chestUpdates.isEmpty() && chestPos != null) {
                     RegionPos rp = RegionGrid.regionPos(chestPos[0], chestPos[2], world.regionSize());
-                    scheduler.region(rp).execute(() -> {
+                    world.runOn(rp, () -> {
                         Region region = world.regionAt(rp);
                         for (var e : chestUpdates.entrySet()) {
                             region.setChestItem(chestPos[0], chestPos[1], chestPos[2], e.getKey(), e.getValue());
@@ -469,6 +510,52 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             default -> { /* 그 외 무시 */ }
         }
+    }
+
+    private static float finiteOr0(float v) {
+        return Float.isFinite(v) ? v : 0f;
+    }
+
+    /**
+     * 이동 수용 검사. 통과하면 수락 위치로 기록하고 true. 비유한·월드 경계 밖·패킷당 {@link #MAX_STEP} 초과 이동이면
+     * 마지막 수락 위치로 되돌리는 보정 텔레포트를 보내고 false(서버 권위). 보정 확인 전엔 위치 패킷을 조용히 버린다.
+     */
+    private boolean acceptPosition(ChannelHandlerContext ctx, double x, double y, double z) {
+        if (correctionTpId != -1) return false;   // 보정 응답 대기 중 — 클라가 옛 위치로 보낸 패킷은 무시
+        boolean ok = Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)
+                && Math.abs(x) <= MAX_COORD && Math.abs(y) <= MAX_COORD && Math.abs(z) <= MAX_COORD;
+        if (ok) {
+            double dx = x - ix, dy = y - iy, dz = z - iz;
+            ok = dx * dx + dy * dy + dz * dz <= MAX_STEP * MAX_STEP;
+        }
+        if (!ok) {
+            Player p = player;
+            correctionTpId = ++teleportId;
+            send(ctx, new SyncPlayerPosition(ix, iy, iz, p.yaw(), p.pitch(), correctionTpId));
+            return false;
+        }
+        ix = x; iy = y; iz = z;
+        return true;
+    }
+
+    /** 블록 요청(파괴/설치) 허용 여부 — 월드 높이 안이고, 마지막 수락 위치(눈 높이)에서 도달 거리 안인가. */
+    private boolean blockRequestAllowed(int bx, int by, int bz) {
+        if (by < ChunkColumn.MIN_Y || by > ChunkColumn.MAX_Y) return false;
+        double dx = bx + 0.5 - ix, dy = by + 0.5 - (iy + 1.62), dz = bz + 0.5 - iz;
+        return dx * dx + dy * dy + dz * dz <= REACH_SQ;
+    }
+
+    /** 거부한 블록 요청 — 클라 예측이 어긋나지 않게 (로드된 청크면) 실제 블록 상태를 되돌려 보내고 ack. */
+    private void rejectBlockRequest(Player actor, int seq, int bx, int by, int bz) {
+        if (by < ChunkColumn.MIN_Y || by > ChunkColumn.MAX_Y) {
+            actor.send(new BlockChangedAck(seq));
+            return;
+        }
+        RegionPos rp = RegionGrid.regionPos(bx, bz, world.regionSize());
+        world.runOn(rp, () -> {
+            world.regionAt(rp).resendBlock(actor, bx, by, bz);
+            actor.send(new BlockChangedAck(seq));
+        });
     }
 
     @Override
