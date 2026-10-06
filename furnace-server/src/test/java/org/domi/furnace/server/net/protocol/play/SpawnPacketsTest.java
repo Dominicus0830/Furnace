@@ -27,6 +27,19 @@ class SpawnPacketsTest {
     }
 
     @Test
+    void playerInfoRemove_listsUuids() {
+        UUID id = UUID.randomUUID();
+        PlayerInfoRemove p = new PlayerInfoRemove(java.util.List.of(id));
+        assertEquals(0x3D, p.id());
+        ByteBuf buf = Unpooled.buffer();
+        p.write(buf);
+        assertEquals(1, Types.readVarInt(buf));
+        assertEquals(id, Types.readUuid(buf));
+        assertFalse(buf.isReadable());
+        buf.release();
+    }
+
+    @Test
     void spawnEntity_writesTypeAndPos() {
         UUID id = UUID.randomUUID();
         SpawnEntity p = new SpawnEntity(5, id, 1.0, -60.0, 2.0, 0f, 90f);

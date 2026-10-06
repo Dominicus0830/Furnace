@@ -28,6 +28,7 @@ public final class Player {
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
+    private final Map<Integer, UUID> trackedUuids = new HashMap<>(); // 관찰중 엔티티 → uuid(디스폰 시 탭 제거용)
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
@@ -99,4 +100,5 @@ public final class Player {
     public void lastCenter(ChunkPos c) { this.lastCenter = c; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Map<Integer, double[]> tracked() { return tracked; }
+    public Map<Integer, UUID> trackedUuids() { return trackedUuids; }
 }

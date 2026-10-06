@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +37,10 @@ public final class World {
 
     // 교차region 가시성 스냅샷: region 스레드가 공개, 인접 region 스레드가 락프리로 읽음.
     private final ConcurrentHashMap<RegionPos, List<EntityView>> snapshots = new ConcurrentHashMap<>();
+
+    // 핸드오프 중(떠난 region은 스냅샷서 뺐고 새 region은 아직 편입 전)인 엔티티.
+    // 후보에 계속 포함해야 "후보에서 사라짐 = 진짜 사라짐"이 성립한다.
+    private final ConcurrentHashMap<Integer, EntityView> inTransit = new ConcurrentHashMap<>();
 
     @SuppressWarnings("unchecked")
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
@@ -93,16 +98,26 @@ public final class World {
         snapshots.put(pos, views);
     }
 
-    /** center±radius region들의 스냅샷을 모아 반환. */
+    /** 핸드오프 시작 — 편입이 끝나 새 region 스냅샷에 실릴 때까지 후보로 유지. */
+    public void markTransit(EntityView view) {
+        inTransit.put(view.entityId(), view);
+    }
+
+    public void clearTransit(int entityId) {
+        inTransit.remove(entityId);
+    }
+
+    /** center±radius region들의 스냅샷(+핸드오프 중 엔티티)을 모아 entityId 중복 제거해 반환. */
     public List<EntityView> candidatesAround(RegionPos center, int radius) {
-        List<EntityView> out = new ArrayList<>();
+        Map<Integer, EntityView> out = new LinkedHashMap<>();
+        for (EntityView v : inTransit.values()) out.put(v.entityId(), v);
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 List<EntityView> s = snapshots.get(new RegionPos(center.x() + dx, center.z() + dz));
-                if (s != null) out.addAll(s);
+                if (s != null) for (EntityView v : s) out.put(v.entityId(), v); // 스냅샷이 transit보다 최신
             }
         }
-        return out;
+        return new ArrayList<>(out.values());
     }
 
     /** pos 소유 스레드서 task 실행. 실패는 조용히 사라지지 않게 로그로 남긴다. */
