@@ -422,6 +422,15 @@ public final class Region {
         }
     }
 
+    /**
+     * 상대 이동 패킷(1/4096 블록 단위 short)으로 인코딩 가능한 델타인가. 정확히 8블록 부근은 반올림하면 32768로
+     * 넘쳐 반대 방향으로 이동하므로(예: 7.9999 → -32768) 임계값 비교 대신 인코딩 결과 범위로 판정한다.
+     */
+    static boolean fitsDelta(double d) {
+        long v = Math.round(d * 4096);
+        return v >= Short.MIN_VALUE && v <= Short.MAX_VALUE;
+    }
+
     private static boolean within(Player a, EntityView b, double range) {
         double dx = a.x() - b.x();
         double dz = a.z() - b.z();
@@ -433,7 +442,7 @@ public final class Region {
         boolean posChanged = ddx != 0 || ddy != 0 || ddz != 0;
         boolean rotChanged = b.yaw() != last[3] || b.pitch() != last[4];
         if (!posChanged && !rotChanged) return;
-        boolean big = Math.abs(ddx) >= 8 || Math.abs(ddy) >= 8 || Math.abs(ddz) >= 8;
+        boolean big = !fitsDelta(ddx) || !fitsDelta(ddy) || !fitsDelta(ddz);
         if (big) {
             a.send(new TeleportEntity(b.entityId(), b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.onGround()));
         } else if (posChanged) {
