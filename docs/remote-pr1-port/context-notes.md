@@ -41,3 +41,8 @@
 - 심각도를 몰라 재현 테스트부터 썼다. 실제 ConnectionHandler를 EmbeddedChannel로 구동해도 3개 시나리오(위치→회전, 회전→위치, pos_rot→회전)가 모두 실패 — 부분 패킷이 `p.x()`/`p.yaw()`(region이 아직 drain 안 한 옛 값)로 나머지를 채워 대기 중인 값을 덮어썼다.
 - 수정 — IO 스레드가 마지막 수락 위치·회전·onGround(`ix/iy/iz/iyaw/ipitch/ig`)를 들고 있다가 항상 합친 값을 발행. 3단계에서 도입한 기준 위치 변수를 회전·onGround까지 확장한 것이라 추가 상태는 최소.
 - 실제 영향은 한 서버 틱 안에 두 패킷이 겹쳐 올 때(클라 틱과 서버 틱 지터)만. 바닐라 클라가 정지 후 회전만 보내는 패턴에서 서버 위치가 옛 값으로 되돌아가 다음 위치 패킷까지 유지될 수 있었는지는 실클라로 확인하지 못했다.
+
+## 결과 (2026-10-07)
+- 전체 407개(스킵 6) 실패 0 — 기준선 388에 새 테스트 19개(ChunkDeliveryOrder 3, DeltaMoveOverflow 3, ConnectionInput 7, ConfigLoader +3, TabList 3).
+- **push 주의** — `merge -s ours`로 이력만 합쳤으므로 로컬 main을 push하면 원격 `main` 트리에서 PR #1의 변경 내용이 사라진다(이력은 남음). 필요한 수정은 위 포팅으로 대체했고, 로컬에 이미 있던 유령 엔티티·유휴 청크 퇴출·heightmap 편집 반영은 로컬 구현을 유지했다. 원격 브랜치 `claude/work-continuation-u597cw`는 그대로 남아 있다.
+- 포팅하지 않은 원격 변경 — 유령 엔티티 transit 방식(로컬 유예 틱 방식이 교차 region 퇴장을 3틱 만에 처리함을 실행으로 확인), 유휴 청크 퇴출(로컬이 저장과 연동해 이미 구현), heightmap 편집 반영(로컬 이미 구현), gradlew 실행 권한·스케줄러 javadoc(사소).
