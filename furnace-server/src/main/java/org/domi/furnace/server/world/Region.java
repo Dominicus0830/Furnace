@@ -428,6 +428,7 @@ public final class Region {
         for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;
             seen.add(b.entityId());
+            if (world.onlinePlayer(b.entityId()) == null) continue;   // 이미 퇴장 처리된 플레이어는 (재)스폰하지 않는다
             boolean near = within(a, b, range);
             boolean tracking = a.tracked().containsKey(b.entityId());
             if (near && !tracking) {
@@ -445,31 +446,36 @@ public final class Region {
                 broadcastMove(a, b, a.tracked().get(b.entityId()));
             }
         }
-        // 탭 목록: 접속 중인 모든 플레이어를 거리와 무관하게 올려둔다(바닐라/Paper 동일). 본인 제외.
+        // 탭 목록: 본인 포함 접속 중인 모든 플레이어를 거리와 무관하게 올려둔다(바닐라/Paper 동일).
+        // 퇴장한 플레이어는 grace 없이 즉시(다음 관찰자 틱) 엔티티·탭에서 뺀다 — 바닐라는 퇴장 틱에 전원에게 Remove.
+        var gone = a.listed().entrySet().iterator();
+        while (gone.hasNext()) {
+            var e = gone.next();
+            Player b = world.onlinePlayer(e.getKey());
+            if (b == null || b.isDisconnected()) {
+                if (a.tracked().remove(e.getKey()) != null) a.send(new RemoveEntities(java.util.List.of(e.getKey())));
+                a.send(new PlayerInfoRemove(java.util.List.of(e.getValue())));
+                a.missingTicks().remove(e.getKey());
+                gone.remove();
+            }
+        }
         for (Player b : world.onlinePlayers()) {
-            if (b.entityId() == a.entityId() || b.isDisconnected()) continue;
+            if (b.isDisconnected()) continue;
             if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
                 a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
             }
         }
-        // 후보서 완전히 사라진 엔티티: grace 틱 후 despawn. 탭은 접속 해제된 경우에만 뺀다.
+        // 후보서 완전히 사라진 엔티티: grace 틱 후 despawn. 탭은 건드리지 않는다.
         // 핸드오프는 인접 region 스냅샷 갭이 1틱 정도라 grace 미만 → 깜빡임 없음.
         // (전제: 도착 region 스레드가 핸드오프 후 약 2틱(≈100ms) 안에 편입·공개할 때만 성립한다. 그보다 밀리면 관찰자가
         //  RemoveEntities→SpawnEntity 로 한 번 깜빡인다 — 자가 치유되는 외형 결함. 결정적으로 막으려면
         //  World 수준 in-transit 후보 집합이 필요하다: docs/remote-pr1-port/context-notes.md "F7" 참고.)
-        var li = a.listed().entrySet().iterator();
-        while (li.hasNext()) {
-            var e = li.next();
+        for (var e : a.listed().entrySet()) {
             int eid = e.getKey();
             if (seen.contains(eid)) { a.missingTicks().remove(eid); continue; }
             if (a.missingTicks().merge(eid, 1, Integer::sum) >= ENTITY_DESPAWN_GRACE) {
                 if (a.tracked().remove(eid) != null) a.send(new RemoveEntities(java.util.List.of(eid)));
-                a.missingTicks().remove(eid);
-                Player b = world.onlinePlayer(eid);
-                if (b == null || b.isDisconnected()) {
-                    a.send(new PlayerInfoRemove(java.util.List.of(e.getValue())));
-                    li.remove();
-                }
+                a.missingTicks().remove(eid);   // 접속 중이면 엔티티만 디스폰하고 탭은 유지(퇴장은 위에서 즉시 처리)
             }
         }
     }

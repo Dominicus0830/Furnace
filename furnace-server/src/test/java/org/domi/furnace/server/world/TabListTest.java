@@ -141,6 +141,25 @@ class TabListTest {
         assertTrue(all.contains(PlayerInfoRemove.ID), "퇴장하면 탭에서 제거: " + all);
     }
 
+    /** 바닐라처럼 본인도 자기 탭 목록에 올라간다. */
+    @Test
+    void observerSeesOwnTabEntry() throws Exception {
+        setup(50_000);
+        tick(A);
+        chObs.runPendingTasks();
+        int updates = 0;
+        Object o;
+        while ((o = chObs.readOutbound()) != null) {
+            ByteBuf b = (ByteBuf) o;
+            if (Types.readVarInt(b) == PlayerInfoUpdate.ID) {
+                b.readByte(); Types.readVarInt(b);
+                if (Types.readUuid(b).equals(obs.uuid())) updates++;
+            }
+            b.release();
+        }
+        assertEquals(1, updates, "본인 항목이 탭에 한 번 올라가야 한다");
+    }
+
     /** 접속은 유지한 채 후보 region 밖으로 순간이동 — 관찰자에게 유령으로 남지 않아야 한다(원격 GhostEntityTest 시나리오). */
     @Test
     void teleportFarAway_isDespawnedForObserver() throws Exception {
