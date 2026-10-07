@@ -39,14 +39,9 @@ class VanishDespawnTest {
         b.markDisconnected();
         sched.region(r10).execute(() -> w.regionAt(r10).tick()).get();
 
-        // A의 region 틱 grace 미만 → 아직 추적(즉시 despawn 안 함)
+        // 퇴장은 바닐라처럼 grace 없이 즉시(A의 다음 틱) 디스폰 — grace는 접속 유지 중 핸드오프 깜빡임 방지용이다.
         sched.region(r00).execute(() -> w.regionAt(r00).tick()).get();
-        assertTrue(a.tracked().containsKey(2), "grace 미만: 아직 추적(핸드오프 깜빡임 방지)");
-
-        // grace 도달까지 추가 틱 → despawn
-        sched.region(r00).execute(() -> w.regionAt(r00).tick()).get();
-        sched.region(r00).execute(() -> w.regionAt(r00).tick()).get();
-        assertFalse(a.tracked().containsKey(2), "grace 후: A가 사라진 B를 despawn해야(고스트 없음)");
+        assertFalse(a.tracked().containsKey(2), "퇴장한 B는 A의 다음 틱에 despawn돼야(고스트 없음)");
         sched.close();
     }
 }

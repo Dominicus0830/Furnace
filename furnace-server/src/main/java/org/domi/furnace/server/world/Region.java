@@ -246,6 +246,7 @@ public final class Region {
         world.assertOwns(pos);
         p.currentRegion(pos);
         players.put(p.entityId(), p);
+        world.playerOnline(p);   // 멱등 — 접속 등록이 누락돼도 탭/가시성 기준 집합에 항상 포함
     }
 
     /** 소유 스레드서 매 틱 호출. */
