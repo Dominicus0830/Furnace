@@ -598,6 +598,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             scheduler.global().execute(() -> org.domi.furnace.server.entity.PlayerData.save(
                     world.worldDir(), p.uuid(), sx, sy, sz, syaw, spitch, sg, snapshot));
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
+            world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
         }
     }
 

@@ -23,6 +23,19 @@ public final class FurnaceMain {
     private static final Logger log = LoggerFactory.getLogger(FurnaceMain.class);
 
     public static void main(String[] args) throws InterruptedException {
+        try {
+            run();
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (Throwable t) {
+            // 기동 실패 시 비데몬 스케줄러/Netty 스레드가 JVM을 붙잡아 좀비 프로세스가 되지 않게 비정상 종료한다.
+            // (종료 훅이 이미 등록됐다면 exit가 훅을 돌려 flush한다.)
+            log.error("기동 실패 — 종료합니다", t);
+            System.exit(1);
+        }
+    }
+
+    private static void run() throws InterruptedException {
         Config config = ConfigLoader.load(Path.of("furnace.properties"));
         log.info("Furnace 부팅: name='{}', tickNanos={}", config.serverName(), config.tickNanos());
 
@@ -75,7 +88,15 @@ public final class FurnaceMain {
                     final int idx = i;
                     fs.add(scheduler.region(regionPosForThread(idx, config)).execute(() -> world.flushThread(idx)));
                 }
-                for (var f : fs) f.get();
+                // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 타임아웃을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
+                long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+                for (var f : fs) {
+                    try {
+                        f.get(Math.max(1, flushDeadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
+                    } catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException e) {
+                        log.error("[STOP] region flush 실패/지연", e);
+                    }
+                }
                 ioPool.shutdown();
                 genPool.shutdown();
                 ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);

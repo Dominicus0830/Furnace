@@ -189,6 +189,15 @@ class ConnectionInputTest {
     }
 
     /** 월드 기본 스폰/저장 위치는 임의 좌표다 — 기준 위치를 (0,0)에서 시작하면 스폰이 100블록 밖일 때 첫 이동부터 거부된다. */
+    /** 연결이 끊기면 region 틱을 기다리지 않고 즉시 접속자 집합(탭 기준)에서 빠져야 한다 — adopt 전에 끊긴 경우의 누수 방지. */
+    @Test
+    void disconnect_removesPlayerFromOnlineSetImmediately() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        assertNotNull(world.onlinePlayer(p.entityId()));
+        ch.close();
+        assertNull(world.onlinePlayer(p.entityId()), "끊긴 플레이어가 접속자 집합에 남아 있다");
+    }
+
     /** 끊길 때 저장 위치는 region이 아직 drain 안 한 최신 IO 위치여야 한다(옛/0,0,0 값으로 덮어쓰면 안 된다). */
     @Test
     void disconnect_savesLatestIoPosition_evenIfRegionHasNotDrained() throws Exception {

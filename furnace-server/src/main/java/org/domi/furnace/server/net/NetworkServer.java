@@ -64,7 +64,7 @@ public final class NetworkServer {
                 });
         try {
             channel = b.bind(port).syncUninterruptibly().channel();
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {   // 체크 예외(BindException)도 sneaky throw로 오므로 RuntimeException만 잡으면 안 된다
             // bind 실패(포트 점유 등) 시 non-daemon 이벤트루프 스레드가 JVM을 붙잡지 않게 정리.
             workerGroup.shutdownGracefully();
             bossGroup.shutdownGracefully();
