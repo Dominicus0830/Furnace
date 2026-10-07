@@ -493,8 +493,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (clickType != 0 || expectedContainerId == -1 || containerId != expectedContainerId) {
                     break; // PICKUP만 처리, 컨테이너 불일치·미오픈 무시(§3.3)
                 }
-                this.carried = newCarried;
                 int[] chestPos = p.openChestPos();
+                // 열린 체스트가 사거리 밖(텔레포트·보정 등)이면 클릭 전체를 폐기하고 창을 닫는다 — 체스트만 안 바뀌고 인벤토리만 바뀌는 복제 방지.
+                if (chestPos != null && !blockRequestAllowed(chestPos[0], chestPos[1], chestPos[2])) {
+                    p.closeChest();
+                    send(ctx, new ContainerClose(expectedContainerId));
+                    break;
+                }
+                this.carried = newCarried;
                 java.util.Map<Integer, ItemStack> chestUpdates = new java.util.HashMap<>();
                 for (var e : changed.entrySet()) {
                     int menuSlot = e.getKey();
@@ -510,6 +516,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     RegionPos rp = RegionGrid.regionPos(chestPos[0], chestPos[2], world.regionSize());
                     world.runOn(rp, () -> {
                         Region region = world.regionAt(rp);
+                        if (!region.chunkLoaded(ChunkPos.ofBlock(chestPos[0], chestPos[2]))) return; // 미로드 청크를 생성/로드하지 않는다
                         for (var e : chestUpdates.entrySet()) {
                             region.setChestItem(chestPos[0], chestPos[1], chestPos[2], e.getKey(), e.getValue());
                         }

@@ -207,6 +207,29 @@ class ConnectionInputTest {
         assertEquals(3.0, s.z());
     }
 
+    /** 사거리 밖(미로드) 체스트에 대한 클릭은 청크를 만들지 않고, 인벤토리도 안 바꾸며, 창을 닫는다. */
+    @Test
+    void chestClickOutOfReach_isDropped_closesContainer_noChunkLoad() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        p.openChest(7, 1000, -60, 1000);
+        ChunkPos far = ChunkPos.ofBlock(1000, 1000);
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
+            Types.writeVarInt(b, 0);          // PICKUP
+            Types.writeVarInt(b, 1);
+            b.writeShort(30);                 // 플레이어 인벤토리 슬롯으로 아이템을 넣는 변경
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
+            Types.writeVarInt(b, 0);          // carried 비어있음
+        }));
+        List<int[]> out = drainOutbound();
+        RegionPos frp = RegionGrid.regionPos(1000, 1000, 16);
+        boolean[] loaded = new boolean[1];
+        sched.region(frp).execute(() -> loaded[0] = world.regionAt(frp).chunkLoaded(far)).get();
+        assertFalse(loaded[0], "미로드 체스트 청크를 만들면 안 된다");
+        assertEquals(1, count(out, 0x12), "범위 밖 체스트면 ContainerClose가 나가야 한다");
+        assertEquals(-1, p.openContainerId());
+    }
+
     @Test
     void farFromOriginSpawn_normalMoveIsAccepted() throws Exception {
         join(new SpawnPoint(5000, -60, 5000, 0f));
