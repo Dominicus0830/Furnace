@@ -43,6 +43,8 @@ class TabListTest {
         obs.drainPending();
         tgt.publishPosition(tgtX, -60, 10, 0, 0, true);
         tgt.drainPending();
+        w.playerOnline(obs);
+        w.playerOnline(tgt);
         sched.region(A).execute(() -> w.regionAt(A).adopt(obs)).get();
         RegionPos tr = RegionGrid.regionPos(tgtX, 10, 16);
         sched.region(tr).execute(() -> w.regionAt(tr).adopt(tgt)).get();
@@ -119,6 +121,24 @@ class TabListTest {
         for (int t = 0; t < 5; t++) { tick(A); all.addAll(ids()); }
         assertTrue(all.contains(PlayerInfoRemove.ID), "시야 밖에서 퇴장해도 탭 항목은 결국 제거돼야 한다: " + all);
         assertFalse(all.contains(RemoveEntities.ID), "엔티티는 이미 디스폰됨: " + all);
+    }
+
+    /** 바닐라/Paper 동일: 아주 멀리 있는(후보 region 밖) 접속자도 탭 목록엔 올라가고, 접속 중엔 유지된다. */
+    @Test
+    void farAwayOnlinePlayer_isListedAndKept_untilDisconnect() throws Exception {
+        setup(50_000);
+        RegionPos far = RegionGrid.regionPos(50_000, 10, 16);
+        tick(far);
+        List<Integer> all = new ArrayList<>();
+        for (int t = 0; t < 8; t++) { tick(A); all.addAll(ids()); }
+        assertTrue(all.contains(PlayerInfoUpdate.ID), "멀리 있어도 탭엔 올라가야 한다: " + all);
+        assertFalse(all.contains(PlayerInfoRemove.ID), "접속 중이면 유지: " + all);
+        assertFalse(all.contains(org.domi.furnace.server.net.protocol.play.SpawnEntity.ID), "엔티티는 스폰되면 안 된다: " + all);
+        tgt.markDisconnected();
+        tick(far);
+        all.clear();
+        for (int t = 0; t < 8; t++) { tick(A); all.addAll(ids()); }
+        assertTrue(all.contains(PlayerInfoRemove.ID), "퇴장하면 탭에서 제거: " + all);
     }
 
     /** 접속은 유지한 채 후보 region 밖으로 순간이동 — 관찰자에게 유령으로 남지 않아야 한다(원격 GhostEntityTest 시나리오). */

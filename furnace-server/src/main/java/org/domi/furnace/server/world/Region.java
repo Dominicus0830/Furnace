@@ -259,6 +259,7 @@ public final class Region {
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
                 // 저장은 ConnectionHandler.channelInactive가 IO 위치+인벤토리로 수행(여기선 0,0,0 위험).
+                world.playerOffline(p.entityId());   // 다른 관찰자는 grace 후 탭에서 뺀다
                 broadcastRemove(p.entityId());
                 continue;
             }
@@ -430,8 +431,10 @@ public final class Region {
             boolean near = within(a, b, range);
             boolean tracking = a.tracked().containsKey(b.entityId());
             if (near && !tracking) {
-                a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
-                a.listed().put(b.entityId(), b.uuid());   // 탭에 올려둔 항목 — 퇴장(후보서 완전히 사라짐) 때 제거한다
+                if (!a.listed().containsKey(b.entityId())) {   // 탭 항목은 스폰 전 필수 — 이미 올려뒀으면 생략
+                    a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
+                    a.listed().put(b.entityId(), b.uuid());
+                }
                 a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
                 a.send(new SetHeadRotation(b.entityId(), b.yaw()));
                 a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch()});
@@ -442,12 +445,18 @@ public final class Region {
                 broadcastMove(a, b, a.tracked().get(b.entityId()));
             }
         }
-        // 후보서 완전히 사라진 엔티티: grace 틱 후 despawn + 탭 제거(퇴장·스냅샷 범위 이탈).
+        // 탭 목록: 접속 중인 모든 플레이어를 거리와 무관하게 올려둔다(바닐라/Paper 동일). 본인 제외.
+        for (Player b : world.onlinePlayers()) {
+            if (b.entityId() == a.entityId() || b.isDisconnected()) continue;
+            if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
+                a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
+            }
+        }
+        // 후보서 완전히 사라진 엔티티: grace 틱 후 despawn. 탭은 접속 해제된 경우에만 뺀다.
         // 핸드오프는 인접 region 스냅샷 갭이 1틱 정도라 grace 미만 → 깜빡임 없음.
         // (전제: 도착 region 스레드가 핸드오프 후 약 2틱(≈100ms) 안에 편입·공개할 때만 성립한다. 그보다 밀리면 관찰자가
-        //  RemoveEntities→PlayerInfoUpdate/SpawnEntity 로 한 번 깜빡인다 — 자가 치유되는 외형 결함. 결정적으로 막으려면
+        //  RemoveEntities→SpawnEntity 로 한 번 깜빡인다 — 자가 치유되는 외형 결함. 결정적으로 막으려면
         //  World 수준 in-transit 후보 집합이 필요하다: docs/remote-pr1-port/context-notes.md "F7" 참고.)
-        // 탭에 올린 항목(listed)을 기준으로 돈다 — 시야 밖이라 엔티티는 이미 디스폰됐어도 탭 항목은 남아 있을 수 있다.
         var li = a.listed().entrySet().iterator();
         while (li.hasNext()) {
             var e = li.next();
@@ -455,9 +464,12 @@ public final class Region {
             if (seen.contains(eid)) { a.missingTicks().remove(eid); continue; }
             if (a.missingTicks().merge(eid, 1, Integer::sum) >= ENTITY_DESPAWN_GRACE) {
                 if (a.tracked().remove(eid) != null) a.send(new RemoveEntities(java.util.List.of(eid)));
-                a.send(new PlayerInfoRemove(java.util.List.of(e.getValue())));
-                li.remove();
                 a.missingTicks().remove(eid);
+                Player b = world.onlinePlayer(eid);
+                if (b == null || b.isDisconnected()) {
+                    a.send(new PlayerInfoRemove(java.util.List.of(e.getValue())));
+                    li.remove();
+                }
             }
         }
     }

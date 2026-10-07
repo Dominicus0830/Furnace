@@ -150,6 +150,14 @@ public final class World {
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
     public java.nio.file.Path worldDir() { return worldDir; }
     public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
+
+    // 접속 중 플레이어(eid→Player). 탭 목록은 바닐라처럼 거리와 무관하게 이 집합 전체를 기준으로 한다.
+    private final ConcurrentHashMap<Integer, Player> online = new ConcurrentHashMap<>();
+    public void playerOnline(Player p) { online.put(p.entityId(), p); }
+    public void playerOffline(int eid) { online.remove(eid); }
+    /** 탭 목록 기준 접속자 뷰(읽기 전용 순회용). */
+    public java.util.Collection<Player> onlinePlayers() { return online.values(); }
+    public Player onlinePlayer(int eid) { return online.get(eid); }
     public SpawnPoint defaultSpawn() { return defaultSpawn; }
 
     public void setRegistries(BlockRegistry blocks, ItemRegistry items) {

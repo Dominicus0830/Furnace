@@ -235,6 +235,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.viewDistance(effVd);
         this.player = p;
+        world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때)
         // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
         // adopt 전이라 p.loadedChunks는 이 스레드 전용(레이스 없음). region streamLoads는 이미 로드된 중앙을 건너뜀.
         ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
