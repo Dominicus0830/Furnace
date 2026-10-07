@@ -188,7 +188,8 @@ public final class World {
         return scheduler.region(owner)
                 .submit(() -> regionAt(owner).loadChunk(cp))
                 .thenCompose(f -> f)
-                .thenCompose(col -> {
+                // 컬럼 접근(dirty/캐시/스냅샷)은 항상 소유 region 스레드서 — 로드 완료 스레드(IO 풀 등)서 돌지 않게 한다.
+                .thenComposeAsync(col -> {
                     byte[] cached = col.cachedSerializedBody();
                     if (!col.dirty() && cached != null) return CompletableFuture.completedFuture(cached);
 
@@ -198,12 +199,15 @@ public final class World {
                         if (!col.dirty()) col.cachedSnapshot(snapshot);
                     }
                     boolean cacheable = !col.dirty();
+                    // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면(그 사이 autosave가
+                    // dirty를 내려도) 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
+                    long version = col.modCount();
                     ChunkSnapshot finalSnapshot = snapshot;
                     return chunkPool.submit(() -> serializeChunkBody(finalSnapshot)).thenApplyAsync(body -> {
-                        if (cacheable && !col.dirty()) col.cachedSerializedBody(body);
+                        if (cacheable && col.modCount() == version) col.cachedSerializedBody(body);
                         return body;
                     }, r -> scheduler.region(owner).execute(r));
-                });
+                }, r -> scheduler.region(owner).execute(r));
     }
 
     private byte[] serializeChunkBody(ChunkSnapshot snap) {

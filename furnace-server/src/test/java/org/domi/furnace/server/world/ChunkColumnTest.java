@@ -211,4 +211,33 @@ class ChunkColumnTest {
         c.clearDirty();
         assertFalse(c.dirty());
     }
+
+    @Test
+    void everyMutator_bumpsModCount_andDropsCaches_butClearDirtyDoesNot() {
+        ChunkColumn c = new ChunkColumn(6);
+        long m = c.modCount();
+        java.util.function.Consumer<Runnable> check = op -> {
+            c.cachedSerializedBody(new byte[]{1});
+            c.cachedSnapshot(ChunkSnapshot.of(0, 0, c));
+            long before = c.modCount();
+            op.run();
+            assertTrue(c.modCount() > before, "modCount 증가");
+            assertNull(c.cachedSerializedBody(), "본문 캐시 무효화");
+            assertNull(c.cachedSnapshot(), "스냅샷 캐시 무효화");
+        };
+        check.accept(() -> c.setBlock(0, -61, 0, 79));
+        check.accept(() -> c.setGeneratedBlock(1, -61, 0, 79));
+        check.accept(c::markDirty);
+        check.accept(() -> c.setBiome(0, 0, 0, 3));
+        check.accept(() -> c.setSurface(0, 0, 4));
+        check.accept(() -> c.putChest(ChestBlockEntity.empty(0, -60, 0)));
+        check.accept(() -> c.removeBlockEntityAt(0, -60, 0));
+        check.accept(() -> c.loadGenerated(new int[24 * 4096], new int[24 * 64]));
+        assertTrue(c.modCount() > m);
+
+        long before = c.modCount();
+        c.clearDirty();
+        c.motionBlockingHeightmap();
+        assertEquals(before, c.modCount(), "clearDirty/heightmap 조회는 내용 변경이 아니다");
+    }
 }

@@ -41,6 +41,9 @@ public final class ChunkColumn {
     private final int[] motionBlocking = new int[256]; // vanilla MOTION_BLOCKING(blocksMotion || fluid) 전용, 항상 라이브
     private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
     private boolean dirty;
+    // 수정 카운터(단조 증가, 소유 스레드 전용). 비동기 직렬화가 "스냅샷 이후 청크가 바뀌었는가"를 dirty 플래그가 아니라
+    // 이 값으로 판정한다 — dirty는 autosave가 clearDirty()로 내리므로 캐시 유효성과는 다른 의미다.
+    private long modCount;
     // vanilla ChunkStatus: OCEAN_FLOOR_WG/WORLD_SURFACE_WG는 WORLDGEN_HEIGHTMAPS(EMPTY..SURFACE)에만 속하고
     // CARVERS 이후(FINAL_HEIGHTMAPS)에는 라이브 갱신 대상에서 제외된다 — carve 완료 시점의 값으로 얼어붙는다
     // (round12: OreFeature의 OCEAN_FLOOR_WG 게이트가 carve 이후 decoration 중 라이브로 계속 갱신되던 버그 수정).
@@ -111,12 +114,12 @@ public final class ChunkColumn {
 
     public void putChest(ChestBlockEntity chest) {
         blockEntities.put(blockEntityKey(chest.x, chest.y, chest.z), chest);
-        cachedSnapshot = null;
+        touch();
     }
 
     public void removeBlockEntityAt(int x, int y, int z) {
         blockEntities.remove(blockEntityKey(x, y, z));
-        cachedSnapshot = null;
+        touch();
     }
 
     public java.util.Map<Long, ChestBlockEntity> blockEntities() {
@@ -137,10 +140,7 @@ public final class ChunkColumn {
         updateSurface(x, worldY, z, stateId);
         updateSurfaceWg(x, worldY, z, stateId);
         dirty = true;
-        cachedSerializedBody = null;
-        cachedMotionBlockingHeightmap = null;
-        cachedWorldSurfaceHeightmap = null;
-        cachedSnapshot = null;
+        touch();
     }
 
     public void setGeneratedBlock(int x, int worldY, int z, int stateId) {
@@ -148,11 +148,19 @@ public final class ChunkColumn {
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
+        touch();
+    }
+
+    /** 청크 내용이 바뀌었음을 기록하고 파생 캐시를 전부 버린다. 모든 변경자는 이 한 곳을 거친다. */
+    private void touch() {
+        modCount++;
         cachedSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
         cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
     }
+
+    public long modCount() { return modCount; }
 
     public boolean dirty() { return dirty; }
     public void clearDirty() { dirty = false; }
@@ -160,10 +168,7 @@ public final class ChunkColumn {
     /** 블록 자체는 안 바뀌었지만(체스트 아이템 등 블록엔티티 내용 변경) 저장이 필요할 때 호출(§3.6). */
     public void markDirty() {
         dirty = true;
-        cachedSerializedBody = null;
-        cachedMotionBlockingHeightmap = null;
-        cachedWorldSurfaceHeightmap = null;
-        cachedSnapshot = null;
+        touch();
     }
     public byte[] cachedSerializedBody() { return cachedSerializedBody; }
     public void cachedSerializedBody(byte[] body) { this.cachedSerializedBody = body; }
@@ -182,7 +187,7 @@ public final class ChunkColumn {
      */
     public void setBiome(int quartX, int quartY, int quartZ, int biomeId) {
         sections[quartY / 4].setBiome(quartX, quartY % 4, quartZ, biomeId);
-        cachedSerializedBody = null;
+        touch();
     }
 
     public void loadGenerated(int[] blockIds, int[] biomeIds) {
@@ -195,10 +200,7 @@ public final class ChunkColumn {
         System.arraycopy(surface, 0, surfaceWg, 0, surface.length);
         java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
         dirty = false;
-        cachedSerializedBody = null;
-        cachedMotionBlockingHeightmap = null;
-        cachedWorldSurfaceHeightmap = null;
-        cachedSnapshot = null;
+        touch();
     }
 
     private void rebuildSurface(int[] blockIds) {
@@ -229,10 +231,7 @@ public final class ChunkColumn {
     /** (x,z) heightmap 값(= surfaceWorldY − minY + 1). */
     public void setSurface(int x, int z, int value) {
         surface[z * 16 + x] = value;
-        cachedSerializedBody = null;
-        cachedMotionBlockingHeightmap = null;
-        cachedWorldSurfaceHeightmap = null;
-        cachedSnapshot = null;
+        touch();
     }
 
     public int surfaceBlockY(int x, int z) {
