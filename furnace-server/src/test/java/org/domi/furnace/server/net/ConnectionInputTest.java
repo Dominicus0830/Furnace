@@ -166,6 +166,28 @@ class ConnectionInputTest {
         assertEquals(x0 + 1, p.x(), "확인 후엔 정상 이동 수락 재개");
     }
 
+    /** 보정 텔레포트의 회전은 마지막으로 수락한 회전이어야 한다(region이 아직 drain 안 한 옛 값이 아니라). */
+    @Test
+    void correctionTeleport_carriesLastAcceptedRotation_notStaleRegionValue() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        ch.writeInbound(frame(0x1C, b -> { b.writeFloat(45f); b.writeFloat(10f); b.writeBoolean(true); }));   // drain 안 함
+        move(ch, 5_000_000, -60, 0);                                                                          // 급이동 → 보정
+        ch.runPendingTasks();
+        float[] rot = null;
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            ByteBuf bb = (ByteBuf) o;
+            if (Types.readVarInt(bb) == SyncPlayerPosition.ID) {
+                bb.skipBytes(24);                       // x,y,z
+                rot = new float[]{bb.readFloat(), bb.readFloat()};
+            }
+            bb.release();
+        }
+        assertNotNull(rot, "보정 SyncPlayerPosition이 나가야 한다");
+        assertEquals(45f, rot[0], "yaw");
+        assertEquals(10f, rot[1], "pitch");
+    }
+
     /** 월드 기본 스폰/저장 위치는 임의 좌표다 — 기준 위치를 (0,0)에서 시작하면 스폰이 100블록 밖일 때 첫 이동부터 거부된다. */
     @Test
     void farFromOriginSpawn_normalMoveIsAccepted() throws Exception {

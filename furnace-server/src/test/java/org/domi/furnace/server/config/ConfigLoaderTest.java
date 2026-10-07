@@ -47,7 +47,7 @@ class ConfigLoaderTest {
 
     @Test
     void load_rejectsInvalidValues_withKeyName(@TempDir Path dir) throws Exception {
-        for (String bad : new String[]{"region-size=0", "region-threads=0", "view-distance=1", "view-distance=99",
+        for (String bad : new String[]{"region-size=0", "region-threads=0", "view-distance=1", "view-distance=0", "view-distance=-1", "entity-view-distance=0",
                 "port=70000", "tick-nanos=0", "compression-threshold=-5", "io-threads=0", "autosave-ticks=0",
                 "chunk-eviction-grace-ticks=0", "chunks-per-tick=0", "spawn-chunk-radius=-1", "level-name= "}) {
             Path f = dir.resolve("bad.properties");
@@ -69,11 +69,67 @@ class ConfigLoaderTest {
         assertTrue(e.getMessage().contains("region-size"));
     }
 
-    /** 저장소의 실제 furnace.properties 가 새 검증을 통과해야 서버가 기동한다. */
+    /** view-distance 상한(32) 초과는 거부하지 않고 32로 조정 + WARN 1건(청크 전송은 어차피 32로 포화, 엔티티 경로는 이 값이 유일한 방어선). */
+    @Test
+    void load_clampsViewDistanceAbove32_withSingleWarning(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("furnace.properties");
+        for (String v : new String[]{"33", "64", "1000", "2147483647"}) {
+            Files.writeString(f, "view-distance=" + v + "\n");
+            java.util.List<String> warns = new java.util.ArrayList<>();
+            Config c = ConfigLoader.load(f, warns::add);
+            assertEquals(32, c.viewDistance(), v);
+            assertEquals(1, warns.size(), v);
+            assertTrue(warns.get(0).contains("view-distance") && warns.get(0).contains(v), warns.get(0));
+        }
+    }
+
+    /** 경계: 2·32는 그대로 수락(경고 없음). 변이(>=3, <=31 등)가 살아남지 않게 고정한다. */
+    @Test
+    void load_acceptsViewDistanceBoundaries_withoutWarning(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("furnace.properties");
+        for (int v : new int[]{2, 3, 16, 31, 32}) {
+            Files.writeString(f, "view-distance=" + v + "\n");
+            java.util.List<String> warns = new java.util.ArrayList<>();
+            assertEquals(v, ConfigLoader.load(f, warns::add).viewDistance());
+            assertTrue(warns.isEmpty(), "경고 없어야 함: " + v);
+        }
+    }
+
+    /** 형식 오류는 조정 대상이 아니다(거부). */
+    @Test
+    void load_rejectsMalformedViewDistance(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("furnace.properties");
+        for (String v : new String[]{"abc", "", "16.0", "2147483648"}) {
+            Files.writeString(f, "view-distance=" + v + "\n");
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f), v);
+            assertTrue(e.getMessage().contains("view-distance"), e.getMessage());
+        }
+    }
+
+    /** 엔티티 가시 거리 = min(entity-view-distance, view-distance) — 조정된 view-distance 덕에 상한 32 이하로 묶인다. */
+    @Test
+    void entityRange_isBoundedByClampedViewDistance(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("furnace.properties");
+        Files.writeString(f, "view-distance=64\nentity-view-distance=2147483647\n");
+        Config c = ConfigLoader.load(f, w -> { });
+        assertTrue(Math.min(c.entityViewDistance(), c.viewDistance()) <= Config.MAX_VIEW_DISTANCE);
+    }
+
+    /** entity-view-distance 가 view-distance 보다 커도 거부하지 않는다(기본값 8 > 5 도 그렇다 — World 가 min 으로 자른다). */
+    @Test
+    void load_allowsEntityViewDistanceAboveViewDistance(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("furnace.properties");
+        Files.writeString(f, "view-distance=2\nentity-view-distance=8\n");
+        assertDoesNotThrow(() -> ConfigLoader.load(f, w -> { }));
+        Files.writeString(f, "view-distance=32\nentity-view-distance=2147483647\n");
+        assertDoesNotThrow(() -> ConfigLoader.load(f, w -> { }));
+    }
+
+    /** 저장소 루트의 실제 furnace.properties(.gitignore 대상)가 있으면 새 검증을 통과해야 서버가 기동한다. 없으면 '통과'가 아니라 건너뜀으로 드러낸다. */
     @Test
     void load_acceptsRepositoryFurnaceProperties() {
         Path real = Path.of("furnace.properties");
-        if (!Files.exists(real)) return; // 테스트 작업 디렉터리에 없으면 건너뜀
-        assertDoesNotThrow(() -> ConfigLoader.load(real));
+        Assumptions.assumeTrue(Files.exists(real), "furnace.properties 없음(.gitignore 대상)");
+        assertDoesNotThrow(() -> ConfigLoader.load(real, w -> { }));
     }
 }

@@ -41,6 +41,7 @@ import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.api.sched.RegionPos;
+import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
@@ -94,7 +95,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private static final double MAX_COORD = 3.0e7;   // 월드 경계 수준
     private static final double MAX_STEP = 100;       // 패킷당 허용 이동(블록) — 넘으면 되돌림
     private static final double REACH_SQ = 8 * 8;     // 블록 요청 도달 거리²(크리에이티브 5 + 여유), 눈 높이 기준
-    private volatile int clientViewDistance = 32; // 클라가 ClientInformation서 요청한 view distance. 기본 최대.
+    private volatile int clientViewDistance = Config.MAX_VIEW_DISTANCE; // 클라가 ClientInformation서 요청한 view distance. 기본 최대.
 
     public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
                              World world, EntityIdAllocator idAllocator) {
@@ -191,7 +192,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         try {
             Types.readString(frame, 16);                 // locale (무시)
             int vd = frame.readByte();                   // view distance (chunks)
-            this.clientViewDistance = Math.max(2, Math.min(32, vd));
+            this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
             Player p = this.player;
             if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
         } catch (Exception e) {
@@ -201,7 +202,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 서버 view-distance와 클라 요청의 최솟값 — 과전송·"not in view range" 방지. */
     private int effectiveViewDistance() {
-        return Math.max(2, Math.min(world.viewDistance(), clientViewDistance));
+        return Math.max(Config.MIN_VIEW_DISTANCE, Math.min(world.viewDistance(), clientViewDistance));
     }
 
     private void onEnterPlay(ChannelHandlerContext ctx) {
@@ -546,9 +547,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             ok = dx * dx + dy * dy + dz * dz <= MAX_STEP * MAX_STEP;
         }
         if (!ok) {
-            Player p = player;
             correctionTpId = ++teleportId;
-            send(ctx, new SyncPlayerPosition(ix, iy, iz, p.yaw(), p.pitch(), correctionTpId));
+            // 회전도 IO 전용 iyaw/ipitch로 — Player.yaw()/pitch()는 region이 아직 drain 안 한 옛 값(비volatile, 다른 스레드 소유)이다.
+            send(ctx, new SyncPlayerPosition(ix, iy, iz, iyaw, ipitch, correctionTpId));
             return false;
         }
         ix = x; iy = y; iz = z;

@@ -6,12 +6,22 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.function.Consumer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class ConfigLoader {
+
+    private static final Logger log = LoggerFactory.getLogger(ConfigLoader.class);
 
     private ConfigLoader() {}
 
     public static Config load(Path path) {
+        return load(path, log::warn);
+    }
+
+    /** warn: 값을 조정(clamp)했을 때의 경고 수신자(테스트에서 수집). */
+    static Config load(Path path, Consumer<String> warn) {
         if (!Files.exists(path)) {
             return Config.DEFAULT;
         }
@@ -40,7 +50,17 @@ public final class ConfigLoader {
         require(tick > 0, "tick-nanos", tick, "1 이상");
         require(port >= 0 && port <= 65535, "port", port, "0~65535");
         require(compression >= -1, "compression-threshold", compression, "-1(끔) 이상");
-        require(viewDistance >= 2 && viewDistance <= 32, "view-distance", viewDistance, "2~32(클라이언트 최대 32)");
+        // 하한(<2)은 거부: 선언 반경(LoginPlay는 2 이상)과 실제 전송 반경이 어긋나는 무효값이다.
+        // 상한(>32)은 거부하지 않고 32로 조정한다: 클라 렌더 거리 최대라 청크 전송은 어차피 32로 포화되고, 이전에 기동되던
+        // 설정을 깨지 않는다. 엔티티 가시 거리(min(entity-view-distance, view-distance))에는 별도 상한이 없으므로
+        // 조정은 반드시 여기(설정 값 자체)에서 해야 한다.
+        require(viewDistance >= Config.MIN_VIEW_DISTANCE, "view-distance", viewDistance,
+                Config.MIN_VIEW_DISTANCE + " 이상(전송 반경 하한)");
+        if (viewDistance > Config.MAX_VIEW_DISTANCE) {
+            warn.accept("설정 'view-distance' 값 " + viewDistance + " 는 클라이언트 최대 " + Config.MAX_VIEW_DISTANCE
+                    + " 를 넘어 " + Config.MAX_VIEW_DISTANCE + " 로 조정합니다");
+            viewDistance = Config.MAX_VIEW_DISTANCE;
+        }
         require(entityViewDistance >= 1, "entity-view-distance", entityViewDistance, "1 이상");
         require(regionSize >= 1, "region-size", regionSize, "1 이상");
         require(regionThreads >= 1, "region-threads", regionThreads, "1 이상");

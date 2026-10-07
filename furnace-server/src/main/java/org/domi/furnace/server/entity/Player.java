@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.domi.furnace.api.sched.RegionPos;
+import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
@@ -86,7 +87,7 @@ public final class Player {
     public void markDisconnected() { this.disconnected = true; }
     public boolean isDisconnected() { return disconnected; }
     public int viewDistance() { return viewDistance; }
-    public void viewDistance(int vd) { this.viewDistance = Math.max(2, vd); }
+    public void viewDistance(int vd) { this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd); }
     public RegionPos currentRegion() { return currentRegion; }
     public void currentRegion(RegionPos r) { this.currentRegion = r; }
 
