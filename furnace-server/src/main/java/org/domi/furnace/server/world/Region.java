@@ -153,6 +153,15 @@ public final class Region {
         };
     }
 
+    private static final java.util.Set<String> REPLACEABLE = java.util.Set.of(
+            "minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:water", "minecraft:lava",
+            "minecraft:short_grass", "minecraft:tall_grass", "minecraft:fern", "minecraft:large_fern",
+            "minecraft:dead_bush", "minecraft:vine");
+
+    private static boolean isReplaceable(String name) {
+        return name == null || REPLACEABLE.contains(name);
+    }
+
     /** 소유 스레드서 블록 설치. 플레이어 바운딩박스와 겹치면 거부(false). 성공 시 setBlock+BlockUpdate. */
     public boolean placeBlock(int bx, int by, int bz, int stateId) {
         world.assertOwns(pos);
@@ -166,9 +175,12 @@ public final class Region {
             if (overlap) return false;
         }
         ChunkPos cp = ChunkPos.ofBlock(bx, bz);
+        BlockRegistry breg = world.blockRegistry();
+        // 대상 칸이 이미 채워진 고체(스톤·체스트 등)면 거부 — 클라 조작/지연으로 기존 블록·블록엔티티를 덮어쓰지 못하게 한다.
+        if (breg != null && !isReplaceable(breg.nameOf(chunkAt(cp).getBlock(bx & 15, by, bz & 15)))) return false;
+        chunkAt(cp).removeBlockEntityAt(bx, by, bz);
         chunkAt(cp).setBlock(bx & 15, by, bz & 15, stateId);
         dirtyChunks.add(cp);
-        BlockRegistry breg = world.blockRegistry();
         if (breg != null && "minecraft:chest".equals(breg.nameOf(stateId))) {
             chunkAt(cp).putChest(ChestBlockEntity.empty(bx, by, bz));
         }
