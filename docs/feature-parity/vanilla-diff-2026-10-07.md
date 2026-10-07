@@ -14,7 +14,7 @@
 
 | # | 결함 | 근거 | 영향 |
 |---|---|---|---|
-| 1 | 시작 실패 시 좀비 프로세스: 포트 점유로 `BindException`이 나도 비데몬 스레드(RegionThread, GlobalThread, ioPool/genPool) 때문에 JVM이 안 죽음. 실제 실행으로 확인됨 | `FurnaceMain.java:44-48,67`, `RegionThread.java:163` | systemd `Restart=on-failure`가 실패를 못 봄. 리스너 없이 틱만 돎 |
+| 1 | 시작 실패 시 좀비 프로세스: 포트 점유로 `BindException`이 나도 비데몬 스레드(RegionThread, GlobalThread)와 Netty 이벤트 루프 때문에 JVM이 안 죽음. 커밋 1754307의 "바인드 실패 시 루프 종료" 수정은 `catch (RuntimeException)`이 체크 예외 `BindException`을 못 잡아 동작하지 않음(재현됨). ioPool/genPool은 지연 생성이라 원인이 아님 | `FurnaceMain.java:29,67`, `NetworkServer.java:65-72`, `RegionThread.java:36-37` | systemd `Restart=on-failure`가 실패를 못 봄. 리스너 없이 틱만 돎 |
 | 2 | 종료 훅 `f.get()`에 타임아웃 없음 | `FurnaceMain.java:78` | region 스레드가 죽거나 멈추면 종료가 영원히 안 끝남 |
 | 3 | 청크 로드 실패가 `loading`에 영구 잔류 (성공 때만 remove) | `Region.java:78-85` | IO 오류·손상 청크·생성기 예외 한 번에 그 청크가 재시작 전까지 로드 불가, region도 reap 안 됨 |
 | 4 | 바닐라 청크의 컨테이너 블록 엔티티(상자·화로·통·호퍼 등) 로드 시 NPE (모든 block_entities를 chest로 취급, `Items[].Id`를 int로 읽음) | `AnvilChunkCodec.java:176-200`, `NbtCompound.java:25` | 3번과 결합해 그 청크가 영구 로드 불가 |
@@ -24,16 +24,16 @@
 | 8 | 플레이어는 접속 해제·종료 때만 저장됨. 자동저장은 청크만. 비원자적 쓰기 | `Region.java:306-309`, `PlayerData.java:47` | 크래시 시 접속 이후 전부 손실 |
 | 9 | 저장된 인벤토리를 서버 `slots[]`에 로드하고 클라이언트에는 안 보냄 (container 0 내용, Set Held Item 미전송) | `ConnectionHandler.java:208-261` | 재접속 후 클라 인벤토리는 비어 보이는데 서버는 아이템을 가진 상태. 빈 손 우클릭으로 안 보이는 블록이 설치됨 |
 | 10 | 청크 evict 직후 비동기 저장이 끝나기 전에 재구독되면 stale 데이터를 읽거나 재생성해 편집이 사라짐 (바닐라는 pending-unload 맵으로 방지) | `Region.java:217-224`, `World.java:129-142` | 편집 손실 경합 |
-| 11 | 로그인 순서 검증 없음: 로그인 시작 없이 0x03을 보내면 `playerUuid==null`로 `onEnterPlay` 진입해 NPE·고아 Player 생성 | `ConnectionHandler.java:160-163` | 비정상 클라이언트로 서버 상태 오염 |
+| 11 | 로그인 순서 검증 없음: 로그인 시작 없이 0x03을 보내면 `playerUuid==null`로 `onEnterPlay` 진입. NPE는 입장 시점이 아니라 다른 플레이어의 Netty 스레드(`Player.send` 람다의 `Types.writeUuid`)에서 나며 `ByteBuf`가 샌다. 고아 Player가 일괄 탭 패킷에 들어가 새로 접속하는 플레이어가 탭 패킷을 못 받고 스폰이 탭 항목 없이 이뤄진다. 해제 시 `playerdata/null.dat` 생성 | `ConnectionHandler.java:160-163,234-238`, `Region.java:452-471` | 비접속 클라이언트가 다른 플레이어에 영향 |
 | 12 | 같은 이름 중복 로그인 허용 → 엔티티 2개, 같은 playerdata 파일 공유 | `ConnectionHandler.java:145-165`, `World.java:155` | 데이터 충돌 |
 | 13 | `Disconnect` 패킷이 `UnsupportedOperationException`을 던지는 스텁. 모든 끊김은 맨 `ctx.close()` | `Disconnect.java:18-24` | 클라는 항상 "Connection lost". 사유 문구 없음 |
 | 14 | 읽기/로그인 타임아웃 없음, `WRITE_BUFFER_WATER_MARK` 없음 | `NetworkServer.java:58-62` | 조용히 붙어 있는 소켓이 영구 점유. 느린 클라이언트로 출력 버퍼 무한 증가 |
 | 15 | 레거시 핑(0xFE)에서 프레임 디코더가 영원히 대기 | `FrameDecoder.java` | 옛 핑 도구가 소켓을 계속 붙잡음 |
 | 16 | 상태(핑) JSON: motd에 개행/제어문자가 있으면 JSON 깨짐 | `StatusResponse.java:13-19` | 서버 목록에 오류 표시 |
 | 17 | `-ea` 없이 실행해 소유권 가드(`Owned.get`, `World.assertOwns`)가 프로덕션에서 컴파일 아웃 | `furnace-server/build.gradle.kts:28` | 스레드 소유 위반이 조용히 통과 |
-| 18 | `perTick.run()`이 try 밖이라 `Error`가 region 스레드를 조용히 죽임. UncaughtExceptionHandler·워치독 없음 | `RegionThread.java:223` | 한 region 스레드가 죽어도 아무 신호 없음 |
+| 18 | (정정: 대부분 반박) `World.tickThread`가 region별 `r.tick()`을 `catch (Throwable)`로 감싸고 인박스·지연 작업도 Throwable을 잡음. try 밖은 반복자·`isEmpty()`·`snapshots.remove`뿐. UncaughtExceptionHandler·워치독은 없음 | `RegionThread.java:96`, `World.java:104-111` | 낮은 우선순위 |
 | 19 | `RegionFile` 쓰기: 섹터 수를 `& 0xFF`로 저장(255 초과 시 헤더 손상), 구멍 재사용 없음(파일이 계속 커짐), 읽기만 해도 빈 .mca 생성, 핸들 무제한 캐시(FD 고갈) | `RegionFile.java:16-90`, `RegionFileStore.java:12` | 디스크·FD 문제 |
-| 20 | `FurnaceMain.regionPosForThread`가 N=31, 62일 때 일부 스레드에 닿지 못해 종료 flush가 엉뚱한 스레드에서 실행 | `FurnaceMain.java:102-108` | 설정에 따라 flush 누락 |
+| 20 | `FurnaceMain.regionPosForThread`가 N이 31의 배수일 때 대부분의 스레드에 닿지 못함(N=31은 30/31, N=62는 60/62 도달 불가). 종료 flush가 다른 스레드가 쓰는 `HashMap`을 건드리는 데이터 레이스가 되고, 예외 시 IO 풀 종료·`closeAll`을 건너뜀 | `FurnaceMain.java:76-78,102-108`, `RegionGrid.java:24` | 31·62코어 호스트에서 기본 설정으로 발생 |
 
 ## 2. 영역별 점검
 
@@ -223,17 +223,17 @@
 - [DONE-VERIFIED + 잔차 L] 광맥(구리/철). 결정적 잔차 남음(화강암·구리·응회암·철, 3,202칸 일부).
 - [MISSING H] **Bandlands(악지 점토 띠) 표면 규칙**: `SurfaceRule.Bandlands`가 null로 평가됨(`SurfaceSystem.java:279`). 점토 띠 생성·`clay_bands_offset`·`getBand` 없음. 악지·우거진 악지·침식된 악지가 테라코타 줄무늬를 잃음. 감사에서 이 바이옴은 표본에 없었고 문서에도 없는 내용.
 - [MISSING M-H] 침식된 악지 기둥 확장, 얼어붙은 바다 빙산 표면 확장(`badlands_pillar`, `iceberg_pillar`, `iceberg_surface` 코드 없음).
-- [DIFF L-M] `temperature()`가 기본 바이옴 온도만 씀(높이 보정·얼어붙은 바다 노이즈 보정 없음 → 얼음 영향). `steep`은 청크 안 4방향 이웃으로 근사.
+- [DIFF L-M] `temperature()`가 기본 바이옴 온도만 씀(높이 보정·얼어붙은 바다 노이즈 보정 없음 → 얼음 영향). `steep`은 자기 높이와 청크 안 4이웃의 절대 차이(>4)를 비교하는데, 바닐라는 z±1, x±1을 방향성 있게 비교하는 것으로 약 80% 확신해 "근사"보다 큰 차이일 수 있음.
 - [DONE-VERIFIED] 오버월드 동굴·추가 지하 동굴·협곡. 대체 가능 블록 목록이 이름 집합 하드코딩(태그 아님, L). 네더 동굴·협곡 [MISSING].
 
 **배치 기능**
 - 파이프라인: 5×5 pristine 격자, 9개 원점 row-major 장식, 3×3 이웃 바이옴 집합, 바닐라 FeatureSorter 위상 정렬, 기능별 재시드, 블렌드된 `getBiome` 필터. 구조 참조(STRUCTURE_REFERENCES)는 저장하지 않고 위치 함수로 매번 재계산(반경 8).
 - 구현된 configured_feature 19종: ore, scattered_ore, spring_feature, disk, random_patch, flower, simple_block, seagrass, kelp, freeze_top_layer, geode, tree, random_selector, random_boolean_selector, simple_random_selector, underwater_magma, multiface_growth(glow_lichen만), forest_rock, vines. 나무 부품: 줄기 9/9, 잎 11/11, 맹그로브 뿌리, 장식 6/6, 크기 2종. 상태 제공자 5종.
 - [STUB/MISSING] Noop(오버월드 관련): coral_tree/claw/mushroom, sea_pickle, root_system, huge_red/brown_mushroom, vegetation_patch·waterlogged_vegetation_patch, sculk_patch, iceberg, fossil, ice_spike, monster_room, lake, desert_well, blue_ice, bamboo, block_column(사탕수수·선인장·동굴 덩굴), large_dripstone·dripstone_cluster, `pointed_dripstone`(허용 목록에 없이 `simple_random_selector`로 Noop 낙착), `no_bonemeal_flower`(인라인 자식으로만 등장, 허용 목록에 없음). 네더/엔드 전용: chorus_plant, nether_forest_vegetation, huge_fungus, twisting/weeping_vines, netherrack_replace_blobs, block_pile, basalt_*, delta_feature, glowstone_blob, end_*, bonus_chest, void_start_platform.
-- 단계별(오버월드 배치 기능 151개): 1 LAKES 2개 전부 Noop / 2 LOCAL_MODS 5개 중 빙산 2·큰 점적석 Noop / 3 UNDERGROUND_STRUCT 4개 전부 Noop(화석·몬스터 방) / 4 SURFACE_STRUCT 4개 중 청빙·사막 우물·얼음 가시 Noop, ice_patch 사실상 죽음 / 5 STRONGHOLDS 요새 없음 / 6 UNDERGROUND_ORES 34개 구현, disk_grass 죽음 / 7 UNDERGROUND_DECOR 5개 Noop(점적석, 뾰족 점적석, 스컬크) / 8 FLUID_SPRINGS 3개 구현 / 9 VEGETAL_DECOR 93개 중 19개가 Noop 접촉 / 10 TOP_LAYER 근사. Noop 접촉 합계 35(문서는 34). monster_room은 53개 바이옴, lake_lava는 52개.
-- [DIFF H, 문서에 없음] **배치 수정자가 조용히 버려짐**: `parsePlacement`가 알 수 없는 타입을 무시(`BiomeFeatureData.java:1257-1259`). `random_offset`·`environment_scan`이 오버월드 배치 기능 9개에 있음. `disk_grass`(맹그로브 늪)와 `ice_patch`(얼음 가시)는 y-1 오프셋을 잃어 `matching_blocks mud/snow_block` 필터가 공기 칸을 검사하게 되어 사실상 배치 안 됨. `spore_blossom`과 `trees_grove`(소나무/가문비 on snow)는 `environment_scan`·`random_offset` 손실. `fixed_placement`·`count_on_every_layer`도 없음(오버월드 데이터엔 미사용). 지원되는 수정자: count, rarity_filter, in_square, height_range, biome, heightmap, surface_water_depth_filter, noise_threshold_count, noise_based_count, block_predicate_filter, carving_mask, surface_relative_threshold_filter.
-- [DIFF M] `SpringFeature` 이웃 검사가 UP을 세고 `rocks >= rockCount` 사용(`SpringFeature.java:35-47`). 바닐라는 W/E/N/S/DOWN을 `==`로 검사한 것으로 기억(확인 필요).
-- [DIFF M] `clamped` IntProvider의 `count`가 상수 1이 됨(`BiomeFeatureData.java:1291-1294`): forest_flowers, flower_forest_flowers에서 `nextInt` 소비가 달라 RNG가 어긋남.
+- 단계별(오버월드 배치 기능 151개): 1 LAKES 2개 전부 Noop / 2 LOCAL_MODS 5개 중 빙산 2·큰 점적석 Noop / 3 UNDERGROUND_STRUCT 4개 전부 Noop(화석·몬스터 방) / 4 SURFACE_STRUCT 4개 중 청빙·사막 우물·얼음 가시 Noop, ice_patch 사실상 죽음 / 5 STRONGHOLDS 요새 없음 / 6 UNDERGROUND_ORES 34개 중 33개 구현, disk_grass Noop / 7 UNDERGROUND_DECOR 5개 중 4개 Noop(점적석 클러스터, 뾰족 점적석, 스컬크 패치, sculk_vein; ore_infested는 구현) / 8 FLUID_SPRINGS 3개 구현 / 9 VEGETAL_DECOR 93개 중 19개가 Noop 접촉 / 10 TOP_LAYER 근사. Noop 접촉 합계 36(`disk_grass` 포함; 제외하면 35, 기존 감사의 34는 sculk_vein·disk_grass 등을 센 방식 차이로 보임. 타입 기준 감사 테스트 시각은 28). monster_room은 53개 바이옴, lake_lava는 52개.
+- [DIFF H, 문서에 없음] **배치 수정자가 조용히 버려짐**: `parsePlacement`가 알 수 없는 타입을 무시(`BiomeFeatureData.java:1257-1259`). `random_offset`·`environment_scan`이 오버월드 배치 기능 9개에 있음. `ice_patch`(얼음 가시)는 y-1 오프셋을 잃어 `matching_blocks snow_block` 필터가 공기 칸을 검사하게 되어 사실상 배치 안 됨. `disk_grass`는 별도 원인(위 참고)으로 Noop. `spore_blossom`과 `trees_grove`(소나무/가문비 on snow)는 `environment_scan`·`random_offset` 손실. `fixed_placement`·`count_on_every_layer`도 없음(오버월드 데이터엔 미사용). 지원되는 수정자 12종: count, rarity_filter, in_square, height_range, biome, heightmap, surface_water_depth_filter, noise_threshold_count, noise_based_count, block_predicate_filter, carving_mask, surface_relative_threshold_filter. (`random_offset` 9개, `environment_scan` 7개, 합집합 10개; `trees_grove` 자체엔 없고 내부 `pine_on_snow`/`spruce_on_snow`에 `environment_scan`만 있음. `disk_grass`는 오프셋 손실이 아니라 `parseDisk`가 `matching_blocks`가 아닌 규칙 타입을 통째로 Noop 처리해서 죽음)
+- [DIFF M] `SpringFeature`(`SpringFeature.java:34-44`)가 위쪽(항상 유효)까지 세고 `rocks >= rockCount`를 씀. 바닐라는 서·동·북·남·아래 5면을 `== 4`(물 샘)로 검사한 것으로 약 90% 확신하며(jar 대조 필요), Furnace는 3면만 유효해도 배치함. `== AIR`라 `cave_air`를 놓치고 유체 틱 예약이 없음.
+- [DIFF M] `clamped` IntProvider의 `count`가 상수 1이 됨(`BiomeFeatureData.java:1294-1297`): forest_flowers(바닐라 0~1), flower_forest_flowers(바닐라 0~3)에서 개수 자체가 틀리고 `nextInt` 소비도 달라 RNG가 어긋남. 오버월드에서 해당하는 것은 이 2개뿐.
 - [DIFF M] 알 수 없는 블록 태그가 stone/deepslate로 조용히 대체(`tagStates` 하드코딩). 블록 술어 `solid`, `replaceable`, `has_sturdy_face` 미지원.
 - [DIFF M] 중첩 Noop이 조용함(`random_patch`의 비단순 내부 기능, `simple_block`의 null 제공자, glow_lichen 외 multiface 등). 감사 테스트는 루트 타입만 확인. 선택기 안의 Noop은 같은 기능 스트림의 이후 반복에서 RNG 소비도 누락시킴.
 - [DIFF M] `FreezeTopLayerFeature`가 거친 포팅(기본 온도만, 높이 보정·빛·`canSurvive` 없음, 풀/흙 밑 `snowy=true` 미설정, 블렌드 아닌 원시 quart 바이옴).
@@ -244,7 +244,7 @@
 **구조물**
 - 구현: desert_pyramid만(2개 실서버 인스턴스에서 검증). 상자에 전리품 없음, 의심스러운 모래 미배치(1블록 차이), 바이옴 유효성이 `minecraft:desert`로 하드코딩, 구조 feature 인덱스 `DESERT_PYRAMID_STRUCTURE_INDEX = 1`은 정렬된 오라클 레지스트리에서 가져왔고 실서버 순서와 같다는 보장 없음.
 - 난파선: 배치만 있고 `applyStructureStarts`가 desert_pyramid 외 모든 ID를 건너뜀(`NoiseWorldSource.java:413`).
-- 배치 코드: `random_spread`만 [DONE-VERIFIED]. structure_set 20개 중 2개만 있음. `concentric_rings`(요새)는 `Unsupported placement type` 예외, `exclusion_zone`·`locate_offset` 없음.
+- 배치 코드: `random_spread`만 [DONE-VERIFIED]. structure_set 20개 중 2개만 있음. `concentric_rings`(요새)는 `Unsupported placement type` 예외(요새 structure_set 파일이 없어 지금은 잠재적), `exclusion_zone`·`locate_offset` 없음.
 - [MISSING] 나머지 33개 구조물 전부: 광산, 요새(stronghold), 네더 요새, 해저 신전, 삼림 대저택, 고대 도시, 시련의 방, 폐허 포털, 묻힌 보물, 마을, 전초기지, 이글루, 정글 사원, 늪 오두막 등. NBT 템플릿·템플릿 풀(`.nbt` 리소스) 자체가 없음.
 - 구조물 시작·참조 미저장(`/locate` 불가, 336회 `applyStructureStarts`를 `generateFull`마다 캐시 없이 호출).
 
@@ -316,7 +316,7 @@
 - `checklist.md` Phase 2: `environment_scan`·`random_offset`을 열린 항목으로 두었는데 여전히 없고 영향이 큼(2.4의 배치 수정자 항목).
 - `checklist.md` Phase 1b: "step9 seagrass_simple 격차, 테스트에서 제외"는 낡음(테스트가 이제 11단계 전부 포함, `seagrass_simple`은 바이옴 JSON에 있음).
 - `checklist.md` Phase 3: "FeaturePipelineParityTest 3좌표 0 불일치"는 낡음(2026-08-17에 삭제되어 파일은 디버그 헬퍼만 남음, 오라클 featurefull 픽스처는 "디버깅 보조이지 정확도 게이트가 아님").
-- `plan.md`: "기능 타입 5개·수정자 5개"는 낡음(현재 19종·수정자 13종).
+- `plan.md`: "기능 타입 5개·수정자 5개"는 낡음(현재 19종·수정자 12종).
 - `context-notes.md`: 오라클을 나무 디버깅의 최종 권위로 서술했으나 테스트상 오라클 기능은 실서버와 다름. `furnace.properties: level-seed=123456`이라 했으나 저장소에 그런 파일이 없음(기본 0).
 - `vanilla-audit-2026-10-07.md`: 대체로 정확. "34/151"은 실제 35개이며 수정자가 조용히 무시되는 4~5개가 더 있음. 미구현 목록에 화석·사막 우물·청빙·얼음 가시·sea_pickle·root_system·수중 식생 패치·sculk_vein·no_bonemeal_flower가 빠짐. Bandlands·침식 악지·빙산 표면 규칙, 수정자 누락, clamped count, 샘 편차는 언급 없음.
 - 문서 전체가 월드젠 중심이고 네트워크·게임플레이 패리티를 다루는 문서는 없음.
@@ -339,7 +339,7 @@
 
 **C. 게임플레이 코어**
 1. 블록 상태 설치(방향·반쪽·큰 상자), 교체 가능 블록, 소리·입자.
-2. 이웃 업데이트·예약 틱·유체·랜덤 틱(전역 틱 루프와 fan-out/배리어 기반이 먼저 필요).
+2. 이웃 업데이트·예약 틱·유체·랜덤 틱: region 안에서 자기 청크를 순회하는 방식으로 먼저 시작 가능. 필요한 것은 스레드 간 비교 가능한 공유 게임 시간, 청크별 대기 틱 저장소, region 경계 이웃 업데이트 메시지, 교차 region 청크 접근 도우미. 전역 틱/배리어는 경계를 넘는 레드스톤·유체의 결정성용.
 3. 게임모드·체력·리스폰, 아이템 엔티티·드롭, 몹·전투, 나머지 컨테이너와 클릭 종류.
 
 **D. 월드·저장**
@@ -354,3 +354,50 @@
 **F. 플러그인 API / 운영**
 1. 플러그인 수명주기·로더·이벤트·명령, 취소 가능 반복 작업·위치→region 헬퍼, 작업 예외 로깅.
 2. 스레드별 MSPT·워치독·부하 분산, `server.properties` 호환 키셋, 파일 로깅과 접속/퇴장 로그, README.
+
+## 5. 2차 검증 결과 (독립 에이전트 8개가 코드를 다시 읽고 대조)
+
+검증 방식: 문서의 각 주장을 코드로 추적해 확정/부분/반박으로 판정. 실제 클라이언트·바닐라 jar는 없어서 "클라이언트에서 어떻게 보이는가"와 바닐라 동작 일부는 기억 기준이다.
+
+### 5.1 판정 요약
+- 1절 결함 20건: 전부 실제 문제. 일부는 원인·세부가 달랐고(위 표에 반영) #18은 대부분 반박, #14·#16·#17은 부분 확정.
+- 2.1 네트워크(B): 반박 없음. 클라이언트 쪽 영향(Update Tags 부재로 물·사다리 불가, `enchantment` 레지스트리 부재로 크리에이티브 탭 예외 가능성, LoginSuccess strict-error-handling)은 실제 클라이언트가 필요함.
+- 2.2 게임플레이(C): 거의 전부 확정. 구조 주장("전역 틱 루프 필요")은 과장이어서 정정함(4절 C-2).
+- 2.3 월드·저장(D): 거의 전부 확정, 줄 번호 정확.
+- 2.4 월드 생성(E): 큰 틀 확정. 세부 수치와 원인 정정(위 인라인 반영).
+- 2.5 인프라(F): 대부분 확정. 반박: "31의 배수에서 인덱스가 z에만 의존"은 N=31일 때만 맞음(`floorMod(31x+z, N)`).
+- 줄 번호 오류: `RegionThread.java:163/188-192/223`(실제 `:96`, 인박스는 `:58-76`), `RegionGrid.java:390`(실제 `:24`), `build.gradle.kts:28`(실제 `:27`), `NetworkServer.java:58-62`(실제 `:53-63`), `World.java:155`(실제 `:156`).
+- 수치 정정: 테스트 428개(`furnace-server`) + 3개(`furnace-api`), 월드젠 밖 로그 호출 약 20곳, 클라이언트바운드 패킷 총수는 약 124개일 수 있음(확인 불가), KeepAlive는 15초 주기 × 미응답 1회로 실효 15~30초.
+
+### 5.2 검증 중 새로 발견된 문제
+
+**데이터 손실·크래시**
+- N1 [M-H] 채널이 spawn 완료 전에 닫히면 `world.playerOnline(p)`로 등록된 Player가 `World.online`에 영구 잔류(adopt 안 돼서 `playerOffline` 호출 경로 없음, `ConnectionHandler.java:238,273-277`, `Region.java:267`). 틱 비용이 유출 수에 비례(`syncTabList`, `broadcastLatencies`가 플레이어마다 전체 순회). 이번 탭 목록 변경이 만든 누수. 수정: `!isActive()` 분기와 `channelInactive`(adopt 전)에서 `playerOffline`.
+- 컴포넌트가 있는 아이템을 커서로 집으면 `carried` 파싱(`ConnectionHandler.java:492`)이 try/catch 밖이라 예외로 연결이 끊김(문서의 "패킷 폐기"보다 나쁨).
+- 청크 저장 실패는 로그만 남고 dirty가 이미 지워져 재시도 안 됨(`World.java:137-140`). 자동저장+evict 저장의 순서가 다중 스레드 풀에서 뒤집히면 오래된 스냅샷이 최신을 덮어쓸 수 있음.
+- 레지스트리에 없는 블록 이름은 `stateIdOrAir`가 조용히 공기로 바꾸고 `DataVersion`을 확인하지 않아, 새 버전·모드 월드를 열고 저장하면 그 블록이 영구 삭제됨(`BlockRegistry.java:115-118`).
+- `network.stop()`이 만든 `channelInactive` 저장을 종료 훅이 기다리지 않고 `scheduler.close()`해서 늦은 저장이 버려질 수 있음. 플레이어 저장이 글로벌 스레드에서 블로킹 IO를 해 글로벌 틱을 막음. 저장 실패 예외는 반환된 future를 무시해 로그 없이 삼켜짐(`ConnectionHandler.java:598`). 빠른 재접속 시 로드가 쓰는 중인 파일(잘린 gzip)을 읽어 #6과 같은 접속 실패.
+- 손상 리전 파일: 헤더 길이로 `new byte[len - 1]` 할당(상한 없음), 압축 해제 크기 제한 없음, NBT 재귀 깊이 제한 없음(`NbtIo`, StackOverflowError는 `catch (Exception)`이 못 잡음). 읽기 실패는 곧 #3(`loading` 영구 잔류).
+- `RegionFile` 생성자가 `readFully` 예외 시 `raf`를 새게 함.
+
+**클라이언트 가시 오류**
+- >512 대기 청크 분기(`Region.java:333-337`): 클라가 이미 버린 청크가 구독·`loadedChunks`에 남고 `ready=false`라 `broadcastBlockUpdate`가 `pending` 목록에 계속 쌓임. 플레이어가 돌아와도 `loadedChunks.add`가 false라 재전송 안 됨. 도달 조건은 뷰 거리 12 이상.
+- 뷰 거리 변경(Client Information)이 청크 경계를 넘을 때까지 반영 안 됨(`updateChunks`가 중심이 같으면 반환).
+- `SetDefaultSpawnPosition`이 `(int)`로 절삭해 음수 좌표에서 한 칸 어긋남.
+- 설치 거부 시 `resendBlock` 없이 ack만 보냄(클라 예측은 시퀀스 reconcile에 의존).
+- 상자 파괴 시 내용물이 사라짐(드롭 없음), 다른 보는 사람과 편집 동기화 없음.
+
+**보안·DoS (네트워크로 도달 가능)**
+- N3 [M-H] 틱당 이동 예산 없음. 패킷당 100블록 제한뿐이라 한 클라이언트가 한 틱에 수천 패킷으로 ±3e7 어디든 이동 가능. 매 틱 새 중심 청크로 약 (2vd+1)²를 구독하고, 대기 >512 분기가 정리를 멈춰 오래된 대기 청크를 계속 직렬화(생성)한다. 공격자 1명이 genPool(≤4)을 거의 독점하고 생성된 청크가 evict 유예 100틱 동안 상주.
+- N4 [M] 수신 패킷 속도 제한 없음, region 인박스 드레인이 무제한(`RegionThread.java:115-120`): 0x24/0x38/0x0E 폭주가 해당 스레드의 모든 region 틱을 굶김. 인박스 큐도 무한 증가.
+- N5 [M] 상자·인벤토리 아이템 미검증: 음수 count면 바닐라 디코더가 id/컴포넌트를 읽지 않아 이후 슬롯이 어긋나고, 알 수 없는 아이템 id는 클라이언트 디코드 오류. 공유 상자에 저장되어 다른 플레이어가 열 때 영구적으로 발생. 0x32는 프레임 나머지(최대 2MiB)를 `components`로 46슬롯 각각에 보관·저장·재전송하고 접근 때마다 복제. `numChanged` 상한 없음(바닐라 128). 수정: count 1..99, itemId 범위 검증, `components` 길이 제한/파싱, `isEmpty`가 count≤0도 비움으로 취급.
+- N7 [L-M] 구성 단계 0x07을 반복하면 매번 레지스트리 약 270개와 Finish를 재전송(증폭). 상태 요청도 반복 가능. 수정: 연결당 1회.
+- 중복 UUID: 한 명이 나가면 `PlayerInfoRemove(uuid)`가 남은 같은 UUID의 탭 항목까지 지움(클라 탭은 UUID 키, `listed`는 entityId 키; `Region.java:442-456`).
+- N2 [M, 희귀] `chunkSubscribers`의 subscribe/unsubscribe가 원자적이지 않아(`World.java:269,274-279`) 비어 있는 맵이 제거되는 사이 `put`이 고아 맵에 들어가면 그 청크가 영구적으로 안 보이는 구멍이 생김. 수정: `compute`/`computeIfPresent`.
+- 로그인 순서 검증 없음의 영향은 #11에 반영.
+- 압축 코덱이 `Inflater`/`Deflater`를 `end()`하지 않고 `handlerRemoved` 없음(L, Cleaner 의존).
+
+### 5.3 오탐으로 확인된 것(문서에 쓰지 말 것)
+- 메모리 누수 점검: `ByteBuf` 누수는 발견되지 않음(`LevelChunkWithLight.write`가 플레이어별 래퍼를 1회 해제, `SimpleChannelInboundHandler`가 프레임 슬라이스 자동 해제).
+- 스레드 안전: `Player.recordLatency`(단일 쓰기자+volatile), `listed/tracked/missingTicks`(region 스레드 한정), IO 전용 필드, modCount 본문/스냅샷 캐시 일관성은 문제없음.
+- 구현된 모든 클라이언트바운드 패킷의 필드 순서와 서버바운드 파싱 순서는 1.21.1과 일치(이번 점검 범위에서 와이어 형식 오류는 발견되지 않음). 레지스트리는 `enchantment` 외에는 개수·이름이 일치.
