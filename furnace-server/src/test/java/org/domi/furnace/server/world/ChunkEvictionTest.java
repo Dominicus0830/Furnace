@@ -27,8 +27,8 @@ class ChunkEvictionTest {
         RegionFileStore store = new RegionFileStore(dir);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7,
-                Executors.newFixedThreadPool(2));
+        var io = Executors.newFixedThreadPool(2);
+        World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         w.configurePersistence(1_000_000, 3);   // 자동 저장은 끄고(퇴출 경로만 본다) 퇴출 유예 3틱
         Player p = new Player(1, UUID.randomUUID(), "P", new EmbeddedChannel());
         ChunkPos clean = new ChunkPos(0, 0), edited = new ChunkPos(1, 0), watched = new ChunkPos(2, 0);
@@ -46,7 +46,9 @@ class ChunkEvictionTest {
             has[1] = r.chunkLoaded(edited);
             has[2] = r.chunkLoaded(watched);
         }).get();
-        Thread.sleep(400);                      // 비동기 저장(IO 풀) 대기
+        // 퇴출 저장은 위 region 태스크 안의 tick()에서 이미 제출됐다 — IO 풀을 닫고 비워 결정적으로 기다린다(고정 sleep 금지).
+        io.shutdown();
+        assertTrue(io.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS), "IO 풀 미종료");
 
         assertFalse(has[0], "구독 없고 미편집 → 퇴출");
         assertFalse(has[1], "구독 없는 편집 청크도 저장 후 퇴출");

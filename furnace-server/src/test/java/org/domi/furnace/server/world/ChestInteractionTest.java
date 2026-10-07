@@ -146,7 +146,9 @@ class ChestInteractionTest {
             r.setChestItem(2, -60, 2, 4, new ItemStack(9, 3, null)); // Container Click 경로와 동일
             r.saveDirtyChunks();
         }).get();
-        Thread.sleep(200); // IO flush 대기
+        // IO 풀의 저장 태스크는 위 region 태스크가 끝나기 전에 이미 제출됐다 — 풀을 닫고 비워 결정적으로 기다린다(고정 sleep 금지).
+        io.shutdown();
+        assertTrue(io.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS), "IO 풀 미종료");
 
         RegionFileStore store2 = new RegionFileStore(dir);
         AnvilWorldSource src2 = new AnvilWorldSource(dir, store2, codec, new SuperflatWorldSource(reg, 0));

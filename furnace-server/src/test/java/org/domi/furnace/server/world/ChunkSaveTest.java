@@ -32,7 +32,9 @@ class ChunkSaveTest {
             w.regionAt(rp).breakBlock(0, -61, 0);
             w.regionAt(rp).saveDirtyChunks(); // 동기 트리거(테스트)
         }).get();
-        Thread.sleep(200); // IO flush 대기
+        // IO 풀의 저장 태스크는 위 region 태스크가 끝나기 전에 이미 제출됐다 — 풀을 닫고 비워 결정적으로 기다린다(고정 sleep 금지).
+        io.shutdown();
+        assertTrue(io.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS), "IO 풀 미종료");
 
         // 새 store로 디스크서 직접 로드 → air 유지
         RegionFileStore store2 = new RegionFileStore(dir);
