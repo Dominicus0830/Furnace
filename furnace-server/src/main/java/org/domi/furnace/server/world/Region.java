@@ -246,9 +246,7 @@ public final class Region {
             if (p.isDisconnected()) {
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
-                final Player fp = p;
-                world.ioPool().execute(() -> org.domi.furnace.server.entity.PlayerData.save(
-                        world.worldDir(), fp.uuid(), fp.x(), fp.y(), fp.z(), fp.yaw(), fp.pitch(), fp.onGround()));
+                // 저장은 ConnectionHandler.channelInactive가 IO 위치+인벤토리로 수행(여기선 0,0,0 위험).
                 broadcastRemove(p.entityId());
                 continue;
             }

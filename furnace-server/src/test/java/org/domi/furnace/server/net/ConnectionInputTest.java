@@ -189,6 +189,24 @@ class ConnectionInputTest {
     }
 
     /** 월드 기본 스폰/저장 위치는 임의 좌표다 — 기준 위치를 (0,0)에서 시작하면 스폰이 100블록 밖일 때 첫 이동부터 거부된다. */
+    /** 끊길 때 저장 위치는 region이 아직 drain 안 한 최신 IO 위치여야 한다(옛/0,0,0 값으로 덮어쓰면 안 된다). */
+    @Test
+    void disconnect_savesLatestIoPosition_evenIfRegionHasNotDrained() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        move(ch, 10, -60, 3);              // region drain 없이 바로 끊는다
+        ch.close();
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        org.domi.furnace.server.entity.PlayerData.Snapshot s = null;
+        while (System.nanoTime() < deadline) {
+            s = org.domi.furnace.server.entity.PlayerData.load(tmp, p.uuid());
+            if (s != null && s.x() == 10.0) break;
+            Thread.sleep(20);
+        }
+        assertNotNull(s, "플레이어 데이터가 저장되어야 한다");
+        assertEquals(10.0, s.x());
+        assertEquals(3.0, s.z());
+    }
+
     @Test
     void farFromOriginSpawn_normalMoveIsAccepted() throws Exception {
         join(new SpawnPoint(5000, -60, 5000, 0f));

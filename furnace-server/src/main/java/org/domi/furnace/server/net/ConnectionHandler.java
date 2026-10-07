@@ -581,8 +581,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         if (p != null) {
             ItemStack[] snapshot = copySlots();
+            // IO 전용 위치(ix..)를 저장 — Player.x()는 region이 drainPending 전이면 0,0,0이다(초기 접속 직후 끊김).
+            final double sx = ix, sy = iy, sz = iz;
+            final float syaw = iyaw, spitch = ipitch;
+            final boolean sg = ig;
             scheduler.global().execute(() -> org.domi.furnace.server.entity.PlayerData.save(
-                    world.worldDir(), p.uuid(), p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround(), snapshot));
+                    world.worldDir(), p.uuid(), sx, sy, sz, syaw, spitch, sg, snapshot));
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
         }
     }
