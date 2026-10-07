@@ -434,6 +434,9 @@ public final class Region {
         }
         // 후보서 완전히 사라진 엔티티: grace 틱 후 despawn + 탭 제거(퇴장·스냅샷 범위 이탈).
         // 핸드오프는 인접 region 스냅샷 갭이 1틱 정도라 grace 미만 → 깜빡임 없음.
+        // (전제: 도착 region 스레드가 핸드오프 후 약 2틱(≈100ms) 안에 편입·공개할 때만 성립한다. 그보다 밀리면 관찰자가
+        //  RemoveEntities→PlayerInfoUpdate/SpawnEntity 로 한 번 깜빡인다 — 자가 치유되는 외형 결함. 결정적으로 막으려면
+        //  World 수준 in-transit 후보 집합이 필요하다: docs/remote-pr1-port/context-notes.md "F7" 참고.)
         // 탭에 올린 항목(listed)을 기준으로 돈다 — 시야 밖이라 엔티티는 이미 디스폰됐어도 탭 항목은 남아 있을 수 있다.
         var li = a.listed().entrySet().iterator();
         while (li.hasNext()) {

@@ -54,6 +54,7 @@
 
 ## 검증 명령
 - 전체: `./gradlew :furnace-server:test`
+- Paper 저장소 접근 불가 환경(샌드박스·오프라인 CI): `./gradlew :furnace-server:test -PskipOracle=true` (`:worldgen-oracle:*`는 사용 불가)
 - 인게임: seed 123456 새 월드, vanilla 1.21.1과 같은 좌표 대조
 
 ## Phase 3 — featurefull 파이프라인 byte-exact (2026-07-02)

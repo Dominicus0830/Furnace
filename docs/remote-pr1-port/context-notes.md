@@ -1,7 +1,7 @@
 # 컨텍스트 노트 — 원격 PR #1 선별 포팅
 
 ## 2026-10-07 결정과 근거
-- 원격 `origin/main`은 PR #1(`claude/work-continuation-u597cw`, 4커밋)이 올라가 있고 공통조상이 2026-06-08이다. 로컬은 그 뒤 182커밋 동안 같은 파일(Region/World/ChunkColumn/ConnectionHandler)을 크게 바꿨다.
+- 원격 `origin/main`은 PR #1(`claude/work-continuation-u597cw`, 3커밋 + 머지 커밋)이 올라가 있고 공통조상이 2026-06-08이다. 로컬은 그 뒤 182커밋 동안 같은 파일(Region/World/ChunkColumn/ConnectionHandler)을 크게 바꿨다.
 - 통머지를 시도하니 9개 파일에서 충돌(핵심 코드 6 + 테스트 3). 임의 해결은 위험해 중단했고, 항목별로 대조했다.
 - 직접 재현으로 확인한 사실 — 청크 전달 레이스(전달된 청크가 편집 전 본문과 바이트 일치, BlockUpdate가 먼저 도착), 먼 좌표 파괴가 거부 없이 청크 생성(~0.5초, 첫 호출 ~1.9초), y=1000 파괴는 AIOOBE가 로그 없이 사라짐, 델타 7.9999블록이 short -32768로 오버플로, 유령 엔티티는 로컬이 이미 해결.
 - 전략 — `git merge -s ours`로 이력만 합쳐 push를 빨리감기로 만들고, 필요한 수정을 로컬 구조에 맞게 포팅. 단 push하면 원격 main 트리에서 PR #1 변경이 사라진다.
@@ -29,7 +29,7 @@
 
 ## 4단계 — ConfigLoader 값 검증
 - 원격은 7개 키만 검증했지만 로컬에는 io-threads·autosave-ticks·chunk-eviction-grace-ticks·spawn-chunk-radius·chunks-per-tick·level-name이 더 있어 함께 검증(빈 level-name은 작업 디렉터리를 월드로 쓰게 됨).
-- **동작 변경 주의** — `view-distance`가 2~32 밖이면 기동이 거부된다. 과거에 `view-distance=64`로 테스트한 적이 있다(메모리 기록). 서버 값이 32를 넘어도 클라이언트 최대가 32라 `effectiveViewDistance`가 32로 잘려 효과가 없었으므로 거부가 맞다고 판단. 현재 저장소의 furnace.properties(16)는 통과하며 테스트로 고정.
+- **view-distance 정책(정정됨)** — 처음엔 2~32 밖이면 전부 기동 거부로 포팅했으나("32를 넘어도 효과가 없으니 거부가 맞다"), 근거가 틀렸다: 청크 전송 경로는 클라 최대 32로 포화되지만 **엔티티 가시 거리**는 `min(entity-view-distance, view-distance)`에 32 상한이 없어 이 값이 유일한 방어선이다(vd=evd=2147483647이면 `neighborRadius`가 1억 단위가 되어 region 틱이 사실상 멈춘다). 그리고 "효과 없음"은 거부가 아니라 관용의 근거다. 이전 로컬 로더는 범위 검증이 없어 `view-distance=64`도 기동됐다. 그래서 현재 정책은 **< 2 거부**(선언 floor 2와 실제 전송 반경이 어긋나는 무효값), **> 32 는 32로 조정 + WARN**(`Config.MIN/MAX_VIEW_DISTANCE`, 조정은 반드시 로더에서 — 클라 clamp에 맡기면 엔티티 경로가 안 막힌다). `entity-view-distance`는 `>=1`만 검증하고 view-distance 대비 상대 거부는 하지 않는다(기본값 8 > 5도 부팅 불능이 되므로). 이전 문구의 "현재 저장소의 furnace.properties(16)는 통과하며 테스트로 고정"은 사실이 아니었다 — 그 파일은 `.gitignore` 대상이라 저장소에 없고 테스트는 파일이 없으면 조용히 통과했다; 지금은 `Assumptions.assumeTrue`로 "건너뜀"으로 드러나며, 경계(2·32·33)와 형식 오류는 임시 파일 테스트로 고정했다.
 
 ## 5단계 — PlayerInfoRemove (탭 목록 제거)
 - 패킷 ID 0x3D는 바닐라 datagen(`build/generated/reports/packets.json`, player_info_remove=61)으로 확인.
@@ -43,9 +43,9 @@
 - 실제 영향은 한 서버 틱 안에 두 패킷이 겹쳐 올 때(클라 틱과 서버 틱 지터)만. 바닐라 클라가 정지 후 회전만 보내는 패턴에서 서버 위치가 옛 값으로 되돌아가 다음 위치 패킷까지 유지될 수 있었는지는 실클라로 확인하지 못했다.
 
 ## 결과 (2026-10-07)
-- 전체 407개(스킵 6) 실패 0 — 기준선 388에 새 테스트 19개(ChunkDeliveryOrder 3, DeltaMoveOverflow 3, ConnectionInput 7, ConfigLoader +3, TabList 3).
+- 전체 407개(스킵 6) 실패 0 — 기준선 388에 새 테스트 19개(ChunkDeliveryOrder 3, DeltaMoveOverflow 3, ConnectionInput 7, ConfigLoader +3, TabList 3). *(9b112c6 시점 스냅샷. 제3자 검토 보강 후 TabList 4개·furnace-server 전체 411개 — 아래 참조.)*
 - **push 주의** — `merge -s ours`로 이력만 합쳤으므로 로컬 main을 push하면 원격 `main` 트리에서 PR #1의 변경 내용이 사라진다(이력은 남음). 필요한 수정은 위 포팅으로 대체했고, 로컬에 이미 있던 유령 엔티티·유휴 청크 퇴출·heightmap 편집 반영은 로컬 구현을 유지했다. 원격 브랜치 `claude/work-continuation-u597cw`는 그대로 남아 있다.
-- 포팅하지 않은 원격 변경 — 유령 엔티티 transit 방식(로컬 유예 틱 방식이 교차 region 퇴장을 3틱 만에 처리함을 실행으로 확인), 유휴 청크 퇴출(로컬이 저장과 연동해 이미 구현), heightmap 편집 반영(로컬 이미 구현), gradlew 실행 권한·스케줄러 javadoc(사소).
+- 포팅하지 않은 원격 변경 — 유령 엔티티 transit 방식(로컬 유예 틱 방식이 교차 region 퇴장을 3틱 만에 처리함을 실행으로 확인; 한계는 아래 "F7"), 유휴 청크 퇴출(로컬이 저장과 연동해 이미 구현), heightmap 편집 반영(로컬 이미 구현). gradlew 실행 권한은 처음 "사소"로 분류했다가 아래 "제3자 검토"에서 오판으로 정정해 복원했다(스케줄러 javadoc만 사소로 남겼고 이후 갱신).
 
 ## 제3자 검토 (push 직전)
 머지 구조는 정상이었다 — 머지 커밋 892ed26의 트리는 첫 부모(로컬)와 동일(원격 내용 미유입), origin/main은 main의 조상이라 빨리감기 push 가능. 검토에서 아래 빈틈이 나와 보강했다.
@@ -53,3 +53,13 @@
 - **"로컬에 이미 있음"을 코드만 보고 판단한 3건에 테스트가 없었다** — (1) 청크 퇴출: 로컬엔 퇴출 테스트가 아예 없었다. 원격은 "편집 청크 보관", 로컬은 "저장 후 퇴출"이라 의미가 달라 로컬 의미론으로 새로 작성(`ChunkEvictionTest`: 미편집은 저장 안 하고 퇴출, 편집은 저장 후 퇴출·재로딩 보존, 구독 중은 보관). (2) heightmap 편집 반영: `ChunkColumnTest.heightmap_followsEdits`로 MOTION_BLOCKING·WORLD_SURFACE 모두 확인. 처음 실패한 건 새로 만든 빈 컬럼이 WORLD_SURFACE를 라이브 갱신하지 않는 "미초기화" 상태라서이며(운영에선 loadGenerated/fromNbt로 초기화되고 오버월드 컬럼은 기반암 때문에 높이 0이 될 수 없음), 운영 경로(loadGenerated)로 초기화하도록 테스트를 고쳤다. (3) 유령 엔티티: 원격 GhostEntityTest의 "후보 밖으로 순간이동" 시나리오가 로컬 테스트에 없어 `TabListTest.teleportFarAway_isDespawnedForObserver`로 추가.
 - `PlayerInfoRemove` 와이어 포맷 테스트(`SpawnPacketsTest`) 추가 — ID 0x3D와 바이트 구성이 하드코딩인데 검증이 없었다.
 - push 시 원격에서 사라지는 것 — 원격 전용 `GhostEntityTest`(transit 방식 전용 케이스 포함)·`ChunkEvictionTest`(원격 의미론). 같은 동작은 위 로컬 테스트들이 검증한다.
+- 보강 후 전체 — furnace-server 411개(스킵 6) 실패 0 (407 + ChunkEviction 1, ChunkColumn 1, SpawnPackets 1, TabList 1). 모듈 한정 수치이며 furnace-api 3개를 더하면 414. (db135f7 기준)
+
+## 2026-10-07 재검증 후속 수정
+포팅 직후 다시 독립 검증(항목당 코드·재현·반박 3관점 + 판정)해 확정된 것만 고쳤다.
+- **청크 본문 캐시 stale(선재 버그, 포팅과 무관)** — `World.serializedChunkBody`가 스냅샷 시점의 `!dirty`만 `cacheable`로 잡고, 풀 직렬화가 도는 동안 편집 + autosave(`clearDirty`)가 끼면 콜백이 `dirty==false`를 보고 **편집 전 본문을 캐시**해 이후 로더 전원이 편집이 빠진 청크를 받았다(게이트 풀로 결정적 재현, 자연 스케줄링으로도 autosave-ticks=1에서 40/40). 근본 원인은 dirty가 "저장 필요"와 "캐시 유효성"을 겸한 것. `ChunkColumn.modCount`(모든 변경자가 `touch()`를 거침, `setBiome`/`putChest`/`removeBlockEntityAt`의 부분 무효화도 함께 닫음)를 스냅샷 시점에 잡아 콜백에서 비교하고, 컬럼 접근이 소유 region 스레드에서만 일어나게 `thenComposeAsync`로 바꿨다. 회귀 테스트 `ChunkBodyCacheRaceTest`(수정 전 실패 확인)·`ChunkColumnTest`.
+- **보정 텔레포트의 회전(F6)** — `acceptPosition`이 보정 `SyncPlayerPosition`에 region 소유 비volatile `p.yaw()/p.pitch()`를 써서 최대 1틱 낡은 회전(미drain 구간은 0/0)이 나갔다. IO 전용 `iyaw/ipitch`로 교체, `ConnectionInputTest.correctionTeleport_carriesLastAcceptedRotation…`(수정 전 실패 확인).
+- **고정 sleep 3곳(F8)** — `ChunkSaveTest`·`ChestInteractionTest`·`ChunkEvictionTest`가 비동기 IO 저장을 `sleep(200~400)`으로 기다려 극단적 CPU 과부하에서 spurious 실패가 가능했다(ChunkSaveTest는 `expected <0> but was <9>`로 재현). IO 풀 `shutdown()+awaitTermination()`으로 결정적으로 교체. `ChunkDeliveryOrderTest`의 sleep은 실패 창이 500ms 이상이라 flaky가 아니다(느리면 검사 공백일 뿐).
+- **빌드(F9)** — `settings.gradle.kts`가 `worldgen-oracle`(paperweight)을 무조건 include해 Paper 저장소에 못 닿는 환경(샌드박스·오프라인·차단된 CI)에서는 `:furnace-server:test`조차 구성 단계에서 실패했다. 기본(미지정)은 종전과 동일하게 포함하고 `-PskipOracle=true`(또는 환경변수 `ORG_GRADLE_PROJECT_skipOracle=true`)로 제외한다. 값 없는 `-PskipOracle`도 제외로 본다("false"만 포함). 제외 중 `:worldgen-oracle:*`를 실행하면 안내와 함께 즉시 실패한다. 루트 `gradle.properties`에 커밋하지 말 것(IntelliJ에서 oracle 모듈이 사라진다).
+- **F7(유령 엔티티 유예 3틱)은 코드를 고치지 않았다** — 메커니즘은 재현됐다(핸드오프 중 플레이어는 도착 region이 공개하기 전까지 모든 스냅샷에서 빠지고, 관찰자 유예 3틱이 먼저 지나면 despawn→respawn 깜빡임). 그러나 정상 20TPS에서는 갭이 ≈1틱(실측 최대 62~88ms, 240회 despawn 0)이라 여유가 정확히 1틱이고, 도착 region 스레드가 약 100ms 이상 밀릴 때만 생기는 자가 치유 외형 결함이다. World 수준 in-transit 후보 집합(15~35줄 패치가 scratch에서 검증됨)이 결정적 해결책이지만 새 공유 가변 상태(해제 누락 시 영구 유령, TTL이 유일한 안전망)와 해제 규칙(target 일치, 같은 틱 핑퐁)이 까다로워, 필수가 아니라 선택 하드닝으로 보류하고 `Region.updateVisibility` 주석에 전제를 명시했다.
+- 재검증 후 전체 — furnace-server 421개(스킵 7) 실패 0 (411 + ChunkBodyCacheRace 2, ChunkColumn 1, ConnectionInput 1, ConfigLoader 5, NoopFeatureAudit 1). 스킵 7 = 기존 6 + 저장소에 없는 `furnace.properties` 테스트(이제 "건너뜀"으로 드러남). 실행: `./gradlew :furnace-server:test :furnace-api:test -PskipOracle=true`.

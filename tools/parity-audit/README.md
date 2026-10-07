@@ -6,7 +6,7 @@
 모든 도구는 Gradle 모듈이 아니라 **단일 파일 Java**다(JDK 21). 저장소 루트에서 실행한다.
 
 ## 준비
-1. `./gradlew :furnace-server:compileJava` — `furnace-server/build/classes`, `build/resources` 생성.
+1. `./gradlew :furnace-server:classes` — `furnace-server/build/classes`(compileJava)와 `build/resources`(processResources) 생성. `compileJava` 단독은 resources를 만들지 않는다.
 2. 클래스패스 = `furnace-server/build/classes/java/main` + `furnace-server/build/resources/main` + `furnace-api/build/classes/java/main` + gson 2.11.0 + slf4j-api 2.0.16 + logback-classic/core 1.5.12(`~/.gradle/caches/modules-2`의 jar). 구분자는 Windows `;`.
 3. 컴파일 — `javac -cp <클래스패스> -d <출력폴더> tools/parity-audit/*.java`. 이후 `java -cp "<출력폴더>;<클래스패스>" Harness ...` 처럼 실행.
 4. 순정 서버 jar — `build/minecraft_server.1.21.1.jar`(gitignore 대상 `build/`). `RunVanilla`는 `eula.txt`에 **`eula=true`를 기록**하므로 Mojang EULA에 동의한 사람만 실행할 것.

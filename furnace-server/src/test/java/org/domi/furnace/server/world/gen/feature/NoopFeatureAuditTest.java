@@ -38,13 +38,13 @@ class NoopFeatureAuditTest {
         "minecraft:iceberg", "minecraft:fossil",
         "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
         "minecraft:glowstone_blob", "minecraft:dripstone_cluster", "minecraft:large_dripstone",
-        "minecraft:ice_spike", "minecraft:forest_rock", "minecraft:monster_room",
+        "minecraft:ice_spike", "minecraft:monster_room",
         "minecraft:lake", "minecraft:desert_well", "minecraft:bonus_chest", "minecraft:blue_ice",
         "minecraft:bamboo", "minecraft:block_column",
         "minecraft:end_island", "minecraft:end_spike", "minecraft:end_platform", "minecraft:end_gateway",
-        // 이 audit(파일 스캔) 실행 중 신규 확인된 미구현 타입(survey 목록에 없었음) — 각각 vines.json(엔드 코러스
-        // 나무 옆 덩굴), void_start_platform.json(엔드 스폰 발판) 1개 파일뿐이라 영향 범위 작음.
-        "minecraft:vines", "minecraft:void_start_platform"
+        // 이 audit(파일 스캔) 실행 중 신규 확인된 미구현 타입(survey 목록에 없었음) — void_start_platform.json
+        // (엔드 스폰 발판) 1개 파일뿐이라 영향 범위 작음.
+        "minecraft:void_start_platform"
     );
 
     @Test
@@ -75,6 +75,14 @@ class NoopFeatureAuditTest {
         assertTrue(newFallbacks.isEmpty(),
             "허용목록 밖의 새 NoopFeature 폴백 발견 — parseConfigured에 구현을 추가하거나, 의도된 것이면 " +
             "NoopFeatureAuditTest.KNOWN_UNIMPLEMENTED_TYPES에 타입을 추가할 것: " + newFallbacks);
+    }
+
+    /** 구현이 들어간 타입은 허용목록에서 빼야 한다 — 남아 있으면 목록이 "아직 미구현"이라는 거짓 정보가 된다. */
+    @Test
+    void allowlist_hasNoImplementedTypes() {
+        Set<String> stale = new java.util.TreeSet<>(KNOWN_UNIMPLEMENTED_TYPES);
+        stale.retainAll(BiomeFeatureData.HANDLED_CONFIGURED_FEATURE_TYPES);
+        assertTrue(stale.isEmpty(), "구현됐는데 허용목록에 남은 타입: " + stale);
     }
 
     /** configured_feature/**.json 전체를 minecraft:<상대경로(확장자 제거)> id로 나열한다. */
