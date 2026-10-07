@@ -21,10 +21,16 @@ public final class AnvilChunkCodec {
     private static final String CHEST_ID = "furnace:chest"; // 자체 포맷 상수(vanilla id 호환 불필요, §2.2)
     private final BlockRegistry registry;
     private final int biomeId; // 단일 바이옴(superflat/근사). 바닐라 read 시 바이옴은 무시하고 이 값 사용.
+    private final org.domi.furnace.server.world.ItemRegistry items; // 바닐라 상자 아이템(문자열 id) 읽기용. null이면 바닐라 아이템은 건너뜀.
 
     public AnvilChunkCodec(BlockRegistry registry, int biomeId) {
+        this(registry, biomeId, null);
+    }
+
+    public AnvilChunkCodec(BlockRegistry registry, int biomeId, org.domi.furnace.server.world.ItemRegistry items) {
         this.registry = registry;
         this.biomeId = biomeId;
+        this.items = items;
     }
 
     public NbtCompound toNbt(ChunkColumn col, int chunkX, int chunkZ) {
@@ -175,10 +181,47 @@ public final class AnvilChunkCodec {
         recomputeHeightmap(col);
         if (root.contains("block_entities")) {
             for (Object o : root.getList("block_entities").items()) {
-                col.putChest(chestFromNbt((NbtCompound) o));
+                // 블록 엔티티 하나가 이상해도 청크 전체 로드가 실패하면 안 된다(실패한 청크는 영구 로드 불가가 됐었다).
+                try {
+                    NbtCompound be = (NbtCompound) o;
+                    String id = be.contains("id") ? be.getString("id") : null;
+                    if (CHEST_ID.equals(id)) {
+                        col.putChest(chestFromNbt(be));
+                    } else if ("minecraft:chest".equals(id) || "minecraft:trapped_chest".equals(id)) {
+                        col.putChest(vanillaChestFromNbt(be));
+                    }
+                    // 그 외 블록 엔티티(화로·표지판 등)는 아직 지원하지 않는다 — 상자로 둔갑시키지 않고 건너뛴다.
+                } catch (RuntimeException e) {
+                    org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("블록 엔티티 읽기 실패, 건너뜀", e);
+                }
             }
         }
         return col;
+    }
+
+    /** 바닐라 1.21 상자: Items[{Slot:byte, id:"minecraft:..", count:int, components?}]. 컴포넌트는 아직 변환하지 않는다(손실). */
+    private ChestBlockEntity vanillaChestFromNbt(NbtCompound e) {
+        int x = e.getInt("x");
+        int y = e.getInt("y");
+        int z = e.getInt("z");
+        ItemStack[] stacks = new ItemStack[ChestBlockEntity.SLOTS];
+        java.util.Arrays.fill(stacks, ItemStack.EMPTY);
+        if (e.contains("Items") && items != null) {
+            for (Object io : e.getList("Items").items()) {
+                try {
+                    NbtCompound ie = (NbtCompound) io;
+                    int slot = ie.getByte("Slot") & 0xFF;
+                    if (slot >= stacks.length) continue;
+                    int itemId = items.idOf(ie.getString("id"));
+                    int count = ie.contains("count") ? ie.getInt("count") : 1;
+                    if (itemId <= 0 || count <= 0) continue;
+                    stacks[slot] = new ItemStack(itemId, count, null);
+                } catch (RuntimeException ex) {
+                    // 이상한 항목은 그 슬롯만 건너뛴다
+                }
+            }
+        }
+        return new ChestBlockEntity(x, y, z, stacks);
     }
 
     private ChestBlockEntity chestFromNbt(NbtCompound e) {

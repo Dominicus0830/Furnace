@@ -13,9 +13,11 @@ import java.util.Map;
 public final class ItemRegistry {
 
     private final Map<Integer, String> nameById;
+    private final Map<String, Integer> idByName = new HashMap<>();
 
     private ItemRegistry(Map<Integer, String> nameById) {
         this.nameById = nameById;
+        for (var e : nameById.entrySet()) idByName.put(e.getValue(), e.getKey());
     }
 
     public static ItemRegistry load(String resourcePath) {
@@ -41,5 +43,15 @@ public final class ItemRegistry {
     /** 아이템 id → 이름. 미지원 id는 "minecraft:air". */
     public String nameOf(int itemId) {
         return nameById.getOrDefault(itemId, "minecraft:air");
+    }
+
+    /** 아이템 이름 → id. 알 수 없는 이름이면 -1. */
+    public int idOf(String name) {
+        return idByName.getOrDefault(name, -1);
+    }
+
+    /** 등록된 아이템 id인가(공기 0 제외). */
+    public boolean isValid(int itemId) {
+        return itemId > 0 && nameById.containsKey(itemId);
     }
 }

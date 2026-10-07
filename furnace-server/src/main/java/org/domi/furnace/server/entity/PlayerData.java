@@ -52,6 +52,10 @@ public final class PlayerData {
         }
     }
 
+    /**
+     * 위치/인벤토리 로드. 파일이 없으면 null. 손상됐거나 알 수 없는 형식이면 경고 후 원본을 `.corrupt`로 보존하고 null
+     * (바닐라 PlayerDataStorage처럼 새 플레이어로 시작 — 예전엔 예외로 접속이 영구히 막혔다).
+     */
     public static Snapshot load(Path worldDir, UUID id) {
         Path f = file(worldDir, id);
         if (!Files.exists(f)) return null;
@@ -62,11 +66,17 @@ public final class PlayerData {
             return new Snapshot(
                     (Double) pos.get(0), (Double) pos.get(1), (Double) pos.get(2),
                     (Float) rot.get(0), (Float) rot.get(1),
-                    root.getByte("OnGround") != 0,
+                    root.contains("OnGround") && root.getByte("OnGround") != 0,
                     inventoryFromNbt(root.contains("Inventory") ? root.getList("Inventory") : null)
             );
-        } catch (IOException e) {
-            throw new UncheckedIOException("playerdata 로드 실패 " + id, e);
+        } catch (IOException | RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(PlayerData.class).warn("playerdata 읽기 실패 {} — 새 플레이어로 시작하고 원본은 .corrupt로 보존", id, e);
+            try {
+                Files.move(f, f.resolveSibling(f.getFileName() + ".corrupt"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException moveFail) {
+                org.slf4j.LoggerFactory.getLogger(PlayerData.class).warn("손상된 playerdata 백업 실패 {}", id, moveFail);
+            }
+            return null;
         }
     }
 
@@ -92,10 +102,14 @@ public final class PlayerData {
         if (inventory == null) return slots;
         for (Object entryObj : inventory.items()) {
             NbtCompound entry = (NbtCompound) entryObj;
-            int slot = entry.getInt("Slot");
+            // 자체 형식({Slot:int, Id:int, Count:int})만 읽는다. 바닐라 형식(Slot:byte, id:string)은 아직 변환하지 않고 건너뛴다.
+            if (!(entry.tags().get("Slot") instanceof Integer slotObj)
+                    || !(entry.tags().get("Id") instanceof Integer itemId)
+                    || !(entry.tags().get("Count") instanceof Integer count)) continue;
+            int slot = slotObj;
             if (slot < 0 || slot >= slots.length) continue;
-            byte[] components = entry.contains("Comp") ? entry.getByteArray("Comp") : null;
-            slots[slot] = new ItemStack(entry.getInt("Id"), entry.getInt("Count"), components);
+            byte[] components = entry.tags().get("Comp") instanceof byte[] c ? c : null;
+            slots[slot] = new ItemStack(itemId, count, components);
         }
         return slots;
     }

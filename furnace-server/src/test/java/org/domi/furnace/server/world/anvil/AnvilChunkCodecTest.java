@@ -9,6 +9,9 @@ import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.world.ItemRegistry;
 import org.junit.jupiter.api.Test;
 
 class AnvilChunkCodecTest {
@@ -73,5 +76,49 @@ class AnvilChunkCodecTest {
         assertEquals(9, restored.items[26].itemId());
         assertEquals(3, restored.items[26].count());
         assertArrayEquals(new byte[]{1, 2, 3}, restored.items[26].components());
+    }
+
+    /** 바닐라 월드의 블록 엔티티(아이템 든 상자, 화로, 표지판 등)가 있어도 청크 로드가 예외 없이 되어야 한다. */
+    @Test
+    void fromNbt_vanillaBlockEntities_doNotThrow() {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
+        NbtCompound nbt = codec.toNbt(new SuperflatWorldSource(reg, 0).generate(0, 0), 0, 0);
+
+        NbtList bes = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound chest = new NbtCompound();
+        chest.putString("id", "minecraft:chest");
+        chest.putInt("x", 1); chest.putInt("y", -60); chest.putInt("z", 2);
+        NbtList chestItems = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound it = new NbtCompound();
+        it.putByte("Slot", (byte) 3);
+        it.putString("id", "minecraft:stone");
+        it.putInt("count", 7);
+        chestItems.add(it);
+        chest.putList("Items", chestItems);
+        bes.add(chest);
+        NbtCompound furnace = new NbtCompound();
+        furnace.putString("id", "minecraft:furnace");
+        furnace.putInt("x", 4); furnace.putInt("y", -60); furnace.putInt("z", 4);
+        NbtList fItems = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound fi = new NbtCompound();
+        fi.putByte("Slot", (byte) 0);
+        fi.putString("id", "minecraft:coal");
+        fi.putInt("count", 1);
+        fItems.add(fi);
+        furnace.putList("Items", fItems);
+        bes.add(furnace);
+        NbtCompound sign = new NbtCompound();
+        sign.putString("id", "minecraft:sign");
+        sign.putInt("x", 5); sign.putInt("y", -60); sign.putInt("z", 5);
+        bes.add(sign);
+        nbt.putList("block_entities", bes);
+
+        ChunkColumn col = codec.fromNbt(nbt);
+        ChestBlockEntity c = col.chestAt(1, -60, 2);
+        assertNotNull(c, "바닐라 상자는 블록 엔티티로 읽혀야 한다");
+        assertEquals(7, c.items[3].count());
+        assertEquals(1, col.blockEntities().size(), "화로·표지판은 (미지원이므로) 상자로 둔갑하면 안 된다");
     }
 }

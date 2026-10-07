@@ -50,7 +50,7 @@ public final class FurnaceMain {
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
         Path worldDir = Path.of(config.levelName());
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
-        var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome);
+        var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome, itemRegistry);
         var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, noiseSource);

@@ -160,6 +160,11 @@ public final class World {
     public Player onlinePlayer(int eid) { return online.get(eid); }
     public SpawnPoint defaultSpawn() { return defaultSpawn; }
 
+    /** 클라이언트가 보낸 아이템 id가 유효한가. 레지스트리가 없으면(테스트) 양수만 확인한다. */
+    public boolean isValidItem(int itemId) {
+        return itemRegistry == null ? itemId > 0 : itemRegistry.isValid(itemId);
+    }
+
     public void setRegistries(BlockRegistry blocks, ItemRegistry items) {
         this.blockRegistry = blocks;
         this.itemRegistry = items;

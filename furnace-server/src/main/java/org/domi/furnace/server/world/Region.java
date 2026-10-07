@@ -75,10 +75,15 @@ public final class Region {
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                         ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioPool(), world.genPool())
                         : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
-        CompletableFuture<ChunkColumn> f = sourceFuture.thenApplyAsync(col -> {
+        // 실패해도 loading에서 반드시 제거한다 — 남겨 두면 같은 실패한 future가 영원히 반환되고 region이 reap되지 않는다.
+        CompletableFuture<ChunkColumn> f = sourceFuture.handleAsync((col, err) -> {
+            loading.remove(cp);
+            if (err != null) {
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
+                throw new java.util.concurrent.CompletionException(err);
+            }
             col.clearDirty();
             chunks.put(cp, col);
-            loading.remove(cp);
             return col;
         }, r -> world.scheduler().region(pos).execute(r));
         loading.put(cp, f);

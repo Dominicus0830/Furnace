@@ -34,6 +34,7 @@ import org.domi.furnace.server.net.protocol.play.GameEvent;
 import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
+import org.domi.furnace.server.net.protocol.play.SetHeldSlot;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
 import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
@@ -229,6 +230,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
+        // 서버가 아는 인벤토리·선택 슬롯을 클라이언트에도 맞춘다(안 보내면 클라는 빈 손인데 서버는 아이템을 들고 있다).
+        send(ctx, new ContainerSetContent(0, 0, copySlots(), ItemStack.EMPTY));
+        send(ctx, new SetHeldSlot(selectedSlot));
 
         // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
@@ -417,7 +421,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x32 -> { // Set Creative Mode Slot: Short slot + Slot
                 int slot = frame.readShort();
                 ItemStack stack = readSlot(frame);
-                if (slot >= 0 && slot < slots.length) slots[slot] = stack;
+                // 바닐라: 슬롯 1..45만, 개수·아이템 유효. 비정상 값은 다른 플레이어(공유 상자 경유)까지 클라이언트를 깨뜨린다.
+                if (slot >= 1 && slot < slots.length && validStack(stack)) slots[slot] = stack;
             }
             case 0x38 -> { // Use Item On: hand, pos, face, cursorXYZ, insideBlock, sequence
                 int hand = Types.readVarInt(frame);
@@ -478,6 +483,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 frame.readByte();         // buttonNum
                 int clickType = Types.readVarInt(frame);
                 int numChanged = Types.readVarInt(frame);
+                if (numChanged < 0 || numChanged > MAX_CLICK_CHANGED_SLOTS) {   // 바닐라는 128 초과를 거부한다
+                    ctx.close();
+                    break;
+                }
                 java.util.Map<Integer, ItemStack> changed = new java.util.HashMap<>();
                 boolean parseOk = true;
                 for (int i = 0; i < numChanged && parseOk; i++) {
@@ -489,8 +498,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         parseOk = false;
                     }
                 }
-                ItemStack newCarried = parseOk ? readSlotStrict(frame) : null;
+                ItemStack newCarried = null;
+                if (parseOk) {
+                    try {
+                        newCarried = readSlotStrict(frame);
+                    } catch (UnsupportedComponentException e) {
+                        parseOk = false;   // 커서 아이템에 컴포넌트 — 예외로 연결을 끊지 말고 패킷만 폐기
+                    }
+                }
                 if (!parseOk) break; // 경계 유실 — 이 패킷 전체 폐기(범위 밖 케이스)
+                boolean validClick = validStack(newCarried);
+                for (ItemStack c : changed.values()) validClick &= validStack(c);
+                if (!validClick) break; // 음수 개수·알 수 없는 아이템 등 비정상 — 패킷 폐기
                 Player p = player;
                 int expectedContainerId = p.openContainerId();
                 if (clickType != 0 || expectedContainerId == -1 || containerId != expectedContainerId) {
@@ -638,6 +657,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         log.warn("커넥션 오류, 종료: {}", cause.toString());
         ctx.close();
+    }
+
+    private static final int MAX_CLICK_CHANGED_SLOTS = 128;
+    private static final int MAX_STACK_COUNT = 99;
+    private static final int MAX_COMPONENT_BYTES = 8192;
+
+    /** 클라이언트가 보낸 아이템이 서버가 저장·재전송해도 안전한가(빈 스택은 허용). */
+    private boolean validStack(ItemStack s) {
+        if (s == null || s.isEmpty()) return s == null || s.count() == 0 || s.itemId() == 0;
+        if (s.count() < 1 || s.count() > MAX_STACK_COUNT) return false;
+        if (!world.isValidItem(s.itemId())) return false;
+        byte[] comp = s.components();
+        return comp == null || comp.length <= MAX_COMPONENT_BYTES;
     }
 
     private ItemStack readSlot(ByteBuf frame) {

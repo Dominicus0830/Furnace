@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityIdAllocator;
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.play.BlockChangedAck;
@@ -38,6 +39,7 @@ class ConnectionInputTest {
     private EmbeddedChannel ch;
     private ConnectionHandler handler;
     private Player p;
+    private List<int[]> joinOut;
 
     private static ByteBuf frame(int id, Consumer<ByteBuf> body) {
         ByteBuf b = Unpooled.buffer();
@@ -81,7 +83,7 @@ class ConnectionInputTest {
         RegionPos sp = RegionGrid.regionPos(spawn.playerX(), spawn.playerZ(), 16);
         sched.region(sp).execute(() -> { }).get();
         p.drainPending();
-        drainOutbound();   // 접속 중 나간 패킷 비우기
+        joinOut = drainOutbound();   // 접속 중 나간 패킷(검증용으로 보관)
     }
 
     @AfterEach
@@ -189,6 +191,82 @@ class ConnectionInputTest {
     }
 
     /** 월드 기본 스폰/저장 위치는 임의 좌표다 — 기준 위치를 (0,0)에서 시작하면 스폰이 100블록 밖일 때 첫 이동부터 거부된다. */
+    /** 저장된 인벤토리는 서버 메모리에만 두지 말고 접속 때 클라이언트에도 보내야 한다(안 보이는 아이템으로 설치되는 불일치 방지). */
+    @Test
+    void join_sendsSavedInventoryAndHeldSlot() throws Exception {
+        ItemStack[] saved = new ItemStack[46];
+        java.util.Arrays.fill(saved, ItemStack.EMPTY);
+        saved[36] = new ItemStack(1, 5, null);
+        org.domi.furnace.server.entity.PlayerData.save(tmp,
+                org.domi.furnace.server.net.protocol.login.LoginStart.offlineUuid("Tester"),
+                0, -60, 0, 0f, 0f, true, saved);
+        join(new SpawnPoint(0, -60, 0, 0f));
+        assertEquals(1, count(joinOut, 0x13), "container 0 내용이 접속 때 전송돼야 한다");
+        assertEquals(1, count(joinOut, 0x53), "선택 슬롯(Set Held Item)이 전송돼야 한다");
+    }
+
+    private static void writeStrictSlot(ByteBuf b, int count, int itemId, int numAdd) {
+        Types.writeVarInt(b, count);
+        if (count == 0) return;
+        Types.writeVarInt(b, itemId);
+        Types.writeVarInt(b, numAdd);
+        Types.writeVarInt(b, 0);
+    }
+
+    private ItemStack[] slotsOf() throws Exception { return (ItemStack[]) field("slots"); }
+
+    /** 비정상 아이템(음수 개수·알 수 없는 id·과대 개수)은 인벤토리/상자에 들어가면 안 된다(다른 플레이어 클라이언트까지 깨뜨림). */
+    @Test
+    void invalidItems_areRejected_inCreativeSlotAndContainerClick() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        // 0x32: 개수 200 / 알 수 없는 id
+        ch.writeInbound(frame(0x32, b -> { b.writeShort(36); Types.writeVarInt(b, 200); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        ch.writeInbound(frame(0x32, b -> { b.writeShort(37); Types.writeVarInt(b, 1); Types.writeVarInt(b, 99999); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        assertTrue(slotsOf()[36].isEmpty(), "개수 200은 거부돼야 한다");
+        assertTrue(slotsOf()[37].isEmpty(), "알 수 없는 아이템 id는 거부돼야 한다");
+        // 정상 아이템은 그대로 들어간다
+        ch.writeInbound(frame(0x32, b -> { b.writeShort(38); Types.writeVarInt(b, 3); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        assertEquals(3, slotsOf()[38].count());
+
+        // 0x0E: 상자를 연 상태에서 음수 개수 변경은 폐기
+        p.openChest(7, 1, -60, 1);
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(30); writeStrictSlot(b, -1, 1, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        assertTrue(slotsOf()[12].isEmpty(), "음수 개수 클릭이 인벤토리에 반영됐다");
+        assertTrue(ch.isActive(), "비정상 아이템 하나로 연결이 끊기면 안 된다(패킷만 폐기)");
+    }
+
+    /** 컴포넌트 달린 아이템을 커서로 집는 클릭은 연결을 끊지 말고 패킷만 폐기해야 한다. */
+    @Test
+    void containerClick_withComponentCarried_doesNotDisconnect() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        p.openChest(7, 1, -60, 1);
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);   // 변경 슬롯 0개
+            writeStrictSlot(b, 1, 1, 1);                          // carried: 컴포넌트 있음
+        }));
+        assertTrue(ch.isActive(), "컴포넌트 아이템 하나로 접속이 끊겼다");
+    }
+
+    /** 클릭 변경 슬롯 개수에 상한(바닐라 128)이 있어야 한다. */
+    @Test
+    void containerClick_hugeChangedCount_isRejected() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        p.openChest(7, 1, -60, 1);
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1_000_000);
+        }));
+        assertFalse(ch.isActive(), "비정상적으로 큰 변경 개수는 연결을 끊어야 한다");
+    }
+
     /** 연결이 끊기면 region 틱을 기다리지 않고 즉시 접속자 집합(탭 기준)에서 빠져야 한다 — adopt 전에 끊긴 경우의 누수 방지. */
     @Test
     void disconnect_removesPlayerFromOnlineSetImmediately() throws Exception {
