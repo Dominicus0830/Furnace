@@ -17,12 +17,42 @@ class SpawnPacketsTest {
         assertEquals(0x3E, p.id());
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
-        assertEquals(0x09, buf.readByte());        // actions add_player|update_listed
+        // 바닐라 createPlayerInitializing: add_player|update_game_mode|update_listed|update_latency|update_display_name
+        assertEquals(0x3D, buf.readByte());
         assertEquals(1, Types.readVarInt(buf));     // count
         assertEquals(id, Types.readUuid(buf));
         assertEquals("Dom", Types.readString(buf, 16));
         assertEquals(0, Types.readVarInt(buf));     // props
+        assertEquals(PlayerInfoUpdate.DEFAULT_GAME_MODE, Types.readVarInt(buf));
         assertEquals(1, buf.readByte());            // listed = true
+        assertEquals(0, Types.readVarInt(buf));     // latency
+        assertEquals(0, buf.readByte());            // display name 없음
+        assertEquals(0, buf.readableBytes());
+        buf.release();
+    }
+
+    @Test
+    void playerInfoUpdate_batchesMultipleEntries() {
+        UUID a = UUID.randomUUID(), b = UUID.randomUUID();
+        PlayerInfoUpdate p = new PlayerInfoUpdate(java.util.List.of(
+                new PlayerInfoUpdate.Entry(a, "A", 1, 5), new PlayerInfoUpdate.Entry(b, "B", 1, 7)));
+        ByteBuf buf = Unpooled.buffer();
+        p.write(buf);
+        buf.readByte();
+        assertEquals(2, Types.readVarInt(buf));
+        buf.release();
+    }
+
+    @Test
+    void playerInfoLatency_onlyLatencyAction() {
+        UUID a = UUID.randomUUID();
+        PlayerInfoLatency p = new PlayerInfoLatency(java.util.List.of(new PlayerInfoLatency.Entry(a, 42)));
+        ByteBuf buf = Unpooled.buffer();
+        p.write(buf);
+        assertEquals(0x10, buf.readByte());
+        assertEquals(1, Types.readVarInt(buf));
+        assertEquals(a, Types.readUuid(buf));
+        assertEquals(42, Types.readVarInt(buf));
         buf.release();
     }
 

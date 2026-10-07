@@ -19,6 +19,8 @@ import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.MoveEntityPosRot;
 import org.domi.furnace.server.net.protocol.play.MoveEntityRot;
+import java.util.UUID;
+import org.domi.furnace.server.net.protocol.play.PlayerInfoLatency;
 import org.domi.furnace.server.net.protocol.play.PlayerInfoRemove;
 import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
 import org.domi.furnace.server.net.protocol.play.RemoveEntities;
@@ -32,6 +34,8 @@ public final class Region {
 
     // 추적 엔티티가 후보 스냅샷서 사라진 뒤 despawn까지 견디는 틱 수(핸드오프 갭 흡수).
     private static final int ENTITY_DESPAWN_GRACE = 3;
+    private static final int LATENCY_BROADCAST_TICKS = 600;   // 바닐라 PlayerList.tick의 핑 갱신 주기
+    private int latencyCounter;
     private static final int MAX_PENDING_CHUNKS_PER_PLAYER = 512;
 
     private final RegionPos pos;
@@ -287,6 +291,10 @@ public final class Region {
             for (Player p : players.values()) {
                 updateVisibility(p, candidates);
             }
+            if (++latencyCounter >= LATENCY_BROADCAST_TICKS) {
+                latencyCounter = 0;
+                broadcastLatencies();
+            }
         } else {
             world.publishSnapshot(pos, List.of());
         }
@@ -423,7 +431,49 @@ public final class Region {
         return Math.abs(cp.x() - c.x()) <= vd && Math.abs(cp.z() - c.z()) <= vd;
     }
 
+    /**
+     * 탭 목록 동기화(바닐라/Paper와 같은 관찰 결과): 본인 포함 접속 중인 모든 플레이어를 거리와 무관하게 올리고,
+     * 새로 올릴 항목은 한 패킷으로 묶는다. 퇴장한 플레이어는 grace 없이 엔티티·탭에서 뺀다(관찰자 region의 다음 틱).
+     * 스폰 패킷보다 반드시 먼저 호출해야 한다(탭 항목 없이 플레이어 엔티티를 스폰하면 안 됨).
+     */
+    private void syncTabList(Player a) {
+        List<UUID> gone = new ArrayList<>();
+        var it = a.listed().entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            Player b = world.onlinePlayer(e.getKey());
+            if (b == null || b.isDisconnected()) {
+                if (a.tracked().remove(e.getKey()) != null) a.send(new RemoveEntities(java.util.List.of(e.getKey())));
+                a.missingTicks().remove(e.getKey());
+                gone.add(e.getValue());
+                it.remove();
+            }
+        }
+        if (!gone.isEmpty()) a.send(new PlayerInfoRemove(gone));
+        List<PlayerInfoUpdate.Entry> add = null;
+        for (Player b : world.onlinePlayers()) {
+            if (b.isDisconnected()) continue;
+            if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
+                if (add == null) add = new ArrayList<>();
+                add.add(new PlayerInfoUpdate.Entry(b.uuid(), b.name(), PlayerInfoUpdate.DEFAULT_GAME_MODE, b.latencyMs()));
+            }
+        }
+        if (add != null) a.send(new PlayerInfoUpdate(add));
+    }
+
+    /** 바닐라처럼 600틱마다 접속자 전원의 핑을 모든 플레이어에게 갱신해 보낸다. */
+    private void broadcastLatencies() {
+        List<PlayerInfoLatency.Entry> all = new ArrayList<>();
+        for (Player b : world.onlinePlayers()) {
+            if (!b.isDisconnected()) all.add(new PlayerInfoLatency.Entry(b.uuid(), b.latencyMs()));
+        }
+        if (all.isEmpty()) return;
+        PlayerInfoLatency pkt = new PlayerInfoLatency(all);
+        for (Player p : players.values()) p.send(pkt);
+    }
+
     private void updateVisibility(Player a, List<EntityView> candidates) {
+        syncTabList(a);
         double range = world.effectiveEntityChunks() * 16.0;
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (EntityView b : candidates) {
@@ -433,10 +483,7 @@ public final class Region {
             boolean near = within(a, b, range);
             boolean tracking = a.tracked().containsKey(b.entityId());
             if (near && !tracking) {
-                if (!a.listed().containsKey(b.entityId())) {   // 탭 항목은 스폰 전 필수 — 이미 올려뒀으면 생략
-                    a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
-                    a.listed().put(b.entityId(), b.uuid());
-                }
+                if (!a.listed().containsKey(b.entityId())) continue;   // syncTabList가 올리지 않은(퇴장 경합) 대상은 스폰 안 함
                 a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
                 a.send(new SetHeadRotation(b.entityId(), b.yaw()));
                 a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch()});
@@ -445,25 +492,6 @@ public final class Region {
                 a.tracked().remove(b.entityId());
             } else if (near) {
                 broadcastMove(a, b, a.tracked().get(b.entityId()));
-            }
-        }
-        // 탭 목록: 본인 포함 접속 중인 모든 플레이어를 거리와 무관하게 올려둔다(바닐라/Paper 동일).
-        // 퇴장한 플레이어는 grace 없이 즉시(다음 관찰자 틱) 엔티티·탭에서 뺀다 — 바닐라는 퇴장 틱에 전원에게 Remove.
-        var gone = a.listed().entrySet().iterator();
-        while (gone.hasNext()) {
-            var e = gone.next();
-            Player b = world.onlinePlayer(e.getKey());
-            if (b == null || b.isDisconnected()) {
-                if (a.tracked().remove(e.getKey()) != null) a.send(new RemoveEntities(java.util.List.of(e.getKey())));
-                a.send(new PlayerInfoRemove(java.util.List.of(e.getValue())));
-                a.missingTicks().remove(e.getKey());
-                gone.remove();
-            }
-        }
-        for (Player b : world.onlinePlayers()) {
-            if (b.isDisconnected()) continue;
-            if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
-                a.send(new PlayerInfoUpdate(b.uuid(), b.name()));
             }
         }
         // 후보서 완전히 사라진 엔티티: grace 틱 후 despawn. 탭은 건드리지 않는다.

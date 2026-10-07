@@ -118,6 +118,15 @@ public final class Player {
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
     public Map<Integer, UUID> listed() { return listed; }
 
+    private volatile int latencyMs;
+    /** 탭 목록에 표시되는 핑(ms). KeepAlive 왕복으로 갱신. */
+    public int latencyMs() { return latencyMs; }
+    /** 바닐라와 같은 평활화: (이전*3 + 새값)/4. 첫 측정은 그대로. */
+    public void recordLatency(int sampleMs) {
+        int old = latencyMs;
+        latencyMs = old == 0 ? sampleMs : (old * 3 + sampleMs) / 4;
+    }
+
     /** 체스트 열기 기록(containerId + 좌표). netty 스레드 전용 writer. */
     public void openChest(int containerId, int x, int y, int z) {
         this.openChestX = x; this.openChestY = y; this.openChestZ = z;

@@ -351,6 +351,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 long echoed = frame.readLong();
                 if (echoed == lastKeepAliveId) {
                     awaitingKeepAlive.set(false);
+                    Player lp = player;
+                    if (lp != null) lp.recordLatency((int) Math.max(0, (System.nanoTime() - echoed) / 1_000_000L));
                 }
             }
             case 0x1A -> { // move_player_pos: Double x,y,z, Boolean onGround
