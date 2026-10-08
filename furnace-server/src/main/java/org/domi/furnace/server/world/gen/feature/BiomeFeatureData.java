@@ -63,7 +63,7 @@ public final class BiomeFeatureData {
         "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines",
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
-        "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone"
+        "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -354,6 +354,13 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:ice_spike")) {
                 return new IceSpikeFeature(registry);
+            }
+            if (type.equals("minecraft:monster_room")) {
+                return new MonsterRoomFeature(registry);
+            }
+            if (type.equals("minecraft:lake")) {
+                return new LakeFeature(parseState(config.getAsJsonObject("fluid").getAsJsonObject("state")),
+                    parseState(config.getAsJsonObject("barrier").getAsJsonObject("state")), registry);
             }
             if (type.equals("minecraft:bamboo")) {
                 return new BambooFeature(config.get("probability").getAsFloat(), registry);
