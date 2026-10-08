@@ -25,4 +25,10 @@ public final class AcaciaFoliagePlacer extends FoliagePlacer {
         placeLeavesRow(view, random, config, attachment.pos(), foliageRadius - 1, offset - 1, attachment.doubleTrunk(), leaves);
         placeLeavesRow(view, random, config, attachment.pos(), foliageRadius + attachment.radiusOffset(), offset - 2, attachment.doubleTrunk(), leaves);
     }
+
+    // vanilla AcaciaFoliagePlacer.shouldSkipLocation — 기본(블롭) 규칙과 달리 RNG를 소비하지 않는다.
+    @Override
+    protected boolean shouldSkipLocation(WorldgenRandom random, int absX, int y, int absZ, int radius, boolean giantTrunk) {
+        return y == 0 ? (absX > 1 || absZ > 1) && absX != 0 && absZ != 0 : absX == radius && absZ == radius && radius > 0;
+    }
 }

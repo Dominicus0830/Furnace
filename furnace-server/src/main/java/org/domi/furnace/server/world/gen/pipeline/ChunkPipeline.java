@@ -21,6 +21,57 @@ public final class ChunkPipeline {
     // 스펙 §2 R1 — STRUCTURE_REFERENCES 상당: 각 origin의 features는 최대 radius 8 떨어진 곳에서 시작된
     // 구조물 조각을 볼 수 있어야 한다(구조물 최대 크기 21x21 등 고려한 vanilla GENERATION_PYRAMID 값).
     private static final int STRUCTURE_START_RADIUS = 8;
+    /** 디버그: 요청 청크만 decorate(이웃 origin 생략) — 순정을 청크 1개만 forceload한 결과와 대조할 때 쓴다. */
+    private static final boolean ISOLATED_DECORATE = Boolean.getBoolean("furnace.isolatedDecorate");
+
+    /** 3x3 origin decorate 순서(ddx,ddz). 기본은 dz→dx 행 우선; 디버그용 -Dfurnace.decorateOrder="ddx,ddz;..." 로 덮어쓴다. */
+    private static final int[][] DECORATE_ORDER = parseOrder(System.getProperty("furnace.decorateOrder"));
+
+    /**
+     * 디버그: 순정 서버가 실제로 청크를 decorate한 순서(-Dfurnace.decorateRanks=파일, 줄마다 "cx cz rank").
+     * 지정하면 각 중심 청크의 3x3 origin을 순정 순위대로 정렬해 decorate한다 — 순서 비결정성 때문에 생기는
+     * 불일치와 진짜 feature 버그를 분리하려는 측정 전용 경로이며 서버 기본 동작에는 영향이 없다.
+     */
+    private static final java.util.Map<Long, Integer> RANKS = loadRanks(System.getProperty("furnace.decorateRanks"));
+
+    private static java.util.Map<Long, Integer> loadRanks(String path) {
+        if (path == null || path.isBlank()) return null;
+        try {
+            java.util.Map<Long, Integer> m = new java.util.HashMap<>();
+            for (String line : java.nio.file.Files.readAllLines(java.nio.file.Path.of(path))) {
+                String[] t = line.trim().split("\\s+");
+                if (t.length == 3) m.put(chunkKey(Integer.parseInt(t[0]), Integer.parseInt(t[1])), Integer.parseInt(t[2]));
+            }
+            return m;
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("decorateRanks 읽기 실패: " + path, e);
+        }
+    }
+
+    private static int[][] decorateOrderFor(int cx, int cz) {
+        if (RANKS == null) return DECORATE_ORDER;
+        int[][] order = DECORATE_ORDER.clone();
+        java.util.Arrays.sort(order, java.util.Comparator.comparingInt(
+            dd -> RANKS.getOrDefault(chunkKey(cx + dd[0], cz + dd[1]), Integer.MAX_VALUE)));
+        return order;
+    }
+
+    private static int[][] parseOrder(String spec) {
+        if (spec == null || spec.isBlank()) {
+            int[][] def = new int[9][];
+            int i = 0;
+            for (int ddz = -1; ddz <= 1; ddz++) for (int ddx = -1; ddx <= 1; ddx++) def[i++] = new int[] {ddx, ddz};
+            return def;
+        }
+        String[] parts = spec.split(";");
+        int[][] r = new int[parts.length][];
+        for (int i = 0; i < parts.length; i++) {
+            String[] xy = parts[i].split(",");
+            r[i] = new int[] {Integer.parseInt(xy[0].trim()), Integer.parseInt(xy[1].trim())};
+        }
+        return r;
+    }
+
     // decoration에 필요한 5x5 grid 반경(±2) — 안쪽 3x3 origin 각각 자신의 3x3 view를 가지려면 필요.
     private static final int GRID_RADIUS = 2;
     private static final int GRID_SIZE = 2 * GRID_RADIUS + 1;
@@ -132,8 +183,11 @@ public final class ChunkPipeline {
                 // 안쪽 3×3 origin 9개를 dz 오름차순→dx 오름차순(행 우선)으로 decorate — oracle featurespill과
                 // 반드시 동일한 순서라야 겹치는 spill 영역에서 byte-exact가 성립한다(§3 참조, 오라클 쪽 주석 동일).
                 int centerIdx = gridIndex(0, 0);
-                for (int ddz = -1; ddz <= 1; ddz++) {
-                    for (int ddx = -1; ddx <= 1; ddx++) {
+                for (int[] dd : decorateOrderFor(cx, cz)) {
+                    int ddx = dd[0];
+                    int ddz = dd[1];
+                    {
+                        if (ISOLATED_DECORATE && (ddx != 0 || ddz != 0)) continue;
                         int ox = cx + ddx;
                         int oz = cz + ddz;
 

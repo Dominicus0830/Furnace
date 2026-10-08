@@ -233,8 +233,19 @@ public class Harness {
         int done = 0, total = (cx1 - cx0 + 1) * (cz1 - cz0 + 1);
         int nonFull = 0;
 
+        // HARNESS_CHUNKLIST=파일("cx cz" 줄들)이면 사각형 안에서 목록에 있는 청크만 비교한다(고립 대조군용).
+        Set<Long> only = null;
+        String listFile = System.getenv("HARNESS_CHUNKLIST");
+        if (listFile != null && !listFile.isBlank()) {
+            only = new HashSet<>();
+            for (String line : java.nio.file.Files.readAllLines(Path.of(listFile))) {
+                String[] t = line.trim().split("\\s+");
+                if (t.length == 2) only.add(((long) Integer.parseInt(t[0]) << 32) ^ (Integer.parseInt(t[1]) & 0xFFFFFFFFL));
+            }
+        }
         for (int cz = cz0; cz <= cz1; cz++) {
             for (int cx = cx0; cx <= cx1; cx++) {
+                if (only != null && !only.contains(((long) cx << 32) ^ (cz & 0xFFFFFFFFL))) continue;
                 List<Map<String, Object>> vroots = new ArrayList<>();
                 for (Path w : worlds) {
                     Map<String, Object> r = readChunk(w, cx, cz);
