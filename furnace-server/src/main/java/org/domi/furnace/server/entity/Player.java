@@ -101,6 +101,16 @@ public final class Player {
         });
     }
 
+    /** 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전. */
+    public void kick(Packet packet) {
+        channel.eventLoop().execute(() -> {
+            ByteBuf buf = channel.alloc().buffer();
+            Types.writeVarInt(buf, packet.id());
+            packet.write(buf);
+            channel.writeAndFlush(buf).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+        });
+    }
+
     public int entityId() { return entityId; }
     public UUID uuid() { return uuid; }
     public String name() { return name; }

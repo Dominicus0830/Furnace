@@ -29,6 +29,13 @@ public final class NetworkServer {
     private final World world;
     private final EntityIdAllocator idAllocator;
 
+    private volatile int readTimeoutSeconds = 30;   // 바닐라 ReadTimeoutHandler(30)와 같다. 핸드셰이크 후 침묵하는 소켓을 정리
+    private final io.netty.channel.group.ChannelGroup allChannels =
+            new io.netty.channel.group.DefaultChannelGroup(io.netty.util.concurrent.GlobalEventExecutor.INSTANCE);
+
+    /** 테스트용: start() 전에 읽기 타임아웃(초)을 바꾼다. */
+    void readTimeoutSeconds(int seconds) { this.readTimeoutSeconds = seconds; }
+
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel channel;
@@ -54,7 +61,9 @@ public final class NetworkServer {
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
+                        allChannels.add(ch);
                         ch.pipeline()
+                                .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(readTimeoutSeconds))
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",
@@ -77,6 +86,12 @@ public final class NetworkServer {
 
     public void stop() {
         if (channel != null) channel.close().syncUninterruptibly();
+        // 접속 중인 연결에는 사유를 알리고 닫는다(예전엔 사유 없이 끊겨 클라가 "Connection lost"만 봤다).
+        for (Channel c : allChannels) {
+            ConnectionHandler h = c.pipeline().get(ConnectionHandler.class);
+            if (h != null) h.kickForShutdown(); else c.close();
+        }
+        allChannels.newCloseFuture().awaitUninterruptibly(3000);
         if (workerGroup != null) workerGroup.shutdownGracefully();
         if (bossGroup != null) bossGroup.shutdownGracefully();
         log.info("네트워크 서버 종료");

@@ -11,10 +11,9 @@ public record StatusResponse(String json) implements Packet {
 
     /** 1.21.1(767) 상태 JSON 빌드. */
     public static StatusResponse of(String motd) {
-        String safe = motd.replace("\\", "\\\\").replace("\"", "\\\"");
         String json = "{\"version\":{\"name\":\"1.21.1\",\"protocol\":767},"
                 + "\"players\":{\"max\":20,\"online\":0,\"sample\":[]},"
-                + "\"description\":{\"text\":\"" + safe + "\"}}";
+                + "\"description\":" + org.domi.furnace.server.net.protocol.JsonText.textComponent(motd) + "}";
         return new StatusResponse(json);
     }
 

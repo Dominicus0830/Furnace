@@ -267,6 +267,20 @@ class ConnectionInputTest {
         assertFalse(ch.isActive(), "비정상적으로 큰 변경 개수는 연결을 끊어야 한다");
     }
 
+    /** 같은 이름으로 다시 접속하면 바닐라처럼 기존 세션이 사유와 함께 끊겨야 한다(같은 UUID·playerdata 공유 방지). */
+    @Test
+    void duplicateLogin_kicksExistingSession() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        EmbeddedChannel second = new EmbeddedChannel(new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator()));
+        second.writeInbound(frame(0x00, b -> { Types.writeVarInt(b, 767); Types.writeString(b, "localhost");
+            b.writeShort(25565); Types.writeVarInt(b, 2); }));
+        second.writeInbound(frame(0x00, b -> { Types.writeString(b, "Tester"); Types.writeUuid(b, new UUID(0, 0)); }));
+        List<int[]> out = drainOutbound();
+        assertEquals(1, count(out, 0x1D), "기존 세션에 Disconnect(0x1D)가 가야 한다");
+        assertFalse(ch.isActive(), "기존 세션은 끊겨야 한다");
+        second.close();
+    }
+
     /** 연결이 끊기면 region 틱을 기다리지 않고 즉시 접속자 집합(탭 기준)에서 빠져야 한다 — adopt 전에 끊긴 경우의 누수 방지. */
     @Test
     void disconnect_removesPlayerFromOnlineSetImmediately() throws Exception {

@@ -14,17 +14,20 @@ import org.domi.furnace.server.net.io.CompressionEncoder;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ConnectionState;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.configuration.ConfigDisconnect;
 import org.domi.furnace.server.net.protocol.configuration.FinishConfiguration;
 import org.domi.furnace.server.net.protocol.configuration.KnownPacksClientbound;
 import org.domi.furnace.server.net.protocol.configuration.RegistryData;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.play.BlockChangedAck;
 import org.domi.furnace.server.net.protocol.play.ContainerClose;
+import org.domi.furnace.server.net.protocol.play.Disconnect;
 import org.domi.furnace.server.net.protocol.play.ContainerSetContent;
 import org.domi.furnace.server.net.protocol.play.OpenScreen;
 import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.Region;
+import org.domi.furnace.server.net.protocol.login.LoginDisconnect;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
@@ -69,6 +72,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private volatile long lastKeepAliveId;
 
     private ConnectionState state = ConnectionState.HANDSHAKE;
+    private static final int PROTOCOL_VERSION = 767;                 // 1.21.1
+    private static final String VERSION_NAME = "1.21.1";
+    private boolean loginSuccessSent;       // Login Start 처리 후에만 Login Acknowledged 수락
+    private boolean knownPacksHandled;      // Known Packs 응답은 연결당 1회(레지스트리 재전송 증폭 방지)
+    private boolean finishConfigSent;       // FinishConfiguration을 보낸 뒤에만 PLAY 진입 수락
     private String playerName;
     private UUID playerUuid;
     private Player player; // play 진입 후 생성
@@ -133,6 +141,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 2 -> ConnectionState.LOGIN;
             default -> { ctx.close(); yield ConnectionState.HANDSHAKE; }
         };
+        // 상태 조회는 어떤 버전이든 허용(서버 목록에 "다른 버전" 표시). 로그인만 버전이 같아야 한다.
+        if (state == ConnectionState.LOGIN && hs.protocolVersion() != PROTOCOL_VERSION) {
+            kick(ctx, "Incompatible client! Please use " + VERSION_NAME);
+        }
     }
 
     private void handleStatus(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
@@ -146,9 +158,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void handleLogin(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
             case 0x00 -> { // Login Start
+                if (loginSuccessSent) { ctx.close(); return; }          // 로그인 시작은 한 번만
                 LoginStart start = LoginStart.read(frame);
+                if (!isValidPlayerName(start.name())) {                // 바닐라 StringUtil.isValidPlayerName
+                    kick(ctx, "Invalid characters in username");
+                    return;
+                }
                 this.playerName = start.name();
                 this.playerUuid = LoginStart.offlineUuid(start.name());
+                kickDuplicateSession(playerUuid);
                 if (compressionThreshold >= 0) {
                     send(ctx, new SetCompression(compressionThreshold)); // 비압축으로 나감
                     ctx.pipeline().addAfter("frameDecoder", "decompress",
@@ -157,8 +175,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             new CompressionEncoder(compressionThreshold));
                 }
                 send(ctx, new LoginSuccess(playerUuid, playerName));
+                loginSuccessSent = true;
             }
             case 0x03 -> { // Login Acknowledged
+                if (!loginSuccessSent) { ctx.close(); return; }          // 로그인 시작 없이 건너뛰기 금지
                 state = ConnectionState.CONFIGURATION;
                 onEnterConfiguration(ctx); // Task 8에서 구현
             }
@@ -175,12 +195,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x00 -> readClientInformation(frame); // Client Information: view distance 읽음
             case 0x02 -> { /* Plugin Message(brand): 무시 */ }
             case 0x07 -> { // Serverbound Known Packs → 레지스트리 전송 후 종료
+                if (knownPacksHandled) return;                           // 반복 요청은 무시(증폭 방지)
+                knownPacksHandled = true;
                 for (String registry : REGISTRIES.registryKeys()) {
                     send(ctx, new RegistryData(registry, REGISTRIES.entries(registry)));
                 }
                 send(ctx, new FinishConfiguration());
+                finishConfigSent = true;
             }
             case 0x03 -> { // Acknowledge Finish Configuration
+                if (!finishConfigSent) { ctx.close(); return; }          // Finish를 보내기 전의 ack는 프로토콜 위반
                 state = ConnectionState.PLAY;
                 onEnterPlay(ctx); // Task 9에서 구현
             }
@@ -632,7 +656,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void sendKeepAlive() {
         if (awaitingKeepAlive.get()) {
             log.info("KeepAlive 응답 없음, 종료: {}", playerName);
-            ctx.close();
+            kick(ctx, "Timed out");
             return;
         }
         lastKeepAliveId = System.nanoTime();
@@ -649,12 +673,58 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         ctx.writeAndFlush(buf);
     }
 
+    /** 서버 종료: 이벤트 루프에서 현재 단계에 맞는 Disconnect로 사유를 알리고 닫는다. */
+    void kickForShutdown() {
+        ChannelHandlerContext c = this.ctx;
+        if (c == null) return;
+        c.channel().eventLoop().execute(() -> kick(c, "Server closed"));
+    }
+
+    /** 바닐라 StringUtil.isValidPlayerName: 길이 1..16, 문자 코드 33..126만. */
+    static boolean isValidPlayerName(String name) {
+        if (name == null || name.isEmpty() || name.length() > 16) return false;
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c <= 32 || c >= 127) return false;
+        }
+        return true;
+    }
+
+    /** 현재 단계에 맞는 Disconnect 패킷으로 사유를 알리고 연결을 닫는다. 사유를 보낼 수 없는 단계면 그냥 닫는다. */
+    void kick(ChannelHandlerContext ctx, String reason) {
+        Packet pkt = switch (state) {
+            case LOGIN -> new LoginDisconnect(reason);
+            case CONFIGURATION -> new ConfigDisconnect(reason);
+            case PLAY -> new Disconnect(reason);
+            default -> null;
+        };
+        if (pkt == null) { ctx.close(); return; }
+        ByteBuf buf = ctx.alloc().buffer();
+        Types.writeVarInt(buf, pkt.id());
+        pkt.write(buf);
+        ctx.writeAndFlush(buf).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+    }
+
+    /** 같은 UUID로 이미 접속 중인 세션이 있으면 바닐라처럼 기존 세션을 끊는다(같은 playerdata 공유 방지). */
+    private void kickDuplicateSession(java.util.UUID uuid) {
+        for (Player other : world.onlinePlayers()) {
+            if (other != player && !other.isDisconnected() && uuid.equals(other.uuid())) {
+                other.kick(new Disconnect("You logged in from another location"));
+            }
+        }
+    }
+
     void state(ConnectionState newState) {
         this.state = newState;
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        if (cause instanceof io.netty.handler.timeout.ReadTimeoutException) {
+            log.debug("읽기 타임아웃, 종료: {}", playerName);   // 정상적인 유휴 정리 — 경고 로그 대상 아님
+            kick(ctx, "Timed out");
+            return;
+        }
         log.warn("커넥션 오류, 종료: {}", cause.toString());
         ctx.close();
     }
