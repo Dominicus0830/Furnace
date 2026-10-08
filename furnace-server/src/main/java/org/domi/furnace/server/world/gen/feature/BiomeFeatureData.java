@@ -771,6 +771,7 @@ public final class BiomeFeatureData {
             int dirtState = config.has("dirt_provider")
                 ? parseStateProvider(config.getAsJsonObject("dirt_provider"))
                 : registry.stateIdOrAir("minecraft:dirt");
+            buildVineNonAttachable();
             return new TreeFeature(new TreeConfig(
                 trunkState,
                 dirtState,
@@ -827,6 +828,15 @@ public final class BiomeFeatureData {
         // VinesFeature용 부착 불가 블록 집합 — vanilla canAttachTo(지지면/충돌면 full 판정)의 블랙리스트 근사.
         // 잎(leaves)은 충돌면이 full이라 부착 가능하므로 포함하지 않는다.
         private ConfiguredFeature parseVines() {
+            Set<Integer> nonAttachable = buildVineNonAttachable();
+            Map<String, String> upProps = new LinkedHashMap<>(Map.of(
+                "east", "false", "north", "false", "south", "false", "up", "false", "west", "false"));
+            upProps.put("up", "true");
+            return new VinesFeature(nonAttachable, buildVineStates(),
+                registry.stateIdOrAir("minecraft:vine", upProps));
+        }
+
+        private Set<Integer> buildVineNonAttachable() {
             HashSet<Integer> nonAttachable = new HashSet<>();
             for (String name : new String[]{
                 "minecraft:air", "minecraft:cave_air", "minecraft:void_air",
@@ -851,11 +861,9 @@ public final class BiomeFeatureData {
             }) {
                 nonAttachable.addAll(registry.stateIdsForBlock(name));
             }
-            Map<String, String> upProps = new LinkedHashMap<>(Map.of(
-                "east", "false", "north", "false", "south", "false", "up", "false", "west", "false"));
-            upProps.put("up", "true");
-            return new VinesFeature(Set.copyOf(nonAttachable), buildVineStates(),
-                registry.stateIdOrAir("minecraft:vine", upProps));
+            Set<Integer> frozen = Set.copyOf(nonAttachable);
+            VineSupport.init(frozen);
+            return frozen;
         }
 
         private int[] buildVineStates() {

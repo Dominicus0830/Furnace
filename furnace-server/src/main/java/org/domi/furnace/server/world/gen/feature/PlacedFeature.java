@@ -24,6 +24,8 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
     }
 
 
+    private static final boolean LOG_ALL = System.getProperty("furnace.logall") != null;
+
     private boolean placeAt(FeatureWorldView view, WorldgenRandom random, BlockPos origin, Set<Integer> validBiomeIds) {
         Stream<BlockPos> positions = Stream.of(origin);
         for (PlacementModifier modifier : placement) {
@@ -51,6 +53,8 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
                     return;
                 }
             }
+            if (LOG_ALL) System.out.println("FURNACE_ALL view=" + view.debugCenter() + " " + feature.getClass().getSimpleName() + " " + pos.x() + "," + pos.y() + "," + pos.z());
+            if (FeatureWorldView.WATCHING && !(feature instanceof SimpleBlockFeature)) FeatureWorldView.debugOrigin = pos.x() + "," + pos.y() + "," + pos.z() + " " + feature.getClass().getSimpleName();
             boolean treeTrace = feature instanceof TreeFeature && RandomTrace.isActive();
             if (treeTrace) RandomTrace.beginTreePlacement(pos.x(), pos.y(), pos.z());
             try {

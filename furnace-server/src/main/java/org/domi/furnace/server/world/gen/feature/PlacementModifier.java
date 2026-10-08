@@ -85,7 +85,10 @@ public sealed interface PlacementModifier
     record PredicateFilter(BlockPredicate predicate) implements PlacementModifier {
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
-            return predicate.test(view, pos.x(), pos.y(), pos.z()) ? Stream.of(pos) : Stream.empty();
+            boolean ok = predicate.test(view, pos.x(), pos.y(), pos.z());
+            if (RandomTrace.isActive()) RandomTrace.log("predicate_at " + pos.x() + " " + pos.y() + " " + pos.z() + " state=" + view.getBlock(pos.x(), pos.y(), pos.z())
+                    + " below=" + view.getBlock(pos.x(), pos.y() - 1, pos.z()) + " -> " + ok);
+            return ok ? Stream.of(pos) : Stream.empty();
         }
     }
 
@@ -149,6 +152,15 @@ public sealed interface PlacementModifier
     }
 
     /** heightmap 타입별로 vanilla 높이맵 의미를 근사한다. */
+    // 디버그: -Dfurnace.hmwatch=x,z — 해당 칸의 heightmap 조회 결과를 stdout에 남긴다.
+    static final int[] HM_WATCH = parseHmWatch(System.getProperty("furnace.hmwatch"));
+
+    private static int[] parseHmWatch(String v) {
+        if (v == null) return null;
+        String[] p = v.split(",");
+        return new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim())};
+    }
+
     record HeightmapPlacement(Type type) implements PlacementModifier {
         enum Type {
             WORLD_SURFACE_WG,
@@ -167,6 +179,9 @@ public sealed interface PlacementModifier
                 case MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES ->
                     view.getSurfaceY(pos.x(), pos.z()) + 1;
             };
+            if (HM_WATCH != null && HM_WATCH[0] == pos.x() && HM_WATCH[1] == pos.z()) {
+                System.out.println("FURNACE_HMWATCH " + type + " x=" + pos.x() + " z=" + pos.z() + " -> y=" + y);
+            }
             if (y < ChunkColumn.MIN_Y) return Stream.empty();
             return Stream.of(new BlockPos(pos.x(), y, pos.z()));
         }

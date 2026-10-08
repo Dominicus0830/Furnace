@@ -80,7 +80,26 @@ public final class FeatureWorldView {
         return col.getBlock(worldX - cx * 16, worldY, worldZ - cz * 16);
     }
 
+    // 디버그: -Dfurnace.watch=x,y,z 를 주면 해당 칸에 쓰는 setBlock을 RandomTrace로 남긴다(호출 스택 1줄 포함).
+    /** 디버그: 마지막으로 배치를 시작한 placed feature의 origin(watch 출력용). */
+    static volatile String debugOrigin = "";
+    private static final int[] WATCH = parseWatch(System.getProperty("furnace.watch"));
+    static final boolean WATCHING = WATCH != null;
+
+    private static int[] parseWatch(String v) {
+        if (v == null) return null;
+        String[] p = v.split(",");
+        return new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()), Integer.parseInt(p[2].trim())};
+    }
+
+    String debugCenter() { return cx + "," + cz; }
+
     public void setBlock(int worldX, int worldY, int worldZ, int stateId) {
+        if (WATCH != null && WATCH[0] == worldX && WATCH[1] == worldY && WATCH[2] == worldZ) {
+            StackTraceElement[] st = new Throwable().getStackTrace();
+            System.out.println("FURNACE_WATCH set " + worldX + " " + worldY + " " + worldZ + " state=" + stateId + " viewCenter=" + cx + "," + cz
+                + " origin=" + debugOrigin + " by " + (st.length > 1 ? st[1] : "?") + " <- " + (st.length > 2 ? st[2] : "?") + " <- " + (st.length > 3 ? st[3] : "?"));
+        }
         if (gridCols != null) {
             setGridBlock(worldX, worldY, worldZ, stateId);
             return;
