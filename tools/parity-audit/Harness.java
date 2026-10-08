@@ -243,8 +243,13 @@ public class Harness {
                 if (t.length == 2) only.add(((long) Integer.parseInt(t[0]) << 32) ^ (Integer.parseInt(t[1]) & 0xFFFFFFFFL));
             }
         }
+        // HARNESS_REPLAY=ranks파일이면 요청 청크 독립 계산 대신 순정의 decorate 순서를 공유 월드에서 재생한다(Replay 참조).
+        Replay replay = null;
+        String replayFile = System.getenv("HARNESS_REPLAY");
+        if (replayFile != null && !replayFile.isBlank()) replay = new Replay(src, Path.of(replayFile));
         for (int cz = cz0; cz <= cz1; cz++) {
             for (int cx = cx0; cx <= cx1; cx++) {
+                if (replay != null && !replay.valid(cx, cz)) continue;
                 if (only != null && !only.contains(((long) cx << 32) ^ (cz & 0xFFFFFFFFL))) continue;
                 List<Map<String, Object>> vroots = new ArrayList<>();
                 for (Path w : worlds) {
@@ -256,7 +261,7 @@ public class Harness {
                 short[][] v = new short[worlds.size()][];
                 for (int i = 0; i < v.length; i++) v[i] = vanillaBlocks(vroots.get(i));
 
-                ChunkColumn col = "carvers".equals(System.getenv("FURNACE_MODE")) ? src.generateWithCarvers(cx, cz) : src.generateWithFeatures(cx, cz);
+                ChunkColumn col = replay != null ? replay.column(cx, cz) : "carvers".equals(System.getenv("FURNACE_MODE")) ? src.generateWithCarvers(cx, cz) : src.generateWithFeatures(cx, cz);
                 short[] f = new short[16 * 16 * H];
                 for (int y = MIN_Y; y < MIN_Y + H; y++)
                     for (int z = 0; z < 16; z++)

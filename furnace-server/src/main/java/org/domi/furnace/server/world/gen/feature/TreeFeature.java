@@ -186,9 +186,14 @@ public final class TreeFeature implements ConfiguredFeature {
                 BlockPos next = new BlockPos(pos.x() + dir.dx(), pos.y() + dir.dy(), pos.z() + dir.dz());
                 if (!bounds.contains(next) || mask.isFilled(next)) continue;
                 int nextState = view.getBlock(next.x(), next.y(), next.z());
-                if (!isLeaves(nextState)) continue;
+                // vanilla LeavesBlock.getOptionalDistanceAt: 통나무(#logs)는 거리 0, DISTANCE 속성이 있는 잎은 그 값, 나머지는 건너뜀.
+                // 이 나무 것이 아닌 통나무(이웃 나무)도 거리 0 원천으로 합류한다.
+                int base;
+                if (isLog(nextState)) base = 0;
+                else if (isLeaves(nextState)) base = anyLeafDistance(nextState);
+                else continue;
 
-                int nextDistance = Math.min(anyLeafDistance(nextState), distance + 1);
+                int nextDistance = Math.min(base, distance + 1);
                 if (nextDistance >= 7) continue;
                 buckets.get(nextDistance).add(next);
                 distance = Math.min(distance, nextDistance);
@@ -323,6 +328,22 @@ public final class TreeFeature implements ConfiguredFeature {
 
     public static boolean isWater(int stateId) {
         return stateId >= WATER_MIN_STATE && stateId <= WATER_MAX_STATE;
+    }
+
+    private static volatile boolean[] logTable;
+
+    /** BlockTags.LOGS 소속 state인가(상태 id 표는 첫 사용 때 한 번 만든다). */
+    private static boolean isLog(int stateId) {
+        boolean[] t = logTable;
+        if (t == null) {
+            org.domi.furnace.server.world.BlockRegistry r = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+            t = new boolean[r.totalStateCount()];
+            for (String b : BlockTags.get().blocksOf("minecraft:logs")) {
+                for (int s : r.stateIdsForBlock(b)) t[s] = true;
+            }
+            logTable = t;
+        }
+        return stateId >= 0 && stateId < t.length && t[stateId];
     }
 
     public static boolean isLeaves(int stateId) {

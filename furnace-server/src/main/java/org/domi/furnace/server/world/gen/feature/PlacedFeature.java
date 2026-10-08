@@ -27,6 +27,15 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
     private boolean placeAt(FeatureWorldView view, WorldgenRandom random, BlockPos origin, Set<Integer> validBiomeIds) {
         Stream<BlockPos> positions = Stream.of(origin);
         for (PlacementModifier modifier : placement) {
+            if (RandomTrace.isActive()) {
+                positions = positions.flatMap(pos -> {
+                    java.util.List<BlockPos> out = modifier.filter(view, random, pos).collect(java.util.stream.Collectors.toList());
+                    RandomTrace.log("modifier " + modifier.getClass().getSimpleName() + " in=(" + pos.x() + "," + pos.y() + "," + pos.z() + ") out=" + out.size()
+                        + (out.size() == 1 ? " (" + out.get(0).x() + "," + out.get(0).y() + "," + out.get(0).z() + ")" : ""));
+                    return out.stream();
+                });
+                continue;
+            }
             positions = positions.flatMap(pos -> modifier.filter(view, random, pos));
         }
 
@@ -36,6 +45,7 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
                 + " feature=" + feature.getClass().getSimpleName());
             if (validBiomeIds != null && !validBiomeIds.isEmpty()) {
                 int biomeId = view.getBlendedBiomeId(pos.x(), pos.y(), pos.z());
+                if (RandomTrace.isActive()) RandomTrace.log("vbio " + pos.x() + " " + pos.y() + " " + pos.z() + " id=" + biomeId + " -> " + validBiomeIds.contains(biomeId));
                 if (!validBiomeIds.contains(biomeId)) {
                     if (RandomTrace.isActive()) RandomTrace.log("placed_feature_skip_biome biomeId=" + biomeId);
                     return;

@@ -408,6 +408,20 @@ public final class NoiseWorldSource implements WorldSource {
         applyCarvers(col, cx, cz, nc);
     }
 
+    /** 디버그: quart 좌표(월드 quart x, 월드 quart y=블록y/4, 월드 quart z)의 기후 타깃 6개(온도·습도·대륙성·침식·깊이·기이함). */
+    public long[] climateTarget(int quartX, int quartY, int quartZ) {
+        org.domi.furnace.server.world.gen.df.DensityFunction.SinglePointContext ctx =
+            new org.domi.furnace.server.world.gen.df.DensityFunction.SinglePointContext(quartX * 4, quartY * 4, quartZ * 4);
+        return new long[] {
+            BiomeSampler.quantize((float) router.temperature().compute(ctx)),
+            BiomeSampler.quantize((float) router.humidity().compute(ctx)),
+            BiomeSampler.quantize((float) router.continents().compute(ctx)),
+            BiomeSampler.quantize((float) router.erosion().compute(ctx)),
+            BiomeSampler.quantize((float) router.depth().compute(ctx)),
+            BiomeSampler.quantize((float) router.ridges().compute(ctx))
+        };
+    }
+
     public int[] sampleBiomes(int cx, int cz) {
         NoiseChunk nc = new NoiseChunk(cx, cz, router, settings, reg);
         return biomeSampler.sampleChunk(cx, cz, nc);

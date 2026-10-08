@@ -136,6 +136,7 @@ public sealed interface PlacementModifier
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             int oceanFloor = view.getOceanFloorY(pos.x(), pos.z());
             int worldSurface = view.getSurfaceY(pos.x(), pos.z());
+            if (RandomTrace.isActive()) RandomTrace.log("swd oceanFloor=" + oceanFloor + " worldSurface=" + worldSurface + " blocks[ws]=" + view.getBlock(pos.x(), worldSurface, pos.z()) + " blocks[of]=" + view.getBlock(pos.x(), oceanFloor, pos.z()));
             return worldSurface - oceanFloor <= maxWaterDepth ? Stream.of(pos) : Stream.empty();
         }
     }

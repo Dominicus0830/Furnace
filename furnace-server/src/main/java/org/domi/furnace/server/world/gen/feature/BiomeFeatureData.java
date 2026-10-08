@@ -57,13 +57,14 @@ public final class BiomeFeatureData {
     // parseConfigured의 if-chain과 반드시 동기화(타입 추가/제거 시 여기도 갱신).
     public static final Set<String> HANDLED_CONFIGURED_FEATURE_TYPES = Set.of(
         "minecraft:ore", "minecraft:scattered_ore", "minecraft:spring_feature", "minecraft:disk",
-        "minecraft:random_patch", "minecraft:flower", "minecraft:simple_block", "minecraft:seagrass",
+        "minecraft:random_patch", "minecraft:flower", "minecraft:no_bonemeal_flower", "minecraft:simple_block", "minecraft:seagrass",
         "minecraft:kelp", "minecraft:freeze_top_layer", "minecraft:geode", "minecraft:tree",
         "minecraft:random_selector", "minecraft:random_boolean_selector", "minecraft:simple_random_selector",
         "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines",
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
-        "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake"
+        "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake", "minecraft:desert_well",
+        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -257,7 +258,7 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:disk")) {
                 return parseDisk(config);
             }
-            if (type.equals("minecraft:random_patch") || type.equals("minecraft:flower")) {
+            if (type.equals("minecraft:random_patch") || type.equals("minecraft:flower") || type.equals("minecraft:no_bonemeal_flower")) {
                 // FlowerFeature는 RandomPatchFeature와 place 동일.
                 return parseRandomPatch(config);
             }
@@ -357,6 +358,21 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:monster_room")) {
                 return new MonsterRoomFeature(registry);
+            }
+            if (type.equals("minecraft:coral_tree")) {
+                return CoralFeature.of(CoralFeature.Shape.TREE, registry);
+            }
+            if (type.equals("minecraft:coral_claw")) {
+                return CoralFeature.of(CoralFeature.Shape.CLAW, registry);
+            }
+            if (type.equals("minecraft:coral_mushroom")) {
+                return CoralFeature.of(CoralFeature.Shape.MUSHROOM, registry);
+            }
+            if (type.equals("minecraft:sea_pickle")) {
+                return new SeaPickleFeature(treeIntProvider(config.get("count"), 20), registry);
+            }
+            if (type.equals("minecraft:desert_well")) {
+                return new DesertWellFeature(registry);
             }
             if (type.equals("minecraft:lake")) {
                 return new LakeFeature(parseState(config.getAsJsonObject("fluid").getAsJsonObject("state")),
@@ -689,23 +705,17 @@ public final class BiomeFeatureData {
             if (!"minecraft:simple_state_provider".equals(fallback.get("type").getAsString())) {
                 return NoopFeature.INSTANCE;
             }
-            int fallbackId = registry.stateIdOrAir(fallback.getAsJsonObject("state").get("Name").getAsString());
+            int fallbackId = parseState(fallback.getAsJsonObject("state"));
             java.util.List<DiskFeature.Rule> rules = new java.util.ArrayList<>();
             for (JsonElement rel : sp.has("rules") ? sp.getAsJsonArray("rules") : new JsonArray()) {
                 JsonObject rule = rel.getAsJsonObject();
-                JsonObject cond = rule.getAsJsonObject("if_true");
                 JsonObject then = rule.getAsJsonObject("then");
-                if (!"minecraft:matching_blocks".equals(cond.get("type").getAsString())
-                    || !"minecraft:simple_state_provider".equals(then.get("type").getAsString())) {
-                    return NoopFeature.INSTANCE;
-                }
-                JsonElement offset = cond.get("offset");
-                if (offset == null || !offset.toString().equals("[0,-1,0]")) {
+                if (!"minecraft:simple_state_provider".equals(then.get("type").getAsString())) {
                     return NoopFeature.INSTANCE;
                 }
                 rules.add(new DiskFeature.Rule(
-                    parseBlockSet(cond.get("blocks")),
-                    registry.stateIdOrAir(then.getAsJsonObject("state").get("Name").getAsString())));
+                    predicates().parse(rule.getAsJsonObject("if_true")),
+                    parseState(then.getAsJsonObject("state"))));
             }
             return new DiskFeature(
                 fallbackId,

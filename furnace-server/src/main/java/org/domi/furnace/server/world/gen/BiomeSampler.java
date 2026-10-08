@@ -25,8 +25,21 @@ public final class BiomeSampler {
     private final long[] groupDepthMax;   // [g]
     private final int[][] groupEntryIdx;  // [g][k] → entries index
 
+    private final ClimateRTree rtree;
+
     private BiomeSampler(List<BiomeEntry> entries) {
         this.entries = entries;
+        List<ClimateRTree.Leaf> leaves = new ArrayList<>(entries.size());
+        for (BiomeEntry e : entries) {
+            long[] mn = new long[7];
+            long[] mx = new long[7];
+            System.arraycopy(e.paramsMin(), 0, mn, 0, 6);
+            System.arraycopy(e.paramsMax(), 0, mx, 0, 6);
+            mn[6] = e.offset();
+            mx[6] = e.offset();
+            leaves.add(new ClimateRTree.Leaf(mn, mx, e.registryId()));
+        }
+        this.rtree = entries.isEmpty() ? null : new ClimateRTree(leaves);
 
         Map<Long, List<Integer>> byDepth = new HashMap<>();
         List<Long> keyOrder = new ArrayList<>();
@@ -151,65 +164,22 @@ public final class BiomeSampler {
      */
     public int[] sampleChunk(int cx, int cz, NoiseChunk noiseChunk) {
         int[] result = new int[1536];
-        int n = entries.size();
-        if (n == 0) return result;
+        if (rtree == null) return result;
 
+        // 바닐라 ChunkAccess.fillBiomesFromNoise 순서: 섹션을 아래에서 위로, 섹션 안에서 x 바깥 · y 가운데 · z 안쪽.
+        // R-tree는 직전 결과 leaf를 탐색 출발점으로 쓰므로(거리 동률 시 직전 leaf 우선) 이 순서를 지켜야 동률이 같아진다.
+        // 청크 첫 쿼리의 직전 leaf는 바닐라에선 스레드 이력이라 알 수 없어 null로 시작한다.
         long[] target = new long[6];
-        int g = groupDepthMin.length;
-        long[] gMinConst = new long[g];
-        int[]  gMinIdx   = new int[g];
-
-        for (int qz = 0; qz < 4; qz++) {
+        ClimateRTree.Leaf last = null;
+        for (int section = 0; section < 24; section++) {
             for (int qx = 0; qx < 4; qx++) {
-                if (!noiseChunk.isClimateColumnYInvariant(qx, qz)) {
-                    // 폴백: 5차원이 Y-가변이면 quart 별 전체 linear (정확성 유지)
-                    for (int qy = 0; qy < 96; qy++) {
+                for (int dy = 0; dy < 4; dy++) {
+                    int qy = section * 4 + dy;
+                    for (int qz = 0; qz < 4; qz++) {
                         noiseChunk.fillTarget(qx, qy, qz, target);
-                        result[qy * 16 + qz * 4 + qx] = findBestEntry(target);
+                        last = rtree.search(target, last);
+                        result[qy * 16 + qz * 4 + qx] = last.value;
                     }
-                    continue;
-                }
-
-                // 컬럼당 1 pass: 그룹별 (min constPart, min entry idx)
-                noiseChunk.fillTarget(qx, 0, qz, target);
-                for (int gi = 0; gi < g; gi++) {
-                    long minConst = Long.MAX_VALUE;
-                    int minIdx = Integer.MAX_VALUE;
-                    for (int i : groupEntryIdx[gi]) {
-                        BiomeEntry e = entries.get(i);
-                        long[] mn = e.paramsMin();
-                        long[] mx = e.paramsMax();
-                        long c = e.offset() * e.offset();
-                        for (int d = 0; d < 6; d++) {
-                            if (d == 4) continue;
-                            long dd = paramDistance(mn[d], mx[d], target[d]);
-                            c += dd * dd;
-                        }
-                        if (c < minConst || (c == minConst && i < minIdx)) {
-                            minConst = c;
-                            minIdx = i;
-                        }
-                    }
-                    gMinConst[gi] = minConst;
-                    gMinIdx[gi]   = minIdx;
-                }
-
-                for (int qy = 0; qy < 96; qy++) {
-                    noiseChunk.fillTarget(qx, qy, qz, target);
-                    long dt = target[4];
-
-                    long bestFit = Long.MAX_VALUE;
-                    int bestIdx = Integer.MAX_VALUE;
-                    for (int gi = 0; gi < g; gi++) {
-                        long dd = paramDistance(groupDepthMin[gi], groupDepthMax[gi], dt);
-                        long f = gMinConst[gi] + dd * dd;
-                        int idx = gMinIdx[gi];
-                        if (f < bestFit || (f == bestFit && idx < bestIdx)) {
-                            bestFit = f;
-                            bestIdx = idx;
-                        }
-                    }
-                    result[qy * 16 + qz * 4 + qx] = entries.get(bestIdx).registryId();
                 }
             }
         }
@@ -217,16 +187,7 @@ public final class BiomeSampler {
     }
 
     private int findBestEntry(long[] target) {
-        if (entries.isEmpty()) return 0;
-        int bestId = entries.get(0).registryId();
-        long bestFitness = Long.MAX_VALUE;
-        for (BiomeEntry entry : entries) {
-            long f = fitnessWithCutoff(entry.paramsMin(), entry.paramsMax(), entry.offset(), target, bestFitness);
-            if (f < bestFitness) {
-                bestFitness = f;
-                bestId = entry.registryId();
-            }
-        }
-        return bestId;
+        if (rtree == null) return 0;
+        return rtree.search(target, null).value;
     }
 }
