@@ -126,6 +126,17 @@ public final class BlockRegistry {
         return stateIdOrAir(name);
     }
 
+    /** canonical key(name 또는 name;k=v,...) → exact global state id. 없으면 -1(default 폴백 없음). */
+    public int exactStateId(String canonicalKey) {
+        Integer id = stateIds.get(canonicalKey);
+        return id == null ? -1 : id;
+    }
+
+    /** 등록된 모든 블록 이름(default state 표 기준). */
+    public Set<String> blockNames() {
+        return blockIndex().keySet();
+    }
+
     public int totalStateCount() {
         return totalStateCount;
     }
