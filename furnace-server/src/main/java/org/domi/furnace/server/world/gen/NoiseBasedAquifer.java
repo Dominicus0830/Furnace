@@ -56,12 +56,12 @@ public final class NoiseBasedAquifer implements Aquifer {
                              XoroshiroPositionalRandomFactory positionalRandom,
                              int stoneId, int waterId, int lavaId) {
         this.noiseChunk = noiseChunk;
-        this.barrierNoise = router.barrierNoise();
-        this.fluidLevelFloodednessNoise = router.fluidLevelFloodednessNoise();
-        this.fluidLevelSpreadNoise = router.fluidLevelSpreadNoise();
-        this.lavaNoise = router.lavaNoise();
-        this.erosion = router.erosion();
-        this.depth = router.depth();
+        this.barrierNoise = noiseChunk.wrappedForAquifer(router.barrierNoise());
+        this.fluidLevelFloodednessNoise = noiseChunk.wrappedForAquifer(router.fluidLevelFloodednessNoise());
+        this.fluidLevelSpreadNoise = noiseChunk.wrappedForAquifer(router.fluidLevelSpreadNoise());
+        this.lavaNoise = noiseChunk.wrappedForAquifer(router.lavaNoise());
+        this.erosion = noiseChunk.wrappedForAquifer(router.erosion());
+        this.depth = noiseChunk.wrappedForAquifer(router.depth());
         this.positionalRandomFactory = positionalRandom;
 
         this.seaLevel = settings.seaLevel();
@@ -336,7 +336,15 @@ public final class NoiseBasedAquifer implements Aquifer {
         }
     }
 
+    private static final boolean AQ_CENTERS = System.getProperty("furnace.aqcenters") != null;
+
     private FluidStatus computeFluid(int x, int y, int z) {
+        FluidStatus r = computeFluid0(x, y, z);
+        if (AQ_CENTERS) System.out.println("FAQC " + x + " " + y + " " + z + " level=" + r.fluidLevel() + " fluid=" + r.fluidBlockId());
+        return r;
+    }
+
+    private FluidStatus computeFluid0(int x, int y, int z) {
         FluidStatus fluidStatus = globalFluidPicker(x, y, z);
         int i = Integer.MAX_VALUE;
         int i1 = y + 12;

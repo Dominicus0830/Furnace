@@ -270,6 +270,14 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     // wrap: marker → 셀 인식 구현체로 교체
     // ─────────────────────────────────────────────────────────────────────
 
+    /**
+     * 이 NoiseChunk의 wrap 규칙(FlatCache = 쿼트 XZ 정렬값, 청크 밖은 직접 계산 등)을 그대로 적용한 DF — 바닐라는 aquifer에
+     * NoiseChunk가 mapAll(wrap)한 라우터를 넘기므로 erosion/depth의 flat_cache가 청크 문맥에 따라 쿼트 정렬값을 돌려준다.
+     */
+    public DensityFunction wrappedForAquifer(DensityFunction df) {
+        return df.mapAll(this::wrap);
+    }
+
     private DensityFunction wrap(DensityFunction df) {
         return wrapped.computeIfAbsent(df, this::wrapNew);
     }
@@ -539,6 +547,20 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         return mask;
     }
 
+    // 디버그: -Dfurnace.aqwatch=x,y,z;x,y,z — 해당 칸의 density·aquifer 결과를 stdout에 남긴다.
+    private static final int[][] AQ_WATCH = parseAqWatch(System.getProperty("furnace.aqwatch"));
+
+    private static int[][] parseAqWatch(String v) {
+        if (v == null) return null;
+        String[] parts = v.split(";");
+        int[][] out = new int[parts.length][];
+        for (int i = 0; i < parts.length; i++) {
+            String[] p = parts[i].split(",");
+            out[i] = new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()), Integer.parseInt(p[2].trim())};
+        }
+        return out;
+    }
+
     /**
      * 전체 청크(16×height×16)에 대해 블록 state ID를 반환한다.
      * density > 0 → stoneId, density ≤ 0 → aquifer.computeSubstance(this, density).
@@ -614,8 +636,22 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                         blocks[idx] = vein != OreVeinifier.NO_VEIN ? vein : stoneId;
                                     } else {
                                         int substance = aquifer.computeSubstance(this, density);
-                                        // NO_CARVE (-1) means barrier prevents fluid: use defaultBlock (stone)
-                                        blocks[idx] = substance == Aquifer.NO_CARVE ? stoneId : substance;
+                                        if (AQ_WATCH != null) {
+                                            for (int[] w : AQ_WATCH) {
+                                                if (w[0] == blockX && w[1] == blockY && w[2] == blockZ) {
+                                                    System.out.println("FAQ " + blockX + " " + blockY + " " + blockZ + " density=" + density + " -> " + substance);
+                                                }
+                                            }
+                                        }
+                                        if (substance == Aquifer.NO_CARVE) {
+                                            // 바닐라 material rule 체인 [aquifer, oreVeinifier]: aquifer가 null(장벽으로 유체가 막힘)을 돌려주면
+                                            // 다음 규칙인 oreVeinifier가 실행되고, 그래도 null이면 기본 블록(stone)이다.
+                                            int vein = this.oreVeinifier == null
+                                                ? OreVeinifier.NO_VEIN : this.oreVeinifier.veinStateId(this);
+                                            blocks[idx] = vein != OreVeinifier.NO_VEIN ? vein : stoneId;
+                                        } else {
+                                            blocks[idx] = substance;
+                                        }
                                     }
                                 }
                             }
