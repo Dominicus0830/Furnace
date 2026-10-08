@@ -241,15 +241,6 @@ public final class Region {
         return players.isEmpty() && chunks.isEmpty() && loading.isEmpty();
     }
 
-    /** 접속 중 플레이어 위치 저장(종료 flush용). */
-    public void savePlayers(java.nio.file.Path worldDir, java.util.concurrent.ExecutorService io) {
-        for (Player p : players.values()) {
-            final Player fp = p;
-            io.execute(() -> org.domi.furnace.server.entity.PlayerData.save(
-                    worldDir, fp.uuid(), fp.x(), fp.y(), fp.z(), fp.yaw(), fp.pitch(), fp.onGround()));
-        }
-    }
-
     /** 소유 스레드서 플레이어 편입. */
     public void adopt(Player p) {
         world.assertOwns(pos);

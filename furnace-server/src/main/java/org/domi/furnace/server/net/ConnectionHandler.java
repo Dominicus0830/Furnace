@@ -285,6 +285,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 spawnChunks.stream().map(world::serializedChunkBody).toList();
         sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
+        scheduleAutosave(ctx);
         scheduleSpawnGateRelease();
     }
 
@@ -633,16 +634,47 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     public void channelInactive(ChannelHandlerContext ctx) {
         Player p = player;
         if (p != null) {
-            ItemStack[] snapshot = copySlots();
-            // IO 전용 위치(ix..)를 저장 — Player.x()는 region이 drainPending 전이면 0,0,0이다(초기 접속 직후 끊김).
-            final double sx = ix, sy = iy, sz = iz;
-            final float syaw = iyaw, spitch = ipitch;
-            final boolean sg = ig;
-            scheduler.global().execute(() -> org.domi.furnace.server.entity.PlayerData.save(
-                    world.worldDir(), p.uuid(), sx, sy, sz, syaw, spitch, sg, snapshot));
+            savePlayerSnapshot();
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
         }
+    }
+
+    /**
+     * 이벤트 루프가 가진 위치·인벤토리를 스냅샷 떠서 IO 풀로 저장한다(퇴장·자동저장 공용).
+     * 시퀀스 번호로 풀에서 순서가 뒤바뀌어도 옛 스냅샷이 최신을 덮어쓰지 못한다. IO 풀은 종료 훅이 대기하므로 종료 시 저장도 마무리된다.
+     */
+    private void savePlayerSnapshot() {
+        Player p = player;
+        if (p == null) return;
+        final ItemStack[] snapshot = copySlots();
+        final double sx = ix, sy = iy, sz = iz;     // IO 전용 최신 위치(Player.x()는 region drain 전이면 0,0,0)
+        final float syaw = iyaw, spitch = ipitch;
+        final boolean sg = ig;
+        final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
+        try {
+            world.ioPool().execute(() -> {
+                try {
+                    org.domi.furnace.server.entity.PlayerData.saveSequenced(seq, world.worldDir(), p.uuid(),
+                            sx, sy, sz, syaw, spitch, sg, snapshot);
+                } catch (RuntimeException e) {
+                    log.error("플레이어 저장 실패 {}", p.name(), e);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            log.error("플레이어 저장 거부(종료 중): {}", p.name());
+        }
+    }
+
+    /** 자동저장 주기(autosave-ticks)마다 접속 중인 플레이어를 저장한다. 연결이 닫히면 멈춘다. */
+    private void scheduleAutosave(ChannelHandlerContext c) {
+        long periodMs = Math.max(50L, (long) Math.min(world.autosaveTicks(), Integer.MAX_VALUE / 100) * 50L);
+        if (world.autosaveTicks() == Integer.MAX_VALUE) return;   // 비활성(테스트 기본)
+        c.executor().schedule(() -> {
+            if (!c.channel().isActive()) return;
+            savePlayerSnapshot();
+            scheduleAutosave(c);
+        }, periodMs, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
     private void scheduleKeepAlive() {

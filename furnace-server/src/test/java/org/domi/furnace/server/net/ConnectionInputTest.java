@@ -40,6 +40,7 @@ class ConnectionInputTest {
     private ConnectionHandler handler;
     private Player p;
     private List<int[]> joinOut;
+    private int autosaveTicksForJoin = Integer.MAX_VALUE;
 
     private static ByteBuf frame(int id, Consumer<ByteBuf> body) {
         ByteBuf b = Unpooled.buffer();
@@ -60,6 +61,7 @@ class ConnectionInputTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
+        world.configurePersistence(autosaveTicksForJoin, 100);
         world.worldDir(tmp);                 // 저장 위치/인벤토리를 실제 world/ 가 아닌 임시 폴더에서 읽는다
         world.defaultSpawn(spawn);
         handler = new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator());
@@ -279,6 +281,25 @@ class ConnectionInputTest {
         assertEquals(1, count(out, 0x1D), "기존 세션에 Disconnect(0x1D)가 가야 한다");
         assertFalse(ch.isActive(), "기존 세션은 끊겨야 한다");
         second.close();
+    }
+
+    /** 플레이어 위치·인벤토리는 접속 해제·종료 때만이 아니라 주기적으로도 저장돼야 한다(크래시 시 접속 이후 전부 손실 방지). */
+    @Test
+    void autosave_persistsPlayerWhileStillConnected() throws Exception {
+        autosaveTicksForJoin = 2;     // 2틱 = 100ms
+        join(new SpawnPoint(0, -60, 0, 0f));
+        move(ch, 10, -60, 3);
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        org.domi.furnace.server.entity.PlayerData.Snapshot s = null;
+        while (System.nanoTime() < deadline) {
+            ch.runPendingTasks();
+            s = org.domi.furnace.server.entity.PlayerData.load(tmp, p.uuid());
+            if (s != null && s.x() == 10.0) break;
+            Thread.sleep(50);
+        }
+        assertTrue(ch.isActive(), "아직 접속 중이어야 한다");
+        assertNotNull(s, "자동저장으로 파일이 있어야 한다");
+        assertEquals(10.0, s.x());
     }
 
     /** 연결이 끊기면 region 틱을 기다리지 않고 즉시 접속자 집합(탭 기준)에서 빠져야 한다 — adopt 전에 끊긴 경우의 누수 방지. */

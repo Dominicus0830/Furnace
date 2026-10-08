@@ -117,11 +117,10 @@ public final class World {
         }
     }
 
-    /** 종료용: 스레드 idx의 모든 region의 dirty 청크 + 접속 플레이어 저장(owner 스레드서 호출). */
+    /** 종료용: 스레드 idx의 모든 region의 dirty 청크 저장(owner 스레드서 호출). 플레이어 저장은 각 연결의 channelInactive가 IO 위치·인벤토리로 한다. */
     public void flushThread(int index) {
         for (Region r : regionsByThread[index].values()) {
             r.saveDirtyChunks();
-            r.savePlayers(worldDir, ioPool);
         }
     }
 

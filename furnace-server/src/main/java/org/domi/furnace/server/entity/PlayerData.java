@@ -22,12 +22,28 @@ public final class PlayerData {
         return worldDir.resolve("playerdata").resolve(id + ".dat");
     }
 
-    public static void save(Path worldDir, UUID id, double x, double y, double z,
-                            float yaw, float pitch, boolean onGround) {
-        ItemStack[] slots = null;
-        Snapshot existing = load(worldDir, id);
-        if (existing != null) slots = existing.slots();
-        save(worldDir, id, x, y, z, yaw, pitch, onGround, slots);
+    private static final java.util.concurrent.atomic.AtomicLong SEQ = new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.ConcurrentHashMap<UUID, Long> LAST_SEQ = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<UUID, Object> LOCKS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static Object lock(UUID id) {
+        return LOCKS.computeIfAbsent(id, k -> new Object());
+    }
+
+    /** 저장 요청 순서표. 스냅샷을 뜨는 시점에 받아 saveSequenced에 넘기면 늦게 도착한 옛 스냅샷이 최신을 덮어쓰지 못한다. */
+    public static long nextSeq() {
+        return SEQ.incrementAndGet();
+    }
+
+    /** 같은 플레이어의 더 새로운 시퀀스가 이미 기록됐으면 건너뛰는 저장(자동저장·퇴장 저장이 풀에서 뒤바뀌어도 안전). */
+    public static void saveSequenced(long seq, Path worldDir, UUID id, double x, double y, double z,
+                                     float yaw, float pitch, boolean onGround, ItemStack[] slots) {
+        synchronized (lock(id)) {
+            Long last = LAST_SEQ.get(id);
+            if (last != null && last > seq) return;
+            LAST_SEQ.put(id, seq);
+            save(worldDir, id, x, y, z, yaw, pitch, onGround, slots);
+        }
     }
 
     public static void save(Path worldDir, UUID id, double x, double y, double z,
@@ -44,8 +60,17 @@ public final class PlayerData {
         try {
             Path f = file(worldDir, id);
             Files.createDirectories(f.getParent());
-            try (var os = Files.newOutputStream(f)) {
-                NbtIo.writeGzip(os, root, "");
+            // 임시 파일에 쓰고 원자적으로 교체 — 쓰는 도중 크래시/동시 읽기에서도 잘린 파일이 보이지 않는다.
+            synchronized (lock(id)) {
+                Path tmp = f.resolveSibling(f.getFileName() + ".tmp");
+                try (var os = Files.newOutputStream(tmp)) {
+                    NbtIo.writeGzip(os, root, "");
+                }
+                try {
+                    Files.move(tmp, f, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                    Files.move(tmp, f, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException("playerdata 저장 실패 " + id, e);
@@ -58,6 +83,7 @@ public final class PlayerData {
      */
     public static Snapshot load(Path worldDir, UUID id) {
         Path f = file(worldDir, id);
+        synchronized (lock(id)) {
         if (!Files.exists(f)) return null;
         try (var is = Files.newInputStream(f)) {
             NbtCompound root = NbtIo.readGzip(is);
@@ -77,6 +103,7 @@ public final class PlayerData {
                 org.slf4j.LoggerFactory.getLogger(PlayerData.class).warn("손상된 playerdata 백업 실패 {}", id, moveFail);
             }
             return null;
+        }
         }
     }
 
