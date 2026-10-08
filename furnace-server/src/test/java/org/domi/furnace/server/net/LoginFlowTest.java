@@ -141,4 +141,24 @@ class LoginFlowTest {
         String json = org.domi.furnace.server.net.protocol.status.StatusResponse.of("a\nb\t\u0001\"").json();
         assertFalse(json.chars().anyMatch(c -> c < 0x20), "제어문자가 JSON 문자열에 그대로 들어갔다: " + json);
     }
+
+    private static int packetId(ByteBuf b) { return Types.readVarInt(b); }
+
+    /** 구성 단계 순서: brand(0x01) → 기능 플래그(0x0C) → Known Packs(0x0E) → (응답 후) 레지스트리(0x07)… → Update Tags(0x0D) → Finish(0x03). */
+    @Test
+    void configurationSequence_matchesVanillaOrder() {
+        EmbeddedChannel ch = newConn();
+        handshake(ch, 767, 2);
+        loginStart(ch, "Tester");
+        ch.writeInbound(frame(0x03, null));
+        List<Integer> first = new ArrayList<>();
+        for (ByteBuf b : drain(ch)) first.add(packetId(b));
+        assertEquals(List.of(0x01, 0x0C, 0x0E), first.subList(first.size() - 3, first.size()));
+        ch.writeInbound(frame(0x07, b -> Types.writeVarInt(b, 0)));
+        List<Integer> second = new ArrayList<>();
+        for (ByteBuf b : drain(ch)) second.add(packetId(b));
+        int tags = second.indexOf(0x0D), fin = second.indexOf(0x03), lastReg = second.lastIndexOf(0x07);
+        assertTrue(tags > lastReg && fin > tags, "레지스트리 → 태그 → Finish 순서: " + second);
+        assertEquals(fin, second.size() - 1);
+    }
 }

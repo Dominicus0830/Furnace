@@ -14,7 +14,10 @@ import org.domi.furnace.server.net.io.CompressionEncoder;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ConnectionState;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.configuration.BrandPayload;
 import org.domi.furnace.server.net.protocol.configuration.ConfigDisconnect;
+import org.domi.furnace.server.net.protocol.configuration.FeatureFlags;
+import org.domi.furnace.server.net.protocol.configuration.UpdateTags;
 import org.domi.furnace.server.net.protocol.configuration.FinishConfiguration;
 import org.domi.furnace.server.net.protocol.configuration.KnownPacksClientbound;
 import org.domi.furnace.server.net.protocol.configuration.RegistryData;
@@ -37,7 +40,13 @@ import org.domi.furnace.server.net.protocol.play.GameEvent;
 import org.domi.furnace.server.net.protocol.play.KeepAliveClientbound;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
+import org.domi.furnace.server.net.protocol.play.ChangeDifficulty;
+import org.domi.furnace.server.net.protocol.play.InitializeBorder;
+import org.domi.furnace.server.net.protocol.play.PlayerAbilities;
+import org.domi.furnace.server.net.protocol.play.SetExperience;
+import org.domi.furnace.server.net.protocol.play.SetHealth;
 import org.domi.furnace.server.net.protocol.play.SetHeldSlot;
+import org.domi.furnace.server.net.protocol.play.SetTime;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
 import org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
@@ -60,6 +69,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private static final Logger log = LoggerFactory.getLogger(ConnectionHandler.class);
     private static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    private static final org.domi.furnace.server.net.registry.TagSet TAGS =
+            org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
 
     private final String serverName;
     private final int compressionThreshold;
@@ -194,6 +205,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private void onEnterConfiguration(ChannelHandlerContext ctx) {
+        send(ctx, new BrandPayload("Furnace"));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
+        send(ctx, FeatureFlags.vanilla());
         send(ctx, new KnownPacksClientbound());
     }
 
@@ -207,6 +220,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 for (String registry : REGISTRIES.registryKeys()) {
                     send(ctx, new RegistryData(registry, REGISTRIES.entries(registry)));
                 }
+                send(ctx, new UpdateTags(TAGS));   // 레지스트리 뒤, Finish 앞(바닐라 순서)
                 send(ctx, new FinishConfiguration());
                 finishConfigSent = true;
             }
@@ -242,7 +256,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         int effVd = effectiveViewDistance();
-        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, effVd));
+        // 바닐라처럼 서버의 view distance를 보낸다(클라 렌더 거리는 min(자기 설정, 이 값)). 스트리밍은 effVd(= min(서버, 클라 요청))로 한다.
+        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
+        send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
+        send(ctx, PlayerAbilities.creative());
         // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
         org.domi.furnace.server.entity.PlayerData.Snapshot saved =
                 org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
@@ -261,9 +278,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
+        send(ctx, InitializeBorder.vanillaDefault());
+        send(ctx, new SetTime(world.gameTime(), world.dayTime()));
         // 서버가 아는 인벤토리·선택 슬롯을 클라이언트에도 맞춘다(안 보내면 클라는 빈 손인데 서버는 아이템을 들고 있다).
         send(ctx, new ContainerSetContent(0, 0, copySlots(), ItemStack.EMPTY));
         send(ctx, new SetHeldSlot(selectedSlot));
+        send(ctx, new SetHealth(20f, 20, 5f));
+        send(ctx, new SetExperience(0f, 0, 0));
 
         // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
@@ -293,6 +314,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
+        scheduleTimeUpdate(ctx);
         scheduleSpawnGateRelease();
     }
 
@@ -672,6 +694,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } catch (java.util.concurrent.RejectedExecutionException e) {
             log.error("플레이어 저장 거부(종료 중): {}", p.name());
         }
+    }
+
+    /** 바닐라처럼 20틱(1초)마다 월드 시간을 보낸다 — 모든 플레이어가 같은 시계를 본다. */
+    private void scheduleTimeUpdate(ChannelHandlerContext c) {
+        c.executor().schedule(() -> {
+            if (!c.channel().isActive()) return;
+            send(c, new SetTime(world.gameTime(), world.dayTime()));
+            scheduleTimeUpdate(c);
+        }, 1000, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
     /** 자동저장 주기(autosave-ticks)마다 접속 중인 플레이어를 저장한다. 연결이 닫히면 멈춘다. */

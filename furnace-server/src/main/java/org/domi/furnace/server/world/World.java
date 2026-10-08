@@ -150,6 +150,22 @@ public final class World {
     public java.nio.file.Path worldDir() { return worldDir; }
     public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
 
+    // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
+    // level.dat이 없어 재시작하면 0으로 돌아간다(바닐라는 저장). 20틱 = 1초.
+    private final long clockStartNanos = System.nanoTime();
+    private final long clockStartGameTime = 0L;
+    private final long clockStartDayTime = 0L;
+
+    /** 서버가 켜진 뒤 경과한 게임 시간(틱). */
+    public long gameTime() {
+        return clockStartGameTime + (System.nanoTime() - clockStartNanos) / 50_000_000L;
+    }
+
+    /** 하루 시간(틱, 누적값; 클라이언트가 24000으로 나눠 쓴다). daylight cycle은 항상 진행. */
+    public long dayTime() {
+        return clockStartDayTime + (System.nanoTime() - clockStartNanos) / 50_000_000L;
+    }
+
     // 접속 중 플레이어(eid→Player). 탭 목록은 바닐라처럼 거리와 무관하게 이 집합 전체를 기준으로 한다.
     private final ConcurrentHashMap<Integer, Player> online = new ConcurrentHashMap<>();
     public void playerOnline(Player p) { online.put(p.entityId(), p); }

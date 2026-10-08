@@ -409,3 +409,14 @@
 - 5.2의 N1(접속자 집합 누수), N2(구독 경합), N3(이동 예산 + 시야 밖 청크 정리, >512 분기 수정), N4(패킷 속도 제한 + 인박스 드레인 시간 예산), N5(아이템 검증·numChanged 상한·커서 컴포넌트 연결 끊김), N7(Known Packs 1회), 종료 시 사유 전달, 중복 UUID 킥.
 
 남은 항목: #10(evict 직후 재구독 경합), #15(레거시 핑), #17(-ea), #19(RegionFile 개선), N6/N8/N9/N10, WriteBufferWaterMark, 바닐라 playerdata 인벤토리 변환, 상자 컴포넌트 변환, 바닐라 형식 저장, 그리고 2절의 모든 미구현 기능.
+
+## 7. 바닐라 1.21.1 서버 jar 확보 후 확정된 사실 (2026-10-08)
+
+사용자가 올린 분할 zip(server.z01~z05; 마지막 조각 `.zip`은 없음)에서 번들러 jar를 복원했다. 마지막 조각이 없어 내부 `server-1.21.1.jar`의 끝부분(약 1.1MB 압축)이 잘렸지만, 복원된 클래스 6,148개와 데이터 2,352개로 **바닐라 데이터 생성기(`net.minecraft.data.Main --all`)가 정상 실행**되어 `data/`, `reports/`(registries/blocks/items/packets/commands)를 얻었다. 검증: 복원된 JSON 1,476개가 생성기 출력과 완전히 동일(차이 0)하고, `version.json`은 1.21.1 / 월드 버전 3955 / 프로토콜 767. jar·생성 결과는 저장소에 올리지 않고(약 35MB, EULA), 추출 스크립트와 결과 데이터만 커밋한다(`tools/vanilla-data/`).
+
+확정/정정:
+- **`damage_type`은 47개가 맞다.** 앞서 "mace_smash 누락, 바닐라 48"이라고 쓴 것은 틀렸다(저장소와 생성기 모두 47, 이름 일치). 클라이언트바운드 play 패킷은 124개(이전 "122개"는 틀림), 서버바운드 58개.
+- `blocks/1.21.1.txt`(1060)와 `items/1.21.1.txt`(1333, id 전부 일치)는 바닐라와 정확히 같다. `registries/1.21.1.txt`는 `enchantment`(42개)만 빠져 있었고 추가했다.
+- 구현된 모든 패킷 id가 실제 `packets.json`과 일치한다(play 클라이언트바운드 28개 외 구성/로그인 포함).
+- 바이트코드 확인으로 정정: `SetTime`은 long 2개뿐(`tickDayTime` 불리언은 1.21.1에 없음), `ContainerClose`(clientbound)의 container id는 unsigned byte, `ChangeDifficulty`는 byte+bool.
+- **월드젠 리소스 출처 문제 확정(39개 파일에 실질 차이)**: `worldgen/1.21.1`의 일부가 바닐라 1.21.1과 다르다. 바이옴 `deep_lukewarm_ocean`·`lukewarm_ocean`·`mushroom_fields`의 step 9 기능 목록, `placed_feature/seagrass_simple`(바닐라는 `seagrass_simple`, 저장소는 `seagrass_mid`을 가리킴), 지옥 균류 4개의 `replaceable_blocks`(1.21.4의 `pale_oak_sapling` 포함)와 바이옴 `music` 항목 다수, 그리고 1.21.4 전용 파일 16개(pale_garden 계열). 나머지 차이는 JSON 형식(carvers 표기, music_volume)뿐이다. **그러나 이 파일을 바닐라 값으로 교체하면 FeatureSpill/FeatureOrder 등 패리티 테스트 다수가 깨진다** — 이 테스트들의 fixture가 1.21.1이 아닌 오라클(1.21.4 jar 가능성)에서 만들어졌기 때문이다. 교체 패치는 보관해 두었다(스크래치). 올바른 해결은 복원한 바닐라 jar로 실제 서버를 돌려 fixture를 새로 만드는 것이다.

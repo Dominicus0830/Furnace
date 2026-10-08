@@ -36,6 +36,14 @@ public final class Types {
         buf.writeByte(value);
     }
 
+    public static void writeVarLong(ByteBuf buf, long value) {
+        while ((value & ~((long) SEGMENT_BITS)) != 0L) {
+            buf.writeByte((int) ((value & SEGMENT_BITS) | CONTINUE_BIT));
+            value >>>= 7;
+        }
+        buf.writeByte((int) value);
+    }
+
     public static String readString(ByteBuf buf, int maxLen) {
         int len = readVarInt(buf);
         if (len < 0 || len > maxLen * 4) {

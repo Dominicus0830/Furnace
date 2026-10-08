@@ -16,6 +16,6 @@ public record ContainerClose(int containerId) implements Packet {
 
     @Override
     public void write(ByteBuf buf) {
-        Types.writeVarInt(buf, containerId);
+        buf.writeByte(containerId);   // 바닐라 1.21.1: unsigned byte (바이트코드 확인)
     }
 }

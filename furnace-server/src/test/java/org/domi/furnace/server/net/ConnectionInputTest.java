@@ -193,6 +193,24 @@ class ConnectionInputTest {
     }
 
     /** 월드 기본 스폰/저장 위치는 임의 좌표다 — 기준 위치를 (0,0)에서 시작하면 스폰이 100블록 밖일 때 첫 이동부터 거부된다. */
+    /** 접속 시 바닐라처럼 난이도·능력·보더·시간·체력·경험치와 서버 view distance가 전달돼야 한다. */
+    @Test
+    void join_sendsVanillaStatePackets() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        for (int id : new int[]{0x0B, 0x38, 0x25, 0x64, 0x5D, 0x5C}) {
+            assertEquals(1, count(joinOut, id), "접속 시 패킷 0x" + Integer.toHexString(id) + " 한 번 전송돼야 한다");
+        }
+    }
+
+    /** 월드 시간은 주기적으로 갱신되어 모든 플레이어가 같은 시계를 봐야 한다. */
+    @Test
+    void worldTime_isResentPeriodically() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        ch.advanceTimeBy(1100, java.util.concurrent.TimeUnit.MILLISECONDS);
+        ch.runScheduledPendingTasks();
+        assertTrue(count(drainOutbound(), 0x64) >= 1, "1초 뒤 SetTime이 다시 가야 한다");
+    }
+
     /** 저장된 인벤토리는 서버 메모리에만 두지 말고 접속 때 클라이언트에도 보내야 한다(안 보이는 아이템으로 설치되는 불일치 방지). */
     @Test
     void join_sendsSavedInventoryAndHeldSlot() throws Exception {
