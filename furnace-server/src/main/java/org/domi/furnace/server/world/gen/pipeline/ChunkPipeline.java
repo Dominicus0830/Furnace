@@ -55,11 +55,12 @@ public final class ChunkPipeline {
             CompletableFuture<PristineChunk> existing = pristineCache.get(key);
             if (existing != null) return existing;
             CompletableFuture<PristineChunk> future = CompletableFuture.supplyAsync(() -> {
-                ChunkColumn col = source.generate(cx, cz);
-                int[] biomeIds = source.sampleBiomes(cx, cz);
+                NoiseWorldSource.Generated generated = source.generateWithBiomes(cx, cz);
+                ChunkColumn col = generated.col();
+                int[] biomeIds = generated.biomeIds();
                 source.applyCarvers(col, cx, cz);
                 List<StructureStart> starts = source.applyStructureStarts(cx, cz);
-                return new PristineChunk(col, biomeIds, starts);
+                return new PristineChunk(col, biomeIds, source.biomeNamesOf(biomeIds), starts);
             }, genPool);
             pristineCache.put(key, future);
             return future;
@@ -71,6 +72,7 @@ public final class ChunkPipeline {
             ProtoColumn proto = new ProtoColumn(cx, cz);
             proto.col = pristine.col().copy();
             proto.biomeIds = pristine.biomeIds();
+            proto.biomeNames = pristine.biomeNames();
             proto.starts = pristine.starts();
             proto.status = GenStatus.STRUCTURE_STARTS;
             return proto;
@@ -147,7 +149,13 @@ public final class ChunkPipeline {
                         }
                         FeatureWorldView view = new FeatureWorldView(
                             viewGrid, viewBiomeGrid, ox, oz, cx, cz, GRID_RADIUS, false, source.seed());
-                        Set<String> neighborBiomes = source.collectNeighborBiomes(ox, oz);
+                        // origin 주변 3x3 청크의 biome 이름 합집합 — 5x5 grid에 이미 샘플된 값을 재사용(origin마다 9청크를 다시 샘플하지 않음)
+                        Set<String> neighborBiomes = new java.util.HashSet<>();
+                        for (int sdz = -1; sdz <= 1; sdz++) {
+                            for (int sdx = -1; sdx <= 1; sdx++) {
+                                neighborBiomes.addAll(grid[gridIndex(ddx + sdx, ddz + sdz)].biomeNames);
+                            }
+                        }
 
                         // STRUCTURE_REFERENCES 상당: radius 8 내 모든 start 중 BoundingBox가 이 origin 청크에
                         // 걸치는 것만 수집(F6). 5x5 grid 내부 start + 공용 ring start를 합쳐서 필터링.

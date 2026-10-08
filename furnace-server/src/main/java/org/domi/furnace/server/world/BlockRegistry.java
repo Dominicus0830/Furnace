@@ -130,20 +130,34 @@ public final class BlockRegistry {
         return totalStateCount;
     }
 
-    /** 블록명에 속한 모든 state id 집합. exact blockstate 테이블이 없으면 default state만 반환. */
-    public Set<Integer> stateIdsForBlock(String blockName) {
-        HashSet<Integer> ids = new HashSet<>();
-        Integer def = defaultStateIds.get(blockName);
-        if (def != null) ids.add(def);
-        if (stateIds.isEmpty()) return ids;
-        String prefix = blockName + ";";
-        for (var e : stateIds.entrySet()) {
-            String key = e.getKey();
-            if (key.equals(blockName) || key.startsWith(prefix)) {
-                ids.add(e.getValue());
+    // 블록명 -> 소속 state id 불변 집합. 최초 호출 때 전체 키를 한 번만 훑어 색인한다
+    // (이전에는 호출마다 2만 6천 개 키를 문자열 비교해, 월드젠 데이터 로드가 수 초씩 걸렸다).
+    private volatile java.util.Map<String, Set<Integer>> blockIndex;
+
+    private java.util.Map<String, Set<Integer>> blockIndex() {
+        java.util.Map<String, Set<Integer>> idx = blockIndex;
+        if (idx == null) {
+            HashMap<String, HashSet<Integer>> build = new HashMap<>();
+            for (var e : defaultStateIds.entrySet()) {
+                build.computeIfAbsent(e.getKey(), k -> new HashSet<>()).add(e.getValue());
             }
+            for (var e : stateIds.entrySet()) {
+                String key = e.getKey();
+                int sep = key.indexOf(';');
+                String name = sep < 0 ? key : key.substring(0, sep);
+                build.computeIfAbsent(name, k -> new HashSet<>()).add(e.getValue());
+            }
+            HashMap<String, Set<Integer>> frozen = new HashMap<>(build.size() * 2);
+            for (var e : build.entrySet()) frozen.put(e.getKey(), Set.copyOf(e.getValue()));
+            blockIndex = idx = frozen;
         }
-        return ids;
+        return idx;
+    }
+
+    /** 블록명에 속한 모든 state id 집합(불변). exact blockstate 테이블이 없으면 default state만 반환. */
+    public Set<Integer> stateIdsForBlock(String blockName) {
+        Set<Integer> ids = blockIndex().get(blockName);
+        return ids != null ? ids : Set.of();
     }
 
     /** direct 팰릿 bitsPerEntry = ceil(log2(전체 state 수)). */

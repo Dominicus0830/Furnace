@@ -329,8 +329,15 @@ public final class NoiseWorldSource implements WorldSource {
         return new Parameter(point, point);
     }
 
+    /** generate()가 이미 샘플한 biome id를 함께 돌려줘, 호출부가 같은 청크의 biome을 다시 샘플하지 않게 한다. */
+    public record Generated(ChunkColumn col, int[] biomeIds) {}
+
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
+        return generateWithBiomes(chunkX, chunkZ).col();
+    }
+
+    public Generated generateWithBiomes(int chunkX, int chunkZ) {
         int minY      = settings.minY();       // -64
         int height    = settings.height();     // 384
         int seaLevel  = settings.seaLevel();   // 63
@@ -351,7 +358,20 @@ public final class NoiseWorldSource implements WorldSource {
         col.rebuildHeightmapsAfterSurface();
         col.clearDirty();
 
-        return col;
+        return new Generated(col, biomeIds);
+    }
+
+    /** 청크 biome id 배열에 등장하는 biome 이름 집합 — FeaturePlacer의 neighborBiomes 구성 단위(청크당 한 번만 계산해 재사용). */
+    public Set<String> biomeNamesOf(int[] biomeIds) {
+        boolean[] seen = new boolean[registryBiomeNames.length];
+        HashSet<String> names = new HashSet<>();
+        for (int biomeId : biomeIds) {
+            if (biomeId >= 0 && biomeId < registryBiomeNames.length && !seen[biomeId]) {
+                seen[biomeId] = true;
+                names.add(registryBiomeNames[biomeId]);
+            }
+        }
+        return names;
     }
 
     private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc) {

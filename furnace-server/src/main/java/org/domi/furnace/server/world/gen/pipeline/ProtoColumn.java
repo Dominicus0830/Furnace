@@ -10,6 +10,7 @@ final class ProtoColumn {
     volatile GenStatus status = GenStatus.EMPTY;
     ChunkColumn col;
     int[] biomeIds;
+    java.util.Set<String> biomeNames = java.util.Set.of();
     List<StructureStart> starts = List.of();
 
     ProtoColumn(int cx, int cz) {

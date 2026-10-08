@@ -176,6 +176,9 @@ public final class SurfaceSystem {
         ctx.worldgenData  = worldgenData;
         ctx.surfaceYGrid  = surfaceYGrid;
         ctx.biomeCache = new HashMap<>();
+        ctx.chunkBiomeIds = biomeIds;
+        ctx.chunkQuartX0 = chunkX * 4;
+        ctx.chunkQuartZ0 = chunkZ * 4;
 
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
@@ -199,7 +202,7 @@ public final class SurfaceSystem {
 
                 // 바닐라: 컬럼 biome은 (x, heightmap+1, z)에서 조회. eroded_badlands는 규칙 적용 전에 기둥을 먼저 세운다.
                 int h = surfaceY + 1;
-                String columnBiome = biomeNameAt(worldX, h, worldZ, ctx.biomeCache);
+                String columnBiome = biomeNameAt(worldX, h, worldZ, ctx);
                 if (columnBiome.equals("minecraft:eroded_badlands")) {
                     erodedBadlandsExtension(sectionBlocks, columnIndex, worldX, worldZ, h, minY);
                     surfaceYGrid[columnIndex] = topNonAirY(sectionBlocks, columnIndex, minY, maxY);
@@ -283,8 +286,8 @@ public final class SurfaceSystem {
         }
     }
 
-    private String biomeNameAt(int x, int y, int z, Map<Long, Integer> cache) {
-        int biomeId = biomeAtBlock(x, y, z, cache);
+    private String biomeNameAt(int x, int y, int z, SurfaceContext ctx) {
+        int biomeId = biomeAtBlock(x, y, z, ctx);
         return (biomeId >= 0 && biomeId < registryBiomeNames.length) ? registryBiomeNames[biomeId] : "minecraft:plains";
     }
 
@@ -441,14 +444,24 @@ public final class SurfaceSystem {
 
     private String biomeName(SurfaceContext ctx) {
         if (ctx.biomeName != null) return ctx.biomeName;
-        int biomeId = biomeAtBlock(ctx.blockX, ctx.blockY, ctx.blockZ, ctx.biomeCache);
+        int biomeId = biomeAtBlock(ctx.blockX, ctx.blockY, ctx.blockZ, ctx);
         ctx.biomeName = (biomeId >= 0 && biomeId < registryBiomeNames.length)
             ? registryBiomeNames[biomeId] : "minecraft:plains";
         return ctx.biomeName;
     }
 
-    private int biomeAtBlock(int blockX, int blockY, int blockZ, Map<Long, Integer> cache) {
+    private int biomeAtBlock(int blockX, int blockY, int blockZ, SurfaceContext ctx) {
+        Map<Long, Integer> cache = ctx.biomeCache;
         QuartKey q = biomeManagerQuart(blockX, blockY, blockZ);
+        int[] chunkBiomes = ctx.chunkBiomeIds;
+        if (chunkBiomes != null) {
+            int rx = q.x() - ctx.chunkQuartX0;
+            int rz = q.z() - ctx.chunkQuartZ0;
+            int ry = q.y() - (settings.minY() >> 2);
+            if (rx >= 0 && rx < 4 && rz >= 0 && rz < 4 && ry >= 0 && ry < settings.height() >> 2) {
+                return chunkBiomes[(ry * 4 + rz) * 4 + rx];
+            }
+        }
         long key = packQuart(q.x(), q.y(), q.z());
         Integer cached = cache.get(key);
         if (cached != null) return cached;
