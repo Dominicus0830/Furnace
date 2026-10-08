@@ -203,6 +203,36 @@ public final class ChunkColumn {
         touch();
     }
 
+    /**
+     * 표면 단계(SurfaceSystem)가 섹션 블록 배열을 직접 고쳐 쓴 뒤 높이맵을 다시 만든다 — 침식 배드랜드 기둥·얼어붙은 바다 빙산처럼
+     * 높이를 바꾸는 확장이 있기 때문. 바닐라는 이 단계에서 WG 높이맵(OCEAN_FLOOR_WG, WORLD_SURFACE_WG)을 setBlockState마다 라이브 갱신한다.
+     */
+    public void rebuildHeightmapsAfterSurface() {
+        for (int lz = 0; lz < 16; lz++) {
+            for (int lx = 0; lx < 16; lx++) {
+                int surfaceValue = 0;
+                int oceanFloorValue = 0;
+                for (int sec = SECTION_COUNT - 1; sec >= 0 && (surfaceValue == 0 || oceanFloorValue == 0); sec--) {
+                    int[] blocks = sectionBlocks(sec);
+                    for (int ly = 15; ly >= 0; ly--) {
+                        int stateId = blocks[ly * 256 + lz * 16 + lx];
+                        int y1 = sec * 16 + ly + 1;
+                        if (surfaceValue == 0 && stateId != ChunkSection.AIR) surfaceValue = y1;
+                        if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) oceanFloorValue = y1;
+                        if (surfaceValue != 0 && oceanFloorValue != 0) break;
+                    }
+                }
+                int index = lz * 16 + lx;
+                surface[index] = surfaceValue;
+                oceanFloor[index] = oceanFloorValue;
+            }
+        }
+        System.arraycopy(oceanFloor, 0, wgOceanFloor, 0, oceanFloor.length);
+        System.arraycopy(surface, 0, surfaceWg, 0, surface.length);
+        java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
+        touch();
+    }
+
     private void rebuildSurface(int[] blockIds) {
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {

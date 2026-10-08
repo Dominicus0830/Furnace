@@ -62,7 +62,7 @@ public final class BiomeFeatureData {
         "minecraft:random_selector", "minecraft:random_boolean_selector", "minecraft:simple_random_selector",
         "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines",
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
-        "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo"
+        "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -311,6 +311,9 @@ public final class BiomeFeatureData {
                 return new HugeMushroomFeature(
                     type.equals("minecraft:huge_red_mushroom") ? HugeMushroomFeature.Kind.RED : HugeMushroomFeature.Kind.BROWN,
                     cap, stem, config.has("foliage_radius") ? config.get("foliage_radius").getAsInt() : 2, registry);
+            }
+            if (type.equals("minecraft:ice_spike")) {
+                return new IceSpikeFeature(registry);
             }
             if (type.equals("minecraft:bamboo")) {
                 return new BambooFeature(config.get("probability").getAsFloat(), registry);

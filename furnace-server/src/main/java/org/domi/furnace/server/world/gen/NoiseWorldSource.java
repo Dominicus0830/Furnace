@@ -348,6 +348,7 @@ public final class NoiseWorldSource implements WorldSource {
         col.loadGenerated(blockIds, biomeIds);
 
         surfaceSystem.buildSurface(col, biomeIds, nc, chunkX, chunkZ);
+        col.rebuildHeightmapsAfterSurface();
         col.clearDirty();
 
         return col;

@@ -37,7 +37,7 @@ class NoopFeatureAuditTest {
         "minecraft:iceberg", "minecraft:fossil",
         "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
         "minecraft:glowstone_blob", "minecraft:dripstone_cluster", "minecraft:large_dripstone",
-        "minecraft:ice_spike", "minecraft:monster_room",
+        "minecraft:monster_room",
         "minecraft:lake", "minecraft:desert_well", "minecraft:bonus_chest", "minecraft:blue_ice",
         "minecraft:end_island", "minecraft:end_spike", "minecraft:end_platform", "minecraft:end_gateway",
         // 이 audit(파일 스캔) 실행 중 신규 확인된 미구현 타입(survey 목록에 없었음) — void_start_platform.json
