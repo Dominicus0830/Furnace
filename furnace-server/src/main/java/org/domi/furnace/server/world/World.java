@@ -270,17 +270,19 @@ public final class World {
      */
     public Subscription subscribeChunk(ChunkPos cp, Player p) {
         Subscription sub = new Subscription();
-        chunkSubscribers.computeIfAbsent(cp, k -> new ConcurrentHashMap<>()).put(p, sub);
+        // compute는 키 단위로 원자적이라 "마지막 구독자 제거로 맵이 비어 삭제되는 사이에 put" 경합이 없다.
+        chunkSubscribers.compute(cp, (k, m) -> {
+            if (m == null) m = new ConcurrentHashMap<>();
+            m.put(p, sub);
+            return m;
+        });
         return sub;
     }
-
-    /** 플레이어가 청크를 언로드 — 등록 해제(보류된 변경도 버린다). */
     public void unsubscribeChunk(ChunkPos cp, Player p) {
-        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
-        if (s != null) {
-            s.remove(p);
-            if (s.isEmpty()) chunkSubscribers.remove(cp, s);
-        }
+        chunkSubscribers.computeIfPresent(cp, (k, m) -> {
+            m.remove(p);
+            return m.isEmpty() ? null : m;
+        });
     }
 
     /** 청크 구독자(블록 변경 브로드캐스트 대상). 비었으면 빈 Set. */

@@ -112,10 +112,16 @@ public final class RegionThread implements TaskScheduler, ThreadOwner, AutoClose
         }
     }
 
+    /** 인박스 드레인 시간 예산(틱의 절반). 폭주하는 작업이 perTick을 굶기지 못하게, 남은 작업은 다음 틱으로 넘긴다. */
+    private static final long DRAIN_BUDGET_NANOS = 25_000_000L;
+
     private void drainInbox() {
+        long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Runnable r;
+        int n = 0;
         while ((r = inbox.poll()) != null) {
             r.run();
+            if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
         }
     }
 

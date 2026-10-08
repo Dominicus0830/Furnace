@@ -120,7 +120,10 @@ public final class Player {
     public float yaw() { return yaw; }
     public float pitch() { return pitch; }
     public boolean onGround() { return onGround; }
+    private ChunkPos queuedCenter;               // 시야 청크를 대기열에 올린 마지막 중심(null=아직 안 함)
     public ChunkPos lastCenter() { return lastCenter; }
+    public ChunkPos queuedCenter() { return queuedCenter; }
+    public void queuedCenter(ChunkPos c) { this.queuedCenter = c; }
     public void lastCenter(ChunkPos c) { this.lastCenter = c; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }

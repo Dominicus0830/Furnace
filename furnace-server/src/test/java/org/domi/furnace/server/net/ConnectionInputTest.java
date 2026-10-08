@@ -302,6 +302,30 @@ class ConnectionInputTest {
         assertEquals(10.0, s.x());
     }
 
+    /** 틱당 수천 개의 패킷을 쏟아내는 클라이언트는 킥돼야 한다(region 인박스 폭주·DoS 방지). 정상적인 소규모 버스트는 통과. */
+    @Test
+    void packetFlood_isKicked_butSmallBurstIsNot() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        for (int i = 0; i < 60; i++) ch.writeInbound(frame(0x2F, b -> b.writeShort(1)));   // Set Held Item 60개
+        assertTrue(ch.isActive(), "작은 버스트까지 킥하면 안 된다");
+        for (int i = 0; i < 3000; i++) {
+            if (!ch.isActive()) break;
+            ch.writeInbound(frame(0x2F, b -> b.writeShort(1)));
+        }
+        assertFalse(ch.isActive(), "패킷 폭주는 연결을 끊어야 한다");
+    }
+
+    /** 한 번에 쏟아낸 이동 패킷으로 수천 블록을 순간이동할 수 없어야 한다(틱당 이동 예산). */
+    @Test
+    void movementBurst_isLimitedByBudget() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        for (int i = 1; i <= 60; i++) move(ch, i * 90.0, -60, 0);   // 패킷마다 90블록, 합계 5400블록
+        double reached = (double) (Double) fieldOf("ix");
+        assertTrue(reached < 1000, "예산 없이 5400블록을 이동했다: ix=" + reached);
+    }
+
+    private Object fieldOf(String name) throws Exception { return field(name); }
+
     /** 연결이 끊기면 region 틱을 기다리지 않고 즉시 접속자 집합(탭 기준)에서 빠져야 한다 — adopt 전에 끊긴 경우의 누수 방지. */
     @Test
     void disconnect_removesPlayerFromOnlineSetImmediately() throws Exception {

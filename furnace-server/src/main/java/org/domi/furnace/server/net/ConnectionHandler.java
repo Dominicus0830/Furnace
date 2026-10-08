@@ -74,6 +74,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private ConnectionState state = ConnectionState.HANDSHAKE;
     private static final int PROTOCOL_VERSION = 767;                 // 1.21.1
     private static final String VERSION_NAME = "1.21.1";
+    // 패킷 속도 제한(바닐라 rate-limit/Paper packet-limiter 대응): 버스트 400개, 초당 200개 회복. 초과 시 킥.
+    private final TokenBucket packetBucket = new TokenBucket(400, 200);
+    // 이동 예산: 버스트 400블록, 초당 400블록 회복(합법적 최고 속도 약 100~200블록/초의 2배 이상). 초과 이동은 보정 텔레포트.
+    private final TokenBucket moveBucket = new TokenBucket(400, 400);
     private boolean loginSuccessSent;       // Login Start 처리 후에만 Login Acknowledged 수락
     private boolean knownPacksHandled;      // Known Packs 응답은 연결당 1회(레지스트리 재전송 증폭 방지)
     private boolean finishConfigSent;       // FinishConfiguration을 보낸 뒤에만 PLAY 진입 수락
@@ -125,7 +129,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case STATUS -> handleStatus(ctx, packetId, frame);
             case LOGIN -> handleLogin(ctx, packetId, frame);
             case CONFIGURATION -> handleConfiguration(ctx, packetId, frame);
-            case PLAY -> handlePlay(ctx, packetId, frame);
+            case PLAY -> {
+                if (!packetBucket.tryAcquire(1)) { kick(ctx, "Too many packets"); return; }
+                handlePlay(ctx, packetId, frame);
+            }
             default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
     }
@@ -598,7 +605,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 && Math.abs(x) <= MAX_COORD && Math.abs(y) <= MAX_COORD && Math.abs(z) <= MAX_COORD;
         if (ok) {
             double dx = x - ix, dy = y - iy, dz = z - iz;
-            ok = dx * dx + dy * dy + dz * dz <= MAX_STEP * MAX_STEP;
+            double d2 = dx * dx + dy * dy + dz * dz;
+            ok = d2 <= MAX_STEP * MAX_STEP && moveBucket.tryAcquire(Math.sqrt(d2));
         }
         if (!ok) {
             correctionTpId = ++teleportId;

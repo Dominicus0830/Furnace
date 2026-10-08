@@ -325,13 +325,29 @@ public final class Region {
     /** 중심 이동 시 시야 청크를 pending 큐에 적재(+구독), 시야 밖은 언로드. 전송은 sendQueuedChunks가 틱당 스로틀. */
     private void updateChunks(Player p) {
         ChunkPos center = p.chunkPos();
-        if (center.equals(p.lastCenter())) return;
-        if (p.pendingChunks().size() > MAX_PENDING_CHUNKS_PER_PLAYER) {
-            p.lastCenter(center);
-            p.send(new SetCenterChunk(center.x(), center.z()));
-            return;
-        }
+        if (center.equals(p.lastCenter()) && center.equals(p.queuedCenter())) return;
         int vd = Math.min(world.viewDistance(), p.viewDistance()); // 서버 상한 + 클라 요청
+        List<ChunkPos> toForget = new ArrayList<>();
+        if (!center.equals(p.lastCenter())) {
+            // 시야 밖이 된 청크는 대기 청크가 많든 적든 항상 정리한다(구독 해제·대기열 제거). 예전엔 대기가 512를 넘으면 건너뛰어
+            // 클라가 버린 청크가 구독에 남고 오래된 위치의 대기 청크가 계속 생성·직렬화됐다.
+            var it = p.loadedChunks().iterator();
+            while (it.hasNext()) {
+                ChunkPos cp = it.next();
+                if (Math.abs(cp.x() - center.x()) > vd || Math.abs(cp.z() - center.z()) > vd) {
+                    it.remove();
+                    world.unsubscribeChunk(cp, p);
+                    // 아직 안 보낸(pending) 청크면 forget 패킷 불필요 — 큐서만 제거.
+                    if (!p.pendingChunks().remove(cp)) toForget.add(cp);
+                }
+            }
+            p.send(new SetCenterChunk(center.x(), center.z()));
+            for (ChunkPos cp : toForget) p.send(new UnloadChunk(cp.x(), cp.z()));
+            p.lastCenter(center);
+        }
+        if (center.equals(p.queuedCenter())) return;
+        // 대기열이 너무 길면 새 청크 구독은 미룬다(lastCenter는 이미 갱신됨, 다음 틱에 queuedCenter 불일치로 재시도).
+        if (p.pendingChunks().size() > MAX_PENDING_CHUNKS_PER_PLAYER) return;
         List<ChunkPos> toQueue = new ArrayList<>();
         for (int dx = -vd; dx <= vd; dx++) {
             for (int dz = -vd; dz <= vd; dz++) {
@@ -342,23 +358,10 @@ public final class Region {
                 }
             }
         }
-        List<ChunkPos> toForget = new ArrayList<>();
-        var it = p.loadedChunks().iterator();
-        while (it.hasNext()) {
-            ChunkPos cp = it.next();
-            if (Math.abs(cp.x() - center.x()) > vd || Math.abs(cp.z() - center.z()) > vd) {
-                it.remove();
-                world.unsubscribeChunk(cp, p);
-                // 아직 안 보낸(pending) 청크면 forget 패킷 불필요 — 큐서만 제거.
-                if (!p.pendingChunks().remove(cp)) toForget.add(cp);
-            }
-        }
         orderNearestFirst(center, toQueue);
         p.pendingChunks().addAll(toQueue);
         reorderPendingNearestFirst(center, p.pendingChunks());
-        p.send(new SetCenterChunk(center.x(), center.z()));
-        for (ChunkPos cp : toForget) p.send(new UnloadChunk(cp.x(), cp.z()));
-        p.lastCenter(center);
+        p.queuedCenter(center);
     }
 
     /** chunks를 중심 거리 오름차순 정렬 — 스폰/근접 청크 먼저 전송해 클라가 즉시 "로드된 청크"에 스폰(낙하 방지). */

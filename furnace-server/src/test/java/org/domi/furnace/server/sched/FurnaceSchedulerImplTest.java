@@ -45,4 +45,18 @@ class FurnaceSchedulerImplTest {
             assertThrows(AssertionError.class, data::get);
         }
     }
+
+    /** 종료 flush가 모든 region 스레드에 정확히 도달할 수 있어야 한다(31의 배수 스레드 수에서 위치 탐색이 실패하던 문제). */
+    @Test
+    void everyRegionThread_isDirectlyReachable() throws Exception {
+        try (FurnaceSchedulerImpl s = new FurnaceSchedulerImpl(50_000_000L, 31)) {
+            java.util.Set<String> names = new java.util.HashSet<>();
+            for (int i = 0; i < 31; i++) {
+                RegionThread t = s.regionThread(i);
+                assertTrue(t.submit(t::isOwnerThread).get(2, java.util.concurrent.TimeUnit.SECONDS));
+                names.add(t.submit(() -> Thread.currentThread().getName()).get(2, java.util.concurrent.TimeUnit.SECONDS));
+            }
+            assertEquals(31, names.size());
+        }
+    }
 }

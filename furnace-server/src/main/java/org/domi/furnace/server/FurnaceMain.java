@@ -86,7 +86,7 @@ public final class FurnaceMain {
                 java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
                 for (int i = 0; i < config.regionThreads(); i++) {
                     final int idx = i;
-                    fs.add(scheduler.region(regionPosForThread(idx, config)).execute(() -> world.flushThread(idx)));
+                    fs.add(scheduler.regionThread(idx).execute(() -> world.flushThread(idx)));
                 }
                 // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 타임아웃을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
                 long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
@@ -117,15 +117,6 @@ public final class FurnaceMain {
 
         log.info("Furnace 기동 완료. Ctrl+C로 종료.");
         shutdown.await();
-    }
-
-    /** idx 스레드가 소유하는 RegionPos 하나(flush 타겟팅용). */
-    private static org.domi.furnace.api.sched.RegionPos regionPosForThread(int idx, Config cfg) {
-        for (int x = 0; x < cfg.regionThreads() * 2 + 1; x++) {
-            org.domi.furnace.api.sched.RegionPos rp = new org.domi.furnace.api.sched.RegionPos(x, 0);
-            if (org.domi.furnace.server.world.RegionGrid.threadIndex(rp, cfg.regionThreads()) == idx) return rp;
-        }
-        return new org.domi.furnace.api.sched.RegionPos(idx, 0);
     }
 
     /** 5초(100틱)마다 region TPS를 로그하고 자신을 재예약하는 하트비트. */

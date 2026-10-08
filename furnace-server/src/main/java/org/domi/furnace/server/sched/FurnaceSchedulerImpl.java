@@ -48,6 +48,11 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
         return regions.length;
     }
 
+    /** 인덱스로 region 스레드에 직접 접근(종료 flush처럼 모든 스레드를 빠짐없이 돌 때 사용). */
+    public RegionThread regionThread(int index) {
+        return regions[index];
+    }
+
     /** M0/테스트용 — 첫 region 스레드 접근. */
     public RegionThread regionThread() {
         return regions[0];
