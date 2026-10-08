@@ -33,6 +33,8 @@ public final class IceSpikeFeature implements ConfiguredFeature {
         while (attrs.isAir(view.getBlock(x, y, z)) && y > ChunkColumn.MIN_Y + 2) {
             y--;
         }
+        if (org.domi.furnace.server.world.gen.carver.RandomTrace.isActive())
+            org.domi.furnace.server.world.gen.carver.RandomTrace.log("ice_spike scan end y=" + y + " state=" + view.getBlock(x, y, z) + " snowBlock=" + snowBlock);
         if (view.getBlock(x, y, z) != snowBlock) return false;
         y += random.nextInt(4);
         int height = random.nextInt(4) + 7;
