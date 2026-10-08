@@ -62,7 +62,8 @@ public final class BiomeFeatureData {
         "minecraft:random_selector", "minecraft:random_boolean_selector", "minecraft:simple_random_selector",
         "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines",
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
-        "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice"
+        "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
+        "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -312,6 +313,39 @@ public final class BiomeFeatureData {
                     type.equals("minecraft:huge_red_mushroom") ? HugeMushroomFeature.Kind.RED : HugeMushroomFeature.Kind.BROWN,
                     cap, stem, config.has("foliage_radius") ? config.get("foliage_radius").getAsInt() : 2, registry);
             }
+            if (type.equals("minecraft:dripstone_cluster")) {
+                return new DripstoneFeatures.Cluster(dripstone(),
+                    config.get("floor_to_ceiling_search_range").getAsInt(),
+                    treeIntProvider(config.get("height"), 1), treeIntProvider(config.get("radius"), 1),
+                    config.get("max_stalagmite_stalactite_height_diff").getAsInt(),
+                    config.get("height_deviation").getAsInt(),
+                    treeIntProvider(config.get("dripstone_block_layer_thickness"), 0),
+                    FeatureFloatProvider.fromJson(config.get("density")), FeatureFloatProvider.fromJson(config.get("wetness")),
+                    config.get("chance_of_dripstone_column_at_max_distance_from_center").getAsFloat(),
+                    config.get("max_distance_from_edge_affecting_chance_of_dripstone_column").getAsInt(),
+                    config.get("max_distance_from_center_affecting_height_bias").getAsInt());
+            }
+            if (type.equals("minecraft:large_dripstone")) {
+                TreeIntProvider radius = treeIntProvider(config.get("column_radius"), 1);
+                if (!(radius instanceof TreeIntProvider.Uniform uniform)) {
+                    throw new IllegalArgumentException("large_dripstone column_radius는 uniform만 지원: " + config.get("column_radius"));
+                }
+                return new DripstoneFeatures.Large(dripstone(),
+                    config.has("floor_to_ceiling_search_range") ? config.get("floor_to_ceiling_search_range").getAsInt() : 30,
+                    uniform, FeatureFloatProvider.fromJson(config.get("height_scale")),
+                    config.get("max_column_radius_to_cave_height_ratio").getAsFloat(),
+                    FeatureFloatProvider.fromJson(config.get("stalactite_bluntness")),
+                    FeatureFloatProvider.fromJson(config.get("stalagmite_bluntness")),
+                    FeatureFloatProvider.fromJson(config.get("wind_speed")),
+                    config.get("min_radius_for_wind").getAsInt(), config.get("min_bluntness_for_wind").getAsFloat());
+            }
+            if (type.equals("minecraft:pointed_dripstone")) {
+                return new DripstoneFeatures.Pointed(dripstone(),
+                    config.has("chance_of_taller_dripstone") ? config.get("chance_of_taller_dripstone").getAsFloat() : 0.2F,
+                    config.has("chance_of_directional_spread") ? config.get("chance_of_directional_spread").getAsFloat() : 0.7F,
+                    config.has("chance_of_spread_radius2") ? config.get("chance_of_spread_radius2").getAsFloat() : 0.5F,
+                    config.has("chance_of_spread_radius3") ? config.get("chance_of_spread_radius3").getAsFloat() : 0.5F);
+            }
             if (type.equals("minecraft:blue_ice")) {
                 return new BlueIceFeature(registry);
             }
@@ -457,6 +491,13 @@ public final class BiomeFeatureData {
                 for (JsonElement c : el.getAsJsonArray()) if (!allBlocksSupported(c)) return false;
             }
             return true;
+        }
+
+        private DripstoneFeatures.Support dripstoneSupport;
+
+        private DripstoneFeatures.Support dripstone() {
+            if (dripstoneSupport == null) dripstoneSupport = new DripstoneFeatures.Support(registry, new FluidKinds(registry));
+            return dripstoneSupport;
         }
 
         private BlockSurvival survivalCache;
