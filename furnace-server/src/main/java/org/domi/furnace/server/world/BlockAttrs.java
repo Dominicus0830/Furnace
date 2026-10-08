@@ -23,8 +23,10 @@ public final class BlockAttrs {
     private final byte[] light;
     private final byte[] sturdy;
     private final short[] block;
+    private final byte[] collisionFull;
 
-    private BlockAttrs(short[] flags, byte[] light, byte[] sturdy, short[] block) {
+    private BlockAttrs(short[] flags, byte[] light, byte[] sturdy, short[] block, byte[] collisionFull) {
+        this.collisionFull = collisionFull;
         this.flags = flags;
         this.light = light;
         this.sturdy = sturdy;
@@ -52,6 +54,7 @@ public final class BlockAttrs {
             byte[] light = new byte[n];
             byte[] sturdy = new byte[n];
             short[] block = new short[n];
+            byte[] collisionFull = new byte[n];
             int i = 0;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;
@@ -63,10 +66,11 @@ public final class BlockAttrs {
                 light[i] = (byte) Integer.parseInt(p[1]);
                 sturdy[i] = (byte) Integer.parseInt(p[2]);
                 block[i] = (short) Integer.parseInt(p[3]);
+                collisionFull[i] = (byte) Integer.parseInt(p[4]);
                 i++;
             }
             if (i != n) throw new IllegalStateException("블록 속성 줄 수 불일치: " + i + " != " + n);
-            return new BlockAttrs(flags, light, sturdy, block);
+            return new BlockAttrs(flags, light, sturdy, block, collisionFull);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -100,6 +104,11 @@ public final class BlockAttrs {
     /** BlockState.isFaceSturdy(level, pos, direction) — SupportType.FULL. direction은 DOWN..EAST 인덱스. */
     public boolean isFaceSturdy(int stateId, int direction) {
         return stateId >= 0 && stateId < sturdy.length && (sturdy[stateId] & (1 << direction)) != 0;
+    }
+
+    /** Block.isFaceFull(state.getCollisionShape(), direction) — 충돌 모양이 그 면을 가득 채우는가(눈 층 설치 판정 등). */
+    public boolean isCollisionFaceFull(int stateId, int direction) {
+        return stateId >= 0 && stateId < collisionFull.length && (collisionFull[stateId] & (1 << direction)) != 0;
     }
 
     /** state가 속한 블록의 레지스트리 순번(BlockState.is(Block) 비교용 — 같은 블록의 다른 state는 같은 값). 범위 밖이면 -1. */

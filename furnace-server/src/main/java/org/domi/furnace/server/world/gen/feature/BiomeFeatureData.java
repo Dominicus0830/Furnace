@@ -121,8 +121,15 @@ public final class BiomeFeatureData {
         } catch (IllegalStateException e) {
             biomeTemps = new float[0];
         }
+        boolean[] biomeFrozen = new boolean[biomeTemps.length];
+        if (biomeTemps.length > 0) {
+            int fi = 0;
+            for (String biomeId : (registryOrder != null ? registryOrder : biomeIds)) {
+                biomeFrozen[fi++] = data.biomeFrozenModifier(biomeId);
+            }
+        }
 
-        Loader loader = new Loader(data, registry, biomeTemps);
+        Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen);
         Map<String, List<List<PlacedFeature>>> loaded = new LinkedHashMap<>();
         for (String biomeId : biomeIds) {
             JsonObject biome = data.biome(biomeId);
@@ -192,13 +199,15 @@ public final class BiomeFeatureData {
         private final WorldgenData data;
         private final BlockRegistry registry;
         private final float[] biomeTemps;
+        private final boolean[] biomeFrozen;
         private final Map<String, PlacedFeature> placedCache = new HashMap<>();
         private final Map<String, ConfiguredFeature> configuredCache = new HashMap<>();
 
-        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps) {
+        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps, boolean[] biomeFrozen) {
             this.data = data;
             this.registry = registry;
             this.biomeTemps = biomeTemps;
+            this.biomeFrozen = biomeFrozen;
         }
 
         PlacedFeature placedFeature(String id) {
@@ -260,11 +269,7 @@ public final class BiomeFeatureData {
                 return parseKelp();
             }
             if (type.equals("minecraft:freeze_top_layer")) {
-                return new FreezeTopLayerFeature(
-                    registry.stateIdOrAir("minecraft:water"),
-                    registry.stateIdOrAir("minecraft:ice"),
-                    registry.stateIdOrAir("minecraft:snow"),
-                    biomeTemps);
+                return new FreezeTopLayerFeature(registry, biomeTemps, biomeFrozen);
             }
             if (type.equals("minecraft:geode")) {
                 return parseGeode(config);

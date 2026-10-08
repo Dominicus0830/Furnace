@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.gen.BiomeClimate;
 import org.domi.furnace.server.world.gen.BiomeSampler;
 import org.domi.furnace.server.world.gen.MathHelper;
 import org.domi.furnace.server.world.gen.NoiseChunk;
@@ -39,11 +40,22 @@ public final class SurfaceSystem {
     private final BiomeSampler biomeSampler;
     private final NoiseRouter router;
     private final long biomeZoomSeed;
+    // 배드랜드/빙산 지형 확장용 noise와 clay band 테이블 (바닐라 SurfaceSystem 생성자)
+    private final NormalNoise clayBandsOffsetNoise;
+    private final NormalNoise badlandsPillarNoise;
+    private final NormalNoise badlandsPillarRoofNoise;
+    private final NormalNoise badlandsSurfaceNoise;
+    private final NormalNoise icebergPillarNoise;
+    private final NormalNoise icebergPillarRoofNoise;
+    private final NormalNoise icebergSurfaceNoise;
+    private final int[] clayBands;
+    private final int packedIceId;
+    private final int snowBlockId;
 
     private SurfaceSystem(SurfaceRule rule, NoiseSettings settings,
                           WorldgenData worldgenData, int waterId, int defaultBlockId,
                           long seed, String[] registryBiomeNames,
-                          BiomeSampler biomeSampler, NoiseRouter router) {
+                          BiomeSampler biomeSampler, NoiseRouter router, BlockRegistry reg) {
         this.rule                = rule;
         this.settings            = settings;
         this.worldgenData        = worldgenData;
@@ -56,6 +68,60 @@ public final class SurfaceSystem {
         this.biomeSampler        = biomeSampler;
         this.router              = router;
         this.biomeZoomSeed       = obfuscateSeed(seed);
+        this.clayBandsOffsetNoise = buildNoise("minecraft:clay_bands_offset");
+        this.badlandsPillarNoise = buildNoise("minecraft:badlands_pillar");
+        this.badlandsPillarRoofNoise = buildNoise("minecraft:badlands_pillar_roof");
+        this.badlandsSurfaceNoise = buildNoise("minecraft:badlands_surface");
+        this.icebergPillarNoise = buildNoise("minecraft:iceberg_pillar");
+        this.icebergPillarRoofNoise = buildNoise("minecraft:iceberg_pillar_roof");
+        this.icebergSurfaceNoise = buildNoise("minecraft:iceberg_surface");
+        this.clayBands = generateBands(randomFactory.fromHashOf("minecraft:clay_bands"), reg);
+        this.packedIceId = reg.defaultStateId("minecraft:packed_ice");
+        this.snowBlockId = reg.defaultStateId("minecraft:snow_block");
+    }
+
+    /** SurfaceSystem.generateBands — 192칸 점토 밴드 테이블. RNG 호출 순서는 바닐라와 동일. */
+    private static int[] generateBands(XoroshiroRandomSource rnd, BlockRegistry reg) {
+        int white = reg.defaultStateId("minecraft:white_terracotta");
+        int orange = reg.defaultStateId("minecraft:orange_terracotta");
+        int terracotta = reg.defaultStateId("minecraft:terracotta");
+        int yellow = reg.defaultStateId("minecraft:yellow_terracotta");
+        int brown = reg.defaultStateId("minecraft:brown_terracotta");
+        int red = reg.defaultStateId("minecraft:red_terracotta");
+        int lightGray = reg.defaultStateId("minecraft:light_gray_terracotta");
+        int[] bands = new int[192];
+        java.util.Arrays.fill(bands, terracotta);
+        for (int i = 0; i < bands.length; i++) {
+            i += rnd.nextInt(5) + 1;
+            if (i < bands.length) bands[i] = orange;
+        }
+        makeBands(rnd, bands, 1, yellow);
+        makeBands(rnd, bands, 2, brown);
+        makeBands(rnd, bands, 1, red);
+        int whiteBands = 9 + rnd.nextInt(15 - 9 + 1);   // nextIntBetweenInclusive(9, 15)
+        int count = 0;
+        for (int pos = 0; count < whiteBands && pos < bands.length; pos += rnd.nextInt(16) + 4) {
+            bands[pos] = white;
+            if (pos - 1 > 0 && rnd.nextBoolean()) bands[pos - 1] = lightGray;
+            if (pos + 1 < bands.length && rnd.nextBoolean()) bands[pos + 1] = lightGray;
+            count++;
+        }
+        return bands;
+    }
+
+    private static void makeBands(XoroshiroRandomSource rnd, int[] bands, int minWidth, int state) {
+        int n = 6 + rnd.nextInt(15 - 6 + 1);            // nextIntBetweenInclusive(6, 15)
+        for (int i = 0; i < n; i++) {
+            int width = minWidth + rnd.nextInt(3);
+            int start = rnd.nextInt(bands.length);
+            for (int j = 0; start + j < bands.length && j < width; j++) bands[start + j] = state;
+        }
+    }
+
+    /** SurfaceSystem.getBand */
+    private int getBand(int x, int y, int z) {
+        int offset = (int) Math.round(clayBandsOffsetNoise.getValue(x, 0.0, z) * 4.0);
+        return clayBands[(y + offset + clayBands.length) % clayBands.length];
     }
 
     public static SurfaceSystem create(WorldgenData data, NoiseSettings settings,
@@ -68,7 +134,7 @@ public final class SurfaceSystem {
         int waterId       = reg.defaultStateId(settings.defaultFluid());
         int defaultBlockId = reg.defaultStateId(settings.defaultBlock());
         return new SurfaceSystem(rule, settings, data, waterId, defaultBlockId, seed,
-            registryBiomeNames, biomeSampler, router);
+            registryBiomeNames, biomeSampler, router, reg);
     }
 
     private NormalNoise buildNoise(String noiseId) {
@@ -116,7 +182,8 @@ public final class SurfaceSystem {
                 int worldX = chunkX * 16 + lx;
                 int worldZ = chunkZ * 16 + lz;
 
-                int surfaceY = surfaceYGrid[lz * 16 + lx];
+                int columnIndex = lz * 16 + lx;
+                int surfaceY = surfaceYGrid[columnIndex];
                 ctx.surfaceY  = surfaceY;
                 ctx.surfaceDepth = surfaceDepthAt(worldX, worldZ);
                 int lerpedPsl = (int) Math.floor(MathHelper.lerp2(
@@ -130,9 +197,16 @@ public final class SurfaceSystem {
                 // Integer.MIN_VALUE = no fluid found.
                 ctx.waterY = Integer.MIN_VALUE;
 
+                // 바닐라: 컬럼 biome은 (x, heightmap+1, z)에서 조회. eroded_badlands는 규칙 적용 전에 기둥을 먼저 세운다.
+                int h = surfaceY + 1;
+                String columnBiome = biomeNameAt(worldX, h, worldZ, ctx.biomeCache);
+                if (columnBiome.equals("minecraft:eroded_badlands")) {
+                    erodedBadlandsExtension(sectionBlocks, columnIndex, worldX, worldZ, h, minY);
+                    surfaceYGrid[columnIndex] = topNonAirY(sectionBlocks, columnIndex, minY, maxY);
+                }
+
                 // stoneBottomY: cached bottom of current solid column for stoneDepthBelow.
                 int stoneBottomY = Integer.MAX_VALUE;
-                int columnIndex = lz * 16 + lx;
                 int sectionIndex = ChunkColumn.SECTION_COUNT - 1;
                 int localY = 15;
                 int[] blocks = sectionBlocks[sectionIndex];
@@ -198,6 +272,91 @@ public final class SurfaceSystem {
                             blockIndex -= 256;
                         }
                     }
+                }
+
+                if (columnBiome.equals("minecraft:frozen_ocean") || columnBiome.equals("minecraft:deep_frozen_ocean")) {
+                    frozenOceanExtension(sectionBlocks, columnIndex, ctx.preliminarySurfaceLevel, columnBiome,
+                        worldX, worldZ, h, minY, seaLevel);
+                    surfaceYGrid[columnIndex] = topNonAirY(sectionBlocks, columnIndex, minY, maxY);
+                }
+            }
+        }
+    }
+
+    private String biomeNameAt(int x, int y, int z, Map<Long, Integer> cache) {
+        int biomeId = biomeAtBlock(x, y, z, cache);
+        return (biomeId >= 0 && biomeId < registryBiomeNames.length) ? registryBiomeNames[biomeId] : "minecraft:plains";
+    }
+
+    private static int getAt(int[][] sections, int columnIndex, int minY, int y) {
+        return sections[(y - minY) >> 4][((y - minY) & 15) * 256 + columnIndex];
+    }
+
+    private static void setAt(int[][] sections, int columnIndex, int minY, int y, int state) {
+        sections[(y - minY) >> 4][((y - minY) & 15) * 256 + columnIndex] = state;
+    }
+
+    /** WORLD_SURFACE_WG: 가장 높은 비공기 블록 y (없으면 minY-1). */
+    private static int topNonAirY(int[][] sections, int columnIndex, int minY, int maxY) {
+        for (int y = maxY; y >= minY; y--) {
+            if (getAt(sections, columnIndex, minY, y) != ChunkSection.AIR) return y;
+        }
+        return minY - 1;
+    }
+
+    /** SurfaceSystem.erodedBadlandsExtension */
+    private void erodedBadlandsExtension(int[][] sections, int col, int x, int z, int height, int minY) {
+        double d = Math.min(Math.abs(badlandsSurfaceNoise.getValue(x, 0.0, z) * 8.25),
+            badlandsPillarNoise.getValue(x * 0.2, 0.0, z * 0.2) * 15.0);
+        if (d <= 0.0) return;
+        double roof = Math.abs(badlandsPillarRoofNoise.getValue(x * 0.75, 0.0, z * 0.75) * 1.5);
+        double top = 64.0 + Math.min(d * d * 2.5, Math.ceil(roof * 50.0) + 24.0);
+        int topY = (int) Math.floor(top);
+        if (height > topY) return;
+        for (int y = topY; y >= minY; y--) {
+            int state = getAt(sections, col, minY, y);
+            if (state == defaultBlockId) break;
+            if (state == waterId) return;
+        }
+        for (int y = topY; y >= minY && getAt(sections, col, minY, y) == ChunkSection.AIR; y--) {
+            setAt(sections, col, minY, y, defaultBlockId);
+        }
+    }
+
+    /** SurfaceSystem.frozenOceanExtension */
+    private void frozenOceanExtension(int[][] sections, int col, int minSurfaceLevel, String biome,
+                                      int x, int z, int height, int minY, int seaLevel) {
+        double d = Math.min(Math.abs(icebergSurfaceNoise.getValue(x, 0.0, z) * 8.25),
+            icebergPillarNoise.getValue(x * 1.28, 0.0, z * 1.28) * 15.0);
+        if (d <= 1.8) return;
+        double roof = Math.abs(icebergPillarRoofNoise.getValue(x * 1.17, 0.0, z * 1.17) * 1.5);
+        double e = Math.min(d * d * 1.2, Math.ceil(roof * 40.0) + 14.0);
+        if (BiomeClimate.meltsIcebergSlightly(worldgenData.biomeTemperature(biome),
+                worldgenData.biomeFrozenModifier(biome), x, 63, z)) {
+            e -= 2.0;
+        }
+        double g;
+        if (e > 2.0) {
+            g = seaLevel - e - 7.0;
+            e += seaLevel;
+        } else {
+            e = 0.0;
+            g = 0.0;
+        }
+        double top = e;
+        XoroshiroRandomSource r = randomFactory.at(x, 0, z);
+        int maxSnow = 2 + r.nextInt(4);
+        int snowFloor = seaLevel + 18 + r.nextInt(10);
+        int snowCount = 0;
+        for (int y = Math.max(height, (int) e + 1); y >= minSurfaceLevel; y--) {
+            int state = getAt(sections, col, minY, y);
+            if ((state == ChunkSection.AIR && y < (int) top && r.nextDouble() > 0.01)
+                || (state == waterId && y > (int) g && y < seaLevel && g != 0.0 && r.nextDouble() > 0.15)) {
+                if (snowCount <= maxSnow && y > snowFloor) {
+                    setAt(sections, col, minY, y, snowBlockId);
+                    snowCount++;
+                } else {
+                    setAt(sections, col, minY, y, packedIceId);
                 }
             }
         }
@@ -276,7 +435,7 @@ public final class SurfaceSystem {
                 yield cond ? eval(ifTrue.then(), ctx) : null;
             }
             case SurfaceRule.Block block -> block.blockStateId();
-            case SurfaceRule.Bandlands __ -> null;
+            case SurfaceRule.Bandlands __ -> getBand(ctx.blockX, ctx.blockY, ctx.blockZ);
         };
     }
 
@@ -405,8 +564,11 @@ public final class SurfaceSystem {
             case SurfaceRule.SurfaceCondition.YAbove ya -> evalYAbove(ya, ctx);
             case SurfaceRule.SurfaceCondition.Water w  -> evalWater(w, ctx);
             case SurfaceRule.SurfaceCondition.NoiseThreshold nt -> evalNoiseThreshold(nt, ctx);
-            case SurfaceRule.SurfaceCondition.Temperature __ ->
-                ctx.worldgenData.biomeTemperature(ctx.biomeName) < 0.15f;
+            case SurfaceRule.SurfaceCondition.Temperature __ -> {
+                String biome = biomeName(ctx);
+                yield BiomeClimate.coldEnoughToSnow(worldgenData.biomeTemperature(biome),
+                    worldgenData.biomeFrozenModifier(biome), ctx.blockX, ctx.blockY, ctx.blockZ);
+            }
             case SurfaceRule.SurfaceCondition.Steep __ -> evalSteep(ctx);
             case SurfaceRule.SurfaceCondition.Not n -> !evalCondition(n.inner(), ctx);
             case SurfaceRule.SurfaceCondition.Hole __ -> ctx.surfaceDepth <= 0;
@@ -423,7 +585,8 @@ public final class SurfaceSystem {
         XoroshiroRandomSource rng = gradientFactoryCache
             .computeIfAbsent(vg.randomName(), name -> randomFactory.fromHashOf(name).forkPositional())
             .at(ctx.blockX, ctx.blockY, ctx.blockZ);
-        return rng.nextFloat() < (1.0f - (float)gradient);
+        // 바닐라: (double) nextFloat() < map(y, trueY, falseY, 1.0, 0.0)
+        return (double) rng.nextFloat() < (1.0 - gradient);
     }
 
     private boolean evalStoneDepth(SurfaceRule.SurfaceCondition.StoneDepth sd, SurfaceContext ctx) {
@@ -440,9 +603,9 @@ public final class SurfaceSystem {
     }
 
     private boolean evalYAbove(SurfaceRule.SurfaceCondition.YAbove ya, SurfaceContext ctx) {
+        // 바닐라 y_above: blockY + (add_stone_depth ? stoneDepthAbove : 0) >= anchor + surfaceDepth * multiplier
         int y = resolveY(ya.anchor(), ctx);
-        if (ya.addStoneDepth()) y += ctx.stoneDepthAbove;
-        return ctx.blockY >= y + ya.surfaceDepthMultiplier() * ctx.surfaceDepth;
+        return ctx.blockY + (ya.addStoneDepth() ? ctx.stoneDepthAbove : 0) >= y + ya.surfaceDepthMultiplier() * ctx.surfaceDepth;
     }
 
     private boolean evalWater(SurfaceRule.SurfaceCondition.Water w, SurfaceContext ctx) {
@@ -460,15 +623,17 @@ public final class SurfaceSystem {
         return v >= nt.minInclusive() && v <= nt.maxExclusive();
     }
 
+    /** 바닐라 SteepMaterialCondition — 청크 안 WORLD_SURFACE_WG 높이 기준(경계는 청크 가장자리로 clamp). */
     private boolean evalSteep(SurfaceContext ctx) {
         int lx = ctx.blockX & 15;
         int lz = ctx.blockZ & 15;
-        int sy = ctx.surfaceY;
-        if (lx > 0  && Math.abs(sy - ctx.surfaceYGrid[lz * 16 + (lx - 1)]) > 4) return true;
-        if (lx < 15 && Math.abs(sy - ctx.surfaceYGrid[lz * 16 + (lx + 1)]) > 4) return true;
-        if (lz > 0  && Math.abs(sy - ctx.surfaceYGrid[(lz - 1) * 16 + lx])  > 4) return true;
-        if (lz < 15 && Math.abs(sy - ctx.surfaceYGrid[(lz + 1) * 16 + lx])  > 4) return true;
-        return false;
+        int[] g = ctx.surfaceYGrid;
+        int zn = Math.max(lz - 1, 0);
+        int zp = Math.min(lz + 1, 15);
+        if (g[zp * 16 + lx] >= g[zn * 16 + lx] + 4) return true;
+        int xn = Math.max(lx - 1, 0);
+        int xp = Math.min(lx + 1, 15);
+        return g[lz * 16 + xn] >= g[lz * 16 + xp] + 4;
     }
 
     private int resolveY(SurfaceRule.YOffset offset, SurfaceContext ctx) {

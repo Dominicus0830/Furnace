@@ -1,7 +1,6 @@
 // randomized_int_state_provider — source가 고른 state의 정수 property를 values에서 뽑은 값으로 교체(vanilla 소비 순서: source → values)
 package org.domi.furnace.server.world.gen.feature;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -23,7 +22,7 @@ public final class RandomizedIntStateProvider implements StateProvider {
         this.property = property;
         this.values = values;
         this.registry = registry;
-        this.propertyPattern = Pattern.compile("([\\[,])" + Pattern.quote(property) + "=([^,\\]]*)");
+        this.propertyPattern = Pattern.compile("([;,])" + Pattern.quote(property) + "=([^,]*)");
     }
 
     @Override
@@ -39,13 +38,6 @@ public final class RandomizedIntStateProvider implements StateProvider {
         Matcher m = propertyPattern.matcher(key);
         m.find();
         String replaced = key.substring(0, m.start()) + m.group(1) + property + "=" + value + key.substring(m.end());
-        int br = replaced.indexOf('[');
-        String name = replaced.substring(0, br);
-        Map<String, String> props = new HashMap<>();
-        for (String kv : replaced.substring(br + 1, replaced.length() - 1).split(",")) {
-            int eq = kv.indexOf('=');
-            props.put(kv.substring(0, eq), kv.substring(eq + 1));
-        }
-        return registry.stateIdOrAir(name, props);
+        return BlockStates.fromCanonicalKey(registry, replaced);
     }
 }

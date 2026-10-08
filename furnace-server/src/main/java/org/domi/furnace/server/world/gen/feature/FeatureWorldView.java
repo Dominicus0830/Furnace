@@ -115,6 +115,20 @@ public final class FeatureWorldView {
         return col.worldSurfaceWgBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
+    /** MOTION_BLOCKING(blocksMotion || 유체) 라이브 최상단 블록 y. 없으면 MIN_Y-1. */
+    public int getMotionBlockingY(int worldX, int worldZ) {
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+            ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+            if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+            return neighbor.motionBlockingBlockY(worldX - nx * 16, worldZ - nz * 16);
+        }
+        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        return col.motionBlockingBlockY(worldX - cx * 16, worldZ - cz * 16);
+    }
+
     public int getOceanFloorY(int worldX, int worldZ) {
         if (gridCols != null) return getGridOceanFloorY(worldX, worldZ);
         if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;

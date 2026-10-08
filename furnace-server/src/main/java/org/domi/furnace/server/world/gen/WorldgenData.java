@@ -132,6 +132,16 @@ public final class WorldgenData {
         return biomeTemperatures.getOrDefault(biomeName, 0.5f);
     }
 
+    /** biome의 temperature_modifier == "frozen" 여부(frozen_ocean, deep_frozen_ocean). */
+    public boolean biomeFrozenModifier(String biomeName) {
+        return frozenModifierCache.computeIfAbsent(biomeName, n -> {
+            JsonObject b = biome(n);
+            return b.has("temperature_modifier") && "frozen".equals(b.get("temperature_modifier").getAsString());
+        });
+    }
+
+    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> frozenModifierCache = new java.util.concurrent.ConcurrentHashMap<>();
+
     // ------------------------------------------------------------------
     // Internals
     // ------------------------------------------------------------------

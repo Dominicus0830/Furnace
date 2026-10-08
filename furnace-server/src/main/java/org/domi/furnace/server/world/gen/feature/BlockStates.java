@@ -1,0 +1,42 @@
+// state id의 property 하나를 바꾼 state를 찾는 헬퍼 (BlockState.setValue / trySetValue 대응)
+package org.domi.furnace.server.world.gen.feature;
+
+import java.util.HashMap;
+import java.util.Map;
+import org.domi.furnace.server.world.BlockRegistry;
+
+public final class BlockStates {
+
+    private BlockStates() {}
+
+    /** 해당 property가 있으면 값을 바꾼 state, 없으면 -1. */
+    public static int trySetValue(BlockRegistry registry, int stateId, String property, String value) {
+        String key = registry.canonicalKeyOf(stateId);
+        int sep = key.indexOf(';');
+        if (sep < 0) return -1;
+        Map<String, String> props = parseProps(key.substring(sep + 1));
+        if (!props.containsKey(property)) return -1;
+        props.put(property, value);
+        return registry.stateIdOrAir(key.substring(0, sep), props);
+    }
+
+    /** BlockRegistry 정규 키 "이름;a=1,b=2" → (이름, props) 로 state를 다시 찾는다. */
+    public static int fromCanonicalKey(BlockRegistry registry, String key) {
+        int sep = key.indexOf(';');
+        if (sep < 0) return registry.stateIdOrAir(key);
+        return registry.stateIdOrAir(key.substring(0, sep), parseProps(key.substring(sep + 1)));
+    }
+
+    private static Map<String, String> parseProps(String s) {
+        Map<String, String> props = new HashMap<>();
+        for (String kv : s.split(",")) {
+            int eq = kv.indexOf('=');
+            props.put(kv.substring(0, eq), kv.substring(eq + 1));
+        }
+        return props;
+    }
+
+    public static boolean hasValue(BlockRegistry registry, int stateId, String property, String value) {
+        return registry.canonicalKeyOf(stateId).contains(property + "=" + value);
+    }
+}

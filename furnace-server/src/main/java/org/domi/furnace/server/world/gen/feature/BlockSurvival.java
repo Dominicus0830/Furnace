@@ -147,16 +147,7 @@ public final class BlockSurvival implements BlockPredicate.Survival {
     }
 
     private int stateFromKey(String key) {
-        int br = key.indexOf('[');
-        String name = br < 0 ? key : key.substring(0, br);
-        java.util.Map<String, String> props = new java.util.HashMap<>();
-        if (br >= 0) {
-            for (String kv : key.substring(br + 1, key.length() - 1).split(",")) {
-                int eq = kv.indexOf('=');
-                props.put(kv.substring(0, eq), kv.substring(eq + 1));
-            }
-        }
-        return registry.stateIdOrAir(name, props);
+        return BlockStates.fromCanonicalKey(registry, key);
     }
 
     public boolean isWaterAt(FeatureWorldView view, int x, int y, int z) {
