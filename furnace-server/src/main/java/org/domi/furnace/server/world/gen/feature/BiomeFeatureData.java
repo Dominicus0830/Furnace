@@ -1187,24 +1187,18 @@ public final class BiomeFeatureData {
             return fallback;
         }
 
+        /** 태그의 모든 블록의 모든 state id(바닐라 BlockState.is(tag)와 같은 의미). */
         private List<Integer> tagStates(String tag) {
-            return switch (tag) {
-                case "minecraft:base_stone_overworld" -> states(
-                    "minecraft:stone", "minecraft:granite", "minecraft:diorite",
-                    "minecraft:andesite", "minecraft:tuff", "minecraft:deepslate");
-                case "minecraft:stone_ore_replaceables" -> states(
-                    "minecraft:stone", "minecraft:granite", "minecraft:diorite",
-                    "minecraft:andesite");
-                case "minecraft:deepslate_ore_replaceables" -> states("minecraft:deepslate", "minecraft:tuff");
-                case "minecraft:features_cannot_replace" -> states(
-                    "minecraft:bedrock", "minecraft:spawner", "minecraft:chest",
-                    "minecraft:end_portal_frame", "minecraft:reinforced_deepslate",
-                    "minecraft:trial_spawner", "minecraft:vault");
-                case "minecraft:geode_invalid_blocks" -> states(
-                    "minecraft:bedrock", "minecraft:water", "minecraft:lava",
-                    "minecraft:ice", "minecraft:packed_ice", "minecraft:blue_ice");
-                default -> states("minecraft:stone", "minecraft:deepslate");
-            };
+            ArrayList<Integer> ids = new ArrayList<>();
+            for (String block : BlockTags.get().blocksOf(tag)) ids.addAll(stateIdsOf(block));
+            return ids;
+        }
+
+        private final Map<String, Set<Integer>> blockStateIdCache = new HashMap<>();
+
+        /** 블록 이름의 모든 state id(캐시). */
+        private Set<Integer> stateIdsOf(String block) {
+            return blockStateIdCache.computeIfAbsent(block, registry::stateIdsForBlock);
         }
 
         private List<Integer> states(String... names) {
