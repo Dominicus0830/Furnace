@@ -41,7 +41,7 @@ public final class TreeFeature implements ConfiguredFeature {
         BlockPos trunkOrigin = config.rootPlacer() != null
             ? config.rootPlacer().getTrunkOrigin(origin, random)
             : origin;
-        RandomTrace.log("tree_begin x=" + x + " y=" + y + " z=" + z
+        if (RandomTrace.isActive()) RandomTrace.log("tree_begin x=" + x + " y=" + y + " z=" + z
             + " treeHeight=" + treeHeight
             + " foliageHeight=" + foliageHeight
             + " trunkHeight=" + trunkHeight
@@ -49,14 +49,14 @@ public final class TreeFeature implements ConfiguredFeature {
         int minY = Math.min(origin.y(), trunkOrigin.y());
         int maxY = Math.max(origin.y(), trunkOrigin.y()) + treeHeight + 1;
         if (minY < ChunkColumn.MIN_Y + 1 || maxY > ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16) {
-            RandomTrace.log("tree_fail height_bounds minY=" + minY + " maxY=" + maxY);
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail height_bounds minY=" + minY + " maxY=" + maxY);
             return false;
         }
 
         int freeHeight = getMaxFreeTreeHeight(view, treeHeight, trunkOrigin);
         int minClippedHeight = config.minimumSize().minClippedHeight();
         if (freeHeight < treeHeight && (minClippedHeight < 0 || freeHeight < minClippedHeight)) {
-            RandomTrace.log("tree_fail free_height freeHeight=" + freeHeight + " treeHeight=" + treeHeight
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail free_height freeHeight=" + freeHeight + " treeHeight=" + treeHeight
                 + " minClippedHeight=" + minClippedHeight);
             return false;
         }
@@ -68,7 +68,7 @@ public final class TreeFeature implements ConfiguredFeature {
 
         if (config.rootPlacer() != null
                 && !config.rootPlacer().placeRoots(view, random, origin, trunkOrigin, config, roots)) {
-            RandomTrace.log("tree_fail root_placement");
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail root_placement");
             return false;
         }
 
@@ -79,7 +79,7 @@ public final class TreeFeature implements ConfiguredFeature {
         }
 
         if (logs.isEmpty() && leaves.isEmpty()) {
-            RandomTrace.log("tree_fail empty_output");
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail empty_output");
             return false;
         }
 
@@ -107,7 +107,7 @@ public final class TreeFeature implements ConfiguredFeature {
         }
 
         updateLeaves(view, roots, logs, deco, leaves);
-        RandomTrace.log("tree_success logs=" + logs.size() + " leaves=" + leaves.size() + " deco=" + deco.size());
+        if (RandomTrace.isActive()) RandomTrace.log("tree_success logs=" + logs.size() + " leaves=" + leaves.size() + " deco=" + deco.size());
         return true;
     }
 

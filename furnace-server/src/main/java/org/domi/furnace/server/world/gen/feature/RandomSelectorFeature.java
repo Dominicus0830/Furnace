@@ -10,13 +10,13 @@ public record RandomSelectorFeature(List<Entry> features, PlacedFeature defaultF
         BlockPos origin = new BlockPos(x, y, z);
         for (Entry entry : features) {
             float roll = random.nextFloat();
-            RandomTrace.log("random_selector roll=" + roll + " chance=" + entry.chance()
+            if (RandomTrace.isActive()) RandomTrace.log("random_selector roll=" + roll + " chance=" + entry.chance()
                 + " picked=" + (roll < entry.chance()));
             if (roll < entry.chance()) {
                 return entry.feature().placeAt(view, random, origin);
             }
         }
-        RandomTrace.log("random_selector default");
+        if (RandomTrace.isActive()) RandomTrace.log("random_selector default");
         return defaultFeature.placeAt(view, random, origin);
     }
 

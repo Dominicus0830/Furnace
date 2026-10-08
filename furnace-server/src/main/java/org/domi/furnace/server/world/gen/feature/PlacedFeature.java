@@ -23,7 +23,6 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
         return placeAt(view, random, origin, null);
     }
 
-    private static final boolean SEA_STREAM_DEBUG = Boolean.getBoolean("furnace.seaStreamDebug");
 
     private boolean placeAt(FeatureWorldView view, WorldgenRandom random, BlockPos origin, Set<Integer> validBiomeIds) {
         Stream<BlockPos> positions = Stream.of(origin);
@@ -31,23 +30,14 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
             positions = positions.flatMap(pos -> modifier.filter(view, random, pos));
         }
 
-        if (SEA_STREAM_DEBUG && feature instanceof SeagrassFeature) {
-            java.util.List<BlockPos> posList = positions.collect(java.util.stream.Collectors.toList());
-            System.out.printf("SEA_STREAM: %d positions collected%n", posList.size());
-            for (int i = 0; i < Math.min(5, posList.size()); i++) {
-                System.out.printf("  pos[%d]=(%d,%d,%d)%n", i, posList.get(i).x(), posList.get(i).y(), posList.get(i).z());
-            }
-            positions = posList.stream();
-        }
-
         boolean[] placedAny = {false};
         positions.forEach(pos -> {
-            RandomTrace.log("placed_feature_origin x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
+            if (RandomTrace.isActive()) RandomTrace.log("placed_feature_origin x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
                 + " feature=" + feature.getClass().getSimpleName());
             if (validBiomeIds != null && !validBiomeIds.isEmpty()) {
                 int biomeId = view.getBlendedBiomeId(pos.x(), pos.y(), pos.z());
                 if (!validBiomeIds.contains(biomeId)) {
-                    RandomTrace.log("placed_feature_skip_biome biomeId=" + biomeId);
+                    if (RandomTrace.isActive()) RandomTrace.log("placed_feature_skip_biome biomeId=" + biomeId);
                     return;
                 }
             }
@@ -55,7 +45,7 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
             if (treeTrace) RandomTrace.beginTreePlacement(pos.x(), pos.y(), pos.z());
             try {
                 boolean placed = feature.place(view, random, pos.x(), pos.y(), pos.z());
-                RandomTrace.log("placed_feature_result placed=" + placed + " x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
+                if (RandomTrace.isActive()) RandomTrace.log("placed_feature_result placed=" + placed + " x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
                     + " feature=" + feature.getClass().getSimpleName() + " seed=" + random.debugState());
                 placedAny[0] |= placed;
             } finally {

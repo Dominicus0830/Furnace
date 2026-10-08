@@ -116,15 +116,10 @@ public sealed interface PlacementModifier
     }
 
     final class InSquarePlacement implements PlacementModifier {
-        static int SEA_INSQ_COUNT = 0;
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             int sqX = random.nextInt(16);
             int sqZ = random.nextInt(16);
-            if (Boolean.getBoolean("furnace.seaStreamDebug")) {
-                System.out.printf("IN_SQ#%d pos=(%d,%d) sqX=%d sqZ=%d result=(%d,%d)%n",
-                    SEA_INSQ_COUNT++, pos.x(), pos.z(), sqX, sqZ, pos.x()+sqX, pos.z()+sqZ);
-            }
             return Stream.of(new BlockPos(pos.x() + sqX, pos.y(), pos.z() + sqZ));
         }
     }
@@ -262,7 +257,7 @@ public sealed interface PlacementModifier
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             int below = view.getBlock(pos.x(), pos.y() - 1, pos.z());
             boolean pass = allowedGround.contains(below);
-            RandomTrace.log("would_survive x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
+            if (RandomTrace.isActive()) RandomTrace.log("would_survive x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
                 + " below=" + below + " pass=" + pass);
             return pass ? Stream.of(pos) : Stream.empty();
         }
