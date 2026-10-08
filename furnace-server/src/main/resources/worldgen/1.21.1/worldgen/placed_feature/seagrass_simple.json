@@ -1,5 +1,5 @@
 {
-  "feature": "minecraft:seagrass_mid",
+  "feature": "minecraft:seagrass_simple",
   "placement": [
     {
       "type": "minecraft:carving_mask",
@@ -14,9 +14,28 @@
       "predicate": {
         "type": "minecraft:all_of",
         "predicates": [
-          {"type": "minecraft:matching_blocks", "blocks": "minecraft:stone", "offset": [0, -1, 0]},
-          {"type": "minecraft:matching_blocks", "blocks": "minecraft:water"},
-          {"type": "minecraft:matching_blocks", "blocks": "minecraft:water", "offset": [0, 1, 0]}
+          {
+            "type": "minecraft:matching_blocks",
+            "blocks": "minecraft:stone",
+            "offset": [
+              0,
+              -1,
+              0
+            ]
+          },
+          {
+            "type": "minecraft:matching_blocks",
+            "blocks": "minecraft:water"
+          },
+          {
+            "type": "minecraft:matching_blocks",
+            "blocks": "minecraft:water",
+            "offset": [
+              0,
+              1,
+              0
+            ]
+          }
         ]
       }
     },
