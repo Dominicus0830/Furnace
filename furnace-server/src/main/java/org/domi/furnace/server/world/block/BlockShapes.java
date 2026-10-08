@@ -20,9 +20,9 @@ public final class BlockShapes {
 
     // Direction.values() 순서 — BlockAttrs와 같다.
     public static final int DOWN = 0, UP = 1, NORTH = 2, SOUTH = 3, WEST = 4, EAST = 5;
-    static final int[] DX = {0, 0, 0, 0, -1, 1};
-    static final int[] DY = {-1, 1, 0, 0, 0, 0};
-    static final int[] DZ = {0, 0, -1, 1, 0, 0};
+    public static final int[] DX = {0, 0, 0, 0, -1, 1};
+    public static final int[] DY = {-1, 1, 0, 0, 0, 0};
+    public static final int[] DZ = {0, 0, -1, 1, 0, 0};
     static final String[] NAME = {"down", "up", "north", "south", "west", "east"};
 
     public static int opposite(int d) { return d ^ 1; }

@@ -3,7 +3,7 @@ package org.domi.furnace.server.world.gen.feature;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 
-public final class FeatureWorldView {
+public final class FeatureWorldView implements org.domi.furnace.server.world.block.ShapeLevel {
     private final ChunkColumn col;
     private final ChunkColumn[] gridCols;
     private final int cx;
@@ -90,6 +90,53 @@ public final class FeatureWorldView {
         if (v == null) return null;
         String[] p = v.split(",");
         return new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()), Integer.parseInt(p[2].trim())};
+    }
+
+    /** vanilla WorldGenLevel.setBlock의 성공 여부 — 쓰기 범위·월드 높이 안이면 true. */
+    public boolean trySetBlock(int worldX, int worldY, int worldZ, int stateId) {
+        if (!inWorldY(worldY)) return false;
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (writeCenterOnly && (nx != cx || nz != cz)) return false;
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return false;
+        } else if (!inCenterChunk(worldX, worldZ)) {
+            return false;
+        }
+        setBlock(worldX, worldY, worldZ, stateId);
+        return true;
+    }
+
+    /** 생성 중 블록 엔티티 NBT(상자 loot table 등)를 해당 칸의 청크에 남긴다. */
+    public void putGeneratedBlockEntity(int worldX, int worldY, int worldZ, org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+        ChunkColumn target;
+        int lx, lz;
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            target = gridCols[gridIndex(nx, nz)];
+            lx = worldX - nx * 16;
+            lz = worldZ - nz * 16;
+        } else {
+            if (!inCenterChunk(worldX, worldZ)) return;
+            target = col;
+            lx = worldX - cx * 16;
+            lz = worldZ - cz * 16;
+        }
+        target.putGeneratedBlockEntity(lx, worldY, lz, nbt);
+    }
+
+    /** putGeneratedBlockEntity로 남겨 둔 NBT 조회(없으면 null). */
+    public org.domi.furnace.server.net.io.nbt.NbtCompound generatedBlockEntity(int worldX, int worldY, int worldZ) {
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return null;
+            return gridCols[gridIndex(nx, nz)].generatedBlockEntity(worldX - nx * 16, worldY, worldZ - nz * 16);
+        }
+        if (!inCenterChunk(worldX, worldZ)) return null;
+        return col.generatedBlockEntity(worldX - cx * 16, worldY, worldZ - cz * 16);
     }
 
     String debugCenter() { return cx + "," + cz; }

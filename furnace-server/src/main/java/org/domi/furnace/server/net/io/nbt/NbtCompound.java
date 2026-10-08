@@ -9,6 +9,13 @@ public final class NbtCompound {
     private final Map<String, Object> tags = new LinkedHashMap<>();
 
     public Map<String, Object> tags() { return tags; }
+
+    /** 깊은 복사. */
+    public NbtCompound copy() {
+        NbtCompound c = new NbtCompound();
+        for (Map.Entry<String, Object> e : tags.entrySet()) c.tags.put(e.getKey(), NbtList.copyValue(e.getValue()));
+        return c;
+    }
     public boolean contains(String k) { return tags.containsKey(k); }
 
     public void putByte(String k, byte v) { tags.put(k, v); }

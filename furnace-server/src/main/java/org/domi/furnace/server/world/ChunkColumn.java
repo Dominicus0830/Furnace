@@ -19,6 +19,8 @@ public final class ChunkColumn {
     private final int[] wgOceanFloor = new int[256];
     private final int[] motionBlocking = new int[256]; // vanilla MOTION_BLOCKING(blocksMotion || fluid) 전용, 항상 라이브
     private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
+    /** 월드젠(구조물 템플릿)이 만든 블록 엔티티 NBT — 키 = blockEntityKey(로컬 x,y,z). 저장/복원 연동 전 단계의 보관소. */
+    private java.util.Map<Long, org.domi.furnace.server.net.io.nbt.NbtCompound> generatedBlockEntities;
     private boolean dirty;
     // 수정 카운터(단조 증가, 소유 스레드 전용). 비동기 직렬화가 "스냅샷 이후 청크가 바뀌었는가"를 dirty 플래그가 아니라
     // 이 값으로 판정한다 — dirty는 autosave가 clearDirty()로 내리므로 캐시 유효성과는 다른 의미다.
@@ -83,6 +85,19 @@ public final class ChunkColumn {
     }
 
     // key = ((x&0x3FFFFFF)<<38) | ((z&0x3FFFFFF)<<12) | (y&0xFFF) — Types.writeBlockPos와 동형(자체 인코딩, 프로토콜과 무관)
+    public void putGeneratedBlockEntity(int x, int y, int z, org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+        if (generatedBlockEntities == null) generatedBlockEntities = new java.util.HashMap<>();
+        generatedBlockEntities.put(blockEntityKey(x, y, z), nbt);
+    }
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound generatedBlockEntity(int x, int y, int z) {
+        return generatedBlockEntities == null ? null : generatedBlockEntities.get(blockEntityKey(x, y, z));
+    }
+
+    public java.util.Map<Long, org.domi.furnace.server.net.io.nbt.NbtCompound> generatedBlockEntities() {
+        return generatedBlockEntities == null ? java.util.Map.of() : generatedBlockEntities;
+    }
+
     private static long blockEntityKey(int x, int y, int z) {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFFL);
     }

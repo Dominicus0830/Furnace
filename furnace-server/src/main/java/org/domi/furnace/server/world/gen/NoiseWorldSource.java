@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * router/settings/ids 는 생성 시 한 번만 빌드하며 generate() 는 thread-safe.
  */
-public final class NoiseWorldSource implements WorldSource {
+public final class NoiseWorldSource implements WorldSource, org.domi.furnace.server.world.gen.structure.TerrainAccess {
 
     private final NoiseRouter router;
     private final NoiseSettings settings;
@@ -55,6 +55,7 @@ public final class NoiseWorldSource implements WorldSource {
     private final OverworldCarvers overworldCarvers;
     private final FeaturePlacer featurePlacer;
     private final StructurePlacementCatalog structurePlacementCatalog;
+    private final org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine;
     private final List<SpawnTarget> spawnTargets;
     private final ChunkPipeline pipeline;
     private volatile SpawnPoint defaultSpawn;
@@ -75,6 +76,7 @@ public final class NoiseWorldSource implements WorldSource {
                               int stoneId, int waterId, int lavaId,
                               long seed, BlockRegistry reg, int biomeDirectBits, OverworldCarvers overworldCarvers,
                               FeaturePlacer featurePlacer, StructurePlacementCatalog structurePlacementCatalog,
+                              org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine,
                               List<SpawnTarget> spawnTargets) {
         this.router             = router;
         this.settings           = settings;
@@ -90,6 +92,8 @@ public final class NoiseWorldSource implements WorldSource {
         this.overworldCarvers   = overworldCarvers;
         this.featurePlacer      = featurePlacer;
         this.structurePlacementCatalog = structurePlacementCatalog;
+        this.structureEngine    = structureEngine;
+        if (featurePlacer != null) featurePlacer.setStructureEngine(structureEngine);
         this.spawnTargets       = spawnTargets;
         this.pipeline           = new ChunkPipeline(this);
     }
@@ -125,11 +129,13 @@ public final class NoiseWorldSource implements WorldSource {
         FeaturePlacer featurePlacer = loadFeaturePlacer(data, possibleBiomeOrder(data, registries), biomeEntries, reg, seed);
         StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
         List<SpawnTarget> spawnTargets = loadSpawnTargets(data.noiseSettings("minecraft:overworld"));
+        org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine =
+            new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possibleBiomeOrder(data, registries)));
 
         return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,
-                                    featurePlacer, structurePlacementCatalog, spawnTargets);
+                                    featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
     }
 
     /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
@@ -439,21 +445,28 @@ public final class NoiseWorldSource implements WorldSource {
      * 블록은 쓰지 않는다(S2b 이후). 높이 조회는 매 호출마다 해당 청크를 SURFACE 상태로 재생성해 조회한다(캐시는 S3+).
      */
     public List<org.domi.furnace.server.world.gen.structure.StructureStart> applyStructureStarts(int cx, int cz) {
-        List<StructureSetPlacement> placements = structurePlacementCatalog.placementsForChunk(seed, cx, cz);
-        if (placements.isEmpty()) return List.of();
+        return structureEngine.createStarts(cx, cz, this);
+    }
 
-        List<org.domi.furnace.server.world.gen.structure.StructureStart> result = new ArrayList<>();
-        for (StructureSetPlacement set : placements) {
-            for (String structureId : set.structureIds()) {
-                if (!org.domi.furnace.server.world.gen.structure.DesertPyramidStructure.ID.equals(structureId)) {
-                    continue; // 다른 구조물은 S4+ 범위
-                }
-                org.domi.furnace.server.world.gen.structure.DesertPyramidStructure.generate(
-                    seed, cx, cz, settings.seaLevel(), this::worldSurfaceHeightAt, this::biomeNameAt
-                ).ifPresent(result::add);
-            }
-        }
-        return result;
+    public org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine() {
+        return structureEngine;
+    }
+
+    // ---- TerrainAccess ----
+    @Override public int seaLevel() { return settings.seaLevel(); }
+
+    @Override public int minY() { return settings.minY(); }
+
+    @Override public int genDepth() { return settings.height(); }
+
+    @Override
+    public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
+        return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
+    }
+
+    @Override
+    public String biomeAt(int blockX, int blockY, int blockZ) {
+        return biomeNameAt(blockX, blockY, blockZ);
     }
 
     /**
@@ -469,12 +482,21 @@ public final class NoiseWorldSource implements WorldSource {
         return heights[lz * 16 + lx];
     }
 
+    /** OCEAN_FLOOR_WG 상당 getFirstOccupiedHeight — 같은 청크 캐시의 뒤쪽 256칸. */
+    int oceanFloorWgHeightAt(int blockX, int blockZ) {
+        int cx = Math.floorDiv(blockX, 16);
+        int cz = Math.floorDiv(blockZ, 16);
+        int[] heights = surfaceHeightCache.computeIfAbsent(chunkKey(cx, cz), k -> computeSurfaceHeights(cx, cz));
+        return heights[256 + (blockZ - cz * 16) * 16 + (blockX - cx * 16)];
+    }
+
     private int[] computeSurfaceHeights(int cx, int cz) {
         ChunkColumn c = generate(cx, cz);
-        int[] heights = new int[256];
+        int[] heights = new int[512];
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
                 heights[lz * 16 + lx] = height(c, lx, lz, HeightKind.WORLD_SURFACE) - 1;
+                heights[256 + lz * 16 + lx] = height(c, lx, lz, HeightKind.OCEAN_FLOOR) - 1;
             }
         }
         return heights;
