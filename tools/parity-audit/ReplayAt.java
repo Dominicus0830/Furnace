@@ -13,7 +13,7 @@ public class ReplayAt {
         RegistrySet r = RegistrySet.load("registries/1.21.1.txt");
         NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, r);
         Replay replay = new Replay(src, Path.of(a[1]));
-        for (int i = 4; i + 1 < a.length; i += 2) {
+        for (int i = 3; i + 1 < a.length; i += 2) {
             int cx = Integer.parseInt(a[i]), cz = Integer.parseInt(a[i + 1]);
             if (!replay.valid(cx, cz)) { System.out.println("SKIP " + cx + "," + cz + " (3x3 중 순정이 decorate하지 않은 origin 있음)"); continue; }
             short[] b1 = Harness.vanillaBlocks(Harness.readChunk(Path.of(a[2]), cx, cz));

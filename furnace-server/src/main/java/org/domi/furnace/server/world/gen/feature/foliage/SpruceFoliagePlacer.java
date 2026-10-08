@@ -27,7 +27,8 @@ public final class SpruceFoliagePlacer extends FoliagePlacer {
         int radius = random.nextInt(2);
         int maxRadius = 1;
         int extra = 0;
-        for (int y = offset; y >= offset - foliageHeight; y--) {
+        // 바닐라 SpruceFoliagePlacer: 아래 끝은 offset - foliageHeight가 아니라 -foliageHeight다(offset이 0이 아니면 맨 아래 줄이 더 있다).
+        for (int y = offset; y >= -foliageHeight; y--) {
             placeLeavesRow(view, random, config, attachment.pos(), radius, y, attachment.doubleTrunk(), leaves);
             if (radius >= maxRadius) {
                 radius = extra;
