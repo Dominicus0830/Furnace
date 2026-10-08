@@ -35,7 +35,11 @@ public final class DarkOakTrunkPlacer extends TrunkPlacer {
                 z += dir.dz();
                 bendLen--;
             }
-            placeSquare(view, x, py, z, config, logs);
+            // 바닐라: 굽은 기준 칸이 공기/잎일 때만 2x2를 심는다(TreeFeature.isAirOrLeaves)
+            int base = view.getBlock(x, py, z);
+            if (TreeFeature.isAir(base) || TreeFeature.isLeaves(base)) {
+                placeSquare(view, x, py, z, config, logs);
+            }
             topY = py;
         }
 
@@ -48,8 +52,8 @@ public final class DarkOakTrunkPlacer extends TrunkPlacer {
                     for (int i = 0; i < branchH; i++) {
                         placeLog(view, new BlockPos(origin.x() + dx, topY - i - 1, origin.z() + dz), config, logs);
                     }
-                    attachments.add(new FoliageAttachment(
-                        new BlockPos(origin.x() + dx, topY, origin.z() + dz), 0, false));
+                    // 잎 부착점은 굽은 줄기 꼭대기(x, z) 기준 + 오프셋 (가지 로그는 원점 기준)
+                    attachments.add(new FoliageAttachment(new BlockPos(x + dx, topY, z + dz), 0, false));
                 }
             }
         }

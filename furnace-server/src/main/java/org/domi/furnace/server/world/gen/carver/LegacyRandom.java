@@ -15,6 +15,9 @@ public class LegacyRandom {
         setSeed(seed);
     }
 
+    /** 디버그: 내부 48비트 상태(바닐라 AtomicLong 시드와 동일 표현). */
+    public long debugState() { return seed; }
+
     public void setSeed(long seed) {
         this.seed = (seed ^ MULTIPLIER) & MASK;
         this.haveNextNextGaussian = false;   // 바닐라 LegacyRandomSource.setSeed → gaussianSource.reset()

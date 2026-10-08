@@ -55,7 +55,8 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
             if (treeTrace) RandomTrace.beginTreePlacement(pos.x(), pos.y(), pos.z());
             try {
                 boolean placed = feature.place(view, random, pos.x(), pos.y(), pos.z());
-                RandomTrace.log("placed_feature_result placed=" + placed + " x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z());
+                RandomTrace.log("placed_feature_result placed=" + placed + " x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
+                    + " feature=" + feature.getClass().getSimpleName() + " seed=" + random.debugState());
                 placedAny[0] |= placed;
             } finally {
                 if (treeTrace) RandomTrace.endTreePlacement();
