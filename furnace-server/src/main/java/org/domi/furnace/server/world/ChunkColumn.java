@@ -9,29 +9,8 @@ public final class ChunkColumn {
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
     public static final int DEFAULT_BIOME_DIRECT_BITS = 7;
     private static final int UNSET_HEIGHT = Integer.MIN_VALUE;
-    private static final int WATER_MIN_STATE = 80;
-    private static final int WATER_MAX_STATE = 95;
-    private static final int LAVA_MIN_STATE = 96;
-    private static final int LAVA_MAX_STATE = 111;
     private static final int CAVE_AIR_STATE = 12958;
     private static final int VOID_AIR_STATE = 12959;
-    // 수중 식물: vanilla OCEAN_FLOOR heightmap에서 제외됨 (Material.PLANT = not solid)
-    private static final int SEAGRASS_STATE = 2008;
-    private static final int TALL_SEAGRASS_UPPER_STATE = 2009;
-    private static final int TALL_SEAGRASS_LOWER_STATE = 2010;
-    private static final int KELP_PLANT_STATE = 12786;
-    private static final int KELP_MIN_STATE = 12760;
-    private static final int KELP_MAX_STATE = 12785;
-    // glow_lichen: Material.REPLACEABLE_PLANT, blocksMotion=false → OCEAN_FLOOR 제외 대상
-    private static final int GLOW_LICHEN_MIN_STATE = 6869;
-    private static final int GLOW_LICHEN_MAX_STATE = 6996;
-    // 지상 식물(short_grass/fern/dead_bush): blocksMotion=false → vanilla OCEAN_FLOOR heightmap에서 제외됨.
-    // patch_grass_forest 등 grass 계열 feature가 이 블록을 심으면(스크린 이전 지형은 여전히 dirt/grass_block),
-    // OCEAN_FLOOR가 이를 바닥으로 잘못 세면 surface_water_depth_filter(WORLD_SURFACE - OCEAN_FLOOR)가
-    // diff=0으로 오판해 vanilla가 스킵할 후보를 통과시킨다(tree-overlap-residual task, round2 확정).
-    private static final int SHORT_GRASS_STATE = 2005;
-    private static final int FERN_STATE = 2006;
-    private static final int DEAD_BUSH_STATE = 2007;
 
     private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음) — WORLD_SURFACE(!isAir, 항상 라이브)
@@ -430,94 +409,73 @@ public final class ChunkColumn {
         return 0;
     }
 
-    // MOTION_BLOCKING 전용 이름 분류에 쓰는 지연 로드 레지스트리(ChunkColumn은 생성자에 registry를 받지 않는
-    // 기존 설계라, 다른 곳들처럼 명시적 주입 대신 FurnaceMain과 동일 리소스를 1회 지연 로드해 재사용한다).
-    private static volatile BlockRegistry motionBlockingNameRegistry;
-
-    private static BlockRegistry motionBlockingNameRegistry() {
-        BlockRegistry r = motionBlockingNameRegistry;
-        if (r == null) {
-            r = BlockRegistry.load("blocks/1.21.1.txt");
-            motionBlockingNameRegistry = r;
-        }
-        return r;
-    }
-
     /**
-     * vanilla MOTION_BLOCKING(blocksMotion() || fluid) 술어 — isOceanFloorBlock(blocksMotion 근사: 공기/유체/
-     * 식물 제외)에서 fluid를 다시 포함시키고, blocksMotion=false인 무충돌 장식 블록(레일·레드스톤류·버튼·
-     * 압력판·토치·표지판·현수막·사다리·덩굴 등, isNonMotionBlockingByName 참조)을 추가로 제외한다.
+     * vanilla MOTION_BLOCKING 술어 {@code state.blocksMotion() || !state.getFluidState().isEmpty()}.
+     * blocksMotion은 바닐라에서 export한 정확한 값(BlockAttrs)이고, 유체 상태는 물/용암·버블 기둥·켈프·해초·waterlogged 블록이다.
      */
     private static boolean isMotionBlockingBlock(int stateId) {
-        if (isFluid(stateId)) return true;
-        if (!isOceanFloorBlock(stateId)) return false;
-        return !isNonMotionBlockingByName(motionBlockingNameRegistry().nameOf(stateId));
+        boolean[] fluid = hasFluidTable();
+        return isOceanFloorBlock(stateId) || (stateId >= 0 && stateId < fluid.length && fluid[stateId]);
     }
 
     /**
-     * 근사: vanilla BlockBehaviour::blocksMotion은 실제로는 콜리전 shape 부피(≥0.7291666)로 계산되는데,
-     * 이 저장소엔 블록별 콜리전 shape 데이터가 없다(motionblocking-predicate task 조사 결과) — 이름 기반으로
-     * "무충돌/얇은 장식" 블록을 화이트리스트해 blocksMotion=false로 근사한다. 범위: 레일류, 레드스톤 부품
-     * (와이어·리피터·컴퍼레이터·레버·트립와이어·버튼·압력판), 토치·랜턴·양초, 표지판·현수막, 사다리, 덩굴류
-     * (vine/lily_pad/sea_pickle/cobweb/end_rod), 새싹, 짧은/키큰 식물·꽃·버섯·작물류(짧은잔디/양치/죽은덤불은
-     * isLandPlant가 이미 처리). **커버 안 된 항목**(포인티드 드립스톤, 이끼 카펫 예외 케이스, 눈더미 높이별
-     * 콜리전, 스캐폴딩, 조각술 감지기 등)은 기존 동작대로 blocksMotion=true로 남는다 — 이번 조사에서 실측
-     * 확증하지 못해 회귀 위험 최소화 차원에서 손대지 않았다(surgical 원칙, 아래 result.md Issues 참조).
+     * vanilla OCEAN_FLOOR/OCEAN_FLOOR_WG 술어 {@code BlockBehaviour.BlockStateBase::blocksMotion}.
+     * 잎·통나무는 포함이고 덩굴·묘목·꽃·카펫류·수중 식물은 제외라서 surface_water_depth_filter(WORLD_SURFACE − OCEAN_FLOOR)와
+     * 나무/식생 배치 후보 판정이 바닐라와 같아진다.
      */
-    private static boolean isNonMotionBlockingByName(String name) {
-        String n = name.startsWith("minecraft:") ? name.substring("minecraft:".length()) : name;
-        if (n.endsWith("_rail") || n.equals("rail")) return true;
-        if (n.endsWith("_button")) return true;
-        if (n.endsWith("_pressure_plate")) return true;
-        if (n.endsWith("torch")) return true; // torch/wall_torch/redstone_torch/redstone_wall_torch/soul_torch/soul_wall_torch
-        if (n.endsWith("_sign")) return true; // 서있는/벽/현수 표지판 전부 "_sign"으로 끝남
-        if (n.endsWith("_banner")) return true;
-        if (n.endsWith("candle")) return true; // *_candle_cake는 "cake"로 끝나 매치 안 됨(별개 취급, 미확인)
-        if (n.endsWith("lantern")) return true;
-        if (n.endsWith("_sapling") || n.equals("sapling")) return true;
-        switch (n) {
-            case "redstone_wire", "repeater", "comparator", "lever", "tripwire", "tripwire_hook",
-                 "ladder", "vine", "lily_pad", "sea_pickle", "end_rod", "cobweb", "bamboo_sapling",
-                 "sugar_cane", "bamboo", "sweet_berry_bush",
-                 "wheat", "carrots", "potatoes", "beetroots", "nether_wart",
-                 "tall_grass", "large_fern", "sunflower", "lilac", "rose_bush", "peony",
-                 "brown_mushroom", "red_mushroom",
-                 "dandelion", "poppy", "blue_orchid", "allium", "azure_bluet",
-                 "red_tulip", "orange_tulip", "white_tulip", "pink_tulip",
-                 "oxeye_daisy", "cornflower", "lily_of_the_valley", "wither_rose" -> {
-                return true;
-            }
-            default -> {
-                return false;
-            }
-        }
-    }
-
-    // vanilla OCEAN_FLOOR/OCEAN_FLOOR_WG의 isOpaque 술어는 BlockBehaviour::blocksMotion —
-    // 잎(leaves)은 blocksMotion=true라서 vanilla는 잎도 바닥으로 센다(MOTION_BLOCKING_NO_LEAVES와만 다름).
     private static boolean isOceanFloorBlock(int stateId) {
-        return stateId != ChunkSection.AIR && stateId != CAVE_AIR_STATE && stateId != VOID_AIR_STATE
-            && !isFluid(stateId)
-            && !isWaterPlant(stateId)
-            && !isLandPlant(stateId);
+        boolean[] table = blocksMotionTable();
+        return stateId >= 0 && stateId < table.length && table[stateId];
     }
 
-    private static boolean isLandPlant(int stateId) {
-        return stateId == SHORT_GRASS_STATE || stateId == FERN_STATE || stateId == DEAD_BUSH_STATE;
+    private static volatile boolean[] blocksMotionTable;
+    private static volatile boolean[] hasFluidTable;
+
+    private static boolean[] blocksMotionTable() {
+        boolean[] t = blocksMotionTable;
+        if (t == null) {
+            BlockAttrs attrs = BlockAttrs.get();
+            int n = fluidRegistry().totalStateCount();
+            t = new boolean[n];
+            for (int i = 0; i < n; i++) t[i] = attrs.blocksMotion(i);
+            blocksMotionTable = t;
+        }
+        return t;
     }
 
-    private static boolean isWaterPlant(int stateId) {
-        return stateId == SEAGRASS_STATE
-            || stateId == TALL_SEAGRASS_UPPER_STATE
-            || stateId == TALL_SEAGRASS_LOWER_STATE
-            || stateId == KELP_PLANT_STATE
-            || (stateId >= KELP_MIN_STATE && stateId <= KELP_MAX_STATE)
-            || (stateId >= GLOW_LICHEN_MIN_STATE && stateId <= GLOW_LICHEN_MAX_STATE);
+    private static boolean[] hasFluidTable() {
+        boolean[] t = hasFluidTable;
+        if (t == null) {
+            BlockRegistry r = fluidRegistry();
+            int n = r.totalStateCount();
+            t = new boolean[n];
+            for (int i = 0; i < n; i++) {
+                String key = r.canonicalKeyOf(i);
+                if (key == null) continue;
+                int semi = key.indexOf(';');
+                String name = semi < 0 ? key : key.substring(0, semi);
+                t[i] = switch (name) {
+                    case "minecraft:water", "minecraft:lava", "minecraft:bubble_column", "minecraft:kelp",
+                         "minecraft:kelp_plant", "minecraft:seagrass", "minecraft:tall_seagrass" -> true;
+                    default -> semi >= 0 && key.indexOf("waterlogged=true", semi) >= 0;
+                };
+            }
+            hasFluidTable = t;
+        }
+        return t;
     }
 
-    private static boolean isFluid(int stateId) {
-        return stateId >= WATER_MIN_STATE && stateId <= WATER_MAX_STATE
-            || stateId >= LAVA_MIN_STATE && stateId <= LAVA_MAX_STATE;
+    // 높이맵 술어 표를 만들 때 쓰는 지연 로드 레지스트리(ChunkColumn은 생성자에 registry를 받지 않는 기존 설계라, 다른 곳들처럼
+    // 명시적 주입 대신 FurnaceMain과 동일 리소스를 1회 지연 로드해 재사용한다).
+    private static volatile BlockRegistry fluidRegistry;
+
+    private static BlockRegistry fluidRegistry() {
+        BlockRegistry r = fluidRegistry;
+        if (r == null) {
+            r = BlockRegistry.load("blocks/1.21.1.txt");
+            fluidRegistry = r;
+        }
+        return r;
     }
 
 }
