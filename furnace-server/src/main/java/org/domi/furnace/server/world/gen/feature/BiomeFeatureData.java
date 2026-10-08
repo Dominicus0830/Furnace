@@ -60,7 +60,8 @@ public final class BiomeFeatureData {
         "minecraft:random_patch", "minecraft:flower", "minecraft:simple_block", "minecraft:seagrass",
         "minecraft:kelp", "minecraft:freeze_top_layer", "minecraft:geode", "minecraft:tree",
         "minecraft:random_selector", "minecraft:random_boolean_selector", "minecraft:simple_random_selector",
-        "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines"
+        "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines",
+        "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -297,16 +298,53 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:vines")) {
                 return parseVines();
             }
+            if (type.equals("minecraft:block_column")) {
+                return parseBlockColumn(config);
+            }
+            if (type.equals("minecraft:vegetation_patch") || type.equals("minecraft:waterlogged_vegetation_patch")) {
+                return parseVegetationPatch(config, type.equals("minecraft:waterlogged_vegetation_patch"));
+            }
             // 미구현 feature 타입 → placeholder. index parity 유지(Phase 2에서 실제 구현으로 교체).
             return NoopFeature.INSTANCE;
+        }
+
+        private ConfiguredFeature parseBlockColumn(JsonObject config) {
+            ArrayList<BlockColumnFeature.Layer> layers = new ArrayList<>();
+            for (JsonElement el : config.getAsJsonArray("layers")) {
+                JsonObject layer = el.getAsJsonObject();
+                StateProvider provider = parseToPlaceProvider(layer.getAsJsonObject("provider"));
+                if (provider == null) return NoopFeature.INSTANCE;
+                layers.add(new BlockColumnFeature.Layer(treeIntProvider(layer.get("height"), 0), provider));
+            }
+            return new BlockColumnFeature(layers, direction(config.get("direction").getAsString()),
+                predicates().parse(config.getAsJsonObject("allowed_placement")),
+                config.has("prioritize_tip") && config.get("prioritize_tip").getAsBoolean());
+        }
+
+        private ConfiguredFeature parseVegetationPatch(JsonObject config, boolean waterlogged) {
+            StateProvider ground = parseToPlaceProvider(config.getAsJsonObject("ground_state"));
+            if (ground == null) return NoopFeature.INSTANCE;   // 미지원 state provider — 거짓 parity 방지
+            String replaceable = config.get("replaceable").getAsString();
+            Set<Integer> replaceableStates = Set.copyOf(tagStates(replaceable.substring(1)));
+            PlacedFeature vegetation = parseInlinePlacedFeature(config.get("vegetation_feature"));
+            VegetationPatchFeature.Surface surface = "ceiling".equals(config.get("surface").getAsString())
+                ? VegetationPatchFeature.Surface.CEILING : VegetationPatchFeature.Surface.FLOOR;
+            return new VegetationPatchFeature(replaceableStates, ground, vegetation, surface,
+                treeIntProvider(config.get("depth"), 1),
+                config.get("extra_bottom_block_chance").getAsFloat(),
+                config.get("vertical_range").getAsInt(),
+                config.get("vegetation_chance").getAsFloat(),
+                treeIntProvider(config.get("xz_radius"), 1),
+                config.get("extra_edge_column_chance").getAsFloat(),
+                waterlogged, registry.stateIdOrAir("minecraft:water"), registry);
         }
 
         private ConfiguredFeature parseRandomPatch(JsonObject config) {
             // config.feature = 인라인 placed feature {feature: configured, placement: [...]}
             JsonObject inlinePlaced = config.getAsJsonObject("feature");
             ConfiguredFeature inner = parseConfigured(inlinePlaced.getAsJsonObject("feature"));
-            // 비상수 provider 등 미지원 inner → placeholder 유지(거짓 parity 방지)
-            if (!(inner instanceof SimpleBlockFeature)) {
+            // 미지원 inner → placeholder 유지(거짓 parity 방지)
+            if (inner instanceof NoopFeature) {
                 return NoopFeature.INSTANCE;
             }
             ArrayList<PlacementModifier> placement = new ArrayList<>();
@@ -379,32 +417,28 @@ public final class BiomeFeatureData {
                 // 미지원 provider(weighted/dual_noise/noise) → placeholder(거짓 parity 방지).
                 return NoopFeature.INSTANCE;
             }
-            return new SimpleBlockFeature(provider, plantGround(),
-                isMushroomState(config) ? mushroomGrowGround() : null);
+            // 바닐라는 to_place가 어떤 블록이든 canSurvive를 그 블록 규칙대로 적용한다 — 규칙 미구현 블록이 섞이면 거짓 parity 대신 placeholder.
+            if (!allBlocksSupported(config.getAsJsonObject("to_place"))) return NoopFeature.INSTANCE;
+            return new SimpleBlockFeature(provider, survival());
         }
 
-        /** brown_mushroom/red_mushroom을 심는 simple_block인지 — vanilla MushroomBlock.canSurvive 적용 대상 판별용. */
-        private static boolean isMushroomState(JsonObject config) {
-            JsonObject toPlace = config.getAsJsonObject("to_place");
-            if (toPlace == null) return false;
-            String type = toPlace.has("type") ? toPlace.get("type").getAsString() : "minecraft:simple_state_provider";
-            if (!"minecraft:simple_state_provider".equals(type)) return false;
-            JsonObject state = toPlace.getAsJsonObject("state");
-            if (state == null || !state.has("Name")) return false;
-            String name = state.get("Name").getAsString();
-            return "minecraft:brown_mushroom".equals(name) || "minecraft:red_mushroom".equals(name);
-        }
-
-        // vanilla BlockTags.MUSHROOM_GROW_BLOCK — 이 지면 위에서는 광량과 무관하게 항상 생존.
-        private Set<Integer> mushroomGrowGround() {
-            if (mushroomGrowGroundCache == null) {
-                mushroomGrowGroundCache = new HashSet<>(states(
-                    "minecraft:mycelium", "minecraft:podzol",
-                    "minecraft:crimson_nylium", "minecraft:warped_nylium"));
+        private boolean allBlocksSupported(JsonElement el) {
+            if (el.isJsonObject()) {
+                JsonObject o = el.getAsJsonObject();
+                if (o.has("Name") && !survival().supportsBlock(o.get("Name").getAsString())) return false;
+                for (var e : o.entrySet()) if (!allBlocksSupported(e.getValue())) return false;
+            } else if (el.isJsonArray()) {
+                for (JsonElement c : el.getAsJsonArray()) if (!allBlocksSupported(c)) return false;
             }
-            return mushroomGrowGroundCache;
+            return true;
         }
-        private Set<Integer> mushroomGrowGroundCache;
+
+        private BlockSurvival survivalCache;
+
+        private BlockSurvival survival() {
+            if (survivalCache == null) survivalCache = new BlockSurvival(registry, new FluidKinds(registry));
+            return survivalCache;
+        }
 
         /** simple_state_provider / noise_threshold_provider 지원. 그외 → null(미지원). */
         private StateProvider parseToPlaceProvider(JsonObject toPlace) {
@@ -430,6 +464,12 @@ public final class BiomeFeatureData {
                         toPlace.get("high_chance").getAsFloat(),
                         parseState(toPlace.getAsJsonObject("default_state")),
                         lowStates, highStates);
+                }
+                case "minecraft:randomized_int_state_provider" -> {
+                    StateProvider source = parseToPlaceProvider(toPlace.getAsJsonObject("source"));
+                    if (source == null) return null;
+                    return new RandomizedIntStateProvider(source, toPlace.get("property").getAsString(),
+                        treeIntProvider(toPlace.get("values"), 0), registry);
                 }
                 case "minecraft:weighted_state_provider" -> {
                     JsonArray entries = toPlace.getAsJsonArray("entries");
@@ -486,20 +526,6 @@ public final class BiomeFeatureData {
             }
             return ids;
         }
-
-        // BushBlock.mayPlaceOn 근사 = dirt 태그 + farmland. grass/fern 등 지면식물 생존 판정용.
-        // 블록별 정확 survival은 추후(여기선 흙 계열로 근사).
-        private Set<Integer> plantGround() {
-            if (plantGroundCache == null) {
-                plantGroundCache = new HashSet<>(states(
-                    "minecraft:grass_block", "minecraft:dirt", "minecraft:coarse_dirt",
-                    "minecraft:podzol", "minecraft:mycelium", "minecraft:rooted_dirt",
-                    "minecraft:moss_block", "minecraft:mud", "minecraft:muddy_mangrove_roots",
-                    "minecraft:farmland"));
-            }
-            return plantGroundCache;
-        }
-        private Set<Integer> plantGroundCache;
 
         private OreFeature parseOre(JsonObject config) {
             ArrayList<OreFeature.Target> targets = new ArrayList<>();
@@ -1026,26 +1052,42 @@ public final class BiomeFeatureData {
                 parseStateProvider(mangrove.getAsJsonObject("muddy_roots_provider")));
         }
 
+        /** vanilla IntProvider 코덱: 정수면 constant, 객체면 type으로 분기. 알 수 없는 형태는 조용히 대체하지 않고 예외. */
         private TreeIntProvider treeIntProvider(JsonElement el, int fallback) {
             if (el == null || el.isJsonNull()) return new TreeIntProvider.Constant(fallback);
             if (el.isJsonPrimitive()) return new TreeIntProvider.Constant(el.getAsInt());
             JsonObject obj = el.getAsJsonObject();
-            String type = obj.has("type") ? obj.get("type").getAsString() : "";
-            if (obj.has("value")) return new TreeIntProvider.Constant(obj.get("value").getAsInt());
-            if ("minecraft:weighted_list".equals(type) || obj.has("distribution")) {
-                ArrayList<TreeIntProvider.WeightedList.Entry> entries = new ArrayList<>();
-                for (JsonElement entryEl : obj.getAsJsonArray("distribution")) {
-                    JsonObject entryObj = entryEl.getAsJsonObject();
-                    entries.add(new TreeIntProvider.WeightedList.Entry(
-                        entryObj.get("weight").getAsInt(), treeIntProvider(entryObj.get("data"), fallback)));
+            // vanilla IntProvider 코덱: type 생략 시 uniform으로 해석
+            String type = obj.has("type") ? obj.get("type").getAsString() : "minecraft:uniform";
+            switch (type) {
+                case "minecraft:constant" -> {
+                    return new TreeIntProvider.Constant(obj.get("value").getAsInt());
                 }
-                return new TreeIntProvider.WeightedList(List.copyOf(entries));
+                case "minecraft:uniform" -> {
+                    return new TreeIntProvider.Uniform(obj.get("min_inclusive").getAsInt(), obj.get("max_inclusive").getAsInt());
+                }
+                case "minecraft:biased_to_bottom" -> {
+                    return new TreeIntProvider.BiasedToBottom(obj.get("min_inclusive").getAsInt(), obj.get("max_inclusive").getAsInt());
+                }
+                case "minecraft:clamped" -> {
+                    return new TreeIntProvider.Clamped(treeIntProvider(obj.get("source"), fallback),
+                        obj.get("min_inclusive").getAsInt(), obj.get("max_inclusive").getAsInt());
+                }
+                case "minecraft:clamped_normal" -> {
+                    return new TreeIntProvider.ClampedNormal(obj.get("mean").getAsFloat(), obj.get("deviation").getAsFloat(),
+                        obj.get("min_inclusive").getAsInt(), obj.get("max_inclusive").getAsInt());
+                }
+                case "minecraft:weighted_list" -> {
+                    ArrayList<TreeIntProvider.WeightedList.Entry> entries = new ArrayList<>();
+                    for (JsonElement entryEl : obj.getAsJsonArray("distribution")) {
+                        JsonObject entryObj = entryEl.getAsJsonObject();
+                        entries.add(new TreeIntProvider.WeightedList.Entry(
+                            entryObj.get("weight").getAsInt(), treeIntProvider(entryObj.get("data"), fallback)));
+                    }
+                    return new TreeIntProvider.WeightedList(List.copyOf(entries));
+                }
+                default -> throw new IllegalArgumentException("알 수 없는 IntProvider: " + obj);
             }
-            if ("minecraft:uniform".equals(type) || (obj.has("min_inclusive") && obj.has("max_inclusive"))) {
-                return new TreeIntProvider.Uniform(obj.get("min_inclusive").getAsInt(), obj.get("max_inclusive").getAsInt());
-            }
-            if (obj.has("min_inclusive")) return new TreeIntProvider.Constant(obj.get("min_inclusive").getAsInt());
-            return new TreeIntProvider.Constant(fallback);
         }
 
         private List<Integer> parseTargetPredicate(JsonObject target) {
@@ -1227,18 +1269,17 @@ public final class BiomeFeatureData {
                     json.get("noise_to_count_ratio").getAsInt(),
                     json.get("noise_factor").getAsDouble(),
                     json.has("noise_offset") ? json.get("noise_offset").getAsDouble() : 0.0));
-                case "minecraft:block_predicate_filter" -> {
-                    JsonObject predicate = json.getAsJsonObject("predicate");
-                    PlacementModifier.BlockPred pred = parseBlockPred(predicate);
-                    if (pred != null) {
-                        out.add(new PlacementModifier.CompositeBlockPredicateFilter(pred));
-                    } else {
-                        Set<Integer> allowed = blockPredicateStates(predicate);
-                        if (allowed != null) out.add(new PlacementModifier.BlockPredicateFilter(allowed));
-                        if (predicate != null && "minecraft:would_survive".equals(predicate.get("type").getAsString())) {
-                            out.add(new PlacementModifier.WouldSurviveFilter(plantGround()));
-                        }
-                    }
+                case "minecraft:block_predicate_filter" -> out.add(
+                    new PlacementModifier.PredicateFilter(predicates().parse(json.getAsJsonObject("predicate"))));
+                case "minecraft:random_offset" -> out.add(new PlacementModifier.RandomOffsetPlacement(
+                    treeIntProvider(json.get("xz_spread"), 0), treeIntProvider(json.get("y_spread"), 0)));
+                case "minecraft:environment_scan" -> {
+                    int[] d = direction(json.get("direction_of_search").getAsString());
+                    BlockPredicate allowed = json.has("allowed_search_condition")
+                        ? predicates().parse(json.getAsJsonObject("allowed_search_condition")) : new BlockPredicate.True();
+                    out.add(new PlacementModifier.EnvironmentScanPlacement(d[0], d[1], d[2],
+                        predicates().parse(json.getAsJsonObject("target_condition")), allowed,
+                        json.get("max_steps").getAsInt()));
                 }
                 case "minecraft:carving_mask" -> out.add(new PlacementModifier.CarvingMaskPlacement(
                     json.has("step") ? json.get("step").getAsString() : "air"));
@@ -1248,47 +1289,36 @@ public final class BiomeFeatureData {
                     int maxRel = json.has("max_inclusive") ? json.get("max_inclusive").getAsInt() : Integer.MAX_VALUE;
                     out.add(new PlacementModifier.SurfaceRelativeThresholdFilter(parseHeightmapType(json), minRel, maxRel));
                 }
-                default -> {
-                    // Unsupported modifiers are intentionally ignored until their feature type is implemented.
-                }
+                default -> throw new IllegalArgumentException("지원하지 않는 placement modifier: " + type);
             }
         }
 
-        private static PlacementModifier countPlacement(JsonElement el) {
+        private static int[] direction(String name) {
+            return switch (name) {
+                case "down" -> new int[]{0, -1, 0};
+                case "up" -> new int[]{0, 1, 0};
+                case "north" -> new int[]{0, 0, -1};
+                case "south" -> new int[]{0, 0, 1};
+                case "west" -> new int[]{-1, 0, 0};
+                case "east" -> new int[]{1, 0, 0};
+                default -> throw new IllegalArgumentException("방향: " + name);
+            };
+        }
+
+        private BlockPredicate.Parser predicateParser;
+
+        private BlockPredicate.Parser predicates() {
+            if (predicateParser == null) {
+                FluidKinds fluids = new FluidKinds(registry);
+                predicateParser = new BlockPredicate.Parser(registry, tag -> Set.copyOf(tagStates(tag)),
+                    new BlockSurvival(registry, fluids), fluids);
+            }
+            return predicateParser;
+        }
+
+        private PlacementModifier countPlacement(JsonElement el) {
             if (el.isJsonPrimitive()) return new PlacementModifier.CountPlacement(el.getAsInt());
-            JsonObject obj = el.getAsJsonObject();
-            if ("minecraft:weighted_list".equals(obj.has("type") ? obj.get("type").getAsString() : "")) {
-                JsonArray distribution = obj.getAsJsonArray("distribution");
-                int[] min = new int[distribution.size()];
-                int[] max = new int[distribution.size()];
-                int[] weights = new int[distribution.size()];
-                for (int i = 0; i < distribution.size(); i++) {
-                    JsonObject entry = distribution.get(i).getAsJsonObject();
-                    JsonElement data = entry.get("data");
-                    if (data.isJsonPrimitive()) {
-                        min[i] = data.getAsInt();
-                        max[i] = data.getAsInt();
-                    } else {
-                        JsonObject provider = data.getAsJsonObject();
-                        min[i] = provider.has("min_inclusive") ? provider.get("min_inclusive").getAsInt() : countValue(data);
-                        max[i] = provider.has("max_inclusive") ? provider.get("max_inclusive").getAsInt() : min[i];
-                    }
-                    weights[i] = entry.get("weight").getAsInt();
-                }
-                return new PlacementModifier.WeightedListCountPlacement(min, max, weights);
-            }
-            if ("minecraft:uniform".equals(obj.has("type") ? obj.get("type").getAsString() : "")) {
-                return new PlacementModifier.UniformCountPlacement(
-                    obj.get("min_inclusive").getAsInt(),
-                    obj.get("max_inclusive").getAsInt());
-            }
-            return new PlacementModifier.CountPlacement(countValue(el));
-        }
-
-        private static int countValue(JsonElement el) {
-            if (el.isJsonPrimitive()) return el.getAsInt();
-            JsonObject obj = el.getAsJsonObject();
-            return obj.has("value") ? obj.get("value").getAsInt() : 1;
+            return new PlacementModifier.ProviderCountPlacement(treeIntProvider(el, 1));
         }
 
         private static PlacementModifier.HeightProvider heightProvider(JsonObject json) {

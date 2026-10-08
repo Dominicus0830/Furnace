@@ -8,6 +8,8 @@ public class LegacyRandom {
     private static final long MASK       = (1L << 48) - 1;
 
     private long seed;
+    private double nextNextGaussian;
+    private boolean haveNextNextGaussian;
 
     public LegacyRandom(long seed) {
         setSeed(seed);
@@ -15,6 +17,7 @@ public class LegacyRandom {
 
     public void setSeed(long seed) {
         this.seed = (seed ^ MULTIPLIER) & MASK;
+        this.haveNextNextGaussian = false;   // 바닐라 LegacyRandomSource.setSeed → gaussianSource.reset()
     }
 
     private int next(int bits) {
@@ -66,5 +69,25 @@ public class LegacyRandom {
         boolean value = next(1) != 0;
         RandomTrace.nextBoolean(value);
         return value;
+    }
+
+    /** 바닐라 MarsagliaPolarGaussian(LegacyRandomSource.nextGaussian) — Math.sqrt/Math.log 사용(디컴파일 확인). */
+    public double nextGaussian() {
+        if (haveNextNextGaussian) {
+            haveNextNextGaussian = false;
+            return nextNextGaussian;
+        }
+        double d0;
+        double d1;
+        double d2;
+        do {
+            d0 = 2.0 * nextDouble() - 1.0;
+            d1 = 2.0 * nextDouble() - 1.0;
+            d2 = d0 * d0 + d1 * d1;
+        } while (d2 >= 1.0 || d2 == 0.0);
+        double d3 = Math.sqrt(-2.0 * Math.log(d2) / d2);
+        nextNextGaussian = d1 * d3;
+        haveNextNextGaussian = true;
+        return d0 * d3;
     }
 }

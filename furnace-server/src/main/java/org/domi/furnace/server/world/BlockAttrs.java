@@ -22,11 +22,13 @@ public final class BlockAttrs {
     private final short[] flags;
     private final byte[] light;
     private final byte[] sturdy;
+    private final short[] block;
 
-    private BlockAttrs(short[] flags, byte[] light, byte[] sturdy) {
+    private BlockAttrs(short[] flags, byte[] light, byte[] sturdy, short[] block) {
         this.flags = flags;
         this.light = light;
         this.sturdy = sturdy;
+        this.block = block;
     }
 
     public static BlockAttrs get() {
@@ -49,6 +51,7 @@ public final class BlockAttrs {
             short[] flags = new short[n];
             byte[] light = new byte[n];
             byte[] sturdy = new byte[n];
+            short[] block = new short[n];
             int i = 0;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;
@@ -59,10 +62,11 @@ public final class BlockAttrs {
                 flags[i] = (short) f;
                 light[i] = (byte) Integer.parseInt(p[1]);
                 sturdy[i] = (byte) Integer.parseInt(p[2]);
+                block[i] = (short) Integer.parseInt(p[3]);
                 i++;
             }
             if (i != n) throw new IllegalStateException("블록 속성 줄 수 불일치: " + i + " != " + n);
-            return new BlockAttrs(flags, light, sturdy);
+            return new BlockAttrs(flags, light, sturdy, block);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -96,6 +100,11 @@ public final class BlockAttrs {
     /** BlockState.isFaceSturdy(level, pos, direction) — SupportType.FULL. direction은 DOWN..EAST 인덱스. */
     public boolean isFaceSturdy(int stateId, int direction) {
         return stateId >= 0 && stateId < sturdy.length && (sturdy[stateId] & (1 << direction)) != 0;
+    }
+
+    /** state가 속한 블록의 레지스트리 순번(BlockState.is(Block) 비교용 — 같은 블록의 다른 state는 같은 값). 범위 밖이면 -1. */
+    public int blockIndex(int stateId) {
+        return stateId >= 0 && stateId < block.length ? block[stateId] : -1;
     }
 
     public int stateCount() { return flags.length; }

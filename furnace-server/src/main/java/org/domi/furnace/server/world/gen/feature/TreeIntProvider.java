@@ -3,7 +3,8 @@ package org.domi.furnace.server.world.gen.feature;
 import java.util.List;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
-public sealed interface TreeIntProvider permits TreeIntProvider.Constant, TreeIntProvider.Uniform, TreeIntProvider.WeightedList {
+public sealed interface TreeIntProvider permits TreeIntProvider.Constant, TreeIntProvider.Uniform, TreeIntProvider.WeightedList,
+        TreeIntProvider.BiasedToBottom, TreeIntProvider.Clamped, TreeIntProvider.ClampedNormal {
 
     int sample(WorldgenRandom random);
 
@@ -37,6 +38,32 @@ public sealed interface TreeIntProvider permits TreeIntProvider.Constant, TreeIn
                 if (idx < 0) return e.data().sample(random);
             }
             throw new IllegalStateException("weighted_list exhausted without a match");
+        }
+    }
+
+    /** vanilla BiasedToBottomInt: min + nextInt(nextInt(max - min + 1) + 1). */
+    record BiasedToBottom(int minInclusive, int maxInclusive) implements TreeIntProvider {
+        @Override
+        public int sample(WorldgenRandom random) {
+            return minInclusive + random.nextInt(random.nextInt(maxInclusive - minInclusive + 1) + 1);
+        }
+    }
+
+    /** vanilla ClampedInt: Mth.clamp(source.sample(random), min, max). */
+    record Clamped(TreeIntProvider source, int minInclusive, int maxInclusive) implements TreeIntProvider {
+        @Override
+        public int sample(WorldgenRandom random) {
+            return Math.max(minInclusive, Math.min(maxInclusive, source.sample(random)));
+        }
+    }
+
+    /** vanilla ClampedNormalInt: (int) Mth.clamp(mean + (float) nextGaussian() * deviation, min, max) — float 연산 순서까지 동일. */
+    record ClampedNormal(float mean, float deviation, int minInclusive, int maxInclusive) implements TreeIntProvider {
+        @Override
+        public int sample(WorldgenRandom random) {
+            float normal = mean + (float) random.nextGaussian() * deviation;
+            float clamped = Math.max((float) minInclusive, Math.min((float) maxInclusive, normal));
+            return (int) clamped;
         }
     }
 }

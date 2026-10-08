@@ -76,7 +76,9 @@ class BiomeFeatureDataTest {
 
         List<PlacedFeature> step6 = features.featuresForStep("minecraft:uniform_count_biome", 6);
         assertEquals(1, step6.size());
-        assertInstanceOf(PlacementModifier.UniformCountPlacement.class, step6.get(0).placement().get(0));
+        PlacementModifier.ProviderCountPlacement count = assertInstanceOf(
+            PlacementModifier.ProviderCountPlacement.class, step6.get(0).placement().get(0));
+        assertInstanceOf(TreeIntProvider.Uniform.class, count.count());
     }
 
     @Test

@@ -12,6 +12,10 @@ import org.domi.furnace.server.world.gen.noise.SimplexNoise;
 
 public sealed interface PlacementModifier
         permits PlacementModifier.CountPlacement,
+                PlacementModifier.RandomOffsetPlacement,
+                PlacementModifier.EnvironmentScanPlacement,
+                PlacementModifier.PredicateFilter,
+                PlacementModifier.ProviderCountPlacement,
                 PlacementModifier.UniformCountPlacement,
                 PlacementModifier.WeightedListCountPlacement,
                 PlacementModifier.InSquarePlacement,
@@ -37,6 +41,51 @@ public sealed interface PlacementModifier
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             return IntStream.range(0, count).mapToObj(__ -> pos);
+        }
+    }
+
+    /** vanilla CountPlacement: IntProvider를 한 번 샘플해 그 횟수만큼 같은 위치를 반복(모든 IntProvider 종류 지원). */
+    record ProviderCountPlacement(TreeIntProvider count) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            int n = count.sample(random);
+            return IntStream.range(0, n).mapToObj(__ -> pos);
+        }
+    }
+
+    /** vanilla RandomOffsetPlacement: x = pos.x + xz.sample, y = pos.y + y.sample, z = pos.z + xz.sample (이 순서로 RNG 소비). */
+    record RandomOffsetPlacement(TreeIntProvider xzSpread, TreeIntProvider ySpread) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            int x = pos.x() + xzSpread.sample(random);
+            int y = pos.y() + ySpread.sample(random);
+            int z = pos.z() + xzSpread.sample(random);
+            return Stream.of(new BlockPos(x, y, z));
+        }
+    }
+
+    /** vanilla EnvironmentScanPlacement: 허용 조건이 유지되는 동안 maxSteps까지 방향으로 이동하며 목표 조건을 찾는다(RNG 미소비). */
+    record EnvironmentScanPlacement(int dx, int dy, int dz, BlockPredicate target, BlockPredicate allowed, int maxSteps)
+            implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            int x = pos.x(), y = pos.y(), z = pos.z();
+            if (!allowed.test(view, x, y, z)) return Stream.empty();
+            for (int i = 0; i < maxSteps; i++) {
+                if (target.test(view, x, y, z)) return Stream.of(new BlockPos(x, y, z));
+                x += dx; y += dy; z += dz;
+                if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return Stream.empty();   // isOutsideBuildHeight
+                if (!allowed.test(view, x, y, z)) break;
+            }
+            return target.test(view, x, y, z) ? Stream.of(new BlockPos(x, y, z)) : Stream.empty();
+        }
+    }
+
+    /** vanilla BlockPredicateFilter: 조건을 만족하는 위치만 통과(RNG 미소비). */
+    record PredicateFilter(BlockPredicate predicate) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            return predicate.test(view, pos.x(), pos.y(), pos.z()) ? Stream.of(pos) : Stream.empty();
         }
     }
 

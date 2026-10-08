@@ -31,7 +31,7 @@ class NoopFeatureAuditTest {
         "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom",
         "minecraft:sea_pickle", "minecraft:root_system",
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom",
-        "minecraft:chorus_plant", "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch",
+        "minecraft:chorus_plant",
         "minecraft:nether_forest_vegetation", "minecraft:huge_fungus",
         "minecraft:twisting_vines", "minecraft:weeping_vines", "minecraft:sculk_patch",
         "minecraft:netherrack_replace_blobs", "minecraft:block_pile",
@@ -40,7 +40,7 @@ class NoopFeatureAuditTest {
         "minecraft:glowstone_blob", "minecraft:dripstone_cluster", "minecraft:large_dripstone",
         "minecraft:ice_spike", "minecraft:monster_room",
         "minecraft:lake", "minecraft:desert_well", "minecraft:bonus_chest", "minecraft:blue_ice",
-        "minecraft:bamboo", "minecraft:block_column",
+        "minecraft:bamboo",
         "minecraft:end_island", "minecraft:end_spike", "minecraft:end_platform", "minecraft:end_gateway",
         // 이 audit(파일 스캔) 실행 중 신규 확인된 미구현 타입(survey 목록에 없었음) — void_start_platform.json
         // (엔드 스폰 발판) 1개 파일뿐이라 영향 범위 작음.
