@@ -4,7 +4,10 @@ import java.util.*;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.*;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
+@SuppressWarnings("unchecked")
 public class StructCmp {
+  static final int YMIN = Integer.parseInt(System.getenv().getOrDefault("YMIN", "-64")), YMAX = Integer.parseInt(System.getenv().getOrDefault("YMAX", "320"));
+  static final String FILTER = System.getenv("STRUCT_FILTER");
   public static void main(String[] a) throws Exception {
     long seed = Long.parseLong(a[0]); String id = a[1]; int sx = Integer.parseInt(a[2]), sz = Integer.parseInt(a[3]);
     java.nio.file.Path on = java.nio.file.Path.of(a[4]);
@@ -16,9 +19,23 @@ public class StructCmp {
     org.domi.furnace.server.world.gen.structure.StructureStart st = null;
     for (var s : starts) if (s.structureId().equals(id)) st = s;
     if (st == null) { System.out.println("Furnace: 해당 start 없음 (starts=" + starts.size() + ")"); return; }
+    try {
+      var rootC = Harness.readChunk(on, sx, sz);
+      var vs = (Map<String,Object>) ((Map<String,Object>) rootC.get("structures")).get("starts");
+      for (var e : vs.entrySet()) {
+        var m = (Map<String,Object>) e.getValue();
+        System.out.println("vanilla start " + e.getKey() + (m.containsKey("Children") ? "" : " (INVALID)"));
+        if (m.containsKey("Children")) for (Object co : (List<Object>) m.get("Children")) {
+          var cm = (Map<String,Object>) co;
+          System.out.println("   vanilla piece " + cm.get("id") + " tpl=" + cm.get("Template") + " rot=" + cm.get("Rot") + " BB=" + Arrays.toString((int[]) cm.get("BB")) + " TP=" + cm.get("TPX") + "," + cm.get("TPY") + "," + cm.get("TPZ"));
+        }
+      }
+    } catch (Exception ex) { System.out.println("vanilla start info failed: " + ex); }
+    for (var pc : st.pieces()) if (pc instanceof org.domi.furnace.server.world.gen.structure.TemplatePiece tp) System.out.println("   furnace piece tpl=" + tp.templateName() + " rot=" + tp.settings().rotation + " pos=" + tp.tx() + "," + tp.ty() + "," + tp.tz());
     var b = st.rawBox();
     System.out.println("furnace start pieces=" + st.pieces().size() + " box=[" + b.minX() + "," + b.minY() + "," + b.minZ() + " .. " + b.maxX() + "," + b.maxY() + "," + b.maxZ() + "]");
-    int cx0 = Math.floorDiv(b.minX(), 16), cx1 = Math.floorDiv(b.maxX(), 16), cz0 = Math.floorDiv(b.minZ(), 16), cz1 = Math.floorDiv(b.maxZ(), 16);
+    final int M = Integer.parseInt(System.getenv().getOrDefault("XZMARGIN", "0"));
+    int cx0 = Math.floorDiv(b.minX() - M, 16), cx1 = Math.floorDiv(b.maxX() + M, 16), cz0 = Math.floorDiv(b.minZ() - M, 16), cz1 = Math.floorDiv(b.maxZ() + M, 16);
     long inBox = 0, diff = 0, changed = 0, changedRight = 0;
     Map<String,Integer> pairs = new TreeMap<>();
     List<String> firsts = new ArrayList<>();
@@ -26,18 +43,18 @@ public class StructCmp {
       short[] von = Harness.vanillaBlocks(Harness.readChunk(on, cx, cz));
       short[] voff = off == null ? null : Harness.vanillaBlocks(Harness.readChunk(off, cx, cz));
       ChunkColumn col = src.generateWithFeatures(cx, cz);
-      for (int y = -64; y < 320; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
+      for (int y = YMIN; y < YMAX; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
         int wx = cx * 16 + x, wz = cz * 16 + z;
-        if (wx < b.minX() || wx > b.maxX() || wz < b.minZ() || wz > b.maxZ()) continue;
+        if (wx < b.minX() - M || wx > b.maxX() + M || wz < b.minZ() - M || wz > b.maxZ() + M) continue;
         int p = (y + 64) * 256 + z * 16 + x;
-        String fk = reg.canonicalKeyOf(col.getBlock(x, y, z)); if (fk == null) fk = "unknown";
-        String vk = Harness.keys.get(von[p]);
+        String fk = reg.canonicalKeyOf(col.getBlock(x, y, z)); if (fk == null) fk = "unknown"; if (fk.equals("minecraft:cave_air")) fk = "minecraft:air";
+        String vk = Harness.keys.get(von[p]); if (vk.equals("minecraft:cave_air") || vk.equals("minecraft:void_air")) vk = "minecraft:air";
         inBox++;
         if (voff != null && !Harness.keys.get(voff[p]).equals(vk)) { changed++; if (fk.equals(vk)) changedRight++; }
         if (!fk.equals(vk)) {
           diff++;
           pairs.merge(vk + "  ->  " + fk, 1, Integer::sum);
-          if (firsts.size() < 60) firsts.add(wx + " " + y + " " + wz + "  van=" + vk + "  fur=" + fk);
+          if (firsts.size() < 400 && (FILTER == null || (vk + fk).contains(FILTER))) firsts.add(wx + " " + y + " " + wz + "  van=" + vk + "  fur=" + fk);
         }
       }
     }

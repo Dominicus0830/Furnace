@@ -19,6 +19,12 @@ public interface TerrainAccess {
         return firstOccupiedHeight(heightmap, blockX, blockZ) + 1;
     }
 
+    /** NoiseColumn 상당: 카버/피처 이전 지형 채움의 블록 상태 id. */
+    int baseBlock(int blockX, int blockY, int blockZ);
+
+    /** Biome.coldEnoughToSnow(pos) */
+    boolean coldEnoughToSnow(String biome, int x, int y, int z);
+
     /** 블록 좌표의 노이즈 바이옴(쿼트 해상도) 이름. */
     String biomeAt(int blockX, int blockY, int blockZ);
 }

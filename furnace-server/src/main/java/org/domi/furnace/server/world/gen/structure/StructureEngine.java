@@ -25,6 +25,7 @@ public final class StructureEngine {
     private final long seed;
     private final Set<String> possibleBiomes;
     private final Map<String, StructureTemplate> templates = new ConcurrentHashMap<>();
+    private final Set<String> warned = ConcurrentHashMap.newKeySet();
     private final Map<String, StructureType> types = new ConcurrentHashMap<>();
     private final Map<String, Function<StructureRegistry.Def, StructureType>> factories = new ConcurrentHashMap<>();
 
@@ -50,6 +51,47 @@ public final class StructureEngine {
     public StructureRegistry registry() { return registry; }
 
     public long seed() { return seed; }
+
+    /** FluidState.is(FluidTags.WATER) — 물 블록, 물을 가진 식물, waterlogged 블록. */
+    public boolean hasWaterFluid(int state) {
+        String n = table.name(state);
+        if (n.equals("minecraft:water") || n.equals("minecraft:bubble_column") || n.equals("minecraft:kelp") || n.equals("minecraft:kelp_plant")
+            || n.equals("minecraft:seagrass") || n.equals("minecraft:tall_seagrass")) return true;
+        return "true".equals(table.prop(state, "waterlogged"));
+    }
+
+    private final Map<String, Set<String>> tagSets = new ConcurrentHashMap<>();
+
+    /** 블록 태그("minecraft:xxx") → 블록 이름 집합. */
+    public Set<String> blockTagSet(String tag) {
+        return tagSets.computeIfAbsent(tag, t -> new java.util.HashSet<>(org.domi.furnace.server.world.gen.feature.BlockTags.get().blocksOf(t)));
+    }
+
+    private final Map<String, Integer> stateCache = new ConcurrentHashMap<>();
+
+    /** "minecraft:name[prop=value,...]" → 기본 상태에 지정한 속성만 바꾼 상태 id. */
+    public int state(String spec) {
+        return stateCache.computeIfAbsent(spec, sp -> {
+            String name = sp;
+            int br = sp.indexOf('[');
+            Map<String, String> props = new java.util.LinkedHashMap<>();
+            if (br >= 0) {
+                name = sp.substring(0, br);
+                String body = sp.substring(br + 1, sp.lastIndexOf(']'));
+                if (!body.isBlank()) for (String kv : body.split(",")) {
+                    int eq = kv.indexOf('=');
+                    props.put(kv.substring(0, eq).strip(), kv.substring(eq + 1).strip());
+                }
+            }
+            if (!name.contains(":")) name = "minecraft:" + name;
+            int st = blocks.defaultStateId(name);
+            for (Map.Entry<String, String> e : props.entrySet()) {
+                if (!table.has(st, e.getKey())) throw new IllegalArgumentException("속성 없음: " + sp);
+                st = table.with(st, e.getKey(), e.getValue());
+            }
+            return st;
+        });
+    }
 
     public StructureTemplate template(String id) {
         return templates.computeIfAbsent(id, k -> StructureTemplate.load(blocks, k));
@@ -155,7 +197,12 @@ public final class StructureEngine {
         String biome = terrain.biomeAt(s.x(), s.y(), s.z());
         if (!def.biomes().contains(biome)) return false;
         PiecesBuilder b = new PiecesBuilder();
-        s.generator().accept(b);
+        try {
+            s.generator().accept(b);
+        } catch (StructureTemplate.MissingTemplateException e) {
+            if (warned.add(def.id())) System.err.println("[structures] " + def.id() + " 건너뜀: " + e.getMessage());
+            return false;
+        }
         if (b.isEmpty()) return false;
         out.add(new StructureStart(def.id(), cx, cz, b.pieces(), def.terrainAdaptation(), type));
         return true;

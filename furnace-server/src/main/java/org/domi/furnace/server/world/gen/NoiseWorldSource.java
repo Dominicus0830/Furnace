@@ -63,6 +63,14 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     // 키: (cx<<32)^cz, 값: lz*16+lx 인덱스의 (height-1). generate()는 seed+좌표만의 순수 함수라 메모이제이션 안전.
     // bounded LRU(256) — 무제한 ConcurrentHashMap이던 것을 pristine 캐시와 같은 이유로 bounded화.
     private static final int SURFACE_HEIGHT_CACHE_SIZE = 256;
+    private final Map<Long, ChunkColumn> terrainCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, ChunkColumn> eldest) {
+                return size() > 24;
+            }
+        });
+    private WorldgenData worldgenData;
     private final Map<Long, int[]> surfaceHeightCache = java.util.Collections.synchronizedMap(
         new java.util.LinkedHashMap<>(16, 0.75f, true) {
             @Override
@@ -132,10 +140,12 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine =
             new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possibleBiomeOrder(data, registries)));
 
-        return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
+        NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,
                                     featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
+        source.worldgenData = data;
+        return source;
     }
 
     /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
@@ -462,6 +472,19 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     @Override
     public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
         return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
+    }
+
+    @Override
+    public int baseBlock(int blockX, int blockY, int blockZ) {
+        int cx = Math.floorDiv(blockX, 16);
+        int cz = Math.floorDiv(blockZ, 16);
+        ChunkColumn c = terrainCache.computeIfAbsent(chunkKey(cx, cz), k -> generate(cx, cz));
+        return c.getBlock(blockX - cx * 16, blockY, blockZ - cz * 16);
+    }
+
+    @Override
+    public boolean coldEnoughToSnow(String biome, int x, int y, int z) {
+        return BiomeClimate.coldEnoughToSnow(worldgenData.biomeTemperature(biome), worldgenData.biomeFrozenModifier(biome), x, y, z);
     }
 
     @Override

@@ -17,6 +17,12 @@ import org.domi.furnace.server.world.BlockRegistry;
 
 public final class StructureTemplate {
 
+    /** 리소스에 없는 템플릿 — 구조물 생성은 건너뛴다(자료 보충 필요). */
+    public static final class MissingTemplateException extends IllegalArgumentException {
+        public MissingTemplateException(String id) { super("구조물 템플릿 없음: " + id); }
+    }
+
+
     /** 템플릿 안 블록 하나. 좌표는 템플릿 로컬. */
     public record BlockInfo(int x, int y, int z, int state, NbtCompound nbt) {}
 
@@ -53,7 +59,7 @@ public final class StructureTemplate {
         String path = id.startsWith("minecraft:") ? id.substring("minecraft:".length()) : id;
         String res = "worldgen/1.21.1/structure/" + path + ".nbt";
         try (InputStream in = StructureTemplate.class.getClassLoader().getResourceAsStream(res)) {
-            if (in == null) throw new IllegalArgumentException("구조물 템플릿 없음: " + id);
+            if (in == null) throw new MissingTemplateException(id);
             return fromNbt(registry, NbtIo.readGzip(in));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

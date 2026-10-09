@@ -90,6 +90,37 @@ public final class ChunkColumn {
         generatedBlockEntities.put(blockEntityKey(x, y, z), nbt);
     }
 
+    // 바닐라 ChunkAccess.markPosForPostprocessing — 청크가 FULL이 될 때 neighbour shape 갱신을 받을 칸(로컬 x,z + 월드 y).
+    private java.util.Set<Long> postProcessMarks;
+
+    public void markPosForPostprocessing(int lx, int y, int lz) {
+        if (postProcessMarks == null) postProcessMarks = new java.util.LinkedHashSet<>();
+        postProcessMarks.add(((long) lx << 40) | ((long) lz << 32) | (y & 0xFFFFFFFFL));
+    }
+
+    /** 표시된 칸 {lx, y, lz} 목록(표시 순서). */
+    public java.util.List<int[]> postProcessMarks() {
+        java.util.List<int[]> out = new java.util.ArrayList<>();
+        if (postProcessMarks != null) {
+            for (long k : postProcessMarks) out.add(new int[]{(int) (k >> 40) & 0xFF, (int) k, (int) (k >> 32) & 0xFF});
+        }
+        return out;
+    }
+
+    public void clearPostProcessMarks() { postProcessMarks = null; }
+
+    // 월드젠 중 구조물 등이 스폰한 엔티티(NBT: id, Pos, Rotation …) — 청크 로드/저장 쪽에서 소비한다.
+    private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
+
+    public void addGeneratedEntity(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+        if (generatedEntities == null) generatedEntities = new java.util.ArrayList<>();
+        generatedEntities.add(nbt);
+    }
+
+    public java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities() {
+        return generatedEntities == null ? java.util.List.of() : generatedEntities;
+    }
+
     public org.domi.furnace.server.net.io.nbt.NbtCompound generatedBlockEntity(int x, int y, int z) {
         return generatedBlockEntities == null ? null : generatedBlockEntities.get(blockEntityKey(x, y, z));
     }

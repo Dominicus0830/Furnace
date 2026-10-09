@@ -110,8 +110,7 @@ public final class ChunkPipeline {
                 ChunkColumn col = generated.col();
                 int[] biomeIds = generated.biomeIds();
                 source.applyCarvers(col, cx, cz);
-                List<StructureStart> starts = source.applyStructureStarts(cx, cz);
-                return new PristineChunk(col, biomeIds, source.biomeNamesOf(biomeIds), starts);
+                return new PristineChunk(col, biomeIds, source.biomeNamesOf(biomeIds), List.of());
             }, genPool);
             pristineCache.put(key, future);
             return future;
@@ -124,7 +123,6 @@ public final class ChunkPipeline {
             proto.col = pristine.col().copy();
             proto.biomeIds = pristine.biomeIds();
             proto.biomeNames = pristine.biomeNames();
-            proto.starts = pristine.starts();
             proto.status = GenStatus.STRUCTURE_STARTS;
             return proto;
         });
@@ -154,7 +152,6 @@ public final class ChunkPipeline {
                     for (int dx = -STRUCTURE_START_RADIUS; dx <= STRUCTURE_START_RADIUS; dx++) {
                         int nx = ox + dx;
                         int nz = oz + dz;
-                        if (Math.abs(nx - cx) <= GRID_RADIUS && Math.abs(nz - cz) <= GRID_RADIUS) continue; // 5x5 grid가 이미 커버
                         long key = (((long) nx) << 32) ^ (nz & 0xFFFFFFFFL);
                         ringFutures.computeIfAbsent(key,
                             k -> CompletableFuture.supplyAsync(() -> source.applyStructureStarts(nx, nz), genPool));
@@ -179,6 +176,7 @@ public final class ChunkPipeline {
                 for (CompletableFuture<List<StructureStart>> rf : ringFutures.values()) {
                     ringStarts.addAll(rf.join());
                 }
+                ringStarts.sort(java.util.Comparator.comparingInt(StructureStart::chunkX).thenComparingInt(StructureStart::chunkZ));
 
                 // 안쪽 3×3 origin 9개를 dz 오름차순→dx 오름차순(행 우선)으로 decorate — oracle featurespill과
                 // 반드시 동일한 순서라야 겹치는 spill 영역에서 byte-exact가 성립한다(§3 참조, 오라클 쪽 주석 동일).
@@ -213,12 +211,7 @@ public final class ChunkPipeline {
 
                         // STRUCTURE_REFERENCES 상당: radius 8 내 모든 start 중 BoundingBox가 이 origin 청크에
                         // 걸치는 것만 수집(F6). 5x5 grid 내부 start + 공용 ring start를 합쳐서 필터링.
-                        List<StructureStart> allStarts = new ArrayList<>(ringStarts);
-                        for (int sdz = -1; sdz <= 1; sdz++) {
-                            for (int sdx = -1; sdx <= 1; sdx++) {
-                                allStarts.addAll(grid[gridIndex(ddx + sdx, ddz + sdz)].starts);
-                            }
-                        }
+                        List<StructureStart> allStarts = ringStarts;
                         BoundingBox originColumn = new BoundingBox(
                             ox * 16, Integer.MIN_VALUE / 2, oz * 16, ox * 16 + 15, Integer.MAX_VALUE / 2, oz * 16 + 15);
                         List<StructureStart> referencedStarts = new ArrayList<>();

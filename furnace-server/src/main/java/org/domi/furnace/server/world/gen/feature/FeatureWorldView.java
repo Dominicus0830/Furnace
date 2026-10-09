@@ -127,6 +127,43 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         target.putGeneratedBlockEntity(lx, worldY, lz, nbt);
     }
 
+    /** 엔티티 스폰 요청(구조물 마커 등) — 위치가 속한 청크에 NBT 로 남긴다. 월드 좌표 정확 위치. */
+    public void addEntity(String id, double x, double y, double z, float yaw, float pitch) {
+        int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
+        ChunkColumn target;
+        if (gridCols != null) {
+            int nx = Math.floorDiv(bx, 16);
+            int nz = Math.floorDiv(bz, 16);
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            target = gridCols[gridIndex(nx, nz)];
+        } else {
+            if (!inCenterChunk(bx, bz)) return;
+            target = col;
+        }
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        nbt.putString("id", id);
+        org.domi.furnace.server.net.io.nbt.NbtList pos = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 6);
+        pos.add(x); pos.add(y); pos.add(z);
+        nbt.put("Pos", pos);
+        org.domi.furnace.server.net.io.nbt.NbtList rot = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 5);
+        rot.add(yaw); rot.add(pitch);
+        nbt.put("Rotation", rot);
+        target.addGeneratedEntity(nbt);
+    }
+
+    /** 바닐라 level.getChunk(pos).markPosForPostprocessing(pos). */
+    public void markPosForPostprocessing(int worldX, int worldY, int worldZ) {
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            gridCols[gridIndex(nx, nz)].markPosForPostprocessing(worldX - nx * 16, worldY, worldZ - nz * 16);
+            return;
+        }
+        if (!inCenterChunk(worldX, worldZ)) return;
+        col.markPosForPostprocessing(worldX - cx * 16, worldY, worldZ - cz * 16);
+    }
+
     /** putGeneratedBlockEntity로 남겨 둔 NBT 조회(없으면 null). */
     public org.domi.furnace.server.net.io.nbt.NbtCompound generatedBlockEntity(int worldX, int worldY, int worldZ) {
         if (gridCols != null) {
