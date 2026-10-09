@@ -30,7 +30,7 @@ public final class IceSpikeFeature implements ConfiguredFeature {
 
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
-        while (attrs.isAir(view.getBlock(x, y, z)) && y > ChunkColumn.MIN_Y + 2) {
+        while (attrs.isAir(view.getBlock(x, y, z)) && y > view.minY() + 2) {
             y--;
         }
         if (org.domi.furnace.server.world.gen.carver.RandomTrace.isActive())

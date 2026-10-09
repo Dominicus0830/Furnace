@@ -112,6 +112,21 @@ public final class BiomeFeatureData {
      */
     public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
                                         List<String> registryOrder, BlockRegistry registry) {
+        return load(data, biomeIds, registryOrder, registry, -64, 384);
+    }
+
+    /**
+     * @param genMinY  WorldGenerationContext.getMinGenY — max(차원 최저 y, 생성기 min_y)
+     * @param genDepth WorldGenerationContext.getGenDepth — min(차원 높이, 생성기 noise 높이). 네더는 0/128.
+     */
+    public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
+                                        List<String> registryOrder, BlockRegistry registry, int genMinY, int genDepth) {
+        return load(data, biomeIds, registryOrder, registry, genMinY, genDepth, 63);
+    }
+
+    /** @param seaLevel ChunkGenerator.getSeaLevel — 노이즈 설정의 sea_level(오버월드 63, 네더 32). basalt_columns 가 쓴다. */
+    public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
+                                        List<String> registryOrder, BlockRegistry registry, int genMinY, int genDepth, int seaLevel) {
         // biome id별 base 온도 — FreezeTopLayer 동결 게이트용. FreezeTopLayer가 조회에 쓰는
         // FeatureWorldView.getBiomeId는 REGISTRY 순서 인덱스를 돌려주므로 registryOrder로 인덱싱해야 한다.
         // 이전에는 biomeIds(=possibleBiomes, biome_parameters 첫등장 순서)로 인덱싱해 온도가 서로 다른
@@ -136,7 +151,7 @@ public final class BiomeFeatureData {
             }
         }
 
-        Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen);
+        Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen, genMinY, genDepth, seaLevel);
         Map<String, List<List<PlacedFeature>>> loaded = new LinkedHashMap<>();
         for (String biomeId : biomeIds) {
             JsonObject biome = data.biome(biomeId);
@@ -222,7 +237,12 @@ public final class BiomeFeatureData {
         private final Map<String, PlacedFeature> placedCache = new HashMap<>();
         private final Map<String, ConfiguredFeature> configuredCache = new HashMap<>();
 
-        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps, boolean[] biomeFrozen) {
+        private final int genMinY, genDepth, seaLevel;
+
+        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps, boolean[] biomeFrozen, int genMinY, int genDepth, int seaLevel) {
+            this.seaLevel = seaLevel;
+            this.genMinY = genMinY;
+            this.genDepth = genDepth;
             this.data = data;
             this.registry = registry;
             this.biomeTemps = biomeTemps;
@@ -432,7 +452,7 @@ public final class BiomeFeatureData {
                     parseState(config.getAsJsonObject("valid_base_block")), parseState(config.getAsJsonObject("stem_state")),
                     parseState(config.getAsJsonObject("hat_state")), parseState(config.getAsJsonObject("decor_state")),
                     predicates().parse(config.getAsJsonObject("replaceable_blocks")),
-                    config.has("planted") && config.get("planted").getAsBoolean(), registry);
+                    config.has("planted") && config.get("planted").getAsBoolean(), genDepth, registry);
             }
             if (type.equals("minecraft:nether_forest_vegetation")) {
                 StateProvider provider = parseToPlaceProvider(config.getAsJsonObject("state_provider"));
@@ -452,7 +472,7 @@ public final class BiomeFeatureData {
                     parseState(config.getAsJsonObject("state")), treeIntProvider(config.get("radius"), 0), registry);
             }
             if (type.equals("minecraft:basalt_columns")) {
-                return new BasaltFeatures.Columns(treeIntProvider(config.get("reach"), 0), treeIntProvider(config.get("height"), 0), registry);
+                return new BasaltFeatures.Columns(treeIntProvider(config.get("reach"), 0), treeIntProvider(config.get("height"), 0), seaLevel, registry);
             }
             if (type.equals("minecraft:basalt_pillar")) {
                 return new BasaltFeatures.Pillar(registry);
@@ -1479,6 +1499,15 @@ public final class BiomeFeatureData {
             String type = json.get("type").getAsString();
             switch (type) {
                 case "minecraft:count" -> out.add(countPlacement(json.get("count")));
+                case "minecraft:fixed_placement" -> {
+                    java.util.List<BlockPos> ps = new ArrayList<>();
+                    for (JsonElement e : json.getAsJsonArray("positions")) {
+                        JsonArray a = e.getAsJsonArray();
+                        ps.add(new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt()));
+                    }
+                    out.add(new PlacementModifier.FixedPlacement(List.copyOf(ps)));
+                }
+                case "minecraft:count_on_every_layer" -> out.add(new PlacementModifier.CountOnEveryLayerPlacement(treeIntProvider(json.get("count"), 1)));
                 case "minecraft:rarity_filter" -> out.add(new PlacementModifier.RarityFilterPlacement(json.get("chance").getAsInt()));
                 case "minecraft:in_square" -> out.add(new PlacementModifier.InSquarePlacement());
                 case "minecraft:height_range" -> out.add(new PlacementModifier.HeightRangePlacement(heightProvider(json.getAsJsonObject("height"))));
@@ -1547,10 +1576,10 @@ public final class BiomeFeatureData {
             return new PlacementModifier.ProviderCountPlacement(treeIntProvider(el, 1));
         }
 
-        private static PlacementModifier.HeightProvider heightProvider(JsonObject json) {
+        private PlacementModifier.HeightProvider heightProvider(JsonObject json) {
             String type = json.get("type").getAsString();
-            int min = PlacementModifier.worldgenYOrDefault(json.get("min_inclusive"), 0);
-            int max = PlacementModifier.worldgenYOrDefault(json.get("max_inclusive"), 0);
+            int min = PlacementModifier.worldgenYOrDefault(json.get("min_inclusive"), 0, genMinY, genDepth);
+            int max = PlacementModifier.worldgenYOrDefault(json.get("max_inclusive"), 0, genMinY, genDepth);
             return switch (type) {
                 case "minecraft:uniform" -> new PlacementModifier.UniformHeight(min, max);
                 case "minecraft:biased_to_bottom" -> new PlacementModifier.BiasedToBottomHeight(min, max,
@@ -1560,7 +1589,7 @@ public final class BiomeFeatureData {
                 case "minecraft:trapezoid" -> new PlacementModifier.TrapezoidHeight(min, max,
                     json.has("plateau") ? json.get("plateau").getAsInt() : 0);
                 case "minecraft:constant" -> new PlacementModifier.ConstantHeight(
-                    PlacementModifier.worldgenYOrDefault(json.get("value"), min));
+                    PlacementModifier.worldgenYOrDefault(json.get("value"), min, genMinY, genDepth));
                 default -> new PlacementModifier.UniformHeight(min, max);
             };
         }

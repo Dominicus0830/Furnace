@@ -1,8 +1,9 @@
 // 바닐라 OreVeinifier 비트정확 포팅 — solid 블록에 copper/iron 광맥 state id를 override
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
-import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 
 /**
  * 바닐라 net.minecraft.world.level.levelgen.OreVeinifier 비트정확 포팅.
@@ -29,13 +30,13 @@ public final class OreVeinifier {
     private final DensityFunction veinToggle;
     private final DensityFunction veinRidged;
     private final DensityFunction veinGap;
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory random;
+    private final PositionalRandom random;
 
     private final int copperOre, rawCopperBlock, granite;
     private final int deepslateIronOre, rawIronBlock, tuff;
 
     public OreVeinifier(DensityFunction veinToggle, DensityFunction veinRidged, DensityFunction veinGap,
-                        XoroshiroRandomSource.XoroshiroPositionalRandomFactory random,
+                        PositionalRandom random,
                         int copperOre, int rawCopperBlock, int granite,
                         int deepslateIronOre, int rawIronBlock, int tuff) {
         this.veinToggle = veinToggle;
@@ -73,7 +74,7 @@ public final class OreVeinifier {
         if (abs + d1 < 0.4F) {
             return NO_VEIN;
         }
-        XoroshiroRandomSource rand = random.at(context.blockX(), i, context.blockZ());
+        NoiseRandom rand = random.at(context.blockX(), i, context.blockZ());
         if (rand.nextFloat() > 0.7F) {
             return NO_VEIN;
         }

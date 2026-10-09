@@ -75,7 +75,7 @@ public interface BlockPredicate {
     record InsideWorldBounds(int ox, int oy, int oz) implements BlockPredicate {
         public boolean test(FeatureWorldView v, int x, int y, int z) {
             int py = y + oy;
-            return py >= ChunkColumn.MIN_Y && py <= ChunkColumn.MAX_Y;
+            return py >= v.minY() && py <= v.maxY();
         }
     }
 

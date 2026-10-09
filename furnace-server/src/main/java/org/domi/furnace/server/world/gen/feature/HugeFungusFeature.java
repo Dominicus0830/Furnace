@@ -12,13 +12,15 @@ public final class HugeFungusFeature implements ConfiguredFeature {
     private final int validBaseBlock, stemState, hatState, decorState;
     private final BlockPredicate replaceableBlocks;
     private final boolean planted;
+    private final int genDepth;   // ChunkGenerator.getGenDepth() — 네더 128
     private final NetherVinesFeatures.Blocks vines;
     private final BlockAttrs attrs = BlockAttrs.get();
     private final int air, hatBlock, wartBlockBlock;
     private final boolean stemPost, hatPost, decorPost;
 
     public HugeFungusFeature(int validBaseBlockState, int stemState, int hatState, int decorState, BlockPredicate replaceableBlocks,
-                             boolean planted, BlockRegistry registry) {
+                             boolean planted, int genDepth, BlockRegistry registry) {
+        this.genDepth = genDepth;
         this.validBaseBlock = attrs.blockIndex(validBaseBlockState);
         this.stemState = stemState;
         this.hatState = hatState;
@@ -41,7 +43,7 @@ public final class HugeFungusFeature implements ConfiguredFeature {
         int height = NetherVinesFeatures.nextIntBetween(random, 4, 13);
         if (random.nextInt(12) == 0) height *= 2;
         if (!planted) {
-            if (y + height + 1 >= v.genDepth()) return false;
+            if (y + height + 1 >= genDepth) return false;
         }
         boolean big = !planted && random.nextFloat() < HUGE_PROBABILITY;
         v.setBlock(x, y, z, air);

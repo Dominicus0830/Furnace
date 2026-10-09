@@ -48,7 +48,7 @@ public final class TreeFeature implements ConfiguredFeature {
             + " foliageRadius=" + foliageRadius + " col=" + view.getBlock(x, y - 1, z) + "," + view.getBlock(x, y, z) + "," + view.getBlock(x, y + 1, z) + "," + view.getBlock(x, y + 2, z));
         int minY = Math.min(origin.y(), trunkOrigin.y());
         int maxY = Math.max(origin.y(), trunkOrigin.y()) + treeHeight + 1;
-        if (minY < ChunkColumn.MIN_Y + 1 || maxY > ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16) {
+        if (minY < view.minY() + 1 || maxY > (view.maxY() + 1)) {
             if (RandomTrace.isActive()) RandomTrace.log("tree_fail height_bounds minY=" + minY + " maxY=" + maxY);
             return false;
         }

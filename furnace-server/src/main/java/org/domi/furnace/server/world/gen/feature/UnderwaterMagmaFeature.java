@@ -76,7 +76,7 @@ public final class UnderwaterMagmaFeature implements ConfiguredFeature {
             || (stateId >= WATER_MIN && stateId <= WATER_MAX);
     }
 
-    private static boolean inWorldY(int y) {
-        return y >= ChunkColumn.MIN_Y && y < ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16;
+    private static boolean inWorldY(FeatureWorldView view, int y) {
+        return y >= view.minY() && y < (view.maxY() + 1);
     }
 }

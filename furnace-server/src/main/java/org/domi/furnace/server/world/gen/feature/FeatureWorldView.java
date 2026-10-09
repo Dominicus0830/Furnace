@@ -12,36 +12,18 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private final int[][] biomeIdsGrid;
     private final boolean writeCenterOnly;
     private final long worldSeed;
+    /** 차원 높이(중심 청크 열 기준) — 오버월드 -64..319, 네더·엔드 0..255. */
+    private final int minY, maxY;
     // 조회(read) 범위 — oracle의 OracleWorldGenLevel.getChunk와 동일하게, 쓰기 범위(origin ±1)보다 넓게
     // 파이프라인 grid center 기준 ±gridReadRadius까지 볼 수 있어야 한다(fancy oak makeLimb의 isFree 판정 등).
     private final int gridCenterX;
     private final int gridCenterZ;
     private final int gridReadRadius;
     private int debugSetBlockCalls;
-    // 차원별 높이 한계 — 기본은 오버월드. 네더 뷰는 withDimension(0, 256, 32, 128) 로 지정한다
-    // (level.getMinBuildHeight/getMaxBuildHeight, chunkGenerator.getSeaLevel/getGenDepth 에 해당).
-    private int minBuildHeight = ChunkColumn.MIN_Y;
-    private int maxBuildHeight = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16;
-    private int seaLevel = 63;
-    private int genDepth = ChunkColumn.SECTION_COUNT * 16;
-
-    /** 차원 높이 한계 지정(체이닝). 범위 밖 y 는 읽기=공기, 쓰기=무시(바닐라 ProtoChunk 와 동일). */
-    public FeatureWorldView withDimension(int minBuildHeight, int maxBuildHeight, int seaLevel, int genDepth) {
-        this.minBuildHeight = minBuildHeight;
-        this.maxBuildHeight = maxBuildHeight;
-        this.seaLevel = seaLevel;
-        this.genDepth = genDepth;
-        return this;
-    }
-
     /** LevelHeightAccessor.getMinBuildHeight(). */
-    public int minBuildHeight() { return minBuildHeight; }
+    public int minBuildHeight() { return minY; }
     /** LevelHeightAccessor.getMaxBuildHeight() (배타적 상한). */
-    public int maxBuildHeight() { return maxBuildHeight; }
-    /** ChunkGenerator.getSeaLevel(). */
-    public int seaLevel() { return seaLevel; }
-    /** ChunkGenerator.getGenDepth(). */
-    public int genDepth() { return genDepth; }
+    public int maxBuildHeight() { return maxY + 1; }
 
     public FeatureWorldView(ChunkColumn col, int cx, int cz, int[] biomeIds) {
         this(col, cx, cz, biomeIds, 0L);
@@ -56,6 +38,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         this.biomeIdsGrid = null;
         this.writeCenterOnly = false;
         this.worldSeed = worldSeed;
+        this.minY = col != null ? col.minY() : ChunkColumn.MIN_Y;
+        this.maxY = col != null ? col.maxY() : ChunkColumn.MAX_Y;
         this.gridCenterX = cx;
         this.gridCenterZ = cz;
         this.gridReadRadius = 1;
@@ -93,6 +77,10 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         this.biomeIdsGrid = biomeIdsGrid;
         this.writeCenterOnly = writeCenterOnly;
         this.worldSeed = worldSeed;
+        ChunkColumn ref = null;
+        for (ChunkColumn c : grid) if (c != null) { ref = c; break; }
+        this.minY = ref != null ? ref.minY() : ChunkColumn.MIN_Y;
+        this.maxY = ref != null ? ref.maxY() : ChunkColumn.MAX_Y;
         this.gridCenterX = gridCenterX;
         this.gridCenterZ = gridCenterZ;
         this.gridReadRadius = gridReadRadius;
@@ -232,7 +220,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
     public int getSurfaceY(int worldX, int worldZ) {
         if (gridCols != null) return getGridSurfaceY(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.surfaceBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
@@ -251,7 +239,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     /** WORLD_SURFACE_WG 전용 — carve 완료 이후 값이 얼어붙는다(getSurfaceY의 MOTION_BLOCKING류와 대응). */
     public int getWorldSurfaceWgY(int worldX, int worldZ) {
         if (gridCols != null) return getGridWorldSurfaceWgY(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.worldSurfaceWgBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
@@ -260,12 +248,12 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+            if (!inReadRange(nx, nz)) return minY - 1;
             ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-            if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+            if (neighbor == null) return minY - 1;
             return neighbor.motionBlockingBlockY(worldX - nx * 16, worldZ - nz * 16);
         }
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.motionBlockingBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
@@ -274,22 +262,22 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return ChunkColumn.MIN_Y - 1;
+            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return minY - 1;
             return gridCols[gridIndex(nx, nz)].motionBlockingNoLeavesBlockY(worldX - nx * 16, worldZ - nz * 16);
         }
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.motionBlockingNoLeavesBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
     public int getOceanFloorY(int worldX, int worldZ) {
         if (gridCols != null) return getGridOceanFloorY(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.oceanFloorBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
     public int getWgOceanFloorHeight(int worldX, int worldZ) {
         if (gridCols != null) return getGridWgOceanFloorHeight(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y;
+        if (!inCenterChunk(worldX, worldZ)) return minY;
         return col.wgOceanFloorHeight(worldX - cx * 16, worldZ - cz * 16);
     }
 
@@ -300,16 +288,16 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         // vanilla ChunkAccess.getNoiseBiome — 월드 높이 밖 quart Y는 [min,max]로 clamp해 최상/최하단
         // quart의 biome을 돌려준다(0 반환이 아님). ore_emerald(트라페조이드 상한 y=480)처럼 월드 밖 후보의
         // biome 게이트 판정이 vanilla와 일치해야 한다(mega-tree-placers task에서 수정).
-        int qy = clampQuartY(Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4));
+        int qy = clampQuartY(Math.floorDiv(worldY - minY, 4));
         if (qx < 0 || qx >= 4 || qz < 0 || qz >= 4) {
             return 0;
         }
         return biomeIds[(qy * 4 + qz) * 4 + qx];
     }
 
-    private static int clampQuartY(int qy) {
+    private int clampQuartY(int qy) {
         if (qy < 0) return 0;
-        return Math.min(qy, ChunkColumn.SECTION_COUNT * 4 - 1);
+        return Math.min(qy, ((maxY - minY + 1) / 4 - 1));
     }
 
     /**
@@ -410,6 +398,12 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         }
     }
 
+    /** 차원 최저 블록 y(WorldGenLevel.getMinBuildHeight). */
+    public int minY() { return minY; }
+
+    /** 차원 최고 블록 y(포함, getMaxBuildHeight-1). */
+    public int maxY() { return maxY; }
+
     public long worldSeed() {
         return worldSeed;
     }
@@ -451,41 +445,41 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private int getGridSurfaceY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return minY - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+        if (neighbor == null) return minY - 1;
         return neighbor.surfaceBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridWorldSurfaceWgY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return minY - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+        if (neighbor == null) return minY - 1;
         return neighbor.worldSurfaceWgBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridOceanFloorY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return minY - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+        if (neighbor == null) return minY - 1;
         return neighbor.oceanFloorBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridWgOceanFloorHeight(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y;
+        if (!inReadRange(nx, nz)) return minY;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y;
+        if (neighbor == null) return minY;
         return neighbor.wgOceanFloorHeight(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridBiomeId(int worldX, int worldY, int worldZ) {
-        int qy = clampQuartY(Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4));
+        int qy = clampQuartY(Math.floorDiv(worldY - minY, 4));
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return 0;
@@ -513,7 +507,6 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     }
 
     private boolean inWorldY(int worldY) {
-        return worldY >= Math.max(ChunkColumn.MIN_Y, minBuildHeight)
-            && worldY < Math.min(ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16, maxBuildHeight);
+        return worldY >= minY && worldY < (maxY + 1);
     }
 }

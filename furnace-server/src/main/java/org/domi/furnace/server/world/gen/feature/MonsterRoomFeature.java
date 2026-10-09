@@ -79,7 +79,7 @@ public final class MonsterRoomFeature implements ConfiguredFeature {
                     int px = x + dx, py = y + dy, pz = z + dz;
                     int state = view.getBlock(px, py, pz);
                     if (dx == xMin || dy == -1 || dz == zMin || dx == xMax || dy == 4 || dz == zMax) {
-                        if (py >= ChunkColumn.MIN_Y && !attrs.isSolid(view.getBlock(px, py - 1, pz))) {
+                        if (py >= view.minY() && !attrs.isSolid(view.getBlock(px, py - 1, pz))) {
                             view.setBlock(px, py, pz, caveAir);
                         } else if (attrs.isSolid(state) && attrs.blockIndex(state) != chestBlock) {
                             if (dy == -1 && random.nextInt(4) != 0) {

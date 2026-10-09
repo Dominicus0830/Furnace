@@ -1,10 +1,10 @@
 // 바닐라 NoiseBasedAquifer 비트정확 포팅 — 지하 수체/용암 배치를 노이즈로 결정
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import java.util.Arrays;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
-import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
-import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource.XoroshiroPositionalRandomFactory;
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 
 public final class NoiseBasedAquifer implements Aquifer {
 
@@ -23,7 +23,7 @@ public final class NoiseBasedAquifer implements Aquifer {
     private final DensityFunction lavaNoise;
     private final DensityFunction erosion;
     private final DensityFunction depth;
-    private final XoroshiroPositionalRandomFactory positionalRandomFactory;
+    private final PositionalRandom positionalRandomFactory;
 
     private final FluidStatus[] aquiferCache;
     private final long[] aquiferLocationCache;
@@ -53,7 +53,7 @@ public final class NoiseBasedAquifer implements Aquifer {
                              int chunkX, int chunkZ,
                              NoiseRouter router,
                              NoiseSettings settings,
-                             XoroshiroPositionalRandomFactory positionalRandom,
+                             PositionalRandom positionalRandom,
                              int stoneId, int waterId, int lavaId) {
         this.noiseChunk = noiseChunk;
         this.barrierNoise = noiseChunk.wrappedForAquifer(router.barrierNoise());
@@ -159,7 +159,7 @@ public final class NoiseBasedAquifer implements Aquifer {
                         locationY = this.aquiferLocationYCache[index];
                         locationZ = this.aquiferLocationZCache[index];
                     } else {
-                        XoroshiroRandomSource random = this.positionalRandomFactory.at(i13, i14, i15);
+                        NoiseRandom random = this.positionalRandomFactory.at(i13, i14, i15);
                         locationX = i13 * 16 + random.nextInt(10);
                         locationY = i14 * 12 + random.nextInt(9);
                         locationZ = i15 * 16 + random.nextInt(10);

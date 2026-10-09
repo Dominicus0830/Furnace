@@ -1,10 +1,10 @@
 // 바닐라 NoiseRouter의 경량 포트. final_density + initialDensityWithoutJaggedness + 6개 기후 DF 보유.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 import org.domi.furnace.server.world.gen.df.DensityFunctionParser;
-import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 
 public final class NoiseRouter {
 
@@ -23,8 +23,10 @@ public final class NoiseRouter {
     private final DensityFunction veinToggle;
     private final DensityFunction veinRidged;
     private final DensityFunction veinGap;
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom;
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory oreRandom;
+    private final PositionalRandom aquiferRandom;
+    private final PositionalRandom oreRandom;
+    /** RandomState.random — 차원 난수 팩토리(legacy 차원은 LegacyPositionalRandom). 지표·영역 난수의 뿌리. */
+    private final PositionalRandom random;
 
     private NoiseRouter(DensityFunction finalDensity,
                         DensityFunction initialDensityWithoutJaggedness,
@@ -36,8 +38,10 @@ public final class NoiseRouter {
                         DensityFunction fluidLevelSpreadNoise,
                         DensityFunction lavaNoise,
                         DensityFunction veinToggle, DensityFunction veinRidged, DensityFunction veinGap,
-                        XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom,
-                        XoroshiroRandomSource.XoroshiroPositionalRandomFactory oreRandom) {
+                        PositionalRandom aquiferRandom,
+                        PositionalRandom oreRandom,
+                        PositionalRandom random) {
+        this.random = random;
         this.finalDensity = finalDensity;
         this.initialDensityWithoutJaggedness = initialDensityWithoutJaggedness;
         this.temperature  = temperature;
@@ -58,8 +62,8 @@ public final class NoiseRouter {
     }
 
     public static NoiseRouter build(WorldgenData data, NoiseSettings settings, long seed) {
-        DensityFunctionParser parser = new DensityFunctionParser(data, seed);
-        JsonObject routerJson = data.noiseSettings("minecraft:overworld")
+        DensityFunctionParser parser = new DensityFunctionParser(data, seed, settings.legacyRandomSource());
+        JsonObject routerJson = data.noiseSettings(settings.name())
                                     .get("noise_router").getAsJsonObject();
         return new NoiseRouter(
             parser.parseElement(routerJson.get("final_density")),
@@ -78,7 +82,8 @@ public final class NoiseRouter {
             parser.parseElement(routerJson.get("vein_ridged")),
             parser.parseElement(routerJson.get("vein_gap")),
             parser.aquiferRandom(),
-            parser.oreRandom()
+            parser.oreRandom(),
+            parser.positional()
         );
     }
 
@@ -97,6 +102,7 @@ public final class NoiseRouter {
     public DensityFunction veinToggle() { return veinToggle; }
     public DensityFunction veinRidged() { return veinRidged; }
     public DensityFunction veinGap() { return veinGap; }
-    public XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom() { return aquiferRandom; }
-    public XoroshiroRandomSource.XoroshiroPositionalRandomFactory oreRandom() { return oreRandom; }
+    public PositionalRandom aquiferRandom() { return aquiferRandom; }
+    public PositionalRandom oreRandom() { return oreRandom; }
+    public PositionalRandom random() { return random; }
 }

@@ -1,6 +1,8 @@
 // 표층 규칙을 noise fill 이후 ChunkColumn에 적용하는 오케스트레이터
 package org.domi.furnace.server.world.gen.surface;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -27,11 +29,11 @@ public final class SurfaceSystem {
     private final SurfaceRule rule;
     private final NoiseSettings settings;
     private final WorldgenData worldgenData;
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory randomFactory;
+    private final PositionalRandom randomFactory;
     private final Map<String, NormalNoise> noiseCache = new ConcurrentHashMap<>();
     // vertical_gradient용 positional factory 캐시 — fromHashOf는 매 호출 MD5 다이제스트를 수행하는
     // randomName만의 순수 함수라 캐시해도 RNG 스트림 불변 (M-opt P0, buildNoise의 noiseCache와 동일 패턴).
-    private final Map<String, XoroshiroRandomSource.XoroshiroPositionalRandomFactory> gradientFactoryCache = new ConcurrentHashMap<>();
+    private final Map<String, PositionalRandom> gradientFactoryCache = new ConcurrentHashMap<>();
     private final NormalNoise surfaceNoise;
     private final NormalNoise surfaceSecondaryNoise;
     private final int waterId;
@@ -61,7 +63,7 @@ public final class SurfaceSystem {
         this.worldgenData        = worldgenData;
         this.waterId             = waterId;
         this.defaultBlockId      = defaultBlockId;
-        this.randomFactory       = new XoroshiroRandomSource(seed).forkPositional();
+        this.randomFactory       = router.random();   // RandomState.random (legacy 차원은 LegacyPositionalRandom)
         this.surfaceNoise        = buildNoise("minecraft:surface");
         this.surfaceSecondaryNoise = buildNoise("minecraft:surface_secondary");
         this.registryBiomeNames  = registryBiomeNames;
@@ -81,7 +83,7 @@ public final class SurfaceSystem {
     }
 
     /** SurfaceSystem.generateBands — 192칸 점토 밴드 테이블. RNG 호출 순서는 바닐라와 동일. */
-    private static int[] generateBands(XoroshiroRandomSource rnd, BlockRegistry reg) {
+    private static int[] generateBands(NoiseRandom rnd, BlockRegistry reg) {
         int white = reg.defaultStateId("minecraft:white_terracotta");
         int orange = reg.defaultStateId("minecraft:orange_terracotta");
         int terracotta = reg.defaultStateId("minecraft:terracotta");
@@ -109,7 +111,7 @@ public final class SurfaceSystem {
         return bands;
     }
 
-    private static void makeBands(XoroshiroRandomSource rnd, int[] bands, int minWidth, int state) {
+    private static void makeBands(NoiseRandom rnd, int[] bands, int minWidth, int state) {
         int n = 6 + rnd.nextInt(15 - 6 + 1);            // nextIntBetweenInclusive(6, 15)
         for (int i = 0; i < n; i++) {
             int width = minWidth + rnd.nextInt(3);
@@ -128,7 +130,7 @@ public final class SurfaceSystem {
                                        BlockRegistry reg, long seed,
                                        String[] registryBiomeNames,
                                        BiomeSampler biomeSampler, NoiseRouter router) {
-        var noiseSettingsJson = data.noiseSettings("minecraft:overworld");
+        var noiseSettingsJson = data.noiseSettings(settings.name());
         SurfaceRule rule = new SurfaceRuleParser(reg).parse(
             noiseSettingsJson.get("surface_rule").getAsJsonObject());
         int waterId       = reg.defaultStateId(settings.defaultFluid());
@@ -139,7 +141,7 @@ public final class SurfaceSystem {
 
     private NormalNoise buildNoise(String noiseId) {
         return noiseCache.computeIfAbsent(noiseId, id -> {
-            XoroshiroRandomSource rng = randomFactory.fromHashOf(id);
+            NoiseRandom rng = randomFactory.fromHashOf(id);
             var params = worldgenData.noiseParams(id);
             JsonObject p = params.getAsJsonObject();
             int firstOctave = p.get("firstOctave").getAsInt();
@@ -155,8 +157,8 @@ public final class SurfaceSystem {
         int minY     = settings.minY();
         int maxY     = minY + settings.height() - 1;
         int seaLevel = settings.seaLevel();
-        int[][] sectionBlocks = new int[ChunkColumn.SECTION_COUNT][];
-        for (int i = 0; i < ChunkColumn.SECTION_COUNT; i++) {
+        int[][] sectionBlocks = new int[col.sectionCount()][];
+        for (int i = 0; i < col.sectionCount(); i++) {
             sectionBlocks[i] = col.sectionBlocks(i);
         }
 
@@ -210,8 +212,8 @@ public final class SurfaceSystem {
 
                 // stoneBottomY: cached bottom of current solid column for stoneDepthBelow.
                 int stoneBottomY = Integer.MAX_VALUE;
-                int sectionIndex = ChunkColumn.SECTION_COUNT - 1;
-                int localY = 15;
+                int sectionIndex = (maxY - col.minY()) >> 4;
+                int localY = (maxY - col.minY()) & 15;
                 int[] blocks = sectionBlocks[sectionIndex];
                 int blockIndex = localY * 256 + columnIndex;
 
@@ -347,7 +349,7 @@ public final class SurfaceSystem {
             g = 0.0;
         }
         double top = e;
-        XoroshiroRandomSource r = randomFactory.at(x, 0, z);
+        NoiseRandom r = randomFactory.at(x, 0, z);
         int maxSnow = 2 + r.nextInt(4);
         int snowFloor = seaLevel + 18 + r.nextInt(10);
         int snowCount = 0;
@@ -595,7 +597,7 @@ public final class SurfaceSystem {
         if (ctx.blockY <= trueY)  return true;
         if (ctx.blockY >= falseY) return false;
         double gradient = (double)(ctx.blockY - trueY) / (double)(falseY - trueY);
-        XoroshiroRandomSource rng = gradientFactoryCache
+        NoiseRandom rng = gradientFactoryCache
             .computeIfAbsent(vg.randomName(), name -> randomFactory.fromHashOf(name).forkPositional())
             .at(ctx.blockX, ctx.blockY, ctx.blockZ);
         // 바닐라: (double) nextFloat() < map(y, trueY, falseY, 1.0, 0.0)

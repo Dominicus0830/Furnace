@@ -118,7 +118,7 @@ public final class ProcessorLists {
             case "always_true" -> Processors.alwaysTrue();
             case "block_match" -> Processors.blockMatch(ns(o.get("block").getAsString()));
             case "blockstate_match" -> Processors.blockStateMatch(parseState(o.getAsJsonObject("block_state")));
-            case "tag_match" -> Processors.tagMatch(blockSet(o.get("tag")));
+            case "tag_match" -> Processors.tagMatch(new HashSet<>(BlockTags.get().blocksOf(ns(o.get("tag").getAsString().replaceFirst("^#", "")))));   // "tag" 는 # 없는 태그 id
             case "random_block_match" -> Processors.randomBlockMatch(ns(o.get("block").getAsString()), o.get("probability").getAsFloat());
             case "random_blockstate_match" -> Processors.randomBlockStateMatch(parseState(o.getAsJsonObject("block_state")), o.get("probability").getAsFloat());
             default -> throw new IllegalArgumentException("미지원 rule_test: " + t);

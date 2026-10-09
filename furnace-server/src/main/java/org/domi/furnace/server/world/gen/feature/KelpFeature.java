@@ -24,7 +24,7 @@ public final class KelpFeature implements ConfiguredFeature {
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
         int placeY = view.getOceanFloorY(x, z) + 1;
-        if (placeY < ChunkColumn.MIN_Y || placeY >= ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16) {
+        if (placeY < view.minY() || placeY >= (view.maxY() + 1)) {
             return false;
         }
         if (!isSourceWater(view.getBlock(x, placeY, z))) return false;
@@ -33,9 +33,9 @@ public final class KelpFeature implements ConfiguredFeature {
         int height = random.nextInt(10) + 1;
         int currentY = placeY;
         for (int offset = 0; offset <= height; offset++) {
-            if (currentY < ChunkColumn.MIN_Y || currentY >= ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16) break;
+            if (currentY < view.minY() || currentY >= (view.maxY() + 1)) break;
             int current = view.getBlock(x, currentY, z);
-            int above = (currentY + 1 < ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16)
+            int above = (currentY + 1 < (view.maxY() + 1))
                 ? view.getBlock(x, currentY + 1, z)
                 : 0;
             if (isSourceWater(current) && isSourceWater(above) && canGrowInto(view.getBlock(x, currentY - 1, z))) {

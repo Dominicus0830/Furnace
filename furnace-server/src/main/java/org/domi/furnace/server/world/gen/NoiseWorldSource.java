@@ -117,16 +117,61 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * @param reg        블록 레지스트리 (state id 해석용)
      * @param registries 바이옴 레지스트리 (BiomeSampler 로드용)
      */
+    /** 차원별 생성 설정 — 노이즈 설정 id, 차원 높이(dimension_type), 바이옴 파라미터 목록. */
+    public enum Dimension {
+        OVERWORLD("minecraft:overworld", -64, 24, "biome_parameters.json"),
+        NETHER("minecraft:nether", 0, 16, "biome_parameters_nether.json"),
+        END("minecraft:end", 0, 16, null);
+
+        final String noiseSettings;
+        final int minY;
+        final int sectionCount;
+        final String biomeParameters;
+
+        Dimension(String noiseSettings, int minY, int sectionCount, String biomeParameters) {
+            this.noiseSettings = noiseSettings;
+            this.minY = minY;
+            this.sectionCount = sectionCount;
+            this.biomeParameters = biomeParameters;
+        }
+    }
+
+    /**
+     * 오버월드 NoiseWorldSource 를 생성한다.
+     *
+     * @param seed       월드 시드
+     * @param reg        블록 레지스트리 (state id 해석용)
+     * @param registries 바이옴 레지스트리 (BiomeSampler 로드용)
+     */
     public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(Dimension.OVERWORLD, seed, reg, registries);
+    }
+
+    public static NoiseWorldSource nether(long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(Dimension.NETHER, seed, reg, registries);
+    }
+
+    public static NoiseWorldSource end(long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(Dimension.END, seed, reg, registries);
+    }
+
+    public static NoiseWorldSource create(Dimension dim, long seed, BlockRegistry reg, RegistrySet registries) {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
+        JsonObject settingsJson = data.noiseSettings(dim.noiseSettings);
+        NoiseSettings settings = NoiseSettings.fromJson(dim.noiseSettings, settingsJson);
         NoiseRouter router = NoiseRouter.build(data, settings, seed);
 
-        int stoneId = reg.defaultStateId(settings.defaultBlock());  // minecraft:stone
-        int waterId = reg.defaultStateId(settings.defaultFluid());  // minecraft:water
+        int stoneId = reg.defaultStateId(settings.defaultBlock());  // overworld stone, nether netherrack
+        int waterId = reg.defaultStateId(settings.defaultFluid());  // 기본 유체(네더는 용암)
         int lavaId  = reg.defaultStateId("minecraft:lava");
 
-        BiomeSampler biomeSampler = BiomeSampler.load(data, registries);
+        JsonArray params = switch (dim) {
+            case OVERWORLD -> data.biomeParameters();
+            case NETHER -> data.resourceArray(dim.biomeParameters);
+            case END -> endBiomeList();
+        };
+        BiomeSampler biomeSampler = dim == Dimension.END ? BiomeSampler.theEnd(registries, router, dim.sectionCount)
+                                                         : BiomeSampler.load(params, registries, dim.sectionCount);
 
         java.util.List<String> biomeEntries = registries.entries("minecraft:worldgen/biome");
         String[] registryBiomeNames = biomeEntries.toArray(new String[0]);
@@ -135,14 +180,22 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed,
             registryBiomeNames, biomeSampler, router);
 
-        OverworldCarvers overworldCarvers = OverworldCarvers.load();
-        // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=biome_parameters.json 첫등장 distinct).
-        // registry 전체 순서를 쓰면 nether/end biome이 섞여 광석 index가 어긋난다.
-        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possibleBiomeOrder(data, registries), biomeEntries, reg, seed);
+        OverworldCarvers overworldCarvers = switch (dim) {
+            case OVERWORLD -> OverworldCarvers.load();
+            case NETHER -> OverworldCarvers.loadNether();
+            case END -> OverworldCarvers.none();
+        };
+        // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=파라미터 목록 첫등장 distinct).
+        // registry 전체 순서를 쓰면 다른 차원 biome이 섞여 광석 index가 어긋난다.
+        List<String> possible = possibleBiomeOrder(params, registries);
+        // WorldGenerationContext: minGenY = max(차원 min, 생성기 min), genDepth = min(차원 높이, 노이즈 높이)
+        int genMinY = Math.max(dim.minY, settings.minY());
+        int genDepth = Math.min(dim.sectionCount * 16, settings.height());
+        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth, settings.seaLevel(), router);
         StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
-        List<SpawnTarget> spawnTargets = loadSpawnTargets(data.noiseSettings("minecraft:overworld"));
+        List<SpawnTarget> spawnTargets = loadSpawnTargets(settingsJson);
         org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine =
-            new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possibleBiomeOrder(data, registries)));
+            new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possible));
 
         structureEngine.setBiomeRegistryNames(registryBiomeNames);
         NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
@@ -150,13 +203,29 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
                                     seed, reg, biomeDirectBits, overworldCarvers,
                                     featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
         source.worldgenData = data;
+        source.dimension = dim;
         return source;
     }
 
+    private Dimension dimension = Dimension.OVERWORLD;
+
+    /** TheEndBiomeSource.possibleBiomes 순서(the_end, highlands, midlands, small islands, barrens) — 파라미터 목록 형식으로. */
+    private static JsonArray endBiomeList() {
+        JsonArray a = new JsonArray();
+        for (String b : new String[]{"minecraft:the_end", "minecraft:end_highlands", "minecraft:end_midlands", "minecraft:small_end_islands", "minecraft:end_barrens"}) {
+            JsonObject o = new JsonObject();
+            o.addProperty("biome", b);
+            a.add(o);
+        }
+        return a;
+    }
+
+    public Dimension dimension() { return dimension; }
+
     /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
-    private static List<String> possibleBiomeOrder(WorldgenData data, RegistrySet registries) {
+    private static List<String> possibleBiomeOrder(JsonArray params, RegistrySet registries) {
         java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
-        for (com.google.gson.JsonElement el : data.biomeParameters()) {
+        for (com.google.gson.JsonElement el : params) {
             String name = el.getAsJsonObject().get("biome").getAsString();
             if (registries.indexOf("minecraft:worldgen/biome", name) < 0) continue;
             seen.add(name);
@@ -165,10 +234,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     private static FeaturePlacer loadFeaturePlacer(
-            WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed) {
+            WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed,
+            int genMinY, int genDepth, int seaLevel, NoiseRouter router) {
         try {
-            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg);
-            return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData), reg);
+            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg, genMinY, genDepth, seaLevel);
+            return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData), reg, router.random());
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().startsWith("Worldgen resource not found:")) {
                 return null;
@@ -412,7 +482,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         nc.setBeardifier(beard);
         int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
 
-        ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits);
+        ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits, dimension.minY, dimension.sectionCount);
+        if (blockIds.length != dimension.sectionCount * 4096) {
+            // 노이즈 높이가 차원 높이보다 낮다(네더 0..127 / 차원 0..255) — 나머지는 공기.
+            int[] full = new int[dimension.sectionCount * 4096];
+            System.arraycopy(blockIds, 0, full, (minY - dimension.minY) * 256, blockIds.length);
+            blockIds = full;
+        }
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
         col.loadGenerated(blockIds, biomeIds);

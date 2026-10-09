@@ -55,7 +55,7 @@ public final class FossilFeature implements ConfiguredFeature {
         int cx = Math.floorDiv(x, 16), cz = Math.floorDiv(z, 16);
         PlaceSettings st = new PlaceSettings();
         st.rotation = rotation;
-        st.boundingBox = new int[]{cx * 16 - 16, ChunkColumn.MIN_Y, cz * 16 - 16, cx * 16 + 15 + 16, ChunkColumn.MIN_Y + 384, cz * 16 + 15 + 16};
+        st.boundingBox = new int[]{cx * 16 - 16, view.minY(), cz * 16 - 16, cx * 16 + 15 + 16, (view.maxY() + 1), cz * 16 + 15 + 16};
         st.random = random;
         int sx = fossil.sizeX(rotation), sz = fossil.sizeZ(rotation);
         int px = x - sx / 2, pz = z - sz / 2;
@@ -63,7 +63,7 @@ public final class FossilFeature implements ConfiguredFeature {
         for (int dx = 0; dx < sx; dx++)
             for (int dz = 0; dz < sz; dz++)
                 minH = Math.min(minH, view.getWgOceanFloorHeight(px + dx, pz + dz));
-        int fy = Math.max(minH - 15 - random.nextInt(10), ChunkColumn.MIN_Y + 10);
+        int fy = Math.max(minH - 15 - random.nextInt(10), view.minY() + 10);
         int[] pos = StructureTemplate.zeroPositionWithTransform(px, fy, pz, BlockStateTable.NONE, rotation, fossil.sizeX, fossil.sizeZ);
         int[] b = fossil.boundingBox(pos[0], pos[1], pos[2], rotation, 0, 0, BlockStateTable.NONE);
         if (countEmptyCorners(view, b) > maxEmptyCorners) return false;

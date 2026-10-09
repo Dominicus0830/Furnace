@@ -16,9 +16,11 @@ public final class BasaltFeatures {
         private final BlockAttrs attrs = BlockAttrs.get();
         private final TreeIntProvider reach, height;
         private final int basaltState, lavaBlock, basaltBlock;
+        private final int seaLevel;   // ChunkGenerator.getSeaLevel() — 네더 32
         private final Set<Integer> cannotPlaceOn;   // 블록 인덱스
 
-        public Columns(TreeIntProvider reach, TreeIntProvider height, BlockRegistry r) {
+        public Columns(TreeIntProvider reach, TreeIntProvider height, int seaLevel, BlockRegistry r) {
+            this.seaLevel = seaLevel;
             this.reach = reach;
             this.height = height;
             this.basaltState = r.defaultStateId("minecraft:basalt");
@@ -34,7 +36,6 @@ public final class BasaltFeatures {
 
         @Override
         public boolean place(FeatureWorldView v, WorldgenRandom random, int ox, int oy, int oz) {
-            int seaLevel = v.seaLevel();
             if (!canPlaceAt(v, seaLevel, ox, oy, oz)) return false;
             int h = height.sample(random);
             boolean flag = random.nextFloat() < 0.9F;

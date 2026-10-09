@@ -3,7 +3,7 @@ package org.domi.furnace.server.world.gen.noise;
 
 import org.domi.furnace.server.world.gen.MathHelper;
 
-public class XoroshiroRandomSource {
+public class XoroshiroRandomSource implements NoiseRandom {
     private static final float FLOAT_UNIT = 5.9604645E-8F;
     // 바닐라 bytecode: ldc2_w (double constant) 1.1102230246251565E-16d — 디컴파일러가 F(float) 접미사로 잘못 표기
     private static final double DOUBLE_UNIT = 1.1102230246251565E-16;
@@ -25,6 +25,7 @@ public class XoroshiroRandomSource {
         return new XoroshiroRandomSource(this.randomNumberGenerator.nextLong(), this.randomNumberGenerator.nextLong());
     }
 
+    @Override
     public XoroshiroPositionalRandomFactory forkPositional() {
         return new XoroshiroPositionalRandomFactory(this.randomNumberGenerator.nextLong(), this.randomNumberGenerator.nextLong());
     }
@@ -33,10 +34,12 @@ public class XoroshiroRandomSource {
         this.randomNumberGenerator = new Xoroshiro128PlusPlus(RandomSupport.upgradeSeedTo128bit(seed));
     }
 
+    @Override
     public int nextInt() {
         return (int) this.randomNumberGenerator.nextLong();
     }
 
+    @Override
     public int nextInt(int bound) {
         if (bound <= 0) {
             throw new IllegalArgumentException("Bound must be positive");
@@ -55,22 +58,27 @@ public class XoroshiroRandomSource {
         }
     }
 
+    @Override
     public long nextLong() {
         return this.randomNumberGenerator.nextLong();
     }
 
+    @Override
     public boolean nextBoolean() {
         return (this.randomNumberGenerator.nextLong() & 1L) != 0L;
     }
 
+    @Override
     public float nextFloat() {
         return (float) this.nextBits(24) * 5.9604645E-8F;
     }
 
+    @Override
     public double nextDouble() {
         return this.nextBits(53) * DOUBLE_UNIT;
     }
 
+    @Override
     public void consumeCount(int count) {
         for (int i = 0; i < count; i++) {
             this.randomNumberGenerator.nextLong();
@@ -81,7 +89,7 @@ public class XoroshiroRandomSource {
         return this.randomNumberGenerator.nextLong() >>> 64 - bits;
     }
 
-    public static class XoroshiroPositionalRandomFactory {
+    public static class XoroshiroPositionalRandomFactory implements PositionalRandom {
         private final long seedLo;
         private final long seedHi;
 
@@ -90,12 +98,14 @@ public class XoroshiroRandomSource {
             this.seedHi = seedHi;
         }
 
+        @Override
         public XoroshiroRandomSource at(int x, int y, int z) {
             long seed = MathHelper.getSeed(x, y, z);
             long l = seed ^ this.seedLo;
             return new XoroshiroRandomSource(l, this.seedHi);
         }
 
+        @Override
         public XoroshiroRandomSource fromHashOf(String name) {
             RandomSupport.Seed128bit seed128bit = RandomSupport.seedFromHashOf(name);
             return new XoroshiroRandomSource(seed128bit.xor(this.seedLo, this.seedHi));
@@ -107,6 +117,7 @@ public class XoroshiroRandomSource {
             return new XoroshiroPositionalRandomFactory(hash.seedLo() ^ seedLo, hash.seedHi() ^ seedHi);
         }
 
+        @Override
         public XoroshiroRandomSource fromSeed(long seed) {
             return new XoroshiroRandomSource(seed ^ this.seedLo, seed ^ this.seedHi);
         }

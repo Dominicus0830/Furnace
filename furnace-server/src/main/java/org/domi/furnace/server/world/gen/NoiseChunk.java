@@ -140,8 +140,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         };
         // vein DF는 NoiseChunk context로 평가 → 반드시 wrap(interpolated 노드 등록·셀 보간).
         // overworld는 ore_veins_enabled=true. reg 없으면(테스트) 비활성.
-        this.wrappedVeinToggle = reg == null ? null : router.veinToggle().mapAll(this::wrap);
-        this.oreVeinifier = reg == null ? null : new OreVeinifier(
+        this.wrappedVeinToggle = reg == null || !settings.oreVeinsEnabled() ? null : router.veinToggle().mapAll(this::wrap);
+        this.oreVeinifier = reg == null || !settings.oreVeinsEnabled() ? null : new OreVeinifier(
             this.wrappedVeinToggle,
             router.veinRidged().mapAll(this::wrap),
             router.veinGap().mapAll(this::wrap),
@@ -188,6 +188,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      */
     public void fillTarget(int localQX, int absQY, int localQZ, long[] out) {
         int cy = absQY >>> 1;
+        // 노이즈 높이 위 쿼트(네더 y128+): 기후 DF 가 y 불변인 차원이라 최상단 셀 값으로 충분.
+        if (cy >= cellCountY) { cy = cellCountY - 1; absQY = cy * 2 + 1; }
         double ty = (absQY & 1) * 0.5;
         for (int d = 0; d < 6; d++) {
             double v0 = climateCache[d][localQX][cy][localQZ];

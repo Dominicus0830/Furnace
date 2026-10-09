@@ -17,7 +17,12 @@ public class RunVanilla {
     }
 
     static long regionBytes(Path dir) throws IOException {
-        Path r = dir.resolve("world").resolve("region");
+        // RV_DIM=minecraft:the_nether|minecraft:the_end 이면 그 차원 폴더(DIM-1 / DIM1)의 region.
+        String dim = System.getenv("RV_DIM");
+        Path w = dir.resolve("world");
+        if ("minecraft:the_nether".equals(dim)) w = w.resolve("DIM-1");
+        else if ("minecraft:the_end".equals(dim)) w = w.resolve("DIM1");
+        Path r = w.resolve("region");
         if (!Files.exists(r)) return 0;
         try (var s = Files.list(r)) {
             return s.mapToLong(p -> { try { return Files.size(p); } catch (IOException e) { return 0; } }).sum();
@@ -99,7 +104,8 @@ public class RunVanilla {
                 tiles.add(new int[]{x, z, Math.min(x + 15, cx1), Math.min(z + 15, cz1)});
         if (reverse) Collections.reverse(tiles);
         for (int[] ti : tiles) {
-            w.println("forceload add " + (ti[0] * 16) + " " + (ti[1] * 16) + " " + (ti[2] * 16 + 15) + " " + (ti[3] * 16 + 15));
+            String dimPrefix = System.getenv("RV_DIM") != null ? "execute in " + System.getenv("RV_DIM") + " run " : "";
+            w.println(dimPrefix + "forceload add " + (ti[0] * 16) + " " + (ti[1] * 16) + " " + (ti[2] * 16 + 15) + " " + (ti[3] * 16 + 15));
             Thread.sleep(1500);
         }
         System.out.println("forceload sent, tiles=" + tiles.size());

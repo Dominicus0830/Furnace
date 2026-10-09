@@ -216,7 +216,9 @@ public final class ChunkPipeline {
                             ox * 16, Integer.MIN_VALUE / 2, oz * 16, ox * 16 + 15, Integer.MAX_VALUE / 2, oz * 16 + 15);
                         List<StructureStart> referencedStarts = new ArrayList<>();
                         for (StructureStart start : allStarts) {
-                            if (start.boundingBox().intersects(originColumn)) {
+                            // createReferences: 반경 8 청크 안의 시작점만 참조된다.
+                            if (Math.abs(start.chunkX() - ox) <= 8 && Math.abs(start.chunkZ() - oz) <= 8
+                                && start.boundingBox().intersects(originColumn)) {
                                 referencedStarts.add(start);
                             }
                         }

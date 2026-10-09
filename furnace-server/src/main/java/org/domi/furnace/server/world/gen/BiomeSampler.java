@@ -26,8 +26,18 @@ public final class BiomeSampler {
     private final int[][] groupEntryIdx;  // [g][k] → entries index
 
     private final ClimateRTree rtree;
+    /** 바이옴을 채울 섹션 수(오버월드 24, 네더 16). */
+    private final int sectionCount;
+    /** TheEndBiomeSource 모드: [the_end, end_highlands, end_midlands, small_end_islands, end_barrens] 레지스트리 id (null 이면 multi-noise). */
+    private int[] endBiomes;
+    private DensityFunction endErosion;
 
     private BiomeSampler(List<BiomeEntry> entries) {
+        this(entries, 24);
+    }
+
+    private BiomeSampler(List<BiomeEntry> entries, int sectionCount) {
+        this.sectionCount = sectionCount;
         this.entries = entries;
         List<ClimateRTree.Leaf> leaves = new ArrayList<>(entries.size());
         for (BiomeEntry e : entries) {
@@ -109,7 +119,11 @@ public final class BiomeSampler {
 
     /** biome_parameters.json 에서 BiomeSampler 를 빌드한다. 레지스트리에 없는 바이옴(예: pale_garden)은 건너뛴다. */
     public static BiomeSampler load(WorldgenData data, RegistrySet registries) {
-        JsonArray arr = data.biomeParameters();
+        return load(data.biomeParameters(), registries, 24);
+    }
+
+    /** 파라미터 목록(biome_parameters*.json 형식)과 섹션 수로 빌드 — 네더 프리셋 등. */
+    public static BiomeSampler load(JsonArray arr, RegistrySet registries, int sectionCount) {
         List<BiomeEntry> entries = new ArrayList<>(arr.size());
         for (JsonElement el : arr) {
             JsonObject obj = el.getAsJsonObject();
@@ -127,7 +141,26 @@ public final class BiomeSampler {
             long offset = obj.get("offset").getAsLong();
             entries.add(new BiomeEntry(min, max, offset, id));
         }
-        return new BiomeSampler(entries);
+        return new BiomeSampler(entries, sectionCount);
+    }
+
+    /** 바닐라 TheEndBiomeSource — 중앙 섬(청크 거리² ≤ 4096) 은 the_end, 그 밖은 섹션 중심 erosion(end_islands) 값으로 4종. */
+    public static BiomeSampler theEnd(RegistrySet registries, NoiseRouter router, int sectionCount) {
+        BiomeSampler b = new BiomeSampler(new ArrayList<>(), sectionCount);
+        String[] names = {"minecraft:the_end", "minecraft:end_highlands", "minecraft:end_midlands", "minecraft:small_end_islands", "minecraft:end_barrens"};
+        b.endBiomes = new int[5];
+        for (int i = 0; i < 5; i++) b.endBiomes[i] = registries.indexOf("minecraft:worldgen/biome", names[i]);
+        b.endErosion = router.erosion();
+        return b;
+    }
+
+    private int endBiome(int blockX, int blockY, int blockZ) {
+        int sx = blockX >> 4, sz = blockZ >> 4;
+        if ((long) sx * sx + (long) sz * sz <= 4096L) return endBiomes[0];
+        double e = endErosion.compute(new DensityFunction.SinglePointContext((sx * 2 + 1) * 8, blockY, (sz * 2 + 1) * 8));
+        if (e > 0.25) return endBiomes[1];
+        if (e >= -0.0625) return endBiomes[2];
+        return e < -0.21875 ? endBiomes[3] : endBiomes[4];
     }
 
     /** quarter-block 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
@@ -137,6 +170,7 @@ public final class BiomeSampler {
 
     /** Vanilla noise-biome quart 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
     public int sampleQuart(int worldQuartX, int worldQuartY, int worldQuartZ, NoiseRouter router) {
+        if (endBiomes != null) return endBiome(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
         int bx = worldQuartX * 4;
         int by = worldQuartY * 4;
         int bz = worldQuartZ * 4;
@@ -163,7 +197,12 @@ public final class BiomeSampler {
      * 타이브레이크(min fitness → min entry index)도 그룹 내/간 min-idx 추적으로 보존.
      */
     public int[] sampleChunk(int cx, int cz, NoiseChunk noiseChunk) {
-        int[] result = new int[1536];
+        int[] result = new int[sectionCount * 64];
+        if (endBiomes != null) {
+            // 청크 안 모든 쿼트가 같은 섹션 xz 라 한 번만 계산(erosion 은 y 불변).
+            java.util.Arrays.fill(result, endBiome(cx * 16, 0, cz * 16));
+            return result;
+        }
         if (rtree == null) return result;
 
         // 바닐라 ChunkAccess.fillBiomesFromNoise 순서: 섹션을 아래에서 위로, 섹션 안에서 x 바깥 · y 가운데 · z 안쪽.
@@ -171,7 +210,7 @@ public final class BiomeSampler {
         // 청크 첫 쿼리의 직전 leaf는 바닐라에선 스레드 이력이라 알 수 없어 null로 시작한다.
         long[] target = new long[6];
         ClimateRTree.Leaf last = null;
-        for (int section = 0; section < 24; section++) {
+        for (int section = 0; section < sectionCount; section++) {
             for (int qx = 0; qx < 4; qx++) {
                 for (int dy = 0; dy < 4; dy++) {
                     int qy = section * 4 + dy;

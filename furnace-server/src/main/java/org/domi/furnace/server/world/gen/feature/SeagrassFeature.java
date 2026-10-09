@@ -34,7 +34,7 @@ public final class SeagrassFeature implements ConfiguredFeature {
         int placeX = x + dx1 - dx2;
         int placeZ = z + dz1 - dz2;
         int placeY = view.getOceanFloorY(placeX, placeZ) + 1;
-        if (placeY < org.domi.furnace.server.world.ChunkColumn.MIN_Y) return false;
+        if (placeY < view.minY()) return false;
         if (!isWater(view.getBlock(placeX, placeY, placeZ))) return false;
         boolean isTall = random.nextDouble() < tallProbability;
         // vanilla canSurvive: floor must be solid (not water/air/magma) — SeagrassBlock.mayPlaceOn

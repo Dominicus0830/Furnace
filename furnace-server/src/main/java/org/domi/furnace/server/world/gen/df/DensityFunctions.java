@@ -350,6 +350,46 @@ public final class DensityFunctions {
     // YClampedGradient  — vanilla: Mth.clampedMap(blockY, fromY, toY, fromValue, toValue)
     // ================================================================
 
+    /** 바닐라 EndIslandDensityFunction — LegacyRandom(seed) 를 17292 회 소비한 SimplexNoise 로 섬 높이를 만든다. */
+    static final class EndIslands implements DensityFunction.SimpleFunction {
+        private final org.domi.furnace.server.world.gen.noise.SimplexNoise islandNoise;
+
+        EndIslands(long seed) {
+            org.domi.furnace.server.world.gen.carver.LegacyRandom r = new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed);
+            r.consumeCount(17292);
+            this.islandNoise = new org.domi.furnace.server.world.gen.noise.SimplexNoise(r);
+        }
+
+        static float heightValue(org.domi.furnace.server.world.gen.noise.SimplexNoise noise, int x, int z) {
+            int i = x / 2, j = z / 2, k = x % 2, l = z % 2;
+            float f = 100.0F - (float) Math.sqrt((float) (x * x + z * z)) * 8.0F;
+            f = Math.max(-100.0F, Math.min(80.0F, f));
+            for (int i1 = -12; i1 <= 12; i1++) {
+                for (int j1 = -12; j1 <= 12; j1++) {
+                    long k1 = (long) (i + i1), l1 = (long) (j + j1);
+                    if (k1 * k1 + l1 * l1 > 4096L && noise.getValue((double) k1, (double) l1) < (double) -0.9F) {
+                        float f1 = (Math.abs((float) k1) * 3439.0F + Math.abs((float) l1) * 147.0F) % 13.0F + 9.0F;
+                        float f2 = (float) (k - i1 * 2), f3 = (float) (l - j1 * 2);
+                        float f4 = 100.0F - (float) Math.sqrt(f2 * f2 + f3 * f3) * f1;
+                        f4 = Math.max(-100.0F, Math.min(80.0F, f4));
+                        f = Math.max(f, f4);
+                    }
+                }
+            }
+            return f;
+        }
+
+        @Override
+        public double compute(DensityFunction.FunctionContext ctx) {
+            return ((double) heightValue(islandNoise, ctx.blockX() / 8, ctx.blockZ() / 8) - 8.0) / 128.0;
+        }
+
+        @Override public double minValue() { return -0.84375; }
+        @Override public double maxValue() { return 0.5625; }
+    }
+
+    public static DensityFunction endIslands(long seed) { return new EndIslands(seed); }
+
     record YClampedGradient(int fromY, int toY, double fromValue, double toValue)
             implements DensityFunction.SimpleFunction {
 

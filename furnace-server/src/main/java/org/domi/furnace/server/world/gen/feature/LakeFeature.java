@@ -35,7 +35,7 @@ public final class LakeFeature implements ConfiguredFeature {
 
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
-        if (y <= ChunkColumn.MIN_Y + 4) return false;
+        if (y <= view.minY() + 4) return false;
         y -= 4;
         boolean[] mask = new boolean[2048];
         int blobs = random.nextInt(4) + 4;
