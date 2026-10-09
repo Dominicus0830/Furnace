@@ -65,7 +65,10 @@ public final class BiomeFeatureData {
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
         "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake", "minecraft:desert_well",
         "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile", "minecraft:fossil", "minecraft:root_system",
-        "minecraft:sculk_patch"
+        "minecraft:sculk_patch",
+        "minecraft:huge_fungus", "minecraft:nether_forest_vegetation", "minecraft:twisting_vines", "minecraft:weeping_vines",
+        "minecraft:netherrack_replace_blobs", "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
+        "minecraft:glowstone_blob"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -423,6 +426,43 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:lake")) {
                 return new LakeFeature(parseState(config.getAsJsonObject("fluid").getAsJsonObject("state")),
                     parseState(config.getAsJsonObject("barrier").getAsJsonObject("state")), registry);
+            }
+            if (type.equals("minecraft:huge_fungus")) {
+                return new HugeFungusFeature(
+                    parseState(config.getAsJsonObject("valid_base_block")), parseState(config.getAsJsonObject("stem_state")),
+                    parseState(config.getAsJsonObject("hat_state")), parseState(config.getAsJsonObject("decor_state")),
+                    predicates().parse(config.getAsJsonObject("replaceable_blocks")),
+                    config.has("planted") && config.get("planted").getAsBoolean(), registry);
+            }
+            if (type.equals("minecraft:nether_forest_vegetation")) {
+                StateProvider provider = parseToPlaceProvider(config.getAsJsonObject("state_provider"));
+                if (provider == null) return NoopFeature.INSTANCE;
+                return new NetherForestVegetationFeature(provider, config.get("spread_width").getAsInt(),
+                    config.get("spread_height").getAsInt(), registry, survival());
+            }
+            if (type.equals("minecraft:twisting_vines")) {
+                return new NetherVinesFeatures.Twisting(new NetherVinesFeatures.Blocks(registry), config.get("spread_width").getAsInt(),
+                    config.get("spread_height").getAsInt(), config.get("max_height").getAsInt());
+            }
+            if (type.equals("minecraft:weeping_vines")) {
+                return new NetherVinesFeatures.Weeping(new NetherVinesFeatures.Blocks(registry));
+            }
+            if (type.equals("minecraft:netherrack_replace_blobs")) {
+                return new NetherrackReplaceBlobsFeature(parseState(config.getAsJsonObject("target")),
+                    parseState(config.getAsJsonObject("state")), treeIntProvider(config.get("radius"), 0), registry);
+            }
+            if (type.equals("minecraft:basalt_columns")) {
+                return new BasaltFeatures.Columns(treeIntProvider(config.get("reach"), 0), treeIntProvider(config.get("height"), 0), registry);
+            }
+            if (type.equals("minecraft:basalt_pillar")) {
+                return new BasaltFeatures.Pillar(registry);
+            }
+            if (type.equals("minecraft:delta_feature")) {
+                return new DeltaFeature(parseState(config.getAsJsonObject("contents")), parseState(config.getAsJsonObject("rim")),
+                    treeIntProvider(config.get("size"), 0), treeIntProvider(config.get("rim_size"), 0), registry);
+            }
+            if (type.equals("minecraft:glowstone_blob")) {
+                return new GlowstoneBlobFeature(registry);
             }
             if (type.equals("minecraft:bamboo")) {
                 return new BambooFeature(config.get("probability").getAsFloat(), registry);

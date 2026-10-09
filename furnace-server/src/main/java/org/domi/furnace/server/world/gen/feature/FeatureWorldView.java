@@ -18,6 +18,30 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private final int gridCenterZ;
     private final int gridReadRadius;
     private int debugSetBlockCalls;
+    // 차원별 높이 한계 — 기본은 오버월드. 네더 뷰는 withDimension(0, 256, 32, 128) 로 지정한다
+    // (level.getMinBuildHeight/getMaxBuildHeight, chunkGenerator.getSeaLevel/getGenDepth 에 해당).
+    private int minBuildHeight = ChunkColumn.MIN_Y;
+    private int maxBuildHeight = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16;
+    private int seaLevel = 63;
+    private int genDepth = ChunkColumn.SECTION_COUNT * 16;
+
+    /** 차원 높이 한계 지정(체이닝). 범위 밖 y 는 읽기=공기, 쓰기=무시(바닐라 ProtoChunk 와 동일). */
+    public FeatureWorldView withDimension(int minBuildHeight, int maxBuildHeight, int seaLevel, int genDepth) {
+        this.minBuildHeight = minBuildHeight;
+        this.maxBuildHeight = maxBuildHeight;
+        this.seaLevel = seaLevel;
+        this.genDepth = genDepth;
+        return this;
+    }
+
+    /** LevelHeightAccessor.getMinBuildHeight(). */
+    public int minBuildHeight() { return minBuildHeight; }
+    /** LevelHeightAccessor.getMaxBuildHeight() (배타적 상한). */
+    public int maxBuildHeight() { return maxBuildHeight; }
+    /** ChunkGenerator.getSeaLevel(). */
+    public int seaLevel() { return seaLevel; }
+    /** ChunkGenerator.getGenDepth(). */
+    public int genDepth() { return genDepth; }
 
     public FeatureWorldView(ChunkColumn col, int cx, int cz, int[] biomeIds) {
         this(col, cx, cz, biomeIds, 0L);
@@ -488,7 +512,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         return (chunkZ - gridCenterZ + gridReadRadius) * size + (chunkX - gridCenterX + gridReadRadius);
     }
 
-    private static boolean inWorldY(int worldY) {
-        return worldY >= ChunkColumn.MIN_Y && worldY < ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16;
+    private boolean inWorldY(int worldY) {
+        return worldY >= Math.max(ChunkColumn.MIN_Y, minBuildHeight)
+            && worldY < Math.min(ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16, maxBuildHeight);
     }
 }

@@ -20,6 +20,7 @@ public final class BlockSurvival implements BlockPredicate.Survival {
     private final Set<Integer> terracotta;          // #minecraft:terracotta
     private final Set<Integer> nylium;              // #minecraft:nylium
     private final Set<Integer> soulSoil;
+    private final Set<Integer> mycelium;
     private final Set<Integer> soulFireBase;        // #minecraft:soul_fire_base_blocks
     private final Set<Integer> smallDripleafPlaceable;
     private final Set<Integer> mushroomGrow;        // #minecraft:mushroom_grow_block
@@ -42,6 +43,7 @@ public final class BlockSurvival implements BlockPredicate.Survival {
         this.terracotta = tag("minecraft:terracotta");
         this.nylium = tag("minecraft:nylium");
         this.soulSoil = registry.stateIdsForBlock("minecraft:soul_soil");
+        this.mycelium = registry.stateIdsForBlock("minecraft:mycelium");
         this.soulFireBase = tag("minecraft:soul_fire_base_blocks");
         this.smallDripleafPlaceable = tag("minecraft:small_dripleaf_placeable");
         this.mushroomGrow = tag("minecraft:mushroom_grow_block");
@@ -66,7 +68,8 @@ public final class BlockSurvival implements BlockPredicate.Survival {
         AZALEA,              // clay 또는 BushBlock
         LILY_PAD,
         MUSHROOM,
-        ROOTS,               // crimson/warped roots: nylium/soul_soil/BushBlock
+        ROOTS,               // crimson/warped roots, nether_sprouts: nylium/soul_soil/BushBlock
+        FUNGUS,              // crimson/warped fungus: nylium/mycelium/soul_soil/BushBlock
         SEAGRASS,            // 지면 UP면 단단 && !magma
         MOSS_CARPET,         // 아래가 공기가 아님
         SPORE_BLOSSOM,       // 위 DOWN면 center 지지 && 물 아님
@@ -97,7 +100,8 @@ public final class BlockSurvival implements BlockPredicate.Survival {
             case "minecraft:azalea", "minecraft:flowering_azalea" -> Kind.AZALEA;
             case "minecraft:lily_pad" -> Kind.LILY_PAD;
             case "minecraft:brown_mushroom", "minecraft:red_mushroom" -> Kind.MUSHROOM;
-            case "minecraft:crimson_roots", "minecraft:warped_roots" -> Kind.ROOTS;
+            case "minecraft:crimson_roots", "minecraft:warped_roots", "minecraft:nether_sprouts" -> Kind.ROOTS;   // NetherSproutsBlock 도 동일 규칙
+            case "minecraft:crimson_fungus", "minecraft:warped_fungus" -> Kind.FUNGUS;
             case "minecraft:seagrass" -> Kind.SEAGRASS;
             case "minecraft:moss_carpet" -> Kind.MOSS_CARPET;
             case "minecraft:spore_blossom" -> Kind.SPORE_BLOSSOM;
@@ -207,6 +211,8 @@ public final class BlockSurvival implements BlockPredicate.Survival {
                 return !view.isOpenToSky(x, y, z) && attrs.isSolidRender(below);
             case ROOTS:
                 return nylium.contains(below) || soulSoil.contains(below) || bushMayPlaceOn(below);
+            case FUNGUS:
+                return nylium.contains(below) || mycelium.contains(below) || soulSoil.contains(below) || bushMayPlaceOn(below);
             case SEAGRASS:
                 return attrs.isFaceSturdy(below, BlockAttrs.UP) && !magma.contains(below);
             case MOSS_CARPET:

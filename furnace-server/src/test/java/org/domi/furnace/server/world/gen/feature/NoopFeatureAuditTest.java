@@ -29,11 +29,6 @@ class NoopFeatureAuditTest {
     // survey(tasks/worldgen-gap-survey) 확인된 미구현 루트 타입. 이 목록 밖의 새 폴백은 fail.
     private static final Set<String> KNOWN_UNIMPLEMENTED_TYPES = Set.of(
         "minecraft:chorus_plant",
-        "minecraft:nether_forest_vegetation", "minecraft:huge_fungus",
-        "minecraft:twisting_vines", "minecraft:weeping_vines",
-        "minecraft:netherrack_replace_blobs",
-        "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
-        "minecraft:glowstone_blob",
         "minecraft:bonus_chest",
         "minecraft:end_island", "minecraft:end_spike", "minecraft:end_platform", "minecraft:end_gateway",
         // 이 audit(파일 스캔) 실행 중 신규 확인된 미구현 타입(survey 목록에 없었음) — void_start_platform.json
