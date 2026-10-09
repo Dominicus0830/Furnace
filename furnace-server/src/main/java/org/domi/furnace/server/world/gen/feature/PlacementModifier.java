@@ -13,6 +13,7 @@ import org.domi.furnace.server.world.gen.noise.SimplexNoise;
 public sealed interface PlacementModifier
         permits PlacementModifier.CountOnEveryLayerPlacement, PlacementModifier.CountPlacement,
                 PlacementModifier.RandomOffsetPlacement,
+                PlacementModifier.FixedPlacement,
                 PlacementModifier.EnvironmentScanPlacement,
                 PlacementModifier.PredicateFilter,
                 PlacementModifier.ProviderCountPlacement,
@@ -165,6 +166,20 @@ public sealed interface PlacementModifier
                 ? minInclusive[index]
                 : minInclusive[index] + random.nextInt(maxInclusive[index] - minInclusive[index] + 1);
             return IntStream.range(0, count).mapToObj(__ -> pos);
+        }
+    }
+
+    /** vanilla FixedPlacement: 입력 위치의 청크에 속한 고정 좌표만 통과시킨다(난수 소비 없음). */
+    record FixedPlacement(java.util.List<BlockPos> positions) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            int cx = pos.x() >> 4, cz = pos.z() >> 4;
+            boolean any = false;
+            for (BlockPos p : positions) {
+                if ((p.x() >> 4) == cx && (p.z() >> 4) == cz) { any = true; break; }
+            }
+            if (!any) return Stream.empty();
+            return positions.stream().filter(p -> (p.x() >> 4) == cx && (p.z() >> 4) == cz);
         }
     }
 
