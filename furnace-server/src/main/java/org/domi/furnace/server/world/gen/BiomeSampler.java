@@ -28,6 +28,9 @@ public final class BiomeSampler {
     private final ClimateRTree rtree;
     /** 바이옴을 채울 섹션 수(오버월드 24, 네더 16). */
     private final int sectionCount;
+    /** TheEndBiomeSource 모드: [the_end, end_highlands, end_midlands, small_end_islands, end_barrens] 레지스트리 id (null 이면 multi-noise). */
+    private int[] endBiomes;
+    private DensityFunction endErosion;
 
     private BiomeSampler(List<BiomeEntry> entries) {
         this(entries, 24);
@@ -141,6 +144,25 @@ public final class BiomeSampler {
         return new BiomeSampler(entries, sectionCount);
     }
 
+    /** 바닐라 TheEndBiomeSource — 중앙 섬(청크 거리² ≤ 4096) 은 the_end, 그 밖은 섹션 중심 erosion(end_islands) 값으로 4종. */
+    public static BiomeSampler theEnd(RegistrySet registries, NoiseRouter router, int sectionCount) {
+        BiomeSampler b = new BiomeSampler(new ArrayList<>(), sectionCount);
+        String[] names = {"minecraft:the_end", "minecraft:end_highlands", "minecraft:end_midlands", "minecraft:small_end_islands", "minecraft:end_barrens"};
+        b.endBiomes = new int[5];
+        for (int i = 0; i < 5; i++) b.endBiomes[i] = registries.indexOf("minecraft:worldgen/biome", names[i]);
+        b.endErosion = router.erosion();
+        return b;
+    }
+
+    private int endBiome(int blockX, int blockY, int blockZ) {
+        int sx = blockX >> 4, sz = blockZ >> 4;
+        if ((long) sx * sx + (long) sz * sz <= 4096L) return endBiomes[0];
+        double e = endErosion.compute(new DensityFunction.SinglePointContext((sx * 2 + 1) * 8, blockY, (sz * 2 + 1) * 8));
+        if (e > 0.25) return endBiomes[1];
+        if (e >= -0.0625) return endBiomes[2];
+        return e < -0.21875 ? endBiomes[3] : endBiomes[4];
+    }
+
     /** quarter-block 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
     public int sample(int worldQuartX, int absQuartY, int worldQuartZ, NoiseRouter router) {
         return sampleQuart(worldQuartX, absQuartY - 16, worldQuartZ, router);
@@ -148,6 +170,7 @@ public final class BiomeSampler {
 
     /** Vanilla noise-biome quart 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
     public int sampleQuart(int worldQuartX, int worldQuartY, int worldQuartZ, NoiseRouter router) {
+        if (endBiomes != null) return endBiome(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
         int bx = worldQuartX * 4;
         int by = worldQuartY * 4;
         int bz = worldQuartZ * 4;
@@ -175,6 +198,11 @@ public final class BiomeSampler {
      */
     public int[] sampleChunk(int cx, int cz, NoiseChunk noiseChunk) {
         int[] result = new int[sectionCount * 64];
+        if (endBiomes != null) {
+            // 청크 안 모든 쿼트가 같은 섹션 xz 라 한 번만 계산(erosion 은 y 불변).
+            java.util.Arrays.fill(result, endBiome(cx * 16, 0, cz * 16));
+            return result;
+        }
         if (rtree == null) return result;
 
         // 바닐라 ChunkAccess.fillBiomesFromNoise 순서: 섹션을 아래에서 위로, 섹션 안에서 x 바깥 · y 가운데 · z 안쪽.

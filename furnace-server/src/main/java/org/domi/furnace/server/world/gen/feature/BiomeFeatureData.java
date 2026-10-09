@@ -1491,6 +1491,14 @@ public final class BiomeFeatureData {
             String type = json.get("type").getAsString();
             switch (type) {
                 case "minecraft:count" -> out.add(countPlacement(json.get("count")));
+                case "minecraft:fixed_placement" -> {
+                    java.util.List<BlockPos> ps = new ArrayList<>();
+                    for (JsonElement e : json.getAsJsonArray("positions")) {
+                        JsonArray a = e.getAsJsonArray();
+                        ps.add(new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt()));
+                    }
+                    out.add(new PlacementModifier.FixedPlacement(List.copyOf(ps)));
+                }
                 case "minecraft:count_on_every_layer" -> out.add(new PlacementModifier.CountOnEveryLayerPlacement(treeIntProvider(json.get("count"), 1)));
                 case "minecraft:rarity_filter" -> out.add(new PlacementModifier.RarityFilterPlacement(json.get("chance").getAsInt()));
                 case "minecraft:in_square" -> out.add(new PlacementModifier.InSquarePlacement());

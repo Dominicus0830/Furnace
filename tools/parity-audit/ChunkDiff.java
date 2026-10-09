@@ -8,14 +8,27 @@ public class ChunkDiff {
   public static void main(String[] a) throws Exception {
     long seed = Long.parseLong(a[0]); int cx = Integer.parseInt(a[1]), cz = Integer.parseInt(a[2]);
     java.nio.file.Path w0 = java.nio.file.Path.of(a[3]);
-    java.nio.file.Path w = "nether".equals(System.getenv("DIM")) ? w0.resolve("DIM-1") : w0;
+    java.nio.file.Path w = "nether".equals(System.getenv("DIM")) ? w0.resolve("DIM-1") : "end".equals(System.getenv("DIM")) ? w0.resolve("DIM1") : w0;
     java.util.regex.Pattern f = a.length > 4 ? java.util.regex.Pattern.compile(a[4]) : null;
     BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
     RegistrySet r = RegistrySet.load("registries/1.21.1.txt");
     boolean nether = "nether".equals(System.getenv("DIM"));
-    NoiseWorldSource src = nether ? NoiseWorldSource.nether(seed, reg, r) : NoiseWorldSource.overworld(seed, reg, r);
+    NoiseWorldSource src = nether ? NoiseWorldSource.nether(seed, reg, r) : "end".equals(System.getenv("DIM")) ? NoiseWorldSource.end(seed, reg, r) : NoiseWorldSource.overworld(seed, reg, r);
     if ("1".equals(System.getenv("NO_STRUCT"))) src.structureEngine().setStructuresEnabled(false);
-    short[] v = Harness.vanillaBlocks(Harness.readChunk(w, cx, cz));
+    var root = Harness.readChunk(w, cx, cz);
+    short[] v = Harness.vanillaBlocks(root);
+    {   // 바이옴 대조(쿼트 단위)
+      String[] vb = Harness.vanillaBiomes(root);
+      int[] fb = src.sampleBiomes(cx, cz);
+      java.util.List<String> names = r.entries("minecraft:worldgen/biome");
+      int minSec = Math.floorDiv(src.minY(), 16), bad = 0;
+      for (int i = 0; i < fb.length; i++) {
+        int vi = (minSec + 4) * 64 + i;
+        if (vi < 0 || vi >= vb.length || vb[vi] == null) continue;
+        if (!vb[vi].equals(names.get(fb[i]))) { if (bad < 3) System.out.println("BIOME q" + i + " van=" + vb[vi] + " fur=" + names.get(fb[i])); bad++; }
+      }
+      System.out.println("biomeMismatch=" + bad + "/" + fb.length);
+    }
     ChunkColumn col = src.generateWithFeatures(cx, cz);
     int n = 0, vs = 0, fs = 0, both = 0;
     for (int y = col.minY(); y <= col.maxY(); y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
