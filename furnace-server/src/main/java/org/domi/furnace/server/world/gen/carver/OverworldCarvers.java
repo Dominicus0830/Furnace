@@ -30,6 +30,15 @@ public final class OverworldCarvers {
         ));
     }
 
+    /** 네더 바이옴 공통 carver: nether_cave 하나(교체 가능 블록 = 설정의 replaceable 태그). */
+    public static OverworldCarvers loadNether() {
+        Gson gson = new Gson();
+        JsonObject cfg = loadJson(gson, "worldgen/1.21.1/configured_carver/nether_cave.json").get("config").getAsJsonObject();
+        String tag = cfg.get("replaceable").getAsString().replaceFirst("^#", "");
+        java.util.Set<String> repl = java.util.Set.copyOf(org.domi.furnace.server.world.gen.feature.BlockTags.get().blocksOf(tag));
+        return new OverworldCarvers(List.of(new Entry(CaveWorldCarver.nether(repl), CarverConfig.Cave.fromJson(cfg))));
+    }
+
     private static JsonObject loadJson(Gson gson, String path) {
         try (var in = OverworldCarvers.class.getClassLoader().getResourceAsStream(path)) {
             if (in == null) throw new IllegalStateException("Resource not found: " + path);

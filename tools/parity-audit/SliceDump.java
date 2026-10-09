@@ -16,11 +16,13 @@ public class SliceDump {
     return '#';
   }
   public static void main(String[] a) throws Exception {
-    long seed = Long.parseLong(a[0]); java.nio.file.Path w = java.nio.file.Path.of(a[1]);
+    long seed = Long.parseLong(a[0]); java.nio.file.Path w0 = java.nio.file.Path.of(a[1]);
+    java.nio.file.Path w = "nether".equals(System.getenv("DIM")) ? w0.resolve("DIM-1") : w0;
     int x0 = Integer.parseInt(a[2]), x1 = Integer.parseInt(a[3]), y0 = Integer.parseInt(a[4]), y1 = Integer.parseInt(a[5]), z0 = Integer.parseInt(a[6]), z1 = Integer.parseInt(a[7]);
     BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
     RegistrySet r = RegistrySet.load("registries/1.21.1.txt");
-    NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, r);
+    boolean nether = "nether".equals(System.getenv("DIM"));
+    NoiseWorldSource src = nether ? NoiseWorldSource.nether(seed, reg, r) : NoiseWorldSource.overworld(seed, reg, r);
     if ("1".equals(System.getenv("NO_STRUCT"))) src.structureEngine().setStructuresEnabled(false);
     Map<Long, ChunkColumn> fc = new HashMap<>(); Map<Long, short[]> vc = new HashMap<>();
     for (int y = y0; y <= y1; y++) {

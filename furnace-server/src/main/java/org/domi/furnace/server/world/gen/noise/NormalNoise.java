@@ -29,7 +29,7 @@ public final class NormalNoise {
     /**
      * NoiseParameters 를 받는 팩토리 — 파서용.
      */
-    public static NormalNoise create(XoroshiroRandomSource random, NoiseParameters params) {
+    public static NormalNoise create(NoiseRandom random, NoiseParameters params) {
         return new NormalNoise(random, params.firstOctave(), params.amplitudes());
     }
 
@@ -37,14 +37,22 @@ public final class NormalNoise {
      * 표준 팩토리: double[] 가변 인자 형태.
      * 바닐라 NormalNoise.create(random, firstOctave, double... amplitudes) 에 대응.
      */
-    public static NormalNoise create(XoroshiroRandomSource random, int firstOctave, double... amplitudes) {
+    public static NormalNoise create(NoiseRandom random, int firstOctave, double... amplitudes) {
         return new NormalNoise(random, firstOctave, amplitudes);
     }
 
-    private NormalNoise(XoroshiroRandomSource random, int firstOctave, double[] amplitudes) {
-        // 바닐라 useLegacyNetherBiome=false 경로: PerlinNoise.create (useNewFactory=true)
-        this.first = PerlinNoise.create(random, firstOctave, amplitudes);
-        this.second = PerlinNoise.create(random, firstOctave, amplitudes);
+    /** 바닐라 NormalNoise.createLegacyNetherBiome — useNewInitialization=false(옥타브 순차 시딩). */
+    public static NormalNoise createLegacyNetherBiome(NoiseRandom random, NoiseParameters params) {
+        return new NormalNoise(random, params.firstOctave(), params.amplitudes(), false);
+    }
+
+    private NormalNoise(NoiseRandom random, int firstOctave, double[] amplitudes) {
+        this(random, firstOctave, amplitudes, true);
+    }
+
+    private NormalNoise(NoiseRandom random, int firstOctave, double[] amplitudes, boolean newInit) {
+        this.first = newInit ? PerlinNoise.create(random, firstOctave, amplitudes) : PerlinNoise.createLegacyForLegacyNetherBiome(random, firstOctave, amplitudes);
+        this.second = newInit ? PerlinNoise.create(random, firstOctave, amplitudes) : PerlinNoise.createLegacyForLegacyNetherBiome(random, firstOctave, amplitudes);
 
         // valueFactor 계산: 바닐라와 동일한 로직
         // i1 = min non-zero index, i2 = max non-zero index (0-based in amplitude array)

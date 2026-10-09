@@ -19,7 +19,7 @@ public final class BlockPileFeature implements ConfiguredFeature {
 
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
-        if (y < ChunkColumn.MIN_Y + 5) return false;
+        if (y < view.minY() + 5) return false;
         int i = 2 + random.nextInt(2);
         int j = 2 + random.nextInt(2);
         // BlockPos.betweenClosed(pos-(i,0,j), pos+(i,1,j)): x 가장 빠르게, 그다음 y, z

@@ -1,9 +1,9 @@
 // 청크에서 확정된 구조물 시작점 — 구조물 id·시작 청크·피스 목록·전체 BoundingBox(피스 합집합, terrain_adaptation이면 12 확장).
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import java.util.List;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
-import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 
 public final class StructureStart {
@@ -53,7 +53,7 @@ public final class StructureStart {
     public String terrainAdaptation() { return terrainAdaptation; }
 
     /** 바닐라 StructureStart.placeInChunk. */
-    public void placeInChunk(StructureEngine engine, FeatureWorldView view, WorldgenRandom random, XoroshiroRandomSource regionRandom,
+    public void placeInChunk(StructureEngine engine, FeatureWorldView view, WorldgenRandom random, NoiseRandom regionRandom,
                              BoundingBox writableBox, int cx, int cz) {
         if (pieces.isEmpty()) return;
         BoundingBox first = pieces.get(0).boundingBox();

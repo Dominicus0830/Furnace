@@ -1,10 +1,10 @@
 // 사막 피라미드 조각 — 바닐라 DesertPyramidPiece.postProcess 라인단위 이식(블록+RNG 소비만, loot 내용물 제외).
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
-import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 
 import java.util.Map;
 
@@ -38,7 +38,7 @@ public final class DesertPyramidPiece extends StructurePiece {
 
     @Override
     public void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random,
-            XoroshiroRandomSource regionRandom, BoundingBox writableBox) {
+            NoiseRandom regionRandom, BoundingBox writableBox) {
         // vanilla: this.updateHeightPositionToLowestGroundHeight(level, -random.nextInt(3)) — 인자가 항상 먼저 평가된다.
         int heightArg = -random.nextInt(3);
         if (!updateHeightPositionToLowestGroundHeight(view, heightArg)) {
@@ -291,7 +291,7 @@ public final class DesertPyramidPiece extends StructurePiece {
     // ---- 지하실(addCellar) — 바닐라와 동일 블록 배치 + level.getRandom()(regionRandom) 소비 재현 ----
 
     private void addCellar(FeatureWorldView view, BoundingBox writableBox, BlockRegistry blocks,
-                            XoroshiroRandomSource regionRandom,
+                            NoiseRandom regionRandom,
                             int sandstone, int sand, int cutSandstone, int chiseledSandstone,
                             int orangeTerracotta, int blueTerracotta) {
         // 바닐라 Blocks.SANDSTONE_STAIRS.defaultBlockState()(facing=north).rotate(COUNTERCLOCKWISE_90) == facing west(로컬).
@@ -302,7 +302,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         addCellarRoom(view, writableBox, regionRandom, px, py, pz, sandstone, sand, cutSandstone, chiseledSandstone, orangeTerracotta, blueTerracotta);
     }
 
-    private void addCellarStairs(FeatureWorldView view, BoundingBox writableBox, XoroshiroRandomSource regionRandom,
+    private void addCellarStairs(FeatureWorldView view, BoundingBox writableBox, NoiseRandom regionRandom,
                                   int stairsCcw, int sand, int sandstone, int x, int y, int z) {
         placeBlock(view, writableBox, stairsCcw, 13, -1, 17);
         placeBlock(view, writableBox, stairsCcw, 14, -2, 17);
@@ -322,7 +322,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         placeBlock(view, writableBox, sand, x, y + 1, z + 4);
     }
 
-    private void addCellarRoom(FeatureWorldView view, BoundingBox writableBox, XoroshiroRandomSource regionRandom,
+    private void addCellarRoom(FeatureWorldView view, BoundingBox writableBox, NoiseRandom regionRandom,
                                 int x, int y, int z,
                                 int sandstone, int sand, int cutSandstone, int chiseledSandstone, int orangeTerracotta, int blueTerracotta) {
         generateBox(view, writableBox, x - 3, y + 1, z - 3, x - 3, y + 1, z + 2, cutSandstone, cutSandstone, true);

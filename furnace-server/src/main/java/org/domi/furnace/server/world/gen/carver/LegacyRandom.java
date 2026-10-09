@@ -1,7 +1,7 @@
 // 바닐라 Java 48-bit LCG — WorldgenRandom(carver 시드)과 createTunnel branchRandom 공용
 package org.domi.furnace.server.world.gen.carver;
 
-public class LegacyRandom {
+public class LegacyRandom implements org.domi.furnace.server.world.gen.noise.NoiseRandom {
 
     private static final long MULTIPLIER = 0x5DEECE66DL;
     private static final long ADDEND     = 0xBL;
@@ -28,12 +28,14 @@ public class LegacyRandom {
         return (int)(seed >>> (48 - bits));
     }
 
+    @Override
     public int nextInt() {
         int value = next(32);
         RandomTrace.nextInt(value);
         return value;
     }
 
+    @Override
     public int nextInt(int bound) {
         if (bound <= 0) throw new IllegalArgumentException();
         if ((bound & -bound) == bound) {
@@ -50,28 +52,44 @@ public class LegacyRandom {
         return val;
     }
 
+    @Override
     public long nextLong() {
         int hi = next(32);
         int lo = next(32);
         return ((long)hi << 32) + lo;  // lo is signed (matches vanilla BitRandomSource)
     }
 
+    @Override
     public float nextFloat() {
         float value = next(24) / (float)(1 << 24);
         RandomTrace.nextFloat(value);
         return value;
     }
 
+    @Override
     public double nextDouble() {
         double value = (((long)next(26) << 27) + next(27)) * (1.0 / (1L << 53));
         RandomTrace.nextDouble(value);
         return value;
     }
 
+    @Override
     public boolean nextBoolean() {
         boolean value = next(1) != 0;
         RandomTrace.nextBoolean(value);
         return value;
+    }
+
+    /** RandomSource.consumeCount 기본 구현 — nextInt() 를 count 번. */
+    @Override
+    public void consumeCount(int count) {
+        for (int i = 0; i < count; i++) next(32);
+    }
+
+    /** LegacyRandomSource.forkPositional() = new LegacyPositionalRandomFactory(nextLong()). */
+    @Override
+    public org.domi.furnace.server.world.gen.noise.LegacyPositionalRandom forkPositional() {
+        return new org.domi.furnace.server.world.gen.noise.LegacyPositionalRandom(nextLong());
     }
 
     /** 바닐라 MarsagliaPolarGaussian(LegacyRandomSource.nextGaussian) — Math.sqrt/Math.log 사용(디컴파일 확인). */

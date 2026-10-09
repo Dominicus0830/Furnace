@@ -119,7 +119,7 @@ public final class OreFeature implements ConfiguredFeature {
                     if (dx * dx + dy * dy >= 1.0) continue;
                     for (int bz = fromZ; bz <= toZ; bz++) {
                         double dz = ((double) bz + 0.5 - centerZ) / radius;
-                        if (dx * dx + dy * dy + dz * dz >= 1.0 || !inWorldY(by)) continue;
+                        if (dx * dx + dy * dy + dz * dz >= 1.0 || !inWorldY(view, by)) continue;
 
                         int index = bx - minX + (by - minY) * horizontalSize
                             + (bz - minZ) * horizontalSize * verticalSize;
@@ -194,8 +194,8 @@ public final class OreFeature implements ConfiguredFeature {
         return stateId == 0 || stateId == 12958 || stateId == 12959;
     }
 
-    private static boolean inWorldY(int y) {
-        return y >= ChunkColumn.MIN_Y && y < ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16;
+    private static boolean inWorldY(FeatureWorldView view, int y) {
+        return y >= view.minY() && y < (view.maxY() + 1);
     }
 
     public record Target(List<Integer> replaceStateIds, int stateId) {

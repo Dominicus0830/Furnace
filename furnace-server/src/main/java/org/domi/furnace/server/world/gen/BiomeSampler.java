@@ -26,8 +26,15 @@ public final class BiomeSampler {
     private final int[][] groupEntryIdx;  // [g][k] → entries index
 
     private final ClimateRTree rtree;
+    /** 바이옴을 채울 섹션 수(오버월드 24, 네더 16). */
+    private final int sectionCount;
 
     private BiomeSampler(List<BiomeEntry> entries) {
+        this(entries, 24);
+    }
+
+    private BiomeSampler(List<BiomeEntry> entries, int sectionCount) {
+        this.sectionCount = sectionCount;
         this.entries = entries;
         List<ClimateRTree.Leaf> leaves = new ArrayList<>(entries.size());
         for (BiomeEntry e : entries) {
@@ -109,7 +116,11 @@ public final class BiomeSampler {
 
     /** biome_parameters.json 에서 BiomeSampler 를 빌드한다. 레지스트리에 없는 바이옴(예: pale_garden)은 건너뛴다. */
     public static BiomeSampler load(WorldgenData data, RegistrySet registries) {
-        JsonArray arr = data.biomeParameters();
+        return load(data.biomeParameters(), registries, 24);
+    }
+
+    /** 파라미터 목록(biome_parameters*.json 형식)과 섹션 수로 빌드 — 네더 프리셋 등. */
+    public static BiomeSampler load(JsonArray arr, RegistrySet registries, int sectionCount) {
         List<BiomeEntry> entries = new ArrayList<>(arr.size());
         for (JsonElement el : arr) {
             JsonObject obj = el.getAsJsonObject();
@@ -127,7 +138,7 @@ public final class BiomeSampler {
             long offset = obj.get("offset").getAsLong();
             entries.add(new BiomeEntry(min, max, offset, id));
         }
-        return new BiomeSampler(entries);
+        return new BiomeSampler(entries, sectionCount);
     }
 
     /** quarter-block 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
@@ -163,7 +174,7 @@ public final class BiomeSampler {
      * 타이브레이크(min fitness → min entry index)도 그룹 내/간 min-idx 추적으로 보존.
      */
     public int[] sampleChunk(int cx, int cz, NoiseChunk noiseChunk) {
-        int[] result = new int[1536];
+        int[] result = new int[sectionCount * 64];
         if (rtree == null) return result;
 
         // 바닐라 ChunkAccess.fillBiomesFromNoise 순서: 섹션을 아래에서 위로, 섹션 안에서 x 바깥 · y 가운데 · z 안쪽.
@@ -171,7 +182,7 @@ public final class BiomeSampler {
         // 청크 첫 쿼리의 직전 leaf는 바닐라에선 스레드 이력이라 알 수 없어 null로 시작한다.
         long[] target = new long[6];
         ClimateRTree.Leaf last = null;
-        for (int section = 0; section < 24; section++) {
+        for (int section = 0; section < sectionCount; section++) {
             for (int qx = 0; qx < 4; qx++) {
                 for (int dy = 0; dy < 4; dy++) {
                     int qy = section * 4 + dy;

@@ -1,6 +1,7 @@
 // 구조물 조각 추상 베이스 — BoundingBox·회전 + postProcess에 필요한 블록배치 헬퍼(바닐라 StructurePiece 미러링).
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
@@ -40,10 +41,10 @@ public abstract class StructurePiece {
 
     /**
      * 블록 배치 — 바닐라 StructurePiece.postProcess 상당.
-     * regionRandom: 바닐라 WorldGenLevel.getRandom() 미러(순수 XoroshiroRandomSource, decoration용 WorldgenRandom과는 별개 소비 규칙).
+     * regionRandom: 바닐라 WorldGenLevel.getRandom() 미러(순수 NoiseRandom, decoration용 WorldgenRandom과는 별개 소비 규칙).
      */
     public void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random,
-            org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource regionRandom, BoundingBox writableBox) {
+            org.domi.furnace.server.world.gen.noise.NoiseRandom regionRandom, BoundingBox writableBox) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + ": postProcess(PostCtx)를 구현해야 한다");
     }
 

@@ -10,6 +10,22 @@ import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
 public final class CaveWorldCarver extends WorldCarver {
 
+    /** NetherWorldCarver(nether_cave): caveBound 10, 굵기 (f*2+f)*2, 터널 yScale 5.0, 블록은 y<=minY+31 용암·그 위 cave_air(대수층·표면 승격 없음). */
+    private final boolean nether;
+    private final java.util.Set<String> netherReplaceable;
+
+    public CaveWorldCarver() {
+        this.nether = false;
+        this.netherReplaceable = null;
+    }
+
+    private CaveWorldCarver(java.util.Set<String> replaceable) {
+        this.nether = true;
+        this.netherReplaceable = replaceable;
+    }
+
+    public static CaveWorldCarver nether(java.util.Set<String> replaceable) { return new CaveWorldCarver(replaceable); }
+
     // SectionPos.sectionToBlockCoord(getRange()*2-1) = (4*2-1)*16 = 112
     private static final int MAX_STEP = 112;
 
@@ -29,7 +45,7 @@ public final class CaveWorldCarver extends WorldCarver {
         CarverConfig.Cave cave = (CarverConfig.Cave) config;
 
         boolean dbg = debugOrigin01;
-        int a     = random.nextInt(15) + 1;
+        int a     = random.nextInt(nether ? 10 : 15) + 1;
         int b     = random.nextInt(a)  + 1;
         int count = random.nextInt(b);
         if (dbg) {
@@ -76,14 +92,28 @@ public final class CaveWorldCarver extends WorldCarver {
                 createTunnel(col, cave, chunkX, chunkZ, settings, aquifer, reg,
                     tunnelSeed, startX, startY, startZ,
                     hRadMult, vRadMult, thickness, yaw, pitch,
-                    0, maxStep, 1.0f, mask, lavaId, skipChecker,
+                    0, maxStep, nether ? 5.0f : 1.0f, mask, lavaId, skipChecker,
                     surfaceSystem, nc, surfaceYGrid);
             }
         }
         return true;
     }
 
+    @Override
+    protected boolean carveBlock(ChunkColumn col, int lx, int y, int lz, int worldX, int worldZ, int lavaLevelY, Aquifer aquifer,
+                                 CarvingMask mask, BlockRegistry reg, int lavaId, boolean[] reachedSurface,
+                                 SurfaceSystem surfaceSystem, NoiseChunk nc, int[] surfaceYGrid, int chunkX, int chunkZ, int minY) {
+        if (!nether) {
+            return super.carveBlock(col, lx, y, lz, worldX, worldZ, lavaLevelY, aquifer, mask, reg, lavaId, reachedSurface,
+                surfaceSystem, nc, surfaceYGrid, chunkX, chunkZ, minY);
+        }
+        if (!netherReplaceable.contains(reg.nameOf(col.getBlock(lx, y, lz)))) return false;
+        col.setBlock(lx, y, lz, y <= minY + 31 ? lavaId : reg.stateIdOrAir("minecraft:cave_air"));
+        return true;
+    }
+
     private float getThickness(LegacyRandom r) {
+        if (nether) return (r.nextFloat() * 2.0f + r.nextFloat()) * 2.0f;
         float t = r.nextFloat() * 2.0f + r.nextFloat();
         if (r.nextInt(10) == 0) {
             t *= r.nextFloat() * r.nextFloat() * 3.0f + 1.0f;

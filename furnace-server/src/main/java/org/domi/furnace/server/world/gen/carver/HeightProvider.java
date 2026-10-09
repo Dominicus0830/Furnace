@@ -17,8 +17,9 @@ public interface HeightProvider {
         };
     }
 
-    static int resolveAnchor(JsonObject anchor, int minY) {
+    static int resolveAnchor(JsonObject anchor, int minY, int height) {
         if (anchor.has("above_bottom")) return minY + anchor.get("above_bottom").getAsInt();
+        if (anchor.has("below_top"))    return minY + height - 1 - anchor.get("below_top").getAsInt();
         if (anchor.has("absolute"))     return anchor.get("absolute").getAsInt();
         throw new IllegalArgumentException("Unknown anchor: " + anchor);
     }
@@ -26,8 +27,8 @@ public interface HeightProvider {
     record Uniform(JsonObject minAnchor, JsonObject maxAnchor) implements HeightProvider {
         @Override
         public int sample(LegacyRandom random, int minY, int height) {
-            int min = resolveAnchor(minAnchor, minY);
-            int max = resolveAnchor(maxAnchor, minY);
+            int min = resolveAnchor(minAnchor, minY, height);
+            int max = resolveAnchor(maxAnchor, minY, height);
             if (min > max) return min;
             return min + random.nextInt(max - min + 1);
         }

@@ -1,5 +1,7 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -21,19 +23,23 @@ public final class FeaturePlacer {
     private final FeatureSorter sorter;
     private final BlockRegistry blocks;
     /** 바닐라 RandomState.getOrCreateRandomFactory("minecraft:worldgen_region_random") 미러 — WorldGenLevel.getRandom()의 원천. */
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory regionRandomFactory;
+    private final PositionalRandom regionRandomFactory;
 
     private volatile org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine;
 
     public void setStructureEngine(org.domi.furnace.server.world.gen.structure.StructureEngine e) { this.structureEngine = e; }
 
     public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter, BlockRegistry blocks) {
+        this(seed, biomeData, sorter, blocks, new XoroshiroRandomSource(seed).forkPositional());
+    }
+
+    /** @param randomState RandomState.random — WorldGenRegion.getRandom 은 그 위의 "worldgen_region_random" 팩토리(legacy 차원은 LCG). */
+    public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter, BlockRegistry blocks, PositionalRandom randomState) {
         this.seed = seed;
         this.biomeData = biomeData;
         this.sorter = sorter;
         this.blocks = blocks;
-        this.regionRandomFactory = new XoroshiroRandomSource(seed).forkPositional()
-            .fromHashOf("minecraft:worldgen_region_random").forkPositional();
+        this.regionRandomFactory = randomState.fromHashOf("minecraft:worldgen_region_random").forkPositional();
     }
 
     // 진단용 플래그 — 디버깅 완료 후 제거
@@ -54,7 +60,7 @@ public final class FeaturePlacer {
         long decorationSeed = random.setDecorationSeed(seed, cx * 16, cz * 16);
         WorldgenRandom featureRandom = new XoroshiroWorldgenRandom();
         // 바닐라 WorldGenRegion.getRandom() — 이 청크(cx,cz) 원점에 fork, 구조물+feature 전체가 순차 공유 소비.
-        XoroshiroRandomSource regionRandom = regionRandomFactory.at(cx * 16, 0, cz * 16);
+        NoiseRandom regionRandom = regionRandomFactory.at(cx * 16, 0, cz * 16);
         BoundingBox writableBox = new BoundingBox(
             cx * 16, Integer.MIN_VALUE / 2, cz * 16, cx * 16 + 15, Integer.MAX_VALUE / 2, cz * 16 + 15);
 

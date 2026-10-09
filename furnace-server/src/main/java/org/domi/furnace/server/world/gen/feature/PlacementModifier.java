@@ -11,7 +11,7 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.noise.SimplexNoise;
 
 public sealed interface PlacementModifier
-        permits PlacementModifier.CountPlacement,
+        permits PlacementModifier.CountOnEveryLayerPlacement, PlacementModifier.CountPlacement,
                 PlacementModifier.RandomOffsetPlacement,
                 PlacementModifier.EnvironmentScanPlacement,
                 PlacementModifier.PredicateFilter,
@@ -44,6 +44,56 @@ public sealed interface PlacementModifier
         }
     }
 
+    /**
+     * vanilla CountOnEveryLayerPlacement(네더 식생 등): 층 i=0,1,.. 마다 count 회(매 반복 count 재샘플) 무작위 xz 에서 MOTION_BLOCKING
+     * 아래로 i 번째 "빈칸 위 바닥"(공기·물·용암 아래의 비어있지 않은·기반암 아닌 블록) 을 찾는다. 한 층에서 하나도 못 찾으면 끝. 목록은 즉시 만든다.
+     */
+    record CountOnEveryLayerPlacement(TreeIntProvider count) implements PlacementModifier {
+        private static final int WATER_MIN = 80, WATER_MAX = 95, LAVA_MIN = 96, LAVA_MAX = 111, BEDROCK = 79;   // 1.21.1 state id
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            java.util.List<BlockPos> out = new java.util.ArrayList<>();
+            int layer = 0;
+            boolean found;
+            do {
+                found = false;
+                for (int j = 0; j < count.sample(random); j++) {
+                    int x = random.nextInt(16) + pos.x();
+                    int z = random.nextInt(16) + pos.z();
+                    int h = view.getMotionBlockingY(x, z) + 1;
+                    int y = findOnGroundY(view, x, h, z, layer);
+                    if (y != Integer.MAX_VALUE) {
+                        out.add(new BlockPos(x, y, z));
+                        found = true;
+                    }
+                }
+                layer++;
+            } while (found);
+            return out.stream();
+        }
+
+        private static int findOnGroundY(FeatureWorldView view, int x, int y, int z, int target) {
+            org.domi.furnace.server.world.BlockAttrs a = org.domi.furnace.server.world.BlockAttrs.get();
+            int n = 0;
+            int state = view.getBlock(x, y, z);
+            for (int j = y; j >= view.minY() + 1; j--) {
+                int below = view.getBlock(x, j - 1, z);
+                if (!isEmpty(a, below) && isEmpty(a, state) && !isBedrock(below)) {
+                    if (n == target) return j - 1 + 1;
+                    n++;
+                }
+                state = below;
+            }
+            return Integer.MAX_VALUE;
+        }
+
+        private static boolean isEmpty(org.domi.furnace.server.world.BlockAttrs a, int s) {
+            return a.isAir(s) || (s >= WATER_MIN && s <= WATER_MAX) || (s >= LAVA_MIN && s <= LAVA_MAX);
+        }
+
+        private static boolean isBedrock(int s) { return s == BEDROCK; }
+    }
+
     /** vanilla CountPlacement: IntProvider를 한 번 샘플해 그 횟수만큼 같은 위치를 반복(모든 IntProvider 종류 지원). */
     record ProviderCountPlacement(TreeIntProvider count) implements PlacementModifier {
         @Override
@@ -74,7 +124,7 @@ public sealed interface PlacementModifier
             for (int i = 0; i < maxSteps; i++) {
                 if (target.test(view, x, y, z)) return Stream.of(new BlockPos(x, y, z));
                 x += dx; y += dy; z += dz;
-                if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return Stream.empty();   // isOutsideBuildHeight
+                if (y < view.minY() || y > view.maxY()) return Stream.empty();   // isOutsideBuildHeight
                 if (!allowed.test(view, x, y, z)) break;
             }
             return target.test(view, x, y, z) ? Stream.of(new BlockPos(x, y, z)) : Stream.empty();
@@ -182,7 +232,7 @@ public sealed interface PlacementModifier
             if (HM_WATCH != null && HM_WATCH[0] == pos.x() && HM_WATCH[1] == pos.z()) {
                 System.out.println("FURNACE_HMWATCH " + type + " x=" + pos.x() + " z=" + pos.z() + " -> y=" + y);
             }
-            if (y < ChunkColumn.MIN_Y) return Stream.empty();
+            if (y < view.minY()) return Stream.empty();
             return Stream.of(new BlockPos(pos.x(), y, pos.z()));
         }
     }
@@ -360,34 +410,17 @@ public sealed interface PlacementModifier
         }
     }
 
-    static int absoluteYOrDefault(com.google.gson.JsonElement el, int fallback) {
+    /** VerticalAnchor.resolveY(WorldGenerationContext) — above_bottom = minGenY + n, below_top = genDepth - 1 + minGenY - n. */
+    static int worldgenYOrDefault(com.google.gson.JsonElement el, int fallback, int genMinY, int genDepth) {
         if (el == null || el.isJsonNull()) return fallback;
         int raw;
         if (el.isJsonPrimitive()) raw = el.getAsInt();
         else {
             com.google.gson.JsonObject obj = el.getAsJsonObject();
             if (obj.has("absolute")) raw = obj.get("absolute").getAsInt();
-            else if (obj.has("above_bottom")) raw = ChunkColumn.MIN_Y + obj.get("above_bottom").getAsInt();
+            else if (obj.has("above_bottom")) raw = genMinY + obj.get("above_bottom").getAsInt();
             else if (obj.has("below_top")) {
-                int top = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1;
-                raw = top - obj.get("below_top").getAsInt();
-            } else raw = fallback;
-        }
-        int minY = ChunkColumn.MIN_Y;
-        int maxY = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1;
-        return Math.max(minY, Math.min(maxY, raw));
-    }
-
-    static int worldgenYOrDefault(com.google.gson.JsonElement el, int fallback) {
-        if (el == null || el.isJsonNull()) return fallback;
-        int raw;
-        if (el.isJsonPrimitive()) raw = el.getAsInt();
-        else {
-            com.google.gson.JsonObject obj = el.getAsJsonObject();
-            if (obj.has("absolute")) raw = obj.get("absolute").getAsInt();
-            else if (obj.has("above_bottom")) raw = ChunkColumn.MIN_Y + obj.get("above_bottom").getAsInt();
-            else if (obj.has("below_top")) {
-                int top = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1;
+                int top = genMinY + genDepth - 1;
                 raw = top - obj.get("below_top").getAsInt();
             } else raw = fallback;
         }

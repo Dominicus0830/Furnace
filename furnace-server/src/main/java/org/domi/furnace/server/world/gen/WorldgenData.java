@@ -77,6 +77,13 @@ public final class WorldgenData {
      * biome_parameters.json 배열을 반환한다.
      * 파일 경로: basePath/biome_parameters.json
      */
+    /** basePath 아래 JSON 배열 리소스(예: biome_parameters_nether.json). */
+    public JsonArray resourceArray(String name) {
+        JsonElement el = loadResource(basePath + "/" + name);
+        if (el == null) throw new IllegalStateException(name + " not found under " + basePath);
+        return el.getAsJsonArray();
+    }
+
     public JsonArray biomeParameters() {
         JsonElement el = loadResource(basePath + "/biome_parameters.json");
         if (el == null) {

@@ -51,13 +51,13 @@ public final class FreezeTopLayerFeature implements ConfiguredFeature {
                 boolean frozen = biomeId >= 0 && biomeId < biomeFrozen.length && biomeFrozen[biomeId];
 
                 // Biome.shouldFreeze(level, below, false): 따뜻하지 않고, 블록광 < 10(worldgen 중 0), 물 source 블록
-                if (inRange(belowY) && !warm(base, frozen, wx, belowY, wz)
+                if (inRange(view, belowY) && !warm(base, frozen, wx, belowY, wz)
                         && view.getBlock(wx, belowY, wz) == waterId) {
                     view.setBlock(wx, belowY, wz, iceId);
                 }
 
                 // Biome.shouldSnow(level, top)
-                if (inRange(topY) && !warm(base, frozen, wx, topY, wz)) {
+                if (inRange(view, topY) && !warm(base, frozen, wx, topY, wz)) {
                     int state = view.getBlock(wx, topY, wz);
                     if ((attrs.isAir(state) || snowLayerStates.contains(state)) && snowCanSurvive(view, wx, topY, wz)) {
                         view.setBlock(wx, topY, wz, snowId);
@@ -71,8 +71,8 @@ public final class FreezeTopLayerFeature implements ConfiguredFeature {
         return true;
     }
 
-    private static boolean inRange(int y) {
-        return y >= ChunkColumn.MIN_Y && y <= ChunkColumn.MAX_Y;
+    private static boolean inRange(FeatureWorldView view, int y) {
+        return y >= view.minY() && y <= view.maxY();
     }
 
     private static boolean warm(float base, boolean frozen, int x, int y, int z) {

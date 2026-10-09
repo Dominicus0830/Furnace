@@ -12,7 +12,11 @@ public final class ChunkColumn {
     private static final int CAVE_AIR_STATE = 12958;
     private static final int VOID_AIR_STATE = 12959;
 
-    private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
+    /** 차원의 최저 블록 y 와 섹션 수(오버월드 -64/24, 네더·엔드 0/16). */
+    private final int minY;
+    private final int sectionCount;
+    private final int heightmapBits;
+    private final ChunkSection[] sections;
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음) — WORLD_SURFACE(!isAir, 항상 라이브)
     private final int[] surfaceWg = new int[256]; // WORLD_SURFACE_WG 미러 — carve 완료 시 얼어붙음(wgOceanFloor와 동일 패턴)
     private final int[] oceanFloor = new int[256];
@@ -35,7 +39,8 @@ public final class ChunkColumn {
     private ChunkSnapshot cachedSnapshot;
 
     public ChunkColumn(int biomeId) {
-        for (int i = 0; i < SECTION_COUNT; i++) {
+        this(MIN_Y, SECTION_COUNT);
+        for (int i = 0; i < sectionCount; i++) {
             sections[i] = new ChunkSection();
             sections[i].fillBiome(biomeId);
         }
@@ -45,7 +50,12 @@ public final class ChunkColumn {
     }
 
     public ChunkColumn(int biomeId, int directBits, int biomeDirectBits) {
-        for (int i = 0; i < SECTION_COUNT; i++) {
+        this(biomeId, directBits, biomeDirectBits, MIN_Y, SECTION_COUNT);
+    }
+
+    public ChunkColumn(int biomeId, int directBits, int biomeDirectBits, int minY, int sectionCount) {
+        this(minY, sectionCount);
+        for (int i = 0; i < sectionCount; i++) {
             sections[i] = new ChunkSection(directBits, biomeDirectBits);
             sections[i].fillBiome(biomeId);
         }
@@ -54,7 +64,19 @@ public final class ChunkColumn {
         java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
     }
 
-    private ChunkColumn() {}
+    private ChunkColumn(int minY, int sectionCount) {
+        this.minY = minY;
+        this.sectionCount = sectionCount;
+        this.heightmapBits = 32 - Integer.numberOfLeadingZeros(sectionCount * 16);   // ceil(log2(height + 1))
+        this.sections = new ChunkSection[sectionCount];
+    }
+
+    public int minY() { return minY; }
+
+    public int sectionCount() { return sectionCount; }
+
+    /** 블록 좌표 상한(포함). */
+    public int maxY() { return minY + sectionCount * 16 - 1; }
 
     /**
      * 독립된 상태를 가진 깊은 복사본(ChunkPipeline pristine 캐시용 — CARVERS 상태를 캐시해두고 매 요청마다
@@ -63,8 +85,8 @@ public final class ChunkColumn {
      * 항상 null이므로(decoration 전에는 조회된 적 없음) 복사하지 않고 null로 둔다(최초 조회 시 재계산, 기존과 동일 동작).
      */
     public ChunkColumn copy() {
-        ChunkColumn c = new ChunkColumn();
-        for (int i = 0; i < SECTION_COUNT; i++) c.sections[i] = sections[i].copy();
+        ChunkColumn c = new ChunkColumn(minY, sectionCount);
+        for (int i = 0; i < sectionCount; i++) c.sections[i] = sections[i].copy();
         System.arraycopy(surface, 0, c.surface, 0, surface.length);
         System.arraycopy(surfaceWg, 0, c.surfaceWg, 0, surfaceWg.length);
         System.arraycopy(oceanFloor, 0, c.oceanFloor, 0, oceanFloor.length);
@@ -157,7 +179,7 @@ public final class ChunkColumn {
 
     /** worldY 절대좌표에 블록 설정. */
     public void setBlock(int x, int worldY, int z, int stateId) {
-        int local = worldY - MIN_Y;
+        int local = worldY - minY;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
@@ -169,7 +191,7 @@ public final class ChunkColumn {
     }
 
     public void setGeneratedBlock(int x, int worldY, int z, int stateId) {
-        int local = worldY - MIN_Y;
+        int local = worldY - minY;
         sections[local >> 4].setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
@@ -202,7 +224,7 @@ public final class ChunkColumn {
 
     /** worldY 절대좌표 블록 조회. */
     public int getBlock(int x, int worldY, int z) {
-        int local = worldY - MIN_Y;
+        int local = worldY - minY;
         return sections[local >> 4].getBlock(x, local & 15, z);
     }
 
@@ -216,7 +238,7 @@ public final class ChunkColumn {
     }
 
     public void loadGenerated(int[] blockIds, int[] biomeIds) {
-        for (int i = 0; i < SECTION_COUNT; i++) {
+        for (int i = 0; i < sectionCount; i++) {
             sections[i].replaceBlocks(blockIds, i * 4096);
             sections[i].replaceBiomes(biomeIds, i * 64);
         }
@@ -237,7 +259,7 @@ public final class ChunkColumn {
             for (int lx = 0; lx < 16; lx++) {
                 int surfaceValue = 0;
                 int oceanFloorValue = 0;
-                for (int sec = SECTION_COUNT - 1; sec >= 0 && (surfaceValue == 0 || oceanFloorValue == 0); sec--) {
+                for (int sec = sectionCount - 1; sec >= 0 && (surfaceValue == 0 || oceanFloorValue == 0); sec--) {
                     int[] blocks = sectionBlocks(sec);
                     for (int ly = 15; ly >= 0; ly--) {
                         int stateId = blocks[ly * 256 + lz * 16 + lx];
@@ -263,14 +285,14 @@ public final class ChunkColumn {
             for (int lx = 0; lx < 16; lx++) {
                 int surfaceValue = 0;
                 int oceanFloorValue = 0;
-                for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
-                    int idx = (y - MIN_Y) * 256 + lz * 16 + lx;
+                for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
+                    int idx = (y - minY) * 256 + lz * 16 + lx;
                     int stateId = blockIds[idx];
                     if (surfaceValue == 0 && stateId != ChunkSection.AIR) {
-                        surfaceValue = (y - MIN_Y) + 1;
+                        surfaceValue = (y - minY) + 1;
                     }
                     if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) {
-                        oceanFloorValue = (y - MIN_Y) + 1;
+                        oceanFloorValue = (y - minY) + 1;
                     }
                     if (surfaceValue != 0 && oceanFloorValue != 0) {
                         break;
@@ -290,12 +312,12 @@ public final class ChunkColumn {
     }
 
     public int surfaceBlockY(int x, int z) {
-        return MIN_Y + surface[z * 16 + x] - 1;
+        return minY + surface[z * 16 + x] - 1;
     }
 
     /** WORLD_SURFACE_WG 전용 조회 — carve 완료 이후 값이 얼어붙는다(oceanFloorBlockY의 WG류와 대응). */
     public int worldSurfaceWgBlockY(int x, int z) {
-        return MIN_Y + surfaceWg[z * 16 + x] - 1;
+        return minY + surfaceWg[z * 16 + x] - 1;
     }
 
     public int oceanFloorBlockY(int x, int z) {
@@ -305,7 +327,7 @@ public final class ChunkColumn {
             value = recomputeOceanFloorHeight(x, z);
             oceanFloor[index] = value;
         }
-        return MIN_Y + value - 1;
+        return minY + value - 1;
     }
 
     /**
@@ -321,15 +343,15 @@ public final class ChunkColumn {
     private void updateWgOceanFloor(int x, int worldY, int z, int stateId) {
         if (wgHeightmapsFrozen) return;
         int index = z * 16 + x;
-        int first = wgOceanFloor[index]; // firstAvailable - MIN_Y
+        int first = wgOceanFloor[index]; // firstAvailable - minY
         if (first == UNSET_HEIGHT) return; // loadGenerated 이전 — 미프라임 상태는 갱신 대상 아님
-        int y = worldY - MIN_Y;
+        int y = worldY - minY;
         if (y <= first - 2) return;
         if (isOceanFloorBlock(stateId)) {
             if (y >= first) wgOceanFloor[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
-                if (isOceanFloorBlock(getBlock(x, MIN_Y + i, z))) {
+                if (isOceanFloorBlock(getBlock(x, minY + i, z))) {
                     wgOceanFloor[index] = i + 1;
                     return;
                 }
@@ -349,14 +371,14 @@ public final class ChunkColumn {
         int index = z * 16 + x;
         int first = surface[index];
         if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
-        int y = worldY - MIN_Y;
+        int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
         if (!isAir) {
             if (y >= first) surface[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
-                int below = getBlock(x, MIN_Y + i, z);
+                int below = getBlock(x, minY + i, z);
                 if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
                     surface[index] = i + 1;
                     return;
@@ -372,14 +394,14 @@ public final class ChunkColumn {
         int index = z * 16 + x;
         int first = surfaceWg[index];
         if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
-        int y = worldY - MIN_Y;
+        int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
         if (!isAir) {
             if (y >= first) surfaceWg[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
-                int below = getBlock(x, MIN_Y + i, z);
+                int below = getBlock(x, minY + i, z);
                 if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
                     surfaceWg[index] = i + 1;
                     return;
@@ -392,9 +414,9 @@ public final class ChunkColumn {
     public int wgOceanFloorHeight(int x, int z) {
         int value = wgOceanFloor[z * 16 + x];
         if (value == UNSET_HEIGHT || value == 0) {
-            return MIN_Y;
+            return minY;
         }
-        return MIN_Y + value;
+        return minY + value;
     }
 
     /**
@@ -405,7 +427,7 @@ public final class ChunkColumn {
      */
     public long[] motionBlockingHeightmap() {
         if (cachedMotionBlockingHeightmap != null) return cachedMotionBlockingHeightmap;
-        BitStorage bs = new BitStorage(HEIGHTMAP_BITS, 256);
+        BitStorage bs = new BitStorage(heightmapBits, 256);
         for (int i = 0; i < 256; i++) bs.set(i, motionBlockingHeightValue(i & 15, i >> 4));
         cachedMotionBlockingHeightmap = bs.data();
         return cachedMotionBlockingHeightmap;
@@ -413,11 +435,11 @@ public final class ChunkColumn {
 
     /** vanilla MOTION_BLOCKING_NO_LEAVES 최상단 블록 y (잎 제외) — 구조물 지면 높이용, 매 호출 스캔. */
     public int motionBlockingNoLeavesBlockY(int x, int z) {
-        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
+        for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
             int st = getBlock(x, y, z);
             if (isMotionBlockingBlock(st) && !isLeaves(st)) return y;
         }
-        return MIN_Y - 1;
+        return minY - 1;
     }
 
     private static volatile boolean[] leavesTable;
@@ -439,7 +461,7 @@ public final class ChunkColumn {
     }
 
     public int motionBlockingBlockY(int x, int z) {
-        return MIN_Y + motionBlockingHeightValue(x, z) - 1;
+        return minY + motionBlockingHeightValue(x, z) - 1;
     }
 
     private int motionBlockingHeightValue(int x, int z) {
@@ -453,9 +475,9 @@ public final class ChunkColumn {
     }
 
     private int recomputeMotionBlockingHeight(int x, int z) {
-        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
+        for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
             if (isMotionBlockingBlock(getBlock(x, y, z))) {
-                return (y - MIN_Y) + 1;
+                return (y - minY) + 1;
             }
         }
         return 0;
@@ -467,16 +489,16 @@ public final class ChunkColumn {
      */
     public long[] worldSurfaceHeightmap() {
         if (cachedWorldSurfaceHeightmap != null) return cachedWorldSurfaceHeightmap;
-        BitStorage bs = new BitStorage(HEIGHTMAP_BITS, 256);
+        BitStorage bs = new BitStorage(heightmapBits, 256);
         for (int i = 0; i < 256; i++) bs.set(i, surface[i]);
         cachedWorldSurfaceHeightmap = bs.data();
         return cachedWorldSurfaceHeightmap;
     }
 
     private int recomputeOceanFloorHeight(int x, int z) {
-        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
+        for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
             if (isOceanFloorBlock(getBlock(x, y, z))) {
-                return (y - MIN_Y) + 1;
+                return (y - minY) + 1;
             }
         }
         return 0;
