@@ -13,6 +13,7 @@ final class StructureTypes {
         e.registerType("minecraft:ocean_ruin", OceanRuinStructure::new);
         e.registerType("minecraft:buried_treasure", BuriedTreasureStructure::new);
         e.registerType("minecraft:ocean_monument", OceanMonumentStructure::new);
+        e.registerType("minecraft:stronghold", StrongholdStructure::new);
         e.registerType("minecraft:shipwreck", ShipwreckStructure::new);
         e.registerType("minecraft:mineshaft", MineshaftStructure::new);
         e.registerType("minecraft:woodland_mansion", WoodlandMansionStructure::new);
