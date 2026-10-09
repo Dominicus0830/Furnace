@@ -220,7 +220,11 @@ public sealed interface PlacementModifier
         return new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim())};
     }
 
-    record HeightmapPlacement(Type type) implements PlacementModifier {
+    record HeightmapPlacement(Type type, boolean exactMotionBlocking) implements PlacementModifier {
+        public HeightmapPlacement(Type type) {
+            this(type, false);
+        }
+
         enum Type {
             WORLD_SURFACE_WG,
             MOTION_BLOCKING,
@@ -235,8 +239,12 @@ public sealed interface PlacementModifier
                 case OCEAN_FLOOR -> view.getOceanFloorY(pos.x(), pos.z()) + 1;
                 case OCEAN_FLOOR_WG -> view.getWgOceanFloorHeight(pos.x(), pos.z());
                 case WORLD_SURFACE_WG -> view.getWorldSurfaceWgY(pos.x(), pos.z()) + 1;
-                case MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES ->
-                    view.getSurfaceY(pos.x(), pos.z()) + 1;
+                // exactMotionBlocking(네더·엔드 차원): vanilla MOTION_BLOCKING(blocksMotion || 유체) 라이브 높이맵 — chorus 처럼
+                // blocksMotion 이 아닌 식물은 높이에 반영되지 않는다(엔드 chorus_plant 가 같은 청크 앞선 식물 위로 올라타지 않음, 순정 월드로 확인).
+                // 오버월드는 기존 근사(비공기 표면)를 유지한다 — 진짜 MB 로 바꾸면 FeatureSpillParityTest cherryGrove(순정 .mca 정답지)가
+                // 89→144 로 악화돼 별도 원인 조사 전에는 건드리지 않는다.
+                case MOTION_BLOCKING -> (exactMotionBlocking ? view.getMotionBlockingY(pos.x(), pos.z()) : view.getSurfaceY(pos.x(), pos.z())) + 1;
+                case MOTION_BLOCKING_NO_LEAVES -> (exactMotionBlocking ? view.getMotionBlockingNoLeavesY(pos.x(), pos.z()) : view.getSurfaceY(pos.x(), pos.z())) + 1;
             };
             if (HM_WATCH != null && HM_WATCH[0] == pos.x() && HM_WATCH[1] == pos.z()) {
                 System.out.println("FURNACE_HMWATCH " + type + " x=" + pos.x() + " z=" + pos.z() + " -> y=" + y);

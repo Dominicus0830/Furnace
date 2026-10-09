@@ -68,7 +68,8 @@ public final class BiomeFeatureData {
         "minecraft:sculk_patch",
         "minecraft:huge_fungus", "minecraft:nether_forest_vegetation", "minecraft:twisting_vines", "minecraft:weeping_vines",
         "minecraft:netherrack_replace_blobs", "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
-        "minecraft:glowstone_blob"
+        "minecraft:glowstone_blob",
+        "minecraft:end_spike", "minecraft:end_island", "minecraft:end_gateway", "minecraft:chorus_plant", "minecraft:end_platform"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -399,6 +400,22 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:ice_spike")) {
                 return new IceSpikeFeature(registry);
+            }
+            if (type.equals("minecraft:end_spike")) {
+                return parseEndSpike(config);
+            }
+            if (type.equals("minecraft:end_island")) {
+                return new EndIslandFeature(registry);
+            }
+            if (type.equals("minecraft:end_platform")) {
+                return new EndPlatformFeature(registry);
+            }
+            if (type.equals("minecraft:chorus_plant")) {
+                return new ChorusPlantFeature(registry);
+            }
+            if (type.equals("minecraft:end_gateway")) {
+                int[] exit = config.has("exit") ? blockPosOf(config.get("exit")) : null;
+                return new EndGatewayFeature(registry, exit, config.get("exact").getAsBoolean());
             }
             if (type.equals("minecraft:monster_room")) {
                 return new MonsterRoomFeature(registry);
@@ -1498,6 +1515,28 @@ public final class BiomeFeatureData {
             return ids;
         }
 
+        /** BlockPos 코덱: [x, y, z] 정수 배열. */
+        private static int[] blockPosOf(JsonElement el) {
+            JsonArray a = el.getAsJsonArray();
+            return new int[]{a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt()};
+        }
+
+        private ConfiguredFeature parseEndSpike(JsonObject config) {
+            List<EndSpikeFeature.Spike> spikes = new ArrayList<>();
+            for (JsonElement el : config.getAsJsonArray("spikes")) {
+                JsonObject o = el.getAsJsonObject();
+                spikes.add(new EndSpikeFeature.Spike(
+                    o.has("centerX") ? o.get("centerX").getAsInt() : 0,
+                    o.has("centerZ") ? o.get("centerZ").getAsInt() : 0,
+                    o.has("radius") ? o.get("radius").getAsInt() : 0,
+                    o.has("height") ? o.get("height").getAsInt() : 0,
+                    o.has("guarded") && o.get("guarded").getAsBoolean()));
+            }
+            return new EndSpikeFeature(registry,
+                config.has("crystal_invulnerable") && config.get("crystal_invulnerable").getAsBoolean(),
+                spikes, config.has("crystal_beam_target") ? blockPosOf(config.get("crystal_beam_target")) : null);
+        }
+
         private void parsePlacement(JsonObject json, List<PlacementModifier> out) {
             String type = json.get("type").getAsString();
             switch (type) {
@@ -1516,7 +1555,7 @@ public final class BiomeFeatureData {
                 case "minecraft:height_range" -> out.add(new PlacementModifier.HeightRangePlacement(heightProvider(json.getAsJsonObject("height"))));
                 case "minecraft:biome" -> out.add(new PlacementModifier.BiomeFilter());
                 case "minecraft:heightmap" -> out.add(new PlacementModifier.HeightmapPlacement(
-                    parseHeightmapType(json)));
+                    parseHeightmapType(json), genMinY >= 0));   // 네더·엔드(최저 y 0)는 정확한 MOTION_BLOCKING
                 case "minecraft:surface_water_depth_filter" -> out.add(
                     new PlacementModifier.SurfaceWaterDepthFilterPlacement(json.get("max_water_depth").getAsInt()));
                 case "minecraft:noise_threshold_count" -> out.add(new PlacementModifier.NoiseThresholdCountPlacement(
