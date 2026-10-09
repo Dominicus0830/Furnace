@@ -271,7 +271,8 @@ public final class RuinedPortalStructure extends StructureType {
         private boolean canReplace(PostCtx c, int x, int y, int z) {
             int s = c.view.getBlock(x, y, z);
             String n = c.table().name(s);
-            return !BlockAttrs.get().isAir(s) && !n.equals("minecraft:obsidian") && !c.engine.blockTagSet("minecraft:features_cannot_replace").contains(n)
+            // 바닐라: Blocks.AIR 만 제외(cave_air 는 덮어쓴다 — 네더 동굴 위 포털)
+            return !n.equals("minecraft:air") && !n.equals("minecraft:obsidian") && !c.engine.blockTagSet("minecraft:features_cannot_replace").contains(n)
                 && (vp == VP.IN_NETHER || !n.equals("minecraft:lava"));
         }
     }

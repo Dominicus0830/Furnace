@@ -27,22 +27,23 @@ public final class SpringFeature implements ConfiguredFeature {
 
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
+        org.domi.furnace.server.world.BlockAttrs a = org.domi.furnace.server.world.BlockAttrs.get();
         if (!isValidBlock(view.getBlock(x, y + 1, z))) return false;
         if (requiresBlockBelow && !isValidBlock(view.getBlock(x, y - 1, z))) return false;
-        if (view.getBlock(x, y, z) != ChunkSection.AIR && !isValidBlock(view.getBlock(x, y, z))) return false;
+        int self = view.getBlock(x, y, z);
+        if (!a.isAir(self) && !isValidBlock(self)) return false;
 
+        // 바닐라 SpringFeature: 서·동·북·남·아래 5칸만 센다(위 제외). 구멍은 isEmptyBlock(=isAir, cave_air 포함). 둘 다 정확히 일치해야 한다.
         int rocks = 0;
         int holes = 0;
-        int[][] offsets = {
-            {0, -1, 0}, {0, 1, 0}, {-1, 0, 0}, {1, 0, 0}, {0, 0, -1}, {0, 0, 1}
-        };
+        int[][] offsets = {{-1, 0, 0}, {1, 0, 0}, {0, 0, -1}, {0, 0, 1}, {0, -1, 0}};
         for (int[] offset : offsets) {
             int state = view.getBlock(x + offset[0], y + offset[1], z + offset[2]);
             if (isValidBlock(state)) rocks++;
-            if (state == ChunkSection.AIR) holes++;
+            if (a.isAir(state)) holes++;
         }
-        if (rocks >= rockCount && holes == holeCount) {
-            view.setBlock(x, y, z, stateId);
+        if (rocks == rockCount && holes == holeCount) {
+            view.trySetBlock(x, y, z, stateId);
             return true;
         }
         return false;
