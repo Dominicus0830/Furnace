@@ -52,9 +52,10 @@ public class StructCmp {
         inBox++;
         if (voff != null && !Harness.keys.get(voff[p]).equals(vk)) { changed++; if (fk.equals(vk)) changedRight++; }
         if (!fk.equals(vk)) {
+          if (FILTER != null && !java.util.regex.Pattern.compile(FILTER).matcher(vk + " " + fk).find()) continue;
           diff++;
           pairs.merge(vk + "  ->  " + fk, 1, Integer::sum);
-          if (firsts.size() < 400 && (FILTER == null || (vk + fk).contains(FILTER))) firsts.add(wx + " " + y + " " + wz + "  van=" + vk + "  fur=" + fk);
+          if (firsts.size() < 400 && (FILTER == null || java.util.regex.Pattern.compile(FILTER).matcher(vk + " " + fk).find())) firsts.add(wx + " " + y + " " + wz + "  van=" + vk + "  fur=" + fk);
         }
       }
     }

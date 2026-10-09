@@ -4,7 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import java.util.Optional;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
-public final class SinglePieceStructure extends StructureType {
+public class SinglePieceStructure extends StructureType {
 
     @FunctionalInterface
     public interface PieceFactory {

@@ -128,16 +128,16 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     }
 
     /** 엔티티 스폰 요청(구조물 마커 등) — 위치가 속한 청크에 NBT 로 남긴다. 월드 좌표 정확 위치. */
-    public void addEntity(String id, double x, double y, double z, float yaw, float pitch) {
+    public org.domi.furnace.server.net.io.nbt.NbtCompound addEntity(String id, double x, double y, double z, float yaw, float pitch) {
         int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
         ChunkColumn target;
         if (gridCols != null) {
             int nx = Math.floorDiv(bx, 16);
             int nz = Math.floorDiv(bz, 16);
-            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return new org.domi.furnace.server.net.io.nbt.NbtCompound();
             target = gridCols[gridIndex(nx, nz)];
         } else {
-            if (!inCenterChunk(bx, bz)) return;
+            if (!inCenterChunk(bx, bz)) return new org.domi.furnace.server.net.io.nbt.NbtCompound();
             target = col;
         }
         org.domi.furnace.server.net.io.nbt.NbtCompound nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
@@ -149,6 +149,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         rot.add(yaw); rot.add(pitch);
         nbt.put("Rotation", rot);
         target.addGeneratedEntity(nbt);
+        return nbt;
     }
 
     /** 바닐라 level.getChunk(pos).markPosForPostprocessing(pos). */
