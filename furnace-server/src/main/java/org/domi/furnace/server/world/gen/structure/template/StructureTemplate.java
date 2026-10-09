@@ -42,6 +42,17 @@ public final class StructureTemplate {
 
     public List<List<BlockInfo>> palettes() { return palettes; }
 
+    /** 바닐라 Palette.blocks(Block) 캐시 — 팔레트별 특정 블록(예: jigsaw) 칸만 원래 순서대로. 템플릿은 스레드 공유라 동시 맵. */
+    private final java.util.concurrent.ConcurrentHashMap<String, List<BlockInfo>> blocksByName = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public List<BlockInfo> blocksNamed(int paletteIndex, String blockName, BlockStateTable table) {
+        return blocksByName.computeIfAbsent(paletteIndex + "|" + blockName, k -> {
+            List<BlockInfo> out = new java.util.ArrayList<>();
+            for (BlockInfo info : palettes.get(paletteIndex)) if (table.name(info.state()).equals(blockName)) out.add(info);
+            return List.copyOf(out);
+        });
+    }
+
     public List<EntityInfo> entities() { return entities; }
 
     /** 바닐라 getSize(rotation) — 90도 회전이면 x/z 교환. */
@@ -59,7 +70,9 @@ public final class StructureTemplate {
         String path = id.startsWith("minecraft:") ? id.substring("minecraft:".length()) : id;
         String res = "worldgen/1.21.1/structure/" + path + ".nbt";
         try (InputStream in = StructureTemplate.class.getClassLoader().getResourceAsStream(res)) {
-            if (in == null) throw new MissingTemplateException(id);
+            // 바닐라 StructureTemplateManager.getOrCreate: 없는 템플릿은 빈 템플릿(크기 0, 팔레트 없음)으로 대신한다
+            // (예: 1.21.1 ancient_city/walls/no_corners 풀이 가리키는 intact_horizontal_wall_stairs_5 는 jar 에 없다).
+            if (in == null) return new StructureTemplate(0, 0, 0, List.of(), List.of());
             return fromNbt(registry, NbtIo.readGzip(in));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

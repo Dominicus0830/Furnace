@@ -191,9 +191,8 @@ public final class TemplatePlacer {
         List<BlockInfo> out = new ArrayList<>();
         List<List<BlockInfo>> palettes = t.palettes();
         if (palettes.isEmpty()) return out;
-        List<BlockInfo> palette = palettes.get(st.getRandom(ox, oy, oz).nextInt(palettes.size()));
+        List<BlockInfo> palette = t.blocksNamed(st.getRandom(ox, oy, oz).nextInt(palettes.size()), blockName, table);
         for (BlockInfo info : palette) {
-            if (!table.name(info.state()).equals(blockName)) continue;
             int[] p = StructureTemplate.transform(info.x(), info.y(), info.z(), st.mirror, st.rotation, st.pivotX, st.pivotZ);
             int x = p[0] + ox, y = p[1] + oy, z = p[2] + oz;
             if (!st.inBox(x, y, z)) continue;
