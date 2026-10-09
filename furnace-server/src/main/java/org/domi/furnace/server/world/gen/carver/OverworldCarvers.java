@@ -30,6 +30,9 @@ public final class OverworldCarvers {
         ));
     }
 
+    /** carver 없는 차원(엔드). */
+    public static OverworldCarvers none() { return new OverworldCarvers(List.of()); }
+
     /** 네더 바이옴 공통 carver: nether_cave 하나(교체 가능 블록 = 설정의 replaceable 태그). */
     public static OverworldCarvers loadNether() {
         Gson gson = new Gson();

@@ -11,7 +11,7 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.noise.SimplexNoise;
 
 public sealed interface PlacementModifier
-        permits PlacementModifier.CountOnEveryLayerPlacement, PlacementModifier.CountPlacement,
+        permits PlacementModifier.CountOnEveryLayerPlacement, PlacementModifier.FixedPlacement, PlacementModifier.CountPlacement,
                 PlacementModifier.RandomOffsetPlacement,
                 PlacementModifier.EnvironmentScanPlacement,
                 PlacementModifier.PredicateFilter,
@@ -92,6 +92,15 @@ public sealed interface PlacementModifier
         }
 
         private static boolean isBedrock(int s) { return s == BEDROCK; }
+    }
+
+    /** vanilla FixedPlacement: 고정 좌표 목록 중 현재 청크에 든 것만(엔드 플랫폼 100,49,0). */
+    record FixedPlacement(java.util.List<BlockPos> positions) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            int cx = pos.x() >> 4, cz = pos.z() >> 4;
+            return positions.stream().filter(p -> (p.x() >> 4) == cx && (p.z() >> 4) == cz);
+        }
     }
 
     /** vanilla CountPlacement: IntProvider를 한 번 샘플해 그 횟수만큼 같은 위치를 반복(모든 IntProvider 종류 지원). */

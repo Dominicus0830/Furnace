@@ -41,6 +41,7 @@ class ConnectionInputTest {
     private Player p;
     private List<int[]> joinOut;
     private int autosaveTicksForJoin = Integer.MAX_VALUE;
+    private java.util.concurrent.ExecutorService io;
 
     private static ByteBuf frame(int id, Consumer<ByteBuf> body) {
         ByteBuf b = Unpooled.buffer();
@@ -60,7 +61,7 @@ class ConnectionInputTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
-                reg.directBits(), 7, Executors.newSingleThreadExecutor());
+                reg.directBits(), 7, io = Executors.newSingleThreadExecutor());
         world.configurePersistence(autosaveTicksForJoin, 100);
         world.worldDir(tmp);                 // 저장 위치/인벤토리를 실제 world/ 가 아닌 임시 폴더에서 읽는다
         world.defaultSpawn(spawn);
@@ -89,8 +90,13 @@ class ConnectionInputTest {
     }
 
     @AfterEach
-    void close() {
+    void close() throws InterruptedException {
         if (sched != null) sched.close();
+        // 연결 종료 시 비동기 playerdata 저장이 @TempDir 정리와 겹치지 않도록 IO 실행기를 비운다.
+        if (io != null) {
+            io.shutdown();
+            io.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+        }
     }
 
     private List<int[]> drainOutbound() {

@@ -144,8 +144,7 @@ public final class DensityFunctionParser {
             case "beardifier" -> DensityFunctions.constant(0.0);
 
             // -- end_islands: 오버월드에서는 사용 안 함 --
-            case "end_islands" ->
-                throw new UnsupportedOperationException("end_islands is not used in overworld");
+            case "end_islands" -> DensityFunctions.endIslands(seed);
 
             // -- markers / cache --
             case "interpolated"    -> DensityFunctions.interpolated(parseElement(obj.get("argument")));
