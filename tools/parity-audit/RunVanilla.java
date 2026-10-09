@@ -91,7 +91,8 @@ public class RunVanilla {
                 String[] ct = line.trim().split("\\s+");
                 if (ct.length != 2) continue;
                 int lx = Integer.parseInt(ct[0]) * 16, lz = Integer.parseInt(ct[1]) * 16;
-                w.println("forceload add " + lx + " " + lz + " " + (lx + 15) + " " + (lz + 15));
+                String dimPrefix0 = System.getenv("RV_DIM") != null ? "execute in " + System.getenv("RV_DIM") + " run " : "";
+                w.println(dimPrefix0 + "forceload add " + lx + " " + lz + " " + (lx + 15) + " " + (lz + 15));
                 Thread.sleep(300);
             }
             System.out.println("forceload sent, chunk list");

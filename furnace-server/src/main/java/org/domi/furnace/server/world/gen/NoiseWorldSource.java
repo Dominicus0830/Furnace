@@ -191,7 +191,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         // WorldGenerationContext: minGenY = max(차원 min, 생성기 min), genDepth = min(차원 높이, 노이즈 높이)
         int genMinY = Math.max(dim.minY, settings.minY());
         int genDepth = Math.min(dim.sectionCount * 16, settings.height());
-        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth, router);
+        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth, settings.seaLevel(), router);
         StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
         List<SpawnTarget> spawnTargets = loadSpawnTargets(settingsJson);
         org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine =
@@ -235,9 +235,9 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     private static FeaturePlacer loadFeaturePlacer(
             WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed,
-            int genMinY, int genDepth, NoiseRouter router) {
+            int genMinY, int genDepth, int seaLevel, NoiseRouter router) {
         try {
-            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg, genMinY, genDepth);
+            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg, genMinY, genDepth, seaLevel);
             return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData), reg, router.random());
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().startsWith("Worldgen resource not found:")) {

@@ -65,7 +65,10 @@ public final class BiomeFeatureData {
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
         "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake", "minecraft:desert_well",
         "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile", "minecraft:fossil", "minecraft:root_system",
-        "minecraft:sculk_patch"
+        "minecraft:sculk_patch",
+        "minecraft:huge_fungus", "minecraft:nether_forest_vegetation", "minecraft:twisting_vines", "minecraft:weeping_vines",
+        "minecraft:netherrack_replace_blobs", "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
+        "minecraft:glowstone_blob"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -118,6 +121,12 @@ public final class BiomeFeatureData {
      */
     public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
                                         List<String> registryOrder, BlockRegistry registry, int genMinY, int genDepth) {
+        return load(data, biomeIds, registryOrder, registry, genMinY, genDepth, 63);
+    }
+
+    /** @param seaLevel ChunkGenerator.getSeaLevel — 노이즈 설정의 sea_level(오버월드 63, 네더 32). basalt_columns 가 쓴다. */
+    public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
+                                        List<String> registryOrder, BlockRegistry registry, int genMinY, int genDepth, int seaLevel) {
         // biome id별 base 온도 — FreezeTopLayer 동결 게이트용. FreezeTopLayer가 조회에 쓰는
         // FeatureWorldView.getBiomeId는 REGISTRY 순서 인덱스를 돌려주므로 registryOrder로 인덱싱해야 한다.
         // 이전에는 biomeIds(=possibleBiomes, biome_parameters 첫등장 순서)로 인덱싱해 온도가 서로 다른
@@ -142,7 +151,7 @@ public final class BiomeFeatureData {
             }
         }
 
-        Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen, genMinY, genDepth);
+        Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen, genMinY, genDepth, seaLevel);
         Map<String, List<List<PlacedFeature>>> loaded = new LinkedHashMap<>();
         for (String biomeId : biomeIds) {
             JsonObject biome = data.biome(biomeId);
@@ -228,9 +237,10 @@ public final class BiomeFeatureData {
         private final Map<String, PlacedFeature> placedCache = new HashMap<>();
         private final Map<String, ConfiguredFeature> configuredCache = new HashMap<>();
 
-        private final int genMinY, genDepth;
+        private final int genMinY, genDepth, seaLevel;
 
-        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps, boolean[] biomeFrozen, int genMinY, int genDepth) {
+        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps, boolean[] biomeFrozen, int genMinY, int genDepth, int seaLevel) {
+            this.seaLevel = seaLevel;
             this.genMinY = genMinY;
             this.genDepth = genDepth;
             this.data = data;
@@ -439,6 +449,43 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:lake")) {
                 return new LakeFeature(parseState(config.getAsJsonObject("fluid").getAsJsonObject("state")),
                     parseState(config.getAsJsonObject("barrier").getAsJsonObject("state")), registry);
+            }
+            if (type.equals("minecraft:huge_fungus")) {
+                return new HugeFungusFeature(
+                    parseState(config.getAsJsonObject("valid_base_block")), parseState(config.getAsJsonObject("stem_state")),
+                    parseState(config.getAsJsonObject("hat_state")), parseState(config.getAsJsonObject("decor_state")),
+                    predicates().parse(config.getAsJsonObject("replaceable_blocks")),
+                    config.has("planted") && config.get("planted").getAsBoolean(), genDepth, registry);
+            }
+            if (type.equals("minecraft:nether_forest_vegetation")) {
+                StateProvider provider = parseToPlaceProvider(config.getAsJsonObject("state_provider"));
+                if (provider == null) return NoopFeature.INSTANCE;
+                return new NetherForestVegetationFeature(provider, config.get("spread_width").getAsInt(),
+                    config.get("spread_height").getAsInt(), registry, survival());
+            }
+            if (type.equals("minecraft:twisting_vines")) {
+                return new NetherVinesFeatures.Twisting(new NetherVinesFeatures.Blocks(registry), config.get("spread_width").getAsInt(),
+                    config.get("spread_height").getAsInt(), config.get("max_height").getAsInt());
+            }
+            if (type.equals("minecraft:weeping_vines")) {
+                return new NetherVinesFeatures.Weeping(new NetherVinesFeatures.Blocks(registry));
+            }
+            if (type.equals("minecraft:netherrack_replace_blobs")) {
+                return new NetherrackReplaceBlobsFeature(parseState(config.getAsJsonObject("target")),
+                    parseState(config.getAsJsonObject("state")), treeIntProvider(config.get("radius"), 0), registry);
+            }
+            if (type.equals("minecraft:basalt_columns")) {
+                return new BasaltFeatures.Columns(treeIntProvider(config.get("reach"), 0), treeIntProvider(config.get("height"), 0), seaLevel, registry);
+            }
+            if (type.equals("minecraft:basalt_pillar")) {
+                return new BasaltFeatures.Pillar(registry);
+            }
+            if (type.equals("minecraft:delta_feature")) {
+                return new DeltaFeature(parseState(config.getAsJsonObject("contents")), parseState(config.getAsJsonObject("rim")),
+                    treeIntProvider(config.get("size"), 0), treeIntProvider(config.get("rim_size"), 0), registry);
+            }
+            if (type.equals("minecraft:glowstone_blob")) {
+                return new GlowstoneBlobFeature(registry);
             }
             if (type.equals("minecraft:bamboo")) {
                 return new BambooFeature(config.get("probability").getAsFloat(), registry);

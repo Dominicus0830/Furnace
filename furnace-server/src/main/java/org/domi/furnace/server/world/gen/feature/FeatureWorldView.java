@@ -20,6 +20,10 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private final int gridCenterZ;
     private final int gridReadRadius;
     private int debugSetBlockCalls;
+    /** LevelHeightAccessor.getMinBuildHeight(). */
+    public int minBuildHeight() { return minY; }
+    /** LevelHeightAccessor.getMaxBuildHeight() (배타적 상한). */
+    public int maxBuildHeight() { return maxY + 1; }
 
     public FeatureWorldView(ChunkColumn col, int cx, int cz, int[] biomeIds) {
         this(col, cx, cz, biomeIds, 0L);
