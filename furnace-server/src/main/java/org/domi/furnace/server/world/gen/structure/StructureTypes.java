@@ -14,6 +14,7 @@ final class StructureTypes {
         e.registerType("minecraft:buried_treasure", BuriedTreasureStructure::new);
         e.registerType("minecraft:ocean_monument", OceanMonumentStructure::new);
         e.registerType("minecraft:shipwreck", ShipwreckStructure::new);
+        e.registerType("minecraft:mineshaft", MineshaftStructure::new);
         e.registerType("minecraft:desert_pyramid", d -> new SinglePieceStructure(
             (en, r, x, z) -> new DesertPyramidPiece(r, x, z), DesertPyramidPiece.WIDTH, DesertPyramidPiece.DEPTH) {
             @Override

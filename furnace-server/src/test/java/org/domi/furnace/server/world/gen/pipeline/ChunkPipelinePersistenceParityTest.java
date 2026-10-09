@@ -56,6 +56,7 @@ class ChunkPipelinePersistenceParityTest {
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
+        source.structureEngine().setStructuresEnabled(false);   // 이 fixture 는 generate-structures=false 로 만든 순정 월드 — 구조물(광산 등) 제외
         ChunkPipeline pipeline = new ChunkPipeline(source);
         ChunkColumn generated = pipeline.generateFull(cx, cz).join();
 

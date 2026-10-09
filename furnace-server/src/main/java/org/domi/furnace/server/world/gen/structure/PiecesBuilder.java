@@ -12,6 +12,14 @@ public final class PiecesBuilder {
 
     public List<StructurePiece> pieces() { return pieces; }
 
+    /** 바닐라 StructurePiece.findCollisionPiece(pieces, box) — box 와 겹치는 첫 조각(없으면 null). */
+    public StructurePiece findCollisionPiece(BoundingBox box) {
+        for (StructurePiece p : pieces) {
+            if (p.boundingBox().intersects(box)) return p;
+        }
+        return null;
+    }
+
     public boolean isEmpty() { return pieces.isEmpty(); }
 
     public void clear() { pieces.clear(); }

@@ -144,6 +144,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine =
             new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possibleBiomeOrder(data, registries)));
 
+        structureEngine.setBiomeRegistryNames(registryBiomeNames);
         NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,

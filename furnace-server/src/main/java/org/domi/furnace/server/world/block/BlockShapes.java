@@ -301,7 +301,8 @@ public final class BlockShapes {
 
     // ------------------------------------------------------------------ canSurvive
 
-    private boolean canSupportCenter(ShapeLevel level, int x, int y, int z, int dir) {
+    /** 바닐라 Block.canSupportCenter(level, pos, dir) — 구조물 조각(광산 사슬 기둥 등)에서도 쓴다. */
+    public boolean canSupportCenter(ShapeLevel level, int x, int y, int z, int dir) {
         int s = level.getBlock(x, y, z);
         if (dir == DOWN && unstableBottomCenter[s]) return false;
         return (centerMask[s] & (1 << dir)) != 0;

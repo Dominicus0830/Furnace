@@ -52,6 +52,16 @@ public final class StructureEngine {
 
     public long seed() { return seed; }
 
+    // FeatureWorldView 가 돌려주는 biome 정수 id → 이름(레지스트리 순서). 구조물 조각의 biome 태그 검사(광산 mineshaft_blocking)에 쓴다.
+    private volatile String[] biomeRegistryNames = new String[0];
+
+    public void setBiomeRegistryNames(String[] names) { this.biomeRegistryNames = names; }
+
+    public String biomeName(int id) {
+        String[] n = biomeRegistryNames;
+        return id >= 0 && id < n.length ? n[id] : "";
+    }
+
     /** FluidState.is(FluidTags.WATER) — 물 블록, 물을 가진 식물, waterlogged 블록. */
     public boolean hasWaterFluid(int state) {
         String n = table.name(state);
@@ -224,9 +234,15 @@ public final class StructureEngine {
 
     // ------------------------------------------------------------------ 시작점 생성
 
+    // generate-structures=false 에 해당하는 스위치 — 구조물 없이 만든 순정 fixture 와 대조하는 테스트가 끈다.
+    private volatile boolean structuresEnabled = true;
+
+    public void setStructuresEnabled(boolean enabled) { this.structuresEnabled = enabled; }
+
     /** 이 청크가 시작점인 모든 구조물의 StructureStart (ChunkGenerator.createStructures). */
     public List<StructureStart> createStarts(int cx, int cz, TerrainAccess terrain) {
         List<StructureStart> out = new ArrayList<>();
+        if (!structuresEnabled) return out;
         for (StructureRegistry.SetDef set : registry.sets().values()) {
             if (!possibleSet(set)) continue;
             if (!isStructureChunk(set, cx, cz)) continue;

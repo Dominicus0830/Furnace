@@ -89,7 +89,9 @@ public abstract class StructurePiece {
 
     // ---- 바닐라 StructurePiece 좌표변환 헬퍼 (getWorldX/Y/Z) ----
 
+    // 바닐라 StructurePiece.getWorldX/Y/Z — orientation == null(광산 방/교차로)이면 좌표를 변환 없이 그대로 월드 좌표로 쓴다.
     protected int getWorldX(int x, int z) {
+        if (orientation == null) return x;
         return switch (orientation) {
             case NORTH, SOUTH -> boundingBox.minX() + x;
             case WEST -> boundingBox.maxX() - z;
@@ -98,10 +100,12 @@ public abstract class StructurePiece {
     }
 
     protected int getWorldY(int y) {
+        if (orientation == null) return y;
         return y + boundingBox.minY();
     }
 
     protected int getWorldZ(int x, int z) {
+        if (orientation == null) return z;
         return switch (orientation) {
             case NORTH -> boundingBox.maxZ() - z;
             case SOUTH -> boundingBox.minZ() + z;
