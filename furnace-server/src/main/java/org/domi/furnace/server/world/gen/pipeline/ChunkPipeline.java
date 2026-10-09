@@ -225,10 +225,39 @@ public final class ChunkPipeline {
                     }
                 }
 
+                applyPostProcessing(grid, cx, cz);
                 grid[centerIdx].col.compactSections();
                 grid[centerIdx].col.clearDirty();
                 grid[centerIdx].status = GenStatus.FULL;
                 return grid[centerIdx].col;
             });
+    }
+
+    /**
+     * 바닐라 LevelChunk.postProcessGeneration — 생성 중 markPosForPostprocessing 된 칸(울타리·횃불·사다리·철창 …)을
+     * 섹션 순서(아래→위), 섹션 안에서는 표시 순서로 이웃 shape 갱신한다. 유체 블록은 건너뛴다(유체 틱은 서버 틱에서).
+     */
+    private void applyPostProcessing(ProtoColumn[] grid, int cx, int cz) {
+        ProtoColumn center = grid[gridIndex(0, 0)];
+        java.util.List<int[]> marks = center.col.postProcessMarks();
+        if (marks.isEmpty()) return;
+        marks.sort(java.util.Comparator.comparingInt(m -> Math.floorDiv(m[1], 16)));   // 안정 정렬: 섹션 오름차순
+        ChunkColumn[] viewGrid = new ChunkColumn[GRID_SIZE * GRID_SIZE];
+        int[][] viewBiomeGrid = new int[GRID_SIZE * GRID_SIZE][];
+        for (int i = 0; i < grid.length; i++) {
+            viewGrid[i] = grid[i].col;
+            viewBiomeGrid[i] = grid[i].biomeIds;
+        }
+        FeatureWorldView view = new FeatureWorldView(viewGrid, viewBiomeGrid, cx, cz, cx, cz, GRID_RADIUS, true, source.seed());
+        org.domi.furnace.server.world.gen.structure.StructureEngine e = source.structureEngine();
+        for (int[] m : marks) {
+            int x = cx * 16 + m[0], y = m[1], z = cz * 16 + m[2];
+            int state = view.getBlock(x, y, z);
+            String name = e.table().name(state);
+            if (name.equals("minecraft:water") || name.equals("minecraft:lava")) continue;
+            int s2 = org.domi.furnace.server.world.block.ShapeUpdater.updateFromNeighbourShapes(view, e.shapes(), state, x, y, z);
+            if (s2 != state) view.setBlock(x, y, z, s2);
+        }
+        center.col.clearPostProcessMarks();
     }
 }

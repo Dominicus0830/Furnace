@@ -64,7 +64,7 @@ public final class BiomeFeatureData {
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
         "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake", "minecraft:desert_well",
-        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile"
+        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile", "minecraft:fossil", "minecraft:root_system"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -385,6 +385,30 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:desert_well")) {
                 return new DesertWellFeature(registry);
+            }
+            if (type.equals("minecraft:root_system")) {
+                PlacedFeature tree;
+                try {
+                    tree = parseInlinePlacedFeature(config.get("feature"));
+                } catch (RuntimeException e) {
+                    return NoopFeature.INSTANCE;   // 진달래 나무(가중 잎·bending 줄기) 미지원 — 거짓 parity 방지
+                }
+                StateProvider rootSp = parseToPlaceProvider(config.getAsJsonObject("root_state_provider"));
+                StateProvider hangSp = parseToPlaceProvider(config.getAsJsonObject("hanging_root_state_provider"));
+                if (tree == null || tree.feature() instanceof NoopFeature || rootSp == null || hangSp == null) return NoopFeature.INSTANCE;
+                String rr = config.get("root_replaceable").getAsString();
+                return new RootSystemFeature(tree, config.get("required_vertical_space_for_tree").getAsInt(), config.get("root_radius").getAsInt(),
+                    Set.copyOf(tagStates(rr.substring(1))), rootSp, config.get("root_placement_attempts").getAsInt(),
+                    config.get("root_column_max_height").getAsInt(), config.get("hanging_root_radius").getAsInt(),
+                    config.get("hanging_roots_vertical_span").getAsInt(), hangSp, config.get("hanging_root_placement_attempts").getAsInt(),
+                    config.get("allowed_vertical_water_for_tree").getAsInt(), predicates().parse(config.getAsJsonObject("allowed_tree_position")), registry);
+            }
+            if (type.equals("minecraft:fossil")) {
+                java.util.List<String> fs = new ArrayList<>(), os = new ArrayList<>();
+                for (JsonElement e : config.getAsJsonArray("fossil_structures")) fs.add(e.getAsString());
+                for (JsonElement e : config.getAsJsonArray("overlay_structures")) os.add(e.getAsString());
+                return new FossilFeature(registry, fs, os, config.get("fossil_processors").getAsString(),
+                    config.get("overlay_processors").getAsString(), config.get("max_empty_corners_allowed").getAsInt());
             }
             if (type.equals("minecraft:block_pile")) {
                 StateProvider sp = parseToPlaceProvider(config.getAsJsonObject("state_provider"));
