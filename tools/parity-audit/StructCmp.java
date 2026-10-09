@@ -10,11 +10,13 @@ public class StructCmp {
   static final String FILTER = System.getenv("STRUCT_FILTER");
   public static void main(String[] a) throws Exception {
     long seed = Long.parseLong(a[0]); String id = a[1]; int sx = Integer.parseInt(a[2]), sz = Integer.parseInt(a[3]);
-    java.nio.file.Path on = java.nio.file.Path.of(a[4]);
-    java.nio.file.Path off = a.length > 5 ? java.nio.file.Path.of(a[5]) : null;
+    String dim = System.getenv("DIM");
+    String sub = "nether".equals(dim) ? "DIM-1" : "end".equals(dim) ? "DIM1" : null;
+    java.nio.file.Path on = sub == null ? java.nio.file.Path.of(a[4]) : java.nio.file.Path.of(a[4]).resolve(sub);
+    java.nio.file.Path off = a.length > 5 ? (sub == null ? java.nio.file.Path.of(a[5]) : java.nio.file.Path.of(a[5]).resolve(sub)) : null;
     BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
     RegistrySet r = RegistrySet.load("registries/1.21.1.txt");
-    NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, r);
+    NoiseWorldSource src = "nether".equals(dim) ? NoiseWorldSource.nether(seed, reg, r) : "end".equals(dim) ? NoiseWorldSource.end(seed, reg, r) : NoiseWorldSource.overworld(seed, reg, r);
     var starts = src.applyStructureStarts(sx, sz);
     org.domi.furnace.server.world.gen.structure.StructureStart st = null;
     for (var s : starts) if (s.structureId().equals(id)) st = s;
@@ -46,7 +48,7 @@ public class StructCmp {
       short[] von = Harness.vanillaBlocks(Harness.readChunk(on, cx, cz));
       short[] voff = off == null ? null : Harness.vanillaBlocks(Harness.readChunk(off, cx, cz));
       ChunkColumn col = src.generateWithFeatures(cx, cz);
-      for (int y = YMIN; y < YMAX; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
+      for (int y = Math.max(YMIN, col.minY()); y < Math.min(YMAX, col.maxY() + 1); y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
         int wx = cx * 16 + x, wz = cz * 16 + z;
         if (wx < b.minX() - M || wx > b.maxX() + M || wz < b.minZ() - M || wz > b.maxZ() + M) continue;
         int p = (y + 64) * 256 + z * 16 + x;

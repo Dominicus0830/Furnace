@@ -22,6 +22,11 @@ public final class OreFeature implements ConfiguredFeature {
     private final int size;
     private final float discardChanceOnAirExposure;
 
+    /** scattered_ore(ScatteredOreFeature): 덩어리 대신 원점 주변 무작위 칸 nextInt(size+1) 개. */
+    private boolean scattered;
+
+    public OreFeature scattered() { this.scattered = true; return this; }
+
     public OreFeature(List<Target> targets, int size, float discardChanceOnAirExposure) {
         this.targets = List.copyOf(targets);
         this.size = size;
@@ -30,6 +35,7 @@ public final class OreFeature implements ConfiguredFeature {
 
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
+        if (scattered) return placeScattered(view, random, x, y, z);
         float angle = random.nextFloat() * (float) Math.PI;
         float horizontalScale = (float) size / 8.0f;
         int padding = (int) Math.ceil(((float) size / 16.0f * 2.0f + 1.0f) / 2.0f);
@@ -131,6 +137,26 @@ public final class OreFeature implements ConfiguredFeature {
             }
         }
         return placed;
+    }
+
+    /** 바닐라 ScatteredOreFeature.place — j 번째 칸은 축마다 round((f - f) * min(j, 7)) 오프셋(x, y, z 순). */
+    private boolean placeScattered(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
+        int n = random.nextInt(size + 1);
+        for (int j = 0; j < n; j++) {
+            int mag = Math.min(j, 7);
+            int dx = Math.round((random.nextFloat() - random.nextFloat()) * (float) mag);
+            int dy = Math.round((random.nextFloat() - random.nextFloat()) * (float) mag);
+            int dz = Math.round((random.nextFloat() - random.nextFloat()) * (float) mag);
+            int px = x + dx, py = y + dy, pz = z + dz;
+            int current = view.getBlock(px, py, pz);
+            for (Target target : targets) {
+                if (target.matches(current) && shouldPlace(view, random, px, py, pz)) {
+                    view.trySetBlock(px, py, pz, target.stateId());
+                    break;
+                }
+            }
+        }
+        return true;
     }
 
     private boolean tryPlace(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {

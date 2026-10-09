@@ -275,8 +275,11 @@ public final class BiomeFeatureData {
         private ConfiguredFeature parseConfigured(JsonObject json) {
             String type = json.get("type").getAsString();
             JsonObject config = json.getAsJsonObject("config");
-            if (type.equals("minecraft:ore") || type.equals("minecraft:scattered_ore")) {
+            if (type.equals("minecraft:ore")) {
                 return parseOre(config);
+            }
+            if (type.equals("minecraft:scattered_ore")) {
+                return parseOre(config).scattered();
             }
             if (type.equals("minecraft:spring_feature")) {
                 return parseSpring(config);
