@@ -1,0 +1,369 @@
+// 바닐라 StructureTemplatePool + StructurePoolElement(single/legacy/feature/list/empty) 이식 — 템플릿 풀 로드와 요소 배치.
+package org.domi.furnace.server.world.gen.structure;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.world.gen.carver.LegacyRandom;
+import org.domi.furnace.server.world.gen.feature.BlockPos;
+import org.domi.furnace.server.world.gen.feature.PlacedFeature;
+import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
+import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
+import org.domi.furnace.server.world.gen.structure.template.Processor;
+import org.domi.furnace.server.world.gen.structure.template.Processors;
+import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
+import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
+
+public final class JigsawPools {
+
+    public static final String EMPTY_POOL = "minecraft:empty";
+
+    private final StructureEngine engine;
+    private final Map<String, Pool> pools = new ConcurrentHashMap<>();
+
+    JigsawPools(StructureEngine engine) {
+        this.engine = engine;
+    }
+
+    /** 없는 풀이면 null(바닐라: "Empty or non-existent pool" 경고 후 건너뜀). */
+    public Pool pool(String id) {
+        String key = id.contains(":") ? id : "minecraft:" + id;
+        Pool p = pools.get(key);
+        if (p != null) return p == MISSING ? null : p;
+        p = load(key);
+        pools.put(key, p == null ? MISSING : p);
+        return p;
+    }
+
+    private static final Pool MISSING = new Pool("", "", List.of());
+
+    private Pool load(String id) {
+        String path = id.substring(id.indexOf(':') + 1);
+        String res = "worldgen/1.21.1/worldgen/template_pool/" + path + ".json";
+        JsonObject root;
+        try (InputStream in = JigsawPools.class.getClassLoader().getResourceAsStream(res)) {
+            if (in == null) return null;
+            root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        List<Element> expanded = new ArrayList<>();
+        for (JsonElement e : root.getAsJsonArray("elements")) {
+            JsonObject eo = e.getAsJsonObject();
+            Element el = parseElement(eo.getAsJsonObject("element"), null);
+            int w = eo.get("weight").getAsInt();
+            for (int i = 0; i < w; i++) expanded.add(el);
+        }
+        return new Pool(id, root.get("fallback").getAsString(), List.copyOf(expanded));
+    }
+
+    private Element parseElement(JsonObject o, String inheritedProjection) {
+        String type = o.get("element_type").getAsString();
+        String projection = o.has("projection") ? o.get("projection").getAsString() : inheritedProjection;
+        switch (type) {
+            case "minecraft:empty_pool_element":
+                return EMPTY;
+            case "minecraft:single_pool_element":
+            case "minecraft:legacy_single_pool_element": {
+                List<Processor> procs = parseProcessors(o.get("processors"));
+                Boolean liquid = null;
+                if (o.has("override_liquid_settings")) liquid = "apply_waterlogging".equals(o.get("override_liquid_settings").getAsString());
+                return new Single(o.get("location").getAsString(), procs, projection, liquid, type.equals("minecraft:legacy_single_pool_element"));
+            }
+            case "minecraft:feature_pool_element":
+                return new Feature(o.get("feature").getAsString(), projection);
+            case "minecraft:list_pool_element": {
+                List<Element> list = new ArrayList<>();
+                for (JsonElement e : o.getAsJsonArray("elements")) list.add(parseElement(e.getAsJsonObject(), projection));
+                return new ListElement(List.copyOf(list), projection);
+            }
+            default:
+                throw new IllegalArgumentException("미지원 pool element: " + type);
+        }
+    }
+
+    private List<Processor> parseProcessors(JsonElement e) {
+        if (e == null) return List.of();
+        if (e.isJsonPrimitive()) return engine.processorLists().get(e.getAsString());
+        JsonObject o = e.getAsJsonObject();
+        JsonArray arr = o.getAsJsonArray("processors");
+        List<Processor> out = new ArrayList<>();
+        for (JsonElement p : arr) out.add(engine.processorLists().parseProcessor(p.getAsJsonObject()));
+        return List.copyOf(out);
+    }
+
+    // ------------------------------------------------------------------ 풀
+
+    public static final class Pool {
+        public final String id;
+        public final String fallback;
+        final List<Element> templates;   // 가중치만큼 반복된 목록(JSON 순서)
+        private volatile int maxSize = Integer.MIN_VALUE;
+
+        Pool(String id, String fallback, List<Element> templates) {
+            this.id = id;
+            this.fallback = fallback;
+            this.templates = templates;
+        }
+
+        public int size() { return templates.size(); }
+
+        /** getRandomTemplate */
+        public Element randomTemplate(LegacyRandom random) {
+            return templates.isEmpty() ? EMPTY : templates.get(random.nextInt(templates.size()));
+        }
+
+        /** getShuffledTemplates — Util.toShuffledList */
+        public List<Element> shuffledTemplates(LegacyRandom random) {
+            List<Element> copy = new ArrayList<>(templates);
+            shuffle(copy, random);
+            return copy;
+        }
+
+        /** getMaxSize: 빈 요소 제외, 회전 없음 상자의 YSpan 최댓값. */
+        public int maxSize(StructureEngine e) {
+            int m = maxSize;
+            if (m == Integer.MIN_VALUE) {
+                m = 0;
+                for (Element el : templates) {
+                    if (el == EMPTY) continue;
+                    BoundingBox b = el.boundingBox(e, 0, 0, 0, BlockStateTable.ROT_NONE);
+                    m = Math.max(m, b.maxY() - b.minY() + 1);
+                }
+                maxSize = m;
+            }
+            return m;
+        }
+    }
+
+    /** Util.shuffle(list, random) */
+    static <T> void shuffle(List<T> list, LegacyRandom random) {
+        for (int i = list.size(); i > 1; i--) {
+            int j = random.nextInt(i);
+            list.set(i - 1, list.set(j, list.get(i - 1)));
+        }
+    }
+
+    // ------------------------------------------------------------------ 요소
+
+    /** 직소 블록 정보: 월드 좌표, 회전 적용 상태, NBT(name/target/pool/joint/final_state/…). */
+    public record Jig(int x, int y, int z, int state, NbtCompound nbt) {}
+
+    public abstract static class Element {
+        final String projection;
+
+        Element(String projection) { this.projection = projection; }
+
+        public boolean rigid() { return !"terrain_matching".equals(projection); }
+
+        public abstract List<Jig> shuffledJigsaws(StructureEngine e, int x, int y, int z, int rotation, LegacyRandom random);
+
+        public abstract BoundingBox boundingBox(StructureEngine e, int x, int y, int z, int rotation);
+
+        public abstract boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws);
+
+        public int groundLevelDelta() { return 1; }
+    }
+
+    public static final Element EMPTY = new Element("terrain_matching") {
+        @Override
+        public List<Jig> shuffledJigsaws(StructureEngine e, int x, int y, int z, int rotation, LegacyRandom random) { return List.of(); }
+
+        @Override
+        public BoundingBox boundingBox(StructureEngine e, int x, int y, int z, int rotation) {
+            throw new IllegalStateException("Invalid call to EmptyPoolElement.getBoundingBox");
+        }
+
+        @Override
+        public boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) { return true; }
+
+        @Override
+        public String toString() { return "Empty"; }
+    };
+
+    static final class Single extends Element {
+        final String location;
+        final List<Processor> processors;
+        final Boolean overrideLiquid;
+        final boolean legacy;
+
+        Single(String location, List<Processor> processors, String projection, Boolean overrideLiquid, boolean legacy) {
+            super(projection);
+            this.location = location;
+            this.processors = processors;
+            this.overrideLiquid = overrideLiquid;
+            this.legacy = legacy;
+        }
+
+        @Override
+        public List<Jig> shuffledJigsaws(StructureEngine e, int x, int y, int z, int rotation, LegacyRandom random) {
+            StructureTemplate t = e.template(location);
+            PlaceSettings st = new PlaceSettings();
+            st.rotation = rotation;
+            List<StructureTemplate.BlockInfo> infos = TemplatePlacer.filterBlocks(t, e.table(), st, x, y, z, "minecraft:jigsaw");
+            List<Jig> out = new ArrayList<>(infos.size());
+            for (StructureTemplate.BlockInfo b : infos) out.add(new Jig(b.x(), b.y(), b.z(), b.state(), b.nbt()));
+            shuffle(out, random);
+            // selection_priority 내림차순(안정 정렬)
+            out.sort((a, b) -> Integer.compare(selectionPriority(b), selectionPriority(a)));
+            return out;
+        }
+
+        private static int selectionPriority(Jig j) {
+            return j.nbt() != null && j.nbt().contains("selection_priority") ? j.nbt().getInt("selection_priority") : 0;
+        }
+
+        @Override
+        public BoundingBox boundingBox(StructureEngine e, int x, int y, int z, int rotation) {
+            int[] b = e.template(location).boundingBox(x, y, z, rotation, 0, 0, BlockStateTable.NONE);
+            return new BoundingBox(b[0], b[1], b[2], b[3], b[4], b[5]);
+        }
+
+        PlaceSettings settings(int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) {
+            PlaceSettings st = new PlaceSettings();
+            st.boundingBox = new int[]{box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()};
+            st.rotation = rotation;
+            st.knownShape = true;
+            st.ignoreEntities = false;
+            Processor ignore = Processors.BlockIgnore.structureBlock();
+            st.processors.add(ignore);
+            st.finalizeEntities = true;
+            st.keepLiquids = overrideLiquid != null ? overrideLiquid : keepLiquids;
+            if (!keepJigsaws) st.processors.add(new Processors.JigsawReplacement());
+            st.processors.addAll(processors);
+            if (!rigid()) st.processors.add(new Processors.Gravity("world_surface_wg", -1));
+            if (legacy) {
+                st.processors.remove(ignore);
+                st.processors.add(Processors.BlockIgnore.structureAndAir());
+            }
+            return st;
+        }
+
+        @Override
+        public boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) {
+            StructureTemplate t = c.engine.template(location);
+            PlaceSettings st = settings(rotation, box, keepLiquids, keepJigsaws);
+            return TemplatePlacer.placeInWorld(t, c.view, c.shapes(), c.table(), c.processorCtx(), x, y, z, c.pivotX, c.pivotY, c.pivotZ, st, c.random, 18);
+        }
+
+        @Override
+        public String toString() { return (legacy ? "LegacySingle[" : "Single[") + location + "]"; }
+    }
+
+    static final class Feature extends Element {
+        final String feature;
+
+        Feature(String feature, String projection) {
+            super(projection);
+            this.feature = feature;
+        }
+
+        @Override
+        public List<Jig> shuffledJigsaws(StructureEngine e, int x, int y, int z, int rotation, LegacyRandom random) {
+            NbtCompound nbt = new NbtCompound();
+            nbt.putString("name", "minecraft:bottom");
+            nbt.putString("final_state", "minecraft:air");
+            nbt.putString("pool", "minecraft:empty");
+            nbt.putString("target", "minecraft:empty");
+            nbt.putString("joint", "rollable");
+            return List.of(new Jig(x, y, z, e.state("minecraft:jigsaw[orientation=down_south]"), nbt));
+        }
+
+        @Override
+        public BoundingBox boundingBox(StructureEngine e, int x, int y, int z, int rotation) {
+            return new BoundingBox(x, y, z, x, y, z);
+        }
+
+        @Override
+        public boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) {
+            PlacedFeature pf = c.engine.placedFeature(feature);
+            if (pf == null) return false;   // 미지원 feature — 배치하지 않는다
+            return pf.placeAt(c.view, c.random, new BlockPos(x, y, z));
+        }
+
+        @Override
+        public String toString() { return "Feature[" + feature + "]"; }
+    }
+
+    static final class ListElement extends Element {
+        final List<Element> elements;
+
+        ListElement(List<Element> elements, String projection) {
+            super(projection);
+            if (elements.isEmpty()) throw new IllegalArgumentException("Elements are empty");
+            this.elements = elements;
+        }
+
+        @Override
+        public List<Jig> shuffledJigsaws(StructureEngine e, int x, int y, int z, int rotation, LegacyRandom random) {
+            return elements.get(0).shuffledJigsaws(e, x, y, z, rotation, random);
+        }
+
+        @Override
+        public BoundingBox boundingBox(StructureEngine e, int x, int y, int z, int rotation) {
+            BoundingBox bb = null;
+            for (Element el : elements) {
+                if (el == EMPTY) continue;
+                BoundingBox b = el.boundingBox(e, x, y, z, rotation);
+                bb = bb == null ? b : BoundingBox.encapsulate(bb, b);
+            }
+            if (bb == null) throw new IllegalStateException("Unable to calculate boundingbox for ListPoolElement");
+            return bb;
+        }
+
+        @Override
+        public boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) {
+            for (Element el : elements) if (!el.place(c, x, y, z, rotation, box, keepLiquids, keepJigsaws)) return false;
+            return true;
+        }
+    }
+
+    // ------------------------------------------------------------------ 직소 블록 방향
+
+    /** JigsawBlock.getFrontFacing: orientation 값 "front_top" 의 앞 방향. 반환: BlockShapes 방향 인덱스(DOWN0 UP1 N2 S3 W4 E5). */
+    static int frontFacing(BlockStateTable t, int state) {
+        String o = t.prop(state, "orientation");
+        return dirIndex(o.substring(0, o.indexOf('_')));
+    }
+
+    static int topFacing(BlockStateTable t, int state) {
+        String o = t.prop(state, "orientation");
+        return dirIndex(o.substring(o.indexOf('_') + 1));
+    }
+
+    static int dirIndex(String n) {
+        return switch (n) {
+            case "down" -> 0;
+            case "up" -> 1;
+            case "north" -> 2;
+            case "south" -> 3;
+            case "west" -> 4;
+            default -> 5;
+        };
+    }
+
+    /** JigsawBlock.canAttach(source, target). */
+    static boolean canAttach(BlockStateTable t, Jig source, Jig target) {
+        int f1 = frontFacing(t, source.state()), f2 = frontFacing(t, target.state());
+        int t1 = topFacing(t, source.state()), t2 = topFacing(t, target.state());
+        String joint = source.nbt().contains("joint") ? source.nbt().getString("joint") : "";
+        boolean rollable;
+        if (joint.equals("rollable")) rollable = true;
+        else if (joint.equals("aligned")) rollable = false;
+        else rollable = f1 <= 1;   // 기본: 수평 방향이면 aligned, 수직이면 rollable
+        return f1 == (f2 ^ 1) && (rollable || t1 == t2)
+            && source.nbt().getString("target").equals(target.nbt().getString("name"));
+    }
+
+}

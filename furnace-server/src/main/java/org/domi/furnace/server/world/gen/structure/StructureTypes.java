@@ -6,6 +6,7 @@ final class StructureTypes {
 
     static void registerAll(StructureEngine e) {
         e.registerType("minecraft:igloo", IglooStructure::new);
+        e.registerType("minecraft:jigsaw", JigsawStructure::new);
         e.registerType("minecraft:swamp_hut", SwampHutStructure::new);
         e.registerType("minecraft:jungle_temple", d -> JungleTempleStructure.type());
         e.registerType("minecraft:ruined_portal", RuinedPortalStructure::new);

@@ -27,10 +27,13 @@ public class StructCmp {
         System.out.println("vanilla start " + e.getKey() + (m.containsKey("Children") ? "" : " (INVALID)"));
         if (m.containsKey("Children")) for (Object co : (List<Object>) m.get("Children")) {
           var cm = (Map<String,Object>) co;
-          System.out.println("   vanilla piece " + cm.get("id") + " tpl=" + cm.get("Template") + " rot=" + cm.get("Rot") + " BB=" + Arrays.toString((int[]) cm.get("BB")) + " TP=" + cm.get("TPX") + "," + cm.get("TPY") + "," + cm.get("TPZ"));
+          Object pe = cm.get("pool_element");
+          String loc = pe instanceof Map ? String.valueOf(((Map<String,Object>) pe).get("location")) : null;
+          System.out.println("   vanilla piece " + cm.get("id") + " tpl=" + (loc != null ? loc + " P=" + cm.get("PosX") + "," + cm.get("PosY") + "," + cm.get("PosZ") + " rot=" + cm.get("rotation") : cm.get("Template")) + " rot=" + cm.get("Rot") + " BB=" + Arrays.toString((int[]) cm.get("BB")) + " TP=" + cm.get("TPX") + "," + cm.get("TPY") + "," + cm.get("TPZ"));
         }
       }
     } catch (Exception ex) { System.out.println("vanilla start info failed: " + ex); }
+    for (var pc : st.pieces()) if (pc instanceof org.domi.furnace.server.world.gen.structure.JigsawPiece jp) System.out.println("   furnace " + jp + " BB=" + jp.boundingBox().minX() + "," + jp.boundingBox().minY() + "," + jp.boundingBox().minZ() + " " + jp.boundingBox().maxX() + "," + jp.boundingBox().maxY() + "," + jp.boundingBox().maxZ());
     for (var pc : st.pieces()) if (pc instanceof org.domi.furnace.server.world.gen.structure.TemplatePiece tp) System.out.println("   furnace piece tpl=" + tp.templateName() + " rot=" + tp.settings().rotation + " pos=" + tp.tx() + "," + tp.ty() + "," + tp.tz());
     var b = st.rawBox();
     System.out.println("furnace start pieces=" + st.pieces().size() + " box=[" + b.minX() + "," + b.minY() + "," + b.minZ() + " .. " + b.maxX() + "," + b.maxY() + "," + b.maxZ() + "]");

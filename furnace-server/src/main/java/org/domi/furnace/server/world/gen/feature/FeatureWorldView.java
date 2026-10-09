@@ -152,6 +152,18 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         return nbt;
     }
 
+    /** 완성된 엔티티 NBT(Pos 포함)를 그 위치의 청크에 남긴다(구조물 템플릿 엔티티). */
+    public void addEntityNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt, double x, double z) {
+        int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
+        int nx = Math.floorDiv(bx, 16), nz = Math.floorDiv(bz, 16);
+        if (gridCols != null) {
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            gridCols[gridIndex(nx, nz)].addGeneratedEntity(nbt);
+        } else if (inCenterChunk(bx, bz)) {
+            col.addGeneratedEntity(nbt);
+        }
+    }
+
     /** 바닐라 level.getChunk(pos).markPosForPostprocessing(pos). */
     public void markPosForPostprocessing(int worldX, int worldY, int worldZ) {
         if (gridCols != null) {
@@ -231,6 +243,18 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         }
         if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
         return col.motionBlockingBlockY(worldX - cx * 16, worldZ - cz * 16);
+    }
+
+    /** MOTION_BLOCKING_NO_LEAVES 라이브 최상단 블록 y. 없으면 MIN_Y-1. */
+    public int getMotionBlockingNoLeavesY(int worldX, int worldZ) {
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return ChunkColumn.MIN_Y - 1;
+            return gridCols[gridIndex(nx, nz)].motionBlockingNoLeavesBlockY(worldX - nx * 16, worldZ - nz * 16);
+        }
+        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        return col.motionBlockingNoLeavesBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
     public int getOceanFloorY(int worldX, int worldZ) {

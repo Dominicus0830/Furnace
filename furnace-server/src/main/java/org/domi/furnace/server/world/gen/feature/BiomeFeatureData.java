@@ -64,7 +64,7 @@ public final class BiomeFeatureData {
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
         "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake", "minecraft:desert_well",
-        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle"
+        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -174,7 +174,19 @@ public final class BiomeFeatureData {
         IdentityHashMap<PlacedFeature, Set<Integer>> frozenBiomeIds = new IdentityHashMap<>();
         featureBiomeIds.forEach((pf, ids) -> frozenBiomeIds.put(pf, Set.copyOf(ids)));
 
-        return new BiomeFeatureData(loaded, idByFeature, frozenBiomeIds);
+        BiomeFeatureData result = new BiomeFeatureData(loaded, idByFeature, frozenBiomeIds);
+        result.loader = loader;
+        return result;
+    }
+
+    private Loader loader;
+
+    /** id 로 placed feature 를 얻는다(구조물 jigsaw feature_pool_element 용). 미지원이면 null. */
+    public PlacedFeature placedFeatureById(String id) {
+        if (loader == null) return null;
+        synchronized (loader) {
+            return loader.placedFeature(id.contains(":") ? id : "minecraft:" + id);
+        }
     }
 
     public Set<String> biomes() {
@@ -374,6 +386,10 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:desert_well")) {
                 return new DesertWellFeature(registry);
             }
+            if (type.equals("minecraft:block_pile")) {
+                StateProvider sp = parseToPlaceProvider(config.getAsJsonObject("state_provider"));
+                return sp == null ? NoopFeature.INSTANCE : new BlockPileFeature(sp, registry);
+            }
             if (type.equals("minecraft:lake")) {
                 return new LakeFeature(parseState(config.getAsJsonObject("fluid").getAsJsonObject("state")),
                     parseState(config.getAsJsonObject("barrier").getAsJsonObject("state")), registry);
@@ -571,6 +587,14 @@ public final class BiomeFeatureData {
                         weights[i] = entry.get("weight").getAsInt();
                     }
                     return new WeightedStateProvider(wStates, weights);
+                }
+                case "minecraft:rotated_block_provider" -> {
+                    int base = parseState(toPlace.getAsJsonObject("state"));
+                    String name = registry.nameOf(base);
+                    return new BlockPileFeature.RotatedBlockProvider(
+                        registry.stateIdOrAir(name, java.util.Map.of("axis", "x")),
+                        registry.stateIdOrAir(name, java.util.Map.of("axis", "y")),
+                        registry.stateIdOrAir(name, java.util.Map.of("axis", "z")));
                 }
                 case "minecraft:noise_provider" -> {
                     JsonArray states = toPlace.getAsJsonArray("states");

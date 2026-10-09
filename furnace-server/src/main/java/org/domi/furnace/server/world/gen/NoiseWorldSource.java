@@ -101,7 +101,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         this.featurePlacer      = featurePlacer;
         this.structurePlacementCatalog = structurePlacementCatalog;
         this.structureEngine    = structureEngine;
-        if (featurePlacer != null) featurePlacer.setStructureEngine(structureEngine);
+        if (featurePlacer != null) {
+            featurePlacer.setStructureEngine(structureEngine);
+            structureEngine.setPlacedFeatureSource(id -> featurePlacer.biomeData().placedFeatureById(id));
+        }
         this.spawnTargets       = spawnTargets;
         this.pipeline           = new ChunkPipeline(this);
     }
@@ -354,6 +357,47 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     public Generated generateWithBiomes(int chunkX, int chunkZ) {
+        return generateWithBiomes(chunkX, chunkZ, null);
+    }
+
+    /** 실제 월드 청크용: 주변 terrain_adaptation 구조물의 Beardifier 를 적용한 지형. 높이 질의용 generate() 는 바닐라처럼 beard 없음. */
+    public Generated generateWorldChunk(int chunkX, int chunkZ) {
+        return generateWithBiomes(chunkX, chunkZ, beardifierFor(chunkX, chunkZ));
+    }
+
+    // 시작점 캐시(Beardifier 전용 — 장식에 쓰지 않으므로 조각 상태가 바뀌지 않는다)
+    private final Map<Long, List<org.domi.furnace.server.world.gen.structure.StructureStart>> beardStartCache =
+        java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, List<org.domi.furnace.server.world.gen.structure.StructureStart>> eldest) {
+                return size() > 4096;
+            }
+        });
+
+    /** Beardifier.forStructuresInChunk — 반경 8 청크 시작점 중 (확장된) 상자가 이 청크와 겹치는 terrain_adaptation 구조물. */
+    public org.domi.furnace.server.world.gen.structure.Beardifier beardifierFor(int cx, int cz) {
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> refs = new ArrayList<>();
+        int minX = cx * 16, minZ = cz * 16;
+        for (int dz = -8; dz <= 8; dz++) {
+            for (int dx = -8; dx <= 8; dx++) {
+                int nx = cx + dx, nz = cz + dz;
+                List<org.domi.furnace.server.world.gen.structure.StructureStart> starts = beardStartCache.get(chunkKey(nx, nz));
+                if (starts == null) {
+                    starts = applyStructureStarts(nx, nz);
+                    beardStartCache.put(chunkKey(nx, nz), starts);
+                }
+                for (var s : starts) {
+                    if ("none".equals(s.terrainAdaptation())) continue;
+                    var b = s.boundingBox();
+                    if (b.maxX() >= minX && b.minX() <= minX + 15 && b.maxZ() >= minZ && b.minZ() <= minZ + 15) refs.add(s);
+                }
+            }
+        }
+        if (refs.isEmpty()) return null;
+        return org.domi.furnace.server.world.gen.structure.Beardifier.forChunk(refs, cx, cz);
+    }
+
+    private Generated generateWithBiomes(int chunkX, int chunkZ, org.domi.furnace.server.world.gen.structure.Beardifier beard) {
         int minY      = settings.minY();       // -64
         int height    = settings.height();     // 384
         int seaLevel  = settings.seaLevel();   // 63
@@ -363,6 +407,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         Aquifer aquifer = settings.aquifersEnabled()
             ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
             : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
+        nc.setBeardifier(beard);
         int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
 
         ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits);

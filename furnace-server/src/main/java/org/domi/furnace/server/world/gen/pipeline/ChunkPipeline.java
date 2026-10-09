@@ -106,7 +106,7 @@ public final class ChunkPipeline {
             CompletableFuture<PristineChunk> existing = pristineCache.get(key);
             if (existing != null) return existing;
             CompletableFuture<PristineChunk> future = CompletableFuture.supplyAsync(() -> {
-                NoiseWorldSource.Generated generated = source.generateWithBiomes(cx, cz);
+                NoiseWorldSource.Generated generated = source.generateWorldChunk(cx, cz);
                 ChunkColumn col = generated.col();
                 int[] biomeIds = generated.biomeIds();
                 source.applyCarvers(col, cx, cz);

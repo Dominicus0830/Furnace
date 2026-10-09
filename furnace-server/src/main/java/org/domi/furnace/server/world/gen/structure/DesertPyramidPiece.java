@@ -277,7 +277,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         boolean any = false;
         for (int z = boundingBox.minZ(); z <= boundingBox.maxZ(); z++) {
             for (int x = boundingBox.minX(); x <= boundingBox.maxX(); x++) {
-                int y = view.getSurfaceY(x, z) + 1; // getSurfaceY는 최상단 비-공기 y, heightmapPos는 그 위 1칸
+                int y = view.getMotionBlockingNoLeavesY(x, z) + 1; // getSurfaceY는 최상단 비-공기 y, heightmapPos는 그 위 1칸
                 min = Math.min(min, y);
                 any = true;
             }

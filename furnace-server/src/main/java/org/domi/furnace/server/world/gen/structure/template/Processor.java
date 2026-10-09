@@ -43,7 +43,11 @@ public abstract class Processor {
             if (!name.contains(":")) name = "minecraft:" + name;
             int id = table.registry().exactStateId(org.domi.furnace.server.world.BlockStateKey.of(name, props));
             if (id >= 0) return id;
-            try { return table.registry().defaultStateId(name); } catch (IllegalArgumentException e) { return -1; }
+            // BlockStateParser: 지정하지 않은 속성은 기본값 — 기본 상태에서 지정 속성만 바꾼다
+            int st;
+            try { st = table.registry().defaultStateId(name); } catch (IllegalArgumentException e) { return -1; }
+            for (java.util.Map.Entry<String, String> p : props.entrySet()) st = table.with(st, p.getKey(), p.getValue());
+            return st;
         }
 
         /** Block.isShapeFullBlock(state.getCollisionShape) — 6면 모두 가득인 충돌 모양. */

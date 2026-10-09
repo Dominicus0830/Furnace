@@ -73,7 +73,7 @@ public final class TemplatePlacer {
                     if (fluid != 0 && !"true".equals(table.prop(state, "waterlogged"))) {
                         view.setBlock(x, y, z, table.with(state, "waterlogged", true));
                     }
-                    if (fluid == 2) flowing.add(new int[]{x, y, z});
+                    if (fluid != 1) flowing.add(new int[]{x, y, z});   // 바닐라: 이전 유체가 source 가 아니면(빈 유체 포함) 전파 후보
                 }
             }
         }
@@ -120,7 +120,69 @@ public final class TemplatePlacer {
                 }
             }
         }
+        if (!st.ignoreEntities) addEntities(t, view, posX, posY, posZ, st);
         return true;
+    }
+
+    /** 바닐라 StructureTemplate.addEntitiesToWorld — 위치/회전 변환한 NBT 를 청크에 기록(finalizeSpawn 무작위 장비는 엔티티 쪽 난수라 생략). */
+    private static void addEntities(StructureTemplate t, FeatureWorldView view, int ox, int oy, int oz, PlaceSettings st) {
+        for (StructureTemplate.EntityInfo e : t.entities()) {
+            int[] bp = StructureTemplate.transform(e.bx(), e.by(), e.bz(), st.mirror, st.rotation, st.pivotX, st.pivotZ);
+            int bx = bp[0] + ox, by = bp[1] + oy, bz = bp[2] + oz;
+            if (!st.inBox(bx, by, bz)) continue;
+            double x = e.x(), y = e.y(), z = e.z();
+            boolean flag = true;
+            if (st.mirror == BlockStateTable.LEFT_RIGHT) z = 1.0 - z;
+            else if (st.mirror == BlockStateTable.FRONT_BACK) x = 1.0 - x;
+            else flag = false;
+            int px = st.pivotX, pz = st.pivotZ;
+            double vx, vz;
+            switch (st.rotation) {
+                case BlockStateTable.ROT_CCW90 -> { vx = px - pz + z; vz = px + pz + 1 - x; }
+                case BlockStateTable.ROT_CW90 -> { vx = px + pz + 1 - z; vz = pz - px + x; }
+                case BlockStateTable.ROT_CW180 -> { vx = px + px + 1 - x; vz = pz + pz + 1 - z; }
+                default -> { vx = x; vz = z; }
+            }
+            double wx = vx + ox, wy = y + oy, wz = vz + oz;
+            NbtCompound nbt = e.nbt().copy();
+            nbt.tags().remove("UUID");
+            org.domi.furnace.server.net.io.nbt.NbtList pos = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 6);
+            pos.add(wx); pos.add(wy); pos.add(wz);
+            nbt.put("Pos", pos);
+            float yRot = 0.0F, xRot = 0.0F;
+            if (nbt.contains("Rotation")) {
+                org.domi.furnace.server.net.io.nbt.NbtList r = nbt.getList("Rotation");
+                yRot = (Float) r.get(0);
+                xRot = (Float) r.get(1);
+            }
+            float f = wrapDegrees(yRot);
+            float rotated = switch (st.rotation) {
+                case BlockStateTable.ROT_CW180 -> f + 180.0F;
+                case BlockStateTable.ROT_CCW90 -> f + 270.0F;
+                case BlockStateTable.ROT_CW90 -> f + 90.0F;
+                default -> f;
+            };
+            float mirrored = switch (st.mirror) {
+                case BlockStateTable.FRONT_BACK -> -f;
+                case BlockStateTable.LEFT_RIGHT -> 180.0F - f;
+                default -> f;
+            };
+            float newYaw = rotated + mirrored - yRot;
+            org.domi.furnace.server.net.io.nbt.NbtList rot = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 5);
+            rot.add(newYaw); rot.add(xRot);
+            nbt.put("Rotation", rot);
+            if (nbt.contains("TileX")) {   // 걸이 엔티티(액자·그림)의 블록 좌표
+                nbt.putInt("TileX", bx); nbt.putInt("TileY", by); nbt.putInt("TileZ", bz);
+            }
+            view.addEntityNbt(nbt, wx, wz);
+        }
+    }
+
+    private static float wrapDegrees(float v) {
+        float f = v % 360.0F;
+        if (f >= 180.0F) f -= 360.0F;
+        if (f < -180.0F) f += 360.0F;
+        return f;
     }
 
     /** 바닐라 StructureTemplate.filterBlocks(origin, settings, block) — 선택된 팔레트에서 해당 블록 이름의 칸을 변환 좌표로 반환(쓰기 상자 안만). */

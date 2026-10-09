@@ -567,6 +567,13 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      * 인덱스 = (y - minY) * 256 + lz * 16 + lx (stoneMask 와 동일).
      * all-fluid 셀은 aquifer에 정확한 density를 전달하기 위해 skip 하지 않는다.
      */
+    /** 바닐라 NoiseChunk 의 beardifier — final density 에 블록 단위로 더해진다(cacheAllInCell(add(final, beardifier))). null = 없음. */
+    private org.domi.furnace.server.world.gen.structure.Beardifier beardifier;
+
+    public void setBeardifier(org.domi.furnace.server.world.gen.structure.Beardifier b) {
+        this.beardifier = b == null || b.isEmpty() ? null : b;
+    }
+
     public int[] generateBlockIds(int stoneId, Aquifer aquifer) {
         int minY   = this.cellNoiseMinY * this.cellHeight;
         int height = this.cellCountY   * this.cellHeight;
@@ -585,7 +592,11 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     selectCellYZ(cy, cz);
 
                     cellBoundsOf(this.wrappedFinalDensity, cellBoundsScratch);
-                    if (cellBoundsScratch[0] > SKIP_EPS
+                    boolean beardHere = beardifier != null && beardifier.mayAffect(
+                        chunkBlockX + cx * this.cellWidth, (this.cellNoiseMinY + cy) * this.cellHeight, chunkBlockZ + cz * this.cellWidth,
+                        chunkBlockX + cx * this.cellWidth + this.cellWidth - 1, (this.cellNoiseMinY + cy) * this.cellHeight + this.cellHeight - 1,
+                        chunkBlockZ + cz * this.cellWidth + this.cellWidth - 1);
+                    if (!beardHere && cellBoundsScratch[0] > SKIP_EPS
                         && (!cellOverlapsVeinRange(cy) || canSkipVeinForCell(cy))) {
                         // all-stone skip (aquifer not called). vein y범위 셀이어도 veinToggle bound로
                         // 셀 전체 NO_VEIN이 보장되면(canSkipVeinForCell) per-block oreVeinifier 없이 skip.
@@ -623,6 +634,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                 updateForZ(blockZ, tz);
 
                                 double density = this.wrappedFinalDensity.compute(this);
+                                if (beardHere) density += beardifier.compute(blockX, blockY, blockZ);
                                 int lx = blockX & 15;
                                 int lz = blockZ & 15;
                                 int yOff = blockY - minY;

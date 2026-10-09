@@ -93,6 +93,15 @@ public final class StructureEngine {
         });
     }
 
+    private final JigsawPools pools = new JigsawPools(this);
+    private volatile java.util.function.Function<String, org.domi.furnace.server.world.gen.feature.PlacedFeature> placedFeatures = id -> null;
+
+    public JigsawPools pools() { return pools; }
+
+    public void setPlacedFeatureSource(java.util.function.Function<String, org.domi.furnace.server.world.gen.feature.PlacedFeature> f) { placedFeatures = f; }
+
+    public org.domi.furnace.server.world.gen.feature.PlacedFeature placedFeature(String id) { return placedFeatures.apply(id); }
+
     public StructureTemplate template(String id) {
         return templates.computeIfAbsent(id, k -> StructureTemplate.load(blocks, k));
     }
@@ -186,8 +195,15 @@ public final class StructureEngine {
         return out;
     }
 
+    private volatile Set<String> onlyStructures;
+
+    /** 테스트/진단용: 지정한 구조물만 생성(null = 전부). 옛 오라클 픽스처(특정 구조물만 켠 순정)와 비교할 때 쓴다. */
+    public void restrictTo(Set<String> ids) { this.onlyStructures = ids; }
+
     private boolean tryGenerate(StructureRegistry.Entry entry, int cx, int cz, TerrainAccess terrain, List<StructureStart> out) {
         StructureRegistry.Def def = registry.structure(entry.structureId());
+        Set<String> only = onlyStructures;
+        if (only != null && !only.contains(def.id())) return false;
         StructureType type = typeOf(def);
         if (type == null) return false;   // 미구현 구조물 — 구현될 때까지 생성하지 않는다
         GenContext ctx = new GenContext(this, def, seed, cx, cz, terrain);

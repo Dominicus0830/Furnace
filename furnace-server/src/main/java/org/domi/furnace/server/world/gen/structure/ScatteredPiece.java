@@ -19,7 +19,7 @@ public abstract class ScatteredPiece extends StructurePiece {
         for (int z = boundingBox.minZ(); z <= boundingBox.maxZ(); z++) {
             for (int x = boundingBox.minX(); x <= boundingBox.maxX(); x++) {
                 if (box.isInside(x, 64, z)) {
-                    sum += c.view.getSurfaceY(x, z) + 1;
+                    sum += c.view.getMotionBlockingNoLeavesY(x, z) + 1;
                     n++;
                 }
             }
@@ -37,7 +37,7 @@ public abstract class ScatteredPiece extends StructurePiece {
         boolean any = false;
         for (int z = boundingBox.minZ(); z <= boundingBox.maxZ(); z++) {
             for (int x = boundingBox.minX(); x <= boundingBox.maxX(); x++) {
-                min = Math.min(min, c.view.getSurfaceY(x, z) + 1);
+                min = Math.min(min, c.view.getMotionBlockingNoLeavesY(x, z) + 1);
                 any = true;
             }
         }

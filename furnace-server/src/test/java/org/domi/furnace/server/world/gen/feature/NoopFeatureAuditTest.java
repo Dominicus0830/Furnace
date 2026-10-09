@@ -32,7 +32,7 @@ class NoopFeatureAuditTest {
         "minecraft:chorus_plant",
         "minecraft:nether_forest_vegetation", "minecraft:huge_fungus",
         "minecraft:twisting_vines", "minecraft:weeping_vines", "minecraft:sculk_patch",
-        "minecraft:netherrack_replace_blobs", "minecraft:block_pile",
+        "minecraft:netherrack_replace_blobs",
         "minecraft:fossil",
         "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
         "minecraft:glowstone_blob",

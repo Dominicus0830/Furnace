@@ -411,6 +411,33 @@ public final class ChunkColumn {
         return cachedMotionBlockingHeightmap;
     }
 
+    /** vanilla MOTION_BLOCKING_NO_LEAVES 최상단 블록 y (잎 제외) — 구조물 지면 높이용, 매 호출 스캔. */
+    public int motionBlockingNoLeavesBlockY(int x, int z) {
+        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
+            int st = getBlock(x, y, z);
+            if (isMotionBlockingBlock(st) && !isLeaves(st)) return y;
+        }
+        return MIN_Y - 1;
+    }
+
+    private static volatile boolean[] leavesTable;
+
+    private static boolean isLeaves(int stateId) {
+        boolean[] t = leavesTable;
+        if (t == null) {
+            BlockRegistry reg = fluidRegistry();
+            t = new boolean[reg.totalStateCount()];
+            for (int i = 0; i < t.length; i++) {
+                String key = reg.canonicalKeyOf(i);
+                if (key == null) continue;
+                int semi = key.indexOf(';');
+                t[i] = (semi < 0 ? key : key.substring(0, semi)).endsWith("_leaves");
+            }
+            leavesTable = t;
+        }
+        return stateId >= 0 && stateId < t.length && t[stateId];
+    }
+
     public int motionBlockingBlockY(int x, int z) {
         return MIN_Y + motionBlockingHeightValue(x, z) - 1;
     }
