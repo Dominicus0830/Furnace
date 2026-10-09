@@ -69,8 +69,10 @@ public final class FeaturePlacer {
                 int m = 0;
                 for (StructureRegistry.Def def : structureEngine.registry().structuresOfStep(step)) {
                     boolean seeded = false;
-                    for (StructureStart start : starts) {
-                        if (!start.structureId().equals(def.id())) continue;
+                    java.util.List<StructureStart> ofDef = new java.util.ArrayList<>();
+                    for (StructureStart start : starts) if (start.structureId().equals(def.id())) ofDef.add(start);
+                    // 바닐라: 청크 참조 집합(LongOpenHashSet) 순회 순서대로 — 난수를 이어 쓰므로 순서가 결과를 바꾼다.
+                    for (StructureStart start : org.domi.furnace.server.world.gen.structure.ReferenceOrder.order(ofDef)) {
                         if (!seeded) {
                             featureRandom.setFeatureSeed(decorationSeed, m, step);
                             seeded = true;
