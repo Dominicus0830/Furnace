@@ -96,7 +96,7 @@ public final class StructureRegistry {
 
     // ------------------------------------------------------------------ 바이옴 태그 해석
 
-    private static Set<String> resolveBiomes(JsonElement e) {
+    static Set<String> resolveBiomes(JsonElement e) {
         Set<String> out = new HashSet<>();
         if (e.isJsonArray()) {
             for (JsonElement x : e.getAsJsonArray()) addBiomeRef(out, x.getAsString());
