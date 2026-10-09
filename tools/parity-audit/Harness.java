@@ -222,6 +222,8 @@ public class Harness {
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         List<String> biomeNames = registries.entries("minecraft:worldgen/biome");
         NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, registries);
+        // HARNESS_NO_STRUCT=1 이면 구조물 끔(순정 generate-structures=false 월드와 비교용).
+        if ("1".equals(System.getenv("HARNESS_NO_STRUCT"))) src.structureEngine().setStructuresEnabled(false);
 
         int[] furToIntern = new int[reg.totalStateCount() + 64];
         Arrays.fill(furToIntern, -1);

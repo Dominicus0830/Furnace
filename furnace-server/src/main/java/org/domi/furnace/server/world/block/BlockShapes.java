@@ -60,7 +60,7 @@ public final class BlockShapes {
     private static final byte NONE = 0, FENCE = 1, BARS = 2, GATE = 3, WALL = 4, STAIRS = 5, DOOR = 6, DOUBLE_PLANT = 7, BUSH = 8,
         CARPET = 9, CHEST = 10, TORCH = 11, WALL_TORCH = 12, LADDER = 13, LANTERN = 14, SNOW = 15, SNOWY = 16, BED = 17,
         TRIPWIRE = 18, TRIPWIRE_HOOK = 19, FACE_ATTACHED = 20, PRESSURE_PLATE = 21, SIGN = 22, WALL_SIGN = 23, BANNER = 24,
-        WALL_BANNER = 25, CAMPFIRE = 26, RAIL = 27, VINE = 28, SEA_PICKLE = 29, ATTACHED_STEM = 30, SOUL_FIRE = 31;
+        WALL_BANNER = 25, CAMPFIRE = 26, RAIL = 27, VINE = 28, SEA_PICKLE = 29, ATTACHED_STEM = 30, SOUL_FIRE = 31, MULTIFACE = 32;
 
     // BushBlock.mayPlaceOn 변형
     private static final byte PLACE_DIRT = 1, PLACE_FARMLAND = 2, PLACE_DEAD_BUSH = 3, PLACE_SOUL_SAND = 4;
@@ -162,6 +162,7 @@ public final class BlockShapes {
         else if (name.equals("vine")) fam = VINE;
         else if (name.equals("sea_pickle")) fam = SEA_PICKLE;
         else if (name.equals("soul_fire")) fam = SOUL_FIRE;
+        else if (name.equals("glow_lichen") || name.equals("sculk_vein")) fam = MULTIFACE;
         if (fam == NONE) return;
         for (int id : registry.stateIdsForBlock(b)) { family[id] = fam; placeOn[id] = place; }
     }
@@ -286,6 +287,8 @@ public final class BlockShapes {
                 return vine(level, state, dir, x, y, z);
             case SOUL_FIRE:
                 return canSurvive(level, state, x, y, z) ? state : 0;
+            case MULTIFACE:
+                return multiface(state, dir, neighbor);
             default:
                 return state;
         }
@@ -449,6 +452,21 @@ public final class BlockShapes {
     private boolean tripwireConnects(int neighbor, int dir) {
         if (isTripwireHook[neighbor]) return fromName(table.prop(neighbor, "facing")) == opposite(dir);
         return isTripwire[neighbor];
+    }
+
+    // -- multiface (glow_lichen, sculk_vein) --
+
+    /** MultifaceBlock.updateShape: 면이 없으면 공기, dir 면이 붙을 곳을 잃으면 그 면 제거(남은 면 없으면 공기 — 물 잠김이어도 공기). */
+    private int multiface(int state, int dir, int neighbor) {
+        if (!anyFace(state)) return 0;
+        if (!"true".equals(table.prop(state, NAME[dir])) || faceFull(neighbor, opposite(dir))) return state;
+        int s = with(state, NAME[dir], false);
+        return anyFace(s) ? s : 0;
+    }
+
+    private boolean anyFace(int state) {
+        for (String n : NAME) if ("true".equals(table.prop(state, n))) return true;
+        return false;
     }
 
     // -- vine --

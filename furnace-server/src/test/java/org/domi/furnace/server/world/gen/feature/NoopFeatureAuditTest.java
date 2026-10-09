@@ -30,7 +30,7 @@ class NoopFeatureAuditTest {
     private static final Set<String> KNOWN_UNIMPLEMENTED_TYPES = Set.of(
         "minecraft:chorus_plant",
         "minecraft:nether_forest_vegetation", "minecraft:huge_fungus",
-        "minecraft:twisting_vines", "minecraft:weeping_vines", "minecraft:sculk_patch",
+        "minecraft:twisting_vines", "minecraft:weeping_vines",
         "minecraft:netherrack_replace_blobs",
         "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
         "minecraft:glowstone_blob",

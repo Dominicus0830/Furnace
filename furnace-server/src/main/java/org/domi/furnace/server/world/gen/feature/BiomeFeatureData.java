@@ -64,7 +64,8 @@ public final class BiomeFeatureData {
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
         "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
         "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake", "minecraft:desert_well",
-        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile", "minecraft:fossil", "minecraft:root_system"
+        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile", "minecraft:fossil", "minecraft:root_system",
+        "minecraft:sculk_patch"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -306,6 +307,11 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:multiface_growth")) {
                 return parseMultifaceGrowth(config);
+            }
+            if (type.equals("minecraft:sculk_patch")) {
+                return new SculkPatchFeature(sculkBlocks(), config.get("charge_count").getAsInt(), config.get("amount_per_charge").getAsInt(),
+                    config.get("spread_attempts").getAsInt(), config.get("growth_rounds").getAsInt(), config.get("spread_rounds").getAsInt(),
+                    treeIntProvider(config.get("extra_rare_growths"), 0), config.get("catalyst_chance").getAsFloat());
             }
             if (type.equals("minecraft:forest_rock")) {
                 return new ForestRockFeature(
@@ -717,8 +723,31 @@ public final class BiomeFeatureData {
             return new UnderwaterMagmaFeature(floorSearchRange, radius, probability);
         }
 
+        private MultifaceSpreader.Env multifaceEnv;
+        private SculkPatchFeature.Blocks sculkBlocks;
+
+        private MultifaceSpreader.Env multifaceEnv() {
+            if (multifaceEnv == null) multifaceEnv = new MultifaceSpreader.Env(registry);
+            return multifaceEnv;
+        }
+
+        private SculkPatchFeature.Blocks sculkBlocks() {
+            if (sculkBlocks == null) sculkBlocks = new SculkPatchFeature.Blocks(multifaceEnv());
+            return sculkBlocks;
+        }
+
         private ConfiguredFeature parseMultifaceGrowth(JsonObject config) {
             String blockName = config.has("block") ? blockName(config.get("block")) : "minecraft:glow_lichen";
+            if ("minecraft:sculk_vein".equals(blockName)) {
+                boolean[] on = new boolean[registry.totalStateCount()];
+                for (JsonElement el : config.getAsJsonArray("can_be_placed_on")) for (int id : parseTagReference(el)) on[id] = true;
+                return new MultifaceGrowthFeature(sculkBlocks().veinSpreader,
+                    config.has("search_range") ? config.get("search_range").getAsInt() : 10,
+                    config.has("can_place_on_floor") && config.get("can_place_on_floor").getAsBoolean(),
+                    config.has("can_place_on_ceiling") && config.get("can_place_on_ceiling").getAsBoolean(),
+                    config.has("can_place_on_wall") && config.get("can_place_on_wall").getAsBoolean(),
+                    config.has("chance_of_spreading") ? config.get("chance_of_spreading").getAsFloat() : 0.5f, on);
+            }
             if (!"minecraft:glow_lichen".equals(blockName)) {
                 return NoopFeature.INSTANCE;
             }
