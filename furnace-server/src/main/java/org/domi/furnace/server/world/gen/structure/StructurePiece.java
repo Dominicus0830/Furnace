@@ -317,7 +317,7 @@ public abstract class StructurePiece {
         int wx = getWorldX(x, z), wy = getWorldY(y), wz = getWorldZ(x, z);
         if (!box.isInside(wx, wy, wz)) return;
         org.domi.furnace.server.world.BlockAttrs a = org.domi.furnace.server.world.BlockAttrs.get();
-        while (isReplaceableByColumn(c, a, c.view.getBlock(wx, wy, wz)) && wy > -64 + 1) {
+        while (isReplaceableByColumn(c, a, c.view.getBlock(wx, wy, wz)) && wy > c.view.minY() + 1) {
             c.view.setBlock(wx, wy, wz, state);
             wy--;
         }

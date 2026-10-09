@@ -168,7 +168,7 @@ public final class OceanRuinStructure extends StructureType {
                 for (int zz = Math.min(pz, cornerZ); zz <= Math.max(pz, cornerZ); zz++) {
                     int yy = py - 1;
                     int s = c.view.getBlock(xx, yy, zz);
-                    while ((a.isAir(s) || c.engine.hasWaterFluid(s) || isIce(c, s)) && yy > -64 + 1) {
+                    while ((a.isAir(s) || c.engine.hasWaterFluid(s) || isIce(c, s)) && yy > c.view.minY() + 1) {
                         yy--;
                         s = c.view.getBlock(xx, yy, zz);
                     }

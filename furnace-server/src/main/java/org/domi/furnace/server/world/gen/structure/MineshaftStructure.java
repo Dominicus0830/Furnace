@@ -464,7 +464,7 @@ public final class MineshaftStructure extends StructureType {
                         fillColumnBetween(c, state, wx, wz, i - j + 1, i);
                         return;
                     }
-                    down = j <= 20 && replaceable && py > -64 + 1;
+                    down = j <= 20 && replaceable && py > c.view.minY() + 1;
                 }
                 if (up) {
                     int py = i + j;
