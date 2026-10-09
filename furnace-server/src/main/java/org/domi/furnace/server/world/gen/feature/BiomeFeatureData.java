@@ -815,7 +815,22 @@ public final class BiomeFeatureData {
         private ConfiguredFeature parseTree(JsonObject config) {
             int trunkState = parseStateProvider(config.getAsJsonObject("trunk_provider"));
             JsonObject foliageProvider = config.getAsJsonObject("foliage_provider");
-            String leafName = foliageProvider.getAsJsonObject("state").get("Name").getAsString();
+            int[][][] weightedLeaves = null;
+            int[] leafWeights = null;
+            String leafName;
+            if (foliageProvider.has("entries")) {   // weighted_state_provider
+                JsonArray entries = foliageProvider.getAsJsonArray("entries");
+                weightedLeaves = new int[entries.size()][][];
+                leafWeights = new int[entries.size()];
+                for (int i = 0; i < entries.size(); i++) {
+                    JsonObject en = entries.get(i).getAsJsonObject();
+                    weightedLeaves[i] = buildLeafStates(en.getAsJsonObject("data").get("Name").getAsString());
+                    leafWeights[i] = en.get("weight").getAsInt();
+                }
+                leafName = entries.get(0).getAsJsonObject().getAsJsonObject("data").get("Name").getAsString();
+            } else {
+                leafName = foliageProvider.getAsJsonObject("state").get("Name").getAsString();
+            }
             int dirtState = config.has("dirt_provider")
                 ? parseStateProvider(config.getAsJsonObject("dirt_provider"))
                 : registry.stateIdOrAir("minecraft:dirt");
@@ -838,7 +853,9 @@ public final class BiomeFeatureData {
                 buildLogStates(),
                 buildCocoaStates(),
                 buildVineStates(),
-                buildBeeNestState()));
+                buildBeeNestState(),
+                weightedLeaves,
+                leafWeights));
         }
 
         private int[][] buildLeafStates(String leafName) {

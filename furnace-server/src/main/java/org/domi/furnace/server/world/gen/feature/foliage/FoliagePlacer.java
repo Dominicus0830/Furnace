@@ -52,7 +52,7 @@ public abstract class FoliagePlacer {
                 int wx = center.x() + dx;
                 int wz = center.z() + dz;
                 if (TreeFeature.validTreePos(view, new BlockPos(wx, rowY, wz), config)) {
-                    view.setBlock(wx, rowY, wz, config.leafStateId(view.getBlock(wx, rowY, wz), 7));
+                    view.setBlock(wx, rowY, wz, config.leafStateId(random, view.getBlock(wx, rowY, wz), 7));
                     leaves.add(new BlockPos(wx, rowY, wz));
                 }
             }
@@ -135,12 +135,12 @@ public abstract class FoliagePlacer {
         int manhattan = Math.abs(x - logPos.x()) + Math.abs(y - logPos.y()) + Math.abs(z - logPos.z());
         if (manhattan >= 7) return false;
         if (random.nextFloat() > chance) return false;
-        return tryPlaceLeaf(view, config, new BlockPos(x, y, z), leaves);
+        return tryPlaceLeaf(view, random, config, new BlockPos(x, y, z), leaves);
     }
 
-    private boolean tryPlaceLeaf(FeatureWorldView view, TreeConfig config, BlockPos pos, java.util.List<BlockPos> leaves) {
+    private boolean tryPlaceLeaf(FeatureWorldView view, WorldgenRandom random, TreeConfig config, BlockPos pos, java.util.List<BlockPos> leaves) {
         if (!TreeFeature.validTreePos(view, pos, config)) return false;
-        view.setBlock(pos.x(), pos.y(), pos.z(), config.leafStateId(view.getBlock(pos.x(), pos.y(), pos.z()), 7));
+        view.setBlock(pos.x(), pos.y(), pos.z(), config.leafStateId(random, view.getBlock(pos.x(), pos.y(), pos.z()), 7));
         leaves.add(pos);
         return true;
     }
