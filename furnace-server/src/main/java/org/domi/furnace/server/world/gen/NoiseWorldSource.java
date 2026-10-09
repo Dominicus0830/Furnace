@@ -101,6 +101,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         this.featurePlacer      = featurePlacer;
         this.structurePlacementCatalog = structurePlacementCatalog;
         this.structureEngine    = structureEngine;
+        structureEngine.setRingTerrain(this);
         if (featurePlacer != null) {
             featurePlacer.setStructureEngine(structureEngine);
             structureEngine.setPlacedFeatureSource(id -> featurePlacer.biomeData().placedFeatureById(id));

@@ -149,16 +149,78 @@ public final class StructureEngine {
         return true;
     }
 
-    /** concentric_rings 배치(strongholds) — StrongholdPlacement 모듈이 채운다. */
+    /** concentric_rings 배치(strongholds): ChunkGeneratorStructureState.getRingPositionsFor 결과에 들어 있는가. */
     private boolean ringsContain(StructureRegistry.SetDef set, int cx, int cz) {
-        return strongholdProvider != null && strongholdProvider.contains(set, cx, cz);
+        long[] ring = ringPositions(set);
+        long key = ((long) cx << 32) ^ (cz & 0xFFFFFFFFL);
+        for (long k : ring) if (k == key) return true;
+        return false;
     }
 
-    public interface RingProvider { boolean contains(StructureRegistry.SetDef set, int cx, int cz); }
+    private volatile TerrainAccess ringTerrain;
+    private final Map<String, long[]> ringCache = new ConcurrentHashMap<>();
 
-    private volatile RingProvider strongholdProvider;
+    /** 링 위치 계산에 쓸 바이옴 소스(월드 생성기). */
+    public void setRingTerrain(TerrainAccess t) { this.ringTerrain = t; }
 
-    public void setRingProvider(RingProvider p) { this.strongholdProvider = p; }
+    /** ChunkGeneratorStructureState.generateRingPositions — 시드로 각도·거리, findBiomeHorizontal 로 선호 바이옴 쪽 보정. */
+    public long[] ringPositions(StructureRegistry.SetDef set) {
+        return ringCache.computeIfAbsent(set.id(), k -> computeRings(set.rings()));
+    }
+
+    private long[] computeRings(StructureRegistry.ConcentricRings p) {
+        TerrainAccess terrain = ringTerrain;
+        if (p.count() == 0 || terrain == null) return new long[0];
+        int distance = p.distance(), count = p.count(), spread = p.spread();
+        org.domi.furnace.server.world.gen.carver.LegacyRandom random = new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed);
+        double angle = random.nextDouble() * Math.PI * 2.0;
+        int inRing = 0, ring = 0;
+        long[] out = new long[count];
+        int[] rxs = new int[count], rzs = new int[count];
+        long[] forks = new long[count];
+        for (int n = 0; n < count; n++) {
+            double dist = (double) (4 * distance + distance * ring * 6) + (random.nextDouble() - 0.5) * (double) distance * 2.5;
+            rxs[n] = (int) Math.round(Math.cos(angle) * dist);
+            rzs[n] = (int) Math.round(Math.sin(angle) * dist);
+            forks[n] = random.nextLong();   // randomsource.fork()
+            angle += (Math.PI * 2.0) / (double) spread;
+            inRing++;
+            if (inRing == spread) {
+                ring++;
+                inRing = 0;
+                spread += 2 * spread / (ring + 1);
+                spread = Math.min(spread, count - n);
+                angle += random.nextDouble() * Math.PI * 2.0;
+            }
+        }
+        // 바이옴 탐색은 위치마다 독립(바닐라도 비동기 병렬) — 병렬로 계산
+        java.util.stream.IntStream.range(0, count).parallel().forEach(n -> {
+            org.domi.furnace.server.world.gen.carver.LegacyRandom fork = new org.domi.furnace.server.world.gen.carver.LegacyRandom(forks[n]);
+            int[] found = findBiomeHorizontal(terrain, rxs[n] * 16 + 8, 0, rzs[n] * 16 + 8, 112, p.preferredBiomes(), fork);
+            int fcx = found != null ? Math.floorDiv(found[0], 16) : rxs[n];
+            int fcz = found != null ? Math.floorDiv(found[1], 16) : rzs[n];
+            out[n] = ((long) fcx << 32) ^ (fcz & 0xFFFFFFFFL);
+        });
+        return out;
+    }
+
+    /** BiomeSource.findBiomeHorizontal(x, y, z, radius, 1, predicate, random, findClosest=false) → {blockX, blockZ} 또는 null. */
+    private static int[] findBiomeHorizontal(TerrainAccess t, int x, int y, int z, int radius, Set<String> biomes,
+                                             org.domi.furnace.server.world.gen.carver.LegacyRandom random) {
+        int qx = x >> 2, qz = z >> 2, qr = radius >> 2, qy = y >> 2;
+        int[] result = null;
+        int found = 0;
+        for (int dz = -qr; dz <= qr; dz++) {
+            for (int dx = -qr; dx <= qr; dx++) {
+                int sx = qx + dx, sz = qz + dz;
+                if (biomes.contains(t.biomeAt(sx << 2, qy << 2, sz << 2))) {
+                    if (result == null || random.nextInt(found + 1) == 0) result = new int[]{sx << 2, sz << 2};
+                    found++;
+                }
+            }
+        }
+        return result;
+    }
 
     // ------------------------------------------------------------------ 시작점 생성
 
