@@ -1504,16 +1504,8 @@ public final class BiomeFeatureData {
                 case "minecraft:in_square" -> out.add(new PlacementModifier.InSquarePlacement());
                 case "minecraft:height_range" -> out.add(new PlacementModifier.HeightRangePlacement(heightProvider(json.getAsJsonObject("height"))));
                 case "minecraft:biome" -> out.add(new PlacementModifier.BiomeFilter());
-                case "minecraft:fixed_placement" -> {
-                    List<BlockPos> fixed = new ArrayList<>();
-                    for (JsonElement el : json.getAsJsonArray("positions")) {
-                        int[] p = blockPosOf(el);
-                        fixed.add(new BlockPos(p[0], p[1], p[2]));
-                    }
-                    out.add(new PlacementModifier.FixedPlacement(fixed));
-                }
                 case "minecraft:heightmap" -> out.add(new PlacementModifier.HeightmapPlacement(
-                    parseHeightmapType(json)));
+                    parseHeightmapType(json), genMinY >= 0));   // 네더·엔드(최저 y 0)는 정확한 MOTION_BLOCKING
                 case "minecraft:surface_water_depth_filter" -> out.add(
                     new PlacementModifier.SurfaceWaterDepthFilterPlacement(json.get("max_water_depth").getAsInt()));
                 case "minecraft:noise_threshold_count" -> out.add(new PlacementModifier.NoiseThresholdCountPlacement(
