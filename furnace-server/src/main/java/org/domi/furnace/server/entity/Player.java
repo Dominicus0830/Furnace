@@ -136,6 +136,26 @@ public final class Player {
 
     public PlayerVitals vitals() { return vitals; }
 
+    private final org.domi.furnace.server.recipe.RecipeBook recipeBook = new org.domi.furnace.server.recipe.RecipeBook();
+
+    /** 레시피 북(바닐라 ServerRecipeBook). */
+    public org.domi.furnace.server.recipe.RecipeBook recipeBook() { return recipeBook; }
+
+    /** 바닐라 ServerPlayer.awardRecipes — 새로 배운 것만 ADD 로 알린다. @return 새로 배운 수 */
+    public int awardRecipes(java.util.Collection<org.domi.furnace.server.data.ResourceId> ids,
+                            org.domi.furnace.server.recipe.RecipeManager recipes) {
+        var added = recipeBook.addRecipes(ids, recipes);
+        if (!added.isEmpty()) send(recipeBook.packet(org.domi.furnace.server.net.protocol.play.RecipeBookUpdate.ADD, added));
+        return added.size();
+    }
+
+    /** 바닐라 ServerPlayer.resetRecipes — 바닐라처럼 잊은 게 없어도 REMOVE 를 보낸다. @return 잊은 수 */
+    public int resetRecipes(java.util.Collection<org.domi.furnace.server.data.ResourceId> ids) {
+        var removed = recipeBook.removeRecipes(ids);
+        send(recipeBook.packet(org.domi.furnace.server.net.protocol.play.RecipeBookUpdate.REMOVE, removed));
+        return removed.size();
+    }
+
     public org.domi.furnace.server.world.GameMode gameMode() { return vitals.gameMode(); }
 
     /** 바닐라 Player.getDisplayName: 이름 + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */

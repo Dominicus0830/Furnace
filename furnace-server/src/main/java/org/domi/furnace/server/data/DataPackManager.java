@@ -26,6 +26,7 @@ public final class DataPackManager implements AutoCloseable {
     private volatile Set<String> worldFeatures;
     private volatile ResourceManager resources;
     private volatile TagSet tags;
+    private volatile org.domi.furnace.server.recipe.RecipeManager recipes;
     private final List<Consumer<DataPackManager>> reloadListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private DataPackManager(PackRepository repository, TagRegistries tagRegistries, LevelData levelData) {
@@ -123,13 +124,35 @@ public final class DataPackManager implements AutoCloseable {
         levelData.enabledFeatures = List.copyOf(worldFeatures);
     }
 
+    /** 리로드 한 번의 결과(바닐라 ReloadableServerResources 에 해당). */
+    private record Loaded(ResourceManager rm, TagSet tags, org.domi.furnace.server.recipe.RecipeManager recipes) {}
+
+    private Loaded loadFrom(ResourceManager rm) {
+        TagSet t = TagSet.of(tagRegistries.loadAll(rm));
+        var recipeCtx = new org.domi.furnace.server.recipe.RecipeContext() {
+            public Integer itemId(ResourceId item) { return tagRegistries.id("minecraft:item", item); }
+            public int[] itemTag(ResourceId tag) { return t.ids("minecraft:item", tag.toString()); }
+            public int serializerId(String type) { return org.domi.furnace.server.recipe.RecipeManager.serializerIndex(type); }
+        };
+        return new Loaded(rm, t, org.domi.furnace.server.recipe.RecipeManager.load(rm, recipeCtx));
+    }
+
+    private void apply(Loaded l) {
+        ResourceManager old = resources;
+        resources = l.rm();
+        tags = l.tags();
+        recipes = l.recipes();
+        if (old != null) old.close();
+    }
+
     private void load() {
         ResourceManager rm = repository.openResourceManager();
-        TagSet t = TagSet.of(tagRegistries.loadAll(rm));
-        ResourceManager old = resources;
-        resources = rm;
-        tags = t;
-        if (old != null) old.close();
+        try {
+            apply(loadFrom(rm));
+        } catch (RuntimeException e) {
+            rm.close();
+            throw e;
+        }
     }
 
     /**
@@ -144,19 +167,16 @@ public final class DataPackManager implements AutoCloseable {
                 repository.setSelected(sel);
                 ResourceManager rm = repository.openResourceManager();
                 try {
-                    return new Object[] { rm, TagSet.of(tagRegistries.loadAll(rm)) };
+                    return loadFrom(rm);
                 } catch (RuntimeException e) {
                     rm.close();
                     throw e;
                 }
             }
-        }, background).thenAccept(r -> {
-            ResourceManager old = resources;
-            resources = (ResourceManager) r[0];
-            tags = (TagSet) r[1];
-            if (old != null) old.close();
+        }, background).thenAccept(l -> {
+            apply(l);
             saveConfig();
-            for (Consumer<DataPackManager> l : reloadListeners) l.accept(this);
+            for (Consumer<DataPackManager> listener : reloadListeners) listener.accept(this);
         });
     }
 
@@ -177,6 +197,8 @@ public final class DataPackManager implements AutoCloseable {
     public ResourceManager resources() { return resources; }
 
     public TagSet tags() { return tags; }
+
+    public org.domi.furnace.server.recipe.RecipeManager recipes() { return recipes; }
 
     public Set<String> worldFeatures() { return worldFeatures; }
 

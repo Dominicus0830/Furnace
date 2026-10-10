@@ -53,6 +53,10 @@ public record ResourceId(String namespace, String path) implements Comparable<Re
         return c != 0 ? c : namespace.compareTo(o.namespace);
     }
 
+    /** 바닐라 ResourceLocation.hashCode(31·namespace + path) — HashMap/HashSet 순회 순서를 바닐라와 맞춘다. */
+    @Override
+    public int hashCode() { return 31 * namespace.hashCode() + path.hashCode(); }
+
     @Override
     public String toString() { return namespace + ":" + path; }
 }

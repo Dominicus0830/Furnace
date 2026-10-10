@@ -67,9 +67,23 @@ public final class ServerCore {
     public void dataPacks(org.domi.furnace.server.data.DataPackManager m) {
         this.dataPacks = m;
         m.onReload(dp -> {
+            // 바닐라 PlayerList.reloadResources: 태그 방송 → 플레이어마다 레시피 목록 + 레시피 북 INIT
             var packet = new org.domi.furnace.server.net.protocol.play.UpdateTagsPlay(dp.tags());
             for (Player p : players()) p.send(packet);
+            var recipes = dp.recipes();
+            if (recipes == null) return;
+            var recipePacket = new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody());
+            for (Player p : players()) {
+                p.send(recipePacket);
+                p.send(p.recipeBook().initPacket());
+            }
         });
+    }
+
+    /** 지금 레시피 매니저(데이터 팩 없이 뜬 서버면 null). */
+    public org.domi.furnace.server.recipe.RecipeManager recipes() {
+        var dp = dataPacks;
+        return dp == null ? null : dp.recipes();
     }
 
     /** 플러그인 호스트(Furnace API 파사드·이벤트 버스·플러그인 관리자). */

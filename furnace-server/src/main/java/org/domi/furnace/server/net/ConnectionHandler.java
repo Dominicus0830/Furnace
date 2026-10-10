@@ -761,13 +761,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
         }
         send(ctx, vitals.abilitiesPacket());
+        // 바닐라 placeNewPlayer: 능력 → 손에 든 슬롯 → 레시피 목록 → 권한·명령 → 레시피 북 INIT
+        if (saved != null && saved.root() != null) {
+            int saved0 = saved.root().getIntOr0("SelectedItemSlot");
+            if (saved0 >= 0 && saved0 < 9) selectedSlot = saved0;
+        }
+        send(ctx, new SetHeldSlot(selectedSlot));
         org.domi.furnace.server.ServerCore core = login.core;
+        var recipes = core != null ? core.recipes() : null;
+        if (recipes != null) send(ctx, new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody()));
         if (core != null) {
             // 바닐라 placeNewPlayer → sendPlayerPermissionLevel: 권한 레벨 이벤트 + 쓸 수 있는 명령 트리
             int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
             send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
             send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.forProfile(core, playerName, level)));
         }
+        if (saved != null && saved.root() != null && saved.root().tags().get("recipeBook") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound book) {
+            p.recipeBook().load(book, recipes);
+        }
+        send(ctx, p.recipeBook().initPacket());
         // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
         SpawnPoint defaultSpawn = world.defaultSpawn();
         double sx = saved != null ? saved.x() : defaultSpawn.playerX();
@@ -816,7 +828,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         // 서버가 아는 인벤토리·선택 슬롯을 클라이언트에도 맞춘다(안 보내면 클라는 빈 손인데 서버는 아이템을 들고 있다).
         send(ctx, new ContainerSetContent(0, 0, copySlots(), ItemStack.EMPTY));
-        send(ctx, new SetHeldSlot(selectedSlot));
         for (Packet pkt : vitals.joinPackets()) send(ctx, pkt);   // 체력·허기·경험치(바닐라는 첫 doTick 에 보낸다)
 
         // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
@@ -1017,6 +1028,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player actor = player;
                 if (actor != null && (status == 0 || status == 2)) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
                 else if (actor != null) actor.send(new BlockChangedAck(seq)); // 블록 변경 없음 — ack만(예측 정리)
+            }
+            case 0x28 -> { // recipe_book_change_settings: 책 종류, 열림, 필터
+                int type = Types.readVarInt(frame);
+                boolean open = frame.readBoolean(), filtering = frame.readBoolean();
+                Player p = player;
+                if (p != null) p.recipeBook().setBookSetting(type, open, filtering);
+            }
+            case 0x29 -> { // recipe_book_seen_recipe: 강조 해제
+                var id = org.domi.furnace.server.data.ResourceId.tryParse(Types.readString(frame, 32767));
+                Player p = player;
+                if (p != null && id != null) p.recipeBook().removeHighlight(id);
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
@@ -1496,6 +1518,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         final float syaw = iyaw, spitch = ipitch;
         final boolean sg = ig;
         final var extra = p.vitals().saveData();
+        extra.putInt("SelectedItemSlot", selectedSlot);
+        extra.putCompound("recipeBook", p.recipeBook().save());
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         try {
             world.ioPool().execute(() -> {

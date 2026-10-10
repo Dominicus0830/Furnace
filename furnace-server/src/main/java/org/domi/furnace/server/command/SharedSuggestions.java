@@ -20,6 +20,18 @@ public final class SharedSuggestions {
         return builder.buildFuture();
     }
 
+    /** 바닐라 suggestResource — ':' 가 있으면 전체 id, 없으면 namespace 또는(minecraft 면) path 에 맞춰 본다. */
+    public static CompletableFuture<Suggestions> suggestResource(Iterable<org.domi.furnace.server.data.ResourceId> ids, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        boolean full = remaining.indexOf(':') > -1;
+        for (var id : ids) {
+            boolean match = full ? matchesSubStr(remaining, id.toString())
+                    : matchesSubStr(remaining, id.namespace()) || id.namespace().equals("minecraft") && matchesSubStr(remaining, id.path());
+            if (match) builder.suggest(id.toString());
+        }
+        return builder.buildFuture();
+    }
+
     public static CompletableFuture<Suggestions> suggest(String[] values, SuggestionsBuilder builder) {
         return suggest(java.util.Arrays.asList(values), builder);
     }
