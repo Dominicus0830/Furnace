@@ -58,7 +58,7 @@ class AutosaveTest {
             region.chunkAt(new ChunkPos(0, 0));
             region.chunkAt(new ChunkPos(1, 0));
             region.breakBlock(0, -61, 0);
-            assertEquals(1, region.dirtyChunkCount());
+            assertEquals(2, region.dirtyChunkCount(), "새로 생성된 두 청크 모두 저장 대상(바닐라)");
             region.saveDirtyChunks();
             assertEquals(0, region.dirtyChunkCount());
         }).get();

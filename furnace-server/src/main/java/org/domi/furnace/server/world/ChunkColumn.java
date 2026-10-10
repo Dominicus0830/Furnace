@@ -166,8 +166,38 @@ public final class ChunkColumn {
 
     public void removeBlockEntityAt(int x, int y, int z) {
         blockEntities.remove(blockEntityKey(x, y, z));
+        if (generatedBlockEntities != null) generatedBlockEntities.remove(blockEntityKey(x & 15, y, z & 15));
         touch();
     }
+
+    /** 생성·로드된 미지원 블록 엔티티를 (로컬 x, 월드 y, 로컬 z, NBT) 로 순회. */
+    public void forEachGeneratedBlockEntity(GeneratedBlockEntityVisitor v) {
+        if (generatedBlockEntities == null) return;
+        for (var e : generatedBlockEntities.entrySet()) {
+            long k = e.getKey();
+            int lx = (int) (k >>> 38) & 0x3FFFFFF;
+            int lz = (int) (k >>> 12) & 0x3FFFFFF;
+            int y = ((int) k << 20) >> 20;
+            v.visit(lx, y, lz, e.getValue());
+        }
+    }
+
+    @FunctionalInterface
+    public interface GeneratedBlockEntityVisitor {
+        void visit(int lx, int y, int lz, org.domi.furnace.server.net.io.nbt.NbtCompound nbt);
+    }
+
+    // 저장 파일에서 읽었지만 서버가 해석하지 않는 청크 NBT 키(구조물 시작점·틱 목록·다른 서버의 확장 키 등) — 저장 시 그대로 되돌린다.
+    private org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt;
+    private long inhabitedTime;
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt() { return extraNbt; }
+
+    public void extraNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) { this.extraNbt = nbt; }
+
+    public long inhabitedTime() { return inhabitedTime; }
+
+    public void inhabitedTime(long t) { this.inhabitedTime = t; }
 
     public java.util.Map<Long, ChestBlockEntity> blockEntities() {
         return blockEntities;
@@ -425,6 +455,23 @@ public final class ChunkColumn {
      * oceanFloor[]와 동일한 "invalidate to UNSET_HEIGHT + lazy 전체 재스캔" 패턴 — 증분 갱신 로직 없이도
      * setBlock/setGeneratedBlock/loadGenerated 시 무효화되면 다음 조회에서 항상 실제 블록 기준으로 재계산된다.
      */
+    /** 저장용 OCEAN_FLOOR(blocksMotion) 높이맵 — 호출마다 계산. */
+    public long[] oceanFloorHeightmap() {
+        BitStorage bs = new BitStorage(heightmapBits, 256);
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            bs.set(i, oceanFloorBlockY(x, z) - minY + 1);
+        }
+        return bs.data();
+    }
+
+    /** 저장용 MOTION_BLOCKING_NO_LEAVES 높이맵 — 호출마다 계산. */
+    public long[] motionBlockingNoLeavesHeightmap() {
+        BitStorage bs = new BitStorage(heightmapBits, 256);
+        for (int i = 0; i < 256; i++) bs.set(i, motionBlockingNoLeavesBlockY(i & 15, i >> 4) - minY + 1);
+        return bs.data();
+    }
+
     public long[] motionBlockingHeightmap() {
         if (cachedMotionBlockingHeightmap != null) return cachedMotionBlockingHeightmap;
         BitStorage bs = new BitStorage(heightmapBits, 256);

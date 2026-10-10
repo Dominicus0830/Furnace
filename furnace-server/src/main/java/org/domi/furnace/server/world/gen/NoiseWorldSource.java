@@ -119,20 +119,31 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      */
     /** 차원별 생성 설정 — 노이즈 설정 id, 차원 높이(dimension_type), 바이옴 파라미터 목록. */
     public enum Dimension {
-        OVERWORLD("minecraft:overworld", -64, 24, "biome_parameters.json"),
-        NETHER("minecraft:nether", 0, 16, "biome_parameters_nether.json"),
-        END("minecraft:end", 0, 16, null);
+        OVERWORLD("minecraft:overworld", -64, 24, "biome_parameters.json", "minecraft:overworld", ""),
+        NETHER("minecraft:nether", 0, 16, "biome_parameters_nether.json", "minecraft:the_nether", "DIM-1"),
+        END("minecraft:end", 0, 16, null, "minecraft:the_end", "DIM1");
 
         final String noiseSettings;
-        final int minY;
-        final int sectionCount;
+        /** 차원(레벨) id. */
+        public final String levelId;
+        /** 월드 폴더 안의 차원 폴더(바닐라 DimensionType.getStorageFolder: 오버월드는 월드 폴더 자체). */
+        public final String storageFolder;
+        public final int minY;
+        public final int sectionCount;
         final String biomeParameters;
 
-        Dimension(String noiseSettings, int minY, int sectionCount, String biomeParameters) {
+        Dimension(String noiseSettings, int minY, int sectionCount, String biomeParameters, String levelId, String storageFolder) {
             this.noiseSettings = noiseSettings;
+            this.levelId = levelId;
+            this.storageFolder = storageFolder;
             this.minY = minY;
             this.sectionCount = sectionCount;
             this.biomeParameters = biomeParameters;
+        }
+
+        /** 이 차원의 저장 폴더(region/, entities/, poi/ 의 부모). */
+        public java.nio.file.Path storageDir(java.nio.file.Path worldDir) {
+            return storageFolder.isEmpty() ? worldDir : worldDir.resolve(storageFolder);
         }
     }
 

@@ -16,6 +16,7 @@ import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ItemRegistry;
+import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.slf4j.Logger;
@@ -149,8 +150,10 @@ public final class FurnaceMain {
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
-        var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
-        var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome, itemRegistry);
+        var dimension = NoiseWorldSource.Dimension.OVERWORLD;
+        var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir));
+        var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
+                registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
         var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, noiseSource);
@@ -176,6 +179,7 @@ public final class FurnaceMain {
                 levelData.spawnX, levelData.spawnY, levelData.spawnZ, levelData.spawnAngle);
         world.defaultSpawn(defaultSpawn);
         world.restoreClock(levelData.gameTime, levelData.dayTime);
+        chunkCodec.gameTime(world::gameTime);
         final LevelData level = levelData;
         Runnable saveLevelData = () -> {
             synchronized (level) {

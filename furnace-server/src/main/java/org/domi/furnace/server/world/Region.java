@@ -59,7 +59,8 @@ public final class Region {
     public ChunkColumn chunkAt(ChunkPos cp) {
         return chunks.computeIfAbsent(cp, p -> {
             ChunkColumn c = world.worldSource().generate(p.x(), p.z());
-            c.clearDirty();
+            // 새로 생성된 청크는 바닐라처럼 저장 대상(dirty)으로 남긴다. 디스크에서 읽은 청크는 깨끗하다.
+            if (c.dirty()) dirtyChunks.add(p);
             return c;
         });
     }
@@ -82,7 +83,7 @@ public final class Region {
                 org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
                 throw new java.util.concurrent.CompletionException(err);
             }
-            col.clearDirty();
+            if (col.dirty()) dirtyChunks.add(cp);
             chunks.put(cp, col);
             return col;
         }, r -> world.scheduler().region(pos).execute(r));
@@ -204,7 +205,7 @@ public final class Region {
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = chunks.get(cp);
             if (col != null && col.dirty()) {
-                world.saveChunkAsync(ChunkSnapshot.of(cp.x(), cp.z(), col));
+                world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
                 col.clearDirty();
             }
             dirtyChunks.remove(cp);
@@ -222,7 +223,7 @@ public final class Region {
             if (g >= world.chunkEvictionGraceTicks()) {
                 ChunkColumn col = e.getValue();
                 if (col.dirty()) {
-                    world.saveChunkAsync(ChunkSnapshot.of(cp.x(), cp.z(), col));
+                    world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
                     col.clearDirty();
                 }
                 it.remove();

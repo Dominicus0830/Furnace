@@ -9,7 +9,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] worldSurfaceHeightmap,
-                             Section[] sections, List<BlockEntitySnapshot> blockEntities) {
+                             Section[] sections, List<BlockEntitySnapshot> blockEntities, SaveData save) {
+
+    /**
+     * 디스크 저장에만 필요한 추가 상태(forSave 로만 채워진다, 네트워크용 스냅샷은 null).
+     * generatedBlockEntities 의 BlockEntitySnapshot.tag 는 깊은 복사본, typeId 는 -1.
+     */
+    public record SaveData(int minY, long[] oceanFloorHeightmap, long[] motionBlockingNoLeavesHeightmap,
+                           List<BlockEntitySnapshot> generatedBlockEntities, List<NbtCompound> entities,
+                           NbtCompound extraNbt, long inhabitedTime) {}
 
     /** 체스트 block_entity_type id(§0.2 BlockEntityType 등록순서: FURNACE=0, CHEST=1). */
     public static final int CHEST_TYPE_ID = 1;
@@ -32,7 +40,20 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
             int localZ = ce.z & 15;
             beOut.add(new BlockEntitySnapshot(localX, ce.y, localZ, CHEST_TYPE_ID, chestTag(ce.items)));
         }
-        return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), col.worldSurfaceHeightmap(), out, beOut);
+        return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), col.worldSurfaceHeightmap(), out, beOut, null);
+    }
+
+    /** region 스레드서 호출 — 디스크 저장용(of + 높이맵 4종·생성 블록 엔티티·엔티티·미지 NBT 사본). */
+    public static ChunkSnapshot forSave(int chunkX, int chunkZ, ChunkColumn col) {
+        ChunkSnapshot base = of(chunkX, chunkZ, col);
+        List<BlockEntitySnapshot> generated = new ArrayList<>();
+        col.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> generated.add(new BlockEntitySnapshot(lx, y, lz, -1, nbt.copy())));
+        List<NbtCompound> entities = new ArrayList<>();
+        for (NbtCompound e : col.generatedEntities()) entities.add(e.copy());
+        NbtCompound extra = col.extraNbt() == null ? null : col.extraNbt().copy();
+        SaveData save = new SaveData(col.minY(), col.oceanFloorHeightmap(), col.motionBlockingNoLeavesHeightmap(),
+                generated, entities, extra, col.inhabitedTime());
+        return new ChunkSnapshot(chunkX, chunkZ, base.heightmap, base.worldSurfaceHeightmap, base.sections, base.blockEntities, save);
     }
 
     /** §2.1 스키마: Compound{ Items: List<Compound>{Slot,Id,Count,Comp?} }, 빈 체스트면 null(=updateTag 없음). */
