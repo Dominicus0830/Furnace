@@ -58,7 +58,7 @@ public final class Formatter {
         });
     }
 
-    /** 개수에 따른 문구. 인자는 ChoiceFormat 패턴: <c:'0#없음|1#하나|1&lt;{0}개'> ({0} 은 숫자). 고른 문구는 마크업으로 해석된다. */
+    /** 개수에 따른 문구. 인자는 ChoiceFormat 패턴: <c:'0#없음|1#하나|1&lt;{0}개'> ({0} 은 숫자). 고른 문구는 마크업으로 해석된다(단, ChoiceFormat 은 문구 안의 '#'·'<' 를 예약 문자로 보므로 태그를 넣으려면 따옴표로 감싸야 한다). */
     public static TagResolver choice(String name, Number number) {
         return TagResolver.resolver(name, (args, ctx) -> {
             String pattern = args.popOr("choice 에는 ChoiceFormat 패턴이 필요하다").value();

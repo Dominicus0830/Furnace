@@ -258,6 +258,11 @@ public final class Texts {
         compactInto(root, Style.empty(), out);
         if (out.isEmpty()) return Text.empty();
         if (out.size() == 1) return out.get(0);
+        // 스타일 없는 첫 글자 마디가 있으면 그것을 뿌리로 삼아 빈 그릇 한 겹을 아낀다(자식은 같은 스타일 없음을 상속하므로 모양이 같다)
+        Text first = out.get(0);
+        if (first.children().isEmpty() && first.style().isEmpty() && first.content() instanceof Content.Literal) {
+            return Text.of(first.content(), Style.empty(), out.subList(1, out.size()));
+        }
         return Text.of(new Content.Literal(""), Style.empty(), out);
     }
 
