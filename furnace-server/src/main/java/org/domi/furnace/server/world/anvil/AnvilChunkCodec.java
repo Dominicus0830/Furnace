@@ -164,7 +164,7 @@ public final class AnvilChunkCodec {
             for (Object o : src.items()) {
                 NbtCompound in = (NbtCompound) o;
                 String name = items.nameOf(in.getInt("Id"));
-                if (name == null) continue;
+                if (name == null || name.equals("minecraft:air")) continue;
                 NbtCompound it = new NbtCompound();
                 it.putByte("Slot", in.getByte("Slot"));
                 it.putString("id", name);

@@ -50,7 +50,9 @@ class PlayerDataTest {
         pool.shutdown();
         assertNotNull(PlayerData.load(dir, id));
         try (var st = java.nio.file.Files.list(dir.resolve("playerdata"))) {
-            assertEquals(1, st.count(), "임시/손상 파일이 남으면 안 된다");
+            // 바닐라처럼 <uuid>.dat 과 이전본 <uuid>.dat_old 만 남고 임시/손상 파일은 없어야 한다.
+            assertEquals(java.util.Set.of(id + ".dat", id + ".dat_old"),
+                    st.map(p -> p.getFileName().toString()).collect(java.util.stream.Collectors.toSet()));
         }
     }
 

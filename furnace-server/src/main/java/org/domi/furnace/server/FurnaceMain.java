@@ -144,6 +144,7 @@ public final class FurnaceMain {
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
         ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
+        org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         int plainsBiome = Math.max(0,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
