@@ -432,7 +432,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     /** generate()가 이미 샘플한 biome id를 함께 돌려줘, 호출부가 같은 청크의 biome을 다시 샘플하지 않게 한다. */
-    public record Generated(ChunkColumn col, int[] biomeIds) {}
+    /** noiseChunk: 이 청크를 만든 NoiseChunk — 카버가 다시 쓴다(바닐라 getOrCreateNoiseChunk). 보간은 끝난 상태. */
+    public record Generated(ChunkColumn col, int[] biomeIds, NoiseChunk noiseChunk) {
+        public Generated(ChunkColumn col, int[] biomeIds) { this(col, biomeIds, null); }
+    }
 
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
@@ -508,7 +511,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         col.rebuildHeightmapsAfterSurface();
         col.clearDirty();
 
-        return new Generated(col, biomeIds);
+        return new Generated(col, biomeIds, nc);
     }
 
     /** 청크 biome id 배열에 등장하는 biome 이름 집합 — FeaturePlacer의 neighborBiomes 구성 단위(청크당 한 번만 계산해 재사용). */
@@ -556,6 +559,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     public void applyCarvers(ChunkColumn col, int cx, int cz) {
         NoiseChunk nc = new NoiseChunk(cx, cz, router, settings, reg);
         applyCarvers(col, cx, cz, nc);
+    }
+
+    /** 생성 결과의 NoiseChunk 를 다시 써서 카버를 돌린다(새 NoiseChunk 를 만드는 비용 — 기후 캐시·DF 감싸기 — 을 아낀다). */
+    public void applyCarvers(Generated g, int cx, int cz) {
+        applyCarvers(g.col(), cx, cz, g.noiseChunk() != null ? g.noiseChunk() : new NoiseChunk(cx, cz, router, settings, reg));
     }
 
     /** 디버그: quart 좌표(월드 quart x, 월드 quart y=블록y/4, 월드 quart z)의 기후 타깃 6개(온도·습도·대륙성·침식·깊이·기이함). */

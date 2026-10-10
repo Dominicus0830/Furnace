@@ -25,4 +25,14 @@ public final class SurfaceContext {
     public int chunkQuartX0, chunkQuartZ0;   // 청크 첫 quart의 월드 quart 좌표
     // 16×16 surfaceY grid for steep condition
     public int[] surfaceYGrid;  // [lz*16+lx]
+
+    // ---- 컴파일된 규칙용 캐시(SurfaceSystem.Compiled) ----
+    /** 현재 블록의 바이옴 id 를 이미 구했는가(블록마다 false 로 되돌린다). */
+    public boolean biomeIdValid;
+    public int biomeId;
+    /** 기둥 번호 — 바뀌면 기둥 단위 캐시(xz)가 무효가 된다. */
+    public int column;
+    /** 기둥 단위 캐시: 슬롯별 값과 그 값을 구한 기둥 번호. */
+    public double[] xzValue;
+    public int[] xzColumn;
 }

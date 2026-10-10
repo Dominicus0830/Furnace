@@ -17,6 +17,7 @@ class FullGenProfile {
         BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(12345L, blocks, registries);
+        if (Boolean.getBoolean("furnace.profile.nostruct")) source.structureEngine().setStructuresEnabled(false);
         for (int i = 0; i < 10; i++) source.generateWithFeatures(-500 + i, 500);
         Path out = Files.createTempFile("gen", ".jfr");
         try (Recording r = new Recording()) {
@@ -30,7 +31,7 @@ class FullGenProfile {
                 fs.add(ex.submit(() -> {
                     if (pristineOnly) {
                         var g = source.generateWorldChunk(600 + c0, r0);
-                        source.applyCarvers(g.col(), 600 + c0, r0);
+                        source.applyCarvers(g, 600 + c0, r0);
                     } else source.generateWithFeatures(600 + c0, r0);
                 }));
             }

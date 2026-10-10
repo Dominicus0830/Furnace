@@ -111,7 +111,7 @@ public final class ChunkPipeline {
                 NoiseWorldSource.Generated generated = source.generateWorldChunk(cx, cz);
                 ChunkColumn col = generated.col();
                 int[] biomeIds = generated.biomeIds();
-                source.applyCarvers(col, cx, cz);
+                source.applyCarvers(generated, cx, cz);
                 return new PristineChunk(col, biomeIds, source.biomeNamesOf(biomeIds), List.of());
             }, genPool);
             pristineCache.put(key, future);
@@ -326,7 +326,7 @@ public final class ChunkPipeline {
         return sharedPristine.computeIfAbsent(chunkKey(cx, cz), k -> CompletableFuture.supplyAsync(() -> {
             NoiseWorldSource.Generated g = source.generateWorldChunk(cx, cz);
             ChunkColumn col = g.col();
-            source.applyCarvers(col, cx, cz);
+            source.applyCarvers(g, cx, cz);
             return new Proto(cx, cz, col, g.biomeIds(), source.biomeNamesOf(g.biomeIds()));
         }, genPool));
     }

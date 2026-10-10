@@ -80,6 +80,8 @@ public final class SurfaceSystem {
         this.clayBands = generateBands(randomFactory.fromHashOf("minecraft:clay_bands"), reg);
         this.packedIceId = reg.defaultStateId("minecraft:packed_ice");
         this.snowBlockId = reg.defaultStateId("minecraft:snow_block");
+        this.interpret = Boolean.getBoolean("furnace.surfaceInterp");
+        this.compiled = compile(rule);
     }
 
     /** SurfaceSystem.generateBands — 192칸 점토 밴드 테이블. RNG 호출 순서는 바닐라와 동일. */
@@ -181,6 +183,7 @@ public final class SurfaceSystem {
         ctx.chunkBiomeIds = biomeIds;
         ctx.chunkQuartX0 = chunkX * 4;
         ctx.chunkQuartZ0 = chunkZ * 4;
+        initCompiledCaches(ctx);
 
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
@@ -197,6 +200,7 @@ public final class SurfaceSystem {
 
                 ctx.blockX = worldX;
                 ctx.blockZ = worldZ;
+                ctx.column++;
                 ctx.stoneDepthAbove = 0;
                 // waterY: Y one above the topmost fluid block (vanilla waterHeight = i9+1).
                 // Integer.MIN_VALUE = no fluid found.
@@ -260,9 +264,8 @@ public final class SurfaceSystem {
 
                         // only apply surface rule to the defaultBlock (stone)
                         if (block == defaultBlockId) {
-                            ctx.biomeName = null;
-                            Integer result = eval(rule, ctx);
-                            if (result != null) blocks[blockIndex] = result;
+                            int result = applyRule(ctx);
+                            if (result >= 0) blocks[blockIndex] = result;
                         }
                     }
 
@@ -421,9 +424,220 @@ public final class SurfaceSystem {
         ctx.stoneDepthAbove = 1;
         ctx.stoneDepthBelow = 1;
         ctx.waterY = hasFluid ? y + 1 : Integer.MIN_VALUE;
-        ctx.biomeName = null;
+        initCompiledCaches(ctx);
+        ctx.column = 1;
+        int r = applyRule(ctx);
+        return r >= 0 ? r : null;
+    }
 
-        return eval(rule, ctx);
+    /** 이 블록에 규칙을 적용한 결과 상태(없으면 -1). */
+    private int applyRule(SurfaceContext ctx) {
+        ctx.biomeName = null;
+        ctx.biomeIdValid = false;
+        if (interpret) {
+            Integer r = eval(rule, ctx);
+            return r != null ? r : -1;
+        }
+        return compiled.apply(ctx);
+    }
+
+    // ================================================================== 컴파일된 표면 규칙
+    //
+    // 규칙 트리(SurfaceRule 레코드)를 블록마다 해석하던 것을, 시작할 때 한 번 노드 객체로 바꿔 둔다(바닐라 SurfaceRules 의
+    // RuleSource → SurfaceRule 람다와 같은 생각). 결과는 해석기와 같다:
+    //  - (x, 0, z) 에서만 읽는 값(노이즈 임계값·보조 깊이 노이즈·점토 밴드 오프셋)은 기둥마다 한 번 구한다(바닐라 LazyXZCondition).
+    //  - 바이옴 조건은 바이옴 id 표로, 온도는 id 별로 미리 읽은 값으로 본다(이름 문자열·맵 조회 없음).
+    //  - y 기준점(above_bottom·below_top)과 vertical_gradient 의 난수 팩토리는 미리 풀어 둔다.
+    // 캐시는 노드가 아니라 SurfaceContext 에 둔다(여러 생성 스레드가 같은 컴파일 결과를 쓴다).
+    // -Dfurnace.surfaceInterp=true 면 예전 해석기를 쓴다(대조용).
+
+    private final boolean interpret;
+    private final CRule compiled;
+    private static final int SLOT_SECONDARY = 0, SLOT_BAND = 1;
+    private int xzSlots = 2;
+    private final Map<String, Integer> noiseSlots = new java.util.HashMap<>();
+
+    private void initCompiledCaches(SurfaceContext ctx) {
+        ctx.xzValue = new double[xzSlots];
+        ctx.xzColumn = new int[xzSlots];
+        java.util.Arrays.fill(ctx.xzColumn, Integer.MIN_VALUE);
+        ctx.column = 0;
+    }
+
+    private abstract static class CRule { abstract int apply(SurfaceContext c); }
+    private abstract static class CCond { abstract boolean test(SurfaceContext c); }
+
+    private int biomeIdOf(SurfaceContext c) {
+        if (!c.biomeIdValid) {
+            c.biomeId = biomeAtBlock(c.blockX, c.blockY, c.blockZ, c);
+            c.biomeIdValid = true;
+        }
+        return c.biomeId;
+    }
+
+    private double secondaryAt(SurfaceContext c) {
+        if (c.xzColumn[SLOT_SECONDARY] != c.column) {
+            c.xzValue[SLOT_SECONDARY] = surfaceSecondaryNoise.getValue(c.blockX, 0, c.blockZ);
+            c.xzColumn[SLOT_SECONDARY] = c.column;
+        }
+        return c.xzValue[SLOT_SECONDARY];
+    }
+
+    private int bandAt(SurfaceContext c) {
+        if (c.xzColumn[SLOT_BAND] != c.column) {
+            c.xzValue[SLOT_BAND] = (int) Math.round(clayBandsOffsetNoise.getValue(c.blockX, 0.0, c.blockZ) * 4.0);
+            c.xzColumn[SLOT_BAND] = c.column;
+        }
+        int offset = (int) c.xzValue[SLOT_BAND];
+        return clayBands[(c.blockY + offset + clayBands.length) % clayBands.length];
+    }
+
+    private CRule compile(SurfaceRule r) {
+        return switch (r) {
+            case SurfaceRule.Sequence seq -> {
+                CRule[] parts = seq.rules().stream().map(this::compile).toArray(CRule[]::new);
+                yield new CRule() {
+                    int apply(SurfaceContext c) {
+                        for (CRule p : parts) {
+                            int v = p.apply(c);
+                            if (v >= 0) return v;
+                        }
+                        return -1;
+                    }
+                };
+            }
+            case SurfaceRule.IfTrue it -> {
+                CCond cond = compile(it.condition());
+                CRule then = compile(it.then());
+                yield new CRule() {
+                    int apply(SurfaceContext c) { return cond.test(c) ? then.apply(c) : -1; }
+                };
+            }
+            case SurfaceRule.Block b -> {
+                int state = b.blockStateId();
+                yield new CRule() { int apply(SurfaceContext c) { return state; } };
+            }
+            case SurfaceRule.Bandlands __ -> new CRule() { int apply(SurfaceContext c) { return bandAt(c); } };
+        };
+    }
+
+    private int resolveConstY(SurfaceRule.YOffset offset) {
+        int minY = settings.minY(), maxY = minY + settings.height() - 1;
+        return switch (offset) {
+            case SurfaceRule.YOffset.Absolute a -> a.y();
+            case SurfaceRule.YOffset.AboveBottom ab -> minY + ab.offset();
+            case SurfaceRule.YOffset.BelowTop bt -> maxY - bt.offset();
+        };
+    }
+
+    private CCond compile(SurfaceRule.SurfaceCondition cond) {
+        return switch (cond) {
+            case SurfaceRule.SurfaceCondition.VerticalGradient vg -> {
+                int trueY = resolveConstY(vg.trueAtAndBelow()), falseY = resolveConstY(vg.falseAtAndAbove());
+                PositionalRandom factory = gradientFactoryCache.computeIfAbsent(vg.randomName(),
+                    name -> randomFactory.fromHashOf(name).forkPositional());
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        if (c.blockY <= trueY) return true;
+                        if (c.blockY >= falseY) return false;
+                        double gradient = (double) (c.blockY - trueY) / (double) (falseY - trueY);
+                        return (double) factory.at(c.blockX, c.blockY, c.blockZ).nextFloat() < (1.0 - gradient);
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.AbovePreliminarySurface __ -> new CCond() {
+                boolean test(SurfaceContext c) { return c.blockY >= c.preliminarySurfaceLevel; }
+            };
+            case SurfaceRule.SurfaceCondition.StoneDepth sd -> {
+                boolean floor = sd.surfaceType() == SurfaceRule.SurfaceType.FLOOR;
+                int range = sd.secondaryDepthRange(), offset = sd.offset();
+                boolean addSurface = sd.addSurfaceDepth();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        int depth = floor ? c.stoneDepthAbove : c.stoneDepthBelow;
+                        int secondary = range == 0 ? 0 : (int) map(secondaryAt(c), -1.0, 1.0, 0.0, range);
+                        int maxDepth = offset + 1 + secondary;
+                        if (addSurface) maxDepth += c.surfaceDepth;
+                        return depth <= maxDepth;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.BiomeIs bi -> {
+                boolean[] match = new boolean[registryBiomeNames.length];
+                for (int i = 0; i < match.length; i++) match[i] = bi.biomes().contains(registryBiomeNames[i]);
+                boolean fallback = bi.biomes().contains("minecraft:plains");
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        int id = biomeIdOf(c);
+                        return id >= 0 && id < match.length ? match[id] : fallback;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.YAbove ya -> {
+                int anchor = resolveConstY(ya.anchor());
+                int mult = ya.surfaceDepthMultiplier();
+                boolean addStone = ya.addStoneDepth();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        return c.blockY + (addStone ? c.stoneDepthAbove : 0) >= anchor + mult * c.surfaceDepth;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.Water w -> {
+                int offset = w.offset(), mult = w.surfaceDepthMultiplier();
+                boolean addStone = w.addStoneDepth();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        if (c.waterY == Integer.MIN_VALUE) return true;
+                        int add = addStone ? c.stoneDepthAbove : 0;
+                        return c.blockY + add >= c.waterY + offset + mult * c.surfaceDepth;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.NoiseThreshold nt -> {
+                NormalNoise noise = buildNoise(nt.noiseId());
+                int slot = noiseSlots.computeIfAbsent(nt.noiseId(), k -> xzSlots++);
+                double min = nt.minInclusive(), max = nt.maxExclusive();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        if (c.xzColumn[slot] != c.column) {
+                            c.xzValue[slot] = noise.getValue(c.blockX, 0, c.blockZ);
+                            c.xzColumn[slot] = c.column;
+                        }
+                        double v = c.xzValue[slot];
+                        return v >= min && v <= max;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.Temperature __ -> {
+                float[] temp = new float[registryBiomeNames.length];
+                boolean[] frozen = new boolean[registryBiomeNames.length];
+                for (int i = 0; i < temp.length; i++) {
+                    temp[i] = worldgenData.biomeTemperature(registryBiomeNames[i]);
+                    frozen[i] = worldgenData.biomeFrozenModifier(registryBiomeNames[i]);
+                }
+                float fbTemp = worldgenData.biomeTemperature("minecraft:plains");
+                boolean fbFrozen = worldgenData.biomeFrozenModifier("minecraft:plains");
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        int id = biomeIdOf(c);
+                        boolean in = id >= 0 && id < temp.length;
+                        return BiomeClimate.coldEnoughToSnow(in ? temp[id] : fbTemp, in ? frozen[id] : fbFrozen,
+                            c.blockX, c.blockY, c.blockZ);
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.Steep __ -> new CCond() {
+                boolean test(SurfaceContext c) { return evalSteep(c); }
+            };
+            case SurfaceRule.SurfaceCondition.Not n -> {
+                CCond inner = compile(n.inner());
+                yield new CCond() { boolean test(SurfaceContext c) { return !inner.test(c); } };
+            }
+            case SurfaceRule.SurfaceCondition.Hole __ -> new CCond() {
+                boolean test(SurfaceContext c) { return c.surfaceDepth <= 0; }
+            };
+        };
     }
 
     private Integer eval(SurfaceRule rule, SurfaceContext ctx) {
