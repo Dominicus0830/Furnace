@@ -85,7 +85,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public boolean isDead() { return p.vitals().isDeadOrDying(); }
 
     @Override
-    public Locale locale() { return Locale.forLanguageTag(p.locale().replace('_', '-')); }
+    public Locale locale() { return p.javaLocale(); }
 
     @Override
     public int ping() { return p.latencyMs(); }
@@ -107,14 +107,14 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public void sendMessage(Text message) { p.sendSystemMessage(message, false); }
 
     @Override
-    public void sendActionBar(Text message) { p.send(new TextOnlyPacket(TextOnlyPacket.ACTION_BAR, message)); }
+    public void sendActionBar(Text message) { p.send(new TextOnlyPacket(TextOnlyPacket.ACTION_BAR, p.localize(message))); }
 
     @Override
     public void showTitle(Title title) {
         // Adventure/Paper 와 같은 순서: 시간 → 부제 → 제목(제목이 와야 화면에 뜬다).
         if (title.times() != null) p.send(new TitleTimes(title.times().fadeInTicks(), title.times().stayTicks(), title.times().fadeOutTicks()));
-        p.send(new TextOnlyPacket(TextOnlyPacket.SUBTITLE, title.subtitle()));
-        p.send(new TextOnlyPacket(TextOnlyPacket.TITLE, title.title()));
+        p.send(new TextOnlyPacket(TextOnlyPacket.SUBTITLE, p.localize(title.subtitle())));
+        p.send(new TextOnlyPacket(TextOnlyPacket.TITLE, p.localize(title.title())));
     }
 
     @Override
@@ -124,7 +124,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public void resetTitle() { p.send(new ClearTitles(true)); }
 
     @Override
-    public void sendPlayerListHeaderAndFooter(Text header, Text footer) { p.send(new TabListHeaderFooter(header, footer)); }
+    public void sendPlayerListHeaderAndFooter(Text header, Text footer) { p.send(new TabListHeaderFooter(p.localize(header), p.localize(footer))); }
 
     // ------------------------------------------------------------------ 권한
 

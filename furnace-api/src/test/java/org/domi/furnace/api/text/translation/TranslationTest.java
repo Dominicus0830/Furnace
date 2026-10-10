@@ -150,4 +150,13 @@ class TranslationTest {
         assertEquals("Hello, A! tail", out.plainText());
         assertEquals(List.of("Hello, A![-]", " tail[red]"), Visual.runs(out));
     }
+
+    @Test
+    void emptyRendererIsInactiveAndReturnsSameInstance() {
+        GlobalRenderer r = GlobalRenderer.of();
+        assertFalse(r.isActive());
+        Text t = Text.translatable("furnace.test.anything", Text.text("x")).color(NamedTextColor.RED);
+        assertSame(t, r.apply(t, Locale.KOREA));
+        assertTrue(GlobalRenderer.of(sample()).isActive());
+    }
 }

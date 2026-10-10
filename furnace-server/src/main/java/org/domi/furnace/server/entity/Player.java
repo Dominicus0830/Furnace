@@ -108,11 +108,16 @@ public final class Player {
 
     /** 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전. */
     public void kick(Packet packet) {
-        if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d) kickReason = d.reason();
+        if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d) {
+            kickReason = d.reason();
+            org.domi.furnace.api.text.Text r = localize(d.reason());
+            if (r != d.reason()) packet = new org.domi.furnace.server.net.protocol.play.Disconnect(r);
+        }
+        final Packet out = packet;
         channel.eventLoop().execute(() -> {
             ByteBuf buf = channel.alloc().buffer();
-            Types.writeVarInt(buf, packet.id());
-            packet.write(buf);
+            Types.writeVarInt(buf, out.id());
+            out.write(buf);
             channel.writeAndFlush(buf).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
         });
     }
@@ -185,7 +190,24 @@ public final class Player {
 
     public String locale() { return locale; }
 
-    public void locale(String l) { this.locale = l == null || l.isEmpty() ? "en_us" : l; }
+    public void locale(String l) {
+        String v = l == null || l.isEmpty() ? "en_us" : l;
+        this.javaLocale = java.util.Locale.forLanguageTag(v.replace('_', '-'));
+        this.locale = v;
+    }
+
+    private volatile java.util.Locale javaLocale = java.util.Locale.US;
+
+    /** 클라이언트 언어(Java Locale). */
+    public java.util.Locale javaLocale() { return javaLocale; }
+
+    /**
+     * 플러그인 번역 저장소(GlobalRenderer)가 아는 키를 이 플레이어 언어로 펼친다(Paper 의 GlobalTranslator 렌더링).
+     * 저장소가 없거나 바뀐 곳이 없으면 같은 인스턴스 — 인코딩 캐시가 그대로 쓰인다.
+     */
+    public org.domi.furnace.api.text.Text localize(org.domi.furnace.api.text.Text t) {
+        return org.domi.furnace.api.text.translation.GlobalRenderer.render(t, javaLocale);
+    }
 
     // 플러그인 API 손잡이(처음 요청할 때 만든다).
     private volatile Object apiHandle;
@@ -229,7 +251,7 @@ public final class Player {
 
     /** 바닐라 ServerPlayer.sendSystemMessage — 채팅 숨김이면 액션바(overlay)만 받는다. */
     public void sendSystemMessage(org.domi.furnace.api.text.Text message, boolean overlay) {
-        if (chat().acceptsSystemMessages(overlay)) send(new org.domi.furnace.server.net.protocol.play.SystemChat(message, overlay));
+        if (chat().acceptsSystemMessages(overlay)) send(new org.domi.furnace.server.net.protocol.play.SystemChat(localize(message), overlay));
     }
 
     // 클라이언트 설정 allowServerListings — 거부하면 상태 응답 sample 에 익명으로 나온다.

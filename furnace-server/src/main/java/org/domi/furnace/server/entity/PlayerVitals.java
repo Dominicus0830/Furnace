@@ -373,7 +373,7 @@ public final class PlayerVitals {
             keepLevelOnRespawn = outcome.keepLevel();
         }
         if (outcome.message() != null) {
-            player.send(new PlayerCombatKill(player.entityId(), outcome.message()));
+            player.send(new PlayerCombatKill(player.entityId(), player.localize(outcome.message())));
             env.broadcastSystemMessage(outcome.message());
         } else {
             player.send(new PlayerCombatKill(player.entityId(), Text.empty()));

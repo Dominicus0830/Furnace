@@ -42,7 +42,10 @@ public final class GlobalRenderer {
     }
 
     /** 이 렌더러의 저장소로 text 를 locale 에 맞게 렌더링한다. */
-    public Text apply(Text text, Locale locale) { return rend(text, locale); }
+    /** 저장소가 하나라도 있는가 — 없으면 {@link #apply} 는 받은 텍스트를 그대로 돌려준다. */
+    public boolean isActive() { return !(stores != null ? stores : GLOBAL).isEmpty(); }
+
+    public Text apply(Text text, Locale locale) { return isActive() ? rend(text, locale) : text; }
 
     // ------------------------------------------------------------------ 구현
 

@@ -292,7 +292,7 @@ public final class ServerCore {
 
     /** 콘솔(서버 로그)로 보내는 메시지 — 바닐라 MinecraftServer.sendSystemMessage. */
     public void sendSystemMessage(Text message) {
-        log.info(message.getString());
+        log.info("{}", new org.domi.furnace.server.log.ConsoleText(message));
         for (var l : consoleListeners) l.accept(message);
     }
 
