@@ -185,6 +185,16 @@ public final class JigsawPools {
             this.pool = nbt != null ? nbt.getString("pool") : null;
         }
 
+        /** 같은 직소를 (dx,dy,dz) 만큼 옮긴 복사본 — 미리 읽어 둔 값은 그대로 쓴다. */
+        private Jig(Jig o, int dx, int dy, int dz) {
+            this.x = o.x + dx; this.y = o.y + dy; this.z = o.z + dz; this.state = o.state; this.nbt = o.nbt;
+            this.front = o.front; this.top = o.top;
+            this.selectionPriority = o.selectionPriority; this.placementPriority = o.placementPriority;
+            this.rollable = o.rollable; this.name = o.name; this.target = o.target; this.pool = o.pool;
+        }
+
+        Jig moved(int dx, int dy, int dz) { return new Jig(this, dx, dy, dz); }
+
         public int x() { return x; }
         public int y() { return y; }
         public int z() { return z; }
@@ -259,13 +269,38 @@ public final class JigsawPools {
             StructureTemplate t = e.template(location);
             PlaceSettings st = new PlaceSettings();
             st.rotation = rotation;
-            List<StructureTemplate.BlockInfo> infos = TemplatePlacer.filterBlocks(t, e.table(), st, x, y, z, "minecraft:jigsaw");
-            List<Jig> out = new ArrayList<>(infos.size());
-            for (StructureTemplate.BlockInfo b : infos) out.add(new Jig(e.table(), b.x(), b.y(), b.z(), b.state(), b.nbt()));
+            // filterBlocks(…, x, y, z) = 팔레트(위치로 정한 무작위) 의 직소 칸을 회전한 뒤 (x,y,z) 만큼 옮긴 것 — 경계 상자가 없어
+            // 위치와 무관한 부분(회전·상태 변환·NBT 값)은 (팔레트, 회전) 별로 한 번만 만들어 두고 옮기기만 한다.
+            int palettes = t.palettes().size();
+            List<Jig> out;
+            if (palettes == 0) {
+                out = new ArrayList<>();
+            } else {
+                int paletteIndex = st.getRandom(x, y, z).nextInt(palettes);
+                List<Jig> rel = relativeJigs(e, t, paletteIndex, rotation);
+                out = new ArrayList<>(rel.size());
+                for (Jig j : rel) out.add(j.moved(x, y, z));
+            }
             shuffle(out, random);
             // selection_priority 내림차순(안정 정렬)
             out.sort((a, b) -> Integer.compare(b.selectionPriority, a.selectionPriority));
             return out;
+        }
+
+        private final java.util.concurrent.ConcurrentHashMap<Integer, List<Jig>> relJigs = new java.util.concurrent.ConcurrentHashMap<>();
+
+        private List<Jig> relativeJigs(StructureEngine e, StructureTemplate t, int paletteIndex, int rotation) {
+            return relJigs.computeIfAbsent(paletteIndex * 8 + rotation, k -> {
+                PlaceSettings st = new PlaceSettings();
+                st.rotation = rotation;
+                List<Jig> rel = new ArrayList<>();
+                for (StructureTemplate.BlockInfo info : t.blocksNamed(paletteIndex, "minecraft:jigsaw", e.table())) {
+                    int[] p = StructureTemplate.transform(info.x(), info.y(), info.z(), st.mirror, st.rotation, st.pivotX, st.pivotZ);
+                    rel.add(new Jig(e.table(), p[0], p[1], p[2],
+                        e.table().transform(info.state(), BlockStateTable.NONE, st.rotation), info.nbt()));
+                }
+                return List.copyOf(rel);
+            });
         }
 
         @Override

@@ -68,7 +68,7 @@ class FullGenProfile {
         int t = total;
         self.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(25)
             .forEach(en -> System.out.printf("PROF self %5.1f%% %s%n", 100.0 * en.getValue() / t, en.getKey()));
-        incl.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(70)
+        incl.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(200)
             .forEach(en -> System.out.printf("PROF incl %5.1f%% %s%n", 100.0 * en.getValue() / t, en.getKey()));
         callers.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(25)
             .forEach(en -> System.out.printf("PROF hot %d %s%n", en.getValue(), en.getKey()));

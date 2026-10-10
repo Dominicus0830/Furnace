@@ -688,16 +688,46 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return heights[256 + (blockZ - cz * 16) * 16 + (blockX - cx * 16)];
     }
 
+    /**
+     * 구조물 배치용 높이(바닐라 getBaseHeight = iterateNoiseColumn: 노이즈·대수층·광맥만, 표면 규칙 없음).
+     * 예전에는 표면 규칙·바이옴까지 다 한 청크를 만들어 높이를 읽었다 — 노이즈 블록만으로 충분하고 더 바닐라와 같다.
+     */
     private int[] computeSurfaceHeights(int cx, int cz) {
-        ChunkColumn c = generate(cx, cz);
+        int[] ids = noiseBlockIds(cx, cz);
         int[] heights = new int[512];
+        int minY = settings.minY(), maxY = settings.minY() + settings.height() - 1;
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
-                heights[lz * 16 + lx] = height(c, lx, lz, HeightKind.WORLD_SURFACE) - 1;
-                heights[256 + lz * 16 + lx] = height(c, lx, lz, HeightKind.OCEAN_FLOOR) - 1;
+                int column = lz * 16 + lx;
+                int ws = minY, of = minY;
+                for (int y = maxY; y >= minY; y--) {
+                    int state = ids[(y - dimension.minY) * 256 + column];
+                    if (ws == minY && state != ChunkSection.AIR) ws = y + 1;
+                    if (isSolid(state)) { of = y + 1; break; }
+                }
+                heights[column] = ws - 1;
+                heights[256 + column] = of - 1;
             }
         }
         return heights;
+    }
+
+    /** 노이즈 단계 블록만(대수층·광맥 포함, beard·표면·바이옴 없음) — 차원 높이 배열(섹션 순, y·z·x). */
+    private int[] noiseBlockIds(int chunkX, int chunkZ) {
+        int minY = settings.minY();
+        int seaLevel = settings.seaLevel();
+        int lavaFloor = settings.lavaFloorY();
+        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings, reg);
+        Aquifer aquifer = settings.aquifersEnabled()
+            ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
+            : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
+        int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
+        if (blockIds.length != dimension.sectionCount * 4096) {
+            int[] full = new int[dimension.sectionCount * 4096];
+            System.arraycopy(blockIds, 0, full, (minY - dimension.minY) * 256, blockIds.length);
+            blockIds = full;
+        }
+        return blockIds;
     }
 
     private static long chunkKey(int cx, int cz) {
