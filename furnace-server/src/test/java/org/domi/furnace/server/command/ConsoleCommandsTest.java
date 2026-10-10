@@ -86,5 +86,8 @@ class ConsoleCommandsTest {
         assertEquals(List.of("Incorrect argument for command", "whitelist xyz<--[HERE]"), run("whitelist xyz"));
         assertEquals(List.of("Integer must not be less than 0, found -1", "...letimeout -1<--[HERE]"), run("setidletimeout -1"));
         assertEquals(List.of("No player was found"), run("kick Nobody"));
+        // 바닐라 콘솔 /say: 서명 없는 시스템 메시지라 "[Not Secure] [Server] ..." 로 로그
+        assertEquals(List.of("[Not Secure] [Server] hello world"), run("say hello world"));
+        assertEquals(List.of("[Not Secure] * Server waves"), run("me waves"));
     }
 }

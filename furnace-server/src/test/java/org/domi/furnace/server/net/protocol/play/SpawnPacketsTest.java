@@ -17,12 +17,13 @@ class SpawnPacketsTest {
         assertEquals(0x3E, p.id());
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
-        // 바닐라 createPlayerInitializing: add_player|update_game_mode|update_listed|update_latency|update_display_name
-        assertEquals(0x3D, buf.readByte());
+        // 바닐라 createPlayerInitializing: add_player|initialize_chat|update_game_mode|update_listed|update_latency|update_display_name
+        assertEquals(0x3F, buf.readByte());
         assertEquals(1, Types.readVarInt(buf));     // count
         assertEquals(id, Types.readUuid(buf));
         assertEquals("Dom", Types.readString(buf, 16));
         assertEquals(0, Types.readVarInt(buf));     // props
+        assertEquals(0, buf.readByte());            // 채팅 세션 없음
         assertEquals(PlayerInfoUpdate.DEFAULT_GAME_MODE, Types.readVarInt(buf));
         assertEquals(1, buf.readByte());            // listed = true
         assertEquals(0, Types.readVarInt(buf));     // latency

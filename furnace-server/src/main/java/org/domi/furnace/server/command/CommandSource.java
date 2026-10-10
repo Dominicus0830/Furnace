@@ -7,7 +7,6 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.Text;
-import org.domi.furnace.server.net.protocol.play.SystemChat;
 
 public final class CommandSource {
 
@@ -22,6 +21,8 @@ public final class CommandSource {
     private final boolean silent;
     private final double x, y, z;
     private final float yRot, xRot;
+    // 서명된 명령 인자(바닐라 CommandSigningContext) — 인자 이름 → 검증된 메시지. 없으면 빈 맵(서명 없음).
+    private java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> signedArguments = java.util.Map.of();
 
     private CommandSource(ServerCore server, Player player, String textName, Text displayName, int permissionLevel,
                           boolean silent, double x, double y, double z, float yRot, float xRot) {
@@ -55,6 +56,22 @@ public final class CommandSource {
     public static CommandSource forProfile(ServerCore server, String name, int permissionLevel) {
         var spawn = server.world().defaultSpawn();
         return new CommandSource(server, null, name, Text.literal(name), permissionLevel, true, spawn.x(), spawn.y(), spawn.z(), 0f, 0f);
+    }
+
+    public CommandSource withSignedArguments(java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> args) {
+        CommandSource c = new CommandSource(server, player, textName, displayName, permissionLevel, silent, x, y, z, yRot, xRot);
+        c.signedArguments = java.util.Map.copyOf(args);
+        return c;
+    }
+
+    public org.domi.furnace.server.chat.PlayerChatMessage signedArgument(String name) { return signedArguments.get(name); }
+
+    /** 바닐라 CommandSourceStack.sendChatMessage — 플레이어면 채팅 패킷, 콘솔이면 장식한 문장을 로그로. */
+    public void sendChatMessage(org.domi.furnace.server.chat.PlayerChatMessage message, boolean filtered,
+                                org.domi.furnace.server.chat.ChatType.Bound bound) {
+        if (silent) return;
+        if (player != null) server.sendChatMessage(player, message, filtered, bound);
+        else server.sendSystemMessage(bound.decorate(message.decoratedContent()));
     }
 
     public CommandSource withSilent() {
@@ -112,7 +129,7 @@ public final class CommandSource {
         Text admin = Text.translatable("chat.type.admin", displayName, message).color("gray").italic(true);
         if (server.gameRule("sendCommandFeedback")) {
             for (Player p : server.players()) {
-                if (p != player && server.lists().isOp(ServerCore.profileOf(p))) p.send(new SystemChat(admin, false));
+                if (p != player && server.lists().isOp(ServerCore.profileOf(p))) p.sendSystemMessage(admin, false);
             }
         }
         if (player != null && server.gameRule("logAdminCommands")) server.sendSystemMessage(admin);
@@ -123,7 +140,7 @@ public final class CommandSource {
     }
 
     public void sendSystemMessage(Text message) {
-        if (player != null) player.send(new SystemChat(message, false));
+        if (player != null) player.sendSystemMessage(message, false);
         else server.sendSystemMessage(message);
     }
 }

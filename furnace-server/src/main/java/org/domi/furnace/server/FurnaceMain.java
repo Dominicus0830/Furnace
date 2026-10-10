@@ -208,6 +208,7 @@ public final class FurnaceMain {
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         loginContext.core(core);
+        core.servicesKeys().fetchAsync();
         core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
         core.onSaveAll(() -> {
             java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();

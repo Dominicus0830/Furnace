@@ -455,7 +455,9 @@ public final class Region {
             if (b.isDisconnected()) continue;
             if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
                 if (add == null) add = new ArrayList<>();
-                add.add(new PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(), PlayerInfoUpdate.DEFAULT_GAME_MODE, b.latencyMs()));
+                var session = b.chat().session();
+                add.add(new PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(), session == null ? null : session.asData(),
+                        PlayerInfoUpdate.DEFAULT_GAME_MODE, b.latencyMs()));
             }
         }
         if (add != null) a.send(new PlayerInfoUpdate(add));

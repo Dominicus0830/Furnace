@@ -144,6 +144,27 @@ public final class Player {
         return "<unknown>";
     }
 
+    // 채팅 상태(서명 세션·last seen·시그니처 캐시·채팅 표시 설정). 연결이 만들 때 정한다.
+    private volatile org.domi.furnace.server.chat.PlayerChatState chat;
+
+    public org.domi.furnace.server.chat.PlayerChatState chat() {
+        org.domi.furnace.server.chat.PlayerChatState c = chat;
+        if (c == null) {
+            synchronized (this) {
+                if (chat == null) chat = new org.domi.furnace.server.chat.PlayerChatState(uuid, () -> false);
+                c = chat;
+            }
+        }
+        return c;
+    }
+
+    public void chat(org.domi.furnace.server.chat.PlayerChatState c) { this.chat = c; }
+
+    /** 바닐라 ServerPlayer.sendSystemMessage — 채팅 숨김이면 액션바(overlay)만 받는다. */
+    public void sendSystemMessage(org.domi.furnace.server.net.protocol.Text message, boolean overlay) {
+        if (chat().acceptsSystemMessages(overlay)) send(new org.domi.furnace.server.net.protocol.play.SystemChat(message, overlay));
+    }
+
     // 클라이언트 설정 allowServerListings — 거부하면 상태 응답 sample 에 익명으로 나온다.
     private volatile boolean allowsListing = true;
 

@@ -40,6 +40,20 @@ public final class MessageArgument implements ArgumentType<MessageArgument.Messa
 
     public static MessageArgument message() { return new MessageArgument(); }
 
+    /**
+     * 바닐라 resolveChatMessage — 서명된 인자가 있으면 그 메시지(꾸민 내용은 선택자를 펼친 것), 없으면 시스템(위장) 메시지.
+     */
+    public static void resolveChatMessage(CommandContext<CommandSource> ctx, String name,
+                                          java.util.function.Consumer<org.domi.furnace.server.chat.PlayerChatMessage> callback)
+            throws CommandSyntaxException {
+        Message message = ctx.getArgument(name, Message.class);
+        CommandSource source = ctx.getSource();
+        Text component = message.toComponent(source);
+        org.domi.furnace.server.chat.PlayerChatMessage signed = source.signedArgument(name);
+        if (signed != null) callback.accept(signed.withUnsignedContent(component));
+        else callback.accept(org.domi.furnace.server.chat.PlayerChatMessage.system(message.text()).withUnsignedContent(component));
+    }
+
     public static Text getMessage(CommandContext<CommandSource> ctx, String name) throws CommandSyntaxException {
         return ctx.getArgument(name, Message.class).toComponent(ctx.getSource());
     }

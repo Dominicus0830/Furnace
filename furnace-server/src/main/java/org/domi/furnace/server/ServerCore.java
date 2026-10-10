@@ -10,7 +10,6 @@ import org.domi.furnace.server.config.ServerPropertiesFile;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.Text;
 import org.domi.furnace.server.net.protocol.play.EntityEvent;
-import org.domi.furnace.server.net.protocol.play.SystemChat;
 import org.domi.furnace.server.players.GameProfile;
 import org.domi.furnace.server.players.GameProfileCache;
 import org.domi.furnace.server.players.PlayerLists;
@@ -30,6 +29,7 @@ public final class ServerCore {
     private final LevelData levelData;
     private final FurnaceScheduler scheduler;
     private final Commands commands;
+    private final org.domi.furnace.server.chat.ServicesKeys servicesKeys = new org.domi.furnace.server.chat.ServicesKeys();
     private volatile Runnable halt = () -> {};
     private volatile Runnable saveAll = () -> {};
 
@@ -57,6 +57,14 @@ public final class ServerCore {
     public FurnaceScheduler scheduler() { return scheduler; }
 
     public Commands commands() { return commands; }
+
+    public org.domi.furnace.server.chat.ServicesKeys servicesKeys() { return servicesKeys; }
+
+    /** 바닐라 DedicatedServer.enforceSecureProfile: 설정이 켜져 있고 온라인 모드이며 Mojang 프로필 키를 검증할 수 있을 때. */
+    public boolean enforceSecureProfile() {
+        var p = settings.get();
+        return p.enforceSecureProfile && p.onlineMode && servicesKeys.canValidateProfileKeys();
+    }
 
     public void onHalt(Runnable r) { this.halt = r; }
 
@@ -105,8 +113,41 @@ public final class ServerCore {
     /** 모든 플레이어 + 콘솔(바닐라 PlayerList.broadcastSystemMessage). */
     public void broadcastSystemMessage(Text message, boolean overlay) {
         sendSystemMessage(message);
-        SystemChat packet = new SystemChat(message, overlay);
-        for (Player p : players()) p.send(packet);
+        for (Player p : players()) p.sendSystemMessage(message, overlay);
+    }
+
+    /** 바닐라 MinecraftServer.logChatMessage — "[Not Secure] <이름> 내용" 처럼 장식한 문장을 로그에. */
+    public void logChatMessage(Text content, org.domi.furnace.server.chat.ChatType.Bound bound, String tag) {
+        String s = bound.decorate(content).getString();
+        if (tag != null) log.info("[{}] {}", tag, s);
+        else log.info("{}", s);
+        Text line = tag != null ? Text.literal("[" + tag + "] " + s) : Text.literal(s);
+        for (var l : consoleListeners) l.accept(line);
+    }
+
+    /** 바닐라 PlayerList.broadcastChatMessage — 서명 신뢰 여부로 로그 태그를 정하고 모든 플레이어에게 보낸다. */
+    public void broadcastChatMessage(org.domi.furnace.server.chat.PlayerChatMessage message, Player sender,
+                                     org.domi.furnace.server.chat.ChatType.Bound bound) {
+        boolean trusted = message.hasSignature() && !message.hasExpiredServer(java.time.Instant.now());
+        logChatMessage(message.decoratedContent(), bound, trusted ? null : "Not Secure");
+        for (Player p : players()) sendChatMessage(p, message, false, bound);
+    }
+
+    /** 바닐라 ServerPlayer.sendChatMessage: 채팅을 모두 보는 설정일 때만. 시스템 출처면 disguised_chat. */
+    public void sendChatMessage(Player receiver, org.domi.furnace.server.chat.PlayerChatMessage message, boolean filtered,
+                                org.domi.furnace.server.chat.ChatType.Bound bound) {
+        var chat = receiver.chat();
+        if (!chat.acceptsChatMessages()) return;
+        if (message.isSystem()) {
+            receiver.send(new org.domi.furnace.server.net.protocol.play.DisguisedChatPacket(message.decoratedContent(), bound));
+            return;
+        }
+        boolean ok = chat.packAndTrack(message, cache -> {
+            receiver.send(new org.domi.furnace.server.net.protocol.play.PlayerChatPacket(message, cache, bound));
+            return null;
+        });
+        if (!ok) receiver.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(
+                Text.translatable("multiplayer.disconnect.too_many_pending_chats")));
     }
 
     public int operatorUserPermissionLevel() { return settings.get().opPermissionLevel; }

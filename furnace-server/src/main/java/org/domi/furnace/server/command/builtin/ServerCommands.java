@@ -90,17 +90,6 @@ public final class ServerCommands {
         return players.size();
     }
 
-    /** /say — 서명된 채팅(2-5) 전까지는 시스템 메시지로 "[이름] 메시지" 를 모두에게. */
-    public static void registerSay(CommandDispatcher<CommandSource> d) {
-        d.register(literal("say").requires(s -> s.hasPermission(2))
-                .then(argument("message", MessageArgument.message()).executes(c -> {
-                    Text message = MessageArgument.getMessage(c, "message");
-                    c.getSource().getServer().broadcastSystemMessage(
-                            Text.translatable("chat.type.announcement", c.getSource().getDisplayName(), message), false);
-                    return 1;
-                })));
-    }
-
     public static void registerSeed(CommandDispatcher<CommandSource> d) {
         d.register(literal("seed").requires(s -> s.hasPermission(2)).executes(c -> {
             long seed = c.getSource().getServer().levelData().seed;

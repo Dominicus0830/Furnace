@@ -11,8 +11,12 @@ import org.domi.furnace.server.net.protocol.Packet;
  * @param dimensionType   dimension_type 레지스트리 내 인덱스(VarInt)
  * @param viewDistance    서버가 실제 전송하는 청크 반경(클라 렌더 클램프). 전송량과 일치해야 공허 링이 안 생긴다.
  */
-public record LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance)
+public record LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance, boolean enforcesSecureChat)
         implements Packet {
+
+    public LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance) {
+        this(entityId, dimensionName, dimensionType, viewDistance, false);
+    }
 
     public static final int ID = 0x2B;
 
@@ -42,6 +46,6 @@ public record LoginPlay(int entityId, String dimensionName, int dimensionType, i
         buf.writeBoolean(true);          // Is flat
         buf.writeBoolean(false);         // Has death location
         Types.writeVarInt(buf, 0);       // Portal cooldown
-        buf.writeBoolean(false);         // Enforces secure chat
+        buf.writeBoolean(enforcesSecureChat); // Enforces secure chat
     }
 }

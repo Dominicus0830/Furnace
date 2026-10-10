@@ -100,6 +100,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final byte[] verifyToken = java.nio.ByteBuffer.allocate(4).putInt(new java.security.SecureRandom().nextInt()).array();
     private boolean statusHandled;
     private boolean clientAllowsListing = true;
+    private int chatVisibility = org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_FULL;
     private int velocityMessageId;
     private java.net.InetSocketAddress forwardedAddress;   // Velocity 포워딩으로 받은 실제 주소          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
     private boolean transferred;            // 전송(intent 3)으로 들어온 연결
@@ -271,37 +272,203 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
-    /** chat_command_signed: 명령 문자열만 쓰고 타임스탬프·솔트·인자 서명·last seen 은 건너뛴다(2-5 에서 검증). */
-    private static String readSignedCommand(ByteBuf frame) {
-        String command = Types.readString(frame, 256);
-        frame.readLong();                       // timestamp
-        frame.readLong();                       // salt
-        int n = Types.readVarInt(frame);        // argument signatures
-        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("인자 서명 개수 오류: " + n);
-        for (int i = 0; i < n; i++) {
-            Types.readString(frame, 16);
-            frame.skipBytes(256);
+    // ------------------------------------------------------------------ 채팅(바닐라 ServerGamePacketListenerImpl)
+
+    private static boolean isChatMessageIllegal(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\u00a7' || c < ' ' || c == 127) return true;
         }
-        Types.readVarInt(frame);                // last seen offset
-        frame.skipBytes(3);                     // acknowledged (20비트 고정 BitSet)
-        return command;
+        return false;
     }
 
-    /** 바닐라 handleChatCommand: 허용되지 않는 문자면 끊고, 아니면 전역 스레드에서 실행. */
+    /** 바닐라 tryHandleChat: 금지 문자면 끊고, 채팅을 숨긴 설정이면 알리고, 아니면 전역 스레드에서 실행. */
+    private void tryHandleChat(String message, Runnable action) {
+        Player p = player;
+        if (isChatMessageIllegal(message)) {
+            kick(ctx, Text.translatable("multiplayer.disconnect.illegal_characters"));
+        } else if (p.chat().visibility() == org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_HIDDEN) {
+            p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(Text.translatable("chat.disabled.options").color("red"), false));
+        } else {
+            login.core.scheduler().global().execute(action);
+        }
+    }
+
+    /** 바닐라 detectRateSpam. */
+    private void detectRateSpam() {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p.chat().incrementSpamAndCheck() && !core.lists().isOp(org.domi.furnace.server.ServerCore.profileOf(p))) {
+            p.kick(new Disconnect(Text.translatable("disconnect.spam")));
+        }
+    }
+
+    private java.util.Optional<org.domi.furnace.server.chat.LastSeenMessages> unpackAndApplyLastSeen(
+            org.domi.furnace.server.chat.LastSeenMessages.Update update) {
+        var r = player.chat().lastSeen.applyUpdate(update);
+        if (r.isEmpty()) {
+            log.warn("Failed to validate message acknowledgements from {}", player.name());
+            kick(ctx, Text.translatable("multiplayer.disconnect.chat_validation_failed"));
+        }
+        return r;
+    }
+
+    private void handleChatAck(int offset) {
+        Player p = player;
+        if (p == null) return;
+        if (!p.chat().lastSeen.applyOffset(offset)) {
+            log.warn("Failed to validate message acknowledgements from {}", p.name());
+            kick(ctx, Text.translatable("multiplayer.disconnect.chat_validation_failed"));
+        }
+    }
+
+    private void handleMessageDecodeFailure(org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
+        log.warn("Failed to update secure chat state for {}: '{}'", player.name(), e.component().getString());
+        player.sendSystemMessage(Text.empty().append(e.component()).color("red"), false);
+    }
+
+    private void handleChat(ByteBuf frame) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        String message = Types.readString(frame, 256);
+        java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
+        long salt = frame.readLong();
+        org.domi.furnace.server.chat.MessageSignature signature =
+                frame.readBoolean() ? org.domi.furnace.server.chat.MessageSignature.read(frame) : null;
+        var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
+        var lastSeen = unpackAndApplyLastSeen(update);
+        if (lastSeen.isEmpty()) return;
+        tryHandleChat(message, () -> {
+            org.domi.furnace.server.chat.PlayerChatMessage msg;
+            try {
+                msg = p.chat().decoder().unpack(signature,
+                        new org.domi.furnace.server.chat.SignedMessageBody(message, timeStamp, salt, lastSeen.get()));
+            } catch (org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
+                handleMessageDecodeFailure(e);
+                return;
+            }
+            msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
+            core.broadcastChatMessage(msg, p, org.domi.furnace.server.chat.ChatType.CHAT.bind(
+                    org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName()));
+            detectRateSpam();
+        });
+    }
+
+    /** 바닐라 handleChatSessionUpdate: 키가 바뀌었으면 Mojang 서비스 키로 검증하고 세션을 바꾼 뒤 모두에게 알린다. */
+    private void handleChatSessionUpdate(org.domi.furnace.server.chat.RemoteChatSession.Data data) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        var old = p.chat().session();
+        var oldKey = old != null ? old.profilePublicKey().data() : null;
+        var newKey = data.profilePublicKey();
+        if (java.util.Objects.equals(oldKey, newKey)) return;
+        if (oldKey != null && newKey.expiresAt().isBefore(oldKey.expiresAt())) {
+            kick(ctx, org.domi.furnace.server.chat.ProfilePublicKey.EXPIRED_PROFILE_PUBLIC_KEY);
+            return;
+        }
+        var validator = core.servicesKeys().profileKeySignatureValidator();
+        if (validator == null) {
+            log.warn("Ignoring chat session from {} due to missing Services public key", p.name());
+            return;
+        }
+        try {
+            var session = data.validate(p.uuid(), validator);
+            core.scheduler().global().execute(() -> {
+                p.chat().resetSession(session);
+                var packet = org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.initializeChat(p.uuid(), session.asData());
+                for (Player other : core.players()) other.send(packet);
+            });
+        } catch (org.domi.furnace.server.chat.ProfilePublicKey.ValidationException e) {
+            log.error("Failed to validate profile key: {}", e.getMessage());
+            kick(ctx, e.component());
+        }
+    }
+
+    /** chat_command(서명 없음): 바닐라 performUnsignedChatCommand. */
     private void handleChatCommand(String command) {
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
-        for (int i = 0; i < command.length(); i++) {
-            char c = command.charAt(i);
-            if (c == '\u00a7' || c < ' ' || c == 127) {
-                kick(ctx, Text.translatable("multiplayer.disconnect.illegal_characters"));
+        tryHandleChat(command, () -> {
+            log.info("{} issued server command: /{}", p.name(), command);
+            var source = org.domi.furnace.server.command.CommandSource.player(core, p);
+            var parse = core.commands().getDispatcher().parse(command, source);
+            if (core.enforceSecureProfile() && org.domi.furnace.server.command.SignableCommand.hasSignableArguments(parse)) {
+                log.error("Received unsigned command packet from {}, but the command requires signable arguments: {}", p.name(), command);
+                p.sendSystemMessage(Text.translatable("chat.disabled.invalid_command_signature").color("red"), false);
+            } else {
+                core.commands().performCommand(parse, command);
+            }
+            detectRateSpam();
+        });
+    }
+
+    /** chat_command_signed: 바닐라 performSignedChatCommand — 인자 서명을 검증해 서명된 메시지로 명령에 넘긴다. */
+    private void handleSignedChatCommand(ByteBuf frame) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        String command = Types.readString(frame, 256);
+        java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
+        long salt = frame.readLong();
+        int n = Types.readVarInt(frame);
+        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("인자 서명 개수 오류: " + n);
+        java.util.LinkedHashMap<String, org.domi.furnace.server.chat.MessageSignature> sigs = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < n; i++) sigs.put(Types.readString(frame, 16), org.domi.furnace.server.chat.MessageSignature.read(frame));
+        var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
+        var lastSeen = unpackAndApplyLastSeen(update);
+        if (lastSeen.isEmpty()) return;
+        tryHandleChat(command, () -> {
+            log.info("{} issued server command: /{}", p.name(), command);
+            var source = org.domi.furnace.server.command.CommandSource.player(core, p);
+            var parse = core.commands().getDispatcher().parse(command, source);
+            java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> signed;
+            try {
+                signed = collectSignedArguments(command, sigs, org.domi.furnace.server.command.SignableCommand.of(parse), timeStamp, salt, lastSeen.get());
+            } catch (org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
+                handleMessageDecodeFailure(e);
                 return;
             }
+            // 서명된 인자를 담은 소스로 다시 파싱한다(바닐라 Commands.mapSource 와 같은 효과).
+            core.commands().performCommand(core.commands().getDispatcher().parse(command, source.withSignedArguments(signed)), command);
+            detectRateSpam();
+        });
+    }
+
+    private java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> collectSignedArguments(
+            String command, java.util.Map<String, org.domi.furnace.server.chat.MessageSignature> sigs,
+            org.domi.furnace.server.command.SignableCommand signable, java.time.Instant timeStamp, long salt,
+            org.domi.furnace.server.chat.LastSeenMessages lastSeen) throws org.domi.furnace.server.chat.SignedMessageChain.DecodeException {
+        var decoder = player.chat().decoder();
+        java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> out = new java.util.HashMap<>();
+        if (sigs.isEmpty()) {
+            for (var a : signable.arguments()) {
+                out.put(a.name(), decoder.unpack(null, org.domi.furnace.server.chat.SignedMessageBody.unsigned(a.value())));
+            }
+            return out;
         }
-        log.info("{} issued server command: /{}", p.name(), command);
-        core.scheduler().global().execute(() -> core.commands().performPrefixedCommand(
-                org.domi.furnace.server.command.CommandSource.player(core, p), command));
+        for (var e : sigs.entrySet()) {
+            var arg = signable.get(e.getKey());
+            if (arg == null) {
+                decoder.setChainBroken();
+                throw signedCommandMismatch(command, sigs, signable);
+            }
+            out.put(arg.name(), decoder.unpack(e.getValue(),
+                    new org.domi.furnace.server.chat.SignedMessageBody(arg.value(), timeStamp, salt, lastSeen)));
+        }
+        for (var a : signable.arguments()) if (!out.containsKey(a.name())) throw signedCommandMismatch(command, sigs, signable);
+        return out;
+    }
+
+    private static org.domi.furnace.server.chat.SignedMessageChain.DecodeException signedCommandMismatch(
+            String command, java.util.Map<String, ?> sigs, org.domi.furnace.server.command.SignableCommand signable) {
+        String got = String.join(", ", sigs.keySet());
+        String expected = String.join(", ", signable.arguments().stream().map(org.domi.furnace.server.command.SignableCommand.Argument::name).toList());
+        log.error("Signed command mismatch between server and client ('{}'): got [{}] from client, but expected [{}]", command, got, expected);
+        return new org.domi.furnace.server.chat.SignedMessageChain.DecodeException(
+                Text.translatable("chat.disabled.invalid_command_signature").color("red"));
     }
 
     /** 바닐라 handleCustomCommandSuggestions — 서버 측 자동완성(ask_server 노드). */
@@ -469,7 +636,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
             Player p = this.player;
             if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
-            Types.readVarInt(frame);                     // chat mode
+            this.chatVisibility = Types.readVarInt(frame); // chat mode: 0 전부, 1 시스템만, 2 숨김
+            if (p != null) p.chat().visibility(chatVisibility);
             frame.readBoolean();                         // chat colors
             frame.readUnsignedByte();                    // displayed skin parts
             Types.readVarInt(frame);                     // main hand
@@ -492,7 +660,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         int effVd = effectiveViewDistance();
         // 바닐라처럼 서버의 view distance를 보낸다(클라 렌더 거리는 min(자기 설정, 이 값)). 스트리밍은 effVd(= min(서버, 클라 요청))로 한다.
-        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
+        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance(),
+                login.core != null && login.core.enforceSecureProfile()));
         send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
         send(ctx, PlayerAbilities.creative());
         org.domi.furnace.server.ServerCore core = login.core;
@@ -532,6 +701,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
         p.profileProperties(profileProperties);
         p.allowsListing(clientAllowsListing);
+        if (login.core != null) {
+            org.domi.furnace.server.ServerCore core0 = login.core;
+            p.chat(new org.domi.furnace.server.chat.PlayerChatState(playerUuid, core0::enforceSecureProfile));
+        }
+        p.chat().visibility(chatVisibility);
         p.remoteAddress(clientAddress(ctx));
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
@@ -651,8 +825,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
+            case 0x03 -> handleChatAck(Types.readVarInt(frame));                    // chat_ack
             case 0x04 -> handleChatCommand(Types.readString(frame, 256));          // chat_command
-            case 0x05 -> handleChatCommand(readSignedCommand(frame));               // chat_command_signed(서명 검증은 2-5)
+            case 0x05 -> handleSignedChatCommand(frame);                            // chat_command_signed
+            case 0x06 -> handleChat(frame);                                         // chat
+            case 0x07 -> handleChatSessionUpdate(org.domi.furnace.server.chat.RemoteChatSession.Data.read(frame)); // chat_session_update
             case 0x0B -> handleCommandSuggestion(Types.readVarInt(frame), Types.readString(frame, 32500));
             case 0x18 -> { // Keep Alive (serverbound)
                 long echoed = frame.readLong();

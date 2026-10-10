@@ -145,7 +145,7 @@ public final class ServerLoginContext {
         version.addProperty("protocol", 767);
         o.add("version", version);
         if (favicon != null) o.addProperty("favicon", favicon);
-        o.addProperty("enforcesSecureChat", enforceSecureChat);
+        o.addProperty("enforcesSecureChat", core != null ? core.enforceSecureProfile() : enforceSecureChat);
         return o.toString();
     }
 }

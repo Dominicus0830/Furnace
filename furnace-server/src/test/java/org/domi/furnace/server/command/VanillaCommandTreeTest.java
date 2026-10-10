@@ -42,16 +42,7 @@ class VanillaCommandTreeTest {
         boolean executable() { return (flags & 4) != 0; }
     }
 
-    static ServerCore core(Path tmp, FurnaceSchedulerImpl sched) {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
-                reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
-        world.worldDir(tmp);
-        ServerPropertiesFile settings = new ServerPropertiesFile(tmp.resolve("server.properties"));
-        PlayerLists lists = new PlayerLists(tmp, settings);
-        LevelData level = LevelData.create("world", 1234L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of("vanilla"), List.of());
-        return new ServerCore(settings, lists, new GameProfileCache(ProfileLookup.NONE, tmp.resolve("usercache.json")), world, level, sched);
-    }
+    static ServerCore core(Path tmp, FurnaceSchedulerImpl sched) { return org.domi.furnace.server.TestServers.core(tmp, sched); }
 
     private static List<Node> decode(CommandTreePacket p, int[] rootOut) {
         ByteBuf b = Unpooled.buffer();
@@ -146,11 +137,11 @@ class VanillaCommandTreeTest {
                 checked++;
             }
             assertTrue(checked >= 18, "검사한 명령 수 " + checked);
-            // 권한 0 이면 help·list 만
+            // 권한 0 이면 help·list·me·msg·tell·w 만(바닐라와 같다)
             List<Node> guest = decode(core.commands().treeFor(CommandSource.forProfile(core, "Guest", 0)), root);
             TreeSet<String> names = new TreeSet<>();
             for (int c : guest.get(root[0]).children()) names.add(guest.get(c).name());
-            assertEquals(new TreeSet<>(List.of("help", "list")), names);
+            assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "tell", "w")), names);
         } finally {
             sched.close();
         }
