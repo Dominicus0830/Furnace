@@ -11,13 +11,17 @@ final class BuiltinCommands {
 
     static void registerAll(CommandDispatcher<CommandSource> d) {
         // 바닐라 Commands 생성자 순서(공통 → 전용 서버 전용). 아직 없는 명령은 기능과 함께 제자리에 끼운다.
+        org.domi.furnace.server.command.builtin.WorldCommands.registerDifficulty(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMe(d);
+        org.domi.furnace.server.command.builtin.WorldCommands.registerGameRule(d);
         ServerCommands.registerHelp(d);
         ServerCommands.registerKick(d);
         ServerCommands.registerList(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMsg(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerSay(d);
         ServerCommands.registerSeed(d);
+        org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);
+        org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);
         // 전용 서버 전용
         PlayerListCommands.registerBanIp(d);
         PlayerListCommands.registerBanList(d);

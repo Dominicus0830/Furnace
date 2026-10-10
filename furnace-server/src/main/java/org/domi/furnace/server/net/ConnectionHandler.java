@@ -660,9 +660,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         int effVd = effectiveViewDistance();
         // 바닐라처럼 서버의 view distance를 보낸다(클라 렌더 거리는 min(자기 설정, 이 값)). 스트리밍은 effVd(= min(서버, 클라 요청))로 한다.
-        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance(),
-                login.core != null && login.core.enforceSecureProfile()));
-        send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
+        org.domi.furnace.server.ServerCore coreJ = login.core;
+        if (coreJ != null) {
+            var props = coreJ.settings().get();
+            var rules = coreJ.gameRules();
+            var level = coreJ.levelData();
+            send(ctx, new LoginPlay(eid, level.hardcore, java.util.List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"),
+                    props.maxPlayers, world.viewDistance(), props.simulationDistance, rules.getBoolean("reducedDebugInfo"),
+                    !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, "minecraft:overworld",
+                    LoginPlay.obfuscateSeed(level.seed), org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.DEFAULT_GAME_MODE, -1, false, coreJ.enforceSecureProfile()));
+            send(ctx, new ChangeDifficulty(level.difficulty.id(), level.difficultyLocked));
+        } else {
+            send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
+            send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
+        }
         send(ctx, PlayerAbilities.creative());
         org.domi.furnace.server.ServerCore core = login.core;
         if (core != null) {
@@ -690,7 +701,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
         send(ctx, InitializeBorder.vanillaDefault());
-        send(ctx, new SetTime(world.gameTime(), world.dayTime()));
+        if (coreJ != null) {
+            // 바닐라 sendLevelInfo: 시간, 그리고 비가 오면 비 시작 + 비·천둥 강도
+            send(ctx, coreJ.clock().timePacket(coreJ.gameRules()));
+            if (coreJ.clock().isRaining()) {
+                send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
+                send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, coreJ.clock().rainLevel()));
+                send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, coreJ.clock().thunderLevel()));
+            }
+        } else {
+            send(ctx, new SetTime(world.gameTime(), world.dayTime()));
+        }
         // 서버가 아는 인벤토리·선택 슬롯을 클라이언트에도 맞춘다(안 보내면 클라는 빈 손인데 서버는 아이템을 들고 있다).
         send(ctx, new ContainerSetContent(0, 0, copySlots(), ItemStack.EMPTY));
         send(ctx, new SetHeldSlot(selectedSlot));
@@ -734,7 +755,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
-        scheduleTimeUpdate(ctx);
+        if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
     }
 

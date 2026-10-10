@@ -30,6 +30,8 @@ public final class ServerCore {
     private final FurnaceScheduler scheduler;
     private final Commands commands;
     private final org.domi.furnace.server.chat.ServicesKeys servicesKeys = new org.domi.furnace.server.chat.ServicesKeys();
+    private final org.domi.furnace.server.world.GameRules gameRules;
+    private final org.domi.furnace.server.world.WorldClock clock;
     private volatile Runnable halt = () -> {};
     private volatile Runnable saveAll = () -> {};
 
@@ -41,6 +43,11 @@ public final class ServerCore {
         this.world = world;
         this.levelData = levelData;
         this.scheduler = scheduler;
+        this.gameRules = org.domi.furnace.server.world.GameRules.fromStrings(levelData.gameRules);
+        this.gameRules.onChange(this::onGameRuleChanged);
+        this.clock = world.clock();
+        this.clock.restore(levelData.gameTime, levelData.dayTime, levelData.clearWeatherTime, levelData.rainTime,
+                levelData.thunderTime, levelData.raining, levelData.thundering);
         this.commands = new Commands(this);
     }
 
@@ -59,6 +66,54 @@ public final class ServerCore {
     public Commands commands() { return commands; }
 
     public org.domi.furnace.server.chat.ServicesKeys servicesKeys() { return servicesKeys; }
+
+    public org.domi.furnace.server.world.GameRules gameRules() { return gameRules; }
+
+    public org.domi.furnace.server.world.WorldClock clock() { return clock; }
+
+    /** 전역 틱(20TPS): 시간·날씨 진행과 주기적 시간 동기화. */
+    public void tick() {
+        clock.tick(gameRules, packet -> { for (Player p : players()) p.send(packet); });
+    }
+
+    /** level.dat 저장 전에 런타임 상태를 LevelData 에 반영한다. */
+    public void writeLevelData() {
+        levelData.gameTime = clock.gameTime();
+        levelData.dayTime = clock.dayTime();
+        levelData.clearWeatherTime = clock.clearWeatherTime();
+        levelData.rainTime = clock.rainTime();
+        levelData.thunderTime = clock.thunderTime();
+        levelData.raining = clock.rainingFlag();
+        levelData.thundering = clock.thunderingFlag();
+        levelData.gameRules.clear();
+        levelData.gameRules.putAll(gameRules.toStrings());
+    }
+
+    /** 게임룰이 바뀌었을 때 바닐라가 즉시 알리는 것들. */
+    private void onGameRuleChanged(org.domi.furnace.server.world.GameRules.Rule rule, int value) {
+        switch (rule.name()) {
+            case "reducedDebugInfo" -> {
+                for (Player p : players()) p.send(new EntityEvent(p.entityId(), (byte) (value != 0 ? 22 : 23)));
+            }
+            case "doLimitedCrafting" -> {
+                for (Player p : players()) p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(
+                        org.domi.furnace.server.net.protocol.play.GameEvent.LIMITED_CRAFTING, value != 0 ? 1f : 0f));
+            }
+            case "doImmediateRespawn" -> {
+                for (Player p : players()) p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(
+                        org.domi.furnace.server.net.protocol.play.GameEvent.IMMEDIATE_RESPAWN, value != 0 ? 1f : 0f));
+            }
+            default -> { }
+        }
+    }
+
+    /** 바닐라 MinecraftServer.setDifficulty: 하드코어면 HARD 고정, 바뀐 값을 모두에게 알린다. */
+    public void setDifficulty(org.domi.furnace.server.world.Difficulty difficulty, boolean ignoreLock) {
+        if (!ignoreLock && levelData.difficultyLocked) return;
+        levelData.difficulty = levelData.hardcore ? org.domi.furnace.server.world.Difficulty.HARD : difficulty;
+        var packet = new org.domi.furnace.server.net.protocol.play.ChangeDifficulty(levelData.difficulty.id(), levelData.difficultyLocked);
+        for (Player p : players()) p.send(packet);
+    }
 
     /** 바닐라 DedicatedServer.enforceSecureProfile: 설정이 켜져 있고 온라인 모드이며 Mojang 프로필 키를 검증할 수 있을 때. */
     public boolean enforceSecureProfile() {
@@ -157,9 +212,7 @@ public final class ServerCore {
     /** 바닐라 getProfilePermissions: OP 목록의 레벨, 아니면 0. */
     public int profilePermissions(GameProfile profile) { return lists.opLevel(profile); }
 
-    public boolean gameRule(String name) {
-        return Boolean.parseBoolean(levelData.gameRules.getOrDefault(name, LevelData.DEFAULT_GAME_RULES.getOrDefault(name, "false")));
-    }
+    public boolean gameRule(String name) { return gameRules.getBoolean(name); }
 
     /** OP 변경 후: 그 플레이어에게 권한 레벨과 명령 트리를 다시 보낸다(바닐라 sendPlayerPermissionLevel). */
     public void sendPlayerPermissionLevel(Player p) {

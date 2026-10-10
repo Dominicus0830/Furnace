@@ -183,13 +183,20 @@ public final class FurnaceMain {
         var defaultSpawn = new org.domi.furnace.server.world.SpawnPoint(
                 levelData.spawnX, levelData.spawnY, levelData.spawnZ, levelData.spawnAngle);
         world.defaultSpawn(defaultSpawn);
-        world.restoreClock(levelData.gameTime, levelData.dayTime);
+        world.clock().restore(levelData.gameTime, levelData.dayTime, levelData.clearWeatherTime, levelData.rainTime,
+                levelData.thunderTime, levelData.raining, levelData.thundering);
+        final java.util.concurrent.atomic.AtomicReference<ServerCore> coreRef = new java.util.concurrent.atomic.AtomicReference<>();
         chunkCodec.gameTime(world::gameTime);
         final LevelData level = levelData;
         Runnable saveLevelData = () -> {
             synchronized (level) {
-                level.gameTime = world.gameTime();
-                level.dayTime = world.dayTime();
+                ServerCore c = coreRef.get();
+                if (c != null) {
+                    c.writeLevelData();
+                } else {
+                    level.gameTime = world.gameTime();
+                    level.dayTime = world.dayTime();
+                }
                 try {
                     storage.saveLevelData(level);
                 } catch (java.io.IOException e) {
@@ -207,6 +214,7 @@ public final class FurnaceMain {
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
+        coreRef.set(core);
         loginContext.core(core);
         core.servicesKeys().fetchAsync();
         core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
@@ -266,6 +274,8 @@ public final class FurnaceMain {
             if (world.autosaveEnabled()) saveLevelData.run();
         }, config.autosaveTicks()), config.autosaveTicks());
         ConsoleInput.start(core);
+        // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분).
+        scheduler.global().executeDelayed(new Repeating(scheduler, core::tick, 1), 1);
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler), 100);

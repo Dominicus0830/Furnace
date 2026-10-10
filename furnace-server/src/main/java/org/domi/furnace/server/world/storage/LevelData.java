@@ -41,6 +41,8 @@ public final class LevelData {
     public List<String> enabledPacks;
     public List<String> disabledPacks;
     public final List<String> serverBrands = new java.util.ArrayList<>();
+    public int clearWeatherTime, rainTime, thunderTime;
+    public boolean raining, thundering;
     public boolean wasModded;
 
     private LevelData(NbtCompound raw) {
@@ -96,6 +98,11 @@ public final class LevelData {
         d.enabledPacks = packs != null && packs.contains("Enabled") ? strings(packs.getList("Enabled")) : List.of("vanilla");
         d.disabledPacks = packs != null && packs.contains("Disabled") ? strings(packs.getList("Disabled")) : List.of();
         if (data.contains("ServerBrands")) d.serverBrands.addAll(strings(data.getList("ServerBrands")));
+        d.clearWeatherTime = num(data, "clearWeatherTime", 0).intValue();
+        d.rainTime = num(data, "rainTime", 0).intValue();
+        d.thunderTime = num(data, "thunderTime", 0).intValue();
+        d.raining = bool(data, "raining", false);
+        d.thundering = bool(data, "thundering", false);
         d.wasModded = bool(data, "WasModded", false);
         return d;
     }
@@ -147,11 +154,11 @@ public final class LevelData {
         d.putList("ServerBrands", stringList(serverBrands));
         d.put("WasModded", b(wasModded));
         // 아직 런타임이 다루지 않는 상태는 처음 만들 때만 바닐라 기본값으로 채우고, 이후로는 읽은 값을 보존한다.
-        putIfAbsent(d, "clearWeatherTime", 0);
-        putIfAbsent(d, "raining", b(false));
-        putIfAbsent(d, "rainTime", 0);
-        putIfAbsent(d, "thundering", b(false));
-        putIfAbsent(d, "thunderTime", 0);
+        d.putInt("clearWeatherTime", clearWeatherTime);
+        d.put("raining", b(raining));
+        d.putInt("rainTime", rainTime);
+        d.put("thundering", b(thundering));
+        d.putInt("thunderTime", thunderTime);
         putIfAbsent(d, "BorderCenterX", 0.0);
         putIfAbsent(d, "BorderCenterZ", 0.0);
         putIfAbsent(d, "BorderSize", 5.9999968E7);

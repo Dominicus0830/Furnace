@@ -58,7 +58,7 @@ class VanillaCommandTreeTest {
             JsonObject props = null;
             if ((flags & 3) != 0) name = Types.readString(b, 32767);
             if ((flags & 3) == 2) {
-                parser = ArgumentNames.byId(Types.readVarInt(b));
+                parser = ArgumentTypeIds.nameOf(Types.readVarInt(b));
                 props = readProps(parser, b);
                 if ((flags & 0x10) != 0) Types.readString(b, 32767);
             }
@@ -76,6 +76,7 @@ class VanillaCommandTreeTest {
             case "brigadier:long" -> { int f = b.readByte(); if ((f & 1) != 0) o.addProperty("min", b.readLong()); if ((f & 2) != 0) o.addProperty("max", b.readLong()); }
             case "brigadier:float" -> { int f = b.readByte(); if ((f & 1) != 0) o.addProperty("min", b.readFloat()); if ((f & 2) != 0) o.addProperty("max", b.readFloat()); }
             case "brigadier:double" -> { int f = b.readByte(); if ((f & 1) != 0) o.addProperty("min", b.readDouble()); if ((f & 2) != 0) o.addProperty("max", b.readDouble()); }
+            case "minecraft:time" -> o.addProperty("min", b.readInt());
             case "brigadier:string" -> o.addProperty("type", new String[]{"word", "phrase", "greedy"}[Types.readVarInt(b)]);
             case "minecraft:entity" -> {
                 int f = b.readByte();
@@ -144,18 +145,6 @@ class VanillaCommandTreeTest {
             assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "tell", "w")), names);
         } finally {
             sched.close();
-        }
-    }
-
-    /** 테스트용 역방향 id 표. */
-    static final class ArgumentNames {
-        static String byId(int id) {
-            String[] all = {
-                    "brigadier:bool", "brigadier:float", "brigadier:double", "brigadier:integer", "brigadier:long", "brigadier:string",
-                    "minecraft:entity", "minecraft:game_profile", "minecraft:block_pos", "minecraft:column_pos", "minecraft:vec3",
-                    "minecraft:vec2", "minecraft:block_state", "minecraft:block_predicate", "minecraft:item_stack",
-                    "minecraft:item_predicate", "minecraft:color", "minecraft:component", "minecraft:style", "minecraft:message"};
-            return id < all.length ? all[id] : "id:" + id;
         }
     }
 }

@@ -1,24 +1,39 @@
-// S→C play 진입 패킷. 엔티티 id·차원·게임모드 등 세션 초기 상태를 알린다(1.20.5+ 포맷, NBT 없음).
+// S→C play 진입 패킷(1.20.5+ 포맷) — 바닐라 PlayerList.placeNewPlayer 가 채우는 값들.
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import java.util.List;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /**
- * @param entityId        플레이어 엔티티 id
- * @param dimensionName   차원 식별자(예: "minecraft:overworld")
- * @param dimensionType   dimension_type 레지스트리 내 인덱스(VarInt)
- * @param viewDistance    서버가 실제 전송하는 청크 반경(클라 렌더 클램프). 전송량과 일치해야 공허 링이 안 생긴다.
+ * @param levels        서버의 모든 차원 이름(바닐라 levelKeys: overworld, the_nether, the_end)
+ * @param viewDistance  서버 view-distance(클라 렌더 거리 상한)
+ * @param hashedSeed    BiomeManager.obfuscateSeed(시드) — 클라 바이옴 블렌딩용
  */
-public record LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance, boolean enforcesSecureChat)
-        implements Packet {
-
-    public LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance) {
-        this(entityId, dimensionName, dimensionType, viewDistance, false);
-    }
+public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int maxPlayers, int viewDistance,
+                        int simulationDistance, boolean reducedDebugInfo, boolean showDeathScreen, boolean doLimitedCrafting,
+                        int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,
+                        boolean flat, boolean enforcesSecureChat) implements Packet {
 
     public static final int ID = 0x2B;
+
+    /** 예전 호출부(테스트)용: 기본값으로 채운다. */
+    public LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance) {
+        this(entityId, false, List.of(dimensionName), 20, viewDistance, viewDistance, false, true, false,
+                dimensionType, dimensionName, 0L, 1, -1, false, false);
+    }
+
+    /** BiomeManager.obfuscateSeed: SHA-256(시드, little-endian long) 앞 8바이트를 little-endian long 으로. */
+    public static long obfuscateSeed(long seed) {
+        try {
+            byte[] in = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(seed).array();
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(in);
+            return java.nio.ByteBuffer.wrap(h, 0, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).getLong();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     @Override
     public int id() {
@@ -27,25 +42,25 @@ public record LoginPlay(int entityId, String dimensionName, int dimensionType, i
 
     @Override
     public void write(ByteBuf buf) {
-        buf.writeInt(entityId);          // Entity ID
-        buf.writeBoolean(false);         // Is hardcore
-        Types.writeVarInt(buf, 1);       // Dimension count
-        Types.writeString(buf, dimensionName); // Dimension names[0]
-        Types.writeVarInt(buf, 20);      // Max players (무시됨)
-        Types.writeVarInt(buf, viewDistance);      // View distance(전송량과 일치)
-        Types.writeVarInt(buf, viewDistance);      // Simulation distance
-        buf.writeBoolean(false);         // Reduced debug info
-        buf.writeBoolean(true);          // Enable respawn screen
-        buf.writeBoolean(false);         // Do limited crafting
-        Types.writeVarInt(buf, dimensionType); // Dimension type (registry index)
-        Types.writeString(buf, dimensionName); // Dimension name
-        buf.writeLong(0L);               // Hashed seed
-        buf.writeByte(1);                // Game mode (1 = creative)
-        buf.writeByte(-1);               // Previous game mode (-1 = none)
-        buf.writeBoolean(false);         // Is debug
-        buf.writeBoolean(true);          // Is flat
-        buf.writeBoolean(false);         // Has death location
-        Types.writeVarInt(buf, 0);       // Portal cooldown
-        buf.writeBoolean(enforcesSecureChat); // Enforces secure chat
+        buf.writeInt(entityId);
+        buf.writeBoolean(hardcore);
+        Types.writeVarInt(buf, levels.size());
+        for (String l : levels) Types.writeString(buf, l);
+        Types.writeVarInt(buf, maxPlayers);
+        Types.writeVarInt(buf, viewDistance);
+        Types.writeVarInt(buf, simulationDistance);
+        buf.writeBoolean(reducedDebugInfo);
+        buf.writeBoolean(showDeathScreen);
+        buf.writeBoolean(doLimitedCrafting);
+        Types.writeVarInt(buf, dimensionType);
+        Types.writeString(buf, dimensionName);
+        buf.writeLong(hashedSeed);
+        buf.writeByte(gameMode);
+        buf.writeByte(previousGameMode);
+        buf.writeBoolean(false);         // is debug
+        buf.writeBoolean(flat);
+        buf.writeBoolean(false);         // death location 없음
+        Types.writeVarInt(buf, 0);       // portal cooldown
+        buf.writeBoolean(enforcesSecureChat);
     }
 }

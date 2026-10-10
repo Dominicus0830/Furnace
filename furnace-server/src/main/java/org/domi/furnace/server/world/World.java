@@ -158,27 +158,14 @@ public final class World {
     public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
 
     // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
-    // level.dat 의 Time/DayTime 에서 이어 간다(restoreClock). 20틱 = 1초.
-    private volatile long clockStartNanos = System.nanoTime();
-    private volatile long clockStartGameTime = 0L;
-    private volatile long clockStartDayTime = 0L;
+    // 시간·날씨: 전역 틱(ServerCore.tick)이 진행한다.
+    private final WorldClock clock = new WorldClock();
 
-    /** level.dat 에서 읽은 시각부터 시계를 다시 잰다(기동 시 한 번). */
-    public void restoreClock(long gameTime, long dayTime) {
-        clockStartGameTime = gameTime;
-        clockStartDayTime = dayTime;
-        clockStartNanos = System.nanoTime();
-    }
+    public WorldClock clock() { return clock; }
 
-    /** 서버가 켜진 뒤 경과한 게임 시간(틱). */
-    public long gameTime() {
-        return clockStartGameTime + (System.nanoTime() - clockStartNanos) / 50_000_000L;
-    }
+    public long gameTime() { return clock.gameTime(); }
 
-    /** 하루 시간(틱, 누적값; 클라이언트가 24000으로 나눠 쓴다). daylight cycle은 항상 진행. */
-    public long dayTime() {
-        return clockStartDayTime + (System.nanoTime() - clockStartNanos) / 50_000_000L;
-    }
+    public long dayTime() { return clock.dayTime(); }
 
     // 접속 중 플레이어(eid→Player). 탭 목록은 바닐라처럼 거리와 무관하게 이 집합 전체를 기준으로 한다.
     private final ConcurrentHashMap<Integer, Player> online = new ConcurrentHashMap<>();

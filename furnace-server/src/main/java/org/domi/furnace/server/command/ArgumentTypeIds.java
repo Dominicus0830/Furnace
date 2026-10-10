@@ -28,6 +28,8 @@ public final class ArgumentTypeIds {
 
     private ArgumentTypeIds() {}
 
+    public static String nameOf(int id) { return id >= 0 && id < ORDER.length ? ORDER[id] : "id:" + id; }
+
     public static int idOf(String name) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalArgumentException("알 수 없는 인자 타입: " + name);

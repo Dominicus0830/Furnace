@@ -75,6 +75,31 @@ class ConsoleCommandsTest {
     }
 
     @Test
+    void timeWeatherDifficultyGamerule() {
+        assertEquals(List.of("Set the time to 1000"), run("time set day"));
+        assertEquals(List.of("The time is 1000"), run("time query daytime"));
+        assertEquals(List.of("Set the time to 1500"), run("time add 25s"));
+        assertEquals(List.of("Set the time to 3500"), run("time add 2000t"));
+        assertEquals(List.of("Set the time to 3500"), run("time add 1d"));
+        assertEquals(List.of("The time is 1"), run("time query day"));
+        assertEquals(List.of("Invalid unit", "...me set 10x<--[HERE]"), run("time set 10x"));
+        assertEquals(List.of("Set the weather to rain"), run("weather rain 10s"));
+        assertTrue(core.clock().rainingFlag());
+        assertEquals(200, core.clock().rainTime());
+        assertEquals(List.of("Set the weather to clear"), run("weather clear"));
+        assertEquals(List.of("The difficulty is Easy"), run("difficulty"));
+        assertEquals(List.of("The difficulty has been set to Hard"), run("difficulty hard"));
+        assertEquals(List.of("The difficulty did not change; it is already set to hard"), run("difficulty hard"));
+        assertEquals(List.of("Gamerule doDaylightCycle is currently set to: true"), run("gamerule doDaylightCycle"));
+        assertEquals(List.of("Gamerule doDaylightCycle is now set to: false"), run("gamerule doDaylightCycle false"));
+        assertFalse(core.gameRules().getBoolean("doDaylightCycle"));
+        assertEquals(List.of("Gamerule randomTickSpeed is now set to: 10"), run("gamerule randomTickSpeed 10"));
+        assertEquals(List.of("Integer must not be more than 32, found 40", "...unkRadius 40<--[HERE]"), run("gamerule spawnChunkRadius 40"));
+        // 시간 정지면 SetTime 의 하루 시간이 음수
+        assertTrue(core.clock().timePacket(core.gameRules()).dayTime() < 0);
+    }
+
+    @Test
     void listHelpSeedAndErrors() {
         assertEquals(List.of("There are 0 of a max of 20 players online: "), run("list"));
         assertEquals(List.of("Seed: [1234]"), run("seed"));
