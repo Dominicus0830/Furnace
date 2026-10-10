@@ -53,6 +53,26 @@ public final class ServerCore {
         this.border.applySettings(levelData.worldBorder);
         this.border.addListener(new BorderBroadcaster());
         this.commands = new Commands(this);
+        this.pluginHost = new org.domi.furnace.server.plugin.PluginHost(this, java.nio.file.Path.of("plugins"));
+    }
+
+    private final org.domi.furnace.server.plugin.PluginHost pluginHost;
+
+    /** 플러그인 호스트(Furnace API 파사드·이벤트 버스·플러그인 관리자). */
+    public org.domi.furnace.server.plugin.PluginHost plugins() { return pluginHost; }
+
+    /** 이벤트 버스(구독자가 없으면 이벤트 객체를 만들지 않도록 hasSubscribers 로 먼저 묻는다). */
+    public org.domi.furnace.server.plugin.EventBusImpl events() { return pluginHost.eventsImpl(); }
+
+    /** 콘솔 명령(ServerCommandEvent → 실행). */
+    public void runConsoleCommand(String command) {
+        var events = events();
+        if (events.hasSubscribers(org.domi.furnace.api.event.server.ServerCommandEvent.class)) {
+            var ev = events.call(new org.domi.furnace.api.event.server.ServerCommandEvent(pluginHost.console(), command));
+            if (ev.isCancelled()) return;
+            command = ev.command();
+        }
+        commands.performPrefixedCommand(org.domi.furnace.server.command.CommandSource.console(this), command);
     }
 
     public ServerPropertiesFile settings() { return settings; }
@@ -204,6 +224,20 @@ public final class ServerCore {
         public void broadcastSystemMessage(Text message) { ServerCore.this.broadcastSystemMessage(message, false); }
         public void broadcastAll(org.domi.furnace.server.net.protocol.Packet packet) { for (Player p : players()) p.send(packet); }
         public void broadcastToTrackers(int entityId, org.domi.furnace.server.net.protocol.Packet packet) { world.broadcastToTrackers(entityId, packet); }
+        public org.domi.furnace.server.entity.PlayerVitals.DeathOutcome death(Player player, Text message, boolean keepInventory) {
+            var events = events();
+            if (!events.hasSubscribers(org.domi.furnace.api.event.player.PlayerDeathEvent.class)) {
+                return new org.domi.furnace.server.entity.PlayerVitals.DeathOutcome(message, keepInventory, keepInventory);
+            }
+            var ev = events.call(new org.domi.furnace.api.event.player.PlayerDeathEvent(pluginHost.player(player), message, keepInventory));
+            return new org.domi.furnace.server.entity.PlayerVitals.DeathOutcome(ev.deathMessage(), ev.keepInventory(), ev.keepLevel());
+        }
+        public boolean allowGameModeChange(Player player, org.domi.furnace.server.world.GameMode mode) {
+            var events = events();
+            if (!events.hasSubscribers(org.domi.furnace.api.event.player.PlayerGameModeChangeEvent.class)) return true;
+            return !events.call(new org.domi.furnace.api.event.player.PlayerGameModeChangeEvent(pluginHost.player(player),
+                    org.domi.furnace.api.entity.GameMode.byId(mode.id()))).isCancelled();
+        }
         public float borderDamage(double x, double y, double z) {
             return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }

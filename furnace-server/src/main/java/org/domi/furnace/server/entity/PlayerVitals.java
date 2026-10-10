@@ -46,6 +46,14 @@ public final class PlayerVitals {
         /** 이 엔티티를 추적(화면에 보고) 중인 다른 플레이어에게 패킷. */
         void broadcastToTrackers(int entityId, Packet packet);
 
+        /** 사망 직전(플러그인 PlayerDeathEvent) — 메시지(null = 알리지 않음)·인벤토리·경험치 유지를 바꿀 수 있다. */
+        default DeathOutcome death(Player player, Text message, boolean keepInventory) {
+            return new DeathOutcome(message, keepInventory, keepInventory);
+        }
+
+        /** 게임 모드가 바뀌기 직전(플러그인 PlayerGameModeChangeEvent) — false 면 바꾸지 않는다. */
+        default boolean allowGameModeChange(Player player, GameMode mode) { return true; }
+
         /** 월드 보더 밖 피해량(0 = 없음). */
         default float borderDamage(double x, double y, double z) { return 0f; }
 
@@ -58,6 +66,9 @@ public final class PlayerVitals {
             public void broadcastToTrackers(int entityId, Packet packet) {}
         };
     }
+
+    /** 사망 처리 결과. */
+    public record DeathOutcome(Text message, boolean keepInventory, boolean keepLevel) {}
 
     /** 죽을 때 소유 연결이 할 일(인벤토리 비우기 등). netty 이벤트 루프로 넘겨 실행된다. */
     public interface DeathListener {
@@ -225,6 +236,10 @@ public final class PlayerVitals {
      * 바닐라 ServerPlayer.setGameMode: 같으면 false. 바꾸면 능력 → 탭 목록(전원) → 게임 이벤트 3 → 능력 순으로 알린다.
      */
     public boolean setGameMode(GameMode mode) {
+        synchronized (this) {
+            if (mode == gameMode) return false;
+        }
+        if (!env.allowGameModeChange(player, mode)) return false;
         Packet abilitiesPkt;
         synchronized (this) {
             if (mode == gameMode) return false;
@@ -263,11 +278,11 @@ public final class PlayerVitals {
 
     public synchronized float fallDistance() { return fallDistance; }
 
-    private void setHealth(float h) { health = Math.clamp(h, 0.0f, MAX_HEALTH); }
+    private void setHealthRaw(float h) { health = Math.clamp(h, 0.0f, MAX_HEALTH); }
 
     /** 바닐라 LivingEntity.heal: 살아 있을 때만. */
     public synchronized void heal(float amount) {
-        if (health > 0.0f) setHealth(health + amount);
+        if (health > 0.0f) setHealthRaw(health + amount);
     }
 
     /** 바닐라 Player.causeFoodExhaustion: 무적 능력이면 무시. */
@@ -329,7 +344,7 @@ public final class PlayerVitals {
         if (afterAbsorb != 0.0f) {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
             combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0);
-            setHealth(health - afterAbsorb);
+            setHealthRaw(health - afterAbsorb);
         }
     }
 
@@ -353,18 +368,37 @@ public final class PlayerVitals {
             lastDeathDimension = "minecraft:overworld";
             lastDeathPos = new int[]{(int) Math.floor(player.x()), (int) Math.floor(player.y()), (int) Math.floor(player.z())};
         }
-        if (message != null) {
-            player.send(new PlayerCombatKill(player.entityId(), message));
-            env.broadcastSystemMessage(message);
+        DeathOutcome outcome = env.death(player, message, keepInventory);
+        synchronized (this) {
+            keepLevelOnRespawn = outcome.keepLevel();
+        }
+        if (outcome.message() != null) {
+            player.send(new PlayerCombatKill(player.entityId(), outcome.message()));
+            env.broadcastSystemMessage(outcome.message());
         } else {
             player.send(new PlayerCombatKill(player.entityId(), Text.empty()));
         }
         DeathListener l = deathListener;
-        if (l != null && !spectator) l.onDeath(keepInventory);
+        if (l != null && !spectator) l.onDeath(outcome.keepInventory());
         Packet ev = new EntityEvent(player.entityId(), (byte) 3);
         player.send(ev);
         env.broadcastToTrackers(player.entityId(), ev);
     }
+
+    private boolean keepLevelOnRespawn;
+
+    /** 플러그인 API setHealth(CraftBukkit 과 같다): 0 이하로 내려 살아 있던 플레이어는 일반 사망 처리. */
+    public void setHealth(float h) {
+        boolean kill;
+        synchronized (this) {
+            boolean alive = health > 0.0f;
+            setHealthRaw(h);
+            kill = alive && health <= 0.0f;
+        }
+        if (kill) die(DamageType.GENERIC);
+    }
+
+    public synchronized void setFoodLevel(int food) { this.food.foodLevel(Math.clamp(food, 0, 20)); }
 
     // ------------------------------------------------------------------ 이동(낙하·소모)
 
@@ -673,10 +707,12 @@ public final class PlayerVitals {
 
     /**
      * 바닐라 PlayerList.respawn 의 새 ServerPlayer + copyFrom(keepEverything=false): 체력·허기·공기·낙하·전투 기록 초기화,
-     * keepInventory 이거나 관전자였으면 경험치·점수 유지, 게임 모드·스폰 지점·마지막 사망 위치·경험치 씨앗은 유지.
+     * 사망 때 정한 경험치 유지(keepInventory 게임룰 또는 PlayerDeathEvent.keepLevel)이거나 관전자였으면 경험치·점수 유지,
+     * 게임 모드·스폰 지점·마지막 사망 위치·경험치 씨앗은 유지.
      */
-    public synchronized void respawn(boolean keepInventory) {
-        boolean keepXp = keepInventory || gameMode == GameMode.SPECTATOR;
+    public synchronized void respawn() {
+        boolean keepXp = keepLevelOnRespawn || gameMode == GameMode.SPECTATOR;
+        keepLevelOnRespawn = false;
         health = MAX_HEALTH;
         absorption = 0;
         food = new FoodData();

@@ -1,0 +1,148 @@
+// 플러그인이 보는 서버(Furnace 파사드) — 이벤트·명령·권한·플러그인 관리자·스케줄러를 한데 묶는다.
+package org.domi.furnace.server.plugin;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.domi.furnace.api.Furnace;
+import org.domi.furnace.api.command.CommandRegistry;
+import org.domi.furnace.api.command.CommandSender;
+import org.domi.furnace.api.event.EventBus;
+import org.domi.furnace.api.permission.PermissionManager;
+import org.domi.furnace.api.plugin.FurnacePlugin;
+import org.domi.furnace.api.plugin.PluginManager;
+import org.domi.furnace.api.sched.FurnaceScheduler;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.entity.Player;
+
+public final class PluginHost implements Furnace {
+
+    private final ServerCore core;
+    private final EventBusImpl events = new EventBusImpl();
+    private final PermissionManagerImpl permissions = new PermissionManagerImpl();
+    private final CommandRegistryImpl commands = new CommandRegistryImpl(this);
+    private final ConsoleSender console;
+    private final PluginManagerImpl plugins;
+    private final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
+
+    public PluginHost(ServerCore core, Path pluginsDir) {
+        this.core = core;
+        this.console = new ConsoleSender(core, permissions);
+        this.plugins = new PluginManagerImpl(this, pluginsDir);
+    }
+
+    public ServerCore core() { return core; }
+
+    public EventBusImpl eventsImpl() { return events; }
+
+    PermissionManagerImpl permissionsImpl() { return permissions; }
+
+    CommandRegistryImpl commandsImpl() { return commands; }
+
+    public PluginManagerImpl pluginsImpl() { return plugins; }
+
+    /** 서버 플레이어의 API 손잡이(처음 요청할 때 만든다). */
+    public PlayerHandle player(Player p) {
+        Object h = p.apiHandle();
+        if (h instanceof PlayerHandle ph) return ph;
+        synchronized (p) {
+            if (!(p.apiHandle() instanceof PlayerHandle)) p.apiHandle(new PlayerHandle(p, this));
+            return (PlayerHandle) p.apiHandle();
+        }
+    }
+
+    /** 명령 소스 → API 발신자. */
+    CommandSender sender(CommandSource src) {
+        return src.getPlayer() != null ? player(src.getPlayer()) : console;
+    }
+
+    /** API 발신자 → 명령 소스. */
+    CommandSource source(CommandSender sender) {
+        if (sender instanceof PlayerHandle ph) return CommandSource.player(core, ph.handle());
+        return CommandSource.console(core);
+    }
+
+    /** 플러그인이 꺼질 때 그 플러그인이 남긴 권한 첨부를 모두 뗀다. */
+    void removeAttachments(FurnacePlugin plugin) {
+        console.perms().removeAttachments(plugin);
+        for (Player p : core.players()) if (p.apiHandle() instanceof PlayerHandle ph) ph.perms().removeAttachments(plugin);
+    }
+
+    // ------------------------------------------------------------------ Furnace
+
+    @Override
+    public String name() { return "Furnace"; }
+
+    @Override
+    public String version() {
+        String v = PluginHost.class.getPackage().getImplementationVersion();
+        return v != null ? v : "dev";
+    }
+
+    @Override
+    public String minecraftVersion() { return "1.21.1"; }
+
+    @Override
+    public Collection<PlayerHandle> onlinePlayers() {
+        List<PlayerHandle> out = new ArrayList<>();
+        for (Player p : core.players()) out.add(player(p));
+        return out;
+    }
+
+    @Override
+    public PlayerHandle player(UUID id) {
+        Player p = core.playerByUuid(id);
+        return p == null ? null : player(p);
+    }
+
+    @Override
+    public PlayerHandle player(String name) {
+        Player p = core.playerByName(name);
+        return p == null ? null : player(p);
+    }
+
+    @Override
+    public int maxPlayers() { return core.settings().get().maxPlayers; }
+
+    @Override
+    public Text motd() { return Text.text(core.settings().get().motd); }
+
+    @Override
+    public CommandSender console() { return console; }
+
+    @Override
+    public void broadcast(Text message) { core.broadcastSystemMessage(message, false); }
+
+    @Override
+    public boolean dispatchCommand(CommandSender sender, String commandLine) { return commands.dispatch(sender, commandLine); }
+
+    @Override
+    public FurnaceScheduler scheduler() { return core.scheduler(); }
+
+    @Override
+    public ExecutorService asyncExecutor() { return async; }
+
+    @Override
+    public EventBus events() { return events; }
+
+    @Override
+    public CommandRegistry commands() { return commands; }
+
+    @Override
+    public PermissionManager permissions() { return permissions; }
+
+    @Override
+    public PluginManager plugins() { return plugins; }
+
+    @Override
+    public void shutdown() { core.halt(); }
+
+    /** 서버 종료 마지막 — 비동기 실행기를 닫는다. */
+    public void close() { async.shutdown(); }
+}

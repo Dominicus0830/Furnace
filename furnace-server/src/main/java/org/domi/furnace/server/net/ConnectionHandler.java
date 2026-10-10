@@ -100,6 +100,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final byte[] verifyToken = java.nio.ByteBuffer.allocate(4).putInt(new java.security.SecureRandom().nextInt()).array();
     private boolean statusHandled;
     private boolean clientAllowsListing = true;
+    private volatile String clientLocale = "en_us";
     private int chatVisibility = org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_FULL;
     private int velocityMessageId;
     private java.net.InetSocketAddress forwardedAddress;   // Velocity 포워딩으로 받은 실제 주소          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
@@ -349,6 +350,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 return;
             }
             msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
+            var events = core.events();
+            if (events.hasSubscribers(org.domi.furnace.api.event.player.AsyncChatEvent.class)) {
+                Text original = msg.decoratedContent();
+                var ev = events.call(new org.domi.furnace.api.event.player.AsyncChatEvent(core.plugins().player(p), message, original));
+                if (ev.isCancelled()) {
+                    detectRateSpam();
+                    return;
+                }
+                if (!ev.message().equals(original)) msg = msg.withUnsignedContent(ev.message());
+            }
             core.broadcastChatMessage(msg, p, org.domi.furnace.server.chat.ChatType.CHAT.bind(
                     org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName()));
             detectRateSpam();
@@ -387,11 +398,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** chat_command(서명 없음): 바닐라 performUnsignedChatCommand. */
-    private void handleChatCommand(String command) {
+    /**
+     * PlayerCommandPreprocessEvent(구독자가 있을 때만): 취소면 null, 아니면 실행할 명령('/' 없이). 바뀐 명령은 서명 없이 실행된다.
+     */
+    private String preprocessCommand(org.domi.furnace.server.ServerCore core, Player p, String command) {
+        var events = core.events();
+        if (!events.hasSubscribers(org.domi.furnace.api.event.player.PlayerCommandPreprocessEvent.class)) return command;
+        var ev = events.call(new org.domi.furnace.api.event.player.PlayerCommandPreprocessEvent(core.plugins().player(p), "/" + command));
+        if (ev.isCancelled()) return null;
+        return ev.message().substring(1);
+    }
+
+    private void handleChatCommand(String rawCommand) {
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
-        tryHandleChat(command, () -> {
+        tryHandleChat(rawCommand, () -> {
+            String command = preprocessCommand(core, p, rawCommand);
+            if (command == null) {
+                detectRateSpam();
+                return;
+            }
             log.info("{} issued server command: /{}", p.name(), command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);
             var parse = core.commands().getDispatcher().parse(command, source);
@@ -421,7 +448,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var lastSeen = unpackAndApplyLastSeen(update);
         if (lastSeen.isEmpty()) return;
         tryHandleChat(command, () -> {
-            log.info("{} issued server command: /{}", p.name(), command);
+            String changed = preprocessCommand(core, p, command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);
             var parse = core.commands().getDispatcher().parse(command, source);
             java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> signed;
@@ -431,8 +458,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 handleMessageDecodeFailure(e);
                 return;
             }
-            // 서명된 인자를 담은 소스로 다시 파싱한다(바닐라 Commands.mapSource 와 같은 효과).
-            core.commands().performCommand(core.commands().getDispatcher().parse(command, source.withSignedArguments(signed)), command);
+            // 서명 체인은 원문으로 진행했다 — 플러그인이 취소했으면 여기서 끝, 바꿨으면 서명 없이 바뀐 명령을 실행한다.
+            if (changed == null) {
+                detectRateSpam();
+                return;
+            }
+            log.info("{} issued server command: /{}", p.name(), changed);
+            if (!changed.equals(command)) {
+                core.commands().performPrefixedCommand(source, changed);
+            } else {
+                // 서명된 인자를 담은 소스로 다시 파싱한다(바닐라 Commands.mapSource 와 같은 효과).
+                core.commands().performCommand(core.commands().getDispatcher().parse(command, source.withSignedArguments(signed)), command);
+            }
             detectRateSpam();
         });
     }
@@ -559,10 +596,39 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.playerName = profile.name();
         this.playerUuid = profile.id();
         this.profileProperties = profile.properties();
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.class)) {
+            // 플러그인이 블로킹 작업(DB 등)을 해도 되도록 가상 스레드에서 부르고, 결과를 들고 연결 스레드로 돌아온다.
+            java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
+            core.plugins().asyncExecutor().execute(() -> {
+                var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr));
+                ctx.channel().eventLoop().execute(() -> {
+                    if (!ctx.channel().isActive()) return;
+                    if (ev.result() != org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+                        disconnect(ctx, ev.kickMessage());
+                        return;
+                    }
+                    finishVerifying(ctx, profile);
+                });
+            });
+            return;
+        }
+        finishVerifying(ctx, profile);
+    }
+
+    /** 바닐라 접속 검사(+PlayerLoginEvent) → 압축 → 로그인 성공. */
+    private void finishVerifying(ChannelHandlerContext ctx, org.domi.furnace.server.players.GameProfile profile) {
+        org.domi.furnace.server.ServerCore core = login.core;
         if (login.lists != null) {
             int online = 0;
             for (Player p : world.onlinePlayers()) if (!p.isDisconnected()) online++;
             Text reason = login.lists.canPlayerLogin(clientAddress(ctx), profile, online, login.maxPlayers);
+            if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerLoginEvent.class)) {
+                java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
+                var ev = core.events().call(new org.domi.furnace.api.event.player.PlayerLoginEvent(profile.name(), profile.id(), addr,
+                        loginResult(reason), reason));
+                reason = ev.result() == org.domi.furnace.api.event.player.PlayerLoginEvent.Result.ALLOWED ? null : ev.kickMessage();
+            }
             if (reason != null) { disconnect(ctx, reason); return; }
         }
         if (compressionThreshold >= 0) {
@@ -571,7 +637,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             ctx.pipeline().addAfter("frameEncoder", "compress", new CompressionEncoder(compressionThreshold));
         }
         kickDuplicateSession(playerUuid);
-        if (login.profileCache != null) login.profileCache.add(profile);
+        if (login.profileCache != null) {
+            // 바닐라 placeNewPlayer: 캐시에 있던 이름과 다르면 "joined.renamed" 로 알린다.
+            previousName = login.profileCache.get(profile.id()).map(org.domi.furnace.server.players.GameProfile::name).orElse(profile.name());
+            login.profileCache.add(profile);
+        }
         loginPhase = LoginPhase.PROTOCOL_SWITCHING;
         send(ctx, new LoginSuccess(playerUuid, playerName, profileProperties, true));
         loginSuccessSent = true;
@@ -631,10 +701,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** ClientInformation 파싱 — locale 건너뛰고 view distance(byte) 읽음. config·play 양쪽서 호출. */
     private void readClientInformation(ByteBuf frame) {
         try {
-            Types.readString(frame, 16);                 // locale (무시)
+            this.clientLocale = Types.readString(frame, 16);   // locale(en_us 등)
             int vd = frame.readByte();                   // view distance (chunks)
             this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
             Player p = this.player;
+            if (p != null) p.locale(clientLocale);
             if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
             this.chatVisibility = Types.readVarInt(frame); // chat mode: 0 전부, 1 시스템만, 2 숨김
             if (p != null) p.chat().visibility(chatVisibility);
@@ -714,6 +785,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.chat(new org.domi.furnace.server.chat.PlayerChatState(playerUuid, core0::enforceSecureProfile));
         }
         p.chat().visibility(chatVisibility);
+        p.locale(clientLocale);
         p.remoteAddress(clientAddress(ctx));
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
@@ -769,6 +841,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         scheduleAutosave(ctx);
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
+        if (login.core != null) announceJoin(login.core, p);
     }
 
     /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.
@@ -1013,7 +1086,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         world.runOn(rp, () -> {
                             Region region = world.regionAt(rp);
                             // 설치 대상이 미로드 청크(시야 가장자리 너머)면 생성하지 않고 거부한다.
-                            boolean placed = region.chunkLoaded(ChunkPos.ofBlock(px, pz)) && region.placeBlock(px, py, pz, stateId);
+                            boolean allowed = true;
+                            org.domi.furnace.server.ServerCore pcore = login.core;
+                            if (pcore != null && region.chunkLoaded(ChunkPos.ofBlock(px, pz))
+                                    && pcore.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) {
+                                var ev = pcore.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent("minecraft:overworld",
+                                        new org.domi.furnace.api.world.BlockPos(px, py, pz), world.blockRegistry().nameOf(stateId),
+                                        new org.domi.furnace.api.world.BlockPos(bp[0], bp[1], bp[2]), pcore.plugins().player(actor)));
+                                if (ev.isCancelled()) {
+                                    allowed = false;
+                                    region.resendBlock(actor, px, py, pz);
+                                }
+                            }
+                            boolean placed = allowed && region.chunkLoaded(ChunkPos.ofBlock(px, pz)) && region.placeBlock(px, py, pz, stateId);
                             actor.send(new BlockChangedAck(seq)); // 설치(또는 충돌거부) 후 ack → 거부 시 고스트 reverts
                             if (placed && !actor.vitals().instabuild()) {
                                 // 서바이벌: 놓은 블록 아이템 하나를 쓴다(바닐라 BlockItem.place → stack.consume).
@@ -1146,6 +1231,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     boolean air = org.domi.furnace.server.world.BlockAttrs.get().isAir(region.getBlock(bx, by, bz));
                     destroy = !air && (status == 0 ? hardness == 0.0f : hardness >= 0.0f);
                 }
+                if (destroy && core != null && core.events().hasSubscribers(org.domi.furnace.api.event.block.BlockBreakEvent.class)) {
+                    String type = world.blockRegistry().nameOf(region.getBlock(bx, by, bz));
+                    var ev = core.events().call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld",
+                            new org.domi.furnace.api.world.BlockPos(bx, by, bz), type, core.plugins().player(actor)));
+                    if (ev.isCancelled()) {
+                        destroy = false;
+                        region.resendBlock(actor, bx, by, bz);
+                    }
+                }
                 if (destroy) {
                     region.breakBlock(bx, by, bz);
                     if (!creative) actor.vitals().causeFoodExhaustion(0.005f);   // Block.playerDestroy
@@ -1187,6 +1281,32 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         counts.merge(key, sign * s.count(), Integer::sum);
     }
 
+    private String previousName;
+    private Text kickReason;   // 우리가 끊은 사유(퇴장 로그 "lost connection: 사유"용)
+
+    /** 바닐라 접속 거부 사유 → PlayerLoginEvent 결과 종류. */
+    private static org.domi.furnace.api.event.player.PlayerLoginEvent.Result loginResult(Text reason) {
+        if (reason == null) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.ALLOWED;
+        String key = reason.translationKey();
+        if (key == null) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_OTHER;
+        if (key.startsWith("multiplayer.disconnect.banned")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_BANNED;
+        if (key.equals("multiplayer.disconnect.not_whitelisted")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_WHITELIST;
+        if (key.equals("multiplayer.disconnect.server_full")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_FULL;
+        return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_OTHER;
+    }
+
+    /** 바닐라 placeNewPlayer 의 접속 알림(PlayerJoinEvent 로 바꿀 수 있다). 접속자 본인도 받는다(Paper 와 같다). */
+    private void announceJoin(org.domi.furnace.server.ServerCore core, Player p) {
+        Text msg = previousName == null || previousName.equalsIgnoreCase(p.name())
+                ? Text.translatable("multiplayer.player.joined", p.displayName())
+                : Text.translatable("multiplayer.player.joined.renamed", p.displayName(), previousName);
+        msg = msg.color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
+        if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerJoinEvent.class)) {
+            msg = core.events().call(new org.domi.furnace.api.event.player.PlayerJoinEvent(core.plugins().player(p), msg)).joinMessage();
+        }
+        if (msg != null) core.broadcastSystemMessage(msg, false);
+    }
+
     /** 죽었을 때(소유 연결 이벤트 루프): keepInventory 가 아니면 인벤토리를 비운다(바닐라 dropAll — 아이템 엔티티는 3단계). */
     private void onPlayerDied(boolean keepInventory) {
         Player p = player;
@@ -1211,7 +1331,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         SpawnPoint spawn = world.defaultSpawn();
         if (rp == null || !p.vitals().respawnForced()) {
             // 침대·리스폰 정박기는 3단계 — 강제가 아닌 스폰 지점은 블록이 없으므로 "없음" 처리(바닐라 missingRespawnBlock)
-            finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), rp != null);
+            finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), rp != null, true);
             return;
         }
         float angle = p.vitals().respawnAngle();
@@ -1223,8 +1343,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             // Block.isPossibleToRespawnInThis: 단단하지 않고 액체가 아님(발·머리 두 칸)
             boolean ok = !attrs.isSolid(a) && !attrs.isLiquid(a) && !attrs.isSolid(b) && !attrs.isLiquid(b);
             ctx.channel().eventLoop().execute(() -> {
-                if (ok) finishRespawn(ctx, rp[0] + 0.5, rp[1] + 0.1, rp[2] + 0.5, angle, false);
-                else finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), true);
+                if (ok) finishRespawn(ctx, rp[0] + 0.5, rp[1] + 0.1, rp[2] + 0.5, angle, false, false);
+                else finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), true, true);
             });
         });
     }
@@ -1232,14 +1352,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private boolean respawnPending;
 
     /** 바닐라 PlayerList.respawn 이 보내는 순서대로 — 능력, (스폰 블록 없음), Respawn, 위치, 스폰 지점, 난이도, 경험치, 레벨 정보, 권한, 인벤토리. */
-    private void finishRespawn(ChannelHandlerContext ctx, double x, double y, double z, float yaw, boolean missingRespawnBlock) {
+    private void finishRespawn(ChannelHandlerContext ctx, double x, double y, double z, float yaw, boolean missingRespawnBlock, boolean worldSpawn) {
         respawnPending = false;
         Player p = player;
         if (p == null || !ctx.channel().isActive() || !p.vitals().isDeadOrDying()) return;
         org.domi.furnace.server.ServerCore core = login.core;
+        float pitch = 0f;
+        if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerRespawnEvent.class)) {
+            var ev = core.events().call(new org.domi.furnace.api.event.player.PlayerRespawnEvent(core.plugins().player(p),
+                    new org.domi.furnace.api.world.Location("minecraft:overworld", x, y, z, yaw, 0f), worldSpawn));
+            var l = ev.respawnLocation();
+            x = l.x(); y = l.y(); z = l.z(); yaw = l.yaw(); pitch = l.pitch();
+        }
         boolean keepInventory = core != null && core.gameRules().getBoolean("keepInventory");
         var vitals = p.vitals();
-        vitals.respawn(keepInventory);
+        vitals.respawn();
         p.bumpSpawnGeneration();
         send(ctx, vitals.abilitiesPacket());
         if (missingRespawnBlock) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
@@ -1250,9 +1377,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0, (byte) 0));
         // 서버가 정한 위치로 텔레포트 — 확인 전까지 클라 이동은 받지 않는다.
         p.clearMoves();
-        ix = x; iy = y; iz = z; iyaw = yaw; ipitch = 0f; ig = false;
+        ix = x; iy = y; iz = z; iyaw = yaw; ipitch = pitch; ig = false;
         correctionTpId = ++teleportId;
-        send(ctx, new SyncPlayerPosition(x, y, z, yaw, 0f, correctionTpId));
+        send(ctx, new SyncPlayerPosition(x, y, z, yaw, pitch, correctionTpId));
         p.pushTeleport(x, y, z);
         publishInput(p);
         SpawnPoint spawn = world.defaultSpawn();
@@ -1336,6 +1463,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     public void channelInactive(ChannelHandlerContext ctx) {
         Player p = player;
         if (p != null) {
+            org.domi.furnace.server.ServerCore core = login.core;
+            if (core != null) {
+                // 바닐라 onDisconnect → removePlayerFromWorld: "이름 lost connection: 사유" 로그, 노란 퇴장 알림.
+                Text why = kickReason != null ? kickReason : p.kickReason() != null ? p.kickReason() : Text.translatable("disconnect.disconnected");
+                log.info("{} lost connection: {}", p.name(), why.getString());
+                Text msg = Text.translatable("multiplayer.player.left", p.displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
+                if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerQuitEvent.class)) {
+                    msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg)).quitMessage();
+                }
+                world.playerOffline(p.entityId());   // 방송 대상에서 먼저 뺀다(바닐라: 퇴장자는 자기 퇴장 메시지를 받지 않는다)
+                p.markDisconnected();
+                if (msg != null) core.broadcastSystemMessage(msg, false);
+            }
             savePlayerSnapshot();
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
@@ -1440,6 +1580,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     void kick(ChannelHandlerContext ctx, Text reason) {
+        kickReason = reason;
         Packet pkt = switch (state) {
             case LOGIN -> new LoginDisconnect(reason);
             case CONFIGURATION -> new ConfigDisconnect(reason);

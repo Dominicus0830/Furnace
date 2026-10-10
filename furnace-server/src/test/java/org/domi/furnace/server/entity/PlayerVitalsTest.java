@@ -232,15 +232,16 @@ class PlayerVitalsTest {
         assertFalse(v.removedAfterDeath());
         v.tick(DRY);
         assertTrue(v.removedAfterDeath(), "tickDeath 20틱 후 제거");
-        v.respawn(false);
+        v.respawn();
         assertEquals(20.0f, v.health());
         assertEquals(20, v.foodLevel());
         assertEquals(0, v.xpLevel(), "keepInventory 꺼짐 → 경험치 잃음");
         assertFalse(v.removedAfterDeath());
         assertNotNull(v.lastDeathPos(), "마지막 사망 위치 기록");
         v.giveExperienceLevels(3);
+        env.rules.put("keepInventory", true);
         v.kill();
-        v.respawn(true);
+        v.respawn();
         assertEquals(3, v.xpLevel(), "keepInventory → 경험치 유지");
     }
 

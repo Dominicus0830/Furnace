@@ -72,14 +72,16 @@ class PlayerCommandsTest {
         }
     }
 
-    /** 다음 시스템 채팅(0x6C)의 NBT 내용을 대충 문자열로(번역 키 확인용). */
+    /** 다음 시스템 채팅(0x6C)의 NBT 내용을 대충 문자열로(번역 키 확인용). 접속 알림(joined)은 건너뛴다. */
     private static String awaitSystemChat(InputStream in) throws Exception {
         while (true) {
             ByteBuf f = read(in);
             if (Types.readVarInt(f) == 0x6C) {
                 byte[] rest = new byte[f.readableBytes()];
                 f.readBytes(rest);
-                return new String(rest, java.nio.charset.StandardCharsets.ISO_8859_1);
+                String s = new String(rest, java.nio.charset.StandardCharsets.ISO_8859_1);
+                if (s.contains("multiplayer.player.joined")) continue;
+                return s;
             }
         }
     }

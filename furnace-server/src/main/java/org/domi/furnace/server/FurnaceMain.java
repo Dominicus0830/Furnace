@@ -218,6 +218,9 @@ public final class FurnaceMain {
         loginContext.core(core);
         core.servicesKeys().fetchAsync();
         core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
+        // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
+        org.domi.furnace.api.Furnace.setServer(core.plugins());
+        core.plugins().pluginsImpl().loadAll();
         core.onSaveAll(() -> {
             java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
             for (int i = 0; i < config.regionThreads(); i++) {
@@ -235,6 +238,12 @@ public final class FurnaceMain {
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("종료 중 — dirty 청크/플레이어 flush");
+            // CraftBukkit 처럼 플러그인을 먼저 끈다(플레이어가 아직 접속해 있을 때 onDisable 이 돈다).
+            try {
+                core.plugins().pluginsImpl().disableAll();
+            } catch (Throwable t) {
+                log.error("[STOP] 플러그인 끄기 실패", t);
+            }
             network.stop();
             try {
                 // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
@@ -264,9 +273,12 @@ public final class FurnaceMain {
             }
             chunkPool.shutdown();
             scheduler.close();
+            core.plugins().pluginsImpl().closeAll();
+            core.plugins().close();
             shutdown.countDown();
         }, "furnace-shutdown"));
 
+        core.plugins().pluginsImpl().enableAll();
         network.start();
 
         // 바닐라 자동 저장 주기마다 level.dat 도 저장한다(/save-off 면 건너뜀).
@@ -282,6 +294,7 @@ public final class FurnaceMain {
 
         log.info("Done ({})! For help, type \"help\"",
                 String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
+        core.events().call(new org.domi.furnace.api.event.server.ServerLoadEvent());
         shutdown.await();
     }
 

@@ -22,7 +22,7 @@ public final class ConsoleInput {
                 while ((line = reader.readLine()) != null) {
                     String command = line.strip();
                     if (command.isEmpty()) continue;
-                    core.scheduler().global().execute(() -> core.commands().performPrefixedCommand(CommandSource.console(core), command));
+                    core.scheduler().global().execute(() -> core.runConsoleCommand(command));
                 }
             } catch (Exception e) {
                 log.error("Exception handling console input", e);

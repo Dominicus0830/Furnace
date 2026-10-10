@@ -10,9 +10,10 @@ import java.util.function.Predicate;
 
 public abstract class CommandNode<S> implements Comparable<CommandNode<S>> {
 
-    private final Map<String, CommandNode<S>> children = new LinkedHashMap<>();
-    private final Map<String, LiteralCommandNode<S>> literals = new LinkedHashMap<>();
-    private final Map<String, ArgumentCommandNode<S, ?>> arguments = new LinkedHashMap<>();
+    // copy-on-write: 플러그인이 실행 중 명령을 등록·해제해도 다른 스레드의 파싱·자동완성이 안전하게 옛/새 목록 중 하나를 본다.
+    private volatile Map<String, CommandNode<S>> children = new LinkedHashMap<>();
+    private volatile Map<String, LiteralCommandNode<S>> literals = new LinkedHashMap<>();
+    private volatile Map<String, ArgumentCommandNode<S, ?>> arguments = new LinkedHashMap<>();
     private final Predicate<S> requirement;
     private final CommandNode<S> redirect;
     private final RedirectModifier<S> modifier;
@@ -43,24 +44,40 @@ public abstract class CommandNode<S> implements Comparable<CommandNode<S>> {
 
     public boolean isFork() { return forks; }
 
-    public void addChild(CommandNode<S> node) {
+    public synchronized void addChild(CommandNode<S> node) {
         if (node instanceof RootCommandNode) throw new UnsupportedOperationException("Cannot add a RootCommandNode as a child to any other CommandNode");
         CommandNode<S> child = children.get(node.getName());
         if (child != null) {
             if (node.getCommand() != null) child.command = node.getCommand();
             for (CommandNode<S> grandchild : node.getChildren()) child.addChild(grandchild);
         } else {
-            children.put(node.getName(), node);
-            if (node instanceof LiteralCommandNode<S> l) literals.put(node.getName(), l);
-            else if (node instanceof ArgumentCommandNode<S, ?> a) arguments.put(node.getName(), a);
+            Map<String, CommandNode<S>> c = new LinkedHashMap<>(children);
+            c.put(node.getName(), node);
+            if (node instanceof LiteralCommandNode<S> l) {
+                Map<String, LiteralCommandNode<S>> m = new LinkedHashMap<>(literals);
+                m.put(node.getName(), l);
+                literals = m;
+            } else if (node instanceof ArgumentCommandNode<S, ?> a) {
+                Map<String, ArgumentCommandNode<S, ?>> m = new LinkedHashMap<>(arguments);
+                m.put(node.getName(), a);
+                arguments = m;
+            }
+            children = c;
         }
     }
 
     /** 플러그인 명령 제거 등(바닐라 Brigadier 에는 없지만 Paper 가 쓰는 확장). */
-    public void removeChild(String name) {
-        children.remove(name);
-        literals.remove(name);
-        arguments.remove(name);
+    public synchronized void removeChild(String name) {
+        if (!children.containsKey(name)) return;
+        Map<String, CommandNode<S>> c = new LinkedHashMap<>(children);
+        c.remove(name);
+        Map<String, LiteralCommandNode<S>> l = new LinkedHashMap<>(literals);
+        l.remove(name);
+        Map<String, ArgumentCommandNode<S, ?>> a = new LinkedHashMap<>(arguments);
+        a.remove(name);
+        literals = l;
+        arguments = a;
+        children = c;
     }
 
     public abstract String getName();

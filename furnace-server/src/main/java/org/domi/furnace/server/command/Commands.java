@@ -44,21 +44,22 @@ public final class Commands {
     public static Predicate<CommandSource> hasPermission(int level) { return s -> s.hasPermission(level); }
 
     /** 앞의 '/' 를 떼고 실행(바닐라 performPrefixedCommand). */
-    public void performPrefixedCommand(CommandSource source, String command) {
+    public int performPrefixedCommand(CommandSource source, String command) {
         command = command.startsWith("/") ? command.substring(1) : command;
-        performCommand(dispatcher.parse(command, source), command);
+        return performCommand(dispatcher.parse(command, source), command);
     }
 
-    public void performCommand(ParseResults<CommandSource> parse, String command) {
+    /** 실행 결과 값(실패면 0). */
+    public int performCommand(ParseResults<CommandSource> parse, String command) {
         CommandSource source = parse.getContext().getSource();
         try {
             validateParseResults(parse);
         } catch (CommandSyntaxException e) {
             sendSyntaxFailure(source, e, command);
-            return;
+            return 0;
         }
         try {
-            dispatcher.execute(parse);
+            return dispatcher.execute(parse);
         } catch (CommandSyntaxException e) {
             // 실행 중 오류(예: 대상 없음)는 메시지만(바닐라 CommandSourceStack.handleError).
             source.sendFailure(e.getRawMessage());
@@ -67,6 +68,7 @@ public final class Commands {
             log.error("Command exception: /{}", command, e);
             source.sendFailure(Text.translatable("command.failed").hoverText(detail));
         }
+        return 0;
     }
 
     private static void validateParseResults(ParseResults<CommandSource> parse) throws CommandSyntaxException {

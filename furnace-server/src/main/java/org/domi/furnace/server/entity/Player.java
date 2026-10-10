@@ -101,8 +101,14 @@ public final class Player {
         });
     }
 
+    private volatile org.domi.furnace.api.text.Text kickReason;
+
+    /** 서버가 끊은 사유(퇴장 로그용), 없으면 null. */
+    public org.domi.furnace.api.text.Text kickReason() { return kickReason; }
+
     /** 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전. */
     public void kick(Packet packet) {
+        if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d) kickReason = d.reason();
         channel.eventLoop().execute(() -> {
             ByteBuf buf = channel.alloc().buffer();
             Types.writeVarInt(buf, packet.id());
@@ -173,6 +179,20 @@ public final class Player {
     public MoveSample pollMove() { return moves.poll(); }
 
     public void clearMoves() { moves.clear(); }
+
+    // 클라이언트 언어(client_information, 소문자 en_us 형식).
+    private volatile String locale = "en_us";
+
+    public String locale() { return locale; }
+
+    public void locale(String l) { this.locale = l == null || l.isEmpty() ? "en_us" : l; }
+
+    // 플러그인 API 손잡이(처음 요청할 때 만든다).
+    private volatile Object apiHandle;
+
+    public Object apiHandle() { return apiHandle; }
+
+    public void apiHandle(Object h) { this.apiHandle = h; }
 
     // 실제 접속 주소(Velocity 포워딩이면 프록시가 알려 준 주소).
     private volatile java.net.SocketAddress remoteAddress;
