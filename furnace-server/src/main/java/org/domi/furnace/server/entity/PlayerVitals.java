@@ -109,8 +109,9 @@ public final class PlayerVitals {
     private int lastSentFood = -99999999;
     private boolean lastFoodSaturationZero = true;
     private int lastSentExp = -99999999;
-    private float lastDataHealth = Float.NaN;
-    private int lastDataAir = Integer.MIN_VALUE;
+    // 클라이언트가 아는 엔티티 데이터 — 새 엔티티는 바닐라 정의 기본값(체력 1.0, 공기 300)에서 시작한다.
+    private float lastDataHealth = 1.0f;
+    private int lastDataAir = MAX_AIR;
 
     private int[] respawnPos;
     private float respawnAngle;
@@ -557,19 +558,9 @@ public final class PlayerVitals {
         for (Packet p : toTrackers) env.broadcastToTrackers(player.entityId(), p);
     }
 
-    /** 바닐라 doTick 끝: 체력·허기·포화 0 여부가 바뀌면 SetHealth, 총 경험치가 바뀌면 SetExperience, 엔티티 데이터(체력·공기) 동기화. */
+    /** 엔티티 데이터(체력·공기) 동기화, 그다음 바닐라 doTick 끝: 체력·허기·포화 0 여부가 바뀌면 SetHealth, 총 경험치가 바뀌면 SetExperience. */
     private void collectChanges(java.util.List<Packet> toSelf, java.util.List<Packet> toTrackers) {
-        boolean saturationZero = food.saturationLevel() == 0.0f;
-        if (health != lastSentHealth || lastSentFood != food.foodLevel() || saturationZero != lastFoodSaturationZero) {
-            toSelf.add(new SetHealth(health, food.foodLevel(), food.saturationLevel()));
-            lastSentHealth = health;
-            lastSentFood = food.foodLevel();
-            lastFoodSaturationZero = saturationZero;
-        }
-        if (xpTotal != lastSentExp) {
-            lastSentExp = xpTotal;
-            toSelf.add(new SetExperience(xpProgress, xpLevel, xpTotal));
-        }
+        // 바닐라 틱 순서: 엔티티 데이터(레벨 틱의 엔티티 추적) → 체력·경험치(플레이어 doTick)
         java.util.List<SetEntityData.Item> data = new java.util.ArrayList<>(2);
         if (air != lastDataAir) {
             lastDataAir = air;
@@ -583,6 +574,17 @@ public final class PlayerVitals {
             SetEntityData pkt = new SetEntityData(player.entityId(), java.util.List.copyOf(data));
             toSelf.add(pkt);
             toTrackers.add(pkt);
+        }
+        boolean saturationZero = food.saturationLevel() == 0.0f;
+        if (health != lastSentHealth || lastSentFood != food.foodLevel() || saturationZero != lastFoodSaturationZero) {
+            toSelf.add(new SetHealth(health, food.foodLevel(), food.saturationLevel()));
+            lastSentHealth = health;
+            lastSentFood = food.foodLevel();
+            lastFoodSaturationZero = saturationZero;
+        }
+        if (xpTotal != lastSentExp) {
+            lastSentExp = xpTotal;
+            toSelf.add(new SetExperience(xpProgress, xpLevel, xpTotal));
         }
     }
 
@@ -741,8 +743,8 @@ public final class PlayerVitals {
         lastSentFood = -99999999;
         lastFoodSaturationZero = true;
         lastSentExp = -1;
-        lastDataHealth = Float.NaN;
-        lastDataAir = Integer.MIN_VALUE;
+        lastDataHealth = 1.0f;
+        lastDataAir = MAX_AIR;
     }
 
     /** 접속 때 바로 보낼 체력·허기·경험치·엔티티 데이터(바닐라는 첫 doTick 에서 같은 값을 보낸다 — 이후 틱은 바뀔 때만). */

@@ -750,7 +750,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             var props = coreJ.settings().get();
             var rules = coreJ.gameRules();
             var level = coreJ.levelData();
-            send(ctx, new LoginPlay(eid, level.hardcore, java.util.List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"),
+            send(ctx, new LoginPlay(eid, level.hardcore, java.util.List.of("minecraft:overworld", "minecraft:the_end", "minecraft:the_nether"),
                     props.maxPlayers, world.viewDistance(), props.simulationDistance, rules.getBoolean("reducedDebugInfo"),
                     !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, "minecraft:overworld",
                     LoginPlay.obfuscateSeed(level.seed), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(), false,
@@ -806,35 +806,47 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.pushTeleport(sx, sy, sz);
         p.viewDistance(effVd);
         this.player = p;
-        world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때)
-        // GE13 먼저 — 클라가 "청크 대기" 상태(로딩화면 정지)에 들어간 뒤 위치를 받게 해 위치-유발 중력 억제.
-        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
+        // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
-        // 바닐라 sendLevelInfo: 월드 공유 스폰(나침반이 가리키는 곳)과 각도 — 플레이어 위치가 아니다.
-        send(ctx, new SetDefaultSpawnPosition(defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z(), defaultSpawn.yaw()));
-        // 바닐라 sendLevelInfo: 현재 보더 상태(코어가 없는 테스트 경로는 기본 보더)
+        if (coreJ != null) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerData(
+                org.domi.furnace.api.text.Text.text(login.motd), login.faviconBytes()));
+        // 기존 접속자 목록(없으면 빈 패킷 — 바닐라와 같다). 아직 adopt 전이라 p.listed()는 이 스레드 전용.
+        java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
+        for (Player b : world.onlinePlayers()) {
+            if (b == p || b.isDisconnected()) continue;
+            existing.add(tabEntry(b));
+            p.listed().put(b.entityId(), b.uuid());
+        }
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
+        world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때). 다른 접속자에게는 그쪽 region 틱이 올린다.
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
+        p.listed().put(p.entityId(), p.uuid());
+        // 바닐라 sendLevelInfo: 보더 → 시간 → 월드 공유 스폰(나침반) → 비 → 청크 대기 → 틱 상태
         send(ctx, coreJ != null ? InitializeBorder.of(coreJ.border()) : InitializeBorder.vanillaDefault());
         if (coreJ != null) {
-            // 바닐라 sendLevelInfo: 시간, 그리고 비가 오면 비 시작 + 비·천둥 강도
             send(ctx, coreJ.clock().timePacket(coreJ.gameRules()));
-            if (coreJ.clock().isRaining()) {
-                send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
-                send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, coreJ.clock().rainLevel()));
-                send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, coreJ.clock().thunderLevel()));
-            }
         } else {
             send(ctx, new SetTime(world.gameTime(), world.dayTime()));
         }
-        // 서버가 아는 인벤토리·선택 슬롯을 클라이언트에도 맞춘다(안 보내면 클라는 빈 손인데 서버는 아이템을 들고 있다).
-        send(ctx, new ContainerSetContent(0, 0, copySlots(), ItemStack.EMPTY));
-        for (Packet pkt : vitals.joinPackets()) send(ctx, pkt);   // 체력·허기·경험치(바닐라는 첫 doTick 에 보낸다)
-
-        // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
-        // adopt 전이라 p.loadedChunks는 이 스레드 전용(레이스 없음). region streamLoads는 이미 로드된 중앙을 건너뜀.
+        send(ctx, new SetDefaultSpawnPosition(defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z(), defaultSpawn.yaw()));
+        if (coreJ != null && coreJ.clock().isRaining()) {
+            send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
+            send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, coreJ.clock().rainLevel()));
+            send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, coreJ.clock().thunderLevel()));
+        }
+        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(20.0f, false));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(0));
         ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
         send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
+        // 서버가 아는 인벤토리를 클라이언트에도 맞춘다(바닐라 initInventoryMenu).
+        send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), ItemStack.EMPTY));
+        for (Packet pkt : vitals.joinPackets()) send(ctx, pkt);   // 엔티티 데이터·체력·허기·경험치(바닐라는 첫 틱에 보낸다)
+
+        // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
+        // adopt 전이라 p.loadedChunks는 이 스레드 전용(레이스 없음). region streamLoads는 이미 로드된 중앙을 건너뜀.
         // spawn-chunk-radius 반경을 nearest-first로 동기 전송. gen은 genPool 병렬, 여기선 순서대로 수거.
         int r = world.spawnChunkRadius();
         java.util.List<ChunkPos> spawnChunks = new java.util.ArrayList<>();
@@ -859,6 +871,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.
      *  재접속처럼 gen이 2초를 넘겨도 TimeoutException 없이, 완료되면 전송. 완료 후 region에 adopt. */
+    /** 플레이어 인벤토리 메뉴의 상태 번호(바닐라 AbstractContainerMenu.incrementStateId — 전체 동기화마다 1 증가, 15비트). */
+    private int inventoryStateId;
+
+    private int nextInventoryStateId() {
+        inventoryStateId = inventoryStateId + 1 & 32767;
+        return inventoryStateId;
+    }
+
+    /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
+    private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {
+        var session = b.chat().session();
+        return new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(),
+                session == null ? null : session.asData(), b.gameMode().id(), b.latencyMs());
+    }
+
     private void sendSpawnChunkBatchAsync(ChannelHandlerContext ctx, Player p,
             java.util.List<ChunkPos> spawnChunks,
             java.util.Map<ChunkPos, World.Subscription> subs,
@@ -1295,7 +1322,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             for (var e : changed.entrySet()) slots[e.getKey()] = e.getValue();
             carried = newCarried;
         } else {
-            send(ctx, new ContainerSetContent(0, 0, copySlots(), carried));
+            send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), carried));
         }
     }
 
@@ -1342,7 +1369,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (!keepInventory) {
             Arrays.fill(slots, ItemStack.EMPTY);
             carried = ItemStack.EMPTY;
-            send(ctx, new ContainerSetContent(0, 0, copySlots(), ItemStack.EMPTY));
+            send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), ItemStack.EMPTY));
         }
     }
 
@@ -1427,7 +1454,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
         if (core != null) core.sendPlayerPermissionLevel(p);
-        send(ctx, new ContainerSetContent(0, 0, copySlots(), carried));
+        send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), carried));
         send(ctx, new SetHeldSlot(selectedSlot));
     }
 
@@ -1707,7 +1734,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             System.arraycopy(chestItems, 0, contents, 0, 27);
             System.arraycopy(slots, 9, contents, 27, 27);
             System.arraycopy(slots, 36, contents, 54, 9);
-            send(ctx, new ContainerSetContent(containerId, 0, contents, carried));
+            send(ctx, new ContainerSetContent(containerId, 1, contents, carried));   // 새 메뉴의 첫 전체 동기화(바닐라 incrementStateId → 1)
         }));
     }
 

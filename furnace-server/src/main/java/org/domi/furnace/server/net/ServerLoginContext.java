@@ -114,6 +114,13 @@ public final class ServerLoginContext {
         }
     }
 
+    /** server_data 패킷용 아이콘 PNG 바이트(없으면 null). */
+    byte[] faviconBytes() {
+        if (favicon == null) return null;
+        int comma = favicon.indexOf(',');
+        return java.util.Base64.getDecoder().decode(favicon.substring(comma + 1));
+    }
+
     /**
      * 바닐라 ServerStatus JSON — description, players{max, online, sample?}, version, favicon?, enforcesSecureChat.
      * sample: 접속자 중 임의 시작점부터 최대 12명, 목록 공개를 끈 사람은 익명, 섞어서. hide-online-players 면 생략.
