@@ -16,6 +16,7 @@
 | 도구 | 입력 | 출력 |
 |---|---|---|
 | `extract_tags.py <generated> <registries/1.21.1.txt> <출력>` | 태그 JSON + registries.json | `registries/tags-1.21.1.txt` (Update Tags 패킷용, 숫자 id) |
+| `extract_builtin_registries.py <reports/registries.json> <출력>` | registries.json | `registries/builtin-1.21.1.txt` (태그 있는 내장 레지스트리의 protocol_id 순서 — 데이터 팩 태그를 숫자 id 로 바꿀 때) |
 | `extract_block_tags.py <generated> <출력>` | 블록 태그 JSON | `worldgen/1.21.1/block_tags.txt` (월드젠용, 블록 이름) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
 

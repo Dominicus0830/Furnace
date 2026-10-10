@@ -58,6 +58,20 @@ public final class ServerCore {
 
     private final org.domi.furnace.server.plugin.PluginHost pluginHost;
 
+    private volatile org.domi.furnace.server.data.DataPackManager dataPacks;
+
+    /** 데이터 팩(없으면 null — 바닐라 데이터를 못 구했거나 테스트). */
+    public org.domi.furnace.server.data.DataPackManager dataPacks() { return dataPacks; }
+
+    /** 데이터 팩을 붙인다 — /reload 가 끝나면 접속자에게 새 태그를 보낸다(바닐라 PlayerList.reloadResources). */
+    public void dataPacks(org.domi.furnace.server.data.DataPackManager m) {
+        this.dataPacks = m;
+        m.onReload(dp -> {
+            var packet = new org.domi.furnace.server.net.protocol.play.UpdateTagsPlay(dp.tags());
+            for (Player p : players()) p.send(packet);
+        });
+    }
+
     /** 플러그인 호스트(Furnace API 파사드·이벤트 버스·플러그인 관리자). */
     public org.domi.furnace.server.plugin.PluginHost plugins() { return pluginHost; }
 

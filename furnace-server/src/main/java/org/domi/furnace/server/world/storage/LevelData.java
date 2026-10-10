@@ -41,6 +41,8 @@ public final class LevelData {
     public final Map<String, String> gameRules = new LinkedHashMap<>();
     public List<String> enabledPacks;
     public List<String> disabledPacks;
+    /** 월드에 켜진 기능 플래그(level.dat enabled_features). */
+    public List<String> enabledFeatures = List.of("minecraft:vanilla");
     public final List<String> serverBrands = new java.util.ArrayList<>();
     public int clearWeatherTime, rainTime, thunderTime;
     public boolean raining, thundering;
@@ -100,6 +102,7 @@ public final class LevelData {
         NbtCompound packs = data.contains("DataPacks") ? data.getCompound("DataPacks") : null;
         d.enabledPacks = packs != null && packs.contains("Enabled") ? strings(packs.getList("Enabled")) : List.of("vanilla");
         d.disabledPacks = packs != null && packs.contains("Disabled") ? strings(packs.getList("Disabled")) : List.of();
+        if (data.contains("enabled_features")) d.enabledFeatures = strings(data.getList("enabled_features"));
         if (data.contains("ServerBrands")) d.serverBrands.addAll(strings(data.getList("ServerBrands")));
         d.clearWeatherTime = num(data, "clearWeatherTime", 0).intValue();
         d.rainTime = num(data, "rainTime", 0).intValue();
@@ -155,6 +158,7 @@ public final class LevelData {
         packs.putList("Enabled", stringList(enabledPacks));
         packs.putList("Disabled", stringList(disabledPacks));
         d.putCompound("DataPacks", packs);
+        d.putList("enabled_features", stringList(enabledFeatures));
         d.putList("ServerBrands", stringList(serverBrands));
         d.put("WasModded", b(wasModded));
         // 아직 런타임이 다루지 않는 상태는 처음 만들 때만 바닐라 기본값으로 채우고, 이후로는 읽은 값을 보존한다.

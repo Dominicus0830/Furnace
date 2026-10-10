@@ -685,7 +685,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 for (String registry : REGISTRIES.registryKeys()) {
                     send(ctx, new RegistryData(registry, REGISTRIES.entries(registry)));
                 }
-                send(ctx, new UpdateTags(TAGS));   // 레지스트리 뒤, Finish 앞(바닐라 순서)
+                // 레지스트리 뒤, Finish 앞(바닐라 순서). 데이터 팩이 있으면 거기서 읽은 태그, 없으면 미리 만든 태그 파일.
+                var dp = login.core != null ? login.core.dataPacks() : null;
+                send(ctx, new UpdateTags(dp != null ? dp.tags() : TAGS));
                 send(ctx, new FinishConfiguration());
                 finishConfigSent = true;
             }

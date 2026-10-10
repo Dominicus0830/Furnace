@@ -1,7 +1,7 @@
 <!-- 바닐라 log4j2.xml 과 같은 형식: [HH:mm:ss] [스레드/레벨]: 메시지, logs/latest.log + 날짜별 gz 보관 -->
 <configuration>
     <!-- 콘솔은 텍스트 메시지를 ANSI 색으로(Paper 콘솔과 같음), 파일은 평문 -->
-    <conversionRule conversionWord="fmsg" converterClass="org.domi.furnace.server.log.AnsiMessageConverter"/>
+    <conversionRule conversionWord="fmsg" class="org.domi.furnace.server.log.AnsiMessageConverter"/>
     <appender name="SysOut" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>[%d{HH:mm:ss}] [%thread/%level]: %fmsg%n</pattern>

@@ -111,6 +111,7 @@ public final class FurnaceMain {
             storage.close();
             return;
         }
+        boolean newWorld = levelData == null;
         if (levelData == null) {
             log.info("No existing world data, creating new world");
             levelData = LevelData.create(props.levelName, props.levelSeed.orElseGet(() -> new java.util.Random().nextLong()),
@@ -206,6 +207,16 @@ public final class FurnaceMain {
                 }
             }
         };
+        // 데이터 팩: 바닐라 내장 데이터(첫 실행 때 공식 서버 jar 에서 추출) + 기능 팩 + <월드>/datapacks.
+        org.domi.furnace.server.data.DataPackManager dataPacks = null;
+        try {
+            Path vanillaRoot = org.domi.furnace.server.data.VanillaData.ensure(Path.of("."));
+            dataPacks = org.domi.furnace.server.data.DataPackManager.start(vanillaRoot, worldDir, levelData,
+                    org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), newWorld,
+                    props.initialEnabledPacks, props.initialDisabledPacks);
+        } catch (Exception e) {
+            log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
+        }
         saveLevelData.run();
         log.info("월드 시드={}, 기본 스폰=({}, {}, {})",
                 config.levelSeed(), defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z());
@@ -216,6 +227,7 @@ public final class FurnaceMain {
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
+        if (dataPacks != null) core.dataPacks(dataPacks);
         coreRef.set(core);
         loginContext.core(core);
         core.servicesKeys().fetchAsync();

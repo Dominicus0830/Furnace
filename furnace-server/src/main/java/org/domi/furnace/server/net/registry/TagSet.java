@@ -17,6 +17,9 @@ public final class TagSet {
     // 레지스트리 → (태그 id → 엔트리 id 배열). 삽입 순서 유지.
     private final Map<String, Map<String, int[]>> tags;
 
+    /** 데이터 팩에서 불러온 태그로 만든다. */
+    public static TagSet of(Map<String, Map<String, int[]>> tags) { return new TagSet(tags); }
+
     private TagSet(Map<String, Map<String, int[]>> tags) {
         this.tags = tags;
     }
