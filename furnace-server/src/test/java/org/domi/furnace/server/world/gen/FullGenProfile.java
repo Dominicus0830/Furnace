@@ -40,7 +40,7 @@ class FullGenProfile {
             r.stop();
             r.dump(out);
         }
-        Map<String, Integer> self = new HashMap<>(), incl = new HashMap<>(), callers = new HashMap<>();
+        Map<String, Integer> self = new HashMap<>(), incl = new HashMap<>(), callers = new HashMap<>(), groups = new HashMap<>();
         int total = 0;
         for (RecordedEvent e : RecordingFile.readAllEvents(out)) {
             if (!e.getEventType().getName().equals("jdk.ExecutionSample")) continue;
@@ -48,6 +48,16 @@ class FullGenProfile {
             if (st == null || st.getFrames().isEmpty()) continue;
             total++;
             RecordedFrame top = st.getFrames().get(0);
+            String cls = top.getMethod().getType().getName();
+            String grp = cls.contains(".gen.df.") || cls.contains("NoiseChunk") ? "DF-nodes+caches"
+                : cls.contains(".gen.noise.") ? "noise-math"
+                : cls.contains("Aquifer") ? "aquifer"
+                : cls.contains("surface") ? "surface"
+                : cls.contains("Climate") || cls.contains("BiomeSampler") ? "biome"
+                : cls.contains("carver") ? "carver"
+                : cls.startsWith("java.") || cls.startsWith("jdk.") ? "jdk"
+                : "other";
+            groups.merge(grp, 1, Integer::sum);
             self.merge(name(top), 1, Integer::sum);
             Set<String> seen = new HashSet<>();
             for (RecordedFrame f : st.getFrames()) { String n = name(f); if (f.getMethod().getType().getName().contains("furnace") && seen.add(n)) incl.merge(n, 1, Integer::sum); }
@@ -66,6 +76,9 @@ class FullGenProfile {
             }
         }
         System.out.println("PROF total samples " + total);
+        final int tt = total;
+        groups.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue())
+            .forEach(en -> System.out.printf("PROF group %5.1f%% %s%n", 100.0 * en.getValue() / tt, en.getKey()));
         int t = total;
         self.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(25)
             .forEach(en -> System.out.printf("PROF self %5.1f%% %s%n", 100.0 * en.getValue() / t, en.getKey()));
