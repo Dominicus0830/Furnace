@@ -727,7 +727,15 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return structurePlacementCatalog.placementsForChunk(seed, chunkX, chunkZ);
     }
 
+    public org.domi.furnace.server.world.gen.pipeline.ChunkPipeline pipeline() { return pipeline; }
+
+    /** 서버 경로 — 공유 월드 장식(바닐라처럼 청크마다 장식 한 번). */
     public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {
+        return pipeline.generateShared(chunkX, chunkZ).join();
+    }
+
+    /** 대조 도구용 — 청크 하나를 주변 3×3 장식까지 독립적으로 만든다(공유 상태 없음, 순정 featurespill 픽스처와 같은 의미). */
+    public ChunkColumn generateIsolated(int chunkX, int chunkZ) {
         return pipeline.generateFull(chunkX, chunkZ).join();
     }
 

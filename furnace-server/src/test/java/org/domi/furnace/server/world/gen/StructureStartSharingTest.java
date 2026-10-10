@@ -1,5 +1,6 @@
 // 공유되는 구조물 시작점(빈 결과·jigsaw 전용)이 장식 중에 바뀌지 않는지 — 같은 청크들을 정방향/역방향 순서로
-// 각각 새 생성기에서 만들어 블록이 모두 같아야 한다(공유 조각이 변형되면 먼저 만든 청크가 나중 청크 결과를 바꾼다).
+// 각각 새 생성기에서 독립 경로(generateIsolated)로 만들어 블록이 모두 같아야 한다(공유 조각이 변형되면 먼저 만든 청크가
+// 나중 청크 결과를 바꾼다). 서버 경로(공유 월드 장식)는 바닐라처럼 순서에 따라 겹치는 장식이 달라질 수 있어 여기서 쓰지 않는다.
 package org.domi.furnace.server.world.gen;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,9 +40,9 @@ class StructureStartSharingTest {
         for (int dz = -2; dz <= 1; dz++) for (int dx = -2; dx <= 1; dx++) order.add(new int[] {cx + dx, cz + dz});
 
         List<ChunkColumn> fwd = new ArrayList<>();
-        for (int[] c : order) fwd.add(a.generateWithFeatures(c[0], c[1]));
+        for (int[] c : order) fwd.add(a.generateIsolated(c[0], c[1]));
         ChunkColumn[] rev = new ChunkColumn[order.size()];
-        for (int i = order.size() - 1; i >= 0; i--) rev[i] = b.generateWithFeatures(order.get(i)[0], order.get(i)[1]);
+        for (int i = order.size() - 1; i >= 0; i--) rev[i] = b.generateIsolated(order.get(i)[0], order.get(i)[1]);
 
         assertTrue(a.cachedStructureStarts(village.chunkX(), village.chunkZ()) != null, "jigsaw 시작점이 공유 캐시에 들어가야 한다");
         for (int i = 0; i < order.size(); i++) {
