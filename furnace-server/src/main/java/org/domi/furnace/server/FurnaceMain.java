@@ -22,11 +22,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.List;
+import org.domi.furnace.server.world.storage.DirectoryLock;
+import org.domi.furnace.server.world.storage.LevelData;
+import org.domi.furnace.server.world.storage.LevelStorage;
 import java.util.concurrent.CountDownLatch;
 
 public final class FurnaceMain {
 
     private static final Logger log = LoggerFactory.getLogger(FurnaceMain.class);
+    /** 클라이언트 F3·level.dat ServerBrands 에 쓰이는 서버 브랜드. */
+    public static final String SERVER_BRAND = "Furnace";
 
     public static void main(String[] args) throws InterruptedException {
         try {
@@ -63,7 +69,7 @@ public final class FurnaceMain {
         }
     }
 
-    private static void run(Options options) throws InterruptedException {
+    private static void run(Options options) throws Exception {
         if (options.help()) {
             System.err.println("Options: --help --initSettings --nogui --port <int> --universe <dir> --world <name>");
             return;
@@ -86,8 +92,32 @@ public final class FurnaceMain {
         Path universe = Path.of(options.universe());
         var profileCache = new GameProfileCache(ProfileLookup.NONE, universe.resolve("usercache.json"));
         profileCache.setUsesAuthentication(props.onlineMode);
-        // TODO(2-2): 빈 level-seed 의 임의 시드는 level.dat 에 저장돼야 재시작 후에도 유지된다.
-        long seed = props.levelSeed.orElseGet(() -> new java.util.Random().nextLong());
+        // 바닐라 Main: 월드 폴더를 잠그고 level.dat 을 읽는다. 없으면 server.properties 로 새 월드 설정을 만든다
+        // (빈 level-seed 면 임의 시드 — level.dat 에 저장돼 이후 재시작에도 유지된다).
+        String levelName = options.world() != null ? options.world() : props.levelName;
+        Path worldDir = universe.resolve(levelName);
+        LevelStorage storage;
+        try {
+            storage = LevelStorage.open(worldDir);
+        } catch (DirectoryLock.LockException e) {
+            log.error("Failed to start the minecraft server", e);
+            return;
+        }
+        LevelData levelData;
+        try {
+            levelData = storage.loadLevelData();
+        } catch (java.io.IOException e) {
+            storage.close();
+            return;
+        }
+        if (levelData == null) {
+            log.info("No existing world data, creating new world");
+            levelData = LevelData.create(props.levelName, props.levelSeed.orElseGet(() -> new java.util.Random().nextLong()),
+                    props.generateStructures, false, props.gameMode, props.hardcore, props.difficulty,
+                    props.initialEnabledPacks, List.of("bundle", "trade_rebalance"));
+        }
+        levelData.setModdedInfo(SERVER_BRAND, true);
+        long seed = levelData.seed;
         Path furnaceProps = Path.of("furnace.properties");
         for (String k : ConfigLoader.ignoredVanillaKeys(furnaceProps)) {
             log.warn("furnace.properties 의 '{}' 는 무시됩니다 — server.properties 값을 씁니다", k);
@@ -119,7 +149,6 @@ public final class FurnaceMain {
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
-        Path worldDir = universe.resolve(config.levelName());
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome, itemRegistry);
         var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
@@ -134,8 +163,32 @@ public final class FurnaceMain {
                 scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
                 config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
-        var defaultSpawn = noiseSource.defaultSpawn();
+        if (!levelData.initialized) {
+            // 새 월드: 바닐라 setInitialSpawn 에 해당하는 생성기 기본 스폰을 정해 level.dat 에 남긴다.
+            var spawn = noiseSource.defaultSpawn();
+            levelData.spawnX = spawn.x();
+            levelData.spawnY = spawn.y();
+            levelData.spawnZ = spawn.z();
+            levelData.spawnAngle = spawn.yaw();
+            levelData.initialized = true;
+        }
+        var defaultSpawn = new org.domi.furnace.server.world.SpawnPoint(
+                levelData.spawnX, levelData.spawnY, levelData.spawnZ, levelData.spawnAngle);
         world.defaultSpawn(defaultSpawn);
+        world.restoreClock(levelData.gameTime, levelData.dayTime);
+        final LevelData level = levelData;
+        Runnable saveLevelData = () -> {
+            synchronized (level) {
+                level.gameTime = world.gameTime();
+                level.dayTime = world.dayTime();
+                try {
+                    storage.saveLevelData(level);
+                } catch (java.io.IOException e) {
+                    log.error("level.dat 저장 실패", e);
+                }
+            }
+        };
+        saveLevelData.run();
         log.info("월드 시드={}, 기본 스폰=({}, {}, {})",
                 config.levelSeed(), defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z());
         world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
@@ -173,6 +226,8 @@ public final class FurnaceMain {
                 ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                 genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                 regionStore.closeAll();
+                saveLevelData.run();
+                storage.close();
             } catch (Exception e) {
                 log.error("[STOP] flush 실패", e);
             }
@@ -183,12 +238,27 @@ public final class FurnaceMain {
 
         network.start();
 
+        // 바닐라 자동 저장 주기마다 level.dat 도 저장한다.
+        scheduler.global().executeDelayed(new Repeating(scheduler, saveLevelData, config.autosaveTicks()), config.autosaveTicks());
+
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler), 100);
 
         log.info("Done ({})! For help, type \"help\"",
                 String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
         shutdown.await();
+    }
+
+    /** period 틱마다 task 를 돌리고 자신을 재예약한다. */
+    private record Repeating(FurnaceSchedulerImpl scheduler, Runnable task, int period) implements Runnable {
+        @Override
+        public void run() {
+            try {
+                task.run();
+            } finally {
+                scheduler.global().executeDelayed(this, period);
+            }
+        }
     }
 
     /** 5초(100틱)마다 region TPS를 로그하고 자신을 재예약하는 하트비트. */

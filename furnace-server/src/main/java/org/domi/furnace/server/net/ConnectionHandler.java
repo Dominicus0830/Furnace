@@ -205,7 +205,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private void onEnterConfiguration(ChannelHandlerContext ctx) {
-        send(ctx, new BrandPayload("Furnace"));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
+        send(ctx, new BrandPayload(org.domi.furnace.server.FurnaceMain.SERVER_BRAND));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
         send(ctx, FeatureFlags.vanilla());
         send(ctx, new KnownPacksClientbound());
     }

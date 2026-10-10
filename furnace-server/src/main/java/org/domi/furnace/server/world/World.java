@@ -151,10 +151,17 @@ public final class World {
     public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
 
     // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
-    // level.dat이 없어 재시작하면 0으로 돌아간다(바닐라는 저장). 20틱 = 1초.
-    private final long clockStartNanos = System.nanoTime();
-    private final long clockStartGameTime = 0L;
-    private final long clockStartDayTime = 0L;
+    // level.dat 의 Time/DayTime 에서 이어 간다(restoreClock). 20틱 = 1초.
+    private volatile long clockStartNanos = System.nanoTime();
+    private volatile long clockStartGameTime = 0L;
+    private volatile long clockStartDayTime = 0L;
+
+    /** level.dat 에서 읽은 시각부터 시계를 다시 잰다(기동 시 한 번). */
+    public void restoreClock(long gameTime, long dayTime) {
+        clockStartGameTime = gameTime;
+        clockStartDayTime = dayTime;
+        clockStartNanos = System.nanoTime();
+    }
 
     /** 서버가 켜진 뒤 경과한 게임 시간(틱). */
     public long gameTime() {

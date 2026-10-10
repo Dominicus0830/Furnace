@@ -24,6 +24,7 @@ public final class NbtCompound {
     public void putByteArray(String k, byte[] v) { tags.put(k, v); }
     public void putString(String k, String v) { tags.put(k, v); }
     public void putLongArray(String k, long[] v) { tags.put(k, v); }
+    public void putIntArray(String k, int[] v) { tags.put(k, v); }
     public void putList(String k, NbtList v) { tags.put(k, v); }
     public void putCompound(String k, NbtCompound v) { tags.put(k, v); }
     public void put(String k, Object v) { tags.put(k, v); }
