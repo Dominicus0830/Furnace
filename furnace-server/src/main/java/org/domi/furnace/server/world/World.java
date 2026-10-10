@@ -170,7 +170,38 @@ public final class World {
     // 접속 중 플레이어(eid→Player). 탭 목록은 바닐라처럼 거리와 무관하게 이 집합 전체를 기준으로 한다.
     private final ConcurrentHashMap<Integer, Player> online = new ConcurrentHashMap<>();
     public void playerOnline(Player p) { online.put(p.entityId(), p); }
-    public void playerOffline(int eid) { online.remove(eid); }
+    public void playerOffline(int eid) { online.remove(eid); trackers.remove(eid); }
+
+    // 엔티티 → 그 엔티티를 지금 화면에 추적 중인 관찰자들. 관찰자 region 이 추적 시작/끝에 갱신하고,
+    // 어느 스레드든 피해·사망 같은 엔티티 이벤트를 보낼 때 읽는다(바닐라 ChunkMap.TrackedEntity.seenBy).
+    private final ConcurrentHashMap<Integer, Set<Player>> trackers = new ConcurrentHashMap<>();
+
+    public void addTracker(int eid, Player observer) {
+        trackers.computeIfAbsent(eid, k -> ConcurrentHashMap.newKeySet()).add(observer);
+    }
+
+    public void removeTracker(int eid, Player observer) {
+        trackers.computeIfPresent(eid, (k, set) -> {
+            set.remove(observer);
+            return set.isEmpty() ? null : set;
+        });
+    }
+
+    /** 이 엔티티를 추적 중인 관찰자 모두에게(자기 자신 제외) 패킷. */
+    public void broadcastToTrackers(int eid, Packet pkt) {
+        Set<Player> set = trackers.get(eid);
+        if (set == null) return;
+        for (Player o : set) if (!o.isDisconnected()) o.send(pkt);
+    }
+
+    // 플레이어 주변 블록 판정(물·사다리·발밑). 블록 레지스트리가 정해질 때 만든다.
+    private volatile PlayerProbe probe;
+
+    public PlayerProbe probe() {
+        PlayerProbe pr = probe;
+        if (pr == null && blockRegistry != null) probe = pr = new PlayerProbe(blockRegistry);
+        return pr;
+    }
     /** 탭 목록 기준 접속자 뷰(읽기 전용 순회용). */
     public java.util.Collection<Player> onlinePlayers() { return online.values(); }
     public Player onlinePlayer(int eid) { return online.get(eid); }

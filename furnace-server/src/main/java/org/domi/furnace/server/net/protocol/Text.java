@@ -154,6 +154,9 @@ public final class Text {
     }
 
     /** 바닐라 Component.getString — 서버 언어(en_us)로 번역한 평문. */
+    /** translatable 키(literal 이면 null). */
+    public String key() { return key; }
+
     public String getString() {
         StringBuilder sb = new StringBuilder();
         if (literal != null) {

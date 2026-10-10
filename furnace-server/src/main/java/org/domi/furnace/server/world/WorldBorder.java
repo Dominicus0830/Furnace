@@ -150,10 +150,9 @@ public final class WorldBorder {
 
     /**
      * 플레이어에게 줄 보더 피해(바닐라 LivingEntity.baseTick): 몸 상자(minX..maxZ)가 경계 밖이고 안전 거리까지 벗어났을 때
-     * max(1, floor(-거리 * 블록당 피해)). 피해가 없으면 0. 체력 시스템(2-7)이 생기기 전이라 어디에도 적용하지 않는다.
+     * max(1, floor(-거리 * 블록당 피해)). 피해가 없으면 0. PlayerVitals.tick 이 outside_border 피해로 준다.
      */
     public synchronized float computePlayerDamage(double minX, double minZ, double maxX, double maxZ, double x, double z) {
-        // TODO(2-7): 체력이 도입되면 플레이어 baseTick 에서 이 값을 outside_border 피해로 적용한다.
         if (isWithinBounds(minX, minZ, maxX, maxZ)) return 0f;
         double distance = getDistanceToBorder(x, z) + damageSafeZone;
         if (distance >= 0.0) return 0f;

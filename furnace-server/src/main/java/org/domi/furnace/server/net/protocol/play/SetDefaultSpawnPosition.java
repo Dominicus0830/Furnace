@@ -4,9 +4,13 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.protocol.Packet;
 
-public record SetDefaultSpawnPosition(int x, int y, int z) implements Packet {
+public record SetDefaultSpawnPosition(int x, int y, int z, float angle) implements Packet {
 
     public static final int ID = 0x56;
+
+    public SetDefaultSpawnPosition(int x, int y, int z) {
+        this(x, y, z, 0f);
+    }
 
     @Override
     public int id() {
@@ -20,6 +24,6 @@ public record SetDefaultSpawnPosition(int x, int y, int z) implements Packet {
                 | ((long) (z & 0x3FFFFFF) << 12)
                 | (y & 0xFFF);
         buf.writeLong(encoded);
-        buf.writeFloat(0f); // Angle
+        buf.writeFloat(angle);
     }
 }

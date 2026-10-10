@@ -1,0 +1,728 @@
+// 플레이어 생존 상태 — 게임 모드·능력·체력·흡수·허기·경험치·공기·낙하 거리·무적 틱·사망/리스폰.
+// 바닐라 ServerPlayer/Player/LivingEntity 의 해당 부분을 옮겼다. 모든 메서드는 이 객체로 동기화돼
+// region 스레드(틱·낙하), 명령 스레드(/gamemode·/kill·/xp), netty 스레드(저장·리스폰)에서 안전하게 부를 수 있다.
+// 블록을 봐야 하는 판정(물·사다리·착지 블록)은 소유 region 이 계산해 인자로 넘긴다.
+package org.domi.furnace.server.entity;
+
+import org.domi.furnace.server.entity.damage.CombatTracker;
+import org.domi.furnace.server.entity.damage.DamageType;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.server.net.protocol.play.DamageEvent;
+import org.domi.furnace.server.net.protocol.play.EntityEvent;
+import org.domi.furnace.server.net.protocol.play.GameEvent;
+import org.domi.furnace.server.net.protocol.play.PlayerCombatKill;
+import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
+import org.domi.furnace.server.net.protocol.play.SetEntityData;
+import org.domi.furnace.server.net.protocol.play.SetExperience;
+import org.domi.furnace.server.net.protocol.play.SetHealth;
+import org.domi.furnace.server.world.Difficulty;
+import org.domi.furnace.server.world.GameMode;
+
+public final class PlayerVitals {
+
+    public static final float MAX_HEALTH = 20.0f;
+    public static final int MAX_AIR = 300;
+    /** 바닐라 Attributes.SAFE_FALL_DISTANCE 기본값. */
+    private static final float SAFE_FALL_DISTANCE = 3.0f;
+    private static final int SPAWN_INVULNERABLE_TICKS = 60;
+
+    /** 생존 상태가 서버에 묻거나 시키는 것. 스레드 안전해야 한다. */
+    public interface Env {
+        Difficulty difficulty();
+
+        boolean gameRule(String name);
+
+        /** 서버 설정 pvp(전용 서버에서 스폰 무적이 낙하 피해를 막지 않는 조건). */
+        boolean pvp();
+
+        /** 접속자 전원에게 시스템 메시지(콘솔 기록 포함) — 바닐라 PlayerList.broadcastSystemMessage. */
+        void broadcastSystemMessage(Text message);
+
+        /** 접속자 전원에게 패킷. */
+        void broadcastAll(Packet packet);
+
+        /** 이 엔티티를 추적(화면에 보고) 중인 다른 플레이어에게 패킷. */
+        void broadcastToTrackers(int entityId, Packet packet);
+
+        /** 월드 보더 밖 피해량(0 = 없음). */
+        default float borderDamage(double x, double y, double z) { return 0f; }
+
+        Env DEFAULT = new Env() {
+            public Difficulty difficulty() { return Difficulty.EASY; }
+            public boolean gameRule(String name) { return !name.equals("keepInventory") && !name.equals("doImmediateRespawn"); }
+            public boolean pvp() { return true; }
+            public void broadcastSystemMessage(Text message) {}
+            public void broadcastAll(Packet packet) {}
+            public void broadcastToTrackers(int entityId, Packet packet) {}
+        };
+    }
+
+    /** 죽을 때 소유 연결이 할 일(인벤토리 비우기 등). netty 이벤트 루프로 넘겨 실행된다. */
+    public interface DeathListener {
+        void onDeath(boolean keepInventory);
+    }
+
+    /** 틱마다 region 이 블록을 보고 계산해 넘기는 주변 상태. */
+    public record Surroundings(boolean chunkLoaded, boolean inWater, boolean eyeInWater, boolean eyeInBubbleColumn,
+                               String climbable, boolean stuckInBlock, int minBuildHeight) {
+        public static final Surroundings NONE = new Surroundings(false, false, false, false, null, false, -64);
+    }
+
+    private final Player player;
+    private volatile Env env = Env.DEFAULT;
+    private volatile DeathListener deathListener;
+
+    private GameMode gameMode = GameMode.SURVIVAL;
+    private GameMode previousGameMode;
+    private final Abilities abilities = new Abilities();
+
+    private float health = MAX_HEALTH;
+    private float absorption;
+    private FoodData food = new FoodData();
+    private int xpLevel, xpTotal, xpSeed, score;
+    private float xpProgress;
+    private int air = MAX_AIR;
+    private float fallDistance;
+    private int invulnerableTime, hurtTime, deathTime, tickCount;
+    private int spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
+    private float lastHurt;
+    private boolean invulnerableFlag;          // 엔티티 NBT "Invulnerable"
+    private CombatTracker combat = new CombatTracker();
+    private boolean inWater;
+    private String lastClimbable;              // 바닐라 lastClimbablePos 의 FallLocation 이름
+    private boolean removedAfterDeath;
+
+    private float lastSentHealth = -1.0e8f;
+    private int lastSentFood = -99999999;
+    private boolean lastFoodSaturationZero = true;
+    private int lastSentExp = -99999999;
+    private float lastDataHealth = Float.NaN;
+    private int lastDataAir = Integer.MIN_VALUE;
+
+    private int[] respawnPos;
+    private float respawnAngle;
+    private boolean respawnForced;
+    private String respawnDimension = "minecraft:overworld";
+    private String lastDeathDimension;
+    private int[] lastDeathPos;
+
+    public PlayerVitals(Player player) {
+        this.player = player;
+        this.xpSeed = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+    }
+
+    public void env(Env env) { this.env = env; }
+
+    public Env env() { return env; }
+
+    public void deathListener(DeathListener l) { this.deathListener = l; }
+
+    // ------------------------------------------------------------------ 저장
+
+    /** 바닐라 LivingEntity/Player/ServerPlayer.readAdditionalSaveData 중 이 객체가 다루는 키. 게임 모드는 {@link #loadGameTypes}. */
+    public synchronized void load(NbtCompound tag) {
+        if (tag.containsNumber("Health")) health = Math.clamp(tag.getFloat("Health"), 0f, MAX_HEALTH);
+        absorption = Math.max(0f, tag.getFloat("AbsorptionAmount"));
+        hurtTime = tag.getShort("HurtTime");
+        deathTime = tag.getShort("DeathTime");
+        if (tag.containsNumber("Air")) air = tag.getShort("Air");
+        fallDistance = tag.getFloat("FallDistance");
+        invulnerableFlag = tag.getBoolean("Invulnerable");
+        xpProgress = tag.getFloat("XpP");
+        xpLevel = tag.getIntOr0("XpLevel");
+        xpTotal = tag.getIntOr0("XpTotal");
+        xpSeed = tag.getIntOr0("XpSeed");
+        if (xpSeed == 0) xpSeed = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+        score = tag.getIntOr0("Score");
+        food.load(tag);
+        abilities.load(tag);
+        if (tag.containsNumber("SpawnX") && tag.containsNumber("SpawnY") && tag.containsNumber("SpawnZ")) {
+            respawnPos = new int[]{tag.getIntOr0("SpawnX"), tag.getIntOr0("SpawnY"), tag.getIntOr0("SpawnZ")};
+            respawnForced = tag.getBoolean("SpawnForced");
+            respawnAngle = tag.getFloat("SpawnAngle");
+            if (tag.tags().get("SpawnDimension") instanceof String d) respawnDimension = d;
+        }
+        if (tag.tags().get("LastDeathLocation") instanceof NbtCompound ld
+                && ld.tags().get("dimension") instanceof String dim && ld.tags().get("pos") instanceof int[] pos && pos.length == 3) {
+            lastDeathDimension = dim;
+            lastDeathPos = pos.clone();
+        }
+    }
+
+    /**
+     * 바닐라 ServerPlayer.loadGameTypes + calculateGameModeForNewPlayer: force-gamemode 면 서버 기본값, 아니면 저장값,
+     * 저장값이 없으면 서버 기본값. 이전 모드는 저장값 그대로.
+     */
+    public synchronized void loadGameTypes(NbtCompound tag, GameMode defaultMode, boolean forceGameMode) {
+        GameMode saved = tag != null && tag.containsNumber("playerGameType") ? readMode(tag.getIntOr0("playerGameType")) : null;
+        GameMode prev = tag != null && tag.containsNumber("previousPlayerGameType") ? readMode(tag.getIntOr0("previousPlayerGameType")) : null;
+        GameMode mode = forceGameMode ? defaultMode : saved != null ? saved : defaultMode;
+        previousGameMode = prev;
+        gameMode = mode;
+        abilities.applyGameMode(mode);
+    }
+
+    private static GameMode readMode(int id) { return id == -1 ? null : GameMode.byId(id); }
+
+    public synchronized void save(NbtCompound tag) {
+        tag.putFloat("Health", health);
+        tag.putShort("HurtTime", (short) hurtTime);
+        tag.putInt("HurtByTimestamp", 0);
+        tag.putShort("DeathTime", (short) deathTime);
+        tag.putFloat("AbsorptionAmount", absorption);
+        tag.putShort("Air", (short) air);
+        tag.putFloat("FallDistance", fallDistance);
+        tag.putBoolean("Invulnerable", invulnerableFlag);
+        tag.putFloat("XpP", xpProgress);
+        tag.putInt("XpLevel", xpLevel);
+        tag.putInt("XpTotal", xpTotal);
+        tag.putInt("XpSeed", xpSeed);
+        tag.putInt("Score", score);
+        food.save(tag);
+        abilities.save(tag);
+        tag.putInt("playerGameType", gameMode.id());
+        if (previousGameMode != null) tag.putInt("previousPlayerGameType", previousGameMode.id());
+        else tag.tags().remove("previousPlayerGameType");
+        if (respawnPos != null) {
+            tag.putInt("SpawnX", respawnPos[0]);
+            tag.putInt("SpawnY", respawnPos[1]);
+            tag.putInt("SpawnZ", respawnPos[2]);
+            tag.putBoolean("SpawnForced", respawnForced);
+            tag.putFloat("SpawnAngle", respawnAngle);
+            tag.putString("SpawnDimension", respawnDimension);
+        } else {
+            for (String k : new String[]{"SpawnX", "SpawnY", "SpawnZ", "SpawnForced", "SpawnAngle", "SpawnDimension"}) tag.tags().remove(k);
+        }
+        if (lastDeathPos != null) {
+            NbtCompound ld = new NbtCompound();
+            ld.putString("dimension", lastDeathDimension);
+            ld.putIntArray("pos", lastDeathPos.clone());
+            tag.putCompound("LastDeathLocation", ld);
+        } else {
+            tag.tags().remove("LastDeathLocation");
+        }
+    }
+
+    // ------------------------------------------------------------------ 게임 모드
+
+    public synchronized GameMode gameMode() { return gameMode; }
+
+    public synchronized GameMode previousGameMode() { return previousGameMode; }
+
+    public synchronized boolean isSpectator() { return gameMode == GameMode.SPECTATOR; }
+
+    public synchronized boolean isCreative() { return gameMode == GameMode.CREATIVE; }
+
+    public synchronized boolean mayBuild() { return abilities.mayBuild; }
+
+    public synchronized boolean instabuild() { return abilities.instabuild; }
+
+    public synchronized org.domi.furnace.server.net.protocol.play.PlayerAbilities abilitiesPacket() { return abilities.packet(); }
+
+    /**
+     * 바닐라 ServerPlayer.setGameMode: 같으면 false. 바꾸면 능력 → 탭 목록(전원) → 게임 이벤트 3 → 능력 순으로 알린다.
+     */
+    public boolean setGameMode(GameMode mode) {
+        Packet abilitiesPkt;
+        synchronized (this) {
+            if (mode == gameMode) return false;
+            previousGameMode = gameMode;
+            gameMode = mode;
+            abilities.applyGameMode(mode);
+            abilitiesPkt = abilities.packet();
+        }
+        player.send(abilitiesPkt);
+        env.broadcastAll(PlayerInfoUpdate.updateGameMode(player.uuid(), mode.id()));
+        player.send(new GameEvent(GameEvent.CHANGE_GAME_MODE, mode.id()));
+        player.send(abilitiesPkt);
+        return true;
+    }
+
+    /** 클라이언트가 비행 시작/끝을 알릴 때(serverbound player_abilities): 비행 가능할 때만 반영. */
+    public synchronized void setFlying(boolean flying) {
+        abilities.flying = flying && abilities.mayfly;
+    }
+
+    // ------------------------------------------------------------------ 체력·피해
+
+    public synchronized float health() { return health; }
+
+    public synchronized boolean isDeadOrDying() { return health <= 0.0f; }
+
+    public synchronized boolean removedAfterDeath() { return removedAfterDeath; }
+
+    public synchronized int foodLevel() { return food.foodLevel(); }
+
+    public synchronized float saturation() { return food.saturationLevel(); }
+
+    public synchronized float exhaustion() { return food.exhaustionLevel(); }
+
+    public synchronized int air() { return air; }
+
+    public synchronized float fallDistance() { return fallDistance; }
+
+    private void setHealth(float h) { health = Math.clamp(h, 0.0f, MAX_HEALTH); }
+
+    /** 바닐라 LivingEntity.heal: 살아 있을 때만. */
+    public synchronized void heal(float amount) {
+        if (health > 0.0f) setHealth(health + amount);
+    }
+
+    /** 바닐라 Player.causeFoodExhaustion: 무적 능력이면 무시. */
+    public synchronized void causeFoodExhaustion(float amount) {
+        if (!abilities.invulnerable) food.addExhaustion(amount);
+    }
+
+    /** 바닐라 Player.isInvulnerableTo(+ Entity): 무적 플래그·게임룰(낙하·익사 피해). */
+    private boolean isInvulnerableTo(DamageType type) {
+        if (invulnerableFlag && !type.bypassesInvulnerability()) return true;
+        if (type.isDrowning()) return !env.gameRule("drowningDamage");
+        if (type.isFall()) return !env.gameRule("fallDamage");
+        return false;
+    }
+
+    /** /kill — 바닐라 LivingEntity.kill: generic_kill 로 Float.MAX_VALUE 피해. */
+    public boolean kill() {
+        return hurt(DamageType.GENERIC_KILL, Float.MAX_VALUE);
+    }
+
+    /** 바닐라 ServerPlayer.hurt → Player.hurt → LivingEntity.hurt(원인 엔티티 없는 피해). */
+    public boolean hurt(DamageType type, float amount) {
+        boolean died;
+        boolean newHurt;
+        synchronized (this) {
+            if (isInvulnerableTo(type)) return false;
+            boolean fallOnPvpServer = env.pvp() && type.isFall();
+            if (!fallOnPvpServer && spawnInvulnerableTime > 0 && !type.bypassesInvulnerability()) return false;
+            if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
+            if (health <= 0.0f) return false;
+            if (amount == 0.0f) return false;
+            if (invulnerableTime > 10) {
+                if (amount <= lastHurt) return false;
+                actuallyHurt(type, amount - lastHurt);
+                lastHurt = amount;
+                newHurt = false;
+            } else {
+                lastHurt = amount;
+                invulnerableTime = 20;
+                actuallyHurt(type, amount);
+                hurtTime = 10;
+                newHurt = true;
+            }
+            died = health <= 0.0f;
+        }
+        if (newHurt) {
+            Packet ev = DamageEvent.environmental(player.entityId(), type.registryId());
+            player.send(ev);
+            env.broadcastToTrackers(player.entityId(), ev);
+        }
+        if (died) die(type);
+        return true;
+    }
+
+    /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */
+    private void actuallyHurt(DamageType type, float amount) {
+        float afterAbsorb = Math.max(amount - absorption, 0.0f);
+        absorption = Math.max(0.0f, absorption - (amount - afterAbsorb));
+        if (afterAbsorb != 0.0f) {
+            if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
+            combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0);
+            setHealth(health - afterAbsorb);
+        }
+    }
+
+    /** 바닐라 FallLocation.getCurrentFallLocation: 마지막으로 매달린 블록, 없고 물속이면 water. */
+    private String fallLocation() {
+        if (lastClimbable != null) return lastClimbable;
+        return inWater ? "water" : null;
+    }
+
+    /** 바닐라 ServerPlayer.die: 사망 메시지·사망 화면, 인벤토리 처리, 엔티티 이벤트 3, 마지막 사망 위치. */
+    private void die(DamageType type) {
+        boolean showMessages = env.gameRule("showDeathMessages");
+        boolean keepInventory = env.gameRule("keepInventory");
+        Text name = player.displayName();
+        Text message;
+        boolean spectator;
+        synchronized (this) {
+            message = showMessages ? combat.getDeathMessage(name) : null;
+            spectator = gameMode == GameMode.SPECTATOR;
+            combat.recheckStatus(tickCount, false);
+            lastDeathDimension = "minecraft:overworld";
+            lastDeathPos = new int[]{(int) Math.floor(player.x()), (int) Math.floor(player.y()), (int) Math.floor(player.z())};
+        }
+        if (message != null) {
+            player.send(new PlayerCombatKill(player.entityId(), message));
+            env.broadcastSystemMessage(message);
+        } else {
+            player.send(new PlayerCombatKill(player.entityId(), Text.empty()));
+        }
+        DeathListener l = deathListener;
+        if (l != null && !spectator) l.onDeath(keepInventory);
+        Packet ev = new EntityEvent(player.entityId(), (byte) 3);
+        player.send(ev);
+        env.broadcastToTrackers(player.entityId(), ev);
+    }
+
+    // ------------------------------------------------------------------ 이동(낙하·소모)
+
+    /**
+     * 수락된 위치 패킷 하나마다 — 바닐라 handleMovePlayer 순서: 점프 소모 → move(경로에 물이 있으면 낙하 초기화)
+     * → doCheckFallDamage → 위로 움직였으면 낙하 초기화 → 이동 거리 소모.
+     *
+     * @param wasOnGround  이 이동 전 서버가 알던 onGround
+     * @param landingBlock 발밑 블록 이름(getOnPosLegacy), 청크가 없으면 null(낙하 판정 건너뜀)
+     * @param inWaterNow   이동 후 몸이 물에 닿아 있는가
+     * @param waterOnPath  이동 경로(이전 → 새 위치)에 물이 있는가(Entity.move 의 낙하 중 물 레이캐스트)
+     */
+    public void onMove(double dx, double dy, double dz, boolean wasOnGround, boolean onGround, boolean sprinting, boolean sneaking,
+                       boolean inWaterNow, boolean eyeInWater, String climbable, String landingBlock, boolean waterOnPath) {
+        float fallDamage = 0;
+        synchronized (this) {
+            if (wasOnGround && !onGround && dy > 0.0) causeFoodExhaustionLocked(sprinting ? 0.2f : 0.05f);   // jumpFromGround
+            if (waterOnPath && fallDistance != 0.0f && dx * dx + dy * dy + dz * dz >= 1.0) fallDistance = 0.0f;
+            if (landingBlock != null) fallDamage = checkFallDamage(dy, onGround, inWaterNow, landingBlock, sneaking);
+        }
+        // 바닐라 fallOn → causeFallDamage → hurt 는 낙하 거리를 초기화하기 전에 일어난다(전투 기록이 낙하 거리를 본다).
+        if (fallDamage > 0) hurt(DamageType.FALL, fallDamage);
+        synchronized (this) {
+            if (landingBlock != null && onGround) {
+                fallDistance = 0.0f;
+                lastClimbable = null;
+            }
+            if (dy > 0.0) fallDistance = 0.0f;
+            checkMovementStatistics(dx, dy, dz, onGround, sprinting, sneaking, inWaterNow, eyeInWater, climbable);
+        }
+    }
+
+    private void causeFoodExhaustionLocked(float amount) {
+        if (!abilities.invulnerable) food.addExhaustion(amount);
+    }
+
+    /** 바닐라 ServerPlayer.checkMovementStatistics 의 허기 소모 부분(수영 자세 판정은 아직 없어 물속 이동으로 본다). */
+    private void checkMovementStatistics(double dx, double dy, double dz, boolean onGround, boolean sprinting, boolean sneaking,
+                                         boolean inWaterNow, boolean eyeInWater, String climbable) {
+        if (dx == 0.0 && dy == 0.0 && dz == 0.0) return;
+        if (eyeInWater) {
+            int cm = Math.round((float) Math.sqrt(dx * dx + dy * dy + dz * dz) * 100.0f);
+            if (cm > 0) causeFoodExhaustionLocked(0.01f * cm * 0.01f);
+        } else if (inWaterNow) {
+            int cm = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100.0f);
+            if (cm > 0) causeFoodExhaustionLocked(0.01f * cm * 0.01f);
+        } else if (climbable != null) {
+            // 오르기: 통계만, 소모 없음
+        } else if (onGround) {
+            int cm = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100.0f);
+            if (cm > 0) causeFoodExhaustionLocked((sprinting ? 0.1f : 0.0f) * cm * 0.01f);
+        }
+    }
+
+    /**
+     * 바닐라 LivingEntity/Entity.checkFallDamage: 물에 닿으면 낙하 거리 초기화, 착지하면 블록별 fallOn 으로 피해 후 초기화,
+     * 떨어지는 중이면 누적. 반환값은 줄 낙하 피해(없으면 0).
+     */
+    private float checkFallDamage(double dy, boolean onGround, boolean inWaterNow, String landingBlock, boolean sneaking) {
+        if (inWaterNow) {
+            inWater = true;
+            fallDistance = 0.0f;
+        }
+        float damage = 0;
+        if (onGround) {
+            if (fallDistance > 0.0f) damage = fallOn(landingBlock, fallDistance, sneaking);
+            // 초기화는 피해를 준 뒤(onMove)
+        } else if (dy < 0.0) {
+            fallDistance -= (float) dy;
+        }
+        return damage;
+    }
+
+    /** 블록별 Block.fallOn → Player/LivingEntity.causeFallDamage. 비행 가능하면 피해 없음. */
+    private float fallOn(String block, float distance, boolean sneaking) {
+        float multiplier = fallMultiplier(block, sneaking);
+        if (multiplier < 0 || abilities.mayfly) return 0;
+        float over = distance - SAFE_FALL_DISTANCE;
+        return (float) Math.ceil((double) (over * multiplier) * 1.0);
+    }
+
+    /** -1 = 피해 없음(가루눈). */
+    static float fallMultiplier(String block, boolean sneaking) {
+        if (block == null) return 1.0f;
+        if (block.equals("minecraft:hay_block") || block.equals("minecraft:honey_block")) return 0.2f;
+        if (block.equals("minecraft:slime_block")) return sneaking ? 1.0f : 0.0f;
+        if (block.equals("minecraft:powder_snow")) return -1;
+        if (block.endsWith("_bed")) return 0.5f;
+        return 1.0f;
+    }
+
+    // ------------------------------------------------------------------ 틱
+
+    /**
+     * 매 틱(소유 region): 무적 틱 감소 → 물·사다리 상태 → 공허·보더·익사 → 사망 틱 → 평화 회복 → 허기 → 변경 전송.
+     * 순서는 바닐라 ServerPlayer.tick + doTick(Player.tick → LivingEntity.baseTick → aiStep → FoodData.tick).
+     */
+    public void tick(Surroundings s) {
+        java.util.List<Runnable> after = new java.util.ArrayList<>(2);
+        java.util.List<Packet> toSelf = new java.util.ArrayList<>(3);
+        java.util.List<Packet> toTrackers = new java.util.ArrayList<>(2);
+        synchronized (this) {
+            tickCount++;
+            if (invulnerableTime > 0) invulnerableTime--;
+            if (spawnInvulnerableTime > 0) spawnInvulnerableTime--;
+            boolean alive = health > 0.0f;
+            if (s.chunkLoaded()) {
+                inWater = s.inWater() && gameMode != GameMode.SPECTATOR;
+                if (inWater) fallDistance = 0.0f;
+                if (s.climbable() != null && gameMode != GameMode.SPECTATOR) {
+                    lastClimbable = s.climbable();
+                    fallDistance = 0.0f;   // travel → handleOnClimbable → resetFallDistance
+                }
+                if (s.stuckInBlock()) fallDistance = 0.0f;   // 거미줄·가루눈·달콤한 열매 덤불: makeStuckInBlock
+            }
+            if (player.y() < s.minBuildHeight() - 64) after.add(() -> hurt(DamageType.OUT_OF_WORLD, 4.0f));
+            if (alive) {
+                float border = env.borderDamage(player.x(), player.y(), player.z());
+                if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
+                if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
+                    if (!abilities.invulnerable) {
+                        air--;
+                        if (air == -20) {
+                            air = 0;
+                            after.add(() -> hurt(DamageType.DROWN, 2.0f));
+                        }
+                    }
+                } else if (air < MAX_AIR) {
+                    air = Math.min(air + 4, MAX_AIR);
+                }
+            }
+            if (hurtTime > 0) hurtTime--;
+            if (health <= 0.0f) {
+                if (++deathTime >= 20 && !removedAfterDeath) {
+                    removedAfterDeath = true;
+                    toSelf.add(new EntityEvent(player.entityId(), (byte) 60));
+                    toTrackers.add(new EntityEvent(player.entityId(), (byte) 60));
+                }
+            } else {
+                Difficulty difficulty = env.difficulty();
+                if (difficulty == Difficulty.PEACEFUL && env.gameRule("naturalRegeneration")) {
+                    if (health < MAX_HEALTH && tickCount % 20 == 0) heal(1.0f);
+                    if (food.saturationLevel() < 20.0f && tickCount % 20 == 0) food.saturationLevel(food.saturationLevel() + 1.0f);
+                    if (food.needsFood() && tickCount % 10 == 0) food.foodLevel(food.foodLevel() + 1);
+                }
+                food.tick(foodOwner);
+                combat.recheckStatus(tickCount, true);
+            }
+        }
+        for (Runnable r : after) r.run();
+        applyPendingStarve();
+        synchronized (this) {
+            collectChanges(toSelf, toTrackers);
+        }
+        for (Packet p : toSelf) player.send(p);
+        for (Packet p : toTrackers) env.broadcastToTrackers(player.entityId(), p);
+    }
+
+    /** 바닐라 doTick 끝: 체력·허기·포화 0 여부가 바뀌면 SetHealth, 총 경험치가 바뀌면 SetExperience, 엔티티 데이터(체력·공기) 동기화. */
+    private void collectChanges(java.util.List<Packet> toSelf, java.util.List<Packet> toTrackers) {
+        boolean saturationZero = food.saturationLevel() == 0.0f;
+        if (health != lastSentHealth || lastSentFood != food.foodLevel() || saturationZero != lastFoodSaturationZero) {
+            toSelf.add(new SetHealth(health, food.foodLevel(), food.saturationLevel()));
+            lastSentHealth = health;
+            lastSentFood = food.foodLevel();
+            lastFoodSaturationZero = saturationZero;
+        }
+        if (xpTotal != lastSentExp) {
+            lastSentExp = xpTotal;
+            toSelf.add(new SetExperience(xpProgress, xpLevel, xpTotal));
+        }
+        java.util.List<SetEntityData.Item> data = new java.util.ArrayList<>(2);
+        if (air != lastDataAir) {
+            lastDataAir = air;
+            data.add(new SetEntityData.Item(SetEntityData.AIR_SUPPLY, SetEntityData.SERIALIZER_INT, air));
+        }
+        if (health != lastDataHealth) {
+            lastDataHealth = health;
+            data.add(new SetEntityData.Item(SetEntityData.HEALTH, SetEntityData.SERIALIZER_FLOAT, health));
+        }
+        if (!data.isEmpty()) {
+            SetEntityData pkt = new SetEntityData(player.entityId(), java.util.List.copyOf(data));
+            toSelf.add(pkt);
+            toTrackers.add(pkt);
+        }
+    }
+
+    private final FoodData.Owner foodOwner = new FoodData.Owner() {
+        public Difficulty difficulty() { return env.difficulty(); }
+        public boolean naturalRegeneration() { return env.gameRule("naturalRegeneration"); }
+        public boolean isHurt() { return health > 0.0f && health < MAX_HEALTH; }
+        public float health() { return health; }
+        public void heal(float amount) { PlayerVitals.this.heal(amount); }
+        // 틱 잠금 밖에서 피해를 줘야 사망 처리(패킷·메시지)가 잠금을 오래 쥐지 않는다 — 그래도 순서는 같은 틱 안이다.
+        public void starve() { pendingStarve = true; }
+    };
+    private boolean pendingStarve;
+
+    /** 굶주림 피해는 FoodData.tick 안에서 정해지고 잠금 밖에서 적용된다. */
+    private void applyPendingStarve() {
+        boolean s;
+        synchronized (this) {
+            s = pendingStarve;
+            pendingStarve = false;
+        }
+        if (s) hurt(DamageType.STARVE, 1.0f);
+    }
+
+    // ------------------------------------------------------------------ 경험치
+
+    public synchronized int xpLevel() { return xpLevel; }
+
+    public synchronized int xpTotal() { return xpTotal; }
+
+    public synchronized float xpProgress() { return xpProgress; }
+
+    public synchronized int score() { return score; }
+
+    /** 바닐라 Player.getXpNeededForNextLevel. */
+    public synchronized int xpNeededForNextLevel() { return xpNeeded(xpLevel); }
+
+    static int xpNeeded(int level) {
+        if (level >= 30) return 112 + (level - 30) * 9;
+        return level >= 15 ? 37 + (level - 15) * 5 : 7 + level * 2;
+    }
+
+    /** 바닐라 Player.giveExperiencePoints. */
+    public synchronized void giveExperiencePoints(int amount) {
+        score += amount;
+        xpProgress += (float) amount / (float) xpNeeded(xpLevel);
+        xpTotal = Math.clamp((long) xpTotal + amount, 0, Integer.MAX_VALUE);
+        while (xpProgress < 0.0f) {
+            float f = xpProgress * (float) xpNeeded(xpLevel);
+            if (xpLevel > 0) {
+                giveLevelsLocked(-1);
+                xpProgress = 1.0f + f / (float) xpNeeded(xpLevel);
+            } else {
+                giveLevelsLocked(-1);
+                xpProgress = 0.0f;
+            }
+        }
+        while (xpProgress >= 1.0f) {
+            xpProgress = (xpProgress - 1.0f) * (float) xpNeeded(xpLevel);
+            giveLevelsLocked(1);
+            xpProgress = xpProgress / (float) xpNeeded(xpLevel);
+        }
+    }
+
+    /** 바닐라 ServerPlayer.giveExperienceLevels(Player.giveExperienceLevels + lastSentExp = -1). */
+    public synchronized void giveExperienceLevels(int levels) {
+        giveLevelsLocked(levels);
+        lastSentExp = -1;
+    }
+
+    private void giveLevelsLocked(int levels) {
+        xpLevel += levels;
+        if (xpLevel < 0) {
+            xpLevel = 0;
+            xpProgress = 0.0f;
+            xpTotal = 0;
+        }
+    }
+
+    /** 바닐라 ServerPlayer.setExperienceLevels. */
+    public synchronized void setExperienceLevels(int level) {
+        xpLevel = level;
+        lastSentExp = -1;
+    }
+
+    /** 바닐라 ServerPlayer.setExperiencePoints(진행도만): 다음 레벨 필요량 이상이면 false(명령이 거부). */
+    public synchronized boolean setExperiencePoints(int points) {
+        float needed = (float) xpNeeded(xpLevel);
+        if (points >= needed) return false;
+        float max = (needed - 1.0f) / needed;
+        xpProgress = Math.clamp((float) points / needed, 0.0f, max);
+        lastSentExp = -1;
+        return true;
+    }
+
+    // ------------------------------------------------------------------ 스폰·리스폰
+
+    /** /spawnpoint — 바닐라 ServerPlayer.setRespawnPosition(dim, pos, angle, forced=true, sendMessage=false). */
+    public synchronized void setRespawnPosition(String dimension, int[] pos, float angle, boolean forced) {
+        if (pos == null) {
+            respawnPos = null;
+            respawnDimension = "minecraft:overworld";
+            respawnAngle = 0f;
+            respawnForced = false;
+            return;
+        }
+        respawnPos = pos.clone();
+        respawnDimension = dimension;
+        respawnAngle = angle;
+        respawnForced = forced;
+    }
+
+    public synchronized int[] respawnPos() { return respawnPos == null ? null : respawnPos.clone(); }
+
+    public synchronized float respawnAngle() { return respawnAngle; }
+
+    public synchronized boolean respawnForced() { return respawnForced; }
+
+    public synchronized String lastDeathDimension() { return lastDeathDimension; }
+
+    public synchronized int[] lastDeathPos() { return lastDeathPos == null ? null : lastDeathPos.clone(); }
+
+    /**
+     * 바닐라 PlayerList.respawn 의 새 ServerPlayer + copyFrom(keepEverything=false): 체력·허기·공기·낙하·전투 기록 초기화,
+     * keepInventory 이거나 관전자였으면 경험치·점수 유지, 게임 모드·스폰 지점·마지막 사망 위치·경험치 씨앗은 유지.
+     */
+    public synchronized void respawn(boolean keepInventory) {
+        boolean keepXp = keepInventory || gameMode == GameMode.SPECTATOR;
+        health = MAX_HEALTH;
+        absorption = 0;
+        food = new FoodData();
+        air = MAX_AIR;
+        fallDistance = 0;
+        invulnerableTime = 0;
+        hurtTime = 0;
+        deathTime = 0;
+        lastHurt = 0;
+        spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
+        combat = new CombatTracker();
+        inWater = false;
+        lastClimbable = null;
+        removedAfterDeath = false;
+        abilities.flying = false;
+        abilities.flyingSpeed = 0.05f;
+        abilities.walkingSpeed = 0.1f;
+        abilities.applyGameMode(gameMode);
+        if (!keepXp) {
+            xpLevel = 0;
+            xpTotal = 0;
+            xpProgress = 0;
+            score = 0;
+        }
+        lastSentHealth = -1.0e8f;
+        lastSentFood = -99999999;
+        lastFoodSaturationZero = true;
+        lastSentExp = -1;
+        lastDataHealth = Float.NaN;
+        lastDataAir = Integer.MIN_VALUE;
+    }
+
+    /** 접속 때 바로 보낼 체력·허기·경험치·엔티티 데이터(바닐라는 첫 doTick 에서 같은 값을 보낸다 — 이후 틱은 바뀔 때만). */
+    public synchronized java.util.List<Packet> joinPackets() {
+        java.util.List<Packet> out = new java.util.ArrayList<>(3);
+        collectChanges(out, new java.util.ArrayList<>());
+        return out;
+    }
+
+    /** 저장용 NBT(이 객체가 다루는 키만). 스냅샷 시점의 값이라 IO 풀에서 써도 안전하다. */
+    public synchronized NbtCompound saveData() {
+        NbtCompound tag = new NbtCompound();
+        save(tag);
+        return tag;
+    }
+
+    /** 리스폰·접속 직후 클라이언트에 맞출 경험치 패킷. */
+    public synchronized SetExperience experiencePacket() { return new SetExperience(xpProgress, xpLevel, xpTotal); }
+}

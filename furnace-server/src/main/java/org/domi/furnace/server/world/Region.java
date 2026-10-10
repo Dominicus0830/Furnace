@@ -13,6 +13,7 @@ import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.entity.PlayerVitals;
 import org.domi.furnace.server.net.protocol.play.BlockUpdate;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
@@ -260,12 +261,15 @@ public final class Region {
             if (p.isDisconnected()) {
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
+                for (Integer eid : p.tracked().keySet()) world.removeTracker(eid, p);
                 // 저장은 ConnectionHandler.channelInactive가 IO 위치+인벤토리로 수행(여기선 0,0,0 위험).
                 world.playerOffline(p.entityId());   // 다른 관찰자는 grace 후 탭에서 뺀다
                 broadcastRemove(p.entityId());
                 continue;
             }
+            processMoves(p);
             p.drainPending();
+            tickVitals(p);
             RegionPos now = p.regionPos(world.regionSize());
             if (!now.equals(pos)) {     // 경계 넘음 → 핸드오프
                 it.remove();
@@ -306,10 +310,84 @@ public final class Region {
         }
     }
 
+    private void startTracking(Player a, int eid, double[] last) {
+        a.tracked().put(eid, last);
+        world.addTracker(eid, a);
+    }
+
+    private boolean stopTracking(Player a, int eid) {
+        if (a.tracked().remove(eid) == null) return false;
+        world.removeTracker(eid, a);
+        return true;
+    }
+
+    // ------------------------------------------------------------------ 생존(낙하·물·공기·허기)
+
+    /** 이 region 이 가진 청크의 블록(없으면 -1). 마지막 청크를 기억해 같은 청크 연속 조회를 싸게 한다. */
+    private final PlayerProbe.Blocks blocks = new PlayerProbe.Blocks() {
+        private ChunkPos lastPos;
+        private ChunkColumn last;
+
+        @Override
+        public int stateAt(int x, int y, int z) {
+            int cx = x >> 4, cz = z >> 4;
+            ChunkColumn c;
+            if (lastPos != null && lastPos.x() == cx && lastPos.z() == cz) {
+                c = last;
+            } else {
+                lastPos = new ChunkPos(cx, cz);
+                last = c = chunks.get(lastPos);
+            }
+            if (c == null) return -1;
+            if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return ChunkSection.AIR;
+            return c.getBlock(x & 15, y, z & 15);
+        }
+    };
+
+    /** 이번 틱까지 들어온 위치 패킷들을 순서대로 — 점프·이동 소모와 낙하 판정(바닐라 handleMovePlayer 마다). */
+    private void processMoves(Player p) {
+        PlayerProbe probe = world.probe();
+        Player.MoveSample m;
+        while ((m = p.pollMove()) != null) {
+            Player.MoveSample prev = p.moveAnchor();
+            p.moveAnchor(m);
+            if (m.teleport() || prev == null || probe == null) continue;
+            boolean sneaking = p.sneaking();
+            double height = sneaking ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+            double eye = sneaking ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
+            double dx = m.x() - prev.x(), dy = m.y() - prev.y(), dz = m.z() - prev.z();
+            String landing = probe.onPosLegacy(blocks, m.x(), m.y(), m.z(), m.onGround());
+            boolean inWater = probe.inWater(blocks, m.x(), m.y(), m.z(), height);
+            boolean eyeInWater = probe.eyeInWater(blocks, m.x(), m.y(), m.z(), eye);
+            String climbable = probe.climbable(blocks, m.x(), m.y(), m.z());
+            boolean waterOnPath = dy < 0 && probe.waterOnPath(blocks, m.x(), prev.y(), m.y(), m.z());
+            p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
+                    inWater, eyeInWater, climbable, landing, waterOnPath);
+        }
+    }
+
+    /** 매 틱 생존 상태 — 주변 블록을 보고 공허·익사·허기·회복·사망 틱을 돌린다. */
+    private void tickVitals(Player p) {
+        PlayerProbe probe = world.probe();
+        PlayerVitals.Surroundings s;
+        double x = p.x(), y = p.y(), z = p.z();
+        if (probe == null || !chunks.containsKey(ChunkPos.ofBlock(x, z))) {
+            s = PlayerVitals.Surroundings.NONE;
+        } else {
+            boolean sneaking = p.sneaking();
+            double height = sneaking ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+            double eye = sneaking ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
+            s = new PlayerVitals.Surroundings(true, probe.inWater(blocks, x, y, z, height),
+                    probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
+                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), ChunkColumn.MIN_Y);
+        }
+        p.vitals().tick(s);
+    }
+
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */
     private void broadcastRemove(int eid) {
         for (Player other : players.values()) {
-            if (other.tracked().remove(eid) != null) {
+            if (stopTracking(other, eid)) {
                 other.send(new RemoveEntities(java.util.List.of(eid)));
             }
             removeFromTabList(other, eid);
@@ -443,7 +521,7 @@ public final class Region {
             var e = it.next();
             Player b = world.onlinePlayer(e.getKey());
             if (b == null || b.isDisconnected()) {
-                if (a.tracked().remove(e.getKey()) != null) a.send(new RemoveEntities(java.util.List.of(e.getKey())));
+                if (stopTracking(a, e.getKey())) a.send(new RemoveEntities(java.util.List.of(e.getKey())));
                 a.missingTicks().remove(e.getKey());
                 gone.add(e.getValue());
                 it.remove();
@@ -457,7 +535,7 @@ public final class Region {
                 if (add == null) add = new ArrayList<>();
                 var session = b.chat().session();
                 add.add(new PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(), session == null ? null : session.asData(),
-                        PlayerInfoUpdate.DEFAULT_GAME_MODE, b.latencyMs()));
+                        b.gameMode().id(), b.latencyMs()));
             }
         }
         if (add != null) a.send(new PlayerInfoUpdate(add));
@@ -482,16 +560,22 @@ public final class Region {
             if (b.entityId() == a.entityId()) continue;
             seen.add(b.entityId());
             if (world.onlinePlayer(b.entityId()) == null) continue;   // 이미 퇴장 처리된 플레이어는 (재)스폰하지 않는다
-            boolean near = within(a, b, range);
+            boolean near = !b.removed() && within(a, b, range);   // 사망 후 제거된 엔티티는 보이지 않는다
             boolean tracking = a.tracked().containsKey(b.entityId());
+            if (near && tracking && (int) a.tracked().get(b.entityId())[5] != b.generation()) {
+                // 리스폰(바닐라: 옛 ServerPlayer 제거 + 새 ServerPlayer 추가) — 지웠다 다시 스폰한다.
+                a.send(new RemoveEntities(java.util.List.of(b.entityId())));
+                stopTracking(a, b.entityId());
+                tracking = false;
+            }
             if (near && !tracking) {
                 if (!a.listed().containsKey(b.entityId())) continue;   // syncTabList가 올리지 않은(퇴장 경합) 대상은 스폰 안 함
                 a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
                 a.send(new SetHeadRotation(b.entityId(), b.yaw()));
-                a.tracked().put(b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch()});
+                startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation()});
             } else if (!near && tracking) {
                 a.send(new RemoveEntities(java.util.List.of(b.entityId())));
-                a.tracked().remove(b.entityId());
+                stopTracking(a, b.entityId());
             } else if (near) {
                 broadcastMove(a, b, a.tracked().get(b.entityId()));
             }
@@ -505,7 +589,7 @@ public final class Region {
             int eid = e.getKey();
             if (seen.contains(eid)) { a.missingTicks().remove(eid); continue; }
             if (a.missingTicks().merge(eid, 1, Integer::sum) >= ENTITY_DESPAWN_GRACE) {
-                if (a.tracked().remove(eid) != null) a.send(new RemoveEntities(java.util.List.of(eid)));
+                if (stopTracking(a, eid)) a.send(new RemoveEntities(java.util.List.of(eid)));
                 a.missingTicks().remove(eid);   // 접속 중이면 엔티티만 디스폰하고 탭은 유지(퇴장은 위에서 즉시 처리)
             }
         }

@@ -54,6 +54,39 @@ public final class SharedSuggestions {
         return suggest(out, builder);
     }
 
+    /** 바닐라 SharedSuggestionProvider.suggestCoordinates(3D): 비었으면 x, "x y", "x y z" 를, 한 칸·두 칸 입력이면 나머지를 채워 제안. */
+    public static CompletableFuture<Suggestions> suggestCoordinates(String remaining, Collection<TextCoordinates> candidates,
+                                                                    SuggestionsBuilder builder, Predicate<String> validator) {
+        List<String> out = new ArrayList<>();
+        if (remaining == null || remaining.isEmpty()) {
+            for (TextCoordinates c : candidates) {
+                String full = c.x() + " " + c.y() + " " + c.z();
+                if (validator.test(full)) {
+                    out.add(c.x());
+                    out.add(c.x() + " " + c.y());
+                    out.add(full);
+                }
+            }
+        } else {
+            String[] parts = remaining.split(" ");
+            if (parts.length == 1) {
+                for (TextCoordinates c : candidates) {
+                    String full = parts[0] + " " + c.y() + " " + c.z();
+                    if (validator.test(full)) {
+                        out.add(parts[0] + " " + c.y());
+                        out.add(full);
+                    }
+                }
+            } else if (parts.length == 2) {
+                for (TextCoordinates c : candidates) {
+                    String full = parts[0] + " " + parts[1] + " " + c.z();
+                    if (validator.test(full)) out.add(full);
+                }
+            }
+        }
+        return suggest(out, builder);
+    }
+
     static boolean matchesSubStr(String input, String substring) {
         for (int i = 0; !substring.startsWith(input, i); i++) {
             int dot = substring.indexOf('.', i);

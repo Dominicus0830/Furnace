@@ -3,11 +3,21 @@ package org.domi.furnace.server.entity;
 
 import java.util.UUID;
 
+/**
+ * @param generation 리스폰 세대 — 바뀌면 관찰자가 엔티티를 지웠다 다시 스폰한다
+ * @param removed    사망 후 제거됨(바닐라 tickDeath 20틱) — 관찰자에게서 디스폰
+ */
 public record EntityView(int entityId, UUID uuid, String name,
-                         double x, double y, double z, float yaw, float pitch, boolean onGround) {
+                         double x, double y, double z, float yaw, float pitch, boolean onGround,
+                         int generation, boolean removed) {
+
+    public EntityView(int entityId, UUID uuid, String name, double x, double y, double z, float yaw, float pitch, boolean onGround) {
+        this(entityId, uuid, name, x, y, z, yaw, pitch, onGround, 0, false);
+    }
 
     public static EntityView of(Player p) {
         return new EntityView(p.entityId(), p.uuid(), p.name(),
-                p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround());
+                p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround(),
+                p.spawnGeneration(), p.vitals().removedAfterDeath());
     }
 }

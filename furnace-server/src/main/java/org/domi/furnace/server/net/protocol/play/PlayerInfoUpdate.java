@@ -41,6 +41,22 @@ public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
         };
     }
 
+    /** 게임 모드만 갱신(바닐라 broadcastAll(UPDATE_GAME_MODE)). */
+    public static Packet updateGameMode(UUID uuid, int gameMode) {
+        return new Packet() {
+            @Override
+            public int id() { return ID; }
+
+            @Override
+            public void write(ByteBuf buf) {
+                buf.writeByte(0x04);
+                Types.writeVarInt(buf, 1);
+                Types.writeUuid(buf, uuid);
+                Types.writeVarInt(buf, gameMode);
+            }
+        };
+    }
+
     public PlayerInfoUpdate(UUID uuid, String name) {
         this(List.of(new Entry(uuid, name, DEFAULT_GAME_MODE, 0)));
     }

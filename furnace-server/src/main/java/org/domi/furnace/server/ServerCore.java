@@ -155,6 +155,63 @@ public final class ServerCore {
         for (Player p : players()) p.send(packet);
     }
 
+    /**
+     * 바닐라 DedicatedServer.isUnderSpawnProtection(오버월드): OP 가 한 명이라도 있고, 이 플레이어가 OP 가 아니며,
+     * spawn-protection > 0 이고 월드 스폰과의 체비셰프 거리가 그 이하인가.
+     */
+    public boolean isUnderSpawnProtection(int x, int z, Player p) {
+        if (lists.getOps().isEmpty()) return false;
+        if (lists.isOp(profileOf(p))) return false;
+        int radius = settings.get().spawnProtection;
+        if (radius <= 0) return false;
+        var spawn = world.defaultSpawn();
+        return Math.max(Math.abs(x - spawn.x()), Math.abs(z - spawn.z())) <= radius;
+    }
+
+    /** 바닐라 Level.mayInteract(ServerLevel): 스폰 보호 밖이고 월드 보더 안. */
+    public boolean mayInteract(Player p, int x, int z) {
+        return !isUnderSpawnProtection(x, z, p) && border.isWithinBounds(x, z);
+    }
+
+    /** 바닐라 ServerLevel.setDefaultSpawnPos: 바뀌었으면 level.dat 에 남기고 모두에게 알린다. */
+    public void setWorldSpawn(int x, int y, int z, float angle) {
+        var old = world.defaultSpawn();
+        if (old.x() == x && old.y() == y && old.z() == z && old.yaw() == angle) return;
+        levelData.spawnX = x;
+        levelData.spawnY = y;
+        levelData.spawnZ = z;
+        levelData.spawnAngle = angle;
+        world.defaultSpawn(new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle));
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition(x, y, z, angle);
+        for (Player p : players()) p.send(pkt);
+    }
+
+    /** 바닐라 MinecraftServer.getDefaultGameType: level.dat 의 GameType. */
+    public org.domi.furnace.server.world.GameMode defaultGameMode() { return levelData.gameType; }
+
+    /** 바닐라 DedicatedServer.getForcedGameType: force-gamemode 면 기본 게임 모드, 아니면 null. */
+    public org.domi.furnace.server.world.GameMode forcedGameMode() {
+        return settings.get().forceGameMode ? levelData.gameType : null;
+    }
+
+    /** 바닐라 MinecraftServer.setDefaultGameType(/defaultgamemode): level.dat 에 남는다. */
+    public void setDefaultGameMode(org.domi.furnace.server.world.GameMode mode) { levelData.gameType = mode; }
+
+    private final org.domi.furnace.server.entity.PlayerVitals.Env vitalsEnv = new org.domi.furnace.server.entity.PlayerVitals.Env() {
+        public org.domi.furnace.server.world.Difficulty difficulty() { return levelData.difficulty; }
+        public boolean gameRule(String name) { return gameRules.getBoolean(name); }
+        public boolean pvp() { return settings.get().pvp; }
+        public void broadcastSystemMessage(Text message) { ServerCore.this.broadcastSystemMessage(message, false); }
+        public void broadcastAll(org.domi.furnace.server.net.protocol.Packet packet) { for (Player p : players()) p.send(packet); }
+        public void broadcastToTrackers(int entityId, org.domi.furnace.server.net.protocol.Packet packet) { world.broadcastToTrackers(entityId, packet); }
+        public float borderDamage(double x, double y, double z) {
+            return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
+        }
+    };
+
+    /** 플레이어 생존 상태가 쓰는 서버 쪽 정보·브로드캐스트. */
+    public org.domi.furnace.server.entity.PlayerVitals.Env vitalsEnv() { return vitalsEnv; }
+
     /** 바닐라 DedicatedServer.enforceSecureProfile: 설정이 켜져 있고 온라인 모드이며 Mojang 프로필 키를 검증할 수 있을 때. */
     public boolean enforceSecureProfile() {
         var p = settings.get();

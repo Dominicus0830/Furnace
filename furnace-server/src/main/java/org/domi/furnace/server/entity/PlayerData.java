@@ -15,8 +15,13 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 
 public final class PlayerData {
 
+    /** @param root 읽은 NBT 전체(생존 상태 등 다른 필드를 읽는 데 쓴다) */
     public record Snapshot(double x, double y, double z, float yaw, float pitch,
-                           boolean onGround, ItemStack[] slots) {}
+                           boolean onGround, ItemStack[] slots, NbtCompound root) {
+        public Snapshot(double x, double y, double z, float yaw, float pitch, boolean onGround, ItemStack[] slots) {
+            this(x, y, z, yaw, pitch, onGround, slots, null);
+        }
+    }
 
     private PlayerData() {}
 
@@ -50,22 +55,41 @@ public final class PlayerData {
     /** 같은 플레이어의 더 새로운 시퀀스가 이미 기록됐으면 건너뛰는 저장(자동저장·퇴장 저장이 풀에서 뒤바뀌어도 안전). */
     public static void saveSequenced(long seq, Path worldDir, UUID id, double x, double y, double z,
                                      float yaw, float pitch, boolean onGround, ItemStack[] slots) {
+        saveSequenced(seq, worldDir, id, x, y, z, yaw, pitch, onGround, slots, null);
+    }
+
+    /** @param extra 스냅샷을 뜰 때 함께 떠 둔 나머지 필드(체력·허기·경험치·게임 모드 등). null 이면 기존 값 유지. */
+    public static void saveSequenced(long seq, Path worldDir, UUID id, double x, double y, double z,
+                                     float yaw, float pitch, boolean onGround, ItemStack[] slots, NbtCompound extra) {
         synchronized (lock(id)) {
             Long last = LAST_SEQ.get(id);
             if (last != null && last > seq) return;
             LAST_SEQ.put(id, seq);
-            save(worldDir, id, x, y, z, yaw, pitch, onGround, slots);
+            save(worldDir, id, x, y, z, yaw, pitch, onGround, slots, extra);
         }
     }
 
     public static void save(Path worldDir, UUID id, double x, double y, double z,
                             float yaw, float pitch, boolean onGround, ItemStack[] slots) {
+        save(worldDir, id, x, y, z, yaw, pitch, onGround, slots, null);
+    }
+
+    public static void save(Path worldDir, UUID id, double x, double y, double z,
+                            float yaw, float pitch, boolean onGround, ItemStack[] slots, NbtCompound extra) {
         synchronized (lock(id)) {
             NbtCompound root = readExisting(file(worldDir, id));
+            if (extra != null) {
+                for (String k : VITALS_KEYS) root.tags().remove(k);   // 없어진 선택 필드(이전 게임 모드·스폰 지점 등)를 지운다
+                root.tags().putAll(extra.tags());
+            }
             fill(root, id, x, y, z, yaw, pitch, onGround, slots);
             write(worldDir, id, root);
         }
     }
+
+    /** PlayerVitals.save 가 쓰는 선택 필드 — 값이 없어지면 파일에서도 지워야 하는 것. */
+    private static final String[] VITALS_KEYS = {"previousPlayerGameType", "SpawnX", "SpawnY", "SpawnZ", "SpawnForced",
+            "SpawnAngle", "SpawnDimension", "LastDeathLocation"};
 
     private static NbtCompound readExisting(Path f) {
         if (!Files.exists(f)) return new NbtCompound();
@@ -136,7 +160,8 @@ public final class PlayerData {
                     (Double) pos.get(0), (Double) pos.get(1), (Double) pos.get(2),
                     (Float) rot.get(0), (Float) rot.get(1),
                     root.contains("OnGround") && root.getByte("OnGround") != 0,
-                    readInventory(root)
+                    readInventory(root),
+                    root
             );
         } catch (IOException | RuntimeException e) {
             org.slf4j.LoggerFactory.getLogger(PlayerData.class).warn("playerdata 읽기 실패 {} — 새 플레이어로 시작하고 원본은 .corrupt로 보존", id, e);

@@ -40,6 +40,13 @@ public final class EntityArgument implements ArgumentType<EntitySelector> {
         return ctx.getArgument(name, EntitySelector.class).findSinglePlayer(ctx.getSource());
     }
 
+    /** 바닐라 getEntities: 결과가 없으면 "No entity was found". 지금 엔티티는 플레이어뿐이다. */
+    public static Collection<Player> getEntities(CommandContext<CommandSource> ctx, String name) throws CommandSyntaxException {
+        List<Player> list = ctx.getArgument(name, EntitySelector.class).findEntities(ctx.getSource());
+        if (list.isEmpty()) throw EntitySelector.NO_ENTITIES_FOUND.create();
+        return list;
+    }
+
     /** 바닐라 getPlayers: 결과가 없으면 "No player was found". */
     public static Collection<Player> getPlayers(CommandContext<CommandSource> ctx, String name) throws CommandSyntaxException {
         List<Player> list = ctx.getArgument(name, EntitySelector.class).findPlayers(ctx.getSource());

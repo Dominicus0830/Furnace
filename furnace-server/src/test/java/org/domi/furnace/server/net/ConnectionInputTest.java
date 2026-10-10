@@ -268,6 +268,41 @@ class ConnectionInputTest {
         assertTrue(ch.isActive(), "비정상 아이템 하나로 연결이 끊기면 안 된다(패킷만 폐기)");
     }
 
+    /** 인벤토리 창(0) 클릭: 재배치는 반영하고, 아이템 총량이 늘어나는(복제) 보고는 거부하고 되돌린다. */
+    @Test
+    void inventoryClick_appliesRearrangeButRejectsCreation() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        slotsOf()[36] = new ItemStack(1, 10, null);
+        // 핫바 0(창 36)의 10개를 집는다: 36 → 비움, 커서 10
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(36); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(36); writeStrictSlot(b, 0, 0, 0);
+            writeStrictSlot(b, 10, 1, 0);
+        }));
+        assertTrue(slotsOf()[36].isEmpty(), "집은 칸은 비어야 한다");
+        // 창 20 에 내려놓기
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(20); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(20); writeStrictSlot(b, 10, 1, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        assertEquals(10, slotsOf()[20].count(), "재배치는 반영");
+        drainOutbound();
+        // 복제 시도: 20 은 그대로 두고 21 에 10개를 더 만든다
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(21); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(21); writeStrictSlot(b, 10, 1, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        assertTrue(slotsOf()[21].isEmpty(), "총량이 늘어나는 클릭은 거부");
+        assertEquals(1, count(drainOutbound(), 0x13), "거부하면 서버 인벤토리로 되돌린다");
+    }
+
     /** 컴포넌트 달린 아이템을 커서로 집는 클릭은 연결을 끊지 말고 패킷만 폐기해야 한다. */
     @Test
     void containerClick_withComponentCarried_doesNotDisconnect() throws Exception {

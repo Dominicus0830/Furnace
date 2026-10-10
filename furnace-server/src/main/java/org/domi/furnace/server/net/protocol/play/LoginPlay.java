@@ -14,14 +14,14 @@ import org.domi.furnace.server.net.protocol.Packet;
 public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int maxPlayers, int viewDistance,
                         int simulationDistance, boolean reducedDebugInfo, boolean showDeathScreen, boolean doLimitedCrafting,
                         int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,
-                        boolean flat, boolean enforcesSecureChat) implements Packet {
+                        boolean flat, String lastDeathDimension, int[] lastDeath, boolean enforcesSecureChat) implements Packet {
 
     public static final int ID = 0x2B;
 
     /** 예전 호출부(테스트)용: 기본값으로 채운다. */
     public LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance) {
         this(entityId, false, List.of(dimensionName), 20, viewDistance, viewDistance, false, true, false,
-                dimensionType, dimensionName, 0L, 1, -1, false, false);
+                dimensionType, dimensionName, 0L, 1, -1, false, null, null, false);
     }
 
     /** BiomeManager.obfuscateSeed: SHA-256(시드, little-endian long) 앞 8바이트를 little-endian long 으로. */
@@ -59,7 +59,11 @@ public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int
         buf.writeByte(previousGameMode);
         buf.writeBoolean(false);         // is debug
         buf.writeBoolean(flat);
-        buf.writeBoolean(false);         // death location 없음
+        buf.writeBoolean(lastDeath != null);   // 마지막 사망 위치(나침반 recovery_compass)
+        if (lastDeath != null) {
+            Types.writeString(buf, lastDeathDimension);
+            buf.writeLong(Respawn.packBlockPos(lastDeath[0], lastDeath[1], lastDeath[2]));
+        }
         Types.writeVarInt(buf, 0);       // portal cooldown
         buf.writeBoolean(enforcesSecureChat);
     }

@@ -28,6 +28,17 @@ public final class NbtCompound {
     public void putList(String k, NbtList v) { tags.put(k, v); }
     public void putCompound(String k, NbtCompound v) { tags.put(k, v); }
     public void put(String k, Object v) { tags.put(k, v); }
+    public void putShort(String k, short v) { tags.put(k, v); }
+    public void putFloat(String k, float v) { tags.put(k, v); }
+    public void putBoolean(String k, boolean v) { tags.put(k, (byte) (v ? 1 : 0)); }
+
+    /** 바닐라 contains(k, 99): 숫자 태그(byte..double)인가. */
+    public boolean containsNumber(String k) { return tags.get(k) instanceof Number; }
+    /** 바닐라 CompoundTag 의 숫자 getter 처럼 타입이 달라도 숫자면 변환하고, 없으면 0. */
+    public int getIntOr0(String k) { return tags.get(k) instanceof Number n ? n.intValue() : 0; }
+    public float getFloat(String k) { return tags.get(k) instanceof Number n ? n.floatValue() : 0f; }
+    public short getShort(String k) { return tags.get(k) instanceof Number n ? n.shortValue() : 0; }
+    public boolean getBoolean(String k) { return tags.get(k) instanceof Number n && n.byteValue() != 0; }
 
     public byte getByte(String k) { return (Byte) tags.get(k); }
     public int getInt(String k) { return (Integer) tags.get(k); }

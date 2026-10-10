@@ -120,12 +120,59 @@ public final class Player {
 
     public java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties() { return profileProperties; }
 
-    // 현재 게임 모드. 지금은 접속 시 크리에이티브로 들어간다(LoginPlay·탭 목록과 같은 값) — 2-7 에서 server.properties·저장값을 따른다.
-    private volatile org.domi.furnace.server.world.GameMode gameMode = org.domi.furnace.server.world.GameMode.CREATIVE;
+    // 생존 상태(게임 모드·체력·허기·경험치·사망). 스레드 안전.
+    private final PlayerVitals vitals = new PlayerVitals(this);
 
-    public org.domi.furnace.server.world.GameMode gameMode() { return gameMode; }
+    public PlayerVitals vitals() { return vitals; }
 
-    public void gameMode(org.domi.furnace.server.world.GameMode m) { this.gameMode = m; }
+    public org.domi.furnace.server.world.GameMode gameMode() { return vitals.gameMode(); }
+
+    /** 바닐라 Player.getDisplayName: 이름 + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
+    public org.domi.furnace.server.net.protocol.Text displayName() {
+        return org.domi.furnace.server.net.protocol.Text.literal(name).insertion(name).click("suggest_command", "/tell " + name + " ");
+    }
+
+    // 리스폰할 때마다 증가 — 관찰자가 값이 바뀐 것을 보고 엔티티를 지웠다 다시 스폰한다(바닐라: 리스폰 = 새 ServerPlayer).
+    private volatile int spawnGeneration;
+
+    public int spawnGeneration() { return spawnGeneration; }
+
+    public void bumpSpawnGeneration() { spawnGeneration++; }
+
+    // 달리기·웅크리기(serverbound player_command). netty 가 쓰고 region 이 읽는다.
+    private volatile boolean sprinting, sneaking;
+
+    public boolean sprinting() { return sprinting; }
+    public void sprinting(boolean v) { sprinting = v; }
+    public boolean sneaking() { return sneaking; }
+    public void sneaking(boolean v) { sneaking = v; }
+
+    /**
+     * 수락된 위치 패킷 하나(낙하·허기 소모 판정용). netty 가 넣고 소유 region 이 순서대로 꺼낸다.
+     * teleport=true 는 서버가 위치를 정한 것(스폰·리스폰·텔레포트) — 이동량 없이 기준점만 옮긴다.
+     */
+    public record MoveSample(double x, double y, double z, boolean onGround, boolean teleport) {}
+
+    private final java.util.concurrent.ConcurrentLinkedQueue<MoveSample> moves = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    public void pushMove(double x, double y, double z, boolean onGround) {
+        if (moves.size() < 256) moves.add(new MoveSample(x, y, z, onGround, false));
+    }
+
+    public void pushTeleport(double x, double y, double z) {
+        moves.add(new MoveSample(x, y, z, false, true));
+    }
+
+    // region 전용: 마지막으로 처리한 이동 샘플(낙하·소모 계산의 기준점). null = 아직 없음.
+    private MoveSample moveAnchor;
+
+    public MoveSample moveAnchor() { return moveAnchor; }
+
+    public void moveAnchor(MoveSample m) { moveAnchor = m; }
+
+    public MoveSample pollMove() { return moves.poll(); }
+
+    public void clearMoves() { moves.clear(); }
 
     // 실제 접속 주소(Velocity 포워딩이면 프록시가 알려 준 주소).
     private volatile java.net.SocketAddress remoteAddress;
