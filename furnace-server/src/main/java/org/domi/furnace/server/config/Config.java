@@ -1,10 +1,12 @@
 // 서버 런타임 설정 값
 package org.domi.furnace.server.config;
 
+/** velocitySecret: 비어 있지 않으면 Velocity 모던 포워딩을 켠다(Paper proxies.velocity.secret). */
 public record Config(String serverName, long tickNanos, int port, int compressionThreshold,
                      int viewDistance, int entityViewDistance, int regionSize, int regionThreads,
                      String levelName, long levelSeed, int ioThreads, int autosaveTicks,
-                     int chunkEvictionGraceTicks, int spawnChunkRadius, int chunksPerTick) {
+                     int chunkEvictionGraceTicks, int spawnChunkRadius, int chunksPerTick,
+                     String velocitySecret) {
 
     /** view-distance 하한 — 서버가 LoginPlay로 알리는 최소 반경(클라 렌더 거리 하한과 같다). */
     public static final int MIN_VIEW_DISTANCE = 2;
@@ -25,11 +27,11 @@ public record Config(String serverName, long tickNanos, int port, int compressio
         int view = Math.clamp(sp.viewDistance, MIN_VIEW_DISTANCE, MAX_VIEW_DISTANCE);
         String level = worldOverride != null ? worldOverride : sp.levelName;
         return new Config(sp.motd, tickNanos, port, compression, view, entityViewDistance, regionSize, regionThreads,
-                level, seed, ioThreads, autosaveTicks, chunkEvictionGraceTicks, spawnChunkRadius, chunksPerTick);
+                level, seed, ioThreads, autosaveTicks, chunkEvictionGraceTicks, spawnChunkRadius, chunksPerTick, velocitySecret);
     }
 
     public static final Config DEFAULT =
             new Config("Furnace Server", 50_000_000L, 25565, 256, 5, 8, 16,
                     Runtime.getRuntime().availableProcessors(),
-                    "world", 0L, 4, 6000, 100, 2, 16);
+                    "world", 0L, 4, 6000, 100, 2, 16, "");
 }

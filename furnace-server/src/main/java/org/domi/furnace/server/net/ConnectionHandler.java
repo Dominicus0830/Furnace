@@ -31,6 +31,9 @@ import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.Region;
 import org.domi.furnace.server.net.protocol.login.LoginDisconnect;
+import org.domi.furnace.server.net.protocol.login.EncryptionRequest;
+import org.domi.furnace.server.net.protocol.login.EncryptionResponse;
+import org.domi.furnace.server.net.protocol.Text;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
@@ -72,6 +75,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private static final org.domi.furnace.server.net.registry.TagSet TAGS =
             org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
 
+    private final ServerLoginContext login;
     private final String serverName;
     private final int compressionThreshold;
     private final FurnaceScheduler scheduler;
@@ -90,6 +94,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 이동 예산: 버스트 400블록, 초당 400블록 회복(합법적 최고 속도 약 100~200블록/초의 2배 이상). 초과 이동은 보정 텔레포트.
     private final TokenBucket moveBucket = new TokenBucket(400, 400);
     private boolean loginSuccessSent;       // Login Start 처리 후에만 Login Acknowledged 수락
+    // 바닐라 ServerLoginPacketListenerImpl.State: HELLO → KEY → AUTHENTICATING → (검사) → PROTOCOL_SWITCHING
+    private enum LoginPhase { HELLO, KEY, AUTHENTICATING, VERIFYING, PROTOCOL_SWITCHING, ACCEPTED }
+    private LoginPhase loginPhase = LoginPhase.HELLO;
+    private final byte[] verifyToken = java.nio.ByteBuffer.allocate(4).putInt(new java.security.SecureRandom().nextInt()).array();
+    private boolean statusHandled;
+    private boolean clientAllowsListing = true;
+    private int velocityMessageId;
+    private java.net.InetSocketAddress forwardedAddress;   // Velocity 포워딩으로 받은 실제 주소          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
+    private boolean transferred;            // 전송(intent 3)으로 들어온 연결
+    private java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
+    private io.netty.util.concurrent.ScheduledFuture<?> slowLoginTimer;
     private boolean knownPacksHandled;      // Known Packs 응답은 연결당 1회(레지스트리 재전송 증폭 방지)
     private boolean finishConfigSent;       // FinishConfiguration을 보낸 뒤에만 PLAY 진입 수락
     private String playerName;
@@ -123,7 +138,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
                              World world, EntityIdAllocator idAllocator) {
-        this.serverName = serverName;
+        this(ServerLoginContext.offline(serverName), compressionThreshold, scheduler, world, idAllocator);
+    }
+
+    public ConnectionHandler(ServerLoginContext login, int compressionThreshold, FurnaceScheduler scheduler,
+                             World world, EntityIdAllocator idAllocator) {
+        this.login = login;
+        this.serverName = login.motd;
         this.compressionThreshold = compressionThreshold;
         this.scheduler = scheduler;
         this.world = world;
@@ -154,54 +175,218 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         Handshake hs = Handshake.read(frame);
-        state = switch (hs.nextState()) {
-            case 1 -> ConnectionState.STATUS;
-            case 2 -> ConnectionState.LOGIN;
-            default -> { ctx.close(); yield ConnectionState.HANDSHAKE; }
-        };
-        // 상태 조회는 어떤 버전이든 허용(서버 목록에 "다른 버전" 표시). 로그인만 버전이 같아야 한다.
-        if (state == ConnectionState.LOGIN && hs.protocolVersion() != PROTOCOL_VERSION) {
-            kick(ctx, "Incompatible client! Please use " + VERSION_NAME);
+        // 바닐라 ServerHandshakePacketListenerImpl
+        switch (hs.nextState()) {
+            case 1 -> {
+                state = ConnectionState.STATUS;
+                // enable-status=false 면 응답하지 않고 끊는다(Ignoring status request). 상태 조회는 버전과 무관하게 허용.
+                if (!login.enableStatus) ctx.close();
+            }
+            case 2 -> beginLogin(ctx, hs.protocolVersion(), false);
+            case 3 -> {
+                state = ConnectionState.LOGIN;
+                if (!login.acceptsTransfers) {
+                    disconnect(ctx, Text.translatable("multiplayer.disconnect.transfers_disabled"));
+                } else {
+                    beginLogin(ctx, hs.protocolVersion(), true);
+                }
+            }
+            default -> ctx.close();
         }
+    }
+
+    private void beginLogin(ChannelHandlerContext ctx, int protocolVersion, boolean transfer) {
+        state = ConnectionState.LOGIN;
+        transferred = transfer;
+        if (protocolVersion != PROTOCOL_VERSION) {
+            String key = protocolVersion < 754 ? "multiplayer.disconnect.outdated_client" : "multiplayer.disconnect.incompatible";
+            disconnect(ctx, Text.translatable(key, VERSION_NAME));
+            return;
+        }
+        // 바닐라: 로그인 단계 600틱(30초) 안에 끝나지 않으면 끊는다.
+        slowLoginTimer = ctx.executor().schedule(() -> {
+            if (state == ConnectionState.LOGIN && loginPhase != LoginPhase.ACCEPTED) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
+            }
+        }, 30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private void handleStatus(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> send(ctx, StatusResponse.of(serverName));        // Status Request
-            case 0x01 -> send(ctx, new PongResponse(frame.readLong()));   // Ping Request
+            case 0x00 -> { // Status Request — 연결당 한 번(두 번째는 "Status request has been handled" 로 종료)
+                if (statusHandled) { ctx.close(); return; }
+                statusHandled = true;
+                java.util.List<org.domi.furnace.server.players.GameProfile> online = new java.util.ArrayList<>();
+                java.util.List<Boolean> listing = new java.util.ArrayList<>();
+                for (Player p : world.onlinePlayers()) {
+                    if (p.isDisconnected()) continue;
+                    online.add(new org.domi.furnace.server.players.GameProfile(p.uuid(), p.name()));
+                    listing.add(p.allowsListing());
+                }
+                send(ctx, new StatusResponse(login.statusJson(online, listing)));
+            }
+            case 0x01 -> { // Ping Request → Pong 후 종료(바닐라)
+                ByteBuf buf = ctx.alloc().buffer();
+                Types.writeVarInt(buf, PongResponse.ID);
+                new PongResponse(frame.readLong()).write(buf);
+                ctx.writeAndFlush(buf).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+            }
             default -> ctx.close();
         }
     }
 
     private void handleLogin(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> { // Login Start
-                if (loginSuccessSent) { ctx.close(); return; }          // 로그인 시작은 한 번만
+            case 0x00 -> { // Login Start(Hello)
+                if (loginPhase != LoginPhase.HELLO) { protocolError(ctx, "Unexpected hello packet"); return; }
                 LoginStart start = LoginStart.read(frame);
-                if (!isValidPlayerName(start.name())) {                // 바닐라 StringUtil.isValidPlayerName
-                    kick(ctx, "Invalid characters in username");
-                    return;
-                }
+                if (!isValidPlayerName(start.name())) { protocolError(ctx, "Invalid characters in username"); return; }
                 this.playerName = start.name();
-                this.playerUuid = LoginStart.offlineUuid(start.name());
-                kickDuplicateSession(playerUuid);
-                if (compressionThreshold >= 0) {
-                    send(ctx, new SetCompression(compressionThreshold)); // 비압축으로 나감
-                    ctx.pipeline().addAfter("frameDecoder", "decompress",
-                            new CompressionDecoder(compressionThreshold));
-                    ctx.pipeline().addAfter("frameEncoder", "compress",
-                            new CompressionEncoder(compressionThreshold));
+                if (login.velocity != null) {
+                    // Paper: 프록시에게 실제 주소·프로필을 묻는다(암호화·세션 인증 생략).
+                    loginPhase = LoginPhase.KEY;
+                    velocityMessageId = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                    send(ctx, new org.domi.furnace.server.net.protocol.login.LoginPluginRequest(velocityMessageId,
+                            org.domi.furnace.server.net.auth.VelocityForwarding.PLAYER_INFO_CHANNEL,
+                            new byte[]{org.domi.furnace.server.net.auth.VelocityForwarding.MAX_SUPPORTED_FORWARDING_VERSION}));
+                } else if (login.onlineMode) {
+                    loginPhase = LoginPhase.KEY;
+                    send(ctx, new EncryptionRequest("", login.keyPair.getPublic().getEncoded(), verifyToken, true));
+                } else {
+                    startVerifying(ctx, org.domi.furnace.server.players.GameProfile.offline(playerName));
                 }
-                send(ctx, new LoginSuccess(playerUuid, playerName));
-                loginSuccessSent = true;
             }
+            case 0x01 -> handleEncryptionResponse(ctx, frame);
+            case 0x02 -> handleCustomQueryAnswer(ctx, frame);
+            case 0x04 -> // Cookie Response — 요청한 적이 없다
+                    disconnect(ctx, Text.translatable("multiplayer.disconnect.unexpected_query_response"));
             case 0x03 -> { // Login Acknowledged
-                if (!loginSuccessSent) { ctx.close(); return; }          // 로그인 시작 없이 건너뛰기 금지
+                if (loginPhase != LoginPhase.PROTOCOL_SWITCHING) { protocolError(ctx, "Unexpected login acknowledgement packet"); return; }
+                loginPhase = LoginPhase.ACCEPTED;
+                if (slowLoginTimer != null) slowLoginTimer.cancel(false);
                 state = ConnectionState.CONFIGURATION;
-                onEnterConfiguration(ctx); // Task 8에서 구현
+                onEnterConfiguration(ctx);
             }
             default -> ctx.close();
         }
+    }
+
+    /** Velocity 포워딩 응답: 서명 확인 → 실제 주소·프로필로 로그인 검사 진행. 그 밖의 질의 응답은 바닐라처럼 끊는다. */
+    private void handleCustomQueryAnswer(ChannelHandlerContext ctx, ByteBuf frame) {
+        int messageId = Types.readVarInt(frame);
+        if (login.velocity == null || loginPhase != LoginPhase.KEY || messageId != velocityMessageId) {
+            disconnect(ctx, Text.translatable("multiplayer.disconnect.unexpected_query_response"));
+            return;
+        }
+        if (!frame.readBoolean()) {
+            disconnect(ctx, Text.literal("This server requires you to connect with Velocity."));
+            return;
+        }
+        org.domi.furnace.server.net.auth.VelocityForwarding.Forwarded fwd;
+        try {
+            fwd = login.velocity.read(frame);
+        } catch (Exception e) {
+            protocolError(ctx, e.getMessage());
+            return;
+        }
+        if (fwd == null) {
+            disconnect(ctx, Text.literal("Unable to verify player details"));
+            return;
+        }
+        int port = ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa ? isa.getPort() : 0;
+        forwardedAddress = new java.net.InetSocketAddress(fwd.address(), port);
+        log.info("UUID of player {} is {}", fwd.profile().name(), fwd.profile().id());
+        startVerifying(ctx, fwd.profile());
+    }
+
+    /** 실제 클라이언트 주소(Velocity 포워딩이면 프록시가 알려 준 주소). */
+    private java.net.SocketAddress clientAddress(ChannelHandlerContext ctx) {
+        return forwardedAddress != null ? forwardedAddress : ctx.channel().remoteAddress();
+    }
+
+    /** 바닐라 handleKey: 토큰 확인 → 공유 비밀 복호화 → 스트림 암호 켜기 → 세션 서버에 hasJoined(비동기). */
+    private void handleEncryptionResponse(ChannelHandlerContext ctx, ByteBuf frame) {
+        if (loginPhase != LoginPhase.KEY) { protocolError(ctx, "Unexpected key packet"); return; }
+        String serverIdHash;
+        try {
+            EncryptionResponse resp = EncryptionResponse.read(frame);
+            java.security.PrivateKey priv = login.keyPair.getPrivate();
+            byte[] token = org.domi.furnace.server.net.auth.Crypt.decryptUsingKey(priv, resp.verifyToken());
+            if (!java.util.Arrays.equals(verifyToken, token)) throw new IllegalStateException("Protocol error");
+            javax.crypto.SecretKey secret = org.domi.furnace.server.net.auth.Crypt.decryptByteToSecretKey(priv, resp.sharedSecret());
+            javax.crypto.Cipher decrypt = org.domi.furnace.server.net.auth.Crypt.getCipher(javax.crypto.Cipher.DECRYPT_MODE, secret);
+            javax.crypto.Cipher encrypt = org.domi.furnace.server.net.auth.Crypt.getCipher(javax.crypto.Cipher.ENCRYPT_MODE, secret);
+            serverIdHash = org.domi.furnace.server.net.auth.Crypt.serverIdHash("", login.keyPair.getPublic(), secret);
+            loginPhase = LoginPhase.AUTHENTICATING;
+            // 암호는 가장 바깥: 수신은 프레임 분리 전에 풀고, 송신은 프레임(·압축) 뒤에 감싼다.
+            ctx.pipeline().addBefore("frameDecoder", "decrypt", new org.domi.furnace.server.net.auth.CipherDecoder(decrypt));
+            ctx.pipeline().addBefore("frameDecoder", "encrypt", new org.domi.furnace.server.net.auth.CipherEncoder(encrypt));
+        } catch (java.security.GeneralSecurityException | RuntimeException e) {
+            protocolError(ctx, "Protocol error");
+            return;
+        }
+        String name = playerName;
+        java.net.InetAddress ip = login.preventProxyConnections && ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa
+                ? isa.getAddress() : null;
+        login.sessions.hasJoinedServer(name, serverIdHash, ip).whenComplete((profile, err) -> ctx.executor().execute(() -> {
+            if (!ctx.channel().isActive()) return;
+            if (err != null) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.authservers_down"));
+                log.error("Couldn't verify username because servers are unavailable");
+            } else if (profile.isEmpty()) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.unverified_username"));
+                log.error("Username '{}' tried to join with an invalid session", name);
+            } else {
+                log.info("UUID of player {} is {}", profile.get().name(), profile.get().id());
+                startVerifying(ctx, profile.get());
+            }
+        }));
+    }
+
+    /** 바닐라 verifyLoginAndFinishConnectionSetup: 로그인 검사 → 압축 → 중복 접속 정리 → Login Success. */
+    private void startVerifying(ChannelHandlerContext ctx, org.domi.furnace.server.players.GameProfile profile) {
+        loginPhase = LoginPhase.VERIFYING;
+        this.playerName = profile.name();
+        this.playerUuid = profile.id();
+        this.profileProperties = profile.properties();
+        if (login.lists != null) {
+            int online = 0;
+            for (Player p : world.onlinePlayers()) if (!p.isDisconnected()) online++;
+            Text reason = login.lists.canPlayerLogin(clientAddress(ctx), profile, online, login.maxPlayers);
+            if (reason != null) { disconnect(ctx, reason); return; }
+        }
+        if (compressionThreshold >= 0) {
+            send(ctx, new SetCompression(compressionThreshold)); // 비압축으로 나감
+            ctx.pipeline().addAfter("frameDecoder", "decompress", new CompressionDecoder(compressionThreshold));
+            ctx.pipeline().addAfter("frameEncoder", "compress", new CompressionEncoder(compressionThreshold));
+        }
+        kickDuplicateSession(playerUuid);
+        if (login.profileCache != null) login.profileCache.add(profile);
+        loginPhase = LoginPhase.PROTOCOL_SWITCHING;
+        send(ctx, new LoginSuccess(playerUuid, playerName, profileProperties, true));
+        loginSuccessSent = true;
+    }
+
+    /** 바닐라 Connection.exceptionCaught 의 사유: disconnect.genericReason("Internal Exception: " + 예외). */
+    private void protocolError(ChannelHandlerContext ctx, String message) {
+        disconnect(ctx, Text.translatable("disconnect.genericReason",
+                "Internal Exception: java.lang.IllegalStateException: " + message));
+    }
+
+    /** 로그에 쓰는 접속 주소(log-ips=false 면 가린다, 바닐라 Connection.getLoggableAddress). */
+    private String loggableAddress(ChannelHandlerContext ctx) {
+        if (!login.logIps) return "<ip address withheld>";
+        java.net.SocketAddress a = clientAddress(ctx);
+        return a == null ? "local" : a.toString();
+    }
+
+    /** 사유를 로그에 남기고(로그인 단계는 바닐라 "Disconnecting {}: {}") 단계에 맞는 Disconnect 로 끊는다. */
+    void disconnect(ChannelHandlerContext ctx, Text reason) {
+        if (state == ConnectionState.LOGIN) {
+            String who = playerName != null ? playerName + " (" + loggableAddress(ctx) + ")" : loggableAddress(ctx);
+            log.info("Disconnecting {}: {}", who, reason.getString());
+        }
+        kick(ctx, reason);
     }
 
     private void onEnterConfiguration(ChannelHandlerContext ctx) {
@@ -241,6 +426,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
             Player p = this.player;
             if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
+            Types.readVarInt(frame);                     // chat mode
+            frame.readBoolean();                         // chat colors
+            frame.readUnsignedByte();                    // displayed skin parts
+            Types.readVarInt(frame);                     // main hand
+            frame.readBoolean();                         // text filtering
+            this.clientAllowsListing = frame.readBoolean(); // 서버 목록(상태 응답 sample)에 이름 공개 허용
+            if (p != null) p.allowsListing(clientAllowsListing);
         } catch (Exception e) {
             log.debug("ClientInformation 파싱 실패", e);
         }
@@ -288,6 +480,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
         // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        p.profileProperties(profileProperties);
+        p.allowsListing(clientAllowsListing);
+        log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.viewDistance(effVd);
         this.player = p;
@@ -727,7 +922,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void sendKeepAlive() {
         if (awaitingKeepAlive.get()) {
             log.info("KeepAlive 응답 없음, 종료: {}", playerName);
-            kick(ctx, "Timed out");
+            kick(ctx, Text.translatable("disconnect.timeout"));
             return;
         }
         lastKeepAliveId = System.nanoTime();
@@ -748,7 +943,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     void kickForShutdown() {
         ChannelHandlerContext c = this.ctx;
         if (c == null) return;
-        c.channel().eventLoop().execute(() -> kick(c, "Server closed"));
+        c.channel().eventLoop().execute(() -> kick(c, Text.translatable("multiplayer.disconnect.server_shutdown")));
     }
 
     /** 바닐라 StringUtil.isValidPlayerName: 길이 1..16, 문자 코드 33..126만. */
@@ -763,6 +958,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 현재 단계에 맞는 Disconnect 패킷으로 사유를 알리고 연결을 닫는다. 사유를 보낼 수 없는 단계면 그냥 닫는다. */
     void kick(ChannelHandlerContext ctx, String reason) {
+        kick(ctx, Text.literal(reason));
+    }
+
+    void kick(ChannelHandlerContext ctx, Text reason) {
         Packet pkt = switch (state) {
             case LOGIN -> new LoginDisconnect(reason);
             case CONFIGURATION -> new ConfigDisconnect(reason);
@@ -780,7 +979,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void kickDuplicateSession(java.util.UUID uuid) {
         for (Player other : world.onlinePlayers()) {
             if (other != player && !other.isDisconnected() && uuid.equals(other.uuid())) {
-                other.kick(new Disconnect("You logged in from another location"));
+                other.kick(new Disconnect(Text.translatable("multiplayer.disconnect.duplicate_login")));
             }
         }
     }
@@ -793,7 +992,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         if (cause instanceof io.netty.handler.timeout.ReadTimeoutException) {
             log.debug("읽기 타임아웃, 종료: {}", playerName);   // 정상적인 유휴 정리 — 경고 로그 대상 아님
-            kick(ctx, "Timed out");
+            kick(ctx, Text.translatable("disconnect.timeout"));
             return;
         }
         log.warn("커넥션 오류, 종료: {}", cause.toString());

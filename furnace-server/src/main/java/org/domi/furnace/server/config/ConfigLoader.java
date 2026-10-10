@@ -46,6 +46,7 @@ public final class ConfigLoader {
         int evictionGrace = parseInt(props, "chunk-eviction-grace-ticks", Config.DEFAULT.chunkEvictionGraceTicks());
         int spawnChunkRadius = parseInt(props, "spawn-chunk-radius", Config.DEFAULT.spawnChunkRadius());
         int chunksPerTick = parseInt(props, "chunks-per-tick", Config.DEFAULT.chunksPerTick());
+        String velocitySecret = props.getProperty("velocity-secret", Config.DEFAULT.velocitySecret()).strip();
         // 잘못된 값이 런타임 한참 뒤(0 나눗셈, 빈 경로 등)에 터지지 않게 기동 시점에 거르고 어느 키가 문제인지 알려준다.
         require(tick > 0, "tick-nanos", tick, "1 이상");
         require(port >= 0 && port <= 65535, "port", port, "0~65535");
@@ -72,7 +73,7 @@ public final class ConfigLoader {
         require(chunksPerTick >= 1, "chunks-per-tick", chunksPerTick, "1 이상");
         return new Config(name, tick, port, compression, viewDistance, entityViewDistance,
                 regionSize, regionThreads, levelName, levelSeed, ioThreads, autosaveTicks, evictionGrace,
-                spawnChunkRadius, chunksPerTick);
+                spawnChunkRadius, chunksPerTick, velocitySecret);
     }
 
     /** 파일에 있지만 server.properties 가 정해서 무시되는 키들(기동 시 경고용). */

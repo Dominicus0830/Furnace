@@ -16,7 +16,12 @@ public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
     /** LoginPlay가 알리는 서버 기본 게임모드(1 = creative)와 일치해야 한다. */
     public static final int DEFAULT_GAME_MODE = 1;
 
-    public record Entry(UUID uuid, String name, int gameMode, int latencyMs) {}
+    public record Entry(UUID uuid, String name, List<org.domi.furnace.server.players.GameProfile.Property> properties,
+                        int gameMode, int latencyMs) {
+        public Entry(UUID uuid, String name, int gameMode, int latencyMs) {
+            this(uuid, name, List.of(), gameMode, latencyMs);
+        }
+    }
 
     public PlayerInfoUpdate(UUID uuid, String name) {
         this(List.of(new Entry(uuid, name, DEFAULT_GAME_MODE, 0)));
@@ -34,7 +39,13 @@ public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
         for (Entry e : entries) {
             Types.writeUuid(buf, e.uuid());
             Types.writeString(buf, e.name());   // add_player: name
-            Types.writeVarInt(buf, 0);          // add_player: property count
+            Types.writeVarInt(buf, e.properties().size());   // add_player: 프로필 속성(textures 등)
+            for (var p : e.properties()) {
+                Types.writeString(buf, p.name());
+                Types.writeString(buf, p.value());
+                buf.writeBoolean(p.signature() != null);
+                if (p.signature() != null) Types.writeString(buf, p.signature());
+            }
             Types.writeVarInt(buf, e.gameMode());
             buf.writeBoolean(true);             // update_listed
             Types.writeVarInt(buf, e.latencyMs());

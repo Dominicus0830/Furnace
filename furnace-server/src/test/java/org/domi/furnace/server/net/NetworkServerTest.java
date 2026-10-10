@@ -113,7 +113,7 @@ class NetworkServerTest {
             Thread.sleep(300);   // LoginSuccess가 도착할 시간
             server.stop();
             byte[] all = s.getInputStream().readAllBytes();
-            assertTrue(new String(all, java.nio.charset.StandardCharsets.ISO_8859_1).contains("Server closed"),
+            assertTrue(new String(all, java.nio.charset.StandardCharsets.ISO_8859_1).contains("multiplayer.disconnect.server_shutdown"),
                     "종료 사유가 클라이언트에 전달돼야 한다");
         } finally {
             sched.close();

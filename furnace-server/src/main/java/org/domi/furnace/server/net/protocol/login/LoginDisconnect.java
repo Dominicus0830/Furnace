@@ -3,10 +3,13 @@ package org.domi.furnace.server.net.protocol.login;
 
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.Types;
-import org.domi.furnace.server.net.protocol.JsonText;
 import org.domi.furnace.server.net.protocol.Packet;
 
-public record LoginDisconnect(String reason) implements Packet {
+public record LoginDisconnect(org.domi.furnace.server.net.protocol.Text reason) implements Packet {
+
+    public LoginDisconnect(String literal) {
+        this(org.domi.furnace.server.net.protocol.Text.literal(literal));
+    }
 
     public static final int ID = 0x00;
 
@@ -17,6 +20,6 @@ public record LoginDisconnect(String reason) implements Packet {
 
     @Override
     public void write(ByteBuf buf) {
-        Types.writeString(buf, JsonText.textComponent(reason));
+        Types.writeString(buf, reason.toJson());
     }
 }

@@ -129,6 +129,8 @@ public final class FurnaceMain {
         log.info("Starting minecraft server version 1.21.1");
         log.info("Loading properties");
         log.info("Default game type: {}", props.gameMode.name());
+        log.info("Generating keypair");
+        java.security.KeyPair serverKeys = org.domi.furnace.server.net.auth.Crypt.generateKeyPair();
         log.info("Furnace 부팅: motd='{}', tickNanos={}", config.serverName(), config.tickNanos());
         log.info("Starting Minecraft server on {}:{}", props.serverIp.isEmpty() ? "*" : props.serverIp, config.port());
         if (!props.onlineMode) {
@@ -140,6 +142,8 @@ public final class FurnaceMain {
         log.info("Preparing level \"{}\"", config.levelName());
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
+        var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
+                profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret());
 
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
@@ -202,7 +206,7 @@ public final class FurnaceMain {
         scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         NetworkServer network = new NetworkServer(
-                config.port(), config.compressionThreshold(), config.serverName(), scheduler,
+                config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
         CountDownLatch shutdown = new CountDownLatch(1);
 
@@ -270,7 +274,7 @@ public final class FurnaceMain {
     private record TpsHeartbeat(FurnaceSchedulerImpl scheduler) implements Runnable {
         @Override
         public void run() {
-            log.info("region TPS = {}", String.format("%.1f", scheduler.regionThread().measuredTps()));
+            log.debug("region TPS = {}", String.format("%.1f", scheduler.regionThread().measuredTps()));
             scheduler.global().executeDelayed(this, 100);
         }
     }

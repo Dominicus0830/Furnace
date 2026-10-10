@@ -38,10 +38,18 @@ public final class NetworkServer {
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private final ServerLoginContext loginContext;
     private Channel channel;
 
     public NetworkServer(int port, int compressionThreshold, String serverName,
                          FurnaceScheduler scheduler, World world, EntityIdAllocator idAllocator) {
+        this(port, compressionThreshold, ServerLoginContext.offline(serverName), scheduler, world, idAllocator);
+    }
+
+    public NetworkServer(int port, int compressionThreshold, ServerLoginContext loginContext,
+                         FurnaceScheduler scheduler, World world, EntityIdAllocator idAllocator) {
+        this.loginContext = loginContext;
+        String serverName = loginContext.motd;
         this.port = port;
         this.compressionThreshold = compressionThreshold;
         this.serverName = serverName;
@@ -67,7 +75,7 @@ public final class NetworkServer {
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",
-                                        new ConnectionHandler(serverName, compressionThreshold,
+                                        new ConnectionHandler(loginContext, compressionThreshold,
                                                 scheduler, world, idAllocator));
                     }
                 });

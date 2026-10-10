@@ -2,11 +2,14 @@
 package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;
-import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
 
-public record ConfigDisconnect(String reason) implements Packet {
+public record ConfigDisconnect(org.domi.furnace.server.net.protocol.Text reason) implements Packet {
+
+    public ConfigDisconnect(String literal) {
+        this(org.domi.furnace.server.net.protocol.Text.literal(literal));
+    }
 
     public static final int ID = 0x02;
 
@@ -17,8 +20,6 @@ public record ConfigDisconnect(String reason) implements Packet {
 
     @Override
     public void write(ByteBuf buf) {
-        NbtCompound text = new NbtCompound();
-        text.putString("text", reason);
-        new NbtWriter(buf).writeCompound(text);
+        new NbtWriter(buf).writeCompound(reason.toNbt());
     }
 }

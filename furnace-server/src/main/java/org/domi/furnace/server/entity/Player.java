@@ -114,6 +114,22 @@ public final class Player {
     public int entityId() { return entityId; }
     public UUID uuid() { return uuid; }
     public String name() { return name; }
+
+    // 세션 서버가 준 프로필 속성(textures 등) — 탭 목록 add_player 로 다른 클라에 전달돼 스킨이 보인다.
+    private volatile java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
+
+    public java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties() { return profileProperties; }
+
+    // 클라이언트 설정 allowServerListings — 거부하면 상태 응답 sample 에 익명으로 나온다.
+    private volatile boolean allowsListing = true;
+
+    public boolean allowsListing() { return allowsListing; }
+
+    public void allowsListing(boolean v) { this.allowsListing = v; }
+
+    public void profileProperties(java.util.List<org.domi.furnace.server.players.GameProfile.Property> props) {
+        this.profileProperties = java.util.List.copyOf(props);
+    }
     public double x() { return x; }
     public double y() { return y; }
     public double z() { return z; }

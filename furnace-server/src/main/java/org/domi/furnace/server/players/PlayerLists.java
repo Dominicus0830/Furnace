@@ -82,6 +82,41 @@ public final class PlayerLists {
         return e != null ? e.getLevel() : 0;
     }
 
+    private static final ThreadLocal<java.text.SimpleDateFormat> BAN_DATE_FORMAT =
+            ThreadLocal.withInitial(() -> new java.text.SimpleDateFormat("yyyy-MM-dd 'at' HH:mm:ss z"));
+
+    /**
+     * 바닐라 PlayerList.canPlayerLogin — 밴 → 화이트리스트 → IP 밴 → 인원 순으로 검사하고, 막히면 사유(번역 컴포넌트), 통과면 null.
+     */
+    public org.domi.furnace.server.net.protocol.Text canPlayerLogin(java.net.SocketAddress address, GameProfile profile,
+                                                                    int onlinePlayers, int maxPlayers) {
+        UserBanListEntry ban = bans.isListed(profile) ? bans.get(profile) : null;
+        if (ban != null) {
+            var t = org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned.reason", ban.getReason());
+            if (ban.getExpires() != null) {
+                t.append(org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned.expiration",
+                        BAN_DATE_FORMAT.get().format(ban.getExpires())));
+            }
+            return t;
+        }
+        if (!isWhiteListed(profile)) {
+            return org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.not_whitelisted");
+        }
+        IpBanListEntry ipBan = address != null && ipBans.isBanned(address) ? ipBans.get(address) : null;
+        if (ipBan != null) {
+            var t = org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned_ip.reason", ipBan.getReason());
+            if (ipBan.getExpires() != null) {
+                t.append(org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned_ip.expiration",
+                        BAN_DATE_FORMAT.get().format(ipBan.getExpires())));
+            }
+            return t;
+        }
+        if (onlinePlayers >= maxPlayers && !ops.canBypassPlayerLimit(profile)) {
+            return org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.server_full");
+        }
+        return null;
+    }
+
     /** 화이트리스트를 쓰지 않거나, OP 이거나, 목록에 있으면 참. */
     public boolean isWhiteListed(GameProfile profile) {
         return !doWhiteList || ops.isListed(profile) || whitelist.isListed(profile);
