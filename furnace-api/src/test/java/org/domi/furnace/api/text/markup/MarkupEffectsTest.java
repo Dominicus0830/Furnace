@@ -102,7 +102,8 @@ class MarkupEffectsTest {
 
     @Test
     void rainbowReversedAndPhase() {
-        assertEquals(List.of("a[#FF00FF]", "b[#0000FF]", "c[#00FFFF]", "d[#00FF00]", "e[#FFFF00]", "f[#FF0000]"), runs("<rainbow:!>abcdef"));
+        // Adventure RainbowTag: 뒤집으면 hue = (size - index) / size — 첫 글자는 빨강(1 % 1 = 0).
+        assertEquals(List.of("a[#FF0000]", "b[#FF00FF]", "c[#0000FF]", "d[#00FFFF]", "e[#00FF00]", "f[#FFFF00]"), runs("<rainbow:!>abcdef"));
         // phase 5 → 색상 +0.5 : 두 글자면 [0.5, 1.0→0]
         assertEquals(List.of("a[#00FFFF]", "b[#FF0000]"), runs("<rainbow:5>ab"));
         assertThrows(MarkupParseException.class, () -> MM.deserialize("<rainbow:x>a"));

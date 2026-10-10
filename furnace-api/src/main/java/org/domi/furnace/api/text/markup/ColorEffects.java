@@ -86,29 +86,34 @@ final class ColorEffects {
     }
 
     static Palette rainbowPalette(boolean reversed, int phase) {
-        float dividedPhase = phase / 10f;
+        double dividedPhase = phase / 10d;   // Adventure RainbowTag: double 로 더한 뒤 float 로
         return (index, size) -> {
-            int idx = reversed ? size - 1 - index : index;
-            float hue = (idx / (float) size + dividedPhase) % 1f;
+            float i = index;
+            float hue = reversed
+                    ? (float) (((size - i) / size + dividedPhase) % 1)
+                    : (float) ((i / size + dividedPhase) % 1);
             if (hue < 0) hue += 1f;
             return hsv(hue);
         };
     }
 
-    /** HSV(s=v=1) → RGB — Adventure 의 HSV 변환과 같은 식(각 채널은 255 를 곱해 내림). */
-    static TextColor hsv(float h) {
-        float hh = h * 6f;
-        int i = (int) Math.floor(hh);
-        float f = hh - i;
-        float q = 1f - f, t = f; // v*(1-s*f), v*(1-s*(1-f)) with s=v=1
+    /** HSV(s=v=1) → RGB — Adventure TextColor.color(HSVLike) 와 같은 float 식(각 채널은 255 를 곱해 내림). */
+    static TextColor hsv(float hue) {
+        final float s = 1f, v = 1f;
+        float h = hue * 6;
+        int i = (int) Math.floor(h);
+        float f = h - i;
+        float p = v * (1 - s);
+        float q = v * (1 - s * f);
+        float t = v * (1 - s * (1 - f));
         float r, g, b;
-        switch (Math.floorMod(i, 6)) {
-            case 0 -> { r = 1; g = t; b = 0; }
-            case 1 -> { r = q; g = 1; b = 0; }
-            case 2 -> { r = 0; g = 1; b = t; }
-            case 3 -> { r = 0; g = q; b = 1; }
-            case 4 -> { r = t; g = 0; b = 1; }
-            default -> { r = 1; g = 0; b = q; }
+        switch (i) {
+            case 0 -> { r = v; g = t; b = p; }
+            case 1 -> { r = q; g = v; b = p; }
+            case 2 -> { r = p; g = v; b = t; }
+            case 3 -> { r = p; g = q; b = v; }
+            case 4 -> { r = t; g = p; b = v; }
+            default -> { r = v; g = p; b = q; }
         }
         return TextColor.color((int) (r * 255f), (int) (g * 255f), (int) (b * 255f));
     }
