@@ -6,6 +6,9 @@ package org.domi.furnace.api.text;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
@@ -198,12 +201,47 @@ public final class Text {
 
     public Text appendSpace() { return append(SPACE); }
 
+    /** 여러 텍스트를 그대로 이어 붙인 하나(Adventure textOfChildren). */
+    public static Text textOfChildren(Text... parts) { return EMPTY.append(parts); }
+
+    /** JoinConfiguration 대로 이은 하나(구분자·마지막 구분자·접두/접미). */
+    public static Text join(JoinConfiguration config, Iterable<? extends Text> parts) { return config.join(parts); }
+
+    public static Text join(JoinConfiguration config, Text... parts) { return config.join(parts); }
+
+    // ------------------------------------------------------------------ 트리 도구
+
+    /** 글자를 찾아 바꾼 사본(바뀐 게 없으면 this). */
+    public Text replaceText(TextReplacement replacement) { return Texts.replaceText(this, replacement); }
+
+    public Text replaceText(Consumer<TextReplacement.Builder> config) {
+        TextReplacement.Builder b = TextReplacement.builder();
+        config.accept(b);
+        return Texts.replaceText(this, b.build());
+    }
+
+    /** 같은 모습으로 그려지는 더 작은 트리({@link Texts#compact}). */
+    public Text compact() { return Texts.compact(this); }
+
+    /** 선위 순서로 (마디, 상속을 반영한 실제 스타일) 를 돌려주는 반복자. */
+    public Iterator<Texts.Segment> flatten() { return Texts.flatten(this); }
+
+    /** 할당 없이 모든 마디를 (마디, 실제 스타일) 로 방문한다. */
+    public void forEachSegment(Texts.SegmentVisitor visitor) { Texts.forEachSegment(this, visitor); }
+
     // ------------------------------------------------------------------ 출력
 
     /** 바닐라 Component.getString — 서버 언어로 번역해 이은 평문(색·스타일 없음). */
     public String plainText() {
         StringBuilder sb = new StringBuilder();
         PlainText.append(this, sb, Translators.SERVER_LOCALE);
+        return sb.toString();
+    }
+
+    /** 지정한 언어로 번역해 이은 평문. */
+    public String plainText(Locale locale) {
+        StringBuilder sb = new StringBuilder();
+        PlainText.append(this, sb, locale);
         return sb.toString();
     }
 
