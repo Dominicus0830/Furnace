@@ -1,0 +1,13 @@
+name: Sample
+version: 1.0.0
+main: org.domi.furnace.plugintest.SamplePlugin
+description: Furnace API sample plugin
+authors: [domi]
+commands:
+  hello:
+    description: Says hello
+    aliases: [hi]
+permissions:
+  sample.deep:
+    description: Break blocks below the protected depth
+    default: op

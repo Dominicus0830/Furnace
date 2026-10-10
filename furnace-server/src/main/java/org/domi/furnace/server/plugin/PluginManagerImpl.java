@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.JarFile;
-import java.util.logging.Handler;
+import java.util.logging.Filter;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.stream.Stream;
@@ -222,30 +222,39 @@ public final class PluginManagerImpl implements PluginManager {
 
     /** "[접두어] 메시지" 로 서버 로그(slf4j)에 쓰는 JUL 로거. */
     private static java.util.logging.Logger pluginLogger(PluginDescription d) {
-        java.util.logging.Logger jul = java.util.logging.Logger.getLogger("furnace.plugin." + d.name());
-        jul.setUseParentHandlers(false);
-        for (Handler h : jul.getHandlers()) jul.removeHandler(h);
-        String prefix = "[" + d.logPrefix() + "] ";
-        Logger out = LoggerFactory.getLogger(d.name());
-        jul.addHandler(new Handler() {
-            @Override
-            public void publish(LogRecord r) {
-                String msg = prefix + new java.util.logging.SimpleFormatter().formatMessage(r);
-                int lv = r.getLevel().intValue();
-                if (lv >= Level.SEVERE.intValue()) out.error(msg, r.getThrown());
-                else if (lv >= Level.WARNING.intValue()) out.warn(msg, r.getThrown());
-                else if (lv >= Level.INFO.intValue()) out.info(msg, r.getThrown());
-                else out.debug(msg, r.getThrown());
-            }
-
-            @Override
-            public void flush() {}
-
-            @Override
-            public void close() {}
-        });
-        return jul;
+        return new PluginLogger(d.name(), "[" + d.logPrefix() + "] ", LoggerFactory.getLogger(d.name()));
     }
+
+    /**
+     * Bukkit PluginLogger 처럼 LogManager 에 등록하지 않고 log(LogRecord) 에서 바로 넘긴다 —
+     * 등록된 로거의 핸들러는 JVM 종료 훅(LogManager.reset)이 떼어 버려 onDisable 로그가 사라진다.
+     */
+    private static final class PluginLogger extends java.util.logging.Logger {
+        private final String prefix;
+        private final Logger out;
+
+        PluginLogger(String name, String prefix, Logger out) {
+            super("furnace.plugin." + name, null);
+            this.prefix = prefix;
+            this.out = out;
+            setLevel(Level.INFO);
+        }
+
+        @Override
+        public void log(LogRecord r) {
+            if (!isLoggable(r.getLevel())) return;
+            Filter f = getFilter();
+            if (f != null && !f.isLoggable(r)) return;
+            String msg = prefix + FORMAT.formatMessage(r);
+            int lv = r.getLevel().intValue();
+            if (lv >= Level.SEVERE.intValue()) out.error(msg, r.getThrown());
+            else if (lv >= Level.WARNING.intValue()) out.warn(msg, r.getThrown());
+            else if (lv >= Level.INFO.intValue()) out.info(msg, r.getThrown());
+            else out.debug(msg, r.getThrown());
+        }
+    }
+
+    private static final java.util.logging.SimpleFormatter FORMAT = new java.util.logging.SimpleFormatter();
 
     private final class Context implements PluginContext {
         private final PluginDescription d;

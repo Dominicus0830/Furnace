@@ -1,0 +1,7 @@
+# Broadcast interval in seconds (0 = off)
+tip-interval-seconds: 300
+tip: "Tip: this server runs Furnace."
+# Title shown on join (empty = off)
+welcome-title: "Welcome!"
+# Players without sample.deep cannot break blocks below this Y
+protected-below-y: -60
