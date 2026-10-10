@@ -97,7 +97,7 @@ public final class JigsawStructure extends StructureType {
         if (startJigsawName != null) {
             Jig found = null;
             for (Jig j : start.shuffledJigsaws(e, px, y0, pz, rotation, random)) {
-                if (startJigsawName.equals(j.nbt().getString("name"))) { found = j; break; }
+                if (startJigsawName.equals(j.name())) { found = j; break; }
             }
             if (found == null) return Optional.empty();
             ax = found.x(); ay = found.y(); az = found.z();
@@ -248,7 +248,7 @@ public final class JigsawStructure extends StructureType {
                 int tx = jig.x() + STEP_X[facing], ty = jig.y() + STEP_Y[facing], tz = jig.z() + STEP_Z[facing];
                 int relY = jig.y() - minY;
                 int surfaceY = -1;
-                String poolKey = aliases.lookup(jig.nbt().getString("pool"));
+                String poolKey = aliases.lookup(jig.pool());
                 Pool pool = e.pools().pool(poolKey);
                 if (pool == null) continue;
                 if (pool.size() == 0 && !poolKey.equals(JigsawPools.EMPTY_POOL)) continue;
@@ -267,7 +267,7 @@ public final class JigsawStructure extends StructureType {
                 List<Element> candidates = new ArrayList<>();
                 if (depth != maxDepth) candidates.addAll(pool.shuffledTemplates(random));
                 candidates.addAll(fallback.shuffledTemplates(random));
-                int placementPriority = jig.nbt().contains("placement_priority") ? jig.nbt().getInt("placement_priority") : 0;
+                int placementPriority = jig.placementPriority();
 
                 for (Element cand : candidates) {
                     if (cand == JigsawPools.EMPTY) break;
@@ -282,7 +282,7 @@ public final class JigsawStructure extends StructureType {
                                 if (!candBox0.isInside(cj.x() + STEP_X[f], cj.y() + STEP_Y[f], cj.z() + STEP_Z[f])) {
                                     v = 0;
                                 } else {
-                                    Pool p = e.pools().pool(aliases.lookup(cj.nbt().getString("pool")));
+                                    Pool p = e.pools().pool(aliases.lookup(cj.pool()));
                                     int a = p == null ? 0 : p.maxSize(e);
                                     Pool fb = p == null ? null : e.pools().pool(p.fallback);
                                     int b = fb == null ? 0 : fb.maxSize(e);

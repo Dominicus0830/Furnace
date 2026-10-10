@@ -55,6 +55,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     // ── 보간 대상 함수 ────────────────────────────────────────────────────
     private final DensityFunction wrappedFinalDensity;
+    private final NoiseRouter router;   // 예비 지표 높이 공유 캐시
     private final DensityFunction pslDensity; // PSL 스캔용 initial density — cache_2d 동적 캐시로 컬럼당 2D 1회
 
     // ── ore vein: solid 블록 override (overworld 전용, 항상 활성) ──
@@ -110,6 +111,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     public NoiseChunk(int chunkX, int chunkZ, NoiseRouter router, NoiseSettings settings,
                       org.domi.furnace.server.world.BlockRegistry reg) {
+        this.router = router;
         this.cellWidth  = settings.cellWidth();
         this.cellHeight = settings.cellHeight();
         this.cellCountXZ = 16 / this.cellWidth;   // 4
@@ -715,6 +717,14 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      * 0.390625 threshold = 25/64 (vanilla SurfaceSystem.hasPreliminarySurface)
      */
     public int getPreliminarySurfaceLevel(int quartX, int quartZ) {
+        int cached = router.cachedPreliminarySurface(quartX, quartZ);
+        if (cached != Integer.MIN_VALUE) return cached;
+        int level = computePreliminarySurfaceLevel(quartX, quartZ);
+        router.cachePreliminarySurface(quartX, quartZ, level);
+        return level;
+    }
+
+    private int computePreliminarySurfaceLevel(int quartX, int quartZ) {
         int bx = quartToBlock(quartX);
         int bz = quartToBlock(quartZ);
         int minY = cellNoiseMinY * cellHeight;

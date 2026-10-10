@@ -30,6 +30,8 @@ public final class NoiseBasedAquifer implements Aquifer {
     private final int[] aquiferLocationXCache;
     private final int[] aquiferLocationYCache;
     private final int[] aquiferLocationZCache;
+    /** 후보 12칸 묶음별 최대 수위(computeSubstance 빠른 길). MIN_VALUE = 아직 안 셈. */
+    private final int[] maxLevelCache;
 
     private final int seaLevel;
     private final int lavaFloorY;
@@ -111,6 +113,8 @@ public final class NoiseBasedAquifer implements Aquifer {
         this.aquiferLocationYCache = new int[total];
         this.aquiferLocationZCache = new int[total];
         Arrays.fill(this.aquiferLocationCache, Long.MAX_VALUE);
+        this.maxLevelCache = new int[total];
+        Arrays.fill(this.maxLevelCache, Integer.MIN_VALUE);
     }
 
     public boolean shouldScheduleFluidUpdate() {
@@ -134,6 +138,13 @@ public final class NoiseBasedAquifer implements Aquifer {
         int i3 = Math.floorDiv(i - 5, 16);
         int i4 = Math.floorDiv(i1 + 1, 12);
         int i5 = Math.floorDiv(i2 - 5, 16);
+        // 빠른 길(결과 동일): 후보 12칸 상태의 최대 수위 M 보다 5칸 이상 위면 바닐라 식의 결과는 언제나 공기다 —
+        // 가장 가까운 상태의 at(y) 가 공기이고, 어떤 두 상태 쌍의 압력도 d11 = (M - y - 0.5)/2.5 < -2 라 장벽 노이즈 없이 음수
+        // (2·d11)라서 장벽(NO_CARVE)이 생기지 않는다. 지표 위 공기·물 없는 동굴 대부분이 여기서 끝난다.
+        if (AIR_SHORTCUT && i1 >= maxFluidLevelAround(i3, i4, i5) + 5) {
+            this.shouldScheduleFluidUpdate = false;
+            return 0;
+        }
         int i6 = Integer.MAX_VALUE, i7 = Integer.MAX_VALUE, i8 = Integer.MAX_VALUE, i9 = Integer.MAX_VALUE;
         int idx0 = -1, idx1 = -1, idx2 = -1, idx3 = -1;
         int x0 = 0, y0 = 0, z0 = 0;
@@ -253,6 +264,37 @@ public final class NoiseBasedAquifer implements Aquifer {
         }
     }
 
+    /** (i3,i4,i5) 묶음의 후보 12칸(위 탐색 루프와 같은 칸) 상태 중 최대 수위 — 묶음마다 한 번 계산해 둔다. */
+    private int maxFluidLevelAround(int gx0, int gy0, int gz0) {
+        int key = getIndex(gx0, gy0, gz0);
+        int cached = this.maxLevelCache[key];
+        if (cached != Integer.MIN_VALUE) return cached;
+        int max = Integer.MIN_VALUE + 16;
+        for (int i10 = 0; i10 <= 1; i10++) {
+            for (int i11 = -1; i11 <= 1; i11++) {
+                for (int i12 = 0; i12 <= 1; i12++) {
+                    int gx = gx0 + i10, gy = gy0 + i11, gz = gz0 + i12;
+                    int index = getIndex(gx, gy, gz);
+                    if (this.aquiferLocationCache[index] == Long.MAX_VALUE) {
+                        NoiseRandom random = this.positionalRandomFactory.at(gx, gy, gz);
+                        int lx = gx * 16 + random.nextInt(10);
+                        int ly = gy * 12 + random.nextInt(9);
+                        int lz = gz * 16 + random.nextInt(10);
+                        this.aquiferLocationCache[index] = packPos(lx, ly, lz);
+                        this.aquiferLocationXCache[index] = lx;
+                        this.aquiferLocationYCache[index] = ly;
+                        this.aquiferLocationZCache[index] = lz;
+                    }
+                    FluidStatus st = getAquiferStatus(index, this.aquiferLocationXCache[index],
+                        this.aquiferLocationYCache[index], this.aquiferLocationZCache[index]);
+                    max = Math.max(max, st.fluidLevel());
+                }
+            }
+        }
+        this.maxLevelCache[key] = max;
+        return max;
+    }
+
     private static double similarity(int firstDistance, int secondDistance) {
         return 1.0 - Math.abs(secondDistance - firstDistance) / 25.0;
     }
@@ -336,6 +378,7 @@ public final class NoiseBasedAquifer implements Aquifer {
         }
     }
 
+    private static final boolean AIR_SHORTCUT = !Boolean.getBoolean("furnace.noAqShortcut");
     private static final boolean AQ_CENTERS = System.getProperty("furnace.aqcenters") != null;
 
     private FluidStatus computeFluid(int x, int y, int z) {

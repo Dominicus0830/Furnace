@@ -158,7 +158,55 @@ public final class JigsawPools {
     // ------------------------------------------------------------------ 요소
 
     /** 직소 블록 정보: 월드 좌표, 회전 적용 상태, NBT(name/target/pool/joint/final_state/…). */
-    public record Jig(int x, int y, int z, int state, NbtCompound nbt) {}
+    /**
+     * 템플릿 안의 직소 블록. 조립 중 수없이 비교하므로 방향·NBT 값을 만들 때 한 번만 읽어 둔다
+     * (예전에는 비교마다 orientation 문자열을 파싱하고 NBT 맵을 조회했다 — 결과는 같다).
+     */
+    public static final class Jig {
+        private final int x, y, z, state;
+        private final NbtCompound nbt;
+        final int front, top, selectionPriority, placementPriority;
+        final boolean rollable;
+        final String name, target, pool;
+
+        Jig(BlockStateTable t, int x, int y, int z, int state, NbtCompound nbt) {
+            this.x = x; this.y = y; this.z = z; this.state = state; this.nbt = nbt;
+            int o = orientation(t, state);
+            this.front = o >> 4;
+            this.top = o & 15;
+            this.selectionPriority = nbt != null && nbt.contains("selection_priority") ? nbt.getInt("selection_priority") : 0;
+            this.placementPriority = nbt != null && nbt.contains("placement_priority") ? nbt.getInt("placement_priority") : 0;
+            String joint = nbt != null && nbt.contains("joint") ? nbt.getString("joint") : "";
+            if (joint.equals("rollable")) this.rollable = true;
+            else if (joint.equals("aligned")) this.rollable = false;
+            else this.rollable = front <= 1;   // 기본: 수평 방향이면 aligned, 수직이면 rollable
+            this.name = nbt != null ? nbt.getString("name") : null;
+            this.target = nbt != null ? nbt.getString("target") : null;
+            this.pool = nbt != null ? nbt.getString("pool") : null;
+        }
+
+        public int x() { return x; }
+        public int y() { return y; }
+        public int z() { return z; }
+        public int state() { return state; }
+        public NbtCompound nbt() { return nbt; }
+        public String name() { return name; }
+        public String target() { return target; }
+        public String pool() { return pool; }
+        public int placementPriority() { return placementPriority; }
+    }
+
+    /** 직소 상태 → (front<<4 | top). 직소 방향 상태는 12개뿐이라 상태 id 별로 기억한다. */
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, Integer> ORIENTATION = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static int orientation(BlockStateTable t, int state) {
+        Integer c = ORIENTATION.get(state);
+        if (c != null) return c;
+        String o = t.prop(state, "orientation");
+        int v = (dirIndex(o.substring(0, o.indexOf('_'))) << 4) | dirIndex(o.substring(o.indexOf('_') + 1));
+        ORIENTATION.put(state, v);
+        return v;
+    }
 
     public abstract static class Element {
         final String projection;
@@ -213,15 +261,11 @@ public final class JigsawPools {
             st.rotation = rotation;
             List<StructureTemplate.BlockInfo> infos = TemplatePlacer.filterBlocks(t, e.table(), st, x, y, z, "minecraft:jigsaw");
             List<Jig> out = new ArrayList<>(infos.size());
-            for (StructureTemplate.BlockInfo b : infos) out.add(new Jig(b.x(), b.y(), b.z(), b.state(), b.nbt()));
+            for (StructureTemplate.BlockInfo b : infos) out.add(new Jig(e.table(), b.x(), b.y(), b.z(), b.state(), b.nbt()));
             shuffle(out, random);
             // selection_priority 내림차순(안정 정렬)
-            out.sort((a, b) -> Integer.compare(selectionPriority(b), selectionPriority(a)));
+            out.sort((a, b) -> Integer.compare(b.selectionPriority, a.selectionPriority));
             return out;
-        }
-
-        private static int selectionPriority(Jig j) {
-            return j.nbt() != null && j.nbt().contains("selection_priority") ? j.nbt().getInt("selection_priority") : 0;
         }
 
         @Override
@@ -277,7 +321,7 @@ public final class JigsawPools {
             nbt.putString("pool", "minecraft:empty");
             nbt.putString("target", "minecraft:empty");
             nbt.putString("joint", "rollable");
-            return List.of(new Jig(x, y, z, e.state("minecraft:jigsaw[orientation=down_south]"), nbt));
+            return List.of(new Jig(e.table(), x, y, z, e.state("minecraft:jigsaw[orientation=down_south]"), nbt));
         }
 
         @Override
@@ -332,15 +376,9 @@ public final class JigsawPools {
     // ------------------------------------------------------------------ 직소 블록 방향
 
     /** JigsawBlock.getFrontFacing: orientation 값 "front_top" 의 앞 방향. 반환: BlockShapes 방향 인덱스(DOWN0 UP1 N2 S3 W4 E5). */
-    static int frontFacing(BlockStateTable t, int state) {
-        String o = t.prop(state, "orientation");
-        return dirIndex(o.substring(0, o.indexOf('_')));
-    }
+    static int frontFacing(BlockStateTable t, int state) { return orientation(t, state) >> 4; }
 
-    static int topFacing(BlockStateTable t, int state) {
-        String o = t.prop(state, "orientation");
-        return dirIndex(o.substring(o.indexOf('_') + 1));
-    }
+    static int topFacing(BlockStateTable t, int state) { return orientation(t, state) & 15; }
 
     static int dirIndex(String n) {
         return switch (n) {
@@ -355,15 +393,8 @@ public final class JigsawPools {
 
     /** JigsawBlock.canAttach(source, target). */
     static boolean canAttach(BlockStateTable t, Jig source, Jig target) {
-        int f1 = frontFacing(t, source.state()), f2 = frontFacing(t, target.state());
-        int t1 = topFacing(t, source.state()), t2 = topFacing(t, target.state());
-        String joint = source.nbt().contains("joint") ? source.nbt().getString("joint") : "";
-        boolean rollable;
-        if (joint.equals("rollable")) rollable = true;
-        else if (joint.equals("aligned")) rollable = false;
-        else rollable = f1 <= 1;   // 기본: 수평 방향이면 aligned, 수직이면 rollable
-        return f1 == (f2 ^ 1) && (rollable || t1 == t2)
-            && source.nbt().getString("target").equals(target.nbt().getString("name"));
+        return source.front == (target.front ^ 1) && (source.rollable || source.top == target.top)
+            && source.target.equals(target.name);
     }
 
 }

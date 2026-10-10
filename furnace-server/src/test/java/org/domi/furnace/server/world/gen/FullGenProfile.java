@@ -24,7 +24,16 @@ class FullGenProfile {
             r.start();
             ExecutorService ex = Executors.newFixedThreadPool(4);
             List<Future<?>> fs = new ArrayList<>();
-            for (int col = 0; col < 4; col++) for (int row = -10; row <= 10; row++) { int c0 = col, r0 = row; fs.add(ex.submit(() -> source.generateWithFeatures(600 + c0, r0))); }
+            boolean pristineOnly = Boolean.getBoolean("furnace.profile.pristine");
+            for (int col = 0; col < (pristineOnly ? 12 : 4); col++) for (int row = -10; row <= 10; row++) {
+                int c0 = col, r0 = row;
+                fs.add(ex.submit(() -> {
+                    if (pristineOnly) {
+                        var g = source.generateWorldChunk(600 + c0, r0);
+                        source.applyCarvers(g.col(), 600 + c0, r0);
+                    } else source.generateWithFeatures(600 + c0, r0);
+                }));
+            }
             for (Future<?> f : fs) f.get();
             ex.shutdown();
             r.stop();
@@ -41,9 +50,17 @@ class FullGenProfile {
             self.merge(name(top), 1, Integer::sum);
             Set<String> seen = new HashSet<>();
             for (RecordedFrame f : st.getFrames()) { String n = name(f); if (f.getMethod().getType().getName().contains("furnace") && seen.add(n)) incl.merge(n, 1, Integer::sum); }
-            if (name(top).equals("HashMap$TreeNode.find") || name(top).equals("ArraysSupport.mismatch")) {
+            boolean viaMarker = false;
+            for (RecordedFrame f : st.getFrames()) if (name(f).equals("DensityFunctions$Marker.compute")) { viaMarker = true; break; }
+            if (viaMarker) {
                 StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < Math.min(8, st.getFrames().size()); i++) sb.append(name(st.getFrames().get(i))).append(" < ");
+                for (RecordedFrame f : st.getFrames()) { String n = name(f); if (n.startsWith("NoiseChunk") || n.startsWith("NoiseWorldSource") || n.startsWith("NoiseBasedAquifer") || n.startsWith("SurfaceSystem")) sb.append(n).append(" < "); }
+                callers.merge("MARKER " + sb, 1, Integer::sum);
+            }
+            if (name(top).startsWith("ImprovedNoise") || name(top).startsWith("PerlinNoise") || name(top).equals("HashMap$TreeNode.find")) {
+                StringBuilder sb = new StringBuilder();
+                int skip = 0;
+                for (RecordedFrame f : st.getFrames()) { String n = name(f); if (n.startsWith("ImprovedNoise") || n.startsWith("PerlinNoise") || n.startsWith("NormalNoise") || n.startsWith("HashMap")) continue; if (skip++ >= 7) break; sb.append(n).append(" < "); }
                 callers.merge(sb.toString(), 1, Integer::sum);
             }
         }
@@ -51,9 +68,9 @@ class FullGenProfile {
         int t = total;
         self.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(25)
             .forEach(en -> System.out.printf("PROF self %5.1f%% %s%n", 100.0 * en.getValue() / t, en.getKey()));
-        incl.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(45)
+        incl.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(70)
             .forEach(en -> System.out.printf("PROF incl %5.1f%% %s%n", 100.0 * en.getValue() / t, en.getKey()));
-        callers.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(6)
+        callers.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(25)
             .forEach(en -> System.out.printf("PROF hot %d %s%n", en.getValue(), en.getKey()));
     }
 

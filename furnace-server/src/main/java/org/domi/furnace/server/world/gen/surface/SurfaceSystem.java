@@ -473,9 +473,11 @@ public final class SurfaceSystem {
     }
 
     private static long packQuart(int x, int y, int z) {
-        return ((long)(x & 0x3FFFFFF) << 38)
+        long k = ((long)(x & 0x3FFFFFF) << 38)
             | ((long)(y & 0xFFF) << 26)
             | (long)(z & 0x3FFFFFF);
+        // 캐시 키 전용 — 홀수 곱(64비트 전단사)으로 비트를 섞는다. 그대로 쓰면 Long.hashCode 가 몰려 HashMap 버킷이 트리가 됐다.
+        return k * 0x9E3779B97F4A7C15L;
     }
 
     private QuartKey biomeManagerQuart(int blockX, int blockY, int blockZ) {
