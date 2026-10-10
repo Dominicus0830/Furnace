@@ -8,7 +8,7 @@ import org.domi.furnace.server.entity.damage.CombatTracker;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.Packet;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.play.DamageEvent;
 import org.domi.furnace.server.net.protocol.play.EntityEvent;
 import org.domi.furnace.server.net.protocol.play.GameEvent;

@@ -128,8 +128,8 @@ public final class Player {
     public org.domi.furnace.server.world.GameMode gameMode() { return vitals.gameMode(); }
 
     /** 바닐라 Player.getDisplayName: 이름 + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
-    public org.domi.furnace.server.net.protocol.Text displayName() {
-        return org.domi.furnace.server.net.protocol.Text.literal(name).insertion(name).click("suggest_command", "/tell " + name + " ");
+    public org.domi.furnace.api.text.Text displayName() {
+        return org.domi.furnace.api.text.Text.text(name).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));
     }
 
     // 리스폰할 때마다 증가 — 관찰자가 값이 바뀐 것을 보고 엔티티를 지웠다 다시 스폰한다(바닐라: 리스폰 = 새 ServerPlayer).
@@ -208,7 +208,7 @@ public final class Player {
     public void chat(org.domi.furnace.server.chat.PlayerChatState c) { this.chat = c; }
 
     /** 바닐라 ServerPlayer.sendSystemMessage — 채팅 숨김이면 액션바(overlay)만 받는다. */
-    public void sendSystemMessage(org.domi.furnace.server.net.protocol.Text message, boolean overlay) {
+    public void sendSystemMessage(org.domi.furnace.api.text.Text message, boolean overlay) {
         if (chat().acceptsSystemMessages(overlay)) send(new org.domi.furnace.server.net.protocol.play.SystemChat(message, overlay));
     }
 

@@ -88,31 +88,31 @@ public final class PlayerLists {
     /**
      * 바닐라 PlayerList.canPlayerLogin — 밴 → 화이트리스트 → IP 밴 → 인원 순으로 검사하고, 막히면 사유(번역 컴포넌트), 통과면 null.
      */
-    public org.domi.furnace.server.net.protocol.Text canPlayerLogin(java.net.SocketAddress address, GameProfile profile,
+    public org.domi.furnace.api.text.Text canPlayerLogin(java.net.SocketAddress address, GameProfile profile,
                                                                     int onlinePlayers, int maxPlayers) {
         UserBanListEntry ban = bans.isListed(profile) ? bans.get(profile) : null;
         if (ban != null) {
-            var t = org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned.reason", ban.getReason());
+            var t = org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.banned.reason", ban.getReason());
             if (ban.getExpires() != null) {
-                t.append(org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned.expiration",
+                t = t.append(org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.banned.expiration",
                         BAN_DATE_FORMAT.get().format(ban.getExpires())));
             }
             return t;
         }
         if (!isWhiteListed(profile)) {
-            return org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.not_whitelisted");
+            return org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.not_whitelisted");
         }
         IpBanListEntry ipBan = address != null && ipBans.isBanned(address) ? ipBans.get(address) : null;
         if (ipBan != null) {
-            var t = org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned_ip.reason", ipBan.getReason());
+            var t = org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.banned_ip.reason", ipBan.getReason());
             if (ipBan.getExpires() != null) {
-                t.append(org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.banned_ip.expiration",
+                t = t.append(org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.banned_ip.expiration",
                         BAN_DATE_FORMAT.get().format(ipBan.getExpires())));
             }
             return t;
         }
         if (onlinePlayers >= maxPlayers && !ops.canBypassPlayerLimit(profile)) {
-            return org.domi.furnace.server.net.protocol.Text.translatable("multiplayer.disconnect.server_full");
+            return org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.server_full");
         }
         return null;
     }

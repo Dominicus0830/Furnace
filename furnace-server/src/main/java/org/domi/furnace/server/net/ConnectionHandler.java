@@ -33,7 +33,7 @@ import org.domi.furnace.server.world.Region;
 import org.domi.furnace.server.net.protocol.login.LoginDisconnect;
 import org.domi.furnace.server.net.protocol.login.EncryptionRequest;
 import org.domi.furnace.server.net.protocol.login.EncryptionResponse;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
@@ -288,7 +288,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (isChatMessageIllegal(message)) {
             kick(ctx, Text.translatable("multiplayer.disconnect.illegal_characters"));
         } else if (p.chat().visibility() == org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_HIDDEN) {
-            p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(Text.translatable("chat.disabled.options").color("red"), false));
+            p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(Text.translatable("chat.disabled.options").color(org.domi.furnace.api.text.NamedTextColor.RED), false));
         } else {
             login.core.scheduler().global().execute(action);
         }
@@ -324,7 +324,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void handleMessageDecodeFailure(org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
         log.warn("Failed to update secure chat state for {}: '{}'", player.name(), e.component().getString());
-        player.sendSystemMessage(Text.empty().append(e.component()).color("red"), false);
+        player.sendSystemMessage(Text.empty().append(e.component()).color(org.domi.furnace.api.text.NamedTextColor.RED), false);
     }
 
     private void handleChat(ByteBuf frame) {
@@ -397,7 +397,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             var parse = core.commands().getDispatcher().parse(command, source);
             if (core.enforceSecureProfile() && org.domi.furnace.server.command.SignableCommand.hasSignableArguments(parse)) {
                 log.error("Received unsigned command packet from {}, but the command requires signable arguments: {}", p.name(), command);
-                p.sendSystemMessage(Text.translatable("chat.disabled.invalid_command_signature").color("red"), false);
+                p.sendSystemMessage(Text.translatable("chat.disabled.invalid_command_signature").color(org.domi.furnace.api.text.NamedTextColor.RED), false);
             } else {
                 core.commands().performCommand(parse, command);
             }
@@ -468,7 +468,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         String expected = String.join(", ", signable.arguments().stream().map(org.domi.furnace.server.command.SignableCommand.Argument::name).toList());
         log.error("Signed command mismatch between server and client ('{}'): got [{}] from client, but expected [{}]", command, got, expected);
         return new org.domi.furnace.server.chat.SignedMessageChain.DecodeException(
-                Text.translatable("chat.disabled.invalid_command_signature").color("red"));
+                Text.translatable("chat.disabled.invalid_command_signature").color(org.domi.furnace.api.text.NamedTextColor.RED));
     }
 
     /** 바닐라 handleCustomCommandSuggestions — 서버 측 자동완성(ask_server 노드). */
@@ -489,7 +489,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         if (!frame.readBoolean()) {
-            disconnect(ctx, Text.literal("This server requires you to connect with Velocity."));
+            disconnect(ctx, Text.text("This server requires you to connect with Velocity."));
             return;
         }
         org.domi.furnace.server.net.auth.VelocityForwarding.Forwarded fwd;
@@ -500,7 +500,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         if (fwd == null) {
-            disconnect(ctx, Text.literal("Unable to verify player details"));
+            disconnect(ctx, Text.text("Unable to verify player details"));
             return;
         }
         int port = ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa ? isa.getPort() : 0;
@@ -1436,7 +1436,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 현재 단계에 맞는 Disconnect 패킷으로 사유를 알리고 연결을 닫는다. 사유를 보낼 수 없는 단계면 그냥 닫는다. */
     void kick(ChannelHandlerContext ctx, String reason) {
-        kick(ctx, Text.literal(reason));
+        kick(ctx, Text.text(reason));
     }
 
     void kick(ChannelHandlerContext ctx, Text reason) {

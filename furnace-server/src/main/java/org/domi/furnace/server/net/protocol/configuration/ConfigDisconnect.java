@@ -5,10 +5,10 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
 
-public record ConfigDisconnect(org.domi.furnace.server.net.protocol.Text reason) implements Packet {
+public record ConfigDisconnect(org.domi.furnace.api.text.Text reason) implements Packet {
 
     public ConfigDisconnect(String literal) {
-        this(org.domi.furnace.server.net.protocol.Text.literal(literal));
+        this(org.domi.furnace.api.text.Text.text(literal));
     }
 
     public static final int ID = 0x02;
@@ -20,6 +20,6 @@ public record ConfigDisconnect(org.domi.furnace.server.net.protocol.Text reason)
 
     @Override
     public void write(ByteBuf buf) {
-        new NbtWriter(buf).writeCompound(reason.toNbt());
+        buf.writeBytes(reason.networkNbt());
     }
 }

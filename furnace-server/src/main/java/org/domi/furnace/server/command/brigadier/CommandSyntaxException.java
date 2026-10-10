@@ -1,7 +1,7 @@
 // Brigadier CommandSyntaxException — 메시지(Text)와 입력·커서(오류 위치 표시용).
 package org.domi.furnace.server.command.brigadier;
 
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public class CommandSyntaxException extends Exception {
 

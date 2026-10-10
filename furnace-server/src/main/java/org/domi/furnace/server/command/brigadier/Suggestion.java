@@ -1,7 +1,7 @@
 package org.domi.furnace.server.command.brigadier;
 
 import java.util.Objects;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public class Suggestion implements Comparable<Suggestion> {
 

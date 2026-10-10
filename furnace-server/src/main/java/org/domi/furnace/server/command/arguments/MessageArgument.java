@@ -11,7 +11,7 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public final class MessageArgument implements ArgumentType<MessageArgument.Message> {
 
@@ -24,16 +24,16 @@ public final class MessageArgument implements ArgumentType<MessageArgument.Messa
     public record Message(String text, List<Part> parts) {
         /** 선택자 부분을 찾은 이름들로 바꾼 텍스트. */
         public Text toComponent(CommandSource source) throws CommandSyntaxException {
-            if (parts.isEmpty() || !source.hasPermission(2)) return Text.literal(text);
-            Text out = Text.literal(text.substring(0, parts.get(0).start()));
+            if (parts.isEmpty() || !source.hasPermission(2)) return Text.text(text);
+            Text out = Text.text(text.substring(0, parts.get(0).start()));
             int i = parts.get(0).start();
             for (Part p : parts) {
-                if (p.start() > i) out.append(Text.literal(text.substring(i, p.start())));
+                if (p.start() > i) out.append(Text.text(text.substring(i, p.start())));
                 List<Player> found = p.selector().findPlayers(source);
                 if (!found.isEmpty()) out.append(EntitySelector.joinNames(found));
                 i = p.end();
             }
-            if (i < text.length()) out.append(Text.literal(text.substring(i)));
+            if (i < text.length()) out.append(Text.text(text.substring(i)));
             return out;
         }
     }

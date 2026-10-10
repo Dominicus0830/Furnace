@@ -24,7 +24,7 @@ public record CommandSuggestionsResponse(int transactionId, Suggestions suggesti
         for (Suggestion s : suggestions.getList()) {
             Types.writeString(buf, s.getText());
             buf.writeBoolean(s.getTooltip() != null);
-            if (s.getTooltip() != null) new NbtWriter(buf).writeCompound(s.getTooltip().toNbt());
+            if (s.getTooltip() != null) buf.writeBytes(s.getTooltip().networkNbt());
         }
     }
 }

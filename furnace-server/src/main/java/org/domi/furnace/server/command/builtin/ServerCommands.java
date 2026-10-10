@@ -18,7 +18,7 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.ParseResults;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.play.Disconnect;
 
 public final class ServerCommands {
@@ -35,7 +35,7 @@ public final class ServerCommands {
         d.register(literal("help")
                 .executes(c -> {
                     Map<CommandNode<CommandSource>, String> map = d.getSmartUsage(d.getRoot(), c.getSource());
-                    for (String s : map.values()) c.getSource().sendSuccess(() -> Text.literal("/" + s), false);
+                    for (String s : map.values()) c.getSource().sendSuccess(() -> Text.text("/" + s), false);
                     return map.size();
                 })
                 .then(argument("command", Arguments.greedyString()).executes(c -> {
@@ -44,7 +44,7 @@ public final class ServerCommands {
                     var nodes = parse.getContext().getNodes();
                     Map<CommandNode<CommandSource>, String> map = d.getSmartUsage(nodes.get(nodes.size() - 1).getNode(), c.getSource());
                     for (String s : map.values()) {
-                        c.getSource().sendSuccess(() -> Text.literal("/" + parse.getReader().getString() + " " + s), false);
+                        c.getSource().sendSuccess(() -> Text.text("/" + parse.getReader().getString() + " " + s), false);
                     }
                     return map.size();
                 })));
@@ -64,7 +64,7 @@ public final class ServerCommands {
         int i = 0;
         for (Player p : players) {
             p.kick(new Disconnect(reason));
-            source.sendSuccess(() -> Text.translatable("commands.kick.success", Text.literal(p.name()), reason), true);
+            source.sendSuccess(() -> Text.translatable("commands.kick.success", Text.text(p.name()), reason), true);
             i++;
         }
         if (i == 0) throw ERROR_KICKING_OWNER.create();
@@ -73,7 +73,7 @@ public final class ServerCommands {
 
     public static void registerList(CommandDispatcher<CommandSource> d) {
         d.register(literal("list")
-                .executes(c -> listPlayers(c.getSource(), p -> Text.literal(p.name())))
+                .executes(c -> listPlayers(c.getSource(), p -> Text.text(p.name())))
                 .then(literal("uuids").executes(c -> listPlayers(c.getSource(),
                         p -> Text.translatable("commands.list.nameAndId", p.name(), p.uuid().toString())))));
     }
@@ -82,11 +82,12 @@ public final class ServerCommands {
         List<Player> players = source.getServer().players();
         Text list = Text.empty();
         for (int i = 0; i < players.size(); i++) {
-            if (i > 0) list.append(Text.literal(", ").color("gray"));
-            list.append(name.apply(players.get(i)));
+            if (i > 0) list = list.append(Text.text(", ").color(org.domi.furnace.api.text.NamedTextColor.GRAY));
+            list = list.append(name.apply(players.get(i)));
         }
         int max = source.getServer().settings().get().maxPlayers;
-        source.sendSuccess(() -> Text.translatable("commands.list.players", players.size(), max, list), false);
+        Text names = list;
+        source.sendSuccess(() -> Text.translatable("commands.list.players", players.size(), max, names), false);
         return players.size();
     }
 
@@ -94,8 +95,8 @@ public final class ServerCommands {
         d.register(literal("seed").requires(s -> s.hasPermission(2)).executes(c -> {
             long seed = c.getSource().getServer().levelData().seed;
             String s = String.valueOf(seed);
-            Text value = Text.translatable("chat.square_brackets", Text.literal(s).color("green")
-                    .click("copy_to_clipboard", s).hover(Text.translatable("chat.copy.click")).insertion(s));
+            Text value = Text.translatable("chat.square_brackets", Text.text(s).color(org.domi.furnace.api.text.NamedTextColor.GREEN)
+                    .clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.COPY_TO_CLIPBOARD, s)).hoverText(Text.translatable("chat.copy.click")).insertion(s));
             c.getSource().sendSuccess(() -> Text.translatable("commands.seed.success", value), false);
             return (int) seed;
         }));

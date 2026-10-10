@@ -1,6 +1,6 @@
 package org.domi.furnace.server.command.brigadier;
 
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public final class IntegerSuggestion extends Suggestion {
 

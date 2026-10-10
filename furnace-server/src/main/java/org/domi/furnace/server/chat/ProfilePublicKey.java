@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.UUID;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ProtocolException;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public record ProfilePublicKey(Data data) {
 

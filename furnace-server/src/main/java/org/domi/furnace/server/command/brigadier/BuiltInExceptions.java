@@ -1,7 +1,7 @@
 // 바닐라 BrigadierExceptions — Brigadier 기본 오류를 번역 컴포넌트로.
 package org.domi.furnace.server.command.brigadier;
 
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public final class BuiltInExceptions {
 

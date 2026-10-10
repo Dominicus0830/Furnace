@@ -11,7 +11,7 @@ import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.world.Difficulty;
 import org.domi.furnace.server.world.GameRules;
 import org.domi.furnace.server.world.WorldClock;

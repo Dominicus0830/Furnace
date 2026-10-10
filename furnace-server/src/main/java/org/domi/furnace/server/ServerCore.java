@@ -8,7 +8,7 @@ import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.server.command.Commands;
 import org.domi.furnace.server.config.ServerPropertiesFile;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.play.EntityEvent;
 import org.domi.furnace.server.players.GameProfile;
 import org.domi.furnace.server.players.GameProfileCache;
@@ -273,7 +273,7 @@ public final class ServerCore {
         String s = bound.decorate(content).getString();
         if (tag != null) log.info("[{}] {}", tag, s);
         else log.info("{}", s);
-        Text line = tag != null ? Text.literal("[" + tag + "] " + s) : Text.literal(s);
+        Text line = tag != null ? Text.text("[" + tag + "] " + s) : Text.text(s);
         for (var l : consoleListeners) l.accept(line);
     }
 

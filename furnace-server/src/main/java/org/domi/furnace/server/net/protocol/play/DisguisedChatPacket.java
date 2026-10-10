@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.chat.ChatType;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public record DisguisedChatPacket(Text message, ChatType.Bound bound) implements Packet {
 
@@ -16,7 +16,7 @@ public record DisguisedChatPacket(Text message, ChatType.Bound bound) implements
 
     @Override
     public void write(ByteBuf buf) {
-        new NbtWriter(buf).writeCompound(message.toNbt());
+        buf.writeBytes(message.networkNbt());
         bound.write(buf);
     }
 }

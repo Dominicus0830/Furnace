@@ -5,10 +5,10 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
-public record LoginDisconnect(org.domi.furnace.server.net.protocol.Text reason) implements Packet {
+public record LoginDisconnect(org.domi.furnace.api.text.Text reason) implements Packet {
 
     public LoginDisconnect(String literal) {
-        this(org.domi.furnace.server.net.protocol.Text.literal(literal));
+        this(org.domi.furnace.api.text.Text.text(literal));
     }
 
     public static final int ID = 0x00;

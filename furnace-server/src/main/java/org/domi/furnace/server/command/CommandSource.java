@@ -6,7 +6,7 @@ import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public final class CommandSource {
 
@@ -42,12 +42,12 @@ public final class CommandSource {
     /** 콘솔: 이름 "Server", 레벨 4, 월드 스폰 위치. */
     public static CommandSource console(ServerCore server) {
         var spawn = server.world().defaultSpawn();
-        return new CommandSource(server, null, "Server", Text.literal("Server"), 4, false, spawn.x(), spawn.y(), spawn.z(), 0f, 0f);
+        return new CommandSource(server, null, "Server", Text.text("Server"), 4, false, spawn.x(), spawn.y(), spawn.z(), 0f, 0f);
     }
 
     /** 플레이어(바닐라 ServerPlayer.createCommandSourceStack). */
     public static CommandSource player(ServerCore server, Player p) {
-        Text name = Text.literal(p.name()).insertion(p.name()).click("suggest_command", "/tell " + p.name() + " ");
+        Text name = Text.text(p.name()).insertion(p.name()).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + p.name() + " "));
         return new CommandSource(server, p, p.name(), name, server.profilePermissions(ServerCore.profileOf(p)), false,
                 p.x(), p.y(), p.z(), p.yaw(), p.pitch());
     }
@@ -55,7 +55,7 @@ public final class CommandSource {
     /** 명령 트리 필터용: 접속 직전 플레이어의 이름·권한만 가진 소스(Player 객체가 아직 없을 때). */
     public static CommandSource forProfile(ServerCore server, String name, int permissionLevel) {
         var spawn = server.world().defaultSpawn();
-        return new CommandSource(server, null, name, Text.literal(name), permissionLevel, true, spawn.x(), spawn.y(), spawn.z(), 0f, 0f);
+        return new CommandSource(server, null, name, Text.text(name), permissionLevel, true, spawn.x(), spawn.y(), spawn.z(), 0f, 0f);
     }
 
     public CommandSource withSignedArguments(java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> args) {
@@ -126,7 +126,7 @@ public final class CommandSource {
     }
 
     private void broadcastToAdmins(Text message) {
-        Text admin = Text.translatable("chat.type.admin", displayName, message).color("gray").italic(true);
+        Text admin = Text.translatable("chat.type.admin", displayName, message).color(org.domi.furnace.api.text.NamedTextColor.GRAY).decoration(org.domi.furnace.api.text.TextDecoration.ITALIC, true);
         if (server.gameRule("sendCommandFeedback")) {
             for (Player p : server.players()) {
                 if (p != player && server.lists().isOp(ServerCore.profileOf(p))) p.sendSystemMessage(admin, false);
@@ -136,7 +136,7 @@ public final class CommandSource {
     }
 
     public void sendFailure(Text message) {
-        if (!silent) sendSystemMessage(Text.empty().append(message).color("red"));
+        if (!silent) sendSystemMessage(Text.empty().append(message).color(org.domi.furnace.api.text.NamedTextColor.RED));
     }
 
     public void sendSystemMessage(Text message) {

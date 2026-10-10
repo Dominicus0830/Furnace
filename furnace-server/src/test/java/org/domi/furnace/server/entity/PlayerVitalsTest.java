@@ -13,7 +13,7 @@ import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.Packet;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.world.Difficulty;
 import org.domi.furnace.server.world.GameMode;
 import org.junit.jupiter.api.Test;
@@ -196,7 +196,7 @@ class PlayerVitalsTest {
         assertTrue(v.kill());
         assertTrue(v.isDeadOrDying());
         assertEquals(1, env.broadcasts.size());
-        assertEquals("death.attack.genericKill", env.broadcasts.get(0).key());
+        assertEquals("death.attack.genericKill", env.broadcasts.get(0).translationKey());
         assertFalse(v.hurt(DamageType.GENERIC_KILL, 1), "이미 죽었으면 피해 없음");
     }
 
@@ -204,7 +204,7 @@ class PlayerVitalsTest {
     void deathMessagesUseFallVariants() {
         fall(140, 100, "minecraft:stone", false);
         assertTrue(v.isDeadOrDying());
-        assertEquals("death.fell.accident.generic", env.broadcasts.get(0).key(), "5블록 넘게 떨어져 죽음");
+        assertEquals("death.fell.accident.generic", env.broadcasts.get(0).translationKey(), "5블록 넘게 떨어져 죽음");
 
         PlayerVitals small = new Player(9, UUID.randomUUID(), "B", channel).vitals();
         small.env(env);
@@ -214,7 +214,7 @@ class PlayerVitalsTest {
         small.load(tag);
         for (int i = 0; i < 5; i++) small.onMove(0, -1, 0, i == 0, false, false, false, false, false, null, "minecraft:air", false);
         small.onMove(0, 0, 0, false, true, false, false, false, false, null, "minecraft:stone", false);
-        assertEquals("death.attack.fall", env.broadcasts.get(1).key(), "짧은 낙하는 일반 낙하 메시지");
+        assertEquals("death.attack.fall", env.broadcasts.get(1).translationKey(), "짧은 낙하는 일반 낙하 메시지");
 
         env.rules.put("showDeathMessages", false);
         PlayerVitals quiet = new Player(10, UUID.randomUUID(), "C", channel).vitals();

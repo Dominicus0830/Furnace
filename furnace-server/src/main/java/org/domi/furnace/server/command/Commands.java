@@ -14,7 +14,7 @@ import org.domi.furnace.server.command.brigadier.RequiredArgumentBuilder;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,9 +63,9 @@ public final class Commands {
             // 실행 중 오류(예: 대상 없음)는 메시지만(바닐라 CommandSourceStack.handleError).
             source.sendFailure(e.getRawMessage());
         } catch (Exception e) {
-            Text detail = Text.literal(e.getMessage() == null ? e.getClass().getName() : e.getMessage());
+            Text detail = Text.text(e.getMessage() == null ? e.getClass().getName() : e.getMessage());
             log.error("Command exception: /{}", command, e);
-            source.sendFailure(Text.translatable("command.failed").hover(detail));
+            source.sendFailure(Text.translatable("command.failed").hoverText(detail));
         }
     }
 
@@ -83,13 +83,13 @@ public final class Commands {
         source.sendFailure(e.getRawMessage());
         if (e.getInput() != null && e.getCursor() >= 0) {
             int i = Math.min(e.getInput().length(), e.getCursor());
-            Text context = Text.empty().color("gray").click("suggest_command", "/" + command);
-            if (i > 10) context.append(Text.literal("..."));
-            context.append(Text.literal(e.getInput().substring(Math.max(0, i - 10), i)));
+            Text context = Text.empty().color(org.domi.furnace.api.text.NamedTextColor.GRAY).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/" + command));
+            if (i > 10) context = context.append(Text.text("..."));
+            context = context.append(Text.text(e.getInput().substring(Math.max(0, i - 10), i)));
             if (i < e.getInput().length()) {
-                context.append(Text.literal(e.getInput().substring(i)).color("red").underlined(true));
+                context = context.append(Text.text(e.getInput().substring(i)).color(org.domi.furnace.api.text.NamedTextColor.RED).decoration(org.domi.furnace.api.text.TextDecoration.UNDERLINED, true));
             }
-            context.append(Text.translatable("command.context.here").color("red").italic(true));
+            context = context.append(Text.translatable("command.context.here").color(org.domi.furnace.api.text.NamedTextColor.RED).decoration(org.domi.furnace.api.text.TextDecoration.ITALIC, true));
             source.sendFailure(context);
         }
     }

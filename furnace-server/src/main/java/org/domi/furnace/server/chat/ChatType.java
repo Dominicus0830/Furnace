@@ -4,7 +4,7 @@ package org.domi.furnace.server.chat;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.registry.RegistrySet;
 
 public enum ChatType {
@@ -49,16 +49,16 @@ public enum ChatType {
                 case TARGET_SENDER_CONTENT -> new Object[]{target, name, content};
             };
             Text t = Text.translatable(type.translationKey, args);
-            if (type.grayItalic) t.color("gray").italic(true);
+            if (type.grayItalic) t.color(org.domi.furnace.api.text.NamedTextColor.GRAY).decoration(org.domi.furnace.api.text.TextDecoration.ITALIC, true);
             return t;
         }
 
         /** 네트워크 형식: holder(레지스트리 참조 = id+1), 이름, 대상(선택). */
         public void write(ByteBuf buf) {
             Types.writeVarInt(buf, type.registryIndex() + 1);
-            new NbtWriter(buf).writeCompound(name.toNbt());
+            buf.writeBytes(name.networkNbt());
             buf.writeBoolean(targetName != null);
-            if (targetName != null) new NbtWriter(buf).writeCompound(targetName.toNbt());
+            if (targetName != null) buf.writeBytes(targetName.networkNbt());
         }
     }
 }

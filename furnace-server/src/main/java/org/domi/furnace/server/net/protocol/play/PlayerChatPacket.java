@@ -24,7 +24,7 @@ public final class PlayerChatPacket implements Packet {
             if (m.signature() != null) m.signature().write(b);
             m.signedBody().writePacked(b, cache);
             b.writeBoolean(m.unsignedContent() != null);
-            if (m.unsignedContent() != null) new NbtWriter(b).writeCompound(m.unsignedContent().toNbt());
+            if (m.unsignedContent() != null) b.writeBytes(m.unsignedContent().networkNbt());
             Types.writeVarInt(b, 0);                 // FilterMask.PASS_THROUGH(텍스트 필터는 없다)
             bound.write(b);
             body = new byte[b.readableBytes()];

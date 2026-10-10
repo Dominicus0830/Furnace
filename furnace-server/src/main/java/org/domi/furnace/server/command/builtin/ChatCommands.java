@@ -13,7 +13,7 @@ import org.domi.furnace.server.command.arguments.MessageArgument;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.LiteralCommandNode;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public final class ChatCommands {
 
@@ -53,7 +53,7 @@ public final class ChatCommands {
     private static void sendMessage(CommandSource source, Collection<Player> targets, PlayerChatMessage message) {
         ChatType.Bound incoming = ChatType.MSG_COMMAND_INCOMING.bind(source.getDisplayName());
         for (Player target : targets) {
-            ChatType.Bound outgoing = ChatType.MSG_COMMAND_OUTGOING.bind(source.getDisplayName()).withTargetName(Text.literal(target.name()));
+            ChatType.Bound outgoing = ChatType.MSG_COMMAND_OUTGOING.bind(source.getDisplayName()).withTargetName(Text.text(target.name()));
             source.sendChatMessage(message, false, outgoing);
             source.getServer().sendChatMessage(target, message, false, incoming);
         }

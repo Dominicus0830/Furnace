@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public record PlayerCombatKill(int playerId, Text message) implements Packet {
 
@@ -17,6 +17,6 @@ public record PlayerCombatKill(int playerId, Text message) implements Packet {
     @Override
     public void write(ByteBuf buf) {
         Types.writeVarInt(buf, playerId);
-        new NbtWriter(buf).writeCompound(message.toNbt());
+        buf.writeBytes(message.networkNbt());
     }
 }

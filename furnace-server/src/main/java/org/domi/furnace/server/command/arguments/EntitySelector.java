@@ -11,7 +11,7 @@ import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public final class EntitySelector {
 
@@ -133,8 +133,8 @@ public final class EntitySelector {
     public static Text joinNames(List<Player> players) {
         Text out = Text.empty();
         for (int i = 0; i < players.size(); i++) {
-            if (i > 0) out.append(Text.literal(", ").color("gray"));
-            out.append(Text.literal(players.get(i).name()));
+            if (i > 0) out.append(Text.text(", ").color(org.domi.furnace.api.text.NamedTextColor.GRAY));
+            out.append(Text.text(players.get(i).name()));
         }
         return out;
     }

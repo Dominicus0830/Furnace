@@ -4,7 +4,7 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public record SystemChat(Text content, boolean overlay) implements Packet {
 
@@ -15,7 +15,7 @@ public record SystemChat(Text content, boolean overlay) implements Packet {
 
     @Override
     public void write(ByteBuf buf) {
-        new NbtWriter(buf).writeCompound(content.toNbt());
+        buf.writeBytes(content.networkNbt());
         buf.writeBoolean(overlay);
     }
 }

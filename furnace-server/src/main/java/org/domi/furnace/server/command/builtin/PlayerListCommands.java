@@ -22,7 +22,7 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SuggestionProvider;
 import org.domi.furnace.server.entity.Player;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.play.Disconnect;
 import org.domi.furnace.server.players.BanListEntry;
 import org.domi.furnace.server.players.GameProfile;
@@ -66,7 +66,7 @@ public final class PlayerListCommands {
         };
     }
 
-    private static Text name(GameProfile p) { return Text.literal(p.name()); }
+    private static Text name(GameProfile p) { return Text.text(p.name()); }
 
     // ------------------------------------------------------------------ op / deop
 
@@ -238,7 +238,7 @@ public final class PlayerListCommands {
                 UserBanListEntry entry = new UserBanListEntry(p, null, source.getTextName(), null, reason == null ? null : reason.getString());
                 bans.add(entry);
                 i++;
-                source.sendSuccess(() -> Text.translatable("commands.ban.success", name(p), Text.literal(entry.getReason())), true);
+                source.sendSuccess(() -> Text.translatable("commands.ban.success", name(p), Text.text(entry.getReason())), true);
                 Player online = source.getServer().playerByUuid(p.id());
                 if (online != null) online.kick(new Disconnect(Text.translatable("multiplayer.disconnect.banned")));
             }
@@ -296,7 +296,7 @@ public final class PlayerListCommands {
         } else {
             source.sendSuccess(() -> Text.translatable("commands.banlist.list", bans.size()), false);
             for (BanListEntry<?> e : bans) {
-                Text who = e.getDisplayName() != null ? Text.literal(e.getDisplayName()) : Text.translatable("commands.banlist.entry.unknown");
+                Text who = e.getDisplayName() != null ? Text.text(e.getDisplayName()) : Text.translatable("commands.banlist.entry.unknown");
                 source.sendSuccess(() -> Text.translatable("commands.banlist.entry", who, e.getSource(), e.getReason()), false);
             }
         }

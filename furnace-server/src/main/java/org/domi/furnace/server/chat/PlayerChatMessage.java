@@ -4,7 +4,7 @@ package org.domi.furnace.server.chat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 
 public record PlayerChatMessage(SignedMessageLink link, MessageSignature signature, SignedMessageBody signedBody,
                                 Text unsignedContent, boolean fullyFiltered) {
@@ -20,7 +20,7 @@ public record PlayerChatMessage(SignedMessageLink link, MessageSignature signatu
 
     /** 꾸민 내용이 서명된 원문과 같으면 서명되지 않은 내용을 두지 않는다. */
     public PlayerChatMessage withUnsignedContent(Text text) {
-        Text u = text.toJson().equals(Text.literal(signedContent()).toJson()) ? null : text;
+        Text u = text.toJson().equals(Text.text(signedContent()).toJson()) ? null : text;
         return new PlayerChatMessage(link, signature, signedBody, u, fullyFiltered);
     }
 
@@ -37,7 +37,7 @@ public record PlayerChatMessage(SignedMessageLink link, MessageSignature signatu
 
     public String signedContent() { return signedBody.content(); }
 
-    public Text decoratedContent() { return unsignedContent != null ? unsignedContent : Text.literal(signedContent()); }
+    public Text decoratedContent() { return unsignedContent != null ? unsignedContent : Text.text(signedContent()); }
 
     public Instant timeStamp() { return signedBody.timeStamp(); }
 

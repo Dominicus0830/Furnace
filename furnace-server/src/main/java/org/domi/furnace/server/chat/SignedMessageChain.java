@@ -4,7 +4,7 @@ package org.domi.furnace.server.chat;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
-import org.domi.furnace.server.net.protocol.Text;
+import org.domi.furnace.api.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
