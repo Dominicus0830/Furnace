@@ -1,10 +1,18 @@
+<!-- 바닐라 log4j2.xml 과 같은 형식: [HH:mm:ss] [스레드/레벨]: 메시지, logs/latest.log + 날짜별 gz 보관 -->
 <configuration>
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="SysOut" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - %msg%n</pattern>
+            <pattern>[%d{HH:mm:ss}] [%thread/%level]: %msg%n</pattern>
+        </encoder>
+    </appender>
+    <appender name="File" class="org.domi.furnace.server.log.LatestLogAppender">
+        <file>logs/latest.log</file>
+        <encoder>
+            <pattern>[%d{HH:mm:ss}] [%thread/%level]: %msg%n</pattern>
         </encoder>
     </appender>
     <root level="INFO">
-        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="SysOut"/>
+        <appender-ref ref="File"/>
     </root>
 </configuration>

@@ -3,6 +3,12 @@ package org.domi.furnace.server;
 
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.config.ConfigLoader;
+import org.domi.furnace.server.config.Eula;
+import org.domi.furnace.server.config.ServerProperties;
+import org.domi.furnace.server.config.ServerPropertiesFile;
+import org.domi.furnace.server.players.GameProfileCache;
+import org.domi.furnace.server.players.PlayerLists;
+import org.domi.furnace.server.players.ProfileLookup;
 import org.domi.furnace.server.net.NetworkServer;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
@@ -24,7 +30,7 @@ public final class FurnaceMain {
 
     public static void main(String[] args) throws InterruptedException {
         try {
-            run();
+            run(Options.parse(args));
         } catch (InterruptedException e) {
             throw e;
         } catch (Throwable t) {
@@ -35,9 +41,74 @@ public final class FurnaceMain {
         }
     }
 
-    private static void run() throws InterruptedException {
-        Config config = ConfigLoader.load(Path.of("furnace.properties"));
-        log.info("Furnace 부팅: name='{}', tickNanos={}", config.serverName(), config.tickNanos());
+    /** 바닐라 Main 의 명령줄 옵션 중 서버가 쓰는 것. */
+    record Options(boolean help, boolean initSettings, int port, String world, String universe) {
+        static Options parse(String[] args) {
+            boolean help = false, init = false;
+            int port = -1;
+            String world = null, universe = ".";
+            for (int i = 0; i < args.length; i++) {
+                String a = args[i].startsWith("--") ? args[i].substring(2) : args[i];
+                switch (a) {
+                    case "help" -> help = true;
+                    case "initSettings" -> init = true;
+                    case "nogui" -> { }
+                    case "port" -> port = Integer.parseInt(args[++i]);
+                    case "world" -> world = args[++i];
+                    case "universe" -> universe = args[++i];
+                    default -> throw new IllegalArgumentException(args[i] + " is not a recognized option");
+                }
+            }
+            return new Options(help, init, port, world, universe);
+        }
+    }
+
+    private static void run(Options options) throws InterruptedException {
+        if (options.help()) {
+            System.err.println("Options: --help --initSettings --nogui --port <int> --universe <dir> --world <name>");
+            return;
+        }
+        // 바닐라 Main 순서: server.properties 를 읽어 기본값을 채워 다시 쓰고 → eula.txt 확인.
+        Path propertiesPath = Path.of("server.properties");
+        ServerPropertiesFile settings = new ServerPropertiesFile(propertiesPath);
+        settings.forceSave();
+        Path eulaPath = Path.of("eula.txt");
+        Eula eula = new Eula(eulaPath);
+        if (options.initSettings()) {
+            log.info("Initialized '{}' and '{}'", propertiesPath.toAbsolutePath(), eulaPath.toAbsolutePath());
+            return;
+        }
+        if (!eula.hasAgreedToEULA()) {
+            log.info("You need to agree to the EULA in order to run the server. Go to eula.txt for more info.");
+            return;
+        }
+        ServerProperties props = settings.get();
+        Path universe = Path.of(options.universe());
+        var profileCache = new GameProfileCache(ProfileLookup.NONE, universe.resolve("usercache.json"));
+        profileCache.setUsesAuthentication(props.onlineMode);
+        // TODO(2-2): 빈 level-seed 의 임의 시드는 level.dat 에 저장돼야 재시작 후에도 유지된다.
+        long seed = props.levelSeed.orElseGet(() -> new java.util.Random().nextLong());
+        Path furnaceProps = Path.of("furnace.properties");
+        for (String k : ConfigLoader.ignoredVanillaKeys(furnaceProps)) {
+            log.warn("furnace.properties 의 '{}' 는 무시됩니다 — server.properties 값을 씁니다", k);
+        }
+        Config config = ConfigLoader.load(furnaceProps)
+                .withServerProperties(props, options.port(), options.world(), seed);
+        long startNanos = System.nanoTime();
+        log.info("Starting minecraft server version 1.21.1");
+        log.info("Loading properties");
+        log.info("Default game type: {}", props.gameMode.name());
+        log.info("Furnace 부팅: motd='{}', tickNanos={}", config.serverName(), config.tickNanos());
+        log.info("Starting Minecraft server on {}:{}", props.serverIp.isEmpty() ? "*" : props.serverIp, config.port());
+        if (!props.onlineMode) {
+            log.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
+            log.warn("The server will make no attempt to authenticate usernames. Beware.");
+            log.warn("While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.");
+            log.warn("To change this, set \"online-mode\" to \"true\" in the server.properties file.");
+        }
+        log.info("Preparing level \"{}\"", config.levelName());
+        var playerLists = new PlayerLists(Path.of("."), settings);
+        profileCache.save();
 
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
@@ -48,7 +119,7 @@ public final class FurnaceMain {
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
-        Path worldDir = Path.of(config.levelName());
+        Path worldDir = universe.resolve(config.levelName());
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, plainsBiome, itemRegistry);
         var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
@@ -115,7 +186,8 @@ public final class FurnaceMain {
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler), 100);
 
-        log.info("Furnace 기동 완료. Ctrl+C로 종료.");
+        log.info("Done ({})! For help, type \"help\"",
+                String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
         shutdown.await();
     }
 

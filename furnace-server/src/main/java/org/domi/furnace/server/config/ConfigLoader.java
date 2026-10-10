@@ -75,6 +75,18 @@ public final class ConfigLoader {
                 spawnChunkRadius, chunksPerTick);
     }
 
+    /** 파일에 있지만 server.properties 가 정해서 무시되는 키들(기동 시 경고용). */
+    public static java.util.List<String> ignoredVanillaKeys(Path path) {
+        if (!Files.exists(path)) return java.util.List.of();
+        Properties props = new Properties();
+        try (InputStream in = Files.newInputStream(path)) {
+            props.load(in);
+        } catch (IOException e) {
+            return java.util.List.of();
+        }
+        return Config.VANILLA_KEYS.stream().filter(props::containsKey).sorted().toList();
+    }
+
     private static int parseInt(Properties props, String key, int def) {
         long v = parse(props, key, def);
         if (v < Integer.MIN_VALUE || v > Integer.MAX_VALUE) {
