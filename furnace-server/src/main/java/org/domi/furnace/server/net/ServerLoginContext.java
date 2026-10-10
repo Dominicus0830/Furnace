@@ -45,6 +45,14 @@ public final class ServerLoginContext {
     final PlayerLists lists;
     final GameProfileCache profileCache;
     final String favicon;
+    /** 명령·서버 상태 핸들(테스트에서는 null 일 수 있다). */
+    volatile org.domi.furnace.server.ServerCore core;
+
+    public ServerLoginContext core(org.domi.furnace.server.ServerCore core) {
+        this.core = core;
+        return this;
+    }
+
     /** null 이면 Velocity 포워딩 꺼짐. */
     volatile org.domi.furnace.server.net.auth.VelocityForwarding velocity;
     private final Random random = new Random();

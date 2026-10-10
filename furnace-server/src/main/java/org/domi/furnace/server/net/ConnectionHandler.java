@@ -271,6 +271,49 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
+    /** chat_command_signed: 명령 문자열만 쓰고 타임스탬프·솔트·인자 서명·last seen 은 건너뛴다(2-5 에서 검증). */
+    private static String readSignedCommand(ByteBuf frame) {
+        String command = Types.readString(frame, 256);
+        frame.readLong();                       // timestamp
+        frame.readLong();                       // salt
+        int n = Types.readVarInt(frame);        // argument signatures
+        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("인자 서명 개수 오류: " + n);
+        for (int i = 0; i < n; i++) {
+            Types.readString(frame, 16);
+            frame.skipBytes(256);
+        }
+        Types.readVarInt(frame);                // last seen offset
+        frame.skipBytes(3);                     // acknowledged (20비트 고정 BitSet)
+        return command;
+    }
+
+    /** 바닐라 handleChatCommand: 허용되지 않는 문자면 끊고, 아니면 전역 스레드에서 실행. */
+    private void handleChatCommand(String command) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        for (int i = 0; i < command.length(); i++) {
+            char c = command.charAt(i);
+            if (c == '\u00a7' || c < ' ' || c == 127) {
+                kick(ctx, Text.translatable("multiplayer.disconnect.illegal_characters"));
+                return;
+            }
+        }
+        log.info("{} issued server command: /{}", p.name(), command);
+        core.scheduler().global().execute(() -> core.commands().performPrefixedCommand(
+                org.domi.furnace.server.command.CommandSource.player(core, p), command));
+    }
+
+    /** 바닐라 handleCustomCommandSuggestions — 서버 측 자동완성(ask_server 노드). */
+    private void handleCommandSuggestion(int transactionId, String text) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        core.scheduler().global().execute(() -> core.commands()
+                .suggestions(org.domi.furnace.server.command.CommandSource.player(core, p), text)
+                .thenAccept(s -> p.send(new org.domi.furnace.server.net.protocol.play.CommandSuggestionsResponse(transactionId, s))));
+    }
+
     /** Velocity 포워딩 응답: 서명 확인 → 실제 주소·프로필로 로그인 검사 진행. 그 밖의 질의 응답은 바닐라처럼 끊는다. */
     private void handleCustomQueryAnswer(ChannelHandlerContext ctx, ByteBuf frame) {
         int messageId = Types.readVarInt(frame);
@@ -452,6 +495,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
         send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
         send(ctx, PlayerAbilities.creative());
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (core != null) {
+            // 바닐라 placeNewPlayer → sendPlayerPermissionLevel: 권한 레벨 이벤트 + 쓸 수 있는 명령 트리
+            int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
+            send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
+            send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.forProfile(core, playerName, level)));
+        }
         // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
         org.domi.furnace.server.entity.PlayerData.Snapshot saved =
                 org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
@@ -482,6 +532,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
         p.profileProperties(profileProperties);
         p.allowsListing(clientAllowsListing);
+        p.remoteAddress(clientAddress(ctx));
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.viewDistance(effVd);
@@ -600,6 +651,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
+            case 0x04 -> handleChatCommand(Types.readString(frame, 256));          // chat_command
+            case 0x05 -> handleChatCommand(readSignedCommand(frame));               // chat_command_signed(서명 검증은 2-5)
+            case 0x0B -> handleCommandSuggestion(Types.readVarInt(frame), Types.readString(frame, 32500));
             case 0x18 -> { // Keep Alive (serverbound)
                 long echoed = frame.readLong();
                 if (echoed == lastKeepAliveId) {

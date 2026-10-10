@@ -120,6 +120,30 @@ public final class Player {
 
     public java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties() { return profileProperties; }
 
+    // 현재 게임 모드. 지금은 접속 시 크리에이티브로 들어간다(LoginPlay·탭 목록과 같은 값) — 2-7 에서 server.properties·저장값을 따른다.
+    private volatile org.domi.furnace.server.world.GameMode gameMode = org.domi.furnace.server.world.GameMode.CREATIVE;
+
+    public org.domi.furnace.server.world.GameMode gameMode() { return gameMode; }
+
+    public void gameMode(org.domi.furnace.server.world.GameMode m) { this.gameMode = m; }
+
+    // 실제 접속 주소(Velocity 포워딩이면 프록시가 알려 준 주소).
+    private volatile java.net.SocketAddress remoteAddress;
+
+    public void remoteAddress(java.net.SocketAddress a) { this.remoteAddress = a; }
+
+    public java.net.SocketAddress remoteAddress() {
+        java.net.SocketAddress a = remoteAddress;
+        return a != null ? a : channel.remoteAddress();
+    }
+
+    /** 바닐라 ServerPlayer.getIpAddress — 포트 없는 IP 문자열. */
+    public String ipAddress() {
+        java.net.SocketAddress a = remoteAddress();
+        if (a instanceof java.net.InetSocketAddress isa && isa.getAddress() != null) return isa.getAddress().getHostAddress();
+        return "<unknown>";
+    }
+
     // 클라이언트 설정 allowServerListings — 거부하면 상태 응답 sample 에 익명으로 나온다.
     private volatile boolean allowsListing = true;
 

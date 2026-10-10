@@ -205,6 +205,19 @@ public final class FurnaceMain {
         world.setRegistries(blockRegistry, itemRegistry);
         scheduler.setRegionTick(world::tickThread);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
+        // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
+        ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
+        loginContext.core(core);
+        core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
+        core.onSaveAll(() -> {
+            java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
+            for (int i = 0; i < config.regionThreads(); i++) {
+                final int idx = i;
+                fs.add(scheduler.regionThread(idx).execute(() -> world.flushThread(idx)));
+            }
+            for (var f : fs) f.join();
+            saveLevelData.run();
+        });
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
@@ -247,8 +260,11 @@ public final class FurnaceMain {
 
         network.start();
 
-        // 바닐라 자동 저장 주기마다 level.dat 도 저장한다.
-        scheduler.global().executeDelayed(new Repeating(scheduler, saveLevelData, config.autosaveTicks()), config.autosaveTicks());
+        // 바닐라 자동 저장 주기마다 level.dat 도 저장한다(/save-off 면 건너뜀).
+        scheduler.global().executeDelayed(new Repeating(scheduler, () -> {
+            if (world.autosaveEnabled()) saveLevelData.run();
+        }, config.autosaveTicks()), config.autosaveTicks());
+        ConsoleInput.start(core);
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler), 100);

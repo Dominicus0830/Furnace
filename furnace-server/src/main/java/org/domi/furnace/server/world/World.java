@@ -146,6 +146,13 @@ public final class World {
     }
     public int chunkEvictionGraceTicks() { return chunkEvictionGraceTicks; }
     public int autosaveTicks() { return autosaveTicks; }
+
+    // /save-off 이면 주기 저장을 멈춘다(퇴출 전 저장·종료 저장은 계속 — 바닐라 noSave 도 청크 언로드 저장은 막지 않는다).
+    private volatile boolean autosaveEnabled = true;
+
+    public boolean autosaveEnabled() { return autosaveEnabled; }
+
+    public void autosaveEnabled(boolean v) { autosaveEnabled = v; }
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
     public java.nio.file.Path worldDir() { return worldDir; }
     public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }

@@ -300,7 +300,7 @@ public final class Region {
             world.scheduler().region(target).execute(() -> world.regionAt(target).adopt(p));
         }
         evictIdleChunks();
-        if (++autosaveCounter >= world.autosaveTicks()) {
+        if (++autosaveCounter >= world.autosaveTicks() && world.autosaveEnabled()) {
             autosaveCounter = 0;
             saveDirtyChunks();
         }
