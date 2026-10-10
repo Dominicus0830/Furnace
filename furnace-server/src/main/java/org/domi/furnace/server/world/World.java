@@ -409,6 +409,11 @@ public final class World {
     public int spawnChunkRadius() { return spawnChunkRadius; }
     public int chunksPerTick() { return chunksPerTick; }
 
+    /** 플레이어당 동시에 진행 중인 청크 전송(생성·직렬화) 상한 — 생성 스레드보다 넉넉히(이미 로드된 청크는 금방 끝난다). */
+    public int maxChunkSendsInFlight() { return maxChunkSendsInFlight; }
+
+    private int maxChunkSendsInFlight = Math.max(16, 2 * Runtime.getRuntime().availableProcessors());
+
     /** 로드된 region 총 개수(테스트·모니터링용). owner 스레드 idle 시 호출. */
     public int regionCount() {
         int n = 0;

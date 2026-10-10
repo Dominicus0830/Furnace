@@ -77,7 +77,8 @@ public final class ChunkPipeline {
     private static final int GRID_SIZE = 2 * GRID_RADIUS + 1;
     // pristine(CARVERS 상태, 장식 이전) 캐시 크기 — bounded 필수. 서빙 패턴은 5x5 grid(25칸)가 1칸씩
     // 이동하므로 20개가 겹친다; 128이면 그 작업 집합 + 여러 동시 generateFull 호출의 여유분까지 충분히 커버한다.
-    private static final int PRISTINE_CACHE_SIZE = 128;
+    // 비행처럼 앞으로 계속 나아가면 앞쪽 2열의 pristine 이 다음 청크들에서 다시 쓰인다 — 시야 한 줄(최대 65청크)×5 이상 담는다.
+    private static final int PRISTINE_CACHE_SIZE = 512;
 
     private final NoiseWorldSource source;
     private final ForkJoinPool genPool;
@@ -153,8 +154,12 @@ public final class ChunkPipeline {
                         int nx = ox + dx;
                         int nz = oz + dz;
                         long key = (((long) nx) << 32) ^ (nz & 0xFFFFFFFFL);
-                        ringFutures.computeIfAbsent(key,
-                            k -> CompletableFuture.supplyAsync(() -> source.applyStructureStarts(nx, nz), genPool));
+                        // 공유 캐시에 있는 결과(빈 결과가 대부분)는 작업을 띄우지 않는다.
+                        ringFutures.computeIfAbsent(key, k -> {
+                            List<StructureStart> cached = source.cachedStructureStarts(nx, nz);
+                            return cached != null ? CompletableFuture.completedFuture(cached)
+                                : CompletableFuture.supplyAsync(() -> source.structureStartsFresh(nx, nz), genPool);
+                        });
                     }
                 }
             }

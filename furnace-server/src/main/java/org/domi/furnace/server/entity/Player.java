@@ -277,6 +277,11 @@ public final class Player {
     public void lastCenter(ChunkPos c) { this.lastCenter = c; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
+
+    /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
+    private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
+
+    public java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight() { return chunkSendsInFlight; }
     public Map<Integer, double[]> tracked() { return tracked; }
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
     public Map<Integer, UUID> listed() { return listed; }

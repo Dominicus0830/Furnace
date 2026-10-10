@@ -164,7 +164,9 @@ public final class FurnaceMain {
                 worldDir, regionStore, chunkCodec, noiseSource);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
-        int genThreads = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()));
+        // 생성 호출자 스레드 — 실제 계산은 ChunkPipeline 의 ForkJoin 풀(코어 수)에서 하고 여기서는 대부분 기다린다.
+        // 동시에 진행하는 청크 수를 코어 수만큼 둬야 장식(청크마다 직렬 구간)이 겹쳐 돌며 풀이 놀지 않는다.
+        int genThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
         java.util.concurrent.ExecutorService genPool =
                 java.util.concurrent.Executors.newFixedThreadPool(genThreads);
         World world = new World(anvilSource, chunkPool,
@@ -278,6 +280,7 @@ public final class FurnaceMain {
             shutdown.countDown();
         }, "furnace-shutdown"));
 
+        prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
         core.plugins().pluginsImpl().enableAll();
         network.start();
 
@@ -317,5 +320,33 @@ public final class FurnaceMain {
             log.debug("region TPS = {}", String.format("%.1f", scheduler.regionThread().measuredTps()));
             scheduler.global().executeDelayed(this, 100);
         }
+    }
+
+    /**
+     * 바닐라 MinecraftServer.prepareLevels — "Done" 전에 스폰 청크를 만들어 둔다. 첫 접속자가 빈 하늘에서 생성을 기다리지 않고,
+     * 생성기 캐시(구조물 시작점·지형)도 미리 데워진다. 진행률 로그는 바닐라 LoggerChunkProgressListener 처럼 0.5초마다.
+     */
+    private static void prepareSpawnArea(World world, org.domi.furnace.server.world.SpawnPoint spawn, int radius) {
+        log.info("Preparing start region for dimension minecraft:overworld");
+        long t0 = System.nanoTime();
+        org.domi.furnace.server.world.ChunkPos c = org.domi.furnace.server.world.ChunkPos.ofBlock(spawn.x(), spawn.z());
+        java.util.List<java.util.concurrent.CompletableFuture<byte[]>> fs = new java.util.ArrayList<>();
+        for (int dz = -radius; dz <= radius; dz++)
+            for (int dx = -radius; dx <= radius; dx++)
+                fs.add(world.serializedChunkBody(new org.domi.furnace.server.world.ChunkPos(c.x() + dx, c.z() + dz)));
+        java.util.concurrent.CompletableFuture<Void> all = java.util.concurrent.CompletableFuture.allOf(fs.toArray(new java.util.concurrent.CompletableFuture[0]));
+        while (true) {
+            try {
+                all.get(500, java.util.concurrent.TimeUnit.MILLISECONDS);
+                break;
+            } catch (java.util.concurrent.TimeoutException e) {
+                long done = fs.stream().filter(java.util.concurrent.CompletableFuture::isDone).count();
+                log.info("Preparing spawn area: {}%", done * 100 / fs.size());
+            } catch (Exception e) {
+                log.warn("스폰 청크 준비 실패 — 접속 시 다시 만든다", e);
+                break;
+            }
+        }
+        log.info("Time elapsed: {} ms", (System.nanoTime() - t0) / 1_000_000);
     }
 }

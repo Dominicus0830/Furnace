@@ -37,7 +37,6 @@ public final class Region {
     private static final int ENTITY_DESPAWN_GRACE = 3;
     private static final int LATENCY_BROADCAST_TICKS = 600;   // 바닐라 PlayerList.tick의 핑 갱신 주기
     private int latencyCounter;
-    private static final int MAX_PENDING_CHUNKS_PER_PLAYER = 512;
 
     private final RegionPos pos;
     private final World world;
@@ -425,8 +424,9 @@ public final class Region {
             p.lastCenter(center);
         }
         if (center.equals(p.queuedCenter())) return;
-        // 대기열이 너무 길면 새 청크 구독은 미룬다(lastCenter는 이미 갱신됨, 다음 틱에 queuedCenter 불일치로 재시도).
-        if (p.pendingChunks().size() > MAX_PENDING_CHUNKS_PER_PLAYER) return;
+        // 대기열은 언제나 지금 시야 전체를 담고 새 중심 기준으로 정렬한다(대기열은 좌표뿐이라 싸다). 실제 작업량은
+        // sendQueuedChunks 의 동시 진행 상한이 막는다 — 예전처럼 대기가 많다고 새 중심의 청크를 안 넣으면 큰 시야에서
+        // 플레이어 바로 옆 청크가 대기열에 없어 한참 비어 보였다.
         List<ChunkPos> toQueue = new ArrayList<>();
         for (int dx = -vd; dx <= vd; dx++) {
             for (int dz = -vd; dz <= vd; dz++) {
@@ -460,13 +460,17 @@ public final class Region {
     }
 
     /** 매 틱: pending 큐서 최대 CHUNKS_PER_TICK개를 nearest-first로 한 배치 전송(vanilla PlayerChunkSender식 스로틀).
-     *  스폰 청크가 첫 틱 소량 배치에 들어가 빨리 도착 → 클라가 즉시 안착(289개 일괄 async fan-out 회피). */
+     *  스폰 청크가 첫 틱 소량 배치에 들어가 빨리 도착 → 클라가 즉시 안착(289개 일괄 async fan-out 회피).
+     *  아직 끝나지 않은 요청이 상한(world.maxChunkSendsInFlight)에 닿으면 더 꺼내지 않는다 — 생성이 수요를 못 따라갈 때
+     *  요청이 생성 큐에 한없이 쌓여(FIFO) 플레이어 바로 옆 청크까지 수십 초 밀리는 것을 막는다. 남은 청크는 대기열에 남아
+     *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다. */
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
-        int perTick = world.chunksPerTick();
-        List<ChunkPos> batch = new ArrayList<>(Math.min(perTick, p.pendingChunks().size()));
+        int budget = Math.min(world.chunksPerTick(), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
+        if (budget <= 0) return;
+        List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         var it = p.pendingChunks().iterator();
-        while (it.hasNext() && batch.size() < perTick) {
+        while (it.hasNext() && batch.size() < budget) {
             batch.add(it.next());
             it.remove();
         }
@@ -479,7 +483,9 @@ public final class Region {
             // 구독은 updateChunks에서 큐에 넣을 때 했다. 이 구독이 청크 전달 전까지 블록 변경을 보류한다.
             World.Subscription sub = world.subscriptionOf(cp, p);
             if (sub == null) continue;   // 그 사이 언로드됨 — 보낼 것 없음
+            p.chunkSendsInFlight().incrementAndGet();
             CompletableFuture<?> f = world.serializedChunkBody(cp)
+                    .whenComplete((b, ex) -> p.chunkSendsInFlight().decrementAndGet())
                     .thenApply(Unpooled::wrappedBuffer)
                     .thenAccept(body -> {
                         // gen 지연 동안 플레이어가 시야 밖으로 이동했거나(재구독 포함) 언로드됐으면 보내봐야 클라가

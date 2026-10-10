@@ -466,7 +466,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
                 int nx = cx + dx, nz = cz + dz;
                 List<org.domi.furnace.server.world.gen.structure.StructureStart> starts = beardStartCache.get(chunkKey(nx, nz));
                 if (starts == null) {
-                    starts = applyStructureStarts(nx, nz);
+                    starts = structureStartsFresh(nx, nz);
                     beardStartCache.put(chunkKey(nx, nz), starts);
                 }
                 for (var s : starts) {
@@ -590,6 +590,47 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      */
     public List<org.domi.furnace.server.world.gen.structure.StructureStart> applyStructureStarts(int cx, int cz) {
         return structureEngine.createStarts(cx, cz, this);
+    }
+
+    // 공유해도 되는 시작점 결과 캐시 — 위치만의 함수라 결과가 바뀌지 않는다.
+    // 빈 결과(대부분의 청크)와 jigsaw 조각만으로 된 결과(마을·고대 도시 등 — 배치 중 조각 상태가 바뀌지 않고 afterPlace 도 없다)만 넣는다.
+    // 다른 구조물(요새·폐광·사막 신전 …)은 장식 중 조각 상태(높이 등)가 바뀌므로 매번 새로 만든다.
+    private final java.util.concurrent.ConcurrentHashMap<Long, List<org.domi.furnace.server.world.gen.structure.StructureStart>> sharedStarts =
+        new java.util.concurrent.ConcurrentHashMap<>();
+    private static final int SHARED_START_CACHE_LIMIT = 1 << 18;
+
+    /** 공유 캐시에 결과가 있으면 그것(없으면 null). */
+    public List<org.domi.furnace.server.world.gen.structure.StructureStart> cachedStructureStarts(int cx, int cz) {
+        return sharedStarts.get(chunkKey(cx, cz));
+    }
+
+    /** 이미 시작점이 없다고 알려진 청크인가. */
+    public boolean knownNoStructureStarts(int cx, int cz) {
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> l = sharedStarts.get(chunkKey(cx, cz));
+        return l != null && l.isEmpty();
+    }
+
+    /** {@link #applyStructureStarts} 와 같은 결과 — 공유해도 되는 결과는 기억해 다음 호출을 건너뛴다. */
+    public List<org.domi.furnace.server.world.gen.structure.StructureStart> structureStartsFresh(int cx, int cz) {
+        long key = chunkKey(cx, cz);
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> cached = sharedStarts.get(key);
+        if (cached != null) return cached;
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> starts = applyStructureStarts(cx, cz);
+        if (shareable(starts)) {
+            if (sharedStarts.size() >= SHARED_START_CACHE_LIMIT) sharedStarts.clear();
+            starts = List.copyOf(starts);
+            sharedStarts.put(key, starts);
+        }
+        return starts;
+    }
+
+    private static boolean shareable(List<org.domi.furnace.server.world.gen.structure.StructureStart> starts) {
+        for (var s : starts) {
+            for (var piece : s.pieces()) {
+                if (!(piece instanceof org.domi.furnace.server.world.gen.structure.JigsawPiece)) return false;
+            }
+        }
+        return true;
     }
 
     public org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine() {
