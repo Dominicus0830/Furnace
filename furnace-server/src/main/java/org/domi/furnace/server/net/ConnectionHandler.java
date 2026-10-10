@@ -700,7 +700,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
-        send(ctx, InitializeBorder.vanillaDefault());
+        // 바닐라 sendLevelInfo: 현재 보더 상태(코어가 없는 테스트 경로는 기본 보더)
+        send(ctx, coreJ != null ? InitializeBorder.of(coreJ.border()) : InitializeBorder.vanillaDefault());
         if (coreJ != null) {
             // 바닐라 sendLevelInfo: 시간, 그리고 비가 오면 비 시작 + 비·천둥 강도
             send(ctx, coreJ.clock().timePacket(coreJ.gameRules()));

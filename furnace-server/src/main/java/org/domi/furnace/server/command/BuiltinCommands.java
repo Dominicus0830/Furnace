@@ -22,6 +22,7 @@ final class BuiltinCommands {
         ServerCommands.registerSeed(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);
+        org.domi.furnace.server.command.builtin.WorldBorderCommand.register(d);
         // 전용 서버 전용
         PlayerListCommands.registerBanIp(d);
         PlayerListCommands.registerBanList(d);

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.domi.furnace.server.world.WorldBorder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -114,5 +115,77 @@ class ConsoleCommandsTest {
         // 바닐라 콘솔 /say: 서명 없는 시스템 메시지라 "[Not Secure] [Server] ..." 로 로그
         assertEquals(List.of("[Not Secure] [Server] hello world"), run("say hello world"));
         assertEquals(List.of("[Not Secure] * Server waves"), run("me waves"));
+    }
+
+    private int exec(String command) throws Exception {
+        return core.commands().getDispatcher().execute(command, CommandSource.console(core));
+    }
+
+    @Test
+    void worldBorderCommand() throws Exception {
+        assertEquals(List.of("The world border is currently 59999968 block(s) wide"), run("worldborder get"));
+        assertEquals(59999968, exec("worldborder get"));
+        // set / add (즉시)
+        assertEquals(List.of("Set the world border to 1000.0 block(s) wide"), run("worldborder set 1000"));
+        assertEquals(1000.0, core.border().getSize());
+        assertEquals(List.of("Nothing changed. The world border is already that size"), run("worldborder set 1000"));
+        assertEquals(List.of("World border cannot be smaller than 1 block wide"), run("worldborder set 0.5"));
+        assertEquals(List.of("World border cannot be bigger than 5.999997E7 blocks wide"), run("worldborder add 59999968"));
+        assertEquals(List.of("Set the world border to 1500.5 block(s) wide"), run("worldborder add 500.5"));
+        assertEquals(-1000, exec("worldborder add -1000.5"), "반환값은 (int)(새 크기 - 이전 크기) = (int)-1000.5");
+        assertEquals(500.0, core.border().getSize());
+        // 보간
+        assertEquals(List.of("Shrinking the world border to 100.0 block(s) wide over 10 second(s)"), run("worldborder set 100 10"));
+        assertEquals(100.0, core.border().getLerpTarget());
+        assertTrue(core.border().getLerpRemainingTime() > 9_000L && core.border().getLerpRemainingTime() <= 10_000L);
+        assertEquals(WorldBorder.Status.SHRINKING, core.border().getStatus());
+        assertEquals(List.of("Set the world border to 321.0 block(s) wide"), run("worldborder set 321"));
+        assertEquals(WorldBorder.Status.STATIONARY, core.border().getStatus());
+        assertEquals(List.of("Growing the world border to 421.0 blocks wide over 60 seconds"), run("worldborder add 100 60"));
+        assertEquals(421.0, core.border().getLerpTarget());
+        // 중심(소수점 없는 절대값은 +0.5, 반환 0)
+        assertEquals(List.of("Set the center of the world border to 10.50, 20.50"), run("worldborder center 10 20"));
+        assertEquals(List.of("Nothing changed. The world border is already centered there"), run("worldborder center 10.5 20.5"));
+        assertEquals(List.of("Set the center of the world border to 10.00, 20.00"), run("worldborder center 10.0 20.0"));
+        assertEquals(0, exec("worldborder center 1.0 2.0"));
+        assertEquals(List.of("World border cannot be further out than 2.9999984E7 blocks"), run("worldborder center 30000000 0"));
+        CommandSource console = CommandSource.console(core);
+        float rx = (float) (console.x() + 5), rz = (float) (console.z() - 5);
+        assertEquals(List.of(String.format(java.util.Locale.ROOT, "Set the center of the world border to %.2f, %.2f", rx, rz)),
+                run("worldborder center ~5 ~-5"));
+        assertEquals((double) rx, core.border().getCenterX());
+        assertEquals((double) rz, core.border().getCenterZ());
+        assertEquals(List.of("Incomplete (expected 2 coordinates)", "...er center 5<--[HERE]"), run("worldborder center 5"));
+        assertEquals(List.of("Cannot mix world & local coordinates (everything must either use ^ or not)", "...er center ^ ^<--[HERE]"),
+                run("worldborder center ^ ^"));
+        // 피해
+        // 0.2f 는 double 0.2 와 달라서 바닐라도 "같다"고 보지 않는다(float 비교)
+        assertEquals(List.of("Set the world border damage to 0.20 per block each second"), run("worldborder damage amount 0.2"));
+        assertEquals(List.of("Nothing changed. The world border damage is already that amount"), run("worldborder damage amount 0.2"));
+        assertEquals(List.of("Set the world border damage to 1.50 per block each second"), run("worldborder damage amount 1.5"));
+        assertEquals(1.5, core.border().getDamagePerBlock());
+        assertEquals(1, exec("worldborder damage amount 1.9"));
+        assertEquals(List.of("Nothing changed. The world border damage buffer is already that distance"), run("worldborder damage buffer 5"));
+        assertEquals(List.of("Set the world border damage buffer to 10.00 block(s)"), run("worldborder damage buffer 10"));
+        assertEquals(10.0, core.border().getDamageSafeZone());
+        assertEquals(List.of("Float must not be less than 0.0, found -1.0", "...ge amount -1<--[HERE]"), run("worldborder damage amount -1"));
+        // 경고
+        assertEquals(List.of("Nothing changed. The world border warning is already that distance"), run("worldborder warning distance 5"));
+        assertEquals(List.of("Set the world border warning distance to 12 block(s)"), run("worldborder warning distance 12"));
+        assertEquals(List.of("Nothing changed. The world border warning is already that amount of time"), run("worldborder warning time 15"));
+        assertEquals(List.of("Set the world border warning time to 30 second(s)"), run("worldborder warning time 30"));
+        assertEquals(30, core.border().getWarningTime());
+        assertEquals(12, core.border().getWarningBlocks());
+        // 권한 레벨 2 필요: 1 이면 명령 자체를 모른다
+        out.clear();
+        core.commands().performPrefixedCommand(CommandSource.console(core).withPermission(1), "worldborder get");
+        assertEquals(List.of("Unknown or incomplete command, see below for error", "worldborder get<--[HERE]"), List.copyOf(out));
+    }
+
+    @Test
+    void worldBorderTabCompletesCenter() throws Exception {
+        CommandSource console = CommandSource.console(core);
+        assertEquals(List.of("~", "~ ~"), core.commands().suggestions(console, "/worldborder center ").get().getList().stream().map(s -> s.getText()).toList());
+        assertEquals(List.of("5 ~"), core.commands().suggestions(console, "/worldborder center 5 ".substring(0, "/worldborder center 5".length())).get().getList().stream().map(s -> s.getText()).toList());
     }
 }

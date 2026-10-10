@@ -10,6 +10,7 @@ import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.Difficulty;
 import org.domi.furnace.server.world.GameMode;
+import org.domi.furnace.server.world.WorldBorder;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
 public final class LevelData {
@@ -44,6 +45,8 @@ public final class LevelData {
     public int clearWeatherTime, rainTime, thunderTime;
     public boolean raining, thundering;
     public boolean wasModded;
+    /** 월드 보더 상태(Border* 키 9개). 새 월드는 크기와 같은 보간 목표로 시작한다(바닐라가 첫 저장 때 쓰는 값). */
+    public WorldBorder.Settings worldBorder = new WorldBorder().createSettings();
 
     private LevelData(NbtCompound raw) {
         this.raw = raw;
@@ -104,6 +107,7 @@ public final class LevelData {
         d.raining = bool(data, "raining", false);
         d.thundering = bool(data, "thundering", false);
         d.wasModded = bool(data, "WasModded", false);
+        d.worldBorder = WorldBorder.Settings.read(data, WorldBorder.DEFAULT_SETTINGS);
         return d;
     }
 
@@ -159,15 +163,7 @@ public final class LevelData {
         d.putInt("rainTime", rainTime);
         d.put("thundering", b(thundering));
         d.putInt("thunderTime", thunderTime);
-        putIfAbsent(d, "BorderCenterX", 0.0);
-        putIfAbsent(d, "BorderCenterZ", 0.0);
-        putIfAbsent(d, "BorderSize", 5.9999968E7);
-        putIfAbsent(d, "BorderSafeZone", 5.0);
-        putIfAbsent(d, "BorderWarningBlocks", 5.0);
-        putIfAbsent(d, "BorderWarningTime", 15.0);
-        putIfAbsent(d, "BorderSizeLerpTarget", 5.9999968E7);
-        putIfAbsent(d, "BorderSizeLerpTime", 0L);
-        putIfAbsent(d, "BorderDamagePerBlock", 0.2);
+        worldBorder.write(d);
         putIfAbsent(d, "WanderingTraderSpawnDelay", 24000);
         putIfAbsent(d, "WanderingTraderSpawnChance", 25);
         putIfAbsent(d, "CustomBossEvents", new NbtCompound());

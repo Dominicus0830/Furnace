@@ -32,6 +32,7 @@ public final class ServerCore {
     private final org.domi.furnace.server.chat.ServicesKeys servicesKeys = new org.domi.furnace.server.chat.ServicesKeys();
     private final org.domi.furnace.server.world.GameRules gameRules;
     private final org.domi.furnace.server.world.WorldClock clock;
+    private final org.domi.furnace.server.world.WorldBorder border = new org.domi.furnace.server.world.WorldBorder();
     private volatile Runnable halt = () -> {};
     private volatile Runnable saveAll = () -> {};
 
@@ -48,6 +49,9 @@ public final class ServerCore {
         this.clock = world.clock();
         this.clock.restore(levelData.gameTime, levelData.dayTime, levelData.clearWeatherTime, levelData.rainTime,
                 levelData.thunderTime, levelData.raining, levelData.thundering);
+        // 바닐라 createLevels: 저장된 보더 설정을 적용한 뒤에 리스너를 붙인다(적용 중 변경은 접속자에게 알리지 않는다).
+        this.border.applySettings(levelData.worldBorder);
+        this.border.addListener(new BorderBroadcaster());
         this.commands = new Commands(this);
     }
 
@@ -71,8 +75,11 @@ public final class ServerCore {
 
     public org.domi.furnace.server.world.WorldClock clock() { return clock; }
 
-    /** 전역 틱(20TPS): 시간·날씨 진행과 주기적 시간 동기화. */
+    public org.domi.furnace.server.world.WorldBorder border() { return border; }
+
+    /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
+        border.tick();
         clock.tick(gameRules, packet -> { for (Player p : players()) p.send(packet); });
     }
 
@@ -85,8 +92,41 @@ public final class ServerCore {
         levelData.thunderTime = clock.thunderTime();
         levelData.raining = clock.rainingFlag();
         levelData.thundering = clock.thunderingFlag();
+        levelData.worldBorder = border.createSettings();
         levelData.gameRules.clear();
         levelData.gameRules.putAll(gameRules.toStrings());
+    }
+
+    /** 바닐라 PlayerList 의 보더 리스너: 변경을 모든 접속자에게 알린다(피해량·안전 거리 변경은 아무것도 보내지 않는다). */
+    private final class BorderBroadcaster implements org.domi.furnace.server.world.WorldBorder.Listener {
+        private void broadcast(org.domi.furnace.server.net.protocol.Packet packet) {
+            for (Player p : players()) p.send(packet);
+        }
+
+        @Override
+        public void onSizeSet(org.domi.furnace.server.world.WorldBorder b, double size) {
+            broadcast(org.domi.furnace.server.net.protocol.play.SetBorderSize.of(b));
+        }
+
+        @Override
+        public void onSizeLerping(org.domi.furnace.server.world.WorldBorder b, double from, double to, long timeMs) {
+            broadcast(org.domi.furnace.server.net.protocol.play.SetBorderLerpSize.of(b));
+        }
+
+        @Override
+        public void onCenterSet(org.domi.furnace.server.world.WorldBorder b, double x, double z) {
+            broadcast(org.domi.furnace.server.net.protocol.play.SetBorderCenter.of(b));
+        }
+
+        @Override
+        public void onWarningTimeSet(org.domi.furnace.server.world.WorldBorder b, int seconds) {
+            broadcast(org.domi.furnace.server.net.protocol.play.SetBorderWarningDelay.of(b));
+        }
+
+        @Override
+        public void onWarningBlocksSet(org.domi.furnace.server.world.WorldBorder b, int blocks) {
+            broadcast(org.domi.furnace.server.net.protocol.play.SetBorderWarningDistance.of(b));
+        }
     }
 
     /** 게임룰이 바뀌었을 때 바닐라가 즉시 알리는 것들. */
