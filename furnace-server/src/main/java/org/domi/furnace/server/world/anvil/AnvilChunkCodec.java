@@ -174,6 +174,10 @@ public final class AnvilChunkCodec {
             }
             e.putList("Items", out);
         }
+        if (furnaceTag != null && furnaceTag.tags().get("LootTable") instanceof String table) {
+            e.putString("LootTable", table);
+            if (furnaceTag.tags().get("LootTableSeed") instanceof Long seed) e.putLong("LootTableSeed", seed);
+        }
         e.putInt("x", x);
         e.putInt("y", y);
         e.putInt("z", z);
@@ -321,7 +325,12 @@ public final class AnvilChunkCodec {
                 }
             }
         }
-        return new ChestBlockEntity(x, y, z, stacks);
+        ChestBlockEntity chest = new ChestBlockEntity(x, y, z, stacks);
+        if (e.tags().get("LootTable") instanceof String table) {
+            chest.lootTable = table;
+            chest.lootSeed = e.tags().get("LootTableSeed") instanceof Long seed ? seed : 0L;
+        }
+        return chest;
     }
 
     private ChestBlockEntity legacyChestFromNbt(NbtCompound e) {

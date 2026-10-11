@@ -47,6 +47,7 @@ public final class ServerCore {
         this.gameRules = org.domi.furnace.server.world.GameRules.fromStrings(levelData.gameRules);
         this.gameRules.onChange(this::onGameRuleChanged);
         this.clock = world.clock();
+        this.randomSequences = new org.domi.furnace.server.loot.RandomSequences(levelData.seed);
         this.clock.restore(levelData.gameTime, levelData.dayTime, levelData.clearWeatherTime, levelData.rainTime,
                 levelData.thunderTime, levelData.raining, levelData.thundering);
         // 바닐라 createLevels: 저장된 보더 설정을 적용한 뒤에 리스너를 붙인다(적용 중 변경은 접속자에게 알리지 않는다).
@@ -78,6 +79,45 @@ public final class ServerCore {
                 p.send(p.recipeBook().initPacket());
             }
         });
+    }
+
+    /** 전리품 평가가 보는 월드(난수 시퀀스는 월드 시드로 — 바닐라 RandomSequences). */
+    private final org.domi.furnace.server.loot.RandomSequences randomSequences;
+    private final org.domi.furnace.server.loot.LootWorld lootWorld = new org.domi.furnace.server.loot.LootWorld() {
+        public org.domi.furnace.server.world.gen.noise.NoiseRandom random() {
+            return new org.domi.furnace.server.world.gen.carver.LegacyRandom(java.util.concurrent.ThreadLocalRandom.current().nextLong());
+        }
+
+        public org.domi.furnace.server.world.gen.noise.NoiseRandom randomSequence(org.domi.furnace.server.data.ResourceId id) { return randomSequences.get(id); }
+
+        public long dayTime() { return clock.dayTime(); }
+
+        public boolean isRaining() { return clock.isRaining(); }
+
+        public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
+    };
+
+    /**
+     * 바닐라 RandomizableContainer.unpackLootTable — 열지 않은 전리품 상자를 채운다(region 스레드에서).
+     * 표 이름을 먼저 지우고, 위치는 상자 중심, 연 플레이어가 this_entity.
+     */
+    public void unpackLoot(org.domi.furnace.server.world.ChestBlockEntity chest, Player opener) {
+        var dp = dataPacks;
+        if (chest.lootTable == null || dp == null || dp.loot() == null) return;
+        var loot = dp.loot();
+        var table = loot.table(chest.lootTable);
+        long seed = chest.lootSeed;
+        chest.lootTable = null;
+        var slots = new org.domi.furnace.server.loot.LootStack[chest.items.length];
+        var occupied = new org.domi.furnace.server.loot.LootStack("minecraft:stone", 1);
+        for (int i = 0; i < slots.length; i++) if (chest.items[i] != null && !chest.items[i].isEmpty()) slots[i] = occupied;
+        var params = new org.domi.furnace.server.loot.LootParams()
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{chest.x + 0.5, chest.y + 0.5, chest.z + 0.5});
+        if (opener != null) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
+        table.fill(slots, loot, lootWorld, params, seed);
+        for (int i = 0; i < slots.length; i++) {
+            if (slots[i] != null && slots[i] != occupied) chest.items[i] = dp.network().toItemStack(slots[i]);
+        }
     }
 
     /** 지금 레시피 매니저(데이터 팩 없이 뜬 서버면 null). */

@@ -38,7 +38,8 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         for (ChestBlockEntity ce : col.blockEntities().values()) {
             int localX = ce.x & 15;
             int localZ = ce.z & 15;
-            beOut.add(new BlockEntitySnapshot(localX, ce.y, localZ, CHEST_TYPE_ID, chestTag(ce.items)));
+            // 바닐라 상자 getUpdateTag 는 빈 컴파운드 → 청크 패킷에는 null(TAG_END). 내용물은 클라이언트로 보내지 않는다.
+            beOut.add(new BlockEntitySnapshot(localX, ce.y, localZ, CHEST_TYPE_ID, null));
         }
         return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), col.worldSurfaceHeightmap(), out, beOut, null);
     }
@@ -46,6 +47,17 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
     /** region 스레드서 호출 — 디스크 저장용(of + 높이맵 4종·생성 블록 엔티티·엔티티·미지 NBT 사본). */
     public static ChunkSnapshot forSave(int chunkX, int chunkZ, ChunkColumn col) {
         ChunkSnapshot base = of(chunkX, chunkZ, col);
+        // 저장본에는 아직 열지 않은 전리품 상자의 LootTable·LootTableSeed 도 남긴다(클라이언트로는 보내지 않는다).
+        List<BlockEntitySnapshot> chests = new ArrayList<>();
+        for (ChestBlockEntity ce : col.blockEntities().values()) {
+            NbtCompound tag = chestTag(ce.items);
+            if (ce.lootTable != null) {
+                if (tag == null) tag = new NbtCompound();
+                tag.putString("LootTable", ce.lootTable);
+                if (ce.lootSeed != 0L) tag.putLong("LootTableSeed", ce.lootSeed);
+            }
+            chests.add(new BlockEntitySnapshot(ce.x & 15, ce.y, ce.z & 15, CHEST_TYPE_ID, tag));
+        }
         List<BlockEntitySnapshot> generated = new ArrayList<>();
         col.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> generated.add(new BlockEntitySnapshot(lx, y, lz, -1, nbt.copy())));
         List<NbtCompound> entities = new ArrayList<>();
@@ -53,7 +65,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         NbtCompound extra = col.extraNbt() == null ? null : col.extraNbt().copy();
         SaveData save = new SaveData(col.minY(), col.oceanFloorHeightmap(), col.motionBlockingNoLeavesHeightmap(),
                 generated, entities, extra, col.inhabitedTime());
-        return new ChunkSnapshot(chunkX, chunkZ, base.heightmap, base.worldSurfaceHeightmap, base.sections, base.blockEntities, save);
+        return new ChunkSnapshot(chunkX, chunkZ, base.heightmap, base.worldSurfaceHeightmap, base.sections, chests, save);
     }
 
     /** §2.1 스키마: Compound{ Items: List<Compound>{Slot,Id,Count,Comp?} }, 빈 체스트면 null(=updateTag 없음). */

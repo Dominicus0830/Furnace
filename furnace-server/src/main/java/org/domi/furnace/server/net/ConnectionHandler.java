@@ -1724,6 +1724,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         RegionPos rp = RegionGrid.regionPos(x, z, world.regionSize());
         scheduler.region(rp).submit(() -> {
             ChestBlockEntity chest = world.regionAt(rp).chestAt(x, y, z);
+            if (chest != null && chest.lootTable != null && login.core != null) {
+                login.core.unpackLoot(chest, p);   // 바닐라 startOpen → unpackLootTable(player)
+                world.regionAt(rp).markChestChanged(x, y, z);
+            }
             ItemStack[] out = new ItemStack[ChestBlockEntity.SLOTS];
             if (chest != null) System.arraycopy(chest.items, 0, out, 0, ChestBlockEntity.SLOTS);
             else Arrays.fill(out, ItemStack.EMPTY);

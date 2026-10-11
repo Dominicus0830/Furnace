@@ -165,10 +165,11 @@ public abstract class StructurePiece {
     }
 
     /**
-     * 바닐라 StructurePiece.createChest(pos-arg overload) — 블록 배치만. loot 내용물은 생성하지 않되
-     * random.nextLong() 소비(바닐라 ChestBlockEntity.setLootTable seed)는 재현한다.
+     * 바닐라 StructurePiece.createChest(pos-arg overload) — 상자를 놓고 전리품 표와 시드(random.nextLong())를
+     * 블록 엔티티에 남긴다(내용물은 처음 열 때 채운다).
      */
-    protected boolean createChest(FeatureWorldView view, BoundingBox writableBox, WorldgenRandom random, int chestStateId, int x, int y, int z) {
+    protected boolean createChest(FeatureWorldView view, BoundingBox writableBox, WorldgenRandom random, int chestStateId, int x, int y, int z,
+                                  String lootTable) {
         int wx = getWorldX(x, z);
         int wy = getWorldY(y);
         int wz = getWorldZ(x, z);
@@ -176,7 +177,13 @@ public abstract class StructurePiece {
             return false;
         }
         view.setBlock(wx, wy, wz, chestStateId);
-        random.nextLong(); // loot table seed — 내용물 생성은 생략(Do NOT: loot table 구현 금지)
+        long seed = random.nextLong();
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        nbt.putString("id", "minecraft:chest");
+        nbt.putInt("x", wx); nbt.putInt("y", wy); nbt.putInt("z", wz);
+        nbt.putString("LootTable", lootTable);
+        nbt.putLong("LootTableSeed", seed);
+        view.putGeneratedBlockEntity(wx, wy, wz, nbt);
         return true;
     }
 
@@ -362,7 +369,7 @@ public abstract class StructurePiece {
     }
 
     /**
-     * 바닐라 createChest(level, box, random, worldPos, lootTable, stateOrNull) — 내용물은 생략, 시드 난수만 소비한다.
+     * 바닐라 createChest(level, box, random, worldPos, lootTable, stateOrNull) — 표·시드만 남기고 내용물은 처음 열 때 채운다.
      * @param state 음수면 reorient 로 기본 상자 상태를 만든다.
      */
     protected boolean createChestAt(PostCtx c, BoundingBox box, int wx, int wy, int wz, String loot, int state) {

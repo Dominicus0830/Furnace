@@ -39,7 +39,8 @@ public final class TagRegistries {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        for (String reg : SYNCED) {
+        // 동적 레지스트리 전부(태그 동기화 대상 외에도 아이템 컴포넌트 인코딩이 장식 재료·무늬 id 를 쓴다)
+        for (String reg : dynamic.registryKeys()) {
             if (ids.containsKey(reg)) continue;
             Map<ResourceId, Integer> m = new LinkedHashMap<>();
             for (String e : dynamic.entries(reg)) m.put(ResourceId.parse(e), m.size());

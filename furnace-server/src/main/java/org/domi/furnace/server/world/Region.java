@@ -150,6 +150,14 @@ public final class Region {
         dirtyChunks.add(cp);
     }
 
+    /** 상자 내용이 바뀌었음(전리품 채우기 등) — 청크를 저장 대상으로. */
+    public void markChestChanged(int cx, int cy, int cz) {
+        world.assertOwns(pos);
+        ChunkPos cp = ChunkPos.ofBlock(cx, cz);
+        chunkAt(cp).markDirty();
+        dirtyChunks.add(cp);
+    }
+
     /** 면 인덱스(0~5) → 설치 위치 오프셋 {dx,dy,dz}. 0down 1up 2north 3south 4west 5east. */
     public static int[] placeOffset(int face) {
         return switch (face) {

@@ -22,6 +22,7 @@ public final class DataPackManager implements AutoCloseable {
 
     private final PackRepository repository;
     private final TagRegistries tagRegistries;
+    private final org.domi.furnace.server.loot.NetworkComponents network;
     private final LevelData levelData;
     private volatile Set<String> worldFeatures;
     private volatile ResourceManager resources;
@@ -33,6 +34,7 @@ public final class DataPackManager implements AutoCloseable {
     private DataPackManager(PackRepository repository, TagRegistries tagRegistries, LevelData levelData) {
         this.repository = repository;
         this.tagRegistries = tagRegistries;
+        this.network = new org.domi.furnace.server.loot.NetworkComponents(tagRegistries);
         this.levelData = levelData;
     }
 
@@ -205,6 +207,9 @@ public final class DataPackManager implements AutoCloseable {
     public TagSet tags() { return tags; }
 
     public org.domi.furnace.server.recipe.RecipeManager recipes() { return recipes; }
+
+    /** 전리품 결과 → 서버 아이템(컴포넌트 네트워크 인코딩). */
+    public org.domi.furnace.server.loot.NetworkComponents network() { return network; }
 
     /** 전리품 표·조건·아이템 수정자. */
     public org.domi.furnace.server.loot.LootData loot() { return loot; }

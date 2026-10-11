@@ -156,7 +156,28 @@ public final class ChunkColumn {
     }
 
     public ChestBlockEntity chestAt(int x, int y, int z) {
-        return blockEntities.get(blockEntityKey(x, y, z));
+        ChestBlockEntity c = blockEntities.get(blockEntityKey(x, y, z));
+        if (c == null && generatedBlockEntities != null) c = adoptGeneratedChest(x, y, z);
+        return c;
+    }
+
+    /** 월드젠이 남긴 상자 NBT(LootTable·LootTableSeed, 아이템 없음)를 처음 쓸 때 상자 블록 엔티티로 바꾼다. */
+    private ChestBlockEntity adoptGeneratedChest(int x, int y, int z) {
+        long local = blockEntityKey(x & 15, y, z & 15);
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt = generatedBlockEntities.get(local);
+        if (nbt == null) return null;
+        Object id = nbt.tags().get("id");
+        if (!"minecraft:chest".equals(id) && !"minecraft:trapped_chest".equals(id)) return null;
+        if (nbt.contains("Items") && nbt.getList("Items").size() > 0) return null;   // 아이템이 든 생성 상자는 아직 해석하지 않는다
+        ChestBlockEntity c = ChestBlockEntity.empty(x, y, z);
+        if (nbt.tags().get("LootTable") instanceof String t) {
+            c.lootTable = t;
+            c.lootSeed = nbt.tags().get("LootTableSeed") instanceof Long l ? l : 0L;
+        }
+        generatedBlockEntities.remove(local);
+        blockEntities.put(blockEntityKey(x, y, z), c);
+        touch();
+        return c;
     }
 
     public void putChest(ChestBlockEntity chest) {

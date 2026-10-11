@@ -242,8 +242,7 @@ public final class DesertPyramidPiece extends StructurePiece {
             if (!hasPlacedChest[idx]) {
                 int dx = direction.stepX() * 2;
                 int dz = direction.stepZ() * 2;
-                // vanilla BuiltInLootTables.DESERT_PYRAMID — loot 내용물은 생성하지 않는다(Do NOT).
-                hasPlacedChest[idx] = createChest(view, writableBox, random, chest, 10 + dx, -11, 10 + dz);
+                hasPlacedChest[idx] = createChest(view, writableBox, random, chest, 10 + dx, -11, 10 + dz, "minecraft:chests/desert_pyramid");
             }
         }
 
