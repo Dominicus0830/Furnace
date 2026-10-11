@@ -285,6 +285,10 @@ public final class ChunkPipeline {
 
     private static final int SHARED_SOFT_CAP = 2048;
     private static final int SHARED_HARD_CAP = 4096;
+    /** 최근 이만큼의 완성 안에 쓰인 청크는 버리거나 보관하지 않는다(플레이어 앞쪽에 막 만든 청크). */
+    private static final int RECENT_USES = 768;
+    /** 보관함(압축) 상한 — 넘치면 가장 오래된 것부터 버린다(그 근처를 다시 만들면 장식이 일부 빠질 수 있다). */
+    private static final int PARKED_CAP = 16384;
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(ChunkPipeline.class);
 
     /** 공유 저장소의 청크 — 장식 레인만 고친다(col 교체·플래그). */
@@ -308,6 +312,10 @@ public final class ChunkPipeline {
     private final ConcurrentHashMap<Long, List<StructureStart>> decoStarts = new ConcurrentHashMap<>();
     // ---- 아래는 장식 레인 전용 ----
     private final java.util.HashMap<Long, Proto> store = new java.util.HashMap<>();
+    // 오래 쓰이지 않았지만 다시 만들 수 없는 청크(이웃 장식이 써 넣은 시야 가장자리 등) — 섹션을 압축해 따로 둔다.
+    // 저장소 전체를 훑는 비용·메모리가 비행 거리에 비례해 자라 저장소가 막히던 문제를 막는다.
+    private final java.util.LinkedHashMap<Long, Proto> parked = new java.util.LinkedHashMap<>();
+    private long lastEvictAt;
     private final java.util.HashSet<Long> decoratedKeys = new java.util.HashSet<>();
     private final java.util.HashSet<Long> finalizedKeys = new java.util.HashSet<>();
     private long useClock;
@@ -361,8 +369,14 @@ public final class ChunkPipeline {
         long now = ++useClock;
         for (CompletableFuture<Proto> f : protos) {
             Proto p = f.join();
-            Proto in = store.putIfAbsent(chunkKey(p.cx, p.cz), p);
-            (in != null ? in : p).lastUse = now;
+            long k = chunkKey(p.cx, p.cz);
+            Proto in = store.get(k);
+            if (in == null) {
+                in = parked.remove(k);   // 보관함에 있던 것이면 되살린다(같은 객체)
+                if (in == null) in = p;
+                store.put(k, in);
+            }
+            in.lastUse = now;
         }
         for (Map.Entry<Long, CompletableFuture<List<StructureStart>>> e : starts.entrySet()) decoStarts.putIfAbsent(e.getKey(), e.getValue().join());
 
@@ -456,25 +470,59 @@ public final class ChunkPipeline {
      * 그래도 hard cap 을 넘으면(멀리 흩어진 시야 가장자리가 쌓인 경우) 오래된 것부터 버린다 — 그 근처를 나중에 다시 만들면
      * 이미 장식된 이웃의 넘침이 빠질 수 있다(바닐라는 이런 미완성 청크를 디스크에 저장한다; 후속 과제).
      */
+    private static final boolean DEBUG_EVICT = Boolean.getBoolean("furnace.debugEvict");
+    private long evictCalls, evictNanos, finalizes;
+
     private void evictShared() {
-        if (store.size() <= SHARED_SOFT_CAP) return;
-        int target = SHARED_SOFT_CAP * 3 / 4;
-        List<Proto> victims = new ArrayList<>();
-        for (Proto p : store.values()) {
-            if (!p.spilled && !p.decorated && !p.finalized) victims.add(p);
-            else if (p.finalized && allDecoratedAround(p.cx, p.cz, GRID_RADIUS)) victims.add(p);
+        finalizes++;
+        if (DEBUG_EVICT && finalizes % 200 == 0) {
+            LOG.info("[WORLDGEN-DBG] finalizes={} store={} parked={} evictScans={} evictMs={}", finalizes, store.size(), parked.size(), evictCalls, evictNanos / 1_000_000);
         }
-        victims.sort(java.util.Comparator.comparingLong(p -> p.lastUse));
-        int toDrop = Math.min(victims.size(), store.size() - target);
-        for (int i = 0; i < toDrop; i++) drop(victims.get(i));
+        if (store.size() <= SHARED_SOFT_CAP) return;
+        // 훑기는 완성 64번에 한 번(hard cap 을 넘었을 때만 바로) — 매번 전체를 훑으면 장식 레인이 그만큼 느려진다.
+        if (store.size() <= SHARED_HARD_CAP && finalizes - lastEvictAt < 64) return;
+        lastEvictAt = finalizes;
+        long t0 = System.nanoTime();
+        evictCalls++;
+        try { evictSharedScan(); } finally { evictNanos += System.nanoTime() - t0; }
+    }
+
+    private void evictSharedScan() {
+        int target = SHARED_SOFT_CAP * 3 / 4;
+        long recent = useClock - RECENT_USES;
+        List<Proto> droppable = new ArrayList<>();   // 다시 만들면 같거나 더 쓰일 일이 없다
+        List<Proto> parkable = new ArrayList<>();    // 다시 만들 수 없다 — 압축해 보관
+        for (Proto p : store.values()) {
+            if (p.lastUse > recent) continue;        // 앞쪽에 막 만든 청크는 그대로 둔다(버리면 곧 다시 만든다)
+            if (!p.spilled && !p.decorated && !p.finalized) droppable.add(p);
+            else if (p.finalized && allDecoratedAround(p.cx, p.cz, GRID_RADIUS)) droppable.add(p);
+            else parkable.add(p);
+        }
+        droppable.sort(java.util.Comparator.comparingLong(p -> p.lastUse));
+        int toDrop = Math.min(droppable.size(), store.size() - target);
+        for (int i = 0; i < toDrop; i++) drop(droppable.get(i));
+        if (store.size() > target) {
+            parkable.sort(java.util.Comparator.comparingLong(p -> p.lastUse));
+            int n = Math.min(parkable.size(), store.size() - target);
+            for (int i = 0; i < n; i++) park(parkable.get(i));
+        }
         if (store.size() > SHARED_HARD_CAP) {
+            // 최근 것까지 꽉 찼다(아주 넓은 시야·여러 플레이어) — 오래된 것부터 보관함으로
             List<Proto> rest = new ArrayList<>(store.values());
             rest.sort(java.util.Comparator.comparingLong(p -> p.lastUse));
             int n = store.size() - target;
-            for (int i = 0; i < n && i < rest.size(); i++) drop(rest.get(i));
+            for (int i = 0; i < n && i < rest.size(); i++) park(rest.get(i));
+        }
+        if (parked.size() > PARKED_CAP) {
+            var it = parked.values().iterator();
+            while (parked.size() > PARKED_CAP * 3 / 4 && it.hasNext()) {
+                Proto p = it.next();
+                it.remove();
+                sharedPristine.remove(chunkKey(p.cx, p.cz));
+            }
             if (!warnedLossyEvict) {
                 warnedLossyEvict = true;
-                LOG.warn("[WORLDGEN] 생성 중인 청크가 너무 많아 일부 미완성 청크를 버렸다(그 근처를 다시 만들면 장식이 일부 빠질 수 있다)");
+                LOG.warn("[WORLDGEN] 미완성 청크 보관함이 가득 차 오래된 것을 버렸다(그 근처를 다시 만들면 장식이 일부 빠질 수 있다)");
             }
         }
         if (decoStarts.size() > (1 << 18)) decoStarts.clear();
@@ -487,6 +535,14 @@ public final class ChunkPipeline {
             for (int dx = -r; dx <= r; dx++)
                 if (!decoratedKeys.contains(chunkKey(cx + dx, cz + dz))) return false;
         return true;
+    }
+
+    /** 다시 만들 수 없는 청크를 압축해 보관함으로(되살릴 때는 같은 객체를 쓴다 — 압축된 섹션에도 그대로 쓸 수 있다). */
+    private void park(Proto p) {
+        long k = chunkKey(p.cx, p.cz);
+        store.remove(k);
+        p.col.compactSections();
+        parked.put(k, p);
     }
 
     private void drop(Proto p) {
