@@ -132,6 +132,17 @@ public final class Region {
         return chunkAt(cp).getBlock(x & 15, y, z & 15);
     }
 
+    /** 바이옴 quart 의 레지스트리 id(청크가 없으면 -1). 소유 스레드에서만. */
+    public int biomeIdAtQuart(int qx, int qy, int qz) {
+        world.assertOwns(pos);
+        ChunkPos cp = new ChunkPos(qx >> 2, qz >> 2);
+        if (!chunkLoaded(cp)) return -1;
+        ChunkColumn col = chunkAt(cp);
+        int sec = ((qy << 2) - col.minY()) >> 4;
+        if (sec < 0 || sec >= col.sections().length) return -1;
+        return col.sections()[sec].getBiome(qx & 3, qy & 3, qz & 3);
+    }
+
     /** 소유 스레드서 체스트 블록엔티티 조회(없으면 null). */
     public ChestBlockEntity chestAt(int x, int y, int z) {
         world.assertOwns(pos);

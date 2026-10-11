@@ -48,6 +48,7 @@ public final class ServerCore {
         this.gameRules.onChange(this::onGameRuleChanged);
         this.clock = world.clock();
         this.randomSequences = new org.domi.furnace.server.loot.RandomSequences(levelData.seed);
+        this.biomeZoomSeed = org.domi.furnace.server.net.protocol.play.LoginPlay.obfuscateSeed(levelData.seed);
         this.clock.restore(levelData.gameTime, levelData.dayTime, levelData.clearWeatherTime, levelData.rainTime,
                 levelData.thunderTime, levelData.raining, levelData.thundering);
         // 바닐라 createLevels: 저장된 보더 설정을 적용한 뒤에 리스너를 붙인다(적용 중 변경은 접속자에게 알리지 않는다).
@@ -104,7 +105,22 @@ public final class ServerCore {
         public boolean isRaining() { return clock.isRaining(); }
 
         public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
+
+        /** 바닐라 Level.getBiome(pos)(확대 지터 포함). 지금 스레드가 그 region 을 가진 경우에만 — 아니면 null. */
+        public String biomeAt(int x, int y, int z) {
+            var dp = dataPacks;
+            if (dp == null || dp.loot() == null) return null;
+            int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed, x, y, z);
+            var rp = org.domi.furnace.server.world.RegionGrid.regionPos(q[0] << 2, q[2] << 2, world.regionSize());
+            if (!world.ownsCurrentThread(rp)) return null;
+            int id = world.regionAt(rp).biomeIdAtQuart(q[0], q[1], q[2]);
+            var names = dp.loot().registries().entries("minecraft:worldgen/biome");
+            return id >= 0 && id < names.size() ? names.get(id) : null;
+        }
+
+        public String dimension() { return "minecraft:overworld"; }
     };
+    private final long biomeZoomSeed;
 
     /** 전리품 조건이 보는 플레이어(바닐라 ADVANCEMENT_ENTITY 의 this_entity). */
     private static org.domi.furnace.server.loot.LootEntity lootEntity(Player p) {

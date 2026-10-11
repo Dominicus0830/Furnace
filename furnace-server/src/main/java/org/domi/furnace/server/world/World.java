@@ -292,6 +292,9 @@ public final class World {
     }
 
     /** 디버그 소유권 가드: pos를 소유한 스레드서 호출 중인지 확인. */
+    /** 지금 스레드가 그 region 의 소유 스레드인가(다른 region 의 청크를 몰래 읽지 않기 위해). */
+    public boolean ownsCurrentThread(RegionPos pos) { return ((ThreadOwner) scheduler.region(pos)).isOwnerThread(); }
+
     public void assertOwns(RegionPos pos) {
         ThreadOwner owner = (ThreadOwner) scheduler.region(pos);
         assert owner.isOwnerThread()
