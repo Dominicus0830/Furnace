@@ -68,6 +68,15 @@ public final class ServerCore {
     public void dataPacks(org.domi.furnace.server.data.DataPackManager m) {
         this.dataPacks = m;
         m.onReload(dp -> {
+            // 바닐라 reloadResources: 플레이어 발전 과제를 저장한 뒤 새 매니저로 다시 읽는다(보내는 것은 다음 틱 flushDirty)
+            var advancements = dp.advancements();
+            for (Player p : players()) {
+                var adv = p.advancements();
+                if (adv != null && advancements != null) {
+                    adv.save();
+                    adv.reload(advancements);
+                }
+            }
             // 바닐라 PlayerList.reloadResources: 태그 방송 → 플레이어마다 레시피 목록 + 레시피 북 INIT
             var packet = new org.domi.furnace.server.net.protocol.play.UpdateTagsPlay(dp.tags());
             for (Player p : players()) p.send(packet);
@@ -96,6 +105,67 @@ public final class ServerCore {
 
         public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
     };
+
+    /** 전리품 조건이 보는 플레이어(바닐라 ADVANCEMENT_ENTITY 의 this_entity). */
+    private static org.domi.furnace.server.loot.LootEntity lootEntity(Player p) {
+        return new org.domi.furnace.server.loot.LootEntity() {
+            public String type() { return "minecraft:player"; }
+            public double[] position() { return new double[]{p.x(), p.y(), p.z()}; }
+            public boolean isCrouching() { return p.sneaking(); }
+            public boolean isSprinting() { return p.sprinting(); }
+        };
+    }
+
+    /** 접속한 플레이어의 발전 과제 진행을 만든다(바닐라 PlayerList.getPlayerAdvancements). 데이터 팩이 없으면 null. */
+    public org.domi.furnace.server.advancement.PlayerAdvancements attachAdvancements(Player p) {
+        var dp = dataPacks;
+        if (dp == null || dp.advancements() == null) return null;
+        var host = new org.domi.furnace.server.advancement.PlayerAdvancements.Host() {
+            public void send(org.domi.furnace.server.net.protocol.Packet packet) { p.send(packet); }
+
+            public void awardRecipes(java.util.List<org.domi.furnace.server.data.ResourceId> ids) {
+                var rm = recipes();
+                if (rm != null) p.awardRecipes(ids, rm);
+            }
+
+            public void giveExperience(int points) { p.vitals().giveExperiencePoints(points); }
+
+            public void giveLoot(String table) {
+                org.slf4j.LoggerFactory.getLogger("Furnace").warn("발전 과제 전리품 보상은 아직 인벤토리에 넣지 못한다: {}", table);
+            }
+
+            public void broadcast(Text message) { broadcastSystemMessage(message, false); }
+
+            public boolean announceAdvancements() { return gameRule("announceAdvancements"); }
+
+            public Text displayName() { return p.displayName(); }
+
+            public org.domi.furnace.server.loot.LootContext playerContext() {
+                var loot = dataPacks.loot();
+                var params = new org.domi.furnace.server.loot.LootParams()
+                        .with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p))
+                        .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{p.x(), p.y(), p.z()});
+                return new org.domi.furnace.server.loot.LootContext(loot, lootWorld, params, lootWorld.random());
+            }
+
+            public org.domi.furnace.server.loot.LootRegistries registries() { return dataPacks.loot().registries(); }
+        };
+        var adv = new org.domi.furnace.server.advancement.PlayerAdvancements(world.worldDir(), p.uuid(), dp.advancements(), host);
+        p.advancements(adv);
+        return adv;
+    }
+
+    /** 위치 문맥(바닐라 ADVANCEMENT_LOCATION: origin = 블록 중심, this_entity, block_state, tool) — placed_block 등. */
+    public org.domi.furnace.server.loot.LootContext locationContext(Player p, int x, int y, int z, String blockState,
+                                                                     org.domi.furnace.server.loot.LootStack tool) {
+        var loot = dataPacks.loot();
+        var params = new org.domi.furnace.server.loot.LootParams()
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{x + 0.5, y + 0.5, z + 0.5})
+                .with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p))
+                .with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, org.domi.furnace.server.loot.LootBlockState.parse(blockState))
+                .with(org.domi.furnace.server.loot.LootParams.TOOL, tool);
+        return new org.domi.furnace.server.loot.LootContext(loot, lootWorld, params, lootWorld.random());
+    }
 
     /**
      * 바닐라 RandomizableContainer.unpackLootTable — 열지 않은 전리품 상자를 채운다(region 스레드에서).

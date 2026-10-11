@@ -10,7 +10,7 @@ public record LootBlockState(String block, Map<String, String> properties) {
     /** 블록 상태 id → (블록, 전체 속성). BlockRegistry 의 정규 키("minecraft:bee_nest;facing=north,honey_level=0")를 푼다. */
     public static LootBlockState of(BlockRegistry blocks, int stateId) { return parse(blocks.canonicalKeyOf(stateId)); }
 
-    static LootBlockState parse(String canonicalKey) {
+    public static LootBlockState parse(String canonicalKey) {
         int semi = canonicalKey.indexOf(';');
         Map<String, String> props = new LinkedHashMap<>();
         if (semi < 0) return new LootBlockState(canonicalKey, props);

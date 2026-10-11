@@ -389,6 +389,8 @@ public final class Region {
                     probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), ChunkColumn.MIN_Y);
         }
         p.vitals().tick(s);
+        var adv = p.advancements();
+        if (adv != null) adv.tickPlayer();
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */

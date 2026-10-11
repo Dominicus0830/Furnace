@@ -12,7 +12,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
 
     private static final Set<String> SLOTS = Set.of("head", "chest", "legs", "feet", "body", "mainhand", "offhand");
 
-    static EntityPredicate parse(JsonElement e, LootRegistries regs) {
+    public static EntityPredicate parse(JsonElement e, LootRegistries regs) {
         JsonObject o = e.getAsJsonObject();
         boolean unsupported = false;
         HolderSet type = null;

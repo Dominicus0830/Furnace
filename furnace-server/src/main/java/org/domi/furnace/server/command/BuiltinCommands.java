@@ -11,6 +11,7 @@ final class BuiltinCommands {
 
     static void registerAll(CommandDispatcher<CommandSource> d) {
         // 바닐라 Commands 생성자 순서(공통 → 전용 서버 전용). 아직 없는 명령은 기능과 함께 제자리에 끼운다.
+        org.domi.furnace.server.command.builtin.AdvancementCommands.register(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerDataPack(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerDefaultGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerDifficulty(d);

@@ -29,6 +29,7 @@ public final class DataPackManager implements AutoCloseable {
     private volatile TagSet tags;
     private volatile org.domi.furnace.server.recipe.RecipeManager recipes;
     private volatile org.domi.furnace.server.loot.LootData loot;
+    private volatile org.domi.furnace.server.advancement.AdvancementManager advancements;
     private final List<Consumer<DataPackManager>> reloadListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private DataPackManager(PackRepository repository, TagRegistries tagRegistries, LevelData levelData) {
@@ -129,7 +130,7 @@ public final class DataPackManager implements AutoCloseable {
 
     /** 리로드 한 번의 결과(바닐라 ReloadableServerResources 에 해당). */
     private record Loaded(ResourceManager rm, TagSet tags, org.domi.furnace.server.recipe.RecipeManager recipes,
-                          org.domi.furnace.server.loot.LootData loot) {}
+                          org.domi.furnace.server.loot.LootData loot, org.domi.furnace.server.advancement.AdvancementManager advancements) {}
 
     private Loaded loadFrom(ResourceManager rm) {
         var tagIds = tagRegistries.loadAll(rm);
@@ -141,7 +142,10 @@ public final class DataPackManager implements AutoCloseable {
             public int[] itemTag(ResourceId tag) { return t.ids("minecraft:item", tag.toString()); }
             public int serializerId(String type) { return org.domi.furnace.server.recipe.RecipeManager.serializerIndex(type); }
         };
-        return new Loaded(rm, t, org.domi.furnace.server.recipe.RecipeManager.load(rm, recipeCtx), loot);
+        // 바닐라 리로드 순서: 태그 → 레시피 → 함수 → 발전 과제
+        var recipeManager = org.domi.furnace.server.recipe.RecipeManager.load(rm, recipeCtx);
+        var advancementManager = org.domi.furnace.server.advancement.AdvancementManager.load(rm, loot.registries(), network);
+        return new Loaded(rm, t, recipeManager, loot, advancementManager);
     }
 
     private void apply(Loaded l) {
@@ -150,6 +154,7 @@ public final class DataPackManager implements AutoCloseable {
         tags = l.tags();
         recipes = l.recipes();
         loot = l.loot();
+        advancements = l.advancements();
         if (old != null) old.close();
     }
 
@@ -210,6 +215,9 @@ public final class DataPackManager implements AutoCloseable {
 
     /** 전리품 결과 → 서버 아이템(컴포넌트 네트워크 인코딩). */
     public org.domi.furnace.server.loot.NetworkComponents network() { return network; }
+
+    /** 발전 과제(바닐라 ServerAdvancementManager). */
+    public org.domi.furnace.server.advancement.AdvancementManager advancements() { return advancements; }
 
     /** 전리품 표·조건·아이템 수정자. */
     public org.domi.furnace.server.loot.LootData loot() { return loot; }

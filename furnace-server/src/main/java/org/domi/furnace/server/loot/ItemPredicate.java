@@ -11,7 +11,7 @@ public record ItemPredicate(HolderSet items, Bounds count, Map<String, Object> c
 
     interface SubPredicate { boolean test(LootStack s, LootRegistries regs); }
 
-    static ItemPredicate parse(JsonElement e, LootRegistries regs) {
+    public static ItemPredicate parse(JsonElement e, LootRegistries regs) {
         JsonObject o = e.getAsJsonObject();
         HolderSet items = o.has("items") ? HolderSet.parse("minecraft:item", o.get("items"), regs) : null;
         @SuppressWarnings("unchecked")

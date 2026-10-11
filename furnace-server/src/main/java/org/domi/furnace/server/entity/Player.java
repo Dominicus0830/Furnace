@@ -138,6 +138,13 @@ public final class Player {
 
     private final org.domi.furnace.server.recipe.RecipeBook recipeBook = new org.domi.furnace.server.recipe.RecipeBook();
 
+    private volatile org.domi.furnace.server.advancement.PlayerAdvancements advancements;
+
+    /** 발전 과제 진행(바닐라 ServerPlayer.getAdvancements). 데이터 팩 없이 뜬 서버면 null. */
+    public org.domi.furnace.server.advancement.PlayerAdvancements advancements() { return advancements; }
+
+    public void advancements(org.domi.furnace.server.advancement.PlayerAdvancements a) { this.advancements = a; }
+
     /** 레시피 북(바닐라 ServerRecipeBook). */
     public org.domi.furnace.server.recipe.RecipeBook recipeBook() { return recipeBook; }
 
@@ -145,6 +152,9 @@ public final class Player {
     public int awardRecipes(java.util.Collection<org.domi.furnace.server.data.ResourceId> ids,
                             org.domi.furnace.server.recipe.RecipeManager recipes) {
         var added = recipeBook.addRecipes(ids, recipes);
+        // 바닐라 ServerRecipeBook.addRecipes: 레시피마다 recipe_unlocked 를 ADD 패킷보다 먼저
+        var adv = advancements;
+        if (adv != null) for (var id : added) adv.trigger("minecraft:recipe_unlocked", id);
         if (!added.isEmpty()) send(recipeBook.packet(org.domi.furnace.server.net.protocol.play.RecipeBookUpdate.ADD, added));
         return added.size();
     }

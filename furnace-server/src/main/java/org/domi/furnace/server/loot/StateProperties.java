@@ -5,10 +5,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.Map;
 
-final class StateProperties {
+public final class StateProperties {
     private StateProperties() {}
 
-    static boolean matches(Map<String, JsonElement> props, LootBlockState state) {
+    public static boolean matches(Map<String, JsonElement> props, LootBlockState state) {
         for (var p : props.entrySet()) {
             String actual = state.properties().get(p.getKey());
             if (actual == null) return false;
