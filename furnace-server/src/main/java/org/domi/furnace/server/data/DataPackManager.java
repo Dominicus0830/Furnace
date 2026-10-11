@@ -27,6 +27,7 @@ public final class DataPackManager implements AutoCloseable {
     private volatile ResourceManager resources;
     private volatile TagSet tags;
     private volatile org.domi.furnace.server.recipe.RecipeManager recipes;
+    private volatile org.domi.furnace.server.loot.LootData loot;
     private final List<Consumer<DataPackManager>> reloadListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private DataPackManager(PackRepository repository, TagRegistries tagRegistries, LevelData levelData) {
@@ -125,16 +126,20 @@ public final class DataPackManager implements AutoCloseable {
     }
 
     /** 리로드 한 번의 결과(바닐라 ReloadableServerResources 에 해당). */
-    private record Loaded(ResourceManager rm, TagSet tags, org.domi.furnace.server.recipe.RecipeManager recipes) {}
+    private record Loaded(ResourceManager rm, TagSet tags, org.domi.furnace.server.recipe.RecipeManager recipes,
+                          org.domi.furnace.server.loot.LootData loot) {}
 
     private Loaded loadFrom(ResourceManager rm) {
-        TagSet t = TagSet.of(tagRegistries.loadAll(rm));
+        var tagIds = tagRegistries.loadAll(rm);
+        TagSet t = TagSet.of(tagIds);
+        // 바닐라 ReloadableServerRegistries: 전리품 표·조건·아이템 수정자(인챈트 정의와 함께)
+        var loot = org.domi.furnace.server.loot.LootData.load(rm, new org.domi.furnace.server.loot.LootRegistries(tagRegistries, tagIds));
         var recipeCtx = new org.domi.furnace.server.recipe.RecipeContext() {
             public Integer itemId(ResourceId item) { return tagRegistries.id("minecraft:item", item); }
             public int[] itemTag(ResourceId tag) { return t.ids("minecraft:item", tag.toString()); }
             public int serializerId(String type) { return org.domi.furnace.server.recipe.RecipeManager.serializerIndex(type); }
         };
-        return new Loaded(rm, t, org.domi.furnace.server.recipe.RecipeManager.load(rm, recipeCtx));
+        return new Loaded(rm, t, org.domi.furnace.server.recipe.RecipeManager.load(rm, recipeCtx), loot);
     }
 
     private void apply(Loaded l) {
@@ -142,6 +147,7 @@ public final class DataPackManager implements AutoCloseable {
         resources = l.rm();
         tags = l.tags();
         recipes = l.recipes();
+        loot = l.loot();
         if (old != null) old.close();
     }
 
@@ -199,6 +205,9 @@ public final class DataPackManager implements AutoCloseable {
     public TagSet tags() { return tags; }
 
     public org.domi.furnace.server.recipe.RecipeManager recipes() { return recipes; }
+
+    /** 전리품 표·조건·아이템 수정자. */
+    public org.domi.furnace.server.loot.LootData loot() { return loot; }
 
     public Set<String> worldFeatures() { return worldFeatures; }
 

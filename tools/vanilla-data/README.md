@@ -18,6 +18,8 @@
 | `extract_tags.py <generated> <registries/1.21.1.txt> <출력>` | 태그 JSON + registries.json | `registries/tags-1.21.1.txt` (Update Tags 패킷용, 숫자 id) |
 | `extract_builtin_registries.py <reports/registries.json> <출력>` | registries.json | `registries/builtin-1.21.1.txt` (태그 있는 내장 레지스트리의 protocol_id 순서 — 데이터 팩 태그를 숫자 id 로 바꿀 때) |
 | `extract_block_tags.py <generated> <출력>` | 블록 태그 JSON | `worldgen/1.21.1/block_tags.txt` (월드젠용, 블록 이름) |
+| `extract_item_components.py <reports/items.json> <출력>` | items.json | `items/components_1.21.1.json.gz` (아이템 이름 → 기본 컴포넌트 — 전리품의 컴포넌트 패치 비교·최대 스택·내구도) |
+| `ExportItemProps.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `items/properties_1.21.1.txt` (아이템별 최대 스택·최대 내구도·인챈트 수치 `Item.getEnchantmentValue`) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
 
 `ExportBlockAttrs`는 난독화된 클래스 이름(`akt`, `dfy`, `dtc`, `dcl` …)을 직접 참조한다. 다른 버전에는 그대로 쓸 수 없고, Vineflower로 디컴파일해 이름을 다시 찾아야 한다.

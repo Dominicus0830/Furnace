@@ -53,6 +53,12 @@ public final class TagRegistries {
         return m == null ? null : m.get(element);
     }
 
+    /** 숫자 id 순서의 엔트리 이름(없는 레지스트리면 빈 목록). */
+    public List<ResourceId> names(String registry) {
+        Map<ResourceId, Integer> m = ids.get(registry);
+        return m == null ? List.of() : List.copyOf(m.keySet());
+    }
+
     /** 켜진 팩들의 태그 전부(레지스트리 → 태그 → 숫자 id 배열). */
     public Map<String, Map<String, int[]>> loadAll(ResourceManager rm) {
         Map<String, Map<String, int[]>> out = new LinkedHashMap<>();
