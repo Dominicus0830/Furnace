@@ -117,6 +117,9 @@ public final class FurnaceMain {
             levelData = LevelData.create(props.levelName, props.levelSeed.orElseGet(() -> new java.util.Random().nextLong()),
                     props.generateStructures, false, props.gameMode, props.hardcore, props.difficulty,
                     props.initialEnabledPacks, List.of("bundle", "trade_rebalance"));
+            if ("minecraft:flat".equals(props.levelType)) {
+                levelData.useFlatOverworld(org.domi.furnace.server.world.gen.SuperflatWorldSource.settingsNbt(props.generatorSettings));
+            }
         }
         levelData.setModdedInfo(SERVER_BRAND, true);
         long seed = levelData.seed;
@@ -161,8 +164,18 @@ public final class FurnaceMain {
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                 registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
         var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
+        // 오버월드 생성기: level.dat 의 생성기가 minecraft:flat 이면 평지(바닐라 FlatLevelSource 층), 아니면 노이즈
+        var generator = levelData.overworldGenerator();
+        org.domi.furnace.server.world.gen.SuperflatWorldSource flatSource = null;
+        if (generator != null && "minecraft:flat".equals(generator.tags().get("type"))) {
+            var flatSettings = generator.contains("settings") ? generator.getCompound("settings") : null;
+            String biome = flatSettings != null && flatSettings.tags().get("biome") instanceof String b ? b : "minecraft:plains";
+            int biomeId = Math.max(0, registries.indexOf("minecraft:worldgen/biome", biome));
+            flatSource = new org.domi.furnace.server.world.gen.SuperflatWorldSource(blockRegistry,
+                    org.domi.furnace.server.world.gen.SuperflatWorldSource.layersOf(flatSettings), biomeId);
+        }
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
-                worldDir, regionStore, chunkCodec, noiseSource);
+                worldDir, regionStore, chunkCodec, flatSource != null ? flatSource : noiseSource);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
         // 생성 호출자 스레드 — 실제 계산은 ChunkPipeline 의 ForkJoin 풀(코어 수)에서 하고 여기서는 대부분 기다린다.
@@ -176,11 +189,19 @@ public final class FurnaceMain {
         world.worldDir(worldDir);
         if (!levelData.initialized) {
             // 새 월드: 바닐라 setInitialSpawn 에 해당하는 생성기 기본 스폰을 정해 level.dat 에 남긴다.
-            var spawn = noiseSource.defaultSpawn();
-            levelData.spawnX = spawn.x();
-            levelData.spawnY = spawn.y();
-            levelData.spawnZ = spawn.z();
-            levelData.spawnAngle = spawn.yaw();
+            if (flatSource != null) {
+                // 평지: 바닐라 setInitialSpawn 은 청크 (0,0) 에서 첫 서 있을 수 있는 칸 — 맨 위 층 바로 위
+                levelData.spawnX = 0;
+                levelData.spawnY = flatSource.surfaceY();
+                levelData.spawnZ = 0;
+                levelData.spawnAngle = 0f;
+            } else {
+                var spawn = noiseSource.defaultSpawn();
+                levelData.spawnX = spawn.x();
+                levelData.spawnY = spawn.y();
+                levelData.spawnZ = spawn.z();
+                levelData.spawnAngle = spawn.yaw();
+            }
             levelData.initialized = true;
         }
         var defaultSpawn = new org.domi.furnace.server.world.SpawnPoint(

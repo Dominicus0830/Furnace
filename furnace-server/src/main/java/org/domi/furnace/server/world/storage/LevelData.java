@@ -114,6 +114,31 @@ public final class LevelData {
         return d;
     }
 
+    /** 오버월드 생성기 compound(level.dat WorldGenSettings.dimensions."minecraft:overworld".generator, 없으면 null). */
+    public NbtCompound overworldGenerator() {
+        NbtCompound wgs = raw.contains("WorldGenSettings") ? raw.getCompound("WorldGenSettings") : null;
+        if (wgs == null || !wgs.contains("dimensions")) return null;
+        NbtCompound dims = wgs.getCompound("dimensions");
+        if (!dims.contains("minecraft:overworld")) return null;
+        NbtCompound ow = dims.getCompound("minecraft:overworld");
+        return ow.contains("generator") ? ow.getCompound("generator") : null;
+    }
+
+    /** 새 평지 월드: 오버월드 생성기를 바닐라 flat 생성기(설정 compound)로 기록한다. 네더·엔드는 기본값. */
+    public void useFlatOverworld(NbtCompound flatSettings) {
+        NbtCompound wgs = raw.contains("WorldGenSettings") ? raw.getCompound("WorldGenSettings") : new NbtCompound();
+        NbtCompound dims = defaultDimensions();
+        NbtCompound gen = new NbtCompound();
+        gen.putCompound("settings", flatSettings);
+        gen.putString("type", "minecraft:flat");
+        NbtCompound ow = new NbtCompound();
+        ow.putCompound("generator", gen);
+        ow.putString("type", "minecraft:overworld");
+        dims.putCompound("minecraft:overworld", ow);
+        wgs.putCompound("dimensions", dims);
+        raw.putCompound("WorldGenSettings", wgs);
+    }
+
     /** 브랜드 기록(바닐라 setModdedInfo: 처음 보는 브랜드면 추가, 수정 여부는 누적). */
     public void setModdedInfo(String brand, boolean modded) {
         if (!serverBrands.contains(brand)) serverBrands.add(brand);
