@@ -85,11 +85,7 @@ public final class AdvancementManager {
                     else icon.patch().put(key, c.getValue());
                 }
                 var stack = items.toItemStack(icon);
-                org.domi.furnace.server.net.io.Types.writeVarInt(buf, stack.count());
-                org.domi.furnace.server.net.io.Types.writeVarInt(buf, stack.itemId());
-                byte[] comp = stack.components();
-                if (comp != null) buf.writeBytes(comp);
-                else { buf.writeByte(0); buf.writeByte(0); }
+                org.domi.furnace.server.item.ItemStackCodecs.writeStack(buf, stack);
                 org.domi.furnace.server.net.io.Types.writeVarInt(buf, d.frame.ordinal());
                 int flags = (d.background != null ? 1 : 0) | (d.showToast ? 2 : 0) | (d.hidden ? 4 : 0);
                 buf.writeInt(flags);

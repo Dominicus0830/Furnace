@@ -247,16 +247,16 @@ class ConnectionInputTest {
         join(new SpawnPoint(0, -60, 0, 0f));
         world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
                 org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
-        // 0x32: 개수 200 / 알 수 없는 id
-        ch.writeInbound(frame(0x32, b -> { b.writeShort(36); Types.writeVarInt(b, 200); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
-        ch.writeInbound(frame(0x32, b -> { b.writeShort(37); Types.writeVarInt(b, 1); Types.writeVarInt(b, 99999); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
-        assertTrue(slotsOf()[36].isEmpty(), "개수 200은 거부돼야 한다");
-        assertTrue(slotsOf()[37].isEmpty(), "알 수 없는 아이템 id는 거부돼야 한다");
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        // 0x32: 돌 65개 — 최대 스택(64)을 넘으면 바닐라처럼 조용히 무시
+        ch.writeInbound(frame(0x32, b -> { b.writeShort(36); Types.writeVarInt(b, 65); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        assertTrue(slotsOf()[36].isEmpty(), "최대 스택을 넘는 개수는 거부돼야 한다");
         // 정상 아이템은 그대로 들어간다
         ch.writeInbound(frame(0x32, b -> { b.writeShort(38); Types.writeVarInt(b, 3); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
         assertEquals(3, slotsOf()[38].count());
 
-        // 0x0E: 상자를 연 상태에서 음수 개수 변경은 폐기
+        // 0x0E: 상자를 연 상태에서 음수 개수(= 빈 스택으로 읽힘)는 인벤토리에 아무것도 만들지 않는다
         p.openChest(7, 1, -60, 1);
         ch.writeInbound(frame(0x0E, b -> {
             Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
@@ -265,7 +265,12 @@ class ConnectionInputTest {
             writeStrictSlot(b, 0, 0, 0);
         }));
         assertTrue(slotsOf()[12].isEmpty(), "음수 개수 클릭이 인벤토리에 반영됐다");
-        assertTrue(ch.isActive(), "비정상 아이템 하나로 연결이 끊기면 안 된다(패킷만 폐기)");
+        assertTrue(ch.isActive());
+
+        // 알 수 없는 아이템 id 는 바닐라처럼 디코드 실패 → 연결 종료
+        ch.writeInbound(frame(0x32, b -> { b.writeShort(37); Types.writeVarInt(b, 1); Types.writeVarInt(b, 99999); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        assertTrue(slotsOf()[37].isEmpty(), "알 수 없는 아이템 id는 거부돼야 한다");
+        assertFalse(ch.isActive(), "디코드할 수 없는 아이템은 바닐라처럼 연결을 끊는다");
     }
 
     /** 인벤토리 창(0) 클릭: 재배치는 반영하고, 아이템 총량이 늘어나는(복제) 보고는 거부하고 되돌린다. */
@@ -303,15 +308,23 @@ class ConnectionInputTest {
         assertEquals(1, count(drainOutbound(), 0x13), "거부하면 서버 인벤토리로 되돌린다");
     }
 
-    /** 컴포넌트 달린 아이템을 커서로 집는 클릭은 연결을 끊지 말고 패킷만 폐기해야 한다. */
+    /** 컴포넌트 달린 아이템도 정확히 읽어 그대로 담는다(크리에이티브 슬롯·클릭 모두). */
     @Test
-    void containerClick_withComponentCarried_doesNotDisconnect() throws Exception {
+    void componentItems_areDecodedAndKept() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ch.writeInbound(frame(0x32, b -> {
+            b.writeShort(36); Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);   // custom_model_data = 7
+        }));
+        assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 7)), slotsOf()[36].patch());
         p.openChest(7, 1, -60, 1);
         ch.writeInbound(frame(0x0E, b -> {
             Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);   // 변경 슬롯 0개
-            writeStrictSlot(b, 1, 1, 1);                          // carried: 컴포넌트 있음
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);   // carried: 컴포넌트 있음
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);
         }));
         assertTrue(ch.isActive(), "컴포넌트 아이템 하나로 접속이 끊겼다");
     }

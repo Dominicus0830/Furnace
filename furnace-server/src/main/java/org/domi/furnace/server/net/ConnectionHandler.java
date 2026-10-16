@@ -881,12 +881,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.
      *  재접속처럼 gen이 2초를 넘겨도 TimeoutException 없이, 완료되면 전송. 완료 후 region에 adopt. */
-    /** 서버 아이템 → 전리품 스택(조건 비교용). 컴포넌트 바이트는 아직 해석하지 않는다. */
+    /** 서버 아이템 → 전리품 스택(조건 비교용) — 컴포넌트 패치까지. */
     private org.domi.furnace.server.loot.LootStack lootStack(ItemStack s) {
         var items = world.itemRegistry();
         if (s == null || s.isEmpty() || items == null) return org.domi.furnace.server.loot.LootStack.empty();
         String name = items.nameOf(s.itemId());
-        return name == null ? org.domi.furnace.server.loot.LootStack.empty() : new org.domi.furnace.server.loot.LootStack(name, s.count());
+        return name == null ? org.domi.furnace.server.loot.LootStack.empty()
+                : org.domi.furnace.server.loot.LootStack.of(name, s.count(), s.patch().entries());
     }
 
     /** 바닐라 Inventory 칸(0..8 핫바, 9..35 주 인벤토리, 36..39 발·다리·가슴·머리, 40 왼손) → 창 칸. */
@@ -1133,7 +1134,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x32 -> { // Set Creative Mode Slot: Short slot + Slot
                 int slot = frame.readShort();
-                ItemStack stack = readSlot(frame);
+                ItemStack stack;
+                try {
+                    stack = readSlot(frame);
+                    // 바닐라 ItemStack.validatedStreamCodec: 저장 코덱(개수 1..99)으로 다시 쓸 수 없으면 디코드 실패
+                    if (!stack.isEmpty() && (stack.count() < 1 || stack.count() > 99)) {
+                        throw new org.domi.furnace.server.item.CodecException("Value must be within range [1;99]: " + stack.count());
+                    }
+                } catch (org.domi.furnace.server.item.CodecException | IndexOutOfBoundsException e) {
+                    protocolError(ctx, "Set Creative Mode Slot", e);   // 바닐라: 디코드 실패는 연결 종료
+                    break;
+                }
                 // 바닐라: 슬롯 1..45만, 개수·아이템 유효. 비정상 값은 다른 플레이어(공유 상자 경유)까지 클라이언트를 깨뜨린다.
                 Player cp = player;
                 boolean creative = cp != null && cp.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE;
@@ -1220,7 +1231,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                                 ctx.channel().eventLoop().execute(() -> {
                                     ItemStack cur = slots[heldSlot];
                                     if (cur != null && !cur.isEmpty() && cur.itemId() == held.itemId()) {
-                                        slots[heldSlot] = cur.count() <= 1 ? ItemStack.EMPTY : new ItemStack(cur.itemId(), cur.count() - 1, cur.components());
+                                        slots[heldSlot] = cur.count() <= 1 ? ItemStack.EMPTY : cur.withCount(cur.count() - 1);
                                         fireInventoryChanged(heldSlot);
                                     }
                                 });
@@ -1241,25 +1252,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     break;
                 }
                 java.util.Map<Integer, ItemStack> changed = new java.util.HashMap<>();
-                boolean parseOk = true;
-                for (int i = 0; i < numChanged && parseOk; i++) {
-                    int changedSlot = frame.readShort();
-                    try {
-                        changed.put(changedSlot, readSlotStrict(frame));
-                    } catch (UnsupportedComponentException e) {
-                        log.debug("Container Click: components 있는 아이템 — 파싱 범위 밖(§2.3), 이후 바이트 폐기");
-                        parseOk = false;
+                ItemStack newCarried;
+                try {
+                    for (int i = 0; i < numChanged; i++) {
+                        int changedSlot = frame.readShort();
+                        changed.put(changedSlot, readSlot(frame));
                     }
+                    newCarried = readSlot(frame);
+                } catch (org.domi.furnace.server.item.CodecException | IndexOutOfBoundsException e) {
+                    protocolError(ctx, "Container Click", e);   // 바닐라: 디코드 실패는 연결 종료
+                    break;
                 }
-                ItemStack newCarried = null;
-                if (parseOk) {
-                    try {
-                        newCarried = readSlotStrict(frame);
-                    } catch (UnsupportedComponentException e) {
-                        parseOk = false;   // 커서 아이템에 컴포넌트 — 예외로 연결을 끊지 말고 패킷만 폐기
-                    }
-                }
-                if (!parseOk) break; // 경계 유실 — 이 패킷 전체 폐기(범위 밖 케이스)
                 boolean validClick = validStack(newCarried);
                 for (ItemStack c : changed.values()) validClick &= validStack(c);
                 if (!validClick) break; // 음수 개수·알 수 없는 아이템 등 비정상 — 패킷 폐기
@@ -1374,7 +1377,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      */
     private void applyInventoryClick(java.util.Map<Integer, ItemStack> changed, ItemStack newCarried) {
         boolean ok = !changed.containsKey(0);   // 제작 결과 칸은 아직 없다
-        java.util.Map<String, Integer> before = new java.util.HashMap<>(), after = new java.util.HashMap<>();
+        java.util.Map<Object, Integer> before = new java.util.HashMap<>(), after = new java.util.HashMap<>();
         for (var e : changed.entrySet()) {
             int slot = e.getKey();
             if (slot < 0 || slot >= slots.length) { ok = false; break; }
@@ -1394,9 +1397,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
-    private static void tally(java.util.Map<String, Integer> counts, ItemStack s, int sign) {
+    private static void tally(java.util.Map<Object, Integer> counts, ItemStack s, int sign) {
         if (s == null || s.isEmpty()) return;
-        String key = s.itemId() + ":" + java.util.Arrays.toString(s.components());
+        Object key = java.util.List.of(s.itemId(), s.patch());
         counts.merge(key, sign * s.count(), Integer::sum);
     }
 
@@ -1743,46 +1746,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private static final int MAX_CLICK_CHANGED_SLOTS = 128;
     private static final int MAX_STACK_COUNT = 99;
-    private static final int MAX_COMPONENT_BYTES = 8192;
 
     /** 클라이언트가 보낸 아이템이 서버가 저장·재전송해도 안전한가(빈 스택은 허용). */
     private boolean validStack(ItemStack s) {
         if (s == null || s.isEmpty()) return s == null || s.count() == 0 || s.itemId() == 0;
         if (s.count() < 1 || s.count() > MAX_STACK_COUNT) return false;
         if (!world.isValidItem(s.itemId())) return false;
-        byte[] comp = s.components();
-        return comp == null || comp.length <= MAX_COMPONENT_BYTES;
+        // 바닐라 handleSetCreativeModeSlot: 최대 스택 크기를 넘는 아이템은 조용히 무시
+        if (org.domi.furnace.server.item.ItemContext.installed() && s.count() > org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(s)) return false;
+        return true;
     }
 
-    private ItemStack readSlot(ByteBuf frame) {
-        int count = Types.readVarInt(frame);
-        if (count == 0) return ItemStack.EMPTY;
-        int itemId = Types.readVarInt(frame);
-        byte[] components = null;
-        if (frame.isReadable()) {
-            components = new byte[frame.readableBytes()];
-            frame.readBytes(components);
-        }
-        return new ItemStack(itemId, count, components);
+    /** 아이템 스택(바닐라 ItemStack.OPTIONAL_STREAM_CODEC) — 컴포넌트 패치까지 정확히 읽는다. */
+    private static ItemStack readSlot(ByteBuf frame) {
+        return org.domi.furnace.server.item.ItemStackCodecs.readStack(frame);
     }
 
-    /**
-     * 여러 Slot이 한 프레임에 연속으로 오는 패킷(Container Click)용 정밀 파싱(§2.3) —
-     * numComponentsToAdd/Remove를 읽어 정확한 경계를 찾는다. 둘 다 0(컴포넌트 없음)인 경우만 지원 범위.
-     * 컴포넌트가 실제로 붙은 아이템이면 이후 바이트 경계를 알 수 없어 예외로 신호한다.
-     */
-    private ItemStack readSlotStrict(ByteBuf frame) {
-        int count = Types.readVarInt(frame);
-        if (count == 0) return ItemStack.EMPTY;
-        int itemId = Types.readVarInt(frame);
-        int numAdd = Types.readVarInt(frame);
-        int numRemove = Types.readVarInt(frame);
-        if (numAdd != 0 || numRemove != 0) throw new UnsupportedComponentException();
-        return new ItemStack(itemId, count, null);
+    /** 바닐라처럼 패킷 디코드 실패는 연결을 끊는다(클라이언트 화면: 네트워크 프로토콜 오류). */
+    private void protocolError(ChannelHandlerContext ctx, String packet, RuntimeException e) {
+        log.warn("{} 패킷 디코드 실패, 연결 종료: {}", packet, e.toString());
+        ctx.close();
     }
-
-    /** readSlotStrict가 components 있는 아이템을 만났을 때 신호용(§2.3 범위 밖). */
-    private static final class UnsupportedComponentException extends RuntimeException {}
 
     /** Use Item On이 체스트를 클릭했을 때 화면 열기(§3.2) — 싱글체스트만, 더블체스트 병합 없음. */
     private void openChest(int x, int y, int z) {

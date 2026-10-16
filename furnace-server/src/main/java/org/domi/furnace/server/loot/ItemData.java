@@ -70,6 +70,12 @@ public final class ItemData {
         return m == null ? null : m.get(component);
     }
 
+    /** 아이템의 기본 컴포넌트 전부(보고서 JSON 꼴, 읽기 전용). 모르는 아이템이면 null. */
+    public Map<String, Object> defaults(String item) {
+        Map<String, Object> m = defaults.get(item);
+        return m == null ? null : java.util.Collections.unmodifiableMap(m);
+    }
+
     public int enchantmentValue(String item) { return enchantValue.getOrDefault(item, 0); }
 
 }

@@ -14,7 +14,7 @@ class PlayerDataTest {
         UUID id = UUID.randomUUID();
         ItemStack[] slots = new ItemStack[46];
         java.util.Arrays.fill(slots, ItemStack.EMPTY);
-        slots[36] = new ItemStack(123, 64, new byte[]{1, 2, 3});
+        slots[36] = new ItemStack(123, 64, org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 3)));
         PlayerData.save(dir, id, 12.5, -60, -7.25, 90f, 10f, true, slots);
         PlayerData.Snapshot snapshot = PlayerData.load(dir, id);
         assertNotNull(snapshot);
@@ -26,7 +26,7 @@ class PlayerDataTest {
         assertTrue(snapshot.onGround());
         assertEquals(123, snapshot.slots()[36].itemId());
         assertEquals(64, snapshot.slots()[36].count());
-        assertArrayEquals(new byte[]{1, 2, 3}, snapshot.slots()[36].components());
+        assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 3)), snapshot.slots()[36].patch());
         assertNull(PlayerData.load(dir, UUID.randomUUID())); // 없음
     }
 

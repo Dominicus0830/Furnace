@@ -204,8 +204,8 @@ public final class PlayerData {
         NbtCompound it = new NbtCompound();
         it.putString("id", name);
         it.putInt("count", stack.count());
-        byte[] components = stack.components();
-        if (components != null && components.length > 0) it.putByteArray(FURNACE_COMPONENTS, components);
+        NbtCompound components = org.domi.furnace.server.item.ItemNbt.write(stack.patch());
+        if (components != null) it.putCompound(org.domi.furnace.server.item.ItemNbt.KEY, components);
         return it;
     }
 
@@ -278,8 +278,8 @@ public final class PlayerData {
         int itemId = items.idOf(name);
         int count = e.tags().get("count") instanceof Number c ? c.intValue() : 1;
         if (itemId <= 0 || count <= 0) return null;
-        byte[] comp = e.tags().get(FURNACE_COMPONENTS) instanceof byte[] c ? c : null;
-        return new ItemStack(itemId, count, comp);
+        var patch = org.domi.furnace.server.item.ItemNbt.read(e, name, FURNACE_COMPONENTS);
+        return patch == null ? null : new ItemStack(itemId, count, patch);
     }
 
     private static NbtList inventoryToNbt(ItemStack[] slots) {
@@ -292,8 +292,8 @@ public final class PlayerData {
             entry.putInt("Slot", i);
             entry.putInt("Id", stack.itemId());
             entry.putInt("Count", stack.count());
-            byte[] components = stack.components();
-            if (components != null && components.length > 0) entry.putByteArray("Comp", components);
+            NbtCompound components = org.domi.furnace.server.item.ItemNbt.write(stack.patch());
+            if (components != null) entry.putCompound(org.domi.furnace.server.item.ItemNbt.KEY, components);
             inventory.add(entry);
         }
         return inventory;
@@ -310,8 +310,9 @@ public final class PlayerData {
                     || !(entry.tags().get("Count") instanceof Integer count)) continue;
             int slot = slotObj;
             if (slot < 0 || slot >= slots.length) continue;
-            byte[] components = entry.tags().get("Comp") instanceof byte[] c ? c : null;
-            slots[slot] = new ItemStack(itemId, count, components);
+            var patch = org.domi.furnace.server.item.ItemNbt.read(entry, items != null ? items.nameOf(itemId) : null, "Comp");
+            if (patch == null) continue;
+            slots[slot] = new ItemStack(itemId, count, patch);
         }
         return slots;
     }

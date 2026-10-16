@@ -21,22 +21,33 @@ public sealed interface Recipe {
     /** 직렬화기별 본문(바닐라 STREAM_CODEC). */
     void encode(ByteBuf buf, RecipeContext ctx);
 
-    /** 결과 아이템(수량 1 이상). */
-    record Result(ResourceId item, int count) {
+    /** 결과 아이템(바닐라 ItemStack.STRICT_CODEC — 수량 1..99, 컴포넌트 패치). */
+    record Result(ResourceId item, int count, org.domi.furnace.server.item.ComponentPatch patch) {
         static Result parse(JsonObject o, RecipeContext ctx) {
             ResourceId id = ResourceId.parse(o.get("id").getAsString());
             if (ctx.itemId(id) == null || id.equals(ResourceId.parse("minecraft:air"))) throw new IllegalArgumentException("Unknown item: " + id);
             int count = o.has("count") ? o.get("count").getAsInt() : 1;
             if (count < 1 || count > 99) throw new IllegalArgumentException("Value must be within range [1;99]: " + count);
-            if (o.has("components") && !o.getAsJsonObject("components").isEmpty())
-                throw new IllegalArgumentException("결과 아이템 컴포넌트는 아직 지원하지 않는다");
-            return new Result(id, count);
+            var patch = org.domi.furnace.server.item.ComponentPatch.EMPTY;
+            if (o.has("components")) {
+                try {
+                    patch = org.domi.furnace.server.item.ComponentPatch.fromCodec(
+                            org.domi.furnace.server.loot.Components.fromJson(o.get("components"))).normalizedFor(id.toString());
+                } catch (org.domi.furnace.server.item.CodecException e) {
+                    throw new IllegalArgumentException(e.getMessage());
+                }
+            }
+            return new Result(id, count, patch);
         }
 
-        void encode(ByteBuf buf, RecipeContext ctx) { writeStack(buf, ctx.itemId(item), count); }
+        void encode(ByteBuf buf, RecipeContext ctx) {
+            Types.writeVarInt(buf, count);
+            Types.writeVarInt(buf, ctx.itemId(item));
+            patch.write(buf);
+        }
     }
 
-    /** ItemStack.STREAM_CODEC: 수량, 아이템 id, 추가/제거 컴포넌트 수(0, 0). */
+    /** ItemStack.STREAM_CODEC(컴포넌트 없음): 수량, 아이템 id, 추가/제거 컴포넌트 수(0, 0). */
     static void writeStack(ByteBuf buf, int itemId, int count) {
         Types.writeVarInt(buf, count);
         Types.writeVarInt(buf, itemId);

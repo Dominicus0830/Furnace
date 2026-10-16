@@ -31,7 +31,7 @@ class NetworkComponentsTest {
         }
         ItemStack is = NET.toItemStack(s);
         assertEquals(expectedId, is.itemId(), item);
-        assertEquals(expectedHex, HexFormat.of().formatHex(is.components()), item);
+        assertEquals(expectedHex, HexFormat.of().formatHex(is.patch().networkBytes()), item);
     }
 
     @Test

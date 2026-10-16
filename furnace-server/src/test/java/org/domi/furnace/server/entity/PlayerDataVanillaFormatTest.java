@@ -30,7 +30,7 @@ class PlayerDataVanillaFormatTest {
         ItemStack[] slots = new ItemStack[46];
         java.util.Arrays.fill(slots, ItemStack.EMPTY);
         slots[36] = new ItemStack(stone, 64, null);     // 핫바 0
-        slots[20] = new ItemStack(stone, 3, new byte[]{9});
+        slots[20] = new ItemStack(stone, 3, org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 9)));
         slots[5] = new ItemStack(helmet, 1, null);      // 머리
         slots[45] = new ItemStack(shield, 1, null);     // 왼손
         slots[2] = new ItemStack(stick, 2, null);       // 제작 칸
@@ -67,7 +67,8 @@ class PlayerDataVanillaFormatTest {
         PlayerData.Snapshot back = PlayerData.load(dir, id);
         assertEquals(stone, back.slots()[36].itemId());
         assertEquals(64, back.slots()[36].count());
-        assertArrayEquals(new byte[]{9}, back.slots()[20].components());
+        assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 9)), back.slots()[20].patch());
+        assertEquals(9, ((NbtCompound) ((NbtCompound) inv.get(1)).tags().get("components")).getInt("minecraft:custom_model_data"), "바닐라 components 형식");
         assertEquals(helmet, back.slots()[5].itemId());
         assertEquals(shield, back.slots()[45].itemId());
         assertEquals(stick, back.slots()[2].itemId());

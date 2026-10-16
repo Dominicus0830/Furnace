@@ -61,7 +61,7 @@ class AnvilChunkCodecTest {
         ItemStack[] items = new ItemStack[27];
         java.util.Arrays.fill(items, ItemStack.EMPTY);
         items[0] = new ItemStack(5, 12, null);
-        items[26] = new ItemStack(9, 3, new byte[]{1, 2, 3});
+        items[26] = new ItemStack(9, 3, org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 4)));
         col.putChest(new ChestBlockEntity(16, 5, 33, items));
 
         NbtCompound nbt = codec.toNbt(col, 1, 2);
@@ -72,10 +72,10 @@ class AnvilChunkCodecTest {
         assertEquals(ItemStack.EMPTY, restored.items[1]);
         assertEquals(5, restored.items[0].itemId());
         assertEquals(12, restored.items[0].count());
-        assertNull(restored.items[0].components());
+        assertTrue(restored.items[0].patch().isEmpty());
         assertEquals(9, restored.items[26].itemId());
         assertEquals(3, restored.items[26].count());
-        assertArrayEquals(new byte[]{1, 2, 3}, restored.items[26].components());
+        assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 4)), restored.items[26].patch());
     }
 
     /** 바닐라 월드의 블록 엔티티(아이템 든 상자, 화로, 표지판 등)가 있어도 청크 로드가 예외 없이 되어야 한다. */

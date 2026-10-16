@@ -25,24 +25,8 @@ public record ContainerSetContent(int containerId, int stateId, ItemStack[] item
         writeSlot(buf, carried);
     }
 
-    /**
-     * Slot 와이어: count==0이면 끝. 아니면 itemId 뒤로 numComponentsToAdd/Remove(§2.3, M4c-3 범위 —
-     * components 없는 아이템만 정확 처리). components blob이 있으면(0x32에서 캡처한 원본 바이트) 그대로 재사용,
-     * 없으면 numAdd=0/numRemove=0 두 바이트.
-     */
+    /** Slot 와이어(바닐라 ItemStack.OPTIONAL_STREAM_CODEC): 개수 0 이면 끝, 아니면 아이템 id + 컴포넌트 패치. */
     static void writeSlot(ByteBuf buf, ItemStack item) {
-        if (item == null || item.isEmpty()) {
-            Types.writeVarInt(buf, 0);
-            return;
-        }
-        Types.writeVarInt(buf, item.count());
-        Types.writeVarInt(buf, item.itemId());
-        byte[] comp = item.components();
-        if (comp != null) {
-            buf.writeBytes(comp);
-        } else {
-            Types.writeVarInt(buf, 0);
-            Types.writeVarInt(buf, 0);
-        }
+        org.domi.furnace.server.item.ItemStackCodecs.writeStack(buf, item);
     }
 }

@@ -22,6 +22,13 @@ public final class LootStack {
 
     public static LootStack empty() { return new LootStack(AIR, 0); }
 
+    /** 서버 아이템의 컴포넌트 패치(이름 → 정규 값, null = 지움)를 가진 스택. */
+    public static LootStack of(String item, int count, Map<String, Object> patch) {
+        LinkedHashMap<String, Object> p = new LinkedHashMap<>();
+        for (var e : patch.entrySet()) p.put(e.getKey(), deepCopy(e.getValue()));
+        return new LootStack(item, count, p);
+    }
+
     public String item() { return item; }
 
     public boolean is(String other) { return item.equals(other); }

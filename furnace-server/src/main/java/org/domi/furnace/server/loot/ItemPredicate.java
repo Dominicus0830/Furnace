@@ -75,10 +75,24 @@ public record ItemPredicate(HolderSet items, Bounds count, Map<String, Object> c
         };
     }
 
+    /** 바닐라 DataComponentPredicate: 아이템의 값과 술어 값을 그 컴포넌트의 코덱으로 읽은 값끼리 equals. */
+    private static boolean sameComponent(String type, Object actual, Object expected) {
+        if (actual == null || expected == null) return actual == expected;
+        var t = org.domi.furnace.server.item.DataComponents.byName(type);
+        if (t != null && !t.isTransient()) {
+            try {
+                return t.same(t.normalize(actual), t.normalize(expected));
+            } catch (org.domi.furnace.server.item.CodecException e) {
+                // 아래 구조 비교로
+            }
+        }
+        return Components.same(actual, expected);
+    }
+
     public boolean test(LootStack s, LootRegistries regs) {
         if (items != null && !items.contains(s.item(), regs)) return false;
         if (!count.matches(s.count())) return false;
-        for (var c : components.entrySet()) if (!Components.same(s.get(LootJson.id(c.getKey())), c.getValue())) return false;
+        for (var c : components.entrySet()) if (!sameComponent(LootJson.id(c.getKey()), s.get(LootJson.id(c.getKey())), c.getValue())) return false;
         for (SubPredicate p : predicates) if (!p.test(s, regs)) return false;
         return true;
     }

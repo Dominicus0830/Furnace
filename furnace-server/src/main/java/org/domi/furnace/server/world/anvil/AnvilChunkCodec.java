@@ -169,7 +169,7 @@ public final class AnvilChunkCodec {
                 it.putByte("Slot", in.getByte("Slot"));
                 it.putString("id", name);
                 it.putInt("count", in.getInt("Count"));
-                if (in.contains("Comp")) it.putByteArray(FURNACE_COMPONENTS, in.getByteArray("Comp"));
+                if (in.contains(org.domi.furnace.server.item.ItemNbt.KEY)) it.put(org.domi.furnace.server.item.ItemNbt.KEY, in.tags().get(org.domi.furnace.server.item.ItemNbt.KEY));
                 out.add(it);
             }
             e.putList("Items", out);
@@ -302,7 +302,7 @@ public final class AnvilChunkCodec {
         return col;
     }
 
-    /** 바닐라 1.21 상자: Items[{Slot:byte, id:"minecraft:..", count:int, components?}]. 바닐라 컴포넌트는 아직 변환하지 않는다(손실). */
+    /** 바닐라 1.21 상자: Items[{Slot:byte, id:"minecraft:..", count:int, components?}]. components 는 바닐라 코덱으로 읽는다. */
     private ChestBlockEntity vanillaChestFromNbt(NbtCompound e) {
         int x = e.getInt("x");
         int y = e.getInt("y");
@@ -315,11 +315,13 @@ public final class AnvilChunkCodec {
                     NbtCompound ie = (NbtCompound) io;
                     int slot = ie.getByte("Slot") & 0xFF;
                     if (slot >= stacks.length) continue;
-                    int itemId = items.idOf(ie.getString("id"));
+                    String name = ie.getString("id");
+                    int itemId = items.idOf(name);
                     int count = ie.contains("count") ? ie.getInt("count") : 1;
                     if (itemId <= 0 || count <= 0) continue;
-                    byte[] comp = ie.contains(FURNACE_COMPONENTS) ? ie.getByteArray(FURNACE_COMPONENTS) : null;
-                    stacks[slot] = new ItemStack(itemId, count, comp);
+                    var patch = org.domi.furnace.server.item.ItemNbt.read(ie, name, FURNACE_COMPONENTS);
+                    if (patch == null) continue;
+                    stacks[slot] = new ItemStack(itemId, count, patch);
                 } catch (RuntimeException ex) {
                     // 이상한 항목은 그 슬롯만 건너뛴다
                 }
@@ -344,8 +346,10 @@ public final class AnvilChunkCodec {
                 NbtCompound ie = (NbtCompound) io;
                 int slot = ie.getByte("Slot") & 0xFF;
                 if (slot >= stacks.length) continue;
-                byte[] comp = ie.contains("Comp") ? ie.getByteArray("Comp") : null;
-                stacks[slot] = new ItemStack(ie.getInt("Id"), ie.getInt("Count"), comp);
+                int itemId = ie.getInt("Id");
+                var patch = org.domi.furnace.server.item.ItemNbt.read(ie, items != null ? items.nameOf(itemId) : null, "Comp");
+                if (patch == null) continue;
+                stacks[slot] = new ItemStack(itemId, ie.getInt("Count"), patch);
             }
         }
         return new ChestBlockEntity(x, y, z, stacks);

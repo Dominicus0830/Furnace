@@ -68,7 +68,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         return new ChunkSnapshot(chunkX, chunkZ, base.heightmap, base.worldSurfaceHeightmap, base.sections, chests, save);
     }
 
-    /** §2.1 스키마: Compound{ Items: List<Compound>{Slot,Id,Count,Comp?} }, 빈 체스트면 null(=updateTag 없음). */
+    /** 저장 전 내부 꼴: Compound{ Items: List<Compound>{Slot,Id,Count,components?} }, 빈 체스트면 null(=updateTag 없음). */
     private static NbtCompound chestTag(ItemStack[] items) {
         NbtList list = new NbtList(NbtIo.TAG_COMPOUND);
         for (int i = 0; i < items.length; i++) {
@@ -78,7 +78,8 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
             entry.putByte("Slot", (byte) i);
             entry.putInt("Id", s.itemId());
             entry.putInt("Count", s.count());
-            if (s.components() != null) entry.putByteArray("Comp", s.components());
+            NbtCompound components = org.domi.furnace.server.item.ItemNbt.write(s.patch());
+            if (components != null) entry.putCompound(org.domi.furnace.server.item.ItemNbt.KEY, components);
             list.add(entry);
         }
         if (list.size() == 0) return null;
