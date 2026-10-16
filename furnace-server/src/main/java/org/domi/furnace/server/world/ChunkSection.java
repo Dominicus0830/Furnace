@@ -4,6 +4,10 @@ package org.domi.furnace.server.world;
 public final class ChunkSection {
 
     public static final int AIR = 0;
+    /** 1.21.1 의 공기 상태(air·void_air·cave_air) — 바닐라 nonEmptyBlockCount 는 isAir 가 아닌 칸만 센다. */
+    private static final int VOID_AIR = 12958, CAVE_AIR = 12959;
+
+    public static boolean isAir(int stateId) { return stateId == AIR || stateId == VOID_AIR || stateId == CAVE_AIR; }
     private static final int DEFAULT_DIRECT_BITS = 15;
     private static final int DEFAULT_BIOME_DIRECT_BITS = 7;
 
@@ -44,8 +48,9 @@ public final class ChunkSection {
     public void setBlock(int x, int y, int z, int stateId) {
         int idx = blockIndex(x, y, z);
         int old = scratch != null ? scratch[idx] : blocks.get(idx);
-        if (old == AIR && stateId != AIR) nonAirCount++;
-        else if (old != AIR && stateId == AIR) nonAirCount--;
+        boolean wasAir = isAir(old), nowAir = isAir(stateId);
+        if (wasAir && !nowAir) nonAirCount++;
+        else if (!wasAir && nowAir) nonAirCount--;
         if (scratch != null) scratch[idx] = stateId;
         else blocks.set(idx, stateId);
     }
@@ -74,13 +79,15 @@ public final class ChunkSection {
             blocks.load(source, sourceOffset);
         }
         int count = 0;
-        for (int i = 0; i < 4096; i++) if (source[sourceOffset + i] != AIR) count++;
+        for (int i = 0; i < 4096; i++) if (!isAir(source[sourceOffset + i])) count++;
         nonAirCount = (short) count;
     }
 
     public void replaceBiomes(int[] source, int sourceOffset) {
         biomes.load(source, sourceOffset);
     }
+
+    public boolean hasOnlyAir() { return nonAirCount == 0; }
 
     public short nonAirCount() {
         return nonAirCount;

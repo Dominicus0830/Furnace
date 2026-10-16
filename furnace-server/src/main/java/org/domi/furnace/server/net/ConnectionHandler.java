@@ -909,19 +909,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 new org.domi.furnace.server.advancement.Criterion.InventoryEvent(inv, lootStack(slots[windowSlot])));
     }
 
-    /** 바닐라 BlockItem.place → placed_block(놓은 자리), ServerPlayerGameMode.useItemOn → item_used_on_block(클릭한 자리). */
-    private void fireBlockUseTriggers(Player actor, int px, int py, int pz, int placedState, int[] clicked, int clickedState, ItemStack held) {
-        var adv = actor.advancements();
-        org.domi.furnace.server.ServerCore core = login.core;
-        if (adv == null || core == null || core.dataPacks() == null || core.dataPacks().loot() == null) return;
-        var blocks = world.blockRegistry();
-        var tool = lootStack(held);
-        adv.trigger("minecraft:placed_block", new org.domi.furnace.server.advancement.Criterion.LocationEvent(
-                core.locationContext(actor, px, py, pz, blocks.canonicalKeyOf(placedState), tool)));
-        adv.trigger("minecraft:item_used_on_block", new org.domi.furnace.server.advancement.Criterion.LocationEvent(
-                core.locationContext(actor, clicked[0], clicked[1], clicked[2], blocks.canonicalKeyOf(clickedState), tool)));
-    }
-
     /** 플레이어 인벤토리 메뉴의 상태 번호(바닐라 AbstractContainerMenu.incrementStateId — 전체 동기화마다 1 증가, 15비트). */
     private int inventoryStateId;
 
@@ -1105,7 +1092,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
                 if (actor != null && (status == 0 || status == 2)) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
-                else if (actor != null) actor.send(new BlockChangedAck(seq)); // 블록 변경 없음 — ack만(예측 정리)
+                else if (actor != null && status == 1) ackLater(actor, bp[0], bp[2], seq);   // 파괴 취소 — ack 만(바닐라도 파괴 동작 셋만 ack)
             }
             case 0x28 -> { // recipe_book_change_settings: 책 종류, 열림, 필터
                 int type = Types.readVarInt(frame);
@@ -1157,88 +1144,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int hand = Types.readVarInt(frame);
                 int[] bp = Types.readBlockPos(frame);
                 int face = Types.readVarInt(frame);
-                frame.readFloat(); frame.readFloat(); frame.readFloat(); // cursor X/Y/Z
-                frame.readBoolean(); // insideBlock
-                int seq = Types.readVarInt(frame); // 예측 sequence
-                Player actor = player;
-                int[] o0 = Region.placeOffset(face);
-                if (!blockRequestAllowed(bp[0], bp[1], bp[2])) {
-                    // 클릭 지점이 범위/도달 거리 밖 — 클라가 예측으로 놓았을 설치 위치를 되돌리고 ack.
-                    rejectBlockRequest(actor, seq, bp[0] + o0[0], bp[1] + o0[1], bp[2] + o0[2]);
+                float cx = frame.readFloat(), cy = frame.readFloat(), cz = frame.readFloat();
+                boolean inside = frame.readBoolean();
+                int seq = Types.readVarInt(frame);
+                if (hand < 0 || hand > 1 || face < 0 || face > 5) {
+                    protocolError(ctx, "Use Item On", new IllegalArgumentException("bad enum"));
                     break;
                 }
-                // 클릭 블록 조회는 region 스레드서만(소유권) — 조회 후 netty로 복귀해 배치 여부 판단(§3.2).
-                RegionPos clickedRp = RegionGrid.regionPos(bp[0], bp[2], world.regionSize());
-                world.runOn(clickedRp, () -> {
-                    Region clickedRegion = world.regionAt(clickedRp);
-                    if (!clickedRegion.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2]))) { // 미로드 청크는 생성하지 않는다
-                        actor.send(new BlockChangedAck(seq));
-                        return;
-                    }
-                    int clickedState = clickedRegion.getBlock(bp[0], bp[1], bp[2]);
-                    boolean isChest = "minecraft:chest".equals(world.blockRegistry().nameOf(clickedState));
-                    ctx.channel().eventLoop().execute(() -> {
-                        int[] o1 = Region.placeOffset(face);
-                        org.domi.furnace.server.ServerCore core = login.core;
-                        if (core != null && !core.mayInteract(actor, bp[0], bp[2])) {
-                            // 바닐라 handleUseItemOn: 스폰 보호·보더 밖이면 상호작용하지 않고 클릭·설치 자리 블록을 되돌린다.
-                            rejectBlockRequest(actor, seq, bp[0] + o1[0], bp[1] + o1[1], bp[2] + o1[2]);
-                            return;
-                        }
-                        if (isChest) { // 배치 대신 열기(§3.2) — 더블체스트·방향 무관, 싱글체스트만
-                            openChest(bp[0], bp[1], bp[2]);
-                            actor.send(new BlockChangedAck(seq));
-                            return;
-                        }
-                        if (!actor.vitals().mayBuild()) {   // 모험·관전: 블록을 놓을 수 없다(can_place_on 미지원)
-                            rejectBlockRequest(actor, seq, bp[0] + o1[0], bp[1] + o1[1], bp[2] + o1[2]);
-                            return;
-                        }
-                        final int heldSlot = 36 + selectedSlot;
-                        ItemStack held = hand == 0 ? slots[heldSlot] : ItemStack.EMPTY;
-                        int stateId = held.isEmpty() ? 0 : world.itemToBlockState(held.itemId());
-                        if (stateId == 0) { // 오프핸드 / 비블록 아이템 — 변경 없음, ack만(클라 예측 정리)
-                            actor.send(new BlockChangedAck(seq));
-                            return;
-                        }
-                        int[] o = Region.placeOffset(face);
-                        int px = bp[0] + o[0], py = bp[1] + o[1], pz = bp[2] + o[2];
-                        if (py < ChunkColumn.MIN_Y || py > ChunkColumn.MAX_Y) { // 월드 높이 밖(예: 최상단 블록 위에 설치)
-                            actor.send(new BlockChangedAck(seq));
-                            return;
-                        }
-                        RegionPos rp = RegionGrid.regionPos(px, pz, world.regionSize());
-                        world.runOn(rp, () -> {
-                            Region region = world.regionAt(rp);
-                            // 설치 대상이 미로드 청크(시야 가장자리 너머)면 생성하지 않고 거부한다.
-                            boolean allowed = true;
-                            org.domi.furnace.server.ServerCore pcore = login.core;
-                            if (pcore != null && region.chunkLoaded(ChunkPos.ofBlock(px, pz))
-                                    && pcore.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) {
-                                var ev = pcore.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent("minecraft:overworld",
-                                        new org.domi.furnace.api.world.BlockPos(px, py, pz), world.blockRegistry().nameOf(stateId),
-                                        new org.domi.furnace.api.world.BlockPos(bp[0], bp[1], bp[2]), pcore.plugins().player(actor)));
-                                if (ev.isCancelled()) {
-                                    allowed = false;
-                                    region.resendBlock(actor, px, py, pz);
-                                }
-                            }
-                            boolean placed = allowed && region.chunkLoaded(ChunkPos.ofBlock(px, pz)) && region.placeBlock(px, py, pz, stateId);
-                            actor.send(new BlockChangedAck(seq)); // 설치(또는 충돌거부) 후 ack → 거부 시 고스트 reverts
-                            if (placed) fireBlockUseTriggers(actor, px, py, pz, stateId, bp, clickedState, held);
-                            if (placed && !actor.vitals().instabuild()) {
-                                // 서바이벌: 놓은 블록 아이템 하나를 쓴다(바닐라 BlockItem.place → stack.consume).
-                                ctx.channel().eventLoop().execute(() -> {
-                                    ItemStack cur = slots[heldSlot];
-                                    if (cur != null && !cur.isEmpty() && cur.itemId() == held.itemId()) {
-                                        slots[heldSlot] = cur.count() <= 1 ? ItemStack.EMPTY : cur.withCount(cur.count() - 1);
-                                        fireInventoryChanged(heldSlot);
-                                    }
-                                });
-                            }
-                        });
-                    });
-                });
+                if (seq < 0) {   // 바닐라 ackBlockChangesUpTo: 음수면 예외 → 연결 종료
+                    protocolError(ctx, "Use Item On", new IllegalArgumentException("Expected packet sequence nr >= 0"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) handleUseItemOn(ctx, actor, hand, bp, face, cx, cy, cz, inside, seq);
             }
             case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
                 int containerId = Types.readVarInt(frame);
@@ -1334,13 +1252,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         boolean creative = mode == org.domi.furnace.server.world.GameMode.CREATIVE;
-        if (creative && status != 0) {
-            actor.send(new BlockChangedAck(seq));
-            return;
-        }
         RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
         world.runOn(br, () -> {
             Region region = world.regionAt(br);
+            region.level().ackBlockChangesUpTo(actor, seq);   // 바닐라: 틱 끝(변경 방송 뒤)에 ack
+            if (creative && status != 0) return;
             // 이미 로드된 청크만 수정 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
             if (region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) {
                 boolean destroy;
@@ -1362,11 +1278,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                 }
                 if (destroy) {
-                    region.breakBlock(bx, by, bz);
+                    region.breakBlock(actor, bx, by, bz);
                     if (!creative) actor.vitals().causeFoodExhaustion(0.005f);   // Block.playerDestroy
                 }
             }
-            actor.send(new BlockChangedAck(seq)); // block_update 다음에 ack → 클라 예측 reconcile
         });
     }
 
@@ -1568,17 +1483,127 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return dx * dx + dy * dy + dz * dz <= REACH_SQ;
     }
 
+    /**
+     * 바닐라 ServerGamePacketListenerImpl.handleUseItemOn. 클릭한 칸의 region 스레드에서 거리·위치 검사 → useItemOn →
+     * 클릭 칸과 면 너머 칸의 블록 갱신을 바로 보내고, ack 는 그 region 의 틱 끝(변경 방송 뒤)에 보낸다.
+     * 손의 스택은 지금(연결 스레드) 잡은 사본으로 쓰고, 바뀐 손은 돌아와서 그 칸이 그대로일 때만 반영한다.
+     */
+    private void handleUseItemOn(ChannelHandlerContext ctx, Player actor, int hand, int[] bp, int face,
+                                 float cx, float cy, float cz, boolean inside, int seq) {
+        final int heldSlot = 36 + selectedSlot;
+        final int handSlot = hand == 0 ? heldSlot : 45;
+        final ItemStack main = slots[heldSlot], off = slots[45];
+        final ItemStack before = hand == 0 ? main : off;
+        org.domi.furnace.server.ServerCore core = login.core;
+        int permission = core == null ? 0 : core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
+        var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
+        var hit = new org.domi.furnace.server.block.Hit(pos, face, bp[0] + (double) cx, bp[1] + (double) cy, bp[2] + (double) cz, inside);
+        RegionPos rp = RegionGrid.regionPos(bp[0], bp[2], world.regionSize());
+        world.runOn(rp, () -> {
+            Region region = world.regionAt(rp);
+            var level = region.level();
+            level.ackBlockChangesUpTo(actor, seq);
+            var pa = new org.domi.furnace.server.block.PlayerActor(actor, main, off, permission) {
+                @Override
+                public void trigger(String criterion, org.domi.furnace.server.block.Pos p, ItemStack stack) {
+                    fireBlockTrigger(actor, criterion, p.x(), p.y(), p.z(), level.getBlockState(p), stack);
+                }
+
+                @Override
+                public void openChest(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openChest(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public boolean allowPlace(org.domi.furnace.server.block.Pos p, int state, org.domi.furnace.server.block.Pos against) {
+                    org.domi.furnace.server.ServerCore pc = login.core;
+                    if (pc == null || !pc.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
+                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent("minecraft:overworld",
+                            new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
+                            new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
+                    return !ev.isCancelled();
+                }
+            };
+            if (!pa.canInteractWithBlock(pos, 1.0)) return;   // 바닐라: 조용히 무시(패킷 없음, ack 만)
+            double dx = hit.x() - (bp[0] + 0.5), dy = hit.y() - (bp[1] + 0.5), dz = hit.z() - (bp[2] + 0.5);
+            if (!(Math.abs(dx) < 1.0000001 && Math.abs(dy) < 1.0000001 && Math.abs(dz) < 1.0000001)) {
+                log.warn("Rejecting UseItemOnPacket from {}: Location ({}, {}, {}) too far away from hit block {}.",
+                        actor.name(), hit.x(), hit.y(), hit.z(), pos.toShortString());
+                return;
+            }
+            int maxY = level.maxBuildHeight();
+            if (bp[1] < maxY) {
+                org.domi.furnace.server.ServerCore c = login.core;
+                if (c == null || c.mayInteract(actor, bp[0], bp[2])) {
+                    var r = org.domi.furnace.server.block.BlockPlacement.useItemOn(level, pa, hand, hit);
+                    if (r.consumesAction()) pa.trigger("minecraft:any_block_use", pos, before);
+                    if (face == org.domi.furnace.server.block.Dir.UP && !r.consumesAction() && bp[1] >= maxY - 1
+                            && org.domi.furnace.server.block.BlockPlacement.wasBlockPlacementAttempt(pa, before)) {
+                        actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);
+                    }
+                    // shouldSwing 이면 바닐라는 다른 플레이어에게 팔 휘두르기를 보낸다 — 서버 쪽 설치는 CONSUME 이라 해당 없음
+                }
+            } else {
+                actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);
+            }
+            sendBlockState(actor, region, pos);
+            sendBlockState(actor, region, pos.relative(face));
+            for (int h = 0; h < 2; h++) {
+                if (!pa.handChanged(h)) continue;
+                int slot = h == 0 ? heldSlot : 45;
+                ItemStack expect = h == 0 ? main : off, now = pa.itemInHand(h);
+                ctx.channel().eventLoop().execute(() -> {
+                    if (slots[slot] != expect) return;   // 그 사이 인벤토리가 바뀌었으면 손대지 않는다
+                    slots[slot] = now;
+                    fireInventoryChanged(slot);
+                });
+            }
+        });
+    }
+
+    /** 그 칸의 지금 상태를 행위자에게(ClientboundBlockUpdatePacket(level, pos)). 다른 region 의 칸은 그 region 에서 읽어 보낸다. */
+    private void sendBlockState(Player actor, Region here, org.domi.furnace.server.block.Pos p) {
+        if (p.y() < ChunkColumn.MIN_Y || p.y() > ChunkColumn.MAX_Y) {
+            actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
+            return;
+        }
+        RegionPos rp = RegionGrid.regionPos(p.x(), p.z(), world.regionSize());
+        if (rp.equals(here.pos())) {
+            if (here.level().hasChunkAt(p)) {
+                actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
+            }
+            return;
+        }
+        world.runOn(rp, () -> world.regionAt(rp).resendBlock(actor, p.x(), p.y(), p.z()));
+    }
+
+    /** 위치 기준 발전 과제(placed_block·item_used_on_block·default_block_use·any_block_use). */
+    private void fireBlockTrigger(Player actor, String criterion, int x, int y, int z, int state, ItemStack stack) {
+        var adv = actor.advancements();
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (adv == null || core == null || core.dataPacks() == null || core.dataPacks().loot() == null) return;
+        adv.trigger(criterion, new org.domi.furnace.server.advancement.Criterion.LocationEvent(
+                core.locationContext(actor, x, y, z, world.blockRegistry().canonicalKeyOf(state), lootStack(stack))));
+    }
+
     /** 거부한 블록 요청 — 클라 예측이 어긋나지 않게 (로드된 청크면) 실제 블록 상태를 되돌려 보내고 ack. */
     private void rejectBlockRequest(Player actor, int seq, int bx, int by, int bz) {
         if (by < ChunkColumn.MIN_Y || by > ChunkColumn.MAX_Y) {
-            actor.send(new BlockChangedAck(seq));
+            ackLater(actor, bx, bz, seq);
             return;
         }
         RegionPos rp = RegionGrid.regionPos(bx, bz, world.regionSize());
         world.runOn(rp, () -> {
             world.regionAt(rp).resendBlock(actor, bx, by, bz);
-            actor.send(new BlockChangedAck(seq));
+            world.regionAt(rp).level().ackBlockChangesUpTo(actor, seq);
         });
+    }
+
+    /** 블록 요청 ack 를 그 칸 region 의 틱 끝으로(바닐라: 연결 틱 첫머리 — 그 틱의 블록 변경 방송 뒤). */
+    private void ackLater(Player actor, int bx, int bz, int seq) {
+        if (seq < 0) return;
+        RegionPos rp = RegionGrid.regionPos(bx, bz, world.regionSize());
+        world.runOn(rp, () -> world.regionAt(rp).level().ackBlockChangesUpTo(actor, seq));
     }
 
     @Override

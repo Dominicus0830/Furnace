@@ -484,7 +484,10 @@ class ConnectionInputTest {
             RegionPos rp = RegionGrid.regionPos(b[0], b[2], 16);
             assertFalse(loaded(world, rp, b[0], b[2]), "거부된 요청이 청크를 생성했다: " + java.util.Arrays.toString(b));
         }
-        assertEquals(2 * all.length, count(drainOutbound(), BlockChangedAck.ID), "거부해도 예측 정리용 ack는 보내야 한다");
+        // 바닐라: ack 는 틱 끝에 한 번(그 틱에 받은 가장 큰 sequence) — 요청마다가 아니다. region 을 한 틱 돌려 내보낸다.
+        sched.region(new RegionPos(0, 0)).execute(() -> world.tickThread(0)).get();
+        for (int i = 0; i < 5; i++) { ch.runPendingTasks(); Thread.sleep(10); }
+        assertTrue(count(drainOutbound(), BlockChangedAck.ID) >= 1, "거부해도 예측 정리용 ack는 보내야 한다");
     }
 
     @Test

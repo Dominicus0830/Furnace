@@ -710,7 +710,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
                 int ws = minY, of = minY;
                 for (int y = maxY; y >= minY; y--) {
                     int state = ids[(y - dimension.minY) * 256 + column];
-                    if (ws == minY && state != ChunkSection.AIR) ws = y + 1;
+                    if (ws == minY && !ChunkSection.isAir(state)) ws = y + 1;
                     if (isSolid(state)) { of = y + 1; break; }
                 }
                 heights[column] = ws - 1;

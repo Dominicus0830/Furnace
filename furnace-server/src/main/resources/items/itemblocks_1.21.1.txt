@@ -1,0 +1,1986 @@
+# 자동 생성: tools/vanilla-data/ExportItemBlocks.java. I <아이템> <종류> <블록> [<벽 블록> <부착 방향>] / B <블록> <asItem>
+I minecraft:stone block minecraft:stone
+I minecraft:granite block minecraft:granite
+I minecraft:polished_granite block minecraft:polished_granite
+I minecraft:diorite block minecraft:diorite
+I minecraft:polished_diorite block minecraft:polished_diorite
+I minecraft:andesite block minecraft:andesite
+I minecraft:polished_andesite block minecraft:polished_andesite
+I minecraft:deepslate block minecraft:deepslate
+I minecraft:cobbled_deepslate block minecraft:cobbled_deepslate
+I minecraft:polished_deepslate block minecraft:polished_deepslate
+I minecraft:calcite block minecraft:calcite
+I minecraft:tuff block minecraft:tuff
+I minecraft:tuff_slab block minecraft:tuff_slab
+I minecraft:tuff_stairs block minecraft:tuff_stairs
+I minecraft:tuff_wall block minecraft:tuff_wall
+I minecraft:chiseled_tuff block minecraft:chiseled_tuff
+I minecraft:polished_tuff block minecraft:polished_tuff
+I minecraft:polished_tuff_slab block minecraft:polished_tuff_slab
+I minecraft:polished_tuff_stairs block minecraft:polished_tuff_stairs
+I minecraft:polished_tuff_wall block minecraft:polished_tuff_wall
+I minecraft:tuff_bricks block minecraft:tuff_bricks
+I minecraft:tuff_brick_slab block minecraft:tuff_brick_slab
+I minecraft:tuff_brick_stairs block minecraft:tuff_brick_stairs
+I minecraft:tuff_brick_wall block minecraft:tuff_brick_wall
+I minecraft:chiseled_tuff_bricks block minecraft:chiseled_tuff_bricks
+I minecraft:dripstone_block block minecraft:dripstone_block
+I minecraft:grass_block block minecraft:grass_block
+I minecraft:dirt block minecraft:dirt
+I minecraft:coarse_dirt block minecraft:coarse_dirt
+I minecraft:podzol block minecraft:podzol
+I minecraft:rooted_dirt block minecraft:rooted_dirt
+I minecraft:mud block minecraft:mud
+I minecraft:crimson_nylium block minecraft:crimson_nylium
+I minecraft:warped_nylium block minecraft:warped_nylium
+I minecraft:cobblestone block minecraft:cobblestone
+I minecraft:oak_planks block minecraft:oak_planks
+I minecraft:spruce_planks block minecraft:spruce_planks
+I minecraft:birch_planks block minecraft:birch_planks
+I minecraft:jungle_planks block minecraft:jungle_planks
+I minecraft:acacia_planks block minecraft:acacia_planks
+I minecraft:cherry_planks block minecraft:cherry_planks
+I minecraft:dark_oak_planks block minecraft:dark_oak_planks
+I minecraft:mangrove_planks block minecraft:mangrove_planks
+I minecraft:bamboo_planks block minecraft:bamboo_planks
+I minecraft:crimson_planks block minecraft:crimson_planks
+I minecraft:warped_planks block minecraft:warped_planks
+I minecraft:bamboo_mosaic block minecraft:bamboo_mosaic
+I minecraft:oak_sapling block minecraft:oak_sapling
+I minecraft:spruce_sapling block minecraft:spruce_sapling
+I minecraft:birch_sapling block minecraft:birch_sapling
+I minecraft:jungle_sapling block minecraft:jungle_sapling
+I minecraft:acacia_sapling block minecraft:acacia_sapling
+I minecraft:cherry_sapling block minecraft:cherry_sapling
+I minecraft:dark_oak_sapling block minecraft:dark_oak_sapling
+I minecraft:mangrove_propagule block minecraft:mangrove_propagule
+I minecraft:bedrock block minecraft:bedrock
+I minecraft:sand block minecraft:sand
+I minecraft:suspicious_sand block minecraft:suspicious_sand
+I minecraft:suspicious_gravel block minecraft:suspicious_gravel
+I minecraft:red_sand block minecraft:red_sand
+I minecraft:gravel block minecraft:gravel
+I minecraft:coal_ore block minecraft:coal_ore
+I minecraft:deepslate_coal_ore block minecraft:deepslate_coal_ore
+I minecraft:iron_ore block minecraft:iron_ore
+I minecraft:deepslate_iron_ore block minecraft:deepslate_iron_ore
+I minecraft:copper_ore block minecraft:copper_ore
+I minecraft:deepslate_copper_ore block minecraft:deepslate_copper_ore
+I minecraft:gold_ore block minecraft:gold_ore
+I minecraft:deepslate_gold_ore block minecraft:deepslate_gold_ore
+I minecraft:redstone_ore block minecraft:redstone_ore
+I minecraft:deepslate_redstone_ore block minecraft:deepslate_redstone_ore
+I minecraft:emerald_ore block minecraft:emerald_ore
+I minecraft:deepslate_emerald_ore block minecraft:deepslate_emerald_ore
+I minecraft:lapis_ore block minecraft:lapis_ore
+I minecraft:deepslate_lapis_ore block minecraft:deepslate_lapis_ore
+I minecraft:diamond_ore block minecraft:diamond_ore
+I minecraft:deepslate_diamond_ore block minecraft:deepslate_diamond_ore
+I minecraft:nether_gold_ore block minecraft:nether_gold_ore
+I minecraft:nether_quartz_ore block minecraft:nether_quartz_ore
+I minecraft:ancient_debris block minecraft:ancient_debris
+I minecraft:coal_block block minecraft:coal_block
+I minecraft:raw_iron_block block minecraft:raw_iron_block
+I minecraft:raw_copper_block block minecraft:raw_copper_block
+I minecraft:raw_gold_block block minecraft:raw_gold_block
+I minecraft:heavy_core block minecraft:heavy_core
+I minecraft:amethyst_block block minecraft:amethyst_block
+I minecraft:budding_amethyst block minecraft:budding_amethyst
+I minecraft:iron_block block minecraft:iron_block
+I minecraft:copper_block block minecraft:copper_block
+I minecraft:gold_block block minecraft:gold_block
+I minecraft:diamond_block block minecraft:diamond_block
+I minecraft:netherite_block block minecraft:netherite_block
+I minecraft:exposed_copper block minecraft:exposed_copper
+I minecraft:weathered_copper block minecraft:weathered_copper
+I minecraft:oxidized_copper block minecraft:oxidized_copper
+I minecraft:chiseled_copper block minecraft:chiseled_copper
+I minecraft:exposed_chiseled_copper block minecraft:exposed_chiseled_copper
+I minecraft:weathered_chiseled_copper block minecraft:weathered_chiseled_copper
+I minecraft:oxidized_chiseled_copper block minecraft:oxidized_chiseled_copper
+I minecraft:cut_copper block minecraft:cut_copper
+I minecraft:exposed_cut_copper block minecraft:exposed_cut_copper
+I minecraft:weathered_cut_copper block minecraft:weathered_cut_copper
+I minecraft:oxidized_cut_copper block minecraft:oxidized_cut_copper
+I minecraft:cut_copper_stairs block minecraft:cut_copper_stairs
+I minecraft:exposed_cut_copper_stairs block minecraft:exposed_cut_copper_stairs
+I minecraft:weathered_cut_copper_stairs block minecraft:weathered_cut_copper_stairs
+I minecraft:oxidized_cut_copper_stairs block minecraft:oxidized_cut_copper_stairs
+I minecraft:cut_copper_slab block minecraft:cut_copper_slab
+I minecraft:exposed_cut_copper_slab block minecraft:exposed_cut_copper_slab
+I minecraft:weathered_cut_copper_slab block minecraft:weathered_cut_copper_slab
+I minecraft:oxidized_cut_copper_slab block minecraft:oxidized_cut_copper_slab
+I minecraft:waxed_copper_block block minecraft:waxed_copper_block
+I minecraft:waxed_exposed_copper block minecraft:waxed_exposed_copper
+I minecraft:waxed_weathered_copper block minecraft:waxed_weathered_copper
+I minecraft:waxed_oxidized_copper block minecraft:waxed_oxidized_copper
+I minecraft:waxed_chiseled_copper block minecraft:waxed_chiseled_copper
+I minecraft:waxed_exposed_chiseled_copper block minecraft:waxed_exposed_chiseled_copper
+I minecraft:waxed_weathered_chiseled_copper block minecraft:waxed_weathered_chiseled_copper
+I minecraft:waxed_oxidized_chiseled_copper block minecraft:waxed_oxidized_chiseled_copper
+I minecraft:waxed_cut_copper block minecraft:waxed_cut_copper
+I minecraft:waxed_exposed_cut_copper block minecraft:waxed_exposed_cut_copper
+I minecraft:waxed_weathered_cut_copper block minecraft:waxed_weathered_cut_copper
+I minecraft:waxed_oxidized_cut_copper block minecraft:waxed_oxidized_cut_copper
+I minecraft:waxed_cut_copper_stairs block minecraft:waxed_cut_copper_stairs
+I minecraft:waxed_exposed_cut_copper_stairs block minecraft:waxed_exposed_cut_copper_stairs
+I minecraft:waxed_weathered_cut_copper_stairs block minecraft:waxed_weathered_cut_copper_stairs
+I minecraft:waxed_oxidized_cut_copper_stairs block minecraft:waxed_oxidized_cut_copper_stairs
+I minecraft:waxed_cut_copper_slab block minecraft:waxed_cut_copper_slab
+I minecraft:waxed_exposed_cut_copper_slab block minecraft:waxed_exposed_cut_copper_slab
+I minecraft:waxed_weathered_cut_copper_slab block minecraft:waxed_weathered_cut_copper_slab
+I minecraft:waxed_oxidized_cut_copper_slab block minecraft:waxed_oxidized_cut_copper_slab
+I minecraft:oak_log block minecraft:oak_log
+I minecraft:spruce_log block minecraft:spruce_log
+I minecraft:birch_log block minecraft:birch_log
+I minecraft:jungle_log block minecraft:jungle_log
+I minecraft:acacia_log block minecraft:acacia_log
+I minecraft:cherry_log block minecraft:cherry_log
+I minecraft:dark_oak_log block minecraft:dark_oak_log
+I minecraft:mangrove_log block minecraft:mangrove_log
+I minecraft:mangrove_roots block minecraft:mangrove_roots
+I minecraft:muddy_mangrove_roots block minecraft:muddy_mangrove_roots
+I minecraft:crimson_stem block minecraft:crimson_stem
+I minecraft:warped_stem block minecraft:warped_stem
+I minecraft:bamboo_block block minecraft:bamboo_block
+I minecraft:stripped_oak_log block minecraft:stripped_oak_log
+I minecraft:stripped_spruce_log block minecraft:stripped_spruce_log
+I minecraft:stripped_birch_log block minecraft:stripped_birch_log
+I minecraft:stripped_jungle_log block minecraft:stripped_jungle_log
+I minecraft:stripped_acacia_log block minecraft:stripped_acacia_log
+I minecraft:stripped_cherry_log block minecraft:stripped_cherry_log
+I minecraft:stripped_dark_oak_log block minecraft:stripped_dark_oak_log
+I minecraft:stripped_mangrove_log block minecraft:stripped_mangrove_log
+I minecraft:stripped_crimson_stem block minecraft:stripped_crimson_stem
+I minecraft:stripped_warped_stem block minecraft:stripped_warped_stem
+I minecraft:stripped_oak_wood block minecraft:stripped_oak_wood
+I minecraft:stripped_spruce_wood block minecraft:stripped_spruce_wood
+I minecraft:stripped_birch_wood block minecraft:stripped_birch_wood
+I minecraft:stripped_jungle_wood block minecraft:stripped_jungle_wood
+I minecraft:stripped_acacia_wood block minecraft:stripped_acacia_wood
+I minecraft:stripped_cherry_wood block minecraft:stripped_cherry_wood
+I minecraft:stripped_dark_oak_wood block minecraft:stripped_dark_oak_wood
+I minecraft:stripped_mangrove_wood block minecraft:stripped_mangrove_wood
+I minecraft:stripped_crimson_hyphae block minecraft:stripped_crimson_hyphae
+I minecraft:stripped_warped_hyphae block minecraft:stripped_warped_hyphae
+I minecraft:stripped_bamboo_block block minecraft:stripped_bamboo_block
+I minecraft:oak_wood block minecraft:oak_wood
+I minecraft:spruce_wood block minecraft:spruce_wood
+I minecraft:birch_wood block minecraft:birch_wood
+I minecraft:jungle_wood block minecraft:jungle_wood
+I minecraft:acacia_wood block minecraft:acacia_wood
+I minecraft:cherry_wood block minecraft:cherry_wood
+I minecraft:dark_oak_wood block minecraft:dark_oak_wood
+I minecraft:mangrove_wood block minecraft:mangrove_wood
+I minecraft:crimson_hyphae block minecraft:crimson_hyphae
+I minecraft:warped_hyphae block minecraft:warped_hyphae
+I minecraft:oak_leaves block minecraft:oak_leaves
+I minecraft:spruce_leaves block minecraft:spruce_leaves
+I minecraft:birch_leaves block minecraft:birch_leaves
+I minecraft:jungle_leaves block minecraft:jungle_leaves
+I minecraft:acacia_leaves block minecraft:acacia_leaves
+I minecraft:cherry_leaves block minecraft:cherry_leaves
+I minecraft:dark_oak_leaves block minecraft:dark_oak_leaves
+I minecraft:mangrove_leaves block minecraft:mangrove_leaves
+I minecraft:azalea_leaves block minecraft:azalea_leaves
+I minecraft:flowering_azalea_leaves block minecraft:flowering_azalea_leaves
+I minecraft:sponge block minecraft:sponge
+I minecraft:wet_sponge block minecraft:wet_sponge
+I minecraft:glass block minecraft:glass
+I minecraft:tinted_glass block minecraft:tinted_glass
+I minecraft:lapis_block block minecraft:lapis_block
+I minecraft:sandstone block minecraft:sandstone
+I minecraft:chiseled_sandstone block minecraft:chiseled_sandstone
+I minecraft:cut_sandstone block minecraft:cut_sandstone
+I minecraft:cobweb block minecraft:cobweb
+I minecraft:short_grass block minecraft:short_grass
+I minecraft:fern block minecraft:fern
+I minecraft:azalea block minecraft:azalea
+I minecraft:flowering_azalea block minecraft:flowering_azalea
+I minecraft:dead_bush block minecraft:dead_bush
+I minecraft:seagrass block minecraft:seagrass
+I minecraft:sea_pickle block minecraft:sea_pickle
+I minecraft:white_wool block minecraft:white_wool
+I minecraft:orange_wool block minecraft:orange_wool
+I minecraft:magenta_wool block minecraft:magenta_wool
+I minecraft:light_blue_wool block minecraft:light_blue_wool
+I minecraft:yellow_wool block minecraft:yellow_wool
+I minecraft:lime_wool block minecraft:lime_wool
+I minecraft:pink_wool block minecraft:pink_wool
+I minecraft:gray_wool block minecraft:gray_wool
+I minecraft:light_gray_wool block minecraft:light_gray_wool
+I minecraft:cyan_wool block minecraft:cyan_wool
+I minecraft:purple_wool block minecraft:purple_wool
+I minecraft:blue_wool block minecraft:blue_wool
+I minecraft:brown_wool block minecraft:brown_wool
+I minecraft:green_wool block minecraft:green_wool
+I minecraft:red_wool block minecraft:red_wool
+I minecraft:black_wool block minecraft:black_wool
+I minecraft:dandelion block minecraft:dandelion
+I minecraft:poppy block minecraft:poppy
+I minecraft:blue_orchid block minecraft:blue_orchid
+I minecraft:allium block minecraft:allium
+I minecraft:azure_bluet block minecraft:azure_bluet
+I minecraft:red_tulip block minecraft:red_tulip
+I minecraft:orange_tulip block minecraft:orange_tulip
+I minecraft:white_tulip block minecraft:white_tulip
+I minecraft:pink_tulip block minecraft:pink_tulip
+I minecraft:oxeye_daisy block minecraft:oxeye_daisy
+I minecraft:cornflower block minecraft:cornflower
+I minecraft:lily_of_the_valley block minecraft:lily_of_the_valley
+I minecraft:wither_rose block minecraft:wither_rose
+I minecraft:torchflower block minecraft:torchflower
+I minecraft:pitcher_plant block minecraft:pitcher_plant
+I minecraft:spore_blossom block minecraft:spore_blossom
+I minecraft:brown_mushroom block minecraft:brown_mushroom
+I minecraft:red_mushroom block minecraft:red_mushroom
+I minecraft:crimson_fungus block minecraft:crimson_fungus
+I minecraft:warped_fungus block minecraft:warped_fungus
+I minecraft:crimson_roots block minecraft:crimson_roots
+I minecraft:warped_roots block minecraft:warped_roots
+I minecraft:nether_sprouts block minecraft:nether_sprouts
+I minecraft:weeping_vines block minecraft:weeping_vines
+I minecraft:twisting_vines block minecraft:twisting_vines
+I minecraft:sugar_cane block minecraft:sugar_cane
+I minecraft:kelp block minecraft:kelp
+I minecraft:moss_carpet block minecraft:moss_carpet
+I minecraft:pink_petals block minecraft:pink_petals
+I minecraft:moss_block block minecraft:moss_block
+I minecraft:hanging_roots block minecraft:hanging_roots
+I minecraft:big_dripleaf block minecraft:big_dripleaf
+I minecraft:small_dripleaf double_high minecraft:small_dripleaf
+I minecraft:bamboo block minecraft:bamboo
+I minecraft:oak_slab block minecraft:oak_slab
+I minecraft:spruce_slab block minecraft:spruce_slab
+I minecraft:birch_slab block minecraft:birch_slab
+I minecraft:jungle_slab block minecraft:jungle_slab
+I minecraft:acacia_slab block minecraft:acacia_slab
+I minecraft:cherry_slab block minecraft:cherry_slab
+I minecraft:dark_oak_slab block minecraft:dark_oak_slab
+I minecraft:mangrove_slab block minecraft:mangrove_slab
+I minecraft:bamboo_slab block minecraft:bamboo_slab
+I minecraft:bamboo_mosaic_slab block minecraft:bamboo_mosaic_slab
+I minecraft:crimson_slab block minecraft:crimson_slab
+I minecraft:warped_slab block minecraft:warped_slab
+I minecraft:stone_slab block minecraft:stone_slab
+I minecraft:smooth_stone_slab block minecraft:smooth_stone_slab
+I minecraft:sandstone_slab block minecraft:sandstone_slab
+I minecraft:cut_sandstone_slab block minecraft:cut_sandstone_slab
+I minecraft:petrified_oak_slab block minecraft:petrified_oak_slab
+I minecraft:cobblestone_slab block minecraft:cobblestone_slab
+I minecraft:brick_slab block minecraft:brick_slab
+I minecraft:stone_brick_slab block minecraft:stone_brick_slab
+I minecraft:mud_brick_slab block minecraft:mud_brick_slab
+I minecraft:nether_brick_slab block minecraft:nether_brick_slab
+I minecraft:quartz_slab block minecraft:quartz_slab
+I minecraft:red_sandstone_slab block minecraft:red_sandstone_slab
+I minecraft:cut_red_sandstone_slab block minecraft:cut_red_sandstone_slab
+I minecraft:purpur_slab block minecraft:purpur_slab
+I minecraft:prismarine_slab block minecraft:prismarine_slab
+I minecraft:prismarine_brick_slab block minecraft:prismarine_brick_slab
+I minecraft:dark_prismarine_slab block minecraft:dark_prismarine_slab
+I minecraft:smooth_quartz block minecraft:smooth_quartz
+I minecraft:smooth_red_sandstone block minecraft:smooth_red_sandstone
+I minecraft:smooth_sandstone block minecraft:smooth_sandstone
+I minecraft:smooth_stone block minecraft:smooth_stone
+I minecraft:bricks block minecraft:bricks
+I minecraft:bookshelf block minecraft:bookshelf
+I minecraft:chiseled_bookshelf block minecraft:chiseled_bookshelf
+I minecraft:decorated_pot block minecraft:decorated_pot
+I minecraft:mossy_cobblestone block minecraft:mossy_cobblestone
+I minecraft:obsidian block minecraft:obsidian
+I minecraft:torch standing_and_wall minecraft:torch minecraft:wall_torch down
+I minecraft:end_rod block minecraft:end_rod
+I minecraft:chorus_plant block minecraft:chorus_plant
+I minecraft:chorus_flower block minecraft:chorus_flower
+I minecraft:purpur_block block minecraft:purpur_block
+I minecraft:purpur_pillar block minecraft:purpur_pillar
+I minecraft:purpur_stairs block minecraft:purpur_stairs
+I minecraft:spawner block minecraft:spawner
+I minecraft:chest block minecraft:chest
+I minecraft:crafting_table block minecraft:crafting_table
+I minecraft:farmland block minecraft:farmland
+I minecraft:furnace block minecraft:furnace
+I minecraft:ladder block minecraft:ladder
+I minecraft:cobblestone_stairs block minecraft:cobblestone_stairs
+I minecraft:snow block minecraft:snow
+I minecraft:ice block minecraft:ice
+I minecraft:snow_block block minecraft:snow_block
+I minecraft:cactus block minecraft:cactus
+I minecraft:clay block minecraft:clay
+I minecraft:jukebox block minecraft:jukebox
+I minecraft:oak_fence block minecraft:oak_fence
+I minecraft:spruce_fence block minecraft:spruce_fence
+I minecraft:birch_fence block minecraft:birch_fence
+I minecraft:jungle_fence block minecraft:jungle_fence
+I minecraft:acacia_fence block minecraft:acacia_fence
+I minecraft:cherry_fence block minecraft:cherry_fence
+I minecraft:dark_oak_fence block minecraft:dark_oak_fence
+I minecraft:mangrove_fence block minecraft:mangrove_fence
+I minecraft:bamboo_fence block minecraft:bamboo_fence
+I minecraft:crimson_fence block minecraft:crimson_fence
+I minecraft:warped_fence block minecraft:warped_fence
+I minecraft:pumpkin block minecraft:pumpkin
+I minecraft:carved_pumpkin block minecraft:carved_pumpkin
+I minecraft:jack_o_lantern block minecraft:jack_o_lantern
+I minecraft:netherrack block minecraft:netherrack
+I minecraft:soul_sand block minecraft:soul_sand
+I minecraft:soul_soil block minecraft:soul_soil
+I minecraft:basalt block minecraft:basalt
+I minecraft:polished_basalt block minecraft:polished_basalt
+I minecraft:smooth_basalt block minecraft:smooth_basalt
+I minecraft:soul_torch standing_and_wall minecraft:soul_torch minecraft:soul_wall_torch down
+I minecraft:glowstone block minecraft:glowstone
+I minecraft:infested_stone block minecraft:infested_stone
+I minecraft:infested_cobblestone block minecraft:infested_cobblestone
+I minecraft:infested_stone_bricks block minecraft:infested_stone_bricks
+I minecraft:infested_mossy_stone_bricks block minecraft:infested_mossy_stone_bricks
+I minecraft:infested_cracked_stone_bricks block minecraft:infested_cracked_stone_bricks
+I minecraft:infested_chiseled_stone_bricks block minecraft:infested_chiseled_stone_bricks
+I minecraft:infested_deepslate block minecraft:infested_deepslate
+I minecraft:stone_bricks block minecraft:stone_bricks
+I minecraft:mossy_stone_bricks block minecraft:mossy_stone_bricks
+I minecraft:cracked_stone_bricks block minecraft:cracked_stone_bricks
+I minecraft:chiseled_stone_bricks block minecraft:chiseled_stone_bricks
+I minecraft:packed_mud block minecraft:packed_mud
+I minecraft:mud_bricks block minecraft:mud_bricks
+I minecraft:deepslate_bricks block minecraft:deepslate_bricks
+I minecraft:cracked_deepslate_bricks block minecraft:cracked_deepslate_bricks
+I minecraft:deepslate_tiles block minecraft:deepslate_tiles
+I minecraft:cracked_deepslate_tiles block minecraft:cracked_deepslate_tiles
+I minecraft:chiseled_deepslate block minecraft:chiseled_deepslate
+I minecraft:reinforced_deepslate block minecraft:reinforced_deepslate
+I minecraft:brown_mushroom_block block minecraft:brown_mushroom_block
+I minecraft:red_mushroom_block block minecraft:red_mushroom_block
+I minecraft:mushroom_stem block minecraft:mushroom_stem
+I minecraft:iron_bars block minecraft:iron_bars
+I minecraft:chain block minecraft:chain
+I minecraft:glass_pane block minecraft:glass_pane
+I minecraft:melon block minecraft:melon
+I minecraft:vine block minecraft:vine
+I minecraft:glow_lichen block minecraft:glow_lichen
+I minecraft:brick_stairs block minecraft:brick_stairs
+I minecraft:stone_brick_stairs block minecraft:stone_brick_stairs
+I minecraft:mud_brick_stairs block minecraft:mud_brick_stairs
+I minecraft:mycelium block minecraft:mycelium
+I minecraft:lily_pad place_on_water minecraft:lily_pad
+I minecraft:nether_bricks block minecraft:nether_bricks
+I minecraft:cracked_nether_bricks block minecraft:cracked_nether_bricks
+I minecraft:chiseled_nether_bricks block minecraft:chiseled_nether_bricks
+I minecraft:nether_brick_fence block minecraft:nether_brick_fence
+I minecraft:nether_brick_stairs block minecraft:nether_brick_stairs
+I minecraft:sculk block minecraft:sculk
+I minecraft:sculk_vein block minecraft:sculk_vein
+I minecraft:sculk_catalyst block minecraft:sculk_catalyst
+I minecraft:sculk_shrieker block minecraft:sculk_shrieker
+I minecraft:enchanting_table block minecraft:enchanting_table
+I minecraft:end_portal_frame block minecraft:end_portal_frame
+I minecraft:end_stone block minecraft:end_stone
+I minecraft:end_stone_bricks block minecraft:end_stone_bricks
+I minecraft:dragon_egg block minecraft:dragon_egg
+I minecraft:sandstone_stairs block minecraft:sandstone_stairs
+I minecraft:ender_chest block minecraft:ender_chest
+I minecraft:emerald_block block minecraft:emerald_block
+I minecraft:oak_stairs block minecraft:oak_stairs
+I minecraft:spruce_stairs block minecraft:spruce_stairs
+I minecraft:birch_stairs block minecraft:birch_stairs
+I minecraft:jungle_stairs block minecraft:jungle_stairs
+I minecraft:acacia_stairs block minecraft:acacia_stairs
+I minecraft:cherry_stairs block minecraft:cherry_stairs
+I minecraft:dark_oak_stairs block minecraft:dark_oak_stairs
+I minecraft:mangrove_stairs block minecraft:mangrove_stairs
+I minecraft:bamboo_stairs block minecraft:bamboo_stairs
+I minecraft:bamboo_mosaic_stairs block minecraft:bamboo_mosaic_stairs
+I minecraft:crimson_stairs block minecraft:crimson_stairs
+I minecraft:warped_stairs block minecraft:warped_stairs
+I minecraft:command_block game_master minecraft:command_block
+I minecraft:beacon block minecraft:beacon
+I minecraft:cobblestone_wall block minecraft:cobblestone_wall
+I minecraft:mossy_cobblestone_wall block minecraft:mossy_cobblestone_wall
+I minecraft:brick_wall block minecraft:brick_wall
+I minecraft:prismarine_wall block minecraft:prismarine_wall
+I minecraft:red_sandstone_wall block minecraft:red_sandstone_wall
+I minecraft:mossy_stone_brick_wall block minecraft:mossy_stone_brick_wall
+I minecraft:granite_wall block minecraft:granite_wall
+I minecraft:stone_brick_wall block minecraft:stone_brick_wall
+I minecraft:mud_brick_wall block minecraft:mud_brick_wall
+I minecraft:nether_brick_wall block minecraft:nether_brick_wall
+I minecraft:andesite_wall block minecraft:andesite_wall
+I minecraft:red_nether_brick_wall block minecraft:red_nether_brick_wall
+I minecraft:sandstone_wall block minecraft:sandstone_wall
+I minecraft:end_stone_brick_wall block minecraft:end_stone_brick_wall
+I minecraft:diorite_wall block minecraft:diorite_wall
+I minecraft:blackstone_wall block minecraft:blackstone_wall
+I minecraft:polished_blackstone_wall block minecraft:polished_blackstone_wall
+I minecraft:polished_blackstone_brick_wall block minecraft:polished_blackstone_brick_wall
+I minecraft:cobbled_deepslate_wall block minecraft:cobbled_deepslate_wall
+I minecraft:polished_deepslate_wall block minecraft:polished_deepslate_wall
+I minecraft:deepslate_brick_wall block minecraft:deepslate_brick_wall
+I minecraft:deepslate_tile_wall block minecraft:deepslate_tile_wall
+I minecraft:anvil block minecraft:anvil
+I minecraft:chipped_anvil block minecraft:chipped_anvil
+I minecraft:damaged_anvil block minecraft:damaged_anvil
+I minecraft:chiseled_quartz_block block minecraft:chiseled_quartz_block
+I minecraft:quartz_block block minecraft:quartz_block
+I minecraft:quartz_bricks block minecraft:quartz_bricks
+I minecraft:quartz_pillar block minecraft:quartz_pillar
+I minecraft:quartz_stairs block minecraft:quartz_stairs
+I minecraft:white_terracotta block minecraft:white_terracotta
+I minecraft:orange_terracotta block minecraft:orange_terracotta
+I minecraft:magenta_terracotta block minecraft:magenta_terracotta
+I minecraft:light_blue_terracotta block minecraft:light_blue_terracotta
+I minecraft:yellow_terracotta block minecraft:yellow_terracotta
+I minecraft:lime_terracotta block minecraft:lime_terracotta
+I minecraft:pink_terracotta block minecraft:pink_terracotta
+I minecraft:gray_terracotta block minecraft:gray_terracotta
+I minecraft:light_gray_terracotta block minecraft:light_gray_terracotta
+I minecraft:cyan_terracotta block minecraft:cyan_terracotta
+I minecraft:purple_terracotta block minecraft:purple_terracotta
+I minecraft:blue_terracotta block minecraft:blue_terracotta
+I minecraft:brown_terracotta block minecraft:brown_terracotta
+I minecraft:green_terracotta block minecraft:green_terracotta
+I minecraft:red_terracotta block minecraft:red_terracotta
+I minecraft:black_terracotta block minecraft:black_terracotta
+I minecraft:barrier block minecraft:barrier
+I minecraft:light block minecraft:light
+I minecraft:hay_block block minecraft:hay_block
+I minecraft:white_carpet block minecraft:white_carpet
+I minecraft:orange_carpet block minecraft:orange_carpet
+I minecraft:magenta_carpet block minecraft:magenta_carpet
+I minecraft:light_blue_carpet block minecraft:light_blue_carpet
+I minecraft:yellow_carpet block minecraft:yellow_carpet
+I minecraft:lime_carpet block minecraft:lime_carpet
+I minecraft:pink_carpet block minecraft:pink_carpet
+I minecraft:gray_carpet block minecraft:gray_carpet
+I minecraft:light_gray_carpet block minecraft:light_gray_carpet
+I minecraft:cyan_carpet block minecraft:cyan_carpet
+I minecraft:purple_carpet block minecraft:purple_carpet
+I minecraft:blue_carpet block minecraft:blue_carpet
+I minecraft:brown_carpet block minecraft:brown_carpet
+I minecraft:green_carpet block minecraft:green_carpet
+I minecraft:red_carpet block minecraft:red_carpet
+I minecraft:black_carpet block minecraft:black_carpet
+I minecraft:terracotta block minecraft:terracotta
+I minecraft:packed_ice block minecraft:packed_ice
+I minecraft:dirt_path block minecraft:dirt_path
+I minecraft:sunflower double_high minecraft:sunflower
+I minecraft:lilac double_high minecraft:lilac
+I minecraft:rose_bush double_high minecraft:rose_bush
+I minecraft:peony double_high minecraft:peony
+I minecraft:tall_grass double_high minecraft:tall_grass
+I minecraft:large_fern double_high minecraft:large_fern
+I minecraft:white_stained_glass block minecraft:white_stained_glass
+I minecraft:orange_stained_glass block minecraft:orange_stained_glass
+I minecraft:magenta_stained_glass block minecraft:magenta_stained_glass
+I minecraft:light_blue_stained_glass block minecraft:light_blue_stained_glass
+I minecraft:yellow_stained_glass block minecraft:yellow_stained_glass
+I minecraft:lime_stained_glass block minecraft:lime_stained_glass
+I minecraft:pink_stained_glass block minecraft:pink_stained_glass
+I minecraft:gray_stained_glass block minecraft:gray_stained_glass
+I minecraft:light_gray_stained_glass block minecraft:light_gray_stained_glass
+I minecraft:cyan_stained_glass block minecraft:cyan_stained_glass
+I minecraft:purple_stained_glass block minecraft:purple_stained_glass
+I minecraft:blue_stained_glass block minecraft:blue_stained_glass
+I minecraft:brown_stained_glass block minecraft:brown_stained_glass
+I minecraft:green_stained_glass block minecraft:green_stained_glass
+I minecraft:red_stained_glass block minecraft:red_stained_glass
+I minecraft:black_stained_glass block minecraft:black_stained_glass
+I minecraft:white_stained_glass_pane block minecraft:white_stained_glass_pane
+I minecraft:orange_stained_glass_pane block minecraft:orange_stained_glass_pane
+I minecraft:magenta_stained_glass_pane block minecraft:magenta_stained_glass_pane
+I minecraft:light_blue_stained_glass_pane block minecraft:light_blue_stained_glass_pane
+I minecraft:yellow_stained_glass_pane block minecraft:yellow_stained_glass_pane
+I minecraft:lime_stained_glass_pane block minecraft:lime_stained_glass_pane
+I minecraft:pink_stained_glass_pane block minecraft:pink_stained_glass_pane
+I minecraft:gray_stained_glass_pane block minecraft:gray_stained_glass_pane
+I minecraft:light_gray_stained_glass_pane block minecraft:light_gray_stained_glass_pane
+I minecraft:cyan_stained_glass_pane block minecraft:cyan_stained_glass_pane
+I minecraft:purple_stained_glass_pane block minecraft:purple_stained_glass_pane
+I minecraft:blue_stained_glass_pane block minecraft:blue_stained_glass_pane
+I minecraft:brown_stained_glass_pane block minecraft:brown_stained_glass_pane
+I minecraft:green_stained_glass_pane block minecraft:green_stained_glass_pane
+I minecraft:red_stained_glass_pane block minecraft:red_stained_glass_pane
+I minecraft:black_stained_glass_pane block minecraft:black_stained_glass_pane
+I minecraft:prismarine block minecraft:prismarine
+I minecraft:prismarine_bricks block minecraft:prismarine_bricks
+I minecraft:dark_prismarine block minecraft:dark_prismarine
+I minecraft:prismarine_stairs block minecraft:prismarine_stairs
+I minecraft:prismarine_brick_stairs block minecraft:prismarine_brick_stairs
+I minecraft:dark_prismarine_stairs block minecraft:dark_prismarine_stairs
+I minecraft:sea_lantern block minecraft:sea_lantern
+I minecraft:red_sandstone block minecraft:red_sandstone
+I minecraft:chiseled_red_sandstone block minecraft:chiseled_red_sandstone
+I minecraft:cut_red_sandstone block minecraft:cut_red_sandstone
+I minecraft:red_sandstone_stairs block minecraft:red_sandstone_stairs
+I minecraft:repeating_command_block game_master minecraft:repeating_command_block
+I minecraft:chain_command_block game_master minecraft:chain_command_block
+I minecraft:magma_block block minecraft:magma_block
+I minecraft:nether_wart_block block minecraft:nether_wart_block
+I minecraft:warped_wart_block block minecraft:warped_wart_block
+I minecraft:red_nether_bricks block minecraft:red_nether_bricks
+I minecraft:bone_block block minecraft:bone_block
+I minecraft:structure_void block minecraft:structure_void
+I minecraft:shulker_box block minecraft:shulker_box
+I minecraft:white_shulker_box block minecraft:white_shulker_box
+I minecraft:orange_shulker_box block minecraft:orange_shulker_box
+I minecraft:magenta_shulker_box block minecraft:magenta_shulker_box
+I minecraft:light_blue_shulker_box block minecraft:light_blue_shulker_box
+I minecraft:yellow_shulker_box block minecraft:yellow_shulker_box
+I minecraft:lime_shulker_box block minecraft:lime_shulker_box
+I minecraft:pink_shulker_box block minecraft:pink_shulker_box
+I minecraft:gray_shulker_box block minecraft:gray_shulker_box
+I minecraft:light_gray_shulker_box block minecraft:light_gray_shulker_box
+I minecraft:cyan_shulker_box block minecraft:cyan_shulker_box
+I minecraft:purple_shulker_box block minecraft:purple_shulker_box
+I minecraft:blue_shulker_box block minecraft:blue_shulker_box
+I minecraft:brown_shulker_box block minecraft:brown_shulker_box
+I minecraft:green_shulker_box block minecraft:green_shulker_box
+I minecraft:red_shulker_box block minecraft:red_shulker_box
+I minecraft:black_shulker_box block minecraft:black_shulker_box
+I minecraft:white_glazed_terracotta block minecraft:white_glazed_terracotta
+I minecraft:orange_glazed_terracotta block minecraft:orange_glazed_terracotta
+I minecraft:magenta_glazed_terracotta block minecraft:magenta_glazed_terracotta
+I minecraft:light_blue_glazed_terracotta block minecraft:light_blue_glazed_terracotta
+I minecraft:yellow_glazed_terracotta block minecraft:yellow_glazed_terracotta
+I minecraft:lime_glazed_terracotta block minecraft:lime_glazed_terracotta
+I minecraft:pink_glazed_terracotta block minecraft:pink_glazed_terracotta
+I minecraft:gray_glazed_terracotta block minecraft:gray_glazed_terracotta
+I minecraft:light_gray_glazed_terracotta block minecraft:light_gray_glazed_terracotta
+I minecraft:cyan_glazed_terracotta block minecraft:cyan_glazed_terracotta
+I minecraft:purple_glazed_terracotta block minecraft:purple_glazed_terracotta
+I minecraft:blue_glazed_terracotta block minecraft:blue_glazed_terracotta
+I minecraft:brown_glazed_terracotta block minecraft:brown_glazed_terracotta
+I minecraft:green_glazed_terracotta block minecraft:green_glazed_terracotta
+I minecraft:red_glazed_terracotta block minecraft:red_glazed_terracotta
+I minecraft:black_glazed_terracotta block minecraft:black_glazed_terracotta
+I minecraft:white_concrete block minecraft:white_concrete
+I minecraft:orange_concrete block minecraft:orange_concrete
+I minecraft:magenta_concrete block minecraft:magenta_concrete
+I minecraft:light_blue_concrete block minecraft:light_blue_concrete
+I minecraft:yellow_concrete block minecraft:yellow_concrete
+I minecraft:lime_concrete block minecraft:lime_concrete
+I minecraft:pink_concrete block minecraft:pink_concrete
+I minecraft:gray_concrete block minecraft:gray_concrete
+I minecraft:light_gray_concrete block minecraft:light_gray_concrete
+I minecraft:cyan_concrete block minecraft:cyan_concrete
+I minecraft:purple_concrete block minecraft:purple_concrete
+I minecraft:blue_concrete block minecraft:blue_concrete
+I minecraft:brown_concrete block minecraft:brown_concrete
+I minecraft:green_concrete block minecraft:green_concrete
+I minecraft:red_concrete block minecraft:red_concrete
+I minecraft:black_concrete block minecraft:black_concrete
+I minecraft:white_concrete_powder block minecraft:white_concrete_powder
+I minecraft:orange_concrete_powder block minecraft:orange_concrete_powder
+I minecraft:magenta_concrete_powder block minecraft:magenta_concrete_powder
+I minecraft:light_blue_concrete_powder block minecraft:light_blue_concrete_powder
+I minecraft:yellow_concrete_powder block minecraft:yellow_concrete_powder
+I minecraft:lime_concrete_powder block minecraft:lime_concrete_powder
+I minecraft:pink_concrete_powder block minecraft:pink_concrete_powder
+I minecraft:gray_concrete_powder block minecraft:gray_concrete_powder
+I minecraft:light_gray_concrete_powder block minecraft:light_gray_concrete_powder
+I minecraft:cyan_concrete_powder block minecraft:cyan_concrete_powder
+I minecraft:purple_concrete_powder block minecraft:purple_concrete_powder
+I minecraft:blue_concrete_powder block minecraft:blue_concrete_powder
+I minecraft:brown_concrete_powder block minecraft:brown_concrete_powder
+I minecraft:green_concrete_powder block minecraft:green_concrete_powder
+I minecraft:red_concrete_powder block minecraft:red_concrete_powder
+I minecraft:black_concrete_powder block minecraft:black_concrete_powder
+I minecraft:turtle_egg block minecraft:turtle_egg
+I minecraft:sniffer_egg block minecraft:sniffer_egg
+I minecraft:dead_tube_coral_block block minecraft:dead_tube_coral_block
+I minecraft:dead_brain_coral_block block minecraft:dead_brain_coral_block
+I minecraft:dead_bubble_coral_block block minecraft:dead_bubble_coral_block
+I minecraft:dead_fire_coral_block block minecraft:dead_fire_coral_block
+I minecraft:dead_horn_coral_block block minecraft:dead_horn_coral_block
+I minecraft:tube_coral_block block minecraft:tube_coral_block
+I minecraft:brain_coral_block block minecraft:brain_coral_block
+I minecraft:bubble_coral_block block minecraft:bubble_coral_block
+I minecraft:fire_coral_block block minecraft:fire_coral_block
+I minecraft:horn_coral_block block minecraft:horn_coral_block
+I minecraft:tube_coral block minecraft:tube_coral
+I minecraft:brain_coral block minecraft:brain_coral
+I minecraft:bubble_coral block minecraft:bubble_coral
+I minecraft:fire_coral block minecraft:fire_coral
+I minecraft:horn_coral block minecraft:horn_coral
+I minecraft:dead_brain_coral block minecraft:dead_brain_coral
+I minecraft:dead_bubble_coral block minecraft:dead_bubble_coral
+I minecraft:dead_fire_coral block minecraft:dead_fire_coral
+I minecraft:dead_horn_coral block minecraft:dead_horn_coral
+I minecraft:dead_tube_coral block minecraft:dead_tube_coral
+I minecraft:tube_coral_fan standing_and_wall minecraft:tube_coral_fan minecraft:tube_coral_wall_fan down
+I minecraft:brain_coral_fan standing_and_wall minecraft:brain_coral_fan minecraft:brain_coral_wall_fan down
+I minecraft:bubble_coral_fan standing_and_wall minecraft:bubble_coral_fan minecraft:bubble_coral_wall_fan down
+I minecraft:fire_coral_fan standing_and_wall minecraft:fire_coral_fan minecraft:fire_coral_wall_fan down
+I minecraft:horn_coral_fan standing_and_wall minecraft:horn_coral_fan minecraft:horn_coral_wall_fan down
+I minecraft:dead_tube_coral_fan standing_and_wall minecraft:dead_tube_coral_fan minecraft:dead_tube_coral_wall_fan down
+I minecraft:dead_brain_coral_fan standing_and_wall minecraft:dead_brain_coral_fan minecraft:dead_brain_coral_wall_fan down
+I minecraft:dead_bubble_coral_fan standing_and_wall minecraft:dead_bubble_coral_fan minecraft:dead_bubble_coral_wall_fan down
+I minecraft:dead_fire_coral_fan standing_and_wall minecraft:dead_fire_coral_fan minecraft:dead_fire_coral_wall_fan down
+I minecraft:dead_horn_coral_fan standing_and_wall minecraft:dead_horn_coral_fan minecraft:dead_horn_coral_wall_fan down
+I minecraft:blue_ice block minecraft:blue_ice
+I minecraft:conduit block minecraft:conduit
+I minecraft:polished_granite_stairs block minecraft:polished_granite_stairs
+I minecraft:smooth_red_sandstone_stairs block minecraft:smooth_red_sandstone_stairs
+I minecraft:mossy_stone_brick_stairs block minecraft:mossy_stone_brick_stairs
+I minecraft:polished_diorite_stairs block minecraft:polished_diorite_stairs
+I minecraft:mossy_cobblestone_stairs block minecraft:mossy_cobblestone_stairs
+I minecraft:end_stone_brick_stairs block minecraft:end_stone_brick_stairs
+I minecraft:stone_stairs block minecraft:stone_stairs
+I minecraft:smooth_sandstone_stairs block minecraft:smooth_sandstone_stairs
+I minecraft:smooth_quartz_stairs block minecraft:smooth_quartz_stairs
+I minecraft:granite_stairs block minecraft:granite_stairs
+I minecraft:andesite_stairs block minecraft:andesite_stairs
+I minecraft:red_nether_brick_stairs block minecraft:red_nether_brick_stairs
+I minecraft:polished_andesite_stairs block minecraft:polished_andesite_stairs
+I minecraft:diorite_stairs block minecraft:diorite_stairs
+I minecraft:cobbled_deepslate_stairs block minecraft:cobbled_deepslate_stairs
+I minecraft:polished_deepslate_stairs block minecraft:polished_deepslate_stairs
+I minecraft:deepslate_brick_stairs block minecraft:deepslate_brick_stairs
+I minecraft:deepslate_tile_stairs block minecraft:deepslate_tile_stairs
+I minecraft:polished_granite_slab block minecraft:polished_granite_slab
+I minecraft:smooth_red_sandstone_slab block minecraft:smooth_red_sandstone_slab
+I minecraft:mossy_stone_brick_slab block minecraft:mossy_stone_brick_slab
+I minecraft:polished_diorite_slab block minecraft:polished_diorite_slab
+I minecraft:mossy_cobblestone_slab block minecraft:mossy_cobblestone_slab
+I minecraft:end_stone_brick_slab block minecraft:end_stone_brick_slab
+I minecraft:smooth_sandstone_slab block minecraft:smooth_sandstone_slab
+I minecraft:smooth_quartz_slab block minecraft:smooth_quartz_slab
+I minecraft:granite_slab block minecraft:granite_slab
+I minecraft:andesite_slab block minecraft:andesite_slab
+I minecraft:red_nether_brick_slab block minecraft:red_nether_brick_slab
+I minecraft:polished_andesite_slab block minecraft:polished_andesite_slab
+I minecraft:diorite_slab block minecraft:diorite_slab
+I minecraft:cobbled_deepslate_slab block minecraft:cobbled_deepslate_slab
+I minecraft:polished_deepslate_slab block minecraft:polished_deepslate_slab
+I minecraft:deepslate_brick_slab block minecraft:deepslate_brick_slab
+I minecraft:deepslate_tile_slab block minecraft:deepslate_tile_slab
+I minecraft:scaffolding scaffolding minecraft:scaffolding
+I minecraft:redstone item_name minecraft:redstone_wire
+I minecraft:redstone_torch standing_and_wall minecraft:redstone_torch minecraft:redstone_wall_torch down
+I minecraft:redstone_block block minecraft:redstone_block
+I minecraft:repeater block minecraft:repeater
+I minecraft:comparator block minecraft:comparator
+I minecraft:piston block minecraft:piston
+I minecraft:sticky_piston block minecraft:sticky_piston
+I minecraft:slime_block block minecraft:slime_block
+I minecraft:honey_block block minecraft:honey_block
+I minecraft:observer block minecraft:observer
+I minecraft:hopper block minecraft:hopper
+I minecraft:dispenser block minecraft:dispenser
+I minecraft:dropper block minecraft:dropper
+I minecraft:lectern block minecraft:lectern
+I minecraft:target block minecraft:target
+I minecraft:lever block minecraft:lever
+I minecraft:lightning_rod block minecraft:lightning_rod
+I minecraft:daylight_detector block minecraft:daylight_detector
+I minecraft:sculk_sensor block minecraft:sculk_sensor
+I minecraft:calibrated_sculk_sensor block minecraft:calibrated_sculk_sensor
+I minecraft:tripwire_hook block minecraft:tripwire_hook
+I minecraft:trapped_chest block minecraft:trapped_chest
+I minecraft:tnt block minecraft:tnt
+I minecraft:redstone_lamp block minecraft:redstone_lamp
+I minecraft:note_block block minecraft:note_block
+I minecraft:stone_button block minecraft:stone_button
+I minecraft:polished_blackstone_button block minecraft:polished_blackstone_button
+I minecraft:oak_button block minecraft:oak_button
+I minecraft:spruce_button block minecraft:spruce_button
+I minecraft:birch_button block minecraft:birch_button
+I minecraft:jungle_button block minecraft:jungle_button
+I minecraft:acacia_button block minecraft:acacia_button
+I minecraft:cherry_button block minecraft:cherry_button
+I minecraft:dark_oak_button block minecraft:dark_oak_button
+I minecraft:mangrove_button block minecraft:mangrove_button
+I minecraft:bamboo_button block minecraft:bamboo_button
+I minecraft:crimson_button block minecraft:crimson_button
+I minecraft:warped_button block minecraft:warped_button
+I minecraft:stone_pressure_plate block minecraft:stone_pressure_plate
+I minecraft:polished_blackstone_pressure_plate block minecraft:polished_blackstone_pressure_plate
+I minecraft:light_weighted_pressure_plate block minecraft:light_weighted_pressure_plate
+I minecraft:heavy_weighted_pressure_plate block minecraft:heavy_weighted_pressure_plate
+I minecraft:oak_pressure_plate block minecraft:oak_pressure_plate
+I minecraft:spruce_pressure_plate block minecraft:spruce_pressure_plate
+I minecraft:birch_pressure_plate block minecraft:birch_pressure_plate
+I minecraft:jungle_pressure_plate block minecraft:jungle_pressure_plate
+I minecraft:acacia_pressure_plate block minecraft:acacia_pressure_plate
+I minecraft:cherry_pressure_plate block minecraft:cherry_pressure_plate
+I minecraft:dark_oak_pressure_plate block minecraft:dark_oak_pressure_plate
+I minecraft:mangrove_pressure_plate block minecraft:mangrove_pressure_plate
+I minecraft:bamboo_pressure_plate block minecraft:bamboo_pressure_plate
+I minecraft:crimson_pressure_plate block minecraft:crimson_pressure_plate
+I minecraft:warped_pressure_plate block minecraft:warped_pressure_plate
+I minecraft:iron_door double_high minecraft:iron_door
+I minecraft:oak_door double_high minecraft:oak_door
+I minecraft:spruce_door double_high minecraft:spruce_door
+I minecraft:birch_door double_high minecraft:birch_door
+I minecraft:jungle_door double_high minecraft:jungle_door
+I minecraft:acacia_door double_high minecraft:acacia_door
+I minecraft:cherry_door double_high minecraft:cherry_door
+I minecraft:dark_oak_door double_high minecraft:dark_oak_door
+I minecraft:mangrove_door double_high minecraft:mangrove_door
+I minecraft:bamboo_door double_high minecraft:bamboo_door
+I minecraft:crimson_door double_high minecraft:crimson_door
+I minecraft:warped_door double_high minecraft:warped_door
+I minecraft:copper_door double_high minecraft:copper_door
+I minecraft:exposed_copper_door double_high minecraft:exposed_copper_door
+I minecraft:weathered_copper_door double_high minecraft:weathered_copper_door
+I minecraft:oxidized_copper_door double_high minecraft:oxidized_copper_door
+I minecraft:waxed_copper_door double_high minecraft:waxed_copper_door
+I minecraft:waxed_exposed_copper_door double_high minecraft:waxed_exposed_copper_door
+I minecraft:waxed_weathered_copper_door double_high minecraft:waxed_weathered_copper_door
+I minecraft:waxed_oxidized_copper_door double_high minecraft:waxed_oxidized_copper_door
+I minecraft:iron_trapdoor block minecraft:iron_trapdoor
+I minecraft:oak_trapdoor block minecraft:oak_trapdoor
+I minecraft:spruce_trapdoor block minecraft:spruce_trapdoor
+I minecraft:birch_trapdoor block minecraft:birch_trapdoor
+I minecraft:jungle_trapdoor block minecraft:jungle_trapdoor
+I minecraft:acacia_trapdoor block minecraft:acacia_trapdoor
+I minecraft:cherry_trapdoor block minecraft:cherry_trapdoor
+I minecraft:dark_oak_trapdoor block minecraft:dark_oak_trapdoor
+I minecraft:mangrove_trapdoor block minecraft:mangrove_trapdoor
+I minecraft:bamboo_trapdoor block minecraft:bamboo_trapdoor
+I minecraft:crimson_trapdoor block minecraft:crimson_trapdoor
+I minecraft:warped_trapdoor block minecraft:warped_trapdoor
+I minecraft:copper_trapdoor block minecraft:copper_trapdoor
+I minecraft:exposed_copper_trapdoor block minecraft:exposed_copper_trapdoor
+I minecraft:weathered_copper_trapdoor block minecraft:weathered_copper_trapdoor
+I minecraft:oxidized_copper_trapdoor block minecraft:oxidized_copper_trapdoor
+I minecraft:waxed_copper_trapdoor block minecraft:waxed_copper_trapdoor
+I minecraft:waxed_exposed_copper_trapdoor block minecraft:waxed_exposed_copper_trapdoor
+I minecraft:waxed_weathered_copper_trapdoor block minecraft:waxed_weathered_copper_trapdoor
+I minecraft:waxed_oxidized_copper_trapdoor block minecraft:waxed_oxidized_copper_trapdoor
+I minecraft:oak_fence_gate block minecraft:oak_fence_gate
+I minecraft:spruce_fence_gate block minecraft:spruce_fence_gate
+I minecraft:birch_fence_gate block minecraft:birch_fence_gate
+I minecraft:jungle_fence_gate block minecraft:jungle_fence_gate
+I minecraft:acacia_fence_gate block minecraft:acacia_fence_gate
+I minecraft:cherry_fence_gate block minecraft:cherry_fence_gate
+I minecraft:dark_oak_fence_gate block minecraft:dark_oak_fence_gate
+I minecraft:mangrove_fence_gate block minecraft:mangrove_fence_gate
+I minecraft:bamboo_fence_gate block minecraft:bamboo_fence_gate
+I minecraft:crimson_fence_gate block minecraft:crimson_fence_gate
+I minecraft:warped_fence_gate block minecraft:warped_fence_gate
+I minecraft:powered_rail block minecraft:powered_rail
+I minecraft:detector_rail block minecraft:detector_rail
+I minecraft:rail block minecraft:rail
+I minecraft:activator_rail block minecraft:activator_rail
+I minecraft:structure_block game_master minecraft:structure_block
+I minecraft:jigsaw game_master minecraft:jigsaw
+I minecraft:string item_name minecraft:tripwire
+I minecraft:wheat_seeds item_name minecraft:wheat
+I minecraft:oak_sign sign minecraft:oak_sign minecraft:oak_wall_sign down
+I minecraft:spruce_sign sign minecraft:spruce_sign minecraft:spruce_wall_sign down
+I minecraft:birch_sign sign minecraft:birch_sign minecraft:birch_wall_sign down
+I minecraft:jungle_sign sign minecraft:jungle_sign minecraft:jungle_wall_sign down
+I minecraft:acacia_sign sign minecraft:acacia_sign minecraft:acacia_wall_sign down
+I minecraft:cherry_sign sign minecraft:cherry_sign minecraft:cherry_wall_sign down
+I minecraft:dark_oak_sign sign minecraft:dark_oak_sign minecraft:dark_oak_wall_sign down
+I minecraft:mangrove_sign sign minecraft:mangrove_sign minecraft:mangrove_wall_sign down
+I minecraft:bamboo_sign sign minecraft:bamboo_sign minecraft:bamboo_wall_sign down
+I minecraft:crimson_sign sign minecraft:crimson_sign minecraft:crimson_wall_sign down
+I minecraft:warped_sign sign minecraft:warped_sign minecraft:warped_wall_sign down
+I minecraft:oak_hanging_sign hanging_sign minecraft:oak_hanging_sign minecraft:oak_wall_hanging_sign up
+I minecraft:spruce_hanging_sign hanging_sign minecraft:spruce_hanging_sign minecraft:spruce_wall_hanging_sign up
+I minecraft:birch_hanging_sign hanging_sign minecraft:birch_hanging_sign minecraft:birch_wall_hanging_sign up
+I minecraft:jungle_hanging_sign hanging_sign minecraft:jungle_hanging_sign minecraft:jungle_wall_hanging_sign up
+I minecraft:acacia_hanging_sign hanging_sign minecraft:acacia_hanging_sign minecraft:acacia_wall_hanging_sign up
+I minecraft:cherry_hanging_sign hanging_sign minecraft:cherry_hanging_sign minecraft:cherry_wall_hanging_sign up
+I minecraft:dark_oak_hanging_sign hanging_sign minecraft:dark_oak_hanging_sign minecraft:dark_oak_wall_hanging_sign up
+I minecraft:mangrove_hanging_sign hanging_sign minecraft:mangrove_hanging_sign minecraft:mangrove_wall_hanging_sign up
+I minecraft:bamboo_hanging_sign hanging_sign minecraft:bamboo_hanging_sign minecraft:bamboo_wall_hanging_sign up
+I minecraft:crimson_hanging_sign hanging_sign minecraft:crimson_hanging_sign minecraft:crimson_wall_hanging_sign up
+I minecraft:warped_hanging_sign hanging_sign minecraft:warped_hanging_sign minecraft:warped_wall_hanging_sign up
+I minecraft:powder_snow_bucket solid_bucket minecraft:powder_snow
+I minecraft:dried_kelp_block block minecraft:dried_kelp_block
+I minecraft:cocoa_beans item_name minecraft:cocoa
+I minecraft:cake block minecraft:cake
+I minecraft:white_bed bed minecraft:white_bed
+I minecraft:orange_bed bed minecraft:orange_bed
+I minecraft:magenta_bed bed minecraft:magenta_bed
+I minecraft:light_blue_bed bed minecraft:light_blue_bed
+I minecraft:yellow_bed bed minecraft:yellow_bed
+I minecraft:lime_bed bed minecraft:lime_bed
+I minecraft:pink_bed bed minecraft:pink_bed
+I minecraft:gray_bed bed minecraft:gray_bed
+I minecraft:light_gray_bed bed minecraft:light_gray_bed
+I minecraft:cyan_bed bed minecraft:cyan_bed
+I minecraft:purple_bed bed minecraft:purple_bed
+I minecraft:blue_bed bed minecraft:blue_bed
+I minecraft:brown_bed bed minecraft:brown_bed
+I minecraft:green_bed bed minecraft:green_bed
+I minecraft:red_bed bed minecraft:red_bed
+I minecraft:black_bed bed minecraft:black_bed
+I minecraft:crafter block minecraft:crafter
+I minecraft:pumpkin_seeds item_name minecraft:pumpkin_stem
+I minecraft:melon_seeds item_name minecraft:melon_stem
+I minecraft:nether_wart item_name minecraft:nether_wart
+I minecraft:brewing_stand block minecraft:brewing_stand
+I minecraft:cauldron block minecraft:cauldron
+I minecraft:flower_pot block minecraft:flower_pot
+I minecraft:carrot item_name minecraft:carrots
+I minecraft:potato item_name minecraft:potatoes
+I minecraft:skeleton_skull standing_and_wall minecraft:skeleton_skull minecraft:skeleton_wall_skull down
+I minecraft:wither_skeleton_skull standing_and_wall minecraft:wither_skeleton_skull minecraft:wither_skeleton_wall_skull down
+I minecraft:player_head player_head minecraft:player_head minecraft:player_wall_head down
+I minecraft:zombie_head standing_and_wall minecraft:zombie_head minecraft:zombie_wall_head down
+I minecraft:creeper_head standing_and_wall minecraft:creeper_head minecraft:creeper_wall_head down
+I minecraft:dragon_head standing_and_wall minecraft:dragon_head minecraft:dragon_wall_head down
+I minecraft:piglin_head standing_and_wall minecraft:piglin_head minecraft:piglin_wall_head down
+I minecraft:white_banner banner minecraft:white_banner minecraft:white_wall_banner down
+I minecraft:orange_banner banner minecraft:orange_banner minecraft:orange_wall_banner down
+I minecraft:magenta_banner banner minecraft:magenta_banner minecraft:magenta_wall_banner down
+I minecraft:light_blue_banner banner minecraft:light_blue_banner minecraft:light_blue_wall_banner down
+I minecraft:yellow_banner banner minecraft:yellow_banner minecraft:yellow_wall_banner down
+I minecraft:lime_banner banner minecraft:lime_banner minecraft:lime_wall_banner down
+I minecraft:pink_banner banner minecraft:pink_banner minecraft:pink_wall_banner down
+I minecraft:gray_banner banner minecraft:gray_banner minecraft:gray_wall_banner down
+I minecraft:light_gray_banner banner minecraft:light_gray_banner minecraft:light_gray_wall_banner down
+I minecraft:cyan_banner banner minecraft:cyan_banner minecraft:cyan_wall_banner down
+I minecraft:purple_banner banner minecraft:purple_banner minecraft:purple_wall_banner down
+I minecraft:blue_banner banner minecraft:blue_banner minecraft:blue_wall_banner down
+I minecraft:brown_banner banner minecraft:brown_banner minecraft:brown_wall_banner down
+I minecraft:green_banner banner minecraft:green_banner minecraft:green_wall_banner down
+I minecraft:red_banner banner minecraft:red_banner minecraft:red_wall_banner down
+I minecraft:black_banner banner minecraft:black_banner minecraft:black_wall_banner down
+I minecraft:torchflower_seeds item_name minecraft:torchflower_crop
+I minecraft:pitcher_pod item_name minecraft:pitcher_crop
+I minecraft:beetroot_seeds item_name minecraft:beetroots
+I minecraft:loom block minecraft:loom
+I minecraft:composter block minecraft:composter
+I minecraft:barrel block minecraft:barrel
+I minecraft:smoker block minecraft:smoker
+I minecraft:blast_furnace block minecraft:blast_furnace
+I minecraft:cartography_table block minecraft:cartography_table
+I minecraft:fletching_table block minecraft:fletching_table
+I minecraft:grindstone block minecraft:grindstone
+I minecraft:smithing_table block minecraft:smithing_table
+I minecraft:stonecutter block minecraft:stonecutter
+I minecraft:bell block minecraft:bell
+I minecraft:lantern block minecraft:lantern
+I minecraft:soul_lantern block minecraft:soul_lantern
+I minecraft:sweet_berries item_name minecraft:sweet_berry_bush
+I minecraft:glow_berries item_name minecraft:cave_vines
+I minecraft:campfire block minecraft:campfire
+I minecraft:soul_campfire block minecraft:soul_campfire
+I minecraft:shroomlight block minecraft:shroomlight
+I minecraft:bee_nest block minecraft:bee_nest
+I minecraft:beehive block minecraft:beehive
+I minecraft:honeycomb_block block minecraft:honeycomb_block
+I minecraft:lodestone block minecraft:lodestone
+I minecraft:crying_obsidian block minecraft:crying_obsidian
+I minecraft:blackstone block minecraft:blackstone
+I minecraft:blackstone_slab block minecraft:blackstone_slab
+I minecraft:blackstone_stairs block minecraft:blackstone_stairs
+I minecraft:gilded_blackstone block minecraft:gilded_blackstone
+I minecraft:polished_blackstone block minecraft:polished_blackstone
+I minecraft:polished_blackstone_slab block minecraft:polished_blackstone_slab
+I minecraft:polished_blackstone_stairs block minecraft:polished_blackstone_stairs
+I minecraft:chiseled_polished_blackstone block minecraft:chiseled_polished_blackstone
+I minecraft:polished_blackstone_bricks block minecraft:polished_blackstone_bricks
+I minecraft:polished_blackstone_brick_slab block minecraft:polished_blackstone_brick_slab
+I minecraft:polished_blackstone_brick_stairs block minecraft:polished_blackstone_brick_stairs
+I minecraft:cracked_polished_blackstone_bricks block minecraft:cracked_polished_blackstone_bricks
+I minecraft:respawn_anchor block minecraft:respawn_anchor
+I minecraft:candle block minecraft:candle
+I minecraft:white_candle block minecraft:white_candle
+I minecraft:orange_candle block minecraft:orange_candle
+I minecraft:magenta_candle block minecraft:magenta_candle
+I minecraft:light_blue_candle block minecraft:light_blue_candle
+I minecraft:yellow_candle block minecraft:yellow_candle
+I minecraft:lime_candle block minecraft:lime_candle
+I minecraft:pink_candle block minecraft:pink_candle
+I minecraft:gray_candle block minecraft:gray_candle
+I minecraft:light_gray_candle block minecraft:light_gray_candle
+I minecraft:cyan_candle block minecraft:cyan_candle
+I minecraft:purple_candle block minecraft:purple_candle
+I minecraft:blue_candle block minecraft:blue_candle
+I minecraft:brown_candle block minecraft:brown_candle
+I minecraft:green_candle block minecraft:green_candle
+I minecraft:red_candle block minecraft:red_candle
+I minecraft:black_candle block minecraft:black_candle
+I minecraft:small_amethyst_bud block minecraft:small_amethyst_bud
+I minecraft:medium_amethyst_bud block minecraft:medium_amethyst_bud
+I minecraft:large_amethyst_bud block minecraft:large_amethyst_bud
+I minecraft:amethyst_cluster block minecraft:amethyst_cluster
+I minecraft:pointed_dripstone block minecraft:pointed_dripstone
+I minecraft:ochre_froglight block minecraft:ochre_froglight
+I minecraft:verdant_froglight block minecraft:verdant_froglight
+I minecraft:pearlescent_froglight block minecraft:pearlescent_froglight
+I minecraft:frogspawn place_on_water minecraft:frogspawn
+I minecraft:copper_grate block minecraft:copper_grate
+I minecraft:exposed_copper_grate block minecraft:exposed_copper_grate
+I minecraft:weathered_copper_grate block minecraft:weathered_copper_grate
+I minecraft:oxidized_copper_grate block minecraft:oxidized_copper_grate
+I minecraft:waxed_copper_grate block minecraft:waxed_copper_grate
+I minecraft:waxed_exposed_copper_grate block minecraft:waxed_exposed_copper_grate
+I minecraft:waxed_weathered_copper_grate block minecraft:waxed_weathered_copper_grate
+I minecraft:waxed_oxidized_copper_grate block minecraft:waxed_oxidized_copper_grate
+I minecraft:copper_bulb block minecraft:copper_bulb
+I minecraft:exposed_copper_bulb block minecraft:exposed_copper_bulb
+I minecraft:weathered_copper_bulb block minecraft:weathered_copper_bulb
+I minecraft:oxidized_copper_bulb block minecraft:oxidized_copper_bulb
+I minecraft:waxed_copper_bulb block minecraft:waxed_copper_bulb
+I minecraft:waxed_exposed_copper_bulb block minecraft:waxed_exposed_copper_bulb
+I minecraft:waxed_weathered_copper_bulb block minecraft:waxed_weathered_copper_bulb
+I minecraft:waxed_oxidized_copper_bulb block minecraft:waxed_oxidized_copper_bulb
+I minecraft:trial_spawner block minecraft:trial_spawner
+I minecraft:vault block minecraft:vault
+B minecraft:air minecraft:air
+B minecraft:stone minecraft:stone
+B minecraft:granite minecraft:granite
+B minecraft:polished_granite minecraft:polished_granite
+B minecraft:diorite minecraft:diorite
+B minecraft:polished_diorite minecraft:polished_diorite
+B minecraft:andesite minecraft:andesite
+B minecraft:polished_andesite minecraft:polished_andesite
+B minecraft:grass_block minecraft:grass_block
+B minecraft:dirt minecraft:dirt
+B minecraft:coarse_dirt minecraft:coarse_dirt
+B minecraft:podzol minecraft:podzol
+B minecraft:cobblestone minecraft:cobblestone
+B minecraft:oak_planks minecraft:oak_planks
+B minecraft:spruce_planks minecraft:spruce_planks
+B minecraft:birch_planks minecraft:birch_planks
+B minecraft:jungle_planks minecraft:jungle_planks
+B minecraft:acacia_planks minecraft:acacia_planks
+B minecraft:cherry_planks minecraft:cherry_planks
+B minecraft:dark_oak_planks minecraft:dark_oak_planks
+B minecraft:mangrove_planks minecraft:mangrove_planks
+B minecraft:bamboo_planks minecraft:bamboo_planks
+B minecraft:bamboo_mosaic minecraft:bamboo_mosaic
+B minecraft:oak_sapling minecraft:oak_sapling
+B minecraft:spruce_sapling minecraft:spruce_sapling
+B minecraft:birch_sapling minecraft:birch_sapling
+B minecraft:jungle_sapling minecraft:jungle_sapling
+B minecraft:acacia_sapling minecraft:acacia_sapling
+B minecraft:cherry_sapling minecraft:cherry_sapling
+B minecraft:dark_oak_sapling minecraft:dark_oak_sapling
+B minecraft:mangrove_propagule minecraft:mangrove_propagule
+B minecraft:bedrock minecraft:bedrock
+B minecraft:water minecraft:air
+B minecraft:lava minecraft:air
+B minecraft:sand minecraft:sand
+B minecraft:suspicious_sand minecraft:suspicious_sand
+B minecraft:red_sand minecraft:red_sand
+B minecraft:gravel minecraft:gravel
+B minecraft:suspicious_gravel minecraft:suspicious_gravel
+B minecraft:gold_ore minecraft:gold_ore
+B minecraft:deepslate_gold_ore minecraft:deepslate_gold_ore
+B minecraft:iron_ore minecraft:iron_ore
+B minecraft:deepslate_iron_ore minecraft:deepslate_iron_ore
+B minecraft:coal_ore minecraft:coal_ore
+B minecraft:deepslate_coal_ore minecraft:deepslate_coal_ore
+B minecraft:nether_gold_ore minecraft:nether_gold_ore
+B minecraft:oak_log minecraft:oak_log
+B minecraft:spruce_log minecraft:spruce_log
+B minecraft:birch_log minecraft:birch_log
+B minecraft:jungle_log minecraft:jungle_log
+B minecraft:acacia_log minecraft:acacia_log
+B minecraft:cherry_log minecraft:cherry_log
+B minecraft:dark_oak_log minecraft:dark_oak_log
+B minecraft:mangrove_log minecraft:mangrove_log
+B minecraft:mangrove_roots minecraft:mangrove_roots
+B minecraft:muddy_mangrove_roots minecraft:muddy_mangrove_roots
+B minecraft:bamboo_block minecraft:bamboo_block
+B minecraft:stripped_spruce_log minecraft:stripped_spruce_log
+B minecraft:stripped_birch_log minecraft:stripped_birch_log
+B minecraft:stripped_jungle_log minecraft:stripped_jungle_log
+B minecraft:stripped_acacia_log minecraft:stripped_acacia_log
+B minecraft:stripped_cherry_log minecraft:stripped_cherry_log
+B minecraft:stripped_dark_oak_log minecraft:stripped_dark_oak_log
+B minecraft:stripped_oak_log minecraft:stripped_oak_log
+B minecraft:stripped_mangrove_log minecraft:stripped_mangrove_log
+B minecraft:stripped_bamboo_block minecraft:stripped_bamboo_block
+B minecraft:oak_wood minecraft:oak_wood
+B minecraft:spruce_wood minecraft:spruce_wood
+B minecraft:birch_wood minecraft:birch_wood
+B minecraft:jungle_wood minecraft:jungle_wood
+B minecraft:acacia_wood minecraft:acacia_wood
+B minecraft:cherry_wood minecraft:cherry_wood
+B minecraft:dark_oak_wood minecraft:dark_oak_wood
+B minecraft:mangrove_wood minecraft:mangrove_wood
+B minecraft:stripped_oak_wood minecraft:stripped_oak_wood
+B minecraft:stripped_spruce_wood minecraft:stripped_spruce_wood
+B minecraft:stripped_birch_wood minecraft:stripped_birch_wood
+B minecraft:stripped_jungle_wood minecraft:stripped_jungle_wood
+B minecraft:stripped_acacia_wood minecraft:stripped_acacia_wood
+B minecraft:stripped_cherry_wood minecraft:stripped_cherry_wood
+B minecraft:stripped_dark_oak_wood minecraft:stripped_dark_oak_wood
+B minecraft:stripped_mangrove_wood minecraft:stripped_mangrove_wood
+B minecraft:oak_leaves minecraft:oak_leaves
+B minecraft:spruce_leaves minecraft:spruce_leaves
+B minecraft:birch_leaves minecraft:birch_leaves
+B minecraft:jungle_leaves minecraft:jungle_leaves
+B minecraft:acacia_leaves minecraft:acacia_leaves
+B minecraft:cherry_leaves minecraft:cherry_leaves
+B minecraft:dark_oak_leaves minecraft:dark_oak_leaves
+B minecraft:mangrove_leaves minecraft:mangrove_leaves
+B minecraft:azalea_leaves minecraft:azalea_leaves
+B minecraft:flowering_azalea_leaves minecraft:flowering_azalea_leaves
+B minecraft:sponge minecraft:sponge
+B minecraft:wet_sponge minecraft:wet_sponge
+B minecraft:glass minecraft:glass
+B minecraft:lapis_ore minecraft:lapis_ore
+B minecraft:deepslate_lapis_ore minecraft:deepslate_lapis_ore
+B minecraft:lapis_block minecraft:lapis_block
+B minecraft:dispenser minecraft:dispenser
+B minecraft:sandstone minecraft:sandstone
+B minecraft:chiseled_sandstone minecraft:chiseled_sandstone
+B minecraft:cut_sandstone minecraft:cut_sandstone
+B minecraft:note_block minecraft:note_block
+B minecraft:white_bed minecraft:white_bed
+B minecraft:orange_bed minecraft:orange_bed
+B minecraft:magenta_bed minecraft:magenta_bed
+B minecraft:light_blue_bed minecraft:light_blue_bed
+B minecraft:yellow_bed minecraft:yellow_bed
+B minecraft:lime_bed minecraft:lime_bed
+B minecraft:pink_bed minecraft:pink_bed
+B minecraft:gray_bed minecraft:gray_bed
+B minecraft:light_gray_bed minecraft:light_gray_bed
+B minecraft:cyan_bed minecraft:cyan_bed
+B minecraft:purple_bed minecraft:purple_bed
+B minecraft:blue_bed minecraft:blue_bed
+B minecraft:brown_bed minecraft:brown_bed
+B minecraft:green_bed minecraft:green_bed
+B minecraft:red_bed minecraft:red_bed
+B minecraft:black_bed minecraft:black_bed
+B minecraft:powered_rail minecraft:powered_rail
+B minecraft:detector_rail minecraft:detector_rail
+B minecraft:sticky_piston minecraft:sticky_piston
+B minecraft:cobweb minecraft:cobweb
+B minecraft:short_grass minecraft:short_grass
+B minecraft:fern minecraft:fern
+B minecraft:dead_bush minecraft:dead_bush
+B minecraft:seagrass minecraft:seagrass
+B minecraft:tall_seagrass minecraft:air
+B minecraft:piston minecraft:piston
+B minecraft:piston_head minecraft:air
+B minecraft:white_wool minecraft:white_wool
+B minecraft:orange_wool minecraft:orange_wool
+B minecraft:magenta_wool minecraft:magenta_wool
+B minecraft:light_blue_wool minecraft:light_blue_wool
+B minecraft:yellow_wool minecraft:yellow_wool
+B minecraft:lime_wool minecraft:lime_wool
+B minecraft:pink_wool minecraft:pink_wool
+B minecraft:gray_wool minecraft:gray_wool
+B minecraft:light_gray_wool minecraft:light_gray_wool
+B minecraft:cyan_wool minecraft:cyan_wool
+B minecraft:purple_wool minecraft:purple_wool
+B minecraft:blue_wool minecraft:blue_wool
+B minecraft:brown_wool minecraft:brown_wool
+B minecraft:green_wool minecraft:green_wool
+B minecraft:red_wool minecraft:red_wool
+B minecraft:black_wool minecraft:black_wool
+B minecraft:moving_piston minecraft:air
+B minecraft:dandelion minecraft:dandelion
+B minecraft:torchflower minecraft:torchflower
+B minecraft:poppy minecraft:poppy
+B minecraft:blue_orchid minecraft:blue_orchid
+B minecraft:allium minecraft:allium
+B minecraft:azure_bluet minecraft:azure_bluet
+B minecraft:red_tulip minecraft:red_tulip
+B minecraft:orange_tulip minecraft:orange_tulip
+B minecraft:white_tulip minecraft:white_tulip
+B minecraft:pink_tulip minecraft:pink_tulip
+B minecraft:oxeye_daisy minecraft:oxeye_daisy
+B minecraft:cornflower minecraft:cornflower
+B minecraft:wither_rose minecraft:wither_rose
+B minecraft:lily_of_the_valley minecraft:lily_of_the_valley
+B minecraft:brown_mushroom minecraft:brown_mushroom
+B minecraft:red_mushroom minecraft:red_mushroom
+B minecraft:gold_block minecraft:gold_block
+B minecraft:iron_block minecraft:iron_block
+B minecraft:bricks minecraft:bricks
+B minecraft:tnt minecraft:tnt
+B minecraft:bookshelf minecraft:bookshelf
+B minecraft:chiseled_bookshelf minecraft:chiseled_bookshelf
+B minecraft:mossy_cobblestone minecraft:mossy_cobblestone
+B minecraft:obsidian minecraft:obsidian
+B minecraft:torch minecraft:torch
+B minecraft:wall_torch minecraft:torch
+B minecraft:fire minecraft:air
+B minecraft:soul_fire minecraft:air
+B minecraft:spawner minecraft:spawner
+B minecraft:oak_stairs minecraft:oak_stairs
+B minecraft:chest minecraft:chest
+B minecraft:redstone_wire minecraft:redstone
+B minecraft:diamond_ore minecraft:diamond_ore
+B minecraft:deepslate_diamond_ore minecraft:deepslate_diamond_ore
+B minecraft:diamond_block minecraft:diamond_block
+B minecraft:crafting_table minecraft:crafting_table
+B minecraft:wheat minecraft:wheat_seeds
+B minecraft:farmland minecraft:farmland
+B minecraft:furnace minecraft:furnace
+B minecraft:oak_sign minecraft:oak_sign
+B minecraft:spruce_sign minecraft:spruce_sign
+B minecraft:birch_sign minecraft:birch_sign
+B minecraft:acacia_sign minecraft:acacia_sign
+B minecraft:cherry_sign minecraft:cherry_sign
+B minecraft:jungle_sign minecraft:jungle_sign
+B minecraft:dark_oak_sign minecraft:dark_oak_sign
+B minecraft:mangrove_sign minecraft:mangrove_sign
+B minecraft:bamboo_sign minecraft:bamboo_sign
+B minecraft:oak_door minecraft:oak_door
+B minecraft:ladder minecraft:ladder
+B minecraft:rail minecraft:rail
+B minecraft:cobblestone_stairs minecraft:cobblestone_stairs
+B minecraft:oak_wall_sign minecraft:oak_sign
+B minecraft:spruce_wall_sign minecraft:spruce_sign
+B minecraft:birch_wall_sign minecraft:birch_sign
+B minecraft:acacia_wall_sign minecraft:acacia_sign
+B minecraft:cherry_wall_sign minecraft:cherry_sign
+B minecraft:jungle_wall_sign minecraft:jungle_sign
+B minecraft:dark_oak_wall_sign minecraft:dark_oak_sign
+B minecraft:mangrove_wall_sign minecraft:mangrove_sign
+B minecraft:bamboo_wall_sign minecraft:bamboo_sign
+B minecraft:oak_hanging_sign minecraft:oak_hanging_sign
+B minecraft:spruce_hanging_sign minecraft:spruce_hanging_sign
+B minecraft:birch_hanging_sign minecraft:birch_hanging_sign
+B minecraft:acacia_hanging_sign minecraft:acacia_hanging_sign
+B minecraft:cherry_hanging_sign minecraft:cherry_hanging_sign
+B minecraft:jungle_hanging_sign minecraft:jungle_hanging_sign
+B minecraft:dark_oak_hanging_sign minecraft:dark_oak_hanging_sign
+B minecraft:crimson_hanging_sign minecraft:crimson_hanging_sign
+B minecraft:warped_hanging_sign minecraft:warped_hanging_sign
+B minecraft:mangrove_hanging_sign minecraft:mangrove_hanging_sign
+B minecraft:bamboo_hanging_sign minecraft:bamboo_hanging_sign
+B minecraft:oak_wall_hanging_sign minecraft:oak_hanging_sign
+B minecraft:spruce_wall_hanging_sign minecraft:spruce_hanging_sign
+B minecraft:birch_wall_hanging_sign minecraft:birch_hanging_sign
+B minecraft:acacia_wall_hanging_sign minecraft:acacia_hanging_sign
+B minecraft:cherry_wall_hanging_sign minecraft:cherry_hanging_sign
+B minecraft:jungle_wall_hanging_sign minecraft:jungle_hanging_sign
+B minecraft:dark_oak_wall_hanging_sign minecraft:dark_oak_hanging_sign
+B minecraft:mangrove_wall_hanging_sign minecraft:mangrove_hanging_sign
+B minecraft:crimson_wall_hanging_sign minecraft:crimson_hanging_sign
+B minecraft:warped_wall_hanging_sign minecraft:warped_hanging_sign
+B minecraft:bamboo_wall_hanging_sign minecraft:bamboo_hanging_sign
+B minecraft:lever minecraft:lever
+B minecraft:stone_pressure_plate minecraft:stone_pressure_plate
+B minecraft:iron_door minecraft:iron_door
+B minecraft:oak_pressure_plate minecraft:oak_pressure_plate
+B minecraft:spruce_pressure_plate minecraft:spruce_pressure_plate
+B minecraft:birch_pressure_plate minecraft:birch_pressure_plate
+B minecraft:jungle_pressure_plate minecraft:jungle_pressure_plate
+B minecraft:acacia_pressure_plate minecraft:acacia_pressure_plate
+B minecraft:cherry_pressure_plate minecraft:cherry_pressure_plate
+B minecraft:dark_oak_pressure_plate minecraft:dark_oak_pressure_plate
+B minecraft:mangrove_pressure_plate minecraft:mangrove_pressure_plate
+B minecraft:bamboo_pressure_plate minecraft:bamboo_pressure_plate
+B minecraft:redstone_ore minecraft:redstone_ore
+B minecraft:deepslate_redstone_ore minecraft:deepslate_redstone_ore
+B minecraft:redstone_torch minecraft:redstone_torch
+B minecraft:redstone_wall_torch minecraft:redstone_torch
+B minecraft:stone_button minecraft:stone_button
+B minecraft:snow minecraft:snow
+B minecraft:ice minecraft:ice
+B minecraft:snow_block minecraft:snow_block
+B minecraft:cactus minecraft:cactus
+B minecraft:clay minecraft:clay
+B minecraft:sugar_cane minecraft:sugar_cane
+B minecraft:jukebox minecraft:jukebox
+B minecraft:oak_fence minecraft:oak_fence
+B minecraft:netherrack minecraft:netherrack
+B minecraft:soul_sand minecraft:soul_sand
+B minecraft:soul_soil minecraft:soul_soil
+B minecraft:basalt minecraft:basalt
+B minecraft:polished_basalt minecraft:polished_basalt
+B minecraft:soul_torch minecraft:soul_torch
+B minecraft:soul_wall_torch minecraft:soul_torch
+B minecraft:glowstone minecraft:glowstone
+B minecraft:nether_portal minecraft:air
+B minecraft:carved_pumpkin minecraft:carved_pumpkin
+B minecraft:jack_o_lantern minecraft:jack_o_lantern
+B minecraft:cake minecraft:cake
+B minecraft:repeater minecraft:repeater
+B minecraft:white_stained_glass minecraft:white_stained_glass
+B minecraft:orange_stained_glass minecraft:orange_stained_glass
+B minecraft:magenta_stained_glass minecraft:magenta_stained_glass
+B minecraft:light_blue_stained_glass minecraft:light_blue_stained_glass
+B minecraft:yellow_stained_glass minecraft:yellow_stained_glass
+B minecraft:lime_stained_glass minecraft:lime_stained_glass
+B minecraft:pink_stained_glass minecraft:pink_stained_glass
+B minecraft:gray_stained_glass minecraft:gray_stained_glass
+B minecraft:light_gray_stained_glass minecraft:light_gray_stained_glass
+B minecraft:cyan_stained_glass minecraft:cyan_stained_glass
+B minecraft:purple_stained_glass minecraft:purple_stained_glass
+B minecraft:blue_stained_glass minecraft:blue_stained_glass
+B minecraft:brown_stained_glass minecraft:brown_stained_glass
+B minecraft:green_stained_glass minecraft:green_stained_glass
+B minecraft:red_stained_glass minecraft:red_stained_glass
+B minecraft:black_stained_glass minecraft:black_stained_glass
+B minecraft:oak_trapdoor minecraft:oak_trapdoor
+B minecraft:spruce_trapdoor minecraft:spruce_trapdoor
+B minecraft:birch_trapdoor minecraft:birch_trapdoor
+B minecraft:jungle_trapdoor minecraft:jungle_trapdoor
+B minecraft:acacia_trapdoor minecraft:acacia_trapdoor
+B minecraft:cherry_trapdoor minecraft:cherry_trapdoor
+B minecraft:dark_oak_trapdoor minecraft:dark_oak_trapdoor
+B minecraft:mangrove_trapdoor minecraft:mangrove_trapdoor
+B minecraft:bamboo_trapdoor minecraft:bamboo_trapdoor
+B minecraft:stone_bricks minecraft:stone_bricks
+B minecraft:mossy_stone_bricks minecraft:mossy_stone_bricks
+B minecraft:cracked_stone_bricks minecraft:cracked_stone_bricks
+B minecraft:chiseled_stone_bricks minecraft:chiseled_stone_bricks
+B minecraft:packed_mud minecraft:packed_mud
+B minecraft:mud_bricks minecraft:mud_bricks
+B minecraft:infested_stone minecraft:infested_stone
+B minecraft:infested_cobblestone minecraft:infested_cobblestone
+B minecraft:infested_stone_bricks minecraft:infested_stone_bricks
+B minecraft:infested_mossy_stone_bricks minecraft:infested_mossy_stone_bricks
+B minecraft:infested_cracked_stone_bricks minecraft:infested_cracked_stone_bricks
+B minecraft:infested_chiseled_stone_bricks minecraft:infested_chiseled_stone_bricks
+B minecraft:brown_mushroom_block minecraft:brown_mushroom_block
+B minecraft:red_mushroom_block minecraft:red_mushroom_block
+B minecraft:mushroom_stem minecraft:mushroom_stem
+B minecraft:iron_bars minecraft:iron_bars
+B minecraft:chain minecraft:chain
+B minecraft:glass_pane minecraft:glass_pane
+B minecraft:pumpkin minecraft:pumpkin
+B minecraft:melon minecraft:melon
+B minecraft:attached_pumpkin_stem minecraft:air
+B minecraft:attached_melon_stem minecraft:air
+B minecraft:pumpkin_stem minecraft:pumpkin_seeds
+B minecraft:melon_stem minecraft:melon_seeds
+B minecraft:vine minecraft:vine
+B minecraft:glow_lichen minecraft:glow_lichen
+B minecraft:oak_fence_gate minecraft:oak_fence_gate
+B minecraft:brick_stairs minecraft:brick_stairs
+B minecraft:stone_brick_stairs minecraft:stone_brick_stairs
+B minecraft:mud_brick_stairs minecraft:mud_brick_stairs
+B minecraft:mycelium minecraft:mycelium
+B minecraft:lily_pad minecraft:lily_pad
+B minecraft:nether_bricks minecraft:nether_bricks
+B minecraft:nether_brick_fence minecraft:nether_brick_fence
+B minecraft:nether_brick_stairs minecraft:nether_brick_stairs
+B minecraft:nether_wart minecraft:nether_wart
+B minecraft:enchanting_table minecraft:enchanting_table
+B minecraft:brewing_stand minecraft:brewing_stand
+B minecraft:cauldron minecraft:cauldron
+B minecraft:water_cauldron minecraft:cauldron
+B minecraft:lava_cauldron minecraft:cauldron
+B minecraft:powder_snow_cauldron minecraft:cauldron
+B minecraft:end_portal minecraft:air
+B minecraft:end_portal_frame minecraft:end_portal_frame
+B minecraft:end_stone minecraft:end_stone
+B minecraft:dragon_egg minecraft:dragon_egg
+B minecraft:redstone_lamp minecraft:redstone_lamp
+B minecraft:cocoa minecraft:cocoa_beans
+B minecraft:sandstone_stairs minecraft:sandstone_stairs
+B minecraft:emerald_ore minecraft:emerald_ore
+B minecraft:deepslate_emerald_ore minecraft:deepslate_emerald_ore
+B minecraft:ender_chest minecraft:ender_chest
+B minecraft:tripwire_hook minecraft:tripwire_hook
+B minecraft:tripwire minecraft:string
+B minecraft:emerald_block minecraft:emerald_block
+B minecraft:spruce_stairs minecraft:spruce_stairs
+B minecraft:birch_stairs minecraft:birch_stairs
+B minecraft:jungle_stairs minecraft:jungle_stairs
+B minecraft:command_block minecraft:command_block
+B minecraft:beacon minecraft:beacon
+B minecraft:cobblestone_wall minecraft:cobblestone_wall
+B minecraft:mossy_cobblestone_wall minecraft:mossy_cobblestone_wall
+B minecraft:flower_pot minecraft:flower_pot
+B minecraft:potted_torchflower minecraft:air
+B minecraft:potted_oak_sapling minecraft:air
+B minecraft:potted_spruce_sapling minecraft:air
+B minecraft:potted_birch_sapling minecraft:air
+B minecraft:potted_jungle_sapling minecraft:air
+B minecraft:potted_acacia_sapling minecraft:air
+B minecraft:potted_cherry_sapling minecraft:air
+B minecraft:potted_dark_oak_sapling minecraft:air
+B minecraft:potted_mangrove_propagule minecraft:air
+B minecraft:potted_fern minecraft:air
+B minecraft:potted_dandelion minecraft:air
+B minecraft:potted_poppy minecraft:air
+B minecraft:potted_blue_orchid minecraft:air
+B minecraft:potted_allium minecraft:air
+B minecraft:potted_azure_bluet minecraft:air
+B minecraft:potted_red_tulip minecraft:air
+B minecraft:potted_orange_tulip minecraft:air
+B minecraft:potted_white_tulip minecraft:air
+B minecraft:potted_pink_tulip minecraft:air
+B minecraft:potted_oxeye_daisy minecraft:air
+B minecraft:potted_cornflower minecraft:air
+B minecraft:potted_lily_of_the_valley minecraft:air
+B minecraft:potted_wither_rose minecraft:air
+B minecraft:potted_red_mushroom minecraft:air
+B minecraft:potted_brown_mushroom minecraft:air
+B minecraft:potted_dead_bush minecraft:air
+B minecraft:potted_cactus minecraft:air
+B minecraft:carrots minecraft:carrot
+B minecraft:potatoes minecraft:potato
+B minecraft:oak_button minecraft:oak_button
+B minecraft:spruce_button minecraft:spruce_button
+B minecraft:birch_button minecraft:birch_button
+B minecraft:jungle_button minecraft:jungle_button
+B minecraft:acacia_button minecraft:acacia_button
+B minecraft:cherry_button minecraft:cherry_button
+B minecraft:dark_oak_button minecraft:dark_oak_button
+B minecraft:mangrove_button minecraft:mangrove_button
+B minecraft:bamboo_button minecraft:bamboo_button
+B minecraft:skeleton_skull minecraft:skeleton_skull
+B minecraft:skeleton_wall_skull minecraft:skeleton_skull
+B minecraft:wither_skeleton_skull minecraft:wither_skeleton_skull
+B minecraft:wither_skeleton_wall_skull minecraft:wither_skeleton_skull
+B minecraft:zombie_head minecraft:zombie_head
+B minecraft:zombie_wall_head minecraft:zombie_head
+B minecraft:player_head minecraft:player_head
+B minecraft:player_wall_head minecraft:player_head
+B minecraft:creeper_head minecraft:creeper_head
+B minecraft:creeper_wall_head minecraft:creeper_head
+B minecraft:dragon_head minecraft:dragon_head
+B minecraft:dragon_wall_head minecraft:dragon_head
+B minecraft:piglin_head minecraft:piglin_head
+B minecraft:piglin_wall_head minecraft:piglin_head
+B minecraft:anvil minecraft:anvil
+B minecraft:chipped_anvil minecraft:chipped_anvil
+B minecraft:damaged_anvil minecraft:damaged_anvil
+B minecraft:trapped_chest minecraft:trapped_chest
+B minecraft:light_weighted_pressure_plate minecraft:light_weighted_pressure_plate
+B minecraft:heavy_weighted_pressure_plate minecraft:heavy_weighted_pressure_plate
+B minecraft:comparator minecraft:comparator
+B minecraft:daylight_detector minecraft:daylight_detector
+B minecraft:redstone_block minecraft:redstone_block
+B minecraft:nether_quartz_ore minecraft:nether_quartz_ore
+B minecraft:hopper minecraft:hopper
+B minecraft:quartz_block minecraft:quartz_block
+B minecraft:chiseled_quartz_block minecraft:chiseled_quartz_block
+B minecraft:quartz_pillar minecraft:quartz_pillar
+B minecraft:quartz_stairs minecraft:quartz_stairs
+B minecraft:activator_rail minecraft:activator_rail
+B minecraft:dropper minecraft:dropper
+B minecraft:white_terracotta minecraft:white_terracotta
+B minecraft:orange_terracotta minecraft:orange_terracotta
+B minecraft:magenta_terracotta minecraft:magenta_terracotta
+B minecraft:light_blue_terracotta minecraft:light_blue_terracotta
+B minecraft:yellow_terracotta minecraft:yellow_terracotta
+B minecraft:lime_terracotta minecraft:lime_terracotta
+B minecraft:pink_terracotta minecraft:pink_terracotta
+B minecraft:gray_terracotta minecraft:gray_terracotta
+B minecraft:light_gray_terracotta minecraft:light_gray_terracotta
+B minecraft:cyan_terracotta minecraft:cyan_terracotta
+B minecraft:purple_terracotta minecraft:purple_terracotta
+B minecraft:blue_terracotta minecraft:blue_terracotta
+B minecraft:brown_terracotta minecraft:brown_terracotta
+B minecraft:green_terracotta minecraft:green_terracotta
+B minecraft:red_terracotta minecraft:red_terracotta
+B minecraft:black_terracotta minecraft:black_terracotta
+B minecraft:white_stained_glass_pane minecraft:white_stained_glass_pane
+B minecraft:orange_stained_glass_pane minecraft:orange_stained_glass_pane
+B minecraft:magenta_stained_glass_pane minecraft:magenta_stained_glass_pane
+B minecraft:light_blue_stained_glass_pane minecraft:light_blue_stained_glass_pane
+B minecraft:yellow_stained_glass_pane minecraft:yellow_stained_glass_pane
+B minecraft:lime_stained_glass_pane minecraft:lime_stained_glass_pane
+B minecraft:pink_stained_glass_pane minecraft:pink_stained_glass_pane
+B minecraft:gray_stained_glass_pane minecraft:gray_stained_glass_pane
+B minecraft:light_gray_stained_glass_pane minecraft:light_gray_stained_glass_pane
+B minecraft:cyan_stained_glass_pane minecraft:cyan_stained_glass_pane
+B minecraft:purple_stained_glass_pane minecraft:purple_stained_glass_pane
+B minecraft:blue_stained_glass_pane minecraft:blue_stained_glass_pane
+B minecraft:brown_stained_glass_pane minecraft:brown_stained_glass_pane
+B minecraft:green_stained_glass_pane minecraft:green_stained_glass_pane
+B minecraft:red_stained_glass_pane minecraft:red_stained_glass_pane
+B minecraft:black_stained_glass_pane minecraft:black_stained_glass_pane
+B minecraft:acacia_stairs minecraft:acacia_stairs
+B minecraft:cherry_stairs minecraft:cherry_stairs
+B minecraft:dark_oak_stairs minecraft:dark_oak_stairs
+B minecraft:mangrove_stairs minecraft:mangrove_stairs
+B minecraft:bamboo_stairs minecraft:bamboo_stairs
+B minecraft:bamboo_mosaic_stairs minecraft:bamboo_mosaic_stairs
+B minecraft:slime_block minecraft:slime_block
+B minecraft:barrier minecraft:barrier
+B minecraft:light minecraft:light
+B minecraft:iron_trapdoor minecraft:iron_trapdoor
+B minecraft:prismarine minecraft:prismarine
+B minecraft:prismarine_bricks minecraft:prismarine_bricks
+B minecraft:dark_prismarine minecraft:dark_prismarine
+B minecraft:prismarine_stairs minecraft:prismarine_stairs
+B minecraft:prismarine_brick_stairs minecraft:prismarine_brick_stairs
+B minecraft:dark_prismarine_stairs minecraft:dark_prismarine_stairs
+B minecraft:prismarine_slab minecraft:prismarine_slab
+B minecraft:prismarine_brick_slab minecraft:prismarine_brick_slab
+B minecraft:dark_prismarine_slab minecraft:dark_prismarine_slab
+B minecraft:sea_lantern minecraft:sea_lantern
+B minecraft:hay_block minecraft:hay_block
+B minecraft:white_carpet minecraft:white_carpet
+B minecraft:orange_carpet minecraft:orange_carpet
+B minecraft:magenta_carpet minecraft:magenta_carpet
+B minecraft:light_blue_carpet minecraft:light_blue_carpet
+B minecraft:yellow_carpet minecraft:yellow_carpet
+B minecraft:lime_carpet minecraft:lime_carpet
+B minecraft:pink_carpet minecraft:pink_carpet
+B minecraft:gray_carpet minecraft:gray_carpet
+B minecraft:light_gray_carpet minecraft:light_gray_carpet
+B minecraft:cyan_carpet minecraft:cyan_carpet
+B minecraft:purple_carpet minecraft:purple_carpet
+B minecraft:blue_carpet minecraft:blue_carpet
+B minecraft:brown_carpet minecraft:brown_carpet
+B minecraft:green_carpet minecraft:green_carpet
+B minecraft:red_carpet minecraft:red_carpet
+B minecraft:black_carpet minecraft:black_carpet
+B minecraft:terracotta minecraft:terracotta
+B minecraft:coal_block minecraft:coal_block
+B minecraft:packed_ice minecraft:packed_ice
+B minecraft:sunflower minecraft:sunflower
+B minecraft:lilac minecraft:lilac
+B minecraft:rose_bush minecraft:rose_bush
+B minecraft:peony minecraft:peony
+B minecraft:tall_grass minecraft:tall_grass
+B minecraft:large_fern minecraft:large_fern
+B minecraft:white_banner minecraft:white_banner
+B minecraft:orange_banner minecraft:orange_banner
+B minecraft:magenta_banner minecraft:magenta_banner
+B minecraft:light_blue_banner minecraft:light_blue_banner
+B minecraft:yellow_banner minecraft:yellow_banner
+B minecraft:lime_banner minecraft:lime_banner
+B minecraft:pink_banner minecraft:pink_banner
+B minecraft:gray_banner minecraft:gray_banner
+B minecraft:light_gray_banner minecraft:light_gray_banner
+B minecraft:cyan_banner minecraft:cyan_banner
+B minecraft:purple_banner minecraft:purple_banner
+B minecraft:blue_banner minecraft:blue_banner
+B minecraft:brown_banner minecraft:brown_banner
+B minecraft:green_banner minecraft:green_banner
+B minecraft:red_banner minecraft:red_banner
+B minecraft:black_banner minecraft:black_banner
+B minecraft:white_wall_banner minecraft:white_banner
+B minecraft:orange_wall_banner minecraft:orange_banner
+B minecraft:magenta_wall_banner minecraft:magenta_banner
+B minecraft:light_blue_wall_banner minecraft:light_blue_banner
+B minecraft:yellow_wall_banner minecraft:yellow_banner
+B minecraft:lime_wall_banner minecraft:lime_banner
+B minecraft:pink_wall_banner minecraft:pink_banner
+B minecraft:gray_wall_banner minecraft:gray_banner
+B minecraft:light_gray_wall_banner minecraft:light_gray_banner
+B minecraft:cyan_wall_banner minecraft:cyan_banner
+B minecraft:purple_wall_banner minecraft:purple_banner
+B minecraft:blue_wall_banner minecraft:blue_banner
+B minecraft:brown_wall_banner minecraft:brown_banner
+B minecraft:green_wall_banner minecraft:green_banner
+B minecraft:red_wall_banner minecraft:red_banner
+B minecraft:black_wall_banner minecraft:black_banner
+B minecraft:red_sandstone minecraft:red_sandstone
+B minecraft:chiseled_red_sandstone minecraft:chiseled_red_sandstone
+B minecraft:cut_red_sandstone minecraft:cut_red_sandstone
+B minecraft:red_sandstone_stairs minecraft:red_sandstone_stairs
+B minecraft:oak_slab minecraft:oak_slab
+B minecraft:spruce_slab minecraft:spruce_slab
+B minecraft:birch_slab minecraft:birch_slab
+B minecraft:jungle_slab minecraft:jungle_slab
+B minecraft:acacia_slab minecraft:acacia_slab
+B minecraft:cherry_slab minecraft:cherry_slab
+B minecraft:dark_oak_slab minecraft:dark_oak_slab
+B minecraft:mangrove_slab minecraft:mangrove_slab
+B minecraft:bamboo_slab minecraft:bamboo_slab
+B minecraft:bamboo_mosaic_slab minecraft:bamboo_mosaic_slab
+B minecraft:stone_slab minecraft:stone_slab
+B minecraft:smooth_stone_slab minecraft:smooth_stone_slab
+B minecraft:sandstone_slab minecraft:sandstone_slab
+B minecraft:cut_sandstone_slab minecraft:cut_sandstone_slab
+B minecraft:petrified_oak_slab minecraft:petrified_oak_slab
+B minecraft:cobblestone_slab minecraft:cobblestone_slab
+B minecraft:brick_slab minecraft:brick_slab
+B minecraft:stone_brick_slab minecraft:stone_brick_slab
+B minecraft:mud_brick_slab minecraft:mud_brick_slab
+B minecraft:nether_brick_slab minecraft:nether_brick_slab
+B minecraft:quartz_slab minecraft:quartz_slab
+B minecraft:red_sandstone_slab minecraft:red_sandstone_slab
+B minecraft:cut_red_sandstone_slab minecraft:cut_red_sandstone_slab
+B minecraft:purpur_slab minecraft:purpur_slab
+B minecraft:smooth_stone minecraft:smooth_stone
+B minecraft:smooth_sandstone minecraft:smooth_sandstone
+B minecraft:smooth_quartz minecraft:smooth_quartz
+B minecraft:smooth_red_sandstone minecraft:smooth_red_sandstone
+B minecraft:spruce_fence_gate minecraft:spruce_fence_gate
+B minecraft:birch_fence_gate minecraft:birch_fence_gate
+B minecraft:jungle_fence_gate minecraft:jungle_fence_gate
+B minecraft:acacia_fence_gate minecraft:acacia_fence_gate
+B minecraft:cherry_fence_gate minecraft:cherry_fence_gate
+B minecraft:dark_oak_fence_gate minecraft:dark_oak_fence_gate
+B minecraft:mangrove_fence_gate minecraft:mangrove_fence_gate
+B minecraft:bamboo_fence_gate minecraft:bamboo_fence_gate
+B minecraft:spruce_fence minecraft:spruce_fence
+B minecraft:birch_fence minecraft:birch_fence
+B minecraft:jungle_fence minecraft:jungle_fence
+B minecraft:acacia_fence minecraft:acacia_fence
+B minecraft:cherry_fence minecraft:cherry_fence
+B minecraft:dark_oak_fence minecraft:dark_oak_fence
+B minecraft:mangrove_fence minecraft:mangrove_fence
+B minecraft:bamboo_fence minecraft:bamboo_fence
+B minecraft:spruce_door minecraft:spruce_door
+B minecraft:birch_door minecraft:birch_door
+B minecraft:jungle_door minecraft:jungle_door
+B minecraft:acacia_door minecraft:acacia_door
+B minecraft:cherry_door minecraft:cherry_door
+B minecraft:dark_oak_door minecraft:dark_oak_door
+B minecraft:mangrove_door minecraft:mangrove_door
+B minecraft:bamboo_door minecraft:bamboo_door
+B minecraft:end_rod minecraft:end_rod
+B minecraft:chorus_plant minecraft:chorus_plant
+B minecraft:chorus_flower minecraft:chorus_flower
+B minecraft:purpur_block minecraft:purpur_block
+B minecraft:purpur_pillar minecraft:purpur_pillar
+B minecraft:purpur_stairs minecraft:purpur_stairs
+B minecraft:end_stone_bricks minecraft:end_stone_bricks
+B minecraft:torchflower_crop minecraft:torchflower_seeds
+B minecraft:pitcher_crop minecraft:pitcher_pod
+B minecraft:pitcher_plant minecraft:pitcher_plant
+B minecraft:beetroots minecraft:beetroot_seeds
+B minecraft:dirt_path minecraft:dirt_path
+B minecraft:end_gateway minecraft:air
+B minecraft:repeating_command_block minecraft:repeating_command_block
+B minecraft:chain_command_block minecraft:chain_command_block
+B minecraft:frosted_ice minecraft:air
+B minecraft:magma_block minecraft:magma_block
+B minecraft:nether_wart_block minecraft:nether_wart_block
+B minecraft:red_nether_bricks minecraft:red_nether_bricks
+B minecraft:bone_block minecraft:bone_block
+B minecraft:structure_void minecraft:structure_void
+B minecraft:observer minecraft:observer
+B minecraft:shulker_box minecraft:shulker_box
+B minecraft:white_shulker_box minecraft:white_shulker_box
+B minecraft:orange_shulker_box minecraft:orange_shulker_box
+B minecraft:magenta_shulker_box minecraft:magenta_shulker_box
+B minecraft:light_blue_shulker_box minecraft:light_blue_shulker_box
+B minecraft:yellow_shulker_box minecraft:yellow_shulker_box
+B minecraft:lime_shulker_box minecraft:lime_shulker_box
+B minecraft:pink_shulker_box minecraft:pink_shulker_box
+B minecraft:gray_shulker_box minecraft:gray_shulker_box
+B minecraft:light_gray_shulker_box minecraft:light_gray_shulker_box
+B minecraft:cyan_shulker_box minecraft:cyan_shulker_box
+B minecraft:purple_shulker_box minecraft:purple_shulker_box
+B minecraft:blue_shulker_box minecraft:blue_shulker_box
+B minecraft:brown_shulker_box minecraft:brown_shulker_box
+B minecraft:green_shulker_box minecraft:green_shulker_box
+B minecraft:red_shulker_box minecraft:red_shulker_box
+B minecraft:black_shulker_box minecraft:black_shulker_box
+B minecraft:white_glazed_terracotta minecraft:white_glazed_terracotta
+B minecraft:orange_glazed_terracotta minecraft:orange_glazed_terracotta
+B minecraft:magenta_glazed_terracotta minecraft:magenta_glazed_terracotta
+B minecraft:light_blue_glazed_terracotta minecraft:light_blue_glazed_terracotta
+B minecraft:yellow_glazed_terracotta minecraft:yellow_glazed_terracotta
+B minecraft:lime_glazed_terracotta minecraft:lime_glazed_terracotta
+B minecraft:pink_glazed_terracotta minecraft:pink_glazed_terracotta
+B minecraft:gray_glazed_terracotta minecraft:gray_glazed_terracotta
+B minecraft:light_gray_glazed_terracotta minecraft:light_gray_glazed_terracotta
+B minecraft:cyan_glazed_terracotta minecraft:cyan_glazed_terracotta
+B minecraft:purple_glazed_terracotta minecraft:purple_glazed_terracotta
+B minecraft:blue_glazed_terracotta minecraft:blue_glazed_terracotta
+B minecraft:brown_glazed_terracotta minecraft:brown_glazed_terracotta
+B minecraft:green_glazed_terracotta minecraft:green_glazed_terracotta
+B minecraft:red_glazed_terracotta minecraft:red_glazed_terracotta
+B minecraft:black_glazed_terracotta minecraft:black_glazed_terracotta
+B minecraft:white_concrete minecraft:white_concrete
+B minecraft:orange_concrete minecraft:orange_concrete
+B minecraft:magenta_concrete minecraft:magenta_concrete
+B minecraft:light_blue_concrete minecraft:light_blue_concrete
+B minecraft:yellow_concrete minecraft:yellow_concrete
+B minecraft:lime_concrete minecraft:lime_concrete
+B minecraft:pink_concrete minecraft:pink_concrete
+B minecraft:gray_concrete minecraft:gray_concrete
+B minecraft:light_gray_concrete minecraft:light_gray_concrete
+B minecraft:cyan_concrete minecraft:cyan_concrete
+B minecraft:purple_concrete minecraft:purple_concrete
+B minecraft:blue_concrete minecraft:blue_concrete
+B minecraft:brown_concrete minecraft:brown_concrete
+B minecraft:green_concrete minecraft:green_concrete
+B minecraft:red_concrete minecraft:red_concrete
+B minecraft:black_concrete minecraft:black_concrete
+B minecraft:white_concrete_powder minecraft:white_concrete_powder
+B minecraft:orange_concrete_powder minecraft:orange_concrete_powder
+B minecraft:magenta_concrete_powder minecraft:magenta_concrete_powder
+B minecraft:light_blue_concrete_powder minecraft:light_blue_concrete_powder
+B minecraft:yellow_concrete_powder minecraft:yellow_concrete_powder
+B minecraft:lime_concrete_powder minecraft:lime_concrete_powder
+B minecraft:pink_concrete_powder minecraft:pink_concrete_powder
+B minecraft:gray_concrete_powder minecraft:gray_concrete_powder
+B minecraft:light_gray_concrete_powder minecraft:light_gray_concrete_powder
+B minecraft:cyan_concrete_powder minecraft:cyan_concrete_powder
+B minecraft:purple_concrete_powder minecraft:purple_concrete_powder
+B minecraft:blue_concrete_powder minecraft:blue_concrete_powder
+B minecraft:brown_concrete_powder minecraft:brown_concrete_powder
+B minecraft:green_concrete_powder minecraft:green_concrete_powder
+B minecraft:red_concrete_powder minecraft:red_concrete_powder
+B minecraft:black_concrete_powder minecraft:black_concrete_powder
+B minecraft:kelp minecraft:kelp
+B minecraft:kelp_plant minecraft:air
+B minecraft:dried_kelp_block minecraft:dried_kelp_block
+B minecraft:turtle_egg minecraft:turtle_egg
+B minecraft:sniffer_egg minecraft:sniffer_egg
+B minecraft:dead_tube_coral_block minecraft:dead_tube_coral_block
+B minecraft:dead_brain_coral_block minecraft:dead_brain_coral_block
+B minecraft:dead_bubble_coral_block minecraft:dead_bubble_coral_block
+B minecraft:dead_fire_coral_block minecraft:dead_fire_coral_block
+B minecraft:dead_horn_coral_block minecraft:dead_horn_coral_block
+B minecraft:tube_coral_block minecraft:tube_coral_block
+B minecraft:brain_coral_block minecraft:brain_coral_block
+B minecraft:bubble_coral_block minecraft:bubble_coral_block
+B minecraft:fire_coral_block minecraft:fire_coral_block
+B minecraft:horn_coral_block minecraft:horn_coral_block
+B minecraft:dead_tube_coral minecraft:dead_tube_coral
+B minecraft:dead_brain_coral minecraft:dead_brain_coral
+B minecraft:dead_bubble_coral minecraft:dead_bubble_coral
+B minecraft:dead_fire_coral minecraft:dead_fire_coral
+B minecraft:dead_horn_coral minecraft:dead_horn_coral
+B minecraft:tube_coral minecraft:tube_coral
+B minecraft:brain_coral minecraft:brain_coral
+B minecraft:bubble_coral minecraft:bubble_coral
+B minecraft:fire_coral minecraft:fire_coral
+B minecraft:horn_coral minecraft:horn_coral
+B minecraft:dead_tube_coral_fan minecraft:dead_tube_coral_fan
+B minecraft:dead_brain_coral_fan minecraft:dead_brain_coral_fan
+B minecraft:dead_bubble_coral_fan minecraft:dead_bubble_coral_fan
+B minecraft:dead_fire_coral_fan minecraft:dead_fire_coral_fan
+B minecraft:dead_horn_coral_fan minecraft:dead_horn_coral_fan
+B minecraft:tube_coral_fan minecraft:tube_coral_fan
+B minecraft:brain_coral_fan minecraft:brain_coral_fan
+B minecraft:bubble_coral_fan minecraft:bubble_coral_fan
+B minecraft:fire_coral_fan minecraft:fire_coral_fan
+B minecraft:horn_coral_fan minecraft:horn_coral_fan
+B minecraft:dead_tube_coral_wall_fan minecraft:dead_tube_coral_fan
+B minecraft:dead_brain_coral_wall_fan minecraft:dead_brain_coral_fan
+B minecraft:dead_bubble_coral_wall_fan minecraft:dead_bubble_coral_fan
+B minecraft:dead_fire_coral_wall_fan minecraft:dead_fire_coral_fan
+B minecraft:dead_horn_coral_wall_fan minecraft:dead_horn_coral_fan
+B minecraft:tube_coral_wall_fan minecraft:tube_coral_fan
+B minecraft:brain_coral_wall_fan minecraft:brain_coral_fan
+B minecraft:bubble_coral_wall_fan minecraft:bubble_coral_fan
+B minecraft:fire_coral_wall_fan minecraft:fire_coral_fan
+B minecraft:horn_coral_wall_fan minecraft:horn_coral_fan
+B minecraft:sea_pickle minecraft:sea_pickle
+B minecraft:blue_ice minecraft:blue_ice
+B minecraft:conduit minecraft:conduit
+B minecraft:bamboo_sapling minecraft:air
+B minecraft:bamboo minecraft:bamboo
+B minecraft:potted_bamboo minecraft:air
+B minecraft:void_air minecraft:air
+B minecraft:cave_air minecraft:air
+B minecraft:bubble_column minecraft:air
+B minecraft:polished_granite_stairs minecraft:polished_granite_stairs
+B minecraft:smooth_red_sandstone_stairs minecraft:smooth_red_sandstone_stairs
+B minecraft:mossy_stone_brick_stairs minecraft:mossy_stone_brick_stairs
+B minecraft:polished_diorite_stairs minecraft:polished_diorite_stairs
+B minecraft:mossy_cobblestone_stairs minecraft:mossy_cobblestone_stairs
+B minecraft:end_stone_brick_stairs minecraft:end_stone_brick_stairs
+B minecraft:stone_stairs minecraft:stone_stairs
+B minecraft:smooth_sandstone_stairs minecraft:smooth_sandstone_stairs
+B minecraft:smooth_quartz_stairs minecraft:smooth_quartz_stairs
+B minecraft:granite_stairs minecraft:granite_stairs
+B minecraft:andesite_stairs minecraft:andesite_stairs
+B minecraft:red_nether_brick_stairs minecraft:red_nether_brick_stairs
+B minecraft:polished_andesite_stairs minecraft:polished_andesite_stairs
+B minecraft:diorite_stairs minecraft:diorite_stairs
+B minecraft:polished_granite_slab minecraft:polished_granite_slab
+B minecraft:smooth_red_sandstone_slab minecraft:smooth_red_sandstone_slab
+B minecraft:mossy_stone_brick_slab minecraft:mossy_stone_brick_slab
+B minecraft:polished_diorite_slab minecraft:polished_diorite_slab
+B minecraft:mossy_cobblestone_slab minecraft:mossy_cobblestone_slab
+B minecraft:end_stone_brick_slab minecraft:end_stone_brick_slab
+B minecraft:smooth_sandstone_slab minecraft:smooth_sandstone_slab
+B minecraft:smooth_quartz_slab minecraft:smooth_quartz_slab
+B minecraft:granite_slab minecraft:granite_slab
+B minecraft:andesite_slab minecraft:andesite_slab
+B minecraft:red_nether_brick_slab minecraft:red_nether_brick_slab
+B minecraft:polished_andesite_slab minecraft:polished_andesite_slab
+B minecraft:diorite_slab minecraft:diorite_slab
+B minecraft:brick_wall minecraft:brick_wall
+B minecraft:prismarine_wall minecraft:prismarine_wall
+B minecraft:red_sandstone_wall minecraft:red_sandstone_wall
+B minecraft:mossy_stone_brick_wall minecraft:mossy_stone_brick_wall
+B minecraft:granite_wall minecraft:granite_wall
+B minecraft:stone_brick_wall minecraft:stone_brick_wall
+B minecraft:mud_brick_wall minecraft:mud_brick_wall
+B minecraft:nether_brick_wall minecraft:nether_brick_wall
+B minecraft:andesite_wall minecraft:andesite_wall
+B minecraft:red_nether_brick_wall minecraft:red_nether_brick_wall
+B minecraft:sandstone_wall minecraft:sandstone_wall
+B minecraft:end_stone_brick_wall minecraft:end_stone_brick_wall
+B minecraft:diorite_wall minecraft:diorite_wall
+B minecraft:scaffolding minecraft:scaffolding
+B minecraft:loom minecraft:loom
+B minecraft:barrel minecraft:barrel
+B minecraft:smoker minecraft:smoker
+B minecraft:blast_furnace minecraft:blast_furnace
+B minecraft:cartography_table minecraft:cartography_table
+B minecraft:fletching_table minecraft:fletching_table
+B minecraft:grindstone minecraft:grindstone
+B minecraft:lectern minecraft:lectern
+B minecraft:smithing_table minecraft:smithing_table
+B minecraft:stonecutter minecraft:stonecutter
+B minecraft:bell minecraft:bell
+B minecraft:lantern minecraft:lantern
+B minecraft:soul_lantern minecraft:soul_lantern
+B minecraft:campfire minecraft:campfire
+B minecraft:soul_campfire minecraft:soul_campfire
+B minecraft:sweet_berry_bush minecraft:sweet_berries
+B minecraft:warped_stem minecraft:warped_stem
+B minecraft:stripped_warped_stem minecraft:stripped_warped_stem
+B minecraft:warped_hyphae minecraft:warped_hyphae
+B minecraft:stripped_warped_hyphae minecraft:stripped_warped_hyphae
+B minecraft:warped_nylium minecraft:warped_nylium
+B minecraft:warped_fungus minecraft:warped_fungus
+B minecraft:warped_wart_block minecraft:warped_wart_block
+B minecraft:warped_roots minecraft:warped_roots
+B minecraft:nether_sprouts minecraft:nether_sprouts
+B minecraft:crimson_stem minecraft:crimson_stem
+B minecraft:stripped_crimson_stem minecraft:stripped_crimson_stem
+B minecraft:crimson_hyphae minecraft:crimson_hyphae
+B minecraft:stripped_crimson_hyphae minecraft:stripped_crimson_hyphae
+B minecraft:crimson_nylium minecraft:crimson_nylium
+B minecraft:crimson_fungus minecraft:crimson_fungus
+B minecraft:shroomlight minecraft:shroomlight
+B minecraft:weeping_vines minecraft:weeping_vines
+B minecraft:weeping_vines_plant minecraft:air
+B minecraft:twisting_vines minecraft:twisting_vines
+B minecraft:twisting_vines_plant minecraft:air
+B minecraft:crimson_roots minecraft:crimson_roots
+B minecraft:crimson_planks minecraft:crimson_planks
+B minecraft:warped_planks minecraft:warped_planks
+B minecraft:crimson_slab minecraft:crimson_slab
+B minecraft:warped_slab minecraft:warped_slab
+B minecraft:crimson_pressure_plate minecraft:crimson_pressure_plate
+B minecraft:warped_pressure_plate minecraft:warped_pressure_plate
+B minecraft:crimson_fence minecraft:crimson_fence
+B minecraft:warped_fence minecraft:warped_fence
+B minecraft:crimson_trapdoor minecraft:crimson_trapdoor
+B minecraft:warped_trapdoor minecraft:warped_trapdoor
+B minecraft:crimson_fence_gate minecraft:crimson_fence_gate
+B minecraft:warped_fence_gate minecraft:warped_fence_gate
+B minecraft:crimson_stairs minecraft:crimson_stairs
+B minecraft:warped_stairs minecraft:warped_stairs
+B minecraft:crimson_button minecraft:crimson_button
+B minecraft:warped_button minecraft:warped_button
+B minecraft:crimson_door minecraft:crimson_door
+B minecraft:warped_door minecraft:warped_door
+B minecraft:crimson_sign minecraft:crimson_sign
+B minecraft:warped_sign minecraft:warped_sign
+B minecraft:crimson_wall_sign minecraft:crimson_sign
+B minecraft:warped_wall_sign minecraft:warped_sign
+B minecraft:structure_block minecraft:structure_block
+B minecraft:jigsaw minecraft:jigsaw
+B minecraft:composter minecraft:composter
+B minecraft:target minecraft:target
+B minecraft:bee_nest minecraft:bee_nest
+B minecraft:beehive minecraft:beehive
+B minecraft:honey_block minecraft:honey_block
+B minecraft:honeycomb_block minecraft:honeycomb_block
+B minecraft:netherite_block minecraft:netherite_block
+B minecraft:ancient_debris minecraft:ancient_debris
+B minecraft:crying_obsidian minecraft:crying_obsidian
+B minecraft:respawn_anchor minecraft:respawn_anchor
+B minecraft:potted_crimson_fungus minecraft:air
+B minecraft:potted_warped_fungus minecraft:air
+B minecraft:potted_crimson_roots minecraft:air
+B minecraft:potted_warped_roots minecraft:air
+B minecraft:lodestone minecraft:lodestone
+B minecraft:blackstone minecraft:blackstone
+B minecraft:blackstone_stairs minecraft:blackstone_stairs
+B minecraft:blackstone_wall minecraft:blackstone_wall
+B minecraft:blackstone_slab minecraft:blackstone_slab
+B minecraft:polished_blackstone minecraft:polished_blackstone
+B minecraft:polished_blackstone_bricks minecraft:polished_blackstone_bricks
+B minecraft:cracked_polished_blackstone_bricks minecraft:cracked_polished_blackstone_bricks
+B minecraft:chiseled_polished_blackstone minecraft:chiseled_polished_blackstone
+B minecraft:polished_blackstone_brick_slab minecraft:polished_blackstone_brick_slab
+B minecraft:polished_blackstone_brick_stairs minecraft:polished_blackstone_brick_stairs
+B minecraft:polished_blackstone_brick_wall minecraft:polished_blackstone_brick_wall
+B minecraft:gilded_blackstone minecraft:gilded_blackstone
+B minecraft:polished_blackstone_stairs minecraft:polished_blackstone_stairs
+B minecraft:polished_blackstone_slab minecraft:polished_blackstone_slab
+B minecraft:polished_blackstone_pressure_plate minecraft:polished_blackstone_pressure_plate
+B minecraft:polished_blackstone_button minecraft:polished_blackstone_button
+B minecraft:polished_blackstone_wall minecraft:polished_blackstone_wall
+B minecraft:chiseled_nether_bricks minecraft:chiseled_nether_bricks
+B minecraft:cracked_nether_bricks minecraft:cracked_nether_bricks
+B minecraft:quartz_bricks minecraft:quartz_bricks
+B minecraft:candle minecraft:candle
+B minecraft:white_candle minecraft:white_candle
+B minecraft:orange_candle minecraft:orange_candle
+B minecraft:magenta_candle minecraft:magenta_candle
+B minecraft:light_blue_candle minecraft:light_blue_candle
+B minecraft:yellow_candle minecraft:yellow_candle
+B minecraft:lime_candle minecraft:lime_candle
+B minecraft:pink_candle minecraft:pink_candle
+B minecraft:gray_candle minecraft:gray_candle
+B minecraft:light_gray_candle minecraft:light_gray_candle
+B minecraft:cyan_candle minecraft:cyan_candle
+B minecraft:purple_candle minecraft:purple_candle
+B minecraft:blue_candle minecraft:blue_candle
+B minecraft:brown_candle minecraft:brown_candle
+B minecraft:green_candle minecraft:green_candle
+B minecraft:red_candle minecraft:red_candle
+B minecraft:black_candle minecraft:black_candle
+B minecraft:candle_cake minecraft:air
+B minecraft:white_candle_cake minecraft:air
+B minecraft:orange_candle_cake minecraft:air
+B minecraft:magenta_candle_cake minecraft:air
+B minecraft:light_blue_candle_cake minecraft:air
+B minecraft:yellow_candle_cake minecraft:air
+B minecraft:lime_candle_cake minecraft:air
+B minecraft:pink_candle_cake minecraft:air
+B minecraft:gray_candle_cake minecraft:air
+B minecraft:light_gray_candle_cake minecraft:air
+B minecraft:cyan_candle_cake minecraft:air
+B minecraft:purple_candle_cake minecraft:air
+B minecraft:blue_candle_cake minecraft:air
+B minecraft:brown_candle_cake minecraft:air
+B minecraft:green_candle_cake minecraft:air
+B minecraft:red_candle_cake minecraft:air
+B minecraft:black_candle_cake minecraft:air
+B minecraft:amethyst_block minecraft:amethyst_block
+B minecraft:budding_amethyst minecraft:budding_amethyst
+B minecraft:amethyst_cluster minecraft:amethyst_cluster
+B minecraft:large_amethyst_bud minecraft:large_amethyst_bud
+B minecraft:medium_amethyst_bud minecraft:medium_amethyst_bud
+B minecraft:small_amethyst_bud minecraft:small_amethyst_bud
+B minecraft:tuff minecraft:tuff
+B minecraft:tuff_slab minecraft:tuff_slab
+B minecraft:tuff_stairs minecraft:tuff_stairs
+B minecraft:tuff_wall minecraft:tuff_wall
+B minecraft:polished_tuff minecraft:polished_tuff
+B minecraft:polished_tuff_slab minecraft:polished_tuff_slab
+B minecraft:polished_tuff_stairs minecraft:polished_tuff_stairs
+B minecraft:polished_tuff_wall minecraft:polished_tuff_wall
+B minecraft:chiseled_tuff minecraft:chiseled_tuff
+B minecraft:tuff_bricks minecraft:tuff_bricks
+B minecraft:tuff_brick_slab minecraft:tuff_brick_slab
+B minecraft:tuff_brick_stairs minecraft:tuff_brick_stairs
+B minecraft:tuff_brick_wall minecraft:tuff_brick_wall
+B minecraft:chiseled_tuff_bricks minecraft:chiseled_tuff_bricks
+B minecraft:calcite minecraft:calcite
+B minecraft:tinted_glass minecraft:tinted_glass
+B minecraft:powder_snow minecraft:powder_snow_bucket
+B minecraft:sculk_sensor minecraft:sculk_sensor
+B minecraft:calibrated_sculk_sensor minecraft:calibrated_sculk_sensor
+B minecraft:sculk minecraft:sculk
+B minecraft:sculk_vein minecraft:sculk_vein
+B minecraft:sculk_catalyst minecraft:sculk_catalyst
+B minecraft:sculk_shrieker minecraft:sculk_shrieker
+B minecraft:copper_block minecraft:copper_block
+B minecraft:exposed_copper minecraft:exposed_copper
+B minecraft:weathered_copper minecraft:weathered_copper
+B minecraft:oxidized_copper minecraft:oxidized_copper
+B minecraft:copper_ore minecraft:copper_ore
+B minecraft:deepslate_copper_ore minecraft:deepslate_copper_ore
+B minecraft:oxidized_cut_copper minecraft:oxidized_cut_copper
+B minecraft:weathered_cut_copper minecraft:weathered_cut_copper
+B minecraft:exposed_cut_copper minecraft:exposed_cut_copper
+B minecraft:cut_copper minecraft:cut_copper
+B minecraft:oxidized_chiseled_copper minecraft:oxidized_chiseled_copper
+B minecraft:weathered_chiseled_copper minecraft:weathered_chiseled_copper
+B minecraft:exposed_chiseled_copper minecraft:exposed_chiseled_copper
+B minecraft:chiseled_copper minecraft:chiseled_copper
+B minecraft:waxed_oxidized_chiseled_copper minecraft:waxed_oxidized_chiseled_copper
+B minecraft:waxed_weathered_chiseled_copper minecraft:waxed_weathered_chiseled_copper
+B minecraft:waxed_exposed_chiseled_copper minecraft:waxed_exposed_chiseled_copper
+B minecraft:waxed_chiseled_copper minecraft:waxed_chiseled_copper
+B minecraft:oxidized_cut_copper_stairs minecraft:oxidized_cut_copper_stairs
+B minecraft:weathered_cut_copper_stairs minecraft:weathered_cut_copper_stairs
+B minecraft:exposed_cut_copper_stairs minecraft:exposed_cut_copper_stairs
+B minecraft:cut_copper_stairs minecraft:cut_copper_stairs
+B minecraft:oxidized_cut_copper_slab minecraft:oxidized_cut_copper_slab
+B minecraft:weathered_cut_copper_slab minecraft:weathered_cut_copper_slab
+B minecraft:exposed_cut_copper_slab minecraft:exposed_cut_copper_slab
+B minecraft:cut_copper_slab minecraft:cut_copper_slab
+B minecraft:waxed_copper_block minecraft:waxed_copper_block
+B minecraft:waxed_weathered_copper minecraft:waxed_weathered_copper
+B minecraft:waxed_exposed_copper minecraft:waxed_exposed_copper
+B minecraft:waxed_oxidized_copper minecraft:waxed_oxidized_copper
+B minecraft:waxed_oxidized_cut_copper minecraft:waxed_oxidized_cut_copper
+B minecraft:waxed_weathered_cut_copper minecraft:waxed_weathered_cut_copper
+B minecraft:waxed_exposed_cut_copper minecraft:waxed_exposed_cut_copper
+B minecraft:waxed_cut_copper minecraft:waxed_cut_copper
+B minecraft:waxed_oxidized_cut_copper_stairs minecraft:waxed_oxidized_cut_copper_stairs
+B minecraft:waxed_weathered_cut_copper_stairs minecraft:waxed_weathered_cut_copper_stairs
+B minecraft:waxed_exposed_cut_copper_stairs minecraft:waxed_exposed_cut_copper_stairs
+B minecraft:waxed_cut_copper_stairs minecraft:waxed_cut_copper_stairs
+B minecraft:waxed_oxidized_cut_copper_slab minecraft:waxed_oxidized_cut_copper_slab
+B minecraft:waxed_weathered_cut_copper_slab minecraft:waxed_weathered_cut_copper_slab
+B minecraft:waxed_exposed_cut_copper_slab minecraft:waxed_exposed_cut_copper_slab
+B minecraft:waxed_cut_copper_slab minecraft:waxed_cut_copper_slab
+B minecraft:copper_door minecraft:copper_door
+B minecraft:exposed_copper_door minecraft:exposed_copper_door
+B minecraft:oxidized_copper_door minecraft:oxidized_copper_door
+B minecraft:weathered_copper_door minecraft:weathered_copper_door
+B minecraft:waxed_copper_door minecraft:waxed_copper_door
+B minecraft:waxed_exposed_copper_door minecraft:waxed_exposed_copper_door
+B minecraft:waxed_oxidized_copper_door minecraft:waxed_oxidized_copper_door
+B minecraft:waxed_weathered_copper_door minecraft:waxed_weathered_copper_door
+B minecraft:copper_trapdoor minecraft:copper_trapdoor
+B minecraft:exposed_copper_trapdoor minecraft:exposed_copper_trapdoor
+B minecraft:oxidized_copper_trapdoor minecraft:oxidized_copper_trapdoor
+B minecraft:weathered_copper_trapdoor minecraft:weathered_copper_trapdoor
+B minecraft:waxed_copper_trapdoor minecraft:waxed_copper_trapdoor
+B minecraft:waxed_exposed_copper_trapdoor minecraft:waxed_exposed_copper_trapdoor
+B minecraft:waxed_oxidized_copper_trapdoor minecraft:waxed_oxidized_copper_trapdoor
+B minecraft:waxed_weathered_copper_trapdoor minecraft:waxed_weathered_copper_trapdoor
+B minecraft:copper_grate minecraft:copper_grate
+B minecraft:exposed_copper_grate minecraft:exposed_copper_grate
+B minecraft:weathered_copper_grate minecraft:weathered_copper_grate
+B minecraft:oxidized_copper_grate minecraft:oxidized_copper_grate
+B minecraft:waxed_copper_grate minecraft:waxed_copper_grate
+B minecraft:waxed_exposed_copper_grate minecraft:waxed_exposed_copper_grate
+B minecraft:waxed_weathered_copper_grate minecraft:waxed_weathered_copper_grate
+B minecraft:waxed_oxidized_copper_grate minecraft:waxed_oxidized_copper_grate
+B minecraft:copper_bulb minecraft:copper_bulb
+B minecraft:exposed_copper_bulb minecraft:exposed_copper_bulb
+B minecraft:weathered_copper_bulb minecraft:weathered_copper_bulb
+B minecraft:oxidized_copper_bulb minecraft:oxidized_copper_bulb
+B minecraft:waxed_copper_bulb minecraft:waxed_copper_bulb
+B minecraft:waxed_exposed_copper_bulb minecraft:waxed_exposed_copper_bulb
+B minecraft:waxed_weathered_copper_bulb minecraft:waxed_weathered_copper_bulb
+B minecraft:waxed_oxidized_copper_bulb minecraft:waxed_oxidized_copper_bulb
+B minecraft:lightning_rod minecraft:lightning_rod
+B minecraft:pointed_dripstone minecraft:pointed_dripstone
+B minecraft:dripstone_block minecraft:dripstone_block
+B minecraft:cave_vines minecraft:glow_berries
+B minecraft:cave_vines_plant minecraft:air
+B minecraft:spore_blossom minecraft:spore_blossom
+B minecraft:azalea minecraft:azalea
+B minecraft:flowering_azalea minecraft:flowering_azalea
+B minecraft:moss_carpet minecraft:moss_carpet
+B minecraft:pink_petals minecraft:pink_petals
+B minecraft:moss_block minecraft:moss_block
+B minecraft:big_dripleaf minecraft:big_dripleaf
+B minecraft:big_dripleaf_stem minecraft:big_dripleaf
+B minecraft:small_dripleaf minecraft:small_dripleaf
+B minecraft:hanging_roots minecraft:hanging_roots
+B minecraft:rooted_dirt minecraft:rooted_dirt
+B minecraft:mud minecraft:mud
+B minecraft:deepslate minecraft:deepslate
+B minecraft:cobbled_deepslate minecraft:cobbled_deepslate
+B minecraft:cobbled_deepslate_stairs minecraft:cobbled_deepslate_stairs
+B minecraft:cobbled_deepslate_slab minecraft:cobbled_deepslate_slab
+B minecraft:cobbled_deepslate_wall minecraft:cobbled_deepslate_wall
+B minecraft:polished_deepslate minecraft:polished_deepslate
+B minecraft:polished_deepslate_stairs minecraft:polished_deepslate_stairs
+B minecraft:polished_deepslate_slab minecraft:polished_deepslate_slab
+B minecraft:polished_deepslate_wall minecraft:polished_deepslate_wall
+B minecraft:deepslate_tiles minecraft:deepslate_tiles
+B minecraft:deepslate_tile_stairs minecraft:deepslate_tile_stairs
+B minecraft:deepslate_tile_slab minecraft:deepslate_tile_slab
+B minecraft:deepslate_tile_wall minecraft:deepslate_tile_wall
+B minecraft:deepslate_bricks minecraft:deepslate_bricks
+B minecraft:deepslate_brick_stairs minecraft:deepslate_brick_stairs
+B minecraft:deepslate_brick_slab minecraft:deepslate_brick_slab
+B minecraft:deepslate_brick_wall minecraft:deepslate_brick_wall
+B minecraft:chiseled_deepslate minecraft:chiseled_deepslate
+B minecraft:cracked_deepslate_bricks minecraft:cracked_deepslate_bricks
+B minecraft:cracked_deepslate_tiles minecraft:cracked_deepslate_tiles
+B minecraft:infested_deepslate minecraft:infested_deepslate
+B minecraft:smooth_basalt minecraft:smooth_basalt
+B minecraft:raw_iron_block minecraft:raw_iron_block
+B minecraft:raw_copper_block minecraft:raw_copper_block
+B minecraft:raw_gold_block minecraft:raw_gold_block
+B minecraft:potted_azalea_bush minecraft:air
+B minecraft:potted_flowering_azalea_bush minecraft:air
+B minecraft:ochre_froglight minecraft:ochre_froglight
+B minecraft:verdant_froglight minecraft:verdant_froglight
+B minecraft:pearlescent_froglight minecraft:pearlescent_froglight
+B minecraft:frogspawn minecraft:frogspawn
+B minecraft:reinforced_deepslate minecraft:reinforced_deepslate
+B minecraft:decorated_pot minecraft:decorated_pot
+B minecraft:crafter minecraft:crafter
+B minecraft:trial_spawner minecraft:trial_spawner
+B minecraft:vault minecraft:vault
+B minecraft:heavy_core minecraft:heavy_core

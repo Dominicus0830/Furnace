@@ -273,6 +273,9 @@ public final class ChunkColumn {
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 
+    /** worldY 가 든 구역이 공기뿐인가(바닐라 LevelChunkSection.hasOnlyAir). */
+    public boolean sectionHasOnlyAir(int worldY) { return sections[(worldY - minY) >> 4].hasOnlyAir(); }
+
     /** worldY 절대좌표 블록 조회. */
     public int getBlock(int x, int worldY, int z) {
         int local = worldY - minY;
@@ -315,7 +318,7 @@ public final class ChunkColumn {
                     for (int ly = 15; ly >= 0; ly--) {
                         int stateId = blocks[ly * 256 + lz * 16 + lx];
                         int y1 = sec * 16 + ly + 1;
-                        if (surfaceValue == 0 && stateId != ChunkSection.AIR) surfaceValue = y1;
+                        if (surfaceValue == 0 && !ChunkSection.isAir(stateId)) surfaceValue = y1;
                         if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) oceanFloorValue = y1;
                         if (surfaceValue != 0 && oceanFloorValue != 0) break;
                     }
@@ -339,7 +342,7 @@ public final class ChunkColumn {
                 for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
                     int idx = (y - minY) * 256 + lz * 16 + lx;
                     int stateId = blockIds[idx];
-                    if (surfaceValue == 0 && stateId != ChunkSection.AIR) {
+                    if (surfaceValue == 0 && !ChunkSection.isAir(stateId)) {
                         surfaceValue = (y - minY) + 1;
                     }
                     if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) {

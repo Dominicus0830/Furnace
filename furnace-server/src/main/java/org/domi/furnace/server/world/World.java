@@ -169,6 +169,24 @@ public final class World {
 
     // 접속 중 플레이어(eid→Player). 탭 목록은 바닐라처럼 거리와 무관하게 이 집합 전체를 기준으로 한다.
     private final ConcurrentHashMap<Integer, Player> online = new ConcurrentHashMap<>();
+    /** 서버 없이(테스트·도구) 쓸 때: 기본값 + 이 월드의 접속자. */
+    private volatile org.domi.furnace.server.block.LevelServices levelServices = new org.domi.furnace.server.block.LevelServices.Delegating(
+            org.domi.furnace.server.block.LevelServices.DEFAULT) {
+        @Override
+        public void forEachPlayer(java.util.function.Consumer<Player> c) { for (Player p : online.values()) c.accept(p); }
+
+        @Override
+        public long gameTime() { return clock.gameTime(); }
+
+        @Override
+        public long dayTime() { return clock.dayTime(); }
+    };
+
+    /** 블록 레벨이 보는 서버 쪽 정보(ServerCore 가 설치한다). */
+    public org.domi.furnace.server.block.LevelServices levelServices() { return levelServices; }
+
+    public void levelServices(org.domi.furnace.server.block.LevelServices s) { this.levelServices = s; }
+
     public void playerOnline(Player p) { online.put(p.entityId(), p); }
     public void playerOffline(int eid) { online.remove(eid); trackers.remove(eid); }
 

@@ -105,17 +105,43 @@ public final class Region {
         actor.send(new BlockUpdate(bx, by, bz, col.getBlock(bx & 15, by, bz & 15)));
     }
 
-    /** 소유 스레드서 블록 파괴(air) + 청크 구독자에게 BlockUpdate. 체스트면 엔티티 제거 + 열어둔 플레이어 강제닫기. */
-    public void breakBlock(int bx, int by, int bz) {
+    /** 이 region 의 블록 레벨(처음 쓸 때 만든다 — 블록 자료 적재가 무겁다). */
+    public RegionLevel level() {
+        RegionLevel l = level;
+        if (l == null) level = l = new RegionLevel(this, world);
+        return l;
+    }
+
+    private RegionLevel level;
+
+    /** 로드돼 있는 청크(없으면 null — 생성하지 않는다). */
+    ChunkColumn loadedChunk(int chunkX, int chunkZ) { return chunks.get(new ChunkPos(chunkX, chunkZ)); }
+
+    void markChunkDirty(ChunkPos cp) { dirtyChunks.add(cp); }
+
+    /**
+     * 소유 스레드서 플레이어 파괴(바닐라 ServerPlayerGameMode.destroyBlock 의 월드 부분): 다른 플레이어에게 파괴 효과(2001),
+     * removeBlock(이웃 갱신 포함). 변경 방송은 틱 끝. breaker 가 null 이면 효과를 모두에게.
+     */
+    public boolean breakBlock(Player breaker, int bx, int by, int bz) {
         world.assertOwns(pos);
-        ChunkPos cp = ChunkPos.ofBlock(bx, bz);
-        chunkAt(cp).setBlock(bx & 15, by, bz & 15, ChunkSection.AIR);
-        chunkAt(cp).removeBlockEntityAt(bx, by, bz);
-        dirtyChunks.add(cp);
-        BlockUpdate pkt = new BlockUpdate(bx, by, bz, ChunkSection.AIR);
-        world.broadcastBlockUpdate(cp, pkt);   // 청크가 아직 안 간 구독자는 청크 뒤로 보류
-        // 이 region 소속 플레이어 중 그 체스트를 열어둔 사람에게 강제 ContainerClose(§3.5).
-        // 다른 region 소속 플레이어가 열어둔 경우는 범위 밖(design result.md Issues #5).
+        chunkAt(ChunkPos.ofBlock(bx, bz));   // 로드 보장(호출 쪽이 보통 이미 확인)
+        RegionLevel l = level();
+        org.domi.furnace.server.block.Pos p = new org.domi.furnace.server.block.Pos(bx, by, bz);
+        int state = l.getBlockState(p);
+        org.domi.furnace.server.block.BlockActor except = breaker == null ? null : new org.domi.furnace.server.block.PlayerActor(breaker);
+        l.levelEvent(except, 2001, p, state);
+        return l.removeBlock(p, false);
+    }
+
+    /** 테스트·도구용: 파괴하고 바로 방송한다. */
+    public void breakBlock(int bx, int by, int bz) {
+        breakBlock(null, bx, by, bz);
+        level().broadcastChanges();
+    }
+
+    /** 이 region 소속 플레이어 중 그 상자를 열어 둔 사람의 화면을 닫는다(§3.5). 다른 region 소속은 범위 밖(design result.md Issues #5). */
+    void closeChestScreens(int bx, int by, int bz) {
         for (Player pl : players.values()) {
             int[] open = pl.openChestPos();
             if (open != null && open[0] == bx && open[1] == by && open[2] == bz) {
@@ -182,40 +208,21 @@ public final class Region {
         };
     }
 
-    private static final java.util.Set<String> REPLACEABLE = java.util.Set.of(
-            "minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:water", "minecraft:lava",
-            "minecraft:short_grass", "minecraft:tall_grass", "minecraft:fern", "minecraft:large_fern",
-            "minecraft:dead_bush", "minecraft:vine");
-
-    private static boolean isReplaceable(String name) {
-        return name == null || REPLACEABLE.contains(name);
-    }
-
-    /** 소유 스레드서 블록 설치. 플레이어 바운딩박스와 겹치면 거부(false). 성공 시 setBlock+BlockUpdate. */
+    /**
+     * 도구·테스트용 고정 상태 설치(BlockItem.place 의 상태 고르기 없이): 대상이 바뀔 수 있는 칸이고 엔티티에 막히지 않으면
+     * 플래그 11 로 놓고 바로 방송한다. 플레이어 설치는 BlockPlacement 경로를 탄다.
+     */
     public boolean placeBlock(int bx, int by, int bz, int stateId) {
         world.assertOwns(pos);
-        if (stateId == ChunkSection.AIR) return false;
-        // 플레이어 충돌 거부: 블록 AABB [bx,bx+1]×[by,by+1]×[bz,bz+1] vs 플레이어(가로±0.3,높이1.8).
-        for (Player pl : players.values()) {
-            double px = pl.x(), py = pl.y(), pz = pl.z();
-            boolean overlap = px + 0.3 > bx && px - 0.3 < bx + 1
-                    && py + 1.8 > by && py < by + 1
-                    && pz + 0.3 > bz && pz - 0.3 < bz + 1;
-            if (overlap) return false;
-        }
-        ChunkPos cp = ChunkPos.ofBlock(bx, bz);
-        BlockRegistry breg = world.blockRegistry();
-        // 대상 칸이 이미 채워진 고체(스톤·체스트 등)면 거부 — 클라 조작/지연으로 기존 블록·블록엔티티를 덮어쓰지 못하게 한다.
-        if (breg != null && !isReplaceable(breg.nameOf(chunkAt(cp).getBlock(bx & 15, by, bz & 15)))) return false;
-        chunkAt(cp).removeBlockEntityAt(bx, by, bz);
-        chunkAt(cp).setBlock(bx & 15, by, bz & 15, stateId);
-        dirtyChunks.add(cp);
-        if (breg != null && "minecraft:chest".equals(breg.nameOf(stateId))) {
-            chunkAt(cp).putChest(ChestBlockEntity.empty(bx, by, bz));
-        }
-        BlockUpdate pkt = new BlockUpdate(bx, by, bz, stateId);
-        world.broadcastBlockUpdate(cp, pkt);   // 청크가 아직 안 간 구독자는 청크 뒤로 보류
-        return true;
+        if (org.domi.furnace.server.block.BlockInfo.get().isAir(stateId)) return false;
+        chunkAt(ChunkPos.ofBlock(bx, bz));
+        RegionLevel l = level();
+        var p = new org.domi.furnace.server.block.Pos(bx, by, bz);
+        if (!org.domi.furnace.server.block.BlockInfo.get().replaceable(l.getBlockState(p))) return false;
+        if (!l.isUnobstructed(stateId, p, null)) return false;
+        boolean ok = l.setBlock(p, stateId, 11);
+        l.broadcastChanges();
+        return ok;
     }
 
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
@@ -258,7 +265,7 @@ public final class Region {
 
     /** 플레이어·청크·로딩중 모두 없으면 true — tickThread가 빈 region을 regionsByThread서 제거. */
     boolean isEmpty() {
-        return players.isEmpty() && chunks.isEmpty() && loading.isEmpty();
+        return players.isEmpty() && chunks.isEmpty() && loading.isEmpty() && (level == null || !level.hasPendingAcks());
     }
 
     /** 소유 스레드서 플레이어 편입. */
@@ -272,6 +279,7 @@ public final class Region {
     /** 소유 스레드서 매 틱 호출. */
     public void tick() {
         world.assertOwns(pos);
+        if (level != null) level.tickBlocks();   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 변경 방송 → 블록 이벤트 → 엔티티
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();
         while (it.hasNext()) {
@@ -321,6 +329,7 @@ public final class Region {
             RegionPos target = p.regionPos(world.regionSize());
             world.scheduler().region(target).execute(() -> world.regionAt(target).adopt(p));
         }
+        if (level != null) level.flushAcks();   // 바닐라: 연결 틱 첫머리의 블록 변경 ack — 이 틱의 방송 뒤
         evictIdleChunks();
         if (++autosaveCounter >= world.autosaveTicks() && world.autosaveEnabled()) {
             autosaveCounter = 0;

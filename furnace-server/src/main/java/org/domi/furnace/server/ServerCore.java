@@ -55,6 +55,7 @@ public final class ServerCore {
         this.border.applySettings(levelData.worldBorder);
         this.border.addListener(new BorderBroadcaster());
         this.commands = new Commands(this);
+        world.levelServices(levelServices);
         this.pluginHost = new org.domi.furnace.server.plugin.PluginHost(this, java.nio.file.Path.of("plugins"));
     }
 
@@ -395,6 +396,22 @@ public final class ServerCore {
         public float borderDamage(double x, double y, double z) {
             return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
+    };
+
+    /** 블록 레벨이 보는 서버 쪽 정보(게임룰·난이도·보더·날씨·시간·접속자). */
+    private final org.domi.furnace.server.block.LevelServices levelServices = new org.domi.furnace.server.block.LevelServices() {
+        public boolean gameRule(String name) { return gameRules.getBoolean(name); }
+        public int gameRuleInt(String name) { return gameRules.getInt(name); }
+        public int difficulty() { return levelData.difficulty.id(); }
+        public boolean withinBorder(int x, int z) { return border.isWithinBounds(x, z); }
+        public boolean isRaining() { return clock.isRaining(); }
+        public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
+        public long dayTime() { return clock.dayTime(); }
+        public long gameTime() { return clock.gameTime(); }
+        public String dimension() { return "minecraft:overworld"; }
+        public boolean ultraWarm() { return false; }
+        public int maxChainedNeighborUpdates() { return settings.get().maxChainedNeighborUpdates; }
+        public void forEachPlayer(java.util.function.Consumer<Player> c) { for (Player p : world.onlinePlayers()) c.accept(p); }
     };
 
     /** 플레이어 생존 상태가 쓰는 서버 쪽 정보·브로드캐스트. */
