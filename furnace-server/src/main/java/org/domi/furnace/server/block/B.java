@@ -102,6 +102,82 @@ public final class B {
     /** BlockState.isCollisionShapeFullBlock(빈 세계 기준). */
     public static boolean isCollisionShapeFullBlock(int state) { return INFO.collisionShape(state).sameAs(Shape.BLOCK); }
 
+    /** Block.withPropertiesOf(state): 이 블록의 기본 상태에 state 의 같은 이름 속성 값을 옮긴다. */
+    public static int withPropertiesOf(int block, int state) {
+        int out = BLOCKS.defaultState(block);
+        int from = BLOCKS.blockOf(state);
+        for (Prop p : BLOCKS.propsOf(block)) {
+            for (Prop q : BLOCKS.propsOf(from)) {
+                if (q == p) {
+                    out = p.with(out, p.valueName(state));
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Level.getTimeOfDay(1.0F) = DimensionType.timeOfDay(dayTime) — 네더·엔드는 고정 시각(18000·6000). */
+    public static float timeOfDay(BlockLevel level) {
+        long t = switch (level.dimension()) {
+            case "minecraft:the_nether" -> 18000L;
+            case "minecraft:the_end" -> 6000L;
+            default -> level.dayTime();
+        };
+        double d0 = t / 24000.0 - 0.25;
+        d0 -= Math.floor(d0);
+        double d1 = 0.5 - Math.cos(d0 * Math.PI) / 2.0;
+        return (float) (d0 * 2.0 + d1) / 3.0F;
+    }
+
+    /** 아이템 이름 → ItemStack(count). */
+    public static org.domi.furnace.server.entity.ItemStack stack(String item, int count) {
+        return new org.domi.furnace.server.entity.ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", item), count);
+    }
+
+    /** 손에 든 것이 그 아이템인가(ItemStack.is(item)). */
+    public static boolean holds(org.domi.furnace.server.entity.ItemStack s, String item) {
+        return !s.isEmpty() && s.itemId() == org.domi.furnace.server.item.ItemContext.id("minecraft:item", item);
+    }
+
+    /** ItemStack.is(#아이템 태그). */
+    public static boolean holdsTag(org.domi.furnace.server.entity.ItemStack s, String tag) {
+        return !s.isEmpty() && org.domi.furnace.server.item.ItemContext.isInTag("minecraft:item", tag, s.itemId());
+    }
+
+    /**
+     * 위 칸이 아래 칸으로 오는 빛을 완전히 막는가 — LightEngine.getLightBlockInto(…, UP, …) >= 최대 빛(15) 의 근사.
+     * TODO(빛): 빛 차단량(getLightBlock) 표가 생기면 정확히. 지금은 가리는 블록의 아랫면 가림 모양이 꽉 찼으면 막힘.
+     */
+    public static boolean lightBlockedAbove(int aboveState) {
+        return INFO.canOcclude(block(aboveState)) && INFO.occlusionShape(aboveState).isFaceFull(Dir.DOWN);
+    }
+
+    /** BlockState.canBeReplaced(ctx). */
+    public static boolean canBeReplaced(int state, PlaceContext ctx) { return behavior(state).canBeReplaced(state, ctx); }
+
+    /** BlockState.canSurvive(level, pos). */
+    public static boolean canSurvive(int state, BlockLevel level, Pos pos) { return behavior(state).canSurvive(state, level, pos); }
+
+    /** 설치 칸에 물 원천이 있는가(getStateForPlacement 의 waterlogged = fluid.getType() == WATER). */
+    public static boolean waterAt(PlaceContext ctx) { return Fluids.isWaterSource(ctx.level().getFluidState(ctx.clickedPos())); }
+
+    /** updateShape 첫머리의 "물이 잠겨 있으면 물 틱 예약"(scheduleTick(pos, WATER, WATER.getTickDelay)). */
+    public static void tickWaterlogged(int state, BlockLevel level, Pos pos) {
+        if (BlockBehavior.WATERLOGGED.has(state) && BlockBehavior.WATERLOGGED.is(state)) level.scheduleFluidTick(pos, Fluids.T_WATER, 5);
+    }
+
+    /** level.getRandom().nextFloat() * 0.1F + 0.9F — 문·울타리 문 소리 높이. */
+    public static float openPitch(BlockLevel level) { return level.random().nextFloat() * 0.1F + 0.9F; }
+
+    /** BlockState.liquid(): 액체 블록(물·용암)인가. */
+    public static boolean isLiquid(int state) { int b = block(state); return b == WATER || b == LAVA; }
+
+    private static final int WATER = id("water"), LAVA = id("lava");
+
+    /** BlockState.isSolid()(legacySolid). */
+    public static boolean isSolid(int state) { return INFO.legacySolid(state); }
+
     /** 상태의 유체. */
     public static int fluid(int state) { return behavior(state).getFluidState(state); }
 }

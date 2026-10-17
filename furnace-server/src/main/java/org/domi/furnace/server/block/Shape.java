@@ -73,6 +73,41 @@ public final class Shape {
         return r;
     }
 
+    /**
+     * Block.isFaceFull(shape, dir): 그 면 바로 안쪽(1e-7) 단면이 면 전체를 덮는가(getFaceShape + 꽉 참 비교).
+     */
+    public boolean isFaceFull(int dir) {
+        if (this == BLOCK) return true;
+        int axis = Dir.axis(dir);
+        int a = axis == Dir.AXIS_X ? 1 : 0, b = axis == Dir.AXIS_Z ? 1 : 2;   // 면의 두 축(x→y,z / y→x,z / z→x,y)
+        double cut = Dir.positive(dir) ? 1 - 1e-7 : 1e-7;
+        java.util.List<double[]> rects = new java.util.ArrayList<>();
+        java.util.TreeSet<Double> us = new java.util.TreeSet<>(), vs = new java.util.TreeSet<>();
+        us.add(0.0); us.add(1.0); vs.add(0.0); vs.add(1.0);
+        for (int i = 0; i < boxes.length; i += 6) {
+            if (boxes[i + axis] <= cut && boxes[i + 3 + axis] > cut) {
+                double[] r = {boxes[i + a], boxes[i + b], boxes[i + 3 + a], boxes[i + 3 + b]};
+                rects.add(r);
+                us.add(r[0]); us.add(r[2]); vs.add(r[1]); vs.add(r[3]);
+            }
+        }
+        Double[] u = us.toArray(new Double[0]), v = vs.toArray(new Double[0]);
+        for (int i = 0; i + 1 < u.length; i++) {
+            if (u[i + 1] <= 0 || u[i] >= 1) continue;
+            double cu = (u[i] + u[i + 1]) / 2;
+            for (int j = 0; j + 1 < v.length; j++) {
+                if (v[j + 1] <= 0 || v[j] >= 1) continue;
+                double cv = (v[j] + v[j + 1]) / 2;
+                boolean covered = false;
+                for (double[] r : rects) {
+                    if (r[0] <= cu && cu < r[2] && r[1] <= cv && cv < r[3]) { covered = true; break; }
+                }
+                if (!covered) return false;
+            }
+        }
+        return true;
+    }
+
     /** 같은 상자 목록인가(바닐라에서 뽑은 최적화 꼴끼리). */
     public boolean sameAs(Shape o) { return this == o || Arrays.equals(boxes, o.boxes); }
 

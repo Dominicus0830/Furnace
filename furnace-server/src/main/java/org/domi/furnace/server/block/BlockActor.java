@@ -58,4 +58,7 @@ public interface BlockActor {
 
     /** canUseGameMasterBlocks = instabuild && 권한 2 이상. */
     default boolean canUseGameMasterBlocks() { return instabuild() && permissionLevel() >= 2; }
+
+    /** Player.hasCorrectToolForDrops(state): 도구가 필요 없는 블록이거나 손 도구가 맞으면. TODO(3-4b): 도구 등급·태그 판정. */
+    default boolean hasCorrectToolForDrops(int state) { return !BlockInfo.get().requiresCorrectToolForDrops(Blocks.get().blockOf(state)); }
 }

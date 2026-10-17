@@ -121,6 +121,18 @@ public interface BlockLevel {
 
     // ------------------------------------------------------------------ 기타
 
+    /**
+     * Level.getRawBrightness(pos, skyDarken): max(하늘빛 - skyDarken, 블록빛).
+     * TODO(빛): 빛 엔진 전까지 15(하늘이 보이는 바깥과 같은 값) — 어두운 지하에서만 바닐라와 달라진다.
+     */
+    default int getRawBrightness(Pos pos, int skyDarken) { return 15 - skyDarken; }
+
+    /** Level.getBrightness(LightLayer.BLOCK, pos): 블록빛. TODO(빛): 빛 엔진 전까지 0(주변에 광원이 없는 곳과 같은 값). */
+    default int getBlockLight(Pos pos) { return 0; }
+
+    /** Level.isRainingAt(pos): 비가 오고, 하늘이 보이고, 그 바이옴이 비가 오는 곳. TODO(빛·바이옴 강수): 하늘 노출 계산 전까지 거짓. */
+    default boolean isRainingAt(Pos pos) { return false; }
+
     RandomSource random();
 
     long gameTime();
@@ -155,6 +167,9 @@ public interface BlockLevel {
     /** 행위자에게 액션바 메시지(예: build.tooHigh). */
     void sendActionBar(BlockActor actor, org.domi.furnace.api.text.Text text);
 
-    /** 블록에서 아이템 하나 떨구기(Block.popResource) — 아이템 엔티티 체계가 들어오기 전에는 무시. */
+    /** 블록에서 아이템 떨구기(Block.popResource). 아이템 엔티티는 TODO(엔티티) — 난수는 바닐라와 같은 횟수로 뽑는다. */
     void popResource(Pos pos, ItemStack stack);
+
+    /** Block.popResourceFromFace(level, pos, dir, stack). */
+    void popResourceFromFace(Pos pos, int dir, ItemStack stack);
 }

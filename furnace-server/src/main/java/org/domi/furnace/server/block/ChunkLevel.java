@@ -470,5 +470,34 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
-    public void popResource(Pos pos, ItemStack stack) {}
+    public void popResource(Pos pos, ItemStack stack) {
+        RandomSource r = random();
+        nextDouble(r, -0.25, 0.25);   // x·y·z 흩뿌림(Mth.nextDouble) — 게임룰과 무관하게 먼저 뽑는다
+        nextDouble(r, -0.25, 0.25);
+        nextDouble(r, -0.25, 0.25);
+        spawnItem(stack, true);
+    }
+
+    @Override
+    public void popResourceFromFace(Pos pos, int dir, ItemStack stack) {
+        RandomSource r = random();
+        if (Dir.DX[dir] == 0) nextDouble(r, -0.25, 0.25);
+        if (Dir.DY[dir] == 0) nextDouble(r, -0.25, 0.25);
+        if (Dir.DZ[dir] == 0) nextDouble(r, -0.25, 0.25);
+        if (Dir.DX[dir] == 0) nextDouble(r, -0.1, 0.1);
+        if (Dir.DY[dir] == 0) nextDouble(r, 0.0, 0.1);
+        if (Dir.DZ[dir] == 0) nextDouble(r, -0.1, 0.1);
+        spawnItem(stack, false);
+    }
+
+    private static double nextDouble(RandomSource r, double min, double max) { return min >= max ? min : r.nextDouble() * (max - min) + min; }
+
+    /** 아이템 엔티티를 만든다(doTileDrops). 기본 속도 생성자는 난수 두 번(ItemEntity(level, x, y, z, stack)). TODO(엔티티): 실제 생성. */
+    private void spawnItem(ItemStack stack, boolean defaultVelocity) {
+        if (stack.isEmpty() || !gameRule("doTileDrops")) return;
+        if (defaultVelocity) {
+            random().nextDouble();
+            random().nextDouble();
+        }
+    }
 }

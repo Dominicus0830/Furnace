@@ -152,6 +152,7 @@ public final class DataPackManager implements AutoCloseable {
         ResourceManager old = resources;
         resources = l.rm();
         tags = l.tags();
+        org.domi.furnace.server.item.ItemContext.installTags(tags);
         recipes = l.recipes();
         loot = l.loot();
         advancements = l.advancements();

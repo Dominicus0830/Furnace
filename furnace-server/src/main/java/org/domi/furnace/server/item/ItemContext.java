@@ -26,6 +26,21 @@ public final class ItemContext {
 
     public static boolean installed() { return regs != null; }
 
+    private static volatile org.domi.furnace.server.net.registry.TagSet tags;
+
+    /** 데이터 팩 리로드마다 지금 태그(아이템·블록 등)를 건다. */
+    public static void installTags(org.domi.furnace.server.net.registry.TagSet t) { tags = t; }
+
+    /** 그 레지스트리 태그에 id 가 들어 있는가(태그가 없거나 아직 안 걸렸으면 거짓). */
+    public static boolean isInTag(String registry, String tag, int id) {
+        var t = tags;
+        if (t == null) return false;
+        int[] ids = t.ids(registry, tag.indexOf(':') < 0 ? "minecraft:" + tag : tag);
+        if (ids == null) return false;
+        for (int v : ids) if (v == id) return true;
+        return false;
+    }
+
     /** 이름 → 숫자 id(없으면 null). */
     public static Integer id(String registry, String name) {
         ResourceId rid = ResourceId.tryParse(name);

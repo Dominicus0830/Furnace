@@ -68,6 +68,12 @@ public class BlockBehavior {
         return state;
     }
 
+    /**
+     * Block.playerDestroy(level, player, pos, state, blockEntity, tool): 플레이어가 부순 뒤(칸은 이미 지워짐) — 통계·허기·드롭.
+     * TODO(3-4b): 파괴 경로에서 부르고 기본 동작(통계 mined, 허기 0.005, dropResources)을 채운다.
+     */
+    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, ItemStack tool) {}
+
     /** Block.destroy(level, pos, state): 플레이어 파괴로 칸이 지워진 뒤. */
     public void destroy(BlockLevel level, Pos pos, int state) {}
 
