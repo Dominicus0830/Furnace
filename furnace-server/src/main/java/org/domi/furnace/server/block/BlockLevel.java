@@ -127,6 +127,24 @@ public interface BlockLevel {
      */
     default int getRawBrightness(Pos pos, int skyDarken) { return 15 - skyDarken; }
 
+    /**
+     * Level.skyDarken(updateSkyBrightness): 해 높이·비·천둥으로 정한 하늘빛 감소량(0..11).
+     * 바닐라는 틱 머리에 한 번 계산해 두지만 같은 틱 안에서는 값이 같다.
+     */
+    default int skyDarken() {
+        float rain = rainLevel();
+        double d0 = 1.0 - rain * 5.0F / 16.0;
+        double d1 = 1.0 - thunderLevel() * rain * 5.0F / 16.0;
+        double d2 = 0.5 + 2.0 * Math.clamp(Dir.cos(B.timeOfDay(this) * (float) (Math.PI * 2)), -0.25, 0.25);
+        return (int) ((1.0 - d2 * d0 * d1) * 11.0);
+    }
+
+    /** LevelReader.getMaxLocalRawBrightness(pos) = getRawBrightness(pos, skyDarken). */
+    default int getMaxLocalRawBrightness(Pos pos) { return getRawBrightness(pos, skyDarken()); }
+
+    /** Level.getBrightness(LightLayer.SKY, pos): 하늘빛. TODO(빛): 빛 엔진 전까지 15(하늘이 보이는 곳과 같은 값). */
+    default int getSkyLight(Pos pos) { return 15; }
+
     /** Level.getBrightness(LightLayer.BLOCK, pos): 블록빛. TODO(빛): 빛 엔진 전까지 0(주변에 광원이 없는 곳과 같은 값). */
     default int getBlockLight(Pos pos) { return 0; }
 
@@ -145,6 +163,12 @@ public interface BlockLevel {
     boolean isRaining();
 
     boolean isThundering();
+
+    /** Level.getRainLevel(1.0F). */
+    default float rainLevel() { return isRaining() ? 1f : 0f; }
+
+    /** 천둥 세기(비 세기를 곱하기 전). */
+    default float thunderLevel() { return isThundering() ? 1f : 0f; }
 
     /** 게임룰 값(불리언). */
     boolean gameRule(String name);

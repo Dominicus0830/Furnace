@@ -17,6 +17,12 @@ public interface LevelServices {
 
     boolean isThundering();
 
+    /** Level.getRainLevel(1.0F)(0..1, 날씨가 바뀔 때 서서히 변한다). */
+    default float rainLevel() { return isRaining() ? 1f : 0f; }
+
+    /** 천둥 세기(비 세기를 곱하기 전, 0..1). */
+    default float thunderLevel() { return isThundering() ? 1f : 0f; }
+
     long dayTime();
 
     long gameTime();
@@ -62,6 +68,8 @@ public interface LevelServices {
         public boolean withinBorder(int x, int z) { return d.withinBorder(x, z); }
         public boolean isRaining() { return d.isRaining(); }
         public boolean isThundering() { return d.isThundering(); }
+        public float rainLevel() { return d.rainLevel(); }
+        public float thunderLevel() { return d.thunderLevel(); }
         public long dayTime() { return d.dayTime(); }
         public long gameTime() { return d.gameTime(); }
         public String dimension() { return d.dimension(); }

@@ -406,6 +406,8 @@ public final class ServerCore {
         public boolean withinBorder(int x, int z) { return border.isWithinBounds(x, z); }
         public boolean isRaining() { return clock.isRaining(); }
         public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
+        public float rainLevel() { return clock.rainLevel(); }
+        public float thunderLevel() { return clock.thunderLevel(); }
         public long dayTime() { return clock.dayTime(); }
         public long gameTime() { return clock.gameTime(); }
         public String dimension() { return "minecraft:overworld"; }

@@ -70,4 +70,31 @@ public interface BlockActor {
 
     /** Player.awardStat(통계 이름, 1). TODO(통계). */
     default void awardStat(String stat) {}
+
+    /** getInventory().add(stack): 다 들어가면 참. TODO(인벤토리): 블록 쪽에서 인벤토리에 넣는 통로가 생기면. */
+    default boolean addToInventory(ItemStack stack) { return false; }
+
+    /** getInventory().contains(stack). TODO(인벤토리). */
+    default boolean inventoryContains(ItemStack stack) { return false; }
+
+    /** Player.drop(stack, false): 바닥에 떨군다. TODO(엔티티). */
+    default void drop(ItemStack stack) {}
+
+    /**
+     * ItemUtils.createFilledResult(empty, player, filled, preventDuplicates): 손에 둘 결과 — 무한 재료면 빈 그릇을 그대로 두고(중복 방지면 없을 때만 넣고),
+     * 아니면 하나 줄여 다 쓰면 채운 것을, 남으면 채운 것은 인벤토리(안 되면 바닥)로.
+     */
+    default ItemStack createFilledResult(ItemStack empty, ItemStack filled, boolean preventDuplicates) {
+        boolean infinite = instabuild();
+        if (preventDuplicates && infinite) {
+            if (!inventoryContains(filled)) addToInventory(filled);
+            return empty;
+        }
+        ItemStack rest = infinite ? empty : empty.withCount(empty.count() - 1);
+        if (rest.isEmpty()) return filled;
+        if (!addToInventory(filled)) drop(filled);
+        return rest;
+    }
+
+    default ItemStack createFilledResult(ItemStack empty, ItemStack filled) { return createFilledResult(empty, filled, true); }
 }

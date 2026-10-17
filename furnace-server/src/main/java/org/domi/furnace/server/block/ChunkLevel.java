@@ -435,6 +435,12 @@ public abstract class ChunkLevel implements BlockLevel {
     public boolean isThundering() { return services().isThundering(); }
 
     @Override
+    public float rainLevel() { return services().rainLevel(); }
+
+    @Override
+    public float thunderLevel() { return services().thunderLevel(); }
+
+    @Override
     public boolean gameRule(String name) { return services().gameRule(name); }
 
     @Override
