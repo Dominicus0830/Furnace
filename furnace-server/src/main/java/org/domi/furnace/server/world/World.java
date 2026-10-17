@@ -142,6 +142,16 @@ public final class World {
         runAtChunk(ChunkPos.ofBlock(blockX, blockZ), task);
     }
 
+    /**
+     * 클라이언트가 보낸 블록 좌표의 작업: 그 청크에 주인 region 이 있으면 거기서, 없으면 플레이어가 선 청크의 region 에서
+     * (그 region 에선 남의 청크라 "로드 안 된 칸"으로 보인다). 아무 좌표나 보내 region 을 새로 만들게 하지 못한다.
+     */
+    public void runAtRequested(int blockX, int blockZ, double playerX, double playerZ, java.util.function.Consumer<Region> task) {
+        ChunkPos cp = ChunkPos.ofBlock(blockX, blockZ);
+        if (regionizer.ownerOf(cp.x(), cp.z()) == null) cp = ChunkPos.ofBlock(playerX, playerZ);
+        runAtChunk(cp, task);
+    }
+
     /** runAtChunk 의 결과판. */
     public <T> CompletableFuture<T> submitAtChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
         CompletableFuture<T> f = new CompletableFuture<>();

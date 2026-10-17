@@ -103,11 +103,24 @@ public final class Region {
         Task t;
         int n = 0;
         while ((t = inbox.poll()) != null) {
-            runTask(t.run());
+            if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
+            else rz().enqueue(t.chunkKey(), t.run());
             if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
         }
-        while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) runTask(delayed.poll().run());
+        while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) {
+            Delayed d = delayed.poll();
+            if (mine(d.chunkKey)) runTask(d.run);
+            else rz().enqueue(d.chunkKey, d.run);
+        }
         if (gameTick) tick();
+    }
+
+    /**
+     * 그 청크가 지금 이 region 것인가. 큐에 넣은 뒤 돌기 전에 그 구역이 다른 region 으로 나뉘어 갔거나(나누기는 큐를 옮기지만
+     * 넣는 쪽과 경합할 수 있다) 지워졌으면 아니다 — 그런 작업은 지금 주인에게 다시 보낸다. 틱 중에는 이 region 의 구역이 빠지지 않는다(더해질 수는 있다).
+     */
+    private boolean mine(long chunkKey) {
+        return rz().owns(this, Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey));
     }
 
     private void runTask(Consumer<Region> task) {

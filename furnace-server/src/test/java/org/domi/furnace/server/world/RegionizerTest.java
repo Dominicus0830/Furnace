@@ -122,6 +122,41 @@ class RegionizerTest {
         assertTrue(a.get(5, TimeUnit.SECONDS) && b.get(5, TimeUnit.SECONDS), "두 region 의 작업이 동시에 돈다");
     }
 
+    @Test
+    void regionForStrayTask_isRemoved_evenWithDelayedTaskOutlivingItsSection() throws Exception {
+        // 아무 청크도 없는 곳의 작업은 빈 구역을 가진 region 을 만든다 — 지연 작업이 구역 유예(1초)보다 오래 남아도 끝나면 없어진다
+        CompletableFuture<Void> f = sched.region(new org.domi.furnace.api.sched.RegionPos(1000, 1000)).executeDelayed(() -> { }, 300);   // 틱 10ms → 3초
+        await("region 이 생긴다", () -> w.regionCount() == 1);
+        f.get(5, TimeUnit.SECONDS);
+        long deadline = System.currentTimeMillis() + 8000;
+        while (w.regionCount() != 0 && System.currentTimeMillis() < deadline) Thread.sleep(10);
+        assertEquals(0, w.regionCount(), "빈 region 이 남지 않는다\n" + w.regionizer().debugState());
+    }
+
+    @Test
+    void forEachRegion_runsOncePerRegion_andFollowsMerge() throws Exception {
+        load(0);
+        load(2);
+        AtomicInteger ran = new AtomicInteger();
+        var fs = w.forEachRegion(r -> {
+            assertTrue(r.isOwnerThread());
+            ran.incrementAndGet();
+        });
+        assertEquals(2, fs.size());
+        CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).get(5, TimeUnit.SECONDS);
+        assertEquals(2, ran.get());
+    }
+
+    @Test
+    void clientCoordinates_withoutOwner_doNotCreateRegions() throws Exception {
+        load(0);
+        assertEquals(1, w.regionCount());
+        CompletableFuture<Integer> f = new CompletableFuture<>();
+        w.runAtRequested(5_000_000, 5_000_000, 8, 8, r -> f.complete(r.id()));
+        assertEquals(ownerId(0), f.get(5, TimeUnit.SECONDS), "주인 없는 좌표는 플레이어 청크 region 에서");
+        assertEquals(1, w.regionCount());
+    }
+
     private static boolean await(java.util.concurrent.CountDownLatch l) {
         l.countDown();
         try {

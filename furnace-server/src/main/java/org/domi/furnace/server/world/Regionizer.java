@@ -250,29 +250,50 @@ public final class Regionizer {
         while ((t = dead.inbox.poll()) != null) enqueue(t.chunkKey(), t.run());
     }
 
-    /** 살아 있는 region 마다 한 번씩 작업(그 region 의 구역 하나에 붙여 보낸다 — 합쳐져도 따라간다). */
+    /**
+     * 살아 있는 region 마다 한 번씩 작업(저장·종료 정리). 그 region 큐에 바로 넣는다 — 합쳐지면 흡수한 쪽에서 돌고,
+     * 돌기 전에 나뉘면 나뉜 조각마다 한 번씩 돈다(future 는 모든 조각이 끝나야 완료).
+     */
     List<java.util.concurrent.CompletableFuture<Void>> forEachRegion(java.util.function.Consumer<Region> task) {
-        List<Long> keys = new ArrayList<>();
+        List<java.util.concurrent.CompletableFuture<Void>> out = new ArrayList<>();
         lock.lock();
         try {
             for (Region r : regions) {
-                if (!r.sections.isEmpty()) {
-                    long sk = r.sections.iterator().next();
-                    keys.add(chunkKey(chunkX(sk) << shift, chunkZ(sk) << shift));
-                }
+                long sk = r.sections.isEmpty() ? 0 : r.sections.iterator().next();
+                RegionWide w = new RegionWide(task);
+                r.inbox.add(new Region.Task(chunkKey(chunkX(sk) << shift, chunkZ(sk) << shift), w));
+                out.add(w.done);
             }
         } finally {
             lock.unlock();
         }
-        List<java.util.concurrent.CompletableFuture<Void>> out = new ArrayList<>();
-        for (long k : keys) {
-            var f = new java.util.concurrent.CompletableFuture<Void>();
-            enqueue(k, r -> {
-                try { task.accept(r); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            });
-            out.add(f);
-        }
         return out;
+    }
+
+    /** region 단위 작업: 청크 주인을 따지지 않고 받은 region 에서 돈다. 나누기 때 조각마다 복제된다. */
+    static final class RegionWide implements java.util.function.Consumer<Region> {
+        final java.util.function.Consumer<Region> task;
+        final java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
+        private final java.util.concurrent.atomic.AtomicInteger left = new java.util.concurrent.atomic.AtomicInteger(1);
+        private volatile Throwable error;
+
+        RegionWide(java.util.function.Consumer<Region> task) { this.task = task; }
+
+        void fork() { left.incrementAndGet(); }
+
+        @Override
+        public void accept(Region r) {
+            try {
+                task.accept(r);
+            } catch (Throwable t) {
+                error = t;
+            }
+            if (left.decrementAndGet() == 0) {
+                Throwable e = error;
+                if (e == null) done.complete(null);
+                else done.completeExceptionally(e);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ 틱 스케줄
@@ -338,7 +359,7 @@ public final class Regionizer {
         resolveMerges(r);
         if (!r.alive || r.yielded) return;
         r.ticksSinceRecalc++;
-        if (r.deadSections > 0 && r.ticksSinceRecalc >= RECALC_INTERVAL_TICKS) {
+        if ((r.deadSections > 0 || r.sections.isEmpty()) && r.ticksSinceRecalc >= RECALC_INTERVAL_TICKS) {
             r.ticksSinceRecalc = 0;
             split(r);
         }
@@ -417,7 +438,7 @@ public final class Regionizer {
         r.sections.retainAll(new HashSet<>(live));
         r.deadSections = stillDead;   // 아직 유예 중인 빈 구역은 다음 계산 때 다시 본다
         if (live.isEmpty()) {
-            if (r.isIdleEmpty()) kill(r);
+            if (r.isIdleEmpty()) kill(r);   // 아니면(지연 작업·ack 가 남음) 다음 계산 때 다시 본다
             return;
         }
         // 연결 성분(반경 안 = 인접)
@@ -448,7 +469,7 @@ public final class Regionizer {
         List<Region> created = new ArrayList<>();
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
-            n.nextTickNanos = r.nextTickNanos;
+            n.nextTickNanos = r.nextTickNanos + tickNanos;   // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게
             regions.add(n);
             created.add(n);
             for (long sk : parts.get(i)) {
@@ -458,14 +479,36 @@ public final class Regionizer {
                 sections.get(sk).owner = n;
             }
         }
+        r.deadSections = countDead(r);
+        for (Region n : created) n.deadSections = countDead(n);
         r.splitData(created, chunkKey -> target.get(sectionKeyOfChunk(chunkKey)));
-        // 큐에 남은 작업도 구역을 따라 보낸다(먼저 모두 꺼낸 뒤 — r 에 남을 작업이 다시 들어와도 무한히 돌지 않게)
+        // 큐에 남은 작업도 구역을 따라 보낸다(먼저 모두 꺼낸 뒤 — r 에 남을 작업이 다시 들어와도 무한히 돌지 않게).
+        // region 단위 작업은 조각마다 한 번씩.
         List<Region.Task> pending = new ArrayList<>();
         Region.Task t;
         while ((t = r.inbox.poll()) != null) pending.add(t);
-        for (Region.Task task : pending) enqueue(task.chunkKey(), task.run());
+        for (Region.Task task : pending) {
+            if (task.run() instanceof RegionWide w) {
+                r.inbox.add(task);
+                for (Region n : created) {
+                    w.fork();
+                    n.inbox.add(task);
+                }
+            } else {
+                enqueue(task.chunkKey(), task.run());
+            }
+        }
         for (Region n : created) schedule(n);
         log.debug("[REGION] #{} 를 {} 개로 나눔", r.id, parts.size());
+    }
+
+    private int countDead(Region r) {
+        int n = 0;
+        for (long sk : r.sections) {
+            Section s = sections.get(sk);
+            if (s != null && s.present == 0) n++;
+        }
+        return n;
     }
 
     private void kill(Region r) {

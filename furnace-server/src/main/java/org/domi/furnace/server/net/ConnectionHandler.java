@@ -1247,7 +1247,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         boolean creative = mode == org.domi.furnace.server.world.GameMode.CREATIVE;
-        world.runAt(bx, bz, region -> {
+        world.runAtRequested(bx, bz, actor.x(), actor.z(), region -> {
             region.level().ackBlockChangesUpTo(actor, seq);   // 바닐라: 틱 끝(변경 방송 뒤)에 ack
             if (creative && status != 0) return;
             // 이미 로드된 청크만 수정 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
@@ -1489,7 +1489,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int permission = core == null ? 0 : core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
         var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
         var hit = new org.domi.furnace.server.block.Hit(pos, face, bp[0] + (double) cx, bp[1] + (double) cy, bp[2] + (double) cz, inside);
-        world.runAt(bp[0], bp[2], region -> {
+        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
             var level = region.level();
             level.ackBlockChangesUpTo(actor, seq);
             var pa = new org.domi.furnace.server.block.PlayerActor(actor, main, off, permission) {
@@ -1560,7 +1560,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
             return;
         }
-        world.runAt(p.x(), p.z(), r -> r.resendBlock(actor, p.x(), p.y(), p.z()));   // 다른 region 의 칸(합쳐지기 전)
+        // 다른 region 의 칸(합쳐지기 전). 주인이 없는 칸이면 클라도 그 청크가 없다 — 보낼 것 없음.
+        if (world.regionizer().ownerOf(p.x() >> 4, p.z() >> 4) != null) world.runAt(p.x(), p.z(), r -> r.resendBlock(actor, p.x(), p.y(), p.z()));
     }
 
     /** 위치 기준 발전 과제(placed_block·item_used_on_block·default_block_use·any_block_use). */
@@ -1578,7 +1579,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             ackLater(actor, bx, bz, seq);
             return;
         }
-        world.runAt(bx, bz, r -> {
+        world.runAtRequested(bx, bz, actor.x(), actor.z(), r -> {
             r.resendBlock(actor, bx, by, bz);
             r.level().ackBlockChangesUpTo(actor, seq);
         });
@@ -1587,7 +1588,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** 블록 요청 ack 를 그 칸 region 의 틱 끝으로(바닐라: 연결 틱 첫머리 — 그 틱의 블록 변경 방송 뒤). */
     private void ackLater(Player actor, int bx, int bz, int seq) {
         if (seq < 0) return;
-        world.runAt(bx, bz, r -> r.level().ackBlockChangesUpTo(actor, seq));
+        world.runAtRequested(bx, bz, actor.x(), actor.z(), r -> r.level().ackBlockChangesUpTo(actor, seq));
     }
 
     @Override
