@@ -27,11 +27,26 @@ public final class BlockBehaviors {
                         arr[i] = f != null ? f.apply(i) : new BlockBehavior(i);
                     }
                     byBlock = arr;
+                    installRandomTicking(arr);
                 }
                 t = byBlock;
             }
         }
         return t;
+    }
+
+    /**
+     * 상태별 무작위 틱 표(BlockState.isRandomlyTicking — 블록이 무작위 틱 받거나 그 유체(용암)가 받으면)를 청크 섹션에 건다.
+     * 섹션은 이 표로 무작위 틱 받는 칸 수를 센다.
+     */
+    private static void installRandomTicking(BlockBehavior[] arr) {
+        Blocks b = Blocks.get();
+        boolean[] t = new boolean[b.stateCount()];
+        for (int s = 0; s < t.length; s++) {
+            BlockBehavior beh = arr[b.blockOf(s)];
+            t[s] = beh.isRandomlyTicking(s) || Fluids.isLava(beh.getFluidState(s));
+        }
+        org.domi.furnace.server.world.ChunkSection.randomTickingTable(t);
     }
 
     /** 상태의 블록 동작. */

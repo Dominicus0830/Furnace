@@ -45,6 +45,4 @@ public abstract class AbstractCauldronBlock extends BlockBehavior {
 
     protected void receiveStalactiteDrip(int state, BlockLevel level, Pos pos, int fluid) {}
 
-    /** handlePrecipitation(state, level, pos, "rain"|"snow") — 날씨 틱이 부른다. */
-    public void handlePrecipitation(int state, BlockLevel level, Pos pos, String precipitation) {}
 }

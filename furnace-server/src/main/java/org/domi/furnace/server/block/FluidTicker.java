@@ -6,4 +6,7 @@ public final class FluidTicker {
     private FluidTicker() {}
 
     public static void tick(BlockLevel level, Pos pos, int fluidState) {}
+
+    /** FluidState.randomTick — 용암(LavaFluid.randomTick: 불 번지기)만. TODO(3-4d). */
+    public static void randomTick(BlockLevel level, Pos pos, int fluidState, RandomSource random) {}
 }

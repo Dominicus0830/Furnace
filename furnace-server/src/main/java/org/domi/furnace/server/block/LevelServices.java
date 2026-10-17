@@ -47,6 +47,12 @@ public interface LevelServices {
     default java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
             org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) { return java.util.List.of(); }
 
+    /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
+    default String biomeAt(int x, int y, int z) { return null; }
+
+    /** server.properties simulation-distance. */
+    default int simulationDistance() { return 10; }
+
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
         public boolean gameRule(String name) { return true; }
@@ -87,6 +93,8 @@ public interface LevelServices {
                 org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) {
             return d.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
         }
+        public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
+        public int simulationDistance() { return d.simulationDistance(); }
         public boolean biomeIs(int x, int y, int z, String tag) { return d.biomeIs(x, y, z, tag); }
     }
 }

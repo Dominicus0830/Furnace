@@ -90,6 +90,9 @@ public class BlockBehavior {
         return level.lootDrops(table, state, pos, entity, tool, explosionRadius);
     }
 
+    /** Block.handlePrecipitation(state, level, pos, "rain"|"snow"): 비·눈이 내린 칸(가마솥만 반응). */
+    public void handlePrecipitation(int state, BlockLevel level, Pos pos, String precipitation) {}
+
     /** BlockBehaviour.spawnAfterBreak(state, level, pos, tool, dropExperience): 경험치·좀벌레 등. */
     public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {}
 

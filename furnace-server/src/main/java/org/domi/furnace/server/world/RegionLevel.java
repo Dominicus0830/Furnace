@@ -100,10 +100,21 @@ public final class RegionLevel extends ChunkLevel {
         pendingAcks.clear();
     }
 
-    /** 레벨 틱(바닐라 ServerLevel.tick 의 블록 부분): 예약 틱 → 변경 방송 → 블록 이벤트. */
-    void tickBlocks() {
+    /**
+     * 레벨 틱(바닐라 ServerLevel.tick 의 블록 부분): 예약 틱 → 청크 틱(무작위 틱·날씨 — 섞은 순서로) → 변경 방송 → 블록 이벤트.
+     * tickingChunks 는 무작위 틱을 받을 청크 키(Regionizer.chunkKey).
+     */
+    void tickBlocks(long[] tickingChunks, int count) {
         lastCol = null;   // 틱 사이에 합치기·나누기가 있었을 수 있다
         runScheduledTicks();
+        if (count > 0) {
+            shuffle(tickingChunks, count);
+            int speed = gameRuleInt("randomTickSpeed");
+            for (int i = 0; i < count; i++) {
+                long k = tickingChunks[i];
+                tickChunk(Regionizer.chunkX(k), Regionizer.chunkZ(k), speed);
+            }
+        }
         broadcastChanges();
         runBlockEvents();
     }

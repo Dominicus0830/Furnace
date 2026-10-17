@@ -15,6 +15,7 @@ import org.domi.furnace.server.net.protocol.play.LevelEventPacket;
 import org.domi.furnace.server.net.protocol.play.SectionBlocksUpdate;
 import org.domi.furnace.server.net.protocol.play.SoundPacket;
 import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.ChunkSection;
 
 public abstract class ChunkLevel implements BlockLevel {
 
@@ -26,6 +27,8 @@ public abstract class ChunkLevel implements BlockLevel {
     private final BlockTicks blockTicks = new BlockTicks();
     private final BlockTicks fluidTicks = new BlockTicks();
     private long subTickCount;
+    /** Level.randValue — 무작위 칸 고르기 LCG(getBlockRandomPos). 바닐라처럼 처음 값은 임의. */
+    private int randValue = new java.util.Random().nextInt();
     /** 지역 틱 시계(예약 틱 기준 — Folia 의 redstoneTime 처럼 region 마다 따로 간다. 월드 시간은 gameTime()). */
     private long levelTime;
     /** 방송할 변경: 구역 키(청크 x,z,구역 y) → 구역 안 칸 번호 집합(바닐라 ChunkHolder.changedBlocksPerSection). */
@@ -203,11 +206,73 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public void scheduleTick(Pos pos, int block, int delay, int priority) {
         blockTicks.schedule(pos, block, levelTime + delay, priority, subTickCount++);
+        markDirty(pos.x() >> 4, pos.z() >> 4);   // 예약도 청크와 함께 저장한다
     }
 
     @Override
     public void scheduleFluidTick(Pos pos, int fluidType, int delay) {
         fluidTicks.schedule(pos, fluidType, levelTime + delay, 0, subTickCount++);
+        markDirty(pos.x() >> 4, pos.z() >> 4);
+    }
+
+    // ------------------------------------------------------------------ 예약 틱 저장(청크 NBT block_ticks·fluid_ticks — SavedTick)
+
+    private static final String[] FLUID_NAMES = {"minecraft:empty", "minecraft:flowing_water", "minecraft:water", "minecraft:flowing_lava", "minecraft:lava"};
+
+    /** 그 청크에 예약이 있는가. */
+    public boolean hasChunkTicks(int chunkX, int chunkZ) {
+        return !blockTicks.chunkTicks(chunkX, chunkZ).isEmpty() || !fluidTicks.chunkTicks(chunkX, chunkZ).isEmpty();
+    }
+
+    /**
+     * 그 청크의 예약을 NBT 목록 둘(block_ticks, fluid_ticks)로 쓴다 — 칸마다 {i: 종류 id, x, y, z, t: 남은 틱, p: 우선순위}.
+     * remove 면 예약을 꺼낸다(청크를 내릴 때).
+     */
+    public void saveChunkTicks(int chunkX, int chunkZ, org.domi.furnace.server.net.io.nbt.NbtCompound root, boolean remove) {
+        var bt = remove ? blockTicks.removeChunk(chunkX, chunkZ) : blockTicks.chunkTicks(chunkX, chunkZ);
+        var ft = remove ? fluidTicks.removeChunk(chunkX, chunkZ) : fluidTicks.chunkTicks(chunkX, chunkZ);
+        root.putList("block_ticks", tickList(bt, false));
+        root.putList("fluid_ticks", tickList(ft, true));
+    }
+
+    private org.domi.furnace.server.net.io.nbt.NbtList tickList(java.util.List<BlockTicks.Scheduled> ticks, boolean fluid) {
+        var list = new org.domi.furnace.server.net.io.nbt.NbtList(ticks.isEmpty() ? org.domi.furnace.server.net.io.nbt.NbtIo.TAG_END
+                : org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        for (BlockTicks.Scheduled s : ticks) {
+            Pos p = Pos.of(s.pos());
+            var e = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            e.putString("i", fluid ? FLUID_NAMES[s.type()] : blocks.name(s.type()));
+            e.putInt("x", p.x());
+            e.putInt("y", p.y());
+            e.putInt("z", p.z());
+            e.putInt("t", (int) (s.triggerTick() - levelTime));
+            e.putInt("p", s.priority());
+            list.add(e);
+        }
+        return list;
+    }
+
+    /** 불러온 청크 NBT 의 예약을 다시 건다(목록 순서대로 예약 순번) — 모르는 종류는 건너뛴다. 읽은 목록은 지운다. */
+    public void loadChunkTicks(org.domi.furnace.server.net.io.nbt.NbtCompound root) {
+        if (root == null) return;
+        for (String key : new String[] {"block_ticks", "fluid_ticks"}) {
+            if (!(root.tags().get(key) instanceof org.domi.furnace.server.net.io.nbt.NbtList list)) continue;
+            boolean fluid = key.equals("fluid_ticks");
+            for (Object o : list.items()) {
+                if (!(o instanceof org.domi.furnace.server.net.io.nbt.NbtCompound e)) continue;
+                String id = e.contains("i") ? e.getString("i") : null;
+                int type = -1;
+                if (fluid) {
+                    for (int i = 1; i < FLUID_NAMES.length; i++) if (FLUID_NAMES[i].equals(id)) type = i;
+                } else if (id != null) {
+                    type = blocks.block(id);
+                }
+                if (type < 0) continue;
+                Pos p = new Pos(e.getIntOr0("x"), e.getIntOr0("y"), e.getIntOr0("z"));
+                (fluid ? fluidTicks : blockTicks).schedule(p, type, levelTime + e.getIntOr0("t"), e.getIntOr0("p"), subTickCount++);
+            }
+            root.tags().remove(key);
+        }
     }
 
     @Override
@@ -230,6 +295,112 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     public BlockTicks blockTicks() { return blockTicks; }
+
+    // ------------------------------------------------------------------ 무작위 틱·날씨(바닐라 ServerLevel.tickChunk)
+
+    /** Util.shuffle(list, level.random): 뒤에서부터 nextInt(i) 자리와 바꾼다(ServerChunkCache.tickChunks 의 청크 순서). */
+    protected void shuffle(long[] a, int n) {
+        for (int i = n; i > 1; i--) {
+            int j = random.nextInt(i);
+            long t = a[i - 1];
+            a[i - 1] = a[j];
+            a[j] = t;
+        }
+    }
+
+    /** Level.getBlockRandomPos(x, y, z, 15): randValue = randValue·3 + 1013904223, 그 >> 2 의 비트로 칸 안 위치. */
+    private Pos blockRandomPos(int x, int y, int z) {
+        randValue = randValue * 3 + 1013904223;
+        int i = randValue >> 2;
+        return new Pos(x + (i & 15), y + (i >> 16 & 15), z + (i >> 8 & 15));
+    }
+
+    /**
+     * ServerLevel.tickChunk(chunk, randomTickSpeed): 천둥(번개) → 얼음·눈(randomTickSpeed 번, 1/48 로 강수 칸 하나) →
+     * 무작위 틱(무작위 틱 받는 섹션마다 randomTickSpeed 칸: 블록 randomTick, 그 유체 randomTick).
+     */
+    public void tickChunk(int chunkX, int chunkZ, int randomTickSpeed) {
+        ChunkColumn col = chunk(chunkX, chunkZ);
+        if (col == null) return;
+        int x0 = chunkX << 4, z0 = chunkZ << 4;
+        boolean raining = isRaining();
+        if (raining && isThundering() && random.nextInt(100000) == 0) {
+            // TODO(엔티티): 번개 — findLightningTargetAround(getBlockRandomPos) → 비 오는 칸이면 해골 말 덫(1%·난이도)·번개 엔티티.
+            blockRandomPos(x0, 0, z0);
+        }
+        for (int l = 0; l < randomTickSpeed; l++) {
+            if (random.nextInt(48) == 0) tickPrecipitation(col, blockRandomPos(x0, 0, z0));
+        }
+        if (randomTickSpeed <= 0) return;
+        ChunkSection[] sections = col.sections();
+        for (int si = 0; si < sections.length; si++) {
+            ChunkSection sec = sections[si];
+            if (sec == null || !sec.isRandomlyTicking()) continue;
+            int y0 = col.minY() + (si << 4);
+            for (int n = 0; n < randomTickSpeed; n++) {
+                Pos p = blockRandomPos(x0, y0, z0);
+                int st = sec.getBlock(p.x() - x0, p.y() - y0, p.z() - z0);
+                BlockBehavior b = BlockBehaviors.of(st);
+                if (b.isRandomlyTicking(st)) b.randomTick(st, this, p, random);
+                int f = b.getFluidState(st);
+                if (Fluids.isLava(f)) FluidTicker.randomTick(this, p, f, random);
+            }
+        }
+    }
+
+    /**
+     * ServerLevel.tickPrecipitation(pos): MOTION_BLOCKING 높이 칸(위)·그 아래 칸 — 아래가 얼 수 있으면 얼음, 비가 오면 위에 눈을 쌓고
+     * (게임룰 snowAccumulationHeight 까지), 아래 칸 블록에 그 강수를 알린다(가마솥).
+     */
+    void tickPrecipitation(ChunkColumn col, Pos pos) {
+        Pos top = new Pos(pos.x(), col.motionBlockingBlockY(pos.x() & 15, pos.z() & 15) + 1, pos.z());
+        Pos below = top.below();
+        var climate = org.domi.furnace.server.world.BiomeWeather.of(services().biomeAt(top.x(), top.y(), top.z()));
+        if (shouldFreeze(climate, below)) setBlockAndUpdate(below, blocks.defaultState("minecraft:ice"));
+        if (isRaining()) {
+            int max = gameRuleInt("snowAccumulationHeight");
+            if (max > 0 && shouldSnow(climate, top)) {
+                int s = getBlockState(top);
+                if (blocks.blockOf(s) == SNOW) {
+                    Prop layers = blocks.prop("layers");
+                    int j = layers.intValue(s);
+                    if (j < Math.min(max, 8)) {
+                        // TODO(엔티티): Block.pushEntitiesUp(눈, 한 겹 더 쌓인 눈, level, pos)
+                        setBlockAndUpdate(top, layers.withInt(s, j + 1));
+                    }
+                } else {
+                    setBlockAndUpdate(top, blocks.defaultState(SNOW));
+                }
+            }
+            String precip = climate.precipitationAt(below.x(), below.y(), below.z());
+            if (!precip.equals(org.domi.furnace.server.world.BiomeWeather.NONE)) {
+                int s = getBlockState(below);
+                BlockBehaviors.of(s).handlePrecipitation(s, this, below, precip);
+            }
+        }
+    }
+
+    private final int SNOW = blocks.block("minecraft:snow"), WATER_BLOCK = blocks.block("minecraft:water");
+
+    /** Biome.shouldFreeze(level, pos, true): 따뜻하지 않고 블록빛 < 10, 물 원천 블록이며 네 옆이 모두 물은 아님(가장자리). */
+    private boolean shouldFreeze(org.domi.furnace.server.world.BiomeWeather.Climate c, Pos pos) {
+        if (c.warmEnoughToRain(pos.x(), pos.y(), pos.z())) return false;
+        if (pos.y() < minBuildHeight() || pos.y() >= maxBuildHeight() || getBlockLight(pos) >= 10) return false;
+        int s = getBlockState(pos);
+        if (blocks.blockOf(s) != WATER_BLOCK || !Fluids.isWaterSource(getFluidState(pos))) return false;
+        boolean surrounded = isWaterAt(pos.west()) && isWaterAt(pos.east()) && isWaterAt(pos.north()) && isWaterAt(pos.south());
+        return !surrounded;
+    }
+
+    /** Biome.shouldSnow(level, pos): 따뜻하지 않고 블록빛 < 10, 공기나 눈이며 눈이 살 수 있는 칸. */
+    private boolean shouldSnow(org.domi.furnace.server.world.BiomeWeather.Climate c, Pos pos) {
+        if (c.warmEnoughToRain(pos.x(), pos.y(), pos.z())) return false;
+        if (pos.y() < minBuildHeight() || pos.y() >= maxBuildHeight() || getBlockLight(pos) >= 10) return false;
+        int s = getBlockState(pos);
+        if (!info.isAir(s) && blocks.blockOf(s) != SNOW) return false;
+        int snow = blocks.defaultState(SNOW);
+        return BlockBehaviors.of(snow).canSurvive(snow, this, pos);
+    }
 
     public long levelTime() { return levelTime; }
 

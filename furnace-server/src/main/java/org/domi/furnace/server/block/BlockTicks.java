@@ -49,7 +49,10 @@ public final class BlockTicks {
             runThisTick.add(k);
             batch.add(s);
         }
-        for (Scheduled s : batch) ticker.tick(Pos.of(s.pos), s.type);
+        for (Scheduled s : batch) {
+            runThisTick.remove(new Key(s.pos, s.type));   // willTickThisTick 은 아직 돌지 않은 것만(바닐라 toRunThisTickSet)
+            ticker.tick(Pos.of(s.pos), s.type);
+        }
         runThisTick.clear();
     }
 
@@ -67,6 +70,17 @@ public final class BlockTicks {
             }
             return true;
         });
+    }
+
+    /** 그 청크의 예약(실행 순서대로) — 꺼내지 않는다(저장용). */
+    public java.util.List<Scheduled> chunkTicks(int chunkX, int chunkZ) {
+        java.util.List<Scheduled> out = new java.util.ArrayList<>();
+        for (Scheduled s : queue) {
+            Pos p = Pos.of(s.pos);
+            if (p.x() >> 4 == chunkX && p.z() >> 4 == chunkZ) out.add(s);
+        }
+        out.sort(queue.comparator());
+        return out;
     }
 
     /** 청크를 내릴 때 그 청크의 예약을 꺼낸다(저장용). */

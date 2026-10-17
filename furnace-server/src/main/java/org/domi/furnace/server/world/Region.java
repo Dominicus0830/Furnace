@@ -272,6 +272,9 @@ public final class Region {
         }
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
+            level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
+        }
         f.complete(col);
     }
 
@@ -407,6 +410,7 @@ public final class Region {
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
             if (col != null && col.dirty()) {
+                writeChunkTicks(cp.x(), cp.z(), col, false);
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
                 col.clearDirty();
             }
@@ -432,7 +436,8 @@ public final class Region {
             ChunkPos cp = new ChunkPos(cx, cz);
             ChunkColumn col = world.loadedChunk(cx, cz);
             if (col != null) {
-                if (col.dirty()) {
+                // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
+                if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {
                     world.saveChunkAsync(ChunkSnapshot.forSave(cx, cz, col));
                     col.clearDirty();
                 }
@@ -443,6 +448,16 @@ public final class Region {
             dirtyChunks.remove(cp);
             rz().release(this, cx, cz);
         }
+    }
+
+    /** 그 청크의 예약 틱을 청크 NBT(block_ticks·fluid_ticks)에 쓴다. 예약이 있었는가. remove 면 레벨에서 꺼낸다. */
+    private boolean writeChunkTicks(int cx, int cz, ChunkColumn col, boolean remove) {
+        if (level == null) return false;
+        boolean had = level.hasChunkTicks(cx, cz);
+        if (!had && col.extraNbt() == null) return false;
+        if (col.extraNbt() == null) col.extraNbt(new org.domi.furnace.server.net.io.nbt.NbtCompound());
+        level.saveChunkTicks(cx, cz, col.extraNbt(), remove);
+        return had;
     }
 
     int dirtyChunkCount() {
@@ -459,7 +474,10 @@ public final class Region {
     /** 이 region 스레드에서 매 틱(게임 틱) 호출. */
     public void tick() {
         world.assertOwns(this);
-        if (level != null) level.tickBlocks();   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 변경 방송 → 블록 이벤트 → 엔티티
+        if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
+            int n = collectTickingChunks();
+            level.tickBlocks(tickingChunks, n);
+        }
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();
         while (it.hasNext()) {
@@ -566,6 +584,44 @@ public final class Region {
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
         }
+    }
+
+    // ------------------------------------------------------------------ 청크 틱 대상(ServerChunkCache.tickChunks)
+
+    private long[] tickingChunks = new long[64];
+
+    /**
+     * 무작위 틱 받을 청크: 이 region 이 가진 로드된 청크 중, 관전자가 아닌 플레이어가 시뮬레이션 거리 안(체비셰프 ≤ min(거리, 11) − 1,
+     * 자연 스폰 범위 8 청크 안)이고 청크 가운데에서 128 블록 안(anyPlayerCloseEnoughForSpawning)인 것. 순서는 레벨이 섞는다.
+     */
+    private int collectTickingChunks() {
+        if (players.isEmpty()) return 0;
+        org.domi.furnace.server.block.BlockBehaviors.ofBlock(0);   // 무작위 틱 표를 섹션에 건다
+        int sim = Math.clamp(world.levelServices().simulationDistance(), 2, 11) - 1;
+        int range = Math.min(sim, 8);
+        int n = 0;
+        for (long key : present) {
+            int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+            if (!closeToPlayer(cx, cz, range)) continue;
+            ChunkColumn col = ownedChunk(cx, cz);
+            if (col == null) continue;
+            col.inhabitedTime(col.inhabitedTime() + 1);   // LevelChunk.incrementInhabitedTime(1)
+            if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
+            tickingChunks[n++] = key;
+        }
+        return n;
+    }
+
+    private boolean closeToPlayer(int cx, int cz, int chunkRange) {
+        double mx = cx * 16 + 8, mz = cz * 16 + 8;
+        for (Player p : players.values()) {
+            if (p.gameMode() == GameMode.SPECTATOR) continue;
+            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
+            if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) > chunkRange) continue;
+            double dx = mx - p.x(), dz = mz - p.z();
+            if (dx * dx + dz * dz < 16384.0) return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ 블록 부수기(ServerPlayerGameMode)
