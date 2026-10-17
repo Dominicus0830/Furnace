@@ -61,4 +61,13 @@ public interface BlockActor {
 
     /** Player.hasCorrectToolForDrops(state): 도구가 필요 없는 블록이거나 손 도구가 맞으면. TODO(3-4b): 도구 등급·태그 판정. */
     default boolean hasCorrectToolForDrops(int state) { return !BlockInfo.get().requiresCorrectToolForDrops(Blocks.get().blockOf(state)); }
+
+    /** Player.canEat(ignoreHunger). */
+    default boolean canEat(boolean ignoreHunger) { return ignoreHunger; }
+
+    /** player.getFoodData().eat(nutrition, saturationModifier). */
+    default void eat(int nutrition, float saturationModifier) {}
+
+    /** Player.awardStat(통계 이름, 1). TODO(통계). */
+    default void awardStat(String stat) {}
 }

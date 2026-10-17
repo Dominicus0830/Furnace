@@ -31,6 +31,9 @@ public interface LevelServices {
     /** 같은 차원의 접속자 전원에게. */
     void forEachPlayer(Consumer<Player> c);
 
+    /** 그 칸의 바이옴(Level.getBiome — 확대 지터 포함)이 태그에 드는가. 모르면 거짓. */
+    default boolean biomeIs(int x, int y, int z, String tag) { return false; }
+
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
         public boolean gameRule(String name) { return true; }
@@ -65,5 +68,6 @@ public interface LevelServices {
         public boolean ultraWarm() { return d.ultraWarm(); }
         public int maxChainedNeighborUpdates() { return d.maxChainedNeighborUpdates(); }
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }
+        public boolean biomeIs(int x, int y, int z, String tag) { return d.biomeIs(x, y, z, tag); }
     }
 }

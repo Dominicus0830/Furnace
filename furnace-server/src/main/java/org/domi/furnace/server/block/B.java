@@ -153,6 +153,16 @@ public final class B {
         return INFO.canOcclude(block(aboveState)) && INFO.occlusionShape(aboveState).isFaceFull(Dir.DOWN);
     }
 
+    private static final int BARRIER = id("barrier"), CARVED_PUMPKIN = id("carved_pumpkin"), JACK_O_LANTERN = id("jack_o_lantern"),
+            MELON = id("melon"), PUMPKIN = id("pumpkin");
+
+    /** Block.isExceptionForConnection: 나뭇잎·차단벽·깎은 호박·잭오랜턴·수박·호박·셜커 상자에는 울타리·벽이 붙지 않는다. */
+    public static boolean isExceptionForConnection(int state) {
+        int b = block(state);
+        return behavior(state) instanceof org.domi.furnace.server.block.types.LeavesBlock || b == BARRIER || b == CARVED_PUMPKIN
+                || b == JACK_O_LANTERN || b == MELON || b == PUMPKIN || isTag(state, "minecraft:shulker_boxes");
+    }
+
     /** BlockState.canBeReplaced(ctx). */
     public static boolean canBeReplaced(int state, PlaceContext ctx) { return behavior(state).canBeReplaced(state, ctx); }
 

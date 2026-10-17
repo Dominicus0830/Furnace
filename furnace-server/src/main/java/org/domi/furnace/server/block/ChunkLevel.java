@@ -447,6 +447,9 @@ public abstract class ChunkLevel implements BlockLevel {
     public String dimension() { return services().dimension(); }
 
     @Override
+    public boolean biomeIs(Pos pos, String tag) { return services().biomeIs(pos.x(), pos.y(), pos.z(), tag); }
+
+    @Override
     public boolean ultraWarm() { return services().ultraWarm(); }
 
     @Override

@@ -37,8 +37,8 @@ public final class BucketPickup {
             level.levelEvent(null, 2001, pos, state);
             return "minecraft:powder_snow_bucket";
         }
-        if (WATERLOGGED.has(state)) {   // SimpleWaterloggedBlock
-            if (!WATERLOGGED.is(state)) return null;
+        if (WATERLOGGED.has(state)) {   // SimpleWaterloggedBlock(겹친 반 블록은 아님)
+            if (!WATERLOGGED.is(state) || B.behavior(state) instanceof SlabBlock && SlabBlock.isDouble(state)) return null;
             level.setBlock(pos, WATERLOGGED.with(state, false), 3);
             if (!B.canSurvive(state, level, pos)) level.destroyBlock(pos, true);
             return "minecraft:water_bucket";
@@ -48,7 +48,8 @@ public final class BucketPickup {
 
     /** SimpleWaterloggedBlock.placeLiquid: 물에 잠기지 않은 칸에 물 원천을 넣는다. */
     public static boolean placeWater(BlockLevel level, Pos pos, int state, int fluid) {
-        if (WATERLOGGED.has(state) && !WATERLOGGED.is(state) && Fluids.type(fluid) == Fluids.T_WATER) {
+        if (WATERLOGGED.has(state) && !WATERLOGGED.is(state) && Fluids.type(fluid) == Fluids.T_WATER
+                && !(B.behavior(state) instanceof SlabBlock && SlabBlock.isDouble(state))) {
             level.setBlock(pos, WATERLOGGED.with(state, true), 3);
             level.scheduleFluidTick(pos, Fluids.T_WATER, 5);
             return true;

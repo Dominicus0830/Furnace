@@ -35,6 +35,8 @@ public class PlayerActor implements BlockActor {
     @Override public double eyeHeight() { return player.sneaking() ? 1.27 : 1.62; }
     @Override public boolean isSecondaryUseActive() { return player.sneaking(); }
     @Override public boolean mayBuild() { return player.vitals().mayBuild(); }
+    @Override public boolean canEat(boolean ignoreHunger) { return player.vitals().canEat(ignoreHunger); }
+    @Override public void eat(int nutrition, float saturationModifier) { player.vitals().eat(nutrition, saturationModifier); }
     @Override public boolean instabuild() { return player.vitals().instabuild(); }
     @Override public boolean isSpectator() { return player.gameMode() == GameMode.SPECTATOR; }
     @Override public boolean isCreative() { return player.gameMode() == GameMode.CREATIVE; }

@@ -412,6 +412,11 @@ public final class ServerCore {
         public boolean ultraWarm() { return false; }
         public int maxChainedNeighborUpdates() { return settings.get().maxChainedNeighborUpdates; }
         public void forEachPlayer(java.util.function.Consumer<Player> c) { for (Player p : world.onlinePlayers()) c.accept(p); }
+        public boolean biomeIs(int x, int y, int z, String tag) {
+            String b = lootWorld.biomeAt(x, y, z);
+            var dp = dataPacks;
+            return b != null && dp != null && dp.loot() != null && dp.loot().registries().tag("minecraft:worldgen/biome", tag).contains(b);
+        }
     };
 
     /** 플레이어 생존 상태가 쓰는 서버 쪽 정보·브로드캐스트. */

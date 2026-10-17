@@ -286,6 +286,12 @@ public final class PlayerVitals {
         if (health > 0.0f) setHealthRaw(health + amount);
     }
 
+    /** 바닐라 Player.canEat(ignoreHunger): 무적 능력이거나 배고픔 무시거나 배고플 때. */
+    public synchronized boolean canEat(boolean ignoreHunger) { return abilities.invulnerable || ignoreHunger || food.foodLevel() < 20; }
+
+    /** 바닐라 FoodData.eat(nutrition, saturationModifier). */
+    public synchronized void eat(int nutrition, float saturationModifier) { food.eat(nutrition, saturationModifier); }
+
     /** 바닐라 Player.causeFoodExhaustion: 무적 능력이면 무시. */
     public synchronized void causeFoodExhaustion(float amount) {
         if (!abilities.invulnerable) food.addExhaustion(amount);

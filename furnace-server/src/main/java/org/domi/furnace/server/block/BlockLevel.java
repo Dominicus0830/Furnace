@@ -130,6 +130,9 @@ public interface BlockLevel {
     /** Level.getBrightness(LightLayer.BLOCK, pos): 블록빛. TODO(빛): 빛 엔진 전까지 0(주변에 광원이 없는 곳과 같은 값). */
     default int getBlockLight(Pos pos) { return 0; }
 
+    /** level.getBiome(pos).is(#태그). */
+    default boolean biomeIs(Pos pos, String tag) { return false; }
+
     /** Level.isRainingAt(pos): 비가 오고, 하늘이 보이고, 그 바이옴이 비가 오는 곳. TODO(빛·바이옴 강수): 하늘 노출 계산 전까지 거짓. */
     default boolean isRainingAt(Pos pos) { return false; }
 
