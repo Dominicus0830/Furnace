@@ -22,7 +22,7 @@ public final class ChunkColumn {
     private final int[] oceanFloor = new int[256];
     private final int[] wgOceanFloor = new int[256];
     private final int[] motionBlocking = new int[256]; // vanilla MOTION_BLOCKING(blocksMotion || fluid) 전용, 항상 라이브
-    private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
+    private final java.util.Map<Long, org.domi.furnace.server.block.entity.BlockEntity> blockEntities = new java.util.HashMap<>();
     /** 월드젠(구조물 템플릿)이 만든 블록 엔티티 NBT — 키 = blockEntityKey(로컬 x,y,z). 저장/복원 연동 전 단계의 보관소. */
     private java.util.Map<Long, org.domi.furnace.server.net.io.nbt.NbtCompound> generatedBlockEntities;
     private boolean dirty;
@@ -156,9 +156,9 @@ public final class ChunkColumn {
     }
 
     public ChestBlockEntity chestAt(int x, int y, int z) {
-        ChestBlockEntity c = blockEntities.get(blockEntityKey(x, y, z));
-        if (c == null && generatedBlockEntities != null) c = adoptGeneratedChest(x, y, z);
-        return c;
+        var be = blockEntities.get(blockEntityKey(x, y, z));
+        if (be == null && generatedBlockEntities != null) return adoptGeneratedChest(x, y, z);
+        return be instanceof ChestBlockEntity c ? c : null;
     }
 
     /** 월드젠이 남긴 상자 NBT(LootTable·LootTableSeed, 아이템 없음)를 처음 쓸 때 상자 블록 엔티티로 바꾼다. */
@@ -180,13 +180,25 @@ public final class ChunkColumn {
         return c;
     }
 
-    public void putChest(ChestBlockEntity chest) {
-        blockEntities.put(blockEntityKey(chest.x, chest.y, chest.z), chest);
+    public void putChest(ChestBlockEntity chest) { putBlockEntity(chest); }
+
+    /** 그 칸의 블록 엔티티(상자 포함, 없으면 null). 월드젠이 남긴 NBT 는 포함하지 않는다. */
+    public org.domi.furnace.server.block.entity.BlockEntity blockEntityAt(int x, int y, int z) {
+        return blockEntities.get(blockEntityKey(x, y, z));
+    }
+
+    /** 블록 엔티티를 그 칸에 둔다(같은 칸의 월드젠 NBT 는 지운다 — 바닐라 setBlockEntity 가 이전 것을 갈아 치우듯). */
+    public void putBlockEntity(org.domi.furnace.server.block.entity.BlockEntity be) {
+        var p = be.pos();
+        var old = blockEntities.put(blockEntityKey(p.x(), p.y(), p.z()), be);
+        if (old != null && old != be) old.setRemoved();
+        if (generatedBlockEntities != null) generatedBlockEntities.remove(blockEntityKey(p.x() & 15, p.y(), p.z() & 15));
         touch();
     }
 
     public void removeBlockEntityAt(int x, int y, int z) {
-        blockEntities.remove(blockEntityKey(x, y, z));
+        var old = blockEntities.remove(blockEntityKey(x, y, z));
+        if (old != null) old.setRemoved();
         if (generatedBlockEntities != null) generatedBlockEntities.remove(blockEntityKey(x & 15, y, z & 15));
         touch();
     }
@@ -220,7 +232,7 @@ public final class ChunkColumn {
 
     public void inhabitedTime(long t) { this.inhabitedTime = t; }
 
-    public java.util.Map<Long, ChestBlockEntity> blockEntities() {
+    public java.util.Map<Long, org.domi.furnace.server.block.entity.BlockEntity> blockEntities() {
         return blockEntities;
     }
 

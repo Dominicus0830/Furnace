@@ -282,6 +282,11 @@ public final class AnvilChunkCodec {
                         col.putChest(legacyChestFromNbt(be));
                     } else if (items != null && ("minecraft:chest".equals(id) || "minecraft:trapped_chest".equals(id))) {
                         col.putChest(vanillaChestFromNbt(be));
+                    } else if (id != null && org.domi.furnace.server.block.entity.BlockEntities.known(id)) {
+                        int x = be.getInt("x"), y = be.getInt("y"), z = be.getInt("z");
+                        var pos = new org.domi.furnace.server.block.Pos(x, y, z);
+                        var typed = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, col.getBlock(x & 15, y, z & 15), be);
+                        if (typed != null) col.putBlockEntity(typed);
                     } else if (id != null) {
                         // 아직 서버가 동작을 모르는 블록 엔티티(화로·표지판·스포너 등)는 NBT 그대로 보존해 다시 쓴다.
                         int x = be.getInt("x"), y = be.getInt("y"), z = be.getInt("z");

@@ -2,9 +2,9 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
-import java.util.ArrayDeque;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.item.ItemContext;
@@ -31,9 +31,14 @@ public abstract class ChunkLevel implements BlockLevel {
     private int randValue = new java.util.Random().nextInt();
     /** 지역 틱 시계(예약 틱 기준 — Folia 의 redstoneTime 처럼 region 마다 따로 간다. 월드 시간은 gameTime()). */
     private long levelTime;
+    /** ServerLevel.handlingTick — 예약 틱을 돌리는 동안 참. */
+    private boolean handlingTick;
     /** 방송할 변경: 구역 키(청크 x,z,구역 y) → 구역 안 칸 번호 집합(바닐라 ChunkHolder.changedBlocksPerSection). */
     private final TreeMap<Long, TreeSet<Short>> changed = new TreeMap<>();
-    private final ArrayDeque<int[]> blockEvents = new ArrayDeque<>();
+    /** 바닐라 ObjectLinkedOpenHashSet<BlockEventData>: 넣은 순서대로, 같은 이벤트가 큐에 있으면 다시 넣지 않는다. */
+    private final java.util.LinkedHashSet<BlockEventData> blockEvents = new java.util.LinkedHashSet<>();
+
+    private record BlockEventData(int x, int y, int z, int block, int type, int data) {}
 
     protected ChunkLevel(int maxChainedNeighborUpdates) {
         this.neighborUpdater = new NeighborUpdater(this, maxChainedNeighborUpdates);
@@ -52,12 +57,77 @@ public abstract class ChunkLevel implements BlockLevel {
 
     protected abstract LevelServices services();
 
-    /** 블록 엔티티 만들기·지우기(상태가 블록 엔티티를 가질 때). */
-    protected void createBlockEntity(ChunkColumn col, Pos pos, int state) {}
+    /**
+     * LevelChunk.setBlockState 의 블록 엔티티 부분: 있던 것이 이 상태에 맞지 않으면 지우고, 없으면 블록이 새로 만들고(newBlockEntity),
+     * 있으면 상태만 바꾼다.
+     */
+    protected void createBlockEntity(ChunkColumn col, Pos pos, int state) {
+        BlockEntity be = col.blockEntityAt(pos.x(), pos.y(), pos.z());
+        if (be != null && !be.isValid(state)) {
+            removeBlockEntity(col, pos);
+            be = null;
+        }
+        if (be == null) {
+            be = BlockBehaviors.of(state).newBlockEntity(pos, state);
+            if (be != null) addBlockEntity(col, be);
+        } else {
+            be.setBlockState(state);
+        }
+    }
+
+    /** addAndRegisterBlockEntity: 청크에 두고 틱을 받는 종류면 틱 목록에. */
+    protected void addBlockEntity(ChunkColumn col, BlockEntity be) {
+        be.clearRemoved();
+        col.putBlockEntity(be);
+        if (be.ticking()) addTicker(be);
+    }
 
     protected void removeBlockEntity(ChunkColumn col, Pos pos) { col.removeBlockEntityAt(pos.x(), pos.y(), pos.z()); }
 
-    protected Object blockEntity(ChunkColumn col, Pos pos) { return col.chestAt(pos.x(), pos.y(), pos.z()); }
+    protected Object blockEntity(ChunkColumn col, Pos pos) {
+        BlockEntity be = col.blockEntityAt(pos.x(), pos.y(), pos.z());
+        return be != null ? be : col.chestAt(pos.x(), pos.y(), pos.z());
+    }
+
+    // ------------------------------------------------------------------ 블록 엔티티 틱(Level.tickBlockEntities)
+
+    private final java.util.ArrayList<BlockEntity> blockEntityTickers = new java.util.ArrayList<>();
+    private final java.util.ArrayList<BlockEntity> pendingTickers = new java.util.ArrayList<>();
+    private boolean tickingBlockEntities;
+
+    /** addBlockEntityTicker: 틱 도중에 생긴 것은 다음 틱부터. */
+    protected void addTicker(BlockEntity be) {
+        (tickingBlockEntities ? pendingTickers : blockEntityTickers).add(be);
+    }
+
+    /** 불러온 청크의 블록 엔티티를 틱 목록에(registerAllBlockEntitiesAfterLevelLoad). */
+    public void registerBlockEntities(ChunkColumn col) {
+        for (BlockEntity be : col.blockEntities().values()) if (be.ticking() && !be.isRemoved()) addTicker(be);
+    }
+
+    /**
+     * tickBlockEntities: 지워진 것은 빼고, 틱 받는 청크에 있고 칸의 상태가 그 종류에 맞는 것만 tick.
+     * ticking 은 그 칸의 청크가 이번 틱에 블록 엔티티 틱을 받는가.
+     */
+    public void tickBlockEntities(java.util.function.LongPredicate ticking) {
+        tickingBlockEntities = true;
+        if (!pendingTickers.isEmpty()) {
+            blockEntityTickers.addAll(pendingTickers);
+            pendingTickers.clear();
+        }
+        int w = 0;
+        for (int i = 0; i < blockEntityTickers.size(); i++) {
+            BlockEntity be = blockEntityTickers.get(i);
+            if (be.isRemoved()) continue;
+            blockEntityTickers.set(w++, be);
+            Pos p = be.pos();
+            if (!ticking.test((long) (p.x() >> 4) << 32 | (p.z() >> 4) & 0xFFFFFFFFL)) continue;
+            int s = getBlockState(p);
+            if (be.isValid(s)) be.tick(this);
+        }
+        while (blockEntityTickers.size() > w) blockEntityTickers.remove(blockEntityTickers.size() - 1);
+        tickingBlockEntities = false;
+    }
 
     // ------------------------------------------------------------------ 읽기
 
@@ -284,6 +354,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 레벨 틱의 블록 틱 → 유체 틱(바닐라 ServerLevel.tick 순서). 지역 시계를 한 틱 진행한다. */
     public void runScheduledTicks() {
         long now = ++levelTime;
+        handlingTick = true;
         blockTicks.tick(now, 65536, (pos, type) -> {
             int s = getBlockState(pos);
             if (blocks.blockOf(s) == type) BlockBehaviors.of(s).tick(s, this, pos, random);
@@ -292,6 +363,7 @@ public abstract class ChunkLevel implements BlockLevel {
             int f = getFluidState(pos);
             if (Fluids.type(f) == type) FluidTicker.tick(this, pos, f);
         });
+        handlingTick = false;
     }
 
     public BlockTicks blockTicks() { return blockTicks; }
@@ -416,6 +488,10 @@ public abstract class ChunkLevel implements BlockLevel {
         other.changed.clear();
         blockEvents.addAll(other.blockEvents);
         other.blockEvents.clear();
+        blockEntityTickers.addAll(other.blockEntityTickers);
+        blockEntityTickers.addAll(other.pendingTickers);
+        other.blockEntityTickers.clear();
+        other.pendingTickers.clear();
     }
 
     /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
@@ -438,10 +514,20 @@ public abstract class ChunkLevel implements BlockLevel {
                 it.remove();
             }
         }
+        for (var list : java.util.List.of(blockEntityTickers, pendingTickers)) {
+            var tit = list.iterator();
+            while (tit.hasNext()) {
+                BlockEntity be = tit.next();
+                if (inTarget.test(be.pos().x() >> 4, be.pos().z() >> 4)) {
+                    target.blockEntityTickers.add(be);
+                    tit.remove();
+                }
+            }
+        }
         var bit = blockEvents.iterator();
         while (bit.hasNext()) {
-            int[] ev = bit.next();
-            if (inTarget.test(ev[0] >> 4, ev[2] >> 4)) {
+            BlockEventData ev = bit.next();
+            if (inTarget.test(ev.x() >> 4, ev.z() >> 4)) {
                 target.blockEvents.add(ev);
                 bit.remove();
             }
@@ -568,20 +654,22 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override
     public void blockEvent(Pos pos, int block, int type, int data) {
-        blockEvents.add(new int[] {pos.x(), pos.y(), pos.z(), block, type, data});
+        blockEvents.add(new BlockEventData(pos.x(), pos.y(), pos.z(), block, type, data));
     }
 
     /** 틱 끝 블록 이벤트 처리(바닐라 runBlockEvents): 블록이 그대로면 triggerEvent, 참이면 64칸 안에 방송. */
     public void runBlockEvents() {
         while (!blockEvents.isEmpty()) {
-            int[] e = blockEvents.poll();
-            Pos pos = new Pos(e[0], e[1], e[2]);
+            var first = blockEvents.iterator();
+            BlockEventData e = first.next();
+            first.remove();
+            Pos pos = new Pos(e.x(), e.y(), e.z());
             int s = getBlockState(pos);
-            if (blocks.blockOf(s) != e[3]) continue;
-            if (BlockBehaviors.of(s).triggerEvent(s, this, pos, e[4], e[5])) {
-                BlockEventPacket pkt = new BlockEventPacket(e[0], e[1], e[2], e[4], e[5], e[3]);
+            if (blocks.blockOf(s) != e.block()) continue;
+            if (BlockBehaviors.of(s).triggerEvent(s, this, pos, e.type(), e.data())) {
+                BlockEventPacket pkt = new BlockEventPacket(e.x(), e.y(), e.z(), e.type(), e.data(), e.block());
                 services().forEachPlayer(p -> {
-                    double dx = e[0] - p.x(), dy = e[1] - p.y(), dz = e[2] - p.z();
+                    double dx = e.x() - p.x(), dy = e.y() - p.y(), dz = e.z() - p.z();
                     if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
                 });
             }
@@ -649,7 +737,27 @@ public abstract class ChunkLevel implements BlockLevel {
     public boolean ultraWarm() { return services().ultraWarm(); }
 
     @Override
+    public boolean hasSkyLight() { return services().hasSkyLight(); }
+
+    @Override
     public boolean withinBorder(Pos pos) { return services().withinBorder(pos.x(), pos.z()); }
+
+    @Override
+    public void setBlockEntity(BlockEntity be) {
+        Pos pos = be.pos();
+        if (isOutsideBuildHeight(pos.y())) return;
+        ChunkColumn col = chunkAt(pos);
+        if (col == null || !info.hasBlockEntity(getBlockState(pos))) return;   // 바닐라는 경고 후 무시
+        addBlockEntity(col, be);
+    }
+
+    @Override
+    public boolean isHandlingTick() { return handlingTick; }
+
+    @Override
+    public void blockEntityChanged(Pos pos) {
+        if (hasChunkAt(pos)) markDirty(pos.x() >> 4, pos.z() >> 4);
+    }
 
     @Override
     public Object getBlockEntity(Pos pos) {

@@ -272,6 +272,7 @@ public final class Region {
         }
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
             level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
         }
@@ -364,6 +365,7 @@ public final class Region {
         chest.items[slot] = item;
         chunkAt(cp).markDirty();
         dirtyChunks.add(cp);
+        chest.setChanged(level());   // 비교기에 알린다
     }
 
     /** 상자 내용이 바뀌었음(전리품 채우기 등) — 청크를 저장 대상으로. */
@@ -372,6 +374,8 @@ public final class Region {
         ChunkPos cp = ChunkPos.ofBlock(cx, cz);
         chunkAt(cp).markDirty();
         dirtyChunks.add(cp);
+        ChestBlockEntity chest = chunkAt(cp).chestAt(cx, cy, cz);
+        if (chest != null) chest.setChanged(level());
     }
 
     /** 면 인덱스(0~5) → 설치 위치 오프셋 {dx,dy,dz}. 0down 1up 2north 3south 4west 5east. */
@@ -436,6 +440,7 @@ public final class Region {
             ChunkPos cp = new ChunkPos(cx, cz);
             ChunkColumn col = world.loadedChunk(cx, cz);
             if (col != null) {
+                for (var be : col.blockEntities().values()) be.setRemoved();   // 틱 목록에서 빠진다(다시 불러오면 새로 만든다)
                 // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
                 if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {
                     world.saveChunkAsync(ChunkSnapshot.forSave(cx, cz, col));
@@ -476,7 +481,7 @@ public final class Region {
         world.assertOwns(this);
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = collectTickingChunks();
-            level.tickBlocks(tickingChunks, n);
+            level.tickBlocks(tickingChunks, n, this::blockEntityTicking);
         }
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();
@@ -610,6 +615,20 @@ public final class Region {
             tickingChunks[n++] = key;
         }
         return n;
+    }
+
+    /**
+     * 그 청크가 블록 엔티티 틱을 받는가 — 바닐라 LevelChunk.isTicking: 엔티티 틱 단계(플레이어 표가 시뮬레이션 거리 - 1 안,
+     * 체비셰프)인 청크. 키는 (x << 32 | z).
+     */
+    private boolean blockEntityTicking(long key) {
+        int cx = (int) (key >> 32), cz = (int) key;
+        int range = Math.max(world.levelServices().simulationDistance(), 2) - 1;
+        for (Player p : players.values()) {
+            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
+            if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
+        }
+        return false;
     }
 
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {

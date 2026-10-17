@@ -1,4 +1,4 @@
-// 바닐라 BaseEntityBlock: 블록 엔티티를 가진 블록의 바탕. 블록 이벤트를 블록 엔티티에도 넘긴다(블록 엔티티 체계 전에는 거짓).
+// 바닐라 BaseEntityBlock: 블록 엔티티를 가진 블록의 바탕. 블록 이벤트를 블록 엔티티에도 넘긴다.
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.BlockBehavior;
@@ -16,6 +16,8 @@ public abstract class BaseEntityBlock extends BlockBehavior {
         return blockEntityTriggerEvent(level, pos, type, data);
     }
 
-    /** 블록 엔티티의 triggerEvent — 블록 엔티티 체계가 들어오면 채운다. */
-    protected boolean blockEntityTriggerEvent(BlockLevel level, Pos pos, int type, int data) { return false; }
+    /** 그 칸 블록 엔티티의 triggerEvent(없으면 false). */
+    protected boolean blockEntityTriggerEvent(BlockLevel level, Pos pos, int type, int data) {
+        return level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BlockEntity be && be.triggerEvent(type, data);
+    }
 }

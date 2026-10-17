@@ -10,6 +10,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.block.entity.ComparatorBlockEntity;
 
 public class ComparatorBlock extends DiodeBlock {
 
@@ -27,10 +28,17 @@ public class ComparatorBlock extends DiodeBlock {
         return dir == Dir.DOWN && !canSurviveOn(level, neighborPos, neighborState) ? B.defaultState("air") : super.updateShape(state, dir, neighborState, level, pos, neighborPos);
     }
 
-    /** 블록 엔티티(ComparatorBlockEntity)의 출력. TODO(블록 엔티티): 블록 엔티티가 들어오면 거기서 읽고 쓴다 — 지금은 없음(0). */
-    private static int storedOutput(BlockLevel level, Pos pos) { return 0; }
+    /** 블록 엔티티(ComparatorBlockEntity)의 출력 — 없으면 0. */
+    private static int storedOutput(BlockLevel level, Pos pos) {
+        return level.getBlockEntity(pos) instanceof ComparatorBlockEntity c ? c.getOutputSignal() : 0;
+    }
 
-    private static void storeOutput(BlockLevel level, Pos pos, int output) {}
+    private static void storeOutput(BlockLevel level, Pos pos, int output) {
+        if (level.getBlockEntity(pos) instanceof ComparatorBlockEntity c) c.setOutputSignal(output);
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return new ComparatorBlockEntity(pos, state); }
 
     @Override
     protected int getOutputSignal(BlockLevel level, Pos pos, int state) { return storedOutput(level, pos); }

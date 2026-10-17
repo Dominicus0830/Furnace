@@ -31,6 +31,9 @@ public interface LevelServices {
 
     boolean ultraWarm();
 
+    /** DimensionType.hasSkyLight. */
+    default boolean hasSkyLight() { return true; }
+
     /** server.properties max-chained-neighbor-updates. */
     int maxChainedNeighborUpdates();
 
@@ -91,6 +94,7 @@ public interface LevelServices {
         public long gameTime() { return d.gameTime(); }
         public String dimension() { return d.dimension(); }
         public boolean ultraWarm() { return d.ultraWarm(); }
+        public boolean hasSkyLight() { return d.hasSkyLight(); }
         public int maxChainedNeighborUpdates() { return d.maxChainedNeighborUpdates(); }
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }
         public java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,

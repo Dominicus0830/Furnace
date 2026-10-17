@@ -35,11 +35,16 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
             out[i] = new Section(src[i].nonAirCount(), src[i].blocks(), src[i].biomes());
         }
         List<BlockEntitySnapshot> beOut = new ArrayList<>();
-        for (ChestBlockEntity ce : col.blockEntities().values()) {
-            int localX = ce.x & 15;
-            int localZ = ce.z & 15;
-            // 바닐라 상자 getUpdateTag 는 빈 컴파운드 → 청크 패킷에는 null(TAG_END). 내용물은 클라이언트로 보내지 않는다.
-            beOut.add(new BlockEntitySnapshot(localX, ce.y, localZ, CHEST_TYPE_ID, null));
+        for (var be : col.blockEntities().values()) {
+            var p = be.pos();
+            if (be instanceof ChestBlockEntity) {
+                // 바닐라 상자 getUpdateTag 는 빈 컴파운드 → 청크 패킷에는 null(TAG_END). 내용물은 클라이언트로 보내지 않는다.
+                beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, CHEST_TYPE_ID, null));
+            } else {
+                // ClientboundLevelChunkPacketData.BlockEntityInfo: getUpdateTag 가 비면 null
+                NbtCompound tag = be.updateTag();
+                beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, be.typeId(), tag == null || tag.tags().isEmpty() ? null : tag));
+            }
         }
         return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), col.worldSurfaceHeightmap(), out, beOut, null);
     }
@@ -49,7 +54,14 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         ChunkSnapshot base = of(chunkX, chunkZ, col);
         // 저장본에는 아직 열지 않은 전리품 상자의 LootTable·LootTableSeed 도 남긴다(클라이언트로는 보내지 않는다).
         List<BlockEntitySnapshot> chests = new ArrayList<>();
-        for (ChestBlockEntity ce : col.blockEntities().values()) {
+        List<BlockEntitySnapshot> generated = new ArrayList<>();
+        for (var be : col.blockEntities().values()) {
+            if (!(be instanceof ChestBlockEntity ce)) {
+                // 종류별 블록 엔티티는 바닐라 저장 꼴(id·x·y·z 포함) 그대로 — 코덱이 생성 블록 엔티티와 같은 길로 쓴다.
+                var p = be.pos();
+                generated.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, -1, be.saveWithFullMetadata()));
+                continue;
+            }
             NbtCompound tag = chestTag(ce.items);
             if (ce.lootTable != null) {
                 if (tag == null) tag = new NbtCompound();
@@ -58,7 +70,6 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
             }
             chests.add(new BlockEntitySnapshot(ce.x & 15, ce.y, ce.z & 15, CHEST_TYPE_ID, tag));
         }
-        List<BlockEntitySnapshot> generated = new ArrayList<>();
         col.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> generated.add(new BlockEntitySnapshot(lx, y, lz, -1, nbt.copy())));
         List<NbtCompound> entities = new ArrayList<>();
         for (NbtCompound e : col.generatedEntities()) entities.add(e.copy());

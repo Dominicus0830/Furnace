@@ -53,6 +53,9 @@ public class BlockBehavior {
     public void onPlace(int state, BlockLevel level, Pos pos, int oldState, boolean moved) {}
 
     /** onRemove 기본: 블록 엔티티가 있던 블록이 다른 블록이 되면 블록 엔티티를 지운다. */
+    /** EntityBlock.newBlockEntity — 블록 엔티티를 가진 블록이 만든다(아직 이식하지 않은 종류는 null). */
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return null; }
+
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
         if (INFO.hasBlockEntity(state) && BLOCKS.blockOf(newState) != block) level.removeBlockEntity(pos);
     }

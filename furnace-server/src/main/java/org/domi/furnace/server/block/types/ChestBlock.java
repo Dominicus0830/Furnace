@@ -11,6 +11,8 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.world.ChestBlockEntity;
 
 public class ChestBlock extends AbstractChestBlock {
 
@@ -108,8 +110,39 @@ public class ChestBlock extends AbstractChestBlock {
         return B.behavior(s).isRedstoneConductor(s, level, above);
     }
 
+    /**
+     * getAnalogOutputSignal: 합친 용기(getContainer, 막힘 검사 포함)의 찬 정도 — 막혔거나 짝이 막혔으면 0.
+     * AbstractContainerMenu.getRedstoneSignalFromContainer.
+     */
     @Override
-    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) { return 0; }   // TODO(블록 엔티티): 합친 용기의 찬 정도
+    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
+        if (!(level.getBlockEntity(pos) instanceof ChestBlockEntity a) || isChestBlockedAt(level, pos)) return 0;
+        java.util.List<ItemStack[]> parts = new java.util.ArrayList<>();
+        parts.add(a.items);
+        if (!SINGLE.equals(type(state))) {
+            Pos np = pos.relative(getConnectedDirection(state));
+            int ns = level.getBlockState(np);
+            if (B.is(ns, block) && !SINGLE.equals(type(ns)) && !type(ns).equals(type(state)) && facing(ns) == facing(state)) {
+                if (isChestBlockedAt(level, np)) return 0;
+                if (level.getBlockEntity(np) instanceof ChestBlockEntity b) parts.add(b.items);
+            }
+        }
+        return redstoneSignalFromContainer(parts);
+    }
+
+    /** getRedstoneSignalFromContainer: 칸마다 개수 / min(99, 최대 묶음) 의 평균을 Mth.lerpDiscrete(f, 0, 15). */
+    static int redstoneSignalFromContainer(java.util.List<ItemStack[]> parts) {
+        float f = 0.0F;
+        int size = 0;
+        for (ItemStack[] items : parts) {
+            size += items.length;
+            for (ItemStack s : items) {
+                if (s != null && !s.isEmpty()) f += (float) s.count() / (float) Math.min(99, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(s));
+            }
+        }
+        f /= (float) size;
+        return (int) Math.floor(f * 14.0F) + (f > 0.0F ? 1 : 0);
+    }
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {

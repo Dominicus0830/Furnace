@@ -47,5 +47,9 @@ public class DaylightDetectorBlock extends BaseEntityBlock {
     @Override
     public boolean isSignalSource(int state) { return true; }
 
-    // TODO(블록 엔티티 틱): 하늘빛이 있는 차원에서 gameTime % 20 == 0 마다 updateSignalStrength.
+    /** newBlockEntity — 20틱마다 신호를 다시 재는 틱은 블록 엔티티가(getTicker → tickEntity). */
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.DaylightDetectorBlockEntity(pos, state);
+    }
 }

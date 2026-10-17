@@ -183,11 +183,23 @@ public interface BlockLevel {
 
     boolean ultraWarm();
 
+    /** dimensionType().hasSkyLight(). */
+    default boolean hasSkyLight() { return true; }
+
     /** 월드 보더 안인가(isWithinBounds). */
     boolean withinBorder(Pos pos);
 
     /** 블록 엔티티(없으면 null — 블록 엔티티 체계가 들어오기 전에는 상자만). */
     Object getBlockEntity(Pos pos);
+
+    /** Level.blockEntityChanged: 그 칸의 청크를 저장 대상으로. */
+    default void blockEntityChanged(Pos pos) {}
+
+    /** Level.setBlockEntity: 그 칸 상태가 블록 엔티티를 가질 때만 둔다(틱 받는 종류면 틱 목록에). */
+    default void setBlockEntity(org.domi.furnace.server.block.entity.BlockEntity be) {}
+
+    /** ServerLevel.isHandlingTick: 예약 틱(블록·유체)을 돌리는 중인가. */
+    default boolean isHandlingTick() { return false; }
 
     void removeBlockEntity(Pos pos);
 

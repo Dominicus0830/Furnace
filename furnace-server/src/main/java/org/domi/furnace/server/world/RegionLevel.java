@@ -55,8 +55,12 @@ public final class RegionLevel extends ChunkLevel {
 
     @Override
     protected void createBlockEntity(ChunkColumn col, Pos p, int state) {
-        // 블록 엔티티 체계 전에는 상자만
-        if (blocks.blockOf(state) == chest && col.chestAt(p.x(), p.y(), p.z()) == null) col.putChest(ChestBlockEntity.empty(p.x(), p.y(), p.z()));
+        // 상자는 아직 자기 틀(ChestBlockEntity)로 — 나머지는 블록의 newBlockEntity
+        if (blocks.blockOf(state) == chest) {
+            if (col.chestAt(p.x(), p.y(), p.z()) == null) col.putChest(ChestBlockEntity.empty(p.x(), p.y(), p.z()));
+            return;
+        }
+        super.createBlockEntity(col, p, state);
     }
 
     @Override
@@ -104,7 +108,7 @@ public final class RegionLevel extends ChunkLevel {
      * 레벨 틱(바닐라 ServerLevel.tick 의 블록 부분): 예약 틱 → 청크 틱(무작위 틱·날씨 — 섞은 순서로) → 변경 방송 → 블록 이벤트.
      * tickingChunks 는 무작위 틱을 받을 청크 키(Regionizer.chunkKey).
      */
-    void tickBlocks(long[] tickingChunks, int count) {
+    void tickBlocks(long[] tickingChunks, int count, java.util.function.LongPredicate blockEntityTicking) {
         lastCol = null;   // 틱 사이에 합치기·나누기가 있었을 수 있다
         runScheduledTicks();
         if (count > 0) {
@@ -117,5 +121,7 @@ public final class RegionLevel extends ChunkLevel {
         }
         broadcastChanges();
         runBlockEvents();
+        // TODO(엔티티): 엔티티 틱(바닐라는 블록 이벤트와 블록 엔티티 틱 사이)
+        tickBlockEntities(blockEntityTicking);
     }
 }

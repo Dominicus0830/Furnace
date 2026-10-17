@@ -31,6 +31,15 @@ public final class Shape {
 
     public double[] box(int i) { return Arrays.copyOfRange(boxes, i * 6, i * 6 + 6); }
 
+    /** Shapes.or(a, b): 상자 목록을 잇는다(최적화는 하지 않는다 — 면·교차 판정에는 같다). */
+    public static Shape or(Shape a, Shape b) {
+        if (a.isEmpty()) return b;
+        if (b.isEmpty()) return a;
+        double[] r = Arrays.copyOf(a.boxes, a.boxes.length + b.boxes.length);
+        System.arraycopy(b.boxes, 0, r, a.boxes.length, b.boxes.length);
+        return new Shape(r);
+    }
+
     public Shape move(double dx, double dy, double dz) {
         if (boxes.length == 0 || dx == 0 && dy == 0 && dz == 0) return this;
         double[] b = boxes.clone();

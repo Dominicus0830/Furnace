@@ -1,0 +1,66 @@
+# 피스톤: 밀기·줄이기·끈끈이 당기기·슬라임 끌기(꿀과는 안 붙음)·12개 제한·부서지는 블록·못 미는 블록·
+# 준연결(위 칸 신호는 이웃 갱신이 와야 반응)·피스톤이 피스톤 밀기. 바닥은 돌. 비교 영역: -10,-61,-10,40,-50,40
+tp 8.5 -50 8.5 0 90
+cmd fill -10 -61 -10 40 -61 40 stone
+wait 10
+# A: 보통 피스톤이 블록 셋을 민 뒤 신호를 끊으면 머리만 들어간다
+cmd setblock 0 -60 0 piston[facing=east]
+cmd fill 1 -60 0 3 -60 0 oak_planks
+cmd setblock -1 -60 0 redstone_block
+wait 10
+cmd setblock -1 -60 0 air
+# B: 끈끈이 피스톤 — 밀었다가 당긴다
+cmd setblock 0 -60 4 sticky_piston[facing=east]
+cmd setblock 1 -60 4 oak_planks
+cmd setblock -1 -60 4 redstone_block
+wait 10
+cmd setblock -1 -60 4 air
+# C: 공중의 슬라임 — 위의 블록을 끌고, 옆의 꿀 블록은 남긴다
+cmd setblock 0 -55 8 piston[facing=east]
+cmd setblock 1 -55 8 slime_block
+cmd setblock 1 -54 8 oak_planks
+cmd setblock 1 -55 9 honey_block
+cmd setblock 1 -56 8 glass
+cmd setblock -1 -55 8 redstone_block
+# D: 12개는 밀고 13개는 못 민다
+cmd setblock 0 -60 12 piston[facing=east]
+cmd fill 1 -60 12 12 -60 12 oak_planks
+cmd setblock -1 -60 12 redstone_block
+cmd setblock 0 -60 14 piston[facing=east]
+cmd fill 1 -60 14 13 -60 14 oak_planks
+cmd setblock -1 -60 14 redstone_block
+# E: 호박은 부서지고, 흑요석은 못 민다
+cmd setblock 0 -60 18 piston[facing=east]
+cmd setblock 1 -60 18 oak_planks
+cmd setblock 2 -60 18 pumpkin
+cmd setblock -1 -60 18 redstone_block
+cmd setblock 0 -60 20 piston[facing=east]
+cmd setblock 1 -60 20 obsidian
+cmd setblock -1 -60 20 redstone_block
+# F: 준연결 — 두 칸 위 레드스톤 블록만으로는 안 움직이고, 옆에 블록을 놓아 갱신하면 늘어난다
+cmd setblock 20 -60 0 piston[facing=east]
+cmd setblock 20 -58 0 redstone_block
+cmd setblock 22 -60 4 piston[facing=east]
+cmd setblock 22 -58 4 redstone_block
+wait 5
+cmd setblock 22 -60 5 oak_planks
+# G: 피스톤이 (줄어든) 피스톤을 민다, 늘어난 피스톤은 못 민다
+cmd setblock 20 -60 10 piston[facing=east]
+cmd setblock 21 -60 10 piston[facing=up]
+cmd setblock 19 -60 10 redstone_block
+cmd setblock 20 -60 14 piston[facing=east]
+cmd setblock 21 -60 14 piston[facing=up]
+cmd setblock 21 -61 14 redstone_block
+wait 5
+cmd setblock 19 -60 14 redstone_block
+# H: 비교기 줄 — 레드스톤 블록 → 비교기 → 가루 → 램프, 빼기 모드
+cmd setblock 30 -60 0 redstone_block
+cmd setblock 29 -60 0 comparator[facing=east]
+cmd setblock 28 -60 0 redstone_wire
+cmd setblock 27 -60 0 redstone_lamp
+cmd setblock 30 -60 4 redstone_block
+cmd setblock 29 -60 4 comparator[facing=east,mode=subtract]
+cmd setblock 29 -60 5 repeater[facing=south]
+cmd setblock 29 -60 6 redstone_block
+cmd setblock 28 -60 4 redstone_lamp
+wait 60
