@@ -53,9 +53,13 @@ public interface LevelServices {
     /** server.properties simulation-distance. */
     default int simulationDistance() { return 10; }
 
+    /** 바닐라 기본값이 false 인 참/거짓 게임룰(DEFAULT 가 참으로 답하지 않을 것들). */
+    java.util.Set<String> DEFAULT_FALSE_RULES = java.util.Set.of("lavaSourceConversion", "doImmediateRespawn", "doLimitedCrafting",
+            "universalAnger", "reducedDebugInfo", "disableElytraMovementCheck", "disableRaids");
+
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
-        public boolean gameRule(String name) { return true; }
+        public boolean gameRule(String name) { return !DEFAULT_FALSE_RULES.contains(name); }
         public int gameRuleInt(String name) { return name.equals("randomTickSpeed") ? 3 : 0; }
         public int difficulty() { return 2; }
         public boolean withinBorder(int x, int z) { return true; }

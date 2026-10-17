@@ -87,19 +87,41 @@ public final class Shape {
      */
     public boolean faceCovers(int dir, double u0, double v0, double u1, double v1) {
         if (this == BLOCK) return true;
-        int axis = Dir.axis(dir);
-        int a = axis == Dir.AXIS_X ? 1 : 0, b = axis == Dir.AXIS_Z ? 1 : 2;   // 면의 두 축(x→y,z / y→x,z / z→x,y)
-        double cut = Dir.positive(dir) ? 1 - 1e-7 : 1e-7;
         java.util.List<double[]> rects = new java.util.ArrayList<>();
-        java.util.TreeSet<Double> us = new java.util.TreeSet<>(), vs = new java.util.TreeSet<>();
-        us.add(u0); us.add(u1); vs.add(v0); vs.add(v1);
+        faceRects(dir, rects);
+        return coversUnit(rects, u0, v0, u1, v1);
+    }
+
+    /**
+     * Shapes.mergedFaceOccludes(shape, adjacent, dir): 이 모양의 dir 쪽 면 단면과 이웃 모양의 반대쪽 면 단면을 합치면
+     * 면 전체(1×1)를 덮는가 — 유체가 두 칸 사이를 지나갈 수 없는지(FlowingFluid.canPassThroughWall).
+     */
+    public static boolean mergedFaceOccludes(Shape shape, Shape adjacent, int dir) {
+        if (shape == BLOCK && adjacent == BLOCK) return true;
+        if (shape.isEmpty() && adjacent.isEmpty()) return false;
+        java.util.List<double[]> rects = new java.util.ArrayList<>();
+        shape.faceRects(dir, rects);
+        adjacent.faceRects(Dir.opposite(dir), rects);
+        return coversUnit(rects, 0, 0, 1, 1);
+    }
+
+    /** 그 면 바로 안쪽(1e-7) 단면에 걸친 상자들의 면 위 사각형 {u0, v0, u1, v1}(면의 두 축은 faceCovers 와 같다). */
+    private void faceRects(int dir, java.util.List<double[]> out) {
+        int axis = Dir.axis(dir);
+        int a = axis == Dir.AXIS_X ? 1 : 0, b = axis == Dir.AXIS_Z ? 1 : 2;
+        double cut = Dir.positive(dir) ? 1 - 1e-7 : 1e-7;
         for (int i = 0; i < boxes.length; i += 6) {
             if (boxes[i + axis] <= cut && boxes[i + 3 + axis] > cut) {
-                double[] r = {boxes[i + a], boxes[i + b], boxes[i + 3 + a], boxes[i + 3 + b]};
-                rects.add(r);
-                us.add(r[0]); us.add(r[2]); vs.add(r[1]); vs.add(r[3]);
+                out.add(new double[] {boxes[i + a], boxes[i + b], boxes[i + 3 + a], boxes[i + 3 + b]});
             }
         }
+    }
+
+    /** 사각형들이 [u0,u1)×[v0,v1) 을 빈틈없이 덮는가(좌표 압축 후 칸마다 가운데 점 검사). */
+    private static boolean coversUnit(java.util.List<double[]> rects, double u0, double v0, double u1, double v1) {
+        java.util.TreeSet<Double> us = new java.util.TreeSet<>(), vs = new java.util.TreeSet<>();
+        us.add(u0); us.add(u1); vs.add(v0); vs.add(v1);
+        for (double[] r : rects) { us.add(r[0]); us.add(r[2]); vs.add(r[1]); vs.add(r[3]); }
         Double[] u = us.toArray(new Double[0]), v = vs.toArray(new Double[0]);
         for (int i = 0; i + 1 < u.length; i++) {
             if (u[i + 1] <= u0 || u[i] >= u1) continue;

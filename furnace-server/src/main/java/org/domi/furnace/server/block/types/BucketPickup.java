@@ -11,7 +11,8 @@ import org.domi.furnace.server.block.Prop;
 public final class BucketPickup {
     private BucketPickup() {}
 
-    private static final int WATER = B.id("water"), LAVA = B.id("lava"), BUBBLE_COLUMN = B.id("bubble_column"), POWDER_SNOW = B.id("powder_snow");
+    private static final int WATER = B.id("water"), LAVA = B.id("lava"), BUBBLE_COLUMN = B.id("bubble_column"), POWDER_SNOW = B.id("powder_snow"),
+            BARRIER = B.id("barrier");
     private static final Prop LEVEL = B.prop("level"), WATERLOGGED = B.prop("waterlogged");
 
     /** 이 블록이 BucketPickup 인가. */
@@ -37,6 +38,7 @@ public final class BucketPickup {
             level.levelEvent(null, 2001, pos, state);
             return "minecraft:powder_snow_bucket";
         }
+        if (b == BARRIER && (player == null || !player.isCreative())) return null;   // BarrierBlock: 크리에이티브만
         if (WATERLOGGED.has(state)) {   // SimpleWaterloggedBlock(겹친 반 블록은 아님)
             if (!WATERLOGGED.is(state) || B.behavior(state) instanceof SlabBlock && SlabBlock.isDouble(state)) return null;
             level.setBlock(pos, WATERLOGGED.with(state, false), 3);
@@ -46,14 +48,8 @@ public final class BucketPickup {
         return null;
     }
 
-    /** SimpleWaterloggedBlock.placeLiquid: 물에 잠기지 않은 칸에 물 원천을 넣는다. */
+    /** LiquidBlockContainer.placeLiquid: 블록 동작에 맡긴다(물에 잠기는 블록·모닥불·양초 등). */
     public static boolean placeWater(BlockLevel level, Pos pos, int state, int fluid) {
-        if (WATERLOGGED.has(state) && !WATERLOGGED.is(state) && Fluids.type(fluid) == Fluids.T_WATER
-                && !(B.behavior(state) instanceof SlabBlock && SlabBlock.isDouble(state))) {
-            level.setBlock(pos, WATERLOGGED.with(state, true), 3);
-            level.scheduleFluidTick(pos, Fluids.T_WATER, 5);
-            return true;
-        }
-        return false;
+        return B.behavior(state).placeLiquid(level, pos, state, fluid);
     }
 }

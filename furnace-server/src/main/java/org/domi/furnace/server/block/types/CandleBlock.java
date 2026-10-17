@@ -45,7 +45,16 @@ public class CandleBlock extends AbstractCandleBlock {
         return super.updateShape(state, dir, neighborState, level, pos, neighborPos);
     }
 
-    // TODO(3-4d 유체): placeLiquid — 물이 들어오면 잠기고(켜져 있으면 extinguish) 물 틱.
+    /** placeLiquid: 물 원천이 들어오면 잠그고, 켜져 있었으면 끈다(extinguish 가 잠긴 상태를 쓴다). 물 틱. */
+    @Override
+    public boolean placeLiquid(BlockLevel level, Pos pos, int state, int fluidState) {
+        if (WATERLOGGED.is(state) || org.domi.furnace.server.block.Fluids.type(fluidState) != org.domi.furnace.server.block.Fluids.T_WATER) return false;
+        int s = WATERLOGGED.with(state, true);
+        if (LIT.is(state)) extinguish(null, s, level, pos);
+        else level.setBlock(pos, s, 3);
+        level.scheduleFluidTick(pos, org.domi.furnace.server.block.Fluids.T_WATER, org.domi.furnace.server.block.Fluids.tickDelay(fluidState, level.ultraWarm()));
+        return true;
+    }
 
     /** canLight: 꺼져 있고 잠기지 않은 양초. */
     public static boolean canLight(int state) {

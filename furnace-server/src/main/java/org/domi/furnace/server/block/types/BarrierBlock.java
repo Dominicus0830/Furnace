@@ -20,5 +20,9 @@ public class BarrierBlock extends BlockBehavior {
         return super.updateShape(state, dir, neighborState, level, pos, neighborPos);
     }
 
-    // TODO(아이템): pickupBlock·canPlaceLiquid 은 크리에이티브 플레이어일 때만(양동이 아이템 동작이 BucketPickup 을 부를 때).
+    /** canPlaceLiquid: 크리에이티브 플레이어만(흐름처럼 플레이어가 없으면 거절). pickupBlock 도 같다(BucketPickup). */
+    @Override
+    public boolean canPlaceLiquid(org.domi.furnace.server.block.BlockActor player, BlockLevel level, Pos pos, int state, int fluidType) {
+        return player != null && player.isCreative() && super.canPlaceLiquid(player, level, pos, state, fluidType);
+    }
 }

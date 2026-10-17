@@ -44,4 +44,14 @@ public class SlabBlock extends BlockBehavior {
         B.tickWaterlogged(state, level, pos);
         return super.updateShape(state, dir, neighborState, level, pos, neighborPos);
     }
+
+    @Override
+    public boolean canPlaceLiquid(org.domi.furnace.server.block.BlockActor player, BlockLevel level, Pos pos, int state, int fluidType) {
+        return !isDouble(state) && super.canPlaceLiquid(player, level, pos, state, fluidType);
+    }
+
+    @Override
+    public boolean placeLiquid(BlockLevel level, Pos pos, int state, int fluidState) {
+        return !isDouble(state) && super.placeLiquid(level, pos, state, fluidState);
+    }
 }

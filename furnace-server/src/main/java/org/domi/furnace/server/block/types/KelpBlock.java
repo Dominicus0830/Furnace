@@ -25,4 +25,15 @@ public class KelpBlock extends GrowingPlantBlock.GrowingPlantHead {
 
     @Override
     public int getFluidState(int state) { return Fluids.WATER_SOURCE; }
+
+    /** LiquidBlockContainer — 물을 받지 않는다(흐름이 이 칸으로 들어가지 않는다). */
+    @Override
+    public boolean isLiquidContainer(int state) { return true; }
+
+    @Override
+    public boolean canPlaceLiquid(org.domi.furnace.server.block.BlockActor player, org.domi.furnace.server.block.BlockLevel level,
+                                  org.domi.furnace.server.block.Pos pos, int state, int fluidType) { return false; }
+
+    @Override
+    public boolean placeLiquid(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos, int state, int fluidState) { return false; }
 }

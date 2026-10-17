@@ -66,7 +66,19 @@ public class CampfireBlock extends BaseEntityBlock {
         level.gameEvent("minecraft:block_change", pos, entity, -1);
     }
 
-    // TODO(3-4d 유체): placeLiquid — 물이 들어오면 켜져 있으면 extinguish 소리·dowse 후 잠기고 꺼진다.
+    /** placeLiquid: 물 원천이 들어오면 켜져 있던 불은 끄는 소리·dowse 후, 잠기고 꺼진 상태로. */
+    @Override
+    public boolean placeLiquid(BlockLevel level, Pos pos, int state, int fluidState) {
+        if (WATERLOGGED.is(state) || org.domi.furnace.server.block.Fluids.type(fluidState) != org.domi.furnace.server.block.Fluids.T_WATER) return false;
+        if (LIT.is(state)) {
+            level.playSound(null, pos, "minecraft:entity.generic.extinguish_fire", "blocks", 1.0F, 1.0F);
+            dowse(null, level, pos, state);
+        }
+        level.setBlock(pos, LIT.with(WATERLOGGED.with(state, true), false), 3);
+        level.scheduleFluidTick(pos, org.domi.furnace.server.block.Fluids.T_WATER, org.domi.furnace.server.block.Fluids.tickDelay(fluidState, level.ultraWarm()));
+        return true;
+    }
+
     // TODO(엔티티): onProjectileHit — 불붙은 투사체가 닿으면 켠다(플래그 11).
 
     /** isSmokeyPos: 아래 5칸 안에 켜진 모닥불이 있는가(가운데 기둥을 막는 블록이 있으면 그 바로 아래만 본다 — 벌집 연기 판정). */

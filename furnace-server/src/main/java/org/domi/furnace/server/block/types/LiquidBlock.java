@@ -1,5 +1,5 @@
 // 바닐라 LiquidBlock: 물·용암 블록. level 0 = 원천, 1~7 = 흐름(양 8-level), 8 이상 = 떨어지는 흐름.
-// 놓이거나 이웃이 바뀌면 용암·물이 만나 흑요석·조약돌·현무암이 되는지 보고 유체 틱을 건다. 흐름 계산은 FluidTicker(3-4d).
+// 놓이거나 이웃이 바뀌면 용암·물이 만나 흑요석·조약돌·현무암이 되는지 보고 유체 틱을 건다. 흐름 계산은 FluidTicker.
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.B;
@@ -38,7 +38,8 @@ public class LiquidBlock extends BlockBehavior {
 
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        // TODO(유체): FluidState.randomTick — 용암 불 번지기(LavaFluid.randomTick)
+        // FluidState.randomTick — 청크 틱도 유체 무작위 틱을 따로 부르므로 용암은 한 번 뽑히면 두 번 돈다(바닐라 그대로).
+        org.domi.furnace.server.block.FluidTicker.randomTick(level, pos, getFluidState(state), random);
     }
 
     private int tickDelay(BlockLevel level) { return Fluids.tickDelay(water ? Fluids.WATER_SOURCE : Fluids.LAVA_SOURCE, level.ultraWarm()); }

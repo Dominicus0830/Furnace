@@ -151,6 +151,24 @@ public class BlockBehavior {
         return WATERLOGGED.has(state) && WATERLOGGED.is(state) ? Fluids.WATER_SOURCE : Fluids.EMPTY;
     }
 
+    /** LiquidBlockContainer 인가 — 기본은 SimpleWaterloggedBlock(waterlogged 속성이 있는 블록). 켈프·해초도(언제나 거절). */
+    public boolean isLiquidContainer(int state) { return WATERLOGGED.has(state); }
+
+    /** LiquidBlockContainer.canPlaceLiquid(player, level, pos, state, fluid) — SimpleWaterloggedBlock: 물 원천만. */
+    public boolean canPlaceLiquid(BlockActor player, BlockLevel level, Pos pos, int state, int fluidType) {
+        return WATERLOGGED.has(state) && fluidType == Fluids.T_WATER;
+    }
+
+    /** LiquidBlockContainer.placeLiquid(level, pos, state, fluidState) — SimpleWaterloggedBlock: 잠기지 않았고 물 원천이면 잠그고 물 틱. */
+    public boolean placeLiquid(BlockLevel level, Pos pos, int state, int fluidState) {
+        if (WATERLOGGED.has(state) && !WATERLOGGED.is(state) && Fluids.type(fluidState) == Fluids.T_WATER) {
+            level.setBlock(pos, WATERLOGGED.with(state, true), 3);
+            level.scheduleFluidTick(pos, Fluids.T_WATER, Fluids.tickDelay(fluidState, level.ultraWarm()));
+            return true;
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------ 레드스톤
 
     public boolean isSignalSource(int state) { return false; }
