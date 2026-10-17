@@ -757,6 +757,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 return c == null ? 0 : c.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
             }
 
+            public boolean mayInteract(int x, int z) {
+                org.domi.furnace.server.ServerCore c = login.core;
+                return c == null || c.mayInteract(p, x, z);
+            }
+
             public boolean allowBreak(int x, int y, int z, int state) {
                 org.domi.furnace.server.ServerCore c = login.core;
                 if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.block.BlockBreakEvent.class)) return true;
@@ -1184,6 +1189,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player actor = player;
                 if (actor != null) handleUseItemOn(ctx, actor, hand, bp, face, cx, cy, cz, inside, seq);
             }
+            case 0x39 -> { // Use Item: hand, sequence, yRot, xRot
+                int hand = Types.readVarInt(frame);
+                int seq = Types.readVarInt(frame);
+                float yRot = frame.readFloat(), xRot = frame.readFloat();
+                if (hand < 0 || hand > 1) {
+                    protocolError(ctx, "Use Item", new IllegalArgumentException("bad enum"));
+                    break;
+                }
+                if (seq < 0) {
+                    protocolError(ctx, "Use Item", new IllegalArgumentException("Expected packet sequence nr >= 0"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) world.runAt(actor.x(), actor.z(), region -> region.handleUseItem(actor, hand, seq, yRot, xRot));
+            }
             case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
                 int containerId = Types.readVarInt(frame);
                 Types.readVarInt(frame);  // stateId(§ 검증 생략, 항상 클라 예측 수용)
@@ -1489,7 +1509,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
             var level = region.level();
             level.ackBlockChangesUpTo(actor, seq);
-            var pa = new org.domi.furnace.server.block.PlayerActor(actor, main, off, permission) {
+            ItemStack head = slots[5] == null ? ItemStack.EMPTY : slots[5];
+            var pa = new org.domi.furnace.server.block.BreakerActor(actor, main, off, head, permission, false, heldSlot) {
+                @Override
+                protected void brokenEvent(int h, ItemStack broken) { region.broadcastEntityEvent(actor, (byte) (47 + h)); }
+
                 @Override
                 public void trigger(String criterion, org.domi.furnace.server.block.Pos p, ItemStack stack) {
                     fireBlockTrigger(actor, criterion, p.x(), p.y(), p.z(), level.getBlockState(p), stack);
@@ -1510,6 +1534,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     return !ev.isCancelled();
                 }
             };
+            pa.withInventory(actor.inventoryHost());
             if (!pa.canInteractWithBlock(pos, 1.0)) return;   // 바닐라: 조용히 무시(패킷 없음, ack 만)
             double dx = hit.x() - (bp[0] + 0.5), dy = hit.y() - (bp[1] + 0.5), dz = hit.z() - (bp[2] + 0.5);
             if (!(Math.abs(dx) < 1.0000001 && Math.abs(dy) < 1.0000001 && Math.abs(dz) < 1.0000001)) {
@@ -1540,6 +1565,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 ItemStack expect = h == 0 ? main : off, now = pa.itemInHand(h);
                 ctx.channel().eventLoop().execute(() -> {
                     if (slots[slot] != expect) return;   // 그 사이 인벤토리가 바뀌었으면 손대지 않는다
+                    slots[slot] = now;
+                    fireInventoryChanged(slot);
+                });
+            }
+            for (int ws = 5; ws <= 8; ws++) {
+                if (!pa.armorChanged(ws)) continue;
+                int slot = ws;
+                ItemStack expect = pa.originalArmor(ws), now = pa.equipment(ws);
+                ctx.channel().eventLoop().execute(() -> {
+                    ItemStack cur = slots[slot] == null ? ItemStack.EMPTY : slots[slot];
+                    if (cur != expect) return;
                     slots[slot] = now;
                     fireInventoryChanged(slot);
                 });

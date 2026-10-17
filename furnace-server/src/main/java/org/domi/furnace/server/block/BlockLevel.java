@@ -114,6 +114,9 @@ public interface BlockLevel {
 
     void levelEvent(BlockActor except, int type, Pos pos, int data);
 
+    /** ServerLevel.globalLevelEvent: globalSoundEvents 게임룰이면 모든 플레이어에게, 아니면 levelEvent. */
+    default void globalLevelEvent(int type, Pos pos, int data) { levelEvent(null, type, pos, data); }
+
     void blockEvent(Pos pos, int block, int type, int data);
 
     /** 게임 이벤트(스컬크 감지 등) — 진동 체계가 들어오기 전까지는 기록만. */

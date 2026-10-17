@@ -7,17 +7,102 @@ import org.domi.furnace.server.world.GameMode;
 
 public class BreakerActor extends PlayerActor {
 
-    private final ItemStack head, originalMain;
+    private final ItemStack head, originalMain, originalOff;
     private final boolean eyeInWater;
     private final int heldWindowSlot;
+    /** 창 칸 5..8(갑옷)의 사본·처음 값·바뀜. */
+    private final ItemStack[] armor = new ItemStack[4], originalArmor = new ItemStack[4];
+    private final boolean[] armorChanged = new boolean[4];
+    private Player.InventoryHost inventory;
 
     public BreakerActor(Player player, ItemStack mainHand, ItemStack offHand, ItemStack head, int permissionLevel, boolean eyeInWater,
                         int heldWindowSlot) {
         super(player, mainHand, offHand, permissionLevel);
         this.head = head == null ? ItemStack.EMPTY : head;
         this.originalMain = mainHand == null ? ItemStack.EMPTY : mainHand;
+        this.originalOff = offHand == null ? ItemStack.EMPTY : offHand;
         this.eyeInWater = eyeInWater;
         this.heldWindowSlot = heldWindowSlot;
+        java.util.Arrays.fill(armor, ItemStack.EMPTY);
+        java.util.Arrays.fill(originalArmor, ItemStack.EMPTY);
+        armor[0] = originalArmor[0] = this.head;
+    }
+
+    /** 인벤토리(갑옷 칸 읽기·넣기·스폰 보호 판정)를 잇는다. */
+    public BreakerActor withInventory(Player.InventoryHost inv) {
+        this.inventory = inv;
+        if (inv != null) {
+            for (int i = 0; i < 4; i++) armor[i] = originalArmor[i] = inv.slot(5 + i);
+        }
+        return this;
+    }
+
+    public ItemStack originalOffHand() { return originalOff; }
+
+    public boolean armorChanged(int windowSlot) { return armorChanged[windowSlot - 5]; }
+
+    public ItemStack originalArmor(int windowSlot) { return originalArmor[windowSlot - 5]; }
+
+    @Override
+    public ItemStack equipment(int windowSlot) { return armor[windowSlot - 5]; }
+
+    @Override
+    public void setEquipment(int windowSlot, ItemStack stack) {
+        armor[windowSlot - 5] = stack == null ? ItemStack.EMPTY : stack;
+        armorChanged[windowSlot - 5] = true;
+    }
+
+    @Override
+    public boolean mayInteract(BlockLevel level, Pos pos) {
+        return (inventory == null || inventory.mayInteract(pos.x(), pos.z())) && level.withinBorder(pos);
+    }
+
+    @Override
+    public long nextEntityLong() { return player().random().nextLong(); }
+
+    /**
+     * Inventory.add: 같은 아이템이 덜 찬 칸(든 칸 → 왼손 → 0..35 순) 다음 빈 칸(0..35)에 넣는다. 인벤토리 사본에서 고르고
+     * 그 칸이 그대로일 때만 바꾼다(연결 스레드). 다 못 넣으면 false.
+     */
+    @Override
+    public boolean addToInventory(ItemStack stack) {
+        if (inventory == null || stack.isEmpty()) return false;
+        int max = org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack);
+        int[] order = new int[2 + 36];
+        int n = 0;
+        order[n++] = heldWindowSlot;
+        order[n++] = 45;
+        for (int i = 0; i < 36; i++) order[n++] = i < 9 ? 36 + i : i;
+        for (int k = 0; k < n; k++) {
+            int ws = order[k];
+            ItemStack cur = inventory.slot(ws);
+            if (!cur.isEmpty() && cur.itemId() == stack.itemId() && cur.patch().equals(stack.patch()) && cur.count() < Math.min(max, 99)) {
+                int room = Math.min(max, 99) - cur.count();
+                int put = Math.min(room, stack.count());
+                inventory.replace(ws, cur, cur.withCount(cur.count() + put));
+                stack = stack.withCount(stack.count() - put);
+                if (stack.isEmpty()) return true;
+            }
+        }
+        for (int i = 0; i < 36; i++) {
+            int ws = i < 9 ? 36 + i : i;
+            ItemStack cur = inventory.slot(ws);
+            if (cur.isEmpty()) {
+                inventory.replace(ws, cur, stack);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean inventoryContains(ItemStack stack) {
+        if (inventory == null) return false;
+        for (int ws = 5; ws <= 45; ws++) {
+            ItemStack cur = inventory.slot(ws);
+            if (!cur.isEmpty() && cur.itemId() == stack.itemId() && cur.patch().equals(stack.patch())) return true;
+        }
+        return false;
     }
 
     /** 사본을 잡을 때의 주 손 스택(인벤토리 반영 때 그 칸이 그대로인지 본다). */
@@ -48,11 +133,14 @@ public class BreakerActor extends PlayerActor {
     }
 
     /** LivingEntity.onEquippedItemBroken(item, MAINHAND): 부서짐 엔티티 이벤트(47)를 자신·추적자에게, 통계 broken. */
-    public void onMainHandBroken(ItemStack broken) {
+    public void onMainHandBroken(ItemStack broken) { onEquippedItemBroken(MAIN_HAND, broken); }
+
+    @Override
+    public void onEquippedItemBroken(int hand, ItemStack broken) {
         awardStat("minecraft:broken:" + org.domi.furnace.server.item.ItemTools.itemName(broken));
-        brokenEvent(broken);
+        brokenEvent(hand, broken);
     }
 
-    /** 부서짐 이벤트 방송(연결이 엔티티 이벤트 패킷을 보낸다). */
-    protected void brokenEvent(ItemStack broken) {}
+    /** 부서짐 이벤트 방송(주 손 47, 왼손 48 — 연결이 엔티티 이벤트 패킷을 보낸다). */
+    protected void brokenEvent(int hand, ItemStack broken) {}
 }

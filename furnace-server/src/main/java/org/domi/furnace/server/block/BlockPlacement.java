@@ -55,12 +55,19 @@ public final class BlockPlacement {
         return InteractionResult.PASS;
     }
 
-    /** ItemStack.useOn: 모험 모드는 can_place_on 이 클릭한 블록과 맞아야 한다. */
+    /** ItemStack.useOn: 모험 모드는 can_place_on 이 클릭한 블록과 맞아야 한다. 쓰였으면(SUCCESS·CONSUME) 통계 used. */
     public static InteractionResult useOn(BlockLevel level, BlockActor player, int hand, Hit hit) {
         ItemStack stack = player.itemInHand(hand);
         if (player != null && !player.mayBuild() && !canPlaceOnInAdventure(stack, level, hit.pos())) return InteractionResult.PASS;
+        InteractionResult r = itemUseOn(level, player, hand, hit, stack);
+        if (r.shouldAwardStats()) player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
+        return r;
+    }
+
+    /** Item.useOn — 블록 아이템은 설치, 아니면 아이템 종류별(ItemUse). */
+    private static InteractionResult itemUseOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
         BlockItems.Entry e = BlockItems.entry(stack.itemId());
-        if (e == null) return InteractionResult.PASS;   // 블록 아이템이 아닌 것(양동이·뼛가루 등)은 아이템 쪽 이식에서
+        if (e == null) return ItemUse.useOn(level, player, hand, hit);
         return switch (e.kind()) {
             case PLACE_ON_WATER -> InteractionResult.PASS;   // 블록 면 클릭으로는 놓지 않는다(use 경로)
             case SOLID_BUCKET -> {
@@ -247,7 +254,7 @@ public final class BlockPlacement {
     }
 
     /** 모험 모드 can_place_on — 술어 평가는 블록 술어 체계가 들어오면. 지금은 구성 요소가 없으면 거부. */
-    private static boolean canPlaceOnInAdventure(ItemStack stack, BlockLevel level, Pos pos) {
+    static boolean canPlaceOnInAdventure(ItemStack stack, BlockLevel level, Pos pos) {
         Object c = component(stack, "minecraft:can_place_on");
         if (c == null) return false;
         return AdventurePredicate.test(c, level, pos);

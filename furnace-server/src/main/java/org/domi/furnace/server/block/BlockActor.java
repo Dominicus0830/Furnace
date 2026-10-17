@@ -138,4 +138,21 @@ public interface BlockActor {
     }
 
     default ItemStack createFilledResult(ItemStack empty, ItemStack filled) { return createFilledResult(empty, filled, true); }
+
+    /** 갑옷 칸(창 칸 5 머리 · 6 가슴 · 7 다리 · 8 발)의 스택. */
+    default ItemStack equipment(int windowSlot) { return ItemStack.EMPTY; }
+
+    /** setItemSlot(갑옷 칸) — onEquipItem 소리·게임 이벤트는 부르는 쪽이. */
+    default void setEquipment(int windowSlot, ItemStack stack) {}
+
+    /** Level.mayInteract(player, pos): 스폰 보호 밖이고 월드 보더 안. */
+    default boolean mayInteract(BlockLevel level, Pos pos) { return level.withinBorder(pos); }
+
+    /** LivingEntity.onEquippedItemBroken(item, slot): 통계 broken + 부서짐 엔티티 이벤트(주 손 47, 왼손 48). */
+    default void onEquippedItemBroken(int hand, ItemStack broken) {
+        awardStat("minecraft:broken:" + org.domi.furnace.server.item.ItemTools.itemName(broken));
+    }
+
+    /** 플레이어 자신의 난수(Entity.random — 장착 소리 씨앗 등). */
+    default long nextEntityLong() { return 0L; }
 }

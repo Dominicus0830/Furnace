@@ -653,6 +653,16 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
+    public void globalLevelEvent(int type, Pos pos, int data) {
+        if (!gameRule("globalSoundEvents")) {
+            levelEvent(null, type, pos, data);
+            return;
+        }
+        LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, true);
+        services().forEachPlayer(p -> p.send(pkt));
+    }
+
+    @Override
     public void blockEvent(Pos pos, int block, int type, int data) {
         blockEvents.add(new BlockEventData(pos.x(), pos.y(), pos.z(), block, type, data));
     }

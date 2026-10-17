@@ -27,6 +27,9 @@ public final class Player {
 
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
+    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). */
+    private final org.domi.furnace.server.block.LegacyRandomSource random =
+            new org.domi.furnace.server.block.LegacyRandomSource(java.util.concurrent.ThreadLocalRandom.current().nextLong());
     private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
@@ -62,11 +65,16 @@ public final class Player {
 
         /** 파괴 직전 허가(플러그인 BlockBreakEvent). */
         default boolean allowBreak(int x, int y, int z, int state) { return true; }
+
+        /** Level.mayInteract 의 스폰 보호 부분(블록 x, z). */
+        default boolean mayInteract(int x, int z) { return true; }
     }
 
     private volatile InventoryHost inventoryHost;
 
     public org.domi.furnace.server.block.BlockBreaking breaking() { return breaking; }
+
+    public org.domi.furnace.server.block.LegacyRandomSource random() { return random; }
 
     public InventoryHost inventoryHost() { return inventoryHost; }
 

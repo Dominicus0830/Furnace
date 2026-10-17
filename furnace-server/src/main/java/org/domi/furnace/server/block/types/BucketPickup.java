@@ -48,6 +48,14 @@ public final class BucketPickup {
         return null;
     }
 
+    /** BucketPickup.getPickupSound: 물(잠긴 블록·거품 기둥 포함) 양동이 채우기, 용암, 가루눈. */
+    public static String pickupSound(int state) {
+        int b = B.block(state);
+        if (b == LAVA) return "minecraft:item.bucket.fill_lava";
+        if (b == POWDER_SNOW) return "minecraft:item.bucket.fill_powder_snow";
+        return "minecraft:item.bucket.fill";
+    }
+
     /** LiquidBlockContainer.placeLiquid: 블록 동작에 맡긴다(물에 잠기는 블록·모닥불·양초 등). */
     public static boolean placeWater(BlockLevel level, Pos pos, int state, int fluid) {
         return B.behavior(state).placeLiquid(level, pos, state, fluid);

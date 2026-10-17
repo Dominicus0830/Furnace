@@ -26,6 +26,8 @@ public final class WeatheringCopper {
     private static final Map<Integer, Integer> AGE = new HashMap<>();
     /** 블록 번호 → 다음 단계 블록. */
     private static final Map<Integer, Integer> NEXT = new HashMap<>();
+    /** 블록 번호 → 앞 단계 블록(도끼로 긁기 — WeatheringCopper.getPrevious). */
+    private static final Map<Integer, Integer> PREVIOUS = new HashMap<>();
 
     static {
         for (String[] c : CHAINS) {
@@ -33,12 +35,19 @@ public final class WeatheringCopper {
                 int b = B.id(c[i]);
                 AGE.put(b, i);
                 if (i < 3) NEXT.put(b, B.id(c[i + 1]));
+                if (i > 0) PREVIOUS.put(b, B.id(c[i - 1]));
             }
         }
     }
 
     /** 산화 단계(getAge). 구리 사슬 블록이 아니면 -1. */
     public static int age(int block) { return AGE.getOrDefault(block, -1); }
+
+    /** getPrevious(state): 앞 단계 블록의 같은 속성 상태, 없으면 -1. */
+    public static int previous(int state) {
+        Integer b = PREVIOUS.get(B.block(state));
+        return b == null ? -1 : B.withPropertiesOf(b, state);
+    }
 
     /** isRandomlyTicking: 다음 단계가 있으면. */
     public static boolean hasNext(int block) { return NEXT.containsKey(block); }

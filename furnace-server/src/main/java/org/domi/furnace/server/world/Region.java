@@ -645,6 +645,39 @@ public final class Region {
 
     // ------------------------------------------------------------------ 블록 부수기(ServerPlayerGameMode)
 
+    /**
+     * 플레이어 아이템 사용(use_item — 바닐라 handleUseItem): ack 를 걸고, 보낸 시선이 다르면 돌린 뒤 ServerPlayerGameMode.useItem.
+     * 바뀐 손·갑옷 칸은 연결의 인벤토리로. 그 플레이어가 이 region 소속일 때만.
+     */
+    public void handleUseItem(Player p, int hand, int seq, float yRot, float xRot) {
+        world.assertOwns(this);
+        level().ackBlockChangesUpTo(p, seq);
+        if (!players.containsKey(p.entityId())) return;
+        var actor = breakerActor(p);
+        if (actor.itemInHand(hand).isEmpty()) return;
+        float y = wrapDegrees(yRot), x = wrapDegrees(xRot);
+        if (x != p.pitch() || y != p.yaw()) p.applyRotation(y, Math.clamp(x, -90.0F, 90.0F), p.onGround());   // absRotateTo
+        actor = breakerActor(p);
+        org.domi.furnace.server.block.ItemUse.useItem(level(), actor, hand);
+        // shouldSwing(SUCCESS) 는 서버 쪽 결과(CONSUME)에서 나오지 않는다
+        writeBackHand(p, actor);
+    }
+
+    /** 엔티티 이벤트(부서짐 47·48 등)를 그 플레이어 자신과 추적 중인 플레이어에게. */
+    public void broadcastEntityEvent(Player p, byte event) {
+        var pkt = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), event);
+        p.send(pkt);
+        for (Player o : players.values()) if (o != p && o.tracked().containsKey(p.entityId())) o.send(pkt);
+    }
+
+    /** Mth.wrapDegrees(float). */
+    private static float wrapDegrees(float v) {
+        float f = v % 360.0F;
+        if (f >= 180.0F) f -= 360.0F;
+        if (f < -180.0F) f += 360.0F;
+        return f;
+    }
+
     /** 플레이어 블록 부수기 요청(player_action 0·1·2). 그 플레이어가 이 region 소속일 때만 — ack 는 부르는 쪽이. */
     public void handleBlockBreakAction(Player p, org.domi.furnace.server.block.Pos pos, int action, boolean mayInteract) {
         world.assertOwns(this);
@@ -674,12 +707,12 @@ public final class Region {
         }
         return new org.domi.furnace.server.block.BreakerActor(p, main, off, head, inv == null ? 0 : inv.permissionLevel(), eyeInWater, held) {
             @Override
-            protected void brokenEvent(ItemStack broken) {
-                var pkt = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) 47);
+            protected void brokenEvent(int hand, ItemStack broken) {
+                var pkt = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) (47 + hand));
                 p.send(pkt);
                 for (Player o : players.values()) if (o != p && o.tracked().containsKey(p.entityId())) o.send(pkt);
             }
-        };
+        }.withInventory(inv);
     }
 
     private org.domi.furnace.server.block.BlockBreaking.Host breakHost(Player p) {
@@ -697,11 +730,18 @@ public final class Region {
         };
     }
 
-    /** 부수다 바뀐 주 손(도구 내구도·부서짐)을 연결의 인벤토리에 반영한다. */
+    /** 바뀐 손·갑옷 칸(도구 내구도·부서짐·양동이·장착)을 연결의 인벤토리에 반영한다. */
     private static void writeBackHand(Player p, org.domi.furnace.server.block.BreakerActor actor) {
         Player.InventoryHost inv = p.inventoryHost();
-        if (inv != null && actor.handChanged(org.domi.furnace.server.block.BlockActor.MAIN_HAND)) {
+        if (inv == null) return;
+        if (actor.handChanged(org.domi.furnace.server.block.BlockActor.MAIN_HAND)) {
             inv.replace(actor.heldWindowSlot(), actor.originalMainHand(), actor.itemInHand(org.domi.furnace.server.block.BlockActor.MAIN_HAND));
+        }
+        if (actor.handChanged(org.domi.furnace.server.block.BlockActor.OFF_HAND)) {
+            inv.replace(45, actor.originalOffHand(), actor.itemInHand(org.domi.furnace.server.block.BlockActor.OFF_HAND));
+        }
+        for (int ws = 5; ws <= 8; ws++) {
+            if (actor.armorChanged(ws)) inv.replace(ws, actor.originalArmor(ws), actor.equipment(ws));
         }
     }
 

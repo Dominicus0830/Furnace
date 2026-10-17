@@ -170,7 +170,7 @@ public final class BlockBreaking {
     public boolean destroyBlock(BlockLevel level, BreakerActor player, Host host, Pos pos) {
         int state = level.getBlockState(pos);
         ItemStack hand = player.itemInHand(BlockActor.MAIN_HAND);
-        if (!canAttackBlock(hand, player)) return false;
+        if (!canAttackBlock(hand, player, level, state, pos)) return false;
         Object blockEntity = level.getBlockEntity(pos);
         BlockBehavior block = BlockBehaviors.of(state);
         if (isGameMasterBlock(state) && !player.canUseGameMasterBlocks()) {
@@ -194,11 +194,14 @@ public final class BlockBreaking {
     }
 
     /**
-     * Item.canAttackBlock: 칼·삼지창·철퇴는 크리에이티브에서 블록을 못 친다, 디버그 막대는 언제나 못 친다(상호작용으로 쓴다).
+     * Item.canAttackBlock: 칼·삼지창·철퇴는 크리에이티브에서 블록을 못 친다, 디버그 막대는 언제나 못 친다 — 대신 다음 속성을 고른다.
      */
-    static boolean canAttackBlock(ItemStack hand, BlockActor player) {
+    static boolean canAttackBlock(ItemStack hand, BlockActor player, BlockLevel level, int state, Pos pos) {
         String n = ItemTools.itemName(hand);
-        if (n.equals("minecraft:debug_stick")) return false;
+        if (n.equals("minecraft:debug_stick")) {
+            ItemUse.debugStickInteraction(level, player, BlockActor.MAIN_HAND, state, pos, false, hand);
+            return false;
+        }
         if (n.endsWith("_sword") || n.equals("minecraft:trident") || n.equals("minecraft:mace")) return !player.isCreative();
         return true;
     }
@@ -229,6 +232,11 @@ public final class BlockBreaking {
      * 갑옷은 2L/(5L+5)… 여기서는 도구라 앞의 것)로 줄인 뒤 깎고, 다 닳으면 하나 줄이고 부서짐 이벤트.
      */
     static void hurtAndBreak(BlockLevel level, BreakerActor player, ItemStack stack, int amount) {
+        hurtAndBreak(level, player, BlockActor.MAIN_HAND, stack, amount);
+    }
+
+    /** ItemStack.hurtAndBreak(amount, entity, slot): 무한 재료면 그대로, 내구성 확률로 줄이고, 다 닳으면 하나 줄이고 부서짐 이벤트. */
+    public static void hurtAndBreak(BlockLevel level, BlockActor player, int hand, ItemStack stack, int amount) {
         if (!ItemTools.isDamageable(stack) || player.instabuild()) return;
         if (amount > 0) {
             int unbreaking = ItemTools.enchantmentLevel(stack, "minecraft:unbreaking");
@@ -246,10 +254,10 @@ public final class BlockBreaking {
         ItemStack damaged = ItemTools.withDamage(stack, newDamage);
         // TODO(발전 과제): CriteriaTriggers.ITEM_DURABILITY_CHANGED
         if (newDamage >= ItemTools.maxDamage(stack)) {
-            player.setItemInHand(BlockActor.MAIN_HAND, damaged.withCount(damaged.count() - 1));
-            player.onMainHandBroken(stack);
+            player.setItemInHand(hand, damaged.withCount(damaged.count() - 1));
+            player.onEquippedItemBroken(hand, stack);
         } else {
-            player.setItemInHand(BlockActor.MAIN_HAND, damaged);
+            player.setItemInHand(hand, damaged);
         }
     }
 }
