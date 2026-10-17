@@ -78,12 +78,21 @@ public final class Shape {
      */
     public boolean isFaceFull(int dir) {
         if (this == BLOCK) return true;
+        return faceCovers(dir, 0, 0, 1, 1);
+    }
+
+    /**
+     * 그 면 단면(getFaceShape)이 면 위의 사각형 [u0,u1)×[v0,v1) 을 다 덮는가 — !Shapes.joinIsNotEmpty(사각기둥, faceShape, ONLY_FIRST).
+     * 면의 두 축은 x→(y,z), y→(x,z), z→(x,y) 순서.
+     */
+    public boolean faceCovers(int dir, double u0, double v0, double u1, double v1) {
+        if (this == BLOCK) return true;
         int axis = Dir.axis(dir);
         int a = axis == Dir.AXIS_X ? 1 : 0, b = axis == Dir.AXIS_Z ? 1 : 2;   // 면의 두 축(x→y,z / y→x,z / z→x,y)
         double cut = Dir.positive(dir) ? 1 - 1e-7 : 1e-7;
         java.util.List<double[]> rects = new java.util.ArrayList<>();
         java.util.TreeSet<Double> us = new java.util.TreeSet<>(), vs = new java.util.TreeSet<>();
-        us.add(0.0); us.add(1.0); vs.add(0.0); vs.add(1.0);
+        us.add(u0); us.add(u1); vs.add(v0); vs.add(v1);
         for (int i = 0; i < boxes.length; i += 6) {
             if (boxes[i + axis] <= cut && boxes[i + 3 + axis] > cut) {
                 double[] r = {boxes[i + a], boxes[i + b], boxes[i + 3 + a], boxes[i + 3 + b]};
@@ -93,10 +102,10 @@ public final class Shape {
         }
         Double[] u = us.toArray(new Double[0]), v = vs.toArray(new Double[0]);
         for (int i = 0; i + 1 < u.length; i++) {
-            if (u[i + 1] <= 0 || u[i] >= 1) continue;
+            if (u[i + 1] <= u0 || u[i] >= u1) continue;
             double cu = (u[i] + u[i + 1]) / 2;
             for (int j = 0; j + 1 < v.length; j++) {
-                if (v[j + 1] <= 0 || v[j] >= 1) continue;
+                if (v[j + 1] <= v0 || v[j] >= v1) continue;
                 double cv = (v[j] + v[j + 1]) / 2;
                 boolean covered = false;
                 for (double[] r : rects) {
@@ -104,6 +113,16 @@ public final class Shape {
                 }
                 if (!covered) return false;
             }
+        }
+        return true;
+    }
+
+    /** getFaceShape(dir).isEmpty(): 그 면 바로 안쪽(1e-7) 단면에 걸친 상자가 없는가. */
+    public boolean isFaceEmpty(int dir) {
+        int axis = Dir.axis(dir);
+        double cut = Dir.positive(dir) ? 1 - 1e-7 : 1e-7;
+        for (int i = 0; i < boxes.length; i += 6) {
+            if (boxes[i + axis] <= cut && boxes[i + 3 + axis] > cut) return false;
         }
         return true;
     }
