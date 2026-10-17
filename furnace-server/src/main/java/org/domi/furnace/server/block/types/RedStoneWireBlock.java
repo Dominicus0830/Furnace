@@ -224,7 +224,7 @@ public class RedStoneWireBlock extends BlockBehavior {
         if (canSurvive(state, level, pos)) {
             updatePowerStrength(level, pos, state);
         } else {
-            // TODO(3-4b): dropResources(state, level, pos)
+            level.dropResources(state, pos);
             level.removeBlock(pos, false);
         }
     }

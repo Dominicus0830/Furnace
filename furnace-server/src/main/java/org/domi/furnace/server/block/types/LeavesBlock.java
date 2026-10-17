@@ -22,7 +22,7 @@ public class LeavesBlock extends BlockBehavior {
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (decaying(state)) {
-            // TODO(드롭): Block.dropResources(state, level, pos) — 전리품(묘목·막대기·사과)
+            level.dropResources(state, pos);
             level.removeBlock(pos, false);
         }
     }

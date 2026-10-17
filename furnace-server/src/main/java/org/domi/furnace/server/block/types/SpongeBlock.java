@@ -1,6 +1,7 @@
 // 바닐라 SpongeBlock: 놓이거나 이웃이 바뀌면 거리 6·최대 64칸의 물을 빨아들이고 젖은 스펀지가 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.entity.ItemStack;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Set;
@@ -70,7 +71,7 @@ public class SpongeBlock extends BlockBehavior {
         } else {
             int b = B.block(state);
             if (b != KELP && b != KELP_PLANT && b != SEAGRASS && b != TALL_SEAGRASS) return false;
-            // TODO(드롭): Block.dropResources(state, level, pos, blockEntity)
+            level.dropResources(state, p, INFO.hasBlockEntity(state) ? level.getBlockEntity(p) : null, null, ItemStack.EMPTY);
             level.setBlock(p, B.defaultState("air"), 3);
         }
         return true;

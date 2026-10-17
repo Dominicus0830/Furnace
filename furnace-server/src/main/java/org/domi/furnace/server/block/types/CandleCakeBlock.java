@@ -46,7 +46,7 @@ public class CandleCakeBlock extends AbstractCandleBlock {
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
         InteractionResult r = CakeBlock.eat(level, pos, B.defaultState(CAKE), player);
         if (r.consumesAction()) {
-            // TODO(3-4b): dropResources(state, level, pos) — 양초 케이크 전리품 표(양초 1개).
+            level.dropResources(state, pos);
         }
         return r;
     }

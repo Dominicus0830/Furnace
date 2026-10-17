@@ -199,4 +199,27 @@ public interface BlockLevel {
 
     /** Block.popResourceFromFace(level, pos, dir, stack). */
     void popResourceFromFace(Pos pos, int dir, ItemStack stack);
+
+    // ------------------------------------------------------------------ 드롭(바닐라 Block.dropResources·getDrops·popExperience)
+
+    /** 그 블록의 전리품 표(BLOCK 문맥) 결과 — origin 은 칸 가운데. explosionRadius 가 null 이면 폭발 아님. */
+    default java.util.List<ItemStack> lootDrops(String lootTable, int state, Pos pos, BlockActor entity, ItemStack tool, Float explosionRadius) {
+        return java.util.List.of();
+    }
+
+    /** Block.dropResources(state, level, pos, blockEntity, entity, tool): 드롭을 하나씩 popResource 한 뒤 spawnAfterBreak(…, true). */
+    default void dropResources(int state, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool) {
+        BlockBehavior b = BlockBehaviors.of(state);
+        for (ItemStack s : b.getDrops(state, this, pos, blockEntity, entity, tool)) popResource(pos, s);
+        b.spawnAfterBreak(state, this, pos, tool, true);
+    }
+
+    /** Block.dropResources(state, level, pos). */
+    default void dropResources(int state, Pos pos) { dropResources(state, pos, null, null, ItemStack.EMPTY); }
+
+    /** Block.popExperience: doTileDrops 이면 경험치 구슬(ExperienceOrb.award). 구슬은 자기 난수만 쓴다. TODO(엔티티): 구슬 생성. */
+    default void popExperience(Pos pos, int amount) {}
+
+    /** ServerLevel.destroyBlockProgress: 부수는 사람을 뺀 32칸 안 플레이어에게 금 가는 단계(0..9, 그 밖이면 지움). */
+    default void destroyBlockProgress(int breakerId, Pos pos, int progress) {}
 }

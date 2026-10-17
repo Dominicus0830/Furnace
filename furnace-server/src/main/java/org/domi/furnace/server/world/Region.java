@@ -476,6 +476,7 @@ public final class Region {
             processMoves(p);
             p.drainPending();
             tickVitals(p);
+            tickBreaking(p);
             ChunkPos c = p.chunkPos();
             Region owner = rz().ownerOf(c.x(), c.z());
             if (owner != this && (owner == null || !rz().merging(this, owner))) {
@@ -564,6 +565,68 @@ public final class Region {
             boolean waterOnPath = dy < 0 && probe.waterOnPath(blocks, m.x(), prev.y(), m.y(), m.z());
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
+        }
+    }
+
+    // ------------------------------------------------------------------ 블록 부수기(ServerPlayerGameMode)
+
+    /** 플레이어 블록 부수기 요청(player_action 0·1·2). 그 플레이어가 이 region 소속일 때만 — ack 는 부르는 쪽이. */
+    public void handleBlockBreakAction(Player p, org.domi.furnace.server.block.Pos pos, int action, boolean mayInteract) {
+        world.assertOwns(this);
+        if (!players.containsKey(p.entityId())) return;
+        var actor = breakerActor(p);
+        p.breaking().handleAction(level(), actor, breakHost(p), pos, action, level().maxBuildHeight(), mayInteract);
+        writeBackHand(p, actor);
+    }
+
+    private void tickBreaking(Player p) {
+        var holder = new org.domi.furnace.server.block.BreakerActor[1];
+        p.breaking().tick(level(), () -> holder[0] = breakerActor(p), breakHost(p));
+        if (holder[0] != null) writeBackHand(p, holder[0]);
+    }
+
+    /** 부수는 플레이어 행위자 — 손·머리 장비 사본(연결의 인벤토리에서), 눈이 물에 잠겼는지(지금 블록으로). */
+    private org.domi.furnace.server.block.BreakerActor breakerActor(Player p) {
+        Player.InventoryHost inv = p.inventoryHost();
+        int held = inv == null ? 36 : 36 + inv.selected();
+        ItemStack main = inv == null ? ItemStack.EMPTY : inv.slot(held), off = inv == null ? ItemStack.EMPTY : inv.slot(45),
+                head = inv == null ? ItemStack.EMPTY : inv.slot(5);
+        PlayerProbe probe = world.probe();
+        boolean eyeInWater = false;
+        if (probe != null && ownedChunk((int) Math.floor(p.x()) >> 4, (int) Math.floor(p.z()) >> 4) != null) {
+            double eye = p.sneaking() ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
+            eyeInWater = probe.eyeInWater(blocks, p.x(), p.y(), p.z(), eye);
+        }
+        return new org.domi.furnace.server.block.BreakerActor(p, main, off, head, inv == null ? 0 : inv.permissionLevel(), eyeInWater, held) {
+            @Override
+            protected void brokenEvent(ItemStack broken) {
+                var pkt = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) 47);
+                p.send(pkt);
+                for (Player o : players.values()) if (o != p && o.tracked().containsKey(p.entityId())) o.send(pkt);
+            }
+        };
+    }
+
+    private org.domi.furnace.server.block.BlockBreaking.Host breakHost(Player p) {
+        return new org.domi.furnace.server.block.BlockBreaking.Host() {
+            public void sendBlockUpdate(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos) {
+                p.send(new BlockUpdate(pos.x(), pos.y(), pos.z(), level.getBlockState(pos)));
+            }
+
+            public boolean allowBreak(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos, int state) {
+                Player.InventoryHost inv = p.inventoryHost();
+                return inv == null || inv.allowBreak(pos.x(), pos.y(), pos.z(), state);
+            }
+
+            public boolean owns(org.domi.furnace.server.block.Pos pos) { return ownedChunk(pos.x() >> 4, pos.z() >> 4) != null; }
+        };
+    }
+
+    /** 부수다 바뀐 주 손(도구 내구도·부서짐)을 연결의 인벤토리에 반영한다. */
+    private static void writeBackHand(Player p, org.domi.furnace.server.block.BreakerActor actor) {
+        Player.InventoryHost inv = p.inventoryHost();
+        if (inv != null && actor.handChanged(org.domi.furnace.server.block.BlockActor.MAIN_HAND)) {
+            inv.replace(actor.heldWindowSlot(), actor.originalMainHand(), actor.itemInHand(org.domi.furnace.server.block.BlockActor.MAIN_HAND));
         }
     }
 

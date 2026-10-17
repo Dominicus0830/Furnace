@@ -43,6 +43,35 @@ public final class Player {
     private volatile int openContainerId = -1;
     private volatile int openChestX, openChestY, openChestZ;
 
+    /** 블록 부수기 상태(ServerPlayerGameMode) — 플레이어가 속한 region 스레드에서만. */
+    private final org.domi.furnace.server.block.BlockBreaking breaking = new org.domi.furnace.server.block.BlockBreaking();
+
+    /** 인벤토리를 가진 쪽(연결)이 내주는 통로. 인벤토리는 연결 스레드 것이라 region 은 사본을 읽고, 바꿀 때는 이 통로로 맡긴다. */
+    public interface InventoryHost {
+        /** 창 칸(0 결과, 5..8 머리·가슴·다리·발, 9..35 주, 36..44 핫바, 45 왼손)의 지금 스택. */
+        ItemStack slot(int windowSlot);
+
+        /** 손에 든 핫바 칸(0..8). */
+        int selected();
+
+        /** 그 칸이 아직 expect 이면 now 로 바꾼다(연결 스레드에서). */
+        void replace(int windowSlot, ItemStack expect, ItemStack now);
+
+        /** 권한 단계(관리자 블록 판정). */
+        int permissionLevel();
+
+        /** 파괴 직전 허가(플러그인 BlockBreakEvent). */
+        default boolean allowBreak(int x, int y, int z, int state) { return true; }
+    }
+
+    private volatile InventoryHost inventoryHost;
+
+    public org.domi.furnace.server.block.BlockBreaking breaking() { return breaking; }
+
+    public InventoryHost inventoryHost() { return inventoryHost; }
+
+    public void inventoryHost(InventoryHost h) { this.inventoryHost = h; }
+
     public Player(int entityId, UUID uuid, String name, Channel channel) {
         this.entityId = entityId;
         this.uuid = uuid;

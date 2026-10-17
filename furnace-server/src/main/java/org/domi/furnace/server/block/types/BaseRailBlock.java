@@ -50,7 +50,7 @@ public abstract class BaseRailBlock extends BlockBehavior {
     public void neighborChanged(int state, BlockLevel level, Pos pos, int sourceBlock, Pos sourcePos, boolean moved) {
         if (B.is(level.getBlockState(pos), block)) {
             if (shouldBeRemoved(pos, level, shape(state))) {
-                // TODO(드롭): Block.dropResources(state, level, pos)
+                level.dropResources(state, pos);
                 level.removeBlock(pos, moved);
             } else {
                 updateState(state, level, pos, sourceBlock);

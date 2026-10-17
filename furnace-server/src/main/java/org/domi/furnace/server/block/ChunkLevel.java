@@ -130,14 +130,33 @@ public abstract class ChunkLevel implements BlockLevel {
         if (info.isAir(s)) return false;
         int f = getFluidState(pos);
         if (!B.isTag(s, "minecraft:fire")) levelEvent(null, 2001, pos, s);
-        if (dropBlock) dropResources(s, pos, breaker);
+        if (dropBlock) dropResources(s, pos, info.hasBlockEntity(s) ? getBlockEntity(pos) : null, breaker, ItemStack.EMPTY);
         boolean ok = setBlock(pos, Fluids.createLegacyBlock(f), UPDATE_ALL, recursionLeft);
         if (ok) gameEvent("minecraft:block_destroy", pos, breaker, s);
         return ok;
     }
 
-    /** Block.dropResources — 전리품·아이템 엔티티가 붙으면 채운다. */
-    protected void dropResources(int state, Pos pos, BlockActor breaker) {}
+    @Override
+    public java.util.List<ItemStack> lootDrops(String lootTable, int state, Pos pos, BlockActor entity, ItemStack tool, Float explosionRadius) {
+        return services().blockDrops(lootTable, state, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, tool,
+                entity == null ? null : entity.handle(), explosionRadius);
+    }
+
+    @Override
+    public void popExperience(Pos pos, int amount) {
+        if (!gameRule("doTileDrops")) return;
+        // TODO(엔티티): ExperienceOrb.award(level, 칸 가운데, amount) — 구슬 나누기·합치기. 구슬은 자기 난수만 쓴다.
+    }
+
+    @Override
+    public void destroyBlockProgress(int breakerId, Pos pos, int progress) {
+        var pkt = new org.domi.furnace.server.net.protocol.play.BlockDestruction(breakerId, pos.x(), pos.y(), pos.z(), progress);
+        services().forEachPlayer(p -> {
+            if (p.entityId() == breakerId) return;
+            double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
+            if (dx * dx + dy * dy + dz * dz < 1024.0) p.send(pkt);
+        });
+    }
 
     // ------------------------------------------------------------------ 이웃 갱신
 

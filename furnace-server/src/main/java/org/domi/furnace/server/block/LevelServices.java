@@ -40,6 +40,13 @@ public interface LevelServices {
     /** 그 칸의 바이옴(Level.getBiome — 확대 지터 포함)이 태그에 드는가. 모르면 거짓. */
     default boolean biomeIs(int x, int y, int z, String tag) { return false; }
 
+    /**
+     * 블록 전리품(Block.getDrops — BLOCK 문맥): 그 전리품 표를 origin·tool·block_state·this_entity·explosion_radius 로 평가한다.
+     * entity 는 Player(없으면 null), explosionRadius 가 null 이면 폭발 아님. 데이터 팩이 없으면 빈 목록.
+     */
+    default java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
+            org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) { return java.util.List.of(); }
+
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
         public boolean gameRule(String name) { return true; }
@@ -76,6 +83,10 @@ public interface LevelServices {
         public boolean ultraWarm() { return d.ultraWarm(); }
         public int maxChainedNeighborUpdates() { return d.maxChainedNeighborUpdates(); }
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }
+        public java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
+                org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) {
+            return d.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
+        }
         public boolean biomeIs(int x, int y, int z, String tag) { return d.biomeIs(x, y, z, tag); }
     }
 }

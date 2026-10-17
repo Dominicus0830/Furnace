@@ -69,10 +69,49 @@ public class BlockBehavior {
     }
 
     /**
-     * Block.playerDestroy(level, player, pos, state, blockEntity, tool): 플레이어가 부순 뒤(칸은 이미 지워짐) — 통계·허기·드롭.
-     * TODO(3-4b): 파괴 경로에서 부르고 기본 동작(통계 mined, 허기 0.005, dropResources)을 채운다.
+     * Block.playerDestroy(level, player, pos, state, blockEntity, tool): 플레이어가 부순 뒤(칸은 이미 지워짐) — 통계 mined·허기 0.005·드롭.
      */
-    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, ItemStack tool) {}
+    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, Object blockEntity, ItemStack tool) {
+        player.awardStat("minecraft:mined:" + name());
+        player.causeFoodExhaustion(0.005F);
+        level.dropResources(state, pos, blockEntity, player, tool);
+    }
+
+    /** BlockBehaviour.getDrops: 전리품 표가 비었으면 없음, 아니면 BLOCK 문맥(block_state = 이 상태)으로 평가. */
+    public java.util.List<ItemStack> getDrops(int state, BlockLevel level, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool) {
+        return getDrops(state, level, pos, blockEntity, entity, tool, null);
+    }
+
+    /** getDrops — 폭발 반경(없으면 null)까지. */
+    public java.util.List<ItemStack> getDrops(int state, BlockLevel level, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool,
+                                              Float explosionRadius) {
+        String table = INFO.lootTable(block);
+        if (table == null || table.equals("minecraft:empty")) return java.util.List.of();
+        return level.lootDrops(table, state, pos, entity, tool, explosionRadius);
+    }
+
+    /** BlockBehaviour.spawnAfterBreak(state, level, pos, tool, dropExperience): 경험치·좀벌레 등. */
+    public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {}
+
+    /**
+     * Block.tryDropExperience(level, pos, tool, IntProvider[min..max]): 표본(uniform 이면 레벨 난수 nextInt) → 섬세한 손길이면 0
+     * (EnchantmentHelper.processBlockExperience — block_experience 효과) → 0 보다 크면 popExperience.
+     */
+    protected static void tryDropExperience(BlockLevel level, Pos pos, ItemStack tool, int min, int max) {
+        int sample = min == max ? min : level.random().nextInt(max - min + 1) + min;
+        int xp = org.domi.furnace.server.item.ItemTools.enchantmentLevel(tool, "minecraft:silk_touch") > 0 ? 0 : sample;
+        if (xp > 0) level.popExperience(pos, xp);
+    }
+
+    /**
+     * BlockBehaviour.getDestroyProgress(state, player, level, pos): 경도가 -1 이면 0, 아니면 플레이어 파괴 속도 / 경도 / (맞는 도구 30, 아니면 100).
+     */
+    public float getDestroyProgress(int state, BlockActor player, BlockLevel level, Pos pos) {
+        float hardness = INFO.destroyTime(block);
+        if (hardness == -1.0F) return 0.0F;
+        int div = player.hasCorrectToolForDrops(state) ? 30 : 100;
+        return player.destroySpeed(state) / hardness / (float) div;
+    }
 
     /** Block.destroy(level, pos, state): 플레이어 파괴로 칸이 지워진 뒤. */
     public void destroy(BlockLevel level, Pos pos, int state) {}

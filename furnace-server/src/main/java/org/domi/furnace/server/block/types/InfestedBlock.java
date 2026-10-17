@@ -25,7 +25,14 @@ public class InfestedBlock extends BlockBehavior {
 
     public static boolean isCompatibleHostBlock(int state) { return BLOCK_BY_HOST.containsKey(B.block(state)); }
 
-    // TODO(3-4b·엔티티): spawnAfterBreak — doTileDrops 이고 실크 터치가 아니면 가운데에 좀벌레를 만들고 spawnAnim.
+    @Override
+    public void spawnAfterBreak(int state, org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos,
+                                org.domi.furnace.server.entity.ItemStack tool, boolean dropExperience) {
+        super.spawnAfterBreak(state, level, pos, tool, dropExperience);
+        if (level.gameRule("doTileDrops") && !org.domi.furnace.server.item.ItemTools.hasEnchantmentTag(tool, "minecraft:prevents_infested_spawns")) {
+            // TODO(엔티티): 칸 아래 가운데에 좀벌레를 만들고 spawnAnim(엔티티 이벤트 20) — 레벨 난수는 쓰지 않는다.
+        }
+    }
 
     /** infestedStateByHost: 같은 속성 값을 옮긴 숨은 블록 상태. */
     public static int infestedStateByHost(int hostState) { return copyProps(hostState, B.defaultState(BLOCK_BY_HOST.get(B.block(hostState)))); }

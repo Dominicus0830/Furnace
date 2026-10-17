@@ -1,0 +1,45 @@
+# 크리에이티브 부수기와 연쇄 붕괴: 받침을 부수면 횃불·표지판·레일·눈·문이 떨어지고, 문·키 큰 꽃 반쪽을 부수면 나머지도 사라진다
+tp 2.5 -60 -3.5 0 30
+item 0 stone 64
+item 1 torch 64
+item 2 oak_sign 64
+item 3 rail 64
+item 4 oak_door 64
+item 5 sunflower 64
+item 6 snow 64
+item 7 redstone 64
+hold 0
+use 0 -61 0 up
+use 1 -61 0 up
+use 2 -61 0 up
+use 3 -61 0 up
+use 4 -61 0 up
+hold 1
+use 0 -60 0 up
+use 1 -60 0 south 0.5 0.5 1.0
+hold 2
+use 2 -60 0 up
+hold 3
+use 3 -60 0 up
+hold 7
+use 4 -60 0 up
+break 0 -60 0 up
+break 1 -60 0 up
+break 2 -60 0 up
+break 3 -60 0 up
+break 4 -60 0 up
+# 문: 아래 반쪽을 부수면 위도, 해바라기: 위 반쪽을 부수면 아래도
+tp 7.5 -60 -3.5 0 30
+hold 4
+use 6 -61 0 up
+hold 5
+use 8 -61 0 up
+break 6 -60 0 up
+break 8 -59 0 up
+# 눈 위 눈 받침
+hold 0
+use 10 -61 0 up
+hold 6
+use 10 -60 0 up
+break 10 -60 0 up
+wait 10

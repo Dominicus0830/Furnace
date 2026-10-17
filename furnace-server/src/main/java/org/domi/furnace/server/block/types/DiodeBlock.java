@@ -58,7 +58,7 @@ public abstract class DiodeBlock extends HorizontalDirectionalBlock {
         if (canSurvive(state, level, pos)) {
             checkTickOnNeighbor(level, pos, state);
         } else {
-            // TODO(3-4b): dropResources(state, level, pos, 블록 엔티티)
+            level.dropResources(state, pos, INFO.hasBlockEntity(state) ? level.getBlockEntity(pos) : null, null, ItemStack.EMPTY);
             level.removeBlock(pos, false);
             for (int d : Dir.ALL) level.updateNeighborsAt(pos.relative(d), block);
         }

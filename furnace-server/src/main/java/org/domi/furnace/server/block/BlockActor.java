@@ -59,8 +59,49 @@ public interface BlockActor {
     /** canUseGameMasterBlocks = instabuild && 권한 2 이상. */
     default boolean canUseGameMasterBlocks() { return instabuild() && permissionLevel() >= 2; }
 
-    /** Player.hasCorrectToolForDrops(state): 도구가 필요 없는 블록이거나 손 도구가 맞으면. TODO(3-4b): 도구 등급·태그 판정. */
-    default boolean hasCorrectToolForDrops(int state) { return !BlockInfo.get().requiresCorrectToolForDrops(Blocks.get().blockOf(state)); }
+    /** Player.hasCorrectToolForDrops(state): 도구가 필요 없는 블록이거나 손 도구(tool 컴포넌트 규칙)가 맞으면. */
+    default boolean hasCorrectToolForDrops(int state) {
+        return !BlockInfo.get().requiresCorrectToolForDrops(Blocks.get().blockOf(state))
+                || org.domi.furnace.server.item.ItemTools.isCorrectToolForDrops(itemInHand(MAIN_HAND), state);
+    }
+
+    /** 땅에 서 있는가(이동 패킷의 onGround). */
+    default boolean onGround() { return true; }
+
+    /** 눈이 물에 잠겼는가(Entity.isEyeInFluid(#water) — 지난 틱 값). */
+    default boolean eyeInWater() { return false; }
+
+    /** 머리 칸 장비(물속 채굴 속도 — 친수성). */
+    default ItemStack headItem() { return ItemStack.EMPTY; }
+
+    /** Player.causeFoodExhaustion. */
+    default void causeFoodExhaustion(float amount) {}
+
+    /** 엔티티 id(파괴 단계 패킷의 주인). */
+    default int entityId() { return -1; }
+
+    /**
+     * Player.getDestroySpeed(state): 손 도구 속도(1 넘으면 + 채굴 효율 속성 = 효율 레벨²+1) × 블록 파괴 속도 속성(1),
+     * 눈이 물에 잠기면 × 물속 채굴 속도(0.2, 친수성이면 0.2·(1 + 4·레벨)), 공중이면 ÷5.
+     * TODO(효과·속성): 성급함·채굴 피로, 아이템 attribute_modifiers 의 채굴 속성.
+     */
+    default float destroySpeed(int state) {
+        ItemStack hand = itemInHand(MAIN_HAND);
+        float f = org.domi.furnace.server.item.ItemTools.destroySpeed(hand, state);
+        if (f > 1.0F) {
+            int eff = org.domi.furnace.server.item.ItemTools.enchantmentLevel(hand, "minecraft:efficiency");
+            if (eff > 0) f += (float) (eff * eff + 1);
+        }
+        f *= 1.0F;   // minecraft:player.block_break_speed 기본값
+        if (eyeInWater()) {
+            int aqua = org.domi.furnace.server.item.ItemTools.enchantmentLevel(headItem(), "minecraft:aqua_affinity");
+            double submerged = 0.2;
+            if (aqua > 0) submerged += 0.2 * (4.0 * aqua);
+            f *= (float) submerged;
+        }
+        if (!onGround()) f /= 5.0F;
+        return f;
+    }
 
     /** Player.canEat(ignoreHunger). */
     default boolean canEat(boolean ignoreHunger) { return ignoreHunger; }

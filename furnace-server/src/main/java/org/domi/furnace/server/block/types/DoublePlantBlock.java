@@ -65,11 +65,15 @@ public class DoublePlantBlock extends BushBlock {
     @Override
     public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {
         if (player.isCreative()) preventDropFromBottomPart(level, pos, state, player);
-        // else: TODO(드롭) Block.dropResources(state, level, pos, null, player, 손 도구) — 위 반쪽을 부숴도 드롭은 여기서
+        else level.dropResources(state, pos, null, player, player.itemInHand(BlockActor.MAIN_HAND));   // 어느 반쪽을 부숴도 드롭은 여기서(도구 무관)
         return super.playerWillDestroy(level, pos, state, player);
     }
 
-    // TODO(드롭): playerDestroy — 공기 상태로 super.playerDestroy(이미 위에서 드롭했으므로).
+    /** playerDestroy: 이미 playerWillDestroy 에서 떨궜으니 공기 상태로(통계·허기만). */
+    @Override
+    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, Object blockEntity, ItemStack tool) {
+        super.playerDestroy(level, player, pos, B.defaultState("air"), blockEntity, tool);
+    }
 
     /** preventDropFromBottomPart: 위 반쪽이면 아래 반쪽을 드롭 없이 지운다(물이면 물로). */
     protected static void preventDropFromBottomPart(BlockLevel level, Pos pos, int state, BlockActor player) {

@@ -39,5 +39,9 @@ public class SculkShriekerBlock extends BaseEntityBlock {
     @Override
     public int getStateForPlacement(PlaceContext ctx) { return WATERLOGGED.with(defaultState(), B.waterAt(ctx)); }
 
-    // TODO(3-4b): spawnAfterBreak — 실크 터치가 아니면 경험치 5.
+    @Override
+    public void spawnAfterBreak(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.ItemStack tool, boolean dropExperience) {
+        super.spawnAfterBreak(state, level, pos, tool, dropExperience);
+        if (dropExperience) tryDropExperience(level, pos, tool, 5, 5);
+    }
 }

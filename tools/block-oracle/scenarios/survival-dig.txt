@@ -1,0 +1,26 @@
+# 서바이벌 부수기 검증: 맨손으로 흙(경도 0.5, 15틱)을 충분히 파면 바로, 짧게 파면 지연 파괴로 마저, 흑요석은 끝내 안 부서진다.
+# 곡괭이로 돌, 손으로 돌(150틱 — 시간 안에 못 끝냄 → 지연 파괴가 남아 있다가 늦게 끝남), 횃불(경도 0 → 시작에 바로)
+tp 2.5 -60 -2.5 0 30
+item 0 stone 64
+item 1 obsidian 64
+item 2 torch 64
+item 3 diamond_pickaxe 1
+hold 0
+use 2 -61 0 up
+use 3 -61 0 up
+hold 1
+use 4 -61 0 up
+hold 2
+use 5 -61 0 up
+cmd gamemode survival
+hold 8
+dig 0 -61 0 up 20
+dig 1 -61 0 up 3
+dig 4 -60 0 up 10
+dig 5 -60 0 up 0
+hold 3
+dig 2 -60 0 up 6
+hold 8
+dig 3 -60 0 up 20
+wait 60
+cmd gamemode creative

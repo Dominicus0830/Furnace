@@ -45,4 +45,10 @@ public class BambooSaplingBlock extends BlockBehavior implements BonemealableBlo
     protected void growBamboo(BlockLevel level, Pos pos) {
         level.setBlock(pos.above(), LEAVES.with(B.defaultState(BAMBOO), "small"), 3);
     }
+
+    /** getDestroyProgress: 칼을 들면 1(한 번에 부서짐). */
+    @Override
+    public float getDestroyProgress(int state, org.domi.furnace.server.block.BlockActor player, BlockLevel level, Pos pos) {
+        return BambooStalkBlock.isSword(player.itemInHand(org.domi.furnace.server.block.BlockActor.MAIN_HAND)) ? 1.0F : super.getDestroyProgress(state, player, level, pos);
+    }
 }

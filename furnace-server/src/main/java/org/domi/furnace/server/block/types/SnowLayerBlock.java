@@ -34,7 +34,7 @@ public class SnowLayerBlock extends BlockBehavior {
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (level.getBlockLight(pos) > 11) {
-            // TODO(3-4b): dropResources(state, level, pos) — 전리품 표 드롭.
+            level.dropResources(state, pos);
             level.removeBlock(pos, false);
         }
     }

@@ -67,8 +67,8 @@ public class TurtleEggBlock extends BlockBehavior {
     }
 
     @Override
-    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, ItemStack tool) {
-        super.playerDestroy(level, player, pos, state, tool);
+    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, Object blockEntity, ItemStack tool) {
+        super.playerDestroy(level, player, pos, state, blockEntity, tool);
         decreaseEggs(level, pos, state);
     }
 

@@ -2,6 +2,7 @@
 // 진동 듣기(게임 이벤트 리스너·블록 엔티티)는 TODO(게임 이벤트).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -134,5 +135,9 @@ public class SculkSensorBlock extends BaseEntityBlock {
         return 0;
     }
 
-    // TODO(드롭): spawnAfterBreak — 손에 섬세한 손길이 없으면 경험치 5.
+    @Override
+    public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {
+        super.spawnAfterBreak(state, level, pos, tool, dropExperience);
+        if (dropExperience) tryDropExperience(level, pos, tool, 5, 5);
+    }
 }

@@ -27,5 +27,10 @@ public class DropExperienceBlock extends org.domi.furnace.server.block.BlockBeha
         this.xpMax = xpMax;
     }
 
-    // TODO(3-4b): spawnAfterBreak — dropExperience 이면 tryDropExperience(level, pos, tool, experience).
+    @Override
+    public void spawnAfterBreak(int state, org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos,
+                                org.domi.furnace.server.entity.ItemStack tool, boolean dropExperience) {
+        super.spawnAfterBreak(state, level, pos, tool, dropExperience);
+        if (dropExperience) tryDropExperience(level, pos, tool, xpMin, xpMax);
+    }
 }

@@ -19,9 +19,9 @@ public class IceBlock extends HalfTransparentBlock {
     public static int meltsInto() { return B.defaultState(WATER); }
 
     @Override
-    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, ItemStack tool) {
-        super.playerDestroy(level, player, pos, state, tool);
-        // TODO(3-4b): EnchantmentHelper.hasTag(tool, #prevents_ice_melting)(섬세한 손길)이면 녹지 않는다.
+    public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, Object blockEntity, ItemStack tool) {
+        super.playerDestroy(level, player, pos, state, blockEntity, tool);
+        if (org.domi.furnace.server.item.ItemTools.hasEnchantmentTag(tool, "minecraft:prevents_ice_melting")) return;
         if (level.ultraWarm()) {
             level.removeBlock(pos, false);
             return;

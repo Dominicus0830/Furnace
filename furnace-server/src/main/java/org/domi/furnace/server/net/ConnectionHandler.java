@@ -735,6 +735,36 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.entity.PlayerData.Snapshot saved =
                 org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        p.inventoryHost(new Player.InventoryHost() {
+            public ItemStack slot(int windowSlot) {
+                ItemStack s = windowSlot >= 0 && windowSlot < slots.length ? slots[windowSlot] : null;
+                return s == null ? ItemStack.EMPTY : s;
+            }
+
+            public int selected() { return selectedSlot; }
+
+            public void replace(int windowSlot, ItemStack expect, ItemStack now) {
+                ctx.channel().eventLoop().execute(() -> {
+                    ItemStack cur = slots[windowSlot] == null ? ItemStack.EMPTY : slots[windowSlot];
+                    if (cur != expect) return;   // 그 사이 인벤토리가 바뀌었으면 손대지 않는다
+                    slots[windowSlot] = now;
+                    fireInventoryChanged(windowSlot);
+                });
+            }
+
+            public int permissionLevel() {
+                org.domi.furnace.server.ServerCore c = login.core;
+                return c == null ? 0 : c.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
+            }
+
+            public boolean allowBreak(int x, int y, int z, int state) {
+                org.domi.furnace.server.ServerCore c = login.core;
+                if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.block.BlockBreakEvent.class)) return true;
+                var ev = c.events().call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld",
+                        new org.domi.furnace.api.world.BlockPos(x, y, z), world.blockRegistry().nameOf(state), c.plugins().player(p)));
+                return !ev.isCancelled();
+            }
+        });
         var vitals = p.vitals();
         if (coreJ != null) vitals.env(coreJ.vitalsEnv());
         vitals.deathListener(keepInventory -> ctx.channel().eventLoop().execute(() -> onPlayerDied(keepInventory)));
@@ -1088,8 +1118,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 frame.readByte();        // face
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
-                if (actor != null && (status == 0 || status == 2)) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
-                else if (actor != null && status == 1) ackLater(actor, bp[0], bp[2], seq);   // 파괴 취소 — ack 만(바닐라도 파괴 동작 셋만 ack)
+                if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
             }
             case 0x28 -> { // recipe_book_change_settings: 책 종류, 열림, 필터
                 int type = Types.readVarInt(frame);
@@ -1230,51 +1259,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /**
-     * 블록 파괴 요청(바닐라 ServerPlayerGameMode.handleBlockBreakAction): 도달 거리·스폰 보호·보더를 보고,
-     * 크리에이티브는 시작(0)에 즉시, 서바이벌은 경도 0 이면 시작에, 아니면 완료(2)에 부순다. 모험·관전은 부수지 못한다.
-     * 서바이벌 파괴 시간(도구 속도·효과) 검증과 드롭은 3단계(아이템·블록 동작)에서 붙는다.
+     * 블록 파괴 요청(player_action 0 시작·1 취소·2 완료 — 바닐라 handlePlayerAction → ServerPlayerGameMode.handleBlockBreakAction → ack).
+     * 거리·높이·스폰 보호·게임 모드 판정과 서바이벌 진행도 검증·드롭은 그 플레이어의 region 에서(BlockBreaking).
      */
     private void handleBlockBreak(Player actor, int status, int bx, int by, int bz, int seq) {
-        if (!blockRequestAllowed(bx, by, bz)) {
-            rejectBlockRequest(actor, seq, bx, by, bz);
-            return;
-        }
         org.domi.furnace.server.ServerCore core = login.core;
-        var mode = actor.gameMode();
-        boolean restricted = mode == org.domi.furnace.server.world.GameMode.ADVENTURE || mode == org.domi.furnace.server.world.GameMode.SPECTATOR;
-        if (core != null && !core.mayInteract(actor, bx, bz) || restricted) {
-            rejectBlockRequest(actor, seq, bx, by, bz);
-            return;
-        }
-        boolean creative = mode == org.domi.furnace.server.world.GameMode.CREATIVE;
+        var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
         world.runAtRequested(bx, bz, actor.x(), actor.z(), region -> {
-            region.level().ackBlockChangesUpTo(actor, seq);   // 바닐라: 틱 끝(변경 방송 뒤)에 ack
-            if (creative && status != 0) return;
-            // 이미 로드된 청크만 수정 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
-            if (region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) {
-                boolean destroy;
-                if (creative) {
-                    destroy = true;
-                } else {
-                    String name = world.blockRegistry().nameOf(region.getBlock(bx, by, bz));
-                    float hardness = org.domi.furnace.server.world.BlockHardness.get().of(name);
-                    boolean air = org.domi.furnace.server.world.BlockAttrs.get().isAir(region.getBlock(bx, by, bz));
-                    destroy = !air && (status == 0 ? hardness == 0.0f : hardness >= 0.0f);
-                }
-                if (destroy && core != null && core.events().hasSubscribers(org.domi.furnace.api.event.block.BlockBreakEvent.class)) {
-                    String type = world.blockRegistry().nameOf(region.getBlock(bx, by, bz));
-                    var ev = core.events().call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld",
-                            new org.domi.furnace.api.world.BlockPos(bx, by, bz), type, core.plugins().player(actor)));
-                    if (ev.isCancelled()) {
-                        destroy = false;
-                        region.resendBlock(actor, bx, by, bz);
-                    }
-                }
-                if (destroy) {
-                    region.breakBlock(actor, bx, by, bz);
-                    if (!creative) actor.vitals().causeFoodExhaustion(0.005f);   // Block.playerDestroy
-                }
+            // 이미 로드된 청크만 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
+            if (by >= ChunkColumn.MIN_Y && by <= ChunkColumn.MAX_Y && region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) {
+                boolean mayInteract = core == null || core.mayInteract(actor, bx, bz);
+                region.handleBlockBreakAction(actor, pos, status, mayInteract);
             }
+            region.level().ackBlockChangesUpTo(actor, seq);   // 바닐라: 처리 뒤 ack(실제 전송은 틱 끝 변경 방송 뒤)
         });
     }
 

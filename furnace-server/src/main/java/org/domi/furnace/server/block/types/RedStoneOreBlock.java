@@ -45,5 +45,9 @@ public class RedStoneOreBlock extends BlockBehavior {
         if (LIT.is(state)) level.setBlock(pos, LIT.with(state, false), 3);
     }
 
-    // TODO(드롭): spawnAfterBreak — 섬세한 손길이 없으면 경험치 1~5.
+    @Override
+    public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {
+        super.spawnAfterBreak(state, level, pos, tool, dropExperience);
+        if (dropExperience) tryDropExperience(level, pos, tool, 1, 5);
+    }
 }

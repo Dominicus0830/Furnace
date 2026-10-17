@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.server.command.Commands;
 import org.domi.furnace.server.config.ServerPropertiesFile;
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.play.EntityEvent;
@@ -419,7 +420,48 @@ public final class ServerCore {
             var dp = dataPacks;
             return b != null && dp != null && dp.loot() != null && dp.loot().registries().tag("minecraft:worldgen/biome", tag).contains(b);
         }
+        public java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity,
+                                                    Float explosionRadius) {
+            return ServerCore.this.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
+        }
     };
+
+    /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */
+    java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity, Float explosionRadius) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null || lootTable == null || lootTable.equals("minecraft:empty")) return java.util.List.of();
+        var loot = dp.loot();
+        var table = loot.table(lootTable);
+        var params = new org.domi.furnace.server.loot.LootParams()
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{x, y, z})
+                .with(org.domi.furnace.server.loot.LootParams.TOOL, lootStack(tool))
+                .with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, lootBlockState(state))
+                .with(org.domi.furnace.server.loot.LootParams.EXPLOSION_RADIUS, explosionRadius);
+        if (entity instanceof Player p) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p));
+        var ctx = table.context(loot, lootWorld, params, 0L);
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        for (var s : table.getRandomItems(ctx)) {
+            ItemStack is = dp.network().toItemStack(s);
+            if (is != null && !is.isEmpty()) out.add(is);
+        }
+        return out;
+    }
+
+    /** 블록 상태 → 전리품 블록 상태(블록 이름과 전체 속성). */
+    private static org.domi.furnace.server.loot.LootBlockState lootBlockState(int state) {
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        java.util.Map<String, String> props = new java.util.LinkedHashMap<>();
+        for (var p : blocks.propsOf(blocks.blockOf(state))) props.put(p.name(), p.valueName(state));
+        return new org.domi.furnace.server.loot.LootBlockState(blocks.name(blocks.blockOf(state)), props);
+    }
+
+    /** 서버 아이템 → 전리품 스택(컴포넌트 패치까지). */
+    private static org.domi.furnace.server.loot.LootStack lootStack(ItemStack s) {
+        if (s == null || s.isEmpty()) return org.domi.furnace.server.loot.LootStack.empty();
+        String name = org.domi.furnace.server.item.ItemContext.name("minecraft:item", s.itemId());
+        return name == null ? org.domi.furnace.server.loot.LootStack.empty()
+                : org.domi.furnace.server.loot.LootStack.of(name, s.count(), s.patch().entries());
+    }
 
     /** 플레이어 생존 상태가 쓰는 서버 쪽 정보·브로드캐스트. */
     public org.domi.furnace.server.entity.PlayerVitals.Env vitalsEnv() { return vitalsEnv; }

@@ -87,7 +87,16 @@ public class BambooStalkBlock extends BlockBehavior implements BonemealableBlock
         }
     }
 
-    // TODO(3-4b): getDestroyProgress — 칼을 들면 1.0(한 번에 부서짐).
+    /** getDestroyProgress: 칼을 들면 1(한 번에 부서짐). */
+    @Override
+    public float getDestroyProgress(int state, org.domi.furnace.server.block.BlockActor player, BlockLevel level, Pos pos) {
+        return isSword(player.itemInHand(org.domi.furnace.server.block.BlockActor.MAIN_HAND)) ? 1.0F : super.getDestroyProgress(state, player, level, pos);
+    }
+
+    /** SwordItem 인가(이름이 _sword). */
+    static boolean isSword(org.domi.furnace.server.entity.ItemStack s) {
+        return org.domi.furnace.server.item.ItemTools.itemName(s).endsWith("_sword");
+    }
 
     protected void growBamboo(int state, BlockLevel level, Pos pos, RandomSource random, int height) {
         int below = level.getBlockState(pos.below());

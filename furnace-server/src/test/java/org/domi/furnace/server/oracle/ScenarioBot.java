@@ -10,6 +10,7 @@
 //   use <x> <y> <z> <면 down|up|north|south|west|east> [cx cy cz] [off] [inside]   use_item_on(커서 기본 0.5)
 //   useitem [off]                    use_item(허공에 사용)
 //   break <x> <y> <z> <면>           player_action 시작(크리에이티브 즉시 파괴)
+//   dig <x> <y> <z> <면> <틱>        시작 → 틱만큼 기다림 → 완료(서바이벌 부수기 — 모자라면 서버가 지연 파괴로 마저 센다)
 //   cmd <명령…>                       채팅 명령(앞의 / 없이)
 //   wait <틱>                         기다림(틱 = 50ms)
 package org.domi.furnace.server.oracle;
@@ -156,6 +157,16 @@ class ScenarioBot {
                         b.writeByte(face);
                         Types.writeVarInt(b, s);
                     });
+                }
+                case "dig" -> {   // dig <x> <y> <z> <면> <틱>: 시작 → 틱만큼 기다림 → 완료(서바이벌 부수기)
+                    int x = Integer.parseInt(a[1]), y = Integer.parseInt(a[2]), z = Integer.parseInt(a[3]);
+                    int face = FACES.indexOf(a[4]);
+                    long packed = ((long) x & 0x3FFFFFF) << 38 | ((long) z & 0x3FFFFFF) << 12 | (long) y & 0xFFF;
+                    int s0 = seq.getAndIncrement();
+                    c.write(0x24, b -> { Types.writeVarInt(b, 0); b.writeLong(packed); b.writeByte(face); Types.writeVarInt(b, s0); });
+                    Thread.sleep(50L * Integer.parseInt(a[5]));
+                    int s1 = seq.getAndIncrement();
+                    c.write(0x24, b -> { Types.writeVarInt(b, 2); b.writeLong(packed); b.writeByte(face); Types.writeVarInt(b, s1); });
                 }
                 case "cmd" -> command(c, line.substring(4));
                 case "wait" -> Thread.sleep(50L * Integer.parseInt(a[1]));
