@@ -63,7 +63,7 @@ public final class ConfigLoader {
             viewDistance = Config.MAX_VIEW_DISTANCE;
         }
         require(entityViewDistance >= 1, "entity-view-distance", entityViewDistance, "1 이상");
-        require(regionSize >= 1, "region-size", regionSize, "1 이상");
+        require(regionSize >= 0, "region-size", regionSize, "0 이상(0 = 월드 전체 한 region)");
         require(regionThreads >= 1, "region-threads", regionThreads, "1 이상");
         require(!levelName.isBlank(), "level-name", 0, "비어 있지 않은 이름(빈 값은 작업 디렉터리를 월드로 쓰게 된다)");
         require(ioThreads >= 1, "io-threads", ioThreads, "1 이상");

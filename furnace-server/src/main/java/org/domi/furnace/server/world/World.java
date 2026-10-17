@@ -409,6 +409,7 @@ public final class World {
 
     /** 엔티티 가시 거리(view-distance로 클램프)가 닿는 인접 region 반경(region 단위). */
     public int neighborRadius() {
+        if (regionSize <= 0) return 0;   // 월드 전체 한 region — 이웃 region 이 없다
         return (int) Math.ceil((double) effectiveEntityChunks() / regionSize) + 1;
     }
 

@@ -149,7 +149,10 @@ public final class FurnaceMain {
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret());
 
-        FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
+        // 월드 전체 한 region(region-size=0)이면 월드 틱 스레드는 하나 — 블록·엔티티 동작은 바닐라처럼 한 스레드에서,
+        // 청크 생성·읽기·저장·직렬화는 따로 풀에서 병렬로 돈다.
+        int tickThreads = config.regionSize() <= 0 ? 1 : config.regionThreads();
+        FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), tickThreads);
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
         ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
@@ -184,7 +187,7 @@ public final class FurnaceMain {
         java.util.concurrent.ExecutorService genPool =
                 java.util.concurrent.Executors.newFixedThreadPool(genThreads);
         World world = new World(anvilSource, chunkPool,
-                scheduler, config.regionThreads(), config.regionSize(), config.viewDistance(),
+                scheduler, tickThreads, config.regionSize(), config.viewDistance(),
                 config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
         if (!levelData.initialized) {
@@ -258,7 +261,7 @@ public final class FurnaceMain {
         core.plugins().pluginsImpl().loadAll();
         core.onSaveAll(() -> {
             java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
-            for (int i = 0; i < config.regionThreads(); i++) {
+            for (int i = 0; i < tickThreads; i++) {
                 final int idx = i;
                 fs.add(scheduler.regionThread(idx).execute(() -> world.flushThread(idx)));
             }
@@ -283,7 +286,7 @@ public final class FurnaceMain {
             try {
                 // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
                 java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
-                for (int i = 0; i < config.regionThreads(); i++) {
+                for (int i = 0; i < tickThreads; i++) {
                     final int idx = i;
                     fs.add(scheduler.regionThread(idx).execute(() -> world.flushThread(idx)));
                 }

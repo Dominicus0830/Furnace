@@ -17,7 +17,7 @@ class ConfigLoaderTest {
         assertEquals(256, c.compressionThreshold());
         assertEquals(5, c.viewDistance());
         assertEquals(8, c.entityViewDistance());
-        assertEquals(16, c.regionSize());
+        assertEquals(0, c.regionSize());   // 기본: 월드 전체 한 region
         assertTrue(c.regionThreads() >= 1);
         assertEquals("world", c.levelName());
         assertEquals(4, c.ioThreads());
@@ -47,7 +47,7 @@ class ConfigLoaderTest {
 
     @Test
     void load_rejectsInvalidValues_withKeyName(@TempDir Path dir) throws Exception {
-        for (String bad : new String[]{"region-size=0", "region-threads=0", "view-distance=1", "view-distance=0", "view-distance=-1", "entity-view-distance=0",
+        for (String bad : new String[]{"region-size=-1", "region-threads=0", "view-distance=1", "view-distance=0", "view-distance=-1", "entity-view-distance=0",
                 "port=70000", "tick-nanos=0", "compression-threshold=-5", "io-threads=0", "autosave-ticks=0",
                 "chunk-eviction-grace-ticks=0", "chunks-per-tick=0", "spawn-chunk-radius=-1", "level-name= "}) {
             Path f = dir.resolve("bad.properties");

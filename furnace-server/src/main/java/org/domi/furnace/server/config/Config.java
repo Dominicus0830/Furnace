@@ -31,7 +31,7 @@ public record Config(String serverName, long tickNanos, int port, int compressio
     }
 
     public static final Config DEFAULT =
-            new Config("Furnace Server", 50_000_000L, 25565, 256, 5, 8, 16,
+            new Config("Furnace Server", 50_000_000L, 25565, 256, 5, 8, 0,
                     Runtime.getRuntime().availableProcessors(),
                     "world", 0L, 4, 6000, 100, 2, 16, "");
 }
