@@ -17,7 +17,6 @@ class PlayerPublishTest {
         p.drainPending();
         assertEquals(100, p.x());
         assertEquals(90f, p.yaw());
-        assertEquals(new RegionPos(0, 0), p.regionPos(16)); // chunk(6,12) → region(0,0)
     }
 
     @Test

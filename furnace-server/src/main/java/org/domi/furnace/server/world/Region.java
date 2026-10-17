@@ -1,15 +1,20 @@
-// region 그리드 셀: 자기 플레이어를 소유하고 매 틱 청크/가시성/핸드오프를 처리한다.
+// 동적 region(Folia 방식): 구역(section) 묶음을 가진 틱 단위. 자기 구역의 청크·플레이어만 만지고, 한 번에 한 작업 스레드가 돈다.
+// 합치기·나누기는 Regionizer 가 틱 사이에 하며, 그때 이 region 의 자료를 위치(청크)에 따라 옮긴다(absorbData·splitData).
 package org.domi.furnace.server.world;
 
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import org.domi.furnace.api.sched.RegionPos;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
+import java.util.function.LongFunction;
 import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
@@ -33,74 +38,240 @@ import org.domi.furnace.server.net.protocol.play.UnloadChunk;
 
 public final class Region {
 
-    // 추적 엔티티가 후보 스냅샷서 사라진 뒤 despawn까지 견디는 틱 수(핸드오프 갭 흡수).
+    // 추적 엔티티가 후보에서 사라진 뒤 despawn까지 견디는 틱 수(합치기·나누기 갭 흡수).
     private static final int ENTITY_DESPAWN_GRACE = 3;
     private static final int LATENCY_BROADCAST_TICKS = 600;   // 바닐라 PlayerList.tick의 핑 갱신 주기
-    private int latencyCounter;
+    /** 한 틱에 작업 큐를 비우는 시간 예산(틱의 절반) — 폭주하는 작업이 게임 틱을 굶기지 못하게. */
+    private static final long DRAIN_BUDGET_NANOS = 25_000_000L;
 
-    private final RegionPos pos;
+    /** 청크 키가 붙은 작업. */
+    record Task(long chunkKey, Consumer<Region> run) {}
+
+    private record Delayed(long dueTick, long chunkKey, Consumer<Region> run) {}
+
+    final int id;
     private final World world;
+
+    // ---- Regionizer 가 잠금 아래에서 다루는 상태
+    volatile boolean alive = true;
+    volatile Region mergedInto;
+    volatile boolean ticking;
+    volatile Thread tickThread;
+    boolean yielded;
+    boolean queued;
+    long nextTickNanos;
+    int ticksSinceRecalc;
+    int deadSections;
+    final Set<Long> sections = new HashSet<>();
+    final Set<Region> pendingMerges = new HashSet<>();
+    /** 이 region 구역의 "있는" 청크 키(로드·로드 중·시야). 쓰기는 Regionizer 잠금 안. */
+    final Set<Long> present = ConcurrentHashMap.newKeySet();
+    final ConcurrentLinkedQueue<Task> inbox = new ConcurrentLinkedQueue<>();
+
+    // ---- 이 region 스레드만 다루는 상태
+    private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> Long.compare(a.dueTick, b.dueTick));
+    private long tickCount;
+    private int latencyCounter;
     private final Map<Integer, Player> players = new HashMap<>();
-    private final Map<ChunkPos, ChunkColumn> chunks = new HashMap<>();
-    private final Map<ChunkPos, CompletableFuture<ChunkColumn>> loading = new HashMap<>();
     private final Map<ChunkPos, Integer> evictGrace = new HashMap<>();
     private final Set<ChunkPos> dirtyChunks = new HashSet<>();
-    private int autosaveCounter; // region별 독립 autosave 카운터(스레드간 공유 플래그 없음 — 경쟁 제거).
+    private int autosaveCounter;
+    private RegionLevel level;
 
-    public Region(RegionPos pos, World world) {
-        this.pos = pos;
+    Region(int id, World world) {
+        this.id = id;
         this.world = world;
     }
 
-    public RegionPos pos() { return pos; }
+    public int id() { return id; }
+
     public Map<Integer, Player> players() { return players; }
 
-    /** 소유 스레드서 로드된 청크 반환. 없으면 동기 generate 폴백(편집은 로드된 청크 대상). */
-    public ChunkColumn chunkAt(ChunkPos cp) {
-        return chunks.computeIfAbsent(cp, p -> {
-            ChunkColumn c = world.worldSource().generate(p.x(), p.z());
-            // 새로 생성된 청크는 바닐라처럼 저장 대상(dirty)으로 남긴다. 디스크에서 읽은 청크는 깨끗하다.
-            if (c.dirty()) dirtyChunks.add(p);
-            return c;
-        });
+    public long tickCount() { return tickCount; }
+
+    /** 지금 스레드가 이 region 을 돌리고 있는가. */
+    public boolean isOwnerThread() { return tickThread == Thread.currentThread(); }
+
+    private Regionizer rz() { return world.regionizer(); }
+
+    // ------------------------------------------------------------------ 틱(Regionizer 작업 스레드)
+
+    /** 작업 큐 → 지연 작업 → (켜져 있으면) 게임 틱. */
+    void runTick(boolean gameTick) {
+        tickCount++;
+        long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
+        Task t;
+        int n = 0;
+        while ((t = inbox.poll()) != null) {
+            runTask(t.run());
+            if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
+        }
+        while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) runTask(delayed.poll().run());
+        if (gameTick) tick();
     }
 
-    /** 소유 스레드서 비동기 청크 로드(IO 풀 read+decode). in-flight dedup. */
+    private void runTask(Consumer<Region> task) {
+        try {
+            task.accept(this);
+        } catch (Throwable e) {
+            org.slf4j.LoggerFactory.getLogger(Region.class).error("[TASK] region #{} 작업 실패", id, e);
+        }
+    }
+
+    /** 이 region 스레드에서: delay 틱 뒤 그 청크 주인에게서 실행(합치기·나누기 때 남은 틱을 지키며 따라간다). */
+    void schedule(long chunkKey, Consumer<Region> task, long delay) {
+        delayed.add(new Delayed(tickCount + Math.max(0, delay), chunkKey, task));
+    }
+
+    // ------------------------------------------------------------------ 합치기·나누기(Regionizer 잠금 안, 둘 다 쉬는 중)
+
+    void absorbData(Region o) {
+        present.addAll(o.present);
+        o.present.clear();
+        for (Delayed d : o.delayed) delayed.add(new Delayed(tickCount + Math.max(0, d.dueTick - o.tickCount), d.chunkKey, d.run));
+        o.delayed.clear();
+        for (Player p : o.players.values()) players.put(p.entityId(), p);
+        o.players.clear();
+        dirtyChunks.addAll(o.dirtyChunks);
+        o.dirtyChunks.clear();
+        evictGrace.putAll(o.evictGrace);
+        o.evictGrace.clear();
+        if (o.level != null) level().absorbFrom(o.level);
+    }
+
+    /** targetOf(청크 키) 가 null 이면 이 region 에 남는다. */
+    void splitData(List<Region> created, LongFunction<Region> targetOf) {
+        for (var it = present.iterator(); it.hasNext(); ) {
+            long k = it.next();
+            Region t = targetOf.apply(k);
+            if (t != null) {
+                t.present.add(k);
+                it.remove();
+            }
+        }
+        List<Delayed> keep = new ArrayList<>();
+        for (Delayed d : delayed) {
+            Region t = targetOf.apply(d.chunkKey);
+            if (t == null) keep.add(d);
+            else t.delayed.add(new Delayed(t.tickCount + Math.max(0, d.dueTick - tickCount), d.chunkKey, d.run));
+        }
+        delayed.clear();
+        delayed.addAll(keep);
+        for (var it = players.values().iterator(); it.hasNext(); ) {
+            Player p = it.next();
+            ChunkPos c = p.chunkPos();
+            Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
+            if (t != null) {
+                t.players.put(p.entityId(), p);
+                it.remove();
+            }
+        }
+        for (var it = dirtyChunks.iterator(); it.hasNext(); ) {
+            ChunkPos c = it.next();
+            Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
+            if (t != null) {
+                t.dirtyChunks.add(c);
+                it.remove();
+            }
+        }
+        for (var it = evictGrace.entrySet().iterator(); it.hasNext(); ) {
+            var e = it.next();
+            Region t = targetOf.apply(Regionizer.chunkKey(e.getKey().x(), e.getKey().z()));
+            if (t != null) {
+                t.evictGrace.put(e.getKey(), e.getValue());
+                it.remove();
+            }
+        }
+        for (Region t : created) {
+            t.tickCount = tickCount;
+            t.autosaveCounter = autosaveCounter;
+            t.latencyCounter = latencyCounter;
+            if (level != null) level.splitInto(t.level(), (cx, cz) -> targetOf.apply(Regionizer.chunkKey(cx, cz)) == t);
+        }
+    }
+
+    /** 나누기 뒤 아무것도 없는 region 인가(없애도 되는가). */
+    boolean isIdleEmpty() {
+        return players.isEmpty() && present.isEmpty() && inbox.isEmpty() && delayed.isEmpty() && (level == null || !level.hasPendingAcks());
+    }
+
+    // ------------------------------------------------------------------ 청크
+
+    /** 이 region 구역의 로드된 청크(아니면 null). */
+    ChunkColumn ownedChunk(int cx, int cz) {
+        if (!rz().owns(this, cx, cz)) return null;
+        return world.loadedChunk(cx, cz);
+    }
+
+    /** 이 region 구역의 청크를 얻거나(없으면 동기 생성 — 테스트·도구용, 편집은 로드된 청크 대상). */
+    public ChunkColumn chunkAt(ChunkPos cp) {
+        world.assertOwns(this);
+        ChunkColumn c = world.loadedChunk(cp.x(), cp.z());
+        if (c != null) return c;
+        claim(cp);
+        c = world.worldSource().generate(cp.x(), cp.z());
+        world.putChunk(cp.x(), cp.z(), c);
+        // 새로 생성된 청크는 바닐라처럼 저장 대상(dirty)으로 남긴다. 디스크에서 읽은 청크는 깨끗하다.
+        if (c.dirty()) dirtyChunks.add(cp);
+        return c;
+    }
+
+    /** 청크를 이 region 의 "있는 청크"로(구역이 다른 region 것이면 합칠 대상으로 잇는다). */
+    private void claim(ChunkPos cp) {
+        Region owner = rz().want(cp.x(), cp.z(), this);
+        if (owner != this) {
+            throw new IllegalStateException("청크 " + cp + " 는 region #" + owner.id + " 것인데 #" + id + " 에서 접근");
+        }
+    }
+
+    /** 이 region 스레드에서 비동기 청크 로드(IO 풀 read+decode). 진행 중이면 같은 future. */
     public CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp) {
-        world.assertOwns(pos);
-        ChunkColumn present = chunks.get(cp);
-        if (present != null) return CompletableFuture.completedFuture(present);
-        CompletableFuture<ChunkColumn> inflight = loading.get(cp);
+        world.assertOwns(this);
+        ChunkColumn present0 = world.loadedChunk(cp.x(), cp.z());
+        if (present0 != null) return CompletableFuture.completedFuture(present0);
+        long key = Regionizer.chunkKey(cp.x(), cp.z());
+        CompletableFuture<ChunkColumn> inflight = world.loadingChunk(key);
         if (inflight != null) return inflight;
+        claim(cp);
         CompletableFuture<ChunkColumn> sourceFuture =
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                         ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioPool(), world.genPool())
                         : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
-        // 실패해도 loading에서 반드시 제거한다 — 남겨 두면 같은 실패한 future가 영원히 반환되고 region이 reap되지 않는다.
-        CompletableFuture<ChunkColumn> f = sourceFuture.handleAsync((col, err) -> {
-            loading.remove(cp);
-            if (err != null) {
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
-                throw new java.util.concurrent.CompletionException(err);
-            }
-            if (col.dirty()) dirtyChunks.add(cp);
-            chunks.put(cp, col);
-            return col;
-        }, r -> world.scheduler().region(pos).execute(r));
-        loading.put(cp, f);
+        CompletableFuture<ChunkColumn> f = new CompletableFuture<>();
+        world.putLoading(key, f);
+        // 완료는 그때의 주인 region 에서(그 사이 합쳐지거나 나뉘었을 수 있다). 실패해도 진행 중 표시는 반드시 지운다.
+        sourceFuture.whenComplete((col, err) -> world.runAtChunk(cp, r -> r.finishLoad(cp, key, col, err, f)));
         return f;
     }
 
-    /** 소유 스레드서 그 청크가 이미 로드돼 있는가. 클라 요청이 임의 좌표의 청크를 새로 생성시키지 못하게 하는 게이트용. */
+    private void finishLoad(ChunkPos cp, long key, ChunkColumn col, Throwable err, CompletableFuture<ChunkColumn> f) {
+        world.removeLoading(key, f);
+        if (err != null) {
+            org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
+            rz().release(this, cp.x(), cp.z());
+            f.completeExceptionally(err);
+            return;
+        }
+        ChunkColumn existing = world.loadedChunk(cp.x(), cp.z());
+        if (existing != null) {   // 그 사이 동기 생성 경로가 먼저 넣었다
+            f.complete(existing);
+            return;
+        }
+        if (col.dirty()) dirtyChunks.add(cp);
+        world.putChunk(cp.x(), cp.z(), col);
+        f.complete(col);
+    }
+
+    /** 이 region 스레드에서 그 청크가 이미 로드돼 있는가. 클라 요청이 임의 좌표의 청크를 새로 생성시키지 못하게 하는 게이트용. */
     public boolean chunkLoaded(ChunkPos cp) {
-        world.assertOwns(pos);
-        return chunks.containsKey(cp);
+        world.assertOwns(this);
+        return ownedChunk(cp.x(), cp.z()) != null;
     }
 
     /** 거부된 요청의 클라 예측을 되돌린다 — 로드된 청크면 서버의 실제 블록 상태를 actor에게 다시 보낸다(미로드면 보낼 게 없음). */
     public void resendBlock(Player actor, int bx, int by, int bz) {
-        world.assertOwns(pos);
-        ChunkColumn col = chunks.get(ChunkPos.ofBlock(bx, bz));
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(bx >> 4, bz >> 4);
         if (col == null) return;
         actor.send(new BlockUpdate(bx, by, bz, col.getBlock(bx & 15, by, bz & 15)));
     }
@@ -112,19 +283,14 @@ public final class Region {
         return l;
     }
 
-    private RegionLevel level;
-
-    /** 로드돼 있는 청크(없으면 null — 생성하지 않는다). */
-    ChunkColumn loadedChunk(int chunkX, int chunkZ) { return chunks.get(new ChunkPos(chunkX, chunkZ)); }
-
     void markChunkDirty(ChunkPos cp) { dirtyChunks.add(cp); }
 
     /**
-     * 소유 스레드서 플레이어 파괴(바닐라 ServerPlayerGameMode.destroyBlock 의 월드 부분): 다른 플레이어에게 파괴 효과(2001),
+     * 이 region 스레드에서 플레이어 파괴(바닐라 ServerPlayerGameMode.destroyBlock 의 월드 부분): 다른 플레이어에게 파괴 효과(2001),
      * removeBlock(이웃 갱신 포함). 변경 방송은 틱 끝. breaker 가 null 이면 효과를 모두에게.
      */
     public boolean breakBlock(Player breaker, int bx, int by, int bz) {
-        world.assertOwns(pos);
+        world.assertOwns(this);
         chunkAt(ChunkPos.ofBlock(bx, bz));   // 로드 보장(호출 쪽이 보통 이미 확인)
         RegionLevel l = level();
         org.domi.furnace.server.block.Pos p = new org.domi.furnace.server.block.Pos(bx, by, bz);
@@ -140,7 +306,7 @@ public final class Region {
         level().broadcastChanges();
     }
 
-    /** 이 region 소속 플레이어 중 그 상자를 열어 둔 사람의 화면을 닫는다(§3.5). 다른 region 소속은 범위 밖(design result.md Issues #5). */
+    /** 이 region 소속 플레이어 중 그 상자를 열어 둔 사람의 화면을 닫는다(§3.5). */
     void closeChestScreens(int bx, int by, int bz) {
         for (Player pl : players.values()) {
             int[] open = pl.openChestPos();
@@ -151,34 +317,31 @@ public final class Region {
         }
     }
 
-    /** 소유 스레드서 블록 조회(0x38 체스트 판별용). */
+    /** 이 region 스레드에서 블록 조회(0x38 체스트 판별용). */
     public int getBlock(int x, int y, int z) {
-        world.assertOwns(pos);
-        ChunkPos cp = ChunkPos.ofBlock(x, z);
-        return chunkAt(cp).getBlock(x & 15, y, z & 15);
+        world.assertOwns(this);
+        return chunkAt(ChunkPos.ofBlock(x, z)).getBlock(x & 15, y, z & 15);
     }
 
-    /** 바이옴 quart 의 레지스트리 id(청크가 없으면 -1). 소유 스레드에서만. */
+    /** 바이옴 quart 의 레지스트리 id(청크가 없거나 이 region 것이 아니면 -1). 이 region 스레드에서만. */
     public int biomeIdAtQuart(int qx, int qy, int qz) {
-        world.assertOwns(pos);
-        ChunkPos cp = new ChunkPos(qx >> 2, qz >> 2);
-        if (!chunkLoaded(cp)) return -1;
-        ChunkColumn col = chunkAt(cp);
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(qx >> 2, qz >> 2);
+        if (col == null) return -1;
         int sec = ((qy << 2) - col.minY()) >> 4;
         if (sec < 0 || sec >= col.sections().length) return -1;
         return col.sections()[sec].getBiome(qx & 3, qy & 3, qz & 3);
     }
 
-    /** 소유 스레드서 체스트 블록엔티티 조회(없으면 null). */
+    /** 이 region 스레드에서 체스트 블록엔티티 조회(없으면 null). */
     public ChestBlockEntity chestAt(int x, int y, int z) {
-        world.assertOwns(pos);
-        ChunkPos cp = ChunkPos.ofBlock(x, z);
-        return chunkAt(cp).chestAt(x, y, z);
+        world.assertOwns(this);
+        return chunkAt(ChunkPos.ofBlock(x, z)).chestAt(x, y, z);
     }
 
     /** 체스트 슬롯 갱신(Container Click). 존재하지 않으면 무시. 청크 dirty 마크(영속, §3.6). */
     public void setChestItem(int cx, int cy, int cz, int slot, ItemStack item) {
-        world.assertOwns(pos);
+        world.assertOwns(this);
         ChunkPos cp = ChunkPos.ofBlock(cx, cz);
         ChestBlockEntity chest = chunkAt(cp).chestAt(cx, cy, cz);
         if (chest == null || slot < 0 || slot >= chest.items.length) return;
@@ -189,7 +352,7 @@ public final class Region {
 
     /** 상자 내용이 바뀌었음(전리품 채우기 등) — 청크를 저장 대상으로. */
     public void markChestChanged(int cx, int cy, int cz) {
-        world.assertOwns(pos);
+        world.assertOwns(this);
         ChunkPos cp = ChunkPos.ofBlock(cx, cz);
         chunkAt(cp).markDirty();
         dirtyChunks.add(cp);
@@ -213,7 +376,7 @@ public final class Region {
      * 플래그 11 로 놓고 바로 방송한다. 플레이어 설치는 BlockPlacement 경로를 탄다.
      */
     public boolean placeBlock(int bx, int by, int bz, int stateId) {
-        world.assertOwns(pos);
+        world.assertOwns(this);
         if (org.domi.furnace.server.block.BlockInfo.get().isAir(stateId)) return false;
         chunkAt(ChunkPos.ofBlock(bx, bz));
         RegionLevel l = level();
@@ -229,7 +392,7 @@ public final class Region {
     public void saveDirtyChunks() {
         if (dirtyChunks.isEmpty()) return;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
-            ChunkColumn col = chunks.get(cp);
+            ChunkColumn col = ownedChunk(cp.x(), cp.z());
             if (col != null && col.dirty()) {
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
                 col.clearDirty();
@@ -238,24 +401,34 @@ public final class Region {
         }
     }
 
-    /** 구독자 0인 청크를 grace 후 퇴출(dirty면 저장). 매 틱 호출. */
+    /** 구독자 0인 "있는 청크"를 grace 후 퇴출(dirty면 저장). 로드 중인 청크는 끝날 때까지 둔다. 매 틱 호출. */
     private void evictIdleChunks() {
-        var it = chunks.entrySet().iterator();
-        while (it.hasNext()) {
-            var e = it.next();
-            ChunkPos cp = e.getKey();
-            if (!world.subscribers(cp).isEmpty()) { evictGrace.remove(cp); continue; }
+        List<Long> drop = null;
+        for (long key : present) {
+            ChunkPos cp = new ChunkPos(Regionizer.chunkX(key), Regionizer.chunkZ(key));
+            if (!world.subscribers(cp).isEmpty() || world.loadingChunk(key) != null) { evictGrace.remove(cp); continue; }
             int g = evictGrace.merge(cp, 1, Integer::sum);
             if (g >= world.chunkEvictionGraceTicks()) {
-                ChunkColumn col = e.getValue();
+                if (drop == null) drop = new ArrayList<>();
+                drop.add(key);
+            }
+        }
+        if (drop == null) return;
+        for (long key : drop) {
+            int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+            ChunkPos cp = new ChunkPos(cx, cz);
+            ChunkColumn col = world.loadedChunk(cx, cz);
+            if (col != null) {
                 if (col.dirty()) {
-                    world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
+                    world.saveChunkAsync(ChunkSnapshot.forSave(cx, cz, col));
                     col.clearDirty();
                 }
-                it.remove();
-                evictGrace.remove(cp);
-                dirtyChunks.remove(cp);
+                world.removeChunk(cx, cz);
             }
+            if (level != null) level.chunkUnloaded();
+            evictGrace.remove(cp);
+            dirtyChunks.remove(cp);
+            rz().release(this, cx, cz);
         }
     }
 
@@ -263,22 +436,16 @@ public final class Region {
         return dirtyChunks.size();
     }
 
-    /** 플레이어·청크·로딩중 모두 없으면 true — tickThread가 빈 region을 regionsByThread서 제거. */
-    boolean isEmpty() {
-        return players.isEmpty() && chunks.isEmpty() && loading.isEmpty() && (level == null || !level.hasPendingAcks());
-    }
-
-    /** 소유 스레드서 플레이어 편입. */
+    /** 이 region 스레드에서 플레이어 편입. */
     public void adopt(Player p) {
-        world.assertOwns(pos);
-        p.currentRegion(pos);
+        world.assertOwns(this);
         players.put(p.entityId(), p);
         world.playerOnline(p);   // 멱등 — 접속 등록이 누락돼도 탭/가시성 기준 집합에 항상 포함
     }
 
-    /** 소유 스레드서 매 틱 호출. */
+    /** 이 region 스레드에서 매 틱(게임 틱) 호출. */
     public void tick() {
-        world.assertOwns(pos);
+        world.assertOwns(this);
         if (level != null) level.tickBlocks();   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 변경 방송 → 블록 이벤트 → 엔티티
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();
@@ -296,25 +463,21 @@ public final class Region {
             processMoves(p);
             p.drainPending();
             tickVitals(p);
-            RegionPos now = p.regionPos(world.regionSize());
-            if (!now.equals(pos)) {     // 경계 넘음 → 핸드오프
+            ChunkPos c = p.chunkPos();
+            Region owner = rz().ownerOf(c.x(), c.z());
+            if (owner != this && (owner == null || !rz().merging(this, owner))) {
+                // 텔레포트 등으로 다른 region(또는 아무도 없는 곳)에 섰다 → 그 청크 주인에게 넘긴다
                 it.remove();
-                // broadcastRemove 안 함 — 가시성은 스냅샷 구동. 인접 region으로 넘어가도
-                // candidatesAround가 계속 후보로 보므로 관찰자는 끊김 없이 추적 유지(깜빡임 방지).
                 handoff.add(p);
                 continue;
             }
             updateChunks(p);
             sendQueuedChunks(p);
         }
-        // 플레이어 없는 region은 가시성 계산(candidatesAround)·스냅샷 빌드 생략 — 빈 region tick 비용 제거.
-        // 스냅샷은 빈 리스트로 갱신해 이전 틱 엔티티가 스테일로 남지 않게 한다.
         if (!players.isEmpty()) {
-            List<EntityView> views = new ArrayList<>(players.size());
-            for (Player p : players.values()) views.add(EntityView.of(p));
-            world.publishSnapshot(pos, List.copyOf(views));
-            // 인접 region 스냅샷까지 후보로 가시성 계산.
-            List<EntityView> candidates = world.candidatesAround(pos, world.neighborRadius());
+            // 시야가 닿는 플레이어는 모두 같은 region 에 있다(시야 청크를 가진 region 끼리는 합쳐진다).
+            List<EntityView> candidates = new ArrayList<>(players.size());
+            for (Player p : players.values()) candidates.add(EntityView.of(p));
             for (Player p : players.values()) {
                 updateVisibility(p, candidates);
             }
@@ -322,12 +485,10 @@ public final class Region {
                 latencyCounter = 0;
                 broadcastLatencies();
             }
-        } else {
-            world.publishSnapshot(pos, List.of());
         }
         for (Player p : handoff) {
-            RegionPos target = p.regionPos(world.regionSize());
-            world.scheduler().region(target).execute(() -> world.regionAt(target).adopt(p));
+            ChunkPos c = p.chunkPos();
+            world.runAtChunk(c, r -> r.adopt(p));
         }
         if (level != null) level.flushAcks();   // 바닐라: 연결 틱 첫머리의 블록 변경 ack — 이 틱의 방송 뒤
         evictIdleChunks();
@@ -363,7 +524,7 @@ public final class Region {
                 c = last;
             } else {
                 lastPos = new ChunkPos(cx, cz);
-                last = c = chunks.get(lastPos);
+                last = c = ownedChunk(cx, cz);
             }
             if (c == null) return -1;
             if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return ChunkSection.AIR;
@@ -398,7 +559,7 @@ public final class Region {
         PlayerProbe probe = world.probe();
         PlayerVitals.Surroundings s;
         double x = p.x(), y = p.y(), z = p.z();
-        if (probe == null || !chunks.containsKey(ChunkPos.ofBlock(x, z))) {
+        if (probe == null || ownedChunk((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4) == null) {
             s = PlayerVitals.Surroundings.NONE;
         } else {
             boolean sneaking = p.sneaking();
@@ -463,6 +624,7 @@ public final class Region {
                 ChunkPos cp = new ChunkPos(center.x() + dx, center.z() + dz);
                 if (p.loadedChunks().add(cp)) {   // 새로 시야 진입
                     world.subscribeChunk(cp, p);
+                    rz().want(cp.x(), cp.z(), this);   // 시야 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
                     toQueue.add(cp);              // 전송 대기열(아직 미전송)
                 }
             }

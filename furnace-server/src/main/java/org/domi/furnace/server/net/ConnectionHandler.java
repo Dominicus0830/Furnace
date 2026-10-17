@@ -56,12 +56,10 @@ import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.domi.furnace.server.net.registry.RegistrySet;
-import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
-import org.domi.furnace.server.world.RegionGrid;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -955,8 +953,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             }
                         }
                         send(ctx, new ChunkBatchFinished(sent));
-                        RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
-                        world.runOn(spawn, () -> world.regionAt(spawn).adopt(p));
+                        world.runAt(sx, sz, r -> r.adopt(p));
                         spawnChunksDelivered = true;
                         maybeReleaseSpawnGate();
                     });
@@ -1215,9 +1212,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                 }
                 if (!chestUpdates.isEmpty() && chestPos != null) {
-                    RegionPos rp = RegionGrid.regionPos(chestPos[0], chestPos[2], world.regionSize());
-                    world.runOn(rp, () -> {
-                        Region region = world.regionAt(rp);
+                    world.runAt(chestPos[0], chestPos[2], region -> {
                         if (!region.chunkLoaded(ChunkPos.ofBlock(chestPos[0], chestPos[2]))) return; // 미로드 청크를 생성/로드하지 않는다
                         for (var e : chestUpdates.entrySet()) {
                             region.setChestItem(chestPos[0], chestPos[1], chestPos[2], e.getKey(), e.getValue());
@@ -1252,9 +1247,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         boolean creative = mode == org.domi.furnace.server.world.GameMode.CREATIVE;
-        RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
-        world.runOn(br, () -> {
-            Region region = world.regionAt(br);
+        world.runAt(bx, bz, region -> {
             region.level().ackBlockChangesUpTo(actor, seq);   // 바닐라: 틱 끝(변경 방송 뒤)에 ack
             if (creative && status != 0) return;
             // 이미 로드된 청크만 수정 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
@@ -1372,9 +1365,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         float angle = p.vitals().respawnAngle();
-        RegionPos r = RegionGrid.regionPos(rp[0], rp[2], world.regionSize());
-        world.runOn(r, () -> {
-            Region region = world.regionAt(r);
+        world.runAt(rp[0], rp[2], region -> {
             var attrs = org.domi.furnace.server.world.BlockAttrs.get();
             int a = region.getBlock(rp[0], rp[1], rp[2]), b = region.getBlock(rp[0], rp[1] + 1, rp[2]);
             // Block.isPossibleToRespawnInThis: 단단하지 않고 액체가 아님(발·머리 두 칸)
@@ -1498,9 +1489,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int permission = core == null ? 0 : core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
         var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
         var hit = new org.domi.furnace.server.block.Hit(pos, face, bp[0] + (double) cx, bp[1] + (double) cy, bp[2] + (double) cz, inside);
-        RegionPos rp = RegionGrid.regionPos(bp[0], bp[2], world.regionSize());
-        world.runOn(rp, () -> {
-            Region region = world.regionAt(rp);
+        world.runAt(bp[0], bp[2], region -> {
             var level = region.level();
             level.ackBlockChangesUpTo(actor, seq);
             var pa = new org.domi.furnace.server.block.PlayerActor(actor, main, off, permission) {
@@ -1567,14 +1556,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
             return;
         }
-        RegionPos rp = RegionGrid.regionPos(p.x(), p.z(), world.regionSize());
-        if (rp.equals(here.pos())) {
-            if (here.level().hasChunkAt(p)) {
-                actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
-            }
+        if (here.level().hasChunkAt(p)) {
+            actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
             return;
         }
-        world.runOn(rp, () -> world.regionAt(rp).resendBlock(actor, p.x(), p.y(), p.z()));
+        world.runAt(p.x(), p.z(), r -> r.resendBlock(actor, p.x(), p.y(), p.z()));   // 다른 region 의 칸(합쳐지기 전)
     }
 
     /** 위치 기준 발전 과제(placed_block·item_used_on_block·default_block_use·any_block_use). */
@@ -1592,18 +1578,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             ackLater(actor, bx, bz, seq);
             return;
         }
-        RegionPos rp = RegionGrid.regionPos(bx, bz, world.regionSize());
-        world.runOn(rp, () -> {
-            world.regionAt(rp).resendBlock(actor, bx, by, bz);
-            world.regionAt(rp).level().ackBlockChangesUpTo(actor, seq);
+        world.runAt(bx, bz, r -> {
+            r.resendBlock(actor, bx, by, bz);
+            r.level().ackBlockChangesUpTo(actor, seq);
         });
     }
 
     /** 블록 요청 ack 를 그 칸 region 의 틱 끝으로(바닐라: 연결 틱 첫머리 — 그 틱의 블록 변경 방송 뒤). */
     private void ackLater(Player actor, int bx, int bz, int seq) {
         if (seq < 0) return;
-        RegionPos rp = RegionGrid.regionPos(bx, bz, world.regionSize());
-        world.runOn(rp, () -> world.regionAt(rp).level().ackBlockChangesUpTo(actor, seq));
+        world.runAt(bx, bz, r -> r.level().ackBlockChangesUpTo(actor, seq));
     }
 
     @Override
@@ -1800,12 +1784,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int containerId = nextContainerId;
         nextContainerId = nextContainerId % 100 + 1; // 1..100 순환(vanilla 관례), 0은 자기 인벤 예약
         p.openChest(containerId, x, y, z);
-        RegionPos rp = RegionGrid.regionPos(x, z, world.regionSize());
-        scheduler.region(rp).submit(() -> {
-            ChestBlockEntity chest = world.regionAt(rp).chestAt(x, y, z);
+        world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> {
+            ChestBlockEntity chest = region.chestAt(x, y, z);
             if (chest != null && chest.lootTable != null && login.core != null) {
                 login.core.unpackLoot(chest, p);   // 바닐라 startOpen → unpackLootTable(player)
-                world.regionAt(rp).markChestChanged(x, y, z);
+                region.markChestChanged(x, y, z);
             }
             ItemStack[] out = new ItemStack[ChestBlockEntity.SLOTS];
             if (chest != null) System.arraycopy(chest.items, 0, out, 0, ChestBlockEntity.SLOTS);

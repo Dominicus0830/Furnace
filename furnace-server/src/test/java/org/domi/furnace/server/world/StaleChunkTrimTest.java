@@ -26,7 +26,7 @@ class StaleChunkTrimTest {
         p.publishPosition(8, -60, 8, 0, 0, true);
         p.drainPending();
         RegionPos rp = new RegionPos(0, 0);
-        RegionPos far = RegionGrid.regionPos(16 * 400 + 8, 8, 16);
+        RegionPos far = new RegionPos(400, 0);   // 청크 좌표
         try {
             sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
             sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();   // 41x41=1681청크 큐잉(>512)

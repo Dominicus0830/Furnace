@@ -1,9 +1,13 @@
 // 서버 런타임 설정 값
 package org.domi.furnace.server.config;
 
-/** velocitySecret: 비어 있지 않으면 Velocity 모던 포워딩을 켠다(Paper proxies.velocity.secret). */
+/**
+ * velocitySecret: 비어 있지 않으면 Velocity 모던 포워딩을 켠다(Paper proxies.velocity.secret).
+ * regionSectionShift·regionMergeRadius: 동적 region(Folia 방식)의 구역 크기(2^shift 청크)와 합치기 반경(구역 단위),
+ * regionThreads: region 을 돌리는 작업 스레드 수.
+ */
 public record Config(String serverName, long tickNanos, int port, int compressionThreshold,
-                     int viewDistance, int entityViewDistance, int regionSize, int regionThreads,
+                     int viewDistance, int entityViewDistance, int regionSectionShift, int regionMergeRadius, int regionThreads,
                      String levelName, long levelSeed, int ioThreads, int autosaveTicks,
                      int chunkEvictionGraceTicks, int spawnChunkRadius, int chunksPerTick,
                      String velocitySecret) {
@@ -26,12 +30,12 @@ public record Config(String serverName, long tickNanos, int port, int compressio
         int compression = sp.networkCompressionThreshold < 0 ? -1 : sp.networkCompressionThreshold;
         int view = Math.clamp(sp.viewDistance, MIN_VIEW_DISTANCE, MAX_VIEW_DISTANCE);
         String level = worldOverride != null ? worldOverride : sp.levelName;
-        return new Config(sp.motd, tickNanos, port, compression, view, entityViewDistance, regionSize, regionThreads,
+        return new Config(sp.motd, tickNanos, port, compression, view, entityViewDistance, regionSectionShift, regionMergeRadius, regionThreads,
                 level, seed, ioThreads, autosaveTicks, chunkEvictionGraceTicks, spawnChunkRadius, chunksPerTick, velocitySecret);
     }
 
     public static final Config DEFAULT =
-            new Config("Furnace Server", 50_000_000L, 25565, 256, 5, 8, 0,
+            new Config("Furnace Server", 50_000_000L, 25565, 256, 5, 8, 4, 1,
                     Runtime.getRuntime().availableProcessors(),
                     "world", 0L, 4, 6000, 100, 2, 16, "");
 }

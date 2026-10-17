@@ -9,12 +9,10 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
-import org.domi.furnace.server.world.RegionGrid;
 
 public final class Player {
 
@@ -38,7 +36,6 @@ public final class Player {
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
-    private volatile RegionPos currentRegion;     // 현재 소유 region(adopt가 설정)
     // 유효 view distance = min(서버 view-distance, 클라 요청). ClientInformation(config 0x00/play 0x0A)서 갱신.
     // 게임중 클라가 렌더거리 바꾸면 0x0A로 다시 옴 → 갱신. onEnterPlay서 초기 설정.
     private volatile int viewDistance = 10;
@@ -80,16 +77,10 @@ public final class Player {
         return true;
     }
 
-    public RegionPos regionPos(int regionSize) {
-        return RegionGrid.regionPos(x, z, regionSize);
-    }
-
     public void markDisconnected() { this.disconnected = true; }
     public boolean isDisconnected() { return disconnected; }
     public int viewDistance() { return viewDistance; }
     public void viewDistance(int vd) { this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd); }
-    public RegionPos currentRegion() { return currentRegion; }
-    public void currentRegion(RegionPos r) { this.currentRegion = r; }
 
     /** 패킷을 이 플레이어 채널로 전송(IO eventLoop 마샬). region 스레드서 호출 안전. */
     public void send(Packet packet) {

@@ -149,10 +149,8 @@ public final class FurnaceMain {
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret());
 
-        // 월드 전체 한 region(region-size=0)이면 월드 틱 스레드는 하나 — 블록·엔티티 동작은 바닐라처럼 한 스레드에서,
-        // 청크 생성·읽기·저장·직렬화는 따로 풀에서 병렬로 돈다.
-        int tickThreads = config.regionSize() <= 0 ? 1 : config.regionThreads();
-        FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), tickThreads);
+        // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
+        FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
         ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
@@ -187,7 +185,7 @@ public final class FurnaceMain {
         java.util.concurrent.ExecutorService genPool =
                 java.util.concurrent.Executors.newFixedThreadPool(genThreads);
         World world = new World(anvilSource, chunkPool,
-                scheduler, tickThreads, config.regionSize(), config.viewDistance(),
+                scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),
                 config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
         if (!levelData.initialized) {
@@ -247,7 +245,7 @@ public final class FurnaceMain {
         world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
         world.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
         world.setRegistries(blockRegistry, itemRegistry);
-        scheduler.setRegionTick(world::tickThread);
+        world.startTicking();
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
@@ -260,12 +258,7 @@ public final class FurnaceMain {
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().loadAll();
         core.onSaveAll(() -> {
-            java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
-            for (int i = 0; i < tickThreads; i++) {
-                final int idx = i;
-                fs.add(scheduler.regionThread(idx).execute(() -> world.flushThread(idx)));
-            }
-            for (var f : fs) f.join();
+            for (var f : world.flushAll()) f.join();
             saveLevelData.run();
         });
         NetworkServer network = new NetworkServer(
@@ -285,11 +278,7 @@ public final class FurnaceMain {
             network.stop();
             try {
                 // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
-                java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
-                for (int i = 0; i < tickThreads; i++) {
-                    final int idx = i;
-                    fs.add(scheduler.regionThread(idx).execute(() -> world.flushThread(idx)));
-                }
+                java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = world.flushAll();
                 // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 타임아웃을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
                 long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
                 for (var f : fs) {
@@ -329,7 +318,7 @@ public final class FurnaceMain {
         scheduler.global().executeDelayed(new Repeating(scheduler, core::tick, 1), 1);
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
-        scheduler.global().executeDelayed(new TpsHeartbeat(scheduler), 100);
+        scheduler.global().executeDelayed(new TpsHeartbeat(scheduler, world), 100);
 
         log.info("Done ({})! For help, type \"help\"",
                 String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
@@ -349,11 +338,11 @@ public final class FurnaceMain {
         }
     }
 
-    /** 5초(100틱)마다 region TPS를 로그하고 자신을 재예약하는 하트비트. */
-    private record TpsHeartbeat(FurnaceSchedulerImpl scheduler) implements Runnable {
+    /** 5초(100틱)마다 region 수를 로그하고 자신을 재예약하는 하트비트. */
+    private record TpsHeartbeat(FurnaceSchedulerImpl scheduler, World world) implements Runnable {
         @Override
         public void run() {
-            log.debug("region TPS = {}", String.format("%.1f", scheduler.regionThread().measuredTps()));
+            log.debug("regions = {}", world.regionCount());
             scheduler.global().executeDelayed(this, 100);
         }
     }

@@ -23,7 +23,6 @@ import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.ChunkSection;
-import org.domi.furnace.server.world.RegionGrid;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
@@ -83,7 +82,7 @@ class ConnectionInputTest {
         ch.runPendingTasks();
         assertEquals(-1, (int) field("pendingTeleportId"), "스폰 게이트가 풀려야 한다");
         p = (Player) field("player");
-        RegionPos sp = RegionGrid.regionPos(spawn.playerX(), spawn.playerZ(), 16);
+        RegionPos sp = new RegionPos(Math.floorDiv((int) Math.floor(spawn.playerX()), 16), Math.floorDiv((int) Math.floor(spawn.playerZ()), 16));
         sched.region(sp).execute(() -> { }).get();
         p.drainPending();
         joinOut = drainOutbound();   // 접속 중 나간 패킷(검증용으로 보관)
@@ -440,7 +439,7 @@ class ConnectionInputTest {
             Types.writeVarInt(b, 0);          // carried 비어있음
         }));
         List<int[]> out = drainOutbound();
-        RegionPos frp = RegionGrid.regionPos(1000, 1000, 16);
+        RegionPos frp = new RegionPos(1000 >> 4, 1000 >> 4);
         boolean[] loaded = new boolean[1];
         sched.region(frp).execute(() -> loaded[0] = world.regionAt(frp).chunkLoaded(far)).get();
         assertFalse(loaded[0], "미로드 체스트 청크를 만들면 안 된다");
@@ -481,11 +480,11 @@ class ConnectionInputTest {
         }
         for (int i = 0; i < 20; i++) { ch.runPendingTasks(); Thread.sleep(25); }
         for (int[] b : bad) {
-            RegionPos rp = RegionGrid.regionPos(b[0], b[2], 16);
+            RegionPos rp = new RegionPos(b[0] >> 4, b[2] >> 4);
             assertFalse(loaded(world, rp, b[0], b[2]), "거부된 요청이 청크를 생성했다: " + java.util.Arrays.toString(b));
         }
         // 바닐라: ack 는 틱 끝에 한 번(그 틱에 받은 가장 큰 sequence) — 요청마다가 아니다. region 을 한 틱 돌려 내보낸다.
-        sched.region(new RegionPos(0, 0)).execute(() -> world.tickThread(0)).get();
+        world.tickOnce().get();
         for (int i = 0; i < 5; i++) { ch.runPendingTasks(); Thread.sleep(10); }
         assertTrue(count(drainOutbound(), BlockChangedAck.ID) >= 1, "거부해도 예측 정리용 ack는 보내야 한다");
     }

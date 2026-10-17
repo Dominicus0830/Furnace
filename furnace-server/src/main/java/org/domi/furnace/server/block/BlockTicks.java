@@ -53,6 +53,22 @@ public final class BlockTicks {
         runThisTick.clear();
     }
 
+    /**
+     * 조건에 맞는 칸의 예약을 target 으로 옮긴다(region 합치기·나누기). 실행 시각은 timeOffset 만큼 민다(두 region 의 지역 시계 차이).
+     * 순서(같은 시각·우선순위 안의 예약 순번)는 그대로 유지된다.
+     */
+    public void moveTo(BlockTicks target, java.util.function.LongPredicate posFilter, long timeOffset) {
+        queue.removeIf(s -> {
+            if (!posFilter.test(s.pos)) return false;
+            scheduled.remove(new Key(s.pos, s.type));
+            Key k = new Key(s.pos, s.type);
+            if (target.scheduled.add(k)) {
+                target.queue.add(new Scheduled(s.pos, s.type, s.triggerTick + timeOffset, s.priority, s.subTickOrder));
+            }
+            return true;
+        });
+    }
+
     /** 청크를 내릴 때 그 청크의 예약을 꺼낸다(저장용). */
     public java.util.List<Scheduled> removeChunk(int chunkX, int chunkZ) {
         java.util.List<Scheduled> out = new java.util.ArrayList<>();

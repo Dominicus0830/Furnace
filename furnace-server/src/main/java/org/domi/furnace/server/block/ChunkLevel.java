@@ -26,6 +26,8 @@ public abstract class ChunkLevel implements BlockLevel {
     private final BlockTicks blockTicks = new BlockTicks();
     private final BlockTicks fluidTicks = new BlockTicks();
     private long subTickCount;
+    /** 지역 틱 시계(예약 틱 기준 — Folia 의 redstoneTime 처럼 region 마다 따로 간다. 월드 시간은 gameTime()). */
+    private long levelTime;
     /** 방송할 변경: 구역 키(청크 x,z,구역 y) → 구역 안 칸 번호 집합(바닐라 ChunkHolder.changedBlocksPerSection). */
     private final TreeMap<Long, TreeSet<Short>> changed = new TreeMap<>();
     private final ArrayDeque<int[]> blockEvents = new ArrayDeque<>();
@@ -181,12 +183,12 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override
     public void scheduleTick(Pos pos, int block, int delay, int priority) {
-        blockTicks.schedule(pos, block, gameTime() + delay, priority, subTickCount++);
+        blockTicks.schedule(pos, block, levelTime + delay, priority, subTickCount++);
     }
 
     @Override
     public void scheduleFluidTick(Pos pos, int fluidType, int delay) {
-        fluidTicks.schedule(pos, fluidType, gameTime() + delay, 0, subTickCount++);
+        fluidTicks.schedule(pos, fluidType, levelTime + delay, 0, subTickCount++);
     }
 
     @Override
@@ -195,9 +197,9 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean willTickThisTick(Pos pos, int block) { return blockTicks.willTickThisTick(pos, block); }
 
-    /** 레벨 틱의 블록 틱 → 유체 틱(바닐라 ServerLevel.tick 순서). */
+    /** 레벨 틱의 블록 틱 → 유체 틱(바닐라 ServerLevel.tick 순서). 지역 시계를 한 틱 진행한다. */
     public void runScheduledTicks() {
-        long now = gameTime();
+        long now = ++levelTime;
         blockTicks.tick(now, 65536, (pos, type) -> {
             int s = getBlockState(pos);
             if (blocks.blockOf(s) == type) BlockBehaviors.of(s).tick(s, this, pos, random);
@@ -209,6 +211,58 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     public BlockTicks blockTicks() { return blockTicks; }
+
+    public long levelTime() { return levelTime; }
+
+    // ------------------------------------------------------------------ region 합치기·나누기
+
+    /** 다른 레벨의 자료를 모두 흡수한다(그 레벨은 버려진다). 예약 틱은 두 지역 시계 차이만큼 보정한다. */
+    public void absorb(ChunkLevel other) {
+        long offset = levelTime - other.levelTime;
+        other.blockTicks.moveTo(blockTicks, p -> true, offset);
+        other.fluidTicks.moveTo(fluidTicks, p -> true, offset);
+        subTickCount = Math.max(subTickCount, other.subTickCount);
+        for (var e : other.changed.entrySet()) changed.computeIfAbsent(e.getKey(), k -> new TreeSet<>()).addAll(e.getValue());
+        other.changed.clear();
+        blockEvents.addAll(other.blockEvents);
+        other.blockEvents.clear();
+    }
+
+    /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
+    public void splitTo(ChunkLevel target, ChunkFilter inTarget) {
+        target.levelTime = levelTime;
+        target.subTickCount = subTickCount;
+        java.util.function.LongPredicate byPos = packed -> {
+            Pos p = Pos.of(packed);
+            return inTarget.test(p.x() >> 4, p.z() >> 4);
+        };
+        blockTicks.moveTo(target.blockTicks, byPos, 0);
+        fluidTicks.moveTo(target.fluidTicks, byPos, 0);
+        var it = changed.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            long key = e.getKey();
+            int cx = (int) (key >> 42), cz = (int) (key << 22 >> 42);
+            if (inTarget.test(cx, cz)) {
+                target.changed.put(key, e.getValue());
+                it.remove();
+            }
+        }
+        var bit = blockEvents.iterator();
+        while (bit.hasNext()) {
+            int[] ev = bit.next();
+            if (inTarget.test(ev[0] >> 4, ev[2] >> 4)) {
+                target.blockEvents.add(ev);
+                bit.remove();
+            }
+        }
+    }
+
+    /** 청크 좌표 조건. */
+    @FunctionalInterface
+    public interface ChunkFilter {
+        boolean test(int chunkX, int chunkZ);
+    }
 
     // ------------------------------------------------------------------ 레드스톤(바닐라 SignalGetter)
 

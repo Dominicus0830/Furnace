@@ -35,7 +35,7 @@ class GameplayFlowTest {
         NetworkServer server = null;
         try {
             ServerCore core = TestServers.core(tmp, sched);
-            sched.setRegionTick(core.world()::tickThread);
+            core.world().startTicking();
             ServerLoginContext ctx = ServerLoginContext.offline("t").core(core);
             server = new NetworkServer(0, -1, ctx, sched, core.world(), new EntityIdAllocator());
             int port = server.start();

@@ -37,7 +37,8 @@ public final class ConfigLoader {
         int compression = parseInt(props, "compression-threshold", Config.DEFAULT.compressionThreshold());
         int viewDistance = parseInt(props, "view-distance", Config.DEFAULT.viewDistance());
         int entityViewDistance = parseInt(props, "entity-view-distance", Config.DEFAULT.entityViewDistance());
-        int regionSize = parseInt(props, "region-size", Config.DEFAULT.regionSize());
+        int sectionShift = parseInt(props, "region-section-shift", Config.DEFAULT.regionSectionShift());
+        int mergeRadius = parseInt(props, "region-merge-radius", Config.DEFAULT.regionMergeRadius());
         int regionThreads = parseInt(props, "region-threads", Config.DEFAULT.regionThreads());
         String levelName = props.getProperty("level-name", Config.DEFAULT.levelName());
         long levelSeed = parseSeed(props.getProperty("level-seed", Long.toString(Config.DEFAULT.levelSeed())));
@@ -63,7 +64,8 @@ public final class ConfigLoader {
             viewDistance = Config.MAX_VIEW_DISTANCE;
         }
         require(entityViewDistance >= 1, "entity-view-distance", entityViewDistance, "1 이상");
-        require(regionSize >= 0, "region-size", regionSize, "0 이상(0 = 월드 전체 한 region)");
+        require(sectionShift >= 1 && sectionShift <= 8, "region-section-shift", sectionShift, "1~8(구역 = 2^값 청크)");
+        require(mergeRadius >= 1, "region-merge-radius", mergeRadius, "1 이상(이웃 구역끼리는 늘 합쳐야 한다)");
         require(regionThreads >= 1, "region-threads", regionThreads, "1 이상");
         require(!levelName.isBlank(), "level-name", 0, "비어 있지 않은 이름(빈 값은 작업 디렉터리를 월드로 쓰게 된다)");
         require(ioThreads >= 1, "io-threads", ioThreads, "1 이상");
@@ -72,7 +74,7 @@ public final class ConfigLoader {
         require(spawnChunkRadius >= 0, "spawn-chunk-radius", spawnChunkRadius, "0 이상");
         require(chunksPerTick >= 1, "chunks-per-tick", chunksPerTick, "1 이상");
         return new Config(name, tick, port, compression, viewDistance, entityViewDistance,
-                regionSize, regionThreads, levelName, levelSeed, ioThreads, autosaveTicks, evictionGrace,
+                sectionShift, mergeRadius, regionThreads, levelName, levelSeed, ioThreads, autosaveTicks, evictionGrace,
                 spawnChunkRadius, chunksPerTick, velocitySecret);
     }
 

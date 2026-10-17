@@ -112,9 +112,9 @@ public final class ServerCore {
             var dp = dataPacks;
             if (dp == null || dp.loot() == null) return null;
             int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed, x, y, z);
-            var rp = org.domi.furnace.server.world.RegionGrid.regionPos(q[0] << 2, q[2] << 2, world.regionSize());
-            if (!world.ownsCurrentThread(rp)) return null;
-            int id = world.regionAt(rp).biomeIdAtQuart(q[0], q[1], q[2]);
+            int cx = q[0] >> 2, cz = q[2] >> 2;
+            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
+            int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
             var names = dp.loot().registries().entries("minecraft:worldgen/biome");
             return id >= 0 && id < names.size() ? names.get(id) : null;
         }
