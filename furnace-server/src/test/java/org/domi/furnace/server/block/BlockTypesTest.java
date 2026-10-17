@@ -95,4 +95,76 @@ class BlockTypesTest {
         BlockBehaviors.of(floor).useWithoutItem(floor, level, p, a, new Hit(p, Dir.UP, 0.5, -59.9, 0.5, false));
         assertTrue(B.prop("powered").is(level.getBlockState(p)));
     }
+
+    @Test
+    void everyDefinitionType_hasPortedBehavior() {
+        StringBuilder missing = new StringBuilder();
+        for (int i = 0; i < B.blockCount(); i++) {
+            String type = B.type(i);
+            if (!type.equals("minecraft:block") && BlockBehaviors.ofBlock(i).getClass() == BlockBehavior.class && missing.indexOf(type) < 0) {
+                missing.append(type).append(' ');
+            }
+        }
+        assertEquals("", missing.toString());
+    }
+
+    @Test
+    void wall_sideBecomesTallUnderFullBlock() {
+        var level = new BlockPlacementTest.TestLevel();
+        level.setBlock(new Pos(1, -60, 0), B.defaultState("minecraft:stone"), 3);
+        placeOnGround(level, "minecraft:cobblestone_wall", 0, 0, 0);
+        assertTrue(at(level, 0, -60, 0).contains("east=low"), at(level, 0, -60, 0));
+        level.setBlock(new Pos(0, -59, 0), B.defaultState("minecraft:stone"), 3);
+        String w = at(level, 0, -60, 0);
+        assertTrue(w.contains("east=tall") && w.contains("up=true") && w.contains("west=none"), w);
+    }
+
+    /** 레드스톤 가루 갱신 순서 = java.util.HashSet 에 같은 hashCode 의 위치를 넣고 순회한 순서. */
+    @Test
+    void redstoneWire_updateOrderMatchesHashSet() {
+        record V(int x, int y, int z) {
+            @Override public int hashCode() { return (y + z * 31) * 31 + x; }
+        }
+        int[][] samples = {{0, -60, 0}, {13, 64, -7}, {-1000, 5, 333}, {29999, 319, -29999}, {7, -64, 15}};
+        for (int[] c : samples) {
+            Pos pos = new Pos(c[0], c[1], c[2]);
+            java.util.Set<V> set = new java.util.HashSet<>();
+            set.add(new V(pos.x(), pos.y(), pos.z()));
+            for (int d : Dir.ALL) {
+                Pos n = pos.relative(d);
+                set.add(new V(n.x(), n.y(), n.z()));
+            }
+            java.util.List<Pos> expected = new java.util.ArrayList<>();
+            for (V v : set) expected.add(new Pos(v.x(), v.y(), v.z()));
+            assertEquals(expected, java.util.List.of(org.domi.furnace.server.block.types.RedStoneWireBlock.hashSetOrder(pos)));
+        }
+    }
+
+    @Test
+    void chest_pairsWithNeighbour() {
+        var level = new BlockPlacementTest.TestLevel();
+        placeOnGround(level, "minecraft:chest", 0, 0, 180);   // 북쪽을 봄 → 상자는 남쪽을 향함
+        placeOnGround(level, "minecraft:chest", 1, 0, 180);
+        assertTrue(at(level, 1, -60, 0).contains("type=left"), at(level, 1, -60, 0));
+        assertTrue(at(level, 0, -60, 0).contains("type=right"), at(level, 0, -60, 0));
+    }
+
+    @Test
+    void noteBlock_instrumentFromBlockBelow() {
+        var level = new BlockPlacementTest.TestLevel();
+        level.setBlock(new Pos(0, -60, 0), B.defaultState("minecraft:stone"), 3);
+        placeOnGroundAt(level, "minecraft:note_block", new Pos(0, -60, 0));
+        assertTrue(at(level, 0, -59, 0).contains("instrument=basedrum"), at(level, 0, -59, 0));
+    }
+
+    /** 그 칸 윗면을 클릭해 놓는다. */
+    private static void placeOnGroundAt(BlockPlacementTest.TestLevel level, String item, Pos on) {
+        BlockPlacementTest.Actor a = new BlockPlacementTest.Actor();
+        a.creative = true;
+        a.xRot = 30;
+        a.x = on.x() + 0.5;
+        a.z = on.z() - 1.5;
+        a.hands[0] = new ItemStack(item(item), 1);
+        BlockPlacement.useItemOn(level, a, 0, new Hit(on, Dir.UP, on.x() + 0.5, on.y() + 1, on.z() + 0.5, false));
+    }
 }

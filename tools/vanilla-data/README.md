@@ -22,6 +22,7 @@
 | `ExportItemProps.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `items/properties_1.21.1.txt` (아이템별 최대 스택·최대 내구도·인챈트 수치 `Item.getEnchantmentValue`) |
 | `extract_block_definitions.py <reports/blocks.json> <출력>` | blocks.json | `blocks/definitions_1.21.1.txt` (블록별 정의 종류·상태 범위·기본 상태·속성 배치·매개변수 — 블록 동작 틀용) |
 | `ExportBlockShapes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/blockshapes_1.21.1.txt.gz` (상태별 outline·collision·support·occlusion·interaction 모양, 위치 어긋남 블록은 기준 모양) |
+| `ExportNoteInstruments.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/instruments_1.21.1.txt` (소리 블록 악기 — harp 가 아닌 블록을 악기별로) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
 
 `ExportBlockAttrs`는 난독화된 클래스 이름(`akt`, `dfy`, `dtc`, `dcl` …)을 직접 참조한다. 다른 버전에는 그대로 쓸 수 없고, Vineflower로 디컴파일해 이름을 다시 찾아야 한다.
