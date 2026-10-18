@@ -10,7 +10,12 @@ public class WeightedPressurePlateBlock extends BasePressurePlateBlock {
 
     private static final Prop POWER = B.prop("power");
 
-    public WeightedPressurePlateBlock(int block) { super(block); }
+    private final int maxWeight;
+
+    public WeightedPressurePlateBlock(int block) {
+        super(block);
+        this.maxWeight = org.domi.furnace.server.block.Blocks.get().params(block).get("max_weight").getAsInt();
+    }
 
     @Override
     protected int signalForState(int state) { return POWER.intValue(state); }
@@ -19,7 +24,12 @@ public class WeightedPressurePlateBlock extends BasePressurePlateBlock {
     protected int setSignalForState(int state, int signal) { return POWER.withInt(state, signal); }
 
     @Override
-    protected int signalStrength(BlockLevel level, Pos pos) { return 0; }   // TODO(엔티티): ceil(min(엔티티 수, max_weight)/max_weight*15)
+    protected int signalStrength(BlockLevel level, Pos pos) {
+        int n = Math.min(countOnPlate(level, pos, false), maxWeight);
+        if (n <= 0) return 0;
+        float f = (float) Math.min(maxWeight, n) / (float) maxWeight;
+        return (int) Math.ceil(f * 15.0F);
+    }
 
     @Override
     protected int pressedTime() { return 10; }

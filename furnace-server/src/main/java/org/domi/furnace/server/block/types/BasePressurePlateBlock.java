@@ -38,7 +38,20 @@ public abstract class BasePressurePlateBlock extends BlockBehavior {
         if (signal > 0) checkPressed(null, level, pos, state, signal);
     }
 
-    // TODO(엔티티): entityInside — 꺼져 있을 때 엔티티가 닿으면 checkPressed.
+    /** 판 위 감지 상자(Block.box(1, 0, 1, 15, 4, 15)). */
+    protected static final double[] TOUCH = {0.0625, 0.0, 0.0625, 0.9375, 0.25, 0.9375};
+
+    protected static int countOnPlate(BlockLevel level, Pos pos, boolean livingOnly) {
+        return level.countTriggeringEntities(pos.x() + TOUCH[0], pos.y() + TOUCH[1], pos.z() + TOUCH[2],
+                pos.x() + TOUCH[3], pos.y() + TOUCH[4], pos.z() + TOUCH[5], livingOnly);
+    }
+
+    /** entityInside: 꺼져 있을 때 엔티티가 닿으면 checkPressed. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        int signal = signalForState(state);
+        if (signal == 0) checkPressed(null, level, pos, state, signal);
+    }
 
     private void checkPressed(BlockActor entity, BlockLevel level, Pos pos, int state, int old) {
         int signal = signalStrength(level, pos);
@@ -79,7 +92,7 @@ public abstract class BasePressurePlateBlock extends BlockBehavior {
     @Override
     public boolean isSignalSource(int state) { return true; }
 
-    /** getSignalStrength: 판 위 상자 안 엔티티 수에 따른 세기. TODO(엔티티): 엔티티 체계 전에는 언제나 0. */
+    /** getSignalStrength: 판 위 상자 안 엔티티 수에 따른 세기. */
     protected abstract int signalStrength(BlockLevel level, Pos pos);
 
     protected abstract int signalForState(int state);

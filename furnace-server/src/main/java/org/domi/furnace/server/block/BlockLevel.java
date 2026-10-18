@@ -31,6 +31,12 @@ public interface BlockLevel {
 
     default boolean isWaterAt(Pos pos) { return Fluids.isWater(getFluidState(pos)); }
 
+    /**
+     * 상자(월드 좌표)에 걸친 엔티티 수 — 플레이어 포함, 관전자·블록 동작을 무시하는 엔티티 제외(압력판 getEntityCount·덫줄).
+     * livingOnly 면 생물만(돌 압력판).
+     */
+    default int countTriggeringEntities(double x0, double y0, double z0, double x1, double y1, double z1, boolean livingOnly) { return 0; }
+
     /** EntityGetter.isUnobstructed(null, shape): 건설을 막는 엔티티(관전자 제외)의 상자와 겹치지 않는가. shape 는 월드 좌표. */
     boolean isUnobstructed(Shape worldShape);
 
@@ -209,8 +215,14 @@ public interface BlockLevel {
     /** 행위자에게 액션바 메시지(예: build.tooHigh). */
     void sendActionBar(BlockActor actor, org.domi.furnace.api.text.Text text);
 
-    /** 블록에서 아이템 떨구기(Block.popResource). 아이템 엔티티는 TODO(엔티티) — 난수는 바닐라와 같은 횟수로 뽑는다. */
+    /** 블록에서 아이템 떨구기(Block.popResource) — 아이템 엔티티를 만든다. */
     void popResource(Pos pos, ItemStack stack);
+
+    /** Containers.dropContents(level, pos, container): 칸마다 dropItemStack(빈 칸도 위치 난수 3번), 칸은 비운다. */
+    default void dropContents(Pos pos, ItemStack[] items) {}
+
+    /** 열지 않은 전리품 상자를 먼저 채운다(RandomizableContainer.getItem 의 unpackLootTable(null)). */
+    default void unpackContainerLoot(Object container) {}
 
     /** Block.popResourceFromFace(level, pos, dir, stack). */
     void popResourceFromFace(Pos pos, int dir, ItemStack stack);

@@ -16,6 +16,10 @@ public class CactusBlock extends BlockBehavior {
 
     public CactusBlock(int block) { super(block); }
 
+    /** entityInside: 선인장 피해 1. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) { entity.hurt(org.domi.furnace.server.entity.Entity.Damage.CACTUS, 1.0F); }
+
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (!canSurvive(state, level, pos)) level.destroyBlock(pos, true);

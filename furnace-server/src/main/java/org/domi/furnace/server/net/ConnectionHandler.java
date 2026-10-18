@@ -1112,6 +1112,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
                 if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
+                if (actor != null && (status == 3 || status == 4) && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
+                    dropFromSelected(status == 3);   // DROP_ALL_ITEMS · DROP_ITEM
+                }
             }
             case 0x28 -> { // recipe_book_change_settings: 책 종류, 열림, 필터
                 int type = Types.readVarInt(frame);
@@ -1158,6 +1161,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     inv.set(slot, stack);
                     inv.setRemote(slot, stack);   // 바닐라 setRemoteSlot — 되돌려 보내지 않는다
                     fireInventoryChanged(slot);
+                } else if (creative && slot < 0 && validStack(stack) && !stack.isEmpty() && cp.tryCreativeDrop()) {
+                    spawnDrop(stack, false, true);   // 크리에이티브 창 밖으로 버리기 — player.drop(stack, true)
                 }
             }
             case 0x38 -> { // Use Item On: hand, pos, face, cursorXYZ, insideBlock, sequence
@@ -1196,8 +1201,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
                 int containerId = Types.readVarInt(frame);
                 Types.readVarInt(frame);  // stateId(§ 검증 생략, 항상 클라 예측 수용)
-                frame.readShort();        // slotNum(사용 안 함 — changedSlots가 실제 변경 진실)
-                frame.readByte();         // buttonNum
+                int slotNum = frame.readShort();   // 버리기(창 밖 -999·THROW)만 본다 — 나머지는 changedSlots 가 진실
+                int button = frame.readByte();
                 int clickType = Types.readVarInt(frame);
                 int numChanged = Types.readVarInt(frame);
                 if (numChanged < 0 || numChanged > MAX_CLICK_CHANGED_SLOTS) {   // 바닐라는 128 초과를 거부한다
@@ -1221,6 +1226,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (!validClick) break; // 음수 개수·알 수 없는 아이템 등 비정상 — 패킷 폐기
                 Player p = player;
                 if (containerId == 0 && p.openContainerId() == -1) {
+                    inventoryDropClick(slotNum, button, clickType);
                     applyInventoryClick(changed, newCarried);
                     break;
                 }
@@ -1264,7 +1270,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x0F -> { // Container Close(serverbound): VarInt containerId
                 Types.readVarInt(frame);
                 Player p = player;
-                if (p != null) p.closeChest();
+                if (p != null) {
+                    p.closeChest();
+                    returnCarried(p);
+                }
             }
             default -> { /* 그 외 무시 */ }
         }
@@ -1359,10 +1368,74 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.closeChest();
         }
         if (!keepInventory) {
-            inv.clear();
-            inv.setCarried(ItemStack.EMPTY);
-            send(ctx, inv.fullState());
+            // Inventory.dropAll(소멸 저주는 먼저 지운다): 주 인벤토리 → 갑옷(발·다리·가슴·머리) → 왼손 순으로 아무 쪽으로 던진다
+            java.util.List<ItemStack> drops = new java.util.ArrayList<>();
+            for (int i = 0; i <= 40; i++) {
+                int ws = org.domi.furnace.server.entity.PlayerInventory.windowSlot(i);
+                ItemStack s = inv.get(ws);
+                if (s.isEmpty()) continue;
+                inv.set(ws, ItemStack.EMPTY);
+                if (org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:vanishing_curse") > 0) continue;
+                drops.add(s);
+            }
+            if (!drops.isEmpty()) world.runAt(p.x(), p.z(), region -> { for (ItemStack s : drops) region.playerDrop(p, s, true, false); });
         }
+    }
+
+    /** ServerPlayer.drop(all): 든 칸에서 하나(또는 다) 꺼내 던진다. 클라이언트는 이미 칸을 비웠다(setRemoteSlot). */
+    private void dropFromSelected(boolean all) {
+        int ws = inv.heldWindowSlot();
+        ItemStack held = inv.get(ws);
+        if (held.isEmpty()) {
+            inv.setRemote(ws, held);
+            return;
+        }
+        int n = all ? held.count() : 1;
+        ItemStack left = held.withCount(held.count() - n);
+        if (!inv.replace(ws, held, left)) return;
+        inv.setRemote(ws, left);
+        fireInventoryChanged(ws);
+        spawnDrop(held.withCount(n), false, true);
+    }
+
+    /** 인벤토리 창 클릭 중 버리기(AbstractContainerMenu.doClick): 창 밖(-999) PICKUP 이면 커서를, THROW 면 그 칸에서 던진다. */
+    private void inventoryDropClick(int slotNum, int button, int clickType) {
+        ItemStack carried = inv.carried();
+        if (clickType == 0 && slotNum == -999 && !carried.isEmpty() && (button == 0 || button == 1)) {
+            int n = button == 0 ? carried.count() : 1;
+            inv.setCarried(carried.withCount(carried.count() - n));
+            spawnDrop(carried.withCount(n), false, true);
+        } else if (clickType == 4 && slotNum >= 0 && slotNum < org.domi.furnace.server.entity.PlayerInventory.SIZE && carried.isEmpty()
+                && (button == 0 || button == 1)) {
+            ItemStack s = inv.get(slotNum);
+            if (s.isEmpty() || slotNum == 0) return;   // 제작 결과 칸은 아직 없다
+            int n = button == 0 ? 1 : s.count();
+            inv.set(slotNum, s.withCount(s.count() - n));
+            fireInventoryChanged(slotNum);
+            spawnDrop(s.withCount(n), false, true);
+        }
+    }
+
+    /** 창을 닫을 때 커서에 든 것(AbstractContainerMenu.removed): 살아 있으면 인벤토리로(넘치면 던짐), 죽었으면 던진다. */
+    private void returnCarried(Player p) {
+        ItemStack carried = inv.carried();
+        if (carried.isEmpty()) return;
+        inv.setCarried(ItemStack.EMPTY);
+        inv.setRemoteCarried(ItemStack.EMPTY);
+        if (!p.vitals().isDeadOrDying()) {
+            ItemStack left = inv.add(carried, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(carried),
+                    org.domi.furnace.server.item.ItemTools.damage(carried) > 0);
+            if (!left.isEmpty()) spawnDrop(left, false, false);
+        } else {
+            spawnDrop(carried, false, false);
+        }
+    }
+
+    /** 플레이어가 서 있는 칸의 region 에서 아이템을 던진다. */
+    private void spawnDrop(ItemStack stack, boolean dropAround, boolean includeThrower) {
+        Player p = player;
+        if (p == null || stack.isEmpty()) return;
+        world.runAt(p.x(), p.z(), region -> region.playerDrop(p, stack, dropAround, includeThrower));
     }
 
     /** client_command 0: 죽어 있으면 리스폰 지점을 정해(강제 스폰 지점은 그 블록을 소유 region 에서 확인) 리스폰한다. */

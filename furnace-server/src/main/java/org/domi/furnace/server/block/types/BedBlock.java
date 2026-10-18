@@ -51,7 +51,21 @@ public class BedBlock extends HorizontalDirectionalBlock {
     /** canSetSpawn: 차원의 bedWorks(오버월드만). */
     public static boolean canSetSpawn(BlockLevel level) { return "minecraft:overworld".equals(level.dimension()); }
 
-    // TODO(엔티티): fallOn(낙하 피해 절반)·updateEntityAfterFallOn(튕김).
+    @Override
+    public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {
+        super.fallOn(level, state, pos, entity, fallDistance * 0.5F);
+    }
+
+    /** updateEntityAfterFallOn: 튕김 0.66(생물 아니면 × 0.8). 웅크렸으면 그냥 멈춤. */
+    @Override
+    public void updateEntityAfterFallOn(BlockLevel level, org.domi.furnace.server.entity.Entity entity) {
+        if (entity.isSuppressingBounce()) {
+            super.updateEntityAfterFallOn(level, entity);
+        } else if (entity.vy() < 0.0) {
+            double f = entity.isLiving() ? 1.0 : 0.8;
+            entity.setDeltaMovement(entity.vx(), -entity.vy() * 0.66F * f, entity.vz());
+        }
+    }
 
     @Override
     public int updateShape(int state, int dir, int neighborState, BlockLevel level, Pos pos, Pos neighborPos) {

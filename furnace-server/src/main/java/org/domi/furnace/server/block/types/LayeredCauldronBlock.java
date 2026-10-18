@@ -29,7 +29,23 @@ public class LayeredCauldronBlock extends AbstractCauldronBlock {
     @Override
     protected double getContentHeight(int state) { return (6.0 + LEVEL.intValue(state) * 3.0) / 16.0; }
 
-    // TODO(엔티티): entityInside — 불붙은 엔티티가 들어오면 불을 끄고(가루눈이면 물 가마솥으로 바꿔) 한 단계 줄인다(handleEntityOnFireInside).
+    /** entityInside: 불붙은 엔티티가 내용물에 들어오면 불을 끄고, 만질 수 있으면 handleEntityOnFireInside. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (entity.isOnFire() && isEntityInsideContent(state, pos, entity)) {
+            entity.clearFire();
+            if (entity.mayInteract(level, pos)) handleEntityOnFireInside(state, level, pos);
+        }
+    }
+
+    /** handleEntityOnFireInside: 가루눈 가마솥이면 같은 높이의 물 가마솥으로, 아니면 한 단계 줄인다. */
+    protected void handleEntityOnFireInside(int state, BlockLevel level, Pos pos) {
+        if (precipitation.equals("snow")) {
+            lowerFillLevel(B.withPropertiesOf(B.id("water_cauldron"), state), level, pos);
+        } else {
+            lowerFillLevel(state, level, pos);
+        }
+    }
 
     /** lowerFillLevel: 한 단계 줄이고 0 이면 빈 가마솥. */
     public static void lowerFillLevel(int state, BlockLevel level, Pos pos) {

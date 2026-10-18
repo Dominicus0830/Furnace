@@ -228,6 +228,23 @@ public final class ChunkColumn {
 
     public void extraNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) { this.extraNbt = nbt; }
 
+    // 엔티티 저장(entities/ 지역 파일): 아직 다루지 못하는 종류의 엔티티는 원본 NBT 그대로 들고 있다가 다시 쓴다.
+    private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> foreignEntities = new java.util.ArrayList<>();
+    private boolean entitiesOnDisk;
+    private boolean entitiesLoaded;
+
+    public java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> foreignEntities() { return foreignEntities; }
+
+    /** 디스크에 이 청크의 엔티티 묶음이 있는가(비어서 쓸 필요가 없는지 — 바닐라 EntityStorage.emptyChunks 의 반대). */
+    public boolean entitiesOnDisk() { return entitiesOnDisk; }
+
+    public void entitiesOnDisk(boolean v) { entitiesOnDisk = v; }
+
+    /** 디스크의 엔티티를 불러왔는가(불러오기 전에는 저장하지 않는다 — 덮어쓰면 잃는다). */
+    public boolean entitiesLoaded() { return entitiesLoaded; }
+
+    public void entitiesLoaded(boolean v) { entitiesLoaded = v; }
+
     public long inhabitedTime() { return inhabitedTime; }
 
     public void inhabitedTime(long t) { this.inhabitedTime = t; }

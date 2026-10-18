@@ -89,4 +89,28 @@ public final class AnvilWorldSource implements WorldSource {
 
     public RegionFileStore store() { return store; }
     public AnvilChunkCodec codec() { return codec; }
+
+    // ------------------------------------------------------------------ 엔티티(entities/ 지역 파일 — 바닐라 EntityStorage)
+
+    private volatile RegionFileStore entityStore;
+
+    public void entityStore(RegionFileStore s) { this.entityStore = s; }
+
+    public RegionFileStore entityStore() { return entityStore; }
+
+    /** 그 청크의 엔티티 묶음({DataVersion, Position, Entities}). 없으면 null. IO 스레드에서. */
+    public NbtCompound readEntities(int chunkX, int chunkZ) throws IOException {
+        RegionFileStore es = entityStore;
+        if (es == null) return null;
+        byte[] bytes = es.readChunk(chunkX, chunkZ);
+        return bytes == null ? null : NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes)));
+    }
+
+    public void writeEntities(int chunkX, int chunkZ, NbtCompound root) throws IOException {
+        RegionFileStore es = entityStore;
+        if (es == null) return;
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        NbtIo.write(new java.io.DataOutputStream(bos), root, "");
+        es.writeChunk(chunkX, chunkZ, bos.toByteArray());
+    }
 }

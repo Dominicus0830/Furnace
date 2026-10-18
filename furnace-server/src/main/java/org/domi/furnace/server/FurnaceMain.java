@@ -177,6 +177,8 @@ public final class FurnaceMain {
         }
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, flatSource != null ? flatSource : noiseSource);
+        var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities");
+        anvilSource.entityStore(entityStore);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
         // 생성 호출자 스레드 — 실제 계산은 ChunkPipeline 의 ForkJoin 풀(코어 수)에서 하고 여기서는 대부분 기다린다.
@@ -247,6 +249,7 @@ public final class FurnaceMain {
         world.setRegistries(blockRegistry, itemRegistry);
         world.startTicking();
         EntityIdAllocator idAllocator = new EntityIdAllocator();
+        world.entityIds(idAllocator);   // 플레이어와 다른 엔티티가 같은 id 공간을 쓴다
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         if (dataPacks != null) core.dataPacks(dataPacks);
@@ -293,6 +296,7 @@ public final class FurnaceMain {
                 ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                 genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                 regionStore.closeAll();
+                entityStore.closeAll();
                 saveLevelData.run();
                 storage.close();
             } catch (Exception e) {

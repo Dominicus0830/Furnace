@@ -23,7 +23,10 @@ public abstract class AbstractCauldronBlock extends BlockBehavior {
     /** getContentHeight: 엔티티가 안에 있는지 볼 때 쓰는 내용물 높이. */
     protected double getContentHeight(int state) { return 0.0; }
 
-    // TODO(엔티티): isEntityInsideContent(state, pos, entity) — entityInside 에서 쓴다.
+    /** isEntityInsideContent: 엔티티 발이 내용물 높이 아래이고 몸통 위가 바닥(0.25)보다 높은가. */
+    protected boolean isEntityInsideContent(int state, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        return entity.y() < pos.y() + getContentHeight(state) && entity.boundingBox().maxY() > pos.y() + 0.25;
+    }
 
     @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {

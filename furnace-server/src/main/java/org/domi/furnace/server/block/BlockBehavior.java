@@ -192,6 +192,24 @@ public class BlockBehavior {
 
     public Shape getShape(int state, BlockLevel level, Pos pos) { return INFO.shape(state); }
 
+    // ------------------------------------------------------------------ 엔티티(바닐라 BlockBehaviour·Block 의 엔티티 훅)
+
+    /** entityInside(state, level, pos, entity): 엔티티 몸통이 이 칸에 걸쳐 있을 때 매 이동. */
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {}
+
+    /** stepOn(level, pos, state, entity): 땅에 선 엔티티가 디딘 블록. */
+    public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {}
+
+    /** fallOn(level, state, pos, entity, fallDistance): 떨어져 내려앉았다 — 기본은 낙하 피해(배수 1). */
+    public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {
+        entity.causeFallDamage(fallDistance, 1.0F);
+    }
+
+    /** updateEntityAfterFallOn(level, entity): 세로로 부딪힌 뒤 — 기본은 세로 속도를 0 으로(곱하기 0). */
+    public void updateEntityAfterFallOn(BlockLevel level, org.domi.furnace.server.entity.Entity entity) {
+        entity.setDeltaMovement(entity.vx() * 1.0, entity.vy() * 0.0, entity.vz() * 1.0);
+    }
+
     /** getCollisionShape(state, level, pos, 문맥 엔티티 — 없으면 null). */
     public Shape getCollisionShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return INFO.collisionShape(state); }
 

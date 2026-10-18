@@ -19,7 +19,22 @@ public class BubbleColumnBlock extends BlockBehavior {
 
     public BubbleColumnBlock(int block) { super(block); }
 
-    // TODO(엔티티): entityInside — 위가 공기면 수면 튕김, 아니면 기둥 안 끌림(drag 방향).
+    /** entityInside: 위가 공기면 수면 튕김(+ 입자 — 위치 난수는 레벨 난수), 아니면 기둥 안에서 끌림. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        boolean drag = DRAG.is(state);
+        if (B.isAir(level.getBlockState(pos.above()))) {
+            entity.onAboveBubbleCol(drag);
+            for (int i = 0; i < 2; i++) {   // sendParticles(SPLASH)·(BUBBLE) — 입자는 아직 보내지 않지만 난수는 같은 수만큼
+                level.random().nextDouble();
+                level.random().nextDouble();
+                level.random().nextDouble();
+                level.random().nextDouble();
+            }
+        } else {
+            entity.onInsideBubbleColumn(drag);
+        }
+    }
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {

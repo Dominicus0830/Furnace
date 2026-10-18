@@ -77,7 +77,12 @@ public class ChestBlock extends AbstractChestBlock {
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(블록 엔티티): Containers.dropContentsOnDestroy(state, newState, level, pos) — 내용물 쏟기.
+        // Containers.dropContentsOnDestroy: 다른 블록이 되면 내용물을 쏟고(열지 않은 전리품 상자는 먼저 채운다) 비교기에 알린다
+        if (!B.is(newState, block) && level.getBlockEntity(pos) instanceof org.domi.furnace.server.world.ChestBlockEntity chest) {
+            level.unpackContainerLoot(chest);
+            level.dropContents(pos, chest.items);
+            level.updateNeighbourForOutputSignal(pos, block);
+        }
         super.onRemove(state, level, pos, newState, moved);
     }
 

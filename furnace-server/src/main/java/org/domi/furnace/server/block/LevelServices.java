@@ -56,6 +56,12 @@ public interface LevelServices {
     /** server.properties simulation-distance. */
     default int simulationDistance() { return 10; }
 
+    /** RandomizableContainer.unpackLootTable(null): 열지 않은 전리품 상자를 채운다(부술 때). 데이터 팩이 없으면 아무것도. */
+    default void unpackContainerLoot(Object container) {}
+
+    /** server.properties entity-broadcast-range-percentage(엔티티 추적 거리 비율). */
+    default int entityBroadcastRangePercentage() { return 100; }
+
     /** 바닐라 기본값이 false 인 참/거짓 게임룰(DEFAULT 가 참으로 답하지 않을 것들). */
     java.util.Set<String> DEFAULT_FALSE_RULES = java.util.Set.of("lavaSourceConversion", "doImmediateRespawn", "doLimitedCrafting",
             "universalAnger", "reducedDebugInfo", "disableElytraMovementCheck", "disableRaids");
@@ -103,6 +109,8 @@ public interface LevelServices {
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }
+        public int entityBroadcastRangePercentage() { return d.entityBroadcastRangePercentage(); }
+        public void unpackContainerLoot(Object container) { d.unpackContainerLoot(container); }
         public boolean biomeIs(int x, int y, int z, String tag) { return d.biomeIs(x, y, z, tag); }
     }
 }

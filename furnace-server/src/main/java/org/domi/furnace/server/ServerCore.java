@@ -426,6 +426,10 @@ public final class ServerCore {
         }
         public String biomeAt(int x, int y, int z) { return lootWorld.biomeAt(x, y, z); }
         public int simulationDistance() { return settings.get().simulationDistance; }
+        public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
+        public void unpackContainerLoot(Object container) {
+            if (container instanceof org.domi.furnace.server.world.ChestBlockEntity c) unpackLoot(c, null);
+        }
     };
 
     /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */

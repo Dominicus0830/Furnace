@@ -55,6 +55,74 @@ public final class FluidTicker {
     /** getOwnHeight: 양 / 9. */
     public static float ownHeight(int fluid) { return Fluids.isEmpty(fluid) ? 0.0F : Fluids.amount(fluid) / 9.0F; }
 
+    /** 수평 방향 순회 순서(Direction.Plane.HORIZONTAL): 북·동·남·서. */
+    private static final int[] HORIZONTAL_PLANE = {Dir.NORTH, Dir.EAST, Dir.SOUTH, Dir.WEST};
+    private static final int ICE = B.id("ice"), FROSTED_ICE = B.id("frosted_ice");
+
+    /**
+     * FlowingFluid.getFlow(level, pos, state): 이웃과의 높이 차로 만든 흐름 방향(단위 벡터 {x, y, z}). 떨어지는 유체 옆에
+     * 막힌 면이 있으면 아래로(-6) 기울인다. 엔티티를 미는 데 쓴다.
+     */
+    public static double[] flow(BlockLevel level, Pos pos, int fluid) {
+        if (Fluids.isEmpty(fluid)) return new double[3];
+        boolean water = Fluids.isWater(fluid);
+        float own = ownHeight(fluid);
+        double dx = 0.0, dz = 0.0;
+        for (int dir : HORIZONTAL_PLANE) {
+            Pos n = pos.relative(dir);
+            int nf = level.getFluidState(n);
+            if (!affectsFlow(nf, water)) continue;
+            float f = ownHeight(nf);
+            float g = 0.0F;
+            if (f == 0.0F) {
+                if (!BlockInfo.get().blocksMotion(level.getBlockState(n))) {
+                    int bf = level.getFluidState(n.below());
+                    if (affectsFlow(bf, water)) {
+                        f = ownHeight(bf);
+                        if (f > 0.0F) g = own - (f - 0.8888889F);
+                    }
+                }
+            } else if (f > 0.0F) {
+                g = own - f;
+            }
+            if (g != 0.0F) {
+                dx += (double) ((float) Dir.DX[dir] * g);
+                dz += (double) ((float) Dir.DZ[dir] * g);
+            }
+        }
+        double[] v = {dx, 0.0, dz};
+        if (Fluids.falling(fluid)) {
+            for (int dir : HORIZONTAL_PLANE) {
+                Pos n = pos.relative(dir);
+                if (isSolidFace(level, n, dir, water) || isSolidFace(level, n.above(), dir, water)) {
+                    v = normalize(v);
+                    v[1] += -6.0;
+                    break;
+                }
+            }
+        }
+        return normalize(v);
+    }
+
+    /** affectsFlow: 비었거나 같은 갈래. */
+    private static boolean affectsFlow(int fluid, boolean water) { return Fluids.isEmpty(fluid) || same(fluid, water); }
+
+    /** FlowingFluid.isSolidFace(level, pos, dir). */
+    private static boolean isSolidFace(BlockLevel level, Pos pos, int dir, boolean water) {
+        int s = level.getBlockState(pos);
+        if (same(level.getFluidState(pos), water)) return false;
+        if (dir == Dir.UP) return true;
+        int b = B.block(s);
+        if (b == ICE || b == FROSTED_ICE) return false;
+        return B.isFaceSturdy(s, level, pos, dir);
+    }
+
+    /** Vec3.normalize: 길이가 1e-4 보다 작으면 0. */
+    private static double[] normalize(double[] v) {
+        double d = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        return d < 1.0E-4 ? new double[3] : new double[] {v[0] / d, v[1] / d, v[2] / d};
+    }
+
     // ------------------------------------------------------------------ 예약 틱(FlowingFluid.tick)
 
     public static void tick(BlockLevel level, Pos pos, int fluidState) {

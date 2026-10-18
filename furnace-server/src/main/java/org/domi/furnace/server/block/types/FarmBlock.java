@@ -52,7 +52,18 @@ public class FarmBlock extends BlockBehavior {
         }
     }
 
-    // TODO(엔티티): fallOn — 높이 떨어진 엔티티가 밟으면 흙이 된다.
+    /**
+     * fallOn: 레벨 난수 nextFloat 가 낙하 거리 - 0.5 보다 작고 생물(플레이어거나 mobGriefing)이며 부피가 0.512 넘으면 흙. 난수는 어떤
+     * 엔티티든(아이템도) 내려앉을 때마다 뽑는다.
+     */
+    @Override
+    public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {
+        if (level.random().nextFloat() < fallDistance - 0.5F && entity.isLiving() && level.gameRule("mobGriefing")
+                && entity.bbWidth() * entity.bbWidth() * entity.bbHeight() > 0.512F) {
+            turnToDirt(null, state, level, pos);
+        }
+        super.fallOn(level, state, pos, entity, fallDistance);
+    }
 
     /** turnToDirt: 흙으로(위 엔티티 밀어 올리기는 엔티티 체계 뒤) + BLOCK_CHANGE 게임 이벤트. */
     public static void turnToDirt(BlockActor entity, int state, BlockLevel level, Pos pos) {

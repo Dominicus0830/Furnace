@@ -229,6 +229,72 @@ public final class World {
         });
     }
 
+    /** 그 청크의 엔티티 묶음을 IO 풀에서 읽는다(없거나 저장소가 없으면 null 로 끝난다). */
+    public CompletableFuture<NbtCompound> loadEntitiesAsync(int chunkX, int chunkZ) {
+        if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return CompletableFuture.completedFuture(null);
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                synchronized (anvil.entityStore()) {
+                    return anvil.readEntities(chunkX, chunkZ);
+                }
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 읽기 실패", chunkX, chunkZ, e);
+                return null;
+            }
+        }, ioPool);
+    }
+
+    /** owner 스레드서 만든 엔티티 묶음을 IO 풀서 entities/ 에 쓴다. */
+    public void saveEntitiesAsync(int chunkX, int chunkZ, NbtCompound root) {
+        if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return;
+        ioPool.execute(() -> {
+            try {
+                synchronized (anvil.entityStore()) {   // 덧붙이기(읽고·쓰기)와 엇갈리지 않게
+                    anvil.writeEntities(chunkX, chunkZ, root);
+                }
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 저장 실패", chunkX, chunkZ, e);
+            }
+        });
+    }
+
+    /** 디스크의 그 청크 엔티티 묶음에 덧붙인다(읽고 → 더하고 → 쓰기, 엔티티 저장소 잠금 안에서). */
+    public void appendEntitiesAsync(int chunkX, int chunkZ, List<NbtCompound> tags) {
+        if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return;
+        ioPool.execute(() -> {
+            synchronized (anvil.entityStore()) {
+                try {
+                    NbtCompound root = anvil.readEntities(chunkX, chunkZ);
+                    if (root == null) {
+                        root = new NbtCompound();
+                        root.putInt("DataVersion", org.domi.furnace.server.world.anvil.AnvilChunkCodec.DATA_VERSION);
+                        root.putIntArray("Position", new int[] {chunkX, chunkZ});
+                    }
+                    org.domi.furnace.server.net.io.nbt.NbtList list = root.tags().get("Entities") instanceof org.domi.furnace.server.net.io.nbt.NbtList l
+                            ? l : new org.domi.furnace.server.net.io.nbt.NbtList(NbtIo.TAG_COMPOUND);
+                    for (NbtCompound t : tags) list.add(t);
+                    root.putList("Entities", list);
+                    anvil.writeEntities(chunkX, chunkZ, root);
+                } catch (Exception e) {
+                    org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 덧붙이기 실패", chunkX, chunkZ, e);
+                }
+            }
+        });
+    }
+
+    /** ChunkMap.isChunkTracked: 그 플레이어가 그 청크를 받았는가(구독이 전달 완료). */
+    public boolean chunkReady(ChunkPos cp, Player p) {
+        Subscription sub = subscriptionOf(cp, p);
+        return sub != null && sub.ready;
+    }
+
+    // 엔티티 id 발급기(플레이어와 같은 것 — FurnaceMain 이 연결 쪽과 같은 것을 건다)
+    private volatile org.domi.furnace.server.entity.EntityIdAllocator entityIds = new org.domi.furnace.server.entity.EntityIdAllocator();
+
+    public org.domi.furnace.server.entity.EntityIdAllocator entityIds() { return entityIds; }
+
+    public void entityIds(org.domi.furnace.server.entity.EntityIdAllocator a) { this.entityIds = a; }
+
     public void configurePersistence(int autosaveTicks, int graceTicks) {
         this.autosaveTicks = autosaveTicks;
         this.chunkEvictionGraceTicks = graceTicks;

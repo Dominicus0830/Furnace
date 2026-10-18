@@ -82,12 +82,19 @@ public class TripWireBlock extends BlockBehavior {
         if (POWERED.is(level.getBlockState(pos))) checkPressed(level, pos);
     }
 
+    /** entityInside: 꺼져 있으면 checkPressed. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (!POWERED.is(state)) checkPressed(level, pos);
+    }
+
     /** checkPressed: 덫줄 모양 안에 (밟기를 무시하지 않는) 엔티티가 있으면 켠다. */
     private void checkPressed(BlockLevel level, Pos pos) {
         int s = level.getBlockState(pos);
         boolean was = POWERED.is(s);
-        // TODO(엔티티): 모양 안의 엔티티(isIgnoringBlockTriggers 제외) 조회 — 엔티티가 들어오기 전에는 늘 비어 있다. entityInside 도 같이.
-        boolean pressed = false;
+        double[] b = B.INFO.shape(s).bounds();
+        boolean pressed = b != null && level.countTriggeringEntities(pos.x() + b[0], pos.y() + b[1], pos.z() + b[2],
+                pos.x() + b[3], pos.y() + b[4], pos.z() + b[5], false) > 0;
         if (pressed != was) {
             s = POWERED.with(s, pressed);
             level.setBlock(pos, s, 3);

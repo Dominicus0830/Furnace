@@ -26,7 +26,7 @@ public record ContainerSetContent(int containerId, int stateId, ItemStack[] item
     }
 
     /** Slot 와이어(바닐라 ItemStack.OPTIONAL_STREAM_CODEC): 개수 0 이면 끝, 아니면 아이템 id + 컴포넌트 패치. */
-    static void writeSlot(ByteBuf buf, ItemStack item) {
+    public static void writeSlot(ByteBuf buf, ItemStack item) {
         org.domi.furnace.server.item.ItemStackCodecs.writeStack(buf, item);
     }
 }

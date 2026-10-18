@@ -53,6 +53,25 @@ public final class RegionLevel extends ChunkLevel {
     @Override
     protected LevelServices services() { return world.levelServices(); }
 
+    // ------------------------------------------------------------------ 엔티티
+
+    @Override
+    public int nextEntityId() { return world.entityIds().next(); }
+
+    @Override
+    protected Iterable<Player> trackingPlayers() { return region.players().values(); }
+
+    @Override
+    protected int viewDistanceFor(Player p) { return Math.clamp(p.viewDistance(), 2, Math.max(2, world.viewDistance())); }
+
+    @Override
+    protected boolean chunkTrackedBy(Player p, int chunkX, int chunkZ) { return world.chunkReady(new ChunkPos(chunkX, chunkZ), p); }
+
+    @Override
+    protected void appendEntitiesToDisk(int cx, int cz, java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> tags) {
+        world.appendEntitiesAsync(cx, cz, tags);
+    }
+
     @Override
     protected void createBlockEntity(ChunkColumn col, Pos p, int state) {
         // 상자는 아직 자기 틀(ChestBlockEntity)로 — 나머지는 블록의 newBlockEntity
@@ -108,7 +127,8 @@ public final class RegionLevel extends ChunkLevel {
      * 레벨 틱(바닐라 ServerLevel.tick 의 블록 부분): 예약 틱 → 청크 틱(무작위 틱·날씨 — 섞은 순서로) → 변경 방송 → 블록 이벤트.
      * tickingChunks 는 무작위 틱을 받을 청크 키(Regionizer.chunkKey).
      */
-    void tickBlocks(long[] tickingChunks, int count, java.util.function.LongPredicate blockEntityTicking) {
+    void tickBlocks(long[] tickingChunks, int count, java.util.function.LongPredicate blockEntityTicking,
+                    java.util.function.Predicate<Player> inRegion) {
         lastCol = null;   // 틱 사이에 합치기·나누기가 있었을 수 있다
         runScheduledTicks();
         if (count > 0) {
@@ -120,8 +140,11 @@ public final class RegionLevel extends ChunkLevel {
             }
         }
         broadcastChanges();
+        // 엔티티 틱 청크: 이 region 이 가진 로드된 청크 중 블록 엔티티 틱을 받는 것(바닐라 inEntityTickingRange)
+        java.util.function.LongPredicate entityTicking = k -> chunk((int) (k >> 32), (int) k) != null && blockEntityTicking.test(k);
+        trackEntities(entityTicking, inRegion);   // 바닐라 ChunkMap.tick — 청크 틱 끝 방송 뒤
         runBlockEvents();
-        // TODO(엔티티): 엔티티 틱(바닐라는 블록 이벤트와 블록 엔티티 틱 사이)
+        tickEntities(entityTicking);
         tickBlockEntities(blockEntityTicking);
     }
 }

@@ -19,5 +19,7 @@ public class PressurePlateBlock extends BasePressurePlateBlock {
     protected int setSignalForState(int state, int signal) { return POWERED.with(state, signal > 0); }
 
     @Override
-    protected int signalStrength(BlockLevel level, Pos pos) { return 0; }   // TODO(엔티티): 감도(EVERYTHING·MOBS)별 엔티티가 있으면 15
+    protected int signalStrength(BlockLevel level, Pos pos) {
+        return countOnPlate(level, pos, !type.plateSensitivityEverything()) > 0 ? 15 : 0;   // EVERYTHING(나무) 은 모든 엔티티, MOBS(돌) 는 생물
+    }
 }

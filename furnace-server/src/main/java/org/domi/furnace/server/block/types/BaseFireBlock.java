@@ -27,7 +27,18 @@ public abstract class BaseFireBlock extends BlockBehavior {
     /** canBurn: 이 불이 그 블록을 태울 수 있는가. */
     protected abstract boolean canBurn(int state);
 
-    // TODO(엔티티): entityInside — 불붙이기(8초)·불 피해.
+    /** fireDamage: 불 1, 영혼 불 2. */
+    protected float fireDamage() { return 1.0F; }
+
+    /** entityInside: 불에 강하지 않으면 불 틱 +1(0 이 되면 8초 불붙이기), 그리고 불 속 피해. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (!entity.fireImmune()) {
+            entity.setRemainingFireTicks(entity.remainingFireTicks() + 1);
+            if (entity.remainingFireTicks() == 0) entity.igniteForSeconds(8.0F);
+        }
+        entity.hurt(org.domi.furnace.server.entity.Entity.Damage.IN_FIRE, fireDamage());
+    }
 
     @Override
     public void onPlace(int state, BlockLevel level, Pos pos, int oldState, boolean moved) {

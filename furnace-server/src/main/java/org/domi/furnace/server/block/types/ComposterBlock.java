@@ -85,14 +85,18 @@ public class ComposterBlock extends BlockBehavior {
     /** extractProduce: 뼛가루 아이템을 위로 내놓고 비운다. */
     public static int extractProduce(BlockActor entity, int state, BlockLevel level, Pos pos) {
         RandomSource r = level.random();
-        // Vec3.atLowerCornerWithOffset(pos, 0.5, 1.01, 0.5).offsetRandom(random, 0.7F) — 난수 3번.
-        r.nextFloat();
-        r.nextFloat();
-        r.nextFloat();
-        // new ItemEntity(level, x, y, z, stack) 가 처음 속도로 난수 2번(nextDouble).
-        r.nextDouble();
-        r.nextDouble();
-        // TODO(엔티티): 그 자리에 뼛가루 ItemEntity(setDefaultPickUpDelay) 를 만든다.
+        // Vec3.atLowerCornerWithOffset(pos, 0.5, 1.01, 0.5).offsetRandom(random, 0.7F)
+        double x = pos.x() + 0.5 + (double) ((r.nextFloat() - 0.5F) * 0.7F);
+        double y = pos.y() + 1.01 + (double) ((r.nextFloat() - 0.5F) * 0.7F);
+        double z = pos.z() + 0.5 + (double) ((r.nextFloat() - 0.5F) * 0.7F);
+        if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) {
+            var ie = new org.domi.furnace.server.entity.ItemEntity(cl, cl.nextEntityId(), x, y, z, B.stack("minecraft:bone_meal", 1));
+            ie.setDefaultPickUpDelay();
+            cl.addFreshEntity(ie);
+        } else {   // 엔티티를 담지 못하는 레벨 — ItemEntity 생성자의 처음 속도 난수 2번만
+            r.nextDouble();
+            r.nextDouble();
+        }
         int ns = empty(entity, state, level, pos);
         level.playSound(null, pos, "minecraft:block.composter.empty", "blocks", 1.0F, 1.0F);
         return ns;

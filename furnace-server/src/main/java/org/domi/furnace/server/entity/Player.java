@@ -206,6 +206,33 @@ public final class Player {
 
     public org.domi.furnace.server.world.GameMode gameMode() { return vitals.gameMode(); }
 
+    /** ServerGamePacketListenerImpl.dropSpamTickCount: 크리에이티브 버리기 한도(버릴 때 +20, 매 틱 -1, 200 이상이면 막음). */
+    private final java.util.concurrent.atomic.AtomicInteger dropSpam = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 크리에이티브 버리기를 허용하면 +20 하고 참. */
+    public boolean tryCreativeDrop() {
+        while (true) {
+            int v = dropSpam.get();
+            if (v >= 200) return false;
+            if (dropSpam.compareAndSet(v, v + 20)) return true;
+        }
+    }
+
+    public void tickDropSpam() { dropSpam.updateAndGet(v -> v > 0 ? v - 1 : 0); }
+
+    /** hasInfiniteMaterials: 크리에이티브. */
+    public boolean hasInfiniteMaterials() { return gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE; }
+
+    /** LivingEntity.take(entity, count): 그 엔티티를 보는 플레이어들에게 줍는 동작(take_item_entity). 제거되기 전에 부른다. */
+    public void take(Entity e, int count) {
+        if (!e.isRemoved() && e.tracker != null) {
+            e.tracker.broadcast(new org.domi.furnace.server.net.protocol.play.TakeItemEntity(e.id(), entityId, count));
+        }
+    }
+
+    /** awardStat(통계, n). TODO(통계): 통계 체계가 아직 없다. */
+    public void awardStat(String stat, int amount) {}
+
     /** 바닐라 Player.getDisplayName: 이름 + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
     public org.domi.furnace.api.text.Text displayName() {
         return org.domi.furnace.api.text.Text.text(name).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));

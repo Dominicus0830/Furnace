@@ -11,8 +11,24 @@ public final class Shape {
 
     /** 상자마다 6개(minX,minY,minZ,maxX,maxY,maxZ). */
     private final double[] boxes;
+    /** 옮기기 전 모양과 옮긴 거리 — 충돌 격자는 옮기기 전 모양에서 한 번 만들어 같이 쓴다. */
+    private final Shape base;
+    private final double ox, oy, oz;
+    private Grid grid;
 
-    public Shape(double[] boxes) { this.boxes = boxes; }
+    public Shape(double[] boxes) {
+        this.boxes = boxes;
+        this.base = this;
+        this.ox = this.oy = this.oz = 0;
+    }
+
+    private Shape(double[] boxes, Shape base, double ox, double oy, double oz) {
+        this.boxes = boxes;
+        this.base = base;
+        this.ox = ox;
+        this.oy = oy;
+        this.oz = oz;
+    }
 
     public static Shape parse(String s) {
         if (s.equals("-")) return EMPTY;
@@ -48,13 +64,28 @@ public final class Shape {
             b[i + 1] += dy; b[i + 4] += dy;
             b[i + 2] += dz; b[i + 5] += dz;
         }
-        return new Shape(b);
+        return new Shape(b, base, ox + dx, oy + dy, oz + dz);
     }
 
     /** 상자 하나와 부피 있게 겹치는가(Shapes.joinIsNotEmpty(this, box, AND)). */
     public boolean intersects(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
         for (int i = 0; i < boxes.length; i += 6) {
             if (boxes[i] < maxX && boxes[i + 3] > minX && boxes[i + 1] < maxY && boxes[i + 4] > minY && boxes[i + 2] < maxZ && boxes[i + 5] > minZ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * (x, y, z) 만큼 옮긴 이 모양이 상자와 겹치는가 — Shapes.joinIsNotEmpty(옮긴 모양, Shapes.create(box), AND). 좌표는 1e-7 안이면
+     * 하나로 합쳐지므로 1e-7 넘게 겹쳐야 한다.
+     */
+    public boolean overlaps(org.domi.furnace.server.entity.AABB box, double x, double y, double z) {
+        for (int i = 0; i < boxes.length; i += 6) {
+            if (box.maxX() - (boxes[i] + x) > 1.0E-7 && boxes[i + 3] + x - box.minX() > 1.0E-7
+                    && box.maxY() - (boxes[i + 1] + y) > 1.0E-7 && boxes[i + 4] + y - box.minY() > 1.0E-7
+                    && box.maxZ() - (boxes[i + 2] + z) > 1.0E-7 && boxes[i + 5] + z - box.minZ() > 1.0E-7) {
                 return true;
             }
         }
@@ -156,6 +187,138 @@ public final class Shape {
             if (boxes[i + axis] <= cut && boxes[i + 3 + axis] > cut) return false;
         }
         return true;
+    }
+
+    // ------------------------------------------------------------------ 충돌(바닐라 VoxelShape.collide)
+
+    /**
+     * 바닐라 복셀 격자: 축마다 칸 경계 좌표와 칸이 찼는지. 상자 좌표가 모두 [0,1] 안의 1/2^b(b ≤ 3) 배수면 CubeVoxelShape 처럼
+     * 1/2^b 간격 격자, 아니면 ArrayVoxelShape 처럼 상자 경계들의 합집합. 엔티티가 이미 모양에 걸쳐 있을 때 결과가 이 격자에 달렸다.
+     */
+    private record Grid(double[][] coords, boolean[] full, int sy, int sz) {
+        boolean full(int x, int y, int z) { return full[(x * sy + y) * sz + z]; }
+    }
+
+    private Grid grid() {
+        Grid g = grid;
+        if (g == null) grid = g = buildGrid();
+        return g;
+    }
+
+    private Grid buildGrid() {
+        double[][] coords = new double[3][];
+        for (int axis = 0; axis < 3; axis++) coords[axis] = axisCoords(axis);
+        int sx = coords[0].length - 1, sy = coords[1].length - 1, sz = coords[2].length - 1;
+        boolean[] full = new boolean[Math.max(0, sx * sy * sz)];
+        for (int x = 0; x < sx; x++) {
+            double cx = (coords[0][x] + coords[0][x + 1]) / 2;
+            for (int y = 0; y < sy; y++) {
+                double cy = (coords[1][y] + coords[1][y + 1]) / 2;
+                for (int z = 0; z < sz; z++) {
+                    double cz = (coords[2][z] + coords[2][z + 1]) / 2;
+                    for (int i = 0; i < boxes.length; i += 6) {
+                        if (boxes[i] <= cx && cx < boxes[i + 3] && boxes[i + 1] <= cy && cy < boxes[i + 4] && boxes[i + 2] <= cz && cz < boxes[i + 5]) {
+                            full[(x * sy + y) * sz + z] = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return new Grid(coords, full, sy, sz);
+    }
+
+    private double[] axisCoords(int axis) {
+        java.util.TreeSet<Double> set = new java.util.TreeSet<>();
+        boolean unit = true;
+        for (int i = 0; i < boxes.length; i += 6) {
+            double lo = boxes[i + axis], hi = boxes[i + 3 + axis];
+            set.add(lo);
+            set.add(hi);
+            if (lo < -1.0E-7 || hi > 1.0 + 1.0E-7) unit = false;
+        }
+        if (unit) {
+            for (int bits = 0; bits <= 3; bits++) {
+                int res = 1 << bits;
+                boolean aligned = true;
+                for (double v : set) {
+                    double s = v * res;
+                    if (Math.abs(s - Math.round(s)) >= 1.0E-7 * res) { aligned = false; break; }
+                }
+                if (aligned) {
+                    double[] r = new double[res + 1];
+                    for (int i = 0; i <= res; i++) r[i] = (double) i / res;
+                    return r;
+                }
+            }
+        }
+        double[] r = new double[set.size()];
+        int n = 0;
+        for (double v : set) r[n++] = v;
+        return r;
+    }
+
+    private double offset(int axis) { return axis == 0 ? ox : axis == 1 ? oy : oz; }
+
+    /** Mth.binarySearch(0, n, value < coords[i]) - 1 — 값이 든 칸 번호(-1..칸 수). */
+    private static int findIndex(double[] coords, double off, double value) {
+        int lo = 0, hi = coords.length;
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (value < coords[mid] + off) hi = mid;
+            else lo = mid + 1;
+        }
+        return lo - 1;
+    }
+
+    /**
+     * VoxelShape.collide(axis, box, d): box 가 axis(0 x·1 y·2 z) 쪽으로 d 만큼 움직일 때 이 모양(월드 좌표)에 막혀 줄어든 거리.
+     * 다른 두 축에서 겹치는 칸들 중 움직이는 쪽으로 처음 만나는 찬 칸 층에서 멈춘다.
+     */
+    public double collide(int axis, org.domi.furnace.server.entity.AABB box, double d) {
+        if (boxes.length == 0) return d;
+        if (Math.abs(d) < 1.0E-7) return 0.0;
+        Grid g = base.grid();
+        int b = (axis + 1) % 3, c = (axis + 2) % 3;
+        double[] ca = g.coords[axis], cb = g.coords[b], cc = g.coords[c];
+        double oa = offset(axis), ob = offset(b), oc = offset(c);
+        double maxA = box.max(axis), minA = box.min(axis);
+        int i = findIndex(ca, oa, minA + 1.0E-7), j = findIndex(ca, oa, maxA - 1.0E-7);
+        int k = Math.max(0, findIndex(cb, ob, box.min(b) + 1.0E-7)), l = Math.min(cb.length - 1, findIndex(cb, ob, box.max(b) - 1.0E-7) + 1);
+        int m = Math.max(0, findIndex(cc, oc, box.min(c) + 1.0E-7)), n = Math.min(cc.length - 1, findIndex(cc, oc, box.max(c) - 1.0E-7) + 1);
+        int o = ca.length - 1;
+        if (d > 0.0) {
+            for (int p = j + 1; p < o; p++) {
+                if (layerFull(g, axis, p, k, l, m, n)) {
+                    double f = ca[p] + oa - maxA;
+                    if (f >= -1.0E-7) d = Math.min(d, f);
+                    return d;
+                }
+            }
+        } else if (d < 0.0) {
+            for (int p = i - 1; p >= 0; p--) {
+                if (layerFull(g, axis, p, k, l, m, n)) {
+                    double f = ca[p + 1] + oa - minA;
+                    if (f <= 1.0E-7) d = Math.max(d, f);
+                    return d;
+                }
+            }
+        }
+        return d;
+    }
+
+    private static boolean layerFull(Grid g, int axis, int p, int k, int l, int m, int n) {
+        for (int q = k; q < l; q++) {
+            for (int r = m; r < n; r++) {
+                boolean full = switch (axis) {
+                    case 0 -> g.full(p, q, r);
+                    case 1 -> g.full(r, p, q);
+                    default -> g.full(q, r, p);
+                };
+                if (full) return true;
+            }
+        }
+        return false;
     }
 
     /** 같은 상자 목록인가(바닐라에서 뽑은 최적화 꼴끼리). */

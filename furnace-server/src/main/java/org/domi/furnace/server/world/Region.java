@@ -205,7 +205,8 @@ public final class Region {
 
     /** 나누기 뒤 아무것도 없는 region 인가(없애도 되는가). */
     boolean isIdleEmpty() {
-        return players.isEmpty() && present.isEmpty() && inbox.isEmpty() && delayed.isEmpty() && (level == null || !level.hasPendingAcks());
+        return players.isEmpty() && present.isEmpty() && inbox.isEmpty() && delayed.isEmpty()
+                && (level == null || !level.hasPendingAcks() && level.entities().isEmpty());
     }
 
     // ------------------------------------------------------------------ 청크
@@ -224,6 +225,7 @@ public final class Region {
         claim(cp);
         c = world.worldSource().generate(cp.x(), cp.z());
         world.putChunk(cp.x(), cp.z(), c);
+        loadEntities(cp, c);
         // 새로 생성된 청크는 바닐라처럼 저장 대상(dirty)으로 남긴다. 디스크에서 읽은 청크는 깨끗하다.
         if (c.dirty()) dirtyChunks.add(cp);
         return c;
@@ -272,11 +274,23 @@ public final class Region {
         }
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        loadEntities(cp, col);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
             level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
         }
         f.complete(col);
+    }
+
+    /** 그 청크의 엔티티 묶음(entities/)을 IO 풀에서 읽어 와 넣는다 — 그 사이 청크가 내려갔으면 버린다. 디스크가 없으면 바로 끝. */
+    private void loadEntities(ChunkPos cp, ChunkColumn col) {
+        if (!(world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource)) {
+            col.entitiesLoaded(true);
+            return;
+        }
+        world.loadEntitiesAsync(cp.x(), cp.z()).whenComplete((root, err) -> world.runAtChunk(cp, r -> {
+            if (world.loadedChunk(cp.x(), cp.z()) == col) r.level().loadChunkEntities(col, root);
+        }));
     }
 
     /** 이 region 스레드에서 그 청크가 이미 로드돼 있는가. 클라 요청이 임의 좌표의 청크를 새로 생성시키지 못하게 하는 게이트용. */
@@ -410,6 +424,7 @@ public final class Region {
 
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
     public void saveDirtyChunks() {
+        saveEntities();
         if (dirtyChunks.isEmpty()) return;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
@@ -419,6 +434,18 @@ public final class Region {
                 col.clearDirty();
             }
             dirtyChunks.remove(cp);
+        }
+    }
+
+    /** 로드된 청크의 엔티티를 저장한다(엔티티가 있거나 디스크에 있던 청크 — 바닐라 자동 저장의 storeChunkSections). */
+    private void saveEntities() {
+        if (level == null) return;
+        for (long key : present) {
+            int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+            ChunkColumn col = ownedChunk(cx, cz);
+            if (col == null) continue;
+            var root = level.chunkEntitiesForSave(col, cx, cz, false);
+            if (root != null) world.saveEntitiesAsync(cx, cz, root);
         }
     }
 
@@ -440,6 +467,10 @@ public final class Region {
             ChunkPos cp = new ChunkPos(cx, cz);
             ChunkColumn col = world.loadedChunk(cx, cz);
             if (col != null) {
+                if (level != null) {   // 엔티티는 저장한 뒤 내린다(UNLOADED_TO_CHUNK)
+                    var root = level.chunkEntitiesForSave(col, cx, cz, true);
+                    if (root != null) world.saveEntitiesAsync(cx, cz, root);
+                }
                 for (var be : col.blockEntities().values()) be.setRemoved();   // 틱 목록에서 빠진다(다시 불러오면 새로 만든다)
                 // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
                 if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {
@@ -481,7 +512,7 @@ public final class Region {
         world.assertOwns(this);
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = collectTickingChunks();
-            level.tickBlocks(tickingChunks, n, this::blockEntityTicking);
+            level.tickBlocks(tickingChunks, n, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()));
         }
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();
@@ -494,11 +525,14 @@ public final class Region {
                 // 저장은 ConnectionHandler.channelInactive가 IO 위치+인벤토리로 수행(여기선 0,0,0 위험).
                 world.playerOffline(p.entityId());   // 다른 관찰자는 grace 후 탭에서 뺀다
                 broadcastRemove(p.entityId());
+                if (level != null) level.playerLeft(p);
                 continue;
             }
-            processMoves(p);
+            p.tickDropSpam();
+            if (processMoves(p) && level != null) level.playerMoved(p);   // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다
             p.drainPending();
             tickVitals(p);
+            touchEntities(p);
             tickBreaking(p);
             broadcastInventory(p);
             ChunkPos c = p.chunkPos();
@@ -529,6 +563,7 @@ public final class Region {
             world.runAtChunk(c, r -> r.adopt(p));
         }
         if (level != null) level.flushAcks();   // 바닐라: 연결 틱 첫머리의 블록 변경 ack — 이 틱의 방송 뒤
+        handOffEntities();
         evictIdleChunks();
         if (++autosaveCounter >= world.autosaveTicks() && world.autosaveEnabled()) {
             autosaveCounter = 0;
@@ -571,10 +606,12 @@ public final class Region {
     };
 
     /** 이번 틱까지 들어온 위치 패킷들을 순서대로 — 점프·이동 소모와 낙하 판정(바닐라 handleMovePlayer 마다). */
-    private void processMoves(Player p) {
+    private boolean processMoves(Player p) {
         PlayerProbe probe = world.probe();
         Player.MoveSample m;
+        boolean any = false;
         while ((m = p.pollMove()) != null) {
+            any = true;
             Player.MoveSample prev = p.moveAnchor();
             p.moveAnchor(m);
             if (m.teleport() || prev == null || probe == null) continue;
@@ -589,6 +626,37 @@ public final class Region {
             boolean waterOnPath = dy < 0 && probe.waterOnPath(blocks, m.x(), prev.y(), m.y(), m.z());
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
+        }
+        return any;
+    }
+
+    /**
+     * Player.touch(바닐라 aiStep 끝): 살아 있고 관전자가 아니면 몸통을 (1, 0.5, 1) 넓힌 상자에 걸친 엔티티마다 playerTouch(아이템 줍기).
+     */
+    private void touchEntities(Player p) {
+        if (level == null || level.entities().isEmpty()) return;
+        if (p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
+        double h = p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3)
+                .inflate(1.0, 0.5, 1.0);
+        for (var e : level.getEntities(null, box, null)) {
+            if (!e.isRemoved()) e.playerTouch(p);
+        }
+    }
+
+    /** 다른 region 의 청크로 들어간 엔티티를 그 주인에게 넘긴다(추적 상태는 그대로 — 그쪽에 없는 보는 사람은 grace 뒤 빠진다). */
+    private void handOffEntities() {
+        if (level == null || level.entities().isEmpty()) return;
+        for (var e : level.entities().tickSnapshot()) {
+            int cx = e.chunkX(), cz = e.chunkZ();
+            Region owner = rz().ownerOf(cx, cz);
+            if (owner == null) {   // 아무도 갖지 않은(로드되지 않은) 청크 — 저장해 내린다
+                if (world.loadedChunk(cx, cz) == null && world.loadingChunk(Regionizer.chunkKey(cx, cz)) == null) level.evictToDisk(e);
+                continue;
+            }
+            if (owner == this || rz().merging(this, owner)) continue;
+            level.entities().remove(e);
+            world.runAtChunk(new ChunkPos(cx, cz), r -> r.level().adoptEntity(e));
         }
     }
 
@@ -664,6 +732,41 @@ public final class Region {
         writeBackHand(p, actor);
     }
 
+    /**
+     * Player.drop(stack, dropAround, includeThrower) + ServerPlayer.drop: 눈 높이 - 0.3 에서 줍기 지연 40 으로 던진다. dropAround 면 아무
+     * 쪽으로(죽을 때), 아니면 보는 쪽으로 0.3 + 흔들림. 속도는 플레이어 난수(아이템 생성자는 레벨 난수 두 번을 먼저 쓴다).
+     */
+    public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower) {
+        world.assertOwns(this);
+        if (stack.isEmpty()) return null;
+        RegionLevel l = level();
+        double eye = p.y() + (p.sneaking() ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING) - 0.3F;
+        var ie = new org.domi.furnace.server.entity.ItemEntity(l, l.nextEntityId(), p.x(), eye, p.z(), stack);
+        ie.setPickUpDelay(40);
+        if (includeThrower) ie.setThrower(p.uuid());
+        var r = p.random();
+        if (dropAround) {
+            float f = r.nextFloat() * 0.5F;
+            float g = r.nextFloat() * (float) (Math.PI * 2);
+            ie.setDeltaMovement(-org.domi.furnace.server.block.Dir.sin(g) * f, 0.2F, org.domi.furnace.server.block.Dir.cos(g) * f);
+        } else {
+            float xr = p.pitch() * (float) (Math.PI / 180.0), yr = p.yaw() * (float) (Math.PI / 180.0);
+            float g = org.domi.furnace.server.block.Dir.sin(xr), h = org.domi.furnace.server.block.Dir.cos(xr);
+            float i = org.domi.furnace.server.block.Dir.sin(yr), j = org.domi.furnace.server.block.Dir.cos(yr);
+            float k = r.nextFloat() * (float) (Math.PI * 2);
+            float m = 0.02F * r.nextFloat();
+            ie.setDeltaMovement((double) (-i * h * 0.3F) + Math.cos(k) * (double) m,
+                    (double) (-g * 0.3F + 0.1F + (r.nextFloat() - r.nextFloat()) * 0.1F),
+                    (double) (j * h * 0.3F) + Math.sin(k) * (double) m);
+        }
+        l.addFreshEntity(ie);
+        if (includeThrower) {   // ITEM_DROPPED · DROP 통계
+            p.awardStat("minecraft:dropped:" + org.domi.furnace.server.item.ItemTools.itemName(stack), stack.count());
+            p.awardStat("minecraft:drop", 1);
+        }
+        return ie;
+    }
+
     /** 엔티티 이벤트(부서짐 47·48 등)를 그 플레이어 자신과 추적 중인 플레이어에게. */
     public void broadcastEntityEvent(Player p, byte event) {
         var pkt = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), event);
@@ -707,6 +810,9 @@ public final class Region {
             eyeInWater = probe.eyeInWater(blocks, p.x(), p.y(), p.z(), eye);
         }
         return new org.domi.furnace.server.block.BreakerActor(p, main, off, head, inv == null ? 0 : inv.permissionLevel(), eyeInWater, held) {
+            @Override
+            public void drop(ItemStack stack) { playerDrop(p, stack, false, false); }
+
             @Override
             protected void brokenEvent(int hand, ItemStack broken) {
                 var pkt = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) (47 + hand));

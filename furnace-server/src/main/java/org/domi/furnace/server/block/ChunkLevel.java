@@ -5,6 +5,11 @@ package org.domi.furnace.server.block;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import org.domi.furnace.server.block.entity.BlockEntity;
+import org.domi.furnace.server.entity.AABB;
+import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.entity.EntityStore;
+import org.domi.furnace.server.entity.EntityTracker;
+import org.domi.furnace.server.entity.ItemEntity;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.item.ItemContext;
@@ -492,6 +497,8 @@ public abstract class ChunkLevel implements BlockLevel {
         blockEntityTickers.addAll(other.pendingTickers);
         other.blockEntityTickers.clear();
         other.pendingTickers.clear();
+        for (Entity e : other.entities.all()) e.setLevel(this);
+        entities.absorb(other.entities);
     }
 
     /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
@@ -524,6 +531,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 }
             }
         }
+        for (Entity e : entities.splitTo(target.entities, inTarget::test)) e.setLevel(target);
         var bit = blockEvents.iterator();
         while (bit.hasNext()) {
             BlockEventData ev = bit.next();
@@ -786,35 +794,371 @@ public abstract class ChunkLevel implements BlockLevel {
         if (actor != null && actor.handle() instanceof Player p) p.sendSystemMessage(text, true);
     }
 
+    /** Block.popResource(level, pos, stack): 칸 가운데 ±0.25(높이는 아이템 반만큼 내림)에 기본 속도로. 흩뿌림 난수는 게임룰과 무관하게 먼저 뽑는다. */
     @Override
     public void popResource(Pos pos, ItemStack stack) {
         RandomSource r = random();
-        nextDouble(r, -0.25, 0.25);   // x·y·z 흩뿌림(Mth.nextDouble) — 게임룰과 무관하게 먼저 뽑는다
-        nextDouble(r, -0.25, 0.25);
-        nextDouble(r, -0.25, 0.25);
-        spawnItem(stack, true);
+        double half = EntityType_ITEM_HEIGHT / 2.0;
+        double x = pos.x() + 0.5 + nextDouble(r, -0.25, 0.25);
+        double y = pos.y() + 0.5 + nextDouble(r, -0.25, 0.25) - half;
+        double z = pos.z() + 0.5 + nextDouble(r, -0.25, 0.25);
+        if (stack.isEmpty() || !gameRule("doTileDrops")) return;
+        ItemEntity e = new ItemEntity(this, nextEntityId(), x, y, z, stack);
+        e.setDefaultPickUpDelay();
+        addFreshEntity(e);
     }
 
+    /** Block.popResourceFromFace: 그 면 바깥(아이템 반 폭)에서 면 쪽 0.1(위쪽이면 +0.1) 속도로. */
     @Override
     public void popResourceFromFace(Pos pos, int dir, ItemStack stack) {
         RandomSource r = random();
-        if (Dir.DX[dir] == 0) nextDouble(r, -0.25, 0.25);
-        if (Dir.DY[dir] == 0) nextDouble(r, -0.25, 0.25);
-        if (Dir.DZ[dir] == 0) nextDouble(r, -0.25, 0.25);
-        if (Dir.DX[dir] == 0) nextDouble(r, -0.1, 0.1);
-        if (Dir.DY[dir] == 0) nextDouble(r, 0.0, 0.1);
-        if (Dir.DZ[dir] == 0) nextDouble(r, -0.1, 0.1);
-        spawnItem(stack, false);
+        int i = Dir.DX[dir], j = Dir.DY[dir], k = Dir.DZ[dir];
+        double hw = EntityType_ITEM_WIDTH / 2.0, hh = EntityType_ITEM_HEIGHT / 2.0;
+        double x = pos.x() + 0.5 + (i == 0 ? nextDouble(r, -0.25, 0.25) : i * (0.5 + hw));
+        double y = pos.y() + 0.5 + (j == 0 ? nextDouble(r, -0.25, 0.25) : j * (0.5 + hh)) - hh;
+        double z = pos.z() + 0.5 + (k == 0 ? nextDouble(r, -0.25, 0.25) : k * (0.5 + hw));
+        double vx = i == 0 ? nextDouble(r, -0.1, 0.1) : i * 0.1;
+        double vy = j == 0 ? nextDouble(r, 0.0, 0.1) : j * 0.1 + 0.1;
+        double vz = k == 0 ? nextDouble(r, -0.1, 0.1) : k * 0.1;
+        if (stack.isEmpty() || !gameRule("doTileDrops")) return;
+        ItemEntity e = new ItemEntity(this, nextEntityId(), x, y, z, stack, vx, vy, vz);
+        e.setDefaultPickUpDelay();
+        addFreshEntity(e);
+    }
+
+    private static final double EntityType_ITEM_WIDTH = 0.25F, EntityType_ITEM_HEIGHT = 0.25F;
+
+    @Override
+    public void dropContents(Pos pos, ItemStack[] items) {
+        for (int i = 0; i < items.length; i++) {
+            dropItemStack(pos.x(), pos.y(), pos.z(), items[i] == null ? ItemStack.EMPTY : items[i]);
+            items[i] = ItemStack.EMPTY;
+        }
+    }
+
+    @Override
+    public void unpackContainerLoot(Object container) { services().unpackContainerLoot(container); }
+
+    /**
+     * Containers.dropItemStack(level, x, y, z, stack): 칸 안 임의 위치(아이템 폭만큼 안쪽)에서 10~30 개씩 나눠, 속도는 삼각 분포
+     * (0, 0.2, 0) ± 0.11485.
+     */
+    public void dropItemStack(double x, double y, double z, ItemStack stack) {
+        RandomSource r = random();
+        double w = EntityType_ITEM_WIDTH, e = 1.0 - w, f = w / 2.0;
+        double gx = Math.floor(x) + r.nextDouble() * e + f;
+        double gy = Math.floor(y) + r.nextDouble() * e;
+        double gz = Math.floor(z) + r.nextDouble() * e + f;
+        while (!stack.isEmpty()) {
+            int n = Math.min(stack.count(), r.nextInt(21) + 10);
+            ItemStack part = stack.withCount(n);
+            stack = stack.withCount(stack.count() - n);
+            ItemEntity ie = new ItemEntity(this, nextEntityId(), gx, gy, gz, part);
+            ie.setDeltaMovement(r.triangle(0.0, 0.11485000171139836), r.triangle(0.2, 0.11485000171139836), r.triangle(0.0, 0.11485000171139836));
+            addFreshEntity(ie);
+        }
     }
 
     private static double nextDouble(RandomSource r, double min, double max) { return min >= max ? min : r.nextDouble() * (max - min) + min; }
 
-    /** 아이템 엔티티를 만든다(doTileDrops). 기본 속도 생성자는 난수 두 번(ItemEntity(level, x, y, z, stack)). TODO(엔티티): 실제 생성. */
-    private void spawnItem(ItemStack stack, boolean defaultVelocity) {
-        if (stack.isEmpty() || !gameRule("doTileDrops")) return;
-        if (defaultVelocity) {
-            random().nextDouble();
-            random().nextDouble();
+    // ------------------------------------------------------------------ 엔티티
+
+    private final EntityStore entities = new EntityStore();
+    private static final java.util.concurrent.atomic.AtomicInteger FALLBACK_IDS = new java.util.concurrent.atomic.AtomicInteger(1 << 24);
+
+    public EntityStore entities() { return entities; }
+
+    /** 새 엔티티 id(서버 전역 — 플레이어와 같은 발급기). 기본은 테스트용 따로 센 값. */
+    public int nextEntityId() { return FALLBACK_IDS.incrementAndGet(); }
+
+    /** 추적 대상 플레이어(이 레벨을 돌리는 region 의 플레이어). 기본은 서비스의 접속자. */
+    protected Iterable<Player> trackingPlayers() {
+        java.util.List<Player> out = new java.util.ArrayList<>();
+        services().forEachPlayer(out::add);
+        return out;
+    }
+
+    /** ChunkMap.getPlayerViewDistance: clamp(요청 시야, 2, 서버 시야). */
+    protected int viewDistanceFor(Player p) { return Math.max(2, p.viewDistance()); }
+
+    /** ChunkMap.isChunkTracked: 그 플레이어가 그 청크를 받았는가. */
+    protected boolean chunkTrackedBy(Player p, int chunkX, int chunkZ) { return true; }
+
+    private final EntityTracker.Viewers viewers = new EntityTracker.Viewers() {
+        public int viewDistance(Player p) { return viewDistanceFor(p); }
+
+        public boolean chunkTracked(Player p, int cx, int cz) { return chunkTrackedBy(p, cx, cz); }
+    };
+
+    public EntityTracker.Viewers viewers() { return viewers; }
+
+    /** addFreshEntity: 넣고(같은 UUID 가 있으면 거부) 추적을 시작한다 — 볼 수 있는 플레이어에게 바로 스폰. */
+    public boolean addFreshEntity(Entity e) {
+        if (e.isRemoved()) return false;
+        e.setLevel(this);
+        if (!entities.add(e)) return false;
+        startTracking(e);
+        return true;
+    }
+
+    /** ChunkMap.addEntity: 추적 거리(종류 × 16 × 방송 비율) 가 0 이면 추적하지 않는다. */
+    protected void startTracking(Entity e) {
+        int range = e.type().clientTrackingRange() * 16;
+        if (range == 0) return;
+        e.tracker = new EntityTracker(e, services().entityBroadcastRangePercentage() * range / 100);
+        e.tracker.updatePlayers(trackingPlayers(), viewers);
+    }
+
+    /** 다른 region 에서 넘어온 엔티티(추적 상태째). */
+    public void adoptEntity(Entity e) {
+        if (e.isRemoved()) return;
+        e.setLevel(this);
+        if (!entities.add(e)) return;
+        if (e.tracker == null) startTracking(e);
+    }
+
+    /** 엔티티가 지워졌다(setRemoved) — 저장소에서 빼고 보는 사람에게 지운다. */
+    public void entityRemoved(Entity e) {
+        if (!entities.remove(e)) return;
+        if (e.tracker != null) {
+            e.tracker.broadcastRemoved();
+            e.tracker = null;
         }
+    }
+
+    /** 엔티티의 구역이 바뀌었다(setPosRaw). */
+    public void entitySectionChanged(Entity e, long oldKey) { entities.moved(e, oldKey); }
+
+    public java.util.List<Entity> getEntities(Entity except, AABB box, java.util.function.Predicate<? super Entity> filter) {
+        return entities.getEntities(except, box, filter);
+    }
+
+    public <T extends Entity> java.util.List<T> getEntitiesOfClass(Class<T> cls, AABB box, java.util.function.Predicate<? super T> filter) {
+        return entities.getEntitiesOfClass(cls, box, filter);
+    }
+
+    /**
+     * 엔티티 틱(바닐라 ServerLevel.tick 의 entityTickList.forEach): 지워진 것은 건너뛰고, 엔티티 틱 청크(ticking — 청크 키
+     * (x << 32 | z))에 있는 것만 setOldPosAndRot · tickCount++ · tick.
+     */
+    public void tickEntities(java.util.function.LongPredicate ticking) {
+        if (entities.isEmpty()) return;
+        for (Entity e : entities.tickSnapshot()) {
+            if (e.isRemoved()) continue;
+            if (!ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) continue;
+            try {
+                e.setOldPosAndRot();
+                e.tickCount++;
+                e.tick();
+            } catch (RuntimeException ex) {
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 엔티티 틱 실패 {} — 지운다", e, ex);
+                e.discard();
+            }
+        }
+    }
+
+    /**
+     * 추적 갱신(ChunkMap.tick 의 엔티티 부분): 구역이 바뀐 엔티티는 모든 플레이어에 대해 다시 보고, 바뀌었거나 엔티티 틱 청크면 변화를 보낸다.
+     * present 는 이 region 에 있는 플레이어인가(없는 보는 사람은 grace 뒤 뺀다).
+     */
+    public void trackEntities(java.util.function.LongPredicate ticking, java.util.function.Predicate<Player> present) {
+        if (entities.isEmpty()) return;
+        Iterable<Player> players = null;
+        for (Entity e : entities.tickSnapshot()) {
+            EntityTracker t = e.tracker;
+            if (t == null || e.isRemoved()) continue;
+            t.dropAbsent(present, 3);
+            boolean changed = t.lastSectionKey != e.sectionKey();
+            if (changed) {
+                if (players == null) players = trackingPlayers();
+                t.updatePlayers(players, viewers);
+                t.lastSectionKey = e.sectionKey();
+            }
+            if (changed || ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) t.sendChanges();
+        }
+    }
+
+    /** ChunkMap.move(player): 플레이어가 움직였다 — 모든 엔티티에 대해 그 플레이어를 다시 본다. */
+    public void playerMoved(Player p) {
+        for (Entity e : entities.all()) if (e.tracker != null && !e.isRemoved()) e.tracker.updatePlayer(p, viewers);
+    }
+
+    /** 플레이어가 나갔다 — 보는 목록에서 뺀다(패킷 없이). */
+    public void playerLeft(Player p) {
+        for (Entity e : entities.all()) if (e.tracker != null) e.tracker.removePlayer(p);
+    }
+
+    // ------------------------------------------------------------------ 엔티티 저장(entities/ — 바닐라 EntityStorage)
+
+    /** 불러온 엔티티 묶음을 넣는다(addLegacyChunkEntities). 다루지 못하는 종류는 원본 NBT 로 청크에 둔다. */
+    public void loadChunkEntities(ChunkColumn col, org.domi.furnace.server.net.io.nbt.NbtCompound root) {
+        col.entitiesLoaded(true);
+        if (root == null || !(root.tags().get("Entities") instanceof org.domi.furnace.server.net.io.nbt.NbtList list) || list.size() == 0) return;
+        col.entitiesOnDisk(true);
+        for (Object o : list.items()) {
+            if (!(o instanceof org.domi.furnace.server.net.io.nbt.NbtCompound tag)) continue;
+            Entity e = org.domi.furnace.server.entity.Entities.load(this, tag);
+            if (e == null) col.foreignEntities().add(tag);
+            else addFreshEntity(e);
+        }
+    }
+
+    /**
+     * 그 청크의 엔티티를 저장할 묶음({DataVersion, Position, Entities}). 비었고 디스크에도 없으면 null(쓸 것 없음).
+     * unload 면 저장한 뒤 엔티티를 UNLOADED_TO_CHUNK 로 뺀다. 디스크의 것을 아직 못 불러왔으면 덮어쓰지 않게 null.
+     */
+    public org.domi.furnace.server.net.io.nbt.NbtCompound chunkEntitiesForSave(ChunkColumn col, int cx, int cz, boolean unload) {
+        if (!col.entitiesLoaded()) {
+            // 디스크 것을 아직 못 읽었다 — 덮어쓰지 않는다. 내리는 중이면 그사이 생긴 엔티티는 디스크 묶음에 덧붙인다
+            if (unload) {
+                java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> orphans = new java.util.ArrayList<>();
+                for (Entity e : entities.inChunk(cx, cz)) {
+                    var tag = e.save();
+                    if (tag != null) orphans.add(tag);
+                    e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+                }
+                if (!orphans.isEmpty()) appendEntitiesToDisk(cx, cz, orphans);
+            }
+            return null;
+        }
+        var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        java.util.List<Entity> in = entities.inChunk(cx, cz);
+        for (Entity e : in) {
+            var tag = e.save();
+            if (tag != null) list.add(tag);
+        }
+        for (var tag : col.foreignEntities()) list.add(tag);
+        if (unload) for (Entity e : in) e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        if (list.size() == 0) {
+            if (!col.entitiesOnDisk()) return null;
+            col.entitiesOnDisk(false);
+        } else {
+            col.entitiesOnDisk(true);
+        }
+        var root = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        root.putInt("DataVersion", org.domi.furnace.server.world.anvil.AnvilChunkCodec.DATA_VERSION);
+        root.putIntArray("Position", new int[] {cx, cz});
+        root.putList("Entities", list);
+        return root;
+    }
+
+    /** 로드되지 않은 청크의 디스크 엔티티 묶음에 덧붙인다(기본: 저장소 없음 — 버린다). */
+    protected void appendEntitiesToDisk(int cx, int cz, java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> tags) {}
+
+    /**
+     * 아무 region 도 로드하지 않은 청크로 들어간 엔티티: 저장해 그 청크의 디스크 묶음에 덧붙이고 뺀다(바닐라는 숨은 구역에 두었다가
+     * 청크와 함께 저장한다 — 여기서는 주인이 없는 청크를 들 수 없다).
+     */
+    public void evictToDisk(Entity e) {
+        var tag = e.save();
+        e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        if (tag != null) appendEntitiesToDisk(e.chunkX(), e.chunkZ(), java.util.List.of(tag));
+    }
+
+    // ------------------------------------------------------------------ 엔티티 충돌(바닐라 BlockCollisions)
+
+    private static final int MOVING_PISTON = B.id("moving_piston"), AIR_STATE = B.defaultState("air");
+    private static byte[] largeCollision;
+
+    /** hasLargeCollisionShape: 충돌 모양이 칸 밖으로 나가거나 모양이 바뀌는 블록. */
+    private boolean hasLargeCollisionShape(int state) {
+        byte[] c = largeCollision;
+        if (c == null) largeCollision = c = new byte[blocks.stateCount];
+        byte v = c[state];
+        if (v == 0) {
+            boolean large = info.dynamicShape(blocks.blockOf(state));
+            double[] b = info.collisionShape(state).bounds();
+            if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
+            c[state] = v = (byte) (large ? 2 : 1);
+        }
+        return v == 2;
+    }
+
+    /** 칸마다 충돌 모양(월드 좌표, 몸통과 겹치는 것만)을 돌려준다. stopAtFirst 면 첫 것에서 멈춘다. */
+    private void collectCollisions(AABB box, java.util.function.BiPredicate<Pos, Shape> out) {
+        int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
+        int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
+        int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
+        for (int z = z0; z <= z1; z++) {
+            for (int y = y0; y <= y1; y++) {
+                for (int x = x0; x <= x1; x++) {
+                    int edges = (x == x0 || x == x1 ? 1 : 0) + (y == y0 || y == y1 ? 1 : 0) + (z == z0 || z == z1 ? 1 : 0);
+                    if (edges == 3) continue;
+                    ChunkColumn c = chunk(x >> 4, z >> 4);
+                    if (c == null) continue;
+                    int state = y < minBuildHeight() || y >= maxBuildHeight() ? AIR_STATE : c.getBlock(x & 15, y, z & 15);
+                    if (edges == 1 && !hasLargeCollisionShape(state) || edges == 2 && blocks.blockOf(state) != MOVING_PISTON) continue;
+                    Pos p = new Pos(x, y, z);
+                    Shape shape = BlockBehaviors.of(state).getCollisionShape(state, this, p, null);
+                    if (shape.isEmpty()) continue;
+                    if (shape == Shape.BLOCK) {
+                        if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
+                    } else if (!shape.overlaps(box, x, y, z)) {
+                        continue;
+                    }
+                    if (!out.test(p, shape.move(x, y, z))) return;
+                }
+            }
+        }
+    }
+
+    /** getBlockCollisions(entity, box): 몸통과 겹치는 블록 충돌 모양들. */
+    public java.util.List<Shape> blockCollisions(AABB box) {
+        java.util.List<Shape> out = new java.util.ArrayList<>();
+        collectCollisions(box, (p, s) -> out.add(s));
+        return out;
+    }
+
+    /** noCollision(entity, box): 블록 충돌이 없는가(엔티티 충돌·월드 보더는 아직 없다). */
+    public boolean noCollision(AABB box) {
+        boolean[] hit = {false};
+        collectCollisions(box, (p, s) -> {
+            hit[0] = true;
+            return false;
+        });
+        return !hit[0];
+    }
+
+    /** findSupportingBlock(entity, box): 겹치는 충돌 블록 중 엔티티 위치에서 가운데가 가장 가까운 것(같으면 compareTo 가 큰 쪽). */
+    public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) {
+        Pos[] best = {null};
+        double[] bestDist = {Double.MAX_VALUE};
+        collectCollisions(box, (p, s) -> {
+            double dx = p.x() + 0.5 - ex, dy = p.y() + 0.5 - ey, dz = p.z() + 0.5 - ez;
+            double d = dx * dx + dy * dy + dz * dz;
+            if (d < bestDist[0] || d == bestDist[0] && (best[0] == null || compareVec(best[0], p) < 0)) {
+                best[0] = p;
+                bestDist[0] = d;
+            }
+            return true;
+        });
+        return best[0];
+    }
+
+    /** Vec3i.compareTo: y, z, x 순. */
+    private static int compareVec(Pos a, Pos b) {
+        if (a.y() != b.y()) return Integer.compare(a.y(), b.y());
+        if (a.z() != b.z()) return Integer.compare(a.z(), b.z());
+        return Integer.compare(a.x(), b.x());
+    }
+
+    @Override
+    public int countTriggeringEntities(double x0, double y0, double z0, double x1, double y1, double z1, boolean livingOnly) {
+        AABB box = new AABB(x0, y0, z0, x1, y1, z1);
+        int[] n = {entities.getEntities(null, box, e -> !e.isIgnoringBlockTriggers() && !e.isSpectator() && (!livingOnly || e.isLiving())).size()};
+        services().forEachPlayer(p -> {
+            if (p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            double h = p.sneaking() ? 1.5 : 1.8;
+            if (box.intersects(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3)) n[0]++;
+        });
+        return n[0];
+    }
+
+    /** hasChunksAt(minX, minZ, maxX, maxZ) — 블록 좌표. */
+    public boolean hasChunksAt(int minX, int minZ, int maxX, int maxZ) {
+        for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
+            for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) if (chunk(cx, cz) == null) return false;
+        }
+        return true;
     }
 }
