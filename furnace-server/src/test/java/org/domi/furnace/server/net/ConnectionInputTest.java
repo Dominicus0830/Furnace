@@ -27,10 +27,17 @@ import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class ConnectionInputTest {
+
+    @BeforeAll
+    static void items() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    }
 
     @TempDir Path tmp;
     private FurnaceSchedulerImpl sched;
@@ -238,7 +245,12 @@ class ConnectionInputTest {
         Types.writeVarInt(b, 0);
     }
 
-    private ItemStack[] slotsOf() throws Exception { return (ItemStack[]) field("slots"); }
+    private ItemStack[] slotsOf() throws Exception {
+        Object inv = field("inv");
+        java.lang.reflect.Field f = inv.getClass().getDeclaredField("slots");
+        f.setAccessible(true);
+        return (ItemStack[]) f.get(inv);
+    }
 
     /** 비정상 아이템(음수 개수·알 수 없는 id·과대 개수)은 인벤토리/상자에 들어가면 안 된다(다른 플레이어 클라이언트까지 깨뜨림). */
     @Test

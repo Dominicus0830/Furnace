@@ -68,6 +68,9 @@ public final class Player {
 
         /** Level.mayInteract 의 스폰 보호 부분(블록 x, z). */
         default boolean mayInteract(int x, int z) { return true; }
+
+        /** 그 창 칸이 바뀌었다(inventory_changed 발전 과제 — broadcastChanges 가 부른다). */
+        default void inventoryChanged(int windowSlot) {}
     }
 
     private volatile InventoryHost inventoryHost;
@@ -75,6 +78,13 @@ public final class Player {
     public org.domi.furnace.server.block.BlockBreaking breaking() { return breaking; }
 
     public org.domi.furnace.server.block.LegacyRandomSource random() { return random; }
+
+    /** 플레이어 인벤토리(연결이 만든 것을 넘겨받는다 — 테스트용 기본값도 있다). */
+    private volatile PlayerInventory inventory = new PlayerInventory();
+
+    public PlayerInventory inventory() { return inventory; }
+
+    public void inventory(PlayerInventory inv) { this.inventory = inv; }
 
     public InventoryHost inventoryHost() { return inventoryHost; }
 

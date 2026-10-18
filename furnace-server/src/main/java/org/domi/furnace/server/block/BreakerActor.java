@@ -60,50 +60,17 @@ public class BreakerActor extends PlayerActor {
     @Override
     public long nextEntityLong() { return player().random().nextLong(); }
 
-    /**
-     * Inventory.add: 같은 아이템이 덜 찬 칸(든 칸 → 왼손 → 0..35 순) 다음 빈 칸(0..35)에 넣는다. 인벤토리 사본에서 고르고
-     * 그 칸이 그대로일 때만 바꾼다(연결 스레드). 다 못 넣으면 false.
-     */
+    /** Inventory.add: 다 넣었으면 true(일부만 들어가도 그만큼은 들어간다 — 남은 것은 부르는 쪽이 떨군다). */
     @Override
     public boolean addToInventory(ItemStack stack) {
-        if (inventory == null || stack.isEmpty()) return false;
-        int max = org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack);
-        int[] order = new int[2 + 36];
-        int n = 0;
-        order[n++] = heldWindowSlot;
-        order[n++] = 45;
-        for (int i = 0; i < 36; i++) order[n++] = i < 9 ? 36 + i : i;
-        for (int k = 0; k < n; k++) {
-            int ws = order[k];
-            ItemStack cur = inventory.slot(ws);
-            if (!cur.isEmpty() && cur.itemId() == stack.itemId() && cur.patch().equals(stack.patch()) && cur.count() < Math.min(max, 99)) {
-                int room = Math.min(max, 99) - cur.count();
-                int put = Math.min(room, stack.count());
-                inventory.replace(ws, cur, cur.withCount(cur.count() + put));
-                stack = stack.withCount(stack.count() - put);
-                if (stack.isEmpty()) return true;
-            }
-        }
-        for (int i = 0; i < 36; i++) {
-            int ws = i < 9 ? 36 + i : i;
-            ItemStack cur = inventory.slot(ws);
-            if (cur.isEmpty()) {
-                inventory.replace(ws, cur, stack);
-                return true;
-            }
-        }
-        return false;
+        if (stack.isEmpty()) return false;
+        ItemStack left = player().inventory().add(stack, instabuild(), org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack),
+                org.domi.furnace.server.item.ItemTools.damage(stack) > 0);
+        return left.isEmpty();
     }
 
     @Override
-    public boolean inventoryContains(ItemStack stack) {
-        if (inventory == null) return false;
-        for (int ws = 5; ws <= 45; ws++) {
-            ItemStack cur = inventory.slot(ws);
-            if (!cur.isEmpty() && cur.itemId() == stack.itemId() && cur.patch().equals(stack.patch())) return true;
-        }
-        return false;
-    }
+    public boolean inventoryContains(ItemStack stack) { return player().inventory().contains(stack); }
 
     /** 사본을 잡을 때의 주 손 스택(인벤토리 반영 때 그 칸이 그대로인지 본다). */
     public ItemStack originalMainHand() { return originalMain; }

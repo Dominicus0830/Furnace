@@ -116,10 +116,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 스폰 게이트 해제 조건: confirm 왕복과 스폰 청크 배치 전송 완료 둘 다 필요(둘 다 채널 이벤트루프에서만 갱신 — 레이스 없음).
     private boolean spawnConfirmReceived = false;
     private boolean spawnChunksDelivered = false;
-    private final ItemStack[] slots = new ItemStack[46];
-    private int selectedSlot;                // 0~8
+    /** 플레이어 인벤토리(창 칸 0..45·든 칸·커서) — play 진입 때 Player 에 넘겨 region 스레드와 함께 쓴다. */
+    private final org.domi.furnace.server.entity.PlayerInventory inv = new org.domi.furnace.server.entity.PlayerInventory();
     private int nextContainerId = 1;         // 체스트 세션 id(1..100 순환, 0은 플레이어 자기 인벤 예약)
-    private ItemStack carried = ItemStack.EMPTY; // Container Click의 carried(커서에 든 아이템)
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
     // 이동 검증용(채널 이벤트루프 전용): 마지막으로 수락한 클라 위치. 스폰 좌표로 시작한다(월드 기본 스폰/저장 위치는 임의 좌표).
@@ -149,7 +148,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.scheduler = scheduler;
         this.world = world;
         this.idAllocator = idAllocator;
-        Arrays.fill(slots, ItemStack.EMPTY);
     }
 
     @Override
@@ -735,22 +733,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.entity.PlayerData.Snapshot saved =
                 org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        p.inventory(inv);
         p.inventoryHost(new Player.InventoryHost() {
-            public ItemStack slot(int windowSlot) {
-                ItemStack s = windowSlot >= 0 && windowSlot < slots.length ? slots[windowSlot] : null;
-                return s == null ? ItemStack.EMPTY : s;
-            }
+            public ItemStack slot(int windowSlot) { return inv.get(windowSlot); }
 
-            public int selected() { return selectedSlot; }
+            public int selected() { return inv.selected(); }
 
             public void replace(int windowSlot, ItemStack expect, ItemStack now) {
-                ctx.channel().eventLoop().execute(() -> {
-                    ItemStack cur = slots[windowSlot] == null ? ItemStack.EMPTY : slots[windowSlot];
-                    if (cur != expect) return;   // 그 사이 인벤토리가 바뀌었으면 손대지 않는다
-                    slots[windowSlot] = now;
-                    fireInventoryChanged(windowSlot);
-                });
+                // 그 사이 인벤토리가 바뀌었으면 손대지 않는다. 클라이언트·inventory_changed 는 다음 틱 broadcastChanges 가.
+                inv.replace(windowSlot, expect, now);
             }
+
+            public void inventoryChanged(int windowSlot) { ctx.channel().eventLoop().execute(() -> fireInventoryChanged(windowSlot)); }
 
             public int permissionLevel() {
                 org.domi.furnace.server.ServerCore c = login.core;
@@ -797,9 +791,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 바닐라 placeNewPlayer: 능력 → 손에 든 슬롯 → 레시피 목록 → 권한·명령 → 레시피 북 INIT
         if (saved != null && saved.root() != null) {
             int saved0 = saved.root().getIntOr0("SelectedItemSlot");
-            if (saved0 >= 0 && saved0 < 9) selectedSlot = saved0;
+            if (saved0 >= 0 && saved0 < 9) inv.setSelected(saved0);
         }
-        send(ctx, new SetHeldSlot(selectedSlot));
+        send(ctx, new SetHeldSlot(inv.selected()));
         org.domi.furnace.server.ServerCore core = login.core;
         var recipes = core != null ? core.recipes() : null;
         if (recipes != null) send(ctx, new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody()));
@@ -820,7 +814,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         double sz = saved != null ? saved.z() : defaultSpawn.playerZ();
         float syaw = saved != null ? saved.yaw() : defaultSpawn.yaw();
         float spitch = saved != null ? saved.pitch() : 0f;
-        if (saved != null) System.arraycopy(saved.slots(), 0, slots, 0, slots.length);
+        if (saved != null) inv.load(saved.slots());
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
         ix = sx; iy = sy; iz = sz; iyaw = syaw; ipitch = spitch; ig = true;
@@ -875,7 +869,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
         send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
         // 서버가 아는 인벤토리를 클라이언트에도 맞춘다(바닐라 initInventoryMenu).
-        send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), ItemStack.EMPTY));
+        send(ctx, inv.fullState());
         // 바닐라 첫 틱: 엔티티 데이터 → (ServerPlayer.tick 끝) 발전 과제 tick 트리거·flushDirty → (doTick) 체력·허기·경험치.
         // 발전 과제 쪽 패킷(레시피 ADD 등)은 Player.send 로 이벤트 루프 대기열에 들어가므로 뒤 패킷도 같은 대기열로 보낸다.
         var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
@@ -936,19 +930,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         var adv = p == null ? null : p.advancements();
         if (adv == null || windowSlot < 5 || windowSlot > 45) return;
+        ItemStack[] now = this.inv.snapshot();
         org.domi.furnace.server.loot.LootStack[] inv = new org.domi.furnace.server.loot.LootStack[41];
-        for (int i = 0; i < inv.length; i++) inv[i] = lootStack(slots[inventoryToWindowSlot(i)]);
+        for (int i = 0; i < inv.length; i++) inv[i] = lootStack(now[inventoryToWindowSlot(i)]);
         adv.trigger("minecraft:inventory_changed",
-                new org.domi.furnace.server.advancement.Criterion.InventoryEvent(inv, lootStack(slots[windowSlot])));
+                new org.domi.furnace.server.advancement.Criterion.InventoryEvent(inv, lootStack(now[windowSlot])));
     }
 
-    /** 플레이어 인벤토리 메뉴의 상태 번호(바닐라 AbstractContainerMenu.incrementStateId — 전체 동기화마다 1 증가, 15비트). */
-    private int inventoryStateId;
-
-    private int nextInventoryStateId() {
-        inventoryStateId = inventoryStateId + 1 & 32767;
-        return inventoryStateId;
-    }
 
     /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
     private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {
@@ -1148,7 +1136,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
-                if (slot >= 0 && slot < 9) selectedSlot = slot;
+                if (slot >= 0 && slot < 9) inv.setSelected(slot);
             }
             case 0x32 -> { // Set Creative Mode Slot: Short slot + Slot
                 int slot = frame.readShort();
@@ -1166,8 +1154,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 // 바닐라: 슬롯 1..45만, 개수·아이템 유효. 비정상 값은 다른 플레이어(공유 상자 경유)까지 클라이언트를 깨뜨린다.
                 Player cp = player;
                 boolean creative = cp != null && cp.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE;
-                if (creative && slot >= 1 && slot < slots.length && validStack(stack)) {
-                    slots[slot] = stack;
+                if (creative && slot >= 1 && slot < org.domi.furnace.server.entity.PlayerInventory.SIZE && validStack(stack)) {
+                    inv.set(slot, stack);
+                    inv.setRemote(slot, stack);   // 바닐라 setRemoteSlot — 되돌려 보내지 않는다
                     fireInventoryChanged(slot);
                 }
             }
@@ -1246,17 +1235,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     send(ctx, new ContainerClose(expectedContainerId));
                     break;
                 }
-                this.carried = newCarried;
+                inv.setCarried(newCarried);
+                inv.setRemoteCarried(newCarried);
                 java.util.Map<Integer, ItemStack> chestUpdates = new java.util.HashMap<>();
                 for (var e : changed.entrySet()) {
                     int menuSlot = e.getKey();
                     if (menuSlot >= 0 && menuSlot < 27) {
                         chestUpdates.put(menuSlot, e.getValue());
                     } else if (menuSlot >= 27 && menuSlot <= 53) {
-                        slots[9 + (menuSlot - 27)] = e.getValue();
+                        inv.set(9 + (menuSlot - 27), e.getValue());
+                        inv.setRemote(9 + (menuSlot - 27), e.getValue());   // 닫을 때 transferState 와 같다
                         fireInventoryChanged(9 + (menuSlot - 27));
                     } else if (menuSlot >= 54 && menuSlot <= 62) {
-                        slots[36 + (menuSlot - 54)] = e.getValue();
+                        inv.set(36 + (menuSlot - 54), e.getValue());
+                        inv.setRemote(36 + (menuSlot - 54), e.getValue());
                         fireInventoryChanged(36 + (menuSlot - 54));
                     }
                 }
@@ -1305,20 +1297,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         java.util.Map<Object, Integer> before = new java.util.HashMap<>(), after = new java.util.HashMap<>();
         for (var e : changed.entrySet()) {
             int slot = e.getKey();
-            if (slot < 0 || slot >= slots.length) { ok = false; break; }
-            tally(before, slots[slot], 1);
+            if (slot < 0 || slot >= org.domi.furnace.server.entity.PlayerInventory.SIZE) { ok = false; break; }
+            tally(before, inv.get(slot), 1);
             tally(after, e.getValue(), 1);
         }
-        tally(before, carried, 1);
+        tally(before, inv.carried(), 1);
         tally(after, newCarried, 1);
         before.values().removeIf(v -> v == 0);
         after.values().removeIf(v -> v == 0);
         if (ok && before.equals(after)) {
-            for (var e : changed.entrySet()) slots[e.getKey()] = e.getValue();
+            for (var e : changed.entrySet()) {
+                inv.set(e.getKey(), e.getValue());
+                inv.setRemote(e.getKey(), e.getValue());   // 클라이언트가 이미 아는 값
+            }
             for (var e : changed.entrySet()) fireInventoryChanged(e.getKey());
-            carried = newCarried;
+            inv.setCarried(newCarried);
+            inv.setRemoteCarried(newCarried);
         } else {
-            send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), carried));
+            send(ctx, inv.fullState());
         }
     }
 
@@ -1363,9 +1359,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.closeChest();
         }
         if (!keepInventory) {
-            Arrays.fill(slots, ItemStack.EMPTY);
-            carried = ItemStack.EMPTY;
-            send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), ItemStack.EMPTY));
+            inv.clear();
+            inv.setCarried(ItemStack.EMPTY);
+            send(ctx, inv.fullState());
         }
     }
 
@@ -1448,8 +1444,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
         if (core != null) core.sendPlayerPermissionLevel(p);
-        send(ctx, new ContainerSetContent(0, nextInventoryStateId(), copySlots(), carried));
-        send(ctx, new SetHeldSlot(selectedSlot));
+        send(ctx, inv.fullState());
+        send(ctx, new SetHeldSlot(inv.selected()));
     }
 
     /** 마지막으로 수락한 위치·회전·onGround의 합을 발행한다(region 스레드가 다음 틱에 drain). */
@@ -1498,9 +1494,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      */
     private void handleUseItemOn(ChannelHandlerContext ctx, Player actor, int hand, int[] bp, int face,
                                  float cx, float cy, float cz, boolean inside, int seq) {
-        final int heldSlot = 36 + selectedSlot;
+        final int heldSlot = 36 + inv.selected();
         final int handSlot = hand == 0 ? heldSlot : 45;
-        final ItemStack main = slots[heldSlot], off = slots[45];
+        final ItemStack main = inv.get(heldSlot), off = inv.get(45);
         final ItemStack before = hand == 0 ? main : off;
         org.domi.furnace.server.ServerCore core = login.core;
         int permission = core == null ? 0 : core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
@@ -1509,7 +1505,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
             var level = region.level();
             level.ackBlockChangesUpTo(actor, seq);
-            ItemStack head = slots[5] == null ? ItemStack.EMPTY : slots[5];
+            ItemStack head = inv.get(5);
             var pa = new org.domi.furnace.server.block.BreakerActor(actor, main, off, head, permission, false, heldSlot) {
                 @Override
                 protected void brokenEvent(int h, ItemStack broken) { region.broadcastEntityEvent(actor, (byte) (47 + h)); }
@@ -1563,22 +1559,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (!pa.handChanged(h)) continue;
                 int slot = h == 0 ? heldSlot : 45;
                 ItemStack expect = h == 0 ? main : off, now = pa.itemInHand(h);
-                ctx.channel().eventLoop().execute(() -> {
-                    if (slots[slot] != expect) return;   // 그 사이 인벤토리가 바뀌었으면 손대지 않는다
-                    slots[slot] = now;
-                    fireInventoryChanged(slot);
-                });
+                inv.replace(slot, expect, now);
             }
             for (int ws = 5; ws <= 8; ws++) {
                 if (!pa.armorChanged(ws)) continue;
                 int slot = ws;
                 ItemStack expect = pa.originalArmor(ws), now = pa.equipment(ws);
-                ctx.channel().eventLoop().execute(() -> {
-                    ItemStack cur = slots[slot] == null ? ItemStack.EMPTY : slots[slot];
-                    if (cur != expect) return;
-                    slots[slot] = now;
-                    fireInventoryChanged(slot);
-                });
+                inv.replace(slot, expect, now);
             }
         });
     }
@@ -1654,12 +1641,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void savePlayerSnapshot() {
         Player p = player;
         if (p == null) return;
-        final ItemStack[] snapshot = copySlots();
+        final ItemStack[] snapshot = inv.snapshot();
         final double sx = ix, sy = iy, sz = iz;     // IO 전용 최신 위치(Player.x()는 region drain 전이면 0,0,0)
         final float syaw = iyaw, spitch = ipitch;
         final boolean sg = ig;
         final var extra = p.vitals().saveData();
-        extra.putInt("SelectedItemSlot", selectedSlot);
+        extra.putInt("SelectedItemSlot", inv.selected());
         extra.putCompound("recipeBook", p.recipeBook().save());
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
@@ -1832,15 +1819,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new OpenScreen(containerId, 2, "Chest")); // menuTypeId=2 GENERIC_9x3(§0.2)
             ItemStack[] contents = new ItemStack[63]; // 0~26 체스트 + 27~53 main + 54~62 hotbar
             System.arraycopy(chestItems, 0, contents, 0, 27);
-            System.arraycopy(slots, 9, contents, 27, 27);
-            System.arraycopy(slots, 36, contents, 54, 9);
-            send(ctx, new ContainerSetContent(containerId, 1, contents, carried));   // 새 메뉴의 첫 전체 동기화(바닐라 incrementStateId → 1)
+            ItemStack[] mine = inv.snapshot();
+            System.arraycopy(mine, 9, contents, 27, 27);
+            System.arraycopy(mine, 36, contents, 54, 9);
+            send(ctx, new ContainerSetContent(containerId, 1, contents, inv.carried()));   // 새 메뉴의 첫 전체 동기화(바닐라 incrementStateId → 1)
         }));
     }
 
-    private ItemStack[] copySlots() {
-        ItemStack[] copy = new ItemStack[slots.length];
-        System.arraycopy(slots, 0, copy, 0, slots.length);
-        return copy;
-    }
 }

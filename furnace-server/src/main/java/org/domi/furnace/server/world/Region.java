@@ -500,6 +500,7 @@ public final class Region {
             p.drainPending();
             tickVitals(p);
             tickBreaking(p);
+            broadcastInventory(p);
             ChunkPos c = p.chunkPos();
             Region owner = rz().ownerOf(c.x(), c.z());
             if (owner != this && (owner == null || !rz().merging(this, owner))) {
@@ -743,6 +744,18 @@ public final class Region {
         for (int ws = 5; ws <= 8; ws++) {
             if (actor.armorChanged(ws)) inv.replace(ws, actor.originalArmor(ws), actor.equipment(ws));
         }
+    }
+
+    /**
+     * AbstractContainerMenu.broadcastChanges(인벤토리 메뉴): 클라이언트가 아는 것과 다른 칸만 보내고 inventory_changed 를 건다.
+     * 다른 창(상자)이 열려 있으면 그 창이 동기를 맡으므로 건너뛴다(닫으면 다음 틱에 차이가 나간다).
+     */
+    private void broadcastInventory(Player p) {
+        if (p.openContainerId() != -1) return;
+        List<Integer> changed = new ArrayList<>();
+        for (var pkt : p.inventory().broadcastChanges(changed)) p.send(pkt);
+        Player.InventoryHost host = p.inventoryHost();
+        if (host != null) for (int ws : changed) host.inventoryChanged(ws);
     }
 
     /** 매 틱 생존 상태 — 주변 블록을 보고 공허·익사·허기·회복·사망 틱을 돌린다. */
