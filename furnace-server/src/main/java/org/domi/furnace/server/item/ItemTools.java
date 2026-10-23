@@ -29,6 +29,15 @@ public final class ItemTools {
         return ItemData.vanilla().defaultComponent(itemName(s), name);
     }
 
+    /** 컴포넌트 하나를 (정규화해서) 설정한 새 스택 — 값이 아이템 기본값과 같으면 패치에서 빠진다. value null = 지움. */
+    public static ItemStack with(ItemStack s, String component, Object rawValue) {
+        java.util.LinkedHashMap<String, Object> raw = new java.util.LinkedHashMap<>();
+        raw.put(component, rawValue);
+        java.util.LinkedHashMap<String, Object> merged = new java.util.LinkedHashMap<>(s.patch().entries());
+        merged.putAll(ComponentPatch.of(raw).entries());
+        return new ItemStack(s.itemId(), s.count(), ComponentPatch.ofNormalized(merged).normalizedFor(itemName(s)));
+    }
+
     // ------------------------------------------------------------------ Tool
 
     /** 바닐라 Tool(rules, default_mining_speed, damage_per_block). */

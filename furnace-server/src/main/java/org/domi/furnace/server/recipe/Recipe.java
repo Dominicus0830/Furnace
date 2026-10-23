@@ -269,7 +269,14 @@ public sealed interface Recipe {
 
         @Override public boolean isSpecial() { return true; }
 
-        // TODO(특수 제작): 매칭·결과 만들기·남는 아이템은 SpecialRecipes 가 종류별로 이식한다(아직 없는 종류는 맞지 않는 것으로 둔다).
+        @Override public boolean matches(CraftingInput input, RecipeContext ctx) { return SpecialRecipes.matches(type, input, ctx); }
+
+        @Override public org.domi.furnace.server.entity.ItemStack assemble(CraftingInput input, RecipeContext ctx) { return SpecialRecipes.assemble(type, input, ctx); }
+
+        @Override public List<org.domi.furnace.server.entity.ItemStack> remainingItems(CraftingInput input, RecipeContext ctx) {
+            List<org.domi.furnace.server.entity.ItemStack> r = SpecialRecipes.remaining(type, input);
+            return r != null ? r : Recipe.super.remainingItems(input, ctx);
+        }
     }
 
     // ------------------------------------------------------------------ 화로류
