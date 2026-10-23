@@ -18,7 +18,8 @@ public class StonecutterBlock extends HorizontalDirectionalBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴): 석재 절단기 화면 + 통계 interact_with_stonecutter
+        player.openStonecutter(pos);
+        player.awardStat("minecraft:interact_with_stonecutter");
         return InteractionResult.CONSUME;
     }
 }

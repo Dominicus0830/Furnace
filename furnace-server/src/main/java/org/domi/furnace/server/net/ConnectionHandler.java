@@ -25,6 +25,7 @@ import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.play.BlockChangedAck;
 import org.domi.furnace.server.net.protocol.play.ContainerClose;
 import org.domi.furnace.server.net.protocol.play.ContainerSetContent;
+import org.domi.furnace.server.net.protocol.play.ContainerSetData;
 import org.domi.furnace.server.net.protocol.play.ContainerSetSlot;
 import org.domi.furnace.server.net.protocol.play.Disconnect;
 import org.domi.furnace.server.net.protocol.play.OpenScreen;
@@ -1260,6 +1261,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null) handleContainerClick(p, containerId, stateId, slotNum, button, clickType, changed, newCarried);
             }
+            case 0x0D -> { // Container Button Click: containerId, buttonId (VarInt 둘)
+                int containerId = Types.readVarInt(frame);
+                int buttonId = Types.readVarInt(frame);
+                Player p = player;
+                if (p != null) handleContainerButtonClick(p, containerId, buttonId);
+            }
             case 0x0F -> { // Container Close(serverbound): VarInt containerId — 바닐라는 번호를 보지 않고 열린 창을 닫는다(doCloseContainer)
                 Types.readVarInt(frame);
                 Player p = player;
@@ -1300,6 +1307,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var menu = p.containerMenu();
         if (menu == null || menu.containerId != containerId) return;   // 바닐라: 열린 창과 다르면 무시
         Runnable body = () -> applyContainerClick(p, menu, stateId, slotNum, button, type, changed, carried);
+        int[] bp = menu.containerBlockPos();
+        if (bp == null) {
+            synchronized (p.menuLock()) { body.run(); }
+        } else {
+            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+        }
+    }
+
+    /** 바닐라 handleContainerButtonClick: 열린 창이 맞고 관전자가 아니며 유효하면 clickMenuButton, 바뀌었으면 broadcastChanges. */
+    private void handleContainerButtonClick(Player p, int containerId, int buttonId) {
+        var menu = p.containerMenu();
+        if (menu == null || menu.containerId != containerId) return;
+        Runnable body = () -> {
+            if (p.containerMenu() != menu) return;
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            if (!menu.stillValid(menus)) {
+                log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
+            } else if (menu.clickMenuButton(menus, buttonId)) {
+                menu.broadcastChanges();
+            }
+        };
         int[] bp = menu.containerBlockPos();
         if (bp == null) {
             synchronized (p.menuLock()) { body.run(); }
@@ -1361,6 +1389,38 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 return region == null || "minecraft:crafting_table".equals(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
             });
             send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable("container.crafting")));
+            menu.addSlotListener(menus);
+            p.setContainerMenu(menu);
+            menu.setSynchronizer(menus);
+        }
+    }
+
+    /** 석재 절단기 화면 열기(StonecutterBlock.useWithoutItem → openMenu). */
+    private void openStonecutter(int x, int y, int z) {
+        Player p = player;
+        if (p == null) return;
+        synchronized (p.menuLock()) {
+            if (p.hasOpenContainer()) closeContainer(p);
+            int containerId = p.nextContainerCounter();
+            var menu = new org.domi.furnace.server.menu.StonecutterMenu(containerId, p.inventoryMenu().inventoryContainer(), menus, new int[]{x, y, z},
+                    new org.domi.furnace.server.menu.BlockAccess() {
+                        // 아래 셋은 블록을 가진 region 스레드(MenuBlockContext 안)에서만 불린다
+                        @Override public boolean stillBlock() {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            return region == null || "minecraft:stonecutter".equals(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
+                        }
+
+                        @Override public long gameTime() {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            return region == null ? 0L : region.level().gameTime();
+                        }
+
+                        @Override public void playSound(String sound) {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            if (region != null) region.level().playSound(null, x + 0.5, y + 0.5, z + 0.5, sound, "blocks", 1.0F, 1.0F);
+                        }
+                    });
+            send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable("container.stonecutter")));
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
             menu.setSynchronizer(menus);
@@ -1490,7 +1550,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // --- MenuSynchronizer (바닐라 ServerPlayer.containerSynchronizer — 패킷마다 상태 번호를 올린다)
         @Override public void sendInitialData(org.domi.furnace.server.menu.AbstractContainerMenu m, java.util.List<ItemStack> items, ItemStack carried, int[] data) {
             out(new ContainerSetContent(m.containerId, m.incrementStateId(), items.toArray(new ItemStack[0]), carried));
-            // TODO(메뉴 데이터): container_set_data — 화로·마법 부여 등 DataSlot 이 생기면 data[] 를 칸마다 보낸다.
+            for (int i = 0; i < data.length; i++) out(new ContainerSetData(m.containerId, i, data[i]));
         }
 
         @Override public void sendSlotChange(org.domi.furnace.server.menu.AbstractContainerMenu m, int slot, ItemStack stack) {
@@ -1502,7 +1562,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
 
         @Override public void sendDataChange(org.domi.furnace.server.menu.AbstractContainerMenu m, int id, int value) {
-            // TODO(메뉴 데이터): container_set_data(containerId, id, value)
+            out(new ContainerSetData(m.containerId, id, value));
         }
 
         // --- MenuListener (ServerPlayer.slotListener: 플레이어 인벤토리 칸이 바뀌면 inventory_changed)
@@ -1745,6 +1805,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public void openContainer(org.domi.furnace.server.block.Pos p) {
                     ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openContainer(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public void openStonecutter(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openStonecutter(p.x(), p.y(), p.z()));
                 }
 
                 @Override

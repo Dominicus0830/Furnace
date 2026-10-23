@@ -66,6 +66,7 @@ public abstract class AbstractContainerMenu {
 
     protected DataSlot addDataSlot(DataSlot data) {
         dataSlots.add(data);
+        remoteDataSlots = Arrays.copyOf(remoteDataSlots, dataSlots.size());   // 바닐라 remoteDataSlots.add(0)
         return data;
     }
 
@@ -497,6 +498,9 @@ public abstract class AbstractContainerMenu {
     }
 
     // ------------------------------------------------------------------ 열기·닫기
+
+    /** 바닐라 clickMenuButton — container_button_click 을 처리했는가(서버가 상태를 바꿨으면 true → broadcastChanges). */
+    public boolean clickMenuButton(MenuPlayer player, int id) { return false; }
 
     public abstract boolean stillValid(MenuPlayer player);
 

@@ -60,6 +60,9 @@ public final class RecipeManager {
     private final byte[] networkBody;
     private final RecipeContext ctx;
     private final List<CraftingEntry> crafting;
+    private final List<StonecuttingEntry> stonecutting;
+
+    public record StonecuttingEntry(ResourceId id, Recipe.Stonecutting recipe) { }
 
     private RecipeManager(Map<ResourceId, Recipe> byName, byte[] networkBody, RecipeContext ctx) {
         this.byName = byName;
@@ -69,6 +72,9 @@ public final class RecipeManager {
         List<CraftingEntry> c = new ArrayList<>();
         for (var e : byName.entrySet()) if (e.getValue().isCrafting()) c.add(new CraftingEntry(e.getKey(), e.getValue()));
         this.crafting = List.copyOf(c);
+        List<StonecuttingEntry> sc = new ArrayList<>();
+        for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Stonecutting r) sc.add(new StonecuttingEntry(e.getKey(), r));
+        this.stonecutting = List.copyOf(sc);
     }
 
     public static RecipeManager load(ResourceManager rm, RecipeContext ctx) {
@@ -133,6 +139,23 @@ public final class RecipeManager {
         if (last != null && last.recipe().matches(input, ctx)) return last;
         for (CraftingEntry e : crafting) if (e.recipe().matches(input, ctx)) return e;
         return null;
+    }
+
+    /**
+     * 바닐라 getRecipesFor(STONECUTTING, input): 재료가 맞는 레시피를 결과 아이템의 번역 키(getDescriptionId) 순으로(같으면 레시피 맵 순서).
+     */
+    public List<StonecuttingEntry> findStonecutting(org.domi.furnace.server.entity.ItemStack input) {
+        List<StonecuttingEntry> out = new ArrayList<>();
+        for (StonecuttingEntry e : stonecutting) if (e.recipe().ingredient().test(input, ctx)) out.add(e);
+        out.sort(java.util.Comparator.comparing(e -> descriptionId(e.recipe().result().item())));
+        return out;
+    }
+
+    /** Item.getDescriptionId: 블록 아이템은 block.<ns>.<path>, 그 밖은 item.<ns>.<path>. */
+    private static String descriptionId(ResourceId item) {
+        boolean block = org.domi.furnace.server.item.ItemContext.installed()
+                && org.domi.furnace.server.item.ItemContext.id("minecraft:block", item.toString()) != null;
+        return (block ? "block." : "item.") + item.namespace() + "." + item.path().replace('/', '.');
     }
 
     /** 바닐라 getRemainingItemsFor(CRAFTING, input): 일치하는 레시피의 남는 아이템, 없으면 입력 그대로. */

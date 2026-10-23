@@ -59,6 +59,9 @@ public interface BlockActor {
     /** 제작대 화면 열기(CraftingTableBlock.useWithoutItem → player.openMenu). */
     default void openCraftingTable(Pos pos) {}
 
+    /** 석재 절단기 화면 열기. */
+    default void openStonecutter(Pos pos) {}
+
     /** canUseGameMasterBlocks = instabuild && 권한 2 이상. */
     default boolean canUseGameMasterBlocks() { return instabuild() && permissionLevel() >= 2; }
 

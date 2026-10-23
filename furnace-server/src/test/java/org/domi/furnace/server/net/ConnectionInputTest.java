@@ -561,6 +561,24 @@ class ConnectionInputTest {
     }
 
     @Test
+    void stonecutter_opensAndSendsInitialData() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        RegionPos rp = new RegionPos(0, 0);
+        sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:stonecutter", Map.of("facing", "north")))).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openStonecutter", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, 2, -60, 2);
+        await("석재 절단기 창 열림", () -> p.hasOpenContainer());
+        var menu = p.containerMenu();
+        assertEquals("minecraft:stonecutter", menu.menuType());
+        assertEquals(38, menu.slots.size());
+        assertEquals(1, count(drainOutbound(), 0x14), "고른 레시피 번호(-1) 데이터가 초기 동기에 실린다");
+    }
+
+    @Test
     void shulkerBox_rejectsNestedShulkerBoxes() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         openBlock(2, -60, 2, "minecraft:shulker_box", Map.of("facing", "up"), null);
