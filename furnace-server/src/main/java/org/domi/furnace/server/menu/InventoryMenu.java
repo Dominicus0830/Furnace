@@ -32,6 +32,9 @@ public class InventoryMenu extends AbstractContainerMenu {
 
     public Container craftSlots() { return craftSlots; }
 
+    /** 플레이어 인벤토리 컨테이너(Inventory) — 다른 메뉴가 같은 객체로 플레이어 칸을 만든다(findSlot·transferState 가 컨테이너로 짝을 찾는다). */
+    public PlayerInventoryContainer inventoryContainer() { return inventory; }
+
     /** 방어구 칸 — 그 칸 장비만, 하나만, 결속 저주가 있으면 서바이벌에서는 못 뺀다. */
     private static final class ArmorSlot extends Slot {
         private final EquipSlot type;

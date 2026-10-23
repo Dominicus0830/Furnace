@@ -31,6 +31,11 @@ public interface Container {
      */
     default void replaceInPlace(int index, ItemStack stack) { set(index, stack); }
 
+    /** startOpen/stopOpen: 플레이어가 이 컨테이너를 열고 닫는다(상자 뚜껑 열린 사람 수 등). */
+    default void startOpen(MenuPlayer player) { }
+
+    default void stopOpen(MenuPlayer player) { }
+
     default boolean isEmpty() {
         for (int i = 0; i < size(); i++) if (!get(i).isEmpty()) return false;
         return true;

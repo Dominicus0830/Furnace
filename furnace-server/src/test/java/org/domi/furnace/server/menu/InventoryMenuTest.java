@@ -43,6 +43,7 @@ class InventoryMenuTest {
             return EquipSlot.MAINHAND;
         }
         @Override public boolean hasBindingCurse(ItemStack s) { return false; }
+        @Override public double distanceToSqr(double x, double y, double z) { return 0; }
     }
 
     /** 보낸 패킷을 기록하는 동기기. */

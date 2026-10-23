@@ -13,19 +13,15 @@ class ContainerPacketsTest {
     @Test
     void openScreen_id_and_wireLayout() {
         assertEquals(0x33, OpenScreen.ID);
-        OpenScreen p = new OpenScreen(3, 2, "Chest");
+        org.domi.furnace.api.text.Text title = org.domi.furnace.api.text.Text.translatable("container.chest");
+        OpenScreen p = new OpenScreen(3, 2, title);
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
         assertEquals(3, Types.readVarInt(buf));   // containerId
         assertEquals(2, Types.readVarInt(buf));   // menuTypeId(GENERIC_9x3)
-        assertEquals(0x0a, buf.readByte());       // title NBT: 루트 compound
-        assertEquals(0x08, buf.readByte());       // "text": TAG_STRING
-        assertEquals(4, buf.readUnsignedShort());
-        assertEquals("text", readAscii(buf, 4));
-        assertEquals(5, buf.readUnsignedShort());
-        assertEquals("Chest", readAscii(buf, 5));
-        assertEquals(0x00, buf.readByte());       // 루트 종료
-        assertFalse(buf.isReadable());
+        byte[] rest = new byte[buf.readableBytes()];
+        buf.readBytes(rest);
+        assertArrayEquals(title.networkNbt(), rest, "제목은 번역 키 컴포넌트의 네트워크 NBT");
         buf.release();
     }
 

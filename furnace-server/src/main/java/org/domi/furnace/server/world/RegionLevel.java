@@ -84,7 +84,9 @@ public final class RegionLevel extends ChunkLevel {
 
     @Override
     protected void removeBlockEntity(ChunkColumn col, Pos p) {
+        ChestBlockEntity chest = col.chestAt(p.x(), p.y(), p.z());
         col.removeBlockEntityAt(p.x(), p.y(), p.z());
+        if (chest != null) chest.setRemoved();   // 다른 region 의 플레이어가 연 메뉴도 stillValid 에서 걸러진다
         region.closeChestScreens(p.x(), p.y(), p.z());
     }
 

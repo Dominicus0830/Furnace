@@ -69,6 +69,9 @@ public abstract class AbstractContainerMenu {
         return data;
     }
 
+    /** 이 메뉴가 블록에 매인 컨테이너면 그 블록 좌표 {x,y,z}, 아니면 null — 클릭을 그 블록의 region 에서 처리하고 블록이 사라지면 닫는다. */
+    public int[] containerBlockPos() { return null; }
+
     public Slot getSlot(int index) { return slots.get(index); }
 
     public ItemStack getCarried() { return carried; }

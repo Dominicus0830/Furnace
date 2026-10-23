@@ -33,6 +33,9 @@ public interface MenuPlayer {
     /** 그 아이템이 들어갈 장비 칸(바닐라 getEquipmentSlotForItem). */
     EquipSlot equipmentSlotFor(ItemStack stack);
 
+    /** Entity.distanceToSqr(x, y, z) — 컨테이너가 열려 있는 동안 사거리 검사(stillValid)에 쓴다. */
+    double distanceToSqr(double x, double y, double z);
+
     /** 결속 저주(prevent_armor_change)가 붙었는가. */
     boolean hasBindingCurse(ItemStack stack);
 }

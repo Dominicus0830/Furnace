@@ -24,8 +24,9 @@ import org.domi.furnace.server.net.protocol.configuration.RegistryData;
 import org.domi.furnace.server.net.protocol.handshake.Handshake;
 import org.domi.furnace.server.net.protocol.play.BlockChangedAck;
 import org.domi.furnace.server.net.protocol.play.ContainerClose;
-import org.domi.furnace.server.net.protocol.play.Disconnect;
 import org.domi.furnace.server.net.protocol.play.ContainerSetContent;
+import org.domi.furnace.server.net.protocol.play.ContainerSetSlot;
+import org.domi.furnace.server.net.protocol.play.Disconnect;
 import org.domi.furnace.server.net.protocol.play.OpenScreen;
 import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -746,6 +747,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
             public void inventoryChanged(int windowSlot) { ctx.channel().eventLoop().execute(() -> fireInventoryChanged(windowSlot)); }
 
+            public void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {
+                synchronized (p.menuLock()) {
+                    if (p.containerMenu() == expect && p.hasOpenContainer()) ConnectionHandler.this.closeContainer(p);
+                }
+            }
+
+            public boolean menuStillValid(org.domi.furnace.server.menu.AbstractContainerMenu menu) { return menu.stillValid(menus); }
+
             public int permissionLevel() {
                 org.domi.furnace.server.ServerCore c = login.core;
                 return c == null ? 0 : c.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
@@ -815,6 +824,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         float syaw = saved != null ? saved.yaw() : defaultSpawn.yaw();
         float spitch = saved != null ? saved.pitch() : 0f;
         if (saved != null) inv.load(saved.slots());
+        menus = new ServerMenus(p);
+        p.initMenus(new org.domi.furnace.server.menu.InventoryMenu(inv, menus));
+        p.inventoryMenu().addSlotListener(menus);   // 바닐라 initInventoryMenu: 리스너(inventory_changed) 먼저, 동기기는 첫 패킷 때
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
         ix = sx; iy = sy; iz = sz; iyaw = syaw; ipitch = spitch; ig = true;
@@ -869,7 +881,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
         send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
         // 서버가 아는 인벤토리를 클라이언트에도 맞춘다(바닐라 initInventoryMenu).
-        send(ctx, inv.fullState());
+        synchronized (p.menuLock()) { p.inventoryMenu().setSynchronizer(menus); }   // 첫 container_set_content(상태 번호 1)
         // 바닐라 첫 틱: 엔티티 데이터 → (ServerPlayer.tick 끝) 발전 과제 tick 트리거·flushDirty → (doTick) 체력·허기·경험치.
         // 발전 과제 쪽 패킷(레시피 ADD 등)은 Player.send 로 이벤트 루프 대기열에 들어가므로 뒤 패킷도 같은 대기열로 보낸다.
         var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
@@ -1158,9 +1170,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player cp = player;
                 boolean creative = cp != null && cp.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE;
                 if (creative && slot >= 1 && slot < org.domi.furnace.server.entity.PlayerInventory.SIZE && validStack(stack)) {
-                    inv.set(slot, stack);
-                    inv.setRemote(slot, stack);   // 바닐라 setRemoteSlot — 되돌려 보내지 않는다
-                    fireInventoryChanged(slot);
+                    // 바닐라 handleSetCreativeModeSlot: 인벤토리 창의 칸에 놓고, 클라이언트가 이미 아는 값으로 받아들이고, 변경을 방송한다.
+                    synchronized (cp.menuLock()) {
+                        var im = cp.inventoryMenu();
+                        im.getSlot(slot).setByPlayer(stack);
+                        im.setRemoteSlot(slot, stack);
+                        im.broadcastChanges();
+                    }
                 } else if (creative && slot < 0 && validStack(stack) && !stack.isEmpty() && cp.tryCreativeDrop()) {
                     spawnDrop(stack, false, true);   // 크리에이티브 창 밖으로 버리기 — player.drop(stack, true)
                 }
@@ -1200,10 +1216,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
                 int containerId = Types.readVarInt(frame);
-                Types.readVarInt(frame);  // stateId(§ 검증 생략, 항상 클라 예측 수용)
-                int slotNum = frame.readShort();   // 버리기(창 밖 -999·THROW)만 본다 — 나머지는 changedSlots 가 진실
+                int stateId = Types.readVarInt(frame);
+                int slotNum = frame.readShort();
                 int button = frame.readByte();
-                int clickType = Types.readVarInt(frame);
+                int clickTypeId = Types.readVarInt(frame);
                 int numChanged = Types.readVarInt(frame);
                 if (numChanged < 0 || numChanged > MAX_CLICK_CHANGED_SLOTS) {   // 바닐라는 128 초과를 거부한다
                     ctx.close();
@@ -1221,59 +1237,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     protocolError(ctx, "Container Click", e);   // 바닐라: 디코드 실패는 연결 종료
                     break;
                 }
+                var clickType = org.domi.furnace.server.menu.ClickType.byId(clickTypeId);
+                if (clickType == null) {
+                    protocolError(ctx, "Container Click", new IllegalArgumentException("clickType " + clickTypeId));
+                    break;
+                }
                 boolean validClick = validStack(newCarried);
                 for (ItemStack c : changed.values()) validClick &= validStack(c);
                 if (!validClick) break; // 음수 개수·알 수 없는 아이템 등 비정상 — 패킷 폐기
                 Player p = player;
-                if (containerId == 0 && p.openContainerId() == -1) {
-                    inventoryDropClick(slotNum, button, clickType);
-                    applyInventoryClick(changed, newCarried);
-                    break;
-                }
-                int expectedContainerId = p.openContainerId();
-                if (clickType != 0 || expectedContainerId == -1 || containerId != expectedContainerId) {
-                    break; // PICKUP만 처리, 컨테이너 불일치·미오픈 무시(§3.3)
-                }
-                int[] chestPos = p.openChestPos();
-                // 열린 체스트가 사거리 밖(텔레포트·보정 등)이면 클릭 전체를 폐기하고 창을 닫는다 — 체스트만 안 바뀌고 인벤토리만 바뀌는 복제 방지.
-                if (chestPos != null && !blockRequestAllowed(chestPos[0], chestPos[1], chestPos[2])) {
-                    p.closeChest();
-                    send(ctx, new ContainerClose(expectedContainerId));
-                    break;
-                }
-                inv.setCarried(newCarried);
-                inv.setRemoteCarried(newCarried);
-                java.util.Map<Integer, ItemStack> chestUpdates = new java.util.HashMap<>();
-                for (var e : changed.entrySet()) {
-                    int menuSlot = e.getKey();
-                    if (menuSlot >= 0 && menuSlot < 27) {
-                        chestUpdates.put(menuSlot, e.getValue());
-                    } else if (menuSlot >= 27 && menuSlot <= 53) {
-                        inv.set(9 + (menuSlot - 27), e.getValue());
-                        inv.setRemote(9 + (menuSlot - 27), e.getValue());   // 닫을 때 transferState 와 같다
-                        fireInventoryChanged(9 + (menuSlot - 27));
-                    } else if (menuSlot >= 54 && menuSlot <= 62) {
-                        inv.set(36 + (menuSlot - 54), e.getValue());
-                        inv.setRemote(36 + (menuSlot - 54), e.getValue());
-                        fireInventoryChanged(36 + (menuSlot - 54));
-                    }
-                }
-                if (!chestUpdates.isEmpty() && chestPos != null) {
-                    world.runAt(chestPos[0], chestPos[2], region -> {
-                        if (!region.chunkLoaded(ChunkPos.ofBlock(chestPos[0], chestPos[2]))) return; // 미로드 청크를 생성/로드하지 않는다
-                        for (var e : chestUpdates.entrySet()) {
-                            region.setChestItem(chestPos[0], chestPos[1], chestPos[2], e.getKey(), e.getValue());
-                        }
-                    });
-                }
+                if (p != null) handleContainerClick(p, containerId, stateId, slotNum, button, clickType, changed, newCarried);
             }
-            case 0x0F -> { // Container Close(serverbound): VarInt containerId
+            case 0x0F -> { // Container Close(serverbound): VarInt containerId — 바닐라는 번호를 보지 않고 열린 창을 닫는다(doCloseContainer)
                 Types.readVarInt(frame);
                 Player p = player;
-                if (p != null) {
-                    p.closeChest();
-                    returnCarried(p);
-                }
+                if (p != null && p.containerMenu() != null) handleContainerClose(p);
             }
             default -> { /* 그 외 무시 */ }
         }
@@ -1296,41 +1274,189 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         });
     }
 
+    // ------------------------------------------------------------------ 컨테이너 메뉴(4-2)
+
+    private ServerMenus menus;
+
     /**
-     * 플레이어 인벤토리 창(0) 클릭: 클라이언트가 보고한 바뀐 칸을 받되, 아이템 종류별 총량(커서 포함)이 그대로일 때만 —
-     * 재배치·나누기·합치기는 반영되고 아이템을 만들거나 없애는 보고는 거부한 뒤 서버 상태로 되돌린다.
-     * 바닐라처럼 클릭을 서버에서 재현하는 검증과 제작·버리기는 3단계(인벤토리·아이템 엔티티)에서 붙는다.
+     * 바닐라 ServerGamePacketListenerImpl.handleContainerClick: 서버가 클릭을 재현하고(AbstractContainerMenu.clicked), 클라이언트가 보고한
+     * 바뀐 칸·커서는 "클라이언트가 이미 아는 값"으로만 받아들여 서버 결과와 같으면 추가 패킷이 나가지 않게 한다. stateId 가 다르면 전체를 다시 보낸다.
+     * 블록에 매인 창(상자)은 그 블록을 가진 region 스레드에서 처리한다 — 같은 상자에 대한 클릭·닫기가 그 region 큐에서 차례로 돈다.
      */
-    private void applyInventoryClick(java.util.Map<Integer, ItemStack> changed, ItemStack newCarried) {
-        boolean ok = !changed.containsKey(0);   // 제작 결과 칸은 아직 없다
-        java.util.Map<Object, Integer> before = new java.util.HashMap<>(), after = new java.util.HashMap<>();
-        for (var e : changed.entrySet()) {
-            int slot = e.getKey();
-            if (slot < 0 || slot >= org.domi.furnace.server.entity.PlayerInventory.SIZE) { ok = false; break; }
-            tally(before, inv.get(slot), 1);
-            tally(after, e.getValue(), 1);
-        }
-        tally(before, inv.carried(), 1);
-        tally(after, newCarried, 1);
-        before.values().removeIf(v -> v == 0);
-        after.values().removeIf(v -> v == 0);
-        if (ok && before.equals(after)) {
-            for (var e : changed.entrySet()) {
-                inv.set(e.getKey(), e.getValue());
-                inv.setRemote(e.getKey(), e.getValue());   // 클라이언트가 이미 아는 값
-            }
-            for (var e : changed.entrySet()) fireInventoryChanged(e.getKey());
-            inv.setCarried(newCarried);
-            inv.setRemoteCarried(newCarried);
+    private void handleContainerClick(Player p, int containerId, int stateId, int slotNum, int button,
+            org.domi.furnace.server.menu.ClickType type, java.util.Map<Integer, ItemStack> changed, ItemStack carried) {
+        var menu = p.containerMenu();
+        if (menu == null || menu.containerId != containerId) return;   // 바닐라: 열린 창과 다르면 무시
+        Runnable body = () -> applyContainerClick(p, menu, stateId, slotNum, button, type, changed, carried);
+        int[] bp = menu.containerBlockPos();
+        if (bp == null) {
+            synchronized (p.menuLock()) { body.run(); }
         } else {
-            send(ctx, inv.fullState());
+            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
         }
     }
 
-    private static void tally(java.util.Map<Object, Integer> counts, ItemStack s, int sign) {
-        if (s == null || s.isEmpty()) return;
-        Object key = java.util.List.of(s.itemId(), s.patch());
-        counts.merge(key, sign * s.count(), Integer::sum);
+    private void applyContainerClick(Player p, org.domi.furnace.server.menu.AbstractContainerMenu menu, int stateId, int slotNum, int button,
+            org.domi.furnace.server.menu.ClickType type, java.util.Map<Integer, ItemStack> changed, ItemStack carried) {
+        if (p.containerMenu() != menu) return;   // 그 사이 닫혔다
+        try {
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) {
+                menu.sendAllDataToRemote();
+            } else if (!menu.stillValid(menus)) {
+                log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
+            } else if (!menu.isValidSlotIndex(slotNum)) {
+                log.debug("Player {} clicked invalid slot index: {}, available slots: {}", p.name(), slotNum, menu.slots.size());
+            } else {
+                boolean stateMismatch = stateId != menu.getStateId();
+                menu.suppressRemoteUpdates();
+                menu.clicked(slotNum, button, type, menus);
+                for (var e : changed.entrySet()) menu.setRemoteSlotNoCopy(e.getKey(), e.getValue());
+                menu.setRemoteCarried(carried);
+                menu.resumeRemoteUpdates();
+                if (stateMismatch) menu.broadcastFullState();
+                else menu.broadcastChanges();
+            }
+        } catch (RuntimeException e) {
+            menu.resumeRemoteUpdates();
+            log.warn("컨테이너 클릭 처리 중 오류({}), 연결 종료: {}", menu, e.toString());
+            ctx.close();
+        }
+    }
+
+    /** 블록에 매인 창의 작업을 그 블록의 region 스레드에서 돌린다 — 청크가 내려갔거나 창이 바뀌었으면 body 를 돌리지 않는다. */
+    private void runOnBlockRegion(org.domi.furnace.server.world.Region region, Player p,
+            org.domi.furnace.server.menu.AbstractContainerMenu menu, int[] bp, Runnable body) {
+        synchronized (p.menuLock()) {
+            if (p.containerMenu() != menu) return;
+            if (!region.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2]))) {   // 청크 없이 상자를 읽거나 쓰지 않는다
+                closeContainer(p);
+                return;
+            }
+            if (menu instanceof org.domi.furnace.server.menu.ChestMenu cm && cm.container() instanceof org.domi.furnace.server.world.ChestContainer) {
+                org.domi.furnace.server.world.ChestContainer.runIn(region, body);
+            } else {
+                body.run();
+            }
+        }
+    }
+
+    /** minecraft:menu 레지스트리 번호(generic_9x1.. 이 앞에서부터 0..5). */
+    private static int menuTypeId(org.domi.furnace.server.menu.AbstractContainerMenu menu) {
+        String type = menu.menuType();
+        Integer id = org.domi.furnace.server.item.ItemContext.installed() ? org.domi.furnace.server.item.ItemContext.id("minecraft:menu", type) : null;
+        if (id != null) return id;
+        if (type.startsWith("minecraft:generic_9x")) return type.charAt(type.length() - 1) - '1';
+        throw new IllegalStateException("menu type id unknown: " + type);
+    }
+
+    /** 바닐라 handleContainerClose → ServerPlayer.doCloseContainer. */
+    private void handleContainerClose(Player p) {
+        var menu = p.containerMenu();
+        int[] bp = menu.containerBlockPos();
+        Runnable close = () -> {
+            if (p.containerMenu() == menu) doCloseContainer(p);
+        };
+        if (bp == null) {
+            synchronized (p.menuLock()) { close.run(); }
+        } else {
+            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, close));
+        }
+    }
+
+    /** ServerPlayer.doCloseContainer: 창의 removed(커서·제작 격자 돌려주기) → 동기 상태를 인벤토리 창에 넘기고 인벤토리 창으로 돌아간다. */
+    private void doCloseContainer(Player p) {
+        var menu = p.containerMenu();
+        menu.removed(menus);
+        p.inventoryMenu().transferState(menu);
+        p.setContainerMenu(p.inventoryMenu());
+    }
+
+    /** ServerPlayer.closeContainer: 클라이언트에 닫으라고 알리고 닫는다. */
+    private void closeContainer(Player p) {
+        var menu = p.containerMenu();
+        menus.out(new ContainerClose(menu.containerId));
+        doCloseContainer(p);
+    }
+
+    /** 메뉴 ↔ 플레이어·연결 어댑터: MenuPlayer(메뉴가 플레이어에게 바라는 것) + MenuSynchronizer(패킷) + MenuListener(inventory_changed). */
+    private final class ServerMenus implements org.domi.furnace.server.menu.MenuPlayer, org.domi.furnace.server.menu.MenuSynchronizer,
+            org.domi.furnace.server.menu.MenuListener {
+        private final Player p;
+
+        ServerMenus(Player p) { this.p = p; }
+
+        /** 이벤트 루프 안이면 바로, 아니면(region 스레드) 대기열로 — 접속 순서의 패킷은 바로 나가야 순서가 맞다. */
+        void out(Packet pkt) {
+            if (ctx.executor().inEventLoop()) send(ctx, pkt);
+            else p.send(pkt);
+        }
+
+        // --- MenuPlayer
+        @Override public boolean isCreative() { return p.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE; }
+        @Override public boolean isSpectator() { return p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR; }
+        @Override public boolean isDeadOrDying() { return p.vitals().isDeadOrDying(); }
+        @Override public boolean hasDisconnected() { return !ctx.channel().isActive(); }
+
+        @Override public void drop(ItemStack stack, boolean includeThrower) {
+            if (!stack.isEmpty()) spawnDrop(stack, false, includeThrower);
+        }
+
+        @Override public void placeItemBackInInventory(ItemStack stack) {
+            if (stack.isEmpty()) return;
+            ItemStack left = inv.add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack),
+                    org.domi.furnace.server.item.ItemTools.damage(stack) > 0);
+            if (!left.isEmpty()) spawnDrop(left, false, false);
+        }
+
+        @Override public ItemStack addToInventory(ItemStack stack) {
+            return inv.add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack),
+                    org.domi.furnace.server.item.ItemTools.damage(stack) > 0);
+        }
+
+        @Override public ItemStack inventoryItem(int i) { return inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i)); }
+
+        @Override public void setInventoryItem(int i, ItemStack s) { inv.set(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i), s); }
+
+        @Override public org.domi.furnace.server.menu.EquipSlot equipmentSlotFor(ItemStack s) {
+            return org.domi.furnace.server.menu.EquipSlots.forItem(
+                    org.domi.furnace.server.item.ItemContext.installed() ? org.domi.furnace.server.item.ItemContext.name("minecraft:item", s.itemId()) : null);
+        }
+
+        @Override public boolean hasBindingCurse(ItemStack s) {
+            return org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:binding_curse") > 0;
+        }
+
+        @Override public double distanceToSqr(double x, double y, double z) {
+            double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
+            return dx * dx + dy * dy + dz * dz;
+        }
+
+        // --- MenuSynchronizer (바닐라 ServerPlayer.containerSynchronizer — 패킷마다 상태 번호를 올린다)
+        @Override public void sendInitialData(org.domi.furnace.server.menu.AbstractContainerMenu m, java.util.List<ItemStack> items, ItemStack carried, int[] data) {
+            out(new ContainerSetContent(m.containerId, m.incrementStateId(), items.toArray(new ItemStack[0]), carried));
+            // TODO(메뉴 데이터): container_set_data — 화로·마법 부여 등 DataSlot 이 생기면 data[] 를 칸마다 보낸다.
+        }
+
+        @Override public void sendSlotChange(org.domi.furnace.server.menu.AbstractContainerMenu m, int slot, ItemStack stack) {
+            out(new ContainerSetSlot(m.containerId, m.incrementStateId(), slot, stack));
+        }
+
+        @Override public void sendCarriedChange(org.domi.furnace.server.menu.AbstractContainerMenu m, ItemStack stack) {
+            out(new ContainerSetSlot(-1, m.incrementStateId(), -1, stack));
+        }
+
+        @Override public void sendDataChange(org.domi.furnace.server.menu.AbstractContainerMenu m, int id, int value) {
+            // TODO(메뉴 데이터): container_set_data(containerId, id, value)
+        }
+
+        // --- MenuListener (ServerPlayer.slotListener: 플레이어 인벤토리 칸이 바뀌면 inventory_changed)
+        @Override public void slotChanged(org.domi.furnace.server.menu.AbstractContainerMenu m, int slotIndex, ItemStack stack) {
+            var slot = m.getSlot(slotIndex);
+            if (!(slot.container instanceof org.domi.furnace.server.menu.PlayerInventoryContainer)) return;
+            int ws = org.domi.furnace.server.entity.PlayerInventory.windowSlot(slot.containerIndex());
+            if (ctx.executor().inEventLoop()) fireInventoryChanged(ws);
+            else ctx.channel().eventLoop().execute(() -> fireInventoryChanged(ws));
+        }
     }
 
     private String previousName;
@@ -1363,9 +1489,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void onPlayerDied(boolean keepInventory) {
         Player p = player;
         if (p == null) return;
-        if (p.openContainerId() != -1) {
-            send(ctx, new ContainerClose(p.openContainerId()));
-            p.closeChest();
+        synchronized (p.menuLock()) {
+            if (p.hasOpenContainer()) closeContainer(p);
         }
         if (!keepInventory) {
             // Inventory.dropAll(소멸 저주는 먼저 지운다): 주 인벤토리 → 갑옷(발·다리·가슴·머리) → 왼손 순으로 아무 쪽으로 던진다
@@ -1382,52 +1507,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
-    /** ServerPlayer.drop(all): 든 칸에서 하나(또는 다) 꺼내 던진다. 클라이언트는 이미 칸을 비웠다(setRemoteSlot). */
+    /** ServerPlayer.drop(all): 든 칸에서 하나(또는 다) 꺼내 던진다. 열린 창에서 그 칸을 찾아, 클라이언트가 이미 비운 값을 아는 것으로 맞춘다(setRemoteSlot). */
     private void dropFromSelected(boolean all) {
+        Player p = player;
         int ws = inv.heldWindowSlot();
         ItemStack held = inv.get(ws);
-        if (held.isEmpty()) {
-            inv.setRemote(ws, held);
-            return;
+        ItemStack left = held;
+        if (!held.isEmpty()) {
+            int n = all ? held.count() : 1;
+            left = held.withCount(held.count() - n);
+            if (!inv.replace(ws, held, left)) return;
+            fireInventoryChanged(ws);
+            spawnDrop(held.withCount(n), false, true);
         }
-        int n = all ? held.count() : 1;
-        ItemStack left = held.withCount(held.count() - n);
-        if (!inv.replace(ws, held, left)) return;
-        inv.setRemote(ws, left);
-        fireInventoryChanged(ws);
-        spawnDrop(held.withCount(n), false, true);
-    }
-
-    /** 인벤토리 창 클릭 중 버리기(AbstractContainerMenu.doClick): 창 밖(-999) PICKUP 이면 커서를, THROW 면 그 칸에서 던진다. */
-    private void inventoryDropClick(int slotNum, int button, int clickType) {
-        ItemStack carried = inv.carried();
-        if (clickType == 0 && slotNum == -999 && !carried.isEmpty() && (button == 0 || button == 1)) {
-            int n = button == 0 ? carried.count() : 1;
-            inv.setCarried(carried.withCount(carried.count() - n));
-            spawnDrop(carried.withCount(n), false, true);
-        } else if (clickType == 4 && slotNum >= 0 && slotNum < org.domi.furnace.server.entity.PlayerInventory.SIZE && carried.isEmpty()
-                && (button == 0 || button == 1)) {
-            ItemStack s = inv.get(slotNum);
-            if (s.isEmpty() || slotNum == 0) return;   // 제작 결과 칸은 아직 없다
-            int n = button == 0 ? 1 : s.count();
-            inv.set(slotNum, s.withCount(s.count() - n));
-            fireInventoryChanged(slotNum);
-            spawnDrop(s.withCount(n), false, true);
-        }
-    }
-
-    /** 창을 닫을 때 커서에 든 것(AbstractContainerMenu.removed): 살아 있으면 인벤토리로(넘치면 던짐), 죽었으면 던진다. */
-    private void returnCarried(Player p) {
-        ItemStack carried = inv.carried();
-        if (carried.isEmpty()) return;
-        inv.setCarried(ItemStack.EMPTY);
-        inv.setRemoteCarried(ItemStack.EMPTY);
-        if (!p.vitals().isDeadOrDying()) {
-            ItemStack left = inv.add(carried, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(carried),
-                    org.domi.furnace.server.item.ItemTools.damage(carried) > 0);
-            if (!left.isEmpty()) spawnDrop(left, false, false);
-        } else {
-            spawnDrop(carried, false, false);
+        if (p != null && p.containerMenu() != null) {
+            synchronized (p.menuLock()) {
+                var menu = p.containerMenu();
+                int idx = menu.findSlot(p.inventoryMenu().inventoryContainer(), inv.selected());
+                if (idx >= 0) menu.setRemoteSlot(idx, left);
+            }
         }
     }
 
@@ -1517,7 +1615,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
         if (core != null) core.sendPlayerPermissionLevel(p);
-        send(ctx, inv.fullState());
+        synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
         send(ctx, new SetHeldSlot(inv.selected()));
     }
 
@@ -1701,6 +1799,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 p.markDisconnected();
                 if (msg != null) core.broadcastSystemMessage(msg, false);
             }
+            // 바닐라 Player.remove: 인벤토리 창의 removed(커서·제작 격자는 끊긴 플레이어라 월드에 떨어진다)와 열린 창 닫기 — 제작 격자가 저장과 겹치지 않게 저장 전에.
+            if (menus != null && p.inventoryMenu() != null) {
+                synchronized (p.menuLock()) {
+                    p.inventoryMenu().removed(menus);
+                    if (p.hasOpenContainer()) doCloseContainer(p);
+                }
+            }
             savePlayerSnapshot();
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
@@ -1871,31 +1976,32 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         ctx.close();
     }
 
-    /** Use Item On이 체스트를 클릭했을 때 화면 열기(§3.2) — 싱글체스트만, 더블체스트 병합 없음. */
+    /**
+     * Use Item On 이 상자를 클릭했을 때 화면 열기(ServerPlayer.openMenu): 열려 있던 창을 닫고, 번호를 올리고, ChestMenu 를 만들어
+     * open_screen → 첫 container_set_content 를 보낸다. 싱글체스트만 — 더블체스트 병합은 TODO(더블 상자).
+     */
     private void openChest(int x, int y, int z) {
         Player p = player;
         if (p == null) return;
-        int containerId = nextContainerId;
-        nextContainerId = nextContainerId % 100 + 1; // 1..100 순환(vanilla 관례), 0은 자기 인벤 예약
-        p.openChest(containerId, x, y, z);
         world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> {
             ChestBlockEntity chest = region.chestAt(x, y, z);
             if (chest != null && chest.lootTable != null && login.core != null) {
                 login.core.unpackLoot(chest, p);   // 바닐라 startOpen → unpackLootTable(player)
                 region.markChestChanged(x, y, z);
             }
-            ItemStack[] out = new ItemStack[ChestBlockEntity.SLOTS];
-            if (chest != null) System.arraycopy(chest.items, 0, out, 0, ChestBlockEntity.SLOTS);
-            else Arrays.fill(out, ItemStack.EMPTY);
-            return out;
-        }).thenAccept(chestItems -> ctx.channel().eventLoop().execute(() -> {
-            send(ctx, new OpenScreen(containerId, 2, "Chest")); // menuTypeId=2 GENERIC_9x3(§0.2)
-            ItemStack[] contents = new ItemStack[63]; // 0~26 체스트 + 27~53 main + 54~62 hotbar
-            System.arraycopy(chestItems, 0, contents, 0, 27);
-            ItemStack[] mine = inv.snapshot();
-            System.arraycopy(mine, 9, contents, 27, 27);
-            System.arraycopy(mine, 36, contents, 54, 9);
-            send(ctx, new ContainerSetContent(containerId, 1, contents, inv.carried()));   // 새 메뉴의 첫 전체 동기화(바닐라 incrementStateId → 1)
+            return chest;
+        }).thenAccept(chest -> ctx.channel().eventLoop().execute(() -> {
+            if (chest == null) return;
+            synchronized (p.menuLock()) {
+                if (p.hasOpenContainer()) closeContainer(p);
+                int containerId = p.nextContainerCounter();
+                var menu = org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, p.inventoryMenu().inventoryContainer(),
+                        new org.domi.furnace.server.world.ChestContainer(chest), new int[]{x, y, z}, menus);
+                send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable("container.chest")));
+                menu.addSlotListener(menus);
+                p.setContainerMenu(menu);
+                menu.setSynchronizer(menus);   // 첫 container_set_content
+            }
         }));
     }
 

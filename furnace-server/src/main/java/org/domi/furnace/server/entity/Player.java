@@ -43,8 +43,10 @@ public final class Player {
     // 게임중 클라가 렌더거리 바꾸면 0x0A로 다시 옴 → 갱신. onEnterPlay서 초기 설정.
     private volatile int viewDistance = 10;
     // 열어둔 체스트 세션(M4c-3 슬라이스 B) — netty 스레드가 쓰고 region 스레드(breakBlock 강제닫기)가 읽음.
-    private volatile int openContainerId = -1;
-    private volatile int openChestX, openChestY, openChestZ;
+    // 메뉴: 인벤토리 창(containerId 0)은 항상 있고, 열린 창(상자 등)이 있으면 containerMenu 가 그것이다(바닐라 containerMenu/inventoryMenu).
+    private volatile org.domi.furnace.server.menu.InventoryMenu inventoryMenu;
+    private volatile org.domi.furnace.server.menu.AbstractContainerMenu containerMenu;
+    private int containerCounter;
 
     /** 블록 부수기 상태(ServerPlayerGameMode) — 플레이어가 속한 region 스레드에서만. */
     private final org.domi.furnace.server.block.BlockBreaking breaking = new org.domi.furnace.server.block.BlockBreaking();
@@ -71,6 +73,12 @@ public final class Player {
 
         /** 그 창 칸이 바뀌었다(inventory_changed 발전 과제 — broadcastChanges 가 부른다). */
         default void inventoryChanged(int windowSlot) {}
+
+        /** 열린 창이 expect 이면 서버가 닫는다(ServerPlayer.closeContainer — 상자가 사라졌을 때 등). 어느 스레드에서든. */
+        default void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {}
+
+        /** 열린 창이 아직 유효한가(AbstractContainerMenu.stillValid — 사거리·블록 존재). */
+        default boolean menuStillValid(org.domi.furnace.server.menu.AbstractContainerMenu menu) { return true; }
     }
 
     private volatile InventoryHost inventoryHost;
@@ -390,18 +398,28 @@ public final class Player {
         latencyMs = old == 0 ? sampleMs : (old * 3 + sampleMs) / 4;
     }
 
-    /** 체스트 열기 기록(containerId + 좌표). netty 스레드 전용 writer. */
-    public void openChest(int containerId, int x, int y, int z) {
-        this.openChestX = x; this.openChestY = y; this.openChestZ = z;
-        this.openContainerId = containerId;
+    public org.domi.furnace.server.menu.InventoryMenu inventoryMenu() { return inventoryMenu; }
+
+    /** 지금 열린 창(없으면 인벤토리 창). 메뉴가 만들어지기 전(시험용 Player)에는 null. */
+    public org.domi.furnace.server.menu.AbstractContainerMenu containerMenu() { return containerMenu; }
+
+    /** 접속 때 인벤토리 창을 만들어 건다. */
+    public void initMenus(org.domi.furnace.server.menu.InventoryMenu menu) {
+        this.inventoryMenu = menu;
+        this.containerMenu = menu;
     }
 
-    public void closeChest() { this.openContainerId = -1; }
+    public void setContainerMenu(org.domi.furnace.server.menu.AbstractContainerMenu menu) { this.containerMenu = menu; }
 
-    public int openContainerId() { return openContainerId; }
+    /** 열린 창이 있는가(인벤토리 창이 아닌). */
+    public boolean hasOpenContainer() { return containerMenu != null && containerMenu != inventoryMenu; }
 
-    /** 열려있으면 {x,y,z}, 아니면 null. */
-    public int[] openChestPos() {
-        return openContainerId == -1 ? null : new int[]{openChestX, openChestY, openChestZ};
+    /** ServerPlayer.nextContainerCounter: 1..100 순환(0 은 인벤토리 창). */
+    public int nextContainerCounter() {
+        containerCounter = containerCounter % 100 + 1;
+        return containerCounter;
     }
+
+    /** 메뉴 상태(remote·stateId·커서)를 지키는 모니터 — 연결 스레드(클릭)와 region 스레드(틱 동기·줍기)가 함께 쓴다. */
+    public Object menuLock() { return inventory; }
 }

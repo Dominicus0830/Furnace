@@ -18,6 +18,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.play.BlockChangedAck;
+import org.domi.furnace.server.net.protocol.play.ContainerClose;
+import org.domi.furnace.server.net.protocol.play.ContainerSetContent;
+import org.domi.furnace.server.net.protocol.play.ContainerSetSlot;
 import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.BlockRegistry;
@@ -267,10 +270,9 @@ class ConnectionInputTest {
         ch.writeInbound(frame(0x32, b -> { b.writeShort(38); Types.writeVarInt(b, 3); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
         assertEquals(3, slotsOf()[38].count());
 
-        // 0x0E: 상자를 연 상태에서 음수 개수(= 빈 스택으로 읽힘)는 인벤토리에 아무것도 만들지 않는다
-        p.openChest(7, 1, -60, 1);
+        // 0x0E: 음수 개수(= 비정상 스택)가 든 클릭 보고는 인벤토리에 아무것도 만들지 않는다
         ch.writeInbound(frame(0x0E, b -> {
-            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
             b.writeShort(30); writeStrictSlot(b, -1, 1, 0);
             writeStrictSlot(b, 0, 0, 0);
@@ -284,39 +286,215 @@ class ConnectionInputTest {
         assertFalse(ch.isActive(), "디코드할 수 없는 아이템은 바닐라처럼 연결을 끊는다");
     }
 
-    /** 인벤토리 창(0) 클릭: 재배치는 반영하고, 아이템 총량이 늘어나는(복제) 보고는 거부하고 되돌린다. */
+    /** 인벤토리 창(0) 클릭: 서버가 클릭을 재현한다(바닐라) — 클라이언트 보고는 예측 대조일 뿐이라 서버 결과와 다른 보고는 서버 값으로 바로잡는다. */
     @Test
-    void inventoryClick_appliesRearrangeButRejectsCreation() throws Exception {
+    void inventoryClick_isReplayedByServer_andReportsOnlyCorrect() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
                 org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
         slotsOf()[36] = new ItemStack(1, 10, null);
-        // 핫바 0(창 36)의 10개를 집는다: 36 → 비움, 커서 10
+        var im = p.inventoryMenu();
+        int st = im.getStateId();
+        // 핫바 0(창 36)의 10개를 집는다: 서버가 재현 → 36 비움, 커서 10. 클라이언트 예측과 같으므로 추가 패킷이 없다.
         ch.writeInbound(frame(0x0E, b -> {
-            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(36); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, st); b.writeShort(36); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
             b.writeShort(36); writeStrictSlot(b, 0, 0, 0);
             writeStrictSlot(b, 10, 1, 0);
         }));
         assertTrue(slotsOf()[36].isEmpty(), "집은 칸은 비어야 한다");
+        assertEquals(10, im.getCarried().count());
+        drainOutbound();
         // 창 20 에 내려놓기
         ch.writeInbound(frame(0x0E, b -> {
-            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(20); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, im.getStateId()); b.writeShort(20); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
             b.writeShort(20); writeStrictSlot(b, 10, 1, 0);
             writeStrictSlot(b, 0, 0, 0);
         }));
         assertEquals(10, slotsOf()[20].count(), "재배치는 반영");
-        drainOutbound();
-        // 복제 시도: 20 은 그대로 두고 21 에 10개를 더 만든다
+        assertEquals(0, count(drainOutbound(), ContainerSetSlot.ID), "예측과 같으면 되돌려 보내지 않는다");
+        // 거짓 보고: 21 은 빈 칸이고 커서도 비었는데 "21 에 10개가 생겼다"고 보고 → 서버는 아무것도 만들지 않고 그 칸을 바로잡는다
         ch.writeInbound(frame(0x0E, b -> {
-            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(21); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, im.getStateId()); b.writeShort(21); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
             b.writeShort(21); writeStrictSlot(b, 10, 1, 0);
             writeStrictSlot(b, 0, 0, 0);
         }));
-        assertTrue(slotsOf()[21].isEmpty(), "총량이 늘어나는 클릭은 거부");
-        assertEquals(1, count(drainOutbound(), 0x13), "거부하면 서버 인벤토리로 되돌린다");
+        assertTrue(slotsOf()[21].isEmpty(), "서버가 재현한 결과(빈 칸)가 진실이다");
+        assertEquals(1, count(drainOutbound(), ContainerSetSlot.ID), "어긋난 칸 하나만 서버 값으로 되돌려 보낸다");
+    }
+
+    /** 상태 번호가 다르면(클라이언트가 오래된 화면을 보고 있다) 서버는 클릭을 재현한 뒤 전체 내용을 다시 보낸다. */
+    @Test
+    void inventoryClick_withStaleStateId_resendsWholeContent() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        slotsOf()[36] = new ItemStack(1, 10, null);
+        var im = p.inventoryMenu();
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, (im.getStateId() + 5) & 32767); b.writeShort(36); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        assertEquals(1, count(drainOutbound(), ContainerSetContent.ID), "상태 번호 불일치 → 전체 재전송");
+    }
+
+    /** 사거리 밖(미로드) 상자 창에 대한 클릭은 청크를 만들지 않고, 인벤토리도 안 바꾸며, 창을 닫는다. */
+    @Test
+    void chestClickOutOfReach_isDropped_closesContainer_noChunkLoad() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        var chest = org.domi.furnace.server.world.ChestBlockEntity.empty(1000, -60, 1000);   // 월드에 없는(미로드 청크) 상자
+        var menu = org.domi.furnace.server.menu.ChestMenu.threeRows(7, p.inventoryMenu().inventoryContainer(),
+                new org.domi.furnace.server.world.ChestContainer(chest), new int[]{1000, -60, 1000}, null);
+        p.setContainerMenu(menu);
+        ChunkPos far = ChunkPos.ofBlock(1000, 1000);
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(5); b.writeByte(0);
+            Types.writeVarInt(b, 0);          // PICKUP
+            Types.writeVarInt(b, 1);
+            b.writeShort(30);                 // 플레이어 인벤토리 슬롯으로 아이템을 넣는 변경
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
+            Types.writeVarInt(b, 0);          // carried 비어있음
+        }));
+        // 클릭은 그 상자의 region 스레드에서 처리된다 — 닫힘이 나갈 때까지 기다린다
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        long closes = 0;
+        while (closes == 0 && System.nanoTime() < deadline) {
+            closes = count(drainOutbound(), 0x12);
+            if (closes == 0) Thread.sleep(20);
+        }
+        RegionPos frp = new RegionPos(1000 >> 4, 1000 >> 4);
+        boolean[] loaded = new boolean[1];
+        sched.region(frp).execute(() -> loaded[0] = world.regionAt(frp).chunkLoaded(far)).get();
+        assertFalse(loaded[0], "미로드 상자 청크를 만들면 안 된다");
+        assertEquals(1, closes, "청크가 없으면 ContainerClose가 나가야 한다");
+        assertFalse(p.hasOpenContainer());
+        assertTrue(slotsOf()[12].isEmpty());
+    }
+
+    /** 조건이 참이 될 때까지 채널 작업을 돌리며 기다린다. */
+    private interface Cond { boolean test() throws Exception; }
+
+    private void await(String what, Cond cond) throws Exception {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (!cond.test()) {
+            ch.runPendingTasks();
+            assertTrue(System.nanoTime() < deadline, "기다리다 시간 초과: " + what);
+            Thread.sleep(10);
+        }
+    }
+
+    /** 월드에 상자를 놓고(안에 돌 5개) 서버가 플레이어에게 그 상자를 연다 — 실제 openChest 경로. */
+    private org.domi.furnace.server.world.ChestBlockEntity openRealChest(int x, int y, int z) throws Exception {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        int chestState = reg.defaultStateId("minecraft:chest");
+        RegionPos rp = new RegionPos(Math.floorDiv(x, 16), Math.floorDiv(z, 16));
+        org.domi.furnace.server.world.ChestBlockEntity[] chest = new org.domi.furnace.server.world.ChestBlockEntity[1];
+        sched.region(rp).execute(() -> {
+            var r = world.regionAt(rp);
+            r.placeBlock(x, y, z, chestState);
+            r.setChestItem(x, y, z, 0, new ItemStack(1, 5, null));
+            chest[0] = r.chestAt(x, y, z);
+        }).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openChest", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, x, y, z);
+        await("상자 창 열림", () -> p.hasOpenContainer());
+        return chest[0];
+    }
+
+    /** 상자를 열고 → 돌을 꺼내 → 인벤토리에 놓고 → shift-클릭으로 되돌리고 → 닫는다. 서버가 모든 클릭을 재현하고 예측과 같으면 추가 패킷이 없다. */
+    @Test
+    void chestMenu_fullFlow_openTakeMoveClose() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        var chest = openRealChest(2, -60, 2);
+        List<int[]> opened = drainOutbound();
+        assertEquals(1, count(opened, 0x33), "open_screen 한 번");
+        assertEquals(1, count(opened, ContainerSetContent.ID), "첫 container_set_content 한 번");
+        var menu = p.containerMenu();
+        assertEquals(1, menu.containerId, "첫 창 번호는 1");
+        assertEquals(63, menu.slots.size());
+        assertEquals(5, menu.getSlot(0).getItem().count());
+
+        // 상자 칸 0 의 돌 5개를 집는다 (클라이언트 예측: 칸 비움 + 커서 5)
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, menu.getStateId()); b.writeShort(0); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(0); writeStrictSlot(b, 0, 0, 0);
+            writeStrictSlot(b, 5, 1, 0);
+        }));
+        await("커서에 돌 5개", () -> menu.getCarried().count() == 5);
+        assertTrue(chest.items[0].isEmpty(), "상자 칸이 비어야 한다");
+        assertEquals(0, count(drainOutbound(), ContainerSetSlot.ID), "예측과 같으면 추가 패킷이 없다");
+
+        // 플레이어 인벤토리 첫 칸(메뉴 27 = Inventory 9)에 놓는다
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, menu.getStateId()); b.writeShort(27); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(27); writeStrictSlot(b, 5, 1, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        await("인벤토리에 돌 5개", () -> slotsOf()[9].count() == 5);
+        assertTrue(menu.getCarried().isEmpty());
+
+        // shift-클릭으로 상자로 되돌린다
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, menu.getStateId()); b.writeShort(27); b.writeByte(0);
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 2);
+            b.writeShort(27); writeStrictSlot(b, 0, 0, 0);
+            b.writeShort(0); writeStrictSlot(b, 5, 1, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        await("상자로 되돌림", () -> chest.items[0].count() == 5);
+        assertTrue(slotsOf()[9].isEmpty());
+
+        // 닫기: 클라이언트가 보낸 container_close — 서버는 인벤토리 창으로 돌아가고 닫힘 패킷은 보내지 않는다
+        ch.writeInbound(frame(0x0F, b -> Types.writeVarInt(b, 1)));
+        await("창 닫힘", () -> !p.hasOpenContainer());
+        assertEquals(0, count(drainOutbound(), ContainerClose.ID));
+    }
+
+    /** 상자가 부서지면 열어 둔 창이 닫히고, 그 뒤의 클릭은 아무것도 만들지 못한다(복제 방지). */
+    @Test
+    void chestMenu_breakWhileOpen_closesAndRejectsLateClicks() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        openRealChest(2, -60, 2);
+        drainOutbound();
+        var menu = p.containerMenu();
+        RegionPos rp = new RegionPos(0, 0);
+        sched.region(rp).execute(() -> world.regionAt(rp).breakBlock(2, -60, 2)).get();
+        await("창 닫힘", () -> !p.hasOpenContainer());
+        assertEquals(1, count(drainOutbound(), ContainerClose.ID), "열어 둔 사람에게 강제 container_close");
+        // 늦게 도착한 클릭(닫기 전 창 번호)은 무시된다
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, menu.containerId); Types.writeVarInt(b, 0); b.writeShort(0); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
+            writeStrictSlot(b, 5, 1, 0);
+        }));
+        assertTrue(slotsOf()[12].isEmpty());
+        assertTrue(p.inventoryMenu().getCarried().isEmpty());
+    }
+
+    /** 접속이 끊기면 바닐라 Player.remove 처럼 커서·제작 격자의 아이템이 인벤토리 창에서 빠진다(월드에 떨어진다) — 저장된 playerdata 와 겹치지 않는다. */
+    @Test
+    void disconnect_clearsCursorAndCraftGrid() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        slotsOf()[1] = new ItemStack(1, 3, null);     // 제작 격자
+        slotsOf()[36] = new ItemStack(2, 4, null);
+        var im = p.inventoryMenu();
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, im.getStateId()); b.writeShort(36); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
+            writeStrictSlot(b, 4, 2, 0);
+        }));
+        assertEquals(4, im.getCarried().count());
+        ch.close();
+        assertTrue(im.getCarried().isEmpty());
+        assertTrue(slotsOf()[1].isEmpty(), "제작 격자는 월드에 떨어지고 저장되지 않는다");
     }
 
     /** 컴포넌트 달린 아이템도 정확히 읽어 그대로 담는다(크리에이티브 슬롯·클릭 모두). */
@@ -330,9 +508,8 @@ class ConnectionInputTest {
             Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);   // custom_model_data = 7
         }));
         assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 7)), slotsOf()[36].patch());
-        p.openChest(7, 1, -60, 1);
         ch.writeInbound(frame(0x0E, b -> {
-            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);   // 변경 슬롯 0개
             Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);   // carried: 컴포넌트 있음
             Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);
@@ -344,9 +521,8 @@ class ConnectionInputTest {
     @Test
     void containerClick_hugeChangedCount_isRejected() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        p.openChest(7, 1, -60, 1);
         ch.writeInbound(frame(0x0E, b -> {
-            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 1_000_000);
         }));
         assertFalse(ch.isActive(), "비정상적으로 큰 변경 개수는 연결을 끊어야 한다");
@@ -434,29 +610,6 @@ class ConnectionInputTest {
         assertNotNull(s, "플레이어 데이터가 저장되어야 한다");
         assertEquals(10.0, s.x());
         assertEquals(3.0, s.z());
-    }
-
-    /** 사거리 밖(미로드) 체스트에 대한 클릭은 청크를 만들지 않고, 인벤토리도 안 바꾸며, 창을 닫는다. */
-    @Test
-    void chestClickOutOfReach_isDropped_closesContainer_noChunkLoad() throws Exception {
-        join(new SpawnPoint(0, -60, 0, 0f));
-        p.openChest(7, 1000, -60, 1000);
-        ChunkPos far = ChunkPos.ofBlock(1000, 1000);
-        ch.writeInbound(frame(0x0E, b -> {
-            Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
-            Types.writeVarInt(b, 0);          // PICKUP
-            Types.writeVarInt(b, 1);
-            b.writeShort(30);                 // 플레이어 인벤토리 슬롯으로 아이템을 넣는 변경
-            Types.writeVarInt(b, 1); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
-            Types.writeVarInt(b, 0);          // carried 비어있음
-        }));
-        List<int[]> out = drainOutbound();
-        RegionPos frp = new RegionPos(1000 >> 4, 1000 >> 4);
-        boolean[] loaded = new boolean[1];
-        sched.region(frp).execute(() -> loaded[0] = world.regionAt(frp).chunkLoaded(far)).get();
-        assertFalse(loaded[0], "미로드 체스트 청크를 만들면 안 된다");
-        assertEquals(1, count(out, 0x12), "범위 밖 체스트면 ContainerClose가 나가야 한다");
-        assertEquals(-1, p.openContainerId());
     }
 
     @Test

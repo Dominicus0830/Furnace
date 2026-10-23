@@ -34,7 +34,7 @@ public abstract class BlockEntity {
     protected final String type;
     protected final Pos pos;
     protected int blockState;
-    private boolean removed;
+    private volatile boolean removed;
 
     protected BlockEntity(String type, Pos pos, int blockState) {
         this.type = type;
