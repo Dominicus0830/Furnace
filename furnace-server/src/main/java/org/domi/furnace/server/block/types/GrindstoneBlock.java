@@ -16,7 +16,8 @@ public class GrindstoneBlock extends FaceAttachedHorizontalDirectionalBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴): 숫돌 화면 열기(container.grindstone_title) + 통계 interact_with_grindstone
+        player.openGrindstone(pos);
+        player.awardStat("minecraft:interact_with_grindstone");
         return InteractionResult.CONSUME;
     }
 }

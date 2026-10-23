@@ -62,6 +62,9 @@ public interface BlockActor {
     /** 석재 절단기 화면 열기. */
     default void openStonecutter(Pos pos) {}
 
+    /** 숫돌 화면 열기. */
+    default void openGrindstone(Pos pos) {}
+
     /** canUseGameMasterBlocks = instabuild && 권한 2 이상. */
     default boolean canUseGameMasterBlocks() { return instabuild() && permissionLevel() >= 2; }
 

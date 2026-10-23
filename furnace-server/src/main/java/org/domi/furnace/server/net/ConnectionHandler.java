@@ -1395,19 +1395,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
-    /** 석재 절단기 화면 열기(StonecutterBlock.useWithoutItem → openMenu). */
-    private void openStonecutter(int x, int y, int z) {
+    private interface BlockMenuFactory {
+        org.domi.furnace.server.menu.AbstractContainerMenu create(int containerId, org.domi.furnace.server.menu.Container playerInventory,
+                int[] pos, org.domi.furnace.server.menu.BlockAccess access);
+    }
+
+    /** 블록에 매인 화면(석재 절단기·숫돌 등) 열기 — 그 좌표가 아직 block 인 동안만 유효하다. */
+    private void openBlockMenu(int x, int y, int z, String block, String titleKey, BlockMenuFactory factory) {
         Player p = player;
         if (p == null) return;
         synchronized (p.menuLock()) {
             if (p.hasOpenContainer()) closeContainer(p);
             int containerId = p.nextContainerCounter();
-            var menu = new org.domi.furnace.server.menu.StonecutterMenu(containerId, p.inventoryMenu().inventoryContainer(), menus, new int[]{x, y, z},
+            var menu = factory.create(containerId, p.inventoryMenu().inventoryContainer(), new int[]{x, y, z},
                     new org.domi.furnace.server.menu.BlockAccess() {
-                        // 아래 셋은 블록을 가진 region 스레드(MenuBlockContext 안)에서만 불린다
+                        // 아래는 블록을 가진 region 스레드(MenuBlockContext 안)에서만 불린다
                         @Override public boolean stillBlock() {
                             var region = org.domi.furnace.server.world.MenuBlockContext.current();
-                            return region == null || "minecraft:stonecutter".equals(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
+                            return region == null || block.equals(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
                         }
 
                         @Override public long gameTime() {
@@ -1419,12 +1424,32 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             var region = org.domi.furnace.server.world.MenuBlockContext.current();
                             if (region != null) region.level().playSound(null, x + 0.5, y + 0.5, z + 0.5, sound, "blocks", 1.0F, 1.0F);
                         }
+
+                        @Override public void levelEvent(int type) {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            if (region != null) region.level().levelEvent(null, type, new org.domi.furnace.server.block.Pos(x, y, z), 0);
+                        }
+
+                        @Override public int nextInt(int bound) {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            return region == null ? 0 : region.level().random().nextInt(bound);
+                        }
                     });
-            send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable("container.stonecutter")));
+            send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable(titleKey)));
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
             menu.setSynchronizer(menus);
         }
+    }
+
+    private void openStonecutter(int x, int y, int z) {
+        openBlockMenu(x, y, z, "minecraft:stonecutter", "container.stonecutter",
+                (id, inv, pos, access) -> new org.domi.furnace.server.menu.StonecutterMenu(id, inv, menus, pos, access));
+    }
+
+    private void openGrindstone(int x, int y, int z) {
+        openBlockMenu(x, y, z, "minecraft:grindstone", "container.grindstone_title",
+                (id, inv, pos, access) -> new org.domi.furnace.server.menu.GrindstoneMenu(id, inv, menus, pos, access));
     }
 
     /** minecraft:menu 레지스트리 번호(generic_9x1.. 이 앞에서부터 0..5). */
@@ -1540,6 +1565,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
         @Override public void onItemCrafted(ItemStack stack, int count) {
             // TODO(통계): crafted:<item> 통계를 count 만큼 올린다. TODO(아이템 제작 훅): Item.onCraftedBy(stack, level, player).
+        }
+
+        @Override public int enchantmentMinCost(String enchantment, int level) {
+            var core = login.core;
+            var e = core == null ? null : core.dataPacks().loot().registries().enchantment(enchantment);
+            return e == null ? 0 : e.minCost(level);
         }
 
         @Override public double distanceToSqr(double x, double y, double z) {
@@ -1805,6 +1836,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public void openContainer(org.domi.furnace.server.block.Pos p) {
                     ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openContainer(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public void openGrindstone(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openGrindstone(p.x(), p.y(), p.z()));
                 }
 
                 @Override

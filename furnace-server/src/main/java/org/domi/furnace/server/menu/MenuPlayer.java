@@ -59,4 +59,7 @@ public interface MenuPlayer {
 
     /** 결속 저주(prevent_armor_change)가 붙었는가. */
     boolean hasBindingCurse(ItemStack stack);
+
+    /** 인챈트의 getMinCost(level) — 숫돌 경험치. 데이터 팩 인챈트 정의를 못 보면 0. */
+    default int enchantmentMinCost(String enchantment, int level) { return 0; }
 }
