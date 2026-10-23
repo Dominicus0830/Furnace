@@ -25,7 +25,8 @@ public class AnvilBlock extends FallingBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴): 모루 화면(container.repair) + 통계 interact_with_anvil
+        player.openAnvil(pos);
+        player.awardStat("minecraft:interact_with_anvil");
         return InteractionResult.CONSUME;
     }
 

@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class CraftingMenuTest {
 
-    static final class Player implements MenuPlayer {
+    static class Player implements MenuPlayer {
         final PlayerInventory inv;
         final RecipeManager recipes;
         final List<ItemStack> dropped = new ArrayList<>();

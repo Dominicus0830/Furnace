@@ -579,6 +579,26 @@ class ConnectionInputTest {
     }
 
     @Test
+    void anvil_renamePacketUpdatesResultAndCost() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        RegionPos rp = new RegionPos(0, 0);
+        sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:anvil", Map.of("facing", "north")))).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openAnvil", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, 2, -60, 2);
+        await("모루 창 열림", () -> p.hasOpenContainer());
+        var menu = (org.domi.furnace.server.menu.AnvilMenu) p.containerMenu();
+        menu.getSlot(0).set(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:iron_sword"), 1));
+        drainOutbound();
+        ch.writeInbound(frame(0x2A, b -> Types.writeString(b, "Foo")));
+        await("이름 바뀜", () -> !menu.getSlot(2).getItem().isEmpty());
+        assertEquals(1, menu.cost());
+    }
+
+    @Test
     void shulkerBox_rejectsNestedShulkerBoxes() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         openBlock(2, -60, 2, "minecraft:shulker_box", Map.of("facing", "up"), null);

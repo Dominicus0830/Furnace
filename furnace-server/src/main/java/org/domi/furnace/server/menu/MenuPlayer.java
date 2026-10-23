@@ -62,4 +62,21 @@ public interface MenuPlayer {
 
     /** 인챈트의 getMinCost(level) — 숫돌 경험치. 데이터 팩 인챈트 정의를 못 보면 0. */
     default int enchantmentMinCost(String enchantment, int level) { return 0; }
+
+    // --- 모루(4-2i) ----------------------------------------------------------------------------
+
+    /** Player.experienceLevel. */
+    default int experienceLevel() { return 0; }
+
+    /** ServerPlayer.giveExperienceLevels(levels) — 음수면 깎는다. */
+    default void giveExperienceLevels(int levels) { }
+
+    /** 데이터 팩 인챈트 정의(없으면 null). */
+    default org.domi.furnace.server.loot.Enchantment enchantment(String id) { return null; }
+
+    /** 두 인챈트가 함께 붙을 수 있는가(Enchantment.areCompatible). */
+    default boolean enchantmentsCompatible(String a, String b) { return true; }
+
+    /** 그 인챈트가 그 아이템에 붙을 수 있는가(Enchantment.canEnchant). */
+    default boolean enchantmentSupports(String enchantment, ItemStack stack) { return true; }
 }

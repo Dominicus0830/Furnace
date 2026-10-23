@@ -1152,6 +1152,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null && id != null) p.recipeBook().removeHighlight(id);
             }
+            case 0x2A -> { // rename_item: 이름(String) — 모루가 열려 있을 때만
+                String name = Types.readString(frame, 32767);
+                Player p = player;
+                if (p != null) handleRenameItem(p, name);
+            }
             case 0x2C -> { // seen_advancements: 0 탭 열기(+ id), 1 화면 닫기(바닐라는 닫기에 아무것도 하지 않는다)
                 int action = Types.readVarInt(frame);
                 if (action == 0) {
@@ -1315,6 +1320,22 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
+    /** 바닐라 handleRenameItem: 열린 창이 모루이면 유효성을 보고 이름을 바꾼다. */
+    private void handleRenameItem(Player p, String name) {
+        var menu = p.containerMenu();
+        if (!(menu instanceof org.domi.furnace.server.menu.AnvilMenu anvil)) return;
+        Runnable body = () -> {
+            if (p.containerMenu() != menu) return;
+            if (!anvil.stillValid(menus)) log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
+            else {
+                anvil.setItemName(name);
+                anvil.broadcastChanges();
+            }
+        };
+        int[] bp = menu.containerBlockPos();
+        world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+    }
+
     /** 바닐라 handleContainerButtonClick: 열린 창이 맞고 관전자가 아니며 유효하면 clickMenuButton, 바뀌었으면 broadcastChanges. */
     private void handleContainerButtonClick(Player p, int containerId, int buttonId) {
         var menu = p.containerMenu();
@@ -1401,7 +1422,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 블록에 매인 화면(석재 절단기·숫돌 등) 열기 — 그 좌표가 아직 block 인 동안만 유효하다. */
-    private void openBlockMenu(int x, int y, int z, String block, String titleKey, BlockMenuFactory factory) {
+    private void openBlockMenu(int x, int y, int z, java.util.Set<String> blocks, String titleKey, BlockMenuFactory factory) {
         Player p = player;
         if (p == null) return;
         synchronized (p.menuLock()) {
@@ -1412,7 +1433,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         // 아래는 블록을 가진 region 스레드(MenuBlockContext 안)에서만 불린다
                         @Override public boolean stillBlock() {
                             var region = org.domi.furnace.server.world.MenuBlockContext.current();
-                            return region == null || block.equals(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
+                            return region == null || blocks.contains(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
                         }
 
                         @Override public long gameTime() {
@@ -1430,6 +1451,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             if (region != null) region.level().levelEvent(null, type, new org.domi.furnace.server.block.Pos(x, y, z), 0);
                         }
 
+                        @Override public void anvilUsed(boolean infiniteMaterials) {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            if (region == null) return;
+                            var pos = new org.domi.furnace.server.block.Pos(x, y, z);
+                            int state = region.getBlock(x, y, z);
+                            String name = world.blockRegistry().nameOf(state);
+                            boolean anvil = "minecraft:anvil".equals(name) || "minecraft:chipped_anvil".equals(name) || "minecraft:damaged_anvil".equals(name);
+                            if (!infiniteMaterials && anvil && p.random().nextFloat() < 0.12F) {
+                                int damaged = org.domi.furnace.server.block.types.AnvilBlock.damage(state);
+                                if (damaged < 0) {
+                                    region.level().setBlock(pos, 0, 3);
+                                    region.level().levelEvent(null, 1029, pos, 0);
+                                } else {
+                                    region.level().setBlock(pos, damaged, 2);
+                                    region.level().levelEvent(null, 1030, pos, 0);
+                                }
+                            } else {
+                                region.level().levelEvent(null, 1030, pos, 0);
+                            }
+                        }
+
                         @Override public int nextInt(int bound) {
                             var region = org.domi.furnace.server.world.MenuBlockContext.current();
                             return region == null ? 0 : region.level().random().nextInt(bound);
@@ -1443,27 +1485,32 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private void openStonecutter(int x, int y, int z) {
-        openBlockMenu(x, y, z, "minecraft:stonecutter", "container.stonecutter",
+        openBlockMenu(x, y, z, java.util.Set.of("minecraft:stonecutter"), "container.stonecutter",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.StonecutterMenu(id, inv, menus, pos, access));
     }
 
     private void openSmithing(int x, int y, int z) {
-        openBlockMenu(x, y, z, "minecraft:smithing_table", "container.upgrade",
+        openBlockMenu(x, y, z, java.util.Set.of("minecraft:smithing_table"), "container.upgrade",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.SmithingMenu(id, inv, menus, pos, access));
     }
 
     private void openLoom(int x, int y, int z) {
-        openBlockMenu(x, y, z, "minecraft:loom", "container.loom",
+        openBlockMenu(x, y, z, java.util.Set.of("minecraft:loom"), "container.loom",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.LoomMenu(id, inv, menus, pos, access));
     }
 
     private void openCartography(int x, int y, int z) {
-        openBlockMenu(x, y, z, "minecraft:cartography_table", "container.cartography_table",
+        openBlockMenu(x, y, z, java.util.Set.of("minecraft:cartography_table"), "container.cartography_table",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.CartographyMenu(id, inv, menus, pos, access));
     }
 
+    private void openAnvil(int x, int y, int z) {
+        openBlockMenu(x, y, z, java.util.Set.of("minecraft:anvil", "minecraft:chipped_anvil", "minecraft:damaged_anvil"), "container.repair",
+                (id, inv, pos, access) -> new org.domi.furnace.server.menu.AnvilMenu(id, inv, menus, pos, access));
+    }
+
     private void openGrindstone(int x, int y, int z) {
-        openBlockMenu(x, y, z, "minecraft:grindstone", "container.grindstone_title",
+        openBlockMenu(x, y, z, java.util.Set.of("minecraft:grindstone"), "container.grindstone_title",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.GrindstoneMenu(id, inv, menus, pos, access));
     }
 
@@ -1580,6 +1627,29 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
         @Override public void onItemCrafted(ItemStack stack, int count) {
             // TODO(통계): crafted:<item> 통계를 count 만큼 올린다. TODO(아이템 제작 훅): Item.onCraftedBy(stack, level, player).
+        }
+
+        @Override public int experienceLevel() { return p.vitals().xpLevel(); }
+
+        @Override public void giveExperienceLevels(int levels) { p.vitals().giveExperienceLevels(levels); }
+
+        @Override public org.domi.furnace.server.loot.Enchantment enchantment(String id) {
+            var core = login.core;
+            return core == null ? null : core.dataPacks().loot().registries().enchantment(id);
+        }
+
+        @Override public boolean enchantmentsCompatible(String a, String b) {
+            var core = login.core;
+            var ea = enchantment(a);
+            var eb = enchantment(b);
+            if (core == null || ea == null || eb == null) return true;
+            return org.domi.furnace.server.loot.Enchantment.areCompatible(ea, eb, core.dataPacks().loot().registries());
+        }
+
+        @Override public boolean enchantmentSupports(String enchantment, ItemStack stack) {
+            var core = login.core;
+            var e = enchantment(enchantment);
+            return core == null || e == null || e.supports(org.domi.furnace.server.item.ItemTools.itemName(stack), core.dataPacks().loot().registries());
         }
 
         @Override public int enchantmentMinCost(String enchantment, int level) {
@@ -1866,6 +1936,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public void openCartography(org.domi.furnace.server.block.Pos p) {
                     ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openCartography(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public void openAnvil(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openAnvil(p.x(), p.y(), p.z()));
                 }
 
                 @Override

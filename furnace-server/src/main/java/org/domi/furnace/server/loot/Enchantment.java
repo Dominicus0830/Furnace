@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public record Enchantment(String id, int weight, int maxLevel, int minBase, int minPer, int maxBase, int maxPer,
-                          HolderSet supportedItems, HolderSet primaryItems, HolderSet exclusiveSet, List<String> slots) {
+                          HolderSet supportedItems, HolderSet primaryItems, HolderSet exclusiveSet, List<String> slots, int anvilCost) {
 
     static Enchantment parse(String id, JsonObject o, LootRegistries regs) {
         JsonObject min = LootJson.req(o, "min_cost").getAsJsonObject(), max = LootJson.req(o, "max_cost").getAsJsonObject();
@@ -20,12 +20,15 @@ public record Enchantment(String id, int weight, int maxLevel, int minBase, int 
                 HolderSet.parse("minecraft:item", LootJson.req(o, "supported_items"), regs),
                 o.has("primary_items") ? HolderSet.parse("minecraft:item", o.get("primary_items"), regs) : null,
                 o.has("exclusive_set") ? HolderSet.parse("minecraft:enchantment", o.get("exclusive_set"), regs) : null,
-                List.copyOf(slots));
+                List.copyOf(slots), o.has("anvil_cost") ? o.get("anvil_cost").getAsInt() : 0);
     }
 
     public int minCost(int level) { return minBase + minPer * (level - 1); }
 
     public int maxCost(int level) { return maxBase + maxPer * (level - 1); }
+
+    /** 바닐라 Enchantment.canEnchant(stack): 지원하는 아이템인가(이름으로). */
+    public boolean supports(String item, LootRegistries regs) { return supportedItems.contains(item, regs); }
 
     public boolean isSupportedItem(LootStack s, LootRegistries regs) { return supportedItems.contains(s.item(), regs); }
 

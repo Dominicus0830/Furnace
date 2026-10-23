@@ -26,4 +26,7 @@ public interface BlockAccess {
 
     /** MapItem.getSavedData(stack, level): 그 지도의 저장 데이터(없으면 null). TODO(지도): 지도 저장 데이터가 생기면 연결. */
     default MapInfo mapInfo(org.domi.furnace.server.entity.ItemStack map) { return null; }
+
+    /** 모루를 쓴 뒤: 창의 모루가 12% 확률로 손상된다(만들기 모드면 소리만). */
+    default void anvilUsed(boolean infiniteMaterials) { }
 }
