@@ -1,0 +1,64 @@
+chunks=289 positions=28409856 nonFullChunks(cumulative)=0 worlds=1
+furnaceMismatch=144 (0.0005%)
+vanillaUnstablePositions=0 (0.0000%)  A1!=A2:0  A1!=B:0
+hard(furnace!=vanilla, all variants agree)=144 (0.0005%)
+ambiguous explained(furnace==some variant)=0 novel(furnace==no variant)=0
+biome mismatch cells=274/443904 (0.0617%)
+heightmap WORLD_SURFACE col mismatch=0/73984, MOTION_BLOCKING=0/73984
+=== hard mismatches by category ===
+        144 (100.0% of hard)  C. 광석/치환 블롭·지표·유체 (구현된 feature 간 충돌)
+=== by dominant surface biome (avg per chunk: furnaceMM, hard, A1!=A2, unstable) ===
+  minecraft:birch_forest             n=123  F=      1  hard=      1  vvA2=      0  unst=      0
+  minecraft:old_growth_birch_forest  n= 48  F=      0  hard=      0  vvA2=      0  unst=      0
+  minecraft:dark_forest              n= 43  F=      1  hard=      1  vvA2=      0  unst=      0
+  minecraft:beach                    n= 25  F=      0  hard=      0  vvA2=      0  unst=      0
+  minecraft:ocean                    n= 23  F=      0  hard=      0  vvA2=      0  unst=      0
+  minecraft:river                    n= 11  F=      0  hard=      0  vvA2=      0  unst=      0
+  minecraft:forest                   n=  9  F=      0  hard=      0  vvA2=      0  unst=      0
+  minecraft:windswept_savanna        n=  7  F=      0  hard=      0  vvA2=      0  unst=      0
+--- hard pairs in biome minecraft:old_growth_birch_forest (n=48 chunks; counts are per-chunk avg) ---
+          0.0  minecraft:water -> minecraft:air
+--- hard pairs in biome minecraft:beach (n=25 chunks; counts are per-chunk avg) ---
+--- hard pairs in biome minecraft:dark_forest (n=43 chunks; counts are per-chunk avg) ---
+          0.8  minecraft:tuff -> minecraft:deepslate
+          0.3  minecraft:deepslate_iron_ore -> minecraft:deepslate
+          0.1  minecraft:granite -> minecraft:stone
+          0.0  minecraft:water -> minecraft:air
+--- hard pairs in biome minecraft:forest (n=9 chunks; counts are per-chunk avg) ---
+--- hard pairs in biome minecraft:ocean (n=23 chunks; counts are per-chunk avg) ---
+          0.1  minecraft:water -> minecraft:air
+--- hard pairs in biome minecraft:river (n=11 chunks; counts are per-chunk avg) ---
+          0.1  minecraft:water -> minecraft:air
+--- hard pairs in biome minecraft:birch_forest (n=123 chunks; counts are per-chunk avg) ---
+          0.5  minecraft:granite -> minecraft:stone
+          0.1  minecraft:copper_ore -> minecraft:stone
+          0.1  minecraft:water -> minecraft:air
+          0.0  minecraft:granite -> minecraft:gravel
+--- hard pairs in biome minecraft:windswept_savanna (n=7 chunks; counts are per-chunk avg) ---
+hard mismatches by y band (32 blocks each from y=-64):
+  y[ -64.. -32) 27
+  y[ -32..   0) 25
+  y[   0..  32) 33
+  y[  32..  64) 59
+  y[  64..  96) 0
+  y[  96.. 128) 0
+  y[ 128.. 160) 0
+  y[ 160.. 192) 0
+  y[ 192.. 224) 0
+  y[ 224.. 256) 0
+  y[ 256.. 288) 0
+  y[ 288.. 320) 0
+=== top pairs (hard) vanilla -> furnace ===
+         65  minecraft:granite -> minecraft:stone
+         35  minecraft:tuff -> minecraft:deepslate
+         16  minecraft:copper_ore -> minecraft:stone
+         15  minecraft:deepslate_iron_ore -> minecraft:deepslate
+         12  minecraft:water -> minecraft:air
+          1  minecraft:granite -> minecraft:gravel
+=== top pairs (all) vanilla -> furnace ===
+         65  minecraft:granite -> minecraft:stone
+         35  minecraft:tuff -> minecraft:deepslate
+         16  minecraft:copper_ore -> minecraft:stone
+         15  minecraft:deepslate_iron_ore -> minecraft:deepslate
+         12  minecraft:water -> minecraft:air
+          1  minecraft:granite -> minecraft:gravel

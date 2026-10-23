@@ -1,0 +1,67 @@
+chunks=289 positions=28409856 nonFullChunks(cumulative)=0 worlds=2
+furnaceMismatch=329 (0.0012%)
+vanillaUnstablePositions=0 (0.0000%)  A1!=A2:0  A1!=B:0
+hard(furnace!=vanilla, all variants agree)=329 (0.0012%)
+ambiguous explained(furnace==some variant)=0 novel(furnace==no variant)=0
+biome mismatch cells=92/443904 (0.0207%)
+heightmap WORLD_SURFACE col mismatch=0/73984, MOTION_BLOCKING=89/73984
+=== hard mismatches by category ===
+        329 (100.0% of hard)  C. 광석/치환 블롭·지표·유체 (구현된 feature 간 충돌)
+=== by dominant surface biome (avg per chunk: furnaceMM, hard, A1!=A2, unstable) ===
+  minecraft:dark_forest              n=146  F=      1  hard=      1  vvA2=      0  unst=      0
+  minecraft:lush_caves               n=127  F=      1  hard=      1  vvA2=      0  unst=      0
+  minecraft:river                    n= 13  F=      1  hard=      1  vvA2=      0  unst=      0
+  minecraft:grove                    n=  2  F=      1  hard=      1  vvA2=      0  unst=      0
+  minecraft:jagged_peaks             n=  1  F=     22  hard=     22  vvA2=      0  unst=      0
+--- hard pairs in biome minecraft:dark_forest (n=146 chunks; counts are per-chunk avg) ---
+          0.8  minecraft:granite -> minecraft:stone
+          0.3  minecraft:copper_ore -> minecraft:stone
+          0.2  minecraft:water -> minecraft:air
+          0.1  minecraft:grass_block -> minecraft:snow_block
+          0.0  minecraft:raw_copper_block -> minecraft:stone
+--- hard pairs in biome minecraft:grove (n=2 chunks; counts are per-chunk avg) ---
+          1.0  minecraft:stone -> minecraft:snow_block
+--- hard pairs in biome minecraft:river (n=13 chunks; counts are per-chunk avg) ---
+          1.0  minecraft:granite -> minecraft:deepslate
+          0.2  minecraft:granite -> minecraft:stone
+          0.2  minecraft:copper_ore -> minecraft:deepslate
+          0.1  minecraft:copper_ore -> minecraft:stone
+--- hard pairs in biome minecraft:lush_caves (n=127 chunks; counts are per-chunk avg) ---
+          0.5  minecraft:granite -> minecraft:stone
+          0.1  minecraft:copper_ore -> minecraft:stone
+--- hard pairs in biome minecraft:jagged_peaks (n=1 chunks; counts are per-chunk avg) ---
+         16.0  minecraft:stone -> minecraft:snow_block
+          6.0  minecraft:snow_block -> minecraft:stone
+hard mismatches by y band (32 blocks each from y=-64):
+  y[ -64.. -32) 0
+  y[ -32..   0) 21
+  y[   0..  32) 80
+  y[  32..  64) 196
+  y[  64..  96) 19
+  y[  96.. 128) 13
+  y[ 128.. 160) 0
+  y[ 160.. 192) 0
+  y[ 192.. 224) 0
+  y[ 224.. 256) 0
+  y[ 256.. 288) 0
+  y[ 288.. 320) 0
+=== top pairs (hard) vanilla -> furnace ===
+        188  minecraft:granite -> minecraft:stone
+         58  minecraft:copper_ore -> minecraft:stone
+         34  minecraft:water -> minecraft:air
+         18  minecraft:stone -> minecraft:snow_block
+         13  minecraft:granite -> minecraft:deepslate
+          8  minecraft:grass_block -> minecraft:snow_block
+          6  minecraft:snow_block -> minecraft:stone
+          2  minecraft:copper_ore -> minecraft:deepslate
+          2  minecraft:raw_copper_block -> minecraft:stone
+=== top pairs (all) vanilla -> furnace ===
+        188  minecraft:granite -> minecraft:stone
+         58  minecraft:copper_ore -> minecraft:stone
+         34  minecraft:water -> minecraft:air
+         18  minecraft:stone -> minecraft:snow_block
+         13  minecraft:granite -> minecraft:deepslate
+          8  minecraft:grass_block -> minecraft:snow_block
+          6  minecraft:snow_block -> minecraft:stone
+          2  minecraft:copper_ore -> minecraft:deepslate
+          2  minecraft:raw_copper_block -> minecraft:stone

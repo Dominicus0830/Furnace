@@ -1,0 +1,227 @@
+{
+  "main": {
+    "id": "eb755b2a36a18fde",
+    "type": "split",
+    "children": [
+      {
+        "id": "818b4487f8807e67",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8a5e9ffa1c158ae9",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "wiki/Furnace/2026-10-07_worldgen-parity_순정-실서버-대조-감사.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2026-10-07_worldgen-parity_순정-실서버-대조-감사"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "45f07b861cfe9189",
+    "type": "split",
+    "children": [
+      {
+        "id": "643305089ab42843",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "43f899894dba6fe0",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "파일 탐색기"
+            }
+          },
+          {
+            "id": "ba8ec4f30d32c4f5",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "검색"
+            }
+          },
+          {
+            "id": "81d0ef630803c9c1",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "북마크"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 409.5
+  },
+  "right": {
+    "id": "acda18a9967eecb2",
+    "type": "split",
+    "children": [
+      {
+        "id": "6abb5fb2152b5f5e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5adf43a4bdc05252",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "wiki/DailyTown/modules/DailyCore/index.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "index 의 백링크"
+            }
+          },
+          {
+            "id": "997fc88f7c93303e",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "wiki/DailyTown/modules/DailyCore/index.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "index 의 나가는 링크"
+            }
+          },
+          {
+            "id": "0050e7ae8495febc",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "태그"
+            }
+          },
+          {
+            "id": "945dbc841ca81017",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "모든 속성"
+            }
+          },
+          {
+            "id": "b254463355dbd17e",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "wiki/DailyTown/modules/DailyCore/index.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "index 의 개요"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:빠른 전환기 열기": false,
+      "graph:그래프 뷰 열기": false,
+      "canvas:새 캔버스 만들기": false,
+      "daily-notes:오늘의 일일 노트 열기": false,
+      "templates:템플릿 삽입": false,
+      "command-palette:명령어 팔레트 열기": false,
+      "bases:새 베이스 생성하기": false
+    }
+  },
+  "active": "8a5e9ffa1c158ae9",
+  "lastOpenFiles": [
+    "wiki/Furnace/레이어-네트워크.md",
+    "wiki/Furnace/2026-10-07_worldgen-parity_순정-실서버-대조-감사.md",
+    "wiki/Furnace/2026-06-22_feature-pipeline_SeagrassFeature-KelpFeature-vanilla-bugfix.md",
+    "wiki/Furnace/2026-06-11_worldgen_biome-sampler-perf-hotfix.md",
+    "무제.md",
+    "무제.base",
+    "무제 1.base",
+    "wiki/Furnace/아키텍처-개요.md",
+    "wiki/Furnace/레이어-스케줄러.md",
+    "wiki/Furnace/2026-06-22_feature-pipeline_mismatch-근본원인-분석.md",
+    "wiki/Furnace/2026-06-22_feature-pipeline_mismatch-근본원인-분석.md.tmp.36804.bf0cf598c92c",
+    "wiki/Furnace/2026-06-11_worldgen_biome-sampler-perf-hotfix.original.md",
+    "wiki/Furnace/레이어-영속성.md",
+    "wiki/Furnace/레이어-월드.md",
+    "wiki/Furnace/레이어-월드젠.md",
+    "wiki/Furnace.zip",
+    "wiki/Furnace/레이어-영속성.md.tmp.29844.50d1b1c93f08",
+    "wiki/Furnace/레이어-월드젠.md.tmp.29844.b55e01fe4d49",
+    "wiki/Furnace/레이어-월드.md.tmp.29844.be8a9338dfb6",
+    "wiki/Furnace/레이어-네트워크.md.tmp.29844.0d1d1084f5f0",
+    "wiki/Furnace/레이어-스케줄러.md.tmp.29844.94a1a22324bd",
+    "wiki/Furnace/아키텍처-개요.md.tmp.29844.b110764c0e5d",
+    "wiki/DailyTown/01-architecture.md",
+    "wiki/DailyTown/00-overview.md",
+    "wiki/DailyTown/04-ui-system.md",
+    "wiki/DailyTown/modules/DailyDialogue/index.md",
+    "wiki/DailyTown/modules/DailyChat/index.md",
+    "wiki/DailyTown/modules/DailyCore/index.md",
+    "wiki/DailyTown/modules/DailyEcology/index.original.md",
+    "wiki/DailyTown/modules/DailyDialogue/index.original.md",
+    "wiki/DailyTown/modules/DailyCore/index.original.md",
+    "wiki/DailyTown/modules/DailyChat/index.original.md",
+    "wiki/DailyTown/modules/DailyWorld/index.md",
+    "wiki/DailyTown/modules/DailyTown-plugin/index.md",
+    "wiki/DailyTown/modules/DailyQuest/index.md",
+    "wiki/DailyTown/modules/DailyProxy/index.original.md"
+  ]
+}
