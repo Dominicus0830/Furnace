@@ -1447,6 +1447,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.StonecutterMenu(id, inv, menus, pos, access));
     }
 
+    private void openSmithing(int x, int y, int z) {
+        openBlockMenu(x, y, z, "minecraft:smithing_table", "container.upgrade",
+                (id, inv, pos, access) -> new org.domi.furnace.server.menu.SmithingMenu(id, inv, menus, pos, access));
+    }
+
     private void openGrindstone(int x, int y, int z) {
         openBlockMenu(x, y, z, "minecraft:grindstone", "container.grindstone_title",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.GrindstoneMenu(id, inv, menus, pos, access));
@@ -1836,6 +1841,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public void openContainer(org.domi.furnace.server.block.Pos p) {
                     ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openContainer(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public void openSmithing(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openSmithing(p.x(), p.y(), p.z()));
                 }
 
                 @Override

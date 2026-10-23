@@ -312,8 +312,48 @@ public sealed interface Recipe {
 
     // ------------------------------------------------------------------ 대장장이 작업대
 
-    record SmithingTransform(Ingredient template, Ingredient base, Ingredient addition, Result result) implements Recipe {
+    /** 대장장이 작업대 레시피(변환·장식) 공통: 칸마다 재료 확인과 결과 만들기. */
+    non-sealed interface Smithing extends Recipe {
+        Ingredient template();
+        Ingredient base();
+        Ingredient addition();
+
+        default boolean isTemplate(org.domi.furnace.server.entity.ItemStack s, RecipeContext ctx) { return template().test(s, ctx); }
+        default boolean isBase(org.domi.furnace.server.entity.ItemStack s, RecipeContext ctx) { return base().test(s, ctx); }
+        default boolean isAddition(org.domi.furnace.server.entity.ItemStack s, RecipeContext ctx) { return addition().test(s, ctx); }
+
+        /** 바닐라 SmithingRecipe.matches. */
+        default boolean matches(org.domi.furnace.server.entity.ItemStack t, org.domi.furnace.server.entity.ItemStack b,
+                org.domi.furnace.server.entity.ItemStack a, RecipeContext ctx) {
+            return isTemplate(t, ctx) && isBase(b, ctx) && isAddition(a, ctx);
+        }
+
+        /** 바닐라 getResultItem(정렬 키로 쓰인다). */
+        ResourceId sortItem();
+
+        org.domi.furnace.server.entity.ItemStack assemble(org.domi.furnace.server.entity.ItemStack t, org.domi.furnace.server.entity.ItemStack b,
+                org.domi.furnace.server.entity.ItemStack a, RecipeContext ctx, TrimData trims);
+    }
+
+    /** 장식 재료·무늬(데이터 팩 trim_material·trim_pattern): 재료 아이템 → 재료 id, 거푸집 아이템 → 무늬 id. */
+    record TrimData(java.util.Map<ResourceId, ResourceId> materialByIngredient, java.util.Map<ResourceId, ResourceId> patternByTemplate) {
+        static final TrimData EMPTY = new TrimData(java.util.Map.of(), java.util.Map.of());
+    }
+
+    record SmithingTransform(Ingredient template, Ingredient base, Ingredient addition, Result result) implements Smithing {
         public String type() { return "minecraft:smithing_transform"; }
+
+        public ResourceId sortItem() { return result.item(); }
+
+        /** 바닐라 SmithingTransformRecipe.assemble: 결과에 밑감의 컴포넌트 패치를 덮어 씌운다. */
+        public org.domi.furnace.server.entity.ItemStack assemble(org.domi.furnace.server.entity.ItemStack t, org.domi.furnace.server.entity.ItemStack b,
+                org.domi.furnace.server.entity.ItemStack a, RecipeContext ctx, TrimData trims) {
+            var r = result.stack(ctx);
+            java.util.LinkedHashMap<String, Object> merged = new java.util.LinkedHashMap<>(r.patch().entries());
+            merged.putAll(b.patch().entries());
+            return new org.domi.furnace.server.entity.ItemStack(r.itemId(), r.count(),
+                    org.domi.furnace.server.item.ComponentPatch.ofNormalized(merged).normalizedFor(result.item().toString()));
+        }
 
         public void encode(ByteBuf buf, RecipeContext ctx) {
             writeIngredient(buf, template, ctx);
@@ -323,8 +363,31 @@ public sealed interface Recipe {
         }
     }
 
-    record SmithingTrim(Ingredient template, Ingredient base, Ingredient addition) implements Recipe {
+    record SmithingTrim(Ingredient template, Ingredient base, Ingredient addition) implements Smithing {
         public String type() { return "minecraft:smithing_trim"; }
+
+        public ResourceId sortItem() { return ResourceId.parse("minecraft:iron_chestplate"); }
+
+        /** 바닐라 SmithingTrimRecipe.assemble: 재료·거푸집에 맞는 장식을 붙인다(같은 장식이 이미 있으면 결과 없음). */
+        public org.domi.furnace.server.entity.ItemStack assemble(org.domi.furnace.server.entity.ItemStack t, org.domi.furnace.server.entity.ItemStack b,
+                org.domi.furnace.server.entity.ItemStack a, RecipeContext ctx, TrimData trims) {
+            var E = org.domi.furnace.server.entity.ItemStack.EMPTY;
+            if (!base.test(b, ctx)) return E;
+            ResourceId material = trims.materialByIngredient().get(ResourceId.parse(org.domi.furnace.server.item.ItemTools.itemName(a)));
+            ResourceId pattern = trims.patternByTemplate().get(ResourceId.parse(org.domi.furnace.server.item.ItemTools.itemName(t)));
+            if (material == null || pattern == null) return E;
+            Object existing = org.domi.furnace.server.item.ItemTools.component(b, "minecraft:trim");
+            boolean show = true;
+            if (existing instanceof java.util.Map<?, ?> m) {
+                if (material.toString().equals(String.valueOf(m.get("material"))) && pattern.toString().equals(String.valueOf(m.get("pattern")))) return E;
+                if (m.get("show_in_tooltip") instanceof Boolean bo) show = bo;
+            }
+            java.util.LinkedHashMap<String, Object> trim = new java.util.LinkedHashMap<>();
+            trim.put("material", material.toString());
+            trim.put("pattern", pattern.toString());
+            if (!show) trim.put("show_in_tooltip", false);
+            return org.domi.furnace.server.item.ItemTools.with(b.withCount(1), "minecraft:trim", trim);
+        }
 
         public void encode(ByteBuf buf, RecipeContext ctx) {
             writeIngredient(buf, template, ctx);

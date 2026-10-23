@@ -61,10 +61,15 @@ public final class RecipeManager {
     private final RecipeContext ctx;
     private final List<CraftingEntry> crafting;
     private final List<StonecuttingEntry> stonecutting;
+    private final List<SmithingEntry> smithing;
+    private final Recipe.TrimData trims;
+
+    public record SmithingEntry(ResourceId id, Recipe.Smithing recipe) { }
 
     public record StonecuttingEntry(ResourceId id, Recipe.Stonecutting recipe) { }
 
-    private RecipeManager(Map<ResourceId, Recipe> byName, byte[] networkBody, RecipeContext ctx) {
+    private RecipeManager(Map<ResourceId, Recipe> byName, byte[] networkBody, RecipeContext ctx, Recipe.TrimData trims) {
+        this.trims = trims;
         this.byName = byName;
         this.networkBody = networkBody;
         this.ctx = ctx;
@@ -75,6 +80,9 @@ public final class RecipeManager {
         List<StonecuttingEntry> sc = new ArrayList<>();
         for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Stonecutting r) sc.add(new StonecuttingEntry(e.getKey(), r));
         this.stonecutting = List.copyOf(sc);
+        List<SmithingEntry> sm = new ArrayList<>();
+        for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Smithing r) sm.add(new SmithingEntry(e.getKey(), r));
+        this.smithing = List.copyOf(sm);
     }
 
     public static RecipeManager load(ResourceManager rm, RecipeContext ctx) {
@@ -114,8 +122,55 @@ public final class RecipeManager {
         byte[] body = new byte[buf.readableBytes()];
         buf.readBytes(body);
         buf.release();
-        return new RecipeManager(byName, body, ctx);
+        return new RecipeManager(byName, body, ctx, loadTrims(rm));
     }
+
+    /** 데이터 팩의 trim_material(ingredient)·trim_pattern(template_item)을 읽는다. */
+    private static Recipe.TrimData loadTrims(ResourceManager rm) {
+        Map<ResourceId, ResourceId> materials = new HashMap<>(), patterns = new HashMap<>();
+        for (var e : rm.listResources("trim_material", id -> id.path().endsWith(".json")).entrySet()) {
+            try (InputStream in = e.getValue().open().get()) {
+                JsonObject o = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+                materials.put(ResourceId.parse(o.get("ingredient").getAsString()), trimId(e.getKey(), "trim_material"));
+            } catch (Exception ex) {
+                log.error("Couldn't parse trim material {}", e.getKey(), ex);
+            }
+        }
+        for (var e : rm.listResources("trim_pattern", id -> id.path().endsWith(".json")).entrySet()) {
+            try (InputStream in = e.getValue().open().get()) {
+                JsonObject o = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+                patterns.put(ResourceId.parse(o.get("template_item").getAsString()), trimId(e.getKey(), "trim_pattern"));
+            } catch (Exception ex) {
+                log.error("Couldn't parse trim pattern {}", e.getKey(), ex);
+            }
+        }
+        return new Recipe.TrimData(materials, patterns);
+    }
+
+    private static ResourceId trimId(ResourceId file, String dir) {
+        return file.withPath(file.path().substring(dir.length() + 1, file.path().length() - ".json".length()));
+    }
+
+    /** 바닐라 getRecipesFor(SMITHING, input): 맞는 레시피를 결과 번역 키 순(같으면 맵 순서)으로. */
+    public List<SmithingEntry> findSmithing(org.domi.furnace.server.entity.ItemStack t, org.domi.furnace.server.entity.ItemStack b,
+            org.domi.furnace.server.entity.ItemStack a) {
+        List<SmithingEntry> out = new ArrayList<>();
+        for (SmithingEntry e : smithing) if (e.recipe().matches(t, b, a, ctx)) out.add(e);
+        out.sort(java.util.Comparator.comparing(e -> descriptionId(e.recipe().sortItem())));
+        return out;
+    }
+
+    /** 칸 확인용(Menu 의 mayPlace): 그 칸에 놓을 수 있는 레시피가 하나라도 있는가. slot 0 거푸집, 1 밑감, 2 재료. */
+    public boolean smithingAccepts(int slot, org.domi.furnace.server.entity.ItemStack s) {
+        for (SmithingEntry e : smithing) {
+            if (slot == 0 ? e.recipe().isTemplate(s, ctx) : slot == 1 ? e.recipe().isBase(s, ctx) : e.recipe().isAddition(s, ctx)) return true;
+        }
+        return false;
+    }
+
+    public List<SmithingEntry> smithingRecipes() { return smithing; }
+
+    public Recipe.TrimData trims() { return trims; }
 
     public Recipe recipe(ResourceId id) { return byName.get(id); }
 

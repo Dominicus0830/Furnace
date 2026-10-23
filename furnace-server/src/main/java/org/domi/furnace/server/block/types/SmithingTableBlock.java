@@ -11,7 +11,7 @@ public class SmithingTableBlock extends CraftingTableBlock {
 
     @Override
     protected void openMenu(BlockLevel level, Pos pos, BlockActor player) {
-        // TODO(메뉴): 대장장이 화면(container.upgrade).
+        player.openSmithing(pos);
         player.awardStat("minecraft:interact_with_smithing_table");
     }
 }

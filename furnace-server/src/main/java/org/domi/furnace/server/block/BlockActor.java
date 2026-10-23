@@ -65,6 +65,9 @@ public interface BlockActor {
     /** 숫돌 화면 열기. */
     default void openGrindstone(Pos pos) {}
 
+    /** 대장장이 작업대 화면 열기. */
+    default void openSmithing(Pos pos) {}
+
     /** canUseGameMasterBlocks = instabuild && 권한 2 이상. */
     default boolean canUseGameMasterBlocks() { return instabuild() && permissionLevel() >= 2; }
 
