@@ -1,0 +1,1164 @@
+// BlockLevel 구현의 뼈대 — 바닐라 Level.setBlock / LevelChunk.setBlockState / 이웃 갱신 / 신호 / 소리·이벤트 방송을 청크 열 위에서.
+// 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
+package org.domi.furnace.server.block;
+
+import java.util.TreeMap;
+import java.util.TreeSet;
+import org.domi.furnace.server.block.entity.BlockEntity;
+import org.domi.furnace.server.entity.AABB;
+import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.entity.EntityStore;
+import org.domi.furnace.server.entity.EntityTracker;
+import org.domi.furnace.server.entity.ItemEntity;
+import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.play.BlockEventPacket;
+import org.domi.furnace.server.net.protocol.play.BlockUpdate;
+import org.domi.furnace.server.net.protocol.play.LevelEventPacket;
+import org.domi.furnace.server.net.protocol.play.SectionBlocksUpdate;
+import org.domi.furnace.server.net.protocol.play.SoundPacket;
+import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.ChunkSection;
+
+public abstract class ChunkLevel implements BlockLevel {
+
+    protected final Blocks blocks = Blocks.get();
+    protected final BlockInfo info = BlockInfo.get();
+    private final NeighborUpdater neighborUpdater;
+    private final RandomSource random = RandomSource.create();
+    private final RandomSource soundRandom = RandomSource.create();
+    private final BlockTicks blockTicks = new BlockTicks();
+    private final BlockTicks fluidTicks = new BlockTicks();
+    private long subTickCount;
+    /** Level.randValue — 무작위 칸 고르기 LCG(getBlockRandomPos). 바닐라처럼 처음 값은 임의. */
+    private int randValue = new java.util.Random().nextInt();
+    /** 지역 틱 시계(예약 틱 기준 — Folia 의 redstoneTime 처럼 region 마다 따로 간다. 월드 시간은 gameTime()). */
+    private long levelTime;
+    /** ServerLevel.handlingTick — 예약 틱을 돌리는 동안 참. */
+    private boolean handlingTick;
+    /** 방송할 변경: 구역 키(청크 x,z,구역 y) → 구역 안 칸 번호 집합(바닐라 ChunkHolder.changedBlocksPerSection). */
+    private final TreeMap<Long, TreeSet<Short>> changed = new TreeMap<>();
+    /** 바닐라 ObjectLinkedOpenHashSet<BlockEventData>: 넣은 순서대로, 같은 이벤트가 큐에 있으면 다시 넣지 않는다. */
+    private final java.util.LinkedHashSet<BlockEventData> blockEvents = new java.util.LinkedHashSet<>();
+
+    private record BlockEventData(int x, int y, int z, int block, int type, int data) {}
+
+    protected ChunkLevel(int maxChainedNeighborUpdates) {
+        this.neighborUpdater = new NeighborUpdater(this, maxChainedNeighborUpdates);
+    }
+
+    // ------------------------------------------------------------------ 하위 클래스가 정할 것
+
+    /** 이 레벨이 다룰 수 있는(로드돼 있고 소유한) 청크. 아니면 null. */
+    protected abstract ChunkColumn chunk(int chunkX, int chunkZ);
+
+    /** 청크가 바뀌었음(저장 대상). */
+    protected abstract void markDirty(int chunkX, int chunkZ);
+
+    /** 방송: 그 청크를 받은 플레이어들에게. */
+    protected abstract void broadcastToChunk(int chunkX, int chunkZ, Packet packet);
+
+    protected abstract LevelServices services();
+
+    /**
+     * LevelChunk.setBlockState 의 블록 엔티티 부분: 있던 것이 이 상태에 맞지 않으면 지우고, 없으면 블록이 새로 만들고(newBlockEntity),
+     * 있으면 상태만 바꾼다.
+     */
+    protected void createBlockEntity(ChunkColumn col, Pos pos, int state) {
+        BlockEntity be = col.blockEntityAt(pos.x(), pos.y(), pos.z());
+        if (be != null && !be.isValid(state)) {
+            removeBlockEntity(col, pos);
+            be = null;
+        }
+        if (be == null) {
+            be = BlockBehaviors.of(state).newBlockEntity(pos, state);
+            if (be != null) addBlockEntity(col, be);
+        } else {
+            be.setBlockState(state);
+        }
+    }
+
+    /** addAndRegisterBlockEntity: 청크에 두고 틱을 받는 종류면 틱 목록에. */
+    protected void addBlockEntity(ChunkColumn col, BlockEntity be) {
+        be.clearRemoved();
+        col.putBlockEntity(be);
+        if (be.ticking()) addTicker(be);
+    }
+
+    protected void removeBlockEntity(ChunkColumn col, Pos pos) { col.removeBlockEntityAt(pos.x(), pos.y(), pos.z()); }
+
+    protected Object blockEntity(ChunkColumn col, Pos pos) {
+        BlockEntity be = col.blockEntityAt(pos.x(), pos.y(), pos.z());
+        return be != null ? be : col.chestAt(pos.x(), pos.y(), pos.z());
+    }
+
+    // ------------------------------------------------------------------ 블록 엔티티 틱(Level.tickBlockEntities)
+
+    private final java.util.ArrayList<BlockEntity> blockEntityTickers = new java.util.ArrayList<>();
+    private final java.util.ArrayList<BlockEntity> pendingTickers = new java.util.ArrayList<>();
+    private boolean tickingBlockEntities;
+
+    /** addBlockEntityTicker: 틱 도중에 생긴 것은 다음 틱부터. */
+    protected void addTicker(BlockEntity be) {
+        (tickingBlockEntities ? pendingTickers : blockEntityTickers).add(be);
+    }
+
+    /** 불러온 청크의 블록 엔티티를 틱 목록에(registerAllBlockEntitiesAfterLevelLoad). */
+    public void registerBlockEntities(ChunkColumn col) {
+        for (BlockEntity be : col.blockEntities().values()) if (be.ticking() && !be.isRemoved()) addTicker(be);
+    }
+
+    /**
+     * tickBlockEntities: 지워진 것은 빼고, 틱 받는 청크에 있고 칸의 상태가 그 종류에 맞는 것만 tick.
+     * ticking 은 그 칸의 청크가 이번 틱에 블록 엔티티 틱을 받는가.
+     */
+    public void tickBlockEntities(java.util.function.LongPredicate ticking) {
+        tickingBlockEntities = true;
+        if (!pendingTickers.isEmpty()) {
+            blockEntityTickers.addAll(pendingTickers);
+            pendingTickers.clear();
+        }
+        int w = 0;
+        for (int i = 0; i < blockEntityTickers.size(); i++) {
+            BlockEntity be = blockEntityTickers.get(i);
+            if (be.isRemoved()) continue;
+            blockEntityTickers.set(w++, be);
+            Pos p = be.pos();
+            if (!ticking.test((long) (p.x() >> 4) << 32 | (p.z() >> 4) & 0xFFFFFFFFL)) continue;
+            int s = getBlockState(p);
+            if (be.isValid(s)) be.tick(this);
+        }
+        while (blockEntityTickers.size() > w) blockEntityTickers.remove(blockEntityTickers.size() - 1);
+        tickingBlockEntities = false;
+    }
+
+    // ------------------------------------------------------------------ 읽기
+
+    private ChunkColumn chunkAt(Pos pos) { return chunk(pos.x() >> 4, pos.z() >> 4); }
+
+    @Override
+    public int getBlockState(Pos pos) {
+        if (isOutsideBuildHeight(pos.y())) return blocks.defaultState("minecraft:void_air");
+        ChunkColumn c = chunkAt(pos);
+        return c == null ? blocks.defaultState("minecraft:void_air") : c.getBlock(pos.x() & 15, pos.y(), pos.z() & 15);
+    }
+
+    @Override
+    public int getFluidState(Pos pos) {
+        if (isOutsideBuildHeight(pos.y())) return Fluids.EMPTY;
+        int s = getBlockState(pos);
+        return BlockBehaviors.of(s).getFluidState(s);
+    }
+
+    @Override
+    public int minBuildHeight() { return ChunkColumn.MIN_Y; }
+
+    @Override
+    public int maxBuildHeight() { return ChunkColumn.MAX_Y + 1; }
+
+    @Override
+    public boolean hasChunkAt(Pos pos) { return chunkAt(pos) != null; }
+
+    // ------------------------------------------------------------------ setBlock(바닐라 Level.setBlock + LevelChunk.setBlockState)
+
+    @Override
+    public boolean setBlock(Pos pos, int state, int flags, int recursionLeft) {
+        if (isOutsideBuildHeight(pos.y())) return false;
+        ChunkColumn col = chunkAt(pos);
+        if (col == null) return false;
+        int old = setBlockStateInChunk(col, pos, state, (flags & UPDATE_MOVE_BY_PISTON) != 0);
+        if (old < 0) return false;
+        int now = getBlockState(pos);
+        if (now == state) {
+            if ((flags & UPDATE_CLIENTS) != 0) markChanged(pos);
+            if ((flags & UPDATE_NEIGHBORS) != 0) {
+                blockUpdated(pos, blocks.blockOf(old));
+                if (BlockBehaviors.of(state).hasAnalogOutputSignal(state)) updateNeighbourForOutputSignal(pos, blocks.blockOf(state));
+            }
+            if ((flags & UPDATE_KNOWN_SHAPE) == 0 && recursionLeft > 0) {
+                int f = flags & ~(UPDATE_NEIGHBORS | UPDATE_SUPPRESS_DROPS);
+                BlockBehaviors.of(old).updateIndirectNeighbourShapes(old, this, pos, f, recursionLeft - 1);
+                B.updateNeighbourShapes(state, this, pos, f, recursionLeft - 1);
+                BlockBehaviors.of(state).updateIndirectNeighbourShapes(state, this, pos, f, recursionLeft - 1);
+            }
+        }
+        return true;
+    }
+
+    /** LevelChunk.setBlockState — 바뀌지 않았거나 onRemove 가 블록을 갈아 치웠으면 -1, 아니면 이전 상태. */
+    private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved) {
+        int lx = pos.x() & 15, lz = pos.z() & 15;
+        int old = col.getBlock(lx, pos.y(), lz);
+        if (old == state) return -1;
+        if (info.isAir(state) && col.sectionHasOnlyAir(pos.y())) return -1;
+        col.setBlock(lx, pos.y(), lz, state);
+        markDirty(pos.x() >> 4, pos.z() >> 4);
+        BlockBehaviors.of(old).onRemove(old, this, pos, state, moved);
+        if (blocks.blockOf(col.getBlock(lx, pos.y(), lz)) != blocks.blockOf(state)) return -1;
+        BlockBehaviors.of(state).onPlace(state, this, pos, old, moved);
+        if (info.hasBlockEntity(state)) createBlockEntity(col, pos, state);
+        return old;
+    }
+
+    @Override
+    public boolean destroyBlock(Pos pos, boolean dropBlock, BlockActor breaker, int recursionLeft) {
+        int s = getBlockState(pos);
+        if (info.isAir(s)) return false;
+        int f = getFluidState(pos);
+        if (!B.isTag(s, "minecraft:fire")) levelEvent(null, 2001, pos, s);
+        if (dropBlock) dropResources(s, pos, info.hasBlockEntity(s) ? getBlockEntity(pos) : null, breaker, ItemStack.EMPTY);
+        boolean ok = setBlock(pos, Fluids.createLegacyBlock(f), UPDATE_ALL, recursionLeft);
+        if (ok) gameEvent("minecraft:block_destroy", pos, breaker, s);
+        return ok;
+    }
+
+    @Override
+    public java.util.List<ItemStack> lootDrops(String lootTable, int state, Pos pos, BlockActor entity, ItemStack tool, Float explosionRadius) {
+        return services().blockDrops(lootTable, state, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, tool,
+                entity == null ? null : entity.handle(), explosionRadius);
+    }
+
+    @Override
+    public void popExperience(Pos pos, int amount) {
+        if (!gameRule("doTileDrops")) return;
+        // TODO(엔티티): ExperienceOrb.award(level, 칸 가운데, amount) — 구슬 나누기·합치기. 구슬은 자기 난수만 쓴다.
+    }
+
+    @Override
+    public void destroyBlockProgress(int breakerId, Pos pos, int progress) {
+        var pkt = new org.domi.furnace.server.net.protocol.play.BlockDestruction(breakerId, pos.x(), pos.y(), pos.z(), progress);
+        services().forEachPlayer(p -> {
+            if (p.entityId() == breakerId) return;
+            double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
+            if (dx * dx + dy * dy + dz * dz < 1024.0) p.send(pkt);
+        });
+    }
+
+    // ------------------------------------------------------------------ 이웃 갱신
+
+    @Override
+    public void updateNeighborsAt(Pos pos, int sourceBlock) { neighborUpdater.updateNeighborsAtExceptFromFacing(pos, sourceBlock, -1); }
+
+    @Override
+    public void updateNeighborsAtExceptFromFacing(Pos pos, int sourceBlock, int skipDir) {
+        neighborUpdater.updateNeighborsAtExceptFromFacing(pos, sourceBlock, skipDir);
+    }
+
+    @Override
+    public void neighborChanged(Pos pos, int sourceBlock, Pos fromPos) { neighborUpdater.neighborChanged(pos, sourceBlock, fromPos); }
+
+    @Override
+    public void neighborChanged(int state, Pos pos, int sourceBlock, Pos fromPos, boolean moved) {
+        neighborUpdater.neighborChanged(state, pos, sourceBlock, fromPos, moved);
+    }
+
+    @Override
+    public void neighborShapeChanged(int dir, int neighborState, Pos pos, Pos neighborPos, int flags, int recursionLeft) {
+        neighborUpdater.shapeUpdate(dir, neighborState, pos, neighborPos, flags, recursionLeft);
+    }
+
+    @Override
+    public void updateNeighbourForOutputSignal(Pos pos, int block) {
+        int comparator = blocks.block("minecraft:comparator");
+        for (int d : Dir.HORIZONTAL) {
+            Pos p = pos.relative(d);
+            if (!hasChunkAt(p)) continue;
+            int s = getBlockState(p);
+            if (blocks.blockOf(s) == comparator) {
+                neighborChanged(s, p, block, pos, false);
+            } else if (BlockBehaviors.of(s).isRedstoneConductor(s, this, p)) {
+                p = p.relative(d);
+                s = getBlockState(p);
+                if (blocks.blockOf(s) == comparator) neighborChanged(s, p, block, pos, false);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ 예약 틱
+
+    @Override
+    public void scheduleTick(Pos pos, int block, int delay, int priority) {
+        blockTicks.schedule(pos, block, levelTime + delay, priority, subTickCount++);
+        markDirty(pos.x() >> 4, pos.z() >> 4);   // 예약도 청크와 함께 저장한다
+    }
+
+    @Override
+    public void scheduleFluidTick(Pos pos, int fluidType, int delay) {
+        fluidTicks.schedule(pos, fluidType, levelTime + delay, 0, subTickCount++);
+        markDirty(pos.x() >> 4, pos.z() >> 4);
+    }
+
+    // ------------------------------------------------------------------ 예약 틱 저장(청크 NBT block_ticks·fluid_ticks — SavedTick)
+
+    private static final String[] FLUID_NAMES = {"minecraft:empty", "minecraft:flowing_water", "minecraft:water", "minecraft:flowing_lava", "minecraft:lava"};
+
+    /** 그 청크에 예약이 있는가. */
+    public boolean hasChunkTicks(int chunkX, int chunkZ) {
+        return !blockTicks.chunkTicks(chunkX, chunkZ).isEmpty() || !fluidTicks.chunkTicks(chunkX, chunkZ).isEmpty();
+    }
+
+    /**
+     * 그 청크의 예약을 NBT 목록 둘(block_ticks, fluid_ticks)로 쓴다 — 칸마다 {i: 종류 id, x, y, z, t: 남은 틱, p: 우선순위}.
+     * remove 면 예약을 꺼낸다(청크를 내릴 때).
+     */
+    public void saveChunkTicks(int chunkX, int chunkZ, org.domi.furnace.server.net.io.nbt.NbtCompound root, boolean remove) {
+        var bt = remove ? blockTicks.removeChunk(chunkX, chunkZ) : blockTicks.chunkTicks(chunkX, chunkZ);
+        var ft = remove ? fluidTicks.removeChunk(chunkX, chunkZ) : fluidTicks.chunkTicks(chunkX, chunkZ);
+        root.putList("block_ticks", tickList(bt, false));
+        root.putList("fluid_ticks", tickList(ft, true));
+    }
+
+    private org.domi.furnace.server.net.io.nbt.NbtList tickList(java.util.List<BlockTicks.Scheduled> ticks, boolean fluid) {
+        var list = new org.domi.furnace.server.net.io.nbt.NbtList(ticks.isEmpty() ? org.domi.furnace.server.net.io.nbt.NbtIo.TAG_END
+                : org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        for (BlockTicks.Scheduled s : ticks) {
+            Pos p = Pos.of(s.pos());
+            var e = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            e.putString("i", fluid ? FLUID_NAMES[s.type()] : blocks.name(s.type()));
+            e.putInt("x", p.x());
+            e.putInt("y", p.y());
+            e.putInt("z", p.z());
+            e.putInt("t", (int) (s.triggerTick() - levelTime));
+            e.putInt("p", s.priority());
+            list.add(e);
+        }
+        return list;
+    }
+
+    /** 불러온 청크 NBT 의 예약을 다시 건다(목록 순서대로 예약 순번) — 모르는 종류는 건너뛴다. 읽은 목록은 지운다. */
+    public void loadChunkTicks(org.domi.furnace.server.net.io.nbt.NbtCompound root) {
+        if (root == null) return;
+        for (String key : new String[] {"block_ticks", "fluid_ticks"}) {
+            if (!(root.tags().get(key) instanceof org.domi.furnace.server.net.io.nbt.NbtList list)) continue;
+            boolean fluid = key.equals("fluid_ticks");
+            for (Object o : list.items()) {
+                if (!(o instanceof org.domi.furnace.server.net.io.nbt.NbtCompound e)) continue;
+                String id = e.contains("i") ? e.getString("i") : null;
+                int type = -1;
+                if (fluid) {
+                    for (int i = 1; i < FLUID_NAMES.length; i++) if (FLUID_NAMES[i].equals(id)) type = i;
+                } else if (id != null) {
+                    type = blocks.block(id);
+                }
+                if (type < 0) continue;
+                Pos p = new Pos(e.getIntOr0("x"), e.getIntOr0("y"), e.getIntOr0("z"));
+                (fluid ? fluidTicks : blockTicks).schedule(p, type, levelTime + e.getIntOr0("t"), e.getIntOr0("p"), subTickCount++);
+            }
+            root.tags().remove(key);
+        }
+    }
+
+    @Override
+    public boolean hasScheduledTick(Pos pos, int block) { return blockTicks.hasScheduledTick(pos, block); }
+
+    @Override
+    public boolean willTickThisTick(Pos pos, int block) { return blockTicks.willTickThisTick(pos, block); }
+
+    /** 레벨 틱의 블록 틱 → 유체 틱(바닐라 ServerLevel.tick 순서). 지역 시계를 한 틱 진행한다. */
+    public void runScheduledTicks() {
+        long now = ++levelTime;
+        handlingTick = true;
+        blockTicks.tick(now, 65536, (pos, type) -> {
+            int s = getBlockState(pos);
+            if (blocks.blockOf(s) == type) BlockBehaviors.of(s).tick(s, this, pos, random);
+        });
+        fluidTicks.tick(now, 65536, (pos, type) -> {
+            int f = getFluidState(pos);
+            if (Fluids.type(f) == type) FluidTicker.tick(this, pos, f);
+        });
+        handlingTick = false;
+    }
+
+    public BlockTicks blockTicks() { return blockTicks; }
+
+    // ------------------------------------------------------------------ 무작위 틱·날씨(바닐라 ServerLevel.tickChunk)
+
+    /** Util.shuffle(list, level.random): 뒤에서부터 nextInt(i) 자리와 바꾼다(ServerChunkCache.tickChunks 의 청크 순서). */
+    protected void shuffle(long[] a, int n) {
+        for (int i = n; i > 1; i--) {
+            int j = random.nextInt(i);
+            long t = a[i - 1];
+            a[i - 1] = a[j];
+            a[j] = t;
+        }
+    }
+
+    /** Level.getBlockRandomPos(x, y, z, 15): randValue = randValue·3 + 1013904223, 그 >> 2 의 비트로 칸 안 위치. */
+    private Pos blockRandomPos(int x, int y, int z) {
+        randValue = randValue * 3 + 1013904223;
+        int i = randValue >> 2;
+        return new Pos(x + (i & 15), y + (i >> 16 & 15), z + (i >> 8 & 15));
+    }
+
+    /**
+     * ServerLevel.tickChunk(chunk, randomTickSpeed): 천둥(번개) → 얼음·눈(randomTickSpeed 번, 1/48 로 강수 칸 하나) →
+     * 무작위 틱(무작위 틱 받는 섹션마다 randomTickSpeed 칸: 블록 randomTick, 그 유체 randomTick).
+     */
+    public void tickChunk(int chunkX, int chunkZ, int randomTickSpeed) {
+        ChunkColumn col = chunk(chunkX, chunkZ);
+        if (col == null) return;
+        int x0 = chunkX << 4, z0 = chunkZ << 4;
+        boolean raining = isRaining();
+        if (raining && isThundering() && random.nextInt(100000) == 0) {
+            // TODO(엔티티): 번개 — findLightningTargetAround(getBlockRandomPos) → 비 오는 칸이면 해골 말 덫(1%·난이도)·번개 엔티티.
+            blockRandomPos(x0, 0, z0);
+        }
+        for (int l = 0; l < randomTickSpeed; l++) {
+            if (random.nextInt(48) == 0) tickPrecipitation(col, blockRandomPos(x0, 0, z0));
+        }
+        if (randomTickSpeed <= 0) return;
+        ChunkSection[] sections = col.sections();
+        for (int si = 0; si < sections.length; si++) {
+            ChunkSection sec = sections[si];
+            if (sec == null || !sec.isRandomlyTicking()) continue;
+            int y0 = col.minY() + (si << 4);
+            for (int n = 0; n < randomTickSpeed; n++) {
+                Pos p = blockRandomPos(x0, y0, z0);
+                int st = sec.getBlock(p.x() - x0, p.y() - y0, p.z() - z0);
+                BlockBehavior b = BlockBehaviors.of(st);
+                if (b.isRandomlyTicking(st)) b.randomTick(st, this, p, random);
+                int f = b.getFluidState(st);
+                if (Fluids.isLava(f)) FluidTicker.randomTick(this, p, f, random);
+            }
+        }
+    }
+
+    /**
+     * ServerLevel.tickPrecipitation(pos): MOTION_BLOCKING 높이 칸(위)·그 아래 칸 — 아래가 얼 수 있으면 얼음, 비가 오면 위에 눈을 쌓고
+     * (게임룰 snowAccumulationHeight 까지), 아래 칸 블록에 그 강수를 알린다(가마솥).
+     */
+    void tickPrecipitation(ChunkColumn col, Pos pos) {
+        Pos top = new Pos(pos.x(), col.motionBlockingBlockY(pos.x() & 15, pos.z() & 15) + 1, pos.z());
+        Pos below = top.below();
+        var climate = org.domi.furnace.server.world.BiomeWeather.of(services().biomeAt(top.x(), top.y(), top.z()));
+        if (shouldFreeze(climate, below)) setBlockAndUpdate(below, blocks.defaultState("minecraft:ice"));
+        if (isRaining()) {
+            int max = gameRuleInt("snowAccumulationHeight");
+            if (max > 0 && shouldSnow(climate, top)) {
+                int s = getBlockState(top);
+                if (blocks.blockOf(s) == SNOW) {
+                    Prop layers = blocks.prop("layers");
+                    int j = layers.intValue(s);
+                    if (j < Math.min(max, 8)) {
+                        // TODO(엔티티): Block.pushEntitiesUp(눈, 한 겹 더 쌓인 눈, level, pos)
+                        setBlockAndUpdate(top, layers.withInt(s, j + 1));
+                    }
+                } else {
+                    setBlockAndUpdate(top, blocks.defaultState(SNOW));
+                }
+            }
+            String precip = climate.precipitationAt(below.x(), below.y(), below.z());
+            if (!precip.equals(org.domi.furnace.server.world.BiomeWeather.NONE)) {
+                int s = getBlockState(below);
+                BlockBehaviors.of(s).handlePrecipitation(s, this, below, precip);
+            }
+        }
+    }
+
+    private final int SNOW = blocks.block("minecraft:snow"), WATER_BLOCK = blocks.block("minecraft:water");
+
+    /** Biome.shouldFreeze(level, pos, true): 따뜻하지 않고 블록빛 < 10, 물 원천 블록이며 네 옆이 모두 물은 아님(가장자리). */
+    private boolean shouldFreeze(org.domi.furnace.server.world.BiomeWeather.Climate c, Pos pos) {
+        if (c.warmEnoughToRain(pos.x(), pos.y(), pos.z())) return false;
+        if (pos.y() < minBuildHeight() || pos.y() >= maxBuildHeight() || getBlockLight(pos) >= 10) return false;
+        int s = getBlockState(pos);
+        if (blocks.blockOf(s) != WATER_BLOCK || !Fluids.isWaterSource(getFluidState(pos))) return false;
+        boolean surrounded = isWaterAt(pos.west()) && isWaterAt(pos.east()) && isWaterAt(pos.north()) && isWaterAt(pos.south());
+        return !surrounded;
+    }
+
+    /** Biome.shouldSnow(level, pos): 따뜻하지 않고 블록빛 < 10, 공기나 눈이며 눈이 살 수 있는 칸. */
+    private boolean shouldSnow(org.domi.furnace.server.world.BiomeWeather.Climate c, Pos pos) {
+        if (c.warmEnoughToRain(pos.x(), pos.y(), pos.z())) return false;
+        if (pos.y() < minBuildHeight() || pos.y() >= maxBuildHeight() || getBlockLight(pos) >= 10) return false;
+        int s = getBlockState(pos);
+        if (!info.isAir(s) && blocks.blockOf(s) != SNOW) return false;
+        int snow = blocks.defaultState(SNOW);
+        return BlockBehaviors.of(snow).canSurvive(snow, this, pos);
+    }
+
+    public long levelTime() { return levelTime; }
+
+    // ------------------------------------------------------------------ region 합치기·나누기
+
+    /** 다른 레벨의 자료를 모두 흡수한다(그 레벨은 버려진다). 예약 틱은 두 지역 시계 차이만큼 보정한다. */
+    public void absorb(ChunkLevel other) {
+        long offset = levelTime - other.levelTime;
+        other.blockTicks.moveTo(blockTicks, p -> true, offset);
+        other.fluidTicks.moveTo(fluidTicks, p -> true, offset);
+        subTickCount = Math.max(subTickCount, other.subTickCount);
+        for (var e : other.changed.entrySet()) changed.computeIfAbsent(e.getKey(), k -> new TreeSet<>()).addAll(e.getValue());
+        other.changed.clear();
+        blockEvents.addAll(other.blockEvents);
+        other.blockEvents.clear();
+        blockEntityTickers.addAll(other.blockEntityTickers);
+        blockEntityTickers.addAll(other.pendingTickers);
+        other.blockEntityTickers.clear();
+        other.pendingTickers.clear();
+        for (Entity e : other.entities.all()) e.setLevel(this);
+        entities.absorb(other.entities);
+    }
+
+    /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
+    public void splitTo(ChunkLevel target, ChunkFilter inTarget) {
+        target.levelTime = levelTime;
+        target.subTickCount = subTickCount;
+        java.util.function.LongPredicate byPos = packed -> {
+            Pos p = Pos.of(packed);
+            return inTarget.test(p.x() >> 4, p.z() >> 4);
+        };
+        blockTicks.moveTo(target.blockTicks, byPos, 0);
+        fluidTicks.moveTo(target.fluidTicks, byPos, 0);
+        var it = changed.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            long key = e.getKey();
+            int cx = (int) (key >> 42), cz = (int) (key << 22 >> 42);
+            if (inTarget.test(cx, cz)) {
+                target.changed.put(key, e.getValue());
+                it.remove();
+            }
+        }
+        for (var list : java.util.List.of(blockEntityTickers, pendingTickers)) {
+            var tit = list.iterator();
+            while (tit.hasNext()) {
+                BlockEntity be = tit.next();
+                if (inTarget.test(be.pos().x() >> 4, be.pos().z() >> 4)) {
+                    target.blockEntityTickers.add(be);
+                    tit.remove();
+                }
+            }
+        }
+        for (Entity e : entities.splitTo(target.entities, inTarget::test)) e.setLevel(target);
+        var bit = blockEvents.iterator();
+        while (bit.hasNext()) {
+            BlockEventData ev = bit.next();
+            if (inTarget.test(ev.x() >> 4, ev.z() >> 4)) {
+                target.blockEvents.add(ev);
+                bit.remove();
+            }
+        }
+    }
+
+    /** 청크 좌표 조건. */
+    @FunctionalInterface
+    public interface ChunkFilter {
+        boolean test(int chunkX, int chunkZ);
+    }
+
+    // ------------------------------------------------------------------ 레드스톤(바닐라 SignalGetter)
+
+    @Override
+    public int getDirectSignal(Pos pos, int dir) {
+        int s = getBlockState(pos);
+        return BlockBehaviors.of(s).getDirectSignal(s, this, pos, dir);
+    }
+
+    @Override
+    public int getDirectSignalTo(Pos pos) {
+        int best = 0;
+        for (int d : Dir.ALL) {
+            best = Math.max(best, getDirectSignal(pos.relative(d), d));
+            if (best >= 15) return best;
+        }
+        return best;
+    }
+
+    @Override
+    public int getSignal(Pos pos, int dir) {
+        int s = getBlockState(pos);
+        BlockBehavior b = BlockBehaviors.of(s);
+        int i = b.getSignal(s, this, pos, dir);
+        return b.isRedstoneConductor(s, this, pos) ? Math.max(i, getDirectSignalTo(pos)) : i;
+    }
+
+    @Override
+    public boolean hasSignal(Pos pos, int dir) { return getSignal(pos, dir) > 0; }
+
+    @Override
+    public boolean hasNeighborSignal(Pos pos) {
+        for (int d : Dir.ALL) if (getSignal(pos.relative(d), d) > 0) return true;
+        return false;
+    }
+
+    @Override
+    public int getBestNeighborSignal(Pos pos) {
+        int best = 0;
+        for (int d : Dir.ALL) {
+            int v = getSignal(pos.relative(d), d);
+            if (v >= 15) return 15;
+            best = Math.max(best, v);
+        }
+        return best;
+    }
+
+    // ------------------------------------------------------------------ 변경 방송(바닐라 ChunkHolder.blockChanged / broadcastChanges)
+
+    private void markChanged(Pos pos) {
+        int cx = pos.x() >> 4, cz = pos.z() >> 4, sy = pos.y() >> 4;
+        long key = ((long) cx & 0x3FFFFF) << 42 | ((long) cz & 0x3FFFFF) << 20 | (long) sy & 0xFFFFF;
+        short local = (short) ((pos.x() & 15) << 8 | (pos.z() & 15) << 4 | pos.y() & 15);
+        changed.computeIfAbsent(key, k -> new TreeSet<>()).add(local);
+    }
+
+    /** 틱 끝에 모아 둔 변경을 보낸다: 칸 하나면 블록 갱신, 여럿이면 구역 갱신(그때의 상태로). */
+    public void broadcastChanges() {
+        if (changed.isEmpty()) return;
+        for (var e : changed.entrySet()) {
+            long key = e.getKey();
+            int cx = (int) (key >> 42), cz = (int) (key << 22 >> 42), sy = (int) (key << 44 >> 44);
+            if (chunk(cx, cz) == null) continue;
+            TreeSet<Short> set = e.getValue();
+            if (set.size() == 1) {
+                short l = set.first();
+                int x = cx << 4 | l >> 8 & 15, z = cz << 4 | l >> 4 & 15, y = sy << 4 | l & 15;
+                broadcastToChunk(cx, cz, new BlockUpdate(x, y, z, getBlockState(new Pos(x, y, z))));
+            } else {
+                short[] pos = new short[set.size()];
+                int[] states = new int[set.size()];
+                int i = 0;
+                for (short l : set) {
+                    pos[i] = l;
+                    states[i++] = getBlockState(new Pos(cx << 4 | l >> 8 & 15, sy << 4 | l & 15, cz << 4 | l >> 4 & 15));
+                }
+                broadcastToChunk(cx, cz, new SectionBlocksUpdate(cx, sy, cz, pos, states));
+            }
+        }
+        changed.clear();
+    }
+
+    // ------------------------------------------------------------------ 소리·이벤트
+
+    @Override
+    public void playSound(BlockActor except, Pos pos, String sound, String source, float volume, float pitch) {
+        playSound(except, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, sound, source, volume, pitch);
+    }
+
+    @Override
+    public void playSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch) {
+        Integer id = ItemContext.installed() ? ItemContext.id("minecraft:sound_event", sound) : null;
+        double range = volume > 1.0F ? 16.0 * volume : 16.0;
+        SoundPacket pkt = new SoundPacket(id == null ? -1 : id, sound, SoundPacket.source(source), x, y, z, volume, pitch, soundRandom.nextLong());
+        Object skip = except == null ? null : except.handle();
+        services().forEachPlayer(p -> {
+            if (p == skip) return;
+            double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
+            if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
+        });
+    }
+
+    @Override
+    public void levelEvent(BlockActor except, int type, Pos pos, int data) {
+        LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, false);
+        Object skip = except == null ? null : except.handle();
+        services().forEachPlayer(p -> {
+            if (p == skip) return;
+            double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
+            if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
+        });
+    }
+
+    @Override
+    public void globalLevelEvent(int type, Pos pos, int data) {
+        if (!gameRule("globalSoundEvents")) {
+            levelEvent(null, type, pos, data);
+            return;
+        }
+        LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, true);
+        services().forEachPlayer(p -> p.send(pkt));
+    }
+
+    @Override
+    public void blockEvent(Pos pos, int block, int type, int data) {
+        blockEvents.add(new BlockEventData(pos.x(), pos.y(), pos.z(), block, type, data));
+    }
+
+    /** 틱 끝 블록 이벤트 처리(바닐라 runBlockEvents): 블록이 그대로면 triggerEvent, 참이면 64칸 안에 방송. */
+    public void runBlockEvents() {
+        while (!blockEvents.isEmpty()) {
+            var first = blockEvents.iterator();
+            BlockEventData e = first.next();
+            first.remove();
+            Pos pos = new Pos(e.x(), e.y(), e.z());
+            int s = getBlockState(pos);
+            if (blocks.blockOf(s) != e.block()) continue;
+            if (BlockBehaviors.of(s).triggerEvent(s, this, pos, e.type(), e.data())) {
+                BlockEventPacket pkt = new BlockEventPacket(e.x(), e.y(), e.z(), e.type(), e.data(), e.block());
+                services().forEachPlayer(p -> {
+                    double dx = e.x() - p.x(), dy = e.y() - p.y(), dz = e.z() - p.z();
+                    if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
+                });
+            }
+        }
+    }
+
+    @Override
+    public void gameEvent(String event, Pos pos, BlockActor source, int state) {}
+
+    // ------------------------------------------------------------------ 기타
+
+    @Override
+    public boolean isUnobstructed(Shape worldShape) {
+        if (worldShape.isEmpty()) return true;
+        double[] b = worldShape.bounds();
+        boolean[] blocked = {false};
+        services().forEachPlayer(p -> {
+            if (blocked[0] || p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            double h = p.sneaking() ? 1.5 : 1.8;
+            double x0 = p.x() - 0.3, y0 = p.y(), z0 = p.z() - 0.3, x1 = p.x() + 0.3, y1 = p.y() + h, z1 = p.z() + 0.3;
+            // getEntities(bounds) 는 상자끼리 겹침(경계 제외)으로 먼저 거른 뒤 모양과 맞대 본다
+            if (x1 <= b[0] || x0 >= b[3] || y1 <= b[1] || y0 >= b[4] || z1 <= b[2] || z0 >= b[5]) return;
+            if (worldShape.intersects(x0, y0, z0, x1, y1, z1)) blocked[0] = true;
+        });
+        return !blocked[0];
+    }
+
+    @Override
+    public RandomSource random() { return random; }
+
+    @Override
+    public long gameTime() { return services().gameTime(); }
+
+    @Override
+    public long dayTime() { return services().dayTime(); }
+
+    @Override
+    public boolean isRaining() { return services().isRaining(); }
+
+    @Override
+    public boolean isThundering() { return services().isThundering(); }
+
+    @Override
+    public float rainLevel() { return services().rainLevel(); }
+
+    @Override
+    public float thunderLevel() { return services().thunderLevel(); }
+
+    @Override
+    public boolean gameRule(String name) { return services().gameRule(name); }
+
+    @Override
+    public int gameRuleInt(String name) { return services().gameRuleInt(name); }
+
+    @Override
+    public int difficulty() { return services().difficulty(); }
+
+    @Override
+    public String dimension() { return services().dimension(); }
+
+    @Override
+    public boolean biomeIs(Pos pos, String tag) { return services().biomeIs(pos.x(), pos.y(), pos.z(), tag); }
+
+    @Override
+    public boolean ultraWarm() { return services().ultraWarm(); }
+
+    @Override
+    public boolean hasSkyLight() { return services().hasSkyLight(); }
+
+    @Override
+    public boolean withinBorder(Pos pos) { return services().withinBorder(pos.x(), pos.z()); }
+
+    @Override
+    public void setBlockEntity(BlockEntity be) {
+        Pos pos = be.pos();
+        if (isOutsideBuildHeight(pos.y())) return;
+        ChunkColumn col = chunkAt(pos);
+        if (col == null || !info.hasBlockEntity(getBlockState(pos))) return;   // 바닐라는 경고 후 무시
+        addBlockEntity(col, be);
+    }
+
+    @Override
+    public boolean isHandlingTick() { return handlingTick; }
+
+    @Override
+    public void blockEntityChanged(Pos pos) {
+        if (hasChunkAt(pos)) markDirty(pos.x() >> 4, pos.z() >> 4);
+    }
+
+    @Override
+    public Object getBlockEntity(Pos pos) {
+        ChunkColumn c = chunkAt(pos);
+        return c == null ? null : blockEntity(c, pos);
+    }
+
+    @Override
+    public void removeBlockEntity(Pos pos) {
+        ChunkColumn c = chunkAt(pos);
+        if (c != null) removeBlockEntity(c, pos);
+    }
+
+    @Override
+    public void sendActionBar(BlockActor actor, org.domi.furnace.api.text.Text text) {
+        if (actor != null && actor.handle() instanceof Player p) p.sendSystemMessage(text, true);
+    }
+
+    /** Block.popResource(level, pos, stack): 칸 가운데 ±0.25(높이는 아이템 반만큼 내림)에 기본 속도로. 흩뿌림 난수는 게임룰과 무관하게 먼저 뽑는다. */
+    @Override
+    public void popResource(Pos pos, ItemStack stack) {
+        RandomSource r = random();
+        double half = EntityType_ITEM_HEIGHT / 2.0;
+        double x = pos.x() + 0.5 + nextDouble(r, -0.25, 0.25);
+        double y = pos.y() + 0.5 + nextDouble(r, -0.25, 0.25) - half;
+        double z = pos.z() + 0.5 + nextDouble(r, -0.25, 0.25);
+        if (stack.isEmpty() || !gameRule("doTileDrops")) return;
+        ItemEntity e = new ItemEntity(this, nextEntityId(), x, y, z, stack);
+        e.setDefaultPickUpDelay();
+        addFreshEntity(e);
+    }
+
+    /** Block.popResourceFromFace: 그 면 바깥(아이템 반 폭)에서 면 쪽 0.1(위쪽이면 +0.1) 속도로. */
+    @Override
+    public void popResourceFromFace(Pos pos, int dir, ItemStack stack) {
+        RandomSource r = random();
+        int i = Dir.DX[dir], j = Dir.DY[dir], k = Dir.DZ[dir];
+        double hw = EntityType_ITEM_WIDTH / 2.0, hh = EntityType_ITEM_HEIGHT / 2.0;
+        double x = pos.x() + 0.5 + (i == 0 ? nextDouble(r, -0.25, 0.25) : i * (0.5 + hw));
+        double y = pos.y() + 0.5 + (j == 0 ? nextDouble(r, -0.25, 0.25) : j * (0.5 + hh)) - hh;
+        double z = pos.z() + 0.5 + (k == 0 ? nextDouble(r, -0.25, 0.25) : k * (0.5 + hw));
+        double vx = i == 0 ? nextDouble(r, -0.1, 0.1) : i * 0.1;
+        double vy = j == 0 ? nextDouble(r, 0.0, 0.1) : j * 0.1 + 0.1;
+        double vz = k == 0 ? nextDouble(r, -0.1, 0.1) : k * 0.1;
+        if (stack.isEmpty() || !gameRule("doTileDrops")) return;
+        ItemEntity e = new ItemEntity(this, nextEntityId(), x, y, z, stack, vx, vy, vz);
+        e.setDefaultPickUpDelay();
+        addFreshEntity(e);
+    }
+
+    private static final double EntityType_ITEM_WIDTH = 0.25F, EntityType_ITEM_HEIGHT = 0.25F;
+
+    @Override
+    public void dropContents(Pos pos, ItemStack[] items) {
+        for (int i = 0; i < items.length; i++) {
+            dropItemStack(pos.x(), pos.y(), pos.z(), items[i] == null ? ItemStack.EMPTY : items[i]);
+            items[i] = ItemStack.EMPTY;
+        }
+    }
+
+    @Override
+    public void unpackContainerLoot(Object container) { services().unpackContainerLoot(container); }
+
+    /**
+     * Containers.dropItemStack(level, x, y, z, stack): 칸 안 임의 위치(아이템 폭만큼 안쪽)에서 10~30 개씩 나눠, 속도는 삼각 분포
+     * (0, 0.2, 0) ± 0.11485.
+     */
+    public void dropItemStack(double x, double y, double z, ItemStack stack) {
+        RandomSource r = random();
+        double w = EntityType_ITEM_WIDTH, e = 1.0 - w, f = w / 2.0;
+        double gx = Math.floor(x) + r.nextDouble() * e + f;
+        double gy = Math.floor(y) + r.nextDouble() * e;
+        double gz = Math.floor(z) + r.nextDouble() * e + f;
+        while (!stack.isEmpty()) {
+            int n = Math.min(stack.count(), r.nextInt(21) + 10);
+            ItemStack part = stack.withCount(n);
+            stack = stack.withCount(stack.count() - n);
+            ItemEntity ie = new ItemEntity(this, nextEntityId(), gx, gy, gz, part);
+            ie.setDeltaMovement(r.triangle(0.0, 0.11485000171139836), r.triangle(0.2, 0.11485000171139836), r.triangle(0.0, 0.11485000171139836));
+            addFreshEntity(ie);
+        }
+    }
+
+    private static double nextDouble(RandomSource r, double min, double max) { return min >= max ? min : r.nextDouble() * (max - min) + min; }
+
+    // ------------------------------------------------------------------ 엔티티
+
+    private final EntityStore entities = new EntityStore();
+    private static final java.util.concurrent.atomic.AtomicInteger FALLBACK_IDS = new java.util.concurrent.atomic.AtomicInteger(1 << 24);
+
+    public EntityStore entities() { return entities; }
+
+    /** 새 엔티티 id(서버 전역 — 플레이어와 같은 발급기). 기본은 테스트용 따로 센 값. */
+    public int nextEntityId() { return FALLBACK_IDS.incrementAndGet(); }
+
+    /** 추적 대상 플레이어(이 레벨을 돌리는 region 의 플레이어). 기본은 서비스의 접속자. */
+    protected Iterable<Player> trackingPlayers() {
+        java.util.List<Player> out = new java.util.ArrayList<>();
+        services().forEachPlayer(out::add);
+        return out;
+    }
+
+    /** ChunkMap.getPlayerViewDistance: clamp(요청 시야, 2, 서버 시야). */
+    protected int viewDistanceFor(Player p) { return Math.max(2, p.viewDistance()); }
+
+    /** ChunkMap.isChunkTracked: 그 플레이어가 그 청크를 받았는가. */
+    protected boolean chunkTrackedBy(Player p, int chunkX, int chunkZ) { return true; }
+
+    private final EntityTracker.Viewers viewers = new EntityTracker.Viewers() {
+        public int viewDistance(Player p) { return viewDistanceFor(p); }
+
+        public boolean chunkTracked(Player p, int cx, int cz) { return chunkTrackedBy(p, cx, cz); }
+    };
+
+    public EntityTracker.Viewers viewers() { return viewers; }
+
+    /** addFreshEntity: 넣고(같은 UUID 가 있으면 거부) 추적을 시작한다 — 볼 수 있는 플레이어에게 바로 스폰. */
+    public boolean addFreshEntity(Entity e) {
+        if (e.isRemoved()) return false;
+        e.setLevel(this);
+        if (!entities.add(e)) return false;
+        startTracking(e);
+        return true;
+    }
+
+    /** ChunkMap.addEntity: 추적 거리(종류 × 16 × 방송 비율) 가 0 이면 추적하지 않는다. */
+    protected void startTracking(Entity e) {
+        int range = e.type().clientTrackingRange() * 16;
+        if (range == 0) return;
+        e.tracker = new EntityTracker(e, services().entityBroadcastRangePercentage() * range / 100);
+        e.tracker.updatePlayers(trackingPlayers(), viewers);
+    }
+
+    /** 다른 region 에서 넘어온 엔티티(추적 상태째). */
+    public void adoptEntity(Entity e) {
+        if (e.isRemoved()) return;
+        e.setLevel(this);
+        if (!entities.add(e)) return;
+        if (e.tracker == null) startTracking(e);
+    }
+
+    /** 엔티티가 지워졌다(setRemoved) — 저장소에서 빼고 보는 사람에게 지운다. */
+    public void entityRemoved(Entity e) {
+        if (!entities.remove(e)) return;
+        if (e.tracker != null) {
+            e.tracker.broadcastRemoved();
+            e.tracker = null;
+        }
+    }
+
+    /** 엔티티의 구역이 바뀌었다(setPosRaw). */
+    public void entitySectionChanged(Entity e, long oldKey) { entities.moved(e, oldKey); }
+
+    public java.util.List<Entity> getEntities(Entity except, AABB box, java.util.function.Predicate<? super Entity> filter) {
+        return entities.getEntities(except, box, filter);
+    }
+
+    public <T extends Entity> java.util.List<T> getEntitiesOfClass(Class<T> cls, AABB box, java.util.function.Predicate<? super T> filter) {
+        return entities.getEntitiesOfClass(cls, box, filter);
+    }
+
+    /**
+     * 엔티티 틱(바닐라 ServerLevel.tick 의 entityTickList.forEach): 지워진 것은 건너뛰고, 엔티티 틱 청크(ticking — 청크 키
+     * (x << 32 | z))에 있는 것만 setOldPosAndRot · tickCount++ · tick.
+     */
+    public void tickEntities(java.util.function.LongPredicate ticking) {
+        if (entities.isEmpty()) return;
+        for (Entity e : entities.tickSnapshot()) {
+            if (e.isRemoved()) continue;
+            if (!ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) continue;
+            try {
+                e.setOldPosAndRot();
+                e.tickCount++;
+                e.tick();
+            } catch (RuntimeException ex) {
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 엔티티 틱 실패 {} — 지운다", e, ex);
+                e.discard();
+            }
+        }
+    }
+
+    /**
+     * 추적 갱신(ChunkMap.tick 의 엔티티 부분): 구역이 바뀐 엔티티는 모든 플레이어에 대해 다시 보고, 바뀌었거나 엔티티 틱 청크면 변화를 보낸다.
+     * present 는 이 region 에 있는 플레이어인가(없는 보는 사람은 grace 뒤 뺀다).
+     */
+    public void trackEntities(java.util.function.LongPredicate ticking, java.util.function.Predicate<Player> present) {
+        if (entities.isEmpty()) return;
+        Iterable<Player> players = null;
+        for (Entity e : entities.tickSnapshot()) {
+            EntityTracker t = e.tracker;
+            if (t == null || e.isRemoved()) continue;
+            t.dropAbsent(present, 3);
+            boolean changed = t.lastSectionKey != e.sectionKey();
+            if (changed) {
+                if (players == null) players = trackingPlayers();
+                t.updatePlayers(players, viewers);
+                t.lastSectionKey = e.sectionKey();
+            }
+            if (changed || ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) t.sendChanges();
+        }
+    }
+
+    /** ChunkMap.move(player): 플레이어가 움직였다 — 모든 엔티티에 대해 그 플레이어를 다시 본다. */
+    public void playerMoved(Player p) {
+        for (Entity e : entities.all()) if (e.tracker != null && !e.isRemoved()) e.tracker.updatePlayer(p, viewers);
+    }
+
+    /** 플레이어가 나갔다 — 보는 목록에서 뺀다(패킷 없이). */
+    public void playerLeft(Player p) {
+        for (Entity e : entities.all()) if (e.tracker != null) e.tracker.removePlayer(p);
+    }
+
+    // ------------------------------------------------------------------ 엔티티 저장(entities/ — 바닐라 EntityStorage)
+
+    /** 불러온 엔티티 묶음을 넣는다(addLegacyChunkEntities). 다루지 못하는 종류는 원본 NBT 로 청크에 둔다. */
+    public void loadChunkEntities(ChunkColumn col, org.domi.furnace.server.net.io.nbt.NbtCompound root) {
+        col.entitiesLoaded(true);
+        if (root == null || !(root.tags().get("Entities") instanceof org.domi.furnace.server.net.io.nbt.NbtList list) || list.size() == 0) return;
+        col.entitiesOnDisk(true);
+        for (Object o : list.items()) {
+            if (!(o instanceof org.domi.furnace.server.net.io.nbt.NbtCompound tag)) continue;
+            Entity e = org.domi.furnace.server.entity.Entities.load(this, tag);
+            if (e == null) col.foreignEntities().add(tag);
+            else addFreshEntity(e);
+        }
+    }
+
+    /**
+     * 그 청크의 엔티티를 저장할 묶음({DataVersion, Position, Entities}). 비었고 디스크에도 없으면 null(쓸 것 없음).
+     * unload 면 저장한 뒤 엔티티를 UNLOADED_TO_CHUNK 로 뺀다. 디스크의 것을 아직 못 불러왔으면 덮어쓰지 않게 null.
+     */
+    public org.domi.furnace.server.net.io.nbt.NbtCompound chunkEntitiesForSave(ChunkColumn col, int cx, int cz, boolean unload) {
+        if (!col.entitiesLoaded()) {
+            // 디스크 것을 아직 못 읽었다 — 덮어쓰지 않는다. 내리는 중이면 그사이 생긴 엔티티는 디스크 묶음에 덧붙인다
+            if (unload) {
+                java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> orphans = new java.util.ArrayList<>();
+                for (Entity e : entities.inChunk(cx, cz)) {
+                    var tag = e.save();
+                    if (tag != null) orphans.add(tag);
+                    e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+                }
+                if (!orphans.isEmpty()) appendEntitiesToDisk(cx, cz, orphans);
+            }
+            return null;
+        }
+        var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        java.util.List<Entity> in = entities.inChunk(cx, cz);
+        for (Entity e : in) {
+            var tag = e.save();
+            if (tag != null) list.add(tag);
+        }
+        for (var tag : col.foreignEntities()) list.add(tag);
+        if (unload) for (Entity e : in) e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        if (list.size() == 0) {
+            if (!col.entitiesOnDisk()) return null;
+            col.entitiesOnDisk(false);
+        } else {
+            col.entitiesOnDisk(true);
+        }
+        var root = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        root.putInt("DataVersion", org.domi.furnace.server.world.anvil.AnvilChunkCodec.DATA_VERSION);
+        root.putIntArray("Position", new int[] {cx, cz});
+        root.putList("Entities", list);
+        return root;
+    }
+
+    /** 로드되지 않은 청크의 디스크 엔티티 묶음에 덧붙인다(기본: 저장소 없음 — 버린다). */
+    protected void appendEntitiesToDisk(int cx, int cz, java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> tags) {}
+
+    /**
+     * 아무 region 도 로드하지 않은 청크로 들어간 엔티티: 저장해 그 청크의 디스크 묶음에 덧붙이고 뺀다(바닐라는 숨은 구역에 두었다가
+     * 청크와 함께 저장한다 — 여기서는 주인이 없는 청크를 들 수 없다).
+     */
+    public void evictToDisk(Entity e) {
+        var tag = e.save();
+        e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        if (tag != null) appendEntitiesToDisk(e.chunkX(), e.chunkZ(), java.util.List.of(tag));
+    }
+
+    // ------------------------------------------------------------------ 엔티티 충돌(바닐라 BlockCollisions)
+
+    private static final int MOVING_PISTON = B.id("moving_piston"), AIR_STATE = B.defaultState("air");
+    private static byte[] largeCollision;
+
+    /** hasLargeCollisionShape: 충돌 모양이 칸 밖으로 나가거나 모양이 바뀌는 블록. */
+    private boolean hasLargeCollisionShape(int state) {
+        byte[] c = largeCollision;
+        if (c == null) largeCollision = c = new byte[blocks.stateCount];
+        byte v = c[state];
+        if (v == 0) {
+            boolean large = info.dynamicShape(blocks.blockOf(state));
+            double[] b = info.collisionShape(state).bounds();
+            if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
+            c[state] = v = (byte) (large ? 2 : 1);
+        }
+        return v == 2;
+    }
+
+    /** 칸마다 충돌 모양(월드 좌표, 몸통과 겹치는 것만)을 돌려준다. stopAtFirst 면 첫 것에서 멈춘다. */
+    private void collectCollisions(AABB box, java.util.function.BiPredicate<Pos, Shape> out) {
+        int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
+        int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
+        int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
+        for (int z = z0; z <= z1; z++) {
+            for (int y = y0; y <= y1; y++) {
+                for (int x = x0; x <= x1; x++) {
+                    int edges = (x == x0 || x == x1 ? 1 : 0) + (y == y0 || y == y1 ? 1 : 0) + (z == z0 || z == z1 ? 1 : 0);
+                    if (edges == 3) continue;
+                    ChunkColumn c = chunk(x >> 4, z >> 4);
+                    if (c == null) continue;
+                    int state = y < minBuildHeight() || y >= maxBuildHeight() ? AIR_STATE : c.getBlock(x & 15, y, z & 15);
+                    if (edges == 1 && !hasLargeCollisionShape(state) || edges == 2 && blocks.blockOf(state) != MOVING_PISTON) continue;
+                    Pos p = new Pos(x, y, z);
+                    Shape shape = BlockBehaviors.of(state).getCollisionShape(state, this, p, null);
+                    if (shape.isEmpty()) continue;
+                    if (shape == Shape.BLOCK) {
+                        if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
+                    } else if (!shape.overlaps(box, x, y, z)) {
+                        continue;
+                    }
+                    if (!out.test(p, shape.move(x, y, z))) return;
+                }
+            }
+        }
+    }
+
+    /** getBlockCollisions(entity, box): 몸통과 겹치는 블록 충돌 모양들. */
+    public java.util.List<Shape> blockCollisions(AABB box) {
+        java.util.List<Shape> out = new java.util.ArrayList<>();
+        collectCollisions(box, (p, s) -> out.add(s));
+        return out;
+    }
+
+    /** noCollision(entity, box): 블록 충돌이 없는가(엔티티 충돌·월드 보더는 아직 없다). */
+    public boolean noCollision(AABB box) {
+        boolean[] hit = {false};
+        collectCollisions(box, (p, s) -> {
+            hit[0] = true;
+            return false;
+        });
+        return !hit[0];
+    }
+
+    /** findSupportingBlock(entity, box): 겹치는 충돌 블록 중 엔티티 위치에서 가운데가 가장 가까운 것(같으면 compareTo 가 큰 쪽). */
+    public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) {
+        Pos[] best = {null};
+        double[] bestDist = {Double.MAX_VALUE};
+        collectCollisions(box, (p, s) -> {
+            double dx = p.x() + 0.5 - ex, dy = p.y() + 0.5 - ey, dz = p.z() + 0.5 - ez;
+            double d = dx * dx + dy * dy + dz * dz;
+            if (d < bestDist[0] || d == bestDist[0] && (best[0] == null || compareVec(best[0], p) < 0)) {
+                best[0] = p;
+                bestDist[0] = d;
+            }
+            return true;
+        });
+        return best[0];
+    }
+
+    /** Vec3i.compareTo: y, z, x 순. */
+    private static int compareVec(Pos a, Pos b) {
+        if (a.y() != b.y()) return Integer.compare(a.y(), b.y());
+        if (a.z() != b.z()) return Integer.compare(a.z(), b.z());
+        return Integer.compare(a.x(), b.x());
+    }
+
+    @Override
+    public int countTriggeringEntities(double x0, double y0, double z0, double x1, double y1, double z1, boolean livingOnly) {
+        AABB box = new AABB(x0, y0, z0, x1, y1, z1);
+        int[] n = {entities.getEntities(null, box, e -> !e.isIgnoringBlockTriggers() && !e.isSpectator() && (!livingOnly || e.isLiving())).size()};
+        services().forEachPlayer(p -> {
+            if (p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            double h = p.sneaking() ? 1.5 : 1.8;
+            if (box.intersects(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3)) n[0]++;
+        });
+        return n[0];
+    }
+
+    /** hasChunksAt(minX, minZ, maxX, maxZ) — 블록 좌표. */
+    public boolean hasChunksAt(int minX, int minZ, int maxX, int maxZ) {
+        for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
+            for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) if (chunk(cx, cz) == null) return false;
+        }
+        return true;
+    }
+}

@@ -75,7 +75,7 @@ public final class Types {
 
     /** 회전 각도를 256분할 byte로. degrees * 256 / 360. */
     public static void writeAngle(ByteBuf buf, float degrees) {
-        buf.writeByte((int) (degrees * 256.0f / 360.0f) & 0xFF);
+        buf.writeByte((int) Math.floor(degrees * 256.0f / 360.0f) & 0xFF);   // 바닐라 Mth.floor — 음수 각도도 내림
     }
 
     /** 블록 좌표를 바닐라 Position long으로 패킹. */

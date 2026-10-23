@@ -57,12 +57,19 @@ public final class BiomeFeatureData {
     // parseConfigured의 if-chain과 반드시 동기화(타입 추가/제거 시 여기도 갱신).
     public static final Set<String> HANDLED_CONFIGURED_FEATURE_TYPES = Set.of(
         "minecraft:ore", "minecraft:scattered_ore", "minecraft:spring_feature", "minecraft:disk",
-        "minecraft:random_patch", "minecraft:flower", "minecraft:simple_block", "minecraft:seagrass",
+        "minecraft:random_patch", "minecraft:flower", "minecraft:no_bonemeal_flower", "minecraft:simple_block", "minecraft:seagrass",
         "minecraft:kelp", "minecraft:freeze_top_layer", "minecraft:geode", "minecraft:tree",
         "minecraft:random_selector", "minecraft:random_boolean_selector", "minecraft:simple_random_selector",
         "minecraft:underwater_magma", "minecraft:multiface_growth", "minecraft:forest_rock", "minecraft:vines",
         "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch", "minecraft:block_column",
-        "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice"
+        "minecraft:huge_red_mushroom", "minecraft:huge_brown_mushroom", "minecraft:bamboo", "minecraft:ice_spike", "minecraft:iceberg", "minecraft:blue_ice",
+        "minecraft:dripstone_cluster", "minecraft:large_dripstone", "minecraft:pointed_dripstone", "minecraft:monster_room", "minecraft:lake", "minecraft:desert_well",
+        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom", "minecraft:sea_pickle", "minecraft:block_pile", "minecraft:fossil", "minecraft:root_system",
+        "minecraft:sculk_patch",
+        "minecraft:huge_fungus", "minecraft:nether_forest_vegetation", "minecraft:twisting_vines", "minecraft:weeping_vines",
+        "minecraft:netherrack_replace_blobs", "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
+        "minecraft:glowstone_blob",
+        "minecraft:end_spike", "minecraft:end_island", "minecraft:end_gateway", "minecraft:chorus_plant", "minecraft:end_platform"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -106,6 +113,21 @@ public final class BiomeFeatureData {
      */
     public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
                                         List<String> registryOrder, BlockRegistry registry) {
+        return load(data, biomeIds, registryOrder, registry, -64, 384);
+    }
+
+    /**
+     * @param genMinY  WorldGenerationContext.getMinGenY — max(차원 최저 y, 생성기 min_y)
+     * @param genDepth WorldGenerationContext.getGenDepth — min(차원 높이, 생성기 noise 높이). 네더는 0/128.
+     */
+    public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
+                                        List<String> registryOrder, BlockRegistry registry, int genMinY, int genDepth) {
+        return load(data, biomeIds, registryOrder, registry, genMinY, genDepth, 63);
+    }
+
+    /** @param seaLevel ChunkGenerator.getSeaLevel — 노이즈 설정의 sea_level(오버월드 63, 네더 32). basalt_columns 가 쓴다. */
+    public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
+                                        List<String> registryOrder, BlockRegistry registry, int genMinY, int genDepth, int seaLevel) {
         // biome id별 base 온도 — FreezeTopLayer 동결 게이트용. FreezeTopLayer가 조회에 쓰는
         // FeatureWorldView.getBiomeId는 REGISTRY 순서 인덱스를 돌려주므로 registryOrder로 인덱싱해야 한다.
         // 이전에는 biomeIds(=possibleBiomes, biome_parameters 첫등장 순서)로 인덱싱해 온도가 서로 다른
@@ -130,7 +152,7 @@ public final class BiomeFeatureData {
             }
         }
 
-        Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen);
+        Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen, genMinY, genDepth, seaLevel);
         Map<String, List<List<PlacedFeature>>> loaded = new LinkedHashMap<>();
         for (String biomeId : biomeIds) {
             JsonObject biome = data.biome(biomeId);
@@ -172,7 +194,19 @@ public final class BiomeFeatureData {
         IdentityHashMap<PlacedFeature, Set<Integer>> frozenBiomeIds = new IdentityHashMap<>();
         featureBiomeIds.forEach((pf, ids) -> frozenBiomeIds.put(pf, Set.copyOf(ids)));
 
-        return new BiomeFeatureData(loaded, idByFeature, frozenBiomeIds);
+        BiomeFeatureData result = new BiomeFeatureData(loaded, idByFeature, frozenBiomeIds);
+        result.loader = loader;
+        return result;
+    }
+
+    private Loader loader;
+
+    /** id 로 placed feature 를 얻는다(구조물 jigsaw feature_pool_element 용). 미지원이면 null. */
+    public PlacedFeature placedFeatureById(String id) {
+        if (loader == null) return null;
+        synchronized (loader) {
+            return loader.placedFeature(id.contains(":") ? id : "minecraft:" + id);
+        }
     }
 
     public Set<String> biomes() {
@@ -204,7 +238,12 @@ public final class BiomeFeatureData {
         private final Map<String, PlacedFeature> placedCache = new HashMap<>();
         private final Map<String, ConfiguredFeature> configuredCache = new HashMap<>();
 
-        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps, boolean[] biomeFrozen) {
+        private final int genMinY, genDepth, seaLevel;
+
+        Loader(WorldgenData data, BlockRegistry registry, float[] biomeTemps, boolean[] biomeFrozen, int genMinY, int genDepth, int seaLevel) {
+            this.seaLevel = seaLevel;
+            this.genMinY = genMinY;
+            this.genDepth = genDepth;
             this.data = data;
             this.registry = registry;
             this.biomeTemps = biomeTemps;
@@ -247,8 +286,11 @@ public final class BiomeFeatureData {
         private ConfiguredFeature parseConfigured(JsonObject json) {
             String type = json.get("type").getAsString();
             JsonObject config = json.getAsJsonObject("config");
-            if (type.equals("minecraft:ore") || type.equals("minecraft:scattered_ore")) {
+            if (type.equals("minecraft:ore")) {
                 return parseOre(config);
+            }
+            if (type.equals("minecraft:scattered_ore")) {
+                return parseOre(config).scattered();
             }
             if (type.equals("minecraft:spring_feature")) {
                 return parseSpring(config);
@@ -256,7 +298,7 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:disk")) {
                 return parseDisk(config);
             }
-            if (type.equals("minecraft:random_patch") || type.equals("minecraft:flower")) {
+            if (type.equals("minecraft:random_patch") || type.equals("minecraft:flower") || type.equals("minecraft:no_bonemeal_flower")) {
                 // FlowerFeature는 RandomPatchFeature와 place 동일.
                 return parseRandomPatch(config);
             }
@@ -293,6 +335,11 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:multiface_growth")) {
                 return parseMultifaceGrowth(config);
             }
+            if (type.equals("minecraft:sculk_patch")) {
+                return new SculkPatchFeature(sculkBlocks(), config.get("charge_count").getAsInt(), config.get("amount_per_charge").getAsInt(),
+                    config.get("spread_attempts").getAsInt(), config.get("growth_rounds").getAsInt(), config.get("spread_rounds").getAsInt(),
+                    treeIntProvider(config.get("extra_rare_growths"), 0), config.get("catalyst_chance").getAsFloat());
+            }
             if (type.equals("minecraft:forest_rock")) {
                 return new ForestRockFeature(
                     parseState(config.getAsJsonObject("state")),
@@ -312,6 +359,39 @@ public final class BiomeFeatureData {
                     type.equals("minecraft:huge_red_mushroom") ? HugeMushroomFeature.Kind.RED : HugeMushroomFeature.Kind.BROWN,
                     cap, stem, config.has("foliage_radius") ? config.get("foliage_radius").getAsInt() : 2, registry);
             }
+            if (type.equals("minecraft:dripstone_cluster")) {
+                return new DripstoneFeatures.Cluster(dripstone(),
+                    config.get("floor_to_ceiling_search_range").getAsInt(),
+                    treeIntProvider(config.get("height"), 1), treeIntProvider(config.get("radius"), 1),
+                    config.get("max_stalagmite_stalactite_height_diff").getAsInt(),
+                    config.get("height_deviation").getAsInt(),
+                    treeIntProvider(config.get("dripstone_block_layer_thickness"), 0),
+                    FeatureFloatProvider.fromJson(config.get("density")), FeatureFloatProvider.fromJson(config.get("wetness")),
+                    config.get("chance_of_dripstone_column_at_max_distance_from_center").getAsFloat(),
+                    config.get("max_distance_from_edge_affecting_chance_of_dripstone_column").getAsInt(),
+                    config.get("max_distance_from_center_affecting_height_bias").getAsInt());
+            }
+            if (type.equals("minecraft:large_dripstone")) {
+                TreeIntProvider radius = treeIntProvider(config.get("column_radius"), 1);
+                if (!(radius instanceof TreeIntProvider.Uniform uniform)) {
+                    throw new IllegalArgumentException("large_dripstone column_radius는 uniform만 지원: " + config.get("column_radius"));
+                }
+                return new DripstoneFeatures.Large(dripstone(),
+                    config.has("floor_to_ceiling_search_range") ? config.get("floor_to_ceiling_search_range").getAsInt() : 30,
+                    uniform, FeatureFloatProvider.fromJson(config.get("height_scale")),
+                    config.get("max_column_radius_to_cave_height_ratio").getAsFloat(),
+                    FeatureFloatProvider.fromJson(config.get("stalactite_bluntness")),
+                    FeatureFloatProvider.fromJson(config.get("stalagmite_bluntness")),
+                    FeatureFloatProvider.fromJson(config.get("wind_speed")),
+                    config.get("min_radius_for_wind").getAsInt(), config.get("min_bluntness_for_wind").getAsFloat());
+            }
+            if (type.equals("minecraft:pointed_dripstone")) {
+                return new DripstoneFeatures.Pointed(dripstone(),
+                    config.has("chance_of_taller_dripstone") ? config.get("chance_of_taller_dripstone").getAsFloat() : 0.2F,
+                    config.has("chance_of_directional_spread") ? config.get("chance_of_directional_spread").getAsFloat() : 0.7F,
+                    config.has("chance_of_spread_radius2") ? config.get("chance_of_spread_radius2").getAsFloat() : 0.5F,
+                    config.has("chance_of_spread_radius3") ? config.get("chance_of_spread_radius3").getAsFloat() : 0.5F);
+            }
             if (type.equals("minecraft:blue_ice")) {
                 return new BlueIceFeature(registry);
             }
@@ -320,6 +400,109 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:ice_spike")) {
                 return new IceSpikeFeature(registry);
+            }
+            if (type.equals("minecraft:end_spike")) {
+                return parseEndSpike(config);
+            }
+            if (type.equals("minecraft:end_island")) {
+                return new EndIslandFeature(registry);
+            }
+            if (type.equals("minecraft:end_platform")) {
+                return new EndPlatformFeature(registry);
+            }
+            if (type.equals("minecraft:chorus_plant")) {
+                return new ChorusPlantFeature(registry);
+            }
+            if (type.equals("minecraft:end_gateway")) {
+                int[] exit = config.has("exit") ? blockPosOf(config.get("exit")) : null;
+                return new EndGatewayFeature(registry, exit, config.get("exact").getAsBoolean());
+            }
+            if (type.equals("minecraft:monster_room")) {
+                return new MonsterRoomFeature(registry);
+            }
+            if (type.equals("minecraft:coral_tree")) {
+                return CoralFeature.of(CoralFeature.Shape.TREE, registry);
+            }
+            if (type.equals("minecraft:coral_claw")) {
+                return CoralFeature.of(CoralFeature.Shape.CLAW, registry);
+            }
+            if (type.equals("minecraft:coral_mushroom")) {
+                return CoralFeature.of(CoralFeature.Shape.MUSHROOM, registry);
+            }
+            if (type.equals("minecraft:sea_pickle")) {
+                return new SeaPickleFeature(treeIntProvider(config.get("count"), 20), registry);
+            }
+            if (type.equals("minecraft:desert_well")) {
+                return new DesertWellFeature(registry);
+            }
+            if (type.equals("minecraft:root_system")) {
+                PlacedFeature tree;
+                try {
+                    tree = parseInlinePlacedFeature(config.get("feature"));
+                } catch (RuntimeException e) {
+                    return NoopFeature.INSTANCE;   // 진달래 나무(가중 잎·bending 줄기) 미지원 — 거짓 parity 방지
+                }
+                StateProvider rootSp = parseToPlaceProvider(config.getAsJsonObject("root_state_provider"));
+                StateProvider hangSp = parseToPlaceProvider(config.getAsJsonObject("hanging_root_state_provider"));
+                if (tree == null || tree.feature() instanceof NoopFeature || rootSp == null || hangSp == null) return NoopFeature.INSTANCE;
+                String rr = config.get("root_replaceable").getAsString();
+                return new RootSystemFeature(tree, config.get("required_vertical_space_for_tree").getAsInt(), config.get("root_radius").getAsInt(),
+                    Set.copyOf(tagStates(rr.substring(1))), rootSp, config.get("root_placement_attempts").getAsInt(),
+                    config.get("root_column_max_height").getAsInt(), config.get("hanging_root_radius").getAsInt(),
+                    config.get("hanging_roots_vertical_span").getAsInt(), hangSp, config.get("hanging_root_placement_attempts").getAsInt(),
+                    config.get("allowed_vertical_water_for_tree").getAsInt(), predicates().parse(config.getAsJsonObject("allowed_tree_position")), registry);
+            }
+            if (type.equals("minecraft:fossil")) {
+                java.util.List<String> fs = new ArrayList<>(), os = new ArrayList<>();
+                for (JsonElement e : config.getAsJsonArray("fossil_structures")) fs.add(e.getAsString());
+                for (JsonElement e : config.getAsJsonArray("overlay_structures")) os.add(e.getAsString());
+                return new FossilFeature(registry, fs, os, config.get("fossil_processors").getAsString(),
+                    config.get("overlay_processors").getAsString(), config.get("max_empty_corners_allowed").getAsInt());
+            }
+            if (type.equals("minecraft:block_pile")) {
+                StateProvider sp = parseToPlaceProvider(config.getAsJsonObject("state_provider"));
+                return sp == null ? NoopFeature.INSTANCE : new BlockPileFeature(sp, registry);
+            }
+            if (type.equals("minecraft:lake")) {
+                return new LakeFeature(parseState(config.getAsJsonObject("fluid").getAsJsonObject("state")),
+                    parseState(config.getAsJsonObject("barrier").getAsJsonObject("state")), registry);
+            }
+            if (type.equals("minecraft:huge_fungus")) {
+                return new HugeFungusFeature(
+                    parseState(config.getAsJsonObject("valid_base_block")), parseState(config.getAsJsonObject("stem_state")),
+                    parseState(config.getAsJsonObject("hat_state")), parseState(config.getAsJsonObject("decor_state")),
+                    predicates().parse(config.getAsJsonObject("replaceable_blocks")),
+                    config.has("planted") && config.get("planted").getAsBoolean(), genDepth, registry);
+            }
+            if (type.equals("minecraft:nether_forest_vegetation")) {
+                StateProvider provider = parseToPlaceProvider(config.getAsJsonObject("state_provider"));
+                if (provider == null) return NoopFeature.INSTANCE;
+                return new NetherForestVegetationFeature(provider, config.get("spread_width").getAsInt(),
+                    config.get("spread_height").getAsInt(), registry, survival());
+            }
+            if (type.equals("minecraft:twisting_vines")) {
+                return new NetherVinesFeatures.Twisting(new NetherVinesFeatures.Blocks(registry), config.get("spread_width").getAsInt(),
+                    config.get("spread_height").getAsInt(), config.get("max_height").getAsInt());
+            }
+            if (type.equals("minecraft:weeping_vines")) {
+                return new NetherVinesFeatures.Weeping(new NetherVinesFeatures.Blocks(registry));
+            }
+            if (type.equals("minecraft:netherrack_replace_blobs")) {
+                return new NetherrackReplaceBlobsFeature(parseState(config.getAsJsonObject("target")),
+                    parseState(config.getAsJsonObject("state")), treeIntProvider(config.get("radius"), 0), registry);
+            }
+            if (type.equals("minecraft:basalt_columns")) {
+                return new BasaltFeatures.Columns(treeIntProvider(config.get("reach"), 0), treeIntProvider(config.get("height"), 0), seaLevel, registry);
+            }
+            if (type.equals("minecraft:basalt_pillar")) {
+                return new BasaltFeatures.Pillar(registry);
+            }
+            if (type.equals("minecraft:delta_feature")) {
+                return new DeltaFeature(parseState(config.getAsJsonObject("contents")), parseState(config.getAsJsonObject("rim")),
+                    treeIntProvider(config.get("size"), 0), treeIntProvider(config.get("rim_size"), 0), registry);
+            }
+            if (type.equals("minecraft:glowstone_blob")) {
+                return new GlowstoneBlobFeature(registry);
             }
             if (type.equals("minecraft:bamboo")) {
                 return new BambooFeature(config.get("probability").getAsFloat(), registry);
@@ -459,6 +642,13 @@ public final class BiomeFeatureData {
             return true;
         }
 
+        private DripstoneFeatures.Support dripstoneSupport;
+
+        private DripstoneFeatures.Support dripstone() {
+            if (dripstoneSupport == null) dripstoneSupport = new DripstoneFeatures.Support(registry, new FluidKinds(registry));
+            return dripstoneSupport;
+        }
+
         private BlockSurvival survivalCache;
 
         private BlockSurvival survival() {
@@ -507,6 +697,14 @@ public final class BiomeFeatureData {
                         weights[i] = entry.get("weight").getAsInt();
                     }
                     return new WeightedStateProvider(wStates, weights);
+                }
+                case "minecraft:rotated_block_provider" -> {
+                    int base = parseState(toPlace.getAsJsonObject("state"));
+                    String name = registry.nameOf(base);
+                    return new BlockPileFeature.RotatedBlockProvider(
+                        registry.stateIdOrAir(name, java.util.Map.of("axis", "x")),
+                        registry.stateIdOrAir(name, java.util.Map.of("axis", "y")),
+                        registry.stateIdOrAir(name, java.util.Map.of("axis", "z")));
                 }
                 case "minecraft:noise_provider" -> {
                     JsonArray states = toPlace.getAsJsonArray("states");
@@ -605,8 +803,31 @@ public final class BiomeFeatureData {
             return new UnderwaterMagmaFeature(floorSearchRange, radius, probability);
         }
 
+        private MultifaceSpreader.Env multifaceEnv;
+        private SculkPatchFeature.Blocks sculkBlocks;
+
+        private MultifaceSpreader.Env multifaceEnv() {
+            if (multifaceEnv == null) multifaceEnv = new MultifaceSpreader.Env(registry);
+            return multifaceEnv;
+        }
+
+        private SculkPatchFeature.Blocks sculkBlocks() {
+            if (sculkBlocks == null) sculkBlocks = new SculkPatchFeature.Blocks(multifaceEnv());
+            return sculkBlocks;
+        }
+
         private ConfiguredFeature parseMultifaceGrowth(JsonObject config) {
             String blockName = config.has("block") ? blockName(config.get("block")) : "minecraft:glow_lichen";
+            if ("minecraft:sculk_vein".equals(blockName)) {
+                boolean[] on = new boolean[registry.totalStateCount()];
+                for (JsonElement el : config.getAsJsonArray("can_be_placed_on")) for (int id : parseTagReference(el)) on[id] = true;
+                return new MultifaceGrowthFeature(sculkBlocks().veinSpreader,
+                    config.has("search_range") ? config.get("search_range").getAsInt() : 10,
+                    config.has("can_place_on_floor") && config.get("can_place_on_floor").getAsBoolean(),
+                    config.has("can_place_on_ceiling") && config.get("can_place_on_ceiling").getAsBoolean(),
+                    config.has("can_place_on_wall") && config.get("can_place_on_wall").getAsBoolean(),
+                    config.has("chance_of_spreading") ? config.get("chance_of_spreading").getAsFloat() : 0.5f, on);
+            }
             if (!"minecraft:glow_lichen".equals(blockName)) {
                 return NoopFeature.INSTANCE;
             }
@@ -641,23 +862,17 @@ public final class BiomeFeatureData {
             if (!"minecraft:simple_state_provider".equals(fallback.get("type").getAsString())) {
                 return NoopFeature.INSTANCE;
             }
-            int fallbackId = registry.stateIdOrAir(fallback.getAsJsonObject("state").get("Name").getAsString());
+            int fallbackId = parseState(fallback.getAsJsonObject("state"));
             java.util.List<DiskFeature.Rule> rules = new java.util.ArrayList<>();
             for (JsonElement rel : sp.has("rules") ? sp.getAsJsonArray("rules") : new JsonArray()) {
                 JsonObject rule = rel.getAsJsonObject();
-                JsonObject cond = rule.getAsJsonObject("if_true");
                 JsonObject then = rule.getAsJsonObject("then");
-                if (!"minecraft:matching_blocks".equals(cond.get("type").getAsString())
-                    || !"minecraft:simple_state_provider".equals(then.get("type").getAsString())) {
-                    return NoopFeature.INSTANCE;
-                }
-                JsonElement offset = cond.get("offset");
-                if (offset == null || !offset.toString().equals("[0,-1,0]")) {
+                if (!"minecraft:simple_state_provider".equals(then.get("type").getAsString())) {
                     return NoopFeature.INSTANCE;
                 }
                 rules.add(new DiskFeature.Rule(
-                    parseBlockSet(cond.get("blocks")),
-                    registry.stateIdOrAir(then.getAsJsonObject("state").get("Name").getAsString())));
+                    predicates().parse(rule.getAsJsonObject("if_true")),
+                    parseState(then.getAsJsonObject("state"))));
             }
             return new DiskFeature(
                 fallbackId,
@@ -709,10 +924,26 @@ public final class BiomeFeatureData {
         private ConfiguredFeature parseTree(JsonObject config) {
             int trunkState = parseStateProvider(config.getAsJsonObject("trunk_provider"));
             JsonObject foliageProvider = config.getAsJsonObject("foliage_provider");
-            String leafName = foliageProvider.getAsJsonObject("state").get("Name").getAsString();
+            int[][][] weightedLeaves = null;
+            int[] leafWeights = null;
+            String leafName;
+            if (foliageProvider.has("entries")) {   // weighted_state_provider
+                JsonArray entries = foliageProvider.getAsJsonArray("entries");
+                weightedLeaves = new int[entries.size()][][];
+                leafWeights = new int[entries.size()];
+                for (int i = 0; i < entries.size(); i++) {
+                    JsonObject en = entries.get(i).getAsJsonObject();
+                    weightedLeaves[i] = buildLeafStates(en.getAsJsonObject("data").get("Name").getAsString());
+                    leafWeights[i] = en.get("weight").getAsInt();
+                }
+                leafName = entries.get(0).getAsJsonObject().getAsJsonObject("data").get("Name").getAsString();
+            } else {
+                leafName = foliageProvider.getAsJsonObject("state").get("Name").getAsString();
+            }
             int dirtState = config.has("dirt_provider")
                 ? parseStateProvider(config.getAsJsonObject("dirt_provider"))
                 : registry.stateIdOrAir("minecraft:dirt");
+            buildVineNonAttachable();
             return new TreeFeature(new TreeConfig(
                 trunkState,
                 dirtState,
@@ -731,7 +962,9 @@ public final class BiomeFeatureData {
                 buildLogStates(),
                 buildCocoaStates(),
                 buildVineStates(),
-                buildBeeNestState()));
+                buildBeeNestState(),
+                weightedLeaves,
+                leafWeights));
         }
 
         private int[][] buildLeafStates(String leafName) {
@@ -769,6 +1002,15 @@ public final class BiomeFeatureData {
         // VinesFeature용 부착 불가 블록 집합 — vanilla canAttachTo(지지면/충돌면 full 판정)의 블랙리스트 근사.
         // 잎(leaves)은 충돌면이 full이라 부착 가능하므로 포함하지 않는다.
         private ConfiguredFeature parseVines() {
+            Set<Integer> nonAttachable = buildVineNonAttachable();
+            Map<String, String> upProps = new LinkedHashMap<>(Map.of(
+                "east", "false", "north", "false", "south", "false", "up", "false", "west", "false"));
+            upProps.put("up", "true");
+            return new VinesFeature(nonAttachable, buildVineStates(),
+                registry.stateIdOrAir("minecraft:vine", upProps));
+        }
+
+        private Set<Integer> buildVineNonAttachable() {
             HashSet<Integer> nonAttachable = new HashSet<>();
             for (String name : new String[]{
                 "minecraft:air", "minecraft:cave_air", "minecraft:void_air",
@@ -793,11 +1035,9 @@ public final class BiomeFeatureData {
             }) {
                 nonAttachable.addAll(registry.stateIdsForBlock(name));
             }
-            Map<String, String> upProps = new LinkedHashMap<>(Map.of(
-                "east", "false", "north", "false", "south", "false", "up", "false", "west", "false"));
-            upProps.put("up", "true");
-            return new VinesFeature(Set.copyOf(nonAttachable), buildVineStates(),
-                registry.stateIdOrAir("minecraft:vine", upProps));
+            Set<Integer> frozen = Set.copyOf(nonAttachable);
+            VineSupport.init(frozen);
+            return frozen;
         }
 
         private int[] buildVineStates() {
@@ -1275,16 +1515,47 @@ public final class BiomeFeatureData {
             return ids;
         }
 
+        /** BlockPos 코덱: [x, y, z] 정수 배열. */
+        private static int[] blockPosOf(JsonElement el) {
+            JsonArray a = el.getAsJsonArray();
+            return new int[]{a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt()};
+        }
+
+        private ConfiguredFeature parseEndSpike(JsonObject config) {
+            List<EndSpikeFeature.Spike> spikes = new ArrayList<>();
+            for (JsonElement el : config.getAsJsonArray("spikes")) {
+                JsonObject o = el.getAsJsonObject();
+                spikes.add(new EndSpikeFeature.Spike(
+                    o.has("centerX") ? o.get("centerX").getAsInt() : 0,
+                    o.has("centerZ") ? o.get("centerZ").getAsInt() : 0,
+                    o.has("radius") ? o.get("radius").getAsInt() : 0,
+                    o.has("height") ? o.get("height").getAsInt() : 0,
+                    o.has("guarded") && o.get("guarded").getAsBoolean()));
+            }
+            return new EndSpikeFeature(registry,
+                config.has("crystal_invulnerable") && config.get("crystal_invulnerable").getAsBoolean(),
+                spikes, config.has("crystal_beam_target") ? blockPosOf(config.get("crystal_beam_target")) : null);
+        }
+
         private void parsePlacement(JsonObject json, List<PlacementModifier> out) {
             String type = json.get("type").getAsString();
             switch (type) {
                 case "minecraft:count" -> out.add(countPlacement(json.get("count")));
+                case "minecraft:fixed_placement" -> {
+                    java.util.List<BlockPos> ps = new ArrayList<>();
+                    for (JsonElement e : json.getAsJsonArray("positions")) {
+                        JsonArray a = e.getAsJsonArray();
+                        ps.add(new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt()));
+                    }
+                    out.add(new PlacementModifier.FixedPlacement(List.copyOf(ps)));
+                }
+                case "minecraft:count_on_every_layer" -> out.add(new PlacementModifier.CountOnEveryLayerPlacement(treeIntProvider(json.get("count"), 1)));
                 case "minecraft:rarity_filter" -> out.add(new PlacementModifier.RarityFilterPlacement(json.get("chance").getAsInt()));
                 case "minecraft:in_square" -> out.add(new PlacementModifier.InSquarePlacement());
                 case "minecraft:height_range" -> out.add(new PlacementModifier.HeightRangePlacement(heightProvider(json.getAsJsonObject("height"))));
                 case "minecraft:biome" -> out.add(new PlacementModifier.BiomeFilter());
                 case "minecraft:heightmap" -> out.add(new PlacementModifier.HeightmapPlacement(
-                    parseHeightmapType(json)));
+                    parseHeightmapType(json), genMinY >= 0 || Boolean.getBoolean("furnace.exactMB")));   // 네더·엔드(최저 y 0)는 정확한 MOTION_BLOCKING
                 case "minecraft:surface_water_depth_filter" -> out.add(
                     new PlacementModifier.SurfaceWaterDepthFilterPlacement(json.get("max_water_depth").getAsInt()));
                 case "minecraft:noise_threshold_count" -> out.add(new PlacementModifier.NoiseThresholdCountPlacement(
@@ -1347,10 +1618,10 @@ public final class BiomeFeatureData {
             return new PlacementModifier.ProviderCountPlacement(treeIntProvider(el, 1));
         }
 
-        private static PlacementModifier.HeightProvider heightProvider(JsonObject json) {
+        private PlacementModifier.HeightProvider heightProvider(JsonObject json) {
             String type = json.get("type").getAsString();
-            int min = PlacementModifier.worldgenYOrDefault(json.get("min_inclusive"), 0);
-            int max = PlacementModifier.worldgenYOrDefault(json.get("max_inclusive"), 0);
+            int min = PlacementModifier.worldgenYOrDefault(json.get("min_inclusive"), 0, genMinY, genDepth);
+            int max = PlacementModifier.worldgenYOrDefault(json.get("max_inclusive"), 0, genMinY, genDepth);
             return switch (type) {
                 case "minecraft:uniform" -> new PlacementModifier.UniformHeight(min, max);
                 case "minecraft:biased_to_bottom" -> new PlacementModifier.BiasedToBottomHeight(min, max,
@@ -1360,7 +1631,7 @@ public final class BiomeFeatureData {
                 case "minecraft:trapezoid" -> new PlacementModifier.TrapezoidHeight(min, max,
                     json.has("plateau") ? json.get("plateau").getAsInt() : 0);
                 case "minecraft:constant" -> new PlacementModifier.ConstantHeight(
-                    PlacementModifier.worldgenYOrDefault(json.get("value"), min));
+                    PlacementModifier.worldgenYOrDefault(json.get("value"), min, genMinY, genDepth));
                 default -> new PlacementModifier.UniformHeight(min, max);
             };
         }

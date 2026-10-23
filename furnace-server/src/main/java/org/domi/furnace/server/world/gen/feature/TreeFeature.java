@@ -41,22 +41,22 @@ public final class TreeFeature implements ConfiguredFeature {
         BlockPos trunkOrigin = config.rootPlacer() != null
             ? config.rootPlacer().getTrunkOrigin(origin, random)
             : origin;
-        RandomTrace.log("tree_begin x=" + x + " y=" + y + " z=" + z
+        if (RandomTrace.isActive()) RandomTrace.log("tree_begin x=" + x + " y=" + y + " z=" + z
             + " treeHeight=" + treeHeight
             + " foliageHeight=" + foliageHeight
             + " trunkHeight=" + trunkHeight
-            + " foliageRadius=" + foliageRadius);
+            + " foliageRadius=" + foliageRadius + " col=" + view.getBlock(x, y - 1, z) + "," + view.getBlock(x, y, z) + "," + view.getBlock(x, y + 1, z) + "," + view.getBlock(x, y + 2, z));
         int minY = Math.min(origin.y(), trunkOrigin.y());
         int maxY = Math.max(origin.y(), trunkOrigin.y()) + treeHeight + 1;
-        if (minY < ChunkColumn.MIN_Y + 1 || maxY > ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16) {
-            RandomTrace.log("tree_fail height_bounds minY=" + minY + " maxY=" + maxY);
+        if (minY < view.minY() + 1 || maxY > (view.maxY() + 1)) {
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail height_bounds minY=" + minY + " maxY=" + maxY);
             return false;
         }
 
         int freeHeight = getMaxFreeTreeHeight(view, treeHeight, trunkOrigin);
         int minClippedHeight = config.minimumSize().minClippedHeight();
         if (freeHeight < treeHeight && (minClippedHeight < 0 || freeHeight < minClippedHeight)) {
-            RandomTrace.log("tree_fail free_height freeHeight=" + freeHeight + " treeHeight=" + treeHeight
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail free_height freeHeight=" + freeHeight + " treeHeight=" + treeHeight
                 + " minClippedHeight=" + minClippedHeight);
             return false;
         }
@@ -68,7 +68,7 @@ public final class TreeFeature implements ConfiguredFeature {
 
         if (config.rootPlacer() != null
                 && !config.rootPlacer().placeRoots(view, random, origin, trunkOrigin, config, roots)) {
-            RandomTrace.log("tree_fail root_placement");
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail root_placement");
             return false;
         }
 
@@ -79,7 +79,7 @@ public final class TreeFeature implements ConfiguredFeature {
         }
 
         if (logs.isEmpty() && leaves.isEmpty()) {
-            RandomTrace.log("tree_fail empty_output");
+            if (RandomTrace.isActive()) RandomTrace.log("tree_fail empty_output");
             return false;
         }
 
@@ -107,7 +107,7 @@ public final class TreeFeature implements ConfiguredFeature {
         }
 
         updateLeaves(view, roots, logs, deco, leaves);
-        RandomTrace.log("tree_success logs=" + logs.size() + " leaves=" + leaves.size() + " deco=" + deco.size());
+        if (RandomTrace.isActive()) RandomTrace.log("tree_success logs=" + logs.size() + " leaves=" + leaves.size() + " deco=" + deco.size());
         return true;
     }
 
@@ -186,14 +186,79 @@ public final class TreeFeature implements ConfiguredFeature {
                 BlockPos next = new BlockPos(pos.x() + dir.dx(), pos.y() + dir.dy(), pos.z() + dir.dz());
                 if (!bounds.contains(next) || mask.isFilled(next)) continue;
                 int nextState = view.getBlock(next.x(), next.y(), next.z());
-                if (!isLeaves(nextState)) continue;
+                // vanilla LeavesBlock.getOptionalDistanceAt: 통나무(#logs)는 거리 0, DISTANCE 속성이 있는 잎은 그 값, 나머지는 건너뜀.
+                // 이 나무 것이 아닌 통나무(이웃 나무)도 거리 0 원천으로 합류한다.
+                int base;
+                if (isLog(nextState)) base = 0;
+                else if (isLeaves(nextState)) base = anyLeafDistance(nextState);
+                else continue;
 
-                int nextDistance = Math.min(anyLeafDistance(nextState), distance + 1);
+                int nextDistance = Math.min(base, distance + 1);
                 if (nextDistance >= 7) continue;
                 buckets.get(nextDistance).add(next);
                 distance = Math.min(distance, nextDistance);
             }
         }
+
+        updateShapeAtEdge(view, bounds, mask);
+    }
+
+    // vanilla StructureTemplate.updateShapeAtEdge(level, 3, shape, ...) — DiscreteVoxelShape.forAllFaces 순서(Z축 선 →
+    // Y축 선 → X축 선, 선의 첫 칸은 음의 방향 면·마지막 칸은 양의 방향 면)로 shape 가장자리 면마다 양쪽 블록의
+    // updateShape를 호출한다. 이 포팅에서는 상태를 바꾸는 vine(VineBlock.updateShape)만 반영한다
+    // (잎은 틱 예약만, 통나무는 변화 없음). 다른 나무가 먼저 늘어뜨린 vine이 새 잎에 덮여 지지를 잃으면 여기서 사라진다.
+    private void updateShapeAtEdge(FeatureWorldView view, Bounds b, VisitMask mask) {
+        int sx = b.maxX() - b.minX() + 1;
+        int sy = b.maxY() - b.minY() + 1;
+        int sz = b.maxZ() - b.minZ() + 1;
+        // pass 0: l=x, m=y, n=z (NORTH/SOUTH) / pass 1: l=z, m=x, n=y (DOWN/UP) / pass 2: l=y, m=z, n=x (WEST/EAST)
+        for (int pass = 0; pass < 3; pass++) {
+            int sl = pass == 0 ? sx : pass == 1 ? sz : sy;
+            int sm = pass == 0 ? sy : pass == 1 ? sx : sz;
+            int sn = pass == 0 ? sz : pass == 1 ? sy : sx;
+            Direction neg = pass == 0 ? Direction.NORTH : pass == 1 ? Direction.DOWN : Direction.WEST;
+            Direction pos = pass == 0 ? Direction.SOUTH : pass == 1 ? Direction.UP : Direction.EAST;
+            for (int l = 0; l < sl; l++) {
+                for (int m = 0; m < sm; m++) {
+                    boolean last = false;
+                    for (int n = 0; n <= sn; n++) {
+                        boolean present = n != sn && maskAt(mask, b, pass, l, m, n);
+                        if (!last && present) edgeFace(view, b, pass, l, m, n, neg);
+                        if (last && !present) edgeFace(view, b, pass, l, m, n - 1, pos);
+                        last = present;
+                    }
+                }
+            }
+        }
+    }
+
+    private static int[] cell(int pass, int l, int m, int n) {
+        return switch (pass) {
+            case 0 -> new int[]{l, m, n};
+            case 1 -> new int[]{m, n, l};
+            default -> new int[]{n, l, m};
+        };
+    }
+
+    private static boolean maskAt(VisitMask mask, Bounds b, int pass, int l, int m, int n) {
+        int[] c = cell(pass, l, m, n);
+        return mask.isFilled(new BlockPos(b.minX() + c[0], b.minY() + c[1], b.minZ() + c[2]));
+    }
+
+    private static void edgeFace(FeatureWorldView view, Bounds b, int pass, int l, int m, int n, Direction dir) {
+        int[] c = cell(pass, l, m, n);
+        int x = b.minX() + c[0];
+        int y = b.minY() + c[1];
+        int z = b.minZ() + c[2];
+        int nx = x + dir.dx();
+        int ny = y + dir.dy();
+        int nz = z + dir.dz();
+        int state = view.getBlock(x, y, z);
+        int neighbor = view.getBlock(nx, ny, nz);
+        int newState = VineSupport.updateShape(view, state, dir, x, y, z);
+        if (newState != state) view.setBlock(x, y, z, newState);
+        int newNeighbor = VineSupport.updateShape(view, neighbor, dir.opposite(), nx, ny, nz);
+        if (newNeighbor != neighbor) view.setBlock(nx, ny, nz, newNeighbor);
     }
 
     // Reads DISTANCE property from any leaf block state ID.
@@ -323,6 +388,22 @@ public final class TreeFeature implements ConfiguredFeature {
 
     public static boolean isWater(int stateId) {
         return stateId >= WATER_MIN_STATE && stateId <= WATER_MAX_STATE;
+    }
+
+    private static volatile boolean[] logTable;
+
+    /** BlockTags.LOGS 소속 state인가(상태 id 표는 첫 사용 때 한 번 만든다). */
+    private static boolean isLog(int stateId) {
+        boolean[] t = logTable;
+        if (t == null) {
+            org.domi.furnace.server.world.BlockRegistry r = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+            t = new boolean[r.totalStateCount()];
+            for (String b : BlockTags.get().blocksOf("minecraft:logs")) {
+                for (int s : r.stateIdsForBlock(b)) t[s] = true;
+            }
+            logTable = t;
+        }
+        return stateId >= 0 && stateId < t.length && t[stateId];
     }
 
     public static boolean isLeaves(int stateId) {

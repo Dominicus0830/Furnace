@@ -1,0 +1,11 @@
+<!-- 테스트는 콘솔만 — logs/latest.log 를 만들지 않는다 -->
+<configuration>
+    <appender name="SysOut" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>[%d{HH:mm:ss}] [%thread/%level]: %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="SysOut"/>
+    </root>
+</configuration>

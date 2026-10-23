@@ -1,18 +1,29 @@
-// FurnaceScheduler 파사드 구현. M3b: 전역 owner 1개 + region owner N개(고정 그리드).
+// FurnaceScheduler 파사드 구현: 전역 owner 1개 + region 스케줄러. region 은 월드의 동적 region(Folia 방식)이 맡는다 —
+// 월드가 붙으면(installRouter) RegionPos(청크 좌표) 작업은 그 청크를 가진 region 에서 돈다. 월드 없이(스케줄러 단독 테스트)는
+// 예전처럼 고정 스레드로 나눈다.
 package org.domi.furnace.server.sched;
 
-import java.util.function.IntConsumer;
+import java.util.ArrayList;
+import java.util.List;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.api.sched.GlobalScheduler;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.api.sched.TaskScheduler;
-import org.domi.furnace.server.world.RegionGrid;
 
 public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseable {
 
+    /** 청크 좌표 → 그 청크를 가진 region 의 스케줄러. */
+    @FunctionalInterface
+    public interface RegionRouter {
+        TaskScheduler forChunk(int chunkX, int chunkZ);
+    }
+
     private final GlobalThread global;
-    private final RegionThread[] regions;
-    private volatile IntConsumer regionTick = i -> {};
+    private final long tickNanos;
+    private final int regionThreads;
+    private volatile RegionThread[] fallback;
+    private volatile RegionRouter router;
+    private final List<Runnable> closeHooks = new ArrayList<>();
 
     /** 백호환: region 스레드 1개. */
     public FurnaceSchedulerImpl(long tickNanos) {
@@ -21,12 +32,8 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
 
     public FurnaceSchedulerImpl(long tickNanos, int regionThreads) {
         this.global = new GlobalThread("furnace-global");
-        this.regions = new RegionThread[regionThreads];
-        for (int i = 0; i < regionThreads; i++) {
-            int idx = i;
-            this.regions[i] = new RegionThread("furnace-region-" + i, tickNanos,
-                    () -> regionTick.accept(idx));
-        }
+        this.tickNanos = tickNanos;
+        this.regionThreads = Math.max(1, regionThreads);
     }
 
     @Override
@@ -34,33 +41,63 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
         return global;
     }
 
+    /** RegionPos 는 청크 좌표 — 그 청크를 가진 region 에서 돈다. */
     @Override
     public TaskScheduler region(RegionPos pos) {
-        return regions[RegionGrid.threadIndex(pos, regions.length)];
+        RegionRouter r = router;
+        if (r != null) return r.forChunk(pos.x(), pos.z());
+        RegionThread[] f = fallback();
+        return f[Math.floorMod(pos.x() * 31 + pos.z(), f.length)];
     }
 
-    /** region 틱 콜백(스레드 인덱스 전달). World.tickThread 연결용. */
-    public void setRegionTick(IntConsumer tick) {
-        this.regionTick = tick;
+    /** 월드가 region 라우팅을 맡는다. onClose 는 close() 때 부른다(region 작업 스레드 정리). */
+    public synchronized void installRouter(RegionRouter router, Runnable onClose) {
+        this.router = router;
+        if (onClose != null) closeHooks.add(onClose);
     }
 
+    public long tickNanos() { return tickNanos; }
+
+    /** region 작업 스레드 수(설정값). */
     public int regionThreadCount() {
-        return regions.length;
+        return regionThreads;
     }
 
-    /** 인덱스로 region 스레드에 직접 접근(종료 flush처럼 모든 스레드를 빠짐없이 돌 때 사용). */
+    private RegionThread[] fallback() {
+        RegionThread[] f = fallback;
+        if (f == null) {
+            synchronized (this) {
+                if (fallback == null) {
+                    RegionThread[] arr = new RegionThread[regionThreads];
+                    for (int i = 0; i < arr.length; i++) arr[i] = new RegionThread("furnace-region-fallback-" + i, tickNanos, () -> {});
+                    fallback = arr;
+                }
+                f = fallback;
+            }
+        }
+        return f;
+    }
+
+    /** 월드 없는 고정 스레드(스케줄러 단독 테스트용). */
     public RegionThread regionThread(int index) {
-        return regions[index];
+        return fallback()[index];
     }
 
-    /** M0/테스트용 — 첫 region 스레드 접근. */
     public RegionThread regionThread() {
-        return regions[0];
+        return fallback()[0];
     }
 
     @Override
     public void close() {
-        for (RegionThread r : regions) r.close();
+        List<Runnable> hooks;
+        synchronized (this) {
+            hooks = new ArrayList<>(closeHooks);
+        }
+        for (Runnable h : hooks) {
+            try { h.run(); } catch (Throwable ignored) { }
+        }
+        RegionThread[] f = fallback;
+        if (f != null) for (RegionThread r : f) r.close();
         global.close();
     }
 }

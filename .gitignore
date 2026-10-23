@@ -54,3 +54,6 @@ worldgen-oracle/logs/
 
 # 런타임 로그(서버/오라클)
 logs/
+
+### Claude 작업 트리 ###
+.claude/worktrees/

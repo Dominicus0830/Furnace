@@ -1,0 +1,40 @@
+# 유체: 평지 물 퍼짐·물에 쓸리는 블록·구멍 쪽 우선·무한 물·잠기는 블록이 막는 흐름·잠긴 계단의 벽·용암 퍼짐·
+# 용암이 물 위로 떨어져 돌·용암 원천 옆 물 → 흑요석·흐르는 용암 옆 물 → 조약돌·거품 기둥
+# 바닥을 돌로 깐다(잔디가 물 밑에서 무작위로 흙이 되는 차이를 없앤다). 비교 영역: -40,-62,-40,40,-55,40
+tp 8.5 -50 8.5 0 90
+cmd fill -40 -61 -40 40 -61 40 stone
+wait 10
+# A: 평지 물 + 횃불·카펫(쓸려 나감)
+cmd setblock 3 -60 0 torch
+cmd setblock 0 -60 3 white_carpet
+cmd setblock 0 -60 0 water
+# B: 동쪽 두 칸 너머 구멍
+cmd setblock 22 -61 0 air
+cmd setblock 20 -60 0 water
+# C: 무한 물
+cmd setblock 0 -60 20 water
+cmd setblock 2 -60 20 water
+# D: 울타리·반 블록·유리판은 흐르는 물을 받지 않는다
+cmd setblock 21 -60 19 oak_fence
+cmd setblock 21 -60 20 oak_slab
+cmd setblock 21 -60 21 glass_pane
+cmd setblock 20 -60 20 water
+# E: 잠긴 계단(동쪽이 막힌 면) — 위에 블록을 놓아 모양 갱신으로 물 틱을 건다
+cmd setblock 30 -60 30 oak_stairs[facing=east,waterlogged=true]
+cmd setblock 30 -59 30 glass
+# F: 평지 용암
+cmd setblock -20 -60 0 lava
+# G: 용암이 구덩이 물 위로 떨어짐 → 돌
+cmd setblock -20 -61 20 water
+cmd setblock -20 -59 20 lava
+# H: 용암 원천 옆 물 → 흑요석, 흐르는 용암 옆 물 → 조약돌
+cmd setblock -30 -60 -20 lava
+cmd setblock -29 -60 -20 water
+cmd setblock -30 -60 -32 lava[level=1]
+cmd setblock -29 -60 -32 water
+# I: 거품 기둥(영혼 모래·마그마 위 물기둥)
+cmd setblock 10 -61 -20 soul_sand
+cmd setblock 14 -61 -20 magma_block
+cmd fill 10 -60 -20 10 -57 -20 water
+cmd fill 14 -60 -20 14 -57 -20 water
+wait 1500

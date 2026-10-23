@@ -31,6 +31,9 @@ import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.Region;
 import org.domi.furnace.server.net.protocol.login.LoginDisconnect;
+import org.domi.furnace.server.net.protocol.login.EncryptionRequest;
+import org.domi.furnace.server.net.protocol.login.EncryptionResponse;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.login.LoginStart;
 import org.domi.furnace.server.net.protocol.login.LoginSuccess;
 import org.domi.furnace.server.net.protocol.login.SetCompression;
@@ -53,12 +56,10 @@ import org.domi.furnace.server.net.protocol.play.SyncPlayerPosition;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
 import org.domi.furnace.server.net.registry.RegistrySet;
-import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
-import org.domi.furnace.server.world.RegionGrid;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -72,6 +73,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private static final org.domi.furnace.server.net.registry.TagSet TAGS =
             org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
 
+    private final ServerLoginContext login;
     private final String serverName;
     private final int compressionThreshold;
     private final FurnaceScheduler scheduler;
@@ -90,6 +92,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 이동 예산: 버스트 400블록, 초당 400블록 회복(합법적 최고 속도 약 100~200블록/초의 2배 이상). 초과 이동은 보정 텔레포트.
     private final TokenBucket moveBucket = new TokenBucket(400, 400);
     private boolean loginSuccessSent;       // Login Start 처리 후에만 Login Acknowledged 수락
+    // 바닐라 ServerLoginPacketListenerImpl.State: HELLO → KEY → AUTHENTICATING → (검사) → PROTOCOL_SWITCHING
+    private enum LoginPhase { HELLO, KEY, AUTHENTICATING, VERIFYING, PROTOCOL_SWITCHING, ACCEPTED }
+    private LoginPhase loginPhase = LoginPhase.HELLO;
+    private final byte[] verifyToken = java.nio.ByteBuffer.allocate(4).putInt(new java.security.SecureRandom().nextInt()).array();
+    private boolean statusHandled;
+    private boolean clientAllowsListing = true;
+    private volatile String clientLocale = "en_us";
+    private int chatVisibility = org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_FULL;
+    private int velocityMessageId;
+    private java.net.InetSocketAddress forwardedAddress;   // Velocity 포워딩으로 받은 실제 주소          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
+    private boolean transferred;            // 전송(intent 3)으로 들어온 연결
+    private java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
+    private io.netty.util.concurrent.ScheduledFuture<?> slowLoginTimer;
     private boolean knownPacksHandled;      // Known Packs 응답은 연결당 1회(레지스트리 재전송 증폭 방지)
     private boolean finishConfigSent;       // FinishConfiguration을 보낸 뒤에만 PLAY 진입 수락
     private String playerName;
@@ -101,10 +116,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 스폰 게이트 해제 조건: confirm 왕복과 스폰 청크 배치 전송 완료 둘 다 필요(둘 다 채널 이벤트루프에서만 갱신 — 레이스 없음).
     private boolean spawnConfirmReceived = false;
     private boolean spawnChunksDelivered = false;
-    private final ItemStack[] slots = new ItemStack[46];
-    private int selectedSlot;                // 0~8
+    /** 플레이어 인벤토리(창 칸 0..45·든 칸·커서) — play 진입 때 Player 에 넘겨 region 스레드와 함께 쓴다. */
+    private final org.domi.furnace.server.entity.PlayerInventory inv = new org.domi.furnace.server.entity.PlayerInventory();
     private int nextContainerId = 1;         // 체스트 세션 id(1..100 순환, 0은 플레이어 자기 인벤 예약)
-    private ItemStack carried = ItemStack.EMPTY; // Container Click의 carried(커서에 든 아이템)
     private double spawnX, spawnY, spawnZ;
     private float spawnYaw, spawnPitch;
     // 이동 검증용(채널 이벤트루프 전용): 마지막으로 수락한 클라 위치. 스폰 좌표로 시작한다(월드 기본 스폰/저장 위치는 임의 좌표).
@@ -123,12 +137,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     public ConnectionHandler(String serverName, int compressionThreshold, FurnaceScheduler scheduler,
                              World world, EntityIdAllocator idAllocator) {
-        this.serverName = serverName;
+        this(ServerLoginContext.offline(serverName), compressionThreshold, scheduler, world, idAllocator);
+    }
+
+    public ConnectionHandler(ServerLoginContext login, int compressionThreshold, FurnaceScheduler scheduler,
+                             World world, EntityIdAllocator idAllocator) {
+        this.login = login;
+        this.serverName = login.motd;
         this.compressionThreshold = compressionThreshold;
         this.scheduler = scheduler;
         this.world = world;
         this.idAllocator = idAllocator;
-        Arrays.fill(slots, ItemStack.EMPTY);
     }
 
     @Override
@@ -154,58 +173,500 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         Handshake hs = Handshake.read(frame);
-        state = switch (hs.nextState()) {
-            case 1 -> ConnectionState.STATUS;
-            case 2 -> ConnectionState.LOGIN;
-            default -> { ctx.close(); yield ConnectionState.HANDSHAKE; }
-        };
-        // 상태 조회는 어떤 버전이든 허용(서버 목록에 "다른 버전" 표시). 로그인만 버전이 같아야 한다.
-        if (state == ConnectionState.LOGIN && hs.protocolVersion() != PROTOCOL_VERSION) {
-            kick(ctx, "Incompatible client! Please use " + VERSION_NAME);
+        // 바닐라 ServerHandshakePacketListenerImpl
+        switch (hs.nextState()) {
+            case 1 -> {
+                state = ConnectionState.STATUS;
+                // enable-status=false 면 응답하지 않고 끊는다(Ignoring status request). 상태 조회는 버전과 무관하게 허용.
+                if (!login.enableStatus) ctx.close();
+            }
+            case 2 -> beginLogin(ctx, hs.protocolVersion(), false);
+            case 3 -> {
+                state = ConnectionState.LOGIN;
+                if (!login.acceptsTransfers) {
+                    disconnect(ctx, Text.translatable("multiplayer.disconnect.transfers_disabled"));
+                } else {
+                    beginLogin(ctx, hs.protocolVersion(), true);
+                }
+            }
+            default -> ctx.close();
         }
+    }
+
+    private void beginLogin(ChannelHandlerContext ctx, int protocolVersion, boolean transfer) {
+        state = ConnectionState.LOGIN;
+        transferred = transfer;
+        if (protocolVersion != PROTOCOL_VERSION) {
+            String key = protocolVersion < 754 ? "multiplayer.disconnect.outdated_client" : "multiplayer.disconnect.incompatible";
+            disconnect(ctx, Text.translatable(key, VERSION_NAME));
+            return;
+        }
+        // 바닐라: 로그인 단계 600틱(30초) 안에 끝나지 않으면 끊는다.
+        slowLoginTimer = ctx.executor().schedule(() -> {
+            if (state == ConnectionState.LOGIN && loginPhase != LoginPhase.ACCEPTED) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
+            }
+        }, 30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private void handleStatus(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> send(ctx, StatusResponse.of(serverName));        // Status Request
-            case 0x01 -> send(ctx, new PongResponse(frame.readLong()));   // Ping Request
+            case 0x00 -> { // Status Request — 연결당 한 번(두 번째는 "Status request has been handled" 로 종료)
+                if (statusHandled) { ctx.close(); return; }
+                statusHandled = true;
+                java.util.List<org.domi.furnace.server.players.GameProfile> online = new java.util.ArrayList<>();
+                java.util.List<Boolean> listing = new java.util.ArrayList<>();
+                for (Player p : world.onlinePlayers()) {
+                    if (p.isDisconnected()) continue;
+                    online.add(new org.domi.furnace.server.players.GameProfile(p.uuid(), p.name()));
+                    listing.add(p.allowsListing());
+                }
+                send(ctx, new StatusResponse(login.statusJson(online, listing)));
+            }
+            case 0x01 -> { // Ping Request → Pong 후 종료(바닐라)
+                ByteBuf buf = ctx.alloc().buffer();
+                Types.writeVarInt(buf, PongResponse.ID);
+                new PongResponse(frame.readLong()).write(buf);
+                ctx.writeAndFlush(buf).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+            }
             default -> ctx.close();
         }
     }
 
     private void handleLogin(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> { // Login Start
-                if (loginSuccessSent) { ctx.close(); return; }          // 로그인 시작은 한 번만
+            case 0x00 -> { // Login Start(Hello)
+                if (loginPhase != LoginPhase.HELLO) { protocolError(ctx, "Unexpected hello packet"); return; }
                 LoginStart start = LoginStart.read(frame);
-                if (!isValidPlayerName(start.name())) {                // 바닐라 StringUtil.isValidPlayerName
-                    kick(ctx, "Invalid characters in username");
-                    return;
-                }
+                if (!isValidPlayerName(start.name())) { protocolError(ctx, "Invalid characters in username"); return; }
                 this.playerName = start.name();
-                this.playerUuid = LoginStart.offlineUuid(start.name());
-                kickDuplicateSession(playerUuid);
-                if (compressionThreshold >= 0) {
-                    send(ctx, new SetCompression(compressionThreshold)); // 비압축으로 나감
-                    ctx.pipeline().addAfter("frameDecoder", "decompress",
-                            new CompressionDecoder(compressionThreshold));
-                    ctx.pipeline().addAfter("frameEncoder", "compress",
-                            new CompressionEncoder(compressionThreshold));
+                if (login.velocity != null) {
+                    // Paper: 프록시에게 실제 주소·프로필을 묻는다(암호화·세션 인증 생략).
+                    loginPhase = LoginPhase.KEY;
+                    velocityMessageId = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                    send(ctx, new org.domi.furnace.server.net.protocol.login.LoginPluginRequest(velocityMessageId,
+                            org.domi.furnace.server.net.auth.VelocityForwarding.PLAYER_INFO_CHANNEL,
+                            new byte[]{org.domi.furnace.server.net.auth.VelocityForwarding.MAX_SUPPORTED_FORWARDING_VERSION}));
+                } else if (login.onlineMode) {
+                    loginPhase = LoginPhase.KEY;
+                    send(ctx, new EncryptionRequest("", login.keyPair.getPublic().getEncoded(), verifyToken, true));
+                } else {
+                    startVerifying(ctx, org.domi.furnace.server.players.GameProfile.offline(playerName));
                 }
-                send(ctx, new LoginSuccess(playerUuid, playerName));
-                loginSuccessSent = true;
             }
+            case 0x01 -> handleEncryptionResponse(ctx, frame);
+            case 0x02 -> handleCustomQueryAnswer(ctx, frame);
+            case 0x04 -> // Cookie Response — 요청한 적이 없다
+                    disconnect(ctx, Text.translatable("multiplayer.disconnect.unexpected_query_response"));
             case 0x03 -> { // Login Acknowledged
-                if (!loginSuccessSent) { ctx.close(); return; }          // 로그인 시작 없이 건너뛰기 금지
+                if (loginPhase != LoginPhase.PROTOCOL_SWITCHING) { protocolError(ctx, "Unexpected login acknowledgement packet"); return; }
+                loginPhase = LoginPhase.ACCEPTED;
+                if (slowLoginTimer != null) slowLoginTimer.cancel(false);
                 state = ConnectionState.CONFIGURATION;
-                onEnterConfiguration(ctx); // Task 8에서 구현
+                onEnterConfiguration(ctx);
             }
             default -> ctx.close();
         }
     }
 
+    // ------------------------------------------------------------------ 채팅(바닐라 ServerGamePacketListenerImpl)
+
+    private static boolean isChatMessageIllegal(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\u00a7' || c < ' ' || c == 127) return true;
+        }
+        return false;
+    }
+
+    /** 바닐라 tryHandleChat: 금지 문자면 끊고, 채팅을 숨긴 설정이면 알리고, 아니면 전역 스레드에서 실행. */
+    private void tryHandleChat(String message, Runnable action) {
+        Player p = player;
+        if (isChatMessageIllegal(message)) {
+            kick(ctx, Text.translatable("multiplayer.disconnect.illegal_characters"));
+        } else if (p.chat().visibility() == org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_HIDDEN) {
+            p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(Text.translatable("chat.disabled.options").color(org.domi.furnace.api.text.NamedTextColor.RED), false));
+        } else {
+            login.core.scheduler().global().execute(action);
+        }
+    }
+
+    /** 바닐라 detectRateSpam. */
+    private void detectRateSpam() {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p.chat().incrementSpamAndCheck() && !core.lists().isOp(org.domi.furnace.server.ServerCore.profileOf(p))) {
+            p.kick(new Disconnect(Text.translatable("disconnect.spam")));
+        }
+    }
+
+    private java.util.Optional<org.domi.furnace.server.chat.LastSeenMessages> unpackAndApplyLastSeen(
+            org.domi.furnace.server.chat.LastSeenMessages.Update update) {
+        var r = player.chat().lastSeen.applyUpdate(update);
+        if (r.isEmpty()) {
+            log.warn("Failed to validate message acknowledgements from {}", player.name());
+            kick(ctx, Text.translatable("multiplayer.disconnect.chat_validation_failed"));
+        }
+        return r;
+    }
+
+    private void handleChatAck(int offset) {
+        Player p = player;
+        if (p == null) return;
+        if (!p.chat().lastSeen.applyOffset(offset)) {
+            log.warn("Failed to validate message acknowledgements from {}", p.name());
+            kick(ctx, Text.translatable("multiplayer.disconnect.chat_validation_failed"));
+        }
+    }
+
+    private void handleMessageDecodeFailure(org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
+        log.warn("Failed to update secure chat state for {}: '{}'", player.name(), e.component().getString());
+        player.sendSystemMessage(Text.empty().append(e.component()).color(org.domi.furnace.api.text.NamedTextColor.RED), false);
+    }
+
+    private void handleChat(ByteBuf frame) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        String message = Types.readString(frame, 256);
+        java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
+        long salt = frame.readLong();
+        org.domi.furnace.server.chat.MessageSignature signature =
+                frame.readBoolean() ? org.domi.furnace.server.chat.MessageSignature.read(frame) : null;
+        var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
+        var lastSeen = unpackAndApplyLastSeen(update);
+        if (lastSeen.isEmpty()) return;
+        tryHandleChat(message, () -> {
+            org.domi.furnace.server.chat.PlayerChatMessage msg;
+            try {
+                msg = p.chat().decoder().unpack(signature,
+                        new org.domi.furnace.server.chat.SignedMessageBody(message, timeStamp, salt, lastSeen.get()));
+            } catch (org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
+                handleMessageDecodeFailure(e);
+                return;
+            }
+            msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
+            var events = core.events();
+            if (events.hasSubscribers(org.domi.furnace.api.event.player.AsyncChatEvent.class)) {
+                Text original = msg.decoratedContent();
+                var ev = events.call(new org.domi.furnace.api.event.player.AsyncChatEvent(core.plugins().player(p), message, original));
+                if (ev.isCancelled()) {
+                    detectRateSpam();
+                    return;
+                }
+                if (!ev.message().equals(original)) msg = msg.withUnsignedContent(ev.message());
+            }
+            core.broadcastChatMessage(msg, p, org.domi.furnace.server.chat.ChatType.CHAT.bind(
+                    org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName()));
+            detectRateSpam();
+        });
+    }
+
+    /** 바닐라 handleChatSessionUpdate: 키가 바뀌었으면 Mojang 서비스 키로 검증하고 세션을 바꾼 뒤 모두에게 알린다. */
+    private void handleChatSessionUpdate(org.domi.furnace.server.chat.RemoteChatSession.Data data) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        var old = p.chat().session();
+        var oldKey = old != null ? old.profilePublicKey().data() : null;
+        var newKey = data.profilePublicKey();
+        if (java.util.Objects.equals(oldKey, newKey)) return;
+        if (oldKey != null && newKey.expiresAt().isBefore(oldKey.expiresAt())) {
+            kick(ctx, org.domi.furnace.server.chat.ProfilePublicKey.EXPIRED_PROFILE_PUBLIC_KEY);
+            return;
+        }
+        var validator = core.servicesKeys().profileKeySignatureValidator();
+        if (validator == null) {
+            log.warn("Ignoring chat session from {} due to missing Services public key", p.name());
+            return;
+        }
+        try {
+            var session = data.validate(p.uuid(), validator);
+            core.scheduler().global().execute(() -> {
+                p.chat().resetSession(session);
+                var packet = org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.initializeChat(p.uuid(), session.asData());
+                for (Player other : core.players()) other.send(packet);
+            });
+        } catch (org.domi.furnace.server.chat.ProfilePublicKey.ValidationException e) {
+            log.error("Failed to validate profile key: {}", e.getMessage());
+            kick(ctx, e.component());
+        }
+    }
+
+    /** chat_command(서명 없음): 바닐라 performUnsignedChatCommand. */
+    /**
+     * PlayerCommandPreprocessEvent(구독자가 있을 때만): 취소면 null, 아니면 실행할 명령('/' 없이). 바뀐 명령은 서명 없이 실행된다.
+     */
+    private String preprocessCommand(org.domi.furnace.server.ServerCore core, Player p, String command) {
+        var events = core.events();
+        if (!events.hasSubscribers(org.domi.furnace.api.event.player.PlayerCommandPreprocessEvent.class)) return command;
+        var ev = events.call(new org.domi.furnace.api.event.player.PlayerCommandPreprocessEvent(core.plugins().player(p), "/" + command));
+        if (ev.isCancelled()) return null;
+        return ev.message().substring(1);
+    }
+
+    private void handleChatCommand(String rawCommand) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        tryHandleChat(rawCommand, () -> {
+            String command = preprocessCommand(core, p, rawCommand);
+            if (command == null) {
+                detectRateSpam();
+                return;
+            }
+            log.info("{} issued server command: /{}", p.name(), command);
+            var source = org.domi.furnace.server.command.CommandSource.player(core, p);
+            var parse = core.commands().getDispatcher().parse(command, source);
+            if (core.enforceSecureProfile() && org.domi.furnace.server.command.SignableCommand.hasSignableArguments(parse)) {
+                log.error("Received unsigned command packet from {}, but the command requires signable arguments: {}", p.name(), command);
+                p.sendSystemMessage(Text.translatable("chat.disabled.invalid_command_signature").color(org.domi.furnace.api.text.NamedTextColor.RED), false);
+            } else {
+                core.commands().performCommand(parse, command);
+            }
+            detectRateSpam();
+        });
+    }
+
+    /** chat_command_signed: 바닐라 performSignedChatCommand — 인자 서명을 검증해 서명된 메시지로 명령에 넘긴다. */
+    private void handleSignedChatCommand(ByteBuf frame) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        String command = Types.readString(frame, 256);
+        java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
+        long salt = frame.readLong();
+        int n = Types.readVarInt(frame);
+        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("인자 서명 개수 오류: " + n);
+        java.util.LinkedHashMap<String, org.domi.furnace.server.chat.MessageSignature> sigs = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < n; i++) sigs.put(Types.readString(frame, 16), org.domi.furnace.server.chat.MessageSignature.read(frame));
+        var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
+        var lastSeen = unpackAndApplyLastSeen(update);
+        if (lastSeen.isEmpty()) return;
+        tryHandleChat(command, () -> {
+            String changed = preprocessCommand(core, p, command);
+            var source = org.domi.furnace.server.command.CommandSource.player(core, p);
+            var parse = core.commands().getDispatcher().parse(command, source);
+            java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> signed;
+            try {
+                signed = collectSignedArguments(command, sigs, org.domi.furnace.server.command.SignableCommand.of(parse), timeStamp, salt, lastSeen.get());
+            } catch (org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
+                handleMessageDecodeFailure(e);
+                return;
+            }
+            // 서명 체인은 원문으로 진행했다 — 플러그인이 취소했으면 여기서 끝, 바꿨으면 서명 없이 바뀐 명령을 실행한다.
+            if (changed == null) {
+                detectRateSpam();
+                return;
+            }
+            log.info("{} issued server command: /{}", p.name(), changed);
+            if (!changed.equals(command)) {
+                core.commands().performPrefixedCommand(source, changed);
+            } else {
+                // 서명된 인자를 담은 소스로 다시 파싱한다(바닐라 Commands.mapSource 와 같은 효과).
+                core.commands().performCommand(core.commands().getDispatcher().parse(command, source.withSignedArguments(signed)), command);
+            }
+            detectRateSpam();
+        });
+    }
+
+    private java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> collectSignedArguments(
+            String command, java.util.Map<String, org.domi.furnace.server.chat.MessageSignature> sigs,
+            org.domi.furnace.server.command.SignableCommand signable, java.time.Instant timeStamp, long salt,
+            org.domi.furnace.server.chat.LastSeenMessages lastSeen) throws org.domi.furnace.server.chat.SignedMessageChain.DecodeException {
+        var decoder = player.chat().decoder();
+        java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> out = new java.util.HashMap<>();
+        if (sigs.isEmpty()) {
+            for (var a : signable.arguments()) {
+                out.put(a.name(), decoder.unpack(null, org.domi.furnace.server.chat.SignedMessageBody.unsigned(a.value())));
+            }
+            return out;
+        }
+        for (var e : sigs.entrySet()) {
+            var arg = signable.get(e.getKey());
+            if (arg == null) {
+                decoder.setChainBroken();
+                throw signedCommandMismatch(command, sigs, signable);
+            }
+            out.put(arg.name(), decoder.unpack(e.getValue(),
+                    new org.domi.furnace.server.chat.SignedMessageBody(arg.value(), timeStamp, salt, lastSeen)));
+        }
+        for (var a : signable.arguments()) if (!out.containsKey(a.name())) throw signedCommandMismatch(command, sigs, signable);
+        return out;
+    }
+
+    private static org.domi.furnace.server.chat.SignedMessageChain.DecodeException signedCommandMismatch(
+            String command, java.util.Map<String, ?> sigs, org.domi.furnace.server.command.SignableCommand signable) {
+        String got = String.join(", ", sigs.keySet());
+        String expected = String.join(", ", signable.arguments().stream().map(org.domi.furnace.server.command.SignableCommand.Argument::name).toList());
+        log.error("Signed command mismatch between server and client ('{}'): got [{}] from client, but expected [{}]", command, got, expected);
+        return new org.domi.furnace.server.chat.SignedMessageChain.DecodeException(
+                Text.translatable("chat.disabled.invalid_command_signature").color(org.domi.furnace.api.text.NamedTextColor.RED));
+    }
+
+    /** 바닐라 handleCustomCommandSuggestions — 서버 측 자동완성(ask_server 노드). */
+    private void handleCommandSuggestion(int transactionId, String text) {
+        Player p = player;
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (p == null || core == null) return;
+        core.scheduler().global().execute(() -> core.commands()
+                .suggestions(org.domi.furnace.server.command.CommandSource.player(core, p), text)
+                .thenAccept(s -> p.send(new org.domi.furnace.server.net.protocol.play.CommandSuggestionsResponse(transactionId, s))));
+    }
+
+    /** Velocity 포워딩 응답: 서명 확인 → 실제 주소·프로필로 로그인 검사 진행. 그 밖의 질의 응답은 바닐라처럼 끊는다. */
+    private void handleCustomQueryAnswer(ChannelHandlerContext ctx, ByteBuf frame) {
+        int messageId = Types.readVarInt(frame);
+        if (login.velocity == null || loginPhase != LoginPhase.KEY || messageId != velocityMessageId) {
+            disconnect(ctx, Text.translatable("multiplayer.disconnect.unexpected_query_response"));
+            return;
+        }
+        if (!frame.readBoolean()) {
+            disconnect(ctx, Text.text("This server requires you to connect with Velocity."));
+            return;
+        }
+        org.domi.furnace.server.net.auth.VelocityForwarding.Forwarded fwd;
+        try {
+            fwd = login.velocity.read(frame);
+        } catch (Exception e) {
+            protocolError(ctx, e.getMessage());
+            return;
+        }
+        if (fwd == null) {
+            disconnect(ctx, Text.text("Unable to verify player details"));
+            return;
+        }
+        int port = ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa ? isa.getPort() : 0;
+        forwardedAddress = new java.net.InetSocketAddress(fwd.address(), port);
+        log.info("UUID of player {} is {}", fwd.profile().name(), fwd.profile().id());
+        startVerifying(ctx, fwd.profile());
+    }
+
+    /** 실제 클라이언트 주소(Velocity 포워딩이면 프록시가 알려 준 주소). */
+    private java.net.SocketAddress clientAddress(ChannelHandlerContext ctx) {
+        return forwardedAddress != null ? forwardedAddress : ctx.channel().remoteAddress();
+    }
+
+    /** 바닐라 handleKey: 토큰 확인 → 공유 비밀 복호화 → 스트림 암호 켜기 → 세션 서버에 hasJoined(비동기). */
+    private void handleEncryptionResponse(ChannelHandlerContext ctx, ByteBuf frame) {
+        if (loginPhase != LoginPhase.KEY) { protocolError(ctx, "Unexpected key packet"); return; }
+        String serverIdHash;
+        try {
+            EncryptionResponse resp = EncryptionResponse.read(frame);
+            java.security.PrivateKey priv = login.keyPair.getPrivate();
+            byte[] token = org.domi.furnace.server.net.auth.Crypt.decryptUsingKey(priv, resp.verifyToken());
+            if (!java.util.Arrays.equals(verifyToken, token)) throw new IllegalStateException("Protocol error");
+            javax.crypto.SecretKey secret = org.domi.furnace.server.net.auth.Crypt.decryptByteToSecretKey(priv, resp.sharedSecret());
+            javax.crypto.Cipher decrypt = org.domi.furnace.server.net.auth.Crypt.getCipher(javax.crypto.Cipher.DECRYPT_MODE, secret);
+            javax.crypto.Cipher encrypt = org.domi.furnace.server.net.auth.Crypt.getCipher(javax.crypto.Cipher.ENCRYPT_MODE, secret);
+            serverIdHash = org.domi.furnace.server.net.auth.Crypt.serverIdHash("", login.keyPair.getPublic(), secret);
+            loginPhase = LoginPhase.AUTHENTICATING;
+            // 암호는 가장 바깥: 수신은 프레임 분리 전에 풀고, 송신은 프레임(·압축) 뒤에 감싼다.
+            ctx.pipeline().addBefore("frameDecoder", "decrypt", new org.domi.furnace.server.net.auth.CipherDecoder(decrypt));
+            ctx.pipeline().addBefore("frameDecoder", "encrypt", new org.domi.furnace.server.net.auth.CipherEncoder(encrypt));
+        } catch (java.security.GeneralSecurityException | RuntimeException e) {
+            protocolError(ctx, "Protocol error");
+            return;
+        }
+        String name = playerName;
+        java.net.InetAddress ip = login.preventProxyConnections && ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa
+                ? isa.getAddress() : null;
+        login.sessions.hasJoinedServer(name, serverIdHash, ip).whenComplete((profile, err) -> ctx.executor().execute(() -> {
+            if (!ctx.channel().isActive()) return;
+            if (err != null) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.authservers_down"));
+                log.error("Couldn't verify username because servers are unavailable");
+            } else if (profile.isEmpty()) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.unverified_username"));
+                log.error("Username '{}' tried to join with an invalid session", name);
+            } else {
+                log.info("UUID of player {} is {}", profile.get().name(), profile.get().id());
+                startVerifying(ctx, profile.get());
+            }
+        }));
+    }
+
+    /** 바닐라 verifyLoginAndFinishConnectionSetup: 로그인 검사 → 압축 → 중복 접속 정리 → Login Success. */
+    private void startVerifying(ChannelHandlerContext ctx, org.domi.furnace.server.players.GameProfile profile) {
+        loginPhase = LoginPhase.VERIFYING;
+        this.playerName = profile.name();
+        this.playerUuid = profile.id();
+        this.profileProperties = profile.properties();
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.class)) {
+            // 플러그인이 블로킹 작업(DB 등)을 해도 되도록 가상 스레드에서 부르고, 결과를 들고 연결 스레드로 돌아온다.
+            java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
+            core.plugins().asyncExecutor().execute(() -> {
+                var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr));
+                ctx.channel().eventLoop().execute(() -> {
+                    if (!ctx.channel().isActive()) return;
+                    if (ev.result() != org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+                        disconnect(ctx, ev.kickMessage());
+                        return;
+                    }
+                    finishVerifying(ctx, profile);
+                });
+            });
+            return;
+        }
+        finishVerifying(ctx, profile);
+    }
+
+    /** 바닐라 접속 검사(+PlayerLoginEvent) → 압축 → 로그인 성공. */
+    private void finishVerifying(ChannelHandlerContext ctx, org.domi.furnace.server.players.GameProfile profile) {
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (login.lists != null) {
+            int online = 0;
+            for (Player p : world.onlinePlayers()) if (!p.isDisconnected()) online++;
+            Text reason = login.lists.canPlayerLogin(clientAddress(ctx), profile, online, login.maxPlayers);
+            if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerLoginEvent.class)) {
+                java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
+                var ev = core.events().call(new org.domi.furnace.api.event.player.PlayerLoginEvent(profile.name(), profile.id(), addr,
+                        loginResult(reason), reason));
+                reason = ev.result() == org.domi.furnace.api.event.player.PlayerLoginEvent.Result.ALLOWED ? null : ev.kickMessage();
+            }
+            if (reason != null) { disconnect(ctx, reason); return; }
+        }
+        if (compressionThreshold >= 0) {
+            send(ctx, new SetCompression(compressionThreshold)); // 비압축으로 나감
+            ctx.pipeline().addAfter("frameDecoder", "decompress", new CompressionDecoder(compressionThreshold));
+            ctx.pipeline().addAfter("frameEncoder", "compress", new CompressionEncoder(compressionThreshold));
+        }
+        kickDuplicateSession(playerUuid);
+        if (login.profileCache != null) {
+            // 바닐라 placeNewPlayer: 캐시에 있던 이름과 다르면 "joined.renamed" 로 알린다.
+            previousName = login.profileCache.get(profile.id()).map(org.domi.furnace.server.players.GameProfile::name).orElse(profile.name());
+            login.profileCache.add(profile);
+        }
+        loginPhase = LoginPhase.PROTOCOL_SWITCHING;
+        send(ctx, new LoginSuccess(playerUuid, playerName, profileProperties, true));
+        loginSuccessSent = true;
+    }
+
+    /** 바닐라 Connection.exceptionCaught 의 사유: disconnect.genericReason("Internal Exception: " + 예외). */
+    private void protocolError(ChannelHandlerContext ctx, String message) {
+        disconnect(ctx, Text.translatable("disconnect.genericReason",
+                "Internal Exception: java.lang.IllegalStateException: " + message));
+    }
+
+    /** 로그에 쓰는 접속 주소(log-ips=false 면 가린다, 바닐라 Connection.getLoggableAddress). */
+    private String loggableAddress(ChannelHandlerContext ctx) {
+        if (!login.logIps) return "<ip address withheld>";
+        java.net.SocketAddress a = clientAddress(ctx);
+        return a == null ? "local" : a.toString();
+    }
+
+    /** 사유를 로그에 남기고(로그인 단계는 바닐라 "Disconnecting {}: {}") 단계에 맞는 Disconnect 로 끊는다. */
+    void disconnect(ChannelHandlerContext ctx, Text reason) {
+        if (state == ConnectionState.LOGIN) {
+            String who = playerName != null ? playerName + " (" + loggableAddress(ctx) + ")" : loggableAddress(ctx);
+            log.info("Disconnecting {}: {}", who, reason.getString());
+        }
+        kick(ctx, reason);
+    }
+
     private void onEnterConfiguration(ChannelHandlerContext ctx) {
-        send(ctx, new BrandPayload("Furnace"));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
+        send(ctx, new BrandPayload(org.domi.furnace.server.FurnaceMain.SERVER_BRAND));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
         send(ctx, FeatureFlags.vanilla());
         send(ctx, new KnownPacksClientbound());
     }
@@ -220,7 +681,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 for (String registry : REGISTRIES.registryKeys()) {
                     send(ctx, new RegistryData(registry, REGISTRIES.entries(registry)));
                 }
-                send(ctx, new UpdateTags(TAGS));   // 레지스트리 뒤, Finish 앞(바닐라 순서)
+                // 레지스트리 뒤, Finish 앞(바닐라 순서). 데이터 팩이 있으면 거기서 읽은 태그, 없으면 미리 만든 태그 파일.
+                var dp = login.core != null ? login.core.dataPacks() : null;
+                send(ctx, new UpdateTags(dp != null ? dp.tags() : TAGS));
                 send(ctx, new FinishConfiguration());
                 finishConfigSent = true;
             }
@@ -236,11 +699,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** ClientInformation 파싱 — locale 건너뛰고 view distance(byte) 읽음. config·play 양쪽서 호출. */
     private void readClientInformation(ByteBuf frame) {
         try {
-            Types.readString(frame, 16);                 // locale (무시)
+            this.clientLocale = Types.readString(frame, 16);   // locale(en_us 등)
             int vd = frame.readByte();                   // view distance (chunks)
             this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
             Player p = this.player;
+            if (p != null) p.locale(clientLocale);
             if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
+            this.chatVisibility = Types.readVarInt(frame); // chat mode: 0 전부, 1 시스템만, 2 숨김
+            if (p != null) p.chat().visibility(chatVisibility);
+            frame.readBoolean();                         // chat colors
+            frame.readUnsignedByte();                    // displayed skin parts
+            Types.readVarInt(frame);                     // main hand
+            frame.readBoolean();                         // text filtering
+            this.clientAllowsListing = frame.readBoolean(); // 서버 목록(상태 응답 sample)에 이름 공개 허용
+            if (p != null) p.allowsListing(clientAllowsListing);
         } catch (Exception e) {
             log.debug("ClientInformation 파싱 실패", e);
         }
@@ -256,47 +728,162 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         int effVd = effectiveViewDistance();
-        // 바닐라처럼 서버의 view distance를 보낸다(클라 렌더 거리는 min(자기 설정, 이 값)). 스트리밍은 effVd(= min(서버, 클라 요청))로 한다.
-        send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
-        send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
-        send(ctx, PlayerAbilities.creative());
-        // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
+        org.domi.furnace.server.ServerCore coreJ = login.core;
+        // 저장 데이터를 먼저 읽는다 — 게임 모드·체력 등이 LoginPlay 부터 들어간다(바닐라 placeNewPlayer: load → loadGameTypes).
         org.domi.furnace.server.entity.PlayerData.Snapshot saved =
                 org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
+        Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        p.inventory(inv);
+        p.inventoryHost(new Player.InventoryHost() {
+            public ItemStack slot(int windowSlot) { return inv.get(windowSlot); }
+
+            public int selected() { return inv.selected(); }
+
+            public void replace(int windowSlot, ItemStack expect, ItemStack now) {
+                // 그 사이 인벤토리가 바뀌었으면 손대지 않는다. 클라이언트·inventory_changed 는 다음 틱 broadcastChanges 가.
+                inv.replace(windowSlot, expect, now);
+            }
+
+            public void inventoryChanged(int windowSlot) { ctx.channel().eventLoop().execute(() -> fireInventoryChanged(windowSlot)); }
+
+            public int permissionLevel() {
+                org.domi.furnace.server.ServerCore c = login.core;
+                return c == null ? 0 : c.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
+            }
+
+            public boolean mayInteract(int x, int z) {
+                org.domi.furnace.server.ServerCore c = login.core;
+                return c == null || c.mayInteract(p, x, z);
+            }
+
+            public boolean allowBreak(int x, int y, int z, int state) {
+                org.domi.furnace.server.ServerCore c = login.core;
+                if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.block.BlockBreakEvent.class)) return true;
+                var ev = c.events().call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld",
+                        new org.domi.furnace.api.world.BlockPos(x, y, z), world.blockRegistry().nameOf(state), c.plugins().player(p)));
+                return !ev.isCancelled();
+            }
+        });
+        var vitals = p.vitals();
+        if (coreJ != null) vitals.env(coreJ.vitalsEnv());
+        vitals.deathListener(keepInventory -> ctx.channel().eventLoop().execute(() -> onPlayerDied(keepInventory)));
+        if (saved != null && saved.root() != null) vitals.load(saved.root());
+        org.domi.furnace.server.world.GameMode forced = coreJ != null ? coreJ.forcedGameMode() : null;
+        org.domi.furnace.server.world.GameMode defaultMode = coreJ != null ? coreJ.defaultGameMode() : org.domi.furnace.server.world.GameMode.CREATIVE;
+        vitals.loadGameTypes(saved != null ? saved.root() : null, forced != null ? forced : defaultMode, forced != null);
+        var prevMode = vitals.previousGameMode();
+        // 바닐라처럼 서버의 view distance를 보낸다(클라 렌더 거리는 min(자기 설정, 이 값)). 스트리밍은 effVd(= min(서버, 클라 요청))로 한다.
+        if (coreJ != null) {
+            var props = coreJ.settings().get();
+            var rules = coreJ.gameRules();
+            var level = coreJ.levelData();
+            send(ctx, new LoginPlay(eid, level.hardcore, java.util.List.of("minecraft:overworld", "minecraft:the_end", "minecraft:the_nether"),
+                    props.maxPlayers, world.viewDistance(), props.simulationDistance, rules.getBoolean("reducedDebugInfo"),
+                    !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, "minecraft:overworld",
+                    LoginPlay.obfuscateSeed(level.seed), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(), false,
+                    vitals.lastDeathDimension(), vitals.lastDeathPos(), coreJ.enforceSecureProfile()));
+            send(ctx, new ChangeDifficulty(level.difficulty.id(), level.difficultyLocked));
+        } else {
+            send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
+            send(ctx, new ChangeDifficulty(1, false));          // 바닐라 기본 easy
+        }
+        send(ctx, vitals.abilitiesPacket());
+        // 바닐라 placeNewPlayer: 능력 → 손에 든 슬롯 → 레시피 목록 → 권한·명령 → 레시피 북 INIT
+        if (saved != null && saved.root() != null) {
+            int saved0 = saved.root().getIntOr0("SelectedItemSlot");
+            if (saved0 >= 0 && saved0 < 9) inv.setSelected(saved0);
+        }
+        send(ctx, new SetHeldSlot(inv.selected()));
+        org.domi.furnace.server.ServerCore core = login.core;
+        var recipes = core != null ? core.recipes() : null;
+        if (recipes != null) send(ctx, new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody()));
+        if (core != null) {
+            // 바닐라 placeNewPlayer → sendPlayerPermissionLevel: 권한 레벨 이벤트 + 쓸 수 있는 명령 트리
+            int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
+            send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
+            send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.forProfile(core, playerName, level)));
+        }
+        if (saved != null && saved.root() != null && saved.root().tags().get("recipeBook") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound book) {
+            p.recipeBook().load(book, recipes);
+        }
+        send(ctx, p.recipeBook().initPacket());
+        // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
         SpawnPoint defaultSpawn = world.defaultSpawn();
         double sx = saved != null ? saved.x() : defaultSpawn.playerX();
         double sy = saved != null ? saved.y() : defaultSpawn.playerY();
         double sz = saved != null ? saved.z() : defaultSpawn.playerZ();
         float syaw = saved != null ? saved.yaw() : defaultSpawn.yaw();
         float spitch = saved != null ? saved.pitch() : 0f;
-        if (saved != null) System.arraycopy(saved.slots(), 0, slots, 0, slots.length);
+        if (saved != null) inv.load(saved.slots());
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
         ix = sx; iy = sy; iz = sz; iyaw = syaw; ipitch = spitch; ig = true;
-        // GE13 먼저 — 클라가 "청크 대기" 상태(로딩화면 정지)에 들어간 뒤 위치를 받게 해 위치-유발 중력 억제.
-        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
-        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
-        pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
-        send(ctx, new SetDefaultSpawnPosition((int) sx, (int) sy, (int) sz));
-        send(ctx, InitializeBorder.vanillaDefault());
-        send(ctx, new SetTime(world.gameTime(), world.dayTime()));
-        // 서버가 아는 인벤토리·선택 슬롯을 클라이언트에도 맞춘다(안 보내면 클라는 빈 손인데 서버는 아이템을 들고 있다).
-        send(ctx, new ContainerSetContent(0, 0, copySlots(), ItemStack.EMPTY));
-        send(ctx, new SetHeldSlot(selectedSlot));
-        send(ctx, new SetHealth(20f, 20, 5f));
-        send(ctx, new SetExperience(0f, 0, 0));
-
-        // 플레이어를 스폰 region에 편입 — 첫 틱부터 청크/가시성 처리.
-        Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        // 바닐라 placeNewPlayer 처럼 레벨 정보(보더·시간·인벤토리)를 보내기 전에 접속자 목록에 올린다 — 명령·방송이 곧바로 이 플레이어를 본다.
+        p.profileProperties(profileProperties);
+        p.allowsListing(clientAllowsListing);
+        if (login.core != null) {
+            org.domi.furnace.server.ServerCore core0 = login.core;
+            p.chat(new org.domi.furnace.server.chat.PlayerChatState(playerUuid, core0::enforceSecureProfile));
+        }
+        p.chat().visibility(chatVisibility);
+        p.locale(clientLocale);
+        p.remoteAddress(clientAddress(ctx));
+        log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
+        p.pushTeleport(sx, sy, sz);
         p.viewDistance(effVd);
         this.player = p;
-        world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때)
-        // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
-        // adopt 전이라 p.loadedChunks는 이 스레드 전용(레이스 없음). region streamLoads는 이미 로드된 중앙을 건너뜀.
+        // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
+        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
+        pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
+        if (coreJ != null) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerData(
+                org.domi.furnace.api.text.Text.text(login.motd), login.faviconBytes()));
+        // 기존 접속자 목록(없으면 빈 패킷 — 바닐라와 같다). 아직 adopt 전이라 p.listed()는 이 스레드 전용.
+        java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
+        for (Player b : world.onlinePlayers()) {
+            if (b == p || b.isDisconnected()) continue;
+            existing.add(tabEntry(b));
+            p.listed().put(b.entityId(), b.uuid());
+        }
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
+        world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때). 다른 접속자에게는 그쪽 region 틱이 올린다.
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
+        p.listed().put(p.entityId(), p.uuid());
+        // 바닐라 sendLevelInfo: 보더 → 시간 → 월드 공유 스폰(나침반) → 비 → 청크 대기 → 틱 상태
+        send(ctx, coreJ != null ? InitializeBorder.of(coreJ.border()) : InitializeBorder.vanillaDefault());
+        if (coreJ != null) {
+            send(ctx, coreJ.clock().timePacket(coreJ.gameRules()));
+        } else {
+            send(ctx, new SetTime(world.gameTime(), world.dayTime()));
+        }
+        send(ctx, new SetDefaultSpawnPosition(defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z(), defaultSpawn.yaw()));
+        if (coreJ != null && coreJ.clock().isRaining()) {
+            send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
+            send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, coreJ.clock().rainLevel()));
+            send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, coreJ.clock().thunderLevel()));
+        }
+        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(20.0f, false));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(0));
         ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
         send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
+        // 서버가 아는 인벤토리를 클라이언트에도 맞춘다(바닐라 initInventoryMenu).
+        send(ctx, inv.fullState());
+        // 바닐라 첫 틱: 엔티티 데이터 → (ServerPlayer.tick 끝) 발전 과제 tick 트리거·flushDirty → (doTick) 체력·허기·경험치.
+        // 발전 과제 쪽 패킷(레시피 ADD 등)은 Player.send 로 이벤트 루프 대기열에 들어가므로 뒤 패킷도 같은 대기열로 보낸다.
+        var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
+        java.util.List<Packet> firstTick = vitals.joinPackets();
+        int ft = 0;
+        while (ft < firstTick.size() && firstTick.get(ft) instanceof org.domi.furnace.server.net.protocol.play.SetEntityData) send(ctx, firstTick.get(ft++));
+        if (advancements != null) {
+            advancements.trigger("minecraft:tick", null);
+            advancements.flushDirty();
+        }
+        for (; ft < firstTick.size(); ft++) p.send(firstTick.get(ft));
+
+        // 스폰 청크를 join 버스트에 동기 전송 — 클라가 발밑 청크 있는 채로 스폰(낙하 방지, M2 방식).
+        // adopt 전이라 p.loadedChunks는 이 스레드 전용(레이스 없음). region streamLoads는 이미 로드된 중앙을 건너뜀.
         // spawn-chunk-radius 반경을 nearest-first로 동기 전송. gen은 genPool 병렬, 여기선 순서대로 수거.
         int r = world.spawnChunkRadius();
         java.util.List<ChunkPos> spawnChunks = new java.util.ArrayList<>();
@@ -314,12 +901,50 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
-        scheduleTimeUpdate(ctx);
+        if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
+        if (login.core != null) announceJoin(login.core, p);
     }
 
     /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.
      *  재접속처럼 gen이 2초를 넘겨도 TimeoutException 없이, 완료되면 전송. 완료 후 region에 adopt. */
+    /** 서버 아이템 → 전리품 스택(조건 비교용) — 컴포넌트 패치까지. */
+    private org.domi.furnace.server.loot.LootStack lootStack(ItemStack s) {
+        var items = world.itemRegistry();
+        if (s == null || s.isEmpty() || items == null) return org.domi.furnace.server.loot.LootStack.empty();
+        String name = items.nameOf(s.itemId());
+        return name == null ? org.domi.furnace.server.loot.LootStack.empty()
+                : org.domi.furnace.server.loot.LootStack.of(name, s.count(), s.patch().entries());
+    }
+
+    /** 바닐라 Inventory 칸(0..8 핫바, 9..35 주 인벤토리, 36..39 발·다리·가슴·머리, 40 왼손) → 창 칸. */
+    private static int inventoryToWindowSlot(int i) {
+        if (i <= 8) return i + 36;
+        if (i <= 35) return i;
+        if (i <= 39) return 8 - (i - 36);
+        return 45;
+    }
+
+    /** 바닐라 inventory_changed — 플레이어 인벤토리 칸이 바뀔 때마다(제작 칸 제외). */
+    private void fireInventoryChanged(int windowSlot) {
+        Player p = player;
+        var adv = p == null ? null : p.advancements();
+        if (adv == null || windowSlot < 5 || windowSlot > 45) return;
+        ItemStack[] now = this.inv.snapshot();
+        org.domi.furnace.server.loot.LootStack[] inv = new org.domi.furnace.server.loot.LootStack[41];
+        for (int i = 0; i < inv.length; i++) inv[i] = lootStack(now[inventoryToWindowSlot(i)]);
+        adv.trigger("minecraft:inventory_changed",
+                new org.domi.furnace.server.advancement.Criterion.InventoryEvent(inv, lootStack(now[windowSlot])));
+    }
+
+
+    /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
+    private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {
+        var session = b.chat().session();
+        return new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(),
+                session == null ? null : session.asData(), b.gameMode().id(), b.latencyMs());
+    }
+
     private void sendSpawnChunkBatchAsync(ChannelHandlerContext ctx, Player p,
             java.util.List<ChunkPos> spawnChunks,
             java.util.Map<ChunkPos, World.Subscription> subs,
@@ -351,8 +976,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             }
                         }
                         send(ctx, new ChunkBatchFinished(sent));
-                        RegionPos spawn = RegionGrid.regionPos(sx, sz, world.regionSize());
-                        world.runOn(spawn, () -> world.regionAt(spawn).adopt(p));
+                        world.runAt(sx, sz, r -> r.adopt(p));
                         spawnChunksDelivered = true;
                         maybeReleaseSpawnGate();
                     });
@@ -386,7 +1010,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         pendingTeleportId = -1;
         ix = spawnX; iy = spawnY; iz = spawnZ; iyaw = spawnYaw; ipitch = spawnPitch; ig = true;   // 클라가 스폰으로 되돌아간다
         Player p = player;
-        if (p != null) publishInput(p);
+        if (p != null) {
+            p.pushTeleport(ix, iy, iz);
+            publishInput(p);
+        }
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
@@ -405,6 +1032,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
+            case 0x03 -> handleChatAck(Types.readVarInt(frame));                    // chat_ack
+            case 0x04 -> handleChatCommand(Types.readString(frame, 256));          // chat_command
+            case 0x05 -> handleSignedChatCommand(frame);                            // chat_command_signed
+            case 0x06 -> handleChat(frame);                                         // chat
+            case 0x07 -> handleChatSessionUpdate(org.domi.furnace.server.chat.RemoteChatSession.Data.read(frame)); // chat_session_update
+            case 0x0B -> handleCommandSuggestion(Types.readVarInt(frame), Types.readString(frame, 32500));
             case 0x18 -> { // Keep Alive (serverbound)
                 long echoed = frame.readLong();
                 if (echoed == lastKeepAliveId) {
@@ -420,6 +1053,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
                     ig = g;
                     publishInput(p);
+                    p.pushMove(ix, iy, iz, ig);
                 }
             }
             case 0x1B -> { // move_player_pos_rot: Double x,y,z, Float yaw,pitch, Boolean onGround
@@ -432,109 +1066,143 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     ipitch = finiteOr0(pitch);
                     ig = g;
                     publishInput(p);
+                    p.pushMove(ix, iy, iz, ig);
                 }
             }
             case 0x1C -> { // move_player_rot: Float yaw,pitch, Boolean onGround
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1) {
+                if (p != null && pendingTeleportId == -1 && correctionTpId == -1) {
                     iyaw = finiteOr0(yaw);
                     ipitch = finiteOr0(pitch);
                     ig = g;
                     publishInput(p);
+                    p.pushMove(ix, iy, iz, ig);
                 }
             }
-            case 0x24 -> { // player_action (digging)
+            case 0x09 -> { // client_command: 0 = 리스폰, 1 = 통계 요청
+                int action = Types.readVarInt(frame);
+                if (action == 0) requestRespawn(ctx);
+            }
+            case 0x23 -> { // player_abilities(serverbound): 비행 시작/끝 — 비행 가능할 때만 반영
+                byte flags = frame.readByte();
+                Player p = player;
+                if (p != null) p.vitals().setFlying((flags & 0x02) != 0);
+            }
+            case 0x25 -> { // player_command: eid, action, data
+                Types.readVarInt(frame);
+                int action = Types.readVarInt(frame);
+                Types.readVarInt(frame);
+                Player p = player;
+                if (p != null) {
+                    switch (action) {
+                        case 0 -> p.sneaking(true);      // PRESS_SHIFT_KEY
+                        case 1 -> p.sneaking(false);     // RELEASE_SHIFT_KEY
+                        case 3 -> p.sprinting(true);     // START_SPRINTING
+                        case 4 -> p.sprinting(false);    // STOP_SPRINTING
+                        default -> { }
+                    }
+                }
+            }
+            case 0x24 -> { // player_action: 0 시작, 1 취소, 2 완료(파괴), 3·4 버리기, 5 사용 끝, 6 손 바꾸기
                 int status = Types.readVarInt(frame);
                 int[] bp = Types.readBlockPos(frame);
                 frame.readByte();        // face
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
-                if (status == 0) {       // start digging = 크리에이티브 즉시 파괴
-                    int bx = bp[0], by = bp[1], bz = bp[2];
-                    if (!blockRequestAllowed(bx, by, bz)) {
-                        rejectBlockRequest(actor, seq, bx, by, bz);
-                    } else {
-                        RegionPos br = RegionGrid.regionPos(bx, bz, world.regionSize());
-                        world.runOn(br, () -> {
-                            Region region = world.regionAt(br);
-                            // 이미 로드된 청크만 수정 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
-                            if (region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) region.breakBlock(bx, by, bz);
-                            actor.send(new BlockChangedAck(seq)); // block_update 다음에 ack → 클라 예측 reconcile
-                        });
+                if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
+                if (actor != null && (status == 3 || status == 4) && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
+                    dropFromSelected(status == 3);   // DROP_ALL_ITEMS · DROP_ITEM
+                }
+            }
+            case 0x28 -> { // recipe_book_change_settings: 책 종류, 열림, 필터
+                int type = Types.readVarInt(frame);
+                boolean open = frame.readBoolean(), filtering = frame.readBoolean();
+                Player p = player;
+                if (p != null) p.recipeBook().setBookSetting(type, open, filtering);
+            }
+            case 0x29 -> { // recipe_book_seen_recipe: 강조 해제
+                var id = org.domi.furnace.server.data.ResourceId.tryParse(Types.readString(frame, 32767));
+                Player p = player;
+                if (p != null && id != null) p.recipeBook().removeHighlight(id);
+            }
+            case 0x2C -> { // seen_advancements: 0 탭 열기(+ id), 1 화면 닫기(바닐라는 닫기에 아무것도 하지 않는다)
+                int action = Types.readVarInt(frame);
+                if (action == 0) {
+                    var tab = org.domi.furnace.server.data.ResourceId.tryParse(Types.readString(frame, 32767));
+                    Player sp = player;
+                    if (tab != null && sp != null && sp.advancements() != null && sp.advancements().manager().get(tab) != null) {
+                        sp.advancements().setSelectedTab(tab);
                     }
-                } else {
-                    actor.send(new BlockChangedAck(seq)); // 블록 변경 없음 — ack만(예측 정리)
                 }
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
-                if (slot >= 0 && slot < 9) selectedSlot = slot;
+                if (slot >= 0 && slot < 9) inv.setSelected(slot);
             }
             case 0x32 -> { // Set Creative Mode Slot: Short slot + Slot
                 int slot = frame.readShort();
-                ItemStack stack = readSlot(frame);
+                ItemStack stack;
+                try {
+                    stack = readSlot(frame);
+                    // 바닐라 ItemStack.validatedStreamCodec: 저장 코덱(개수 1..99)으로 다시 쓸 수 없으면 디코드 실패
+                    if (!stack.isEmpty() && (stack.count() < 1 || stack.count() > 99)) {
+                        throw new org.domi.furnace.server.item.CodecException("Value must be within range [1;99]: " + stack.count());
+                    }
+                } catch (org.domi.furnace.server.item.CodecException | IndexOutOfBoundsException e) {
+                    protocolError(ctx, "Set Creative Mode Slot", e);   // 바닐라: 디코드 실패는 연결 종료
+                    break;
+                }
                 // 바닐라: 슬롯 1..45만, 개수·아이템 유효. 비정상 값은 다른 플레이어(공유 상자 경유)까지 클라이언트를 깨뜨린다.
-                if (slot >= 1 && slot < slots.length && validStack(stack)) slots[slot] = stack;
+                Player cp = player;
+                boolean creative = cp != null && cp.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE;
+                if (creative && slot >= 1 && slot < org.domi.furnace.server.entity.PlayerInventory.SIZE && validStack(stack)) {
+                    inv.set(slot, stack);
+                    inv.setRemote(slot, stack);   // 바닐라 setRemoteSlot — 되돌려 보내지 않는다
+                    fireInventoryChanged(slot);
+                } else if (creative && slot < 0 && validStack(stack) && !stack.isEmpty() && cp.tryCreativeDrop()) {
+                    spawnDrop(stack, false, true);   // 크리에이티브 창 밖으로 버리기 — player.drop(stack, true)
+                }
             }
             case 0x38 -> { // Use Item On: hand, pos, face, cursorXYZ, insideBlock, sequence
                 int hand = Types.readVarInt(frame);
                 int[] bp = Types.readBlockPos(frame);
                 int face = Types.readVarInt(frame);
-                frame.readFloat(); frame.readFloat(); frame.readFloat(); // cursor X/Y/Z
-                frame.readBoolean(); // insideBlock
-                int seq = Types.readVarInt(frame); // 예측 sequence
-                Player actor = player;
-                int[] o0 = Region.placeOffset(face);
-                if (!blockRequestAllowed(bp[0], bp[1], bp[2])) {
-                    // 클릭 지점이 범위/도달 거리 밖 — 클라가 예측으로 놓았을 설치 위치를 되돌리고 ack.
-                    rejectBlockRequest(actor, seq, bp[0] + o0[0], bp[1] + o0[1], bp[2] + o0[2]);
+                float cx = frame.readFloat(), cy = frame.readFloat(), cz = frame.readFloat();
+                boolean inside = frame.readBoolean();
+                int seq = Types.readVarInt(frame);
+                if (hand < 0 || hand > 1 || face < 0 || face > 5) {
+                    protocolError(ctx, "Use Item On", new IllegalArgumentException("bad enum"));
                     break;
                 }
-                // 클릭 블록 조회는 region 스레드서만(소유권) — 조회 후 netty로 복귀해 배치 여부 판단(§3.2).
-                RegionPos clickedRp = RegionGrid.regionPos(bp[0], bp[2], world.regionSize());
-                world.runOn(clickedRp, () -> {
-                    Region clickedRegion = world.regionAt(clickedRp);
-                    if (!clickedRegion.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2]))) { // 미로드 청크는 생성하지 않는다
-                        actor.send(new BlockChangedAck(seq));
-                        return;
-                    }
-                    int clickedState = clickedRegion.getBlock(bp[0], bp[1], bp[2]);
-                    boolean isChest = "minecraft:chest".equals(world.blockRegistry().nameOf(clickedState));
-                    ctx.channel().eventLoop().execute(() -> {
-                        if (isChest) { // 배치 대신 열기(§3.2) — 더블체스트·방향 무관, 싱글체스트만
-                            openChest(bp[0], bp[1], bp[2]);
-                            actor.send(new BlockChangedAck(seq));
-                            return;
-                        }
-                        ItemStack held = hand == 0 ? slots[36 + selectedSlot] : ItemStack.EMPTY;
-                        int stateId = held.isEmpty() ? 0 : world.itemToBlockState(held.itemId());
-                        if (stateId == 0) { // 오프핸드 / 비블록 아이템 — 변경 없음, ack만(클라 예측 정리)
-                            actor.send(new BlockChangedAck(seq));
-                            return;
-                        }
-                        int[] o = Region.placeOffset(face);
-                        int px = bp[0] + o[0], py = bp[1] + o[1], pz = bp[2] + o[2];
-                        if (py < ChunkColumn.MIN_Y || py > ChunkColumn.MAX_Y) { // 월드 높이 밖(예: 최상단 블록 위에 설치)
-                            actor.send(new BlockChangedAck(seq));
-                            return;
-                        }
-                        RegionPos rp = RegionGrid.regionPos(px, pz, world.regionSize());
-                        world.runOn(rp, () -> {
-                            Region region = world.regionAt(rp);
-                            // 설치 대상이 미로드 청크(시야 가장자리 너머)면 생성하지 않고 거부한다.
-                            if (region.chunkLoaded(ChunkPos.ofBlock(px, pz))) region.placeBlock(px, py, pz, stateId);
-                            actor.send(new BlockChangedAck(seq)); // 설치(또는 충돌거부) 후 ack → 거부 시 고스트 reverts
-                        });
-                    });
-                });
+                if (seq < 0) {   // 바닐라 ackBlockChangesUpTo: 음수면 예외 → 연결 종료
+                    protocolError(ctx, "Use Item On", new IllegalArgumentException("Expected packet sequence nr >= 0"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) handleUseItemOn(ctx, actor, hand, bp, face, cx, cy, cz, inside, seq);
+            }
+            case 0x39 -> { // Use Item: hand, sequence, yRot, xRot
+                int hand = Types.readVarInt(frame);
+                int seq = Types.readVarInt(frame);
+                float yRot = frame.readFloat(), xRot = frame.readFloat();
+                if (hand < 0 || hand > 1) {
+                    protocolError(ctx, "Use Item", new IllegalArgumentException("bad enum"));
+                    break;
+                }
+                if (seq < 0) {
+                    protocolError(ctx, "Use Item", new IllegalArgumentException("Expected packet sequence nr >= 0"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) world.runAt(actor.x(), actor.z(), region -> region.handleUseItem(actor, hand, seq, yRot, xRot));
             }
             case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
                 int containerId = Types.readVarInt(frame);
                 Types.readVarInt(frame);  // stateId(§ 검증 생략, 항상 클라 예측 수용)
-                frame.readShort();        // slotNum(사용 안 함 — changedSlots가 실제 변경 진실)
-                frame.readByte();         // buttonNum
+                int slotNum = frame.readShort();   // 버리기(창 밖 -999·THROW)만 본다 — 나머지는 changedSlots 가 진실
+                int button = frame.readByte();
                 int clickType = Types.readVarInt(frame);
                 int numChanged = Types.readVarInt(frame);
                 if (numChanged < 0 || numChanged > MAX_CLICK_CHANGED_SLOTS) {   // 바닐라는 128 초과를 거부한다
@@ -542,29 +1210,26 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     break;
                 }
                 java.util.Map<Integer, ItemStack> changed = new java.util.HashMap<>();
-                boolean parseOk = true;
-                for (int i = 0; i < numChanged && parseOk; i++) {
-                    int changedSlot = frame.readShort();
-                    try {
-                        changed.put(changedSlot, readSlotStrict(frame));
-                    } catch (UnsupportedComponentException e) {
-                        log.debug("Container Click: components 있는 아이템 — 파싱 범위 밖(§2.3), 이후 바이트 폐기");
-                        parseOk = false;
+                ItemStack newCarried;
+                try {
+                    for (int i = 0; i < numChanged; i++) {
+                        int changedSlot = frame.readShort();
+                        changed.put(changedSlot, readSlot(frame));
                     }
+                    newCarried = readSlot(frame);
+                } catch (org.domi.furnace.server.item.CodecException | IndexOutOfBoundsException e) {
+                    protocolError(ctx, "Container Click", e);   // 바닐라: 디코드 실패는 연결 종료
+                    break;
                 }
-                ItemStack newCarried = null;
-                if (parseOk) {
-                    try {
-                        newCarried = readSlotStrict(frame);
-                    } catch (UnsupportedComponentException e) {
-                        parseOk = false;   // 커서 아이템에 컴포넌트 — 예외로 연결을 끊지 말고 패킷만 폐기
-                    }
-                }
-                if (!parseOk) break; // 경계 유실 — 이 패킷 전체 폐기(범위 밖 케이스)
                 boolean validClick = validStack(newCarried);
                 for (ItemStack c : changed.values()) validClick &= validStack(c);
                 if (!validClick) break; // 음수 개수·알 수 없는 아이템 등 비정상 — 패킷 폐기
                 Player p = player;
+                if (containerId == 0 && p.openContainerId() == -1) {
+                    inventoryDropClick(slotNum, button, clickType);
+                    applyInventoryClick(changed, newCarried);
+                    break;
+                }
                 int expectedContainerId = p.openContainerId();
                 if (clickType != 0 || expectedContainerId == -1 || containerId != expectedContainerId) {
                     break; // PICKUP만 처리, 컨테이너 불일치·미오픈 무시(§3.3)
@@ -576,22 +1241,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     send(ctx, new ContainerClose(expectedContainerId));
                     break;
                 }
-                this.carried = newCarried;
+                inv.setCarried(newCarried);
+                inv.setRemoteCarried(newCarried);
                 java.util.Map<Integer, ItemStack> chestUpdates = new java.util.HashMap<>();
                 for (var e : changed.entrySet()) {
                     int menuSlot = e.getKey();
                     if (menuSlot >= 0 && menuSlot < 27) {
                         chestUpdates.put(menuSlot, e.getValue());
                     } else if (menuSlot >= 27 && menuSlot <= 53) {
-                        slots[9 + (menuSlot - 27)] = e.getValue();
+                        inv.set(9 + (menuSlot - 27), e.getValue());
+                        inv.setRemote(9 + (menuSlot - 27), e.getValue());   // 닫을 때 transferState 와 같다
+                        fireInventoryChanged(9 + (menuSlot - 27));
                     } else if (menuSlot >= 54 && menuSlot <= 62) {
-                        slots[36 + (menuSlot - 54)] = e.getValue();
+                        inv.set(36 + (menuSlot - 54), e.getValue());
+                        inv.setRemote(36 + (menuSlot - 54), e.getValue());
+                        fireInventoryChanged(36 + (menuSlot - 54));
                     }
                 }
                 if (!chestUpdates.isEmpty() && chestPos != null) {
-                    RegionPos rp = RegionGrid.regionPos(chestPos[0], chestPos[2], world.regionSize());
-                    world.runOn(rp, () -> {
-                        Region region = world.regionAt(rp);
+                    world.runAt(chestPos[0], chestPos[2], region -> {
                         if (!region.chunkLoaded(ChunkPos.ofBlock(chestPos[0], chestPos[2]))) return; // 미로드 청크를 생성/로드하지 않는다
                         for (var e : chestUpdates.entrySet()) {
                             region.setChestItem(chestPos[0], chestPos[1], chestPos[2], e.getKey(), e.getValue());
@@ -602,10 +1270,255 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x0F -> { // Container Close(serverbound): VarInt containerId
                 Types.readVarInt(frame);
                 Player p = player;
-                if (p != null) p.closeChest();
+                if (p != null) {
+                    p.closeChest();
+                    returnCarried(p);
+                }
             }
             default -> { /* 그 외 무시 */ }
         }
+    }
+
+    /**
+     * 블록 파괴 요청(player_action 0 시작·1 취소·2 완료 — 바닐라 handlePlayerAction → ServerPlayerGameMode.handleBlockBreakAction → ack).
+     * 거리·높이·스폰 보호·게임 모드 판정과 서바이벌 진행도 검증·드롭은 그 플레이어의 region 에서(BlockBreaking).
+     */
+    private void handleBlockBreak(Player actor, int status, int bx, int by, int bz, int seq) {
+        org.domi.furnace.server.ServerCore core = login.core;
+        var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
+        world.runAtRequested(bx, bz, actor.x(), actor.z(), region -> {
+            // 이미 로드된 청크만 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
+            if (by >= ChunkColumn.MIN_Y && by <= ChunkColumn.MAX_Y && region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) {
+                boolean mayInteract = core == null || core.mayInteract(actor, bx, bz);
+                region.handleBlockBreakAction(actor, pos, status, mayInteract);
+            }
+            region.level().ackBlockChangesUpTo(actor, seq);   // 바닐라: 처리 뒤 ack(실제 전송은 틱 끝 변경 방송 뒤)
+        });
+    }
+
+    /**
+     * 플레이어 인벤토리 창(0) 클릭: 클라이언트가 보고한 바뀐 칸을 받되, 아이템 종류별 총량(커서 포함)이 그대로일 때만 —
+     * 재배치·나누기·합치기는 반영되고 아이템을 만들거나 없애는 보고는 거부한 뒤 서버 상태로 되돌린다.
+     * 바닐라처럼 클릭을 서버에서 재현하는 검증과 제작·버리기는 3단계(인벤토리·아이템 엔티티)에서 붙는다.
+     */
+    private void applyInventoryClick(java.util.Map<Integer, ItemStack> changed, ItemStack newCarried) {
+        boolean ok = !changed.containsKey(0);   // 제작 결과 칸은 아직 없다
+        java.util.Map<Object, Integer> before = new java.util.HashMap<>(), after = new java.util.HashMap<>();
+        for (var e : changed.entrySet()) {
+            int slot = e.getKey();
+            if (slot < 0 || slot >= org.domi.furnace.server.entity.PlayerInventory.SIZE) { ok = false; break; }
+            tally(before, inv.get(slot), 1);
+            tally(after, e.getValue(), 1);
+        }
+        tally(before, inv.carried(), 1);
+        tally(after, newCarried, 1);
+        before.values().removeIf(v -> v == 0);
+        after.values().removeIf(v -> v == 0);
+        if (ok && before.equals(after)) {
+            for (var e : changed.entrySet()) {
+                inv.set(e.getKey(), e.getValue());
+                inv.setRemote(e.getKey(), e.getValue());   // 클라이언트가 이미 아는 값
+            }
+            for (var e : changed.entrySet()) fireInventoryChanged(e.getKey());
+            inv.setCarried(newCarried);
+            inv.setRemoteCarried(newCarried);
+        } else {
+            send(ctx, inv.fullState());
+        }
+    }
+
+    private static void tally(java.util.Map<Object, Integer> counts, ItemStack s, int sign) {
+        if (s == null || s.isEmpty()) return;
+        Object key = java.util.List.of(s.itemId(), s.patch());
+        counts.merge(key, sign * s.count(), Integer::sum);
+    }
+
+    private String previousName;
+    private Text kickReason;   // 우리가 끊은 사유(퇴장 로그 "lost connection: 사유"용)
+
+    /** 바닐라 접속 거부 사유 → PlayerLoginEvent 결과 종류. */
+    private static org.domi.furnace.api.event.player.PlayerLoginEvent.Result loginResult(Text reason) {
+        if (reason == null) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.ALLOWED;
+        String key = reason.translationKey();
+        if (key == null) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_OTHER;
+        if (key.startsWith("multiplayer.disconnect.banned")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_BANNED;
+        if (key.equals("multiplayer.disconnect.not_whitelisted")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_WHITELIST;
+        if (key.equals("multiplayer.disconnect.server_full")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_FULL;
+        return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_OTHER;
+    }
+
+    /** 바닐라 placeNewPlayer 의 접속 알림(PlayerJoinEvent 로 바꿀 수 있다). 접속자 본인도 받는다(Paper 와 같다). */
+    private void announceJoin(org.domi.furnace.server.ServerCore core, Player p) {
+        Text msg = previousName == null || previousName.equalsIgnoreCase(p.name())
+                ? Text.translatable("multiplayer.player.joined", p.displayName())
+                : Text.translatable("multiplayer.player.joined.renamed", p.displayName(), previousName);
+        msg = msg.color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
+        if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerJoinEvent.class)) {
+            msg = core.events().call(new org.domi.furnace.api.event.player.PlayerJoinEvent(core.plugins().player(p), msg)).joinMessage();
+        }
+        if (msg != null) core.broadcastSystemMessage(msg, false);
+    }
+
+    /** 죽었을 때(소유 연결 이벤트 루프): keepInventory 가 아니면 인벤토리를 비운다(바닐라 dropAll — 아이템 엔티티는 3단계). */
+    private void onPlayerDied(boolean keepInventory) {
+        Player p = player;
+        if (p == null) return;
+        if (p.openContainerId() != -1) {
+            send(ctx, new ContainerClose(p.openContainerId()));
+            p.closeChest();
+        }
+        if (!keepInventory) {
+            // Inventory.dropAll(소멸 저주는 먼저 지운다): 주 인벤토리 → 갑옷(발·다리·가슴·머리) → 왼손 순으로 아무 쪽으로 던진다
+            java.util.List<ItemStack> drops = new java.util.ArrayList<>();
+            for (int i = 0; i <= 40; i++) {
+                int ws = org.domi.furnace.server.entity.PlayerInventory.windowSlot(i);
+                ItemStack s = inv.get(ws);
+                if (s.isEmpty()) continue;
+                inv.set(ws, ItemStack.EMPTY);
+                if (org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:vanishing_curse") > 0) continue;
+                drops.add(s);
+            }
+            if (!drops.isEmpty()) world.runAt(p.x(), p.z(), region -> { for (ItemStack s : drops) region.playerDrop(p, s, true, false); });
+        }
+    }
+
+    /** ServerPlayer.drop(all): 든 칸에서 하나(또는 다) 꺼내 던진다. 클라이언트는 이미 칸을 비웠다(setRemoteSlot). */
+    private void dropFromSelected(boolean all) {
+        int ws = inv.heldWindowSlot();
+        ItemStack held = inv.get(ws);
+        if (held.isEmpty()) {
+            inv.setRemote(ws, held);
+            return;
+        }
+        int n = all ? held.count() : 1;
+        ItemStack left = held.withCount(held.count() - n);
+        if (!inv.replace(ws, held, left)) return;
+        inv.setRemote(ws, left);
+        fireInventoryChanged(ws);
+        spawnDrop(held.withCount(n), false, true);
+    }
+
+    /** 인벤토리 창 클릭 중 버리기(AbstractContainerMenu.doClick): 창 밖(-999) PICKUP 이면 커서를, THROW 면 그 칸에서 던진다. */
+    private void inventoryDropClick(int slotNum, int button, int clickType) {
+        ItemStack carried = inv.carried();
+        if (clickType == 0 && slotNum == -999 && !carried.isEmpty() && (button == 0 || button == 1)) {
+            int n = button == 0 ? carried.count() : 1;
+            inv.setCarried(carried.withCount(carried.count() - n));
+            spawnDrop(carried.withCount(n), false, true);
+        } else if (clickType == 4 && slotNum >= 0 && slotNum < org.domi.furnace.server.entity.PlayerInventory.SIZE && carried.isEmpty()
+                && (button == 0 || button == 1)) {
+            ItemStack s = inv.get(slotNum);
+            if (s.isEmpty() || slotNum == 0) return;   // 제작 결과 칸은 아직 없다
+            int n = button == 0 ? 1 : s.count();
+            inv.set(slotNum, s.withCount(s.count() - n));
+            fireInventoryChanged(slotNum);
+            spawnDrop(s.withCount(n), false, true);
+        }
+    }
+
+    /** 창을 닫을 때 커서에 든 것(AbstractContainerMenu.removed): 살아 있으면 인벤토리로(넘치면 던짐), 죽었으면 던진다. */
+    private void returnCarried(Player p) {
+        ItemStack carried = inv.carried();
+        if (carried.isEmpty()) return;
+        inv.setCarried(ItemStack.EMPTY);
+        inv.setRemoteCarried(ItemStack.EMPTY);
+        if (!p.vitals().isDeadOrDying()) {
+            ItemStack left = inv.add(carried, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(carried),
+                    org.domi.furnace.server.item.ItemTools.damage(carried) > 0);
+            if (!left.isEmpty()) spawnDrop(left, false, false);
+        } else {
+            spawnDrop(carried, false, false);
+        }
+    }
+
+    /** 플레이어가 서 있는 칸의 region 에서 아이템을 던진다. */
+    private void spawnDrop(ItemStack stack, boolean dropAround, boolean includeThrower) {
+        Player p = player;
+        if (p == null || stack.isEmpty()) return;
+        world.runAt(p.x(), p.z(), region -> region.playerDrop(p, stack, dropAround, includeThrower));
+    }
+
+    /** client_command 0: 죽어 있으면 리스폰 지점을 정해(강제 스폰 지점은 그 블록을 소유 region 에서 확인) 리스폰한다. */
+    private void requestRespawn(ChannelHandlerContext ctx) {
+        Player p = player;
+        if (p == null || !p.vitals().isDeadOrDying() || respawnPending) return;
+        respawnPending = true;
+        int[] rp = p.vitals().respawnPos();
+        SpawnPoint spawn = world.defaultSpawn();
+        if (rp == null || !p.vitals().respawnForced()) {
+            // 침대·리스폰 정박기는 3단계 — 강제가 아닌 스폰 지점은 블록이 없으므로 "없음" 처리(바닐라 missingRespawnBlock)
+            finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), rp != null, true);
+            return;
+        }
+        float angle = p.vitals().respawnAngle();
+        world.runAt(rp[0], rp[2], region -> {
+            var attrs = org.domi.furnace.server.world.BlockAttrs.get();
+            int a = region.getBlock(rp[0], rp[1], rp[2]), b = region.getBlock(rp[0], rp[1] + 1, rp[2]);
+            // Block.isPossibleToRespawnInThis: 단단하지 않고 액체가 아님(발·머리 두 칸)
+            boolean ok = !attrs.isSolid(a) && !attrs.isLiquid(a) && !attrs.isSolid(b) && !attrs.isLiquid(b);
+            ctx.channel().eventLoop().execute(() -> {
+                if (ok) finishRespawn(ctx, rp[0] + 0.5, rp[1] + 0.1, rp[2] + 0.5, angle, false, false);
+                else finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), true, true);
+            });
+        });
+    }
+
+    private boolean respawnPending;
+
+    /** 바닐라 PlayerList.respawn 이 보내는 순서대로 — 능력, (스폰 블록 없음), Respawn, 위치, 스폰 지점, 난이도, 경험치, 레벨 정보, 권한, 인벤토리. */
+    private void finishRespawn(ChannelHandlerContext ctx, double x, double y, double z, float yaw, boolean missingRespawnBlock, boolean worldSpawn) {
+        respawnPending = false;
+        Player p = player;
+        if (p == null || !ctx.channel().isActive() || !p.vitals().isDeadOrDying()) return;
+        org.domi.furnace.server.ServerCore core = login.core;
+        float pitch = 0f;
+        if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerRespawnEvent.class)) {
+            var ev = core.events().call(new org.domi.furnace.api.event.player.PlayerRespawnEvent(core.plugins().player(p),
+                    new org.domi.furnace.api.world.Location("minecraft:overworld", x, y, z, yaw, 0f), worldSpawn));
+            var l = ev.respawnLocation();
+            x = l.x(); y = l.y(); z = l.z(); yaw = l.yaw(); pitch = l.pitch();
+        }
+        boolean keepInventory = core != null && core.gameRules().getBoolean("keepInventory");
+        var vitals = p.vitals();
+        vitals.respawn();
+        p.bumpSpawnGeneration();
+        send(ctx, vitals.abilitiesPacket());
+        if (missingRespawnBlock) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
+        var prev = vitals.previousGameMode();
+        long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
+        int dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimIndex, "minecraft:overworld", hashedSeed,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0, (byte) 0));
+        // 서버가 정한 위치로 텔레포트 — 확인 전까지 클라 이동은 받지 않는다.
+        p.clearMoves();
+        ix = x; iy = y; iz = z; iyaw = yaw; ipitch = pitch; ig = false;
+        correctionTpId = ++teleportId;
+        send(ctx, new SyncPlayerPosition(x, y, z, yaw, pitch, correctionTpId));
+        p.pushTeleport(x, y, z);
+        publishInput(p);
+        SpawnPoint spawn = world.defaultSpawn();
+        send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
+        if (core != null) {
+            send(ctx, new ChangeDifficulty(core.levelData().difficulty.id(), core.levelData().difficultyLocked));
+        }
+        send(ctx, vitals.experiencePacket());
+        // sendLevelInfo
+        send(ctx, core != null ? InitializeBorder.of(core.border()) : InitializeBorder.vanillaDefault());
+        if (core != null) {
+            send(ctx, core.clock().timePacket(core.gameRules()));
+        } else {
+            send(ctx, new SetTime(world.gameTime(), world.dayTime()));
+        }
+        send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
+        if (core != null && core.clock().isRaining()) {
+            send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
+            send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, core.clock().rainLevel()));
+            send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, core.clock().thunderLevel()));
+        }
+        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
+        if (core != null) core.sendPlayerPermissionLevel(p);
+        send(ctx, inv.fullState());
+        send(ctx, new SetHeldSlot(inv.selected()));
     }
 
     /** 마지막으로 수락한 위치·회전·onGround의 합을 발행한다(region 스레드가 다음 틱에 drain). */
@@ -647,23 +1560,147 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return dx * dx + dy * dy + dz * dz <= REACH_SQ;
     }
 
+    /**
+     * 바닐라 ServerGamePacketListenerImpl.handleUseItemOn. 클릭한 칸의 region 스레드에서 거리·위치 검사 → useItemOn →
+     * 클릭 칸과 면 너머 칸의 블록 갱신을 바로 보내고, ack 는 그 region 의 틱 끝(변경 방송 뒤)에 보낸다.
+     * 손의 스택은 지금(연결 스레드) 잡은 사본으로 쓰고, 바뀐 손은 돌아와서 그 칸이 그대로일 때만 반영한다.
+     */
+    private void handleUseItemOn(ChannelHandlerContext ctx, Player actor, int hand, int[] bp, int face,
+                                 float cx, float cy, float cz, boolean inside, int seq) {
+        final int heldSlot = 36 + inv.selected();
+        final int handSlot = hand == 0 ? heldSlot : 45;
+        final ItemStack main = inv.get(heldSlot), off = inv.get(45);
+        final ItemStack before = hand == 0 ? main : off;
+        org.domi.furnace.server.ServerCore core = login.core;
+        int permission = core == null ? 0 : core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
+        var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
+        var hit = new org.domi.furnace.server.block.Hit(pos, face, bp[0] + (double) cx, bp[1] + (double) cy, bp[2] + (double) cz, inside);
+        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
+            var level = region.level();
+            level.ackBlockChangesUpTo(actor, seq);
+            ItemStack head = inv.get(5);
+            var pa = new org.domi.furnace.server.block.BreakerActor(actor, main, off, head, permission, false, heldSlot) {
+                @Override
+                protected void brokenEvent(int h, ItemStack broken) { region.broadcastEntityEvent(actor, (byte) (47 + h)); }
+
+                @Override
+                public void trigger(String criterion, org.domi.furnace.server.block.Pos p, ItemStack stack) {
+                    fireBlockTrigger(actor, criterion, p.x(), p.y(), p.z(), level.getBlockState(p), stack);
+                }
+
+                @Override
+                public void openChest(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openChest(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public boolean allowPlace(org.domi.furnace.server.block.Pos p, int state, org.domi.furnace.server.block.Pos against) {
+                    org.domi.furnace.server.ServerCore pc = login.core;
+                    if (pc == null || !pc.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
+                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent("minecraft:overworld",
+                            new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
+                            new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
+                    return !ev.isCancelled();
+                }
+            };
+            pa.withInventory(actor.inventoryHost());
+            if (!pa.canInteractWithBlock(pos, 1.0)) return;   // 바닐라: 조용히 무시(패킷 없음, ack 만)
+            double dx = hit.x() - (bp[0] + 0.5), dy = hit.y() - (bp[1] + 0.5), dz = hit.z() - (bp[2] + 0.5);
+            if (!(Math.abs(dx) < 1.0000001 && Math.abs(dy) < 1.0000001 && Math.abs(dz) < 1.0000001)) {
+                log.warn("Rejecting UseItemOnPacket from {}: Location ({}, {}, {}) too far away from hit block {}.",
+                        actor.name(), hit.x(), hit.y(), hit.z(), pos.toShortString());
+                return;
+            }
+            int maxY = level.maxBuildHeight();
+            if (bp[1] < maxY) {
+                org.domi.furnace.server.ServerCore c = login.core;
+                if (c == null || c.mayInteract(actor, bp[0], bp[2])) {
+                    var r = org.domi.furnace.server.block.BlockPlacement.useItemOn(level, pa, hand, hit);
+                    if (r.consumesAction()) pa.trigger("minecraft:any_block_use", pos, before);
+                    if (face == org.domi.furnace.server.block.Dir.UP && !r.consumesAction() && bp[1] >= maxY - 1
+                            && org.domi.furnace.server.block.BlockPlacement.wasBlockPlacementAttempt(pa, before)) {
+                        actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);
+                    }
+                    // shouldSwing 이면 바닐라는 다른 플레이어에게 팔 휘두르기를 보낸다 — 서버 쪽 설치는 CONSUME 이라 해당 없음
+                }
+            } else {
+                actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);
+            }
+            sendBlockState(actor, region, pos);
+            sendBlockState(actor, region, pos.relative(face));
+            for (int h = 0; h < 2; h++) {
+                if (!pa.handChanged(h)) continue;
+                int slot = h == 0 ? heldSlot : 45;
+                ItemStack expect = h == 0 ? main : off, now = pa.itemInHand(h);
+                inv.replace(slot, expect, now);
+            }
+            for (int ws = 5; ws <= 8; ws++) {
+                if (!pa.armorChanged(ws)) continue;
+                int slot = ws;
+                ItemStack expect = pa.originalArmor(ws), now = pa.equipment(ws);
+                inv.replace(slot, expect, now);
+            }
+        });
+    }
+
+    /** 그 칸의 지금 상태를 행위자에게(ClientboundBlockUpdatePacket(level, pos)). 다른 region 의 칸은 그 region 에서 읽어 보낸다. */
+    private void sendBlockState(Player actor, Region here, org.domi.furnace.server.block.Pos p) {
+        if (p.y() < ChunkColumn.MIN_Y || p.y() > ChunkColumn.MAX_Y) {
+            actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
+            return;
+        }
+        if (here.level().hasChunkAt(p)) {
+            actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
+            return;
+        }
+        // 다른 region 의 칸(합쳐지기 전). 주인이 없는 칸이면 클라도 그 청크가 없다 — 보낼 것 없음.
+        if (world.regionizer().ownerOf(p.x() >> 4, p.z() >> 4) != null) world.runAt(p.x(), p.z(), r -> r.resendBlock(actor, p.x(), p.y(), p.z()));
+    }
+
+    /** 위치 기준 발전 과제(placed_block·item_used_on_block·default_block_use·any_block_use). */
+    private void fireBlockTrigger(Player actor, String criterion, int x, int y, int z, int state, ItemStack stack) {
+        var adv = actor.advancements();
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (adv == null || core == null || core.dataPacks() == null || core.dataPacks().loot() == null) return;
+        adv.trigger(criterion, new org.domi.furnace.server.advancement.Criterion.LocationEvent(
+                core.locationContext(actor, x, y, z, world.blockRegistry().canonicalKeyOf(state), lootStack(stack))));
+    }
+
     /** 거부한 블록 요청 — 클라 예측이 어긋나지 않게 (로드된 청크면) 실제 블록 상태를 되돌려 보내고 ack. */
     private void rejectBlockRequest(Player actor, int seq, int bx, int by, int bz) {
         if (by < ChunkColumn.MIN_Y || by > ChunkColumn.MAX_Y) {
-            actor.send(new BlockChangedAck(seq));
+            ackLater(actor, bx, bz, seq);
             return;
         }
-        RegionPos rp = RegionGrid.regionPos(bx, bz, world.regionSize());
-        world.runOn(rp, () -> {
-            world.regionAt(rp).resendBlock(actor, bx, by, bz);
-            actor.send(new BlockChangedAck(seq));
+        world.runAtRequested(bx, bz, actor.x(), actor.z(), r -> {
+            r.resendBlock(actor, bx, by, bz);
+            r.level().ackBlockChangesUpTo(actor, seq);
         });
+    }
+
+    /** 블록 요청 ack 를 그 칸 region 의 틱 끝으로(바닐라: 연결 틱 첫머리 — 그 틱의 블록 변경 방송 뒤). */
+    private void ackLater(Player actor, int bx, int bz, int seq) {
+        if (seq < 0) return;
+        world.runAtRequested(bx, bz, actor.x(), actor.z(), r -> r.level().ackBlockChangesUpTo(actor, seq));
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         Player p = player;
         if (p != null) {
+            org.domi.furnace.server.ServerCore core = login.core;
+            if (core != null) {
+                // 바닐라 onDisconnect → removePlayerFromWorld: "이름 lost connection: 사유" 로그, 노란 퇴장 알림.
+                Text why = kickReason != null ? kickReason : p.kickReason() != null ? p.kickReason() : Text.translatable("disconnect.disconnected");
+                log.info("{} lost connection: {}", p.name(), why.getString());
+                Text msg = Text.translatable("multiplayer.player.left", p.displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
+                if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerQuitEvent.class)) {
+                    msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg)).quitMessage();
+                }
+                world.playerOffline(p.entityId());   // 방송 대상에서 먼저 뺀다(바닐라: 퇴장자는 자기 퇴장 메시지를 받지 않는다)
+                p.markDisconnected();
+                if (msg != null) core.broadcastSystemMessage(msg, false);
+            }
             savePlayerSnapshot();
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
@@ -677,16 +1714,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void savePlayerSnapshot() {
         Player p = player;
         if (p == null) return;
-        final ItemStack[] snapshot = copySlots();
+        final ItemStack[] snapshot = inv.snapshot();
         final double sx = ix, sy = iy, sz = iz;     // IO 전용 최신 위치(Player.x()는 region drain 전이면 0,0,0)
         final float syaw = iyaw, spitch = ipitch;
         final boolean sg = ig;
+        final var extra = p.vitals().saveData();
+        extra.putInt("SelectedItemSlot", inv.selected());
+        extra.putCompound("recipeBook", p.recipeBook().save());
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
+        final var advancements = p.advancements();
         try {
             world.ioPool().execute(() -> {
                 try {
                     org.domi.furnace.server.entity.PlayerData.saveSequenced(seq, world.worldDir(), p.uuid(),
-                            sx, sy, sz, syaw, spitch, sg, snapshot);
+                            sx, sy, sz, syaw, spitch, sg, snapshot, extra);
+                    if (advancements != null) advancements.save();   // 바닐라 savePlayerData: 플레이어 NBT·통계·발전 과제
                 } catch (RuntimeException e) {
                     log.error("플레이어 저장 실패 {}", p.name(), e);
                 }
@@ -727,7 +1769,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void sendKeepAlive() {
         if (awaitingKeepAlive.get()) {
             log.info("KeepAlive 응답 없음, 종료: {}", playerName);
-            kick(ctx, "Timed out");
+            kick(ctx, Text.translatable("disconnect.timeout"));
             return;
         }
         lastKeepAliveId = System.nanoTime();
@@ -748,7 +1790,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     void kickForShutdown() {
         ChannelHandlerContext c = this.ctx;
         if (c == null) return;
-        c.channel().eventLoop().execute(() -> kick(c, "Server closed"));
+        c.channel().eventLoop().execute(() -> kick(c, Text.translatable("multiplayer.disconnect.server_shutdown")));
     }
 
     /** 바닐라 StringUtil.isValidPlayerName: 길이 1..16, 문자 코드 33..126만. */
@@ -763,6 +1805,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 현재 단계에 맞는 Disconnect 패킷으로 사유를 알리고 연결을 닫는다. 사유를 보낼 수 없는 단계면 그냥 닫는다. */
     void kick(ChannelHandlerContext ctx, String reason) {
+        kick(ctx, Text.text(reason));
+    }
+
+    void kick(ChannelHandlerContext ctx, Text reason) {
+        kickReason = reason;
         Packet pkt = switch (state) {
             case LOGIN -> new LoginDisconnect(reason);
             case CONFIGURATION -> new ConfigDisconnect(reason);
@@ -780,7 +1827,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void kickDuplicateSession(java.util.UUID uuid) {
         for (Player other : world.onlinePlayers()) {
             if (other != player && !other.isDisconnected() && uuid.equals(other.uuid())) {
-                other.kick(new Disconnect("You logged in from another location"));
+                other.kick(new Disconnect(Text.translatable("multiplayer.disconnect.duplicate_login")));
             }
         }
     }
@@ -793,7 +1840,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         if (cause instanceof io.netty.handler.timeout.ReadTimeoutException) {
             log.debug("읽기 타임아웃, 종료: {}", playerName);   // 정상적인 유휴 정리 — 경고 로그 대상 아님
-            kick(ctx, "Timed out");
+            kick(ctx, Text.translatable("disconnect.timeout"));
             return;
         }
         log.warn("커넥션 오류, 종료: {}", cause.toString());
@@ -802,46 +1849,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private static final int MAX_CLICK_CHANGED_SLOTS = 128;
     private static final int MAX_STACK_COUNT = 99;
-    private static final int MAX_COMPONENT_BYTES = 8192;
 
     /** 클라이언트가 보낸 아이템이 서버가 저장·재전송해도 안전한가(빈 스택은 허용). */
     private boolean validStack(ItemStack s) {
         if (s == null || s.isEmpty()) return s == null || s.count() == 0 || s.itemId() == 0;
         if (s.count() < 1 || s.count() > MAX_STACK_COUNT) return false;
         if (!world.isValidItem(s.itemId())) return false;
-        byte[] comp = s.components();
-        return comp == null || comp.length <= MAX_COMPONENT_BYTES;
+        // 바닐라 handleSetCreativeModeSlot: 최대 스택 크기를 넘는 아이템은 조용히 무시
+        if (org.domi.furnace.server.item.ItemContext.installed() && s.count() > org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(s)) return false;
+        return true;
     }
 
-    private ItemStack readSlot(ByteBuf frame) {
-        int count = Types.readVarInt(frame);
-        if (count == 0) return ItemStack.EMPTY;
-        int itemId = Types.readVarInt(frame);
-        byte[] components = null;
-        if (frame.isReadable()) {
-            components = new byte[frame.readableBytes()];
-            frame.readBytes(components);
-        }
-        return new ItemStack(itemId, count, components);
+    /** 아이템 스택(바닐라 ItemStack.OPTIONAL_STREAM_CODEC) — 컴포넌트 패치까지 정확히 읽는다. */
+    private static ItemStack readSlot(ByteBuf frame) {
+        return org.domi.furnace.server.item.ItemStackCodecs.readStack(frame);
     }
 
-    /**
-     * 여러 Slot이 한 프레임에 연속으로 오는 패킷(Container Click)용 정밀 파싱(§2.3) —
-     * numComponentsToAdd/Remove를 읽어 정확한 경계를 찾는다. 둘 다 0(컴포넌트 없음)인 경우만 지원 범위.
-     * 컴포넌트가 실제로 붙은 아이템이면 이후 바이트 경계를 알 수 없어 예외로 신호한다.
-     */
-    private ItemStack readSlotStrict(ByteBuf frame) {
-        int count = Types.readVarInt(frame);
-        if (count == 0) return ItemStack.EMPTY;
-        int itemId = Types.readVarInt(frame);
-        int numAdd = Types.readVarInt(frame);
-        int numRemove = Types.readVarInt(frame);
-        if (numAdd != 0 || numRemove != 0) throw new UnsupportedComponentException();
-        return new ItemStack(itemId, count, null);
+    /** 바닐라처럼 패킷 디코드 실패는 연결을 끊는다(클라이언트 화면: 네트워크 프로토콜 오류). */
+    private void protocolError(ChannelHandlerContext ctx, String packet, RuntimeException e) {
+        log.warn("{} 패킷 디코드 실패, 연결 종료: {}", packet, e.toString());
+        ctx.close();
     }
-
-    /** readSlotStrict가 components 있는 아이템을 만났을 때 신호용(§2.3 범위 밖). */
-    private static final class UnsupportedComponentException extends RuntimeException {}
 
     /** Use Item On이 체스트를 클릭했을 때 화면 열기(§3.2) — 싱글체스트만, 더블체스트 병합 없음. */
     private void openChest(int x, int y, int z) {
@@ -850,9 +1878,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int containerId = nextContainerId;
         nextContainerId = nextContainerId % 100 + 1; // 1..100 순환(vanilla 관례), 0은 자기 인벤 예약
         p.openChest(containerId, x, y, z);
-        RegionPos rp = RegionGrid.regionPos(x, z, world.regionSize());
-        scheduler.region(rp).submit(() -> {
-            ChestBlockEntity chest = world.regionAt(rp).chestAt(x, y, z);
+        world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> {
+            ChestBlockEntity chest = region.chestAt(x, y, z);
+            if (chest != null && chest.lootTable != null && login.core != null) {
+                login.core.unpackLoot(chest, p);   // 바닐라 startOpen → unpackLootTable(player)
+                region.markChestChanged(x, y, z);
+            }
             ItemStack[] out = new ItemStack[ChestBlockEntity.SLOTS];
             if (chest != null) System.arraycopy(chest.items, 0, out, 0, ChestBlockEntity.SLOTS);
             else Arrays.fill(out, ItemStack.EMPTY);
@@ -861,15 +1892,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new OpenScreen(containerId, 2, "Chest")); // menuTypeId=2 GENERIC_9x3(§0.2)
             ItemStack[] contents = new ItemStack[63]; // 0~26 체스트 + 27~53 main + 54~62 hotbar
             System.arraycopy(chestItems, 0, contents, 0, 27);
-            System.arraycopy(slots, 9, contents, 27, 27);
-            System.arraycopy(slots, 36, contents, 54, 9);
-            send(ctx, new ContainerSetContent(containerId, 0, contents, carried));
+            ItemStack[] mine = inv.snapshot();
+            System.arraycopy(mine, 9, contents, 27, 27);
+            System.arraycopy(mine, 36, contents, 54, 9);
+            send(ctx, new ContainerSetContent(containerId, 1, contents, inv.carried()));   // 새 메뉴의 첫 전체 동기화(바닐라 incrementStateId → 1)
         }));
     }
 
-    private ItemStack[] copySlots() {
-        ItemStack[] copy = new ItemStack[slots.length];
-        System.arraycopy(slots, 0, copy, 0, slots.length);
-        return copy;
-    }
 }

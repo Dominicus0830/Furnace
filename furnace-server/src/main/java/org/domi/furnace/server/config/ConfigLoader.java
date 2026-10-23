@@ -37,7 +37,8 @@ public final class ConfigLoader {
         int compression = parseInt(props, "compression-threshold", Config.DEFAULT.compressionThreshold());
         int viewDistance = parseInt(props, "view-distance", Config.DEFAULT.viewDistance());
         int entityViewDistance = parseInt(props, "entity-view-distance", Config.DEFAULT.entityViewDistance());
-        int regionSize = parseInt(props, "region-size", Config.DEFAULT.regionSize());
+        int sectionShift = parseInt(props, "region-section-shift", Config.DEFAULT.regionSectionShift());
+        int mergeRadius = parseInt(props, "region-merge-radius", Config.DEFAULT.regionMergeRadius());
         int regionThreads = parseInt(props, "region-threads", Config.DEFAULT.regionThreads());
         String levelName = props.getProperty("level-name", Config.DEFAULT.levelName());
         long levelSeed = parseSeed(props.getProperty("level-seed", Long.toString(Config.DEFAULT.levelSeed())));
@@ -46,6 +47,7 @@ public final class ConfigLoader {
         int evictionGrace = parseInt(props, "chunk-eviction-grace-ticks", Config.DEFAULT.chunkEvictionGraceTicks());
         int spawnChunkRadius = parseInt(props, "spawn-chunk-radius", Config.DEFAULT.spawnChunkRadius());
         int chunksPerTick = parseInt(props, "chunks-per-tick", Config.DEFAULT.chunksPerTick());
+        String velocitySecret = props.getProperty("velocity-secret", Config.DEFAULT.velocitySecret()).strip();
         // 잘못된 값이 런타임 한참 뒤(0 나눗셈, 빈 경로 등)에 터지지 않게 기동 시점에 거르고 어느 키가 문제인지 알려준다.
         require(tick > 0, "tick-nanos", tick, "1 이상");
         require(port >= 0 && port <= 65535, "port", port, "0~65535");
@@ -62,7 +64,8 @@ public final class ConfigLoader {
             viewDistance = Config.MAX_VIEW_DISTANCE;
         }
         require(entityViewDistance >= 1, "entity-view-distance", entityViewDistance, "1 이상");
-        require(regionSize >= 1, "region-size", regionSize, "1 이상");
+        require(sectionShift >= 1 && sectionShift <= 8, "region-section-shift", sectionShift, "1~8(구역 = 2^값 청크)");
+        require(mergeRadius >= 1, "region-merge-radius", mergeRadius, "1 이상(이웃 구역끼리는 늘 합쳐야 한다)");
         require(regionThreads >= 1, "region-threads", regionThreads, "1 이상");
         require(!levelName.isBlank(), "level-name", 0, "비어 있지 않은 이름(빈 값은 작업 디렉터리를 월드로 쓰게 된다)");
         require(ioThreads >= 1, "io-threads", ioThreads, "1 이상");
@@ -71,8 +74,20 @@ public final class ConfigLoader {
         require(spawnChunkRadius >= 0, "spawn-chunk-radius", spawnChunkRadius, "0 이상");
         require(chunksPerTick >= 1, "chunks-per-tick", chunksPerTick, "1 이상");
         return new Config(name, tick, port, compression, viewDistance, entityViewDistance,
-                regionSize, regionThreads, levelName, levelSeed, ioThreads, autosaveTicks, evictionGrace,
-                spawnChunkRadius, chunksPerTick);
+                sectionShift, mergeRadius, regionThreads, levelName, levelSeed, ioThreads, autosaveTicks, evictionGrace,
+                spawnChunkRadius, chunksPerTick, velocitySecret);
+    }
+
+    /** 파일에 있지만 server.properties 가 정해서 무시되는 키들(기동 시 경고용). */
+    public static java.util.List<String> ignoredVanillaKeys(Path path) {
+        if (!Files.exists(path)) return java.util.List.of();
+        Properties props = new Properties();
+        try (InputStream in = Files.newInputStream(path)) {
+            props.load(in);
+        } catch (IOException e) {
+            return java.util.List.of();
+        }
+        return Config.VANILLA_KEYS.stream().filter(props::containsKey).sorted().toList();
     }
 
     private static int parseInt(Properties props, String key, int def) {

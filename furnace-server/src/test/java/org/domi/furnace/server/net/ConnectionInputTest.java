@@ -23,15 +23,21 @@ import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.ChunkSection;
-import org.domi.furnace.server.world.RegionGrid;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class ConnectionInputTest {
+
+    @BeforeAll
+    static void items() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    }
 
     @TempDir Path tmp;
     private FurnaceSchedulerImpl sched;
@@ -41,6 +47,7 @@ class ConnectionInputTest {
     private Player p;
     private List<int[]> joinOut;
     private int autosaveTicksForJoin = Integer.MAX_VALUE;
+    private java.util.concurrent.ExecutorService io;
 
     private static ByteBuf frame(int id, Consumer<ByteBuf> body) {
         ByteBuf b = Unpooled.buffer();
@@ -60,7 +67,7 @@ class ConnectionInputTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
-                reg.directBits(), 7, Executors.newSingleThreadExecutor());
+                reg.directBits(), 7, io = Executors.newSingleThreadExecutor());
         world.configurePersistence(autosaveTicksForJoin, 100);
         world.worldDir(tmp);                 // 저장 위치/인벤토리를 실제 world/ 가 아닌 임시 폴더에서 읽는다
         world.defaultSpawn(spawn);
@@ -82,15 +89,20 @@ class ConnectionInputTest {
         ch.runPendingTasks();
         assertEquals(-1, (int) field("pendingTeleportId"), "스폰 게이트가 풀려야 한다");
         p = (Player) field("player");
-        RegionPos sp = RegionGrid.regionPos(spawn.playerX(), spawn.playerZ(), 16);
+        RegionPos sp = new RegionPos(Math.floorDiv((int) Math.floor(spawn.playerX()), 16), Math.floorDiv((int) Math.floor(spawn.playerZ()), 16));
         sched.region(sp).execute(() -> { }).get();
         p.drainPending();
         joinOut = drainOutbound();   // 접속 중 나간 패킷(검증용으로 보관)
     }
 
     @AfterEach
-    void close() {
+    void close() throws InterruptedException {
         if (sched != null) sched.close();
+        // 연결 종료 시 비동기 playerdata 저장이 @TempDir 정리와 겹치지 않도록 IO 실행기를 비운다.
+        if (io != null) {
+            io.shutdown();
+            io.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+        }
     }
 
     private List<int[]> drainOutbound() {
@@ -233,7 +245,12 @@ class ConnectionInputTest {
         Types.writeVarInt(b, 0);
     }
 
-    private ItemStack[] slotsOf() throws Exception { return (ItemStack[]) field("slots"); }
+    private ItemStack[] slotsOf() throws Exception {
+        Object inv = field("inv");
+        java.lang.reflect.Field f = inv.getClass().getDeclaredField("slots");
+        f.setAccessible(true);
+        return (ItemStack[]) f.get(inv);
+    }
 
     /** 비정상 아이템(음수 개수·알 수 없는 id·과대 개수)은 인벤토리/상자에 들어가면 안 된다(다른 플레이어 클라이언트까지 깨뜨림). */
     @Test
@@ -241,16 +258,16 @@ class ConnectionInputTest {
         join(new SpawnPoint(0, -60, 0, 0f));
         world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
                 org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
-        // 0x32: 개수 200 / 알 수 없는 id
-        ch.writeInbound(frame(0x32, b -> { b.writeShort(36); Types.writeVarInt(b, 200); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
-        ch.writeInbound(frame(0x32, b -> { b.writeShort(37); Types.writeVarInt(b, 1); Types.writeVarInt(b, 99999); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
-        assertTrue(slotsOf()[36].isEmpty(), "개수 200은 거부돼야 한다");
-        assertTrue(slotsOf()[37].isEmpty(), "알 수 없는 아이템 id는 거부돼야 한다");
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        // 0x32: 돌 65개 — 최대 스택(64)을 넘으면 바닐라처럼 조용히 무시
+        ch.writeInbound(frame(0x32, b -> { b.writeShort(36); Types.writeVarInt(b, 65); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        assertTrue(slotsOf()[36].isEmpty(), "최대 스택을 넘는 개수는 거부돼야 한다");
         // 정상 아이템은 그대로 들어간다
         ch.writeInbound(frame(0x32, b -> { b.writeShort(38); Types.writeVarInt(b, 3); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
         assertEquals(3, slotsOf()[38].count());
 
-        // 0x0E: 상자를 연 상태에서 음수 개수 변경은 폐기
+        // 0x0E: 상자를 연 상태에서 음수 개수(= 빈 스택으로 읽힘)는 인벤토리에 아무것도 만들지 않는다
         p.openChest(7, 1, -60, 1);
         ch.writeInbound(frame(0x0E, b -> {
             Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
@@ -259,18 +276,66 @@ class ConnectionInputTest {
             writeStrictSlot(b, 0, 0, 0);
         }));
         assertTrue(slotsOf()[12].isEmpty(), "음수 개수 클릭이 인벤토리에 반영됐다");
-        assertTrue(ch.isActive(), "비정상 아이템 하나로 연결이 끊기면 안 된다(패킷만 폐기)");
+        assertTrue(ch.isActive());
+
+        // 알 수 없는 아이템 id 는 바닐라처럼 디코드 실패 → 연결 종료
+        ch.writeInbound(frame(0x32, b -> { b.writeShort(37); Types.writeVarInt(b, 1); Types.writeVarInt(b, 99999); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        assertTrue(slotsOf()[37].isEmpty(), "알 수 없는 아이템 id는 거부돼야 한다");
+        assertFalse(ch.isActive(), "디코드할 수 없는 아이템은 바닐라처럼 연결을 끊는다");
     }
 
-    /** 컴포넌트 달린 아이템을 커서로 집는 클릭은 연결을 끊지 말고 패킷만 폐기해야 한다. */
+    /** 인벤토리 창(0) 클릭: 재배치는 반영하고, 아이템 총량이 늘어나는(복제) 보고는 거부하고 되돌린다. */
     @Test
-    void containerClick_withComponentCarried_doesNotDisconnect() throws Exception {
+    void inventoryClick_appliesRearrangeButRejectsCreation() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
+        world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        slotsOf()[36] = new ItemStack(1, 10, null);
+        // 핫바 0(창 36)의 10개를 집는다: 36 → 비움, 커서 10
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(36); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(36); writeStrictSlot(b, 0, 0, 0);
+            writeStrictSlot(b, 10, 1, 0);
+        }));
+        assertTrue(slotsOf()[36].isEmpty(), "집은 칸은 비어야 한다");
+        // 창 20 에 내려놓기
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(20); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(20); writeStrictSlot(b, 10, 1, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        assertEquals(10, slotsOf()[20].count(), "재배치는 반영");
+        drainOutbound();
+        // 복제 시도: 20 은 그대로 두고 21 에 10개를 더 만든다
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(21); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(21); writeStrictSlot(b, 10, 1, 0);
+            writeStrictSlot(b, 0, 0, 0);
+        }));
+        assertTrue(slotsOf()[21].isEmpty(), "총량이 늘어나는 클릭은 거부");
+        assertEquals(1, count(drainOutbound(), 0x13), "거부하면 서버 인벤토리로 되돌린다");
+    }
+
+    /** 컴포넌트 달린 아이템도 정확히 읽어 그대로 담는다(크리에이티브 슬롯·클릭 모두). */
+    @Test
+    void componentItems_areDecodedAndKept() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ch.writeInbound(frame(0x32, b -> {
+            b.writeShort(36); Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);   // custom_model_data = 7
+        }));
+        assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 7)), slotsOf()[36].patch());
         p.openChest(7, 1, -60, 1);
         ch.writeInbound(frame(0x0E, b -> {
             Types.writeVarInt(b, 7); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);   // 변경 슬롯 0개
-            writeStrictSlot(b, 1, 1, 1);                          // carried: 컴포넌트 있음
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);   // carried: 컴포넌트 있음
+            Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);
         }));
         assertTrue(ch.isActive(), "컴포넌트 아이템 하나로 접속이 끊겼다");
     }
@@ -386,7 +451,7 @@ class ConnectionInputTest {
             Types.writeVarInt(b, 0);          // carried 비어있음
         }));
         List<int[]> out = drainOutbound();
-        RegionPos frp = RegionGrid.regionPos(1000, 1000, 16);
+        RegionPos frp = new RegionPos(1000 >> 4, 1000 >> 4);
         boolean[] loaded = new boolean[1];
         sched.region(frp).execute(() -> loaded[0] = world.regionAt(frp).chunkLoaded(far)).get();
         assertFalse(loaded[0], "미로드 체스트 청크를 만들면 안 된다");
@@ -427,10 +492,13 @@ class ConnectionInputTest {
         }
         for (int i = 0; i < 20; i++) { ch.runPendingTasks(); Thread.sleep(25); }
         for (int[] b : bad) {
-            RegionPos rp = RegionGrid.regionPos(b[0], b[2], 16);
+            RegionPos rp = new RegionPos(b[0] >> 4, b[2] >> 4);
             assertFalse(loaded(world, rp, b[0], b[2]), "거부된 요청이 청크를 생성했다: " + java.util.Arrays.toString(b));
         }
-        assertEquals(2 * all.length, count(drainOutbound(), BlockChangedAck.ID), "거부해도 예측 정리용 ack는 보내야 한다");
+        // 바닐라: ack 는 틱 끝에 한 번(그 틱에 받은 가장 큰 sequence) — 요청마다가 아니다. region 을 한 틱 돌려 내보낸다.
+        world.tickOnce().get();
+        for (int i = 0; i < 5; i++) { ch.runPendingTasks(); Thread.sleep(10); }
+        assertTrue(count(drainOutbound(), BlockChangedAck.ID) >= 1, "거부해도 예측 정리용 ack는 보내야 한다");
     }
 
     @Test

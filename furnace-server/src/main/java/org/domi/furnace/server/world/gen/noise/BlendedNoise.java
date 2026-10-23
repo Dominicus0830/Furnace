@@ -25,7 +25,7 @@ public final class BlendedNoise {
     private final double yMultiplier;
     private final double maxValue;
 
-    public BlendedNoise(XoroshiroRandomSource random,
+    public BlendedNoise(NoiseRandom random,
                         double xzScale, double yScale,
                         double xzFactor, double yFactor,
                         double smearScaleMultiplier) {

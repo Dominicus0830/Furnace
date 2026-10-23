@@ -3,7 +3,7 @@ package org.domi.furnace.server.world.gen.feature;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 
-public final class FeatureWorldView {
+public final class FeatureWorldView implements org.domi.furnace.server.world.block.ShapeLevel {
     private final ChunkColumn col;
     private final ChunkColumn[] gridCols;
     private final int cx;
@@ -12,12 +12,18 @@ public final class FeatureWorldView {
     private final int[][] biomeIdsGrid;
     private final boolean writeCenterOnly;
     private final long worldSeed;
+    /** 차원 높이(중심 청크 열 기준) — 오버월드 -64..319, 네더·엔드 0..255. */
+    private final int minY, maxY;
     // 조회(read) 범위 — oracle의 OracleWorldGenLevel.getChunk와 동일하게, 쓰기 범위(origin ±1)보다 넓게
     // 파이프라인 grid center 기준 ±gridReadRadius까지 볼 수 있어야 한다(fancy oak makeLimb의 isFree 판정 등).
     private final int gridCenterX;
     private final int gridCenterZ;
     private final int gridReadRadius;
     private int debugSetBlockCalls;
+    /** LevelHeightAccessor.getMinBuildHeight(). */
+    public int minBuildHeight() { return minY; }
+    /** LevelHeightAccessor.getMaxBuildHeight() (배타적 상한). */
+    public int maxBuildHeight() { return maxY + 1; }
 
     public FeatureWorldView(ChunkColumn col, int cx, int cz, int[] biomeIds) {
         this(col, cx, cz, biomeIds, 0L);
@@ -32,6 +38,8 @@ public final class FeatureWorldView {
         this.biomeIdsGrid = null;
         this.writeCenterOnly = false;
         this.worldSeed = worldSeed;
+        this.minY = col != null ? col.minY() : ChunkColumn.MIN_Y;
+        this.maxY = col != null ? col.maxY() : ChunkColumn.MAX_Y;
         this.gridCenterX = cx;
         this.gridCenterZ = cz;
         this.gridReadRadius = 1;
@@ -69,6 +77,10 @@ public final class FeatureWorldView {
         this.biomeIdsGrid = biomeIdsGrid;
         this.writeCenterOnly = writeCenterOnly;
         this.worldSeed = worldSeed;
+        ChunkColumn ref = null;
+        for (ChunkColumn c : grid) if (c != null) { ref = c; break; }
+        this.minY = ref != null ? ref.minY() : ChunkColumn.MIN_Y;
+        this.maxY = ref != null ? ref.maxY() : ChunkColumn.MAX_Y;
         this.gridCenterX = gridCenterX;
         this.gridCenterZ = gridCenterZ;
         this.gridReadRadius = gridReadRadius;
@@ -80,7 +92,123 @@ public final class FeatureWorldView {
         return col.getBlock(worldX - cx * 16, worldY, worldZ - cz * 16);
     }
 
+    // 디버그: -Dfurnace.watch=x,y,z 를 주면 해당 칸에 쓰는 setBlock을 RandomTrace로 남긴다(호출 스택 1줄 포함).
+    /** 디버그: 마지막으로 배치를 시작한 placed feature의 origin(watch 출력용). */
+    static volatile String debugOrigin = "";
+    private static final int[] WATCH = parseWatch(System.getProperty("furnace.watch"));
+    static final boolean WATCHING = WATCH != null;
+
+    private static int[] parseWatch(String v) {
+        if (v == null) return null;
+        String[] p = v.split(",");
+        return new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()), Integer.parseInt(p[2].trim())};
+    }
+
+    /** vanilla WorldGenLevel.setBlock의 성공 여부 — 쓰기 범위·월드 높이 안이면 true. */
+    public boolean trySetBlock(int worldX, int worldY, int worldZ, int stateId) {
+        if (!inWorldY(worldY)) return false;
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (writeCenterOnly && (nx != cx || nz != cz)) return false;
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return false;
+        } else if (!inCenterChunk(worldX, worldZ)) {
+            return false;
+        }
+        setBlock(worldX, worldY, worldZ, stateId);
+        return true;
+    }
+
+    /** 생성 중 블록 엔티티 NBT(상자 loot table 등)를 해당 칸의 청크에 남긴다. */
+    public void putGeneratedBlockEntity(int worldX, int worldY, int worldZ, org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+        ChunkColumn target;
+        int lx, lz;
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            target = gridCols[gridIndex(nx, nz)];
+            lx = worldX - nx * 16;
+            lz = worldZ - nz * 16;
+        } else {
+            if (!inCenterChunk(worldX, worldZ)) return;
+            target = col;
+            lx = worldX - cx * 16;
+            lz = worldZ - cz * 16;
+        }
+        target.putGeneratedBlockEntity(lx, worldY, lz, nbt);
+    }
+
+    /** 엔티티 스폰 요청(구조물 마커 등) — 위치가 속한 청크에 NBT 로 남긴다. 월드 좌표 정확 위치. */
+    public org.domi.furnace.server.net.io.nbt.NbtCompound addEntity(String id, double x, double y, double z, float yaw, float pitch) {
+        int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
+        ChunkColumn target;
+        if (gridCols != null) {
+            int nx = Math.floorDiv(bx, 16);
+            int nz = Math.floorDiv(bz, 16);
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            target = gridCols[gridIndex(nx, nz)];
+        } else {
+            if (!inCenterChunk(bx, bz)) return new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            target = col;
+        }
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        nbt.putString("id", id);
+        org.domi.furnace.server.net.io.nbt.NbtList pos = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 6);
+        pos.add(x); pos.add(y); pos.add(z);
+        nbt.put("Pos", pos);
+        org.domi.furnace.server.net.io.nbt.NbtList rot = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 5);
+        rot.add(yaw); rot.add(pitch);
+        nbt.put("Rotation", rot);
+        target.addGeneratedEntity(nbt);
+        return nbt;
+    }
+
+    /** 완성된 엔티티 NBT(Pos 포함)를 그 위치의 청크에 남긴다(구조물 템플릿 엔티티). */
+    public void addEntityNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt, double x, double z) {
+        int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
+        int nx = Math.floorDiv(bx, 16), nz = Math.floorDiv(bz, 16);
+        if (gridCols != null) {
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            gridCols[gridIndex(nx, nz)].addGeneratedEntity(nbt);
+        } else if (inCenterChunk(bx, bz)) {
+            col.addGeneratedEntity(nbt);
+        }
+    }
+
+    /** 바닐라 level.getChunk(pos).markPosForPostprocessing(pos). */
+    public void markPosForPostprocessing(int worldX, int worldY, int worldZ) {
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
+            gridCols[gridIndex(nx, nz)].markPosForPostprocessing(worldX - nx * 16, worldY, worldZ - nz * 16);
+            return;
+        }
+        if (!inCenterChunk(worldX, worldZ)) return;
+        col.markPosForPostprocessing(worldX - cx * 16, worldY, worldZ - cz * 16);
+    }
+
+    /** putGeneratedBlockEntity로 남겨 둔 NBT 조회(없으면 null). */
+    public org.domi.furnace.server.net.io.nbt.NbtCompound generatedBlockEntity(int worldX, int worldY, int worldZ) {
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return null;
+            return gridCols[gridIndex(nx, nz)].generatedBlockEntity(worldX - nx * 16, worldY, worldZ - nz * 16);
+        }
+        if (!inCenterChunk(worldX, worldZ)) return null;
+        return col.generatedBlockEntity(worldX - cx * 16, worldY, worldZ - cz * 16);
+    }
+
+    String debugCenter() { return cx + "," + cz; }
+
     public void setBlock(int worldX, int worldY, int worldZ, int stateId) {
+        if (WATCH != null && WATCH[0] == worldX && WATCH[1] == worldY && WATCH[2] == worldZ) {
+            StackTraceElement[] st = new Throwable().getStackTrace();
+            System.out.println("FURNACE_WATCH set " + worldX + " " + worldY + " " + worldZ + " state=" + stateId + " viewCenter=" + cx + "," + cz
+                + " origin=" + debugOrigin + " by " + (st.length > 1 ? st[1] : "?") + " <- " + (st.length > 2 ? st[2] : "?") + " <- " + (st.length > 3 ? st[3] : "?"));
+        }
         if (gridCols != null) {
             setGridBlock(worldX, worldY, worldZ, stateId);
             return;
@@ -92,7 +220,7 @@ public final class FeatureWorldView {
 
     public int getSurfaceY(int worldX, int worldZ) {
         if (gridCols != null) return getGridSurfaceY(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.surfaceBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
@@ -111,7 +239,7 @@ public final class FeatureWorldView {
     /** WORLD_SURFACE_WG 전용 — carve 완료 이후 값이 얼어붙는다(getSurfaceY의 MOTION_BLOCKING류와 대응). */
     public int getWorldSurfaceWgY(int worldX, int worldZ) {
         if (gridCols != null) return getGridWorldSurfaceWgY(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.worldSurfaceWgBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
@@ -120,24 +248,36 @@ public final class FeatureWorldView {
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+            if (!inReadRange(nx, nz)) return minY - 1;
             ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-            if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+            if (neighbor == null) return minY - 1;
             return neighbor.motionBlockingBlockY(worldX - nx * 16, worldZ - nz * 16);
         }
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.motionBlockingBlockY(worldX - cx * 16, worldZ - cz * 16);
+    }
+
+    /** MOTION_BLOCKING_NO_LEAVES 라이브 최상단 블록 y. 없으면 MIN_Y-1. */
+    public int getMotionBlockingNoLeavesY(int worldX, int worldZ) {
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return minY - 1;
+            return gridCols[gridIndex(nx, nz)].motionBlockingNoLeavesBlockY(worldX - nx * 16, worldZ - nz * 16);
+        }
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
+        return col.motionBlockingNoLeavesBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
     public int getOceanFloorY(int worldX, int worldZ) {
         if (gridCols != null) return getGridOceanFloorY(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y - 1;
+        if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.oceanFloorBlockY(worldX - cx * 16, worldZ - cz * 16);
     }
 
     public int getWgOceanFloorHeight(int worldX, int worldZ) {
         if (gridCols != null) return getGridWgOceanFloorHeight(worldX, worldZ);
-        if (!inCenterChunk(worldX, worldZ)) return ChunkColumn.MIN_Y;
+        if (!inCenterChunk(worldX, worldZ)) return minY;
         return col.wgOceanFloorHeight(worldX - cx * 16, worldZ - cz * 16);
     }
 
@@ -148,16 +288,16 @@ public final class FeatureWorldView {
         // vanilla ChunkAccess.getNoiseBiome — 월드 높이 밖 quart Y는 [min,max]로 clamp해 최상/최하단
         // quart의 biome을 돌려준다(0 반환이 아님). ore_emerald(트라페조이드 상한 y=480)처럼 월드 밖 후보의
         // biome 게이트 판정이 vanilla와 일치해야 한다(mega-tree-placers task에서 수정).
-        int qy = clampQuartY(Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4));
+        int qy = clampQuartY(Math.floorDiv(worldY - minY, 4));
         if (qx < 0 || qx >= 4 || qz < 0 || qz >= 4) {
             return 0;
         }
         return biomeIds[(qy * 4 + qz) * 4 + qx];
     }
 
-    private static int clampQuartY(int qy) {
+    private int clampQuartY(int qy) {
         if (qy < 0) return 0;
-        return Math.min(qy, ChunkColumn.SECTION_COUNT * 4 - 1);
+        return Math.min(qy, ((maxY - minY + 1) / 4 - 1));
     }
 
     /**
@@ -258,6 +398,12 @@ public final class FeatureWorldView {
         }
     }
 
+    /** 차원 최저 블록 y(WorldGenLevel.getMinBuildHeight). */
+    public int minY() { return minY; }
+
+    /** 차원 최고 블록 y(포함, getMaxBuildHeight-1). */
+    public int maxY() { return maxY; }
+
     public long worldSeed() {
         return worldSeed;
     }
@@ -299,41 +445,41 @@ public final class FeatureWorldView {
     private int getGridSurfaceY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return minY - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+        if (neighbor == null) return minY - 1;
         return neighbor.surfaceBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridWorldSurfaceWgY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return minY - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+        if (neighbor == null) return minY - 1;
         return neighbor.worldSurfaceWgBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridOceanFloorY(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y - 1;
+        if (!inReadRange(nx, nz)) return minY - 1;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y - 1;
+        if (neighbor == null) return minY - 1;
         return neighbor.oceanFloorBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridWgOceanFloorHeight(int worldX, int worldZ) {
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
-        if (!inReadRange(nx, nz)) return ChunkColumn.MIN_Y;
+        if (!inReadRange(nx, nz)) return minY;
         ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
-        if (neighbor == null) return ChunkColumn.MIN_Y;
+        if (neighbor == null) return minY;
         return neighbor.wgOceanFloorHeight(worldX - nx * 16, worldZ - nz * 16);
     }
 
     private int getGridBiomeId(int worldX, int worldY, int worldZ) {
-        int qy = clampQuartY(Math.floorDiv(worldY - ChunkColumn.MIN_Y, 4));
+        int qy = clampQuartY(Math.floorDiv(worldY - minY, 4));
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return 0;
@@ -360,7 +506,7 @@ public final class FeatureWorldView {
         return (chunkZ - gridCenterZ + gridReadRadius) * size + (chunkX - gridCenterX + gridReadRadius);
     }
 
-    private static boolean inWorldY(int worldY) {
-        return worldY >= ChunkColumn.MIN_Y && worldY < ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16;
+    private boolean inWorldY(int worldY) {
+        return worldY >= minY && worldY < (maxY + 1);
     }
 }

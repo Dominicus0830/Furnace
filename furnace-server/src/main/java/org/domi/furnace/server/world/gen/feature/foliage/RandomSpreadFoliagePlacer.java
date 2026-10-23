@@ -38,7 +38,7 @@ public final class RandomSpreadFoliagePlacer extends FoliagePlacer {
             int dz = random.nextInt(foliageRadius) - random.nextInt(foliageRadius);
             BlockPos leafPos = new BlockPos(pos.x() + dx, pos.y() + dy, pos.z() + dz);
             if (TreeFeature.validTreePos(view, leafPos, config)) {
-                view.setBlock(leafPos.x(), leafPos.y(), leafPos.z(), config.leafStateId(view.getBlock(leafPos.x(), leafPos.y(), leafPos.z()), 7));
+                view.setBlock(leafPos.x(), leafPos.y(), leafPos.z(), config.leafStateId(random, view.getBlock(leafPos.x(), leafPos.y(), leafPos.z()), 7));
                 leaves.add(leafPos);
             }
         }

@@ -1,0 +1,66 @@
+// 바닐라 damage_type 레지스트리 중 서버가 지금 쓰는 항목(data/minecraft/damage_type/*.json 과 damage_type 태그 그대로).
+package org.domi.furnace.server.entity.damage;
+
+import org.domi.furnace.server.net.registry.RegistrySet;
+
+public enum DamageType {
+    // key, message_id, exhaustion, fall_variants, bypasses_armor, bypasses_invulnerability, is_fall, no_impact, no_knockback, is_drowning
+    GENERIC("generic", "generic", 0.0f, false, true, false, false, false, true, false),
+    FALL("fall", "fall", 0.0f, true, true, false, true, false, true, false),
+    OUT_OF_WORLD("out_of_world", "outOfWorld", 0.0f, false, true, true, false, false, true, false),
+    GENERIC_KILL("generic_kill", "genericKill", 0.0f, false, true, true, false, false, true, false),
+    STARVE("starve", "starve", 0.0f, false, true, false, false, false, true, false),
+    DROWN("drown", "drown", 0.0f, false, true, false, false, true, true, true),
+    OUTSIDE_BORDER("outside_border", "outsideBorder", 0.0f, false, true, false, false, false, true, false),
+    IN_WALL("in_wall", "inWall", 0.0f, false, true, false, false, false, true, false);
+
+    private final String key;
+    private final String msgId;
+    private final float exhaustion;
+    private final boolean fallVariants;
+    private final boolean bypassesArmor;
+    private final boolean bypassesInvulnerability;
+    private final boolean isFall;
+    private final boolean noImpact;
+    private final boolean noKnockback;
+    private final boolean isDrowning;
+    private volatile int registryId = -1;
+
+    DamageType(String key, String msgId, float exhaustion, boolean fallVariants, boolean bypassesArmor,
+               boolean bypassesInvulnerability, boolean isFall, boolean noImpact, boolean noKnockback, boolean isDrowning) {
+        this.key = key;
+        this.msgId = msgId;
+        this.exhaustion = exhaustion;
+        this.fallVariants = fallVariants;
+        this.bypassesArmor = bypassesArmor;
+        this.bypassesInvulnerability = bypassesInvulnerability;
+        this.isFall = isFall;
+        this.noImpact = noImpact;
+        this.noKnockback = noKnockback;
+        this.isDrowning = isDrowning;
+    }
+
+    private static final class Registry {
+        static final RegistrySet SET = RegistrySet.load("registries/1.21.1.txt");
+    }
+
+    public String key() { return "minecraft:" + key; }
+    public String msgId() { return msgId; }
+    public float exhaustion() { return exhaustion; }
+    public boolean fallVariants() { return fallVariants; }
+    public boolean bypassesArmor() { return bypassesArmor; }
+    public boolean bypassesInvulnerability() { return bypassesInvulnerability; }
+    /** 태그 always_most_significant_fall(out_of_world). */
+    public boolean alwaysMostSignificantFall() { return this == OUT_OF_WORLD; }
+    public boolean isFall() { return isFall; }
+    public boolean noImpact() { return noImpact; }
+    public boolean noKnockback() { return noKnockback; }
+    public boolean isDrowning() { return isDrowning; }
+
+    /** 설정 단계에서 보낸 damage_type 레지스트리 안의 순번(damage_event 패킷용). */
+    public int registryId() {
+        int id = registryId;
+        if (id < 0) registryId = id = Math.max(0, Registry.SET.indexOf("minecraft:damage_type", key()));
+        return id;
+    }
+}

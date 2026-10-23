@@ -25,7 +25,7 @@ class RegionTickTest {
         World w = world(sched);
         Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
         p.publishPosition(0, -60, 0, 0, 0, true);
-        RegionPos rp = p.regionPos(16);
+        RegionPos rp = new RegionPos(0, 0);   // 청크 좌표
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
         sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
         assertEquals(9, p.loadedChunks().size()); // viewDistance 1 → 3x3

@@ -50,12 +50,12 @@ class ChunkEvictionTest {
         io.shutdown();
         assertTrue(io.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS), "IO 풀 미종료");
 
-        assertFalse(has[0], "구독 없고 미편집 → 퇴출");
+        assertFalse(has[0], "구독 없는 생성 청크 → 저장 후 퇴출");
         assertFalse(has[1], "구독 없는 편집 청크도 저장 후 퇴출");
         assertTrue(has[2], "구독 중인 청크는 보관");
 
         RegionFileStore check = new RegionFileStore(dir);
-        assertNull(check.readChunk(0, 0), "미편집 청크는 디스크에 저장되지 않는다(재접속 시 재생성)");
+        assertNotNull(check.readChunk(0, 0), "새로 생성된 청크도 바닐라처럼 퇴출 전에 저장된다");
         assertNotNull(check.readChunk(1, 0), "편집된 청크는 퇴출 전에 저장된다");
         AnvilWorldSource reloaded = new AnvilWorldSource(dir, check, new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));
         assertEquals(ChunkSection.AIR, reloaded.generate(1, 0).getBlock(0, -61, 0), "저장된 편집이 재로딩에서 보존돼야 한다");

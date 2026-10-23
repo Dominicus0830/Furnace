@@ -40,23 +40,15 @@ class PlacementModifierTest {
     }
 
     @Test
-    void absoluteYOrDefault_clampsAnchorsToWorldBounds() {
-        assertEquals(ChunkColumn.MIN_Y,
-            PlacementModifier.absoluteYOrDefault(JsonParser.parseString("{\"above_bottom\":-80}"), 0));
-        assertEquals(ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1,
-            PlacementModifier.absoluteYOrDefault(JsonParser.parseString("{\"below_top\":-10}"), 0));
-        assertEquals(ChunkColumn.MIN_Y,
-            PlacementModifier.absoluteYOrDefault(JsonParser.parseString("-999"), 0));
-    }
-
-    @Test
     void worldgenYOrDefault_keepsOutOfBoundsAnchorsForSampling() {
         assertEquals(ChunkColumn.MIN_Y - 80,
-            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("{\"above_bottom\":-80}"), 0));
+            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("{\"above_bottom\":-80}"), 0, -64, 384));
         assertEquals(ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1 + 10,
-            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("{\"below_top\":-10}"), 0));
+            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("{\"below_top\":-10}"), 0, -64, 384));
         assertEquals(-999,
-            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("-999"), 0));
+            PlacementModifier.worldgenYOrDefault(JsonParser.parseString("-999"), 0, -64, 384));
+        // 네더: WorldGenerationContext(minGenY 0, genDepth 128) — below_top 10 = 117
+        assertEquals(117, PlacementModifier.worldgenYOrDefault(JsonParser.parseString("{\"below_top\":10}"), 0, 0, 128));
     }
 
     @Test

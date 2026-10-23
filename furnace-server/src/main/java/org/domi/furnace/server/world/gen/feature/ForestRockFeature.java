@@ -19,7 +19,7 @@ public final class ForestRockFeature implements ConfiguredFeature {
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
         // vanilla: 아래 칸이 dirt/base-stone일 때까지 하강(공기·기타 블록은 통과), minY+3 이하로 내려가면 실패.
-        int minY = ChunkColumn.MIN_Y;
+        int minY = view.minY();
         while (y > minY + 3) {
             int below = view.getBlock(x, y - 1, z);
             if (!TreeFeature.isAir(below) && (dirtStates.contains(below) || stoneStates.contains(below))) {

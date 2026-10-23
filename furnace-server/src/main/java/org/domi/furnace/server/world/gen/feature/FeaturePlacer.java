@@ -1,5 +1,7 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -9,44 +11,35 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.carver.XoroshiroWorldgenRandom;
 import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 import org.domi.furnace.server.world.gen.structure.BoundingBox;
-import org.domi.furnace.server.world.gen.structure.StructurePiece;
+import org.domi.furnace.server.world.gen.structure.StructureRegistry;
 import org.domi.furnace.server.world.gen.structure.StructureStart;
 
 public final class FeaturePlacer {
 
-    /** vanilla GenerationStep.Decoration.SURFACE_STRUCTURES.ordinal() — 구조물 postProcess가 이 step 앞에서 실행된다(F1). */
-    private static final int STRUCTURE_STEP = 4;
 
-    /**
-     * desert_pyramid의 구조물 시드 인덱스 i1 (F1). vanilla applyBiomeDecoration은 전체 Structure registry를
-     * step ordinal로 groupingBy(registry stream 순서)한 뒤 그룹 내 순번을 setFeatureSeed(l, i1, step)에 넣는다 —
-     * start 유무와 무관하게 그룹의 모든 구조물이 i1을 소비.
-     * "측정값 22"는 VanillaRegistries.createLookup().listElements() 원순서(datagen lookup)에서 뽑은 것으로,
-     * d3 실측 결과 JVM 실행마다 요동함이 확인됨 (structure_order.txt 5회 중 4회 diff). 실서버 registry 순서
-     * (RegistryDataLoader/MappedRegistry.stream(), 등록 순서 고정)와 같다는 보장도 없었음 — 이중 비결정성.
-     * d3 핀 고정: oracle의 copyRegistry/biomeRegistry/carverRegistry 빌드 시 listElements()를 ResourceLocation
-     * id 사전순으로 정렬 후 등록(OracleMain.sortedElements) → STRUCTURE registry stream 순서가 재실행 간 결정적.
-     * 이 사전순 기준 STEP 4(SURFACE_STRUCTURES) 그룹 내 desert_pyramid 순번 = **1**
-     * (bastion_remnant=0, desert_pyramid=1 — structure_order.txt 실측, oracle 5회 재실행 byte-diff 없음).
-     * 실서버(RegistryDataLoader) 순서와 일치한다는 보장은 없음 — 진짜 실서버 순서 검증은 .mca 자가검증 게이트(스펙 §3) 몫.
-     * 다른 구조물 지원 시(S4+) registry 그룹핑으로 일반화할 것.
-     */
-    private static final int DESERT_PYRAMID_STRUCTURE_INDEX = 1;
 
     private final long seed;
     private final BiomeFeatureData biomeData;
     private final FeatureSorter sorter;
     private final BlockRegistry blocks;
     /** 바닐라 RandomState.getOrCreateRandomFactory("minecraft:worldgen_region_random") 미러 — WorldGenLevel.getRandom()의 원천. */
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory regionRandomFactory;
+    private final PositionalRandom regionRandomFactory;
+
+    private volatile org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine;
+
+    public void setStructureEngine(org.domi.furnace.server.world.gen.structure.StructureEngine e) { this.structureEngine = e; }
 
     public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter, BlockRegistry blocks) {
+        this(seed, biomeData, sorter, blocks, new XoroshiroRandomSource(seed).forkPositional());
+    }
+
+    /** @param randomState RandomState.random — WorldGenRegion.getRandom 은 그 위의 "worldgen_region_random" 팩토리(legacy 차원은 LCG). */
+    public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter, BlockRegistry blocks, PositionalRandom randomState) {
         this.seed = seed;
         this.biomeData = biomeData;
         this.sorter = sorter;
         this.blocks = blocks;
-        this.regionRandomFactory = new XoroshiroRandomSource(seed).forkPositional()
-            .fromHashOf("minecraft:worldgen_region_random").forkPositional();
+        this.regionRandomFactory = randomState.fromHashOf("minecraft:worldgen_region_random").forkPositional();
     }
 
     // 진단용 플래그 — 디버깅 완료 후 제거
@@ -67,7 +60,7 @@ public final class FeaturePlacer {
         long decorationSeed = random.setDecorationSeed(seed, cx * 16, cz * 16);
         WorldgenRandom featureRandom = new XoroshiroWorldgenRandom();
         // 바닐라 WorldGenRegion.getRandom() — 이 청크(cx,cz) 원점에 fork, 구조물+feature 전체가 순차 공유 소비.
-        XoroshiroRandomSource regionRandom = regionRandomFactory.at(cx * 16, 0, cz * 16);
+        NoiseRandom regionRandom = regionRandomFactory.at(cx * 16, 0, cz * 16);
         BoundingBox writableBox = new BoundingBox(
             cx * 16, Integer.MIN_VALUE / 2, cz * 16, cx * 16 + 15, Integer.MAX_VALUE / 2, cz * 16 + 15);
 
@@ -77,15 +70,24 @@ public final class FeaturePlacer {
         }
 
         for (int step = 0; step < BiomeFeatureData.STEP_COUNT; step++) {
-            if (step == STRUCTURE_STEP && !starts.isEmpty()) {
-                // vanilla: step 그룹의 구조물마다 setFeatureSeed(l, i1, step) — desert_pyramid의 i1은 registry 그룹 순번 22 (상수 주석 참조).
-                featureRandom.setFeatureSeed(decorationSeed, DESERT_PYRAMID_STRUCTURE_INDEX, step);
-                for (StructureStart start : starts) {
-                    for (StructurePiece piece : start.pieces()) {
-                        if (piece.boundingBox().intersects(writableBox)) {
-                            piece.postProcess(view, blocks, featureRandom, regionRandom, writableBox);
+            if (!starts.isEmpty() && structureEngine != null) {
+                // vanilla: step 그룹의 구조물마다 setFeatureSeed(decorationSeed, m, step), m = 그 step 안 레지스트리 순번(시작점이 없어도 증가).
+                int m = 0;
+                for (StructureRegistry.Def def : structureEngine.registry().structuresOfStep(step)) {
+                    boolean seeded = false;
+                    java.util.List<StructureStart> ofDef = new java.util.ArrayList<>();
+                    for (StructureStart start : starts) if (start.structureId().equals(def.id())) ofDef.add(start);
+                    // 바닐라: 청크 참조 집합(LongOpenHashSet) 순회 순서대로 — 난수를 이어 쓰므로 순서가 결과를 바꾼다.
+                    for (StructureStart start : org.domi.furnace.server.world.gen.structure.ReferenceOrder.order(ofDef)) {
+                        if (!seeded) {
+                            featureRandom.setFeatureSeed(decorationSeed, m, step);
+                            seeded = true;
+                        }
+                        synchronized (start) {
+                            start.placeInChunk(structureEngine, view, featureRandom, regionRandom, writableBox, cx, cz);
                         }
                     }
+                    m++;
                 }
             }
             FeatureSorter.StepFeatureData stepData = sorter.featuresPerStep().get(step);

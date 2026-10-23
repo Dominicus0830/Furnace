@@ -11,6 +11,11 @@ public sealed interface CarverConfig permits CarverConfig.Cave, CarverConfig.Can
     FloatProvider yScale();
     int lavaLevelAboveBottom();
 
+    /** FloatProvider 코덱: 숫자 하나는 상수. */
+    static FloatProvider fp(JsonElement e) {
+        return e.isJsonPrimitive() ? FloatProvider.constant(e.getAsFloat()) : FloatProvider.fromJson(e.getAsJsonObject());
+    }
+
     record Cave(
         float probability,
         HeightProvider y,
@@ -24,11 +29,11 @@ public sealed interface CarverConfig permits CarverConfig.Cave, CarverConfig.Can
         public static Cave fromJson(JsonObject cfg) {
             float prob = cfg.get("probability").getAsFloat();
             HeightProvider yProv = HeightProvider.fromJson(cfg.get("y").getAsJsonObject());
-            FloatProvider yScale = FloatProvider.fromJson(cfg.get("yScale").getAsJsonObject());
+            FloatProvider yScale = fp(cfg.get("yScale"));
             int lavaLevel = cfg.get("lava_level").getAsJsonObject().get("above_bottom").getAsInt();
-            FloatProvider hMult = FloatProvider.fromJson(cfg.get("horizontal_radius_multiplier").getAsJsonObject());
-            FloatProvider vMult = FloatProvider.fromJson(cfg.get("vertical_radius_multiplier").getAsJsonObject());
-            FloatProvider floor = FloatProvider.fromJson(cfg.get("floor_level").getAsJsonObject());
+            FloatProvider hMult = fp(cfg.get("horizontal_radius_multiplier"));
+            FloatProvider vMult = fp(cfg.get("vertical_radius_multiplier"));
+            FloatProvider floor = fp(cfg.get("floor_level"));
             return new Cave(prob, yProv, yScale, lavaLevel, hMult, vMult, floor);
         }
     }

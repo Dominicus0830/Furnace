@@ -48,6 +48,8 @@ class StructureFeatureParityTest {
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
+        // 픽스처는 사막 피라미드만 켠 오라클로 만들었다 — 이후 구현된 다른 구조물(마을·시련의 방 …)은 끈다
+        source.structureEngine().restrictTo(java.util.Set.of("minecraft:desert_pyramid"));
         ChunkColumn col = source.generateWithFeatures(cx, cz);
 
         String fixtureName = "/worldgen/fixtures/featurestruct_" + seed + "_" + cx + "_" + cz + ".bin";

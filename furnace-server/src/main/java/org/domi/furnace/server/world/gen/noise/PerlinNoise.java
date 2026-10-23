@@ -22,7 +22,7 @@ public final class PerlinNoise {
     /**
      * 표준 팩토리 (NormalNoise 에서 호출). useNewFactory=true 경로.
      */
-    public static PerlinNoise create(XoroshiroRandomSource random, int firstOctave, double[] amplitudes) {
+    public static PerlinNoise create(NoiseRandom random, int firstOctave, double[] amplitudes) {
         return new PerlinNoise(random, firstOctave, amplitudes, true);
     }
 
@@ -31,7 +31,7 @@ public final class PerlinNoise {
      * 바닐라의 createLegacyForBlendedNoise(random, octaves) 에 대응.
      * octaves: e.g. IntStream.rangeClosed(-15, 0) or IntStream.rangeClosed(-7, 0).
      */
-    public static PerlinNoise createLegacyForBlendedNoise(XoroshiroRandomSource random, IntStream octaves) {
+    public static PerlinNoise createLegacyForBlendedNoise(NoiseRandom random, IntStream octaves) {
         // makeAmplitudes: firstOctave = -maxOctave, size = maxOctave - minOctave + 1
         int[] arr = octaves.sorted().toArray();
         int minOctave = arr[0];  // e.g. -15
@@ -45,7 +45,12 @@ public final class PerlinNoise {
         return new PerlinNoise(random, firstOctave, amps, false);
     }
 
-    private PerlinNoise(XoroshiroRandomSource random, int firstOctave, double[] amplitudes, boolean useNewFactory) {
+    /** 바닐라 PerlinNoise.createLegacyForLegacyNetherBiome — legacy_random_source 차원의 temperature/vegetation 노이즈. */
+    public static PerlinNoise createLegacyForLegacyNetherBiome(NoiseRandom random, int firstOctave, double[] amplitudes) {
+        return new PerlinNoise(random, firstOctave, amplitudes, false);
+    }
+
+    private PerlinNoise(NoiseRandom random, int firstOctave, double[] amplitudes, boolean useNewFactory) {
         this.firstOctave = firstOctave;
         this.amplitudes = amplitudes.clone();
         int size = amplitudes.length;
@@ -55,7 +60,7 @@ public final class PerlinNoise {
 
         if (useNewFactory) {
             // 바닐라 useNewFactory=true: forkPositional -> fromHashOf("octave_N")
-            XoroshiroRandomSource.XoroshiroPositionalRandomFactory positionalFactory = random.forkPositional();
+            PositionalRandom positionalFactory = random.forkPositional();
             for (int i = 0; i < size; i++) {
                 if (this.amplitudes[i] != 0.0) {
                     int octaveIndex = firstOctave + i;

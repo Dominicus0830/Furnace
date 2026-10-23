@@ -1,0 +1,915 @@
+// 바닐라 Entity 의 서버 쪽 바탕: 위치·속도·회전·몸통 상자, move(블록 충돌·디딤 블록·낙하·칸 안 블록 동작·속도 계수),
+// baseTick(유체 높이와 흐름에 밀리기·눈 높이 유체·불·용암·세계 밑), 엔티티 데이터(0..7), 저장 공통 부분.
+// 엔티티는 자기 청크를 가진 region 의 레벨(ChunkLevel)에 들어 있고 그 region 스레드만 만진다.
+package org.domi.furnace.server.entity;
+
+import java.util.UUID;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.BlockBehaviors;
+import org.domi.furnace.server.block.BlockInfo;
+import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.block.Dir;
+import org.domi.furnace.server.block.FluidTicker;
+import org.domi.furnace.server.block.Fluids;
+import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.block.Shape;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.net.protocol.play.SetEntityData;
+
+public abstract class Entity {
+
+    /** 엔티티 데이터 번호(Entity.DATA_*): 0 공유 플래그, 1 공기, 2 이름, 3 이름 보임, 4 조용함, 5 중력 없음, 6 자세, 7 얼음 틱. */
+    public static final int DATA_SHARED_FLAGS = 0, DATA_AIR_SUPPLY = 1, DATA_CUSTOM_NAME_VISIBLE = 3, DATA_SILENT = 4,
+            DATA_NO_GRAVITY = 5, DATA_POSE = 6, DATA_TICKS_FROZEN = 7;
+    private static final int FLAG_ONFIRE = 0;
+    private static final int FIRE_IMMUNE_TICKS = 1;   // getFireImmuneTicks
+
+    /** 제거 이유(Entity.RemovalReason): 저장 안 함(죽음·버림)·저장(내려감)·차원 이동. */
+    public enum RemovalReason {
+        KILLED(true, false), DISCARDED(true, false), UNLOADED_TO_CHUNK(false, true), UNLOADED_WITH_PLAYER(false, false), CHANGED_DIMENSION(false, false);
+
+        final boolean destroy, save;
+
+        RemovalReason(boolean destroy, boolean save) { this.destroy = destroy; this.save = save; }
+
+        public boolean shouldDestroy() { return destroy; }
+
+        public boolean shouldSave() { return save; }
+    }
+
+    /** 엔티티가 받는 피해의 종류(바닐라 DamageSource 중 엔티티 동작이 보는 성질만). */
+    public record Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability) {
+        public static final Damage IN_FIRE = new Damage("in_fire", true, false, false);
+        public static final Damage ON_FIRE = new Damage("on_fire", true, false, false);
+        public static final Damage LAVA = new Damage("lava", true, false, false);
+        public static final Damage HOT_FLOOR = new Damage("hot_floor", true, false, false);
+        public static final Damage CACTUS = new Damage("cactus", false, false, false);
+        public static final Damage SWEET_BERRY_BUSH = new Damage("sweet_berry_bush", false, false, false);
+        public static final Damage EXPLOSION = new Damage("explosion", false, true, false);
+        public static final Damage OUT_OF_WORLD = new Damage("out_of_world", false, false, true);
+        public static final Damage GENERIC_KILL = new Damage("generic_kill", false, false, true);
+    }
+
+    protected final EntityType type;
+    private final int id;
+    protected UUID uuid;
+    protected ChunkLevel level;
+    protected final RandomSource random = RandomSource.create();
+    protected final SynchedData entityData = new SynchedData();
+
+    private double x, y, z;
+    private int blockX, blockY, blockZ;
+    private long sectionKey;
+    public double xo, yo, zo, xOld, yOld, zOld;
+    private double vx, vy, vz;
+    private float yRot, xRot;
+    public float yRotO, xRotO;
+    private AABB bb;
+    private boolean onGround;
+    public boolean horizontalCollision, verticalCollision, verticalCollisionBelow, minorHorizontalCollision;
+    /** hurtMarked: 다음 sendChanges 에서 속도를 바로 보낸다. hasImpulse: 이번 갱신 주기를 앞당긴다. */
+    public boolean hurtMarked, hasImpulse;
+    public boolean noPhysics;
+    private double stuckX, stuckY, stuckZ;
+    public float fallDistance;
+    protected boolean wasTouchingWater, wasEyeInWater, firstTick = true;
+    private double waterHeight, lavaHeight;
+    private boolean eyeInWater, eyeInLava;
+    private int remainingFireTicks = -FIRE_IMMUNE_TICKS;
+    public int tickCount;
+    private boolean isInPowderSnow, wasInPowderSnow;
+    private boolean invulnerable;
+    private RemovalReason removalReason;
+    /** mainSupportingBlockPos 와 onGroundNoBlocks(바닐라 checkSupportingBlock). */
+    private Pos supportingBlock;
+    private boolean onGroundNoBlocks;
+    private int inBlockState = -1;
+    /** 추적기(region 이 레벨에 넣을 때 만든다). */
+    public EntityTracker tracker;
+
+    protected Entity(EntityType type, ChunkLevel level, int id) {
+        this.type = type;
+        this.level = level;
+        this.id = id;
+        this.uuid = randomUuid(random);
+        entityData.define(DATA_SHARED_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
+        entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, 300);
+        entityData.define(2, 6, null);   // DATA_CUSTOM_NAME(Optional<Component>) — 아직 쓰지 않는다
+        entityData.define(DATA_CUSTOM_NAME_VISIBLE, SetEntityData.SERIALIZER_BOOLEAN, false);
+        entityData.define(DATA_SILENT, SetEntityData.SERIALIZER_BOOLEAN, false);
+        entityData.define(DATA_NO_GRAVITY, SetEntityData.SERIALIZER_BOOLEAN, false);
+        entityData.define(DATA_POSE, SetEntityData.SERIALIZER_POSE, 0);
+        entityData.define(DATA_TICKS_FROZEN, SetEntityData.SERIALIZER_INT, 0);
+        defineSynchedData();
+        this.bb = type.makeBoundingBox(0, 0, 0);
+        setPos(0, 0, 0);
+    }
+
+    /** Mth.createInsecureUUID(random). */
+    static UUID randomUuid(RandomSource r) {
+        long msb = r.nextLong() & -61441L | 16384L;
+        long lsb = r.nextLong() & 4611686018427387903L | Long.MIN_VALUE;
+        return new UUID(msb, lsb);
+    }
+
+    protected void defineSynchedData() {}
+
+    // ------------------------------------------------------------------ 기본
+
+    public EntityType type() { return type; }
+
+    public int id() { return id; }
+
+    public UUID uuid() { return uuid; }
+
+    public ChunkLevel level() { return level; }
+
+    public void setLevel(ChunkLevel level) { this.level = level; }
+
+    public SynchedData entityData() { return entityData; }
+
+    public RandomSource random() { return random; }
+
+    public double x() { return x; }
+
+    public double y() { return y; }
+
+    public double z() { return z; }
+
+    public int blockX() { return blockX; }
+
+    public int blockY() { return blockY; }
+
+    public int blockZ() { return blockZ; }
+
+    public Pos blockPosition() { return new Pos(blockX, blockY, blockZ); }
+
+    public int chunkX() { return blockX >> 4; }
+
+    public int chunkZ() { return blockZ >> 4; }
+
+    /** SectionPos.asLong(블록 위치 >> 4). */
+    public long sectionKey() { return sectionKey; }
+
+    public static long sectionKey(int sx, int sy, int sz) {
+        return ((long) sx & 4194303L) << 42 | ((long) sy & 1048575L) | ((long) sz & 4194303L) << 20;
+    }
+
+    public double vx() { return vx; }
+
+    public double vy() { return vy; }
+
+    public double vz() { return vz; }
+
+    public void setDeltaMovement(double vx, double vy, double vz) {
+        this.vx = vx;
+        this.vy = vy;
+        this.vz = vz;
+    }
+
+    public void addDeltaMovement(double dx, double dy, double dz) { setDeltaMovement(vx + dx, vy + dy, vz + dz); }
+
+    public float yRot() { return yRot; }
+
+    public float xRot() { return xRot; }
+
+    public void setYRot(float v) { if (Float.isFinite(v)) yRot = v; }
+
+    public void setXRot(float v) { if (Float.isFinite(v)) xRot = v; }
+
+    /** 머리 방향(살아 있는 것만 따로 — 나머지는 0). */
+    public float yHeadRot() { return 0.0F; }
+
+    public AABB boundingBox() { return bb; }
+
+    public boolean onGround() { return onGround; }
+
+    public void setOnGround(boolean v) {
+        onGround = v;
+        checkSupportingBlock(v, null);
+    }
+
+    public float bbWidth() { return type.width(); }
+
+    public float bbHeight() { return type.height(); }
+
+    public double eyeY() { return y + type.eyeHeight(); }
+
+    public boolean isRemoved() { return removalReason != null; }
+
+    public RemovalReason removalReason() { return removalReason; }
+
+    public boolean isAlive() { return !isRemoved(); }
+
+    public boolean isInvulnerable() { return invulnerable; }
+
+    public void setInvulnerable(boolean v) { invulnerable = v; }
+
+    public boolean isSilent() { return (Boolean) entityData.get(DATA_SILENT); }
+
+    public boolean isNoGravity() { return (Boolean) entityData.get(DATA_NO_GRAVITY); }
+
+    public void setNoGravity(boolean v) { entityData.set(DATA_NO_GRAVITY, v); }
+
+    public boolean fireImmune() { return type.fireImmune(); }
+
+    public boolean isPushedByFluid() { return true; }
+
+    /** 그 엔티티가 움직임으로 블록 동작(압력판·인계선 등)을 일으키지 않는가. */
+    public boolean isIgnoringBlockTriggers() { return false; }
+
+    public boolean isSpectator() { return false; }
+
+    public boolean isSteppingCarefully() { return false; }
+
+    public boolean isSuppressingBounce() { return false; }
+
+    // ------------------------------------------------------------------ 위치
+
+    /** setPosRaw: 바뀌면 블록 위치·구역을 갱신하고 레벨에 구역 이동을 알린다. */
+    public final void setPosRaw(double nx, double ny, double nz) {
+        if (x == nx && y == ny && z == nz && bb != null) return;
+        x = nx;
+        y = ny;
+        z = nz;
+        int bx = floor(nx), by = floor(ny), bz = floor(nz);
+        if (bx != blockX || by != blockY || bz != blockZ) {
+            blockX = bx;
+            blockY = by;
+            blockZ = bz;
+            inBlockState = -1;
+        }
+        long key = sectionKey(bx >> 4, by >> 4, bz >> 4);
+        if (key != sectionKey) {
+            long old = sectionKey;
+            sectionKey = key;
+            if (level != null && tracker != null) level.entitySectionChanged(this, old);
+        }
+    }
+
+    public void setPos(double nx, double ny, double nz) {
+        setPosRaw(nx, ny, nz);
+        bb = type.makeBoundingBox(nx, ny, nz);
+    }
+
+    /** moveTo(x, y, z, yRot, xRot): 이전 위치까지 맞춘다. */
+    public void moveTo(double nx, double ny, double nz, float yr, float xr) {
+        setPosRaw(nx, ny, nz);
+        setYRot(yr);
+        setXRot(xr);
+        setOldPosAndRot();
+        setPos(nx, ny, nz);
+    }
+
+    public final void setOldPosAndRot() {
+        xo = xOld = x;
+        yo = yOld = y;
+        zo = zOld = z;
+        yRotO = yRot;
+        xRotO = xRot;
+    }
+
+    public void teleportTo(double nx, double ny, double nz) { moveTo(nx, ny, nz, yRot, xRot); }
+
+    // ------------------------------------------------------------------ 틱
+
+    public void tick() { baseTick(); }
+
+    public void baseTick() {
+        inBlockState = -1;
+        xRotO = xRot;
+        yRotO = yRot;
+        wasInPowderSnow = isInPowderSnow;
+        isInPowderSnow = false;
+        updateInWaterStateAndDoFluidPushing();
+        updateFluidOnEyes();
+        if (remainingFireTicks > 0) {
+            if (fireImmune()) {
+                setRemainingFireTicks(remainingFireTicks - 4);
+                if (remainingFireTicks < 0) clearFire();
+            } else {
+                if (remainingFireTicks % 20 == 0 && !isInLava()) hurt(Damage.ON_FIRE, 1.0F);
+                setRemainingFireTicks(remainingFireTicks - 1);
+            }
+            if ((Integer) entityData.get(DATA_TICKS_FROZEN) > 0) {
+                entityData.set(DATA_TICKS_FROZEN, 0);
+                level.levelEvent(null, 1009, blockPosition(), 1);
+            }
+        }
+        if (isInLava()) {
+            lavaHurt();
+            fallDistance *= 0.5F;
+        }
+        checkBelowWorld();
+        setSharedFlag(FLAG_ONFIRE, remainingFireTicks > 0);
+        firstTick = false;
+    }
+
+    public void checkBelowWorld() {
+        if (y < level.minBuildHeight() - 64) onBelowWorld();
+    }
+
+    protected void onBelowWorld() { discard(); }
+
+    public void lavaHurt() {
+        if (!fireImmune()) {
+            igniteForSeconds(15.0F);
+            if (hurt(Damage.LAVA, 4.0F)) playSound("minecraft:entity.generic.burn", 0.4F, 2.0F + random.nextFloat() * 0.4F);
+        }
+    }
+
+    public final void igniteForSeconds(float seconds) { igniteForTicks(floor(seconds * 20.0F)); }
+
+    public void igniteForTicks(int ticks) { if (remainingFireTicks < ticks) setRemainingFireTicks(ticks); }
+
+    public void setRemainingFireTicks(int t) { remainingFireTicks = t; }
+
+    public int remainingFireTicks() { return remainingFireTicks; }
+
+    public void clearFire() { setRemainingFireTicks(0); }
+
+    public boolean isOnFire() { return !fireImmune() && remainingFireTicks > 0; }
+
+    public void setSharedFlagOnFire(boolean on) { setSharedFlag(FLAG_ONFIRE, on); }
+
+    protected void setSharedFlag(int flag, boolean on) {
+        byte b = (Byte) entityData.get(DATA_SHARED_FLAGS);
+        entityData.set(DATA_SHARED_FLAGS, (byte) (on ? b | 1 << flag : b & ~(1 << flag)));
+    }
+
+    /** hurt(source, amount): 피해를 받았는가. 기본 엔티티는 무적 검사만 하고 받지 않는다. */
+    public boolean hurt(Damage source, float amount) {
+        return !isInvulnerableTo(source) && false;
+    }
+
+    public boolean isInvulnerableTo(Damage source) {
+        return isRemoved() || invulnerable && !source.bypassesInvulnerability() || source.fire() && fireImmune();
+    }
+
+    /** markHurt: 다음 추적 갱신에서 속도를 바로 보낸다. */
+    protected void markHurt() { hurtMarked = true; }
+
+    /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않는다. */
+    public boolean causeFallDamage(float distance, float multiplier) { return false; }
+
+    public void resetFallDistance() { fallDistance = 0.0F; }
+
+    public void playSound(String sound, float volume, float pitch) {
+        if (!isSilent()) level.playSound(null, x, y, z, sound, "neutral", volume, pitch);
+    }
+
+    // ------------------------------------------------------------------ 제거
+
+    public void discard() { remove(RemovalReason.DISCARDED); }
+
+    public void kill() { remove(RemovalReason.KILLED); }
+
+    public void remove(RemovalReason reason) { setRemoved(reason); }
+
+    public final void setRemoved(RemovalReason reason) {
+        if (removalReason == null) removalReason = reason;
+        if (level != null) level.entityRemoved(this);
+    }
+
+    // ------------------------------------------------------------------ 이동(바닐라 Entity.move)
+
+    public static final int MOVER_SELF = 0, MOVER_PLAYER = 1, MOVER_PISTON = 2, MOVER_SHULKER_BOX = 3, MOVER_SHULKER = 4;
+
+    public void move(int mover, double dx, double dy, double dz) {
+        if (noPhysics) {
+            setPos(x + dx, y + dy, z + dz);
+            return;
+        }
+        boolean wasOnFire = isOnFire();
+        if (stuckX * stuckX + stuckY * stuckY + stuckZ * stuckZ > 1.0E-7) {
+            dx *= stuckX;
+            dy *= stuckY;
+            dz *= stuckZ;
+            stuckX = stuckY = stuckZ = 0.0;
+            setDeltaMovement(0.0, 0.0, 0.0);
+        }
+        double[] m = collide(dx, dy, dz);
+        double mx = m[0], my = m[1], mz = m[2];
+        double lenSqr = mx * mx + my * my + mz * mz;
+        if (lenSqr > 1.0E-7) setPos(x + mx, y + my, z + mz);
+        boolean collX = !equalish(dx, mx), collZ = !equalish(dz, mz);
+        horizontalCollision = collX || collZ;
+        verticalCollision = dy != my;
+        verticalCollisionBelow = verticalCollision && dy < 0.0;
+        minorHorizontalCollision = false;
+        onGround = verticalCollisionBelow;
+        checkSupportingBlock(verticalCollisionBelow, new double[] {mx, my, mz});
+        Pos onPos = getOnPosLegacy();
+        int onState = level.getBlockState(onPos);
+        checkFallDamage(my, onGround, onState, onPos);
+        if (isRemoved()) return;
+        if (horizontalCollision) setDeltaMovement(collX ? 0.0 : vx, vy, collZ ? 0.0 : vz);
+        var behavior = BlockBehaviors.of(onState);
+        if (dy != my) behavior.updateEntityAfterFallOn(level, this);
+        if (onGround) behavior.stepOn(level, onPos, onState, this);
+        // 이동 소리·걸음(MovementEmission)은 지금 엔티티(아이템)에 없다
+        checkInsideBlocks();
+        float f = getBlockSpeedFactor();
+        setDeltaMovement(vx * f, vy, vz * f);
+        if (noneFireOrLava(bb.deflate(1.0E-6))) {
+            if (remainingFireTicks <= 0) setRemainingFireTicks(-FIRE_IMMUNE_TICKS);
+            if (wasOnFire && (isInPowderSnow || isInWaterRainOrBubble())) playEntityOnFireExtinguishedSound();
+        }
+        if (isOnFire() && (isInPowderSnow || isInWaterRainOrBubble())) setRemainingFireTicks(-FIRE_IMMUNE_TICKS);
+    }
+
+    /** Mth.equal(double, double): 차이가 1e-5 보다 작은가. */
+    private static boolean equalish(double a, double b) { return Math.abs(b - a) < 1.0E-5F; }
+
+    protected void playEntityOnFireExtinguishedSound() {
+        playSound("minecraft:entity.generic.extinguish_fire", 0.7F, 1.6F + (random.nextFloat() - random.nextFloat()) * 0.4F);
+    }
+
+    /** level.getBlockStatesIfLoaded(box).noneMatch(불 태그 또는 용암). 로드 안 됐으면 참. */
+    private boolean noneFireOrLava(AABB box) {
+        int x0 = floor(box.minX()), y0 = floor(box.minY()), z0 = floor(box.minZ());
+        int x1 = floor(box.maxX()), y1 = floor(box.maxY()), z1 = floor(box.maxZ());
+        if (!level.hasChunksAt(x0, z0, x1, z1)) return true;
+        for (int bx = x0; bx <= x1; bx++) {
+            for (int by = y0; by <= y1; by++) {
+                for (int bz = z0; bz <= z1; bz++) {
+                    int s = level.getBlockState(new Pos(bx, by, bz));
+                    if (B.isTag(s, "minecraft:fire") || B.is(s, LAVA)) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static final int LAVA = B.id("lava"), WATER = B.id("water"), BUBBLE_COLUMN = B.id("bubble_column"),
+            HONEY_BLOCK = B.id("honey_block"), FROSTED_ICE = B.id("frosted_ice"), ICE = B.id("ice");
+
+    public boolean isInWater() { return wasTouchingWater; }
+
+    public boolean isInLava() { return !firstTick && lavaHeight > 0.0; }
+
+    public boolean isInBubbleColumn() { return B.is(inBlockState(), BUBBLE_COLUMN); }
+
+    public boolean isInRain() {
+        return level.isRainingAt(blockPosition()) || level.isRainingAt(new Pos(floor(x), floor(bb.maxY()), floor(z)));
+    }
+
+    public boolean isInWaterRainOrBubble() { return isInWater() || isInRain() || isInBubbleColumn(); }
+
+    public boolean isInWaterOrBubble() { return isInWater() || isInBubbleColumn(); }
+
+    public void setIsInPowderSnow(boolean v) { isInPowderSnow = v; }
+
+    public boolean wasInPowderSnow() { return wasInPowderSnow; }
+
+    /** getInBlockState: 발 칸의 블록 상태(틱마다 캐시). */
+    public int inBlockState() {
+        if (inBlockState < 0) inBlockState = level.getBlockState(blockPosition());
+        return inBlockState;
+    }
+
+    /** onAboveBubbleCol(down): 거품 기둥 수면 — 아래로면 최대 -0.9 까지 -0.03, 위로면 최대 1.8 까지 +0.1. */
+    public void onAboveBubbleCol(boolean down) {
+        double d = down ? Math.max(-0.9, vy - 0.03) : Math.min(1.8, vy + 0.1);
+        setDeltaMovement(vx, d, vz);
+    }
+
+    /** onInsideBubbleColumn(down): 기둥 안 — 아래로면 최대 -0.3 까지 -0.03, 위로면 최대 0.7 까지 +0.06. 낙하 거리를 지운다. */
+    public void onInsideBubbleColumn(boolean down) {
+        double d = down ? Math.max(-0.3, vy - 0.03) : Math.min(0.7, vy + 0.06);
+        setDeltaMovement(vx, d, vz);
+        resetFallDistance();
+    }
+
+    /** LivingEntity 인가(압력판 감도·블록 동작 대상). */
+    public boolean isLiving() { return false; }
+
+    /** mayInteract(level, pos): 플레이어가 아니면 언제나 참. */
+    public boolean mayInteract(org.domi.furnace.server.block.BlockLevel level, Pos pos) { return true; }
+
+    /** level.broadcastEntityEvent(entity, event): 보는 사람에게 엔티티 이벤트. */
+    public void broadcastEntityEvent(byte event) {
+        if (tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.EntityEvent(id, event));
+    }
+
+    /** makeStuckInBlock(state, multiplier): 낙하 거리를 지우고 다음 이동을 그만큼 줄인다. */
+    public void makeStuckInBlock(double mx, double my, double mz) {
+        resetFallDistance();
+        stuckX = mx;
+        stuckY = my;
+        stuckZ = mz;
+    }
+
+    /** Entity.collide(movement): 블록 충돌로 줄인 이동. 걸어 오르기(maxUpStep)는 지금 엔티티에 없다. */
+    protected double[] collide(double dx, double dy, double dz) {
+        if (dx == 0.0 && dy == 0.0 && dz == 0.0) return new double[] {dx, dy, dz};
+        var shapes = level.blockCollisions(bb.expandTowards(dx, dy, dz));
+        return collideWithShapes(dx, dy, dz, bb, shapes);
+    }
+
+    /** Entity.collideWithShapes: y 먼저, 그다음 |x| < |z| 면 z·x, 아니면 x·z. */
+    public static double[] collideWithShapes(double dx, double dy, double dz, AABB box, java.util.List<Shape> shapes) {
+        if (shapes.isEmpty()) return new double[] {dx, dy, dz};
+        if (dy != 0.0) {
+            dy = collideAxis(1, box, shapes, dy);
+            if (dy != 0.0) box = box.move(0.0, dy, 0.0);
+        }
+        boolean zFirst = Math.abs(dx) < Math.abs(dz);
+        if (zFirst && dz != 0.0) {
+            dz = collideAxis(2, box, shapes, dz);
+            if (dz != 0.0) box = box.move(0.0, 0.0, dz);
+        }
+        if (dx != 0.0) {
+            dx = collideAxis(0, box, shapes, dx);
+            if (!zFirst && dx != 0.0) box = box.move(dx, 0.0, 0.0);
+        }
+        if (!zFirst && dz != 0.0) dz = collideAxis(2, box, shapes, dz);
+        return new double[] {dx, dy, dz};
+    }
+
+    /** Shapes.collide(axis, box, shapes, d). */
+    private static double collideAxis(int axis, AABB box, java.util.List<Shape> shapes, double d) {
+        for (Shape s : shapes) {
+            if (Math.abs(d) < 1.0E-7) return 0.0;
+            d = s.collide(axis, box, d);
+        }
+        return d;
+    }
+
+    /** checkSupportingBlock(onGround, movement): 디딘 블록 위치(가장 가까운 충돌 블록)를 기억한다. */
+    protected void checkSupportingBlock(boolean ground, double[] movement) {
+        if (ground) {
+            AABB below = new AABB(bb.minX(), bb.minY() - 1.0E-6, bb.minZ(), bb.maxX(), bb.minY(), bb.maxZ());
+            Pos found = level.findSupportingBlock(below, x, y, z);
+            if (found != null || onGroundNoBlocks) {
+                supportingBlock = found;
+            } else if (movement != null) {
+                supportingBlock = level.findSupportingBlock(below.move(-movement[0], 0.0, -movement[2]), x, y, z);
+                found = supportingBlock;
+            }
+            onGroundNoBlocks = found == null;
+        } else {
+            onGroundNoBlocks = false;
+            supportingBlock = null;
+        }
+    }
+
+    /** getOnPosLegacy: 0.2 아래. */
+    public Pos getOnPosLegacy() { return getOnPos(0.2F); }
+
+    /** getBlockPosBelowThatAffectsMyMovement: 0.500001 아래. */
+    public Pos getBlockPosBelowThatAffectsMyMovement() { return getOnPos(0.500001F); }
+
+    public Pos getOnPos() { return getOnPos(1.0E-5F); }
+
+    protected Pos getOnPos(float below) {
+        if (supportingBlock != null) {
+            if (!(below > 1.0E-5F)) return supportingBlock;
+            int s = level.getBlockState(supportingBlock);
+            boolean keep = (double) below <= 0.5 && B.isTag(s, "minecraft:fences") || B.isTag(s, "minecraft:walls")
+                    || B.behavior(s) instanceof org.domi.furnace.server.block.types.FenceGateBlock;
+            return keep ? supportingBlock : new Pos(supportingBlock.x(), floor(y - below), supportingBlock.z());
+        }
+        return new Pos(floor(x), floor(y - below), floor(z));
+    }
+
+    /** checkFallDamage(dy, onGround, state, pos). */
+    protected void checkFallDamage(double dy, boolean ground, int state, Pos pos) {
+        if (ground) {
+            if (fallDistance > 0.0F) BlockBehaviors.of(state).fallOn(level, state, pos, this, fallDistance);
+            resetFallDistance();
+        } else if (dy < 0.0) {
+            fallDistance -= (float) dy;
+        }
+    }
+
+    /** checkInsideBlocks: 몸통(1e-7 안쪽)이 걸친 칸마다 entityInside(로드된 경우만). */
+    protected void checkInsideBlocks() {
+        int x0 = floor(bb.minX() + 1.0E-7), y0 = floor(bb.minY() + 1.0E-7), z0 = floor(bb.minZ() + 1.0E-7);
+        int x1 = floor(bb.maxX() - 1.0E-7), y1 = floor(bb.maxY() - 1.0E-7), z1 = floor(bb.maxZ() - 1.0E-7);
+        if (!level.hasChunksAt(x0, z0, x1, z1)) return;
+        for (int bx = x0; bx <= x1; bx++) {
+            for (int by = y0; by <= y1; by++) {
+                for (int bz = z0; bz <= z1; bz++) {
+                    if (!isAlive()) return;
+                    Pos p = new Pos(bx, by, bz);
+                    int s = level.getBlockState(p);
+                    BlockBehaviors.of(s).entityInside(s, level, p, this);
+                }
+            }
+        }
+    }
+
+    /** getBlockSpeedFactor: 발 칸(물·거품 기둥이 아니고 1.0 이면 아래 칸)의 속도 계수. */
+    protected float getBlockSpeedFactor() {
+        int s = level.getBlockState(blockPosition());
+        float f = BlockInfo.get().speedFactor(B.block(s));
+        if (!B.is(s, WATER) && !B.is(s, BUBBLE_COLUMN)) {
+            return (double) f == 1.0 ? BlockInfo.get().speedFactor(B.block(level.getBlockState(getBlockPosBelowThatAffectsMyMovement()))) : f;
+        }
+        return f;
+    }
+
+    /** 디딘 블록의 미끄러움(아이템·생물이 쓴다). */
+    protected float frictionBelow() {
+        return BlockInfo.get().friction(B.block(level.getBlockState(getBlockPosBelowThatAffectsMyMovement())));
+    }
+
+    /** applyGravity. */
+    protected void applyGravity() {
+        double g = isNoGravity() ? 0.0 : defaultGravity();
+        if (g != 0.0) setDeltaMovement(vx, vy - g, vz);
+    }
+
+    protected double defaultGravity() { return 0.0; }
+
+    /**
+     * moveTowardsClosestSpace(x, y, z): 블록에 끼었으면 가까운 빈 쪽(북·남·서·동·위 중 꽉 찬 블록이 아닌 곳)으로 민다.
+     */
+    protected void moveTowardsClosestSpace(double px, double py, double pz) {
+        int bx = floor(px), by = floor(py), bz = floor(pz);
+        double fx = px - bx, fy = py - by, fz = pz - bz;
+        int best = Dir.UP;
+        double bestDist = Double.MAX_VALUE;
+        for (int dir : new int[] {Dir.NORTH, Dir.SOUTH, Dir.WEST, Dir.EAST, Dir.UP}) {
+            Pos n = new Pos(bx + Dir.DX[dir], by + Dir.DY[dir], bz + Dir.DZ[dir]);
+            if (!B.isCollisionShapeFullBlock(level.getBlockState(n))) {
+                int axis = Dir.axis(dir);
+                double v = axis == Dir.AXIS_X ? fx : axis == Dir.AXIS_Y ? fy : fz;
+                double d = Dir.positive(dir) ? 1.0 - v : v;
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = dir;
+                }
+            }
+        }
+        float speed = random.nextFloat() * 0.2F + 0.1F;
+        float step = Dir.positive(best) ? 1.0F : -1.0F;
+        double mx = vx * 0.75, my = vy * 0.75, mz = vz * 0.75;
+        switch (Dir.axis(best)) {
+            case Dir.AXIS_X -> setDeltaMovement(step * speed, my, mz);
+            case Dir.AXIS_Y -> setDeltaMovement(mx, step * speed, mz);
+            default -> setDeltaMovement(mx, my, step * speed);
+        }
+    }
+
+    // ------------------------------------------------------------------ 유체(바닐라 updateInWaterStateAndDoFluidPushing)
+
+    protected boolean updateInWaterStateAndDoFluidPushing() {
+        waterHeight = lavaHeight = 0.0;
+        updateInWaterStateAndDoWaterCurrentPushing();
+        double lavaSpeed = level.ultraWarm() ? 0.007 : 0.0023333333333333335;
+        boolean inLava = updateFluidHeightAndDoFluidPushing(false, lavaSpeed);
+        return isInWater() || inLava;
+    }
+
+    void updateInWaterStateAndDoWaterCurrentPushing() {
+        if (updateFluidHeightAndDoFluidPushing(true, 0.014)) {
+            if (!wasTouchingWater && !firstTick) doWaterSplashEffect();
+            resetFallDistance();
+            wasTouchingWater = true;
+            clearFire();
+        } else {
+            wasTouchingWater = false;
+        }
+    }
+
+    /** doWaterSplashEffect: 물에 처음 들어갈 때 첨벙 소리(입자는 서버에서 보내지 않는다). */
+    protected void doWaterSplashEffect() {
+        float f = Math.min(1.0F, (float) Math.sqrt(vx * vx * 0.2F + vy * vy + vz * vz * 0.2F) * 0.2F);
+        playSound(f < 0.25F ? swimSplashSound() : swimHighSpeedSplashSound(), f, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
+        float w = bbWidth();
+        for (int i = 0; (float) i < 1.0F + w * 20.0F; i++) {
+            random.nextDouble();
+            random.nextDouble();
+            random.nextDouble();
+        }
+        for (int i = 0; (float) i < 1.0F + w * 20.0F; i++) {
+            random.nextDouble();
+            random.nextDouble();
+        }
+    }
+
+    protected String swimSplashSound() { return "minecraft:entity.generic.splash"; }
+
+    protected String swimHighSpeedSplashSound() { return "minecraft:entity.generic.splash"; }
+
+    public double fluidHeight(boolean water) { return water ? waterHeight : lavaHeight; }
+
+    /** updateFluidHeightAndDoFluidPushing(tag, speed): 걸친 유체 칸의 높이를 재고 흐름 쪽으로 민다. */
+    public boolean updateFluidHeightAndDoFluidPushing(boolean water, double speed) {
+        if (touchingUnloadedChunk()) return false;
+        AABB box = bb.deflate(0.001);
+        int x0 = floor(box.minX()), x1 = ceil(box.maxX()), y0 = floor(box.minY()), y1 = ceil(box.maxY()), z0 = floor(box.minZ()), z1 = ceil(box.maxZ());
+        double height = 0.0;
+        boolean pushed = isPushedByFluid();
+        boolean found = false;
+        double fx = 0, fy = 0, fz = 0;
+        int count = 0;
+        for (int bx = x0; bx < x1; bx++) {
+            for (int by = y0; by < y1; by++) {
+                for (int bz = z0; bz < z1; bz++) {
+                    Pos p = new Pos(bx, by, bz);
+                    int fluid = level.getFluidState(p);
+                    if (water ? !Fluids.isWater(fluid) : !Fluids.isLava(fluid)) continue;
+                    double top = (float) by + FluidTicker.height(fluid, level, p);
+                    if (top >= box.minY()) {
+                        found = true;
+                        height = Math.max(top - box.minY(), height);
+                        if (pushed) {
+                            double[] flow = FluidTicker.flow(level, p, fluid);
+                            if (height < 0.4) {
+                                flow[0] *= height;
+                                flow[1] *= height;
+                                flow[2] *= height;
+                            }
+                            fx += flow[0];
+                            fy += flow[1];
+                            fz += flow[2];
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+        if (Math.sqrt(fx * fx + fy * fy + fz * fz) > 0.0) {
+            if (count > 0) {
+                fx *= 1.0 / count;
+                fy *= 1.0 / count;
+                fz *= 1.0 / count;
+            }
+            if (!isPlayer()) {
+                double len = Math.sqrt(fx * fx + fy * fy + fz * fz);
+                if (len < 1.0E-4) {
+                    fx = fy = fz = 0.0;
+                } else {
+                    fx /= len;
+                    fy /= len;
+                    fz /= len;
+                }
+            }
+            fx *= speed;
+            fy *= speed;
+            fz *= speed;
+            if (Math.abs(vx) < 0.003 && Math.abs(vz) < 0.003 && Math.sqrt(fx * fx + fy * fy + fz * fz) < 0.0045000000000000005) {
+                double len = Math.sqrt(fx * fx + fy * fy + fz * fz);
+                if (len < 1.0E-4) {
+                    fx = fy = fz = 0.0;
+                } else {
+                    fx = fx / len * 0.0045000000000000005;
+                    fy = fy / len * 0.0045000000000000005;
+                    fz = fz / len * 0.0045000000000000005;
+                }
+            }
+            setDeltaMovement(vx + fx, vy + fy, vz + fz);
+        }
+        if (water) waterHeight = height;
+        else lavaHeight = height;
+        return found;
+    }
+
+    protected boolean isPlayer() { return false; }
+
+    /** touchingUnloadedChunk: 몸통(1 넓힌) 아래 청크가 다 로드됐는가의 반대. */
+    public boolean touchingUnloadedChunk() {
+        AABB box = bb.inflate(1.0);
+        return !level.hasChunksAt(floor(box.minX()), floor(box.minZ()), ceil(box.maxX()), ceil(box.maxZ()));
+    }
+
+    /** updateFluidOnEyes: 눈 높이가 유체 표면 아래인가. */
+    private void updateFluidOnEyes() {
+        wasEyeInWater = eyeInWater;
+        eyeInWater = eyeInLava = false;
+        double eye = eyeY() - 0.11111111F;
+        Pos p = new Pos(floor(x), floor(eye), floor(z));
+        int fluid = level.getFluidState(p);
+        double top = (float) p.y() + FluidTicker.height(fluid, level, p);
+        if (top > eye && !Fluids.isEmpty(fluid)) {
+            eyeInWater = Fluids.isWater(fluid);
+            eyeInLava = Fluids.isLava(fluid);
+        }
+    }
+
+    public boolean isEyeInWater() { return eyeInWater; }
+
+    // ------------------------------------------------------------------ 저장(Entity.saveWithoutId / load)
+
+    /** saveWithoutId: 공통 필드 뒤 addAdditionalSaveData. */
+    public NbtCompound saveWithoutId(NbtCompound tag) {
+        NbtList pos = new NbtList((byte) 6);
+        pos.add(x);
+        pos.add(y);
+        pos.add(z);
+        tag.put("Pos", pos);
+        NbtList motion = new NbtList((byte) 6);
+        motion.add(vx);
+        motion.add(vy);
+        motion.add(vz);
+        tag.put("Motion", motion);
+        NbtList rot = new NbtList((byte) 5);
+        rot.add(yRot);
+        rot.add(xRot);
+        tag.put("Rotation", rot);
+        tag.putFloat("FallDistance", fallDistance);
+        tag.putShort("Fire", (short) remainingFireTicks);
+        tag.putShort("Air", (short) (int) (Integer) entityData.get(DATA_AIR_SUPPLY));
+        tag.putBoolean("OnGround", onGround);
+        tag.putBoolean("Invulnerable", invulnerable);
+        tag.putInt("PortalCooldown", 0);
+        tag.putIntArray("UUID", uuidToInts(uuid));
+        if (isSilent()) tag.putBoolean("Silent", true);
+        if (isNoGravity()) tag.putBoolean("NoGravity", true);
+        int frozen = (Integer) entityData.get(DATA_TICKS_FROZEN);
+        if (frozen > 0) tag.putInt("TicksFrozen", frozen);
+        addAdditionalSaveData(tag);
+        return tag;
+    }
+
+    /** saveAsPassenger 의 id 를 붙인 저장. 저장하지 않는 엔티티면 null. */
+    public NbtCompound save() {
+        if (isRemoved() && !removalReason.shouldSave()) return null;
+        NbtCompound tag = new NbtCompound();
+        tag.putString("id", type.name());
+        return saveWithoutId(tag);
+    }
+
+    public void load(NbtCompound tag) {
+        NbtList pos = tag.getList("Pos"), motion = tag.getList("Motion"), rot = tag.getList("Rotation");
+        double mx = motion == null || motion.size() < 3 ? 0 : num(motion, 0);
+        double my = motion == null || motion.size() < 3 ? 0 : num(motion, 1);
+        double mz = motion == null || motion.size() < 3 ? 0 : num(motion, 2);
+        setDeltaMovement(Math.abs(mx) > 10.0 ? 0.0 : mx, Math.abs(my) > 10.0 ? 0.0 : my, Math.abs(mz) > 10.0 ? 0.0 : mz);
+        double px = pos == null || pos.size() < 3 ? 0 : num(pos, 0);
+        double py = pos == null || pos.size() < 3 ? 0 : num(pos, 1);
+        double pz = pos == null || pos.size() < 3 ? 0 : num(pos, 2);
+        px = Math.clamp(px, -3.0000512E7, 3.0000512E7);
+        py = Math.clamp(py, -2.0E7, 2.0E7);
+        pz = Math.clamp(pz, -3.0000512E7, 3.0000512E7);
+        setPosRaw(px, py, pz);
+        xo = xOld = px;
+        yo = yOld = py;
+        zo = zOld = pz;
+        float yr = rot == null || rot.size() < 2 ? 0 : (float) num(rot, 0), xr = rot == null || rot.size() < 2 ? 0 : (float) num(rot, 1);
+        setYRot(yr);
+        setXRot(xr);
+        yRotO = yRot;
+        xRotO = xRot;
+        fallDistance = tag.getFloat("FallDistance");
+        remainingFireTicks = tag.getShort("Fire");
+        if (tag.contains("Air")) entityData.set(DATA_AIR_SUPPLY, (int) tag.getShort("Air"));
+        onGround = tag.getBoolean("OnGround");
+        invulnerable = tag.getBoolean("Invulnerable");
+        if (tag.tags().get("UUID") instanceof int[] u && u.length == 4) uuid = new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
+        if (Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)) setPos(x, y, z);
+        entityData.set(DATA_SILENT, tag.getBoolean("Silent"));
+        entityData.set(DATA_NO_GRAVITY, tag.getBoolean("NoGravity"));
+        entityData.set(DATA_TICKS_FROZEN, tag.getIntOr0("TicksFrozen"));
+        readAdditionalSaveData(tag);
+    }
+
+    private static double num(NbtList list, int i) { return list.get(i) instanceof Number n ? n.doubleValue() : 0.0; }
+
+    protected abstract void addAdditionalSaveData(NbtCompound tag);
+
+    protected abstract void readAdditionalSaveData(NbtCompound tag);
+
+    static int[] uuidToInts(UUID u) {
+        long m = u.getMostSignificantBits(), l = u.getLeastSignificantBits();
+        return new int[] {(int) (m >> 32), (int) m, (int) (l >> 32), (int) l};
+    }
+
+    // ------------------------------------------------------------------ 추적(ServerEntity 가 쓴다)
+
+    /** 스폰 패킷의 data 칸(getAddEntityPacket). 대부분 0. */
+    public int spawnData() { return 0; }
+
+    /** 시야 갱신 대상인가(broadcastToPlayer). */
+    public boolean broadcastToPlayer(Player p) { return true; }
+
+    /** 플레이어가 닿았을 때(playerTouch). */
+    public void playerTouch(Player p) {}
+
+    // ------------------------------------------------------------------ 수학
+
+    public static int floor(double v) {
+        int i = (int) v;
+        return v < i ? i - 1 : i;
+    }
+
+    public static int floor(float v) {
+        int i = (int) v;
+        return v < i ? i - 1 : i;
+    }
+
+    public static int ceil(double v) {
+        int i = (int) v;
+        return v > i ? i + 1 : i;
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + id + " " + String.format("%.2f, %.2f, %.2f", x, y, z) + "]";
+    }
+}

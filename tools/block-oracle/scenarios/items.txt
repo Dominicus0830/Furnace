@@ -1,0 +1,120 @@
+# 아이템 사용: 양동이(구덩이에 붓기·뜨기·반 블록 잠그기·풀기, 서바이벌)·연잎(물 위)·괭이·삽(흙길·모닥불 끄기)·도끼(껍질·밀랍·녹)·
+# 밀랍·부싯돌/화염구(양초·모닥불 켜기)·가위(켈프)·디버그 막대·엔더의 눈(차원문 완성). 바닥은 돌.
+# 비교 영역: -2,-63,-2,40,-55,30
+tp 8.5 -50 8.5 0 90
+# 무작위 틱은 바닐라와 바이트 단위로 같지 않다(물 옆 경작지 물기 등) — 끈다
+cmd gamerule randomTickSpeed 0
+cmd fill -2 -61 -2 40 -61 30 stone
+wait 10
+# A: 구덩이 둘 — 하나는 물을 붓고, 하나는 부은 뒤 다시 뜬다
+cmd setblock 0 -61 0 air
+cmd setblock 2 -61 0 air
+tp 0.5 -60 0.5 0 90
+item 0 water_bucket
+hold 0
+useitem
+tp 2.5 -60 0.5 0 90
+useitem
+wait 5
+item 1 bucket
+hold 1
+useitem
+# B: 반 블록을 물로 잠갔다가 풀고, 다른 반 블록은 잠근 채로(잠긴 반 블록의 물이 퍼지므로 멀리)
+cmd setblock 30 -60 26 oak_slab
+cmd setblock 34 -60 26 oak_slab
+tp 30.5 -59 26.5 0 90
+hold 0
+useitem
+wait 5
+hold 1
+useitem
+tp 34.5 -59 26.5 0 90
+hold 0
+useitem
+# C: 서바이벌 — 양동이로 붓고 빈 양동이로 뜨기(손에 든 것이 바뀐다)
+item 2 water_bucket
+cmd gamemode survival
+cmd setblock 8 -61 0 air
+hold 2
+tp 8.5 -60 0.5 0 90
+useitem
+wait 5
+useitem
+wait 5
+useitem
+cmd gamemode creative
+# D: 연잎 — 물 구덩이 위에
+cmd setblock 10 -61 0 water
+item 3 lily_pad
+hold 3
+tp 10.5 -59 0.5 0 90
+useitem
+# E: 괭이·삽·도끼·밀랍(블록에 쓰기)
+cmd setblock 0 -61 4 grass_block
+cmd setblock 2 -61 4 dirt
+cmd setblock 4 -61 4 coarse_dirt
+cmd setblock 6 -61 4 rooted_dirt
+cmd setblock 8 -61 4 grass_block
+cmd setblock 10 -60 4 campfire
+cmd setblock 12 -60 4 oak_log[axis=z]
+cmd setblock 14 -60 4 exposed_copper
+cmd setblock 16 -60 4 waxed_weathered_cut_copper_stairs[facing=east]
+cmd setblock 18 -60 4 copper_bulb
+tp 4.5 -59 6.5 0 30
+item 4 iron_hoe
+hold 4
+use 0 -61 4 up
+use 2 -61 4 up
+use 4 -61 4 up
+use 6 -61 4 up
+tp 10.5 -59 6.5 0 30
+item 5 iron_shovel
+hold 5
+use 8 -61 4 up
+use 10 -60 4 up
+tp 15.5 -59 6.5 0 30
+item 6 iron_axe
+hold 6
+use 12 -60 4 up
+use 14 -60 4 up
+use 16 -60 4 up
+use 16 -60 4 up
+item 7 honeycomb 4
+hold 7
+use 18 -60 4 up
+# F: 부싯돌·화염구로 양초·모닥불 켜기, 가위로 켈프 끝 멈추기
+cmd setblock 0 -60 8 candle
+cmd setblock 2 -60 8 campfire[lit=false]
+cmd setblock 4 -60 8 candle[candles=3]
+cmd setblock 6 -61 8 air
+cmd setblock 6 -62 8 sand
+cmd setblock 6 -61 8 kelp
+tp 3.5 -59 10.5 0 30
+item 8 flint_and_steel
+hold 8
+use 0 -60 8 up
+use 2 -60 8 up
+item 8 fire_charge 4
+use 4 -60 8 up
+item 8 shears
+use 6 -61 8 up
+# G: 디버그 막대(관리자·크리에이티브): 계단 facing 돌리기, 왼쪽 클릭으로 half 고른 뒤 돌리기
+cmd setblock 10 -60 8 oak_stairs
+item 8 debug_stick
+tp 10.5 -59 10.5 0 30
+use 10 -60 8 up
+break 10 -60 8 up
+wait 2
+break 10 -60 8 up
+wait 2
+use 10 -60 8 up
+# H: 엔더의 눈 — 열한 개 틀에 눈을 끼워 두고 마지막 틀에 쓰면 차원문
+cmd fill 21 -60 12 23 -60 12 end_portal_frame[facing=south,eye=true]
+cmd fill 21 -60 16 23 -60 16 end_portal_frame[facing=north,eye=true]
+cmd fill 20 -60 13 20 -60 15 end_portal_frame[facing=east,eye=true]
+cmd fill 24 -60 13 24 -60 14 end_portal_frame[facing=west,eye=true]
+cmd setblock 24 -60 15 end_portal_frame[facing=west,eye=false]
+tp 22.5 -58 14.5 0 30
+item 8 ender_eye 2
+use 24 -60 15 up
+wait 20

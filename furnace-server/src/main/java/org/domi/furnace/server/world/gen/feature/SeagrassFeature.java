@@ -27,9 +27,6 @@ public final class SeagrassFeature implements ConfiguredFeature {
         this.magmaBlockStateId = magmaBlockStateId;
     }
 
-    private static final boolean SEA_DEBUG = true;
-    private static int SEA_CALL_NUM = 0;
-
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
         int dx1 = random.nextInt(8), dx2 = random.nextInt(8);
@@ -37,15 +34,11 @@ public final class SeagrassFeature implements ConfiguredFeature {
         int placeX = x + dx1 - dx2;
         int placeZ = z + dz1 - dz2;
         int placeY = view.getOceanFloorY(placeX, placeZ) + 1;
-        boolean inCenter = (placeX >= view.cx()*16 && placeX < view.cx()*16+16 && placeZ >= view.cz()*16 && placeZ < view.cz()*16+16);
-        if (SEA_DEBUG) { int _st = view.getBlock(placeX, placeY, placeZ); System.out.printf("SEA#%d origin=(%d,%d) scatter=(%d,%d,%d) inCenter=%b water=%b stateId=%d%n", SEA_CALL_NUM++, x, z, placeX, placeY, placeZ, inCenter, isWater(_st), _st); }
-        if (placeY < org.domi.furnace.server.world.ChunkColumn.MIN_Y) return false;
+        if (placeY < view.minY()) return false;
         if (!isWater(view.getBlock(placeX, placeY, placeZ))) return false;
         boolean isTall = random.nextDouble() < tallProbability;
         // vanilla canSurvive: floor must be solid (not water/air/magma) — SeagrassBlock.mayPlaceOn
         int floor = view.getBlock(placeX, placeY - 1, placeZ);
-        if (SEA_DEBUG && inCenter) System.out.printf("SEA_FLOOR#%d placeX=%d placeY=%d placeZ=%d floor=%d isSolid=%b isTall=%b%n",
-            SEA_CALL_NUM-1, placeX, placeY, placeZ, floor, isSolidFloor(floor), isTall);
         if (!isSolidFloor(floor) || floor == magmaBlockStateId) return true;
         if (isTall) {
             // vanilla TallSeagrassBlock.canSurvive(LOWER): fluid at pos must be source water (amount==8)

@@ -7,8 +7,8 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
 public final class DiskFeature implements ConfiguredFeature {
 
-    /** rule: below(offset 0,-1,0)가 matchStateIds에 속하면 thenStateId, 아니면 다음 rule/fallback. */
-    public record Rule(Set<Integer> matchStateIds, int thenStateId) {}
+    /** rule: 현재 칸에서 if_true 블록 조건(오프셋 포함)이 참이면 thenStateId, 아니면 다음 rule/fallback. */
+    public record Rule(BlockPredicate condition, int thenStateId) {}
 
     private final int fallbackStateId;
     private final List<Rule> rules;
@@ -49,7 +49,7 @@ public final class DiskFeature implements ConfiguredFeature {
 
     private int stateFor(FeatureWorldView view, int bx, int by, int bz) {
         for (Rule rule : rules) {
-            if (rule.matchStateIds().contains(view.getBlock(bx, by - 1, bz))) {
+            if (rule.condition().test(view, bx, by, bz)) {
                 return rule.thenStateId();
             }
         }

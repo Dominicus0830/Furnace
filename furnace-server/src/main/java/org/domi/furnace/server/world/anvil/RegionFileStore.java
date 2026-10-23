@@ -12,7 +12,12 @@ public final class RegionFileStore {
     private final Map<Long, RegionFile> open = new HashMap<>();
 
     public RegionFileStore(Path worldDir) {
-        this.regionDir = worldDir.resolve("region");
+        this(worldDir, "region");
+    }
+
+    /** 다른 하위 디렉토리(엔티티는 "entities"). */
+    public RegionFileStore(Path worldDir, String subDir) {
+        this.regionDir = worldDir.resolve(subDir);
     }
 
     private static long key(int rx, int rz) {

@@ -2,8 +2,8 @@ package org.domi.furnace.server.world.gen.carver;
 
 public final class RandomTrace {
     private static final boolean ENABLED = Boolean.getBoolean("furnace.rngTrace");
-    private static final int TARGET_CX = Integer.getInteger("furnace.rngTraceCx", Integer.MIN_VALUE);
-    private static final int TARGET_CZ = Integer.getInteger("furnace.rngTraceCz", Integer.MIN_VALUE);
+    private static volatile int targetCx = Integer.getInteger("furnace.rngTraceCx", Integer.MIN_VALUE);
+    private static volatile int targetCz = Integer.getInteger("furnace.rngTraceCz", Integer.MIN_VALUE);
     private static final int TARGET_STEP = Integer.getInteger("furnace.rngTraceStep", Integer.MIN_VALUE);
     private static final int TARGET_IDX = Integer.getInteger("furnace.rngTraceIdx", Integer.MIN_VALUE);
     private static final String TARGET_ID = System.getProperty("furnace.rngTraceId");
@@ -13,10 +13,28 @@ public final class RandomTrace {
     private RandomTrace() {
     }
 
+    /** 측정 도구용: 추적할 decoration origin 청크를 프로그램에서 바꾼다(여러 청크를 한 JVM에서 차례로 덤프). */
+    public static void setTarget(int cx, int cz) {
+        targetCx = cx;
+        targetCz = cz;
+    }
+
+    private static volatile int[] targetBox; // {minCx, maxCx, minCz, maxCz} — 설정되면 단일 target 대신 사각형 안의 모든 origin을 추적
+
+    /** 측정 도구용: 사각형 범위의 모든 decoration origin을 추적한다(null이면 해제). */
+    public static void setTargetBox(int minCx, int maxCx, int minCz, int maxCz) {
+        targetBox = new int[]{minCx, maxCx, minCz, maxCz};
+    }
+
     public static boolean shouldTrace(int cx, int cz, int step, int idx, String id) {
         if (!ENABLED) return false;
-        if (TARGET_CX != Integer.MIN_VALUE && TARGET_CX != cx) return false;
-        if (TARGET_CZ != Integer.MIN_VALUE && TARGET_CZ != cz) return false;
+        int[] box = targetBox;
+        if (box != null) {
+            if (cx < box[0] || cx > box[1] || cz < box[2] || cz > box[3]) return false;
+            return TARGET_STEP == Integer.MIN_VALUE || TARGET_STEP == step;
+        }
+        if (targetCx != Integer.MIN_VALUE && targetCx != cx) return false;
+        if (targetCz != Integer.MIN_VALUE && targetCz != cz) return false;
         if (TARGET_STEP != Integer.MIN_VALUE && TARGET_STEP != step) return false;
         if (TARGET_IDX != Integer.MIN_VALUE && TARGET_IDX != idx) return false;
         return TARGET_ID == null || TARGET_ID.equals(id);

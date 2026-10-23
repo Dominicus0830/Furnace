@@ -9,12 +9,10 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
-import org.domi.furnace.server.world.RegionGrid;
 
 public final class Player {
 
@@ -29,6 +27,9 @@ public final class Player {
 
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
+    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). */
+    private final org.domi.furnace.server.block.LegacyRandomSource random =
+            new org.domi.furnace.server.block.LegacyRandomSource(java.util.concurrent.ThreadLocalRandom.current().nextLong());
     private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
@@ -38,13 +39,56 @@ public final class Player {
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
-    private volatile RegionPos currentRegion;     // 현재 소유 region(adopt가 설정)
     // 유효 view distance = min(서버 view-distance, 클라 요청). ClientInformation(config 0x00/play 0x0A)서 갱신.
     // 게임중 클라가 렌더거리 바꾸면 0x0A로 다시 옴 → 갱신. onEnterPlay서 초기 설정.
     private volatile int viewDistance = 10;
     // 열어둔 체스트 세션(M4c-3 슬라이스 B) — netty 스레드가 쓰고 region 스레드(breakBlock 강제닫기)가 읽음.
     private volatile int openContainerId = -1;
     private volatile int openChestX, openChestY, openChestZ;
+
+    /** 블록 부수기 상태(ServerPlayerGameMode) — 플레이어가 속한 region 스레드에서만. */
+    private final org.domi.furnace.server.block.BlockBreaking breaking = new org.domi.furnace.server.block.BlockBreaking();
+
+    /** 인벤토리를 가진 쪽(연결)이 내주는 통로. 인벤토리는 연결 스레드 것이라 region 은 사본을 읽고, 바꿀 때는 이 통로로 맡긴다. */
+    public interface InventoryHost {
+        /** 창 칸(0 결과, 5..8 머리·가슴·다리·발, 9..35 주, 36..44 핫바, 45 왼손)의 지금 스택. */
+        ItemStack slot(int windowSlot);
+
+        /** 손에 든 핫바 칸(0..8). */
+        int selected();
+
+        /** 그 칸이 아직 expect 이면 now 로 바꾼다(연결 스레드에서). */
+        void replace(int windowSlot, ItemStack expect, ItemStack now);
+
+        /** 권한 단계(관리자 블록 판정). */
+        int permissionLevel();
+
+        /** 파괴 직전 허가(플러그인 BlockBreakEvent). */
+        default boolean allowBreak(int x, int y, int z, int state) { return true; }
+
+        /** Level.mayInteract 의 스폰 보호 부분(블록 x, z). */
+        default boolean mayInteract(int x, int z) { return true; }
+
+        /** 그 창 칸이 바뀌었다(inventory_changed 발전 과제 — broadcastChanges 가 부른다). */
+        default void inventoryChanged(int windowSlot) {}
+    }
+
+    private volatile InventoryHost inventoryHost;
+
+    public org.domi.furnace.server.block.BlockBreaking breaking() { return breaking; }
+
+    public org.domi.furnace.server.block.LegacyRandomSource random() { return random; }
+
+    /** 플레이어 인벤토리(연결이 만든 것을 넘겨받는다 — 테스트용 기본값도 있다). */
+    private volatile PlayerInventory inventory = new PlayerInventory();
+
+    public PlayerInventory inventory() { return inventory; }
+
+    public void inventory(PlayerInventory inv) { this.inventory = inv; }
+
+    public InventoryHost inventoryHost() { return inventoryHost; }
+
+    public void inventoryHost(InventoryHost h) { this.inventoryHost = h; }
 
     public Player(int entityId, UUID uuid, String name, Channel channel) {
         this.entityId = entityId;
@@ -80,16 +124,10 @@ public final class Player {
         return true;
     }
 
-    public RegionPos regionPos(int regionSize) {
-        return RegionGrid.regionPos(x, z, regionSize);
-    }
-
     public void markDisconnected() { this.disconnected = true; }
     public boolean isDisconnected() { return disconnected; }
     public int viewDistance() { return viewDistance; }
     public void viewDistance(int vd) { this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd); }
-    public RegionPos currentRegion() { return currentRegion; }
-    public void currentRegion(RegionPos r) { this.currentRegion = r; }
 
     /** 패킷을 이 플레이어 채널로 전송(IO eventLoop 마샬). region 스레드서 호출 안전. */
     public void send(Packet packet) {
@@ -101,12 +139,23 @@ public final class Player {
         });
     }
 
+    private volatile org.domi.furnace.api.text.Text kickReason;
+
+    /** 서버가 끊은 사유(퇴장 로그용), 없으면 null. */
+    public org.domi.furnace.api.text.Text kickReason() { return kickReason; }
+
     /** 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전. */
     public void kick(Packet packet) {
+        if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d) {
+            kickReason = d.reason();
+            org.domi.furnace.api.text.Text r = localize(d.reason());
+            if (r != d.reason()) packet = new org.domi.furnace.server.net.protocol.play.Disconnect(r);
+        }
+        final Packet out = packet;
         channel.eventLoop().execute(() -> {
             ByteBuf buf = channel.alloc().buffer();
-            Types.writeVarInt(buf, packet.id());
-            packet.write(buf);
+            Types.writeVarInt(buf, out.id());
+            out.write(buf);
             channel.writeAndFlush(buf).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
         });
     }
@@ -114,6 +163,202 @@ public final class Player {
     public int entityId() { return entityId; }
     public UUID uuid() { return uuid; }
     public String name() { return name; }
+
+    // 세션 서버가 준 프로필 속성(textures 등) — 탭 목록 add_player 로 다른 클라에 전달돼 스킨이 보인다.
+    private volatile java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
+
+    public java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties() { return profileProperties; }
+
+    // 생존 상태(게임 모드·체력·허기·경험치·사망). 스레드 안전.
+    private final PlayerVitals vitals = new PlayerVitals(this);
+
+    public PlayerVitals vitals() { return vitals; }
+
+    private final org.domi.furnace.server.recipe.RecipeBook recipeBook = new org.domi.furnace.server.recipe.RecipeBook();
+
+    private volatile org.domi.furnace.server.advancement.PlayerAdvancements advancements;
+
+    /** 발전 과제 진행(바닐라 ServerPlayer.getAdvancements). 데이터 팩 없이 뜬 서버면 null. */
+    public org.domi.furnace.server.advancement.PlayerAdvancements advancements() { return advancements; }
+
+    public void advancements(org.domi.furnace.server.advancement.PlayerAdvancements a) { this.advancements = a; }
+
+    /** 레시피 북(바닐라 ServerRecipeBook). */
+    public org.domi.furnace.server.recipe.RecipeBook recipeBook() { return recipeBook; }
+
+    /** 바닐라 ServerPlayer.awardRecipes — 새로 배운 것만 ADD 로 알린다. @return 새로 배운 수 */
+    public int awardRecipes(java.util.Collection<org.domi.furnace.server.data.ResourceId> ids,
+                            org.domi.furnace.server.recipe.RecipeManager recipes) {
+        var added = recipeBook.addRecipes(ids, recipes);
+        // 바닐라 ServerRecipeBook.addRecipes: 레시피마다 recipe_unlocked 를 ADD 패킷보다 먼저
+        var adv = advancements;
+        if (adv != null) for (var id : added) adv.trigger("minecraft:recipe_unlocked", id);
+        if (!added.isEmpty()) send(recipeBook.packet(org.domi.furnace.server.net.protocol.play.RecipeBookUpdate.ADD, added));
+        return added.size();
+    }
+
+    /** 바닐라 ServerPlayer.resetRecipes — 바닐라처럼 잊은 게 없어도 REMOVE 를 보낸다. @return 잊은 수 */
+    public int resetRecipes(java.util.Collection<org.domi.furnace.server.data.ResourceId> ids) {
+        var removed = recipeBook.removeRecipes(ids);
+        send(recipeBook.packet(org.domi.furnace.server.net.protocol.play.RecipeBookUpdate.REMOVE, removed));
+        return removed.size();
+    }
+
+    public org.domi.furnace.server.world.GameMode gameMode() { return vitals.gameMode(); }
+
+    /** ServerGamePacketListenerImpl.dropSpamTickCount: 크리에이티브 버리기 한도(버릴 때 +20, 매 틱 -1, 200 이상이면 막음). */
+    private final java.util.concurrent.atomic.AtomicInteger dropSpam = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 크리에이티브 버리기를 허용하면 +20 하고 참. */
+    public boolean tryCreativeDrop() {
+        while (true) {
+            int v = dropSpam.get();
+            if (v >= 200) return false;
+            if (dropSpam.compareAndSet(v, v + 20)) return true;
+        }
+    }
+
+    public void tickDropSpam() { dropSpam.updateAndGet(v -> v > 0 ? v - 1 : 0); }
+
+    /** hasInfiniteMaterials: 크리에이티브. */
+    public boolean hasInfiniteMaterials() { return gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE; }
+
+    /** LivingEntity.take(entity, count): 그 엔티티를 보는 플레이어들에게 줍는 동작(take_item_entity). 제거되기 전에 부른다. */
+    public void take(Entity e, int count) {
+        if (!e.isRemoved() && e.tracker != null) {
+            e.tracker.broadcast(new org.domi.furnace.server.net.protocol.play.TakeItemEntity(e.id(), entityId, count));
+        }
+    }
+
+    /** awardStat(통계, n). TODO(통계): 통계 체계가 아직 없다. */
+    public void awardStat(String stat, int amount) {}
+
+    /** 바닐라 Player.getDisplayName: 이름 + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
+    public org.domi.furnace.api.text.Text displayName() {
+        return org.domi.furnace.api.text.Text.text(name).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));
+    }
+
+    // 리스폰할 때마다 증가 — 관찰자가 값이 바뀐 것을 보고 엔티티를 지웠다 다시 스폰한다(바닐라: 리스폰 = 새 ServerPlayer).
+    private volatile int spawnGeneration;
+
+    public int spawnGeneration() { return spawnGeneration; }
+
+    public void bumpSpawnGeneration() { spawnGeneration++; }
+
+    // 달리기·웅크리기(serverbound player_command). netty 가 쓰고 region 이 읽는다.
+    private volatile boolean sprinting, sneaking;
+
+    public boolean sprinting() { return sprinting; }
+    public void sprinting(boolean v) { sprinting = v; }
+    public boolean sneaking() { return sneaking; }
+    public void sneaking(boolean v) { sneaking = v; }
+
+    /**
+     * 수락된 위치 패킷 하나(낙하·허기 소모 판정용). netty 가 넣고 소유 region 이 순서대로 꺼낸다.
+     * teleport=true 는 서버가 위치를 정한 것(스폰·리스폰·텔레포트) — 이동량 없이 기준점만 옮긴다.
+     */
+    public record MoveSample(double x, double y, double z, boolean onGround, boolean teleport) {}
+
+    private final java.util.concurrent.ConcurrentLinkedQueue<MoveSample> moves = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    public void pushMove(double x, double y, double z, boolean onGround) {
+        if (moves.size() < 256) moves.add(new MoveSample(x, y, z, onGround, false));
+    }
+
+    public void pushTeleport(double x, double y, double z) {
+        moves.add(new MoveSample(x, y, z, false, true));
+    }
+
+    // region 전용: 마지막으로 처리한 이동 샘플(낙하·소모 계산의 기준점). null = 아직 없음.
+    private MoveSample moveAnchor;
+
+    public MoveSample moveAnchor() { return moveAnchor; }
+
+    public void moveAnchor(MoveSample m) { moveAnchor = m; }
+
+    public MoveSample pollMove() { return moves.poll(); }
+
+    public void clearMoves() { moves.clear(); }
+
+    // 클라이언트 언어(client_information, 소문자 en_us 형식).
+    private volatile String locale = "en_us";
+
+    public String locale() { return locale; }
+
+    public void locale(String l) {
+        String v = l == null || l.isEmpty() ? "en_us" : l;
+        this.javaLocale = java.util.Locale.forLanguageTag(v.replace('_', '-'));
+        this.locale = v;
+    }
+
+    private volatile java.util.Locale javaLocale = java.util.Locale.US;
+
+    /** 클라이언트 언어(Java Locale). */
+    public java.util.Locale javaLocale() { return javaLocale; }
+
+    /**
+     * 플러그인 번역 저장소(GlobalRenderer)가 아는 키를 이 플레이어 언어로 펼친다(Paper 의 GlobalTranslator 렌더링).
+     * 저장소가 없거나 바뀐 곳이 없으면 같은 인스턴스 — 인코딩 캐시가 그대로 쓰인다.
+     */
+    public org.domi.furnace.api.text.Text localize(org.domi.furnace.api.text.Text t) {
+        return org.domi.furnace.api.text.translation.GlobalRenderer.render(t, javaLocale);
+    }
+
+    // 플러그인 API 손잡이(처음 요청할 때 만든다).
+    private volatile Object apiHandle;
+
+    public Object apiHandle() { return apiHandle; }
+
+    public void apiHandle(Object h) { this.apiHandle = h; }
+
+    // 실제 접속 주소(Velocity 포워딩이면 프록시가 알려 준 주소).
+    private volatile java.net.SocketAddress remoteAddress;
+
+    public void remoteAddress(java.net.SocketAddress a) { this.remoteAddress = a; }
+
+    public java.net.SocketAddress remoteAddress() {
+        java.net.SocketAddress a = remoteAddress;
+        return a != null ? a : channel.remoteAddress();
+    }
+
+    /** 바닐라 ServerPlayer.getIpAddress — 포트 없는 IP 문자열. */
+    public String ipAddress() {
+        java.net.SocketAddress a = remoteAddress();
+        if (a instanceof java.net.InetSocketAddress isa && isa.getAddress() != null) return isa.getAddress().getHostAddress();
+        return "<unknown>";
+    }
+
+    // 채팅 상태(서명 세션·last seen·시그니처 캐시·채팅 표시 설정). 연결이 만들 때 정한다.
+    private volatile org.domi.furnace.server.chat.PlayerChatState chat;
+
+    public org.domi.furnace.server.chat.PlayerChatState chat() {
+        org.domi.furnace.server.chat.PlayerChatState c = chat;
+        if (c == null) {
+            synchronized (this) {
+                if (chat == null) chat = new org.domi.furnace.server.chat.PlayerChatState(uuid, () -> false);
+                c = chat;
+            }
+        }
+        return c;
+    }
+
+    public void chat(org.domi.furnace.server.chat.PlayerChatState c) { this.chat = c; }
+
+    /** 바닐라 ServerPlayer.sendSystemMessage — 채팅 숨김이면 액션바(overlay)만 받는다. */
+    public void sendSystemMessage(org.domi.furnace.api.text.Text message, boolean overlay) {
+        if (chat().acceptsSystemMessages(overlay)) send(new org.domi.furnace.server.net.protocol.play.SystemChat(localize(message), overlay));
+    }
+
+    // 클라이언트 설정 allowServerListings — 거부하면 상태 응답 sample 에 익명으로 나온다.
+    private volatile boolean allowsListing = true;
+
+    public boolean allowsListing() { return allowsListing; }
+
+    public void allowsListing(boolean v) { this.allowsListing = v; }
+
+    public void profileProperties(java.util.List<org.domi.furnace.server.players.GameProfile.Property> props) {
+        this.profileProperties = java.util.List.copyOf(props);
+    }
     public double x() { return x; }
     public double y() { return y; }
     public double z() { return z; }
@@ -127,6 +372,11 @@ public final class Player {
     public void lastCenter(ChunkPos c) { this.lastCenter = c; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
+
+    /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
+    private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
+
+    public java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight() { return chunkSendsInFlight; }
     public Map<Integer, double[]> tracked() { return tracked; }
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
     public Map<Integer, UUID> listed() { return listed; }

@@ -32,7 +32,7 @@ class LoginPacketsTest {
         assertEquals(id, Types.readUuid(buf));
         assertEquals("Dominicus", Types.readString(buf, 16));
         assertEquals(0, Types.readVarInt(buf));   // property count
-        assertEquals(0, buf.readByte());          // strict error handling = false
+        assertEquals(1, buf.readByte());          // strict error handling = true (바닐라 서버)
         buf.release();
     }
 

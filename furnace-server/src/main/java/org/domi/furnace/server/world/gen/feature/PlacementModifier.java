@@ -11,7 +11,7 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.noise.SimplexNoise;
 
 public sealed interface PlacementModifier
-        permits PlacementModifier.CountPlacement,
+        permits PlacementModifier.CountOnEveryLayerPlacement, PlacementModifier.FixedPlacement, PlacementModifier.CountPlacement,
                 PlacementModifier.RandomOffsetPlacement,
                 PlacementModifier.EnvironmentScanPlacement,
                 PlacementModifier.PredicateFilter,
@@ -41,6 +41,65 @@ public sealed interface PlacementModifier
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             return IntStream.range(0, count).mapToObj(__ -> pos);
+        }
+    }
+
+    /**
+     * vanilla CountOnEveryLayerPlacement(네더 식생 등): 층 i=0,1,.. 마다 count 회(매 반복 count 재샘플) 무작위 xz 에서 MOTION_BLOCKING
+     * 아래로 i 번째 "빈칸 위 바닥"(공기·물·용암 아래의 비어있지 않은·기반암 아닌 블록) 을 찾는다. 한 층에서 하나도 못 찾으면 끝. 목록은 즉시 만든다.
+     */
+    record CountOnEveryLayerPlacement(TreeIntProvider count) implements PlacementModifier {
+        private static final int WATER_MIN = 80, WATER_MAX = 95, LAVA_MIN = 96, LAVA_MAX = 111, BEDROCK = 79;   // 1.21.1 state id
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            java.util.List<BlockPos> out = new java.util.ArrayList<>();
+            int layer = 0;
+            boolean found;
+            do {
+                found = false;
+                for (int j = 0; j < count.sample(random); j++) {
+                    int x = random.nextInt(16) + pos.x();
+                    int z = random.nextInt(16) + pos.z();
+                    int h = view.getMotionBlockingY(x, z) + 1;
+                    int y = findOnGroundY(view, x, h, z, layer);
+                    if (y != Integer.MAX_VALUE) {
+                        out.add(new BlockPos(x, y, z));
+                        found = true;
+                    }
+                }
+                layer++;
+            } while (found);
+            return out.stream();
+        }
+
+        private static int findOnGroundY(FeatureWorldView view, int x, int y, int z, int target) {
+            org.domi.furnace.server.world.BlockAttrs a = org.domi.furnace.server.world.BlockAttrs.get();
+            int n = 0;
+            int state = view.getBlock(x, y, z);
+            for (int j = y; j >= view.minY() + 1; j--) {
+                int below = view.getBlock(x, j - 1, z);
+                if (!isEmpty(a, below) && isEmpty(a, state) && !isBedrock(below)) {
+                    if (n == target) return j - 1 + 1;
+                    n++;
+                }
+                state = below;
+            }
+            return Integer.MAX_VALUE;
+        }
+
+        private static boolean isEmpty(org.domi.furnace.server.world.BlockAttrs a, int s) {
+            return a.isAir(s) || (s >= WATER_MIN && s <= WATER_MAX) || (s >= LAVA_MIN && s <= LAVA_MAX);
+        }
+
+        private static boolean isBedrock(int s) { return s == BEDROCK; }
+    }
+
+    /** vanilla FixedPlacement: 고정 좌표 목록 중 현재 청크에 든 것만(엔드 플랫폼 100,49,0). */
+    record FixedPlacement(java.util.List<BlockPos> positions) implements PlacementModifier {
+        @Override
+        public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
+            int cx = pos.x() >> 4, cz = pos.z() >> 4;
+            return positions.stream().filter(p -> (p.x() >> 4) == cx && (p.z() >> 4) == cz);
         }
     }
 
@@ -74,7 +133,7 @@ public sealed interface PlacementModifier
             for (int i = 0; i < maxSteps; i++) {
                 if (target.test(view, x, y, z)) return Stream.of(new BlockPos(x, y, z));
                 x += dx; y += dy; z += dz;
-                if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return Stream.empty();   // isOutsideBuildHeight
+                if (y < view.minY() || y > view.maxY()) return Stream.empty();   // isOutsideBuildHeight
                 if (!allowed.test(view, x, y, z)) break;
             }
             return target.test(view, x, y, z) ? Stream.of(new BlockPos(x, y, z)) : Stream.empty();
@@ -85,7 +144,10 @@ public sealed interface PlacementModifier
     record PredicateFilter(BlockPredicate predicate) implements PlacementModifier {
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
-            return predicate.test(view, pos.x(), pos.y(), pos.z()) ? Stream.of(pos) : Stream.empty();
+            boolean ok = predicate.test(view, pos.x(), pos.y(), pos.z());
+            if (RandomTrace.isActive()) RandomTrace.log("predicate_at " + pos.x() + " " + pos.y() + " " + pos.z() + " state=" + view.getBlock(pos.x(), pos.y(), pos.z())
+                    + " below=" + view.getBlock(pos.x(), pos.y() - 1, pos.z()) + " -> " + ok);
+            return ok ? Stream.of(pos) : Stream.empty();
         }
     }
 
@@ -116,15 +178,10 @@ public sealed interface PlacementModifier
     }
 
     final class InSquarePlacement implements PlacementModifier {
-        static int SEA_INSQ_COUNT = 0;
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             int sqX = random.nextInt(16);
             int sqZ = random.nextInt(16);
-            if (Boolean.getBoolean("furnace.seaStreamDebug")) {
-                System.out.printf("IN_SQ#%d pos=(%d,%d) sqX=%d sqZ=%d result=(%d,%d)%n",
-                    SEA_INSQ_COUNT++, pos.x(), pos.z(), sqX, sqZ, pos.x()+sqX, pos.z()+sqZ);
-            }
             return Stream.of(new BlockPos(pos.x() + sqX, pos.y(), pos.z() + sqZ));
         }
     }
@@ -141,6 +198,7 @@ public sealed interface PlacementModifier
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             int oceanFloor = view.getOceanFloorY(pos.x(), pos.z());
             int worldSurface = view.getSurfaceY(pos.x(), pos.z());
+            if (RandomTrace.isActive()) RandomTrace.log("swd oceanFloor=" + oceanFloor + " worldSurface=" + worldSurface + " blocks[ws]=" + view.getBlock(pos.x(), worldSurface, pos.z()) + " blocks[of]=" + view.getBlock(pos.x(), oceanFloor, pos.z()));
             return worldSurface - oceanFloor <= maxWaterDepth ? Stream.of(pos) : Stream.empty();
         }
     }
@@ -153,7 +211,20 @@ public sealed interface PlacementModifier
     }
 
     /** heightmap 타입별로 vanilla 높이맵 의미를 근사한다. */
-    record HeightmapPlacement(Type type) implements PlacementModifier {
+    // 디버그: -Dfurnace.hmwatch=x,z — 해당 칸의 heightmap 조회 결과를 stdout에 남긴다.
+    static final int[] HM_WATCH = parseHmWatch(System.getProperty("furnace.hmwatch"));
+
+    private static int[] parseHmWatch(String v) {
+        if (v == null) return null;
+        String[] p = v.split(",");
+        return new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim())};
+    }
+
+    record HeightmapPlacement(Type type, boolean exactMotionBlocking) implements PlacementModifier {
+        public HeightmapPlacement(Type type) {
+            this(type, false);
+        }
+
         enum Type {
             WORLD_SURFACE_WG,
             MOTION_BLOCKING,
@@ -168,10 +239,17 @@ public sealed interface PlacementModifier
                 case OCEAN_FLOOR -> view.getOceanFloorY(pos.x(), pos.z()) + 1;
                 case OCEAN_FLOOR_WG -> view.getWgOceanFloorHeight(pos.x(), pos.z());
                 case WORLD_SURFACE_WG -> view.getWorldSurfaceWgY(pos.x(), pos.z()) + 1;
-                case MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES ->
-                    view.getSurfaceY(pos.x(), pos.z()) + 1;
+                // exactMotionBlocking(네더·엔드 차원): vanilla MOTION_BLOCKING(blocksMotion || 유체) 라이브 높이맵 — chorus 처럼
+                // blocksMotion 이 아닌 식물은 높이에 반영되지 않는다(엔드 chorus_plant 가 같은 청크 앞선 식물 위로 올라타지 않음, 순정 월드로 확인).
+                // 오버월드는 기존 근사(비공기 표면)를 유지한다 — 진짜 MB 로 바꾸면 FeatureSpillParityTest cherryGrove(순정 .mca 정답지)가
+                // 89→144 로 악화돼 별도 원인 조사 전에는 건드리지 않는다.
+                case MOTION_BLOCKING -> (exactMotionBlocking ? view.getMotionBlockingY(pos.x(), pos.z()) : view.getSurfaceY(pos.x(), pos.z())) + 1;
+                case MOTION_BLOCKING_NO_LEAVES -> (exactMotionBlocking ? view.getMotionBlockingNoLeavesY(pos.x(), pos.z()) : view.getSurfaceY(pos.x(), pos.z())) + 1;
             };
-            if (y < ChunkColumn.MIN_Y) return Stream.empty();
+            if (HM_WATCH != null && HM_WATCH[0] == pos.x() && HM_WATCH[1] == pos.z()) {
+                System.out.println("FURNACE_HMWATCH " + type + " x=" + pos.x() + " z=" + pos.z() + " -> y=" + y);
+            }
+            if (y < view.minY()) return Stream.empty();
             return Stream.of(new BlockPos(pos.x(), y, pos.z()));
         }
     }
@@ -262,7 +340,7 @@ public sealed interface PlacementModifier
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             int below = view.getBlock(pos.x(), pos.y() - 1, pos.z());
             boolean pass = allowedGround.contains(below);
-            RandomTrace.log("would_survive x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
+            if (RandomTrace.isActive()) RandomTrace.log("would_survive x=" + pos.x() + " y=" + pos.y() + " z=" + pos.z()
                 + " below=" + below + " pass=" + pass);
             return pass ? Stream.of(pos) : Stream.empty();
         }
@@ -349,34 +427,17 @@ public sealed interface PlacementModifier
         }
     }
 
-    static int absoluteYOrDefault(com.google.gson.JsonElement el, int fallback) {
+    /** VerticalAnchor.resolveY(WorldGenerationContext) — above_bottom = minGenY + n, below_top = genDepth - 1 + minGenY - n. */
+    static int worldgenYOrDefault(com.google.gson.JsonElement el, int fallback, int genMinY, int genDepth) {
         if (el == null || el.isJsonNull()) return fallback;
         int raw;
         if (el.isJsonPrimitive()) raw = el.getAsInt();
         else {
             com.google.gson.JsonObject obj = el.getAsJsonObject();
             if (obj.has("absolute")) raw = obj.get("absolute").getAsInt();
-            else if (obj.has("above_bottom")) raw = ChunkColumn.MIN_Y + obj.get("above_bottom").getAsInt();
+            else if (obj.has("above_bottom")) raw = genMinY + obj.get("above_bottom").getAsInt();
             else if (obj.has("below_top")) {
-                int top = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1;
-                raw = top - obj.get("below_top").getAsInt();
-            } else raw = fallback;
-        }
-        int minY = ChunkColumn.MIN_Y;
-        int maxY = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1;
-        return Math.max(minY, Math.min(maxY, raw));
-    }
-
-    static int worldgenYOrDefault(com.google.gson.JsonElement el, int fallback) {
-        if (el == null || el.isJsonNull()) return fallback;
-        int raw;
-        if (el.isJsonPrimitive()) raw = el.getAsInt();
-        else {
-            com.google.gson.JsonObject obj = el.getAsJsonObject();
-            if (obj.has("absolute")) raw = obj.get("absolute").getAsInt();
-            else if (obj.has("above_bottom")) raw = ChunkColumn.MIN_Y + obj.get("above_bottom").getAsInt();
-            else if (obj.has("below_top")) {
-                int top = ChunkColumn.MIN_Y + ChunkColumn.SECTION_COUNT * 16 - 1;
+                int top = genMinY + genDepth - 1;
                 raw = top - obj.get("below_top").getAsInt();
             } else raw = fallback;
         }
