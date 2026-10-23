@@ -57,3 +57,6 @@ logs/
 
 ### Claude 작업 트리 ###
 .claude/worktrees/
+
+### graphify ###
+graphify-out/

@@ -1,0 +1,5 @@
+graphify-out/
+tools/vanilla-data/server-1.21.1/
+tools/vanilla-data/*.jar
+LLM-Wiki/output/furnace-parity-audit/tools/nofeat/
+LLM-Wiki/output/furnace-parity-audit/tools/dfnoop/
