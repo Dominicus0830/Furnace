@@ -41,6 +41,14 @@ public final class ItemContext {
         return false;
     }
 
+    /** 태그의 엔트리 숫자 id들(태그 파일에 적힌 순서, 없으면 빈 배열). */
+    public static int[] tagEntries(String registry, String tag) {
+        var t = tags;
+        if (t == null) return new int[0];
+        int[] ids = t.ids(registry, tag.indexOf(':') < 0 ? "minecraft:" + tag : tag);
+        return ids == null ? new int[0] : ids.clone();
+    }
+
     /** 이름 → 숫자 id(없으면 null). */
     public static Integer id(String registry, String name) {
         ResourceId rid = ResourceId.tryParse(name);

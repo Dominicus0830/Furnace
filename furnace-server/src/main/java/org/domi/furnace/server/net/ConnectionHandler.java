@@ -1452,6 +1452,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.SmithingMenu(id, inv, menus, pos, access));
     }
 
+    private void openLoom(int x, int y, int z) {
+        openBlockMenu(x, y, z, "minecraft:loom", "container.loom",
+                (id, inv, pos, access) -> new org.domi.furnace.server.menu.LoomMenu(id, inv, menus, pos, access));
+    }
+
+    private void openCartography(int x, int y, int z) {
+        openBlockMenu(x, y, z, "minecraft:cartography_table", "container.cartography_table",
+                (id, inv, pos, access) -> new org.domi.furnace.server.menu.CartographyMenu(id, inv, menus, pos, access));
+    }
+
     private void openGrindstone(int x, int y, int z) {
         openBlockMenu(x, y, z, "minecraft:grindstone", "container.grindstone_title",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.GrindstoneMenu(id, inv, menus, pos, access));
@@ -1846,6 +1856,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public void openSmithing(org.domi.furnace.server.block.Pos p) {
                     ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openSmithing(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public void openLoom(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openLoom(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public void openCartography(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openCartography(p.x(), p.y(), p.z()));
                 }
 
                 @Override

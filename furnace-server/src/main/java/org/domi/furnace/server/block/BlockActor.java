@@ -68,6 +68,12 @@ public interface BlockActor {
     /** 대장장이 작업대 화면 열기. */
     default void openSmithing(Pos pos) {}
 
+    /** 베틀 화면 열기. */
+    default void openLoom(Pos pos) {}
+
+    /** 지도 제작대 화면 열기. */
+    default void openCartography(Pos pos) {}
+
     /** canUseGameMasterBlocks = instabuild && 권한 2 이상. */
     default boolean canUseGameMasterBlocks() { return instabuild() && permissionLevel() >= 2; }
 

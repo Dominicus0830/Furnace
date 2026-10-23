@@ -14,7 +14,8 @@ public class CartographyTableBlock extends BlockBehavior {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴): 지도 제작대 화면(container.cartography_table) + 통계 interact_with_cartography_table
+        player.openCartography(pos);
+        player.awardStat("minecraft:interact_with_cartography_table");
         return InteractionResult.CONSUME;
     }
 }

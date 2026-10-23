@@ -20,4 +20,10 @@ public interface BlockAccess {
 
     /** 블록 가운데에 경험치 구슬(ExperienceOrb.award). TODO(엔티티): 구슬 엔티티가 생기면 실제로 만든다. */
     default void awardExperience(int amount) { }
+
+    /** 지도 저장 데이터의 잠금·배율. */
+    record MapInfo(boolean locked, int scale) { }
+
+    /** MapItem.getSavedData(stack, level): 그 지도의 저장 데이터(없으면 null). TODO(지도): 지도 저장 데이터가 생기면 연결. */
+    default MapInfo mapInfo(org.domi.furnace.server.entity.ItemStack map) { return null; }
 }

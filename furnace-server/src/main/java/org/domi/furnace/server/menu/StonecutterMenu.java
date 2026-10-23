@@ -59,8 +59,7 @@ public class StonecutterMenu extends AbstractContainerMenu {
         });
         for (int r = 0; r < 3; r++) for (int c = 0; c < 9; c++) addSlot(new Slot(playerInventory, c + r * 9 + 9));
         for (int c = 0; c < 9; c++) addSlot(new Slot(playerInventory, c));
-        addDataSlot(selectedRecipeIndex);
-        selectedRecipeIndex.set(-1);
+        addDataSlot(selectedRecipeIndex);   // 바닐라 DataSlot.standalone() 은 0 에서 시작한다
     }
 
     public List<StonecuttingEntry> recipes() { return recipes; }

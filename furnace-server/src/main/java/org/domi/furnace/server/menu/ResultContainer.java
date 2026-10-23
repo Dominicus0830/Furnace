@@ -5,7 +5,7 @@ import java.util.List;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.recipe.RecipeManager.CraftingEntry;
 
-public final class ResultContainer implements Container {
+public class ResultContainer implements Container {
 
     private final Container storage;
     private CraftingEntry recipeUsed;

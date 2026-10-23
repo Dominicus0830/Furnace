@@ -15,7 +15,7 @@ public class LoomBlock extends HorizontalDirectionalBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴): 베틀 화면(container.loom).
+        player.openLoom(pos);
         player.awardStat("minecraft:interact_with_loom");
         return InteractionResult.CONSUME;
     }

@@ -11,11 +11,11 @@ import org.domi.furnace.server.item.CraftRemainders;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 
-final class SpecialRecipes {
+public final class SpecialRecipes {
 
     private SpecialRecipes() { }
 
-    private static final List<String> DYES = List.of("white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray",
+    public static final List<String> DYES = List.of("white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray",
             "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black");
     /** DyeColor.getTextureDiffuseColor (불투명 ARGB 에서 RGB 만). */
     private static final int[] TEXTURE = {16383998, 16351261, 13061821, 3847130, 16701501, 8439583, 15961002, 4673362, 10329495, 1481884,
@@ -33,14 +33,14 @@ final class SpecialRecipes {
     private static boolean inTag(ItemStack s, String tag) { return !s.isEmpty() && ItemContext.isInTag("minecraft:item", tag, s.itemId()); }
 
     /** DyeItem 이면 색 번호(0..15), 아니면 -1. */
-    private static int dye(ItemStack s) {
+    public static int dye(ItemStack s) {
         String n = name(s);
         if (n == null || !n.endsWith("_dye")) return -1;
         return DYES.indexOf(n.substring(10, n.length() - 4));
     }
 
     /** BannerItem 이면 색 번호, 아니면 -1. */
-    private static int banner(ItemStack s) {
+    public static int banner(ItemStack s) {
         String n = name(s);
         if (n == null || !n.endsWith("_banner")) return -1;
         return DYES.indexOf(n.substring(10, n.length() - 7));
