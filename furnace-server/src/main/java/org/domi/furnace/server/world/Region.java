@@ -337,6 +337,9 @@ public final class Region {
         level().broadcastChanges();
     }
 
+    /** 이 region 소속 플레이어(읽기 전용 — region 스레드에서만). */
+    java.util.Collection<Player> playersView() { return java.util.Collections.unmodifiableCollection(players.values()); }
+
     /** 이 region 소속 플레이어 중 그 상자를 열어 둔 사람의 화면을 닫는다(§3.5). 다른 region 의 플레이어는 틱의 stillValid 검사가 닫는다. */
     void closeChestScreens(int bx, int by, int bz) {
         for (Player pl : players.values()) {
@@ -381,6 +384,16 @@ public final class Region {
         chunkAt(cp).markDirty();
         dirtyChunks.add(cp);
         chest.setChanged(level());   // 비교기에 알린다
+    }
+
+    /** 용기 블록 엔티티 내용이 바뀌었음 — 청크를 저장 대상으로, 비교기에 알린다. 이 region 이 가진 블록이어야 한다. */
+    public void markBlockEntityChanged(org.domi.furnace.server.block.entity.BlockEntity be) {
+        world.assertOwns(this);
+        var p = be.pos();
+        ChunkPos cp = ChunkPos.ofBlock(p.x(), p.z());
+        chunkAt(cp).markDirty();
+        dirtyChunks.add(cp);
+        be.setChanged(level());
     }
 
     /** 상자 내용이 바뀌었음(전리품 채우기 등) — 청크를 저장 대상으로. */

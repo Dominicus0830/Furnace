@@ -18,6 +18,12 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:comparator", ComparatorBlockEntity::new);
         FACTORIES.put("minecraft:daylight_detector", DaylightDetectorBlockEntity::new);
         FACTORIES.put("minecraft:piston", PistonMovingBlockEntity::new);
+        FACTORIES.put("minecraft:ender_chest", EnderChestBlockEntity::new);
+        FACTORIES.put("minecraft:barrel", BarrelBlockEntity::new);
+        FACTORIES.put("minecraft:shulker_box", ShulkerBoxBlockEntity::new);
+        FACTORIES.put("minecraft:hopper", HopperBlockEntity::new);
+        FACTORIES.put("minecraft:dispenser", DispenserBlockEntity::new);
+        FACTORIES.put("minecraft:dropper", DropperBlockEntity::new);
     }
 
     public static boolean known(String type) { return FACTORIES.containsKey(type); }

@@ -15,8 +15,10 @@ public class TrappedChestBlock extends ChestBlock {
     @Override
     public boolean isSignalSource(int state) { return true; }
 
-    /** ChestBlockEntity.getOpenCount. TODO(블록 엔티티): 여는 사람 수 — 지금은 0. */
-    private static int openCount(BlockLevel level, Pos pos) { return 0; }
+    /** ChestBlockEntity.getOpenCount: 그 칸 상자를 열어 둔 사람 수. */
+    private static int openCount(BlockLevel level, Pos pos) {
+        return level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c ? c.openCount : 0;
+    }
 
     @Override
     public int getSignal(int state, BlockLevel level, Pos pos, int dir) { return Math.clamp(openCount(level, pos), 0, 15); }

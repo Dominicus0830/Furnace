@@ -404,6 +404,11 @@ public final class Player {
         latencyMs = old == 0 ? sampleMs : (old * 3 + sampleMs) / 4;
     }
 
+    private final EnderChestInventory enderChest = new EnderChestInventory();
+
+    /** 플레이어의 엔더 상자 27칸(어느 엔더 상자를 열든 같다). */
+    public EnderChestInventory enderChest() { return enderChest; }
+
     public org.domi.furnace.server.menu.InventoryMenu inventoryMenu() { return inventoryMenu; }
 
     /** 지금 열린 창(없으면 인벤토리 창). 메뉴가 만들어지기 전(시험용 Player)에는 null. */

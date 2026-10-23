@@ -30,6 +30,7 @@ application {
 tasks.test {
     useJUnitPlatform()
     enableAssertions = true
+    maxHeapSize = "3g"   // 통합 테스트가 월드를 많이 만들어 기본 힙으로는 모자란다
     testLogging { showStandardStreams = true }
     System.getProperties().forEach { k, v ->
         if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())

@@ -15,7 +15,7 @@ public final class RegionLevel extends ChunkLevel {
 
     private final Region region;
     private final World world;
-    private final int chest;
+    private final int chest, trappedChest;
     /** 이번 틱에 ack 할 플레이어 → 가장 큰 sequence(바닐라 ackBlockChangesUpTo). */
     private final Map<Player, Integer> pendingAcks = new LinkedHashMap<>();
     // 같은 청크 연속 조회를 싸게(퇴출·주인 변경 때 비운다)
@@ -27,6 +27,7 @@ public final class RegionLevel extends ChunkLevel {
         this.region = region;
         this.world = world;
         this.chest = blocks.block("minecraft:chest");
+        this.trappedChest = blocks.block("minecraft:trapped_chest");
     }
 
     @Override
@@ -75,8 +76,10 @@ public final class RegionLevel extends ChunkLevel {
     @Override
     protected void createBlockEntity(ChunkColumn col, Pos p, int state) {
         // 상자는 아직 자기 틀(ChestBlockEntity)로 — 나머지는 블록의 newBlockEntity
-        if (blocks.blockOf(state) == chest) {
-            if (col.chestAt(p.x(), p.y(), p.z()) == null) col.putChest(ChestBlockEntity.empty(p.x(), p.y(), p.z()));
+        if (blocks.blockOf(state) == chest || blocks.blockOf(state) == trappedChest) {
+            if (col.chestAt(p.x(), p.y(), p.z()) == null) {
+                col.putChest(ChestBlockEntity.empty(blocks.blockOf(state) == chest ? "minecraft:chest" : "minecraft:trapped_chest", p.x(), p.y(), p.z()));
+            }
             return;
         }
         super.createBlockEntity(col, p, state);
@@ -88,6 +91,24 @@ public final class RegionLevel extends ChunkLevel {
         col.removeBlockEntityAt(p.x(), p.y(), p.z());
         if (chest != null) chest.setRemoved();   // 다른 region 의 플레이어가 연 메뉴도 stillValid 에서 걸러진다
         region.closeChestScreens(p.x(), p.y(), p.z());
+    }
+
+    /** 이 칸 용기를 열어 둔 플레이어 수 — 이 region 소속 플레이어 중 그 용기의 창을 가졌고 몸이 칸 상자 ± radius 안에 걸치는 사람. */
+    @Override
+    public int countContainerOpeners(Pos pos, double radius, Object container) {
+        int n = 0;
+        double x0 = pos.x() - radius, x1 = pos.x() + 1 + radius, y0 = pos.y() - radius, y1 = pos.y() + 1 + radius,
+                z0 = pos.z() - radius, z1 = pos.z() + 1 + radius;
+        for (var pl : region.playersView()) {
+            if (!(pl.containerMenu() instanceof org.domi.furnace.server.menu.ContainerBackedMenu m) || !owns(m.container(), container)) continue;
+            if (pl.x() + 0.3 > x0 && pl.x() - 0.3 < x1 && pl.y() + 1.8 > y0 && pl.y() < y1 && pl.z() + 0.3 > z0 && pl.z() - 0.3 < z1) n++;
+        }
+        return n;
+    }
+
+    private static boolean owns(org.domi.furnace.server.menu.Container c, Object be) {
+        if (c instanceof OpenableContainer b) return b.opener() == be;
+        return c instanceof org.domi.furnace.server.menu.CompoundContainer cc && (owns(cc.first(), be) || owns(cc.second(), be));
     }
 
     // ------------------------------------------------------------------ 합치기·나누기

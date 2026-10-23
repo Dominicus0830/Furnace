@@ -1,6 +1,8 @@
 // 바닐라 BarrelBlock: 통. 바라보는 방향의 반대로 놓인다. 열림(open)·내용물은 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.entity.ContainerBlockEntity;
+import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -20,26 +22,39 @@ public class BarrelBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴·블록엔티티): 통 화면 열기 + 통계 open_barrel + 피글린 분노
+        player.openContainer(pos);
+        player.awardStat("minecraft:open_barrel");
+        // TODO(엔티티): PiglinAi.angerNearbyPiglins(player, true).
         return InteractionResult.CONSUME;
     }
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(드롭): Containers.dropContentsOnDestroy
+        // Containers.dropContentsOnDestroy: 다른 블록이 되면 내용물을 쏟고(열지 않은 전리품은 먼저 채운다) 비교기에 알린다
+        if (!B.is(newState, block) && level.getBlockEntity(pos) instanceof ContainerBlockEntity c) {
+            level.unpackContainerLoot(c);
+            level.dropContents(pos, c.items);
+            level.updateNeighbourForOutputSignal(pos, block);
+        }
         super.onRemove(state, level, pos, newState, moved);
     }
 
     @Override
+    public BlockEntity newBlockEntity(Pos pos, int state) { return new org.domi.furnace.server.block.entity.BarrelBlockEntity(pos, state); }
+
+    @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        // TODO(블록엔티티): BarrelBlockEntity.recheckOpen — 여는 사람 수로 open 속성·소리
+        if (level.getBlockEntity(pos) instanceof ContainerBlockEntity c) c.recheckOpen(level);   // BarrelBlock.tick: 여는 사람 수 다시 세기
     }
 
     @Override
     public boolean hasAnalogOutputSignal(int state) { return true; }
 
     @Override
-    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) { return 0; }   // TODO(블록엔티티)
+    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
+        // AbstractContainerMenu.getRedstoneSignalFromBlockEntity
+        return level.getBlockEntity(pos) instanceof ContainerBlockEntity c ? ChestBlock.redstoneSignalFromContainer(java.util.List.<org.domi.furnace.server.entity.ItemStack[]>of(c.items)) : 0;
+    }
 
     @Override
     public int getStateForPlacement(PlaceContext ctx) {

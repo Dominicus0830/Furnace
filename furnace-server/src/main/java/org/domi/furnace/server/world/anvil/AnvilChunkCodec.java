@@ -332,7 +332,7 @@ public final class AnvilChunkCodec {
                 }
             }
         }
-        ChestBlockEntity chest = new ChestBlockEntity(x, y, z, stacks);
+        ChestBlockEntity chest = new ChestBlockEntity("minecraft:trapped_chest".equals(e.tags().get("id")) ? "minecraft:trapped_chest" : "minecraft:chest", x, y, z, stacks);
         if (e.tags().get("LootTable") instanceof String table) {
             chest.lootTable = table;
             chest.lootSeed = e.tags().get("LootTableSeed") instanceof Long seed ? seed : 0L;

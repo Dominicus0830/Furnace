@@ -25,6 +25,24 @@ public class ChestBlock extends AbstractChestBlock {
 
     private static String type(int state) { return TYPE.valueName(state); }
 
+    /** 홑상자인가(type=single). */
+    public boolean isSingle(int state) { return SINGLE.equals(type(state)); }
+
+    /** 오른쪽 상자인가(더블 상자의 첫째 용기 — DoubleBlockCombiner.BlockType.FIRST). */
+    public boolean isRightChest(int state) { return RIGHT.equals(type(state)); }
+
+    /**
+     * 짝이 되는 상자 위치(없으면 null): 홑상자가 아니고, 이어진 쪽 칸이 같은 블록·같은 방향·반대 type 일 때.
+     * (DoubleBlockCombiner.combineWithNeigbour 의 이웃 검사. 막힘 검사는 호출 쪽이 한다.)
+     */
+    public Pos doubleChestPartner(BlockLevel level, Pos pos, int state) {
+        if (SINGLE.equals(type(state))) return null;
+        Pos np = pos.relative(getConnectedDirection(state));
+        int ns = level.getBlockState(np);
+        if (B.is(ns, block) && !SINGLE.equals(type(ns)) && !type(ns).equals(type(state)) && facing(ns) == facing(state)) return np;
+        return null;
+    }
+
     private static String opposite(String type) { return LEFT.equals(type) ? RIGHT : RIGHT.equals(type) ? LEFT : SINGLE; }
 
     /** getConnectedDirection: 짝이 있는 쪽(왼쪽이면 시계 방향, 아니면 반시계). */
@@ -96,7 +114,7 @@ public class ChestBlock extends AbstractChestBlock {
             if (B.is(os, block) && !SINGLE.equals(type(os)) && isChestBlockedAt(level, other)) blocked = true;
         }
         if (!blocked) {
-            player.openChest(pos);
+            player.openContainer(pos);
             player.awardStat(openChestStat());
             // TODO(엔티티): PiglinAi.angerNearbyPiglins(player, true).
         }
@@ -151,6 +169,7 @@ public class ChestBlock extends AbstractChestBlock {
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        // TODO(블록 엔티티): ChestBlockEntity.recheckOpen — 여는 사람 수 다시 세기.
+        // ChestBlock.tick: 여는 사람 수를 다시 센다(접속이 끊긴 사람 등)
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) c.recheckOpen(level);
     }
 }

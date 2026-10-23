@@ -103,7 +103,7 @@ class ChestInteractionTest {
         viewer.initMenus(new org.domi.furnace.server.menu.InventoryMenu(viewer.inventory(), null));
         ChestBlockEntity openedChest = ChestBlockEntity.empty(3, -60, 3);
         var openedMenu = org.domi.furnace.server.menu.ChestMenu.threeRows(7, viewer.inventoryMenu().inventoryContainer(),
-                new ChestContainer(openedChest), new int[]{3, -60, 3}, null);
+                new BlockEntityContainer(openedChest), new int[]{3, -60, 3}, null);
         viewer.setContainerMenu(openedMenu);
         viewer.inventoryHost(new Player.InventoryHost() {
             public ItemStack slot(int windowSlot) { return ItemStack.EMPTY; }

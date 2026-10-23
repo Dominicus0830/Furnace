@@ -1,6 +1,8 @@
 // 바닐라 ShulkerBoxBlock: 클릭한 면 쪽을 보게 놓인다. 열기(뚜껑이 막히지 않으면)·내용물 보존 드롭은 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.entity.ContainerBlockEntity;
+import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -22,8 +24,9 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴·블록엔티티): 관전자가 아니고 뚜껑 앞이 막히지 않았으면(닫힌 상태에서 열림 상자와 충돌 검사) 화면 열기
-        //  + 통계 open_shulker_box + 피글린 분노.
+        // TODO(엔티티): 관전자 제외, 뚜껑 앞이 막혔는지(ShulkerBoxBlockEntity.canOpen — 닫힌 상태에서 열림 상자 충돌 검사), 피글린 분노.
+        player.openContainer(pos);
+        player.awardStat("minecraft:open_shulker_box");
         return InteractionResult.CONSUME;
     }
 
@@ -46,6 +49,10 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
 
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
-        return 0;   // TODO(블록엔티티): AbstractContainerMenu.getRedstoneSignalFromBlockEntity
+        // AbstractContainerMenu.getRedstoneSignalFromBlockEntity
+        return level.getBlockEntity(pos) instanceof ContainerBlockEntity c ? ChestBlock.redstoneSignalFromContainer(java.util.List.<org.domi.furnace.server.entity.ItemStack[]>of(c.items)) : 0;
     }
+
+    @Override
+    public BlockEntity newBlockEntity(Pos pos, int state) { return new org.domi.furnace.server.block.entity.ShulkerBoxBlockEntity(pos, state); }
 }

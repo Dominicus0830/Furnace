@@ -1,6 +1,8 @@
 // 바닐라 HopperBlock: 깔때기. 클릭한 면 쪽으로 내보낸다(위면을 눌렀으면 아래로). 신호를 받으면 꺼진다(enabled=false).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.entity.ContainerBlockEntity;
+import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -30,7 +32,8 @@ public class HopperBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴·블록엔티티): 깔때기 화면 + 통계 inspect_hopper
+        player.openContainer(pos);
+        player.awardStat("minecraft:inspect_hopper");
         return InteractionResult.CONSUME;
     }
 
@@ -46,7 +49,12 @@ public class HopperBlock extends BaseEntityBlock {
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(드롭): Containers.dropContentsOnDestroy
+        // Containers.dropContentsOnDestroy: 다른 블록이 되면 내용물을 쏟고(열지 않은 전리품은 먼저 채운다) 비교기에 알린다
+        if (!B.is(newState, block) && level.getBlockEntity(pos) instanceof ContainerBlockEntity c) {
+            level.unpackContainerLoot(c);
+            level.dropContents(pos, c.items);
+            level.updateNeighbourForOutputSignal(pos, block);
+        }
         super.onRemove(state, level, pos, newState, moved);
     }
 
@@ -55,9 +63,12 @@ public class HopperBlock extends BaseEntityBlock {
 
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
-        // TODO(블록엔티티): AbstractContainerMenu.getRedstoneSignalFromBlockEntity
-        return 0;
+        // AbstractContainerMenu.getRedstoneSignalFromBlockEntity
+        return level.getBlockEntity(pos) instanceof ContainerBlockEntity c ? ChestBlock.redstoneSignalFromContainer(java.util.List.<org.domi.furnace.server.entity.ItemStack[]>of(c.items)) : 0;
     }
+
+    @Override
+    public BlockEntity newBlockEntity(Pos pos, int state) { return new org.domi.furnace.server.block.entity.HopperBlockEntity(pos, state); }
 
     // TODO(엔티티·블록엔티티): entityInside — 위에 떨어진 아이템 엔티티 빨아들이기, 블록 엔티티 틱(옮기기·쿨다운).
 }

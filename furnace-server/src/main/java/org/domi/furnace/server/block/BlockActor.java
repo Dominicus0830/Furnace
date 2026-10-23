@@ -53,8 +53,8 @@ public interface BlockActor {
     /** 설치 직전 허가(플러그인 BlockPlaceEvent) — 거짓이면 설치하지 않는다(FAIL). */
     default boolean allowPlace(Pos pos, int state, Pos against) { return true; }
 
-    /** 상자 화면 열기(바닐라 openMenu — 블록 엔티티 체계가 들어오기 전에는 상자만). */
-    default void openChest(Pos pos) {}
+    /** 그 칸 용기(상자·통·셜커 상자·깔때기·발사기·공급기)의 화면 열기(바닐라 openMenu(getMenuProvider)). */
+    default void openContainer(Pos pos) {}
 
     /** 제작대 화면 열기(CraftingTableBlock.useWithoutItem → player.openMenu). */
     default void openCraftingTable(Pos pos) {}

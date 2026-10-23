@@ -25,8 +25,12 @@ public class EnderChestBlock extends AbstractChestBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴·블록 엔티티): 위가 전도체가 아니면 엔더 인벤토리 화면(container.enderchest)·통계 open_enderchest·피글린 분노.
-        //   블록 엔티티가 없을 때도 바닐라 결과는 CONSUME.
+        // 위 칸이 레드스톤 전도체면 열리지 않는다. 열면 이 플레이어의 엔더 인벤토리(container.enderchest) + 통계 open_enderchest.
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity && !ChestBlock.isChestBlockedAt(level, pos)) {
+            player.openContainer(pos);
+            player.awardStat("minecraft:open_enderchest");
+            // TODO(엔티티): PiglinAi.angerNearbyPiglins(player, true).
+        }
         return InteractionResult.CONSUME;
     }
 
@@ -38,6 +42,11 @@ public class EnderChestBlock extends AbstractChestBlock {
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        // TODO(블록 엔티티): EnderChestBlockEntity.recheckOpen.
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity c) c.recheckOpen(level);   // EnderChestBlock.tick
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.EnderChestBlockEntity(pos, state);
     }
 }

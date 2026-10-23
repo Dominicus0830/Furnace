@@ -232,6 +232,40 @@ public final class PlayerData {
         return inventory;
     }
 
+    /** 아이템 레지스트리가 있는가(없으면 EnderItems 를 읽거나 쓰지 않고 파일의 것을 그대로 둔다). */
+    public static boolean hasItemRegistry() { return items != null; }
+
+    /** 엔더 상자 27칸 → 바닐라 EnderItems 목록(Slot:byte, id, count, components). 레지스트리가 없으면 빈 목록. */
+    public static NbtList enderItemsToNbt(ItemStack[] slots) {
+        NbtList list = new NbtList(NbtIo.TAG_COMPOUND);
+        if (slots == null || items == null) return list;
+        for (int i = 0; i < slots.length; i++) {
+            ItemStack stack = slots[i];
+            if (stack == null || stack.isEmpty()) continue;
+            NbtCompound it = vanillaItem(stack);
+            if (it == null) continue;
+            NbtCompound entry = new NbtCompound();
+            entry.putByte("Slot", (byte) i);
+            entry.tags().putAll(it.tags());
+            list.add(entry);
+        }
+        return list;
+    }
+
+    /** 바닐라 EnderItems 읽기(없거나 레지스트리가 없으면 빈 27칸). */
+    public static ItemStack[] enderItemsFromNbt(NbtCompound root, int size) {
+        ItemStack[] out = new ItemStack[size];
+        Arrays.fill(out, ItemStack.EMPTY);
+        if (root == null || items == null || !root.contains("EnderItems")) return out;
+        for (Object o : root.getList("EnderItems").items()) {
+            if (o instanceof NbtCompound e && e.tags().get("Slot") instanceof Byte b && (b & 0xFF) < size) {
+                ItemStack s = vanillaStack(e);
+                if (s != null) out[b & 0xFF] = s;
+            }
+        }
+        return out;
+    }
+
     private static NbtList craftingToNbt(ItemStack[] slots) {
         NbtList list = new NbtList(NbtIo.TAG_COMPOUND);
         if (slots == null) return list;

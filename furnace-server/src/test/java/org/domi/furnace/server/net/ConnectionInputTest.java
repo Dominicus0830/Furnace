@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -347,7 +348,7 @@ class ConnectionInputTest {
         join(new SpawnPoint(0, -60, 0, 0f));
         var chest = org.domi.furnace.server.world.ChestBlockEntity.empty(1000, -60, 1000);   // 월드에 없는(미로드 청크) 상자
         var menu = org.domi.furnace.server.menu.ChestMenu.threeRows(7, p.inventoryMenu().inventoryContainer(),
-                new org.domi.furnace.server.world.ChestContainer(chest), new int[]{1000, -60, 1000}, null);
+                new org.domi.furnace.server.world.BlockEntityContainer(chest), new int[]{1000, -60, 1000}, null);
         p.setContainerMenu(menu);
         ChunkPos far = ChunkPos.ofBlock(1000, 1000);
         ch.writeInbound(frame(0x0E, b -> {
@@ -400,7 +401,7 @@ class ConnectionInputTest {
             chest[0] = r.chestAt(x, y, z);
         }).get();
         drainOutbound();
-        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openChest", int.class, int.class, int.class);
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, x, y, z);
         await("상자 창 열림", () -> p.hasOpenContainer());
@@ -506,6 +507,185 @@ class ConnectionInputTest {
             return !p.hasOpenContainer();
         });
         assertEquals(1, count(drainOutbound(), ContainerClose.ID));
+    }
+
+    /** 월드에 블록(상태 이름·속성)을 놓고 그 칸 용기를 연다 — 실제 openContainer 경로. 반환: 그 칸의 블록 엔티티. */
+    private org.domi.furnace.server.block.entity.ContainerBlockEntity openBlock(int x, int y, int z, String block, Map<String, String> props,
+            java.util.function.Consumer<org.domi.furnace.server.block.entity.ContainerBlockEntity> fill) throws Exception {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        RegionPos rp = new RegionPos(Math.floorDiv(x, 16), Math.floorDiv(z, 16));
+        org.domi.furnace.server.block.entity.ContainerBlockEntity[] be = new org.domi.furnace.server.block.entity.ContainerBlockEntity[1];
+        sched.region(rp).execute(() -> {
+            var r = world.regionAt(rp);
+            r.placeBlock(x, y, z, reg.stateIdOrAir(block, props));
+            be[0] = (org.domi.furnace.server.block.entity.ContainerBlockEntity) r.level().getBlockEntity(new org.domi.furnace.server.block.Pos(x, y, z));
+            if (fill != null) fill.accept(be[0]);
+        }).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, x, y, z);
+        await("용기 창 열림", () -> p.hasOpenContainer());
+        return be[0];
+    }
+
+    @Test
+    void barrel_opensAsNineByThree_andShowsItems() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        var barrel = openBlock(2, -60, 2, "minecraft:barrel", Map.of("facing", "up", "open", "false"), b -> b.items[3] = new ItemStack(1, 7, null));
+        var menu = p.containerMenu();
+        assertEquals("minecraft:generic_9x3", menu.menuType());
+        assertEquals(63, menu.slots.size());
+        assertEquals(7, menu.getSlot(3).getItem().count());
+        assertEquals(1, count(drainOutbound(), 0x33));
+        assertNotNull(barrel);
+    }
+
+    @Test
+    void enderChest_opensPlayersOwnInventory() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        p.enderChest().set(4, new ItemStack(1, 9, null));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        RegionPos rp = new RegionPos(0, 0);
+        sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:ender_chest", Map.of("facing", "north", "waterlogged", "false")))).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, 2, -60, 2);
+        await("엔더 상자 창 열림", () -> p.hasOpenContainer());
+        var menu = p.containerMenu();
+        assertEquals("minecraft:generic_9x3", menu.menuType());
+        assertEquals(9, menu.getSlot(4).getItem().count());
+    }
+
+    @Test
+    void shulkerBox_rejectsNestedShulkerBoxes() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        openBlock(2, -60, 2, "minecraft:shulker_box", Map.of("facing", "up"), null);
+        var menu = p.containerMenu();
+        assertEquals("minecraft:shulker_box", menu.menuType());
+        assertEquals(63, menu.slots.size());
+        int box = org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:shulker_box");
+        int dirt = org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:dirt");
+        assertFalse(menu.getSlot(0).mayPlace(new ItemStack(box, 1)));
+        assertFalse(menu.getSlot(0).mayPlace(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:lime_shulker_box"), 1)));
+        assertTrue(menu.getSlot(0).mayPlace(new ItemStack(dirt, 1)));
+        assertTrue(menu.getSlot(30).mayPlace(new ItemStack(box, 1)), "플레이어 인벤토리 칸은 제한이 없다");
+    }
+
+    @Test
+    void hopperAndDispenser_haveTheirOwnMenus() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        openBlock(2, -60, 2, "minecraft:hopper", Map.of("facing", "down", "enabled", "true"), null);
+        assertEquals("minecraft:hopper", p.containerMenu().menuType());
+        assertEquals(41, p.containerMenu().slots.size());
+        ch.writeInbound(frame(0x0F, b -> Types.writeVarInt(b, p.containerMenu().containerId)));
+        await("깔때기 창 닫힘", () -> !p.hasOpenContainer());
+        openBlock(3, -60, 2, "minecraft:dispenser", Map.of("facing", "north", "triggered", "false"), null);
+        assertEquals("minecraft:generic_3x3", p.containerMenu().menuType());
+        assertEquals(45, p.containerMenu().slots.size());
+    }
+
+    /** 더블 상자: 오른쪽 상자가 앞 27칸, 왼쪽이 뒤 27칸인 9×6 창. 어느 쪽을 눌러도 같고, 꺼내면 그 쪽 상자에서 빠진다. */
+    @Test
+    void doubleChest_isOneNineBySixMenu_rightChestFirst() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        RegionPos rp = new RegionPos(0, 0);
+        // facing=north: 왼쪽 상자의 짝은 동쪽(+x), 오른쪽 상자의 짝은 서쪽(-x)
+        org.domi.furnace.server.block.entity.ContainerBlockEntity[] chests = new org.domi.furnace.server.block.entity.ContainerBlockEntity[2];
+        sched.region(rp).execute(() -> {
+            var r = world.regionAt(rp);
+            r.placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:chest", Map.of("facing", "north", "type", "left", "waterlogged", "false")));
+            r.placeBlock(3, -60, 2, reg.stateIdOrAir("minecraft:chest", Map.of("facing", "north", "type", "right", "waterlogged", "false")));
+            chests[0] = (org.domi.furnace.server.block.entity.ContainerBlockEntity) r.level().getBlockEntity(new org.domi.furnace.server.block.Pos(2, -60, 2));
+            chests[1] = (org.domi.furnace.server.block.entity.ContainerBlockEntity) r.level().getBlockEntity(new org.domi.furnace.server.block.Pos(3, -60, 2));
+            chests[0].items[0] = new ItemStack(3, 4, null);   // 왼쪽
+            chests[1].items[0] = new ItemStack(1, 5, null);   // 오른쪽
+        }).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, 2, -60, 2);   // 왼쪽을 눌렀다
+        await("더블 상자 창 열림", () -> p.hasOpenContainer());
+        var menu = p.containerMenu();
+        assertEquals("minecraft:generic_9x6", menu.menuType());
+        assertEquals(90, menu.slots.size());
+        assertEquals(5, menu.getSlot(0).getItem().count(), "첫째 = 오른쪽 상자");
+        assertEquals(4, menu.getSlot(27).getItem().count(), "둘째 = 왼쪽 상자");
+        // 왼쪽 상자 칸(메뉴 27)의 것을 집는다
+        ch.writeInbound(frame(0x0E, b -> {
+            Types.writeVarInt(b, menu.containerId); Types.writeVarInt(b, menu.getStateId()); b.writeShort(27); b.writeByte(0);
+            Types.writeVarInt(b, 0); Types.writeVarInt(b, 1);
+            b.writeShort(27); writeStrictSlot(b, 0, 0, 0);
+            writeStrictSlot(b, 4, 3, 0);
+        }));
+        await("왼쪽 상자에서 꺼냄", () -> chests[0].items[0].isEmpty());
+        assertEquals(5, chests[1].items[0].count(), "오른쪽 상자는 그대로");
+        assertEquals(4, menu.getCarried().count());
+    }
+
+    /** 상자를 열면 여는 수가 1 이 되어 뚜껑 block_event(1, 1) 이 나가고, 닫으면 0 으로 돌아온다. 통은 open 속성이 따라 켜졌다 꺼진다. */
+    @Test
+    void openerCounter_chestSendsLidEvent_barrelTogglesOpenProperty() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        var chest = openBlock(2, -60, 2, "minecraft:chest", Map.of("facing", "north", "type", "single", "waterlogged", "false"), null);
+        await("상자 여는 수 1", () -> chest.openCount == 1);
+        RegionPos chestRp = new RegionPos(0, 0);
+        sched.region(chestRp).execute(() -> world.regionAt(chestRp).tick()).get();   // 블록 이벤트는 틱에서 방송된다(테스트 월드는 자동 틱이 없다)
+        List<int[]> out = drainOutbound();
+        assertTrue(count(out, org.domi.furnace.server.net.protocol.play.BlockEventPacket.ID) >= 1, "뚜껑 block_event 가 나가야 한다");
+        ch.writeInbound(frame(0x0F, b -> Types.writeVarInt(b, p.containerMenu().containerId)));
+        await("상자 창 닫힘", () -> !p.hasOpenContainer());
+        await("상자 여는 수 0", () -> chest.openCount == 0);
+
+        var barrel = openBlock(4, -60, 2, "minecraft:barrel", Map.of("facing", "up", "open", "false"), null);
+        RegionPos rp = new RegionPos(0, 0);
+        int[] openState = new int[1];
+        await("통 열림 속성", () -> {
+            sched.region(rp).execute(() -> openState[0] = world.regionAt(rp).level().getBlockState(new org.domi.furnace.server.block.Pos(4, -60, 2))).get();
+            return reg.canonicalKeyOf(openState[0]).contains("open=true");
+        });
+        assertEquals(1, barrel.openCount);
+        ch.writeInbound(frame(0x0F, b -> Types.writeVarInt(b, p.containerMenu().containerId)));
+        await("통 닫힘", () -> {
+            sched.region(rp).execute(() -> openState[0] = world.regionAt(rp).level().getBlockState(new org.domi.furnace.server.block.Pos(4, -60, 2))).get();
+            return reg.canonicalKeyOf(openState[0]).contains("open=false");
+        });
+        assertEquals(0, barrel.openCount);
+    }
+
+    /** 덫 상자도 상자처럼 열리고, 여는 사람 수가 신호 세기가 된다. */
+    @Test
+    void trappedChest_opensAndSignalsOpenerCount() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        var chest = openBlock(2, -60, 2, "minecraft:trapped_chest", Map.of("facing", "north", "type", "single", "waterlogged", "false"), null);
+        assertEquals("minecraft:trapped_chest", chest.type());
+        assertEquals("minecraft:generic_9x3", p.containerMenu().menuType());
+        await("여는 수 1", () -> chest.openCount == 1);
+    }
+
+    /** 부서진 용기의 내용물은 땅에 쏟아지고(통·깔때기·발사기), 셜커 상자는 아직 쏟지 않는다. */
+    @Test
+    void breakingBarrelDropsContentsAsItemEntities() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        RegionPos rp = new RegionPos(0, 0);
+        int[] dropped = new int[1];
+        sched.region(rp).execute(() -> {
+            var r = world.regionAt(rp);
+            r.placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:barrel", Map.of("facing", "up", "open", "false")));
+            var b = (org.domi.furnace.server.block.entity.ContainerBlockEntity) r.level().getBlockEntity(new org.domi.furnace.server.block.Pos(2, -60, 2));
+            b.items[0] = new ItemStack(1, 5, null);
+            r.breakBlock(2, -60, 2);
+            assertNull(r.level().getBlockEntity(new org.domi.furnace.server.block.Pos(2, -60, 2)));
+            assertTrue(b.items[0].isEmpty(), "쏟은 칸은 비운다");
+        }).get();
     }
 
     /** 접속이 끊기면 바닐라 Player.remove 처럼 커서·제작 격자의 아이템이 인벤토리 창에서 빠진다(월드에 떨어진다) — 저장된 playerdata 와 겹치지 않는다. */

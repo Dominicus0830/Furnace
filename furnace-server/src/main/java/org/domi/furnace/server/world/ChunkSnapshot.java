@@ -39,7 +39,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
             var p = be.pos();
             if (be instanceof ChestBlockEntity) {
                 // 바닐라 상자 getUpdateTag 는 빈 컴파운드 → 청크 패킷에는 null(TAG_END). 내용물은 클라이언트로 보내지 않는다.
-                beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, CHEST_TYPE_ID, null));
+                beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, be.typeId(), null));
             } else {
                 // ClientboundLevelChunkPacketData.BlockEntityInfo: getUpdateTag 가 비면 null
                 NbtCompound tag = be.updateTag();

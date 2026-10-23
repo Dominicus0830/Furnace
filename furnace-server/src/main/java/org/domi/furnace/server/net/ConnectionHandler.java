@@ -836,6 +836,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (saved != null) inv.load(saved.slots());
         menus = new ServerMenus(p);
         p.initMenus(new org.domi.furnace.server.menu.InventoryMenu(inv, menus));
+        p.enderChest().load(org.domi.furnace.server.entity.PlayerData.enderItemsFromNbt(saved != null ? saved.root() : null,
+                org.domi.furnace.server.entity.EnderChestInventory.SIZE));
         p.inventoryMenu().addSlotListener(menus);   // 바닐라 initInventoryMenu: 리스너(inventory_changed) 먼저, 동기기는 첫 패킷 때
         sy += 0.05; // 지면 살짝 위서 스폰 — 동기 청크 위로 살짝 떨어져 안착(clip/immovable 없이 자연 착지).
         spawnX = sx; spawnY = sy; spawnZ = sz; spawnYaw = syaw; spawnPitch = spitch;
@@ -1741,8 +1743,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
 
                 @Override
-                public void openChest(org.domi.furnace.server.block.Pos p) {
-                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openChest(p.x(), p.y(), p.z()));
+                public void openContainer(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openContainer(p.x(), p.y(), p.z()));
                 }
 
                 @Override
@@ -1884,6 +1886,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         final boolean sg = ig;
         final var extra = p.vitals().saveData();
         extra.putInt("SelectedItemSlot", inv.selected());
+        if (org.domi.furnace.server.entity.PlayerData.hasItemRegistry()) {   // 엔더 상자(바닐라 EnderItems)
+            extra.putList("EnderItems", org.domi.furnace.server.entity.PlayerData.enderItemsToNbt(p.enderChest().snapshot()));
+        }
         extra.putCompound("recipeBook", p.recipeBook().save());
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
@@ -2035,33 +2040,96 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         ctx.close();
     }
 
+    /** 용기를 열 때 region 스레드에서 정한 것: 주 블록 엔티티·(더블 상자의) 둘째·제목. */
+    private record OpenSpec(org.domi.furnace.server.block.entity.ContainerBlockEntity first,
+            org.domi.furnace.server.block.entity.ContainerBlockEntity second,
+            org.domi.furnace.server.block.entity.EnderChestBlockEntity ender, Text title) { }
+
     /**
-     * Use Item On 이 상자를 클릭했을 때 화면 열기(ServerPlayer.openMenu): 열려 있던 창을 닫고, 번호를 올리고, ChestMenu 를 만들어
-     * open_screen → 첫 container_set_content 를 보낸다. 싱글체스트만 — 더블체스트 병합은 TODO(더블 상자).
+     * 용기를 클릭했을 때 화면 열기(ServerPlayer.openMenu(getMenuProvider)): region 스레드에서 블록 엔티티(와 더블 상자의 짝)를 찾고 열지 않은
+     * 전리품을 채운 뒤, 이벤트 루프에서 열려 있던 창을 닫고 → 번호를 올리고 → 메뉴를 만들어 open_screen → 첫 container_set_content 를 보낸다.
      */
-    private void openChest(int x, int y, int z) {
+    private void openContainer(int x, int y, int z) {
         Player p = player;
         if (p == null) return;
-        world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> {
-            ChestBlockEntity chest = region.chestAt(x, y, z);
-            if (chest != null && chest.lootTable != null && login.core != null) {
-                login.core.unpackLoot(chest, p);   // 바닐라 startOpen → unpackLootTable(player)
-                region.markChestChanged(x, y, z);
+        world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> resolveOpenSpec(region, p, new org.domi.furnace.server.block.Pos(x, y, z)))
+            .thenAccept(spec -> ctx.channel().eventLoop().execute(() -> {
+                if (spec == null) return;
+                synchronized (p.menuLock()) {
+                    if (p.hasOpenContainer()) closeContainer(p);
+                    int containerId = p.nextContainerCounter();
+                    int[] bp = {x, y, z};
+                    var inventory = p.inventoryMenu().inventoryContainer();
+                    org.domi.furnace.server.menu.AbstractContainerMenu menu;
+                    var f = spec.first();
+                    if (spec.ender() != null) {   // 엔더 상자: 이 플레이어의 엔더 인벤토리(엔더 상자 블록이 여는 수·소리를 센다)
+                        var c = new org.domi.furnace.server.world.EnderChestContainer(p.enderChest(), spec.ender(), world::runAt);
+                        menu = org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);
+                    } else if (spec.second() != null) {
+                        var c = new org.domi.furnace.server.menu.CompoundContainer(new org.domi.furnace.server.world.BlockEntityContainer(f, world::runAt),
+                                new org.domi.furnace.server.world.BlockEntityContainer(spec.second(), world::runAt));
+                        menu = org.domi.furnace.server.menu.ChestMenu.sixRows(containerId, inventory, c, bp, menus);
+                    } else {
+                        var c = new org.domi.furnace.server.world.BlockEntityContainer(f, world::runAt);
+                        menu = switch (f.type()) {
+                            case "minecraft:shulker_box" -> new org.domi.furnace.server.menu.ShulkerBoxMenu(containerId, inventory, c, bp, menus);
+                            case "minecraft:hopper" -> new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, bp, menus);
+                            case "minecraft:dispenser", "minecraft:dropper" -> new org.domi.furnace.server.menu.DispenserMenu(containerId, inventory, c, bp, menus);
+                            default -> org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);   // 상자·통
+                        };
+                    }
+                    send(ctx, new OpenScreen(containerId, menuTypeId(menu), spec.title()));
+                    menu.addSlotListener(menus);
+                    p.setContainerMenu(menu);
+                    menu.setSynchronizer(menus);   // 첫 container_set_content
+                }
+            }));
+    }
+
+    /** region 스레드: 그 칸 용기와 짝(더블 상자)을 찾고 전리품을 풀어 OpenSpec 을 만든다(막혔거나 용기가 없으면 null). */
+    private OpenSpec resolveOpenSpec(org.domi.furnace.server.world.Region region, Player p, org.domi.furnace.server.block.Pos pos) {
+        var level = region.level();
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity ender) {
+            if (org.domi.furnace.server.block.types.ChestBlock.isChestBlockedAt(level, pos)) return null;
+            return new OpenSpec(null, null, ender, Text.translatable("container.enderchest"));
+        }
+        if (!(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)) return null;
+        int state = level.getBlockState(pos);
+        org.domi.furnace.server.block.entity.ContainerBlockEntity first = be, second = null;
+        if (org.domi.furnace.server.block.B.behavior(state) instanceof org.domi.furnace.server.block.types.ChestBlock chestBlock) {
+            if (org.domi.furnace.server.block.types.ChestBlock.isChestBlockedAt(level, pos)) return null;
+            var partnerPos = chestBlock.doubleChestPartner(level, pos, state);
+            if (partnerPos != null) {
+                if (org.domi.furnace.server.block.types.ChestBlock.isChestBlockedAt(level, partnerPos)) return null;
+                if (level.getBlockEntity(partnerPos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity other) {
+                    // DoubleBlockCombiner: 오른쪽 상자가 첫째(칸 0..26), 왼쪽이 둘째
+                    boolean selfFirst = chestBlock.isRightChest(state);
+                    first = selfFirst ? be : other;
+                    second = selfFirst ? other : be;
+                }
             }
-            return chest;
-        }).thenAccept(chest -> ctx.channel().eventLoop().execute(() -> {
-            if (chest == null) return;
-            synchronized (p.menuLock()) {
-                if (p.hasOpenContainer()) closeContainer(p);
-                int containerId = p.nextContainerCounter();
-                var menu = org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, p.inventoryMenu().inventoryContainer(),
-                        new org.domi.furnace.server.world.ChestContainer(chest), new int[]{x, y, z}, menus);
-                send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable("container.chest")));
-                menu.addSlotListener(menus);
-                p.setContainerMenu(menu);
-                menu.setSynchronizer(menus);   // 첫 container_set_content
+        }
+        var core = login.core;
+        for (var c : second == null ? java.util.List.of(first) : java.util.List.of(first, second)) {
+            if (c.lootTable != null && core != null) {
+                core.unpackLoot(c, p);   // 바닐라 startOpen → unpackLootTable(player)
+                region.markBlockEntityChanged(c);
             }
-        }));
+        }
+        return new OpenSpec(first, second, null, containerTitle(first, second));
+    }
+
+    /** 제목: 첫째의 이름 → 둘째의 이름 → 더블이면 container.chestDouble, 아니면 그 종류의 기본 번역 키. */
+    private static Text containerTitle(org.domi.furnace.server.block.entity.ContainerBlockEntity first,
+            org.domi.furnace.server.block.entity.ContainerBlockEntity second) {
+        var json = org.domi.furnace.api.text.serializer.JsonTextSerializer.json();
+        try {
+            if (first.customName != null) return json.deserialize(first.customName);
+            if (second != null && second.customName != null) return json.deserialize(second.customName);
+        } catch (RuntimeException e) {
+            // 이상한 이름은 기본 제목으로
+        }
+        return Text.translatable(second != null ? "container.chestDouble" : first.defaultTitleKey());
     }
 
 }

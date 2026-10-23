@@ -189,7 +189,7 @@ public final class ServerCore {
      * 바닐라 RandomizableContainer.unpackLootTable — 열지 않은 전리품 상자를 채운다(region 스레드에서).
      * 표 이름을 먼저 지우고, 위치는 상자 중심, 연 플레이어가 this_entity.
      */
-    public void unpackLoot(org.domi.furnace.server.world.ChestBlockEntity chest, Player opener) {
+    public void unpackLoot(org.domi.furnace.server.block.entity.ContainerBlockEntity chest, Player opener) {
         var dp = dataPacks;
         if (chest.lootTable == null || dp == null || dp.loot() == null) return;
         var loot = dp.loot();
@@ -200,7 +200,7 @@ public final class ServerCore {
         var occupied = new org.domi.furnace.server.loot.LootStack("minecraft:stone", 1);
         for (int i = 0; i < slots.length; i++) if (chest.items[i] != null && !chest.items[i].isEmpty()) slots[i] = occupied;
         var params = new org.domi.furnace.server.loot.LootParams()
-                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{chest.x + 0.5, chest.y + 0.5, chest.z + 0.5});
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5});
         if (opener != null) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
         table.fill(slots, loot, lootWorld, params, seed);
         for (int i = 0; i < slots.length; i++) {
@@ -428,7 +428,7 @@ public final class ServerCore {
         public int simulationDistance() { return settings.get().simulationDistance; }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
         public void unpackContainerLoot(Object container) {
-            if (container instanceof org.domi.furnace.server.world.ChestBlockEntity c) unpackLoot(c, null);
+            if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(c, null);
         }
     };
 

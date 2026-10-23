@@ -201,6 +201,9 @@ public interface BlockLevel {
     /** 블록 엔티티(없으면 null — 블록 엔티티 체계가 들어오기 전에는 상자만). */
     Object getBlockEntity(Pos pos);
 
+    /** ContainerOpenersCounter.getEntitiesOfClass(Player, 칸 상자 ± radius): 그 용기를 연 창을 가진 플레이어 수. */
+    default int countContainerOpeners(Pos pos, double radius, Object container) { return 0; }
+
     /** Level.blockEntityChanged: 그 칸의 청크를 저장 대상으로. */
     default void blockEntityChanged(Pos pos) {}
 
