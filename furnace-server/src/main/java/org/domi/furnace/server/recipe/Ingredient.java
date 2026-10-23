@@ -6,16 +6,51 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.entity.ItemStack;
 
-public record Ingredient(List<Value> values) {
+public final class Ingredient {
 
     public static final Ingredient EMPTY = new Ingredient(List.of());
 
     /** item 이면 아이템 id, 아니면 태그 id. */
     public record Value(boolean tag, ResourceId id) {}
 
+    private final List<Value> values;
+    // 매칭용으로 펼쳐 정렬한 아이템 id(바닐라 Ingredient.getStackingIds). 레시피 매니저가 다시 만들어질 때 재료도 새로 만들어지므로 한 번만 푼다.
+    private volatile int[] sortedIds;
+    private volatile RecipeContext sortedFor;
+
+    public Ingredient(List<Value> values) { this.values = values; }
+
+    public List<Value> values() { return values; }
+
     public boolean isEmpty() { return values.isEmpty(); }
+
+    @Override public boolean equals(Object o) { return o instanceof Ingredient i && values.equals(i.values); }
+
+    @Override public int hashCode() { return values.hashCode(); }
+
+    /**
+     * 바닐라 Ingredient.test: 빈 재료는 빈 스택만, 아니면 값(아이템·태그)에 든 아이템이면 된다(개수·컴포넌트 무시).
+     */
+    public boolean test(ItemStack stack, RecipeContext ctx) {
+        if (stack == null) return false;
+        if (values.isEmpty()) return stack.isEmpty();
+        if (stack.isEmpty()) return false;
+        return Arrays.binarySearch(sorted(ctx), stack.itemId()) >= 0;
+    }
+
+    private int[] sorted(RecipeContext ctx) {
+        int[] s = sortedIds;
+        if (s != null && sortedFor == ctx) return s;
+        s = itemIds(ctx).clone();
+        Arrays.sort(s);
+        sortedIds = s;
+        sortedFor = ctx;
+        return s;
+    }
 
     /** JSON: {"item": …} · {"tag": …} · 그 배열. allowEmpty 가 아니면 빈 배열은 오류. */
     static Ingredient parse(JsonElement e, RecipeContext ctx, boolean allowEmpty) {

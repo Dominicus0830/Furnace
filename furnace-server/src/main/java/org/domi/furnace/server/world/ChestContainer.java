@@ -1,5 +1,5 @@
 // 상자 블록엔티티를 메뉴용 Container 로 본 것. 읽기는 어느 스레드에서든(배열 칸의 참조를 읽을 뿐), 쓰기는 그 상자를 가진 region 스레드에서만 —
-// 메뉴 클릭을 그 region 에서 처리하며 runIn 으로 그 region 을 알려 준다(바닐라의 단일 스레드 가정을 region 모델로 옮긴 것).
+// 메뉴 클릭을 그 region 에서 처리하며 MenuBlockContext.runIn 으로 그 region 을 알려 준다(바닐라의 단일 스레드 가정을 region 모델로 옮긴 것).
 package org.domi.furnace.server.world;
 
 import org.domi.furnace.server.entity.ItemStack;
@@ -8,29 +8,15 @@ import org.domi.furnace.server.menu.MenuPlayer;
 
 public final class ChestContainer implements Container {
 
-    private static final ThreadLocal<Region> CURRENT = new ThreadLocal<>();
-
     private final ChestBlockEntity chest;
 
     public ChestContainer(ChestBlockEntity chest) { this.chest = chest; }
 
     public ChestBlockEntity chest() { return chest; }
 
-    /** 그 region 스레드에서 body 를 돌린다 — 그동안 쓰기가 허용된다. */
-    public static void runIn(Region region, Runnable body) {
-        Region prev = CURRENT.get();
-        CURRENT.set(region);
-        try {
-            body.run();
-        } finally {
-            if (prev == null) CURRENT.remove();
-            else CURRENT.set(prev);
-        }
-    }
-
     private static Region writer() {
-        Region r = CURRENT.get();
-        if (r == null) throw new IllegalStateException("상자 쓰기는 소유 region 스레드의 runIn 안에서만 가능");
+        Region r = MenuBlockContext.current();
+        if (r == null) throw new IllegalStateException("상자 쓰기는 소유 region 스레드의 MenuBlockContext.runIn 안에서만 가능");
         return r;
     }
 

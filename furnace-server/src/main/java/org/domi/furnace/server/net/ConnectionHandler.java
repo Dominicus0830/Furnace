@@ -755,6 +755,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
             public boolean menuStillValid(org.domi.furnace.server.menu.AbstractContainerMenu menu) { return menu.stillValid(menus); }
 
+            public void validateBlockMenu(org.domi.furnace.server.world.Region region, org.domi.furnace.server.menu.AbstractContainerMenu menu) {
+                int[] bp = menu.containerBlockPos();
+                synchronized (p.menuLock()) {
+                    if (p.containerMenu() != menu) return;
+                    org.domi.furnace.server.world.MenuBlockContext.runIn(region, () -> {
+                        if (bp == null || !region.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2])) || !menu.stillValid(menus)) ConnectionHandler.this.closeContainer(p);
+                    });
+                }
+            }
+
             public int permissionLevel() {
                 org.domi.furnace.server.ServerCore c = login.core;
                 return c == null ? 0 : c.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
@@ -1332,11 +1342,26 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 closeContainer(p);
                 return;
             }
-            if (menu instanceof org.domi.furnace.server.menu.ChestMenu cm && cm.container() instanceof org.domi.furnace.server.world.ChestContainer) {
-                org.domi.furnace.server.world.ChestContainer.runIn(region, body);
-            } else {
-                body.run();
-            }
+            org.domi.furnace.server.world.MenuBlockContext.runIn(region, body);
+        }
+    }
+
+    /** 제작대 화면 열기(CraftingTableBlock.useWithoutItem → openMenu): 3×3 격자 + 결과 칸. */
+    private void openCraftingTable(int x, int y, int z) {
+        Player p = player;
+        if (p == null) return;
+        synchronized (p.menuLock()) {
+            if (p.hasOpenContainer()) closeContainer(p);
+            int containerId = p.nextContainerCounter();
+            var menu = new org.domi.furnace.server.menu.CraftingMenu(containerId, p.inventoryMenu().inventoryContainer(), menus, new int[]{x, y, z}, () -> {
+                // 제작대 블록이 아직 그 자리에 있는가 — 블록을 가진 region 스레드(MenuBlockContext 안)에서만 부른다
+                var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                return region == null || "minecraft:crafting_table".equals(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
+            });
+            send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable("container.crafting")));
+            menu.addSlotListener(menus);
+            p.setContainerMenu(menu);
+            menu.setSynchronizer(menus);
         }
     }
 
@@ -1424,6 +1449,35 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
         @Override public boolean hasBindingCurse(ItemStack s) {
             return org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:binding_curse") > 0;
+        }
+
+        @Override public org.domi.furnace.server.recipe.RecipeManager recipes() {
+            var c = login.core;
+            return c == null ? null : c.recipes();
+        }
+
+        @Override public boolean doLimitedCrafting() {
+            var c = login.core;
+            return c != null && c.gameRules().getBoolean("doLimitedCrafting");
+        }
+
+        @Override public boolean hasRecipe(org.domi.furnace.server.data.ResourceId id) { return p.recipeBook().contains(id); }
+
+        @Override public void awardRecipes(java.util.List<org.domi.furnace.server.data.ResourceId> ids) {
+            var rm = recipes();
+            if (rm != null) p.awardRecipes(ids, rm);
+        }
+
+        @Override public void triggerRecipeCrafted(org.domi.furnace.server.data.ResourceId recipe, java.util.List<ItemStack> grid) {
+            var adv = p.advancements();
+            if (adv == null) return;
+            java.util.List<org.domi.furnace.server.loot.LootStack> items = new java.util.ArrayList<>(grid.size());
+            for (ItemStack s : grid) items.add(lootStack(s));
+            adv.trigger("minecraft:recipe_crafted", new org.domi.furnace.server.advancement.Criterion.RecipeCraftedEvent(recipe, items));
+        }
+
+        @Override public void onItemCrafted(ItemStack stack, int count) {
+            // TODO(통계): crafted:<item> 통계를 count 만큼 올린다. TODO(아이템 제작 훅): Item.onCraftedBy(stack, level, player).
         }
 
         @Override public double distanceToSqr(double x, double y, double z) {
@@ -1689,6 +1743,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public void openChest(org.domi.furnace.server.block.Pos p) {
                     ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openChest(p.x(), p.y(), p.z()));
+                }
+
+                @Override
+                public void openCraftingTable(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openCraftingTable(p.x(), p.y(), p.z()));
                 }
 
                 @Override

@@ -861,12 +861,18 @@ public final class Region {
         var menu = p.containerMenu();
         if (menu == null) return;
         var host = p.inventoryHost();
+        if (menu != p.inventoryMenu() && host != null) {
+            int[] bp = menu.containerBlockPos();
+            if (bp != null) {
+                // 블록에 매인 창의 유효성(블록 존재·거리·청크)은 그 블록의 region 스레드에서 — 그 region 의 큐에서 이미 대기 중인 클릭 뒤에 판정된다
+                var m = menu;
+                world.runAt(bp[0], bp[2], r -> host.validateBlockMenu(r, m));
+            } else if (!host.menuStillValid(menu)) {
+                host.closeContainer(menu);
+            }
+        }
         synchronized (p.menuLock()) {
             menu = p.containerMenu();
-            if (menu != p.inventoryMenu() && host != null && !host.menuStillValid(menu)) {
-                host.closeContainer(menu);
-                menu = p.containerMenu();
-            }
             menu.broadcastChanges();
         }
     }

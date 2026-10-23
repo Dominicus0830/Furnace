@@ -20,7 +20,7 @@ public class CraftingTableBlock extends BlockBehavior {
 
     /** 화면 열기 + 통계. */
     protected void openMenu(BlockLevel level, Pos pos, BlockActor player) {
-        // TODO(메뉴): 제작 화면(container.crafting).
+        player.openCraftingTable(pos);
         player.awardStat("minecraft:interact_with_crafting_table");
     }
 }

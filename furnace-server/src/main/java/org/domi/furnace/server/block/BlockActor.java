@@ -56,6 +56,9 @@ public interface BlockActor {
     /** 상자 화면 열기(바닐라 openMenu — 블록 엔티티 체계가 들어오기 전에는 상자만). */
     default void openChest(Pos pos) {}
 
+    /** 제작대 화면 열기(CraftingTableBlock.useWithoutItem → player.openMenu). */
+    default void openCraftingTable(Pos pos) {}
+
     /** canUseGameMasterBlocks = instabuild && 권한 2 이상. */
     default boolean canUseGameMasterBlocks() { return instabuild() && permissionLevel() >= 2; }
 

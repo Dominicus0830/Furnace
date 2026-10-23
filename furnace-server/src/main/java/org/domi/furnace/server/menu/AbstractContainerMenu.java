@@ -190,6 +190,11 @@ public abstract class AbstractContainerMenu {
         }
     }
 
+    /** 동기기가 있으면 칸 하나를 바로 보낸다(제작 결과처럼 서버가 직접 알리는 변경 — 상태 번호는 동기기가 올린다). */
+    public void sendSlotChange(int slot, ItemStack stack) {
+        if (synchronizer != null) synchronizer.sendSlotChange(this, slot, stack);
+    }
+
     /** 클라이언트가 이미 아는 값(클릭 보고·크리에이티브 칸)을 remote 로 받아들인다 — 되돌려 보내지 않는다. */
     public void setRemoteSlot(int index, ItemStack stack) { remoteSlots.set(index, stack); }
 

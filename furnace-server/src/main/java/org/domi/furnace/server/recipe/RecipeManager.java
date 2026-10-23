@@ -51,12 +51,24 @@ public final class RecipeManager {
         return serializer; // smelting·blasting·smoking·campfire_cooking·stonecutting
     }
 
+    /** 제작대 레시피 하나(id + 레시피). */
+    public record CraftingEntry(ResourceId id, Recipe recipe) {
+        public boolean isSpecial() { return recipe.isSpecial(); }
+    }
+
     private final Map<ResourceId, Recipe> byName;
     private final byte[] networkBody;
+    private final RecipeContext ctx;
+    private final List<CraftingEntry> crafting;
 
-    private RecipeManager(Map<ResourceId, Recipe> byName, byte[] networkBody) {
+    private RecipeManager(Map<ResourceId, Recipe> byName, byte[] networkBody, RecipeContext ctx) {
         this.byName = byName;
         this.networkBody = networkBody;
+        this.ctx = ctx;
+        // 바닐라 byType(CRAFTING) — 레시피 맵 순서 그대로(getRecipeFor 가 첫 일치를 고르므로 순서가 결과를 정한다)
+        List<CraftingEntry> c = new ArrayList<>();
+        for (var e : byName.entrySet()) if (e.getValue().isCrafting()) c.add(new CraftingEntry(e.getKey(), e.getValue()));
+        this.crafting = List.copyOf(c);
     }
 
     public static RecipeManager load(ResourceManager rm, RecipeContext ctx) {
@@ -96,7 +108,7 @@ public final class RecipeManager {
         byte[] body = new byte[buf.readableBytes()];
         buf.readBytes(body);
         buf.release();
-        return new RecipeManager(byName, body);
+        return new RecipeManager(byName, body, ctx);
     }
 
     public Recipe recipe(ResourceId id) { return byName.get(id); }
@@ -104,6 +116,31 @@ public final class RecipeManager {
     public Collection<ResourceId> ids() { return byName.keySet(); }
 
     public int size() { return byName.size(); }
+
+    public RecipeContext context() { return ctx; }
+
+    /** 제작대 레시피 id → 항목(없거나 제작대 레시피가 아니면 null). */
+    public CraftingEntry craftingEntry(ResourceId id) {
+        Recipe r = byName.get(id);
+        return r != null && r.isCrafting() ? new CraftingEntry(id, r) : null;
+    }
+
+    /**
+     * 바닐라 getRecipeFor(CRAFTING, input, level, lastRecipe): 빈 입력이면 없음, 지난 레시피가 아직 맞으면 그것, 아니면 순서대로 첫 일치.
+     */
+    public CraftingEntry findCrafting(CraftingInput input, CraftingEntry last) {
+        if (input.isEmpty()) return null;
+        if (last != null && last.recipe().matches(input, ctx)) return last;
+        for (CraftingEntry e : crafting) if (e.recipe().matches(input, ctx)) return e;
+        return null;
+    }
+
+    /** 바닐라 getRemainingItemsFor(CRAFTING, input): 일치하는 레시피의 남는 아이템, 없으면 입력 그대로. */
+    public List<org.domi.furnace.server.entity.ItemStack> remainingItems(CraftingInput input) {
+        CraftingEntry e = findCrafting(input, null);
+        if (e != null) return e.recipe().remainingItems(input, ctx);
+        return new ArrayList<>(input.items());
+    }
 
     /** update_recipes 본문(레시피 수 + 각 id·직렬화기·내용). */
     public byte[] networkBody() { return networkBody; }

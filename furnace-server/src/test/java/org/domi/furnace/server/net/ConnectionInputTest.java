@@ -479,6 +479,35 @@ class ConnectionInputTest {
         assertTrue(p.inventoryMenu().getCarried().isEmpty());
     }
 
+    /** 제작대를 열고(번호 1·crafting 메뉴·격자 3×3 포함 46칸) → 블록이 사라지면 틱의 유효성 검사가 창을 닫는다. */
+    @Test
+    void craftingTable_opensAndClosesWhenBlockIsGone() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        int tableState = reg.defaultStateId("minecraft:crafting_table");
+        RegionPos rp = new RegionPos(0, 0);
+        sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, tableState)).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openCraftingTable", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, 2, -60, 2);
+        await("제작대 창 열림", () -> p.hasOpenContainer());
+        List<int[]> opened = drainOutbound();
+        assertEquals(1, count(opened, 0x33), "open_screen 한 번");
+        assertEquals(1, count(opened, ContainerSetContent.ID));
+        assertTrue(p.containerMenu() instanceof org.domi.furnace.server.menu.CraftingMenu);
+        assertEquals(46, p.containerMenu().slots.size());
+        assertEquals("minecraft:crafting", p.containerMenu().menuType());
+        // 블록을 없애면 다음 틱 검사에서 닫힌다
+        sched.region(rp).execute(() -> world.regionAt(rp).breakBlock(2, -60, 2)).get();
+        await("제작대가 사라져 창이 닫힘", () -> {
+            sched.region(rp).execute(() -> world.regionAt(rp).tick()).get();   // 테스트 월드는 자동으로 틱하지 않는다 — 틱을 직접 돌려 유효성 검사를 일으킨다
+            return !p.hasOpenContainer();
+        });
+        assertEquals(1, count(drainOutbound(), ContainerClose.ID));
+    }
+
     /** 접속이 끊기면 바닐라 Player.remove 처럼 커서·제작 격자의 아이템이 인벤토리 창에서 빠진다(월드에 떨어진다) — 저장된 playerdata 와 겹치지 않는다. */
     @Test
     void disconnect_clearsCursorAndCraftGrid() throws Exception {

@@ -1,5 +1,5 @@
 // 바닐라 InventoryMenu(containerId 0) — 플레이어 인벤토리 창. 칸: 0 제작 결과, 1..4 제작 격자, 5..8 머리·가슴·다리·발, 9..35 주, 36..44 핫바, 45 왼손.
-// 제작 결과 칸은 아직 레시피 매칭이 없어 항상 비어 있다 — TODO(제작): 4-2 제작 단계에서 ResultSlot·slotChangedCraftingGrid.
+// 제작 격자(2×2)는 PlayerInventory 의 창 칸 1..4 에 저장되고, 결과 칸은 저장하지 않는 한 칸짜리 컨테이너다(바닐라 ResultContainer).
 package org.domi.furnace.server.menu;
 
 import org.domi.furnace.server.entity.ItemStack;
@@ -12,17 +12,18 @@ public class InventoryMenu extends AbstractContainerMenu {
 
     private static final EquipSlot[] ARMOR_ORDER = {EquipSlot.HEAD, EquipSlot.CHEST, EquipSlot.LEGS, EquipSlot.FEET};
 
-    private final Container craftSlots, resultSlots;
+    private final CraftingGrid craftSlots;
+    private final ResultContainer resultSlots;
     private final PlayerInventoryContainer inventory;
+    private final MenuPlayer owner;
 
     public InventoryMenu(PlayerInventory inv, MenuPlayer owner) {
         super(null, 0);
+        this.owner = owner;
         this.inventory = new PlayerInventoryContainer(inv);
-        this.craftSlots = new WindowSlotsContainer(inv, 1, 4);
-        this.resultSlots = new WindowSlotsContainer(inv, 0, 1);
-        addSlot(new Slot(resultSlots, 0) {
-            @Override public boolean mayPlace(ItemStack stack) { return false; }
-        });
+        this.craftSlots = new CraftingGrid(new WindowSlotsContainer(inv, 1, 4), 2, 2, this);
+        this.resultSlots = new ResultContainer(new SimpleContainer(1));
+        addSlot(new ResultSlot(owner, craftSlots, resultSlots, 0));
         for (int i = 0; i < 4; i++) addSlot(new Slot(craftSlots, i));
         for (int i = 0; i < 4; i++) addSlot(new ArmorSlot(inventory, 39 - i, ARMOR_ORDER[i], owner));
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++) addSlot(new Slot(inventory, col + (row + 1) * 9));
@@ -30,7 +31,15 @@ public class InventoryMenu extends AbstractContainerMenu {
         addSlot(new Slot(inventory, 40));
     }
 
-    public Container craftSlots() { return craftSlots; }
+    public CraftingGrid craftSlots() { return craftSlots; }
+
+    public ResultContainer resultSlots() { return resultSlots; }
+
+    /** 격자가 바뀌었다 — 레시피를 다시 찾아 결과 칸을 채운다(InventoryMenu.slotsChanged → slotChangedCraftingGrid). */
+    @Override
+    public void slotsChanged(Container container) {
+        CraftingLogic.slotChangedCraftingGrid(this, owner, craftSlots, resultSlots, null);
+    }
 
     /** 플레이어 인벤토리 컨테이너(Inventory) — 다른 메뉴가 같은 객체로 플레이어 칸을 만든다(findSlot·transferState 가 컨테이너로 짝을 찾는다). */
     public PlayerInventoryContainer inventoryContainer() { return inventory; }
@@ -65,7 +74,7 @@ public class InventoryMenu extends AbstractContainerMenu {
     @Override
     public void removed(MenuPlayer player) {
         super.removed(player);
-        resultSlots.removeNoUpdate(0);
+        resultSlots.clearContent();
         clearContainer(player, craftSlots);
     }
 

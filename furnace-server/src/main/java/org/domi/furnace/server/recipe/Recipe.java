@@ -21,6 +21,27 @@ public sealed interface Recipe {
     /** 직렬화기별 본문(바닐라 STREAM_CODEC). */
     void encode(ByteBuf buf, RecipeContext ctx);
 
+    /** 제작대 레시피인가(minecraft:crafting_*). */
+    default boolean isCrafting() { return false; }
+
+    /** 바닐라 Recipe.matches(CraftingInput) — 제작 레시피만 의미가 있다. */
+    default boolean matches(CraftingInput input, RecipeContext ctx) { return false; }
+
+    /** 바닐라 Recipe.assemble — 결과 스택(새로 만든 것). */
+    default org.domi.furnace.server.entity.ItemStack assemble(CraftingInput input, RecipeContext ctx) { return org.domi.furnace.server.entity.ItemStack.EMPTY; }
+
+    /**
+     * 바닐라 Recipe.getRemainingItems 의 기본 구현 — 칸마다 남는 아이템(양동이·유리병). 특수 레시피 몇 개는 재정의한다.
+     */
+    default List<org.domi.furnace.server.entity.ItemStack> remainingItems(CraftingInput input, RecipeContext ctx) {
+        List<org.domi.furnace.server.entity.ItemStack> out = new ArrayList<>(input.size());
+        for (int i = 0; i < input.size(); i++) out.add(org.domi.furnace.server.item.CraftRemainders.of(input.getItem(i)));
+        return out;
+    }
+
+    /** 바닐라 Recipe.isSpecial — 레시피 북에 오르지 않는 특수 제작. */
+    default boolean isSpecial() { return false; }
+
     /** 결과 아이템(바닐라 ItemStack.STRICT_CODEC — 수량 1..99, 컴포넌트 패치). */
     record Result(ResourceId item, int count, org.domi.furnace.server.item.ComponentPatch patch) {
         static Result parse(JsonObject o, RecipeContext ctx) {
@@ -44,6 +65,11 @@ public sealed interface Recipe {
             Types.writeVarInt(buf, count);
             Types.writeVarInt(buf, ctx.itemId(item));
             patch.write(buf);
+        }
+
+        /** 결과 스택(새로 만든 것). */
+        public org.domi.furnace.server.entity.ItemStack stack(RecipeContext ctx) {
+            return new org.domi.furnace.server.entity.ItemStack(ctx.itemId(item), count, patch);
         }
     }
 
@@ -78,6 +104,29 @@ public sealed interface Recipe {
     record Shaped(String group, CraftingCategory category, int width, int height, List<Ingredient> ingredients, Result result,
                   boolean showNotification) implements Recipe {
         public String type() { return "minecraft:crafting_shaped"; }
+
+        @Override public boolean isCrafting() { return true; }
+
+        /** 바닐라 ShapedRecipePattern.matches — 크기가 같아야 하고, 원래 모양이든 좌우 뒤집은 모양이든 칸마다 재료가 맞으면 된다. */
+        @Override public boolean matches(CraftingInput input, RecipeContext ctx) {
+            int expected = 0;
+            for (Ingredient i : ingredients) if (!i.isEmpty()) expected++;
+            if (input.ingredientCount() != expected) return false;
+            if (input.width() != width || input.height() != height) return false;
+            return matchesPattern(input, ctx, false) || matchesPattern(input, ctx, true);
+        }
+
+        private boolean matchesPattern(CraftingInput input, RecipeContext ctx, boolean mirror) {
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    Ingredient ing = mirror ? ingredients.get(width - x - 1 + y * width) : ingredients.get(x + y * width);
+                    if (!ing.test(input.getItem(x, y), ctx)) return false;
+                }
+            }
+            return true;
+        }
+
+        @Override public org.domi.furnace.server.entity.ItemStack assemble(CraftingInput input, RecipeContext ctx) { return result.stack(ctx); }
 
         public void encode(ByteBuf buf, RecipeContext ctx) {
             Types.writeString(buf, group);
@@ -161,6 +210,36 @@ public sealed interface Recipe {
     record Shapeless(String group, CraftingCategory category, Result result, List<Ingredient> ingredients) implements Recipe {
         public String type() { return "minecraft:crafting_shapeless"; }
 
+        @Override public boolean isCrafting() { return true; }
+
+        /** 바닐라 ShapelessRecipe.matches — 재료 수가 같고, 재료와 칸이 일대일로 짝지어진다(StackedContents 의 완전 매칭 존재 여부). */
+        @Override public boolean matches(CraftingInput input, RecipeContext ctx) {
+            if (input.ingredientCount() != ingredients.size()) return false;
+            if (input.size() == 1 && ingredients.size() == 1) return ingredients.get(0).test(input.getItem(0), ctx);
+            List<org.domi.furnace.server.entity.ItemStack> stacks = new ArrayList<>(input.ingredientCount());
+            for (org.domi.furnace.server.entity.ItemStack s : input.items()) if (!s.isEmpty()) stacks.add(s);
+            int[] stackOf = new int[stacks.size()];
+            java.util.Arrays.fill(stackOf, -1);
+            for (int i = 0; i < ingredients.size(); i++) {
+                if (!augment(i, stacks, stackOf, new boolean[stacks.size()], ctx)) return false;
+            }
+            return true;
+        }
+
+        private boolean augment(int ing, List<org.domi.furnace.server.entity.ItemStack> stacks, int[] stackOf, boolean[] seen, RecipeContext ctx) {
+            for (int s = 0; s < stacks.size(); s++) {
+                if (seen[s] || !ingredients.get(ing).test(stacks.get(s), ctx)) continue;
+                seen[s] = true;
+                if (stackOf[s] < 0 || augment(stackOf[s], stacks, stackOf, seen, ctx)) {
+                    stackOf[s] = ing;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override public org.domi.furnace.server.entity.ItemStack assemble(CraftingInput input, RecipeContext ctx) { return result.stack(ctx); }
+
         public void encode(ByteBuf buf, RecipeContext ctx) {
             Types.writeString(buf, group);
             Types.writeVarInt(buf, category.ordinal());
@@ -185,6 +264,12 @@ public sealed interface Recipe {
     /** 특수 제작(갑옷 염색·지도 복제 …)과 장식 단지 — 카테고리만 실린다. */
     record Special(String type, CraftingCategory category) implements Recipe {
         public void encode(ByteBuf buf, RecipeContext ctx) { Types.writeVarInt(buf, category.ordinal()); }
+
+        @Override public boolean isCrafting() { return type.startsWith("minecraft:crafting_"); }
+
+        @Override public boolean isSpecial() { return true; }
+
+        // TODO(특수 제작): 매칭·결과 만들기·남는 아이템은 SpecialRecipes 가 종류별로 이식한다(아직 없는 종류는 맞지 않는 것으로 둔다).
     }
 
     // ------------------------------------------------------------------ 화로류

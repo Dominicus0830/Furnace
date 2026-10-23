@@ -77,8 +77,14 @@ public final class Player {
         /** 열린 창이 expect 이면 서버가 닫는다(ServerPlayer.closeContainer — 상자가 사라졌을 때 등). 어느 스레드에서든. */
         default void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {}
 
-        /** 열린 창이 아직 유효한가(AbstractContainerMenu.stillValid — 사거리·블록 존재). */
+        /** 블록에 매이지 않은 열린 창이 아직 유효한가(AbstractContainerMenu.stillValid). */
         default boolean menuStillValid(org.domi.furnace.server.menu.AbstractContainerMenu menu) { return true; }
+
+        /**
+         * 블록에 매인 열린 창(상자·제작대)의 유효성 검사 — 그 블록을 가진 region 스레드에서 불린다. 유효하지 않으면(블록이 사라졌거나 멀어졌거나
+         * 청크가 내려갔으면) 서버가 닫는다.
+         */
+        default void validateBlockMenu(org.domi.furnace.server.world.Region region, org.domi.furnace.server.menu.AbstractContainerMenu menu) {}
     }
 
     private volatile InventoryHost inventoryHost;

@@ -42,6 +42,9 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
     /** inventory_changed 사건: 플레이어 인벤토리 41칸과 막 바뀐 스택. */
     public record InventoryEvent(LootStack[] inventory, LootStack changed) {}
 
+    /** recipe_crafted 사건: 쓴 레시피 id 와 제작 격자에 있던 스택들. */
+    public record RecipeCraftedEvent(ResourceId recipe, List<LootStack> ingredients) {}
+
     /** placed_block·item_used_on_block 사건: ADVANCEMENT_LOCATION 문맥(위치·블록 상태·도구·플레이어). */
     public record LocationEvent(LootContext context) {}
 
@@ -72,6 +75,27 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
         if (PLAYER_TRIGGERS.contains(trigger)) return (ev, r) -> true;
         return switch (trigger) {
             case "minecraft:impossible" -> (ev, r) -> false;
+            case "minecraft:recipe_crafted" -> {
+                // 바닐라 RecipeCraftedTrigger.TriggerInstance.matches: 레시피 id 가 같고, 재료 조건마다 아직 안 쓴 스택 하나씩이 맞아야 한다
+                if (!c.has("recipe_id")) throw new IllegalArgumentException("No key recipe_id in MapLike[" + c + "]");
+                ResourceId recipe = ResourceId.parse(c.get("recipe_id").getAsString());
+                List<ItemPredicate> ingredients = new ArrayList<>();
+                if (c.has("ingredients")) for (JsonElement x : c.getAsJsonArray("ingredients")) ingredients.add(ItemPredicate.parse(x, regs));
+                yield (ev, r) -> {
+                    RecipeCraftedEvent e2 = (RecipeCraftedEvent) ev;
+                    if (!recipe.equals(e2.recipe())) return false;
+                    List<LootStack> remaining = new ArrayList<>(e2.ingredients());
+                    for (ItemPredicate p : ingredients) {
+                        boolean found = false;
+                        var it = remaining.iterator();
+                        while (it.hasNext()) {
+                            if (p.test(it.next(), r)) { it.remove(); found = true; break; }
+                        }
+                        if (!found) return false;
+                    }
+                    return true;
+                };
+            }
             case "minecraft:recipe_unlocked" -> {
                 if (!c.has("recipe")) throw new IllegalArgumentException("No key recipe in MapLike[" + c + "]");
                 ResourceId recipe = ResourceId.parse(c.get("recipe").getAsString());
