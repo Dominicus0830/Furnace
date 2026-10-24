@@ -2,6 +2,10 @@
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.entity.ai.GoalSelector;
+import org.domi.furnace.server.entity.ai.control.JumpControl;
+import org.domi.furnace.server.entity.ai.control.LookControl;
+import org.domi.furnace.server.entity.ai.control.MoveControl;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
@@ -11,8 +15,73 @@ public abstract class Mob extends LivingEntity {
     public static final int DATA_MOB_FLAGS = 15;
 
     protected boolean persistenceRequired;
+    protected final GoalSelector goalSelector = new GoalSelector();
+    protected final GoalSelector targetSelector = new GoalSelector();
+    protected LookControl lookControl;
+    protected MoveControl moveControl;
+    protected JumpControl jumpControl;
 
-    protected Mob(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
+    protected Mob(EntityType type, ChunkLevel level, int id) {
+        super(type, level, id);
+        lookControl = new LookControl(this);
+        moveControl = new MoveControl(this);
+        jumpControl = new JumpControl(this);
+        registerGoals();
+    }
+
+    /** 종류별 목표 등록(vanilla registerGoals). 하위 클래스 필드는 아직 초기화 전이므로 쓰지 말 것. */
+    protected void registerGoals() {}
+
+    public LookControl getLookControl() { return lookControl; }
+
+    public MoveControl getMoveControl() { return moveControl; }
+
+    public JumpControl getJumpControl() { return jumpControl; }
+
+    public GoalSelector goalSelector() { return goalSelector; }
+
+    public GoalSelector targetSelector() { return targetSelector; }
+
+    public int getHeadRotSpeed() { return 10; }
+
+    public int getMaxHeadXRot() { return 40; }
+
+    public int getMaxHeadYRot() { return 75; }
+
+    /** 길찾기가 진행 중인가 — 아직 내비게이션이 없다. */
+    public boolean navigationIsInProgress() { return false; }
+
+    @Override
+    public void setSpeed(float v) {
+        super.setSpeed(v);
+        setZza(v);
+    }
+
+    @Override
+    protected boolean isEffectiveAi() { return !isNoAi(); }
+
+    /** Mob.customServerAiStep(vanilla fm — serverAiStep): 감지 → 목표 선택(2틱에 한 번만 전체) → 내비게이션 → 몹 틱 → 제어 순. */
+    @Override
+    protected final void serverAiStep() {
+        noActionTime++;
+        int i = tickCount + id();
+        if (i % 2 != 0 && tickCount > 1) {
+            targetSelector.tickRunningGoals(false);
+            goalSelector.tickRunningGoals(false);
+        } else {
+            targetSelector.tick();
+            goalSelector.tick();
+        }
+        // TODO(내비게이션): navigation.tick()
+        customServerAiStep();
+        moveControl.tick();
+        lookControl.tick();
+        jumpControl.tick();
+        // TODO(디버그 정보): sendDebugPackets
+    }
+
+    protected void customServerAiStep() {}
+
 
     @Override
     protected void defineSynchedData() {

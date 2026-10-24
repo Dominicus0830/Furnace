@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.DamageEvent;
@@ -20,11 +21,38 @@ public abstract class LivingEntity extends Entity {
     protected float lastHurt;
     protected boolean dead;
     protected int noActionTime;
-    protected float yHeadRot;
+    protected float yHeadRot, yHeadRotO, yBodyRot, yBodyRotO;
+    /** 이동 입력(vanilla xxa 옆·yya 위·zza 앞)과 점프 입력. */
+    protected float xxa, yya, zza;
+    protected boolean jumping;
+    protected int noJumpDelay;
+    /** 이동 속도 값(vanilla speed — 땅에서 입력에 곱한다). */
+    protected float speed;
 
     @Override public float yHeadRot() { return yHeadRot; }
 
     public void setYHeadRot(float v) { if (Float.isFinite(v)) yHeadRot = v; }
+
+    public float yBodyRot() { return yBodyRot; }
+
+    public void setYBodyRot(float v) { if (Float.isFinite(v)) yBodyRot = v; }
+
+    public void setJumping(boolean j) { jumping = j; }
+
+    public void setXxa(float v) { xxa = v; }
+
+    public void setYya(float v) { yya = v; }
+
+    public void setZza(float v) { zza = v; }
+
+    public float getSpeed() { return speed; }
+
+    public void setSpeed(float v) { speed = v; }
+
+    public float getStepHeight() { return (float) attributeValue(Attribute.STEP_HEIGHT); }
+
+    /** 서버가 AI 를 돌리는 쪽인가(isEffectiveAi — 서버에서는 항상). */
+    protected boolean isEffectiveAi() { return true; }
 
     protected LivingEntity(EntityType type, ChunkLevel level, int id) {
         super(type, level, id);
@@ -176,19 +204,121 @@ public abstract class LivingEntity extends Entity {
         super.tick();
         if (isRemoved()) return;
         aiStep();
-        travel();
+        double dx = x() - xo, dz = z() - zo;
+        float f = (float) (dx * dx + dz * dz);
+        float body = yBodyRot;
+        if (f > 0.0025000002F) {
+            float dir = (float) (Math.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F;
+            float diff = Math.abs(Mth.wrapDegrees(yRot()) - dir);
+            body = 95.0F < diff && diff < 265.0F ? dir - 180.0F : dir;
+        }
+        tickHeadTurn(body);
+        while (yRot() - yRotO < -180.0F) yRotO -= 360.0F;
+        while (yRot() - yRotO >= 180.0F) yRotO += 360.0F;
+        while (yBodyRot - yBodyRotO < -180.0F) yBodyRotO -= 360.0F;
+        while (yBodyRot - yBodyRotO >= 180.0F) yBodyRotO += 360.0F;
+        while (xRot() - xRotO < -180.0F) xRotO -= 360.0F;
+        while (xRot() - xRotO >= 180.0F) xRotO += 360.0F;
+        while (yHeadRot - yHeadRotO < -180.0F) yHeadRotO -= 360.0F;
+        while (yHeadRot - yHeadRotO >= 180.0F) yHeadRotO += 360.0F;
     }
 
-    /** 몹 쪽 갱신(AI 등) — 기본은 없음. */
-    protected void aiStep() {}
+    /** tickHeadTurn: 몸통 방향이 시선에서 최대 50도(Mob 은 maxBodyYRotDiff) 넘게 벌어지지 않게 끌어온다. */
+    protected void tickHeadTurn(float targetBody) {
+        float d = Mth.wrapDegrees(targetBody - yBodyRot);
+        yBodyRot += d * 0.3F;
+        float d2 = Mth.wrapDegrees(yRot() - yBodyRot);
+        float max = 50.0F;
+        if (Math.abs(d2) > max) yBodyRot += d2 - Math.signum(d2) * max;
+    }
 
-    /** 바닐라 LivingEntity.travel 의 땅·공중 부분: 이동 뒤 중력 0.08·공기 저항 0.98·땅 마찰 0.91. 물·용암·사다리는 아직 없다. */
-    protected void travel() {
-        float friction = onGround() ? frictionBelow() * 0.91F : 0.91F;
+    /** LivingEntity.aiStep(vanilla m_) 의 서버 쪽: 작은 속도 지우기 → AI → 점프 → 이동. */
+    protected void aiStep() {
+        if (noJumpDelay > 0) noJumpDelay--;
+        double vx = vx(), vy = vy(), vz = vz();
+        if (Math.abs(vx) < 0.003) vx = 0.0;
+        if (Math.abs(vy) < 0.003) vy = 0.0;
+        if (Math.abs(vz) < 0.003) vz = 0.0;
+        setDeltaMovement(vx, vy, vz);
+        if (isImmobile()) {
+            jumping = false;
+            xxa = 0.0F;
+            zza = 0.0F;
+        } else if (isEffectiveAi()) {
+            serverAiStep();
+        }
+        if (jumping && isAffectedByFluids()) {
+            // TODO(물·용암 점프): 유체 높이에 따라 위로 떠오르기(jumpInLiquid)
+            if (onGround() && noJumpDelay == 0) {
+                jumpFromGround();
+                noJumpDelay = 10;
+            }
+        } else {
+            noJumpDelay = 0;
+        }
+        xxa *= 0.98F;
+        zza *= 0.98F;
+        travel(xxa, yya, zza);
+    }
+
+    /** 새 AI 한 걸음(Mob 이 목표·제어를 돌린다). */
+    protected void serverAiStep() {}
+
+    @Override
+    public void moveTo(double nx, double ny, double nz, float yr, float xr) {
+        super.moveTo(nx, ny, nz, yr, xr);
+        yBodyRot = yHeadRot = yRot();
+        yBodyRotO = yHeadRotO = yRot();
+    }
+
+    protected boolean isImmobile() { return isDeadOrDying(); }
+
+    protected boolean isAffectedByFluids() { return true; }
+
+    /** getBlockJumpFactor: 칸 → 1.0 이면 아래 칸의 점프 계수. */
+    protected float getBlockJumpFactor() {
+        float f = org.domi.furnace.server.block.BlockInfo.get().jumpFactor(org.domi.furnace.server.block.B.block(level.getBlockState(blockPosition())));
+        return (double) f == 1.0 ? org.domi.furnace.server.block.BlockInfo.get().jumpFactor(org.domi.furnace.server.block.B.block(level.getBlockState(getBlockPosBelowThatAffectsMyMovement()))) : f;
+    }
+
+    protected float getJumpPower() { return (float) attributeValue(Attribute.JUMP_STRENGTH) * getBlockJumpFactor() + jumpBoostPower(); }
+
+    protected float jumpBoostPower() { return 0.0F; }
+
+    public void jumpFromGround() {
+        float power = getJumpPower();
+        if (power <= 1.0E-5F) return;
+        setDeltaMovement(vx(), power, vz());
+        hasImpulse = true;
+    }
+
+    /**
+     * LivingEntity.travel(input): 땅·공중 가지. 땅 마찰은 디딘 블록, 가속은 {땅: speed × 0.21600002 / 마찰³, 공중: 0.02},
+     * 이동 뒤 y 속도에 중력을 빼고 0.98, 수평은 마찰×0.91. TODO(물·용암·사다리·겉날개): 유체 이동, 오르기.
+     */
+    protected void travel(float inX, float inY, float inZ) {
+        double gravity = attributeValue(Attribute.GRAVITY);
+        boolean falling = vy() <= 0.0;
+        float blockFriction = onGround() ? org.domi.furnace.server.block.BlockInfo.get().friction(
+                org.domi.furnace.server.block.B.block(level.getBlockState(getBlockPosBelowThatAffectsMyMovement()))) : 0.0F;
+        float friction = onGround() ? blockFriction * 0.91F : 0.91F;
+        // handleRelativeFrictionAndCalculateMovement
+        float accel = onGround() ? speed * (0.21600002F / (blockFriction * blockFriction * blockFriction)) : 0.02F;
+        moveRelative(accel, inX, inY, inZ);
         move(MOVER_SELF, vx(), vy(), vz());
         double y = vy();
-        if (!isNoGravity()) y -= attributeValue(Attribute.GRAVITY);
+        if (!isNoGravity()) y -= gravity;
         setDeltaMovement(vx() * friction, y * 0.98F, vz() * friction);
+    }
+
+    /** Entity.moveRelative(speed, input): 입력을 바라보는 방향으로 돌려 속도에 더한다(길이가 1을 넘으면 정규화). */
+    protected void moveRelative(float speed, float ix, float iy, float iz) {
+        double len = ix * ix + iy * iy + iz * iz;
+        if (len < 1.0E-7) return;
+        double scale = len > 1.0 ? 1.0 / Math.sqrt(len) : 1.0;
+        double ex = ix * scale * speed, ey = iy * scale * speed, ez = iz * scale * speed;
+        float sin = (float) Math.sin(yRot() * (float) (Math.PI / 180.0)), cos = (float) Math.cos(yRot() * (float) (Math.PI / 180.0));
+        addDeltaMovement(ex * cos - ez * sin, ey, ez * cos + ex * sin);
     }
 
     // ------------------------------------------------------------------ 저장
@@ -208,7 +338,8 @@ public abstract class LivingEntity extends Entity {
     protected void readAdditionalSaveData(NbtCompound tag) {
         if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
         hurtTime = tag.getShort("HurtTime");
-        yHeadRot = yRot();
+        yHeadRot = yBodyRot = yRot();
+        yHeadRotO = yBodyRotO = yRot();
         deathTime = tag.getShort("DeathTime");
         attributes().load(tag.tags().get("attributes") instanceof org.domi.furnace.server.net.io.nbt.NbtList l ? l : null);
         if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
