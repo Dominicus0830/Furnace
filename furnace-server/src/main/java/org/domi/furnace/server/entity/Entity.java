@@ -666,6 +666,9 @@ public abstract class Entity {
     /** 투사체가 맞출 수 있는 엔티티인가(Entity.isPickable). 생물만 기본 참. */
     public boolean isPickable() { return false; }
 
+    /** 사용자 지정 이름이 있나. TODO(이름표): 이름 표시·저장이 생기면 실제 값으로. */
+    public boolean hasCustomName() { return false; }
+
     /** Entity.ignoreExplosion: 폭발이 건드리지 않는 엔티티. */
     public boolean ignoreExplosion() { return false; }
 

@@ -69,6 +69,8 @@ public enum DamageType {
     public boolean noKnockback() { return noKnockback; }
     public boolean isDrowning() { return isDrowning; }
     /** 태그 bypasses_effects(굶주림): 효과(저항)가 줄이지 못한다. */
+    /** 태그 bypasses_enchantments(허공·/kill). */
+    public boolean bypassesEnchantments() { return this == OUT_OF_WORLD || this == GENERIC_KILL; }
     public boolean bypassesEffects() { return this == STARVE; }
     /** 태그 bypasses_resistance(허공·/kill): 저항 효과가 줄이지 못한다. */
     public boolean bypassesResistance() { return this == OUT_OF_WORLD || this == GENERIC_KILL; }
@@ -85,6 +87,16 @@ public enum DamageType {
 
     private static final class Tags {
         static final org.domi.furnace.server.net.registry.TagSet SET = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+    }
+
+    /** 어떤 종류 키("fall", "minecraft:arrow" …)가 damage_type 태그에 들어 있나(enum 에 없는 종류도 본다). */
+    public static boolean keyHasTag(String key, String tag) {
+        String full = key.indexOf(':') < 0 ? "minecraft:" + key : key;
+        int me = Math.max(0, Registry.SET.indexOf("minecraft:damage_type", full));
+        int[] ids = Tags.SET.ids("minecraft:damage_type", tag.indexOf(':') < 0 ? "minecraft:" + tag : tag);
+        if (ids == null) return false;
+        for (int i : ids) if (i == me) return true;
+        return false;
     }
 
     public static DamageType byKey(String key) {

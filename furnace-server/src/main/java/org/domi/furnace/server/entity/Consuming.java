@@ -96,18 +96,49 @@ public final class Consuming {
         }
     }
 
-    private static void applyPotion(PlayerVitals v, ItemStack s) {
-        if (!(ItemTools.component(s, "minecraft:potion_contents") instanceof Map<?, ?> pc)) return;
+    /** PotionContents.getAllEffects: 기본 물약 효과 + 사용자 지정 효과. */
+    public static List<MobEffectInstance> potionEffects(ItemStack s) {
         List<MobEffectInstance> list = new java.util.ArrayList<>();
-        if (pc.get("potion") instanceof String id) list.addAll(Potions.effectsOf(id));
+        if (!(ItemTools.component(s, "minecraft:potion_contents") instanceof Map<?, ?> pc)) return list;
+        if (pc.get("potion") instanceof String id) for (var e : Potions.effectsOf(id)) list.add(e.deepCopy());
         if (pc.get("custom_effects") instanceof List<?> ce) for (Object o : ce) if (o instanceof Map<?, ?> m) list.add(fromMap(m));
+        return list;
+    }
+
+    /** PotionContents.getPotion 이 물인가. */
+    public static boolean isWaterPotion(ItemStack s) {
+        return ItemTools.component(s, "minecraft:potion_contents") instanceof Map<?, ?> pc && "minecraft:water".equals(pc.get("potion"))
+                && !(pc.get("custom_effects") instanceof List<?> l && !l.isEmpty());
+    }
+
+    /** PotionContents.getColor: 효과 색의 (단계+1) 가중 평균, 효과가 없으면 물 색(-13083194). */
+    public static int potionColor(ItemStack s) {
+        List<MobEffectInstance> list = potionEffects(s);
+        if (list.isEmpty()) return -13083194;
+        float r = 0, g = 0, b = 0;
+        int total = 0;
+        for (MobEffectInstance i : list) {
+            if (!i.visible()) continue;
+            int c = i.effect().color();
+            int w = i.amplifier() + 1;
+            r += w * (c >> 16 & 255) / 255.0F;
+            g += w * (c >> 8 & 255) / 255.0F;
+            b += w * (c & 255) / 255.0F;
+            total += w;
+        }
+        if (total == 0) return 0;
+        return (int) (r / total * 255.0F) << 16 | (int) (g / total * 255.0F) << 8 | (int) (b / total * 255.0F);
+    }
+
+    private static void applyPotion(PlayerVitals v, ItemStack s) {
+        List<MobEffectInstance> list = potionEffects(s);
         for (MobEffectInstance i : list) {
             if (i.effect().isInstantaneous()) v.applyInstantaneousEffect(i.effect(), i.amplifier(), 1.0);
             else v.addEffect(i);
         }
     }
 
-    private static MobEffectInstance fromMap(Map<?, ?> e) {
+    static MobEffectInstance fromMap(Map<?, ?> e) {
         MobEffect eff = MobEffect.byName(String.valueOf(e.get("id")));
         int amp = e.get("amplifier") instanceof Number x ? x.intValue() : 0;
         int dur = e.get("duration") instanceof Number x ? x.intValue() : 0;

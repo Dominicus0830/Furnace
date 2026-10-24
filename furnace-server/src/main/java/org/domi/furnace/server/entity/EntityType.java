@@ -105,6 +105,27 @@ public record EntityType(String name, int id, float width, float height, float e
     /** CREEPER: sized(0.6, 1.7).clientTrackingRange(8) (눈높이 1.445). */
     public static final EntityType CREEPER = of("minecraft:creeper", 0.6F, 1.7F, 1.7F * 0.85F, 8, 3, true, false);
 
+    /** SPIDER: sized(1.4, 0.9).eyeHeight(0.65).clientTrackingRange(8). CAVE_SPIDER: sized(0.7, 0.5).eyeHeight(0.45).clientTrackingRange(8). */
+    public static final EntityType SPIDER = of("minecraft:spider", 1.4F, 0.9F, 0.65F, 8, 3, true, false);
+    public static final EntityType CAVE_SPIDER = of("minecraft:cave_spider", 0.7F, 0.5F, 0.45F, 8, 3, true, false);
+
+    /** SLIME: sized(0.52, 0.52).eyeHeight(0.325).clientTrackingRange(10). MAGMA_CUBE: fireImmune, 같은 크기, clientTrackingRange(8). */
+    public static final EntityType SLIME = of("minecraft:slime", 0.52F, 0.52F, 0.325F, 10, 3, true, false);
+    public static final EntityType MAGMA_CUBE = of("minecraft:magma_cube", 0.52F, 0.52F, 0.325F, 8, 3, true, true);
+
+    /** ENDERMAN: sized(0.6, 2.9).eyeHeight(2.55).clientTrackingRange(8). */
+    public static final EntityType ENDERMAN = of("minecraft:enderman", 0.6F, 2.9F, 2.55F, 8, 3, true, false);
+
+    /** SILVERFISH / ENDERMITE: sized(0.4, 0.3).eyeHeight(0.13).clientTrackingRange(8). */
+    public static final EntityType SILVERFISH = of("minecraft:silverfish", 0.4F, 0.3F, 0.13F, 8, 3, true, false);
+    public static final EntityType ENDERMITE = of("minecraft:endermite", 0.4F, 0.3F, 0.13F, 8, 3, true, false);
+
+    /** POTION: sized(0.25, 0.25).clientTrackingRange(4).updateInterval(10). */
+    public static final EntityType POTION = of("minecraft:potion", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
+
+    /** WITCH: sized(0.6, 1.95).eyeHeight(1.62).clientTrackingRange(8). */
+    public static final EntityType WITCH = of("minecraft:witch", 0.6F, 1.95F, 1.62F, 8, 3, true, false);
+
     private static final org.domi.furnace.server.net.registry.TagSet TAGS = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
 
     /** 엔티티 종류 태그(entity_type 태그)에 들어 있나. */

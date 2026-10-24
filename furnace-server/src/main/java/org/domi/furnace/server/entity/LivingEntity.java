@@ -434,8 +434,51 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     protected void actuallyHurt(Damage source, float amount) {
-        float h = health();
-        setHealth(h - amount);
+        amount = getDamageAfterArmorAbsorb(source, amount);
+        amount = getDamageAfterMagicAbsorb(source, amount);
+        if (amount != 0.0F) setHealth(health() - amount);
+    }
+
+    /** LivingEntity.getDamageAfterArmorAbsorb: CombatRules.getDamageAfterAbsorb(damage, armor, toughness). */
+    protected float getDamageAfterArmorAbsorb(Damage source, float amount) {
+        if (DamageType.keyHasTag(source.type(), "bypasses_armor")) return amount;
+        float armor = (float) attributeValue(Attribute.ARMOR), toughness = (float) attributeValue(Attribute.ARMOR_TOUGHNESS);
+        float f = 2.0F + toughness / 4.0F;
+        float f1 = Math.clamp(armor - amount / f, armor * 0.2F, 20.0F);
+        return amount * (1.0F - f1 / 25.0F);
+    }
+
+    /** LivingEntity.getDamageAfterMagicAbsorb: 저항 효과와 방어구 보호 인챈트. */
+    protected float getDamageAfterMagicAbsorb(Damage source, float amount) {
+        DamageType t = DamageType.byKey(source.type());
+        if (DamageType.keyHasTag(source.type(), "bypasses_effects")) return amount;
+        var res = getEffect(org.domi.furnace.server.effect.MobEffect.RESISTANCE);
+        if (res != null && !DamageType.keyHasTag(source.type(), "bypasses_resistance")) {
+            int i = (res.amplifier() + 1) * 5;
+            int j = 25 - i;
+            amount = Math.max(amount * j / 25.0F, 0.0F);
+        }
+        if (amount <= 0.0F) return 0.0F;
+        if (DamageType.keyHasTag(source.type(), "bypasses_enchantments")) return amount;
+        float prot = getDamageProtection(source);
+        if (prot > 0.0F) amount = amount * (1.0F - Math.clamp(prot, 0.0F, 20.0F) / 25.0F);
+        return amount;
+    }
+
+    /** EnchantmentHelper.getDamageProtection: 방어구 네 칸의 보호 인챈트 합. */
+    private float getDamageProtection(Damage source) {
+        DamageType t = DamageType.byKey(source.type());
+        int sum = 0;
+        for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            ItemStack s = getItemBySlot(slot);
+            if (s.isEmpty()) continue;
+            sum += org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:protection");
+            if (source.fire()) sum += 2 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:fire_protection");
+            if (source.explosion()) sum += 2 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:blast_protection");
+            if (t == DamageType.ARROW || t == DamageType.MOB_PROJECTILE) sum += 2 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:projectile_protection");
+            if (t.isFall()) sum += 3 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:feather_falling");
+        }
+        return sum;
     }
 
     /** LivingEntity.knockback(strength, x, z): 방향(x,z)의 반대로 밀린다(저항 속성은 아직 없다). */
@@ -604,11 +647,22 @@ public abstract class LivingEntity extends Entity implements Targetable {
         } else if (isEffectiveAi()) {
             serverAiStep();
         }
+        if (isSensitiveToWater() && isInWaterRainOrBubble()) hurt(new Damage("drown", false, false, false), 1.0F);
         if (jumping && isAffectedByFluids()) {
-            // TODO(물·용암 점프): 유체 높이에 따라 위로 떠오르기(jumpInLiquid)
-            if (onGround() && noJumpDelay == 0) {
-                jumpFromGround();
-                noJumpDelay = 10;
+            double d3 = isInLava() ? fluidHeight(false) : fluidHeight(true);
+            boolean inWater = isInWater() && d3 > 0.0;
+            double d4 = getFluidJumpThreshold();
+            if (!inWater || onGround() && !(d3 > d4)) {
+                if (!isInLava() || onGround() && !(d3 > d4)) {
+                    if ((onGround() || inWater && d3 <= d4) && noJumpDelay == 0) {
+                        jumpFromGround();
+                        noJumpDelay = 10;
+                    }
+                } else {
+                    jumpInLiquid(true);
+                }
+            } else {
+                jumpInLiquid(false);
             }
         } else {
             noJumpDelay = 0;
@@ -739,17 +793,146 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected void travel(float inX, float inY, float inZ) {
         double gravity = attributeValue(Attribute.GRAVITY);
         boolean falling = vy() <= 0.0;
-        float blockFriction = onGround() ? org.domi.furnace.server.block.BlockInfo.get().friction(
-                org.domi.furnace.server.block.B.block(level.getBlockState(getBlockPosBelowThatAffectsMyMovement()))) : 0.0F;
-        float friction = onGround() ? blockFriction * 0.91F : 0.91F;
-        // handleRelativeFrictionAndCalculateMovement
-        float accel = onGround() ? speed * (0.21600002F / (blockFriction * blockFriction * blockFriction)) : 0.02F;
-        moveRelative(accel, inX, inY, inZ);
-        move(MOVER_SELF, vx(), vy(), vz());
-        double y = vy();
-        if (!isNoGravity()) y -= gravity;
-        setDeltaMovement(vx() * friction, y * 0.98F, vz() * friction);
+        if (falling && hasEffect(org.domi.furnace.server.effect.MobEffect.SLOW_FALLING)) gravity = Math.min(gravity, 0.01);
+        if (isInWater() && isAffectedByFluids() && !(this instanceof Mob m && m.canStandOnFluid(level.getFluidState(blockPosition())))) {
+            double d1 = y();
+            float f = isSprinting() ? 0.9F : getWaterSlowDown();
+            float f1 = 0.02F;
+            float f2 = (float) attributeValue(Attribute.WATER_MOVEMENT_EFFICIENCY);
+            if (!onGround()) f2 *= 0.5F;
+            if (f2 > 0.0F) {
+                f += (0.54600006F - f) * f2;
+                f1 += (speed - f1) * f2;
+            }
+            if (hasEffect(org.domi.furnace.server.effect.MobEffect.DOLPHINS_GRACE)) f = 0.96F;
+            moveRelative(f1, inX, inY, inZ);
+            move(MOVER_SELF, vx(), vy(), vz());
+            double mx = vx(), my = vy(), mz = vz();
+            if (horizontalCollision && onClimbable()) my = 0.2;
+            mx *= f;
+            my *= 0.8F;
+            mz *= f;
+            double[] adj = fluidFallingAdjustedMovement(gravity, falling, mx, my, mz);
+            setDeltaMovement(adj[0], adj[1], adj[2]);
+            if (horizontalCollision && isFree(adj[0], adj[1] + 0.6F - y() + d1, adj[2])) setDeltaMovement(adj[0], 0.3F, adj[2]);
+        } else if (isInLava() && isAffectedByFluids() && !(this instanceof Mob m2 && m2.canStandOnFluid(level.getFluidState(blockPosition())))) {
+            double d1 = y();
+            moveRelative(0.02F, inX, inY, inZ);
+            move(MOVER_SELF, vx(), vy(), vz());
+            if (fluidHeight(false) <= getFluidJumpThreshold()) {
+                setDeltaMovement(vx() * 0.5, vy() * 0.8F, vz() * 0.5);
+                double[] adj = fluidFallingAdjustedMovement(gravity, falling, vx(), vy(), vz());
+                setDeltaMovement(adj[0], adj[1], adj[2]);
+            } else {
+                setDeltaMovement(vx() * 0.5, vy() * 0.5, vz() * 0.5);
+            }
+            if (!isNoGravity()) setDeltaMovement(vx(), vy() - gravity / 4.0, vz());
+            if (horizontalCollision && isFree(vx(), vy() + 0.6F - y() + d1, vz())) setDeltaMovement(vx(), 0.3F, vz());
+        } else {
+            float blockFriction = org.domi.furnace.server.block.BlockInfo.get().friction(
+                    org.domi.furnace.server.block.B.block(level.getBlockState(getBlockPosBelowThatAffectsMyMovement())));
+            float friction = onGround() ? blockFriction * 0.91F : 0.91F;
+            // handleRelativeFrictionAndCalculateMovement
+            float accel = onGround() ? speed * (0.21600002F / (blockFriction * blockFriction * blockFriction)) : 0.02F;
+            moveRelative(accel, inX, inY, inZ);
+            double[] c = handleOnClimbable(vx(), vy(), vz());
+            setDeltaMovement(c[0], c[1], c[2]);
+            move(MOVER_SELF, vx(), vy(), vz());
+            double mx = vx(), my = vy(), mz = vz();
+            if ((horizontalCollision || jumping) && onClimbable()) my = 0.2;
+            double y = my;
+            if (hasEffect(org.domi.furnace.server.effect.MobEffect.LEVITATION)) {
+                y += (0.05 * (getEffect(org.domi.furnace.server.effect.MobEffect.LEVITATION).amplifier() + 1) - my) * 0.2;
+            } else if (!isNoGravity()) {
+                y -= gravity;
+            }
+            setDeltaMovement(mx * friction, y * 0.98F, mz * friction);
+        }
     }
+
+    protected float getWaterSlowDown() { return 0.8F; }
+
+    /** Entity.teleportTo(x, y, z): 방향은 그대로 위치만 옮긴다. */
+    public void teleportTo(double nx, double ny, double nz) { moveTo(nx, ny, nz, yRot(), xRot()); }
+
+    /** LivingEntity.randomTeleport(x, y, z, particleEffects): 발밑이 단단한 곳까지 내려가 몸이 들어가는지 보고 옮긴다. 실패하면 제자리. */
+    public boolean randomTeleport(double nx, double ny, double nz, boolean particleEffects) {
+        double ox = x(), oy = y(), oz = z();
+        double d3 = ny;
+        boolean ok = false;
+        org.domi.furnace.server.block.Pos pos = new org.domi.furnace.server.block.Pos((int) Math.floor(nx), (int) Math.floor(ny), (int) Math.floor(nz));
+        if (level.hasChunkAt(pos)) {
+            boolean found = false;
+            while (!found && pos.y() > level.minBuildHeight()) {
+                org.domi.furnace.server.block.Pos below = pos.below();
+                if (org.domi.furnace.server.block.BlockInfo.get().blocksMotion(level.getBlockState(below))) {
+                    found = true;
+                } else {
+                    d3--;
+                    pos = below;
+                }
+            }
+            if (found) {
+                teleportTo(nx, d3, nz);
+                if (level.noCollision(boundingBox()) && !level.containsAnyLiquid(boundingBox())) ok = true;
+            }
+        }
+        if (!ok) {
+            teleportTo(ox, oy, oz);
+            return false;
+        }
+        if (particleEffects) broadcastEntityEvent((byte) 46);
+        if (this instanceof PathfinderMob m) m.getNavigation().stop();
+        return true;
+    }
+
+    /** 물·비에 피해를 받는 몹인가(LivingEntity.isSensitiveToWater): 엔더맨. */
+    public boolean isSensitiveToWater() { return false; }
+
+    /** LivingEntity.jumpInLiquid: 유체 안에서 점프하면 위로 0.04 만큼 밀어 올린다. */
+    protected void jumpInLiquid(boolean lava) { setDeltaMovement(vx(), vy() + 0.04F, vz()); }
+
+    public double getFluidJumpThreshold() { return dimEye < 0.4 ? 0.0 : 0.4; }
+
+    // ---- 사다리 오르기(onClimbable)
+    private org.domi.furnace.server.block.Pos lastClimbablePos;
+
+    /** LivingEntity.onClimbable: 관전자가 아니고 사다리·덩굴 같은 오를 수 있는 블록 안이다. */
+    public boolean onClimbable() {
+        org.domi.furnace.server.block.Pos pos = blockPosition();
+        int st = level.getBlockState(pos);
+        if (org.domi.furnace.server.block.B.isTag(st, "minecraft:climbable")) {
+            lastClimbablePos = pos;
+            return true;
+        }
+        return false;
+    }
+
+    protected boolean isSuppressingSlidingDownLadder() { return isShiftKeyDown(); }
+
+    public boolean isShiftKeyDown() { return false; }
+
+    private double[] handleOnClimbable(double dx, double dy, double dz) {
+        if (onClimbable()) {
+            resetFallDistance();
+            dx = Math.clamp(dx, -0.15, 0.15);
+            dz = Math.clamp(dz, -0.15, 0.15);
+            dy = Math.max(dy, -0.15);
+        }
+        return new double[] {dx, dy, dz};
+    }
+
+    private double[] fluidFallingAdjustedMovement(double gravity, boolean falling, double mx, double my, double mz) {
+        if (!isNoGravity() && !isSprinting()) {
+            double d0;
+            if (falling && Math.abs(my - 0.005) >= 0.003 && Math.abs(my - gravity / 16.0) < 0.003) d0 = -0.003;
+            else d0 = my - gravity / 16.0;
+            return new double[] {mx, d0, mz};
+        }
+        return new double[] {mx, my, mz};
+    }
+
+    private boolean isFree(double dx, double dy, double dz) { return level.noCollision(boundingBox().move(dx, dy, dz)); }
 
     /** Entity.moveRelative(speed, input): 입력을 바라보는 방향으로 돌려 속도에 더한다(길이가 1을 넘으면 정규화). */
     protected void moveRelative(float speed, float ix, float iy, float iz) {

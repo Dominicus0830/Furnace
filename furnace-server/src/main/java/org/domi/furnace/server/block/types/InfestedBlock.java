@@ -30,7 +30,7 @@ public class InfestedBlock extends BlockBehavior {
                                 org.domi.furnace.server.entity.ItemStack tool, boolean dropExperience) {
         super.spawnAfterBreak(state, level, pos, tool, dropExperience);
         if (level.gameRule("doTileDrops") && !org.domi.furnace.server.item.ItemTools.hasEnchantmentTag(tool, "minecraft:prevents_infested_spawns")) {
-            // TODO(엔티티): 칸 아래 가운데에 좀벌레를 만들고 spawnAnim(엔티티 이벤트 20) — 레벨 난수는 쓰지 않는다.
+            level.spawnSilverfishAt(pos);   // 칸 가운데에 좀벌레를 만들고 spawnAnim(엔티티 이벤트 20) — 레벨 난수는 쓰지 않는다
         }
     }
 

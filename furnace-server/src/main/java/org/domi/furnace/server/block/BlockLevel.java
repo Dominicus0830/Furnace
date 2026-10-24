@@ -148,6 +148,9 @@ public interface BlockLevel {
         return (int) ((1.0 - d2 * d0 * d1) * 11.0);
     }
 
+    /** 숨은 블록이 부서질 때 좀벌레를 만든다(엔티티가 없는 레벨은 아무것도 안 한다). */
+    default void spawnSilverfishAt(Pos pos) {}
+
     /** 점화된 TNT 엔티티를 만든다(fuse < 0 이면 기본 80틱). 엔티티가 없는 레벨은 아무것도 안 한다. */
     default void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {}
 

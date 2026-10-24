@@ -102,4 +102,25 @@ class SkeletonCombatTest {
         assertTrue(c.isRemoved(), "폭발했다");
         assertTrue(p.vitals().health() < before, "폭발 피해: " + p.vitals().health());
     }
+
+    @Test
+    void bigSlimeSplitsIntoSmallerOnes() {
+        var level = new ArenaLevel();
+        var sl = new Slime(level, level.nextEntityId());
+        sl.setSize(4, true);
+        assertEquals(16.0F, sl.health(), 0.001);
+        sl.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(sl);
+        sl.hurt(Entity.Damage.OUT_OF_WORLD, 100.0F);
+        for (int t = 0; t < 40 && !sl.isRemoved(); t++) {
+            level.time++;
+            sl.setOldPosAndRot();
+            sl.tickCount++;
+            sl.tick();
+        }
+        assertTrue(sl.isRemoved());
+        var kids = level.getEntitiesOfClass(Slime.class, new AABB(-5, -70, -5, 5, -50, 5), e -> e != sl);
+        assertTrue(kids.size() >= 2 && kids.size() <= 4, "갈라졌다: " + kids.size());
+        assertEquals(2, kids.get(0).getSize());
+    }
 }

@@ -908,6 +908,14 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public boolean isInWorldBounds(Pos pos) { return pos.y() >= ChunkColumn.MIN_Y && pos.y() <= ChunkColumn.MAX_Y && Math.abs(pos.x()) < 30000000 && Math.abs(pos.z()) < 30000000; }
 
+    @Override
+    public void spawnSilverfishAt(Pos pos) {
+        var sf = new org.domi.furnace.server.entity.Silverfish(this, nextEntityId());
+        sf.moveTo(pos.x() + 0.5, pos.y(), pos.z() + 0.5, 0.0F, 0.0F);
+        addFreshEntity(sf);
+        sf.spawnAnim();
+    }
+
     /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
     @Override
     public void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {
@@ -1327,6 +1335,17 @@ public abstract class ChunkLevel implements BlockLevel {
         java.util.List<Shape> out = new java.util.ArrayList<>();
         collectCollisions(box, (p, s) -> out.add(s));
         return out;
+    }
+
+    /** BlockGetter.containsAnyLiquid(box): 상자가 유체 칸과 겹치나. */
+    public boolean containsAnyLiquid(AABB box) {
+        int x0 = Entity.floor(box.minX()), x1 = (int) Math.ceil(box.maxX());
+        int y0 = Entity.floor(box.minY()), y1 = (int) Math.ceil(box.maxY());
+        int z0 = Entity.floor(box.minZ()), z1 = (int) Math.ceil(box.maxZ());
+        for (int x = x0; x < x1; x++) for (int y = y0; y < y1; y++) for (int z = z0; z < z1; z++) {
+            if (!Fluids.isEmpty(getFluidState(new Pos(x, y, z)))) return true;
+        }
+        return false;
     }
 
     /** noCollision(entity, box): 블록 충돌이 없는가(엔티티 충돌·월드 보더는 아직 없다). */

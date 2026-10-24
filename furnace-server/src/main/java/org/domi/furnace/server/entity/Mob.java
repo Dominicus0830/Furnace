@@ -222,6 +222,9 @@ public abstract class Mob extends LivingEntity {
         return !s.isEmpty() && org.domi.furnace.server.item.ItemTools.itemName(s).equals(itemName) ? 0 : 1;
     }
 
+    /** Mob.spawnAnim: 나타날 때 연기 입자(엔티티 이벤트 20). */
+    public void spawnAnim() { broadcastEntityEvent((byte) 20); }
+
     /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
     public boolean removeWhenFarAway(double distSqr) { return true; }
 

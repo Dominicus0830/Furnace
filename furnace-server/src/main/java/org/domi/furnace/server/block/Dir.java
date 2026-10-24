@@ -26,6 +26,9 @@ public final class Dir {
 
     public static int opposite(int d) { return d ^ 1; }
 
+    /** Direction.getRandom(random): 6방향 중 하나(DOWN, UP, NORTH, SOUTH, WEST, EAST 순서). */
+    public static int getRandom(RandomSource r) { return r.nextInt(6); }
+
     public static int axis(int d) { return d <= UP ? AXIS_Y : d <= SOUTH ? AXIS_Z : AXIS_X; }
 
     public static boolean horizontal(int d) { return d >= NORTH; }
