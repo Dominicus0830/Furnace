@@ -107,6 +107,23 @@ public final class BehaviorUtils {
         return p;
     }
 
+    /** BehaviorUtils.throwItem(mob, stack, target): 몹 앞에서 목표 쪽으로 아이템을 던진다. */
+    public static void throwItem(Mob mob, org.domi.furnace.server.entity.ItemStack stack, double[] target) {
+        throwItem(mob, stack, target, new double[] {0.3F, 0.3F, 0.3F}, 0.3F);
+    }
+
+    public static void throwItem(Mob mob, org.domi.furnace.server.entity.ItemStack stack, double[] target, double[] speed, float yOffset) {
+        double y = mob.eyeY() - yOffset;
+        var item = new org.domi.furnace.server.entity.ItemEntity(mob.level(), mob.level().nextEntityId(), mob.x(), y, mob.z(), stack);
+        item.setThrower(mob);
+        double dx = target[0] - mob.x(), dy = target[1] - mob.y(), dz = target[2] - mob.z();
+        double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        double nx = len < 1.0E-5F ? 0.0 : dx / len, ny = len < 1.0E-5F ? 0.0 : dy / len, nz = len < 1.0E-5F ? 0.0 : dz / len;
+        item.setDeltaMovement(nx * speed[0], ny * speed[1], nz * speed[2]);
+        item.setDefaultPickUpDelay();
+        mob.level().addFreshEntity(item);
+    }
+
     public static boolean isBreeding(Mob mob) { return mob.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET); }
 
     public static List<Targetable> toList(Iterable<Targetable> it) {

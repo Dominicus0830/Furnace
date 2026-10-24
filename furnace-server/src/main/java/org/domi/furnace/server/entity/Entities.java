@@ -24,6 +24,12 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:allay" -> new Allay(level, level.nextEntityId());
+            case "minecraft:sniffer" -> new Sniffer(level, level.nextEntityId());
+            case "minecraft:armadillo" -> new Armadillo(level, level.nextEntityId());
+            case "minecraft:camel" -> new Camel(level, level.nextEntityId());
+            case "minecraft:goat" -> new Goat(level, level.nextEntityId());
+            case "minecraft:axolotl" -> new Axolotl(level, level.nextEntityId());
             case "minecraft:tadpole" -> new Tadpole(level, level.nextEntityId());
             case "minecraft:frog" -> new Frog(level, level.nextEntityId());
             case "minecraft:panda" -> new Panda(level, level.nextEntityId());
@@ -108,6 +114,12 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:allay" -> new Allay(level, level.nextEntityId());
+            case "minecraft:sniffer" -> new Sniffer(level, level.nextEntityId());
+            case "minecraft:armadillo" -> new Armadillo(level, level.nextEntityId());
+            case "minecraft:camel" -> new Camel(level, level.nextEntityId());
+            case "minecraft:goat" -> new Goat(level, level.nextEntityId());
+            case "minecraft:axolotl" -> new Axolotl(level, level.nextEntityId());
             case "minecraft:tadpole" -> new Tadpole(level, level.nextEntityId());
             case "minecraft:frog" -> new Frog(level, level.nextEntityId());
             case "minecraft:panda" -> new Panda(level, level.nextEntityId());

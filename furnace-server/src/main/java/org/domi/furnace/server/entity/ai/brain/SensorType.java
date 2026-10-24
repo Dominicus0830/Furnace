@@ -30,6 +30,13 @@ public final class SensorType<U extends Sensor<?>> {
 
     public static final SensorType<TemptingSensor> FROG_TEMPTATIONS = temptations("frog_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:frog_food"));
     public static final SensorType<FrogAttackablesSensor> FROG_ATTACKABLES = of("frog_attackables", FrogAttackablesSensor::new);
+    public static final SensorType<TemptingSensor> GOAT_TEMPTATIONS = temptations("goat_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:goat_food"));
+    public static final SensorType<TemptingSensor> CAMEL_TEMPTATIONS = temptations("camel_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:camel_food"));
+    public static final SensorType<TemptingSensor> ARMADILLO_TEMPTATIONS = temptations("armadillo_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:armadillo_food"));
+    public static final SensorType<org.domi.furnace.server.entity.ai.sensing.ArmadilloScareDetectedSensor> ARMADILLO_SCARE_DETECTED = of("armadillo_scare_detected", org.domi.furnace.server.entity.ai.sensing.ArmadilloScareDetectedSensor::new);
+    public static final SensorType<TemptingSensor> SNIFFER_TEMPTATIONS = temptations("sniffer_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:sniffer_food"));
+    public static final SensorType<TemptingSensor> AXOLOTL_TEMPTATIONS = temptations("axolotl_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:axolotl_food"));
+    public static final SensorType<org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor> AXOLOTL_ATTACKABLES = of("axolotl_attackables", org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor::new);
 
     /** 아이템 온도 센서(이름만 다른 여러 마리 공용): 몹마다 달라 팩토리가 외부에서 주어진다. */
     public static SensorType<TemptingSensor> temptations(String name, java.util.function.Predicate<org.domi.furnace.server.entity.ItemStack> temptItems) {

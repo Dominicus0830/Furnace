@@ -279,7 +279,7 @@ public abstract class Mob extends LivingEntity {
     @Override
     protected void aiStep() {
         super.aiStep();
-        if (canPickUpLoot && isAlive() && level.gameRule("mobGriefing")) {
+        if (canPickUpLoot() && isAlive() && level.gameRule("mobGriefing")) {
             for (ItemEntity ie : level.getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(1.0, 0.0, 1.0), x -> true)) {
                 if (!ie.isRemoved() && !ie.getItem().isEmpty() && !ie.hasPickUpDelay() && wantsToPickUp(ie.getItem())) pickUpItem(ie);
             }
@@ -347,7 +347,7 @@ public abstract class Mob extends LivingEntity {
         }
     }
 
-    protected void onItemPickup(ItemEntity ie) {}
+    public void onItemPickup(ItemEntity ie) {}
 
     /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
     public boolean removeWhenFarAway(double distSqr) { return true; }
@@ -639,6 +639,14 @@ public abstract class Mob extends LivingEntity {
     }
 
     protected void customServerAiStep() {}
+
+    /** Mob.stopInPlace: 길찾기를 멈추고 이동 입력을 0 으로. */
+    public void stopInPlace() {
+        navigation.stop();
+        setXxa(0.0F);
+        setYya(0.0F);
+        setSpeed(0.0F);
+    }
 
 
 

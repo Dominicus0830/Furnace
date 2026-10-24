@@ -332,4 +332,137 @@ class LandMobTest {
         assertNotNull(loaded);
         assertEquals(frog.variant(), ((Frog) Entities.load(level, frog.save())).variant());
     }
+
+    @Test
+    void axolotlHuntsFishAndPlaysDead() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var axolotl = new Axolotl(level, level.nextEntityId());
+        axolotl.moveTo(0.5, -60, 0.5, 0, 0);
+        axolotl.setOnGround(true);
+        axolotl.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(axolotl.blockPosition()), null);
+        level.addFreshEntity(axolotl);
+        tick(level, 40);
+        assertTrue(axolotl.isAlive());
+        assertEquals(axolotl.variant(), ((Axolotl) Entities.load(level, axolotl.save())).variant());
+        axolotl.axolotlBrain().setMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.PLAY_DEAD_TICKS, 10);
+        axolotl.axolotlBrain().setMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.HURT_BY_ENTITY, (Targetable) axolotl);
+        tick(level, 2);
+        assertNotNull(Entities.load(level, axolotl.save()));
+    }
+
+    @Test
+    void goatRamsAndDropsHorn() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var goat = new Goat(level, level.nextEntityId());
+        goat.moveTo(0.5, -60, 0.5, 0, 0);
+        goat.setOnGround(true);
+        goat.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(goat.blockPosition()), null);
+        level.addFreshEntity(goat);
+        var cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(5.5, -60, 0.5, 0, 0);
+        cow.setNoAi(true);
+        level.addFreshEntity(cow);
+        tick(level, 5);
+        goat.goatBrain().eraseMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.RAM_COOLDOWN_TICKS);
+        goat.goatBrain().setMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.RAM_TARGET, new double[] {5.5, -60, 0.5});
+        tick(level, 120);
+        assertTrue(cow.health() < cow.maxHealth(), "염소가 소를 들이받았다");
+        assertNotNull(Entities.load(level, goat.save()));
+        if (!goat.hasLeftHorn() && !goat.hasRightHorn()) goat.addHorns();
+        assertTrue(goat.dropHorn());
+    }
+
+    @Test
+    void camelSitsAndStandsAndSaves() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var camel = new Camel(level, level.nextEntityId());
+        camel.moveTo(0.5, -60, 0.5, 0, 0);
+        camel.setOnGround(true);
+        camel.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(camel.blockPosition()), null);
+        level.addFreshEntity(camel);
+        tick(level, 60);
+        assertFalse(camel.isCamelSitting());
+        camel.sitDown();
+        assertTrue(camel.isCamelSitting());
+        assertTrue(camel.isInPoseTransition());
+        tick(level, 60);
+        assertFalse(camel.isInPoseTransition());
+        var loaded = (Camel) Entities.load(level, camel.save());
+        assertNotNull(loaded);
+        assertTrue(loaded.isCamelSitting());
+        camel.standUp();
+        assertFalse(camel.isCamelSitting());
+        tick(level, 300);
+        assertTrue(camel.isAlive());
+    }
+
+    @Test
+    void armadilloRollsUpWhenAttackedAndSaves() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var a = new Armadillo(level, level.nextEntityId());
+        a.moveTo(0.5, -60, 0.5, 0, 0);
+        a.setOnGround(true);
+        a.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(a.blockPosition()), null);
+        level.addFreshEntity(a);
+        tick(level, 5);
+        var zombie = new Zombie(level, level.nextEntityId());
+        zombie.moveTo(8.5, -60, 0.5, 0, 0);
+        zombie.setNoAi(true);
+        level.addFreshEntity(zombie);
+        assertTrue(a.hurtBy(new Entity.Damage("mob_attack", false, false, false), 1.0F, zombie));
+        tick(level, 20);
+        assertTrue(a.isScared(), "맞으면 몸을 만다");
+        tick(level, 15);
+        assertEquals(Armadillo.ArmadilloState.SCARED, a.getState());
+        var loaded = (Armadillo) Entities.load(level, a.save());
+        assertNotNull(loaded);
+        assertEquals(Armadillo.ArmadilloState.SCARED, loaded.getState());
+    }
+
+    @Test
+    void snifferStatesAndSaves() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var sniffer = new Sniffer(level, level.nextEntityId());
+        sniffer.moveTo(0.5, -60, 0.5, 0, 0);
+        sniffer.setOnGround(true);
+        sniffer.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(sniffer.blockPosition()), null);
+        level.addFreshEntity(sniffer);
+        tick(level, 200);
+        assertTrue(sniffer.isAlive());
+        assertNotNull(Entities.load(level, sniffer.save()));
+        sniffer.transitionTo(Sniffer.State.SNIFFING);
+        assertEquals(Sniffer.State.SNIFFING, sniffer.getState());
+        sniffer.transitionTo(Sniffer.State.IDLING);
+        sniffer.setBaby(true);
+        assertTrue(sniffer.isBaby());
+        assertEquals(-48000, sniffer.getAge());
+    }
+
+    @Test
+    void allayFetchesMatchingItemAndSaves() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var allay = new Allay(level, level.nextEntityId());
+        allay.moveTo(0.5, -59, 0.5, 0, 0);
+        allay.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(allay.blockPosition()));
+        allay.setItemSlot(EquipmentSlot.MAINHAND, Mob.stackOf("minecraft:amethyst_shard"));
+        level.addFreshEntity(allay);
+        var drop = new ItemEntity(level, level.nextEntityId(), 4.5, -60, 0.5, Mob.stackOf("minecraft:amethyst_shard"));
+        drop.setNoPickUpDelay();
+        level.addFreshEntity(drop);
+        tick(level, 200);
+        assertFalse(allay.getInventory().isEmpty(), "알레이가 같은 아이템을 주워 왔다");
+        var loaded = (Allay) Entities.load(level, allay.save());
+        assertNotNull(loaded);
+        assertFalse(loaded.getInventory().isEmpty());
+        assertTrue(loaded.hasItemInHand());
+    }
 }
