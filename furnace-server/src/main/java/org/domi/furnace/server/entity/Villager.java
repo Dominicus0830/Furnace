@@ -34,7 +34,11 @@ public final class Villager extends Mob implements Merchant {
 
     public Villager(ChunkLevel level, int id) { super(EntityType.VILLAGER, level, id); }
 
-    @Override public float maxHealth() { return 20.0F; }
+    @Override
+    protected void createAttributes(org.domi.furnace.server.attribute.AttributeMap map) {
+        super.createAttributes(map);
+        map.add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.5).add(org.domi.furnace.server.attribute.Attribute.FOLLOW_RANGE, 48.0);
+    }
 
     @Override
     protected void defineSynchedData() {

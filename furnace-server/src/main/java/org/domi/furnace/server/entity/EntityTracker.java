@@ -134,6 +134,10 @@ public final class EntityTracker {
         list.add(custom != null ? custom : new AddEntity(entity.id(), entity.uuid(), entity.type().id(), baseX, baseY, baseZ, xRotp, yRotp, yHeadRotp,
                 entity.spawnData(), lastVx, lastVy, lastVz));
         if (trackedDataValues != null) list.add(new SetEntityData(entity.id(), trackedDataValues));
+        if (entity instanceof LivingEntity le) {
+            var syncable = le.attributes().syncable();
+            if (!syncable.isEmpty()) list.add(new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entity.id(), syncable));
+        }
         if (trackDelta) list.add(new SetEntityMotion(entity.id(), lastVx, lastVy, lastVz));   // 살아 있는 것이 아니면
         p.send(BundleDelimiter.INSTANCE);
         for (Packet pkt : list) p.send(pkt);
@@ -216,6 +220,10 @@ public final class EntityTracker {
     }
 
     private void sendDirtyEntityData() {
+        if (entity instanceof LivingEntity le) {
+            var changed = le.attributes().takeDirty();
+            if (!changed.isEmpty()) broadcast(new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entity.id(), changed));
+        }
         List<SetEntityData.Item> dirty = entity.entityData().packDirty();
         if (dirty != null) {
             trackedDataValues = entity.entityData().nonDefaultValues();

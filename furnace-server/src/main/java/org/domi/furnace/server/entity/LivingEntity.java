@@ -1,6 +1,8 @@
 // 바닐라 LivingEntity(서버 쪽 핵심): 체력·무적 시간·피해(hurt/actuallyHurt)·밀려남·죽음(20틱 뒤 제거)·낙하 피해·기본 중력 이동. 속성(attribute)은 아직 없어 최대 체력은 종류가 정한다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.attribute.Attribute;
+import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
@@ -41,7 +43,29 @@ public abstract class LivingEntity extends Entity {
         entityData.define(DATA_SLEEPING_POS, SetEntityData.SERIALIZER_OPTIONAL_BLOCK_POS, null);
     }
 
-    public abstract float maxHealth();
+    private AttributeMap attributes;
+
+    /** 종류별 속성 공급자(바닐라 AttributeSupplier): 이 엔티티가 가지는 속성과 기본값. 하위 클래스가 덧붙인다(필드를 쓰지 말 것). */
+    protected void createAttributes(AttributeMap map) {
+        map.add(Attribute.MAX_HEALTH, 20.0).add(Attribute.KNOCKBACK_RESISTANCE, 0.0).add(Attribute.MOVEMENT_SPEED, 0.7)
+                .add(Attribute.ARMOR, 0.0).add(Attribute.ARMOR_TOUGHNESS, 0.0).add(Attribute.ATTACK_KNOCKBACK, 0.0).add(Attribute.FOLLOW_RANGE, 32.0)
+                .add(Attribute.GRAVITY, 0.08).add(Attribute.SCALE, 1.0).add(Attribute.STEP_HEIGHT, 0.6).add(Attribute.JUMP_STRENGTH, 0.42)
+                .add(Attribute.SAFE_FALL_DISTANCE, 3.0).add(Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(Attribute.MAX_ABSORPTION, 0.0)
+                .add(Attribute.MOVEMENT_EFFICIENCY, 0.0).add(Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(Attribute.OXYGEN_BONUS, 0.0)
+                .add(Attribute.BURNING_TIME, 1.0).add(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0);
+    }
+
+    public AttributeMap attributes() {
+        if (attributes == null) {
+            attributes = new AttributeMap();
+            createAttributes(attributes);
+        }
+        return attributes;
+    }
+
+    public double attributeValue(Attribute a) { return attributes().value(a); }
+
+    public float maxHealth() { return (float) attributeValue(Attribute.MAX_HEALTH); }
 
     public float health() { return (Float) entityData.get(DATA_HEALTH); }
 
@@ -106,6 +130,7 @@ public abstract class LivingEntity extends Entity {
 
     /** LivingEntity.knockback(strength, x, z): 방향(x,z)의 반대로 밀린다(저항 속성은 아직 없다). */
     public void knockback(double strength, double dx, double dz) {
+        strength *= 1.0 - attributeValue(Attribute.KNOCKBACK_RESISTANCE);
         if (strength <= 0.0) return;
         hasImpulse = true;
         double len = Math.sqrt(dx * dx + dz * dz);
@@ -127,7 +152,7 @@ public abstract class LivingEntity extends Entity {
 
     @Override
     public boolean causeFallDamage(float distance, float multiplier) {
-        int dmg = (int) Math.ceil((distance - 3.0F) * multiplier);
+        int dmg = (int) Math.ceil((distance - attributeValue(Attribute.SAFE_FALL_DISTANCE)) * multiplier * attributeValue(Attribute.FALL_DAMAGE_MULTIPLIER));
         if (dmg > 0) {
             hurt(new Damage("fall", false, false, false), dmg);
             return true;
@@ -162,7 +187,7 @@ public abstract class LivingEntity extends Entity {
         float friction = onGround() ? frictionBelow() * 0.91F : 0.91F;
         move(MOVER_SELF, vx(), vy(), vz());
         double y = vy();
-        if (!isNoGravity()) y -= 0.08;
+        if (!isNoGravity()) y -= attributeValue(Attribute.GRAVITY);
         setDeltaMovement(vx() * friction, y * 0.98F, vz() * friction);
     }
 
@@ -176,6 +201,7 @@ public abstract class LivingEntity extends Entity {
         tag.putShort("DeathTime", (short) deathTime);
         tag.putFloat("AbsorptionAmount", 0.0F);
         tag.putBoolean("FallFlying", false);
+        tag.putList("attributes", attributes().save());
     }
 
     @Override
@@ -184,5 +210,7 @@ public abstract class LivingEntity extends Entity {
         hurtTime = tag.getShort("HurtTime");
         yHeadRot = yRot();
         deathTime = tag.getShort("DeathTime");
+        attributes().load(tag.tags().get("attributes") instanceof org.domi.furnace.server.net.io.nbt.NbtList l ? l : null);
+        if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
     }
 }
