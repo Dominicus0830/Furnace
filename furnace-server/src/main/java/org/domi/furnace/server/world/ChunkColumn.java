@@ -223,6 +223,12 @@ public final class ChunkColumn {
     // 저장 파일에서 읽었지만 서버가 해석하지 않는 청크 NBT 키(구조물 시작점·틱 목록·다른 서버의 확장 키 등) — 저장 시 그대로 되돌린다.
     private org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt;
     private long inhabitedTime;
+    /** 빛 데이터(빛 엔진이 켠 뒤에만 있다). 복사본에는 따라가지 않는다. */
+    private org.domi.furnace.server.light.ChunkLight light;
+
+    public org.domi.furnace.server.light.ChunkLight light() { return light; }
+
+    public void light(org.domi.furnace.server.light.ChunkLight l) { this.light = l; }
 
     public org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt() { return extraNbt; }
 

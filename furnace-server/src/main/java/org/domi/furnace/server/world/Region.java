@@ -225,6 +225,8 @@ public final class Region {
         claim(cp);
         c = world.worldSource().generate(cp.x(), cp.z());
         world.putChunk(cp.x(), cp.z(), c);
+        level().lightNewChunk(cp.x(), cp.z());
+        level().runLightUpdates();
         loadEntities(cp, c);
         // 새로 생성된 청크는 바닐라처럼 저장 대상(dirty)으로 남긴다. 디스크에서 읽은 청크는 깨끗하다.
         if (c.dirty()) dirtyChunks.add(cp);
@@ -274,6 +276,8 @@ public final class Region {
         }
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        level().lightNewChunk(cp.x(), cp.z());
+        level().runLightUpdates();
         loadEntities(cp, col);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
@@ -527,6 +531,7 @@ public final class Region {
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = collectTickingChunks();
             level.tickBlocks(tickingChunks, n, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()));
+            level.runLightUpdates();
         }
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();

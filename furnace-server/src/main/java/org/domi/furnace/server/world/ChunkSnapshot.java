@@ -9,7 +9,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] worldSurfaceHeightmap,
-                             Section[] sections, List<BlockEntitySnapshot> blockEntities, SaveData save) {
+                             Section[] sections, List<BlockEntitySnapshot> blockEntities, SaveData save, Light light) {
+
+    /** 빛 배열 복사본(26섹션, 아직 빛이 없는 청크면 ChunkSnapshot.light 가 null). */
+    public record Light(byte[][] sky, byte[][] block) {}
+
 
     /**
      * 디스크 저장에만 필요한 추가 상태(forSave 로만 채워진다, 네트워크용 스냅샷은 null).
@@ -46,7 +50,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
                 beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, be.typeId(), tag == null || tag.tags().isEmpty() ? null : tag));
             }
         }
-        return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), col.worldSurfaceHeightmap(), out, beOut, null);
+        return new ChunkSnapshot(chunkX, chunkZ, col.motionBlockingHeightmap(), col.worldSurfaceHeightmap(), out, beOut, null, copyLight(col));
     }
 
     /** region 스레드서 호출 — 디스크 저장용(of + 높이맵 4종·생성 블록 엔티티·엔티티·미지 NBT 사본). */
@@ -76,7 +80,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         NbtCompound extra = col.extraNbt() == null ? null : col.extraNbt().copy();
         SaveData save = new SaveData(col.minY(), col.oceanFloorHeightmap(), col.motionBlockingNoLeavesHeightmap(),
                 generated, entities, extra, col.inhabitedTime());
-        return new ChunkSnapshot(chunkX, chunkZ, base.heightmap, base.worldSurfaceHeightmap, base.sections, chests, save);
+        return new ChunkSnapshot(chunkX, chunkZ, base.heightmap, base.worldSurfaceHeightmap, base.sections, chests, save, base.light);
     }
 
     /** 저장 전 내부 꼴: Compound{ Items: List<Compound>{Slot,Id,Count,components?} }, 빈 체스트면 null(=updateTag 없음). */
@@ -97,5 +101,16 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         NbtCompound tag = new NbtCompound();
         tag.putList("Items", list);
         return tag;
+    }
+
+    private static Light copyLight(ChunkColumn col) {
+        var l = col.light();
+        if (l == null) return null;
+        byte[][] sky = new byte[l.sky.length][], block = new byte[l.block.length][];
+        for (int i = 0; i < sky.length; i++) {
+            sky[i] = l.sky[i].clone();
+            block[i] = l.block[i].clone();
+        }
+        return new Light(sky, block);
     }
 }

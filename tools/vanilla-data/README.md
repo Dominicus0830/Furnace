@@ -25,6 +25,7 @@
 | `ExportNoteInstruments.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/instruments_1.21.1.txt` (소리 블록 악기 — harp 가 아닌 블록을 악기별로) |
 | `ExportItemDefaultAttributes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `items/default_attributes_1.21.1.txt` (`Item.getDefaultAttributeModifiers` — 방어구·늑대 갑옷의 방어/강인함/밀려남 저항. 컴포넌트 attribute_modifiers 가 비면 이것을 쓴다) |
 | `ExportPathfindable.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/pathfindable_1.21.1.txt` (상태마다 한 글자: 비트 1 땅·2 물·4 공중 `BlockState.isPathfindable`) |
+| `ExportBlockLight.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/blocklight_1.21.1.txt` (3줄: 빛 차단 0~15 / 빛 가림에 모양 사용 / canOcclude — 상태마다 한 글자) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
 
 `ExportBlockAttrs`는 난독화된 클래스 이름(`akt`, `dfy`, `dtc`, `dcl` …)을 직접 참조한다. 다른 버전에는 그대로 쓸 수 없고, Vineflower로 디컴파일해 이름을 다시 찾아야 한다.

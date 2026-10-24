@@ -195,6 +195,9 @@ public abstract class ChunkLevel implements BlockLevel {
         if (info.isAir(state) && col.sectionHasOnlyAir(pos.y())) return -1;
         col.setBlock(lx, pos.y(), lz, state);
         markDirty(pos.x() >> 4, pos.z() >> 4);
+        if (col.light() != null && org.domi.furnace.server.light.LightTables.hasDifferentLightProperties(old, state)) {
+            lightEngine().blockChanged(pos.x(), pos.y(), pos.z());   // 하늘빛 원천을 고치고 검사를 건다(계산은 틱 끝 runLightUpdates)
+        }
         BlockBehaviors.of(old).onRemove(old, this, pos, state, moved);
         if (blocks.blockOf(col.getBlock(lx, pos.y(), lz)) != blocks.blockOf(state)) return -1;
         BlockBehaviors.of(state).onPlace(state, this, pos, old, moved);
@@ -938,6 +941,70 @@ public abstract class ChunkLevel implements BlockLevel {
         addFreshEntity(mob);
         mob.makeSound(mob.ambientSoundForSpawn());
         return true;
+    }
+
+    // ------------------------------------------------------------------ 빛
+
+    private org.domi.furnace.server.light.LevelLight lightEngine;
+
+    private final org.domi.furnace.server.light.LightWorld lightWorld = new org.domi.furnace.server.light.LightWorld() {
+        public org.domi.furnace.server.light.ChunkLight light(int cx, int cz) {
+            ChunkColumn c = chunk(cx, cz);
+            return c == null ? null : c.light();
+        }
+
+        public int state(int x, int y, int z) {
+            if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return 12958;   // void_air
+            return chunk(x >> 4, z >> 4).getBlock(x & 15, y, z & 15);
+        }
+
+        public int unloadedState() { return bedrockState; }
+
+        public int minY() { return ChunkColumn.MIN_Y; }
+
+        public int maxY() { return ChunkColumn.MAX_Y + 1; }
+    };
+    private final int bedrockState = blocks.defaultState("minecraft:bedrock");
+
+    public org.domi.furnace.server.light.LevelLight lightEngine() {
+        if (lightEngine == null) lightEngine = new org.domi.furnace.server.light.LevelLight(lightWorld, hasSkyLight());
+        return lightEngine;
+    }
+
+    /** 새로 올라온 청크의 빛을 만든다(ThreadedLevelLightEngine.lightChunk). 이미 빛이 있으면 가장자리만 이웃과 맞춘다. */
+    public void lightNewChunk(int cx, int cz) {
+        ChunkColumn col = chunk(cx, cz);
+        if (col == null) return;
+        if (col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
+        lightEngine().lightChunk(cx, cz);
+    }
+
+    /** 틱 끝: 쌓인 빛 갱신 실행(LevelLightEngine.runLightUpdates). */
+    public void runLightUpdates() {
+        if (lightEngine != null && lightEngine.hasWork()) lightEngine.runUpdates();
+    }
+
+    @Override
+    public int getRawBrightness(Pos pos, int skyDarken) {
+        ChunkColumn col = chunkAt(pos);
+        if (col == null || col.light() == null) return BlockLevel.super.getRawBrightness(pos, skyDarken);
+        int sky = hasSkyLight() ? getSkyLight(pos) - skyDarken : 0;
+        return Math.max(getBlockLight(pos), sky);
+    }
+
+    @Override
+    public int getSkyLight(Pos pos) {
+        ChunkColumn col = chunkAt(pos);
+        if (col == null || col.light() == null) return BlockLevel.super.getSkyLight(pos);
+        if (pos.y() >= org.domi.furnace.server.light.ChunkLight.MAX_Y) return 15;
+        return lightEngine().skyLight(pos.x(), pos.y(), pos.z());
+    }
+
+    @Override
+    public int getBlockLight(Pos pos) {
+        ChunkColumn col = chunkAt(pos);
+        if (col == null || col.light() == null) return BlockLevel.super.getBlockLight(pos);
+        return lightEngine().blockLight(pos.x(), pos.y(), pos.z());
     }
 
     private static final float[] MOON_BRIGHTNESS_PER_PHASE = {1.0F, 0.75F, 0.5F, 0.25F, 0.0F, 0.25F, 0.5F, 0.75F};

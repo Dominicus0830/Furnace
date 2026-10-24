@@ -82,7 +82,7 @@ public final class AnvilChunkCodec {
         root.putString("Status", "minecraft:full");
         root.putLong("LastUpdate", gameTime.getAsLong());
         root.putLong("InhabitedTime", save != null ? save.inhabitedTime() : 0L);
-        root.put("isLightOn", (byte) 0);
+        root.put("isLightOn", (byte) (snap.light() != null ? 1 : 0));
 
         ChunkSnapshot.Section[] secs = snap.sections();
         NbtList sections = new NbtList(NbtIo.TAG_COMPOUND);
@@ -92,7 +92,16 @@ public final class AnvilChunkCodec {
             s.putCompound("block_states", blockStatesFromArray(secs[i].blocks()));
             s.putCompound("biomes", biomesFromArray(secs[i].biomes()));
             s.putByte("Y", (byte) (minSection + i));
+            putLight(s, snap.light(), i + 1);
             sections.add(s);
+        }
+        if (snap.light() != null) {   // 바닐라처럼 위·아래 빛 전용 섹션도 쓴다(비어 있으면 생략)
+            for (int li : new int[]{0, secs.length + 1}) {
+                NbtCompound s = new NbtCompound();
+                s.putByte("Y", (byte) (minSection - 1 + li));
+                putLight(s, snap.light(), li);
+                if (s.contains("SkyLight") || s.contains("BlockLight")) sections.add(s);
+            }
         }
         root.putList("sections", sections);
 
@@ -252,6 +261,17 @@ public final class AnvilChunkCodec {
         }
         entry.putCompound("Properties", props);
         return entry;
+    }
+
+    private static void putLight(NbtCompound s, ChunkSnapshot.Light l, int idx) {
+        if (l == null) return;
+        if (nonZero(l.sky()[idx])) s.putByteArray("SkyLight", l.sky()[idx]);
+        if (nonZero(l.block()[idx])) s.putByteArray("BlockLight", l.block()[idx]);
+    }
+
+    private static boolean nonZero(byte[] a) {
+        for (byte b : a) if (b != 0) return true;
+        return false;
     }
 
     // ------------------------------------------------------------------ read

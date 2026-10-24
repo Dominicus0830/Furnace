@@ -57,19 +57,39 @@ public final class ChunkSerializer {
             }
         }
 
-        // --- 라이트 ---
-        long allSectionsMask = (1L << LIGHT_SECTIONS) - 1; // 26비트
-        writeBitSet(buf, new long[]{allSectionsMask});  // skyLightMask
-        writeBitSet(buf, new long[0]);                  // blockLightMask
-        writeBitSet(buf, new long[0]);                  // emptySkyLightMask
-        writeBitSet(buf, new long[]{allSectionsMask});  // emptyBlockLightMask
-
-        Types.writeVarInt(buf, LIGHT_SECTIONS); // skyLight 배열 수
+        // --- 라이트 --- (ClientboundLightUpdatePacketData: 모두 0 이면 empty 마스크, 아니면 데이터)
+        byte[][] sky = snap.light() == null ? null : snap.light().sky();
+        byte[][] blk = snap.light() == null ? null : snap.light().block();
+        long skyMask = 0, blockMask = 0, emptySky = 0, emptyBlock = 0;
         for (int i = 0; i < LIGHT_SECTIONS; i++) {
-            Types.writeVarInt(buf, 2048);
-            buf.writeBytes(FULL_SKYLIGHT);
+            if (sky == null) {
+                skyMask |= 1L << i;                      // 빛이 없는 청크: 예전 동작(하늘빛 전부 15)
+                continue;
+            }
+            if (isZero(sky[i])) emptySky |= 1L << i; else skyMask |= 1L << i;
+            if (isZero(blk[i])) emptyBlock |= 1L << i; else blockMask |= 1L << i;
         }
-        Types.writeVarInt(buf, 0); // blockLight 배열 수
+        if (sky == null) emptyBlock = (1L << LIGHT_SECTIONS) - 1;
+        writeBitSet(buf, new long[]{skyMask});
+        writeBitSet(buf, new long[]{blockMask});
+        writeBitSet(buf, new long[]{emptySky});
+        writeBitSet(buf, new long[]{emptyBlock});
+        writeLayers(buf, sky, skyMask);
+        writeLayers(buf, blk, blockMask);
+    }
+
+    private static boolean isZero(byte[] a) {
+        for (byte b : a) if (b != 0) return false;
+        return true;
+    }
+
+    private static void writeLayers(ByteBuf buf, byte[][] layers, long mask) {
+        Types.writeVarInt(buf, Long.bitCount(mask));
+        for (int i = 0; i < LIGHT_SECTIONS; i++) {
+            if ((mask & (1L << i)) == 0) continue;
+            Types.writeVarInt(buf, 2048);
+            buf.writeBytes(layers == null ? FULL_SKYLIGHT : layers[i]);
+        }
     }
 
     private static void writeBitSet(ByteBuf buf, long[] longs) {
