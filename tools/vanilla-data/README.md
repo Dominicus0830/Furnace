@@ -23,6 +23,7 @@
 | `extract_block_definitions.py <reports/blocks.json> <출력>` | blocks.json | `blocks/definitions_1.21.1.txt` (블록별 정의 종류·상태 범위·기본 상태·속성 배치·매개변수 — 블록 동작 틀용) |
 | `ExportBlockShapes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/blockshapes_1.21.1.txt.gz` (상태별 outline·collision·support·occlusion·interaction 모양, 위치 어긋남 블록은 기준 모양) |
 | `ExportNoteInstruments.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/instruments_1.21.1.txt` (소리 블록 악기 — harp 가 아닌 블록을 악기별로) |
+| `ExportItemDefaultAttributes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `items/default_attributes_1.21.1.txt` (`Item.getDefaultAttributeModifiers` — 방어구·늑대 갑옷의 방어/강인함/밀려남 저항. 컴포넌트 attribute_modifiers 가 비면 이것을 쓴다) |
 | `ExportPathfindable.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/pathfindable_1.21.1.txt` (상태마다 한 글자: 비트 1 땅·2 물·4 공중 `BlockState.isPathfindable`) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
 

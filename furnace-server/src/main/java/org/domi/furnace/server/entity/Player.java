@@ -327,14 +327,14 @@ public final class Player implements Targetable {
     public float armorValue() {
         float sum = 0;
         String[] slots = {"head", "chest", "legs", "feet"};
-        for (int i = 0; i < 4; i++) sum += org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(5 + i), "minecraft:generic.armor", slots[i], "armor");
+        for (int i = 0; i < 4; i++) sum += org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(5 + i), "minecraft:generic.armor", slots[i]);
         return Math.clamp(sum, 0.0F, 30.0F);
     }
 
     public float armorToughness() {
         float sum = 0;
         String[] slots = {"head", "chest", "legs", "feet"};
-        for (int i = 0; i < 4; i++) sum += org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(5 + i), "minecraft:generic.armor_toughness", slots[i], "armor");
+        for (int i = 0; i < 4; i++) sum += org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(5 + i), "minecraft:generic.armor_toughness", slots[i]);
         return Math.clamp(sum, 0.0F, 20.0F);
     }
 

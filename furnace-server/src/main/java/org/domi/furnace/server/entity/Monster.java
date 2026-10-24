@@ -21,7 +21,6 @@ public abstract class Monster extends PathfinderMob {
 
     @Override
     protected void aiStep() {
-        updateSwingTime();
         updateNoActionTime();
         super.aiStep();
     }

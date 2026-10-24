@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.ai.GoalSelector;
+import org.domi.furnace.server.entity.ai.control.BodyRotationControl;
 import org.domi.furnace.server.entity.ai.control.JumpControl;
 import org.domi.furnace.server.entity.ai.control.LookControl;
 import org.domi.furnace.server.entity.ai.control.MoveControl;
@@ -27,6 +28,7 @@ public abstract class Mob extends LivingEntity {
     protected LookControl lookControl;
     protected MoveControl moveControl;
     protected JumpControl jumpControl;
+    protected BodyRotationControl bodyRotationControl;
     protected PathNavigation navigation;
     private final java.util.EnumMap<PathType, Float> pathfindingMalus = new java.util.EnumMap<>(PathType.class);
 
@@ -35,6 +37,7 @@ public abstract class Mob extends LivingEntity {
         lookControl = new LookControl(this);
         moveControl = new MoveControl(this);
         jumpControl = new JumpControl(this);
+        bodyRotationControl = new BodyRotationControl(this);
         navigation = createNavigation(level);
         registerGoals();
     }
@@ -61,6 +64,91 @@ public abstract class Mob extends LivingEntity {
 
     /** 서 있는 칸으로 칠 수 있는 유체인가(canStandOnFluid) — 기본 아니오. */
     public boolean canStandOnFluid(int fluid) { return false; }
+
+    // ------------------------------------------------------------------ 장비
+
+    public static final float DEFAULT_EQUIPMENT_DROP_CHANCE = 0.085F;
+    private final ItemStack[] handItems = {ItemStack.EMPTY, ItemStack.EMPTY};
+    private final ItemStack[] armorItems = {ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY};
+    private ItemStack bodyArmorItem = ItemStack.EMPTY;
+    private final float[] handDropChances = {DEFAULT_EQUIPMENT_DROP_CHANCE, DEFAULT_EQUIPMENT_DROP_CHANCE};
+    private final float[] armorDropChances = {DEFAULT_EQUIPMENT_DROP_CHANCE, DEFAULT_EQUIPMENT_DROP_CHANCE, DEFAULT_EQUIPMENT_DROP_CHANCE, DEFAULT_EQUIPMENT_DROP_CHANCE};
+    private float bodyArmorDropChance = DEFAULT_EQUIPMENT_DROP_CHANCE;
+    private boolean canPickUpLoot;
+
+    @Override
+    public ItemStack getItemBySlot(EquipmentSlot slot) {
+        return switch (slot.type()) {
+            case HAND -> handItems[slot.index()];
+            case HUMANOID_ARMOR -> armorItems[slot.index()];
+            case ANIMAL_ARMOR -> bodyArmorItem;
+        };
+    }
+
+    @Override
+    public void setItemSlot(EquipmentSlot slot, ItemStack stack) {
+        switch (slot.type()) {
+            case HAND -> handItems[slot.index()] = stack;
+            case HUMANOID_ARMOR -> armorItems[slot.index()] = stack;
+            case ANIMAL_ARMOR -> bodyArmorItem = stack;
+        }
+    }
+
+    public float getEquipmentDropChance(EquipmentSlot slot) {
+        return switch (slot.type()) {
+            case HAND -> handDropChances[slot.index()];
+            case HUMANOID_ARMOR -> armorDropChances[slot.index()];
+            case ANIMAL_ARMOR -> bodyArmorDropChance;
+        };
+    }
+
+    public void setDropChance(EquipmentSlot slot, float chance) {
+        switch (slot.type()) {
+            case HAND -> handDropChances[slot.index()] = chance;
+            case HUMANOID_ARMOR -> armorDropChances[slot.index()] = chance;
+            case ANIMAL_ARMOR -> bodyArmorDropChance = chance;
+        }
+    }
+
+    public boolean canPickUpLoot() { return canPickUpLoot; }
+
+    public void setCanPickUpLoot(boolean v) { canPickUpLoot = v; }
+
+    /**
+     * Mob.dropCustomDeathLoot → 장비 드롭: 칸마다 드롭 확률(0 이면 안 떨굼, 1 초과면 반드시)로, 플레이어가 잡았거나 확률이 1 초과일 때 떨군다.
+     * 닳는 아이템은 내구도가 무작위로 더 닳는다. TODO(약탈 인챈트로 확률 보정, 장비 떨굼 방지 인챈트).
+     */
+    @Override
+    protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {
+        super.dropCustomDeathLoot(source, byPlayer);
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = getItemBySlot(slot);
+            float chance = getEquipmentDropChance(slot);
+            if (chance == 0.0F) continue;
+            boolean preserve = chance > 1.0F;
+            if (!stack.isEmpty() && (byPlayer || preserve) && random.nextFloat() < chance) {
+                if (!preserve && org.domi.furnace.server.item.ItemTools.isDamageable(stack)) {
+                    int max = org.domi.furnace.server.item.ItemTools.maxDamage(stack);
+                    stack = org.domi.furnace.server.item.ItemTools.withDamage(stack, max - random.nextInt(1 + random.nextInt(Math.max(max - 3, 1))));
+                }
+                spawnAtLocation(stack);
+                setItemSlot(slot, ItemStack.EMPTY);
+            }
+        }
+    }
+
+    /** Mob.getExperienceReward: xpReward 가 있으면 장비(드롭 확률 1 이하)마다 1+nextInt(3) 추가(방어구 → 손 → 몸 순). */
+    @Override
+    protected int getExperienceReward() {
+        if (xpReward > 0) {
+            int i = xpReward;
+            for (int k = 0; k < armorItems.length; k++) if (!armorItems[k].isEmpty() && armorDropChances[k] <= 1.0F) i += 1 + random.nextInt(3);
+            for (int k = 0; k < handItems.length; k++) if (!handItems[k].isEmpty() && handDropChances[k] <= 1.0F) i += 1 + random.nextInt(3);
+            if (!bodyArmorItem.isEmpty() && bodyArmorDropChance <= 1.0F) i += 1 + random.nextInt(3);
+            return i;
+        }
+        return xpReward;
+    }
 
     // ------------------------------------------------------------------ 제한 구역(restrictTo)
 
@@ -161,6 +249,10 @@ public abstract class Mob extends LivingEntity {
 
     public boolean isPassenger() { return false; }
 
+    /** Mob.tickHeadTurn: 몸통 회전은 BodyRotationControl 이 정한다(걸음 거리 인자는 그대로). */
+    @Override
+    protected void tickHeadTurn(float targetBody) { bodyRotationControl.clientTick(); }
+
     public LookControl getLookControl() { return lookControl; }
 
     public MoveControl getMoveControl() { return moveControl; }
@@ -238,9 +330,7 @@ public abstract class Mob extends LivingEntity {
 
     protected void customServerAiStep() {}
 
-    /** Mob.getExperienceReward: xpReward 가 있으면 장비(드롭 확률 1 이하)마다 1+nextInt(3) 추가. TODO(장비): 몹 장비 칸이 생기면. */
-    @Override
-    protected int getExperienceReward() { return xpReward; }
+
 
 
     @Override
@@ -259,7 +349,24 @@ public abstract class Mob extends LivingEntity {
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
         super.addAdditionalSaveData(tag);
+        tag.putBoolean("CanPickUpLoot", canPickUpLoot);
         tag.putBoolean("PersistenceRequired", persistenceRequired);
+        var armor = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 10);
+        for (ItemStack st : armorItems) armor.add(ItemStackNbt.write(st));
+        tag.putList("ArmorItems", armor);
+        var armorChances = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 5);
+        for (float f : armorDropChances) armorChances.add(f);
+        tag.putList("ArmorDropChances", armorChances);
+        var hands = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 10);
+        for (ItemStack st : handItems) hands.add(ItemStackNbt.write(st));
+        tag.putList("HandItems", hands);
+        var handChances = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 5);
+        for (float f : handDropChances) handChances.add(f);
+        tag.putList("HandDropChances", handChances);
+        if (!bodyArmorItem.isEmpty()) {
+            tag.putCompound("body_armor_item", ItemStackNbt.write(bodyArmorItem));
+            tag.putFloat("body_armor_drop_chance", bodyArmorDropChance);
+        }
         tag.putBoolean("LeftHanded", ((Byte) entityData.get(DATA_MOB_FLAGS) & 2) != 0);
         if (isNoAi()) tag.putBoolean("NoAI", true);
     }
@@ -267,7 +374,26 @@ public abstract class Mob extends LivingEntity {
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
+        if (tag.contains("CanPickUpLoot")) canPickUpLoot = tag.getBoolean("CanPickUpLoot");
         persistenceRequired = tag.getBoolean("PersistenceRequired");
+        if (tag.tags().get("ArmorItems") instanceof org.domi.furnace.server.net.io.nbt.NbtList l) {
+            for (int i = 0; i < armorItems.length; i++) armorItems[i] = i < l.size() && l.get(i) instanceof NbtCompound c ? ItemStackNbt.read(c) : ItemStack.EMPTY;
+        }
+        if (tag.tags().get("ArmorDropChances") instanceof org.domi.furnace.server.net.io.nbt.NbtList l) {
+            for (int i = 0; i < l.size() && i < armorDropChances.length; i++) armorDropChances[i] = l.get(i) instanceof Number n ? n.floatValue() : 0.0F;
+        }
+        if (tag.tags().get("HandItems") instanceof org.domi.furnace.server.net.io.nbt.NbtList l) {
+            for (int i = 0; i < handItems.length; i++) handItems[i] = i < l.size() && l.get(i) instanceof NbtCompound c ? ItemStackNbt.read(c) : ItemStack.EMPTY;
+        }
+        if (tag.tags().get("HandDropChances") instanceof org.domi.furnace.server.net.io.nbt.NbtList l) {
+            for (int i = 0; i < l.size() && i < handDropChances.length; i++) handDropChances[i] = l.get(i) instanceof Number n ? n.floatValue() : 0.0F;
+        }
+        if (tag.tags().get("body_armor_item") instanceof NbtCompound c) {
+            bodyArmorItem = ItemStackNbt.read(c);
+            bodyArmorDropChance = tag.getFloat("body_armor_drop_chance");
+        } else {
+            bodyArmorItem = ItemStack.EMPTY;
+        }
         byte b = (byte) ((tag.getBoolean("LeftHanded") ? 2 : 0));
         entityData.set(DATA_MOB_FLAGS, b);
         setNoAi(tag.getBoolean("NoAI"));

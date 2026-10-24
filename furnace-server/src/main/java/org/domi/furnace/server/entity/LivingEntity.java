@@ -354,6 +354,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
     public void tick() {
         super.tick();
         if (isRemoved()) return;
+        updateSwingTime();
+        detectEquipmentUpdates();
         aiStep();
         double dx = x() - xo, dz = z() - zo;
         float f = (float) (dx * dx + dz * dz);
@@ -386,7 +388,6 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** LivingEntity.aiStep(vanilla m_) 의 서버 쪽: 작은 속도 지우기 → AI → 점프 → 이동. */
     protected void aiStep() {
         if (noJumpDelay > 0) noJumpDelay--;
-        updateSwingTime();
         double vx = vx(), vy = vy(), vz = vz();
         if (Math.abs(vx) < 0.003) vx = 0.0;
         if (Math.abs(vy) < 0.003) vy = 0.0;
@@ -411,6 +412,52 @@ public abstract class LivingEntity extends Entity implements Targetable {
         xxa *= 0.98F;
         zza *= 0.98F;
         travel(xxa, yya, zza);
+    }
+
+    // ------------------------------------------------------------------ 장비
+
+    private final java.util.EnumMap<EquipmentSlot, ItemStack> lastEquipmentItems = new java.util.EnumMap<>(EquipmentSlot.class);
+
+    /** getItemBySlot: 종류별 장비 칸(기본: 없음). */
+    public ItemStack getItemBySlot(EquipmentSlot slot) { return ItemStack.EMPTY; }
+
+    public void setItemSlot(EquipmentSlot slot, ItemStack stack) {}
+
+    public ItemStack getMainHandItem() { return getItemBySlot(EquipmentSlot.MAINHAND); }
+
+    private static boolean sameStack(ItemStack a, ItemStack b) { return a.itemId() == b.itemId() && a.count() == b.count() && a.patch().equals(b.patch()) || a.isEmpty() && b.isEmpty(); }
+
+    /**
+     * detectEquipmentUpdates → collectEquipmentChanges: 바뀐 칸의 속성 수정자(방어·공격력 …)를 갈아 끼우고 장비 패킷을 보낸다.
+     * 수정자 id 가 같은 것은 먼저 지우고 다시 단다(transient).
+     */
+    protected void detectEquipmentUpdates() {
+        java.util.List<org.domi.furnace.server.net.protocol.play.SetEquipment.Entry> changes = null;
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack cur = getItemBySlot(slot);
+            ItemStack last = lastEquipmentItems.getOrDefault(slot, ItemStack.EMPTY);
+            if (sameStack(cur, last)) continue;
+            if (changes == null) changes = new java.util.ArrayList<>();
+            changes.add(new org.domi.furnace.server.net.protocol.play.SetEquipment.Entry(slot, cur));
+            lastEquipmentItems.put(slot, cur);
+            for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(last)) {
+                if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
+                Attribute a = Attribute.byName(e.type());
+                var inst = a == null ? null : attributes().get(a);
+                if (inst != null) inst.removeModifier(e.id());
+            }
+            for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(cur)) {
+                if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
+                Attribute a = Attribute.byName(e.type());
+                var inst = a == null ? null : attributes().get(a);
+                if (inst != null) {
+                    inst.removeModifier(e.id());
+                    inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier(e.id(), e.amount(),
+                            org.domi.furnace.server.attribute.AttributeModifier.operationOf(e.operation())));
+                }
+            }
+        }
+        if (changes != null && tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.SetEquipment(id(), changes));
     }
 
     // ------------------------------------------------------------------ 휘두르기

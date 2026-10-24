@@ -153,23 +153,9 @@ public final class Villager extends Mob implements Merchant {
         }
     }
 
-    private static NbtCompound writeStack(ItemStack s) {
-        NbtCompound it = new NbtCompound();
-        it.putString("id", ItemTools.itemName(s));
-        it.putInt("count", s.count());
-        NbtCompound components = ItemNbt.write(s.patch());
-        if (components != null) it.putCompound(ItemNbt.KEY, components);
-        return it;
-    }
+    private static NbtCompound writeStack(ItemStack s) { return ItemStackNbt.write(s); }
 
-    private static ItemStack readStack(NbtCompound it) {
-        if (!(it.tags().get("id") instanceof String name)) return ItemStack.EMPTY;
-        Integer itemId = ItemContext.id("minecraft:item", name);
-        int count = it.tags().get("count") instanceof Number c ? c.intValue() : 1;
-        if (itemId == null || itemId <= 0 || count <= 0) return ItemStack.EMPTY;
-        var patch = ItemNbt.read(it, name, "furnace:components");
-        return patch == null ? ItemStack.EMPTY : new ItemStack(itemId, count, patch);
-    }
+    private static ItemStack readStack(NbtCompound it) { return ItemStackNbt.read(it); }
 
     private static NbtCompound writeCost(ItemCost c) {
         NbtCompound t = new NbtCompound();

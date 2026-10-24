@@ -138,7 +138,15 @@ public final class EntityTracker {
             var syncable = le.attributes().syncable();
             if (!syncable.isEmpty()) list.add(new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entity.id(), syncable));
         }
-        if (trackDelta) list.add(new SetEntityMotion(entity.id(), lastVx, lastVy, lastVz));   // 살아 있는 것이 아니면
+        if (trackDelta && !(entity instanceof LivingEntity)) list.add(new SetEntityMotion(entity.id(), lastVx, lastVy, lastVz));   // 살아 있는 것이 아니면
+        if (entity instanceof LivingEntity le) {
+            java.util.List<org.domi.furnace.server.net.protocol.play.SetEquipment.Entry> eq = new ArrayList<>();
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                ItemStack st = le.getItemBySlot(slot);
+                if (!st.isEmpty()) eq.add(new org.domi.furnace.server.net.protocol.play.SetEquipment.Entry(slot, st));
+            }
+            if (!eq.isEmpty()) list.add(new org.domi.furnace.server.net.protocol.play.SetEquipment(entity.id(), eq));
+        }
         p.send(BundleDelimiter.INSTANCE);
         for (Packet pkt : list) p.send(pkt);
         p.send(BundleDelimiter.INSTANCE);

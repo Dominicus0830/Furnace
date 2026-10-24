@@ -170,23 +170,67 @@ public final class ItemTools {
         return new ItemStack(s.itemId(), s.count(), ComponentPatch.ofNormalized(patch));
     }
 
-    /** attribute_modifiers 의 add_value 합 — type 은 "minecraft:generic.armor" 같은 전체 이름, slots 는 해당 칸 이름들(any 는 항상 포함). */
-    public static float attributeBonus(ItemStack s, String type, String... slots) {
-        if (s == null || s.isEmpty()) return 0.0F;
-        if (!(component(s, "minecraft:attribute_modifiers") instanceof java.util.Map<?, ?> m) || !(m.get("modifiers") instanceof java.util.List<?> list)) return 0.0F;
+    /** 속성 수정자 하나(아이템의 attribute_modifiers 항목). */
+    public record AttributeEntry(String type, String id, double amount, String operation, String slot) {}
+
+    private static volatile java.util.Map<String, java.util.List<AttributeEntry>> defaultAttributes;
+
+    /** Item.getDefaultAttributeModifiers 표(방어구 등 — 컴포넌트가 아니라 코드에 있는 것). */
+    private static java.util.Map<String, java.util.List<AttributeEntry>> defaultAttributes() {
+        var d = defaultAttributes;
+        if (d == null) {
+            d = new java.util.HashMap<>();
+            try (var in = ItemTools.class.getClassLoader().getResourceAsStream("items/default_attributes_1.21.1.txt")) {
+                if (in != null) {
+                    var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+                    String line;
+                    while ((line = r.readLine()) != null) {
+                        if (line.isBlank() || line.startsWith("#")) continue;
+                        String[] p = line.split(" ");
+                        d.computeIfAbsent(p[0], k -> new java.util.ArrayList<>()).add(new AttributeEntry(p[1], p[2], Double.parseDouble(p[3]), p[4], p[5]));
+                    }
+                }
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            defaultAttributes = d;
+        }
+        return d;
+    }
+
+    /** ItemStack.forEachModifier 의 원본 목록: 컴포넌트 attribute_modifiers 가 비어 있으면 아이템 기본값. */
+    public static java.util.List<AttributeEntry> attributeEntries(ItemStack s) {
+        if (s == null || s.isEmpty()) return java.util.List.of();
+        java.util.List<AttributeEntry> out = new java.util.ArrayList<>();
+        if (component(s, "minecraft:attribute_modifiers") instanceof java.util.Map<?, ?> m && m.get("modifiers") instanceof java.util.List<?> list) {
+            for (Object o : list) {
+                if (!(o instanceof java.util.Map<?, ?> e) || !(e.get("amount") instanceof Number n)) continue;
+                out.add(new AttributeEntry(String.valueOf(e.get("type")), e.get("id") == null ? "" : String.valueOf(e.get("id")), n.doubleValue(),
+                        e.get("operation") == null ? "add_value" : String.valueOf(e.get("operation")), e.get("slot") == null ? "any" : String.valueOf(e.get("slot"))));
+            }
+        }
+        return out.isEmpty() ? defaultAttributes().getOrDefault(itemName(s), java.util.List.of()) : out;
+    }
+
+    /** slot 이 그 칸 그룹에 드는가(EquipmentSlotGroup.test): any 모두, hand = 주/보조 손, armor = 방어구 넷. */
+    public static boolean slotGroupMatches(String group, String slot) {
+        return switch (group) {
+            case "any" -> true;
+            case "hand" -> slot.equals("mainhand") || slot.equals("offhand");
+            case "armor" -> slot.equals("feet") || slot.equals("legs") || slot.equals("chest") || slot.equals("head");
+            default -> group.equals(slot);
+        };
+    }
+
+    /** 그 칸에 들었을 때의 add_value 합 — type 은 "minecraft:generic.armor" 같은 전체 이름. */
+    public static float attributeBonus(ItemStack s, String type, String slot) {
         float sum = 0.0F;
-        for (Object o : list) {
-            if (!(o instanceof java.util.Map<?, ?> e)) continue;
-            String t = String.valueOf(e.get("type"));
-            String slot = e.get("slot") == null ? "any" : String.valueOf(e.get("slot"));
-            String op = e.get("operation") == null ? "add_value" : String.valueOf(e.get("operation"));
-            boolean slotOk = slot.equals("any");
-            for (String w : slots) if (slot.equals(w)) slotOk = true;
-            if (t.equals(type) && op.equals("add_value") && slotOk && e.get("amount") instanceof Number n) sum += n.floatValue();
+        for (AttributeEntry e : attributeEntries(s)) {
+            if (e.type().equals(type) && e.operation().equals("add_value") && slotGroupMatches(e.slot(), slot)) sum += (float) e.amount();
         }
         return sum;
     }
 
-    /** 손에 든 아이템의 attack_damage 속성(add_value, 주 손/손/any 칸)의 합. */
-    public static float attackDamageBonus(ItemStack s) { return attributeBonus(s, "minecraft:generic.attack_damage", "mainhand", "hand"); }
+    /** 손에 든 아이템의 attack_damage 속성(add_value, 주 손)의 합. */
+    public static float attackDamageBonus(ItemStack s) { return attributeBonus(s, "minecraft:generic.attack_damage", "mainhand"); }
 }
