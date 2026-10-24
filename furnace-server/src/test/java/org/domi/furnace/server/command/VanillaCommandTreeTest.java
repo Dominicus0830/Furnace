@@ -78,6 +78,7 @@ class VanillaCommandTreeTest {
             case "brigadier:double" -> { int f = b.readByte(); if ((f & 1) != 0) o.addProperty("min", b.readDouble()); if ((f & 2) != 0) o.addProperty("max", b.readDouble()); }
             case "minecraft:time" -> o.addProperty("min", b.readInt());
             case "brigadier:string" -> o.addProperty("type", new String[]{"word", "phrase", "greedy"}[Types.readVarInt(b)]);
+            case "minecraft:resource" -> o.addProperty("registry", Types.readString(b, 32767));
             case "minecraft:entity" -> {
                 int f = b.readByte();
                 o.addProperty("type", (f & 2) != 0 ? "players" : "entities");

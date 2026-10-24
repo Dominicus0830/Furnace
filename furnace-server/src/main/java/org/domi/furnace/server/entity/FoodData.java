@@ -23,7 +23,7 @@ public final class FoodData {
     private int tickTimer;
     private int lastFoodLevel = 20;
 
-    private void add(int food, float saturation) {
+    public void add(int food, float saturation) {
         foodLevel = Math.clamp(food + foodLevel, 0, 20);
         saturationLevel = Math.clamp(saturation + saturationLevel, 0.0f, (float) foodLevel);
     }

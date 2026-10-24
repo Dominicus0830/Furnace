@@ -247,6 +247,9 @@ public final class Player {
     /** 경험치 구슬 줍기 쿨다운(바닐라 takeXpDelay — 줍으면 2, 틱마다 감소). */
     public int takeXpDelay;
 
+    /** 먹기·마시기 중인 손(없으면 -1)과 남은 틱 — region 스레드 전용. */
+    public int usingHand = -1, usingTicks;
+
     private volatile org.domi.furnace.server.stats.PlayerStats stats;
 
     public org.domi.furnace.server.stats.PlayerStats stats() { return stats; }

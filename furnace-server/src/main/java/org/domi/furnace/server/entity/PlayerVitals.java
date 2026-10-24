@@ -6,6 +6,8 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.entity.damage.CombatTracker;
 import org.domi.furnace.server.entity.damage.DamageType;
+import org.domi.furnace.server.effect.MobEffect;
+import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.api.text.Text;
@@ -91,6 +93,10 @@ public final class PlayerVitals {
 
     private float health = MAX_HEALTH;
     private float absorption;
+    private final java.util.Map<MobEffect, MobEffectInstance> effects = new java.util.LinkedHashMap<>();
+    private final java.util.List<Object[]> pendingEffectHurts = new java.util.ArrayList<>();
+    private final java.util.List<Packet> pendingEffectPackets = new java.util.ArrayList<>();
+    private float lastDataAbsorption;
     private FoodData food = new FoodData();
     private int xpLevel, xpTotal, xpSeed, score;
     private float xpProgress;
@@ -135,8 +141,19 @@ public final class PlayerVitals {
 
     /** 바닐라 LivingEntity/Player/ServerPlayer.readAdditionalSaveData 중 이 객체가 다루는 키. 게임 모드는 {@link #loadGameTypes}. */
     public synchronized void load(NbtCompound tag) {
-        if (tag.containsNumber("Health")) health = Math.clamp(tag.getFloat("Health"), 0f, MAX_HEALTH);
+        if (tag.containsNumber("Health")) health = Math.clamp(tag.getFloat("Health"), 0f, MAX_HEALTH + 4.0f * 255);
         absorption = Math.max(0f, tag.getFloat("AbsorptionAmount"));
+        effects.clear();
+        if (tag.contains("active_effects")) {
+            for (Object o : tag.getList("active_effects").items()) {
+                if (o instanceof NbtCompound c) {
+                    MobEffectInstance e = MobEffectInstance.load(c);
+                    if (e != null) effects.put(e.effect(), e);
+                }
+            }
+        }
+        health = Math.min(health, maxHealthLocked());
+        absorption = Math.min(absorption, maxAbsorptionLocked());
         hurtTime = tag.getShort("HurtTime");
         deathTime = tag.getShort("DeathTime");
         if (tag.containsNumber("Air")) air = tag.getShort("Air");
@@ -184,6 +201,13 @@ public final class PlayerVitals {
         tag.putInt("HurtByTimestamp", 0);
         tag.putShort("DeathTime", (short) deathTime);
         tag.putFloat("AbsorptionAmount", absorption);
+        if (!effects.isEmpty()) {
+            org.domi.furnace.server.net.io.nbt.NbtList list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+            for (MobEffectInstance e : effects.values()) list.add(e.save());
+            tag.putList("active_effects", list);
+        } else {
+            tag.tags().remove("active_effects");
+        }
         tag.putShort("Air", (short) air);
         tag.putFloat("FallDistance", fallDistance);
         tag.putBoolean("Invulnerable", invulnerableFlag);
@@ -279,7 +303,25 @@ public final class PlayerVitals {
 
     public synchronized float fallDistance() { return fallDistance; }
 
-    private void setHealthRaw(float h) { health = Math.clamp(h, 0.0f, MAX_HEALTH); }
+    private void setHealthRaw(float h) { health = Math.clamp(h, 0.0f, maxHealthLocked()); }
+
+    /** 최대 체력: 20 + 체력 강화 효과(4 × (단계+1)). */
+    private float maxHealthLocked() {
+        MobEffectInstance hb = effects.get(MobEffect.HEALTH_BOOST);
+        return MAX_HEALTH + (hb == null ? 0 : 4.0f * (hb.amplifier() + 1));
+    }
+
+    public synchronized float maxHealth() { return maxHealthLocked(); }
+
+    /** 최대 흡수량: 흡수 효과 4 × (단계+1). */
+    private float maxAbsorptionLocked() {
+        MobEffectInstance ab = effects.get(MobEffect.ABSORPTION);
+        return ab == null ? 0.0f : 4.0f * (ab.amplifier() + 1);
+    }
+
+    private void setAbsorptionLocked(float a) { absorption = Math.clamp(a, 0.0f, maxAbsorptionLocked()); }
+
+    public synchronized float absorption() { return absorption; }
 
     /** 바닐라 LivingEntity.heal: 살아 있을 때만. */
     public synchronized void heal(float amount) {
@@ -290,6 +332,9 @@ public final class PlayerVitals {
     public synchronized boolean canEat(boolean ignoreHunger) { return abilities.invulnerable || ignoreHunger || food.foodLevel() < 20; }
 
     /** 바닐라 FoodData.eat(nutrition, saturationModifier). */
+    /** 1.21 FoodProperties: saturation 은 이미 최종 포화량. */
+    public synchronized void eatFood(int nutrition, float saturation) { food.add(nutrition, saturation); }
+
     public synchronized void eat(int nutrition, float saturationModifier) { food.eat(nutrition, saturationModifier); }
 
     /** 바닐라 Player.causeFoodExhaustion: 무적 능력이면 무시. */
@@ -346,8 +391,14 @@ public final class PlayerVitals {
 
     /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */
     private void actuallyHurt(DamageType type, float amount) {
+        MobEffectInstance resistance = effects.get(MobEffect.RESISTANCE);
+        if (resistance != null && !type.bypassesEffects() && !type.bypassesResistance()) {   // getDamageAfterMagicAbsorb
+            int i = (resistance.amplifier() + 1) * 5;
+            int j = 25 - i;
+            amount = Math.max(amount * j / 25.0f, 0.0f);
+        }
         float afterAbsorb = Math.max(amount - absorption, 0.0f);
-        absorption = Math.max(0.0f, absorption - (amount - afterAbsorb));
+        setAbsorptionLocked(absorption - (amount - afterAbsorb));
         if (afterAbsorb != 0.0f) {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
             combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0);
@@ -483,7 +534,8 @@ public final class PlayerVitals {
     private float fallOn(String block, float distance, boolean sneaking) {
         float multiplier = fallMultiplier(block, sneaking);
         if (multiplier < 0 || abilities.mayfly) return 0;
-        float over = distance - SAFE_FALL_DISTANCE;
+        MobEffectInstance jump = effects.get(MobEffect.JUMP_BOOST);
+        float over = distance - SAFE_FALL_DISTANCE - (jump == null ? 0.0f : jump.amplifier() + 1);
         return (float) Math.ceil((double) (over * multiplier) * 1.0);
     }
 
@@ -526,7 +578,7 @@ public final class PlayerVitals {
                 float border = env.borderDamage(player.x(), player.y(), player.z());
                 if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
                 if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
-                    if (!abilities.invulnerable) {
+                    if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING)) {
                         air--;
                         if (air == -20) {
                             air = 0;
@@ -538,6 +590,8 @@ public final class PlayerVitals {
                 }
             }
             if (hurtTime > 0) hurtTime--;
+            if (alive) tickEffectsLocked(toSelf);
+            if (effects.containsKey(MobEffect.SLOW_FALLING) || effects.containsKey(MobEffect.LEVITATION)) fallDistance = 0.0f;
             if (health <= 0.0f) {
                 if (++deathTime >= 20 && !removedAfterDeath) {
                     removedAfterDeath = true;
@@ -547,7 +601,7 @@ public final class PlayerVitals {
             } else {
                 Difficulty difficulty = env.difficulty();
                 if (difficulty == Difficulty.PEACEFUL && env.gameRule("naturalRegeneration")) {
-                    if (health < MAX_HEALTH && tickCount % 20 == 0) heal(1.0f);
+                    if (health < maxHealthLocked() && tickCount % 20 == 0) heal(1.0f);
                     if (food.saturationLevel() < 20.0f && tickCount % 20 == 0) food.saturationLevel(food.saturationLevel() + 1.0f);
                     if (food.needsFood() && tickCount % 10 == 0) food.foodLevel(food.foodLevel() + 1);
                 }
@@ -556,6 +610,7 @@ public final class PlayerVitals {
             }
         }
         for (Runnable r : after) r.run();
+        runPendingEffectHurts();
         applyPendingStarve();
         synchronized (this) {
             collectChanges(toSelf, toTrackers);
@@ -575,6 +630,10 @@ public final class PlayerVitals {
         if (health != lastDataHealth) {
             lastDataHealth = health;
             data.add(new SetEntityData.Item(SetEntityData.HEALTH, SetEntityData.SERIALIZER_FLOAT, health));
+        }
+        if (absorption != lastDataAbsorption) {
+            lastDataAbsorption = absorption;
+            data.add(new SetEntityData.Item(SetEntityData.PLAYER_ABSORPTION, SetEntityData.SERIALIZER_FLOAT, absorption));
         }
         if (!data.isEmpty()) {
             SetEntityData pkt = new SetEntityData(player.entityId(), java.util.List.copyOf(data));
@@ -597,7 +656,7 @@ public final class PlayerVitals {
     private final FoodData.Owner foodOwner = new FoodData.Owner() {
         public Difficulty difficulty() { return env.difficulty(); }
         public boolean naturalRegeneration() { return env.gameRule("naturalRegeneration"); }
-        public boolean isHurt() { return health > 0.0f && health < MAX_HEALTH; }
+        public boolean isHurt() { return health > 0.0f && health < maxHealthLocked(); }
         public float health() { return health; }
         public void heal(float amount) { PlayerVitals.this.heal(amount); }
         // 틱 잠금 밖에서 피해를 줘야 사망 처리(패킷·메시지)가 잠금을 오래 쥐지 않는다 — 그래도 순서는 같은 틱 안이다.
@@ -735,6 +794,7 @@ public final class PlayerVitals {
     public synchronized void respawn() {
         boolean keepXp = keepLevelOnRespawn || gameMode == GameMode.SPECTATOR;
         keepLevelOnRespawn = false;
+        effects.clear();
         health = MAX_HEALTH;
         absorption = 0;
         food = new FoodData();
@@ -765,6 +825,7 @@ public final class PlayerVitals {
         lastSentExp = -1;
         lastDataHealth = 1.0f;
         lastDataAir = MAX_AIR;
+        lastDataAbsorption = 0.0f;
     }
 
     /** 접속 때 바로 보낼 체력·허기·경험치·엔티티 데이터(바닐라는 첫 doTick 에서 같은 값을 보낸다 — 이후 틱은 바뀔 때만). */
@@ -783,4 +844,149 @@ public final class PlayerVitals {
 
     /** 리스폰·접속 직후 클라이언트에 맞출 경험치 패킷. */
     public synchronized SetExperience experiencePacket() { return new SetExperience(xpProgress, xpLevel, xpTotal); }
+
+    // ------------------------------------------------------------------ 상태 효과(LivingEntity.activeEffects)
+
+    private final MobEffect.Host effectHost = new MobEffect.Host() {
+        public float health() { return health; }
+
+        public float maxHealth() { return maxHealthLocked(); }
+
+        public void heal(float amount) { PlayerVitals.this.heal(amount); }
+
+        public boolean hurtBy(String key, float amount) {
+            pendingEffectHurts.add(new Object[]{key, amount});   // 잠금 안에서는 피해 처리(사망 패킷)를 미룬다
+            return true;
+        }
+
+        public boolean isPlayer() { return true; }
+
+        public void causeFoodExhaustion(float amount) { causeFoodExhaustionLocked(amount); }
+
+        public void eat(int nutrition, float saturationModifier) { food.eat(nutrition, saturationModifier); }
+
+        public float absorption() { return absorption; }
+
+        public void setAbsorption(float amount) { setAbsorptionLocked(amount); }
+    };
+
+    /** 효과 대상(마시기·비콘 등이 즉시 효과를 쓸 때). */
+    public MobEffect.Host effectHost() { return effectHost; }
+
+    public synchronized boolean hasEffect(MobEffect e) { return effects.containsKey(e); }
+
+    public synchronized MobEffectInstance getEffect(MobEffect e) {
+        MobEffectInstance i = effects.get(e);
+        return i == null ? null : i.deepCopy();
+    }
+
+    public synchronized java.util.List<MobEffectInstance> activeEffects() {
+        java.util.List<MobEffectInstance> out = new java.util.ArrayList<>();
+        for (MobEffectInstance e : effects.values()) out.add(e.deepCopy());
+        return out;
+    }
+
+    /** 접속 직후 자기 효과를 클라이언트에 맞추는 패킷(PlayerList.placeNewPlayer). */
+    public synchronized java.util.List<Packet> effectPackets() {
+        java.util.List<Packet> out = new java.util.ArrayList<>();
+        for (MobEffectInstance e : effects.values()) out.add(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(player.entityId(), e, false));
+        return out;
+    }
+
+    /** 바닐라 addEffect: 새로 걸면 패킷 + 시작 효과, 이미 있으면 update(더 센 쪽). 바뀌었으면 true. */
+    public boolean addEffect(MobEffectInstance incoming) {
+        boolean changed;
+        synchronized (this) {
+            if (health <= 0.0f) return false;
+            MobEffectInstance existing = effects.get(incoming.effect());
+            if (existing == null) {
+                effects.put(incoming.effect(), incoming);
+                pendingEffectPackets.add(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(player.entityId(), incoming, true));
+                incoming.effect().onEffectStarted(effectHost, incoming.amplifier());
+                changed = true;
+            } else if (existing.update(incoming)) {
+                pendingEffectPackets.add(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(player.entityId(), existing, true));
+                changed = true;
+            } else {
+                changed = false;
+            }
+        }
+        flushEffectPackets();
+        runPendingEffectHurts();
+        return changed;
+    }
+
+    /** 마시기 같은 즉시 효과(근접도 1.0). */
+    public void applyInstantaneousEffect(MobEffect effect, int amplifier, double proximity) {
+        synchronized (this) { effect.applyInstantenousEffect(effectHost, amplifier, proximity); }
+        runPendingEffectHurts();
+    }
+
+    /** 바닐라 removeEffect: 있으면 지우고 패킷. 지웠으면 true. */
+    public boolean removeEffect(MobEffect effect) {
+        boolean removed;
+        synchronized (this) {
+            MobEffectInstance e = effects.remove(effect);
+            removed = e != null;
+            if (removed) onEffectRemovedLocked(e);
+        }
+        flushEffectPackets();
+        return removed;
+    }
+
+    /** 바닐라 removeAllEffects(우유·/effect clear): 지운 개수. */
+    public int removeAllEffects() {
+        int n;
+        synchronized (this) {
+            n = effects.size();
+            for (MobEffectInstance e : new java.util.ArrayList<>(effects.values())) {
+                effects.remove(e.effect());
+                onEffectRemovedLocked(e);
+            }
+        }
+        flushEffectPackets();
+        return n;
+    }
+
+    private void onEffectRemovedLocked(MobEffectInstance e) {
+        pendingEffectPackets.add(new org.domi.furnace.server.net.protocol.play.RemoveMobEffect(player.entityId(), e.effect().registryId()));
+        if (e.effect() == MobEffect.HEALTH_BOOST && health > maxHealthLocked()) health = maxHealthLocked();
+        if (e.effect() == MobEffect.ABSORPTION) setAbsorptionLocked(absorption);
+    }
+
+    /** 바닐라 tickEffects: 효과마다 적용·감소, 끝난 것은 지운다(600틱마다 갱신 패킷). */
+    private void tickEffectsLocked(java.util.List<Packet> toSelf) {
+        for (MobEffectInstance e : new java.util.ArrayList<>(effects.values())) {
+            boolean alive = e.tick(effectHost, tickCount, () -> pendingEffectPackets.add(
+                    org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(player.entityId(), e, false)), () -> { });
+            if (!alive) {
+                effects.remove(e.effect());
+                onEffectRemovedLocked(e);
+            } else if (e.duration() % 600 == 0) {
+                pendingEffectPackets.add(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(player.entityId(), e, false));
+            }
+        }
+        toSelf.addAll(pendingEffectPackets);
+        pendingEffectPackets.clear();
+    }
+
+    private void flushEffectPackets() {
+        java.util.List<Packet> out;
+        synchronized (this) {
+            if (pendingEffectPackets.isEmpty()) return;
+            out = new java.util.ArrayList<>(pendingEffectPackets);
+            pendingEffectPackets.clear();
+        }
+        for (Packet p : out) player.send(p);
+    }
+
+    private void runPendingEffectHurts() {
+        java.util.List<Object[]> hurts;
+        synchronized (this) {
+            if (pendingEffectHurts.isEmpty()) return;
+            hurts = new java.util.ArrayList<>(pendingEffectHurts);
+            pendingEffectHurts.clear();
+        }
+        for (Object[] h : hurts) hurt(DamageType.byKey((String) h[0]), (Float) h[1]);
+    }
 }

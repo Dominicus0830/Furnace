@@ -547,6 +547,7 @@ public final class Region {
             p.drainPending();
             tickVitals(p);
             if (p.takeXpDelay > 0) p.takeXpDelay--;
+            org.domi.furnace.server.entity.Consuming.tick(p, this);
             touchEntities(p);
             tickBreaking(p);
             broadcastInventory(p);
@@ -739,6 +740,7 @@ public final class Region {
         if (!players.containsKey(p.entityId())) return;
         var actor = breakerActor(p);
         if (actor.itemInHand(hand).isEmpty()) return;
+        if (p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && org.domi.furnace.server.entity.Consuming.tryStart(p, hand, actor.itemInHand(hand))) return;
         float y = wrapDegrees(yRot), x = wrapDegrees(xRot);
         if (x != p.pitch() || y != p.yaw()) p.applyRotation(y, Math.clamp(x, -90.0F, 90.0F), p.onGround());   // absRotateTo
         actor = breakerActor(p);

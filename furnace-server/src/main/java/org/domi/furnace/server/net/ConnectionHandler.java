@@ -890,6 +890,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
         send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(20.0f, false));
         send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(0));
+        for (Packet effectPacket : p.vitals().effectPackets()) send(ctx, effectPacket);   // 바닐라: sendLevelInfo 다음 활성 효과
         ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
         send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
@@ -1153,6 +1154,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
                 if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
+                if (actor != null && status == 5) world.runAt(actor.x(), actor.z(), r -> org.domi.furnace.server.entity.Consuming.stop(actor));   // 사용 끝(release)
                 if (actor != null && (status == 3 || status == 4) && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
                     dropFromSelected(status == 3);   // DROP_ALL_ITEMS · DROP_ITEM
                 }

@@ -12,7 +12,9 @@ public enum DamageType {
     STARVE("starve", "starve", 0.0f, false, true, false, false, false, true, false),
     DROWN("drown", "drown", 0.0f, false, true, false, false, true, true, true),
     OUTSIDE_BORDER("outside_border", "outsideBorder", 0.0f, false, true, false, false, false, true, false),
-    IN_WALL("in_wall", "inWall", 0.0f, false, true, false, false, false, true, false);
+    IN_WALL("in_wall", "inWall", 0.0f, false, true, false, false, false, true, false),
+    MAGIC("magic", "magic", 0.0f, false, true, false, false, false, false, false),
+    WITHER("wither", "wither", 0.0f, false, true, false, false, false, false, false);
 
     private final String key;
     private final String msgId;
@@ -56,6 +58,15 @@ public enum DamageType {
     public boolean noImpact() { return noImpact; }
     public boolean noKnockback() { return noKnockback; }
     public boolean isDrowning() { return isDrowning; }
+    /** 태그 bypasses_effects(굶주림): 효과(저항)가 줄이지 못한다. */
+    public boolean bypassesEffects() { return this == STARVE; }
+    /** 태그 bypasses_resistance(허공·/kill): 저항 효과가 줄이지 못한다. */
+    public boolean bypassesResistance() { return this == OUT_OF_WORLD || this == GENERIC_KILL; }
+
+    public static DamageType byKey(String key) {
+        for (DamageType t : values()) if (t.key.equals(key)) return t;
+        return GENERIC;
+    }
 
     /** 설정 단계에서 보낸 damage_type 레지스트리 안의 순번(damage_event 패킷용). */
     public int registryId() {

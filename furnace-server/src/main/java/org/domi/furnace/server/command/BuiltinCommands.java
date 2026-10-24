@@ -15,6 +15,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.DataPackCommands.registerDataPack(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerDefaultGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerDifficulty(d);
+        org.domi.furnace.server.command.builtin.EffectCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMe(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerExperience(d);
         org.domi.furnace.server.command.builtin.BlockCommands.registerFill(d);
