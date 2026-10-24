@@ -41,6 +41,9 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
 
     public int size() { return items.length; }
 
+    /** 메뉴/깔때기가 setItem 으로 칸을 바꿀 때의 부수 효과(바닐라 화로 setItem). 기본은 없음. */
+    public void onItemSet(int index, ItemStack old, ItemStack now, BlockLevel level) { }
+
     /** 바닐라 containerMenu 의 제목 번역 키(이름이 없을 때). */
     public abstract String defaultTitleKey();
 

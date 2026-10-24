@@ -34,9 +34,12 @@ public class LecternBlock extends BaseEntityBlock {
     }
 
     /** tryPlaceBook: 책이 없으면 올린다(블록 엔티티에 책 1권). */
-    public static boolean tryPlaceBook(BlockActor entity, BlockLevel level, Pos pos, int state, ItemStack book) {
+    public static boolean tryPlaceBook(BlockActor entity, BlockLevel level, Pos pos, int state, int hand, ItemStack book) {
         if (HAS_BOOK.is(state)) return false;
-        // TODO(블록엔티티): LecternBlockEntity.setBook(book.consumeAndReturn(1, entity))
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity be) {
+            be.setBook(book.withCount(1), level);   // ItemStack.consumeAndReturn(1, entity): 만들기 모드가 아니면 손에서 하나 줄인다
+            if (!entity.isCreative()) entity.setItemInHand(hand, book.withCount(book.count() - 1));
+        }
         resetBookState(entity, level, pos, state, true);
         level.playSound(null, pos, "minecraft:item.book.put", "blocks", 1.0F, 1.0F);
         return true;
@@ -56,6 +59,16 @@ public class LecternBlock extends BaseEntityBlock {
         level.levelEvent(null, 1043, pos, 0);
     }
 
+    /** popBook: 책이 있으면 앞쪽 0.25 위에 떨구고 블록 엔티티를 비운다. */
+    private static void popBook(int state, BlockLevel level, Pos pos) {
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity be && be.hasBook()) {
+            ItemStack book = be.book();
+            be.setBook(ItemStack.EMPTY, null);
+            // TODO(엔티티): 바닐라는 앞쪽 0.25 · 위 1.0 · 무작위 보정(0.25·0.25·0.1 가우시안 자리)으로 ItemEntity 를 만든다 — 지금은 칸 위로 popResource.
+            level.popResource(pos, book);
+        }
+    }
+
     private static void changePowered(BlockLevel level, Pos pos, int state, boolean powered) {
         level.setBlock(pos, POWERED.with(state, powered), 3);
         updateBelow(level, pos, state);
@@ -69,7 +82,7 @@ public class LecternBlock extends BaseEntityBlock {
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
         if (!B.is(newState, block)) {
-            // TODO(블록엔티티·엔티티): 책이 있으면 앞쪽 0.25 위에 책 아이템을 떨구고 블록 엔티티를 비운다(popBook).
+            popBook(state, level, pos);
             super.onRemove(state, level, pos, newState, moved);
             if (POWERED.is(state)) level.updateNeighborsAt(pos.below(), block);
         }
@@ -89,15 +102,14 @@ public class LecternBlock extends BaseEntityBlock {
 
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
-        // TODO(블록엔티티): 책이 있으면 LecternBlockEntity.getRedstoneSignal(쪽 위치 비율)
-        return 0;
+        return HAS_BOOK.is(state) && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity be ? be.redstoneSignal() : 0;
     }
 
     @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
         if (HAS_BOOK.is(state)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         if (isLecternBook(stack)) {
-            return tryPlaceBook(player, level, pos, state, stack) ? ItemInteractionResult.CONSUME : ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+            return tryPlaceBook(player, level, pos, state, hand, stack) ? ItemInteractionResult.CONSUME : ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
         }
         return stack.isEmpty() && hand == BlockActor.MAIN_HAND
                 ? ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION : ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
@@ -108,9 +120,15 @@ public class LecternBlock extends BaseEntityBlock {
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
         if (HAS_BOOK.is(state)) {
-            // TODO(메뉴·블록엔티티): 독서대 화면 열기 + 통계 interact_with_lectern
+            player.openContainer(pos);
+            player.awardStat("minecraft:interact_with_lectern");
             return InteractionResult.CONSUME;
         }
         return InteractionResult.CONSUME;
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.LecternBlockEntity(pos, state);
     }
 }

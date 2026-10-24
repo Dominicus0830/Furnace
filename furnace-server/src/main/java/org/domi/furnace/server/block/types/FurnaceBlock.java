@@ -11,6 +11,12 @@ public class FurnaceBlock extends AbstractFurnaceBlock {
 
     @Override
     protected void openContainer(BlockLevel level, Pos pos, BlockActor player) {
-        // TODO(메뉴·블록 엔티티): 블록 엔티티가 있으면 화면을 열고 통계 interact_with_furnace.
+        player.openContainer(pos);
+        player.awardStat("minecraft:interact_with_furnace");
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return org.domi.furnace.server.block.entity.FurnaceBlockEntity.furnace(pos, state);
     }
 }

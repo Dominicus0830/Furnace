@@ -599,6 +599,26 @@ class ConnectionInputTest {
     }
 
     @Test
+    void furnace_opensWithFourDataSlots() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        openBlock(2, -60, 2, "minecraft:furnace", Map.of("facing", "north", "lit", "false"), null);
+        var menu = p.containerMenu();
+        assertEquals("minecraft:furnace", menu.menuType());
+        assertEquals(39, menu.slots.size());
+        assertEquals(4, count(drainOutbound(), 0x14));
+    }
+
+    @Test
+    void brewingStand_opensWithTwoDataSlots() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        openBlock(2, -60, 2, "minecraft:brewing_stand", Map.of("has_bottle_0", "false", "has_bottle_1", "false", "has_bottle_2", "false"), null);
+        var menu = p.containerMenu();
+        assertEquals("minecraft:brewing_stand", menu.menuType());
+        assertEquals(41, menu.slots.size());
+        assertEquals(2, count(drainOutbound(), 0x14));
+    }
+
+    @Test
     void shulkerBox_rejectsNestedShulkerBoxes() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         openBlock(2, -60, 2, "minecraft:shulker_box", Map.of("facing", "up"), null);

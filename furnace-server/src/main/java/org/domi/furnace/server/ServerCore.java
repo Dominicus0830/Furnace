@@ -427,6 +427,7 @@ public final class ServerCore {
         public String biomeAt(int x, int y, int z) { return lootWorld.biomeAt(x, y, z); }
         public int simulationDistance() { return settings.get().simulationDistance; }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
+        public Object recipes() { return ServerCore.this.recipes(); }
         public void unpackContainerLoot(Object container) {
             if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(c, null);
         }

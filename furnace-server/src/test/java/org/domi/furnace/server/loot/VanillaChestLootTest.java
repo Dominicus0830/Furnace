@@ -22,9 +22,9 @@ import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-class VanillaChestLootTest {
+public class VanillaChestLootTest {
 
-    static LootData vanillaLoot() throws Exception {
+    public static LootData vanillaLoot() throws Exception {
         Path root = Path.of("../tools/vanilla-data/server-1.21.1");
         Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/loot_table")), "로컬 바닐라 데이터 없음");
         PackRepository repo = new PackRepository(root, null);

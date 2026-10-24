@@ -29,4 +29,13 @@ public interface BlockAccess {
 
     /** 모루를 쓴 뒤: 창의 모루가 12% 확률로 손상된다(만들기 모드면 소리만). */
     default void anvilUsed(boolean infiniteMaterials) { }
+
+    /** 마법 부여대 주변의 유효한 책장 수(EnchantingTableBlock.isValidBookShelf 를 센 값). */
+    default int enchantingPower() { return 0; }
+
+    /** Level.random.nextFloat(). */
+    default float nextFloat() { return 0.5F; }
+
+    /** 소리(크기·높이 지정). */
+    default void playSound(String sound, float volume, float pitch) { playSound(sound); }
 }

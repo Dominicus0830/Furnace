@@ -30,7 +30,7 @@ public class EnchantingTableBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴·블록 엔티티): 마법 부여 화면(이름은 블록 엔티티의 사용자 이름).
+        player.openEnchanting(pos);   // TODO(블록 엔티티): 화면 이름은 블록 엔티티의 사용자 이름
         return InteractionResult.CONSUME;
     }
 }

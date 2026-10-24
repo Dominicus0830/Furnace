@@ -18,7 +18,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /** 설치 경로(useItemOn → BlockItem.place)와 setBlock 의 이웃 알림·방송 모으기. */
-class BlockPlacementTest {
+public class BlockPlacementTest {
 
     @BeforeAll
     static void install() {
@@ -26,12 +26,12 @@ class BlockPlacementTest {
     }
 
     /** 슈퍼플랫(지면 y=-61 잔디) 몇 청크를 가진 레벨. */
-    static class TestLevel extends ChunkLevel {
+    public static class TestLevel extends ChunkLevel {
         final Map<Long, ChunkColumn> chunks = new HashMap<>();
         final List<Packet> broadcasts = new ArrayList<>();
         final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
 
-        TestLevel() { super(1000000); }
+        public TestLevel() { super(1000000); }
 
         @Override
         protected ChunkColumn chunk(int x, int z) {

@@ -68,6 +68,9 @@ public interface BlockActor {
     /** 모루 화면 열기. */
     default void openAnvil(Pos pos) {}
 
+    /** 마법 부여대 화면 열기. */
+    default void openEnchanting(Pos pos) {}
+
     /** 대장장이 작업대 화면 열기. */
     default void openSmithing(Pos pos) {}
 

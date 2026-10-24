@@ -839,6 +839,9 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public void unpackContainerLoot(Object container) { services().unpackContainerLoot(container); }
 
+    @Override
+    public Object recipes() { return services().recipes(); }
+
     /**
      * Containers.dropItemStack(level, x, y, z, stack): 칸 안 임의 위치(아이템 폭만큼 안쪽)에서 10~30 개씩 나눠, 속도는 삼각 분포
      * (0, 0.2, 0) ± 0.11485.

@@ -1167,6 +1167,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                 }
             }
+            case 0x2D -> { // select_trade: 거래 번호(VarInt)
+                int tradeIndex = Types.readVarInt(frame);
+                Player p = player;
+                if (p != null) handleSelectTrade(p, tradeIndex);
+            }
+            case 0x2E -> { // set_beacon: Optional<효과> 둘 (불리언 + VarInt 레지스트리 id)
+                String primary = frame.readBoolean() ? org.domi.furnace.server.item.ItemContext.name("minecraft:mob_effect", Types.readVarInt(frame)) : null;
+                String secondary = frame.readBoolean() ? org.domi.furnace.server.item.ItemContext.name("minecraft:mob_effect", Types.readVarInt(frame)) : null;
+                Player p = player;
+                if (p != null) handleSetBeacon(p, primary, secondary);
+            }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
                 if (slot >= 0 && slot < 9) inv.setSelected(slot);
@@ -1318,6 +1329,64 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } else {
             world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
         }
+    }
+
+    /** 바닐라 handleSelectTrade: 열린 창이 상인 거래이면 고른 거래의 재료를 지불 칸으로 옮겨 준다. */
+    private void handleSelectTrade(Player p, int index) {
+        var menu = p.containerMenu();
+        if (!(menu instanceof org.domi.furnace.server.menu.MerchantMenu merchantMenu)) return;
+        synchronized (p.menuLock()) {
+            if (p.containerMenu() != menu) return;
+            if (!merchantMenu.stillValid(menus)) {
+                log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
+                return;
+            }
+            merchantMenu.setSelectionHint(index);
+            merchantMenu.tryMoveItems(index);
+            merchantMenu.broadcastChanges();
+        }
+    }
+
+    /**
+     * 바닐라 Merchant.openTradingScreen(player, title, villagerLevel): 거래 화면을 열고 거래 목록을 보낸다.
+     * 주민·떠돌이 상인 엔티티가 생기면 그쪽에서 부른다(이벤트 루프 밖에서 불러도 된다).
+     */
+    public void openMerchantScreen(org.domi.furnace.server.trade.Merchant merchant, Text title, int villagerLevel) {
+        ctx.channel().eventLoop().execute(() -> {
+            Player p = player;
+            if (p == null) return;
+            synchronized (p.menuLock()) {
+                if (p.hasOpenContainer()) closeContainer(p);
+                int containerId = p.nextContainerCounter();
+                merchant.setTradingPlayer(menus);
+                var menu = new org.domi.furnace.server.menu.MerchantMenu(containerId, p.inventoryMenu().inventoryContainer(), menus, merchant);
+                send(ctx, new OpenScreen(containerId, menuTypeId(menu), title));
+                menu.addSlotListener(menus);
+                p.setContainerMenu(menu);
+                menu.setSynchronizer(menus);
+                var offers = merchant.offers();
+                if (!offers.isEmpty()) {
+                    send(ctx, new org.domi.furnace.server.net.protocol.play.MerchantOffersPacket(containerId, offers, villagerLevel,
+                            merchant.villagerXp(), merchant.showProgressBar(), merchant.canRestock()));
+                }
+            }
+        });
+    }
+
+    /** 바닐라 handleSetBeaconPacket. */
+    private void handleSetBeacon(Player p, String primary, String secondary) {
+        var menu = p.containerMenu();
+        if (!(menu instanceof org.domi.furnace.server.menu.BeaconMenu beacon)) return;
+        Runnable body = () -> {
+            if (p.containerMenu() != menu) return;
+            if (!beacon.stillValid(menus)) log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
+            else {
+                beacon.updateEffects(primary, secondary);
+                beacon.broadcastChanges();
+            }
+        };
+        int[] bp = menu.containerBlockPos();
+        world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
     }
 
     /** 바닐라 handleRenameItem: 열린 창이 모루이면 유효성을 보고 이름을 바꾼다. */
@@ -1472,6 +1541,31 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             }
                         }
 
+                        @Override public void playSound(String sound, float volume, float pitch) {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            if (region != null) region.level().playSound(null, x + 0.5, y + 0.5, z + 0.5, sound, "blocks", volume, pitch);
+                        }
+
+                        @Override public float nextFloat() {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            return region == null ? 0.5F : region.level().random().nextFloat();
+                        }
+
+                        /** EnchantingTableBlock.isValidBookShelf 를 세는 값: 둘레 5×5 의 가장자리(높이 0·1)에 책장이 있고 사이가 비어 있다. */
+                        @Override public int enchantingPower() {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            if (region == null) return 0;
+                            int n = 0;
+                            for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
+                                if (Math.abs(dx) != 2 && Math.abs(dz) != 2) continue;
+                                for (int dy = 0; dy <= 1; dy++) {
+                                    if (org.domi.furnace.server.block.B.isTag(region.getBlock(x + dx, y + dy, z + dz), "minecraft:enchantment_power_provider")
+                                            && org.domi.furnace.server.block.B.isTag(region.getBlock(x + dx / 2, y + dy, z + dz / 2), "minecraft:enchantment_power_transmitter")) n++;
+                                }
+                            }
+                            return n;
+                        }
+
                         @Override public int nextInt(int bound) {
                             var region = org.domi.furnace.server.world.MenuBlockContext.current();
                             return region == null ? 0 : region.level().random().nextInt(bound);
@@ -1507,6 +1601,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void openAnvil(int x, int y, int z) {
         openBlockMenu(x, y, z, java.util.Set.of("minecraft:anvil", "minecraft:chipped_anvil", "minecraft:damaged_anvil"), "container.repair",
                 (id, inv, pos, access) -> new org.domi.furnace.server.menu.AnvilMenu(id, inv, menus, pos, access));
+    }
+
+    private void openEnchanting(int x, int y, int z) {
+        openBlockMenu(x, y, z, java.util.Set.of("minecraft:enchanting_table"), "container.enchant",
+                (id, inv, pos, access) -> new org.domi.furnace.server.menu.EnchantmentMenu(id, inv, menus, pos, access));
     }
 
     private void openGrindstone(int x, int y, int z) {
@@ -1628,6 +1727,22 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         @Override public void onItemCrafted(ItemStack stack, int count) {
             // TODO(통계): crafted:<item> 통계를 count 만큼 올린다. TODO(아이템 제작 훅): Item.onCraftedBy(stack, level, player).
         }
+
+        @Override public boolean mayBuild() {
+            var gm = p.gameMode();
+            return gm != org.domi.furnace.server.world.GameMode.ADVENTURE && gm != org.domi.furnace.server.world.GameMode.SPECTATOR;
+        }
+
+        @Override public int enchantmentSeed() { return p.vitals().enchantmentSeed(); }
+
+        @Override public void onEnchantmentPerformed(int levels) { p.vitals().onEnchantmentPerformed(levels); }
+
+        @Override public org.domi.furnace.server.loot.LootRegistries lootRegistries() {
+            var core = login.core;
+            return core == null ? null : core.dataPacks().loot().registries();
+        }
+
+        @Override public void awardExperience(int amount) { p.vitals().giveExperiencePoints(amount); }
 
         @Override public int experienceLevel() { return p.vitals().xpLevel(); }
 
@@ -1944,6 +2059,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
 
                 @Override
+                public void openEnchanting(org.domi.furnace.server.block.Pos p) {
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openEnchanting(p.x(), p.y(), p.z()));
+                }
+
+                @Override
                 public void openGrindstone(org.domi.furnace.server.block.Pos p) {
                     ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openGrindstone(p.x(), p.y(), p.z()));
                 }
@@ -2249,7 +2369,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** 용기를 열 때 region 스레드에서 정한 것: 주 블록 엔티티·(더블 상자의) 둘째·제목. */
     private record OpenSpec(org.domi.furnace.server.block.entity.ContainerBlockEntity first,
             org.domi.furnace.server.block.entity.ContainerBlockEntity second,
-            org.domi.furnace.server.block.entity.EnderChestBlockEntity ender, Text title) { }
+            org.domi.furnace.server.block.entity.EnderChestBlockEntity ender, Text title,
+            org.domi.furnace.server.block.entity.LecternBlockEntity lectern,
+            org.domi.furnace.server.block.entity.BeaconBlockEntity beacon) { }
 
     /**
      * 용기를 클릭했을 때 화면 열기(ServerPlayer.openMenu(getMenuProvider)): region 스레드에서 블록 엔티티(와 더블 상자의 짝)를 찾고 열지 않은
@@ -2268,7 +2390,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     var inventory = p.inventoryMenu().inventoryContainer();
                     org.domi.furnace.server.menu.AbstractContainerMenu menu;
                     var f = spec.first();
-                    if (spec.ender() != null) {   // 엔더 상자: 이 플레이어의 엔더 인벤토리(엔더 상자 블록이 여는 수·소리를 센다)
+                    if (spec.beacon() != null) {
+                        menu = new org.domi.furnace.server.menu.BeaconMenu(containerId, inventory, spec.beacon(), bp, new org.domi.furnace.server.menu.BlockAccess() {
+                            @Override public boolean stillBlock() {
+                                var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                                return region == null || "minecraft:beacon".equals(world.blockRegistry().nameOf(region.getBlock(bp[0], bp[1], bp[2])));
+                            }
+
+                            @Override public long gameTime() { return 0L; }
+
+                            @Override public void playSound(String sound) { }
+                        });
+                    } else if (spec.lectern() != null) {
+                        menu = new org.domi.furnace.server.menu.LecternMenu(containerId, new org.domi.furnace.server.world.LecternContainer(spec.lectern()), bp);
+                    } else if (spec.ender() != null) {   // 엔더 상자: 이 플레이어의 엔더 인벤토리(엔더 상자 블록이 여는 수·소리를 센다)
                         var c = new org.domi.furnace.server.world.EnderChestContainer(p.enderChest(), spec.ender(), world::runAt);
                         menu = org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);
                     } else if (spec.second() != null) {
@@ -2280,6 +2415,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         menu = switch (f.type()) {
                             case "minecraft:shulker_box" -> new org.domi.furnace.server.menu.ShulkerBoxMenu(containerId, inventory, c, bp, menus);
                             case "minecraft:hopper" -> new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, bp, menus);
+                            case "minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker" ->
+                                new org.domi.furnace.server.menu.FurnaceMenu(f.type(), containerId, inventory, c, bp, menus);
+                            case "minecraft:brewing_stand" -> new org.domi.furnace.server.menu.BrewingStandMenu(containerId, inventory, c, bp);
                             case "minecraft:dispenser", "minecraft:dropper" -> new org.domi.furnace.server.menu.DispenserMenu(containerId, inventory, c, bp, menus);
                             default -> org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);   // 상자·통
                         };
@@ -2297,7 +2435,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var level = region.level();
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity ender) {
             if (org.domi.furnace.server.block.types.ChestBlock.isChestBlockedAt(level, pos)) return null;
-            return new OpenSpec(null, null, ender, Text.translatable("container.enderchest"));
+            return new OpenSpec(null, null, ender, Text.translatable("container.enderchest"), null, null);
+        }
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BeaconBlockEntity beacon) {
+            Text title;
+            try {
+                title = beacon.customName != null ? org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(beacon.customName) : Text.translatable("container.beacon");
+            } catch (RuntimeException e) {
+                title = Text.translatable("container.beacon");
+            }
+            return new OpenSpec(null, null, null, title, null, beacon);
+        }
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity lectern) {
+            return new OpenSpec(null, null, null, Text.translatable("container.lectern"), lectern, null);
         }
         if (!(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)) return null;
         int state = level.getBlockState(pos);
@@ -2322,7 +2472,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 region.markBlockEntityChanged(c);
             }
         }
-        return new OpenSpec(first, second, null, containerTitle(first, second));
+        return new OpenSpec(first, second, null, containerTitle(first, second), null, null);
     }
 
     /** 제목: 첫째의 이름 → 둘째의 이름 → 더블이면 container.chestDouble, 아니면 그 종류의 기본 번역 키. */

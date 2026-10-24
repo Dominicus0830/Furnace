@@ -670,6 +670,20 @@ public final class PlayerVitals {
         }
     }
 
+    public synchronized int enchantmentSeed() { return xpSeed; }
+
+    /** 바닐라 Player.onEnchantmentPerformed: 레벨을 깎고(0 미만이면 0) 새 마법 부여 시드. */
+    public synchronized void onEnchantmentPerformed(int levels) {
+        xpLevel -= levels;
+        if (xpLevel < 0) {
+            xpLevel = 0;
+            xpProgress = 0.0f;
+            xpTotal = 0;
+        }
+        xpSeed = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+        lastSentExp = -1;
+    }
+
     /** 바닐라 ServerPlayer.setExperienceLevels. */
     public synchronized void setExperienceLevels(int level) {
         xpLevel = level;

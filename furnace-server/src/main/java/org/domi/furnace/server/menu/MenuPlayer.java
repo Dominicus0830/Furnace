@@ -79,4 +79,21 @@ public interface MenuPlayer {
 
     /** 그 인챈트가 그 아이템에 붙을 수 있는가(Enchantment.canEnchant). */
     default boolean enchantmentSupports(String enchantment, ItemStack stack) { return true; }
+
+    /** 경험치 점수를 더한다(화로 꺼내기 등). TODO(엔티티): 바닐라는 경험치 구슬을 만들어 주운다. */
+    default void awardExperience(int amount) { }
+
+    // --- 마법 부여대(4-2l) ----------------------------------------------------------------------
+
+    /** Player.getEnchantmentSeed. */
+    default int enchantmentSeed() { return 0; }
+
+    /** Player.onEnchantmentPerformed(stack, levels). */
+    default void onEnchantmentPerformed(int levels) { }
+
+    /** 데이터 팩 인챈트/태그 등록부(없으면 null — 마법 부여 불가). */
+    default org.domi.furnace.server.loot.LootRegistries lootRegistries() { return null; }
+
+    /** abilities.mayBuild(모험·관전 모드는 거짓) — 독서대 책 꺼내기 등. */
+    default boolean mayBuild() { return true; }
 }

@@ -33,10 +33,20 @@ public abstract class AbstractFurnaceBlock extends BaseEntityBlock {
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(블록 엔티티): 화로 블록 엔티티면 내용물 쏟기(Containers.dropContents)·쌓인 경험치 내놓기 후 super, 그리고 updateNeighbourForOutputSignal.
+        if (!B.is(newState, block) && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.FurnaceBlockEntity f) {
+            level.dropContents(pos, f.items);
+            // TODO(엔티티): 쌓인 경험치를 구슬로 내놓는다(getRecipesToAwardAndPopExperience) — 구슬 엔티티가 생기면.
+            level.updateNeighbourForOutputSignal(pos, block);
+        }
         super.onRemove(state, level, pos, newState, moved);
     }
 
     @Override
-    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) { return 0; }   // TODO(블록 엔티티): AbstractContainerMenu.getRedstoneSignalFromBlockEntity
+    public boolean hasAnalogOutputSignal(int state) { return true; }
+
+    @Override
+    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
+        return level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c
+                ? ChestBlock.redstoneSignalFromContainer(java.util.List.<org.domi.furnace.server.entity.ItemStack[]>of(c.items)) : 0;
+    }
 }

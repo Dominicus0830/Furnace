@@ -119,6 +119,6 @@ class AnvilChunkCodecTest {
         ChestBlockEntity c = col.chestAt(1, -60, 2);
         assertNotNull(c, "바닐라 상자는 블록 엔티티로 읽혀야 한다");
         assertEquals(7, c.items[3].count());
-        assertEquals(1, col.blockEntities().size(), "화로·표지판은 (미지원이므로) 상자로 둔갑하면 안 된다");
+        assertEquals(2, col.blockEntities().size(), "상자·화로는 읽히고, 미지원 표지판은 상자로 둔갑하면 안 된다");
     }
 }

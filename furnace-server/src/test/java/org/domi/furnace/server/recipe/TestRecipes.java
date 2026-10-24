@@ -18,11 +18,15 @@ public final class TestRecipes {
 
     private static RecipeManager manager;
     private static TagRegistries regs;
+    private static TagSet tagSet;
     private static boolean tried;
 
     /** 로컬 바닐라 데이터가 있으면 레시피 매니저, 없으면 null. 아이템 레지스트리·태그도 ItemContext 에 설치한다. */
     public static synchronized RecipeManager manager() throws Exception {
-        if (tried) return manager;
+        if (tried) {   // 다른 시험이 ItemContext 를 덮어썼을 수 있으니 매번 다시 건다
+            if (manager != null) { org.domi.furnace.server.item.ItemContext.install(regs); org.domi.furnace.server.item.ItemContext.installTags(tagSet); }
+            return manager;
+        }
         tried = true;
         Path root = Path.of("../tools/vanilla-data/server-1.21.1");
         if (!Files.isDirectory(root.resolve("data/minecraft/recipe"))) return null;
@@ -33,6 +37,7 @@ public final class TestRecipes {
         org.domi.furnace.server.item.ItemContext.install(regs);
         try (ResourceManager rm = repo.openResourceManager()) {
             TagSet tags = TagSet.of(regs.loadAll(rm));
+            tagSet = tags;
             org.domi.furnace.server.item.ItemContext.installTags(tags);
             manager = RecipeManager.load(rm, new RecipeContext() {
                 public Integer itemId(ResourceId item) { return regs.id("minecraft:item", item); }

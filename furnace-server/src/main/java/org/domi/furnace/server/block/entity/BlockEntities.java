@@ -19,6 +19,12 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:daylight_detector", DaylightDetectorBlockEntity::new);
         FACTORIES.put("minecraft:piston", PistonMovingBlockEntity::new);
         FACTORIES.put("minecraft:ender_chest", EnderChestBlockEntity::new);
+        FACTORIES.put("minecraft:furnace", FurnaceBlockEntity::furnace);
+        FACTORIES.put("minecraft:blast_furnace", FurnaceBlockEntity::blastFurnace);
+        FACTORIES.put("minecraft:smoker", FurnaceBlockEntity::smoker);
+        FACTORIES.put("minecraft:brewing_stand", BrewingStandBlockEntity::new);
+        FACTORIES.put("minecraft:lectern", LecternBlockEntity::new);
+        FACTORIES.put("minecraft:beacon", BeaconBlockEntity::new);
         FACTORIES.put("minecraft:barrel", BarrelBlockEntity::new);
         FACTORIES.put("minecraft:shulker_box", ShulkerBoxBlockEntity::new);
         FACTORIES.put("minecraft:hopper", HopperBlockEntity::new);

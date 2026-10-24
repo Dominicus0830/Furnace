@@ -13,13 +13,17 @@ public class BrewingStandBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴·블록엔티티): 양조기 화면 열기 + 통계 interact_with_brewingstand
+        player.openContainer(pos);
+        player.awardStat("minecraft:interact_with_brewingstand");
         return InteractionResult.CONSUME;
     }
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(드롭): Containers.dropContentsOnDestroy — 다른 블록이 되면 내용물을 떨군다.
+        if (!org.domi.furnace.server.block.B.is(newState, block) && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) {
+            level.dropContents(pos, c.items);
+            level.updateNeighbourForOutputSignal(pos, block);
+        }
         super.onRemove(state, level, pos, newState, moved);
     }
 
@@ -28,7 +32,12 @@ public class BrewingStandBlock extends BaseEntityBlock {
 
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
-        // TODO(블록엔티티): AbstractContainerMenu.getRedstoneSignalFromBlockEntity
-        return 0;
+        return level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c
+                ? ChestBlock.redstoneSignalFromContainer(java.util.List.<org.domi.furnace.server.entity.ItemStack[]>of(c.items)) : 0;
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.BrewingStandBlockEntity(pos, state);
     }
 }

@@ -59,6 +59,21 @@ public final class Enchantments {
 
     record Instance(Enchantment enchantment, int level) {}
 
+    /** 마법 부여대용: 고른 인챈트와 레벨. */
+    public record TableEnchant(String id, int level) {}
+
+    /** 바닐라 EnchantmentHelper.selectEnchantment(random, stack, cost, #in_enchanting_table) — 마법 부여대/책 선택. */
+    public static List<TableEnchant> selectForTable(NoiseRandom r, String item, int cost, LootRegistries regs) {
+        List<Enchantment> candidates = new ArrayList<>();
+        for (String id : regs.tag("minecraft:enchantment", "minecraft:in_enchanting_table")) {
+            Enchantment e = regs.enchantment(id);
+            if (e != null) candidates.add(e);
+        }
+        List<TableEnchant> out = new ArrayList<>();
+        for (Instance i : select(r, new LootStack(item, 1), cost, candidates, regs)) out.add(new TableEnchant(i.enchantment().id(), i.level()));
+        return out;
+    }
+
     /** 바닐라 enchantItem — 책이면 고른 뒤 마법 부여된 책으로 바꾼다. */
     static LootStack enchantItem(NoiseRandom r, LootStack stack, int levels, List<Enchantment> candidates, LootRegistries regs) {
         List<Instance> picked = select(r, stack, levels, candidates, regs);

@@ -62,6 +62,9 @@ public final class RecipeManager {
     private final List<CraftingEntry> crafting;
     private final List<StonecuttingEntry> stonecutting;
     private final List<SmithingEntry> smithing;
+    private final Map<String, List<CookingEntry>> cooking;
+
+    public record CookingEntry(ResourceId id, Recipe.Cooking recipe) { }
     private final Recipe.TrimData trims;
 
     public record SmithingEntry(ResourceId id, Recipe.Smithing recipe) { }
@@ -83,6 +86,9 @@ public final class RecipeManager {
         List<SmithingEntry> sm = new ArrayList<>();
         for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Smithing r) sm.add(new SmithingEntry(e.getKey(), r));
         this.smithing = List.copyOf(sm);
+        Map<String, List<CookingEntry>> ck = new HashMap<>();
+        for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Cooking r) ck.computeIfAbsent(r.type(), k -> new ArrayList<>()).add(new CookingEntry(e.getKey(), r));
+        this.cooking = ck;
     }
 
     public static RecipeManager load(ResourceManager rm, RecipeContext ctx) {
@@ -166,6 +172,13 @@ public final class RecipeManager {
             if (slot == 0 ? e.recipe().isTemplate(s, ctx) : slot == 1 ? e.recipe().isBase(s, ctx) : e.recipe().isAddition(s, ctx)) return true;
         }
         return false;
+    }
+
+    /** 바닐라 getRecipeFor(SMELTING/BLASTING/SMOKING, input): 레시피 맵 순서의 첫 일치. type = minecraft:smelting 등. */
+    public CookingEntry findCooking(String type, org.domi.furnace.server.entity.ItemStack input) {
+        if (input.isEmpty()) return null;
+        for (CookingEntry e : cooking.getOrDefault(type, List.of())) if (e.recipe().ingredient().test(input, ctx)) return e;
+        return null;
     }
 
     public List<SmithingEntry> smithingRecipes() { return smithing; }

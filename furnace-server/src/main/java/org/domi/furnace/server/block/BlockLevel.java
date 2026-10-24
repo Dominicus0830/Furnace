@@ -227,6 +227,9 @@ public interface BlockLevel {
     /** 열지 않은 전리품 상자를 먼저 채운다(RandomizableContainer.getItem 의 unpackLootTable(null)). */
     default void unpackContainerLoot(Object container) {}
 
+    /** 서버 레시피 매니저(org.domi.furnace.server.recipe.RecipeManager, 없으면 null). */
+    default Object recipes() { return null; }
+
     /** Block.popResourceFromFace(level, pos, dir, stack). */
     void popResourceFromFace(Pos pos, int dir, ItemStack stack);
 

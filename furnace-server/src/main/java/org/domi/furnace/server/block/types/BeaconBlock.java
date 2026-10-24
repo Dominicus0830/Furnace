@@ -13,7 +13,13 @@ public class BeaconBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴·블록엔티티): 신호기 화면 + 통계 interact_with_beacon
+        player.openContainer(pos);
+        player.awardStat("minecraft:interact_with_beacon");
         return InteractionResult.CONSUME;
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.BeaconBlockEntity(pos, state);
     }
 }

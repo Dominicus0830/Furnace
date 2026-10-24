@@ -59,6 +59,9 @@ public interface LevelServices {
     /** RandomizableContainer.unpackLootTable(null): 열지 않은 전리품 상자를 채운다(부술 때). 데이터 팩이 없으면 아무것도. */
     default void unpackContainerLoot(Object container) {}
 
+    /** 서버 레시피 매니저(RecipeManager, 없으면 null) — 화로 굽기 등. */
+    default Object recipes() { return null; }
+
     /** server.properties entity-broadcast-range-percentage(엔티티 추적 거리 비율). */
     default int entityBroadcastRangePercentage() { return 100; }
 
@@ -111,6 +114,7 @@ public interface LevelServices {
         public int simulationDistance() { return d.simulationDistance(); }
         public int entityBroadcastRangePercentage() { return d.entityBroadcastRangePercentage(); }
         public void unpackContainerLoot(Object container) { d.unpackContainerLoot(container); }
+        public Object recipes() { return d.recipes(); }
         public boolean biomeIs(int x, int y, int z, String tag) { return d.biomeIs(x, y, z, tag); }
     }
 }
