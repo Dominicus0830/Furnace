@@ -1,0 +1,436 @@
+// 바닐라 AbstractHorse: 말 종류 공통 — 템퍼(길들이기 진행도)·안장/먹이/뒷발 서기, 임의 능력치(체력·속도·점프), 번식 시 부모 능력치 교배.
+// TODO(탑승): 플레이어가 타는 것(길들이기 완성·안장 조종·점프 충전)·말 인벤토리 창은 플레이어 탑승 시스템이 생기면.
+package org.domi.furnace.server.entity;
+
+import java.util.UUID;
+import java.util.function.DoubleSupplier;
+import java.util.function.IntUnaryOperator;
+import org.domi.furnace.server.attribute.Attribute;
+import org.domi.furnace.server.attribute.AttributeMap;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.entity.ai.goal.*;
+import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.item.ItemTags;
+import org.domi.furnace.server.item.ItemTools;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.protocol.play.SetEntityData;
+
+public abstract class AbstractHorse extends Animal {
+    public static final int DATA_ID_FLAGS = 17;
+    public static final int FLAG_TAME = 2, FLAG_SADDLE = 4, FLAG_BRED = 8, FLAG_EATING = 16, FLAG_STANDING = 32, FLAG_OPEN_MOUTH = 64;
+    private static final TargetingConditions MOMMY_TARGETING = TargetingConditions.forNonCombat().range(16.0).ignoreLineOfSight().selector(t -> t instanceof AbstractHorse h && h.isBred());
+    /** 한 줄에 놓이는 칸(저장·인벤토리 크기 계산에 쓰는 열 수)와 인벤토리: 0번 칸이 안장. */
+    protected ItemStack[] inventory;
+    private int eatingCounter;
+    private int mouthCounter;
+    private int standCounter;
+    public int tailCounter;
+    public int sprintCounter;
+    protected int gallopSoundCounter;
+    private int temper;
+    private UUID ownerUUID;
+
+    protected AbstractHorse(EntityType type, ChunkLevel level, int id) {
+        super(type, level, id);
+        createInventory();
+    }
+
+    @Override
+    protected void registerGoals() {
+        goalSelector.addGoal(1, new PanicGoal(this, 1.2));
+        goalSelector.addGoal(1, new RunAroundLikeCrazyGoal(this, 1.2));
+        goalSelector.addGoal(2, new BreedGoal(this, 1.0, AbstractHorse.class));
+        goalSelector.addGoal(4, new FollowParentGoal(this, 1.0));
+        goalSelector.addGoal(6, new WaterAvoidingRandomStrollGoal(this, 0.7));
+        goalSelector.addGoal(7, new LookAtPlayerGoal(this, 6.0F));
+        goalSelector.addGoal(8, new RandomLookAroundGoal(this));
+        if (canPerformRearing()) goalSelector.addGoal(9, new RandomStandGoal(this));
+        addBehaviourGoals();
+    }
+
+    protected void addBehaviourGoals() {
+        goalSelector.addGoal(0, new FloatGoal(this));
+        goalSelector.addGoal(3, new TemptGoal(this, 1.25, s -> ItemTags.is(s, "minecraft:horse_tempt_items"), false));
+    }
+
+    @Override
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+        entityData.define(DATA_ID_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
+    }
+
+    @Override
+    protected void createAttributes(AttributeMap map) {
+        super.createAttributes(map);
+        map.add(Attribute.JUMP_STRENGTH, 0.7).add(Attribute.MAX_HEALTH, 53.0).add(Attribute.MOVEMENT_SPEED, 0.225F).add(Attribute.STEP_HEIGHT, 1.0)
+                .add(Attribute.SAFE_FALL_DISTANCE, 6.0).add(Attribute.FALL_DAMAGE_MULTIPLIER, 0.5);
+    }
+
+    // ------------------------------------------------------------------ 상태 비트
+
+    private boolean getFlag(int f) { return ((Byte) entityData.get(DATA_ID_FLAGS) & f) != 0; }
+
+    private void setFlag(int f, boolean on) {
+        byte b = (Byte) entityData.get(DATA_ID_FLAGS);
+        entityData.set(DATA_ID_FLAGS, (byte) (on ? b | f : b & ~f));
+    }
+
+    public boolean isTamed() { return getFlag(FLAG_TAME); }
+
+    public void setTamed(boolean v) { setFlag(FLAG_TAME, v); }
+
+    public boolean isBred() { return getFlag(FLAG_BRED); }
+
+    public void setBred(boolean v) { setFlag(FLAG_BRED, v); }
+
+    public boolean isEating() { return getFlag(FLAG_EATING); }
+
+    public void setEating(boolean v) { setFlag(FLAG_EATING, v); }
+
+    public boolean isStanding() { return getFlag(FLAG_STANDING); }
+
+    public void setStanding(boolean v) {
+        if (v) setEating(false);
+        setFlag(FLAG_STANDING, v);
+    }
+
+    public boolean isSaddled() { return getFlag(FLAG_SADDLE); }
+
+    public int getTemper() { return temper; }
+
+    public void setTemper(int t) { temper = t; }
+
+    public int modifyTemper(int delta) {
+        int t = Math.clamp(getTemper() + delta, 0, getMaxTemper());
+        setTemper(t);
+        return t;
+    }
+
+    public int getMaxTemper() { return 100; }
+
+    public UUID getOwnerUUID() { return ownerUUID; }
+
+    public void setOwnerUUID(UUID u) { ownerUUID = u; }
+
+    /** TODO(탑승): 현재 탑승자는 지원하지 않는다. */
+    public boolean hasPlayerPassenger() { return false; }
+
+    public Player playerPassenger() { return null; }
+
+    public void ejectPassengers() { }
+
+    @Override
+    public boolean isImmobile() { return super.isImmobile() && hasPlayerPassenger() && isSaddled() || isEating() || isStanding(); }
+
+    public boolean tameWithName(Player p) {
+        ownerUUID = p.uuid();
+        setTamed(true);
+        return true;
+    }
+
+    // ------------------------------------------------------------------ 인벤토리
+
+    public int inventoryColumns() { return 0; }
+
+    public final int getInventorySize() { return inventoryColumns() * 3 + 1; }
+
+    protected void createInventory() {
+        ItemStack[] old = inventory;
+        inventory = new ItemStack[getInventorySize()];
+        java.util.Arrays.fill(inventory, ItemStack.EMPTY);
+        if (old != null) {
+            int n = Math.min(old.length, inventory.length);
+            for (int i = 0; i < n; i++) if (!old[i].isEmpty()) inventory[i] = old[i];
+        }
+        updateContainerEquipment();
+    }
+
+    protected void updateContainerEquipment() {
+        setFlag(FLAG_SADDLE, !inventory[0].isEmpty());
+    }
+
+    protected boolean isSaddleItem(ItemStack s) { return !s.isEmpty() && ItemTools.itemName(s).equals("minecraft:saddle"); }
+
+    // ------------------------------------------------------------------ 소리·틱
+
+    @Override
+    protected float getSoundVolume() { return 0.8F; }
+
+    @Override
+    public int getAmbientSoundInterval() { return 400; }
+
+    public int getAmbientStandInterval() { return getAmbientSoundInterval(); }
+
+    public float getSoundVolumePublic() { return getSoundVolume(); }
+
+    protected String getEatingSound() { return null; }
+
+    protected String getAngrySound() { return null; }
+
+    public String getAmbientStandSound() { return getAmbientSound(); }
+
+    protected boolean canPerformRearing() { return true; }
+
+    protected boolean canEatGrass() { return true; }
+
+    void moveTail() { tailCounter = 1; }
+
+    public void standIfPossible() {
+        if (canPerformRearing() && isEffectiveAi()) {
+            standCounter = 1;
+            setStanding(true);
+        }
+    }
+
+    public void makeMad() {
+        if (!isStanding()) {
+            standIfPossible();
+            playSound(getAngrySound(), getSoundVolume(), getVoicePitch());
+        }
+    }
+
+    private void eating() {
+        openMouth();
+        if (!isSilent()) {
+            String s = getEatingSound();
+            if (s != null) playSound(s, 1.0F, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.2F);
+        }
+    }
+
+    private void openMouth() {
+        mouthCounter = 1;
+        setFlag(FLAG_OPEN_MOUTH, true);
+    }
+
+    @Override
+    protected void aiStep() {
+        if (random.nextInt(200) == 0) moveTail();
+        super.aiStep();
+        if (isAlive()) {
+            if (random.nextInt(900) == 0 && deathTime == 0) heal(1.0F);
+            if (canEatGrass()) {
+                if (!isEating() && random.nextInt(300) == 0 && B.is(level.getBlockState(blockPosition().below()), "minecraft:grass_block")) setEating(true);
+                if (isEating() && ++eatingCounter > 50) {
+                    eatingCounter = 0;
+                    setEating(false);
+                }
+            }
+            followMother();
+        }
+    }
+
+    protected void followMother() {
+        if (isBred() && isBaby() && !isEating()) {
+            AbstractHorse mother = level.getNearestEntity(AbstractHorse.class, MOMMY_TARGETING, this, x(), y(), z(), boundingBox().inflate(16.0));
+            if (mother != null) {
+                double dx = x() - mother.x(), dy = y() - mother.y(), dz = z() - mother.z();
+                if (dx * dx + dy * dy + dz * dz > 4.0) navigation.createPath(mother, 0);
+            }
+        }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (mouthCounter > 0 && ++mouthCounter > 30) {
+            mouthCounter = 0;
+            setFlag(FLAG_OPEN_MOUTH, false);
+        }
+        if (isEffectiveAi() && standCounter > 0 && ++standCounter > 20) {
+            standCounter = 0;
+            setStanding(false);
+        }
+        if (tailCounter > 0 && ++tailCounter > 8) tailCounter = 0;
+        if (sprintCounter > 0) {
+            sprintCounter++;
+            if (sprintCounter > 300) sprintCounter = 0;
+        }
+    }
+
+    @Override
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) {
+        boolean hurt = super.hurtBy(source, amount, attacker);
+        if (hurt && random.nextInt(3) == 0) standIfPossible();
+        return hurt;
+    }
+
+    @Override
+    public boolean causeFallDamage(float distance, float multiplier) {
+        if (distance > 1.0F) playSound("entity.horse.land", 0.4F, 1.0F);
+        return super.causeFallDamage(distance, multiplier);
+    }
+
+    // ------------------------------------------------------------------ 먹이·상호작용
+
+    @Override
+    public boolean isFood(ItemStack s) { return ItemTags.is(s, "minecraft:horse_food"); }
+
+    @Override
+    public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
+        if (isBaby() || p.sneaking() && isTamed()) return super.interact(p, hand, held, region);
+        if (!held.isEmpty()) {
+            if (isSaddleItem(held) && isTamed() && !isSaddled()) {
+                inventory[0] = held.withCount(1);
+                usePlayerItem(p, hand, held);
+                updateContainerEquipment();
+                playSound("entity.horse.saddle", 0.5F, 1.0F);
+                return true;
+            }
+        }
+        doPlayerRide(p);
+        return true;
+    }
+
+    /** 먹이를 줄 때(밀·설탕·황금 당근 등): 체력/성장/템퍼를 올리고 먹는 소리. */
+    protected boolean handleEating(Player p, ItemStack s) {
+        boolean used = false;
+        float heal = 0.0F;
+        int age = 0;
+        int temperDelta = 0;
+        String n = ItemTools.itemName(s);
+        switch (n) {
+            case "minecraft:sugar" -> { heal = 2.0F; age = 20; temperDelta = 3; }
+            case "minecraft:wheat" -> { heal = 1.0F; age = 30; temperDelta = 3; }
+            case "minecraft:hay_block" -> { heal = 20.0F; age = 180; }
+            case "minecraft:apple" -> { heal = 3.0F; age = 60; temperDelta = 3; }
+            case "minecraft:golden_carrot" -> {
+                heal = 4.0F; age = 60; temperDelta = 5;
+                if (isTamed() && getAge() == 0 && canFallInLove()) {
+                    used = true;
+                    setInLove(p);
+                }
+            }
+            case "minecraft:golden_apple", "minecraft:enchanted_golden_apple" -> {
+                heal = 10.0F; age = 240; temperDelta = 10;
+                if (isTamed() && getAge() == 0 && canFallInLove()) {
+                    used = true;
+                    setInLove(p);
+                }
+            }
+            default -> { }
+        }
+        if (health() < maxHealth() && heal > 0.0F) {
+            heal(heal);
+            used = true;
+        }
+        if (isBaby() && age > 0) {
+            ageUp(age);
+            used = true;
+        }
+        if (temperDelta > 0 && (used || !isTamed()) && getTemper() < getMaxTemper()) {
+            modifyTemper(temperDelta);
+            used = true;
+        }
+        if (used) eating();
+        return used;
+    }
+
+    /** 먹이 상호작용(소비 포함). */
+    protected boolean fedFood(Player p, int hand, ItemStack s) {
+        boolean ok = handleEating(p, s);
+        if (ok) usePlayerItem(p, hand, s);
+        return ok;
+    }
+
+    protected void doPlayerRide(Player p) {
+        setEating(false);
+        setStanding(false);
+        // TODO(탑승): player.startRiding(this)
+    }
+
+    @Override
+    protected void dropEquipment() {
+        super.dropEquipment();
+        for (ItemStack s : inventory) if (!s.isEmpty()) spawnAtLocation(s);
+    }
+
+    // ------------------------------------------------------------------ 저장
+
+    @Override
+    protected void addAdditionalSaveData(NbtCompound tag) {
+        super.addAdditionalSaveData(tag);
+        tag.putBoolean("EatingHaystack", isEating());
+        tag.putBoolean("Bred", isBred());
+        tag.putInt("Temper", getTemper());
+        tag.putBoolean("Tame", isTamed());
+        if (ownerUUID != null) tag.putIntArray("Owner", uuidToInts(ownerUUID));
+        if (!inventory[0].isEmpty()) tag.putCompound("SaddleItem", ItemStackNbt.write(inventory[0]));
+    }
+
+    @Override
+    protected void readAdditionalSaveData(NbtCompound tag) {
+        super.readAdditionalSaveData(tag);
+        setEating(tag.getBoolean("EatingHaystack"));
+        setBred(tag.getBoolean("Bred"));
+        setTemper(tag.getIntOr0("Temper"));
+        setTamed(tag.getBoolean("Tame"));
+        if (tag.tags().get("Owner") instanceof int[] u && u.length == 4) {
+            ownerUUID = new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
+        }
+        if (tag.tags().get("SaddleItem") instanceof NbtCompound c) {
+            ItemStack s = ItemStackNbt.read(c);
+            if (isSaddleItem(s)) inventory[0] = s;
+        }
+        updateContainerEquipment();
+    }
+
+    @Override
+    public boolean canMate(Animal other) { return false; }
+
+    /** 번식할 수 있는 상태: 탑승자 없이 길들여졌고 다 자라 체력이 가득하며 사랑 중. */
+    protected boolean canParent() { return !hasPlayerPassenger() && isTamed() && !isBaby() && health() >= maxHealth() && isInLove(); }
+
+    @Override
+    public AgeableMob getBreedOffspring(ChunkLevel level, AgeableMob partner) { return null; }
+
+    // ------------------------------------------------------------------ 능력치 교배·무작위
+
+    private static final float MIN_HEALTH = a(i -> 0), MAX_HEALTH = a(i -> i - 1);
+    private static final float MIN_JUMP = (float) b(() -> 0.0), MAX_JUMP = (float) b(() -> 1.0);
+    private static final float MIN_SPEED = (float) c(() -> 0.0), MAX_SPEED = (float) c(() -> 1.0);
+
+    protected void setOffspringAttributes(AgeableMob partner, AbstractHorse child) {
+        setOffspringAttribute(partner, child, Attribute.MAX_HEALTH, MIN_HEALTH, MAX_HEALTH);
+        setOffspringAttribute(partner, child, Attribute.JUMP_STRENGTH, MIN_JUMP, MAX_JUMP);
+        setOffspringAttribute(partner, child, Attribute.MOVEMENT_SPEED, MIN_SPEED, MAX_SPEED);
+    }
+
+    private void setOffspringAttribute(AgeableMob partner, AbstractHorse child, Attribute a, double min, double max) {
+        double v = createOffspringAttribute(attributeValue(a), ((AbstractHorse) partner).attributeValue(a), min, max, random);
+        child.attributes().get(a).setBaseValue(v);
+    }
+
+    static double createOffspringAttribute(double v1, double v2, double min, double max, org.domi.furnace.server.block.RandomSource r) {
+        if (max <= min) throw new IllegalArgumentException("Incorrect range for an attribute");
+        v1 = Math.clamp(v1, min, max);
+        v2 = Math.clamp(v2, min, max);
+        double d = 0.15 * (max - min);
+        double d1 = Math.abs(v1 - v2) + d * 2.0;
+        double d2 = (v1 + v2) / 2.0;
+        double d3 = (r.nextDouble() + r.nextDouble() + r.nextDouble()) / 3.0 - 0.5;
+        double d4 = d2 + d1 * d3;
+        if (d4 > max) return max - (d4 - max);
+        if (d4 < min) return min + (min - d4);
+        return d4;
+    }
+
+    /** generateMaxHealth(IntUnaryOperator): 15 + op(8) + op(9). */
+    protected static float a(IntUnaryOperator op) { return 15.0F + op.applyAsInt(8) + op.applyAsInt(9); }
+
+    /** generateJumpStrength: 0.4 + r × 0.2 × 3. */
+    protected static double b(DoubleSupplier r) { return 0.4F + r.getAsDouble() * 0.2 + r.getAsDouble() * 0.2 + r.getAsDouble() * 0.2; }
+
+    /** generateSpeed: (0.45 + r × 0.3 × 3) × 0.25. */
+    protected static double c(DoubleSupplier r) { return (0.45F + r.getAsDouble() * 0.3 + r.getAsDouble() * 0.3 + r.getAsDouble() * 0.3) * 0.25; }
+
+    protected void randomizeAttributes(org.domi.furnace.server.block.RandomSource r) { }
+
+    @Override
+    public AgeableMob.GroupData finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, AgeableMob.GroupData data) {
+        if (data == null) data = new AgeableMob.GroupData(0.2F);
+        randomizeAttributes(r);
+        return super.finalizeSpawn(r, difficulty, data);
+    }
+}

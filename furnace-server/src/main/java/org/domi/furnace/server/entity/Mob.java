@@ -247,6 +247,82 @@ public abstract class Mob extends LivingEntity {
     /** Mob.spawnAnim: 나타날 때 연기 입자(엔티티 이벤트 20). */
     public void spawnAnim() { broadcastEntityEvent((byte) 20); }
 
+    // ------------------------------------------------------------------ 아이템 줍기
+
+    /** Mob.aiStep: 줍기 가능한 몹은 주변(1, 0, 1)의 아이템 엔티티를 장비로 주워 든다. */
+    @Override
+    protected void aiStep() {
+        super.aiStep();
+        if (canPickUpLoot && isAlive() && level.gameRule("mobGriefing")) {
+            for (ItemEntity ie : level.getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(1.0, 0.0, 1.0), x -> true)) {
+                if (!ie.isRemoved() && !ie.getItem().isEmpty() && !ie.hasPickUpDelay() && wantsToPickUp(ie.getItem())) pickUpItem(ie);
+            }
+        }
+    }
+
+    public boolean canHoldItem(ItemStack stack) { return true; }
+
+    public boolean wantsToPickUp(ItemStack stack) { return canHoldItem(stack); }
+
+    /** Mob.getEquipmentSlotForItem: 이름으로 방어구 칸을 고르고 나머지는 주 손. */
+    public static EquipmentSlot equipmentSlotFor(ItemStack stack) {
+        String n = org.domi.furnace.server.item.ItemTools.itemName(stack);
+        if (n.endsWith("_helmet") || n.equals("minecraft:carved_pumpkin") || n.endsWith("_head") || n.endsWith("_skull")) return EquipmentSlot.HEAD;
+        if (n.endsWith("_chestplate") || n.equals("minecraft:elytra")) return EquipmentSlot.CHEST;
+        if (n.endsWith("_leggings")) return EquipmentSlot.LEGS;
+        if (n.endsWith("_boots")) return EquipmentSlot.FEET;
+        if (n.equals("minecraft:shield")) return EquipmentSlot.OFFHAND;
+        return EquipmentSlot.MAINHAND;
+    }
+
+    /** canReplaceCurrentItem 의 단순형: 칸이 비어 있을 때만 바꾼다. TODO(점수): 칼·활·방어구의 공격력·방어력 비교. */
+    protected boolean canReplaceCurrentItem(ItemStack candidate, ItemStack existing) { return existing.isEmpty(); }
+
+    /** Mob.equipItemIfPossible: 알맞은 칸에 장비로 든다(방어구 칸이 안 되면 주 손). 든 만큼을 돌려준다. */
+    public ItemStack equipItemIfPossible(ItemStack stack) {
+        EquipmentSlot slot = equipmentSlotFor(stack);
+        ItemStack current = getItemBySlot(slot);
+        boolean flag = canReplaceCurrentItem(stack, current);
+        if (slot.type() == EquipmentSlot.Type.HUMANOID_ARMOR && !flag) {
+            slot = EquipmentSlot.MAINHAND;
+            current = getItemBySlot(slot);
+            flag = current.isEmpty();
+        }
+        if (flag && canHoldItem(stack)) {
+            double d = getEquipmentDropChance(slot);
+            if (!current.isEmpty() && Math.max(random.nextFloat() - 0.1F, 0.0F) < d) spawnAtLocation(current);
+            if (slot.type() == EquipmentSlot.Type.HUMANOID_ARMOR && stack.count() > 1) {
+                ItemStack one = stack.withCount(1);
+                setItemSlotAndDropWhenKilled(slot, one);
+                return one;
+            }
+            setItemSlotAndDropWhenKilled(slot, stack);
+            return stack;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /** setItemSlotAndDropWhenKilled: 장비로 들고, 죽으면 확실히 떨구며(드롭 확률 2.0 → 줍는 것은 무조건) 사라지지 않게 한다. */
+    public void setItemSlotAndDropWhenKilled(EquipmentSlot slot, ItemStack stack) {
+        setItemSlot(slot, stack);
+        setDropChance(slot, 2.0F);
+        persistenceRequired = true;
+    }
+
+    protected void pickUpItem(ItemEntity ie) {
+        ItemStack stack = ie.getItem();
+        ItemStack equipped = equipItemIfPossible(stack);
+        if (!equipped.isEmpty()) {
+            onItemPickup(ie);
+            ie.broadcastTake(this, equipped.count());
+            ItemStack left = stack.withCount(stack.count() - equipped.count());
+            if (left.isEmpty()) ie.discard();
+            else ie.setItem(left);
+        }
+    }
+
+    protected void onItemPickup(ItemEntity ie) {}
+
     /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
     public boolean removeWhenFarAway(double distSqr) { return true; }
 
@@ -491,9 +567,12 @@ public abstract class Mob extends LivingEntity {
         super.baseTick();
         if (isAlive() && random.nextInt(1000) < ambientSoundTime++) {
             resetAmbientSoundTime();
-            makeSound(getAmbientSound());
+            playAmbientSound();
         }
     }
+
+    /** Mob.playAmbientSound: 주변 소리를 낸다(여우 등이 재정의). */
+    protected void playAmbientSound() { makeSound(getAmbientSound()); }
 
     @Override
     protected void playHurtSound(Damage source) {

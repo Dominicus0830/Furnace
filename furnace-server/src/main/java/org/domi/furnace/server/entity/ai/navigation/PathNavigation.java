@@ -104,6 +104,12 @@ public abstract class PathNavigation {
         return p != null && moveTo(p, speed);
     }
 
+    /** moveTo(Entity, speed) — 엔티티가 서 있는 칸을 향해(범위 16, 위쪽 허용) 길을 만들어 간다. */
+    public boolean moveToEntityAt(Pos entityPos, double speed) {
+        Path p = createPath(Set.of(entityPos), 16, true, 1);
+        return p != null && moveTo(p, speed);
+    }
+
     public boolean moveTo(Path newPath, double speed) {
         if (newPath == null) {
             path = null;

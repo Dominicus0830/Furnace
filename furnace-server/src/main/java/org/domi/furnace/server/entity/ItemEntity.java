@@ -201,6 +201,11 @@ public final class ItemEntity extends Entity {
 
     public void setPickUpDelay(int ticks) { pickupDelay = ticks; }
 
+    /** 몹이 주울 때 줍기 애니메이션 패킷(take_item_entity)을 보낸다. */
+    public void broadcastTake(LivingEntity taker, int count) {
+        if (tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.TakeItemEntity(id(), taker.id(), count));
+    }
+
     public boolean hasPickUpDelay() { return pickupDelay > 0; }
 
     public int pickupDelay() { return pickupDelay; }

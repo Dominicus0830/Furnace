@@ -101,4 +101,17 @@ class FlyingMobTest {
         assertTrue(phantom.isAlive(), "밤에는 불타지 않는다");
         assertTrue(swooped, "급강하 단계에 들어간다");
     }
+
+    @Test
+    void parrotFliesAndSaves() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        var parrot = new Parrot(level, level.nextEntityId());
+        parrot.moveTo(0.5, -55, 0.5, 0, 0);
+        parrot.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(parrot.blockPosition()), (AgeableMob.GroupData) null);
+        level.addFreshEntity(parrot);
+        tick(level, 300, null);
+        assertTrue(parrot.isAlive());
+        var loaded = (Parrot) Entities.load(level, parrot.save());
+        assertEquals(parrot.getVariant(), loaded.getVariant());
+    }
 }

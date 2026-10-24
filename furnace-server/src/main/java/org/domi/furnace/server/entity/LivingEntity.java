@@ -795,7 +795,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         yBodyRotO = yHeadRotO = yRot();
     }
 
-    protected boolean isImmobile() { return isDeadOrDying(); }
+    public boolean isImmobile() { return isDeadOrDying(); }
 
     protected boolean isAffectedByFluids() { return true; }
 

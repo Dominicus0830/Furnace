@@ -69,6 +69,8 @@ public abstract class Animal extends AgeableMob {
 
     protected static int getSpeedUpSecondsWhenFeeding(int ticksUntilAdult) { return (int) (ticksUntilAdult / 20 * 0.1F); }
 
+    public UUID getLoveCauseUuid() { return loveCause; }
+
     public boolean canFallInLove() { return inLove <= 0; }
 
     public void setInLove(Player cause) {

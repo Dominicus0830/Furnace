@@ -24,7 +24,7 @@ public class FollowOwnerGoal extends Goal {
         this.startDistance = startDistance;
         this.stopDistance = stopDistance;
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
-        if (!(navigation instanceof org.domi.furnace.server.entity.ai.navigation.GroundPathNavigation)) {
+        if (!(navigation instanceof org.domi.furnace.server.entity.ai.navigation.GroundPathNavigation) && !(navigation instanceof org.domi.furnace.server.entity.ai.navigation.FlyingPathNavigation)) {
             throw new IllegalArgumentException("Unsupported mob type for FollowOwnerGoal");
         }
     }
