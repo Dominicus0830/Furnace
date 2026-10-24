@@ -520,7 +520,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return (double) f == 1.0 ? org.domi.furnace.server.block.BlockInfo.get().jumpFactor(org.domi.furnace.server.block.B.block(level.getBlockState(getBlockPosBelowThatAffectsMyMovement()))) : f;
     }
 
-    protected float getJumpPower() { return (float) attributeValue(Attribute.JUMP_STRENGTH) * getBlockJumpFactor() + jumpBoostPower(); }
+    protected float getJumpPower() { return getJumpPower(1.0F); }
+
+    protected float getJumpPower(float multiplier) { return (float) attributeValue(Attribute.JUMP_STRENGTH) * multiplier * getBlockJumpFactor() + jumpBoostPower(); }
+
+    public boolean isJumping() { return jumping; }
 
     protected float jumpBoostPower() { return 0.0F; }
 

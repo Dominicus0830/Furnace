@@ -16,6 +16,7 @@ public final class Entities {
             case "minecraft:chicken" -> new Chicken(level, level.nextEntityId());
             case "minecraft:cow" -> new Cow(level, level.nextEntityId());
             case "minecraft:pig" -> new Pig(level, level.nextEntityId());
+            case "minecraft:rabbit" -> new Rabbit(level, level.nextEntityId());
             case "minecraft:mooshroom" -> new Mooshroom(level, level.nextEntityId());
             case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
             default -> null;
@@ -32,6 +33,7 @@ public final class Entities {
             case "minecraft:chicken" -> new Chicken(level, level.nextEntityId());
             case "minecraft:cow" -> new Cow(level, level.nextEntityId());
             case "minecraft:pig" -> new Pig(level, level.nextEntityId());
+            case "minecraft:rabbit" -> new Rabbit(level, level.nextEntityId());
             case "minecraft:mooshroom" -> new Mooshroom(level, level.nextEntityId());
             case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
             default -> null;

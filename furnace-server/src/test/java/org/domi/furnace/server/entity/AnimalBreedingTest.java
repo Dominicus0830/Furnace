@@ -85,7 +85,7 @@ class AnimalBreedingTest {
     @Test
     void allAnimalsSaveAndLoad() {
         var level = new BlockPlacementTest.TestLevel();
-        for (String id : new String[] {"minecraft:chicken", "minecraft:cow", "minecraft:pig", "minecraft:sheep", "minecraft:mooshroom"}) {
+        for (String id : new String[] {"minecraft:chicken", "minecraft:cow", "minecraft:pig", "minecraft:sheep", "minecraft:mooshroom", "minecraft:rabbit"}) {
             Entity e = Entities.create(level, id);
             assertNotNull(e, id);
             e.moveTo(0.5, -60, 0.5, 0, 0);
@@ -94,5 +94,24 @@ class AnimalBreedingTest {
             assertNotNull(back, id);
             assertEquals(id, back.type().name());
         }
+    }
+
+    @Test
+    void rabbitHopsTowardsWantedPosition() {
+        var level = new BlockPlacementTest.TestLevel();
+        var r = new Rabbit(level, level.nextEntityId());
+        r.moveTo(0.5, -60, 0.5, 0, 0);
+        r.setOnGround(true);
+        level.addFreshEntity(r);
+        boolean jumped = false;
+        for (int i = 0; i < 200; i++) {
+            if (i % 20 == 0) r.getNavigation().moveTo(6.5, -60, 0.5, 0.6);
+            r.setOldPosAndRot();
+            r.tickCount++;
+            r.tick();
+            if (r.y() > -59.9) jumped = true;
+        }
+        assertTrue(jumped, "뛰었다");
+        assertTrue(r.x() > 2.0, "다가갔다: " + r.x());
     }
 }

@@ -23,6 +23,12 @@ public class MoveControl {
 
     public double getSpeedModifier() { return speedModifier; }
 
+    public double getWantedX() { return wantedX; }
+
+    public double getWantedY() { return wantedY; }
+
+    public double getWantedZ() { return wantedZ; }
+
     public void setWantedPosition(double x, double y, double z, double speed) {
         wantedX = x;
         wantedY = y;

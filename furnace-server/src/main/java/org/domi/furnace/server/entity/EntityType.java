@@ -39,6 +39,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** MOOSHROOM: sized(0.9, 1.4).eyeHeight(1.3).clientTrackingRange(10). */
     public static final EntityType MOOSHROOM = of("minecraft:mooshroom", 0.9F, 1.4F, 1.3F, 10, 3, true, false);
 
+    /** RABBIT: sized(0.4, 0.5).clientTrackingRange(8) (눈높이는 기본: 높이 × 0.85). */
+    public static final EntityType RABBIT = of("minecraft:rabbit", 0.4F, 0.5F, 0.5F * 0.85F, 8, 3, true, false);
+
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);

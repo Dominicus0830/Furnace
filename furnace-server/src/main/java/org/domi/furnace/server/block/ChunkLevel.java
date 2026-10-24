@@ -902,6 +902,15 @@ public abstract class ChunkLevel implements BlockLevel {
         return best[0];
     }
 
+    public String biomeAt(int x, int y, int z) { return services().biomeAt(x, y, z); }
+
+    /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). */
+    public void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<Player> c) {
+        services().forEachPlayer(p -> {
+            if (!p.isDisconnected() && p.boundingBox().intersects(box)) c.accept(p);
+        });
+    }
+
     /** Level.getNearestPlayer(조건, 출처, x, y, z): 조건에 맞는 플레이어 중 (x,y,z)에 가장 가까운 것. */
     public Player getNearestPlayer(org.domi.furnace.server.entity.ai.targeting.TargetingConditions conditions, org.domi.furnace.server.entity.Mob source,
             double x, double y, double z) {
