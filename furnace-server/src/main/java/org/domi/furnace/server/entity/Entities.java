@@ -24,6 +24,11 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:panda" -> new Panda(level, level.nextEntityId());
+            case "minecraft:trident" -> new ThrownTrident(level, level.nextEntityId());
+            case "minecraft:drowned" -> new Drowned(level, level.nextEntityId());
+            case "minecraft:shulker_bullet" -> new ShulkerBullet(level, level.nextEntityId());
+            case "minecraft:shulker" -> new Shulker(level, level.nextEntityId());
             case "minecraft:evoker_fangs" -> new EvokerFangs(level, level.nextEntityId());
             case "minecraft:illusioner" -> new Illusioner(level, level.nextEntityId());
             case "minecraft:evoker" -> new Evoker(level, level.nextEntityId());
@@ -101,6 +106,11 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:panda" -> new Panda(level, level.nextEntityId());
+            case "minecraft:trident" -> new ThrownTrident(level, level.nextEntityId());
+            case "minecraft:drowned" -> new Drowned(level, level.nextEntityId());
+            case "minecraft:shulker_bullet" -> new ShulkerBullet(level, level.nextEntityId());
+            case "minecraft:shulker" -> new Shulker(level, level.nextEntityId());
             case "minecraft:evoker_fangs" -> new EvokerFangs(level, level.nextEntityId());
             case "minecraft:illusioner" -> new Illusioner(level, level.nextEntityId());
             case "minecraft:evoker" -> new Evoker(level, level.nextEntityId());

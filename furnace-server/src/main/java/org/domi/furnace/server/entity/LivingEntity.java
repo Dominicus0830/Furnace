@@ -136,6 +136,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** 직접 때린 엔티티(투사체)가 따로 있을 때: 밀려나는 방향과 damage_event 의 직접 원인이 그 엔티티다. */
     private Entity pendingDirect;
 
+    /** 지금 처리 중인 피해의 직접 원인 엔티티(투사체 등, 없으면 null). */
+    protected Entity directCause() { return pendingDirect; }
+
     public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) {
         pendingDirect = direct;
         try {

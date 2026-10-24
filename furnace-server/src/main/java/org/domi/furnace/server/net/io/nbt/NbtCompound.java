@@ -20,6 +20,8 @@ public final class NbtCompound {
 
     public void putByte(String k, byte v) { tags.put(k, v); }
     public void putInt(String k, int v) { tags.put(k, v); }
+    public void putDouble(String k, double v) { tags.put(k, v); }
+    public double getDouble(String k) { return tags.get(k) instanceof Number n ? n.doubleValue() : 0.0; }
     public void putLong(String k, long v) { tags.put(k, v); }
     public void putByteArray(String k, byte[] v) { tags.put(k, v); }
     public void putString(String k, String v) { tags.put(k, v); }

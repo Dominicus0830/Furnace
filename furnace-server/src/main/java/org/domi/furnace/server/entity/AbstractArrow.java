@@ -150,6 +150,8 @@ public abstract class AbstractArrow extends Projectile {
 
     protected float waterInertia() { return 0.6F; }
 
+    protected String defaultHitGroundSound() { return "entity.arrow.hit"; }
+
     private boolean shouldFall() {
         return inGround && level.noCollision(boundingBox().inflate(0.06));
     }
@@ -225,7 +227,7 @@ public abstract class AbstractArrow extends Projectile {
         shakeTime = 7;
         setCritArrow(false);
         setPierceLevel((byte) 0);
-        setSoundEvent("entity.arrow.hit");
+        setSoundEvent(defaultHitGroundSound());
         piercedEntities = null;
     }
 

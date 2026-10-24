@@ -226,4 +226,81 @@ class LandMobTest {
         assertTrue(invisible, "투명해졌다");
         assertNotNull(Entities.load(level, ill.save()));
     }
+
+    @Test
+    void shulkerShootsBullet() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var shulker = new Shulker(level, level.nextEntityId());
+        shulker.moveTo(0.5, -60, 0.5, 0, 0);
+        shulker.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(shulker.blockPosition()));
+        level.addFreshEntity(shulker);
+        var villager = new Villager(level, level.nextEntityId());
+        villager.moveTo(5.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(villager);
+        shulker.setTarget(villager);
+        boolean bullet = false, levitating = false;
+        for (int t = 0; t < 200; t++) {
+            tick(level, 1);
+            for (Entity e : level.entities().tickSnapshot()) bullet |= e instanceof ShulkerBullet;
+            levitating |= villager.hasEffect(org.domi.furnace.server.effect.MobEffect.LEVITATION);
+        }
+        assertTrue(shulker.isAlive());
+        assertTrue(bullet, "탄환을 쐈다");
+        assertTrue(levitating, "탄환에 맞아 공중 부양");
+        assertNotNull(Entities.load(level, shulker.save()));
+    }
+
+    @Test
+    void drownedThrowsTridentAndSwims() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        int water = B.defaultState(B.id("minecraft:water"));
+        for (int x = -2; x <= 14; x++) for (int z = -4; z <= 4; z++) for (int y = -62; y <= -58; y++) level.setBlock(new Pos(x, y, z), water, 2);
+        var drowned = new Drowned(level, level.nextEntityId());
+        drowned.moveTo(0.5, -60, 0.5, 0, 0);
+        drowned.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(drowned.blockPosition()));
+        drowned.setItemSlot(EquipmentSlot.MAINHAND, Mob.stackOf("minecraft:trident"));
+        level.addFreshEntity(drowned);
+        var villager = new Villager(level, level.nextEntityId());
+        villager.moveTo(11.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(villager);
+        drowned.setTarget(villager);
+        boolean trident = false;
+        for (int t = 0; t < 400; t++) {
+            tick(level, 1);
+            for (Entity e : level.entities().tickSnapshot()) trident |= e instanceof ThrownTrident;
+        }
+        assertTrue(drowned.isAlive());
+        assertTrue(trident, "삼지창을 던졌다");
+        assertNotNull(Entities.load(level, drowned.save()));
+    }
+
+    @Test
+    void pandaSpawnTickSaveBreed() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var a = new Panda(level, level.nextEntityId());
+        a.moveTo(0.5, -60, 0.5, 0, 0);
+        a.setOnGround(true);
+        a.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(a.blockPosition()), (AgeableMob.GroupData) null);
+        level.addFreshEntity(a);
+        var b = new Panda(level, level.nextEntityId());
+        b.moveTo(3.5, -60, 0.5, 0, 0);
+        b.setOnGround(true);
+        b.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(b.blockPosition()), (AgeableMob.GroupData) null);
+        level.addFreshEntity(b);
+        var baby = new Panda(level, level.nextEntityId());
+        baby.moveTo(-3.5, -60, 0.5, 0, 0);
+        baby.setOnGround(true);
+        baby.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(baby.blockPosition()), (AgeableMob.GroupData) null);
+        baby.setBaby(true);
+        level.addFreshEntity(baby);
+        tick(level, 600);
+        assertTrue(a.isAlive() && b.isAlive() && baby.isAlive());
+        var loaded = (Panda) Entities.load(level, a.save());
+        assertEquals(a.getMainGene(), loaded.getMainGene());
+        assertEquals(a.getHiddenGene(), loaded.getHiddenGene());
+        assertTrue(a.getBreedOffspring(level, b) instanceof Panda);
+    }
 }

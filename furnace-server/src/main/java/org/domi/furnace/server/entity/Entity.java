@@ -196,7 +196,10 @@ public abstract class Entity {
 
     protected float dimW, dimH, dimEye;
 
-    private AABB makeBb(double px, double py, double pz) {
+    /** 지금 위치로 경계 상자를 다시 만든다(상자 모양이 상태에 따라 바뀌는 몹용). */
+    protected final void refreshBoundingBox() { bb = makeBb(x, y, z); }
+
+    protected AABB makeBb(double px, double py, double pz) {
         double hw = dimW / 2.0F;
         return new AABB(px - hw, py, pz - hw, px + hw, py + dimH, pz + hw);
     }
@@ -303,6 +306,7 @@ public abstract class Entity {
         isInPowderSnow = false;
         updateInWaterStateAndDoFluidPushing();
         updateFluidOnEyes();
+        updateSwimming();
         if (remainingFireTicks > 0) {
             if (fireImmune()) {
                 setRemainingFireTicks(remainingFireTicks - 4);
@@ -364,6 +368,18 @@ public abstract class Entity {
     public boolean isSprinting() { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << FLAG_SPRINTING) != 0; }
 
     public void setSprinting(boolean v) { setSharedFlag(FLAG_SPRINTING, v); }
+
+    private static final int FLAG_SWIMMING = 4;
+
+    public boolean isSwimming() { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << FLAG_SWIMMING) != 0; }
+
+    public void setSwimming(boolean v) { setSharedFlag(FLAG_SWIMMING, v); }
+
+    /** Entity.updateSwimming: 전력 질주 중이고 물속일 때만 헤엄(몹은 대개 항상 거짓). TODO(자세): 헤엄 자세(POSE_SWIMMING) 전환 */
+    protected void updateSwimming() {
+        if (isSwimming()) setSwimming(isSprinting() && isInWater());
+        else setSwimming(isSprinting() && isInWater() && level.isWaterAt(blockPosition()));
+    }
 
     public void setSharedFlagOnFire(boolean on) { setSharedFlag(FLAG_ONFIRE, on); }
 
