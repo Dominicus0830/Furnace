@@ -130,7 +130,8 @@ public final class EntityTracker {
     /** addPairing: 스폰 묶음(add_entity, 데이터, 속도). */
     private void addPairing(Player p) {
         List<Packet> list = new ArrayList<>(4);
-        list.add(new AddEntity(entity.id(), entity.uuid(), entity.type().id(), baseX, baseY, baseZ, xRotp, yRotp, yHeadRotp,
+        Packet custom = entity.customSpawnPacket(baseX, baseY, baseZ);
+        list.add(custom != null ? custom : new AddEntity(entity.id(), entity.uuid(), entity.type().id(), baseX, baseY, baseZ, xRotp, yRotp, yHeadRotp,
                 entity.spawnData(), lastVx, lastVy, lastVz));
         if (trackedDataValues != null) list.add(new SetEntityData(entity.id(), trackedDataValues));
         if (trackDelta) list.add(new SetEntityMotion(entity.id(), lastVx, lastVy, lastVz));   // 살아 있는 것이 아니면

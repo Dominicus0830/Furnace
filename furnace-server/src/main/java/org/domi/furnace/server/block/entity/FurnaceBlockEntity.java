@@ -1,7 +1,9 @@
 // 바닐라 AbstractFurnaceBlockEntity(화로·용광로·훈연기): 재료·연료·결과 3칸, 태우는 시간/굽는 시간, 쓴 레시피 수 → 꺼낼 때 경험치.
 package org.domi.furnace.server.block.entity;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import org.domi.furnace.server.block.B;
@@ -173,9 +175,12 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
         }
     }
 
-    /** 바닐라 getRecipesToAwardAndPopExperience 의 경험치 계산: 레시피마다 (쓴 횟수 × 경험치) 의 정수부 + 소수부 확률로 1. */
-    public int takeExperience(RecipeManager rm, java.util.List<ResourceId> usedOut) {
-        int total = 0;
+    /**
+     * 바닐라 getRecipesToAwardAndPopExperience: 쌓인 레시피마다 (쓴 횟수 × 경험치) 의 정수부 + 소수부 확률로 1 을 구슬 하나 분량으로 돌려준다.
+     * usedOut 에는 해금할 레시피를 채우고, 쌓인 기록은 비운다.
+     */
+    public List<Integer> takeExperience(RecipeManager rm, List<ResourceId> usedOut) {
+        List<Integer> amounts = new ArrayList<>();
         for (var e : recipesUsed.entrySet()) {
             var r = rm == null ? null : rm.recipe(e.getKey());
             if (!(r instanceof org.domi.furnace.server.recipe.Recipe.Cooking c)) continue;
@@ -184,9 +189,9 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
             int whole = (int) Math.floor(v);
             float frac = v - whole;
             if (frac != 0.0F && ThreadLocalRandom.current().nextDouble() < frac) whole++;
-            total += whole;
+            amounts.add(whole);
         }
         recipesUsed.clear();
-        return total;
+        return amounts;
     }
 }

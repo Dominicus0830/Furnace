@@ -12,6 +12,7 @@ public final class Entities {
         if (!(tag.tags().get("id") instanceof String id)) return null;
         Entity e = switch (id) {
             case "minecraft:item" -> new ItemEntity(level, level.nextEntityId());
+            case "minecraft:experience_orb" -> new ExperienceOrb(level, level.nextEntityId());
             default -> null;
         };
         if (e == null) return null;

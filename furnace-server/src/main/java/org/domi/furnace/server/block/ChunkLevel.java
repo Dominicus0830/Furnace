@@ -223,7 +223,7 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public void popExperience(Pos pos, int amount) {
         if (!gameRule("doTileDrops")) return;
-        // TODO(엔티티): ExperienceOrb.award(level, 칸 가운데, amount) — 구슬 나누기·합치기. 구슬은 자기 난수만 쓴다.
+        awardExperience(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, amount);
     }
 
     @Override
@@ -870,6 +870,28 @@ public abstract class ChunkLevel implements BlockLevel {
     private static final java.util.concurrent.atomic.AtomicInteger FALLBACK_IDS = new java.util.concurrent.atomic.AtomicInteger(1 << 24);
 
     public EntityStore entities() { return entities; }
+
+    /** ExperienceOrb.award(level, 위치, amount). */
+    @Override
+    public void awardExperience(double x, double y, double z, int amount) {
+        org.domi.furnace.server.entity.ExperienceOrb.award(this, x, y, z, amount);
+    }
+
+    /** Level.getNearestPlayer(entity, 거리): 관전자가 아닌 가장 가까운 플레이어(거리 안에서), 없으면 null. */
+    public Player getNearestPlayer(Entity from, double dist) {
+        Player[] best = new Player[1];
+        double[] bestD = {dist < 0.0 ? Double.MAX_VALUE : dist * dist};
+        services().forEachPlayer(p -> {
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || p.isDisconnected()) return;
+            double dx = p.x() - from.x(), dy = p.y() - from.y(), dz = p.z() - from.z();
+            double d = dx * dx + dy * dy + dz * dz;
+            if (d < bestD[0]) {
+                bestD[0] = d;
+                best[0] = p;
+            }
+        });
+        return best[0];
+    }
 
     /** 새 엔티티 id(서버 전역 — 플레이어와 같은 발급기). 기본은 테스트용 따로 센 값. */
     public int nextEntityId() { return FALLBACK_IDS.incrementAndGet(); }

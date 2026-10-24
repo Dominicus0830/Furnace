@@ -885,6 +885,9 @@ public abstract class Entity {
     /** 스폰 패킷의 data 칸(getAddEntityPacket). 대부분 0. */
     public int spawnData() { return 0; }
 
+    /** 스폰 패킷을 add_entity 대신 따로 보내는 종류(경험치 구슬 등)의 패킷. 기본 null. */
+    public org.domi.furnace.server.net.protocol.Packet customSpawnPacket(double baseX, double baseY, double baseZ) { return null; }
+
     /** 시야 갱신 대상인가(broadcastToPlayer). */
     public boolean broadcastToPlayer(Player p) { return true; }
 

@@ -250,8 +250,11 @@ public interface BlockLevel {
     /** Block.dropResources(state, level, pos). */
     default void dropResources(int state, Pos pos) { dropResources(state, pos, null, null, ItemStack.EMPTY); }
 
-    /** Block.popExperience: doTileDrops 이면 경험치 구슬(ExperienceOrb.award). 구슬은 자기 난수만 쓴다. TODO(엔티티): 구슬 생성. */
+    /** Block.popExperience: doTileDrops 이면 경험치 구슬(ExperienceOrb.award). 구슬은 자기 난수만 쓴다. */
     default void popExperience(Pos pos, int amount) {}
+
+    /** ExperienceOrb.award(level, 위치, amount). */
+    default void awardExperience(double x, double y, double z, int amount) {}
 
     /** ServerLevel.destroyBlockProgress: 부수는 사람을 뺀 32칸 안 플레이어에게 금 가는 단계(0..9, 그 밖이면 지움). */
     default void destroyBlockProgress(int breakerId, Pos pos, int progress) {}

@@ -55,13 +55,13 @@ public class FurnaceMenu extends ContainerBackedMenu {
                 if (removeCount > 0) owner.onItemCrafted(stack, removeCount);
                 // 바닐라 awardUsedRecipesAndPopExperience: 쓴 레시피를 알려 주고 쌓인 경험치를 준다 (TODO(엔티티): 구슬로 — 지금은 바로 더한다)
                 List<ResourceId> used = new ArrayList<>();
-                int xp = be.takeExperience(owner.recipes(), used);
+                List<Integer> xp = be.takeExperience(owner.recipes(), used);
                 if (!used.isEmpty()) {
                     List<ItemStack> grid = List.of(container.get(0), container.get(1), container.get(2));
                     for (ResourceId id : used) owner.triggerRecipeCrafted(id, grid);
                     owner.awardRecipes(used);
                 }
-                if (xp > 0) owner.awardExperience(xp);
+                for (int amount : xp) if (amount > 0) owner.awardExperience(amount);
                 removeCount = 0;
             }
         });

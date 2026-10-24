@@ -15,6 +15,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** EntityType.ITEM: sized(0.25, 0.25).eyeHeight(0.2125).clientTrackingRange(6).updateInterval(20). */
     public static final EntityType ITEM = of("minecraft:item", 0.25F, 0.25F, 0.2125F, 6, 20, true, false);
 
+    /** EntityType.EXPERIENCE_ORB: sized(0.5, 0.5).clientTrackingRange(6).updateInterval(20). */
+    public static final EntityType EXPERIENCE_ORB = of("minecraft:experience_orb", 0.5F, 0.5F, 0.5F * 0.85F, 6, 20, true, false);
+
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);

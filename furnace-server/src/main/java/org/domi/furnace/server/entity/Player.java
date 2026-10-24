@@ -244,6 +244,9 @@ public final class Player {
         }
     }
 
+    /** 경험치 구슬 줍기 쿨다운(바닐라 takeXpDelay — 줍으면 2, 틱마다 감소). */
+    public int takeXpDelay;
+
     private volatile org.domi.furnace.server.stats.PlayerStats stats;
 
     public org.domi.furnace.server.stats.PlayerStats stats() { return stats; }

@@ -1618,6 +1618,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             return n;
                         }
 
+                        /** 숫돌 등: 블록 가운데에 경험치 구슬. */
+                        @Override public void awardExperience(int amount) {
+                            var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                            if (region != null) region.level().awardExperience(x + 0.5, y + 0.5, z + 0.5, amount);
+                        }
+
                         @Override public int nextInt(int bound) {
                             var region = org.domi.furnace.server.world.MenuBlockContext.current();
                             return region == null ? 0 : region.level().random().nextInt(bound);
@@ -1810,7 +1816,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return core == null ? null : core.dataPacks().loot().registries();
         }
 
-        @Override public void awardExperience(int amount) { p.vitals().giveExperiencePoints(amount); }
+        /** 경험치 구슬을 플레이어 자리에 낸다(화로 꺼내기 — 바닐라 createExperience(player.position())). */
+        @Override public void awardExperience(int amount) {
+            double px = p.x(), py = p.y(), pz = p.z();
+            world.runAt(px, pz, region -> region.level().awardExperience(px, py, pz, amount));
+        }
 
         @Override public int experienceLevel() { return p.vitals().xpLevel(); }
 

@@ -546,6 +546,7 @@ public final class Region {
             if (processMoves(p) && level != null) level.playerMoved(p);   // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다
             p.drainPending();
             tickVitals(p);
+            if (p.takeXpDelay > 0) p.takeXpDelay--;
             touchEntities(p);
             tickBreaking(p);
             broadcastInventory(p);

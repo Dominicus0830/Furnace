@@ -35,7 +35,9 @@ public abstract class AbstractFurnaceBlock extends BaseEntityBlock {
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
         if (!B.is(newState, block) && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.FurnaceBlockEntity f) {
             level.dropContents(pos, f.items);
-            // TODO(엔티티): 쌓인 경험치를 구슬로 내놓는다(getRecipesToAwardAndPopExperience) — 구슬 엔티티가 생기면.
+            if (level.recipes() instanceof org.domi.furnace.server.recipe.RecipeManager rm) {   // getRecipesToAwardAndPopExperience: 쌓인 경험치를 구슬로
+                for (int amount : f.takeExperience(rm, new java.util.ArrayList<>())) if (amount > 0) level.awardExperience(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, amount);
+            }
             level.updateNeighbourForOutputSignal(pos, block);
         }
         super.onRemove(state, level, pos, newState, moved);
