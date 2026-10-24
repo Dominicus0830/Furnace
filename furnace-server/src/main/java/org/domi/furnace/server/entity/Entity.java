@@ -666,6 +666,12 @@ public abstract class Entity {
     /** 투사체가 맞출 수 있는 엔티티인가(Entity.isPickable). 생물만 기본 참. */
     public boolean isPickable() { return false; }
 
+    public int getAirSupply() { return (Integer) entityData.get(DATA_AIR_SUPPLY); }
+
+    public void setAirSupply(int v) { entityData.set(DATA_AIR_SUPPLY, v); }
+
+    public int getMaxAirSupply() { return 300; }
+
     /** 사용자 지정 이름이 있나. TODO(이름표): 이름 표시·저장이 생기면 실제 값으로. */
     public boolean hasCustomName() { return false; }
 

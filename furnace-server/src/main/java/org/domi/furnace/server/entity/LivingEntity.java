@@ -5,6 +5,7 @@ import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.control.Mth;
+import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.DamageEvent;
@@ -580,8 +581,26 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override
     public void baseTick() {
+        int oldAir = getAirSupply();
         super.baseTick();
         tickEffects();
+        if (isAlive()) {
+            if (isInWall()) hurt(new Damage("in_wall", false, false, false), 1.0F);
+            if (isEyeInWater() && !B.is(level.getBlockState(new org.domi.furnace.server.block.Pos((int) Math.floor(x()), (int) Math.floor(eyeY()), (int) Math.floor(z()))), "minecraft:bubble_column")) {
+                boolean drowns = !canBreatheUnderwater() && !hasEffect(org.domi.furnace.server.effect.MobEffect.WATER_BREATHING);
+                if (drowns) {
+                    setAirSupply(decreaseAirSupply(getAirSupply()));
+                    if (getAirSupply() == -20) {
+                        setAirSupply(0);
+                        hurt(new Damage("drown", false, false, false), 2.0F);
+                    }
+                } else if (getAirSupply() < getMaxAirSupply()) {
+                    setAirSupply(increaseAirSupply(getAirSupply()));
+                }
+            } else if (getAirSupply() < getMaxAirSupply()) {
+                setAirSupply(increaseAirSupply(getAirSupply()));
+            }
+        }
         if (isDeadOrDying() && !isRemoved()) tickDeath();
         if (invulnerableTime > 0) invulnerableTime--;
         if (hurtTime > 0) hurtTime--;
@@ -851,6 +870,30 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     protected float getWaterSlowDown() { return 0.8F; }
+
+    public boolean canBreatheUnderwater() { return type.is("minecraft:can_breathe_under_water"); }
+
+    protected int decreaseAirSupply(int air) { return air - 1; }
+
+    protected int increaseAirSupply(int air) { return Math.min(air + 4, getMaxAirSupply()); }
+
+    /** Entity.isInWall: 눈 높이 칸이 질식시키는 블록 안이다. */
+    public boolean isInWall() {
+        if (noPhysics) return false;
+        float f = bbWidth() * 0.8F;
+        double ex = x(), ey = eyeY(), ez = z();
+        double x0 = ex - f / 2.0, x1 = ex + f / 2.0, y0 = ey - 5.0E-7, y1 = ey + 5.0E-7, z0 = ez - f / 2.0, z1 = ez + f / 2.0;
+        for (int bx = (int) Math.floor(x0); bx <= (int) Math.floor(x1); bx++) {
+            for (int by = (int) Math.floor(y0); by <= (int) Math.floor(y1); by++) {
+                for (int bz = (int) Math.floor(z0); bz <= (int) Math.floor(z1); bz++) {
+                    int st = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
+                    if (!B.isAir(st) && org.domi.furnace.server.block.BlockInfo.get().suffocating(st)
+                            && org.domi.furnace.server.block.BlockInfo.get().collisionShape(st).move(bx, by, bz).intersects(x0, y0, z0, x1, y1, z1)) return true;
+                }
+            }
+        }
+        return false;
+    }
 
     /** Entity.teleportTo(x, y, z): 방향은 그대로 위치만 옮긴다. */
     public void teleportTo(double nx, double ny, double nz) { moveTo(nx, ny, nz, yRot(), xRot()); }
