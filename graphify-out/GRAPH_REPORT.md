@@ -1,86 +1,93 @@
-# Graph Report - Furnace  (2026-10-23)
+# Graph Report - Furnace  (2026-10-24)
 
 ## Corpus Check
-- Large corpus: 2428 files · ~1,199,992 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
+- 2484 files · ~1,249,146 words
+- Verdict: corpus is large enough that graph structure adds value.
+- Unclassified: 1592 file(s) not represented in the graph (top: .nbt 1180, .bin 358, .jar 32)
 
 ## Summary
-- 16306 nodes · 59311 edges · 356 communities (219 shown, 137 thin omitted)
-- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 10486 edges (avg confidence: 0.85)
+- 18034 nodes · 66025 edges · 378 communities (235 shown, 143 thin omitted)
+- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 11642 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `be982ce8`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - PlaceContext / Blocks
 - PlayerVitals / PlayerInfoUpdate
-- BlockActor / ItemUse
-- RedStoneWireBlock / BambooStalkBlock
-- BlockLevel / CropBlock
-- JsonTextSerializer / PermissionManager
+- ItemStack
+- .with
+- Pos
+- list
 - BuiltInExceptions / SuggestionsBuilder
-- FeatureWorldView / SculkPatchFeature
+- FeatureWorldView
 - FancyTrunkPlacer / TreeFeature
-- PointedDripstoneBlock / FluidTicker
-- Difficulty / DirectoryLock
-- Texts / PlainTextSerializer
-- MarkupParseTest / MarkupEffectsTest
+- .block
+- GameMode
+- Content
+- org.junit.jupiter.api.Test
 - PlayerListCommands / PlayerLists
 - OnlineLoginTest / LoginFlowTest
-- DiodeBlock / ComparatorBlock
-- WoodlandMansionStructure / FrequencyReductionMethod
-- BrushableBlock / ConcretePowderBlock
+- .scheduleTick
+- .nextInt
+- Container
 - FeaturePipelineParityTest / Harness
 - Arguments / StringReader
-- PlayerStateCommands / AdvancementCommands
+- .getSource
 - NetherFortressStructure / StrongholdStructure
-- SessionService / ServerLoginContext
+- ServerLoginContext.java
 - CommandContextBuilder / CommandNode
-- ConnectionHandler / PlayerInventory
-- BlockSurvival / CoralFeature
+- Player
+- .stateIdsForBlock
 - RandomTrace / VV
-- FireBlock / BaseRailBlock
-- NoiseWorldSource / ChunkPipeline
-- Player / RegionLevel
-- ChunkColumn / ChunkSection
-- SignedChatTest / ProfilePublicKey
+- .getBlockState
+- ChunkPipeline
+- RegionLevel
+- NbtList
+- MessageSignature
 - ArgumentQueue / Resolvers
 - Entity / ChunkLevel
-- LootEntry / DisplayInfo
+- LootRegistries
 - LecternBlock / DoorBlock
 - Region / Regionizer
 - BiomeFeatureData / HeightProvider
-- NumberProvider / LootWorld
+- LootData
 - StructurePiece / MineshaftStructure
-- SeagrassBlock / MangrovePropaguleBlock
+- BlockLevel
 - EndCityStructure / StructureEngine
 - MineshaftStructure / StrongholdStructure
 - DensityFunctions / DensityFunction
 - Style / Text
 - PlayerAdvancements / AdvancementProgress
-- RecipeBook / TagLoader
+- ResourceId
 - PlayerVitals / PlayerVitalsTest
-- BigDripleafBlock / ChestBlock
+- .hasNeighborSignal
 - NoiseChunk / Beardifier
-- PackResources / Pack
+- Pack
 - PlacementModifier / FossilFeature
-- PluginHost / ServerCore
-- TextToolsTest / JoinConfiguration
+- FurnacePlugin
+- Text
 - LevelData / NbtCompound
 - Region / NetworkServerTest
 - MultifaceSpreader / VineBlock
-- ChunkColumn / ChunkColumnTest
+- ChunkColumn
 - World / FurnaceMain
 - SurfaceSystem / BiomeClimate
-- ChunkLevel / Entity
+- ChunkLevel
 - OceanMonumentStructure
 - GrowingPlantBlock / KelpBlock
 - DensityFunctions / DensityFunctionNoiseNodeTest
-- JigsawPools / JigsawStructure
+- StructureTemplate
 - BlockInfo / Shape
 - ItemEntityTest / ItemEntity
 - RuinedPortalStructure / GenContext
 - ConfigSection / YamlParserTest
 - FarmBlock / CakeBlock
 - PerlinNoise / MathHelper
-- NoiseRouter / BiomeSampler
+- NoiseRouter
 - AnvilWorldSource / FurnaceSchedulerImpl
 - OracleWorldGenLevel
 - WorldCarver / CarverConfig
@@ -88,46 +95,46 @@
 - LootStack / Enchantments
 - DensityFunctions / DensityFunction
 - RegionThread / OwnedTest
-- Processors / TemplatePiece
-- LegacyTextSerializer / TextColor
+- .plainText
+- TextColor
 - WorldClock / WorldCommands
 - Processors / ProcessorLists
-- Player / GameMode
+- Player
 - WorldgenData / BiomeFeatureData
 - ChatType / PlayerChatMessage
 - XoroshiroRandomSource / XoroshiroWorldgenRandom
-- DataPackManager / PackRepository
+- .getSlot
 - PCodec / DataComponents
 - LevelServices / ChunkLevel
 - PlayerActor / BreakerActor
 - ConfigSection / YamlWriterTest
-- WorldPersistCheck / ChunkSerializerTest
+- LecternBlockEntity
 - BlockShapes / ShapeUpdater
 - OracleMain / OracleWorldGenLevel
 - DripstoneFeatures / FeatureFloatProvider
 - Recipe / Ingredient
-- Furnace / EventBus
-- FramingTest / CipherDecoder
+- AbstractContainerMenu
+- PlacedFeature
 - WoodlandMansionStructure / BuriedTreasureStructure
 - AnsiTextSerializer / PlainAndAnsiTest
 - NCodec / DataComponents
 - BlockPredicate / FluidKind
 - TaskScheduler / RegionizerTest
 - TranslationStore / TranslationTest
-- LightningRodBlock / PistonHeadBlock
-- PitcherCropBlock / TallSeagrassBlock
+- locale
+- InventoryMenu
 - Reg / Batch1
-- VegetationPatchFeature / HugeMushroomFeature
-- FurnacePlugin / PermissibleBase
+- WorldgenRandom
+- Override
 - WeatheringCopper / WeatheringCopperBulbBlock
 - TomlParser / Comments
-- BlockTypesTest / FluidTest
+- CraftingEntry
 - TextTemplate / TextTemplateTest
-- BedBlock / BigDripleafStemBlock
-- VanillaCommandTreeTest / ArgumentCommandNode
+- .relative
+- .children
 - ComponentPatch / DataComponentsVanillaTest
-- EntityStore / AABB
-- OreVeinifierSkipFuzzTest / DensityFunctionParser
+- Shape
+- .veinStateId
 - GeodeFeature / EndSpikeFeature
 - NoiseBasedAquifer / NoiseRouter
 - CubicSpline / ToFloatFunction
@@ -139,85 +146,85 @@
 - YamlParser / ConfigSection
 - MarkupParser / MarkupParseException
 - DamageType / CombatTracker
-- ConnectionInputTest / SpawnPoint
-- furnace-version-upgrade-design / 2026-07-02_worldgen-feature_featurefull-0mismatch
+- .writeVarInt
+- Hard mismatch categories A to D
 - Config / ConfigFormat
-- PlayerHandle
+- MerchantOffer
 - TreeFeature / GeodeFeature
-- BlockPlaceEvent / BlockBreakEvent
-- ServerCommandEvent / BasicCommand
-- VinesFeature / AlterGroundDecorator
+- MenuPlayer
+- .set
+- SpecialRecipes
 - ItemUseTest
 - 2026-06-07-m3a-player-movement / 2026-06-08-m3b-region-parallel-tick
-- AsyncPlayerPreLoginEvent / PlayerLoginEvent
-- TextNbt / JsonSerializerTest
+- TerrainAccess
+- TextNbt
 - EntityTracker / MoveEntity
-- LayeredCauldronBlock / AbstractCauldronBlock
+- .intValue
 - feature_order / blocks-1.21.1
 - JsonTest / ConfigParseException
 - OracleGroundtruthAuditTest / RegionFile
 - Mth / DesertPyramidPiece
 - WorldBorder
-- PluginManagerImpl / FurnacePlugin
+- NoiseChunk
 - PlayerData / PlayerDataTest
 - 2026-06-07-m1-networking-handshake-to-play
 - Val / AdventurePredicate
 - NoteBlock
-- ConsoleSender / PermissionManagerImpl
+- PlayerChatState
 - TreeFeatureParityDiagnosticTest / ChunkSweepParityTest
 - MultifaceSpreader / MultifaceGrowthFeature
-- Suggestion / IntegerSuggestion
+- EquipSlot
 - Snbt / CodecException
 - BlockTicks / ChunkLevel
 - LootEntity / LootDamageSource
 - WorldBorder / WorldBorderTest
 - NbtVals / NbtIo
 - YamlWriter / YamlScalars
-- EventBusImpl / EventPriority
-- WorldBorder / WorldBorderTest
+- .deserialize
+- .settingsRoundTripPreservesLerpRemaining
 - 2026-07-04_worldgen_m-opt-p0-quickwins / 2026-07-04_worldgen-oracle_레지스트리-순서-사전순-핀
-- TagSet / TagSetTest
+- AdvancementNode
 - GlowLichenFeature
-- WorldBorder / BorderPacketsTest
-- BlockEntity / ChunkLevel
+- .initializeBorderCarriesLiveState
+- BlockEntityContainer
 - Clip
-- Codecs / TextNbtJson
-- JoinStatePacketsTest / ChangeDifficulty
+- Codecs
+- PlayerInfoUpdate
 - PlayerProbe / Region
 - GameProfileCache / ServerCore
 - StrongholdStructure
-- CauldronInteraction / AbstractCauldronBlock
-- DataPackCommands / DataPackManager
+- Player
+- Shaped
 - ConfigLoaderTest / ConfigLoader
 - NbtWriter / NbtWriterTest
-- ContainerPacketsTest / ContainerSetContent
+- SetEntityData
 - LevelStorage / LevelStorageTest
 - OracleMain
 - 2026-06-11-m4gc2-aquifer / 2026-06-11-m4gc2-aquifer-design
 - NeighborUpdater / ChunkLevel
-- BiomeSamplerTest / BiomeSampler
+- .source
 - ClimateRTree
-- CarverParityTest
+- BrewingStandBlockEntity
 - chests-1.21.1
-- PermissionDefault / PluginDescription
+- PluginDescription
 - BlockBreakingTest / BlockBreaking
-- FoodData / PlayerVitals
-- PlayerVitals / PlayerVitalsTest
+- CraftingInput
+- StackedContents
 - ComponentType / DataComponents
-- ItemTools / ItemContext
-- BlockSurvival
+- PlayerInventory
+- org.domi.furnace.server.advancement.PlayerAdvancements.Host
 - Harness
 - 2026-06-07-m2-world-chunk-transfer / 2026-06-08-m4a-mutable-blocks
-- NoteBlock / Prop
+- ShulkerBoxBlockEntity
 - RedstoneWallTorchBlock / WallTorchBlock
-- IcebergFeature
-- OreFeature
+- .nextLong
+- SpecialRecipesTest
 - entities-1.21.1 / entity_types-1.21.1
 - TomlWriter / ConfigSection
-- Location / PlayerRespawnEvent
-- PluginManagerImpl / PluginContext
-- PistonMovingBlockEntity / BlockEntity
-- OreVeinifierTest / OreVeinifier
+- EntityStore
+- PlayerActor
+- BlockEntity
+- .run
 - tags-1.21.1 / block_tags
 - 2026-06-12-m4gc3-carver
 - HalfTransparentBlock / HoneyBlock
@@ -227,31 +234,31 @@
 - 2026-06-07-m3a-player-movement-design / 2026-06-08-m3c-cross-region-visibility-design
 - 2026-06-08-m4a-mutable-blocks-design / 2026-06-09-m4c1-block-placement-design
 - BlockItems
-- FeatureSize / ThreeLayersFeatureSize
+- Override
 - TreeFeature
 - StructurePlacementCatalog / StructurePlacementParityTest
-- NetherFortressStructure
+- RemoveEntities
 - blockprops_1.21.1
-- 2026-07-10_worldgen_parity-verification-infra-테스트3종 / 2026-07-10_io_anvil-palette-properties-왕복
-- CampfireBlock
-- PCodec / DataComponents
+- 월드젠 레이어
+- RemovalReason
+- Kind
 - ReferenceOrder
-- TestPlugins
+- PackResources
 - 2026-06-08-m4b-anvil-persistence / 2026-06-08-spawn-chunk-batch-gate
 - 2026-06-07-m2-world-chunk-transfer-design / 2026-06-20-world-optimization-pass
 - 2026-06-08-m4b-anvil-persistence-design / 2026-06-08-spawn-chunk-batch-gate-design
 - 2026-06-10-m4ga-noise-terrain-design / 2026-06-10-m4gb-multi-noise-biome-design
-- LegacyRandomSource / Player
-- MovePacketsTest / MoveEntityPos
+- LegacyRandomSource
+- EnderChestInventory
 - itemblocks_1.21.1 / definitions_1.21.1
 - 1.21.1
-- AquiferParityTest
-- TabListTest
+- PluginTasks
+- LoginFlowTest
 - 2026-07-05_worldgen_gridview-feature-parity-byte-exact / 2026-07-06_worldgen_tree-overlap-residual-parity
 - 2026-06-20-m4gd-feature-placement
 - 2026-06-20-m4gd-feature-placement-design / 2026-06-21-m4gd-feature-pipeline-design
 - JsonParser
-- MiniJson
+- JsonTextSerializer
 - FastutilOrder
 - PlayerAdvancements
 - BlockBehaviors / BlockBehaviorsAccess
@@ -263,30 +270,29 @@
 - VanillaData / DataPackTest
 - SynchedData / Entity
 - SimplexNoise / SimplexNoiseTest
-- BlockPosIter / BlockPosIterTest
+- .setBlock
 - KelpFeature / KelpFeatureTest
 - GenStatus
 - 2026-07-06_worldgen_regrass-heightmap-mushroom / 2026-07-05_worldgen_milestone-gap-survey
 - ShapeVectors
 - 2026-06-10-m4ga-noise-terrain / 2026-06-11-m4gc1-surface-rules
-- ComparatorBlockEntity
-- SpringFeature / SpringFeatureTest
-- VanillaAdvancementsTest
+- PlayerStats
+- Slot
+- LootContext
 - VanillaAdvancementsTest
 - ItemEntityTest
 - 2026-06-10-m4ga-noise-terrain / 2026-06-10-m4gb-multi-noise-biome
 - 2026-06-11-m4gc1-surface-rules
 - 2026-06-11-m4gc1-surface-rules-design / 2026-06-20-world-optimization-pass
-- JsonWriter
+- DataSlot
 - BiomeZoom
-- LevelDataBorderTest / WorldBorder
+- PackMetadata
 - 2026-06-08-spawn-chunk-batch-gate / 2026-06-08-m4b-anvil-persistence
-- ItemStackCodecs / DataComponentsVanillaTest
+- DisplayInfo
 - ConnectionHandler
-- BiomeWeather
-- RandomSpreadStructurePlacement / OracleMain
-- ChunkBodyCacheRaceTest
-- ChunkPipelinePersistenceParityTest
+- .addFreshEntity
+- ServicesKeys
+- SignatureValidator
 - NoopUse
 - run.sh
 - NoopUse
@@ -294,21 +300,23 @@
 - 2026-06-09-m4c1-block-placement
 - 2026-06-10-m4gb-multi-noise-biome
 - ExportBlockShapes
-- CarrotBlock / PotatoBlock
+- PotatoBlock
 - HayBlock
-- Language
-- BlockStateKeyTest / BlockStateKey
+- S3 structure references, regionRandom, Paper hook bypass
+- AnvilChunkCodec
 - properties_1.21.1 / ExportItemProps
-- 2026-06-11_worldgen-biome-sampler-perf-hotfix / 2026-06-11_worldgen_biome-sampler-perf-hotfix
+- Biome sampler perf hotfix (original, pre-followup)
 - 2026-10-07_worldgen-parity_순정-실서버-대조-감사
+- CraftingMatchTest
 - EntityTypes
 - JsonText
-- ServerCore
+- PlayerInventoryContainer
 - Mth
 - plan / checklist
-- ItemPrototypes
+- java.security.PublicKey
+- .defaults
 - RunVanilla
-- 레이어-월드
+- Furnace version upgrade design 1.21.1
 - RunVanilla
 - FixtureFormat
 - 2026-06-20-m4gd-feature-placement-design
@@ -317,27 +325,27 @@
 - furnace-plugin.yml / config.yml
 - CherryLeavesBlock
 - ColoredFallingBlock
-- EndGatewayBlock
+- Impl
 - EndPortalBlock
-- MyceliumBlock
+- .smeltsRawIronConsumingCoalAndRewindsWhenFuelRunsOut
 - PiglinWallSkullBlock
 - PlayerHeadBlock
-- PlayerWallHeadBlock
+- .extendsOnlyKnownMapsBelowScaleFour
 - SculkBlock
-- StainedGlassPaneBlock
+- SimpleContainer
 - TrialSpawnerBlock
-- TwistingVinesPlantBlock
+- WindowSlotsContainer
 - WeepingVinesPlantBlock
 - WoolCarpetBlock
 - LootParseException
-- 2026-07-06_net_motionblocking-heightmap-split / 2026-07-06_net_motionblocking-heightmap-split.original
+- Override
 - FindBlk
 - text
 - vanilla-audit-2026-10-07
 - vanilla-diff-2026-10-07 / context-notes
 - 2026-10-18-session-handoff
 - 2026-06-07-m1-networking-handshake-to-play
-- 2026-07-05_worldgen_fancy-oak-placer-parity
+- Data
 - text
 - text
 - vanilla-audit-2026-10-07
@@ -354,30 +362,52 @@
 - README
 - nf777_report
 - r777_report
+- FlatText
+- ChunkSweepParityTest
+- FormatRange
+- .write
+- .place
+- BiomeClimate
+- .map
+- BlockAccess
+- HopperBlockEntity
+- AnimationStatus
+- Compatibility
+- SurfaceRuleParser
+- BlockAccess
+- Furnace 작업 규칙
+- LegacyPositionalRandom
+- BlockAccess
+- BlockAccess
+- .matches
+- StewEffects
+- ExportBlockAttrs
+- .orderNearestFirst_centerFirst_thenMonotonic
+- .reorderPendingNearestFirst_ordersByDistanceFromCenter
 
 ## God Nodes (most connected - your core abstractions)
-1. `Pos` - 1485 edges
-2. `BlockLevel` - 1388 edges
-3. `WorldgenRandom` - 465 edges
-4. `Text` - 395 edges
-5. `FeatureWorldView` - 378 edges
-6. `BlockActor` - 334 edges
-7. `ItemStack` - 334 edges
-8. `Player` - 305 edges
+1. `Pos` - 1577 edges
+2. `BlockLevel` - 1438 edges
+3. `ItemStack` - 811 edges
+4. `WorldgenRandom` - 465 edges
+5. `Text` - 400 edges
+6. `FeatureWorldView` - 378 edges
+7. `BlockActor` - 342 edges
+8. `Player` - 328 edges
 9. `RandomSource` - 298 edges
-10. `Prop` - 279 edges
+10. `NbtCompound` - 286 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `Snow block and stone mismatch in peaks and groves` --conceptually_related_to--> `featurefull 3-coordinate 0 mismatch`  [AMBIGUOUS]
+  LLM-Wiki/output/furnace-parity-audit/nf777_report.txt → LLM-Wiki/wiki/Furnace/2026-07-02_worldgen-feature_featurefull-0mismatch.md
+- `Tree leaves and vine mismatch (category B)` --conceptually_related_to--> `Oracle tag unbinding and center-only write fixture contamination`  [AMBIGUOUS]
+  LLM-Wiki/output/furnace-parity-audit/df_report.txt → LLM-Wiki/wiki/Furnace/2026-07-02_worldgen-oracle_태그미바인딩-3x3쓰기-fixture오염.md
 - `Env` --references--> `FurnaceSchedulerImpl`  [EXTRACTED]
   LLM-Wiki/output/furnace-parity-audit/tools/WorldPersistCheck.java → furnace-server/src/main/java/org/domi/furnace/server/sched/FurnaceSchedulerImpl.java
 - `Env` --references--> `RegionFileStore`  [EXTRACTED]
   LLM-Wiki/output/furnace-parity-audit/tools/WorldPersistCheck.java → furnace-server/src/main/java/org/domi/furnace/server/world/anvil/RegionFileStore.java
 - `Env` --references--> `World`  [EXTRACTED]
   LLM-Wiki/output/furnace-parity-audit/tools/WorldPersistCheck.java → furnace-server/src/main/java/org/domi/furnace/server/world/World.java
-- `PluginHost` --implements--> `Furnace`  [EXTRACTED]
-  furnace-server/src/main/java/org/domi/furnace/server/plugin/PluginHost.java → furnace-api/src/main/java/org/domi/furnace/api/Furnace.java
-- `CommandRegistryImpl` --implements--> `CommandRegistry`  [EXTRACTED]
-  furnace-server/src/main/java/org/domi/furnace/server/plugin/CommandRegistryImpl.java → furnace-api/src/main/java/org/domi/furnace/api/command/CommandRegistry.java
 
 ## Import Cycles
 - None detected.
@@ -389,7 +419,6 @@
 - **Configuration-to-play entry flow** — docs_superpowers_plans_2026_06_07_m1_networking_handshake_to_play_knownpacksclientbound, docs_superpowers_plans_2026_06_07_m1_networking_handshake_to_play_registrydata, docs_superpowers_plans_2026_06_07_m1_networking_handshake_to_play_finishconfiguration, docs_superpowers_plans_2026_06_07_m1_networking_handshake_to_play_loginplay, docs_superpowers_plans_2026_06_07_m1_networking_handshake_to_play_syncplayerposition [EXTRACTED 1.00]
 - **Vanilla oracle fixture and parity test pipeline** — docs_superpowers_plans_2026_06_10_m4ga_noise_terrain_oracle, docs_superpowers_plans_2026_06_10_m4ga_noise_terrain_fixture_format, docs_superpowers_plans_2026_06_10_m4gb_multi_noise_biome_biome_parity_test, docs_superpowers_plans_2026_06_11_m4gc1_surface_rules_surface_parity_test [EXTRACTED 1.00]
 - **RNG 드리프트 디버깅 방법론 (BLOCK_DEBUG delta, per-draw 트레이스, write SET diff)** — llm_wiki_wiki_furnace_2026_07_05_worldgen_gridview_feature_parity_byte_exact_debug_methodology, llm_wiki_wiki_furnace_2026_07_06_worldgen_tree_overlap_residual_parity, llm_wiki_wiki_furnace_2026_07_05_worldgen_gridview_feature_parity_byte_exact [EXTRACTED 1.00]
-- **Biome sampler and noise performance fixes** — llm_wiki_wiki_furnace_2026_06_11_worldgen_biome_sampler_perf_hotfix_climate_cache, llm_wiki_wiki_furnace_2026_06_11_worldgen_biome_sampler_perf_hotfix_depth_group_search, llm_wiki_wiki_furnace_2026_06_11_worldgen_biome_sampler_perf_hotfix_stonemask_cell_skip [INFERRED 0.75]
 - **Feature placement core (sorter, placer, seeding, placed features)** — docs_superpowers_specs_2026_06_20_m4gd_feature_placement_design_featuresorter, docs_superpowers_specs_2026_06_20_m4gd_feature_placement_design_featureplacer, docs_superpowers_specs_2026_06_20_m4gd_feature_placement_design_placedfeature, docs_superpowers_specs_2026_06_20_m4gd_feature_placement_design_setdecorationseed, docs_superpowers_specs_2026_06_20_m4gd_feature_placement_design_setfeatureseed [INFERRED 0.75]
 - **M-opt performance optimization series** — llm_wiki_wiki_furnace_2026_07_04_m_opt__________, llm_wiki_wiki_furnace_2026_07_04_io_compression_regionfile____, llm_wiki_wiki_furnace_2026_07_04_worldgen_m_opt_p0_quickwins, llm_wiki_wiki_furnace_2026_07_04_worldgen_vein_novein_cell_skip, llm_wiki_wiki_furnace_2026_07_04_worldgen_worldsurfaceheightat___ [INFERRED 0.75]
 - **오라클 fixture 오염 교훈** — docs_feature_parity_context_notes_oracle_tag_bug, docs_feature_parity_checklist_tree_fixture_revalidation, docs_feature_parity_vanilla_audit_tree_position_gap [INFERRED 0.75]
@@ -410,567 +439,555 @@
 - **Region ownership and player handoff** — docs_superpowers_specs_2026_06_06_furnace_multithreaded_mc_server_design_region_owned, docs_superpowers_specs_2026_06_08_m3b_region_parallel_tick_design_region, docs_superpowers_specs_2026_06_08_m3b_region_parallel_tick_design_volatile_publish, docs_superpowers_specs_2026_06_08_m3b_region_parallel_tick_design_handoff [INFERRED 0.85]
 - **Unbreakable blocks (hardness 3600000)** — furnace_server_src_main_resources_blocks_blockprops_1_21_1_minecraft_bedrock, furnace_server_src_main_resources_blocks_blockprops_1_21_1_minecraft_barrier, furnace_server_src_main_resources_blocks_blockprops_1_21_1_minecraft_command_block [INFERRED 0.85]
 
-## Communities (356 total, 137 thin omitted)
+## Communities (378 total, 143 thin omitted)
 
 ### Community 0 - "PlaceContext / Blocks"
 Cohesion: 0.02
-Nodes (54): B, BlockBehavior, BlockItems, Blocks, Line, BlockSetType, Dir, Fluids (+46 more)
+Nodes (58): B, BlockActor, BlockBehavior, Blocks, Line, Dir, Fluids, Hit (+50 more)
 
 ### Community 1 - "PlayerVitals / PlayerInfoUpdate"
 Cohesion: 0.01
-Nodes (76): SelectAdvancementsTab, broadcastAll(), broadcastToTrackers(), NbtWriter, Types, BrandPayload, ConfigDisconnect, FeatureFlags (+68 more)
+Nodes (77): UpdateAdvancements, broadcastAll(), broadcastToTrackers(), write(), NbtWriter, Types, BrandPayload, ConfigDisconnect (+69 more)
 
-### Community 2 - "BlockActor / ItemUse"
-Cohesion: 0.02
-Nodes (21): BlockActor, Entry, BlockPlacement, Holder, ItemUse, BucketPickup, CauldronBlock, ComposterBlock (+13 more)
-
-### Community 3 - "RedStoneWireBlock / BambooStalkBlock"
-Cohesion: 0.02
-Nodes (20): AnvilBlock, BambooSaplingBlock, BambooStalkBlock, BeehiveBlock, ChorusFlowerBlock, ChorusPlantBlock, CocoaBlock, LadderBlock (+12 more)
-
-### Community 4 - "BlockLevel / CropBlock"
+### Community 2 - "ItemStack"
 Cohesion: 0.01
-Nodes (32): BlockLevel, DaylightDetectorBlockEntity, AbstractFurnaceBlock, BarrelBlock, BaseEntityBlock, BasePressurePlateBlock, BeaconBlock, BeetrootBlock (+24 more)
+Nodes (35): BlockItems, Entry, BlockPlacement, ContainerBlockEntity, FurnaceBlockEntity, Holder, ItemUse, ComposterBlock (+27 more)
 
-### Community 5 - "JsonTextSerializer / PermissionManager"
+### Community 3 - ".with"
+Cohesion: 0.01
+Nodes (36): WallHangingSignPlacement, AbstractBannerBlock, AmethystClusterBlock, AnvilBlock, BannerBlock, BarrierBlock, BaseCoralFanBlock, BaseCoralPlantBlock (+28 more)
+
+### Community 4 - "Pos"
+Cohesion: 0.01
+Nodes (42): BlockBreaking, Host, BarrelBlockEntity, DropperBlockEntity, EnderChestBlockEntity, Pos, AbstractChestBlock, AbstractFurnaceBlock (+34 more)
+
+### Community 5 - "list"
 Cohesion: 0.02
-Nodes (9): Permission, PermissionManager, NamedTextColor, JsonTextSerializer, Translators, Components, ItemData, BlockStateKey (+1 more)
+Nodes (14): ConsoleInput, ItemNbt, Bounds, Components, DamageSourcePredicate, EntityPredicate, ItemData, LocationPredicate (+6 more)
 
 ### Community 6 - "BuiltInExceptions / SuggestionsBuilder"
 Cohesion: 0.03
-Nodes (30): AngleArgument, BlockPosArgument, BlockPredicateArgument, Predicate, EntityArgument, GameModeArgument, GameProfileArgument, MessageArgument (+22 more)
+Nodes (28): AngleArgument, EntityArgument, GameModeArgument, GameProfileArgument, MessageArgument, ResourceLocationArgument, TimeArgument, Vec2 (+20 more)
 
-### Community 7 - "FeatureWorldView / SculkPatchFeature"
-Cohesion: 0.03
-Nodes (18): BasaltFeatures, Columns, Pillar, ChorusPlantFeature, FeatureWorldView, FreezeTopLayerFeature, HugeFungusFeature, MonsterRoomFeature (+10 more)
+### Community 7 - "FeatureWorldView"
+Cohesion: 0.04
+Nodes (12): FeatureWorldView, FreezeTopLayerFeature, OreFeature, Target, CountOnEveryLayerPlacement, Cursor, SculkPatchFeature, SpringFeature (+4 more)
 
 ### Community 8 - "FancyTrunkPlacer / TreeFeature"
-Cohesion: 0.03
-Nodes (33): BlockPos, CocoaDecorator, TreeDecorator, TrunkVineDecorator, AcaciaFoliagePlacer, BlobFoliagePlacer, BushFoliagePlacer, CherryFoliagePlacer (+25 more)
+Cohesion: 0.02
+Nodes (41): BlockPos, AlterGroundDecorator, AttachedToLeavesDecorator, BeehiveDecorator, CocoaDecorator, LeaveVineDecorator, Context, TreeDecorator (+33 more)
 
-### Community 9 - "PointedDripstoneBlock / FluidTicker"
-Cohesion: 0.03
-Nodes (13): FluidTicker, BubbleColumnBlock, BuddingAmethystBlock, GrassBlock, LiquidBlock, MossBlock, NyliumBlock, FluidInfo (+5 more)
+### Community 9 - ".block"
+Cohesion: 0.04
+Nodes (9): FluidTicker, BucketPickup, CactusBlock, ConduitBlock, FrogspawnBlock, InfestedBlock, LiquidBlock, SugarCaneBlock (+1 more)
 
-### Community 10 - "Difficulty / DirectoryLock"
-Cohesion: 0.03
-Nodes (14): Config, Eula, ServerPropertiesFile, ConsoleInput, ProfileLookup, PluginLogger, Difficulty, EASY (+6 more)
+### Community 10 - "GameMode"
+Cohesion: 0.05
+Nodes (16): Config, Eula, ServerPropertiesFile, Env, Difficulty, EASY, HARD, NORMAL (+8 more)
 
-### Community 11 - "Texts / PlainTextSerializer"
-Cohesion: 0.03
-Nodes (49): Audience, Audience, Times, Title, PlayerJoinEvent, PlayerQuitEvent, Block, Content (+41 more)
+### Community 11 - "Content"
+Cohesion: 0.07
+Nodes (26): Block, Content, Entity, Keybind, Literal, Nbt, NbtSource, Score (+18 more)
 
-### Community 12 - "MarkupParseTest / MarkupEffectsTest"
-Cohesion: 0.03
-Nodes (20): ConfigFileTest, MarkupEffectsTest, MarkupParseTest, MarkupSerializeTest, PlaceholderTest, LegacySerializerTest, Visual, PlayerPendingChunksTest (+12 more)
+### Community 12 - "org.junit.jupiter.api.Test"
+Cohesion: 0.02
+Nodes (29): ConfigFileTest, TestLevel, BlockTypesTest, FluidTest, PistonTest, RandomTickTest, EntityViewTest, PlayerPendingChunksTest (+21 more)
 
 ### Community 13 - "PlayerListCommands / PlayerLists"
-Cohesion: 0.03
-Nodes (16): PlayerListCommands, WorldBorderCommand, BanListEntry, GameProfile, IpBanList, IpBanListEntry, PlayerLists, ServerOpList (+8 more)
+Cohesion: 0.02
+Nodes (29): CommandDispatcher, DataPackCommands, Inserter, PlayerListCommands, PlayerStateCommands, XpType, LEVELS, POINTS (+21 more)
 
 ### Community 14 - "OnlineLoginTest / LoginFlowTest"
 Cohesion: 0.03
-Nodes (29): NCodec, NCodec, read(), Forwarded, VelocityForwarding, KnownPacksClientbound, RegistryData, LoginPluginRequest (+21 more)
+Nodes (29): Data, ArgumentTypeIds, EntityIdAllocator, Forwarded, VelocityForwarding, KnownPacksClientbound, RegistryData, LoginStart (+21 more)
 
-### Community 15 - "DiodeBlock / ComparatorBlock"
-Cohesion: 0.03
-Nodes (19): Host, Pos, ComparatorBlock, DiodeBlock, DragonEggBlock, EnchantingTableBlock, EndPortalFrameBlock, GrindstoneBlock (+11 more)
+### Community 15 - ".scheduleTick"
+Cohesion: 0.04
+Nodes (8): BrushableBlock, ComparatorBlock, ConcretePowderBlock, DiodeBlock, FallingBlock, MagmaBlock, RepeaterBlock, SoulSandBlock
 
-### Community 16 - "WoodlandMansionStructure / FrequencyReductionMethod"
-Cohesion: 0.02
-Nodes (35): WorldgenRandom, Claw, CoralFeature, Mushroom, Tree, DripstoneFeatures, IceSpikeFeature, NoiseThresholdProvider (+27 more)
+### Community 16 - ".nextInt"
+Cohesion: 0.04
+Nodes (21): DualNoiseProvider, NoiseProvider, NoiseThresholdProvider, BiasedToBottom, Clamped, ClampedNormal, Constant, Entry (+13 more)
 
-### Community 17 - "BrushableBlock / ConcretePowderBlock"
-Cohesion: 0.02
-Nodes (29): AbstractChestBlock, AmethystBlock, AmethystClusterBlock, BarrierBlock, BaseCoralFanBlock, BaseCoralPlantBlock, BaseCoralPlantTypeBlock, BaseCoralWallFanBlock (+21 more)
+### Community 17 - "Container"
+Cohesion: 0.04
+Nodes (22): BlockAccess, BrewingStandMenu, FuelSlot, PotionSlot, SimpleContainer, Slot, Slot, ChestMenu (+14 more)
 
 ### Community 18 - "FeaturePipelineParityTest / Harness"
 Cohesion: 0.03
-Nodes (38): BlockRegistryStateTest, ChunkMemoryMeasurement, ChunkGenBenchmark, FeaturePipelineParityTest, FullGenProfile, NoiseWorldSourceParityTest, ChunkPipelineConcurrencyTest, ChunkPipelineEquivalenceTest (+30 more)
+Nodes (38): ChunkMemoryMeasurement, FeaturePipelineParityTest, FullGenProfile, NoiseWorldSourceParityTest, ChunkPipelineEquivalenceTest, ChunkPipelinePersistenceParityTest, ChunkPipelineSharedTest, PristineBench (+30 more)
 
 ### Community 19 - "Arguments / StringReader"
 Cohesion: 0.04
-Nodes (31): Coordinates, LocalCoordinates, World, BlockInput, BlockStateArgument, Dynamic3, Parsed, EntitySelector (+23 more)
+Nodes (32): SingleAngle, BlockPosArgument, Coordinates, LocalCoordinates, World, BlockStateArgument, Dynamic3, Parsed (+24 more)
 
-### Community 20 - "PlayerStateCommands / AdvancementCommands"
-Cohesion: 0.03
-Nodes (34): SingleAngle, MthTrig, CommandDispatcher, Action, GRANT, REVOKE, AdvancementCommands, Mode (+26 more)
+### Community 20 - ".getSource"
+Cohesion: 0.06
+Nodes (21): BlockPredicateArgument, Predicate, BlockInput, Action, GRANT, REVOKE, AdvancementCommands, Mode (+13 more)
 
 ### Community 21 - "NetherFortressStructure / StrongholdStructure"
 Cohesion: 0.04
-Nodes (44): LegacyRandom, LegacyPositionalRandom, PerlinSimplexNoise, Direction, EAST, NORTH, SOUTH, WEST (+36 more)
+Nodes (60): LegacyRandom, Direction, EAST, NORTH, SOUTH, WEST, BridgeCrossing, BridgeEndFiller (+52 more)
 
-### Community 22 - "SessionService / ServerLoginContext"
-Cohesion: 0.03
-Nodes (16): FurnaceScheduler, TagRegistries, EntityIdAllocator, ItemContext, NetworkComponents, AuthenticationUnavailableException, SessionService, NetworkServer (+8 more)
+### Community 22 - "ServerLoginContext.java"
+Cohesion: 0.04
+Nodes (11): FurnaceScheduler, CipherDecoder, CipherEncoder, AuthenticationUnavailableException, SessionService, CompressionDecoder, CompressionEncoder, FrameDecoder (+3 more)
 
 ### Community 23 - "CommandContextBuilder / CommandNode"
-Cohesion: 0.03
-Nodes (17): ArgumentBuilder, Command, CommandContextBuilder, CommandNode, LiteralArgumentBuilder, LiteralCommandNode, ParsedArgument, ParsedCommandNode (+9 more)
+Cohesion: 0.02
+Nodes (21): ArgumentBuilder, ArgumentCommandNode, Command, CommandContextBuilder, CommandNode, IntegerSuggestion, LiteralArgumentBuilder, ParsedArgument (+13 more)
 
-### Community 24 - "ConnectionHandler / PlayerInventory"
-Cohesion: 0.04
-Nodes (12): PlayerInventory, ConnectionHandler, Player.InventoryHost, ConnectionState, CONFIGURATION, HANDSHAKE, LOGIN, PLAY (+4 more)
+### Community 24 - "Player"
+Cohesion: 0.02
+Nodes (19): InventoryEvent, MoveSample, Player, BlockMenuFactory, ConnectionHandler, Player.InventoryHost, OpenSpec, FrameEncoder (+11 more)
 
-### Community 25 - "BlockSurvival / CoralFeature"
-Cohesion: 0.03
-Nodes (22): BlockAttrs, BlockRegistry, BambooFeature, BlockStates, BlockSurvival, BlueIceFeature, Shape, CLAW (+14 more)
+### Community 25 - ".stateIdsForBlock"
+Cohesion: 0.06
+Nodes (5): BambooFeature, ChorusPlantFeature, LakeFeature, Env, Blocks
 
 ### Community 26 - "RandomTrace / VV"
-Cohesion: 0.03
-Nodes (24): RegistrySet, RandomTrace, Session, blockattrs_1.21.1 (generated block state attribute table, 26684 state rows), Block state attribute encoding (one line per state id), BiomeFx, CountBlk, CountSaved (+16 more)
-
-### Community 27 - "FireBlock / BaseRailBlock"
-Cohesion: 0.03
-Nodes (13): WallHangingSignPlacement, BaseFireBlock, BaseRailBlock, FenceBlock, FenceGateBlock, FireBlock, IronBarsBlock, PoweredRailBlock (+5 more)
-
-### Community 28 - "NoiseWorldSource / ChunkPipeline"
-Cohesion: 0.03
-Nodes (23): DisabledAquifer, FeaturePlacer, Dimension, END, NETHER, OVERWORLD, Generated, HeightKind (+15 more)
-
-### Community 29 - "Player / RegionLevel"
 Cohesion: 0.02
-Nodes (10): forEachPlayer(), EntityView, MoveSample, Player, ChunkPos, RegionLevel, Subscription, EntityViewTest (+2 more)
+Nodes (33): RegistrySet, BlockRegistry, ChunkSection, EndGatewayFeature, Dimension, END, NETHER, OVERWORLD (+25 more)
 
-### Community 30 - "ChunkColumn / ChunkSection"
-Cohesion: 0.04
-Nodes (8): NbtIo, AnvilChunkCodec, ChestBlockEntity, ChunkColumn, GeneratedBlockEntityVisitor, ChunkSection, BiomeClimate, ItemRegistry
+### Community 27 - ".getBlockState"
+Cohesion: 0.01
+Nodes (33): AttachedStemBlock, BambooSaplingBlock, BambooStalkBlock, BaseFireBlock, BigDripleafStemBlock, BubbleColumnBlock, BuddingAmethystBlock, CarpetBlock (+25 more)
 
-### Community 31 - "SignedChatTest / ProfilePublicKey"
-Cohesion: 0.03
-Nodes (21): LastSeenMessages, Update, Entry, LastSeenMessagesValidator, MessageSignature, Packed, MessageSignatureCache, PlayerChatState (+13 more)
+### Community 28 - "ChunkPipeline"
+Cohesion: 0.09
+Nodes (4): ChunkPipeline, Proto, ProtoColumn, ChunkPipelineConcurrencyTest
+
+### Community 30 - "NbtList"
+Cohesion: 0.10
+Nodes (6): read(), TextNbtJson, NbtIo, NbtList, ItemRegistry, PlayerDataVanillaFormatTest
+
+### Community 31 - "MessageSignature"
+Cohesion: 0.11
+Nodes (7): LastSeenMessages, Update, Entry, LastSeenMessagesValidator, MessageSignature, Packed, MessageSignatureCache
 
 ### Community 32 - "ArgumentQueue / Resolvers"
-Cohesion: 0.04
-Nodes (21): Arg, Argument, ArgumentQueue, Impl, ColorEffects, Context, Formatter, Composite (+13 more)
+Cohesion: 0.06
+Nodes (18): Argument, ArgumentQueue, ColorEffects, Palette, Run, Context, Formatter, Composite (+10 more)
 
 ### Community 33 - "Entity / ChunkLevel"
 Cohesion: 0.03
-Nodes (9): Damage, Entity, RemovalReason, CHANGED_DIMENSION, DISCARDED, KILLED, UNLOADED_TO_CHUNK, UNLOADED_WITH_PLAYER (+1 more)
+Nodes (4): HoneyBlock, SlimeBlock, Entity, EntityType
 
-### Community 34 - "LootEntry / DisplayInfo"
-Cohesion: 0.05
-Nodes (28): Criterion, InventoryEvent, LocationEvent, Matcher, DisplayInfo, Frame, CHALLENGE, GOAL (+20 more)
+### Community 34 - "LootRegistries"
+Cohesion: 0.08
+Nodes (14): Criterion, LocationEvent, Matcher, RecipeCraftedEvent, Enchantment, TableEnchant, HolderSet, EnchantmentPredicate (+6 more)
 
 ### Community 35 - "LecternBlock / DoorBlock"
 Cohesion: 0.03
-Nodes (11): AbstractCandleBlock, ButtonBlock, CandleBlock, CopperBulbBlock, DetectorRailBlock, DoorBlock, FaceAttachedHorizontalDirectionalBlock, LecternBlock (+3 more)
+Nodes (14): BlockSetType, AbstractCandleBlock, ButtonBlock, CandleBlock, DirectionalBlock, DoorBlock, EndPortalFrameBlock, EndRodBlock (+6 more)
 
 ### Community 36 - "Region / Regionizer"
-Cohesion: 0.05
-Nodes (9): Delayed, Region, org.domi.furnace.server.block.BreakerActor, Task, Regionizer, RegionWide, Section, NearestFirstTest (+1 more)
+Cohesion: 0.07
+Nodes (6): Delayed, Region, Task, Regionizer, RegionWide, Section
 
 ### Community 37 - "BiomeFeatureData / HeightProvider"
 Cohesion: 0.05
-Nodes (18): HeightProvider, Uniform, Loader, ConfiguredFeature, ForestRockFeature, PlacedFeature, RandomBooleanSelectorFeature, RandomPatchFeature (+10 more)
+Nodes (8): HeightProvider, Uniform, Loader, BlockStates, ConfiguredFeature, ForestRockFeature, RandomBooleanSelectorFeature, SimpleRandomSelectorFeature
 
-### Community 38 - "NumberProvider / LootWorld"
-Cohesion: 0.04
-Nodes (19): IntRange, LootBlockState, LootContext, LootData, Key, LootParams, LootPool, LootTable (+11 more)
+### Community 38 - "LootData"
+Cohesion: 0.06
+Nodes (9): LootBlockState, LootData, LootParams, LootTable, LootWorld, VanillaBlockLootTest, VanillaChestLootTest, VanillaEntityLootTest (+1 more)
 
 ### Community 39 - "StructurePiece / MineshaftStructure"
-Cohesion: 0.08
-Nodes (8): BoundingBox, Piece, Corridor, St, PostCtx, StoneBricksSelector, BlockSelector, StructurePiece
+Cohesion: 0.06
+Nodes (23): BoundingBox, DesertPyramidPiece, Piece, Corridor, St, Building, CoreRoom, DoubleXRoom (+15 more)
 
-### Community 40 - "SeagrassBlock / MangrovePropaguleBlock"
-Cohesion: 0.03
-Nodes (18): AttachedStemBlock, AzaleaBlock, BonemealableBlock, BushBlock, DeadBushBlock, FlowerBlock, FungusBlock, MangrovePropaguleBlock (+10 more)
+### Community 40 - "BlockLevel"
+Cohesion: 0.01
+Nodes (37): BlockLevel, DaylightDetectorBlockEntity, OpenersBlockEntity, AzaleaBlock, BeetrootBlock, BonemealableBlock, BushBlock, CarrotBlock (+29 more)
 
 ### Community 41 - "EndCityStructure / StructureEngine"
-Cohesion: 0.04
-Nodes (19): EndCityStructure, Gens, Piece, SectionGenerator, IglooStructure, Piece, St, OceanRuinStructure (+11 more)
+Cohesion: 0.06
+Nodes (14): EndCityStructure, Gens, Piece, SectionGenerator, JungleTempleStructure, St, St, StructureEngine (+6 more)
 
 ### Community 42 - "MineshaftStructure / StrongholdStructure"
 Cohesion: 0.07
-Nodes (14): FreeRef, FreeSpace, Base, Crossing, Kind, MESA, NORMAL, MineshaftStructure (+6 more)
+Nodes (13): PristineChunk, FreeRef, FreeSpace, Base, Crossing, Kind, MESA, NORMAL (+5 more)
 
 ### Community 43 - "DensityFunctions / DensityFunction"
-Cohesion: 0.04
-Nodes (20): ContextProvider, FunctionContext, SimpleFunction, BlendAlpha, INSTANCE, BlendDensity, BlendOffset, INSTANCE (+12 more)
+Cohesion: 0.05
+Nodes (18): ContextProvider, FunctionContext, SimpleFunction, BlendAlpha, INSTANCE, BlendDensity, BlendOffset, INSTANCE (+10 more)
 
 ### Community 44 - "Style / Text"
 Cohesion: 0.05
-Nodes (18): ClickEvent, HoverEvent, ShowItem, Placeholder, Builder, Style, Builder, TextDecoration (+10 more)
+Nodes (15): ClickEvent, Builder, Style, Builder, TextDecoration, BOLD, ITALIC, OBFUSCATED (+7 more)
 
 ### Community 45 - "PlayerAdvancements / AdvancementProgress"
-Cohesion: 0.05
-Nodes (16): Advancement, Rewards, AdvancementManager, AdvancementNode, AdvancementProgress, CriterionProgress, Listener, PlayerAdvancements (+8 more)
+Cohesion: 0.09
+Nodes (7): Advancement, Rewards, AdvancementManager, AdvancementProgress, CriterionProgress, Listener, PlayerAdvancements
 
-### Community 46 - "RecipeBook / TagLoader"
-Cohesion: 0.04
-Nodes (12): org.domi.furnace.server.recipe.RecipeContext, FeatureFlags, ResourceId, Entry, Entry, TagLoader, RecipeBookUpdate, RecipeBook (+4 more)
+### Community 46 - "ResourceId"
+Cohesion: 0.02
+Nodes (32): SelectAdvancementsTab, DataPackManager, org.domi.furnace.server.recipe.RecipeContext, Loaded, FeatureFlags, PackRepository, ResourceId, Entry (+24 more)
 
 ### Community 47 - "PlayerVitals / PlayerVitalsTest"
 Cohesion: 0.04
-Nodes (6): Abilities, DeathListener, PlayerVitals, Surroundings, PlayerAbilities, PlayerVitalsTest
+Nodes (6): Abilities, FoodData, Owner, DeathListener, PlayerVitals, PlayerVitalsTest
 
-### Community 48 - "BigDripleafBlock / ChestBlock"
-Cohesion: 0.04
-Nodes (8): BellBlock, BigDripleafBlock, CalibratedSculkSensorBlock, ChestBlock, SculkSensorBlock, SlabBlock, StairBlock, TrappedChestBlock
+### Community 48 - ".hasNeighborSignal"
+Cohesion: 0.06
+Nodes (6): BaseRailBlock, BigDripleafBlock, DetectorRailBlock, PoweredRailBlock, RailBlock, TntBlock
 
 ### Community 49 - "NoiseChunk / Beardifier"
-Cohesion: 0.04
-Nodes (10): MarkerOrMarked, Cache2D, CacheAllInCell, CacheOnce, FlatCache, NoiseChunk, NoiseInterpolator, Beardifier (+2 more)
+Cohesion: 0.07
+Nodes (6): MarkerOrMarked, Cache2D, CacheAllInCell, CacheOnce, FlatCache, NoiseInterpolator
 
-### Community 50 - "PackResources / Pack"
-Cohesion: 0.04
-Nodes (23): Compatibility, COMPATIBLE, TOO_NEW, TOO_OLD, Pack, Position, BOTTOM, TOP (+15 more)
+### Community 50 - "Pack"
+Cohesion: 0.10
+Nodes (10): Pack, Position, BOTTOM, TOP, Source, BUILT_IN, DEFAULT, FEATURE (+2 more)
 
 ### Community 51 - "PlacementModifier / FossilFeature"
 Cohesion: 0.04
-Nodes (39): FossilFeature, AllOfPred, AnyOfPred, BiasedToBottomHeight, BiomeFilter, BlockPred, BlockPredicateFilter, CarvingMaskPlacement (+31 more)
+Nodes (39): AllOfPred, AnyOfPred, BiasedToBottomHeight, BiomeFilter, BlockPred, BlockPredicateFilter, CarvingMaskPlacement, CompositeBlockPredicateFilter (+31 more)
 
-### Community 52 - "PluginHost / ServerCore"
-Cohesion: 0.05
-Nodes (7): CommandRegistryImpl, PluginHost, ServerCore, ConsoleCommandsTest, Ping, PluginSystemTest, SubPing
+### Community 52 - "FurnacePlugin"
+Cohesion: 0.01
+Nodes (58): BasicCommand, CommandRegistry, CommandSender, Event, EventBus, EventPriority, HIGH, HIGHEST (+50 more)
 
-### Community 53 - "TextToolsTest / JoinConfiguration"
-Cohesion: 0.05
-Nodes (10): Builder, JoinConfiguration, Builder, Condition, Result, REPLACE, SKIP, STOP (+2 more)
-
-### Community 54 - "LevelData / NbtCompound"
-Cohesion: 0.08
-Nodes (6): toNbt(), NbtCompound, NbtList, EndGatewayFeature, LevelData, GeneratedLootChestTest
+### Community 53 - "Text"
+Cohesion: 0.02
+Nodes (35): Audience, Audience, Times, Title, AsyncPlayerPreLoginEvent, Result, ALLOWED, KICK_BANNED (+27 more)
 
 ### Community 55 - "Region / NetworkServerTest"
-Cohesion: 0.07
-Nodes (23): NetworkServerTest, StatusPingTest, AsyncLoadTest, AutosaveTest, BlockBreakTest, BlockPlaceTest, ChestInteractionTest, ChunkDeliveryOrderTest (+15 more)
+Cohesion: 0.05
+Nodes (18): NetworkServerTest, StatusPingTest, WorldDump, AutosaveTest, BlockRegistryTest, ChestInteractionTest, DeltaMoveOverflowTest, EmptyRegionEvictionTest (+10 more)
 
 ### Community 56 - "MultifaceSpreader / VineBlock"
-Cohesion: 0.05
-Nodes (14): GlowLichenBlock, MultifaceBlock, DefaultSpreaderConfig, MultifaceSpreader, SpreadConfig, SpreadPos, SpreadPredicate, SpreadType (+6 more)
+Cohesion: 0.06
+Nodes (13): GlowLichenBlock, MultifaceBlock, DefaultSpreaderConfig, MultifaceSpreader, SpreadConfig, SpreadPos, SpreadPredicate, SpreadType (+5 more)
 
-### Community 57 - "ChunkColumn / ChunkColumnTest"
-Cohesion: 0.05
-Nodes (8): WorldDump, RegionFileStoreTest, ChunkColumnBiomeTest, ChunkColumnTest, AnvilWorldSourceTest, FeatureWorldViewTest, OreFeatureTest, SuperflatWorldSourceTest
+### Community 57 - "ChunkColumn"
+Cohesion: 0.03
+Nodes (15): ChunkSerializer, ChunkColumn, GeneratedBlockEntityVisitor, BlockEntitySnapshot, ChunkSnapshot, SaveData, Section, Generated (+7 more)
 
 ### Community 58 - "World / FurnaceMain"
 Cohesion: 0.03
-Nodes (7): FurnaceMain, Options, Repeating, TpsHeartbeat, ChunkScheduler, World, ChunkWorkerPoolTest
+Nodes (4): ChunkPos, ChunkScheduler, Subscription, World
 
 ### Community 59 - "SurfaceSystem / BiomeClimate"
-Cohesion: 0.05
-Nodes (20): SurfaceContext, CCond, CRule, QuartKey, SurfaceSystem, CCond, CCond, CCond (+12 more)
+Cohesion: 0.04
+Nodes (21): PositionalRandom, SurfaceContext, CCond, CRule, QuartKey, SurfaceSystem, CCond, CCond (+13 more)
 
-### Community 60 - "ChunkLevel / Entity"
-Cohesion: 0.06
-Nodes (3): BlockEventData, ChunkLevel, Entities
+### Community 60 - "ChunkLevel"
+Cohesion: 0.05
+Nodes (4): BlockEventData, ChunkLevel, BiomeWeather, Climate
 
 ### Community 61 - "OceanMonumentStructure"
-Cohesion: 0.06
-Nodes (24): Building, RoomFit, RoomFit, RoomFit, RoomFit, RoomFit, RoomFit, RoomFit (+16 more)
+Cohesion: 0.08
+Nodes (9): RoomFit, RoomFit, RoomFit, RoomFit, RoomFit, RoomFit, RoomFit, RoomDef (+1 more)
 
 ### Community 62 - "GrowingPlantBlock / KelpBlock"
 Cohesion: 0.04
-Nodes (11): CaveVinesBlock, CaveVinesPlantBlock, GrowingPlantBlock, GrowingPlantBody, GrowingPlantHead, Kind, KelpBlock, KelpPlantBlock (+3 more)
+Nodes (12): CaveVinesBlock, CaveVinesPlantBlock, GrowingPlantBlock, GrowingPlantBody, GrowingPlantHead, Kind, KelpBlock, KelpPlantBlock (+4 more)
 
 ### Community 63 - "DensityFunctions / DensityFunctionNoiseNodeTest"
-Cohesion: 0.07
-Nodes (12): DensityFunctions, Marker, Shift, ShiftA, ShiftB, ShiftNoise, BlendedNoise, NoiseParameters (+4 more)
+Cohesion: 0.05
+Nodes (14): DensityFunctionParser, DensityFunctions, Marker, Shift, ShiftA, ShiftB, ShiftedNoise, ShiftNoise (+6 more)
 
-### Community 64 - "JigsawPools / JigsawStructure"
+### Community 64 - "StructureTemplate"
 Cohesion: 0.04
-Nodes (14): JigsawPiece, Junction, Element, Feature, Jig, JigsawPools, ListElement, Pool (+6 more)
-
-### Community 65 - "BlockInfo / Shape"
-Cohesion: 0.03
-Nodes (5): BlockInfo, Grid, Shape, BlockHardness, TestLevel
+Nodes (15): FossilFeature, Element, Feature, Jig, JigsawPools, ListElement, Pool, Single (+7 more)
 
 ### Community 66 - "ItemEntityTest / ItemEntity"
-Cohesion: 0.07
-Nodes (3): SlimeBlock, ItemEntity, ItemEntityTest
+Cohesion: 0.08
+Nodes (3): Damage, ItemEntity, ItemEntityTest
 
 ### Community 67 - "RuinedPortalStructure / GenContext"
 Cohesion: 0.05
-Nodes (22): BuriedTreasureStructure, GenContext, JungleTempleStructure, Piece, Props, RuinedPortalStructure, Setup, VP (+14 more)
+Nodes (24): BuriedTreasureStructure, GenContext, IglooStructure, Piece, OceanRuinStructure, Piece, Props, RuinedPortalStructure (+16 more)
 
 ### Community 68 - "ConfigSection / YamlParserTest"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (3): ConfigSectionTest, TomlTest, YamlParserTest
 
 ### Community 69 - "FarmBlock / CakeBlock"
-Cohesion: 0.04
-Nodes (11): AbstractBannerBlock, BannerBlock, CactusBlock, CakeBlock, CandleCakeBlock, CeilingHangingSignBlock, DirtPathBlock, FarmBlock (+3 more)
+Cohesion: 0.08
+Nodes (4): CakeBlock, CandleCakeBlock, DirtPathBlock, FarmBlock
 
 ### Community 70 - "PerlinNoise / MathHelper"
-Cohesion: 0.05
-Nodes (11): DualNoiseProvider, NoiseProvider, MathHelper, ImprovedNoise, LegacyNormalNoise, LegacyPerlin, PerlinNoise, DualNoiseProviderTest (+3 more)
+Cohesion: 0.07
+Nodes (6): MathHelper, BlendedNoise, ImprovedNoise, PerlinNoise, BlendedNoiseTest, ImprovedNoiseTest
 
-### Community 71 - "NoiseRouter / BiomeSampler"
-Cohesion: 0.08
-Nodes (9): BiomeEntry, BiomeSampler, SinglePointContext, NoiseRouter, BiomeSamplerParityTest, DensityFunctionParserTest, NoiseChunkTest, NoiseRouterTest (+1 more)
+### Community 71 - "NoiseRouter"
+Cohesion: 0.11
+Nodes (6): BiomeEntry, BiomeSampler, SinglePointContext, NoiseRouter, SpawnSearchResult, NoiseChunkClimateTest
 
 ### Community 72 - "AnvilWorldSource / FurnaceSchedulerImpl"
-Cohesion: 0.11
-Nodes (11): RegionPos, ChunkWorkerPool, FurnaceSchedulerImpl, RegionFileStore, AnvilWorldSource, Layer, SuperflatWorldSource, WorldSource (+3 more)
+Cohesion: 0.06
+Nodes (28): GlobalScheduler, RegionPos, ChunkWorkerPool, FurnaceSchedulerImpl, RegionRouter, Layer, SuperflatWorldSource, ChunkWorkerPoolTest (+20 more)
 
 ### Community 74 - "WorldCarver / CarverConfig"
 Cohesion: 0.07
 Nodes (17): Aquifer, CanyonWorldCarver, Canyon, CarverConfig, Cave, CarvingMask, CaveWorldCarver, ClampedNormal (+9 more)
 
 ### Community 75 - "NbtCompound / StructureTemplate"
-Cohesion: 0.08
-Nodes (6): EntityInfo, MissingTemplateException, StructureTemplate, NbtIoTest, AnvilChunkCodecTest, VanillaChunkFormatTest
+Cohesion: 0.09
+Nodes (4): NbtCompoundTest, NbtIoTest, VanillaChunkFormatTest, LevelDataBorderTest
 
 ### Community 76 - "LootStack / Enchantments"
-Cohesion: 0.07
-Nodes (6): Enchantment, Enchantments, Instance, LootStack, NetworkComponentsTest, VanillaBlockLootTest
+Cohesion: 0.10
+Nodes (4): Enchantments, Instance, LootStack, NetworkComponentsTest
 
 ### Community 77 - "DensityFunctions / DensityFunction"
 Cohesion: 0.05
-Nodes (30): DensityFunction, Visitor, Ap2, CellBoundsOracle, CellBoundsOracleInto, Clamp, Mapped, MulOrAdd (+22 more)
+Nodes (29): DensityFunction, Visitor, Ap2, CellBoundsOracle, CellBoundsOracleInto, Clamp, Mapped, MulOrAdd (+21 more)
 
 ### Community 78 - "RegionThread / OwnedTest"
 Cohesion: 0.05
-Nodes (10): Owned, ThreadOwner, GlobalScheduler, OwnedTest, ThreadOwner, GlobalThread, Delayed, RegionThread (+2 more)
+Nodes (9): Owned, ThreadOwner, OwnedTest, ThreadOwner, GlobalThread, Delayed, RegionThread, TickTimer (+1 more)
 
-### Community 79 - "Processors / TemplatePiece"
-Cohesion: 0.07
-Nodes (7): Piece, PlaceSettings, Ctx, BlockAge, BlockInfo, TemplatePlacer, TemplatePiece
-
-### Community 80 - "LegacyTextSerializer / TextColor"
+### Community 79 - ".plainText"
 Cohesion: 0.06
-Nodes (7): Palette, Run, Attr, MarkupWriter, Builder, LegacyTextSerializer, TextColor
+Nodes (6): Placeholder, Builder, MarkupParseTest, MarkupSerializeTest, PlaceholderTest, Visual
+
+### Community 80 - "TextColor"
+Cohesion: 0.13
+Nodes (3): Attr, MarkupWriter, TextColor
 
 ### Community 81 - "WorldClock / WorldCommands"
-Cohesion: 0.06
-Nodes (8): WorldCommands, GameRules, Rule, Type, BOOLEAN, INTEGER, WorldClock, WorldClockTest
+Cohesion: 0.08
+Nodes (8): GameRules, Rule, Type, BOOLEAN, INTEGER, WorldClock, ConsoleCommandsTest, WorldClockTest
 
 ### Community 82 - "Processors / ProcessorLists"
-Cohesion: 0.07
-Nodes (17): Processor, ProcessorLists, BlackstoneReplace, BlockEntityModifier, BlockIgnore, BlockRot, Capped, Gravity (+9 more)
+Cohesion: 0.05
+Nodes (20): Ctx, Processor, ProcessorLists, BlackstoneReplace, BlockAge, BlockEntityModifier, BlockIgnore, BlockRot (+12 more)
 
-### Community 83 - "Player / GameMode"
-Cohesion: 0.04
-Nodes (12): GameMode, ADVENTURE, CREATIVE, SPECTATOR, SURVIVAL, Player, Cancellable, AsyncChatEvent (+4 more)
+### Community 83 - "Player"
+Cohesion: 0.02
+Nodes (24): GameMode, ADVENTURE, CREATIVE, SPECTATOR, SURVIVAL, Player, BlockBreakEvent, BlockEvent (+16 more)
 
 ### Community 84 - "WorldgenData / BiomeFeatureData"
-Cohesion: 0.06
-Nodes (12): BiomeFeatureData, FeatureSorter, StepFeatureData, WorldgenData, BiomeFeatureDataTest, FeatureOrderParityTest, Fixture, FeatureSorterTest (+4 more)
+Cohesion: 0.05
+Nodes (13): WorldgenData, BiomeSamplerParityTest, ChunkGenBenchmark, DensityFunctionParserTest, BiomeFeatureDataTest, FeatureOrderParityTest, Fixture, NetherFeatureParseTest (+5 more)
 
 ### Community 85 - "ChatType / PlayerChatMessage"
 Cohesion: 0.05
-Nodes (20): Bytes, Bound, ChatType, CHAT, EMOTE_COMMAND, MSG_COMMAND_INCOMING, MSG_COMMAND_OUTGOING, SAY_COMMAND (+12 more)
+Nodes (21): Bytes, Bound, ChatType, CHAT, EMOTE_COMMAND, MSG_COMMAND_INCOMING, MSG_COMMAND_OUTGOING, SAY_COMMAND (+13 more)
 
 ### Community 86 - "XoroshiroRandomSource / XoroshiroWorldgenRandom"
-Cohesion: 0.07
-Nodes (9): RandomSequences, XoroshiroWorldgenRandom, RandomSupport, Seed128bit, Xoroshiro128PlusPlus, XoroshiroPositionalRandomFactory, XoroshiroRandomSource, XoroshiroRandomSourceTest (+1 more)
+Cohesion: 0.08
+Nodes (8): XoroshiroWorldgenRandom, RandomSupport, Seed128bit, Xoroshiro128PlusPlus, XoroshiroPositionalRandomFactory, XoroshiroRandomSource, XoroshiroRandomSourceTest, XoroshiroRandomTest
 
-### Community 87 - "DataPackManager / PackRepository"
+### Community 87 - ".getSlot"
 Cohesion: 0.07
-Nodes (8): DataPackManager, Loaded, PackRepository, Resource, ResourceManager, DataPackTest, VanillaTagsTest, VanillaRecipesTest
+Nodes (10): AnvilMenu, AnvilMenuTest, CartographyCtx, CartographyMenuTest, EnchantmentMenuTest, GrindstoneMenuTest, LoomMenuTest, MerchantMenuTest (+2 more)
 
 ### Community 88 - "PCodec / DataComponents"
 Cohesion: 0.05
-Nodes (14): PCodec, PCodec, PCodec, PCodec, PCodec, PCodec, PCodec, PCodec (+6 more)
+Nodes (12): Field, PCodec, PCodec, PCodec, PCodec, PCodec, PCodec, PCodec (+4 more)
+
+### Community 89 - "LevelServices / ChunkLevel"
+Cohesion: 0.05
+Nodes (3): Delegating, forEachPlayer(), LevelServices
 
 ### Community 90 - "PlayerActor / BreakerActor"
-Cohesion: 0.06
-Nodes (3): BreakerActor, PlayerActor, InventoryHost
+Cohesion: 0.07
+Nodes (3): BreakerActor, InventoryHost, org.domi.furnace.server.block.BreakerActor
 
 ### Community 91 - "ConfigSection / YamlWriterTest"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (3): ConfigSection, Loc, YamlWriterTest
 
-### Community 92 - "WorldPersistCheck / ChunkSerializerTest"
-Cohesion: 0.07
-Nodes (13): BlockEntitySnapshot, ChunkSnapshot, SaveData, Section, ChunkSerializerTest, RegistrySetTest, WorldExportTool, PersistCheck (+5 more)
+### Community 92 - "LecternBlockEntity"
+Cohesion: 0.05
+Nodes (11): BeaconBlockEntity, Section, LecternBlockEntity, BeaconMenu, SimpleContainer, LecternMenu, Slot, LecternContainer (+3 more)
 
 ### Community 93 - "BlockShapes / ShapeUpdater"
-Cohesion: 0.12
-Nodes (4): BlockShapes, ShapeLevel, Shape, ShapeUpdater
+Cohesion: 0.10
+Nodes (5): BlockShapes, ShapeLevel, Shape, ShapeUpdater, ShapeDiff
 
 ### Community 95 - "DripstoneFeatures / FeatureFloatProvider"
-Cohesion: 0.08
-Nodes (9): Cluster, Large, LargeDripstone, Pointed, Support, Wind, ClampedNormal, FeatureFloatProvider (+1 more)
+Cohesion: 0.07
+Nodes (10): Cluster, DripstoneFeatures, Large, LargeDripstone, Pointed, Support, Wind, ClampedNormal (+2 more)
 
 ### Community 96 - "Recipe / Ingredient"
-Cohesion: 0.08
-Nodes (21): Ingredient, Value, Cooking, CookingCategory, BLOCKS, FOOD, MISC, CraftingCategory (+13 more)
-
-### Community 97 - "Furnace / EventBus"
 Cohesion: 0.06
-Nodes (7): CommandRegistry, EventBus, Listener, Furnace, Holder, PluginManager, SamplePlugin
+Nodes (14): Ingredient, Value, Cooking, CookingCategory, BLOCKS, FOOD, MISC, Recipe (+6 more)
 
-### Community 98 - "FramingTest / CipherDecoder"
-Cohesion: 0.06
-Nodes (10): CipherDecoder, CipherEncoder, CompressionDecoder, CompressionEncoder, FrameDecoder, FrameEncoder, ChannelInitializer<SocketChannel>, EncryptionResponse (+2 more)
+### Community 97 - "AbstractContainerMenu"
+Cohesion: 0.04
+Nodes (14): AbstractContainerMenu, ClickType, CLONE, PICKUP, PICKUP_ALL, QUICK_CRAFT, QUICK_MOVE, SWAP (+6 more)
+
+### Community 98 - "PlacedFeature"
+Cohesion: 0.05
+Nodes (14): RandomTrace, Session, BiomeFeatureData, FeaturePlacer, FeatureSorter, StepFeatureData, PlacedFeature, RandomPatchFeature (+6 more)
 
 ### Community 99 - "WoodlandMansionStructure / BuriedTreasureStructure"
-Cohesion: 0.14
-Nodes (8): Piece, MansionGrid, P, PiecePlacer, PlacementData, RoomKit, SimpleGrid, WoodlandMansionStructure
+Cohesion: 0.13
+Nodes (9): Piece, Floor2Kit, MansionGrid, P, PiecePlacer, PlacementData, RoomKit, SimpleGrid (+1 more)
 
 ### Community 100 - "AnsiTextSerializer / PlainAndAnsiTest"
 Cohesion: 0.09
 Nodes (11): AnsiTextSerializer, Builder, ColorMode, ANSI_16, ANSI_256, NONE, TRUE_COLOR, PlainAndAnsiTest (+3 more)
 
 ### Community 101 - "NCodec / DataComponents"
-Cohesion: 0.05
+Cohesion: 0.06
 Nodes (15): F, Kind, ALWAYS, DEFAULTED, OPTIONAL, NCodec, NCodec, NCodec (+7 more)
 
 ### Community 102 - "BlockPredicate / FluidKind"
-Cohesion: 0.06
-Nodes (25): BlockColumnFeature, Layer, AllOf, AnyOf, BlockPredicate, HasSturdyFace, InsideWorldBounds, MatchingFluids (+17 more)
+Cohesion: 0.04
+Nodes (43): BlockColumnFeature, Layer, AllOf, AnyOf, BlockPredicate, HasSturdyFace, InsideWorldBounds, MatchingFluids (+35 more)
 
 ### Community 103 - "TaskScheduler / RegionizerTest"
-Cohesion: 0.08
-Nodes (7): PluginTasks, ScheduledTask, Once, Repeating, TaskScheduler, RegionRouter, RegionizerTest
+Cohesion: 0.11
+Nodes (4): Once, Repeating, TaskScheduler, RegionizerTest
 
 ### Community 104 - "TranslationStore / TranslationTest"
-Cohesion: 0.09
-Nodes (7): GlobalRenderer, Format, MESSAGE_FORMAT, VANILLA, TranslationStore, TranslationTest, java.util.ListResourceBundle
-
-### Community 105 - "LightningRodBlock / PistonHeadBlock"
 Cohesion: 0.07
-Nodes (5): FrogspawnBlock, LightningRodBlock, NetherPortalBlock, PistonHeadBlock, SnifferEggBlock
+Nodes (9): GlobalRenderer, Format, MESSAGE_FORMAT, VANILLA, TranslationStore, Translator, TranslationTest, java.util.ListResourceBundle (+1 more)
 
-### Community 106 - "PitcherCropBlock / TallSeagrassBlock"
-Cohesion: 0.09
-Nodes (4): DoublePlantBlock, PitcherCropBlock, SmallDripleafBlock, TallSeagrassBlock
+### Community 106 - "InventoryMenu"
+Cohesion: 0.06
+Nodes (5): ResultContainer, CraftingGrid, CraftingLogic, CraftingMenu, InventoryMenu
 
 ### Community 107 - "Reg / Batch1"
 Cohesion: 0.05
 Nodes (12): Batch10, Batch1, Batch2, Batch3, Batch4, Batch5, Batch6, Batch7 (+4 more)
 
-### Community 108 - "VegetationPatchFeature / HugeMushroomFeature"
-Cohesion: 0.06
-Nodes (14): BlockPileFeature, RotatedBlockProvider, HugeMushroomFeature, Kind, BROWN, RED, RandomizedIntStateProvider, SimpleBlockFeature (+6 more)
+### Community 108 - "WorldgenRandom"
+Cohesion: 0.03
+Nodes (27): BlockAttrs, WorldgenRandom, BlockPileFeature, RotatedBlockProvider, BlueIceFeature, DesertWellFeature, GlowstoneBlobFeature, HugeMushroomFeature (+19 more)
 
-### Community 109 - "FurnacePlugin / PermissibleBase"
+### Community 109 - "Override"
 Cohesion: 0.07
-Nodes (7): Event, PluginDisableEvent, PluginEnableEvent, ServerLoadEvent, PermissionAttachment, FurnacePlugin, Attachment
+Nodes (4): MapInfo, org.domi.furnace.server.menu.BlockAccess, ServerMenus, BlockAccess
 
 ### Community 110 - "WeatheringCopper / WeatheringCopperBulbBlock"
-Cohesion: 0.06
-Nodes (8): WeatheringCopper, WeatheringCopperBulbBlock, WeatheringCopperDoorBlock, WeatheringCopperFullBlock, WeatheringCopperGrateBlock, WeatheringCopperSlabBlock, WeatheringCopperStairBlock, WeatheringCopperTrapDoorBlock
+Cohesion: 0.05
+Nodes (9): CopperBulbBlock, WeatheringCopper, WeatheringCopperBulbBlock, WeatheringCopperDoorBlock, WeatheringCopperFullBlock, WeatheringCopperGrateBlock, WeatheringCopperSlabBlock, WeatheringCopperStairBlock (+1 more)
 
-### Community 112 - "BlockTypesTest / FluidTest"
-Cohesion: 0.10
-Nodes (5): TestLevel, BlockTypesTest, FluidTest, PistonTest, RandomTickTest
+### Community 112 - "CraftingEntry"
+Cohesion: 0.08
+Nodes (6): RecipeBookMenu, ResultContainer, GhostSender, ServerPlaceRecipe, CraftingEntry, PlaceRecipeTest
 
 ### Community 113 - "TextTemplate / TextTemplateTest"
-Cohesion: 0.09
-Nodes (8): Cache, LinkedHashMap<>, TextMarkup, Builder, Filler, Parsed, TextTemplate, TextTemplateTest
-
-### Community 114 - "BedBlock / BigDripleafStemBlock"
-Cohesion: 0.07
-Nodes (7): BedBlock, BigDripleafStemBlock, CarvedPumpkinBlock, GlazedTerracottaBlock, HorizontalDirectionalBlock, LoomBlock, StonecutterBlock
-
-### Community 115 - "VanillaCommandTreeTest / ArgumentCommandNode"
-Cohesion: 0.07
-Nodes (6): ArgumentTypeIds, ArgumentCommandNode, RootCommandNode, CommandTreePacket, Node, VanillaCommandTreeTest
-
-### Community 116 - "ComponentPatch / DataComponentsVanillaTest"
 Cohesion: 0.11
-Nodes (3): ComponentPatch, ItemNbt, DataComponentsVanillaTest
+Nodes (7): TextMarkup, Builder, Filler, Parsed, Plan, TextTemplate, TextTemplateTest
 
-### Community 118 - "OreVeinifierSkipFuzzTest / DensityFunctionParser"
+### Community 114 - ".relative"
+Cohesion: 0.05
+Nodes (7): BedBlock, HugeMushroomBlock, Key, PistonBaseBlock, PistonStructureResolver, RedStoneWireBlock, TripWireHookBlock
+
+### Community 115 - ".children"
 Cohesion: 0.08
-Nodes (9): DensityFunctionParser, SplineCoordinate, PositionalRandom, OreVeinifier, OreVeinifierSkipFuzzTest, DensityFunction, DensityFunction, XoroshiroRandomSource.XoroshiroPositionalRandomFactory (+1 more)
+Nodes (9): PlainText, FlattenIterator, Frame, LiteralMatch, Segment, SegmentVisitor, State, Texts (+1 more)
+
+### Community 117 - "Shape"
+Cohesion: 0.05
+Nodes (4): Grid, Shape, AABB, TestLevel
+
+### Community 118 - ".veinStateId"
+Cohesion: 0.11
+Nodes (8): OreVeinifier, OreVeinifierSkipFuzzTest, DensityFunction, DensityFunction, XoroshiroRandomSource.XoroshiroPositionalRandomFactory, RngConsumedException, OreVeinifierTest, DensityFunction
 
 ### Community 119 - "GeodeFeature / EndSpikeFeature"
-Cohesion: 0.08
+Cohesion: 0.07
 Nodes (10): EndIslandFeature, EndPlatformFeature, EndSpikeFeature, Spike, DistributionPoint, GeodeConfig, GeodeFeature, IntRange (+2 more)
 
 ### Community 120 - "NoiseBasedAquifer / NoiseRouter"
-Cohesion: 0.10
+Cohesion: 0.13
 Nodes (4): BarrierCache, FluidStatus, MutableContext, NoiseBasedAquifer
 
 ### Community 122 - "CubicSpline / ToFloatFunction"
-Cohesion: 0.09
-Nodes (6): Builder, Constant, CoordinateVisitor, CubicSpline, Multipoint, ToFloatFunction
+Cohesion: 0.08
+Nodes (7): Builder, Constant, CoordinateVisitor, CubicSpline, Multipoint, SplineCoordinate, ToFloatFunction
 
 ### Community 123 - "PaletteStorage / ChunkSection"
-Cohesion: 0.09
-Nodes (3): BitStorage, PaletteStorage, BitStorageTest
+Cohesion: 0.07
+Nodes (3): PaletteStorage, BitStorageTest, PaletteStorageTest
 
 ### Community 124 - "VanillaSettings / ServerProperties"
-Cohesion: 0.09
-Nodes (5): ResourcePackInfo, ServerProperties, MutableValue, VanillaSettings, ServerPropertiesTest
+Cohesion: 0.12
+Nodes (4): ResourcePackInfo, ServerProperties, MutableValue, VanillaSettings
 
 ### Community 125 - "SurfaceRule / SurfaceRuleParser"
 Cohesion: 0.10
-Nodes (25): AboveBottom, AbovePreliminarySurface, Absolute, Bandlands, BelowTop, BiomeIs, Block, Hole (+17 more)
+Nodes (24): AboveBottom, AbovePreliminarySurface, Absolute, Bandlands, BelowTop, BiomeIs, Block, Hole (+16 more)
 
 ### Community 127 - "2026-10-18-session-handoff / 2026-06-06-m0-foundation-threading"
 Cohesion: 0.06
 Nodes (29): TextMarkup MiniMessage 호환 마크업, TextTemplate 미리 컴파일 템플릿, Phase 3 featurefull byte-exact 파이프라인, tree fixture 재검증 미완 항목, GlowLichen 탐색 비전진 quirk 재현, oracle 태그 미바인딩으로 fixture 오염, 데이터 주도 시스템 미구현 목록, P0 서버 기본 동작 목록 (+21 more)
 
 ### Community 129 - "MarkupParser / MarkupParseException"
-Cohesion: 0.11
-Nodes (4): MarkupParseException, Frame, MarkupParser, TagScanner
+Cohesion: 0.07
+Nodes (7): MarkupParseException, Frame, MarkupParser, Resolvers, Builder, TagResolver, TagScanner
 
 ### Community 130 - "DamageType / CombatTracker"
 Cohesion: 0.09
 Nodes (12): CombatTracker, Entry, DamageType, DROWN, FALL, GENERIC, GENERIC_KILL, IN_WALL (+4 more)
 
-### Community 132 - "furnace-version-upgrade-design / 2026-07-02_worldgen-feature_featurefull-0mismatch"
-Cohesion: 0.06
-Nodes (24): Parity audit report df, Dripstone block replacement mismatch, Hard mismatch distribution by Y band, Hard mismatch categories A to D, Parity audit report nf31337, Parity audit report nf424242, Parity audit report nf777, Parity audit report r1 (+16 more)
+### Community 131 - ".writeVarInt"
+Cohesion: 0.09
+Nodes (6): BlockUpdate, SpawnPoint, Cond, ConnectionInputTest, TypesBlockPosTest, BlockUpdateTest
+
+### Community 132 - "Hard mismatch categories A to D"
+Cohesion: 0.15
+Nodes (13): Parity audit report df, Dripstone block replacement mismatch, Hard mismatch distribution by Y band, Hard mismatch categories A to D, Parity audit report nf31337, Parity audit report nf424242, Parity audit report nf777, Parity audit report r1 (+5 more)
 
 ### Community 133 - "Config / ConfigFormat"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (6): Config, ConfigFormat, JSON, TOML, YAML, CrossFormatTest
+
+### Community 134 - "MerchantOffer"
+Cohesion: 0.06
+Nodes (5): ItemCost, Merchant, MerchantOffer, MerchantOffers, Fake
 
 ### Community 135 - "TreeFeature / GeodeFeature"
 Cohesion: 0.09
 Nodes (10): Direction, DOWN, EAST, NORTH, SOUTH, UP, WEST, Bounds (+2 more)
 
-### Community 136 - "BlockPlaceEvent / BlockBreakEvent"
-Cohesion: 0.09
-Nodes (5): BlockBreakEvent, BlockEvent, BlockPlaceEvent, Subscribe, BlockPos
-
-### Community 137 - "ServerCommandEvent / BasicCommand"
-Cohesion: 0.09
-Nodes (7): BasicCommand, CommandSender, ServerCommandEvent, Permissible, BasicCommand, Listener, BasicCommand
-
-### Community 138 - "VinesFeature / AlterGroundDecorator"
-Cohesion: 0.09
-Nodes (6): AlterGroundDecorator, AttachedToLeavesDecorator, BeehiveDecorator, LeaveVineDecorator, Context, VinesFeature
+### Community 136 - "MenuPlayer"
+Cohesion: 0.08
+Nodes (5): ItemCombinerMenu, SimpleContainer, Slot, Slot, MenuPlayer
 
 ### Community 140 - "2026-06-07-m3a-player-movement / 2026-06-08-m3b-region-parallel-tick"
 Cohesion: 0.07
 Nodes (24): ChunkPos value type, EntityIdAllocator, Entity movement packets MoveEntityPos MoveEntityPosRot MoveEntityRot TeleportEntity, Player entity with channel send, Settable region tick hook in FurnaceSchedulerImpl, PlayerInfoUpdate SpawnEntity RemoveEntities packets, World region owner with player chunk streaming and tick, World assertOwns debug ownership guard (+16 more)
 
-### Community 141 - "AsyncPlayerPreLoginEvent / PlayerLoginEvent"
+### Community 141 - "TerrainAccess"
 Cohesion: 0.08
-Nodes (14): AsyncPlayerPreLoginEvent, Result, ALLOWED, KICK_BANNED, KICK_FULL, KICK_OTHER, KICK_WHITELIST, PlayerLoginEvent (+6 more)
+Nodes (8): JigsawPiece, Junction, Item, JigsawStructure, Placer, PoolAliases, PriorityQueue, TerrainAccess
 
-### Community 142 - "TextNbt / JsonSerializerTest"
-Cohesion: 0.10
-Nodes (6): ListTag, TextNbt, Wrapper, JsonSerializerTest, FlatText, write()
+### Community 142 - "TextNbt"
+Cohesion: 0.30
+Nodes (3): ListTag, TextNbt, Wrapper
 
 ### Community 143 - "EntityTracker / MoveEntity"
-Cohesion: 0.10
+Cohesion: 0.12
 Nodes (3): EntityTracker, Viewers, MoveEntity
 
-### Community 144 - "LayeredCauldronBlock / AbstractCauldronBlock"
-Cohesion: 0.10
-Nodes (3): AbstractCauldronBlock, LavaCauldronBlock, LayeredCauldronBlock
+### Community 144 - ".intValue"
+Cohesion: 0.03
+Nodes (16): AbstractCauldronBlock, CauldronBlock, Builder, CauldronInteraction, Prop_, Table, CocoaBlock, LavaCauldronBlock (+8 more)
 
 ### Community 145 - "feature_order / blocks-1.21.1"
 Cohesion: 0.07
 Nodes (32): coal_ore loot, copper_ore loot, diamond_ore loot, emerald_ore loot, Block loot fixture, seed 1, 1.21.1, iron_ore loot, lapis_ore loot, oak_leaves loot (+24 more)
 
 ### Community 147 - "OracleGroundtruthAuditTest / RegionFile"
-Cohesion: 0.10
-Nodes (5): Compression, RegionFile, FeatureSpillFixtureGenTool, ParsedFixture, OracleGroundtruthAuditTest
+Cohesion: 0.07
+Nodes (9): Compression, RegionFile, RegionFileStore, AnvilWorldSource, WorldSource, RegionFileStoreTest, FeatureSpillFixtureGenTool, ParsedFixture (+1 more)
 
 ### Community 148 - "Mth / DesertPyramidPiece"
-Cohesion: 0.10
-Nodes (5): Mth, NoiseRandom, DesertPyramidPiece, LootWorld, LootWorld
+Cohesion: 0.11
+Nodes (5): Mth, RandomSequences, NoiseRandom, LootWorld, LootWorld
 
 ### Community 149 - "WorldBorder"
 Cohesion: 0.10
 Nodes (7): Extent, MovingExtent, StaticExtent, Status, GROWING, SHRINKING, STATIONARY
 
-### Community 150 - "PluginManagerImpl / FurnacePlugin"
-Cohesion: 0.14
-Nodes (4): Candidate, Loaded, PluginClassLoader, PluginManagerImpl
+### Community 150 - "NoiseChunk"
+Cohesion: 0.11
+Nodes (4): NoiseChunk, Beardifier, Joint, Rigid
 
 ### Community 151 - "PlayerData / PlayerDataTest"
-Cohesion: 0.12
-Nodes (5): PlayerData, Snapshot, PlayerDataTest, PlayerDataVanillaFormatTest, PlayerDataVanillaTest
+Cohesion: 0.13
+Nodes (4): PlayerData, Snapshot, PlayerDataTest, PlayerDataVanillaTest
 
 ### Community 152 - "2026-06-07-m1-networking-handshake-to-play"
 Cohesion: 0.10
@@ -984,68 +1001,80 @@ Nodes (4): AdventurePredicate, normalize(), PCodec, Val
 Cohesion: 0.07
 Nodes (24): Instrument, BANJO, BASEDRUM, BASS, BELL, BIT, CHIME, COW_BELL (+16 more)
 
-### Community 155 - "ConsoleSender / PermissionManagerImpl"
-Cohesion: 0.13
-Nodes (4): ConsoleSender, Cache, PermissibleBase, PermissionManagerImpl
-
-### Community 156 - "TreeFeatureParityDiagnosticTest / ChunkSweepParityTest"
+### Community 155 - "PlayerChatState"
 Cohesion: 0.16
-Nodes (3): ChunkResult, ChunkSweepParityTest, TreeFeatureParityDiagnosticTest
+Nodes (3): PlayerChatState, RemoteChatSession, Decoder
 
-### Community 157 - "MultifaceSpreader / MultifaceGrowthFeature"
-Cohesion: 0.14
-Nodes (3): MultifaceGrowthFeature, MultifaceSpreader, Blocks
+### Community 158 - "EquipSlot"
+Cohesion: 0.08
+Nodes (11): EquipSlot, CHEST, FEET, HEAD, LEGS, MAINHAND, OFFHAND, EquipSlots (+3 more)
 
 ### Community 160 - "BlockTicks / ChunkLevel"
-Cohesion: 0.14
+Cohesion: 0.15
 Nodes (5): BlockTicks, Key, Scheduled, Ticker, ChunkFilter
 
 ### Community 161 - "LootEntity / LootDamageSource"
-Cohesion: 0.08
-Nodes (4): DamageSourcePredicate, LootDamageSource, LootEntity, LootDamageSource
+Cohesion: 0.07
+Nodes (4): LootDamageSource, LootEntity, Key, LootDamageSource
 
 ### Community 162 - "WorldBorder / WorldBorderTest"
-Cohesion: 0.15
+Cohesion: 0.17
 Nodes (3): Listener, WorldBorder, Recorder
 
-### Community 165 - "EventBusImpl / EventPriority"
-Cohesion: 0.14
-Nodes (10): EventPriority, HIGH, HIGHEST, LOW, LOWEST, MONITOR, NORMAL, EventSubscription (+2 more)
+### Community 165 - ".deserialize"
+Cohesion: 0.12
+Nodes (3): Builder, LegacyTextSerializer, LegacySerializerTest
 
 ### Community 167 - "2026-07-04_worldgen_m-opt-p0-quickwins / 2026-07-04_worldgen-oracle_레지스트리-순서-사전순-핀"
-Cohesion: 0.10
-Nodes (22): S3 structure references, regionRandom, oracle Paper hook bypass (original), CompressionEncoder scratch buffer and RegionFile bulk read (M-opt P1-2,3), CompressionEncoder scratch buffer and RegionFile bulk read (original), M-opt bottleneck survey and measurements, M-opt bottleneck survey and measurements (original), M4c-3 block entity core and chest container, M4c-3 block entity core and chest container (original), M-opt P0 quick wins: skylight and vertical_gradient caches (+14 more)
+Cohesion: 0.27
+Nodes (12): CompressionEncoder scratch buffer and RegionFile bulk read (M-opt P1-2,3), CompressionEncoder scratch buffer and RegionFile bulk read (original), M-opt bottleneck survey and measurements, M4c-3 block entity core and chest container, M4c-3 block entity core and chest container (original), M-opt P0 quick wins: skylight and vertical_gradient caches, M-opt P0 quick wins: skylight and vertical_gradient caches (original), Vein NO_VEIN early cell skip (M-opt P0-3) (+4 more)
 
-### Community 168 - "TagSet / TagSetTest"
-Cohesion: 0.16
-Nodes (4): UpdateTags, UpdateTagsPlay, TagSet, TagSetTest
+### Community 168 - "AdvancementNode"
+Cohesion: 0.12
+Nodes (7): AdvancementNode, TreeNodePosition, Rule, HIDE, NEUTRAL, SHOW, VisibilityEvaluator
+
+### Community 171 - "BlockEntityContainer"
+Cohesion: 0.15
+Nodes (3): BlockEntityContainer, OpenableContainer, RegionRunner
 
 ### Community 172 - "Clip"
-Cohesion: 0.18
-Nodes (7): Clip, FluidMode, ANY, NONE, SOURCE_ONLY, WATER, Result
+Cohesion: 0.14
+Nodes (8): Clip, FluidMode, ANY, NONE, SOURCE_ONLY, WATER, Result, MyceliumBlock
 
-### Community 173 - "Codecs / TextNbtJson"
-Cohesion: 0.13
-Nodes (4): Codecs, PCodec, PCodec, TextNbtJson
+### Community 174 - "PlayerInfoUpdate"
+Cohesion: 0.09
+Nodes (7): ChangeDifficulty, PlayerAbilities, Entry, Entry, PlayerInfoUpdate, Packet, JoinStatePacketsTest
 
-### Community 174 - "JoinStatePacketsTest / ChangeDifficulty"
+### Community 175 - "PlayerProbe / Region"
+Cohesion: 0.22
+Nodes (3): Surroundings, Blocks, PlayerProbe
+
+### Community 176 - "GameProfileCache / ServerCore"
 Cohesion: 0.13
-Nodes (3): ChangeDifficulty, SetTime, JoinStatePacketsTest
+Nodes (3): Entry, GameProfileCache, ProfileLookup
 
 ### Community 177 - "StrongholdStructure"
 Cohesion: 0.10
 Nodes (15): Kind, CHEST_CORRIDOR, FIVE_CROSSING, LEFT_TURN, LIBRARY, PORTAL_ROOM, PRISON_HALL, RIGHT_TURN (+7 more)
 
-### Community 178 - "CauldronInteraction / AbstractCauldronBlock"
-Cohesion: 0.18
-Nodes (4): Builder, CauldronInteraction, Prop_, Table
+### Community 178 - "Player"
+Cohesion: 0.12
+Nodes (3): BlockAccess, P, Player
 
-### Community 182 - "ContainerPacketsTest / ContainerSetContent"
-Cohesion: 0.15
-Nodes (4): ContainerClose, ContainerSetContent, ContainerSetSlot, ContainerPacketsTest
+### Community 179 - "Shaped"
+Cohesion: 0.11
+Nodes (8): CraftingCategory, BUILDING, EQUIPMENT, MISC, REDSTONE, Shaped, Shapeless, Special
+
+### Community 182 - "SetEntityData"
+Cohesion: 0.09
+Nodes (7): AddEntity, ContainerSetContent, MerchantOffersPacket, Item, SetEntityData, SetEntityMotion, ContainerPacketsTest
+
+### Community 183 - "LevelStorage / LevelStorageTest"
+Cohesion: 0.12
+Nodes (4): DirectoryLock, LockException, LevelStorage, LevelStorageTest
 
 ### Community 184 - "OracleMain"
-Cohesion: 0.14
+Cohesion: 0.09
 Nodes (3): net.minecraft.world.level.chunk.CarvingMask, OracleRngTrace, TraceWorldgenRandom
 
 ### Community 185 - "2026-06-11-m4gc2-aquifer / 2026-06-11-m4gc2-aquifer-design"
@@ -1053,52 +1082,60 @@ Cohesion: 0.19
 Nodes (16): M4g-c2 Aquifer Implementation Plan, AQUF aquifer fixture format, AquiferParityTest, Aquifer sealed interface, DisabledAquifer, NoiseChunk.generateBlockIds, NoiseBasedAquifer, NoiseRouter aquifer noise fields (+8 more)
 
 ### Community 186 - "NeighborUpdater / ChunkLevel"
-Cohesion: 0.18
+Cohesion: 0.26
 Nodes (6): Entry, FullNeighborUpdate, MultiNeighborUpdate, NeighborUpdater, ShapeUpdate, SimpleNeighborUpdate
 
+### Community 187 - ".source"
+Cohesion: 0.12
+Nodes (6): DisabledAquifer, HeightKind, MOTION_BLOCKING, OCEAN_FLOOR, WORLD_SURFACE, NoiseWorldSourceSurfaceHeightCacheTest
+
 ### Community 188 - "ClimateRTree"
-Cohesion: 0.24
+Cohesion: 0.25
 Nodes (4): ClimateRTree, Leaf, Node, SubTree
+
+### Community 189 - "BrewingStandBlockEntity"
+Cohesion: 0.16
+Nodes (3): BrewingStandBlockEntity, Slot, BrewingStandBlockEntityTest
 
 ### Community 190 - "chests-1.21.1"
 Cohesion: 0.11
 Nodes (19): chests/abandoned_mineshaft, chests/ancient_city, chests/bastion_treasure, chests/buried_treasure, chests/desert_pyramid, chests/end_city_treasure, chests/igloo_chest, chests/jungle_temple (+11 more)
 
-### Community 191 - "PermissionDefault / PluginDescription"
-Cohesion: 0.16
-Nodes (7): PermissionDefault, FALSE, NOT_OP, OP, TRUE, CommandInfo, PluginDescription
-
-### Community 192 - "BlockBreakingTest / BlockBreaking"
-Cohesion: 0.28
-Nodes (3): BlockBreaking, BlockBreakingTest, Host
-
-### Community 194 - "PlayerVitals / PlayerVitalsTest"
-Cohesion: 0.11
-Nodes (3): DeathOutcome, Env, TestEnv
+### Community 191 - "PluginDescription"
+Cohesion: 0.19
+Nodes (3): CommandInfo, PluginDescription, Context
 
 ### Community 195 - "ComponentType / DataComponents"
-Cohesion: 0.20
-Nodes (3): ComponentType, NCodec, DataComponents
+Cohesion: 0.12
+Nodes (4): PCodec, ComponentType, NCodec, DataComponents
 
-### Community 196 - "ItemTools / ItemContext"
-Cohesion: 0.21
-Nodes (3): ItemTools, Rule, Tool
-
-### Community 197 - "BlockSurvival"
-Cohesion: 0.11
-Nodes (18): Kind, ALWAYS, AZALEA, BUSH, CACTUS, DEAD_BUSH, FIRE, FUNGUS (+10 more)
+### Community 196 - "PlayerInventory"
+Cohesion: 0.04
+Nodes (20): DispenserBlockEntity, TagRegistries, PlayerInventory, ComponentPatch, CraftRemainders, EnchantTools, Entry, FuelRegistry (+12 more)
 
 ### Community 199 - "2026-06-07-m2-world-chunk-transfer / 2026-06-08-m4a-mutable-blocks"
 Cohesion: 0.13
 Nodes (14): M2 World Data Model and Chunk Transfer Plan, BitStorage compacted long array, BlockRegistry, ChunkColumn with 24 sections and heightmap, ChunkSerializer, ChunkWorkerPool dedicated fixed thread pool, LevelChunkWithLight packet 0x27, NbtWriter network NBT (+6 more)
 
 ### Community 201 - "RedstoneWallTorchBlock / WallTorchBlock"
-Cohesion: 0.21
-Nodes (3): RedstoneWallTorchBlock, TorchBlock, WallTorchBlock
+Cohesion: 0.15
+Nodes (4): BaseTorchBlock, RedstoneWallTorchBlock, TorchBlock, WallTorchBlock
+
+### Community 202 - ".nextLong"
+Cohesion: 0.05
+Nodes (11): IcebergFeature, SeagrassFeature, FrequencyReductionMethod, DEFAULT, LEGACY_TYPE_1, LEGACY_TYPE_2, LEGACY_TYPE_3, NoiseBasedCountPlacementTest (+3 more)
 
 ### Community 204 - "entities-1.21.1 / entity_types-1.21.1"
 Cohesion: 0.15
 Nodes (17): minecraft:creeper, minecraft:ender_dragon, minecraft:enderman, Entity type registry 1.21.1, minecraft:player, minecraft:skeleton, minecraft:wither, minecraft:zombie (+9 more)
+
+### Community 208 - "BlockEntity"
+Cohesion: 0.06
+Nodes (5): BlockEntities, BlockEntity, ComparatorBlockEntity, PistonMovingBlockEntity, ContainerBlockEntityTest
+
+### Community 209 - ".run"
+Cohesion: 0.14
+Nodes (5): FurnaceMain, Options, Repeating, TpsHeartbeat, ServerPropertiesTest
 
 ### Community 210 - "tags-1.21.1 / block_tags"
 Cohesion: 0.16
@@ -1109,8 +1146,8 @@ Cohesion: 0.24
 Nodes (14): M4g-c3 Carver Implementation Plan, canReach formula, CanyonWorldCarver, carveEllipsoid, CarverConfig, CarverParityTest, CarvingMask, CaveWorldCarver (+6 more)
 
 ### Community 212 - "HalfTransparentBlock / HoneyBlock"
-Cohesion: 0.13
-Nodes (5): HalfTransparentBlock, HoneyBlock, StainedGlassBlock, TintedGlassBlock, TransparentBlock
+Cohesion: 0.17
+Nodes (4): HalfTransparentBlock, StainedGlassBlock, TintedGlassBlock, TransparentBlock
 
 ### Community 214 - "README / fluids"
 Cohesion: 0.17
@@ -1132,37 +1169,33 @@ Nodes (13): M4a Mutable Blocks Design, BlockUpdate packet, Block break flow, Reg
 Cohesion: 0.14
 Nodes (14): Kind, BANNER, BED, BLOCK, DOUBLE_HIGH, GAME_MASTER, HANGING_SIGN, ITEM_NAME (+6 more)
 
-### Community 219 - "FeatureSize / ThreeLayersFeatureSize"
-Cohesion: 0.14
-Nodes (3): FeatureSize, ThreeLayersFeatureSize, TwoLayersFeatureSize
-
 ### Community 220 - "TreeFeature"
 Cohesion: 0.14
 Nodes (7): Direction, DOWN, EAST, NORTH, SOUTH, UP, WEST
 
 ### Community 221 - "StructurePlacementCatalog / StructurePlacementParityTest"
-Cohesion: 0.26
-Nodes (4): StructurePlacementCatalog, StructureSetPlacement, ChunkFixture, StructurePlacementParityTest
-
-### Community 222 - "NetherFortressStructure"
 Cohesion: 0.14
-Nodes (14): Kind, BRIDGE_CROSSING, BRIDGE_STRAIGHT, CASTLE_CORRIDOR_STAIRS, CASTLE_CORRIDOR_T_BALCONY, CASTLE_ENTRANCE, CASTLE_SMALL_CORRIDOR, CASTLE_SMALL_CORRIDOR_CROSSING (+6 more)
+Nodes (8): RandomSpreadStructurePlacement, RandomSpreadType, LINEAR, TRIANGULAR, StructurePlacementCatalog, StructureSetPlacement, ChunkFixture, StructurePlacementParityTest
 
 ### Community 223 - "blockprops_1.21.1"
 Cohesion: 0.25
 Nodes (13): Block property table schema, minecraft:air, minecraft:barrier, minecraft:bedrock, minecraft:command_block, minecraft:end_portal, minecraft:lava, minecraft:obsidian (+5 more)
 
-### Community 224 - "2026-07-10_worldgen_parity-verification-infra-테스트3종 / 2026-07-10_io_anvil-palette-properties-왕복"
-Cohesion: 0.16
-Nodes (10): 2026-07-10 io Anvil 팰릿 Name+Properties 정확 왕복 air 소실 수정, Anvil 팰릿 Name+Properties 기록 왕복 정확화, 2026-07-10 worldgen parity 검증 인프라 테스트 3종, ChunkSweepParityTest N x N 청크 일괄 대조 opt-in 스윕, NoopFeatureAuditTest 미구현 feature NoopFeature 폴백 감사, 2026-07-10 worldgen parity 검증 인프라 테스트 3종 (original), ChunkPipelinePersistenceParityTest 생성 후 저장 왕복 게이트, 2026-08-16 worldgen 정답지 감사 체계 도입 및 carver RNG 스트림 분리 수정 (+2 more)
+### Community 224 - "월드젠 레이어"
+Cohesion: 0.14
+Nodes (13): Biome sampler perf hotfix M4g-b, featurefull 3-coordinate 0 mismatch, featurefull 0 mismatch (original), RNG trace diff debugging method, Oracle tag unbinding and center-only write fixture contamination, Oracle fixture contamination (original), 2026-07-10 worldgen parity 검증 인프라 테스트 3종, ChunkSweepParityTest N x N 청크 일괄 대조 opt-in 스윕 (+5 more)
 
-### Community 226 - "PCodec / DataComponents"
+### Community 225 - "RemovalReason"
+Cohesion: 0.12
+Nodes (6): RemovalReason, CHANGED_DIMENSION, DISCARDED, KILLED, UNLOADED_TO_CHUNK, UNLOADED_WITH_PLAYER
+
+### Community 226 - "Kind"
+Cohesion: 0.33
+Nodes (6): Kind, OPTIONAL_DEFAULT, OPTIONAL_EMPTY, OPTIONAL_LENIENT, OR_ELSE, REQUIRED
+
+### Community 228 - "PackResources"
 Cohesion: 0.17
-Nodes (7): Field, Kind, OPTIONAL_DEFAULT, OPTIONAL_EMPTY, OPTIONAL_LENIENT, OR_ELSE, REQUIRED
-
-### Community 228 - "TestPlugins"
-Cohesion: 0.22
-Nodes (5): Alpha, Beta, Broken, Gamma, TestPlugins
+Nodes (3): Composite, IoSupplier, PackResources
 
 ### Community 229 - "2026-06-08-m4b-anvil-persistence / 2026-06-08-spawn-chunk-batch-gate"
 Cohesion: 0.23
@@ -1180,9 +1213,9 @@ Nodes (11): M4b Anvil Persistence Design, AnvilChunkCodec, Asynchronous chunk lo
 Cohesion: 0.26
 Nodes (10): M4g-a Noise Terrain Design, NoiseChunk cell trilinear interpolation, Density function graph interpreter, Noise primitives: ImprovedNoise, PerlinNoise, NormalNoise, BlendedNoise, Oracle parity harness, XoroshiroRandomSource, M4g-b Multi-Noise Biome Design, BIOM biome fixture format (+2 more)
 
-### Community 234 - "MovePacketsTest / MoveEntityPos"
-Cohesion: 0.26
-Nodes (3): MoveEntityPos, UnloadChunk, MovePacketsTest
+### Community 233 - "LegacyRandomSource"
+Cohesion: 0.10
+Nodes (5): LegacyRandomSource, LegacyNoiseRandom, EnchantmentMenu, SimpleContainer, Slot
 
 ### Community 235 - "itemblocks_1.21.1 / definitions_1.21.1"
 Cohesion: 0.17
@@ -1193,8 +1226,8 @@ Cohesion: 0.18
 Nodes (12): registries 1.21.1 (vanilla registry entries), Banner pattern registry, Worldgen biome registry, Chat type registry, Damage type registry, Dimension type registry, Enchantment registry, Jukebox song registry (+4 more)
 
 ### Community 239 - "2026-07-05_worldgen_gridview-feature-parity-byte-exact / 2026-07-06_worldgen_tree-overlap-residual-parity"
-Cohesion: 0.18
-Nodes (7): 2026-07-05 worldgen 그리드 FeatureWorldView feature 발산 byte-exact 수정, disk_sand/clay/gravel matching_fluids 물 게이트 누락, oracle ProtoChunk setPersistedStatus 누락 fixture 오답 버그, 2026-07-05 worldgen 그리드 FeatureWorldView feature 발산 byte-exact 수정 (original), 2026-07-06 worldgen tree-overlap 잔여 mismatch 21건 해소, 2026-07-06 worldgen tree-overlap 잔여 mismatch 해소 (original), validTreePos replaceable_by_trees 잎 포함 규칙
+Cohesion: 0.15
+Nodes (10): 2026-07-05 worldgen 그리드 FeatureWorldView feature 발산 byte-exact 수정, disk_sand/clay/gravel matching_fluids 물 게이트 누락, oracle ProtoChunk setPersistedStatus 누락 fixture 오답 버그, 2026-07-05 worldgen 그리드 FeatureWorldView feature 발산 byte-exact 수정 (original), 2026-07-06 net MOTION_BLOCKING heightmap을 WORLD_SURFACE에서 분리, MOTION_BLOCKING heightmap 술어 blocksMotion or fluid 근사 화이트리스트, 2026-07-06 net MOTION_BLOCKING heightmap 분리 (original), 2026-07-06 worldgen tree-overlap 잔여 mismatch 21건 해소 (+2 more)
 
 ### Community 240 - "2026-06-20-m4gd-feature-placement"
 Cohesion: 0.36
@@ -1204,33 +1237,41 @@ Nodes (9): M4g-d Feature Placement Implementation Plan, FEAT feature fixture for
 Cohesion: 0.20
 Nodes (8): FeaturePlacer, FeatureSorter, FeatureWorldView, setDecorationSeed, setFeatureSeed, Multi-chunk FeatureWorldView (3x3 grid), featurefull oracle dump, FEATURES writeRadius 1 (3x3)
 
+### Community 243 - "JsonTextSerializer"
+Cohesion: 0.09
+Nodes (7): HoverEvent, ShowEntity, ShowItem, ShowText, JsonTextSerializer, MiniJson, JsonSerializerTest
+
 ### Community 249 - "README / structplacement_1234_-800_-320_-760_-280"
 Cohesion: 0.18
 Nodes (10): Structure placement fixture (1234, -800..-760, -320..-280), Parity audit (vanilla vs Furnace worldgen comparison), Vanilla audit 2026-10-07 (cited doc), Worldgen parity measurement by hard mismatch, Parity report df (225 chunks, 2 worlds), Parity report nf31337 (289 chunks), Parity report nf424242 (289 chunks), Parity report r1 (225 chunks, 3 worlds) (+2 more)
 
 ### Community 250 - "레이어-네트워크 / 레이어-영속성"
-Cohesion: 0.18
-Nodes (8): Furnace 아키텍처 개요, 네트워크 레이어, Netty 파이프라인 FrameDecoder CompressionDecoder ConnectionHandler, 영속성 레이어, Anvil r.X.Z.mca region 파일 포맷 및 AnvilChunkCodec NBT 구조, 스케줄러 레이어, RegionGrid threadIndex 해시 분산 (x*31+z) mod N, RegionThread 틱 루프 TickTimer 50ms 목표 tick callback
+Cohesion: 0.11
+Nodes (12): 2026-07-10 io Anvil 팰릿 Name+Properties 정확 왕복 air 소실 수정, Anvil 팰릿 Name+Properties 기록 왕복 정확화, Furnace 아키텍처 개요, 네트워크 레이어, Netty 파이프라인 FrameDecoder CompressionDecoder ConnectionHandler, 영속성 레이어, Anvil r.X.Z.mca region 파일 포맷 및 AnvilChunkCodec NBT 구조, 스케줄러 레이어 (+4 more)
 
 ### Community 251 - "ClickEvent"
 Cohesion: 0.20
 Nodes (7): Action, CHANGE_PAGE, COPY_TO_CLIPBOARD, OPEN_FILE, OPEN_URL, RUN_COMMAND, SUGGEST_COMMAND
 
-### Community 255 - "BlockPosIter / BlockPosIterTest"
-Cohesion: 0.24
-Nodes (3): BlockPosIter, Visitor, BlockPosIterTest
+### Community 255 - ".setBlock"
+Cohesion: 0.04
+Nodes (22): BasaltFeatures, Columns, Pillar, BlockPosIter, Visitor, Claw, CoralFeature, Mushroom (+14 more)
 
 ### Community 257 - "GenStatus"
 Cohesion: 0.20
 Nodes (9): GenStatus, BIOMES, CARVERS, EMPTY, FEATURES, FULL, NOISE, STRUCTURE_STARTS (+1 more)
 
 ### Community 259 - "2026-07-06_worldgen_regrass-heightmap-mushroom / 2026-07-05_worldgen_milestone-gap-survey"
-Cohesion: 0.22
-Nodes (8): 2026-07-05 worldgen 전체 바닐라 대비 공백 전수조사 2건, configured_feature 17종 부재 skip 공백 coral 3종 포함, 구조물 공백 DesertPyramid 1종만 구현, 2026-07-05 실서버 발산 4건 조사 수정, 스폰 낙하 confirm 게이트와 스폰청크 전송 커플링, 2026-07-06 worldgen·net regrass WORLD_SURFACE 버섯 canSurvive, WorldCarver regrass reachedSurface topMaterial 복원 이식, FoliagePlacer shouldSkipLocationSigned abs 이중 적용 버그
+Cohesion: 0.18
+Nodes (10): Fancy oak placer parity fix, 2026-07-05 worldgen 전체 바닐라 대비 공백 전수조사 2건, configured_feature 17종 부재 skip 공백 coral 3종 포함, 구조물 공백 DesertPyramid 1종만 구현, 2026-07-05 실서버 발산 4건 조사 수정, 스폰 낙하 confirm 게이트와 스폰청크 전송 커플링, 2026-07-06 worldgen·net regrass WORLD_SURFACE 버섯 canSurvive, WorldCarver regrass reachedSurface topMaterial 복원 이식 (+2 more)
 
 ### Community 261 - "2026-06-10-m4ga-noise-terrain / 2026-06-11-m4gc1-surface-rules"
 Cohesion: 0.31
 Nodes (9): BlendedNoise old_blended_noise, DensityFunction graph and JSON parser, ImprovedNoise single-octave perlin, MathHelper Mth port, NoiseChunk cell sampling and trilinear interpolation, PerlinNoise and NormalNoise, Extracted vanilla 1.21.1 worldgen JSON, Xoroshiro128PlusPlus and XoroshiroRandomSource (+1 more)
+
+### Community 264 - "LootContext"
+Cohesion: 0.06
+Nodes (18): IntRange, LevelBasedValue, LootContext, Candidate, Composite, Creator, LootEntry, Singleton (+10 more)
 
 ### Community 266 - "ItemEntityTest"
 Cohesion: 0.25
@@ -1248,13 +1289,33 @@ Nodes (8): biome_temperatures.json and biomeTemperature, steep condition stub (r
 Cohesion: 0.39
 Nodes (8): ChunkColumn surfaceBlockY precomputed lookup, M4g-c1 Surface Rules Design, Preliminary surface level, Steep condition, SurfaceCondition, SurfaceRule sealed interface, SurfaceSystem.buildSurface, VerticalGradient random condition
 
+### Community 270 - "DataSlot"
+Cohesion: 0.18
+Nodes (3): DataSlot, DataSlot, DataSlot
+
+### Community 272 - "PackMetadata"
+Cohesion: 0.19
+Nodes (3): FilterBlock, Overlay, PackMetadata
+
 ### Community 273 - "2026-06-08-spawn-chunk-batch-gate / 2026-06-08-m4b-anvil-persistence"
 Cohesion: 0.29
 Nodes (5): Region.loadChunk async load, World IO thread pool, ChunkBatchStart and ChunkBatchFinished markers, Region.streamLoads, SpawnBatchTest
 
+### Community 274 - "DisplayInfo"
+Cohesion: 0.15
+Nodes (5): DisplayInfo, Frame, CHALLENGE, GOAL, TASK
+
 ### Community 275 - "ConnectionHandler"
 Cohesion: 0.29
 Nodes (7): LoginPhase, ACCEPTED, AUTHENTICATING, HELLO, KEY, PROTOCOL_SWITCHING, VERIFYING
+
+### Community 277 - "ServicesKeys"
+Cohesion: 0.30
+Nodes (3): ServicesKeys, ClientSigner, SignedChatTest
+
+### Community 279 - "SignatureValidator"
+Cohesion: 0.25
+Nodes (3): ProfilePublicKey, SignatureValidator, Updater
 
 ### Community 281 - "run.sh"
 Cohesion: 0.52
@@ -1268,6 +1329,10 @@ Nodes (5): ConnectionHandler hotbar tracking and use_item_on handling, ItemRegis
 Cohesion: 0.33
 Nodes (5): biome_parameters.json climate parameter table, BiomeSamplerParityTest, BiomeSampler nearest-climate lookup, NoiseRouter six climate density functions, Climate quantize, paramDistance and fitness functions
 
+### Community 289 - "S3 structure references, regionRandom, Paper hook bypass"
+Cohesion: 0.29
+Nodes (11): S3 structure references, regionRandom, Paper hook bypass, S3 structure references, regionRandom, oracle Paper hook bypass (original), M-opt bottleneck survey and measurements (original), Oracle registry order pinned to lexicographic sort, Oracle registry order pinned to lexicographic sort (original), sortedElements registry pin helper, Stairs facing full-property lookup fallback bug, Stairs facing full-property lookup fallback bug (original) (+3 more)
+
 ### Community 291 - "properties_1.21.1 / ExportItemProps"
 Cohesion: 0.33
 Nodes (4): properties_1.21.1.txt (item properties), Item property schema (max stack, max durability, enchant value), Tool and armor durability tiers (wood, stone, gold, iron, diamond, netherite), ExportItemProps
@@ -1275,6 +1340,14 @@ Nodes (4): properties_1.21.1.txt (item properties), Item property schema (max st
 ### Community 293 - "2026-10-07_worldgen-parity_순정-실서버-대조-감사"
 Cohesion: 0.33
 Nodes (6): 2026-10-07 순정 1.21.1 실서버 .mca 대 Furnace 독립 대조 감사, 편집 청크 바이옴 유실 저장 biomes 없음 로드 시 plains 강제, 바이옴 쿼트 컬럼 단위 이웃 바이옴 뒤집힘 0.03 퍼센트 오차, MOTION_BLOCKING에 얇은 snow 레이어 포함 오차, 순정 features 제거 월드를 결정적 지형 정답지로 사용, 스폰 Y를 장식 전 generate 지형으로 계산하는 오차
+
+### Community 301 - ".defaults"
+Cohesion: 0.16
+Nodes (3): Cache, LinkedHashMap<>, ItemPrototypes
+
+### Community 304 - "Furnace version upgrade design 1.21.1"
+Cohesion: 0.20
+Nodes (5): Furnace version upgrade design 1.21.1, Per-version upgrade playbook, FeaturePipelineParityTest mismatch root cause, underwater_magma feature not implemented, Seagrass and Kelp vanilla bugfix
 
 ### Community 308 - "2026-06-21-m4gd-feature-pipeline-design"
 Cohesion: 0.67
@@ -1284,43 +1357,63 @@ Nodes (3): ChunkPipeline, GenStatus, ProtoColumn
 Cohesion: 0.67
 Nodes (3): protected-below-y config, sample.deep permission, Sample plugin (org.domi.furnace.plugintest.SamplePlugin)
 
-### Community 326 - "2026-07-06_net_motionblocking-heightmap-split / 2026-07-06_net_motionblocking-heightmap-split.original"
-Cohesion: 0.67
-Nodes (3): 2026-07-06 net MOTION_BLOCKING heightmap을 WORLD_SURFACE에서 분리, MOTION_BLOCKING heightmap 술어 blocksMotion or fluid 근사 화이트리스트, 2026-07-06 net MOTION_BLOCKING heightmap 분리 (original)
+### Community 315 - ".smeltsRawIronConsumingCoalAndRewindsWhenFuelRunsOut"
+Cohesion: 0.27
+Nodes (3): FurnaceBlockEntityTest, BlockPlacementTest.TestLevel, BlockPlacementTest.TestLevel
+
+### Community 318 - ".extendsOnlyKnownMapsBelowScaleFour"
+Cohesion: 0.33
+Nodes (4): Cached, MapStore, Meta, MapExtendTest
+
+### Community 360 - ".place"
+Cohesion: 0.28
+Nodes (3): DiskFeature, Rule, DiskFeatureTest
+
+### Community 365 - "AnimationStatus"
+Cohesion: 0.33
+Nodes (5): AnimationStatus, CLOSED, CLOSING, OPENED, OPENING
+
+### Community 366 - "Compatibility"
+Cohesion: 0.33
+Nodes (4): Compatibility, COMPATIBLE, TOO_NEW, TOO_OLD
+
+### Community 369 - "Furnace 작업 규칙"
+Cohesion: 0.40
+Nodes (4): Furnace 작업 규칙, graphify (코드 구조 지도), 규칙 (요약, 상세는 인수인계 문서 3장), 시작할 때
 
 ## Ambiguous Edges - Review These
-- `featurefull 3-coordinate 0 mismatch` → `Snow block and stone mismatch in peaks and groves`  [AMBIGUOUS]
+- `Snow block and stone mismatch in peaks and groves` → `featurefull 3-coordinate 0 mismatch`  [AMBIGUOUS]
   LLM-Wiki/output/furnace-parity-audit/nf777_report.txt · relation: conceptually_related_to
-- `Oracle tag unbinding and center-only write fixture contamination` → `Tree leaves and vine mismatch (category B)`  [AMBIGUOUS]
+- `Tree leaves and vine mismatch (category B)` → `Oracle tag unbinding and center-only write fixture contamination`  [AMBIGUOUS]
   LLM-Wiki/output/furnace-parity-audit/df_report.txt · relation: conceptually_related_to
 - `LoginPlay packet (0x2B)` → `Minecraft protocol version 767 (1.21.1)`  [AMBIGUOUS]
   docs/superpowers/plans/2026-06-07-m1-networking-handshake-to-play.md · relation: conceptually_related_to
-- `biome_parameters.json climate parameter table` → `biome_temperatures.json and biomeTemperature`  [AMBIGUOUS]
+- `biome_temperatures.json and biomeTemperature` → `biome_parameters.json climate parameter table`  [AMBIGUOUS]
   docs/superpowers/plans/2026-06-11-m4gc1-surface-rules.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **550 isolated node(s):** `YAML`, `TOML`, `JSON`, `SURVIVAL`, `CREATIVE` (+545 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2178 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **137 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **554 isolated node(s):** `YAML`, `TOML`, `JSON`, `SURVIVAL`, `CREATIVE` (+549 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2264 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **143 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Pos` connect `DiodeBlock / ComparatorBlock` to `PlaceContext / Blocks`, `BlockActor / ItemUse`, `RedStoneWireBlock / BambooStalkBlock`, `BlockLevel / CropBlock`, `JsonTextSerializer / PermissionManager`, `ComparatorBlockEntity`, `BuiltInExceptions / SuggestionsBuilder`, `PointedDripstoneBlock / FluidTicker`, `ItemUseTest`, `LayeredCauldronBlock / AbstractCauldronBlock`, `BrushableBlock / ConcretePowderBlock`, `Arguments / StringReader`, `PlayerStateCommands / AdvancementCommands`, `SessionService / ServerLoginContext`, `Val / AdventurePredicate`, `FireBlock / BaseRailBlock`, `Player / RegionLevel`, `ChunkColumn / ChunkSection`, `BlockTicks / ChunkLevel`, `Entity / ChunkLevel`, `HayBlock`, `LecternBlock / DoorBlock`, `Region / Regionizer`, `SeagrassBlock / MangrovePropaguleBlock`, `BlockEntity / ChunkLevel`, `Clip`, `PlayerVitals / PlayerVitalsTest`, `BigDripleafBlock / ChestBlock`, `LevelData / NbtCompound`, `Region / NetworkServerTest`, `MultifaceSpreader / VineBlock`, `ChunkColumn / ChunkColumnTest`, `NeighborUpdater / ChunkLevel`, `ChunkLevel / Entity`, `GrowingPlantBlock / KelpBlock`, `BlockBreakingTest / BlockBreaking`, `ItemEntityTest / ItemEntity`, `FarmBlock / CakeBlock`, `NoteBlock / Prop`, `RedstoneWallTorchBlock / WallTorchBlock`, `NbtCompound / StructureTemplate`, `PistonMovingBlockEntity / BlockEntity`, `HalfTransparentBlock / HoneyBlock`, `LevelServices / ChunkLevel`, `PlayerActor / BreakerActor`, `CampfireBlock`, `LightningRodBlock / PistonHeadBlock`, `PitcherCropBlock / TallSeagrassBlock`, `WeatheringCopper / WeatheringCopperBulbBlock`, `BlockTypesTest / FluidTest`, `BedBlock / BigDripleafStemBlock`, `EntityStore / AABB`?**
-  _High betweenness centrality (0.160) - this node is a cross-community bridge._
-- **Are the 33 inferred relationships involving `Pos` (e.g. with `.fromNbt()` and `.ChestBlockEntity()`) actually correct?**
-  _`Pos` has 33 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `Pos` connect `Pos` to `PlaceContext / Blocks`, `PlayerVitals / PlayerInfoUpdate`, `ItemStack`, `.with`, `.writeVarInt`, `list`, `BuiltInExceptions / SuggestionsBuilder`, `.block`, `ItemUseTest`, `org.junit.jupiter.api.Test`, `.scheduleTick`, `.intValue`, `.addFreshEntity`, `.getSource`, `Player`, `Val / AdventurePredicate`, `.getBlockState`, `RegionLevel`, `NbtList`, `BlockTicks / ChunkLevel`, `HayBlock`, `Entity / ChunkLevel`, `LecternBlock / DoorBlock`, `BlockLevel`, `BlockEntityContainer`, `Clip`, `.hasNeighborSignal`, `Region / NetworkServerTest`, `MultifaceSpreader / VineBlock`, `ChunkColumn`, `NeighborUpdater / ChunkLevel`, `.smeltsRawIronConsumingCoalAndRewindsWhenFuelRunsOut`, `ChunkLevel`, `BrewingStandBlockEntity`, `GrowingPlantBlock / KelpBlock`, `BlockBreakingTest / BlockBreaking`, `ItemEntityTest / ItemEntity`, `PlayerInventory`, `FarmBlock / CakeBlock`, `ShulkerBoxBlockEntity`, `RedstoneWallTorchBlock / WallTorchBlock`, `NbtCompound / StructureTemplate`, `PlayerActor`, `BlockEntity`, `PlayerActor / BreakerActor`, `LecternBlockEntity`, `HopperBlockEntity`, `WeatheringCopper / WeatheringCopperBulbBlock`, `.relative`, `Shape`?**
+  _High betweenness centrality (0.162) - this node is a cross-community bridge._
+- **Are the 48 inferred relationships involving `Pos` (e.g. with `.fromNbt()` and `.blockPredicate_blockAndTag()`) actually correct?**
+  _`Pos` has 48 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `YAML`, `TOML`, `JSON` to the rest of the system?**
-  _550 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _554 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `PlaceContext / Blocks` be split into smaller, more focused modules?**
-  _Cohesion score 0.02170317787446251 - nodes in this community are weakly interconnected._
-- **Why does `Text` connect `Texts / PlainTextSerializer` to `PlaceContext / Blocks`, `PlayerVitals / PlayerInfoUpdate`, `MarkupParser / MarkupParseException`, `BlockActor / ItemUse`, `DamageType / CombatTracker`, `JsonTextSerializer / PermissionManager`, `BuiltInExceptions / SuggestionsBuilder`, `PlayerHandle`, `VanillaAdvancementsTest`, `VanillaAdvancementsTest`, `Difficulty / DirectoryLock`, `ServerCommandEvent / BasicCommand`, `MarkupParseTest / MarkupEffectsTest`, `AsyncPlayerPreLoginEvent / PlayerLoginEvent`, `TextNbt / JsonSerializerTest`, `PlayerListCommands / PlayerLists`, `Arguments / StringReader`, `PlayerStateCommands / AdvancementCommands`, `SessionService / ServerLoginContext`, `CommandContextBuilder / CommandNode`, `ConnectionHandler / PlayerInventory`, `ConsoleSender / PermissionManagerImpl`, `Player / RegionLevel`, `Suggestion / IntegerSuggestion`, `SignedChatTest / ProfilePublicKey`, `ArgumentQueue / Resolvers`, `Style / Text`, `ConfigSection / TextMarkup`, `PackResources / Pack`, `PluginHost / ServerCore`, `TextToolsTest / JoinConfiguration`, `ChunkLevel / Entity`, `PlayerVitals / PlayerVitalsTest`, `LegacyTextSerializer / TextColor`, `WorldClock / WorldCommands`, `Player / GameMode`, `ChatType / PlayerChatMessage`, `Furnace / EventBus`, `AnsiTextSerializer / PlainAndAnsiTest`, `TranslationStore / TranslationTest`, `FurnacePlugin / PermissibleBase`, `TextTemplate / TextTemplateTest`, `PlayerAdvancements`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+  _Cohesion score 0.018020022246941044 - nodes in this community are weakly interconnected._
+- **Why does `ItemStack` connect `ItemStack` to `PlaceContext / Blocks`, `PlayerVitals / PlayerInfoUpdate`, `.with`, `Pos`, `list`, `MerchantOffer`, `Slot`, `MenuPlayer`, `.block`, `GameMode`, `.set`, `SpecialRecipes`, `ItemUseTest`, `.scheduleTick`, `.intValue`, `Container`, `FeaturePipelineParityTest / Harness`, `.addFreshEntity`, `.writeVarInt`, `PlayerData / PlayerDataTest`, `Player`, `.getBlockState`, `PlayerChatState`, `NbtList`, `EquipSlot`, `LecternBlock / DoorBlock`, `CraftingMatchTest`, `BlockLevel`, `PlayerInventoryContainer`, `BlockEntityContainer`, `ResourceId`, `.hasNeighborSignal`, `Player`, `Shaped`, `LevelData / NbtCompound`, `SetEntityData`, `Region / NetworkServerTest`, `.smeltsRawIronConsumingCoalAndRewindsWhenFuelRunsOut`, `ChunkLevel`, `BrewingStandBlockEntity`, `.extendsOnlyKnownMapsBelowScaleFour`, `SimpleContainer`, `CraftingInput`, `ItemEntityTest / ItemEntity`, `WindowSlotsContainer`, `PlayerInventory`, `org.domi.furnace.server.advancement.PlayerAdvancements.Host`, `BlockBreakingTest / BlockBreaking`, `AnvilWorldSource / FurnaceSchedulerImpl`, `NbtCompound / StructureTemplate`, `LootStack / Enchantments`, `SpecialRecipesTest`, `PlayerActor`, `.getSlot`, `LevelServices / ChunkLevel`, `PlayerActor / BreakerActor`, `LecternBlockEntity`, `Recipe / Ingredient`, `AbstractContainerMenu`, `LegacyRandomSource`, `EnderChestInventory`, `InventoryMenu`, `Override`, `CraftingEntry`, `.relative`?**
+  _High betweenness centrality (0.104) - this node is a cross-community bridge._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
 
-- **What is the exact relationship between `featurefull 3-coordinate 0 mismatch` and `Snow block and stone mismatch in peaks and groves`?**
+- **What is the exact relationship between `Snow block and stone mismatch in peaks and groves` and `featurefull 3-coordinate 0 mismatch`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `Oracle tag unbinding and center-only write fixture contamination` and `Tree leaves and vine mismatch (category B)`?**
+- **What is the exact relationship between `Tree leaves and vine mismatch (category B)` and `Oracle tag unbinding and center-only write fixture contamination`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
