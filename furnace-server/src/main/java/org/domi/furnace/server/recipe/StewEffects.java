@@ -13,7 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-final class StewEffects {
+public final class StewEffects {
 
     private StewEffects() { }
 
@@ -47,5 +47,5 @@ final class StewEffects {
     }
 
     /** 그 아이템의 수상한 스튜 효과(정규 값 목록), 해당 없으면 null. */
-    static List<Object> of(String item) { return item == null ? null : table().get(item); }
+    public static List<Object> of(String item) { return item == null ? null : table().get(item); }
 }

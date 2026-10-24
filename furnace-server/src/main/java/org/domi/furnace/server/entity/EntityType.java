@@ -36,6 +36,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** SHEEP: sized(0.9, 1.3).eyeHeight(1.235).clientTrackingRange(10). */
     public static final EntityType SHEEP = of("minecraft:sheep", 0.9F, 1.3F, 1.235F, 10, 3, true, false);
 
+    /** MOOSHROOM: sized(0.9, 1.4).eyeHeight(1.3).clientTrackingRange(10). */
+    public static final EntityType MOOSHROOM = of("minecraft:mooshroom", 0.9F, 1.4F, 1.3F, 10, 3, true, false);
+
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);

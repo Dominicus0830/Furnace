@@ -10,7 +10,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public class Cow extends Animal {
 
-    public Cow(ChunkLevel level, int id) { super(EntityType.COW, level, id); }
+    public Cow(ChunkLevel level, int id) { this(EntityType.COW, level, id); }
+
+    protected Cow(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 
     @Override
     protected void createAttributes(AttributeMap map) {

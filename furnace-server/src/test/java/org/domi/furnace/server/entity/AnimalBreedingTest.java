@@ -85,7 +85,7 @@ class AnimalBreedingTest {
     @Test
     void allAnimalsSaveAndLoad() {
         var level = new BlockPlacementTest.TestLevel();
-        for (String id : new String[] {"minecraft:chicken", "minecraft:cow", "minecraft:pig", "minecraft:sheep"}) {
+        for (String id : new String[] {"minecraft:chicken", "minecraft:cow", "minecraft:pig", "minecraft:sheep", "minecraft:mooshroom"}) {
             Entity e = Entities.create(level, id);
             assertNotNull(e, id);
             e.moveTo(0.5, -60, 0.5, 0, 0);
