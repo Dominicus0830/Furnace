@@ -76,6 +76,28 @@ public record EntityType(String name, int id, float width, float height, float e
         return ids;
     }
 
+    /** HUSK: sized(0.6, 1.95).eyeHeight(1.74).clientTrackingRange(8). */
+    public static final EntityType HUSK = of("minecraft:husk", 0.6F, 1.95F, 1.74F, 8, 3, true, false);
+
+    /** GIANT: sized(3.6, 12.0).eyeHeight(10.44).clientTrackingRange(10). */
+    public static final EntityType GIANT = of("minecraft:giant", 3.6F, 12.0F, 10.44F, 10, 3, true, false);
+
+    /** ZOMBIE_VILLAGER: sized(0.6, 1.95).eyeHeight(1.74).clientTrackingRange(8). */
+    public static final EntityType ZOMBIE_VILLAGER = of("minecraft:zombie_villager", 0.6F, 1.95F, 1.74F, 8, 3, true, false);
+
+    /** ZOMBIFIED_PIGLIN: fireImmune, sized(0.6, 1.95).eyeHeight(1.79).clientTrackingRange(8). */
+    public static final EntityType ZOMBIFIED_PIGLIN = of("minecraft:zombified_piglin", 0.6F, 1.95F, 1.79F, 8, 3, true, true);
+
+    private static final org.domi.furnace.server.net.registry.TagSet TAGS = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+
+    /** 엔티티 종류 태그(entity_type 태그)에 들어 있나. */
+    public boolean is(String tag) {
+        int[] ids = TAGS.ids("minecraft:entity_type", tag);
+        if (ids == null) return false;
+        for (int i : ids) if (i == this.id) return true;
+        return false;
+    }
+
     /** EntityDimensions.makeBoundingBox(x, y, z). */
     public AABB makeBoundingBox(double x, double y, double z) {
         double hw = width / 2.0F;

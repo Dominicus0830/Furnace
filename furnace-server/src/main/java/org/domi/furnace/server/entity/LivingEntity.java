@@ -177,6 +177,129 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return true;
     }
 
+    // ------------------------------------------------------------------ 상태 효과(LivingEntity.activeEffects)
+
+    private final java.util.Map<org.domi.furnace.server.effect.MobEffect, org.domi.furnace.server.effect.MobEffectInstance> activeEffects = new java.util.LinkedHashMap<>();
+
+    private final org.domi.furnace.server.effect.MobEffect.Host effectHost = new org.domi.furnace.server.effect.MobEffect.Host() {
+        public float health() { return LivingEntity.this.health(); }
+
+        public float maxHealth() { return LivingEntity.this.maxHealth(); }
+
+        public void heal(float amount) { LivingEntity.this.heal(amount); }
+
+        public boolean hurtBy(String key, float amount) {
+            return LivingEntity.this.hurt(new Damage(key, false, false, false), amount);
+        }
+
+        public boolean isPlayer() { return false; }
+
+        public void causeFoodExhaustion(float amount) {}
+
+        public void eat(int nutrition, float saturationModifier) {}
+
+        public float absorption() { return 0.0F; }
+
+        public void setAbsorption(float amount) {}
+
+        public boolean invertedHealAndHarm() { return type.is("minecraft:inverted_healing_and_harm"); }
+    };
+
+    public org.domi.furnace.server.effect.MobEffect.Host effectHost() { return effectHost; }
+
+    public java.util.Collection<org.domi.furnace.server.effect.MobEffectInstance> getActiveEffects() { return activeEffects.values(); }
+
+    public boolean hasEffect(org.domi.furnace.server.effect.MobEffect e) { return activeEffects.containsKey(e); }
+
+    public org.domi.furnace.server.effect.MobEffectInstance getEffect(org.domi.furnace.server.effect.MobEffect e) { return activeEffects.get(e); }
+
+    /** LivingEntity.canBeAffected: 되살아나지 않는 몹(언데드)은 재생·독에 안 걸린다. */
+    public boolean canBeAffected(org.domi.furnace.server.effect.MobEffectInstance i) {
+        if (type.is("minecraft:ignores_poison_and_regen")) {
+            return i.effect() != org.domi.furnace.server.effect.MobEffect.REGENERATION && i.effect() != org.domi.furnace.server.effect.MobEffect.POISON;
+        }
+        return true;
+    }
+
+    public boolean addEffect(org.domi.furnace.server.effect.MobEffectInstance incoming) {
+        if (!canBeAffected(incoming)) return false;
+        var existing = activeEffects.get(incoming.effect());
+        boolean changed;
+        if (existing == null) {
+            activeEffects.put(incoming.effect(), incoming);
+            if (tracker != null) tracker.broadcast(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(id(), incoming, true));
+            onEffectAdded(incoming);
+            changed = true;
+        } else if (existing.update(incoming)) {
+            if (tracker != null) tracker.broadcast(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(id(), existing, true));
+            onEffectUpdated(existing);
+            changed = true;
+        } else {
+            changed = false;
+        }
+        return changed;
+    }
+
+    protected void onEffectAdded(org.domi.furnace.server.effect.MobEffectInstance i) {
+        applyEffectAttributes(i);
+        i.effect().onEffectStarted(effectHost, i.amplifier());
+    }
+
+    protected void onEffectUpdated(org.domi.furnace.server.effect.MobEffectInstance i) {
+        applyEffectAttributes(i);
+    }
+
+    private void applyEffectAttributes(org.domi.furnace.server.effect.MobEffectInstance i) {
+        for (Object[] m : i.effect().attributeModifiers()) {
+            Attribute a = Attribute.byName((String) m[0]);
+            if (a == null || attributes().get(a) == null) continue;
+            var inst = attributes().get(a);
+            inst.removeModifier((String) m[1]);
+            inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier((String) m[1], ((Number) m[2]).doubleValue() * (i.amplifier() + 1), (Integer) m[3]));
+        }
+    }
+
+    public boolean removeEffect(org.domi.furnace.server.effect.MobEffect effect) {
+        var e = activeEffects.remove(effect);
+        if (e == null) return false;
+        onEffectRemoved(e);
+        return true;
+    }
+
+    public int removeAllEffects() {
+        int n = activeEffects.size();
+        for (var e : new java.util.ArrayList<>(activeEffects.values())) {
+            activeEffects.remove(e.effect());
+            onEffectRemoved(e);
+        }
+        return n;
+    }
+
+    protected void onEffectRemoved(org.domi.furnace.server.effect.MobEffectInstance e) {
+        for (Object[] m : e.effect().attributeModifiers()) {
+            Attribute a = Attribute.byName((String) m[0]);
+            if (a != null && attributes().get(a) != null) attributes().get(a).removeModifier((String) m[1]);
+        }
+        if (health() > maxHealth()) setHealth(maxHealth());
+        if (tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.RemoveMobEffect(id(), e.effect().registryId()));
+    }
+
+    /** LivingEntity.tickEffects: 효과마다 적용·감소, 끝난 것은 지우고 600틱마다 알린다. */
+    protected void tickEffects() {
+        if (activeEffects.isEmpty()) return;
+        for (var e : new java.util.ArrayList<>(activeEffects.values())) {
+            boolean alive = e.tick(effectHost, tickCount, () -> {
+                if (tracker != null) tracker.broadcast(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(id(), e, true));
+            }, () -> { });
+            if (!alive) {
+                activeEffects.remove(e.effect());
+                onEffectRemoved(e);
+            } else if (e.duration() % 600 == 0) {
+                if (tracker != null) tracker.broadcast(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(id(), e, false));
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ 소리
 
     protected String getHurtSound(Damage source) { return null; }
@@ -273,7 +396,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
     public void die(Damage source) {
         if (isRemoved() || dead) return;
         dead = true;
-        dropAllDeathLoot(source);
+        boolean drops = !(lastHurtByMob instanceof Mob killer) || killer.killedEntity(this);   // Entity.killedEntity: false 면 드롭 없음(좀비가 주민을 감염시킴)
+        if (drops) dropAllDeathLoot(source);
         if (tracker != null) tracker.broadcast(new EntityEvent(id(), (byte) 3));
     }
 
@@ -357,6 +481,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     @Override
     public void baseTick() {
         super.baseTick();
+        tickEffects();
         if (isDeadOrDying() && !isRemoved()) tickDeath();
         if (invulnerableTime > 0) invulnerableTime--;
         if (hurtTime > 0) hurtTime--;

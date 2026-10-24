@@ -73,6 +73,24 @@ public final class MobEffect {
     public static final MobEffect OOZING = of("oozing", Category.HARMFUL, 10092451);
     public static final MobEffect INFESTED = of("infested", Category.HARMFUL, 9214860);
 
+    /** 효과가 거는 속성 수정자(바닐라 MobEffect.addAttributeModifier): {속성 이름, 수정자 id, 단계당 양, 연산(0 더하기·1 기본 곱·2 총 곱)}. */
+    public java.util.List<Object[]> attributeModifiers() {
+        return switch (name) {
+            case "minecraft:speed" -> java.util.List.<Object[]>of(new Object[] {"generic.movement_speed", "minecraft:effect.speed", 0.2F, 2});
+            case "minecraft:slowness" -> java.util.List.<Object[]>of(new Object[] {"generic.movement_speed", "minecraft:effect.slowness", -0.15F, 2});
+            case "minecraft:haste" -> java.util.List.<Object[]>of(new Object[] {"generic.attack_speed", "minecraft:effect.haste", 0.1F, 2});
+            case "minecraft:mining_fatigue" -> java.util.List.<Object[]>of(new Object[] {"generic.attack_speed", "minecraft:effect.mining_fatigue", -0.1F, 2});
+            case "minecraft:strength" -> java.util.List.<Object[]>of(new Object[] {"generic.attack_damage", "minecraft:effect.strength", 3.0, 0});
+            case "minecraft:jump_boost" -> java.util.List.<Object[]>of(new Object[] {"generic.safe_fall_distance", "minecraft:effect.jump_boost", 1.0, 0});
+            case "minecraft:weakness" -> java.util.List.<Object[]>of(new Object[] {"generic.attack_damage", "minecraft:effect.weakness", -4.0, 0});
+            case "minecraft:health_boost" -> java.util.List.<Object[]>of(new Object[] {"generic.max_health", "minecraft:effect.health_boost", 4.0, 0});
+            case "minecraft:absorption" -> java.util.List.<Object[]>of(new Object[] {"generic.max_absorption", "minecraft:effect.absorption", 4.0, 0});
+            case "minecraft:luck" -> java.util.List.<Object[]>of(new Object[] {"generic.luck", "minecraft:effect.luck", 1.0, 0});
+            case "minecraft:unluck" -> java.util.List.<Object[]>of(new Object[] {"generic.luck", "minecraft:effect.unluck", -1.0, 0});
+            default -> java.util.List.of();
+        };
+    }
+
     /** 이름("minecraft:speed")으로 찾는다(없으면 null). */
     public static MobEffect byName(String name) {
         if (name != null && name.indexOf(':') < 0) name = "minecraft:" + name;

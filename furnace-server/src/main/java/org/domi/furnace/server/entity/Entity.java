@@ -494,6 +494,8 @@ public abstract class Entity {
 
     public boolean isInWaterRainOrBubble() { return isInWater() || isInRain() || isInBubbleColumn(); }
 
+    public boolean isInPowderSnow() { return isInPowderSnow; }
+
     public boolean isInWaterOrBubble() { return isInWater() || isInBubbleColumn(); }
 
     public void setIsInPowderSnow(boolean v) { isInPowderSnow = v; }

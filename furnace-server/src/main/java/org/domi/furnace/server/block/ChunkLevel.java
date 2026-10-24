@@ -1027,6 +1027,18 @@ public abstract class ChunkLevel implements BlockLevel {
 
     private static final float[] MOON_BRIGHTNESS_PER_PHASE = {1.0F, 0.75F, 0.5F, 0.25F, 0.0F, 0.25F, 0.5F, 0.75F};
 
+    /** Level.getHeight(MOTION_BLOCKING, x, z): 움직임을 막는 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
+    public int getMotionBlockingHeight(int x, int z) {
+        ChunkColumn col = chunk(x >> 4, z >> 4);
+        return col == null ? ChunkColumn.MIN_Y : col.motionBlockingBlockY(x & 15, z & 15) + 1;
+    }
+
+    /** LevelReader.canSeeSky(pos): 그 칸 위로 움직임을 막는 블록이 없다. */
+    public boolean canSeeSky(Pos pos) { return getMotionBlockingHeight(pos.x(), pos.z()) <= pos.y(); }
+
+    /** Level.isDay(): 낮(skyDarken < 4)이고 고정 시간 차원이 아니다. */
+    public boolean isDay() { return hasSkyLight() && skyDarken() < 4; }
+
     public float moonBrightness() { return MOON_BRIGHTNESS_PER_PHASE[(int) (dayTime() / 24000L % 8L + 8L) % 8]; }
 
     /** getCurrentDifficultyAt(pos): 청크가 있으면 그 청크의 머문 시간·달 밝기를 반영한다. */

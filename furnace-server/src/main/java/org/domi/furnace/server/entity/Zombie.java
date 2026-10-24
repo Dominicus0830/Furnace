@@ -22,7 +22,9 @@ public class Zombie extends Monster {
 
     private boolean canBreakDoors;
 
-    public Zombie(ChunkLevel level, int id) { super(EntityType.ZOMBIE, level, id); }
+    public Zombie(ChunkLevel level, int id) { this(EntityType.ZOMBIE, level, id); }
+
+    protected Zombie(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 
     @Override
     protected void createAttributes(AttributeMap map) {
@@ -56,6 +58,73 @@ public class Zombie extends Monster {
         // TODO(대상): 3 = 철 골렘(mustSee), 5 = 땅 위의 아기 거북
     }
 
+    /** 햇빛에 타는 몹인가(Zombie.isSunSensitive). 허스크는 거짓. */
+    protected boolean isSunSensitive() { return true; }
+
+    /** Zombie.aiStep: 낮에 하늘이 뚫린 곳이면 머리 방어구를 깎거나(0~1) 없으면 8초간 불이 붙는다. */
+    @Override
+    protected void aiStep() {
+        if (isAlive()) {
+            boolean burn = isSunSensitive() && isSunBurnTick();
+            if (burn) {
+                ItemStack helmet = getItemBySlot(EquipmentSlot.HEAD);
+                if (!helmet.isEmpty()) {
+                    if (org.domi.furnace.server.item.ItemTools.isDamageable(helmet)) {
+                        helmet = org.domi.furnace.server.item.ItemTools.withDamage(helmet, org.domi.furnace.server.item.ItemTools.damage(helmet) + random.nextInt(2));
+                        if (org.domi.furnace.server.item.ItemTools.damage(helmet) >= org.domi.furnace.server.item.ItemTools.maxDamage(helmet)) {
+                            broadcastEntityEvent((byte) 52);   // 머리 장비 부서짐
+                            setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+                        } else {
+                            setItemSlot(EquipmentSlot.HEAD, helmet);
+                        }
+                    }
+                    burn = false;
+                }
+                if (burn) igniteForSeconds(8.0F);
+            }
+        }
+        super.aiStep();
+    }
+
+    /** Zombie.doHurtTarget: 맞췄고 빈손이며 불붙은 상태면 난이도 비례 확률로 상대에게 불을 옮긴다. */
+    @Override
+    public boolean doHurtTarget(Targetable t) {
+        boolean hit = super.doHurtTarget(t);
+        if (hit) {
+            float f = level.getCurrentDifficultyAt(blockPosition()).effectiveDifficulty();
+            if (getItemBySlot(EquipmentSlot.MAINHAND).isEmpty() && isOnFire() && random.nextFloat() < f * 0.3F && t instanceof Entity e) {
+                e.igniteForSeconds(2 * (int) f);
+            }
+        }
+        return hit;
+    }
+
+    /** Zombie.wasKilled: 주민을 죽이면 난이도(보통 50%, 어려움 100%)에 따라 좀비 주민으로 바꾼다. 바꿨으면 false(드롭 없음). */
+    @Override
+    public boolean killedEntity(LivingEntity victim) {
+        boolean ok = super.killedEntity(victim);
+        int diff = level.difficulty();
+        if ((diff == 2 || diff == 3) && victim instanceof Villager v) {
+            if (diff != 3 && random.nextBoolean()) return ok;
+            ZombieVillager zv = new ZombieVillager(level, level.nextEntityId());
+            zv.moveTo(v.x(), v.y(), v.z(), v.yRot(), v.xRot());
+            int[] d = v.villagerData();
+            zv.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
+            zv.setOffers(v.offers());
+            zv.setVillagerXp(v.villagerXp());
+            zv.finalizeSpawnForConversion(level.random(), level.getCurrentDifficultyAt(zv.blockPosition()));
+            zv.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
+            zv.setBabyForConversion(v.isBaby());
+            zv.setNoAi(v.isNoAi());
+            zv.persistenceRequired = true;
+            v.discard();
+            level.addFreshEntity(zv);
+            if (!isSilent()) level.levelEvent(null, 1026, blockPosition(), 0);
+            ok = false;
+        }
+        return ok;
+    }
+
     public boolean canBreakDoors() { return canBreakDoors; }
 
     /** Zombie.setCanBreakDoors: 땅 길찾기일 때만, 문을 열 수 있게 한다. TODO(BreakDoorGoal): 우선순위 1 목표를 붙이고 뗀다. */
@@ -72,6 +141,58 @@ public class Zombie extends Monster {
 
     protected boolean supportsBreakDoorGoal() { return true; }
 
+    // ---- 물속 변환 (Zombie.tick / startUnderWaterConversion / doUnderWaterConversion)
+    private int inWaterTime;
+    private int conversionTime;
+
+    /** 물속에 600틱 있으면 변환을 시작하는 몹인가(Zombie.convertsInWater). 좀비·허스크 참, 드라운드·좀비 피글린 거짓. */
+    protected boolean convertsInWater() { return true; }
+
+    public boolean isUnderWaterConverting() { return (Boolean) entityData.get(DATA_DROWNED_CONVERSION); }
+
+    private void startUnderWaterConversion(int ticks) {
+        conversionTime = ticks;
+        entityData.set(DATA_DROWNED_CONVERSION, true);
+    }
+
+    /** 변환 결과 몹을 만들어 돌려준다(없으면 null). 좀비 → 드라운드(TODO), 허스크 → 좀비. */
+    protected Zombie createConversionTarget() { return null; }
+
+    protected void doUnderWaterConversion() {
+        convertToZombieType(createConversionTarget());
+    }
+
+    protected void convertToZombieType(Zombie target) {
+        if (target == null) return;
+        Zombie z = convertTo(target, true);
+        if (z != null) {
+            z.handleAttributes(z.level.getCurrentDifficultyAt(z.blockPosition()).specialMultiplier());
+            z.setCanBreakDoors(z.supportsBreakDoorGoal() && canBreakDoors());
+            if (!isSilent()) level.levelEvent(null, 1040, blockPosition(), 0);
+        }
+    }
+
+    @Override
+    protected void setBabyForConversion(boolean baby) { setBaby(baby); }
+
+    @Override
+    public void tick() {
+        if (isAlive() && !isNoAi()) {
+            if (isUnderWaterConverting()) {
+                conversionTime--;
+                if (conversionTime < 0) doUnderWaterConversion();
+            } else if (convertsInWater()) {
+                if (isEyeInWater()) {
+                    inWaterTime++;
+                    if (inWaterTime >= 600) startUnderWaterConversion(300);
+                } else {
+                    inWaterTime = -1;
+                }
+            }
+        }
+        super.tick();
+    }
+
     /** 아기 확률 5%(Zombie.getSpawnAsBabyOdds). */
     public static boolean getSpawnAsBabyOdds(org.domi.furnace.server.block.RandomSource r) { return r.nextFloat() < 0.05F; }
 
@@ -84,13 +205,29 @@ public class Zombie extends Monster {
         super.finalizeSpawn(r, difficulty);
         float special = difficulty.specialMultiplier();
         setCanPickUpLoot(r.nextFloat() < 0.55F * special);
-        boolean baby = getSpawnAsBabyOdds(r);
+        boolean baby = getSpawnAsBabyOdds(r);   // spawnData == null 이면 ZombieGroupData(아기 확률, nextBoolean) 를 새로 만든다
+        boolean jockey = r.nextBoolean();
+        finishFinalizeSpawn(r, difficulty, baby, jockey);
+    }
+
+    /** 감염·변환으로 만든 좀비용: 그룹 데이터 (false, true) 라서 아기·기수 난수를 뽑지 않는다. */
+    public void finalizeSpawnForConversion(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        super.finalizeSpawn(r, difficulty);
+        float special = difficulty.specialMultiplier();
+        setCanPickUpLoot(r.nextFloat() < 0.55F * special);
+        finishFinalizeSpawn(r, difficulty, false, true);
+    }
+
+    private void finishFinalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, boolean baby, boolean jockey) {
+        float special = difficulty.specialMultiplier();
         if (baby) {
             setBaby(true);
-            if (r.nextFloat() < 0.05) {
-                // TODO(닭 기수): 5 × 3 × 5 안의 기수 없는 닭에 타거나
-            } else if (r.nextFloat() < 0.05) {
-                // TODO(닭 기수): 새 닭을 만들어 타기
+            if (jockey) {
+                if (r.nextFloat() < 0.05) {
+                    // TODO(닭 기수): 5 × 3 × 5 안의 기수 없는 닭에 타기
+                } else if (r.nextFloat() < 0.05) {
+                    // TODO(닭 기수): 새 닭을 만들어 타기
+                }
             }
         }
         setCanBreakDoors(supportsBreakDoorGoal() && r.nextFloat() < special * 0.1F);
@@ -168,8 +305,8 @@ public class Zombie extends Monster {
         super.addAdditionalSaveData(tag);
         tag.putBoolean("IsBaby", isBaby());
         tag.putBoolean("CanBreakDoors", canBreakDoors);
-        tag.putInt("InWaterTime", isInWater() ? 0 : -1);
-        tag.putInt("DrownedConversionTime", -1);
+        tag.putInt("InWaterTime", isInWater() ? inWaterTime : -1);
+        tag.putInt("DrownedConversionTime", isUnderWaterConverting() ? conversionTime : -1);
     }
 
     @Override
@@ -177,5 +314,7 @@ public class Zombie extends Monster {
         super.readAdditionalSaveData(tag);
         setBaby(tag.getBoolean("IsBaby"));
         canBreakDoors = tag.getBoolean("CanBreakDoors");
+        inWaterTime = tag.getInt("InWaterTime");
+        if (tag.contains("DrownedConversionTime") && tag.getInt("DrownedConversionTime") > -1) startUnderWaterConversion(tag.getInt("DrownedConversionTime"));
     }
 }

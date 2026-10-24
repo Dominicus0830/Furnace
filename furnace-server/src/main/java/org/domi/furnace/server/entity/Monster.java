@@ -31,14 +31,6 @@ public abstract class Monster extends PathfinderMob {
         if (f > 0.5F) noActionTime += 2;
     }
 
-    /** Entity.getLightLevelDependentMagicValue: 눈 높이 칸의 밝기(청크가 없으면 0). 오버월드는 ambientLight 0 → 곡선 f/(4-3f). */
-    public float getLightLevelDependentMagicValue() {
-        Pos pos = new Pos((int) Math.floor(x()), (int) Math.floor(eyeY()), (int) Math.floor(z()));
-        int light = level.getMaxLocalRawBrightness(pos);
-        float f = light / 15.0F;
-        return f / (4.0F - 3.0F * f);
-    }
-
     @Override
     public float getWalkTargetValue(Pos pos, ChunkLevel level) {
         int light = level.getMaxLocalRawBrightness(pos);

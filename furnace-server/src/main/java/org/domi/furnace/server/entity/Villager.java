@@ -24,6 +24,21 @@ public final class Villager extends Mob implements Merchant {
     public static final List<String> TYPES = List.of("desert", "jungle", "plains", "savanna", "snow", "swamp", "taiga");
     public static final List<String> PROFESSIONS = List.of("none", "armorer", "butcher", "cartographer", "cleric", "farmer", "fisherman", "fletcher",
             "leatherworker", "librarian", "mason", "nitwit", "shepherd", "toolsmith", "weaponsmith");
+    /** VillagerType.byBiome: 바이옴 이름으로 종류를 정한다(기본 plains). */
+    public static String typeForBiome(String biome) {
+        if (biome == null) return "plains";
+        return switch (biome.replace("minecraft:", "")) {
+            case "badlands", "desert", "eroded_badlands", "wooded_badlands" -> "desert";
+            case "bamboo_jungle", "jungle", "sparse_jungle" -> "jungle";
+            case "savanna_plateau", "savanna", "windswept_savanna" -> "savanna";
+            case "deep_frozen_ocean", "frozen_ocean", "frozen_river", "ice_spikes", "snowy_beach", "snowy_taiga", "snowy_plains", "grove", "snowy_slopes",
+                    "frozen_peaks", "jagged_peaks" -> "snow";
+            case "swamp", "mangrove_swamp" -> "swamp";
+            case "old_growth_spruce_taiga", "old_growth_pine_taiga", "windswept_hills", "windswept_gravelly_hills", "windswept_forest", "taiga" -> "taiga";
+            default -> "plains";
+        };
+    }
+
     private static final int[] XP_PER_LEVEL = {0, 0, 10, 70, 150, 250};
 
     private MenuPlayer tradingPlayer;
@@ -168,7 +183,7 @@ public final class Villager extends Mob implements Merchant {
         return c.tags().get("id") instanceof String id ? new ItemCost(id, Math.max(1, c.tags().get("count") instanceof Number n ? n.intValue() : 1)) : null;
     }
 
-    private static NbtCompound writeOffer(MerchantOffer o) {
+    static NbtCompound writeOffer(MerchantOffer o) {
         NbtCompound t = new NbtCompound();
         t.putCompound("buy", writeCost(o.baseCostA()));
         o.costB().ifPresent(b -> t.putCompound("buyB", writeCost(b)));
@@ -183,7 +198,7 @@ public final class Villager extends Mob implements Merchant {
         return t;
     }
 
-    private static MerchantOffer readOffer(NbtCompound t) {
+    static MerchantOffer readOffer(NbtCompound t) {
         ItemCost a = t.tags().get("buy") instanceof NbtCompound b ? readCost(b) : null;
         ItemStack sell = t.tags().get("sell") instanceof NbtCompound s ? readStack(s) : ItemStack.EMPTY;
         if (a == null || sell.isEmpty()) return null;

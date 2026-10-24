@@ -160,8 +160,54 @@ public abstract class Mob extends LivingEntity {
     /** Entity.getFluidJumpThreshold: 눈높이가 0.4 미만이면 0, 아니면 0.4. */
     public double getFluidJumpThreshold() { return dimEye < 0.4 ? 0.0 : 0.4; }
 
+    /** Mob.convertTo(type, keepEquipment): 이 몹 자리에 대신 쓸 새 몹(target)을 위치·아기·무AI·유지 설정을 넘겨 추가하고 자신은 지운다. */
+    public <T extends Mob> T convertTo(T target, boolean keepEquipment) {
+        if (isRemoved() || target == null) return null;
+        target.moveTo(x(), y(), z(), yRot(), xRot());
+        if (isBaby()) target.setBabyForConversion(true);
+        target.setNoAi(isNoAi());
+        if (persistenceRequired) target.persistenceRequired = true;
+        if (keepEquipment) {
+            target.setCanPickUpLoot(canPickUpLoot());
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                ItemStack item = getItemBySlot(slot);
+                if (!item.isEmpty()) {
+                    target.setItemSlot(slot, item);
+                    setItemSlot(slot, ItemStack.EMPTY);
+                    target.setDropChance(slot, getEquipmentDropChance(slot));
+                }
+            }
+        }
+        level.addFreshEntity(target);
+        discard();
+        return target;
+    }
+
+    /** Entity.killedEntity: 이 몹이 죽였을 때(false 면 죽은 쪽의 드롭을 막는다). */
+    public boolean killedEntity(LivingEntity victim) { return true; }
+
+    /** 변환된 몹을 아기로 만든다(AgeableMob·Zombie 가 덮어쓴다). */
+    protected void setBabyForConversion(boolean baby) {}
+
     /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
     public boolean removeWhenFarAway(double distSqr) { return true; }
+
+    /** Entity.getLightLevelDependentMagicValue: 눈 높이 칸의 밝기(청크가 없으면 0). 오버월드는 ambientLight 0 → 곡선 f/(4-3f). */
+    public float getLightLevelDependentMagicValue() {
+        Pos pos = new Pos((int) Math.floor(x()), (int) Math.floor(eyeY()), (int) Math.floor(z()));
+        int light = level.getMaxLocalRawBrightness(pos);
+        float f = light / 15.0F;
+        return f / (4.0F - 3.0F * f);
+    }
+
+    /** Mob.isSunBurnTick: 낮에 하늘이 뚫린 곳에서 비·물에 젖지 않았을 때 가끔 참. */
+    protected boolean isSunBurnTick() {
+        if (!level.isDay()) return false;
+        float f = getLightLevelDependentMagicValue();
+        Pos pos = new Pos((int) Math.floor(x()), (int) Math.floor(eyeY()), (int) Math.floor(z()));
+        boolean wet = isInWaterRainOrBubble() || isInPowderSnow();
+        return f > 0.5F && random.nextFloat() * 30.0F < (f - 0.4F) * 2.0F && !wet && level.canSeeSky(pos);
+    }
 
     public boolean isLeftHanded() { return ((Byte) entityData.get(DATA_MOB_FLAGS) & 2) != 0; }
 
