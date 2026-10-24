@@ -2,6 +2,8 @@
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.ai.GoalSelector;
 import org.domi.furnace.server.entity.ai.control.JumpControl;
 import org.domi.furnace.server.entity.ai.control.LookControl;
@@ -40,6 +42,12 @@ public abstract class Mob extends LivingEntity {
     /** 종류별 목표 등록(vanilla registerGoals). 하위 클래스 필드는 아직 초기화 전이므로 쓰지 말 것. */
     protected void registerGoals() {}
 
+    @Override
+    protected void createAttributes(org.domi.furnace.server.attribute.AttributeMap map) {   // Mob.createMobAttributes
+        super.createAttributes(map);
+        map.add(Attribute.FOLLOW_RANGE, 16.0);
+    }
+
     protected PathNavigation createNavigation(ChunkLevel level) { return new GroundPathNavigation(this, level); }
 
     public PathNavigation getNavigation() { return navigation; }
@@ -54,8 +62,91 @@ public abstract class Mob extends LivingEntity {
     /** 서 있는 칸으로 칠 수 있는 유체인가(canStandOnFluid) — 기본 아니오. */
     public boolean canStandOnFluid(int fluid) { return false; }
 
-    /** 공격 대상이 있는가 — TODO(대상): 대상 시스템(플레이어도 대상)이 생기면. */
-    protected boolean hasTarget() { return false; }
+    // ------------------------------------------------------------------ 제한 구역(restrictTo)
+
+    private Pos restrictCenter = Pos.ZERO;
+    private float restrictRadius = -1.0F;
+
+    public boolean isWithinRestriction(Pos pos) {
+        if (restrictRadius == -1.0F) return true;
+        long dx = pos.x() - restrictCenter.x(), dy = pos.y() - restrictCenter.y(), dz = pos.z() - restrictCenter.z();
+        return (double) (dx * dx + dy * dy + dz * dz) < (double) (restrictRadius * restrictRadius);
+    }
+
+    public void restrictTo(Pos center, int radius) {
+        restrictCenter = center;
+        restrictRadius = radius;
+    }
+
+    public Pos getRestrictCenter() { return restrictCenter; }
+
+    public float getRestrictRadius() { return restrictRadius; }
+
+    public void clearRestriction() { restrictRadius = -1.0F; }
+
+    public boolean hasRestriction() { return restrictRadius != -1.0F; }
+
+    // ------------------------------------------------------------------ 대상·전투
+
+    protected Targetable target;
+    private final java.util.Set<Integer> seenTargets = new java.util.HashSet<>(), unseenTargets = new java.util.HashSet<>();
+
+    public Targetable getTarget() { return target; }
+
+    public void setTarget(Targetable t) { target = t; }
+
+    protected boolean hasTarget() { return target != null; }
+
+    /** canAttackType: 이 몹이 그 종류를 때릴 수 있는가(기본 모두, 가스트 같은 것만 제외). */
+    public boolean canAttackType(Targetable t) { return true; }
+
+    public boolean isAggressive() { return ((Byte) entityData.get(DATA_MOB_FLAGS) & 4) != 0; }
+
+    public void setAggressive(boolean v) {
+        byte b = (Byte) entityData.get(DATA_MOB_FLAGS);
+        entityData.set(DATA_MOB_FLAGS, (byte) (v ? b | 4 : b & ~4));
+    }
+
+    /** Sensing.hasLineOfSight: 틱마다 비우는 캐시. */
+    public boolean hasLineOfSight(Targetable t) {
+        if (seenTargets.contains(t.id())) return true;
+        if (unseenTargets.contains(t.id())) return false;
+        boolean seen = rayHasLineOfSight(t);
+        (seen ? seenTargets : unseenTargets).add(t.id());
+        return seen;
+    }
+
+    /** LivingEntity.hasLineOfSight: 눈에서 눈까지(128칸 안) 충돌 모양에 안 막힌다. */
+    private boolean rayHasLineOfSight(Targetable t) {
+        double dx = t.x() - x(), dy = t.eyeY() - eyeY(), dz = t.z() - z();
+        if (Math.sqrt(dx * dx + dy * dy + dz * dz) > 128.0) return false;
+        return org.domi.furnace.server.block.Clip.clipCollider(level, x(), eyeY(), z(), t.x(), t.eyeY(), t.z()).miss();
+    }
+
+    private static final double MELEE_REACH = Math.sqrt(2.04F) - 0.6F;
+
+    /** isWithinMeleeAttackRange: 내 몸통을 가로로 (루트 2.04 − 0.6) 넓힌 상자가 상대 몸통과 겹친다. */
+    public boolean isWithinMeleeAttackRange(Targetable t) {
+        return boundingBox().inflate(MELEE_REACH, 0.0, MELEE_REACH).intersects(t.boundingBox());
+    }
+
+    /** Mob.doHurtTarget: 공격력 속성만큼 때리고, 맞으면 밀치기(attack_knockback)·되받는 감속·마지막으로 때린 대상 기록. TODO(인챈트 효과·무기 후처리). */
+    public boolean doHurtTarget(Targetable t) {
+        float damage = (float) attributeValue(Attribute.ATTACK_DAMAGE);
+        boolean hurt = t.hurtByMob(new Damage("mob_attack", false, false, false), damage, this);
+        if (hurt) {
+            float kb = (float) attributeValue(Attribute.ATTACK_KNOCKBACK);
+            if (kb > 0.0F) {
+                t.knockback(kb * 0.5F, org.domi.furnace.server.entity.ai.control.Mth.sin(yRot() * (float) (Math.PI / 180.0)), -org.domi.furnace.server.entity.ai.control.Mth.cos(yRot() * (float) (Math.PI / 180.0)));
+                setDeltaMovement(vx() * 0.6, vy(), vz() * 0.6);
+            }
+            setLastHurtMob(t);
+            doPostHurtEffects(t);
+        }
+        return hurt;
+    }
+
+    protected void doPostHurtEffects(Targetable t) {}
 
     /** Mob.getMaxFallDistance: 대상이 없으면 3, 있으면 체력과 난이도에 따라. */
     public int getMaxFallDistance() {
@@ -95,6 +186,31 @@ public abstract class Mob extends LivingEntity {
         setZza(v);
     }
 
+    /** 가끔(1000 중 ambientSoundTime 미만) 주변 소리를 낸다. */
+    protected int ambientSoundTime;
+
+    /** 테스트용: 기본 경험치. */
+    public int xpRewardForTest() { return xpReward; }
+
+    public int getAmbientSoundInterval() { return 80; }
+
+    protected void resetAmbientSoundTime() { ambientSoundTime = -getAmbientSoundInterval(); }
+
+    @Override
+    public void baseTick() {
+        super.baseTick();
+        if (isAlive() && random.nextInt(1000) < ambientSoundTime++) {
+            resetAmbientSoundTime();
+            makeSound(getAmbientSound());
+        }
+    }
+
+    @Override
+    protected void playHurtSound(Damage source) {
+        resetAmbientSoundTime();
+        super.playHurtSound(source);
+    }
+
     @Override
     protected boolean isEffectiveAi() { return !isNoAi(); }
 
@@ -102,6 +218,8 @@ public abstract class Mob extends LivingEntity {
     @Override
     protected final void serverAiStep() {
         noActionTime++;
+        seenTargets.clear();
+        unseenTargets.clear();
         int i = tickCount + id();
         if (i % 2 != 0 && tickCount > 1) {
             targetSelector.tickRunningGoals(false);

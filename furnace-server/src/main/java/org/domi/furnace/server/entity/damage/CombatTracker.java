@@ -11,7 +11,7 @@ public final class CombatTracker {
     public static final int RESET_DAMAGE_STATUS_TIME = 100;
 
     /** @param fallLocation 바닐라 FallLocation 이름(generic·ladder·vines·…·water), 없으면 null */
-    public record Entry(DamageType source, float damage, String fallLocation, float fallDistance) {}
+    public record Entry(DamageType source, float damage, String fallLocation, float fallDistance, Text attacker) {}
 
     private final List<Entry> entries = new ArrayList<>();
     private int lastDamageTime;
@@ -19,8 +19,13 @@ public final class CombatTracker {
 
     /** @param tickCount 주인의 tickCount, fallLocation 맞은 순간의 FallLocation(없으면 null) */
     public void recordDamage(DamageType source, float damage, String fallLocation, float fallDistance, int tickCount, boolean alive) {
+        recordDamage(source, damage, fallLocation, fallDistance, tickCount, alive, null);
+    }
+
+    /** attacker: 원인 엔티티의 표시 이름(없으면 null). */
+    public void recordDamage(DamageType source, float damage, String fallLocation, float fallDistance, int tickCount, boolean alive, Text attacker) {
         recheckStatus(tickCount, alive);
-        entries.add(new Entry(source, damage, fallLocation, fallDistance));
+        entries.add(new Entry(source, damage, fallLocation, fallDistance, attacker));
         lastDamageTime = tickCount;
         takingDamage = true;
     }
@@ -31,6 +36,7 @@ public final class CombatTracker {
         Entry fall = mostSignificantFall();
         if (last.source().fallVariants() && fall != null) return fallMessage(fall, victim);
         // 바닐라 DamageSource.getLocalizedDeathMessage: 원인 엔티티 없음 → killCredit 이 없으면 "death.attack.<msgId>"
+        if (last.attacker() != null) return Text.translatable("death.attack." + last.source().msgId(), victim, last.attacker());   // TODO(손에 든 아이템 이름): .item 변형
         return Text.translatable("death.attack." + last.source().msgId(), victim);
     }
 

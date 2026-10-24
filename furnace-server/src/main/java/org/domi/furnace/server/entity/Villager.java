@@ -37,7 +37,7 @@ public final class Villager extends Mob implements Merchant {
     @Override
     protected void createAttributes(org.domi.furnace.server.attribute.AttributeMap map) {
         super.createAttributes(map);
-        map.add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.5).add(org.domi.furnace.server.attribute.Attribute.FOLLOW_RANGE, 48.0);
+        map.add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.5);
     }
 
     @Override
@@ -48,6 +48,7 @@ public final class Villager extends Mob implements Merchant {
         entityData.define(DATA_VILLAGER_DATA, SetEntityData.SERIALIZER_VILLAGER_DATA, new int[] {2, 0, 1});
     }
 
+    @Override
     public boolean isBaby() { return (Boolean) entityData.get(DATA_BABY); }
 
     public int[] villagerData() { return (int[]) entityData.get(DATA_VILLAGER_DATA); }

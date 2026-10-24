@@ -14,7 +14,7 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
 
-public final class Player {
+public final class Player implements Targetable {
 
     private final int entityId;
     private final UUID uuid;
@@ -112,6 +112,7 @@ public final class Player {
     }
 
     public void applyMove(double x, double y, double z, float yaw, float pitch, boolean onGround) {
+        this.moveDx = x - this.x; this.moveDy = y - this.y; this.moveDz = z - this.z;
         this.x = x; this.y = y; this.z = z;
         this.yaw = yaw; this.pitch = pitch; this.onGround = onGround;
     }
@@ -246,6 +247,96 @@ public final class Player {
 
     /** 경험치 구슬 줍기 쿨다운(바닐라 takeXpDelay — 줍으면 2, 틱마다 감소). */
     public int takeXpDelay;
+
+    /** 마지막으로 받아들인 이동 패킷의 변위(서버가 아는 deltaMovement 의 근사 — 밀려나기 계산에 쓴다). */
+    private volatile double moveDx, moveDy, moveDz;
+
+    // ------------------------------------------------------------------ Targetable(몹이 겨냥하는 대상으로서의 플레이어)
+
+    @Override public int id() { return entityId; }
+
+    @Override public double eyeY() { return y + (sneaking ? 1.27 : 1.62); }
+
+    @Override public float bbWidth() { return 0.6F; }
+
+    @Override public float bbHeight() { return sneaking ? 1.5F : 1.8F; }
+
+    @Override
+    public AABB boundingBox() { return new AABB(x - 0.3, y, z - 0.3, x + 0.3, y + bbHeight(), z + 0.3); }
+
+    @Override
+    public org.domi.furnace.server.block.Pos blockPosition() { return new org.domi.furnace.server.block.Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)); }
+
+    @Override public boolean isAlive() { return !vitals.isDeadOrDying(); }
+
+    /** Player.canBeSeenAsEnemy: 무적 능력(크리에이티브·관전자)이 없고 살아 있다. */
+    @Override
+    public boolean canBeSeenAsEnemy() {
+        var gm = gameMode();
+        return isAlive() && gm != org.domi.furnace.server.world.GameMode.CREATIVE && gm != org.domi.furnace.server.world.GameMode.SPECTATOR;
+    }
+
+    /** getVisibilityPercent: 웅크리면 0.8. TODO(투명·머리 아이템): 투명이면 방어구 가림 정도, 몹 머리 아이템(해골 등)에 따른 보정. */
+    @Override
+    public double visibilityPercent(Entity looker) { return sneaking ? 0.8 : 1.0; }
+
+    @Override public boolean isPlayer() { return true; }
+
+    @Override
+    public boolean hurtByMob(Entity.Damage source, float amount, Mob attacker) {
+        return vitals.hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(source.type()), amount, attacker);
+    }
+
+    /** LivingEntity.knockback: 밀려나는 속도를 그 플레이어에게 보낸다(set_entity_motion). */
+    @Override
+    public void knockback(double strength, double dx, double dz) {
+        if (strength <= 0.0) return;
+        double len = Math.sqrt(dx * dx + dz * dz);
+        double nx = len < 1.0E-5 ? 0.0 : dx / len * strength, nz = len < 1.0E-5 ? 0.0 : dz / len * strength;
+        send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, moveDx / 2.0 - nx,
+                onGround ? Math.min(0.4, moveDy / 2.0 + strength) : moveDy, moveDz / 2.0 - nz));
+    }
+
+    /**
+     * Player.hurtArmor → doHurtEquipment: 방어구(ArmorItem)마다 max(1, 피해/4) 내구도를 깎고 다 닳으면 부서진다(entity_event 49..52).
+     * TODO(내구성 인챈트·불 저항 아이템).
+     */
+    public void hurtArmor(float amount) {
+        amount /= 4.0F;
+        if (amount < 1.0F) amount = 1.0F;
+        int n = (int) amount;
+        for (int i = 0; i < 4; i++) {
+            int ws = 5 + i;
+            ItemStack stack = inventory.get(ws);
+            String name = stack.isEmpty() ? "" : org.domi.furnace.server.item.ItemTools.itemName(stack);
+            boolean armorItem = name.endsWith("_helmet") || name.endsWith("_chestplate") || name.endsWith("_leggings") || name.endsWith("_boots");
+            if (!armorItem || !org.domi.furnace.server.item.ItemTools.isDamageable(stack)) continue;
+            int nd = org.domi.furnace.server.item.ItemTools.damage(stack) + n;
+            if (nd >= org.domi.furnace.server.item.ItemTools.maxDamage(stack)) {
+                inventory.set(ws, ItemStack.EMPTY);
+                var ev = new org.domi.furnace.server.net.protocol.play.EntityEvent(entityId, (byte) (49 + i));
+                send(ev);
+                vitals.broadcastToTrackers(ev);
+            } else {
+                inventory.set(ws, org.domi.furnace.server.item.ItemTools.withDamage(stack, nd));
+            }
+        }
+    }
+
+    /** 방어구 칸(머리 5·가슴 6·다리 7·발 8)의 armor 속성 합 — 플레이어 기본 방어 0. */
+    public float armorValue() {
+        float sum = 0;
+        String[] slots = {"head", "chest", "legs", "feet"};
+        for (int i = 0; i < 4; i++) sum += org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(5 + i), "minecraft:generic.armor", slots[i], "armor");
+        return Math.clamp(sum, 0.0F, 30.0F);
+    }
+
+    public float armorToughness() {
+        float sum = 0;
+        String[] slots = {"head", "chest", "legs", "feet"};
+        for (int i = 0; i < 4; i++) sum += org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(5 + i), "minecraft:generic.armor_toughness", slots[i], "armor");
+        return Math.clamp(sum, 0.0F, 20.0F);
+    }
 
     /** 먹기·마시기 중인 손(없으면 -1)과 남은 틱 — region 스레드 전용. */
     public int usingHand = -1, usingTicks;

@@ -170,18 +170,23 @@ public final class ItemTools {
         return new ItemStack(s.itemId(), s.count(), ComponentPatch.ofNormalized(patch));
     }
 
-    /** 손에 든 아이템의 attack_damage 속성(add_value, 주 손/손/any 칸)의 합. 닿는 속성 수정자만 본다. */
-    public static float attackDamageBonus(ItemStack s) {
+    /** attribute_modifiers 의 add_value 합 — type 은 "minecraft:generic.armor" 같은 전체 이름, slots 는 해당 칸 이름들(any 는 항상 포함). */
+    public static float attributeBonus(ItemStack s, String type, String... slots) {
         if (s == null || s.isEmpty()) return 0.0F;
         if (!(component(s, "minecraft:attribute_modifiers") instanceof java.util.Map<?, ?> m) || !(m.get("modifiers") instanceof java.util.List<?> list)) return 0.0F;
         float sum = 0.0F;
         for (Object o : list) {
             if (!(o instanceof java.util.Map<?, ?> e)) continue;
-            String type = String.valueOf(e.get("type"));
+            String t = String.valueOf(e.get("type"));
             String slot = e.get("slot") == null ? "any" : String.valueOf(e.get("slot"));
             String op = e.get("operation") == null ? "add_value" : String.valueOf(e.get("operation"));
-            if (type.endsWith("attack_damage") && op.equals("add_value") && (slot.equals("any") || slot.equals("mainhand") || slot.equals("hand")) && e.get("amount") instanceof Number n) sum += n.floatValue();
+            boolean slotOk = slot.equals("any");
+            for (String w : slots) if (slot.equals(w)) slotOk = true;
+            if (t.equals(type) && op.equals("add_value") && slotOk && e.get("amount") instanceof Number n) sum += n.floatValue();
         }
         return sum;
     }
+
+    /** 손에 든 아이템의 attack_damage 속성(add_value, 주 손/손/any 칸)의 합. */
+    public static float attackDamageBonus(ItemStack s) { return attributeBonus(s, "minecraft:generic.attack_damage", "mainhand", "hand"); }
 }

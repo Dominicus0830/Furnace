@@ -22,6 +22,10 @@ class NavigationTest {
 
     static final class Walker extends Mob {
         Walker(ChunkLevel level, int id) { super(EntityType.VILLAGER, level, id); }
+        @Override protected void createAttributes(org.domi.furnace.server.attribute.AttributeMap map) {
+            super.createAttributes(map);
+            map.add(org.domi.furnace.server.attribute.Attribute.FOLLOW_RANGE, 35.0);   // 방문 노드 한도 = 따라가기 범위 × 16
+        }
         @Override protected void addAdditionalSaveData(org.domi.furnace.server.net.io.nbt.NbtCompound tag) { super.addAdditionalSaveData(tag); }
     }
 

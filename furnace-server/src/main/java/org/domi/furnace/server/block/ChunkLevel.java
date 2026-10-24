@@ -899,6 +899,23 @@ public abstract class ChunkLevel implements BlockLevel {
         return best[0];
     }
 
+    /** Level.getNearestPlayer(조건, 출처, x, y, z): 조건에 맞는 플레이어 중 (x,y,z)에 가장 가까운 것. */
+    public Player getNearestPlayer(org.domi.furnace.server.entity.ai.targeting.TargetingConditions conditions, org.domi.furnace.server.entity.Mob source,
+            double x, double y, double z) {
+        Player[] best = new Player[1];
+        double[] bestD = {-1.0};
+        services().forEachPlayer(p -> {
+            if (p.isDisconnected() || !conditions.test(source, p)) return;
+            double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
+            double d = dx * dx + dy * dy + dz * dz;
+            if (bestD[0] == -1.0 || d < bestD[0]) {
+                bestD[0] = d;
+                best[0] = p;
+            }
+        });
+        return best[0];
+    }
+
     /** 새 엔티티 id(서버 전역 — 플레이어와 같은 발급기). 기본은 테스트용 따로 센 값. */
     public int nextEntityId() { return FALLBACK_IDS.incrementAndGet(); }
 

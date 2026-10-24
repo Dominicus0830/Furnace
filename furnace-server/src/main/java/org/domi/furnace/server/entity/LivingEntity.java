@@ -11,7 +11,7 @@ import org.domi.furnace.server.net.protocol.play.DamageEvent;
 import org.domi.furnace.server.net.protocol.play.EntityEvent;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public abstract class LivingEntity extends Entity {
+public abstract class LivingEntity extends Entity implements Targetable {
 
     /** 엔티티 데이터 번호(LivingEntity): 8 생활 플래그, 9 체력, 10 효과 색, 11 효과 앰비언트, 12 화살 수, 13 침 수, 14 자는 위치. */
     public static final int DATA_LIVING_FLAGS = 8, DATA_HEALTH = 9, DATA_EFFECT_COLOR = 10, DATA_EFFECT_AMBIENT = 11, DATA_ARROW_COUNT = 12,
@@ -26,6 +26,10 @@ public abstract class LivingEntity extends Entity {
     protected long deathLootTableSeed;
     protected String lastDamageType = "generic";
     protected int noActionTime;
+
+    public int getNoActionTime() { return noActionTime; }
+
+    public void setNoActionTime(int t) { noActionTime = t; }
     protected float yHeadRot, yHeadRotO, yBodyRot, yBodyRotO;
     /** 이동 입력(vanilla xxa 옆·yya 위·zza 앞)과 점프 입력. */
     protected float xxa, yya, zza;
@@ -79,13 +83,13 @@ public abstract class LivingEntity extends Entity {
     private AttributeMap attributes;
 
     /** 종류별 속성 공급자(바닐라 AttributeSupplier): 이 엔티티가 가지는 속성과 기본값. 하위 클래스가 덧붙인다(필드를 쓰지 말 것). */
-    protected void createAttributes(AttributeMap map) {
+    protected void createAttributes(AttributeMap map) {   // LivingEntity.createLivingAttributes
         map.add(Attribute.MAX_HEALTH, 20.0).add(Attribute.KNOCKBACK_RESISTANCE, 0.0).add(Attribute.MOVEMENT_SPEED, 0.7)
-                .add(Attribute.ARMOR, 0.0).add(Attribute.ARMOR_TOUGHNESS, 0.0).add(Attribute.ATTACK_KNOCKBACK, 0.0).add(Attribute.FOLLOW_RANGE, 32.0)
-                .add(Attribute.GRAVITY, 0.08).add(Attribute.SCALE, 1.0).add(Attribute.STEP_HEIGHT, 0.6).add(Attribute.JUMP_STRENGTH, 0.42)
-                .add(Attribute.SAFE_FALL_DISTANCE, 3.0).add(Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(Attribute.MAX_ABSORPTION, 0.0)
-                .add(Attribute.MOVEMENT_EFFICIENCY, 0.0).add(Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(Attribute.OXYGEN_BONUS, 0.0)
-                .add(Attribute.BURNING_TIME, 1.0).add(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0);
+                .add(Attribute.ARMOR, 0.0).add(Attribute.ARMOR_TOUGHNESS, 0.0).add(Attribute.MAX_ABSORPTION, 0.0)
+                .add(Attribute.STEP_HEIGHT, 0.6).add(Attribute.SCALE, 1.0).add(Attribute.GRAVITY, 0.08).add(Attribute.SAFE_FALL_DISTANCE, 3.0)
+                .add(Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(Attribute.JUMP_STRENGTH, 0.42).add(Attribute.OXYGEN_BONUS, 0.0)
+                .add(Attribute.BURNING_TIME, 1.0).add(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0)
+                .add(Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(Attribute.MOVEMENT_EFFICIENCY, 0.0);
     }
 
     public AttributeMap attributes() {
@@ -116,8 +120,8 @@ public abstract class LivingEntity extends Entity {
 
     // ------------------------------------------------------------------ 피해
 
-    /** 때린 쪽이 플레이어일 때(밀려나는 방향·damage_event 의 원인). */
-    public boolean hurtBy(Damage source, float amount, Player attacker) {
+    /** 때린 쪽이 있을 때(밀려나는 방향·damage_event 의 원인·마지막으로 맞은 기록). */
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) {
         if (isInvulnerableTo(source) || level == null) return false;
         if (isDeadOrDying()) return false;
         noActionTime = 0;
@@ -137,27 +141,96 @@ public abstract class LivingEntity extends Entity {
         }
         if (fresh) {
             DamageType t = DamageType.byKey(source.type());
-            int cause = attacker == null ? -1 : attacker.entityId();
+            int cause = attacker == null ? -1 : attacker.id();
             if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, cause, null));
             if (!t.noImpact()) markHurt();
-            if (attacker != null) {
+        }
+        if (attacker != null) {   // 맞은 뒤 기록: 마지막으로 때린 몹, 플레이어면 100틱 동안 경험치·전리품 자격
+            setLastHurtByMob(attacker);
+            if (attacker instanceof Player pl) {
                 lastHurtByPlayerTime = 100;
-                lastHurtByPlayer = attacker;
-                double dx = attacker.x() - x(), dz = attacker.z() - z();
-                while (dx * dx + dz * dz < 1.0E-4) {
-                    dx = (random.nextDouble() - random.nextDouble()) * 0.01;
-                    dz = (random.nextDouble() - random.nextDouble()) * 0.01;
-                }
-                knockback(0.4F, dx, dz);
+                lastHurtByPlayer = pl;
             }
         }
+        if (fresh && attacker != null && !DamageType.byKey(source.type()).noKnockback()) {
+            double dx = attacker.x() - x(), dz = attacker.z() - z();
+            while (dx * dx + dz * dz < 1.0E-4) {
+                dx = (random.nextDouble() - random.nextDouble()) * 0.01;
+                dz = (random.nextDouble() - random.nextDouble()) * 0.01;
+            }
+            knockback(0.4F, dx, dz);
+        }
         lastDamageType = source.type();
-        if (isDeadOrDying()) die(source);
+        if (isDeadOrDying()) {
+            if (fresh) makeSound(getDeathSound());
+            die(source);
+        } else if (fresh) {
+            playHurtSound(source);
+        }
         return true;
+    }
+
+    // ------------------------------------------------------------------ 소리
+
+    protected String getHurtSound(Damage source) { return null; }
+
+    protected String getDeathSound() { return null; }
+
+    protected String getAmbientSound() { return null; }
+
+    protected void playHurtSound(Damage source) { makeSound(getHurtSound(source)); }
+
+    protected float getSoundVolume() { return 1.0F; }
+
+    /** getVoicePitch: 아기는 높게(약 1.5), 평소 약 1.0 — 엔티티 난수 두 번을 쓴다. */
+    public float getVoicePitch() {
+        return isBaby() ? (random.nextFloat() - random.nextFloat()) * 0.2F + 1.5F : (random.nextFloat() - random.nextFloat()) * 0.2F + 1.0F;
+    }
+
+    public boolean isBaby() { return false; }
+
+    public void makeSound(String sound) {
+        if (sound != null) playSound(sound, getSoundVolume(), getVoicePitch());
     }
 
     @Override
     public boolean hurt(Damage source, float amount) { return hurtBy(source, amount, null); }
+
+    // ------------------------------------------------------------------ Targetable
+
+    @Override public int id() { return super.id(); }
+
+    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && isAlive(); }
+
+    /** getVisibilityPercent: 웅크림 0.8. TODO(투명·머리 아이템). */
+    @Override public double visibilityPercent(Entity looker) { return 1.0; }
+
+    @Override public boolean isPlayer() { return false; }
+
+    @Override
+    public boolean hurtByMob(Damage source, float amount, Mob attacker) { return hurtBy(source, amount, attacker); }
+
+    @Override
+    public org.domi.furnace.api.text.Text displayName() {
+        return org.domi.furnace.api.text.Text.translatable("entity.minecraft." + type.name().substring("minecraft:".length()));
+    }
+
+    /** 마지막으로 이 엔티티를 때린 몹(100틱 지나거나 죽으면 비운다)과 맞은 때의 tickCount. */
+    protected Targetable lastHurtByMob;
+    protected int lastHurtByMobTimestamp;
+    /** 마지막으로 이 엔티티가 때린 대상(죽으면 비운다). */
+    protected Targetable lastHurtMob;
+
+    public Targetable getLastHurtByMob() { return lastHurtByMob; }
+
+    public int getLastHurtByMobTimestamp() { return lastHurtByMobTimestamp; }
+
+    public void setLastHurtByMob(Targetable e) {
+        lastHurtByMob = e;
+        lastHurtByMobTimestamp = tickCount;
+    }
+
+    public void setLastHurtMob(Targetable t) { lastHurtMob = t; }
 
     protected void actuallyHurt(Damage source, float amount) {
         float h = health();
@@ -165,6 +238,7 @@ public abstract class LivingEntity extends Entity {
     }
 
     /** LivingEntity.knockback(strength, x, z): 방향(x,z)의 반대로 밀린다(저항 속성은 아직 없다). */
+    @Override
     public void knockback(double strength, double dx, double dz) {
         strength *= 1.0 - attributeValue(Attribute.KNOCKBACK_RESISTANCE);
         if (strength <= 0.0) return;
@@ -267,7 +341,13 @@ public abstract class LivingEntity extends Entity {
         if (hurtTime > 0) hurtTime--;
         if (lastHurtByPlayerTime > 0) lastHurtByPlayerTime--;
         else lastHurtByPlayer = null;
-        if (!isRemoved() && !isDeadOrDying()) noActionTime++;
+        if (lastHurtMob != null && !lastHurtMob.isAlive()) lastHurtMob = null;
+        if (lastHurtByMob != null) {
+            if (!lastHurtByMob.isAlive()) setLastHurtByMob(null);
+            else if (tickCount - lastHurtByMobTimestamp > 100) setLastHurtByMob(null);
+        }
+        yBodyRotO = yBodyRot;
+        yHeadRotO = yHeadRot;
     }
 
     @Override
@@ -279,7 +359,7 @@ public abstract class LivingEntity extends Entity {
         float f = (float) (dx * dx + dz * dz);
         float body = yBodyRot;
         if (f > 0.0025000002F) {
-            float dir = (float) (Math.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F;
+            float dir = (float) (Mth.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F;
             float diff = Math.abs(Mth.wrapDegrees(yRot()) - dir);
             body = 95.0F < diff && diff < 265.0F ? dir - 180.0F : dir;
         }
@@ -306,6 +386,7 @@ public abstract class LivingEntity extends Entity {
     /** LivingEntity.aiStep(vanilla m_) 의 서버 쪽: 작은 속도 지우기 → AI → 점프 → 이동. */
     protected void aiStep() {
         if (noJumpDelay > 0) noJumpDelay--;
+        updateSwingTime();
         double vx = vx(), vy = vy(), vz = vz();
         if (Math.abs(vx) < 0.003) vx = 0.0;
         if (Math.abs(vy) < 0.003) vy = 0.0;
@@ -330,6 +411,39 @@ public abstract class LivingEntity extends Entity {
         xxa *= 0.98F;
         zza *= 0.98F;
         travel(xxa, yya, zza);
+    }
+
+    // ------------------------------------------------------------------ 휘두르기
+
+    protected boolean swinging;
+    protected int swingTime;
+    protected int swingingArm;
+    public float attackAnim;
+
+    /** getCurrentSwingDuration: 기본 6틱. TODO(성급함·채굴 피로 효과). */
+    protected int getCurrentSwingDuration() { return 6; }
+
+    public void swing(int hand) {
+        if (!swinging || swingTime >= getCurrentSwingDuration() / 2 || swingTime < 0) {
+            swingTime = -1;
+            swinging = true;
+            swingingArm = hand;
+            if (tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.Animate(id(), hand == 0 ? 0 : 3));
+        }
+    }
+
+    protected void updateSwingTime() {
+        int duration = getCurrentSwingDuration();
+        if (swinging) {
+            swingTime++;
+            if (swingTime >= duration) {
+                swingTime = 0;
+                swinging = false;
+            }
+        } else {
+            swingTime = 0;
+        }
+        attackAnim = (float) swingTime / duration;
     }
 
     /** 새 AI 한 걸음(Mob 이 목표·제어를 돌린다). */
@@ -388,7 +502,7 @@ public abstract class LivingEntity extends Entity {
         if (len < 1.0E-7) return;
         double scale = len > 1.0 ? 1.0 / Math.sqrt(len) : 1.0;
         double ex = ix * scale * speed, ey = iy * scale * speed, ez = iz * scale * speed;
-        float sin = (float) Math.sin(yRot() * (float) (Math.PI / 180.0)), cos = (float) Math.cos(yRot() * (float) (Math.PI / 180.0));
+        float sin = Mth.sin(yRot() * (float) (Math.PI / 180.0)), cos = Mth.cos(yRot() * (float) (Math.PI / 180.0));
         addDeltaMovement(ex * cos - ez * sin, ey, ez * cos + ex * sin);
     }
 

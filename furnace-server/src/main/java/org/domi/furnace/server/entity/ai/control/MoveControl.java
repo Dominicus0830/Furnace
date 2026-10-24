@@ -48,7 +48,7 @@ public class MoveControl {
             f4 = f1 / f4;
             f2 *= f4;
             f3 *= f4;
-            float sin = (float) Math.sin(mob.yRot() * (float) (Math.PI / 180.0)), cos = (float) Math.cos(mob.yRot() * (float) (Math.PI / 180.0));
+            float sin = Mth.sin(mob.yRot() * (float) (Math.PI / 180.0)), cos = Mth.cos(mob.yRot() * (float) (Math.PI / 180.0));
             float f7 = f2 * cos - f3 * sin, f8 = f3 * cos + f2 * sin;
             // TODO(길찾기): 내비게이션의 노드 평가기로 그 방향이 걸을 수 있는지 확인(isWalkable) — 막히면 strafe 를 (1, 0) 으로
             mob.setSpeed(f1);
@@ -63,7 +63,7 @@ public class MoveControl {
                 mob.setZza(0.0F);
                 return;
             }
-            float target = (float) (Math.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F;
+            float target = (float) (Mth.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F;
             mob.setYRot(rotlerp(mob.yRot(), target, 90.0F));
             mob.setSpeed((float) (speedModifier * mob.attributeValue(Attribute.MOVEMENT_SPEED)));
             Pos pos = mob.blockPosition();

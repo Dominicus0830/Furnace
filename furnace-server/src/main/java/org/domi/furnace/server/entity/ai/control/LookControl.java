@@ -60,12 +60,12 @@ public class LookControl {
     protected OptionalDouble getXRotD() {
         double dx = wantedX - mob.x(), dy = wantedY - mob.eyeY(), dz = wantedZ - mob.z();
         double h = Math.sqrt(dx * dx + dz * dz);
-        return Math.abs(dy) > 1.0E-5F || Math.abs(h) > 1.0E-5F ? OptionalDouble.of((float) (-(Math.atan2(dy, h) * 180.0F / (float) Math.PI))) : OptionalDouble.empty();
+        return Math.abs(dy) > 1.0E-5F || Math.abs(h) > 1.0E-5F ? OptionalDouble.of((float) (-(Mth.atan2(dy, h) * 180.0F / (float) Math.PI))) : OptionalDouble.empty();
     }
 
     protected OptionalDouble getYRotD() {
         double dx = wantedX - mob.x(), dz = wantedZ - mob.z();
-        return Math.abs(dz) > 1.0E-5F || Math.abs(dx) > 1.0E-5F ? OptionalDouble.of((float) (Math.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F) : OptionalDouble.empty();
+        return Math.abs(dz) > 1.0E-5F || Math.abs(dx) > 1.0E-5F ? OptionalDouble.of((float) (Mth.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F) : OptionalDouble.empty();
     }
 
     protected float rotateTowards(float from, float to, float max) {

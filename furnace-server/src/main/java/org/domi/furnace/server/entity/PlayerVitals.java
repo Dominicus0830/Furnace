@@ -356,7 +356,10 @@ public final class PlayerVitals {
     }
 
     /** 바닐라 ServerPlayer.hurt → Player.hurt → LivingEntity.hurt(원인 엔티티 없는 피해). */
-    public boolean hurt(DamageType type, float amount) {
+    public boolean hurt(DamageType type, float amount) { return hurt(type, amount, null); }
+
+    /** 몹이 때린 피해(원인 엔티티 있음): 난이도 배율·방어구 경감·damage_event 의 원인 id. */
+    public boolean hurt(DamageType type, float amount, Mob attacker) {
         boolean died;
         boolean newHurt;
         synchronized (this) {
@@ -365,23 +368,30 @@ public final class PlayerVitals {
             if (!fallOnPvpServer && spawnInvulnerableTime > 0 && !type.bypassesInvulnerability()) return false;
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
+            if (type.scalesWithDifficulty() && attacker != null) {   // Player.hurt: 난이도 배율
+                Difficulty d = env.difficulty();
+                if (d == Difficulty.PEACEFUL) amount = 0.0f;
+                if (d == Difficulty.EASY) amount = Math.min(amount / 2.0f + 1.0f, amount);
+                if (d == Difficulty.HARD) amount = amount * 3.0f / 2.0f;
+            }
             if (amount == 0.0f) return false;
             if (invulnerableTime > 10) {
                 if (amount <= lastHurt) return false;
-                actuallyHurt(type, amount - lastHurt);
+                actuallyHurt(type, amount - lastHurt, attacker);
                 lastHurt = amount;
                 newHurt = false;
             } else {
                 lastHurt = amount;
                 invulnerableTime = 20;
-                actuallyHurt(type, amount);
+                actuallyHurt(type, amount, attacker);
                 hurtTime = 10;
                 newHurt = true;
             }
             died = health <= 0.0f;
         }
         if (newHurt) {
-            Packet ev = DamageEvent.environmental(player.entityId(), type.registryId());
+            Packet ev = attacker == null ? DamageEvent.environmental(player.entityId(), type.registryId())
+                    : new DamageEvent(player.entityId(), type.registryId(), attacker.id(), attacker.id(), null);
             player.send(ev);
             env.broadcastToTrackers(player.entityId(), ev);
         }
@@ -390,7 +400,14 @@ public final class PlayerVitals {
     }
 
     /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */
-    private void actuallyHurt(DamageType type, float amount) {
+    private void actuallyHurt(DamageType type, float amount, Mob attacker) {
+        if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
+            float armor = player.armorValue(), toughness = player.armorToughness();
+            player.hurtArmor(amount);
+            float f = 2.0f + toughness / 4.0f;
+            float g = Math.clamp(armor - amount / f, armor * 0.2f, 20.0f);
+            amount = amount * (1.0f - g / 25.0f);
+        }
         MobEffectInstance resistance = effects.get(MobEffect.RESISTANCE);
         if (resistance != null && !type.bypassesEffects() && !type.bypassesResistance()) {   // getDamageAfterMagicAbsorb
             int i = (resistance.amplifier() + 1) * 5;
@@ -401,10 +418,13 @@ public final class PlayerVitals {
         setAbsorptionLocked(absorption - (amount - afterAbsorb));
         if (afterAbsorb != 0.0f) {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
-            combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0);
+            combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, attacker == null ? null : attacker.displayName());
             setHealthRaw(health - afterAbsorb);
         }
     }
+
+    /** 이 플레이어를 보는 사람 모두에게(본인 제외) 패킷. */
+    public void broadcastToTrackers(Packet p) { env.broadcastToTrackers(player.entityId(), p); }
 
     /** 바닐라 FallLocation.getCurrentFallLocation: 마지막으로 매달린 블록, 없고 물속이면 water. */
     private String fallLocation() {

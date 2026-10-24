@@ -34,11 +34,20 @@ public final class Clip {
 
     /** BlockGetter.clip(ClipContext(from, to, OUTLINE, fluid)). */
     public static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid) {
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, false);
+    }
+
+    /** BlockGetter.clip(ClipContext(from, to, COLLIDER, NONE)) — 몹 시야(hasLineOfSight)처럼 충돌 모양으로 본다. */
+    public static Result clipCollider(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz) {
+        return clip(level, fx, fy, fz, tx, ty, tz, FluidMode.NONE, true);
+    }
+
+    private static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, boolean collider) {
         if (fx == tx && fy == ty && fz == tz) return miss(fx, fy, fz, tx, ty, tz);
         double ex = lerp(-1.0E-7, tx, fx), ey = lerp(-1.0E-7, ty, fy), ez = lerp(-1.0E-7, tz, fz);
         double sx = lerp(-1.0E-7, fx, tx), sy = lerp(-1.0E-7, fy, ty), sz = lerp(-1.0E-7, fz, tz);
         int i = (int) Math.floor(sx), j = (int) Math.floor(sy), k = (int) Math.floor(sz);
-        Result r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid);
+        Result r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, collider);
         if (r != null) return r;
         double dx = ex - sx, dy = ey - sy, dz = ez - sz;
         int lx = sign(dx), ly = sign(dy), lz = sign(dz);
@@ -56,7 +65,7 @@ public final class Clip {
             } else {
                 k += lz; tZ += stepZ;
             }
-            r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid);
+            r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, collider);
             if (r != null) return r;
         }
         return miss(fx, fy, fz, tx, ty, tz);
@@ -68,8 +77,9 @@ public final class Clip {
     }
 
     /** 칸 하나: 블록 OUTLINE(상호작용 모양 우선 면)과 유체 모양 중 가까운 것. */
-    private static Result test(BlockLevel level, Pos pos, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode mode) {
+    private static Result test(BlockLevel level, Pos pos, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode mode, boolean collider) {
         int state = level.getBlockState(pos);
+        if (collider) return clipShape(B.behavior(state).getCollisionShape(state, level, pos, null), pos, fx, fy, fz, tx, ty, tz);
         int fluid = level.getFluidState(pos);
         BlockBehavior b = B.behavior(state);
         Result block = clipShape(b.getShape(state, level, pos), pos, fx, fy, fz, tx, ty, tz);

@@ -103,7 +103,10 @@ public abstract class Entity {
         entityData.define(DATA_POSE, SetEntityData.SERIALIZER_POSE, 0);
         entityData.define(DATA_TICKS_FROZEN, SetEntityData.SERIALIZER_INT, 0);
         defineSynchedData();
-        this.bb = type.makeBoundingBox(0, 0, 0);
+        this.dimW = type.width();
+        this.dimH = type.height();
+        this.dimEye = type.eyeHeight();
+        this.bb = makeBb(0, 0, 0);
         setPos(0, 0, 0);
     }
 
@@ -191,11 +194,26 @@ public abstract class Entity {
         checkSupportingBlock(v, null);
     }
 
-    public float bbWidth() { return type.width(); }
+    protected float dimW, dimH, dimEye;
 
-    public float bbHeight() { return type.height(); }
+    private AABB makeBb(double px, double py, double pz) {
+        double hw = dimW / 2.0F;
+        return new AABB(px - hw, py, pz - hw, px + hw, py + dimH, pz + hw);
+    }
 
-    public double eyeY() { return y + type.eyeHeight(); }
+    /** refreshDimensions: 몸 크기를 바꾸고(아기 등) 지금 위치 기준으로 상자를 다시 만든다. */
+    protected void setDimensions(float w, float h, float eye) {
+        dimW = w;
+        dimH = h;
+        dimEye = eye;
+        bb = makeBb(x, y, z);
+    }
+
+    public float bbWidth() { return dimW; }
+
+    public float bbHeight() { return dimH; }
+
+    public double eyeY() { return y + dimEye; }
 
     public boolean isRemoved() { return removalReason != null; }
 
@@ -251,7 +269,7 @@ public abstract class Entity {
 
     public void setPos(double nx, double ny, double nz) {
         setPosRaw(nx, ny, nz);
-        bb = type.makeBoundingBox(nx, ny, nz);
+        bb = makeBb(nx, ny, nz);
     }
 
     /** moveTo(x, y, z, yRot, xRot): 이전 위치까지 맞춘다. */
@@ -356,8 +374,11 @@ public abstract class Entity {
 
     public void resetFallDistance() { fallDistance = 0.0F; }
 
+    /** 소리 분류(SoundSource) — 기본 neutral, 적대 몹은 hostile. */
+    public String soundSource() { return "neutral"; }
+
     public void playSound(String sound, float volume, float pitch) {
-        if (!isSilent()) level.playSound(null, x, y, z, sound, "neutral", volume, pitch);
+        if (!isSilent()) level.playSound(null, x, y, z, sound, soundSource(), volume, pitch);
     }
 
     // ------------------------------------------------------------------ 제거

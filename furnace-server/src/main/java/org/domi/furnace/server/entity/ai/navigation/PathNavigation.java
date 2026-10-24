@@ -6,7 +6,7 @@ import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
-import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.Mob;
 
 public abstract class PathNavigation {
@@ -75,7 +75,7 @@ public abstract class PathNavigation {
 
     public Path createPath(Pos target, int range, int accuracy) { return createPath(Set.of(target), range, false, accuracy); }
 
-    public Path createPath(Entity target, int accuracy) { return createPath(Set.of(target.blockPosition()), 16, true, accuracy); }
+    public Path createPath(Targetable target, int accuracy) { return createPath(Set.of(target.blockPosition()), 16, true, accuracy); }
 
     protected Path createPath(Set<Pos> targets, int range, boolean above, int accuracy) {
         return createPath(targets, range, above, accuracy, (float) mob.attributeValue(Attribute.FOLLOW_RANGE));
@@ -99,7 +99,7 @@ public abstract class PathNavigation {
 
     public boolean moveTo(double x, double y, double z, int accuracy, double speed) { return moveTo(createPath(x, y, z, accuracy), speed); }
 
-    public boolean moveTo(Entity e, double speed) {
+    public boolean moveTo(Targetable e, double speed) {
         Path p = createPath(e, 1);
         return p != null && moveTo(p, speed);
     }

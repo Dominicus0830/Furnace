@@ -4,7 +4,7 @@ package org.domi.furnace.server.entity.ai.navigation;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
-import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.Mob;
 
 public class GroundPathNavigation extends PathNavigation {
@@ -42,7 +42,7 @@ public class GroundPathNavigation extends PathNavigation {
     }
 
     @Override
-    public Path createPath(Entity target, int accuracy) { return createPath(target.blockPosition(), accuracy); }
+    public Path createPath(Targetable target, int accuracy) { return createPath(target.blockPosition(), accuracy); }
 
     private int getSurfaceY() {
         if (mob.isInWater() && canFloat()) {

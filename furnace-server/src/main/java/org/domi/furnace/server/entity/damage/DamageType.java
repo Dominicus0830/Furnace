@@ -14,6 +14,7 @@ public enum DamageType {
     OUTSIDE_BORDER("outside_border", "outsideBorder", 0.0f, false, true, false, false, false, true, false),
     IN_WALL("in_wall", "inWall", 0.0f, false, true, false, false, false, true, false),
     MAGIC("magic", "magic", 0.0f, false, true, false, false, false, false, false),
+    MOB_ATTACK("mob_attack", "mob", 0.1f, false, false, false, false, false, false, false),
     PLAYER_ATTACK("player_attack", "player", 0.1f, false, false, false, false, false, false, false),
     WITHER("wither", "wither", 0.0f, false, true, false, false, false, false, false);
 
@@ -56,6 +57,8 @@ public enum DamageType {
     /** 태그 always_most_significant_fall(out_of_world). */
     public boolean alwaysMostSignificantFall() { return this == OUT_OF_WORLD; }
     public boolean isFall() { return isFall; }
+    /** damage_type scaling when_caused_by_living_non_player: 난이도에 따라 피해가 바뀐다(몹이 때린 근접·화살 등). */
+    public boolean scalesWithDifficulty() { return this == MOB_ATTACK; }
     public boolean noImpact() { return noImpact; }
     public boolean noKnockback() { return noKnockback; }
     public boolean isDrowning() { return isDrowning; }

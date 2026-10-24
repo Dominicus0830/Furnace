@@ -14,6 +14,7 @@ public final class Entities {
             case "minecraft:item" -> new ItemEntity(level, level.nextEntityId());
             case "minecraft:experience_orb" -> new ExperienceOrb(level, level.nextEntityId());
             case "minecraft:villager" -> new Villager(level, level.nextEntityId());
+            case "minecraft:zombie" -> new Zombie(level, level.nextEntityId());
             default -> null;
         };
         if (e == null) return null;
