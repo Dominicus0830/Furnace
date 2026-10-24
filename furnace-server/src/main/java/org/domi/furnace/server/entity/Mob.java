@@ -55,6 +55,11 @@ public abstract class Mob extends LivingEntity {
 
     public PathNavigation getNavigation() { return navigation; }
 
+    /** Mob.onPathfindingStart / onPathfindingDone: 길찾기 앞뒤 훅(꿀벌 등이 비용을 바꾼다). */
+    public void onPathfindingStart() {}
+
+    public void onPathfindingDone() {}
+
     public float getPathfindingMalus(PathType type) {
         Float f = pathfindingMalus.get(type);
         return f == null ? type.malus() : f;
@@ -156,6 +161,23 @@ public abstract class Mob extends LivingEntity {
 
     /** Mob.mobInteract: 플레이어가 우클릭했을 때. 처리했으면 true. */
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) { return false; }
+
+    /** stack.hurtAndBreak(amount, player, hand): 손에 든 도구의 내구도를 깎는다(다 닳으면 부서진다). */
+    protected void hurtHeldItem(Player p, int hand, ItemStack held, int amount) {
+        var inv = p.inventory();
+        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
+        var actor = new org.domi.furnace.server.block.PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);
+        org.domi.furnace.server.block.BlockBreaking.hurtAndBreak(level, actor, hand, held, amount);
+        if (actor.handChanged(hand)) inv.set(ws, actor.itemInHand(hand));
+    }
+
+    /** usePlayerItem(player, hand, stack): 크리에이티브가 아니면 손에 든 것 하나를 소비한다(stack.consume(1, player)). */
+    protected void usePlayerItem(Player p, int hand, ItemStack held) {
+        if (p.vitals().isCreative()) return;
+        var inv = p.inventory();
+        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
+        inv.set(ws, held.withCount(held.count() - 1));
+    }
 
     /** Entity.getFluidJumpThreshold: 눈높이가 0.4 미만이면 0, 아니면 0.4. */
     public double getFluidJumpThreshold() { return dimEye < 0.4 ? 0.0 : 0.4; }

@@ -56,8 +56,11 @@ public abstract class AgeableMob extends PathfinderMob {
 
     protected void ageBoundaryReached() {}
 
+    /** 아기 몸 크기 배율(기본 0.5, 거북 0.3). */
+    protected float babyScale() { return 0.5F; }
+
     protected void refreshBabyDimensions() {
-        float s = isBaby() ? 0.5F : 1.0F;
+        float s = isBaby() ? babyScale() : 1.0F;
         EntityType t = type();
         setDimensions(t.width() * s, t.height() * s, t.eyeHeight() * s);
     }

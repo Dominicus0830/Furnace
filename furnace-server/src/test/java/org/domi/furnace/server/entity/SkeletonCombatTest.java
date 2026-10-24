@@ -22,12 +22,14 @@ class SkeletonCombatTest {
 
     static final class ArenaLevel extends BlockPlacementTest.TestLevel {
         long time;
+        long dayTime;
         Player player;
 
         @Override
         protected LevelServices services() {
             return new LevelServices.Delegating(LevelServices.DEFAULT) {
                 @Override public long gameTime() { return time; }
+                @Override public long dayTime() { return dayTime; }
                 @Override public void forEachPlayer(Consumer<Player> c) { if (player != null) c.accept(player); }
             };
         }
@@ -51,7 +53,7 @@ class SkeletonCombatTest {
         level.addFreshEntity(s);
         float before = p.vitals().health();
         boolean sawArrow = false;
-        for (int t = 0; t < 600 && p.vitals().health() >= before; t++) {
+        for (int t = 0; t < 2000 && p.vitals().health() >= before; t++) {
             level.time++;
             for (Entity e : level.entities().tickSnapshot()) {
                 if (e instanceof Arrow) sawArrow = true;

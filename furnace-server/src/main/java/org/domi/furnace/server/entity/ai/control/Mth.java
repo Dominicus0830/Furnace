@@ -75,4 +75,20 @@ public final class Mth {
         float clamped = Math.clamp(diff, -max, max);
         return to - clamped;
     }
+
+    public static float degreesDifferenceAbs(float a, float b) { return Math.abs(degreesDifference(a, b)); }
+
+    /** Mth.approach(cur, target, delta): target 쪽으로 최대 |delta| 만큼. */
+    public static float approach(float cur, float target, float delta) {
+        delta = Math.abs(delta);
+        return cur < target ? Math.clamp(cur + delta, cur, target) : Math.clamp(cur - delta, target, cur);
+    }
+
+    /** Mth.approachDegrees(cur, target, delta): 각도 차이가 작은 쪽으로 최대 delta 도. */
+    public static float approachDegrees(float cur, float target, float delta) {
+        float diff = degreesDifference(cur, target);
+        return approach(cur, cur + diff, delta);
+    }
+
+    public static float lerp(float t, float a, float b) { return a + t * (b - a); }
 }

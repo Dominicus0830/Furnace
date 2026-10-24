@@ -42,6 +42,11 @@ public final class Clip {
         return clip(level, fx, fy, fz, tx, ty, tz, FluidMode.NONE, true);
     }
 
+    /** ClipContext(COLLIDER, fluid): 충돌 모양으로 보되 유체 모드를 고른다(NONE 또는 ANY). */
+    public static Result clipCollider(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid) {
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, true);
+    }
+
     private static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, boolean collider) {
         if (fx == tx && fy == ty && fz == tz) return miss(fx, fy, fz, tx, ty, tz);
         double ex = lerp(-1.0E-7, tx, fx), ey = lerp(-1.0E-7, ty, fy), ez = lerp(-1.0E-7, tz, fz);

@@ -55,6 +55,20 @@ public class NearestAttackableTargetGoal extends TargetGoal {
                     result = e;
                 }
             }
+            if (targetType == LivingEntity.class) {   // 바닐라에서는 플레이어도 LivingEntity — 플레이어도 후보
+                final double[] bestBox = {best};
+                final Targetable[] res = {result};
+                mob.level().forEachPlayerIn(getTargetSearchArea(getFollowDistance()), p -> {
+                    if (!targetConditions.test(mob, p)) return;
+                    double dx = p.x() - mob.x(), dy = p.y() - mob.eyeY(), dz = p.z() - mob.z();
+                    double d = dx * dx + dy * dy + dz * dz;
+                    if (bestBox[0] == -1.0 || d < bestBox[0]) {
+                        bestBox[0] = d;
+                        res[0] = p;
+                    }
+                });
+                result = res[0];
+            }
             target = result;
         }
     }

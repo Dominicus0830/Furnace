@@ -6,7 +6,7 @@ import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 
-public abstract class Monster extends PathfinderMob {
+public abstract class Monster extends PathfinderMob implements Enemy {
 
     protected Monster(EntityType type, ChunkLevel level, int id) {
         super(type, level, id);

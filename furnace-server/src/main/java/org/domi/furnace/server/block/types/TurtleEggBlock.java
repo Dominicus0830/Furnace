@@ -46,7 +46,7 @@ public class TurtleEggBlock extends BlockBehavior {
                 level.gameEvent("minecraft:block_destroy", pos, null, state);
                 for (int i = 0; i < EGGS.intValue(state); i++) {
                     level.levelEvent(null, 2001, pos, state);
-                    // TODO(엔티티): 아기 거북(나이 -24000, 집 = pos) 생성
+                    level.spawnBabyTurtle(pos, i);
                 }
             }
         }

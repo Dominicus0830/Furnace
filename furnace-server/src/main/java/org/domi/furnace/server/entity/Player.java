@@ -311,6 +311,11 @@ public final class Player implements Targetable {
         return vitals.hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(source.type()), amount, attacker);
     }
 
+    @Override
+    public void addDeltaMovement(double dx, double dy, double dz) {
+        send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, moveDx + dx, moveDy + dy, moveDz + dz));
+    }
+
     /** LivingEntity.knockback: 밀려나는 속도를 그 플레이어에게 보낸다(set_entity_motion). */
     @Override
     public void knockback(double strength, double dx, double dz) {

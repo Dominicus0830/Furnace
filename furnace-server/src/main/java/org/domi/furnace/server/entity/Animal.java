@@ -69,13 +69,6 @@ public abstract class Animal extends AgeableMob {
 
     protected static int getSpeedUpSecondsWhenFeeding(int ticksUntilAdult) { return (int) (ticksUntilAdult / 20 * 0.1F); }
 
-    protected void usePlayerItem(Player p, int hand, ItemStack held) {
-        if (p.vitals().isCreative()) return;
-        var inv = p.inventory();
-        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
-        inv.set(ws, held.withCount(held.count() - 1));
-    }
-
     public boolean canFallInLove() { return inLove <= 0; }
 
     public void setInLove(Player cause) {
@@ -115,7 +108,7 @@ public abstract class Animal extends AgeableMob {
         partner.resetLove();
         broadcastEntityEvent((byte) 18);
         if (level.gameRule("doMobLoot")) {
-            ExperienceOrb.award(level, x(), y(), z(), random.nextInt(7) + 1);
+            level.addFreshEntity(new ExperienceOrb(level, level.nextEntityId(), x(), y(), z(), random.nextInt(7) + 1));   // 구슬 하나(합치지 않는다)
         }
     }
 

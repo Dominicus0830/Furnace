@@ -54,6 +54,192 @@ public record EntityType(String name, int id, float width, float height, float e
     /** POLAR_BEAR: sized(1.4, 1.4).clientTrackingRange(10). */
     public static final EntityType POLAR_BEAR = of("minecraft:polar_bear", 1.4F, 1.4F, 1.4F * 0.85F, 10, 3, true, false);
 
+    /** COD: sized(0.5, 0.3).eyeHeight(0.195).clientTrackingRange(4). */
+    public static final EntityType COD = of("minecraft:cod", 0.5F, 0.3F, 0.195F, 4, 3, true, false);
+
+    /** SALMON: sized(0.7, 0.4).eyeHeight(0.26).clientTrackingRange(4). */
+    public static final EntityType SALMON = of("minecraft:salmon", 0.7F, 0.4F, 0.26F, 4, 3, true, false);
+
+    /** PUFFERFISH: sized(0.7, 0.7).eyeHeight(0.455).clientTrackingRange(4). */
+    public static final EntityType PUFFERFISH = of("minecraft:pufferfish", 0.7F, 0.7F, 0.455F, 4, 3, true, false);
+
+    /** TROPICAL_FISH: sized(0.5, 0.4).eyeHeight(0.26).clientTrackingRange(4). */
+    public static final EntityType TROPICAL_FISH = of("minecraft:tropical_fish", 0.5F, 0.4F, 0.26F, 4, 3, true, false);
+
+    /** DOLPHIN: sized(0.9, 0.6).eyeHeight(0.3). */
+    public static final EntityType DOLPHIN = of("minecraft:dolphin", 0.9F, 0.6F, 0.3F, 5, 3, true, false);
+
+    /** SQUID: sized(0.8F, 0.8F).eyeHeight(0.4). */
+    public static final EntityType SQUID = of("minecraft:squid", 0.8F, 0.8F, 0.4F, 8, 3, true, false);
+
+    /** GLOW_SQUID: sized(0.8F, 0.8F).eyeHeight(0.4). */
+    public static final EntityType GLOW_SQUID = of("minecraft:glow_squid", 0.8F, 0.8F, 0.4F, 10, 3, true, false);
+
+    /** GUARDIAN: sized(0.85F, 0.85F).eyeHeight(0.425). */
+    public static final EntityType GUARDIAN = of("minecraft:guardian", 0.85F, 0.85F, 0.425F, 8, 3, true, false);
+
+    /** ELDER_GUARDIAN: sized(1.9975F, 1.9975F).eyeHeight(0.99875). */
+    public static final EntityType ELDER_GUARDIAN = of("minecraft:elder_guardian", 1.9975F, 1.9975F, 0.99875F, 10, 3, true, false);
+
+    /** TURTLE: sized(1.2F, 0.4F). */
+    public static final EntityType TURTLE = of("minecraft:turtle", 1.2F, 0.4F, 0.4F * 0.85F, 10, 3, true, false);
+
+    /** AXOLOTL: sized(0.75F, 0.42F).eyeHeight(0.2751). */
+    public static final EntityType AXOLOTL = of("minecraft:axolotl", 0.75F, 0.42F, 0.2751F, 10, 3, true, false);
+
+    /** TADPOLE: sized(0.4F, 0.3F).eyeHeight(0.19500001). */
+    public static final EntityType TADPOLE = of("minecraft:tadpole", 0.4F, 0.3F, 0.19500001F, 10, 3, true, false);
+
+    /** FROG: sized(0.5F, 0.5F). */
+    public static final EntityType FROG = of("minecraft:frog", 0.5F, 0.5F, 0.5F * 0.85F, 10, 3, true, false);
+
+    /** BAT: sized(0.5F, 0.9F).eyeHeight(0.45). */
+    public static final EntityType BAT = of("minecraft:bat", 0.5F, 0.9F, 0.45F, 5, 3, true, false);
+
+    /** BEE: sized(0.7F, 0.6F).eyeHeight(0.3). */
+    public static final EntityType BEE = of("minecraft:bee", 0.7F, 0.6F, 0.3F, 8, 3, true, false);
+
+    /** PARROT: sized(0.5F, 0.9F).eyeHeight(0.54). */
+    public static final EntityType PARROT = of("minecraft:parrot", 0.5F, 0.9F, 0.54F, 8, 3, true, false);
+
+    /** ALLAY: sized(0.35F, 0.6F).eyeHeight(0.36). */
+    public static final EntityType ALLAY = of("minecraft:allay", 0.35F, 0.6F, 0.36F, 8, 2, true, false);
+
+    /** PHANTOM: sized(0.9F, 0.5F).eyeHeight(0.175). */
+    public static final EntityType PHANTOM = of("minecraft:phantom", 0.9F, 0.5F, 0.175F, 8, 3, true, false);
+
+    /** GHAST: sized(4.0F, 4.0F).eyeHeight(2.6). */
+    public static final EntityType GHAST = of("minecraft:ghast", 4.0F, 4.0F, 2.6F, 10, 3, true, true);
+
+    /** BLAZE: sized(0.6F, 1.8F). */
+    public static final EntityType BLAZE = of("minecraft:blaze", 0.6F, 1.8F, 1.8F * 0.85F, 8, 3, true, true);
+
+    /** BREEZE: sized(0.6F, 1.77F).eyeHeight(1.3452). */
+    public static final EntityType BREEZE = of("minecraft:breeze", 0.6F, 1.77F, 1.3452F, 10, 3, true, false);
+
+    /** VEX: sized(0.4F, 0.8F).eyeHeight(0.51875). */
+    public static final EntityType VEX = of("minecraft:vex", 0.4F, 0.8F, 0.51875F, 8, 3, true, true);
+
+    /** ENDER_DRAGON: sized(16.0F, 8.0F). */
+    public static final EntityType ENDER_DRAGON = of("minecraft:ender_dragon", 16.0F, 8.0F, 8.0F * 0.85F, 10, 3, true, true);
+
+    /** WITHER: sized(0.9F, 3.5F). */
+    public static final EntityType WITHER = of("minecraft:wither", 0.9F, 3.5F, 3.5F * 0.85F, 10, 3, true, true);
+
+    /** HORSE: sized(1.3964844F, 1.6F).eyeHeight(1.52). */
+    public static final EntityType HORSE = of("minecraft:horse", 1.3964844F, 1.6F, 1.52F, 10, 3, true, false);
+
+    /** DONKEY: sized(1.3964844F, 1.5F).eyeHeight(1.425). */
+    public static final EntityType DONKEY = of("minecraft:donkey", 1.3964844F, 1.5F, 1.425F, 10, 3, true, false);
+
+    /** MULE: sized(1.3964844F, 1.6F).eyeHeight(1.52). */
+    public static final EntityType MULE = of("minecraft:mule", 1.3964844F, 1.6F, 1.52F, 8, 3, true, false);
+
+    /** SKELETON_HORSE: sized(1.3964844F, 1.6F).eyeHeight(1.52). */
+    public static final EntityType SKELETON_HORSE = of("minecraft:skeleton_horse", 1.3964844F, 1.6F, 1.52F, 10, 3, true, false);
+
+    /** ZOMBIE_HORSE: sized(1.3964844F, 1.6F).eyeHeight(1.52). */
+    public static final EntityType ZOMBIE_HORSE = of("minecraft:zombie_horse", 1.3964844F, 1.6F, 1.52F, 10, 3, true, false);
+
+    /** LLAMA: sized(0.9F, 1.87F).eyeHeight(1.7765). */
+    public static final EntityType LLAMA = of("minecraft:llama", 0.9F, 1.87F, 1.7765F, 10, 3, true, false);
+
+    /** TRADER_LLAMA: sized(0.9F, 1.87F).eyeHeight(1.7765). */
+    public static final EntityType TRADER_LLAMA = of("minecraft:trader_llama", 0.9F, 1.87F, 1.7765F, 10, 3, true, false);
+
+    /** CAMEL: sized(1.7F, 2.375F).eyeHeight(2.275). */
+    public static final EntityType CAMEL = of("minecraft:camel", 1.7F, 2.375F, 2.275F, 10, 3, true, false);
+
+    /** GOAT: sized(0.9F, 1.3F). */
+    public static final EntityType GOAT = of("minecraft:goat", 0.9F, 1.3F, 1.3F * 0.85F, 10, 3, true, false);
+
+    /** FOX: sized(0.6F, 0.7F).eyeHeight(0.4). */
+    public static final EntityType FOX = of("minecraft:fox", 0.6F, 0.7F, 0.4F, 8, 3, true, false);
+
+    /** PANDA: sized(1.3F, 1.25F). */
+    public static final EntityType PANDA = of("minecraft:panda", 1.3F, 1.25F, 1.25F * 0.85F, 10, 3, true, false);
+
+    /** ARMADILLO: sized(0.7F, 0.65F).eyeHeight(0.26). */
+    public static final EntityType ARMADILLO = of("minecraft:armadillo", 0.7F, 0.65F, 0.26F, 10, 3, true, false);
+
+    /** SNIFFER: sized(1.9F, 1.75F).eyeHeight(1.05). */
+    public static final EntityType SNIFFER = of("minecraft:sniffer", 1.9F, 1.75F, 1.05F, 10, 3, true, false);
+
+    /** STRIDER: sized(0.9F, 1.7F). */
+    public static final EntityType STRIDER = of("minecraft:strider", 0.9F, 1.7F, 1.7F * 0.85F, 10, 3, true, true);
+
+    /** IRON_GOLEM: sized(1.4F, 2.7F). */
+    public static final EntityType IRON_GOLEM = of("minecraft:iron_golem", 1.4F, 2.7F, 2.7F * 0.85F, 10, 3, true, false);
+
+    /** SNOW_GOLEM: sized(0.7F, 1.9F).eyeHeight(1.7). */
+    public static final EntityType SNOW_GOLEM = of("minecraft:snow_golem", 0.7F, 1.9F, 1.7F, 8, 3, true, false);
+
+    /** SHULKER: sized(1.0F, 1.0F).eyeHeight(0.5). */
+    public static final EntityType SHULKER = of("minecraft:shulker", 1.0F, 1.0F, 0.5F, 10, 3, true, true);
+
+    /** PIGLIN: sized(0.6F, 1.95F).eyeHeight(1.79). */
+    public static final EntityType PIGLIN = of("minecraft:piglin", 0.6F, 1.95F, 1.79F, 8, 3, true, false);
+
+    /** PIGLIN_BRUTE: sized(0.6F, 1.95F).eyeHeight(1.79). */
+    public static final EntityType PIGLIN_BRUTE = of("minecraft:piglin_brute", 0.6F, 1.95F, 1.79F, 8, 3, true, false);
+
+    /** HOGLIN: sized(1.3964844F, 1.4F). */
+    public static final EntityType HOGLIN = of("minecraft:hoglin", 1.3964844F, 1.4F, 1.4F * 0.85F, 8, 3, true, false);
+
+    /** ZOGLIN: sized(1.3964844F, 1.4F). */
+    public static final EntityType ZOGLIN = of("minecraft:zoglin", 1.3964844F, 1.4F, 1.4F * 0.85F, 8, 3, true, true);
+
+    /** PILLAGER: sized(0.6F, 1.95F). */
+    public static final EntityType PILLAGER = of("minecraft:pillager", 0.6F, 1.95F, 1.95F * 0.85F, 8, 3, true, false);
+
+    /** VINDICATOR: sized(0.6F, 1.95F). */
+    public static final EntityType VINDICATOR = of("minecraft:vindicator", 0.6F, 1.95F, 1.95F * 0.85F, 8, 3, true, false);
+
+    /** EVOKER: sized(0.6F, 1.95F). */
+    public static final EntityType EVOKER = of("minecraft:evoker", 0.6F, 1.95F, 1.95F * 0.85F, 8, 3, true, false);
+
+    /** ILLUSIONER: sized(0.6F, 1.95F). */
+    public static final EntityType ILLUSIONER = of("minecraft:illusioner", 0.6F, 1.95F, 1.95F * 0.85F, 8, 3, true, false);
+
+    /** RAVAGER: sized(1.95F, 2.2F). */
+    public static final EntityType RAVAGER = of("minecraft:ravager", 1.95F, 2.2F, 2.2F * 0.85F, 10, 3, true, false);
+
+    /** DROWNED: sized(0.6F, 1.95F).eyeHeight(1.74). */
+    public static final EntityType DROWNED = of("minecraft:drowned", 0.6F, 1.95F, 1.74F, 8, 3, true, false);
+
+    /** WARDEN: sized(0.9F, 2.9F). */
+    public static final EntityType WARDEN = of("minecraft:warden", 0.9F, 2.9F, 2.9F * 0.85F, 16, 3, true, true);
+
+    /** WANDERING_TRADER: sized(0.6F, 1.95F).eyeHeight(1.62). */
+    public static final EntityType WANDERING_TRADER = of("minecraft:wandering_trader", 0.6F, 1.95F, 1.62F, 10, 3, true, false);
+
+
+    /** SMALL_FIREBALL: sized(0.3125F, 0.3125F). */
+    public static final EntityType SMALL_FIREBALL = of("minecraft:small_fireball", 0.3125F, 0.3125F, 0.3125F * 0.85F, 4, 10, true, false);
+
+    /** FIREBALL: sized(1.0F, 1.0F). */
+    public static final EntityType FIREBALL = of("minecraft:fireball", 1.0F, 1.0F, 1.0F * 0.85F, 4, 10, true, false);
+
+    /** WITHER_SKULL: sized(0.3125F, 0.3125F). */
+    public static final EntityType WITHER_SKULL = of("minecraft:wither_skull", 0.3125F, 0.3125F, 0.3125F * 0.85F, 4, 10, true, false);
+
+    /** DRAGON_FIREBALL: sized(1.0F, 1.0F). */
+    public static final EntityType DRAGON_FIREBALL = of("minecraft:dragon_fireball", 1.0F, 1.0F, 1.0F * 0.85F, 4, 10, true, false);
+
+    /** LLAMA_SPIT: sized(0.25F, 0.25F). */
+    public static final EntityType LLAMA_SPIT = of("minecraft:llama_spit", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
+
+    /** SHULKER_BULLET: sized(0.3125F, 0.3125F). */
+    public static final EntityType SHULKER_BULLET = of("minecraft:shulker_bullet", 0.3125F, 0.3125F, 0.3125F * 0.85F, 8, 3, true, false);
+
+    /** EVOKER_FANGS: sized(0.5F, 0.8F). */
+    public static final EntityType EVOKER_FANGS = of("minecraft:evoker_fangs", 0.5F, 0.8F, 0.8F * 0.85F, 6, 2, true, false);
+
+
+    /** SNOWBALL: sized(0.25F, 0.25F). */
+    public static final EntityType SNOWBALL = of("minecraft:snowball", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
+
+
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);

@@ -57,6 +57,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public void setXxa(float v) { xxa = v; }
 
+    public float getXxa() { return xxa; }
+
+    public float getYya() { return yya; }
+
+    public float getZza() { return zza; }
+
     public void setYya(float v) { yya = v; }
 
     public void setZza(float v) { zza = v; }
@@ -552,6 +558,15 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return ie;
     }
 
+    /** spawnAtLocation(stack, yOffset): 몸 위치 + yOffset 에 아이템 엔티티. */
+    public ItemEntity spawnAtLocation(ItemStack stack, float yOffset) {
+        if (stack.isEmpty()) return null;
+        var ie = new ItemEntity(level, level.nextEntityId(), x(), y() + yOffset, z(), stack);
+        ie.setDefaultPickUpDelay();
+        level.addFreshEntity(ie);
+        return ie;
+    }
+
     /** 전리품 조건이 보는 이 엔티티. */
     public org.domi.furnace.server.loot.LootEntity lootEntity() {
         return new org.domi.furnace.server.loot.LootEntity() {
@@ -978,7 +993,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     private boolean isFree(double dx, double dy, double dz) { return level.noCollision(boundingBox().move(dx, dy, dz)); }
 
     /** Entity.moveRelative(speed, input): 입력을 바라보는 방향으로 돌려 속도에 더한다(길이가 1을 넘으면 정규화). */
-    protected void moveRelative(float speed, float ix, float iy, float iz) {
+    public void moveRelative(float speed, float ix, float iy, float iz) {
         double len = ix * ix + iy * iy + iz * iz;
         if (len < 1.0E-7) return;
         double scale = len > 1.0 ? 1.0 / Math.sqrt(len) : 1.0;

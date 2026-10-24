@@ -161,6 +161,9 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean hasChunkAt(Pos pos) { return chunkAt(pos) != null; }
 
+    /** Level.getSeaLevel: 오버월드 63. */
+    public int seaLevel() { return 63; }
+
     // ------------------------------------------------------------------ setBlock(바닐라 Level.setBlock + LevelChunk.setBlockState)
 
     @Override
@@ -902,11 +905,52 @@ public abstract class ChunkLevel implements BlockLevel {
         return best[0];
     }
 
+    /** Level.getNearestEntity(class, 조건, 출처, x, y, z, 상자): 조건에 맞는 것 중 (x,y,z)에 가장 가까운 엔티티(같은 거리면 먼저 찾은 것). */
+    public <T extends org.domi.furnace.server.entity.LivingEntity> T getNearestEntity(Class<T> cls,
+            org.domi.furnace.server.entity.ai.targeting.TargetingConditions conditions, org.domi.furnace.server.entity.Mob source, double x, double y, double z, AABB box) {
+        double best = -1.0;
+        T result = null;
+        for (T e : getEntitiesOfClass(cls, box, t -> true)) {
+            if (!conditions.test(source, e)) continue;
+            double dx = e.x() - x, dy = e.y() - y, dz = e.z() - z;
+            double d = dx * dx + dy * dy + dz * dz;
+            if (best == -1.0 || d < best) {
+                best = d;
+                result = e;
+            }
+        }
+        return result;
+    }
+
     public String biomeAt(int x, int y, int z) { return services().biomeAt(x, y, z); }
 
     public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
 
     public boolean isInWorldBounds(Pos pos) { return pos.y() >= ChunkColumn.MIN_Y && pos.y() <= ChunkColumn.MAX_Y && Math.abs(pos.x()) < 30000000 && Math.abs(pos.z()) < 30000000; }
+
+    @Override
+    public void spawnGolem(boolean iron, Pos bottom) {
+        org.domi.furnace.server.entity.Entity golem;
+        if (iron) {
+            var g = new org.domi.furnace.server.entity.IronGolem(this, nextEntityId());
+            g.setPlayerCreated(true);
+            golem = g;
+        } else {
+            golem = new org.domi.furnace.server.entity.SnowGolem(this, nextEntityId());
+        }
+        golem.moveTo(bottom.x() + 0.5, bottom.y() + 0.05, bottom.z() + 0.5, 0.0F, 0.0F);
+        addFreshEntity(golem);
+        // TODO(발전 과제): 5칸 안 플레이어에게 summoned_entity
+    }
+
+    @Override
+    public void spawnBabyTurtle(Pos pos, int index) {
+        var turtle = new org.domi.furnace.server.entity.Turtle(this, nextEntityId());
+        turtle.setAge(-24000);
+        turtle.setHomePos(pos);
+        turtle.moveTo(pos.x() + 0.3 * index + 0.2, pos.y(), pos.z() + 0.3, 0.0F, 0.0F);
+        addFreshEntity(turtle);
+    }
 
     @Override
     public void spawnSilverfishAt(Pos pos) {

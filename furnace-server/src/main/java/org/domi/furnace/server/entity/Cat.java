@@ -262,4 +262,7 @@ public class Cat extends TamableAnimal {
 
         @Override public boolean canUse() { return !cat.isTame() && super.canUse(); }
     }
+
+    /** Cat.hiss: 하악질 소리(팬텀이 가까이 있을 때). */
+    public void hiss() { playSound("entity.cat.hiss", getSoundVolume(), getVoicePitch()); }
 }

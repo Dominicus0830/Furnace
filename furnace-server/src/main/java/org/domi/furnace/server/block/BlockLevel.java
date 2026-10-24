@@ -151,6 +151,12 @@ public interface BlockLevel {
     /** 숨은 블록이 부서질 때 좀벌레를 만든다(엔티티가 없는 레벨은 아무것도 안 한다). */
     default void spawnSilverfishAt(Pos pos) {}
 
+    /** 거북알이 부화할 때 아기 거북 하나(나이 -24000, 집 = pos)를 만든다. index 는 알 번호. */
+    default void spawnBabyTurtle(Pos pos, int index) {}
+
+    /** 호박 머리로 완성된 골렘을 만든다(눈 골렘 또는 플레이어가 만든 철 골렘). bottom 은 모양의 맨 아래 가운데 칸. */
+    default void spawnGolem(boolean iron, Pos bottom) {}
+
     /** 점화된 TNT 엔티티를 만든다(fuse < 0 이면 기본 80틱). 엔티티가 없는 레벨은 아무것도 안 한다. */
     default void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {}
 

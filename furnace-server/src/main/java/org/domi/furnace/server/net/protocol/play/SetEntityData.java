@@ -11,7 +11,7 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
     public static final int ID = 0x58;
     /** EntityDataSerializers 순번. */
     public static final int SERIALIZER_BYTE = 0, SERIALIZER_INT = 1, SERIALIZER_FLOAT = 3, SERIALIZER_STRING = 4, SERIALIZER_ITEM = 7, SERIALIZER_BOOLEAN = 8,
-            SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_OPTIONAL_UUID = 13, SERIALIZER_BLOCK_STATE = 14, SERIALIZER_OPTIONAL_BLOCK_STATE = 15, SERIALIZER_CAT_VARIANT = 22, SERIALIZER_OPTIONAL_INT = 20, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21;
+            SERIALIZER_BLOCK_POS = 10, SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_OPTIONAL_UUID = 13, SERIALIZER_BLOCK_STATE = 14, SERIALIZER_OPTIONAL_BLOCK_STATE = 15, SERIALIZER_CAT_VARIANT = 22, SERIALIZER_OPTIONAL_INT = 20, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21;
     /** Entity.DATA_AIR_SUPPLY_ID, LivingEntity.DATA_HEALTH_ID, Player.DATA_SCORE_ID. */
     public static final int AIR_SUPPLY = 1, HEALTH = 9, SCORE = 16, PLAYER_ABSORPTION = 15;
 
@@ -37,6 +37,10 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
                 case SERIALIZER_FLOAT -> buf.writeFloat(((Number) it.value()).floatValue());
                 case SERIALIZER_BOOLEAN -> buf.writeBoolean((Boolean) it.value());
                 case SERIALIZER_ITEM -> ContainerSetContent.writeSlot(buf, (org.domi.furnace.server.entity.ItemStack) it.value());
+                case SERIALIZER_BLOCK_POS -> {   // BlockPos: 위치(long). 값은 {x,y,z}
+                    int[] p = (int[]) it.value();
+                    buf.writeLong(((long) (p[0] & 0x3FFFFFF) << 38) | ((long) (p[2] & 0x3FFFFFF) << 12) | (p[1] & 0xFFF));
+                }
                 case SERIALIZER_OPTIONAL_BLOCK_POS -> {   // Optional<BlockPos>: 있으면 true + 위치(long). 값은 null 또는 {x,y,z}
                     int[] p = (int[]) it.value();
                     buf.writeBoolean(p != null);

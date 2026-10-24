@@ -220,7 +220,7 @@ public class WalkNodeEvaluator extends NodeEvaluator {
         if (up == null) return null;
         if (mob.bbWidth() >= 1.0F) return up;
         if (up.type != PathType.OPEN && up.type != PathType.WALKABLE) return up;
-        double cx = x - DX[dir] + 0.5, cz = z - DZ[dir] + 0.5;
+        double cx = x - (dir < 0 ? 0 : DX[dir]) + 0.5, cz = z - (dir < 0 ? 0 : DZ[dir]) + 0.5;   // 위·아래(dir < 0)는 걸음 폭이 0
         double half = mob.bbWidth() / 2.0;
         AABB bb = new AABB(cx - half, getFloorLevel(new Pos(floor(cx), y + 1, floor(cz))) + 0.001, cz - half,
                 cx + half, mob.bbHeight() + getFloorLevel(new Pos(up.x, up.y, up.z)) - 0.002, cz + half);

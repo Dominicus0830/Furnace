@@ -35,6 +35,9 @@ public interface Targetable {
     /** 겨냥한 몹이 때린다(hurt). 받았으면 true. */
     boolean hurtByMob(Entity.Damage source, float amount, Mob attacker);
 
+    /** setDeltaMovement(getDeltaMovement().add(...)) — 플레이어는 움직임 패킷으로 보낸다. */
+    default void addDeltaMovement(double dx, double dy, double dz) {}
+
     /** knockback(strength, dx, dz). */
     void knockback(double strength, double dx, double dz);
 
