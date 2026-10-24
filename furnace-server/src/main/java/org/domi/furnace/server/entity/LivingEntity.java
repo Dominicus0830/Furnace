@@ -27,6 +27,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected long deathLootTableSeed;
     protected String lastDamageType = "generic";
     private long lastDamageStamp = Long.MIN_VALUE / 2;
+    private Targetable lastDamageAttacker;
+
+    /** getLastDamageSource().getEntity(): 최근 40틱 안에 입은 피해를 일으킨 쪽(없으면 null). */
+    public Targetable getLastDamageAttacker() {
+        return level.gameTime() - lastDamageStamp > 40L ? null : lastDamageAttacker;
+    }
 
     /** getLastDamageSource(): 최근 40틱 안에 입은 피해의 종류(없으면 null). */
     public String getLastDamageType() {
@@ -190,6 +196,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             knockback(0.4F, dx, dz);
         }
         lastDamageType = source.type();
+        lastDamageAttacker = attacker;
         lastDamageStamp = level.gameTime();
         if (isDeadOrDying()) {
             if (fresh) makeSound(getDeathSound());
@@ -585,9 +592,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (deathTime >= 20 && !isRemoved()) remove(RemovalReason.KILLED);
     }
 
+    protected int calculateFallDamage(float distance, float multiplier) {
+        return (int) Math.ceil((distance - attributeValue(Attribute.SAFE_FALL_DISTANCE)) * multiplier * attributeValue(Attribute.FALL_DAMAGE_MULTIPLIER));
+    }
+
     @Override
     public boolean causeFallDamage(float distance, float multiplier) {
-        int dmg = (int) Math.ceil((distance - attributeValue(Attribute.SAFE_FALL_DISTANCE)) * multiplier * attributeValue(Attribute.FALL_DAMAGE_MULTIPLIER));
+        int dmg = calculateFallDamage(distance, multiplier);
         if (dmg > 0) {
             hurt(new Damage("fall", false, false, false), dmg);
             return true;
@@ -883,9 +894,22 @@ public abstract class LivingEntity extends Entity implements Targetable {
             } else if (!isNoGravity()) {
                 y -= gravity;
             }
-            setDeltaMovement(mx * friction, y * 0.98F, mz * friction);
+            if (discardFriction) setDeltaMovement(mx, y, mz);
+            else setDeltaMovement(mx * friction, y * 0.98F, mz * friction);
         }
     }
+
+    /** LivingEntity.getJumpBoostPower: 점프 강화 효과 0.1 × (레벨+1). */
+    public float getJumpBoostPower() {
+        var e = getEffect(org.domi.furnace.server.effect.MobEffect.JUMP_BOOST);
+        return e == null ? 0.0F : 0.1F * (e.amplifier() + 1.0F);
+    }
+
+    private boolean discardFriction;
+
+    public boolean shouldDiscardFriction() { return discardFriction; }
+
+    public void setDiscardFriction(boolean v) { discardFriction = v; }
 
     protected float getWaterSlowDown() { return 0.8F; }
 

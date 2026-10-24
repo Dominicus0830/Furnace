@@ -31,6 +31,8 @@ public abstract class Mob extends LivingEntity {
     protected JumpControl jumpControl;
     protected BodyRotationControl bodyRotationControl;
     protected PathNavigation navigation;
+    /** 브레인을 쓰는 몹이 생성자에서 채운다. 없으면 null. */
+    protected org.domi.furnace.server.entity.ai.brain.Brain<? extends Mob> brain;
     private final java.util.EnumMap<PathType, Float> pathfindingMalus = new java.util.EnumMap<>(PathType.class);
 
     protected Mob(EntityType type, ChunkLevel level, int id) {
@@ -55,6 +57,8 @@ public abstract class Mob extends LivingEntity {
     protected PathNavigation createNavigation(ChunkLevel level) { return new GroundPathNavigation(this, level); }
 
     public PathNavigation getNavigation() { return navigation; }
+
+    public org.domi.furnace.server.entity.ai.brain.Brain<? extends Mob> getBrain() { return brain; }
 
     /** Mob.onPathfindingStart / onPathfindingDone: 길찾기 앞뒤 훅(꿀벌 등이 비용을 바꾼다). */
     public void onPathfindingStart() {}
@@ -500,6 +504,13 @@ public abstract class Mob extends LivingEntity {
         return seen;
     }
 
+    /** 아이템 같은 비생물 엔티티까지의 시선(Mob.hasLineOfSight(Entity), 캐시 없음). */
+    public boolean hasLineOfSightToEntity(Entity e) {
+        double dx = e.x() - x(), dy = e.eyeY() - eyeY(), dz = e.z() - z();
+        if (Math.sqrt(dx * dx + dy * dy + dz * dz) > 128.0) return false;
+        return org.domi.furnace.server.block.Clip.clipCollider(level, x(), eyeY(), z(), e.x(), e.eyeY(), e.z()).miss();
+    }
+
     /** LivingEntity.hasLineOfSight: 눈에서 눈까지(128칸 안) 충돌 모양에 안 막힌다. */
     private boolean rayHasLineOfSight(Targetable t) {
         double dx = t.x() - x(), dy = t.eyeY() - eyeY(), dz = t.z() - z();
@@ -648,6 +659,7 @@ public abstract class Mob extends LivingEntity {
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
         super.addAdditionalSaveData(tag);
+        if (brain != null) tag.putCompound("Brain", brain.save());
         tag.putBoolean("CanPickUpLoot", canPickUpLoot);
         tag.putBoolean("PersistenceRequired", persistenceRequired);
         var armor = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 10);
@@ -673,6 +685,7 @@ public abstract class Mob extends LivingEntity {
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
+        if (brain != null && tag.tags().get("Brain") instanceof NbtCompound b) brain.load(b);
         if (tag.contains("CanPickUpLoot")) canPickUpLoot = tag.getBoolean("CanPickUpLoot");
         persistenceRequired = tag.getBoolean("PersistenceRequired");
         if (tag.tags().get("ArmorItems") instanceof org.domi.furnace.server.net.io.nbt.NbtList l) {

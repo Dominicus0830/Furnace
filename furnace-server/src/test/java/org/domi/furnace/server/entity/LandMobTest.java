@@ -303,4 +303,33 @@ class LandMobTest {
         assertEquals(a.getHiddenGene(), loaded.getHiddenGene());
         assertTrue(a.getBreedOffspring(level, b) instanceof Panda);
     }
+
+    @Test
+    void frogBrainEatsSlimeAndSaves() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var frog = new Frog(level, level.nextEntityId());
+        frog.moveTo(0.5, -60, 0.5, 0, 0);
+        frog.setOnGround(true);
+        frog.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(frog.blockPosition()));
+        level.addFreshEntity(frog);
+        var slime = new Slime(level, level.nextEntityId());
+        slime.moveTo(4.5, -60, 0.5, 0, 0);
+        slime.setNoAi(true);
+        level.addFreshEntity(slime);
+        for (int t = 0; t < 600; t++) {
+            tick(level, 1);
+        }
+        assertFalse(slime.isAlive(), "개구리가 슬라임을 잡아먹었다");
+        assertTrue(frog.isAlive());
+        assertNotNull(Entities.load(level, frog.save()));
+        var tadpole = new Tadpole(level, level.nextEntityId());
+        tadpole.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(tadpole);
+        tick(level, 50);
+        assertTrue(tadpole.isAlive());
+        var loaded = Entities.load(level, tadpole.save());
+        assertNotNull(loaded);
+        assertEquals(frog.variant(), ((Frog) Entities.load(level, frog.save())).variant());
+    }
 }

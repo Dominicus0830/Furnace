@@ -15,6 +15,9 @@ public abstract class PathfinderMob extends Mob {
 
     /** PathfinderMob.isPanicking: 달리는 PanicGoal 이 있나. */
     public boolean isPanicking() {
+        if (brain != null && brain.checkMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.IS_PANICKING, org.domi.furnace.server.entity.ai.brain.MemoryStatus.REGISTERED)) {
+            return brain.getMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.IS_PANICKING).isPresent();
+        }
         for (var w : goalSelector.getAvailableGoals()) {
             if (w.isRunning() && w.getGoal() instanceof org.domi.furnace.server.entity.ai.goal.PanicGoal) return true;
         }
