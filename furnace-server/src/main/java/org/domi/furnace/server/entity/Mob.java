@@ -150,6 +150,91 @@ public abstract class Mob extends LivingEntity {
         return xpReward;
     }
 
+    // ------------------------------------------------------------------ 생성(finalizeSpawn)
+
+    private static final String RANDOM_SPAWN_BONUS_ID = "minecraft:random_spawn_bonus";
+
+    public boolean isLeftHanded() { return ((Byte) entityData.get(DATA_MOB_FLAGS) & 2) != 0; }
+
+    public void setLeftHanded(boolean v) {
+        byte b = (Byte) entityData.get(DATA_MOB_FLAGS);
+        entityData.set(DATA_MOB_FLAGS, (byte) (v ? b | 2 : b & ~2));
+    }
+
+    /** 스폰 직후 주변 소리를 내기 위한 접근자(EntityType.spawn 의 playAmbientSound). */
+    public String ambientSoundForSpawn() { return getAmbientSound(); }
+
+    /** Mob.finalizeSpawn: 따라가기 범위에 영구 무작위 보너스(삼각분포)와 왼손잡이(5%). 레벨 난수를 쓴다. */
+    public void finalizeSpawn(org.domi.furnace.server.block.RandomSource levelRandom, DifficultyInstance difficulty) {
+        var follow = attributes().get(Attribute.FOLLOW_RANGE);
+        if (!follow.hasModifier(RANDOM_SPAWN_BONUS_ID)) {
+            follow.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier(RANDOM_SPAWN_BONUS_ID,
+                    levelRandom.triangle(0.0, 0.11485000000000001), org.domi.furnace.server.attribute.AttributeModifier.ADD_MULTIPLIED_BASE));
+        }
+        setLeftHanded(levelRandom.nextFloat() < 0.05F);
+    }
+
+    /** Mob.getEquipmentForSlot(slot, tier): 방어구 재질 등급 0 가죽 · 1 금 · 2 사슬 · 3 철 · 4 다이아몬드. */
+    public static String getEquipmentForSlot(EquipmentSlot slot, int tier) {
+        String piece = switch (slot) {
+            case HEAD -> "helmet";
+            case CHEST -> "chestplate";
+            case LEGS -> "leggings";
+            case FEET -> "boots";
+            default -> null;
+        };
+        if (piece == null || tier < 0 || tier > 4) return null;
+        return "minecraft:" + new String[] {"leather", "golden", "chainmail", "iron", "diamond"}[tier] + "_" + piece;
+    }
+
+    protected static ItemStack stackOf(String item) {
+        Integer id = org.domi.furnace.server.item.ItemContext.id("minecraft:item", item.replace("minecraft:", ""));
+        return id == null ? ItemStack.EMPTY : new ItemStack(id, 1);
+    }
+
+    /**
+     * Mob.populateDefaultEquipmentSlots: 0.15 × 특수 배율 확률로 방어구 등급을 정하고(최대 +3 단계, 확률 0.095씩),
+     * 발 → 다리 → 가슴 → 머리 순으로 채운다(난이도 어려움 0.1, 아니면 0.25 확률로 중간에 멈춤).
+     */
+    protected void populateDefaultEquipmentSlots(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        if (r.nextFloat() < 0.15F * difficulty.specialMultiplier()) {
+            int tier = r.nextInt(2);
+            float stop = level.difficulty() == 3 ? 0.1F : 0.25F;
+            if (r.nextFloat() < 0.095F) tier++;
+            if (r.nextFloat() < 0.095F) tier++;
+            if (r.nextFloat() < 0.095F) tier++;
+            boolean first = true;
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                if (slot.type() != EquipmentSlot.Type.HUMANOID_ARMOR) continue;
+                ItemStack cur = getItemBySlot(slot);
+                if (!first && r.nextFloat() < stop) break;
+                first = false;
+                if (cur.isEmpty()) {
+                    String item = getEquipmentForSlot(slot, tier);
+                    if (item != null) setItemSlot(slot, stackOf(item));
+                }
+            }
+        }
+    }
+
+    /**
+     * Mob.populateDefaultEquipmentEnchantments: 손(0.25)·방어구(0.5) × 특수 배율 확률로 마법을 건다.
+     * TODO(마법 부여 제공자 mob_spawn_equipment): 확률 굴림만 하고 실제 마법은 아직 걸지 않는다(난수 소비가 어긋난다).
+     */
+    protected void populateDefaultEquipmentEnchantments(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        enchantSpawnedEquipment(EquipmentSlot.MAINHAND, r, 0.25F, difficulty);
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (slot.type() == EquipmentSlot.Type.HUMANOID_ARMOR) enchantSpawnedEquipment(slot, r, 0.5F, difficulty);
+        }
+    }
+
+    private void enchantSpawnedEquipment(EquipmentSlot slot, org.domi.furnace.server.block.RandomSource r, float chance, DifficultyInstance difficulty) {
+        ItemStack s = getItemBySlot(slot);
+        if (!s.isEmpty() && r.nextFloat() < chance * difficulty.specialMultiplier()) {
+            // TODO(마법 부여 제공자): EnchantmentHelper.enchantItemFromProvider(s, MOB_SPAWN_EQUIPMENT, difficulty, r)
+        }
+    }
+
     // ------------------------------------------------------------------ 제한 구역(restrictTo)
 
     private Pos restrictCenter = Pos.ZERO;

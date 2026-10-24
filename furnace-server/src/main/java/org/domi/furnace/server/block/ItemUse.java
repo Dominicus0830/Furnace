@@ -280,8 +280,26 @@ public final class ItemUse {
         if (n.endsWith("_hoe")) return hoe(level, player, hand, hit, stack);
         if (n.endsWith("_shovel")) return shovel(level, player, hand, hit, stack);
         if (n.endsWith("_axe")) return axe(level, player, hand, hit, stack);
-        // TODO(엔티티): 생성 알·수레·액자·그림·갑옷 거치대·끈·엔드 수정·폭죽, 솔(오래 쓰기), 지도.
+        if (n.endsWith("_spawn_egg")) return spawnEgg(level, player, hand, hit, stack, n);
+        // TODO(엔티티): 수레·액자·그림·갑옷 거치대·끈·엔드 수정·폭죽, 솔(오래 쓰기), 지도.
         return InteractionResult.PASS;
+    }
+
+    /**
+     * SpawnEggItem.useOn: 맞은 칸의 충돌 모양이 비었으면 그 칸, 아니면 맞은 면 앞 칸에 몹을 만든다(바닥에 맞춰 내림).
+     * TODO(스포너·ENTITY_DATA 컴포넌트): 스포너면 종류만 바꾸고, 알의 entity_data 로 종류·태그를 덮어쓴다.
+     */
+    private static InteractionResult spawnEgg(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack, String itemName) {
+        Pos pos = hit.pos();
+        int state = level.getBlockState(pos);
+        if (B.is(state, "minecraft:spawner")) return InteractionResult.PASS;
+        Pos target = B.INFO.collisionShape(state).isEmpty() ? pos : pos.relative(hit.face());
+        String type = "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length());
+        if (level.spawnMobFromEgg(type, target, true, !pos.equals(target) && hit.face() == Dir.UP)) {
+            player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+            level.gameEvent("minecraft:entity_place", pos, player, -1);
+        }
+        return InteractionResult.sidedSuccess(false);
     }
 
     /** FlintAndSteelItem.useOn: 켤 수 있는 모닥불·양초면 켜고, 아니면 맞은 면 앞에 불. 내구도 1. */

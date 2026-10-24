@@ -148,6 +148,9 @@ public interface BlockLevel {
         return (int) ((1.0 - d2 * d0 * d1) * 11.0);
     }
 
+    /** 스폰 알: 그 종류 몹을 만든다(EntityType.spawn). 만들었으면 true. 몹이 없는 레벨은 false. */
+    default boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown) { return false; }
+
     /** LevelReader.getMaxLocalRawBrightness(pos) = getRawBrightness(pos, skyDarken). */
     default int getMaxLocalRawBrightness(Pos pos) { return getRawBrightness(pos, skyDarken()); }
 

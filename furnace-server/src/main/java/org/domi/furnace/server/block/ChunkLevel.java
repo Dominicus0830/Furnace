@@ -916,6 +916,44 @@ public abstract class ChunkLevel implements BlockLevel {
         return best[0];
     }
 
+    /**
+     * EntityType.spawn(egg): create → moveTo(무작위 방향) → 머리·몸통 방향 → finalizeSpawn → 추가 → 주변 소리.
+     * snapToGround 면 칸 위에서 충돌 모양에 닿을 때까지 내려놓는다(getYOffset).
+     */
+    @Override
+    public boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown) {
+        Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
+        if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return false;
+        double d0 = 0.0;
+        if (snapToGround) {
+            mob.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
+            AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
+            if (extendDown) box = box.expandTowards(0.0, -1.0, 0.0);
+            d0 = 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, mob.boundingBox(), blockCollisions(box))[1];
+        }
+        mob.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
+        mob.setYHeadRot(mob.yRot());
+        mob.setYBodyRot(mob.yRot());
+        mob.finalizeSpawn(random, getCurrentDifficultyAt(mob.blockPosition()));
+        addFreshEntity(mob);
+        mob.makeSound(mob.ambientSoundForSpawn());
+        return true;
+    }
+
+    private static final float[] MOON_BRIGHTNESS_PER_PHASE = {1.0F, 0.75F, 0.5F, 0.25F, 0.0F, 0.25F, 0.5F, 0.75F};
+
+    /** getCurrentDifficultyAt(pos): 청크가 있으면 그 청크의 머문 시간·달 밝기를 반영한다. */
+    public org.domi.furnace.server.entity.DifficultyInstance getCurrentDifficultyAt(Pos pos) {
+        long inhabited = 0L;
+        float moon = 0.0F;
+        ChunkColumn col = chunk(pos.x() >> 4, pos.z() >> 4);
+        if (col != null) {
+            moon = MOON_BRIGHTNESS_PER_PHASE[(int) (dayTime() / 24000L % 8L + 8L) % 8];
+            inhabited = col.inhabitedTime();
+        }
+        return new org.domi.furnace.server.entity.DifficultyInstance(difficulty(), dayTime(), inhabited, moon);
+    }
+
     /** 새 엔티티 id(서버 전역 — 플레이어와 같은 발급기). 기본은 테스트용 따로 센 값. */
     public int nextEntityId() { return FALLBACK_IDS.incrementAndGet(); }
 

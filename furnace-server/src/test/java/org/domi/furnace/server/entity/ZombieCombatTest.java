@@ -65,7 +65,7 @@ class ZombieCombatTest {
         z.moveTo(0.5, -60, 0.5, 0, 0);
         z.setOnGround(true);
         float before = p.vitals().health();
-        run(level, z, 120);
+        for (int i = 0; i < 300 && p.vitals().health() >= before; i++) run(level, z, 1);   // 처음 맞을 때까지(난수로 시간이 달라진다)
         assertSame(p, z.getTarget(), "플레이어를 대상으로 삼는다");
         assertTrue(z.x() > 3.0, "다가왔다: " + z.x());
         assertTrue(p.vitals().health() < before, "맞았다: " + p.vitals().health());

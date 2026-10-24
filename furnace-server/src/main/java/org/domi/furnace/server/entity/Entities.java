@@ -8,6 +8,15 @@ public final class Entities {
 
     private Entities() {}
 
+    /** EntityType.create: 새 엔티티(없는 종류면 null). */
+    public static Entity create(ChunkLevel level, String id) {
+        return switch (id) {
+            case "minecraft:zombie" -> new Zombie(level, level.nextEntityId());
+            case "minecraft:villager" -> new Villager(level, level.nextEntityId());
+            default -> null;
+        };
+    }
+
     public static Entity load(ChunkLevel level, NbtCompound tag) {
         if (!(tag.tags().get("id") instanceof String id)) return null;
         Entity e = switch (id) {
