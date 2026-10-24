@@ -1069,6 +1069,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x06 -> handleChat(frame);                                         // chat
             case 0x07 -> handleChatSessionUpdate(org.domi.furnace.server.chat.RemoteChatSession.Data.read(frame)); // chat_session_update
             case 0x0B -> handleCommandSuggestion(Types.readVarInt(frame), Types.readString(frame, 32500));
+            case 0x16 -> { // use_entity(interact): 엔티티 번호, 0 상호작용·1 공격·2 위치 상호작용, [x,y,z], [손], 웅크리기
+                int entityId = Types.readVarInt(frame);
+                int action = Types.readVarInt(frame);
+                int hand = 0;
+                if (action == 2) { frame.readFloat(); frame.readFloat(); frame.readFloat(); }
+                if (action != 1) hand = Types.readVarInt(frame);
+                frame.readBoolean();
+                Player actor = player;
+                int h = hand;
+                if (actor != null && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
+                    world.runAt(actor.x(), actor.z(), region -> handleInteractEntity(region, actor, entityId, action, h));
+                }
+            }
             case 0x18 -> { // Keep Alive (serverbound)
                 long echoed = frame.readLong();
                 if (echoed == lastKeepAliveId) {
@@ -1420,6 +1433,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
         });
+    }
+
+    /** 바닐라 handleInteract: 6칸(제곱 36) 안의 엔티티만. 공격(1)은 때리고, 상호작용(0·2)은 주민이면 거래 화면을 연다. */
+    private void handleInteractEntity(org.domi.furnace.server.world.Region region, Player p, int entityId, int action, int hand) {
+        var e = region.level().entities().get(entityId);
+        if (e == null || e.isRemoved()) return;
+        double dx = p.x() - e.x(), dy = p.y() + 1.62 - e.y(), dz = p.z() - e.z();
+        if (dx * dx + dy * dy + dz * dz >= 36.0) return;
+        if (action == 1) {
+            if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
+        } else if (e instanceof org.domi.furnace.server.entity.Villager vv && !p.sneaking()) {
+            if (vv.canTrade()) openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
+            else vv.playSound("entity.villager.no", 1.0F, 1.0F);
+        }
     }
 
     /** 바닐라 handleSetBeaconPacket. */

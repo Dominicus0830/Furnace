@@ -169,4 +169,19 @@ public final class ItemTools {
         else patch.put("minecraft:damage", d);
         return new ItemStack(s.itemId(), s.count(), ComponentPatch.ofNormalized(patch));
     }
+
+    /** 손에 든 아이템의 attack_damage 속성(add_value, 주 손/손/any 칸)의 합. 닿는 속성 수정자만 본다. */
+    public static float attackDamageBonus(ItemStack s) {
+        if (s == null || s.isEmpty()) return 0.0F;
+        if (!(component(s, "minecraft:attribute_modifiers") instanceof java.util.Map<?, ?> m) || !(m.get("modifiers") instanceof java.util.List<?> list)) return 0.0F;
+        float sum = 0.0F;
+        for (Object o : list) {
+            if (!(o instanceof java.util.Map<?, ?> e)) continue;
+            String type = String.valueOf(e.get("type"));
+            String slot = e.get("slot") == null ? "any" : String.valueOf(e.get("slot"));
+            String op = e.get("operation") == null ? "add_value" : String.valueOf(e.get("operation"));
+            if (type.endsWith("attack_damage") && op.equals("add_value") && (slot.equals("any") || slot.equals("mainhand") || slot.equals("hand")) && e.get("amount") instanceof Number n) sum += n.floatValue();
+        }
+        return sum;
+    }
 }

@@ -730,6 +730,18 @@ public final class Region {
 
     // ------------------------------------------------------------------ 블록 부수기(ServerPlayerGameMode)
 
+    /** 플레이어가 살아 있는 엔티티를 때린다(Player.attack 의 기본 부분): 손 아이템의 attack_damage 속성 합 + 1, 쿨다운은 가득 찬 것으로 본다. */
+    public void attack(Player p, org.domi.furnace.server.entity.LivingEntity target) {
+        world.assertOwns(this);
+        if (!players.containsKey(p.entityId()) || !target.isAlive()) return;
+        var inv = p.inventory();
+        ItemStack held = inv.get(inv.heldWindowSlot());
+        float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);
+        // TODO(공격 쿨다운·치명타·인챈트·내구도): attackStrengthTicker, 낙하 치명타, sharpness, 무기 내구 감소
+        p.vitals().causeFoodExhaustion(0.1F);
+        target.hurtBy(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
+    }
+
     /**
      * 플레이어 아이템 사용(use_item — 바닐라 handleUseItem): ack 를 걸고, 보낸 시선이 다르면 돌린 뒤 ServerPlayerGameMode.useItem.
      * 바뀐 손·갑옷 칸은 연결의 인벤토리로. 그 플레이어가 이 region 소속일 때만.

@@ -14,6 +14,7 @@ public enum DamageType {
     OUTSIDE_BORDER("outside_border", "outsideBorder", 0.0f, false, true, false, false, false, true, false),
     IN_WALL("in_wall", "inWall", 0.0f, false, true, false, false, false, true, false),
     MAGIC("magic", "magic", 0.0f, false, true, false, false, false, false, false),
+    PLAYER_ATTACK("player_attack", "player", 0.1f, false, false, false, false, false, false, false),
     WITHER("wither", "wither", 0.0f, false, true, false, false, false, false, false);
 
     private final String key;

@@ -18,6 +18,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** EntityType.EXPERIENCE_ORB: sized(0.5, 0.5).clientTrackingRange(6).updateInterval(20). */
     public static final EntityType EXPERIENCE_ORB = of("minecraft:experience_orb", 0.5F, 0.5F, 0.5F * 0.85F, 6, 20, true, false);
 
+    /** EntityType.VILLAGER: sized(0.6, 1.95).eyeHeight(1.62).clientTrackingRange(10). */
+    public static final EntityType VILLAGER = of("minecraft:villager", 0.6F, 1.95F, 1.62F, 10, 3, true, false);
+
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);

@@ -13,6 +13,7 @@ public final class Entities {
         Entity e = switch (id) {
             case "minecraft:item" -> new ItemEntity(level, level.nextEntityId());
             case "minecraft:experience_orb" -> new ExperienceOrb(level, level.nextEntityId());
+            case "minecraft:villager" -> new Villager(level, level.nextEntityId());
             default -> null;
         };
         if (e == null) return null;
