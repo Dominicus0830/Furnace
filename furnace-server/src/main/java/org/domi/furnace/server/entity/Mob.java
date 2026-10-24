@@ -154,6 +154,12 @@ public abstract class Mob extends LivingEntity {
 
     private static final String RANDOM_SPAWN_BONUS_ID = "minecraft:random_spawn_bonus";
 
+    /** Mob.mobInteract: 플레이어가 우클릭했을 때. 처리했으면 true. */
+    public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) { return false; }
+
+    /** Entity.getFluidJumpThreshold: 눈높이가 0.4 미만이면 0, 아니면 0.4. */
+    public double getFluidJumpThreshold() { return dimEye < 0.4 ? 0.0 : 0.4; }
+
     public boolean isLeftHanded() { return ((Byte) entityData.get(DATA_MOB_FLAGS) & 2) != 0; }
 
     public void setLeftHanded(boolean v) {

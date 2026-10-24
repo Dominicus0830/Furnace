@@ -18,6 +18,15 @@ public final class TargetingConditions {
 
     public static TargetingConditions forNonCombat() { return new TargetingConditions(false); }
 
+    public TargetingConditions copy() {
+        TargetingConditions c = new TargetingConditions(isCombat);
+        c.range = range;
+        c.checkLineOfSight = checkLineOfSight;
+        c.testInvisible = testInvisible;
+        c.selector = selector;
+        return c;
+    }
+
     public TargetingConditions range(double r) {
         range = r;
         return this;

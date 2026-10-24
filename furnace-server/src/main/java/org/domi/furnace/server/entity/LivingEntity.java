@@ -25,6 +25,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected Player lastHurtByPlayer;
     protected long deathLootTableSeed;
     protected String lastDamageType = "generic";
+    private long lastDamageStamp = Long.MIN_VALUE / 2;
+
+    /** getLastDamageSource(): 최근 40틱 안에 입은 피해의 종류(없으면 null). */
+    public String getLastDamageType() {
+        return level.gameTime() - lastDamageStamp > 40L ? null : lastDamageType;
+    }
     protected int noActionTime;
 
     public int getNoActionTime() { return noActionTime; }
@@ -161,6 +167,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             knockback(0.4F, dx, dz);
         }
         lastDamageType = source.type();
+        lastDamageStamp = level.gameTime();
         if (isDeadOrDying()) {
             if (fresh) makeSound(getDeathSound());
             die(source);

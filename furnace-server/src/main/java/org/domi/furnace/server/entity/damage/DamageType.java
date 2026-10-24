@@ -67,6 +67,18 @@ public enum DamageType {
     /** 태그 bypasses_resistance(허공·/kill): 저항 효과가 줄이지 못한다. */
     public boolean bypassesResistance() { return this == OUT_OF_WORLD || this == GENERIC_KILL; }
 
+    /** 태그 panic_causes 에 들어 있나. */
+    public boolean isPanicCause() {
+        int[] ids = Tags.SET.ids("minecraft:damage_type", "minecraft:panic_causes");
+        int me = registryId();
+        for (int i : ids) if (i == me) return true;
+        return false;
+    }
+
+    private static final class Tags {
+        static final org.domi.furnace.server.net.registry.TagSet SET = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+    }
+
     public static DamageType byKey(String key) {
         for (DamageType t : values()) if (t.key.equals(key)) return t;
         return GENERIC;

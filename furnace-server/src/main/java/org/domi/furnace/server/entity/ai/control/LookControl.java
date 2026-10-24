@@ -5,6 +5,7 @@ import java.util.OptionalDouble;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Mob;
+import org.domi.furnace.server.entity.Player;
 
 public class LookControl {
     protected final Mob mob;
@@ -19,6 +20,8 @@ public class LookControl {
     public void setLookAt(Entity e) { setLookAt(e.x(), wantedY(e), e.z()); }
 
     public void setLookAt(Entity e, float yMax, float xMax) { setLookAt(e.x(), wantedY(e), e.z(), yMax, xMax); }
+
+    public void setLookAtPlayer(Player p, float yMax, float xMax) { setLookAt(p.x(), p.eyeY(), p.z(), yMax, xMax); }
 
     public void setLookAt(double x, double y, double z, float yMax, float xMax) {
         wantedX = x;

@@ -24,6 +24,18 @@ public record EntityType(String name, int id, float width, float height, float e
     /** EntityType.ZOMBIE: sized(0.6, 1.95).eyeHeight(1.74).clientTrackingRange(8). */
     public static final EntityType ZOMBIE = of("minecraft:zombie", 0.6F, 1.95F, 1.74F, 8, 3, true, false);
 
+    /** CHICKEN: sized(0.4, 0.7).eyeHeight(0.644).clientTrackingRange(10). */
+    public static final EntityType CHICKEN = of("minecraft:chicken", 0.4F, 0.7F, 0.644F, 10, 3, true, false);
+
+    /** COW: sized(0.9, 1.4).eyeHeight(1.3).clientTrackingRange(10). */
+    public static final EntityType COW = of("minecraft:cow", 0.9F, 1.4F, 1.3F, 10, 3, true, false);
+
+    /** PIG: sized(0.9, 0.9).clientTrackingRange(10). */
+    public static final EntityType PIG = of("minecraft:pig", 0.9F, 0.9F, 0.9F * 0.85F, 10, 3, true, false);
+
+    /** SHEEP: sized(0.9, 1.3).eyeHeight(1.235).clientTrackingRange(10). */
+    public static final EntityType SHEEP = of("minecraft:sheep", 0.9F, 1.3F, 1.235F, 10, 3, true, false);
+
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);

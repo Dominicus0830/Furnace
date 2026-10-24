@@ -12,4 +12,12 @@ public abstract class PathfinderMob extends Mob {
     public float getWalkTargetValue(Pos pos) { return getWalkTargetValue(pos, level); }
 
     public float getWalkTargetValue(Pos pos, ChunkLevel level) { return 0.0F; }
+
+    /** PathfinderMob.isPanicking: 달리는 PanicGoal 이 있나. */
+    public boolean isPanicking() {
+        for (var w : goalSelector.getAvailableGoals()) {
+            if (w.isRunning() && w.getGoal() instanceof org.domi.furnace.server.entity.ai.goal.PanicGoal) return true;
+        }
+        return false;
+    }
 }

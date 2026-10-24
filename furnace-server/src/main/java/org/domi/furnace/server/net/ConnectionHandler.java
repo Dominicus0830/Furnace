@@ -1443,6 +1443,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (dx * dx + dy * dy + dz * dz >= 36.0) return;
         if (action == 1) {
             if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
+        } else if (e instanceof org.domi.furnace.server.entity.Mob mob && !(e instanceof org.domi.furnace.server.entity.Villager) && action == 0) {
+            var inv = p.inventory();
+            mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region);
         } else if (e instanceof org.domi.furnace.server.entity.Villager vv && !p.sneaking()) {
             if (vv.canTrade()) openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
             else vv.playSound("entity.villager.no", 1.0F, 1.0F);

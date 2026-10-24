@@ -13,6 +13,10 @@ public final class Entities {
         return switch (id) {
             case "minecraft:zombie" -> new Zombie(level, level.nextEntityId());
             case "minecraft:villager" -> new Villager(level, level.nextEntityId());
+            case "minecraft:chicken" -> new Chicken(level, level.nextEntityId());
+            case "minecraft:cow" -> new Cow(level, level.nextEntityId());
+            case "minecraft:pig" -> new Pig(level, level.nextEntityId());
+            case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
             default -> null;
         };
     }
@@ -24,6 +28,10 @@ public final class Entities {
             case "minecraft:experience_orb" -> new ExperienceOrb(level, level.nextEntityId());
             case "minecraft:villager" -> new Villager(level, level.nextEntityId());
             case "minecraft:zombie" -> new Zombie(level, level.nextEntityId());
+            case "minecraft:chicken" -> new Chicken(level, level.nextEntityId());
+            case "minecraft:cow" -> new Cow(level, level.nextEntityId());
+            case "minecraft:pig" -> new Pig(level, level.nextEntityId());
+            case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
             default -> null;
         };
         if (e == null) return null;
