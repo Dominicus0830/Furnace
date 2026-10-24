@@ -1110,6 +1110,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int action = Types.readVarInt(frame);
                 if (action == 0) requestRespawn(ctx);
             }
+            case 0x22 -> { // place_recipe: containerId(byte), 레시피 id(String), shift(bool)
+                int containerId = frame.readByte();
+                String recipe = Types.readString(frame, 32767);
+                boolean shift = frame.readBoolean();
+                Player p = player;
+                if (p != null) handlePlaceRecipe(p, containerId, recipe, shift);
+            }
             case 0x23 -> { // player_abilities(serverbound): 비행 시작/끝 — 비행 가능할 때만 반영
                 byte flags = frame.readByte();
                 Player p = player;
@@ -1324,6 +1331,37 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (menu == null || menu.containerId != containerId) return;   // 바닐라: 열린 창과 다르면 무시
         Runnable body = () -> applyContainerClick(p, menu, stateId, slotNum, button, type, changed, carried);
         int[] bp = menu.containerBlockPos();
+        if (bp == null) {
+            synchronized (p.menuLock()) { body.run(); }
+        } else {
+            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+        }
+    }
+
+    /** 바닐라 handlePlaceRecipe: 레시피 북이 열린 창의 격자를 채운다(스펙테이터는 안 된다). */
+    private void handlePlaceRecipe(Player p, int containerId, String recipeId, boolean shift) {
+        var rm = menus.recipes();
+        if (rm == null) return;
+        org.domi.furnace.server.data.ResourceId rid = org.domi.furnace.server.data.ResourceId.tryParse(recipeId);
+        if (rid == null) return;
+        var entry = rm.craftingEntry(rid);
+        if (entry == null) return;
+        var menu = p.containerMenu();
+        if (menu == null || menu.containerId != containerId || !(menu instanceof org.domi.furnace.server.menu.RecipeBookMenu rbm)) return;
+        int[] bp = menu.containerBlockPos();
+        Runnable body = () -> {
+            if (p.containerMenu() != menu) return;
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) { menu.sendAllDataToRemote(); return; }
+            if (!menu.stillValid(menus)) { log.debug("Player {} interacted with invalid menu {}", p.name(), menu); return; }
+            rbm.beginPlacingRecipe();
+            try {
+                new org.domi.furnace.server.menu.ServerPlaceRecipe(rbm, menus, inv, (cid, r) ->
+                        menus.out(new org.domi.furnace.server.net.protocol.play.PlaceGhostRecipe(cid, r.id().toString()))).recipeClicked(entry, shift);
+            } finally {
+                rbm.finishPlacingRecipe(entry);
+            }
+            menu.broadcastChanges();
+        };
         if (bp == null) {
             synchronized (p.menuLock()) { body.run(); }
         } else {

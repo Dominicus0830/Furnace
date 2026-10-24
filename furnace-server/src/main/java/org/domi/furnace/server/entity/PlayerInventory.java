@@ -88,7 +88,8 @@ public final class PlayerInventory {
         return left == 0 ? ItemStack.EMPTY : stack.withCount(left);
     }
 
-    private int slotWithRemainingSpace(ItemStack stack, int maxStack) {
+    /** Inventory.getSlotWithRemainingSpace: 든 칸 → 왼손(40) → 0..35 의 첫 자리 있는 칸, 없으면 -1. */
+    public synchronized int slotWithRemainingSpace(ItemStack stack, int maxStack) {
         if (hasRemainingSpace(slots[36 + selected], stack, maxStack)) return selected;
         if (hasRemainingSpace(slots[45], stack, maxStack)) return 40;
         for (int i = 0; i < 36; i++) if (hasRemainingSpace(slots[windowSlot(i)], stack, maxStack)) return i;

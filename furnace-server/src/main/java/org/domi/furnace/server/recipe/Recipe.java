@@ -24,6 +24,14 @@ public sealed interface Recipe {
     /** 제작대 레시피인가(minecraft:crafting_*). */
     default boolean isCrafting() { return false; }
 
+    /** 레시피 북이 칸에 채울 때 쓰는 재료 목록(바닐라 Recipe.getIngredients — 모양 있는 레시피는 빈 칸 포함 w*h). 특수 레시피는 빈 목록. */
+    default java.util.List<Ingredient> placementIngredients() { return java.util.List.of(); }
+
+    /** 모양 있는 레시피의 가로·세로(아니면 -1). */
+    default int shapedWidth() { return -1; }
+
+    default int shapedHeight() { return -1; }
+
     /** 바닐라 Recipe.matches(CraftingInput) — 제작 레시피만 의미가 있다. */
     default boolean matches(CraftingInput input, RecipeContext ctx) { return false; }
 
@@ -104,6 +112,12 @@ public sealed interface Recipe {
     record Shaped(String group, CraftingCategory category, int width, int height, List<Ingredient> ingredients, Result result,
                   boolean showNotification) implements Recipe {
         public String type() { return "minecraft:crafting_shaped"; }
+
+        @Override public java.util.List<Ingredient> placementIngredients() { return ingredients; }
+
+        @Override public int shapedWidth() { return width; }
+
+        @Override public int shapedHeight() { return height; }
 
         @Override public boolean isCrafting() { return true; }
 
@@ -209,6 +223,8 @@ public sealed interface Recipe {
 
     record Shapeless(String group, CraftingCategory category, Result result, List<Ingredient> ingredients) implements Recipe {
         public String type() { return "minecraft:crafting_shapeless"; }
+
+        @Override public java.util.List<Ingredient> placementIngredients() { return ingredients; }
 
         @Override public boolean isCrafting() { return true; }
 

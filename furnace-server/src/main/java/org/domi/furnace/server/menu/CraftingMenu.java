@@ -4,7 +4,7 @@ package org.domi.furnace.server.menu;
 import java.util.function.BooleanSupplier;
 import org.domi.furnace.server.entity.ItemStack;
 
-public class CraftingMenu extends AbstractContainerMenu {
+public class CraftingMenu extends AbstractContainerMenu implements RecipeBookMenu {
 
     public static final int RESULT_SLOT = 0, CRAFT_SLOT_START = 1, CRAFT_SLOT_END = 10, INV_SLOT_START = 10, INV_SLOT_END = 37,
             USE_ROW_SLOT_START = 37, USE_ROW_SLOT_END = 46;
@@ -91,5 +91,33 @@ public class CraftingMenu extends AbstractContainerMenu {
         slot.onTake(player, stack);
         if (index == RESULT_SLOT) player.drop(stack, false);
         return result;
+    }
+
+    // --- RecipeBookMenu ---
+    @Override public int resultSlotIndex() { return RESULT_SLOT; }
+    @Override public int gridWidth() { return 3; }
+    @Override public int gridHeight() { return 3; }
+    @Override public Slot slot(int index) { return slots.get(index); }
+    @Override public int containerId() { return containerId; }
+
+    @Override public void fillCraftSlotsStackedContents(org.domi.furnace.server.recipe.StackedContents sc) {
+        for (ItemStack s : craftSlots.items()) sc.accountSimpleStack(s);
+    }
+
+    @Override public void clearCraftingContent() {
+        for (int i = 0; i < craftSlots.size(); i++) craftSlots.removeNoUpdate(i);
+        resultSlots.clearContent();
+    }
+
+    @Override public boolean recipeMatches(org.domi.furnace.server.recipe.RecipeManager.CraftingEntry recipe) {
+        var rm = owner.recipes();
+        return rm != null && recipe.recipe().matches(craftSlots.asInput(), rm.context());
+    }
+
+    @Override public void beginPlacingRecipe() { placingRecipe = true; }
+
+    @Override public void finishPlacingRecipe(org.domi.furnace.server.recipe.RecipeManager.CraftingEntry recipe) {
+        placingRecipe = false;
+        CraftingLogic.slotChangedCraftingGrid(this, owner, craftSlots, resultSlots, recipe);
     }
 }
