@@ -59,6 +59,11 @@ public class InventoryMenu extends AbstractContainerMenu implements RecipeBookMe
 
         @Override public boolean mayPlace(ItemStack stack) { return type == owner.equipmentSlotFor(stack); }
 
+        @Override public void setByPlayer(ItemStack newStack, ItemStack oldStack) {
+            owner.onEquipItem(type, oldStack, newStack);
+            super.setByPlayer(newStack, oldStack);
+        }
+
         @Override public boolean mayPickup(MenuPlayer player) {
             ItemStack cur = getItem();
             return cur.isEmpty() || player.isCreative() || !player.hasBindingCurse(cur);

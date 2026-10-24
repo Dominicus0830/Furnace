@@ -906,6 +906,13 @@ public final class Region {
                     probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), ChunkColumn.MIN_Y);
         }
         p.vitals().tick(s);
+        if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계 (잠은 아직 없어 time_since_rest 는 늘 센다)
+            p.awardStat("minecraft:play_time", 1);
+            p.awardStat("minecraft:total_world_time", 1);
+            if (!p.vitals().isDeadOrDying()) p.awardStat("minecraft:time_since_death", 1);
+            if (p.sneaking()) p.awardStat("minecraft:sneak_time", 1);
+            p.awardStat("minecraft:time_since_rest", 1);
+        }
         var adv = p.advancements();
         if (adv != null) adv.tickPlayer();
     }

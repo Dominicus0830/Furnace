@@ -43,6 +43,7 @@ public final class ServerCore {
         this.lists = lists;
         this.profileCache = profileCache;
         this.world = world;
+        org.domi.furnace.server.map.MapStore.install(world.worldDir());   // 지도 저장 데이터(world/data/map_N.dat) 읽기
         this.levelData = levelData;
         this.scheduler = scheduler;
         this.gameRules = org.domi.furnace.server.world.GameRules.fromStrings(levelData.gameRules);

@@ -96,4 +96,10 @@ public interface MenuPlayer {
 
     /** abilities.mayBuild(모험·관전 모드는 거짓) — 독서대 책 꺼내기 등. */
     default boolean mayBuild() { return true; }
+
+    /** Player.awardStat(통계, n). */
+    default void awardStat(String stat, int amount) { }
+
+    /** LivingEntity.onEquipItem(slot, old, new): 장비 칸이 바뀌었다 — 장착 소리(모두에게)와 equip/unequip 게임 이벤트. */
+    default void onEquipItem(EquipSlot slot, ItemStack oldItem, ItemStack newItem) { }
 }

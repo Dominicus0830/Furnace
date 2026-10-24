@@ -266,7 +266,7 @@ public class MerchantMenu extends AbstractContainerMenu {
                 if (taken == null) taken = swap(offer.take(b, a));
                 if (taken != null) {
                     merchant.notifyTrade(offer);
-                    // TODO(통계): traded_with_villager
+                    p.awardStat("minecraft:traded_with_villager", 1);
                     slots.set(0, taken[0]);
                     slots.set(1, taken[1]);
                 }

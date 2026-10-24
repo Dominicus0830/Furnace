@@ -244,8 +244,17 @@ public final class Player {
         }
     }
 
-    /** awardStat(통계, n). TODO(통계): 통계 체계가 아직 없다. */
-    public void awardStat(String stat, int amount) {}
+    private volatile org.domi.furnace.server.stats.PlayerStats stats;
+
+    public org.domi.furnace.server.stats.PlayerStats stats() { return stats; }
+
+    public void stats(org.domi.furnace.server.stats.PlayerStats s) { this.stats = s; }
+
+    /** Player.awardStat(통계, n): 이름은 "minecraft:커스텀" 또는 "minecraft:종류:값". 통계가 아직 붙지 않은 플레이어(시험)는 무시. */
+    public void awardStat(String stat, int amount) {
+        var s = stats;
+        if (s != null) s.increment(stat, amount);
+    }
 
     /** 바닐라 Player.getDisplayName: 이름 + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
     public org.domi.furnace.api.text.Text displayName() {

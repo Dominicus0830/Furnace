@@ -898,6 +898,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 바닐라 첫 틱: 엔티티 데이터 → (ServerPlayer.tick 끝) 발전 과제 tick 트리거·flushDirty → (doTick) 체력·허기·경험치.
         // 발전 과제 쪽 패킷(레시피 ADD 등)은 Player.send 로 이벤트 루프 대기열에 들어가므로 뒤 패킷도 같은 대기열로 보낸다.
         var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
+        if (p.stats() == null && org.domi.furnace.server.item.ItemContext.installed()) {   // 통계(world/stats/<uuid>.json) — 바닐라 placeNewPlayer 가 markAllDirty
+            var st = new org.domi.furnace.server.stats.PlayerStats(world.worldDir(), p.uuid());
+            st.markAllDirty();
+            p.stats(st);
+        }
         java.util.List<Packet> firstTick = vitals.joinPackets();
         int ft = 0;
         while (ft < firstTick.size() && firstTick.get(ft) instanceof org.domi.furnace.server.net.protocol.play.SetEntityData) send(ctx, firstTick.get(ft++));
@@ -1109,6 +1114,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x09 -> { // client_command: 0 = 리스폰, 1 = 통계 요청
                 int action = Types.readVarInt(frame);
                 if (action == 0) requestRespawn(ctx);
+                else if (action == 1) {   // REQUEST_STATS: 바뀐 통계를 award_stats 로
+                    Player sp = player;
+                    if (sp != null && sp.stats() != null) sp.send(sp.stats().takeDirtyPacket());
+                }
             }
             case 0x22 -> { // place_recipe: containerId(byte), 레시피 id(String), shift(bool)
                 int containerId = frame.readByte();
@@ -1579,6 +1588,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             }
                         }
 
+                        @Override public MapInfo mapInfo(ItemStack map) {
+                            var m = org.domi.furnace.server.map.MapStore.of(map);
+                            return m == null ? null : new MapInfo(m.locked(), m.scale());
+                        }
+
                         @Override public void playSound(String sound, float volume, float pitch) {
                             var region = org.domi.furnace.server.world.MenuBlockContext.current();
                             if (region != null) region.level().playSound(null, x + 0.5, y + 0.5, z + 0.5, sound, "blocks", volume, pitch);
@@ -1763,7 +1777,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
 
         @Override public void onItemCrafted(ItemStack stack, int count) {
-            // TODO(통계): crafted:<item> 통계를 count 만큼 올린다. TODO(아이템 제작 훅): Item.onCraftedBy(stack, level, player).
+            // 바닐라 ItemStack.onCraftedBy → awardStat(crafted:<item>, count). TODO(아이템 제작 훅): Item.onCraftedBy(stack, level, player).
+            if (!stack.isEmpty() && count > 0) p.awardStat("minecraft:crafted:" + org.domi.furnace.server.item.ItemTools.itemName(stack), count);
+        }
+
+        @Override public void awardStat(String stat, int amount) { p.awardStat(stat, amount); }
+
+        @Override
+        public void onEquipItem(org.domi.furnace.server.menu.EquipSlot slot, ItemStack oldItem, ItemStack newItem) {
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            if (oldItem.isEmpty() && newItem.isEmpty()) return;
+            if (oldItem.itemId() == newItem.itemId() && oldItem.patch().equals(newItem.patch())) return;
+            if (!newItem.isEmpty() && equipmentSlotFor(newItem) == slot) {   // Equipable.getEquipSound — 슬롯에 맞는 장비일 때만
+                String sound = org.domi.furnace.server.block.ItemUse.equipSound(org.domi.furnace.server.item.ItemTools.itemName(newItem));
+                p.random().nextLong();   // playSeededSound 의 씨앗(엔티티 난수)
+                world.runAt(p.x(), p.z(), region -> region.level().playSound(null, p.x(), p.y(), p.z(), sound, "players", 1.0F, 1.0F));
+            }
+            // TODO(게임 이벤트): equip/unequip — 청취자(스컬크 감지체)가 아직 없다.
         }
 
         @Override public boolean mayBuild() {
@@ -2231,6 +2261,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     if (p.hasOpenContainer()) doCloseContainer(p);
                 }
             }
+            p.awardStat("minecraft:leave_game", 1);   // 바닐라 PlayerList.remove
             savePlayerSnapshot();
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
@@ -2256,11 +2287,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         extra.putCompound("recipeBook", p.recipeBook().save());
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
+        final var statsToSave = p.stats();
         try {
             world.ioPool().execute(() -> {
                 try {
                     org.domi.furnace.server.entity.PlayerData.saveSequenced(seq, world.worldDir(), p.uuid(),
                             sx, sy, sz, syaw, spitch, sg, snapshot, extra);
+                    if (statsToSave != null) statsToSave.save();
                     if (advancements != null) advancements.save();   // 바닐라 savePlayerData: 플레이어 NBT·통계·발전 과제
                 } catch (RuntimeException e) {
                     log.error("플레이어 저장 실패 {}", p.name(), e);

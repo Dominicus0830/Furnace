@@ -221,7 +221,7 @@ public final class ItemUse {
     }
 
     /** Equipable.getEquipSound — 갑옷 재질별. */
-    private static String equipSound(String n) {
+    public static String equipSound(String n) {
         if (n.equals("minecraft:elytra")) return "minecraft:item.armor.equip_elytra";
         String m = n.substring("minecraft:".length());
         if (m.startsWith("leather_")) return "minecraft:item.armor.equip_leather";

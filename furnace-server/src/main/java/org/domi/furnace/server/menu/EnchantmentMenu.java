@@ -132,7 +132,8 @@ public class EnchantmentMenu extends AbstractContainerMenu {
                 final var en = e;
                 target = EnchantTools.update(target, m -> m.merge(en.id(), en.level(), Math::max));
             }
-            enchantSlots.set(0, target);   // TODO(통계·발전 과제): enchant_item 통계, enchanted_item 조건
+            enchantSlots.set(0, target);   // TODO(발전 과제): enchanted_item 조건
+            player.awardStat("minecraft:enchant_item", 1);
             if (!player.isCreative() || !lapis.isEmpty()) {
                 ItemStack rest = lapis.withCount(lapis.count() - cost);
                 enchantSlots.set(1, rest.isEmpty() ? ItemStack.EMPTY : rest);

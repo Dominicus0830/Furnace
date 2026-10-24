@@ -619,6 +619,16 @@ class ConnectionInputTest {
     }
 
     @Test
+    void requestStats_sendsAwardStatsWithCraftedCount() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        org.junit.jupiter.api.Assumptions.assumeTrue(p.stats() != null, "아이템 레지스트리가 없으면 통계가 붙지 않는다");
+        p.awardStat("minecraft:crafted:minecraft:stick", 4);
+        drainOutbound();
+        ch.writeInbound(frame(0x09, b -> Types.writeVarInt(b, 1)));
+        assertEquals(1, count(drainOutbound(), 0x04));
+    }
+
+    @Test
     void shulkerBox_rejectsNestedShulkerBoxes() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         openBlock(2, -60, 2, "minecraft:shulker_box", Map.of("facing", "up"), null);

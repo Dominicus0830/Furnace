@@ -41,7 +41,7 @@ public class BellBlock extends BaseEntityBlock {
         Pos pos = hit.pos();
         if (!checkHit || isProperHit(state, dir, hit.y() - pos.y())) {
             attemptToRing(player, level, pos, dir);
-            // TODO(통계): bell_ring
+            player.awardStat("minecraft:bell_ring");
             return true;
         }
         return false;

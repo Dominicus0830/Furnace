@@ -13,7 +13,9 @@ REGS = ['minecraft:block', 'minecraft:item', 'minecraft:entity_type', 'minecraft
         # 아이템 컴포넌트 네트워크 인코딩용(태그 없음)
         'minecraft:data_component_type', 'minecraft:potion', 'minecraft:mob_effect', 'minecraft:attribute', 'minecraft:sound_event', 'minecraft:map_decoration_type', 'minecraft:armor_material',
         # 메뉴 종류(open_screen 의 menuTypeId)
-        'minecraft:menu']
+        'minecraft:menu',
+        # 통계(award_stats 패킷의 종류·값 번호)
+        'minecraft:stat_type', 'minecraft:custom_stat']
 reports = json.load(open(sys.argv[1]))
 with open(sys.argv[2], 'w', encoding='utf-8') as out:
     out.write('# 자동 생성: tools/vanilla-data/extract_builtin_registries.py (바닐라 1.21.1 reports/registries.json). 직접 수정하지 말 것.\n')

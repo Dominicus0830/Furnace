@@ -1,5 +1,5 @@
 // 특수 제작 레시피 14종의 매칭·결과·남는 아이템(바닐라 CustomRecipe 계열 + 장식 단지). 바닐라 1.21.1 디컴파일 원본(cyi·cyj·cyl·cys·cyt·cyu·cyv·cyx·czg·czk·czl·czx·czy)을 이식했다.
-// 지도 확장(crafting_special_mapextending)은 지도 저장 데이터가 있어야 해서 아직 맞지 않는 것으로 둔다 — TODO(지도).
+// 지도 확장(crafting_special_mapextending)은 world/data/map_N.dat 에서 읽은 배율·잠금으로 판정한다(MapStore) — 지도를 새로 만드는 쪽은 TODO(지도).
 package org.domi.furnace.server.recipe;
 
 import java.util.ArrayList;
@@ -74,7 +74,8 @@ public final class SpecialRecipes {
             case "minecraft:crafting_special_suspiciousstew" -> stewMatches(in);
             case "minecraft:crafting_special_tippedarrow" -> tippedArrowMatches(in);
             case "minecraft:crafting_decorated_pot" -> potMatches(in);
-            default -> false;   // crafting_special_mapextending: TODO(지도)
+            case "minecraft:crafting_special_mapextending" -> mapExtendingMatches(in);
+            default -> false;
         };
     }
 
@@ -93,6 +94,7 @@ public final class SpecialRecipes {
             case "minecraft:crafting_special_suspiciousstew" -> stew(in);
             case "minecraft:crafting_special_tippedarrow" -> tippedArrow(in);
             case "minecraft:crafting_decorated_pot" -> pot(in);
+            case "minecraft:crafting_special_mapextending" -> mapExtending(in);
             default -> ItemStack.EMPTY;
         };
     }
@@ -104,6 +106,40 @@ public final class SpecialRecipes {
             case "minecraft:crafting_special_bookcloning" -> bookRemaining(in);
             default -> null;
         };
+    }
+
+    // ------------------------------------------------------------------ 지도 확장 (MapExtendingRecipe)
+
+    private static boolean isItem(ItemStack s, String name) { return name.equals(name(s)); }
+
+    /** "###/#x#/###": # 종이, x 채워진 지도. 지도 데이터가 있고 배율이 4 미만이며 탐험 지도가 아니어야 한다. */
+    private static ItemStack findMapExtendTarget(CraftingInput in) {
+        if (in.width() != 3 || in.height() != 3) return ItemStack.EMPTY;
+        for (int i = 0; i < 9; i++) {
+            ItemStack s = in.getItem(i);
+            if (i == 4 ? !isItem(s, "minecraft:filled_map") : !isItem(s, "minecraft:paper")) return ItemStack.EMPTY;
+        }
+        return in.getItem(4);
+    }
+
+    private static boolean mapExtendingMatches(CraftingInput in) {
+        ItemStack map = findMapExtendTarget(in);
+        if (map.isEmpty()) return false;
+        var meta = org.domi.furnace.server.map.MapStore.of(map);
+        if (meta == null) return false;
+        // isExplorationMap: 탐험 지도 표식(monument·mansion·trial_chambers)이 붙은 지도는 늘릴 수 없다.
+        if (ItemTools.component(map, "minecraft:map_decorations") instanceof Map<?, ?> d) {
+            for (Object v : d.values()) {
+                if (v instanceof Map<?, ?> e && e.get("type") instanceof String t
+                        && (t.equals("minecraft:monument") || t.equals("minecraft:mansion") || t.equals("minecraft:trial_chambers"))) return false;
+            }
+        }
+        return meta.scale() < 4;
+    }
+
+    private static ItemStack mapExtending(CraftingInput in) {
+        ItemStack map = findMapExtendTarget(in);
+        return map.isEmpty() ? ItemStack.EMPTY : ItemTools.with(map.withCount(1), "minecraft:map_post_processing", "scale");
     }
 
     // ------------------------------------------------------------------ 갑옷 염색 (ArmorDyeRecipe)
