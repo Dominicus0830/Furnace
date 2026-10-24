@@ -871,6 +871,12 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public EntityStore entities() { return entities; }
 
+    /** 엔티티 사망 전리품 평가(services 위임). */
+    public java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z,
+            String damageType, Player attacker, Player lastPlayer, long seed) {
+        return services().entityDrops(lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
+    }
+
     /** ExperienceOrb.award(level, 위치, amount). */
     @Override
     public void awardExperience(double x, double y, double z, int amount) {

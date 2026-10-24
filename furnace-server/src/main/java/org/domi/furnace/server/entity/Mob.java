@@ -15,6 +15,8 @@ public abstract class Mob extends LivingEntity {
     public static final int DATA_MOB_FLAGS = 15;
 
     protected boolean persistenceRequired;
+    /** xpReward: 종류별 기본 경험치(적대 몹 5, 동물은 별도 규칙, 주민 0). */
+    protected int xpReward;
     protected final GoalSelector goalSelector = new GoalSelector();
     protected final GoalSelector targetSelector = new GoalSelector();
     protected LookControl lookControl;
@@ -81,6 +83,10 @@ public abstract class Mob extends LivingEntity {
     }
 
     protected void customServerAiStep() {}
+
+    /** Mob.getExperienceReward: xpReward 가 있으면 장비(드롭 확률 1 이하)마다 1+nextInt(3) 추가. TODO(장비): 몹 장비 칸이 생기면. */
+    @Override
+    protected int getExperienceReward() { return xpReward; }
 
 
     @Override

@@ -50,6 +50,13 @@ public interface LevelServices {
     default java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
             org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) { return java.util.List.of(); }
 
+    /**
+     * 엔티티 사망 전리품(LivingEntity.dropFromLootTable): 표를 this_entity·origin·damage_source·attacking_entity·last_damage_player 로 평가.
+     * attacker/lastPlayer 는 Player(없으면 null). 데이터 팩이 없으면 빈 목록.
+     */
+    default java.util.List<org.domi.furnace.server.entity.ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self,
+            double x, double y, double z, String damageType, Player attacker, Player lastPlayer, long seed) { return java.util.List.of(); }
+
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
@@ -109,6 +116,10 @@ public interface LevelServices {
         public java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
                 org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) {
             return d.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
+        }
+        public java.util.List<org.domi.furnace.server.entity.ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self,
+                double x, double y, double z, String damageType, Player attacker, Player lastPlayer, long seed) {
+            return d.entityDrops(lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }

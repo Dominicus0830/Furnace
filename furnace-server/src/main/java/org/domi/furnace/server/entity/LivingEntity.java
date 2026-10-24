@@ -20,6 +20,11 @@ public abstract class LivingEntity extends Entity {
     public int invulnerableTime, hurtTime, hurtDuration, deathTime;
     protected float lastHurt;
     protected boolean dead;
+    /** 마지막으로 플레이어에게 맞은 뒤 남은 틱(맞으면 100)과 그 플레이어 — 경험치·전리품을 줄지 정한다. */
+    protected int lastHurtByPlayerTime;
+    protected Player lastHurtByPlayer;
+    protected long deathLootTableSeed;
+    protected String lastDamageType = "generic";
     protected int noActionTime;
     protected float yHeadRot, yHeadRotO, yBodyRot, yBodyRotO;
     /** 이동 입력(vanilla xxa 옆·yya 위·zza 앞)과 점프 입력. */
@@ -136,6 +141,8 @@ public abstract class LivingEntity extends Entity {
             if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, cause, null));
             if (!t.noImpact()) markHurt();
             if (attacker != null) {
+                lastHurtByPlayerTime = 100;
+                lastHurtByPlayer = attacker;
                 double dx = attacker.x() - x(), dz = attacker.z() - z();
                 while (dx * dx + dz * dz < 1.0E-4) {
                     dx = (random.nextDouble() - random.nextDouble()) * 0.01;
@@ -144,6 +151,7 @@ public abstract class LivingEntity extends Entity {
                 knockback(0.4F, dx, dz);
             }
         }
+        lastDamageType = source.type();
         if (isDeadOrDying()) die(source);
         return true;
     }
@@ -166,11 +174,72 @@ public abstract class LivingEntity extends Entity {
         setDeltaMovement(vx() / 2.0 - nx, onGround() ? Math.min(0.4, vy() / 2.0 + strength) : vy(), vz() / 2.0 - nz);
     }
 
+    /** LivingEntity.die: 전리품·경험치를 떨군 뒤 죽음 이벤트(3)를 알린다. */
     public void die(Damage source) {
         if (isRemoved() || dead) return;
         dead = true;
+        dropAllDeathLoot(source);
         if (tracker != null) tracker.broadcast(new EntityEvent(id(), (byte) 3));
-        // TODO(몹 드롭): 전리품 표·경험치 구슬·장비 드롭
+    }
+
+    protected void dropAllDeathLoot(Damage source) {
+        boolean byPlayer = lastHurtByPlayerTime > 0;
+        if (shouldDropLoot() && level.gameRule("doMobLoot")) {
+            dropFromLootTable(source, byPlayer);
+            dropCustomDeathLoot(source, byPlayer);
+        }
+        dropEquipment();
+        dropExperience();
+    }
+
+    protected boolean shouldDropLoot() { return true; }
+
+    /** 종류의 기본 표: minecraft:entities/<이름>. */
+    public String lootTable() { return "minecraft:entities/" + type.name().substring("minecraft:".length()); }
+
+    protected void dropFromLootTable(Damage source, boolean byPlayer) {
+        Player killer = byPlayer ? lastHurtByPlayer : null;
+        for (ItemStack s : level.entityDrops(lootTable(), lootEntity(), x(), y(), z(), source.type(), killer, killer, deathLootTableSeed)) spawnAtLocation(s);
+    }
+
+    protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {}
+
+    /** TODO(장비 드롭): 손·방어구 칸의 드롭 확률. */
+    protected void dropEquipment() {}
+
+    /** 경험치: 마지막으로 플레이어에게 맞았고 mob loot 규칙이 켜져 있으면 구슬로 낸다. */
+    protected void dropExperience() {
+        if (!wasExperienceConsumed() && (isAlwaysExperienceDropper() || lastHurtByPlayerTime > 0 && shouldDropExperience() && level.gameRule("doMobLoot"))) {
+            ExperienceOrb.award(level, x(), y(), z(), getExperienceReward());
+        }
+    }
+
+    protected boolean wasExperienceConsumed() { return false; }
+
+    protected boolean isAlwaysExperienceDropper() { return false; }
+
+    protected boolean shouldDropExperience() { return true; }
+
+    /** getExperienceReward: 종류별 기본 경험치. */
+    protected int getExperienceReward() { return 0; }
+
+    /** spawnAtLocation(stack): 몸 위치에 아이템 엔티티(줍기 지연 10). */
+    public ItemEntity spawnAtLocation(ItemStack stack) {
+        if (stack.isEmpty()) return null;
+        var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), stack);
+        ie.setDefaultPickUpDelay();
+        level.addFreshEntity(ie);
+        return ie;
+    }
+
+    /** 전리품 조건이 보는 이 엔티티. */
+    public org.domi.furnace.server.loot.LootEntity lootEntity() {
+        return new org.domi.furnace.server.loot.LootEntity() {
+            public String type() { return LivingEntity.this.type.name(); }
+            public boolean isOnFire() { return LivingEntity.this.isOnFire(); }
+            public boolean onGround() { return LivingEntity.this.onGround(); }
+            public double[] position() { return new double[]{x(), y(), z()}; }
+        };
     }
 
     protected void tickDeath() {
@@ -196,6 +265,8 @@ public abstract class LivingEntity extends Entity {
         if (isDeadOrDying() && !isRemoved()) tickDeath();
         if (invulnerableTime > 0) invulnerableTime--;
         if (hurtTime > 0) hurtTime--;
+        if (lastHurtByPlayerTime > 0) lastHurtByPlayerTime--;
+        else lastHurtByPlayer = null;
         if (!isRemoved() && !isDeadOrDying()) noActionTime++;
     }
 

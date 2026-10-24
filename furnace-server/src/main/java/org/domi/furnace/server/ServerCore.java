@@ -421,6 +421,11 @@ public final class ServerCore {
             var dp = dataPacks;
             return b != null && dp != null && dp.loot() != null && dp.loot().registries().tag("minecraft:worldgen/biome", tag).contains(b);
         }
+        public java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z,
+                String damageType, Player attacker, Player lastPlayer, long seed) {
+            return ServerCore.this.entityDrops(lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
+        }
+
         public java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity,
                                                     Float explosionRadius) {
             return ServerCore.this.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
@@ -450,6 +455,36 @@ public final class ServerCore {
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var s : table.getRandomItems(ctx)) {
             ItemStack is = dp.network().toItemStack(s);
+            if (is != null && !is.isEmpty()) out.add(is);
+        }
+        return out;
+    }
+
+    /** 바닐라 LivingEntity.dropFromLootTable: 엔티티 표 평가(시드 0 이면 random_sequence/월드 난수). */
+    java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z, String damageType,
+            Player attacker, Player lastPlayer, long seed) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null || lootTable == null) return java.util.List.of();
+        var loot = dp.loot();
+        var table = loot.table(lootTable);
+        var attackerEntity = attacker == null ? null : lootEntity(attacker);
+        var params = new org.domi.furnace.server.loot.LootParams()
+                .with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, self)
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{x, y, z})
+                .with(org.domi.furnace.server.loot.LootParams.DAMAGE_SOURCE, new org.domi.furnace.server.loot.LootDamageSource() {
+                    public String type() { return damageType; }
+                    // TODO(피해 종류 태그): is_fire·is_explosion 등 태그 조회
+                    public boolean is(String tag) { return false; }
+                    public org.domi.furnace.server.loot.LootEntity entity() { return attackerEntity; }
+                    public org.domi.furnace.server.loot.LootEntity directEntity() { return attackerEntity; }
+                })
+                .with(org.domi.furnace.server.loot.LootParams.ATTACKING_ENTITY, attackerEntity)
+                .with(org.domi.furnace.server.loot.LootParams.DIRECT_ATTACKING_ENTITY, attackerEntity);
+        if (lastPlayer != null) params.with(org.domi.furnace.server.loot.LootParams.LAST_DAMAGE_PLAYER, lootEntity(lastPlayer));   // TODO(행운): 플레이어 luck 속성
+        var ctx = table.context(loot, lootWorld, params, seed);
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        for (var st : table.getRandomItems(ctx)) {
+            ItemStack is = dp.network().toItemStack(st);
             if (is != null && !is.isEmpty()) out.add(is);
         }
         return out;
