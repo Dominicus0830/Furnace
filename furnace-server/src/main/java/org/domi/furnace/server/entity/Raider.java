@@ -68,6 +68,74 @@ public abstract class Raider extends Monster {
         patrolling = tag.getBoolean("Patrolling");
     }
 
+    public boolean isPatrolling() { return patrolling; }
+
+    /** Raider.updateNoActionTime: 밝기와 무관하게 틱마다 2 쌓는다(습격자는 빨리 사라진다). */
+    @Override
+    protected void updateNoActionTime() { noActionTime += 2; }
+
+    /** Raider.HoldGroundAttackGoal: 순찰 중 적을 보면 근처 습격자에게 알리고, 멀면 제자리에서 노려보다 가까워지면 공격 태세. (습격 없을 때만) */
+    public static class HoldGroundAttackGoal extends org.domi.furnace.server.entity.ai.Goal {
+        private final Raider mob;
+        private final float hostileRadiusSqr;
+        private final org.domi.furnace.server.entity.ai.targeting.TargetingConditions shoutTargeting =
+                org.domi.furnace.server.entity.ai.targeting.TargetingConditions.forCombat().range(8.0).ignoreLineOfSight().ignoreInvisibilityTesting();
+
+        public HoldGroundAttackGoal(Raider mob, float radius) {
+            this.mob = mob;
+            this.hostileRadiusSqr = radius * radius;
+            setFlags(java.util.EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            return !mob.hasActiveRaid() && mob.isPatrolling() && mob.getTarget() != null && !mob.isAggressive();
+        }
+
+        private java.util.List<Raider> nearbyRaiders() {
+            var box = mob.boundingBox().inflate(8.0, 8.0, 8.0);
+            var out = new java.util.ArrayList<Raider>();
+            for (Raider r : mob.level().getEntitiesOfClass(Raider.class, box, x -> true)) {
+                if (r != mob && shoutTargeting.test(mob, r)) out.add(r);
+            }
+            return out;
+        }
+
+        @Override
+        public void start() {
+            mob.getNavigation().stop();
+            for (Raider r : nearbyRaiders()) r.setTarget(mob.getTarget());
+        }
+
+        @Override
+        public void stop() {
+            Targetable t = mob.getTarget();
+            if (t != null) {
+                for (Raider r : nearbyRaiders()) {
+                    r.setTarget(t);
+                    r.setAggressive(true);
+                }
+                mob.setAggressive(true);
+            }
+        }
+
+        @Override public boolean requiresUpdateEveryTick() { return true; }
+
+        @Override
+        public void tick() {
+            Targetable t = mob.getTarget();
+            if (t != null) {
+                double dx = t.x() - mob.x(), dy = t.y() - mob.y(), dz = t.z() - mob.z();
+                if (dx * dx + dy * dy + dz * dz > hostileRadiusSqr) {
+                    mob.getLookControl().setLookAt(t.x(), t.eyeY(), t.z(), 30.0F, 30.0F);
+                    if (mob.random().nextInt(50) == 0) mob.playAmbientSound();
+                } else {
+                    mob.setAggressive(true);
+                }
+            }
+        }
+    }
+
     @Override
     public boolean removeWhenFarAway(double distSqr) { return !hasActiveRaid() && (!patrolling || distSqr > 16384.0); }
 }

@@ -1,6 +1,7 @@
 // 바닐라 Mob: 몹 플래그(NoAI·왼손잡이·공격 중)와 영속(PersistenceRequired). AI·길찾기는 아직 없다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.attribute.Attribute;
@@ -169,6 +170,27 @@ public abstract class Mob extends LivingEntity {
         var actor = new org.domi.furnace.server.block.PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);
         org.domi.furnace.server.block.BlockBreaking.hurtAndBreak(level, actor, hand, held, amount);
         if (actor.handChanged(hand)) inv.set(ws, actor.itemInHand(hand));
+    }
+
+    /** stack.hurtAndBreak(amount, mob, slot): 몹이 든 도구의 내구도를 깎는다(내구성은 레벨 난수, 다 닳으면 하나 줄고 부서짐). */
+    protected void hurtEquipped(EquipmentSlot slot, int amount) {
+        ItemStack stack = getItemBySlot(slot);
+        if (!ItemTools.isDamageable(stack)) return;
+        if (amount > 0) {
+            int unbreaking = ItemTools.enchantmentLevel(stack, "minecraft:unbreaking");
+            if (unbreaking > 0) {
+                boolean armor = org.domi.furnace.server.item.ItemContext.isInTag("minecraft:item", "minecraft:enchantable/armor", stack.itemId());
+                float chance = armor ? (2.0F + 2.0F * (unbreaking - 1)) / (10.0F + 5.0F * (unbreaking - 1)) : (float) unbreaking / (2.0F + (unbreaking - 1));
+                int removed = 0;
+                for (int j = 0; j < amount; j++) if (level.random().nextFloat() < chance) removed++;
+                amount -= removed;
+            }
+            if (amount <= 0) return;
+        }
+        int newDamage = ItemTools.damage(stack) + amount;
+        ItemStack damaged = ItemTools.withDamage(stack, newDamage);
+        if (newDamage >= ItemTools.maxDamage(stack)) setItemSlot(slot, damaged.withCount(damaged.count() - 1));
+        else setItemSlot(slot, damaged);
     }
 
     /** usePlayerItem(player, hand, stack): 크리에이티브가 아니면 손에 든 것 하나를 소비한다(stack.consume(1, player)). */

@@ -98,4 +98,132 @@ class LandMobTest {
         var child = ((Horse) mobs[0]).getBreedOffspring(level, (AgeableMob) mobs[1]);
         assertTrue(child instanceof Mule);
     }
+
+    @Test
+    void llamaSpawnSpitSave() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        Llama[] llamas = {new Llama(level, level.nextEntityId()), new TraderLlama(level, level.nextEntityId())};
+        double x = 0.5;
+        for (Llama l : llamas) {
+            l.moveTo(x, -60, 0.5, 0, 0);
+            x += 3;
+            l.setOnGround(true);
+            l.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(l.blockPosition()), (AgeableMob.GroupData) null);
+            level.addFreshEntity(l);
+            assertTrue(l.getStrength() >= 1 && l.getStrength() <= 5);
+        }
+        var chicken = new Chicken(level, level.nextEntityId());
+        chicken.moveTo(8.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(chicken);
+        llamas[0].performRangedAttack(chicken, 1.0F);
+        tick(level, 100);
+        for (Llama l : llamas) {
+            assertTrue(l.isAlive());
+            var loaded = (Llama) Entities.load(level, l.save());
+            assertEquals(l.getStrength(), loaded.getStrength());
+            assertEquals(l.variant(), loaded.variant());
+        }
+        assertTrue(llamas[0].getBreedOffspring(level, llamas[0]) instanceof Llama);
+        assertTrue(llamas[1].getBreedOffspring(level, llamas[1]) instanceof TraderLlama);
+    }
+
+    @Test
+    void pillagerChargesAndShoots() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var pillager = new Pillager(level, level.nextEntityId());
+        pillager.moveTo(0.5, -60, 0.5, 0, 0);
+        pillager.setOnGround(true);
+        pillager.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(pillager.blockPosition()));
+        level.addFreshEntity(pillager);
+        var villager = new Villager(level, level.nextEntityId());
+        villager.moveTo(7.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(villager);
+        boolean charged = false, arrowSeen = false;
+        for (int t = 0; t < 600; t++) {
+            tick(level, 1);
+            charged |= Crossbow.isCharged(pillager.getItemBySlot(EquipmentSlot.MAINHAND));
+            for (Entity e : level.entities().tickSnapshot()) arrowSeen |= e instanceof Arrow;
+        }
+        assertTrue(pillager.isAlive());
+        assertTrue(charged, "석궁을 장전했다");
+        assertTrue(arrowSeen, "화살을 쐈다");
+        assertNotNull(Entities.load(level, pillager.save()));
+    }
+
+    @Test
+    void ravagerVindicatorVexSpawnTickSave() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        Mob[] mobs = {new Ravager(level, level.nextEntityId()), new Vindicator(level, level.nextEntityId()), new Vex(level, level.nextEntityId())};
+        double x = 0.5;
+        for (Mob m : mobs) {
+            m.moveTo(x, -60, 0.5, 0, 0);
+            x += 4;
+            m.setOnGround(true);
+            m.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(m.blockPosition()));
+            level.addFreshEntity(m);
+        }
+        var villager = new Villager(level, level.nextEntityId());
+        villager.moveTo(6.5, -60, 8.5, 0, 0);
+        level.addFreshEntity(villager);
+        tick(level, 200);
+        for (Mob m : mobs) {
+            assertTrue(m.isAlive());
+            assertNotNull(Entities.load(level, m.save()));
+        }
+    }
+
+    @Test
+    void evokerCastsFangsAndSummons() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var evoker = new Evoker(level, level.nextEntityId());
+        evoker.moveTo(0.5, -60, 0.5, 0, 0);
+        evoker.setOnGround(true);
+        evoker.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(evoker.blockPosition()));
+        level.addFreshEntity(evoker);
+        var villager = new Villager(level, level.nextEntityId());
+        villager.moveTo(6.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(villager);
+        boolean fangs = false, vex = false;
+        for (int t = 0; t < 700; t++) {
+            tick(level, 1);
+            for (Entity e : level.entities().tickSnapshot()) {
+                fangs |= e instanceof EvokerFangs;
+                if (e instanceof Vex v) {
+                    vex = true;
+                    if (fangs || v.tickCount > 5) v.discard();   // 벡스가 주민을 죽이지 않도록 치운다
+                }
+            }
+        }
+        assertTrue(fangs, "송곳니를 소환했다");
+        assertTrue(vex, "벡스를 소환했다");
+        assertNotNull(Entities.load(level, evoker.save()));
+        for (Entity e : level.entities().tickSnapshot()) if (e instanceof Vex v) assertNotNull(Entities.load(level, v.save()));
+    }
+
+    @Test
+    void illusionerShootsArrows() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var ill = new Illusioner(level, level.nextEntityId());
+        ill.moveTo(0.5, -60, 0.5, 0, 0);
+        ill.setOnGround(true);
+        ill.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(ill.blockPosition()));
+        level.addFreshEntity(ill);
+        var villager = new Villager(level, level.nextEntityId());
+        villager.moveTo(9.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(villager);
+        boolean arrow = false, invisible = false;
+        for (int t = 0; t < 600; t++) {
+            tick(level, 1);
+            for (Entity e : level.entities().tickSnapshot()) arrow |= e instanceof Arrow;
+            invisible |= ill.hasEffect(org.domi.furnace.server.effect.MobEffect.INVISIBILITY);
+        }
+        assertTrue(arrow, "화살을 쐈다");
+        assertTrue(invisible, "투명해졌다");
+        assertNotNull(Entities.load(level, ill.save()));
+    }
 }

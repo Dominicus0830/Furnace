@@ -29,6 +29,9 @@ public record AABB(double minX, double minY, double minZ, double maxX, double ma
         return new AABB(minX - dx, minY - dy, minZ - dz, maxX + dx, maxY + dy, maxZ + dz);
     }
 
+    /** getSize: 세 변 길이의 평균. */
+    public double size() { return ((maxX - minX) + (maxY - minY) + (maxZ - minZ)) / 3.0; }
+
     public AABB inflate(double d) { return inflate(d, d, d); }
 
     public AABB deflate(double d) { return inflate(-d, -d, -d); }
