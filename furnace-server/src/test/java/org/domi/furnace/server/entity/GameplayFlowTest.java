@@ -16,10 +16,18 @@ import org.domi.furnace.server.net.TestClient;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.GameMode;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class GameplayFlowTest {
+
+    /** 블록 동작 표(가마솥 상호작용)가 아이템 레지스트리를 쓴다 — 단독 실행에서도 설치돼 있어야 한다. */
+    @BeforeAll
+    static void installItems() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    }
 
     @TempDir Path tmp;
 

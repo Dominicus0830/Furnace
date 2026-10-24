@@ -6,6 +6,9 @@ import org.domi.furnace.server.entity.ai.GoalSelector;
 import org.domi.furnace.server.entity.ai.control.JumpControl;
 import org.domi.furnace.server.entity.ai.control.LookControl;
 import org.domi.furnace.server.entity.ai.control.MoveControl;
+import org.domi.furnace.server.entity.ai.navigation.GroundPathNavigation;
+import org.domi.furnace.server.entity.ai.navigation.PathNavigation;
+import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
@@ -22,17 +25,50 @@ public abstract class Mob extends LivingEntity {
     protected LookControl lookControl;
     protected MoveControl moveControl;
     protected JumpControl jumpControl;
+    protected PathNavigation navigation;
+    private final java.util.EnumMap<PathType, Float> pathfindingMalus = new java.util.EnumMap<>(PathType.class);
 
     protected Mob(EntityType type, ChunkLevel level, int id) {
         super(type, level, id);
         lookControl = new LookControl(this);
         moveControl = new MoveControl(this);
         jumpControl = new JumpControl(this);
+        navigation = createNavigation(level);
         registerGoals();
     }
 
     /** 종류별 목표 등록(vanilla registerGoals). 하위 클래스 필드는 아직 초기화 전이므로 쓰지 말 것. */
     protected void registerGoals() {}
+
+    protected PathNavigation createNavigation(ChunkLevel level) { return new GroundPathNavigation(this, level); }
+
+    public PathNavigation getNavigation() { return navigation; }
+
+    public float getPathfindingMalus(PathType type) {
+        Float f = pathfindingMalus.get(type);
+        return f == null ? type.malus() : f;
+    }
+
+    public void setPathfindingMalus(PathType type, float malus) { pathfindingMalus.put(type, malus); }
+
+    /** 서 있는 칸으로 칠 수 있는 유체인가(canStandOnFluid) — 기본 아니오. */
+    public boolean canStandOnFluid(int fluid) { return false; }
+
+    /** 공격 대상이 있는가 — TODO(대상): 대상 시스템(플레이어도 대상)이 생기면. */
+    protected boolean hasTarget() { return false; }
+
+    /** Mob.getMaxFallDistance: 대상이 없으면 3, 있으면 체력과 난이도에 따라. */
+    public int getMaxFallDistance() {
+        if (!hasTarget()) return (int) Math.floor(3.0F);
+        int i = (int) (health() - maxHealth() * 0.33F);
+        i -= (3 - level.difficulty()) * 4;
+        if (i < 0) i = 0;
+        return (int) Math.floor(i + 3.0F);
+    }
+
+    public boolean isInLiquid() { return isInWaterOrBubble() || isInLava(); }
+
+    public boolean isPassenger() { return false; }
 
     public LookControl getLookControl() { return lookControl; }
 
@@ -51,7 +87,7 @@ public abstract class Mob extends LivingEntity {
     public int getMaxHeadYRot() { return 75; }
 
     /** 길찾기가 진행 중인가 — 아직 내비게이션이 없다. */
-    public boolean navigationIsInProgress() { return false; }
+    public boolean navigationIsInProgress() { return navigation.isInProgress(); }
 
     @Override
     public void setSpeed(float v) {
@@ -74,7 +110,7 @@ public abstract class Mob extends LivingEntity {
             targetSelector.tick();
             goalSelector.tick();
         }
-        // TODO(내비게이션): navigation.tick()
+        navigation.tick();
         customServerAiStep();
         moveControl.tick();
         lookControl.tick();

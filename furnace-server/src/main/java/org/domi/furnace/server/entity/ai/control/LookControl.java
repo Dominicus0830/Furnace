@@ -42,7 +42,7 @@ public class LookControl {
     }
 
     protected void clampHeadRotationToBody() {
-        if (!mob.navigationIsInProgress()) {
+        if (mob.navigationIsInProgress()) {
             mob.setYHeadRot(Mth.rotateIfNecessary(mob.yHeadRot(), mob.yBodyRot(), mob.getMaxHeadYRot()));
         }
     }
