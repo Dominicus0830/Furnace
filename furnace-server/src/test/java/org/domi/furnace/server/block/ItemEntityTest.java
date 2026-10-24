@@ -346,7 +346,7 @@ class ItemEntityTest {
         var root = new org.domi.furnace.server.net.io.nbt.NbtCompound();
         var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
         var pig = new org.domi.furnace.server.net.io.nbt.NbtCompound();   // 아직 없는 종류(구현되면 다른 종류로 바꾼다)
-        pig.putString("id", "minecraft:creeper");
+        pig.putString("id", "minecraft:test_unknown_mob");
         pig.putFloat("Health", 20.0F);
         list.add(pig);
         root.putList("Entities", list);

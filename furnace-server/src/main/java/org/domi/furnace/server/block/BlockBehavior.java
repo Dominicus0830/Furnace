@@ -80,6 +80,12 @@ public class BlockBehavior {
         level.dropResources(state, pos, blockEntity, player, tool);
     }
 
+    /** Block.dropFromExplosion: 폭발이 부술 때 전리품을 떨구는가. */
+    public boolean dropFromExplosion() { return true; }
+
+    /** Block.wasExploded: 폭발에 부서진 뒤(TNT 는 점화). */
+    public void wasExploded(BlockLevel level, Pos pos, Explosion explosion) {}
+
     /** BlockBehaviour.getDrops: 전리품 표가 비었으면 없음, 아니면 BLOCK 문맥(block_state = 이 상태)으로 평가. */
     public java.util.List<ItemStack> getDrops(int state, BlockLevel level, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool) {
         return getDrops(state, level, pos, blockEntity, entity, tool, null);

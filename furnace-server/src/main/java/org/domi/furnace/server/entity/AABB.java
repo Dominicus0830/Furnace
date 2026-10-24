@@ -44,4 +44,36 @@ public record AABB(double minX, double minY, double minZ, double maxX, double ma
     public double getYsize() { return maxY - minY; }
 
     public double getZsize() { return maxZ - minZ; }
+
+    public boolean contains(double x, double y, double z) { return x >= minX && x < maxX && y >= minY && y < maxY && z >= minZ && z < maxZ; }
+
+    /**
+     * AABB.clip(from, to): 선분이 상자 면을 들어갈 때의 첫 점({x, y, z}), 안 만나면 null.
+     * 시작점이 상자 안이면 바닐라처럼 null(들어오는 면이 없다).
+     */
+    public double[] clip(double fx, double fy, double fz, double tx, double ty, double tz) {
+        double[] t = {1.0};
+        double dx = tx - fx, dy = ty - fy, dz = tz - fz;
+        boolean hit = false;
+        if (dx > 1.0E-7) hit |= clipPoint(t, dx, dy, dz, minX, minY, maxY, minZ, maxZ, fx, fy, fz, 0);
+        else if (dx < -1.0E-7) hit |= clipPoint(t, dx, dy, dz, maxX, minY, maxY, minZ, maxZ, fx, fy, fz, 0);
+        if (dy > 1.0E-7) hit |= clipPoint(t, dy, dz, dx, minY, minZ, maxZ, minX, maxX, fy, fz, fx, 1);
+        else if (dy < -1.0E-7) hit |= clipPoint(t, dy, dz, dx, maxY, minZ, maxZ, minX, maxX, fy, fz, fx, 1);
+        if (dz > 1.0E-7) hit |= clipPoint(t, dz, dx, dy, minZ, minX, maxX, minY, maxY, fz, fx, fy, 2);
+        else if (dz < -1.0E-7) hit |= clipPoint(t, dz, dx, dy, maxZ, minX, maxX, minY, maxY, fz, fx, fy, 2);
+        if (!hit) return null;
+        return new double[] {fx + t[0] * dx, fy + t[0] * dy, fz + t[0] * dz};
+    }
+
+    private static boolean clipPoint(double[] t, double d0, double d1, double d2, double plane, double aMin, double aMax, double bMin, double bMax,
+            double s0, double s1, double s2, int axis) {
+        double t0 = (plane - s0) / d0;
+        double u = s1 + t0 * d1;
+        double v = s2 + t0 * d2;
+        if (0.0 < t0 && t0 < t[0] && aMin - 1.0E-7 < u && u < aMax + 1.0E-7 && bMin - 1.0E-7 < v && v < bMax + 1.0E-7) {
+            t[0] = t0;
+            return true;
+        }
+        return false;
+    }
 }

@@ -663,6 +663,15 @@ public abstract class Entity {
 
     protected double defaultGravity() { return 0.0; }
 
+    /** 투사체가 맞출 수 있는 엔티티인가(Entity.isPickable). 생물만 기본 참. */
+    public boolean isPickable() { return false; }
+
+    /** Entity.ignoreExplosion: 폭발이 건드리지 않는 엔티티. */
+    public boolean ignoreExplosion() { return false; }
+
+    /** 폭발 밀림 방향 계산에 쓰는 높이(생물은 눈높이, 점화된 TNT 는 발치). */
+    public double eyeYForExplosion() { return y() + bbHeight() * 0.85; }
+
     /**
      * moveTowardsClosestSpace(x, y, z): 블록에 끼었으면 가까운 빈 쪽(북·남·서·동·위 중 꽉 찬 블록이 아닌 곳)으로 민다.
      */

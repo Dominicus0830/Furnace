@@ -16,6 +16,10 @@ public enum DamageType {
     MAGIC("magic", "magic", 0.0f, false, true, false, false, false, false, false),
     MOB_ATTACK("mob_attack", "mob", 0.1f, false, false, false, false, false, false, false),
     PLAYER_ATTACK("player_attack", "player", 0.1f, false, false, false, false, false, false, false),
+    ARROW("arrow", "arrow", 0.1f, false, false, false, false, false, false, false),
+    EXPLOSION("explosion", "explosion", 0.1f, false, false, false, false, false, false, false),
+    PLAYER_EXPLOSION("player_explosion", "explosion.player", 0.1f, false, false, false, false, false, false, false),
+    MOB_PROJECTILE("mob_projectile", "mob", 0.1f, false, false, false, false, false, false, false),
     WITHER("wither", "wither", 0.0f, false, true, false, false, false, false, false);
 
     private final String key;
@@ -58,7 +62,9 @@ public enum DamageType {
     public boolean alwaysMostSignificantFall() { return this == OUT_OF_WORLD; }
     public boolean isFall() { return isFall; }
     /** damage_type scaling when_caused_by_living_non_player: 난이도에 따라 피해가 바뀐다(몹이 때린 근접·화살 등). */
-    public boolean scalesWithDifficulty() { return this == MOB_ATTACK; }
+    public boolean scalesWithDifficulty() { return this == MOB_ATTACK || this == ARROW || this == MOB_PROJECTILE || this == EXPLOSION || this == PLAYER_EXPLOSION; }
+    /** 난이도 배율이 때린 쪽과 무관하게 항상 붙는가(explosion 은 always). */
+    public boolean scalesAlways() { return this == EXPLOSION || this == PLAYER_EXPLOSION; }
     public boolean noImpact() { return noImpact; }
     public boolean noKnockback() { return noKnockback; }
     public boolean isDrowning() { return isDrowning; }

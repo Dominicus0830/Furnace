@@ -189,6 +189,39 @@ public abstract class Mob extends LivingEntity {
     /** 변환된 몹을 아기로 만든다(AgeableMob·Zombie 가 덮어쓴다). */
     protected void setBabyForConversion(boolean baby) {}
 
+    /** Mob.isHolding(item): 두 손 중 하나에 그 아이템이 있다. */
+    public boolean isHolding(String itemName) {
+        for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND}) {
+            ItemStack s = getItemBySlot(slot);
+            if (!s.isEmpty() && org.domi.furnace.server.item.ItemTools.itemName(s).equals(itemName)) return true;
+        }
+        return false;
+    }
+
+    /** Mob.lookAt(target, yMax, xMax): 몸을 대상으로 돌린다(몹 시선 제어와는 별도로 yRot/xRot 직접). */
+    public void faceTarget(Targetable t, float maxYRotIncrease, float maxXRotIncrease) {
+        double dx = t.x() - x(), dz = t.z() - z();
+        double dy = t.eyeY() - eyeY();
+        double h = Math.sqrt(dx * dx + dz * dz);
+        float yaw = (float) (org.domi.furnace.server.entity.ai.control.Mth.atan2(dz, dx) * 180.0F / (float) Math.PI) - 90.0F;
+        float pitch = (float) (-(org.domi.furnace.server.entity.ai.control.Mth.atan2(dy, h) * 180.0F / (float) Math.PI));
+        setXRot(rotateTo(xRot(), pitch, maxXRotIncrease));
+        setYRot(rotateTo(yRot(), yaw, maxYRotIncrease));
+    }
+
+    private static float rotateTo(float cur, float tgt, float max) {
+        float diff = org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(tgt - cur);
+        if (diff > max) diff = max;
+        if (diff < -max) diff = -max;
+        return cur + diff;
+    }
+
+    /** ProjectileUtil.getWeaponHoldingHand: 주 손에 있으면 0, 아니면 1. */
+    public int getWeaponHoldingHand(String itemName) {
+        ItemStack s = getItemBySlot(EquipmentSlot.MAINHAND);
+        return !s.isEmpty() && org.domi.furnace.server.item.ItemTools.itemName(s).equals(itemName) ? 0 : 1;
+    }
+
     /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
     public boolean removeWhenFarAway(double distSqr) { return true; }
 

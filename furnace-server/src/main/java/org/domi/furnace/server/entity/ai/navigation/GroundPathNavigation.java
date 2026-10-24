@@ -62,7 +62,16 @@ public class GroundPathNavigation extends PathNavigation {
     protected void trimPath() {
         super.trimPath();
         if (avoidSun) {
-            // TODO(햇빛 피하기): 하늘이 보이는 노드에서 경로 자르기(canSeeSky)
+            if (level.canSeeSky(new org.domi.furnace.server.block.Pos((int) Math.floor(mob.x()), (int) Math.floor(mob.y() + 0.5), (int) Math.floor(mob.z())))) return;
+            if (path != null) {
+                for (int i = 0; i < path.getNodeCount(); i++) {
+                    Node n = path.getNode(i);
+                    if (level.canSeeSky(new org.domi.furnace.server.block.Pos(n.x, n.y, n.z))) {
+                        path.truncateNodes(i);
+                        return;
+                    }
+                }
+            }
         }
     }
 

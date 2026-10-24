@@ -39,13 +39,17 @@ public class TntBlock extends BlockBehavior {
         return super.playerWillDestroy(level, pos, state, player);
     }
 
-    // TODO(폭발·엔티티): wasExploded — 폭발에 휘말리면 짧은 도화선의 점화된 TNT.
+    /** TntBlock.wasExploded: 폭발에 휘말리면 짧은 도화선(10~29틱)의 점화된 TNT(생성 난수는 레벨 난수). */
+    @Override
+    public void wasExploded(BlockLevel level, Pos pos, org.domi.furnace.server.block.Explosion explosion) {
+        level.spawnPrimedTnt(pos, null, -2);
+    }
 
     public static void prime(BlockLevel level, Pos pos) { explode(level, pos, null); }
 
-    /** explode: 점화된 TNT 엔티티(생성 때 레벨 난수 1회 — 처음 튀는 방향) + 소리 + PRIME_FUSE. TODO(엔티티): 엔티티 생성. */
+    /** explode: 점화된 TNT 엔티티(생성 때 레벨 난수 1회 — 처음 튀는 방향) + 소리 + PRIME_FUSE. */
     private static void explode(BlockLevel level, Pos pos, BlockActor igniter) {
-        level.random().nextDouble();
+        level.spawnPrimedTnt(pos, igniter, -1);
         level.playSound(null, pos.x() + 0.5, pos.y(), pos.z() + 0.5, "minecraft:entity.tnt.primed", "blocks", 1.0F, 1.0F);
         level.gameEvent("minecraft:prime_fuse", pos, igniter, -1);
     }

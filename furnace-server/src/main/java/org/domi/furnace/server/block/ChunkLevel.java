@@ -904,6 +904,41 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public String biomeAt(int x, int y, int z) { return services().biomeAt(x, y, z); }
 
+    public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
+
+    public boolean isInWorldBounds(Pos pos) { return pos.y() >= ChunkColumn.MIN_Y && pos.y() <= ChunkColumn.MAX_Y && Math.abs(pos.x()) < 30000000 && Math.abs(pos.z()) < 30000000; }
+
+    /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
+    @Override
+    public void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {
+        org.domi.furnace.server.entity.Targetable owner = igniter != null && igniter.handle() instanceof Player p ? p : null;
+        var tnt = new org.domi.furnace.server.entity.PrimedTnt(this, nextEntityId(), pos.x() + 0.5, pos.y(), pos.z() + 0.5, owner);
+        if (fuse >= 0) tnt.setFuse(fuse);
+        else if (fuse == -2) tnt.setFuse(random().nextInt(tnt.getFuse() / 4) + tnt.getFuse() / 8);   // 폭발에 휘말린 TNT: 생성 난수 다음에 도화선 난수
+        addFreshEntity(tnt);
+    }
+
+    /** Level.explode(source, x, y, z, radius, fire, interaction): 폭발 계산 → 소리·패킷·블록 부수기. 만든 Explosion 을 돌려준다. */
+    public Explosion explode(Entity source, double x, double y, double z, float radius, boolean fire, Explosion.BlockInteraction interaction) {
+        Explosion e = new Explosion(this, source, x, y, z, radius, fire, interaction);
+        e.explode();
+        e.finalizeExplosion(true);
+        return e;
+    }
+
+    /** ExplosionInteraction → BlockInteraction (게임 규칙 반영). kind: NONE, BLOCK, MOB, TNT, TRIGGER. */
+    public Explosion.BlockInteraction destroyType(String kind) {
+        return switch (kind) {
+            case "NONE" -> Explosion.BlockInteraction.KEEP;
+            case "BLOCK" -> gameRule("blockExplosionDropDecay") ? Explosion.BlockInteraction.DESTROY_WITH_DECAY : Explosion.BlockInteraction.DESTROY;
+            case "MOB" -> gameRule("mobGriefing")
+                    ? (gameRule("mobExplosionDropDecay") ? Explosion.BlockInteraction.DESTROY_WITH_DECAY : Explosion.BlockInteraction.DESTROY)
+                    : Explosion.BlockInteraction.KEEP;
+            case "TNT" -> gameRule("tntExplosionDropDecay") ? Explosion.BlockInteraction.DESTROY_WITH_DECAY : Explosion.BlockInteraction.DESTROY;
+            default -> Explosion.BlockInteraction.TRIGGER_BLOCK;
+        };
+    }
+
     /** UUID 로 엔티티·플레이어를 찾는다(없으면 null). 플레이어는 이 region 이 보는 범위 밖이면 못 찾는다. */
     public org.domi.furnace.server.entity.Targetable getTargetableByUuid(java.util.UUID uuid) {
         var e = entities.get(uuid);

@@ -126,6 +126,18 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     // ------------------------------------------------------------------ 피해
 
+    /** 직접 때린 엔티티(투사체)가 따로 있을 때: 밀려나는 방향과 damage_event 의 직접 원인이 그 엔티티다. */
+    private Entity pendingDirect;
+
+    public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) {
+        pendingDirect = direct;
+        try {
+            return hurtBy(source, amount, attacker);
+        } finally {
+            pendingDirect = null;
+        }
+    }
+
     /** 때린 쪽이 있을 때(밀려나는 방향·damage_event 의 원인·마지막으로 맞은 기록). */
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
         if (isInvulnerableTo(source) || level == null) return false;
@@ -148,7 +160,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (fresh) {
             DamageType t = DamageType.byKey(source.type());
             int cause = attacker == null ? -1 : attacker.id();
-            if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, cause, null));
+            int directId = pendingDirect != null ? pendingDirect.id() : cause;
+            if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, directId, null));
             if (!t.noImpact()) markHurt();
         }
         if (attacker != null) {   // 맞은 뒤 기록: 마지막으로 때린 몹, 플레이어면 100틱 동안 경험치·전리품 자격
@@ -158,8 +171,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 lastHurtByPlayer = pl;
             }
         }
-        if (fresh && attacker != null && !DamageType.byKey(source.type()).noKnockback()) {
-            double dx = attacker.x() - x(), dz = attacker.z() - z();
+        if (fresh && (attacker != null || pendingDirect != null) && !DamageType.byKey(source.type()).noKnockback()) {
+            double dx = (pendingDirect != null ? pendingDirect.x() : attacker.x()) - x(), dz = (pendingDirect != null ? pendingDirect.z() : attacker.z()) - z();
             while (dx * dx + dz * dz < 1.0E-4) {
                 dx = (random.nextDouble() - random.nextDouble()) * 0.01;
                 dz = (random.nextDouble() - random.nextDouble()) * 0.01;
@@ -175,6 +188,46 @@ public abstract class LivingEntity extends Entity implements Targetable {
             playHurtSound(source);
         }
         return true;
+    }
+
+    // ------------------------------------------------------------------ 아이템 사용(활 당기기 등)
+
+    private int useItemRemaining;
+    private int usingHandIndex;
+
+    public boolean isUsingItem() { return ((Byte) entityData.get(DATA_LIVING_FLAGS) & 1) != 0; }
+
+    public int getUsedItemHand() { return ((Byte) entityData.get(DATA_LIVING_FLAGS) & 2) != 0 ? 1 : 0; }
+
+    private void setLivingEntityFlag(int flag, boolean on) {
+        byte b = (Byte) entityData.get(DATA_LIVING_FLAGS);
+        entityData.set(DATA_LIVING_FLAGS, (byte) (on ? b | flag : b & ~flag));
+    }
+
+    /** LivingEntity.startUsingItem(hand): 쓰는 아이템 지속시간을 72000 으로 둔다(활). */
+    public void startUsingItem(int hand) {
+        ItemStack s = getItemBySlot(hand == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
+        if (s.isEmpty() || isUsingItem()) return;
+        usingHandIndex = hand;
+        useItemRemaining = 72000;
+        setLivingEntityFlag(1, true);
+        setLivingEntityFlag(2, hand == 1);
+    }
+
+    public void stopUsingItem() {
+        setLivingEntityFlag(1, false);
+        useItemRemaining = 0;
+    }
+
+    /** LivingEntity.getTicksUsingItem: 72000 - 남은 틱. */
+    public int getTicksUsingItem() { return isUsingItem() ? 72000 - useItemRemaining : 0; }
+
+    private void updateUsingItem() {
+        if (isUsingItem()) {
+            ItemStack s = getItemBySlot(getUsedItemHand() == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
+            if (s.isEmpty()) stopUsingItem();
+            else if (useItemRemaining > 0) useItemRemaining--;
+        }
     }
 
     // ------------------------------------------------------------------ 상태 효과(LivingEntity.activeEffects)
@@ -362,6 +415,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     protected int lastHurtMobTimestamp;
 
+    @Override public boolean isPickable() { return !isRemoved(); }
+
+    @Override public double eyeYForExplosion() { return eyeY(); }
+
     public void setLastHurtByPlayer(Player p) {
         lastHurtByPlayer = p;
         lastHurtByPlayerTime = tickCount;
@@ -501,6 +558,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         super.tick();
         if (isRemoved()) return;
         updateSwingTime();
+        updateUsingItem();
         detectEquipmentUpdates();
         aiStep();
         double dx = x() - xo, dz = z() - zo;

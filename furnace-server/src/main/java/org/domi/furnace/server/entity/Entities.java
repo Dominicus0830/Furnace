@@ -22,6 +22,13 @@ public final class Entities {
             case "minecraft:cat" -> new Cat(level, level.nextEntityId());
             case "minecraft:husk" -> new Husk(level, level.nextEntityId());
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
+            case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
+            case "minecraft:creeper" -> new Creeper(level, level.nextEntityId());
+            case "minecraft:tnt" -> new PrimedTnt(level, level.nextEntityId());
+            case "minecraft:skeleton" -> new Skeleton(level, level.nextEntityId());
+            case "minecraft:stray" -> new Stray(level, level.nextEntityId());
+            case "minecraft:bogged" -> new Bogged(level, level.nextEntityId());
+            case "minecraft:wither_skeleton" -> new WitherSkeleton(level, level.nextEntityId());
             case "minecraft:zombie_villager" -> new ZombieVillager(level, level.nextEntityId());
             case "minecraft:zombified_piglin" -> new ZombifiedPiglin(level, level.nextEntityId());
             case "minecraft:polar_bear" -> new PolarBear(level, level.nextEntityId());
@@ -47,6 +54,13 @@ public final class Entities {
             case "minecraft:cat" -> new Cat(level, level.nextEntityId());
             case "minecraft:husk" -> new Husk(level, level.nextEntityId());
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
+            case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
+            case "minecraft:creeper" -> new Creeper(level, level.nextEntityId());
+            case "minecraft:tnt" -> new PrimedTnt(level, level.nextEntityId());
+            case "minecraft:skeleton" -> new Skeleton(level, level.nextEntityId());
+            case "minecraft:stray" -> new Stray(level, level.nextEntityId());
+            case "minecraft:bogged" -> new Bogged(level, level.nextEntityId());
+            case "minecraft:wither_skeleton" -> new WitherSkeleton(level, level.nextEntityId());
             case "minecraft:zombie_villager" -> new ZombieVillager(level, level.nextEntityId());
             case "minecraft:zombified_piglin" -> new ZombifiedPiglin(level, level.nextEntityId());
             case "minecraft:polar_bear" -> new PolarBear(level, level.nextEntityId());

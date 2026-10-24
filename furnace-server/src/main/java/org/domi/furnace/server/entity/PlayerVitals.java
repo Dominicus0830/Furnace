@@ -249,6 +249,8 @@ public final class PlayerVitals {
 
     public synchronized boolean isSpectator() { return gameMode == GameMode.SPECTATOR; }
 
+    public synchronized boolean isFlying() { return abilities.flying; }
+
     public synchronized boolean isCreative() { return gameMode == GameMode.CREATIVE; }
 
     public synchronized boolean mayBuild() { return abilities.mayBuild; }
@@ -369,7 +371,7 @@ public final class PlayerVitals {
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
             if (attacker != null) player.setLastHurtByMob(attacker);
-            if (type.scalesWithDifficulty() && attacker != null) {   // Player.hurt: 난이도 배율
+            if (type.scalesWithDifficulty() && (attacker != null || type.scalesAlways())) {   // Player.hurt: 난이도 배율
                 Difficulty d = env.difficulty();
                 if (d == Difficulty.PEACEFUL) amount = 0.0f;
                 if (d == Difficulty.EASY) amount = Math.min(amount / 2.0f + 1.0f, amount);

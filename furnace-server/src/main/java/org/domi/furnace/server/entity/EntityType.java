@@ -88,6 +88,23 @@ public record EntityType(String name, int id, float width, float height, float e
     /** ZOMBIFIED_PIGLIN: fireImmune, sized(0.6, 1.95).eyeHeight(1.79).clientTrackingRange(8). */
     public static final EntityType ZOMBIFIED_PIGLIN = of("minecraft:zombified_piglin", 0.6F, 1.95F, 1.79F, 8, 3, true, true);
 
+    /** ARROW: sized(0.5, 0.5).eyeHeight(0.13).clientTrackingRange(4).updateInterval(20). */
+    public static final EntityType ARROW = of("minecraft:arrow", 0.5F, 0.5F, 0.13F, 4, 20, true, false);
+
+    /** SKELETON/STRAY/BOGGED: sized(0.6, 1.99).eyeHeight(1.74).clientTrackingRange(8). */
+    public static final EntityType SKELETON = of("minecraft:skeleton", 0.6F, 1.99F, 1.74F, 8, 3, true, false);
+    public static final EntityType STRAY = of("minecraft:stray", 0.6F, 1.99F, 1.74F, 8, 3, true, false);
+    public static final EntityType BOGGED = of("minecraft:bogged", 0.6F, 1.99F, 1.74F, 8, 3, true, false);
+
+    /** WITHER_SKELETON: fireImmune, sized(0.7, 2.4).eyeHeight(2.1).clientTrackingRange(8). */
+    public static final EntityType WITHER_SKELETON = of("minecraft:wither_skeleton", 0.7F, 2.4F, 2.1F, 8, 3, true, true);
+
+    /** TNT: fireImmune, sized(0.98, 0.98).eyeHeight(0.15).clientTrackingRange(10).updateInterval(10). */
+    public static final EntityType TNT = of("minecraft:tnt", 0.98F, 0.98F, 0.15F, 10, 10, true, true);
+
+    /** CREEPER: sized(0.6, 1.7).clientTrackingRange(8) (눈높이 1.445). */
+    public static final EntityType CREEPER = of("minecraft:creeper", 0.6F, 1.7F, 1.7F * 0.85F, 8, 3, true, false);
+
     private static final org.domi.furnace.server.net.registry.TagSet TAGS = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
 
     /** 엔티티 종류 태그(entity_type 태그)에 들어 있나. */

@@ -49,4 +49,7 @@ public interface Targetable {
     default Targetable getLastHurtMob() { return null; }
 
     default int getLastHurtMobTimestamp() { return 0; }
+
+    /** 투사체가 맞출 수 있나(Entity.isPickable & !spectator). */
+    default boolean isPickable() { return isAlive(); }
 }
