@@ -368,6 +368,7 @@ public final class PlayerVitals {
             if (!fallOnPvpServer && spawnInvulnerableTime > 0 && !type.bypassesInvulnerability()) return false;
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
+            if (attacker != null) player.setLastHurtByMob(attacker);
             if (type.scalesWithDifficulty() && attacker != null) {   // Player.hurt: 난이도 배율
                 Difficulty d = env.difficulty();
                 if (d == Difficulty.PEACEFUL) amount = 0.0f;
@@ -576,6 +577,7 @@ public final class PlayerVitals {
      * 순서는 바닐라 ServerPlayer.tick + doTick(Player.tick → LivingEntity.baseTick → aiStep → FoodData.tick).
      */
     public void tick(Surroundings s) {
+        player.combatTick();
         java.util.List<Runnable> after = new java.util.ArrayList<>(2);
         java.util.List<Packet> toSelf = new java.util.ArrayList<>(3);
         java.util.List<Packet> toTrackers = new java.util.ArrayList<>(2);

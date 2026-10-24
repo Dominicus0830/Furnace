@@ -15,9 +15,13 @@ public class PanicGoal extends Goal {
     protected final double speedModifier;
     protected double posX, posY, posZ;
     protected boolean isRunning;
+    private final String panicTag;
 
-    public PanicGoal(PathfinderMob mob, double speed) {
+    public PanicGoal(PathfinderMob mob, double speed) { this(mob, speed, "minecraft:panic_causes"); }
+
+    public PanicGoal(PathfinderMob mob, double speed, String panicTag) {
         this.mob = mob;
+        this.panicTag = panicTag;
         this.speedModifier = speed;
         setFlags(EnumSet.of(Flag.MOVE));
     }
@@ -39,7 +43,7 @@ public class PanicGoal extends Goal {
 
     protected boolean shouldPanic() {
         String t = mob.getLastDamageType();
-        return t != null && DamageType.byKey(t).isPanicCause();
+        return t != null && DamageType.byKey(t).isInTag(panicTag);
     }
 
     protected boolean findRandomPosition() {

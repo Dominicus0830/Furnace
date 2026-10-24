@@ -228,16 +228,30 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** 마지막으로 이 엔티티가 때린 대상(죽으면 비운다). */
     protected Targetable lastHurtMob;
 
-    public Targetable getLastHurtByMob() { return lastHurtByMob; }
+    @Override public Targetable getLastHurtByMob() { return lastHurtByMob; }
 
-    public int getLastHurtByMobTimestamp() { return lastHurtByMobTimestamp; }
+    @Override public int getLastHurtByMobTimestamp() { return lastHurtByMobTimestamp; }
 
     public void setLastHurtByMob(Targetable e) {
         lastHurtByMob = e;
         lastHurtByMobTimestamp = tickCount;
     }
 
-    public void setLastHurtMob(Targetable t) { lastHurtMob = t; }
+    protected int lastHurtMobTimestamp;
+
+    public void setLastHurtByPlayer(Player p) {
+        lastHurtByPlayer = p;
+        lastHurtByPlayerTime = tickCount;
+    }
+
+    @Override public Targetable getLastHurtMob() { return lastHurtMob; }
+
+    @Override public int getLastHurtMobTimestamp() { return lastHurtMobTimestamp; }
+
+    public void setLastHurtMob(Targetable t) {
+        lastHurtMob = t;
+        lastHurtMobTimestamp = tickCount;
+    }
 
     protected void actuallyHurt(Damage source, float amount) {
         float h = health();

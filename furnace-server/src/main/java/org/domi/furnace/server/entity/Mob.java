@@ -160,6 +160,9 @@ public abstract class Mob extends LivingEntity {
     /** Entity.getFluidJumpThreshold: 눈높이가 0.4 미만이면 0, 아니면 0.4. */
     public double getFluidJumpThreshold() { return dimEye < 0.4 ? 0.0 : 0.4; }
 
+    /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
+    public boolean removeWhenFarAway(double distSqr) { return true; }
+
     public boolean isLeftHanded() { return ((Byte) entityData.get(DATA_MOB_FLAGS) & 2) != 0; }
 
     public void setLeftHanded(boolean v) {

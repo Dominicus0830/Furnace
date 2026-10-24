@@ -103,6 +103,8 @@ public abstract class AgeableMob extends PathfinderMob {
         }
 
         public GroupData(boolean shouldSpawnBaby) { this(shouldSpawnBaby, 0.05F); }
+
+        public GroupData(float babyChance) { this(true, babyChance); }
     }
 
     public GroupData finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, GroupData data) {

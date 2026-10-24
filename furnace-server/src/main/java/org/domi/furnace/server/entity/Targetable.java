@@ -40,4 +40,13 @@ public interface Targetable {
 
     /** 사망 메시지·로그에 쓰는 이름. */
     org.domi.furnace.api.text.Text displayName();
+
+    /** getLastHurtByMob/타임스탬프, getLastHurtMob/타임스탬프 — 주인의 싸움을 따라 하는 목표들이 읽는다. */
+    default Targetable getLastHurtByMob() { return null; }
+
+    default int getLastHurtByMobTimestamp() { return 0; }
+
+    default Targetable getLastHurtMob() { return null; }
+
+    default int getLastHurtMobTimestamp() { return 0; }
 }

@@ -68,8 +68,10 @@ public enum DamageType {
     public boolean bypassesResistance() { return this == OUT_OF_WORLD || this == GENERIC_KILL; }
 
     /** 태그 panic_causes 에 들어 있나. */
-    public boolean isPanicCause() {
-        int[] ids = Tags.SET.ids("minecraft:damage_type", "minecraft:panic_causes");
+    public boolean isPanicCause() { return isInTag("minecraft:panic_causes"); }
+
+    public boolean isInTag(String tag) {
+        int[] ids = Tags.SET.ids("minecraft:damage_type", tag);
         int me = registryId();
         for (int i : ids) if (i == me) return true;
         return false;

@@ -85,7 +85,7 @@ class AnimalBreedingTest {
     @Test
     void allAnimalsSaveAndLoad() {
         var level = new BlockPlacementTest.TestLevel();
-        for (String id : new String[] {"minecraft:chicken", "minecraft:cow", "minecraft:pig", "minecraft:sheep", "minecraft:mooshroom", "minecraft:rabbit"}) {
+        for (String id : new String[] {"minecraft:chicken", "minecraft:cow", "minecraft:pig", "minecraft:sheep", "minecraft:mooshroom", "minecraft:rabbit", "minecraft:wolf", "minecraft:ocelot", "minecraft:cat", "minecraft:polar_bear"}) {
             Entity e = Entities.create(level, id);
             assertNotNull(e, id);
             e.moveTo(0.5, -60, 0.5, 0, 0);
@@ -113,5 +113,20 @@ class AnimalBreedingTest {
         }
         assertTrue(jumped, "뛰었다");
         assertTrue(r.x() > 2.0, "다가갔다: " + r.x());
+    }
+
+    @Test
+    void tamedWolfHasMoreHealthAndKeepsOwner() {
+        var level = new BlockPlacementTest.TestLevel();
+        var w = new Wolf(level, level.nextEntityId());
+        assertEquals(8.0F, w.health(), 0.001);
+        var p = new Player(3, java.util.UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        w.tame(p);
+        assertTrue(w.isTame());
+        assertEquals(40.0F, w.health(), 0.001);
+        NbtCompound tag = w.save();
+        Wolf back = (Wolf) Entities.load(level, tag);
+        assertTrue(back.isTame());
+        assertEquals(p.uuid(), back.getOwnerUUID());
     }
 }

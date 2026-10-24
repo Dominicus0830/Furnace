@@ -904,6 +904,15 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public String biomeAt(int x, int y, int z) { return services().biomeAt(x, y, z); }
 
+    /** UUID 로 엔티티·플레이어를 찾는다(없으면 null). 플레이어는 이 region 이 보는 범위 밖이면 못 찾는다. */
+    public org.domi.furnace.server.entity.Targetable getTargetableByUuid(java.util.UUID uuid) {
+        var e = entities.get(uuid);
+        if (e instanceof org.domi.furnace.server.entity.Targetable t) return t;
+        org.domi.furnace.server.entity.Player[] found = new org.domi.furnace.server.entity.Player[1];
+        services().forEachPlayer(p -> { if (uuid.equals(p.uuid())) found[0] = p; });
+        return found[0];
+    }
+
     /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). */
     public void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<Player> c) {
         services().forEachPlayer(p -> {
@@ -1017,6 +1026,8 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     private static final float[] MOON_BRIGHTNESS_PER_PHASE = {1.0F, 0.75F, 0.5F, 0.25F, 0.0F, 0.25F, 0.5F, 0.75F};
+
+    public float moonBrightness() { return MOON_BRIGHTNESS_PER_PHASE[(int) (dayTime() / 24000L % 8L + 8L) % 8]; }
 
     /** getCurrentDifficultyAt(pos): 청크가 있으면 그 청크의 머문 시간·달 밝기를 반영한다. */
     public org.domi.furnace.server.entity.DifficultyInstance getCurrentDifficultyAt(Pos pos) {

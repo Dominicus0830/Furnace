@@ -11,7 +11,7 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
     public static final int ID = 0x58;
     /** EntityDataSerializers 순번. */
     public static final int SERIALIZER_BYTE = 0, SERIALIZER_INT = 1, SERIALIZER_FLOAT = 3, SERIALIZER_STRING = 4, SERIALIZER_ITEM = 7, SERIALIZER_BOOLEAN = 8,
-            SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21;
+            SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_OPTIONAL_UUID = 13, SERIALIZER_CAT_VARIANT = 22, SERIALIZER_OPTIONAL_INT = 20, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21;
     /** Entity.DATA_AIR_SUPPLY_ID, LivingEntity.DATA_HEALTH_ID, Player.DATA_SCORE_ID. */
     public static final int AIR_SUPPLY = 1, HEALTH = 9, SCORE = 16, PLAYER_ABSORPTION = 15;
 
@@ -32,7 +32,7 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
             Types.writeVarInt(buf, it.serializer());
             switch (it.serializer()) {
                 case SERIALIZER_BYTE -> buf.writeByte(((Number) it.value()).byteValue());
-                case SERIALIZER_INT, SERIALIZER_POSE -> Types.writeVarInt(buf, ((Number) it.value()).intValue());
+                case SERIALIZER_INT, SERIALIZER_POSE, SERIALIZER_CAT_VARIANT -> Types.writeVarInt(buf, ((Number) it.value()).intValue());
                 case SERIALIZER_STRING -> Types.writeString(buf, (String) it.value());
                 case SERIALIZER_FLOAT -> buf.writeFloat(((Number) it.value()).floatValue());
                 case SERIALIZER_BOOLEAN -> buf.writeBoolean((Boolean) it.value());
@@ -41,6 +41,15 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
                     int[] p = (int[]) it.value();
                     buf.writeBoolean(p != null);
                     if (p != null) buf.writeLong(((long) (p[0] & 0x3FFFFFF) << 38) | ((long) (p[2] & 0x3FFFFFF) << 12) | (p[1] & 0xFFF));
+                }
+                case SERIALIZER_OPTIONAL_UUID -> {   // Optional<UUID>: 값은 null 또는 UUID
+                    java.util.UUID u = (java.util.UUID) it.value();
+                    buf.writeBoolean(u != null);
+                    if (u != null) Types.writeUuid(buf, u);
+                }
+                case SERIALIZER_OPTIONAL_INT -> {   // OptionalInt: 0 = 없음, 아니면 값 + 1
+                    Integer v = (Integer) it.value();
+                    Types.writeVarInt(buf, v == null ? 0 : v + 1);
                 }
                 case SERIALIZER_VILLAGER_DATA -> {   // {종류, 직업, 레벨} 레지스트리 번호와 레벨
                     int[] d = (int[]) it.value();

@@ -42,6 +42,18 @@ public record EntityType(String name, int id, float width, float height, float e
     /** RABBIT: sized(0.4, 0.5).clientTrackingRange(8) (눈높이는 기본: 높이 × 0.85). */
     public static final EntityType RABBIT = of("minecraft:rabbit", 0.4F, 0.5F, 0.5F * 0.85F, 8, 3, true, false);
 
+    /** WOLF: sized(0.6, 0.85).eyeHeight(0.68).passengerAttachments(0.8325).clientTrackingRange(10). */
+    public static final EntityType WOLF = of("minecraft:wolf", 0.6F, 0.85F, 0.68F, 10, 3, true, false);
+
+    /** OCELOT: sized(0.6, 0.7).clientTrackingRange(10) (눈높이 기본 0.595). */
+    public static final EntityType OCELOT = of("minecraft:ocelot", 0.6F, 0.7F, 0.7F * 0.85F, 10, 3, true, false);
+
+    /** CAT: sized(0.6, 0.7).clientTrackingRange(8). */
+    public static final EntityType CAT = of("minecraft:cat", 0.6F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
+    /** POLAR_BEAR: sized(1.4, 1.4).clientTrackingRange(10). */
+    public static final EntityType POLAR_BEAR = of("minecraft:polar_bear", 1.4F, 1.4F, 1.4F * 0.85F, 10, 3, true, false);
+
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);

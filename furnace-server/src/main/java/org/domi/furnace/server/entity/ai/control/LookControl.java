@@ -21,6 +21,9 @@ public class LookControl {
 
     public void setLookAt(Entity e, float yMax, float xMax) { setLookAt(e.x(), wantedY(e), e.z(), yMax, xMax); }
 
+    /** 대상이 플레이어든 엔티티든 바라본다(Targetable). */
+    public void setLookAtPlayerOrEntity(org.domi.furnace.server.entity.Targetable t, float yMax, float xMax) { setLookAt(t.x(), t.eyeY(), t.z(), yMax, xMax); }
+
     public void setLookAtPlayer(Player p, float yMax, float xMax) { setLookAt(p.x(), p.eyeY(), p.z(), yMax, xMax); }
 
     public void setLookAt(double x, double y, double z, float yMax, float xMax) {

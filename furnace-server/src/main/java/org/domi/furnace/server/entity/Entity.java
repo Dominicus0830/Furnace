@@ -350,6 +350,21 @@ public abstract class Entity {
 
     public boolean isOnFire() { return !fireImmune() && remainingFireTicks > 0; }
 
+    /** Pose 번호(net.minecraft.world.entity.Pose 순서). */
+    public static final int POSE_STANDING = 0, POSE_FALL_FLYING = 1, POSE_SLEEPING = 2, POSE_SWIMMING = 3, POSE_SPIN_ATTACK = 4, POSE_CROUCHING = 5,
+            POSE_LONG_JUMPING = 6, POSE_DYING = 7, POSE_CROAKING = 8, POSE_USING_TONGUE = 9, POSE_SITTING = 10, POSE_ROARING = 11, POSE_SNIFFING = 12,
+            POSE_EMERGING = 13, POSE_DIGGING = 14, POSE_SLIDING = 15, POSE_SHOOTING = 16, POSE_INHALING = 17;
+
+    public int getPose() { return (Integer) entityData.get(DATA_POSE); }
+
+    public void setPose(int pose) { entityData.set(DATA_POSE, pose); }
+
+    private static final int FLAG_SPRINTING = 3;
+
+    public boolean isSprinting() { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << FLAG_SPRINTING) != 0; }
+
+    public void setSprinting(boolean v) { setSharedFlag(FLAG_SPRINTING, v); }
+
     public void setSharedFlagOnFire(boolean on) { setSharedFlag(FLAG_ONFIRE, on); }
 
     protected void setSharedFlag(int flag, boolean on) {

@@ -15,6 +15,30 @@ import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
 
 public final class Player implements Targetable {
+    private Targetable lastHurtByMob, lastHurtMob;
+    private int combatTicks, lastHurtByMobTimestamp, lastHurtMobTimestamp;
+
+    /** 틱마다 1 올라가는 전투 시계(LivingEntity.tickCount 에 해당). */
+    void combatTick() { combatTicks++; }
+
+    @Override public Targetable getLastHurtByMob() { return lastHurtByMob; }
+
+    @Override public int getLastHurtByMobTimestamp() { return lastHurtByMobTimestamp; }
+
+    public void setLastHurtByMob(Targetable t) {
+        lastHurtByMob = t;
+        lastHurtByMobTimestamp = combatTicks;
+    }
+
+    @Override public Targetable getLastHurtMob() { return lastHurtMob; }
+
+    @Override public int getLastHurtMobTimestamp() { return lastHurtMobTimestamp; }
+
+    public void setLastHurtMob(Targetable t) {
+        lastHurtMob = t;
+        lastHurtMobTimestamp = combatTicks;
+    }
+
 
     private final int entityId;
     private final UUID uuid;

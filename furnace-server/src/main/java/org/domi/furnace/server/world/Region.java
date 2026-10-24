@@ -744,6 +744,7 @@ public final class Region {
         float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);
         // TODO(공격 쿨다운·치명타·인챈트·내구도): attackStrengthTicker, 낙하 치명타, sharpness, 무기 내구 감소
         p.vitals().causeFoodExhaustion(0.1F);
+        p.setLastHurtMob(target);
         target.hurtBy(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
     }
 

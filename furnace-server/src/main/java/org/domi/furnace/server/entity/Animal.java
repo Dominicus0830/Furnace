@@ -37,6 +37,9 @@ public abstract class Animal extends AgeableMob {
     }
 
     @Override
+    public boolean removeWhenFarAway(double distSqr) { return false; }
+
+    @Override
     public int getAmbientSoundInterval() { return 120; }
 
     @Override
