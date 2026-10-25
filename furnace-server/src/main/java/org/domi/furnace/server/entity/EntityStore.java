@@ -68,17 +68,36 @@ public final class EntityStore {
     public void forEachIn(AABB box, Consumer<Entity> out) {
         int x0 = Entity.floor(box.minX() - 2.0) >> 4, y0 = Entity.floor(box.minY() - 4.0) >> 4, z0 = Entity.floor(box.minZ() - 2.0) >> 4;
         int x1 = Entity.floor(box.maxX() + 2.0) >> 4, y1 = Entity.floor(box.maxY() + 0.0) >> 4, z1 = Entity.floor(box.maxZ() + 2.0) >> 4;
+        // TreeMap 순서(마스크된 z, y 순)를 유지하면서 칸마다 직접 조회한다(열 전체 스캔·목록 복사 없이).
+        int[] zs = maskedOrder(z0, z1, 4194303), ys = maskedOrder(y0, y1, 1048575);
         for (int sx = x0; sx <= x1; sx++) {
-            long from = Entity.sectionKey(sx, 0, 0), to = Entity.sectionKey(sx, -1, -1);
-            for (var e : sections.subMap(from, true, to, true).entrySet()) {
-                long key = e.getKey();
-                int sy = (int) (key << 44 >> 44), sz = (int) (key << 22 >> 42);
-                if (sy < y0 || sy > y1 || sz < z0 || sz > z1) continue;
-                for (Entity ent : new ArrayList<>(e.getValue())) {
-                    if (ent.boundingBox().intersects(box)) out.accept(ent);
+            for (int sz : zs) {
+                for (int sy : ys) {
+                    ArrayList<Entity> list = sections.get(Entity.sectionKey(sx, sy, sz));
+                    if (list == null) continue;
+                    ArrayList<Entity> hit = null;
+                    for (int i = 0, n = list.size(); i < n; i++) {
+                        Entity ent = list.get(i);
+                        if (ent.boundingBox().intersects(box)) (hit == null ? hit = new ArrayList<>(4) : hit).add(ent);
+                    }
+                    if (hit != null) for (Entity ent : hit) out.accept(ent);
                 }
             }
         }
+    }
+
+    private static int[] maskedOrder(int lo, int hi, int mask) {
+        int[] v = new int[hi - lo + 1];
+        for (int i = 0; i < v.length; i++) v[i] = lo + i;
+        boolean sorted = true;
+        for (int i = 1; i < v.length; i++) if ((v[i] & mask) < (v[i - 1] & mask)) sorted = false;
+        if (!sorted) {
+            Integer[] boxed = new Integer[v.length];
+            for (int i = 0; i < v.length; i++) boxed[i] = v[i];
+            java.util.Arrays.sort(boxed, java.util.Comparator.comparingInt(t -> t & mask));
+            for (int i = 0; i < v.length; i++) v[i] = boxed[i];
+        }
+        return v;
     }
 
     /** 그 청크(모든 높이)의 엔티티(구역 순·넣은 순). */

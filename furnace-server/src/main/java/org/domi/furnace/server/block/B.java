@@ -36,7 +36,9 @@ public final class B {
 
     /** state.is(#tag) — 태그 이름은 "minecraft:..."(# 없이). */
     public static boolean isTag(int state, String tag) {
-        boolean[] t = TAGS.computeIfAbsent(tag.indexOf(':') < 0 ? "minecraft:" + tag : tag, k -> {
+        boolean[] t = TAGS.get(tag);
+        if (t != null) return t[BLOCKS.blockOf(state)];
+        t = TAGS.computeIfAbsent(tag.indexOf(':') < 0 ? "minecraft:" + tag : tag, k -> {
             boolean[] arr = new boolean[BLOCKS.blockCount()];
             for (String n : org.domi.furnace.server.world.gen.feature.BlockTags.get().blocksOf(k)) {
                 int b = BLOCKS.block(n);
@@ -44,6 +46,7 @@ public final class B {
             }
             return arr;
         });
+        TAGS.putIfAbsent(tag, t);
         return t[BLOCKS.blockOf(state)];
     }
 

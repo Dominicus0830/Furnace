@@ -1436,12 +1436,18 @@ public abstract class ChunkLevel implements BlockLevel {
         int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
         int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
         int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
+        int lastCx = Integer.MIN_VALUE, lastCz = Integer.MIN_VALUE;
+        ChunkColumn c = null;
         for (int z = z0; z <= z1; z++) {
             for (int y = y0; y <= y1; y++) {
                 for (int x = x0; x <= x1; x++) {
                     int edges = (x == x0 || x == x1 ? 1 : 0) + (y == y0 || y == y1 ? 1 : 0) + (z == z0 || z == z1 ? 1 : 0);
                     if (edges == 3) continue;
-                    ChunkColumn c = chunk(x >> 4, z >> 4);
+                    if ((x >> 4) != lastCx || (z >> 4) != lastCz) {
+                        lastCx = x >> 4;
+                        lastCz = z >> 4;
+                        c = chunk(lastCx, lastCz);
+                    }
                     if (c == null) continue;
                     int state = y < minBuildHeight() || y >= maxBuildHeight() ? AIR_STATE : c.getBlock(x & 15, y, z & 15);
                     if (edges == 1 && !hasLargeCollisionShape(state) || edges == 2 && blocks.blockOf(state) != MOVING_PISTON) continue;
