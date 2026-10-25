@@ -398,7 +398,7 @@ public abstract class Entity {
     }
 
     /** markHurt: 다음 추적 갱신에서 속도를 바로 보낸다. */
-    protected void markHurt() { hurtMarked = true; }
+    public void markHurt() { hurtMarked = true; }
 
     /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않는다. */
     public boolean causeFallDamage(float distance, float multiplier) { return false; }

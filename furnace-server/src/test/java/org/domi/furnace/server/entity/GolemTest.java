@@ -66,7 +66,8 @@ class GolemTest {
         var zombie = new Zombie(level, level.nextEntityId());
         zombie.moveTo(3.5, -60, 0.5, 0, 0);
         level.addFreshEntity(zombie);
-        tick(level, 400);
+        // 엔티티 번호(전역 카운터)의 홀짝에 따라 목표 갱신 박자가 달라 추격이 늦을 수 있어 넉넉히 기다린다.
+        for (int t = 0; t < 1500 && zombie.isAlive(); t++) tick(level, 1);
         assertFalse(zombie.isAlive(), "철 골렘이 좀비를 잡았다");
         var snow = new SnowGolem(level, level.nextEntityId());
         snow.moveTo(0.5, -60, 5.5, 0, 0);

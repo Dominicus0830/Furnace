@@ -162,6 +162,8 @@ public class Axolotl extends Animal {
         return child;
     }
 
+    @Override public Targetable getTarget() { return getTargetFromBrain(); }
+
     @Override public boolean isFood(ItemStack s) { return AxolotlAi.isFood(s); }
 
     @Override public boolean isPushedByFluid() { return false; }

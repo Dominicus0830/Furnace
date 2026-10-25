@@ -13,7 +13,7 @@ public class AxolotlAttackablesSensor extends NearestVisibleLivingEntitySensor {
     @Override
     protected boolean isMatchingEntity(Mob owner, Targetable target) {
         return NearestLivingEntitySensor.distSqr(owner, target) <= 64.0 && inWater(owner, target) && (isAlwaysHostile(target) || isHuntTarget(owner, target))
-                && Sensor.isEntityAttackableIgnoringLineOfSight(owner, target);
+                && Sensor.isEntityAttackable(owner, target);
     }
 
     private static boolean inWater(Mob owner, Targetable t) { return t instanceof Entity e ? e.isInWater() : owner.level().isWaterAt(t.blockPosition()); }

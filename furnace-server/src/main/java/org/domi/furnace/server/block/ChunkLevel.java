@@ -754,6 +754,9 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public String dimension() { return services().dimension(); }
 
+    /** DimensionType.piglinSafe: 네더만 참(TODO: 커스텀 차원 타입). */
+    public boolean piglinSafe() { return "minecraft:the_nether".equals(dimension()); }
+
     @Override
     public boolean biomeIs(Pos pos, String tag) { return services().biomeIs(pos.x(), pos.y(), pos.z(), tag); }
 

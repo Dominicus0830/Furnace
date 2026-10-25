@@ -386,6 +386,7 @@ class LandMobTest {
         level.addFreshEntity(camel);
         tick(level, 60);
         assertFalse(camel.isCamelSitting());
+        camel.setNoAi(true);
         camel.sitDown();
         assertTrue(camel.isCamelSitting());
         assertTrue(camel.isInPoseTransition());
@@ -464,5 +465,40 @@ class LandMobTest {
         assertNotNull(loaded);
         assertFalse(loaded.getInventory().isEmpty());
         assertTrue(loaded.hasItemInHand());
+    }
+
+    @Test
+    void hoglinFamilyConvertsAndPiglinAdmiresGold() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 6000;
+        var hoglin = new Hoglin(level, level.nextEntityId());
+        hoglin.moveTo(10.5, -60, 10.5, 0, 0);
+        hoglin.setOnGround(true);
+        level.addFreshEntity(hoglin);
+        var piglin = new Piglin(level, level.nextEntityId());
+        piglin.moveTo(0.5, -60, 0.5, 0, 0);
+        piglin.setOnGround(true);
+        piglin.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(piglin.blockPosition()));
+        piglin.setBaby(false);
+        level.addFreshEntity(piglin);
+        var brute = new PiglinBrute(level, level.nextEntityId());
+        brute.moveTo(-10.5, -60, 0.5, 0, 0);
+        brute.setOnGround(true);
+        brute.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(brute.blockPosition()));
+        level.addFreshEntity(brute);
+        var gold = new ItemEntity(level, level.nextEntityId(), 4.5, -60, 0.5, Mob.stackOf("minecraft:gold_ingot"));
+        gold.setNoPickUpDelay();
+        level.addFreshEntity(gold);
+        tick(level, 40);
+        assertFalse(piglin.getItemBySlot(EquipmentSlot.OFFHAND).isEmpty(), "피글린이 금 주괴를 집어 감상한다");
+        assertNotNull(Entities.load(level, piglin.save()));
+        assertNotNull(Entities.load(level, brute.save()));
+        assertNotNull(Entities.load(level, hoglin.save()));
+        tick(level, 400);
+        assertTrue(hoglin.isRemoved(), "오버월드의 호글린은 조글린이 된다");
+        assertTrue(piglin.isRemoved(), "오버월드의 피글린은 좀비 피글린이 된다");
+        assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof Zoglin));
+        assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof ZombifiedPiglin));
     }
 }

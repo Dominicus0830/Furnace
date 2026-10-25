@@ -1,5 +1,4 @@
 // 바닐라 MeleeAttack: 공격 대상이 근접 거리에 보이면 바라보고 때린 뒤 cooldown 틱 동안 ATTACK_COOLING_DOWN 을 둔다.
-// TODO(발사 무기): 활·쇠뇌를 든 몹은 근접 공격을 하지 않는다(isHoldingUsableProjectileWeapon).
 package org.domi.furnace.server.entity.ai.behavior;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -17,6 +16,7 @@ public final class MeleeAttack {
             protected boolean trigger(ChunkLevel level, Mob mob, long gameTime) {
                 if (!registered(mob, MemoryModuleType.LOOK_TARGET) || !present(mob, MemoryModuleType.ATTACK_TARGET) || !absent(mob, MemoryModuleType.ATTACK_COOLING_DOWN)
                         || !present(mob, MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES)) return false;
+                if (mob.isHoldingUsableProjectileWeapon()) return false;
                 var brain = mob.getBrain();
                 Targetable target = brain.getMemory(MemoryModuleType.ATTACK_TARGET).get();
                 if (mob.isWithinMeleeAttackRange(target) && brain.getMemory(MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES).get().contains(target)) {

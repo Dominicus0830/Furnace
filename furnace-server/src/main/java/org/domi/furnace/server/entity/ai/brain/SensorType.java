@@ -35,6 +35,9 @@ public final class SensorType<U extends Sensor<?>> {
     public static final SensorType<TemptingSensor> ARMADILLO_TEMPTATIONS = temptations("armadillo_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:armadillo_food"));
     public static final SensorType<org.domi.furnace.server.entity.ai.sensing.ArmadilloScareDetectedSensor> ARMADILLO_SCARE_DETECTED = of("armadillo_scare_detected", org.domi.furnace.server.entity.ai.sensing.ArmadilloScareDetectedSensor::new);
     public static final SensorType<TemptingSensor> SNIFFER_TEMPTATIONS = temptations("sniffer_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:sniffer_food"));
+    public static final SensorType<org.domi.furnace.server.entity.ai.sensing.HoglinSpecificSensor> HOGLIN_SPECIFIC = of("hoglin_specific_sensor", org.domi.furnace.server.entity.ai.sensing.HoglinSpecificSensor::new);
+    public static final SensorType<org.domi.furnace.server.entity.ai.sensing.PiglinSpecificSensor> PIGLIN_SPECIFIC = of("piglin_specific_sensor", org.domi.furnace.server.entity.ai.sensing.PiglinSpecificSensor::new);
+    public static final SensorType<org.domi.furnace.server.entity.ai.sensing.PiglinBruteSpecificSensor> PIGLIN_BRUTE_SPECIFIC = of("piglin_brute_specific_sensor", org.domi.furnace.server.entity.ai.sensing.PiglinBruteSpecificSensor::new);
     public static final SensorType<TemptingSensor> AXOLOTL_TEMPTATIONS = temptations("axolotl_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:axolotl_food"));
     public static final SensorType<org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor> AXOLOTL_ATTACKABLES = of("axolotl_attackables", org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor::new);
 

@@ -288,6 +288,9 @@ public abstract class Mob extends LivingEntity {
 
     public boolean canHoldItem(ItemStack stack) { return true; }
 
+    /** BehaviorUtils.isHoldingUsableProjectileWeapon: 손에 든 발사 무기를 이 몹이 쓸 수 있다(석궁 든 피글린 등). */
+    public boolean isHoldingUsableProjectileWeapon() { return false; }
+
     public boolean wantsToPickUp(ItemStack stack) { return canHoldItem(stack); }
 
     /** Mob.getEquipmentSlotForItem: 이름으로 방어구 칸을 고르고 나머지는 주 손. */
@@ -480,6 +483,11 @@ public abstract class Mob extends LivingEntity {
     private final java.util.Set<Integer> seenTargets = new java.util.HashSet<>(), unseenTargets = new java.util.HashSet<>();
 
     public Targetable getTarget() { return target; }
+
+    /** Mob.getTargetFromBrain: 브레인 몹의 공격 대상은 ATTACK_TARGET 기억이다. */
+    protected Targetable getTargetFromBrain() {
+        return brain == null ? null : brain.getMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.ATTACK_TARGET).orElse(null);
+    }
 
     public void setTarget(Targetable t) { target = t; }
 

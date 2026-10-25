@@ -24,6 +24,10 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:piglin_brute" -> new PiglinBrute(level, level.nextEntityId());
+            case "minecraft:piglin" -> new Piglin(level, level.nextEntityId());
+            case "minecraft:zoglin" -> new Zoglin(level, level.nextEntityId());
+            case "minecraft:hoglin" -> new Hoglin(level, level.nextEntityId());
             case "minecraft:allay" -> new Allay(level, level.nextEntityId());
             case "minecraft:sniffer" -> new Sniffer(level, level.nextEntityId());
             case "minecraft:armadillo" -> new Armadillo(level, level.nextEntityId());
@@ -114,6 +118,10 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:piglin_brute" -> new PiglinBrute(level, level.nextEntityId());
+            case "minecraft:piglin" -> new Piglin(level, level.nextEntityId());
+            case "minecraft:zoglin" -> new Zoglin(level, level.nextEntityId());
+            case "minecraft:hoglin" -> new Hoglin(level, level.nextEntityId());
             case "minecraft:allay" -> new Allay(level, level.nextEntityId());
             case "minecraft:sniffer" -> new Sniffer(level, level.nextEntityId());
             case "minecraft:armadillo" -> new Armadillo(level, level.nextEntityId());
