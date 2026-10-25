@@ -48,7 +48,7 @@ public class CarvedPumpkinBlock extends HorizontalDirectionalBlock {
         }
     }
 
-    private static void clear(BlockLevel level, Pos[] cells) {
+    static void clear(BlockLevel level, Pos[] cells) {
         int air = B.defaultState(B.id("minecraft:air"));
         for (Pos p : cells) {
             int old = level.getBlockState(p);
@@ -57,7 +57,7 @@ public class CarvedPumpkinBlock extends HorizontalDirectionalBlock {
         }
     }
 
-    private static void update(BlockLevel level, Pos[] cells) {
+    static void update(BlockLevel level, Pos[] cells) {
         int air = B.id("minecraft:air");
         for (Pos p : cells) level.blockUpdated(p, air);
     }

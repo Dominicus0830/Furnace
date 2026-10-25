@@ -163,6 +163,9 @@ public interface BlockLevel {
     /** FallingBlockEntity.fall(level, pos, state): 그 자리를 유체(없으면 공기)로 바꾸고 떨어지는 블록 엔티티를 만든다. 만든 엔티티(없으면 null). */
     default Object spawnFallingBlock(Pos pos, int state) { return null; }
 
+    /** WitherSkullBlock.checkSpawn 성공: 위더를 (bottomCenter 칸 가운데, 높이 +0.55)에 무적 상태로 만든다. 줄이 x 축이면 axisX. */
+    default void spawnWither(Pos bottomCenter, boolean axisX) {}
+
     /** 스폰 알: 그 종류 몹을 만든다(EntityType.spawn). 만들었으면 true. 몹이 없는 레벨은 false. */
     default boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown) { return false; }
 

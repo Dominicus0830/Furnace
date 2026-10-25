@@ -14,6 +14,7 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 public final class ItemEntity extends Entity {
 
     public static final int DATA_ITEM = 8;
+
     private static final int LIFETIME = 6000, INFINITE_PICKUP_DELAY = 32767, INFINITE_LIFETIME = -32768;
 
     private int age;

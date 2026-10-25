@@ -39,6 +39,7 @@ public final class SensorType<U extends Sensor<?>> {
     public static final SensorType<org.domi.furnace.server.entity.ai.sensing.PiglinSpecificSensor> PIGLIN_SPECIFIC = of("piglin_specific_sensor", org.domi.furnace.server.entity.ai.sensing.PiglinSpecificSensor::new);
     public static final SensorType<org.domi.furnace.server.entity.ai.sensing.PiglinBruteSpecificSensor> PIGLIN_BRUTE_SPECIFIC = of("piglin_brute_specific_sensor", org.domi.furnace.server.entity.ai.sensing.PiglinBruteSpecificSensor::new);
     public static final SensorType<TemptingSensor> AXOLOTL_TEMPTATIONS = temptations("axolotl_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:axolotl_food"));
+    public static final SensorType<org.domi.furnace.server.entity.ai.sensing.BreezeAttackEntitySensor> BREEZE_ATTACK_ENTITY = of("breeze_attack_entity_sensor", org.domi.furnace.server.entity.ai.sensing.BreezeAttackEntitySensor::new);
     public static final SensorType<org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor> AXOLOTL_ATTACKABLES = of("axolotl_attackables", org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor::new);
 
     /** 아이템 온도 센서(이름만 다른 여러 마리 공용): 몹마다 달라 팩토리가 외부에서 주어진다. */

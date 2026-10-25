@@ -30,6 +30,8 @@ public final class Entities {
             case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());
             case "minecraft:experience_bottle" -> new ThrownExperienceBottle(level, level.nextEntityId());
             case "minecraft:egg" -> new ThrownEgg(level, level.nextEntityId());
+            case "minecraft:breeze" -> new Breeze(level, level.nextEntityId());
+            case "minecraft:wither" -> new WitherBoss(level, level.nextEntityId());
             case "minecraft:ominous_item_spawner" -> new OminousItemSpawner(level, level.nextEntityId());
             case "minecraft:firework_rocket" -> new FireworkRocketEntity(level, level.nextEntityId());
             case "minecraft:eye_of_ender" -> new EyeOfEnder(level, level.nextEntityId());
@@ -150,6 +152,8 @@ public final class Entities {
             case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());
             case "minecraft:experience_bottle" -> new ThrownExperienceBottle(level, level.nextEntityId());
             case "minecraft:egg" -> new ThrownEgg(level, level.nextEntityId());
+            case "minecraft:breeze" -> new Breeze(level, level.nextEntityId());
+            case "minecraft:wither" -> new WitherBoss(level, level.nextEntityId());
             case "minecraft:ominous_item_spawner" -> new OminousItemSpawner(level, level.nextEntityId());
             case "minecraft:firework_rocket" -> new FireworkRocketEntity(level, level.nextEntityId());
             case "minecraft:eye_of_ender" -> new EyeOfEnder(level, level.nextEntityId());

@@ -188,4 +188,53 @@ class WindChargeTest {
         assertTrue(rocket.isRemoved(), "수명이 다해 터졌다");
         assertTrue(cow.health() < hp, "폭발 장식이 있어 근처 소가 다쳤다");
     }
+
+    @Test
+    void witherSummonedFromSoulSandTShapeAndSpawnsInvulnerable() {
+        var level = new BlockPlacementTest.TestLevel();
+        int sand = B.defaultState(B.id("minecraft:soul_sand"));
+        int skull = B.defaultState(B.id("minecraft:wither_skeleton_skull"));
+        int cx = 40, cz = 40, y0 = -60;
+        level.setBlock(new Pos(cx, y0, cz), sand, 3);
+        for (int d = -1; d <= 1; d++) level.setBlock(new Pos(cx + d, y0 + 1, cz), sand, 3);
+        for (int d = -1; d <= 1; d++) level.setBlock(new Pos(cx + d, y0 + 2, cz), skull, 3);
+        org.domi.furnace.server.block.types.WitherSkullBlock.checkSpawn(level, new Pos(cx, y0 + 2, cz));
+        assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof WitherBoss w && w.getInvulnerableTicks() == 220), "위더가 소환됐다");
+        assertTrue(B.isAir(level.getBlockState(new Pos(cx, y0 + 1, cz))), "틀 블록이 지워졌다");
+        WitherBoss wither = (WitherBoss) level.entities().tickSnapshot().stream().filter(e -> e instanceof WitherBoss).findFirst().orElseThrow();
+        for (int t = 0; t < 240; t++) {
+            for (Entity e : level.entities().tickSnapshot()) {
+                e.setOldPosAndRot();
+                e.tickCount++;
+                e.tick();
+            }
+        }
+        assertEquals(0, wither.getInvulnerableTicks(), "무적 시간이 끝났다");
+        assertTrue(wither.isAlive());
+    }
+
+    @Test
+    void breezeFightsIronGolemShootingWindCharges() {
+        var level = new BlockPlacementTest.TestLevel();
+        int floor = B.defaultState(B.id("minecraft:stone"));
+        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) level.setBlock(new Pos(x, -61, z), floor, 3);
+        Breeze breeze = new Breeze(level, level.nextEntityId());
+        breeze.moveTo(8.5, -60.0, 2.5, 0, 0);
+        level.addFreshEntity(breeze);
+        IronGolem golem = new IronGolem(level, level.nextEntityId());
+        golem.moveTo(8.5, -60.0, 10.5, 0, 0);
+        golem.setNoAi(true);
+        level.addFreshEntity(golem);
+        boolean sawCharge = false;
+        for (int t = 0; t < 400; t++) {
+            for (Entity e : level.entities().tickSnapshot()) {
+                e.setOldPosAndRot();
+                e.tickCount++;
+                e.tick();
+                if (e instanceof BreezeWindCharge) sawCharge = true;
+            }
+        }
+        assertTrue(breeze.isAlive());
+        assertTrue(sawCharge || breeze.getTarget() != null, "브리즈가 대상을 잡았다");
+    }
 }

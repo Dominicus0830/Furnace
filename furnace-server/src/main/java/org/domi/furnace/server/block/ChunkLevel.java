@@ -996,6 +996,16 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public Object spawnFallingBlock(Pos pos, int state) { return org.domi.furnace.server.entity.FallingBlockEntity.fall(this, pos, state); }
 
+    @Override
+    public void spawnWither(Pos bottomCenter, boolean axisX) {
+        var wither = new org.domi.furnace.server.entity.WitherBoss(this, nextEntityId());
+        float yaw = axisX ? 0.0F : 90.0F;
+        wither.moveTo(bottomCenter.x() + 0.5, bottomCenter.y() + 0.55, bottomCenter.z() + 0.5, yaw, 0.0F);
+        wither.setYBodyRot(yaw);
+        wither.makeInvulnerable();
+        addFreshEntity(wither);
+    }
+
     /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
     @Override
     public void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {

@@ -111,6 +111,7 @@ public final class EntityTracker {
             } else if (e.getValue() + 1 >= graceTicks) {
                 it.remove();
                 p.send(new RemoveEntities(List.of(entity.id())));
+                entity.onStopSeenBy(p);
             } else {
                 e.setValue(e.getValue() + 1);
             }
@@ -119,7 +120,11 @@ public final class EntityTracker {
 
     /** 엔티티가 없어졌다(broadcastRemoved) — 보는 사람 모두에게 지운다. */
     public void broadcastRemoved() {
-        for (Player p : seenBy.keySet()) if (!p.isDisconnected()) p.send(new RemoveEntities(List.of(entity.id())));
+        for (Player p : seenBy.keySet()) {
+            if (p.isDisconnected()) continue;
+            p.send(new RemoveEntities(List.of(entity.id())));
+            entity.onStopSeenBy(p);
+        }
         seenBy.clear();
     }
 
@@ -150,9 +155,13 @@ public final class EntityTracker {
         p.send(BundleDelimiter.INSTANCE);
         for (Packet pkt : list) p.send(pkt);
         p.send(BundleDelimiter.INSTANCE);
+        entity.onStartSeenBy(p);
     }
 
-    private void removePairing(Player p) { p.send(new RemoveEntities(List.of(entity.id()))); }
+    private void removePairing(Player p) {
+        p.send(new RemoveEntities(List.of(entity.id())));
+        entity.onStopSeenBy(p);
+    }
 
     /** 보는 사람 모두에게(broadcast). */
     public void broadcast(Packet pkt) {

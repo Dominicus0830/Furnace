@@ -412,6 +412,11 @@ public abstract class Entity {
     /** Entity.skipAttackInteraction: true 면 일반 공격 피해 대신 이 엔티티가 직접 처리한다(액자·그림). */
     public boolean skipAttackInteraction(Player attacker) { return false; }
 
+    /** 플레이어가 이 엔티티를 보게 됐다/보지 않게 됐다(보스 바 등). */
+    public void onStartSeenBy(Player p) {}
+
+    public void onStopSeenBy(Player p) {}
+
     /** Entity.thunderHit: 번개에 맞으면 불이 붙고(이미 붙었으면 시간 연장) 5 피해. */
     public void thunderHit(ChunkLevel level, LightningBolt bolt) {
         remainingFireTicks++;
