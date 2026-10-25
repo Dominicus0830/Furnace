@@ -981,6 +981,14 @@ public abstract class ChunkLevel implements BlockLevel {
         return e;
     }
 
+    /** 계산기·입자·소리를 지정한 폭발(윈드 차지). */
+    public Explosion explode(Entity source, double x, double y, double z, float radius, Explosion.Calculator calc, int small, int large, String sound) {
+        Explosion e = new Explosion(this, source, x, y, z, radius, false, Explosion.BlockInteraction.TRIGGER_BLOCK).withCalculator(calc, small, large, sound);
+        e.explode();
+        e.finalizeExplosion(true);
+        return e;
+    }
+
     /** ExplosionInteraction → BlockInteraction (게임 규칙 반영). kind: NONE, BLOCK, MOB, TNT, TRIGGER. */
     public Explosion.BlockInteraction destroyType(String kind) {
         return switch (kind) {

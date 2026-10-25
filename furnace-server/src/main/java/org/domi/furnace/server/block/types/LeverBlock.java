@@ -1,6 +1,7 @@
 // 바닐라 LeverBlock: 당길 때마다 켜고 끈다. 붙은 칸에 강한 신호.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -22,7 +23,10 @@ public class LeverBlock extends FaceAttachedHorizontalDirectionalBlock {
         return InteractionResult.CONSUME;
     }
 
-    // TODO(폭발): onExplosionHit — 폭발이 블록을 터뜨리면 당긴다.
+    @Override
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {
+        if (explosion.canTriggerBlocks()) pull(state, level, pos, null);
+    }
 
     /** pull: 켜짐을 뒤집고 이웃 알림, 소리, 게임 이벤트. */
     public void pull(int state, BlockLevel level, Pos pos, BlockActor player) {

@@ -1,6 +1,7 @@
 // 바닐라 FenceGateBlock: 열고 닫는 울타리 문. 양옆이 담장이면 내려앉는다(in_wall). 레드스톤 신호로 열린다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -67,7 +68,15 @@ public class FenceGateBlock extends HorizontalDirectionalBlock {
         return InteractionResult.CONSUME;
     }
 
-    // TODO(폭발): onExplosionHit — 폭발이 블록을 터뜨리면(신호로 열린 게 아니면) 여닫는다.
+    @Override
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {
+        if (explosion.canTriggerBlocks() && !POWERED.is(state)) {
+            state = OPEN.cycle(state);
+            level.setBlock(pos, state, 10);
+            level.playSound(null, pos, OPEN.is(state) ? openSound : closeSound, "blocks", 1.0F, B.openPitch(level));
+            level.gameEvent(OPEN.is(state) ? "minecraft:block_open" : "minecraft:block_close", pos, null, -1);
+        }
+    }
 
     @Override
     public void neighborChanged(int state, BlockLevel level, Pos pos, int sourceBlock, Pos sourcePos, boolean moved) {

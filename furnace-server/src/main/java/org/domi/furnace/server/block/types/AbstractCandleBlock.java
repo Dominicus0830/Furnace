@@ -1,6 +1,7 @@
 // 바닐라 AbstractCandleBlock: 양초·양초 케이크 바탕(lit). 끄면 소리와 BLOCK_CHANGE, 불붙은 투사체가 닿으면 켜진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -32,5 +33,8 @@ public abstract class AbstractCandleBlock extends BlockBehavior {
 
     static void setLit(BlockLevel level, int state, Pos pos, boolean lit) { level.setBlock(pos, LIT.with(state, lit), 11); }
 
-    // TODO(폭발): onExplosionHit — 폭발이 불을 끄는 종류이고 켜져 있으면 extinguish.
+    @Override
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {
+        if (explosion.canTriggerBlocks() && LIT.is(state)) extinguish(null, state, level, pos);
+    }
 }

@@ -1,6 +1,7 @@
 // 바닐라 DoorBlock: 두 칸 문. 경첩은 양옆 단단한 블록·이웃 문·클릭 위치로 정한다. 손(블록 세트가 허락하면)이나 레드스톤으로 여닫는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -39,7 +40,10 @@ public class DoorBlock extends BlockBehavior {
                 ? HALF.with(neighborState, HALF.valueName(state)) : B.defaultState("air");
     }
 
-    // TODO(폭발): onExplosionHit — 손으로 못 여는 문이 아니고 신호로 열린 게 아니면 여닫는다(windcharge 등).
+    @Override
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {
+        if (explosion.canTriggerBlocks() && type.canOpenByWindCharge() && !POWERED.is(state)) setOpen(null, level, state, pos, !isOpen(state));
+    }
 
     @Override
     public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {

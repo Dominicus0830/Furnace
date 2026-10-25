@@ -23,6 +23,35 @@ import org.domi.furnace.server.net.protocol.play.ExplodePacket;
 public final class Explosion {
     public enum BlockInteraction { KEEP, DESTROY, DESTROY_WITH_DECAY, TRIGGER_BLOCK }
 
+    /** 바닐라 ExplosionDamageCalculator: 폭발 저항 덮어쓰기·피해 여부·밀림 배수. */
+    public interface Calculator {
+        /** null 이면 기본 저항(감쇠 없음 = Optional.empty 와 같은 뜻은 아님: 기본 계산기는 호출하지 않는다). */
+        default Float blockResistance(int state) { return null; }
+        default boolean shouldDamageEntity(Entity e) { return true; }
+        default float knockbackMultiplier(Object e) { return 1.0F; }
+    }
+
+    /** 윈드 차지 계산기: 피해 없음, 막는 블록만 저항을 가지고 나머지는 광선이 감쇠하지 않는다. */
+    public static final class WindCalculator implements Calculator {
+        private final Float knockback;
+        public WindCalculator(Float knockback) { this.knockback = knockback; }
+        @Override public Float blockResistance(int state) { return B.isTag(state, "minecraft:blocks_wind_charge_explosions") ? 3600000.0F : -2.0F; }
+        @Override public boolean shouldDamageEntity(Entity e) { return false; }
+        @Override public float knockbackMultiplier(Object e) { return knockback == null ? 1.0F : knockback; }
+    }
+
+    private Calculator calculator;
+    private int smallParticle = 22, largeParticle = 21;
+    private String soundName = "minecraft:entity.generic.explode";
+
+    public Explosion withCalculator(Calculator c, int small, int large, String sound) {
+        calculator = c;
+        smallParticle = small;
+        largeParticle = large;
+        soundName = sound;
+        return this;
+    }
+
     private final ChunkLevel level;
     private final Entity source;
     private final double x, y, z;
@@ -46,6 +75,8 @@ public final class Explosion {
     }
 
     public float radius() { return radius; }
+
+    public boolean canTriggerBlocks() { return interaction == BlockInteraction.TRIGGER_BLOCK; }
 
     public List<Pos> toBlow() { return toBlow; }
 
@@ -74,6 +105,10 @@ public final class Explosion {
 
     private float blockResistance(Pos pos, int state, int fluid) {
         if (BlockInfo.get().isAir(state) && Fluids.isEmpty(fluid)) return -1.0F;
+        if (calculator != null) {
+            Float r = calculator.blockResistance(state);
+            if (r != null) return r < -1.0F ? -1.0F : r;   // 윈드: 저항 없는 블록은 감쇠하지 않는다
+        }
         float block = BlockInfo.get().explosionResistance(Blocks.get().blockOf(state));
         float f = Fluids.isEmpty(fluid) ? 0.0F : 100.0F;   // 물·용암 폭발 저항 100
         return Math.max(block, f);
@@ -126,6 +161,7 @@ public final class Explosion {
             if (kb == null) continue;
             double m = kb[3];
             if (e instanceof LivingEntity le) m *= 1.0 - le.attributeValue(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE);
+            if (calculator != null) m *= calculator.knockbackMultiplier(e);
             e.setDeltaMovement(e.vx() + kb[0] * m, e.vy() + kb[1] * m, e.vz() + kb[2] * m);
         }
         List<Player> players = new ArrayList<>();
@@ -134,7 +170,8 @@ public final class Explosion {
             double[] kb = affect(p.x(), p.y(), p.eyeY(), p.z(), p.boundingBox(), f2, p);
             if (kb == null) continue;
             if (!p.vitals().isSpectator() && (!p.vitals().isCreative() || !p.vitals().isFlying())) {
-                hitPlayers.put(p, new double[] {kb[0] * kb[3], kb[1] * kb[3], kb[2] * kb[3]});
+                double pm = kb[3] * (calculator != null ? calculator.knockbackMultiplier(p) : 1.0F);
+                hitPlayers.put(p, new double[] {kb[0] * pm, kb[1] * pm, kb[2] * pm});
             }
         }
     }
@@ -153,7 +190,9 @@ public final class Explosion {
         float seen = getSeenPercent(level, x, y, z, bb);
         double d10 = (1.0 - dist) * seen;
         float damage = (float) ((d10 * d10 + d10) / 2.0 * 7.0 * f2 + 1.0);
-        hurtTarget(target, damage);
+        if (calculator == null || !(target instanceof Entity te) || calculator.shouldDamageEntity(te)) {
+            if (!(calculator != null && target instanceof Player)) hurtTarget(target, damage);
+        }
         return new double[] {dx, dy, dz, d10};
     }
 
@@ -173,19 +212,25 @@ public final class Explosion {
 
     /** Explosion.finalizeExplosion(particles): 소리·패킷, 블록 부수기·불. */
     public void finalizeExplosion(boolean particles) {
-        level.playSound(null, x, y, z, "minecraft:entity.generic.explode", "blocks", 4.0F, (1.0F + (level.random().nextFloat() - level.random().nextFloat()) * 0.2F) * 0.7F);
+        level.playSound(null, x, y, z, soundName, "blocks", 4.0F, (1.0F + (level.random().nextFloat() - level.random().nextFloat()) * 0.2F) * 0.7F);
         boolean destroy = interaction != BlockInteraction.KEEP;
         // 패킷: 4096(64칸) 안 플레이어들
-        int sound = org.domi.furnace.server.item.ItemContext.id("minecraft:sound_event", "minecraft:entity.generic.explode");
+        int sound = org.domi.furnace.server.item.ItemContext.id("minecraft:sound_event", soundName);
         level.forEachPlayer(p -> {
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             if (dx * dx + dy * dy + dz * dz < 4096.0) {
                 double[] kb = hitPlayers.get(p);
                 p.send(new ExplodePacket(x, y, z, radius, new ArrayList<>(toBlow), kb == null ? 0 : (float) kb[0], kb == null ? 0 : (float) kb[1],
-                        kb == null ? 0 : (float) kb[2], interaction.ordinal(), 22, radius >= 2.0F && destroy ? 21 : 22, sound));
+                        kb == null ? 0 : (float) kb[2], interaction.ordinal(), smallParticle, radius >= 2.0F && destroy ? largeParticle : smallParticle, sound));
             }
         });
-        if (destroy) {
+        if (interaction == BlockInteraction.TRIGGER_BLOCK) {
+            for (Pos pos : toBlow) {
+                int st = level.getBlockState(pos);
+                BlockBehaviors.of(st).onExplosionHit(st, level, pos, this);
+            }
+        }
+        if (destroy && interaction != BlockInteraction.TRIGGER_BLOCK) {
             List<Object[]> drops = new ArrayList<>();   // {ItemStack, Pos}
             org.domi.furnace.server.block.RandomSource rnd = level.random();
             shuffle(toBlow, rnd);

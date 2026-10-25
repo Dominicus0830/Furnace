@@ -83,6 +83,9 @@ public class BlockBehavior {
     /** Block.dropFromExplosion: 폭발이 부술 때 전리품을 떨구는가. */
     public boolean dropFromExplosion() { return true; }
 
+    /** Block.onExplosionHit: 블록을 터뜨리는 폭발(윈드 차지)이 맞았을 때. */
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {}
+
     /** Block.wasExploded: 폭발에 부서진 뒤(TNT 는 점화). */
     public void wasExploded(BlockLevel level, Pos pos, Explosion explosion) {}
 

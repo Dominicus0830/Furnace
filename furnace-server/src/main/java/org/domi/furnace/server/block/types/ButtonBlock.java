@@ -1,6 +1,7 @@
 // 바닐라 ButtonBlock: 누르면 켜지고 정해진 틱 뒤 꺼진다. 붙은 칸에 강한 신호.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -31,7 +32,10 @@ public class ButtonBlock extends FaceAttachedHorizontalDirectionalBlock {
         return InteractionResult.CONSUME;
     }
 
-    // TODO(폭발): onExplosionHit — 폭발이 블록을 터뜨리면 누른다.
+    @Override
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {
+        if (explosion.canTriggerBlocks() && !POWERED.is(state)) press(state, level, pos, null);
+    }
 
     /** press: 켜고 이웃 알림, 꺼질 틱 예약, 소리, 게임 이벤트. */
     public void press(int state, BlockLevel level, Pos pos, BlockActor player) {

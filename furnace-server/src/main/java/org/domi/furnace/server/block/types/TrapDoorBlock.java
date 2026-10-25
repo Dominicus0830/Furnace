@@ -1,6 +1,7 @@
 // 바닐라 TrapDoorBlock: 다락문. 옆면 위·아래 반쪽 클릭이나 바라보는 방향으로 놓는다. 손(블록 세트가 허락하면)·신호로 여닫는다. 물에 잠길 수 있다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -30,7 +31,10 @@ public class TrapDoorBlock extends HorizontalDirectionalBlock {
         return InteractionResult.CONSUME;
     }
 
-    // TODO(폭발): onExplosionHit — 바람 돌격 등이 블록을 터뜨리면(신호로 열린 게 아니면) 여닫는다.
+    @Override
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {
+        if (explosion.canTriggerBlocks() && type.canOpenByWindCharge() && !POWERED.is(state)) toggle(state, level, pos, null);
+    }
 
     private void toggle(int state, BlockLevel level, Pos pos, BlockActor player) {
         int s = OPEN.cycle(state);

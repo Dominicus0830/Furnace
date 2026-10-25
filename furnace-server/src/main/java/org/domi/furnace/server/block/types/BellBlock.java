@@ -1,6 +1,7 @@
 // 바닐라 BellBlock: 종. 바닥·천장·한쪽 벽·양쪽 벽에 붙는다. 알맞은 면을 치거나 신호가 새로 들어오면 울린다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -94,7 +95,10 @@ public class BellBlock extends BaseEntityBlock {
 
     private static boolean sturdy(BlockLevel level, Pos p, int dir) { return B.isFaceSturdy(level.getBlockState(p), level, p, dir); }
 
-    // TODO(폭발): onExplosionHit — 폭발이 블록을 터뜨리면 울린다.
+    @Override
+    public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {
+        if (explosion.canTriggerBlocks()) attemptToRing(null, level, pos, -1);
+    }
 
     @Override
     public int updateShape(int state, int dir, int neighborState, BlockLevel level, Pos pos, Pos neighborPos) {
