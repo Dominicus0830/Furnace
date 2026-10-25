@@ -229,6 +229,36 @@ public record EntityType(String name, int id, float width, float height, float e
     /** LLAMA_SPIT: sized(0.25F, 0.25F). */
     public static final EntityType LLAMA_SPIT = of("minecraft:llama_spit", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
 
+    /** EGG: sized(0.25F, 0.25F). */
+    public static final EntityType EGG = of("minecraft:egg", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
+
+    /** ENDER_PEARL: sized(0.25F, 0.25F). */
+    public static final EntityType ENDER_PEARL = of("minecraft:ender_pearl", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
+
+    /** EXPERIENCE_BOTTLE: sized(0.25F, 0.25F). */
+    public static final EntityType EXPERIENCE_BOTTLE = of("minecraft:experience_bottle", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
+
+    /** EYE_OF_ENDER: sized(0.25F, 0.25F). */
+    public static final EntityType EYE_OF_ENDER = of("minecraft:eye_of_ender", 0.25F, 0.25F, 0.25F * 0.85F, 4, 4, true, false);
+
+    /** SPECTRAL_ARROW: sized(0.5F, 0.5F).eyeHeight(0.13). */
+    public static final EntityType SPECTRAL_ARROW = of("minecraft:spectral_arrow", 0.5F, 0.5F, 0.13F, 4, 20, true, false);
+
+    /** FIREWORK_ROCKET: sized(0.25F, 0.25F). */
+    public static final EntityType FIREWORK_ROCKET = of("minecraft:firework_rocket", 0.25F, 0.25F, 0.25F * 0.85F, 4, 10, true, false);
+
+    /** WIND_CHARGE: sized(0.3125F, 0.3125F).eyeHeight(0.0). */
+    public static final EntityType WIND_CHARGE = of("minecraft:wind_charge", 0.3125F, 0.3125F, 0.0F, 4, 10, true, false);
+
+    /** BREEZE_WIND_CHARGE: sized(0.3125F, 0.3125F).eyeHeight(0.0). */
+    public static final EntityType BREEZE_WIND_CHARGE = of("minecraft:breeze_wind_charge", 0.3125F, 0.3125F, 0.0F, 4, 10, true, false);
+
+    /** END_CRYSTAL: sized(2.0F, 2.0F). */
+    public static final EntityType END_CRYSTAL = of("minecraft:end_crystal", 2.0F, 2.0F, 2.0F * 0.85F, 16, Integer.MAX_VALUE, true, true);
+
+    /** ARMOR_STAND: sized(0.5F, 1.975F).eyeHeight(1.7775). */
+    public static final EntityType ARMOR_STAND = of("minecraft:armor_stand", 0.5F, 1.975F, 1.7775F, 10, 3, true, false);
+
     /** SHULKER_BULLET: sized(0.3125F, 0.3125F). */
     public static final EntityType SHULKER_BULLET = of("minecraft:shulker_bullet", 0.3125F, 0.3125F, 0.3125F * 0.85F, 8, 3, true, false);
 

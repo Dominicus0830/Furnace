@@ -24,6 +24,12 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:end_crystal" -> new EndCrystal(level, level.nextEntityId());
+            case "minecraft:llama_spit" -> new LlamaSpit(level, level.nextEntityId());
+            case "minecraft:ender_pearl" -> new ThrownEnderpearl(level, level.nextEntityId());
+            case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());
+            case "minecraft:experience_bottle" -> new ThrownExperienceBottle(level, level.nextEntityId());
+            case "minecraft:egg" -> new ThrownEgg(level, level.nextEntityId());
             case "minecraft:piglin_brute" -> new PiglinBrute(level, level.nextEntityId());
             case "minecraft:piglin" -> new Piglin(level, level.nextEntityId());
             case "minecraft:zoglin" -> new Zoglin(level, level.nextEntityId());
@@ -118,6 +124,12 @@ public final class Entities {
             case "minecraft:giant" -> new Giant(level, level.nextEntityId());
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
+            case "minecraft:end_crystal" -> new EndCrystal(level, level.nextEntityId());
+            case "minecraft:llama_spit" -> new LlamaSpit(level, level.nextEntityId());
+            case "minecraft:ender_pearl" -> new ThrownEnderpearl(level, level.nextEntityId());
+            case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());
+            case "minecraft:experience_bottle" -> new ThrownExperienceBottle(level, level.nextEntityId());
+            case "minecraft:egg" -> new ThrownEgg(level, level.nextEntityId());
             case "minecraft:piglin_brute" -> new PiglinBrute(level, level.nextEntityId());
             case "minecraft:piglin" -> new Piglin(level, level.nextEntityId());
             case "minecraft:zoglin" -> new Zoglin(level, level.nextEntityId());
