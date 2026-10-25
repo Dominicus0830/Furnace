@@ -355,6 +355,63 @@ public abstract class Mob extends LivingEntity {
     /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
     public boolean removeWhenFarAway(double distSqr) { return true; }
 
+    public boolean isPersistenceRequired() { return persistenceRequired; }
+
+    /** 몹 수 세기에서 빠지는가(유지 몹). */
+    public boolean isPersistentForCaps() { return persistenceRequired || requiresCustomPersistence(); }
+
+    /** Mob.requiresCustomPersistence: 탑승·끈에 매인 몹 등(아직 해당 체계 없음). */
+    protected boolean requiresCustomPersistence() { return false; }
+
+    /** Mob.shouldDespawnInPeaceful: 적대 몹은 평화로움에서 사라진다. */
+    protected boolean shouldDespawnInPeaceful() { return this instanceof Enemy; }
+
+    /** Mob.checkDespawn: 평화로움이면 적대 몹 제거, 아니면 가장 가까운 플레이어와의 거리로 사라질지 정한다(128 넘으면 즉시, 32 넘고 600틱 무행동이면 1/800). */
+    public void checkDespawn() {
+        if (level.difficulty() == 0 && shouldDespawnInPeaceful()) {
+            discard();
+        } else if (!isPersistenceRequired() && !requiresCustomPersistence()) {
+            Player nearest = level.getNearestPlayer(this, -1.0);
+            if (nearest != null) {
+                double dx = nearest.x() - x(), dy = nearest.y() - y(), dz = nearest.z() - z();
+                double d = dx * dx + dy * dy + dz * dz;
+                int far = org.domi.furnace.server.entity.spawn.EntityMeta.category(type.name()).despawnDistance();
+                if (d > (double) far * far && removeWhenFarAway(d)) discard();
+                int near = org.domi.furnace.server.entity.spawn.MobCategory.NO_DESPAWN_DISTANCE;
+                if (noActionTime > 600 && random.nextInt(800) == 0 && d > (double) near * near && removeWhenFarAway(d)) discard();
+                else if (d < (double) near * near) noActionTime = 0;
+            }
+        } else {
+            noActionTime = 0;
+        }
+    }
+
+    @Override
+    public void tick() {
+        if (!isRemoved()) checkDespawn();
+        super.tick();
+    }
+
+    // ---- 자연 스폰 훅(NaturalSpawner)
+
+    /** Mob.checkSpawnRules(level, reason): 이 몹 개체의 추가 검사(기본 참). */
+    public boolean checkSpawnRules(ChunkLevel level, org.domi.furnace.server.entity.spawn.SpawnReason reason) { return true; }
+
+    /** Mob.checkSpawnObstruction: 몸이 액체 안이 아니고 플레이어와 겹치지 않는다. */
+    public boolean checkSpawnObstruction(ChunkLevel level) { return !level.containsAnyLiquid(boundingBox()) && level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox())); }
+
+    /** Mob.getMaxSpawnClusterSize: 한 번에 자연 스폰되는 최대 수. */
+    public int getMaxSpawnClusterSize() { return 4; }
+
+    /** Mob.isMaxGroupSizeReached: 이 수만큼 한 무리로 났으면 무리를 끊는다. */
+    public boolean isMaxGroupSizeReached(int size) { return false; }
+
+    /** 무리 데이터를 이어 주는 finalizeSpawn(AgeableMob·떼 물고기가 덮어쓴다). */
+    public Object finalizeSpawnGroup(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, Object group) {
+        finalizeSpawn(r, difficulty);
+        return group;
+    }
+
     /** Entity.getLightLevelDependentMagicValue: 눈 높이 칸의 밝기(청크가 없으면 0). 오버월드는 ambientLight 0 → 곡선 f/(4-3f). */
     public float getLightLevelDependentMagicValue() {
         Pos pos = new Pos((int) Math.floor(x()), (int) Math.floor(eyeY()), (int) Math.floor(z()));

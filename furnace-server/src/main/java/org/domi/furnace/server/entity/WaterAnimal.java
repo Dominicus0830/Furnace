@@ -38,4 +38,7 @@ public abstract class WaterAnimal extends PathfinderMob {
 
     @Override
     public boolean isPushedByFluid() { return false; }
+
+    @Override
+    public boolean checkSpawnObstruction(ChunkLevel level) { return level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox())); }
 }

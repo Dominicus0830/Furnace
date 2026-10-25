@@ -94,6 +94,11 @@ public abstract class AgeableMob extends PathfinderMob {
         forcedAge = tag.getInt("ForcedAge");
     }
 
+    @Override
+    public Object finalizeSpawnGroup(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, Object group) {
+        return finalizeSpawn(r, difficulty, group instanceof GroupData g ? g : null);
+    }
+
     /** AgeableMob.finalizeSpawn: 그룹 데이터가 없으면 새로 만들어, 확률로 아기를 낸다. */
     public static class GroupData {
         public int groupSize;

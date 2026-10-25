@@ -158,4 +158,7 @@ public class Ravager extends Raider {
     @Override protected String getHurtSound(Damage source) { return "entity.ravager.hurt"; }
 
     @Override protected String getDeathSound() { return "entity.ravager.death"; }
+
+    @Override
+    public boolean checkSpawnObstruction(ChunkLevel level) { return !level.containsAnyLiquid(boundingBox()); }
 }

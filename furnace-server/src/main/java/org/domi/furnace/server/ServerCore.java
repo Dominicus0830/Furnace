@@ -431,6 +431,10 @@ public final class ServerCore {
             return ServerCore.this.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
         }
         public String biomeAt(int x, int y, int z) { return lootWorld.biomeAt(x, y, z); }
+        public long seed() { return levelData.seed; }
+        public int[] sharedSpawnPos() { return new int[] {levelData.spawnX, levelData.spawnY, levelData.spawnZ}; }
+        public boolean spawnMonsters() { return settings.get().spawnMonsters; }
+        public boolean spawnAnimals() { return settings.get().spawnAnimals; }
         public int simulationDistance() { return settings.get().simulationDistance; }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
         public Object recipes() { return ServerCore.this.recipes(); }

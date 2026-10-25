@@ -301,4 +301,7 @@ public class Drowned extends Zombie implements RangedAttackMob {
             drowned.setAggressive(false);
         }
     }
+
+    @Override
+    public boolean checkSpawnObstruction(ChunkLevel level) { return level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox())); }
 }

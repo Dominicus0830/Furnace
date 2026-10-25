@@ -60,6 +60,17 @@ public interface LevelServices {
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
+    /** 월드 시드(슬라임 청크 …). */
+    default long seed() { return 0L; }
+
+    /** 월드 스폰 지점 {x, y, z}. */
+    default int[] sharedSpawnPos() { return new int[] {0, 64, 0}; }
+
+    /** server.properties spawn-monsters / spawn-animals. */
+    default boolean spawnMonsters() { return true; }
+
+    default boolean spawnAnimals() { return true; }
+
     /** server.properties simulation-distance. */
     default int simulationDistance() { return 10; }
 
@@ -127,5 +138,9 @@ public interface LevelServices {
         public void unpackContainerLoot(Object container) { d.unpackContainerLoot(container); }
         public Object recipes() { return d.recipes(); }
         public boolean biomeIs(int x, int y, int z, String tag) { return d.biomeIs(x, y, z, tag); }
+        public long seed() { return d.seed(); }
+        public int[] sharedSpawnPos() { return d.sharedSpawnPos(); }
+        public boolean spawnMonsters() { return d.spawnMonsters(); }
+        public boolean spawnAnimals() { return d.spawnAnimals(); }
     }
 }

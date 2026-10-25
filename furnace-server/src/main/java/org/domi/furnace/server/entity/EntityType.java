@@ -11,6 +11,10 @@ public record EntityType(String name, int id, float width, float height, float e
                          int clientTrackingRange, int updateInterval, boolean trackDeltas, boolean fireImmune) {
 
     private static final Map<String, Integer> IDS = loadIds();
+    private static final Map<String, EntityType> BY_NAME = new HashMap<>();
+
+    /** 이름(minecraft:zombie)으로 종류를 찾는다. 없으면 null. */
+    public static EntityType byName(String name) { return BY_NAME.get(name); }
 
     /** EntityType.ITEM: sized(0.25, 0.25).eyeHeight(0.2125).clientTrackingRange(6).updateInterval(20). */
     public static final EntityType ITEM = of("minecraft:item", 0.25F, 0.25F, 0.2125F, 6, 20, true, false);
@@ -312,7 +316,9 @@ public record EntityType(String name, int id, float width, float height, float e
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
         if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);
-        return new EntityType(name, id, w, h, eye, range, interval, deltas, fireImmune);
+        EntityType t = new EntityType(name, id, w, h, eye, range, interval, deltas, fireImmune);
+        BY_NAME.put(name, t);
+        return t;
     }
 
     private static Map<String, Integer> loadIds() {

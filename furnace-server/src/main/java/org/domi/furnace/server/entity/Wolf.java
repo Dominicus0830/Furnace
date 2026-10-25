@@ -243,4 +243,5 @@ public class Wolf extends TamableAnimal implements NeutralMob {
 
     /** 무리 크기(Mob.getMaxSpawnClusterSize)는 자연 스폰 때 쓴다. */
     public int maxSpawnClusterSize() { return 8; }
+    @Override public int getMaxSpawnClusterSize() { return 8; }
 }

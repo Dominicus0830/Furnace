@@ -257,4 +257,7 @@ public class Guardian extends Monster {
             }
         }
     }
+
+    @Override
+    public boolean checkSpawnObstruction(ChunkLevel level) { return level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox())); }
 }

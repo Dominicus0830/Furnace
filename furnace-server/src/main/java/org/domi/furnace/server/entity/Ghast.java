@@ -207,4 +207,5 @@ public class Ghast extends FlyingMob implements Enemy {
             }
         }
     }
+    @Override public int getMaxSpawnClusterSize() { return 1; }
 }

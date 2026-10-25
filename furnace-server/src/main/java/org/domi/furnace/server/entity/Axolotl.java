@@ -248,4 +248,7 @@ public class Axolotl extends Animal {
             if (!axolotl.isPlayingDead()) super.tick();
         }
     }
+
+    @Override
+    public boolean checkSpawnObstruction(ChunkLevel level) { return level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox())); }
 }

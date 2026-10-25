@@ -134,4 +134,5 @@ public abstract class AbstractFish extends WaterAnimal {
         @Override
         public boolean canUse() { return fish.canRandomSwim() && super.canUse(); }
     }
+    @Override public int getMaxSpawnClusterSize() { return 8; }
 }

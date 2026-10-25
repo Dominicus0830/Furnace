@@ -922,6 +922,31 @@ public abstract class ChunkLevel implements BlockLevel {
         org.domi.furnace.server.entity.ExperienceOrb.award(this, x, y, z, amount);
     }
 
+    public long worldSeed() { return services().seed(); }
+
+    public int[] sharedSpawnPos() { return services().sharedSpawnPos(); }
+
+    public boolean spawnMonstersAllowed() { return services().spawnMonsters(); }
+
+    public boolean spawnAnimalsAllowed() { return services().spawnAnimals(); }
+
+    /** Level.getNearestPlayer(x, y, z, 거리, ignoreCreativeAndSpectators): 관전자(옵션으로 크리에이티브도) 제외 가장 가까운 플레이어. 거리가 음수면 제한 없음. */
+    public Player getNearestPlayer(double x, double y, double z, double dist, boolean ignoreCreative) {
+        Player[] best = new Player[1];
+        double[] bestD = {dist < 0.0 ? Double.MAX_VALUE : dist * dist};
+        services().forEachPlayer(p -> {
+            if (p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            if (ignoreCreative && p.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE) return;
+            double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
+            double d = dx * dx + dy * dy + dz * dz;
+            if (d < bestD[0]) {
+                bestD[0] = d;
+                best[0] = p;
+            }
+        });
+        return best[0];
+    }
+
     /** Level.getNearestPlayer(entity, 거리): 관전자가 아닌 가장 가까운 플레이어(거리 안에서), 없으면 null. */
     public Player getNearestPlayer(Entity from, double dist) {
         Player[] best = new Player[1];
@@ -1172,6 +1197,12 @@ public abstract class ChunkLevel implements BlockLevel {
     public int getMotionBlockingHeight(int x, int z) {
         ChunkColumn col = chunk(x >> 4, z >> 4);
         return col == null ? ChunkColumn.MIN_Y : col.motionBlockingBlockY(x & 15, z & 15) + 1;
+    }
+
+    /** Level.getHeight(WORLD_SURFACE, x, z): 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
+    public int getWorldSurfaceHeight(int x, int z) {
+        ChunkColumn col = chunk(x >> 4, z >> 4);
+        return col == null ? ChunkColumn.MIN_Y : col.surfaceBlockY(x & 15, z & 15) + 1;
     }
 
     /** LevelReader.canSeeSky(pos): 그 칸 위로 움직임을 막는 블록이 없다. */

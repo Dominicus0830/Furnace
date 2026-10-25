@@ -18,6 +18,12 @@ public abstract class AbstractSchoolingFish extends AbstractFish {
         goalSelector.addGoal(5, new FollowFlockLeaderGoal(this));
     }
 
+    @Override
+    public Object finalizeSpawnGroup(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, Object group) {
+        return finalizeSpawn(r, difficulty, group instanceof SchoolSpawnGroupData g ? g : null);
+    }
+
+    @Override
     public int getMaxSpawnClusterSize() { return getMaxSchoolSize(); }
 
     public int getMaxSchoolSize() { return 8; }

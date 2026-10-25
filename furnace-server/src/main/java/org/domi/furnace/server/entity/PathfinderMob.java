@@ -13,6 +13,10 @@ public abstract class PathfinderMob extends Mob {
 
     public float getWalkTargetValue(Pos pos, ChunkLevel level) { return 0.0F; }
 
+    /** PathfinderMob.checkSpawnRules: 걷기 선호도가 음수가 아닌 칸. */
+    @Override
+    public boolean checkSpawnRules(ChunkLevel level, org.domi.furnace.server.entity.spawn.SpawnReason reason) { return getWalkTargetValue(blockPosition(), level) >= 0.0F; }
+
     /** PathfinderMob.isPanicking: 달리는 PanicGoal 이 있나. */
     public boolean isPanicking() {
         if (brain != null && brain.checkMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.IS_PANICKING, org.domi.furnace.server.entity.ai.brain.MemoryStatus.REGISTERED)) {

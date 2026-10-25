@@ -433,4 +433,5 @@ public abstract class AbstractHorse extends Animal {
         randomizeAttributes(r);
         return super.finalizeSpawn(r, difficulty, data);
     }
+    @Override public int getMaxSpawnClusterSize() { return 6; }
 }

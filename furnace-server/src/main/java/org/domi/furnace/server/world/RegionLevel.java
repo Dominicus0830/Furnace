@@ -157,9 +157,20 @@ public final class RegionLevel extends ChunkLevel {
         if (count > 0) {
             shuffle(tickingChunks, count);
             int speed = gameRuleInt("randomTickSpeed");
+            // ServerChunkCache.tickChunks: 몹 수를 세고, 청크마다 자연 스폰(doMobSpawning)한 뒤 무작위 틱
+            boolean spawnMonsters = spawnMonstersAllowed() && difficulty() != 0, spawnAnimals = spawnAnimalsAllowed();
+            org.domi.furnace.server.entity.spawn.NaturalSpawner.SpawnState spawnState = null;
+            if (gameRule("doMobSpawning") && (spawnMonsters || spawnAnimals)) {
+                spawnState = org.domi.furnace.server.entity.spawn.NaturalSpawner.createState(count, entities().tickSnapshot(), this);
+            }
+            boolean spawnPassives = gameTime() % 400L == 0L;
             for (int i = 0; i < count; i++) {
                 long k = tickingChunks[i];
-                tickChunk(Regionizer.chunkX(k), Regionizer.chunkZ(k), speed);
+                int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
+                if (spawnState != null && withinBorder(new org.domi.furnace.server.block.Pos(cx * 16 + 8, 64, cz * 16 + 8))) {
+                    org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnForChunk(this, cx, cz, spawnState, spawnAnimals, spawnMonsters, spawnPassives);
+                }
+                tickChunk(cx, cz, speed);
             }
         }
         broadcastChanges();
