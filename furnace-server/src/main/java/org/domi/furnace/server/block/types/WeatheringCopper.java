@@ -49,6 +49,17 @@ public final class WeatheringCopper {
         return b == null ? -1 : B.withPropertiesOf(b, state);
     }
 
+    /** getFirst(state): 산화 사슬의 처음(산화 안 된) 블록의 같은 속성 상태. 사슬 블록이 아니면 그대로. */
+    public static int first(int state) {
+        int b = B.block(state);
+        for (String[] c : CHAINS) {
+            for (String n : c) {
+                if (B.id(n) == b) return B.withPropertiesOf(B.id(c[0]), state);
+            }
+        }
+        return state;
+    }
+
     /** isRandomlyTicking: 다음 단계가 있으면. */
     public static boolean hasNext(int block) { return NEXT.containsKey(block); }
 

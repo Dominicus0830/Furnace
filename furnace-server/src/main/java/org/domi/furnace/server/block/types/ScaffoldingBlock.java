@@ -45,7 +45,7 @@ public class ScaffoldingBlock extends BlockBehavior {
         int s = BOTTOM.with(DISTANCE.withInt(state, d), isBottom(level, pos, d));
         if (DISTANCE.intValue(s) == 7) {
             if (DISTANCE.intValue(state) == 7) {
-                // TODO(엔티티): FallingBlockEntity.fall(level, pos, s)
+                level.spawnFallingBlock(pos, s);
             } else {
                 level.destroyBlock(pos, true);
             }

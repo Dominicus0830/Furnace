@@ -274,6 +274,12 @@ public record EntityType(String name, int id, float width, float height, float e
     /** TEXT_DISPLAY: sized(0.0F, 0.0F). */
     public static final EntityType TEXT_DISPLAY = of("minecraft:text_display", 0.0F, 0.0F, 0.0F * 0.85F, 10, 1, true, false);
 
+    /** FALLING_BLOCK: sized(0.98F, 0.98F). */
+    public static final EntityType FALLING_BLOCK = of("minecraft:falling_block", 0.98F, 0.98F, 0.98F * 0.85F, 10, 20, true, false);
+
+    /** LIGHTNING_BOLT: noSave, sized(0.0F, 0.0F).clientTrackingRange(16).updateInterval(Integer.MAX_VALUE). */
+    public static final EntityType LIGHTNING_BOLT = of("minecraft:lightning_bolt", 0.0F, 0.0F, 0.0F * 0.85F, 16, Integer.MAX_VALUE, true, false);
+
     /** ARMOR_STAND: sized(0.5F, 1.975F).eyeHeight(1.7775). */
     public static final EntityType ARMOR_STAND = of("minecraft:armor_stand", 0.5F, 1.975F, 1.7775F, 10, 3, true, false);
 

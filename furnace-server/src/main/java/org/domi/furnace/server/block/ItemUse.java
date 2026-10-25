@@ -275,13 +275,15 @@ public final class ItemUse {
             case "minecraft:debug_stick": return debugStickOn(level, player, hand, hit, stack);
             case "minecraft:compass": return compassOn(level, player, hand, hit, stack);
             case "minecraft:ender_eye": return enderEyeOn(level, player, hand, hit, stack);
+            case "minecraft:armor_stand": return armorStandOn(level, player, hand, hit, stack);
+            case "minecraft:end_crystal": return endCrystalOn(level, player, hand, hit, stack);
             default: break;
         }
         if (n.endsWith("_hoe")) return hoe(level, player, hand, hit, stack);
         if (n.endsWith("_shovel")) return shovel(level, player, hand, hit, stack);
         if (n.endsWith("_axe")) return axe(level, player, hand, hit, stack);
         if (n.endsWith("_spawn_egg")) return spawnEgg(level, player, hand, hit, stack, n);
-        // TODO(엔티티): 수레·액자·그림·갑옷 거치대·끈·엔드 수정·폭죽, 솔(오래 쓰기), 지도.
+        // TODO(엔티티): 수레·액자·그림·끈·폭죽, 솔(오래 쓰기), 지도.
         return InteractionResult.PASS;
     }
 
@@ -299,6 +301,64 @@ public final class ItemUse {
             player.setItemInHand(hand, stack.withCount(stack.count() - 1));
             level.gameEvent("minecraft:entity_place", pos, player, -1);
         }
+        return InteractionResult.sidedSuccess(false);
+    }
+
+    private static float wrapDegrees(float d) {
+        float f = d % 360.0F;
+        if (f >= 180.0F) f -= 360.0F;
+        if (f < -180.0F) f += 360.0F;
+        return f;
+    }
+
+    /** 상자와 겹치는 엔티티(플레이어 포함)가 있는가: level.getEntities(null, box).isEmpty() 의 반대. */
+    private static boolean anyEntityIn(ChunkLevel level, org.domi.furnace.server.entity.AABB box) {
+        if (!level.getEntities(null, box, e -> true).isEmpty()) return true;
+        boolean[] found = {false};
+        level.forEachPlayerIn(box, p -> found[0] = true);
+        return found[0];
+    }
+
+    /** ArmorStandItem.useOn: 아랫면이 아니면, 놓을 칸에 충돌·엔티티가 없을 때 45° 단위로 돌려 거치대를 놓고 머리·몸 자세를 조금 흩는다. */
+    private static InteractionResult armorStandOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
+        if (hit.face() == Dir.DOWN) return InteractionResult.FAIL;
+        if (!(level instanceof ChunkLevel cl)) return InteractionResult.PASS;
+        Pos pos = new PlaceContext(level, player, hand, stack, hit).clickedPos();
+        double bx = pos.x() + 0.5, by = pos.y(), bz = pos.z() + 0.5;
+        org.domi.furnace.server.entity.AABB box = new org.domi.furnace.server.entity.AABB(bx - 0.25, by, bz - 0.25, bx + 0.25, by + 1.975, bz + 0.25);
+        if (!cl.noCollision(box) || anyEntityIn(cl, box)) return InteractionResult.FAIL;
+        var stand = new org.domi.furnace.server.entity.ArmorStand(cl, cl.nextEntityId());
+        float yaw = (float) Math.floor((wrapDegrees(player.yRot() - 180.0F) + 22.5F) / 45.0F) * 45.0F;
+        stand.moveTo(bx, by, bz, yaw, 0.0F);
+        RandomSource r = cl.random();
+        float[] head = stand.pose(0).clone();
+        float f = r.nextFloat() * 5.0F, g = r.nextFloat() * 20.0F - 10.0F;
+        stand.setPose(0, new float[] {head[0] + f, head[1] + g, head[2]});
+        float[] body = stand.pose(1).clone();
+        stand.setPose(1, new float[] {body[0], body[1] + (r.nextFloat() * 10.0F - 5.0F), body[2]});
+        cl.addFreshEntity(stand);
+        cl.playSound(null, bx, by, bz, "minecraft:entity.armor_stand.place", "blocks", 0.75F, 0.8F);
+        cl.gameEvent("minecraft:entity_place", pos, player, -1);
+        player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+        return InteractionResult.sidedSuccess(false);
+    }
+
+    /** EndCrystalItem.useOn: 흑요석·기반암 위의 빈 칸(위 2칸에 엔티티 없음)에 받침 없는 수정을 놓는다. */
+    private static InteractionResult endCrystalOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
+        int state = level.getBlockState(hit.pos());
+        if (!B.is(state, "minecraft:obsidian") && !B.is(state, "minecraft:bedrock")) return InteractionResult.FAIL;
+        Pos above = hit.pos().above();
+        if (!level.isEmptyBlock(above)) return InteractionResult.FAIL;
+        if (!(level instanceof ChunkLevel cl)) return InteractionResult.PASS;
+        double x = above.x(), y = above.y(), z = above.z();
+        if (anyEntityIn(cl, new org.domi.furnace.server.entity.AABB(x, y, z, x + 1.0, y + 2.0, z + 1.0))) return InteractionResult.FAIL;
+        var crystal = new org.domi.furnace.server.entity.EndCrystal(cl, cl.nextEntityId());
+        crystal.moveTo(x + 0.5, y, z + 0.5, 0.0F, 0.0F);
+        crystal.setShowBottom(false);
+        cl.addFreshEntity(crystal);
+        cl.gameEvent("minecraft:entity_place", above, player, -1);
+        // TODO(드래곤 전투): getDragonFight().tryRespawn()
+        player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         return InteractionResult.sidedSuccess(false);
     }
 

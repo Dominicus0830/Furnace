@@ -94,4 +94,49 @@ class WindChargeTest {
         assertTrue(stand.isRemoved(), "5틱 안 두 번째 타격에 부서진다");
         assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof ItemEntity), "장비가 떨어졌다");
     }
+
+    @Test
+    void fallingSandLandsOnGroundAndAnvilHurtsMob() {
+        var level = new BlockPlacementTest.TestLevel();
+        Pos from = new Pos(8, -52, 8);
+        level.setBlock(from, B.defaultState("sand"), 3);
+        FallingBlockEntity sand = FallingBlockEntity.fall(level, from, B.defaultState("sand"));
+        assertTrue(B.isAir(level.getBlockState(from)), "원래 자리는 비었다");
+        for (int t = 0; t < 100 && !sand.isRemoved(); t++) sand.tick();
+        assertTrue(sand.isRemoved());
+        assertTrue(B.is(level.getBlockState(new Pos(8, -60, 8)), "sand"), "땅 위에 내려앉았다");
+
+        Cow cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(10.5, -60.0, 10.5, 0, 0);
+        level.addFreshEntity(cow);
+        float hp = cow.health();
+        FallingBlockEntity anvil = FallingBlockEntity.fall(level, new Pos(10, -50, 10), B.defaultState("anvil"));
+        anvil.setHurtsEntities(2.0F, 40);
+        for (int t = 0; t < 100 && !anvil.isRemoved(); t++) {
+            anvil.tick();
+            if (anvil.onGround() && !anvil.isRemoved()) break;
+        }
+        assertTrue(cow.health() < hp, "모루가 소를 다치게 했다");
+    }
+
+    @Test
+    void lightningIgnitesPigsIntoZombifiedPiglinsAndFlashesOut() {
+        var level = new BlockPlacementTest.TestLevel();
+        Pig pig = new Pig(level, level.nextEntityId());
+        pig.moveTo(6.5, -60.0, 6.5, 0, 0);
+        level.addFreshEntity(pig);
+        Creeper creeper = new Creeper(level, level.nextEntityId());
+        creeper.moveTo(7.5, -60.0, 6.5, 0, 0);
+        level.addFreshEntity(creeper);
+        LightningBolt bolt = new LightningBolt(level, level.nextEntityId());
+        bolt.moveTo(6.5, -60.0, 6.5, 0, 0);
+        level.addFreshEntity(bolt);
+        for (int t = 0; t < 60 && !bolt.isRemoved(); t++) bolt.tick();
+        assertTrue(bolt.isRemoved(), "번개는 곧 사라진다");
+        assertTrue(creeper.isPowered(), "크리퍼가 충전됐다");
+        if (level.difficulty() != 0) {
+            assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof ZombifiedPiglin), "돼지가 좀비 피글린이 됐다");
+        }
+        assertNull(bolt.save(), "번개는 저장되지 않는다");
+    }
 }

@@ -46,7 +46,15 @@ public class PointedDripstoneBlock extends BlockBehavior {
         return THICKNESS.with(state, calculateDripstoneThickness(level, pos, tip, mergeOpposite));
     }
 
-    // TODO(엔티티): onProjectileHit(속도 0.6 넘는 삼지창이면 부순다)·fallOn(석순 끝이면 피해 2배)·onBrokenAfterFall(1045).
+    // TODO(엔티티): onProjectileHit(속도 0.6 넘는 삼지창이면 부순다)·fallOn(석순 끝이면 피해 2배).
+
+    @Override
+    public String fallDamageType() { return "falling_stalactite"; }
+
+    @Override
+    public void onBrokenAfterFall(BlockLevel level, Pos pos, boolean silent) {
+        if (!silent) level.levelEvent(null, 1045, pos, 0);
+    }
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
@@ -108,7 +116,18 @@ public class PointedDripstoneBlock extends BlockBehavior {
 
     /** spawnFallingStalactite: 종유석 줄기를 끝까지 떨어뜨린다. */
     private static void spawnFallingStalactite(int state, BlockLevel level, Pos pos) {
-        // TODO(엔티티): FallingBlockEntity.fall — 위에서부터 끝(tip)까지 칸마다 떨어지는 블록을 만들고, 끝 블록에 피해(높이 기반, 최대 40)를 준다.
+        Pos p = pos;
+        int s = state;
+        while (isStalactite(s)) {
+            Object e = level.spawnFallingBlock(p, s);
+            if (isTip(s, true)) {
+                int height = Math.max(1 + pos.y() - p.y(), 6);
+                if (e instanceof org.domi.furnace.server.entity.FallingBlockEntity f) f.setHurtsEntities(1.0F * height, 40);
+                break;
+            }
+            p = p.below();
+            s = level.getBlockState(p);
+        }
     }
 
     /** growStalactiteOrStalagmiteIfPossible: 위가 점적석 블록+물 원천이면 끝을 아래로 늘리거나 바닥 석순을 키운다. */

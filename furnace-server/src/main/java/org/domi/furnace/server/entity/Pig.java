@@ -46,6 +46,18 @@ public class Pig extends Animal {
     @Override
     public boolean isFood(ItemStack s) { return ItemTags.is(s, "minecraft:pig_food"); }
 
+    @Override
+    public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {
+        if (level.difficulty() != 0) {
+            ZombifiedPiglin piglin = new ZombifiedPiglin(level, level.nextEntityId());
+            piglin.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:golden_sword"), 1));
+            piglin.persistenceRequired = true;
+            convertTo(piglin, false);
+        } else {
+            super.thunderHit(level, bolt);
+        }
+    }
+
     public boolean isSaddled() { return (Boolean) entityData.get(DATA_SADDLE); }
 
     public void setSaddled(boolean v) { entityData.set(DATA_SADDLE, v); }

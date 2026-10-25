@@ -83,6 +83,18 @@ public class BlockBehavior {
     /** Block.dropFromExplosion: 폭발이 부술 때 전리품을 떨구는가. */
     public boolean dropFromExplosion() { return true; }
 
+    /** Fallable.getFallDamageSource: 떨어지는 블록이 맞힐 때의 피해 종류. */
+    public String fallDamageType() { return "falling_block"; }
+
+    /** Fallable.onLand: 떨어지던 블록이 내려앉았다(replaced 는 원래 그 자리 상태). */
+    public void onLand(BlockLevel level, Pos pos, int state, int replaced, boolean silent) {}
+
+    /** Fallable.onBrokenAfterFall: 내려앉지 못하고 부서졌다. */
+    public void onBrokenAfterFall(BlockLevel level, Pos pos, boolean silent) {}
+
+    /** Fallable.falling(entity): 떨어지는 엔티티가 만들어질 때 손볼 것(모루 피해 설정). 엔티티는 FallingBlockEntity. */
+    public void falling(Object fallingBlockEntity) {}
+
     /** Block.onExplosionHit: 블록을 터뜨리는 폭발(윈드 차지)이 맞았을 때. */
     public void onExplosionHit(int state, BlockLevel level, Pos pos, Explosion explosion) {}
 

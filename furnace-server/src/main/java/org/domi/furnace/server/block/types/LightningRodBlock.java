@@ -30,6 +30,9 @@ public class LightningRodBlock extends DirectionalBlock {
     @Override
     public int getDirectSignal(int state, BlockLevel level, Pos pos, int dir) { return POWERED.is(state) && facing(state) == dir ? 15 : 0; }
 
+    /** 붙어 있는 쪽(바닐라 facing.getOpposite()). */
+    public int attachedDirection(int state) { return Dir.opposite(facing(state)); }
+
     /** onLightningStrike: 켜고 이웃 알림, 8틱 뒤 꺼짐, 전기 불꽃 이벤트(3002, 축). */
     public void onLightningStrike(int state, BlockLevel level, Pos pos) {
         level.setBlock(pos, POWERED.with(state, true), 3);

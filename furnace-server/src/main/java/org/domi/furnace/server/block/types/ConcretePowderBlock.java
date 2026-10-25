@@ -18,8 +18,9 @@ public class ConcretePowderBlock extends FallingBlock {
         this.concrete = B.id(Blocks.get().params(block).get("concrete").getAsString());
     }
 
-    /** onLand(떨어진 블록이 내려앉을 때): 물에 닿으면 콘크리트. TODO(엔티티): FallingBlockEntity 가 부른다. */
-    public void onLand(BlockLevel level, Pos pos, int state, int replaced) {
+    /** onLand(떨어진 블록이 내려앉을 때): 물에 닿으면 콘크리트. */
+    @Override
+    public void onLand(BlockLevel level, Pos pos, int state, int replaced, boolean silent) {
         if (shouldSolidify(level, pos, replaced)) level.setBlock(pos, B.defaultState(concrete), 3);
     }
 

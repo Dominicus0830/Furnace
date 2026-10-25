@@ -391,6 +391,21 @@ public abstract class ChunkLevel implements BlockLevel {
         }
     }
 
+    /**
+     * ServerLevel.findLightningTargetAround: 피뢰침 → 하늘이 보이는 생물 하나 → 지표.
+     * TODO(POI): 피뢰침 끌어당김(PoiManager.findClosest, 반경 128)은 POI 구현 때.
+     */
+    private Pos findLightningTargetAround(Pos pos) {
+        Pos top = new Pos(pos.x(), getMotionBlockingHeight(pos.x(), pos.z()), pos.z());
+        org.domi.furnace.server.entity.AABB box = new org.domi.furnace.server.entity.AABB(top.x(), top.y(), top.z(), top.x() + 1, maxBuildHeight() + 1, top.z() + 1).inflate(3.0);
+        var list = new java.util.ArrayList<Pos>();
+        for (var e : getEntitiesOfClass(org.domi.furnace.server.entity.LivingEntity.class, box, t -> t.isAlive() && canSeeSky(t.blockPosition()))) list.add(e.blockPosition());
+        forEachPlayerIn(box, p -> { if (p.isAlive() && canSeeSky(p.blockPosition())) list.add(p.blockPosition()); });
+        if (!list.isEmpty()) return list.get(random.nextInt(list.size()));
+        if (top.y() == minBuildHeight() - 1) top = top.above(2);
+        return top;
+    }
+
     /** Level.getBlockRandomPos(x, y, z, 15): randValue = randValue·3 + 1013904223, 그 >> 2 의 비트로 칸 안 위치. */
     private Pos blockRandomPos(int x, int y, int z) {
         randValue = randValue * 3 + 1013904223;
@@ -408,8 +423,23 @@ public abstract class ChunkLevel implements BlockLevel {
         int x0 = chunkX << 4, z0 = chunkZ << 4;
         boolean raining = isRaining();
         if (raining && isThundering() && random.nextInt(100000) == 0) {
-            // TODO(엔티티): 번개 — findLightningTargetAround(getBlockRandomPos) → 비 오는 칸이면 해골 말 덫(1%·난이도)·번개 엔티티.
-            blockRandomPos(x0, 0, z0);
+            Pos strike = findLightningTargetAround(blockRandomPos(x0, 0, z0));
+            if (isRainingAt(strike)) {
+                var diff = getCurrentDifficultyAt(strike);
+                boolean trap = gameRule("doMobSpawning") && random.nextDouble() < diff.effectiveDifficulty() * 0.01
+                        && !B.is(getBlockState(strike.below()), "lightning_rod");
+                if (trap) {
+                    var horse = new org.domi.furnace.server.entity.SkeletonHorse(this, nextEntityId());
+                    horse.setTrap(true);
+                    horse.setAge(0);
+                    horse.setPos(strike.x(), strike.y(), strike.z());
+                    addFreshEntity(horse);
+                }
+                var bolt = new org.domi.furnace.server.entity.LightningBolt(this, nextEntityId());
+                bolt.moveTo(strike.x() + 0.5, strike.y(), strike.z() + 0.5, 0.0F, 0.0F);
+                bolt.setVisualOnly(trap);
+                addFreshEntity(bolt);
+            }
         }
         for (int l = 0; l < randomTickSpeed; l++) {
             if (random.nextInt(48) == 0) tickPrecipitation(col, blockRandomPos(x0, 0, z0));
@@ -962,6 +992,9 @@ public abstract class ChunkLevel implements BlockLevel {
         addFreshEntity(sf);
         sf.spawnAnim();
     }
+
+    @Override
+    public Object spawnFallingBlock(Pos pos, int state) { return org.domi.furnace.server.entity.FallingBlockEntity.fall(this, pos, state); }
 
     /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
     @Override

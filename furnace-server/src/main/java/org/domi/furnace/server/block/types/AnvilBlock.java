@@ -30,7 +30,23 @@ public class AnvilBlock extends FallingBlock {
         return InteractionResult.CONSUME;
     }
 
-    // TODO(엔티티): falling — 떨어지는 모루 피해(2.0, 최대 40); onLand(1031 소리, 무음이 아니면); onBrokenAfterFall(1029).
+    @Override
+    public void falling(Object entity) {
+        if (entity instanceof org.domi.furnace.server.entity.FallingBlockEntity f) f.setHurtsEntities(2.0F, 40);
+    }
+
+    @Override
+    public String fallDamageType() { return "falling_anvil"; }
+
+    @Override
+    public void onLand(BlockLevel level, Pos pos, int state, int replaced, boolean silent) {
+        if (!silent) level.levelEvent(null, 1031, pos, 0);
+    }
+
+    @Override
+    public void onBrokenAfterFall(BlockLevel level, Pos pos, boolean silent) {
+        if (!silent) level.levelEvent(null, 1029, pos, 0);
+    }
 
     /** damage: 멀쩡 → 금 간 → 많이 손상된(그다음은 없음 = -1). */
     public static int damage(int state) {

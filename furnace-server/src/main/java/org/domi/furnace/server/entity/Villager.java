@@ -50,6 +50,21 @@ public final class Villager extends Mob implements Merchant {
     public Villager(ChunkLevel level, int id) { super(EntityType.VILLAGER, level, id); }
 
     @Override
+    public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {
+        if (level.difficulty() != 0) {
+            Witch witch = new Witch(level, level.nextEntityId());
+            witch.moveTo(x(), y(), z(), yRot(), xRot());
+            witch.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(witch.blockPosition()));
+            witch.setNoAi(isNoAi());
+            witch.persistenceRequired = true;
+            level.addFreshEntity(witch);
+            discard();
+        } else {
+            super.thunderHit(level, bolt);
+        }
+    }
+
+    @Override
     protected void createAttributes(org.domi.furnace.server.attribute.AttributeMap map) {
         super.createAttributes(map);
         map.add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.5);

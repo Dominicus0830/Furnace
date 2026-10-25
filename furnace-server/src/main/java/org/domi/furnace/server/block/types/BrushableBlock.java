@@ -39,7 +39,14 @@ public class BrushableBlock extends BaseEntityBlock {
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
         // TODO(블록 엔티티): BrushableBlockEntity.checkReset — 솔질이 멈춘 뒤 dusted 를 되돌린다.
         if (FallingBlock.isFree(level.getBlockState(pos.below())) && pos.y() >= level.minBuildHeight()) {
-            // TODO(엔티티): FallingBlockEntity.fall — 떨어지는 블록 엔티티(그 자리는 유체의 레거시 블록으로).
+            Object e = level.spawnFallingBlock(pos, state);
+            if (e instanceof org.domi.furnace.server.entity.FallingBlockEntity f) f.disableDrop();
         }
+    }
+
+    @Override
+    public void onBrokenAfterFall(BlockLevel level, Pos pos, boolean silent) {
+        // 부서지는 입자와 소리(레벨 이벤트 2001)는 떨어진 블록 상태 기준: 이 블록의 가루 상태
+        level.levelEvent(null, 2001, pos, defaultState());
     }
 }

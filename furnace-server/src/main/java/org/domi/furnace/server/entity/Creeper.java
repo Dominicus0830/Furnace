@@ -90,6 +90,12 @@ public class Creeper extends Monster {
         super.tick();
     }
 
+    @Override
+    public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {
+        super.thunderHit(level, bolt);
+        entityData.set(DATA_IS_POWERED, true);
+    }
+
     public boolean isPowered() { return (Boolean) entityData.get(DATA_IS_POWERED); }
 
     @Override

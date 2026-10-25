@@ -406,6 +406,13 @@ public abstract class Entity {
     /** markHurt: 다음 추적 갱신에서 속도를 바로 보낸다. */
     public void markHurt() { hurtMarked = true; }
 
+    /** Entity.thunderHit: 번개에 맞으면 불이 붙고(이미 붙었으면 시간 연장) 5 피해. */
+    public void thunderHit(ChunkLevel level, LightningBolt bolt) {
+        remainingFireTicks++;
+        if (remainingFireTicks == 0) igniteForSeconds(8.0F);
+        hurt(new Damage("lightning_bolt", false, false, false), 5.0F);
+    }
+
     /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않는다. */
     public boolean causeFallDamage(float distance, float multiplier) { return false; }
 
@@ -906,8 +913,12 @@ public abstract class Entity {
         return tag;
     }
 
+    /** EntityType.canSerialize: 번개처럼 저장하지 않는 종류는 false. */
+    public boolean shouldSave() { return true; }
+
     /** saveAsPassenger 의 id 를 붙인 저장. 저장하지 않는 엔티티면 null. */
     public NbtCompound save() {
+        if (!shouldSave()) return null;
         if (isRemoved() && !removalReason.shouldSave()) return null;
         NbtCompound tag = new NbtCompound();
         tag.putString("id", type.name());

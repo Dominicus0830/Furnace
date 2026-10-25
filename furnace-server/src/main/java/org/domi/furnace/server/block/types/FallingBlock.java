@@ -23,7 +23,8 @@ public abstract class FallingBlock extends BlockBehavior {
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (isFree(level.getBlockState(pos.below())) && pos.y() >= level.minBuildHeight()) {
-            // TODO(엔티티): FallingBlockEntity.fall — 칸을 유체(없으면 공기)로 바꾸고 떨어지는 블록 엔티티를 만든다(falling(entity) 훅).
+            Object e = level.spawnFallingBlock(pos, state);
+            if (e != null) falling(e);
         }
     }
 
