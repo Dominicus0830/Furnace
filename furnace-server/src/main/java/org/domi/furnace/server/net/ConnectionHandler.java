@@ -1445,6 +1445,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (dx * dx + dy * dy + dz * dz >= 36.0) return;
         if (action == 1) {
             if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
+            else if (e.isPickable()) region.attackEntity(p, e);
+        } else if (e instanceof org.domi.furnace.server.entity.HangingEntity hanging) {
+            if (action == 0) hanging.interact(p, hand);
         } else if (e instanceof org.domi.furnace.server.entity.ArmorStand stand) {
             if (action == 2) stand.interactAt(p, hitY, hand);
         } else if (e instanceof org.domi.furnace.server.entity.Mob mob && !(e instanceof org.domi.furnace.server.entity.Villager) && action == 0) {

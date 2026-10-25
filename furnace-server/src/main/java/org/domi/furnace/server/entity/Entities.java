@@ -30,6 +30,13 @@ public final class Entities {
             case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());
             case "minecraft:experience_bottle" -> new ThrownExperienceBottle(level, level.nextEntityId());
             case "minecraft:egg" -> new ThrownEgg(level, level.nextEntityId());
+            case "minecraft:ominous_item_spawner" -> new OminousItemSpawner(level, level.nextEntityId());
+            case "minecraft:firework_rocket" -> new FireworkRocketEntity(level, level.nextEntityId());
+            case "minecraft:eye_of_ender" -> new EyeOfEnder(level, level.nextEntityId());
+            case "minecraft:leash_knot" -> new LeashFenceKnotEntity(level, level.nextEntityId());
+            case "minecraft:item_frame" -> new ItemFrame(level, level.nextEntityId());
+            case "minecraft:glow_item_frame" -> new GlowItemFrame(level, level.nextEntityId());
+            case "minecraft:painting" -> new Painting(level, level.nextEntityId());
             case "minecraft:lightning_bolt" -> new LightningBolt(level, level.nextEntityId());
             case "minecraft:falling_block" -> new FallingBlockEntity(level, level.nextEntityId());
             case "minecraft:armor_stand" -> new ArmorStand(level, level.nextEntityId());
@@ -143,6 +150,13 @@ public final class Entities {
             case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());
             case "minecraft:experience_bottle" -> new ThrownExperienceBottle(level, level.nextEntityId());
             case "minecraft:egg" -> new ThrownEgg(level, level.nextEntityId());
+            case "minecraft:ominous_item_spawner" -> new OminousItemSpawner(level, level.nextEntityId());
+            case "minecraft:firework_rocket" -> new FireworkRocketEntity(level, level.nextEntityId());
+            case "minecraft:eye_of_ender" -> new EyeOfEnder(level, level.nextEntityId());
+            case "minecraft:leash_knot" -> new LeashFenceKnotEntity(level, level.nextEntityId());
+            case "minecraft:item_frame" -> new ItemFrame(level, level.nextEntityId());
+            case "minecraft:glow_item_frame" -> new GlowItemFrame(level, level.nextEntityId());
+            case "minecraft:painting" -> new Painting(level, level.nextEntityId());
             case "minecraft:lightning_bolt" -> new LightningBolt(level, level.nextEntityId());
             case "minecraft:falling_block" -> new FallingBlockEntity(level, level.nextEntityId());
             case "minecraft:armor_stand" -> new ArmorStand(level, level.nextEntityId());

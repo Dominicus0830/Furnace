@@ -406,6 +406,12 @@ public abstract class Entity {
     /** markHurt: 다음 추적 갱신에서 속도를 바로 보낸다. */
     public void markHurt() { hurtMarked = true; }
 
+    /** 때린 쪽이 있는 피해(플레이어가 액자·그림을 칠 때). 기본은 hurt. */
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) { return hurt(source, amount); }
+
+    /** Entity.skipAttackInteraction: true 면 일반 공격 피해 대신 이 엔티티가 직접 처리한다(액자·그림). */
+    public boolean skipAttackInteraction(Player attacker) { return false; }
+
     /** Entity.thunderHit: 번개에 맞으면 불이 붙고(이미 붙었으면 시간 연장) 5 피해. */
     public void thunderHit(ChunkLevel level, LightningBolt bolt) {
         remainingFireTicks++;

@@ -277,13 +277,15 @@ public final class ItemUse {
             case "minecraft:ender_eye": return enderEyeOn(level, player, hand, hit, stack);
             case "minecraft:armor_stand": return armorStandOn(level, player, hand, hit, stack);
             case "minecraft:end_crystal": return endCrystalOn(level, player, hand, hit, stack);
+            case "minecraft:firework_rocket": return fireworkOn(level, player, hand, hit, stack);
+            case "minecraft:item_frame", "minecraft:glow_item_frame", "minecraft:painting": return hangingOn(level, player, hand, hit, stack, n);
             default: break;
         }
         if (n.endsWith("_hoe")) return hoe(level, player, hand, hit, stack);
         if (n.endsWith("_shovel")) return shovel(level, player, hand, hit, stack);
         if (n.endsWith("_axe")) return axe(level, player, hand, hit, stack);
         if (n.endsWith("_spawn_egg")) return spawnEgg(level, player, hand, hit, stack, n);
-        // TODO(엔티티): 수레·액자·그림·끈·폭죽, 솔(오래 쓰기), 지도.
+        // TODO(엔티티): 수레·끈·폭죽, 솔(오래 쓰기), 지도.
         return InteractionResult.PASS;
     }
 
@@ -339,6 +341,39 @@ public final class ItemUse {
         cl.addFreshEntity(stand);
         cl.playSound(null, bx, by, bz, "minecraft:entity.armor_stand.place", "blocks", 0.75F, 0.8F);
         cl.gameEvent("minecraft:entity_place", pos, player, -1);
+        player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+        return InteractionResult.sidedSuccess(false);
+    }
+
+    /** HangingEntityItem.useOn: 맞은 면 앞 칸에 액자·그림을 만들어, 붙을 수 있으면 놓는다(안 되면 CONSUME). */
+    private static InteractionResult hangingOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack, String itemName) {
+        int face = hit.face();
+        Pos pos = hit.pos().relative(face);
+        if (level.isOutsideBuildHeight(pos.y()) || !mayUseItemAt(level, player, pos, face, stack)) return InteractionResult.FAIL;
+        if (!(level instanceof ChunkLevel cl)) return InteractionResult.PASS;
+        org.domi.furnace.server.entity.HangingEntity entity;
+        if (itemName.equals("minecraft:painting")) {
+            entity = org.domi.furnace.server.entity.Painting.create(cl, pos, face);
+            if (entity == null) return InteractionResult.FAIL;
+        } else {
+            entity = new org.domi.furnace.server.entity.ItemFrame(cl, cl.nextEntityId(), pos, face, itemName.equals("minecraft:glow_item_frame"));
+        }
+        if (!entity.survives()) return InteractionResult.CONSUME;
+        entity.playPlacementSound();
+        cl.gameEvent("minecraft:entity_place", pos, player, -1);
+        cl.addFreshEntity(entity);
+        player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+        return InteractionResult.sidedSuccess(false);
+    }
+
+    /** FireworkRocketItem.useOn: 맞은 지점에서 면 쪽으로 0.15 띄워 로켓을 쏘아 올린다. TODO(겉날개): use() 로 플레이어에 붙은 로켓. */
+    private static InteractionResult fireworkOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
+        if (!(level instanceof ChunkLevel cl)) return InteractionResult.PASS;
+        int f = hit.face();
+        var rocket = new org.domi.furnace.server.entity.FireworkRocketEntity(cl, cl.nextEntityId(),
+                hit.x() + Dir.DX[f] * 0.15, hit.y() + Dir.DY[f] * 0.15, hit.z() + Dir.DZ[f] * 0.15, stack);
+        if (player.handle() instanceof org.domi.furnace.server.entity.Targetable t) rocket.setOwner(t);
+        cl.addFreshEntity(rocket);
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         return InteractionResult.sidedSuccess(false);
     }

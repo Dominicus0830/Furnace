@@ -280,6 +280,21 @@ public record EntityType(String name, int id, float width, float height, float e
     /** LIGHTNING_BOLT: noSave, sized(0.0F, 0.0F).clientTrackingRange(16).updateInterval(Integer.MAX_VALUE). */
     public static final EntityType LIGHTNING_BOLT = of("minecraft:lightning_bolt", 0.0F, 0.0F, 0.0F * 0.85F, 16, Integer.MAX_VALUE, true, false);
 
+    /** ITEM_FRAME. */
+    public static final EntityType ITEM_FRAME = of("minecraft:item_frame", 0.5F, 0.5F, 0.0F, 10, Integer.MAX_VALUE, true, false);
+
+    /** GLOW_ITEM_FRAME. */
+    public static final EntityType GLOW_ITEM_FRAME = of("minecraft:glow_item_frame", 0.5F, 0.5F, 0.0F, 10, Integer.MAX_VALUE, true, false);
+
+    /** PAINTING. */
+    public static final EntityType PAINTING = of("minecraft:painting", 0.5F, 0.5F, 0.5F * 0.85F, 10, Integer.MAX_VALUE, true, false);
+
+    /** LEASH_KNOT. */
+    public static final EntityType LEASH_KNOT = of("minecraft:leash_knot", 0.375F, 0.5F, 0.0625F, 10, Integer.MAX_VALUE, true, false);
+
+    /** OMINOUS_ITEM_SPAWNER: sized(0.25F, 0.25F).clientTrackingRange(8). */
+    public static final EntityType OMINOUS_ITEM_SPAWNER = of("minecraft:ominous_item_spawner", 0.25F, 0.25F, 0.25F * 0.85F, 8, 3, true, false);
+
     /** ARMOR_STAND: sized(0.5F, 1.975F).eyeHeight(1.7775). */
     public static final EntityType ARMOR_STAND = of("minecraft:armor_stand", 0.5F, 1.975F, 1.7775F, 10, 3, true, false);
 

@@ -748,6 +748,18 @@ public final class Region {
         target.hurtBy(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
     }
 
+    /** 생물이 아닌 엔티티(액자·그림·수정 …)를 때린다: skipAttackInteraction 이면 그쪽이 처리하고, 아니면 기본 피해. */
+    public void attackEntity(Player p, org.domi.furnace.server.entity.Entity target) {
+        world.assertOwns(this);
+        if (!players.containsKey(p.entityId()) || target.isRemoved()) return;
+        if (target.skipAttackInteraction(p)) return;
+        var inv = p.inventory();
+        ItemStack held = inv.get(inv.heldWindowSlot());
+        float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);
+        p.vitals().causeFoodExhaustion(0.1F);
+        target.hurtBy(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
+    }
+
     /**
      * 플레이어 아이템 사용(use_item — 바닐라 handleUseItem): ack 를 걸고, 보낸 시선이 다르면 돌린 뒤 ServerPlayerGameMode.useItem.
      * 바뀐 손·갑옷 칸은 연결의 인벤토리로. 그 플레이어가 이 region 소속일 때만.

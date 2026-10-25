@@ -139,4 +139,53 @@ class WindChargeTest {
         }
         assertNull(bolt.save(), "번개는 저장되지 않는다");
     }
+
+    @Test
+    void hangingEntitiesAttachToWallsAndDropWhenWallRemoved() {
+        var level = new BlockPlacementTest.TestLevel();
+        int stone = B.defaultState(B.id("minecraft:stone"));
+        Pos wall = new Pos(12, -60, 12);
+        level.setBlock(wall, stone, 3);
+        Pos front = wall.relative(org.domi.furnace.server.block.Dir.SOUTH);
+        ItemFrame frame = new ItemFrame(level, level.nextEntityId(), front, org.domi.furnace.server.block.Dir.SOUTH, false);
+        assertTrue(frame.survives(), "벽 앞이라 붙을 수 있다");
+        level.addFreshEntity(frame);
+        frame.setItem(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:apple"), 1));
+        Painting painting = Painting.create(level, front.relative(org.domi.furnace.server.block.Dir.EAST), org.domi.furnace.server.block.Dir.SOUTH);
+        assertNull(painting, "옆 칸에는 벽이 없어 그림이 붙을 수 없다");
+        Entity.Damage hit = new Entity.Damage("player_attack", false, false, false);
+        frame.hurtBy(hit, 1.0F, null);
+        assertFalse(frame.isRemoved(), "첫 타격은 아이템만 뺀다");
+        frame.hurtBy(hit, 1.0F, null);
+        assertTrue(frame.isRemoved(), "빈 액자는 부서진다");
+    }
+
+    @Test
+    void paintingPicksLargestVariantThatFitsWall() {
+        var level = new BlockPlacementTest.TestLevel();
+        int stone = B.defaultState(B.id("minecraft:stone"));
+        for (int x = 20; x < 26; x++) for (int y = -60; y < -54; y++) level.setBlock(new Pos(x, y, 20), stone, 3);
+        Painting p = Painting.create(level, new Pos(22, -59, 21), org.domi.furnace.server.block.Dir.SOUTH);
+        assertNotNull(p, "큰 벽에는 그림이 붙는다");
+        assertTrue(p.survives());
+        level.addFreshEntity(p);
+        assertFalse(p.isRemoved());
+    }
+
+    @Test
+    void fireworkRocketFliesUpAndExplodesHurtingNearbyMob() {
+        var level = new BlockPlacementTest.TestLevel();
+        Cow cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(30.5, -60.0, 30.5, 0, 0);
+        level.addFreshEntity(cow);
+        float hp = cow.health();
+        var stack = new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:firework_rocket"), 1,
+                org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:fireworks",
+                        java.util.Map.of("flight_duration", 1, "explosions", java.util.List.of(java.util.Map.of("shape", "small_ball", "colors", java.util.List.of(255)))))));
+        FireworkRocketEntity rocket = new FireworkRocketEntity(level, level.nextEntityId(), 30.5, -59.0, 30.5, stack);
+        level.addFreshEntity(rocket);
+        for (int t = 0; t < 100 && !rocket.isRemoved(); t++) rocket.tick();
+        assertTrue(rocket.isRemoved(), "수명이 다해 터졌다");
+        assertTrue(cow.health() < hp, "폭발 장식이 있어 근처 소가 다쳤다");
+    }
 }
