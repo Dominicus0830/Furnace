@@ -145,7 +145,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
     public NbtCompound updateTag() { return saveWithoutMetadata(); }
 
     /** NbtUtils.writeBlockState: {Name, Properties?}. */
-    static NbtCompound writeBlockState(int state) {
+    public static NbtCompound writeBlockState(int state) {
         Blocks blocks = Blocks.get();
         NbtCompound t = new NbtCompound();
         t.putString("Name", blocks.nameOfState(state));
@@ -159,7 +159,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
     }
 
     /** NbtUtils.readBlockState: 모르는 블록은 공기, 맞지 않는 속성 값은 건너뛴다. */
-    static int readBlockState(NbtCompound t) {
+    public static int readBlockState(NbtCompound t) {
         Blocks blocks = Blocks.get();
         if (t == null || !(t.tags().get("Name") instanceof String name)) return B.defaultState("minecraft:air");
         int b = blocks.block(name);

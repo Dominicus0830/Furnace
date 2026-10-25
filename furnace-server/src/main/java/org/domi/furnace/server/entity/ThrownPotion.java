@@ -1,4 +1,4 @@
-// 바닐라 ThrownPotion(투척/지속 물약 공통): 맞으면 반경 4×2×4 안 생물에게 효과(거리 비례), 물이면 불을 끈다. TODO: 지속 물약 구름, 물병의 화로·모닥불 끄기/물 감응 몹 피해(일부).
+// 바닐라 ThrownPotion(투척/지속 물약 공통): 맞으면 반경 4×2×4 안 생물에게 효과(거리 비례), 물이면 불을 끈다. TODO: 물병의 화로·모닥불 끄기/물 감응 몹 피해(일부).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -29,13 +29,31 @@ public class ThrownPotion extends ThrowableProjectile {
         if (Consuming.isWaterPotion(stack)) {
             applyWater();
         } else if (!effects.isEmpty()) {
-            // TODO(지속 물약): 지속 물약이면 효과 구름을 만든다
-            applySplash(effects, direct);
+            if (stack.itemId() == org.domi.furnace.server.item.ItemContext.id("minecraft:item", "lingering_potion")) makeCloud(effects, Consuming.potionColor(stack));
+            else applySplash(effects, direct);
         }
         int color = Consuming.potionColor(stack);
         boolean instant = !effects.isEmpty() && effects.get(0).effect().isInstantaneous();
         level.levelEvent(null, instant ? 2007 : 2002, blockPosition(), color);
         discard();
+    }
+
+    /** makeAreaOfEffectCloud: 반경 3, 사용마다 -0.5, 대기 10틱, 틱마다 -반경/지속. 물약 효과 지속은 1/4. */
+    private void makeCloud(java.util.List<MobEffectInstance> effects, int color) {
+        AreaEffectCloud cloud = new AreaEffectCloud(level, level.nextEntityId());
+        cloud.moveTo(x(), y(), z(), 0.0F, 0.0F);
+        Targetable owner = getOwner();
+        if (owner instanceof LivingEntity) cloud.setOwner(owner);
+        cloud.setRadius(3.0F);
+        cloud.setRadiusOnUse(-0.5F);
+        cloud.setWaitTime(10);
+        cloud.setRadiusPerTick(-cloud.getRadius() / cloud.durationTicks());
+        java.util.List<MobEffectInstance> list = new java.util.ArrayList<>();
+        for (MobEffectInstance mi : effects) {
+            list.add(new MobEffectInstance(mi.effect(), mi.effect().isInstantaneous() ? mi.duration() : mi.duration() / 4, mi.amplifier(), mi.ambient(), mi.visible(), mi.showIcon()));
+        }
+        cloud.setEffects(list, color);
+        level.addFreshEntity(cloud);
     }
 
     private void applyWater() {

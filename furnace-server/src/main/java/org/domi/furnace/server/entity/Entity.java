@@ -369,6 +369,12 @@ public abstract class Entity {
 
     public void setSprinting(boolean v) { setSharedFlag(FLAG_SPRINTING, v); }
 
+    private static final int FLAG_INVISIBLE = 5;
+
+    public boolean isInvisible() { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << FLAG_INVISIBLE) != 0; }
+
+    public void setInvisible(boolean v) { setSharedFlag(FLAG_INVISIBLE, v); }
+
     private static final int FLAG_SWIMMING = 4;
 
     public boolean isSwimming() { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << FLAG_SWIMMING) != 0; }
@@ -891,6 +897,7 @@ public abstract class Entity {
         tag.putBoolean("Invulnerable", invulnerable);
         tag.putInt("PortalCooldown", 0);
         tag.putIntArray("UUID", uuidToInts(uuid));
+        if (isInvisible()) tag.putBoolean("Invisible", true);
         if (isSilent()) tag.putBoolean("Silent", true);
         if (isNoGravity()) tag.putBoolean("NoGravity", true);
         int frozen = (Integer) entityData.get(DATA_TICKS_FROZEN);
@@ -936,6 +943,7 @@ public abstract class Entity {
         if (tag.tags().get("UUID") instanceof int[] u && u.length == 4) uuid = new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
         if (Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)) setPos(x, y, z);
         entityData.set(DATA_SILENT, tag.getBoolean("Silent"));
+        setInvisible(tag.getBoolean("Invisible"));
         entityData.set(DATA_NO_GRAVITY, tag.getBoolean("NoGravity"));
         entityData.set(DATA_TICKS_FROZEN, tag.getIntOr0("TicksFrozen"));
         readAdditionalSaveData(tag);

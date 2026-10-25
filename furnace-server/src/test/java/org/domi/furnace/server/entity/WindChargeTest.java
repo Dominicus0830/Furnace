@@ -35,4 +35,63 @@ class WindChargeTest {
         assertEquals(hp, cow.health(), 1.0E-6F, "피해 없음");
         assertTrue(cow.vy() > 0.0 || cow.vx() != 0.0 || cow.vz() != 0.0, "밀렸다");
     }
+
+    @Test
+    void dragonFireballLeavesBreathCloudThatHarms() {
+        var level = new BlockPlacementTest.TestLevel();
+        Cow cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(5.5, -60.0, 5.5, 0, 0);
+        level.addFreshEntity(cow);
+        float hp = cow.health();
+        DragonFireball ball = new DragonFireball(level, level.nextEntityId());
+        ball.moveTo(5.5, -59.5, 5.5, 0, 0);
+        level.addFreshEntity(ball);
+        ball.onHitForTest();
+        assertTrue(ball.isRemoved(), "화염구 소멸");
+        for (int t = 0; t < 40; t++) {
+            for (Entity e : level.entities().tickSnapshot()) {
+                e.setOldPosAndRot();
+                e.tickCount++;
+                e.tick();
+            }
+        }
+        assertTrue(cow.health() < hp, "즉시 피해를 받았다");
+    }
+
+    @Test
+    void newDataEntitiesSerializeTheirMetadata() {
+        var level = new BlockPlacementTest.TestLevel();
+        for (String id : new String[] {"area_effect_cloud", "dragon_fireball", "wither_skull", "wind_charge", "breeze_wind_charge", "marker", "interaction",
+                "block_display", "item_display", "text_display"}) {
+            Entity e = Entities.create(level, "minecraft:" + id);
+            assertNotNull(e, id);
+            if (e instanceof Display d) {
+                d.setTransformation(new float[] {1, 2, 3}, new float[] {0, 0, 0, 1}, new float[] {2, 2, 2}, new float[] {0, 0, 0, 1});
+                d.setBillboard(3);
+            }
+            if (e instanceof Display.TextDisplay t) t.setText(org.domi.furnace.api.text.Text.text("hi"));
+            if (e instanceof AreaEffectCloud c) c.setRadius(2.0F);
+            var items = e.entityData().nonDefaultValues();
+            var buf = io.netty.buffer.Unpooled.buffer();
+            new org.domi.furnace.server.net.protocol.play.SetEntityData(e.id(), items == null ? java.util.List.of() : items).write(buf);
+            assertTrue(buf.readableBytes() >= 1, id);
+            buf.release();
+        }
+    }
+
+    @Test
+    void armorStandBreaksOnSecondHitAndDropsEquipment() {
+        var level = new BlockPlacementTest.TestLevel();
+        ArmorStand stand = new ArmorStand(level, level.nextEntityId());
+        stand.moveTo(5.5, -60.0, 5.5, 0, 0);
+        level.addFreshEntity(stand);
+        stand.setItemSlot(EquipmentSlot.HEAD, new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:iron_helmet"), 1));
+        Entity.Damage hit = new Entity.Damage("player_attack", false, false, false);
+        assertFalse(stand.isRemoved());
+        stand.hurtBy(hit, 1.0F, null);
+        assertFalse(stand.isRemoved(), "첫 타격은 흔들림만");
+        stand.hurtBy(hit, 1.0F, null);
+        assertTrue(stand.isRemoved(), "5틱 안 두 번째 타격에 부서진다");
+        assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof ItemEntity), "장비가 떨어졌다");
+    }
 }

@@ -220,6 +220,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** FIREBALL: sized(1.0F, 1.0F). */
     public static final EntityType FIREBALL = of("minecraft:fireball", 1.0F, 1.0F, 1.0F * 0.85F, 4, 10, true, false);
 
+    /** AREA_EFFECT_CLOUD: sized(6.0F, 0.5F). */
+    public static final EntityType AREA_EFFECT_CLOUD = of("minecraft:area_effect_cloud", 6.0F, 0.5F, 0.5F * 0.85F, 10, Integer.MAX_VALUE, true, true);
+
     /** WITHER_SKULL: sized(0.3125F, 0.3125F). */
     public static final EntityType WITHER_SKULL = of("minecraft:wither_skull", 0.3125F, 0.3125F, 0.3125F * 0.85F, 4, 10, true, false);
 
@@ -255,6 +258,21 @@ public record EntityType(String name, int id, float width, float height, float e
 
     /** END_CRYSTAL: sized(2.0F, 2.0F). */
     public static final EntityType END_CRYSTAL = of("minecraft:end_crystal", 2.0F, 2.0F, 2.0F * 0.85F, 16, Integer.MAX_VALUE, true, true);
+
+    /** MARKER: sized(0.0F, 0.0F). */
+    public static final EntityType MARKER = of("minecraft:marker", 0.0F, 0.0F, 0.0F * 0.85F, 0, 3, true, false);
+
+    /** INTERACTION: sized(0.0F, 0.0F). */
+    public static final EntityType INTERACTION = of("minecraft:interaction", 0.0F, 0.0F, 0.0F * 0.85F, 10, 3, true, false);
+
+    /** BLOCK_DISPLAY: sized(0.0F, 0.0F). */
+    public static final EntityType BLOCK_DISPLAY = of("minecraft:block_display", 0.0F, 0.0F, 0.0F * 0.85F, 10, 1, true, false);
+
+    /** ITEM_DISPLAY: sized(0.0F, 0.0F). */
+    public static final EntityType ITEM_DISPLAY = of("minecraft:item_display", 0.0F, 0.0F, 0.0F * 0.85F, 10, 1, true, false);
+
+    /** TEXT_DISPLAY: sized(0.0F, 0.0F). */
+    public static final EntityType TEXT_DISPLAY = of("minecraft:text_display", 0.0F, 0.0F, 0.0F * 0.85F, 10, 1, true, false);
 
     /** ARMOR_STAND: sized(0.5F, 1.975F).eyeHeight(1.7775). */
     public static final EntityType ARMOR_STAND = of("minecraft:armor_stand", 0.5F, 1.975F, 1.7775F, 10, 3, true, false);

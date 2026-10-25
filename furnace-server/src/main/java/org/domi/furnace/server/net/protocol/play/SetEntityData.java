@@ -11,7 +11,7 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
     public static final int ID = 0x58;
     /** EntityDataSerializers 순번. */
     public static final int SERIALIZER_BYTE = 0, SERIALIZER_INT = 1, SERIALIZER_LONG = 2, SERIALIZER_FLOAT = 3, SERIALIZER_STRING = 4, SERIALIZER_ITEM = 7, SERIALIZER_BOOLEAN = 8,
-            SERIALIZER_DIRECTION = 12, SERIALIZER_FROG_VARIANT = 24, SERIALIZER_ARMADILLO_STATE = 26, SERIALIZER_SNIFFER_STATE = 27, SERIALIZER_BLOCK_POS = 10, SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_OPTIONAL_UUID = 13, SERIALIZER_BLOCK_STATE = 14, SERIALIZER_OPTIONAL_BLOCK_STATE = 15, SERIALIZER_CAT_VARIANT = 22, SERIALIZER_OPTIONAL_INT = 20, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21;
+            SERIALIZER_DIRECTION = 12, SERIALIZER_FROG_VARIANT = 24, SERIALIZER_ARMADILLO_STATE = 26, SERIALIZER_SNIFFER_STATE = 27, SERIALIZER_BLOCK_POS = 10, SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_OPTIONAL_UUID = 13, SERIALIZER_BLOCK_STATE = 14, SERIALIZER_OPTIONAL_BLOCK_STATE = 15, SERIALIZER_CAT_VARIANT = 22, SERIALIZER_OPTIONAL_INT = 20, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21, SERIALIZER_PARTICLE = 17, SERIALIZER_COMPONENT = 5, SERIALIZER_ROTATIONS = 9, SERIALIZER_VECTOR3 = 29, SERIALIZER_QUATERNION = 30;
     /** Entity.DATA_AIR_SUPPLY_ID, LivingEntity.DATA_HEALTH_ID, Player.DATA_SCORE_ID. */
     public static final int AIR_SUPPLY = 1, HEALTH = 9, SCORE = 16, PLAYER_ABSORPTION = 15;
 
@@ -62,6 +62,15 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
                     Types.writeVarInt(buf, d[0]);
                     Types.writeVarInt(buf, d[1]);
                     Types.writeVarInt(buf, d[2]);
+                }
+                case SERIALIZER_COMPONENT -> buf.writeBytes(((org.domi.furnace.api.text.Text) it.value()).networkNbt());
+                case SERIALIZER_VECTOR3, SERIALIZER_QUATERNION, SERIALIZER_ROTATIONS -> {   // 값은 float[3] / float[4](x, y, z, w)
+                    for (float f : (float[]) it.value()) buf.writeFloat(f);
+                }
+                case SERIALIZER_PARTICLE -> {   // 색을 가진 입자(entity_effect, 번호 20) 또는 옵션 없는 입자. 값은 {종류, 색(없으면 생략)}
+                    int[] d = (int[]) it.value();
+                    Types.writeVarInt(buf, d[0]);
+                    if (d.length > 1) buf.writeInt(d[1]);
                 }
                 default -> throw new IllegalArgumentException("serializer " + it.serializer());
             }

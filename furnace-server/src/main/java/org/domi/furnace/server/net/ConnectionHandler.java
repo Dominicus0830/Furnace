@@ -1073,13 +1073,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int entityId = Types.readVarInt(frame);
                 int action = Types.readVarInt(frame);
                 int hand = 0;
-                if (action == 2) { frame.readFloat(); frame.readFloat(); frame.readFloat(); }
+                float hitY = 0.0F;
+                if (action == 2) { frame.readFloat(); hitY = frame.readFloat(); frame.readFloat(); }
                 if (action != 1) hand = Types.readVarInt(frame);
                 frame.readBoolean();
                 Player actor = player;
                 int h = hand;
+                double hy = hitY;
                 if (actor != null && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
-                    world.runAt(actor.x(), actor.z(), region -> handleInteractEntity(region, actor, entityId, action, h));
+                    world.runAt(actor.x(), actor.z(), region -> handleInteractEntity(region, actor, entityId, action, h, hy));
                 }
             }
             case 0x18 -> { // Keep Alive (serverbound)
@@ -1436,13 +1438,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 바닐라 handleInteract: 6칸(제곱 36) 안의 엔티티만. 공격(1)은 때리고, 상호작용(0·2)은 주민이면 거래 화면을 연다. */
-    private void handleInteractEntity(org.domi.furnace.server.world.Region region, Player p, int entityId, int action, int hand) {
+    private void handleInteractEntity(org.domi.furnace.server.world.Region region, Player p, int entityId, int action, int hand, double hitY) {
         var e = region.level().entities().get(entityId);
         if (e == null || e.isRemoved()) return;
         double dx = p.x() - e.x(), dy = p.y() + 1.62 - e.y(), dz = p.z() - e.z();
         if (dx * dx + dy * dy + dz * dz >= 36.0) return;
         if (action == 1) {
             if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
+        } else if (e instanceof org.domi.furnace.server.entity.ArmorStand stand) {
+            if (action == 2) stand.interactAt(p, hitY, hand);
         } else if (e instanceof org.domi.furnace.server.entity.Mob mob && !(e instanceof org.domi.furnace.server.entity.Villager) && action == 0) {
             var inv = p.inventory();
             mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region);
