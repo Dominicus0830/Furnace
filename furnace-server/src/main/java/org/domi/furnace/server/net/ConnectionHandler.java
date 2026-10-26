@@ -1171,7 +1171,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
                 if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
-                if (actor != null && status == 5) world.runAt(actor.x(), actor.z(), r -> org.domi.furnace.server.entity.Consuming.stop(actor));   // 사용 끝(release)
+                if (actor != null && status == 5) world.runAt(actor.x(), actor.z(), r -> r.handleReleaseUsing(actor));   // 사용 끝(release)
                 if (actor != null && (status == 3 || status == 4) && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
                     dropFromSelected(status == 3);   // DROP_ALL_ITEMS · DROP_ITEM
                 }

@@ -47,6 +47,10 @@ public final class Consuming {
         PlayerInventory inv = p.inventory();
         int ws = p.usingHand == 0 ? inv.heldWindowSlot() : 45;
         ItemStack s = inv.get(ws);
+        if (RangedWeapons.isRangedWeapon(s)) {   // 활·쇠뇌: 놓을 때 처리
+            RangedWeapons.tick(p, region == null ? null : region.level(), s);
+            return;
+        }
         if (s.isEmpty() || duration0(s) < 0) { p.usingHand = -1; return; }
         if (--p.usingTicks > 0) return;
         p.usingHand = -1;

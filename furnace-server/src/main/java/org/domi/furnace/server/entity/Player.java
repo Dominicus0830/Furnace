@@ -380,6 +380,9 @@ public final class Player implements Targetable {
     /** 먹기·마시기 중인 손(없으면 -1)과 남은 틱 — region 스레드 전용. */
     public int usingHand = -1, usingTicks;
 
+    /** 쇠뇌 장전 소리(시작·중간)를 이미 냈는가 — 바닐라는 CrossbowItem 객체 필드라 전역이지만 여기선 플레이어별. */
+    public boolean crossbowStartSound, crossbowMidSound;
+
     private volatile org.domi.furnace.server.stats.PlayerStats stats;
 
     public org.domi.furnace.server.stats.PlayerStats stats() { return stats; }

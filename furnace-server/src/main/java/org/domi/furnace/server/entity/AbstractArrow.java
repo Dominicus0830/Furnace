@@ -1,5 +1,5 @@
 // 바닐라 AbstractArrow: 날아가며 중력 0.05·공기 0.99(물 0.6)로 줄고, 블록에 박히면 1200틱 뒤 사라지며, 엔티티를 맞추면 속력 × 기본 피해(2)만큼 때린다.
-// TODO: 인챈트(관통·밀치기·불·무한), 화살 박힘 표시(arrow count), 관통 시 맞은 대상 기록, 플레이어가 쏜 화살의 줍기 규칙.
+// TODO:, 화살 박힘 표시(arrow count), 관통 시 맞은 대상 기록, 플레이어가 쏜 화살의 줍기 규칙.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.BlockInfo;
@@ -24,6 +24,8 @@ public abstract class AbstractArrow extends Projectile {
     private String soundEvent = "entity.arrow.hit";
     private java.util.Set<Integer> piercedEntities;
     protected ItemStack pickupItem = ItemStack.EMPTY;
+    /** 쏜 무기(firedFromWeapon) — 힘·밀어내기 계산용. 무기 없이 생긴 화살은 null. */
+    private ItemStack firedFromWeapon;
 
     protected AbstractArrow(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 
@@ -65,6 +67,53 @@ public abstract class AbstractArrow extends Projectile {
 
     @Override
     protected double defaultGravity() { return 0.05; }
+
+    public ItemStack getWeaponItem() { return firedFromWeapon; }
+
+    /**
+     * AbstractArrow(type, owner, level, pickupItem, firedFromWeapon) 생성자의 나머지: 줍는 아이템(intangible_projectile 이면 창조 전용),
+     * 무기 사본, 관통 수(projectile_piercing), 발사체 생성 효과(화염: 100초 불), 마지막에 소유자(플레이어면 줍기 허용).
+     */
+    public void initFromItem(Targetable owner, ItemStack pickup, ItemStack weapon) {
+        pickupItem = pickup;
+        if (pickup.patch().entries().get("minecraft:intangible_projectile") != null) this.pickup = Pickup.CREATIVE_ONLY;
+        if (weapon != null) {
+            firedFromWeapon = weapon;
+            int pierce = Math.max(0, org.domi.furnace.server.item.ItemTools.enchantmentLevel(weapon, "minecraft:piercing"));
+            if (pierce > 0) setPierceLevel((byte) pierce);
+            if (org.domi.furnace.server.item.ItemTools.enchantmentLevel(weapon, "minecraft:flame") > 0) igniteForSeconds(100.0F);
+        }
+        setOwner(owner);
+    }
+
+    /** EnchantmentHelper.modifyDamage(무기): 힘 — 직접 공격자가 #arrows 면 +0.5 × 레벨. */
+    double modifyDamage(double d) {
+        if (firedFromWeapon == null || !(this instanceof Arrow || this instanceof SpectralArrow)) return d;
+        int power = org.domi.furnace.server.item.ItemTools.enchantmentLevel(firedFromWeapon, "minecraft:power");
+        float f = (float) d;
+        if (power > 0) f += 0.5F * power;
+        return Math.max(0.0F, f);
+    }
+
+    /** AbstractArrow.doKnockback: 밀어내기 레벨(#arrows) × 0.6 × (1 − 넉백 저항)만큼 수평 속도 방향으로, 위로 0.1. */
+    protected void doKnockback(LivingEntity target) {
+        double kb = 0.0;
+        if (firedFromWeapon != null && (this instanceof Arrow || this instanceof SpectralArrow)) {
+            int punch = org.domi.furnace.server.item.ItemTools.enchantmentLevel(firedFromWeapon, "minecraft:punch");
+            if (punch > 0) kb = (float) punch;
+        }
+        if (kb > 0.0) {
+            double resist = Math.max(0.0, 1.0 - target.attributeValue(org.domi.furnace.server.attribute.Attribute.KNOCKBACK_RESISTANCE));
+            double hx = vx(), hz = vz();
+            double len = Math.sqrt(hx * hx + hz * hz);
+            if (len < 1.0E-5F) return;
+            double sx = hx / len * (kb * 0.6 * resist), sz = hz / len * (kb * 0.6 * resist);
+            if (sx * sx + sz * sz > 0.0) {
+                target.addDeltaMovement(sx, 0.1, sz);
+                target.hasImpulse = true;
+            }
+        }
+    }
 
     /** AbstractArrow.setEnchantmentEffectsFromEntity: 피해량 = 힘 × 2 + 난이도별 무작위(난이도 × 0.11, 0.57425 사이). */
     public void setEnchantmentEffectsFromEntity(float power) {
@@ -171,7 +220,9 @@ public abstract class AbstractArrow extends Projectile {
     protected void onHitEntity(Hit hit) {
         Targetable target = hit.target();
         double speed = Math.sqrt(vx() * vx() + vy() * vy() + vz() * vz());
-        int damage = (int) Math.ceil(Math.clamp(speed * baseDamage, 0.0, 2.147483647E9));
+        float fspeed = (float) speed;
+        double base = modifyDamage(baseDamage);
+        int damage = (int) Math.ceil(Math.clamp(fspeed * base, 0.0, 2.147483647E9));
         if (getPierceLevel() > 0) {
             if (piercedEntities == null) piercedEntities = new java.util.HashSet<>(5);
             if (piercedEntities.size() >= getPierceLevel() + 1) {
@@ -197,6 +248,7 @@ public abstract class AbstractArrow extends Projectile {
         if (hurt) {
             if (enderman) return;
             if (target instanceof LivingEntity le) {
+                doKnockback(le);
                 doPostHurtEffects(le);
             }
             playSound(soundEvent, 1.0F, 1.2F / (random.nextFloat() * 0.2F + 0.9F));

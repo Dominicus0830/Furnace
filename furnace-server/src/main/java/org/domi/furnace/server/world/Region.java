@@ -870,9 +870,27 @@ public final class Region {
         float y = wrapDegrees(yRot), x = wrapDegrees(xRot);
         if (x != p.pitch() || y != p.yaw()) p.applyRotation(y, Math.clamp(x, -90.0F, 90.0F), p.onGround());   // absRotateTo
         actor = breakerActor(p);
+        if (p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && !actor.isOnCooldown(actor.itemInHand(hand).itemId())
+                && org.domi.furnace.server.entity.RangedWeapons.use(level(), actor, p, hand)) {   // 활·쇠뇌
+            writeBackHand(p, actor);
+            return;
+        }
         org.domi.furnace.server.block.ItemUse.useItem(level(), actor, hand);
         // shouldSwing(SUCCESS) 는 서버 쪽 결과(CONSUME)에서 나오지 않는다
         writeBackHand(p, actor);
+    }
+
+    /** 사용 끝(player_action 5 — ServerPlayer.releaseUsingItem): 활·쇠뇌면 발사·장전, 아니면 그냥 멈춘다. */
+    public void handleReleaseUsing(Player p) {
+        world.assertOwns(this);
+        if (p.usingHand >= 0 && players.containsKey(p.entityId())) {
+            var actor = breakerActor(p);
+            if (org.domi.furnace.server.entity.RangedWeapons.isRangedWeapon(actor.itemInHand(p.usingHand))) {
+                org.domi.furnace.server.entity.RangedWeapons.release(level(), actor, p);
+                writeBackHand(p, actor);
+            }
+        }
+        org.domi.furnace.server.entity.Consuming.stop(p);
     }
 
     /**
