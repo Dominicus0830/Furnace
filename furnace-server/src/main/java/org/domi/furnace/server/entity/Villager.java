@@ -1,4 +1,4 @@
-// 바닐라 Villager(+AbstractVillager): 거래(Merchant)·경험치와 레벨·마을 사람 데이터(종류·직업·레벨)·저장. AI·일과·평판·거래표 생성은 아직 없다 — 저장된 거래(Offers)만 쓴다.
+// 바닐라 Villager(+AbstractVillager): 거래(Merchant)·거래표 생성(updateTrades)·경험치와 레벨업·재고 보충·마을 사람 데이터(종류·직업·레벨)·저장. AI·일과·평판은 아직 없다.
 package org.domi.furnace.server.entity;
 
 import java.util.List;
@@ -16,6 +16,7 @@ import org.domi.furnace.server.trade.ItemCost;
 import org.domi.furnace.server.trade.Merchant;
 import org.domi.furnace.server.trade.MerchantOffer;
 import org.domi.furnace.server.trade.MerchantOffers;
+import org.domi.furnace.server.trade.VillagerTrades;
 
 public final class Villager extends Mob implements Merchant {
 
@@ -39,13 +40,19 @@ public final class Villager extends Mob implements Merchant {
         };
     }
 
-    private static final int[] XP_PER_LEVEL = {0, 0, 10, 70, 150, 250};
+    private static final int[] XP_PER_LEVEL = {0, 10, 70, 150, 250};
 
     private MenuPlayer tradingPlayer;
-    private MerchantOffers offers = new MerchantOffers();
+    /** 바닐라 offers: 처음 필요할 때(offers()) 거래표로 채운다. null = 아직 안 만들었다. */
+    private MerchantOffers offers;
     private int villagerXp;
     private int age;
     private int foodLevel;
+    /** 레벨업 대기 틱(updateMerchantTimer)과 대기가 끝나면 레벨을 올릴지(increaseProfessionLevelOnUpdate). */
+    private int updateMerchantTimer;
+    private boolean increaseProfessionLevelOnUpdate;
+    private long lastRestockGameTime;
+    private int numberOfRestocksToday;
 
     public Villager(ChunkLevel level, int id) { super(EntityType.VILLAGER, level, id); }
 
@@ -85,6 +92,7 @@ public final class Villager extends Mob implements Merchant {
 
     public void setVillagerData(String type, String profession, int lvl) {
         int t = Math.max(0, TYPES.indexOf(type)), p = Math.max(0, PROFESSIONS.indexOf(profession));
+        if (p != villagerData()[1]) offers = null;   // 바닐라 setVillagerData: 직업이 바뀌면 거래표를 다시 만든다
         entityData.set(DATA_VILLAGER_DATA, new int[] {t, p, lvl});
     }
 
@@ -98,19 +106,90 @@ public final class Villager extends Mob implements Merchant {
 
     @Override public MenuPlayer tradingPlayer() { return tradingPlayer; }
 
-    @Override public MerchantOffers offers() { return offers; }
+    /** 바닐라 getOffers: 아직 없으면 직업·레벨의 거래표로 만든다. */
+    @Override
+    public MerchantOffers offers() {
+        if (offers == null) {
+            offers = new MerchantOffers();
+            updateTrades();
+        }
+        return offers;
+    }
 
     public void setOffers(MerchantOffers o) { offers = o; }
+
+    /** 바닐라 updateTrades: 현재 직업·레벨의 후보에서 2개를 거래 목록에 더한다. 거래표가 없는 직업(무직·바보)은 아무것도 안 한다. */
+    protected void updateTrades() { updateTrades(random); }
+
+    /** updateTrades 를 넘긴 난수로 한다(시험·재현용). 거래 목록이 없으면 만든다. */
+    public void updateTrades(org.domi.furnace.server.block.RandomSource r) {
+        if (offers == null) offers = new MerchantOffers();
+        var table = VillagerTrades.TRADES.get(profession());
+        int lvl = villagerLevel();
+        if (table == null || lvl < 1 || lvl > table.length) return;
+        VillagerTrades.ItemListing[] listings = table[lvl - 1];
+        if (listings != null) addOffersFromItemListings(offers, listings, 2, r);
+    }
+
+    /** 바닐라 AbstractVillager.addOffersFromItemListings: 후보에서 하나씩 무작위로 뽑아(nextInt(남은 수)) 거래가 만들어지면 더한다. 모두 count 개가 될 때까지. */
+    static void addOffersFromItemListings(MerchantOffers target, VillagerTrades.ItemListing[] listings, int count,
+                                          org.domi.furnace.server.block.RandomSource r, VillagerTrades.TradeContext ctx) {
+        java.util.ArrayList<VillagerTrades.ItemListing> pool = new java.util.ArrayList<>(java.util.Arrays.asList(listings));
+        int added = 0;
+        while (added < count && !pool.isEmpty()) {
+            MerchantOffer offer = pool.remove(r.nextInt(pool.size())).getOffer(ctx, r);
+            if (offer != null) {
+                target.add(offer);
+                added++;
+            }
+        }
+    }
+
+    private void addOffersFromItemListings(MerchantOffers target, VillagerTrades.ItemListing[] listings, int count, org.domi.furnace.server.block.RandomSource r) {
+        addOffersFromItemListings(target, listings, count, r, new VillagerTrades.TradeContext(TYPES.get(villagerData()[0]), level.lootData()));
+    }
+
+    /** 바닐라 increaseMerchantCareer: 레벨을 하나 올리고 그 레벨의 거래를 더한다. */
+    private void increaseMerchantCareer() {
+        int[] d = villagerData();
+        entityData.set(DATA_VILLAGER_DATA, new int[] {d[0], d[1], d[2] + 1});
+        updateTrades();
+    }
+
+    /** 바닐라 shouldIncreaseLevel: 경험치가 지금 레벨의 다음 단계 기준에 이르렀다(레벨 1~4 만). */
+    private boolean shouldIncreaseLevel() {
+        int lvl = villagerLevel();
+        return lvl >= 1 && lvl < 5 && villagerXp >= XP_PER_LEVEL[lvl];
+    }
+
+    /** 바닐라 needsToRestock: 한 번이라도 쓴 거래가 있다. */
+    public boolean needsToRestock() {
+        for (MerchantOffer o : offers()) if (o.needsRestock()) return true;
+        return false;
+    }
+
+    /**
+     * 바닐라 restock: 수요를 갱신하고 사용 횟수를 0 으로 되돌린다.
+     * TODO(평판): updateSpecialPrices(gossip)는 평판이 없어 생략. 침대·직업 블록·시간에 따른 호출 시점(shouldRestock)은 일과(brain) 범위.
+     */
+    public void restock() {
+        for (MerchantOffer o : offers()) o.updateDemand();
+        for (MerchantOffer o : offers()) o.resetUses();
+        lastRestockGameTime = level.gameTime();
+        numberOfRestocksToday++;
+    }
 
     @Override
     public void notifyTrade(MerchantOffer offer) {
         offer.increaseUses();
+        int xp = 3 + random.nextInt(4);
         villagerXp += offer.xp();
-        if (offer.shouldRewardExp()) {
-            int xp = 3 + random.nextInt(4);
-            ExperienceOrb.award(level, x(), y() + 0.5, z(), xp);
+        if (shouldIncreaseLevel()) {
+            updateMerchantTimer = 40;
+            increaseProfessionLevelOnUpdate = true;
+            xp += 5;
         }
-        // TODO(주민 레벨업): 경험치가 다음 레벨 기준을 넘으면 40틱 뒤 레벨이 오르고 새 거래가 붙는다(거래표 생성 필요)
+        if (offer.shouldRewardExp()) ExperienceOrb.award(level, x(), y() + 0.5, z(), xp);
     }
 
     @Override
@@ -130,7 +209,7 @@ public final class Villager extends Mob implements Merchant {
 
     /** 거래 화면을 열 수 있나(아기가 아니고, 직업이 있거나 무직이 아니며, 거래가 있고, 누가 거래 중이 아님). */
     public boolean canTrade() {
-        return isAlive() && !isBaby() && tradingPlayer == null && !offers.isEmpty() && !profession().equals("none") && !profession().equals("nitwit");
+        return isAlive() && !isBaby() && tradingPlayer == null && !offers().isEmpty() && !profession().equals("none") && !profession().equals("nitwit");
     }
 
     public Text tradeTitle() {
@@ -154,7 +233,9 @@ public final class Villager extends Mob implements Merchant {
         tag.putInt("Age", isBaby() ? -24000 : 0);
         tag.putByte("FoodLevel", (byte) foodLevel);
         tag.putBoolean("Willing", false);
-        if (!offers.isEmpty()) {
+        tag.putLong("LastRestock", lastRestockGameTime);
+        tag.putInt("RestocksToday", numberOfRestocksToday);
+        if (!offers().isEmpty()) {
             NbtList recipes = new NbtList((byte) 10);
             for (MerchantOffer o : offers) recipes.add(writeOffer(o));
             NbtCompound wrapper = new NbtCompound();
@@ -174,8 +255,11 @@ public final class Villager extends Mob implements Merchant {
         villagerXp = tag.getIntOr0("Xp");
         entityData.set(DATA_BABY, tag.getIntOr0("Age") < 0);
         foodLevel = tag.tags().get("FoodLevel") instanceof Number n ? n.intValue() : 0;
-        offers = new MerchantOffers();
+        lastRestockGameTime = tag.tags().get("LastRestock") instanceof Number n ? n.longValue() : 0L;
+        numberOfRestocksToday = tag.getIntOr0("RestocksToday");
+        offers = null;
         if (tag.tags().get("Offers") instanceof NbtCompound w && w.tags().get("Recipes") instanceof NbtList list) {
+            offers = new MerchantOffers();
             for (int i = 0; i < list.size(); i++) if (list.get(i) instanceof NbtCompound c) {
                 MerchantOffer o = readOffer(c);
                 if (o != null) offers.add(o);
@@ -228,5 +312,16 @@ public final class Villager extends Mob implements Merchant {
     public void tick() {
         super.tick();
         age++;
+        // 바닐라 customServerAiStep: 거래 중이 아니면 레벨업 대기를 줄이고, 끝나면 레벨을 올린 뒤 재생 효과를 건다
+        if (tradingPlayer == null && updateMerchantTimer > 0) {
+            updateMerchantTimer--;
+            if (updateMerchantTimer <= 0) {
+                if (increaseProfessionLevelOnUpdate) {
+                    increaseMerchantCareer();
+                    increaseProfessionLevelOnUpdate = false;
+                }
+                addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.byName("regeneration"), 200, 0));
+            }
+        }
     }
 }
