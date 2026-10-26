@@ -22,3 +22,5 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 - **갱신은 매우 큰 작업 하나(로드맵 단계 하나, 예: 4-2 전체)를 끝냈을 때만 한다.** 커밋마다, 작은 수정마다 돌리지 않는다. git hook 도 설치하지 않는다.
 - 갱신 방법: `pip install graphifyy` 후 `graphify update .` (코드는 AST 라 LLM 비용 없음). 새로 생긴 문서까지 반영하려면 `/graphify . --update`. 갱신 후 `graph.html`, `GRAPH_REPORT.md` 를 커밋한다.
 - 기계 생성 데이터(블록 상태/속성 표, 레지스트리 목록, 월드젠 fixture)는 의미 추출하지 않는다.
+
+@AGENTS.md
