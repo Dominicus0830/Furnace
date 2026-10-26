@@ -1,5 +1,5 @@
 // 바닐라 Zombie: 적대 몹. 플레이어·주민을 쫓아 때리고, 아기는 빠르고 작으며, 소리·저장을 갖는다.
-// 아직 없는 것(주석 TODO): 물에서 드라운드 변환, 햇빛에 타기(빛 엔진·높이 지도 필요), 지원군 소환, 장비·줍기, 마을 통과/문 부수기/거북 알 목표, 주민 감염.
+// 아직 없는 것(주석 TODO): 물에서 드라운드 변환, 지원군 소환, 장비·줍기, 마을 통과/문 부수기/거북 알 목표, 주민 감염.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
