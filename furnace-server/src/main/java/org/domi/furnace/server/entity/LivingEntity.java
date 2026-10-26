@@ -769,6 +769,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
     // ------------------------------------------------------------------ 휘두르기
 
     protected boolean swinging;
+
+    public boolean isSwinging() { return swinging; }
     protected int swingTime;
     protected int swingingArm;
     public float attackAnim;

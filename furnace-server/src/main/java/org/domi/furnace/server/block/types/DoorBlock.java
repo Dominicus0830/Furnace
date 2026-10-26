@@ -110,6 +110,9 @@ public class DoorBlock extends BlockBehavior {
 
     public boolean isOpen(int state) { return OPEN.is(state); }
 
+    /** DoorBlock.isWoodenDoor(level, pos). */
+    public static boolean isWoodenDoor(BlockLevel level, Pos pos) { return isWoodenDoor(level.getBlockState(pos)); }
+
     /** setOpen: 이 문이고 상태가 다르면 여닫는다(마을 사람·좀비 등). */
     public void setOpen(BlockActor entity, BlockLevel level, int state, Pos pos, boolean open) {
         if (B.is(state, block) && OPEN.is(state) != open) {
