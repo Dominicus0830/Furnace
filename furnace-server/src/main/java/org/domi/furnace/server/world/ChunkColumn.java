@@ -640,9 +640,21 @@ public final class ChunkColumn {
      * blocksMotion은 바닐라에서 export한 정확한 값(BlockAttrs)이고, 유체 상태는 물/용암·버블 기둥·켈프·해초·waterlogged 블록이다.
      */
     private static boolean isMotionBlockingBlock(int stateId) {
-        boolean[] fluid = hasFluidTable();
-        return isOceanFloorBlock(stateId) || (stateId >= 0 && stateId < fluid.length && fluid[stateId]);
+        boolean[] t = motionBlockingTable;
+        if (t == null) {
+            // blocksMotion || fluid 를 상태별 한 표로 합쳐 둔다(같은 술어, 조회 1회).
+            boolean[] motion = blocksMotionTable();
+            boolean[] fluid = hasFluidTable();
+            t = new boolean[Math.max(motion.length, fluid.length)];
+            for (int i = 0; i < t.length; i++) {
+                t[i] = (i < motion.length && motion[i]) || (i < fluid.length && fluid[i]);
+            }
+            motionBlockingTable = t;
+        }
+        return stateId >= 0 && stateId < t.length && t[stateId];
     }
+
+    private static volatile boolean[] motionBlockingTable;
 
     /**
      * vanilla OCEAN_FLOOR/OCEAN_FLOOR_WG 술어 {@code BlockBehaviour.BlockStateBase::blocksMotion}.
