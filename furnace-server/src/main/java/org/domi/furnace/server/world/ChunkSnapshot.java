@@ -78,6 +78,10 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         List<NbtCompound> entities = new ArrayList<>();
         for (NbtCompound e : col.generatedEntities()) entities.add(e.copy());
         NbtCompound extra = col.extraNbt() == null ? null : col.extraNbt().copy();
+        if (!col.structures().isEmpty()) {
+            if (extra == null) extra = new NbtCompound();
+            extra.putCompound("structures", col.structures().toNbt());
+        }
         SaveData save = new SaveData(col.minY(), col.oceanFloorHeightmap(), col.motionBlockingNoLeavesHeightmap(),
                 generated, entities, extra, col.inhabitedTime());
         return new ChunkSnapshot(chunkX, chunkZ, base.heightmap, base.worldSurfaceHeightmap, base.sections, chests, save, base.light);

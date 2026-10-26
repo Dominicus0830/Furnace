@@ -95,6 +95,7 @@ public final class ChunkColumn {
         c.blockEntities.putAll(blockEntities);
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
+        c.structures = structures;
         return c;
     }
 
@@ -247,6 +248,16 @@ public final class ChunkColumn {
     public org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt() { return extraNbt; }
 
     public void extraNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) { this.extraNbt = nbt; }
+
+    // 구조물 시작점·참조(청크 NBT `structures`). 생성 스레드나 불러오기에서 한 번 정하고 바꾸지 않는다.
+    private volatile org.domi.furnace.server.world.gen.structure.ChunkStructures structures =
+        org.domi.furnace.server.world.gen.structure.ChunkStructures.EMPTY;
+
+    public org.domi.furnace.server.world.gen.structure.ChunkStructures structures() { return structures; }
+
+    public void structures(org.domi.furnace.server.world.gen.structure.ChunkStructures s) {
+        this.structures = s == null ? org.domi.furnace.server.world.gen.structure.ChunkStructures.EMPTY : s;
+    }
 
     // 엔티티 저장(entities/ 지역 파일): 아직 다루지 못하는 종류의 엔티티는 원본 NBT 그대로 들고 있다가 다시 쓴다.
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> foreignEntities = new java.util.ArrayList<>();

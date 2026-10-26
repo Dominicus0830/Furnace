@@ -32,7 +32,7 @@ public final class AnvilChunkCodec {
     private static final String FURNACE_COMPONENTS = "furnace:components";
     /** 서버가 직접 해석·재작성하는 최상위 키. 나머지는 extraNbt 로 보존된다. */
     private static final Set<String> KNOWN_KEYS = Set.of("DataVersion", "xPos", "zPos", "yPos", "Status", "LastUpdate",
-            "sections", "Heightmaps", "block_entities", "entities", "isLightOn", "InhabitedTime", "PostProcessing");
+            "sections", "Heightmaps", "block_entities", "entities", "isLightOn", "InhabitedTime", "PostProcessing", "structures");
 
     private final BlockRegistry registry;
     private final ItemRegistry items; // null 이면 상자를 초기 Furnace 형식으로 쓴다(바닐라 문자열 id 를 모름)
@@ -321,8 +321,19 @@ public final class AnvilChunkCodec {
             for (Object o : root.getList("entities").items()) if (o instanceof NbtCompound e) col.addGeneratedEntity(e);
         }
         if (root.tags().get("InhabitedTime") instanceof Long t) col.inhabitedTime(t);
+        NbtCompound extraStructures = null;
+        if (root.tags().get("structures") instanceof NbtCompound st) {
+            try {
+                col.structures(org.domi.furnace.server.world.gen.structure.ChunkStructures.fromNbt(st));
+            } catch (RuntimeException e) {
+                // 해석에 실패해도 원본은 그대로 보존한다
+                org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("구조물 정보 읽기 실패, 원본만 보존", e);
+                extraStructures = st;
+            }
+        }
         NbtCompound extra = new NbtCompound();
         for (var e : root.tags().entrySet()) if (!KNOWN_KEYS.contains(e.getKey())) extra.put(e.getKey(), e.getValue());
+        if (extraStructures != null) extra.put("structures", extraStructures);
         if (!extra.tags().isEmpty()) col.extraNbt(extra);
         return col;
     }

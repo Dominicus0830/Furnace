@@ -138,6 +138,33 @@ public abstract class ChunkLevel implements BlockLevel {
 
     private ChunkColumn chunkAt(Pos pos) { return chunk(pos.x() >> 4, pos.z() >> 4); }
 
+    // ------------------------------------------------------------------ 구조물 질의(StructureManager)
+
+    private static final org.domi.furnace.server.world.gen.structure.ChunkStructures.Ref[] NO_REFS = new org.domi.furnace.server.world.gen.structure.ChunkStructures.Ref[0];
+
+    /** pos 의 청크가 참조하는 시작점들(참조 순서, 그 청크에 걸치는 조각만). 시작 청크가 로드 안 됐으면 빠진다. */
+    public org.domi.furnace.server.world.gen.structure.ChunkStructures.Ref[] structuresAt(Pos pos) {
+        int cx = pos.x() >> 4, cz = pos.z() >> 4;
+        ChunkColumn c = chunk(cx, cz);
+        if (c == null) return NO_REFS;
+        return c.structures().referenced(key -> {
+            ChunkColumn s = chunk((int) key, (int) (key >>> 32));
+            return s == null ? null : s.structures();
+        }, cx, cz);
+    }
+
+    /** StructureManager.getStructureAt(pos, structure): 전체 상자에 pos 가 드는 첫 시작점(없으면 null). */
+    public org.domi.furnace.server.world.gen.structure.ChunkStructures.Ref structureAt(Pos pos, String structureId) {
+        for (var r : structuresAt(pos)) if (r.id().equals(structureId) && r.isInside(pos.x(), pos.y(), pos.z())) return r;
+        return null;
+    }
+
+    /** StructureManager.getStructureWithPieceAt(pos, structure): 조각 하나에 pos 가 드는 첫 시작점(없으면 null). */
+    public org.domi.furnace.server.world.gen.structure.ChunkStructures.Ref structureWithPieceAt(Pos pos, String structureId) {
+        for (var r : structuresAt(pos)) if (r.id().equals(structureId) && r.hasPieceAt(pos.x(), pos.y(), pos.z())) return r;
+        return null;
+    }
+
     @Override
     public int getBlockState(Pos pos) {
         if (isOutsideBuildHeight(pos.y())) return blocks.defaultState("minecraft:void_air");

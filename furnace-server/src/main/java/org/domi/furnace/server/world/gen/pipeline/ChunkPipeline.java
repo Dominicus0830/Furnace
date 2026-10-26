@@ -240,6 +240,10 @@ public final class ChunkPipeline {
                 }
 
                 applyPostProcessing(grid, cx, cz);
+                List<StructureStart> own = new ArrayList<>();
+                for (StructureStart st : ringStarts) if (st.chunkX() == cx && st.chunkZ() == cz) own.add(st);
+                grid[centerIdx].col.structures(
+                    org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, ringStarts));
                 grid[centerIdx].col.compactSections();
                 grid[centerIdx].col.clearDirty();
                 grid[centerIdx].status = GenStatus.FULL;
@@ -401,6 +405,7 @@ public final class ChunkPipeline {
         }
         postProcessShared(c);
         ChunkColumn out = c.col;
+        out.structures(structuresOf(cx, cz));
         c.col = out.copy();          // 이웃 장식이 읽을 블록 복사본 — 넘긴 객체는 월드 스레드가 고친다
         c.finalized = true;
         finalizedKeys.add(ck);
@@ -408,6 +413,18 @@ public final class ChunkPipeline {
         out.clearDirty();
         evictShared();
         return out;
+    }
+
+    /** 완성 청크의 구조물 시작점·참조 — 장식에 쓴 시작점 객체 그대로(장식 레인에서, 조각 높이 보정이 끝난 뒤). */
+    private org.domi.furnace.server.world.gen.structure.ChunkStructures structuresOf(int cx, int cz) {
+        List<StructureStart> own = decoStarts.getOrDefault(chunkKey(cx, cz), List.of());
+        List<StructureStart> nearby = new ArrayList<>();
+        for (int dz = -STRUCTURE_START_RADIUS; dz <= STRUCTURE_START_RADIUS; dz++)
+            for (int dx = -STRUCTURE_START_RADIUS; dx <= STRUCTURE_START_RADIUS; dx++) {
+                List<StructureStart> l = decoStarts.get(chunkKey(cx + dx, cz + dz));
+                if (l != null && !l.isEmpty()) nearby.addAll(l);
+            }
+        return org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, nearby);
     }
 
     private Proto[] gridAround(int ox, int oz) {

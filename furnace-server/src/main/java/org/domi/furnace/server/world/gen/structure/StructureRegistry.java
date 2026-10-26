@@ -39,6 +39,7 @@ public final class StructureRegistry {
 
     private final Map<String, Def> structures = new TreeMap<>();
     private final Map<String, SetDef> sets = new TreeMap<>();
+    private final Map<String, int[]> locateOffsets = new java.util.HashMap<>();
     private final List<List<Def>> byStep;
 
     public StructureRegistry() {
@@ -80,6 +81,10 @@ public final class StructureRegistry {
                 ez = new ExclusionZone(zj.get("other_set").getAsString(), zj.get("chunk_count").getAsInt());
             }
             sets.put(id, new SetDef(id, List.copyOf(entries), spread, rings, ez));
+            if (pj.has("locate_offset")) {
+                JsonArray lo = pj.getAsJsonArray("locate_offset");
+                locateOffsets.put(id, new int[]{lo.get(0).getAsInt(), lo.get(1).getAsInt(), lo.get(2).getAsInt()});
+            }
         }
         List<List<Def>> steps = new ArrayList<>();
         for (int i = 0; i < STEPS.size(); i++) steps.add(new ArrayList<>());
@@ -90,6 +95,29 @@ public final class StructureRegistry {
     public Def structure(String id) { return structures.get(id); }
 
     public Map<String, SetDef> sets() { return sets; }
+
+    /** StructurePlacement.locateOffset(기본 0,0,0). */
+    public int[] locateOffset(String setId) { return locateOffsets.getOrDefault(setId, new int[3]); }
+
+    /** 구조물 태그(worldgen/structure 태그)의 구조물 id 목록(파일 순서, 중첩 태그 펼침). 없는 태그면 null. */
+    public static List<String> structureTag(String tag) {
+        String ns = tag.contains(":") ? tag.substring(0, tag.indexOf(':')) : "minecraft";
+        String path = tag.contains(":") ? tag.substring(tag.indexOf(':') + 1) : tag;
+        if (!ns.equals("minecraft")) return null;
+        String res = "worldgen/1.21.1/tags/worldgen/structure/" + path + ".json";
+        if (StructureRegistry.class.getClassLoader().getResource(res) == null) return null;
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        for (JsonElement v : readResource(res).getAsJsonArray("values")) {
+            String s = v.isJsonObject() ? v.getAsJsonObject().get("id").getAsString() : v.getAsString();
+            if (s.startsWith("#")) {
+                List<String> inner = structureTag(s.substring(1));
+                if (inner != null) out.addAll(inner);
+            } else {
+                out.add(s.contains(":") ? s : "minecraft:" + s);
+            }
+        }
+        return List.copyOf(out);
+    }
 
     /** step ordinal별 구조물 목록(레지스트리 순서). */
     public List<Def> structuresOfStep(int step) { return byStep.get(step); }
@@ -114,6 +142,24 @@ public final class StructureRegistry {
         for (JsonElement v : j.getAsJsonArray("values")) {
             String s = v.isJsonObject() ? v.getAsJsonObject().get("id").getAsString() : v.getAsString();
             addBiomeRef(out, s);
+        }
+    }
+
+    /** 구조물 정의 JSON 원본(id → JSON, id 사전순) — 런타임 질의(terrain_adaptation·spawn_overrides)용, 엔진 없이 읽는다. */
+    public static Map<String, JsonObject> structureJsons() { return JsonHolder.ALL; }
+
+    /** Structure.terrainAdaptation — 모르는 구조물은 "none". */
+    public static String terrainAdaptationOf(String id) {
+        JsonObject j = JsonHolder.ALL.get(id);
+        return j != null && j.has("terrain_adaptation") ? j.get("terrain_adaptation").getAsString() : "none";
+    }
+
+    private static final class JsonHolder {
+        static final Map<String, JsonObject> ALL;
+        static {
+            Map<String, JsonObject> m = new TreeMap<>();
+            for (String name : STRUCTURE_NAMES) m.put("minecraft:" + name, readJson("worldgen/structure/" + name + ".json"));
+            ALL = java.util.Collections.unmodifiableMap(m);
         }
     }
 
