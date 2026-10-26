@@ -43,19 +43,24 @@ public class SculkSensorBlock extends BaseEntityBlock {
         }
     }
 
-    /** stepOn: 쉬고 있고, 워든이 아니고, 받을 수 있으면 STEP 진동을 바로 후보로(forceScheduleVibration). TODO(플레이어): 플레이어 밟기는 아직 stepOn 이 없다. */
+    /** stepOn: 쉬고 있고, 워든이 아니고, 받을 수 있으면 STEP 진동을 바로 후보로(forceScheduleVibration). */
     @Override
     public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {
-        if (canActivate(state) && entity.type() != org.domi.furnace.server.entity.EntityType.WARDEN
-                && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SculkSensorBlockEntity be
+        if (entity.type() != org.domi.furnace.server.entity.EntityType.WARDEN) {
+            stepOnBy(level, pos, state, entity, new org.domi.furnace.server.entity.Vec3(entity.x(), entity.y(), entity.z()));
+        }
+        super.stepOn(level, pos, state, entity);
+    }
+
+    /** 밟기 공통(엔티티·플레이어). */
+    public static void stepOnBy(BlockLevel level, Pos pos, int state, Object entity, org.domi.furnace.server.entity.Vec3 entityPos) {
+        if (canActivate(state) && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SculkSensorBlockEntity be
                 && level instanceof org.domi.furnace.server.block.ChunkLevel cl
                 && be.getVibrationUser().canReceiveVibration(cl, pos, org.domi.furnace.server.world.gameevent.GameEvent.STEP,
                         org.domi.furnace.server.world.gameevent.GameEventContext.ofState(state))) {
             be.getVibrationListener().forceScheduleVibration(cl, org.domi.furnace.server.world.gameevent.GameEvent.STEP,
-                    org.domi.furnace.server.world.gameevent.GameEventContext.of(entity),
-                    new org.domi.furnace.server.entity.Vec3(entity.x(), entity.y(), entity.z()));
+                    org.domi.furnace.server.world.gameevent.GameEventContext.of(entity), entityPos);
         }
-        super.stepOn(level, pos, state, entity);
     }
 
     @Override

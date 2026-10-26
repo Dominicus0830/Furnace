@@ -825,7 +825,12 @@ public abstract non-sealed class Entity implements Rider {
     /** checkFallDamage(dy, onGround, state, pos). */
     protected void checkFallDamage(double dy, boolean ground, int state, Pos pos) {
         if (ground) {
-            if (fallDistance > 0.0F) BlockBehaviors.of(state).fallOn(level, state, pos, this, fallDistance);
+            if (fallDistance > 0.0F) {
+                BlockBehaviors.of(state).fallOn(level, state, pos, this, fallDistance);
+                int hit = supportingBlock != null ? level.getBlockState(supportingBlock) : state;
+                level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.HIT_GROUND, new Vec3(x, y, z),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(this, hit));
+            }
             resetFallDistance();
         } else if (dy < 0.0) {
             fallDistance -= (float) dy;

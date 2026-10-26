@@ -141,6 +141,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         this.channel = channel;
     }
 
+    /** ServerPlayer.wardenSpawnTracker(저장 키 warden_spawn_tracker — PlayerVitals 가 읽고 쓴다). */
+    public WardenSpawnTracker wardenSpawnTracker() { return vitals.wardenSpawnTracker(); }
+
+    /** 이동 방출(걸음·헤엄 게임 이벤트) 상태 — 소유 region 전용. */
+    public final PlayerMovementEmission movementEmission = new PlayerMovementEmission();
+
     public void applyMove(double x, double y, double z, float yaw, float pitch, boolean onGround) {
         this.moveDx = x - this.x; this.moveDy = y - this.y; this.moveDz = z - this.z;
         this.x = x; this.y = y; this.z = z;

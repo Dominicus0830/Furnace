@@ -232,6 +232,9 @@ public final class ItemEntity extends Entity {
 
     public UUID thrower() { return thrower; }
 
+    /** ItemEntity.getOwner: 던진 것(UUID 로 찾는다, 없으면 null). */
+    public Targetable getOwnerEntity() { return thrower == null || level() == null ? null : level().getTargetableByUuid(thrower); }
+
     public void setTarget(UUID u) { target = u; }
 
     // ------------------------------------------------------------------ 저장

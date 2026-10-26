@@ -42,6 +42,9 @@ public final class SensorType<U extends Sensor<?>> {
     public static final SensorType<org.domi.furnace.server.entity.ai.sensing.BreezeAttackEntitySensor> BREEZE_ATTACK_ENTITY = of("breeze_attack_entity_sensor", org.domi.furnace.server.entity.ai.sensing.BreezeAttackEntitySensor::new);
     public static final SensorType<org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor> AXOLOTL_ATTACKABLES = of("axolotl_attackables", org.domi.furnace.server.entity.ai.sensing.AxolotlAttackablesSensor::new);
 
+    public static final SensorType<org.domi.furnace.server.entity.WardenAi.WardenEntitySensor> WARDEN_ENTITY_SENSOR =
+            of("warden_entity_sensor", org.domi.furnace.server.entity.WardenAi.WardenEntitySensor::new);
+
     /** 아이템 온도 센서(이름만 다른 여러 마리 공용): 몹마다 달라 팩토리가 외부에서 주어진다. */
     public static SensorType<TemptingSensor> temptations(String name, java.util.function.Predicate<org.domi.furnace.server.entity.ItemStack> temptItems) {
         return of(name, () -> new TemptingSensor(temptItems));

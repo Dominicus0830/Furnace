@@ -140,7 +140,12 @@ public final class PlayerVitals {
     // ------------------------------------------------------------------ 저장
 
     /** 바닐라 LivingEntity/Player/ServerPlayer.readAdditionalSaveData 중 이 객체가 다루는 키. 게임 모드는 {@link #loadGameTypes}. */
+    private WardenSpawnTracker wardenSpawnTracker = new WardenSpawnTracker();
+
+    public WardenSpawnTracker wardenSpawnTracker() { return wardenSpawnTracker; }
+
     public synchronized void load(NbtCompound tag) {
+        if (tag.tags().get("warden_spawn_tracker") instanceof NbtCompound w) wardenSpawnTracker = WardenSpawnTracker.load(w);
         if (tag.containsNumber("Health")) health = Math.clamp(tag.getFloat("Health"), 0f, MAX_HEALTH + 4.0f * 255);
         absorption = Math.max(0f, tag.getFloat("AbsorptionAmount"));
         effects.clear();
@@ -890,6 +895,7 @@ public final class PlayerVitals {
     public synchronized NbtCompound saveData() {
         NbtCompound tag = new NbtCompound();
         save(tag);
+        tag.putCompound("warden_spawn_tracker", wardenSpawnTracker.save());
         return tag;
     }
 

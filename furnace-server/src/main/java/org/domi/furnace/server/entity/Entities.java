@@ -65,6 +65,7 @@ public final class Entities {
             case "minecraft:axolotl" -> new Axolotl(level, level.nextEntityId());
             case "minecraft:tadpole" -> new Tadpole(level, level.nextEntityId());
             case "minecraft:frog" -> new Frog(level, level.nextEntityId());
+            case "minecraft:warden" -> new Warden(level, level.nextEntityId());
             case "minecraft:panda" -> new Panda(level, level.nextEntityId());
             case "minecraft:trident" -> new ThrownTrident(level, level.nextEntityId());
             case "minecraft:drowned" -> new Drowned(level, level.nextEntityId());
@@ -197,6 +198,7 @@ public final class Entities {
             case "minecraft:axolotl" -> new Axolotl(level, level.nextEntityId());
             case "minecraft:tadpole" -> new Tadpole(level, level.nextEntityId());
             case "minecraft:frog" -> new Frog(level, level.nextEntityId());
+            case "minecraft:warden" -> new Warden(level, level.nextEntityId());
             case "minecraft:panda" -> new Panda(level, level.nextEntityId());
             case "minecraft:trident" -> new ThrownTrident(level, level.nextEntityId());
             case "minecraft:drowned" -> new Drowned(level, level.nextEntityId());

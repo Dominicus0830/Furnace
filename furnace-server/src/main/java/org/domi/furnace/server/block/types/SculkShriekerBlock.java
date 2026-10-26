@@ -14,11 +14,31 @@ public class SculkShriekerBlock extends BaseEntityBlock {
 
     public SculkShriekerBlock(int block) { super(block); }
 
-    // TODO(엔티티): stepOn — 밟은 플레이어(SculkShriekerBlockEntity.tryGetPlayer)로 tryShriek.
+    /** stepOn: 밟은 것에서 플레이어를 찾아(tryGetPlayer) 비명. */
+    @Override
+    public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {
+        stepOnBy(level, pos, state, entity);
+        super.stepOn(level, pos, state, entity);
+    }
+
+    public static void stepOnBy(BlockLevel level, Pos pos, int state, Object entity) {
+        if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) {
+            var p = org.domi.furnace.server.block.entity.SculkShriekerBlockEntity.tryGetPlayer(entity);
+            if (p != null && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SculkShriekerBlockEntity be) be.tryShriek(cl, p);
+        }
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.SculkShriekerBlockEntity(pos, state);
+    }
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(블록 엔티티): 비명 중이면 SculkShriekerBlockEntity.tryRespond.
+        if (level instanceof org.domi.furnace.server.block.ChunkLevel cl && SHRIEKING.is(state) && !B.is(newState, block)
+                && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SculkShriekerBlockEntity be) {
+            be.tryRespond(cl);
+        }
         super.onRemove(state, level, pos, newState, moved);
     }
 
@@ -26,7 +46,8 @@ public class SculkShriekerBlock extends BaseEntityBlock {
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (SHRIEKING.is(state)) {
             level.setBlock(pos, SHRIEKING.with(state, false), 3);
-            // TODO(블록 엔티티): SculkShriekerBlockEntity.tryRespond.
+            if (level instanceof org.domi.furnace.server.block.ChunkLevel cl
+                    && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SculkShriekerBlockEntity be) be.tryRespond(cl);
         }
     }
 

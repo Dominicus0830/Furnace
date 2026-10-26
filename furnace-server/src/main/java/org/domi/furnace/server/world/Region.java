@@ -780,6 +780,9 @@ public final class Region {
             boolean waterOnPath = dy < 0 && probe.waterOnPath(blocks, m.x(), prev.y(), m.y(), m.z());
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
+            if (level != null && p.gameMode() != GameMode.SPECTATOR) {
+                p.movementEmission.onMove(level, p, m.x(), m.y(), m.z(), dx, dy, dz, m.onGround(), inWater);
+            }
         }
         return any;
     }
@@ -1170,6 +1173,7 @@ public final class Region {
         p.onClimbable = s.climbable() != null;
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
         p.vitals().tick(s);
+        p.wardenSpawnTracker().tick();   // ServerPlayer.tick
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계 (잠은 아직 없어 time_since_rest 는 늘 센다)
             p.awardStat("minecraft:play_time", 1);
             p.awardStat("minecraft:total_world_time", 1);
