@@ -55,7 +55,7 @@ class AttributeTest {
         var level = new BlockPlacementTest.TestLevel();
         var v = new Villager(level, level.nextEntityId());
         assertEquals(0.5, v.attributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
-        assertEquals(16.0, v.attributeValue(Attribute.FOLLOW_RANGE), 1e-9);
+        assertEquals(48.0, v.attributeValue(Attribute.FOLLOW_RANGE), 1e-9);
         v.attributes().get(Attribute.MAX_HEALTH).addOrReplaceModifier(new AttributeModifier("minecraft:test", 10, AttributeModifier.ADD_VALUE));
         assertEquals(30f, v.maxHealth());
         var back = new Villager(level, level.nextEntityId());

@@ -27,6 +27,11 @@ public final class SensorType<U extends Sensor<?>> {
     public static final SensorType<HurtBySensor> HURT_BY = of("hurt_by", HurtBySensor::new);
     public static final SensorType<NearestAdultSensor> NEAREST_ADULT = of("nearest_adult", NearestAdultSensor::new);
     public static final SensorType<IsInWaterSensor> IS_IN_WATER = of("is_in_water", IsInWaterSensor::new);
+    public static final SensorType<NearestBedSensor> NEAREST_BED = of("nearest_bed", NearestBedSensor::new);
+    public static final SensorType<VillagerHostilesSensor> VILLAGER_HOSTILES = of("villager_hostiles", VillagerHostilesSensor::new);
+    public static final SensorType<VillagerBabiesSensor> VILLAGER_BABIES = of("villager_babies", VillagerBabiesSensor::new);
+    public static final SensorType<SecondaryPoiSensor> SECONDARY_POIS = of("secondary_pois", SecondaryPoiSensor::new);
+    public static final SensorType<GolemSensor> GOLEM_DETECTED = of("golem_detected", GolemSensor::new);
 
     public static final SensorType<TemptingSensor> FROG_TEMPTATIONS = temptations("frog_temptations", s -> org.domi.furnace.server.item.ItemTags.is(s, "minecraft:frog_food"));
     public static final SensorType<FrogAttackablesSensor> FROG_ATTACKABLES = of("frog_attackables", FrogAttackablesSensor::new);

@@ -1,4 +1,6 @@
-// 바닐라 Villager(+AbstractVillager): 거래(Merchant)·거래표 생성(updateTrades)·경험치와 레벨업·재고 보충·마을 사람 데이터(종류·직업·레벨)·저장. AI·일과·평판은 아직 없다.
+// 바닐라 Villager(+AbstractVillager): 거래(Merchant)·거래표 생성(updateTrades)·경험치와 레벨업·재고 보충·마을 사람 데이터(종류·직업·레벨)·저장,
+// 브레인(VillagerGoalPackages: 핵심·일·놀이·휴식·만남·한가·공황 + 시간표)과 POI(집·직업·모임 장소) 티켓, 음식·번식, 철 골렘 소환.
+// TODO(평판): 소문(gossip)·특별 가격은 아직 없다. TODO(레이드): 레이드·숨기 활동과 종 반응은 아직 없다.
 package org.domi.furnace.server.entity;
 
 import java.util.List;
@@ -17,8 +19,17 @@ import org.domi.furnace.server.trade.Merchant;
 import org.domi.furnace.server.trade.MerchantOffer;
 import org.domi.furnace.server.trade.MerchantOffers;
 import org.domi.furnace.server.trade.VillagerTrades;
+import org.domi.furnace.server.entity.ai.brain.Activity;
+import org.domi.furnace.server.entity.ai.brain.Brain;
+import org.domi.furnace.server.entity.ai.brain.GlobalPos;
+import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
+import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
+import org.domi.furnace.server.entity.ai.brain.Schedule;
+import org.domi.furnace.server.entity.ai.brain.SensorType;
+import org.domi.furnace.server.world.poi.PoiType;
+import org.domi.furnace.server.world.poi.PoiTypes;
 
-public final class Villager extends Mob implements Merchant {
+public final class Villager extends AgeableMob implements Merchant, InventoryCarrier {
 
     /** AgeableMob 16 아기 여부, AbstractVillager 17 불만 카운터, Villager 18 마을 사람 데이터. */
     public static final int DATA_BABY = 16, DATA_UNHAPPY = 17, DATA_VILLAGER_DATA = 18;
@@ -46,7 +57,6 @@ public final class Villager extends Mob implements Merchant {
     /** 바닐라 offers: 처음 필요할 때(offers()) 거래표로 채운다. null = 아직 안 만들었다. */
     private MerchantOffers offers;
     private int villagerXp;
-    private int age;
     private int foodLevel;
     /** 레벨업 대기 틱(updateMerchantTimer)과 대기가 끝나면 레벨을 올릴지(increaseProfessionLevelOnUpdate). */
     private int updateMerchantTimer;
@@ -54,7 +64,289 @@ public final class Villager extends Mob implements Merchant {
     private long lastRestockGameTime;
     private int numberOfRestocksToday;
 
-    public Villager(ChunkLevel level, int id) { super(EntityType.VILLAGER, level, id); }
+    private final MobInventory inventory = new MobInventory(8);
+    /** 마지막으로 소문을 나눈 시각, 마지막 재고 확인 하루 시각(저장 안 함), 구조물 생성 직후 직업 받기. */
+    private long lastGossipTime;
+    private long lastRestockCheckDayTime;
+    private boolean assignProfessionWhenSpawned;
+    /** 거래 직후 다음 AI 틱에 기쁨 표시(14)를 낸다(바닐라 lastTradedPlayer). */
+    private boolean tradedSinceLastTick;
+
+    public Villager(ChunkLevel level, int id) {
+        super(EntityType.VILLAGER, level, id);
+        if (getNavigation() instanceof org.domi.furnace.server.entity.ai.navigation.GroundPathNavigation g) g.setCanOpenDoors(true);
+        getNavigation().setCanFloat(true);
+        setCanPickUpLoot(true);
+        brain = makeBrain();
+        registerBrainGoals(villagerBrain());
+    }
+
+    // ------------------------------------------------------------------ 브레인
+
+    private static final List<MemoryModuleType<?>> MEMORY_TYPES = List.of(
+            MemoryModuleType.HOME, MemoryModuleType.JOB_SITE, MemoryModuleType.POTENTIAL_JOB_SITE, MemoryModuleType.MEETING_POINT, MemoryModuleType.NEAREST_LIVING_ENTITIES,
+            MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES, MemoryModuleType.VISIBLE_VILLAGER_BABIES, MemoryModuleType.NEAREST_PLAYERS, MemoryModuleType.NEAREST_VISIBLE_PLAYER,
+            MemoryModuleType.NEAREST_VISIBLE_ATTACKABLE_PLAYER, MemoryModuleType.NEAREST_VISIBLE_WANTED_ITEM, MemoryModuleType.ITEM_PICKUP_COOLDOWN_TICKS,
+            MemoryModuleType.WALK_TARGET, MemoryModuleType.LOOK_TARGET, MemoryModuleType.INTERACTION_TARGET, MemoryModuleType.BREED_TARGET, MemoryModuleType.PATH,
+            MemoryModuleType.DOORS_TO_CLOSE, MemoryModuleType.NEAREST_BED, MemoryModuleType.HURT_BY, MemoryModuleType.HURT_BY_ENTITY, MemoryModuleType.NEAREST_HOSTILE,
+            MemoryModuleType.SECONDARY_JOB_SITE, MemoryModuleType.HIDING_PLACE, MemoryModuleType.HEARD_BELL_TIME, MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE,
+            MemoryModuleType.LAST_SLEPT, MemoryModuleType.LAST_WOKEN, MemoryModuleType.LAST_WORKED_AT_POI, MemoryModuleType.GOLEM_DETECTED_RECENTLY);
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Brain<Villager> makeBrain() {
+        return new Brain<>(MEMORY_TYPES, (List) List.of(SensorType.NEAREST_LIVING_ENTITIES, SensorType.NEAREST_PLAYERS, SensorType.NEAREST_ITEMS,
+                SensorType.NEAREST_BED, SensorType.HURT_BY, SensorType.VILLAGER_HOSTILES, SensorType.VILLAGER_BABIES, SensorType.SECONDARY_POIS, SensorType.GOLEM_DETECTED));
+    }
+
+    @SuppressWarnings("unchecked")
+    public Brain<Villager> villagerBrain() { return (Brain<Villager>) brain; }
+
+    /** refreshBrain: 실행 중 행동을 멈추고 기억만 옮긴 새 브레인에 활동을 다시 건다(직업·나이가 바뀔 때). */
+    public void refreshBrain(ChunkLevel level) {
+        Brain<Villager> b = villagerBrain();
+        b.stopAll(level, this);
+        brain = b.copyWithoutBehaviors();
+        registerBrainGoals(villagerBrain());
+    }
+
+    /** registerBrainGoals: 아기는 놀이 + 아기 시간표, 어른은 일(JOB_SITE 있을 때) + 기본 시간표. 그다음 핵심·만남·휴식·한가·공황. */
+    private void registerBrainGoals(Brain<Villager> b) {
+        String prof = profession();
+        if (isBaby()) {
+            b.setSchedule(Schedule.VILLAGER_BABY);
+            b.addActivity(Activity.PLAY, VillagerGoalPackages.getPlayPackage(0.5F));
+        } else {
+            b.setSchedule(Schedule.VILLAGER_DEFAULT);
+            b.addActivityWithConditions(Activity.WORK, VillagerGoalPackages.getWorkPackage(prof, 0.5F),
+                    java.util.Set.of(java.util.Map.entry(MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_PRESENT)));
+        }
+        b.addActivity(Activity.CORE, VillagerGoalPackages.getCorePackage(prof, 0.5F));
+        b.addActivityWithConditions(Activity.MEET, VillagerGoalPackages.getMeetPackage(prof, 0.5F),
+                java.util.Set.of(java.util.Map.entry(MemoryModuleType.MEETING_POINT, MemoryStatus.VALUE_PRESENT)));
+        b.addActivity(Activity.REST, VillagerGoalPackages.getRestPackage(prof, 0.5F));
+        b.addActivity(Activity.IDLE, VillagerGoalPackages.getIdlePackage(prof, 0.5F));
+        b.addActivity(Activity.PANIC, VillagerGoalPackages.getPanicPackage(prof, 0.5F));
+        b.setCoreActivities(java.util.Set.of(Activity.CORE));
+        b.setDefaultActivity(Activity.IDLE);
+        b.setActiveActivityIfPossible(Activity.IDLE);
+        b.updateActivityFromSchedule(level.dayTime(), level.gameTime());
+    }
+
+    @Override
+    protected void ageBoundaryReached() {
+        super.ageBoundaryReached();
+        if (brain != null) refreshBrain(level);
+    }
+
+    // ------------------------------------------------------------------ 직업·POI
+
+    /** VillagerProfession.heldJobSite: 무직·바보는 없음, 나머지는 자기 직업 블록. */
+    public static java.util.function.Predicate<PoiType> heldJobSite(String prof) {
+        if (prof.equals("none") || prof.equals("nitwit")) return t -> false;
+        PoiType p = PoiTypes.byName(prof);
+        return t -> t == p;
+    }
+
+    /** VillagerProfession.acquirableJobSite: 무직은 직업 블록 태그 전체, 바보는 없음. */
+    public static java.util.function.Predicate<PoiType> acquirableJobSite(String prof) {
+        if (prof.equals("none")) return PoiTypes.ACQUIRABLE_JOB_SITE;
+        return heldJobSite(prof);
+    }
+
+    /** 직업 블록 → 그 블록을 쓰는 직업(레지스트리 순서로 처음). 없으면 null. */
+    public static String professionForJobSite(PoiType type) {
+        for (String p : PROFESSIONS) if (heldJobSite(p).test(type)) return p;
+        return null;
+    }
+
+    /** VillagerProfession.requestedItems: 농부만 밀·씨앗·뼛가루. */
+    public static java.util.Set<String> requestedItems(String prof) {
+        return prof.equals("farmer") ? java.util.Set.of("minecraft:wheat", "minecraft:wheat_seeds", "minecraft:beetroot_seeds", "minecraft:bone_meal") : java.util.Set.of();
+    }
+
+    /** VillagerProfession.secondaryPoi: 농부만 경작지. */
+    public static java.util.Set<String> secondaryPoi(String prof) { return prof.equals("farmer") ? java.util.Set.of("minecraft:farmland") : java.util.Set.of(); }
+
+    public void setProfession(String prof) { setVillagerData(TYPES.get(villagerData()[0]), prof, villagerLevel()); }
+
+    public boolean assignProfessionWhenSpawned() { return assignProfessionWhenSpawned; }
+
+    public void setAssignProfessionWhenSpawned(boolean v) { assignProfessionWhenSpawned = v; }
+
+    /** playWorkSound: 직업 소리(무직·바보는 없음). */
+    public void playWorkSound() {
+        String p = profession();
+        if (!p.equals("none") && !p.equals("nitwit")) makeSound("entity.villager.work_" + p);
+    }
+
+    /** Villager.POI_MEMORIES 의 조건: 기억 종류별로 맞는 POI 종류. */
+    private boolean poiMatches(MemoryModuleType<GlobalPos> memory, PoiType type) {
+        if (memory == MemoryModuleType.HOME) return type == PoiTypes.HOME;
+        if (memory == MemoryModuleType.JOB_SITE) return heldJobSite(profession()).test(type);
+        if (memory == MemoryModuleType.POTENTIAL_JOB_SITE) return PoiTypes.ACQUIRABLE_JOB_SITE.test(type);
+        if (memory == MemoryModuleType.MEETING_POINT) return type == PoiTypes.MEETING;
+        return false;
+    }
+
+    /** releasePoi: 기억한 POI 가 그 기억에 맞는 종류면 티켓을 돌려준다. TODO(차원): 다른 차원 레벨의 POI 는 찾지 않는다. */
+    public void releasePoi(MemoryModuleType<GlobalPos> memory) {
+        brain.getMemory(memory).ifPresent(g -> {
+            if (!g.dimension().equals(level.dimension())) return;
+            PoiType t = level.poiManager().getType(g.pos());
+            if (t != null && poiMatches(memory, t)) level.poiManager().release(g.pos());
+        });
+    }
+
+    /** releaseAllPois: 집·직업·찾은 직업·모임 장소. */
+    public void releaseAllPois() {
+        releasePoi(MemoryModuleType.HOME);
+        releasePoi(MemoryModuleType.JOB_SITE);
+        releasePoi(MemoryModuleType.POTENTIAL_JOB_SITE);
+        releasePoi(MemoryModuleType.MEETING_POINT);
+    }
+
+    @Override
+    public void die(Damage source) {
+        if (!isRemoved() && !dead) releaseAllPois();
+        super.die(source);
+    }
+
+    // ------------------------------------------------------------------ 잠
+
+    @Override
+    public void startSleeping(org.domi.furnace.server.block.Pos pos) {
+        super.startSleeping(pos);
+        brain.setMemory(MemoryModuleType.LAST_SLEPT, level.gameTime());
+        brain.eraseMemory(MemoryModuleType.WALK_TARGET);
+        brain.eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+    }
+
+    @Override
+    public void stopSleeping() {
+        super.stopSleeping();
+        brain.setMemory(MemoryModuleType.LAST_WOKEN, level.gameTime());
+    }
+
+    // ------------------------------------------------------------------ 음식·번식
+
+    /** FOOD_POINTS: 빵 4, 감자·당근·비트 1. */
+    public static final java.util.Map<String, Integer> FOOD_POINTS = java.util.Map.of("minecraft:bread", 4, "minecraft:potato", 1, "minecraft:carrot", 1, "minecraft:beetroot", 1);
+    private static final java.util.Set<String> WANTED_ITEMS = java.util.Set.of("minecraft:bread", "minecraft:potato", "minecraft:carrot", "minecraft:wheat",
+            "minecraft:wheat_seeds", "minecraft:beetroot", "minecraft:beetroot_seeds", "minecraft:torchflower_seeds", "minecraft:pitcher_pod");
+    private static final int BREEDING_FOOD_THRESHOLD = 12;
+
+    @Override public MobInventory getInventory() { return inventory; }
+
+    public int foodLevel() { return foodLevel; }
+
+    @Override
+    public boolean canBreed() { return foodLevel + countFoodPointsInInventory() >= BREEDING_FOOD_THRESHOLD && !isSleeping() && getAge() == 0; }
+
+    private boolean hungry() { return foodLevel < BREEDING_FOOD_THRESHOLD; }
+
+    /** eatUntilFull: 배고프면 앞 칸부터 음식을 하나씩 먹는다. */
+    private void eatUntilFull() {
+        if (!hungry() || countFoodPointsInInventory() == 0) return;
+        for (int i = 0; i < inventory.size(); i++) {
+            ItemStack s = inventory.get(i);
+            if (s.isEmpty()) continue;
+            Integer pts = FOOD_POINTS.get(ItemTools.itemName(s));
+            if (pts == null) continue;
+            for (int j = s.count(); j > 0; j--) {
+                foodLevel += pts;
+                inventory.removeItem(i, 1);
+                if (!hungry()) return;
+            }
+        }
+    }
+
+    public void eatAndDigestFood() {
+        eatUntilFull();
+        foodLevel -= BREEDING_FOOD_THRESHOLD;
+    }
+
+    public boolean hasExcessFood() { return countFoodPointsInInventory() >= 24; }
+
+    public boolean wantsMoreFood() { return countFoodPointsInInventory() < 12; }
+
+    private int countFoodPointsInInventory() {
+        int n = 0;
+        for (var e : FOOD_POINTS.entrySet()) n += inventory.countItem(e.getKey()) * e.getValue();
+        return n;
+    }
+
+    @Override
+    public boolean wantsToPickUp(ItemStack stack) {
+        String n = ItemTools.itemName(stack);
+        return (WANTED_ITEMS.contains(n) || requestedItems(profession()).contains(n)) && inventory.canAddItem(stack);
+    }
+
+    @Override
+    protected void pickUpItem(ItemEntity ie) { InventoryCarrier.pickUpItem(this, this, ie); }
+
+    /** getBreedOffspring: 종류는 몹 난수로 바이옴(1/2)·자신(1/4)·상대(1/4), 직업 없음(BREEDING). */
+    @Override
+    public AgeableMob getBreedOffspring(ChunkLevel level, AgeableMob partner) {
+        double d = random.nextDouble();
+        String type;
+        if (d < 0.5) type = typeForBiome(level.biomeAt(blockPosition().x(), blockPosition().y(), blockPosition().z()));
+        else if (d < 0.75) type = TYPES.get(villagerData()[0]);
+        else type = TYPES.get(((Villager) partner).villagerData()[0]);
+        Villager child = new Villager(level, level.nextEntityId());
+        child.setVillagerData(type, "none", 1);
+        child.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(child.blockPosition()), null);
+        return child;
+    }
+
+    // ------------------------------------------------------------------ 철 골렘
+
+    /** spawnGolemIfNeeded: 10칸 안 주민 중 골렘을 원하는 주민(최대 5)이 minVillagers 이상이면 골렘을 놓고, 놓으면 그 주민들 모두 골렘을 봤다고 기억한다. */
+    public void spawnGolemIfNeeded(ChunkLevel level, long time, int minVillagers) {
+        if (!wantsToSpawnGolem(time)) return;
+        AABB box = boundingBox().inflate(10.0, 10.0, 10.0);
+        List<Villager> all = level.getEntitiesOfClass(Villager.class, box, x -> true);
+        List<Villager> want = all.stream().filter(v -> v.wantsToSpawnGolem(time)).limit(5L).toList();
+        if (want.size() < minVillagers) return;
+        IronGolem g = org.domi.furnace.server.entity.spawn.SpawnUtil.trySpawnMob(level, blockPosition(), 10, 8, 6,
+                org.domi.furnace.server.entity.spawn.SpawnUtil.LEGACY_IRON_GOLEM,
+                (l, p) -> org.domi.furnace.server.entity.spawn.SpawnUtil.place(l, new IronGolem(l, l.nextEntityId()), p));
+        if (g != null) all.forEach(org.domi.furnace.server.entity.ai.sensing.GolemSensor::golemDetected);
+    }
+
+    /** wantsToSpawnGolem: 하루(24000틱) 안에 잤고 최근 골렘을 보지 못했다. */
+    public boolean wantsToSpawnGolem(long time) {
+        if (!golemSpawnConditionsMet(level.gameTime())) return false;
+        return !brain.hasMemoryValue(MemoryModuleType.GOLEM_DETECTED_RECENTLY);
+    }
+
+    private boolean golemSpawnConditionsMet(long time) {
+        var slept = brain.getMemory(MemoryModuleType.LAST_SLEPT);
+        return slept.isPresent() && time - slept.get() < 24000L;
+    }
+
+    /** gossip: 둘 다 1200틱 안에 나눈 적이 없으면 시각을 맞추고 골렘 소환(5명)을 확인한다. TODO(평판): 소문 옮기기(GossipContainer.transferFrom). */
+    public void gossip(ChunkLevel level, Villager other, long time) {
+        if ((time < lastGossipTime || time >= lastGossipTime + 1200L) && (time < other.lastGossipTime || time >= other.lastGossipTime + 1200L)) {
+            lastGossipTime = time;
+            other.lastGossipTime = time;
+            spawnGolemIfNeeded(level, time, 5);
+        }
+    }
+
+    // ------------------------------------------------------------------ 소리
+
+    @Override
+    protected String getAmbientSound() {
+        if (isSleeping()) return null;
+        return tradingPlayer != null ? "entity.villager.trade" : "entity.villager.ambient";
+    }
+
+    @Override protected String getHurtSound(Damage source) { return "entity.villager.hurt"; }
+
+    @Override protected String getDeathSound() { return "entity.villager.death"; }
+
+    /** 거래 상대 플레이어(LookAndFollowTradingPlayerSink). */
+    public Targetable tradingTarget() { return tradingPlayer == null ? null : tradingPlayer.entityPlayer(); }
 
     @Override
     public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {
@@ -65,6 +357,7 @@ public final class Villager extends Mob implements Merchant {
             witch.setNoAi(isNoAi());
             witch.persistenceRequired = true;
             level.addFreshEntity(witch);
+            releaseAllPois();
             discard();
         } else {
             super.thunderHit(level, bolt);
@@ -74,19 +367,15 @@ public final class Villager extends Mob implements Merchant {
     @Override
     protected void createAttributes(org.domi.furnace.server.attribute.AttributeMap map) {
         super.createAttributes(map);
-        map.add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.5);
+        map.add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.5).add(org.domi.furnace.server.attribute.Attribute.FOLLOW_RANGE, 48.0);
     }
 
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
-        entityData.define(DATA_BABY, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_UNHAPPY, SetEntityData.SERIALIZER_INT, 0);
         entityData.define(DATA_VILLAGER_DATA, SetEntityData.SERIALIZER_VILLAGER_DATA, new int[] {2, 0, 1});
     }
-
-    @Override
-    public boolean isBaby() { return (Boolean) entityData.get(DATA_BABY); }
 
     public int[] villagerData() { return (int[]) entityData.get(DATA_VILLAGER_DATA); }
 
@@ -180,11 +469,40 @@ public final class Villager extends Mob implements Merchant {
         numberOfRestocksToday++;
     }
 
+    /** allowedToRestock: 오늘 처음이거나, 두 번 미만이고 마지막 보충 뒤 2400틱이 지났다. */
+    private boolean allowedToRestock() {
+        return numberOfRestocksToday == 0 || numberOfRestocksToday < 2 && level.gameTime() > lastRestockGameTime + 2400L;
+    }
+
+    /** shouldRestock: 마지막 보충 뒤 12000틱이 지났거나 날이 바뀌었으면 하루 횟수를 되돌리고(못 한 수요 따라잡기), 보충할 수 있고 쓴 거래가 있나. */
+    public boolean shouldRestock() {
+        long due = lastRestockGameTime + 12000L;
+        long now = level.gameTime();
+        boolean reset = now > due;
+        long day = level.dayTime();
+        if (lastRestockCheckDayTime > 0L) reset |= day / 24000L > lastRestockCheckDayTime / 24000L;
+        lastRestockCheckDayTime = day;
+        if (reset) {
+            lastRestockGameTime = now;
+            resetNumberOfRestocks();
+        }
+        return allowedToRestock() && needsToRestock();
+    }
+
+    /** resetNumberOfRestocks: catchUpDemand(못 한 보충 수만큼 수요 갱신) 뒤 0. */
+    private void resetNumberOfRestocks() {
+        int missed = 2 - numberOfRestocksToday;
+        if (missed > 0) for (MerchantOffer o : offers()) o.resetUses();
+        for (int i = 0; i < missed; i++) for (MerchantOffer o : offers()) o.updateDemand();
+        numberOfRestocksToday = 0;
+    }
+
     @Override
     public void notifyTrade(MerchantOffer offer) {
         offer.increaseUses();
         int xp = 3 + random.nextInt(4);
         villagerXp += offer.xp();
+        tradedSinceLastTick = tradingPlayer != null;
         if (shouldIncreaseLevel()) {
             updateMerchantTimer = 40;
             increaseProfessionLevelOnUpdate = true;
@@ -231,11 +549,12 @@ public final class Villager extends Mob implements Merchant {
         vd.putInt("level", d[2]);
         tag.putCompound("VillagerData", vd);
         tag.putInt("Xp", villagerXp);
-        tag.putInt("Age", isBaby() ? -24000 : 0);
         tag.putByte("FoodLevel", (byte) foodLevel);
         tag.putBoolean("Willing", false);
         tag.putLong("LastRestock", lastRestockGameTime);
         tag.putInt("RestocksToday", numberOfRestocksToday);
+        if (assignProfessionWhenSpawned) tag.putBoolean("AssignProfessionWhenSpawned", true);
+        writeInventoryToSave(tag);
         if (!offers().isEmpty()) {
             NbtList recipes = new NbtList((byte) 10);
             for (MerchantOffer o : offers) recipes.add(writeOffer(o));
@@ -254,10 +573,13 @@ public final class Villager extends Mob implements Merchant {
             setVillagerData(type, prof, Math.max(1, vd.getIntOr0("level")));
         }
         villagerXp = tag.getIntOr0("Xp");
-        entityData.set(DATA_BABY, tag.getIntOr0("Age") < 0);
         foodLevel = tag.tags().get("FoodLevel") instanceof Number n ? n.intValue() : 0;
         lastRestockGameTime = tag.tags().get("LastRestock") instanceof Number n ? n.longValue() : 0L;
         numberOfRestocksToday = tag.getIntOr0("RestocksToday");
+        if (tag.contains("AssignProfessionWhenSpawned")) assignProfessionWhenSpawned = tag.getBoolean("AssignProfessionWhenSpawned");
+        readInventoryFromSave(tag);
+        setCanPickUpLoot(true);
+        refreshBrain(level);
         offers = null;
         if (tag.tags().get("Offers") instanceof NbtCompound w && w.tags().get("Recipes") instanceof NbtList list) {
             offers = new MerchantOffers();
@@ -309,11 +631,11 @@ public final class Villager extends Mob implements Merchant {
                 t.contains("xp") ? t.getIntOr0("xp") : 1);
     }
 
+    /** 바닐라 customServerAiStep: 브레인 → 구조물 직업 표시 끄기 → (거래 중 아니면) 레벨업 대기 → 거래 기쁨 표시 → 레이드 중 땀(42) → 무직 거래 중단. */
     @Override
-    public void tick() {
-        super.tick();
-        age++;
-        // 바닐라 customServerAiStep: 거래 중이 아니면 레벨업 대기를 줄이고, 끝나면 레벨을 올린 뒤 재생 효과를 건다
+    protected void customServerAiStep() {
+        villagerBrain().tick(level, this);
+        if (assignProfessionWhenSpawned) assignProfessionWhenSpawned = false;
         if (tradingPlayer == null && updateMerchantTimer > 0) {
             updateMerchantTimer--;
             if (updateMerchantTimer <= 0) {
@@ -324,5 +646,16 @@ public final class Villager extends Mob implements Merchant {
                 addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.byName("regeneration"), 200, 0));
             }
         }
+        if (tradedSinceLastTick) {
+            // TODO(평판): level.onReputationEvent(TRADE, 플레이어, 이 주민)
+            broadcastEntityEvent((byte) 14);
+            tradedSinceLastTick = false;
+        }
+        if (!isNoAi() && random.nextInt(100) == 0) {
+            var raid = level.raids() == null ? null : level.raids().getRaidAt(blockPosition());
+            if (raid != null && raid.isActive() && !raid.isOver()) broadcastEntityEvent((byte) 42);
+        }
+        if (profession().equals("none") && tradingPlayer != null) setTradingPlayer(null);
+        super.customServerAiStep();
     }
 }
