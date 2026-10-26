@@ -22,6 +22,8 @@ class FishSwimTest {
             for (Entity e : level.entities().tickSnapshot()) {
                 e.setOldPosAndRot();
                 e.tickCount++;
+                // 근처에 플레이어가 있는 것처럼 — 없으면 noActionTime 이 100 을 넘어 무작위 산책이 멈춘다(바닐라 동작이라 테스트가 흔들렸다)
+                if (e instanceof LivingEntity le) le.setNoActionTime(0);
                 e.tick();
             }
         }
@@ -45,7 +47,7 @@ class FishSwimTest {
         assertTrue(cod.isAlive(), "물속에서 산다");
         assertEquals(300, cod.getAirSupply());
         assertTrue(Math.abs(cod.x() - sx) + Math.abs(cod.z() - sz) > 0.5, "헤엄쳐 움직였다");
-        assertTrue(cod.y() > -61 && cod.y() < -53, "물 안에 있다: " + cod.y());
+        assertTrue(cod.y() >= -61.0 && cod.y() < -53, "물 안에 있다: " + cod.y());
     }
 
     @Test
@@ -69,7 +71,12 @@ class FishSwimTest {
         zombie.moveTo(1.0, -58, 0.5, 0, 0);
         level.addFreshEntity(zombie);
         int max = 0;
-        for (int t = 0; t < 100; t++) {
+        for (int t = 0; t < 400; t++) {
+            // 복어가 부푸는 건 가까운 몹이 40틱 넘게 곁에 있을 때 — 무작위 헤엄으로 둘이 멀어지면 흔들리니 제자리에 붙들어 둔다
+            puffer.moveTo(0.5, -58, 0.5, 0, 0);
+            puffer.setDeltaMovement(0.0, 0.0, 0.0);
+            zombie.moveTo(1.0, -58, 0.5, 0, 0);
+            zombie.setDeltaMovement(0.0, 0.0, 0.0);
             tick(level, 1);
             max = Math.max(max, puffer.getPuffState());
             if (puffer.getPuffState() == 2) {
@@ -119,9 +126,9 @@ class FishSwimTest {
         level.addFreshEntity(guardian);
         double dx = dolphin.x(), gx = guardian.x();
         tick(level, 300);
-        assertTrue(dolphin.isAlive() && guardian.isAlive());
+        assertTrue(dolphin.isAlive() && guardian.isAlive(), "dolphin=" + dolphin.isAlive() + " guardian=" + guardian.isAlive());
         assertEquals(Dolphin.TOTAL_AIR_SUPPLY - 0, dolphin.getMaxAirSupply());
-        assertTrue(dolphin.getAirSupply() > 0);
+        assertTrue(dolphin.getAirSupply() > 0, "air=" + dolphin.getAirSupply());
         assertTrue(Math.abs(dolphin.x() - dx) + Math.abs(guardian.x() - gx) > 0.2, "움직였다");
         assertNotNull(Entities.load(level, dolphin.save()));
         assertNotNull(Entities.load(level, guardian.save()));

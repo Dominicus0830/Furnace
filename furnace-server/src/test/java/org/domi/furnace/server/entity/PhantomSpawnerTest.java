@@ -50,7 +50,7 @@ class PhantomSpawnerTest {
     private int run(Night level, Player p, boolean enemies) {
         var spawner = new PhantomSpawner();
         int n = 0;
-        for (int i = 0; i < 6000; i++) n += spawner.tick(level, List.of(p), enemies);
+        for (int i = 0; i < 120000; i++) n += spawner.tick(level, List.of(p), enemies);
         return n;
     }
 

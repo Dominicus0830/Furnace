@@ -1,5 +1,5 @@
 // 바닐라 Zombie: 적대 몹. 플레이어·주민을 쫓아 때리고, 아기는 빠르고 작으며, 소리·저장을 갖는다.
-// 아직 없는 것(주석 TODO): 물에서 드라운드 변환, 지원군 소환, 장비·줍기, 마을 통과/거북 알 목표, 주민 감염.
+// 아직 없는 것(주석 TODO): 마을 통과(POI 필요)·거북 알 목표.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -87,6 +87,60 @@ public class Zombie extends Monster {
     }
 
     /** Zombie.doHurtTarget: 맞췄고 빈손이며 불붙은 상태면 난이도 비례 확률로 상대에게 불을 옮긴다. */
+    /**
+     * Zombie.hurt: 맞았고 대상(지금 노리는 것, 없으면 때린 쪽)이 있으며 어려움이고 doMobSpawning 이면
+     * 확률(지원군 속성)로 7~40칸 밖에 좀비를 불러온다. 부른 쪽은 -0.05, 불려온 쪽은 -0.05 의 영구 보정.
+     */
+    @Override
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) {
+        if (!super.hurtBy(source, amount, attacker)) return false;
+        if (level == null) return false;
+        Targetable target = getTarget();
+        if (target == null) target = attacker;
+        if (target != null && level.difficulty() == 3 && random.nextFloat() < attributeValue(Attribute.SPAWN_REINFORCEMENTS) && level.gameRule("doMobSpawning")) {
+            int bx = floor(x()), by = floor(y()), bz = floor(z());
+            Zombie zombie = new Zombie(level, level.nextEntityId());
+            for (int i = 0; i < 50; i++) {
+                int x = bx + nextIntBetween(7, 40) * nextIntBetween(-1, 1);
+                int y = by + nextIntBetween(7, 40) * nextIntBetween(-1, 1);
+                int z = bz + nextIntBetween(7, 40) * nextIntBetween(-1, 1);
+                org.domi.furnace.server.block.Pos pos = new org.domi.furnace.server.block.Pos(x, y, z);
+                if (org.domi.furnace.server.entity.spawn.SpawnPlacements.isSpawnPositionOk(type().name(), level, pos)
+                        && org.domi.furnace.server.entity.spawn.SpawnPlacements.checkSpawnRules(type().name(), level,
+                                org.domi.furnace.server.entity.spawn.SpawnReason.REINFORCEMENT, pos, level.random())) {
+                    zombie.setPos(x, y, z);
+                    if (!hasNearbyAlivePlayer(x, y, z, 7.0) && zombie.checkSpawnObstruction(level) && level.noCollision(zombie.boundingBox())) {
+                        zombie.setTarget(target);
+                        zombie.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(zombie.blockPosition()));
+                        level.addFreshEntity(zombie);
+                        var chance = attributes().get(Attribute.SPAWN_REINFORCEMENTS);
+                        var caller = chance.getModifier("minecraft:reinforcement_caller_charge");
+                        double charge = caller != null ? caller.amount() : 0.0;
+                        chance.removeModifier("minecraft:reinforcement_caller_charge");
+                        chance.addOrReplaceModifier(new AttributeModifier("minecraft:reinforcement_caller_charge", charge - 0.05, AttributeModifier.ADD_VALUE));
+                        zombie.attributes().get(Attribute.SPAWN_REINFORCEMENTS)
+                                .addOrReplaceModifier(new AttributeModifier("minecraft:reinforcement_callee_charge", -0.05F, AttributeModifier.ADD_VALUE));
+                        break;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Mth.nextInt(random, min, max). */
+    private int nextIntBetween(int min, int max) { return min >= max ? min : random.nextInt(max - min + 1) + min; }
+
+    /** Level.hasNearbyAlivePlayer: 관전자가 아닌 산 플레이어가 거리 안에 있나. */
+    private boolean hasNearbyAlivePlayer(double x, double y, double z, double dist) {
+        boolean[] found = {false};
+        level.forEachPlayerIn(new AABB(x - dist, y - dist, z - dist, x + dist, y + dist, z + dist), p -> {
+            double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
+            if (p.vitals().health() > 0.0F && p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && dx * dx + dy * dy + dz * dz < dist * dist) found[0] = true;
+        });
+        return found[0];
+    }
+
     @Override
     public boolean doHurtTarget(Targetable t) {
         boolean hit = super.doHurtTarget(t);
