@@ -885,6 +885,7 @@ public abstract class ChunkLevel implements BlockLevel {
      * Containers.dropItemStack(level, x, y, z, stack): 칸 안 임의 위치(아이템 폭만큼 안쪽)에서 10~30 개씩 나눠, 속도는 삼각 분포
      * (0, 0.2, 0) ± 0.11485.
      */
+    @Override
     public void dropItemStack(double x, double y, double z, ItemStack stack) {
         RandomSource r = random();
         double w = EntityType_ITEM_WIDTH, e = 1.0 - w, f = w / 2.0;

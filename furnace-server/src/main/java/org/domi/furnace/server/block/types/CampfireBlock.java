@@ -11,6 +11,7 @@ import org.domi.furnace.server.block.ItemInteractionResult;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
+import org.domi.furnace.server.block.entity.CampfireBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
 public class CampfireBlock extends BaseEntityBlock {
@@ -29,18 +30,37 @@ public class CampfireBlock extends BaseEntityBlock {
     }
 
     @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return new CampfireBlockEntity(pos, state); }
+
+    @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
-        // TODO(블록 엔티티): 모닥불 블록 엔티티가 있고 그 아이템의 모닥불 요리법이 있으면 빈 칸에 올리고(통계 interact_with_campfire) SUCCESS,
-        //   올릴 칸이 없으면 CONSUME. 블록 엔티티가 없으면 바닐라도 PASS_TO_DEFAULT.
+        if (level.getBlockEntity(pos) instanceof CampfireBlockEntity be) {
+            var recipe = be.getCookableRecipe(stack, level);
+            if (recipe != null) {
+                if (be.placeFood(player, hand, stack, recipe.recipe().cookingTime(), level)) {
+                    player.awardStat("minecraft:interact_with_campfire");
+                    return ItemInteractionResult.SUCCESS;
+                }
+                return ItemInteractionResult.CONSUME;
+            }
+        }
         return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 
-    // TODO(엔티티): entityInside — 켜져 있으면 생물에게 불 피해(fire_damage).
+    /** entityInside: 켜져 있으면 생물에게 불 피해(fire_damage). TODO(플레이어): 플레이어는 아직 블록 안 판정(Entity.checkInsideBlocks)을 받지 않는다. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (LIT.is(state) && entity instanceof org.domi.furnace.server.entity.LivingEntity) {
+            entity.hurt(org.domi.furnace.server.entity.Entity.Damage.IN_FIRE, (float) fireDamage);
+        }
+    }
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(블록 엔티티): 다른 블록이 되면 올린 음식 쏟기(Containers.dropContents).
-        if (!B.is(newState, block)) super.onRemove(state, level, pos, newState, moved);
+        if (!B.is(newState, block)) {
+            if (level.getBlockEntity(pos) instanceof CampfireBlockEntity be) level.dropContents(pos, be.items);   // Containers.dropContents
+            super.onRemove(state, level, pos, newState, moved);
+        }
     }
 
     @Override
@@ -60,9 +80,10 @@ public class CampfireBlock extends BaseEntityBlock {
 
     private static boolean isSmokeSource(int state) { return B.is(state, HAY_BLOCK); }
 
-    /** dowse(entity, level, pos, state): 끄기(블록 엔티티는 올린 음식을 쏟는다) + BLOCK_CHANGE. 켜진 상태 변경은 부르는 쪽이. */
+    /** dowse(entity, level, pos, state): 끄기(블록 엔티티는 갱신만) + BLOCK_CHANGE. 켜진 상태 변경은 부르는 쪽이. */
     public static void dowse(BlockActor entity, BlockLevel level, Pos pos, int state) {
-        // TODO(블록 엔티티): CampfireBlockEntity.dowse — 올린 음식 쏟기.
+        // 바닐라 CampfireBlockEntity.dowse 는 클라이언트 갱신만 한다(음식은 그대로 — 쏟는 것은 블록이 바뀔 때).
+        if (level.getBlockEntity(pos) instanceof CampfireBlockEntity be) be.setChanged(level);
         level.gameEvent("minecraft:block_change", pos, entity, -1);
     }
 
