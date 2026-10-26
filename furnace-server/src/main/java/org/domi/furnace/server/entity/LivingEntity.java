@@ -168,7 +168,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             // blockUsingShield(attacker) → attacker.blockedByShield(this): 막은 쪽이 0.5 밀린다
             if (!DamageType.keyHasTag(source.type(), "is_projectile") && (srcEntity instanceof LivingEntity || (srcEntity == null && attacker instanceof Player))) {
                 Targetable d = srcEntity instanceof LivingEntity le ? le : attacker;
-                knockback(0.5, x() - d.x(), z() - d.z());
+                knockback(0.5, d.x() - x(), d.z() - z());
             }
             blocked = true;
         }

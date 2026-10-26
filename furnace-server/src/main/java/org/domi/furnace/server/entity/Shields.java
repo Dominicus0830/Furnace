@@ -135,7 +135,7 @@ public final class Shields {
 
     /** Player.blockUsingShield(attacker): 막은 쪽이 0.5 밀리고(blockedByShield), 공격자가 도끼면 disableShield. */
     public static void blockUsingShield(Player p, Targetable attacker) {
-        p.knockback(0.5, p.x() - attacker.x(), p.z() - attacker.z());
+        p.knockback(0.5, attacker.x() - p.x(), attacker.z() - p.z());   // knockback 은 넘긴 방향의 반대로 민다(hurt 와 같은 규약)
         if (canDisableShield(attacker)) disableShield(p);
     }
 
