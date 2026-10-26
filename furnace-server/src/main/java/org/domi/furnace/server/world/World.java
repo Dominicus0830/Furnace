@@ -115,17 +115,21 @@ public final class World {
 
     // ------------------------------------------------------------------ 청크 저장소(주인 region 스레드에서 쓴다)
 
-    ChunkColumn loadedChunk(int cx, int cz) { return chunks.get(Regionizer.chunkKey(cx, cz)); }
+    // chunks·loading 의 키는 청크 키를 섞은 값이다. Long.hashCode(x<<32|z) 는 x^z 라 가까운 청크끼리 해시가 겹쳐
+    // 버킷이 트리로 바뀌고 조회가 느려진다(매 블록 조회마다 탄다). 홀수 곱은 일대일이라 키 충돌은 없다. 순회하지 않는다.
+    private static Long mapKey(long key) { return key * 0x9E3779B97F4A7C15L; }
 
-    void putChunk(int cx, int cz, ChunkColumn c) { chunks.put(Regionizer.chunkKey(cx, cz), c); }
+    ChunkColumn loadedChunk(int cx, int cz) { return chunks.get(mapKey(Regionizer.chunkKey(cx, cz))); }
 
-    void removeChunk(int cx, int cz) { chunks.remove(Regionizer.chunkKey(cx, cz)); }
+    void putChunk(int cx, int cz, ChunkColumn c) { chunks.put(mapKey(Regionizer.chunkKey(cx, cz)), c); }
 
-    CompletableFuture<ChunkColumn> loadingChunk(long key) { return loading.get(key); }
+    void removeChunk(int cx, int cz) { chunks.remove(mapKey(Regionizer.chunkKey(cx, cz))); }
 
-    void putLoading(long key, CompletableFuture<ChunkColumn> f) { loading.put(key, f); }
+    CompletableFuture<ChunkColumn> loadingChunk(long key) { return loading.get(mapKey(key)); }
 
-    void removeLoading(long key, CompletableFuture<ChunkColumn> f) { loading.remove(key, f); }
+    void putLoading(long key, CompletableFuture<ChunkColumn> f) { loading.put(mapKey(key), f); }
+
+    void removeLoading(long key, CompletableFuture<ChunkColumn> f) { loading.remove(mapKey(key), f); }
 
     /** 로드된 청크 수(테스트·모니터링). */
     public int loadedChunkCount() { return chunks.size(); }
