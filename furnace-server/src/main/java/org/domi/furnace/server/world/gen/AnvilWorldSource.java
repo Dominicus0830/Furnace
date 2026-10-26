@@ -31,18 +31,43 @@ public final class AnvilWorldSource implements WorldSource {
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
         try {
-            byte[] nbtBytes = store.readChunk(chunkX, chunkZ);
-            if (nbtBytes != null) {
-                NbtCompound nbt = NbtIo.read(new DataInputStream(new ByteArrayInputStream(nbtBytes)));
-                ChunkColumn col = codec.fromNbt(nbt);
-                if (col != null) {
-                    col.clearDirty();
-                    return col;
-                }
-                // 완성되지 않은 청크(바닐라 월드 가장자리의 proto 청크) — 새로 생성한다.
-            }
+            return fromBytesOrGenerate(chunkX, chunkZ, store.readChunk(chunkX, chunkZ));
         } catch (IOException e) {
             throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
+        }
+    }
+
+    /** 동기 로드. 읽기만 ioLane 에서 하고(같은 파일의 앞선 저장 뒤에 줄 선다) 그 결과를 기다려 이 스레드에서 디코드·생성한다. */
+    public ChunkColumn generate(int chunkX, int chunkZ, Executor ioLane) {
+        byte[] bytes;
+        try {
+            bytes = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return store.readChunk(chunkX, chunkZ);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
+                }
+            }, ioLane).join();
+        } catch (java.util.concurrent.CompletionException e) {
+            if (e.getCause() instanceof RuntimeException re) throw re;
+            throw e;
+        }
+        try {
+            return fromBytesOrGenerate(chunkX, chunkZ, bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
+        }
+    }
+
+    private ChunkColumn fromBytesOrGenerate(int chunkX, int chunkZ, byte[] nbtBytes) throws IOException {
+        if (nbtBytes != null) {
+            NbtCompound nbt = NbtIo.read(new DataInputStream(new ByteArrayInputStream(nbtBytes)));
+            ChunkColumn col = codec.fromNbt(nbt);
+            if (col != null) {
+                col.clearDirty();
+                return col;
+            }
+            // 완성되지 않은 청크(바닐라 월드 가장자리의 proto 청크) — 새로 생성한다.
         }
         ChunkColumn col = generateFallback(chunkX, chunkZ);
         col.markDirty();   // 바닐라처럼 새로 생성한 청크도 디스크에 남긴다

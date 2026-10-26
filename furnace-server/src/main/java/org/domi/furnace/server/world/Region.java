@@ -223,7 +223,10 @@ public final class Region {
         ChunkColumn c = world.loadedChunk(cp.x(), cp.z());
         if (c != null) return c;
         claim(cp);
-        c = world.worldSource().generate(cp.x(), cp.z());
+        // 디스크 읽기는 비동기 로드·저장과 같은 IO 레인을 거친다(대기 중인 저장보다 먼저 읽어 옛 내용을 되살리지 않게)
+        c = world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
+                ? anvil.generate(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()))
+                : world.worldSource().generate(cp.x(), cp.z());
         world.putChunk(cp.x(), cp.z(), c);
         level().lightNewChunk(cp.x(), cp.z());
         level().runLightUpdates();
@@ -252,7 +255,7 @@ public final class Region {
         claim(cp);
         CompletableFuture<ChunkColumn> sourceFuture =
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
-                        ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioPool(), world.genPool())
+                        ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.genPool())
                         : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
         // 청크 안쪽 조명은 생성 스레드에서 미리 계산한다(region 틱 스레드가 청크당 ~2ms 를 쓰던 것) — 이웃과의 가장자리는 올릴 때 맞춘다.
         final boolean sky = level().hasSkyLight();
@@ -486,7 +489,7 @@ public final class Region {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
-                world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
+                world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
                 col.clearDirty();
             }
             dirtyChunks.remove(cp);
@@ -522,7 +525,7 @@ public final class Region {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
-                world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
+                world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
                 col.clearDirty();
             }
             dirtyChunks.remove(cp);
@@ -569,7 +572,7 @@ public final class Region {
                 for (var be : col.blockEntities().values()) be.setRemoved();   // 틱 목록에서 빠진다(다시 불러오면 새로 만든다)
                 // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
                 if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {
-                    world.saveChunkAsync(ChunkSnapshot.forSave(cx, cz, col));
+                    world.saveChunkAsync(ChunkSnapshot.forSave(cx, cz, col), col);
                     col.clearDirty();
                 }
                 world.removeChunk(cx, cz);
@@ -589,6 +592,16 @@ public final class Region {
         if (col.extraNbt() == null) col.extraNbt(new org.domi.furnace.server.net.io.nbt.NbtCompound());
         level.saveChunkTicks(cx, cz, col.extraNbt(), remove);
         return had;
+    }
+
+    /** 저장이 끝내 실패했다 — 그 청크가 아직 이 region 에 그대로 있으면 다시 dirty 로(다음 저장에 다시 싣는다). */
+    void restoreDirtyAfterFailedSave(ChunkPos cp, ChunkColumn col) {
+        if (world.loadedChunk(cp.x(), cp.z()) != col) {
+            org.slf4j.LoggerFactory.getLogger(Region.class).error("[SAVE] 청크 {} 저장 실패 — 이미 내려가 되돌릴 수 없음(유실)", cp);
+            return;
+        }
+        col.markDirty();
+        dirtyChunks.add(cp);
     }
 
     int dirtyChunkCount() {

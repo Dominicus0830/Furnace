@@ -40,6 +40,12 @@ public final class World {
     private final int biomeDirectBits;
     private final ExecutorService ioPool;
     private final ExecutorService genPool;
+    // 같은 region 파일의 save/load 를 FIFO 로(ioPool 다중 스레드에서 저장 전에 읽어 옛 내용을 되살리던 것)
+    private static final int IO_LANES = 16;
+    private final org.domi.furnace.server.world.anvil.IoLanes ioLanes;
+    // 재시도 끝에 실패한 저장 수(종료 훅이 로그). 저장 재시도 백오프(ms) — 레인 스레드에서 차례로 기다려 순서를 지킨다.
+    private final java.util.concurrent.atomic.AtomicLong saveFailures = new java.util.concurrent.atomic.AtomicLong();
+    static long[] saveRetryBackoffMs = {50, 250, 1000};
 
     // 영속성 설정(FurnaceMain서 configurePersistence로 주입; 테스트는 기본 비활성).
     private int autosaveTicks = Integer.MAX_VALUE; // 기본 비활성(테스트)
@@ -82,6 +88,7 @@ public final class World {
                  int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
         this.worldSource = worldSource;
         this.ioPool = ioPool;
+        this.ioLanes = ioPool == null ? null : new org.domi.furnace.server.world.anvil.IoLanes(ioPool, IO_LANES);
         this.genPool = genPool;
         this.chunkPool = chunkPool;
         this.scheduler = scheduler;
@@ -218,23 +225,81 @@ public final class World {
         return forEachRegion(Region::saveDirtyChunks);
     }
 
-    /** owner 스레드서 스냅샷 뜬 뒤 IO 풀서 .mca write. worldSource가 AnvilWorldSource일 때만. */
+    /** owner 스레드서 스냅샷 뜬 뒤 IO 레인서 .mca write. worldSource가 AnvilWorldSource일 때만. */
     public void saveChunkAsync(ChunkSnapshot snap) {
+        saveChunkAsync(snap, null);
+    }
+
+    /**
+     * 저장 제출. IO 실패는 레인에서 백오프 재시도하고, 끝내 실패하면 col 이 아직 로드돼 있을 때 주인 region 스레드에서
+     * 다시 dirty 로 되돌려 다음 저장에 다시 싣는다(호출자는 제출 직후 clearDirty 한다).
+     */
+    public void saveChunkAsync(ChunkSnapshot snap, ChunkColumn col) {
         if (!(worldSource instanceof AnvilWorldSource anvil)) return;
-        ioPool.execute(() -> {
+        int cx = snap.chunkX(), cz = snap.chunkZ();
+        ioLane(cx, cz).execute(() -> {
+            boolean ok;
             try {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 NbtCompound nbt = anvil.codec().toNbt(snap);
                 NbtIo.write(new DataOutputStream(bos), nbt, "");
-                anvil.store().writeChunk(snap.chunkX(), snap.chunkZ(), bos.toByteArray());
+                byte[] bytes = bos.toByteArray();
+                ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), "청크 " + cx + "," + cz + " 저장");
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(World.class)
-                        .error("[SAVE] 청크 {},{} 저장 실패", snap.chunkX(), snap.chunkZ(), e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {},{} 직렬화 실패", cx, cz, e);
+                ok = false;
             }
+            if (!ok) onChunkSaveFailed(new ChunkPos(cx, cz), col);
         });
     }
 
-    /** 그 청크의 엔티티 묶음을 IO 풀에서 읽는다(없거나 저장소가 없으면 null 로 끝난다). */
+    private void onChunkSaveFailed(ChunkPos cp, ChunkColumn col) {
+        saveFailures.incrementAndGet();
+        if (col == null) return;
+        try {
+            runAtChunk(cp, r -> r.restoreDirtyAfterFailedSave(cp, col));
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {} 저장 실패 — 되돌릴 region 없음(유실)", cp, e);
+        }
+    }
+
+    /** 재시도 끝에 실패한 저장(청크·엔티티) 수. */
+    public long saveFailures() { return saveFailures.get(); }
+
+    /** 그 청크가 든 region 파일의 직렬 IO 레인. */
+    public java.util.concurrent.Executor ioLane(int chunkX, int chunkZ) {
+        return ioLanes == null ? Runnable::run : ioLanes.lane(chunkX, chunkZ);
+    }
+
+    @FunctionalInterface
+    interface IoAction { void run() throws Exception; }
+
+    /** 실패하면 saveRetryBackoffMs 만큼 기다리며 재시도. 끝내 실패하면 false. 같은 레인에서 기다리므로 뒤 작업이 앞지르지 않는다. */
+    static boolean runWithRetry(IoAction action, String what) {
+        long[] backoff = saveRetryBackoffMs;
+        for (int attempt = 0; ; attempt++) {
+            try {
+                action.run();
+                return true;
+            } catch (Exception e) {
+                var log = org.slf4j.LoggerFactory.getLogger(World.class);
+                if (attempt >= backoff.length) {
+                    log.error("[SAVE] {} 실패({}회 시도) — 포기", what, attempt + 1, e);
+                    return false;
+                }
+                log.warn("[SAVE] {} 실패({}회째) — {}ms 뒤 재시도: {}", what, attempt + 1, backoff[attempt], e.toString());
+                try {
+                    Thread.sleep(backoff[attempt]);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.error("[SAVE] {} 재시도 중 인터럽트 — 포기", what);
+                    return false;
+                }
+            }
+        }
+    }
+
+    /** 그 청크의 엔티티 묶음을 IO 레인에서 읽는다(없거나 저장소가 없으면 null 로 끝난다). */
     public CompletableFuture<NbtCompound> loadEntitiesAsync(int chunkX, int chunkZ) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return CompletableFuture.completedFuture(null);
         return CompletableFuture.supplyAsync(() -> {
@@ -246,27 +311,26 @@ public final class World {
                 org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 읽기 실패", chunkX, chunkZ, e);
                 return null;
             }
-        }, ioPool);
+        }, ioLane(chunkX, chunkZ));
     }
 
-    /** owner 스레드서 만든 엔티티 묶음을 IO 풀서 entities/ 에 쓴다. */
+    /** owner 스레드서 만든 엔티티 묶음을 IO 레인서 entities/ 에 쓴다. 엔티티는 자동 저장마다 다시 쓰므로 되돌리기 없이 재시도만. */
     public void saveEntitiesAsync(int chunkX, int chunkZ, NbtCompound root) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return;
-        ioPool.execute(() -> {
-            try {
+        ioLane(chunkX, chunkZ).execute(() -> {
+            boolean ok = runWithRetry(() -> {
                 synchronized (anvil.entityStore()) {   // 덧붙이기(읽고·쓰기)와 엇갈리지 않게
                     anvil.writeEntities(chunkX, chunkZ, root);
                 }
-            } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 저장 실패", chunkX, chunkZ, e);
-            }
+            }, "엔티티 " + chunkX + "," + chunkZ + " 저장");
+            if (!ok) saveFailures.incrementAndGet();
         });
     }
 
     /** 디스크의 그 청크 엔티티 묶음에 덧붙인다(읽고 → 더하고 → 쓰기, 엔티티 저장소 잠금 안에서). */
     public void appendEntitiesAsync(int chunkX, int chunkZ, List<NbtCompound> tags) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return;
-        ioPool.execute(() -> {
+        ioLane(chunkX, chunkZ).execute(() -> {
             synchronized (anvil.entityStore()) {
                 try {
                     NbtCompound root = anvil.readEntities(chunkX, chunkZ);
