@@ -395,7 +395,19 @@ public final class Regionizer {
             }
             long wait = head.nextTickNanos - System.nanoTime();
             if (wait > 0) {
-                wake.awaitNanos(wait);
+                long spin = org.domi.furnace.server.sched.PreciseWait.spinMargin();
+                if (spin > 0L && wait <= spin) {
+                    // 대기 해상도가 거친 플랫폼: 마지막 구간은 잠금을 놓고 돌며 기다려 틱 시작이 흔들리지 않게 한다
+                    long due = head.nextTickNanos;
+                    lock.unlock();
+                    try {
+                        org.domi.furnace.server.sched.PreciseWait.parkUntil(due);
+                    } finally {
+                        lock.lock();
+                    }
+                    return null;
+                }
+                wake.awaitNanos(spin > 0L ? wait - spin : wait);
                 return null;
             }
             queue.poll();

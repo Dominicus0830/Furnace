@@ -107,7 +107,7 @@ public final class RegionThread implements TaskScheduler, ThreadOwner, AutoClose
 
             long sleep = timer.remaining(System.nanoTime());
             if (sleep > 0) {
-                LockSupport.parkNanos(sleep);
+                PreciseWait.parkUntil(System.nanoTime() + sleep);
             }
             timer.advance(System.nanoTime());
         }
