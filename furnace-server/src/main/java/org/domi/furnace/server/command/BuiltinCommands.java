@@ -33,6 +33,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.BlockCommands.registerSetBlock(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSpawnPoint(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSetWorldSpawn(d);
+        org.domi.furnace.server.command.builtin.SummonCommand.register(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);
         org.domi.furnace.server.command.builtin.WorldBorderCommand.register(d);

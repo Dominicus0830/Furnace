@@ -50,7 +50,7 @@ public final class BlockPosArgument implements ArgumentType<BlockPosArgument.Coo
             return new double[]{source.x() + dx, source.y() + dy, source.z() + dz};
         }
 
-        static LocalCoordinates parse(StringReader reader) throws CommandSyntaxException {
+        public static LocalCoordinates parse(StringReader reader) throws CommandSyntaxException {
             int start = reader.getCursor();
             double left = readDouble(reader, start);
             if (reader.canRead() && reader.peek() == ' ') {
@@ -77,7 +77,7 @@ public final class BlockPosArgument implements ArgumentType<BlockPosArgument.Coo
         }
     }
 
-    record World(WorldCoordinates c) implements Coordinates {
+    public record World(WorldCoordinates c) implements Coordinates {
         @Override
         public double[] getPosition(CommandSource source) { return c.getPosition(source); }
     }

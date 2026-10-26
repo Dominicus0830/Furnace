@@ -188,4 +188,10 @@ class ConsoleCommandsTest {
         assertEquals(List.of("~", "~ ~"), core.commands().suggestions(console, "/worldborder center ").get().getList().stream().map(s -> s.getText()).toList());
         assertEquals(List.of("5 ~"), core.commands().suggestions(console, "/worldborder center 5 ".substring(0, "/worldborder center 5".length())).get().getList().stream().map(s -> s.getText()).toList());
     }
+
+    @Test
+    void summonRejectsUnsummonableAndBadPosition() {
+        assertEquals(List.of("Can't summon entity of type minecraft:player"), run("summon minecraft:player"));
+        assertEquals(List.of("Invalid position for summon"), run("summon minecraft:pig 0 999999999 0"));
+    }
 }

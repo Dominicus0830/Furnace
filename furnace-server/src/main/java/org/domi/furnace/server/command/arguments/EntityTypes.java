@@ -11,6 +11,8 @@ public final class EntityTypes {
 
     public static boolean isKnown(String id) { return KNOWN.contains(id); }
 
+    public static java.util.Set<String> all() { return KNOWN; }
+
     private static Set<String> load() {
         var in = EntityTypes.class.getClassLoader().getResourceAsStream("registries/entity_types-1.21.1.txt");
         if (in == null) return Set.of("minecraft:player");
