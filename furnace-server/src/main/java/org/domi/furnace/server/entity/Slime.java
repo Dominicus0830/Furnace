@@ -1,5 +1,5 @@
 // 바닐라 Slime: 크기(1~127)에 따라 체력 size², 속도 0.2+0.1×size, 공격력 size. 통통 뛰어 다니며 닿으면 때리고, 죽으면 작게 2~4마리로 갈라진다.
-// TODO: 자연 스폰 규칙(늪·슬라임 청크), 철 골렘에게도 피해, 입자.
+// TODO: 철 골렘에게도 피해, 입자.
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;

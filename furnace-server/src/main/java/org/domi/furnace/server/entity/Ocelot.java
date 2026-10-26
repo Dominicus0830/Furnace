@@ -1,5 +1,5 @@
 // 바닐라 Ocelot: 생선(ocelot_food)으로 신뢰를 얻으면(1/3) 플레이어를 피하지 않는다. 가까이 있으면 웅크리고 달린다.
-// TODO: 거북 새끼 사냥, 자연 스폰 규칙.
+// TODO: 거북 새끼 사냥.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;

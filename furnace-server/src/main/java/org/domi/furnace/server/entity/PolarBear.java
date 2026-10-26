@@ -1,4 +1,4 @@
-// 바닐라 PolarBear: 새끼 곁에서는 적대적(NeutralMob), 맞으면 분노. 일어서서 경고하다 문다. TODO: 여우 사냥, 자연 스폰 규칙.
+// 바닐라 PolarBear: 새끼 곁에서는 적대적(NeutralMob), 맞으면 분노. 일어서서 경고하다 문다. TODO: 여우 사냥.
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
