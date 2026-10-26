@@ -175,6 +175,30 @@ class PluginSystemTest {
     }
 
     @Test
+    void tickStatsCountsCallsOnlyWhenEnabled() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        jar(dir.resolve("g.jar"), "furnace-plugin.yml", "name: Gamma\nversion: 1\nmain: org.domi.furnace.server.plugin.TestPlugins$Gamma\n",
+                TestPlugins.Gamma.class);
+        loadAll(dir);
+        FurnacePlugin g = host.plugins().plugin("Gamma");
+
+        var off = new EventBusImpl(false);
+        off.subscribe(g, Ping.class, EventPriority.NORMAL, false, e -> e.seen.add("p"));
+        off.call(new Ping());
+        assertEquals(0, off.statCount(Ping.class), "기본은 꺼짐: 측정하지 않는다");
+
+        var on = new EventBusImpl(true);
+        on.subscribe(g, Ping.class, EventPriority.NORMAL, false, e -> e.seen.add("p"));
+        for (int i = 0; i < 3; i++) on.call(new Ping());
+        on.call(new SubPing());
+        assertEquals(3, on.statCount(Ping.class), "Ping 직접 호출 3회");
+        assertEquals(1, on.statCount(SubPing.class), "SubPing 호출 1회");
+        assertTrue(on.statTotalNs(Ping.class) >= on.statMaxNs(Ping.class), "누적 시간은 최대 단일 호출 시간 이상");
+        assertTrue(on.statMaxNs(Ping.class) > 0);
+        assertEquals(0, on.statCount(Event.class), "호출되지 않은 종류는 0");
+    }
+
+    @Test
     void permissionsFollowDefaultsChildrenAndAttachments() throws Exception {
         Path dir = tmp.resolve("plugins");
         jar(dir.resolve("g.jar"), "furnace-plugin.yml", """

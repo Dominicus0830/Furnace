@@ -12,10 +12,16 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import org.domi.furnace.api.event.Cancellable;
 import org.domi.furnace.api.event.Event;
@@ -40,6 +46,12 @@ public final class EventBusImpl implements EventBus {
     private final ConcurrentHashMap<Class<?>, List<Handler>> byType = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Class<?>, Handler[]> baked = new ConcurrentHashMap<>();
     private final AtomicLong order = new AtomicLong();
+    /** 호출 통계. null 이면 꺼진 상태(발행 경로에는 null 검사 하나만 남는다). */
+    private final Stats stats;
+
+    public EventBusImpl() { this(Stats.enabledByConfig()); }
+
+    EventBusImpl(boolean statsOn) { this.stats = statsOn ? new Stats() : null; }
 
     @Override
     public void register(FurnacePlugin plugin, Listener listener) {
@@ -138,16 +150,112 @@ public final class EventBusImpl implements EventBus {
     @Override
     public <E extends Event> E call(E event) {
         Handler[] hs = handlers(event.getClass());
+        if (stats != null) return callTimed(event, hs);
         for (Handler h : hs) {
             if (h.ignoreCancelled() && event instanceof Cancellable c && c.isCancelled()) continue;
             if (!h.plugin().isEnabled()) continue;
-            try {
-                h.fn().accept(event);
-            } catch (Throwable t) {
-                // Bukkit: "Could not pass event X to Plugin vY"
-                log.error("Could not pass event {} to {}", event.eventName(), h.plugin().description().fullName(), t);
-            }
+            invoke(h, event);
         }
         return event;
+    }
+
+    private void invoke(Handler h, Event event) {
+        try {
+            h.fn().accept(event);
+        } catch (Throwable t) {
+            // Bukkit: "Could not pass event X to Plugin vY"
+            log.error("Could not pass event {} to {}", event.eventName(), h.plugin().description().fullName(), t);
+        }
+    }
+
+    /** 통계가 켜졌을 때의 발행 경로. 처리 순서·취소·예외 처리는 call 과 같고, 시간만 잰다. */
+    private <E extends Event> E callTimed(E event, Handler[] hs) {
+        long start = System.nanoTime();
+        Handler slow = null;
+        long slowNs = -1;
+        for (Handler h : hs) {
+            if (h.ignoreCancelled() && event instanceof Cancellable c && c.isCancelled()) continue;
+            if (!h.plugin().isEnabled()) continue;
+            long t0 = System.nanoTime();
+            invoke(h, event);
+            long dt = System.nanoTime() - t0;
+            stats.listener(h, dt);
+            if (dt > slowNs) { slowNs = dt; slow = h; }
+        }
+        long total = System.nanoTime() - start;
+        stats.record(event.getClass(), total);
+        if (total > Stats.SLOW_NS) {
+            log.warn("[tickstats] 이벤트 {} 처리에 {} ms 걸렸다 (가장 느린 리스너: {})", event.eventName(), Stats.ms(total),
+                    slow == null ? "없음" : slow.plugin().name() + " " + slow.where());
+        }
+        return event;
+    }
+
+    // 테스트 전용 조회
+    long statCount(Class<?> type) { return stats == null ? 0 : stats.count(type); }
+    long statTotalNs(Class<?> type) { return stats == null ? 0 : stats.totalNs(type); }
+    long statMaxNs(Class<?> type) { return stats == null ? 0 : stats.maxNs(type); }
+
+    /** 이벤트 종류별 호출 통계와 리스너별 누적 시간. 발행 스레드들이 동시에 쓰므로 LongAdder·ConcurrentHashMap 을 쓴다. */
+    private static final class Stats {
+        static final long SLOW_NS = 20_000_000L;
+        private static final long REPORT_PERIOD_S = 30;
+
+        private static final class TypeStat {
+            final LongAdder count = new LongAdder();
+            final LongAdder totalNs = new LongAdder();
+            final AtomicLong maxNs = new AtomicLong();
+        }
+
+        private final ConcurrentHashMap<Class<?>, TypeStat> types = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Handler, LongAdder> listeners = new ConcurrentHashMap<>();
+
+        Stats() {
+            ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "furnace-event-stats");
+                t.setDaemon(true);
+                return t;
+            });
+            ses.scheduleAtFixedRate(this::reportSafely, REPORT_PERIOD_S, REPORT_PERIOD_S, TimeUnit.SECONDS);
+        }
+
+        /** 켜짐 설정: -Dfurnace.tickstats=true 또는 환경변수 FURNACE_TICKSTATS 가 있을 때. */
+        static boolean enabledByConfig() {
+            return Boolean.getBoolean("furnace.tickstats") || System.getenv("FURNACE_TICKSTATS") != null;
+        }
+
+        static String ms(long ns) { return String.format(Locale.ROOT, "%.2f", ns / 1e6); }
+
+        void record(Class<?> type, long ns) {
+            TypeStat t = types.computeIfAbsent(type, k -> new TypeStat());
+            t.count.increment();
+            t.totalNs.add(ns);
+            t.maxNs.accumulateAndGet(ns, Math::max);
+        }
+
+        void listener(Handler h, long ns) {
+            listeners.computeIfAbsent(h, k -> new LongAdder()).add(ns);
+        }
+
+        long count(Class<?> type) { TypeStat t = types.get(type); return t == null ? 0 : t.count.sum(); }
+        long totalNs(Class<?> type) { TypeStat t = types.get(type); return t == null ? 0 : t.totalNs.sum(); }
+        long maxNs(Class<?> type) { TypeStat t = types.get(type); return t == null ? 0 : t.maxNs.get(); }
+
+        private void reportSafely() {
+            try {
+                report();
+            } catch (Throwable t) {
+                log.warn("[tickstats] 통계 출력 실패", t);
+            }
+        }
+
+        /** 총 시간 상위 5개 이벤트 종류를 한 줄씩 출력한다. */
+        private void report() {
+            types.entrySet().stream()
+                    .sorted(Comparator.comparingLong((Map.Entry<Class<?>, TypeStat> e) -> e.getValue().totalNs.sum()).reversed())
+                    .limit(5)
+                    .forEach(e -> log.info("[tickstats] {} 호출 {}회, 누적 {} ms, 최대 {} ms", e.getKey().getSimpleName(),
+                            e.getValue().count.sum(), ms(e.getValue().totalNs.sum()), ms(e.getValue().maxNs.get())));
+        }
     }
 }
