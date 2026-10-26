@@ -56,11 +56,13 @@ public final class RandomTrace {
         CURRENT.remove();
     }
 
+    // ENABLED 가 꺼져 있으면 CURRENT 는 절대 설정되지 않으므로 ThreadLocal 조회를 건너뛴다.
     public static boolean isActive() {
-        return CURRENT.get() != null;
+        return ENABLED && CURRENT.get() != null;
     }
 
     public static int beginTreePlacement(int x, int y, int z) {
+        if (!ENABLED) return -1;
         Session session = CURRENT.get();
         if (session == null) return -1;
         int ordinal = ++session.treePlacements;
@@ -77,40 +79,46 @@ public final class RandomTrace {
     }
 
     public static int currentTreeOrdinal() {
+        if (!ENABLED) return -1;
         Session session = CURRENT.get();
         return session == null ? -1 : session.currentTreeOrdinal;
     }
 
     public static void log(String message) {
-        if (!isActive()) return;
+        if (!ENABLED || CURRENT.get() == null) return;
         System.out.printf("FURNACE_RNG_CTX %s%n", message);
     }
 
     public static void nextInt(int value) {
+        if (!ENABLED) return;
         Session session = CURRENT.get();
         if (session == null) return;
         System.out.printf("FURNACE_RNG call=%d method=nextInt value=%d%n", ++session.calls, value);
     }
 
     public static void nextInt(int bound, int value) {
+        if (!ENABLED) return;
         Session session = CURRENT.get();
         if (session == null) return;
         System.out.printf("FURNACE_RNG call=%d method=nextInt bound=%d value=%d%n", ++session.calls, bound, value);
     }
 
     public static void nextFloat(float value) {
+        if (!ENABLED) return;
         Session session = CURRENT.get();
         if (session == null) return;
         System.out.printf("FURNACE_RNG call=%d method=nextFloat value=%s%n", ++session.calls, Float.toString(value));
     }
 
     public static void nextDouble(double value) {
+        if (!ENABLED) return;
         Session session = CURRENT.get();
         if (session == null) return;
         System.out.printf("FURNACE_RNG call=%d method=nextDouble value=%s%n", ++session.calls, Double.toString(value));
     }
 
     public static void nextBoolean(boolean value) {
+        if (!ENABLED) return;
         Session session = CURRENT.get();
         if (session == null) return;
         System.out.printf("FURNACE_RNG call=%d method=nextBoolean value=%s%n", ++session.calls, Boolean.toString(value));
