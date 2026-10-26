@@ -23,13 +23,15 @@ public final class LootData {
     private final Map<String, LootTable> tables;
     private final Map<String, LootCondition> predicates;
     private final Map<String, LootFunction> modifiers;
+    private final Map<String, EnchantmentProvider> enchantmentProviders;
 
     private LootData(LootRegistries registries, Map<String, LootTable> tables, Map<String, LootCondition> predicates,
-                     Map<String, LootFunction> modifiers) {
+                     Map<String, LootFunction> modifiers, Map<String, EnchantmentProvider> enchantmentProviders) {
         this.registries = registries;
         this.tables = tables;
         this.predicates = predicates;
         this.modifiers = modifiers;
+        this.enchantmentProviders = enchantmentProviders;
     }
 
     public static LootData load(ResourceManager rm, LootRegistries regs) {
@@ -44,8 +46,12 @@ public final class LootData {
         Map<String, LootCondition> predicates = parseAll(rm, "predicate", e -> LootCondition.parse(e, regs));
         Map<String, LootFunction> modifiers = parseAll(rm, "item_modifier", e -> LootFunction.parse(e, regs));
         Map<String, LootTable> tables = parseAll(rm, "loot_table", e -> LootTable.parse(e.getAsJsonObject(), regs));
-        return new LootData(regs, tables, predicates, modifiers);
+        Map<String, EnchantmentProvider> providers = parseAll(rm, "enchantment_provider", e -> EnchantmentProvider.parse(e, regs));
+        return new LootData(regs, tables, predicates, modifiers, providers);
     }
+
+    /** 마법 부여 제공자(enchantment_provider/*.json). 없으면 null(바닐라: 아무것도 걸지 않음). */
+    public EnchantmentProvider enchantmentProvider(String id) { return enchantmentProviders.get(LootJson.id(id)); }
 
     private static <T> Map<String, T> parseAll(ResourceManager rm, String dir, Function<JsonElement, T> parser) {
         Map<String, T> out = new LinkedHashMap<>();

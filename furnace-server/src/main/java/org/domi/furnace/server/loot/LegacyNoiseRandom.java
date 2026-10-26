@@ -1,14 +1,14 @@
-// 블록 쪽 LegacyRandomSource(java.util.Random 과 같은 LCG)를 노이즈/전리품 쪽 NoiseRandom 인터페이스로 보이게 하는 어댑터.
+// 블록 쪽 RandomSource(레벨 난수 LegacyRandomSource 등)를 노이즈/전리품 쪽 NoiseRandom 인터페이스로 보이게 하는 어댑터.
 package org.domi.furnace.server.loot;
 
-import org.domi.furnace.server.block.LegacyRandomSource;
+import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 
 public final class LegacyNoiseRandom implements NoiseRandom {
-    private final LegacyRandomSource r;
+    private final RandomSource r;
 
-    public LegacyNoiseRandom(LegacyRandomSource r) { this.r = r; }
+    public LegacyNoiseRandom(RandomSource r) { this.r = r; }
 
     @Override public int nextInt() { return r.nextInt(); }
     @Override public int nextInt(int bound) { return r.nextInt(bound); }

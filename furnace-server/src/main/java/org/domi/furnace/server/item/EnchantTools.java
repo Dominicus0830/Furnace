@@ -36,6 +36,20 @@ public final class EnchantTools {
         return id != null && ItemContext.isInTag("minecraft:enchantment", "minecraft:curse", id);
     }
 
+    /**
+     * 바닐라 EnchantmentHelper.enchantItemFromProvider(stack, registries, provider, difficulty, random):
+     * 데이터 팩의 enchantment_provider 를 찾아 걸고, 없으면(데이터 팩 없음 포함) 그대로 돌려준다. 난수는 넘긴 random 만 쓴다.
+     */
+    public static ItemStack enchantFromProvider(ItemStack s, org.domi.furnace.server.loot.LootData data, String providerId, float special,
+                                                org.domi.furnace.server.block.RandomSource r) {
+        if (data == null) return s;
+        org.domi.furnace.server.loot.EnchantmentProvider p = data.enchantmentProvider(providerId);
+        if (p == null) return s;
+        var lootStack = new org.domi.furnace.server.loot.LootStack(ItemTools.itemName(s), s.count());
+        var random = new org.domi.furnace.server.loot.LegacyNoiseRandom(r);
+        return update(s, levels -> p.enchant(lootStack, levels, random, special, data.registries()));
+    }
+
     /** 바닐라 updateEnchantments(stack, consumer): 수정한 결과를 컴포넌트로 다시 쓴 새 스택(빈 결과도 명시적으로 쓴다). */
     public static ItemStack update(ItemStack s, Consumer<Map<String, Integer>> edit) {
         String comp = componentFor(s);

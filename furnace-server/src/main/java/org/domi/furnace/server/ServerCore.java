@@ -438,6 +438,10 @@ public final class ServerCore {
         public int simulationDistance() { return settings.get().simulationDistance; }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
         public Object recipes() { return ServerCore.this.recipes(); }
+        public org.domi.furnace.server.loot.LootData loot() {
+            var dp = dataPacks;
+            return dp == null ? null : dp.loot();
+        }
         public void unpackContainerLoot(Object container) {
             if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(c, null);
         }

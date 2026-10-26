@@ -916,6 +916,9 @@ public abstract class ChunkLevel implements BlockLevel {
         return services().entityDrops(lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
     }
 
+    /** 데이터 팩 전리품 데이터(인챈트 정의·마법 부여 제공자). 데이터 팩이 없으면 null. */
+    public org.domi.furnace.server.loot.LootData lootData() { return services().loot(); }
+
     /** ExperienceOrb.award(level, 위치, amount). */
     @Override
     public void awardExperience(double x, double y, double z, int amount) {

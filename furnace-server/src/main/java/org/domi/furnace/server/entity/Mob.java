@@ -492,9 +492,12 @@ public abstract class Mob extends LivingEntity {
         }
     }
 
+    /** VanillaEnchantmentProviders.MOB_SPAWN_EQUIPMENT. */
+    public static final String MOB_SPAWN_EQUIPMENT = "minecraft:mob_spawn_equipment";
+
     /**
-     * Mob.populateDefaultEquipmentEnchantments: 손(0.25)·방어구(0.5) × 특수 배율 확률로 마법을 건다.
-     * TODO(마법 부여 제공자 mob_spawn_equipment): 확률 굴림만 하고 실제 마법은 아직 걸지 않는다(난수 소비가 어긋난다).
+     * Mob.populateDefaultEquipmentEnchantments: 손(0.25)·방어구(0.5) × 특수 배율 확률로 마법 부여 제공자 mob_spawn_equipment 를 건다.
+     * 난수는 호출자가 넘긴 것(finalizeSpawn 의 레벨 난수)만 쓴다. 데이터 팩이 없으면 확률 굴림만 하고 아무것도 걸지 않는다.
      */
     protected void populateDefaultEquipmentEnchantments(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
         enchantSpawnedEquipment(EquipmentSlot.MAINHAND, r, 0.25F, difficulty);
@@ -503,10 +506,12 @@ public abstract class Mob extends LivingEntity {
         }
     }
 
+    /** Mob.enchantSpawnedEquipment: 확률을 넘기면 EnchantmentHelper.enchantItemFromProvider 로 걸고 그 칸에 다시 놓는다. */
     private void enchantSpawnedEquipment(EquipmentSlot slot, org.domi.furnace.server.block.RandomSource r, float chance, DifficultyInstance difficulty) {
         ItemStack s = getItemBySlot(slot);
         if (!s.isEmpty() && r.nextFloat() < chance * difficulty.specialMultiplier()) {
-            // TODO(마법 부여 제공자): EnchantmentHelper.enchantItemFromProvider(s, MOB_SPAWN_EQUIPMENT, difficulty, r)
+            setItemSlot(slot, org.domi.furnace.server.item.EnchantTools.enchantFromProvider(s, level.lootData(), MOB_SPAWN_EQUIPMENT,
+                    difficulty.specialMultiplier(), r));
         }
     }
 
