@@ -86,6 +86,7 @@ class RegionTickBench {
             }
         }).get();
         long[] samples = new long[ticks];
+        long[] rawSamples = new long[ticks];
         long[] ph = new long[5];
         for (int t = 0; t < ticks; t++) {
             // 반지름 24 블록 원을 걷는다(틱당 ~0.2 블록 — 걷기 속도)
@@ -101,15 +102,21 @@ class RegionTickBench {
                 Region r = w.regionAt(pr);
                 long[] before = r.phaseSum.clone();
                 long t0 = System.nanoTime();
-                r.tick();
+                if (Boolean.getBoolean("furnace.bench.runtick")) r.runTick(true); else r.tick();
                 samples[tt] = System.nanoTime() - t0;
-                if (tt >= ticks / 4) for (int i = 0; i < 5; i++) ph[i] += r.phaseSum[i] - before[i];
+                rawSamples[tt] = samples[tt];
+                if (tt >= Integer.getInteger("furnace.bench.skip", ticks / 4)) for (int i = 0; i < 5; i++) ph[i] += r.phaseSum[i] - before[i];
             }).get();
             ch.runPendingTasks();
             Object o;
             while ((o = ch.readOutbound()) != null) io.netty.util.ReferenceCountUtil.release(o);
         }
-        int from = ticks / 4, n = ticks - from;
+        if (Boolean.getBoolean("furnace.bench.dump")) {
+            StringBuilder sbd = new StringBuilder("RBENCH per-tick ms:");
+            for (int t = 0; t < Math.min(ticks, 200); t++) sbd.append(String.format(" %.0f", rawSamples[t] / 1e6));
+            System.out.println(sbd);
+        }
+        int from = Integer.getInteger("furnace.bench.skip", ticks / 4), n = ticks - from;
         java.util.Arrays.sort(samples, from, ticks);
         long sum = 0;
         for (int i = from; i < ticks; i++) sum += samples[i];
@@ -121,6 +128,8 @@ class RegionTickBench {
             Region r = w.regionAt(new RegionPos(p.chunkPos().x(), p.chunkPos().z()));
             System.out.printf("RBENCH loaded=%d entities=%d%n", p.loadedChunks().size(), r.level().entities().size());
         }).get();
+        long[] is = Region.INSTALL_STATS;
+        System.out.printf("RBENCH install count=%d put=%dms light=%dms ent=%dms%n", is[0], is[1] / 1000000, is[2] / 1000000, is[3] / 1000000);
         ioPool.shutdown();
         genPool.shutdown();
         sched.close();

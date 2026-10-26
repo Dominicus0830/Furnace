@@ -254,12 +254,30 @@ public final class Region {
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                         ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioPool(), world.genPool())
                         : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
+        // 청크 안쪽 조명은 생성 스레드에서 미리 계산한다(region 틱 스레드가 청크당 ~2ms 를 쓰던 것) — 이웃과의 가장자리는 올릴 때 맞춘다.
+        final boolean sky = level().hasSkyLight();
+        final int bedrock = level().lightBedrockState();
+        sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 생성 풀에서 계산한다
+            if (col != null) {
+                try {
+                    org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
+                } catch (RuntimeException e) {
+                    org.slf4j.LoggerFactory.getLogger(Region.class).warn("[LIGHT] 미리 계산 실패 {} — 올릴 때 다시 계산", cp, e);
+                    col.light(null);
+                    col.lightPrecomputed(false);
+                }
+            }
+            return col;
+        }, world.genPool());
         CompletableFuture<ChunkColumn> f = new CompletableFuture<>();
         world.putLoading(key, f);
         // 완료는 그때의 주인 region 에서(그 사이 합쳐지거나 나뉘었을 수 있다). 실패해도 진행 중 표시는 반드시 지운다.
         sourceFuture.whenComplete((col, err) -> world.runAtChunk(cp, r -> r.finishLoad(cp, key, col, err, f)));
         return f;
     }
+
+    /** -Dfurnace.tickstats: 청크 설치 비용 {개수, 넣기, 빛, 엔티티·블록엔티티·예약틱} ns 합계(region 스레드들이 함께 올리므로 근사). */
+    static final long[] INSTALL_STATS = new long[4];
 
     private void finishLoad(ChunkPos cp, long key, ChunkColumn col, Throwable err, CompletableFuture<ChunkColumn> f) {
         world.removeLoading(key, f);
@@ -274,14 +292,24 @@ public final class Region {
             f.complete(existing);
             return;
         }
+        long t0 = Regionizer.STATS ? System.nanoTime() : 0L;
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        long t1 = Regionizer.STATS ? System.nanoTime() : 0L;
         level().lightNewChunk(cp.x(), cp.z());
         level().runLightUpdates();
+        long t2 = Regionizer.STATS ? System.nanoTime() : 0L;
         loadEntities(cp, col);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
             level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
+        }
+        if (Regionizer.STATS) {
+            long t3 = System.nanoTime();
+            INSTALL_STATS[0]++;
+            INSTALL_STATS[1] += t1 - t0;
+            INSTALL_STATS[2] += t2 - t1;
+            INSTALL_STATS[3] += t3 - t2;
         }
         f.complete(col);
     }
@@ -442,6 +470,8 @@ public final class Region {
 
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
     public void saveDirtyChunks() {
+        autosaveEntityQueue = null;
+        autosaveChunkQueue = null;
         saveEntities();
         if (dirtyChunks.isEmpty()) return;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
@@ -453,6 +483,43 @@ public final class Region {
             }
             dirtyChunks.remove(cp);
         }
+    }
+
+    // 자동 저장은 한 틱에 몰아 하지 않고 틱마다 시간 예산(AUTOSAVE_BUDGET_NANOS) 안에서 나눠 한다 — 청크가 많이 바뀐 서버에서 5분마다 틱이 튀던 것.
+    private static final long AUTOSAVE_BUDGET_NANOS = 4_000_000L;
+    private java.util.ArrayDeque<Long> autosaveEntityQueue;
+    private java.util.ArrayDeque<ChunkPos> autosaveChunkQueue;
+
+    private void beginAutosave() {
+        autosaveEntityQueue = new java.util.ArrayDeque<>(present);
+        autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks);
+    }
+
+    private void stepAutosave() {
+        long deadline = System.nanoTime() + AUTOSAVE_BUDGET_NANOS;
+        Long key;
+        while (autosaveEntityQueue != null && (key = autosaveEntityQueue.poll()) != null) {
+            int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+            ChunkColumn col = level == null ? null : ownedChunk(cx, cz);
+            if (col != null) {
+                var root = level.chunkEntitiesForSave(col, cx, cz, false);
+                if (root != null) world.saveEntitiesAsync(cx, cz, root);
+            }
+            if (System.nanoTime() > deadline) return;
+        }
+        ChunkPos cp;
+        while (autosaveChunkQueue != null && (cp = autosaveChunkQueue.poll()) != null) {
+            ChunkColumn col = ownedChunk(cp.x(), cp.z());
+            if (col != null && col.dirty()) {
+                writeChunkTicks(cp.x(), cp.z(), col, false);
+                world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col));
+                col.clearDirty();
+            }
+            dirtyChunks.remove(cp);
+            if (System.nanoTime() > deadline) return;
+        }
+        autosaveEntityQueue = null;
+        autosaveChunkQueue = null;
     }
 
     /** 로드된 청크의 엔티티를 저장한다(엔티티가 있거나 디스크에 있던 청크 — 바닐라 자동 저장의 storeChunkSections). */
@@ -606,8 +673,9 @@ public final class Region {
         evictIdleChunks();
         if (++autosaveCounter >= world.autosaveTicks() && world.autosaveEnabled()) {
             autosaveCounter = 0;
-            saveDirtyChunks();
+            beginAutosave();
         }
+        if (autosaveEntityQueue != null || autosaveChunkQueue != null) stepAutosave();
         lap(4);
     }
 

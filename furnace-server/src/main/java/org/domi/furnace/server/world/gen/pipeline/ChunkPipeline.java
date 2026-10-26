@@ -95,7 +95,13 @@ public final class ChunkPipeline {
 
     public ChunkPipeline(NoiseWorldSource source) {
         this.source = source;
-        this.genPool = new ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors()));
+        // 생성이 모든 코어를 먹으면 틱 스레드가 밀려 틱이 튄다 — 코어 하나는 남기고, 생성 스레드는 낮은 우선순위로 돈다(윈도·맥에서 효과).
+        int cores = Runtime.getRuntime().availableProcessors();
+        this.genPool = new ForkJoinPool(Math.max(1, cores > 2 ? cores - 1 : cores), pool -> {
+            var t = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
+            t.setPriority(Thread.MIN_PRIORITY);
+            return t;
+        }, null, false);
     }
 
     private static long chunkKey(int cx, int cz) {
@@ -327,6 +333,7 @@ public final class ChunkPipeline {
     private final java.util.concurrent.ExecutorService lane = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "furnace-worldgen-decorate");
         t.setDaemon(true);
+        t.setPriority(Thread.MIN_PRIORITY);
         return t;
     });
 

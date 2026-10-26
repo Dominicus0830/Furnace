@@ -17,6 +17,7 @@ public final class ChunkWorkerPool {
         ThreadFactory factory = r -> {
             Thread t = new Thread(r, "chunk-worker-" + n.incrementAndGet());
             t.setDaemon(true);
+            t.setPriority(Thread.NORM_PRIORITY - 1);
             return t;
         };
         this.executor = Executors.newFixedThreadPool(threads, factory);

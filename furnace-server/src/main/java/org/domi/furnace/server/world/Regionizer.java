@@ -78,6 +78,7 @@ public final class Regionizer {
         for (int i = 0; i < workers.length; i++) {
             Thread t = new Thread(this::workerLoop, "furnace-region-" + i);
             t.setDaemon(true);
+            t.setPriority(Thread.MAX_PRIORITY - 1);   // 틱 스레드는 백그라운드 생성·저장보다 먼저 CPU 를 받는다
             workers[i] = t;
             t.start();
         }
@@ -303,6 +304,8 @@ public final class Regionizer {
     static final boolean STATS = Boolean.getBoolean("furnace.tickstats") || System.getenv("FURNACE_TICKSTATS") != null;
     private final java.util.concurrent.ConcurrentHashMap<Integer, long[]> tickStats = new java.util.concurrent.ConcurrentHashMap<>();
 
+    private long[] lastInstall = new long[4];
+
     private void recordTick(Region r, long start, long end) {
         long[] st = tickStats.computeIfAbsent(r.id, k -> new long[2 + 200]);   // [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍
         int n = (int) st[1];
@@ -332,6 +335,14 @@ public final class Regionizer {
                 r.phaseMax[i] = 0;
             }
             log.info("[TICKSTATS]   단계별:{}", b);
+            long[] is = Region.INSTALL_STATS.clone();
+            long[] d = new long[4];
+            for (int i = 0; i < 4; i++) d[i] = is[i] - lastInstall[i];
+            lastInstall = is;
+            if (d[0] > 0) {
+                log.info("[TICKSTATS]   청크 설치 {}개: 넣기 {}ms 빛 {}ms 엔티티·예약틱 {}ms (개당 평균 {}µs)", d[0], d[1] / 1_000_000, d[2] / 1_000_000,
+                        d[3] / 1_000_000, (d[1] + d[2] + d[3]) / d[0] / 1000);
+            }
         }
     }
 

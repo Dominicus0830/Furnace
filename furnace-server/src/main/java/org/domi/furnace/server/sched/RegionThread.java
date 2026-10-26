@@ -34,6 +34,7 @@ public final class RegionThread implements TaskScheduler, ThreadOwner, AutoClose
         // 모든 필드를 start() 이전에 할당한다. Thread.start()는 happens-before라
         // loop()가 위 필드를 안전하게 본다. start() 뒤로 필드 할당을 옮기면 가시성 버그가 생긴다.
         this.thread = new Thread(this::loop, name);
+        this.thread.setPriority(Thread.MAX_PRIORITY - 1);
         this.thread.start();
     }
 

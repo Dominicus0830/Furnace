@@ -184,8 +184,12 @@ public final class FurnaceMain {
         // 생성 호출자 스레드 — 실제 계산은 ChunkPipeline 의 ForkJoin 풀(코어 수)에서 하고 여기서는 대부분 기다린다.
         // 동시에 진행하는 청크 수를 코어 수만큼 둬야 장식(청크마다 직렬 구간)이 겹쳐 돌며 풀이 놀지 않는다.
         int genThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
-        java.util.concurrent.ExecutorService genPool =
-                java.util.concurrent.Executors.newFixedThreadPool(genThreads);
+        java.util.concurrent.ExecutorService genPool = java.util.concurrent.Executors.newFixedThreadPool(genThreads, r -> {
+            Thread t = new Thread(r, "furnace-gen-wait");
+            t.setDaemon(true);
+            t.setPriority(Thread.MIN_PRIORITY);
+            return t;
+        });
         World world = new World(anvilSource, chunkPool,
                 scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),
                 config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);

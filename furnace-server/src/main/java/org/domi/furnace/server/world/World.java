@@ -328,11 +328,13 @@ public final class World {
 
     // 접속 중 플레이어(eid→Player). 탭 목록은 바닐라처럼 거리와 무관하게 이 집합 전체를 기준으로 한다.
     private final ConcurrentHashMap<Integer, Player> online = new ConcurrentHashMap<>();
+    /** online 의 복사본 배열 — 몹마다·스폰 시도마다 부르는 forEachPlayer 가 맵 반복자를 만들지 않게(접속·퇴장 때만 새로 만든다). */
+    private volatile Player[] onlineArray = new Player[0];
     /** 서버 없이(테스트·도구) 쓸 때: 기본값 + 이 월드의 접속자. */
     private volatile org.domi.furnace.server.block.LevelServices levelServices = new org.domi.furnace.server.block.LevelServices.Delegating(
             org.domi.furnace.server.block.LevelServices.DEFAULT) {
         @Override
-        public void forEachPlayer(java.util.function.Consumer<Player> c) { for (Player p : online.values()) c.accept(p); }
+        public void forEachPlayer(java.util.function.Consumer<Player> c) { for (Player p : onlineArray) c.accept(p); }
 
         @Override
         public long gameTime() { return clock.gameTime(); }
@@ -346,8 +348,20 @@ public final class World {
 
     public void levelServices(org.domi.furnace.server.block.LevelServices s) { this.levelServices = s; }
 
-    public void playerOnline(Player p) { online.put(p.entityId(), p); }
-    public void playerOffline(int eid) { online.remove(eid); trackers.remove(eid); }
+    public void playerOnline(Player p) {
+        synchronized (online) {
+            online.put(p.entityId(), p);
+            onlineArray = online.values().toArray(new Player[0]);
+        }
+    }
+
+    public void playerOffline(int eid) {
+        synchronized (online) {
+            online.remove(eid);
+            onlineArray = online.values().toArray(new Player[0]);
+        }
+        trackers.remove(eid);
+    }
 
     // 엔티티 → 그 엔티티를 지금 화면에 추적 중인 관찰자들. 관찰자 region 이 추적 시작/끝에 갱신하고,
     // 어느 스레드든 피해·사망 같은 엔티티 이벤트를 보낼 때 읽는다(바닐라 ChunkMap.TrackedEntity.seenBy).

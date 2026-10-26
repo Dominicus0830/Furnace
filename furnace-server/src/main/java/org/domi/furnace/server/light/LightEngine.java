@@ -136,6 +136,38 @@ public abstract class LightEngine {
         return n;
     }
 
+    /**
+     * 이웃 청크가 새로 켜질 때: 이미 있는 이쪽 가장자리 칸의 빛을 그 방향으로 한 번 밀어 넣는다(바닐라는 나중에 같은 고정점에 이른다).
+     * 건너편 칸이 이미 level-1 이상이면 전파가 아무것도 바꾸지 못하므로(propagateIncrease 의 첫 검사) 넣지 않는다 — 결과는 같다.
+     */
+    public void pushEdge(int cx, int cz, int towardDir) {
+        ChunkLight cl = world.light(cx, cz);
+        if (cl == null) return;
+        int ncx = cx + DX[towardDir], ncz = cz + DZ[towardDir];
+        ChunkLight other = world.light(ncx, ncz);
+        if (other == null) return;   // 건너편 청크가 없으면 번질 곳이 없다
+        byte[][] mine = layers(cl), theirs = layers(other);
+        int fixedX = towardDir == WEST ? 0 : towardDir == EAST ? 15 : -1, fixedZ = towardDir == NORTH ? 0 : towardDir == SOUTH ? 15 : -1;
+        for (int i = 0; i < 16; i++) {
+            int lx = fixedX >= 0 ? fixedX : i, lz = fixedZ >= 0 ? fixedZ : i;
+            int nlx = towardDir == WEST ? 15 : towardDir == EAST ? 0 : lx, nlz = towardDir == NORTH ? 15 : towardDir == SOUTH ? 0 : lz;
+            for (int sec = 0; sec < ChunkLight.SECTIONS; sec++) {
+                byte[] layer = mine[sec], nlayer = theirs[sec];
+                for (int ly = 0; ly < 16; ly++) {
+                    int idx = ly << 8 | lz << 4 | lx, nidx = ly << 8 | nlz << 4 | nlx;
+                    int b = layer[idx >> 1];
+                    int lvl = (idx & 1) == 0 ? b & 15 : b >> 4 & 15;
+                    if (lvl <= 1) continue;
+                    int nb = nlayer[nidx >> 1];
+                    int nl = (nidx & 1) == 0 ? nb & 15 : nb >> 4 & 15;
+                    if (lvl - 1 <= nl) continue;
+                    int y = ChunkLight.MIN_Y + sec * 16 + ly;
+                    enqueueIncrease(pack(cx * 16 + lx, y, cz * 16 + lz), increaseOnlyOneDirection(lvl, false, towardDir));
+                }
+            }
+        }
+    }
+
     protected void enqueueDecrease(long pos, long flags) {
         decrease.enqueue(pos);
         decrease.enqueue(flags);

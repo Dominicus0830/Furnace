@@ -196,18 +196,4 @@ public final class SkyLightEngine extends LightEngine {
         }
     }
 
-    /** 이웃 청크가 새로 켜질 때: 이미 있는 이쪽 가장자리 칸의 빛을 그 방향으로 한 번 밀어 넣는다(바닐라는 나중에 같은 고정점에 이른다). */
-    public void pushEdge(int cx, int cz, int towardDir) {
-        ChunkLight cl = world.light(cx, cz);
-        if (cl == null) return;
-        int fixedX = towardDir == WEST ? 0 : towardDir == EAST ? 15 : -1, fixedZ = towardDir == NORTH ? 0 : towardDir == SOUTH ? 15 : -1;
-        for (int i = 0; i < 16; i++) {
-            int lx = fixedX >= 0 ? fixedX : i, lz = fixedZ >= 0 ? fixedZ : i;
-            for (int y = ChunkLight.MIN_Y; y < ChunkLight.MAX_Y; y++) {
-                long p = pack(cx * 16 + lx, y, cz * 16 + lz);
-                int lvl = level(p);
-                if (lvl > 1) enqueueIncrease(p, increaseOnlyOneDirection(lvl, false, towardDir));
-            }
-        }
-    }
 }

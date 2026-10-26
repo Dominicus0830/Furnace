@@ -1132,14 +1132,41 @@ public abstract class ChunkLevel implements BlockLevel {
     private org.domi.furnace.server.light.LevelLight lightEngine;
 
     private final org.domi.furnace.server.light.LightWorld lightWorld = new org.domi.furnace.server.light.LightWorld() {
+        // 빛 계산은 이웃 청크 칸을 번갈아 읽는다 — 한 계산 동안만 쓰는 4칸 직접 사상 캐시(청크 조회는 해시 맵이라 비싸다).
+        private final int[] cacheX = new int[4], cacheZ = new int[4];
+        private final ChunkColumn[] cacheCol = new ChunkColumn[4];
+        private int depth;   // lightChunk 안에서 runUpdates 를 다시 부르므로 중첩 횟수로 센다
+
+        private ChunkColumn col(int cx, int cz) {
+            if (depth == 0) return chunk(cx, cz);
+            int i = (cx & 1) | (cz & 1) << 1;
+            ChunkColumn c = cacheCol[i];
+            if (c != null && cacheX[i] == cx && cacheZ[i] == cz) return c;
+            c = chunk(cx, cz);
+            if (c != null) {
+                cacheX[i] = cx;
+                cacheZ[i] = cz;
+                cacheCol[i] = c;
+            }
+            return c;
+        }
+
+        public void begin() {
+            if (depth++ == 0) java.util.Arrays.fill(cacheCol, null);
+        }
+
+        public void end() {
+            if (--depth == 0) java.util.Arrays.fill(cacheCol, null);
+        }
+
         public org.domi.furnace.server.light.ChunkLight light(int cx, int cz) {
-            ChunkColumn c = chunk(cx, cz);
+            ChunkColumn c = col(cx, cz);
             return c == null ? null : c.light();
         }
 
         public int state(int x, int y, int z) {
             if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return 12958;   // void_air
-            return chunk(x >> 4, z >> 4).getBlock(x & 15, y, z & 15);
+            return col(x >> 4, z >> 4).getBlock(x & 15, y, z & 15);
         }
 
         public int unloadedState() { return bedrockState; }
@@ -1159,9 +1186,25 @@ public abstract class ChunkLevel implements BlockLevel {
     public void lightNewChunk(int cx, int cz) {
         ChunkColumn col = chunk(cx, cz);
         if (col == null) return;
+        if (col.lightPrecomputed()) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
+            col.lightPrecomputed(false);
+            lightEngine().attachPrecomputed(cx, cz);
+            return;
+        }
         if (col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
         lightEngine().lightChunk(cx, cz);
     }
+
+    /** 생성 스레드에서 청크 안쪽 빛을 미리 계산한다(월드 상태를 읽지 않는다). 올릴 때 lightNewChunk 가 가장자리를 맞춘다. */
+    public static void precomputeLight(ChunkColumn col, int cx, int cz, int bedrockState, boolean hasSkyLight) {
+        col.motionBlockingHeightmap();   // 높이 지도도 첫 사용 때 틱 스레드에서 열마다 훑지 않게 미리 채운다
+        if (col.light() != null) return;
+        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, (x, y, z) -> col.getBlock(x & 15, y, z & 15), bedrockState,
+                ChunkColumn.MIN_Y, ChunkColumn.MAX_Y + 1, hasSkyLight));
+        col.lightPrecomputed(true);
+    }
+
+    public int lightBedrockState() { return bedrockState; }
 
     /** 틱 끝: 쌓인 빛 갱신 실행(LevelLightEngine.runLightUpdates). */
     public void runLightUpdates() {

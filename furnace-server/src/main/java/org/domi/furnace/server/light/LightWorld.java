@@ -14,4 +14,10 @@ public interface LightWorld {
     int minY();
 
     int maxY();
+
+    /** 한 번의 계산(청크 켜기·갱신 실행) 시작 — 구현은 이 구간에서만 청크 조회 캐시를 쓴다(밖에서는 청크가 내려가거나 바뀔 수 있다). */
+    default void begin() {}
+
+    /** 계산 끝 — 캐시를 비우고 쓰기를 멈춘다. */
+    default void end() {}
 }

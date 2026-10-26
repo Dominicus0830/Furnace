@@ -134,6 +134,13 @@ public final class ChunkColumn {
     // 월드젠 중 구조물 등이 스폰한 엔티티(NBT: id, Pos, Rotation …) — 청크 로드/저장 쪽에서 소비한다.
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
 
+    private boolean lightPrecomputed;
+
+    /** 빛을 생성 스레드에서 미리 계산해 뒀다(이웃과 가장자리만 맞추면 된다). */
+    public boolean lightPrecomputed() { return lightPrecomputed; }
+
+    public void lightPrecomputed(boolean v) { this.lightPrecomputed = v; }
+
     public void addGeneratedEntity(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
         if (generatedEntities == null) generatedEntities = new java.util.ArrayList<>();
         generatedEntities.add(nbt);
