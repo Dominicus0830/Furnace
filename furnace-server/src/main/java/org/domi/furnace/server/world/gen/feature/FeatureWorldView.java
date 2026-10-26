@@ -12,6 +12,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private final int[][] biomeIdsGrid;
     private final boolean writeCenterOnly;
     private final long worldSeed;
+    /** obfuscateSeed(worldSeed) — SHA-256 이라 view 마다 한 번만 계산한다. */
+    private final long biomeZoomSeed;
     /** 차원 높이(중심 청크 열 기준) — 오버월드 -64..319, 네더·엔드 0..255. */
     private final int minY, maxY;
     // 조회(read) 범위 — oracle의 OracleWorldGenLevel.getChunk와 동일하게, 쓰기 범위(origin ±1)보다 넓게
@@ -38,6 +40,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         this.biomeIdsGrid = null;
         this.writeCenterOnly = false;
         this.worldSeed = worldSeed;
+        this.biomeZoomSeed = obfuscateSeed(worldSeed);
         this.minY = col != null ? col.minY() : ChunkColumn.MIN_Y;
         this.maxY = col != null ? col.maxY() : ChunkColumn.MAX_Y;
         this.gridCenterX = cx;
@@ -77,6 +80,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         this.biomeIdsGrid = biomeIdsGrid;
         this.writeCenterOnly = writeCenterOnly;
         this.worldSeed = worldSeed;
+        this.biomeZoomSeed = obfuscateSeed(worldSeed);
         ChunkColumn ref = null;
         for (ChunkColumn c : grid) if (c != null) { ref = c; break; }
         this.minY = ref != null ? ref.minY() : ChunkColumn.MIN_Y;
@@ -311,7 +315,6 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
      * RNG 소비 순서가 어긋났었다.
      */
     public int getBlendedBiomeId(int worldX, int worldY, int worldZ) {
-        long biomeZoomSeed = obfuscateSeed(worldSeed);
         int x = worldX - 2;
         int y = worldY - 2;
         int z = worldZ - 2;

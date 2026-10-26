@@ -445,11 +445,8 @@ public final class World {
                     byte[] cached = col.cachedSerializedBody();
                     if (cached != null) return CompletableFuture.<byte[]>completedFuture(cached);
 
-                    ChunkSnapshot snapshot = col.cachedSnapshot();
-                    if (snapshot == null) {
-                        snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
-                        col.cachedSnapshot(snapshot);
-                    }
+                    // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
+                    ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
                     // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
                     // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
                     long version = col.modCount();
