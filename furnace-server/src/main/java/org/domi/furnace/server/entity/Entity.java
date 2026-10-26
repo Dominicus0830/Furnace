@@ -443,8 +443,46 @@ public abstract non-sealed class Entity implements Rider {
         hurt(new Damage("lightning_bolt", false, false, false), 5.0F);
     }
 
-    /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않는다. */
-    public boolean causeFallDamage(float distance, float multiplier) { return false; }
+    /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않고, 승객에게 넘긴다(fall_damage_immune 종류는 넘기지 않는다). */
+    public boolean causeFallDamage(float distance, float multiplier) {
+        if (typeInTag("minecraft:fall_damage_immune")) return false;
+        if (!passengers.isEmpty()) for (Rider r : passengers) if (r instanceof Entity e) e.causeFallDamage(distance, multiplier);   // TODO(플레이어 낙하): 탄 플레이어
+        return false;
+    }
+
+    // ------------------------------------------------------------------ 엔티티끼리 밀기(Entity.push)
+
+    /** isPushable: 다른 엔티티가 밀 수 있다(기본 아니오). */
+    public boolean isPushable() { return false; }
+
+    /** canBeCollidedWith: 단단한 엔티티(보트 등). */
+    public boolean canBeCollidedWith() { return false; }
+
+    /** push(dx, dy, dz): 속도에 더하고 이번 갱신을 앞당긴다. */
+    public void push(double dx, double dy, double dz) {
+        setDeltaMovement(vx + dx, vy + dy, vz + dz);
+        hasImpulse = true;
+    }
+
+    /** push(entity): 같은 탈것이 아니고 둘 다 물리가 있으면 가로로 서로 민다(가까울수록 세게, 0.05 배). */
+    public void push(Entity e) {
+        if (isPassengerOfSameVehicle(e) || e.noPhysics || noPhysics) return;
+        double dx = e.x - x, dz = e.z - z;
+        double d = Math.max(Math.abs(dx), Math.abs(dz));
+        if (d >= 0.01F) {
+            d = Math.sqrt(d);
+            dx /= d;
+            dz /= d;
+            double f = 1.0 / d;
+            if (f > 1.0) f = 1.0;
+            dx *= f;
+            dz *= f;
+            dx *= 0.05F;
+            dz *= 0.05F;
+            if (!isVehicle() && isPushable()) push(-dx, 0.0, -dz);
+            if (!e.isVehicle() && e.isPushable()) e.push(dx, 0.0, dz);
+        }
+    }
 
     public void resetFallDistance() { fallDistance = 0.0F; }
 

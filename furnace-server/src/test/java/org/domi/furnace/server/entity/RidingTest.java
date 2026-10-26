@@ -319,4 +319,19 @@ class RidingTest {
         assertEquals(4, horses);
         assertEquals(4, riders);
     }
+
+    @Test
+    void respawnDetachesPlayerWithoutTeleport() {
+        var level = new BlockPlacementTest.TestLevel();
+        Chicken c = chicken(level);
+        Player p = new Player(903, UUID.randomUUID(), "ghost", new EmbeddedChannel());
+        List<double[]> teleports = new ArrayList<>();
+        p.teleporter(teleports::add);
+        assertTrue(p.startRiding(c, false));
+        p.bumpSpawnGeneration();
+        p.tickRiding();
+        assertNull(p.vehicle());
+        assertTrue(c.passengers().isEmpty());
+        assertTrue(teleports.isEmpty(), "다시 태어난 자리를 덮어쓰지 않는다");
+    }
 }

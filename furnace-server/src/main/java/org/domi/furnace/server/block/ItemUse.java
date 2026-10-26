@@ -101,11 +101,12 @@ public final class ItemUse {
                     "minecraft:lingering_potion", "minecraft:wind_charge": return throwItem(level, player, stack, n);
             default: break;
         }
+        if (n.endsWith("_boat") || n.endsWith("_raft")) return boatUse(level, player, stack, n);
         BlockItems.Entry e = BlockItems.entry(stack.itemId());
         if (e != null && e.kind() == BlockItems.Kind.PLACE_ON_WATER) return placeOnWaterUse(level, player, hand, stack, e);
         int slot = equipSlot(n);
         if (slot >= 0) return equip(level, player, hand, stack, slot, n);
-        // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 배·수레, 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책.
+        // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책, 광산 수레.
         return Holder.pass(stack);
     }
 
@@ -170,6 +171,44 @@ public final class ItemUse {
         }
         player.awardStat("minecraft:used:" + n);
         return Holder.success(player.isCreative() ? stack : stack.withCount(stack.count() - 1));
+    }
+
+    // ------------------------------------------------------------------ 배(BoatItem)
+
+    /**
+     * BoatItem.use: 유체까지 맞추는 시선이 빗나가면 넘긴다. 시선 5 블록 앞까지 넓힌 상자 안 맞출 수 있는 엔티티의 몸이 눈을 품으면 넘긴다.
+     * 블록에 맞았으면 그 지점에 배(종류·상자 여부는 아이템 이름)를 플레이어 방향으로 놓아, 블록과 겹치면 실패, 아니면 넣고 하나 쓴다.
+     * TODO(엔티티 충돌): noCollision 의 엔티티(다른 배) 부분, EntityType.createDefaultStackConfig(이름·엔티티 데이터 컴포넌트).
+     */
+    private static Holder boatUse(BlockLevel level, BlockActor player, ItemStack stack, String n) {
+        if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
+        Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.ANY);
+        if (hit.miss()) return Holder.pass(stack);
+        double[] v = Clip.viewVector(player.xRot(), player.yRot());
+        var body = player.handle() instanceof org.domi.furnace.server.entity.Player owner ? owner.boundingBox()
+                : new org.domi.furnace.server.entity.AABB(player.x() - 0.3, player.y(), player.z() - 0.3, player.x() + 0.3, player.y() + 1.8, player.z() + 0.3);
+        var box = body.expandTowards(v[0] * 5.0, v[1] * 5.0, v[2] * 5.0).inflate(1.0);
+        double ex = player.x(), ey = player.y() + player.eyeHeight(), ez = player.z();
+        for (var e : cl.getEntities(null, box, x -> !x.isSpectator() && x.isPickable())) {
+            if (e.boundingBox().contains(ex, ey, ez)) return Holder.pass(stack);   // getPickRadius 0
+        }
+        String m = n.substring("minecraft:".length());
+        boolean chest = m.endsWith("_chest_boat") || m.endsWith("_chest_raft");
+        String type = m.endsWith("_raft") ? "bamboo" : m.substring(0, m.length() - (chest ? "_chest_boat".length() : "_boat".length()));
+        org.domi.furnace.server.entity.Boat boat = chest ? new org.domi.furnace.server.entity.ChestBoat(cl, cl.nextEntityId())
+                : new org.domi.furnace.server.entity.Boat(cl, cl.nextEntityId());
+        boat.setPos(hit.x(), hit.y(), hit.z());
+        boat.xo = hit.x();
+        boat.yo = hit.y();
+        boat.zo = hit.z();
+        boat.setVariant(org.domi.furnace.server.entity.Boat.Type.byName(type));
+        boat.setYRot(player.yRot());
+        if (!cl.noCollision(boat.boundingBox())) return Holder.fail(stack);
+        cl.addFreshEntity(boat);
+        level.gameEvent("minecraft:entity_place", new Pos((int) Math.floor(hit.x()), (int) Math.floor(hit.y()), (int) Math.floor(hit.z())), player, -1);
+        ItemStack out = player.isCreative() ? stack : stack.withCount(stack.count() - 1);
+        player.awardStat("minecraft:used:" + n);
+        return Holder.success(out);
     }
 
     // ------------------------------------------------------------------ 양동이(BucketItem)

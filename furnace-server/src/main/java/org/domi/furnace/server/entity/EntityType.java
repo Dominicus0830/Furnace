@@ -302,6 +302,12 @@ public record EntityType(String name, int id, float width, float height, float e
     /** ARMOR_STAND: sized(0.5F, 1.975F).eyeHeight(1.7775). */
     public static final EntityType ARMOR_STAND = of("minecraft:armor_stand", 0.5F, 1.975F, 1.7775F, 10, 3, true, false);
 
+    /** BOAT: sized(1.375F, 0.5625F).eyeHeight(0.5625F).clientTrackingRange(10). */
+    public static final EntityType BOAT = of("minecraft:boat", 1.375F, 0.5625F, 0.5625F, 10, 3, true, false);
+
+    /** CHEST_BOAT: sized(1.375F, 0.5625F).eyeHeight(0.5625F).clientTrackingRange(10). */
+    public static final EntityType CHEST_BOAT = of("minecraft:chest_boat", 1.375F, 0.5625F, 0.5625F, 10, 3, true, false);
+
     /** SHULKER_BULLET: sized(0.3125F, 0.3125F). */
     public static final EntityType SHULKER_BULLET = of("minecraft:shulker_bullet", 0.3125F, 0.3125F, 0.3125F * 0.85F, 8, 3, true, false);
 

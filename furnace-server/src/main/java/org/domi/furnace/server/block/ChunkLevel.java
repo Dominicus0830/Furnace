@@ -1434,7 +1434,8 @@ public abstract class ChunkLevel implements BlockLevel {
     /** ServerLevel.tickPassenger: 지워졌거나 다른 것에 탔으면 내리고, 아니면 rideTick 뒤 그 승객의 승객. 플레이어는 자기 틱 대신 탑승 처리만. */
     private void tickPassenger(Entity vehicle, org.domi.furnace.server.entity.Rider r) {
         if (r instanceof Player p) {
-            if (p.isDisconnected() || p.vehicle() != vehicle) p.stopRiding();
+            if (p.isDisconnected()) p.detachFromVehicle();
+            else if (p.vehicle() != vehicle) p.stopRiding();
             else p.rideTick();
             return;
         }

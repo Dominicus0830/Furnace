@@ -695,13 +695,18 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override
     public boolean causeFallDamage(float distance, float multiplier) {
+        boolean flag = super.causeFallDamage(distance, multiplier);   // 승객에게도
         int dmg = calculateFallDamage(distance, multiplier);
         if (dmg > 0) {
             hurt(new Damage("fall", false, false, false), dmg);
             return true;
         }
-        return false;
+        return flag;
     }
+
+    /** LivingEntity.isPushable: 살아 있고 관전자가 아니며 사다리 등에 매달리지 않았다. */
+    @Override
+    public boolean isPushable() { return isAlive() && !isSpectator() && !onClimbable(); }
 
     // ------------------------------------------------------------------ 틱
 

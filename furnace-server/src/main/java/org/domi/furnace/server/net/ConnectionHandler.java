@@ -1146,6 +1146,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     world.runAt(p.x(), p.z(), region -> org.domi.furnace.server.entity.VehicleMoves.handle(p, x, y, z, yRot, xRot));
                 }
             }
+            case 0x1F -> { // paddle_boat: Boolean 왼쪽, Boolean 오른쪽 — 조종 중인 배의 노 상태
+                boolean left = frame.readBoolean(), right = frame.readBoolean();
+                Player p = player;
+                if (p != null) world.runAt(p.x(), p.z(), region -> {
+                    if (p.vehicle() instanceof org.domi.furnace.server.entity.Boat b && b.getControllingPassenger() == p) b.setPaddleState(left, right);
+                });
+            }
             case 0x26 -> { // player_input: Float 옆, Float 앞, Byte(1 점프, 2 웅크림) — 탄 동안만 반영(ServerPlayer.setPlayerInput)
                 float xxa = frame.readFloat(), zza = frame.readFloat();
                 byte flags = frame.readByte();
@@ -1472,6 +1479,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (action == 1) {
             if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
             else if (e.isPickable()) region.attackEntity(p, e);
+        } else if (e instanceof org.domi.furnace.server.entity.Boat boat) {
+            if (action == 0) boat.interact(p, hand);
         } else if (e instanceof org.domi.furnace.server.entity.HangingEntity hanging) {
             if (action == 0) hanging.interact(p, hand);
         } else if (e instanceof org.domi.furnace.server.entity.ArmorStand stand) {

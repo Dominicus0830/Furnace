@@ -69,7 +69,7 @@ public abstract class Mob extends LivingEntity {
     /** updateControlFlags: 몹이 나를 조종하면 이동·시선·점프 목표를 끈다(보트 안이면 점프도). */
     protected void updateControlFlags() {
         boolean noController = !(getControllingPassenger() instanceof Mob);
-        boolean notInBoat = true;   // TODO(보트): !(vehicle() instanceof Boat)
+        boolean notInBoat = !(vehicle() instanceof Boat);
         goalSelector.setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.MOVE, noController);
         goalSelector.setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.JUMP, noController && notInBoat);
         goalSelector.setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.LOOK, noController);

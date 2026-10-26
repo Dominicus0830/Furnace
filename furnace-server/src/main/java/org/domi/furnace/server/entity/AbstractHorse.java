@@ -205,17 +205,21 @@ public abstract class AbstractHorse extends Animal {
 
     public void handleStopJump() {}
 
-    /** causeFallDamage: 승객들도 같은 피해를 받는다. */
+    /** AbstractHorse.causeFallDamage: 피해가 있으면 나와 승객의 승객까지 같은 피해(LivingEntity 의 것을 부르지 않는다). */
     @Override
     public boolean causeFallDamage(float distance, float multiplier) {
         if (distance > 1.0F) playSound("entity.horse.land", 0.4F, 1.0F);
-        boolean hurt = super.causeFallDamage(distance, multiplier);
-        if (hurt && isVehicle()) {
+        int dmg = calculateFallDamage(distance, multiplier);
+        if (dmg <= 0) return false;
+        Damage fall = new Damage("fall", false, false, false);
+        hurt(fall, dmg);
+        if (isVehicle()) {
             java.util.List<Rider> riders = new java.util.ArrayList<>();
             collectIndirectPassengers(riders);
-            for (Rider r : riders) if (r instanceof Entity e) e.causeFallDamage(distance, multiplier);   // TODO(플레이어 낙하): 탄 플레이어 낙하 피해
+            for (Rider r : riders) if (r instanceof Entity e) e.hurt(fall, dmg);   // TODO(플레이어 낙하): 탄 플레이어
         }
-        return hurt;
+        // TODO(소리): playBlockFallSound
+        return true;
     }
 
     // ------------------------------------------------------------------ 인벤토리

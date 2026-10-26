@@ -175,7 +175,16 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     @Override public Entity vehicle() { return vehicle; }
 
-    @Override public void setVehicleField(Entity v) { vehicle = v; }
+    @Override
+    public void setVehicleField(Entity v) {
+        vehicle = v;
+        if (v != null) ridingGeneration = spawnGeneration;
+    }
+
+    private int ridingGeneration;
+
+    /** 나가거나 다시 태어나 옛 플레이어가 사라진 경우(바닐라는 옛 ServerPlayer 를 지운다): 내릴 자리 없이 연결만 끊는다. */
+    public void detachFromVehicle() { Entity.unlinkVehicle(this); }
 
     @Override public void setBoardingCooldown(int ticks) { boardingCooldown = ticks; }
 
@@ -226,6 +235,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 연결 틱의 탈것 기준점(조종 중인 뿌리 탈것의 지금 위치를 첫·마지막 정상 위치로).
      */
     public void tickRiding() {
+        if (vehicle != null && ridingGeneration != spawnGeneration) detachFromVehicle();
         if (vehicle != null && vehicle.isRemoved()) stopRiding();
         if (boardingCooldown > 0) boardingCooldown--;
         Entity root = Entity.rootVehicleOf(this);

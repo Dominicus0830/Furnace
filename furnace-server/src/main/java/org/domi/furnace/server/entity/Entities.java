@@ -125,6 +125,8 @@ public final class Entities {
             case "minecraft:polar_bear" -> new PolarBear(level, level.nextEntityId());
             case "minecraft:mooshroom" -> new Mooshroom(level, level.nextEntityId());
             case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
+            case "minecraft:boat" -> new Boat(level, level.nextEntityId());
+            case "minecraft:chest_boat" -> new ChestBoat(level, level.nextEntityId());
             default -> null;
         };
     }
@@ -248,6 +250,8 @@ public final class Entities {
             case "minecraft:polar_bear" -> new PolarBear(level, level.nextEntityId());
             case "minecraft:mooshroom" -> new Mooshroom(level, level.nextEntityId());
             case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
+            case "minecraft:boat" -> new Boat(level, level.nextEntityId());
+            case "minecraft:chest_boat" -> new ChestBoat(level, level.nextEntityId());
             default -> null;
         };
         if (e == null) return null;
