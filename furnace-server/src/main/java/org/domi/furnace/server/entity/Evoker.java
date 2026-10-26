@@ -29,6 +29,7 @@ public class Evoker extends SpellcasterIllager {
 
     @Override
     protected void registerGoals() {
+        super.registerGoals();
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new EvokerCastingSpellGoal());
         goalSelector.addGoal(2, new AvoidEntityGoal(this, Player.class, 8.0F, 0.6, 1.0));

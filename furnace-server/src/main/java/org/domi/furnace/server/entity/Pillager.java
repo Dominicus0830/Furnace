@@ -36,6 +36,7 @@ public class Pillager extends AbstractIllager implements CrossbowAttackMob {
 
     @Override
     protected void registerGoals() {
+        super.registerGoals();
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(2, new HoldGroundAttackGoal(this, 10.0F));
         goalSelector.addGoal(3, new RangedCrossbowAttackGoal<>(this, 1.0, 8.0F));
@@ -97,15 +98,23 @@ public class Pillager extends AbstractIllager implements CrossbowAttackMob {
 
     @Override
     public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
-        super.finalizeSpawn(r, difficulty);
+        // 바닐라 순서: 장비 → 장비 마법(enchantSpawnedWeapon 안의 1/300 관통 포함) → super(순찰 지도자 굴림 → Mob 따라가기 범위·왼손잡이)
         populateDefaultEquipmentSlots(r, difficulty);
         populateDefaultEquipmentEnchantments(r, difficulty);
+        super.finalizeSpawn(r, difficulty);
+    }
+
+    /** Pillager.enchantSpawnedWeapon: 주 무기 마법 굴림 뒤 1/300 로 관통 I(방어구 굴림보다 먼저). */
+    @Override
+    protected void populateDefaultEquipmentEnchantments(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        enchantSpawnedWeapon(r, difficulty);
         if (r.nextInt(300) == 0) {
             ItemStack s = getItemBySlot(EquipmentSlot.MAINHAND);
             if (ItemTools.itemName(s).equals("minecraft:crossbow")) {
                 setItemSlot(EquipmentSlot.MAINHAND, ItemTools.with(s, ItemTools.ENCHANTMENTS, Map.of("levels", Map.of("minecraft:piercing", 1))));
             }
         }
+        enchantSpawnedArmor(r, difficulty);
     }
 
     @Override

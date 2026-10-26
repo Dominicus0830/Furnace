@@ -193,7 +193,8 @@ public final class SpawnPlacements {
             case "magmaCube" -> (t, l, r, p, rnd) -> l.difficulty() != 0;
             case "netherWart" -> (t, l, r, p, rnd) -> !B.is(l.getBlockState(p.below()), "minecraft:nether_wart_block");
             case "zombifiedPiglin" -> (t, l, r, p, rnd) -> l.difficulty() != 0 && !B.is(l.getBlockState(p.below()), "minecraft:nether_wart_block");
-            case "pillager" -> (t, l, r, p, rnd) -> l.getSkyLight(p) > 8 ? false : anyLightMonster(t, l, r, p, rnd);
+            // PatrollingMonster.checkPatrollingMonsterSpawnRules: 블록 빛(LightLayer.BLOCK) 8 초과면 안 됨
+            case "pillager" -> (t, l, r, p, rnd) -> l.getBlockLight(p) > 8 ? false : anyLightMonster(t, l, r, p, rnd);
             case "polarBear" -> (t, l, r, p, rnd) -> l.biomeIs(p, "minecraft:polar_bears_spawn_on_alternate_blocks")
                     ? bright(l, p) && belowIsTag(l, p, "minecraft:polar_bears_spawnable_on_alternate") : animal(t, l, r, p, rnd);
             case "silverfish" -> (t, l, r, p, rnd) -> anyLightMonster(t, l, r, p, rnd) && noPlayerNear(l, p);

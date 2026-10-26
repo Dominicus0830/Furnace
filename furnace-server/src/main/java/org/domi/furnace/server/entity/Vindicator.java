@@ -21,6 +21,7 @@ public class Vindicator extends AbstractIllager {
 
     @Override
     protected void registerGoals() {
+        super.registerGoals();
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(3, new HoldGroundAttackGoal(this, 10.0F));
         goalSelector.addGoal(4, new MeleeAttackGoal(this, 1.0, false));

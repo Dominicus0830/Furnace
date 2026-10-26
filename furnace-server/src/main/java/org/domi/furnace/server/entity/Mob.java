@@ -523,7 +523,17 @@ public abstract class Mob extends LivingEntity {
      * 난수는 호출자가 넘긴 것(finalizeSpawn 의 레벨 난수)만 쓴다. 데이터 팩이 없으면 확률 굴림만 하고 아무것도 걸지 않는다.
      */
     protected void populateDefaultEquipmentEnchantments(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        enchantSpawnedWeapon(r, difficulty);
+        enchantSpawnedArmor(r, difficulty);
+    }
+
+    /** Mob.enchantSpawnedWeapon: 주 손 0.25 확률. */
+    protected void enchantSpawnedWeapon(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
         enchantSpawnedEquipment(EquipmentSlot.MAINHAND, r, 0.25F, difficulty);
+    }
+
+    /** Mob.enchantSpawnedArmor 를 방어구 칸 순서대로. */
+    protected void enchantSpawnedArmor(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             if (slot.type() == EquipmentSlot.Type.HUMANOID_ARMOR) enchantSpawnedEquipment(slot, r, 0.5F, difficulty);
         }

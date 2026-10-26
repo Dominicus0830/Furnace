@@ -35,6 +35,7 @@ public class Witch extends Raider implements RangedAttackMob {
 
     @Override
     protected void registerGoals() {
+        super.registerGoals();
         attackPlayersGoal = new NearestAttackableTargetGoal(this, Player.class, 10, true, false, null);
         goalSelector.addGoal(1, new FloatGoal(this));
         goalSelector.addGoal(2, new RangedAttackGoal(this, 1.0, 60, 10.0F));
@@ -51,6 +52,9 @@ public class Witch extends Raider implements RangedAttackMob {
     public void setUsingItemFlag(boolean v) { entityData.set(DATA_USING_ITEM, v); }
 
     @Override public void applyRaidBuffs(int wave, boolean captain) {}
+
+    /** Witch.canBeLeader: 마녀는 순찰 지도자가 되지 않는다(가정 — 바닐라 jar 대조 필요). */
+    @Override public boolean canBeLeader() { return false; }
 
     @Override public String getAmbientSound() { return "entity.witch.ambient"; }
 

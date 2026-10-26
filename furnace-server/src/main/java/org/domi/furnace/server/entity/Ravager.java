@@ -30,6 +30,7 @@ public class Ravager extends Raider {
 
     @Override
     protected void registerGoals() {
+        super.registerGoals();
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(4, new MeleeAttackGoal(this, 1.0, true));
         goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.4));
@@ -152,6 +153,9 @@ public class Ravager extends Raider {
     public int getRoarTick() { return roarTick; }
 
     @Override public void applyRaidBuffs(int wave, boolean captain) { }
+
+    /** Ravager.canBeLeader: 약탈수는 순찰 지도자가 되지 않는다. */
+    @Override public boolean canBeLeader() { return false; }
 
     @Override public String getAmbientSound() { return "entity.ravager.ambient"; }
 

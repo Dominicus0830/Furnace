@@ -23,6 +23,7 @@ public class Illusioner extends SpellcasterIllager implements RangedAttackMob {
 
     @Override
     protected void registerGoals() {
+        super.registerGoals();
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new SpellcasterCastingSpellGoal());
         goalSelector.addGoal(4, new IllusionerMirrorSpellGoal());
