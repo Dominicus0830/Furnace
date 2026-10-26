@@ -49,6 +49,10 @@ public final class ItemEntity extends Entity {
 
     public ItemStack getItem() { return (ItemStack) entityData.get(DATA_ITEM); }
 
+    /** dampensVibrations: 아이템이 #dampens_vibrations(양털 등)면. */
+    @Override
+    public boolean dampensVibrations() { return org.domi.furnace.server.item.ItemTags.is(getItem(), "minecraft:dampens_vibrations"); }
+
     public void setItem(ItemStack stack) { entityData.set(DATA_ITEM, stack); }
 
     /** 바닐라는 스택을 제자리에서 줄인다(dirty 없이) — 클라이언트는 다음 갱신 전까지 옛 개수를 본다. */

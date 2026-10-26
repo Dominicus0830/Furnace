@@ -197,6 +197,23 @@ public final class ChunkColumn {
 
     public void putChest(ChestBlockEntity chest) { putBlockEntity(chest); }
 
+    /** 구역 y 별 게임 이벤트 리스너(바닐라 LevelChunk.gameEventListenerRegistrySections). 저장하지 않는다. */
+    private java.util.Map<Integer, org.domi.furnace.server.world.gameevent.GameEventListenerRegistry> listenerRegistries;
+
+    /** getListenerRegistry(sectionY): create 면 없을 때 만든다(비면 스스로 빠진다). 없으면 null. */
+    public org.domi.furnace.server.world.gameevent.GameEventListenerRegistry listenerRegistry(int sectionY, boolean create) {
+        if (listenerRegistries == null) {
+            if (!create) return null;
+            listenerRegistries = new java.util.HashMap<>();
+        }
+        var r = listenerRegistries.get(sectionY);
+        if (r == null && create) {
+            r = new org.domi.furnace.server.world.gameevent.GameEventListenerRegistry(() -> listenerRegistries.remove(sectionY));
+            listenerRegistries.put(sectionY, r);
+        }
+        return r;
+    }
+
     /** 그 칸의 블록 엔티티(상자 포함, 없으면 null). 월드젠이 남긴 NBT 는 포함하지 않는다. */
     public org.domi.furnace.server.block.entity.BlockEntity blockEntityAt(int x, int y, int z) {
         return blockEntities.get(blockEntityKey(x, y, z));

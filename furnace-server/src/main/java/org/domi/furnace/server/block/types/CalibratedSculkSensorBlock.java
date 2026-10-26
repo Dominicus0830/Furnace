@@ -26,4 +26,12 @@ public class CalibratedSculkSensorBlock extends SculkSensorBlock {
 
     @Override
     protected int activeTicks() { return 10; }
+
+    /** FACING 방향 번호. */
+    public static int facing(int state) { return Dir.byName(FACING.valueName(state)); }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return org.domi.furnace.server.block.entity.SculkSensorBlockEntity.calibrated(pos, state);
+    }
 }

@@ -1,5 +1,5 @@
 // 바닐라 SculkSensorBlock: 진동을 들으면 켜져(active) 30틱 신호를 내고, 쿨다운 뒤 쉰다. 물에 잠길 수 있다.
-// 진동 듣기(게임 이벤트 리스너·블록 엔티티)는 TODO(게임 이벤트).
+// 진동은 블록 엔티티(SculkSensorBlockEntity)가 듣는다.
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.entity.ItemStack;
@@ -43,7 +43,25 @@ public class SculkSensorBlock extends BaseEntityBlock {
         }
     }
 
-    // TODO(엔티티·게임 이벤트): stepOn — 웅크리지 않은 엔티티가 밟으면 STEP 진동.
+    /** stepOn: 쉬고 있고, 워든이 아니고, 받을 수 있으면 STEP 진동을 바로 후보로(forceScheduleVibration). TODO(플레이어): 플레이어 밟기는 아직 stepOn 이 없다. */
+    @Override
+    public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {
+        if (canActivate(state) && entity.type() != org.domi.furnace.server.entity.EntityType.WARDEN
+                && level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SculkSensorBlockEntity be
+                && level instanceof org.domi.furnace.server.block.ChunkLevel cl
+                && be.getVibrationUser().canReceiveVibration(cl, pos, org.domi.furnace.server.world.gameevent.GameEvent.STEP,
+                        org.domi.furnace.server.world.gameevent.GameEventContext.ofState(state))) {
+            be.getVibrationListener().forceScheduleVibration(cl, org.domi.furnace.server.world.gameevent.GameEvent.STEP,
+                    org.domi.furnace.server.world.gameevent.GameEventContext.of(entity),
+                    new org.domi.furnace.server.entity.Vec3(entity.x(), entity.y(), entity.z()));
+        }
+        super.stepOn(level, pos, state, entity);
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.SculkSensorBlockEntity(pos, state);
+    }
 
     @Override
     public void onPlace(int state, BlockLevel level, Pos pos, int oldState, boolean moved) {
@@ -96,24 +114,24 @@ public class SculkSensorBlock extends BaseEntityBlock {
     protected int activeTicks() { return 30; }
 
     /** activate: 켜고 신호 세기 power, 공명 블록(#vibration_resonators)에 공명 이벤트. */
-    public void activate(BlockActor source, BlockLevel level, Pos pos, int state, int power, int frequency) {
+    public void activate(Object source, BlockLevel level, Pos pos, int state, int power, int frequency) {
         level.setBlock(pos, POWER.withInt(PHASE.with(state, "active"), power), 3);
         level.scheduleTick(pos, B.block(state), activeTicks());
         updateNeighbours(level, pos, state);
         tryResonateVibration(source, level, pos, frequency);
-        level.gameEvent("minecraft:sculk_sensor_tendrils_clicking", pos, source, -1);
+        level.gameEventFrom("minecraft:sculk_sensor_tendrils_clicking", pos, source, -1);
         if (!WATERLOGGED.is(state)) {
             level.playSound(null, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, "minecraft:block.sculk_sensor.clicking", "blocks",
                     1.0F, level.random().nextFloat() * 0.2F + 0.8F);
         }
     }
 
-    public static void tryResonateVibration(BlockActor source, BlockLevel level, Pos pos, int frequency) {
+    public static void tryResonateVibration(Object source, BlockLevel level, Pos pos, int frequency) {
         for (int d : Dir.ALL) {
             Pos p = pos.relative(d);
             int s = level.getBlockState(p);
             if (B.isTag(s, "minecraft:vibration_resonators")) {
-                level.gameEvent(RESONATE[frequency], p, source, s);
+                level.gameEventFrom(RESONATE[frequency], p, source, s);
                 level.playSound(null, p, "minecraft:block.amethyst_block.resonate", "blocks", 1.0F, RESONANCE_PITCH_BEND[frequency]);
             }
         }
@@ -131,8 +149,8 @@ public class SculkSensorBlock extends BaseEntityBlock {
 
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
-        // TODO(블록엔티티): 켜져 있으면 마지막 진동 주파수
-        return 0;
+        return level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SculkSensorBlockEntity be
+                && "active".equals(PHASE.valueName(state)) ? be.getLastVibrationFrequency() : 0;
     }
 
     @Override

@@ -106,12 +106,35 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** addAndRegisterBlockEntity: 청크에 두고 틱을 받는 종류면 틱 목록에. */
     protected void addBlockEntity(ChunkColumn col, BlockEntity be) {
+        BlockEntity old = col.blockEntityAt(be.pos().x(), be.pos().y(), be.pos().z());
+        if (old != null && old != be) removeGameEventListener(col, old);
         be.clearRemoved();
         col.putBlockEntity(be);
+        if (old != be) addGameEventListener(col, be);
         if (be.ticking()) addTicker(be);
     }
 
-    protected void removeBlockEntity(ChunkColumn col, Pos pos) { col.removeBlockEntityAt(pos.x(), pos.y(), pos.z()); }
+    protected void removeBlockEntity(ChunkColumn col, Pos pos) {
+        BlockEntity old = col.blockEntityAt(pos.x(), pos.y(), pos.z());
+        if (old != null) removeGameEventListener(col, old);
+        col.removeBlockEntityAt(pos.x(), pos.y(), pos.z());
+    }
+
+    /** LevelChunk.addGameEventListener: 리스너를 가진 블록 엔티티는 그 칸 구역 리스너 목록에. */
+    private static void addGameEventListener(ChunkColumn col, BlockEntity be) {
+        if (be instanceof org.domi.furnace.server.world.gameevent.GameEventListener.Provider p && p.getListener() != null) {
+            org.domi.furnace.server.world.gameevent.GameEventDispatcher.registerBlockListener(col, be.pos().y(), p.getListener());
+        }
+    }
+
+    private static void removeGameEventListener(ChunkColumn col, BlockEntity be) {
+        if (be instanceof org.domi.furnace.server.world.gameevent.GameEventListener.Provider p && p.getListener() != null) {
+            org.domi.furnace.server.world.gameevent.GameEventDispatcher.unregisterBlockListener(col, be.pos().y(), p.getListener());
+        }
+    }
+
+    /** 게임 이벤트가 볼 청크(getChunkNow) — 이 레벨이 가진 로드된 청크만. */
+    public ChunkColumn listenerChunk(int chunkX, int chunkZ) { return chunk(chunkX, chunkZ); }
 
     protected Object blockEntity(ChunkColumn col, Pos pos) {
         BlockEntity be = col.blockEntityAt(pos.x(), pos.y(), pos.z());
@@ -131,7 +154,11 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** 불러온 청크의 블록 엔티티를 틱 목록에(registerAllBlockEntitiesAfterLevelLoad). */
     public void registerBlockEntities(ChunkColumn col) {
-        for (BlockEntity be : col.blockEntities().values()) if (be.ticking() && !be.isRemoved()) addTicker(be);
+        for (BlockEntity be : col.blockEntities().values()) {
+            if (be.isRemoved()) continue;
+            addGameEventListener(col, be);
+            if (be.ticking()) addTicker(be);
+        }
     }
 
     /**
@@ -793,7 +820,38 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
-    public void gameEvent(String event, Pos pos, BlockActor source, int state) {}
+    public void gameEvent(String event, Pos pos, BlockActor source, int state) {
+        gameEventFrom(event, pos, source, state);
+    }
+
+    /** Level.gameEvent(holder, BlockPos, Context.of(entity, state)) — 칸 가운데에서. entity 는 Entity·Player·BlockActor(또는 null). */
+    @Override
+    public void gameEventFrom(String event, Pos pos, Object entity, int state) {
+        org.domi.furnace.server.world.gameevent.GameEvent e = org.domi.furnace.server.world.gameevent.GameEvent.byName(event);
+        if (e == null) return;
+        gameEvent(e, new org.domi.furnace.server.entity.Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5),
+                org.domi.furnace.server.world.gameevent.GameEventContext.of(entity, state));
+    }
+
+    /** ServerLevel.gameEvent(holder, Vec3, Context) → GameEventDispatcher.post. */
+    public void gameEvent(org.domi.furnace.server.world.gameevent.GameEvent event, org.domi.furnace.server.entity.Vec3 pos,
+            org.domi.furnace.server.world.gameevent.GameEventContext ctx) {
+        org.domi.furnace.server.world.gameevent.GameEventDispatcher.post(this, event, pos, ctx);
+    }
+
+    /**
+     * ServerLevel.sendParticles 의 반환값: 이 레벨 플레이어 중 칸 가운데가 (x,y,z)에서 32 미만인 수.
+     * TODO(입자): 입자 패킷 자체는 아직 보내지 않는다(진동 입자의 재전송 표시 상태만 맞춘다).
+     */
+    public int countParticleViewers(double x, double y, double z) {
+        int[] n = {0};
+        services().forEachPlayer(p -> {
+            if (p.isDisconnected()) return;
+            double dx = Math.floor(p.x()) + 0.5 - x, dy = Math.floor(p.y()) + 0.5 - y, dz = Math.floor(p.z()) + 0.5 - z;
+            if (dx * dx + dy * dy + dz * dz < 32.0 * 32.0) n[0]++;
+        });
+        return n[0];
+    }
 
     // ------------------------------------------------------------------ 기타
 
@@ -1404,6 +1462,7 @@ public abstract class ChunkLevel implements BlockLevel {
         e.setLevel(this);
         if (!entities.add(e)) return false;
         startTracking(e);
+        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().add(this);
         return true;
     }
 
@@ -1431,11 +1490,13 @@ public abstract class ChunkLevel implements BlockLevel {
         e.setLevel(this);
         if (!entities.add(e)) return;
         if (e.tracker == null) startTracking(e);
+        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().add(this);
     }
 
     /** 엔티티가 지워졌다(setRemoved) — 저장소에서 빼고 보는 사람에게 지운다. */
     public void entityRemoved(Entity e) {
         if (!entities.remove(e)) return;
+        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().remove(this);
         if (e.tracker != null) {
             e.tracker.broadcastRemoved();
             e.tracker = null;
@@ -1443,7 +1504,10 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** 엔티티의 구역이 바뀌었다(setPosRaw). */
-    public void entitySectionChanged(Entity e, long oldKey) { entities.moved(e, oldKey); }
+    public void entitySectionChanged(Entity e, long oldKey) {
+        entities.moved(e, oldKey);
+        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().move(this);   // onSectionChange
+    }
 
     public java.util.List<Entity> getEntities(Entity except, AABB box, java.util.function.Predicate<? super Entity> filter) {
         return entities.getEntities(except, box, filter);

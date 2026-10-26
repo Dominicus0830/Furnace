@@ -545,7 +545,8 @@ public abstract non-sealed class Entity implements Rider {
         var behavior = BlockBehaviors.of(onState);
         if (dy != my) behavior.updateEntityAfterFallOn(level, this);
         if (onGround) behavior.stepOn(level, onPos, onState, this);
-        // 이동 소리·걸음(MovementEmission)은 지금 엔티티(아이템)에 없다
+        applyMovementEmission(onPos, onState, mx, my, mz, dx, dy, dz);
+        if (isRemoved()) return;
         checkInsideBlocks();
         float f = getBlockSpeedFactor();
         setDeltaMovement(vx * f, vy, vz * f);
@@ -555,6 +556,114 @@ public abstract non-sealed class Entity implements Rider {
         }
         if (isOnFire() && (isInPowderSnow || isInWaterRainOrBubble())) setRemainingFireTicks(-FIRE_IMMUNE_TICKS);
     }
+
+    // ------------------------------------------------------------------ 이동 방출(바닐라 Entity.move 의 MovementEmission 부분)
+
+    /** walkDist·moveDist·flyDist, nextStep. */
+    public float walkDist, moveDist, flyDist;
+    protected float nextStep = 1.0F;
+
+    /** Entity.MovementEmission: 소리·게임 이벤트를 내는가. */
+    public enum MovementEmission {
+        NONE(false, false), SOUNDS(true, false), EVENTS(false, true), ALL(true, true);
+
+        final boolean sounds, events;
+
+        MovementEmission(boolean sounds, boolean events) {
+            this.sounds = sounds;
+            this.events = events;
+        }
+
+        public boolean emitsAnything() { return sounds || events; }
+
+        public boolean emitsEvents() { return events; }
+
+        public boolean emitsSounds() { return sounds; }
+    }
+
+    /**
+     * getMovementEmission: 바닐라 기본은 ALL 이지만 여기서는 비생물(아이템·투사체·수레 등)이 대부분 NONE/EVENTS 라 기본을 NONE 으로 두고
+     * LivingEntity 가 ALL 로 덮는다. TODO(엔티티): 보트·수레(EVENTS) 등 비생물 쪽은 아직 NONE.
+     */
+    protected MovementEmission getMovementEmission() { return MovementEmission.NONE; }
+
+    /** nextStep(): (int) moveDist + 1. */
+    protected float nextStep() { return (int) moveDist + 1; }
+
+    /** isFlapping: 날갯짓 몹(박쥐·앵무새 등)이 덮는다. */
+    protected boolean isFlapping() { return false; }
+
+    protected void onFlap() {}
+
+    /** Entity.gameEvent(event): 자기 위치에서, 자기를 출처로. */
+    public void gameEvent(org.domi.furnace.server.world.gameevent.GameEvent event) { gameEvent(event, this); }
+
+    public void gameEvent(org.domi.furnace.server.world.gameevent.GameEvent event, Object source) {
+        if (level != null) level.gameEvent(event, new Vec3(x, y, z), org.domi.furnace.server.world.gameevent.GameEventContext.of(source));
+    }
+
+    /** dampensVibrations: 양털 아이템 등. */
+    public boolean dampensVibrations() { return false; }
+
+    /** getControllingPassenger 가 있으면 그것, 아니면 자기(waterSwimSound). */
+    protected String getSwimSound() { return "minecraft:entity.generic.swim"; }
+
+    /** waterSwimSound → playSwimSound: 난수 두 번(높이). */
+    protected void waterSwimSound() {
+        Rider ctl = getControllingPassenger();
+        Entity e = ctl instanceof Entity ce ? ce : this;
+        float f = e == this ? 0.35F : 0.4F;
+        float f1 = Math.min(1.0F, (float) Math.sqrt(e.vx * e.vx * 0.2F + e.vy * e.vy + e.vz * e.vz * 0.2F) * f);
+        playSound(getSwimSound(), f1, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
+    }
+
+    private static final int POWDER_SNOW = B.id("powder_snow");
+
+    private void applyMovementEmission(Pos legacyOnPos, int legacyOnState, double mx, double my, double mz, double dx, double dy, double dz) {
+        MovementEmission em = getMovementEmission();
+        if (!em.emitsAnything() || isPassenger()) return;
+        flyDist += (float) (Math.sqrt(mx * mx + my * my + mz * mz) * 0.6);
+        Pos onPos = getOnPos();
+        int onState = level.getBlockState(onPos);
+        boolean climbable = B.isTag(onState, "minecraft:climbable") || B.is(onState, POWDER_SNOW);
+        double ey = climbable ? my : 0.0;
+        walkDist += (float) Math.sqrt(mx * mx + mz * mz) * 0.6F;
+        moveDist += (float) Math.sqrt(mx * mx + ey * ey + mz * mz) * 0.6F;
+        if (moveDist > nextStep && !B.isAir(onState)) {
+            boolean same = onPos.equals(legacyOnPos);
+            boolean any = vibrationAndSoundEffectsFromBlock(legacyOnPos, legacyOnState, em.emitsSounds(), same, dy);
+            if (!same) any |= vibrationAndSoundEffectsFromBlock(onPos, onState, false, em.emitsEvents(), dy);
+            if (any) {
+                nextStep = nextStep();
+            } else if (isInWater()) {
+                nextStep = nextStep();
+                if (em.emitsSounds()) waterSwimSound();
+                if (em.emitsEvents()) gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SWIM);
+            }
+        } else if (B.isAir(onState)) {
+            if (isFlapping()) {
+                onFlap();
+                if (em.emitsEvents()) gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.FLAP);
+            }
+        }
+    }
+
+    /** vibrationAndSoundEffectsFromBlock. TODO(소리): 걸음 소리(블록 SoundType)는 아직 없다 — 난수를 쓰지 않으므로 상태는 같다. */
+    private boolean vibrationAndSoundEffectsFromBlock(Pos pos, int state, boolean playStepSound, boolean broadcastGameEvent, double wantedDy) {
+        if (B.isAir(state)) return false;
+        boolean climbable = B.isTag(state, "minecraft:climbable") || B.is(state, POWDER_SNOW);
+        if ((onGround() || climbable || getPose() == POSE_CROUCHING && wantedDy == 0.0) && !isSwimming()) {
+            if (broadcastGameEvent) {
+                level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.STEP, new Vec3(x, y, z),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(this, state));
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /** 이 엔티티가 가진 이동 게임 이벤트 리스너(워든·알레이). 없으면 null. */
+    public org.domi.furnace.server.world.gameevent.DynamicGameEventListener<?> dynamicGameEventListener() { return null; }
 
     /** Mth.equal(double, double): 차이가 1e-5 보다 작은가. */
     private static boolean equalish(double a, double b) { return Math.abs(b - a) < 1.0E-5F; }

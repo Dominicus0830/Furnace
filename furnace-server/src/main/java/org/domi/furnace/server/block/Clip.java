@@ -76,6 +76,35 @@ public final class Clip {
         return miss(fx, fy, fz, tx, ty, tz);
     }
 
+    /** BlockGetter.isBlockInLine(ClipBlockStateContext(from, to, test)): 지나는 칸(시작 칸 포함) 중 상태가 test 에 맞는 것이 있는가. */
+    public static boolean isBlockInLine(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz,
+            java.util.function.IntPredicate test) {
+        if (fx == tx && fy == ty && fz == tz) return false;
+        double ex = lerp(-1.0E-7, tx, fx), ey = lerp(-1.0E-7, ty, fy), ez = lerp(-1.0E-7, tz, fz);
+        double sx = lerp(-1.0E-7, fx, tx), sy = lerp(-1.0E-7, fy, ty), sz = lerp(-1.0E-7, fz, tz);
+        int i = (int) Math.floor(sx), j = (int) Math.floor(sy), k = (int) Math.floor(sz);
+        if (test.test(level.getBlockState(new Pos(i, j, k)))) return true;
+        double dx = ex - sx, dy = ey - sy, dz = ez - sz;
+        int lx = sign(dx), ly = sign(dy), lz = sign(dz);
+        double stepX = lx == 0 ? Double.MAX_VALUE : lx / dx;
+        double stepY = ly == 0 ? Double.MAX_VALUE : ly / dy;
+        double stepZ = lz == 0 ? Double.MAX_VALUE : lz / dz;
+        double tX = stepX * (lx > 0 ? 1.0 - frac(sx) : frac(sx));
+        double tY = stepY * (ly > 0 ? 1.0 - frac(sy) : frac(sy));
+        double tZ = stepZ * (lz > 0 ? 1.0 - frac(sz) : frac(sz));
+        while (tX <= 1.0 || tY <= 1.0 || tZ <= 1.0) {
+            if (tX < tY) {
+                if (tX < tZ) { i += lx; tX += stepX; } else { k += lz; tZ += stepZ; }
+            } else if (tY < tZ) {
+                j += ly; tY += stepY;
+            } else {
+                k += lz; tZ += stepZ;
+            }
+            if (test.test(level.getBlockState(new Pos(i, j, k)))) return true;
+        }
+        return false;
+    }
+
     private static Result miss(double fx, double fy, double fz, double tx, double ty, double tz) {
         int face = nearest(fx - tx, fy - ty, fz - tz);
         return new Result(true, new Pos((int) Math.floor(tx), (int) Math.floor(ty), (int) Math.floor(tz)), face, tx, ty, tz, false);

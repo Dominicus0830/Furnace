@@ -20,6 +20,10 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Shulker extends AbstractGolem implements Enemy {
+
+    @Override
+    protected MovementEmission getMovementEmission() { return MovementEmission.NONE; }
+
     public static final int DATA_ATTACH_FACE_ID = 16, DATA_PEEK_ID = 17, DATA_COLOR_ID = 18;
     private static final String COVERED_ARMOR_MODIFIER_ID = "minecraft:covered";
     private static final AttributeModifier COVERED_ARMOR_MODIFIER = new AttributeModifier(COVERED_ARMOR_MODIFIER_ID, 20.0, AttributeModifier.ADD_VALUE);

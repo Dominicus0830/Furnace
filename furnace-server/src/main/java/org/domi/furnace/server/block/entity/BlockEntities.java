@@ -34,6 +34,8 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:dispenser", DispenserBlockEntity::new);
         FACTORIES.put("minecraft:dropper", DropperBlockEntity::new);
         FACTORIES.put("minecraft:banner", BannerBlockEntity::new);
+        FACTORIES.put("minecraft:sculk_sensor", SculkSensorBlockEntity::new);
+        FACTORIES.put("minecraft:calibrated_sculk_sensor", SculkSensorBlockEntity::calibrated);
     }
 
     public static boolean known(String type) { return FACTORIES.containsKey(type); }

@@ -128,6 +128,11 @@ public interface BlockLevel {
     /** 게임 이벤트(스컬크 감지 등) — 진동 체계가 들어오기 전까지는 기록만. */
     void gameEvent(String event, Pos pos, BlockActor source, int state);
 
+    /** gameEvent 와 같되 출처가 엔티티(Entity·Player)일 수 있다. */
+    default void gameEventFrom(String event, Pos pos, Object source, int state) {
+        gameEvent(event, pos, source instanceof BlockActor a ? a : null, state);
+    }
+
     // ------------------------------------------------------------------ 기타
 
     /**
