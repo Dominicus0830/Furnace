@@ -26,6 +26,7 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:lectern", LecternBlockEntity::new);
         FACTORIES.put("minecraft:beacon", BeaconBlockEntity::new);
         FACTORIES.put("minecraft:campfire", CampfireBlockEntity::new);
+        FACTORIES.put("minecraft:jukebox", JukeboxBlockEntity::new);
         FACTORIES.put("minecraft:barrel", BarrelBlockEntity::new);
         FACTORIES.put("minecraft:shulker_box", ShulkerBoxBlockEntity::new);
         FACTORIES.put("minecraft:hopper", HopperBlockEntity::new);

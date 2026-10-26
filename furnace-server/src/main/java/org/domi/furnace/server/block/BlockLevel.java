@@ -251,6 +251,9 @@ public interface BlockLevel {
     /** Containers.dropContents(level, pos, container): 칸마다 dropItemStack(빈 칸도 위치 난수 3번), 칸은 비운다. */
     default void dropContents(Pos pos, ItemStack[] items) {}
 
+    /** 아이템 엔티티 하나를 그 자리에 만든다(기본 줍기 지연, 난수 소비 없음 — 위치는 부르는 쪽이 정한다). */
+    default void spawnItemEntity(double x, double y, double z, ItemStack stack) {}
+
     /** Containers.dropItemStack(level, x, y, z, stack): 칸 안 임의 위치에서 쪼개 떨군다(위치·속도 난수는 레벨 난수). */
     default void dropItemStack(double x, double y, double z, ItemStack stack) {}
 

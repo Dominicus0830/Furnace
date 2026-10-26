@@ -9,7 +9,9 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.ItemInteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
+import org.domi.furnace.server.block.entity.JukeboxBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public class JukeboxBlock extends BaseEntityBlock {
@@ -17,6 +19,9 @@ public class JukeboxBlock extends BaseEntityBlock {
     private static final Prop HAS_RECORD = B.prop("has_record");
 
     public JukeboxBlock(int block) { super(block); }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return new JukeboxBlockEntity(pos, state); }
 
     @Override
     public void setPlacedBy(BlockLevel level, Pos pos, int state, BlockActor placer, ItemStack stack) {
@@ -27,8 +32,8 @@ public class JukeboxBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        if (HAS_RECORD.is(state)) {
-            // TODO(블록엔티티): JukeboxBlockEntity.popOutTheItem — 음반을 위로 튀겨 내고 has_record=false
+        if (HAS_RECORD.is(state) && level.getBlockEntity(pos) instanceof JukeboxBlockEntity be) {
+            be.popOutTheItem(level);
             return InteractionResult.CONSUME;
         }
         return InteractionResult.PASS;
@@ -37,14 +42,19 @@ public class JukeboxBlock extends BaseEntityBlock {
     @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
         if (HAS_RECORD.is(state)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        // TODO(블록엔티티·아이템): JukeboxPlayable.tryInsertIntoJukebox — jukebox_playable 아이템이면 넣고 재생(CONSUME).
-        return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        // JukeboxPlayable.tryInsertIntoJukebox: jukebox_playable 아이템을 한 장 넣고 재생(통계 play_record)
+        if (!(ItemTools.component(stack, "minecraft:jukebox_playable") instanceof java.util.Map<?, ?>)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        ItemStack one = stack.withCount(1);
+        if (!player.isCreative()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+        if (level.getBlockEntity(pos) instanceof JukeboxBlockEntity be) be.insert(one, player, level);
+        player.awardStat("minecraft:play_record");
+        return ItemInteractionResult.CONSUME;
     }
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
         if (!B.is(newState, block)) {
-            // TODO(블록엔티티): popOutTheItem
+            if (level.getBlockEntity(pos) instanceof JukeboxBlockEntity be) be.popOutTheItem(level);
             super.onRemove(state, level, pos, newState, moved);
         }
     }
@@ -54,7 +64,7 @@ public class JukeboxBlock extends BaseEntityBlock {
 
     @Override
     public int getSignal(int state, BlockLevel level, Pos pos, int dir) {
-        return 0;   // TODO(블록엔티티): 재생 중이면 15
+        return level.getBlockEntity(pos) instanceof JukeboxBlockEntity be && be.isPlaying() ? 15 : 0;
     }
 
     @Override
@@ -62,6 +72,6 @@ public class JukeboxBlock extends BaseEntityBlock {
 
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
-        return 0;   // TODO(블록엔티티): 음반의 비교기 출력
+        return level.getBlockEntity(pos) instanceof JukeboxBlockEntity be ? be.comparatorOutput() : 0;
     }
 }
