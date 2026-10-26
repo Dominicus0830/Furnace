@@ -871,7 +871,7 @@ public final class Region {
         if (x != p.pitch() || y != p.yaw()) p.applyRotation(y, Math.clamp(x, -90.0F, 90.0F), p.onGround());   // absRotateTo
         actor = breakerActor(p);
         if (p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && !actor.isOnCooldown(actor.itemInHand(hand).itemId())
-                && org.domi.furnace.server.entity.RangedWeapons.use(level(), actor, p, hand)) {   // 활·쇠뇌
+                && org.domi.furnace.server.entity.RangedWeapons.use(level(), actor, p, hand)) {   // 활·쇠뇌·낚싯대·삼지창
             writeBackHand(p, actor);
             return;
         }
@@ -885,7 +885,7 @@ public final class Region {
         world.assertOwns(this);
         if (p.usingHand >= 0 && players.containsKey(p.entityId())) {
             var actor = breakerActor(p);
-            if (org.domi.furnace.server.entity.RangedWeapons.isRangedWeapon(actor.itemInHand(p.usingHand))) {
+            if (org.domi.furnace.server.entity.RangedWeapons.usesRelease(actor.itemInHand(p.usingHand))) {
                 org.domi.furnace.server.entity.RangedWeapons.release(level(), actor, p);
                 writeBackHand(p, actor);
             }

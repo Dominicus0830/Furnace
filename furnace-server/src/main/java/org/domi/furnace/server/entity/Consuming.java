@@ -47,7 +47,7 @@ public final class Consuming {
         PlayerInventory inv = p.inventory();
         int ws = p.usingHand == 0 ? inv.heldWindowSlot() : 45;
         ItemStack s = inv.get(ws);
-        if (RangedWeapons.isRangedWeapon(s)) {   // 활·쇠뇌: 놓을 때 처리
+        if (RangedWeapons.usesRelease(s)) {   // 활·쇠뇌·삼지창: 놓을 때 처리
             RangedWeapons.tick(p, region == null ? null : region.level(), s);
             return;
         }

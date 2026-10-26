@@ -287,16 +287,20 @@ public abstract class AbstractArrow extends Projectile {
     @Override
     public void playerTouch(Player player) {
         if ((inGround || isNoPhysics()) && shakeTime <= 0) {
-            boolean ok = switch (pickup) {
-                case DISALLOWED -> false;
-                case ALLOWED -> player.inventory().add(getPickupItem(), false, 64, false).isEmpty();
-                case CREATIVE_ONLY -> player.hasInfiniteMaterials();
-            };
-            if (ok) {
+            if (tryPickup(player)) {
                 player.take(this, 1);
                 discard();
             }
         }
+    }
+
+    /** AbstractArrow.tryPickup: 줍기 규칙. */
+    protected boolean tryPickup(Player player) {
+        return switch (pickup) {
+            case DISALLOWED -> false;
+            case ALLOWED -> player.inventory().add(getPickupItem(), false, 64, false).isEmpty();
+            case CREATIVE_ONLY -> player.hasInfiniteMaterials();
+        };
     }
 
     protected abstract ItemStack getDefaultPickupItem();

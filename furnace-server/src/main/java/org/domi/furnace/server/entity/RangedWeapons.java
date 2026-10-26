@@ -25,6 +25,9 @@ public final class RangedWeapons {
 
     public static boolean isRangedWeapon(ItemStack s) { return isBow(s) || isCrossbow(s); }
 
+    /** 놓을 때 처리하는 오래 쓰기 아이템(활·쇠뇌·삼지창). */
+    public static boolean usesRelease(ItemStack s) { return isRangedWeapon(s) || Tridents.isTrident(s); }
+
     private static boolean isArrow(ItemStack s) { return !s.isEmpty() && ItemContext.isInTag("minecraft:item", "minecraft:arrows", s.itemId()); }
 
     private static boolean isFirework(ItemStack s) { return ItemTools.itemName(s).equals("minecraft:firework_rocket"); }
@@ -115,9 +118,11 @@ public final class RangedWeapons {
 
     // ------------------------------------------------------------------ 사용 시작(Item.use)
 
-    /** 활·쇠뇌 use: 처리했으면 true(시작·발사·실패 모두). 활·쇠뇌가 아니면 false. */
+    /** 활·쇠뇌(그리고 낚싯대·삼지창) use: 처리했으면 true(시작·발사·실패 모두). 해당 아이템이 아니면 false. */
     public static boolean use(ChunkLevel level, BlockActor actor, Player p, int hand) {
         ItemStack weapon = actor.itemInHand(hand);
+        if (FishingHook.isRod(weapon)) return FishingRods.use(level, actor, p, hand);
+        if (Tridents.isTrident(weapon)) return Tridents.use(actor, p, hand);
         if (isBow(weapon)) {
             boolean has = !projectile(p, actor, weapon).stack().isEmpty();
             if (p.hasInfiniteMaterials() || has) start(p, hand, BOW_USE_TICKS);
@@ -137,7 +142,7 @@ public final class RangedWeapons {
         return true;
     }
 
-    private static void start(Player p, int hand, int ticks) {
+    static void start(Player p, int hand, int ticks) {
         p.usingHand = hand;
         p.usingTicks = ticks;
     }
@@ -147,7 +152,7 @@ public final class RangedWeapons {
     /** 틱마다: onUseTick(남은 틱) 후 하나 줄인다. 활은 72000틱이 다 되면 그냥 끝(쇠뇌는 놓을 때까지 계속). */
     public static void tick(Player p, ChunkLevel level, ItemStack stack) {
         onUseTick(p, level, stack, p.usingTicks);
-        if (--p.usingTicks == 0 && isBow(stack)) p.usingHand = -1;
+        if (--p.usingTicks == 0 && (isBow(stack) || Tridents.isTrident(stack))) p.usingHand = -1;
     }
 
     /** CrossbowItem.onUseTick: 장전 진행 0.2·0.5 에서 시작·중간 소리(한 번씩). */
@@ -178,6 +183,7 @@ public final class RangedWeapons {
         ItemStack weapon = actor.itemInHand(hand);
         int remaining = p.usingTicks;
         if (isBow(weapon)) bowRelease(level, actor, p, hand, remaining);
+        else if (Tridents.isTrident(weapon)) Tridents.release(level, actor, p, hand, remaining);
         else if (isCrossbow(weapon)) {
             crossbowRelease(level, actor, p, hand, remaining);
             tick(p, level, actor.itemInHand(hand));
