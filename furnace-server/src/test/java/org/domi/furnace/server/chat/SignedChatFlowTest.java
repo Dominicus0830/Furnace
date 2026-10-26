@@ -56,7 +56,7 @@ class SignedChatFlowTest {
             // 오프라인 서버: secure chat 강제 없음(비서명 채팅 허용) — 서명이 오면 그대로 검증한다.
             core.settings().update(p -> { var q = p.cloneProperties(); q.put("online-mode", "false"); return q; });
             assertFalse(core.enforceSecureProfile());
-            List<String> console = new ArrayList<>();
+            List<String> console = new java.util.concurrent.CopyOnWriteArrayList<>();   // 서버 스레드가 쓰고 테스트 스레드가 읽는다
             core.addConsoleListener(t -> console.add(t.getString()));
             server = new NetworkServer(0, -1, ServerLoginContext.offline("t").core(core), sched, core.world(), new EntityIdAllocator());
             int port = server.start();
@@ -68,6 +68,7 @@ class SignedChatFlowTest {
                 Chat c1 = readChat(b.await(0x39));
                 assertEquals(new Chat(a.uuid, 0, false, "hello", chatType, 0), c1);
                 assertEquals("hello", readChat(a.await(0x39)).content(), "보낸 사람도 자기 채팅을 받는다");
+                for (int i = 0; i < 500 && !console.contains("[Not Secure] <Alice> hello"); i++) Thread.sleep(20);   // 로그는 브로드캐스트 뒤에 남을 수 있다
                 assertTrue(console.contains("[Not Secure] <Alice> hello"), console.toString());
 
                 // 2) 채팅 세션 등록 → Bob 이 initialize_chat 를 받는다
@@ -88,7 +89,7 @@ class SignedChatFlowTest {
                 assertTrue(c2.signed());
                 assertEquals(0, c2.index());
                 a.await(0x39); // 앨리스도 자기 메시지를 받는다(서명 추적 시작)
-                for (int i = 0; i < 50 && !console.contains("<Alice> signed hi"); i++) Thread.sleep(20);
+                for (int i = 0; i < 500 && !console.contains("<Alice> signed hi"); i++) Thread.sleep(20);   // 부하 시 콘솔 로그가 늦다: 최대 10초
                 assertTrue(console.contains("<Alice> signed hi"), "서명된 채팅은 [Not Secure] 없이 로그: " + console);
 
                 // 4) 받은 서명을 확인(창 1칸 이동 + 마지막 칸 확인)하며 다음 메시지
