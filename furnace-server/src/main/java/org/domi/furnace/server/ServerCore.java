@@ -135,6 +135,38 @@ public final class ServerCore {
         };
     }
 
+    private volatile org.domi.furnace.server.map.ExplorerMaps.Backend explorerBackend;
+
+    /**
+     * 탐험 지도 지원: 구조물 찾기(StructureLocator — 바닐라 findNearestMapStructure)와 지도 바탕용 바이옴(Level.getBiome — 확대 지터 포함, 생성기 바이옴).
+     * 월드 생성기가 없으면(평지·시험) null.
+     */
+    private org.domi.furnace.server.map.ExplorerMaps.Backend explorerMapBackend() {
+        var b = explorerBackend;
+        if (b != null) return b;
+        var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(world.worldSource());
+        if (gen == null) return null;
+        return explorerBackend = new org.domi.furnace.server.map.ExplorerMaps.Backend() {
+            private final java.util.Set<String> waterBiomes =
+                    org.domi.furnace.server.world.gen.structure.StructureRegistry.biomeTag("minecraft:water_on_map_outlines");
+
+            public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius) {
+                if (!settings.get().generateStructures) return null;
+                var ids = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(tag);
+                if (ids == null) return null;
+                var f = gen.structureLocator().findNearest(ids, x, y, z, radius);
+                return f == null ? null : new int[] {f.x(), f.z()};
+            }
+
+            public boolean waterOnMapOutlines(int bx, int bz) {
+                int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed, bx, 0, bz);
+                return waterBiomes.contains(gen.biomeAt(q[0] << 2, q[1] << 2, q[2] << 2));
+            }
+
+            public String dimension() { return "minecraft:overworld"; }
+        };
+    }
+
     /** 접속한 플레이어의 발전 과제 진행을 만든다(바닐라 PlayerList.getPlayerAdvancements). 데이터 팩이 없으면 null. */
     public org.domi.furnace.server.advancement.PlayerAdvancements attachAdvancements(Player p) {
         var dp = dataPacks;
@@ -434,6 +466,7 @@ public final class ServerCore {
             return ServerCore.this.fishingLoot(hook, x, y, z, tool, luck);
         }
         public String biomeAt(int x, int y, int z) { return lootWorld.biomeAt(x, y, z); }
+        public org.domi.furnace.server.map.ExplorerMaps.Backend explorerMaps() { return explorerMapBackend(); }
         public long seed() { return levelData.seed; }
         public int[] sharedSpawnPos() { return new int[] {levelData.spawnX, levelData.spawnY, levelData.spawnZ}; }
         public boolean spawnMonsters() { return settings.get().spawnMonsters; }

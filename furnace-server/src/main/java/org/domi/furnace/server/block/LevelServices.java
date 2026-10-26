@@ -87,6 +87,9 @@ public interface LevelServices {
     /** 서버 레시피 매니저(RecipeManager, 없으면 null) — 화로 굽기 등. */
     default Object recipes() { return null; }
 
+    /** 탐험 지도 만들기 지원(구조물 찾기·바이옴). 월드 생성기가 없으면 null — 지도 거래는 만들어지지 않는다. */
+    default org.domi.furnace.server.map.ExplorerMaps.Backend explorerMaps() { return null; }
+
     /** 데이터 팩 전리품 데이터(인챈트 정의·마법 부여 제공자). 데이터 팩이 없으면 null. */
     default org.domi.furnace.server.loot.LootData loot() { return null; }
 

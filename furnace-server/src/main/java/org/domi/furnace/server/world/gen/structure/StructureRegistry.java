@@ -134,6 +134,9 @@ public final class StructureRegistry {
         return Set.copyOf(out);
     }
 
+    /** 바이옴 태그(예: minecraft:water_on_map_outlines)가 담은 바이옴 이름들(중첩 태그 풀이, 데이터 팩 없이 내장 자료로). */
+    public static Set<String> biomeTag(String tagId) { return resolveBiomes(new com.google.gson.JsonPrimitive("#" + tagId)); }
+
     private static void addBiomeRef(Set<String> out, String ref) {
         if (!ref.startsWith("#")) { out.add(ref); return; }
         String tag = ref.substring(1);

@@ -146,7 +146,8 @@ public final class Villager extends Mob implements Merchant {
     }
 
     private void addOffersFromItemListings(MerchantOffers target, VillagerTrades.ItemListing[] listings, int count, org.domi.furnace.server.block.RandomSource r) {
-        addOffersFromItemListings(target, listings, count, r, new VillagerTrades.TradeContext(TYPES.get(villagerData()[0]), level.lootData()));
+        addOffersFromItemListings(target, listings, count, r, new VillagerTrades.TradeContext(TYPES.get(villagerData()[0]), level.lootData(),
+                (int) Math.floor(x()), (int) Math.floor(y()), (int) Math.floor(z()), level.explorerMaps()));
     }
 
     /** 바닐라 increaseMerchantCareer: 레벨을 하나 올리고 그 레벨의 거래를 더한다. */

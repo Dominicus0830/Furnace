@@ -1,8 +1,7 @@
 // 바닐라 VillagerTrades: 직업(VillagerProfession) × 레벨(1~5)별 거래 후보(ItemListing)와 방랑 상인 거래표.
 // 거래표는 디컴파일 원본의 TRADES / WANDERING_TRADER_TRADES 를 그대로 옮겼다(trade_rebalance 실험용 표는 제외).
 // 후보 한 개는 getOffer(주민 정보, 난수) 로 거래를 만든다 — 난수는 호출 순서까지 바닐라와 같다.
-// TODO(지도): 지도 거래(바다/삼림 저택·전당 지도)는 항상 null(거래 없음). 구조물 탐색(StructureLocator)은 있지만 지도 만들기(map_id 발급·저장·
-// 바이옴 미리보기 색)와 skipKnown 용 시작점 references 증가·저장이 아직 없다.
+// 지도 거래(바다 탐험·삼림 탐험·시련 지도)는 ExplorerMaps 로 만든다. TODO(지도): skipKnown(이미 지도가 가리킨 구조물 건너뛰기)용 시작점 references 증가·저장은 아직 없다.
 //   표의 칸은 그대로 두어 후보 뽑기(Villager.addOffersFromItemListings)의 난수 소비 순서는 유지한다.
 package org.domi.furnace.server.trade;
 
@@ -21,6 +20,8 @@ import org.domi.furnace.server.loot.LegacyNoiseRandom;
 import org.domi.furnace.server.loot.LootData;
 import org.domi.furnace.server.loot.LootRegistries;
 import org.domi.furnace.server.loot.LootStack;
+import org.domi.furnace.server.map.ExplorerMaps;
+import org.domi.furnace.server.map.MapDecorationType;
 import org.domi.furnace.server.recipe.SpecialRecipes;
 
 public final class VillagerTrades {
@@ -28,8 +29,13 @@ public final class VillagerTrades {
 
     private static final String EMERALD = "minecraft:emerald", BOOK = "minecraft:book";
 
-    /** 거래를 만들 때 필요한 주변 정보: 주민 종류(마을 사람 type — 주민이 아니면 null)와 데이터 팩 전리품 데이터(없으면 null). */
-    public record TradeContext(String villagerType, LootData loot) { }
+    /**
+     * 거래를 만들 때 필요한 주변 정보: 주민 종류(마을 사람 type — 주민이 아니면 null), 데이터 팩 전리품 데이터(없으면 null),
+     * 상인의 블록 위치(탐험 지도의 탐색 시작점)와 탐험 지도 지원(월드 생성기가 없으면 null — 지도 거래는 만들어지지 않는다).
+     */
+    public record TradeContext(String villagerType, LootData loot, int x, int y, int z, org.domi.furnace.server.map.ExplorerMaps.Backend maps) {
+        public TradeContext(String villagerType, LootData loot) { this(villagerType, loot, 0, 0, 0, null); }
+    }
 
     /** 바닐라 VillagerTrades.ItemListing: 거래 하나를 만든다(만들 수 없으면 null). */
     @FunctionalInterface
@@ -251,12 +257,12 @@ public final class VillagerTrades {
             },
             { // 레벨 2
                 emeraldForItems("glass_pane", 11, 16, 10, 1),
-                treasureMap("filled_map.monument"),
+                treasureMap(13, "minecraft:on_ocean_explorer_maps", "filled_map.monument", MapDecorationType.MONUMENT, 12, 5),
             },
             { // 레벨 3
                 emeraldForItems("compass", 1, 12, 20, 1),
-                treasureMap("filled_map.mansion"),
-                treasureMap("filled_map.trial_chambers"),
+                treasureMap(14, "minecraft:on_woodland_explorer_maps", "filled_map.mansion", MapDecorationType.MANSION, 12, 10),
+                treasureMap(12, "minecraft:on_trial_chambers_maps", "filled_map.trial_chambers", MapDecorationType.TRIAL_CHAMBERS, 12, 10),
             },
             { // 레벨 4
                 itemsForEmeralds("item_frame", 7, 1, 12, 15, 0.05F),
@@ -640,8 +646,18 @@ public final class VillagerTrades {
         };
     }
 
-    /** TreasureMapForEmeralds: 지도 만들기가 없어 거래를 만들지 못한다(바닐라도 탐색 실패면 null). TODO(지도) */
-    static ItemListing treasureMap(String name) { return (ctx, r) -> null; }
+    /**
+     * TreasureMapForEmeralds: 에메랄드 + 나침반 → 가장 가까운 구조물을 가리키는 탐험 지도(배율 2, 바이옴 바탕, "+" 목표 표식, 번역 이름). 난수를 쓰지 않는다.
+     * 구조물을 못 찾거나 탐험 지도 지원이 없으면 null(바닐라도 탐색 실패면 null). 탐색은 거래를 처음 만들 때 한 번 동기로 돈다(바닐라와 같다).
+     */
+    static ItemListing treasureMap(int emeralds, String structureTag, String nameKey, MapDecorationType type, int maxUses, int xp) {
+        return (ctx, r) -> {
+            if (ctx.maps() == null) return null;
+            ItemStack map = ExplorerMaps.create(ctx.maps(), ctx.x(), ctx.y(), ctx.z(), structureTag, type, nameKey);
+            if (map == null) return null;
+            return new MerchantOffer(new ItemCost(EMERALD, emeralds), Optional.of(new ItemCost("minecraft:compass", 1)), map, 0, maxUses, true, 0, 0, 0.2F, xp);
+        };
+    }
 
     /** EnchantedItemForEmeralds: 에메랄드 → 마법 부여된 장비. 수준 5+nextInt(15), 비용 base+수준(최대 64). */
     static ItemListing enchantedItemForEmeralds(String item, int baseCost, int maxUses, int xp, float mult) {
