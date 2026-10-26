@@ -66,12 +66,15 @@ public final class NetworkServer {
         b.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
                 .childOption(ChannelOption.TCP_NODELAY, true)
+                .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK,
+                        new io.netty.channel.WriteBufferWaterMark(512 * 1024, 2 * 1024 * 1024))
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         allChannels.add(ch);
                         ch.pipeline()
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(readTimeoutSeconds))
+                                .addLast("writabilityGuard", new WritabilityGuard())
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",
