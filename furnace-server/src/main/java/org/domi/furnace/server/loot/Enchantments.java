@@ -82,6 +82,20 @@ public final class Enchantments {
         return stack;
     }
 
+    /**
+     * 바닐라 EnchantmentHelper.enchantItem(random, stack, level, registries, Optional<HolderSet>) — 태그(null 이면 전체 인챈트)의 인챈트로 고른다.
+     * 거래표의 EnchantedItemForEmeralds 가 쓴다. 난수 호출 순서는 enchantItem 과 같다.
+     */
+    public static LootStack enchantItemFromTag(NoiseRandom r, LootStack stack, int levels, String tag, LootRegistries regs) {
+        List<Enchantment> candidates = new ArrayList<>();
+        if (tag == null) candidates.addAll(regs.enchantments().values());
+        else for (String id : regs.tag("minecraft:enchantment", tag)) {
+            Enchantment e = regs.enchantment(id);
+            if (e != null) candidates.add(e);
+        }
+        return enchantItem(r, stack, levels, candidates, regs);
+    }
+
     /** 바닐라 selectEnchantment — 난수 호출 순서까지 같다. */
     static List<Instance> select(NoiseRandom r, LootStack stack, int cost, List<Enchantment> candidates, LootRegistries regs) {
         List<Instance> result = new ArrayList<>();

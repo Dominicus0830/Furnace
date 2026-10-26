@@ -178,7 +178,7 @@ public final class SpecialRecipes {
     }
 
     /** DyedItemColor.applyDyes — 기존 색(있으면)과 염료 색의 평균(밝기 보정). */
-    static ItemStack applyDyes(ItemStack target, List<Integer> dyes) {
+    public static ItemStack applyDyes(ItemStack target, List<Integer> dyes) {
         ItemStack out = target.withCount(1);
         int r = 0, g = 0, b = 0, maxSum = 0, n = 0;
         Object cur = ItemTools.component(out, "minecraft:dyed_color");

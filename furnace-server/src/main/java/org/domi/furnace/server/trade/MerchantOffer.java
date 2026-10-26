@@ -90,6 +90,9 @@ public final class MerchantOffer {
 
     public void setToOutOfStock() { uses = maxUses; }
 
+    /** needsRestock: 한 번이라도 썼다. */
+    public boolean needsRestock() { return uses > 0; }
+
     public boolean isOutOfStock() { return uses >= maxUses; }
 
     public boolean shouldRewardExp() { return rewardExp; }

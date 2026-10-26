@@ -76,5 +76,8 @@ public final class Potions {
         return out;
     }
 
+    /** 레지스트리 등록 순서의 물약 이름. */
+    public static List<String> names() { return List.copyOf(BY_NAME.keySet()); }
+
     public static boolean exists(String potion) { return BY_NAME.containsKey(potion); }
 }
