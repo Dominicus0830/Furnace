@@ -150,6 +150,8 @@ public final class RegionLevel extends ChunkLevel {
      * 레벨 틱(바닐라 ServerLevel.tick 의 블록 부분): 예약 틱 → 청크 틱(무작위 틱·날씨 — 섞은 순서로) → 변경 방송 → 블록 이벤트.
      * tickingChunks 는 무작위 틱을 받을 청크 키(Regionizer.chunkKey).
      */
+    private final org.domi.furnace.server.entity.spawn.PhantomSpawner phantomSpawner = new org.domi.furnace.server.entity.spawn.PhantomSpawner();
+
     void tickBlocks(long[] tickingChunks, int count, java.util.function.LongPredicate blockEntityTicking,
                     java.util.function.Predicate<Player> inRegion) {
         lastCol = null;   // 틱 사이에 합치기·나누기가 있었을 수 있다
@@ -171,6 +173,12 @@ public final class RegionLevel extends ChunkLevel {
                     org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnForChunk(this, cx, cz, spawnState, spawnAnimals, spawnMonsters, spawnPassives);
                 }
                 tickChunk(cx, cz, speed);
+            }
+            // ServerLevel.tickCustomSpawners: 청크 스폰·틱 뒤 팬텀 등 특수 스포너(doMobSpawning 일 때)
+            if (gameRule("doMobSpawning")) {
+                java.util.List<Player> here = new java.util.ArrayList<>();
+                services().forEachPlayer(pl -> { if (inRegion.test(pl)) here.add(pl); });
+                phantomSpawner.tick(this, here, spawnMonsters);
             }
         }
         broadcastChanges();
