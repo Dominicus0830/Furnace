@@ -81,10 +81,32 @@ public class ItemFrame extends HangingEntity {
         if (fixed) return;
         ItemStack item = getItem();
         setItem(ItemStack.EMPTY, false);
-        if (!level.gameRule("doEntityDrops")) return;
-        if (attacker instanceof Player p && p.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE) return;
+        if (!level.gameRule("doEntityDrops")) {
+            if (attacker == null) removeFramedMap(item);
+            return;
+        }
+        if (attacker instanceof Player p && p.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE) {
+            removeFramedMap(item);
+            return;
+        }
         if (withFrame) spawnItem(new ItemStack(ItemContext.id("minecraft:item", glow ? "minecraft:glow_item_frame" : "minecraft:item_frame"), 1));
-        if (!item.isEmpty() && random.nextFloat() < dropChance) spawnItem(item);
+        if (!item.isEmpty()) {
+            removeFramedMap(item);
+            if (random.nextFloat() < dropChance) spawnItem(item);
+        }
+    }
+
+    /** ItemFrame.removeFramedMap: 액자에 걸려 있던 지도면 지도 데이터에서 이 액자 표식을 뗀다. */
+    private void removeFramedMap(ItemStack stack) {
+        if (blockPos == null || !org.domi.furnace.server.map.MapItems.isFilledMap(stack)) return;
+        var data = org.domi.furnace.server.map.MapStore.of(stack);
+        if (data != null) data.removedFromFrame(blockPos.x(), blockPos.y(), blockPos.z(), id());
+    }
+
+    @Override
+    public void kill() {
+        removeFramedMap(getItem());
+        super.kill();
     }
 
     public ItemStack getItem() { return (ItemStack) entityData.get(DATA_ITEM); }
@@ -116,7 +138,6 @@ public class ItemFrame extends HangingEntity {
         boolean hasItem = !getItem().isEmpty();
         if (!hasItem) {
             if (!held.isEmpty() && !isRemoved()) {
-                // TODO(지도): 지도 아이템이면 지도 데이터에 이 액자를 연결한다
                 setItem(held);
                 if (p.gameMode() != org.domi.furnace.server.world.GameMode.CREATIVE) inv.set(ws, held.withCount(held.count() - 1));
             }

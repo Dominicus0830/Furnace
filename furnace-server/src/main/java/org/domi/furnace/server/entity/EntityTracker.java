@@ -171,6 +171,10 @@ public final class EntityTracker {
     // ------------------------------------------------------------------ 변화(ServerEntity.sendChanges)
 
     public void sendChanges() {
+        if (entity instanceof ItemFrame frame && tickCount % 10 == 0) {   // 액자 속 지도: 보는 사람마다 표식·갱신 패킷
+            org.domi.furnace.server.map.MapItems.tickFrame(frame, seenBy.keySet(), entity.level().dayTime());
+            sendDirtyEntityData();
+        }
         if (tickCount % updateInterval == 0 || entity.hasImpulse || entity.entityData().isDirty()) {
             teleportDelay++;
             int yr = angle(entity.yRot()), xr = angle(entity.xRot());
