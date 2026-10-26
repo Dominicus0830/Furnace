@@ -301,6 +301,23 @@ public final class ItemUse {
     }
 
     /**
+     * MapItem.useOn: 깃발 블록(#banners) 위에서만 — 지도에 그 깃발 표식을 넣거나 뺀다. 지도 데이터가 있는데 바뀌지 않으면 FAIL, 아니면 서버에서 CONSUME.
+     * 깃발이 아니면 PASS(아이템 사용 use 로 넘어간다).
+     */
+    private static InteractionResult filledMapOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
+        String block = org.domi.furnace.server.block.B.BLOCKS.nameOfState(level.getBlockState(hit.pos()));
+        if (!block.endsWith("_banner")) return InteractionResult.PASS;   // BlockTags.BANNERS: <색>_banner, <색>_wall_banner
+        org.domi.furnace.server.map.MapData data = org.domi.furnace.server.map.MapStore.of(stack);
+        if (data != null) {
+            var pos = hit.pos();
+            var be = level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity b ? b : null;
+            var banner = be == null ? null : new org.domi.furnace.server.map.MapData.Banner(pos.x(), pos.y(), pos.z(), be.baseColor(), be.customName);
+            if (!data.toggleBanner(pos.x(), pos.z(), banner)) return InteractionResult.FAIL;
+        }
+        return InteractionResult.sidedSuccess(false);
+    }
+
+    /**
      * EmptyMapItem.use: 하나 줄이고(크리에이티브는 그대로) 사용 통계·소리 → 서 있는 곳 중심(배율 0, 위치 추적)의 새 지도를 만든다.
      * 다 썼으면 손에 지도, 아니면 인벤토리(안 들어가면 바닥)로.
      */
@@ -394,6 +411,7 @@ public final class ItemUse {
             case "minecraft:shears": return shears(level, player, hand, hit, stack);
             case "minecraft:potion": return potionOn(level, player, hand, hit, stack);
             case "minecraft:debug_stick": return debugStickOn(level, player, hand, hit, stack);
+            case "minecraft:filled_map": return filledMapOn(level, player, hand, hit, stack);
             case "minecraft:compass": return compassOn(level, player, hand, hit, stack);
             case "minecraft:ender_eye": return enderEyeOn(level, player, hand, hit, stack);
             case "minecraft:armor_stand": return armorStandOn(level, player, hand, hit, stack);
@@ -415,7 +433,7 @@ public final class ItemUse {
             case "minecraft:command_block_minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.COMMAND_BLOCK);
             default: break;
         }
-        // TODO(엔티티): 끈·폭죽, 솔(오래 쓰기), 지도.
+        // TODO(엔티티): 끈, 솔(오래 쓰기).
         return InteractionResult.PASS;
     }
 

@@ -24,6 +24,7 @@ class MapRendererTest {
         final IntBinaryOperator waterTopY;   // (x, z) → 물 윗면 y(바닥과 같으면 물 없음)
         final int floorState;
         int heightCalls;
+        MapData.Banner banner;   // 이 시험 지형에 서 있는 깃발(없으면 null)
         java.util.function.BiPredicate<Integer, Integer> available = (cx, cz) -> true;
 
         Terrain(int floorState, IntBinaryOperator floorY, IntBinaryOperator waterTopY) {
@@ -37,6 +38,10 @@ class MapRendererTest {
         @Override public boolean hasCeiling() { return false; }
 
         @Override public int minY() { return -64; }
+
+        @Override public MapData.Banner bannerAt(int x, int y, int z) {
+            return banner != null && banner.x() == x && banner.y() == y && banner.z() == z ? banner : null;
+        }
 
         @Override public boolean chunkAvailable(int cx, int cz) { return available.test(cx, cz); }
 
@@ -175,5 +180,43 @@ class MapRendererTest {
         assertEquals(0, d.color(100, 60));
         // 맨 바깥 테두리는 칠하지 않는다
         assertEquals(0, d.color(0, 60));
+    }
+
+    @Test
+    void toggleBannerAddsThenRemovesAndHonoursRange() {
+        MapData d = fresh();
+        MapData.Banner red = new MapData.Banner(10, 70, -5, "red", "\"Home\"");
+        assertTrue(d.toggleBanner(10, -5, red));
+        // 위치는 칸 중심: f = 10.5 → (byte)(10.5*2+0.5) = 21, g = -4.5 → (byte)(-9+0.5) = -8, 회전 (180+8)*16/360 = 8.35 → 8
+        MapData.Decoration deco = d.decorations().get("banner-10,70,-5");
+        assertEquals(MapDecorationType.byName("banner_red"), deco.type());
+        assertEquals(21, deco.x());
+        assertEquals(-8, deco.y());
+        assertEquals(8, deco.rot());
+        assertNotNull(deco.name());
+        // 같은 깃발을 다시 대면 지운다
+        assertTrue(d.toggleBanner(10, -5, red));
+        assertNull(d.decorations().get("banner-10,70,-5"));
+        // 지도 밖: 블록 63 → f = 63.5 > 63 실패, 블록 62 → 62.5 성공
+        assertFalse(d.toggleBanner(63, 0, new MapData.Banner(63, 70, 0, "white", null)));
+        assertTrue(d.toggleBanner(62, 0, new MapData.Banner(62, 70, 0, "white", null)));
+        // 깃발 블록 엔티티가 없으면(fromWorld = null) 실패
+        assertFalse(d.toggleBanner(5, 5, null));
+    }
+
+    @Test
+    void mapUpdateDropsBannerMarkerWhenTheBannerChanged() {
+        MapData d = fresh();
+        MapData.Banner red = new MapData.Banner(1, 64, 1, "red", null);
+        assertTrue(d.toggleBanner(1, 1, red));
+        Terrain t = Terrain.flat(GRASS, 63);
+        t.banner = red;
+        MapData.Holding h = holding(d);
+        for (int i = 0; i < 16; i++) MapRenderer.update(t, MapData.OVERWORLD, 0, 0, d, h);   // 16틱이면 모든 열을 한 번씩 훑는다
+        assertNotNull(d.decorations().get("banner-1,64,1"));
+        // 같은 칸의 깃발 이름이 달라지면(= 다른 MapBanner) 표식을 지운다
+        t.banner = new MapData.Banner(1, 64, 1, "red", "\"New\"");
+        for (int i = 0; i < 16; i++) MapRenderer.update(t, MapData.OVERWORLD, 0, 0, d, h);
+        assertNull(d.decorations().get("banner-1,64,1"));
     }
 }

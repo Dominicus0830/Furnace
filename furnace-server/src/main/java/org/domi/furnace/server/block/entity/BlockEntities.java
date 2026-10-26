@@ -33,6 +33,7 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:hopper", HopperBlockEntity::new);
         FACTORIES.put("minecraft:dispenser", DispenserBlockEntity::new);
         FACTORIES.put("minecraft:dropper", DropperBlockEntity::new);
+        FACTORIES.put("minecraft:banner", BannerBlockEntity::new);
     }
 
     public static boolean known(String type) { return FACTORIES.containsKey(type); }

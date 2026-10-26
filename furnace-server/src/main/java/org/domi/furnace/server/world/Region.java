@@ -1129,6 +1129,13 @@ public final class Region {
             ChunkColumn c = chunk(x >> 4, z >> 4);
             return c == null || y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y ? 0 : c.getBlock(x & 15, y, z & 15);
         }
+
+        @Override public org.domi.furnace.server.map.MapData.Banner bannerAt(int x, int y, int z) {
+            ChunkColumn c = chunk(x >> 4, z >> 4);
+            if (c == null || y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return null;
+            return c.blockEntityAt(x & 15, y, z & 15) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity be
+                    ? new org.domi.furnace.server.map.MapData.Banner(x, y, z, be.baseColor(), be.customName) : null;
+        }
     }
 
     /** 매 틱 생존 상태 — 주변 블록을 보고 공허·익사·허기·회복·사망 틱을 돌린다. */

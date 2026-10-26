@@ -27,6 +27,9 @@ public final class MapRenderer {
 
         /** 블록 상태 id(범위 밖은 공기). */
         int blockState(int x, int y, int z);
+
+        /** MapBanner.fromWorld: 그 칸이 깃발 블록 엔티티를 가졌으면 (위치·색·이름), 아니면 null. */
+        default MapData.Banner bannerAt(int x, int y, int z) { return null; }
     }
 
     private static final int BEDROCK = B.defaultState("bedrock"), DIRT = B.defaultState("dirt"), STONE = B.defaultState("stone");
@@ -109,7 +112,7 @@ public final class MapRenderer {
                                                 state = withLegacyFluid(state);
                                             }
                                         }
-                                        data.checkBanners(MapRenderer::bannerStillThere, wx, wz);
+                                        data.checkBanners((pos, banner) -> banner.equals(level.bannerAt(pos[0], pos[1], pos[2])), wx, wz);
                                         height += (double) y / (scale * scale);
                                         n = add(counts, order, n, mapColor(state), 1);
                                     }
@@ -146,9 +149,6 @@ public final class MapRenderer {
             }
         }
     }
-
-    /** 깃발 블록 엔티티가 아직 없어(깃발 블록 엔티티 미구현) 깃발 표식은 지도 갱신으로 지우지 않는다 — TODO(깃발). */
-    private static boolean bannerStillThere(int[] pos, MapData.Banner banner) { return true; }
 
     private static int add(int[] counts, int[] order, int n, int color, int occurrences) {
         if (counts[color] == 0) order[n++] = color;

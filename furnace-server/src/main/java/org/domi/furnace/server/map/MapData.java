@@ -143,7 +143,7 @@ public final class MapData {
                 String name = b.tags().get("name") instanceof String s ? s : null;
                 Banner banner = new Banner(p[0], p[1], p[2], color, name);
                 d.bannerMarkers.put(banner.key(), banner);
-                d.addDecoration(banner.decorationType(), null, banner.key(), p[0], p[2], 180.0, null);
+                d.addDecoration(banner.decorationType(), null, banner.key(), p[0], p[2], 180.0, name == null ? null : org.domi.furnace.server.item.FlatText.parse(name));
             }
         }
         if (tag.tags().get("frames") instanceof NbtList frames) {
@@ -254,6 +254,30 @@ public final class MapData {
     public synchronized Frame frame(int x, int y, int z) { return frameMarkers.get(Frame.keyOf(x, y, z)); }
 
     public synchronized Iterable<Banner> banners() { return new ArrayList<>(bannerMarkers.values()); }
+
+    /**
+     * MapItemSavedData.toggleBanner(level, pos): 지도 안(표식 칸 환산 ±63)의 깃발이면 — 이미 같은 깃발 표식이 있으면 지우고, 없으면(256개 미만일 때) 더한다.
+     * banner 는 MapBanner.fromWorld(그 칸에 깃발 블록 엔티티가 없으면 null). 바뀌었으면 참.
+     */
+    public synchronized boolean toggleBanner(int x, int z, Banner banner) {
+        double d = x + 0.5, e = z + 0.5;
+        int i = 1 << scale;
+        double f = (d - centerX) / i, g = (e - centerZ) / i;
+        if (f >= -63.0 && g >= -63.0 && f <= 63.0 && g <= 63.0) {
+            if (banner == null) return false;
+            if (banner.equals(bannerMarkers.get(banner.key()))) {
+                bannerMarkers.remove(banner.key());
+                removeDecoration(banner.key());
+                return true;
+            }
+            if (!isTrackedCountOverLimit(MAX_BANNERS_OR_FRAMES)) {
+                bannerMarkers.put(banner.key(), banner);
+                addDecoration(banner.decorationType(), null, banner.key(), d, e, 180.0, banner.nameJson() == null ? null : org.domi.furnace.server.item.FlatText.parse(banner.nameJson()));
+                return true;
+            }
+        }
+        return false;
+    }
 
     /** isExplorationMap: 탐험 지도 표식(mansion·monument·village·trial_chambers …)이 하나라도 있다. */
     public synchronized boolean isExplorationMap() {
