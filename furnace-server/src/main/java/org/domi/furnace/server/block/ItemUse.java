@@ -560,7 +560,7 @@ public final class ItemUse {
         crystal.setShowBottom(false);
         cl.addFreshEntity(crystal);
         cl.gameEvent("minecraft:entity_place", above, player, -1);
-        // TODO(드래곤 전투): getDragonFight().tryRespawn()
+        if (cl.dragonFight() != null) cl.dragonFight().tryRespawn();
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         return InteractionResult.sidedSuccess(false);
     }

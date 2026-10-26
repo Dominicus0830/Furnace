@@ -1,5 +1,5 @@
 // 바닐라 EndCrystal: 엔드의 수정. 맞으면 사라지며 위력 6 으로 터진다(폭발에 맞은 경우는 그냥 사라진다). 광선 대상 블록과 아래 받침 표시를 데이터로 가진다.
-// TODO(드래곤 전투): 엔더 드래곤의 공격은 무시하고, 전투 중이면 아래에 불을 붙이며, 파괴를 전투에 알린다.
+// 엔더 드래곤의 공격은 무시하고, 전투 중이면 제자리가 비었을 때 불을 붙이며, 파괴를 전투에 알린다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -25,16 +25,38 @@ public class EndCrystal extends Entity {
     @Override
     public void tick() {
         time++;
+        checkInsideBlocks();
+        Pos p = blockPosition();
+        if (level.dragonFight() != null && org.domi.furnace.server.block.B.isAir(level.getBlockState(p))) {
+            level.setBlock(p, org.domi.furnace.server.block.types.BaseFireBlock.getState(level, p), 3);
+        }
     }
 
     @Override
-    public boolean hurt(Damage source, float amount) {
+    public boolean hurt(Damage source, float amount) { return hurtBy(source, amount, null); }
+
+    /** 맞으면(드래곤에게는 아님) 사라지고, 폭발 피해가 아니면 위력 6 으로 터진 뒤 전투에 알린다. */
+    @Override
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) {
         if (isInvulnerableTo(source)) return false;
+        if (attacker instanceof EnderDragon) return false;
         if (!isRemoved()) {
-            discard();
+            remove(RemovalReason.KILLED);
             if (!source.explosion()) level.explode(this, x(), y(), z(), 6.0F, false, level.destroyType("BLOCK"));
+            onDestroyedBy(source, attacker);
         }
         return true;
+    }
+
+    private void onDestroyedBy(Damage source, Targetable attacker) {
+        EndDragonFight f = level.dragonFight();
+        if (f != null) f.onCrystalDestroyed(this, source, attacker);
+    }
+
+    @Override
+    public void kill() {
+        onDestroyedBy(new Damage("generic", false, false, false), null);
+        super.kill();
     }
 
     @Override

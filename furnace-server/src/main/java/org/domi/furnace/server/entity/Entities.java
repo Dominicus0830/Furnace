@@ -26,6 +26,7 @@ public final class Entities {
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
             case "minecraft:end_crystal" -> new EndCrystal(level, level.nextEntityId());
+            case "minecraft:ender_dragon" -> new EnderDragon(level, level.nextEntityIds(9));
             case "minecraft:llama_spit" -> new LlamaSpit(level, level.nextEntityId());
             case "minecraft:ender_pearl" -> new ThrownEnderpearl(level, level.nextEntityId());
             case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());
@@ -159,6 +160,7 @@ public final class Entities {
             case "minecraft:arrow" -> new Arrow(level, level.nextEntityId());
             case "minecraft:witch" -> new Witch(level, level.nextEntityId());
             case "minecraft:end_crystal" -> new EndCrystal(level, level.nextEntityId());
+            case "minecraft:ender_dragon" -> new EnderDragon(level, level.nextEntityIds(9));
             case "minecraft:llama_spit" -> new LlamaSpit(level, level.nextEntityId());
             case "minecraft:ender_pearl" -> new ThrownEnderpearl(level, level.nextEntityId());
             case "minecraft:spectral_arrow" -> new SpectralArrow(level, level.nextEntityId());

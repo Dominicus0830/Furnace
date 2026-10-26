@@ -1446,6 +1446,13 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 연달은 id count 개를 한꺼번에 잡고 첫 id 를 돌려준다(엔더 드래곤: 본체 + 파트 8 — 클라이언트가 id+1.. 을 파트에 쓴다). */
     public int nextEntityIds(int count) { return FALLBACK_IDS.getAndAdd(count) + 1; }
 
+    private org.domi.furnace.server.entity.EndDragonFight dragonFight;
+
+    /** ServerLevel.getDragonFight: 엔드 레벨의 드래곤 전투(없으면 null). */
+    public org.domi.furnace.server.entity.EndDragonFight dragonFight() { return dragonFight; }
+
+    public void setDragonFight(org.domi.furnace.server.entity.EndDragonFight f) { dragonFight = f; }
+
     /** 차원 이름으로 레벨: 자기 자신이거나 서버가 띄운 다른 차원(없으면 null). */
     public ChunkLevel levelFor(String dimension) { return dimension.equals(dimension()) ? this : services().otherLevel(dimension); }
 

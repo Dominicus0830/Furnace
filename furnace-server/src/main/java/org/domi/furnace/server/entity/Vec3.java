@@ -16,6 +16,23 @@ public record Vec3(double x, double y, double z) {
     /** Vec3.multiply(sx, sy, sz). */
     public Vec3 multiply(double sx, double sy, double sz) { return new Vec3(x * sx, y * sy, z * sz); }
 
+    public Vec3 subtract(double dx, double dy, double dz) { return new Vec3(x - dx, y - dy, z - dz); }
+
+    /** normalize: 길이 1e-5F 미만이면 0. */
+    public Vec3 normalize() {
+        double d = Math.sqrt(x * x + y * y + z * z);
+        return d < 1.0E-5F ? ZERO : new Vec3(x / d, y / d, z / d);
+    }
+
+    public double dot(Vec3 o) { return x * o.x + y * o.y + z * o.z; }
+
+    public double distanceToSqr(double px, double py, double pz) {
+        double dx = px - x, dy = py - y, dz = pz - z;
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    public double horizontalDistance() { return Math.sqrt(x * x + z * z); }
+
     /** Vec3.yRot(rad): Mth 표로 y 축 회전. */
     public Vec3 yRot(float rad) {
         float c = Mth.cos(rad), s = Mth.sin(rad);

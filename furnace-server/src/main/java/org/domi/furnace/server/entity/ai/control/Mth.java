@@ -90,5 +90,11 @@ public final class Mth {
         return approach(cur, cur + diff, delta);
     }
 
+    /** Mth.floor(double). */
+    public static int floor(double v) {
+        int i = (int) v;
+        return v < i ? i - 1 : i;
+    }
+
     public static float lerp(float t, float a, float b) { return a + t * (b - a); }
 }

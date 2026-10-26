@@ -935,6 +935,17 @@ public final class Region {
     };
 
     /** 생물이 아닌 엔티티(액자·그림·수정 …)를 때린다: skipAttackInteraction 이면 그쪽이 처리하고, 아니면 기본 피해. */
+    /** 엔더 드래곤 파트를 때린다(근사: 아이템 공격력만, 치명타·마법 부여·밀치기 없음). 본체가 파트 배율로 받는다. */
+    public void attackDragonPart(Player p, org.domi.furnace.server.entity.EnderDragonPart part) {
+        world.assertOwns(this);
+        if (!players.containsKey(p.entityId()) || p.gameMode() == GameMode.SPECTATOR) return;
+        var inv = p.inventory();
+        ItemStack held = inv.get(inv.heldWindowSlot());
+        float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);
+        p.vitals().causeFoodExhaustion(0.1F);
+        part.hurt(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
+    }
+
     public void attackEntity(Player p, org.domi.furnace.server.entity.Entity target) {
         world.assertOwns(this);
         if (!players.containsKey(p.entityId()) || target.isRemoved()) return;
