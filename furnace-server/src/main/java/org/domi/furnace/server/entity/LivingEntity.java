@@ -226,7 +226,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         ItemStack s = getItemBySlot(hand == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
         if (s.isEmpty() || isUsingItem()) return;
         usingHandIndex = hand;
-        useItemRemaining = 72000;
+        useItemRemaining = getUseDuration(s);
         setLivingEntityFlag(1, true);
         setLivingEntityFlag(2, hand == 1);
     }
@@ -239,11 +239,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** LivingEntity.getTicksUsingItem: 72000 - 남은 틱. */
     public int getTicksUsingItem() { return isUsingItem() ? 72000 - useItemRemaining : 0; }
 
+    /** 아이템 사용 시간. 기본 72000(활); 마시는 몹이 재정의해 32 등을 준다. */
+    protected int getUseDuration(ItemStack s) { return 72000; }
+
+    /** 사용 시간이 다 찼다(바닐라 completeUsingItem). 기본은 아무것도 안 한다. */
+    protected void completeUsingItem() {}
+
     private void updateUsingItem() {
         if (isUsingItem()) {
             ItemStack s = getItemBySlot(getUsedItemHand() == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
             if (s.isEmpty()) stopUsingItem();
-            else if (useItemRemaining > 0) useItemRemaining--;
+            else if (useItemRemaining > 0 && --useItemRemaining == 0) completeUsingItem();
         }
     }
 
@@ -310,12 +316,19 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return changed;
     }
 
+    /** LivingEntity.updateInvisibilityStatus: 효과가 바뀌면 투명 효과가 있을 때만 투명으로 둔다(효과가 하나도 없으면 해제). */
+    private void updateInvisibilityStatus() {
+        setInvisible(!activeEffects.isEmpty() && hasEffect(org.domi.furnace.server.effect.MobEffect.INVISIBILITY));
+    }
+
     protected void onEffectAdded(org.domi.furnace.server.effect.MobEffectInstance i) {
+        updateInvisibilityStatus();
         applyEffectAttributes(i);
         i.effect().onEffectStarted(effectHost, i.amplifier());
     }
 
     protected void onEffectUpdated(org.domi.furnace.server.effect.MobEffectInstance i) {
+        updateInvisibilityStatus();
         applyEffectAttributes(i);
     }
 
@@ -346,6 +359,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     protected void onEffectRemoved(org.domi.furnace.server.effect.MobEffectInstance e) {
+        updateInvisibilityStatus();
         for (Object[] m : e.effect().attributeModifiers()) {
             Attribute a = Attribute.byName((String) m[0]);
             if (a != null && attributes().get(a) != null) attributes().get(a).removeModifier((String) m[1]);

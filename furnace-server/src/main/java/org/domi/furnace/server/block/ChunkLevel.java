@@ -1279,6 +1279,9 @@ public abstract class ChunkLevel implements BlockLevel {
     /** Level.isDay(): 낮(skyDarken < 4)이고 고정 시간 차원이 아니다. */
     public boolean isDay() { return hasSkyLight() && skyDarken() < 4; }
 
+    /** Level.isNight: 고정 시간이 아니고 하늘 어둠이 4 이상. */
+    public boolean isNight() { return hasSkyLight() && skyDarken() >= 4; }
+
     public float moonBrightness() { return MOON_BRIGHTNESS_PER_PHASE[(int) (dayTime() / 24000L % 8L + 8L) % 8]; }
 
     /** getCurrentDifficultyAt(pos): 청크가 있으면 그 청크의 머문 시간·달 밝기를 반영한다. */

@@ -102,4 +102,7 @@ public interface MenuPlayer {
 
     /** LivingEntity.onEquipItem(slot, old, new): 장비 칸이 바뀌었다 — 장착 소리(모두에게)와 equip/unequip 게임 이벤트. */
     default void onEquipItem(EquipSlot slot, ItemStack oldItem, ItemStack newItem) { }
+
+    /** 이 메뉴를 쥔 서버 Player(거래 중인 몹의 목표가 위치·시선을 읽는다). 시험용 가짜는 null. */
+    default org.domi.furnace.server.entity.Player entityPlayer() { return null; }
 }
