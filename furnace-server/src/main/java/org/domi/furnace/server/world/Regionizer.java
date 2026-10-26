@@ -73,6 +73,7 @@ public final class Regionizer {
         this.shift = shift;
         this.radius = radius;
         this.tickNanos = tickNanos;
+        if (STATS) log.info("[TICKSTATS] 틱 계측 켜짐 — region 틱 100번마다 간격/소요 시간을 기록합니다");
         this.workers = new Thread[Math.max(1, threads)];
         for (int i = 0; i < workers.length; i++) {
             Thread t = new Thread(this::workerLoop, "furnace-region-" + i);
