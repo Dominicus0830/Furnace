@@ -41,6 +41,9 @@ public final class EntityTracker {
     private int tickCount, teleportDelay;
     private boolean wasOnGround;
     private List<SetEntityData.Item> trackedDataValues;
+    /** ServerEntity.lastPassengers·wasRiding. */
+    private List<Rider> lastPassengers = List.of();
+    private boolean wasRiding;
 
     /** range: 바닐라 getEffectiveRange(블록, 방송 거리 비율 적용). */
     public EntityTracker(Entity entity, int range) {
@@ -152,6 +155,8 @@ public final class EntityTracker {
             }
             if (!eq.isEmpty()) list.add(new org.domi.furnace.server.net.protocol.play.SetEquipment(entity.id(), eq));
         }
+        if (entity.isVehicle()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity));
+        if (entity.isPassenger()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity.vehicle()));
         p.send(BundleDelimiter.INSTANCE);
         for (Packet pkt : list) p.send(pkt);
         p.send(BundleDelimiter.INSTANCE);
@@ -175,7 +180,33 @@ public final class EntityTracker {
             org.domi.furnace.server.map.MapItems.tickFrame(frame, seenBy.keySet(), entity.level().dayTime());
             sendDirtyEntityData();
         }
+        List<Rider> riders = entity.passengers();
+        if (riders != lastPassengers && !riders.equals(lastPassengers)) {
+            broadcast(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity));
+            for (Rider r : lastPassengers) {   // 내린 플레이어는 연결이 지금 자리로 다시 맞춘다
+                if (r instanceof Player p && !riders.contains(p)) p.teleportTo(p.x(), p.y(), p.z());
+            }
+        }
+        lastPassengers = riders;
         if (tickCount % updateInterval == 0 || entity.hasImpulse || entity.entityData().isDirty()) {
+            if (entity.isPassenger()) {   // 탄 것은 회전만 보낸다(위치는 클라이언트가 탈것에 맞춘다)
+                int yr = angle(entity.yRot()), xr = angle(entity.xRot());
+                if (Math.abs(yr - yRotp) >= 1 || Math.abs(xr - xRotp) >= 1) {
+                    broadcast(MoveEntity.rot(entity.id(), (byte) yr, (byte) xr, entity.onGround()));
+                    yRotp = yr;
+                    xRotp = xr;
+                }
+                baseX = entity.x();
+                baseY = entity.y();
+                baseZ = entity.z();
+                sendDirtyEntityData();
+                wasRiding = true;
+                sendHeadRotation();
+                entity.hasImpulse = false;
+                tickCount++;
+                sendHurtMarked();
+                return;
+            }
             teleportDelay++;
             int yr = angle(entity.yRot()), xr = angle(entity.xRot());
             double px = entity.x(), py = entity.y(), pz = entity.z();
@@ -187,7 +218,7 @@ public final class EntityTracker {
             boolean posSent = false, rotSent = false;
             long ex = encode(px) - encode(baseX), ey = encode(py) - encode(baseY), ez = encode(pz) - encode(baseZ);
             boolean overflow = ex < -32768L || ex > 32767L || ey < -32768L || ey > 32767L || ez < -32768L || ez > 32767L;
-            if (overflow || teleportDelay > 400 || wasOnGround != entity.onGround()) {
+            if (overflow || teleportDelay > 400 || wasRiding || wasOnGround != entity.onGround()) {
                 wasOnGround = entity.onGround();
                 teleportDelay = 0;
                 pkt = new TeleportEntity(entity.id(), px, py, pz, entity.yRot(), entity.xRot(), entity.onGround());
@@ -226,14 +257,23 @@ public final class EntityTracker {
                 yRotp = yr;
                 xRotp = xr;
             }
-            int yh = angle(entity.yHeadRot());
-            if (Math.abs(yh - yHeadRotp) >= 1) {
-                broadcast(new RotateHead(entity.id(), (byte) yh));
-                yHeadRotp = yh;
-            }
+            wasRiding = false;
+            sendHeadRotation();
             entity.hasImpulse = false;
         }
         tickCount++;
+        sendHurtMarked();
+    }
+
+    private void sendHeadRotation() {
+        int yh = angle(entity.yHeadRot());
+        if (Math.abs(yh - yHeadRotp) >= 1) {
+            broadcast(new RotateHead(entity.id(), (byte) yh));
+            yHeadRotp = yh;
+        }
+    }
+
+    private void sendHurtMarked() {
         if (entity.hurtMarked) {
             entity.hurtMarked = false;
             broadcast(new SetEntityMotion(entity.id(), entity.vx(), entity.vy(), entity.vz()));

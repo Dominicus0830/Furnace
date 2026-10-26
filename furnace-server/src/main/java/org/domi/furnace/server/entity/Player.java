@@ -14,7 +14,7 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
 
-public final class Player implements Targetable, org.domi.furnace.server.map.MapData.Viewer {
+public final class Player implements Targetable, Rider, org.domi.furnace.server.map.MapData.Viewer {
     private Targetable lastHurtByMob, lastHurtMob;
     private int combatTicks, lastHurtByMobTimestamp, lastHurtMobTimestamp;
 
@@ -154,14 +154,118 @@ public final class Player implements Targetable, org.domi.furnace.server.map.Map
         this.pending = new double[]{x, y, z, yaw, pitch, onGround ? 1 : 0};
     }
 
-    /** region 스레드: 발행된 위치를 권위 필드에 적용(단일 reader). 변경 있으면 true. */
+    /** region 스레드: 발행된 위치를 권위 필드에 적용(단일 reader). 변경 있으면 true. 탄 동안은 회전만(위치는 탈것이 정한다 — 바닐라 handleMovePlayer). */
     public boolean drainPending() {
         double[] p = this.pending;
         if (p == null) return false;
         this.pending = null;
-        applyMove(p[0], p[1], p[2], (float) p[3], (float) p[4], p[5] != 0);
+        if (vehicle != null) applyRotation((float) p[3], (float) p[4], p[5] != 0);
+        else applyMove(p[0], p[1], p[2], (float) p[3], (float) p[4], p[5] != 0);
         return true;
     }
+
+    // ------------------------------------------------------------------ 탑승(승객으로서의 플레이어)
+    // 탈것은 region 스레드가 바꾸고 IO 스레드가 읽는다(위치 패킷을 회전만으로 다룰지). 입력(PlayerInput)은 IO 가 쓰고 region 이 읽는다.
+
+    private volatile Entity vehicle;
+    private int boardingCooldown;
+    /** ServerPlayer.setPlayerInput 이 정하는 xxa·zza·jumping(탄 동안만 바뀐다). */
+    private volatile float inputXxa, inputZza;
+    private volatile boolean inputJumping;
+
+    @Override public Entity vehicle() { return vehicle; }
+
+    @Override public void setVehicleField(Entity v) { vehicle = v; }
+
+    @Override public void setBoardingCooldown(int ticks) { boardingCooldown = ticks; }
+
+    @Override public boolean isShiftKeyDown() { return sneaking; }
+
+    @Override public float riderYRot() { return yaw; }
+
+    /** canRide: 웅크리지 않았고 다시 타기 기다림이 끝났다(Entity.canRide). */
+    @Override public boolean canRide(Entity v) { return !sneaking && boardingCooldown <= 0; }
+
+    /** Player 의 탈것 부착점(0, 0.6, 0). */
+    @Override public Vec3 vehicleAttachmentPoint(Entity v) { return EntityAttachments.rotate(EntityAttachments.PLAYER_VEHICLE, yaw); }
+
+    /** positionRider 가 플레이어를 옮긴다(region 스레드). 클라이언트는 탈것에 맞춰 스스로 그리므로 보내지 않는다. */
+    @Override
+    public void setRidingPos(double nx, double ny, double nz) {
+        this.moveDx = nx - this.x; this.moveDy = ny - this.y; this.moveDz = nz - this.z;
+        this.x = nx; this.y = ny; this.z = nz;
+    }
+
+    public boolean startRiding(Entity v, boolean force) { return Entity.mount(this, v, force); }
+
+    /** ServerPlayer.stopRiding → LivingEntity.dismountVehicle → ServerPlayer.dismountTo(연결이 순간이동시킨다). */
+    @Override
+    public void stopRiding() {
+        Entity v = vehicle;
+        Entity.unlinkVehicle(this);
+        if (v == null || v == vehicle) return;
+        double nx, ny, nz;
+        if (!v.isRemoved() && !org.domi.furnace.server.block.B.isTag(v.level().getBlockState(v.blockPosition()), "minecraft:portals")) {
+            Vec3 p = v.getDismountLocationForPassenger(this);
+            nx = p.x(); ny = p.y(); nz = p.z();
+        } else {
+            nx = x; ny = Math.max(y, v.y()); nz = z;
+        }
+        pending = null;
+        setRidingPos(nx, ny, nz);
+        teleportTo(nx, ny, nz);
+    }
+
+    /** 바닐라 연결의 lastVehicle·vehicleFirstGood·vehicleLastGood(region 스레드 전용, VehicleMoves 가 쓴다). */
+    Entity lastVehicle;
+    final double[] vehicleFirstGood = new double[3], vehicleLastGood = new double[3];
+    boolean clientVehicleIsFloating;
+
+    /**
+     * region 틱마다: 바닐라 baseTick 의 탑승 부분(탈것이 지워졌으면 내림·다시 타기 기다림) 뒤
+     * 연결 틱의 탈것 기준점(조종 중인 뿌리 탈것의 지금 위치를 첫·마지막 정상 위치로).
+     */
+    public void tickRiding() {
+        if (vehicle != null && vehicle.isRemoved()) stopRiding();
+        if (boardingCooldown > 0) boardingCooldown--;
+        Entity root = Entity.rootVehicleOf(this);
+        if (root != null && root.getControllingPassenger() == this) {
+            lastVehicle = root;
+            vehicleFirstGood[0] = vehicleLastGood[0] = root.x();
+            vehicleFirstGood[1] = vehicleLastGood[1] = root.y();
+            vehicleFirstGood[2] = vehicleLastGood[2] = root.z();
+            // TODO(비행 킥): clientVehicleIsFloating 이 이어지면 "multiplayer.disconnect.flying"
+        } else {
+            lastVehicle = null;
+            clientVehicleIsFloating = false;
+        }
+    }
+
+    /** Player.rideTick(탈것 틱 뒤): 웅크리면(wantsToStopRiding) 내리고 웅크림을 푼다. 아니면 낙하 거리를 지우고 탈것이 자리를 잡아 준다. */
+    public void rideTick() {
+        if (sneaking && vehicle != null) {
+            stopRiding();
+            sneaking = false;
+            return;
+        }
+        vitals.resetFallDistance();
+        if (vehicle != null) vehicle.positionRider(this);
+    }
+
+    /** ServerPlayer.setPlayerInput: 탄 동안만 ±1 안의 값을 받고 점프·웅크림을 정한다(IO 스레드). */
+    public void setPlayerInput(float xxa, float zza, boolean jumping, boolean shift) {
+        if (vehicle == null) return;
+        if (xxa >= -1.0F && xxa <= 1.0F) inputXxa = xxa;
+        if (zza >= -1.0F && zza <= 1.0F) inputZza = zza;
+        inputJumping = jumping;
+        sneaking = shift;
+    }
+
+    public float inputXxa() { return inputXxa; }
+
+    public float inputZza() { return inputZza; }
+
+    public boolean inputJumping() { return inputJumping; }
 
     public void markDisconnected() { this.disconnected = true; }
     public boolean isDisconnected() { return disconnected; }

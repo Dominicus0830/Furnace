@@ -23,9 +23,18 @@ public class GoalSelector {
 
     public void removeAllGoals(Predicate<Goal> filter) { availableGoals.removeIf(w -> filter.test(w.getGoal())); }
 
+    /** 목표 틱 도중의 removeGoal(해골 덫이 자기를 뺀다): 멈추기만 하고 빼기는 돌기가 끝난 뒤(바닐라 fastutil 집합은 돌면서 빼도 이어 돈다). */
+    private boolean ticking;
+    private java.util.List<Goal> pendingRemoval;
+
     public void removeGoal(Goal goal) {
         for (WrappedGoal w : availableGoals) if (w.getGoal() == goal && w.isRunning()) w.stop();
-        availableGoals.removeIf(w -> w.getGoal() == goal);
+        if (ticking) {
+            if (pendingRemoval == null) pendingRemoval = new java.util.ArrayList<>(1);
+            pendingRemoval.add(goal);
+        } else {
+            availableGoals.removeIf(w -> w.getGoal() == goal);
+        }
     }
 
     private static boolean goalContainsAnyFlags(WrappedGoal goal, EnumSet<Goal.Flag> flags) {
@@ -56,8 +65,17 @@ public class GoalSelector {
     }
 
     public void tickRunningGoals(boolean forceTickAllRunning) {
-        for (WrappedGoal w : availableGoals) {
-            if (w.isRunning() && (forceTickAllRunning || w.requiresUpdateEveryTick())) w.tick();
+        ticking = true;
+        try {
+            for (WrappedGoal w : availableGoals) {
+                if (w.isRunning() && (forceTickAllRunning || w.requiresUpdateEveryTick())) w.tick();
+            }
+        } finally {
+            ticking = false;
+            if (pendingRemoval != null) {
+                for (Goal g : pendingRemoval) availableGoals.removeIf(w -> w.getGoal() == g);
+                pendingRemoval = null;
+            }
         }
     }
 

@@ -209,7 +209,7 @@ public final class NaturalSpawner {
                     group = mob.finalizeSpawnGroup(rnd, level.getCurrentDifficultyAt(mob.blockPosition()), group);
                     spawned++;
                     inCluster++;
-                    level.addFreshEntity(mob);
+                    level.addFreshEntityWithPassengers(mob);
                     state.afterSpawn(mob, level);
                     if (spawned >= mob.getMaxSpawnClusterSize()) return;
                     if (mob.isMaxGroupSizeReached(inCluster)) break;
@@ -324,7 +324,7 @@ public final class NaturalSpawner {
                         mob.moveTo(d0, pos.y(), d1, rnd.nextFloat() * 360.0F, 0.0F);
                         if (mob.checkSpawnRules(level, SpawnReason.CHUNK_GENERATION) && mob.checkSpawnObstruction(level)) {
                             group = mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), group);
-                            level.addFreshEntity(mob);
+                            level.addFreshEntityWithPassengers(mob);
                             placed = true;
                         }
                     }

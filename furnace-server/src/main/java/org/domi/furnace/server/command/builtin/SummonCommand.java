@@ -68,10 +68,13 @@ public final class SummonCommand {
                 Entity e = Entities.load(level, tag);
                 if (e == null) throw ERROR_FAILED.create();
                 e.moveTo(pos[0], pos[1], pos[2], e.yRot(), e.xRot());
+                var riders = new java.util.ArrayList<org.domi.furnace.server.entity.Rider>();
+                e.collectIndirectPassengers(riders);
+                for (var r : riders) if (r instanceof Entity pe) pe.moveTo(pos[0], pos[1], pos[2], pe.yRot(), pe.xRot());
                 if (randomizeProperties && e instanceof Mob mob) {
                     mob.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()));
                 }
-                if (!level.addFreshEntity(e)) throw ERROR_DUPLICATE_UUID.create();
+                if (!level.addFreshEntityWithPassengers(e)) throw ERROR_DUPLICATE_UUID.create();
                 source.sendSuccess(() -> Text.translatable("commands.summon.success", Text.translatable("entity." + rl.namespace() + "." + rl.path())), true);
             } catch (CommandSyntaxException ex) {
                 source.sendFailure(ex.getRawMessage());

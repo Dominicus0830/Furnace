@@ -32,4 +32,7 @@ public class CaveSpider extends Spider {
     public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
         // 바닐라 CaveSpider.finalizeSpawn 은 super 를 부르지 않는다(속성 무작위화·기수·효과 모두 없음)
     }
+
+    @Override
+    protected double riderAttachY() { return 0.21875; }
 }

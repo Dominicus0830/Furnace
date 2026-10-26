@@ -1,4 +1,4 @@
-// 바닐라 Chicken: 알을 낳고(6000~11999틱), 느리게 떨어지고, 씨앗을 좋아한다. TODO(닭 기수): IsChickenJockey 저장만 한다.
+// 바닐라 Chicken: 알을 낳고(6000~11999틱), 느리게 떨어지고, 씨앗을 좋아한다. 닭 기수면 알을 낳지 않고 멀어지면 사라지며 태운 것의 몸 방향을 맞춘다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -41,6 +41,21 @@ public class Chicken extends Animal {
             spawnAtLocation(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "egg"), 1));
             eggTime = random.nextInt(6000) + 6000;
         }
+    }
+
+    public boolean isChickenJockey() { return chickenJockey; }
+
+    public void setChickenJockey(boolean v) { chickenJockey = v; }
+
+    /** Chicken.removeWhenFarAway: 기수를 태운 닭만 멀어지면 사라진다. */
+    @Override
+    public boolean removeWhenFarAway(double distSqr) { return chickenJockey; }
+
+    /** Chicken.positionRider: 승객의 몸 방향을 내 몸 방향으로. */
+    @Override
+    protected void placeRider(Rider r) {
+        super.placeRider(r);
+        if (r instanceof LivingEntity le) le.yBodyRot = yBodyRot;
     }
 
     @Override

@@ -112,7 +112,7 @@ public class Zombie extends Monster {
                     if (!hasNearbyAlivePlayer(x, y, z, 7.0) && zombie.checkSpawnObstruction(level) && level.noCollision(zombie.boundingBox())) {
                         zombie.setTarget(target);
                         zombie.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(zombie.blockPosition()));
-                        level.addFreshEntity(zombie);
+                        level.addFreshEntityWithPassengers(zombie);
                         var chance = attributes().get(Attribute.SPAWN_REINFORCEMENTS);
                         var caller = chance.getModifier("minecraft:reinforcement_caller_charge");
                         double charge = caller != null ? caller.amount() : 0.0;
@@ -259,7 +259,7 @@ public class Zombie extends Monster {
 
     /**
      * Zombie.finalizeSpawn: Mob 기본 → 줍기 가능(0.55×배율) → 아기(5%) → 문 부수기 → 기본 장비·마법 → (10월 31일 호박) → 영구 속성 무작위화.
-     * 레벨 난수와 엔티티 난수를 바닐라와 같은 순서로 쓴다. TODO(아기 닭 기수): 닭이 없어 기수 판정의 난수만 소비한다.
+     * 레벨 난수와 엔티티 난수를 바닐라와 같은 순서로 쓴다.
      */
     @Override
     public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
@@ -284,10 +284,20 @@ public class Zombie extends Monster {
         if (baby) {
             setBaby(true);
             if (jockey) {
-                if (r.nextFloat() < 0.05) {
-                    // TODO(닭 기수): 5 × 3 × 5 안의 기수 없는 닭에 타기
-                } else if (r.nextFloat() < 0.05) {
-                    // TODO(닭 기수): 새 닭을 만들어 타기
+                if (r.nextFloat() < 0.05) {   // 5 × 3 × 5 안의 아무도 안 탄 닭에 탄다
+                    var list = level.getEntitiesOfClass(Chicken.class, boundingBox().inflate(5.0, 3.0, 5.0), c -> c.isAlive() && !c.isVehicle() && !c.isPassenger());
+                    if (!list.isEmpty()) {
+                        Chicken c = list.get(0);
+                        c.setChickenJockey(true);
+                        startRiding(c);
+                    }
+                } else if (r.nextFloat() < 0.05) {   // 새 닭(JOCKEY 스폰)을 만들어 탄다
+                    Chicken c = new Chicken(level, level.nextEntityId());
+                    c.moveTo(x(), y(), z(), yRot(), 0.0F);
+                    c.finalizeSpawnGroup(r, difficulty, null);
+                    c.setChickenJockey(true);
+                    startRiding(c);
+                    level.addFreshEntity(c);
                 }
             }
         }

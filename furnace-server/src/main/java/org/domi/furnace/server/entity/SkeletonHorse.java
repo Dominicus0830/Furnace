@@ -1,5 +1,5 @@
 // 바닐라 SkeletonHorse: 해골 말. 번개 덫(SkeletonTrap) 상태면 18000틱 뒤 사라진다. 길들여지지 않았으면 상호작용하지 않는다.
-// TODO(해골 덫): SkeletonTrapGoal(번개·해골 기수 소환)은 번개·탑승 구현 때.
+// 덫 상태면 SkeletonTrapGoal 이 10 블록 안에 플레이어가 오면 번개(보이기만)와 해골 기수 넷(이 말 + 새 말 셋)을 낸다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -54,7 +54,90 @@ public class SkeletonHorse extends AbstractHorse {
 
     public boolean isTrap() { return isTrap; }
 
-    public void setTrap(boolean v) { isTrap = v; }
+    private final TrapGoal trapGoal = new TrapGoal(this);
+
+    /** setTrap: 바뀔 때 덫 목표를 넣거나(우선순위 1) 뺀다. */
+    public void setTrap(boolean v) {
+        if (v == isTrap) return;
+        isTrap = v;
+        if (v) goalSelector.addGoal(1, trapGoal);
+        else goalSelector.removeGoal(trapGoal);
+    }
+
+    /** 바닐라 SkeletonTrapGoal. */
+    static final class TrapGoal extends org.domi.furnace.server.entity.ai.Goal {
+        private final SkeletonHorse horse;
+
+        TrapGoal(SkeletonHorse horse) { this.horse = horse; }
+
+        /** level.hasNearbyAlivePlayer(x, y, z, 10). */
+        @Override
+        public boolean canUse() {
+            boolean[] found = {false};
+            double x = horse.x(), y = horse.y(), z = horse.z(), d = 10.0;
+            horse.level().forEachPlayerIn(new AABB(x - d, y - d, z - d, x + d, y + d, z + d), p -> {
+                double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
+                if (p.vitals().health() > 0.0F && p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && dx * dx + dy * dy + dz * dz < d * d) found[0] = true;
+            });
+            return found[0];
+        }
+
+        @Override
+        public void tick() {
+            ChunkLevel level = horse.level();
+            DifficultyInstance diff = level.getCurrentDifficultyAt(horse.blockPosition());
+            horse.setTrap(false);
+            horse.setTamed(true);
+            horse.setAge(0);
+            LightningBolt bolt = new LightningBolt(level, level.nextEntityId());
+            bolt.moveTo(horse.x(), horse.y(), horse.z(), bolt.yRot(), bolt.xRot());
+            bolt.setVisualOnly(true);
+            level.addFreshEntity(bolt);
+            Skeleton rider = createSkeleton(diff, horse);
+            rider.startRiding(horse);
+            level.addFreshEntityWithPassengers(rider);
+            for (int i = 0; i < 3; i++) {
+                SkeletonHorse h = createHorse(diff);
+                Skeleton s = createSkeleton(diff, h);
+                s.startRiding(h);
+                h.addDeltaMovement(horse.random().triangle(0.0, 1.1485), 0.0, horse.random().triangle(0.0, 1.1485));
+                h.hasImpulse = true;
+                level.addFreshEntityWithPassengers(h);
+            }
+        }
+
+        private SkeletonHorse createHorse(DifficultyInstance diff) {
+            ChunkLevel level = horse.level();
+            SkeletonHorse h = new SkeletonHorse(level, level.nextEntityId());
+            h.finalizeSpawnGroup(level.random(), diff, null);
+            h.setPos(horse.x(), horse.y(), horse.z());
+            h.invulnerableTime = 60;
+            h.persistenceRequired = true;
+            h.setTamed(true);
+            h.setAge(0);
+            return h;
+        }
+
+        private Skeleton createSkeleton(DifficultyInstance diff, AbstractHorse mount) {
+            ChunkLevel level = mount.level();
+            Skeleton s = new Skeleton(level, level.nextEntityId());
+            s.finalizeSpawn(level.random(), diff);
+            s.setPos(mount.x(), mount.y(), mount.z());
+            s.invulnerableTime = 60;
+            s.persistenceRequired = true;
+            if (s.getItemBySlot(EquipmentSlot.HEAD).isEmpty()) s.setItemSlot(EquipmentSlot.HEAD, stackOf("minecraft:iron_helmet"));
+            enchant(s, EquipmentSlot.MAINHAND, diff);
+            enchant(s, EquipmentSlot.HEAD, diff);
+            return s;
+        }
+
+        /** 마법 부여를 비우고 mob_spawn_equipment 제공자로 건다(해골 자기 난수). */
+        private static void enchant(Skeleton s, EquipmentSlot slot, DifficultyInstance diff) {
+            ItemStack st = org.domi.furnace.server.item.EnchantTools.update(s.getItemBySlot(slot), java.util.Map::clear);
+            st = org.domi.furnace.server.item.EnchantTools.enchantFromProvider(st, s.level().lootData(), Mob.MOB_SPAWN_EQUIPMENT, diff.specialMultiplier(), s.random());
+            s.setItemSlot(slot, st);
+        }
+    }
 
     @Override
     public AgeableMob getBreedOffspring(ChunkLevel level, AgeableMob partner) { return new SkeletonHorse(level, level.nextEntityId()); }

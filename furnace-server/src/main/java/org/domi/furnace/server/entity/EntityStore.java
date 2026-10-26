@@ -27,6 +27,11 @@ public final class EntityStore {
 
     public Entity get(UUID uuid) { return byUuid.get(uuid); }
 
+    public boolean containsUuid(UUID uuid) { return byUuid.containsKey(uuid); }
+
+    /** entityTickList.contains. */
+    public boolean contains(Entity e) { return byId.get(e.id()) == e; }
+
     /** 넣는다. 같은 UUID 가 이미 있으면 넣지 않는다(바닐라 addEntityUuid). */
     public boolean add(Entity e) {
         if (byUuid.containsKey(e.uuid())) return false;

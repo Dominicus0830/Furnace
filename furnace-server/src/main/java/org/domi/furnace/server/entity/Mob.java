@@ -56,7 +56,24 @@ public abstract class Mob extends LivingEntity {
 
     protected PathNavigation createNavigation(ChunkLevel level) { return new GroundPathNavigation(this, level); }
 
-    public PathNavigation getNavigation() { return navigation; }
+    /** getNavigation: 내가 조종하는 탈것이 몹이면 그 탈것의 길찾기. */
+    public PathNavigation getNavigation() { return getControlledVehicle() instanceof Mob m ? m.getNavigation() : navigation; }
+
+    /** Mob.getControllingPassenger: AI 가 있고 첫 승객이 조종할 수 있는 몹이면 그 몹. */
+    @Override
+    public Rider getControllingPassenger() {
+        Rider r = firstPassenger();
+        return !isNoAi() && r instanceof Mob m && m.canControlVehicle() ? m : null;
+    }
+
+    /** updateControlFlags: 몹이 나를 조종하면 이동·시선·점프 목표를 끈다(보트 안이면 점프도). */
+    protected void updateControlFlags() {
+        boolean noController = !(getControllingPassenger() instanceof Mob);
+        boolean notInBoat = true;   // TODO(보트): !(vehicle() instanceof Boat)
+        goalSelector.setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.MOVE, noController);
+        goalSelector.setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.JUMP, noController && notInBoat);
+        goalSelector.setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.LOOK, noController);
+    }
 
     public org.domi.furnace.server.entity.ai.brain.Brain<? extends Mob> getBrain() { return brain; }
 
@@ -227,6 +244,11 @@ public abstract class Mob extends LivingEntity {
             }
         }
         level.addFreshEntity(target);
+        if (isPassenger()) {   // 탄 채로 바뀌면 새 몹이 그 탈것에 탄다
+            Entity v = vehicle();
+            stopRiding();
+            target.startRiding(v, true);
+        }
         discard();
         return target;
     }
@@ -360,8 +382,8 @@ public abstract class Mob extends LivingEntity {
     /** 몹 수 세기에서 빠지는가(유지 몹). */
     public boolean isPersistentForCaps() { return persistenceRequired || requiresCustomPersistence(); }
 
-    /** Mob.requiresCustomPersistence: 탑승·끈에 매인 몹 등(아직 해당 체계 없음). */
-    protected boolean requiresCustomPersistence() { return false; }
+    /** Mob.requiresCustomPersistence: 탄 몹은 사라지지 않는다. */
+    protected boolean requiresCustomPersistence() { return isPassenger(); }
 
     /** Mob.shouldDespawnInPeaceful: 적대 몹은 평화로움에서 사라진다. */
     protected boolean shouldDespawnInPeaceful() { return this instanceof Enemy; }
@@ -390,6 +412,7 @@ public abstract class Mob extends LivingEntity {
     public void tick() {
         if (!isRemoved()) checkDespawn();
         super.tick();
+        if (!isRemoved() && tickCount % 5 == 0) updateControlFlags();
     }
 
     // ---- 자연 스폰 훅(NaturalSpawner)
@@ -590,9 +613,18 @@ public abstract class Mob extends LivingEntity {
 
     private static final double MELEE_REACH = Math.sqrt(2.04F) - 0.6F;
 
+    /** getAttackBoundingBox: 탔으면 탈것 몸통까지 가로로 넓힌다. */
+    protected AABB getAttackBoundingBox() {
+        Entity v = vehicle();
+        AABB b = boundingBox();
+        if (v == null) return b;
+        AABB o = v.boundingBox();
+        return new AABB(Math.min(b.minX(), o.minX()), b.minY(), Math.min(b.minZ(), o.minZ()), Math.max(b.maxX(), o.maxX()), b.maxY(), Math.max(b.maxZ(), o.maxZ()));
+    }
+
     /** isWithinMeleeAttackRange: 내 몸통을 가로로 (루트 2.04 − 0.6) 넓힌 상자가 상대 몸통과 겹친다. */
     public boolean isWithinMeleeAttackRange(Targetable t) {
-        return boundingBox().inflate(MELEE_REACH, 0.0, MELEE_REACH).intersects(t.boundingBox());
+        return getAttackBoundingBox().inflate(MELEE_REACH, 0.0, MELEE_REACH).intersects(t.boundingBox());
     }
 
     /** Mob.doHurtTarget: 공격력 속성만큼 때리고, 맞으면 밀치기(attack_knockback)·되받는 감속·마지막으로 때린 대상 기록. TODO(인챈트 효과·무기 후처리). */
@@ -624,7 +656,6 @@ public abstract class Mob extends LivingEntity {
 
     public boolean isInLiquid() { return isInWaterOrBubble() || isInLava(); }
 
-    public boolean isPassenger() { return false; }
 
     /** Mob.tickHeadTurn: 몸통 회전은 BodyRotationControl 이 정한다(걸음 거리 인자는 그대로). */
     @Override
@@ -632,7 +663,7 @@ public abstract class Mob extends LivingEntity {
 
     public LookControl getLookControl() { return lookControl; }
 
-    public MoveControl getMoveControl() { return moveControl; }
+    public MoveControl getMoveControl() { return getControlledVehicle() instanceof Mob m ? m.getMoveControl() : moveControl; }
 
     public JumpControl getJumpControl() { return jumpControl; }
 

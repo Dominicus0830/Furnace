@@ -1098,7 +1098,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
+                if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
+                    acceptRiding(p, iyaw, ipitch, g);
+                } else if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
                     ig = g;
                     publishInput(p);
                     p.pushMove(ix, iy, iz, ig);
@@ -1109,7 +1111,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
+                if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
+                    acceptRiding(p, finiteOr0(yaw), finiteOr0(pitch), g);
+                } else if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
                     iyaw = finiteOr0(yaw);
                     ipitch = finiteOr0(pitch);
                     ig = g;
@@ -1121,13 +1125,32 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1 && correctionTpId == -1) {
+                if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
+                    acceptRiding(p, finiteOr0(yaw), finiteOr0(pitch), g);
+                } else if (p != null && pendingTeleportId == -1 && correctionTpId == -1) {
                     iyaw = finiteOr0(yaw);
                     ipitch = finiteOr0(pitch);
                     ig = g;
                     publishInput(p);
                     p.pushMove(ix, iy, iz, ig);
                 }
+            }
+            case 0x1E -> { // move_vehicle: Double x,y,z, Float yRot,xRot — 조종 중인 탈것의 위치(클라이언트 권위)
+                double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
+                float yRot = frame.readFloat(), xRot = frame.readFloat();
+                Player p = player;
+                if (p == null) return;
+                if (org.domi.furnace.server.entity.VehicleMoves.invalid(x, y, z, yRot, xRot)) {
+                    disconnect(ctx, Text.translatable("multiplayer.disconnect.invalid_vehicle_movement"));
+                } else if (pendingTeleportId == -1 && correctionTpId == -1) {
+                    world.runAt(p.x(), p.z(), region -> org.domi.furnace.server.entity.VehicleMoves.handle(p, x, y, z, yRot, xRot));
+                }
+            }
+            case 0x26 -> { // player_input: Float 옆, Float 앞, Byte(1 점프, 2 웅크림) — 탄 동안만 반영(ServerPlayer.setPlayerInput)
+                float xxa = frame.readFloat(), zza = frame.readFloat();
+                byte flags = frame.readByte();
+                Player p = player;
+                if (p != null) p.setPlayerInput(xxa, zza, (flags & 1) != 0, (flags & 2) != 0);
             }
             case 0x09 -> { // client_command: 0 = 리스폰, 1 = 통계 요청
                 int action = Types.readVarInt(frame);
@@ -2103,6 +2126,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         correctionTpId = ++teleportId;
         send(ctx, new SyncPlayerPosition(x, y, z, iyaw, ipitch, correctionTpId));
         p.pushTeleport(x, y, z);
+        publishInput(p);
+    }
+
+    /**
+     * 탄 동안의 이동 패킷(바닐라 handleMovePlayer 의 isPassenger 가지): 위치는 버리고 회전만 받는다. 수락 위치는 서버가 정한
+     * 지금 위치(탈것이 옮긴 것)로 맞춰 둔다 — 도달 거리 검사와 내린 뒤 이동 검증의 기준점.
+     */
+    private void acceptRiding(Player p, float yaw, float pitch, boolean g) {
+        ix = p.x();
+        iy = p.y();
+        iz = p.z();
+        iyaw = yaw;
+        ipitch = pitch;
+        ig = g;
         publishInput(p);
     }
 

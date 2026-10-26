@@ -642,7 +642,9 @@ public final class Region {
             }
             p.tickDropSpam();
             p.tickCooldowns();
-            if (processMoves(p) && level != null) level.playerMoved(p);   // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다
+            p.tickRiding();
+            // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
+            if ((processMoves(p) || p.vehicle() != null) && level != null) level.playerMoved(p);
             p.drainPending();
             tickVitals(p);
             org.domi.furnace.server.map.MapItems.tick(p, MapTerrain::new, p.dimension(), world.dayTime());   // Inventory.tick 의 지도 + 갱신 패킷
@@ -776,8 +778,16 @@ public final class Region {
                 continue;
             }
             if (owner == this || rz().merging(this, owner)) continue;
-            level.entities().remove(e);
-            world.runAtChunk(new ChunkPos(cx, cz), r -> r.level().adoptEntity(e));
+            if (e.isPassenger()) continue;   // 승객은 뿌리 탈것을 따라간다
+            java.util.List<org.domi.furnace.server.entity.Entity> moving = new java.util.ArrayList<>();
+            moving.add(e);
+            if (e.isVehicle()) {
+                java.util.List<org.domi.furnace.server.entity.Rider> riders = new java.util.ArrayList<>();
+                e.collectIndirectPassengers(riders);
+                for (var r : riders) if (r instanceof org.domi.furnace.server.entity.Entity pe && level.entities().contains(pe)) moving.add(pe);
+            }
+            for (var m : moving) level.entities().remove(m);
+            world.runAtChunk(new ChunkPos(cx, cz), r -> { for (var m : moving) r.level().adoptEntity(m); });
         }
     }
 
@@ -1295,6 +1305,9 @@ public final class Region {
                 if (!a.listed().containsKey(b.entityId())) continue;   // syncTabList가 올리지 않은(퇴장 경합) 대상은 스폰 안 함
                 a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
                 a.send(new SetHeadRotation(b.entityId(), b.yaw()));
+                Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
+                var bv = bp == null ? null : bp.vehicle();
+                if (bv != null) a.send(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
                 startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation()});
             } else if (!near && tracking) {
                 a.send(new RemoveEntities(java.util.List.of(b.entityId())));

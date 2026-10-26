@@ -18,7 +18,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public abstract class Entity {
+public abstract non-sealed class Entity implements Rider {
 
     /** 엔티티 데이터 번호(Entity.DATA_*): 0 공유 플래그, 1 공기, 2 이름, 3 이름 보임, 4 조용함, 5 중력 없음, 6 자세, 7 얼음 틱. */
     public static final int DATA_SHARED_FLAGS = 0, DATA_AIR_SUPPLY = 1, DATA_CUSTOM_NAME_VISIBLE = 3, DATA_SILENT = 4,
@@ -88,6 +88,10 @@ public abstract class Entity {
     private int inBlockState = -1;
     /** 추적기(region 이 레벨에 넣을 때 만든다). */
     public EntityTracker tracker;
+    // 탑승(바닐라 Entity.vehicle/passengers/boardingCooldown). 승객이 없으면 공유 빈 목록이라 틱 비용이 없다.
+    private Entity vehicle;
+    private java.util.List<Rider> passengers = java.util.List.of();
+    private int boardingCooldown;
 
     protected Entity(EntityType type, ChunkLevel level, int id) {
         this.type = type;
@@ -294,12 +298,27 @@ public abstract class Entity {
 
     public void teleportTo(double nx, double ny, double nz) { moveTo(nx, ny, nz, yRot, xRot); }
 
+    /** absMoveTo(x, y, z, yRot, xRot): x·z 를 ±3e7 로 자르고 이전 위치까지 맞춘 뒤 회전(yRot % 360, xRot 은 ±90 으로 잘라 % 360). */
+    public void absMoveTo(double nx, double ny, double nz, float yr, float xr) {
+        double cx = Math.clamp(nx, -3.0E7, 3.0E7), cz = Math.clamp(nz, -3.0E7, 3.0E7);
+        xo = cx;
+        yo = ny;
+        zo = cz;
+        setPos(cx, ny, cz);
+        setYRot(yr % 360.0F);
+        setXRot(Math.clamp(xr, -90.0F, 90.0F) % 360.0F);
+        yRotO = yRot;
+        xRotO = xRot;
+    }
+
     // ------------------------------------------------------------------ 틱
 
     public void tick() { baseTick(); }
 
     public void baseTick() {
         inBlockState = -1;
+        if (vehicle != null && vehicle.isRemoved()) stopRiding();
+        if (boardingCooldown > 0) boardingCooldown--;
         xRotO = xRot;
         yRotO = yRot;
         wasInPowderSnow = isInPowderSnow;
@@ -446,6 +465,8 @@ public abstract class Entity {
 
     public final void setRemoved(RemovalReason reason) {
         if (removalReason == null) removalReason = reason;
+        if (removalReason.shouldDestroy()) stopRiding();
+        if (!passengers.isEmpty()) for (Rider r : passengers) r.stopRiding();
         if (level != null) level.entityRemoved(this);
     }
 
@@ -866,7 +887,7 @@ public abstract class Entity {
         return found;
     }
 
-    protected boolean isPlayer() { return false; }
+    public boolean isPlayer() { return false; }
 
     /** touchingUnloadedChunk: 몸통(1 넓힌) 아래 청크가 다 로드됐는가의 반대. */
     public boolean touchingUnloadedChunk() {
@@ -895,9 +916,9 @@ public abstract class Entity {
     /** saveWithoutId: 공통 필드 뒤 addAdditionalSaveData. */
     public NbtCompound saveWithoutId(NbtCompound tag) {
         NbtList pos = new NbtList((byte) 6);
-        pos.add(x);
+        pos.add(vehicle != null ? vehicle.x : x);   // 탄 것은 탈것의 x·z
         pos.add(y);
-        pos.add(z);
+        pos.add(vehicle != null ? vehicle.z : z);
         tag.put("Pos", pos);
         NbtList motion = new NbtList((byte) 6);
         motion.add(vx);
@@ -921,20 +942,23 @@ public abstract class Entity {
         int frozen = (Integer) entityData.get(DATA_TICKS_FROZEN);
         if (frozen > 0) tag.putInt("TicksFrozen", frozen);
         addAdditionalSaveData(tag);
+        if (!passengers.isEmpty()) {
+            NbtList list = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+            for (Rider r : passengers) {
+                if (!(r instanceof Entity e)) continue;   // 플레이어는 자기 데이터에 저장된다
+                NbtCompound t = e.saveAsPassenger();
+                if (t != null) list.add(t);
+            }
+            if (list.size() > 0) tag.put("Passengers", list);
+        }
         return tag;
     }
 
     /** EntityType.canSerialize: 번개처럼 저장하지 않는 종류는 false. */
     public boolean shouldSave() { return true; }
 
-    /** saveAsPassenger 의 id 를 붙인 저장. 저장하지 않는 엔티티면 null. */
-    public NbtCompound save() {
-        if (!shouldSave()) return null;
-        if (isRemoved() && !removalReason.shouldSave()) return null;
-        NbtCompound tag = new NbtCompound();
-        tag.putString("id", type.name());
-        return saveWithoutId(tag);
-    }
+    /** Entity.save: 탄 것은 탈것이 저장한다(null). 아니면 saveAsPassenger(승객까지 재귀). */
+    public NbtCompound save() { return vehicle != null ? null : saveAsPassenger(); }
 
     public void load(NbtCompound tag) {
         NbtList pos = tag.getList("Pos"), motion = tag.getList("Motion"), rot = tag.getList("Rotation");
@@ -980,6 +1004,223 @@ public abstract class Entity {
     static int[] uuidToInts(UUID u) {
         long m = u.getMostSignificantBits(), l = u.getLeastSignificantBits();
         return new int[] {(int) (m >> 32), (int) m, (int) (l >> 32), (int) l};
+    }
+
+    // ------------------------------------------------------------------ 탑승(바닐라 Entity 의 vehicle/passengers 부분)
+
+    @Override
+    public final Entity vehicle() { return vehicle; }
+
+    @Override
+    public final boolean isPassenger() { return vehicle != null; }
+
+    /** getPassengers: 바꿀 수 없는 목록(바뀔 때마다 새 목록). */
+    public final java.util.List<Rider> passengers() { return passengers; }
+
+    public final boolean isVehicle() { return !passengers.isEmpty(); }
+
+    public final Rider firstPassenger() { return passengers.isEmpty() ? null : passengers.get(0); }
+
+    public final boolean hasPassenger(Rider r) { return passengers.contains(r); }
+
+    @Override
+    public void setVehicleField(Entity v) { vehicle = v; }
+
+    @Override
+    public void setBoardingCooldown(int ticks) { boardingCooldown = ticks; }
+
+    public int boardingCooldown() { return boardingCooldown; }
+
+    @Override
+    public float riderYRot() { return yRot; }
+
+    private static final int FLAG_SHIFT_KEY_DOWN = 1;
+
+    @Override
+    public boolean isShiftKeyDown() { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << FLAG_SHIFT_KEY_DOWN) != 0; }
+
+    public void setShiftKeyDown(boolean v) { setSharedFlag(FLAG_SHIFT_KEY_DOWN, v); }
+
+    /** getRootVehicle. */
+    public final Entity rootVehicle() {
+        Entity e = this;
+        while (e.vehicle != null) e = e.vehicle;
+        return e;
+    }
+
+    /** getRootVehicle 의 승객판(플레이어 승객은 자기 탈것에서 올라간다). */
+    public static Entity rootVehicleOf(Rider r) { return r instanceof Entity e ? e.rootVehicle() : r.vehicle() == null ? null : r.vehicle().rootVehicle(); }
+
+    /** isPassengerOfSameVehicle: 뿌리 탈것이 같다. */
+    public final boolean isPassengerOfSameVehicle(Rider r) { return rootVehicle() == rootVehicleOf(r); }
+
+    /** hasIndirectPassenger: 승객의 승객까지. */
+    public final boolean hasIndirectPassenger(Rider r) {
+        Entity v = r.vehicle();
+        if (v == null) return false;
+        return v == this || hasIndirectPassenger(v);
+    }
+
+    /** getIndirectPassengers(승객의 승객까지, 앞에서부터). */
+    public final void collectIndirectPassengers(java.util.List<Rider> out) {
+        for (Rider r : passengers) {
+            out.add(r);
+            if (r instanceof Entity e) e.collectIndirectPassengers(out);
+        }
+    }
+
+    /** startRiding(vehicle) = startRiding(vehicle, false). */
+    public boolean startRiding(Entity v) { return startRiding(v, false); }
+
+    /** startRiding(vehicle, force): 승객 쪽 canRide·탈것 쪽 canAddPassenger 를 보고(force 면 생략) 탄다. */
+    public boolean startRiding(Entity v, boolean force) { return mount(this, v, force); }
+
+    /**
+     * 바닐라 Entity.startRiding 본문(Rider 공용): 같은 탈것이면 거짓, 탈것이 승객을 못 받으면 거짓, 탈것 사슬에 내가 있으면 거짓.
+     * 이미 탔으면 내리고, 자세를 서기로 바꾸고, 연결한다. TODO(발전 과제): started_riding 트리거.
+     */
+    static boolean mount(Rider r, Entity v, boolean force) {
+        if (v == r.vehicle()) return false;
+        if (!v.couldAcceptPassenger()) return false;
+        for (Entity e = v; e.vehicle != null; e = e.vehicle) if (e.vehicle == r) return false;
+        if (!force && !(r.canRide(v) && v.canAddPassenger(r))) return false;
+        if (r.isPassenger()) r.stopRiding();
+        if (r instanceof Entity e) e.setPose(POSE_STANDING);
+        r.setVehicleField(v);
+        v.addPassenger(r);
+        return true;
+    }
+
+    /** canRide(vehicle): 웅크리지 않았고 다시 타기 기다림이 끝났다. */
+    @Override
+    public boolean canRide(Entity v) { return !isShiftKeyDown() && boardingCooldown <= 0; }
+
+    /** canAddPassenger: 기본은 승객이 없을 때만. */
+    protected boolean canAddPassenger(Rider r) { return passengers.isEmpty(); }
+
+    /** couldAcceptPassenger. */
+    protected boolean couldAcceptPassenger() { return true; }
+
+    /** addPassenger: 서버에서 플레이어는 첫 승객이 플레이어가 아니면 맨 앞에 넣는다(조종자가 된다). TODO(게임 이벤트): entity_mount. */
+    protected void addPassenger(Rider r) {
+        if (r.vehicle() != this) throw new IllegalStateException("Use x.startRiding(y), not y.addPassenger(x)");
+        if (passengers.isEmpty()) {
+            passengers = java.util.List.of(r);
+        } else {
+            java.util.ArrayList<Rider> l = new java.util.ArrayList<>(passengers);
+            if (r instanceof Player && !(firstPassenger() instanceof Player)) l.add(0, r);
+            else l.add(r);
+            passengers = java.util.List.copyOf(l);
+        }
+    }
+
+    /** removePassenger: 빼고 그 승객의 다시 타기 기다림을 60 틱으로. TODO(게임 이벤트): entity_dismount. */
+    protected void removePassenger(Rider r) {
+        if (r.vehicle() == this) throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
+        if (passengers.size() == 1 && passengers.get(0) == r) {
+            passengers = java.util.List.of();
+        } else {
+            java.util.ArrayList<Rider> l = new java.util.ArrayList<>(passengers.size());
+            for (Rider p : passengers) if (p != r) l.add(p);
+            passengers = java.util.List.copyOf(l);
+        }
+        r.setBoardingCooldown(60);
+    }
+
+    /** removeVehicle: 연결만 끊는다. */
+    public final void removeVehicle() { unlinkVehicle(this); }
+
+    static void unlinkVehicle(Rider r) {
+        Entity v = r.vehicle();
+        if (v != null) {
+            r.setVehicleField(null);
+            v.removePassenger(r);
+        }
+    }
+
+    /** stopRiding: 기본은 removeVehicle(살아 있는 것은 내릴 자리로 옮긴다 — LivingEntity). */
+    @Override
+    public void stopRiding() { removeVehicle(); }
+
+    /** ejectPassengers: 뒤에서부터 내린다. */
+    public void ejectPassengers() {
+        for (int i = passengers.size() - 1; i >= 0; i--) passengers.get(i).stopRiding();
+    }
+
+    /** positionRider(passenger): 내 승객이면 setPos 로 옮긴다. */
+    public final void positionRider(Rider r) {
+        if (hasPassenger(r)) placeRider(r);
+    }
+
+    /** positionRider(passenger, moveFunction): 승객 위치 = 탈것의 승객 부착점 − 승객의 탈것 부착점. 덮어쓰는 종류는 뒤에 몸 회전 등을 더 맞춘다. */
+    protected void placeRider(Rider r) {
+        Vec3 at = getPassengerRidingPosition(r);
+        Vec3 off = r.vehicleAttachmentPoint(this);
+        r.setRidingPos(at.x() - off.x(), at.y() - off.y(), at.z() - off.z());
+    }
+
+    /** getPassengerRidingPosition: 위치 + getPassengerAttachmentPoint(승객, 몸 크기, 1). */
+    public Vec3 getPassengerRidingPosition(Rider r) { return new Vec3(x, y, z).add(getPassengerAttachmentPoint(r, 1.0F)); }
+
+    /** getPassengerAttachmentPoint(passenger, dimensions, scale): 기본은 그 승객 순번의 부착점. */
+    protected Vec3 getPassengerAttachmentPoint(Rider r, float scale) { return getDefaultPassengerAttachmentPoint(r); }
+
+    /** getDefaultPassengerAttachmentPoint(vehicle, passenger, attachments): 승객 순번(없으면 -1 → 0 번)으로 고른다. */
+    protected final Vec3 getDefaultPassengerAttachmentPoint(Rider r) {
+        return EntityAttachments.passenger(type, passengers.indexOf(r), yRot, dimH, dimensionScale());
+    }
+
+    /** getVehicleAttachmentPoint(vehicle): 종류의 탈것 부착점. */
+    @Override
+    public Vec3 vehicleAttachmentPoint(Entity v) { return EntityAttachments.vehicle(type, yRot, dimensionScale()); }
+
+    @Override
+    public void setRidingPos(double nx, double ny, double nz) { setPos(nx, ny, nz); }
+
+    /** 지금 몸 크기가 종류 크기의 몇 배인가(EntityDimensions.scale — 부착점에 곱한다). */
+    protected float dimensionScale() { return 1.0F; }
+
+    /** dismountTo: 내린 자리로 옮긴다. */
+    public void dismountTo(double nx, double ny, double nz) { teleportTo(nx, ny, nz); }
+
+    /** getDismountLocationForPassenger: 기본은 내 몸통 꼭대기 가운데. */
+    public Vec3 getDismountLocationForPassenger(Rider r) { return new Vec3(x, bb.maxY(), z); }
+
+    /** getControllingPassenger: 조종하는 승객(기본 없음). */
+    public Rider getControllingPassenger() { return null; }
+
+    public final boolean hasControllingPassenger() { return getControllingPassenger() != null; }
+
+    /** getControlledVehicle: 내가 조종하는 탈것. */
+    public final Entity getControlledVehicle() { return vehicle != null && vehicle.getControllingPassenger() == this ? vehicle : null; }
+
+    /** dismountsUnderwater: dismounts_underwater 종류 태그. */
+    public boolean dismountsUnderwater() { return typeInTag("minecraft:dismounts_underwater"); }
+
+    @Override
+    public boolean canControlVehicle() { return !typeInTag("minecraft:non_controlling_rider"); }
+
+    private boolean typeInTag(String tag) {
+        int[] ids = EntityTypeTags.ids(tag);
+        if (ids == null) return false;
+        for (int i : ids) if (i == type.id()) return true;
+        return false;
+    }
+
+    /** rideTick: 속도를 지우고 틱한 뒤 탈것이 다시 자리를 잡아 준다. */
+    public void rideTick() {
+        setDeltaMovement(0.0, 0.0, 0.0);
+        tick();
+        if (vehicle != null) vehicle.positionRider(this);
+    }
+
+    /** 승객을 저장할 묶음(saveAsPassenger): 저장하지 않는 상태면 null. */
+    public NbtCompound saveAsPassenger() {
+        if (!shouldSave()) return null;
+        if (isRemoved() && !removalReason.shouldSave()) return null;
+        NbtCompound tag = new NbtCompound();
+        tag.putString("id", type.name());
+        return saveWithoutId(tag);
     }
 
     // ------------------------------------------------------------------ 추적(ServerEntity 가 쓴다)

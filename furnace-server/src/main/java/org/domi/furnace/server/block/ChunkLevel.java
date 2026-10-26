@@ -1169,7 +1169,7 @@ public abstract class ChunkLevel implements BlockLevel {
         mob.setYHeadRot(mob.yRot());
         mob.setYBodyRot(mob.yRot());
         mob.finalizeSpawn(random, getCurrentDifficultyAt(mob.blockPosition()));
-        addFreshEntity(mob);
+        addFreshEntityWithPassengers(mob);
         mob.makeSound(mob.ambientSoundForSpawn());
         return true;
     }
@@ -1359,6 +1359,16 @@ public abstract class ChunkLevel implements BlockLevel {
         return true;
     }
 
+    /** tryAddFreshEntityWithPassengers: 승객의 승객까지 하나라도 UUID 가 겹치면 아무것도 넣지 않는다. */
+    public boolean addFreshEntityWithPassengers(Entity e) {
+        java.util.List<org.domi.furnace.server.entity.Rider> all = new java.util.ArrayList<>();
+        all.add(e);
+        e.collectIndirectPassengers(all);
+        for (var r : all) if (r instanceof Entity x && entities.containsUuid(x.uuid())) return false;
+        for (var r : all) if (r instanceof Entity x) addFreshEntity(x);
+        return true;
+    }
+
     /** ChunkMap.addEntity: 추적 거리(종류 × 16 × 방송 비율) 가 0 이면 추적하지 않는다. */
     protected void startTracking(Entity e) {
         int range = e.type().clientTrackingRange() * 16;
@@ -1404,14 +1414,38 @@ public abstract class ChunkLevel implements BlockLevel {
         for (Entity e : entities.tickSnapshot()) {
             if (e.isRemoved()) continue;
             if (!ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) continue;
+            Entity v = e.vehicle();
+            if (v != null) {   // 탄 것은 탈것이 틱한다
+                if (!v.isRemoved() && v.hasPassenger(e)) continue;
+                e.stopRiding();
+            }
             try {
                 e.setOldPosAndRot();
                 e.tickCount++;
                 e.tick();
+                if (e.isVehicle()) for (var r : e.passengers()) tickPassenger(e, r);
             } catch (RuntimeException ex) {
                 org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 엔티티 틱 실패 {} — 지운다", e, ex);
                 e.discard();
             }
+        }
+    }
+
+    /** ServerLevel.tickPassenger: 지워졌거나 다른 것에 탔으면 내리고, 아니면 rideTick 뒤 그 승객의 승객. 플레이어는 자기 틱 대신 탑승 처리만. */
+    private void tickPassenger(Entity vehicle, org.domi.furnace.server.entity.Rider r) {
+        if (r instanceof Player p) {
+            if (p.isDisconnected() || p.vehicle() != vehicle) p.stopRiding();
+            else p.rideTick();
+            return;
+        }
+        Entity e = (Entity) r;
+        if (e.isRemoved() || e.vehicle() != vehicle) {
+            e.stopRiding();
+        } else if (entities.contains(e)) {
+            e.setOldPosAndRot();
+            e.tickCount++;
+            e.rideTick();
+            if (e.isVehicle()) for (var r2 : e.passengers()) tickPassenger(e, r2);
         }
     }
 
@@ -1457,7 +1491,7 @@ public abstract class ChunkLevel implements BlockLevel {
             if (!(o instanceof org.domi.furnace.server.net.io.nbt.NbtCompound tag)) continue;
             Entity e = org.domi.furnace.server.entity.Entities.load(this, tag);
             if (e == null) col.foreignEntities().add(tag);
-            else addFreshEntity(e);
+            else addFreshEntityWithPassengers(e);
         }
     }
 
@@ -1508,7 +1542,13 @@ public abstract class ChunkLevel implements BlockLevel {
      * 청크와 함께 저장한다 — 여기서는 주인이 없는 청크를 들 수 없다).
      */
     public void evictToDisk(Entity e) {
+        if (e.isPassenger()) return;   // 뿌리 탈것이 승객째 저장한다
         var tag = e.save();
+        if (e.isVehicle()) {
+            java.util.List<org.domi.furnace.server.entity.Rider> riders = new java.util.ArrayList<>();
+            e.collectIndirectPassengers(riders);
+            for (int i = riders.size() - 1; i >= 0; i--) if (riders.get(i) instanceof Entity pe) pe.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        }
         e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
         if (tag != null) appendEntitiesToDisk(e.chunkX(), e.chunkZ(), java.util.List.of(tag));
     }

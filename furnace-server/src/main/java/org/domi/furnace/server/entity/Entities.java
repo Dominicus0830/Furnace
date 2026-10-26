@@ -252,6 +252,15 @@ public final class Entities {
         };
         if (e == null) return null;
         e.load(tag);
+        // EntityType.loadEntityRecursive: 승객을 불러 강제로 태운다
+        if (tag.tags().get("Passengers") instanceof org.domi.furnace.server.net.io.nbt.NbtList list) {
+            for (Object o : list.items()) {
+                if (o instanceof NbtCompound pt) {
+                    Entity p = load(level, pt);
+                    if (p != null) p.startRiding(e, true);
+                }
+            }
+        }
         return e;
     }
 }

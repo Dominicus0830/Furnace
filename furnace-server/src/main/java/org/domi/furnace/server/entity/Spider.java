@@ -1,5 +1,5 @@
 // 바닐라 Spider: 벽을 타고(WallClimberNavigation), 밝으면(밝기 ≥ 0.5) 중립이 된다. 거미줄에 걸리지 않고 독에 안 걸린다.
-// TODO: 스폰 시 해골 기수(1%)와 어려움에서 포션 효과 부여는 구현, 아르마딜로(말아 쥠) 회피는 해당 몹 추가 시.
+// 스폰 시 해골 기수(1%)와 어려움에서 포션 효과. TODO: 아르마딜로(말아 쥠) 회피는 해당 몹 추가 시.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -71,12 +71,23 @@ public class Spider extends Monster {
 
     @Override protected String getDeathSound() { return "entity.spider.death"; }
 
+    /** Spider.getVehicleAttachmentPoint: 나보다 좁은 탈것에는 (0, 0.3125 × 배율, 0). */
+    @Override
+    public Vec3 vehicleAttachmentPoint(Entity v) {
+        return v.bbWidth() <= bbWidth() ? new Vec3(0.0, riderAttachY() * attributeValue(org.domi.furnace.server.attribute.Attribute.SCALE), 0.0) : super.vehicleAttachmentPoint(v);
+    }
+
+    protected double riderAttachY() { return 0.3125; }
+
     @Override
     public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
         super.finalizeSpawn(r, difficulty);
         org.domi.furnace.server.block.RandomSource lr = level.random();
-        if (lr.nextInt(100) == 0) {
-            // TODO(기수): 해골 기수를 만들어 올라탄다(탈것 시스템 필요) — 난수만 소비한다
+        if (lr.nextInt(100) == 0) {   // 해골 기수: 레벨에 넣지 않고 태운다 — 부른 쪽이 승객째 넣는다
+            Skeleton s = new Skeleton(level, level.nextEntityId());
+            s.moveTo(x(), y(), z(), yRot(), 0.0F);
+            s.finalizeSpawn(lr, difficulty);
+            s.startRiding(this);
         }
         // 첫 번째 거미(무리가 없을 때)만: 어려움이면 10% × 지역 난이도로 효과 부여 (그룹 데이터 미구현이라 항상 처음 거미로 본다)
         if (level.difficulty() == 3 && lr.nextFloat() < 0.1F * difficulty.specialMultiplier()) {

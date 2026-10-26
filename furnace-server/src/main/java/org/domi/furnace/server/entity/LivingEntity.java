@@ -434,6 +434,45 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public boolean isBaby() { return false; }
 
+    /** getAgeScale: 아기면 0.5. */
+    public float getAgeScale() { return isBaby() ? 0.5F : 1.0F; }
+
+    /** getScale(scale 속성) × 나이 배율 — 기본 몸 크기와 부착점의 배율. */
+    @Override
+    protected float dimensionScale() { return (float) attributeValue(Attribute.SCALE) * getAgeScale(); }
+
+    // ------------------------------------------------------------------ 탑승(LivingEntity)
+
+    /** LivingEntity.getPassengerRidingPosition: 배율은 getScale × getAgeScale. */
+    @Override
+    public Vec3 getPassengerRidingPosition(Rider r) {
+        return new Vec3(x(), y(), z()).add(getPassengerAttachmentPoint(r, (float) attributeValue(Attribute.SCALE) * getAgeScale()));
+    }
+
+    /** LivingEntity.stopRiding: 탈것이 바뀌었으면 내릴 자리로 옮긴다(dismountVehicle). */
+    @Override
+    public void stopRiding() {
+        Entity v = vehicle();
+        super.stopRiding();
+        if (v != null && v != vehicle()) dismountVehicle(v);
+    }
+
+    /** dismountVehicle: 지워졌으면 그 자리, 탈것이 있고 차원문 블록 위가 아니면 탈것이 정한 자리, 아니면 둘 중 높은 y. */
+    protected void dismountVehicle(Entity v) {
+        Vec3 p;
+        if (isRemoved()) p = new Vec3(x(), y(), z());
+        else if (!v.isRemoved() && !B.isTag(level.getBlockState(v.blockPosition()), "minecraft:portals")) p = v.getDismountLocationForPassenger(this);
+        else p = new Vec3(x(), Math.max(y(), v.y()), z());
+        dismountTo(p.x(), p.y(), p.z());
+    }
+
+    /** LivingEntity.rideTick: 탄 동안은 낙하 거리를 지운다. */
+    @Override
+    public void rideTick() {
+        super.rideTick();
+        resetFallDistance();
+    }
+
     public void makeSound(String sound) {
         if (sound != null) playSound(sound, getSoundVolume(), getVoicePitch());
     }
