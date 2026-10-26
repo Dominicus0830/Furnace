@@ -298,6 +298,34 @@ public final class Regionizer {
 
     // ------------------------------------------------------------------ 틱 스케줄
 
+    /** -Dfurnace.tickstats=true: region 틱 간격·소요 시간을 100틱마다 p50/p95/최대로 기록한다(끊김 진단용). */
+    private static final boolean STATS = Boolean.getBoolean("furnace.tickstats");
+    private final java.util.concurrent.ConcurrentHashMap<Integer, long[]> tickStats = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private void recordTick(Region r, long start, long end) {
+        long[] st = tickStats.computeIfAbsent(r.id, k -> new long[2 + 200]);   // [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍
+        int n = (int) st[1];
+        if (st[0] != 0L) {
+            st[2 + n * 2] = start - st[0];
+            st[3 + n * 2] = end - start;
+            st[1] = ++n;
+        }
+        st[0] = start;
+        if (n >= 100) {
+            long[] gap = new long[n], dur = new long[n];
+            for (int i = 0; i < n; i++) {
+                gap[i] = st[2 + i * 2];
+                dur[i] = st[3 + i * 2];
+            }
+            java.util.Arrays.sort(gap);
+            java.util.Arrays.sort(dur);
+            log.info("[TICKSTATS] region #{} 간격 p50={}ms p95={}ms max={}ms / 소요 p50={}ms p95={}ms max={}ms", r.id,
+                    gap[n / 2] / 1_000_000, gap[n * 95 / 100] / 1_000_000, gap[n - 1] / 1_000_000,
+                    dur[n / 2] / 1_000_000, dur[n * 95 / 100] / 1_000_000, dur[n - 1] / 1_000_000);
+            st[1] = 0;
+        }
+    }
+
     private void workerLoop() {
         while (running) {
             Region r;
@@ -312,11 +340,13 @@ public final class Regionizer {
             } finally {
                 lock.unlock();
             }
+            long t0 = STATS ? System.nanoTime() : 0L;
             try {
                 r.runTick(gameTicks);
             } catch (Throwable t) {
                 log.error("[TICK] region #{} 실패", r.id, t);
             }
+            if (STATS) recordTick(r, t0, System.nanoTime());
             lock.lock();
             try {
                 r.ticking = false;

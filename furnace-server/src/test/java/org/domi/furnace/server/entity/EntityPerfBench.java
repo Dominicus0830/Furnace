@@ -35,6 +35,35 @@ class EntityPerfBench {
     }
 
     @Test
+    void walkingMobPackets() {
+        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
+        var level = new Arena();
+        var ch = new EmbeddedChannel();
+        var p = new Player(5, UUID.randomUUID(), "Bench", ch);
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
+        p.applyMove(0.5, -60, 0.5, 0, 0, true);
+        level.player = p;
+        Entity e = Entities.create(level, "minecraft:pig");
+        e.moveTo(8.5, -60, 8.5, 0, 0);
+        level.addFreshEntity(e);
+        StringBuilder sb = new StringBuilder();
+        level.playerMoved(p);
+        int prev = ch.outboundMessages().size();
+        for (int t = 0; t < 40; t++) {
+            if (t % 15 == 3) ((LivingEntity) e).knockback(0.4, -1, -0.3);
+            level.time++;
+            level.tickEntities(k -> true);
+            level.trackEntities(k -> true, pl -> true);
+            ch.runPendingTasks();
+            int n = ch.outboundMessages().size();
+            sb.append(String.format("t%d x=%.3f gnd=%b out=%d vx=%.3f%n", t, e.x(), e.onGround(), n - prev, e.vx()));
+            prev = n;
+        }
+        System.out.println("WALK\n" + sb);
+    }
+
+    @Test
     void manyMobsTickCost() {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int count = Integer.getInteger("furnace.bench.count", 300);
