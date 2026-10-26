@@ -262,6 +262,7 @@ public final class Region {
         final int bedrock = level().lightBedrockState();
         sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 생성 풀에서 계산한다
             if (col != null) {
+                if (col.poi() == null) col.poi(org.domi.furnace.server.world.poi.PoiManager.restore(col, cp.x(), cp.z(), col.poiNbt()));
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
@@ -517,6 +518,7 @@ public final class Region {
             if (col != null) {
                 var root = level.chunkEntitiesForSave(col, cx, cz, false);
                 if (root != null) world.saveEntitiesAsync(cx, cz, root);
+                savePoi(cx, cz, col);
             }
             if (System.nanoTime() > deadline) return;
         }
@@ -544,7 +546,17 @@ public final class Region {
             if (col == null) continue;
             var root = level.chunkEntitiesForSave(col, cx, cz, false);
             if (root != null) world.saveEntitiesAsync(cx, cz, root);
+            savePoi(cx, cz, col);
         }
+    }
+
+    /** POI 가 바뀌었으면 poi/ 에 쓴다(바닐라 SectionStorage.saveDirty — 자동 저장과 내릴 때). */
+    private void savePoi(int cx, int cz, ChunkColumn col) {
+        var poi = col.poi();
+        if (poi == null || !poi.dirty()) return;
+        var root = poi.save(org.domi.furnace.server.world.anvil.AnvilChunkCodec.DATA_VERSION);
+        poi.clearDirty();
+        if (root != null) world.savePoiAsync(cx, cz, root);
     }
 
     /** 구독자 0인 "있는 청크"를 grace 후 퇴출(dirty면 저장). 로드 중인 청크는 끝날 때까지 둔다. 매 틱 호출. */
@@ -569,6 +581,7 @@ public final class Region {
                     var root = level.chunkEntitiesForSave(col, cx, cz, true);
                     if (root != null) world.saveEntitiesAsync(cx, cz, root);
                 }
+                savePoi(cx, cz, col);
                 for (var be : col.blockEntities().values()) be.setRemoved();   // 틱 목록에서 빠진다(다시 불러오면 새로 만든다)
                 // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
                 if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {

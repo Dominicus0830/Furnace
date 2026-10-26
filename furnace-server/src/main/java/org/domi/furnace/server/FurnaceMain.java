@@ -179,6 +179,8 @@ public final class FurnaceMain {
                 worldDir, regionStore, chunkCodec, flatSource != null ? flatSource : noiseSource);
         var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities");
         anvilSource.entityStore(entityStore);
+        var poiStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "poi");
+        anvilSource.poiStore(poiStore);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
         // 생성 호출자 스레드 — 실제 계산은 ChunkPipeline 의 ForkJoin 풀(코어 수)에서 하고 여기서는 대부분 기다린다.
@@ -304,6 +306,7 @@ public final class FurnaceMain {
                 else log.info("[STOP] 저장 실패 0건");
                 regionStore.closeAll();
                 entityStore.closeAll();
+                poiStore.closeAll();
                 saveLevelData.run();
                 storage.close();
             } catch (Exception e) {

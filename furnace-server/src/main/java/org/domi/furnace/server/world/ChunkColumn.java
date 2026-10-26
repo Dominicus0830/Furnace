@@ -249,6 +249,18 @@ public final class ChunkColumn {
 
     public void extraNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) { this.extraNbt = nbt; }
 
+    // POI(poi/ 지역 파일). poiNbt 는 디스크에서 읽은 원본(복구 전), poi 는 블록과 맞춘 뒤의 것. 복사본에는 따라가지 않는다.
+    private org.domi.furnace.server.net.io.nbt.NbtCompound poiNbt;
+    private org.domi.furnace.server.world.poi.PoiChunk poi;
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound poiNbt() { return poiNbt; }
+
+    public void poiNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) { this.poiNbt = nbt; }
+
+    public org.domi.furnace.server.world.poi.PoiChunk poi() { return poi; }
+
+    public void poi(org.domi.furnace.server.world.poi.PoiChunk p) { this.poi = p; this.poiNbt = null; }
+
     // 구조물 시작점·참조(청크 NBT `structures`). 생성 스레드나 불러오기에서 한 번 정하고 바꾸지 않는다.
     private volatile org.domi.furnace.server.world.gen.structure.ChunkStructures structures =
         org.domi.furnace.server.world.gen.structure.ChunkStructures.EMPTY;

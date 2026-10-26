@@ -327,6 +327,15 @@ public final class World {
         });
     }
 
+    /** owner 스레드서 만든 POI 묶음을 IO 레인서 poi/ 에 쓴다. */
+    public void savePoiAsync(int chunkX, int chunkZ, NbtCompound root) {
+        if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.poiStore() == null) return;
+        ioLane(chunkX, chunkZ).execute(() -> {
+            boolean ok = runWithRetry(() -> anvil.writePoi(chunkX, chunkZ, root), "POI " + chunkX + "," + chunkZ + " 저장");
+            if (!ok) saveFailures.incrementAndGet();
+        });
+    }
+
     /** 디스크의 그 청크 엔티티 묶음에 덧붙인다(읽고 → 더하고 → 쓰기, 엔티티 저장소 잠금 안에서). */
     public void appendEntitiesAsync(int chunkX, int chunkZ, List<NbtCompound> tags) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return;

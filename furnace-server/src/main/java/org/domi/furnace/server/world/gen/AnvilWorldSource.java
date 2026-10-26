@@ -31,7 +31,7 @@ public final class AnvilWorldSource implements WorldSource {
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
         try {
-            return fromBytesOrGenerate(chunkX, chunkZ, store.readChunk(chunkX, chunkZ));
+            return withPoi(chunkX, chunkZ, fromBytesOrGenerate(chunkX, chunkZ, store.readChunk(chunkX, chunkZ)));
         } catch (IOException e) {
             throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
         }
@@ -53,7 +53,7 @@ public final class AnvilWorldSource implements WorldSource {
             throw e;
         }
         try {
-            return fromBytesOrGenerate(chunkX, chunkZ, bytes);
+            return withPoi(chunkX, chunkZ, fromBytesOrGenerate(chunkX, chunkZ, bytes));
         } catch (IOException e) {
             throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
         }
@@ -84,7 +84,7 @@ public final class AnvilWorldSource implements WorldSource {
         }, ioExecutor).thenCompose(nbtBytes -> {
             ChunkColumn decoded = nbtBytes != null ? decodeChunk(nbtBytes) : null;
             if (decoded != null) {
-                return CompletableFuture.completedFuture(decoded);
+                return CompletableFuture.supplyAsync(() -> withPoi(chunkX, chunkZ, decoded), ioExecutor);
             }
             return CompletableFuture.supplyAsync(() -> {
                 ChunkColumn col = generateFallback(chunkX, chunkZ);
@@ -118,6 +118,40 @@ public final class AnvilWorldSource implements WorldSource {
     /** 디스크에 없을 때 쓰는 생성기. */
     public WorldSource base() { return base; }
     public AnvilChunkCodec codec() { return codec; }
+
+    // ------------------------------------------------------------------ POI(poi/ 지역 파일 — 바닐라 PoiManager 의 SectionStorage)
+
+    private volatile RegionFileStore poiStore;
+
+    public void poiStore(RegionFileStore s) { this.poiStore = s; }
+
+    public RegionFileStore poiStore() { return poiStore; }
+
+    /** 디스크의 POI 묶음을 청크에 붙인다(복구는 올릴 때). 읽기 실패는 경고만 — 블록에서 다시 만든다. */
+    private ChunkColumn withPoi(int chunkX, int chunkZ, ChunkColumn col) {
+        RegionFileStore ps = poiStore;
+        if (ps == null || col == null) return col;
+        try {
+            byte[] bytes;
+            synchronized (ps) {
+                bytes = ps.readChunk(chunkX, chunkZ);
+            }
+            if (bytes != null) col.poiNbt(NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes))));
+        } catch (IOException e) {
+            org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class).warn("[POI] {},{} 읽기 실패 — 블록에서 다시 만든다", chunkX, chunkZ, e);
+        }
+        return col;
+    }
+
+    public void writePoi(int chunkX, int chunkZ, NbtCompound root) throws IOException {
+        RegionFileStore ps = poiStore;
+        if (ps == null) return;
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        NbtIo.write(new java.io.DataOutputStream(bos), root, "");
+        synchronized (ps) {
+            ps.writeChunk(chunkX, chunkZ, bos.toByteArray());
+        }
+    }
 
     // ------------------------------------------------------------------ 엔티티(entities/ 지역 파일 — 바닐라 EntityStorage)
 

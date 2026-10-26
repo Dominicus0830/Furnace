@@ -49,6 +49,25 @@ public abstract class ChunkLevel implements BlockLevel {
         this.neighborUpdater = new NeighborUpdater(this, maxChainedNeighborUpdates);
     }
 
+    // ------------------------------------------------------------------ POI(바닐라 ServerLevel.getPoiManager)
+
+    /** POI 는 청크(ChunkColumn.poi)에 붙어 다닌다. 아직 맞추지 않은 청크(동기 로드 경로)는 처음 볼 때 블록에서 복구한다. */
+    private final org.domi.furnace.server.world.poi.PoiManager poiManager = new org.domi.furnace.server.world.poi.PoiManager((cx, cz) -> {
+        ChunkColumn col = chunk(cx, cz);
+        if (col == null) return null;
+        var p = col.poi();
+        if (p == null) col.poi(p = org.domi.furnace.server.world.poi.PoiManager.restore(col, cx, cz, col.poiNbt()));
+        return p;
+    });
+
+    public org.domi.furnace.server.world.poi.PoiManager poiManager() { return poiManager; }
+
+    /** ServerLevel.isCloseToVillage(pos, i). */
+    public boolean isCloseToVillage(Pos pos, int i) { return poiManager.isCloseToVillage(pos, i); }
+
+    /** ServerLevel.isVillage(pos). */
+    public boolean isVillage(Pos pos) { return poiManager.isVillage(pos); }
+
     // ------------------------------------------------------------------ 하위 클래스가 정할 것
 
     /** 이 레벨이 다룰 수 있는(로드돼 있고 소유한) 청크. 아니면 null. */
@@ -213,6 +232,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 B.updateNeighbourShapes(state, this, pos, f, recursionLeft - 1);
                 BlockBehaviors.of(state).updateIndirectNeighbourShapes(state, this, pos, f, recursionLeft - 1);
             }
+            poiManager.onBlockStateChange(pos, old, now);   // 바닐라 onBlockStateChange(server.execute 로 미루지 않고 바로)
         }
         return true;
     }
@@ -420,10 +440,13 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /**
      * ServerLevel.findLightningTargetAround: 피뢰침 → 하늘이 보이는 생물 하나 → 지표.
-     * TODO(POI): 피뢰침 끌어당김(PoiManager.findClosest, 반경 128)은 POI 구현 때.
+     * 피뢰침: findLightningRod — 반경 128 의 LIGHTNING_ROD POI 중 WORLD_SURFACE 바로 아래 칸인 가장 가까운 것의 위 칸.
      */
     private Pos findLightningTargetAround(Pos pos) {
         Pos top = new Pos(pos.x(), getMotionBlockingHeight(pos.x(), pos.z()), pos.z());
+        Pos rod = poiManager.findClosest(t -> t == org.domi.furnace.server.world.poi.PoiTypes.LIGHTNING_ROD,
+                p -> p.y() == getWorldSurfaceHeight(p.x(), p.z()) - 1, top, 128, org.domi.furnace.server.world.poi.PoiManager.Occupancy.ANY);
+        if (rod != null) return rod.above(1);
         org.domi.furnace.server.entity.AABB box = new org.domi.furnace.server.entity.AABB(top.x(), top.y(), top.z(), top.x() + 1, maxBuildHeight() + 1, top.z() + 1).inflate(3.0);
         var list = new java.util.ArrayList<Pos>();
         for (var e : getEntitiesOfClass(org.domi.furnace.server.entity.LivingEntity.class, box, t -> t.isAlive() && canSeeSky(t.blockPosition()))) list.add(e.blockPosition());

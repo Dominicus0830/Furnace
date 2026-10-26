@@ -1,5 +1,5 @@
 // 바닐라 WanderingTraderSpawner(CustomSpawner): 하루(24000틱)마다 25~75% 확률(실패할 때마다 25씩 증가)로 플레이어 근처에 방랑 상인과 짐 라마 2마리를 낸다.
-// TODO(POI): 바닐라는 플레이어 근처 48칸의 마을 종(MEETING POI)을 찾아 그 둘레에 낸다. 서버에 POI 가 아직 없어 플레이어 위치를 그대로 쓴다.
+// 마을 종: 플레이어 근처 48칸의 MEETING POI(PoiManager.find, 첫 것)가 있으면 그 둘레, 없으면 플레이어 위치.
 // TODO(저장): spawnDelay/spawnChance 는 level.dat 의 WanderingTraderSpawnDelay/Chance, 상인 UUID 는 WanderingTraderId 에 저장해야 하나
 //   런타임이 아직 level.dat 에 되쓰지 않아(LevelData 는 읽은 값을 그대로 보존) region 레벨의 필드로만 둔다.
 // TODO(끈): 짐 라마를 상인에게 매는 setLeashedTo(trader, true) 는 끈 시스템이 없어 생략(TraderLlama 는 DespawnDelay 로 스스로 사라진다).
@@ -66,7 +66,9 @@ public final class WanderingTraderSpawner {
         if (player == null) return true;
         if (random.nextInt(10) != 0) return false;
         Pos playerPos = player.blockPosition();
-        Pos villagePos = playerPos;   // TODO(POI): 마을 종 POI 가 있으면 그 위치
+        Pos meeting = level.poiManager().find(t -> t == org.domi.furnace.server.world.poi.PoiTypes.MEETING, p -> true, playerPos,
+                TRADER_TYPE_RANGE, org.domi.furnace.server.world.poi.PoiManager.Occupancy.ANY);
+        Pos villagePos = meeting != null ? meeting : playerPos;
         Pos spawnPos = findSpawnPositionNear(level, villagePos, TRADER_TYPE_RANGE);
         if (spawnPos == null || !hasEnoughSpace(level, spawnPos)) return false;
         if (level.biomeIs(spawnPos, "minecraft:without_wandering_trader_spawns")) return false;

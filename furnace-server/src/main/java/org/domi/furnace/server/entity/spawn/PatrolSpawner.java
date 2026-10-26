@@ -1,6 +1,5 @@
 // 바닐라 PatrolSpawner(CustomSpawner): 5일째부터 낮에 10~11분마다 1/5 확률로 플레이어 24~47칸 밖에 약탈자 순찰대(지도자 + 대원)를 낸다.
-// TODO(POI): 바닐라는 ServerLevel.isCloseToVillage(플레이어 위치, 2) — 마을 POI 섹션 거리 2 이내면 내지 않는다.
-//   서버에 POI(SectionTracker)가 아직 없어 항상 "마을 근처 아님"으로 본다(villageCheck 로 주입 가능).
+// 바닐라 ServerLevel.isCloseToVillage(플레이어 위치, 2): 마을 POI 섹션 거리 2 이내면 내지 않는다(기본 생성자가 level 의 POI 로 판정).
 // 차이: 바닐라 level.players() 는 차원 전체 플레이어, 여기서는 이 region 의 플레이어. nextTick 도 region 마다 따로 간다.
 package org.domi.furnace.server.entity.spawn;
 
@@ -19,7 +18,8 @@ public final class PatrolSpawner {
     private int nextTick;
     private final Predicate<Pos> closeToVillage;
 
-    public PatrolSpawner() { this(p -> false); }
+    /** 판정을 주입하지 않으면 tick 의 level 로 isCloseToVillage(pos, 2). */
+    public PatrolSpawner() { this(null); }
 
     /** closeToVillage: isCloseToVillage(pos, 2) 대용(시험·POI 연결용). */
     public PatrolSpawner(Predicate<Pos> closeToVillage) { this.closeToVillage = closeToVillage; }
@@ -41,7 +41,7 @@ public final class PatrolSpawner {
         if (n < 1) return 0;
         Player player = players.get(random.nextInt(n));
         if (player.gameMode() == GameMode.SPECTATOR) return 0;
-        if (closeToVillage.test(player.blockPosition())) return 0;
+        if (closeToVillage != null ? closeToVillage.test(player.blockPosition()) : level.isCloseToVillage(player.blockPosition(), 2)) return 0;
         int dx = (24 + random.nextInt(24)) * (random.nextBoolean() ? -1 : 1);
         int dz = (24 + random.nextInt(24)) * (random.nextBoolean() ? -1 : 1);
         Pos pp = player.blockPosition();
