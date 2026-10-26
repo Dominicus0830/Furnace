@@ -35,7 +35,7 @@ public class FollowMobGoal extends Goal {
     public boolean canUse() {
         List<Mob> list = mob.level().getEntitiesOfClass(Mob.class, mob.boundingBox().inflate(areaSize), m -> m != null && mob.getClass() != m.getClass());
         for (Mob m : list) {
-            if (true) {   // TODO(투명): 투명한 몹은 건너뛴다
+            if (!m.isInvisible()) {
                 followingMob = m;
                 return true;
             }
