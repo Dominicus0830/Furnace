@@ -182,6 +182,49 @@ class FishingTridentTest {
         assertEquals(-1, p.usingHand, "부서지기 직전이면 실패");
     }
 
+    /** 급류: 물에 닿아 있으면 쓰기 시작, 놓으면 삼지창은 손에 남고(내구도 1) 20틱 회전 공격·회전 비트(4). */
+    @Test
+    void riptideInWaterStartsSpin() {
+        var level = new BlockPlacementTest.TestLevel();
+        var p = player(GameMode.SURVIVAL);
+        p.wasTouchingWater = true;
+        var actor = holding(p, EnchantTools.update(stack("trident", 1), m -> m.put("minecraft:riptide", 2)));
+        useFor(level, p, actor, 10);
+        assertNull(trident(level), "급류는 던지지 않는다");
+        assertFalse(actor.itemInHand(0).isEmpty());
+        assertEquals(1, ItemTools.damage(actor.itemInHand(0)));
+        assertEquals(Tridents.SPIN_TICKS, p.autoSpinAttackTicks);
+        assertEquals(Tridents.SPIN_DAMAGE, p.autoSpinAttackDmg);
+        assertEquals(4, p.livingFlags() & 4);
+        assertEquals("item.trident.riptide_2", Tridents.sound(actor.itemInHand(0)));
+    }
+
+    /** 회전 공격은 닿은 생물이 없으면 20틱 뒤 끝나고 비트가 꺼진다. 물 밖에서 놓으면 아무 일도 없다. */
+    @Test
+    void riptideSpinExpiresAndNeedsWaterOnRelease() {
+        var level = new BlockPlacementTest.TestLevel();
+        var p = player(GameMode.SURVIVAL);
+        p.startAutoSpinAttack(Tridents.SPIN_TICKS, Tridents.SPIN_DAMAGE, ItemStack.EMPTY);
+        var w = new PlayerMelee.World() {
+            public org.domi.furnace.server.block.ChunkLevel level() { return level; }
+            public Iterable<Player> players() { return java.util.List.of(p); }
+        };
+        int[] hits = {0};
+        for (int i = 0; i < Tridents.SPIN_TICKS; i++) Tridents.tickSpin(w, p, t -> hits[0]++);
+        assertEquals(0, hits[0]);
+        assertEquals(0, p.autoSpinAttackTicks);
+        assertEquals(0, p.livingFlags() & 4);
+
+        p.wasTouchingWater = true;
+        var actor = holding(p, EnchantTools.update(stack("trident", 1), m -> m.put("minecraft:riptide", 1)));
+        assertTrue(RangedWeapons.use(level, actor, p, 0));
+        p.wasTouchingWater = false;
+        for (int i = 0; i < 12; i++) RangedWeapons.tick(p, level, actor.itemInHand(0));
+        RangedWeapons.release(level, actor, p);
+        assertEquals(0, p.autoSpinAttackTicks, "놓을 때 물·비 밖이면 실패");
+        assertEquals(0, ItemTools.damage(actor.itemInHand(0)));
+    }
+
     /** 충성: 땅에 박혀 4틱이 넘으면(dealtDamage) 소유자에게 돌아오기 시작(noPhysics). 충성이 없으면 그대로. */
     @Test
     void loyaltyReturnsAfterLanding() {

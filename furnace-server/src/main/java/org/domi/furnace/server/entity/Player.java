@@ -495,34 +495,114 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private byte sentLivingFlags;
     private boolean usedOffhand;
 
-    /** 사용 중 비트(1)·손 비트(2) — LivingEntity.DATA_LIVING_ENTITY_FLAGS(8). 손 비트는 바닐라처럼 사용이 끝나도 남는다. */
+    /** 사용 중 비트(1)·손 비트(2)·회전 공격 비트(4) — LivingEntity.DATA_LIVING_ENTITY_FLAGS(8). 손 비트는 바닐라처럼 사용이 끝나도 남는다. */
     public byte livingFlags() {
         if (usingHand >= 0) usedOffhand = usingHand == 1;
-        return (byte) ((usingHand >= 0 ? 1 : 0) | (usedOffhand ? 2 : 0));
+        return (byte) ((usingHand >= 0 ? 1 : 0) | (usedOffhand ? 2 : 0) | (autoSpinAttackTicks > 0 ? 4 : 0));
     }
 
-    /** 바뀌었으면 엔티티 데이터(사용 중 플래그)를 본인과 보는 사람에게(ServerEntity.sendDirtyEntityData). */
+    // ------------------------------------------------------------------ 근접 공격 상태(Player.attackStrengthTicker·autoSpinAttack*) — region 스레드 전용
+
+    /** Player.attackStrengthTicker: 틱마다 1, 공격·주 손 아이템이 바뀌면 0. */
+    public int attackStrengthTicker;
+    /** Player.lastItemInMainHand(주 손이 다른 아이템으로 바뀌었는지 보는 데). */
+    ItemStack lastItemInMainHand = ItemStack.EMPTY;
+    /** 급류 회전 공격: 남은 틱·피해·쓴 삼지창. */
+    public int autoSpinAttackTicks;
+    public float autoSpinAttackDmg;
+    public ItemStack autoSpinAttackItem;
+    /** 지난 틱 기준 물에 닿았는가(Entity.wasTouchingWater) — region 이 생존 틱에서 갱신. */
+    public boolean wasTouchingWater;
+    /** 지난 생존 틱 기준 사다리·덩굴 위인가(onClimbable). */
+    public boolean onClimbable;
+
+    /** getCurrentItemAttackStrengthDelay: 1 / 공격 속도 × 20. 공격 속도 = 기본 4 + 주 손 아이템 attack_speed(add_value). TODO(효과): 성급함·피로. */
+    public float attackStrengthDelay() {
+        double speed = 4.0 + org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(inventory.heldWindowSlot()), "minecraft:generic.attack_speed", "mainhand");
+        return (float) (1.0 / speed * 20.0);
+    }
+
+    /** getAttackStrengthScale(a): clamp((ticker + a) / delay, 0, 1). */
+    public float attackStrengthScale(float a) { return Math.clamp(((float) attackStrengthTicker + a) / attackStrengthDelay(), 0.0F, 1.0F); }
+
+    /** Player.tick 의 공격 쿨다운 부분: ticker++ 하고, 주 손이 다른 아이템이 되면 0 으로. */
+    public void tickAttackStrength() {
+        attackStrengthTicker++;
+        ItemStack cur = inventory.get(inventory.heldWindowSlot());
+        if (!lastItemInMainHand.equals(cur)) {   // ItemStack.matches(불변 레코드라 equals)
+            if (!sameItem(lastItemInMainHand, cur)) attackStrengthTicker = 0;
+            lastItemInMainHand = cur;
+        }
+    }
+
+    private static boolean sameItem(ItemStack a, ItemStack b) { return a.isEmpty() ? b.isEmpty() : !b.isEmpty() && a.itemId() == b.itemId(); }
+
+    /** startAutoSpinAttack(ticks, dmg, item): 회전 공격 비트를 켠다. */
+    public void startAutoSpinAttack(int ticks, float dmg, ItemStack item) {
+        autoSpinAttackTicks = ticks;
+        autoSpinAttackDmg = dmg;
+        autoSpinAttackItem = item;
+    }
+
+    private byte sentSharedFlags;
+    private int sentPose;
+
+    /** Entity.DATA_SHARED_FLAGS(0)의 웅크림(2)·질주(8) 비트. TODO(불·수영·투명·발광·겉날개). */
+    public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0)); }
+
+    /** Player.updatePlayerPose: 회전 공격이면 SPIN_ATTACK(4), 웅크리면 CROUCHING(5), 아니면 STANDING(0). TODO(겉날개·잠·수영 자세). */
+    public int pose() { return autoSpinAttackTicks > 0 ? 4 : sneaking ? 5 : 0; }
+
+    private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item flagItem(int index, byte v) {
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(index, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE, v);
+    }
+
+    private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item poseItem(int pose) {
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(6, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_POSE, pose);
+    }
+
+    /** 바뀐 엔티티 데이터(공유 플래그 0·자세 6·사용 중 플래그 8)를 본인과 보는 사람에게(ServerEntity.sendDirtyEntityData). */
     public void syncLivingFlags() {
-        byte f = livingFlags();
-        if (f == sentLivingFlags) return;
+        byte shared = sharedFlags(), f = livingFlags();
+        int pose = pose();
+        var items = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.SetEntityData.Item>(3);
+        if (shared != sentSharedFlags) items.add(flagItem(0, shared));
+        if (pose != sentPose) items.add(poseItem(pose));
+        if (f != sentLivingFlags) items.add(flagItem(8, f));
+        if (items.isEmpty()) return;
+        sentSharedFlags = shared;
+        sentPose = pose;
         sentLivingFlags = f;
-        var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, java.util.List.of(
-                new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(8, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE, f)));
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
         send(pkt);
         vitals.broadcastToTrackers(pkt);
     }
+
+    /** ServerEntity.sendPairingData 의 기본값이 아닌 엔티티 데이터(새로 보게 된 사람에게). 없으면 null. */
+    public org.domi.furnace.server.net.protocol.play.SetEntityData pairingData() {
+        var items = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.SetEntityData.Item>(3);
+        if (sentSharedFlags != 0) items.add(flagItem(0, sentSharedFlags));
+        if (sentPose != 0) items.add(poseItem(sentPose));
+        if (sentLivingFlags != 0) items.add(flagItem(8, sentLivingFlags));
+        return items.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
+    }
+
+    /** 플레이어끼리 때릴 때 방패 내구 난수를 꺼낼 레벨(region 이 공격 직전에 넣는다). */
+    org.domi.furnace.server.block.BlockLevel shieldLevel;
 
     /** 방패를 들고 막는 중인가(LivingEntity.isBlocking). */
     public boolean isBlocking() { return Shields.isBlocking(this); }
 
     /** 직접 원인 엔티티(투사체)가 따로 있는 피해: 막기 방향·관통은 그 엔티티로 본다. */
-    public boolean hurtByVia(Entity.Damage source, float amount, Mob attacker, Entity direct) {
+    public boolean hurtByVia(Entity.Damage source, float amount, Targetable attacker, Entity direct) {
         return vitals.hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(source.type()), amount, attacker, shieldSource(source.type(), attacker, direct));
     }
 
     /** 피해 원인 위치: 직접 원인 엔티티(없으면 때린 몹) 위치. */
-    public Shields.Source shieldSource(String type, Mob attacker, Entity direct) {
-        Entity d = direct != null ? direct : attacker;
+    public Shields.Source shieldSource(String type, Targetable attacker, Entity direct) {
+        if (direct == null && attacker instanceof Player ap)   // 플레이어가 직접 때림: 위치는 그 플레이어, 막으면 밀리고 도끼면 방패가 풀린다
+            return new Shields.Source(type, true, ap.x(), ap.z(), ap, true, false, shieldLevel);
+        Entity d = direct != null ? direct : attacker instanceof Entity e ? e : null;
         if (d == null) return Shields.Source.none(type);
         boolean piercing = d instanceof AbstractArrow a && a.getPierceLevel() > 0;
         boolean living = d instanceof LivingEntity && !org.domi.furnace.server.entity.damage.DamageType.keyHasTag(type, "is_projectile");

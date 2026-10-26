@@ -28,7 +28,8 @@ class PlayerVitalsTest {
 
         public Difficulty difficulty() { return difficulty; }
         public boolean gameRule(String name) { return rules.getOrDefault(name, !name.equals("keepInventory") && !name.equals("doImmediateRespawn")); }
-        public boolean pvp() { return true; }
+        boolean pvp = true;
+        public boolean pvp() { return pvp; }
         public void broadcastSystemMessage(Text message) { broadcasts.add(message); }
         public void broadcastAll(Packet packet) {}
         public void broadcastToTrackers(int entityId, Packet packet) {}

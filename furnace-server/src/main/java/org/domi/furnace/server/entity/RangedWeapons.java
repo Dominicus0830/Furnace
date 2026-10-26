@@ -122,7 +122,7 @@ public final class RangedWeapons {
     public static boolean use(ChunkLevel level, BlockActor actor, Player p, int hand) {
         ItemStack weapon = actor.itemInHand(hand);
         if (FishingHook.isRod(weapon)) return FishingRods.use(level, actor, p, hand);
-        if (Tridents.isTrident(weapon)) return Tridents.use(actor, p, hand);
+        if (Tridents.isTrident(weapon)) return Tridents.use(level, actor, p, hand);
         if (isBow(weapon)) {
             boolean has = !projectile(p, actor, weapon).stack().isEmpty();
             if (p.hasInfiniteMaterials() || has) start(p, hand, BOW_USE_TICKS);

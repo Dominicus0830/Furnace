@@ -1472,6 +1472,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 바닐라 handleInteract: 6칸(제곱 36) 안의 엔티티만. 공격(1)은 때리고, 상호작용(0·2)은 주민이면 거래 화면을 연다. */
     private void handleInteractEntity(org.domi.furnace.server.world.Region region, Player p, int entityId, int action, int hand, double hitY) {
+        Player tp = region.players().get(entityId);
+        if (tp != null) {   // 다른 플레이어: 공격만(상호작용은 플레이어에게 할 것이 없다). 관전자는 공격 대신 시점이라 넘어간다
+            double dx = p.x() - tp.x(), dy = p.y() + 1.62 - tp.y(), dz = p.z() - tp.z();
+            if (action == 1 && dx * dx + dy * dy + dz * dz < 36.0 && p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) region.attackPlayer(p, tp);
+            return;
+        }
         var e = region.level().entities().get(entityId);
         if (e == null || e.isRemoved()) return;
         double dx = p.x() - e.x(), dy = p.y() + 1.62 - e.y(), dz = p.z() - e.z();

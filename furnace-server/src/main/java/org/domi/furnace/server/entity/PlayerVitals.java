@@ -360,16 +360,20 @@ public final class PlayerVitals {
         return hurt(DamageType.GENERIC_KILL, Float.MAX_VALUE);
     }
 
+    /** 마지막 hurt 가 무적 시간 밖의 새 피해였나(LivingEntity.hurt 의 넉백 조건) — 플레이어 근접 공격이 읽는다. */
+    public volatile boolean lastHurtFresh;
+
     /** 바닐라 ServerPlayer.hurt → Player.hurt → LivingEntity.hurt(원인 엔티티 없는 피해). */
     public boolean hurt(DamageType type, float amount) { return hurt(type, amount, null); }
 
     /** 몹이 때린 피해(원인 엔티티 있음): 난이도 배율·방어구 경감·damage_event 의 원인 id. */
-    public boolean hurt(DamageType type, float amount, Mob attacker) {
+    public boolean hurt(DamageType type, float amount, Targetable attacker) {
         return hurt(type, amount, attacker, player.shieldSource(type.key(), attacker, null));
     }
 
     /** 방패 막기(LivingEntity.hurt 의 isDamageSourceBlocked 분기)까지 보는 피해. shield 는 원인 종류·위치. */
-    public boolean hurt(DamageType type, float amount, Mob attacker, Shields.Source shield) {
+    public boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield) {
+        lastHurtFresh = false;
         boolean died;
         boolean newHurt;
         boolean blocked = false;
@@ -378,10 +382,12 @@ public final class PlayerVitals {
             if (isInvulnerableTo(type)) return false;
             boolean fallOnPvpServer = env.pvp() && type.isFall();
             if (!fallOnPvpServer && spawnInvulnerableTime > 0 && !type.bypassesInvulnerability()) return false;
+            // ServerPlayer.hurt: 때린 쪽(화살이면 주인)이 플레이어인데 canHarmPlayer 가 거짓(pvp 꺼짐)이면 무시. TODO(팀): 아군 피해
+            if (attacker != null && attacker.isPlayer() && attacker != player && !env.pvp()) return false;
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
             if (attacker != null) player.setLastHurtByMob(attacker);
-            if (type.scalesWithDifficulty() && (attacker != null || type.scalesAlways())) {   // Player.hurt: 난이도 배율
+            if (type.scalesWithDifficulty() && ((attacker != null && !attacker.isPlayer()) || type.scalesAlways())) {   // Player.hurt: 난이도 배율
                 Difficulty d = env.difficulty();
                 if (d == Difficulty.PEACEFUL) amount = 0.0f;
                 if (d == Difficulty.EASY) amount = Math.min(amount / 2.0f + 1.0f, amount);
@@ -410,6 +416,7 @@ public final class PlayerVitals {
             }
             died = health <= 0.0f;
         }
+        lastHurtFresh = newHurt;
         if (newHurt) {   // 막았으면 damage_event 대신 엔티티 이벤트 29(방패 소리)
             Packet ev = blocked ? new EntityEvent(player.entityId(), (byte) 29)
                     : attacker == null ? DamageEvent.environmental(player.entityId(), type.registryId())
@@ -423,7 +430,7 @@ public final class PlayerVitals {
     }
 
     /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */
-    private void actuallyHurt(DamageType type, float amount, Mob attacker) {
+    private void actuallyHurt(DamageType type, float amount, Targetable attacker) {
         if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
             float armor = player.armorValue(), toughness = player.armorToughness();
             player.hurtArmor(amount);

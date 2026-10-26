@@ -655,6 +655,7 @@ public final class Region {
             }
             p.tickDropSpam();
             p.tickCooldowns();
+            p.tickAttackStrength();
             p.tickRiding();
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
             boolean moved = processMoves(p);
@@ -665,6 +666,7 @@ public final class Region {
             org.domi.furnace.server.map.MapItems.tick(p, MapTerrain::new, p.dimension(), world.dayTime());   // Inventory.tick 의 지도 + 갱신 패킷
             if (p.takeXpDelay > 0) p.takeXpDelay--;
             org.domi.furnace.server.entity.Consuming.tick(p, this);
+            org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
             pushMinecarts(p);
             touchEntities(p);
@@ -873,18 +875,37 @@ public final class Region {
 
     // ------------------------------------------------------------------ 블록 부수기(ServerPlayerGameMode)
 
-    /** 플레이어가 살아 있는 엔티티를 때린다(Player.attack 의 기본 부분): 손 아이템의 attack_damage 속성 합 + 1, 쿨다운은 가득 찬 것으로 본다. */
+    /** 플레이어가 살아 있는 엔티티를 때린다(Player.attack — PlayerMelee). */
     public void attack(Player p, org.domi.furnace.server.entity.LivingEntity target) {
         world.assertOwns(this);
         if (!players.containsKey(p.entityId()) || !target.isAlive()) return;
-        var inv = p.inventory();
-        ItemStack held = inv.get(inv.heldWindowSlot());
-        float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);
-        // TODO(공격 쿨다운·치명타·인챈트·내구도): attackStrengthTicker, 낙하 치명타, sharpness, 무기 내구 감소
-        p.vitals().causeFoodExhaustion(0.1F);
-        p.setLastHurtMob(target);
-        target.hurtBy(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
+        meleeAttack(p, target);
     }
+
+    /** 플레이어가 다른 플레이어를 때린다(pvp 는 피해 쪽 ServerPlayer.hurt 의 canHarmPlayer 가 본다). */
+    public void attackPlayer(Player p, Player target) {
+        world.assertOwns(this);
+        if (target == p || !players.containsKey(p.entityId()) || !players.containsKey(target.entityId()) || !target.isAlive()) return;
+        if (target.gameMode() == GameMode.SPECTATOR) return;
+        meleeAttack(p, target);
+    }
+
+    /** 근접 공격 본체 + 무기 내구도(postHurtEnemy, 손 사본으로 깎고 연결 인벤토리에 반영). */
+    private org.domi.furnace.server.entity.PlayerMelee.Result meleeAttack(Player p, org.domi.furnace.server.entity.Targetable target) {
+        var r = org.domi.furnace.server.entity.PlayerMelee.attack(meleeWorld, p, target);
+        if (r.weaponDamage() > 0) {
+            var actor = breakerActor(p);
+            ItemStack w = actor.itemInHand(org.domi.furnace.server.block.BlockActor.MAIN_HAND);
+            org.domi.furnace.server.block.BlockBreaking.hurtAndBreak(level(), actor, org.domi.furnace.server.block.BlockActor.MAIN_HAND, w, r.weaponDamage());
+            writeBackHand(p, actor);
+        }
+        return r;
+    }
+
+    private final org.domi.furnace.server.entity.PlayerMelee.World meleeWorld = new org.domi.furnace.server.entity.PlayerMelee.World() {
+        public org.domi.furnace.server.block.ChunkLevel level() { return Region.this.level(); }
+        public Iterable<Player> players() { return java.util.List.copyOf(players.values()); }
+    };
 
     /** 생물이 아닌 엔티티(액자·그림·수정 …)를 때린다: skipAttackInteraction 이면 그쪽이 처리하고, 아니면 기본 피해. */
     public void attackEntity(Player p, org.domi.furnace.server.entity.Entity target) {
@@ -1125,6 +1146,8 @@ public final class Region {
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
                     probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), ChunkColumn.MIN_Y);
         }
+        p.wasTouchingWater = s.inWater();
+        p.onClimbable = s.climbable() != null;
         p.vitals().tick(s);
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계 (잠은 아직 없어 time_since_rest 는 늘 센다)
             p.awardStat("minecraft:play_time", 1);
@@ -1350,6 +1373,8 @@ public final class Region {
                 a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
                 a.send(new SetHeadRotation(b.entityId(), b.yaw()));
                 Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
+                var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
+                if (bd != null) a.send(bd);
                 var bv = bp == null ? null : bp.vehicle();
                 if (bv != null) a.send(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
                 startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation()});
