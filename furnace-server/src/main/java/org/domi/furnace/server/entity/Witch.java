@@ -156,4 +156,6 @@ public class Witch extends Raider implements RangedAttackMob {
         if (t instanceof Player p) return p.vitals().health();
         return 0.0F;
     }
+
+    @Override public String getCelebrateSound() { return "entity.witch.celebrate"; }
 }

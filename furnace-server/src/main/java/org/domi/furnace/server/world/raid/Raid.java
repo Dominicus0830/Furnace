@@ -1,5 +1,6 @@
 // 바닐라 Raid(1.21.1) 서버 핵심: 파도 수·파도별 구성(난수 순서 그대로), 대기 300틱, 보스바, 승리(마을의 영웅)·패배·중지, 축하 600틱.
-// 생략: raids.dat 저장(Raid.save/load), 습격자 목표(깃발 줍기·마을로 길찾기·축하) — 습격자는 기존 AI 로 움직인다.
+// 저장(Raid(level, tag)·save): raids.dat 의 Raids 목록 원소. 바닐라처럼 대기 위치·축하 틱·대장·습격자 목록은 저장하지 않는다
+//   (습격자는 제 RaidId 로 다시 들어온다).
 // 차이: 처치자는 바닐라 DamageSource.getEntity 대신 마지막으로 때린 플레이어(lastHurtByPlayer).
 // 차이: 보스바 대상은 이 레벨이 아는 플레이어(services().forEachPlayer) 중 조건을 만족하는 사람.
 package org.domi.furnace.server.world.raid;
@@ -38,8 +39,8 @@ public final class Raid {
     private static final int BAR_RED = 2, BAR_NOTCHED_10 = 2;
 
     private static final Text RAID_NAME = Text.translatable("event.minecraft.raid");
-    private static final Text VICTORY = RAID_NAME.append(Text.text(" - "), Text.translatable("event.minecraft.raid.victory"));
-    private static final Text DEFEAT = RAID_NAME.append(Text.text(" - "), Text.translatable("event.minecraft.raid.defeat"));
+    private static final Text VICTORY = Text.translatable("event.minecraft.raid.victory.full");
+    private static final Text DEFEAT = Text.translatable("event.minecraft.raid.defeat.full");
 
     /** Raid.RaiderType: 순서·파도별 기본 수(인덱스 = 파도 번호, 보너스 파도는 numGroups 칸). */
     public enum RaiderType {
@@ -96,6 +97,60 @@ public final class Raid {
         this.barProgress = 0.0F;
         this.numGroups = getNumGroups(level.difficulty());
         this.status = Status.ONGOING;
+    }
+
+    /** Raid(level, tag): raids.dat 에서 읽는다. Status 는 대소문자 무시, 모르면 ONGOING. */
+    public Raid(ChunkLevel level, org.domi.furnace.server.net.io.nbt.NbtCompound tag) {
+        this.level = level;
+        this.id = tag.getIntOr0("Id");
+        this.started = tag.getBoolean("Started");
+        this.active = tag.getBoolean("Active");
+        this.ticksActive = tag.tags().get("TicksActive") instanceof Number n ? n.longValue() : 0L;
+        this.raidOmenLevel = tag.getIntOr0("BadOmenLevel");
+        this.groupsSpawned = tag.getIntOr0("GroupsSpawned");
+        this.raidCooldownTicks = tag.getIntOr0("PreRaidTicks");
+        this.postRaidTicks = tag.getIntOr0("PostRaidTicks");
+        this.totalHealth = tag.getFloat("TotalHealth");
+        this.center = new Pos(tag.getIntOr0("CX"), tag.getIntOr0("CY"), tag.getIntOr0("CZ"));
+        this.numGroups = tag.getIntOr0("NumGroups");
+        Status st = Status.ONGOING;
+        if (tag.tags().get("Status") instanceof String s) {
+            for (Status v : Status.values()) if (v.name().equalsIgnoreCase(s)) { st = v; break; }
+        }
+        this.status = st;
+        if (tag.tags().get("HeroesOfTheVillage") instanceof org.domi.furnace.server.net.io.nbt.NbtList l) {
+            for (Object o : l.items()) {
+                if (o instanceof int[] a && a.length == 4) {
+                    heroesOfTheVillage.add(new UUID((long) a[0] << 32 | a[1] & 0xFFFFFFFFL, (long) a[2] << 32 | a[3] & 0xFFFFFFFFL));
+                }
+            }
+        }
+    }
+
+    /** Raid.save: 바닐라 키 순서 그대로. */
+    public org.domi.furnace.server.net.io.nbt.NbtCompound save() {
+        var tag = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        tag.putInt("Id", id);
+        tag.putBoolean("Started", started);
+        tag.putBoolean("Active", active);
+        tag.putLong("TicksActive", ticksActive);
+        tag.putInt("BadOmenLevel", raidOmenLevel);
+        tag.putInt("GroupsSpawned", groupsSpawned);
+        tag.putInt("PreRaidTicks", raidCooldownTicks);
+        tag.putInt("PostRaidTicks", postRaidTicks);
+        tag.putFloat("TotalHealth", totalHealth);
+        tag.putInt("NumGroups", numGroups);
+        tag.putString("Status", status.name().toLowerCase(java.util.Locale.ROOT));
+        tag.putInt("CX", center.x());
+        tag.putInt("CY", center.y());
+        tag.putInt("CZ", center.z());
+        var heroes = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_INT_ARRAY);
+        for (UUID u : heroesOfTheVillage) {
+            long m = u.getMostSignificantBits(), l = u.getLeastSignificantBits();
+            heroes.add(new int[] {(int) (m >> 32), (int) m, (int) (l >> 32), (int) l});
+        }
+        tag.putList("HeroesOfTheVillage", heroes);
+        return tag;
     }
 
     /** getNumGroups: 쉬움 3, 보통 5, 어려움 7(평화로움 0). */
@@ -467,6 +522,14 @@ public final class Raid {
         }
     }
 
+    /** 저장소로 보류될 때: 소속 습격자에게 번호만 남기고 목록을 비운다. */
+    void detachRaiders() {
+        for (Set<Raider> set : groupRaiderMap.values()) for (Raider r : set) r.parkRaid(id);
+        groupRaiderMap.clear();
+        groupToLeaderMap.clear();
+        removeAllBarPlayers();
+    }
+
     public void addHeroOfTheVillage(Player p) { heroesOfTheVillage.add(p.uuid()); }
 
     /** updateRaiders: 사라졌거나 112칸 밖이면 빼고, 600틱 넘게 마을 밖에서 오래 놀면 바깥 시간을 센다(30 이면 뺀다). */
@@ -495,7 +558,8 @@ public final class Raid {
 
     // ------------------------------------------------------------------ 보스바·소리
 
-    private void updateBossbar() {
+    /** updateBossbarInternal(습격자가 맞을 때도 부른다). */
+    public void updateBossbar() {
         setBarProgress(totalHealth <= 0.0F ? 0.0F : Math.max(0.0F, Math.min(1.0F, getHealthOfLivingRaiders() / totalHealth)));
     }
 

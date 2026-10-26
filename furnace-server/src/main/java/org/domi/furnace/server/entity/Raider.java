@@ -1,7 +1,8 @@
 // 바닐라 Raider(+PatrollingMonster): 습격 파도(wave)·참여 여부, 순찰 지도자/목표/순찰 중 상태와 장거리 순찰 목표(LongDistancePatrolGoal).
 // 습격(Raid) 소속: currentRaid·ticksOutsideRaid, 죽으면 습격에서 빠지고 처치한 플레이어를 마을의 영웅 후보로.
-// TODO(습격): Raider 의 목표들(ObtainRaidLeaderBannerGoal·PathfindToRaidGoal·RaiderMoveThroughVillageGoal·RaiderCelebration).
-//   TODO(저장): 바닐라는 RaidId 를 저장해 다시 불러올 때 습격에 다시 넣는다(raids.dat 저장이 없어 생략).
+// 목표: ObtainRaidLeaderBannerGoal(1)·PathfindToRaidGoal(3)·RaiderMoveThroughVillageGoal(4)·RaiderCelebration(5)·HoldGroundAttackGoal.
+// 저장: RaidId 로 습격에 다시 들어간다. 차이: 습격이 아직 이 region 레벨에 올라오지 않았으면(중심 청크가 다른 region·미로드)
+//   번호를 기억해 두고(pendingRaidId) 틱마다 다시 찾는다. 바닐라는 차원 전체 습격이 처음부터 메모리에 있다.
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -37,7 +38,100 @@ public abstract class Raider extends Monster {
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(4, new LongDistancePatrolGoal(this, 0.7, 0.595));
-        // TODO(습격): Raider.registerGoals 의 ObtainRaidLeaderBannerGoal(1)·PathfindToRaidGoal(3)·RaiderMoveThroughVillageGoal(4)·RaiderCelebration(5)
+        // Raider.registerGoals
+        goalSelector.addGoal(1, new ObtainRaidLeaderBannerGoal(this));
+        goalSelector.addGoal(3, new PathfindToRaidGoal(this));
+        goalSelector.addGoal(4, new RaiderMoveThroughVillageGoal(this, 1.05F, 1));
+        goalSelector.addGoal(5, new RaiderCelebration(this));
+    }
+
+    /** Raider.getCelebrateSound. */
+    public abstract String getCelebrateSound();
+
+    /** RaidId 로 불러왔지만 아직 찾지 못한 습격 번호(-1 이면 없음). */
+    private int pendingRaidId = -1;
+
+    /** 습격이 저장소로 보류될 때(Raid.detachRaiders). */
+    public void parkRaid(int id) {
+        currentRaid = null;
+        pendingRaidId = id;
+    }
+
+    /** 기억한 번호의 습격이 이 레벨에 있으면 들어간다(Raider.readAdditionalSaveData 의 뒷부분). 저장소가 모르는 번호면 잊는다. */
+    private void resolvePendingRaid() {
+        var raid = level().raids().get(pendingRaidId);
+        if (raid != null) {
+            pendingRaidId = -1;
+            currentRaid = raid;
+            raid.addWaveMob(wave, this, false);
+            if (isPatrolLeader()) raid.setLeader(wave, this);
+        } else if (!level().raidStore().knows(pendingRaidId)) {
+            pendingRaidId = -1;
+        }
+    }
+
+    /** Raider.aiStep: 참여 가능하고 습격이 없으면 20틱마다 그 자리 습격에 들어가고, 습격 중 플레이어·철 골렘을 노리면 무행동 시간을 0 으로. */
+    @Override
+    protected void aiStep() {
+        if (isAlive()) {
+            if (pendingRaidId >= 0) resolvePendingRaid();
+            var raid = currentRaid;
+            if (canJoinRaid()) {
+                if (raid == null) {
+                    if (level().gameTime() % 20L == 0L) {
+                        var r1 = level().raids().getRaidAt(blockPosition());
+                        if (r1 != null && org.domi.furnace.server.world.raid.Raids.canJoinRaid(this, r1)) {
+                            r1.joinRaid(r1.groupsSpawned(), this, null, true);
+                        }
+                    }
+                } else {
+                    Targetable t = getTarget();
+                    if (t != null && (t instanceof Player || t instanceof IronGolem)) noActionTime = 0;
+                }
+            }
+        }
+        super.aiStep();
+    }
+
+    /** Raider.hurt: 습격 중이면 맞기 전에 보스바를 갱신한다. */
+    @Override
+    public boolean hurt(Damage source, float amount) {
+        if (hasActiveRaid()) currentRaid.updateBossbar();
+        return super.hurt(source, amount);
+    }
+
+    /** Raider.isCaptain: 머리에 불길한 깃발을 쓴 순찰 지도자. */
+    public boolean isCaptain() {
+        ItemStack s = getItemBySlot(EquipmentSlot.HEAD);
+        return !s.isEmpty() && matches(s, leaderBanner()) && isPatrolLeader();
+    }
+
+    /** ItemStack.matches: 수량·아이템·구성 요소가 같다. */
+    static boolean matches(ItemStack a, ItemStack b) {
+        return a.count() == b.count() && a.sameItemSameComponents(b);
+    }
+
+    /**
+     * Raider.pickUpItem: 습격 중이고 그 파도에 대장이 없을 때 불길한 깃발이면 머리에 쓰고(쓰던 것은 확률로 떨군다) 파도 대장이 된다.
+     * 아니면 Mob.pickUpItem.
+     */
+    @Override
+    protected void pickUpItem(ItemEntity ie) {
+        ItemStack item = ie.getItem();
+        boolean hasLeader = hasActiveRaid() && currentRaid.getLeader(wave) != null;
+        if (hasActiveRaid() && !hasLeader && matches(item, leaderBanner())) {
+            ItemStack cur = getItemBySlot(EquipmentSlot.HEAD);
+            double d = getEquipmentDropChance(EquipmentSlot.HEAD);
+            if (!cur.isEmpty() && Math.max(random.nextFloat() - 0.1F, 0.0F) < d) spawnAtLocation(cur);
+            onItemPickup(ie);
+            setItemSlot(EquipmentSlot.HEAD, item);
+            ie.broadcastTake(this, item.count());
+            ie.discard();
+            currentRaid.setLeader(wave, this);
+            setPatrolLeader(true);
+        } else {
+            super.pickUpItem(ie);
+        }
     }
 
     public void setFinalizeReason(SpawnReason r) { finalizeReason = r; }
@@ -87,7 +181,7 @@ public abstract class Raider extends Monster {
     /** PatrollingMonster.canBeLeader(약탈수·마녀는 거짓으로 덮어쓴다). */
     public boolean canBeLeader() { return true; }
 
-    /** PatrollingMonster.canJoinPatrol. TODO(습격): 바닐라 Raider 는 습격 중이 아닐 때만. */
+    /** Raider.canJoinPatrol: 습격 중이 아닐 때만. */
     public boolean canJoinPatrol() { return !hasActiveRaid(); }
 
     public Pos getPatrolTarget() { return patrolTarget; }
@@ -156,6 +250,8 @@ public abstract class Raider extends Monster {
         super.addAdditionalSaveData(tag);
         tag.putInt("Wave", wave);
         tag.putBoolean("CanJoinRaid", canJoinRaid);
+        if (currentRaid != null) tag.putInt("RaidId", currentRaid.id());
+        else if (pendingRaidId >= 0) tag.putInt("RaidId", pendingRaidId);
         // 1.20.5+ NbtUtils.writeBlockPos: 정수 배열 [x, y, z], 키 patrol_target
         if (patrolTarget != null) tag.putIntArray("patrol_target", new int[] {patrolTarget.x(), patrolTarget.y(), patrolTarget.z()});
         tag.putBoolean("PatrolLeader", patrolLeader);
@@ -170,6 +266,11 @@ public abstract class Raider extends Monster {
         patrolTarget = tag.tags().get("patrol_target") instanceof int[] a && a.length == 3 ? new Pos(a[0], a[1], a[2]) : null;
         patrolLeader = tag.getBoolean("PatrolLeader");
         patrolling = tag.getBoolean("Patrolling");
+        // Raider.readAdditionalSaveData: RaidId(int) 가 있으면 그 습격에 다시 들어간다(지도자면 파도 대장으로)
+        if (tag.tags().get("RaidId") instanceof Integer id) {
+            pendingRaidId = id;
+            resolvePendingRaid();
+        }
     }
 
     public boolean isPatrolling() { return patrolling; }
@@ -178,7 +279,7 @@ public abstract class Raider extends Monster {
     @Override
     protected void updateNoActionTime() { noActionTime += 2; }
 
-    /** Raider.HoldGroundAttackGoal: 순찰 중 적을 보면 근처 습격자에게 알리고, 멀면 제자리에서 노려보다 가까워지면 공격 태세. (습격 없을 때만) */
+    /** Raider.HoldGroundAttackGoal: 순찰 중 적을 보면 근처 습격자에게 알리고, 멀면 제자리에서 노려보다 가까워지면 공격 태세. (습격 소속이 아니고 플레이어에게 맞지 않았을 때만) */
     public static class HoldGroundAttackGoal extends org.domi.furnace.server.entity.ai.Goal {
         private final Raider mob;
         private final float hostileRadiusSqr;
@@ -193,7 +294,9 @@ public abstract class Raider extends Monster {
 
         @Override
         public boolean canUse() {
-            return !mob.hasActiveRaid() && mob.isPatrolling() && mob.getTarget() != null && !mob.isAggressive();
+            Targetable last = mob.getLastHurtByMob();
+            return mob.getCurrentRaid() == null && mob.isPatrolling() && mob.getTarget() != null && !mob.isAggressive()
+                    && (last == null || !last.isPlayer());
         }
 
         private java.util.List<Raider> nearbyRaiders() {
@@ -313,5 +416,215 @@ public abstract class Raider extends Monster {
     }
 
     @Override
-    public boolean removeWhenFarAway(double distSqr) { return !hasActiveRaid() && (!patrolling || distSqr > 16384.0); }
+    public boolean removeWhenFarAway(double distSqr) { return hasRaidRef() ? false : !patrolling || distSqr > 16384.0; }
+
+    /** Raider.requiresCustomPersistence: 습격 소속이면 사라지지 않는다. */
+    @Override
+    protected boolean requiresCustomPersistence() { return super.requiresCustomPersistence() || hasRaidRef(); }
+
+    /** getCurrentRaid() != null(보류 중인 번호 포함). */
+    private boolean hasRaidRef() { return currentRaid != null || pendingRaidId >= 0; }
+
+    /** Raider.ObtainRaidLeaderBannerGoal: 습격 중 파도 대장이 없으면 근처(16, 8, 16)의 불길한 깃발로 가서 줍는다. */
+    public static class ObtainRaidLeaderBannerGoal extends org.domi.furnace.server.entity.ai.Goal {
+        private final Raider mob;
+
+        public ObtainRaidLeaderBannerGoal(Raider mob) {
+            this.mob = mob;
+            setFlags(EnumSet.of(Flag.MOVE));
+        }
+
+        /** Raider.ALLOWED_ITEMS: 줍기 지연이 없고 살아 있는 불길한 깃발. */
+        private static boolean allowed(ItemEntity ie) {
+            return !ie.hasPickUpDelay() && ie.isAlive() && matches(ie.getItem(), leaderBanner());
+        }
+
+        @Override
+        public boolean canUse() {
+            var raid = mob.getCurrentRaid();
+            if (mob.hasActiveRaid() && !raid.isOver() && mob.canBeLeader() && !matches(mob.getItemBySlot(EquipmentSlot.HEAD), leaderBanner())) {
+                Raider leader = raid.getLeader(mob.getWave());
+                if (leader == null || !leader.isAlive()) {
+                    List<ItemEntity> list = mob.level().getEntitiesOfClass(ItemEntity.class, mob.boundingBox().inflate(16.0, 8.0, 16.0), ObtainRaidLeaderBannerGoal::allowed);
+                    if (!list.isEmpty()) return mob.getNavigation().moveToEntityAt(list.get(0).blockPosition(), 1.15F);
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public void tick() {
+            Pos t = mob.getNavigation().getTargetPos();
+            if (t != null) {
+                double dx = t.x() + 0.5 - mob.x(), dy = t.y() + 0.5 - mob.y(), dz = t.z() + 0.5 - mob.z();
+                if (dx * dx + dy * dy + dz * dz < 1.414 * 1.414) {
+                    List<ItemEntity> list = mob.level().getEntitiesOfClass(ItemEntity.class, mob.boundingBox().inflate(4.0, 4.0, 4.0), ObtainRaidLeaderBannerGoal::allowed);
+                    if (!list.isEmpty()) mob.pickUpItem(list.get(0));
+                }
+            }
+        }
+    }
+
+    /** PathfindToRaidGoal: 마을 밖이면 습격 중심 쪽(15, 4, 90°)으로 걷고, 20틱마다 근처(16) 습격자를 끌어들인다. */
+    public static class PathfindToRaidGoal extends org.domi.furnace.server.entity.ai.Goal {
+        private static final int RECRUITMENT_SEARCH_TICK_DELAY = 20;
+        private final Raider mob;
+        private int recruitmentTick;
+
+        public PathfindToRaidGoal(Raider mob) {
+            this.mob = mob;
+            setFlags(EnumSet.of(Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            return mob.getTarget() == null && !mob.hasControllingPassenger() && mob.hasActiveRaid() && !mob.getCurrentRaid().isOver()
+                    && !mob.level().isVillage(mob.blockPosition());
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return mob.hasActiveRaid() && !mob.getCurrentRaid().isOver() && !mob.level().isVillage(mob.blockPosition());
+        }
+
+        @Override
+        public void tick() {
+            if (!mob.hasActiveRaid()) return;
+            var raid = mob.getCurrentRaid();
+            if (mob.tickCount > recruitmentTick) {
+                recruitmentTick = mob.tickCount + RECRUITMENT_SEARCH_TICK_DELAY;
+                recruitNearby(raid);
+            }
+            if (mob.getNavigation().isDone()) {   // !isPathFinding
+                Pos c = raid.center();
+                double[] v = org.domi.furnace.server.entity.ai.util.DefaultRandomPos.getPosTowards(mob, 15, 4,
+                        new double[] {c.x() + 0.5, c.y(), c.z() + 0.5}, (float) (Math.PI / 2));
+                if (v != null) mob.getNavigation().moveTo(v[0], v[1], v[2], 1.0);
+            }
+        }
+
+        private void recruitNearby(org.domi.furnace.server.world.raid.Raid raid) {
+            if (!raid.isActive()) return;
+            // 바닐라는 HashSet 으로 모은다(여기서는 목록 순서 — joinRaid 순서만 다를 수 있다)
+            var set = new java.util.LinkedHashSet<Raider>(mob.level().getEntitiesOfClass(Raider.class, mob.boundingBox().inflate(16.0, 16.0, 16.0),
+                    r -> !r.hasActiveRaid() && org.domi.furnace.server.world.raid.Raids.canJoinRaid(r, raid)));
+            for (Raider r : set) raid.joinRaid(raid.groupsSpawned(), r, null, true);
+        }
+    }
+
+    /** Raider.RaiderCelebration: 습격이 패배(습격자 승리)로 끝나면 축하 — 가끔 축하 소리, 가끔 뛴다. */
+    public static class RaiderCelebration extends org.domi.furnace.server.entity.ai.Goal {
+        private final Raider mob;
+
+        RaiderCelebration(Raider mob) {
+            this.mob = mob;
+            setFlags(EnumSet.of(Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            var raid = mob.getCurrentRaid();
+            return mob.isAlive() && mob.getTarget() == null && raid != null && raid.isLoss();
+        }
+
+        @Override
+        public void start() {
+            mob.setCelebrating(true);
+            super.start();
+        }
+
+        @Override
+        public void stop() {
+            mob.setCelebrating(false);
+            super.stop();
+        }
+
+        @Override
+        public void tick() {
+            if (!mob.isSilent() && mob.random().nextInt(adjustedTickDelay(100)) == 0) mob.makeSound(mob.getCelebrateSound());
+            if (!mob.isPassenger() && mob.random().nextInt(adjustedTickDelay(50)) == 0) mob.getJumpControl().jump();
+            super.tick();
+        }
+    }
+
+    /** Raider.RaiderMoveThroughVillageGoal: 습격 중 48칸 안의 아직 안 가 본 집(home POI)으로 가고, 최근 세 곳은 기억한다. */
+    public static class RaiderMoveThroughVillageGoal extends org.domi.furnace.server.entity.ai.Goal {
+        private final Raider raider;
+        private final double speedModifier;
+        private Pos poiPos;
+        private final List<Pos> visited = new java.util.ArrayList<>();
+        private final int distanceToPoi;
+        private boolean stuck;
+
+        public RaiderMoveThroughVillageGoal(Raider raider, double speed, int distanceToPoi) {
+            this.raider = raider;
+            this.speedModifier = speed;
+            this.distanceToPoi = distanceToPoi;
+            setFlags(EnumSet.of(Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            updateVisited();
+            return isValidRaid() && hasSuitablePoi() && raider.getTarget() == null;
+        }
+
+        private boolean isValidRaid() { return raider.hasActiveRaid() && !raider.getCurrentRaid().isOver(); }
+
+        private boolean hasSuitablePoi() {
+            Pos p = raider.level().poiManager().getRandom(t -> t == org.domi.furnace.server.world.poi.PoiTypes.HOME, this::hasNotVisited,
+                    org.domi.furnace.server.world.poi.PoiManager.Occupancy.ANY, raider.blockPosition(), 48, raider.random());
+            if (p == null) return false;
+            poiPos = p;
+            return true;
+        }
+
+        /** Vec3i.closerToCenterThan(pos, d). */
+        private boolean closerToCenterThan(Pos p, double d) {
+            double dx = p.x() + 0.5 - raider.x(), dy = p.y() + 0.5 - raider.y(), dz = p.z() + 0.5 - raider.z();
+            return dx * dx + dy * dy + dz * dz < d * d;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            if (raider.getNavigation().isDone()) return false;
+            return raider.getTarget() == null && !closerToCenterThan(poiPos, raider.bbWidth() + distanceToPoi) && !stuck;
+        }
+
+        @Override
+        public void stop() {
+            if (closerToCenterThan(poiPos, distanceToPoi)) visited.add(poiPos);
+        }
+
+        @Override
+        public void start() {
+            super.start();
+            raider.setNoActionTime(0);
+            raider.getNavigation().moveTo(poiPos.x(), poiPos.y(), poiPos.z(), speedModifier);
+            stuck = false;
+        }
+
+        @Override
+        public void tick() {
+            if (raider.getNavigation().isDone()) {
+                double[] v = {poiPos.x() + 0.5, poiPos.y(), poiPos.z() + 0.5};
+                double[] w = org.domi.furnace.server.entity.ai.util.DefaultRandomPos.getPosTowards(raider, 16, 7, v, (float) (Math.PI / 10));
+                if (w == null) w = org.domi.furnace.server.entity.ai.util.DefaultRandomPos.getPosTowards(raider, 8, 7, v, (float) (Math.PI / 2));
+                if (w == null) {
+                    stuck = true;
+                    return;
+                }
+                raider.getNavigation().moveTo(w[0], w[1], w[2], speedModifier);
+            }
+        }
+
+        private boolean hasNotVisited(Pos p) {
+            for (Pos q : visited) if (java.util.Objects.equals(p, q)) return false;
+            return true;
+        }
+
+        private void updateVisited() {
+            if (visited.size() > 2) visited.remove(0);
+        }
+    }
 }

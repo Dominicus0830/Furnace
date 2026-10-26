@@ -128,4 +128,6 @@ public class Pillager extends AbstractIllager implements CrossbowAttackMob {
 
     @Override protected String getHurtSound(Damage source) { return "entity.pillager.hurt"; }
     @Override public int getMaxSpawnClusterSize() { return 1; }
+
+    @Override public String getCelebrateSound() { return "entity.pillager.celebrate"; }
 }

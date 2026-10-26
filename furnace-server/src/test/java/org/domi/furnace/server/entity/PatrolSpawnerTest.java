@@ -32,7 +32,7 @@ class PatrolSpawnerTest {
     private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
 
     /** 반경 6 청크 슈퍼플랫, 시간·규칙·난수를 정할 수 있는 레벨. */
-    static final class PatrolLevel extends ChunkLevel {
+    static class PatrolLevel extends ChunkLevel {
         final Map<Long, ChunkColumn> chunks = new HashMap<>();
         long day = 5 * 24000L + 1000L;
         Set<String> offRules = Set.of();

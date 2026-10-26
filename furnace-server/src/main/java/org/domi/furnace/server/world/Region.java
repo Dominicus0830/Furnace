@@ -230,6 +230,7 @@ public final class Region {
         world.putChunk(cp.x(), cp.z(), c);
         level().lightNewChunk(cp.x(), cp.z());
         level().runLightUpdates();
+        level().raids().claim(cp.x(), cp.z());   // raids.dat 에서 이 청크가 중심인 습격
         loadEntities(cp, c);
         // 새로 생성된 청크는 바닐라처럼 저장 대상(dirty)으로 남긴다. 디스크에서 읽은 청크는 깨끗하다.
         if (c.dirty()) dirtyChunks.add(cp);
@@ -303,6 +304,7 @@ public final class Region {
         level().lightNewChunk(cp.x(), cp.z());
         level().runLightUpdates();
         long t2 = Regionizer.STATS ? System.nanoTime() : 0L;
+        level().raids().claim(cp.x(), cp.z());   // raids.dat 에서 이 청크가 중심인 습격
         loadEntities(cp, col);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
@@ -480,6 +482,11 @@ public final class Region {
         return ok;
     }
 
+    /** 이 region 레벨의 습격 스냅샷을 월드 습격 저장소에 올린다(이 region 스레드에서). */
+    void publishRaids() {
+        if (level != null) level.raids().publishSnapshots();
+    }
+
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
     public void saveDirtyChunks() {
         autosaveEntityQueue = null;
@@ -505,6 +512,9 @@ public final class Region {
     private void beginAutosave() {
         var io = world.ioPool();
         if (io != null) io.execute(org.domi.furnace.server.map.MapStore::saveDirty);   // 지도 데이터는 IO 풀에서(바뀐 것만)
+        publishRaids();
+        var store = world.raidStore();
+        if (io != null) io.execute(store::saveIfDirty);   // raids.dat(다른 region 은 마지막으로 올린 스냅샷)
         autosaveEntityQueue = new java.util.ArrayDeque<>(present);
         autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks);
     }
@@ -590,6 +600,7 @@ public final class Region {
                 }
                 world.removeChunk(cx, cz);
             }
+            if (level != null) level.raids().park(cx, cz);   // 중심 청크가 내려간 습격은 저장소로
             if (level != null) level.chunkUnloaded();
             evictGrace.remove(cp);
             dirtyChunks.remove(cp);

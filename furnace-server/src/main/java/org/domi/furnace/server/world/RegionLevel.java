@@ -33,6 +33,9 @@ public final class RegionLevel extends ChunkLevel {
     }
 
     @Override
+    public org.domi.furnace.server.world.raid.RaidStore raidStore() { return world.raidStore(); }
+
+    @Override
     protected ChunkColumn chunk(int chunkX, int chunkZ) {
         int i = (chunkX * 31 ^ chunkZ) & (CACHE - 1);
         ChunkColumn hit = cacheCol[i];

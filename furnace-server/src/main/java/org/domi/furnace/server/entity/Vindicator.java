@@ -1,5 +1,5 @@
 // 바닐라 Vindicator: 도끼를 든 일러저. 플레이어·주민·철 골렘을 노린다. 'Johnny' 이름이면 모든 생명체를 공격한다.
-// TODO(문·습격·이름표): VindicatorBreakDoorGoal, 습격 문 열기(RaiderOpenDoorGoal), 습격 무기 마법 부여, 이름표 Johnny 감지, 마을에서 문 열기 허용.
+// TODO(문·습격·이름표): VindicatorBreakDoorGoal(1), 습격 무기 마법 부여, 이름표 Johnny 감지.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -23,6 +23,7 @@ public class Vindicator extends AbstractIllager {
     protected void registerGoals() {
         super.registerGoals();
         goalSelector.addGoal(0, new FloatGoal(this));
+        goalSelector.addGoal(2, new RaiderOpenDoorGoal(this));
         goalSelector.addGoal(3, new HoldGroundAttackGoal(this, 10.0F));
         goalSelector.addGoal(4, new MeleeAttackGoal(this, 1.0, false));
         targetSelector.addGoal(1, new HurtByTargetGoal(this, Raider.class).setAlertOthers());
@@ -32,6 +33,15 @@ public class Vindicator extends AbstractIllager {
         goalSelector.addGoal(8, new RandomStrollGoal(this, 0.6));
         goalSelector.addGoal(9, new InteractGoal(this, 3.0F, 1.0F));
         goalSelector.addGoal(10, new LookAtMobGoal(this, Mob.class, 8.0F, 0.02F));
+    }
+
+    /** Vindicator.customServerAiStep: 습격 중인 자리(isRaided)에서만 문을 열 수 있다. */
+    @Override
+    protected void customServerAiStep() {
+        if (!isNoAi() && getNavigation() instanceof org.domi.furnace.server.entity.ai.navigation.GroundPathNavigation g) {
+            g.setCanOpenDoors(level().raids().getRaidAt(blockPosition()) != null);
+        }
+        super.customServerAiStep();
     }
 
     @Override
@@ -75,4 +85,6 @@ public class Vindicator extends AbstractIllager {
     @Override protected String getDeathSound() { return "entity.vindicator.death"; }
 
     @Override protected String getHurtSound(Damage source) { return "entity.vindicator.hurt"; }
+
+    @Override public String getCelebrateSound() { return "entity.vindicator.celebrate"; }
 }

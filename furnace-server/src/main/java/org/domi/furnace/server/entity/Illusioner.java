@@ -124,4 +124,6 @@ public class Illusioner extends SpellcasterIllager implements RangedAttackMob {
 
         @Override protected IllagerSpell getSpell() { return IllagerSpell.DISAPPEAR; }
     }
+
+    @Override public String getCelebrateSound() { return "entity.illusioner.ambient"; }
 }

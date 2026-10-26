@@ -333,12 +333,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     }
 
     public int entityId() { return entityId; }
-    /** ServerPlayer.raidOmenPosition: 습격 징조를 받은 자리(끝날 때 습격을 연다). TODO(저장): 바닐라는 raid_omen_position 으로 저장. */
-    private org.domi.furnace.server.block.Pos raidOmenPosition;
+    /** ServerPlayer.raidOmenPosition: 습격 징조를 받은 자리(끝날 때 습격을 연다). 저장은 PlayerVitals(raid_omen_position). */
+    public org.domi.furnace.server.block.Pos raidOmenPosition() { return vitals().raidOmenPosition(); }
 
-    public org.domi.furnace.server.block.Pos raidOmenPosition() { return raidOmenPosition; }
-
-    public void setRaidOmenPosition(org.domi.furnace.server.block.Pos p) { raidOmenPosition = p; }
+    public void setRaidOmenPosition(org.domi.furnace.server.block.Pos p) { vitals().raidOmenPosition(p); }
 
     public boolean isSpectator() { return gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR; }
 

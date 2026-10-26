@@ -125,6 +125,12 @@ public final class PlayerVitals {
     private String respawnDimension = "minecraft:overworld";
     private String lastDeathDimension;
     private int[] lastDeathPos;
+    /** ServerPlayer.raidOmenPosition(저장 키 raid_omen_position, BlockPos 코덱 = 정수 배열 [x, y, z]). */
+    private org.domi.furnace.server.block.Pos raidOmenPosition;
+
+    public synchronized org.domi.furnace.server.block.Pos raidOmenPosition() { return raidOmenPosition; }
+
+    public synchronized void raidOmenPosition(org.domi.furnace.server.block.Pos p) { raidOmenPosition = p; }
 
     public PlayerVitals(Player player) {
         this.player = player;
@@ -183,6 +189,8 @@ public final class PlayerVitals {
             lastDeathDimension = dim;
             lastDeathPos = pos.clone();
         }
+        raidOmenPosition = tag.tags().get("raid_omen_position") instanceof int[] ro && ro.length == 3
+                ? new org.domi.furnace.server.block.Pos(ro[0], ro[1], ro[2]) : null;
     }
 
     /**
@@ -243,6 +251,11 @@ public final class PlayerVitals {
             tag.putCompound("LastDeathLocation", ld);
         } else {
             tag.tags().remove("LastDeathLocation");
+        }
+        if (raidOmenPosition != null) {
+            tag.putIntArray("raid_omen_position", new int[] {raidOmenPosition.x(), raidOmenPosition.y(), raidOmenPosition.z()});
+        } else {
+            tag.tags().remove("raid_omen_position");
         }
     }
 

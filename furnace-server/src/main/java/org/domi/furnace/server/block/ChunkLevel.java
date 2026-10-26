@@ -64,6 +64,14 @@ public abstract class ChunkLevel implements BlockLevel {
 
     private final org.domi.furnace.server.world.raid.Raids raids = new org.domi.furnace.server.world.raid.Raids(this);
 
+    private org.domi.furnace.server.world.raid.RaidStore detachedRaidStore;
+
+    /** 습격 번호·저장소(region 레벨은 월드 것). 단독 레벨은 파일 없는 저장소. */
+    public org.domi.furnace.server.world.raid.RaidStore raidStore() {
+        if (detachedRaidStore == null) detachedRaidStore = org.domi.furnace.server.world.raid.RaidStore.detached();
+        return detachedRaidStore;
+    }
+
     /** ServerLevel.getRaids. */
     public org.domi.furnace.server.world.raid.Raids raids() { return raids; }
 

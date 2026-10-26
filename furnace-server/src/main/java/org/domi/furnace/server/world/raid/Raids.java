@@ -1,12 +1,11 @@
 // 바닐라 Raids(습격 목록) + 나쁜 징조(BadOmenMobEffect)·습격 징조(RaidOmenMobEffect)의 서버 쪽.
 // 차이: 바닐라는 차원 하나에 Raids 하나(raids.dat 저장). 여기서는 region 레벨마다 두고, region 이 합쳐지거나 나뉘면
-//   습격 중심 청크를 따라 옮긴다. id 는 서버 전체 카운터. 저장(raids.dat)은 아직 없다 — 서버를 끄면 진행 중 습격은 사라진다.
+//   습격 중심 청크를 따라 옮긴다. 번호·저장(raids.dat)은 월드 하나의 RaidStore 가 맡는다(claim·park·publishSnapshots).
 package org.domi.furnace.server.world.raid;
 
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.effect.MobEffect;
@@ -17,25 +16,76 @@ import org.domi.furnace.server.world.poi.PoiRecord;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
 public final class Raids {
-    private static final AtomicInteger NEXT_ID = new AtomicInteger(1);
-
     private final ChunkLevel level;
     private final Map<Integer, Raid> raids = new LinkedHashMap<>();
+    private RaidStore store;
     private int tick;
 
     public Raids(ChunkLevel level) { this.level = level; }
 
+    private RaidStore store() {
+        if (store == null) {
+            store = level.raidStore();
+            tick = store.tick();
+        }
+        return store;
+    }
+
     public Map<Integer, Raid> all() { return raids; }
+
+    /** Raids.get(id). */
+    public Raid get(int id) { return raids.get(id); }
+
+    /** Raids.canJoinRaid(raider, raid): 살아 있고 참여 가능하며 무행동 2400 이하, 같은 차원. */
+    public static boolean canJoinRaid(org.domi.furnace.server.entity.Raider r, Raid raid) {
+        return r != null && raid != null && raid.level() != null
+                && r.isAlive() && r.canJoinRaid() && r.getNoActionTime() <= 2400 && r.level().dimension().equals(raid.level().dimension());
+    }
+
+    // ------------------------------------------------------------------ 저장(RaidStore)
+
+    /** 그 청크가 중심인 보류 습격을 이 레벨로 올린다(청크가 이 region 에 올라올 때). */
+    public void claim(int cx, int cz) {
+        for (var tag : store().claim(cx, cz)) {
+            Raid r = new Raid(level, tag);
+            raids.put(r.id(), r);
+        }
+    }
+
+    /** 중심 청크가 내려가면 습격을 보류로 돌리고, 소속 습격자는 번호만 기억하게 한다(다시 올라오면 다시 들어간다). */
+    public void park(int cx, int cz) {
+        Iterator<Raid> it = raids.values().iterator();
+        while (it.hasNext()) {
+            Raid r = it.next();
+            if (r.center().x() >> 4 == cx && r.center().z() >> 4 == cz) {
+                store().park(r);
+                r.detachRaiders();
+                it.remove();
+            }
+        }
+    }
+
+    /** 이 레벨의 습격 스냅샷을 저장소에 올린다(이 레벨 스레드에서). */
+    public void publishSnapshots() {
+        RaidStore s = store();
+        s.reportTick(tick);
+        for (Raid r : raids.values()) s.publish(r);
+    }
 
     /** Raids.tick: disableRaids 면 멈추고, 멈춘 습격은 지운다. */
     public void tick() {
+        store();
         tick++;
         Iterator<Raid> it = raids.values().iterator();
         while (it.hasNext()) {
             Raid r = it.next();
             if (level.gameRule("disableRaids")) r.stop();
-            if (r.isStopped()) it.remove();
-            else r.tick();
+            if (r.isStopped()) {
+                it.remove();
+                store().forget(r.id());
+            } else {
+                r.tick();
+            }
         }
     }
 
@@ -84,7 +134,7 @@ public final class Raids {
 
     private Raid getOrCreateRaid(Pos pos) {
         Raid r = getRaidAt(pos);
-        return r != null ? r : new Raid(NEXT_ID.getAndIncrement(), level, pos);
+        return r != null ? r : new Raid(store().nextId(), level, pos);
     }
 
     /** DimensionType.has_raids: 오버월드·엔드 참, 네더 거짓. */
@@ -121,6 +171,7 @@ public final class Raids {
     // ------------------------------------------------------------------ region 합치기·나누기
 
     public void absorb(Raids other, ChunkLevel into) {
+        tick = Math.max(tick, other.tick);
         for (Raid r : other.raids.values()) {
             r.level(into);
             raids.put(r.id(), r);
@@ -129,6 +180,7 @@ public final class Raids {
     }
 
     public void splitTo(Raids target, ChunkLevel targetLevel, ChunkLevel.ChunkFilter inTarget) {
+        target.tick = Math.max(target.tick, tick);
         Iterator<Raid> it = raids.values().iterator();
         while (it.hasNext()) {
             Raid r = it.next();

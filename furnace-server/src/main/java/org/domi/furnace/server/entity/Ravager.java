@@ -165,4 +165,6 @@ public class Ravager extends Raider {
 
     @Override
     public boolean checkSpawnObstruction(ChunkLevel level) { return !level.containsAnyLiquid(boundingBox()); }
+
+    @Override public String getCelebrateSound() { return "entity.ravager.celebrate"; }
 }

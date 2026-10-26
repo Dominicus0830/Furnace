@@ -211,4 +211,6 @@ public class Evoker extends SpellcasterIllager {
 
         @Override protected IllagerSpell getSpell() { return IllagerSpell.WOLOLO; }
     }
+
+    @Override public String getCelebrateSound() { return "entity.evoker.celebrate"; }
 }

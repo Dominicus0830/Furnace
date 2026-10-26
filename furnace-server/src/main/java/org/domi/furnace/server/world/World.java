@@ -222,7 +222,16 @@ public final class World {
     /** 저장·종료용: 모든 region 의 dirty 청크 저장(각 region 스레드에서). 플레이어 저장은 각 연결의 channelInactive 가 한다. */
     public List<CompletableFuture<Void>> flushAll() {
         org.domi.furnace.server.map.MapStore.saveDirty();   // 바뀐 지도 데이터·idcounts
-        return forEachRegion(Region::saveDirtyChunks);
+        List<CompletableFuture<Void>> fs = new ArrayList<>(forEachRegion(r -> {
+            r.saveDirtyChunks();
+            r.publishRaids();
+        }));
+        // 모든 region 이 습격 스냅샷을 올린 뒤 raids.dat 하나로 쓴다
+        fs.add(CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).handle((v, t) -> {
+            raidStore().saveIfDirty();
+            return null;
+        }));
+        return fs;
     }
 
     /** owner 스레드서 스냅샷 뜬 뒤 IO 레인서 .mca write. worldSource가 AnvilWorldSource일 때만. */
@@ -387,6 +396,22 @@ public final class World {
 
     public void autosaveEnabled(boolean v) { autosaveEnabled = v; }
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
+
+    private volatile org.domi.furnace.server.world.raid.RaidStore raidStore;
+
+    /** 습격 저장소(world/data/raids.dat). 디스크 월드면 처음 쓸 때 읽고, 아니면 메모리에서만. */
+    public org.domi.furnace.server.world.raid.RaidStore raidStore() {
+        var s = raidStore;
+        if (s != null) return s;
+        synchronized (this) {
+            if (raidStore == null) {
+                raidStore = worldSource instanceof AnvilWorldSource
+                        ? org.domi.furnace.server.world.raid.RaidStore.open(worldDir)
+                        : org.domi.furnace.server.world.raid.RaidStore.detached();
+            }
+            return raidStore;
+        }
+    }
     public java.nio.file.Path worldDir() { return worldDir; }
     public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
 

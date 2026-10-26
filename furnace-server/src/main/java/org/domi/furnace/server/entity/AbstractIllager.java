@@ -10,6 +10,19 @@ public abstract class AbstractIllager extends Raider {
 
     public IllagerArmPose getArmPose() { return IllagerArmPose.CROSSED; }
 
+    /** AbstractIllager.RaiderOpenDoorGoal: 습격 중일 때만 문을 연다(닫지 않는다). */
+    public static class RaiderOpenDoorGoal extends org.domi.furnace.server.entity.ai.goal.OpenDoorGoal {
+        private final Raider raider;
+
+        public RaiderOpenDoorGoal(Raider raider) {
+            super(raider, false);
+            this.raider = raider;
+        }
+
+        @Override
+        public boolean canUse() { return super.canUse() && raider.hasActiveRaid(); }
+    }
+
     /** AbstractIllager.canAttack: 아기 주민은 공격하지 않는다. */
     @Override
     public boolean canAttackType(Targetable target) {
