@@ -70,5 +70,9 @@ public class HopperBlock extends BaseEntityBlock {
     @Override
     public BlockEntity newBlockEntity(Pos pos, int state) { return new org.domi.furnace.server.block.entity.HopperBlockEntity(pos, state); }
 
-    // TODO(엔티티·블록엔티티): entityInside — 위에 떨어진 아이템 엔티티 빨아들이기, 블록 엔티티 틱(옮기기·쿨다운).
+    /** HopperBlock.entityInside: 깔때기 블록 엔티티가 아이템 엔티티를 빨아들여 본다. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.HopperBlockEntity h) h.entityInside(level, entity);
+    }
 }
