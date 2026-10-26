@@ -11,7 +11,11 @@ import org.domi.furnace.server.block.ItemInteractionResult;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
+import org.domi.furnace.server.block.entity.DecoratedPotBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.item.ItemTools;
+import org.domi.furnace.server.menu.Stacks;
 
 public class DecoratedPotBlock extends BaseEntityBlock {
 
@@ -32,22 +36,80 @@ public class DecoratedPotBlock extends BaseEntityBlock {
     }
 
     @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return new DecoratedPotBlockEntity(pos, state); }
+
+    /** 아이템의 pot_decorations 컴포넌트 → 블록 엔티티의 조각(바닐라 applyComponentsFromItemStack). */
+    @Override
+    public void setPlacedBy(BlockLevel level, Pos pos, int state, BlockActor placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (level.getBlockEntity(pos) instanceof DecoratedPotBlockEntity be && ItemTools.component(stack, "minecraft:pot_decorations") instanceof java.util.List<?> l) be.setSherds(l);
+    }
+
+    @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
-        // TODO(블록 엔티티): 비었거나 같은 아이템이면 하나 넣고(흔들림·소리 decorated_pot.insert, 높이 0.7 + 0.5 × 찬 비율) SUCCESS,
-        //   아니면 PASS_TO_DEFAULT. 블록 엔티티가 없으면 바닐라도 SKIP_DEFAULT.
-        return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        if (!(level.getBlockEntity(pos) instanceof DecoratedPotBlockEntity be)) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        ItemStack in = be.theItem(level);
+        if (!stack.isEmpty() && (in.isEmpty() || Stacks.isSameItemSameComponents(in, stack) && in.count() < Stacks.maxStack(in))) {
+            be.wobble(DecoratedPotBlockEntity.WOBBLE_POSITIVE, level);
+            player.awardStat("minecraft:used:" + ItemTools.itemName(stack));
+            ItemStack one = stack.withCount(1);   // consumeAndReturn(1, player)
+            if (!player.isCreative()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+            float fill;
+            if (in.isEmpty()) {
+                be.setTheItem(one, level);
+                fill = (float) one.count() / Stacks.maxStack(one);
+            } else {
+                ItemStack grown = in.withCount(in.count() + 1);
+                be.setTheItem(grown, level);
+                fill = (float) grown.count() / Stacks.maxStack(grown);
+            }
+            level.playSound(null, pos, "minecraft:block.decorated_pot.insert", "blocks", 1.0F, 0.7F + 0.5F * fill);
+            // TODO(입자): 바닐라는 여기서 dust_plume 입자 7개(위쪽 +1.2)를 보낸다 — 서버 입자 패킷 API 가 생기면.
+            be.setChanged(level);
+            level.gameEvent("minecraft:block_change", pos, player, state);
+            return ItemInteractionResult.SUCCESS;
+        }
+        return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(블록 엔티티): 흔들고 소리(decorated_pot.insert_fail)·BLOCK_CHANGE 후 SUCCESS. 블록 엔티티가 없으면 바닐라도 PASS.
-        return InteractionResult.PASS;
+        if (!(level.getBlockEntity(pos) instanceof DecoratedPotBlockEntity be)) return InteractionResult.PASS;
+        level.playSound(null, pos, "minecraft:block.decorated_pot.insert_fail", "blocks", 1.0F, 1.0F);
+        be.wobble(DecoratedPotBlockEntity.WOBBLE_NEGATIVE, level);
+        level.gameEvent("minecraft:block_change", pos, player, state);
+        return InteractionResult.SUCCESS;
     }
 
+    /** Containers.dropContentsOnDestroy: 다른 블록이 되면 내용물을 쏟는다(열지 않은 전리품은 먼저 채운다). */
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(블록 엔티티): Containers.dropContentsOnDestroy.
+        if (!B.is(newState, block) && level.getBlockEntity(pos) instanceof DecoratedPotBlockEntity be) {
+            be.theItem(level);
+            level.dropContents(pos, be.items);
+            level.updateNeighbourForOutputSignal(pos, block);
+        }
         super.onRemove(state, level, pos, newState, moved);
+    }
+
+    /**
+     * 바닐라 getDrops: 금 간 단지는 조각 4개(sherds 동적 드롭, 벽돌 포함), 아니면 pot_decorations 를 복사한 단지 하나.
+     * 이 표는 난수를 쓰지 않는다. TODO(전리품): 전리품 시스템이 블록 엔티티 컴포넌트·동적 드롭을 받게 되면 표(데이터 팩 수정 포함)로.
+     */
+    @Override
+    public java.util.List<ItemStack> getDrops(int state, BlockLevel level, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool, Float explosionRadius) {
+        if (!(blockEntity instanceof DecoratedPotBlockEntity be)) return java.util.List.of();
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        if (CRACKED.is(state)) {
+            for (String sherd : be.sherds) {
+                Integer id = ItemContext.id("minecraft:item", sherd);
+                if (id != null) out.add(new ItemStack(id, 1));
+            }
+        } else {
+            Integer pot = ItemContext.id("minecraft:item", "minecraft:decorated_pot");
+            if (pot != null) out.add(ItemTools.with(new ItemStack(pot, 1), "minecraft:pot_decorations", new java.util.ArrayList<Object>(java.util.Arrays.asList(be.sherds))));
+        }
+        return out;
     }
 
     @Override
@@ -65,5 +127,10 @@ public class DecoratedPotBlock extends BaseEntityBlock {
     // TODO(엔티티): onProjectileHit — 깰 수 있는 투사체면 금 가게 하고 부순다.
 
     @Override
-    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) { return 0; }   // TODO(블록 엔티티)
+    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
+        return level.getBlockEntity(pos) instanceof DecoratedPotBlockEntity be ? ChestBlock.redstoneSignalFromContainer(java.util.List.<ItemStack[]>of(be.items)) : 0;
+    }
+
+    @Override
+    public boolean hasAnalogOutputSignal(int state) { return true; }
 }
