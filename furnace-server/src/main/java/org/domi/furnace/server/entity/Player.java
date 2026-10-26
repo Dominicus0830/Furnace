@@ -174,9 +174,19 @@ public final class Player implements Targetable {
             ByteBuf buf = channel.alloc().buffer();
             Types.writeVarInt(buf, packet.id());
             packet.write(buf);
-            channel.writeAndFlush(buf);
+            channel.write(buf);
+            // 보낼 때마다 flush(시스템 호출) 하지 않고, 같은 순간에 쌓인 패킷은 한 번에 내보낸다(플래그는 이벤트 루프 스레드에서만 만진다).
+            if (!flushPending) {
+                flushPending = true;
+                channel.eventLoop().execute(() -> {
+                    flushPending = false;
+                    channel.flush();
+                });
+            }
         });
     }
+
+    private boolean flushPending;
 
     private volatile org.domi.furnace.api.text.Text kickReason;
 
