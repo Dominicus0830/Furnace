@@ -1303,6 +1303,19 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override public int worldSurfaceHeight(int x, int z) { return getWorldSurfaceHeight(x, z); }
 
+    /**
+     * Level.isRainingAt(pos): 비가 오고(isRaining), 하늘이 보이고(canSeeSky), MOTION_BLOCKING 높이 칸 위이며,
+     * 그 바이옴의 강수 종류(Biome.getPrecipitationAt)가 RAIN 이다.
+     */
+    @Override
+    public boolean isRainingAt(Pos pos) {
+        if (!isRaining()) return false;
+        if (!canSeeSky(pos)) return false;
+        if (getMotionBlockingHeight(pos.x(), pos.z()) > pos.y()) return false;
+        return org.domi.furnace.server.world.BiomeWeather.RAIN.equals(
+                org.domi.furnace.server.world.BiomeWeather.of(services().biomeAt(pos.x(), pos.y(), pos.z())).precipitationAt(pos.x(), pos.y(), pos.z()));
+    }
+
     /** LevelReader.canSeeSky(pos): 그 칸 위로 움직임을 막는 블록이 없다. */
     public boolean canSeeSky(Pos pos) { return getMotionBlockingHeight(pos.x(), pos.z()) <= pos.y(); }
 
