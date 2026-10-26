@@ -90,6 +90,8 @@ public final class AnvilWorldSource implements WorldSource {
     }
 
     public RegionFileStore store() { return store; }
+    /** 디스크에 없을 때 쓰는 생성기. */
+    public WorldSource base() { return base; }
     public AnvilChunkCodec codec() { return codec; }
 
     // ------------------------------------------------------------------ 엔티티(entities/ 지역 파일 — 바닐라 EntityStorage)

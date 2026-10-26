@@ -25,6 +25,7 @@ final class BuiltinCommands {
         ServerCommands.registerKick(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerKill(d);
         ServerCommands.registerList(d);
+        org.domi.furnace.server.command.builtin.LocateCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMsg(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerReload(d);
         org.domi.furnace.server.command.builtin.RecipeCommands.register(d);

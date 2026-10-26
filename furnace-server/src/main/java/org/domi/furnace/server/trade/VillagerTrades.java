@@ -1,7 +1,8 @@
 // 바닐라 VillagerTrades: 직업(VillagerProfession) × 레벨(1~5)별 거래 후보(ItemListing)와 방랑 상인 거래표.
 // 거래표는 디컴파일 원본의 TRADES / WANDERING_TRADER_TRADES 를 그대로 옮겼다(trade_rebalance 실험용 표는 제외).
 // 후보 한 개는 getOffer(주민 정보, 난수) 로 거래를 만든다 — 난수는 호출 순서까지 바닐라와 같다.
-// TODO(구조물 탐색): 지도 거래(바다/삼림 저택·전당 지도)는 구조물 위치 탐색(locate)이 없어 항상 null(거래 없음)을 돌려준다.
+// TODO(지도): 지도 거래(바다/삼림 저택·전당 지도)는 항상 null(거래 없음). 구조물 탐색(StructureLocator)은 있지만 지도 만들기(map_id 발급·저장·
+// 바이옴 미리보기 색)와 skipKnown 용 시작점 references 증가·저장이 아직 없다.
 //   표의 칸은 그대로 두어 후보 뽑기(Villager.addOffersFromItemListings)의 난수 소비 순서는 유지한다.
 package org.domi.furnace.server.trade;
 
@@ -639,7 +640,7 @@ public final class VillagerTrades {
         };
     }
 
-    /** TreasureMapForEmeralds: 구조물 탐색이 없어 거래를 만들지 못한다(바닐라도 탐색 실패면 null). TODO(구조물 탐색) */
+    /** TreasureMapForEmeralds: 지도 만들기가 없어 거래를 만들지 못한다(바닐라도 탐색 실패면 null). TODO(지도) */
     static ItemListing treasureMap(String name) { return (ctx, r) -> null; }
 
     /** EnchantedItemForEmeralds: 에메랄드 → 마법 부여된 장비. 수준 5+nextInt(15), 비용 base+수준(최대 64). */

@@ -246,10 +246,18 @@ public final class StructureEngine {
         for (StructureRegistry.SetDef set : registry.sets().values()) {
             if (!possibleSet(set)) continue;
             if (!isStructureChunk(set, cx, cz)) continue;
+            startsForSet(set, cx, cz, terrain, out);
+        }
+        return out;
+    }
+
+    /** createStructures 의 세트 하나 부분 — 가중치 순서로 하나를 고른다(세트마다 난수가 따로라 세트별로 떼어 계산해도 같다). */
+    private void startsForSet(StructureRegistry.SetDef set, int cx, int cz, TerrainAccess terrain, List<StructureStart> out) {
+        {
             List<StructureRegistry.Entry> list = set.entries();
             if (list.size() == 1) {
                 tryGenerate(list.get(0), cx, cz, terrain, out);
-                continue;
+                return;
             }
             ArrayList<StructureRegistry.Entry> pool = new ArrayList<>(list);
             WorldgenRandom r = new WorldgenRandom();
@@ -270,7 +278,35 @@ public final class StructureEngine {
                 total -= chosen.weight();
             }
         }
+    }
+
+    /** 이 엔진의 월드가 이 구조물을 만들 수 있는 배치들(ChunkGeneratorStructureState.getPlacementsForStructure, 세트 id 순). */
+    public List<StructureRegistry.SetDef> placementsFor(String structureId) {
+        List<StructureRegistry.SetDef> out = new ArrayList<>();
+        for (StructureRegistry.SetDef set : registry.sets().values()) {
+            if (!possibleSet(set)) continue;
+            for (StructureRegistry.Entry e : set.entries()) if (e.structureId().equals(structureId)) { out.add(set); break; }
+        }
         return out;
+    }
+
+    private final Map<String, String> setStartCache = new ConcurrentHashMap<>();
+
+    /**
+     * 그 청크에서 이 세트가 실제로 만드는 구조물 id(없으면 null) — 배치 판정 + 생성과 같은 선택(StructureCheck + STRUCTURE_STARTS).
+     * 위치만의 함수라 결과를 기억한다.
+     */
+    public String startOf(StructureRegistry.SetDef set, int cx, int cz, TerrainAccess terrain) {
+        if (!isStructureChunk(set, cx, cz)) return null;
+        String key = set.id() + "/" + cx + "/" + cz;
+        String cached = setStartCache.get(key);
+        if (cached != null) return cached.isEmpty() ? null : cached;
+        List<StructureStart> out = new ArrayList<>(1);
+        if (structuresEnabled) startsForSet(set, cx, cz, terrain, out);
+        String id = out.isEmpty() ? "" : out.get(0).structureId();
+        if (setStartCache.size() > (1 << 16)) setStartCache.clear();
+        setStartCache.put(key, id);
+        return id.isEmpty() ? null : id;
     }
 
     private volatile Set<String> onlyStructures;

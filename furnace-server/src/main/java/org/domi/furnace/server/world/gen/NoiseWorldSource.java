@@ -641,6 +641,21 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return true;
     }
 
+    private volatile org.domi.furnace.server.world.gen.structure.StructureLocator locator;
+
+    /** 구조물 찾기(/locate structure, 탐험 지도) — 생성과 같은 배치·선택으로 판정한다. */
+    public org.domi.furnace.server.world.gen.structure.StructureLocator structureLocator() {
+        var l = locator;
+        if (l == null) locator = l = new org.domi.furnace.server.world.gen.structure.StructureLocator(structureEngine(), this);
+        return l;
+    }
+
+    /** 월드 생성기에서 노이즈 생성기(디스크 래퍼면 그 안쪽). 없으면 null. */
+    public static NoiseWorldSource of(WorldSource s) {
+        if (s instanceof AnvilWorldSource a) s = a.base();
+        return s instanceof NoiseWorldSource n ? n : null;
+    }
+
     public org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine() {
         return structureEngine;
     }
