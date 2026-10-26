@@ -406,8 +406,37 @@ public final class ItemUse {
         if (n.endsWith("_shovel")) return shovel(level, player, hand, hit, stack);
         if (n.endsWith("_axe")) return axe(level, player, hand, hit, stack);
         if (n.endsWith("_spawn_egg")) return spawnEgg(level, player, hand, hit, stack, n);
-        // TODO(엔티티): 수레·끈·폭죽, 솔(오래 쓰기), 지도.
+        switch (n) {
+            case "minecraft:minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.RIDEABLE);
+            case "minecraft:chest_minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.CHEST);
+            case "minecraft:furnace_minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.FURNACE);
+            case "minecraft:tnt_minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.TNT);
+            case "minecraft:hopper_minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.HOPPER);
+            case "minecraft:command_block_minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.COMMAND_BLOCK);
+            default: break;
+        }
+        // TODO(엔티티): 끈·폭죽, 솔(오래 쓰기), 지도.
         return InteractionResult.PASS;
+    }
+
+    /**
+     * MinecartItem.useOn: 레일(#rails)이 아니면 실패. 레일 칸 가운데, 바닥 + 0.0625(경사면 + 0.5)에 그 종류 수레를 놓고 하나 쓴다.
+     * TODO(아이템 컴포넌트): createDefaultStackConfig(이름·엔티티 데이터). TODO(디스펜서): 발사기로 놓기.
+     */
+    private static InteractionResult minecartOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack,
+            org.domi.furnace.server.entity.AbstractMinecart.Type type) {
+        Pos pos = hit.pos();
+        int state = level.getBlockState(pos);
+        if (!B.isTag(state, "minecraft:rails")) return InteractionResult.FAIL;
+        if (level instanceof ChunkLevel cl) {
+            Prop shape = B.prop("shape");
+            double d = shape.has(state) && shape.valueName(state).startsWith("ascending_") ? 0.5 : 0.0;
+            var cart = org.domi.furnace.server.entity.AbstractMinecart.create(cl, pos.x() + 0.5, pos.y() + 0.0625 + d, pos.z() + 0.5, type);
+            cl.addFreshEntity(cart);
+            cl.gameEvent("minecraft:entity_place", pos, player, -1);
+        }
+        player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+        return InteractionResult.sidedSuccess(false);
     }
 
     /**

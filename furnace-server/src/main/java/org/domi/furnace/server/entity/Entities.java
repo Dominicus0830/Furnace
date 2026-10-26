@@ -127,6 +127,13 @@ public final class Entities {
             case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
             case "minecraft:boat" -> new Boat(level, level.nextEntityId());
             case "minecraft:chest_boat" -> new ChestBoat(level, level.nextEntityId());
+            case "minecraft:minecart" -> new Minecart(level, level.nextEntityId());
+            case "minecraft:chest_minecart" -> new MinecartChest(level, level.nextEntityId());
+            case "minecraft:furnace_minecart" -> new MinecartFurnace(level, level.nextEntityId());
+            case "minecraft:tnt_minecart" -> new MinecartTNT(level, level.nextEntityId());
+            case "minecraft:spawner_minecart" -> new MinecartSpawner(level, level.nextEntityId());
+            case "minecraft:hopper_minecart" -> new MinecartHopper(level, level.nextEntityId());
+            case "minecraft:command_block_minecart" -> new MinecartCommandBlock(level, level.nextEntityId());
             default -> null;
         };
     }
@@ -252,6 +259,13 @@ public final class Entities {
             case "minecraft:sheep" -> new Sheep(level, level.nextEntityId());
             case "minecraft:boat" -> new Boat(level, level.nextEntityId());
             case "minecraft:chest_boat" -> new ChestBoat(level, level.nextEntityId());
+            case "minecraft:minecart" -> new Minecart(level, level.nextEntityId());
+            case "minecraft:chest_minecart" -> new MinecartChest(level, level.nextEntityId());
+            case "minecraft:furnace_minecart" -> new MinecartFurnace(level, level.nextEntityId());
+            case "minecraft:tnt_minecart" -> new MinecartTNT(level, level.nextEntityId());
+            case "minecraft:spawner_minecart" -> new MinecartSpawner(level, level.nextEntityId());
+            case "minecraft:hopper_minecart" -> new MinecartHopper(level, level.nextEntityId());
+            case "minecraft:command_block_minecart" -> new MinecartCommandBlock(level, level.nextEntityId());
             default -> null;
         };
         if (e == null) return null;

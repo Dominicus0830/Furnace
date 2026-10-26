@@ -154,7 +154,7 @@ public class ChestBlock extends AbstractChestBlock {
     }
 
     /** getRedstoneSignalFromContainer: 칸마다 개수 / min(99, 최대 묶음) 의 평균을 Mth.lerpDiscrete(f, 0, 15). */
-    static int redstoneSignalFromContainer(java.util.List<ItemStack[]> parts) {
+    public static int redstoneSignalFromContainer(java.util.List<ItemStack[]> parts) {
         float f = 0.0F;
         int size = 0;
         for (ItemStack[] items : parts) {

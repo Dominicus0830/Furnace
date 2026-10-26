@@ -308,6 +308,27 @@ public record EntityType(String name, int id, float width, float height, float e
     /** CHEST_BOAT: sized(1.375F, 0.5625F).eyeHeight(0.5625F).clientTrackingRange(10). */
     public static final EntityType CHEST_BOAT = of("minecraft:chest_boat", 1.375F, 0.5625F, 0.5625F, 10, 3, true, false);
 
+    /** MINECART: sized(0.98F, 0.7F).passengerAttachments(0.1875F).clientTrackingRange(8). */
+    public static final EntityType MINECART = of("minecraft:minecart", 0.98F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
+    /** CHEST_MINECART: sized(0.98F, 0.7F).passengerAttachments(0.1875F).clientTrackingRange(8). */
+    public static final EntityType CHEST_MINECART = of("minecraft:chest_minecart", 0.98F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
+    /** FURNACE_MINECART: sized(0.98F, 0.7F).passengerAttachments(0.1875F).clientTrackingRange(8). */
+    public static final EntityType FURNACE_MINECART = of("minecraft:furnace_minecart", 0.98F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
+    /** TNT_MINECART: sized(0.98F, 0.7F).passengerAttachments(0.1875F).clientTrackingRange(8). */
+    public static final EntityType TNT_MINECART = of("minecraft:tnt_minecart", 0.98F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
+    /** SPAWNER_MINECART: sized(0.98F, 0.7F).passengerAttachments(0.1875F).clientTrackingRange(8). */
+    public static final EntityType SPAWNER_MINECART = of("minecraft:spawner_minecart", 0.98F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
+    /** HOPPER_MINECART: sized(0.98F, 0.7F).passengerAttachments(0.1875F).clientTrackingRange(8). */
+    public static final EntityType HOPPER_MINECART = of("minecraft:hopper_minecart", 0.98F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
+    /** COMMAND_BLOCK_MINECART: sized(0.98F, 0.7F).passengerAttachments(0.1875F).clientTrackingRange(8). */
+    public static final EntityType COMMAND_BLOCK_MINECART = of("minecraft:command_block_minecart", 0.98F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+
     /** SHULKER_BULLET: sized(0.3125F, 0.3125F). */
     public static final EntityType SHULKER_BULLET = of("minecraft:shulker_bullet", 0.3125F, 0.3125F, 0.3125F * 0.85F, 8, 3, true, false);
 

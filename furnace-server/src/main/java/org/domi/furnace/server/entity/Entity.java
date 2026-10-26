@@ -777,6 +777,12 @@ public abstract non-sealed class Entity implements Rider {
     /** Entity.ignoreExplosion: 폭발이 건드리지 않는 엔티티. */
     public boolean ignoreExplosion() { return false; }
 
+    /** getBlockExplosionResistance: 내가 일으킨 폭발에서 그 블록의 저항(기본 그대로). */
+    public float blockExplosionResistance(ChunkLevel level, Pos pos, int state, float resistance) { return resistance; }
+
+    /** shouldBlockExplode: 내가 일으킨 폭발이 그 블록을 부수는가(기본 예). */
+    public boolean shouldBlockExplode(ChunkLevel level, Pos pos, int state, float power) { return true; }
+
     /** 폭발 밀림 방향 계산에 쓰는 높이(생물은 눈높이, 점화된 TNT 는 발치). */
     public double eyeYForExplosion() { return y() + bbHeight() * 0.85; }
 

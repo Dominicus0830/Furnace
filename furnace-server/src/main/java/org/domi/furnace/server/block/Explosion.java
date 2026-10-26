@@ -111,7 +111,9 @@ public final class Explosion {
         }
         float block = BlockInfo.get().explosionResistance(Blocks.get().blockOf(state));
         float f = Fluids.isEmpty(fluid) ? 0.0F : 100.0F;   // 물·용암 폭발 저항 100
-        return Math.max(block, f);
+        float r = Math.max(block, f);
+        // EntityBasedExplosionDamageCalculator: 원인 엔티티가 있으면 그 엔티티가 저항을 고친다(TNT 수레의 레일)
+        return source != null ? source.blockExplosionResistance(level, pos, state, r) : r;
     }
 
     /** Explosion.explode(): 부서질 칸과 엔티티 피해·밀림. */
@@ -196,7 +198,9 @@ public final class Explosion {
         return new double[] {dx, dy, dz, d10};
     }
 
-    protected boolean shouldBlockExplode(Pos pos, int state, float power) { return true; }
+    protected boolean shouldBlockExplode(Pos pos, int state, float power) {
+        return calculator != null || source == null || source.shouldBlockExplode(level, pos, state, power);
+    }
 
     private void hurtTarget(Object t, float damage) {
         Mob attacker = source instanceof Mob m ? m : (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt && tnt.getOwner() instanceof Mob m2 ? m2 : null);
