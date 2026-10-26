@@ -644,7 +644,9 @@ public final class Region {
             p.tickCooldowns();
             p.tickRiding();
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
-            if ((processMoves(p) || p.vehicle() != null) && level != null) level.playerMoved(p);
+            boolean moved = processMoves(p);
+            if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
+            if (moved) checkInsideCampfires(p);
             p.drainPending();
             tickVitals(p);
             org.domi.furnace.server.map.MapItems.tick(p, MapTerrain::new, p.dimension(), world.dayTime());   // Inventory.tick 의 지도 + 갱신 패킷
@@ -1120,6 +1122,23 @@ public final class Region {
         }
         var adv = p.advancements();
         if (adv != null) adv.tickPlayer();
+    }
+
+    /**
+     * Entity.checkInsideBlocks 중 모닥불만(바닐라 handleMovePlayer 의 player.move 뒤): 몸통(1e-7 안쪽)이 걸친 칸의 켜진 모닥불이
+     * 플레이어에게 불 피해를 준다. 나머지 블록의 entityInside 는 플레이어에게 아직 연결되지 않았다.
+     */
+    private void checkInsideCampfires(Player p) {
+        if (level == null || p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
+        double h = p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        int x0 = (int) Math.floor(p.x() - 0.3 + 1.0E-7), x1 = (int) Math.floor(p.x() + 0.3 - 1.0E-7);
+        int y0 = (int) Math.floor(p.y() + 1.0E-7), y1 = (int) Math.floor(p.y() + h - 1.0E-7);
+        int z0 = (int) Math.floor(p.z() - 0.3 + 1.0E-7), z1 = (int) Math.floor(p.z() + 0.3 - 1.0E-7);
+        if (!level.hasChunksAt(x0, z0, x1, z1)) return;
+        for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
+            int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
+            if (org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.CampfireBlock cf) cf.entityInsidePlayer(s, p.vitals());
+        }
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */

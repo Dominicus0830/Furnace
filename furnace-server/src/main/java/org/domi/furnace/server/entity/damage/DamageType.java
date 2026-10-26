@@ -20,7 +20,8 @@ public enum DamageType {
     EXPLOSION("explosion", "explosion", 0.1f, false, false, false, false, false, false, false),
     PLAYER_EXPLOSION("player_explosion", "explosion.player", 0.1f, false, false, false, false, false, false, false),
     MOB_PROJECTILE("mob_projectile", "mob", 0.1f, false, false, false, false, false, false, false),
-    WITHER("wither", "wither", 0.0f, false, true, false, false, false, false, false);
+    WITHER("wither", "wither", 0.0f, false, true, false, false, false, false, false),
+    CAMPFIRE("campfire", "inFire", 0.1f, false, false, false, false, false, false, false);
 
     private final String key;
     private final String msgId;
@@ -74,6 +75,9 @@ public enum DamageType {
     public boolean bypassesEffects() { return this == STARVE; }
     /** 태그 bypasses_resistance(허공·/kill): 저항 효과가 줄이지 못한다. */
     public boolean bypassesResistance() { return this == OUT_OF_WORLD || this == GENERIC_KILL; }
+
+    /** 태그 is_fire(불·용암·모닥불 …): 화염 저항이 막는다. */
+    public boolean isFire() { return isInTag("minecraft:is_fire"); }
 
     /** 태그 panic_causes 에 들어 있나. */
     public boolean isPanicCause() { return isInTag("minecraft:panic_causes"); }

@@ -349,6 +349,7 @@ public final class PlayerVitals {
     /** 바닐라 Player.isInvulnerableTo(+ Entity): 무적 플래그·게임룰(낙하·익사 피해). */
     private boolean isInvulnerableTo(DamageType type) {
         if (invulnerableFlag && !type.bypassesInvulnerability()) return true;
+        if (effects.containsKey(MobEffect.FIRE_RESISTANCE) && type.isFire()) return true;   // LivingEntity.hurt: 화염 저항
         if (type.isDrowning()) return !env.gameRule("drowningDamage");
         if (type.isFall()) return !env.gameRule("fallDamage");
         return false;

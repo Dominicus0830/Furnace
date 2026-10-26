@@ -47,12 +47,17 @@ public class CampfireBlock extends BaseEntityBlock {
         return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 
-    /** entityInside: 켜져 있으면 생물에게 불 피해(fire_damage). TODO(플레이어): 플레이어는 아직 블록 안 판정(Entity.checkInsideBlocks)을 받지 않는다. */
+    /** entityInside: 켜져 있으면 생물에게 불 피해(fire_damage). 플레이어는 Region 이 이동할 때 {@link #entityInsidePlayer} 로. */
     @Override
     public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
         if (LIT.is(state) && entity instanceof org.domi.furnace.server.entity.LivingEntity) {
             entity.hurt(org.domi.furnace.server.entity.Entity.Damage.IN_FIRE, (float) fireDamage);
         }
+    }
+
+    /** entityInside 의 플레이어 쪽(플레이어는 Entity 가 아니다): 켜져 있으면 campfire 피해 fire_damage. */
+    public void entityInsidePlayer(int state, org.domi.furnace.server.entity.PlayerVitals vitals) {
+        if (LIT.is(state)) vitals.hurt(org.domi.furnace.server.entity.damage.DamageType.CAMPFIRE, (float) fireDamage);
     }
 
     @Override
