@@ -27,6 +27,12 @@ application {
     applicationDefaultJvmArgs = listOf("-Xmx6G")
 }
 
+tasks.named<JavaExec>("run") {
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
     enableAssertions = true

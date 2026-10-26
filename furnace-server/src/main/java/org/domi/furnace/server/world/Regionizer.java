@@ -299,7 +299,7 @@ public final class Regionizer {
     // ------------------------------------------------------------------ 틱 스케줄
 
     /** -Dfurnace.tickstats=true: region 틱 간격·소요 시간을 100틱마다 p50/p95/최대로 기록한다(끊김 진단용). */
-    private static final boolean STATS = Boolean.getBoolean("furnace.tickstats");
+    private static final boolean STATS = Boolean.getBoolean("furnace.tickstats") || System.getenv("FURNACE_TICKSTATS") != null;
     private final java.util.concurrent.ConcurrentHashMap<Integer, long[]> tickStats = new java.util.concurrent.ConcurrentHashMap<>();
 
     private void recordTick(Region r, long start, long end) {
