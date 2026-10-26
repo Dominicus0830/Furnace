@@ -1,6 +1,6 @@
 // 바닐라 EndPortalBlock: 엔드 차원문. 안에 들어온 엔티티를 엔드(또는 엔드에서 오버월드)로 보낸다.
-// 엔드로 가면 (100, 50, 0) 아래에 흑요석 단상을 만들고 서쪽을 보게 하며, 오버월드로 가면 월드 스폰 위 첫 빈 칸으로 간다.
-// TODO(차원 호스팅): 플레이어 이동(엔드의 크레딧·리스폰 위치 귀환)은 서버가 다른 차원 World 를 띄워야 연결된다.
+// 엔드로 가면 (100, 50, 0) 아래에 흑요석 단상을 만들고 서쪽을 보게 하며(플레이어는 한 칸 아래), 오버월드로 가면 월드 스폰 위 첫 빈 칸으로 간다.
+// 플레이어가 엔드에서 나갈 때: 크레딧을 본 적 없으면 크레딧(Region), 있으면 리스폰 위치(findRespawnPositionAndUseSpawnBlock)로 — 둘 다 Region 이 맡는다.
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +10,8 @@ import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.DimensionTransition;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.Portal;
+import org.domi.furnace.server.entity.PortalTravel;
+import org.domi.furnace.server.entity.Traveler;
 import org.domi.furnace.server.world.gen.feature.EndPlatformFeature;
 
 public class EndPortalBlock extends BaseEntityBlock implements Portal {
@@ -37,28 +39,31 @@ public class EndPortalBlock extends BaseEntityBlock implements Portal {
     /** 이 레벨에서 포털이 보내는 차원(엔드면 오버월드, 그 밖은 엔드). */
     public static String targetDimension(String from) { return THE_END.equals(from) ? OVERWORLD : THE_END; }
 
+    /**
+     * getPortalDestination 의 원천 쪽: 목적 차원과 목적 쪽 계산. 엔드로 가면 단상(5×5, 반경 2)과 도착 칸, 오버월드로 가면 공유 스폰 칸
+     * (목적 레벨의 스폰을 써야 하므로 중심은 complete 에서 다시 본다 — 미리 올릴 범위는 원천 레벨이 아는 스폰 칸).
+     * 플레이어가 오버월드로 나가는 경우는 Region 이 리스폰 위치로 처리한다(여기 오지 않는다).
+     */
     @Override
-    public DimensionTransition getPortalDestination(ChunkLevel level, Entity entity, Pos pos) {
+    public PortalTravel prepareTravel(ChunkLevel level, Traveler t, Pos pos) {
         String key = targetDimension(level.dimension());
-        ChunkLevel target = level.levelFor(key);
-        if (target == null) return null;
         boolean toEnd = THE_END.equals(key);
-        float yRot = entity.yRot();
-        double x, y, z;
         if (toEnd) {
-            x = END_SPAWN_POINT.x() + 0.5;
-            y = END_SPAWN_POINT.y();
-            z = END_SPAWN_POINT.z() + 0.5;
-            EndPlatformFeature.createEndPlatform(target, new Pos(END_SPAWN_POINT.x(), END_SPAWN_POINT.y() - 1, END_SPAWN_POINT.z()), true);
-            yRot = WEST_YROT;
-        } else {
-            // Entity.adjustSpawnLocation: 공유 스폰 칸의 MOTION_BLOCKING_NO_LEAVES 높이 위, 바닥 가운데
-            int[] spawn = target.sharedSpawnPos();
-            x = spawn[0] + 0.5;
-            y = target.getMotionBlockingNoLeavesHeight(spawn[0], spawn[2]);
-            z = spawn[2] + 0.5;
+            return new PortalTravel(key, END_SPAWN_POINT.x(), END_SPAWN_POINT.z(), 0, 2, target -> {
+                // EndPlatformFeature.createEndPlatform(target, BlockPos.containing(spawn).below(), true), 서쪽, 플레이어는 1 아래
+                double x = END_SPAWN_POINT.x() + 0.5, y = END_SPAWN_POINT.y(), z = END_SPAWN_POINT.z() + 0.5;
+                EndPlatformFeature.createEndPlatform(target, new Pos(END_SPAWN_POINT.x(), END_SPAWN_POINT.y() - 1, END_SPAWN_POINT.z()), true);
+                if (t.isPlayer()) y -= 1.0;
+                return DimensionTransition.portal(target, x, y, z, t.vx(), t.vy(), t.vz(), WEST_YROT, t.xRot());
+            });
         }
-        return new DimensionTransition(target, x, y, z, entity.vx(), entity.vy(), entity.vz(), yRot, entity.xRot());
+        int[] spawn = level.sharedSpawnPos();
+        return new PortalTravel(key, spawn[0], spawn[2], 0, 0, target -> {
+            // Entity.adjustSpawnLocation: 공유 스폰 칸의 MOTION_BLOCKING_NO_LEAVES 높이 위, 바닥 가운데
+            int[] sp = target.sharedSpawnPos();
+            double x = sp[0] + 0.5, y = target.getMotionBlockingNoLeavesHeight(sp[0], sp[2]), z = sp[2] + 0.5;
+            return DimensionTransition.portal(target, x, y, z, t.vx(), t.vy(), t.vz(), t.yRot(), t.xRot());
+        });
     }
 
     /** 플레이어가 엔드로 갈 때의 도착 위치: 단상을 만들고 END_SPAWN_POINT 한 칸 아래(바닐라는 플레이어만 1 내린다), 서쪽. */

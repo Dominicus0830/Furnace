@@ -57,7 +57,7 @@ public final class LocateCommand {
         ResourceOrTagKeyArgument.Result arg = ResourceOrTagKeyArgument.get(c, "structure");
         List<String> ids = resolve(arg);
         if (ids == null) throw ERROR_STRUCTURE_INVALID.create(arg.printable());
-        NoiseWorldSource gen = NoiseWorldSource.of(source.getServer().world().worldSource());
+        NoiseWorldSource gen = NoiseWorldSource.of(source.level().worldSource());
         if (gen == null) throw ERROR_STRUCTURE_NOT_FOUND.create(arg.printable());
         // BlockPos.containing(source.getPosition())
         int ox = (int) Math.floor(source.x()), oy = (int) Math.floor(source.y()), oz = (int) Math.floor(source.z());

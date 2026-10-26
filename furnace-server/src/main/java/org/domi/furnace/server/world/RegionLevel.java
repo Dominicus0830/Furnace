@@ -66,6 +66,14 @@ public final class RegionLevel extends ChunkLevel {
     @Override
     public DimensionType dimensionType() { return world.dimensionType(); }
 
+    /** 이 레벨의 월드. */
+    public World world() { return world; }
+
+    @Override
+    public void afterDimensionTransition(org.domi.furnace.server.entity.DimensionTransition t) {
+        if (t.ticketPos() != null) world.placePortalTicket(t.ticketPos().x(), t.ticketPos().z());
+    }
+
     @Override
     public int minBuildHeight() { return world.dimensionType().minY(); }
 
@@ -212,6 +220,7 @@ public final class RegionLevel extends ChunkLevel {
         java.util.function.LongPredicate entityTicking = k -> chunk((int) (k >> 32), (int) k) != null && blockEntityTicking.test(k);
         trackEntities(entityTicking, inRegion);   // 바닐라 ChunkMap.tick — 청크 틱 끝 방송 뒤
         runBlockEvents();
+        world.tickDragonFight(region, this);   // 바닐라 ServerLevel.tick: 엔티티 틱 바로 앞
         tickEntities(entityTicking);
         tickBlockEntities(blockEntityTicking);
     }

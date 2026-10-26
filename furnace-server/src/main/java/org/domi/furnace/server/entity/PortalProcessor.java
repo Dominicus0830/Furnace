@@ -26,7 +26,22 @@ public final class PortalProcessor {
         return canChangeDimensions && portalTime++ >= portal.getPortalTransitionTime(level, entity);
     }
 
+    /** 플레이어판(대기 시간은 Portal.getPlayerTransitionTime). */
+    public boolean processPlayerPortalTeleportation(ChunkLevel level, boolean invulnerable, boolean canChangeDimensions) {
+        if (!insidePortalThisTick) {
+            portalTime = Math.max(portalTime - 4, 0);
+            return false;
+        }
+        insidePortalThisTick = false;
+        return canChangeDimensions && portalTime++ >= portal.getPlayerTransitionTime(level, invulnerable);
+    }
+
     public DimensionTransition getPortalDestination(ChunkLevel level, Entity entity) { return portal.getPortalDestination(level, entity, entryPosition); }
+
+    /** 원천 쪽 계획(다른 스레드의 목적 레벨로 넘길 때). */
+    public PortalTravel prepareTravel(ChunkLevel level, Traveler traveler) { return portal.prepareTravel(level, traveler, entryPosition); }
+
+    public Portal portal() { return portal; }
 
     public boolean hasExpired() { return portalTime <= 0; }
 

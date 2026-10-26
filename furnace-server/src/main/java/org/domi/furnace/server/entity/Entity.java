@@ -369,7 +369,10 @@ public abstract non-sealed class Entity implements Rider {
     public boolean canUsePortal(boolean allowPassengers) { return (allowPassengers || vehicle == null) && isAlive(); }
 
     /** canChangeDimensions(old, new): 기본은 언제나. */
-    public boolean canChangeDimensions(ChunkLevel from, ChunkLevel to) { return true; }
+    public boolean canChangeDimensions(ChunkLevel from, ChunkLevel to) { return canChangeDimensions(from.dimension(), to.dimension()); }
+
+    /** 차원 이름판(목적 레벨이 다른 스레드 소유일 때). */
+    public boolean canChangeDimensions(String from, String to) { return true; }
 
     /** setAsInsidePortal: 대기 중이면 대기만 다시 채우고, 같은 포털이면 들어온 위치·이번 틱 표시를 갱신, 아니면 새로 시작. */
     public void setAsInsidePortal(Portal portal, Pos pos) {
@@ -383,13 +386,25 @@ public abstract non-sealed class Entity implements Rider {
         }
     }
 
-    /** handlePortal: 대기를 줄이고, 시간이 차면 대기를 걸고 목적지로 넘어간다. 오래 벗어나 있으면 잊는다. */
+    /**
+     * handlePortal: 대기를 줄이고, 시간이 차면 대기를 걸고 목적지로 넘어간다. 오래 벗어나 있으면 잊는다.
+     * 서버(다른 차원이 다른 region 스레드 소유)에서는 원천 쪽 계획만 여기서 만들고 목적 차원 스레드로 넘긴다(travelAcross).
+     */
     protected void handlePortal() {
         if (level == null) return;
         if (portalCooldown > 0) portalCooldown--;
         if (portalProcess == null) return;
         if (portalProcess.processPortalTeleportation(level, this, canUsePortal(false))) {
             setPortalCooldown();
+            var travel = level.dimensionTravel();
+            if (travel != null) {
+                PortalTravel plan = portalProcess.prepareTravel(level, Traveler.of(this));
+                if (plan != null && !plan.targetDimension().equals(level.dimension()) && travel.isLevelEnabled(plan.targetDimension())
+                        && canChangeDimensions(level.dimension(), plan.targetDimension())) {
+                    travelAcross(plan, travel);
+                }
+                return;
+            }
             DimensionTransition t = portalProcess.getPortalDestination(level, this);
             if (t != null) {
                 ChunkLevel target = t.newLevel();
@@ -401,9 +416,45 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     /**
+     * 다른 스레드 소유 차원으로: 승객을 내리고 저장 데이터를 떠서 이쪽은 CHANGED_DIMENSION 으로 뺀 뒤, 목적 region 스레드에서 같은 종류를
+     * 새로 만들어 넣는다(바닐라 changeDimension 의 create + restoreFrom + addDuringTeleport). 목적지가 없으면 원천에 되돌린다.
+     */
+    private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
+        stopRiding();
+        ejectPassengers();
+        final NbtCompound tag = saveWithoutId(new NbtCompound());
+        final int cooldown = portalCooldown;
+        final PortalProcessor process = portalProcess;
+        final String typeName = type.name();
+        final double ox = x, oz = z;
+        setRemoved(RemovalReason.CHANGED_DIMENSION);
+        travel.travel(plan, (target, t) -> {
+            if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 되살린다
+                travel.runAtSource(floor(ox), floor(oz), src -> {
+                    Entity back = Entities.create(src, typeName);
+                    if (back == null) return;
+                    back.load(tag);
+                    back.portalCooldown = cooldown;
+                    back.portalProcess = process;
+                    src.addFreshEntity(back);
+                });
+                return;
+            }
+            Entity e = Entities.create(target, typeName);
+            if (e == null) return;
+            e.load(tag);
+            e.portalCooldown = cooldown;
+            e.portalProcess = process;
+            e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
+            e.setDeltaMovement(t.vx(), t.vy(), t.vz());
+            target.addFreshEntity(e);
+            target.afterDimensionTransition(t);
+        });
+    }
+
+    /**
      * changeDimension: 같은 차원이면 제자리 이동, 다른 차원이면 같은 종류를 새로 만들어 저장 데이터를 옮기고(restoreFrom) 이쪽은
-     * CHANGED_DIMENSION 으로 뺀다. 승객은 내려놓는다.
-     * TODO(차원·스레드): 다른 차원 레벨은 다른 region 스레드 소유다 — 다중 차원 호스팅이 생기면 대상 스레드로 넘겨 넣어야 한다.
+     * CHANGED_DIMENSION 으로 뺀다. 승객은 내려놓는다. 목적 레벨을 같은 스레드에서 쓸 수 있을 때(시험 레벨)의 경로.
      */
     public Entity changeDimension(DimensionTransition t) {
         if (isRemoved()) return null;
@@ -419,6 +470,7 @@ public abstract non-sealed class Entity implements Rider {
         e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
         if (e != this) target.addFreshEntity(e);
+        target.afterDimensionTransition(t);
         return e;
     }
 

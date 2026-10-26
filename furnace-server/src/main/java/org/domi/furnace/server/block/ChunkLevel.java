@@ -244,6 +244,12 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public int maxBuildHeight() { return dimensionType().maxY(); }
 
+    /** 차원 이동 도착 뒤 처리(포털 티켓). 서버 레벨이 티켓을 건다 — 시험 레벨은 아무것도. */
+    public void afterDimensionTransition(org.domi.furnace.server.entity.DimensionTransition t) {}
+
+    /** 다른 스레드 소유 차원으로 옮기는 경로(시험 레벨이면 null). */
+    public LevelServices.DimensionTravel dimensionTravel() { return services().dimensionTravel(); }
+
     /** 이 레벨의 차원 타입. */
     public org.domi.furnace.server.world.DimensionType dimensionType() { return services().dimensionType(); }
 
@@ -930,6 +936,19 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean withinBorder(Pos pos) { return services().withinBorder(pos.x(), pos.z()); }
 
+    public boolean withinBorder(int x, int z) { return services().withinBorder(x, z); }
+
+    /** 보더 {minX, minZ, maxX, maxZ}. */
+    public double[] borderBounds() { return services().borderBounds(); }
+
+    /** WorldBorder.clampToBounds(x, y, z): BlockPos.containing(clamp(x, minX, maxX − 1), y, clamp(z, minZ, maxZ − 1)). */
+    public Pos clampToBorder(double x, double y, double z) {
+        double[] b = borderBounds();
+        return new Pos(Entity.floor(Math.clamp(x, b[0], b[2] - 1.0)), Entity.floor(y), Entity.floor(Math.clamp(z, b[1], b[3] - 1.0)));
+    }
+
+    public Pos clampToBorder(Pos p) { return clampToBorder(p.x(), p.y(), p.z()); }
+
     @Override
     public void setBlockEntity(BlockEntity be) {
         Pos pos = be.pos();
@@ -1615,6 +1634,11 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 플레이어가 나갔다 — 보는 목록에서 뺀다(패킷 없이). */
     public void playerLeft(Player p) {
         for (Entity e : entities.all()) if (e.tracker != null) e.tracker.removePlayer(p);
+    }
+
+    /** 플레이어가 다른 차원으로 갔다 — 추적만 지운다(클라이언트는 리스폰 패킷에서 엔티티를 모두 버리므로 제거 패킷은 보내지 않는다). */
+    public void playerChangedDimension(Player p) {
+        for (Entity e : entities.all()) if (e.tracker != null) e.tracker.forgetPlayer(p);
     }
 
     // ------------------------------------------------------------------ 엔티티 저장(entities/ — 바닐라 EntityStorage)

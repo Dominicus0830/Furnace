@@ -808,6 +808,51 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (t != null) t.accept(new double[] {x, y, z});
     }
 
+    // ------------------------------------------------------------------ 포털·차원 이동(region 스레드 전용 — 옮기는 동안은 어느 region 에도 없다)
+
+    /** Player.getDimensionChangingDelay: 넘어간 뒤 포털을 다시 못 쓰는 틱. */
+    public static final int DIMENSION_CHANGING_DELAY = 10;
+    public int portalCooldown;
+    private PortalProcessor portalProcess;
+    /** ServerPlayer.seenCredits(저장)·wonGame(크레딧 화면 중). */
+    public boolean seenCredits;
+    public volatile boolean wonGame;
+
+    public PortalProcessor portalProcess() { return portalProcess; }
+
+    public void portalProcess(PortalProcessor p) { this.portalProcess = p; }
+
+    public boolean isOnPortalCooldown() { return portalCooldown > 0; }
+
+    /** Entity.setAsInsidePortal: 대기 중이면 대기만 다시 채우고, 같은 포털이면 위치·이번 틱 표시를 갱신, 아니면 새로 시작. */
+    public void setAsInsidePortal(Portal portal, org.domi.furnace.server.block.Pos pos) {
+        if (isOnPortalCooldown()) {
+            portalCooldown = DIMENSION_CHANGING_DELAY;
+        } else if (portalProcess != null && portalProcess.isSamePortal(portal)) {
+            portalProcess.updateEntryPosition(pos);
+            portalProcess.setAsInsidePortalThisTick(true);
+        } else {
+            portalProcess = new PortalProcessor(portal, pos);
+        }
+    }
+
+    /** 차원 이동 도착(목적 월드, 목적지, 그때의 포털 대기) — 연결이 패킷을 보내고 목적 region 에 넣는다. */
+    public interface DimensionChanger {
+        void change(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown);
+    }
+
+    private volatile DimensionChanger dimensionChanger;
+
+    public void dimensionChanger(DimensionChanger c) { this.dimensionChanger = c; }
+
+    /** 목적 region 스레드에서: 연결 스레드로 넘긴다(연결이 없으면 거짓). */
+    public boolean changeDimension(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown) {
+        var c = dimensionChanger;
+        if (c == null) return false;
+        c.change(target, t, portalCooldown);
+        return true;
+    }
+
     /** 마지막으로 받은 이동 패킷의 이동량(블록/틱) — 던지기 속도에 더해진다(바닐라 getKnownMovement). */
     public double[] knownMovement() { return new double[] {moveDx, moveDy, moveDz}; }
 

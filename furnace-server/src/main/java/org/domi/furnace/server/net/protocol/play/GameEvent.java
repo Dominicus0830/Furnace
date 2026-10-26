@@ -12,7 +12,8 @@ public record GameEvent(int event, float value) implements Packet {
     public static final int START_WAITING_FOR_CHUNKS = 13;
     public static final int NO_RESPAWN_BLOCK_AVAILABLE = 0;
     public static final int START_RAINING = 1;
-    public static final int CHANGE_GAME_MODE = 3;      // 바닐라 ClientboundGameEventPacket.START_RAINING
+    public static final int CHANGE_GAME_MODE = 3;
+    public static final int WIN_GAME = 4;      // 바닐라 ClientboundGameEventPacket.START_RAINING
     public static final int STOP_RAINING = 2;
     public static final int RAIN_LEVEL_CHANGE = 7;
     public static final int THUNDER_LEVEL_CHANGE = 8;

@@ -60,7 +60,7 @@ public final class SummonCommand {
         if (!EntityTypes.isKnown(id) || !summonable(id)) throw new SimpleCommandExceptionType(Text.translatable("entity.not_summonable", id)).create();
         int bx = (int) Math.floor(pos[0]), by = (int) Math.floor(pos[1]), bz = (int) Math.floor(pos[2]);
         if (by < -20000000 || by >= 20000000 || bx < -30000000 || bz < -30000000 || bx >= 30000000 || bz >= 30000000) throw INVALID_POSITION.create();
-        source.getServer().world().runAt(pos[0], pos[2], region -> {
+        source.level().runAt(pos[0], pos[2], region -> {
             var level = region.level();
             try {
                 NbtCompound tag = nbt.copy();

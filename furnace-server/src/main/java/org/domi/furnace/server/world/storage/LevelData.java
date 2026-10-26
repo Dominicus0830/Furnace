@@ -49,6 +49,15 @@ public final class LevelData {
     public boolean wasModded;
     /** 월드 보더 상태(Border* 키 9개). 새 월드는 크기와 같은 보간 목표로 시작한다(바닐라가 첫 저장 때 쓰는 값). */
     public WorldBorder.Settings worldBorder = new WorldBorder().createSettings();
+    /** 엔드 드래곤 전투(EndDragonFight.Data) — 엔드 월드가 저장 때 갈아 끼운다. null 이면 읽은 값(없으면 기본값). */
+    public volatile NbtCompound dragonFight;
+
+    /** 읽은(또는 기본) 드래곤 전투 상태. */
+    public NbtCompound dragonFightData() {
+        NbtCompound d = dragonFight;
+        if (d != null) return d;
+        return raw.contains("DragonFight") ? raw.getCompound("DragonFight").copy() : defaultDragonFight(seed);
+    }
 
     private LevelData(NbtCompound raw) {
         this.raw = raw;
@@ -197,7 +206,9 @@ public final class LevelData {
         putIfAbsent(d, "WanderingTraderSpawnChance", 25);
         putIfAbsent(d, "CustomBossEvents", new NbtCompound());
         putIfAbsent(d, "ScheduledEvents", new NbtList(NbtIo.TAG_END));
-        if (!d.contains("DragonFight")) d.putCompound("DragonFight", defaultDragonFight(seed));
+        NbtCompound fight = dragonFight;
+        if (fight != null) d.putCompound("DragonFight", fight);
+        else if (!d.contains("DragonFight")) d.putCompound("DragonFight", defaultDragonFight(seed));
         return d;
     }
 

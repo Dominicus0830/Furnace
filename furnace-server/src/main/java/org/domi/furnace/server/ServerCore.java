@@ -460,6 +460,7 @@ public final class ServerCore {
         public int gameRuleInt(String name) { return gameRules.getInt(name); }
         public int difficulty() { return levelData.difficulty.id(); }
         public boolean withinBorder(int x, int z) { return border.isWithinBounds(x, z); }
+        public double[] borderBounds() { return new double[] {border.getMinX(), border.getMinZ(), border.getMaxX(), border.getMaxZ()}; }
         public boolean isRaining() { return clock.isRaining(); }
         public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
         public float rainLevel() { return clock.rainLevel(); }
@@ -467,6 +468,7 @@ public final class ServerCore {
         public long dayTime() { return clock.dayTime(); }
         public long gameTime() { return clock.gameTime(); }
         public String dimension() { return "minecraft:overworld"; }
+        public org.domi.furnace.server.block.LevelServices.DimensionTravel dimensionTravel() { return world.travelService(); }
         public boolean ultraWarm() { return false; }
         public int maxChainedNeighborUpdates() { return settings.get().maxChainedNeighborUpdates; }
         public void forEachPlayer(java.util.function.Consumer<Player> c) { world.forEachPlayerHere(c); }
@@ -555,6 +557,7 @@ public final class ServerCore {
         @Override public float rainLevel() { return sky() ? super.rainLevel() : 0f; }
         @Override public float thunderLevel() { return sky() ? super.thunderLevel() : 0f; }
         @Override public void forEachPlayer(java.util.function.Consumer<Player> c) { w.forEachPlayerHere(c); }
+        @Override public org.domi.furnace.server.block.LevelServices.DimensionTravel dimensionTravel() { return w.travelService(); }
         @Override public String biomeAt(int x, int y, int z) { return lw.biomeAt(x, y, z); }
         @Override public boolean biomeIs(int x, int y, int z, String tag) {
             String b = lw.biomeAt(x, y, z);

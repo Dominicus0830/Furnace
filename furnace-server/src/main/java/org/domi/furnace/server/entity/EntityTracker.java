@@ -135,6 +135,11 @@ public final class EntityTracker {
         if (seenBy.remove(p) != null) removePairing(p);
     }
 
+    /** 패킷 없이 보는 사람에서 뺀다(차원 이동). */
+    public void forgetPlayer(Player p) {
+        if (seenBy.remove(p) != null) entity.onStopSeenBy(p);
+    }
+
     /** addPairing: 스폰 묶음(add_entity, 데이터, 속도). */
     private void addPairing(Player p) {
         List<Packet> list = new ArrayList<>(4);

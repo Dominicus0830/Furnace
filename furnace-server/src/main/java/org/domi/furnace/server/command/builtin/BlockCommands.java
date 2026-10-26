@@ -57,7 +57,7 @@ public final class BlockCommands {
         int[] p = BlockPosArgument.getBlockPos(c, "pos");
         BlockStateArgument.BlockInput input = BlockStateArgument.getBlock(c, "block");
         Pos pos = new Pos(p[0], p[1], p[2]);
-        source.getServer().world().runAt(pos.x(), pos.z(), region -> {
+        source.level().runAt(pos.x(), pos.z(), region -> {
             try {
                 RegionLevel level = region.level();
                 checkLoaded(level, pos);
@@ -106,7 +106,7 @@ public final class BlockCommands {
         Pos from = new Pos(a[0], a[1], a[2]), to = new Pos(b[0], b[1], b[2]);
         int minX = Math.min(a[0], b[0]), minY = Math.min(a[1], b[1]), minZ = Math.min(a[2], b[2]);
         int maxX = Math.max(a[0], b[0]), maxY = Math.max(a[1], b[1]), maxZ = Math.max(a[2], b[2]);
-        source.getServer().world().runAt(minX, minZ, region -> {
+        source.level().runAt(minX, minZ, region -> {
             try {
                 RegionLevel level = region.level();
                 checkLoaded(level, from);

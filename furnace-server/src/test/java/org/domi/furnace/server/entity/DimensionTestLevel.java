@@ -19,6 +19,8 @@ public class DimensionTestLevel extends ChunkLevel {
     long time;
     Player player;
     long seed;
+    /** 차원 타입(높이·좌표 비). 기본은 오버월드. */
+    org.domi.furnace.server.world.DimensionType type = org.domi.furnace.server.world.DimensionType.OVERWORLD;
 
     public DimensionTestLevel(String dimension) {
         super(1000000);
@@ -34,7 +36,11 @@ public class DimensionTestLevel extends ChunkLevel {
     @Override
     protected ChunkColumn chunk(int x, int z) {
         if (Math.abs(x) > 8 || Math.abs(z) > 8) return null;
-        return chunks.computeIfAbsent((long) x << 32 | (z & 0xFFFFFFFFL), k -> GEN.generate(x, z));
+        return chunks.computeIfAbsent((long) x << 32 | (z & 0xFFFFFFFFL), k -> {
+            ChunkColumn c = GEN.generate(x, z);
+            c.poi(org.domi.furnace.server.world.poi.PoiManager.restore(c, x, z, null));   // 지옥문 POI 를 기록한다
+            return c;
+        });
     }
 
     @Override protected void markDirty(int x, int z) {}
@@ -45,6 +51,7 @@ public class DimensionTestLevel extends ChunkLevel {
     protected LevelServices services() {
         return new LevelServices.Delegating(LevelServices.DEFAULT) {
             @Override public String dimension() { return dimension; }
+            @Override public org.domi.furnace.server.world.DimensionType dimensionType() { return type; }
             @Override public long gameTime() { return time; }
             @Override public long seed() { return seed; }
             @Override public ChunkLevel otherLevel(String d) { return others.get(d); }

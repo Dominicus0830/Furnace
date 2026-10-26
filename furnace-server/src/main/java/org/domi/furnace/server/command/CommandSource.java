@@ -74,6 +74,15 @@ public final class CommandSource {
         else server.sendSystemMessage(bound.decorate(message.decoratedContent()));
     }
 
+    /** CommandSourceStack.getLevel: 플레이어면 그 플레이어가 있는 차원, 콘솔이면 오버월드. */
+    public org.domi.furnace.server.world.World level() {
+        if (player != null) {
+            var w = server.world(player.dimension());
+            if (w != null) return w;
+        }
+        return server.world();
+    }
+
     public CommandSource withSilent() {
         return new CommandSource(server, player, textName, displayName, permissionLevel, true, x, y, z, yRot, xRot);
     }

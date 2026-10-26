@@ -13,6 +13,9 @@ public interface LevelServices {
 
     boolean withinBorder(int x, int z);
 
+    /** 보더 {minX, minZ, maxX, maxZ}(기본은 최대 크기). */
+    default double[] borderBounds() { return new double[] {-2.9999984E7, -2.9999984E7, 2.9999984E7, 2.9999984E7}; }
+
     boolean isRaining();
 
     boolean isThundering();
@@ -45,6 +48,27 @@ public interface LevelServices {
 
     /** MinecraftServer.getLevel(key): 이 서버가 띄운 다른 차원의 레벨. 띄우지 않았으면 null(바닐라도 null 이면 포털이 아무것도 안 한다). */
     default ChunkLevel otherLevel(String dimension) { return null; }
+
+    /**
+     * 다른 region 스레드 소유의 차원으로 옮기는 서버 쪽 경로(없으면 null — 시험 레벨은 otherLevel 로 같은 스레드에서 옮긴다).
+     */
+    default DimensionTravel dimensionTravel() { return null; }
+
+    /** 차원 이동 경로(World 가 구현). */
+    interface DimensionTravel {
+        /** MinecraftServer.isLevelEnabled + 그 차원을 띄웠는가. */
+        boolean isLevelEnabled(String dimension);
+
+        /**
+         * 목적 차원에서 plan.complete 로 목적지를 확정하고 arrive(목적 레벨, 목적지)를 목적 레벨 스레드에서 부른다.
+         * 목적 차원이 없거나 목적지가 없으면 arrive(null, null) — 부르는 쪽이 되돌린다. 어느 스레드에서 불러도 된다.
+         */
+        void travel(org.domi.furnace.server.entity.PortalTravel plan,
+                    java.util.function.BiConsumer<ChunkLevel, org.domi.furnace.server.entity.DimensionTransition> arrive);
+
+        /** 원천 레벨 스레드에서: 되돌릴 때 그 칸 주인 region 에서 task(그 레벨). */
+        void runAtSource(int blockX, int blockZ, java.util.function.Consumer<ChunkLevel> task);
+    }
 
     /** 그 칸의 바이옴(Level.getBiome — 확대 지터 포함)이 태그에 드는가. 모르면 거짓. */
     default boolean biomeIs(int x, int y, int z, String tag) { return false; }
@@ -132,6 +156,7 @@ public interface LevelServices {
         public int gameRuleInt(String name) { return d.gameRuleInt(name); }
         public int difficulty() { return d.difficulty(); }
         public boolean withinBorder(int x, int z) { return d.withinBorder(x, z); }
+        public double[] borderBounds() { return d.borderBounds(); }
         public boolean isRaining() { return d.isRaining(); }
         public boolean isThundering() { return d.isThundering(); }
         public float rainLevel() { return d.rainLevel(); }
@@ -145,6 +170,7 @@ public interface LevelServices {
         public int maxChainedNeighborUpdates() { return d.maxChainedNeighborUpdates(); }
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }
         public ChunkLevel otherLevel(String dimension) { return d.otherLevel(dimension); }
+        public DimensionTravel dimensionTravel() { return d.dimensionTravel(); }
         public java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
                 org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) {
             return d.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);

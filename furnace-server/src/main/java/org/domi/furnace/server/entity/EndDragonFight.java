@@ -26,7 +26,10 @@ public final class EndDragonFight {
     private static final int BAR_PINK = 0, BAR_PROGRESS = 0, FLAG_MUSIC = 2, FLAG_FOG = 4;
     private static final Pos BEAM_CENTER = new Pos(0, 128, 0);
 
-    private final ChunkLevel level;
+    // 엔드 (0,0) 청크를 가진 region 의 레벨 — region 이 합쳐지거나 나뉘면 새 주인이 rebind 한다
+    private ChunkLevel level;
+    /** 매 틱: 보스 바를 보는 플레이어가 있는가 → 드래곤 티켓((0,0) 거리 9)을 건다/뗀다(서버가 단다). */
+    private java.util.function.Consumer<Boolean> ticketHook;
     private final Pos origin;
     private final List<Integer> gateways = new ArrayList<>();
     private final UUID barId = UUID.randomUUID();
@@ -58,6 +61,13 @@ public final class EndDragonFight {
 
     public void skipArenaLoadedCheck() { skipArenaLoadedCheck = true; }
 
+    /** 전투가 보는 레벨을 바꾼다(엔드 중앙 청크의 주인 region 이 바뀌었을 때). */
+    public void rebind(ChunkLevel l) { this.level = l; }
+
+    public ChunkLevel level() { return level; }
+
+    public void ticketHook(java.util.function.Consumer<Boolean> h) { this.ticketHook = h; }
+
     public UUID getDragonUUID() { return dragonUUID; }
 
     public int getCrystalsAlive() { return crystalsAlive; }
@@ -86,6 +96,7 @@ public final class EndDragonFight {
             updatePlayers();
             ticksSinceLastPlayerScan = 0;
         }
+        if (ticketHook != null) ticketHook.accept(!barPlayers.isEmpty());   // addRegionTicket / removeRegionTicket(DRAGON)
         if (barPlayers.isEmpty()) return;
         boolean loaded = isArenaLoaded();
         if (needsStateScanning && loaded) {

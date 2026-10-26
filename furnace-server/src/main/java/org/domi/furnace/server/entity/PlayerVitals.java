@@ -851,6 +851,19 @@ public final class PlayerVitals {
 
     public synchronized boolean respawnForced() { return respawnForced; }
 
+    /** 리스폰 지점의 차원(SpawnDimension). */
+    public synchronized String respawnDimension() { return respawnDimension; }
+
+    /** 능력의 무적(크리에이티브·관전) — 지옥문 대기 시간이 creative delay 가 된다. */
+    public synchronized boolean invulnerableAbility() { return abilities.invulnerable; }
+
+    /** ServerPlayer.changeDimension 끝: lastSentExp = -1, lastSentHealth = -1, lastSentFood = -1 — 다음 틱에 체력·경험치를 다시 보낸다. */
+    public synchronized void resetSentInfo() {
+        lastSentExp = -1;
+        lastSentHealth = -1.0F;
+        lastSentFood = -1;
+    }
+
     public synchronized String lastDeathDimension() { return lastDeathDimension; }
 
     public synchronized int[] lastDeathPos() { return lastDeathPos == null ? null : lastDeathPos.clone(); }

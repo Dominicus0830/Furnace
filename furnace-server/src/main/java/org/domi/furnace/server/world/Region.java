@@ -513,6 +513,7 @@ public final class Region {
         var io = world.ioPool();
         if (io != null) io.execute(org.domi.furnace.server.map.MapStore::saveDirty);   // 지도 데이터는 IO 풀에서(바뀐 것만)
         publishRaids();
+        world.autosaveDragonFight(this);
         var store = world.raidStore();
         if (io != null) io.execute(store::saveIfDirty);   // raids.dat(다른 region 은 마지막으로 올린 스냅샷)
         autosaveEntityQueue = new java.util.ArrayDeque<>(present);
@@ -574,7 +575,7 @@ public final class Region {
         List<Long> drop = null;
         for (long key : present) {
             ChunkPos cp = new ChunkPos(Regionizer.chunkX(key), Regionizer.chunkZ(key));
-            if (!world.subscribers(cp).isEmpty() || world.loadingChunk(key) != null) { evictGrace.remove(cp); continue; }
+            if (!world.subscribers(cp).isEmpty() || world.loadingChunk(key) != null || world.ticketed(key)) { evictGrace.remove(cp); continue; }
             int g = evictGrace.merge(cp, 1, Integer::sum);
             if (g >= world.chunkEvictionGraceTicks()) {
                 if (drop == null) drop = new ArrayList<>();
@@ -687,6 +688,9 @@ public final class Region {
             if (moved) checkInsideCampfires(p);
             p.drainPending();
             tickVitals(p);
+            // Entity.checkInsideBlocks 의 포털 칸 + baseTick 의 handlePortal(차원을 옮기면 이 region 에서 빠진다)
+            if (level != null && checkInsidePortals(p)) { it.remove(); continue; }
+            if (level != null && handlePlayerPortal(p)) { it.remove(); continue; }
             org.domi.furnace.server.map.MapItems.tick(p, MapTerrain::new, p.dimension(), world.dayTime());   // Inventory.tick 의 지도 + 갱신 패킷
             if (p.takeXpDelay > 0) p.takeXpDelay--;
             org.domi.furnace.server.entity.Consuming.tick(p, this);
@@ -1222,6 +1226,145 @@ public final class Region {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             if (org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.CampfireBlock cf) cf.entityInsidePlayer(s, p.vitals());
         }
+    }
+
+    // ------------------------------------------------------------------ 포털·차원 이동(플레이어)
+
+    /**
+     * Entity.checkInsideBlocks 중 포털 칸: 몸통(1e-7 안쪽)이 걸친 지옥문·엔드 포털. 엔드에서 크레딧을 본 적 없이 엔드 포털에 들면
+     * 크레딧을 띄우고 이 region 에서 뺀다(참 — 호출자가 목록에서 지운다).
+     */
+    private boolean checkInsidePortals(Player p) {
+        if (p.vehicle() != null || p.vitals().isDeadOrDying()) return false;   // canUsePortal(false)
+        double h = p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3);
+        int x0 = (int) Math.floor(box.minX() + 1.0E-7), x1 = (int) Math.floor(box.maxX() - 1.0E-7);
+        int y0 = (int) Math.floor(box.minY() + 1.0E-7), y1 = (int) Math.floor(box.maxY() - 1.0E-7);
+        int z0 = (int) Math.floor(box.minZ() + 1.0E-7), z1 = (int) Math.floor(box.maxZ() - 1.0E-7);
+        if (!level.hasChunksAt(x0, z0, x1, z1)) return false;
+        for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
+            var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
+            int s = level.getBlockState(pos);
+            var b = org.domi.furnace.server.block.B.behavior(s);
+            if (b instanceof org.domi.furnace.server.block.types.NetherPortalBlock np) {
+                p.setAsInsidePortal(np, pos);
+            } else if (b instanceof org.domi.furnace.server.block.types.EndPortalBlock ep
+                    && org.domi.furnace.server.block.types.EndPortalBlock.insideShape(box, pos)) {
+                if (world.dimensionType() == DimensionType.END && !p.seenCredits) {
+                    showEndCredits(p);
+                    return true;
+                }
+                p.setAsInsidePortal(ep, pos);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * ServerPlayer.showEndCredits: 레벨에서 빼고(CHANGED_DIMENSION) 크레딧(win_game)을 띄운다. 클라이언트가 client_command 0 을
+     * 보내면 연결이 오버월드로 리스폰시킨다(PlayerList.respawn(keepAll = true)).
+     */
+    private void showEndCredits(Player p) {
+        detachForDimensionChange(p);
+        if (!p.wonGame) {
+            p.wonGame = true;
+            p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(org.domi.furnace.server.net.protocol.play.GameEvent.WIN_GAME, 0.0F));
+            p.seenCredits = true;
+        }
+    }
+
+    /** Entity.handlePortal(플레이어): 시간이 차면 원천 쪽 계획을 만들어 목적 차원으로 보낸다. 보냈으면 참(이 region 에서 빠졌다). */
+    private boolean handlePlayerPortal(Player p) {
+        if (p.portalCooldown > 0) p.portalCooldown--;
+        var pp = p.portalProcess();
+        if (pp == null) return false;
+        boolean canUse = p.vehicle() == null && !p.vitals().isDeadOrDying();
+        if (pp.processPlayerPortalTeleportation(level, p.vitals().invulnerableAbility(), canUse)) {
+            p.portalCooldown = Player.DIMENSION_CHANGING_DELAY;
+            var travel = world.travelService();
+            var plan = pp.prepareTravel(level, org.domi.furnace.server.entity.Traveler.of(p));
+            if (plan == null || plan.targetDimension().equals(world.dimension()) || !travel.isLevelEnabled(plan.targetDimension())) return false;
+            if (world.dimensionType() == DimensionType.END && pp.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock) {
+                plan = respawnTravel(p);   // findRespawnPositionAndUseSpawnBlock(false, DO_NOTHING)
+                if (plan == null) return false;
+            }
+            sendAcross(p, plan);
+            return true;
+        } else if (pp.hasExpired()) {
+            p.portalProcess(null);
+        }
+        return false;
+    }
+
+    /**
+     * 리스폰 위치로 가는 계획(ServerPlayer.findRespawnPositionAndUseSpawnBlock): 강제 스폰 지점이 서 있을 수 있는 칸이면 그 자리,
+     * 아니면 월드 스폰(지점이 있었으면 no_respawn_block). 침대·리스폰 정박기는 아직 없다(ConnectionHandler.requestRespawn 과 같은 규칙).
+     */
+    public org.domi.furnace.server.entity.PortalTravel respawnTravel(Player p) {
+        int[] rp = p.vitals().respawnPos();
+        // 가정: 오버월드가 아닌 리스폰 차원(네더 정박기)은 블록이 아직 없어 "블록 없음"으로 본다
+        boolean forced = p.vitals().respawnForced() && DimensionType.OVERWORLD.levelKey().equals(p.vitals().respawnDimension());
+        float angle = p.vitals().respawnAngle();
+        SpawnPoint spawn = world.defaultSpawn();
+        int cx = rp != null && forced ? rp[0] : spawn.x(), cz = rp != null && forced ? rp[2] : spawn.z();
+        return new org.domi.furnace.server.entity.PortalTravel(DimensionType.OVERWORLD.levelKey(), cx, cz, 0, 0, target -> {
+            if (rp != null && forced) {
+                var attrs = BlockAttrs.get();
+                int a = target.getBlockState(new org.domi.furnace.server.block.Pos(rp[0], rp[1], rp[2]));
+                int b = target.getBlockState(new org.domi.furnace.server.block.Pos(rp[0], rp[1] + 1, rp[2]));
+                if (!attrs.isSolid(a) && !attrs.isLiquid(a) && !attrs.isSolid(b) && !attrs.isLiquid(b)) {
+                    return new org.domi.furnace.server.entity.DimensionTransition(target, rp[0] + 0.5, rp[1] + 0.1, rp[2] + 0.5, 0, 0, 0, angle, 0f);
+                }
+            }
+            return new org.domi.furnace.server.entity.DimensionTransition(target, spawn.playerX(), spawn.playerY(), spawn.playerZ(), 0, 0, 0,
+                    spawn.yaw(), 0f, false, null, rp != null);
+        });
+    }
+
+    /** 이 region 에서 떼어 목적 차원으로 보낸다. 목적지를 못 정하면 이 월드로 되돌린다. */
+    void sendAcross(Player p, org.domi.furnace.server.entity.PortalTravel plan) {
+        final int cooldown = p.portalCooldown;
+        detachForDimensionChange(p);
+        World src = world;
+        src.travelService().travel(plan, (target, t) -> {
+            if (target == null || t == null || !(target instanceof RegionLevel rl) || !p.changeDimension(rl.world(), t, cooldown)) {
+                src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
+            }
+        });
+    }
+
+    /**
+     * 차원을 옮기려고 떼어 낸다(바닐라 removePlayerImmediately(CHANGED_DIMENSION)): 이 월드의 청크 구독·추적을 지우고 주변 관찰자에게서
+     * 엔티티를 지운다. 탭 목록은 그대로(접속자 집합은 서버 전체). 호출자가 players 에서 뺀다.
+     */
+    void detachForDimensionChange(Player p) {
+        world.assertOwns(this);
+        for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
+        p.loadedChunks().clear();
+        p.pendingChunks().clear();
+        p.lastCenter(null);
+        p.queuedCenter(null);
+        for (Integer eid : p.tracked().keySet()) world.removeTracker(eid, p);
+        p.tracked().clear();
+        p.missingTicks().clear();
+        for (Player other : players.values()) {
+            if (stopTracking(other, p.entityId())) other.send(new RemoveEntities(java.util.List.of(p.entityId())));
+        }
+        if (level != null) level.playerChangedDimension(p);
+    }
+
+    /** 이 region 에 있으면 떼어 낸다(다른 차원으로 리스폰할 때 — 연결 스레드가 모든 region 에 묻는다). */
+    public void removeForDimensionChange(Player p) {
+        if (players.remove(p.entityId()) != null) detachForDimensionChange(p);
+    }
+
+    /** 차원 이동 도착(목적 region 스레드): 다음 틱에 체력·경험치를 다시 보내고 편입, 도착 뒤 처리(포털 티켓), 발전 과제(from 이 null 이면 없음 — 죽어서 리스폰). */
+    public void adoptAfterDimensionChange(Player p, org.domi.furnace.server.entity.DimensionTransition t, String fromDimension) {
+        p.vitals().resetSentInfo();
+        adopt(p);
+        if (level != null) level.afterDimensionTransition(t);
+        var adv = p.advancements();
+        if (adv != null && fromDimension != null) adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, world.dimension()});
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */

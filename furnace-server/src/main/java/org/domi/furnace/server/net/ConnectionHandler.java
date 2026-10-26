@@ -882,6 +882,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.player = p;
         // 서버가 플레이어를 옮긴다(엔더 진주 등): 어느 스레드에서 불러도 IO 스레드에서 한다.
         p.teleporter(t -> ctx.executor().execute(() -> teleportPlayer(ctx, t[0], t[1], t[2])));
+        // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
+        p.dimensionChanger((target, t, cooldown) -> ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown)));
+        if (saved != null && saved.root() != null) p.seenCredits = saved.root().getBoolean("seenCredits");
         // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
@@ -2142,7 +2145,42 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** client_command 0: 죽어 있으면 리스폰 지점을 정해(강제 스폰 지점은 그 블록을 소유 region 에서 확인) 리스폰한다. */
     private void requestRespawn(ChannelHandlerContext ctx) {
         Player p = player;
+        if (p != null && p.wonGame && !respawnPending) {   // 크레딧 끝: PlayerList.respawn(player, true, CHANGED_DIMENSION)
+            respawnPending = true;
+            p.wonGame = false;
+            World over = login.core != null ? login.core.world() : world;
+            World end = world;
+            end.runAt(ix, iz, r -> {
+                var plan = r.respawnTravel(p);
+                end.travelService().travel(plan, (level, t) -> ctx.executor().execute(() -> {
+                    respawnPending = false;
+                    if (t == null || !(level instanceof org.domi.furnace.server.world.RegionLevel rl)) {
+                        SpawnPoint spawn = over.defaultSpawn();
+                        finishWinRespawn(ctx, over, new org.domi.furnace.server.entity.DimensionTransition(null, spawn.playerX(), spawn.playerY(),
+                                spawn.playerZ(), 0, 0, 0, spawn.yaw(), 0f));
+                    } else {
+                        finishWinRespawn(ctx, rl.world(), t);
+                    }
+                }));
+            });
+            return;
+        }
         if (p == null || !p.vitals().isDeadOrDying() || respawnPending) return;
+        World over = login.core != null ? login.core.world() : world;
+        if (world != over) {
+            // 다른 차원에서 죽었다: 그 차원 region 에서 떼어 낸 뒤 오버월드로 리스폰(바닐라 PlayerList.respawn — 리스폰 차원 레벨에 새로)
+            respawnPending = true;
+            World from = world;
+            java.util.concurrent.CompletableFuture.allOf(from.forEachRegion(r -> r.removeForDimensionChange(p))
+                    .toArray(new java.util.concurrent.CompletableFuture[0])).whenComplete((v, e) -> ctx.executor().execute(() -> {
+                        respawnPending = false;
+                        respawnFrom = from.dimension();
+                        world = over;
+                        p.dimension(over.dimension());
+                        requestRespawn(ctx);
+                    }));
+            return;
+        }
         respawnPending = true;
         int[] rp = p.vitals().respawnPos();
         SpawnPoint spawn = world.defaultSpawn();
@@ -2165,6 +2203,81 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private boolean respawnPending;
+    /** 다른 차원에서 리스폰해 오는 중이면 원래 차원(리스폰을 다 보낸 뒤 오버월드 region 에 넣는다). */
+    private String respawnFrom;
+
+    /** 바닐라 sendLevelInfo(그 레벨): 보더(오버월드 것) → 시간 → 공유 스폰 → [비] → 청크 대기 → 틱 상태. */
+    private void sendLevelInfo(ChannelHandlerContext ctx, World level) {
+        org.domi.furnace.server.ServerCore core = login.core;
+        send(ctx, core != null ? InitializeBorder.of(core.border()) : InitializeBorder.vanillaDefault());
+        if (core != null) {
+            send(ctx, core.clock().timePacket(core.gameRules()));
+        } else {
+            send(ctx, new SetTime(level.gameTime(), level.dayTime()));
+        }
+        SpawnPoint spawn = level.defaultSpawn();
+        send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
+        if (core != null && core.clock().isRaining() && level.dimensionType().hasSkyLight()) {
+            send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
+            send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, core.clock().rainLevel()));
+            send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, core.clock().thunderLevel()));
+        }
+        send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(20.0f, false));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(0));
+    }
+
+    private int dimensionTypeIndex(World w) {
+        return Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", w.dimensionType().typeKey()));
+    }
+
+    /**
+     * 바닐라 ServerPlayer.changeDimension(다른 차원): [리스폰 블록 없음] → respawn(데이터 모두 보존) → 난이도 → 권한 → 위치 →
+     * 청크 중심(addDuringTeleport) → 능력 → sendLevelInfo → sendAllPlayerInfo(인벤토리·든 칸) → 효과 → 포털 소리. 그 뒤 목적 region 이
+     * 편입하고(다음 틱부터 청크·체력·경험치) 포털 티켓을 건다. 플레이어는 원천 region 에서 이미 떼어졌다.
+     */
+    private void applyDimensionChange(ChannelHandlerContext ctx, World target, org.domi.furnace.server.entity.DimensionTransition t, int portalCooldown) {
+        Player p = player;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) return;
+        org.domi.furnace.server.ServerCore core = login.core;
+        var vitals = p.vitals();
+        String from = world.dimension();
+        if (t.missingRespawnBlock()) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
+        var prev = vitals.previousGameMode();
+        long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
+        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), portalCooldown,
+                org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ALL));
+        if (core != null) {
+            send(ctx, new ChangeDifficulty(core.levelData().difficulty.id(), core.levelData().difficultyLocked));
+            core.sendPlayerPermissionLevel(p);
+        } else {
+            send(ctx, new ChangeDifficulty(1, false));   // 서버 핸들 없이(시험): 접속 때와 같은 바닐라 기본 easy
+        }
+        world = target;
+        p.dimension(target.dimension());
+        placeAfterDimensionChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
+        send(ctx, vitals.abilitiesPacket());
+        sendLevelInfo(ctx, target);
+        synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
+        send(ctx, new SetHeldSlot(inv.selected()));
+        for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
+        if (t.portalSound()) send(ctx, new org.domi.furnace.server.net.protocol.play.LevelEventPacket(1032, 0, 0, 0, 0, false));
+        target.runAt(t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, t, from));
+    }
+
+    /** connection.teleport + addDuringTeleport 의 청크 중심: 이동 대기열을 비우고 위치를 보낸 뒤 새 청크 중심을 알린다. */
+    private void placeAfterDimensionChange(ChannelHandlerContext ctx, Player p, World target, double x, double y, double z, float yaw, float pitch) {
+        p.clearMoves();
+        ix = x; iy = y; iz = z; iyaw = yaw; ipitch = pitch; ig = false;
+        correctionTpId = ++teleportId;
+        send(ctx, new SyncPlayerPosition(x, y, z, yaw, pitch, correctionTpId));
+        p.pushTeleport(x, y, z);
+        publishInput(p);
+        ChunkPos c = ChunkPos.ofBlock(x, z);
+        send(ctx, new SetCenterChunk(c.x(), c.z()));
+        p.lastCenter(c);   // 어느 region 에도 없는 동안이라 연결 스레드가 써도 된다 — 편입 뒤 region 이 이 중심으로 청크를 보낸다
+    }
 
     /** 바닐라 PlayerList.respawn 이 보내는 순서대로 — 능력, (스폰 블록 없음), Respawn, 위치, 스폰 지점, 난이도, 경험치, 레벨 정보, 권한, 인벤토리. */
     private void finishRespawn(ChannelHandlerContext ctx, double x, double y, double z, float yaw, boolean missingRespawnBlock, boolean worldSpawn) {
@@ -2220,6 +2333,43 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (core != null) core.sendPlayerPermissionLevel(p);
         synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
         send(ctx, new SetHeldSlot(inv.selected()));
+        if (respawnFrom != null) {   // 다른 차원에서 왔다 — 이제 이 차원 region 에 넣는다
+            respawnFrom = null;
+            var t = new org.domi.furnace.server.entity.DimensionTransition(null, x, y, z, 0, 0, 0, yaw, pitch);
+            world.runAt(x, z, r -> r.adoptAfterDimensionChange(p, t, null));
+        }
+    }
+
+    /**
+     * 크레딧 뒤 리스폰(PlayerList.respawn(keepAll = true)): 저장 데이터를 모두 유지한 채 리스폰 차원으로. [리스폰 블록 없음] → respawn(속성
+     * 보존 1) → 위치 → 공유 스폰 → 난이도 → 경험치 → sendLevelInfo → 권한 → 인벤토리 → 효과 → 체력. 그 뒤 목적 region 이 편입한다.
+     */
+    private void finishWinRespawn(ChannelHandlerContext ctx, World target, org.domi.furnace.server.entity.DimensionTransition t) {
+        Player p = player;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) return;
+        org.domi.furnace.server.ServerCore core = login.core;
+        var vitals = p.vitals();
+        String from = world.dimension();
+        p.bumpSpawnGeneration();   // 바닐라: 새 ServerPlayer — 관찰자가 지웠다 다시 스폰한다
+        if (t.missingRespawnBlock()) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
+        var prev = vitals.previousGameMode();
+        long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
+        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0,
+                org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ATTRIBUTES));
+        world = target;
+        p.dimension(target.dimension());
+        placeAfterDimensionChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
+        SpawnPoint spawn = target.defaultSpawn();
+        send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
+        if (core != null) send(ctx, new ChangeDifficulty(core.levelData().difficulty.id(), core.levelData().difficultyLocked));
+        send(ctx, vitals.experiencePacket());
+        sendLevelInfo(ctx, target);
+        if (core != null) core.sendPlayerPermissionLevel(p);
+        synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
+        send(ctx, new SetHeldSlot(inv.selected()));
+        for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
+        target.runAt(t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, t, from));
     }
 
     /** 서버가 정한 위치로 플레이어를 옮긴다(IO 스레드): 이동 대기열을 비우고, 클라이언트가 확인하기 전까지 옛 위치 패킷은 버린다. */
@@ -2522,6 +2672,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         extra.putCompound("recipeBook", p.recipeBook().save());
         extra.putString("Dimension", p.dimension());   // 바닐라 ServerPlayer.addAdditionalSaveData — 지금 레벨
+        extra.putBoolean("seenCredits", p.seenCredits);
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
         final var statsToSave = p.stats();

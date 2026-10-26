@@ -1,0 +1,20 @@
+// 포털을 지나는 것(엔티티·플레이어)의 원천 쪽 상태: 위치·속도·회전·몸 크기. 목적 차원 계산은 이 값만 읽는다(원천 스레드에서 떠 둔다).
+package org.domi.furnace.server.entity;
+
+import org.domi.furnace.server.block.Pos;
+
+public record Traveler(double x, double y, double z, double vx, double vy, double vz, float yRot, float xRot,
+                       double width, double height, boolean isPlayer) {
+
+    public Pos blockPosition() { return new Pos(Entity.floor(x), Entity.floor(y), Entity.floor(z)); }
+
+    public static Traveler of(Entity e) {
+        return new Traveler(e.x(), e.y(), e.z(), e.vx(), e.vy(), e.vz(), e.yRot(), e.xRot(), e.bbWidth(), e.bbHeight(), false);
+    }
+
+    /** 플레이어: 서버 쪽 속도는 차원 이동에 쓰이지 않는다(위치 패킷만 간다). 몸 크기는 자세(서기 1.8, 웅크림 1.5). */
+    public static Traveler of(Player p) {
+        double h = p.sneaking() ? org.domi.furnace.server.world.PlayerProbe.HEIGHT_CROUCHING : org.domi.furnace.server.world.PlayerProbe.HEIGHT_STANDING;
+        return new Traveler(p.x(), p.y(), p.z(), 0, 0, 0, p.yaw(), p.pitch(), 0.6, h, true);
+    }
+}
