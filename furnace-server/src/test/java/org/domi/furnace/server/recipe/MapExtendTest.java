@@ -63,4 +63,20 @@ class MapExtendTest {
         assertEquals(1, d7.scale());
         assertFalse(d7.locked());
     }
+
+    @Test
+    void explorationMapsCannotBeExtended() throws Exception {
+        RecipeManager rm = TestRecipes.manager();
+        assumeTrue(rm != null, "로컬 바닐라 데이터 없음");
+        MapStore.install(dir);
+        var plain = org.domi.furnace.server.map.MapData.createFresh(0, 0, (byte) 1, true, false, "minecraft:overworld");
+        var explorer = org.domi.furnace.server.map.MapData.createFresh(0, 0, (byte) 1, true, true, "minecraft:overworld");
+        explorer.addDecoration(org.domi.furnace.server.map.MapDecorationType.MONUMENT, null, "+", 10, 10, 180, null);
+        MapStore.put(20, plain);
+        MapStore.put(21, explorer);
+        ItemStack m20 = ItemTools.with(TestRecipes.item("filled_map", 1), "minecraft:map_id", 20);
+        ItemStack m21 = ItemTools.with(TestRecipes.item("filled_map", 1), "minecraft:map_id", 21);
+        assertNotNull(rm.findCrafting(grid(m20), null));
+        assertNull(rm.findCrafting(grid(m21), null), "탐험 지도(표식이 있는 지도 데이터)는 늘릴 수 없다");
+    }
 }

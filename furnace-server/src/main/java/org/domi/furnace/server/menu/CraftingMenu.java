@@ -68,7 +68,8 @@ public class CraftingMenu extends AbstractContainerMenu implements RecipeBookMen
         result = stack;
         Moved moved;
         if (index == RESULT_SLOT) {
-            // TODO(아이템 제작 훅): 바닐라는 여기서 Item.onCraftedBy(stack, level, player) 를 부른다(재정의한 아이템이 생기면).
+            stack = org.domi.furnace.server.map.MapItems.postProcess(stack);   // Item.onCraftedBy — 지도 잠금·확대의 새 번호
+            result = stack;
             moved = moveItemStackTo(stack, INV_SLOT_START, USE_ROW_SLOT_END, true);
             if (!moved.changed()) return ItemStack.EMPTY;
             slot.onQuickCraft(moved.remaining(), result);

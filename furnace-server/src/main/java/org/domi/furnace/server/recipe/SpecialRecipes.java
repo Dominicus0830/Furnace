@@ -1,5 +1,5 @@
 // 특수 제작 레시피 14종의 매칭·결과·남는 아이템(바닐라 CustomRecipe 계열 + 장식 단지). 바닐라 1.21.1 디컴파일 원본(cyi·cyj·cyl·cys·cyt·cyu·cyv·cyx·czg·czk·czl·czx·czy)을 이식했다.
-// 지도 확장(crafting_special_mapextending)은 world/data/map_N.dat 에서 읽은 배율·잠금으로 판정한다(MapStore) — 지도를 새로 만드는 쪽은 TODO(지도).
+// 지도 확장(crafting_special_mapextending)은 world/data/map_N.dat 에서 읽은 지도 데이터(MapStore)로 판정한다.
 package org.domi.furnace.server.recipe;
 
 import java.util.ArrayList;
@@ -127,13 +127,8 @@ public final class SpecialRecipes {
         if (map.isEmpty()) return false;
         var meta = org.domi.furnace.server.map.MapStore.of(map);
         if (meta == null) return false;
-        // isExplorationMap: 탐험 지도 표식(monument·mansion·trial_chambers)이 붙은 지도는 늘릴 수 없다.
-        if (ItemTools.component(map, "minecraft:map_decorations") instanceof Map<?, ?> d) {
-            for (Object v : d.values()) {
-                if (v instanceof Map<?, ?> e && e.get("type") instanceof String t
-                        && (t.equals("minecraft:monument") || t.equals("minecraft:mansion") || t.equals("minecraft:trial_chambers"))) return false;
-            }
-        }
+        // MapItemSavedData.isExplorationMap: 지도 데이터에 탐험 지도 표식(저택·전당·마을 …)이 있으면 늘릴 수 없다.
+        if (meta.isExplorationMap()) return false;
         return meta.scale() < 4;
     }
 

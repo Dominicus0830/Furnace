@@ -40,10 +40,12 @@ public class CartographyMenu extends AbstractContainerMenu {
         addSlot(new Slot(resultContainer, 0) {
             @Override public boolean mayPlace(ItemStack stack) { return false; }
 
+            /** 바닐라 onTake 의 onCraftedBy: 꺼낸 스택의 map_post_processing 을 처리(불변 스택이라 꺼내는 곳에서). */
+            @Override public ItemStack remove(int amount) { return org.domi.furnace.server.map.MapItems.postProcess(super.remove(amount)); }
+
             @Override public void onTake(MenuPlayer player, ItemStack stack) {
                 slots.get(0).remove(1);
                 slots.get(1).remove(1);
-                // TODO(지도): MapItem.onCraftedBy — map_post_processing(잠금·배율)을 지도 저장 데이터에 적용한다.
                 long now = access.gameTime();
                 if (lastSoundTime != now) {
                     access.playSound("minecraft:ui.cartography_table.take_result");
@@ -111,7 +113,8 @@ public class CartographyMenu extends AbstractContainerMenu {
         result = stack;
         Moved moved;
         if (index == RESULT_SLOT) {
-            // TODO(지도): MapItem.onCraftedBy
+            stack = org.domi.furnace.server.map.MapItems.postProcess(stack);   // MapItem.onCraftedBy
+            result = stack;
             moved = moveItemStackTo(stack, INV_SLOT_START, USE_ROW_SLOT_END, true);
             if (!moved.changed()) return ItemStack.EMPTY;
             slot.onQuickCraft(moved.remaining(), result);

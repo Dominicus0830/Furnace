@@ -21,7 +21,8 @@ public class ResultSlot extends Slot {
 
     @Override public ItemStack remove(int amount) {
         if (hasItem()) removeCount += Math.min(amount, getItem().count());
-        return super.remove(amount);
+        // 바닐라는 onTake 의 onCraftedBy 가 꺼낸 스택을 그 자리에서 고친다(지도 잠금·확대의 새 번호). 불변 스택이라 꺼내는 곳에서 바꾼다.
+        return org.domi.furnace.server.map.MapItems.postProcess(super.remove(amount));
     }
 
     @Override protected void onQuickCraft(ItemStack stack, int count) {
