@@ -64,4 +64,32 @@ class PaletteStorageTest {
         for (int i = 0; i < size; i++) assertEquals(values[i], storage.get(i));
         assertArrayEquals(values, storage.unpack());
     }
+
+    // 역맵(큰 팔레트) 경로: 무작위 set/load/copy 를 int[] 기준과 대조(성장 경계·direct 전환 포함).
+    @Test
+    void randomOps_matchPlainArray() {
+        java.util.Random rnd = new java.util.Random(11);
+        for (int round = 0; round < 40; round++) {
+            int distinct = 1 + rnd.nextInt(round < 20 ? 300 : 40);
+            int[] pool = new int[distinct];
+            for (int i = 0; i < distinct; i++) pool[i] = rnd.nextInt(30000);
+            int[] ref = new int[4096];
+            java.util.Arrays.fill(ref, 7);
+            PaletteStorage ps = new PaletteStorage(4096, 4, 8, 15, 7);
+            if (rnd.nextBoolean()) {
+                for (int i = 0; i < 4096; i++) ref[i] = pool[rnd.nextInt(distinct)];
+                ps.load(ref, 0);
+            }
+            for (int k = 0; k < 6000; k++) {
+                int i = rnd.nextInt(4096), v = pool[rnd.nextInt(distinct)];
+                ps.set(i, v);
+                ref[i] = v;
+            }
+            assertArrayEquals(ref, ps.unpack(), "round " + round);
+            PaletteStorage c = ps.copy();
+            c.set(0, 31000);
+            assertEquals(ref[0], ps.get(0));
+            assertEquals(31000, c.get(0));
+        }
+    }
 }

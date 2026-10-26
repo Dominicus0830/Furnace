@@ -8,6 +8,12 @@ public final class BitStorage {
     private final long mask;
     private final int size;
     private final long[] data;
+    // index / valuesPerLong 를 곱셈·시프트로(바닐라 SimpleBitStorage 와 같은 발상). size ≤ 2^20 이면 오차 없음, 아니면 나눗셈.
+    private final long divideMul;
+
+    private static long divideMul(int valuesPerLong, int size) {
+        return size <= (1 << 20) ? ((1L << 32) + valuesPerLong - 1) / valuesPerLong : 0L;
+    }
 
     public BitStorage(int bitsPerEntry, int size) {
         if (bitsPerEntry < 1 || bitsPerEntry > 32) {
@@ -17,6 +23,7 @@ public final class BitStorage {
         this.valuesPerLong = 64 / bitsPerEntry;
         this.mask = (1L << bitsPerEntry) - 1;
         this.size = size;
+        this.divideMul = divideMul(valuesPerLong, size);
         int longCount = (size + valuesPerLong - 1) / valuesPerLong;
         this.data = new long[longCount];
     }
@@ -26,6 +33,7 @@ public final class BitStorage {
         this.valuesPerLong = 64 / bitsPerEntry;
         this.mask = (1L << bitsPerEntry) - 1;
         this.size = size;
+        this.divideMul = divideMul(valuesPerLong, size);
         this.data = data;
     }
 
@@ -34,9 +42,13 @@ public final class BitStorage {
         return new BitStorage(bitsPerEntry, size, data);
     }
 
+    private int longIndex(int index) {
+        return divideMul != 0 ? (int) ((index * divideMul) >>> 32) : index / valuesPerLong;
+    }
+
     public void set(int index, int value) {
-        int longIndex = index / valuesPerLong;
-        int offset = (index % valuesPerLong) * bitsPerEntry;
+        int longIndex = longIndex(index);
+        int offset = (index - longIndex * valuesPerLong) * bitsPerEntry;
         long v = data[longIndex];
         v &= ~(mask << offset);
         v |= ((long) value & mask) << offset;
@@ -44,8 +56,8 @@ public final class BitStorage {
     }
 
     public int get(int index) {
-        int longIndex = index / valuesPerLong;
-        int offset = (index % valuesPerLong) * bitsPerEntry;
+        int longIndex = longIndex(index);
+        int offset = (index - longIndex * valuesPerLong) * bitsPerEntry;
         return (int) ((data[longIndex] >>> offset) & mask);
     }
 
