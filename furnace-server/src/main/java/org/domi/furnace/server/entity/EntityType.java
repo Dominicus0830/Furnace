@@ -387,6 +387,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** TRIDENT: sized(0.5F, 0.5F).eyeHeight(0.13). */
     public static final EntityType TRIDENT = of("minecraft:trident", 0.5F, 0.5F, 0.13F, 4, 20, true, false);
 
+    /** FISHING_BOBBER: noSave().noSummon().sized(0.25, 0.25).clientTrackingRange(4).updateInterval(5). */
+    public static final EntityType FISHING_BOBBER = of("minecraft:fishing_bobber", 0.25F, 0.25F, 0.25F * 0.85F, 4, 5, true, false);
+
     /** WITCH: sized(0.6, 1.95).eyeHeight(1.62).clientTrackingRange(8). */
     public static final EntityType WITCH = of("minecraft:witch", 0.6F, 1.95F, 1.62F, 8, 3, true, false);
 

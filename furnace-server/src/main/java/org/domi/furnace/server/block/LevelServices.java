@@ -57,6 +57,13 @@ public interface LevelServices {
     default java.util.List<org.domi.furnace.server.entity.ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self,
             double x, double y, double z, String damageType, Player attacker, Player lastPlayer, long seed) { return java.util.List.of(); }
 
+    /**
+     * 낚시 전리품(FishingHook.retrieve — FISHING 문맥): gameplay/fishing 을 origin·tool·this_entity(낚시찌)·luck 로 평가.
+     * 데이터 팩이 없으면 빈 목록.
+     */
+    default java.util.List<org.domi.furnace.server.entity.ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y,
+            double z, org.domi.furnace.server.entity.ItemStack tool, float luck) { return java.util.List.of(); }
+
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
@@ -134,6 +141,10 @@ public interface LevelServices {
         public java.util.List<org.domi.furnace.server.entity.ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self,
                 double x, double y, double z, String damageType, Player attacker, Player lastPlayer, long seed) {
             return d.entityDrops(lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
+        }
+        public java.util.List<org.domi.furnace.server.entity.ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y,
+                double z, org.domi.furnace.server.entity.ItemStack tool, float luck) {
+            return d.fishingLoot(hook, x, y, z, tool, luck);
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }

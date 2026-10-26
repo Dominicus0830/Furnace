@@ -383,6 +383,9 @@ public final class Player implements Targetable {
     /** 쇠뇌 장전 소리(시작·중간)를 이미 냈는가 — 바닐라는 CrossbowItem 객체 필드라 전역이지만 여기선 플레이어별. */
     public boolean crossbowStartSound, crossbowMidSound;
 
+    /** 던져 둔 낚시찌(Player.fishing). */
+    public FishingHook fishing;
+
     private volatile org.domi.furnace.server.stats.PlayerStats stats;
 
     public org.domi.furnace.server.stats.PlayerStats stats() { return stats; }

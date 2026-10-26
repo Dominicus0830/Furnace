@@ -32,6 +32,11 @@ public final class LootParams {
         return this;
     }
 
+    /** FishingHook.retrieve 의 FISHING 문맥: origin·tool·this_entity(낚시찌)·행운. */
+    public static LootParams fishing(double[] origin, LootStack tool, LootEntity hook, float luck) {
+        return new LootParams().with(ORIGIN, origin).with(TOOL, tool).with(THIS_ENTITY, hook).luck(luck);
+    }
+
     public LootParams luck(float luck) {
         this.luck = luck;
         return this;

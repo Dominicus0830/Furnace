@@ -430,6 +430,9 @@ public final class ServerCore {
                                                     Float explosionRadius) {
             return ServerCore.this.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
         }
+        public java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool, float luck) {
+            return ServerCore.this.fishingLoot(hook, x, y, z, tool, luck);
+        }
         public String biomeAt(int x, int y, int z) { return lootWorld.biomeAt(x, y, z); }
         public long seed() { return levelData.seed; }
         public int[] sharedSpawnPos() { return new int[] {levelData.spawnX, levelData.spawnY, levelData.spawnZ}; }
@@ -492,6 +495,21 @@ public final class ServerCore {
         var ctx = table.context(loot, lootWorld, params, seed);
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var st : table.getRandomItems(ctx)) {
+            ItemStack is = dp.network().toItemStack(st);
+            if (is != null && !is.isEmpty()) out.add(is);
+        }
+        return out;
+    }
+
+    /** 바닐라 FishingHook.retrieve: gameplay/fishing 을 FISHING 문맥으로(random_sequence 난수). */
+    java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool, float luck) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return java.util.List.of();
+        var loot = dp.loot();
+        var table = loot.table("minecraft:gameplay/fishing");
+        var params = org.domi.furnace.server.loot.LootParams.fishing(new double[]{x, y, z}, lootStack(tool), hook, luck);
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        for (var st : table.getRandomItems(table.context(loot, lootWorld, params, 0L))) {
             ItemStack is = dp.network().toItemStack(st);
             if (is != null && !is.isEmpty()) out.add(is);
         }
