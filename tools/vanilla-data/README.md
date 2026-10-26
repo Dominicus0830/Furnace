@@ -27,6 +27,7 @@
 | `ExportPathfindable.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/pathfindable_1.21.1.txt` (상태마다 한 글자: 비트 1 땅·2 물·4 공중 `BlockState.isPathfindable`) |
 | `ExportBlockLight.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/blocklight_1.21.1.txt` (3줄: 빛 차단 0~15 / 빛 가림에 모양 사용 / canOcclude — 상태마다 한 글자) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
+| `ExportMapColors.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 실행에 guava 필요) | `blocks/mapcolors_1.21.1.txt` (MapColor 번호 → RGB 62개. `stateflags` 의 상태별 mapColor 칸은 RGB 값이라 지도 알고리즘의 색 번호로 되돌릴 때 쓴다) |
 
 `ExportBlockAttrs`는 난독화된 클래스 이름(`akt`, `dfy`, `dtc`, `dcl` …)을 직접 참조한다. 다른 버전에는 그대로 쓸 수 없고, Vineflower로 디컴파일해 이름을 다시 찾아야 한다.
 실행: `ab.a(); akt.a();`(SharedConstants 버전 설정 + Bootstrap) 후 블록 레지스트리 `lt.e`를 순회한다.

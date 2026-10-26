@@ -214,6 +214,7 @@ public final class World {
 
     /** 저장·종료용: 모든 region 의 dirty 청크 저장(각 region 스레드에서). 플레이어 저장은 각 연결의 channelInactive 가 한다. */
     public List<CompletableFuture<Void>> flushAll() {
+        org.domi.furnace.server.map.MapStore.saveDirty();   // 바뀐 지도 데이터·idcounts
         return forEachRegion(Region::saveDirtyChunks);
     }
 

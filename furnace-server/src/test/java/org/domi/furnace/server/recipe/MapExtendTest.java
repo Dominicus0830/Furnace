@@ -59,6 +59,8 @@ class MapExtendTest {
         assertNull(rm.findCrafting(grid(m8), null), "배율 4 는 더 늘릴 수 없다");
         assertNull(rm.findCrafting(grid(m9), null), "지도 데이터가 없으면 안 된다");
         MapStore.install(dir);
-        assertEquals(new MapStore.Meta(1, false), MapStore.of(m7));
+        var d7 = MapStore.of(m7);
+        assertEquals(1, d7.scale());
+        assertFalse(d7.locked());
     }
 }

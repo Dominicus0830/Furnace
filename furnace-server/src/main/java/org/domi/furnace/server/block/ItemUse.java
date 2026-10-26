@@ -96,6 +96,7 @@ public final class ItemUse {
             case "minecraft:water_bucket": return bucketUse(level, player, hand, stack, Fluids.WATER_SOURCE);
             case "minecraft:lava_bucket": return bucketUse(level, player, hand, stack, Fluids.LAVA_SOURCE);
             case "minecraft:glass_bottle": return glassBottleUse(level, player, stack);
+            case "minecraft:map": return emptyMapUse(level, player, stack);
             case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl", "minecraft:experience_bottle", "minecraft:splash_potion",
                     "minecraft:lingering_potion", "minecraft:wind_charge": return throwItem(level, player, stack, n);
             default: break;
@@ -258,6 +259,22 @@ public final class ItemUse {
             return Holder.success(player.createFilledResult(stack, waterPotion()));
         }
         return Holder.pass(stack);
+    }
+
+    /**
+     * EmptyMapItem.use: 하나 줄이고(크리에이티브는 그대로) 사용 통계·소리 → 서 있는 곳 중심(배율 0, 위치 추적)의 새 지도를 만든다.
+     * 다 썼으면 손에 지도, 아니면 인벤토리(안 들어가면 바닥)로.
+     */
+    private static Holder emptyMapUse(BlockLevel level, BlockActor player, ItemStack stack) {
+        if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
+        ItemStack rest = player.instabuild() ? stack : stack.withCount(stack.count() - 1);
+        player.awardStat("minecraft:used:minecraft:map");
+        cl.playSound(null, player.x(), player.y(), player.z(), "minecraft:ui.cartography_table.take_result", "players", 1.0F, 1.0F);
+        ItemStack map = org.domi.furnace.server.map.MapItems.create(cl.dimension(), (int) Math.floor(player.x()), (int) Math.floor(player.z()),
+                (byte) 0, true, false);
+        if (rest.isEmpty()) return Holder.success(map);
+        if (!player.addToInventory(map)) player.drop(map);
+        return Holder.success(rest);
     }
 
     /** PotionContents.createItemStack(Items.POTION, Potions.WATER). */

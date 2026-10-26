@@ -14,7 +14,7 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
 
-public final class Player implements Targetable {
+public final class Player implements Targetable, org.domi.furnace.server.map.MapData.Viewer {
     private Targetable lastHurtByMob, lastHurtMob;
     private int combatTicks, lastHurtByMobTimestamp, lastHurtMobTimestamp;
 
@@ -568,6 +568,21 @@ public final class Player implements Targetable {
     public float yaw() { return yaw; }
     public float pitch() { return pitch; }
     public boolean onGround() { return onGround; }
+
+    // ---- 지도(MapData.Viewer)
+    @Override public boolean removed() { return disconnected; }
+
+    /** 지금은 오버월드 하나뿐(차원은 로드맵 뒤쪽). */
+    @Override public String dimension() { return "minecraft:overworld"; }
+
+    /** Inventory.contains(predicate): 칸 전체(주·핫바·갑옷·왼손 — 제작 칸 제외). */
+    @Override public boolean holdsMap(java.util.function.Predicate<ItemStack> predicate) {
+        for (int slot = 5; slot < PlayerInventory.SIZE; slot++) {
+            ItemStack s = inventory.get(slot);
+            if (!s.isEmpty() && predicate.test(s)) return true;
+        }
+        return false;
+    }
 
     private volatile java.util.function.Consumer<double[]> teleporter;
 

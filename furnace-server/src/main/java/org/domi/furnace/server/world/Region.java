@@ -499,6 +499,8 @@ public final class Region {
     private java.util.ArrayDeque<ChunkPos> autosaveChunkQueue;
 
     private void beginAutosave() {
+        var io = world.ioPool();
+        if (io != null) io.execute(org.domi.furnace.server.map.MapStore::saveDirty);   // 지도 데이터는 IO 풀에서(바뀐 것만)
         autosaveEntityQueue = new java.util.ArrayDeque<>(present);
         autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks);
     }
@@ -643,6 +645,7 @@ public final class Region {
             if (processMoves(p) && level != null) level.playerMoved(p);   // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다
             p.drainPending();
             tickVitals(p);
+            org.domi.furnace.server.map.MapItems.tick(p, MapTerrain::new, p.dimension(), world.dayTime());   // Inventory.tick 의 지도 + 갱신 패킷
             if (p.takeXpDelay > 0) p.takeXpDelay--;
             org.domi.furnace.server.entity.Consuming.tick(p, this);
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
@@ -1035,6 +1038,37 @@ public final class Region {
         synchronized (p.menuLock()) {
             menu = p.containerMenu();
             menu.broadcastChanges();
+        }
+    }
+
+    /** 지도가 읽는 지형: 이 region 이 가진 로드된 청크만(마지막 청크를 기억해 열 단위 연속 조회를 싸게). */
+    private final class MapTerrain implements org.domi.furnace.server.map.MapRenderer.Terrain {
+        private int lastCx = Integer.MIN_VALUE, lastCz;
+        private ChunkColumn last;
+
+        private ChunkColumn chunk(int cx, int cz) {
+            if (cx != lastCx || cz != lastCz || lastCx == Integer.MIN_VALUE) {
+                last = ownedChunk(cx, cz);
+                lastCx = cx;
+                lastCz = cz;
+            }
+            return last;
+        }
+
+        @Override public boolean hasCeiling() { return false; }
+
+        @Override public int minY() { return ChunkColumn.MIN_Y; }
+
+        @Override public boolean chunkAvailable(int cx, int cz) { return chunk(cx, cz) != null; }
+
+        @Override public int surfaceHeight(int x, int z) {
+            ChunkColumn c = chunk(x >> 4, z >> 4);
+            return c == null ? ChunkColumn.MIN_Y : c.surfaceBlockY(x & 15, z & 15) + 1;
+        }
+
+        @Override public int blockState(int x, int y, int z) {
+            ChunkColumn c = chunk(x >> 4, z >> 4);
+            return c == null || y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y ? 0 : c.getBlock(x & 15, y, z & 15);
         }
     }
 
