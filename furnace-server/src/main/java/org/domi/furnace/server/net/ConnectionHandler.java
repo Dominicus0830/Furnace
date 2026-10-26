@@ -999,7 +999,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             try {
                                 byte[] bodyBytes = futs.get(i).getNow(null);
                                 if (bodyBytes == null) { world.unsubscribeChunk(cp, p); continue; }
-                                send(ctx, new LevelChunkWithLight(Unpooled.wrappedBuffer(bodyBytes)));
+                                send(ctx, LevelChunkWithLight.ofShared(bodyBytes));
                                 p.loadedChunks().add(cp);
                                 world.chunkDelivered(cp, p, subs.get(cp));   // 청크를 쓴 뒤 보류된 변경을 흘려보낸다
                                 sent++;
@@ -2486,10 +2486,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
     void send(ChannelHandlerContext ctx, Packet packet) {
-        ByteBuf buf = ctx.alloc().buffer();
-        Types.writeVarInt(buf, packet.id());
-        packet.write(buf);
-        ctx.writeAndFlush(buf);
+        ctx.writeAndFlush(org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet));
     }
 
     /** 서버 종료: 이벤트 루프에서 현재 단계에 맞는 Disconnect로 사유를 알리고 닫는다. */

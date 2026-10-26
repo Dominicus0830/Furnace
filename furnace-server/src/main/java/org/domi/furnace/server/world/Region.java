@@ -1258,12 +1258,11 @@ public final class Region {
             p.chunkSendsInFlight().incrementAndGet();
             CompletableFuture<?> f = world.serializedChunkBody(cp)
                     .whenComplete((b, ex) -> p.chunkSendsInFlight().decrementAndGet())
-                    .thenApply(Unpooled::wrappedBuffer)
                     .thenAccept(body -> {
                         // gen 지연 동안 플레이어가 시야 밖으로 이동했거나(재구독 포함) 언로드됐으면 보내봐야 클라가
                         // "not in view range"로 버림 → 드롭. 위치는 volatile이라 완료 스레드서 안전하게 읽음.
                         if (inView(p, cp) && world.isSubscribed(cp, p, sub)) {
-                            p.send(new LevelChunkWithLight(body));
+                            p.send(LevelChunkWithLight.ofShared(body));
                             sent.incrementAndGet();
                             world.chunkDelivered(cp, p, sub);   // 청크가 채널 큐에 들어간 뒤 보류된 변경을 흘려보낸다
                         }

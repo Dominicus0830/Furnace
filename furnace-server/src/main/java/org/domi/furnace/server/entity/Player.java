@@ -285,10 +285,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 패킷을 이 플레이어 채널로 전송(IO eventLoop 마샬). region 스레드서 호출 안전. */
     public void send(Packet packet) {
         channel.eventLoop().execute(() -> {
-            ByteBuf buf = channel.alloc().buffer();
-            Types.writeVarInt(buf, packet.id());
-            packet.write(buf);
-            channel.write(buf);
+            channel.write(org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, packet));
             // 보낼 때마다 flush(시스템 호출) 하지 않고, 같은 순간에 쌓인 패킷은 한 번에 내보낸다(플래그는 이벤트 루프 스레드에서만 만진다).
             if (!flushPending) {
                 flushPending = true;

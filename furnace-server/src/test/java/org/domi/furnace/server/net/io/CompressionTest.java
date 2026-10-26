@@ -44,6 +44,124 @@ class CompressionTest {
         out.release();
     }
 
+    /** 예전 인코더(byte[] 복사 + 기본 Deflater + 8KB 임시 배열)와 같은 방식으로 만든 기준 바이트. */
+    private static byte[] reference(byte[] data, int threshold) {
+        ByteBuf out = Unpooled.buffer();
+        if (data.length < threshold) {
+            Types.writeVarInt(out, 0);
+            out.writeBytes(data);
+        } else {
+            Types.writeVarInt(out, data.length);
+            java.util.zip.Deflater d = new java.util.zip.Deflater();
+            d.setInput(data);
+            d.finish();
+            byte[] buffer = new byte[8192];
+            while (!d.finished()) out.writeBytes(buffer, 0, d.deflate(buffer));
+            d.end();
+        }
+        byte[] r = new byte[out.readableBytes()];
+        out.readBytes(r);
+        return r;
+    }
+
+    private static byte[] drain(ByteBuf b) {
+        byte[] r = new byte[b.readableBytes()];
+        b.readBytes(r);
+        b.release();
+        return r;
+    }
+
+    // 기본 레벨 출력은 예전 인코더와 바이트까지 같고, 공유 프레임(encodeToBytes)·Precompressed 통과도 같다.
+    @Test
+    void wireBytesMatchPreviousEncoder_andSharedFrame() {
+        int threshold = 256;
+        java.util.Random rnd = new java.util.Random(7);
+        CompressionEncoder sharedEnc = new CompressionEncoder(threshold);
+        for (int size : new int[]{0, 10, 255, 256, 257, 5000, 70_000, 300_000}) {
+            byte[] data = new byte[size];
+            for (int i = 0; i < size; i++) data[i] = (byte) (rnd.nextInt(6) * (i % 7 == 0 ? 3 : 1));
+            byte[] expected = reference(data, threshold);
+
+            EmbeddedChannel heap = new EmbeddedChannel(new CompressionEncoder(threshold));
+            heap.writeOutbound(Unpooled.wrappedBuffer(data));
+            assertArrayEquals(expected, drain(heap.readOutbound()), "heap size=" + size);
+
+            // 직접 버퍼·조각난(composite) 입력
+            EmbeddedChannel direct = new EmbeddedChannel(new CompressionEncoder(threshold));
+            ByteBuf d = Unpooled.directBuffer(Math.max(size, 1)).writeBytes(data);
+            direct.writeOutbound(d);
+            assertArrayEquals(expected, drain(direct.readOutbound()), "direct size=" + size);
+            int half = size / 2;
+            direct.writeOutbound(Unpooled.wrappedBuffer(Unpooled.wrappedBuffer(data, 0, half), Unpooled.wrappedBuffer(data, half, size - half)));
+            assertArrayEquals(expected, drain(direct.readOutbound()), "composite size=" + size);
+
+            byte[] shared = sharedEnc.encodeToBytes(data);
+            assertArrayEquals(expected, shared, "shared size=" + size);
+            direct.writeOutbound(new CompressionEncoder.Precompressed(Unpooled.wrappedBuffer(shared)));
+            assertArrayEquals(expected, drain(direct.readOutbound()), "precompressed size=" + size);
+
+            // 디코더 왕복(직접 버퍼 입력)
+            EmbeddedChannel dec = new EmbeddedChannel(new CompressionDecoder(threshold));
+            dec.writeInbound(Unpooled.directBuffer(expected.length).writeBytes(expected));
+            assertArrayEquals(data, drain(dec.readInbound()), "decode size=" + size);
+            heap.finishAndReleaseAll();
+            direct.finishAndReleaseAll();
+            dec.finishAndReleaseAll();
+        }
+    }
+
+    // 같은 본문 배열을 두 채널로 보내면 압축은 한 번, 바이트는 일반 경로(패킷 인코딩→인코더)와 같다.
+    @Test
+    void sharedChunkFrame_compressesOnceAndMatchesNormalPath() {
+        byte[] body = new byte[40_000];
+        for (int i = 0; i < body.length; i++) body[i] = (byte) (i * 31 % 17);
+        var normal = new org.domi.furnace.server.net.protocol.play.LevelChunkWithLight(Unpooled.wrappedBuffer(body.clone()));
+        EmbeddedChannel plain = new EmbeddedChannel();
+        plain.pipeline().addLast("compress", new CompressionEncoder(256));
+        plain.writeOutbound(SharedChunkFrames.encode(plain, normal));
+        byte[] expected = drain(plain.readOutbound());
+
+        long before = SharedChunkFrames.ENCODES.get();
+        for (int c = 0; c < 2; c++) {
+            EmbeddedChannel ch = new EmbeddedChannel();
+            ch.pipeline().addLast("compress", new CompressionEncoder(256));
+            ch.writeOutbound(SharedChunkFrames.encode(ch,
+                    org.domi.furnace.server.net.protocol.play.LevelChunkWithLight.ofShared(body)));
+            assertArrayEquals(expected, drain(ch.readOutbound()), "channel " + c);
+        }
+        assertEquals(1, SharedChunkFrames.ENCODES.get() - before, "두 번째 채널은 캐시를 쓴다");
+
+        // 압축 없는 연결은 원래 경로(비압축 패킷)
+        EmbeddedChannel none = new EmbeddedChannel();
+        Object msg = SharedChunkFrames.encode(none, org.domi.furnace.server.net.protocol.play.LevelChunkWithLight.ofShared(body));
+        assertInstanceOf(ByteBuf.class, msg);
+        assertEquals(body.length + 1, ((ByteBuf) msg).readableBytes());
+        ((ByteBuf) msg).release();
+    }
+
+    @Test
+    void levelIsConfigurableAndStillZlib() {
+        byte[] data = new byte[50_000];
+        for (int i = 0; i < data.length; i++) data[i] = (byte) (i % 13);
+        for (int level : new int[]{0, 1, 4, 9}) {
+            EmbeddedChannel enc = new EmbeddedChannel(new CompressionEncoder(64, level));
+            EmbeddedChannel dec = new EmbeddedChannel(new CompressionDecoder(64));
+            enc.writeOutbound(Unpooled.wrappedBuffer(data));
+            dec.writeInbound((ByteBuf) enc.readOutbound());
+            assertArrayEquals(data, drain(dec.readInbound()), "level=" + level);
+        }
+        assertThrows(IllegalArgumentException.class, () -> new CompressionEncoder(64, 10));
+    }
+
+    @Test
+    void truncatedZlibIsRejected() {
+        byte[] data = new byte[5000];
+        new java.util.Random(3).nextBytes(data);
+        byte[] full = reference(data, 64);
+        EmbeddedChannel dec = new EmbeddedChannel(new CompressionDecoder(64));
+        assertThrows(Exception.class, () -> dec.writeInbound(Unpooled.wrappedBuffer(java.util.Arrays.copyOf(full, full.length / 2))));
+    }
+
     // 재사용 스크래치 버퍼 성장/축소 경계 fuzz: 0바이트, 임계치 부근, 수 MB, 감소하는 순서까지
     @Test
     void roundTrips_fuzzSizesAcrossThreshold() {
