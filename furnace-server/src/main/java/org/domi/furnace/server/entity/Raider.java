@@ -1,6 +1,7 @@
 // 바닐라 Raider(+PatrollingMonster): 습격 파도(wave)·참여 여부, 순찰 지도자/목표/순찰 중 상태와 장거리 순찰 목표(LongDistancePatrolGoal).
-// TODO(습격): Raid 시스템과 Raider 의 목표들(ObtainRaidLeaderBannerGoal·PathfindToRaidGoal·RaiderMoveThroughVillageGoal·RaiderCelebration).
-//   그 전까지 hasActiveRaid() 는 항상 거짓이다.
+// 습격(Raid) 소속: currentRaid·ticksOutsideRaid, 죽으면 습격에서 빠지고 처치한 플레이어를 마을의 영웅 후보로.
+// TODO(습격): Raider 의 목표들(ObtainRaidLeaderBannerGoal·PathfindToRaidGoal·RaiderMoveThroughVillageGoal·RaiderCelebration).
+//   TODO(저장): 바닐라는 RaidId 를 저장해 다시 불러올 때 습격에 다시 넣는다(raids.dat 저장이 없어 생략).
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -108,7 +109,31 @@ public abstract class Raider extends Monster {
     /** Raider.applyRaidBuffs(level, wave, isCaptain): 각 종류가 파도에 따라 장비를 준다(습격 구현 때 사용). */
     public abstract void applyRaidBuffs(int wave, boolean captain);
 
-    public boolean hasActiveRaid() { return false; }
+    private org.domi.furnace.server.world.raid.Raid currentRaid;
+    private int ticksOutsideRaid;
+
+    public org.domi.furnace.server.world.raid.Raid getCurrentRaid() { return currentRaid; }
+
+    public void setCurrentRaid(org.domi.furnace.server.world.raid.Raid r) { currentRaid = r; }
+
+    public int getTicksOutsideRaid() { return ticksOutsideRaid; }
+
+    public void setTicksOutsideRaid(int t) { ticksOutsideRaid = t; }
+
+    /** hasActiveRaid: 습격 소속이고 그 습격이 활성. */
+    public boolean hasActiveRaid() { return currentRaid != null && currentRaid.isActive(); }
+
+    /** Raider.die: 습격에서 대장 자리·소속을 지우고, 처치자가 플레이어면 영웅 후보. */
+    @Override
+    public void die(Damage source) {
+        var raid = currentRaid;
+        if (raid != null) {
+            if (isPatrolLeader()) raid.removeLeader(getWave());
+            if (lastHurtByPlayer != null && lastHurtByPlayerTime > 0) raid.addHeroOfTheVillage(lastHurtByPlayer);
+            raid.removeFromRaid(this, false);
+        }
+        super.die(source);
+    }
 
     public boolean isCelebrating() { return (Boolean) entityData.get(DATA_IS_CELEBRATING); }
 

@@ -62,6 +62,11 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public org.domi.furnace.server.world.poi.PoiManager poiManager() { return poiManager; }
 
+    private final org.domi.furnace.server.world.raid.Raids raids = new org.domi.furnace.server.world.raid.Raids(this);
+
+    /** ServerLevel.getRaids. */
+    public org.domi.furnace.server.world.raid.Raids raids() { return raids; }
+
     /** ServerLevel.isCloseToVillage(pos, i). */
     public boolean isCloseToVillage(Pos pos, int i) { return poiManager.isCloseToVillage(pos, i); }
 
@@ -585,6 +590,7 @@ public abstract class ChunkLevel implements BlockLevel {
         other.pendingTickers.clear();
         for (Entity e : other.entities.all()) e.setLevel(this);
         entities.absorb(other.entities);
+        raids.absorb(other.raids, this);
     }
 
     /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
@@ -618,6 +624,7 @@ public abstract class ChunkLevel implements BlockLevel {
             }
         }
         for (Entity e : entities.splitTo(target.entities, inTarget::test)) e.setLevel(target);
+        raids.splitTo(target.raids, target, inTarget);
         var bit = blockEvents.iterator();
         while (bit.hasNext()) {
             BlockEventData ev = bit.next();

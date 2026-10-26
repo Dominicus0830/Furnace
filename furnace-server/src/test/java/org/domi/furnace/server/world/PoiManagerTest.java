@@ -27,7 +27,7 @@ class PoiManagerTest {
 
     private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
 
-    static final class Lvl extends ChunkLevel {
+    static class Lvl extends ChunkLevel {
         final Map<Long, ChunkColumn> chunks = new HashMap<>();
 
         Lvl() { super(1000000); }

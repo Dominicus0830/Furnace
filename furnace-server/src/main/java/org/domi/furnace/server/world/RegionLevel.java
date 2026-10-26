@@ -164,6 +164,7 @@ public final class RegionLevel extends ChunkLevel {
                     java.util.function.Predicate<Player> inRegion) {
         clearChunkCache();   // 틱 사이에 합치기·나누기가 있었을 수 있다
         runScheduledTicks();
+        raids().tick();   // 바닐라 ServerLevel.tick: 예약 틱 → 습격 → 청크(스폰·무작위 틱)
         if (count > 0) {
             shuffle(tickingChunks, count);
             int speed = gameRuleInt("randomTickSpeed");

@@ -1168,6 +1168,7 @@ public final class Region {
         }
         p.wasTouchingWater = s.inWater();
         p.onClimbable = s.climbable() != null;
+        if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
         p.vitals().tick(s);
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계 (잠은 아직 없어 time_since_rest 는 늘 센다)
             p.awardStat("minecraft:play_time", 1);
