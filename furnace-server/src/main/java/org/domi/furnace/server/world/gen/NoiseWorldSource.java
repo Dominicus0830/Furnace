@@ -682,7 +682,14 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     public int baseBlock(int blockX, int blockY, int blockZ) {
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
-        ChunkColumn c = terrainCache.computeIfAbsent(chunkKey(cx, cz), k -> generate(cx, cz));
+        long key = chunkKey(cx, cz);
+        // synchronizedMap.computeIfAbsent 는 생성(수십 ms) 동안 맵 전체를 잠근다 — 락 밖에서 계산한다(순수 함수라 중복 계산도 같은 값).
+        ChunkColumn c = terrainCache.get(key);
+        if (c == null) {
+            ChunkColumn fresh = generate(cx, cz);
+            c = terrainCache.putIfAbsent(key, fresh);
+            if (c == null) c = fresh;
+        }
         return c.getBlock(blockX - cx * 16, blockY, blockZ - cz * 16);
     }
 
@@ -703,7 +710,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     int worldSurfaceHeightAt(int blockX, int blockZ) {
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
-        int[] heights = surfaceHeightCache.computeIfAbsent(chunkKey(cx, cz), k -> computeSurfaceHeights(cx, cz));
+        int[] heights = surfaceHeightsFor(cx, cz);
         int lx = blockX - cx * 16;
         int lz = blockZ - cz * 16;
         return heights[lz * 16 + lx];
@@ -713,8 +720,18 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     int oceanFloorWgHeightAt(int blockX, int blockZ) {
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
-        int[] heights = surfaceHeightCache.computeIfAbsent(chunkKey(cx, cz), k -> computeSurfaceHeights(cx, cz));
+        int[] heights = surfaceHeightsFor(cx, cz);
         return heights[256 + (blockZ - cz * 16) * 16 + (blockX - cx * 16)];
+    }
+
+    /** 높이 캐시 조회 — 계산은 락 밖에서 한다(순수 함수라 두 스레드가 동시에 계산해도 같은 값, 먼저 넣은 쪽을 쓴다). */
+    private int[] surfaceHeightsFor(int cx, int cz) {
+        long key = chunkKey(cx, cz);
+        int[] heights = surfaceHeightCache.get(key);
+        if (heights != null) return heights;
+        int[] fresh = computeSurfaceHeights(cx, cz);
+        heights = surfaceHeightCache.putIfAbsent(key, fresh);
+        return heights != null ? heights : fresh;
     }
 
     /**

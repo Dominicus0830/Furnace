@@ -33,4 +33,26 @@ class PristineHashBench {
             System.out.printf("PRISTINE_HASH round=%d %016x chunks=%d %.2f ms/chunk%n", round, hash, n, (System.nanoTime() - t) / 1e6 / n);
         }
     }
+
+    @Test
+    void structureStarts() throws Exception {
+        Assumptions.assumeTrue(Boolean.getBoolean("furnace.profile"));
+        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        for (long seed : new long[] {12345L, 51532L}) {
+            NoiseWorldSource source = NoiseWorldSource.overworld(seed, blocks, registries);
+            long t = System.nanoTime();
+            StringBuilder sb = new StringBuilder();
+            int count = 0;
+            for (int cx = -40; cx < 40; cx++) for (int cz = -40; cz < 40; cz++) {
+                for (var s : source.structureStartsFresh(cx, cz)) {
+                    var b = s.boundingBox();
+                    sb.append(s.structureId()).append(cx).append(',').append(cz).append(b.minX()).append(b.minY()).append(b.minZ())
+                        .append(b.maxX()).append(b.maxY()).append(b.maxZ()).append(s.pieces().size()).append(';');
+                    count++;
+                }
+            }
+            System.out.printf("STRUCT_HASH seed=%d %08x starts=%d %.0f ms%n", seed, sb.toString().hashCode(), count, (System.nanoTime() - t) / 1e6);
+        }
+    }
 }
