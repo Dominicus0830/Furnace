@@ -223,21 +223,35 @@ public final class ServerCore {
      * 표 이름을 먼저 지우고, 위치는 상자 중심, 연 플레이어가 this_entity.
      */
     public void unpackLoot(org.domi.furnace.server.block.entity.ContainerBlockEntity chest, Player opener) {
-        var dp = dataPacks;
-        if (chest.lootTable == null || dp == null || dp.loot() == null) return;
-        var loot = dp.loot();
-        var table = loot.table(chest.lootTable);
-        long seed = chest.lootSeed;
+        if (chest.lootTable == null || dataPacks == null || dataPacks.loot() == null) return;
+        String table = chest.lootTable;
         chest.lootTable = null;
-        var slots = new org.domi.furnace.server.loot.LootStack[chest.items.length];
+        fillLoot(chest.items, table, chest.lootSeed, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5}, opener);
+    }
+
+    /** 바닐라 ContainerEntity.unpackChestVehicleLootTable — 엔티티 용기의 전리품 표를 푼다(그 엔티티의 region 스레드에서). 위치는 엔티티 위치. */
+    public void unpackLoot(org.domi.furnace.server.entity.ContainerEntity entity, Player opener) {
+        String table = entity.lootTable();
+        if (table == null || dataPacks == null || dataPacks.loot() == null) return;
+        entity.setLootTable(null);
+        var e = entity.asEntity();
+        fillLoot(entity.chestVehicleItems(), table, entity.lootTableSeed(), new double[]{e.x(), e.y(), e.z()}, opener);
+    }
+
+    /** LootTable.fill(container, params, seed): 빈 칸에 전리품을 흩어 넣는다. 데이터 팩이 없으면 아무것도. */
+    private void fillLoot(ItemStack[] items, String tableName, long seed, double[] origin, Player opener) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return;
+        var loot = dp.loot();
+        var table = loot.table(tableName);
+        var slots = new org.domi.furnace.server.loot.LootStack[items.length];
         var occupied = new org.domi.furnace.server.loot.LootStack("minecraft:stone", 1);
-        for (int i = 0; i < slots.length; i++) if (chest.items[i] != null && !chest.items[i].isEmpty()) slots[i] = occupied;
-        var params = new org.domi.furnace.server.loot.LootParams()
-                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5});
+        for (int i = 0; i < slots.length; i++) if (items[i] != null && !items[i].isEmpty()) slots[i] = occupied;
+        var params = new org.domi.furnace.server.loot.LootParams().with(org.domi.furnace.server.loot.LootParams.ORIGIN, origin);
         if (opener != null) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
         table.fill(slots, loot, lootWorld, params, seed);
         for (int i = 0; i < slots.length; i++) {
-            if (slots[i] != null && slots[i] != occupied) chest.items[i] = dp.network().toItemStack(slots[i]);
+            if (slots[i] != null && slots[i] != occupied) items[i] = dp.network().toItemStack(slots[i]);
         }
     }
 

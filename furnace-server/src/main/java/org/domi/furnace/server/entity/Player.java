@@ -109,6 +109,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
          * 청크가 내려갔으면) 서버가 닫는다.
          */
         default void validateBlockMenu(org.domi.furnace.server.world.Region region, org.domi.furnace.server.menu.AbstractContainerMenu menu) {}
+
+        /** ServerPlayer.openHorseInventory(horse, container): 말이 있는 region 스레드에서 부른다. */
+        default void openHorseInventory(AbstractHorse horse, org.domi.furnace.server.menu.Container container) {}
+
+        /** ServerPlayer.openMenu(엔티티 용기 — 상자 배·상자/깔때기 수레): 그 엔티티가 있는 region 스레드에서 부른다. */
+        default void openEntityContainer(ContainerEntity entity) {}
     }
 
     private volatile InventoryHost inventoryHost;

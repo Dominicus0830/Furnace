@@ -766,6 +766,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
 
+            public void openHorseInventory(org.domi.furnace.server.entity.AbstractHorse horse, org.domi.furnace.server.menu.Container container) {
+                int columns = horse.inventoryColumns();   // 말 region 에서 읽어 둔다
+                ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openHorseInventory(p, horse, container, columns));
+            }
+
+            public void openEntityContainer(org.domi.furnace.server.entity.ContainerEntity entity) {
+                // createMenu: 전리품 표가 있으면 관전자는 못 열고, 아니면 연 플레이어로 표를 푼다(엔티티 region 에서)
+                boolean blocked = entity.lootTable() != null && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR;
+                org.domi.furnace.server.ServerCore c = login.core;
+                if (!blocked && c != null) c.unpackLoot(entity, p);
+                ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openEntityContainer(p, entity, blocked));
+            }
+
             public int permissionLevel() {
                 org.domi.furnace.server.ServerCore c = login.core;
                 return c == null ? 0 : c.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
@@ -1444,6 +1457,48 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
+    /** ServerPlayer.openHorseInventory: 열린 창을 닫고 → 번호를 올리고 → horse_screen_open → HorseInventoryMenu → 첫 내용. */
+    private void openHorseInventory(Player p, org.domi.furnace.server.entity.AbstractHorse horse, org.domi.furnace.server.menu.Container container, int columns) {
+        if (player != p) return;
+        synchronized (p.menuLock()) {
+            if (p.hasOpenContainer()) closeContainer(p);
+            int containerId = p.nextContainerCounter();
+            send(ctx, new org.domi.furnace.server.net.protocol.play.HorseScreenOpen(containerId, columns, horse.id()));
+            var menu = new org.domi.furnace.server.menu.HorseInventoryMenu(containerId, p.inventoryMenu().inventoryContainer(), container, horse, columns, menus);
+            menu.addSlotListener(menus);
+            p.setContainerMenu(menu);
+            menu.setSynchronizer(menus);
+        }
+    }
+
+    /**
+     * ServerPlayer.openMenu(엔티티 용기): 열린 창을 닫고 → 번호를 올리고 → 메뉴(상자 수레·상자 배는 9×3, 깔때기 수레는 깔때기) → open_screen.
+     * 관전자가 전리품 표 있는 것을 열려 하면 메뉴가 없다(container.spectatorCantOpen 를 액션 바로).
+     */
+    private void openEntityContainer(Player p, org.domi.furnace.server.entity.ContainerEntity entity, boolean blocked) {
+        if (player != p) return;
+        synchronized (p.menuLock()) {
+            if (p.hasOpenContainer()) closeContainer(p);
+            int containerId = p.nextContainerCounter();
+            if (blocked) {
+                p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(
+                        Text.translatable("container.spectatorCantOpen").color(org.domi.furnace.api.text.NamedTextColor.RED), true));
+                return;
+            }
+            var inventory = p.inventoryMenu().inventoryContainer();
+            var c = new org.domi.furnace.server.world.EntityContainer(entity);
+            org.domi.furnace.server.menu.AbstractContainerMenu menu = entity instanceof org.domi.furnace.server.entity.MinecartHopper
+                    ? new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, null, menus)
+                    : org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, null, menus);
+            String type = entity.asEntity().type().name();
+            Text title = Text.translatable("entity." + type.replace(':', '.'));   // getDisplayName: 이름표 이름은 TODO(이름표)
+            send(ctx, new OpenScreen(containerId, menuTypeId(menu), title));
+            menu.addSlotListener(menus);
+            p.setContainerMenu(menu);
+            menu.setSynchronizer(menus);
+        }
+    }
+
     /**
      * 바닐라 Merchant.openTradingScreen(player, title, villagerLevel): 거래 화면을 열고 거래 목록을 보낸다.
      * 주민·떠돌이 상인 엔티티가 생기면 그쪽에서 부른다(이벤트 루프 밖에서 불러도 된다).
@@ -1943,6 +1998,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return e == null ? 0 : e.minCost(level);
         }
 
+        /** canInteractWithEntity(box, buffer): 눈 위치에서 상자까지 거리² < (엔티티 상호작용 거리 3 + buffer)². */
+        @Override public boolean canInteractWithEntity(org.domi.furnace.server.entity.AABB box, double buffer) {
+            double ex = p.x(), ey = p.eyeY(), ez = p.z();
+            double dx = Math.max(Math.max(box.minX() - ex, ex - box.maxX()), 0.0);
+            double dy = Math.max(Math.max(box.minY() - ey, ey - box.maxY()), 0.0);
+            double dz = Math.max(Math.max(box.minZ() - ez, ez - box.maxZ()), 0.0);
+            double r = 3.0 + buffer;
+            return dx * dx + dy * dy + dz * dz < r * r;
+        }
+
+        @Override public boolean isRiding(Object entity) { return p.vehicle() == entity; }
+
         @Override public double distanceToSqr(double x, double y, double z) {
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             return dx * dx + dy * dy + dz * dz;
@@ -2167,11 +2234,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /**
      * player_command 의 탈것 쪽(바닐라 handlePlayerCommand): 5 START_RIDING_JUMP(조종 중인 말이 점프할 수 있고 세기 > 0),
-     * 6 STOP_RIDING_JUMP, 7 OPEN_INVENTORY(TODO 말 인벤토리 창).
+     * 6 STOP_RIDING_JUMP, 7 OPEN_INVENTORY(탄 것이 HasCustomInventoryScreen 이면 그 창 — 말·상자 배).
      */
     private static void handleRidingCommand(Player p, int action, int data) {
         var v = p.vehicle();
-        if (action == 7) return;   // TODO(인벤토리): HasCustomInventoryScreen.openCustomInventoryScreen
+        if (action == 7) {
+            if (v instanceof org.domi.furnace.server.entity.AbstractHorse h) h.openCustomInventoryScreen(p);
+            else if (v instanceof org.domi.furnace.server.entity.ChestBoat b) b.openCustomInventoryScreen(p);
+            return;
+        }
         if (!(v instanceof org.domi.furnace.server.entity.AbstractHorse h) || v.getControllingPassenger() != p) return;
         if (action == 5) {
             if (h.canJump() && data > 0) h.handleStartJump(data);

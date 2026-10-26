@@ -1,5 +1,5 @@
 // 바닐라 Horse: 털 색 7가지 × 무늬 5가지(변종 정수 하나), 체력·속도·점프가 무작위. 말·당나귀와 번식(말+말=말, 말+당나귀=노새).
-// TODO(말 갑옷): 몸통 갑옷 칸 장착과 소리.
+// 몸통 갑옷(말 갑옷 4종)을 입는다 — 우클릭이나 인벤토리 창의 갑옷 칸. 방어 수치는 장비 칸 속성 수정자(detectEquipmentUpdates)가 단다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -46,6 +46,28 @@ public class Horse extends AbstractHorse {
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
         setVariantRaw(tag.getIntOr0("Variant"));
+    }
+
+    /** canUseSlot(BODY): 말은 늘 된다. */
+    @Override public boolean canUseBodySlot() { return true; }
+
+    /** isBodyArmorItem: AnimalArmorItem 중 말용(EQUESTRIAN). */
+    @Override
+    public boolean isBodyArmorItem(ItemStack s) {
+        if (s.isEmpty()) return false;
+        return switch (org.domi.furnace.server.item.ItemTools.itemName(s)) {
+            case "minecraft:leather_horse_armor", "minecraft:iron_horse_armor", "minecraft:golden_horse_armor", "minecraft:diamond_horse_armor" -> true;
+            default -> false;
+        };
+    }
+
+    /** containerChanged: 몸통 갑옷이 (틱 20 뒤) 다른 말 갑옷으로 바뀌었으면 갑옷 소리. 1.21.1 에선 갑옷이 인벤토리 밖이라 사실상 울리지 않는다. */
+    @Override
+    protected void containerChanged() {
+        ItemStack before = getItemBySlot(EquipmentSlot.BODY);
+        super.containerChanged();
+        ItemStack after = getItemBySlot(EquipmentSlot.BODY);
+        if (tickCount > 20 && isBodyArmorItem(after) && before != after) playSound("entity.horse.armor", 0.5F, 1.0F);
     }
 
     @Override public String getAmbientSound() { return "entity.horse.ambient"; }

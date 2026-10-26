@@ -23,7 +23,8 @@ public abstract class ContainerBackedMenu extends AbstractContainerMenu {
 
     public Container container() { return container; }
 
-    @Override public int[] containerBlockPos() { return blockPos; }
+    /** 블록 좌표, 없으면 용기 자신의 좌표(엔티티 용기는 움직인다). */
+    @Override public int[] containerBlockPos() { return blockPos != null ? blockPos : container.containerPos(); }
 
     @Override public boolean stillValid(MenuPlayer player) { return container.stillValid(player); }
 

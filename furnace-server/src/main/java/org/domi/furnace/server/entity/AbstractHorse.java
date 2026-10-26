@@ -1,6 +1,6 @@
 // 바닐라 AbstractHorse: 말 종류 공통 — 템퍼(길들이기 진행도)·안장/먹이/뒷발 서기, 임의 능력치(체력·속도·점프), 번식 시 부모 능력치 교배.
 // 탑승: 빈손 우클릭으로 올라타고, 안장을 얹으면 탄 플레이어가 조종한다(이동은 클라이언트가 move_vehicle 로 보낸다 —
-// 서버는 회전만 맞추고 속도를 지운다). 길들이기는 RunAroundLikeCrazyGoal 의 템퍼 판정. TODO(인벤토리): 말 인벤토리 창(HorseInventoryMenu).
+// 서버는 회전만 맞추고 속도를 지운다). 길들이기는 RunAroundLikeCrazyGoal 의 템퍼 판정. 인벤토리 창은 HorseInventoryMenu(웅크려 우클릭·타고 인벤토리 키).
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -243,7 +243,147 @@ public abstract class AbstractHorse extends Animal {
         setFlag(FLAG_SADDLE, !inventory[0].isEmpty());
     }
 
-    protected boolean isSaddleItem(ItemStack s) { return !s.isEmpty() && ItemTools.itemName(s).equals("minecraft:saddle"); }
+    public boolean isSaddleItem(ItemStack s) { return !s.isEmpty() && ItemTools.itemName(s).equals("minecraft:saddle"); }
+
+    // ------------------------------------------------------------------ 인벤토리 창·몸통 갑옷
+
+    /** 지금 인벤토리(0 안장, 1.. 상자 칸)를 메뉴용 Container 로 — 이 배열에 매인다(createInventory 로 바뀌면 hasInventoryChanged). */
+    public org.domi.furnace.server.menu.Container inventoryContainer() { return new HorseContainer(this, inventory); }
+
+    /** hasInventoryChanged(container): 창이 쥔 인벤토리가 지금 것이 아니다. */
+    public boolean hasInventoryChanged(org.domi.furnace.server.menu.Container c) { return !(c instanceof HorseContainer h && h.items == inventory); }
+
+    /** 바닐라 SimpleContainer + containerChanged 리스너: 칸이 바뀌면(setChanged) 말이 안장 상태를 다시 맞춘다. */
+    static final class HorseContainer implements org.domi.furnace.server.menu.Container {
+        final AbstractHorse horse;
+        final ItemStack[] items;
+
+        HorseContainer(AbstractHorse horse, ItemStack[] items) {
+            this.horse = horse;
+            this.items = items;
+        }
+
+        @Override public int size() { return items.length; }
+
+        @Override public ItemStack get(int i) { return i >= 0 && i < items.length ? items[i] : ItemStack.EMPTY; }
+
+        @Override public void set(int i, ItemStack s) {
+            items[i] = s == null ? ItemStack.EMPTY : s;
+            setChanged();
+        }
+
+        @Override public ItemStack remove(int i, int amount) {
+            ItemStack cur = get(i);
+            if (cur.isEmpty() || amount <= 0) return ItemStack.EMPTY;
+            int n = Math.min(amount, cur.count());
+            items[i] = cur.withCount(cur.count() - n);
+            setChanged();
+            return cur.withCount(n);
+        }
+
+        @Override public ItemStack removeNoUpdate(int i) {
+            ItemStack cur = get(i);
+            if (i >= 0 && i < items.length) items[i] = ItemStack.EMPTY;
+            return cur;
+        }
+
+        /** 그 자리 개수 바꾸기 — 뒤따르는 Slot.setChanged 가 알린다. */
+        @Override public void replaceInPlace(int i, ItemStack s) { items[i] = s; }
+
+        @Override public void setChanged() { horse.containerChanged(); }
+
+        @Override public boolean stillValid(org.domi.furnace.server.menu.MenuPlayer p) { return true; }
+
+        @Override public int[] containerPos() { return org.domi.furnace.server.world.MenuBlockContext.blockPos(horse); }
+    }
+
+    /** getBodyArmorAccess: 몸통 갑옷 칸 하나짜리 용기. 놓으면 setBodyArmorItem, 떼면 그 자리 스택만 줄인다(소리 없음). */
+    public org.domi.furnace.server.menu.Container bodyArmorAccess() {
+        AbstractHorse self = this;
+        return new org.domi.furnace.server.menu.Container() {
+            @Override public int size() { return 1; }
+
+            @Override public ItemStack get(int i) { return i == 0 ? getItemBySlot(EquipmentSlot.BODY) : ItemStack.EMPTY; }
+
+            @Override public void set(int i, ItemStack s) { if (i == 0) setBodyArmorItem(s == null ? ItemStack.EMPTY : s); }
+
+            @Override public ItemStack remove(int i, int amount) {
+                if (i != 0) return ItemStack.EMPTY;
+                ItemStack cur = get(0);
+                if (cur.isEmpty() || amount <= 0) return ItemStack.EMPTY;
+                int n = Math.min(amount, cur.count());
+                setItemSlot(EquipmentSlot.BODY, cur.withCount(cur.count() - n));   // split: 그 자리에서 줄인다
+                return cur.withCount(n);
+            }
+
+            @Override public ItemStack removeNoUpdate(int i) { return remove(i, Integer.MAX_VALUE); }
+
+            @Override public void replaceInPlace(int i, ItemStack s) { if (i == 0) setItemSlot(EquipmentSlot.BODY, s); }
+
+            @Override public void setChanged() { }
+
+            /** 타고 있거나 4칸 여유 안. */
+            @Override public boolean stillValid(org.domi.furnace.server.menu.MenuPlayer p) {
+                return p.isRiding(self) || p.canInteractWithEntity(boundingBox(), 4.0);
+            }
+
+            @Override public int[] containerPos() { return org.domi.furnace.server.world.MenuBlockContext.blockPos(self); }
+        };
+    }
+
+    /** canUseSlot(BODY): 몸통 갑옷을 입을 수 있는가(말만). */
+    public boolean canUseBodySlot() { return false; }
+
+    /** isBodyArmorItem: 이 말이 입는 몸통 갑옷인가. */
+    public boolean isBodyArmorItem(ItemStack s) { return false; }
+
+    /** isWearingBodyArmor. */
+    public boolean isWearingBodyArmor() { return !getItemBySlot(EquipmentSlot.BODY).isEmpty(); }
+
+    /** Mob.setBodyArmorItem → setItemSlotAndDropWhenKilled(BODY): setItemSlot 안에서 onEquipItem 이 장착 소리를 낸다. */
+    public void setBodyArmorItem(ItemStack s) {
+        ItemStack old = getItemBySlot(EquipmentSlot.BODY);
+        setItemSlotAndDropWhenKilled(EquipmentSlot.BODY, s);
+        onBodyArmorEquip(old, s);
+    }
+
+    /**
+     * LivingEntity.onEquipItem(BODY, old, new): 둘 다 비지 않았고 다른 것이며 첫 틱이 아니면, 새 것이 몸통에 입는 장비일 때
+     * 그 장착 소리(엔티티 난수 씨앗). TODO(게임 이벤트): equip/unequip.
+     */
+    public void onBodyArmorEquip(ItemStack oldItem, ItemStack newItem) {
+        boolean bothEmpty = newItem.isEmpty() && oldItem.isEmpty();
+        if (bothEmpty || org.domi.furnace.server.menu.Stacks.isSameItemSameComponents(oldItem, newItem) || firstTick) return;
+        String sound = bodyEquipSound(newItem);
+        if (!isSilent() && sound != null) level.playSeededSound(null, x(), y(), z(), sound, soundSource(), 1.0F, 1.0F, random.nextLong());
+    }
+
+    /** Equipable.get(stack) 이 몸통 칸이면 그 장착 소리(말 갑옷은 재료별, 늑대 갑옷), 아니면 null. */
+    static String bodyEquipSound(ItemStack s) {
+        if (s.isEmpty()) return null;
+        return switch (ItemTools.itemName(s)) {
+            case "minecraft:leather_horse_armor" -> "item.armor.equip_leather";
+            case "minecraft:iron_horse_armor" -> "item.armor.equip_iron";
+            case "minecraft:golden_horse_armor" -> "item.armor.equip_gold";
+            case "minecraft:diamond_horse_armor" -> "item.armor.equip_diamond";
+            case "minecraft:wolf_armor" -> "item.armor.equip_wolf";
+            default -> null;
+        };
+    }
+
+    /** equipBodyArmor(player, stack): 하나를 입히고 손의 것을 하나 쓴다(크리에이티브면 그대로). */
+    protected void equipBodyArmor(Player p, int hand, ItemStack held) {
+        setBodyArmorItem(held.withCount(1));
+        usePlayerItem(p, hand, held);
+    }
+
+    /** HasCustomInventoryScreen.openCustomInventoryScreen: (아무도 안 탔거나 그가 탔고) 길들였으면 인벤토리 창. */
+    public void openCustomInventoryScreen(Player p) {
+        if ((!isVehicle() || hasPassenger(p)) && isTamed()) {
+            Player.InventoryHost host = p.inventoryHost();
+            if (host != null) host.openHorseInventory(this, inventoryContainer());
+        }
+    }
 
     // ------------------------------------------------------------------ 소리·틱
 
@@ -370,7 +510,10 @@ public abstract class AbstractHorse extends Animal {
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         if (isVehicle() || isBaby()) return super.interact(p, hand, held, region);
-        if (isTamed() && p.sneaking()) return true;   // TODO(인벤토리): openCustomInventoryScreen
+        if (isTamed() && p.sneaking()) {
+            openCustomInventoryScreen(p);
+            return true;
+        }
         if (!held.isEmpty()) {
             if (isSaddleItem(held) && !isSaddled() && isSaddleable()) {
                 var inv = p.inventory();
@@ -378,7 +521,10 @@ public abstract class AbstractHorse extends Animal {
                 equipSaddle(held.withCount(1));
                 return true;
             }
-            // TODO(말 갑옷): canUseSlot(BODY) && isBodyArmorItem → equipBodyArmor
+            if (canUseBodySlot() && isBodyArmorItem(held) && !isWearingBodyArmor()) {
+                equipBodyArmor(p, hand, held);
+                return true;
+            }
         }
         doPlayerRide(p);
         return true;

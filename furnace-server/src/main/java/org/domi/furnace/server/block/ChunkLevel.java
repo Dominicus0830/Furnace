@@ -701,9 +701,14 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override
     public void playSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch) {
+        playSeededSound(except, x, y, z, sound, source, volume, pitch, soundRandom.nextLong());
+    }
+
+    /** Level.playSeededSound: 씨앗을 부르는 쪽이 정한다(엔티티 난수 등). */
+    public void playSeededSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch, long seed) {
         Integer id = ItemContext.installed() ? ItemContext.id("minecraft:sound_event", sound) : null;
         double range = volume > 1.0F ? 16.0 * volume : 16.0;
-        SoundPacket pkt = new SoundPacket(id == null ? -1 : id, sound, SoundPacket.source(source), x, y, z, volume, pitch, soundRandom.nextLong());
+        SoundPacket pkt = new SoundPacket(id == null ? -1 : id, sound, SoundPacket.source(source), x, y, z, volume, pitch, seed);
         Object skip = except == null ? null : except.handle();
         services().forEachPlayer(p -> {
             if (p == skip) return;

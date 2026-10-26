@@ -103,6 +103,14 @@ public interface MenuPlayer {
     /** LivingEntity.onEquipItem(slot, old, new): 장비 칸이 바뀌었다 — 장착 소리(모두에게)와 equip/unequip 게임 이벤트. */
     default void onEquipItem(EquipSlot slot, ItemStack oldItem, ItemStack newItem) { }
 
+    // --- 엔티티 용기(말·상자 배·상자 수레) -----------------------------------------------------------
+
+    /** Player.canInteractWithEntity(box, buffer): 눈에서 상자까지 거리² < (엔티티 상호작용 거리 + buffer)². 시험용 가짜는 늘 참. */
+    default boolean canInteractWithEntity(org.domi.furnace.server.entity.AABB box, double buffer) { return true; }
+
+    /** getVehicle() == entity. */
+    default boolean isRiding(Object entity) { return false; }
+
     /** 이 메뉴를 쥔 서버 Player(거래 중인 몹의 목표가 위치·시선을 읽는다). 시험용 가짜는 null. */
     default org.domi.furnace.server.entity.Player entityPlayer() { return null; }
 }

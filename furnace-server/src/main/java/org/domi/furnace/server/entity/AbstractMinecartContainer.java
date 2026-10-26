@@ -1,5 +1,5 @@
 // 바닐라 AbstractMinecartContainer(+ ContainerEntity): 아이템 칸을 가진 수레. 부서지거나 죽어 지워지면 내용물을 쏟는다.
-// 감속은 찬 정도(비교기 신호)에 따라 0.98~0.995. TODO(메뉴): 엔티티 용기 창(상자 9×3·깔때기), 전리품 표 풀기·피글린 화내기.
+// 감속은 찬 정도(비교기 신호)에 따라 0.98~0.995. 우클릭하면 창(상자 9×3·깔때기 5칸)을 열고 그때 전리품 표를 푼다.
 package org.domi.furnace.server.entity;
 
 import java.util.Arrays;
@@ -7,7 +7,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
-public abstract class AbstractMinecartContainer extends AbstractMinecart {
+public abstract class AbstractMinecartContainer extends AbstractMinecart implements ContainerEntity {
 
     private final ItemStack[] items;
     /** 열지 않은 전리품 표(LootTable)와 씨앗 — 저장 왕복만. */
@@ -26,7 +26,20 @@ public abstract class AbstractMinecartContainer extends AbstractMinecart {
 
     public void setItem(int i, ItemStack s) { items[i] = s == null ? ItemStack.EMPTY : s; }
 
-    public String lootTable() { return lootTable; }
+    @Override public String lootTable() { return lootTable; }
+
+    @Override public void setLootTable(String t) { lootTable = t; }
+
+    @Override public long lootTableSeed() { return lootTableSeed; }
+
+    public void setLootTable(String t, long seed) {
+        lootTable = t;
+        lootTableSeed = seed;
+    }
+
+    @Override public ItemStack[] chestVehicleItems() { return items; }
+
+    @Override public Entity asEntity() { return this; }
 
     /** destroy(source): 수레 아이템(그 안의 kill → remove 가 내용물을 먼저 쏟는다) 뒤 chestVehicleDestroyed. TODO(피글린): 플레이어가 부수면 화내기. */
     @Override
@@ -67,8 +80,11 @@ public abstract class AbstractMinecartContainer extends AbstractMinecart {
         return org.domi.furnace.server.block.types.ChestBlock.redstoneSignalFromContainer(java.util.List.<ItemStack[]>of(items));
     }
 
-    /** interact: TODO(메뉴) — 바닐라는 interactWithContainerVehicle 로 창을 연다. */
-    public boolean interact(Player p, int hand) { return false; }
+    /** interact: interactWithContainerVehicle — 창을 연다(서버에서는 늘 CONSUME). */
+    public boolean interact(Player p, int hand) {
+        interactWithContainerVehicle(p);
+        return true;
+    }
 
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {

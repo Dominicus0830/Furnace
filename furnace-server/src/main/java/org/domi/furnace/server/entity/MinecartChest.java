@@ -15,4 +15,8 @@ public class MinecartChest extends AbstractMinecartContainer {
     @Override public int getDefaultDisplayBlockState() { return B.prop("facing").with(B.defaultState("chest"), "north"); }
 
     @Override public int getDefaultDisplayOffset() { return 8; }
+
+    /** interact: 창을 열고 TODO(게임 이벤트): container_open, TODO(피글린): PiglinAi.angerNearbyPiglins(player, true). */
+    @Override
+    public boolean interact(Player p, int hand) { return super.interact(p, hand); }
 }

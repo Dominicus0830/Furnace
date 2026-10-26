@@ -36,6 +36,9 @@ public interface Container {
 
     default void stopOpen(MenuPlayer player) { }
 
+    /** 움직이는 용기(엔티티)의 지금 블록 좌표 {x, y, z} — 클릭을 그 region 에서 처리한다. 블록 용기·메모리 용기는 null. */
+    default int[] containerPos() { return null; }
+
     default boolean isEmpty() {
         for (int i = 0; i < size(); i++) if (!get(i).isEmpty()) return false;
         return true;
