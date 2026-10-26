@@ -155,6 +155,7 @@ public final class DataPackManager implements AutoCloseable {
         org.domi.furnace.server.item.ItemContext.installTags(tags);
         recipes = l.recipes();
         org.domi.furnace.server.item.JukeboxSongs.install(l.rm());
+        org.domi.furnace.server.entity.spawn.StructureSpawnOverrides.install(l.rm());
         loot = l.loot();
         advancements = l.advancements();
         if (old != null) old.close();

@@ -223,8 +223,40 @@ public final class NaturalSpawner {
         return BiomeSpawns.getRandom(mobsAt(level, cat, pos, biome), rnd);
     }
 
-    /** ChunkGenerator.getMobsAt. TODO: 구조물 덮어쓰기. */
-    private static List<BiomeSpawns.SpawnerData> mobsAt(ChunkLevel level, MobCategory cat, Pos pos, String biome) { return BiomeSpawns.mobs(biome, cat); }
+    /** NetherFortressStructure.FORTRESS_ENEMIES — 바닐라 하드코딩 목록(데이터 팩과 무관). */
+    static final List<BiomeSpawns.SpawnerData> FORTRESS_ENEMIES = List.of(
+        new BiomeSpawns.SpawnerData("minecraft:blaze", 10, 2, 3),
+        new BiomeSpawns.SpawnerData("minecraft:zombified_piglin", 5, 4, 4),
+        new BiomeSpawns.SpawnerData("minecraft:wither_skeleton", 8, 5, 5),
+        new BiomeSpawns.SpawnerData("minecraft:skeleton", 2, 5, 5),
+        new BiomeSpawns.SpawnerData("minecraft:magma_cube", 3, 4, 4));
+
+    /** NaturalSpawner.mobsAt: 요새 바닥(네더 벽돌 위, 요새 전체 상자 안)이면 요새 적, 아니면 ChunkGenerator.getMobsAt. */
+    static List<BiomeSpawns.SpawnerData> mobsAt(ChunkLevel level, MobCategory cat, Pos pos, String biome) {
+        if (isInNetherFortressBounds(level, cat, pos)) return FORTRESS_ENEMIES;
+        // ChunkGenerator.getMobsAt: 이 청크가 참조하는 구조물마다 그 종류 덮어쓰기가 있고, pos 가 조각(piece) 또는 전체 상자(full) 안이면 그 목록
+        var refs = level.structuresAt(pos);
+        for (int i = 0; i < refs.length; i++) {
+            String id = refs[i].id();
+            boolean seen = false;
+            for (int j = 0; j < i; j++) if (refs[j].id().equals(id)) { seen = true; break; }
+            if (seen) continue;   // 구조물마다 한 번(그 구조물의 시작점 전부를 함께 본다)
+            StructureSpawnOverrides.Override o = StructureSpawnOverrides.get(id, cat);
+            if (o == null) continue;
+            for (int j = i; j < refs.length; j++) {
+                var r = refs[j];
+                if (!r.id().equals(id)) continue;
+                if (o.piece() ? r.hasPieceAt(pos.x(), pos.y(), pos.z()) : r.isInside(pos.x(), pos.y(), pos.z())) return o.spawns();
+            }
+        }
+        return BiomeSpawns.mobs(biome != null ? biome : biomeName(level, pos), cat);
+    }
+
+    /** NaturalSpawner.isInNetherFortressBounds */
+    static boolean isInNetherFortressBounds(ChunkLevel level, MobCategory cat, Pos pos) {
+        return cat == MobCategory.MONSTER && B.is(level.getBlockState(pos.below()), "minecraft:nether_bricks")
+            && level.structureAt(pos, "minecraft:fortress") != null;
+    }
 
     private static boolean isValidSpawnPositionForType(ChunkLevel level, MobCategory cat, BiomeSpawns.SpawnerData data, Pos pos, double distSqr, String biome) {
         EntityMeta.Info info = EntityMeta.of(data.type());
