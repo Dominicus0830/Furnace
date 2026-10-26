@@ -63,6 +63,15 @@ public final class RegionLevel extends ChunkLevel {
     @Override
     protected LevelServices services() { return world.levelServices(); }
 
+    @Override
+    public DimensionType dimensionType() { return world.dimensionType(); }
+
+    @Override
+    public int minBuildHeight() { return world.dimensionType().minY(); }
+
+    @Override
+    public int maxBuildHeight() { return world.dimensionType().maxY(); }
+
     // ------------------------------------------------------------------ 엔티티
 
     @Override

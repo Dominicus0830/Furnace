@@ -76,7 +76,9 @@ public final class Regionizer {
         if (STATS) log.info("[TICKSTATS] 틱 계측 켜짐 — region 틱 100번마다 간격/소요 시간을 기록합니다");
         this.workers = new Thread[Math.max(1, threads)];
         for (int i = 0; i < workers.length; i++) {
-            Thread t = new Thread(this::workerLoop, "furnace-region-" + i);
+            // 차원마다 작업 스레드가 따로다(오버월드 furnace-region-N, 네더 furnace-region-the_nether-N …)
+            String dim = world.dimensionType() == DimensionType.OVERWORLD ? "" : world.dimension().substring(world.dimension().indexOf(':') + 1) + "-";
+            Thread t = new Thread(this::workerLoop, "furnace-region-" + dim + i);
             t.setDaemon(true);
             t.setPriority(Thread.MAX_PRIORITY - 1);   // 틱 스레드는 백그라운드 생성·저장보다 먼저 CPU 를 받는다
             workers[i] = t;

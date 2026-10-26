@@ -57,6 +57,9 @@ public final class World {
     private BlockRegistry blockRegistry;
     private ItemRegistry itemRegistry;
     private SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
+    // 이 월드의 차원(기본 오버월드 — 단일 차원 테스트·도구 호환). 저장 폴더·높이·하늘빛이 여기서 나온다.
+    private volatile DimensionType dimensionType;
+    private volatile Dimensions dimensions;
 
     // 로드된 청크와 로드 중인 청크(월드 공용). 청크 내용은 그 청크 구역을 가진 region 스레드만 만진다.
     private final ConcurrentHashMap<Long, ChunkColumn> chunks = new ConcurrentHashMap<>();
@@ -86,6 +89,18 @@ public final class World {
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
                  int regionThreads, int sectionShift, int mergeRadius, int viewDistance, int entityViewDistance,
                  int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
+        this(DimensionType.OVERWORLD, worldSource, chunkPool, scheduler, regionThreads, sectionShift, mergeRadius, viewDistance,
+                entityViewDistance, blockDirectBits, biomeDirectBits, ioPool, genPool);
+    }
+
+    /**
+     * 차원 월드. region 은 월드마다 따로(Regionizer 와 작업 스레드가 월드 단위) — 스케줄러의 RegionPos 라우팅(플러그인 region
+     * 스케줄러)은 오버월드만 건다. 다른 차원은 종료 훅만 단다.
+     */
+    public World(DimensionType type, WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
+                 int regionThreads, int sectionShift, int mergeRadius, int viewDistance, int entityViewDistance,
+                 int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
+        this.dimensionType = type;
         this.worldSource = worldSource;
         this.ioPool = ioPool;
         this.ioLanes = ioPool == null ? null : new org.domi.furnace.server.world.anvil.IoLanes(ioPool, IO_LANES);
@@ -99,7 +114,8 @@ public final class World {
         long tickNanos = scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl ? impl.tickNanos() : 50_000_000L;
         this.regionizer = new Regionizer(this, regionThreads, sectionShift, mergeRadius, tickNanos);
         if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) {
-            impl.installRouter((cx, cz) -> chunkScheduler(cx, cz), regionizer::close);
+            if (type == DimensionType.OVERWORLD) impl.installRouter((cx, cz) -> chunkScheduler(cx, cz), regionizer::close);
+            else impl.addCloseHook(regionizer::close);
         }
     }
 
@@ -111,6 +127,32 @@ public final class World {
     }
 
     public Regionizer regionizer() { return regionizer; }
+
+    public DimensionType dimensionType() { return dimensionType; }
+
+    /** 서버가 띄운 차원들(단일 월드 테스트면 null). */
+    public Dimensions dimensions() { return dimensions; }
+
+    void dimensions(Dimensions d) { this.dimensions = d; }
+
+    /** 다른 차원 월드(없거나 단일 월드면 null). */
+    public World otherWorld(String levelKey) {
+        Dimensions d = dimensions;
+        return d == null ? null : d.get(levelKey);
+    }
+
+    /**
+     * 다른 차원과 서버 상태를 공유한다(Dimensions.register): 접속자 목록(탭 목록은 차원과 무관), 월드 시계(바닐라 DerivedLevelData —
+     * 네더·엔드의 시간·날씨 데이터는 오버월드 것), 엔티티 id 공간.
+     */
+    void shareServerState(World overworld) {
+        this.online = overworld.online;
+        this.clock = overworld.clock;
+        this.entityIds = overworld.entityIds;
+    }
+
+    /** 레벨 키(minecraft:overworld …). */
+    public String dimension() { return dimensionType.levelKey(); }
 
     /** 게임 틱을 켠다(서버 준비가 끝난 뒤). 꺼져 있으면 region 은 작업만 처리한다. */
     public void startTicking() { regionizer.gameTicks(true); }
@@ -406,7 +448,8 @@ public final class World {
         synchronized (this) {
             if (raidStore == null) {
                 raidStore = worldSource instanceof AnvilWorldSource
-                        ? org.domi.furnace.server.world.raid.RaidStore.open(worldDir)
+                        ? org.domi.furnace.server.world.raid.RaidStore.open(dimensionType.storageDir(worldDir),
+                                dimensionType == DimensionType.END ? "raids_end" : "raids")
                         : org.domi.furnace.server.world.raid.RaidStore.detached();
             }
             return raidStore;
@@ -417,7 +460,7 @@ public final class World {
 
     // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
     // 시간·날씨: 전역 틱(ServerCore.tick)이 진행한다.
-    private final WorldClock clock = new WorldClock();
+    private volatile WorldClock clock = new WorldClock();
 
     public WorldClock clock() { return clock; }
 
@@ -425,21 +468,54 @@ public final class World {
 
     public long dayTime() { return clock.dayTime(); }
 
-    // 접속 중 플레이어(eid→Player). 탭 목록은 바닐라처럼 거리와 무관하게 이 집합 전체를 기준으로 한다.
-    private final ConcurrentHashMap<Integer, Player> online = new ConcurrentHashMap<>();
-    /** online 의 복사본 배열 — 몹마다·스폰 시도마다 부르는 forEachPlayer 가 맵 반복자를 만들지 않게(접속·퇴장 때만 새로 만든다). */
-    private volatile Player[] onlineArray = new Player[0];
+    /**
+     * 접속 중 플레이어(eid→Player) — 서버 전체(모든 차원 월드가 같은 것을 쓴다). 탭 목록은 바닐라처럼 거리·차원과 무관하게
+     * 이 집합 전체를 기준으로 한다. array 는 복사본 — 몹마다·스폰 시도마다 부르는 forEachPlayer 가 맵 반복자를 만들지 않게
+     * (접속·퇴장 때만 새로 만든다).
+     */
+    static final class Online {
+        final ConcurrentHashMap<Integer, Player> map = new ConcurrentHashMap<>();
+        volatile Player[] array = new Player[0];
+
+        void put(Player p) {
+            synchronized (map) {
+                map.put(p.entityId(), p);
+                array = map.values().toArray(new Player[0]);
+            }
+        }
+
+        void remove(int eid) {
+            synchronized (map) {
+                map.remove(eid);
+                array = map.values().toArray(new Player[0]);
+            }
+        }
+    }
+
+    private volatile Online online = new Online();
     /** 서버 없이(테스트·도구) 쓸 때: 기본값 + 이 월드의 접속자. */
     private volatile org.domi.furnace.server.block.LevelServices levelServices = new org.domi.furnace.server.block.LevelServices.Delegating(
             org.domi.furnace.server.block.LevelServices.DEFAULT) {
         @Override
-        public void forEachPlayer(java.util.function.Consumer<Player> c) { for (Player p : onlineArray) c.accept(p); }
+        public void forEachPlayer(java.util.function.Consumer<Player> c) { World.this.forEachPlayerHere(c); }
 
         @Override
         public long gameTime() { return clock.gameTime(); }
 
         @Override
         public long dayTime() { return clock.dayTime(); }
+
+        @Override
+        public String dimension() { return dimensionType.levelKey(); }
+
+        @Override
+        public boolean ultraWarm() { return dimensionType.ultraWarm(); }
+
+        @Override
+        public boolean hasSkyLight() { return dimensionType.hasSkyLight(); }
+
+        @Override
+        public DimensionType dimensionType() { return dimensionType; }
     };
 
     /** 블록 레벨이 보는 서버 쪽 정보(ServerCore 가 설치한다). */
@@ -447,19 +523,17 @@ public final class World {
 
     public void levelServices(org.domi.furnace.server.block.LevelServices s) { this.levelServices = s; }
 
-    public void playerOnline(Player p) {
-        synchronized (online) {
-            online.put(p.entityId(), p);
-            onlineArray = online.values().toArray(new Player[0]);
-        }
-    }
+    public void playerOnline(Player p) { online.put(p); }
 
     public void playerOffline(int eid) {
-        synchronized (online) {
-            online.remove(eid);
-            onlineArray = online.values().toArray(new Player[0]);
-        }
+        online.remove(eid);
         trackers.remove(eid);
+    }
+
+    /** 이 차원에 있는 접속자마다(바닐라 ServerLevel.players — 차원을 옮기는 중인 플레이어는 도착한 쪽). */
+    public void forEachPlayerHere(java.util.function.Consumer<Player> c) {
+        String dim = dimensionType.levelKey();
+        for (Player p : online.array) if (dim.equals(p.dimension())) c.accept(p);
     }
 
     // 엔티티 → 그 엔티티를 지금 화면에 추적 중인 관찰자들. 관찰자 region 이 추적 시작/끝에 갱신하고,
@@ -493,8 +567,8 @@ public final class World {
         return pr;
     }
     /** 탭 목록 기준 접속자 뷰(읽기 전용 순회용). */
-    public java.util.Collection<Player> onlinePlayers() { return online.values(); }
-    public Player onlinePlayer(int eid) { return online.get(eid); }
+    public java.util.Collection<Player> onlinePlayers() { return online.map.values(); }
+    public Player onlinePlayer(int eid) { return online.map.get(eid); }
     public SpawnPoint defaultSpawn() { return defaultSpawn; }
 
     /** 클라이언트가 보낸 아이템 id가 유효한가. 레지스트리가 없으면(테스트) 양수만 확인한다. */
@@ -563,7 +637,8 @@ public final class World {
     private byte[] serializeChunkBody(ChunkSnapshot snap) {
         ByteBuf body = Unpooled.buffer();
         try {
-            ChunkSerializer.serialize(body, snap, blockDirectBits, biomeDirectBits);
+            DimensionType t = dimensionType;
+            ChunkSerializer.serialize(body, snap, blockDirectBits, biomeDirectBits, t.minY(), t.hasSkyLight());
             byte[] out = new byte[body.readableBytes()];
             body.getBytes(0, out);
             return out;

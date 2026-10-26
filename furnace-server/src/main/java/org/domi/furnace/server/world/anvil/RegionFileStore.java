@@ -43,6 +43,15 @@ public final class RegionFileStore {
         }
     }
 
+    /** 디스크에 그 청크가 있는가(region 파일이 없으면 만들지 않고 거짓). */
+    public boolean hasChunk(int chunkX, int chunkZ) throws IOException {
+        if (!java.nio.file.Files.exists(regionDir.resolve("r." + (chunkX >> 5) + "." + (chunkZ >> 5) + ".mca"))) return false;
+        RegionFile rf = file(chunkX, chunkZ);
+        synchronized (rf) {
+            return rf.hasChunk(chunkX, chunkZ);
+        }
+    }
+
     public void writeChunk(int chunkX, int chunkZ, byte[] nbtBytes) throws IOException {
         RegionFile rf = file(chunkX, chunkZ);
         synchronized (rf) {

@@ -74,8 +74,14 @@ public final class WorldClock {
     public Random random() { return random; }
 
     /** 한 틱. broadcast 는 모든 플레이어에게 보낼 패킷 수신자. */
-    public synchronized void tick(GameRules rules, Consumer<Packet> broadcast) {
-        advanceWeatherCycle(rules, broadcast);
+    public synchronized void tick(GameRules rules, Consumer<Packet> broadcast) { tick(rules, broadcast, broadcast); }
+
+    /**
+     * 차원별: 비·천둥 세기 변화는 하늘빛 있는 차원(오버월드)의 플레이어에게만(바닐라 broadcastAll(packet, dimension)),
+     * 비 시작/끝과 그 뒤 세기 두 개는 모든 플레이어에게(바닐라 broadcastAll).
+     */
+    public synchronized void tick(GameRules rules, Consumer<Packet> broadcast, Consumer<Packet> skyBroadcast) {
+        advanceWeatherCycle(rules, broadcast, skyBroadcast);
         gameTime++;
         if (rules.getBoolean("doDaylightCycle")) dayTime++;
         if (++tickCount % 20 == 0) broadcast.accept(timePacket(rules));
@@ -85,7 +91,7 @@ public final class WorldClock {
         return SetTime.of(gameTime, dayTime, rules.getBoolean("doDaylightCycle"));
     }
 
-    private void advanceWeatherCycle(GameRules rules, Consumer<Packet> broadcast) {
+    private void advanceWeatherCycle(GameRules rules, Consumer<Packet> broadcast, Consumer<Packet> skyBroadcast) {
         boolean wasRaining = isRaining();
         if (rules.getBoolean("doWeatherCycle")) {
             int i = clearWeatherTime, j = thunderTime, k = rainTime;
@@ -124,8 +130,8 @@ public final class WorldClock {
         thunderLevel = Math.clamp(thunderLevel + (thundering ? 0.01f : -0.01f), 0f, 1f);
         oRainLevel = rainLevel;
         rainLevel = Math.clamp(rainLevel + (raining ? 0.01f : -0.01f), 0f, 1f);
-        if (oRainLevel != rainLevel) broadcast.accept(new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, rainLevel));
-        if (oThunderLevel != thunderLevel) broadcast.accept(new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, thunderLevel));
+        if (oRainLevel != rainLevel) skyBroadcast.accept(new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, rainLevel));
+        if (oThunderLevel != thunderLevel) skyBroadcast.accept(new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, thunderLevel));
         if (wasRaining != isRaining()) {
             broadcast.accept(new GameEvent(wasRaining ? GameEvent.STOP_RAINING : GameEvent.START_RAINING, 0f));
             broadcast.accept(new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, rainLevel));

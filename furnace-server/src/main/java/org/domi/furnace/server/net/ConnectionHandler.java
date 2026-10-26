@@ -79,7 +79,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final String serverName;
     private final int compressionThreshold;
     private final FurnaceScheduler scheduler;
-    private final World world;
+    // 플레이어가 지금 있는 차원의 월드(차원 이동 때 연결 스레드가 바꾼다). 처음은 서버가 넘긴 오버월드.
+    private volatile World world;
     private final EntityIdAllocator idAllocator;
 
     private volatile ChannelHandlerContext ctx;
@@ -734,7 +735,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 저장 데이터를 먼저 읽는다 — 게임 모드·체력 등이 LoginPlay 부터 들어간다(바닐라 placeNewPlayer: load → loadGameTypes).
         org.domi.furnace.server.entity.PlayerData.Snapshot saved =
                 org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
+        // 바닐라 placeNewPlayer: 저장된 Dimension 의 레벨(없는 차원이면 경고 후 오버월드 — 위치는 저장된 그대로)
+        if (saved != null && coreJ != null && saved.root() != null && saved.root().tags().get("Dimension") instanceof String savedDim) {
+            World w = coreJ.world(savedDim);
+            if (w != null) world = w;
+            else log.warn("Unknown respawn dimension {}, defaulting to overworld", savedDim);
+        }
+        dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        p.dimension(world.dimension());
         p.inventory(inv);
         p.inventoryHost(new Player.InventoryHost() {
             public ItemStack slot(int windowSlot) { return inv.get(windowSlot); }
@@ -812,7 +821,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             var level = coreJ.levelData();
             send(ctx, new LoginPlay(eid, level.hardcore, java.util.List.of("minecraft:overworld", "minecraft:the_end", "minecraft:the_nether"),
                     props.maxPlayers, world.viewDistance(), props.simulationDistance, rules.getBoolean("reducedDebugInfo"),
-                    !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, "minecraft:overworld",
+                    !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, world.dimension(),
                     LoginPlay.obfuscateSeed(level.seed), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(), false,
                     vitals.lastDeathDimension(), vitals.lastDeathPos(), coreJ.enforceSecureProfile()));
             send(ctx, new ChangeDifficulty(level.difficulty.id(), level.difficultyLocked));
@@ -897,7 +906,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new SetTime(world.gameTime(), world.dayTime()));
         }
         send(ctx, new SetDefaultSpawnPosition(defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z(), defaultSpawn.yaw()));
-        if (coreJ != null && coreJ.clock().isRaining()) {
+        if (coreJ != null && coreJ.clock().isRaining() && world.dimensionType().hasSkyLight()) {
             send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
             send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, coreJ.clock().rainLevel()));
             send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, coreJ.clock().thunderLevel()));
@@ -1380,7 +1389,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
         world.runAtRequested(bx, bz, actor.x(), actor.z(), region -> {
             // 이미 로드된 청크만 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
-            if (by >= ChunkColumn.MIN_Y && by <= ChunkColumn.MAX_Y && region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) {
+            if (by >= world.dimensionType().minY() && by < world.dimensionType().maxY() && region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) {
                 boolean mayInteract = core == null || core.mayInteract(actor, bx, bz);
                 region.handleBlockBreakAction(actor, pos, status, mayInteract);
             }
@@ -2202,7 +2211,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new SetTime(world.gameTime(), world.dayTime()));
         }
         send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
-        if (core != null && core.clock().isRaining()) {
+        if (core != null && core.clock().isRaining() && world.dimensionType().hasSkyLight()) {
             send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
             send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, core.clock().rainLevel()));
             send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, core.clock().thunderLevel()));
@@ -2295,7 +2304,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 블록 요청(파괴/설치) 허용 여부 — 월드 높이 안이고, 마지막 수락 위치(눈 높이)에서 도달 거리 안인가. */
     private boolean blockRequestAllowed(int bx, int by, int bz) {
-        if (by < ChunkColumn.MIN_Y || by > ChunkColumn.MAX_Y) return false;
+        if (by < world.dimensionType().minY() || by >= world.dimensionType().maxY()) return false;
         double dx = bx + 0.5 - ix, dy = by + 0.5 - (iy + 1.62), dz = bz + 0.5 - iz;
         return dx * dx + dy * dy + dz * dz <= REACH_SQ;
     }
@@ -2425,7 +2434,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 그 칸의 지금 상태를 행위자에게(ClientboundBlockUpdatePacket(level, pos)). 다른 region 의 칸은 그 region 에서 읽어 보낸다. */
     private void sendBlockState(Player actor, Region here, org.domi.furnace.server.block.Pos p) {
-        if (p.y() < ChunkColumn.MIN_Y || p.y() > ChunkColumn.MAX_Y) {
+        if (p.y() < world.dimensionType().minY() || p.y() >= world.dimensionType().maxY()) {
             actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
             return;
         }
@@ -2448,7 +2457,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 거부한 블록 요청 — 클라 예측이 어긋나지 않게 (로드된 청크면) 실제 블록 상태를 되돌려 보내고 ack. */
     private void rejectBlockRequest(Player actor, int seq, int bx, int by, int bz) {
-        if (by < ChunkColumn.MIN_Y || by > ChunkColumn.MAX_Y) {
+        if (by < world.dimensionType().minY() || by >= world.dimensionType().maxY()) {
             ackLater(actor, bx, bz, seq);
             return;
         }
@@ -2512,6 +2521,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             extra.putList("EnderItems", org.domi.furnace.server.entity.PlayerData.enderItemsToNbt(p.enderChest().snapshot()));
         }
         extra.putCompound("recipeBook", p.recipeBook().save());
+        extra.putString("Dimension", p.dimension());   // 바닐라 ServerPlayer.addAdditionalSaveData — 지금 레벨
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
         final var statsToSave = p.stats();

@@ -41,6 +41,9 @@ public final class RegionFile implements Closeable {
     }
 
     /** 청크 압축해제 전 raw payload bytes 반환(없으면 null). payload = NBT 직렬 바이트(압축해제됨). */
+    /** 헤더에 그 청크 자리가 있는가. */
+    public boolean hasChunk(int chunkX, int chunkZ) { return locations[index(chunkX, chunkZ)] != 0; }
+
     public byte[] readChunk(int chunkX, int chunkZ) throws IOException {
         int loc = locations[index(chunkX, chunkZ)];
         if (loc == 0) return null;

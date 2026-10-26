@@ -56,6 +56,11 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
         if (onClose != null) closeHooks.add(onClose);
     }
 
+    /** 라우터 없이 종료 훅만(오버월드가 아닌 차원 월드 — 플러그인 RegionPos 는 오버월드 청크다). */
+    public synchronized void addCloseHook(Runnable onClose) {
+        if (onClose != null) closeHooks.add(onClose);
+    }
+
     public long tickNanos() { return tickNanos; }
 
     /** region 작업 스레드 수(설정값). */

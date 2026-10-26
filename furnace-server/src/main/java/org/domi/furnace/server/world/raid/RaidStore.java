@@ -45,8 +45,11 @@ public final class RaidStore {
     public static RaidStore detached() { return new RaidStore(null); }
 
     /** world/data/raids.dat 을 읽는다(없거나 깨졌으면 빈 저장소). */
-    public static RaidStore open(Path worldDir) {
-        RaidStore s = new RaidStore(worldDir.resolve("data").resolve("raids.dat"));
+    public static RaidStore open(Path worldDir) { return open(worldDir, "raids"); }
+
+    /** 차원 폴더의 data/<fileId>.dat(바닐라 Raids.getFileId: 엔드는 raids_end, 그 밖은 raids). */
+    public static RaidStore open(Path dimensionDir, String fileId) {
+        RaidStore s = new RaidStore(dimensionDir.resolve("data").resolve(fileId + ".dat"));
         s.load();
         return s;
     }

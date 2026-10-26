@@ -782,8 +782,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     // ---- 지도(MapData.Viewer)
     @Override public boolean removed() { return disconnected; }
 
-    /** 지금은 오버월드 하나뿐(차원은 로드맵 뒤쪽). */
-    @Override public String dimension() { return "minecraft:overworld"; }
+    // 지금 있는 차원(레벨 키). 차원 이동 때 연결 스레드가 바꾸고 어디서나 읽는다.
+    private volatile String dimension = "minecraft:overworld";
+
+    @Override public String dimension() { return dimension; }
+
+    public void dimension(String d) { this.dimension = d; }
 
     /** Inventory.contains(predicate): 칸 전체(주·핫바·갑옷·왼손 — 제작 칸 제외). */
     @Override public boolean holdsMap(java.util.function.Predicate<ItemStack> predicate) {

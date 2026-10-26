@@ -253,11 +253,42 @@ public final class FurnaceMain {
         world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
         world.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
         world.setRegistries(blockRegistry, itemRegistry);
-        world.startTicking();
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         world.entityIds(idAllocator);   // 플레이어와 다른 엔티티가 같은 id 공간을 쓴다
+        // 다른 차원(바닐라 createLevels: 오버월드 → 네더 → 엔드). 차원마다 저장 폴더(DIM-1, DIM1)·생성기·region 이 따로이고,
+        // 접속자·시계·엔티티 id 는 오버월드와 공유한다(Dimensions.register).
+        org.domi.furnace.server.world.Dimensions dimensions = new org.domi.furnace.server.world.Dimensions();
+        dimensions.register(world);
+        java.util.List<org.domi.furnace.server.world.anvil.RegionFileStore> extraStores = new java.util.ArrayList<>();
+        for (var type : java.util.List.of(org.domi.furnace.server.world.DimensionType.NETHER, org.domi.furnace.server.world.DimensionType.END)) {
+            var dir = type.storageDir(worldDir);
+            var store = new org.domi.furnace.server.world.anvil.RegionFileStore(dir);
+            var codec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
+                    registries.entries("minecraft:worldgen/biome"), plainsBiome, type.minY(), type.sectionCount());
+            var gen = NoiseWorldSource.create(type.gen(), config.levelSeed(), blockRegistry, registries);
+            var src = new org.domi.furnace.server.world.gen.AnvilWorldSource(worldDir, store, codec, gen);
+            var ents = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "entities");
+            var pois = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "poi");
+            src.entityStore(ents);
+            src.poiStore(pois);
+            extraStores.add(store);
+            extraStores.add(ents);
+            extraStores.add(pois);
+            World w = new World(type, src, chunkPool, scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(),
+                    config.viewDistance(), config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
+            w.worldDir(worldDir);
+            w.defaultSpawn(defaultSpawn);
+            codec.gameTime(w::gameTime);
+            w.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
+            w.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
+            w.setRegistries(blockRegistry, itemRegistry);
+            dimensions.register(w);
+        }
+        dimensions.levelEnabled(k -> !k.equals(org.domi.furnace.server.world.DimensionType.NETHER.levelKey()) || props.allowNether);
+        for (World w : dimensions.all()) w.startTicking();
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
+        core.dimensions(dimensions);
         if (dataPacks != null) core.dataPacks(dataPacks);
         coreRef.set(core);
         loginContext.core(core);
@@ -267,7 +298,7 @@ public final class FurnaceMain {
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().loadAll();
         core.onSaveAll(() -> {
-            for (var f : world.flushAll()) f.join();
+            for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
         });
         NetworkServer network = new NetworkServer(
@@ -287,7 +318,8 @@ public final class FurnaceMain {
             network.stop();
             try {
                 // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
-                java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = world.flushAll();
+                java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
+                for (World w : dimensions.all()) fs.addAll(w.flushAll());
                 // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 타임아웃을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
                 long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
                 for (var f : fs) {
@@ -301,12 +333,14 @@ public final class FurnaceMain {
                 genPool.shutdown();
                 ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                 genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
-                long failed = world.saveFailures();
+                long failed = 0;
+                for (World w : dimensions.all()) failed += w.saveFailures();
                 if (failed > 0) log.error("[STOP] 재시도 끝에 실패한 저장 {}건 — 해당 청크/엔티티는 디스크에 최신이 아닐 수 있다", failed);
                 else log.info("[STOP] 저장 실패 0건");
                 regionStore.closeAll();
                 entityStore.closeAll();
                 poiStore.closeAll();
+                for (var st : extraStores) st.closeAll();
                 saveLevelData.run();
                 storage.close();
             } catch (Exception e) {

@@ -765,7 +765,7 @@ public final class Region {
                 last = c = ownedChunk(cx, cz);
             }
             if (c == null) return -1;
-            if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return ChunkSection.AIR;
+            if (y < c.minY() || y > c.maxY()) return ChunkSection.AIR;
             return c.getBlock(x & 15, y, z & 15);
         }
     };
@@ -1152,25 +1152,25 @@ public final class Region {
             return last;
         }
 
-        @Override public boolean hasCeiling() { return false; }
+        @Override public boolean hasCeiling() { return world.dimensionType().hasCeiling(); }
 
-        @Override public int minY() { return ChunkColumn.MIN_Y; }
+        @Override public int minY() { return world.dimensionType().minY(); }
 
         @Override public boolean chunkAvailable(int cx, int cz) { return chunk(cx, cz) != null; }
 
         @Override public int surfaceHeight(int x, int z) {
             ChunkColumn c = chunk(x >> 4, z >> 4);
-            return c == null ? ChunkColumn.MIN_Y : c.surfaceBlockY(x & 15, z & 15) + 1;
+            return c == null ? world.dimensionType().minY() : c.surfaceBlockY(x & 15, z & 15) + 1;
         }
 
         @Override public int blockState(int x, int y, int z) {
             ChunkColumn c = chunk(x >> 4, z >> 4);
-            return c == null || y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y ? 0 : c.getBlock(x & 15, y, z & 15);
+            return c == null || y < c.minY() || y > c.maxY() ? 0 : c.getBlock(x & 15, y, z & 15);
         }
 
         @Override public org.domi.furnace.server.map.MapData.Banner bannerAt(int x, int y, int z) {
             ChunkColumn c = chunk(x >> 4, z >> 4);
-            if (c == null || y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return null;
+            if (c == null || y < c.minY() || y > c.maxY()) return null;
             return c.blockEntityAt(x & 15, y, z & 15) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity be
                     ? new org.domi.furnace.server.map.MapData.Banner(x, y, z, be.baseColor(), be.customName) : null;
         }
@@ -1189,7 +1189,7 @@ public final class Region {
             double eye = sneaking ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
             s = new PlayerVitals.Surroundings(true, probe.inWater(blocks, x, y, z, height),
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
-                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), ChunkColumn.MIN_Y);
+                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY());
         }
         p.wasTouchingWater = s.inWater();
         p.onClimbable = s.climbable() != null;

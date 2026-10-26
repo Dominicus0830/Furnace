@@ -239,10 +239,13 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
-    public int minBuildHeight() { return ChunkColumn.MIN_Y; }
+    public int minBuildHeight() { return dimensionType().minY(); }
 
     @Override
-    public int maxBuildHeight() { return ChunkColumn.MAX_Y + 1; }
+    public int maxBuildHeight() { return dimensionType().maxY(); }
+
+    /** 이 레벨의 차원 타입. */
+    public org.domi.furnace.server.world.DimensionType dimensionType() { return services().dimensionType(); }
 
     @Override
     public boolean hasChunkAt(Pos pos) { return chunkAt(pos) != null; }
@@ -1131,7 +1134,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
 
-    public boolean isInWorldBounds(Pos pos) { return pos.y() >= ChunkColumn.MIN_Y && pos.y() <= ChunkColumn.MAX_Y && Math.abs(pos.x()) < 30000000 && Math.abs(pos.z()) < 30000000; }
+    public boolean isInWorldBounds(Pos pos) { return pos.y() >= minBuildHeight() && pos.y() < maxBuildHeight() && Math.abs(pos.x()) < 30000000 && Math.abs(pos.z()) < 30000000; }
 
     @Override
     public void spawnGolem(boolean iron, Pos bottom) {
@@ -1313,15 +1316,15 @@ public abstract class ChunkLevel implements BlockLevel {
         }
 
         public int state(int x, int y, int z) {
-            if (y < ChunkColumn.MIN_Y || y > ChunkColumn.MAX_Y) return 12958;   // void_air
+            if (y < minBuildHeight() || y >= maxBuildHeight()) return 12958;   // void_air
             return col(x >> 4, z >> 4).getBlock(x & 15, y, z & 15);
         }
 
         public int unloadedState() { return bedrockState; }
 
-        public int minY() { return ChunkColumn.MIN_Y; }
+        public int minY() { return minBuildHeight(); }
 
-        public int maxY() { return ChunkColumn.MAX_Y + 1; }
+        public int maxY() { return maxBuildHeight(); }
     };
     private final int bedrockState = blocks.defaultState("minecraft:bedrock");
 
@@ -1348,7 +1351,7 @@ public abstract class ChunkLevel implements BlockLevel {
         col.motionBlockingHeightmap();   // 높이 지도도 첫 사용 때 틱 스레드에서 열마다 훑지 않게 미리 채운다
         if (col.light() != null) return;
         col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, (x, y, z) -> col.getBlock(x & 15, y, z & 15), bedrockState,
-                ChunkColumn.MIN_Y, ChunkColumn.MAX_Y + 1, hasSkyLight));
+                col.minY(), col.maxY() + 1, hasSkyLight));
         col.lightPrecomputed(true);
     }
 
@@ -1387,19 +1390,19 @@ public abstract class ChunkLevel implements BlockLevel {
     /** Level.getHeight(MOTION_BLOCKING, x, z): 움직임을 막는 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
     public int getMotionBlockingHeight(int x, int z) {
         ChunkColumn col = chunk(x >> 4, z >> 4);
-        return col == null ? ChunkColumn.MIN_Y : col.motionBlockingBlockY(x & 15, z & 15) + 1;
+        return col == null ? minBuildHeight() : col.motionBlockingBlockY(x & 15, z & 15) + 1;
     }
 
     /** Level.getHeight(MOTION_BLOCKING_NO_LEAVES, x, z): 잎을 뺀 움직임을 막는 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
     public int getMotionBlockingNoLeavesHeight(int x, int z) {
         ChunkColumn col = chunk(x >> 4, z >> 4);
-        return col == null ? ChunkColumn.MIN_Y : col.motionBlockingNoLeavesBlockY(x & 15, z & 15) + 1;
+        return col == null ? minBuildHeight() : col.motionBlockingNoLeavesBlockY(x & 15, z & 15) + 1;
     }
 
     /** Level.getHeight(WORLD_SURFACE, x, z): 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
     public int getWorldSurfaceHeight(int x, int z) {
         ChunkColumn col = chunk(x >> 4, z >> 4);
-        return col == null ? ChunkColumn.MIN_Y : col.surfaceBlockY(x & 15, z & 15) + 1;
+        return col == null ? minBuildHeight() : col.surfaceBlockY(x & 15, z & 15) + 1;
     }
 
     @Override public int worldSurfaceHeight(int x, int z) { return getWorldSurfaceHeight(x, z); }

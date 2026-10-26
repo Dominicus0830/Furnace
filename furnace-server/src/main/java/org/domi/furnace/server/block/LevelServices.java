@@ -34,6 +34,9 @@ public interface LevelServices {
     /** DimensionType.hasSkyLight. */
     default boolean hasSkyLight() { return true; }
 
+    /** 이 레벨의 차원 타입(높이·천장·좌표 비). */
+    default org.domi.furnace.server.world.DimensionType dimensionType() { return org.domi.furnace.server.world.DimensionType.OVERWORLD; }
+
     /** server.properties max-chained-neighbor-updates. */
     int maxChainedNeighborUpdates();
 
@@ -138,6 +141,7 @@ public interface LevelServices {
         public String dimension() { return d.dimension(); }
         public boolean ultraWarm() { return d.ultraWarm(); }
         public boolean hasSkyLight() { return d.hasSkyLight(); }
+        public org.domi.furnace.server.world.DimensionType dimensionType() { return d.dimensionType(); }
         public int maxChainedNeighborUpdates() { return d.maxChainedNeighborUpdates(); }
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }
         public ChunkLevel otherLevel(String dimension) { return d.otherLevel(dimension); }

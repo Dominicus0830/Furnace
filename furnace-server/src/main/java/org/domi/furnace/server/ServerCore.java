@@ -49,6 +49,7 @@ public final class ServerCore {
         this.gameRules = org.domi.furnace.server.world.GameRules.fromStrings(levelData.gameRules);
         this.gameRules.onChange(this::onGameRuleChanged);
         this.clock = world.clock();
+        this.lootWorld = lootWorldFor(world);
         this.randomSequences = new org.domi.furnace.server.loot.RandomSequences(levelData.seed);
         this.biomeZoomSeed = org.domi.furnace.server.net.protocol.play.LoginPlay.obfuscateSeed(levelData.seed);
         this.clock.restore(levelData.gameTime, levelData.dayTime, levelData.clearWeatherTime, levelData.rainTime,
@@ -96,7 +97,11 @@ public final class ServerCore {
 
     /** 전리품 평가가 보는 월드(난수 시퀀스는 월드 시드로 — 바닐라 RandomSequences). */
     private final org.domi.furnace.server.loot.RandomSequences randomSequences;
-    private final org.domi.furnace.server.loot.LootWorld lootWorld = new org.domi.furnace.server.loot.LootWorld() {
+    private final org.domi.furnace.server.loot.LootWorld lootWorld;
+
+    /** 그 차원 월드를 보는 전리품 월드(바이옴·차원 조건). */
+    private org.domi.furnace.server.loot.LootWorld lootWorldFor(World world) {
+        return new org.domi.furnace.server.loot.LootWorld() {
         public org.domi.furnace.server.world.gen.noise.NoiseRandom random() {
             return new org.domi.furnace.server.world.gen.carver.LegacyRandom(java.util.concurrent.ThreadLocalRandom.current().nextLong());
         }
@@ -105,9 +110,10 @@ public final class ServerCore {
 
         public long dayTime() { return clock.dayTime(); }
 
-        public boolean isRaining() { return clock.isRaining(); }
+        // 하늘빛 없는 차원(네더·엔드)은 비 세기가 늘 0 — 바닐라 advanceWeatherCycle 이 hasSkyLight 일 때만 바꾼다
+        public boolean isRaining() { return world.dimensionType().hasSkyLight() && clock.isRaining(); }
 
-        public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
+        public boolean isThundering() { return world.dimensionType().hasSkyLight() && clock.thunderLevel() > 0.9f; }
 
         /** 바닐라 Level.getBiome(pos)(확대 지터 포함). 지금 스레드가 그 region 을 가진 경우에만 — 아니면 null. */
         public String biomeAt(int x, int y, int z) {
@@ -121,8 +127,9 @@ public final class ServerCore {
             return id >= 0 && id < names.size() ? names.get(id) : null;
         }
 
-        public String dimension() { return "minecraft:overworld"; }
-    };
+        public String dimension() { return world.dimension(); }
+        };
+    }
     private final long biomeZoomSeed;
 
     /** 전리품 조건이 보는 플레이어(바닐라 ADVANCEMENT_ENTITY 의 this_entity). */
@@ -303,7 +310,8 @@ public final class ServerCore {
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
         border.tick();
-        clock.tick(gameRules, packet -> { for (Player p : players()) p.send(packet); });
+        clock.tick(gameRules, packet -> { for (Player p : players()) p.send(packet); },
+                packet -> { for (Player p : players()) if (world.dimension().equals(p.dimension())) p.send(packet); });
     }
 
     /** level.dat 저장 전에 런타임 상태를 LevelData 에 반영한다. */
@@ -461,7 +469,7 @@ public final class ServerCore {
         public String dimension() { return "minecraft:overworld"; }
         public boolean ultraWarm() { return false; }
         public int maxChainedNeighborUpdates() { return settings.get().maxChainedNeighborUpdates; }
-        public void forEachPlayer(java.util.function.Consumer<Player> c) { for (Player p : world.onlinePlayers()) c.accept(p); }
+        public void forEachPlayer(java.util.function.Consumer<Player> c) { world.forEachPlayerHere(c); }
         public boolean biomeIs(int x, int y, int z, String tag) {
             String b = lootWorld.biomeAt(x, y, z);
             var dp = dataPacks;
@@ -497,8 +505,83 @@ public final class ServerCore {
         }
     };
 
+    private volatile org.domi.furnace.server.world.Dimensions dimensions;
+
+    /** 서버가 띄운 차원들(오버월드만 띄웠거나 테스트면 null). */
+    public org.domi.furnace.server.world.Dimensions dimensions() { return dimensions; }
+
+    /** 차원 월드를 붙인다: 오버월드가 아닌 월드에는 그 차원의 블록 레벨 서비스를 단다(게임룰·난이도·보더는 서버 공용). */
+    public void dimensions(org.domi.furnace.server.world.Dimensions d) {
+        this.dimensions = d;
+        for (World w : d.all()) if (w != world) w.levelServices(new DimensionServices(w));
+    }
+
+    /** 그 차원의 월드(없으면 null). 오버월드는 world(). */
+    public World world(String dimension) {
+        if (world.dimension().equals(dimension)) return world;
+        var d = dimensions;
+        return d == null ? null : d.get(dimension);
+    }
+
+    /** 모든 차원 월드(오버월드 먼저). */
+    public List<World> worlds() {
+        var d = dimensions;
+        return d == null ? List.of(world) : d.all();
+    }
+
+    /**
+     * 오버월드가 아닌 차원의 블록 레벨 서비스: 차원 타입(높이·하늘빛·초고온), 그 차원의 접속자, 날씨 없음(하늘빛이 없으면 비 세기가
+     * 늘 0 — 바닐라 advanceWeatherCycle), 그 차원의 바이옴·전리품 월드. 나머지(게임룰·난이도·보더·시간·시드·스폰)는 오버월드와 같다
+     * (바닐라 DerivedLevelData).
+     */
+    private final class DimensionServices extends org.domi.furnace.server.block.LevelServices.Delegating {
+        private final World w;
+        private final org.domi.furnace.server.loot.LootWorld lw;
+
+        DimensionServices(World w) {
+            super(levelServices);
+            this.w = w;
+            this.lw = lootWorldFor(w);
+        }
+
+        private boolean sky() { return w.dimensionType().hasSkyLight(); }
+
+        @Override public String dimension() { return w.dimension(); }
+        @Override public boolean ultraWarm() { return w.dimensionType().ultraWarm(); }
+        @Override public boolean hasSkyLight() { return sky(); }
+        @Override public org.domi.furnace.server.world.DimensionType dimensionType() { return w.dimensionType(); }
+        @Override public boolean isRaining() { return sky() && super.isRaining(); }
+        @Override public boolean isThundering() { return sky() && super.isThundering(); }
+        @Override public float rainLevel() { return sky() ? super.rainLevel() : 0f; }
+        @Override public float thunderLevel() { return sky() ? super.thunderLevel() : 0f; }
+        @Override public void forEachPlayer(java.util.function.Consumer<Player> c) { w.forEachPlayerHere(c); }
+        @Override public String biomeAt(int x, int y, int z) { return lw.biomeAt(x, y, z); }
+        @Override public boolean biomeIs(int x, int y, int z, String tag) {
+            String b = lw.biomeAt(x, y, z);
+            var dp = dataPacks;
+            return b != null && dp != null && dp.loot() != null && dp.loot().registries().tag("minecraft:worldgen/biome", tag).contains(b);
+        }
+        @Override public java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity,
+                                                              Float explosionRadius) {
+            return ServerCore.this.blockDrops(lw, lootTable, state, x, y, z, tool, entity, explosionRadius);
+        }
+        @Override public java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z,
+                String damageType, Player attacker, Player lastPlayer, long seed) {
+            return ServerCore.this.entityDrops(lw, lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
+        }
+        @Override public java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool,
+                                                               float luck) {
+            return ServerCore.this.fishingLoot(lw, hook, x, y, z, tool, luck);
+        }
+    }
+
     /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */
     java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity, Float explosionRadius) {
+        return blockDrops(lootWorld, lootTable, state, x, y, z, tool, entity, explosionRadius);
+    }
+
+    java.util.List<ItemStack> blockDrops(org.domi.furnace.server.loot.LootWorld lootWorld, String lootTable, int state, double x, double y, double z,
+                                         ItemStack tool, Object entity, Float explosionRadius) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null || lootTable == null || lootTable.equals("minecraft:empty")) return java.util.List.of();
         var loot = dp.loot();
@@ -521,6 +604,11 @@ public final class ServerCore {
     /** 바닐라 LivingEntity.dropFromLootTable: 엔티티 표 평가(시드 0 이면 random_sequence/월드 난수). */
     java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z, String damageType,
             Player attacker, Player lastPlayer, long seed) {
+        return entityDrops(lootWorld, lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
+    }
+
+    java.util.List<ItemStack> entityDrops(org.domi.furnace.server.loot.LootWorld lootWorld, String lootTable, org.domi.furnace.server.loot.LootEntity self,
+            double x, double y, double z, String damageType, Player attacker, Player lastPlayer, long seed) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null || lootTable == null) return java.util.List.of();
         var loot = dp.loot();
@@ -550,6 +638,11 @@ public final class ServerCore {
 
     /** 바닐라 FishingHook.retrieve: gameplay/fishing 을 FISHING 문맥으로(random_sequence 난수). */
     java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool, float luck) {
+        return fishingLoot(lootWorld, hook, x, y, z, tool, luck);
+    }
+
+    java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootWorld lootWorld, org.domi.furnace.server.loot.LootEntity hook,
+            double x, double y, double z, ItemStack tool, float luck) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return java.util.List.of();
         var loot = dp.loot();
@@ -599,7 +692,7 @@ public final class ServerCore {
 
     public boolean autosaveEnabled() { return world.autosaveEnabled(); }
 
-    public void autosaveEnabled(boolean v) { world.autosaveEnabled(v); }
+    public void autosaveEnabled(boolean v) { for (World w : worlds()) w.autosaveEnabled(v); }
 
     /** 접속 중(끊기지 않은) 플레이어. */
     public List<Player> players() {

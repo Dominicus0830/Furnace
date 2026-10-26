@@ -87,19 +87,21 @@ public final class AnvilChunkCodec {
         ChunkSnapshot.Section[] secs = snap.sections();
         NbtList sections = new NbtList(NbtIo.TAG_COMPOUND);
         int minSection = colMinY >> 4;
+        // 빛 배열은 ChunkLight.MIN_SECTION 부터 — 이 차원의 맨 아래 빛 섹션(minSection - 1)의 자리
+        int lightBase = minSection - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
         for (int i = 0; i < secs.length; i++) {
             NbtCompound s = new NbtCompound();
             s.putCompound("block_states", blockStatesFromArray(secs[i].blocks()));
             s.putCompound("biomes", biomesFromArray(secs[i].biomes()));
             s.putByte("Y", (byte) (minSection + i));
-            putLight(s, snap.light(), i + 1);
+            putLight(s, snap.light(), lightBase + i + 1);
             sections.add(s);
         }
         if (snap.light() != null) {   // 바닐라처럼 위·아래 빛 전용 섹션도 쓴다(비어 있으면 생략)
             for (int li : new int[]{0, secs.length + 1}) {
                 NbtCompound s = new NbtCompound();
                 s.putByte("Y", (byte) (minSection - 1 + li));
-                putLight(s, snap.light(), li);
+                putLight(s, snap.light(), lightBase + li);
                 if (s.contains("SkyLight") || s.contains("BlockLight")) sections.add(s);
             }
         }
