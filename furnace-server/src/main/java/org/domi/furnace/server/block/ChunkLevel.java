@@ -1443,6 +1443,12 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 새 엔티티 id(서버 전역 — 플레이어와 같은 발급기). 기본은 테스트용 따로 센 값. */
     public int nextEntityId() { return FALLBACK_IDS.incrementAndGet(); }
 
+    /** 연달은 id count 개를 한꺼번에 잡고 첫 id 를 돌려준다(엔더 드래곤: 본체 + 파트 8 — 클라이언트가 id+1.. 을 파트에 쓴다). */
+    public int nextEntityIds(int count) { return FALLBACK_IDS.getAndAdd(count) + 1; }
+
+    /** 차원 이름으로 레벨: 자기 자신이거나 서버가 띄운 다른 차원(없으면 null). */
+    public ChunkLevel levelFor(String dimension) { return dimension.equals(dimension()) ? this : services().otherLevel(dimension); }
+
     /** 추적 대상 플레이어(이 레벨을 돌리는 region 의 플레이어). 기본은 서비스의 접속자. */
     protected Iterable<Player> trackingPlayers() {
         java.util.List<Player> out = new java.util.ArrayList<>();

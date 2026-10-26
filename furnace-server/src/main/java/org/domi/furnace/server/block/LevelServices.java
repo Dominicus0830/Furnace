@@ -40,6 +40,9 @@ public interface LevelServices {
     /** 같은 차원의 접속자 전원에게. */
     void forEachPlayer(Consumer<Player> c);
 
+    /** MinecraftServer.getLevel(key): 이 서버가 띄운 다른 차원의 레벨. 띄우지 않았으면 null(바닐라도 null 이면 포털이 아무것도 안 한다). */
+    default ChunkLevel otherLevel(String dimension) { return null; }
+
     /** 그 칸의 바이옴(Level.getBiome — 확대 지터 포함)이 태그에 드는가. 모르면 거짓. */
     default boolean biomeIs(int x, int y, int z, String tag) { return false; }
 
@@ -137,6 +140,7 @@ public interface LevelServices {
         public boolean hasSkyLight() { return d.hasSkyLight(); }
         public int maxChainedNeighborUpdates() { return d.maxChainedNeighborUpdates(); }
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }
+        public ChunkLevel otherLevel(String dimension) { return d.otherLevel(dimension); }
         public java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
                 org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) {
             return d.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);

@@ -69,6 +69,9 @@ public final class RegionLevel extends ChunkLevel {
     public int nextEntityId() { return world.entityIds().next(); }
 
     @Override
+    public int nextEntityIds(int count) { return world.entityIds().reserve(count); }
+
+    @Override
     protected Iterable<Player> trackingPlayers() { return region.players().values(); }
 
     @Override

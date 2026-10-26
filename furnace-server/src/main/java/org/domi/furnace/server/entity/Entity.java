@@ -322,6 +322,7 @@ public abstract non-sealed class Entity implements Rider {
         if (boardingCooldown > 0) boardingCooldown--;
         xRotO = xRot;
         yRotO = yRot;
+        handlePortal();
         wasInPowderSnow = isInPowderSnow;
         isInPowderSnow = false;
         updateInWaterStateAndDoFluidPushing();
@@ -347,6 +348,86 @@ public abstract non-sealed class Entity implements Rider {
         checkBelowWorld();
         setSharedFlag(FLAG_ONFIRE, remainingFireTicks > 0);
         firstTick = false;
+    }
+
+    // ------------------------------------------------------------------ 포털
+
+    /** 포털 재사용 대기(바닐라 portalCooldown). */
+    public int portalCooldown;
+    protected PortalProcessor portalProcess;
+
+    public PortalProcessor portalProcess() { return portalProcess; }
+
+    /** getDimensionChangingDelay: 넘어간 뒤 포털을 다시 못 쓰는 틱. */
+    public int getDimensionChangingDelay() { return 300; }
+
+    public void setPortalCooldown() { portalCooldown = getDimensionChangingDelay(); }
+
+    public boolean isOnPortalCooldown() { return portalCooldown > 0; }
+
+    /** canUsePortal(allowPassengers): 탄 것이 아니고(허용 시 예외) 살아 있다. */
+    public boolean canUsePortal(boolean allowPassengers) { return (allowPassengers || vehicle == null) && isAlive(); }
+
+    /** canChangeDimensions(old, new): 기본은 언제나. */
+    public boolean canChangeDimensions(ChunkLevel from, ChunkLevel to) { return true; }
+
+    /** setAsInsidePortal: 대기 중이면 대기만 다시 채우고, 같은 포털이면 들어온 위치·이번 틱 표시를 갱신, 아니면 새로 시작. */
+    public void setAsInsidePortal(Portal portal, Pos pos) {
+        if (isOnPortalCooldown()) {
+            setPortalCooldown();
+        } else if (portalProcess != null && portalProcess.isSamePortal(portal)) {
+            portalProcess.updateEntryPosition(pos);
+            portalProcess.setAsInsidePortalThisTick(true);
+        } else {
+            portalProcess = new PortalProcessor(portal, pos);
+        }
+    }
+
+    /** handlePortal: 대기를 줄이고, 시간이 차면 대기를 걸고 목적지로 넘어간다. 오래 벗어나 있으면 잊는다. */
+    protected void handlePortal() {
+        if (level == null) return;
+        if (portalCooldown > 0) portalCooldown--;
+        if (portalProcess == null) return;
+        if (portalProcess.processPortalTeleportation(level, this, canUsePortal(false))) {
+            setPortalCooldown();
+            DimensionTransition t = portalProcess.getPortalDestination(level, this);
+            if (t != null) {
+                ChunkLevel target = t.newLevel();
+                if (target == level || target.dimension().equals(level.dimension()) || canChangeDimensions(level, target)) changeDimension(t);
+            }
+        } else if (portalProcess.hasExpired()) {
+            portalProcess = null;
+        }
+    }
+
+    /**
+     * changeDimension: 같은 차원이면 제자리 이동, 다른 차원이면 같은 종류를 새로 만들어 저장 데이터를 옮기고(restoreFrom) 이쪽은
+     * CHANGED_DIMENSION 으로 뺀다. 승객은 내려놓는다.
+     * TODO(차원·스레드): 다른 차원 레벨은 다른 region 스레드 소유다 — 다중 차원 호스팅이 생기면 대상 스레드로 넘겨 넣어야 한다.
+     */
+    public Entity changeDimension(DimensionTransition t) {
+        if (isRemoved()) return null;
+        ChunkLevel target = t.newLevel();
+        stopRiding();
+        ejectPassengers();
+        Entity e = target == level ? this : Entities.create(target, type.name());
+        if (e == null) return null;
+        if (e != this) {
+            e.restoreFrom(this);
+            setRemoved(RemovalReason.CHANGED_DIMENSION);
+        }
+        e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
+        e.setDeltaMovement(t.vx(), t.vy(), t.vz());
+        if (e != this) target.addFreshEntity(e);
+        return e;
+    }
+
+    /** restoreFrom: 저장 데이터·UUID·포털 상태를 그대로 옮긴다. */
+    protected void restoreFrom(Entity old) {
+        NbtCompound tag = old.saveWithoutId(new NbtCompound());
+        load(tag);
+        portalCooldown = old.portalCooldown;
+        portalProcess = old.portalProcess;
     }
 
     public void checkBelowWorld() {
@@ -1093,7 +1174,7 @@ public abstract non-sealed class Entity implements Rider {
         tag.putShort("Air", (short) (int) (Integer) entityData.get(DATA_AIR_SUPPLY));
         tag.putBoolean("OnGround", onGround);
         tag.putBoolean("Invulnerable", invulnerable);
-        tag.putInt("PortalCooldown", 0);
+        tag.putInt("PortalCooldown", portalCooldown);
         tag.putIntArray("UUID", uuidToInts(uuid));
         if (isInvisible()) tag.putBoolean("Invisible", true);
         if (isSilent()) tag.putBoolean("Silent", true);
@@ -1145,6 +1226,7 @@ public abstract non-sealed class Entity implements Rider {
         if (tag.contains("Air")) entityData.set(DATA_AIR_SUPPLY, (int) tag.getShort("Air"));
         onGround = tag.getBoolean("OnGround");
         invulnerable = tag.getBoolean("Invulnerable");
+        portalCooldown = tag.getIntOr0("PortalCooldown");
         if (tag.tags().get("UUID") instanceof int[] u && u.length == 4) uuid = new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
         if (Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)) setPos(x, y, z);
         entityData.set(DATA_SILENT, tag.getBoolean("Silent"));
