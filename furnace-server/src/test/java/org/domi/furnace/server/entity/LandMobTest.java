@@ -189,6 +189,7 @@ class LandMobTest {
         level.addFreshEntity(villager);
         boolean fangs = false, vex = false;
         for (int t = 0; t < 700; t++) {
+            villager.moveTo(6.5, -60, 0.5, 0, 0);   // 주민 브레인이 도망치지 않도록 제자리에 묶는다
             tick(level, 1);
             for (Entity e : level.entities().tickSnapshot()) {
                 fangs |= e instanceof EvokerFangs;
