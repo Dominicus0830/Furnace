@@ -160,6 +160,18 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (isDeadOrDying()) return false;
         noActionTime = 0;
         if (amount < 0.0F) amount = 0.0F;
+        boolean blocked = false;
+        Entity srcEntity = pendingDirect != null ? pendingDirect : attacker instanceof Entity ae ? ae : null;
+        if (amount > 0.0F && Shields.isDamageSourceBlocked(isBlocking(), yRot(), x(), z(), shieldSource(source.type(), srcEntity, attacker))) {
+            hurtCurrentlyUsedShield(amount);
+            amount = 0.0F;
+            // blockUsingShield(attacker) → attacker.blockedByShield(this): 막은 쪽이 0.5 밀린다
+            if (!DamageType.keyHasTag(source.type(), "is_projectile") && (srcEntity instanceof LivingEntity || (srcEntity == null && attacker instanceof Player))) {
+                Targetable d = srcEntity instanceof LivingEntity le ? le : attacker;
+                knockback(0.5, x() - d.x(), z() - d.z());
+            }
+            blocked = true;
+        }
         boolean fresh = true;
         if (invulnerableTime > 10.0F && !source.bypassesInvulnerability()) {
             if (amount <= lastHurt) return false;
@@ -177,8 +189,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
             DamageType t = DamageType.byKey(source.type());
             int cause = attacker == null ? -1 : attacker.id();
             int directId = pendingDirect != null ? pendingDirect.id() : cause;
-            if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, directId, null));
-            if (!t.noImpact()) markHurt();
+            if (blocked) broadcastEntityEvent((byte) 29);
+            else if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, directId, null));
+            if (!t.noImpact() && !blocked) markHurt();
         }
         if (attacker != null) {   // 맞은 뒤 기록: 마지막으로 때린 몹, 플레이어면 100틱 동안 경험치·전리품 자격
             setLastHurtByMob(attacker);
@@ -204,8 +217,26 @@ public abstract class LivingEntity extends Entity implements Targetable {
         } else if (fresh) {
             playHurtSound(source);
         }
-        return true;
+        return !blocked;
     }
+
+    /** 피해 원인 위치(직접 원인 엔티티, 없으면 때린 쪽). 둘 다 없으면 막지 못한다. */
+    private static Shields.Source shieldSource(String type, Entity direct, Targetable attacker) {
+        if (direct == null && attacker == null) return Shields.Source.none(type);
+        double sx = direct != null ? direct.x() : attacker.x(), sz = direct != null ? direct.z() : attacker.z();
+        boolean piercing = direct instanceof AbstractArrow a && a.getPierceLevel() > 0;
+        return new Shields.Source(type, true, sx, sz, attacker, false, piercing, null);
+    }
+
+    /** LivingEntity.isBlocking: 쓰는 아이템이 방패(BLOCK 애니메이션)이고 72000 - 남은 틱 ≥ 5. */
+    public boolean isBlocking() {
+        if (!isUsingItem()) return false;
+        ItemStack s = getItemBySlot(getUsedItemHand() == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
+        return Shields.isShield(s) && Shields.USE_DURATION - useItemRemaining >= Shields.BLOCK_DELAY;
+    }
+
+    /** LivingEntity.hurtCurrentlyUsedShield: 몹은 아무것도 안 한다(내구도는 플레이어만). */
+    protected void hurtCurrentlyUsedShield(float amount) { }
 
     // ------------------------------------------------------------------ 아이템 사용(활 당기기 등)
 

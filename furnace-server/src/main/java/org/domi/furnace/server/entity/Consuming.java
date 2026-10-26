@@ -32,6 +32,7 @@ public final class Consuming {
 
     /** 사용 시작: 쓸 수 있으면 true. */
     public static boolean tryStart(Player p, int hand, ItemStack s) {
+        if (Shields.isShield(s)) return Shields.tryStart(p, hand, s);
         int d = duration(p, s);
         if (d < 0) return false;
         p.usingHand = hand;
@@ -49,6 +50,10 @@ public final class Consuming {
         ItemStack s = inv.get(ws);
         if (RangedWeapons.usesRelease(s)) {   // 활·쇠뇌·삼지창: 놓을 때 처리
             RangedWeapons.tick(p, region == null ? null : region.level(), s);
+            return;
+        }
+        if (Shields.isShield(s)) {   // 방패: 72000틱이 다 되면 그냥 끝(finishUsingItem 은 그대로)
+            if (--p.usingTicks <= 0) p.usingHand = -1;
             return;
         }
         if (s.isEmpty() || duration0(s) < 0) { p.usingHand = -1; return; }

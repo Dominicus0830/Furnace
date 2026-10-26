@@ -204,7 +204,7 @@ public final class Explosion {
         if (t instanceof LivingEntity le) {
             le.hurtByVia(dmg, damage, attacker, source);
         } else if (t instanceof Player p) {
-            p.vitals().hurt(DamageType.EXPLOSION, damage, attacker);
+            p.vitals().hurt(DamageType.EXPLOSION, damage, attacker, p.shieldSource(DamageType.EXPLOSION.key(), attacker, source));   // 원인 위치 = 폭발 원인 엔티티
         } else if (t instanceof Entity e) {
             e.hurt(dmg, damage);
         }

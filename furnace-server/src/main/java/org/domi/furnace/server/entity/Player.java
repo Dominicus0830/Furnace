@@ -318,7 +318,7 @@ public final class Player implements Targetable {
 
     @Override
     public boolean hurtByMob(Entity.Damage source, float amount, Mob attacker) {
-        return vitals.hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(source.type()), amount, attacker);
+        return vitals.hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(source.type()), amount, attacker, shieldSource(source.type(), attacker, null));
     }
 
     @Override
@@ -341,6 +341,7 @@ public final class Player implements Targetable {
      * TODO(내구성 인챈트·불 저항 아이템).
      */
     public void hurtArmor(float amount) {
+        if (amount <= 0.0F) return;   // Inventory.hurtArmor: 피해 0(방패로 막음)이면 그대로
         amount /= 4.0F;
         if (amount < 1.0F) amount = 1.0F;
         int n = (int) amount;
@@ -379,6 +380,43 @@ public final class Player implements Targetable {
 
     /** 먹기·마시기 중인 손(없으면 -1)과 남은 틱 — region 스레드 전용. */
     public int usingHand = -1, usingTicks;
+
+    private byte sentLivingFlags;
+    private boolean usedOffhand;
+
+    /** 사용 중 비트(1)·손 비트(2) — LivingEntity.DATA_LIVING_ENTITY_FLAGS(8). 손 비트는 바닐라처럼 사용이 끝나도 남는다. */
+    public byte livingFlags() {
+        if (usingHand >= 0) usedOffhand = usingHand == 1;
+        return (byte) ((usingHand >= 0 ? 1 : 0) | (usedOffhand ? 2 : 0));
+    }
+
+    /** 바뀌었으면 엔티티 데이터(사용 중 플래그)를 본인과 보는 사람에게(ServerEntity.sendDirtyEntityData). */
+    public void syncLivingFlags() {
+        byte f = livingFlags();
+        if (f == sentLivingFlags) return;
+        sentLivingFlags = f;
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, java.util.List.of(
+                new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(8, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE, f)));
+        send(pkt);
+        vitals.broadcastToTrackers(pkt);
+    }
+
+    /** 방패를 들고 막는 중인가(LivingEntity.isBlocking). */
+    public boolean isBlocking() { return Shields.isBlocking(this); }
+
+    /** 직접 원인 엔티티(투사체)가 따로 있는 피해: 막기 방향·관통은 그 엔티티로 본다. */
+    public boolean hurtByVia(Entity.Damage source, float amount, Mob attacker, Entity direct) {
+        return vitals.hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(source.type()), amount, attacker, shieldSource(source.type(), attacker, direct));
+    }
+
+    /** 피해 원인 위치: 직접 원인 엔티티(없으면 때린 몹) 위치. */
+    public Shields.Source shieldSource(String type, Mob attacker, Entity direct) {
+        Entity d = direct != null ? direct : attacker;
+        if (d == null) return Shields.Source.none(type);
+        boolean piercing = d instanceof AbstractArrow a && a.getPierceLevel() > 0;
+        boolean living = d instanceof LivingEntity && !org.domi.furnace.server.entity.damage.DamageType.keyHasTag(type, "is_projectile");
+        return new Shields.Source(type, true, d.x(), d.z(), d instanceof LivingEntity le ? le : null, living, piercing, d.level());
+    }
 
     /** 쇠뇌 장전 소리(시작·중간)를 이미 냈는가 — 바닐라는 CrossbowItem 객체 필드라 전역이지만 여기선 플레이어별. */
     public boolean crossbowStartSound, crossbowMidSound;

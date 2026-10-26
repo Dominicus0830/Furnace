@@ -364,8 +364,15 @@ public final class PlayerVitals {
 
     /** 몹이 때린 피해(원인 엔티티 있음): 난이도 배율·방어구 경감·damage_event 의 원인 id. */
     public boolean hurt(DamageType type, float amount, Mob attacker) {
+        return hurt(type, amount, attacker, player.shieldSource(type.key(), attacker, null));
+    }
+
+    /** 방패 막기(LivingEntity.hurt 의 isDamageSourceBlocked 분기)까지 보는 피해. shield 는 원인 종류·위치. */
+    public boolean hurt(DamageType type, float amount, Mob attacker, Shields.Source shield) {
         boolean died;
         boolean newHurt;
+        boolean blocked = false;
+        float blockedAmount = 0.0f;
         synchronized (this) {
             if (isInvulnerableTo(type)) return false;
             boolean fallOnPvpServer = env.pvp() && type.isFall();
@@ -380,6 +387,14 @@ public final class PlayerVitals {
                 if (d == Difficulty.HARD) amount = amount * 3.0f / 2.0f;
             }
             if (amount == 0.0f) return false;
+            if (amount > 0.0f && shield != null
+                    && Shields.isDamageSourceBlocked(player.isBlocking(), player.yaw(), player.x(), player.z(), shield)) {
+                Shields.hurtCurrentlyUsedShield(player, amount, shield.level());
+                blockedAmount = amount;
+                amount = 0.0f;
+                if (shield.directLiving() && shield.attacker() != null) Shields.blockUsingShield(player, shield.attacker());
+                blocked = true;
+            }
             if (invulnerableTime > 10) {
                 if (amount <= lastHurt) return false;
                 actuallyHurt(type, amount - lastHurt, attacker);
@@ -394,14 +409,16 @@ public final class PlayerVitals {
             }
             died = health <= 0.0f;
         }
-        if (newHurt) {
-            Packet ev = attacker == null ? DamageEvent.environmental(player.entityId(), type.registryId())
+        if (newHurt) {   // 막았으면 damage_event 대신 엔티티 이벤트 29(방패 소리)
+            Packet ev = blocked ? new EntityEvent(player.entityId(), (byte) 29)
+                    : attacker == null ? DamageEvent.environmental(player.entityId(), type.registryId())
                     : new DamageEvent(player.entityId(), type.registryId(), attacker.id(), attacker.id(), null);
             player.send(ev);
             env.broadcastToTrackers(player.entityId(), ev);
         }
         if (died) die(type);
-        return true;
+        if (blockedAmount > 0.0f && blockedAmount < 3.4028235E37F) player.awardStat("minecraft:damage_blocked_by_shield", Math.round(blockedAmount * 10.0f));
+        return !blocked;
     }
 
     /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */

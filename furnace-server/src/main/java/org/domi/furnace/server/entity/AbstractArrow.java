@@ -244,6 +244,7 @@ public abstract class AbstractArrow extends Projectile {
         boolean hurt;
         Mob attacker = owner instanceof Mob m ? m : null;
         if (target instanceof LivingEntity le) hurt = le.hurtByVia(dmg, (float) damage, owner, this);
+        else if (target instanceof Player pl) hurt = pl.hurtByVia(dmg, (float) damage, attacker, this);   // 막기 방향·관통은 화살로
         else hurt = target.hurtByMob(dmg, (float) damage, attacker);
         if (hurt) {
             if (enderman) return;

@@ -645,6 +645,7 @@ public final class Region {
             tickVitals(p);
             if (p.takeXpDelay > 0) p.takeXpDelay--;
             org.domi.furnace.server.entity.Consuming.tick(p, this);
+            p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
             touchEntities(p);
             tickBreaking(p);
             broadcastInventory(p);
