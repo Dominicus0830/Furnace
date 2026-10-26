@@ -88,7 +88,7 @@ class OnlineLoginTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
-                reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
+                reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
         world.worldDir(tmp);
         ServerLoginContext ctx = new ServerLoginContext(true, preventProxy, false, true, false, false, true, maxPlayers,
                 "A Minecraft Server", KEYS, new SessionService(sessionHost), lists, null, null);
@@ -225,7 +225,7 @@ class OnlineLoginTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
-                reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
+                reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
         world.worldDir(tmp);
         PlayerLists lists = lists();
         lists.getIpBans().add(new org.domi.furnace.server.players.IpBanListEntry("203.0.113.9"));

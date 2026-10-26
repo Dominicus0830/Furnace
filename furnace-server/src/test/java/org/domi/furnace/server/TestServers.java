@@ -43,7 +43,8 @@ public final class TestServers {
         return new ServerCore(settings, lists, new GameProfileCache(ProfileLookup.NONE, tmp.resolve("usercache.json")), world, level, sched);
     }
 
-    private static java.util.concurrent.ExecutorService ioPool() {
+    /** 테스트 끝에 비워지는 단일 스레드 IO 풀. worldDir 을 @TempDir 로 쓰는 World 는 이것을 쓴다. */
+    public static java.util.concurrent.ExecutorService ioPool() {
         var e = java.util.concurrent.Executors.newSingleThreadExecutor();
         IO_POOLS.add(e);
         return e;

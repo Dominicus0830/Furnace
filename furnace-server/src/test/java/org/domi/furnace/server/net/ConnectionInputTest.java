@@ -71,7 +71,7 @@ class ConnectionInputTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
-                reg.directBits(), 7, io = Executors.newSingleThreadExecutor());
+                reg.directBits(), 7, io = org.domi.furnace.server.TestServers.ioPool());
         world.configurePersistence(autosaveTicksForJoin, 100);
         world.worldDir(tmp);                 // 저장 위치/인벤토리를 실제 world/ 가 아닌 임시 폴더에서 읽는다
         world.defaultSpawn(spawn);

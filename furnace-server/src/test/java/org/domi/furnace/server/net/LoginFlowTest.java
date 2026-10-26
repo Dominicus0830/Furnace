@@ -40,7 +40,7 @@ class LoginFlowTest {
             sched = new FurnaceSchedulerImpl(50_000_000L, 1);
             BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
             world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
-                    reg.directBits(), 7, Executors.newSingleThreadExecutor());
+                    reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
             world.worldDir(tmp);
         }
         return new EmbeddedChannel(new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator()));
