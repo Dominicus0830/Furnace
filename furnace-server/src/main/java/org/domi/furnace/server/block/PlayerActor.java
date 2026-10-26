@@ -50,6 +50,10 @@ public class PlayerActor implements BlockActor {
     }
 
     @Override public Object handle() { return player; }
+    @Override public boolean isOnCooldown(int itemId) { return player.isOnCooldown(itemId); }
+    @Override public void addCooldown(int itemId, int ticks) { player.addCooldown(itemId, ticks); }
+    @Override public double[] knownMovement() { return player.knownMovement(); }
+    @Override public boolean onGround() { return player.onGround(); }
 
     /** 블록 상호작용 거리 판정(Player.canInteractWithBlock): 블록 상자와 눈 사이 거리 < 사거리 + buffer. 크리에이티브 사거리 5.0. */
     public boolean canInteractWithBlock(Pos pos, double buffer) {

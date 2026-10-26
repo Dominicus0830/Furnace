@@ -305,6 +305,8 @@ public final class PlayerVitals {
 
     public synchronized float fallDistance() { return fallDistance; }
 
+    public synchronized void resetFallDistance() { fallDistance = 0.0f; }
+
     private void setHealthRaw(float h) { health = Math.clamp(h, 0.0f, maxHealthLocked()); }
 
     /** 최대 체력: 20 + 체력 강화 효과(4 × (단계+1)). */

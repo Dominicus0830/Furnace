@@ -524,6 +524,48 @@ public final class Player implements Targetable {
     public float yaw() { return yaw; }
     public float pitch() { return pitch; }
     public boolean onGround() { return onGround; }
+
+    private volatile java.util.function.Consumer<double[]> teleporter;
+
+    public void teleporter(java.util.function.Consumer<double[]> t) { this.teleporter = t; }
+
+    /** 서버가 플레이어를 (x,y,z)로 옮긴다 — 연결의 IO 스레드가 보정 텔레포트를 보내고 이동 대기열을 비운다. */
+    public void teleportTo(double x, double y, double z) {
+        var t = teleporter;
+        if (t != null) t.accept(new double[] {x, y, z});
+    }
+
+    /** 마지막으로 받은 이동 패킷의 이동량(블록/틱) — 던지기 속도에 더해진다(바닐라 getKnownMovement). */
+    public double[] knownMovement() { return new double[] {moveDx, moveDy, moveDz}; }
+
+    // ------------------------------------------------------------------ 아이템 재사용 대기(ItemCooldowns)
+
+    private final java.util.concurrent.ConcurrentHashMap<Integer, int[]> cooldowns = new java.util.concurrent.ConcurrentHashMap<>();   // 아이템 → {시작, 끝} 틱
+    private volatile int cooldownTick;
+
+    public boolean isOnCooldown(int itemId) {
+        int[] c = cooldowns.get(itemId);
+        return c != null && c[1] > cooldownTick;
+    }
+
+    /** ItemCooldowns.addCooldown: 그 아이템을 ticks 동안 못 쓰게 하고 클라이언트에 알린다. */
+    public void addCooldown(int itemId, int ticks) {
+        cooldowns.put(itemId, new int[] {cooldownTick, cooldownTick + ticks});
+        send(new org.domi.furnace.server.net.protocol.play.Cooldown(itemId, ticks));
+    }
+
+    /** ItemCooldowns.tick: 틱마다 한 칸 가고, 끝난 것은 지우며 끝났다고 알린다. */
+    public void tickCooldowns() {
+        int now = ++cooldownTick;
+        if (cooldowns.isEmpty()) return;
+        for (var it = cooldowns.entrySet().iterator(); it.hasNext(); ) {
+            var e = it.next();
+            if (e.getValue()[1] <= now) {
+                it.remove();
+                send(new org.domi.furnace.server.net.protocol.play.Cooldown(e.getKey(), 0));
+            }
+        }
+    }
     private ChunkPos queuedCenter;               // 시야 청크를 대기열에 올린 마지막 중심(null=아직 안 함)
     public ChunkPos lastCenter() { return lastCenter; }
     public ChunkPos queuedCenter() { return queuedCenter; }

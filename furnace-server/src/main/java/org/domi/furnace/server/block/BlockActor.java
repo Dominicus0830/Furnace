@@ -47,6 +47,12 @@ public interface BlockActor {
     /** 그 아이템이 재사용 대기 중인가(getCooldowns().isOnCooldown). */
     default boolean isOnCooldown(int itemId) { return false; }
 
+    /** getCooldowns().addCooldown(item, 틱). */
+    default void addCooldown(int itemId, int ticks) {}
+
+    /** getKnownMovement: 마지막 이동 패킷의 {dx, dy, dz}(던지기 속도에 더한다). */
+    default double[] knownMovement() { return new double[3]; }
+
     /** 발전 과제 기준 발동(placed_block·item_used_on_block·any_block_use·default_block_use) — pos 의 블록은 지금 상태. */
     default void trigger(String criterion, Pos pos, ItemStack stack) {}
 

@@ -858,6 +858,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.pushTeleport(sx, sy, sz);
         p.viewDistance(effVd);
         this.player = p;
+        // 서버가 플레이어를 옮긴다(엔더 진주 등): 어느 스레드에서 불러도 IO 스레드에서 한다.
+        p.teleporter(t -> ctx.executor().execute(() -> teleportPlayer(ctx, t[0], t[1], t[2])));
         // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
@@ -2081,6 +2083,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (core != null) core.sendPlayerPermissionLevel(p);
         synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
         send(ctx, new SetHeldSlot(inv.selected()));
+    }
+
+    /** 서버가 정한 위치로 플레이어를 옮긴다(IO 스레드): 이동 대기열을 비우고, 클라이언트가 확인하기 전까지 옛 위치 패킷은 버린다. */
+    private void teleportPlayer(ChannelHandlerContext ctx, double x, double y, double z) {
+        Player p = this.player;
+        if (p == null || p.isDisconnected()) return;
+        p.clearMoves();
+        ix = x;
+        iy = y;
+        iz = z;
+        ig = false;
+        correctionTpId = ++teleportId;
+        send(ctx, new SyncPlayerPosition(x, y, z, iyaw, ipitch, correctionTpId));
+        p.pushTeleport(x, y, z);
+        publishInput(p);
     }
 
     /** 마지막으로 수락한 위치·회전·onGround의 합을 발행한다(region 스레드가 다음 틱에 drain). */

@@ -1,5 +1,4 @@
 // 바닐라 ThrownEnderpearl: 던진 엔더 진주. 맞은 자리로 소유자가 순간이동하고 낙하 피해 5 를 받으며, 5% 확률로 엔더마이트가 나온다.
-// TODO(플레이어): 플레이어 순간이동(위치 패킷·청크 로딩)이 서버에 없어 소유자가 몹일 때만 이동한다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -35,6 +34,16 @@ public class ThrownEnderpearl extends ThrowableProjectile {
             le.teleportTo(x(), y(), z());
             le.resetFallDistance();
             le.hurt(new Damage("fall", false, false, false), 5.0F);
+        }
+        if (owner instanceof Player p && !p.isDisconnected()) {
+            if (random.nextFloat() < 0.05F && level.gameRule("doMobSpawning")) {
+                Endermite mite = new Endermite(level, level.nextEntityId());
+                mite.moveTo(p.x(), p.y(), p.z(), p.yaw(), p.pitch());
+                level.addFreshEntity(mite);
+            }
+            p.teleportTo(x(), y(), z());
+            p.vitals().resetFallDistance();
+            p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.FALL, 5.0F);
         }
         discard();
     }

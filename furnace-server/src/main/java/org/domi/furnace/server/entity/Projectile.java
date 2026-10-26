@@ -109,6 +109,19 @@ public abstract class Projectile extends Entity {
         xRotO = xRot();
     }
 
+    /**
+     * Projectile.shootFromRotation: 쏜 쪽의 시선(xRot, yRot)과 z 오프셋으로 방향을 정해 shoot 하고, 쏜 쪽의 알려진 이동량을 더한다
+     * (땅에 서 있으면 y 는 더하지 않는다).
+     */
+    public void shootFromRotation(float xRot, float yRot, float zOffset, float power, float inaccuracy, double[] shooterMovement, boolean shooterOnGround) {
+        float rad = (float) (Math.PI / 180.0);
+        float f = -org.domi.furnace.server.entity.ai.control.Mth.sin(yRot * rad) * org.domi.furnace.server.entity.ai.control.Mth.cos(xRot * rad);
+        float f1 = -org.domi.furnace.server.entity.ai.control.Mth.sin((xRot + zOffset) * rad);
+        float f2 = org.domi.furnace.server.entity.ai.control.Mth.cos(yRot * rad) * org.domi.furnace.server.entity.ai.control.Mth.cos(xRot * rad);
+        shoot(f, f1, f2, power, inaccuracy);
+        setDeltaMovement(vx() + shooterMovement[0], vy() + (shooterOnGround ? 0.0 : shooterMovement[1]), vz() + shooterMovement[2]);
+    }
+
     /** 이동 선분에서 맞은 것(블록 → 엔티티 순으로 가장 가까운 것). */
     protected Hit findHit(double fx, double fy, double fz, double tx, double ty, double tz) {
         Hit best = null;

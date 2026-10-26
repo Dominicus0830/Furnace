@@ -96,14 +96,79 @@ public final class ItemUse {
             case "minecraft:water_bucket": return bucketUse(level, player, hand, stack, Fluids.WATER_SOURCE);
             case "minecraft:lava_bucket": return bucketUse(level, player, hand, stack, Fluids.LAVA_SOURCE);
             case "minecraft:glass_bottle": return glassBottleUse(level, player, stack);
+            case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl", "minecraft:experience_bottle", "minecraft:splash_potion",
+                    "minecraft:lingering_potion", "minecraft:wind_charge": return throwItem(level, player, stack, n);
             default: break;
         }
         BlockItems.Entry e = BlockItems.entry(stack.itemId());
         if (e != null && e.kind() == BlockItems.Kind.PLACE_ON_WATER) return placeOnWaterUse(level, player, hand, stack, e);
         int slot = equipSlot(n);
         if (slot >= 0) return equip(level, player, hand, stack, slot, n);
-        // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 던지는 아이템, 배·수레, 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책.
+        // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 배·수레, 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책.
         return Holder.pass(stack);
+    }
+
+    // ------------------------------------------------------------------ 던지는 아이템(SnowballItem·EggItem·EnderpearlItem·ExperienceBottleItem·ThrowablePotionItem·WindChargeItem)
+
+    /** 던지기 소리: 소리, 소리 분류(알·투척 물약은 플레이어, 나머지는 중립). */
+    private static void throwSound(ChunkLevel level, BlockActor player, String sound, String source) {
+        level.playSound(null, player.x(), player.y(), player.z(), sound, source, 0.5F, 0.4F / (level.random().nextFloat() * 0.4F + 0.8F));
+    }
+
+    /**
+     * 던지는 아이템 use: 소리 → (재사용 대기) → 엔티티를 시선 방향으로 쏘기 → 사용 통계 → 하나 소모(크리에이티브는 안 줄어든다).
+     * 순서는 아이템마다 바닐라 그대로(엔더 진주는 소리 뒤 대기, 바람 구슬은 엔티티 뒤 소리).
+     */
+    private static Holder throwItem(BlockLevel level, BlockActor player, ItemStack stack, String n) {
+        if (!(level instanceof ChunkLevel cl) || !(player.handle() instanceof org.domi.furnace.server.entity.Targetable owner)) return Holder.pass(stack);
+        org.domi.furnace.server.entity.Projectile proj;
+        float zOffset = 0.0F, power = 1.5F;
+        switch (n) {
+            case "minecraft:snowball" -> {
+                throwSound(cl, player, "entity.snowball.throw", "neutral");
+                proj = new org.domi.furnace.server.entity.Snowball(cl, cl.nextEntityId());
+            }
+            case "minecraft:egg" -> {
+                throwSound(cl, player, "entity.egg.throw", "players");
+                proj = new org.domi.furnace.server.entity.ThrownEgg(cl, cl.nextEntityId());
+            }
+            case "minecraft:ender_pearl" -> {
+                throwSound(cl, player, "entity.ender_pearl.throw", "neutral");
+                player.addCooldown(stack.itemId(), 20);
+                proj = new org.domi.furnace.server.entity.ThrownEnderpearl(cl, cl.nextEntityId());
+            }
+            case "minecraft:experience_bottle" -> {
+                throwSound(cl, player, "entity.experience_bottle.throw", "neutral");
+                proj = new org.domi.furnace.server.entity.ThrownExperienceBottle(cl, cl.nextEntityId());
+                zOffset = -20.0F;
+                power = 0.7F;
+            }
+            case "minecraft:splash_potion", "minecraft:lingering_potion" -> {
+                if (n.equals("minecraft:splash_potion")) throwSound(cl, player, "entity.splash_potion.throw", "players");
+                else throwSound(cl, player, "entity.lingering_potion.throw", "neutral");
+                proj = new org.domi.furnace.server.entity.ThrownPotion(cl, cl.nextEntityId());
+                zOffset = -20.0F;
+                power = 0.5F;
+            }
+            default -> {   // wind_charge
+                var wind = new org.domi.furnace.server.entity.WindCharge(cl, cl.nextEntityId());
+                wind.setOwner(owner);
+                wind.setPos(player.x(), owner.eyeY(), player.z());
+                proj = wind;
+            }
+        }
+        if (proj instanceof org.domi.furnace.server.entity.ThrowableProjectile t) {
+            t.startAt(owner);
+            t.setItem(stack);
+        }
+        proj.shootFromRotation(player.xRot(), player.yRot(), zOffset, power, 1.0F, player.knownMovement(), player.onGround());
+        cl.addFreshEntity(proj);
+        if (n.equals("minecraft:wind_charge")) {
+            throwSound(cl, player, "entity.wind_charge.throw", "neutral");
+            player.addCooldown(stack.itemId(), 10);
+        }
+        player.awardStat("minecraft:used:" + n);
+        return Holder.success(player.isCreative() ? stack : stack.withCount(stack.count() - 1));
     }
 
     // ------------------------------------------------------------------ 양동이(BucketItem)
