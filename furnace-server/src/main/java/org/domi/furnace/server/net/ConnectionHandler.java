@@ -1452,6 +1452,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (action == 0) hanging.interact(p, hand);
         } else if (e instanceof org.domi.furnace.server.entity.ArmorStand stand) {
             if (action == 2) stand.interactAt(p, hitY, hand);
+        } else if (e instanceof org.domi.furnace.server.entity.WanderingTrader wt && action == 0 && hand == 0
+                && !org.domi.furnace.server.item.ItemTools.itemName(p.inventory().get(p.inventory().heldWindowSlot())).endsWith("_spawn_egg")) {
+            // 바닐라 WanderingTrader.mobInteract: 거래 중이 아니고 거래가 있으면 거래 화면(레벨 1). 없으면 아무 일도 없다.
+            if (wt.canTrade()) openMerchantScreen(wt, wt.tradeTitle(), 1);
         } else if (e instanceof org.domi.furnace.server.entity.Mob mob && !(e instanceof org.domi.furnace.server.entity.Villager) && action == 0) {
             var inv = p.inventory();
             mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region);
@@ -1756,6 +1760,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         private final Player p;
 
         ServerMenus(Player p) { this.p = p; }
+
+        @Override public Player entityPlayer() { return p; }
 
         /** 이벤트 루프 안이면 바로, 아니면(region 스레드) 대기열로 — 접속 순서의 패킷은 바로 나가야 순서가 맞다. */
         void out(Packet pkt) {

@@ -13,6 +13,7 @@ public final class Entities {
         return switch (id) {
             case "minecraft:zombie" -> new Zombie(level, level.nextEntityId());
             case "minecraft:villager" -> new Villager(level, level.nextEntityId());
+            case "minecraft:wandering_trader" -> new WanderingTrader(level, level.nextEntityId());
             case "minecraft:chicken" -> new Chicken(level, level.nextEntityId());
             case "minecraft:cow" -> new Cow(level, level.nextEntityId());
             case "minecraft:pig" -> new Pig(level, level.nextEntityId());
@@ -134,6 +135,7 @@ public final class Entities {
             case "minecraft:item" -> new ItemEntity(level, level.nextEntityId());
             case "minecraft:experience_orb" -> new ExperienceOrb(level, level.nextEntityId());
             case "minecraft:villager" -> new Villager(level, level.nextEntityId());
+            case "minecraft:wandering_trader" -> new WanderingTrader(level, level.nextEntityId());
             case "minecraft:zombie" -> new Zombie(level, level.nextEntityId());
             case "minecraft:chicken" -> new Chicken(level, level.nextEntityId());
             case "minecraft:cow" -> new Cow(level, level.nextEntityId());
