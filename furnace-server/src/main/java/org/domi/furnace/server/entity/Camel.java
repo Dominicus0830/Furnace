@@ -141,8 +141,7 @@ public class Camel extends AbstractHorse {
         return true;
     }
 
-    /** TODO(탑승): 탑승자 목록이 생기면 실제 수로. */
-    private int getPassengerCount() { return 0; }
+    private int getPassengerCount() { return passengers().size(); }
 
     @Override
     protected boolean handleEating(Player p, ItemStack s) {

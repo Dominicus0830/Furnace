@@ -1183,6 +1183,15 @@ public abstract non-sealed class Entity implements Rider {
     /** dismountTo: 내린 자리로 옮긴다. */
     public void dismountTo(double nx, double ny, double nz) { teleportTo(nx, ny, nz); }
 
+    /** getCollisionHorizontalEscapeVector(vehicleWidth, passengerWidth, yaw): 그 방향으로 두 몸이 겹치지 않을 만큼(사각형 가장자리까지). */
+    protected static Vec3 collisionHorizontalEscapeVector(double vehicleWidth, double passengerWidth, float yaw) {
+        double d = (vehicleWidth + passengerWidth + 1.0E-5F) / 2.0;
+        float f = -org.domi.furnace.server.entity.ai.control.Mth.sin(yaw * (float) (Math.PI / 180.0));
+        float g = org.domi.furnace.server.entity.ai.control.Mth.cos(yaw * (float) (Math.PI / 180.0));
+        float h = Math.max(Math.abs(f), Math.abs(g));
+        return new Vec3(f * d / h, 0.0, g * d / h);
+    }
+
     /** getDismountLocationForPassenger: 기본은 내 몸통 꼭대기 가운데. */
     public Vec3 getDismountLocationForPassenger(Rider r) { return new Vec3(x, bb.maxY(), z); }
 

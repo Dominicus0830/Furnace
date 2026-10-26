@@ -19,7 +19,7 @@ public class RunAroundLikeCrazyGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (!horse.isTamed() && horse.hasPlayerPassenger()) {
+        if (!horse.isTamed() && horse.isVehicle()) {
             double[] p = LandRandomPos.getPos(horse, 5, 4);
             if (p == null) return false;
             posX = p[0];
@@ -32,20 +32,22 @@ public class RunAroundLikeCrazyGoal extends Goal {
 
     @Override public void start() { horse.getNavigation().moveTo(posX, posY, posZ, speedModifier); }
 
-    @Override public boolean canContinueToUse() { return !horse.isTamed() && !horse.getNavigation().isDone() && horse.hasPlayerPassenger(); }
+    @Override public boolean canContinueToUse() { return !horse.isTamed() && !horse.getNavigation().isDone() && horse.isVehicle(); }
 
     @Override
     public void tick() {
         if (!horse.isTamed() && horse.random().nextInt(adjustedTickDelay(50)) == 0) {
-            var rider = horse.playerPassenger();
+            var rider = horse.firstPassenger();
             if (rider == null) return;
-            int temper = horse.getTemper();
-            int max = horse.getMaxTemper();
-            if (max > 0 && horse.random().nextInt(max) < temper) {
-                horse.tameWithName(rider);
-                return;
+            if (rider instanceof org.domi.furnace.server.entity.Player p) {   // 플레이어만 템퍼 판정
+                int temper = horse.getTemper();
+                int max = horse.getMaxTemper();
+                if (max > 0 && horse.random().nextInt(max) < temper) {
+                    horse.tameWithName(p);
+                    return;
+                }
+                horse.modifyTemper(5);
             }
-            horse.modifyTemper(5);
             horse.ejectPassengers();
             horse.makeMad();
             horse.broadcastEntityEvent((byte) 6);

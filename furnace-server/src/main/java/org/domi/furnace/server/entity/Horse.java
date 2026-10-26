@@ -61,7 +61,7 @@ public class Horse extends AbstractHorse {
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         boolean sneakingOwner = !isBaby() && isTamed() && p.sneaking();
-        if (!sneakingOwner && !held.isEmpty()) {
+        if (!isVehicle() && !sneakingOwner && !held.isEmpty()) {
             if (isFood(held)) return fedFood(p, hand, held);
             if (!isTamed()) {
                 makeMad();

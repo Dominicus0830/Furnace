@@ -1,5 +1,6 @@
 // 바닐라 AbstractHorse: 말 종류 공통 — 템퍼(길들이기 진행도)·안장/먹이/뒷발 서기, 임의 능력치(체력·속도·점프), 번식 시 부모 능력치 교배.
-// TODO(탑승): 플레이어가 타는 것(길들이기 완성·안장 조종·점프 충전)·말 인벤토리 창은 플레이어 탑승 시스템이 생기면.
+// 탑승: 빈손 우클릭으로 올라타고, 안장을 얹으면 탄 플레이어가 조종한다(이동은 클라이언트가 move_vehicle 로 보낸다 —
+// 서버는 회전만 맞추고 속도를 지운다). 길들이기는 RunAroundLikeCrazyGoal 의 템퍼 판정. TODO(인벤토리): 말 인벤토리 창(HorseInventoryMenu).
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -30,6 +31,9 @@ public abstract class AbstractHorse extends Animal {
     public int sprintCounter;
     protected int gallopSoundCounter;
     private int temper;
+    /** 뒷발로 선 애니메이션(standAnim·standAnimO)과 점프 중 서기 미끄러짐(allowStandSliding) — 승객 위치에 쓴다. */
+    protected float standAnim, standAnimO;
+    protected boolean allowStandSliding;
     private UUID ownerUUID;
 
     protected AbstractHorse(EntityType type, ChunkLevel level, int id) {
@@ -114,20 +118,104 @@ public abstract class AbstractHorse extends Animal {
 
     public void setOwnerUUID(UUID u) { ownerUUID = u; }
 
-    /** TODO(탑승): 현재 탑승자는 지원하지 않는다. */
-    public boolean hasPlayerPassenger() { return false; }
+    /** 첫 승객이 플레이어인가. */
+    public boolean hasPlayerPassenger() { return firstPassenger() instanceof Player; }
 
-    public Player playerPassenger() { return null; }
-
-    public void ejectPassengers() { }
+    public Player playerPassenger() { return firstPassenger() instanceof Player p ? p : null; }
 
     @Override
-    public boolean isImmobile() { return super.isImmobile() && hasPlayerPassenger() && isSaddled() || isEating() || isStanding(); }
+    public boolean isImmobile() { return super.isImmobile() && isVehicle() && isSaddled() || isEating() || isStanding(); }
 
+    /** AbstractHorse.tameWithName: 주인을 정하고 길들인 뒤 하트 이벤트(7). TODO(발전 과제): tame_animal 트리거. */
     public boolean tameWithName(Player p) {
         ownerUUID = p.uuid();
         setTamed(true);
+        broadcastEntityEvent((byte) 7);
         return true;
+    }
+
+    /** Saddleable.isSaddleable: 살아 있고 다 자랐고 길들여졌다. */
+    public boolean isSaddleable() { return isAlive() && !isBaby() && isTamed(); }
+
+    /** Saddleable.equipSaddle: 안장 칸에 넣는다(칸이 바뀌면 containerChanged). */
+    public void equipSaddle(ItemStack saddle) {
+        inventory[0] = saddle;
+        containerChanged();
+    }
+
+    /** containerChanged: 안장 상태를 다시 맞추고, 틱 20 이 지나 새로 안장이 얹히면 소리. */
+    protected void containerChanged() {
+        boolean was = isSaddled();
+        updateContainerEquipment();
+        if (tickCount > 20 && !was && isSaddled()) playSound(getSaddleSoundEvent(), 0.5F, 1.0F);
+    }
+
+    protected String getSaddleSoundEvent() { return "entity.horse.saddle"; }
+
+    /** getControllingPassenger: 안장이 있고 첫 승객이 플레이어면 그가 조종한다. */
+    @Override
+    public Rider getControllingPassenger() {
+        return isSaddled() && firstPassenger() instanceof Player p ? p : super.getControllingPassenger();
+    }
+
+    /** tickRidden: 몸·머리 방향을 탄 플레이어 시선(세로는 절반)으로. 서버에서는 조종이 클라이언트 쪽이라 점프·이동은 하지 않는다. */
+    @Override
+    protected void tickRidden(Player p) {
+        setYRot(p.yaw());
+        setXRot(p.pitch() * 0.5F);
+        yRotO = yBodyRot = yHeadRot = yRot();
+    }
+
+    /** positionRider: 승객의 몸 방향을 내 몸 방향으로. */
+    @Override
+    protected void placeRider(Rider r) {
+        super.placeRider(r);
+        if (r instanceof LivingEntity le) le.yBodyRot = yBodyRot;
+    }
+
+    /** getPassengerAttachmentPoint: 뒷발로 선 정도(standAnimO)만큼 위·뒤로. */
+    @Override
+    protected Vec3 getPassengerAttachmentPoint(Rider r, float scale) {
+        return super.getPassengerAttachmentPoint(r, scale)
+                .add(new Vec3(0.0, 0.15 * standAnimO * scale, -0.7 * standAnimO * scale).yRot(-yRot() * (float) (Math.PI / 180.0)));
+    }
+
+    /** getDismountLocationForPassenger: 주 손 쪽 옆, 안 되면 반대쪽, 그래도 안 되면 내 자리. */
+    @Override
+    public Vec3 getDismountLocationForPassenger(Rider r) {
+        float pw = r instanceof Entity e ? e.bbWidth() : 0.6F;
+        boolean rightHanded = !(r instanceof Mob m) || !m.isLeftHanded();   // TODO(주 손): 플레이어 주 손 설정은 오른손으로 본다
+        Vec3 v = collisionHorizontalEscapeVector(bbWidth(), pw, yRot() + (rightHanded ? 90.0F : -90.0F));
+        Vec3 p = DismountHelper.findDismountLocation(this, v, r);
+        if (p != null) return p;
+        Vec3 v2 = collisionHorizontalEscapeVector(bbWidth(), pw, yRot() + (!rightHanded ? 90.0F : -90.0F));
+        Vec3 p2 = DismountHelper.findDismountLocation(this, v2, r);
+        return p2 != null ? p2 : new Vec3(x(), y(), z());
+    }
+
+    /** handleStartJump(power): 점프 시작 — 뒷발 서기·점프 소리(점프 자체는 클라이언트가 한다). */
+    public void handleStartJump(int power) {
+        allowStandSliding = true;
+        standIfPossible();
+        playSound("entity.horse.jump", 0.4F, 1.0F);
+    }
+
+    /** PlayerRideableJumping.canJump: 안장이 있다. */
+    public boolean canJump() { return isSaddled(); }
+
+    public void handleStopJump() {}
+
+    /** causeFallDamage: 승객들도 같은 피해를 받는다. */
+    @Override
+    public boolean causeFallDamage(float distance, float multiplier) {
+        if (distance > 1.0F) playSound("entity.horse.land", 0.4F, 1.0F);
+        boolean hurt = super.causeFallDamage(distance, multiplier);
+        if (hurt && isVehicle()) {
+            java.util.List<Rider> riders = new java.util.ArrayList<>();
+            collectIndirectPassengers(riders);
+            for (Rider r : riders) if (r instanceof Entity e) e.causeFallDamage(distance, multiplier);   // TODO(플레이어 낙하): 탄 플레이어 낙하 피해
+        }
+        return hurt;
     }
 
     // ------------------------------------------------------------------ 인벤토리
@@ -247,6 +335,15 @@ public abstract class AbstractHorse extends Animal {
             sprintCounter++;
             if (sprintCounter > 300) sprintCounter = 0;
         }
+        standAnimO = standAnim;
+        if (isStanding()) {
+            standAnim += (1.0F - standAnim) * 0.4F + 0.05F;
+            if (standAnim > 1.0F) standAnim = 1.0F;
+        } else {
+            allowStandSliding = false;
+            standAnim += (0.8F * standAnim * standAnim * standAnim - standAnim) * 0.6F - 0.05F;
+            if (standAnim < 0.0F) standAnim = 0.0F;
+        }
     }
 
     @Override
@@ -256,28 +353,28 @@ public abstract class AbstractHorse extends Animal {
         return hurt;
     }
 
-    @Override
-    public boolean causeFallDamage(float distance, float multiplier) {
-        if (distance > 1.0F) playSound("entity.horse.land", 0.4F, 1.0F);
-        return super.causeFallDamage(distance, multiplier);
-    }
 
     // ------------------------------------------------------------------ 먹이·상호작용
 
     @Override
     public boolean isFood(ItemStack s) { return ItemTags.is(s, "minecraft:horse_food"); }
 
+    /**
+     * AbstractHorse.mobInteract: 누가 탔거나 아기면 동물 기본(먹이). 길들인 말에 웅크려 쓰면 인벤토리(TODO). 손에 든 것이 있으면
+     * 그 아이템의 상호작용(안장 → SaddleItem.interactLivingEntity: 크리에이티브여도 하나 쓴다), 아니면 올라탄다.
+     */
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
-        if (isBaby() || p.sneaking() && isTamed()) return super.interact(p, hand, held, region);
+        if (isVehicle() || isBaby()) return super.interact(p, hand, held, region);
+        if (isTamed() && p.sneaking()) return true;   // TODO(인벤토리): openCustomInventoryScreen
         if (!held.isEmpty()) {
-            if (isSaddleItem(held) && isTamed() && !isSaddled()) {
-                inventory[0] = held.withCount(1);
-                usePlayerItem(p, hand, held);
-                updateContainerEquipment();
-                playSound("entity.horse.saddle", 0.5F, 1.0F);
+            if (isSaddleItem(held) && !isSaddled() && isSaddleable()) {
+                var inv = p.inventory();
+                inv.set(hand == 0 ? inv.heldWindowSlot() : 45, held.withCount(held.count() - 1));
+                equipSaddle(held.withCount(1));
                 return true;
             }
+            // TODO(말 갑옷): canUseSlot(BODY) && isBodyArmorItem → equipBodyArmor
         }
         doPlayerRide(p);
         return true;
@@ -334,10 +431,12 @@ public abstract class AbstractHorse extends Animal {
         return ok;
     }
 
+    /** doPlayerRide: 풀 뜯기·서기를 멈추고 플레이어 시선을 말 방향으로 맞춰 태운다. */
     protected void doPlayerRide(Player p) {
         setEating(false);
         setStanding(false);
-        // TODO(탑승): player.startRiding(this)
+        p.applyRotation(yRot(), xRot(), p.onGround());
+        p.startRiding(this, false);
     }
 
     @Override
@@ -380,7 +479,7 @@ public abstract class AbstractHorse extends Animal {
     public boolean canMate(Animal other) { return false; }
 
     /** 번식할 수 있는 상태: 탑승자 없이 길들여졌고 다 자라 체력이 가득하며 사랑 중. */
-    protected boolean canParent() { return !hasPlayerPassenger() && isTamed() && !isBaby() && health() >= maxHealth() && isInLove(); }
+    protected boolean canParent() { return !isVehicle() && !isPassenger() && isTamed() && !isBaby() && health() >= maxHealth() && isInLove(); }
 
     @Override
     public AgeableMob getBreedOffspring(ChunkLevel level, AgeableMob partner) { return null; }

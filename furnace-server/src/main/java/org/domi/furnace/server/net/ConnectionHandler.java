@@ -1175,7 +1175,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x25 -> { // player_command: eid, action, data
                 Types.readVarInt(frame);
                 int action = Types.readVarInt(frame);
-                Types.readVarInt(frame);
+                int jumpData = Types.readVarInt(frame);
                 Player p = player;
                 if (p != null) {
                     switch (action) {
@@ -1183,6 +1183,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         case 1 -> p.sneaking(false);     // RELEASE_SHIFT_KEY
                         case 3 -> p.sprinting(true);     // START_SPRINTING
                         case 4 -> p.sprinting(false);    // STOP_SPRINTING
+                        case 5, 6, 7 -> { int act = action; int data = jumpData; world.runAt(p.x(), p.z(), region -> handleRidingCommand(p, act, data)); }
                         default -> { }
                     }
                 }
@@ -2141,6 +2142,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         ipitch = pitch;
         ig = g;
         publishInput(p);
+    }
+
+    /**
+     * player_command 의 탈것 쪽(바닐라 handlePlayerCommand): 5 START_RIDING_JUMP(조종 중인 말이 점프할 수 있고 세기 > 0),
+     * 6 STOP_RIDING_JUMP, 7 OPEN_INVENTORY(TODO 말 인벤토리 창).
+     */
+    private static void handleRidingCommand(Player p, int action, int data) {
+        var v = p.vehicle();
+        if (action == 7) return;   // TODO(인벤토리): HasCustomInventoryScreen.openCustomInventoryScreen
+        if (!(v instanceof org.domi.furnace.server.entity.AbstractHorse h) || v.getControllingPassenger() != p) return;
+        if (action == 5) {
+            if (h.canJump() && data > 0) h.handleStartJump(data);
+        } else {
+            h.handleStopJump();
+        }
     }
 
     /** 마지막으로 수락한 위치·회전·onGround의 합을 발행한다(region 스레드가 다음 틱에 drain). */

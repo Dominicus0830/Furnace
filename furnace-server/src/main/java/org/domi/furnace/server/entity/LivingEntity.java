@@ -466,6 +466,19 @@ public abstract class LivingEntity extends Entity implements Targetable {
         dismountTo(p.x(), p.y(), p.z());
     }
 
+    /**
+     * travelRidden(player, input): tickRidden 뒤, 서버에서는 조종이 클라이언트 쪽(isControlledByLocalInstance 거짓)이라
+     * 스스로 움직이지 않고 속도를 지운 채 칸 안 블록 동작만 본다. 위치는 move_vehicle 이 정한다.
+     */
+    protected void travelRidden(Player p) {
+        tickRidden(p);
+        setDeltaMovement(0.0, 0.0, 0.0);
+        checkInsideBlocks();
+    }
+
+    /** tickRidden(player, input): 탄 플레이어 쪽 회전 등(종류별). */
+    protected void tickRidden(Player p) {}
+
     /** LivingEntity.rideTick: 탄 동안은 낙하 거리를 지운다. */
     @Override
     public void rideTick() {
@@ -801,7 +814,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
         }
         xxa *= 0.98F;
         zza *= 0.98F;
-        travel(xxa, yya, zza);
+        if (getControllingPassenger() instanceof Player p && isAlive()) travelRidden(p);
+        else travel(xxa, yya, zza);
     }
 
     // ------------------------------------------------------------------ 장비
