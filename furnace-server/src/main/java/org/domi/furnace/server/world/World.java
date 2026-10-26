@@ -436,6 +436,9 @@ public final class World {
                 }));
     }
 
+    /** 본문 직렬화용 스냅샷을 뜬 횟수(테스트가 "스냅샷이 떠졌다"를 기다리는 신호). */
+    final java.util.concurrent.atomic.AtomicInteger bodySnapshots = new java.util.concurrent.atomic.AtomicInteger();
+
     public CompletableFuture<byte[]> serializedChunkBody(ChunkPos cp) {
         return submitAtChunk(cp, r -> r.loadChunk(cp))
                 .thenCompose(f -> f)
@@ -447,6 +450,7 @@ public final class World {
 
                     // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
                     ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
+                    bodySnapshots.incrementAndGet();
                     // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
                     // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
                     long version = col.modCount();

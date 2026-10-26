@@ -24,6 +24,7 @@ class ChunkBodyCacheRaceTest {
     private record Env(FurnaceSchedulerImpl sched, ChunkWorkerPool pool, World w, BlockRegistry reg) {}
 
     private static Env env() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));   // 블록 부수기가 아이템 레지스트리를 쓴다
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ChunkWorkerPool pool = new ChunkWorkerPool(1);
@@ -48,11 +49,8 @@ class ChunkBodyCacheRaceTest {
     private static void awaitSnapshotTaken(Env e) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
-            boolean taken = e.sched().region(R00).submit(() -> {
-                Region r = e.w().regionAt(R00);
-                return r.chunkLoaded(C00) && r.chunkAt(C00).cachedSnapshot() != null;
-            }).get(10, TimeUnit.SECONDS);
-            if (taken) return;
+            if (e.w().bodySnapshots.get() > 0) return;
+            Thread.onSpinWait();
         }
         fail("스냅샷이 제한 시간 안에 떠지지 않음");
     }
