@@ -14,7 +14,13 @@ public class MagmaBlock extends BlockBehavior {
 
     public MagmaBlock(int block) { super(block); }
 
-    // TODO(엔티티): stepOn — 웅크리지 않은(서리 보행자 신발 없는) 생물에게 hotFloor 피해 1.
+    /** stepOn: 웅크리지 않은 생물에게 hot_floor 피해 1(서리 보행자 인챈트는 아직 없어 늘 해당 없음). */
+    @Override
+    public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {
+        if (!entity.isSteppingCarefully() && entity instanceof org.domi.furnace.server.entity.LivingEntity) {
+            entity.hurt(org.domi.furnace.server.entity.Entity.Damage.HOT_FLOOR, 1.0F);
+        }
+    }
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) { BubbleColumnBlock.updateColumn(level, pos.above(), state); }

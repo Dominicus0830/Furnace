@@ -46,6 +46,7 @@ public abstract non-sealed class Entity implements Rider {
         public static final Damage LAVA = new Damage("lava", true, false, false);
         public static final Damage HOT_FLOOR = new Damage("hot_floor", true, false, false);
         public static final Damage CACTUS = new Damage("cactus", false, false, false);
+        public static final Damage WITHER = new Damage("wither", false, false, false);
         public static final Damage SWEET_BERRY_BUSH = new Damage("sweet_berry_bush", false, false, false);
         public static final Damage EXPLOSION = new Damage("explosion", false, true, false);
         public static final Damage OUT_OF_WORLD = new Damage("out_of_world", false, false, true);

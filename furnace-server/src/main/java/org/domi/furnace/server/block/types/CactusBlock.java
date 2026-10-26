@@ -60,6 +60,4 @@ public class CactusBlock extends BlockBehavior {
         int below = level.getBlockState(pos.below());
         return (B.is(below, block) || B.isTag(below, "minecraft:sand")) && !B.isLiquid(level.getBlockState(pos.above()));
     }
-
-    // TODO(엔티티): entityInside — 닿은 엔티티에 선인장 피해 1.
 }

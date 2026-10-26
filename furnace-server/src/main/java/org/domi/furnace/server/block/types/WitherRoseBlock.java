@@ -16,5 +16,12 @@ public class WitherRoseBlock extends FlowerBlock {
         return super.mayPlaceOn(state, level, pos) || B.is(state, NETHERRACK) || B.is(state, SOUL_SAND) || B.is(state, SOUL_SOIL);
     }
 
-    // TODO(엔티티): entityInside — 평화가 아니면 시듦에 면역이 아닌 생물에게 WITHER 40틱.
+    /** entityInside: 평화가 아니면, 시듦 피해에 면역이 아닌 생물에게 WITHER 40틱. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (level.difficulty() != 0 && entity instanceof org.domi.furnace.server.entity.LivingEntity le
+                && !le.isInvulnerableTo(org.domi.furnace.server.entity.Entity.Damage.WITHER)) {
+            le.addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.WITHER, 40));
+        }
+    }
 }
