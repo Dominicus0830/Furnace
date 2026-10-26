@@ -23,6 +23,22 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
 
     public IronGolem(ChunkLevel level, int id) { super(EntityType.IRON_GOLEM, level, id); }
 
+    /** IronGolem.checkSpawnObstruction: 아래 칸에 설 수 있고, 위 두 칸과 제자리(유체 무시)가 빈 스폰 칸이며 다른 엔티티와 겹치지 않는다. */
+    @Override
+    public boolean checkSpawnObstruction(ChunkLevel level) {
+        org.domi.furnace.server.block.Pos p = blockPosition(), below = p.below();
+        if (!org.domi.furnace.server.block.B.isFaceSturdy(level.getBlockState(below), level, below, org.domi.furnace.server.block.Dir.UP)) return false;
+        for (int i = 1; i < 3; i++) {
+            org.domi.furnace.server.block.Pos q = p.above(i);
+            if (!org.domi.furnace.server.entity.spawn.SpawnPlacements.isValidEmptySpawnBlock(level, q, type().name())) return false;
+        }
+        int s = level.getBlockState(p);
+        boolean empty = !org.domi.furnace.server.block.B.isCollisionShapeFullBlock(s) && !org.domi.furnace.server.block.B.behavior(s).isSignalSource(s)
+                && !org.domi.furnace.server.block.B.isTag(s, "minecraft:prevent_mob_spawning_inside")
+                && !org.domi.furnace.server.entity.spawn.SpawnPlacements.isBlockDangerous(type().name(), s);
+        return empty && level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox()));
+    }
+
     @Override
     protected void createAttributes(AttributeMap map) {
         super.createAttributes(map);

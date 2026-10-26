@@ -36,6 +36,35 @@ public class MobInventory {
         return cur.withCount(n);
     }
 
+    /** Container.countItem(item): 그 아이템 개수 합. */
+    public int countItem(String item) {
+        int n = 0;
+        for (ItemStack s : items) if (!s.isEmpty() && org.domi.furnace.server.item.ItemTools.itemName(s).equals(item)) n += s.count();
+        return n;
+    }
+
+    /** Container.hasAnyOf(items). */
+    public boolean hasAnyOf(java.util.Set<String> names) {
+        for (ItemStack s : items) if (!s.isEmpty() && names.contains(org.domi.furnace.server.item.ItemTools.itemName(s))) return true;
+        return false;
+    }
+
+    /** SimpleContainer.removeItemType(item, amount): 마지막 칸부터 amount 개까지 꺼낸다. */
+    public ItemStack removeItemType(String item, int amount) {
+        int got = 0;
+        ItemStack proto = ItemStack.EMPTY;
+        for (int i = items.length - 1; i >= 0; i--) {
+            ItemStack s = items[i];
+            if (s.isEmpty() || !org.domi.furnace.server.item.ItemTools.itemName(s).equals(item)) continue;
+            int take = Math.min(amount - got, s.count());
+            items[i] = s.withCount(s.count() - take);
+            got += take;
+            if (proto.isEmpty()) proto = s;
+            if (got == amount) break;
+        }
+        return got == 0 ? ItemStack.EMPTY : proto.withCount(got);
+    }
+
     public List<ItemStack> removeAllItems() {
         List<ItemStack> list = new ArrayList<>();
         for (int i = 0; i < items.length; i++) {

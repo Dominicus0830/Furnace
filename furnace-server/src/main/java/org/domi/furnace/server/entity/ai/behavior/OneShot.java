@@ -29,6 +29,9 @@ public abstract class OneShot<E extends Mob> implements BehaviorControl<E> {
 
     protected abstract boolean trigger(ChunkLevel level, E entity, long gameTime);
 
+    /** 상태를 바꾸지 않고 trigger 만 부른다(TriggerGate 가 하위 행동을 고를 때). */
+    public final boolean triggerOnly(ChunkLevel level, E entity, long gameTime) { return trigger(level, entity, gameTime); }
+
     // ---- 기억 조건 도우미(BehaviorBuilder: present = 값 있음, absent = 값 없음, registered = 등록만)
     protected static boolean present(Mob m, MemoryModuleType<?> t) { return m.getBrain().checkMemory(t, org.domi.furnace.server.entity.ai.brain.MemoryStatus.VALUE_PRESENT); }
 

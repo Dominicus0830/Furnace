@@ -25,6 +25,16 @@ public final class LandRandomPos {
         });
     }
 
+    /** getPos(mob, h, v, weight): 걷기 선호도 대신 weight 로 고른다(GoToClosestVillage). */
+    public static double[] getPos(PathfinderMob mob, int horizontal, int vertical, java.util.function.ToDoubleFunction<Pos> weight) {
+        boolean restrict = GoalUtils.mobRestricted(mob, horizontal);
+        var rand = rand(mob);
+        return RandomPos.generateRandomPos(() -> {
+            Pos rel = RandomPos.generateRandomDirection(rand, horizontal, vertical);
+            return generateRandomPosTowardDirection(mob, horizontal, restrict, rel);
+        }, weight);
+    }
+
     public static double[] getPosTowards(PathfinderMob mob, int horizontal, int vertical, double[] towards, double maxAngle) {
         double[] dir = {towards[0] - mob.x(), towards[1] - mob.y(), towards[2] - mob.z()};
         boolean restrict = GoalUtils.mobRestricted(mob, horizontal);

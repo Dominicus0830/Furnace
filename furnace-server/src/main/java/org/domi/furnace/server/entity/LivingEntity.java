@@ -163,6 +163,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
         if (isInvulnerableTo(source) || level == null) return false;
         if (isDeadOrDying()) return false;
+        if (isSleeping()) stopSleeping();
         noActionTime = 0;
         if (amount < 0.0F) amount = 0.0F;
         boolean blocked = false;
@@ -755,6 +756,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     public void tick() {
         super.tick();
         if (isRemoved()) return;
+        if (isSleeping() && !checkBedExists()) stopSleeping();
         updateSwingTime();
         updateUsingItem();
         detectEquipmentUpdates();
@@ -920,6 +922,61 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     public boolean isImmobile() { return isDeadOrDying(); }
+
+    // ------------------------------------------------------------------ 잠자기(바닐라 LivingEntity.startSleeping/stopSleeping)
+
+    public java.util.Optional<org.domi.furnace.server.block.Pos> getSleepingPos() {
+        int[] p = (int[]) entityData.get(DATA_SLEEPING_POS);
+        return p == null ? java.util.Optional.empty() : java.util.Optional.of(new org.domi.furnace.server.block.Pos(p[0], p[1], p[2]));
+    }
+
+    public void setSleepingPos(org.domi.furnace.server.block.Pos p) { entityData.set(DATA_SLEEPING_POS, new int[] {p.x(), p.y(), p.z()}); }
+
+    public void clearSleepingPos() { entityData.set(DATA_SLEEPING_POS, null); }
+
+    public boolean isSleeping() { return getSleepingPos().isPresent(); }
+
+    /** startSleeping: 타고 있으면 내리고, 침대를 점유 상태로, 자는 자세, 침대 위(0.5, 0.6875, 0.5)로 옮기고 멈춘다. */
+    public void startSleeping(org.domi.furnace.server.block.Pos pos) {
+        if (isPassenger()) stopRiding();
+        int st = level.getBlockState(pos);
+        if (B.isTag(st, "minecraft:beds")) level.setBlock(pos, B.prop("occupied").with(st, true), 3, 512);
+        setPose(POSE_SLEEPING);
+        setPos(pos.x() + 0.5, pos.y() + 0.6875, pos.z() + 0.5);
+        setSleepingPos(pos);
+        setDeltaMovement(0.0, 0.0, 0.0);
+        hasImpulse = true;
+    }
+
+    /** stopSleeping: 침대 점유를 풀고 일어설 자리(BedBlock.findStandUpPosition, 없으면 침대 위 칸)로 옮겨 침대를 바라본다. */
+    public void stopSleeping() {
+        getSleepingPos().ifPresent(pos -> {
+            int st = level.getBlockState(pos);
+            if (B.isTag(st, "minecraft:beds")) {
+                int facing = org.domi.furnace.server.block.Dir.byName(B.prop("facing").valueName(st));
+                level.setBlock(pos, B.prop("occupied").with(st, false), 3, 512);
+                Vec3 v = DismountHelper.bedStandUpPosition(this, pos, facing, yRot());
+                if (v == null) v = new Vec3(pos.x() + 0.5, pos.y() + 1 + 0.1, pos.z() + 0.5);
+                double dx = pos.x() + 0.5 - v.x(), dy = pos.y() - v.y(), dz = pos.z() + 0.5 - v.z();
+                double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (len < 1.0E-4) dx = dz = 0.0;
+                else {
+                    dx /= len;
+                    dz /= len;
+                }
+                float yr = (float) Mth.wrapDegrees((float) (Mth.atan2(dz, dx) * 180.0F / (float) Math.PI - 90.0));
+                setPos(v.x(), v.y(), v.z());
+                setYRot(yr);
+                setXRot(0.0F);
+            }
+        });
+        setPose(POSE_STANDING);
+        setPos(x(), y(), z());
+        clearSleepingPos();
+    }
+
+    /** checkBedExists: 자는 자리가 아직 침대인가. */
+    protected boolean checkBedExists() { return getSleepingPos().map(p -> B.isTag(level.getBlockState(p), "minecraft:beds")).orElse(false); }
 
     protected boolean isAffectedByFluids() { return true; }
 
@@ -1150,6 +1207,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
         tag.putFloat("AbsorptionAmount", 0.0F);
         tag.putBoolean("FallFlying", false);
         tag.putList("attributes", attributes().save());
+        getSleepingPos().ifPresent(p -> {
+            tag.putInt("SleepingX", p.x());
+            tag.putInt("SleepingY", p.y());
+            tag.putInt("SleepingZ", p.z());
+        });
     }
 
     @Override
@@ -1161,5 +1223,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
         deathTime = tag.getShort("DeathTime");
         attributes().load(tag.tags().get("attributes") instanceof org.domi.furnace.server.net.io.nbt.NbtList l ? l : null);
         if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
+        if (tag.contains("SleepingX") && tag.contains("SleepingY") && tag.contains("SleepingZ")) {
+            var p = new org.domi.furnace.server.block.Pos(tag.getIntOr0("SleepingX"), tag.getIntOr0("SleepingY"), tag.getIntOr0("SleepingZ"));
+            setSleepingPos(p);
+            setPose(POSE_SLEEPING);
+            if (!firstTick) setPos(p.x() + 0.5, p.y() + 0.6875, p.z() + 0.5);
+        }
     }
 }
