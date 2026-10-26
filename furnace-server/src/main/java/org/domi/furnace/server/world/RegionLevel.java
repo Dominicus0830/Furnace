@@ -157,6 +157,7 @@ public final class RegionLevel extends ChunkLevel {
      * tickingChunks 는 무작위 틱을 받을 청크 키(Regionizer.chunkKey).
      */
     private final org.domi.furnace.server.entity.spawn.PhantomSpawner phantomSpawner = new org.domi.furnace.server.entity.spawn.PhantomSpawner();
+    private final org.domi.furnace.server.entity.spawn.WanderingTraderSpawner traderSpawner = new org.domi.furnace.server.entity.spawn.WanderingTraderSpawner();
 
     void tickBlocks(long[] tickingChunks, int count, java.util.function.LongPredicate blockEntityTicking,
                     java.util.function.Predicate<Player> inRegion) {
@@ -185,6 +186,7 @@ public final class RegionLevel extends ChunkLevel {
                 java.util.List<Player> here = new java.util.ArrayList<>();
                 services().forEachPlayer(pl -> { if (inRegion.test(pl)) here.add(pl); });
                 phantomSpawner.tick(this, here, spawnMonsters);
+                traderSpawner.tick(this, here);
             }
         }
         broadcastChanges();
