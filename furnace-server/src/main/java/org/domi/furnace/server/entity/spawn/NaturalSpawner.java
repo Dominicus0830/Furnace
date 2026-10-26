@@ -1,7 +1,7 @@
 // 바닐라 NaturalSpawner + LocalMobCapCalculator + PotentialCalculator: 플레이어 근처 청크마다 종류(MobCategory)별로 몹을 자연 스폰한다.
 // 한 틱: 지역의 몹을 세어 종류별 상한(max × 청크 수 / 289)과 플레이어별 지역 상한을 보고, 청크마다 무작위 칸에서 최대 3묶음을 시도한다.
 // 이 서버는 region 별로 돌아서 몹 수·상한 계산은 region 안의 엔티티와 청크만 본다(바닐라는 차원 전체) — region 경계 근처에서만 다르다.
-// TODO: 구조물 스폰 덮어쓰기(네더 요새·늪 오두막·해저 신전·약탈자 전초기지의 mob 목록), 순찰·방랑 상인·고양이 특수 스포너(순찰 AI·POI·상인 필요), 청크 생성 시 동물 스폰. 팬텀은 PhantomSpawner.
+// TODO: 구조물 스폰 덮어쓰기(네더 요새·늪 오두막·해저 신전·약탈자 전초기지의 mob 목록), 순찰·방랑 상인·고양이 특수 스포너(순찰 AI·POI·상인 필요). 팬텀은 PhantomSpawner, 청크 생성 동물은 spawnMobsForChunkGeneration.
 package org.domi.furnace.server.entity.spawn;
 
 import java.util.ArrayList;
@@ -13,6 +13,7 @@ import java.util.function.Predicate;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.block.LegacyRandomSource;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.block.Shape;
 import org.domi.furnace.server.entity.AABB;
@@ -248,5 +249,70 @@ public final class NaturalSpawner {
         int far = mob.type() == null ? 128 : EntityMeta.category(mob.type().name()).despawnDistance();
         if (distSqr > (double) far * far && mob.removeWhenFarAway(distSqr)) return false;
         return mob.checkSpawnRules(level, SpawnReason.NATURAL) && mob.checkSpawnObstruction(level);
+    }
+
+    /**
+     * NaturalSpawner.spawnMobsForChunkGeneration: 새로 만든 청크에 동물을 놓는다(청크 좌표·세계 시드로 정한 난수 — 바닐라와 같은 수열).
+     * 바이옴은 청크 왼쪽 위 모서리 맨 위 칸, 확률은 바이옴의 creature_spawn_probability.
+     */
+    public static void spawnMobsForChunkGeneration(ChunkLevel level, int cx, int cz, long worldSeed) {
+        int minX = cx * 16, minZ = cz * 16;
+        String biome = biomeName(level, new Pos(minX, 319, minZ));
+        if (biome == null) return;
+        List<BiomeSpawns.SpawnerData> list = BiomeSpawns.mobs(biome, MobCategory.CREATURE);
+        if (list.isEmpty()) return;
+        // WorldgenRandom.setDecorationSeed(seed, minX, minZ)
+        LegacyRandomSource rnd = new LegacyRandomSource(worldSeed);
+        long a = rnd.nextLong() | 1L, b = rnd.nextLong() | 1L;
+        rnd.setSeed(((long) minX * a + (long) minZ * b) ^ worldSeed);
+        float probability = BiomeSpawns.creatureSpawnProbability(biome);
+        while (rnd.nextFloat() < probability) {
+            BiomeSpawns.SpawnerData data = BiomeSpawns.getRandom(list, rnd);
+            if (data == null) continue;
+            int count = data.minCount() + rnd.nextInt(1 + data.maxCount() - data.minCount());
+            Object group = null;
+            int x = minX + rnd.nextInt(16), z = minZ + rnd.nextInt(16);
+            int ox = x, oz = z;
+            EntityType type = EntityType.byName(data.type());
+            for (int n = 0; n < count; n++) {
+                boolean placed = false;
+                for (int attempt = 0; !placed && attempt < 4; attempt++) {
+                    Pos pos = topNonCollidingPos(level, data.type(), x, z);
+                    if (type != null && EntityMeta.of(data.type()).canSummon() && SpawnPlacements.isSpawnPositionOk(data.type(), level, pos)) {
+                        float w = type.width();
+                        double d0 = Math.clamp((double) x, minX + (double) w, minX + 16.0 - w);
+                        double d1 = Math.clamp((double) z, minZ + (double) w, minZ + 16.0 - w);
+                        if (!level.noCollision(type.makeBoundingBox(d0, pos.y(), d1))
+                                || !SpawnPlacements.checkSpawnRules(data.type(), level, SpawnReason.CHUNK_GENERATION,
+                                        new Pos((int) Math.floor(d0), pos.y(), (int) Math.floor(d1)), level.random())) {
+                            continue;
+                        }
+                        Mob mob = getMobForSpawn(level, data.type());
+                        if (mob == null) continue;
+                        mob.moveTo(d0, pos.y(), d1, rnd.nextFloat() * 360.0F, 0.0F);
+                        if (mob.checkSpawnRules(level, SpawnReason.CHUNK_GENERATION) && mob.checkSpawnObstruction(level)) {
+                            group = mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), group);
+                            level.addFreshEntity(mob);
+                            placed = true;
+                        }
+                    }
+                    x += rnd.nextInt(5) - rnd.nextInt(5);
+                    z += rnd.nextInt(5) - rnd.nextInt(5);
+                    while (x < minX || x >= minX + 16 || z < minZ || z >= minZ + 16) {
+                        x = ox + rnd.nextInt(5) - rnd.nextInt(5);
+                        z = oz + rnd.nextInt(5) - rnd.nextInt(5);
+                    }
+                }
+            }
+        }
+    }
+
+    /** NaturalSpawner.getTopNonCollidingPos(오버월드: 천장 없음) + SpawnPlacementType.ON_GROUND.adjustSpawnPosition. 높이 지도는 오셀롯·앵무새만 MOTION_BLOCKING(잎 위). */
+    private static Pos topNonCollidingPos(ChunkLevel level, String type, int x, int z) {
+        boolean leavesCount = type.equals("minecraft:ocelot") || type.equals("minecraft:parrot");
+        int y = leavesCount ? level.getMotionBlockingHeight(x, z) : level.getMotionBlockingNoLeavesHeight(x, z);
+        Pos pos = new Pos(x, y, z);
+        Pos below = pos.below();
+        return org.domi.furnace.server.block.Pathfinding.isPathfindable(level.getBlockState(below), 1) ? below : pos;
     }
 }

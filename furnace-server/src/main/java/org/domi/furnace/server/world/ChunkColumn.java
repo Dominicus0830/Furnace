@@ -134,6 +134,13 @@ public final class ChunkColumn {
     // 월드젠 중 구조물 등이 스폰한 엔티티(NBT: id, Pos, Rotation …) — 청크 로드/저장 쪽에서 소비한다.
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
 
+    private boolean freshlyGenerated;
+
+    /** 방금 생성기로 만든 청크(디스크에서 읽은 것이 아님) — 올릴 때 한 번 동물을 놓는다(NaturalSpawner.spawnMobsForChunkGeneration). */
+    public boolean freshlyGenerated() { return freshlyGenerated; }
+
+    public void freshlyGenerated(boolean v) { this.freshlyGenerated = v; }
+
     private boolean lightPrecomputed;
 
     /** 빛을 생성 스레드에서 미리 계산해 뒀다(이웃과 가장자리만 맞추면 된다). */

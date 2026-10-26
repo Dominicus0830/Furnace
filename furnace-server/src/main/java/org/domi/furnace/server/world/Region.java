@@ -304,6 +304,14 @@ public final class Region {
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
             level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
         }
+        if (col.freshlyGenerated()) {
+            col.freshlyGenerated(false);
+            try {
+                org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnMobsForChunkGeneration(level(), cp.x(), cp.z(), level().worldSeed());
+            } catch (RuntimeException e) {
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[SPAWN] 청크 생성 동물 스폰 실패 {}", cp, e);
+            }
+        }
         if (Regionizer.STATS) {
             long t3 = System.nanoTime();
             INSTALL_STATS[0]++;

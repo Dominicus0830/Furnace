@@ -1242,6 +1242,12 @@ public abstract class ChunkLevel implements BlockLevel {
         return col == null ? ChunkColumn.MIN_Y : col.motionBlockingBlockY(x & 15, z & 15) + 1;
     }
 
+    /** Level.getHeight(MOTION_BLOCKING_NO_LEAVES, x, z): 잎을 뺀 움직임을 막는 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
+    public int getMotionBlockingNoLeavesHeight(int x, int z) {
+        ChunkColumn col = chunk(x >> 4, z >> 4);
+        return col == null ? ChunkColumn.MIN_Y : col.motionBlockingNoLeavesBlockY(x & 15, z & 15) + 1;
+    }
+
     /** Level.getHeight(WORLD_SURFACE, x, z): 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
     public int getWorldSurfaceHeight(int x, int z) {
         ChunkColumn col = chunk(x >> 4, z >> 4);

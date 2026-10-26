@@ -114,4 +114,34 @@ class NaturalSpawnerTest {
         assertTrue(monsters > 0, "밤 평원에서 몬스터가 났다");
         assertTrue(monsters <= 70 + 8, "몬스터 상한(묶음 하나만큼 넘을 수 있다): " + monsters);
     }
+
+    private static java.util.List<String> chunkGenSpawns(long seed, int cx, int cz) {
+        var level = new Arena();
+        for (int x = -32; x < 48; x++) for (int z = -32; z < 48; z++) {
+            level.setBlock(new Pos(x, -61, z), B.defaultState(B.id("minecraft:grass_block")), 3);
+        }
+        org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnMobsForChunkGeneration(level, cx, cz, seed);
+        return level.entities().tickSnapshot().stream()
+                .map(e -> e.type().name() + String.format("@%.3f,%.3f", e.x(), e.z())).sorted().toList();
+    }
+
+    @Test
+    void chunkGenerationSpawnsAnimalsInsideTheChunkDeterministically() {
+        int total = 0;
+        for (long k = 1; k <= 60; k++) {
+            long seed = k * 7919L * 104729L;
+            int cx = (int) (k % 2), cz = (int) (k / 2 % 2);
+            var first = chunkGenSpawns(seed, cx, cz);
+            assertEquals(first, chunkGenSpawns(seed, cx, cz), "같은 시드·청크는 같은 결과");
+            total += first.size();
+            for (String s : first) {
+                String type = s.substring(0, s.indexOf('@'));
+                assertEquals(MobCategory.CREATURE, EntityMeta.category(type), type);
+                String[] xz = s.substring(s.indexOf('@') + 1).split(",");
+                double x = Double.parseDouble(xz[0]), z = Double.parseDouble(xz[1]);
+                assertTrue(x >= cx * 16 && x < cx * 16 + 16 && z >= cz * 16 && z < cz * 16 + 16, "청크 안: " + s);
+            }
+        }
+        assertTrue(total > 0, "평원 청크 60개 중 동물이 한 마리도 안 났다");
+    }
 }
