@@ -1,4 +1,4 @@
-// 바닐라 BeaconBlockEntity: 피라미드 단수(levels)·고른 효과 두 개·빛줄기 검사. 효과를 주변 플레이어에게 거는 일은 아직 — TODO(효과).
+// 바닐라 BeaconBlockEntity: 피라미드 단수(levels)·고른 효과 두 개·빛줄기 검사. 주변 플레이어에게 효과를 거는 일.
 // 빛줄기는 클라이언트가 자기 월드에서 다시 계산해 그린다. 서버는 "빛줄기가 열려 있는가"만 알면 된다.
 package org.domi.furnace.server.block.entity;
 
@@ -8,6 +8,10 @@ import java.util.Set;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.effect.MobEffect;
+import org.domi.furnace.server.effect.MobEffectInstance;
+import org.domi.furnace.server.entity.AABB;
+import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public class BeaconBlockEntity extends BlockEntity {
@@ -63,7 +67,7 @@ public class BeaconBlockEntity extends BlockEntity {
             origin = new Pos(x, lastCheckY + 1, z);
         }
         Section section = checkingBeamSections.isEmpty() ? null : checkingBeamSections.get(checkingBeamSections.size() - 1);
-        int topY = level.maxBuildHeight() - 1;   // TODO(높이 지도): 바닐라는 WORLD_SURFACE 높이맵의 높이
+        int topY = level.worldSurfaceHeight(x, z);
         for (int i = 0; i < 10 && origin.y() <= topY; i++) {
             int state = level.getBlockState(origin);
             String color = stainedGlass(state);
@@ -73,7 +77,7 @@ public class BeaconBlockEntity extends BlockEntity {
                     checkingBeamSections.add(section);
                 } else if (section != null) {
                     if (color.equals(section.color)) section.height++;
-                    else {   // TODO(색): 바닐라는 두 색의 평균 색
+                    else {   // 색이 달라지면 새 구간(바닐라는 평균 색 — 서버가 보는 값이 아니라 구간 이름만 쓴다)
                         section = new Section(color);
                         checkingBeamSections.add(section);
                     }
@@ -94,7 +98,7 @@ public class BeaconBlockEntity extends BlockEntity {
         if (level.gameTime() % 80L == 0L) {
             if (!beamSections.isEmpty()) levels = updateBase(level, x, y, z);
             if (levels > 0 && !beamSections.isEmpty()) {
-                // TODO(효과): 범위 안 플레이어에게 primary/secondary 효과(지속 (9 + 2*levels)*20틱)를 건다.
+                applyEffects(level, pos, levels, primaryPower, secondaryPower);
                 level.playSound(null, pos, "minecraft:block.beacon.ambient", "blocks", 1.0F, 1.0F);
             }
         }
@@ -109,6 +113,24 @@ public class BeaconBlockEntity extends BlockEntity {
             } else if (wasActive && !active) {
                 level.playSound(null, pos, "minecraft:block.beacon.deactivate", "blocks", 1.0F, 1.0F);
             }
+        }
+    }
+
+    /** 바닐라 applyEffects: 범위 levels*10+10 안(아래로 월드 높이만큼) 플레이어에게 primary, 4단이면 secondary 도. */
+    public static void applyEffects(BlockLevel level, Pos pos, int levels, String primary, String secondary) {
+        MobEffect p = primary == null ? null : MobEffect.byName(primary);
+        if (p == null) return;
+        double range = levels * 10 + 10;
+        int amp = levels >= 4 && primary.equals(secondary) ? 1 : 0;
+        int duration = (9 + levels * 2) * 20;
+        AABB box = AABB.of(pos.x(), pos.y(), pos.z(), pos.x() + 1, pos.y() + 1, pos.z() + 1).inflate(range)
+                .expandTowards(0.0, level.maxBuildHeight() - level.minBuildHeight(), 0.0);
+        List<Player> players = new ArrayList<>();
+        level.forEachPlayerIn(box, players::add);
+        for (Player pl : players) pl.vitals().addEffect(new MobEffectInstance(p, duration, amp, true, true));
+        MobEffect s = secondary == null ? null : MobEffect.byName(secondary);
+        if (levels >= 4 && !primary.equals(secondary) && s != null) {
+            for (Player pl : players) pl.vitals().addEffect(new MobEffectInstance(s, duration, 0, true, true));
         }
     }
 

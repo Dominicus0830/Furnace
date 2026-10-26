@@ -219,6 +219,12 @@ public interface BlockLevel {
     /** 월드 보더 안인가(isWithinBounds). */
     boolean withinBorder(Pos pos);
 
+    /** Level.getHeight(WORLD_SURFACE, x, z): 가장 높은 블록 바로 위 y. 높이 지도가 없는 레벨은 상한. */
+    default int worldSurfaceHeight(int x, int z) { return maxBuildHeight(); }
+
+    /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). 플레이어가 없는 레벨은 아무도 없다. */
+    default void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<org.domi.furnace.server.entity.Player> c) {}
+
     /** 블록 엔티티(없으면 null — 블록 엔티티 체계가 들어오기 전에는 상자만). */
     Object getBlockEntity(Pos pos);
 

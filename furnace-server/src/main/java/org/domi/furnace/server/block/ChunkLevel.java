@@ -1088,6 +1088,7 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). */
+    @Override
     public void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<Player> c) {
         services().forEachPlayer(p -> {
             if (!p.isDisconnected() && p.boundingBox().intersects(box)) c.accept(p);
@@ -1261,6 +1262,8 @@ public abstract class ChunkLevel implements BlockLevel {
         ChunkColumn col = chunk(x >> 4, z >> 4);
         return col == null ? ChunkColumn.MIN_Y : col.surfaceBlockY(x & 15, z & 15) + 1;
     }
+
+    @Override public int worldSurfaceHeight(int x, int z) { return getWorldSurfaceHeight(x, z); }
 
     /** LevelReader.canSeeSky(pos): 그 칸 위로 움직임을 막는 블록이 없다. */
     public boolean canSeeSky(Pos pos) { return getMotionBlockingHeight(pos.x(), pos.z()) <= pos.y(); }
