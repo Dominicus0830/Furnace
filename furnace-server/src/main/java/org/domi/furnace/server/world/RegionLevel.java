@@ -19,8 +19,10 @@ public final class RegionLevel extends ChunkLevel {
     /** 이번 틱에 ack 할 플레이어 → 가장 큰 sequence(바닐라 ackBlockChangesUpTo). */
     private final Map<Player, Integer> pendingAcks = new LinkedHashMap<>();
     // 같은 청크 연속 조회를 싸게(퇴출·주인 변경 때 비운다)
-    private int lastCx = Integer.MIN_VALUE, lastCz;
-    private ChunkColumn lastCol;
+    // 64칸 직접 사상 캐시 — 충돌·경로·스폰이 이웃 청크를 번갈아 읽으므로 한 칸짜리로는 해시 맵(소유 확인 + 로드 맵)을 두 번씩 타게 된다.
+    private static final int CACHE = 64;
+    private final int[] cacheX = new int[CACHE], cacheZ = new int[CACHE];
+    private final ChunkColumn[] cacheCol = new ChunkColumn[CACHE];
 
     RegionLevel(Region region, World world) {
         super(world.levelServices().maxChainedNeighborUpdates());
@@ -32,18 +34,22 @@ public final class RegionLevel extends ChunkLevel {
 
     @Override
     protected ChunkColumn chunk(int chunkX, int chunkZ) {
-        if (chunkX == lastCx && chunkZ == lastCz && lastCol != null) return lastCol;
+        int i = (chunkX * 31 ^ chunkZ) & (CACHE - 1);
+        ChunkColumn hit = cacheCol[i];
+        if (hit != null && cacheX[i] == chunkX && cacheZ[i] == chunkZ) return hit;
         ChunkColumn c = region.ownedChunk(chunkX, chunkZ);
         if (c != null) {
-            lastCx = chunkX;
-            lastCz = chunkZ;
-            lastCol = c;
+            cacheX[i] = chunkX;
+            cacheZ[i] = chunkZ;
+            cacheCol[i] = c;
         }
         return c;
     }
 
     /** 청크가 내려가거나 주인이 바뀌면 조회 캐시를 비운다. */
-    void chunkUnloaded() { lastCol = null; }
+    void chunkUnloaded() { clearChunkCache(); }
+
+    private void clearChunkCache() { java.util.Arrays.fill(cacheCol, null); }
 
     @Override
     protected void markDirty(int chunkX, int chunkZ) { region.markChunkDirty(new ChunkPos(chunkX, chunkZ)); }
@@ -117,7 +123,7 @@ public final class RegionLevel extends ChunkLevel {
         absorb(o);
         for (var e : o.pendingAcks.entrySet()) pendingAcks.merge(e.getKey(), e.getValue(), Math::max);
         o.pendingAcks.clear();
-        lastCol = null;
+        clearChunkCache();
     }
 
     void splitInto(RegionLevel target, ChunkFilter inTarget) {
@@ -130,7 +136,7 @@ public final class RegionLevel extends ChunkLevel {
                 it.remove();
             }
         }
-        lastCol = null;
+        clearChunkCache();
     }
 
     // ------------------------------------------------------------------ ack
@@ -154,7 +160,7 @@ public final class RegionLevel extends ChunkLevel {
 
     void tickBlocks(long[] tickingChunks, int count, java.util.function.LongPredicate blockEntityTicking,
                     java.util.function.Predicate<Player> inRegion) {
-        lastCol = null;   // 틱 사이에 합치기·나누기가 있었을 수 있다
+        clearChunkCache();   // 틱 사이에 합치기·나누기가 있었을 수 있다
         runScheduledTicks();
         if (count > 0) {
             shuffle(tickingChunks, count);

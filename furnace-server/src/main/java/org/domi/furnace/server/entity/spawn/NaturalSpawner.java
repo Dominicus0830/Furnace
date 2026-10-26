@@ -195,12 +195,13 @@ public final class NaturalSpawner {
                 double dx = player.x() - px, dy = player.y() - y, dz = player.z() - pz;
                 double distSqr = dx * dx + dy * dy + dz * dz;
                 if (!isRightDistanceToPlayerAndSpawnPoint(level, cx, cz, pos, distSqr)) continue;
+                String biome = biomeName(level, pos);   // 한 위치에서 여러 번 묻지 않게 한 번만
                 if (data == null) {
-                    data = getRandomSpawnMobAt(level, cat, rnd, pos);
+                    data = getRandomSpawnMobAt(level, cat, rnd, pos, biome);
                     if (data == null) break;
                     groupSize = data.minCount() + rnd.nextInt(1 + data.maxCount() - data.minCount());
                 }
-                if (!isValidSpawnPositionForType(level, cat, data, pos, distSqr) || !state.canSpawn(data.type(), pos, level)) continue;
+                if (!isValidSpawnPositionForType(level, cat, data, pos, distSqr, biome) || !state.canSpawn(data.type(), pos, level)) continue;
                 Mob mob = getMobForSpawn(level, data.type());
                 if (mob == null) return;
                 mob.moveTo(px, y, pz, rnd.nextFloat() * 360.0F, 0.0F);
@@ -217,8 +218,7 @@ public final class NaturalSpawner {
         }
     }
 
-    private static BiomeSpawns.SpawnerData getRandomSpawnMobAt(ChunkLevel level, MobCategory cat, RandomSource rnd, Pos pos) {
-        String biome = biomeName(level, pos);
+    private static BiomeSpawns.SpawnerData getRandomSpawnMobAt(ChunkLevel level, MobCategory cat, RandomSource rnd, Pos pos, String biome) {
         if (cat == MobCategory.WATER_AMBIENT && level.biomeIs(pos, "minecraft:reduce_water_ambient_spawns") && rnd.nextFloat() < 0.98F) return null;
         return BiomeSpawns.getRandom(mobsAt(level, cat, pos, biome), rnd);
     }
@@ -226,11 +226,11 @@ public final class NaturalSpawner {
     /** ChunkGenerator.getMobsAt. TODO: 구조물 덮어쓰기. */
     private static List<BiomeSpawns.SpawnerData> mobsAt(ChunkLevel level, MobCategory cat, Pos pos, String biome) { return BiomeSpawns.mobs(biome, cat); }
 
-    private static boolean isValidSpawnPositionForType(ChunkLevel level, MobCategory cat, BiomeSpawns.SpawnerData data, Pos pos, double distSqr) {
+    private static boolean isValidSpawnPositionForType(ChunkLevel level, MobCategory cat, BiomeSpawns.SpawnerData data, Pos pos, double distSqr, String biome) {
         EntityMeta.Info info = EntityMeta.of(data.type());
         if (info.category() == MobCategory.MISC) return false;
         if (!info.canSpawnFarFromPlayer() && distSqr > (double) cat.despawnDistance() * cat.despawnDistance()) return false;
-        if (!info.canSummon() || !mobsAt(level, cat, pos, biomeName(level, pos)).contains(data)) return false;
+        if (!info.canSummon() || !mobsAt(level, cat, pos, biome).contains(data)) return false;
         if (!SpawnPlacements.isSpawnPositionOk(data.type(), level, pos)) return false;
         if (!SpawnPlacements.checkSpawnRules(data.type(), level, SpawnReason.NATURAL, pos, level.random())) return false;
         EntityType t = EntityType.byName(data.type());
