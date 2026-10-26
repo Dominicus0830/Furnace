@@ -526,12 +526,28 @@ public final class Region {
     }
 
     /** 이 region 스레드에서 매 틱(게임 틱) 호출. */
+    /** 틱 단계별 시간(-Dfurnace.tickstats): 0 블록틱, 1 조명, 2 플레이어 처리, 3 보임, 4 엔티티 넘김·정리·저장. 합계·최대(ns). */
+    final long[] phaseSum = new long[5], phaseMax = new long[5];
+    private long lapT;
+
+    private void lap(int i) {
+        if (!Regionizer.STATS) return;
+        long n = System.nanoTime();
+        long d = n - lapT;
+        phaseSum[i] += d;
+        if (d > phaseMax[i]) phaseMax[i] = d;
+        lapT = n;
+    }
+
     public void tick() {
         world.assertOwns(this);
+        if (Regionizer.STATS) lapT = System.nanoTime();
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = collectTickingChunks();
             level.tickBlocks(tickingChunks, n, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()));
+            lap(0);
             level.runLightUpdates();
+            lap(1);
         }
         List<Player> handoff = new ArrayList<>();
         var it = players.values().iterator();
@@ -567,6 +583,7 @@ public final class Region {
             updateChunks(p);
             sendQueuedChunks(p);
         }
+        lap(2);
         if (!players.isEmpty()) {
             // 시야가 닿는 플레이어는 모두 같은 region 에 있다(시야 청크를 가진 region 끼리는 합쳐진다).
             List<EntityView> candidates = new ArrayList<>(players.size());
@@ -579,6 +596,7 @@ public final class Region {
                 broadcastLatencies();
             }
         }
+        lap(3);
         for (Player p : handoff) {
             ChunkPos c = p.chunkPos();
             world.runAtChunk(c, r -> r.adopt(p));
@@ -590,6 +608,7 @@ public final class Region {
             autosaveCounter = 0;
             saveDirtyChunks();
         }
+        lap(4);
     }
 
     private void startTracking(Player a, int eid, double[] last) {

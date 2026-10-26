@@ -300,7 +300,7 @@ public final class Regionizer {
     // ------------------------------------------------------------------ 틱 스케줄
 
     /** -Dfurnace.tickstats=true: region 틱 간격·소요 시간을 100틱마다 p50/p95/최대로 기록한다(끊김 진단용). */
-    private static final boolean STATS = Boolean.getBoolean("furnace.tickstats") || System.getenv("FURNACE_TICKSTATS") != null;
+    static final boolean STATS = Boolean.getBoolean("furnace.tickstats") || System.getenv("FURNACE_TICKSTATS") != null;
     private final java.util.concurrent.ConcurrentHashMap<Integer, long[]> tickStats = new java.util.concurrent.ConcurrentHashMap<>();
 
     private void recordTick(Region r, long start, long end) {
@@ -324,6 +324,14 @@ public final class Regionizer {
                     gap[n / 2] / 1_000_000, gap[n * 95 / 100] / 1_000_000, gap[n - 1] / 1_000_000,
                     dur[n / 2] / 1_000_000, dur[n * 95 / 100] / 1_000_000, dur[n - 1] / 1_000_000);
             st[1] = 0;
+            String[] names = {"블록틱", "조명", "플레이어", "보임", "정리·저장"};
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < names.length; i++) {
+                b.append(String.format(" %s 평균 %.1f/최대 %.0fms", names[i], r.phaseSum[i] / 1e8, r.phaseMax[i] / 1e6));
+                r.phaseSum[i] = 0;
+                r.phaseMax[i] = 0;
+            }
+            log.info("[TICKSTATS]   단계별:{}", b);
         }
     }
 
