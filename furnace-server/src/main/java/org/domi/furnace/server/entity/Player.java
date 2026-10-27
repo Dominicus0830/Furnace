@@ -746,6 +746,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 바뀐 엔티티 데이터(공유 플래그 0·자세 6·사용 중 플래그 8)를 본인과 보는 사람에게(ServerEntity.sendDirtyEntityData). */
     public void syncLivingFlags() {
+        boolean reset = resendEntityData;
+        if (reset) {   // 리스폰: 클라가 기본값 엔티티를 새로 만들었다 — 기본값과 다른 것을 다시 보낸다
+            resendEntityData = false;
+            sentSharedFlags = 0; sentPose = 0; sentLivingFlags = 0; sentSleepingPos = null; sentSkinParts = 0; sentMainArm = 1;
+        }
         byte shared = sharedFlags(), f = livingFlags();
         int pose = pose();
         var items = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.SetEntityData.Item>(3);
@@ -757,13 +762,17 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         byte skin = skinParts, arm = mainArm;
         if (skin != sentSkinParts) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, skin));
         if (arm != sentMainArm) items.add(flagItem(DATA_PLAYER_MAIN_HAND, arm));
-        if (items.isEmpty()) return;
+        if (items.isEmpty()) {
+            if (reset) pairingDataSnap = null;   // 전부 기본값
+            return;
+        }
         sentSharedFlags = shared;
         sentPose = pose;
         sentLivingFlags = f;
         sentSleepingPos = sp;
         sentSkinParts = skin;
         sentMainArm = arm;
+        pairingDataSnap = buildPairingData();
         var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
         send(pkt);
         vitals.broadcastToTrackers(pkt);
@@ -804,21 +813,37 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 바뀐 장비를 보는 사람에게(본인 제외 — 바닐라 ChunkMap.broadcast). */
     public void syncEquipment() {
         var changes = equipmentChanges();
-        if (changes != null) vitals.broadcastToTrackers(new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, changes));
+        if (changes == null) return;
+        pairingEquipmentSnap = buildPairingEquipment();
+        vitals.broadcastToTrackers(new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, changes));
     }
 
-    /** sendPairingData 의 장비: 비어 있지 않은 칸 전부(마지막으로 동기한 값). 없으면 null. */
-    public org.domi.furnace.server.net.protocol.play.SetEquipment pairingEquipment() {
+    /** 다른 region 스레드가 페어링 때 읽는 불변 스냅샷(소유 스레드가 동기 직후 공개). */
+    private volatile org.domi.furnace.server.net.protocol.play.SetEquipment pairingEquipmentSnap;
+    private volatile org.domi.furnace.server.net.protocol.play.SetEntityData pairingDataSnap;
+    /** 리스폰(새 ServerPlayer 대응) 뒤 엔티티 데이터를 다시 보내라는 표시 — 연결 스레드가 켜고 소유 스레드가 처리. */
+    private volatile boolean resendEntityData;
+
+    /** 죽은 뒤·엔드 뒤 리스폰: 다음 syncLivingFlags 가 본인과 보는 사람에게 기본값이 아닌 데이터를 다시 보낸다. */
+    public void markEntityDataResend() { resendEntityData = true; }
+
+    /** sendPairingData 의 장비(아무 스레드에서나 — 불변 스냅샷). 없으면 null. */
+    public org.domi.furnace.server.net.protocol.play.SetEquipment pairingEquipment() { return pairingEquipmentSnap; }
+
+    /** 비어 있지 않은 칸 전부(마지막으로 동기한 값) — 소유 스레드 전용. */
+    private org.domi.furnace.server.net.protocol.play.SetEquipment buildPairingEquipment() {
         java.util.List<org.domi.furnace.server.net.protocol.play.SetEquipment.Entry> eq = new java.util.ArrayList<>();
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack st = lastEquipment[slot.ordinal()];
             if (!st.isEmpty()) eq.add(new org.domi.furnace.server.net.protocol.play.SetEquipment.Entry(slot, st));
         }
-        return eq.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, eq);
+        return eq.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, java.util.List.copyOf(eq));
     }
 
-    /** ServerEntity.sendPairingData 의 기본값이 아닌 엔티티 데이터(새로 보게 된 사람에게). 없으면 null. */
-    public org.domi.furnace.server.net.protocol.play.SetEntityData pairingData() {
+    /** ServerEntity.sendPairingData 의 기본값이 아닌 엔티티 데이터(새로 보게 된 사람에게, 불변 스냅샷). 없으면 null. */
+    public org.domi.furnace.server.net.protocol.play.SetEntityData pairingData() { return pairingDataSnap; }
+
+    private org.domi.furnace.server.net.protocol.play.SetEntityData buildPairingData() {
         var items = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.SetEntityData.Item>(3);
         if (sentSharedFlags != 0) items.add(flagItem(0, sentSharedFlags));
         if (sentPose != 0) items.add(poseItem(sentPose));
@@ -826,7 +851,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (sentSleepingPos != null) items.add(sleepingPosItem(sentSleepingPos));
         if (sentSkinParts != 0) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, sentSkinParts));
         if (sentMainArm != 1) items.add(flagItem(DATA_PLAYER_MAIN_HAND, sentMainArm));
-        return items.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
+        return items.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, java.util.List.copyOf(items));
     }
 
     /** 플레이어끼리 때릴 때 방패 내구 난수를 꺼낼 레벨(region 이 공격 직전에 넣는다). */

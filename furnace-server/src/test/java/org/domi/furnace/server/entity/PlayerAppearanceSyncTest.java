@@ -86,7 +86,8 @@ class PlayerAppearanceSyncTest {
     @Test
     void skinPartsAndMainHandGoToEntityData17And18() {
         var env = new PlayerVitalsTest.TestEnv();
-        var p = new Player(5, UUID.randomUUID(), "P5", new EmbeddedChannel());
+        var ch = new EmbeddedChannel();
+        var p = new Player(5, UUID.randomUUID(), "P5", ch);
         p.vitals().env(env);
         p.syncLivingFlags();
         assertNull(p.pairingData(), "기본값(스킨 0·오른손)은 보내지 않는다");
@@ -99,8 +100,54 @@ class PlayerAppearanceSyncTest {
         assertArrayEquals(exp, bytes(d));
         assertArrayEquals(exp, bytes(p.pairingData()));
 
+        assertSingle(exp, selfEntityData(ch), "본인에게도 17·18 이 간다");
+
         int n = env.trackerPackets.size();
         p.syncLivingFlags();
         assertEquals(n, env.trackerPackets.size(), "안 바뀌면 다시 보내지 않는다");
+
+        // 죽은 뒤 리스폰: 클라는 기본값 엔티티를 새로 만든다 — 같은 값이라도 다시 보낸다
+        p.markEntityDataResend();
+        p.syncLivingFlags();
+        assertEquals(n + 1, env.trackerPackets.size());
+        assertArrayEquals(exp, bytes(env.trackerPackets.get(n)));
+        assertSingle(exp, selfEntityData(ch), "리스폰 뒤 본인에게 17·18 을 다시 보낸다");
+        assertArrayEquals(exp, bytes(p.pairingData()));
+    }
+
+    @Test
+    void respawnWithAllDefaultsClearsPairingSnapshot() {
+        var env = new PlayerVitalsTest.TestEnv();
+        var p = new Player(6, UUID.randomUUID(), "P6", new EmbeddedChannel());
+        p.vitals().env(env);
+        p.sneaking(true);
+        p.syncLivingFlags();
+        assertNotNull(p.pairingData());
+        p.sneaking(false);
+        p.markEntityDataResend();
+        p.syncLivingFlags();
+        assertNull(p.pairingData(), "전부 기본값이면 페어링 데이터도 없다");
+    }
+
+    private static void assertSingle(byte[] exp, List<byte[]> got, String msg) {
+        assertEquals(1, got.size(), msg);
+        assertArrayEquals(exp, got.get(0), msg);
+    }
+
+    /** 본인 채널로 나간 set_entity_data(0x58) 들의 본문 바이트. */
+    private static List<byte[]> selfEntityData(EmbeddedChannel ch) {
+        ch.runPendingTasks();
+        List<byte[]> out = new java.util.ArrayList<>();
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            ByteBuf b = (ByteBuf) o;
+            if (org.domi.furnace.server.net.io.Types.readVarInt(b) == SetEntityData.ID) {
+                byte[] body = new byte[b.readableBytes()];
+                b.readBytes(body);
+                out.add(body);
+            }
+            b.release();
+        }
+        return out;
     }
 }

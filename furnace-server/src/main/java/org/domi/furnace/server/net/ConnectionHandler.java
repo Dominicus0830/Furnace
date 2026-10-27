@@ -2356,6 +2356,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         boolean keepInventory = core != null && core.gameRules().getBoolean("keepInventory");
         var vitals = p.vitals();
         vitals.respawn();
+        p.markEntityDataResend();   // 새 ServerPlayer: 클라가 기본값 엔티티를 만든다
         // PlayerList.respawn: 리스폰 블록이 없었으면 새 플레이어는 리스폰 지점을 이어받지 않는다
         if (missingRespawnBlock) vitals.setRespawnPosition("minecraft:overworld", null, 0.0F, false);
         p.bumpSpawnGeneration();
@@ -2419,6 +2420,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var vitals = p.vitals();
         String from = world.dimension();
         p.bumpSpawnGeneration();   // 바닐라: 새 ServerPlayer — 관찰자가 지웠다 다시 스폰한다
+        p.markEntityDataResend();
         if (t.missingRespawnBlock()) {
             send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
             vitals.setRespawnPosition("minecraft:overworld", null, 0.0F, false);   // 리스폰 지점을 이어받지 않는다
