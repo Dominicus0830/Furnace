@@ -13,18 +13,21 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 public final class AttributeMap {
     private final Map<Attribute, AttributeInstance> instances = new LinkedHashMap<>();
     private final Set<AttributeInstance> dirty = new LinkedHashSet<>();
+    // 바닐라 attributesToUpdate: 동기화와 별개로 LivingEntity.refreshDirtyAttributes 가 비운다(최대 체력 클램프 등)
+    private final Set<AttributeInstance> toUpdate = new LinkedHashSet<>();
 
     public AttributeInstance register(Attribute a) {
         return instances.computeIfAbsent(a, k -> {
             AttributeInstance[] self = new AttributeInstance[1];
-            self[0] = new AttributeInstance(k, () -> dirty.add(self[0]));
+            self[0] = new AttributeInstance(k, () -> { dirty.add(self[0]); toUpdate.add(self[0]); });
             return self[0];
         });
     }
 
     public AttributeMap add(Attribute a, double base) {
         register(a).setBaseValue(base);
-        dirty.clear();   // 처음 설정은 바뀜으로 치지 않는다(처음 보일 때 전부 보낸다)
+        dirty.clear();
+        toUpdate.clear();   // 처음 설정은 바뀜으로 치지 않는다(처음 보일 때 전부 보낸다)
         return this;
     }
 
@@ -56,6 +59,14 @@ public final class AttributeMap {
         List<AttributeInstance> out = new ArrayList<>();
         for (AttributeInstance i : dirty) if (i.attribute().syncable()) out.add(i);
         dirty.clear();
+        return out;
+    }
+
+    /** 갱신 대기 속성을 꺼내고 비운다(바닐라 getAttributesToUpdate + clear). */
+    public List<Attribute> takeToUpdate() {
+        List<Attribute> out = new ArrayList<>();
+        for (AttributeInstance i : toUpdate) out.add(i.attribute());
+        toUpdate.clear();
         return out;
     }
 

@@ -133,9 +133,9 @@ public final class Shields {
         return false;
     }
 
-    /** Player.blockUsingShield(attacker): 막은 쪽이 0.5 밀리고(blockedByShield), 공격자가 도끼면 disableShield. */
+    /** Player.blockUsingShield(attacker): 막은 쪽이 공격자 쪽으로 0.5 밀리고(blockedByShield, 이어지는 일반 넉백 0.4 로 거의 상쇄), 공격자가 도끼면 disableShield. */
     public static void blockUsingShield(Player p, Targetable attacker) {
-        p.knockback(0.5, attacker.x() - p.x(), attacker.z() - p.z());   // knockback 은 넘긴 방향의 반대로 민다(hurt 와 같은 규약)
+        p.knockback(0.5, p.x() - attacker.x(), p.z() - attacker.z());   // blockedByShield: defender.knockback(0.5, defender−attacker) — 공격자 쪽으로 0.5 (바로 뒤 일반 0.4 와 겹쳐 순수하게는 거의 안 밀린다)
         if (canDisableShield(attacker)) disableShield(p);
     }
 

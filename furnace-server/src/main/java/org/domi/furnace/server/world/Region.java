@@ -805,6 +805,7 @@ public final class Region {
             p.currentLevel = level;
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
+            p.sendPendingKnockback();   // hurtMarked 가 선 틱에만 속도 패킷 한 번
             // Entity.checkInsideBlocks 의 포털 칸 + baseTick 의 handlePortal(차원을 옮기면 이 region 에서 빠진다)
             if (level != null && checkInsidePortals(p)) { it.remove(); continue; }
             if (level != null && handlePlayerPortal(p)) { it.remove(); continue; }
@@ -813,6 +814,7 @@ public final class Region {
             org.domi.furnace.server.entity.Consuming.tick(p, this);
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
+            p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
             pushMinecarts(p);
             touchEntities(p);
             tickBreaking(p);
@@ -1361,8 +1363,13 @@ public final class Region {
      * Entity.checkInsideBlocks 중 포털 칸: 몸통(1e-7 안쪽)이 걸친 지옥문·엔드 포털. 엔드에서 크레딧을 본 적 없이 엔드 포털에 들면
      * 크레딧을 띄우고 이 region 에서 뺀다(참 — 호출자가 목록에서 지운다).
      */
+    /** canUsePortal(false) + 관전자 제외: 관전자는 noPhysics 라 Entity.move 가 checkInsideBlocks 를 건너뛰어 포털 칸에 들 수 없다. */
+    public static boolean canTriggerPortals(Player p) {
+        return p.vehicle() == null && !p.vitals().isDeadOrDying() && p.gameMode() != GameMode.SPECTATOR;
+    }
+
     private boolean checkInsidePortals(Player p) {
-        if (p.vehicle() != null || p.vitals().isDeadOrDying()) return false;   // canUsePortal(false)
+        if (!canTriggerPortals(p)) return false;
         double h = p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
         var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3);
         int x0 = (int) Math.floor(box.minX() + 1.0E-7), x1 = (int) Math.floor(box.maxX() - 1.0E-7);
@@ -1696,6 +1703,8 @@ public final class Region {
                 Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
                 var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
                 if (bd != null) a.send(bd);
+                var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
+                if (be != null) a.send(be);
                 var bv = bp == null ? null : bp.vehicle();
                 if (bv != null) a.send(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
                 startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw())});

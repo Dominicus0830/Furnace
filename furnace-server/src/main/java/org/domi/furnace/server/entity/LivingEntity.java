@@ -193,10 +193,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 : shieldSource(source.type(), srcEntity, attacker))) {
             hurtCurrentlyUsedShield(amount);
             amount = 0.0F;
-            // blockUsingShield(attacker) → attacker.blockedByShield(this): 막은 쪽이 0.5 밀린다
+            // blockUsingShield(attacker) → attacker.blockedByShield(this): 막은 쪽이 공격자 쪽으로 0.5 밀린다(이어지는 일반 0.4 와 거의 상쇄)
             if (!DamageType.keyHasTag(source.type(), "is_projectile") && (srcEntity instanceof LivingEntity || (srcEntity == null && attacker instanceof Player))) {
                 Targetable d = srcEntity instanceof LivingEntity le ? le : attacker;
-                knockback(0.5, d.x() - x(), d.z() - z());
+                knockback(0.5, x() - d.x(), z() - d.z());   // defender.knockback(0.5, defender−attacker) — 공격자 쪽으로, 이어지는 0.4 로 상쇄
             }
             blocked = true;
         }
@@ -819,6 +819,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
         while (xRot() - xRotO >= 180.0F) xRotO += 360.0F;
         while (yHeadRot - yHeadRotO < -180.0F) yHeadRotO -= 360.0F;
         while (yHeadRot - yHeadRotO >= 180.0F) yHeadRotO += 360.0F;
+        refreshDirtyAttributes();
+    }
+
+    /** LivingEntity.refreshDirtyAttributes → onAttributeUpdated: 최대 체력이 바뀌어 체력이 넘치면 깎는다. (흡수 상한은 흡수 미구현) */
+    protected void refreshDirtyAttributes() {
+        for (Attribute a : attributes().takeToUpdate()) {
+            if (a == Attribute.MAX_HEALTH) {
+                float max = maxHealth();
+                if (health() > max) setHealth(max);
+            }
+        }
     }
 
     /** tickHeadTurn: 몸통 방향이 시선에서 최대 50도(Mob 은 maxBodyYRotDiff) 넘게 벌어지지 않게 끌어온다. */

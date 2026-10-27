@@ -199,3 +199,21 @@
 - **의도한 차이**: 지연 결과가 CommandSyntaxException 이 아닌 예외로 끝나면(`EntityOps.reportFailure`) forked 여부와 상관없이 `command.failed` 메시지를 보내고 실패 콜백 뒤 컨텍스트를 **계속** 돈다. 바닐라는 큐 실행 중 비-CSE 예외면 `performCommand` catch 로 컨텍스트 전체가 중단된다. 동기 경로(명령 본문이 바로 던진 예외)는 바닐라처럼 중단한다. (가정: region 실패는 대상 하나의 문제라 뒤 줄을 살리는 쪽을 택함 — S5 함수 테스트에서 재검토)
 - **의도한 차이**: 지연 결과 타임아웃(벽시계 5초) 뒤 늦게 끝난 region 작업의 부작용(블록·엔티티 변경)은 되돌리지 않고 콜백만 버린다(세대 토큰). 뒤 명령이 그 결과를 볼 수 있다.
 - **의도한 차이**: 한 컨텍스트가 region 왕복으로 여러 틱에 걸치면 뒤 최상위 명령이 모두 기다린다(head-of-line). `CommandQueue.pendingCount/currentContextTicks` 지표와 100틱 경고로 관측한다.
+
+## 2026-10-27 플레이어 외형 동기(set_equipment·엔티티 데이터 17/18)
+- **알려진 차이**: 손 바꾸기(F 키)에서 바닐라는 두 손 변경을 set_equipment 목록에서 빼고 EntityEvent 55(손 바꿈)를 보낸다(LivingEntity.handleHandSwap). Furnace 는 `Player.syncEquipment` 가 두 칸을 set_equipment 로 보낸다. 클라 화면 결과는 같고 손 바꿈 애니메이션 차이만 있다(가정: 1.21.1 클라 기준 미확인).
+- 함정: `Player` 는 `LivingEntity` 가 아니라 몹 트래커 경로(`EntityTracker.addPairing`)를 타지 않는다. 플레이어 외형은 `Region.updateVisibility` + `Player.pairingData/pairingEquipment`(소유 스레드가 공개하는 volatile 불변 스냅샷)로 따로 보낸다. 리스폰(새 ServerPlayer)은 `markEntityDataResend` 로 기본값 기준 재전송.
+
+## 2026-10-27 묶음 B 후속 (방패·토끼·포털)
+- 방패 막기 넉백(바닐라 btn.hurt): 막으면 blockedByShield(defender.knockback(0.5, defender−attacker), 공격자 쪽) 후 일반 0.4(공격자 반대)가 이어져 몹은 순 0.15 만 밀린다. 플레이어는 완전히 막으면 markHurt 가 안 서서 set_entity_motion 이 0건(안 밀림). 지난 방향 반전 수정은 오진이었다. Player.knockback 은 속도만 쌓고 hurtMarked 가 선 틱에 한 번(Region.sendPendingKnockback) 보낸다.
+- 차이(미이식): blockedByShield 공격자별 재정의 — Ravager(50% 기절/포효, 아니면 강한 밀침), Hoglin(새끼 아니면 throwTarget), Zoglin. 지금은 모두 기본 0.5 로 처리한다.
+- 토끼 변종: 바이옴을 못 읽으면(ServerCore.biomeAt 이 비소유 region/미로드 청크에서 null) 태그에 안 걸린 것으로 보아 흰/금 토끼가 갈색 계열이 될 수 있다(의도한 차이). 확대 지터가 이웃 region 청크로 넘어가는 경계에서만 생긴다. 다른 region 청크를 안전하게 읽는 경로는 아직 없다.
+- 지옥문 Y 한 칸 아래: 서버 계산(PortalShape/NetherPortalBlock/SyncPlayerPosition)은 바닐라와 일치하는 것으로 확인했으나 실접속 현상은 원인 미확정. 후보: acceptPosition 이 충돌 검사 없이 클라 y 수용, findCollisionFreePosition 이 미로드/타 region 청크·같은 틱 setBlock 칸을 보는 방식, PortalForcer.getMotionBlockingHeight 의미(맨 위 블록 y vs 그 위 칸), 순간이동 직후 moves 샘플 경합. 확인법: 도착 y·출구 rect.minCorner.y·첫 클라 이동 패킷 y 를 로그로 대조.
+
+## 2026-10-27 사용자 버그 묶음 C — 확정 못 한 후보와 확인 방법
+- region 경계 가설(C1 상호작용 엔티티 조회, C4 `hasChunksAt`, C3 게임 이벤트 리스너): `Regionizer.sectionFor` 는 반경(radius ≥ 1) 안의 구역을 가진 region 끼리 `pendingMerges` 로 묶고, 쉬는 틈에 합친다. 그래서 플레이어 주변의 연속된 로드 청크는 합치기 전 잠깐을 빼면 한 region 이다. 상시 원인으로는 확정하지 못했다. 확인 방법: 실서버에서 말·순찰 위치 청크의 `regionizer.ownerOf` 가 플레이어 쪽 region 과 다른지 로그로 본다.
+- C1 시프트 뒤 재탑승: 바닐라도 `removePassenger` 가 승객의 `boardingCooldown` 을 60 으로 둔다(3초 동안 못 탄다). `Player.tickRiding` 은 플레이어 틱마다 돈다. RELEASE_SHIFT_KEY 가 오면 sneaking 이 풀린다.
+- C1 상호작용 거리: Furnace 는 중심 거리 < 6 이라 바닐라(눈→AABB, 3+1)보다 넓다. 그래서 탑승이 막히는 원인은 아니다. 바닐라 판정과 맞추는 일은 남아 있다.
+- C2 경고 단계: 직접 설치한 비명체는 can_summon=false 라서 바닐라도 경고 없이 비명만 지른다. 평화 난이도, doWardenSpawning=false 일 때도 같다. 확인 방법: 비명체의 can_summon 상태와 플레이어 `warden_spawn_tracker` NBT 를 본다.
+- C3: 촉매 경험치(소 1~3, 좀비 5)만큼만 퍼지는 것은 바닐라 그대로다. 돌·심층암 위 퍼짐은 시험으로 확인했다.
+- C4: 마을 섹션 거리 2 이내에서는 바닐라도 순찰이 나오지 않는다. 판정은 10~11분마다 한 번, 그중 1/5 만 성공, 낮에만 된다.

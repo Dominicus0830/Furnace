@@ -32,7 +32,8 @@ class PlayerVitalsTest {
         public boolean pvp() { return pvp; }
         public void broadcastSystemMessage(Text message) { broadcasts.add(message); }
         public void broadcastAll(Packet packet) {}
-        public void broadcastToTrackers(int entityId, Packet packet) {}
+        List<Packet> trackerPackets = new ArrayList<>();
+        public void broadcastToTrackers(int entityId, Packet packet) { trackerPackets.add(packet); }
     }
 
     private final EmbeddedChannel channel = new EmbeddedChannel();
