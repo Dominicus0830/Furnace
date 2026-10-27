@@ -186,4 +186,72 @@ class DataCommandsTest {
         var pa = new DataCommands.EntityAccessor(p);
         assertEquals("commands.data.entity.invalid", key(assertThrows(CommandSyntaxException.class, () -> pa.setData(new NbtCompound()))));
     }
+
+    // ------------------------------------------------------------------ 동시성·새 파서 경로
+
+    @Test
+    void concurrentStorageAppendsKeepEveryUpdate() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            var src = CommandSource.console(core).withSilent();
+            int threads = 8, each = 50;
+            var pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+            var start = new java.util.concurrent.CountDownLatch(1);
+            List<java.util.concurrent.Future<?>> fs = new ArrayList<>();
+            for (int t = 0; t < threads; t++) {
+                fs.add(pool.submit(() -> {
+                    start.await();
+                    for (int i = 0; i < each; i++) core.commands().performPrefixedCommand(src, "data modify storage t:c l append value 1");
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (var f : fs) f.get();
+            pool.shutdown();
+            assertEquals(threads * each, core.world().commandStorage().get("t:c").getList("l").size());
+        } finally {
+            sched.close();
+        }
+    }
+
+    private static void installItems() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        org.domi.furnace.server.item.ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt"));
+    }
+
+    @Test
+    void giveComponentsUseVanillaTagParser() throws Exception {
+        installItems();
+        var arg = org.domi.furnace.server.command.arguments.ItemArgument.item();
+        var e = assertThrows(CommandSyntaxException.class, () -> arg.parse(new StringReader("stone[custom_data={a:[I;1b]}]")));
+        assertEquals("argument.nbt.array.mixed", key(e));
+        var stack = arg.parse(new StringReader("stone[custom_data={a:true}]")).createItemStack(1, false);
+        Object data = org.domi.furnace.server.command.arguments.ItemArgument.componentValue(stack, "minecraft:custom_data");
+        assertEquals("{a:1b}", Snbt.write(data));
+    }
+
+    @Test
+    void setblockNbtUsesVanillaTagParser() throws Exception {
+        var arg = org.domi.furnace.server.command.arguments.BlockStateArgument.block();
+        var e = assertThrows(CommandSyntaxException.class, () -> arg.parse(new StringReader("chest{a:[I;1b]}")));
+        assertEquals("argument.nbt.array.mixed", key(e));
+        assertEquals("{a:1b}", Snbt.write(arg.parse(new StringReader("chest{a:true}")).nbt()));
+    }
+
+    @Test
+    void summonNbtUsesVanillaTagParser() throws Exception {
+        var arg = org.domi.furnace.server.command.arguments.CompoundTagArgument.compoundTag();
+        var e = assertThrows(CommandSyntaxException.class, () -> arg.parse(new StringReader("{a:[I;1b]}")));
+        assertEquals("argument.nbt.array.mixed", key(e));
+        assertEquals("{a:1b}", Snbt.write(arg.parse(new StringReader("{a:true}"))));
+    }
+
+    @Test
+    void deepNestingAtCommandLengthLimitDoesNotOverflow() {
+        // 채팅 명령 최대 길이(32767) 안에서 가장 깊은 중첩: '[' 만 늘어놓은 입력
+        String deep = "[".repeat(32000);
+        assertThrows(CommandSyntaxException.class, () -> new org.domi.furnace.server.command.arguments.TagParser(new StringReader(deep)).readValue());
+    }
 }

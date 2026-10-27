@@ -189,4 +189,8 @@
 - 플레이어 `/data get entity` 는 저장 경로의 조각(vitals·인벤토리·엔더 상자·레시피 북·태그·위치)으로 만든 근사 NBT 다. Motion·Fire 같은 엔티티 공통 필드 일부가 없다.
 - `/loot`·`/item` 의 엔티티 칸은 플레이어(인벤토리·엔더 상자·커서·제작 칸·장비)와 생물 장비뿐. 말·마을 주민·알레이·상자 보트·광산 수레·아이템 액자·아이템 디스플레이 전용 칸은 없다(칸 없음 취급). 블록 용기는 `ContainerBlockEntity`(캠프파이어 제외); 주크박스는 바닐라에선 용기지만 여기선 아니다.
 - loot_table·loot_modifier 인자는 데이터 팩을 실행 때 보므로 없는 id 오류(`argument.resource_or_id.failed_to_parse`)가 바닐라(파싱 때)보다 늦게 난다.
-- `/loot mine` 의 this_entity·block_entity 문맥은 비어 있고, `/loot kill` 의 magic 피해 태그는 비어 있다(TODO).
+- **차이**: `/loot mine` 은 block_entity 는 넘기지만 this_entity(실행 주체)는 넘기지 않는다. `/loot kill` 의 magic 피해 태그 조회(`is(tag)`)는 늘 false 다(TODO: 피해 종류 태그).
+- 정정: 명령 인자 쪽만 `TagParser` 로 옮겼다. `item/Snbt.parse`(데이터 팩 로더·PCodec·아이템 NBT·loot 테스트)는 그대로 옛 파서이고 Snbt 는 쓰기 쪽만 NbtArray 를 받게 바뀌었다. **후속 계획**: 데이터 팩·아이템 NBT 의 SNBT 읽기도 바닐라 TagParser(코덱 경로는 `TagParser.parseTag` + DataResult 메시지)로 옮긴다 — `[B;1,2]` 같은 너그러운 입력이 바닐라에선 거부된다.
+- `TagParser` 깊이 제한(의도한 차이): 바닐라 1.21.1 은 제한이 없어 명령 최대 길이 안의 `[`×32000 으로도 StackOverflowError 가 난다(테스트로 확인). 512 를 넘으면 `arguments.nbtpath.too_deep` 으로 실패시킨다.
+- storage 의 읽기-수정-쓰기는 `CommandStorage` 잠금 하나로 묶는다(여러 region 스레드의 명령이 같은 id 를 동시에 바꿀 때 갱신 유실 방지).
+- **알려진 차이(/execute·/function 선행 과제)**: entity·block 대상 `/data` 는 대상 region 으로 보내므로(`Regionizer.enqueue` 는 늘 inbox) 결과값이 거의 늘 1 이고 실제 값·실패는 메시지로만 온다. `execute store result … run data get entity|block …` 가 1 을 저장하게 된다. storage 는 즉시 끝나고 entity·block 은 나중이라, 한 함수 안에서 `data modify storage … from entity …` 다음 줄의 `data get storage` 가 아직 반영 안 된 값을 읽을 수 있다. 명령이 이미 그 region 스레드에서 돌면 그 자리에서 실행하는 지름길은 이번에 넣지 않았다(지금은 명령이 region 스레드에서 도는 경로가 표지판·명령 블록뿐이고, 소유 확인 API 를 정리해야 함). /execute·/function 작업에서 명령 실행을 future 결과로 바꾸거나 소유 스레드 즉시 실행을 넣어 해결한다.

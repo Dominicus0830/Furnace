@@ -3,7 +3,7 @@
 //       mine(BLOCK: 그 칸 상태의 표, tool).
 // 대상: give(플레이어 인벤토리), insert(용기에 나눠 넣기), replace block|entity(칸 덮어쓰기), spawn(아이템 엔티티).
 // 스레드: kill 은 대상 엔티티 주인, mine·insert·replace block·spawn 은 그 칸 region, 플레이어는 menuLock, 생물 칸은 그 엔티티 주인.
-// 차이: 실행 주체 엔티티는 플레이어뿐이라 mine 의 this_entity·block_entity 문맥은 비어 있다. 콘솔에서 mainhand/offhand 는 바닐라처럼 실패(command.failed).
+// 차이: mine 은 블록 엔티티는 넘기지만 this_entity(실행 주체)는 넘기지 않는다. kill 의 magic 피해 태그는 비어 있다. 콘솔에서 mainhand/offhand 는 바닐라처럼 실패(command.failed).
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;

@@ -133,7 +133,12 @@ public final class DataCommands {
     /** 바닐라 EntityDataAccessor. 플레이어는 읽기만(쓰면 commands.data.entity.invalid). */
     record EntityAccessor(Rider entity) implements DataAccessor {
         public NbtCompound getData() {
-            NbtCompound tag = entity instanceof Player p ? PlayerData.snapshotNbt(p) : ((Entity) entity).saveWithoutId(new NbtCompound());
+            NbtCompound tag;
+            if (entity instanceof Player p) {
+                synchronized (p.menuLock()) { tag = PlayerData.snapshotNbt(p); }   // 인벤토리·커서를 바꾸는 쪽과 같은 잠금
+            } else {
+                tag = ((Entity) entity).saveWithoutId(new NbtCompound());
+            }
             return (NbtCompound) NbtTags.thaw(tag);
         }
 
@@ -210,7 +215,10 @@ public final class DataCommands {
         return new DataProvider() {
             public <T> CompletableFuture<T> with(CommandContext<CommandSource> ctx, Op<T> op) {
                 var storage = ctx.getSource().getServer().world().commandStorage();
-                return runNow(new StorageAccessor(storage, ResourceLocationArgument.getId(ctx, name).toString()), op);
+                // 읽기-수정-쓰기 전체를 저장소 잠금 하나로 묶는다(여러 region 스레드의 명령이 같은 id 를 동시에 바꿔도 갱신이 사라지지 않게)
+                synchronized (storage) {
+                    return runNow(new StorageAccessor(storage, ResourceLocationArgument.getId(ctx, name).toString()), op);
+                }
             }
 
             public ArgumentBuilder<CommandSource, ?> wrap(ArgumentBuilder<CommandSource, ?> parent,

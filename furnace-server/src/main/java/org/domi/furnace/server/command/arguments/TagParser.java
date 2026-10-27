@@ -36,6 +36,12 @@ public final class TagParser {
     private static final Pattern INT = Pattern.compile("[-+]?(?:0|[1-9][0-9]*)");
 
     private final StringReader reader;
+    /**
+     * 차이(의도): 바닐라 1.21.1 TagParser 는 깊이 제한이 없어 명령 최대 길이(32767) 안의 '[' 중첩으로도 StackOverflowError 가 난다
+     * (시험으로 확인). 여기서는 NBT 최대 깊이 512 를 넘으면 arguments.nbtpath.too_deep 으로 실패시킨다 — 512 넘는 태그는 어차피 저장·전송 불가.
+     */
+    private static final int MAX_DEPTH = 512;
+    private int depth;
 
     public TagParser(StringReader reader) { this.reader = reader; }
 
@@ -96,7 +102,12 @@ public final class TagParser {
         return reader.canRead(3) && !StringReader.isQuotedStringStart(reader.peek(1)) && reader.peek(2) == ';' ? readArrayTag() : readListTag();
     }
 
+    private void enter() throws CommandSyntaxException {
+        if (++depth > MAX_DEPTH) throw NbtPathArgument.ERROR_DATA_TOO_DEEP.createWithContext(reader);
+    }
+
     public NbtCompound readStruct() throws CommandSyntaxException {
+        enter();
         expect('{');
         NbtCompound c = new NbtCompound();
         reader.skipWhitespace();
@@ -113,10 +124,12 @@ public final class TagParser {
             if (!reader.canRead()) throw ERROR_EXPECTED_KEY.createWithContext(reader);
         }
         expect('}');
+        depth--;
         return c;
     }
 
     private Object readListTag() throws CommandSyntaxException {
+        enter();
         expect('[');
         reader.skipWhitespace();
         if (!reader.canRead()) throw ERROR_EXPECTED_VALUE.createWithContext(reader);
@@ -136,6 +149,7 @@ public final class TagParser {
             if (!reader.canRead()) throw ERROR_EXPECTED_VALUE.createWithContext(reader);
         }
         expect(']');
+        depth--;
         return list;
     }
 
