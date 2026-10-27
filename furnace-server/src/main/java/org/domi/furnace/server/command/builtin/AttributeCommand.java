@@ -108,7 +108,7 @@ public final class AttributeCommand {
 
     private static int run(CommandContext<CommandSource> c, Op op) throws CommandSyntaxException {
         CommandSource source = c.getSource();
-        return EntityArgument.withEntity(c, "target", targets -> EntityOps.forEach(source, targets, r -> {
+        return EntityOps.result(source, EntityArgument.withEntityAsync(c, "target", targets -> EntityOps.forEachAsync(source, targets, r -> {
             try {
                 return new Outcome(op.run(r), null);
             } catch (CommandSyntaxException e) {
@@ -118,7 +118,7 @@ public final class AttributeCommand {
             Outcome o = results.get(0);
             if (o.error() != null) throw o.error();
             return o.value();
-        }));
+        })));
     }
 
     private static int getValue(CommandContext<CommandSource> c, double scale) throws CommandSyntaxException {

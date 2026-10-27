@@ -19,7 +19,10 @@ public interface CommandRegistry {
         return register(plugin, label, "", List.of(), command);
     }
 
-    /** 명령 문자열을 실행(앞의 '/' 는 있어도 없어도 된다). 성공 여부(바닐라 결과 값 > 0 또는 플러그인 명령 실행). */
+    /**
+     * 명령 문자열을 실행 큐에 넣는다(앞의 '/' 는 있어도 없어도 된다). 어느 스레드에서 불러도 되며 전역 스레드로 넘어가 실행된다.
+     * 돌려주는 값은 접수 여부(true)다 — 명령 결과는 실행이 끝난 뒤 정해지므로 여기서 알 수 없다.
+     */
     boolean dispatch(CommandSender sender, String commandLine);
 
     void unregisterAll(FurnacePlugin plugin);

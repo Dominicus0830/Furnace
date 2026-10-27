@@ -8,6 +8,13 @@ import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.command.brigadier.ArgumentType;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
+import org.domi.furnace.server.command.brigadier.ContextChain;
+import org.domi.furnace.server.command.exec.CommandFuture;
+import org.domi.furnace.server.command.exec.CommandQueue;
+import org.domi.furnace.server.command.exec.CommandResult;
+import org.domi.furnace.server.command.exec.ExecutionContext;
+import org.domi.furnace.server.command.exec.ResultCallback;
+import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder;
 import org.domi.furnace.server.command.brigadier.ParseResults;
 import org.domi.furnace.server.command.brigadier.RequiredArgumentBuilder;
@@ -27,10 +34,17 @@ public final class Commands {
 
     private final ServerCore server;
     private final CommandDispatcher<CommandSource> dispatcher = new CommandDispatcher<>();
+    private final CommandQueue queue;
 
     public Commands(ServerCore server) {
         this.server = server;
         BuiltinCommands.registerAll(dispatcher);
+        var global = server.scheduler().global();
+        this.queue = new CommandQueue(global, (ThreadOwner) global,
+                () -> server.gameRules().getInt("maxCommandChainLength"), () -> server.gameRules().getInt("maxCommandForkCount"),
+                CommandQueue.DEFAULT_DEFERRED_TIMEOUT);
+        // 종료 순서: 명령 큐를 전역 스레드보다 먼저 닫는다(스케줄러 close 훅은 global.close() 전에 돈다)
+        if (server.scheduler() instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) impl.addCloseHook(queue::close);
     }
 
     public CommandDispatcher<CommandSource> getDispatcher() { return dispatcher; }
@@ -43,32 +57,81 @@ public final class Commands {
 
     public static Predicate<CommandSource> hasPermission(int level) { return s -> s.hasPermission(level); }
 
-    /** 앞의 '/' 를 떼고 실행(바닐라 performPrefixedCommand). */
-    public int performPrefixedCommand(CommandSource source, String command) {
-        command = command.startsWith("/") ? command.substring(1) : command;
-        return performCommand(dispatcher.parse(command, source), command);
+    /** 최상위 명령 큐(전역 스레드). */
+    public CommandQueue queue() { return queue; }
+
+    private ThreadOwner globalOwner() { return (ThreadOwner) server.scheduler().global(); }
+
+    /**
+     * 앞의 '/' 를 떼고 실행(바닐라 performPrefixedCommand). 결과는 반환값이 아니라 소스 콜백으로 흐른다.
+     * 전역 스레드가 아니면 전역으로 넘기고 바로 돌아온다(플러그인 스레드 등). 전역에서는 큐에 넣는다(앞 컨텍스트가 없으면 바로 돈다).
+     */
+    public void performPrefixedCommand(CommandSource source, String command) {
+        String cmd = command.startsWith("/") ? command.substring(1) : command;
+        if (!globalOwner().isOwnerThread()) {
+            server.scheduler().global().execute(() -> performPrefixedCommand(source, cmd));
+            return;
+        }
+        performCommand(dispatcher.parse(cmd, source), cmd);
     }
 
-    /** 실행 결과 값(실패면 0). */
-    public int performCommand(ParseResults<CommandSource> parse, String command) {
-        CommandSource source = parse.getContext().getSource();
+    /** 바닐라 performCommand: 파싱 결과를 검사해 실패면 메시지, 아니면 실행 큐에 넣는다. */
+    public void performCommand(ParseResults<CommandSource> parse, String command) {
+        if (!globalOwner().isOwnerThread()) {
+            server.scheduler().global().execute(() -> performCommand(parse, command));
+            return;
+        }
+        perform(parse, command, null);
+    }
+
+    /**
+     * 테스트·플러그인용: 명령을 실행하고 컨텍스트가 끝나면 최상위 소스 콜백이 받은 결과로 완료되는 future.
+     * 결과를 모으려고 최상위 소스에 기록 콜백을 붙인다(바닐라 최상위는 빈 콜백). 전역 스레드에서 join 하면 assert(데드락).
+     */
+    public CommandFuture<CommandResult> performPrefixedCommandAsync(CommandSource source, String command) {
+        String cmd = command.startsWith("/") ? command.substring(1) : command;
+        CommandFuture<CommandResult> out = new CommandFuture<>(globalOwner());
+        Runnable task = () -> {
+            try {
+                CommandResult.Recorder rec = new CommandResult.Recorder();
+                CommandSource src = source.withCallback(rec, ResultCallback::chain);   // 부른 쪽 콜백은 그대로 두고 덧붙인다
+                perform(dispatcher.parse(cmd, src), cmd, src).whenComplete((v, ex) -> {
+                    if (ex != null) out.completeExceptionally(ex);
+                    else out.complete(rec.snapshot());
+                });
+            } catch (Throwable t) {
+                out.completeExceptionally(t);
+            }
+        };
+        if (globalOwner().isOwnerThread()) task.run();
+        else server.scheduler().global().execute(task);
+        return out;
+    }
+
+    /** 플러그인 performCommand 의 future 판: 성공 콜백이 한 번이라도 왔는가(마지막 콜백 기준). */
+    public CommandFuture<Boolean> performCommandAsync(CommandSource source, String command) {
+        CommandFuture<Boolean> out = new CommandFuture<>(globalOwner());
+        performPrefixedCommandAsync(source, command).whenComplete((r, ex) -> {
+            if (ex != null) out.completeExceptionally(ex);
+            else out.complete(r.success());
+        });
+        return out;
+    }
+
+    /** 전역 스레드: 검사 → 평탄화 → 큐. 돌려주는 future 는 컨텍스트 종료(파싱 실패면 즉시 완료). */
+    private CompletableFuture<Void> perform(ParseResults<CommandSource> parse, String command, CommandSource sourceOverride) {
+        CommandSource source = sourceOverride != null ? sourceOverride : parse.getContext().getSource();
+        ContextChain<CommandSource> chain;
         try {
             validateParseResults(parse);
+            chain = ContextChain.tryFlatten(parse.getContext().build(command)).orElseThrow(
+                    () -> CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherUnknownCommand().createWithContext(parse.getReader()));
         } catch (CommandSyntaxException e) {
             sendSyntaxFailure(source, e, command);
-            return 0;
+            return CompletableFuture.completedFuture(null);
         }
-        try {
-            return dispatcher.execute(parse);
-        } catch (CommandSyntaxException e) {
-            // 실행 중 오류(예: 대상 없음)는 메시지만(바닐라 CommandSourceStack.handleError).
-            source.sendFailure(e.getRawMessage());
-        } catch (Exception e) {
-            Text detail = Text.text(e.getMessage() == null ? e.getClass().getName() : e.getMessage());
-            log.error("Command exception: /{}", command, e);
-            source.sendFailure(Text.translatable("command.failed").hoverText(detail));
-        }
-        return 0;
+        return queue.enqueue(source, command,
+                ctx -> ExecutionContext.queueInitialCommandExecution(ctx, command, chain, source, ResultCallback.EMPTY));
     }
 
     private static void validateParseResults(ParseResults<CommandSource> parse) throws CommandSyntaxException {

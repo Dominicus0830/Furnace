@@ -185,7 +185,7 @@ class SpreadPlayersCommandTest {
                 done.countDown();
             });
             assertTrue(done.await(10, TimeUnit.SECONDS));
-            core.commands().getDispatcher().execute("spreadplayers 0 0 6 20 false @e[type=cow]", CommandSource.console(core));
+            core.commands().performPrefixedCommandAsync(CommandSource.console(core), "spreadplayers 0 0 6 20 false @e[type=cow]").join();
             TeleportCommandTest.awaitTrue(() -> {
                 for (Cow c : cows) if (c.x() == 0.5 && c.z() == 0.5) return false;
                 return true;

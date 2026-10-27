@@ -54,6 +54,6 @@ public interface Player extends CommandSender {
     /** 사유를 보여 주고 연결을 끊는다. */
     void kick(Text reason);
 
-    /** 이 플레이어로서 명령 실행(앞의 '/' 는 없어도 된다). */
+    /** 이 플레이어로서 명령을 실행 큐에 넣는다(앞의 '/' 는 없어도 된다). 접수 여부를 돌려준다(결과는 나중에 정해진다). */
     boolean performCommand(String command);
 }

@@ -358,6 +358,7 @@ public final class ServerCore {
      * 시간·날씨·보더를 멈추고 /tick step 으로 요청한 만큼만 낸다.
      */
     public void scheduledTick() {
+        commands.queue().tick();   // 명령 컨텍스트 경과 틱(정지 중에도 센다 — head-of-line 관측)
         var ts = tickState();
         if (ts.frozen()) {
             if (ts.takeGlobalStep()) {

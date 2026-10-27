@@ -3,6 +3,8 @@
 // 차이: 일반 엔티티가 대상이면 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
 package org.domi.furnace.server.command.builtin;
 
+import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.command.EntityOps;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
@@ -54,14 +56,15 @@ public final class TeleportCommand {
                                                         t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null,
                                                                 new LookAt(Vec3Argument.getVec3(c, "facingLocation"))))))))
                         .then(argument("destination", EntityArgument.entity())
-                                .executes(c -> EntityArgument.withEntities(c, "targets",
-                                        t -> EntityArgument.withEntity(c, "destination", dest -> toEntity(c.getSource(), t, dest.get(0))))))));
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                        t -> EntityArgument.withEntityAsync(c, "destination",
+                                                dest -> CompletableFuture.completedFuture(toEntity(c.getSource(), t, dest.get(0))))))))));
         d.register(literal("tp").requires(s -> s.hasPermission(2)).redirect(node));
     }
 
     private static int facingEntity(CommandContext<CommandSource> c, EntityAnchorArgument.Anchor anchor) throws CommandSyntaxException {
-        return EntityArgument.withEntities(c, "targets", t -> EntityArgument.withEntity(c, "facingEntity",
-                f -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, new LookAt(anchor.apply(f.get(0))))));
+        return EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets", t -> EntityArgument.withEntityAsync(c, "facingEntity",
+                f -> CompletableFuture.completedFuture(toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, new LookAt(anchor.apply(f.get(0))))))));
     }
 
     private static List<Rider> self(CommandSource source) throws CommandSyntaxException {

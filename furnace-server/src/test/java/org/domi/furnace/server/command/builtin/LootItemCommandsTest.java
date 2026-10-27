@@ -52,13 +52,13 @@ class LootItemCommandsTest {
 
     /** 플레이어(권한 4)로 실행 — 메시지는 플레이어 연결로 가므로 결과는 상태로 본다. */
     private void run(String command) {
-        core.commands().performPrefixedCommand(CommandSource.player(core, player).withPermission(4), command);
+        core.commands().performPrefixedCommandAsync(CommandSource.player(core, player).withPermission(4), command).join();
     }
 
     /** 콘솔로 실행하고 콘솔 출력. */
     private String console(String command) {
         out.clear();
-        core.commands().performPrefixedCommand(CommandSource.console(core), command);
+        core.commands().performPrefixedCommandAsync(CommandSource.console(core), command).join();
         return String.join("\n", out);
     }
 

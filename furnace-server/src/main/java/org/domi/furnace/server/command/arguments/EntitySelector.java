@@ -110,7 +110,14 @@ public final class EntitySelector {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public CompletableFuture<List<Rider>> findRiders(CommandSource source) throws CommandSyntaxException {
         checkPermissions(source);
-        if (playerName != null || !includesEntities || currentEntity) return CompletableFuture.completedFuture((List) findPlayers(source));
+        if (playerName != null || !includesEntities) return CompletableFuture.completedFuture((List) findPlayers(source));
+        if (currentEntity) {
+            // @s: 소스의 실행 주체 엔티티(플레이어·일반 엔티티) — 조건을 통과하면 그것 하나(완료 future, 지름길)
+            Rider self = source.entity();
+            double sx = x != null ? x : source.x(), sy = y != null ? y : source.y(), sz = z != null ? z : source.z();
+            boolean hit = self != null && buildPredicate(source, sx, sy, sz).test(self);
+            return CompletableFuture.completedFuture(hit ? List.of(self) : List.of());
+        }
         var server = source.getServer();
         if (entityUUID != null) {
             Player p = server.playerByUuid(entityUUID);

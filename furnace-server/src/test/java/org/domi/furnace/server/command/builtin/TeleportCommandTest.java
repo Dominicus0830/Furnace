@@ -57,14 +57,14 @@ class TeleportCommandTest {
         var moves = new LinkedBlockingQueue<double[]>();
         var p = player("Steve", 10, 64, 20, 90, 15, moves);
         var src = CommandSource.player(core, p).withPermission(2);
-        assertEquals(1, core.commands().getDispatcher().execute("tp ~1 ~2 ~3", src));
+        assertEquals(1, core.commands().performPrefixedCommandAsync(src, "tp ~1 ~2 ~3").join().result());
         double[] t = next(moves);
         assertArrayEquals(new double[] {11, 66, 23, 90, 15}, t, 1e-9);
         // 대상 지정 + 절대 좌표(정수는 칸 가운데로: x, z 에 0.5)
-        assertEquals(1, core.commands().getDispatcher().execute("teleport @s 5 70 -5", src));
+        assertEquals(1, core.commands().performPrefixedCommandAsync(src, "teleport @s 5 70 -5").join().result());
         assertArrayEquals(new double[] {5.5, 70, -4.5, 90, 15}, next(moves), 1e-9);
         // 소수점이 있으면 그대로
-        core.commands().getDispatcher().execute("tp @s 5.25 70 -5.75", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s 5.25 70 -5.75").join();
         assertArrayEquals(new double[] {5.25, 70, -5.75, 90, 15}, next(moves), 1e-9);
     }
 
@@ -74,11 +74,11 @@ class TeleportCommandTest {
         // yaw 90 = 서쪽(-x) 을 본다: 앞 1 → x-1, 왼쪽 1 → 남쪽(+z)... 바닐라 LocalCoordinates 와 같은 식
         var p = player("Steve", 10, 64, 20, 90, 0, moves);
         var src = CommandSource.player(core, p).withPermission(2);
-        core.commands().getDispatcher().execute("tp @s ^ ^ ^2", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s ^ ^ ^2").join();
         assertArrayEquals(new double[] {8, 64, 20, 90, 0}, next(moves), 1e-6);
-        core.commands().getDispatcher().execute("tp @s ^ ^3 ^", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s ^ ^3 ^").join();
         assertArrayEquals(new double[] {10, 67, 20, 90, 0}, next(moves), 1e-6);
-        core.commands().getDispatcher().execute("tp @s ^1 ^ ^", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s ^1 ^ ^").join();
         double[] left = next(moves);
         assertEquals(10, left[0], 1e-6);
         assertEquals(21, left[2], 1e-6, "yaw 90 에서 왼쪽은 +z");
@@ -89,10 +89,10 @@ class TeleportCommandTest {
         var moves = new LinkedBlockingQueue<double[]>();
         var p = player("Steve", 0, 64, 0, 30, 10, moves);
         var src = CommandSource.player(core, p).withPermission(2);
-        core.commands().getDispatcher().execute("tp @s 1 64 1 ~15 ~-5", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s 1 64 1 ~15 ~-5").join();
         assertArrayEquals(new double[] {1.5, 64, 1.5, 45, 5}, next(moves), 1e-6);
         // wrapDegrees: 190 → -170
-        core.commands().getDispatcher().execute("tp @s 1 64 1 190 0", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s 1 64 1 190 0").join();
         assertArrayEquals(new double[] {1.5, 64, 1.5, -170, 0}, next(moves), 1e-6);
     }
 
@@ -102,12 +102,12 @@ class TeleportCommandTest {
         var p = player("Steve", 0, 64, 0, 0, 0, moves);
         var src = CommandSource.player(core, p).withPermission(2);
         // (0,64,0)에서 (10,64,0)을 보면 동쪽: yaw -90, pitch 0
-        core.commands().getDispatcher().execute("tp @s 0.0 64.0 0.0 facing 10.0 64.0 0.0", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s 0.0 64.0 0.0 facing 10.0 64.0 0.0").join();
         double[] t = next(moves);
         assertEquals(-90, t[3], 0.05);
         assertEquals(0, t[4], 0.05);
         // 위쪽 점은 pitch 음수
-        core.commands().getDispatcher().execute("tp @s 0.0 64.0 0.0 facing 0.0 74.0 10.0", src);
+        core.commands().performPrefixedCommandAsync(src, "tp @s 0.0 64.0 0.0 facing 0.0 74.0 10.0").join();
         t = next(moves);
         assertEquals(0, t[3], 0.05);
         assertEquals(-45, t[4], 0.05);
@@ -169,17 +169,17 @@ class TeleportCommandTest {
         var d = core.commands().getDispatcher();
         var console = CommandSource.console(core);
         // 태그로만 고른다
-        d.execute("tp @e[type=cow,tag=mover] 8.5 -60 8.5", console);
+        core.commands().performPrefixedCommandAsync(console, "tp @e[type=cow,tag=mover] 8.5 -60 8.5").join();
         awaitTrue(() -> cows[1].x() == 8.5);
         assertEquals(0.5, cows[0].x(), 0, "tag 가 없는 소는 그대로");
         assertTrue(cows[1].onGround());
         // 이어서 tag 가 없는 쪽(@e[tag=!mover])을 한 번에 옮기면서 회전도 준다
-        d.execute("tp @e[type=cow,tag=!mover] 3.5 -60 3.5 45 10", console);
+        core.commands().performPrefixedCommandAsync(console, "tp @e[type=cow,tag=!mover] 3.5 -60 3.5 45 10").join();
         awaitTrue(() -> cows[0].x() == 3.5);
         assertEquals(45, cows[0].yRot(), 1e-6);
         assertEquals(10, cows[0].xRot(), 1e-6);
         // 소끼리: 두 번째 소 위치로
-        d.execute("tp @e[type=cow,tag=!mover] @e[type=cow,tag=mover,limit=1]", console);
+        core.commands().performPrefixedCommandAsync(console, "tp @e[type=cow,tag=!mover] @e[type=cow,tag=mover,limit=1]").join();
         awaitTrue(() -> cows[0].x() == 8.5);
     }
 

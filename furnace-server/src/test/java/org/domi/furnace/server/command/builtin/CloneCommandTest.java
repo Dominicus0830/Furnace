@@ -161,7 +161,7 @@ class CloneCommandTest {
 
     @Test
     void sizeLimitAndUnloaded() throws Exception {
-        core.commands().getDispatcher().execute("gamerule commandModificationBlockLimit 4", CommandSource.console(core));
+        core.commands().performPrefixedCommandAsync(CommandSource.console(core), "gamerule commandModificationBlockLimit 4").join();
         onRegion(l -> {
             assertEquals("commands.clone.toobig", fail(l, new int[]{0, 100, 0, 4, 100, 0}, new int[]{8, 100, 0}, ALL, CloneCommand.Mode.NORMAL));
             assertEquals("argument.pos.unloaded", fail(l, new int[]{0, 100, 0, 1, 100, 0}, new int[]{1000000, 100, 0}, ALL, CloneCommand.Mode.NORMAL));

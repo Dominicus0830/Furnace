@@ -1,5 +1,5 @@
 // 명령이 엔티티를 건드릴 때의 스레드 규칙: 일반 엔티티는 그 엔티티를 가진 region 스레드에서만 바꾼다(플레이어는 연결이 스레드를 알아서 처리).
-// 주인에게 보낸 일의 결과는 future 로 모으고, 모두 끝났으면(플레이어만 건드렸다면 즉시) 명령 스레드에서 바로 이어 간다.
+// 주인에게 보낸 일의 결과는 future 로 모으고, 모두 끝났으면(플레이어만 건드렸다면 즉시) 그 자리에서, 아니면 전역 스레드로 돌아와 이어 간다.
 package org.domi.furnace.server.command;
 
 import java.util.ArrayList;
@@ -60,27 +60,79 @@ public final class EntityOps {
         return f;
     }
 
-    /** 대상마다 onOwner 로 보낸 결과를 모아 마무리를 부른다. 모두 끝나 있으면 마무리 결과를 돌려주고(오류도 그대로 던진다), 아니면 1 을 돌려주고 끝난 뒤 부른다. */
+    /** 값을 받아 future 결과를 내는 다음 단계(헬퍼 합성용). */
+    @FunctionalInterface
+    public interface AsyncAction<T> {
+        CompletableFuture<Integer> run(T value) throws CommandSyntaxException;
+    }
+
+    /** 대상마다 onOwner 로 보낸 결과를 모아 마무리를 부른다(껍데기 — 명령 본문 맨 바깥에서만). 끝나 있으면 그 결과, 아니면 defer 후 1(무시됨). */
     public static <T> int forEach(CommandSource source, List<Rider> targets, Function<Rider, T> fn, Finisher<T> finisher) throws CommandSyntaxException {
+        return result(source, forEachAsync(source, targets, fn, finisher));
+    }
+
+    /** forEach 의 future 판(중첩 헬퍼 안쪽에서). 마무리는 전역 스레드에서 돈다. */
+    public static <T> CompletableFuture<Integer> forEachAsync(CommandSource source, List<Rider> targets, Function<Rider, T> fn, Finisher<T> finisher) {
         List<CompletableFuture<T>> fs = new ArrayList<>(targets.size());
         for (Rider r : targets) fs.add(onOwner(source, r, fn));
-        return await(source, fs, finisher);
+        return awaitAllAsync(source, fs, finisher);
     }
 
     public static <T> int await(CommandSource source, List<CompletableFuture<T>> fs, Finisher<T> finisher) throws CommandSyntaxException {
-        boolean done = true;
-        for (var f : fs) if (!f.isDone()) done = false;
-        if (done) return finisher.finish(collect(fs));
-        CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
+        return result(source, awaitAllAsync(source, fs, finisher));
+    }
+
+    public static <T> CompletableFuture<Integer> awaitAllAsync(CommandSource source, List<CompletableFuture<T>> fs, Finisher<T> finisher) {
+        CompletableFuture<Void> all = CompletableFuture.allOf(fs.toArray(new CompletableFuture[0]));
+        return awaitAsync(source, all, v -> CompletableFuture.completedFuture(finisher.finish(collect(fs))));
+    }
+
+    /**
+     * 헬퍼 공통 본체: future 가 끝나 있으면 action 을 그 자리에서(지름길), 아니면 끝난 뒤 **전역 스레드에서** 부른다
+     * (region 에서 완성되는 future 에 thenCompose 를 그냥 붙이면 action 이 region 에서 돈다 — 설계 §1.4).
+     * action 의 오류(CommandSyntaxException 포함)는 실패한 future 로 돌려준다.
+     */
+    public static <T> CompletableFuture<Integer> awaitAsync(CommandSource source, CompletableFuture<T> future, AsyncAction<T> action) {
+        if (future.isDone()) {
+            T v;
             try {
-                if (ex != null) throw unwrap(ex);
-                finisher.finish(collect(fs));
-            } catch (CommandSyntaxException e) {
-                source.sendFailure(e.getRawMessage());
-            } catch (Throwable t) {
-                reportFailure(source, t);
+                v = future.join();
+            } catch (java.util.concurrent.CompletionException | java.util.concurrent.CancellationException e) {
+                return CompletableFuture.failedFuture(unwrap(e));
             }
-        });
+            return invoke(action, v);
+        }
+        java.util.concurrent.Executor global = r -> source.getServer().scheduler().global().execute(r);
+        return future.thenComposeAsync(v -> invoke(action, v), global);
+    }
+
+    private static <T> CompletableFuture<Integer> invoke(AsyncAction<T> action, T v) {
+        try {
+            CompletableFuture<Integer> f = action.run(v);
+            return f == null ? CompletableFuture.completedFuture(0) : f;
+        } catch (Throwable t) {
+            return CompletableFuture.failedFuture(t);
+        }
+    }
+
+    /**
+     * 껍데기: 끝난 future 면 그 값(오류는 벗겨서 그대로 던진다), 아니면 실행 컨텍스트에 맡기고(source.defer) 1 을 돌려준다(무시됨).
+     * 결과·오류 메시지는 컨텍스트가 전역 스레드에서 처리한다(forked 규칙 포함).
+     */
+    public static int result(CommandSource source, CompletableFuture<Integer> f) throws CommandSyntaxException {
+        if (f.isDone()) {
+            try {
+                Integer v = f.join();
+                return v == null ? 0 : v;
+            } catch (java.util.concurrent.CompletionException | java.util.concurrent.CancellationException e) {
+                Throwable t = unwrap(e);
+                if (t instanceof CommandSyntaxException cse) throw cse;
+                if (t instanceof RuntimeException re) throw re;
+                if (t instanceof Error err) throw err;
+                throw new RuntimeException(t);
+            }
+        }
+        source.defer(f);
         return 1;
     }
 

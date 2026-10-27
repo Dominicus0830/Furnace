@@ -126,10 +126,13 @@ class PluginSystemTest {
         List<String> console = new ArrayList<>();
         core.addConsoleListener(t -> console.add(t.getString()));
         assertTrue(host.dispatchCommand(host.console(), "/hello a b"));
+        globalBarrier();   // 명령은 전역 스레드로 넘어가 실행된다
         assertTrue(console.contains("hello a,b"));
         host.dispatchCommand(host.console(), "list");
+        globalBarrier();
         assertFalse(TestPlugins.LOG.contains("alpha:list"), "list 는 여전히 바닐라");
         host.dispatchCommand(host.console(), "alpha:list");
+        globalBarrier();
         assertTrue(TestPlugins.LOG.contains("alpha:list"));
         // 자동완성: 마지막 인자 자리에 접두어로 거른 후보
         var s = core.commands().suggestions(CommandSource.console(core), "/secret be").get();
@@ -241,4 +244,7 @@ class PluginSystemTest {
         loadAll(dir);
         assertFalse(host.plugins().isEnabled("Broken"), "onEnable 예외 → 꺼진 상태");
     }
+
+    /** 전역 스레드에 넘어간 작업이 끝날 때까지 기다린다(FIFO 실행기). */
+    private void globalBarrier() { core.scheduler().global().submit(() -> null).join(); }
 }

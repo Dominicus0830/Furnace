@@ -57,7 +57,7 @@ class RideAndRandomCommandTest {
         assertTrue(done.await(10, TimeUnit.SECONDS));
         var d = core.commands().getDispatcher();
         var console = CommandSource.console(core);
-        d.execute("ride @e[tag=rider,limit=1] mount @e[tag=vehicle,limit=1]", console);
+        core.commands().performPrefixedCommandAsync(console, "ride @e[tag=rider,limit=1] mount @e[tag=vehicle,limit=1]").join();
         TeleportCommandTest.awaitTrue(() -> cows[0].vehicle() == cows[1]);
         assertTrue(cows[1].hasPassenger(cows[0]));
         // 이미 탔다
@@ -72,7 +72,7 @@ class RideAndRandomCommandTest {
         var p = new Player(11, UUID.randomUUID(), "Steve", new EmbeddedChannel());
         assertEquals("commands.ride.mount.failure.cant_ride_players",
                 key(assertThrows(CommandSyntaxException.class, () -> RideCommand.mount(console, cows[1], p))));
-        d.execute("ride @e[tag=rider,limit=1] dismount", console);
+        core.commands().performPrefixedCommandAsync(console, "ride @e[tag=rider,limit=1] dismount").join();
         TeleportCommandTest.awaitTrue(() -> cows[0].vehicle() == null);
         assertFalse(cows[1].isVehicle());
         assertEquals("commands.ride.not_riding",

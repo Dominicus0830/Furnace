@@ -132,7 +132,9 @@ final class CommandRegistryImpl implements CommandRegistry {
     @Override
     public boolean dispatch(CommandSender sender, String commandLine) {
         CommandSource src = host.source(sender);
-        return core().commands().performPrefixedCommand(src, commandLine) > 0;
+        // 결과는 콜백으로 흐르므로 여기서는 "큐에 들어갔는가"(접수) 만 돌려준다. 전역 스레드가 아니면 전역으로 넘긴다.
+        core().commands().performPrefixedCommand(src, commandLine);
+        return true;
     }
 
     @Override

@@ -49,7 +49,7 @@ class TextSoundBossBarCommandsTest {
 
     private List<String> run(String command) {
         out.clear();
-        core.commands().performPrefixedCommand(CommandSource.console(core), command);
+        core.commands().performPrefixedCommandAsync(CommandSource.console(core), command).join();
         return List.copyOf(out);
     }
 

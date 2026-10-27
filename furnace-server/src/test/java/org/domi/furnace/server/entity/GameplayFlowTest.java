@@ -53,7 +53,7 @@ class GameplayFlowTest {
 
                 for (int i = 0; i < 500 && core.playerByName("Tester") == null; i++) Thread.sleep(20);   // 접속 처리 완료 대기(부하 시 최대 10초)
                 CommandSource console = CommandSource.console(core);
-                core.commands().performPrefixedCommand(console, "gamemode creative Tester");
+                core.commands().performPrefixedCommandAsync(console, "gamemode creative Tester").join();
                 ByteBuf ev = c.await(0x22, b -> b.readByte() == 3);
                 ev.readByte();
                 assertEquals(1.0f, ev.readFloat(), "CHANGE_GAME_MODE → creative(1)");
@@ -62,11 +62,11 @@ class GameplayFlowTest {
                 assertEquals(GameMode.CREATIVE, p.gameMode());
                 assertEquals(GameMode.SURVIVAL, p.vitals().previousGameMode());
 
-                core.commands().performPrefixedCommand(console, "xp add Tester 5 levels");
+                core.commands().performPrefixedCommandAsync(console, "xp add Tester 5 levels").join();
                 ByteBuf xp = c.await(0x5C, b -> { b.readFloat(); return Types.readVarInt(b) == 5; });
                 assertNotNull(xp, "다음 틱에 SetExperience(레벨 5)");
 
-                core.commands().performPrefixedCommand(console, "kill Tester");
+                core.commands().performPrefixedCommandAsync(console, "kill Tester").join();
                 ByteBuf kill = c.await(0x3C);
                 assertEquals(p.entityId(), Types.readVarInt(kill));
                 assertTrue(text(kill).contains("death.attack.genericKill"), "사망 화면 메시지");

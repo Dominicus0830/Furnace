@@ -32,8 +32,8 @@ public final class TagCommand {
         d.register(literal("tag").requires(s -> s.hasPermission(2))
                 .then(argument("targets", EntityArgument.entities())
                         .then(literal("add").then(argument("name", Arguments.word())
-                                .executes(c -> EntityArgument.withEntities(c, "targets",
-                                        t -> add(c.getSource(), t, c.getArgument("name", String.class))))))
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                        t -> add(c.getSource(), t, c.getArgument("name", String.class)))))))
                         .then(literal("remove").then(argument("name", Arguments.word())
                                 .suggests((c, b) -> {
                                     // 서버 쪽 제안: 지금 해석되는 플레이어의 태그(일반 엔티티는 region 이 나눠 가져 동기로 모을 수 없다)
@@ -45,13 +45,13 @@ public final class TagCommand {
                                     }
                                     return SharedSuggestions.suggest(all, b);
                                 })
-                                .executes(c -> EntityArgument.withEntities(c, "targets",
-                                        t -> remove(c.getSource(), t, c.getArgument("name", String.class))))))
-                        .then(literal("list").executes(c -> EntityArgument.withEntities(c, "targets", t -> list(c.getSource(), t))))));
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                        t -> remove(c.getSource(), t, c.getArgument("name", String.class)))))))
+                        .then(literal("list").executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets", t -> list(c.getSource(), t)))))));
     }
 
-    private static int add(CommandSource source, List<Rider> targets, String tag) throws CommandSyntaxException {
-        return EntityOps.forEach(source, targets, r -> r.addTag(tag), results -> {
+    private static java.util.concurrent.CompletableFuture<Integer> add(CommandSource source, List<Rider> targets, String tag) {
+        return EntityOps.forEachAsync(source, targets, r -> r.addTag(tag), results -> {
             int n = 0;
             for (boolean b : results) if (b) n++;
             if (n == 0) throw ERROR_ADD_FAILED.create();
@@ -61,8 +61,8 @@ public final class TagCommand {
         });
     }
 
-    private static int remove(CommandSource source, List<Rider> targets, String tag) throws CommandSyntaxException {
-        return EntityOps.forEach(source, targets, r -> r.removeTag(tag), results -> {
+    private static java.util.concurrent.CompletableFuture<Integer> remove(CommandSource source, List<Rider> targets, String tag) {
+        return EntityOps.forEachAsync(source, targets, r -> r.removeTag(tag), results -> {
             int n = 0;
             for (boolean b : results) if (b) n++;
             if (n == 0) throw ERROR_REMOVE_FAILED.create();
@@ -72,8 +72,8 @@ public final class TagCommand {
         });
     }
 
-    private static int list(CommandSource source, List<Rider> targets) throws CommandSyntaxException {
-        return EntityOps.forEach(source, targets, Rider::getTags, results -> {
+    private static java.util.concurrent.CompletableFuture<Integer> list(CommandSource source, List<Rider> targets) {
+        return EntityOps.forEachAsync(source, targets, Rider::getTags, results -> {
             Set<String> all = new HashSet<>();
             for (Set<String> s : results) all.addAll(s);
             if (targets.size() == 1) {

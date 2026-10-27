@@ -214,7 +214,7 @@ class ScoreboardTest {
 
     private List<String> run(ServerCore core, List<String> out, String cmd) {
         out.clear();
-        core.commands().performPrefixedCommand(CommandSource.console(core), cmd);
+        core.commands().performPrefixedCommandAsync(CommandSource.console(core), cmd).join();
         return List.copyOf(out);
     }
 

@@ -59,44 +59,52 @@ public final class EntityArgument implements ArgumentType<EntitySelector> {
         return ctx.getArgument(name, EntitySelector.class).findPlayers(ctx.getSource());
     }
 
-    /** 해석된 엔티티(플레이어 포함)를 받아 일을 하는 명령 본문. */
+    /** 해석된 엔티티(플레이어 포함)를 받아 동기로 결과를 내는 명령 본문. */
     @FunctionalInterface
     public interface RiderAction {
         int run(List<Rider> targets) throws CommandSyntaxException;
     }
 
+    /** 해석된 엔티티를 받아 안쪽에서 또 기다리는(future 를 돌려주는) 명령 본문 — 중첩 헬퍼용. */
+    @FunctionalInterface
+    public interface AsyncRiderAction {
+        java.util.concurrent.CompletableFuture<Integer> runAsync(List<Rider> targets) throws CommandSyntaxException;
+    }
+
     /**
      * 바닐라 getEntities: 플레이어가 아닌 엔티티도 고른다. 엔티티는 region 이 나눠 갖고 있어 해석이 나중에 끝날 수 있다 —
-     * 이미 끝났으면 바로 action 의 결과를 돌려주고(오류는 그대로 던진다), 아니면 1 을 돌려주고 끝난 뒤 action 을 부른다(그때 오류는
-     * 실패 메시지로 보낸다). action 은 어느 스레드에서든 불릴 수 있으므로 엔티티를 바꾸는 일은 그 엔티티 주인에게 보내야 한다.
+     * 이미 끝났으면 바로 action 의 결과를 돌려주고(오류는 그대로 던진다), 아니면 결과 future 를 실행 컨텍스트에 맡기고(defer) 1 을 돌려준다
+     * (무시된다). action 은 전역 스레드에서 불린다. 이 껍데기는 명령 본문 맨 바깥에서만 쓴다 — 안쪽은 withEntitiesAsync.
      */
     public static int withEntities(CommandContext<CommandSource> ctx, String name, RiderAction action) throws CommandSyntaxException {
-        return await(ctx.getSource(), ctx.getArgument(name, EntitySelector.class), false, action);
+        return org.domi.furnace.server.command.EntityOps.result(ctx.getSource(), withEntitiesAsync(ctx, name, sync(action)));
     }
 
     /** 바닐라 getEntity: 정확히 하나가 아니면 "No entity was found". */
     public static int withEntity(CommandContext<CommandSource> ctx, String name, RiderAction action) throws CommandSyntaxException {
-        return await(ctx.getSource(), ctx.getArgument(name, EntitySelector.class), true, action);
+        return org.domi.furnace.server.command.EntityOps.result(ctx.getSource(), withEntityAsync(ctx, name, sync(action)));
     }
 
-    private static int await(CommandSource source, EntitySelector selector, boolean single, RiderAction action) throws CommandSyntaxException {
-        var future = selector.findRiders(source);
-        if (future.isDone() && !future.isCompletedExceptionally()) return run(future.join(), single, action);
-        future.whenComplete((list, ex) -> {
-            try {
-                if (ex != null) {
-                    Throwable cause = org.domi.furnace.server.command.EntityOps.unwrap(ex);
-                    if (cause instanceof CommandSyntaxException c) throw c;
-                    throw cause;
-                }
-                run(list, single, action);
-            } catch (CommandSyntaxException e) {
-                source.sendFailure(e.getRawMessage());
-            } catch (Throwable t) {
-                org.domi.furnace.server.command.EntityOps.reportFailure(source, t);
-            }
+    public static java.util.concurrent.CompletableFuture<Integer> withEntitiesAsync(CommandContext<CommandSource> ctx, String name, AsyncRiderAction action)
+            throws CommandSyntaxException {
+        return awaitAsync(ctx.getSource(), ctx.getArgument(name, EntitySelector.class), false, action);
+    }
+
+    public static java.util.concurrent.CompletableFuture<Integer> withEntityAsync(CommandContext<CommandSource> ctx, String name, AsyncRiderAction action)
+            throws CommandSyntaxException {
+        return awaitAsync(ctx.getSource(), ctx.getArgument(name, EntitySelector.class), true, action);
+    }
+
+    private static AsyncRiderAction sync(RiderAction action) {
+        return list -> java.util.concurrent.CompletableFuture.completedFuture(action.run(list));
+    }
+
+    private static java.util.concurrent.CompletableFuture<Integer> awaitAsync(CommandSource source, EntitySelector selector, boolean single,
+                                                                             AsyncRiderAction action) throws CommandSyntaxException {
+        return org.domi.furnace.server.command.EntityOps.awaitAsync(source, selector.findRiders(source), list -> {
+            if (single ? list.size() != 1 : list.isEmpty()) throw EntitySelector.NO_ENTITIES_FOUND.create();
+            return action.runAsync(list);
         });
-        return 1;
     }
 
     /** 대상 하나 또는 여럿을 future 로(없으면 "No entity was found" 로 실패한 future). 다른 비동기 단계와 이어 붙일 때. */
@@ -105,11 +113,6 @@ public final class EntityArgument implements ArgumentType<EntitySelector> {
             if (single ? list.size() != 1 : list.isEmpty()) throw new java.util.concurrent.CompletionException(EntitySelector.NO_ENTITIES_FOUND.create());
             return list;
         });
-    }
-
-    private static int run(List<Rider> list, boolean single, RiderAction action) throws CommandSyntaxException {
-        if (single ? list.size() != 1 : list.isEmpty()) throw EntitySelector.NO_ENTITIES_FOUND.create();
-        return action.run(list);
     }
 
     @Override

@@ -34,7 +34,7 @@ class ConsoleCommandsTest {
 
     private List<String> run(String command) {
         out.clear();
-        core.commands().performPrefixedCommand(CommandSource.console(core), command);
+        core.commands().performPrefixedCommandAsync(CommandSource.console(core), command).join();
         return List.copyOf(out);
     }
 
@@ -118,7 +118,7 @@ class ConsoleCommandsTest {
     }
 
     private int exec(String command) throws Exception {
-        return core.commands().getDispatcher().execute(command, CommandSource.console(core));
+        return core.commands().performPrefixedCommandAsync(CommandSource.console(core), command).join().result();
     }
 
     @Test
@@ -178,7 +178,7 @@ class ConsoleCommandsTest {
         assertEquals(12, core.border().getWarningBlocks());
         // 권한 레벨 2 필요: 1 이면 명령 자체를 모른다
         out.clear();
-        core.commands().performPrefixedCommand(CommandSource.console(core).withPermission(1), "worldborder get");
+        core.commands().performPrefixedCommandAsync(CommandSource.console(core).withPermission(1), "worldborder get").join();
         assertEquals(List.of("Unknown or incomplete command, see below for error", "worldborder get<--[HERE]"), List.copyOf(out));
     }
 

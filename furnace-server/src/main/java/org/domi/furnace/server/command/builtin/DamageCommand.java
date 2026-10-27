@@ -38,7 +38,7 @@ public final class DamageCommand {
     /** 출처를 만드는 쪽(by/from 엔티티는 해석이 끝난 뒤 정해진다). */
     @FunctionalInterface
     private interface SourceMaker {
-        int run(DamageSource src) throws CommandSyntaxException;
+        java.util.concurrent.CompletableFuture<Integer> run(DamageSource src) throws CommandSyntaxException;
     }
 
     public static void register(CommandDispatcher<CommandSource> d) {
@@ -51,11 +51,11 @@ public final class DamageCommand {
                                         .then(literal("at").then(argument("location", Vec3Argument.vec3())
                                                 .executes(c -> damage(c, () -> DamageSource.at(type(c), Vec3Argument.getVec3(c, "location")), null))))
                                         .then(literal("by").then(argument("entity", EntityArgument.entity())
-                                                .executes(c -> damage(c, null, (t, go) -> EntityArgument.withEntity(c, "entity",
+                                                .executes(c -> damage(c, null, (t, go) -> EntityArgument.withEntityAsync(c, "entity",
                                                         e -> go.run(DamageSource.by(t, e.get(0))))))
                                                 .then(literal("from").then(argument("cause", EntityArgument.entity())
-                                                        .executes(c -> damage(c, null, (t, go) -> EntityArgument.withEntity(c, "entity",
-                                                                e -> EntityArgument.withEntity(c, "cause", cause -> go.run(DamageSource.by(t, e.get(0), cause.get(0)))))))))))))));
+                                                        .executes(c -> damage(c, null, (t, go) -> EntityArgument.withEntityAsync(c, "entity",
+                                                                e -> EntityArgument.withEntityAsync(c, "cause", cause -> go.run(DamageSource.by(t, e.get(0), cause.get(0)))))))))))))));
     }
 
     @FunctionalInterface
@@ -66,7 +66,7 @@ public final class DamageCommand {
     /** by/from: 유형을 받고 엔티티를 해석한 뒤 go 로 출처를 넘긴다. */
     @FunctionalInterface
     private interface WithEntities {
-        int resolve(DamageType type, SourceMaker go) throws CommandSyntaxException;
+        java.util.concurrent.CompletableFuture<Integer> resolve(DamageType type, SourceMaker go) throws CommandSyntaxException;
     }
 
     static DamageType type(CommandContext<CommandSource> c) throws CommandSyntaxException {
@@ -79,15 +79,15 @@ public final class DamageCommand {
     /** 바닐라 인자 평가 순서: 대상 → 양 → 유형 → by 엔티티 → from 원인. */
     private static int damage(CommandContext<CommandSource> c, Simple simple, WithEntities with) throws CommandSyntaxException {
         float amount = c.getArgument("amount", Float.class);
-        return EntityArgument.withEntity(c, "target", t -> {
+        return EntityOps.result(c.getSource(), EntityArgument.withEntityAsync(c, "target", t -> {
             if (simple != null) return apply(c.getSource(), t.get(0), amount, simple.make());
             return with.resolve(type(c), src -> apply(c.getSource(), t.get(0), amount, src));
-        });
+        }));
     }
 
     /** 바닐라 DamageCommand.damage: target.hurt 가 참이면 성공 메시지, 아니면 invulnerable. */
-    static int apply(CommandSource source, Rider target, float amount, DamageSource src) throws CommandSyntaxException {
-        return EntityOps.forEach(source, List.of(target), r -> hurt(r, amount, src), results -> {
+    static java.util.concurrent.CompletableFuture<Integer> apply(CommandSource source, Rider target, float amount, DamageSource src) {
+        return EntityOps.forEachAsync(source, List.of(target), r -> hurt(r, amount, src), results -> {
             if (!results.get(0)) throw ERROR_INVULNERABLE.create();
             source.sendSuccess(() -> Text.translatable("commands.damage.success", amount, target.displayName()), true);
             return 1;

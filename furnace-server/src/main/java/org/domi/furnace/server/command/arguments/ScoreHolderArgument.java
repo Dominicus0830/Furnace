@@ -124,38 +124,19 @@ public final class ScoreHolderArgument implements ArgumentType<ScoreHolderArgume
         });
     }
 
-    /** 결과 대기 도우미: 이미 끝났으면 그 값을, 아니면 끝난 뒤 action 을 부르고 1 을 돌려준다(오류는 실패 메시지). */
+    /** 결과 대기 도우미(껍데기): 이미 끝났으면 그 값을, 아니면 결과를 실행 컨텍스트에 맡기고(defer) 1(무시됨). action 은 전역 스레드에서. */
     @FunctionalInterface
     public interface Action<T> {
         int run(T value) throws CommandSyntaxException;
     }
 
     public static <T> int await(CommandSource source, CompletableFuture<T> future, Action<T> action) throws CommandSyntaxException {
-        if (future.isDone()) {
-            T v;
-            try {
-                v = future.join();
-            } catch (java.util.concurrent.CompletionException e) {
-                if (EntityOps.unwrap(e) instanceof CommandSyntaxException c) throw c;
-                throw e;
-            }
-            return action.run(v);
-        }
-        future.whenComplete((v, ex) -> {
-            try {
-                if (ex != null) {
-                    Throwable cause = EntityOps.unwrap(ex);
-                    if (cause instanceof CommandSyntaxException c) throw c;
-                    throw cause;
-                }
-                action.run(v);
-            } catch (CommandSyntaxException e) {
-                source.sendFailure(e.getRawMessage());
-            } catch (Throwable t) {
-                EntityOps.reportFailure(source, t);
-            }
-        });
-        return 1;
+        return EntityOps.result(source, awaitAsync(source, future, v -> CompletableFuture.completedFuture(action.run(v))));
+    }
+
+    /** await 의 future 판(중첩 헬퍼 안쪽에서). */
+    public static <T> CompletableFuture<Integer> awaitAsync(CommandSource source, CompletableFuture<T> future, EntityOps.AsyncAction<T> action) {
+        return EntityOps.awaitAsync(source, future, action);
     }
 
     @Override

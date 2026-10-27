@@ -64,12 +64,12 @@ class WorldBorderJoinTest {
                 assertEquals(20, Types.readVarInt(init));
 
                 CommandSource console = CommandSource.console(core);
-                core.commands().performPrefixedCommand(console, "worldborder damage amount 3");   // 아무것도 보내지 않는다
-                core.commands().performPrefixedCommand(console, "worldborder damage buffer 1");
-                core.commands().performPrefixedCommand(console, "worldborder set 500");
+                core.commands().performPrefixedCommandAsync(console, "worldborder damage amount 3").join();   // 아무것도 보내지 않는다
+                core.commands().performPrefixedCommandAsync(console, "worldborder damage buffer 1").join();
+                core.commands().performPrefixedCommandAsync(console, "worldborder set 500").join();
                 ByteBuf size = awaitPacket(in, 0x4F);
                 assertEquals(500.0, size.readDouble());
-                core.commands().performPrefixedCommand(console, "worldborder set 100 30");
+                core.commands().performPrefixedCommandAsync(console, "worldborder set 100 30").join();
                 ByteBuf lerp = awaitPacket(in, 0x4E);
                 // 바닐라처럼 패킷은 보내는 순간의 보간 크기·남은 시간을 담는다: 명령과 전송 사이 몇 ms 가 흐르면 조금 줄어 있다.
                 double from = lerp.readDouble();
@@ -77,13 +77,13 @@ class WorldBorderJoinTest {
                 assertEquals(100.0, lerp.readDouble());
                 long remaining = readVarLong(lerp);
                 assertTrue(remaining <= 30_000L && remaining > 28_000L, "남은 보간 시간: " + remaining);
-                core.commands().performPrefixedCommand(console, "worldborder center 1.0 2.0");
+                core.commands().performPrefixedCommandAsync(console, "worldborder center 1.0 2.0").join();
                 ByteBuf center = awaitPacket(in, 0x4D);
                 assertEquals(1.0, center.readDouble());
                 assertEquals(2.0, center.readDouble());
-                core.commands().performPrefixedCommand(console, "worldborder warning time 7");
+                core.commands().performPrefixedCommandAsync(console, "worldborder warning time 7").join();
                 assertEquals(7, Types.readVarInt(awaitPacket(in, 0x50)));
-                core.commands().performPrefixedCommand(console, "worldborder warning distance 4");
+                core.commands().performPrefixedCommandAsync(console, "worldborder warning distance 4").join();
                 assertEquals(4, Types.readVarInt(awaitPacket(in, 0x51)));
             }
         } finally {

@@ -32,7 +32,7 @@ class TickCommandTest {
     @AfterEach
     void tearDown() { sched.close(); }
 
-    private int run(String cmd) throws CommandSyntaxException { return core.commands().getDispatcher().execute(cmd, src); }
+    private int run(String cmd) throws CommandSyntaxException { return core.commands().performPrefixedCommandAsync(src, cmd).join().result(); }
 
     @Test
     void rateChangesTickPeriodAndGlobalTickCount() throws Exception {
@@ -56,8 +56,8 @@ class TickCommandTest {
         assertEquals(20, run("tick rate 20"));
         assertEquals(50_000_000L, core.world().tickNanos());
         // 범위: 1..10000
-        assertThrows(CommandSyntaxException.class, () -> run("tick rate 0.5"));
-        assertThrows(CommandSyntaxException.class, () -> run("tick rate 10001"));
+        assertFalse(core.commands().performPrefixedCommandAsync(src, "tick rate 0.5").join().success());
+        assertFalse(core.commands().performPrefixedCommandAsync(src, "tick rate 10001").join().success());
     }
 
     @Test
@@ -118,7 +118,7 @@ class TickCommandTest {
 
     @Test
     void permissionThreeRequired() {
-        assertThrows(CommandSyntaxException.class, () -> core.commands().getDispatcher().execute("tick query", src.withPermission(2)));
-        assertDoesNotThrow(() -> core.commands().getDispatcher().execute("tick query", src.withPermission(3)));
+        assertFalse(core.commands().performPrefixedCommandAsync(src.withPermission(2), "tick query").join().success());
+        assertTrue(core.commands().performPrefixedCommandAsync(src.withPermission(3), "tick query").join().success());
     }
 }

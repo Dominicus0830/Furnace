@@ -3,6 +3,8 @@
 // 차이: 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
 package org.domi.furnace.server.command.builtin;
 
+import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.command.EntityOps;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
@@ -35,8 +37,9 @@ public final class RideCommand {
         d.register(literal("ride").requires(s -> s.hasPermission(2))
                 .then(argument("target", EntityArgument.entity())
                         .then(literal("mount").then(argument("vehicle", EntityArgument.entity())
-                                .executes(c -> EntityArgument.withEntity(c, "target",
-                                        t -> EntityArgument.withEntity(c, "vehicle", v -> mount(c.getSource(), t.get(0), v.get(0)))))))
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntityAsync(c, "target",
+                                        t -> EntityArgument.withEntityAsync(c, "vehicle",
+                                                v -> CompletableFuture.completedFuture(mount(c.getSource(), t.get(0), v.get(0)))))))))
                         .then(literal("dismount")
                                 .executes(c -> EntityArgument.withEntity(c, "target", t -> dismount(c.getSource(), t.get(0)))))));
     }

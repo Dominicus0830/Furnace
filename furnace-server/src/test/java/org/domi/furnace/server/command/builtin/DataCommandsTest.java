@@ -109,7 +109,7 @@ class DataCommandsTest {
             var src = CommandSource.console(core);
             java.util.function.Function<String, String> run = cmd -> {
                 out.clear();
-                core.commands().performPrefixedCommand(src, cmd);
+                core.commands().performPrefixedCommandAsync(src, cmd).join();
                 return String.join("\n", out);
             };
             assertTrue(run.apply("data merge storage test:a {x:1,y:{z:\"s\"}}").contains("Modified storage test:a"));
@@ -202,7 +202,7 @@ class DataCommandsTest {
             for (int t = 0; t < threads; t++) {
                 fs.add(pool.submit(() -> {
                     start.await();
-                    for (int i = 0; i < each; i++) core.commands().performPrefixedCommand(src, "data modify storage t:c l append value 1");
+                    for (int i = 0; i < each; i++) core.commands().performPrefixedCommandAsync(src, "data modify storage t:c l append value 1").join();
                     return null;
                 }));
             }

@@ -482,24 +482,13 @@ public final class DataCommands {
         }));
     }
 
-    /** 끝났으면 결과(오류는 그대로 던짐), 아니면 1 을 돌려주고 끝난 뒤 오류를 실패 메시지로. */
+    /** 껍데기: 끝났으면 결과(오류는 그대로 던짐), 아니면 실행 컨텍스트에 맡기고(defer) 1(무시됨) — 오류 메시지는 컨텍스트가 전역에서 보낸다. */
     static int finish(CommandSource source, CompletableFuture<Integer> f) throws CommandSyntaxException {
-        if (f.isDone()) {
-            try {
-                return f.join();
-            } catch (CompletionException | java.util.concurrent.CancellationException e) {
-                Throwable t = EntityOps.unwrap(e);
-                if (t instanceof CommandSyntaxException cse) throw cse;
-                if (t instanceof RuntimeException re) throw re;
-                throw new RuntimeException(t);
-            }
-        }
-        f.whenComplete((v, ex) -> {
-            if (ex == null) return;
-            Throwable t = EntityOps.unwrap(ex);
-            if (t instanceof CommandSyntaxException cse) source.sendFailure(cse.getRawMessage());
-            else EntityOps.reportFailure(source, t);
-        });
-        return 1;
+        return EntityOps.result(source, finishAsync(source, f));
+    }
+
+    /** finish 의 future 판: 완료를 전역 스레드로 되돌린다(이미 끝났으면 그대로). */
+    static CompletableFuture<Integer> finishAsync(CommandSource source, CompletableFuture<Integer> f) {
+        return EntityOps.awaitAsync(source, f, CompletableFuture::completedFuture);
     }
 }
