@@ -91,6 +91,16 @@ public final class NbtIo {
         return readCompoundPayload(in);
     }
 
+    /** 이름 없는 루트(플레이 단계 네트워크 NBT: [type][payload]) 하나 — 어떤 태그든 값 객체로. */
+    public static Object readUnnamed(byte[] bytes) {
+        try {
+            java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes));
+            return readPayload(in, in.readByte());
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     public static NbtCompound readGzip(java.io.InputStream is) throws java.io.IOException {
         try (java.io.DataInputStream d = new java.io.DataInputStream(new java.util.zip.GZIPInputStream(is))) {
             return read(d);

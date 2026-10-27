@@ -37,6 +37,20 @@ final class TextNbt {
         return bos.toByteArray();
     }
 
+    /** 스타일만의 compound(바닐라 Style.Serializer.CODEC + NbtOps) — 점수판 styled 숫자 형식이 쓴다. 빈 스타일은 빈 compound. */
+    static byte[] encodeStyle(Style s) {
+        Map<String, Object> m = new HashMap<>();
+        putStyle(s, m);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(32);
+        try (DataOutputStream out = new DataOutputStream(bos)) {
+            out.writeByte(COMPOUND);
+            writePayload(out, m);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return bos.toByteArray();
+    }
+
     // ------------------------------------------------------------------ Text → 태그 트리
 
     private static Object toTag(Text t) {

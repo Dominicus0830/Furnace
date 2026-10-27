@@ -45,6 +45,8 @@ public final class EntitySelectorParser {
     private boolean usesSelectors;
     private boolean limited, sorted, typeLimited, nameSet, gamemodeSet, levelSet;
     private final List<Predicate<Rider>> predicates = new ArrayList<>();
+    /** 점수판이 필요한 조건(team=·scores=) — 해석할 때 서버 점수판을 받는다. */
+    private final List<java.util.function.BiPredicate<org.domi.furnace.server.scores.Scoreboard, Rider>> boardPredicates = new ArrayList<>();
 
     public EntitySelectorParser(StringReader reader, boolean allowSelectors) {
         this.reader = reader;
@@ -59,7 +61,7 @@ public final class EntitySelectorParser {
         } else {
             parseNameOrUUID();
         }
-        return new EntitySelector(maxResults, includesEntities, worldLimited, List.copyOf(predicates), distance, x, y, z,
+        return new EntitySelector(maxResults, includesEntities, worldLimited, List.copyOf(predicates), List.copyOf(boardPredicates), distance, x, y, z,
                 deltaX, deltaY, deltaZ, order, currentEntity, playerName, entityUUID, usesSelectors);
     }
 
@@ -272,10 +274,42 @@ public final class EntitySelectorParser {
             case "team" -> {
                 boolean invert = shouldInvertValue();
                 String v = reader.readUnquotedString();
-                // 팀은 아직 없다: 빈 값 조건("team=" = 팀 없음)만 참
-                predicates.add(p -> v.isEmpty() != invert);
+                // 바닐라: 살아 있는 엔티티만, 팀 이름(팀 없으면 "")이 같은가
+                boardPredicates.add((board, p) -> {
+                    if (!(p instanceof Player) && !(p instanceof org.domi.furnace.server.entity.LivingEntity)) return false;
+                    var team = board.getPlayersTeam(org.domi.furnace.server.scores.ScoreHolder.nameOf(p));
+                    return (team == null ? "" : team.name()).equals(v) != invert;
+                });
             }
-            case "nbt", "scores", "advancements", "predicate" -> {
+            case "scores" -> {
+                java.util.Map<String, MinMaxBounds> scores = new java.util.HashMap<>();
+                reader.expect('{');
+                reader.skipWhitespace();
+                while (reader.canRead() && reader.peek() != '}') {
+                    reader.skipWhitespace();
+                    String obj = reader.readUnquotedString();
+                    reader.skipWhitespace();
+                    reader.expect('=');
+                    reader.skipWhitespace();
+                    scores.put(obj, MinMaxBounds.fromReader(reader, true));
+                    reader.skipWhitespace();
+                    if (reader.canRead() && reader.peek() == ',') reader.skip();
+                }
+                reader.expect('}');
+                if (!scores.isEmpty()) {
+                    boardPredicates.add((board, p) -> {
+                        var holder = org.domi.furnace.server.scores.ScoreHolder.forNameOnly(org.domi.furnace.server.scores.ScoreHolder.nameOf(p));
+                        for (var e : scores.entrySet()) {
+                            var o = board.getObjective(e.getKey());
+                            if (o == null) return false;
+                            var info = board.getPlayerScoreInfo(holder, o);
+                            if (info == null || !e.getValue().matches(info.value())) return false;
+                        }
+                        return true;
+                    });
+                }
+            }
+            case "nbt", "advancements", "predicate" -> {
                 boolean invert = name.equals("nbt") || name.equals("predicate") ? shouldInvertValue() : false;
                 skipValue();
                 predicates.add(p -> invert);

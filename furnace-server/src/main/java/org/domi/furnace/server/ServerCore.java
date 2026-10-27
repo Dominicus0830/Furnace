@@ -59,12 +59,17 @@ public final class ServerCore {
         this.border.addListener(new BorderBroadcaster());
         this.customBossEvents = new org.domi.furnace.server.bossbar.CustomBossEvents(this::playerByUuid);
         this.customBossEvents.load(levelData.customBossEventsData());
+        this.scoreboard = org.domi.furnace.server.scores.ServerScoreboard.open(this::players, world.worldDir());
         this.commands = new Commands(this);
         world.levelServices(levelServices);
         this.pluginHost = new org.domi.furnace.server.plugin.PluginHost(this, java.nio.file.Path.of("plugins"));
     }
 
     private final org.domi.furnace.server.plugin.PluginHost pluginHost;
+    private final org.domi.furnace.server.scores.ServerScoreboard scoreboard;
+
+    /** 서버 점수판(모든 차원이 함께 쓴다). */
+    public org.domi.furnace.server.scores.ServerScoreboard scoreboard() { return scoreboard; }
     private final org.domi.furnace.server.bossbar.CustomBossEvents customBossEvents;
 
     /** /bossbar 로 만든 커스텀 보스바. */
@@ -394,6 +399,7 @@ public final class ServerCore {
         levelData.thundering = clock.thunderingFlag();
         levelData.worldBorder = border.createSettings();
         levelData.customBossEvents = customBossEvents.save();
+        scoreboard.saveIfDirty();   // 바닐라는 overworld 데이터 저장소(data/scoreboard.dat)와 함께 저장
         levelData.gameRules.clear();
         levelData.gameRules.putAll(gameRules.toStrings());
     }
@@ -503,6 +509,24 @@ public final class ServerCore {
         public boolean gameRule(String name) { return gameRules.getBoolean(name); }
         public boolean pvp() { return settings.get().pvp; }
         public void broadcastSystemMessage(Text message) { ServerCore.this.broadcastSystemMessage(message, false); }
+        public void broadcastDeathMessage(Player player, Text message) {
+            // 바닐라: 팀 없음·always → 전원(콘솔 포함), hideForOtherTeams → 같은 팀(자신 제외), hideForOwnTeam → 다른 팀(팀 없으면 전원), never → 없음
+            var team = scoreboard.getPlayersTeam(player.name());
+            var v = team == null ? org.domi.furnace.server.scores.PlayerTeam.Visibility.ALWAYS : team.deathMessageVisibility();
+            switch (v) {
+                case ALWAYS -> ServerCore.this.broadcastSystemMessage(message, false);
+                case HIDE_FOR_OTHER_TEAMS -> {
+                    for (String m : team.playersCopy()) {
+                        Player q = playerByName(m);
+                        if (q != null && q != player) q.sendSystemMessage(message, false);
+                    }
+                }
+                case HIDE_FOR_OWN_TEAM -> {
+                    for (Player q : players()) if (scoreboard.getPlayersTeam(q.name()) != team) q.sendSystemMessage(message, false);
+                }
+                case NEVER -> { }
+            }
+        }
         public void broadcastAll(org.domi.furnace.server.net.protocol.Packet packet) { for (Player p : players()) p.send(packet); }
         public void broadcastToTrackers(int entityId, org.domi.furnace.server.net.protocol.Packet packet) { world.broadcastToTrackers(entityId, packet); }
         public org.domi.furnace.server.entity.PlayerVitals.DeathOutcome death(Player player, Text message, boolean keepInventory) {

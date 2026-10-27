@@ -84,6 +84,7 @@ class VanillaCommandTreeTest {
                 o.addProperty("type", (f & 2) != 0 ? "players" : "entities");
                 o.addProperty("amount", (f & 1) != 0 ? "single" : "multiple");
             }
+            case "minecraft:score_holder" -> o.addProperty("amount", (b.readByte() & 1) != 0 ? "multiple" : "single");
             default -> { }
         }
         return o.size() == 0 ? null : o;
@@ -97,7 +98,7 @@ class VanillaCommandTreeTest {
             "/tick", List.of("sprint"));
 
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
-    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick");
+    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team");
 
     private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx) {
         Node n = nodes.get(idx);

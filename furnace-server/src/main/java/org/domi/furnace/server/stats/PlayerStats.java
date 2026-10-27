@@ -69,6 +69,9 @@ public final class PlayerStats {
         return new Stat("minecraft:custom", name);
     }
 
+    /** 그 종류의 레지스트리에 값이 있는 통계인가(점수판 통계 기준 검사). */
+    public static boolean isValid(Stat s) { return valid(s); }
+
     private static boolean valid(Stat s) {
         String reg = registryOf(s.type());
         return reg != null && ItemContext.installed() && ItemContext.id(reg, s.value()) != null;

@@ -40,6 +40,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.RecipeCommands.register(d);
         org.domi.furnace.server.command.builtin.RideCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerSay(d);
+        org.domi.furnace.server.command.builtin.ScoreboardCommand.register(d);
         ServerCommands.registerSeed(d);
         org.domi.furnace.server.command.builtin.BlockCommands.registerSetBlock(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSpawnPoint(d);
@@ -49,6 +50,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.SummonCommand.register(d);
         org.domi.furnace.server.command.builtin.TextCommands.registerTellRaw(d);
         org.domi.furnace.server.command.builtin.TagCommand.register(d);
+        org.domi.furnace.server.command.builtin.TeamCommand.register(d);
         org.domi.furnace.server.command.builtin.TeleportCommand.register(d);
         org.domi.furnace.server.command.builtin.TickCommand.register(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);

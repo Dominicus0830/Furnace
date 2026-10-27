@@ -49,6 +49,24 @@ public final class JsonTextSerializer {
         return new Parsed(toText(p.value()), p.end());
     }
 
+    /** 명령 인자용(바닐라 StyleArgument): start 부터 lenient JSON 객체 하나를 스타일로 읽는다. */
+    public record StyleParsed(Style style, int end) {}
+
+    @SuppressWarnings("unchecked")
+    public StyleParsed deserializeStylePrefix(String text, int start) {
+        MiniJson.Prefix p = MiniJson.parsePrefix(text, start);
+        if (!(p.value() instanceof Map<?, ?> m)) throw new IllegalArgumentException("Not a JSON object: " + p.value());
+        return new StyleParsed(style((Map<String, Object>) m), p.end());
+    }
+
+    /** JSON 객체 문자열을 스타일로(알 수 없는 키는 무시). */
+    @SuppressWarnings("unchecked")
+    public Style deserializeStyle(String json) {
+        Object o = MiniJson.parse(json);
+        if (!(o instanceof Map<?, ?> m)) throw new IllegalArgumentException("Not a JSON object: " + o);
+        return style((Map<String, Object>) m);
+    }
+
     // ------------------------------------------------------------------ 변환
 
     @SuppressWarnings("unchecked")

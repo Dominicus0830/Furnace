@@ -43,6 +43,9 @@ public final class PlayerVitals {
         /** 접속자 전원에게 시스템 메시지(콘솔 기록 포함) — 바닐라 PlayerList.broadcastSystemMessage. */
         void broadcastSystemMessage(Text message);
 
+        /** 바닐라 ServerPlayer.die 의 사망 메시지 전달(팀 deathMessageVisibility 반영). 기본은 전원. */
+        default void broadcastDeathMessage(Player player, Text message) { broadcastSystemMessage(message); }
+
         /** 접속자 전원에게 패킷. */
         void broadcastAll(Packet packet);
 
@@ -116,6 +119,10 @@ public final class PlayerVitals {
     private int lastSentFood = -99999999;
     private boolean lastFoodSaturationZero = true;
     private int lastSentExp = -99999999;
+    // 바닐라 ServerPlayer.lastRecorded*: 점수판 읽기 전용 기준(health·food·air·armor·xp·level) 갱신용
+    private float lastRecordedHealthAndAbsorption = Float.MIN_VALUE;
+    private int lastRecordedFoodLevel = Integer.MIN_VALUE, lastRecordedAirLevel = Integer.MIN_VALUE, lastRecordedArmor = Integer.MIN_VALUE,
+            lastRecordedLevel = Integer.MIN_VALUE, lastRecordedExperience = Integer.MIN_VALUE;
     // 클라이언트가 아는 엔티티 데이터 — 새 엔티티는 바닐라 정의 기본값(체력 1.0, 공기 300)에서 시작한다.
     private float lastDataHealth = 1.0f;
     private int lastDataAir = MAX_AIR;
@@ -431,8 +438,12 @@ public final class PlayerVitals {
             if (isInvulnerableTo(type)) return false;
             boolean fallOnPvpServer = env.pvp() && type.isFall();
             if (!fallOnPvpServer && spawnInvulnerableTime > 0 && !type.bypassesInvulnerability()) return false;
-            // ServerPlayer.hurt: 때린 쪽(화살이면 주인)이 플레이어인데 canHarmPlayer 가 거짓(pvp 꺼짐)이면 무시. TODO(팀): 아군 피해
+            // ServerPlayer.hurt: 때린 쪽(화살이면 주인)이 플레이어인데 canHarmPlayer 가 거짓(pvp 꺼짐·같은 팀이고 아군 피해 꺼짐)이면 무시
             if (attacker != null && attacker.isPlayer() && attacker != player && !env.pvp()) return false;
+            if (attacker instanceof Player ap && ap != player) {
+                var mine = player.team();   // 바닐라 Player.canHarmPlayer: 맞은 쪽 팀이 때린 쪽과 같은 팀이고 아군 피해 꺼짐
+                if (mine != null && mine.isAlliedTo(ap.team()) && !mine.isAllowFriendlyFire()) return false;
+            }
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
             // LivingEntity.hurt: 자고 있으면 깬다(Player.stopSleeping = stopSleepInBed(true, true))
@@ -535,12 +546,14 @@ public final class PlayerVitals {
         }
         if (outcome.message() != null) {
             player.send(new PlayerCombatKill(player.entityId(), player.localize(outcome.message())));
-            env.broadcastSystemMessage(outcome.message());
+            env.broadcastDeathMessage(player, outcome.message());
         } else {
             player.send(new PlayerCombatKill(player.entityId(), Text.empty()));
         }
         DeathListener l = deathListener;
         if (l != null && !spectator) l.onDeath(outcome.keepInventory());
+        var board = player.scoreboard();   // 바닐라 ServerPlayer.die: deathCount 기준 +1
+        if (board != null) board.incrementCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.DEATH_COUNT);
         Packet ev = new EntityEvent(player.entityId(), (byte) 3);
         player.send(ev);
         env.broadcastToTrackers(player.entityId(), ev);
@@ -750,6 +763,34 @@ public final class PlayerVitals {
             lastSentHealth = health;
             lastSentFood = food.foodLevel();
             lastFoodSaturationZero = saturationZero;
+        }
+        var board = player.scoreboard();
+        if (board != null) {
+            if (health + absorption != lastRecordedHealthAndAbsorption) {
+                lastRecordedHealthAndAbsorption = health + absorption;
+                board.updateForCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.HEALTH, (int) Math.ceil(lastRecordedHealthAndAbsorption));
+            }
+            if (food.foodLevel() != lastRecordedFoodLevel) {
+                lastRecordedFoodLevel = food.foodLevel();
+                board.updateForCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.FOOD, lastRecordedFoodLevel);
+            }
+            if (air != lastRecordedAirLevel) {
+                lastRecordedAirLevel = air;
+                board.updateForCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.AIR, air);
+            }
+            int armor = (int) player.armorValue();   // 바닐라 getArmorValue = Mth.floor(속성값)
+            if (armor != lastRecordedArmor) {
+                lastRecordedArmor = armor;
+                board.updateForCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.ARMOR, armor);
+            }
+            if (xpTotal != lastRecordedExperience) {
+                lastRecordedExperience = xpTotal;
+                board.updateForCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.EXPERIENCE, xpTotal);
+            }
+            if (xpLevel != lastRecordedLevel) {
+                lastRecordedLevel = xpLevel;
+                board.updateForCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.LEVEL, xpLevel);
+            }
         }
         if (xpTotal != lastSentExp) {
             lastSentExp = xpTotal;

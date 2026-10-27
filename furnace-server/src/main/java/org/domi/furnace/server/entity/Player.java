@@ -770,11 +770,25 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void awardStat(String stat, int amount) {
         var s = stats;
         if (s != null) s.increment(stat, amount);
+        var b = scoreboard;
+        if (b != null) b.onStat(this, stat, amount);   // 바닐라 ServerPlayer.awardStat: 통계 기준 목표에 더한다
     }
 
-    /** 바닐라 Player.getDisplayName: 이름 + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
+    private volatile org.domi.furnace.server.scores.ServerScoreboard scoreboard;
+
+    public org.domi.furnace.server.scores.ServerScoreboard scoreboard() { return scoreboard; }
+
+    public void scoreboard(org.domi.furnace.server.scores.ServerScoreboard b) { this.scoreboard = b; }
+
+    /** 바닐라 getTeam: 점수판 이름(접속 이름)이 든 팀(없으면 null). */
+    public org.domi.furnace.server.scores.PlayerTeam team() {
+        var b = scoreboard;
+        return b == null ? null : b.getPlayersTeam(name);
+    }
+
+    /** 바닐라 Player.getDisplayName: 팀 서식(접두사·이름·접미사·색) + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
     public org.domi.furnace.api.text.Text displayName() {
-        return org.domi.furnace.api.text.Text.text(name).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));
+        return org.domi.furnace.server.scores.PlayerTeam.formatNameForTeam(team(), org.domi.furnace.api.text.Text.text(name)).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));
     }
 
     // 리스폰할 때마다 증가 — 관찰자가 값이 바뀐 것을 보고 엔티티를 지웠다 다시 스폰한다(바닐라: 리스폰 = 새 ServerPlayer).

@@ -963,6 +963,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             st.markAllDirty();
             p.stats(st);
         }
+        if (coreJ != null) p.scoreboard(coreJ.scoreboard());
         java.util.List<Packet> firstTick = vitals.joinPackets();
         int ft = 0;
         while (ft < firstTick.size() && firstTick.get(ft) instanceof org.domi.furnace.server.net.protocol.play.SetEntityData) send(ctx, firstTick.get(ft++));
@@ -993,6 +994,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         scheduleAutosave(ctx);
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
+        if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
         if (login.core != null) announceJoin(login.core, p);
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }

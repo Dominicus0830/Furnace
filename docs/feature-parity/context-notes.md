@@ -176,3 +176,8 @@
 - 플레이어 lastHurtByMob 은 LivingEntity.baseTick 처럼 100틱 또는 원인 죽음 때 지우고, getKillCredit 은 lastHurtByPlayer(100틱) → lastHurtByMob 순서다. 이걸 안 지우면 오래전 피격이 굶어 죽을 때 `.player` 메시지로 새어 나온다.
 - 차이: 투사체가 직접 엔티티일 때 넉백 방향(calculateHorizontalHurtKnockbackDirection)은 위치로 근사한다. 원인 없는 환경 피해의 `knockback(0.4, 0, 0)` 은 /damage 경로(플레이어)에서만 한다.
 - 차이: LivingEntity 가 아닌 /damage 대상은 Entity.hurtBy 로 가서 직접 엔티티·위치를 보지 않는다. `.item` 사망 메시지 변형은 아직 없다.
+## 2026-10-27 점수판·팀(/scoreboard, /team)
+- `scores/` 패키지(Scoreboard·ServerScoreboard·Objective·PlayerTeam·NumberFormat). 서버 하나를 `synchronized` 로 잠그고 쓴다(명령·region 선택자·플레이어 틱이 모두 만짐). 잠금 순서: PlayerVitals → 점수판.
+- 저장은 `<월드>/data/scoreboard.dat`(writeLevelData 때). 바닐라 맵은 fastutil 해시 순서라 목록·저장 순서가 다를 수 있다(여기는 삽입 순서).
+- 같은 팀에 다시 join 해도 바닐라는 빼고 다시 넣어 참(성공)이다.
+- 아직 없음: 처치 기준(totalKillCount·playerKillCount·teamkill.*·killedByTeam.*)은 처치 기록 경로가 없어 갱신 안 함, 이름표/충돌/투명 아군 규칙 적용, 텍스트 score 내용 풀기, 전리품 score 숫자 공급자, 엔티티 제거 시 점수 삭제(entityRemoved 미연결), /trigger.

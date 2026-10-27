@@ -27,6 +27,7 @@ public final class EntitySelector {
     final boolean includesEntities;
     final boolean worldLimited;
     final List<Predicate<Rider>> predicates;
+    final List<java.util.function.BiPredicate<org.domi.furnace.server.scores.Scoreboard, Rider>> boardPredicates;
     final MinMaxBounds range;
     final Double x, y, z;            // 기준점(없으면 소스 위치)
     final Double dx, dy, dz;         // 상자 크기
@@ -36,13 +37,15 @@ public final class EntitySelector {
     final UUID entityUUID;
     final boolean usesSelector;
 
-    EntitySelector(int maxResults, boolean includesEntities, boolean worldLimited, List<Predicate<Rider>> predicates, MinMaxBounds range,
+    EntitySelector(int maxResults, boolean includesEntities, boolean worldLimited, List<Predicate<Rider>> predicates,
+                   List<java.util.function.BiPredicate<org.domi.furnace.server.scores.Scoreboard, Rider>> boardPredicates, MinMaxBounds range,
                    Double x, Double y, Double z, Double dx, Double dy, Double dz, Order order, boolean currentEntity,
                    String playerName, UUID entityUUID, boolean usesSelector) {
         this.maxResults = maxResults;
         this.includesEntities = includesEntities;
         this.worldLimited = worldLimited;
         this.predicates = predicates;
+        this.boardPredicates = boardPredicates;
         this.range = range;
         this.x = x;
         this.y = y;
@@ -88,7 +91,7 @@ public final class EntitySelector {
             return p == null ? List.of() : List.of(p);
         }
         double ox = x != null ? x : source.x(), oy = y != null ? y : source.y(), oz = z != null ? z : source.z();
-        Predicate<Rider> test = buildPredicate(ox, oy, oz);
+        Predicate<Rider> test = buildPredicate(source, ox, oy, oz);
         if (currentEntity) {
             Player self = source.getPlayer();
             return self != null && test.test(self) ? List.of(self) : List.of();
@@ -131,7 +134,7 @@ public final class EntitySelector {
             });
         }
         double ox = x != null ? x : source.x(), oy = y != null ? y : source.y(), oz = z != null ? z : source.z();
-        Predicate<Rider> test = buildPredicate(ox, oy, oz);
+        Predicate<Rider> test = buildPredicate(source, ox, oy, oz);
         List<Rider> players = new ArrayList<>();
         String here = source.level().dimension();
         for (Player p : server.players()) if ((!worldLimited || here.equals(p.dimension())) && test.test(p)) players.add(p);
@@ -166,9 +169,13 @@ public final class EntitySelector {
         return true;
     }
 
-    private Predicate<Rider> buildPredicate(double ox, double oy, double oz) {
+    private Predicate<Rider> buildPredicate(CommandSource source, double ox, double oy, double oz) {
         Predicate<Rider> p = q -> true;
         for (Predicate<Rider> q : predicates) p = p.and(q);
+        if (!boardPredicates.isEmpty()) {
+            var board = source.getServer().scoreboard();
+            for (var bp : boardPredicates) p = p.and(q -> bp.test(board, q));
+        }
         if (dx != null || dy != null || dz != null) {
             double bx0 = ox, by0 = oy, bz0 = oz;
             double bx1 = ox + (dx == null ? 0 : dx), by1 = oy + (dy == null ? 0 : dy), bz1 = oz + (dz == null ? 0 : dz);

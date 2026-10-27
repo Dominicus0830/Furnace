@@ -123,6 +123,9 @@ public final class Style {
         return Objects.hash(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent, insertion, font);
     }
 
+    /** 플레이 단계 NBT(이름 없는 루트 compound) — 바닐라 Style TRUSTED_STREAM_CODEC 과 같은 바이트. */
+    public byte[] networkNbt() { return TextNbt.encodeStyle(this); }
+
     @Override
     public String toString() {
         return "Style{color=" + color + ", bold=" + bold + ", italic=" + italic + ", underlined=" + underlined + ", strikethrough="
