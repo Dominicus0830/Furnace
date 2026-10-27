@@ -285,6 +285,11 @@ public final class CommandSource {
 
     private boolean shouldInformAdmins() { return output != null || server.settings().get().broadcastConsoleToOps; }
 
+    /** sendSuccess 가 실제로 누군가에게 보낼지(region 에서 메시지 본문을 미리 만들 때 낭비를 피하는 검사). */
+    public boolean wouldSendSuccess(boolean allowLogging) {
+        return (acceptsSuccess() && !silent) || (allowLogging && shouldInformAdmins() && !silent);
+    }
+
     /** 성공 메시지: 자신에게 보내고, allowLogging 이면 다른 OP 와 서버 로그에 "[이름: 메시지]" 로 알린다. */
     public void sendSuccess(Supplier<Text> message, boolean allowLogging) {
         boolean self = acceptsSuccess() && !silent;

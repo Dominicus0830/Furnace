@@ -22,6 +22,7 @@ import org.domi.furnace.server.block.Blocks;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.entity.HopperBlockEntity;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.PostMessages;
 import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.ItemSlots;
 import org.domi.furnace.server.command.SharedSuggestions;
@@ -313,21 +314,21 @@ public final class LootCommand {
 
     // ------------------------------------------------------------------ 메시지
 
-    private static void callback(CommandSource source, List<ItemStack> items) {
+    private static void callback(CommandSource source, PostMessages post, List<ItemStack> items) {
         if (items.size() == 1) {
             ItemStack s = items.get(0);
-            source.sendSuccess(() -> Text.translatable("commands.drop.success.single", s.count(), ItemCommands.displayName(s)), false);
+            post.success(source, () -> Text.translatable("commands.drop.success.single", s.count(), ItemCommands.displayName(s)), false);
         } else {
-            source.sendSuccess(() -> Text.translatable("commands.drop.success.multiple", items.size()), false);
+            post.success(source, () -> Text.translatable("commands.drop.success.multiple", items.size()), false);
         }
     }
 
-    private static void callback(CommandSource source, List<ItemStack> items, String table) {
+    private static void callback(CommandSource source, PostMessages post, List<ItemStack> items, String table) {
         if (items.size() == 1) {
             ItemStack s = items.get(0);
-            source.sendSuccess(() -> Text.translatable("commands.drop.success.single_with_table", s.count(), ItemCommands.displayName(s), table), false);
+            post.success(source, () -> Text.translatable("commands.drop.success.single_with_table", s.count(), ItemCommands.displayName(s), table), false);
         } else {
-            source.sendSuccess(() -> Text.translatable("commands.drop.success.multiple_with_table", items.size(), table), false);
+            post.success(source, () -> Text.translatable("commands.drop.success.multiple_with_table", items.size(), table), false);
         }
     }
 
@@ -392,13 +393,15 @@ public final class LootCommand {
                 items.completeExceptionally(t);
             }
         });
-        return finish(source, items.thenCompose(l -> run(() -> target.accept(c, l, list -> callback(source, list)))));
+        PostMessages post = new PostMessages();
+        return post.finish(source, items.thenCompose(l -> run(() -> target.accept(c, l, list -> callback(source, post, list)))));
     }
 
     private static int drop(CommandContext<CommandSource> c, LootTable table, LootParams params, DropConsumer target) throws CommandSyntaxException {
         CommandSource source = c.getSource();
         List<ItemStack> items = source.getServer().commandLoot(table, params);
-        return finish(source, run(() -> target.accept(c, items, list -> callback(source, list))));
+        PostMessages post = new PostMessages();
+        return post.finish(source, run(() -> target.accept(c, items, list -> callback(source, post, list))));
     }
 
     /** dropKillLoot: 대상의 전리품 표를 ENTITY 문맥으로(magic 피해, 실행 주체가 공격자·마지막 공격 플레이어). */
@@ -417,9 +420,10 @@ public final class LootCommand {
                 return evaluateKill(source, table == null ? "minecraft:empty" : table, le.lootEntity(), origin, attacker);
             });
         });
-        return finish(source, f.thenCompose(res -> run(() -> {
+        PostMessages post = new PostMessages();
+        return post.finish(source, f.thenCompose(res -> run(() -> {
             @SuppressWarnings("unchecked") List<ItemStack> items = (List<ItemStack>) res[0];
-            return target.accept(c, items, l -> callback(source, l, (String) res[1]));
+            return target.accept(c, items, l -> callback(source, post, l, (String) res[1]));
         })));
     }
 
@@ -460,9 +464,10 @@ public final class LootCommand {
                 f.completeExceptionally(t);
             }
         });
-        return finish(source, f.thenCompose(res -> run(() -> {
+        PostMessages post = new PostMessages();
+        return post.finish(source, f.thenCompose(res -> run(() -> {
             @SuppressWarnings("unchecked") List<ItemStack> items = (List<ItemStack>) res[0];
-            return target.accept(c, items, l -> callback(source, l, (String) res[1]));
+            return target.accept(c, items, l -> callback(source, post, l, (String) res[1]));
         })));
     }
 

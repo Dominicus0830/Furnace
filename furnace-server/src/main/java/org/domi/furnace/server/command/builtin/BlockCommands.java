@@ -1,5 +1,5 @@
 // 바닐라 SetBlockCommand·FillCommand. 좌표·인자는 명령 스레드에서 풀고, 블록을 바꾸는 일은 그 칸 주인 region 스레드에서 한다
-// (Folia 처럼 결과 메시지도 거기서). /fill 은 영역 전체가 한 region 에 로드돼 있어야 한다.
+// (결과 메시지는 일이 끝난 뒤 전역 스레드에서). /fill 은 영역 전체가 한 region 에 로드돼 있어야 한다.
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -12,6 +12,8 @@ import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.EntityOps;
+import org.domi.furnace.server.command.PostMessages;
 import org.domi.furnace.server.command.arguments.BlockPosArgument;
 import org.domi.furnace.server.command.arguments.BlockPredicateArgument;
 import org.domi.furnace.server.command.arguments.BlockStateArgument;
@@ -33,12 +35,6 @@ public final class BlockCommands {
 
     private enum Mode { REPLACE, OUTLINE, HOLLOW, DESTROY }
 
-    /** 칸 바꾸기 실패를 region 스레드에서 알리기 위한 표시. */
-    private static final class Failed extends Exception {
-        final CommandSyntaxException cause;
-        Failed(CommandSyntaxException cause) { super(null, null, false, false); this.cause = cause; }
-    }
-
     // ------------------------------------------------------------------ setblock
 
     public static void registerSetBlock(CommandDispatcher<CommandSource> d) {
@@ -52,16 +48,17 @@ public final class BlockCommands {
                                 .then(literal("replace").executes(c -> setBlock(c, Mode.REPLACE, null))))));
     }
 
-    private static int setBlock(CommandContext<CommandSource> c, Mode mode, BlockPredicateArgument.Predicate filter) {
+    private static int setBlock(CommandContext<CommandSource> c, Mode mode, BlockPredicateArgument.Predicate filter) throws CommandSyntaxException {
         CommandSource source = c.getSource();
         int[] p = BlockPosArgument.getBlockPos(c, "pos");
         BlockStateArgument.BlockInput input = BlockStateArgument.getBlock(c, "block");
         Pos pos = new Pos(p[0], p[1], p[2]);
-        source.level().runAt(pos.x(), pos.z(), region -> {
-            try {
+        PostMessages post = new PostMessages();
+        return post.finish(source, EntityOps.atRegion(source.level(), pos.x(), pos.z(), region -> {
+            {
                 RegionLevel level = region.level();
                 checkLoaded(level, pos);
-                if (filter != null && !filter.test(level, pos)) throw new Failed(SETBLOCK_FAILED.create());
+                if (filter != null && !filter.test(level, pos)) throw SETBLOCK_FAILED.create();
                 boolean place;
                 if (mode == Mode.DESTROY) {
                     level.destroyBlock(pos, true);
@@ -70,14 +67,12 @@ public final class BlockCommands {
                     // TODO(블록 엔티티): Clearable.tryClear — 바꾸기 전에 담긴 내용물을 비운다(쏟지 않게).
                     place = true;
                 }
-                if (place && !place(level, pos, input, 2)) throw new Failed(SETBLOCK_FAILED.create());
+                if (place && !place(level, pos, input, 2)) throw SETBLOCK_FAILED.create();
                 level.blockUpdated(pos, B.block(input.state()));
-                source.sendSuccess(() -> Text.translatable("commands.setblock.success", pos.x(), pos.y(), pos.z()), true);
-            } catch (Failed f) {
-                source.sendFailure(f.cause.getRawMessage());
+                post.success(source, () -> Text.translatable("commands.setblock.success", pos.x(), pos.y(), pos.z()), true);
+                return 1;
             }
-        });
-        return 1;
+        }));
     }
 
     // ------------------------------------------------------------------ fill
@@ -99,25 +94,26 @@ public final class BlockCommands {
                                         .then(literal("destroy").executes(c -> fill(c, Mode.DESTROY, null)))))));
     }
 
-    private static int fill(CommandContext<CommandSource> c, Mode mode, BlockPredicateArgument.Predicate filter) {
+    private static int fill(CommandContext<CommandSource> c, Mode mode, BlockPredicateArgument.Predicate filter) throws CommandSyntaxException {
         CommandSource source = c.getSource();
         int[] a = BlockPosArgument.getBlockPos(c, "from"), b = BlockPosArgument.getBlockPos(c, "to");
         BlockStateArgument.BlockInput input = BlockStateArgument.getBlock(c, "block");
         Pos from = new Pos(a[0], a[1], a[2]), to = new Pos(b[0], b[1], b[2]);
         int minX = Math.min(a[0], b[0]), minY = Math.min(a[1], b[1]), minZ = Math.min(a[2], b[2]);
         int maxX = Math.max(a[0], b[0]), maxY = Math.max(a[1], b[1]), maxZ = Math.max(a[2], b[2]);
-        source.level().runAt(minX, minZ, region -> {
-            try {
+        PostMessages post = new PostMessages();
+        return post.finish(source, EntityOps.atRegion(source.level(), minX, minZ, region -> {
+            {
                 RegionLevel level = region.level();
                 checkLoaded(level, from);
                 checkLoaded(level, to);
                 long volume = (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
                 int limit = level.gameRuleInt("commandModificationBlockLimit");
-                if (volume > limit) throw new Failed(FILL_TOO_BIG.create(limit, volume));
+                if (volume > limit) throw FILL_TOO_BIG.create(limit, volume);
                 // 바닐라는 사이의 청크를 동기로 불러오지만, 여기선 영역 전체가 이 region 에 로드돼 있어야 한다.
                 for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
                     for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
-                        if (!level.hasChunkAt(new Pos(cx << 4, minY, cz << 4))) throw new Failed(BlockPosArgument.ERROR_NOT_LOADED.create());
+                        if (!level.hasChunkAt(new Pos(cx << 4, minY, cz << 4))) throw BlockPosArgument.ERROR_NOT_LOADED.create();
                     }
                 }
                 List<Pos> changed = new ArrayList<>();
@@ -144,22 +140,20 @@ public final class BlockCommands {
                     }
                 }
                 for (Pos pos : changed) level.blockUpdated(pos, B.block(level.getBlockState(pos)));
-                if (count == 0) throw new Failed(FILL_FAILED.create());
+                if (count == 0) throw FILL_FAILED.create();
                 int n = count;
-                source.sendSuccess(() -> Text.translatable("commands.fill.success", n), true);
-            } catch (Failed f) {
-                source.sendFailure(f.cause.getRawMessage());
+                post.success(source, () -> Text.translatable("commands.fill.success", n), true);
+                return n;
             }
-        });
-        return 1;
+        }));
     }
 
     // ------------------------------------------------------------------ 공통
 
     /** BlockPosArgument.getLoadedBlockPos: 이 region 에 로드돼 있고 월드 안이어야. */
-    private static void checkLoaded(BlockLevel level, Pos pos) throws Failed {
-        if (!level.hasChunkAt(pos)) throw new Failed(BlockPosArgument.ERROR_NOT_LOADED.create());
-        if (!level.isInWorldBounds(pos)) throw new Failed(BlockPosArgument.ERROR_OUT_OF_WORLD.create());
+    private static void checkLoaded(BlockLevel level, Pos pos) throws CommandSyntaxException {
+        if (!level.hasChunkAt(pos)) throw BlockPosArgument.ERROR_NOT_LOADED.create();
+        if (!level.isInWorldBounds(pos)) throw BlockPosArgument.ERROR_OUT_OF_WORLD.create();
     }
 
     /** BlockInput.place(level, pos, flags): 이웃 모양으로 맞춘 상태(공기가 되면 원래 상태)를 놓는다. */
