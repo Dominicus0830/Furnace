@@ -84,11 +84,16 @@ public final class EntityArgument implements ArgumentType<EntitySelector> {
         if (future.isDone() && !future.isCompletedExceptionally()) return run(future.join(), single, action);
         future.whenComplete((list, ex) -> {
             try {
-                if (ex instanceof CommandSyntaxException c) throw c;
-                if (ex != null) throw new RuntimeException(ex);
+                if (ex != null) {
+                    Throwable cause = org.domi.furnace.server.command.EntityOps.unwrap(ex);
+                    if (cause instanceof CommandSyntaxException c) throw c;
+                    throw cause;
+                }
                 run(list, single, action);
             } catch (CommandSyntaxException e) {
                 source.sendFailure(e.getRawMessage());
+            } catch (Throwable t) {
+                org.domi.furnace.server.command.EntityOps.reportFailure(source, t);
             }
         });
         return 1;

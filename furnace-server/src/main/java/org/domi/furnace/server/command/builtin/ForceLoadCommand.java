@@ -1,7 +1,7 @@
 // 바닐라 ForceLoadCommand: /forceload add|remove <from> [to] | remove all | query [pos]. 붙잡은 청크는 구독자가 없어도 내려가지 않고
 // 차원 폴더의 data/chunks.dat 에 저장된다(World.forcedChunks). 한 번에 256 청크까지.
-// 붙잡은 청크는 플레이어 없이도 엔티티·블록 엔티티·무작위 틱을 받는다(Region.blockEntityTicking·collectTickingChunks). 자연 스폰은
-// 플레이어 근처만이다(바닐라도 플레이어가 없으면 몹 수 제한 때문에 스폰되지 않는다).
+// 붙잡은 청크는 플레이어 없이도 엔티티·블록 엔티티 틱을 받는다(Region.blockEntityTicking). 무작위 틱·자연 스폰·inhabitedTime 은
+// 바닐라 ServerChunkCache.tickChunks 가 anyPlayerCloseEnoughForSpawning(플레이어 128 블록 안) 청크에만 주므로 강제 청크도 플레이어가 없으면 없다.
 // 차이: 바닐라 티켓 레벨 31 은 둘레 8 청크를 블록 틱 레벨(32)로 함께 올리지만, 여기선 그 청크 한 장만 틱한다.
 package org.domi.furnace.server.command.builtin;
 

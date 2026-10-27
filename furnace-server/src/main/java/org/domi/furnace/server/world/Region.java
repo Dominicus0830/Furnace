@@ -692,6 +692,16 @@ public final class Region {
     private int stepGeneration;
     private int stepsLeft;
 
+    /** 새 region 이 /tick step 상태를 이어받는다: 생성 시점 세대(남은 걸음 0) 또는 나눈 부모의 세대·남은 걸음. */
+    void inheritSteps(int generation, int left) {
+        this.stepGeneration = generation;
+        this.stepsLeft = left;
+    }
+
+    int stepGeneration() { return stepGeneration; }
+
+    int stepsLeft() { return stepsLeft; }
+
     public void tick() {
         world.assertOwns(this);
         if (Regionizer.STATS) lapT = System.nanoTime();
@@ -916,9 +926,7 @@ public final class Region {
      */
     private int collectTickingChunks() {
         spawnChunkCount = 0;
-        var forced = world.forcedChunksOrNull();
-        boolean anyForced = forced != null && forced.size() > 0;
-        if (players.isEmpty() && !anyForced) return 0;
+        if (players.isEmpty()) return 0;
         org.domi.furnace.server.block.BlockBehaviors.ofBlock(0);   // 무작위 틱 표를 섹션에 건다
         int sim = Math.clamp(world.levelServices().simulationDistance(), 2, 11) - 1;
         int range = Math.min(sim, 8);
@@ -934,20 +942,8 @@ public final class Region {
                 tickingChunks[n++] = key;
             }
         }
-        spawnChunkCount = n;   // 자연 스폰은 위에 모인 "플레이어 가까운" 청크만(바닐라: 강제 로드 청크는 몹 수 제한 때문에 스폰이 안 된다)
-        if (anyForced) {
-            // /forceload 로 붙잡은 청크는 플레이어 없이도 블록 틱(무작위 틱)을 받는다 — 바닐라 티켓 레벨 31(엔티티 틱)
-            for (long key : present) {
-                int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
-                if (!forced.contains(cx, cz)) continue;
-                if (!players.isEmpty() && closeToPlayer(cx, cz, range)) continue;   // 이미 위에서 모았다
-                ChunkColumn col = ownedChunk(cx, cz);
-                if (col == null) continue;
-                col.inhabitedTime(col.inhabitedTime() + 1);
-                if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
-                tickingChunks[n++] = key;
-            }
-        }
+        // 바닐라 ServerChunkCache.tickChunks: 무작위 틱·스폰·inhabitedTime 은 anyPlayerCloseEnoughForSpawning 청크만 — 강제 로드 청크도 예외 없다
+        spawnChunkCount = n;
         return n;
     }
 

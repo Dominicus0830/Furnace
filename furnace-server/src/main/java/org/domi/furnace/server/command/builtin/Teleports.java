@@ -60,15 +60,15 @@ final class Teleports {
                 if (p.isSleeping()) PlayerSleeping.stopSleepInBed(p, region.level(), true, true);
                 p.teleportTo(x, y, z, yaw, pitch);
             });
-        } else if (target instanceof Entity e) {
-            world.runAt(e.x(), e.z(), region -> {
+        } else if (target instanceof Entity en) {
+            org.domi.furnace.server.command.EntityOps.runOnOwner(source, en, e -> {
                 if (e.isRemoved()) return;
                 e.teleportSameLevel(x, y, z, yaw, pitch);
                 if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
                 e.setDeltaMovement(e.vx(), 0.0, e.vz());
                 e.setOnGround(true);
                 if (e instanceof PathfinderMob m) m.getNavigation().stop();
-            });
+            }, () -> { });
         }
     }
 }

@@ -2,6 +2,7 @@
 // 알고리즘과 난수 호출 순서(초기 위치: 위치마다 x 다음 z, 충돌 시 재배치도 같은 순서)는 바닐라와 같다.
 // 차이: 바닐라는 블록을 동기로 읽으며 청크를 불러오지만, 여기선 블록이 region 소유라서 칸이 속한 청크를 불러오고 그 region 에서
 // 청크 한 장의 열 정보(지면 높이·안전 여부)를 한꺼번에 구해 캐시한다. 그래서 계산은 별도 스레드에서 돌고 결과는 완료 뒤에 알린다.
+// 차이: 반환값은 위치 개수로 즉시 오지만 이동·성공·실패는 나중에 온다(context-notes 의 "반환값 차이").
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;

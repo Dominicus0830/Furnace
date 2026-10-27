@@ -1,5 +1,6 @@
 // 바닐라 RideCommand: /ride <대상> mount <탈것> | dismount. 탑승 목록은 탈것을 가진 region 스레드에서만 바꾸므로 일을 거기로 보낸다 —
 // 그래서 검사 결과(실패 메시지)도 그 스레드에서 알린다. 대상과 탈것이 같은 region 에 없으면 실패한다(차이).
+// 차이: 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;

@@ -1,5 +1,6 @@
 // 바닐라 TeleportCommand: /teleport(=/tp) [대상] <좌표 [회전 | facing …] | 도착 엔티티>.
 // 좌표는 절대·'~' 상대·'^' 국소. 엔티티와 플레이어를 가리지 않고 옮기며, 같은 차원 안에서만 옮긴다(다른 차원이면 실패).
+// 차이: 일반 엔티티가 대상이면 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;

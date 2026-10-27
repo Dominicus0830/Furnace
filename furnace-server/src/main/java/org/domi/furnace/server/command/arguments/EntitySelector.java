@@ -145,8 +145,9 @@ public final class EntitySelector {
                 if (lvl == null) return;
                 for (Entity e : lvl.entities().all()) if (!e.isRemoved() && test.test(e)) hits.add(e);
             }).toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
-                List<Entity> l = new ArrayList<>(hits);
-                l.sort(Comparator.comparingInt(Entity::id));
+                java.util.TreeMap<Integer, Entity> byId = new java.util.TreeMap<>();   // region 넘김 중 두 곳에 보인 엔티티는 한 번만
+                for (Entity e : hits) byId.putIfAbsent(e.id(), e);
+                List<Entity> l = new ArrayList<>(byId.values());
                 part.complete(l);
             });
         }

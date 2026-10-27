@@ -238,6 +238,7 @@ public final class Regionizer {
 
     private Region newRegion(long firstTick) {
         Region r = new Region(++nextId, world);
+        r.inheritSteps(world.tickState().generation(), 0);   // 진행 중인 step 은 새 region 에 다시 주지 않는다
         regions.add(r);
         r.nextTickNanos = firstTick;
         schedule(r);
@@ -547,6 +548,7 @@ public final class Regionizer {
         List<Region> created = new ArrayList<>();
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
+            n.inheritSteps(r.stepGeneration(), r.stepsLeft());   // 나뉜 조각은 부모의 남은 걸음을 물려받는다
             n.nextTickNanos = r.nextTickNanos + tickNanos;   // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게
             regions.add(n);
             created.add(n);

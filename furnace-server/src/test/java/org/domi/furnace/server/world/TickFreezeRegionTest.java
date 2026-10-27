@@ -23,6 +23,47 @@ class TickFreezeRegionTest {
     }
 
     @Test
+    void forcedChunkWithoutPlayerGetsNoRandomTickOrInhabitedTime() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            World world = core.world();
+            world.setChunkForced(0, 0, true);
+            until(() -> world.loadedChunk(0, 0) != null, 10_000);
+            world.startTicking();
+            Thread.sleep(800);   // 틱이 열 번 넘게 돈다
+            assertEquals(0L, world.loadedChunk(0, 0).inhabitedTime(), "바닐라 tickChunks 는 플레이어 128 블록 안 청크만 inhabitedTime 을 올린다");
+        } finally {
+            sched.close();
+        }
+    }
+
+    @Test
+    void newRegionDuringStepDoesNotReceiveTheStep() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            World world = core.world();
+            var ts = core.tickState();
+            ts.setFrozen(true);
+            ts.startStep(7);
+            Region[] holder = new Region[1];
+            var done = new CountDownLatch(1);
+            world.runAt(16000.5, 16000.5, r -> {
+                holder[0] = r;
+                done.countDown();
+            });
+            assertTrue(done.await(10, TimeUnit.SECONDS));
+            assertEquals(ts.generation(), holder[0].stepGeneration());
+            assertEquals(0, holder[0].stepsLeft(), "step 도중 생긴 region 은 N 번을 처음부터 받지 않는다");
+            holder[0].inheritSteps(ts.generation(), 3);   // 나뉜 조각: 부모의 남은 걸음 3
+            assertEquals(3, holder[0].stepsLeft());
+        } finally {
+            sched.close();
+        }
+    }
+
+    @Test
     void frozenRegionDoesNotTickEntities() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         try {

@@ -1,4 +1,5 @@
 // 바닐라 TagCommand: /tag <대상> add|remove <이름> | list. 태그는 엔티티(플레이어 포함)의 Tags NBT 로 저장된다.
+// 차이: 일반 엔티티가 대상이면 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
