@@ -1740,6 +1740,8 @@ public abstract class ChunkLevel implements BlockLevel {
         if (list.isEmpty()) return false;
         var copy = new java.util.ArrayList<>(list);
         col.clearGeneratedEntities();
+        // 청크 파일을 다시 써야 "entities" 가 지워진다 — 아니면 디스크 청크를 올릴 때마다 또 넣어 복제된다(넣은 것은 entities/ 에 저장된다)
+        col.markDirty();
         for (var tag : copy) {
             Entity e = org.domi.furnace.server.entity.Entities.load(this, tag);
             if (e == null) col.foreignEntities().add(tag);

@@ -154,6 +154,7 @@ public final class ChunkColumn {
         generatedEntities.add(nbt);
     }
 
+    /** 월드젠 엔티티 목록을 비운다(저장 대상으로 표시는 부르는 쪽 — addWorldGenChunkEntities 가 markDirty). */
     public void clearGeneratedEntities() { generatedEntities = null; touch(); }
 
     public java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities() {
@@ -263,6 +264,13 @@ public final class ChunkColumn {
      * 침대·종은 블록 엔티티가 없으면 클라이언트가 그리지 않는다(사용자 테스트 D1·D3).
      */
     public void promotePendingBlockEntities(int chunkX, int chunkZ, boolean dummyScan) {
+        long before = modCount;
+        promote(chunkX, chunkZ, dummyScan);
+        // 바뀌었으면 저장 대상으로 — 디스크 청크도 한 번 다시 써서 승격·채운 블록 엔티티를 영속시킨다(다음 로드부터는 할 일이 없다)
+        if (modCount != before) markDirty();
+    }
+
+    private void promote(int chunkX, int chunkZ, boolean dummyScan) {
         if (generatedBlockEntities != null && !generatedBlockEntities.isEmpty()) {
             java.util.List<int[]> keys = new java.util.ArrayList<>();
             forEachGeneratedBlockEntity((lx, y, lz, nbt) -> {

@@ -86,6 +86,7 @@ class AnvilChunkCodecTest {
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
         var base = new SuperflatWorldSource(reg, 0).generate(0, 0);
         base.setBlock(4, -60, 4, reg.defaultStateId("minecraft:furnace"));   // 블록 엔티티는 맞는 블록 위에서만 읽힌다(isValid)
+        base.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));
         NbtCompound nbt = codec.toNbt(base, 0, 0);
 
         NbtList bes = new NbtList(NbtIo.TAG_COMPOUND);

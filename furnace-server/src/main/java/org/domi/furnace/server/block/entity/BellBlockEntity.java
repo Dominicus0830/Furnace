@@ -105,6 +105,8 @@ public class BellBlockEntity extends BlockEntity {
      * 캐시(60틱) 사이에 다른 region 으로 넘어간 엔티티는 다른 스레드 소유 — 건드리지 않는다.
      * 차이: 바닐라는 같은 레벨이라 그대로 효과·기억을 준다. 넘어간 몹은 이 종소리를 못 듣는다(가정: 경계 근처에서만 드물게 생긴다).
      */
+    // 가시성: 넘어간 엔티티의 level 필드는 다른 스레드가 쓴다(동기화 없음). 늦게 보이면 한두 틱 옛 값을 보고 건너뛰거나 건드릴 수 있다 —
+    // 핸드오프 직후 경계 근처에서만 생기는 좁은 경합으로 둔다(가정). 쓰기는 하지 않는다.
     private boolean owned(LivingEntity e) { return e.level() == level; }
 
     private boolean areRaidersNearby(Pos pos, List<LivingEntity> list) {

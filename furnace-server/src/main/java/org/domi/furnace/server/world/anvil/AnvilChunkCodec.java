@@ -303,7 +303,14 @@ public final class AnvilChunkCodec {
                     if (LEGACY_CHEST_ID.equals(id)) {
                         col.putChest(legacyChestFromNbt(be));
                     } else if (items != null && ("minecraft:chest".equals(id) || "minecraft:trapped_chest".equals(id))) {
-                        col.putChest(vanillaChestFromNbt(be));
+                        int x = be.getInt("x"), y = be.getInt("y"), z = be.getInt("z");
+                        // 다른 종류와 같이 isValid: 그 칸이 같은 상자 블록일 때만 읽고, 아니면 NBT 그대로 보존
+                        if (id.equals(org.domi.furnace.server.block.Blocks.get().nameOfState(col.getBlock(x & 15, y, z & 15)))) {
+                            col.putChest(vanillaChestFromNbt(be));
+                        } else {
+                            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("블록 엔티티 {} 가 ({},{},{}) 블록과 맞지 않음, NBT 보존", id, x, y, z);
+                            col.putGeneratedBlockEntity(x & 15, y, z & 15, be);
+                        }
                     } else if (id != null && org.domi.furnace.server.block.entity.BlockEntities.known(id)) {
                         int x = be.getInt("x"), y = be.getInt("y"), z = be.getInt("z");
                         var pos = new org.domi.furnace.server.block.Pos(x, y, z);
