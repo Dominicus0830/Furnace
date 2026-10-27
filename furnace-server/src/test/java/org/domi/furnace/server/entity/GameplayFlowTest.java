@@ -52,12 +52,13 @@ class GameplayFlowTest {
                 assertEquals(0, abilities.readByte(), "level.dat 기본 서바이벌: 능력 플래그 없음");
 
                 for (int i = 0; i < 500 && core.playerByName("Tester") == null; i++) Thread.sleep(20);   // 접속 처리 완료 대기(부하 시 최대 10초)
+                assertNotNull(core.playerByName("Tester"), "접속 처리가 10초 안에 끝났다");
                 CommandSource console = CommandSource.console(core);
                 core.commands().performPrefixedCommandAsync(console, "gamemode creative Tester").join();
                 ByteBuf ev = c.await(0x22, b -> b.readByte() == 3);
                 ev.readByte();
                 assertEquals(1.0f, ev.readFloat(), "CHANGE_GAME_MODE → creative(1)");
-                assertTrue(text(c.await(0x6C)).contains("gameMode.changed"), "대상에게 알림");
+                assertNotNull(c.await(0x6C, b -> text(b).contains("gameMode.changed")), "대상에게 알림");   // 접속 알림 등 다른 채팅이 먼저 올 수 있어 내용으로 고른다
                 Player p = core.playerByName("Tester");
                 assertEquals(GameMode.CREATIVE, p.gameMode());
                 assertEquals(GameMode.SURVIVAL, p.vitals().previousGameMode());

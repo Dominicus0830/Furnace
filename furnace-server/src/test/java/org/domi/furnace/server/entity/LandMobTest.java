@@ -491,15 +491,26 @@ class LandMobTest {
         var gold = new ItemEntity(level, level.nextEntityId(), 4.5, -60, 0.5, Mob.stackOf("minecraft:gold_ingot"));
         gold.setNoPickUpDelay();
         level.addFreshEntity(gold);
-        tick(level, 40);
+        // 줍기까지 걸리는 틱은 난수(뇌 타이머·걸음)라 고정 40틱이 아니라 집을 때까지 폴링한다(상한 넉넉히)
+        for (int t = 0; t < 1200 && piglin.getItemBySlot(EquipmentSlot.OFFHAND).isEmpty(); t++) tick(level, 1);
         assertFalse(piglin.getItemBySlot(EquipmentSlot.OFFHAND).isEmpty(), "피글린이 금 주괴를 집어 감상한다");
         assertNotNull(Entities.load(level, piglin.save()));
         assertNotNull(Entities.load(level, brute.save()));
         assertNotNull(Entities.load(level, hoglin.save()));
-        tick(level, 400);
+        // 변신 직후 조글린·좀비 피글린끼리/브루트와 싸워 한쪽이 죽을 수 있다(난수) — 끝 상태가 아니라 변신해 나타난 적이 있는지를 본다
+        boolean seenZoglin = false, seenZombifiedPiglin = false;
+        for (int t = 0; t < 1500 && !(seenZoglin && seenZombifiedPiglin && hoglin.isRemoved() && piglin.isRemoved()); t++) {
+            tick(level, 1);
+            for (Entity e : level.entities().tickSnapshot()) {
+                if (e instanceof Zoglin) seenZoglin = true;
+                if (e instanceof ZombifiedPiglin) seenZombifiedPiglin = true;
+            }
+        }
         assertTrue(hoglin.isRemoved(), "오버월드의 호글린은 조글린이 된다");
-        assertTrue(piglin.isRemoved(), "오버월드의 피글린은 좀비 피글린이 된다");
-        assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof Zoglin));
-        assertTrue(level.entities().tickSnapshot().stream().anyMatch(e -> e instanceof ZombifiedPiglin));
+        assertTrue(piglin.isRemoved(), "오버월드의 피글린은 좀비 피글린이 된다: alive=" + piglin.isAlive() + " hp=" + piglin.health());
+        assertTrue(piglin.health() > 0.0F, "싸우다 죽어서가 아니라 변신해서 사라졌다(죽었다면 체력 0): hp=" + piglin.health());
+        assertTrue(hoglin.health() > 0.0F, "호글린도 죽어서가 아니라 변신해서 사라졌다: hp=" + hoglin.health());
+        assertTrue(seenZoglin, "조글린이 나타났다");
+        assertTrue(seenZombifiedPiglin, "좀비 피글린이 나타났다");
     }
 }

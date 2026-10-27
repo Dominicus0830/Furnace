@@ -34,6 +34,15 @@ class FishSwimTest {
         for (int x = x0; x <= x1; x++) for (int y = y0; y <= y1; y++) for (int z = z0; z <= z1; z++) level.setBlock(new Pos(x, y, z), water, 2);
     }
 
+    /** 물 덩어리 둘레(바닥·옆면·천장)를 돌로 막는다: 돌고래는 무작위로 뛰어올라 못 둘러싼 물 밖으로 나가 떨어져 죽을 수 있다. 천장은 물 위로 6칸. */
+    private static void enclose(BlockPlacementTest.TestLevel level, int x0, int y0, int z0, int x1, int y1, int z1) {
+        int stone = B.defaultState(B.id("minecraft:stone"));
+        for (int x = x0 - 1; x <= x1 + 1; x++) for (int y = y0 - 1; y <= y1 + 6; y++) for (int z = z0 - 1; z <= z1 + 1; z++) {
+            boolean shell = x < x0 || x > x1 || z < z0 || z > z1 || y < y0 || y > y1 + 5;
+            if (shell) level.setBlock(new Pos(x, y, z), stone, 2);
+        }
+    }
+
     @Test
     void codSwimsInWaterAndSurvives() {
         var level = new BlockPlacementTest.TestLevel();
@@ -118,18 +127,23 @@ class FishSwimTest {
     void dolphinAndGuardianSwimInWaterAndSave() {
         var level = new BlockPlacementTest.TestLevel();
         fillWater(level, -8, -61, -8, 8, -50, 8);
+        enclose(level, -8, -61, -8, 8, -50, 8);
         var dolphin = new Dolphin(level, level.nextEntityId());
         dolphin.moveTo(0.5, -56, 0.5, 0, 0);
+        // 바닐라 스폰과 같이 숨을 가득 채운다(안 채우면 300틱 내내 물속이면 숨이 바닥나는 난수 의존이 생긴다)
+        dolphin.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(dolphin.blockPosition()));
         level.addFreshEntity(dolphin);
         var guardian = new Guardian(level, level.nextEntityId());
         guardian.moveTo(3.5, -56, 3.5, 0, 0);
         level.addFreshEntity(guardian);
-        double dx = dolphin.x(), gx = guardian.x();
+        double dx = dolphin.x(), dz = dolphin.z(), gx = guardian.x(), gz = guardian.z();
         tick(level, 300);
+        // 무작위 헤엄이 한동안 제자리일 수 있다 — 움직일 때까지 폴링(상한 넉넉히)
+        for (int t = 0; t < 3000 && Math.abs(dolphin.x() - dx) + Math.abs(dolphin.z() - dz) + Math.abs(guardian.x() - gx) + Math.abs(guardian.z() - gz) <= 0.2; t++) tick(level, 1);
         assertTrue(dolphin.isAlive() && guardian.isAlive(), "dolphin=" + dolphin.isAlive() + " guardian=" + guardian.isAlive());
         assertEquals(Dolphin.TOTAL_AIR_SUPPLY - 0, dolphin.getMaxAirSupply());
         assertTrue(dolphin.getAirSupply() > 0, "air=" + dolphin.getAirSupply());
-        assertTrue(Math.abs(dolphin.x() - dx) + Math.abs(guardian.x() - gx) > 0.2, "움직였다");
+        assertTrue(Math.abs(dolphin.x() - dx) + Math.abs(dolphin.z() - dz) + Math.abs(guardian.x() - gx) + Math.abs(guardian.z() - gz) > 0.2, "움직였다");
         assertNotNull(Entities.load(level, dolphin.save()));
         assertNotNull(Entities.load(level, guardian.save()));
         assertNotNull(Entities.load(level, new ElderGuardian(level, level.nextEntityId()).save()));

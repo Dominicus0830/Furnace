@@ -23,12 +23,15 @@ class ZombieCombatTest {
 
     static final class ArenaLevel extends BlockPlacementTest.TestLevel {
         long time;
+        /** 기본 0(낮). 햇빛에 타는 몹의 난수 개입을 없애려면 밤(18000)으로. */
+        long dayTime;
         Player player;
 
         @Override
         protected LevelServices services() {
             return new LevelServices.Delegating(LevelServices.DEFAULT) {
                 @Override public long gameTime() { return time; }
+                @Override public long dayTime() { return dayTime; }
                 @Override public void forEachPlayer(Consumer<Player> c) { if (player != null) c.accept(player); }
             };
         }

@@ -45,6 +45,7 @@ class ShieldTest {
     }
 
     private static Zombie zombie(ZombieCombatTest.ArenaLevel level, double x) {
+        level.dayTime = 18000;   // 낮이면 좀비가 난수로 햇빛에 불붙어 무적 시간이 생기고 일반 넉백이 빠진다
         var z = new Zombie(level, level.nextEntityId());
         z.moveTo(x, -60, 0.5, 0, 0);
         return z;

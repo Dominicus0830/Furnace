@@ -123,10 +123,28 @@ class PluginSystemTest {
         assertNotNull(root.getChild("hello"));
         assertNotNull(root.getChild("alpha:hello"));
         assertNotNull(root.getChild("alpha:list"), "바닐라 list 와 겹치면 namespaced 만");
-        List<String> console = new ArrayList<>();
+        List<String> console = new java.util.concurrent.CopyOnWriteArrayList<>();   // 전역 스레드가 쓰고 테스트 스레드가 읽는다
         core.addConsoleListener(t -> console.add(t.getString()));
-        assertTrue(host.dispatchCommand(host.console(), "/hello a b"), "접수");
-        assertFalse(console.contains("hello a,b"), "테스트 스레드에서 부르면 바로 돌지 않고 전역으로 넘어간다");
+        // 전역 스레드를 붙잡아 둔다: 안 그러면 전역 스레드가 명령을 먼저 돌려 "아직 안 돌았다" 단언이 타이밍(부하)에 따라 깨진다
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        var held = new java.util.concurrent.CountDownLatch(1);
+        var gateTask = core.scheduler().global().submit(() -> {
+            held.countDown();
+            try {
+                gate.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return null;
+        });
+        try {
+            assertTrue(held.await(30, java.util.concurrent.TimeUnit.SECONDS), "전역 스레드가 붙잡혔다");
+            assertTrue(host.dispatchCommand(host.console(), "/hello a b"), "접수");
+            assertFalse(console.contains("hello a,b"), "테스트 스레드에서 부르면 바로 돌지 않고 전역으로 넘어간다");
+        } finally {
+            gate.countDown();   // 단언이 실패해도 전역 스레드를 풀어 준다
+        }
+        gateTask.join();
         globalBarrier();   // 명령은 전역 스레드로 넘어가 실행된다
         assertTrue(console.contains("hello a,b"));
         host.dispatchCommand(host.console(), "list");
@@ -140,6 +158,7 @@ class PluginSystemTest {
         assertEquals(List.of("beta"), s.getList().stream().map(x -> x.getText()).toList());
         // 콘솔 명령 이벤트 취소
         core.runConsoleCommand("blocked thing");
+        globalBarrier();
         // 끄면 명령이 빠진다
         host.plugins().disable(host.plugins().plugin("Alpha"));
         assertNull(root.getChild("hello"));
