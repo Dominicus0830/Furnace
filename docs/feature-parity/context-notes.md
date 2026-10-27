@@ -240,3 +240,11 @@
 - `if blocks`: 시작 영역 최소 모서리 청크의 region 하나에 세 모서리·두 영역 청크가 모두 있어야 한다. 아니면 `argument.pos.unloaded` — 바닐라는 사이 청크를 불러오므로 **parity 차이**(설계서가 의도한 /clone 과 같은 제약). 블록 엔티티는 종류 + `saveWithoutMetadata`(id·x·y·z 없음) 동등성이고, 같은 내용의 상자 둘은 일치한다.
 - `if biome`: 지터로 고른 quart 의 청크가 로드돼 있지 않으면 바닐라 `LevelReader.getNoiseBiome`(dcz.java:37-40)처럼 생성기 바이옴(`NoiseWorldSource.biomeAt`)으로 본다. 생성기가 없는 월드(슈퍼플랫)는 일치 없음. 모르는 바이옴·태그는 데이터 팩이 있으면 파싱 때(`ResourceOrTagKeyArgument.parse(reader, source)`) 위치가 붙은 오류.
 - `if items block` 의 컨테이너 집합은 `HopperBlockEntity.containerOf`(ContainerBlockEntity 하위). 바닐라 Container 중 **주크박스**는 Furnace 에서 ContainerBlockEntity 가 아니라 빠져 있다(가정: 바닐라 lectern·campfire 는 Container 가 아니라 제외가 맞다).
+
+## 2026-10-27 /execute E3 (if score, store score·bossbar)
+
+- `store ... score` 는 대상 목록을 redirect 단계에서 한 번 풀고(비동기 선택자는 `redirectAsync`), 콜백은 명령 결과마다 그 목록에 쓴다. 포크마다 콜백 한 번 — 합계 아님. 같은 점수에 store 를 여럿 걸면 앞 store 가 먼저 쓰고 뒤가 최종값(`chain(source.callback, new)`).
+- 읽기 전용 기준(health 등. **trigger 는 읽기 전용이 아니다**)에 store 하면 `getOrCreatePlayerScore` 가 점수 항목(0)을 만든 뒤 `set` 이 IllegalStateException — 바닐라와 같다. 콜백 예외는 동기·지연 경로 모두 CommandQueue.drive 의 catch 가 command.failed 로 알리고 컨텍스트 전체를 끝낸다(남은 포크는 안 돈다).
+- `if score` 오류 순서: 바닐라는 target → targetObjective → source → sourceObjective. 기준 조회는 선택자 future 를 기다리지 않고 동기로 하되, 이미 실패한 선택자 future 는 다음 기준 조회보다 먼저 돌려준다. **알려진 차이**: 아직 안 끝난 선택자(region 왕복)의 실패는 뒤따르는 기준 오류보다 늦게 나온다(기준 오류가 먼저).
+- store bossbar 는 설계서 S3 행(287)의 범위라 이 단계에 넣었다(S4 는 block·entity·storage). 보스바 조회는 redirect 때, 쓰기는 `CustomBossEvent` 의 synchronized setValue/setMax.
+

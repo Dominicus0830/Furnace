@@ -28,7 +28,7 @@ public final class BossBarCommands {
     private BossBarCommands() {}
 
     private static final DynamicCommandExceptionType ERROR_ALREADY_EXISTS = new DynamicCommandExceptionType(o -> Text.translatable("commands.bossbar.create.failed", o));
-    private static final DynamicCommandExceptionType ERROR_DOESNT_EXIST = new DynamicCommandExceptionType(o -> Text.translatable("commands.bossbar.unknown", o));
+    static final DynamicCommandExceptionType ERROR_DOESNT_EXIST = new DynamicCommandExceptionType(o -> Text.translatable("commands.bossbar.unknown", o));
     private static final SimpleCommandExceptionType ERROR_NO_PLAYER_CHANGE = err("commands.bossbar.set.players.unchanged");
     private static final SimpleCommandExceptionType ERROR_NO_NAME_CHANGE = err("commands.bossbar.set.name.unchanged");
     private static final SimpleCommandExceptionType ERROR_NO_COLOR_CHANGE = err("commands.bossbar.set.color.unchanged");
