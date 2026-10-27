@@ -5,7 +5,6 @@ import org.domi.furnace.api.text.Text;
 public final class Dynamic3CommandExceptionType {
 
     @FunctionalInterface
-<<<<<<< HEAD
     public interface Function3 {
         Text apply(Object a, Object b, Object c);
     }
@@ -13,15 +12,6 @@ public final class Dynamic3CommandExceptionType {
     private final Function3 function;
 
     public Dynamic3CommandExceptionType(Function3 function) { this.function = function; }
-=======
-    public interface Function {
-        Text apply(Object a, Object b, Object c);
-    }
-
-    private final Function function;
-
-    public Dynamic3CommandExceptionType(Function function) { this.function = function; }
->>>>>>> bfee81ba (feat(command): /loot 와 /item replace|modify)
 
     public CommandSyntaxException create(Object a, Object b, Object c) { return new CommandSyntaxException(this, function.apply(a, b, c)); }
 
