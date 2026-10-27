@@ -120,6 +120,13 @@ public interface BlockLevel {
 
     void levelEvent(BlockActor except, int type, Pos pos, int data);
 
+    /**
+     * ServerLevel.sendParticles(옵션, x,y,z, 개수, 퍼짐 dx,dy,dz, 속도): 주변(칸 가운데 32 미만) 플레이어에게 보내고 그 수를 돌려준다.
+     * 위치 오프셋 난수는 클라이언트가 계산하므로 서버 난수를 쓰지 않는다. 입자를 모르는 레벨은 아무것도 보내지 않는다.
+     */
+    default int sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions p, double x, double y, double z,
+            int count, double dx, double dy, double dz, double speed) { return 0; }
+
     /** ServerLevel.globalLevelEvent: globalSoundEvents 게임룰이면 모든 플레이어에게, 아니면 levelEvent. */
     default void globalLevelEvent(int type, Pos pos, int data) { levelEvent(null, type, pos, data); }
 

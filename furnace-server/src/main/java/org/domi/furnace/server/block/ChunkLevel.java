@@ -858,14 +858,41 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /**
      * ServerLevel.sendParticles 의 반환값: 이 레벨 플레이어 중 칸 가운데가 (x,y,z)에서 32 미만인 수.
-     * TODO(입자): 입자 패킷 자체는 아직 보내지 않는다(진동 입자의 재전송 표시 상태만 맞춘다).
+     * 패킷 없이 세기만 한다(진동 입자의 재전송 표시 상태).
      */
     public int countParticleViewers(double x, double y, double z) {
+        return sendParticlePacket(null, false, x, y, z);
+    }
+
+    @Override
+    public int sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions p, double x, double y, double z,
+            int count, double dx, double dy, double dz, double speed) {
+        return sendParticles(p, false, x, y, z, count, dx, dy, dz, speed);
+    }
+
+    /** force(overrideLimiter)면 512 칸까지. 패킷은 (float) 로 줄인 퍼짐·속도를 싣는다. */
+    public int sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions p, boolean force, double x, double y, double z,
+            int count, double dx, double dy, double dz, double speed) {
+        var pkt = new org.domi.furnace.server.net.protocol.play.LevelParticles(force, x, y, z, (float) dx, (float) dy, (float) dz, (float) speed, count, p);
+        return sendParticlePacket(pkt, force, x, y, z);
+    }
+
+    /** closerToCenterThan: 플레이어 칸 가운데가 (x,y,z)에서 (force ? 512 : 32) 미만. */
+    public static boolean particleInRange(org.domi.furnace.server.entity.Player p, boolean force, double x, double y, double z) {
+        double range = force ? 512.0 : 32.0;
+        double dx = Math.floor(p.x()) + 0.5 - x, dy = Math.floor(p.y()) + 0.5 - y, dz = Math.floor(p.z()) + 0.5 - z;
+        return dx * dx + dy * dy + dz * dz < range * range;
+    }
+
+    /** 칸 가운데가 (x,y,z)에서 (force ? 512 : 32) 미만인 플레이어에게 보낸다(pkt 가 null 이면 세기만). */
+    private int sendParticlePacket(org.domi.furnace.server.net.protocol.play.LevelParticles pkt, boolean force, double x, double y, double z) {
         int[] n = {0};
         services().forEachPlayer(p -> {
             if (p.isDisconnected()) return;
-            double dx = Math.floor(p.x()) + 0.5 - x, dy = Math.floor(p.y()) + 0.5 - y, dz = Math.floor(p.z()) + 0.5 - z;
-            if (dx * dx + dy * dy + dz * dz < 32.0 * 32.0) n[0]++;
+            if (particleInRange(p, force, x, y, z)) {
+                n[0]++;
+                if (pkt != null) p.send(pkt);
+            }
         });
         return n[0];
     }

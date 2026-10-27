@@ -64,7 +64,7 @@ public class DecoratedPotBlock extends BaseEntityBlock {
                 fill = (float) grown.count() / Stacks.maxStack(grown);
             }
             level.playSound(null, pos, "minecraft:block.decorated_pot.insert", "blocks", 1.0F, 0.7F + 0.5F * fill);
-            // TODO(입자): 바닐라는 여기서 dust_plume 입자 7개(위쪽 +1.2)를 보낸다 — 서버 입자 패킷 API 가 생기면.
+            level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("dust_plume"), pos.x() + 0.5, pos.y() + 1.2, pos.z() + 0.5, 7, 0.0, 0.0, 0.0, 0.0);
             be.setChanged(level);
             level.gameEvent("minecraft:block_change", pos, player, state);
             return ItemInteractionResult.SUCCESS;

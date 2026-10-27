@@ -58,7 +58,7 @@ public class SculkCatalystBlockEntity extends BlockEntity implements GameEventLi
     public static void bloom(ChunkLevel level, Pos pos, int state, RandomSource random) {
         level.setBlock(pos, PULSE.with(state, true), 3);
         level.scheduleTick(pos, B.block(state), 8);
-        // TODO(입자): sendParticles(SCULK_SOUL, x+0.5, y+1.15, z+0.5, 2, 0.2, 0, 0.2, 0) — 서버 난수는 쓰지 않는다.
+        level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("sculk_soul"), pos.x() + 0.5, pos.y() + 1.15, pos.z() + 0.5, 2, 0.2, 0.0, 0.2, 0.0);   // 서버 난수는 쓰지 않는다
         level.playSound(null, pos, "minecraft:block.sculk_catalyst.bloom", "blocks", 2.0F, 0.6F + random.nextFloat() * 0.4F);
     }
 

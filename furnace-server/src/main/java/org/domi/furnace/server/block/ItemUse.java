@@ -806,7 +806,7 @@ public final class ItemUse {
         level.playSound(null, pos, "minecraft:entity.generic.splash", "blocks", 1.0F, 1.0F);
         player.setItemInHand(hand, player.createFilledResult(stack, stack("minecraft:glass_bottle")));
         player.awardStat("minecraft:used:minecraft:potion");
-        // 물 튀김 파티클(sendParticles 5번 — x·z 에 레벨 난수를 쓴다). TODO(파티클): 패킷
+        // 물 튀김 파티클(sendParticles 5번 — x·z 에 레벨 난수를 쓴다). TODO(파티클): 정확한 인자를 바닐라 소스로 확인하지 못해 아직 보내지 않는다
         for (int i = 0; i < 5; i++) {
             level.random().nextDouble();
             level.random().nextDouble();

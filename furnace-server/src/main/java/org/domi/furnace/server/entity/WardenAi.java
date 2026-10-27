@@ -257,7 +257,7 @@ public final class WardenAi {
         }
     }
 
-    /** SonicBoom: 60틱. 34틱째 15×20 안의 대상에게 10 피해(방어구 무시 종류)와 밀치기. TODO(입자): sonic_boom 입자. */
+    /** SonicBoom: 60틱. 34틱째 15×20 안의 대상에게 10 피해(방어구 무시 종류)와 밀치기. 입자: 가슴에서 대상 눈까지 sonic_boom. */
     public static final class SonicBoom extends Behavior<Warden> {
         public static final int COOLDOWN = 40;
         private static final int DURATION = (int) Math.ceil(60.0F), TICKS_BEFORE_PLAYING_SOUND = (int) Math.ceil(34.0);
@@ -293,6 +293,11 @@ public final class WardenAi {
                     double dx = e.x() - ox, dy = e.eyeY() - oy, dz = e.z() - oz;
                     double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
                     double nx = len < 1.0E-4 ? 0 : dx / len, ny = len < 1.0E-4 ? 0 : dy / len, nz = len < 1.0E-4 ? 0 : dz / len;
+                    double dlen = Math.sqrt(dx * dx + dy * dy + dz * dz);   // 입자: i = 1 .. floor(길이)+6, 방향은 정규화(길이 0 이면 0)
+                    for (int i = 1; i < (int) Math.floor(dlen) + 7; i++) {
+                        level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("sonic_boom"),
+                                ox + nx * i, oy + ny * i, oz + nz * i, 1, 0.0, 0.0, 0.0, 0.0);
+                    }
                     w.playSound("minecraft:entity.warden.sonic_boom", 3.0F, 1.0F);
                     if (e.hurtByMob(new Entity.Damage("sonic_boom", false, false, false), 10.0F, w)) {
                         double kr = e instanceof LivingEntity le ? le.attributeValue(Attribute.KNOCKBACK_RESISTANCE) : 0.0;

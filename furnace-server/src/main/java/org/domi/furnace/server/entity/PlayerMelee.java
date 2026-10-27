@@ -1,5 +1,5 @@
 // 플레이어 근접 공격(바닐라 Player.attack): 쿨다운 배율·치명타·질주 넉백·휘두르기 쓸기·공격 인챈트·불 붙이기. 대상은 몹·플레이어 둘 다.
-// TODO(파티클): 쓸기(sweep_attack)·피해 표시(damage_indicator) 파티클 — level_particles 패킷이 아직 없다.
+// 쓸기(sweep_attack)·피해 표시(damage_indicator)는 level_particles 로, 치명타(crit)·마법 치명타는 animate 로 보낸다.
 // TODO(효과): 힘·나약함·성급함·피로, 실명은 치명타 조건에만 쓴다. TODO(팀): isAlliedTo 는 팀이 없어 늘 거짓.
 // TODO(철퇴): getAttackDamageBonus(낙하 피해)·밀도·관통·돌풍. TODO(살충): 살충 인챈트의 느림 효과(피해 추가만 한다).
 package org.domi.furnace.server.entity;
@@ -119,6 +119,11 @@ public final class PlayerMelee {
                 hurt(level, p, o, m);
             }
             sound(level, p, "minecraft:entity.player.attack.sweep");
+            if (level != null) {   // Player.sweepAttack
+                double sx = -org.domi.furnace.server.block.Dir.sin(yr), sz = org.domi.furnace.server.block.Dir.cos(yr);
+                level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("sweep_attack"),
+                        p.x() + sx, p.y() + p.bbHeight() * 0.5, p.z() + sz, 0, sx, 0.0, sz, 0.0);
+            }
         }
         if (crit) {
             sound(level, p, "minecraft:entity.player.attack.crit");
@@ -126,6 +131,11 @@ public final class PlayerMelee {
         }
         if (!crit && !sweep) sound(level, p, strong ? "minecraft:entity.player.attack.strong" : "minecraft:entity.player.attack.weak");
         if (g > 0.0F) animate(p, target, 5);   // magicCrit
+        float dealt = before - healthOf(target);
+        if (level != null && isLiving(target) && dealt > 2.0F) {   // damage_indicator: 입힌 양 × 0.5 개
+            level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("damage_indicator"),
+                    target.x(), target.y() + target.bbHeight() * 0.5, target.z(), (int) (dealt * 0.5), 0.1, 0.0, 0.1, 0.2);
+        }
         p.setLastHurtMob(target);
         int cost = isLiving(target) ? weaponDurabilityCost(weapon) : 0;   // hurtEnemy → postHurtEnemy
         postAttack(weapon, target);

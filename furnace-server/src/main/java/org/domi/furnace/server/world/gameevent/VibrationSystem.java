@@ -304,7 +304,9 @@ public interface VibrationSystem {
             data.getSelectionStrategy().chosenCandidate(level.gameTime()).ifPresent(info -> {
                 data.setCurrentVibration(info);
                 data.setTravelTimeInTicks(user.calculateTravelTimeInTicks(info.distance()));
-                level.countParticleViewers(info.pos().x(), info.pos().y(), info.pos().z());   // sendParticles(VibrationParticleOption)
+                var vib = user.getPositionSource().toVibration(data.getTravelTimeInTicks());
+                if (vib != null) level.sendParticles(vib, info.pos().x(), info.pos().y(), info.pos().z(), 1, 0.0, 0.0, 0.0, 0.0);
+                else level.countParticleViewers(info.pos().x(), info.pos().y(), info.pos().z());
                 user.onDataChanged();
                 data.getSelectionStrategy().startOver();
             });
@@ -322,7 +324,9 @@ public interface VibrationSystem {
             int total = user.calculateTravelTimeInTicks(data.currentVibration.distance());
             double f = 1.0 - (double) t / total;
             double x = p.x() + f * (dest.x() - p.x()), y = p.y() + f * (dest.y() - p.y()), z = p.z() + f * (dest.z() - p.z());
-            if (level.countParticleViewers(x, y, z) > 0) data.setReloadVibrationParticle(false);
+            var vib = user.getPositionSource().toVibration(t);
+            int viewers = vib != null ? level.sendParticles(vib, x, y, z, 1, 0.0, 0.0, 0.0, 0.0) : level.countParticleViewers(x, y, z);
+            if (viewers > 0) data.setReloadVibrationParticle(false);
         }
 
         private static boolean receiveVibration(ChunkLevel level, Data data, User user, VibrationInfo info) {
