@@ -293,6 +293,8 @@ E4 콜백이 비동기라서 `ResultCallback.onResult` 가 `CompletableFuture<Vo
 
 총 규모: 약 18 작업일(S0 +1, S0.5 +1.5). S0 이 끝나기 전에는 S0.5~S7 을 시작하지 않는다(모두 `exec/` 에 의존). **S1 은 S0.5 뒤**(`execute summon`·`at … run setblock` 순서 테스트가 S0.5 에 의존). S1·S2·S3 은 병렬 가능하나 같은 `ExecuteCommand.java` 를 만지므로 한 사람씩 순서대로가 안전하다. S6 은 S5 뒤, S7 은 S5 뒤. 명령 블록은 이 로드맵에 없다(§5).
 
+- **S5 주의(S0 검토 S-3)**: 멈춘 컨텍스트의 재개 body(지연 결과 완료 처리·콜백) 안에서 다시 명령을 넣으면 `ExecutionContext.isRunning()` 이 false 라 같은 컨텍스트에 합쳐지지 않고 pending 으로 간다. 함수·콜백에서 재진입이 필요해지면 재개 중에도 "합치기" 판정이 되게 `CommandQueue.enqueue` 를 고친다.
+
 ### 6.1 구현자가 자주 틀릴 지점(체크리스트)
 
 1. `positioned <pos>` 는 anchor 를 FEET 로 되돌린다(`amt.java:78`). `positioned as` 는 되돌리지 않는다(`:83`).

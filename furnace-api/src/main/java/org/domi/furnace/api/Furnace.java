@@ -60,7 +60,10 @@ public interface Furnace {
     /** 모든 플레이어와 콘솔에 시스템 메시지(바닐라 broadcastSystemMessage). */
     void broadcast(Text message);
 
-    /** 명령 실행(앞의 '/' 는 없어도 된다). */
+    /**
+     * 명령을 실행 큐에 넣는다(앞의 '/' 는 없어도 된다). 어느 스레드에서 불러도 되며 전역 스레드에서 실행된다.
+     * 돌려주는 값은 접수 여부(true)다 — 명령 결과는 실행이 끝난 뒤 정해진다. 서버 종료 중이면 조용히 버려진다.
+     */
     boolean dispatchCommand(CommandSender sender, String commandLine);
 
     FurnaceScheduler scheduler();

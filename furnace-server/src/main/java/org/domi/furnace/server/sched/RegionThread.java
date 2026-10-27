@@ -84,7 +84,13 @@ public final class RegionThread implements TaskScheduler, ThreadOwner, AutoClose
         return f;
     }
 
+    private static final ThreadLocal<Boolean> REGION = ThreadLocal.withInitial(() -> false);
+
+    /** 지금 스레드가 region 틱 스레드인가(블로킹 대기 금지 검사용). */
+    public static boolean isRegionThread() { return REGION.get(); }
+
     private void loop() {
+        REGION.set(true);
         TickTimer timer = new TickTimer(tickNanos);
         timer.start(System.nanoTime());
         long lastSecond = System.nanoTime();

@@ -173,7 +173,14 @@ public final class CommandQueue {
         try {
             global.execute(this::closeOnOwner).get(2, TimeUnit.SECONDS);
         } catch (Exception e) {
+            // 전역에서 정리하지 못했다: closed 로 이후 홉·enqueue 를 막고, 기다리는 쪽이 매달리지 않게 future 만 완료한다(자료구조는 건드리지 않음)
             closed = true;
+            try {
+                if (currentEntry != null) currentEntry.done().complete(null);
+                for (Pending p : pending.toArray(new Pending[0])) p.done().complete(null);
+            } catch (RuntimeException ignored) {
+                // 전역 스레드와 경쟁 — 최선만 다한다
+            }
         }
     }
 

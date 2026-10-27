@@ -56,8 +56,8 @@ class TickCommandTest {
         assertEquals(20, run("tick rate 20"));
         assertEquals(50_000_000L, core.world().tickNanos());
         // 범위: 1..10000
-        assertFalse(core.commands().performPrefixedCommandAsync(src, "tick rate 0.5").join().success());
-        assertFalse(core.commands().performPrefixedCommandAsync(src, "tick rate 10001").join().success());
+        assertFailsWith("tick rate 0.5", src, "Float must not be less than 1.0, found 0.5");
+        assertFailsWith("tick rate 10001", src, "Float must not be more than 10000.0, found 10001.0");
     }
 
     @Test
@@ -118,7 +118,16 @@ class TickCommandTest {
 
     @Test
     void permissionThreeRequired() {
-        assertFalse(core.commands().performPrefixedCommandAsync(src.withPermission(2), "tick query").join().success());
+        assertFailsWith("tick query", src.withPermission(2), "Unknown or incomplete command, see below for error");
         assertTrue(core.commands().performPrefixedCommandAsync(src.withPermission(3), "tick query").join().success());
+    }
+
+    /** 실패 결과와 첫 실패 메시지(파싱 오류 문구)를 함께 확인한다. */
+    private void assertFailsWith(String cmd, CommandSource source, String firstMessage) {
+        java.util.List<String> msgs = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        core.addConsoleListener(t -> msgs.add(t.getString()));
+        assertFalse(core.commands().performPrefixedCommandAsync(source, cmd).join().success(), cmd);
+        assertFalse(msgs.isEmpty(), cmd);
+        assertEquals(firstMessage, msgs.get(0), cmd);
     }
 }

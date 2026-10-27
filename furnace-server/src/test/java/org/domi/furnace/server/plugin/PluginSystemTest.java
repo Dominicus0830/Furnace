@@ -125,7 +125,8 @@ class PluginSystemTest {
         assertNotNull(root.getChild("alpha:list"), "바닐라 list 와 겹치면 namespaced 만");
         List<String> console = new ArrayList<>();
         core.addConsoleListener(t -> console.add(t.getString()));
-        assertTrue(host.dispatchCommand(host.console(), "/hello a b"));
+        assertTrue(host.dispatchCommand(host.console(), "/hello a b"), "접수");
+        assertFalse(console.contains("hello a,b"), "테스트 스레드에서 부르면 바로 돌지 않고 전역으로 넘어간다");
         globalBarrier();   // 명령은 전역 스레드로 넘어가 실행된다
         assertTrue(console.contains("hello a,b"));
         host.dispatchCommand(host.console(), "list");

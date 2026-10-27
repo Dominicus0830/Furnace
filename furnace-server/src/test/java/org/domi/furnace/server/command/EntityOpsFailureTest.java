@@ -35,9 +35,16 @@ class EntityOpsFailureTest {
             var p = new Player(5, UUID.randomUUID(), "Steve", ch);
             CommandSource src = CommandSource.player(core, p).withPermission(2);
             CompletableFuture<Integer> bad = new CompletableFuture<>();
+            var registered = new java.util.concurrent.CountDownLatch(1);
             core.commands().getDispatcher().register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal("badwait")
-                    .executes(c -> EntityOps.await(c.getSource(), List.of(bad), r -> 1)));
+                    .executes(c -> {
+                        int r = EntityOps.await(c.getSource(), List.of(bad), x -> 1);
+                        registered.countDown();   // 본문이 미완료 future 를 맡긴 뒤
+                        return r;
+                    }));
             var f = core.commands().performPrefixedCommandAsync(src, "badwait");
+            assertTrue(registered.await(10, java.util.concurrent.TimeUnit.SECONDS));
+            assertTrue(core.commands().queue().isBusy() || !f.isDone(), "지연 결과를 기다리는 중");
             bad.completeExceptionally(new IllegalStateException("boom"));
             assertFalse(f.join().success(), "끝나지 않았던 결과의 예상 못한 실패는 실패 콜백");
             ch.flushOutbound();

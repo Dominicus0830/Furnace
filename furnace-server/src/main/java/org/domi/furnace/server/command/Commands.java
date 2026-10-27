@@ -69,7 +69,11 @@ public final class Commands {
     public void performPrefixedCommand(CommandSource source, String command) {
         String cmd = command.startsWith("/") ? command.substring(1) : command;
         if (!globalOwner().isOwnerThread()) {
-            server.scheduler().global().execute(() -> performPrefixedCommand(source, cmd));
+            try {
+                server.scheduler().global().execute(() -> performPrefixedCommand(source, cmd));
+            } catch (java.util.concurrent.RejectedExecutionException ignored) {
+                // 종료 중: 명령을 버린다(설계 §5 I6)
+            }
             return;
         }
         performCommand(dispatcher.parse(cmd, source), cmd);
@@ -78,7 +82,11 @@ public final class Commands {
     /** 바닐라 performCommand: 파싱 결과를 검사해 실패면 메시지, 아니면 실행 큐에 넣는다. */
     public void performCommand(ParseResults<CommandSource> parse, String command) {
         if (!globalOwner().isOwnerThread()) {
-            server.scheduler().global().execute(() -> performCommand(parse, command));
+            try {
+                server.scheduler().global().execute(() -> performCommand(parse, command));
+            } catch (java.util.concurrent.RejectedExecutionException ignored) {
+                // 종료 중: 명령을 버린다(설계 §5 I6)
+            }
             return;
         }
         perform(parse, command, null);
@@ -104,7 +112,13 @@ public final class Commands {
             }
         };
         if (globalOwner().isOwnerThread()) task.run();
-        else server.scheduler().global().execute(task);
+        else {
+            try {
+                server.scheduler().global().execute(task);
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                out.complete(CommandResult.NONE);   // 종료 중: 실행하지 않고 끝낸다
+            }
+        }
         return out;
     }
 
