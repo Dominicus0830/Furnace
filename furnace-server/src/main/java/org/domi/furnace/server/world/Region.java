@@ -371,6 +371,23 @@ public final class Region {
         return ownedChunk(cp.x(), cp.z()) != null;
     }
 
+    /**
+     * Level.getHeight(type, x, z): 그 칸 위로 처음 비는 y(= 가장 높은 블록 y + 1). 이 region 구역의 로드된 청크가 아니면 {@link Integer#MIN_VALUE}.
+     * 청크를 새로 올리지 않는다(/execute positioned over).
+     */
+    public int heightAt(HeightmapType type, int bx, int bz) {
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(bx >> 4, bz >> 4);
+        if (col == null) return Integer.MIN_VALUE;
+        int x = bx & 15, z = bz & 15;
+        return 1 + switch (type) {
+            case WORLD_SURFACE -> col.surfaceBlockY(x, z);
+            case OCEAN_FLOOR -> col.oceanFloorBlockY(x, z);
+            case MOTION_BLOCKING -> col.motionBlockingBlockY(x, z);
+            case MOTION_BLOCKING_NO_LEAVES -> col.motionBlockingNoLeavesBlockY(x, z);
+        };
+    }
+
     /** 거부된 요청의 클라 예측을 되돌린다 — 로드된 청크면 서버의 실제 블록 상태를 actor에게 다시 보낸다(미로드면 보낼 게 없음). */
     public void resendBlock(Player actor, int bx, int by, int bz) {
         world.assertOwns(this);

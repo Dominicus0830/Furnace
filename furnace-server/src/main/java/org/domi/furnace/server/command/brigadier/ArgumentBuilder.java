@@ -49,6 +49,15 @@ public abstract class ArgumentBuilder<S, T extends ArgumentBuilder<S, T>> {
         return forward(target, modifier == null ? null : o -> List.of(modifier.apply(o)), false);
     }
 
+    /** 비동기 단일 리다이렉트(Furnace 확장). */
+    public T redirectAsync(CommandNode<S> target, AsyncSingleRedirectModifier<S> modifier) {
+        AsyncRedirectModifier<S> m = o -> modifier.apply(o).thenApply(s -> (Collection<S>) List.of(s));
+        return forward(target, m, false);
+    }
+
+    /** 비동기 포크(Furnace 확장). */
+    public T forkAsync(CommandNode<S> target, AsyncRedirectModifier<S> modifier) { return forward(target, modifier, true); }
+
     public T fork(CommandNode<S> target, RedirectModifier<S> modifier) { return forward(target, modifier, true); }
 
     public T forward(CommandNode<S> target, RedirectModifier<S> modifier, boolean fork) {

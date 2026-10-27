@@ -32,7 +32,7 @@ public final class SummonCommand {
     private static final SimpleCommandExceptionType INVALID_POSITION = new SimpleCommandExceptionType(Text.translatable("commands.summon.invalidPosition"));
 
     /** 바닐라 SuggestionProviders.SUMMONABLE_ENTITIES — 클라이언트가 이름으로 아는 공급자. */
-    private static final NamedSuggestionProvider SUMMONABLE_ENTITIES = new NamedSuggestionProvider() {
+    public static final NamedSuggestionProvider SUMMONABLE_ENTITIES = new NamedSuggestionProvider() {
         @Override public String id() { return "minecraft:summonable_entities"; }
 
         @Override
@@ -57,16 +57,21 @@ public final class SummonCommand {
 
     private static int summon(CommandContext<CommandSource> c, double[] pos, NbtCompound nbt, boolean randomizeProperties) throws CommandSyntaxException {
         CommandSource source = c.getSource();
-        var rl = ResourceLocationArgument.getId(c, "entity");
-        String id = rl.namespace() + ":" + rl.path();
-        if (!EntityTypes.isKnown(id) || !summonable(id)) throw new SimpleCommandExceptionType(Text.translatable("entity.not_summonable", id)).create();
-        int bx = (int) Math.floor(pos[0]), by = (int) Math.floor(pos[1]), bz = (int) Math.floor(pos[2]);
-        if (by < -20000000 || by >= 20000000 || bx < -30000000 || bz < -30000000 || bx >= 30000000 || bz >= 30000000) throw INVALID_POSITION.create();
-        CompletableFuture<Entity> spawned = summonAt(source, id, pos, nbt, randomizeProperties);
+        CompletableFuture<Entity> spawned = summonChecked(source, ResourceLocationArgument.getId(c, "entity"), pos, nbt, randomizeProperties);
         return EntityOps.result(source, EntityOps.awaitAsync(source, spawned, e -> {   // 이 람다는 전역 스레드에서 돈다
             source.sendSuccess(() -> Text.translatable("commands.summon.success", e.displayName()), true);
             return CompletableFuture.completedFuture(1);
         }));
+    }
+
+    /** 종류·위치를 검사한 뒤 소환한다(바닐라 SummonCommand.createEntity 의 앞부분). /summon 과 execute summon 이 함께 쓴다. */
+    public static CompletableFuture<Entity> summonChecked(CommandSource source, org.domi.furnace.server.data.ResourceId rl, double[] pos, NbtCompound nbt,
+                                                          boolean randomizeProperties) throws CommandSyntaxException {
+        String id = rl.namespace() + ":" + rl.path();
+        if (!EntityTypes.isKnown(id) || !summonable(id)) throw new SimpleCommandExceptionType(Text.translatable("entity.not_summonable", id)).create();
+        int bx = (int) Math.floor(pos[0]), by = (int) Math.floor(pos[1]), bz = (int) Math.floor(pos[2]);
+        if (by < -20000000 || by >= 20000000 || bx < -30000000 || bz < -30000000 || bx >= 30000000 || bz >= 30000000) throw INVALID_POSITION.create();
+        return summonAt(source, id, pos, nbt, randomizeProperties);
     }
 
     /**

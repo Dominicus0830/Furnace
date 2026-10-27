@@ -91,16 +91,18 @@ class VanillaCommandTreeTest {
     }
 
     /**
-     * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다).
+     * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다),
+     * /execute if·unless·store(E2~E4 단계).
      */
     private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of(
+            "/execute", List.of("if", "unless", "store"),
             "/locate", List.of("biome", "poi"),
             "/tick", List.of("sprint"));
 
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
-    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team");
+    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute");
 
-    private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx) {
+    private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx, int root) {
         Node n = nodes.get(idx);
         String type = vanilla.get("type").getAsString();
         assertEquals(type, switch (n.type()) { case 0 -> "root"; case 1 -> "literal"; default -> "argument"; }, path + " 종류");
@@ -111,14 +113,39 @@ class VanillaCommandTreeTest {
             if (vp == null) assertNull(n.props(), path + " 속성");
             else assertEquals(normalize(vp.getAsJsonObject()), normalize(n.props()), path + " 속성");
         }
-        assertEquals(vanilla.has("redirect"), n.redirect() >= 0, path + " 리다이렉트");
+        // 리다이렉트 대상 경로까지 비교한다. 루트로 가는 것(execute run)은 바닐라 덤프(JSON)에 경로가 비어 키가 없다 — 그때만 키 없음으로 본다.
+        boolean toRoot = n.redirect() == root;
+        assertEquals(vanilla.has("redirect"), n.redirect() >= 0 && !toRoot, path + " 리다이렉트");
+        if (n.redirect() >= 0 && !toRoot) {
+            List<String> expectedPath = new ArrayList<>();
+            for (JsonElement e : vanilla.getAsJsonArray("redirect")) expectedPath.add(e.getAsString());
+            assertEquals(expectedPath, pathOf(nodes, root, n.redirect()), path + " 리다이렉트 대상");
+        } else if (toRoot) {
+            assertEquals("/execute run", path, "루트로 가는 리다이렉트는 execute run 만 허용");
+        }
         JsonObject vc = vanilla.has("children") ? vanilla.getAsJsonObject("children") : new JsonObject();
         TreeSet<String> ours = new TreeSet<>();
         for (int c : n.children()) ours.add(nodes.get(c).name());
         TreeSet<String> expected = new TreeSet<>(vc.keySet());
         for (String m : NOT_YET.getOrDefault(path, List.of())) expected.remove(m);
         assertEquals(expected, ours, path + " 자식");
-        for (int c : n.children()) compare(path + " " + nodes.get(c).name(), vc.getAsJsonObject(nodes.get(c).name()), nodes, c);
+        for (int c : n.children()) compare(path + " " + nodes.get(c).name(), vc.getAsJsonObject(nodes.get(c).name()), nodes, c, root);
+    }
+
+    /** 루트에서 target 노드까지 자식 이름 경로(리다이렉트는 따라가지 않는다). */
+    private static List<String> pathOf(List<Node> nodes, int root, int target) {
+        List<String> path = new ArrayList<>();
+        return find(nodes, root, target, path) ? path : null;
+    }
+
+    private static boolean find(List<Node> nodes, int cur, int target, List<String> path) {
+        if (cur == target) return true;
+        for (int c : nodes.get(cur).children()) {
+            path.add(nodes.get(c).name());
+            if (find(nodes, c, target, path)) return true;
+            path.remove(path.size() - 1);
+        }
+        return false;
     }
 
     private static String normalize(JsonObject o) {
@@ -148,7 +175,7 @@ class VanillaCommandTreeTest {
             for (int c : nodes.get(root[0]).children()) {
                 String name = nodes.get(c).name();
                 assertTrue(vanilla.has(name), "바닐라에 없는 명령: " + name);
-                compare("/" + name, vanilla.getAsJsonObject(name), nodes, c);
+                compare("/" + name, vanilla.getAsJsonObject(name), nodes, c, root[0]);
                 checked++;
             }
             assertTrue(checked >= 18, "검사한 명령 수 " + checked);

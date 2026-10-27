@@ -254,6 +254,15 @@ public final class Regionizer {
         if (!r.alive) reroute(r);
     }
 
+    /** 주인 region 이 이미 있을 때만 작업을 넣는다(조회성 — region 을 만들지 않는다). 주인이 없으면 false. */
+    boolean enqueueIfOwned(long chunkKey, java.util.function.Consumer<Region> task) {
+        Region r = ownerOf(chunkX(chunkKey), chunkZ(chunkKey));
+        if (r == null) return false;
+        r.inbox.add(new Region.Task(chunkKey, task));
+        if (!r.alive) reroute(r);
+        return true;
+    }
+
     /** 죽은 region 의 남은 작업을 지금 주인에게. */
     void reroute(Region dead) {
         Region.Task t;

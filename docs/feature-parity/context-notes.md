@@ -217,3 +217,10 @@
 - C2 경고 단계: 직접 설치한 비명체는 can_summon=false 라서 바닐라도 경고 없이 비명만 지른다. 평화 난이도, doWardenSpawning=false 일 때도 같다. 확인 방법: 비명체의 can_summon 상태와 플레이어 `warden_spawn_tracker` NBT 를 본다.
 - C3: 촉매 경험치(소 1~3, 좀비 5)만큼만 퍼지는 것은 바닐라 그대로다. 돌·심층암 위 퍼짐은 시험으로 확인했다.
 - C4: 마을 섹션 거리 2 이내에서는 바닐라도 순찰이 나오지 않는다. 판정은 10~11분마다 한 번, 그중 1/5 만 성공, 낮에만 된다.
+
+## 2026-10-27 /execute E1 (S1) — 구현 메모·차이
+- 비동기 수정자: `AsyncRedirectModifier`(`forkAsync`) / `AsyncSingleRedirectModifier`(`redirectAsync`). `BuildContexts.AsyncStage` 가 소스를 순서대로 하나씩 적용하다 미완료 future 에서 큐를 멈추고(suspend) 전역 스레드에서 같은 자리부터 이어 간다. 변환(`withEntity`·위치·회전 읽기)은 `ExecuteCommands.onGlobal` 로 전역에서 돈다.
+- 함정: `positioned over` 는 `positioned` 바로 아래 하위 노드다(`positioned <pos>` 뒤에는 못 붙는다). `execute positioned 1 2 3 positioned over …` 로 쓴다. vec3 정수 x·z 는 +0.5.
+- 조회성: `positioned over` 는 `regionizer().ownerOf(cx,cz) == null` 이면 region 을 만들지 않고 `argument.pos.unloaded`. 주인이 있어도 청크가 로드돼 있지 않으면(`Region.heightAt` == MIN_VALUE) 같은 오류.
+- **알려진 차이**: `execute on leasher` 는 끈 체계가 없어(isLeashed 항상 거짓) 항상 비어 있다. `on target` 은 Mob 만(Interaction 엔티티 없음). `on origin` 은 발사체·효과 구름·송곳니·점화 TNT·벡스·떨어진 아이템.
+- `VanillaCommandTreeTest`: 바닐라 덤프 JSON 은 루트로 가는 리다이렉트(`execute run`)에 `redirect` 키가 없다(경로가 비어서). 패킷에는 플래그가 있다 → 비교에서 루트 리다이렉트는 "없음"으로 본다. NOT_YET 에 `/execute` if·unless·store.

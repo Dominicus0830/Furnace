@@ -24,6 +24,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.EffectCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMe(d);
         org.domi.furnace.server.command.builtin.ItemCommands.registerEnchant(d);
+        org.domi.furnace.server.command.builtin.ExecuteCommands.register(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerExperience(d);
         org.domi.furnace.server.command.builtin.BlockCommands.registerFill(d);
         org.domi.furnace.server.command.builtin.FillBiomeCommand.register(d);
