@@ -443,8 +443,17 @@ public final class ServerCore {
     private void tickSprint(org.domi.furnace.server.world.TickState ts) {
         long until = System.nanoTime() + SPRINT_BUDGET_NANOS;
         while (ts.sprinting() && ts.sprintGlobalLeft() > 0 && System.nanoTime() < until) {
-            tick();
+            // lockstep: 모든 참여 region 이 마친 틱 수보다 앞서 시작하지 않는다(전역 진행 ≤ region 최솟값 + 1)
+            int g = ts.sprintGeneration();
+            long min = Long.MAX_VALUE;
+            for (World w : worlds()) min = Math.min(min, w.regionizer().sprintMinDone(g));
+            if (ts.sprintGlobalDone() > min) {
+                java.util.concurrent.locks.LockSupport.parkNanos(50_000L);
+                continue;
+            }
+            // 바닐라 checkShouldSprintThisTick: 남은 수를 틱 전에 줄인다(틱 안의 함수가 sprint 를 다시 걸면 N 이 그대로 남는다)
             ts.takeSprintGlobalTick();
+            tick();
         }
         if (!ts.sprinting() || ts.sprintGlobalLeft() > 0) return;
         int gen = ts.sprintGeneration();

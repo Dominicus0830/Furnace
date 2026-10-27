@@ -100,10 +100,19 @@ public final class PlayerStateCommands {
         for (var r : targets) {
             var f = new java.util.concurrent.CompletableFuture<Text>();
             if (r instanceof Player p) {
-                p.vitals().kill();
-                f.complete(p.displayName());
+                // 플레이어도 일반 엔티티와 같은 규칙: 그 플레이어를 가진 region 에서(소유 확인 뒤) 죽인다
+                org.domi.furnace.server.command.EntityOps.runOnPlayerOwner(source, p, region -> {
+                    try {
+                        p.vitals().kill();
+                        f.complete(p.displayName());
+                    } catch (Throwable t) {
+                        f.completeExceptionally(t);
+                    }
+                }, () -> f.completeExceptionally(org.domi.furnace.server.command.EntityOps.ownerNotFound(p)));
             } else if (r instanceof org.domi.furnace.server.entity.Entity e) {
-                // 주인을 못 찾으면(이미 사라진 엔티티) 죽일 것이 없다 — 바닐라도 대상 수를 그대로 센다
+                // 주인을 못 찾으면(이미 사라진 엔티티) 죽일 것이 없다 — 바닐라도 대상 수를 그대로 센다. 이름은 이 스레드에서 읽지 않고 종류 이름으로
+                String tn = e.type().name();
+                Text fallback = Text.translatable("entity." + tn.replace(':', '.'));
                 org.domi.furnace.server.command.EntityOps.runOnOwner(source, e, en -> {
                     try {
                         en.kill();
@@ -111,7 +120,7 @@ public final class PlayerStateCommands {
                     } catch (Throwable t) {
                         f.completeExceptionally(t);
                     }
-                }, () -> f.complete(e.displayName()));
+                }, () -> f.complete(fallback));
             } else {
                 f.complete(r.displayName());
             }

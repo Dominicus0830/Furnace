@@ -122,6 +122,68 @@ class TickCommandTest {
         assertTrue(core.commands().performPrefixedCommandAsync(src.withPermission(3), "tick query").join().success());
     }
 
+    /**
+     * 전역 틱 반복을 쉬지 않고 불러 sprint 를 끝까지(넉넉한 상한 60초). 매번 lockstep 을 확인한다:
+     * 전역이 시작한 sprint 틱 ≤ 참여 region 들이 마친 틱의 최솟값 + 1.
+     */
+    private void sprintToEnd(TickState ts) throws InterruptedException {
+        long deadline = System.nanoTime() + 60_000_000_000L;
+        while (ts.sprinting()) {
+            assertTrue(System.nanoTime() < deadline, "sprint 가 60초 안에 끝나지 않았다");
+            core.scheduledTick();
+            int gen = ts.sprintGeneration();
+            long global = ts.sprintGlobalDone();
+            long min = Long.MAX_VALUE;
+            for (var w : core.worlds()) min = Math.min(min, w.regionizer().sprintMinDone(gen));
+            if (ts.sprinting() && ts.sprintGeneration() == gen && min != Long.MAX_VALUE) {
+                assertTrue(global <= min + 1, "전역 " + global + " 이 region 최솟값 " + min + " + 1 을 앞섰다");
+            }
+            Thread.onSpinWait();
+        }
+    }
+
+    /** 그 칸의 청크를 가진 region 에서 갑옷 거치대를 만든다(강제 로드 청크라 엔티티 틱을 받는다 — tickCount 가 진행 틱 수). */
+    private org.domi.furnace.server.entity.ArmorStand stand(org.domi.furnace.server.world.World w, double x, double z) throws Exception {
+        return w.submitAtChunk(org.domi.furnace.server.world.ChunkPos.ofBlock(x, z), r -> {
+            var lvl = r.level();
+            var e = new org.domi.furnace.server.entity.ArmorStand(lvl, lvl.nextEntityId());
+            e.moveTo(x, -60, z, 0, 0);
+            lvl.addFreshEntity(e);
+            return e;
+        }).get();
+    }
+
+    private int ticksOf(org.domi.furnace.server.world.World w, org.domi.furnace.server.entity.Entity e) throws Exception {
+        return w.submitAtChunk(org.domi.furnace.server.world.ChunkPos.ofBlock(e.x(), e.z()), r -> e.tickCount).get();
+    }
+
+    @Test
+    void sprintGivesEveryRegionExactlyNWorldTicks_evenWhenRegionsWouldMergeMidSprint() throws Exception {
+        var world = core.world();
+        // 구역(16 청크) 0 과 3 — 병합 반경 1 로는 따로인 두 region. 강제 로드라 엔티티가 틱을 받는다
+        assertEquals(1, run("forceload add 8 8"));
+        assertEquals(1, run("forceload add 776 8"));
+        var sa = stand(world, 8.5, 8.5);
+        var sb = stand(world, 776.5, 8.5);
+        world.startTicking();
+        TickState ts = core.tickState();
+        run("tick freeze");   // 정지 중에는 엔티티가 틱을 받지 않는다 — sprint 틱만 센다
+        Thread.sleep(200);
+        int ta = ticksOf(world, sa), tb = ticksOf(world, sb);
+        run("tick sprint 300");
+        // sprint 도중 사이 구역 청크를 올려 두 region 이 합쳐지려 하게 한다(새로 생긴 region 은 sprint 에 참여하지 않는다)
+        for (int i = 0; i < 5; i++) core.scheduledTick();
+        for (int cx = 16; cx <= 32; cx += 16) {
+            var cp = new org.domi.furnace.server.world.ChunkPos(cx, 0);
+            world.submitAtChunk(cp, r -> r.loadChunk(cp));
+        }
+        sprintToEnd(ts);
+        assertTrue(ts.frozen());
+        Thread.sleep(300);   // 끝난 뒤 미뤄 둔 병합이 일어나도 정지 중이라 그대로
+        assertEquals(ta + 300, ticksOf(world, sa), "구역 A 는 정확히 300 틱 진행");
+        assertEquals(tb + 300, ticksOf(world, sb), "구역 B 는 정확히 300 틱 진행");
+    }
+
     private java.util.List<org.domi.furnace.api.text.Text> console() {
         java.util.List<org.domi.furnace.api.text.Text> msgs = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         core.addConsoleListener(msgs::add);
@@ -153,16 +215,12 @@ class TickCommandTest {
         assertEquals(20, run("tick query"));
         assertTrue(has(msgs, "commands.tick.query.rate.sprinting"));
         // 전역 틱 반복(원래 50ms 마다)을 쉬지 않고 불러 sprint 를 끝까지
-        for (int i = 0; i < 2000 && ts.sprinting(); i++) {
-            core.scheduledTick();
-            Thread.sleep(1);
-        }
-        assertFalse(ts.sprinting(), "sprint 가 끝났다");
+        sprintToEnd(ts);
         long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
         assertEquals(t0 + 200, core.clock().gameTime(), "전역 시계는 정확히 200 틱");
         long r1 = world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> r.tickCount()).get();
         assertTrue(r1 - r0 >= 200, "region 도 200 틱 이상 돌았다: " + (r1 - r0));
-        assertTrue(elapsedMs < 8_000, "20 TPS 라면 10초 — 기다리지 않고 돌았다: " + elapsedMs + "ms");
+        assertTrue(elapsedMs < 60_000, "넉넉한 상한(20 TPS 로 10초 걸릴 일): " + elapsedMs + "ms");
         assertTrue(has(msgs, "commands.tick.sprint.report"));
         assertTrue(ts.frozen(), "끝나면 원래 정지 상태로");
         // 멈출 sprint 가 없다

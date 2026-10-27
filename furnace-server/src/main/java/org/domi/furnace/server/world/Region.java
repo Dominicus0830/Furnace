@@ -789,14 +789,28 @@ public final class Region {
     /** 틱 뒤(Regionizer 잠금 안)에 남기는 요약: 본 sprint 세대, 아직 sprint 틱이 남았는지 — 전역이 sprint 끝을 판정할 때 잠금 안에서 읽는다. */
     int sprintSeen;
     boolean sprintPending;
+    /** 이 sprint 에 참여하는가(세대를 sprint 중에 처음 봤거나 참여하던 부모에서 나뉨) — 새로 생긴 region 은 참여하지 않는다. */
+    private boolean sprintJoined;
+    /** 이번 틱을 전역을 기다리느라 진행하지 않았다(Regionizer 가 곧 다시 잡는다). */
+    private boolean sprintHeld;
+    /** 요약: 참여 여부와 이번 sprint 에서 마친 틱 수(잠금 안). */
+    boolean sprintJoinedSummary;
+    long sprintDoneSummary;
 
     /** 새 region 이 sprint 상태를 이어받는다: 생성 시점 세대(남은 틱 0) 또는 나눈 부모의 세대·남은 틱. */
-    void inheritSprint(int generation, int left) {
+    void inheritSprint(int generation, int left, boolean joined) {
         this.sprintGeneration = generation;
         this.sprintLeft = left;
+        this.sprintJoined = joined;
         this.sprintSeen = generation;
         this.sprintPending = left > 0;
+        this.sprintJoinedSummary = joined;
+        this.sprintDoneSummary = joined ? world.tickState().sprintTicks() - left : 0;
     }
+
+    boolean sprintJoined() { return sprintJoined; }
+
+    boolean sprintHeld() { return sprintHeld; }
 
     int sprintGeneration() { return sprintGeneration; }
 
@@ -819,11 +833,19 @@ public final class Region {
         // /tick sprint: 세대가 바뀌면 남은 sprint 틱을 다시 채운다(끝났거나 멈췄으면 0). sprint 틱은 기다리지 않고 곧바로 다음 틱을 잡는다(Regionizer.afterTick).
         if (sprintGeneration != tickState.sprintGeneration()) {
             sprintGeneration = tickState.sprintGeneration();
-            sprintLeft = tickState.sprinting() ? tickState.sprintTicks() : 0;
+            sprintJoined = tickState.sprinting();
+            sprintLeft = sprintJoined ? tickState.sprintTicks() : 0;
         }
+        sprintHeld = false;
         if (sprintLeft > 0) {
-            sprintLeft--;
-            frozen = false;
+            // lockstep: 전역이 시작한 틱 수보다 앞서 나가지 않는다(시간·날씨·보더가 이 틱과 같은 시점이도록). 앞서면 이번 틱은 진행 없이 기다린다.
+            if (tickState.sprintTicks() - sprintLeft >= tickState.sprintGlobalDone()) {
+                sprintHeld = true;
+                frozen = true;
+            } else {
+                sprintLeft--;
+                frozen = false;
+            }
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();

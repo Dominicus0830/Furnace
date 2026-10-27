@@ -40,9 +40,20 @@ class TeleportCommandTest {
     void tearDown() { sched.close(); }
 
     private Player player(String name, double x, double y, double z, float yaw, float pitch, BlockingQueue<double[]> moves) {
-        var p = new Player(10, UUID.randomUUID(), name, new EmbeddedChannel());
+        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), name, new EmbeddedChannel());
         p.applyMove(x, y, z, yaw, pitch, true);
         p.teleporter(moves::add);
+        // 명령은 플레이어를 가진 region 에서(소유 확인 뒤) 옮긴다 — 위치의 region 에 넣어 둔다
+        var in = new java.util.concurrent.CountDownLatch(1);
+        core.world().runAt(x, z, r -> {
+            r.adopt(p);
+            in.countDown();
+        });
+        try {
+            assertTrue(in.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
         return p;
     }
 

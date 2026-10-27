@@ -47,8 +47,6 @@ final class Teleports {
         return teleport(source, target, target.dimensionKey(), x, y, z, yaw, pitch);
     }
 
-    private static final int MAX_PLAYER_RETRIES = 5;
-
     /**
      * 대상을 dimension 의 (x, y, z) 로 옮기고 회전을 맞춘다(바닐라 TeleportCommand.performTeleport → Entity.teleportTo(level, …)).
      * 일은 대상의 주인 스레드로 보낸다.
@@ -66,7 +64,7 @@ final class Teleports {
         boolean across = dest != null && dest != world;
         if (target instanceof Player p) {
             (across ? dest : world).addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);
-            teleportPlayer(world, p, across ? dimension : null, x, y, z, yaw, pitch, done, MAX_PLAYER_RETRIES);
+            teleportPlayer(source, p, dimension, x, y, z, yaw, pitch, done);
         } else if (target instanceof Entity en) {
             org.domi.furnace.server.command.EntityOps.runOnOwner(source, en, e -> {
                 try {
@@ -92,23 +90,25 @@ final class Teleports {
         return done;
     }
 
-    /** 플레이어가 있는 region 에서 옮긴다. 다른 차원이면 그 region 에서 떼어 보낸다(사이에 region 을 넘어갔으면 다시 찾는다). */
-    private static void teleportPlayer(World world, Player p, String acrossTo, double x, double y, double z, float yaw, float pitch,
-                                       java.util.concurrent.CompletableFuture<Void> done, int tries) {
-        world.runAt(p.x(), p.z(), region -> {
+    /**
+     * 플레이어를 가진 region 에서(소유를 먼저 확인한 뒤에만 상태를 바꾼다) 옮긴다. 지금 차원이 목적 차원과 다르면 그 region 에서 떼어 보낸다.
+     * 주인을 끝내 못 찾으면(접속 끊김·차원 이동 중) 실패로 끝낸다(명령 오류).
+     */
+    private static void teleportPlayer(CommandSource source, Player p, String dimension, double x, double y, double z, float yaw, float pitch,
+                                       java.util.concurrent.CompletableFuture<Void> done) {
+        org.domi.furnace.server.command.EntityOps.runOnPlayerOwner(source, p, region -> {
             try {
                 if (p.vehicle() != null) p.stopRiding();
                 if (p.isSleeping()) PlayerSleeping.stopSleepInBed(p, region.level(), true, true);
-                if (acrossTo == null) {
+                if (p.dimension().equals(dimension) || source.getServer().world(dimension) == null) {
                     p.teleportTo(x, y, z, yaw, pitch);
                     done.complete(null);
-                } else if (!region.teleportAcross(p, acrossTo, x, y, z, yaw, pitch, () -> done.complete(null))) {
-                    if (tries > 0) teleportPlayer(world, p, acrossTo, x, y, z, yaw, pitch, done, tries - 1);
-                    else done.complete(null);
+                } else if (!region.teleportAcross(p, dimension, x, y, z, yaw, pitch, () -> done.complete(null))) {
+                    done.completeExceptionally(org.domi.furnace.server.command.EntityOps.ownerNotFound(p));   // 방금 확인했으니 일어나지 않는다
                 }
             } catch (Throwable t) {
                 done.completeExceptionally(t);
             }
-        });
+        }, () -> done.completeExceptionally(org.domi.furnace.server.command.EntityOps.ownerNotFound(p)));
     }
 }

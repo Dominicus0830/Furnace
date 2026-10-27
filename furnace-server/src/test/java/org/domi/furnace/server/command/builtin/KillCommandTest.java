@@ -121,4 +121,67 @@ class KillCommandTest {
         assertEquals(1, core.commands().performPrefixedCommandAsync(CommandSource.console(core), "kill @e[type=armor_stand]").join().result());
         assertEquals(Entity.RemovalReason.KILLED, s[0].removalReason());
     }
+
+    @Test
+    void resistanceDoesNotSaveAMob_andEntityDieGameEventIsPosted() throws Exception {
+        java.util.List<String> heard = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        Cow[] c = new Cow[1];
+        var done = new CountDownLatch(1);
+        core.world().runAt(0.5, 0.5, region -> {
+            var lvl = region.level();
+            // 진동 리스너 대신: 그 칸에서 듣는 블록 리스너(반경 8)
+            var pos = new org.domi.furnace.server.block.Pos(0, -60, 0);
+            region.chunkAtBlocking(new org.domi.furnace.server.world.ChunkPos(0, 0));
+            org.domi.furnace.server.world.gameevent.GameEventDispatcher.registerBlockListener(lvl.listenerChunk(0, 0), -60,
+                    new org.domi.furnace.server.world.gameevent.GameEventListener() {
+                        public org.domi.furnace.server.world.gameevent.PositionSource getListenerSource() {
+                            return new org.domi.furnace.server.world.gameevent.PositionSource.BlockSource(pos);
+                        }
+                        public int getListenerRadius() { return 8; }
+                        public boolean handleGameEvent(org.domi.furnace.server.block.ChunkLevel l, org.domi.furnace.server.world.gameevent.GameEvent ev,
+                                                       org.domi.furnace.server.world.gameevent.GameEventContext ctx, org.domi.furnace.server.entity.Vec3 at) {
+                            heard.add(ev.name);
+                            return false;
+                        }
+                    });
+            c[0] = new Cow(lvl, lvl.nextEntityId());
+            c[0].moveTo(1.5, -60, 1.5, 0, 0);
+            lvl.addFreshEntity(c[0]);
+            c[0].addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.RESISTANCE, 1000, 4));
+            done.countDown();
+        });
+        assertTrue(done.await(10, TimeUnit.SECONDS));
+        assertEquals(1, core.commands().performPrefixedCommandAsync(CommandSource.console(core), "kill @e[type=cow]").join().result());
+        assertTrue(c[0].isDeadOrDying(), "저항 V 도 generic_kill(bypasses_resistance) 을 막지 못한다");
+        assertTrue(heard.stream().anyMatch(n -> n.endsWith("entity_die")), "죽음에 entity_die 게임 이벤트: " + heard);
+    }
+
+    @Test
+    void creativePlayerIsKilledOnItsRegion_mixedWithEntities() throws Exception {
+        Cow[] c = cows(1, null);
+        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        p.inventory(new org.domi.furnace.server.entity.PlayerInventory());
+        p.applyMove(0.5, -60, 0.5, 0, 0, true);
+        var in = new CountDownLatch(1);
+        Thread[] owner = new Thread[1];
+        core.world().runAt(0.5, 0.5, r -> {
+            r.adopt(p);
+            p.vitals().setGameMode(org.domi.furnace.server.world.GameMode.CREATIVE);
+            owner[0] = Thread.currentThread();
+            in.countDown();
+        });
+        assertTrue(in.await(10, TimeUnit.SECONDS));
+        var src = CommandSource.console(core);
+        // 플레이어와 소를 함께: 둘 다 소유 region 에서 죽고 값은 2
+        assertEquals(2, EntityOpsKill.kill(src, java.util.List.of(p, c[0])));
+        assertTrue(p.vitals().isDeadOrDying(), "창조 모드여도 generic_kill 은 무적을 무시한다");
+        assertTrue(c[0].isDeadOrDying());
+    }
+
+    /** PlayerStateCommands.kill 의 결과를 기다린다. */
+    static final class EntityOpsKill {
+        static int kill(CommandSource s, java.util.List<org.domi.furnace.server.entity.Rider> t) throws Exception {
+            return PlayerStateCommands.kill(s, t).get(10, TimeUnit.SECONDS);
+        }
+    }
 }

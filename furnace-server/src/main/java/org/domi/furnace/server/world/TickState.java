@@ -91,6 +91,9 @@ public final class TickState {
 
     public long sprintGlobalLeft() { return sprintGlobalLeft; }
 
+    /** 전역이 이번 sprint 에서 시작한 틱 수(요청 − 남은 수). region 은 자기 진행 틱이 이것을 넘으면 기다린다(lockstep). */
+    public long sprintGlobalDone() { return sprintTicks - sprintGlobalLeft; }
+
     /**
      * 바닐라 ServerTickRateManager.requestGameToSprint: 지금 정지 상태를 기억하고 정지를 풀어(진행 중인 step 은 그대로) ticks 만큼 sprint.
      * 이미 sprint 중이었으면 참(앞의 sprint 는 보고 없이 버린다).
