@@ -687,7 +687,10 @@ public final class Region {
             }
         }
         if (drop == null) return;
+        // 퇴출(저장 포함)도 틱당 시간 예산 안에서 — 생성 청크도 dirty 라(F-14) 한꺼번에 내리면 틱이 수백 ms 튄다. 남은 것은 다음 틱에.
+        long deadline = System.nanoTime() + AUTOSAVE_BUDGET_NANOS;
         for (long key : drop) {
+            if (System.nanoTime() > deadline) break;
             int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
             ChunkPos cp = new ChunkPos(cx, cz);
             ChunkColumn col = world.loadedChunk(cx, cz);
