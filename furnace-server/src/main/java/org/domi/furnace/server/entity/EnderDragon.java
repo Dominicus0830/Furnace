@@ -526,6 +526,7 @@ public class EnderDragon extends Mob implements Enemy {
     @Override
     public void kill() {
         remove(RemovalReason.KILLED);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);
         if (dragonFight != null) {
             dragonFight.updateDragon(this);
             dragonFight.setDragonKilled(this);

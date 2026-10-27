@@ -445,6 +445,34 @@ public abstract non-sealed class Entity implements Rider {
      * 새로 만들어 넣는다(바닐라 changeDimension 의 create + restoreFrom + addDuringTeleport). 목적지가 없으면 원천에 되돌린다.
      */
     private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
+        moveAcross(plan, travel, (e, t) -> {
+            e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
+            e.setDeltaMovement(t.vx(), t.vy(), t.vz());
+        }, null);
+    }
+
+    /**
+     * 명령 텔레포트의 다른 레벨 경로(바닐라 Entity.teleportTo(ServerLevel, …) 의 level != this.level 쪽): 승객을 내리고(unRide) 같은 종류를
+     * 목적 차원에 새로 만들어 저장 데이터를 옮긴 뒤(restoreFrom — 속도도 그대로) moveTo(x, y, z, yaw, pitch)·setYHeadRot(yaw), 이쪽은
+     * CHANGED_DIMENSION 으로 뺀다. 소유 region 스레드에서 부른다. 목적 차원 길이 없으면(시험 레벨) 거짓. done 은 도착(또는 되돌림) 뒤
+     * 목적·원천 region 스레드에서 한 번 불린다.
+     */
+    public boolean teleportToDimension(String dimension, double tx, double ty, double tz, float yaw, float pitch, Runnable done) {
+        if (level == null || isRemoved()) return false;
+        var travel = level.dimensionTravel();
+        if (travel == null) return false;
+        float p = Math.clamp(pitch, -90.0F, 90.0F);
+        PortalTravel plan = new PortalTravel(dimension, floor(tx), floor(tz), 0, 0,
+                lvl -> new DimensionTransition(lvl, tx, ty, tz, 0, 0, 0, yaw, p));
+        moveAcross(plan, travel, (e, t) -> {
+            e.moveTo(tx, ty, tz, yaw, p);
+            if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
+        }, done);
+        return true;
+    }
+
+    private void moveAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
+                            java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done) {
         stopRiding();
         ejectPassengers();
         final NbtCompound tag = saveWithoutId(new NbtCompound());
@@ -454,27 +482,36 @@ public abstract non-sealed class Entity implements Rider {
         final double ox = x, oz = z;
         setRemoved(RemovalReason.CHANGED_DIMENSION);
         travel.travel(plan, (target, t) -> {
-            if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 되살린다
-                travel.runAtSource(floor(ox), floor(oz), src -> {
-                    Entity back = Entities.create(src, typeName);
-                    if (back == null) return;
-                    back.load(tag);
-                    back.portalCooldown = cooldown;
-                    back.portalProcess = process;
-                    src.addFreshEntity(back);
-                });
-                return;
+            try {
+                arriveAcross(target, t, travel, tag, cooldown, process, typeName, ox, oz, place);
+            } finally {
+                if (done != null) done.run();
             }
-            Entity e = Entities.create(target, typeName);
-            if (e == null) return;
-            e.load(tag);
-            e.portalCooldown = cooldown;
-            e.portalProcess = process;
-            e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
-            e.setDeltaMovement(t.vx(), t.vy(), t.vz());
-            target.addFreshEntity(e);
-            target.afterDimensionTransition(t);
         });
+    }
+
+    private static void arriveAcross(ChunkLevel target, DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
+                                     NbtCompound tag, int cooldown, PortalProcessor process, String typeName, double ox, double oz,
+                                     java.util.function.BiConsumer<Entity, DimensionTransition> place) {
+        if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 되살린다
+            travel.runAtSource(floor(ox), floor(oz), src -> {
+                Entity back = Entities.create(src, typeName);
+                if (back == null) return;
+                back.load(tag);
+                back.portalCooldown = cooldown;
+                back.portalProcess = process;
+                src.addFreshEntity(back);
+            });
+            return;
+        }
+        Entity e = Entities.create(target, typeName);
+        if (e == null) return;
+        e.load(tag);
+        e.portalCooldown = cooldown;
+        e.portalProcess = process;
+        place.accept(e, t);
+        target.addFreshEntity(e);
+        target.afterDimensionTransition(t);
     }
 
     /**
@@ -656,7 +693,11 @@ public abstract non-sealed class Entity implements Rider {
 
     public void discard() { remove(RemovalReason.DISCARDED); }
 
-    public void kill() { remove(RemovalReason.KILLED); }
+    /** Entity.kill: KILLED 로 제거하고 entity_die 게임 이벤트. */
+    public void kill() {
+        remove(RemovalReason.KILLED);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);
+    }
 
     public void remove(RemovalReason reason) { setRemoved(reason); }
 

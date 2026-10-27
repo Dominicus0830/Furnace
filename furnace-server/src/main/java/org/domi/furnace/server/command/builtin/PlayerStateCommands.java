@@ -83,25 +83,49 @@ public final class PlayerStateCommands {
 
     public static void registerKill(CommandDispatcher<CommandSource> d) {
         d.register(literal("kill").requires(s -> s.hasPermission(2))
-                .executes(c -> kill(c.getSource(), List.of(entityOrException(c.getSource()))))
+                .executes(c -> org.domi.furnace.server.command.EntityOps.result(c.getSource(),
+                        kill(c.getSource(), List.of(c.getSource().getEntityOrException()))))
                 .then(argument("targets", EntityArgument.entities())
-                        .executes(c -> kill(c.getSource(), EntityArgument.getEntities(c, "targets")))));
+                        .executes(c -> org.domi.furnace.server.command.EntityOps.result(c.getSource(),
+                                EntityArgument.withEntitiesAsync(c, "targets", t -> kill(c.getSource(), t))))));
     }
 
-    private static Player entityOrException(CommandSource source) throws CommandSyntaxException {
-        if (source.getPlayer() == null) throw CommandSource.ERROR_NOT_ENTITY.create();
-        return source.getPlayer();
-    }
-
-    private static int kill(CommandSource source, Collection<Player> targets) {
-        for (Player p : targets) p.vitals().kill();
-        if (targets.size() == 1) {
-            Player p = targets.iterator().next();
-            source.sendSuccess(() -> Text.translatable("commands.kill.success.single", p.displayName()), true);
-        } else {
-            source.sendSuccess(() -> Text.translatable("commands.kill.success.multiple", targets.size()), true);
+    /**
+     * 바닐라 KillCommand: 대상마다 kill()(생명체는 generic_kill 피해 Float.MAX_VALUE, 그 밖은 KILLED 로 제거)하고 대상 수를 돌려준다.
+     * 플레이어는 지금 스레드에서, 일반 엔티티는 그 엔티티를 가진 region 에서 죽인다. 메시지는 모두 끝난 뒤 전역에서.
+     * 이름(단수 메시지)은 바닐라처럼 죽인 뒤에 읽는다 — 일반 엔티티는 주인 region 에서.
+     */
+    static java.util.concurrent.CompletableFuture<Integer> kill(CommandSource source, List<org.domi.furnace.server.entity.Rider> targets) {
+        List<java.util.concurrent.CompletableFuture<Text>> fs = new java.util.ArrayList<>(targets.size());
+        for (var r : targets) {
+            var f = new java.util.concurrent.CompletableFuture<Text>();
+            if (r instanceof Player p) {
+                p.vitals().kill();
+                f.complete(p.displayName());
+            } else if (r instanceof org.domi.furnace.server.entity.Entity e) {
+                // 주인을 못 찾으면(이미 사라진 엔티티) 죽일 것이 없다 — 바닐라도 대상 수를 그대로 센다
+                org.domi.furnace.server.command.EntityOps.runOnOwner(source, e, en -> {
+                    try {
+                        en.kill();
+                        f.complete(en.displayName());
+                    } catch (Throwable t) {
+                        f.completeExceptionally(t);
+                    }
+                }, () -> f.complete(e.displayName()));
+            } else {
+                f.complete(r.displayName());
+            }
+            fs.add(f);
         }
-        return targets.size();
+        return org.domi.furnace.server.command.EntityOps.awaitAllAsync(source, fs, names -> {
+            if (names.size() == 1) {
+                Text name = names.get(0);
+                source.sendSuccess(() -> Text.translatable("commands.kill.success.single", name), true);
+            } else {
+                source.sendSuccess(() -> Text.translatable("commands.kill.success.multiple", names.size()), true);
+            }
+            return names.size();
+        });
     }
 
     // ------------------------------------------------------------------ experience / xp

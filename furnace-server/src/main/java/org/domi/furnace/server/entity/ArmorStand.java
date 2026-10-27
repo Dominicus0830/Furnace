@@ -270,7 +270,10 @@ public class ArmorStand extends LivingEntity {
     private void playBrokenSound() { level.playSound(null, x(), y(), z(), "minecraft:entity.armor_stand.break", soundSource(), 1.0F, 1.0F); }
 
     @Override
-    public void kill() { remove(RemovalReason.KILLED); }
+    public void kill() {
+        remove(RemovalReason.KILLED);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);
+    }
 
     // ------------------------------------------------------------------ 저장
 

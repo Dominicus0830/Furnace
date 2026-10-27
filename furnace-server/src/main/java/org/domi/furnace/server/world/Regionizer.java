@@ -239,6 +239,7 @@ public final class Regionizer {
     private Region newRegion(long firstTick) {
         Region r = new Region(++nextId, world);
         r.inheritSteps(world.tickState().generation(), 0);   // 진행 중인 step 은 새 region 에 다시 주지 않는다
+        r.inheritSprint(world.tickState().sprintGeneration(), 0);   // sprint 도 같다
         regions.add(r);
         r.nextTickNanos = firstTick;
         schedule(r);
@@ -453,8 +454,14 @@ public final class Regionizer {
         }
         if (!r.alive) return;
         long now = System.nanoTime();
-        r.nextTickNanos += tickNanos;
-        if (r.nextTickNanos < now) r.nextTickNanos = now + tickNanos;   // 너무 밀렸으면 재동기(따라잡기 폭주 방지)
+        r.sprintSeen = r.sprintGeneration();
+        r.sprintPending = r.sprintLeft() > 0;
+        if (r.sprintPending) {
+            r.nextTickNanos = now;   // /tick sprint: 기다리지 않고 곧바로 다음 틱(같은 풀의 다른 region 과는 마감 순서로 번갈아)
+        } else {
+            r.nextTickNanos += tickNanos;
+            if (r.nextTickNanos < now) r.nextTickNanos = now + tickNanos;   // 너무 밀렸으면 재동기(따라잡기 폭주 방지) — sprint 끝도 여기로 돌아온다
+        }
         schedule(r);
     }
 
@@ -558,6 +565,7 @@ public final class Regionizer {
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
             n.inheritSteps(r.stepGeneration(), r.stepsLeft());   // 나뉜 조각은 부모의 남은 걸음을 물려받는다
+            n.inheritSprint(r.sprintGeneration(), r.sprintLeft());   // sprint 틱도
             n.nextTickNanos = r.nextTickNanos + tickNanos;   // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게
             regions.add(n);
             created.add(n);
@@ -607,6 +615,23 @@ public final class Regionizer {
     }
 
     // ------------------------------------------------------------------ 상태
+
+    /**
+     * /tick sprint 끝 판정(전역 스레드): 살아 있는 모든 region 이 그 sprint 세대를 보고 sprint 틱을 다 돌았으면 참.
+     * 게임 틱을 돌지 않는 월드(시작 전)는 참. 세대 요약은 틱 뒤 잠금 안에서 남긴 것을 읽는다.
+     */
+    public boolean sprintDone(int generation) {
+        if (!gameTicks) return true;
+        lock.lock();
+        try {
+            for (Region r : regions) {
+                if (r.alive && !r.yielded && (r.sprintSeen != generation || r.sprintPending)) return false;
+            }
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
 
     /** 살아 있는 region 수(잠금 안 — 테스트·모니터링). */
     public int regionCount() {

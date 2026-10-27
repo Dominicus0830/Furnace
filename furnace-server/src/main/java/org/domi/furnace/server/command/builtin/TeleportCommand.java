@@ -1,5 +1,5 @@
 // 바닐라 TeleportCommand: /teleport(=/tp) [대상] <좌표 [회전 | facing …] | 도착 엔티티>.
-// 좌표는 절대·'~' 상대·'^' 국소. 엔티티와 플레이어를 가리지 않고 옮기며, 같은 차원 안에서만 옮긴다(다른 차원이면 실패).
+// 좌표는 절대·'~' 상대·'^' 국소. 엔티티와 플레이어를 가리지 않고 옮긴다. 좌표 이동은 실행 소스의 차원으로, 엔티티 이동은 도착 엔티티의 차원으로.
 // 차이: 일반 엔티티가 대상이면 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
 package org.domi.furnace.server.command.builtin;
 
@@ -83,17 +83,18 @@ public final class TeleportCommand {
             throws CommandSyntaxException {
         if (!Teleports.inSpawnableBounds(pos[0], pos[1], pos[2])) throw INVALID_POSITION.create();
         String dimension = source.level().dimension();
-        for (Rider t : targets) if (!t.dimensionKey().equals(dimension)) throw Teleports.ERROR_CROSS_DIMENSION.create();
         List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(targets.size());
         for (Rider t : targets) {
             float yaw = Teleports.wrapDegrees(rotation == null ? t.riderYRot() : rotation.y());
             float pitch = Teleports.wrapDegrees(rotation == null ? t.riderXRot() : rotation.x());
-            if (look != null) {
+            // 바닐라는 facing(lookAt)을 teleportTo 가 돌려준 뒤 원래 엔티티에 한다 — 다른 차원으로 간 일반 엔티티는 이미 새 엔티티라 안 바뀐다
+            boolean lookApplies = t instanceof org.domi.furnace.server.entity.Player || t.dimensionKey().equals(dimension);
+            if (look != null && lookApplies) {
                 float[] r = Teleports.lookAt(pos[0], pos[1], pos[2], look.point());
                 yaw = r[0];
                 pitch = r[1];
             }
-            moves.add(Teleports.teleport(source, t, pos[0], pos[1], pos[2], yaw, pitch));
+            moves.add(Teleports.teleport(source, t, dimension, pos[0], pos[1], pos[2], yaw, pitch));
         }
         // 옮김이 모두 끝난 뒤(다음 줄이 새 위치를 읽도록) 전역 스레드에서 메시지
         return EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
@@ -114,10 +115,9 @@ public final class TeleportCommand {
         double x = destination.x(), y = destination.y(), z = destination.z();
         if (!Teleports.inSpawnableBounds(x, y, z)) throw INVALID_POSITION.create();
         String dimension = destination.dimensionKey();
-        for (Rider t : targets) if (!t.dimensionKey().equals(dimension)) throw Teleports.ERROR_CROSS_DIMENSION.create();
         float yaw = Teleports.wrapDegrees(destination.riderYRot()), pitch = Teleports.wrapDegrees(destination.riderXRot());
         List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(targets.size());
-        for (Rider t : targets) moves.add(Teleports.teleport(source, t, x, y, z, yaw, pitch));
+        for (Rider t : targets) moves.add(Teleports.teleport(source, t, dimension, x, y, z, yaw, pitch));
         return EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
             if (targets.size() == 1) {
                 source.sendSuccess(() -> Text.translatable("commands.teleport.success.entity.single", targets.get(0).displayName(), destination.displayName()), true);

@@ -416,6 +416,10 @@ public final class ServerCore {
     public void scheduledTick() {
         commands.queue().tick();   // 명령 컨텍스트 경과 틱(정지 중에도 센다 — head-of-line 관측)
         var ts = tickState();
+        if (ts.sprinting()) {
+            tickSprint(ts);
+            return;
+        }
         if (ts.frozen()) {
             if (ts.takeGlobalStep()) {
                 tick();
@@ -427,6 +431,50 @@ public final class ServerCore {
         int n = Math.min((int) globalTickCredit, 1000);
         globalTickCredit -= (int) globalTickCredit;
         for (int i = 0; i < n; i++) tick();
+    }
+
+    /** sprint 중 전역 틱 한 번 호출에 쓰는 최대 시간: 넘으면 돌려주고 다음 호출에서 잇는다(그 사이 전역 인박스·명령이 돈다). */
+    private static final long SPRINT_BUDGET_NANOS = 40_000_000L;
+
+    /**
+     * /tick sprint 중 전역 틱(설계 docs/feature-parity/tick-sprint-design-2026-10-28.md): 남은 전역 sprint 틱을 기다림 없이 돌리고,
+     * 전역 틱을 다 썼고 모든 차원의 모든 region 이 sprint 틱을 다 돌았으면 끝내고 보고한다.
+     */
+    private void tickSprint(org.domi.furnace.server.world.TickState ts) {
+        long until = System.nanoTime() + SPRINT_BUDGET_NANOS;
+        while (ts.sprinting() && ts.sprintGlobalLeft() > 0 && System.nanoTime() < until) {
+            tick();
+            ts.takeSprintGlobalTick();
+        }
+        if (!ts.sprinting() || ts.sprintGlobalLeft() > 0) return;
+        int gen = ts.sprintGeneration();
+        for (World w : worlds()) if (!w.regionizer().sprintDone(gen)) return;
+        finishSprint();
+    }
+
+    /**
+     * 바닐라 ServerTickRateManager.finishTickSprint: 보고(commands.tick.sprint.report — 초당 틱, 틱당 밀리초)를 서버 명령 소스로 알리고
+     * 정지 상태를 되돌린다. sprint 중이 아니었으면 거짓. 시간은 바닐라의 틱 작업 시간 합 대신 시작부터 끝까지의 벽시계 시간이다.
+     */
+    public boolean finishSprint() {
+        var ts = tickState();
+        var r = ts.endSprint(System.nanoTime());
+        if (r == null) return false;
+        long ticks = r.ticks();
+        double ms = Math.max(1.0, (double) r.elapsedNanos()) / 1_000_000.0;
+        int tps = (int) (1000L * ticks / ms);
+        String mspt = String.format(java.util.Locale.ROOT, "%.2f", ticks == 0L ? (double) ((float) ts.nanosPerTick() / 1_000_000.0F) : ms / ticks);
+        org.domi.furnace.server.command.CommandSource.console(this)
+                .sendSuccess(() -> org.domi.furnace.api.text.Text.translatable("commands.tick.sprint.report", tps, mspt), true);
+        broadcastTickState();
+        return true;
+    }
+
+    /** 바닐라 requestGameToSprint: 정지를 풀고 ticks 만큼 sprint. 이미 sprint 중이었으면 참. */
+    public boolean startSprint(int ticks) {
+        boolean was = tickState().startSprint(ticks, System.nanoTime());
+        broadcastTickState();
+        return was;
     }
 
     /** 모든 접속자에게 틱 속도·정지 상태(ClientboundTickingStatePacket)를 알린다. */

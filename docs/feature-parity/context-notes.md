@@ -270,3 +270,8 @@
 - gradle 은 동시에 둘 돌리지 않는다는 규칙이 병렬 에이전트에서는 지켜지기 어렵다. 같은 잠금 파일에 `flock` 을 걸어 순서대로 돌린다(예: `flock <공유 잠금 파일> ./gradlew --offline :furnace-server:test …`). 잠금 파일 경로는 모든 에이전트가 같은 것을 쓴다. 정확한 잠금 파일 경로는 가정이다(이 문서에 기록하지 않았다) — 라운드 시작 때 상위 에이전트가 정해 준다.
 - 병합된 HEAD 에서 전체 `:furnace-server:test`(skipOracle) 는 `full12.log` 기준 10분 53초로 BUILD SUCCESSFUL 이었다. 단계별 부분 시험만 믿지 말고 병합 뒤 전체를 한 번 돌린다.
 - graphify: `pip install graphifyy`(0.9.97) 후 `graphify update .` 가 이 환경에서 통했다(AST 추출 3334 파일, 32885 노드·132457 엣지·492 커뮤니티). 노드가 5000 을 넘어 `graph.html` 은 커뮤니티 집계 보기다. 큰 단계 하나(/execute·함수 S0~S7)를 끝낸 이번에 한 번 갱신했다.
+
+## 2026-10-28 /kill 전 엔티티·/tp 차원 간·/tick sprint
+- 바닐라 `/tp` 의 다른 레벨 경로(Entity.teleportTo)는 새 엔티티를 만들어 restoreFrom 하므로, TeleportCommand 가 그 뒤에 하는 손질(facing lookAt, y 속도 0, 땅 위, 길 찾기 중단)은 **옛 엔티티**에 걸려 새 엔티티에는 안 보인다. Furnace 도 그대로 따른다(일반 엔티티 차원 간 이동은 속도 유지·facing 무시). 승객은 unRide 로 원래 차원에 남는다(오류 없음).
+- `LivingEntity.kill` 은 generic_kill 피해 Float.MAX_VALUE, `Entity.kill` 은 KILLED 제거 + entity_die 게임 이벤트(이전엔 게임 이벤트가 빠져 있었다).
+- `/tick sprint` 보고 시간은 바닐라의 틱 작업 시간 합 대신 벽시계 시간이다(설계 `tick-sprint-design-2026-10-28.md`).

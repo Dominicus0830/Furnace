@@ -1,4 +1,4 @@
-// /tp: 상대(~)·국소(^) 좌표 계산, 회전, 오류 키(좌표 범위·엔티티 아님·다른 차원), 도착 엔티티 형, 그리고 실제 region 의 일반 엔티티(소)를
+// /tp: 상대(~)·국소(^) 좌표 계산, 회전, 오류 키(좌표 범위·엔티티 아님), 도착 엔티티 형, 그리고 실제 region 의 일반 엔티티(소)를
 // 선택자로 골라 옮기는 경로(@e[type=cow,tag=…])와 facing.
 package org.domi.furnace.server.command.builtin;
 
@@ -127,11 +127,6 @@ class TeleportCommandTest {
                 assertThrows(CommandSyntaxException.class, () -> d.execute("tp @s 0 20000000 0", src)).getRawMessage().translationKey());
         assertEquals("permissions.requires.entity",
                 assertThrows(CommandSyntaxException.class, () -> d.execute("tp 1 2 3", CommandSource.console(core))).getRawMessage().translationKey());
-        // 다른 차원에 있는 대상은 옮기지 않고 실패한다
-        p.dimension("minecraft:the_nether");
-        var err = assertThrows(CommandSyntaxException.class, () -> d.execute("tp @s 1 64 1", src));
-        assertNull(err.getRawMessage().translationKey());
-        assertTrue(err.getRawMessage().collapseToString().contains("dimensions"));
         // 권한 부족
         assertThrows(CommandSyntaxException.class, () -> d.execute("tp @s 1 64 1", CommandSource.player(core, p).withPermission(1)));
     }

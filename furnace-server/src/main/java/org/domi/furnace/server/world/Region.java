@@ -783,6 +783,25 @@ public final class Region {
 
     int stepsLeft() { return stepsLeft; }
 
+    /** /tick sprint: 이 region 이 본 sprint 세대와 남은 sprint 틱(region 스레드 전용). */
+    private int sprintGeneration;
+    private int sprintLeft;
+    /** 틱 뒤(Regionizer 잠금 안)에 남기는 요약: 본 sprint 세대, 아직 sprint 틱이 남았는지 — 전역이 sprint 끝을 판정할 때 잠금 안에서 읽는다. */
+    int sprintSeen;
+    boolean sprintPending;
+
+    /** 새 region 이 sprint 상태를 이어받는다: 생성 시점 세대(남은 틱 0) 또는 나눈 부모의 세대·남은 틱. */
+    void inheritSprint(int generation, int left) {
+        this.sprintGeneration = generation;
+        this.sprintLeft = left;
+        this.sprintSeen = generation;
+        this.sprintPending = left > 0;
+    }
+
+    int sprintGeneration() { return sprintGeneration; }
+
+    int sprintLeft() { return sprintLeft; }
+
     public void tick() {
         world.assertOwns(this);
         if (Regionizer.STATS) lapT = System.nanoTime();
@@ -795,6 +814,15 @@ public final class Region {
         }
         if (frozen && stepsLeft > 0) {
             stepsLeft--;
+            frozen = false;
+        }
+        // /tick sprint: 세대가 바뀌면 남은 sprint 틱을 다시 채운다(끝났거나 멈췄으면 0). sprint 틱은 기다리지 않고 곧바로 다음 틱을 잡는다(Regionizer.afterTick).
+        if (sprintGeneration != tickState.sprintGeneration()) {
+            sprintGeneration = tickState.sprintGeneration();
+            sprintLeft = tickState.sprinting() ? tickState.sprintTicks() : 0;
+        }
+        if (sprintLeft > 0) {
+            sprintLeft--;
             frozen = false;
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
@@ -1485,6 +1513,31 @@ public final class Region {
                 src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
             }
         });
+    }
+
+    /**
+     * 명령 텔레포트로 다른 차원에(바닐라 ServerPlayer.teleportTo(level, …) 의 changeDimension(DimensionTransition(level, pos, ZERO, yaw,
+     * pitch, DO_NOTHING))): 이 region 에 있으면 떼어 목적 차원으로 보내고 참, 없으면(다른 region 으로 넘어갔다) 거짓.
+     * done 은 목적지가 정해진 뒤(되돌림 포함) 한 번 불린다.
+     */
+    public boolean teleportAcross(Player p, String dimension, double x, double y, double z, float yaw, float pitch, Runnable done) {
+        world.assertOwns(this);
+        if (players.remove(p.entityId()) == null) return false;
+        var plan = new org.domi.furnace.server.entity.PortalTravel(dimension, org.domi.furnace.server.entity.Entity.floor(x), org.domi.furnace.server.entity.Entity.floor(z), 0, 0,
+                lvl -> new org.domi.furnace.server.entity.DimensionTransition(lvl, x, y, z, 0, 0, 0, yaw, pitch));
+        final int cooldown = p.portalCooldown;
+        detachForDimensionChange(p);
+        World src = world;
+        src.travelService().travel(plan, (target, t) -> {
+            try {
+                if (target == null || t == null || !(target instanceof RegionLevel rl) || !p.changeDimension(rl.world(), t, cooldown)) {
+                    src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
+                }
+            } finally {
+                done.run();
+            }
+        });
+        return true;
     }
 
     /** 이 region 에서 떼어 목적 차원으로 보낸다. 목적지를 못 정하면 이 월드로 되돌린다. */

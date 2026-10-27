@@ -1,7 +1,8 @@
 // /tick 이 바꾸는 서버 틱 상태: 틱 속도(기본 20), 정지 여부, 정지 중 한 걸음씩 진행(step), 그리고 /tick query 가 보여 줄 틱 시간 표본.
 // Furnace 는 region 마다 따로 틱하므로 "서버 틱"은 하나가 아니다 — 속도는 모든 region 의 틱 주기와 전역 틱(시간·날씨) 주기에 함께 걸고,
 // 정지는 각 region 이 월드 진행(예약 틱·무작위 틱·스폰·엔티티·블록 엔티티)만 건너뛰고 플레이어 처리는 계속하며,
-// step 은 정지 중인 각 region 이 N 번씩 월드 진행을 하게 한다. 틱 시간 표본은 region 틱 하나하나의 소요 시간이다.
+// step 은 정지 중인 각 region 이 N 번씩 월드 진행을 하게 한다. sprint 는 전역·각 region 이 N 틱을 기다림 없이 돈다
+// (docs/feature-parity/tick-sprint-design-2026-10-28.md). 틱 시간 표본은 region 틱 하나하나의 소요 시간이다.
 package org.domi.furnace.server.world;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,6 +68,57 @@ public final class TickState {
             if (cur <= 0) return false;
             if (globalStepsLeft.compareAndSet(cur, cur - 1)) return true;
         }
+    }
+
+    // ------------------------------------------------------------------ sprint (설계: docs/feature-parity/tick-sprint-design-2026-10-28.md)
+
+    private volatile int sprintGeneration;
+    private volatile boolean sprinting;
+    private volatile int sprintTicks;
+    private volatile long sprintGlobalLeft;
+    private long sprintStartNanos;
+    private boolean sprintWasFrozen;
+
+    /** sprint 가 끝날 때의 보고 재료: 전역 틱으로 센 진행 틱 수와 시작부터의 벽시계 시간. */
+    public record SprintResult(long ticks, long elapsedNanos) {}
+
+    public boolean sprinting() { return sprinting; }
+
+    /** region 이 보는 sprint 세대(바뀌었으면 sprinting 이면 sprintTicks 로, 아니면 0 으로 자기 남은 틱을 다시 채운다). */
+    public int sprintGeneration() { return sprintGeneration; }
+
+    public int sprintTicks() { return sprintTicks; }
+
+    public long sprintGlobalLeft() { return sprintGlobalLeft; }
+
+    /**
+     * 바닐라 ServerTickRateManager.requestGameToSprint: 지금 정지 상태를 기억하고 정지를 풀어(진행 중인 step 은 그대로) ticks 만큼 sprint.
+     * 이미 sprint 중이었으면 참(앞의 sprint 는 보고 없이 버린다).
+     */
+    public synchronized boolean startSprint(int ticks, long nowNanos) {
+        boolean was = sprinting;
+        sprintTicks = ticks;
+        sprintGlobalLeft = ticks;
+        sprintStartNanos = nowNanos;
+        sprintWasFrozen = frozen;
+        frozen = false;
+        sprinting = true;
+        sprintGeneration++;
+        return was;
+    }
+
+    /** 전역 틱 하나를 sprint 틱으로 쓴다(전역 스레드). */
+    public void takeSprintGlobalTick() { if (sprintGlobalLeft > 0) sprintGlobalLeft--; }
+
+    /** sprint 를 끝낸다(다 돌았거나 stop): 남은 region 틱을 거두고 정지 상태를 되돌린다. sprint 중이 아니었으면 null. */
+    public synchronized SprintResult endSprint(long nowNanos) {
+        if (!sprinting) return null;
+        SprintResult r = new SprintResult(sprintTicks - sprintGlobalLeft, nowNanos - sprintStartNanos);
+        sprinting = false;
+        sprintGlobalLeft = 0;
+        sprintGeneration++;
+        frozen = sprintWasFrozen;
+        return r;
     }
 
     // ------------------------------------------------------------------ 틱 시간

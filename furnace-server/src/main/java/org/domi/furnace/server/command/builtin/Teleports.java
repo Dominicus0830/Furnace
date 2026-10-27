@@ -1,5 +1,5 @@
 // /tp·/spreadplayers 가 공유하는 옮기기: 플레이어는 연결의 보정 텔레포트 경로(Player.teleportTo)로, 일반 엔티티는 그 엔티티를 가진
-// region 스레드에서 직접 옮긴다. 같은 차원 안에서만 옮긴다(차원 사이 이동은 아직 없다).
+// region 스레드에서 직접 옮긴다. 목적 차원이 다르면 차원 이동 경로(플레이어는 연결의 차원 변경, 엔티티는 목적 region 에 새로 만들기)로.
 package org.domi.furnace.server.command.builtin;
 
 import org.domi.furnace.api.text.Text;
@@ -15,10 +15,6 @@ import org.domi.furnace.server.world.World;
 
 final class Teleports {
     private Teleports() { }
-
-    /** 바닐라에 없는 제약: 다른 차원으로 옮기는 길이 아직 없다. */
-    static final SimpleCommandExceptionType ERROR_CROSS_DIMENSION =
-            new SimpleCommandExceptionType(Text.text("Teleporting between dimensions is not supported yet"));
 
     /** Level.isInSpawnableBounds(BlockPos.containing(x, y, z)). */
     static boolean inSpawnableBounds(double x, double y, double z) {
@@ -46,38 +42,46 @@ final class Teleports {
         return w != null ? w : source.level();
     }
 
+    /** 대상의 지금 차원 안에서 옮긴다(teleport(source, target, 대상 차원, …)). */
+    static java.util.concurrent.CompletableFuture<Void> teleport(CommandSource source, Rider target, double x, double y, double z, float yaw, float pitch) {
+        return teleport(source, target, target.dimensionKey(), x, y, z, yaw, pitch);
+    }
+
+    private static final int MAX_PLAYER_RETRIES = 5;
+
     /**
-     * 대상을 (x, y, z) 로 옮기고 회전을 맞춘다(바닐라 TeleportCommand.performTeleport 의 같은 차원 경로). 일은 대상의 주인 스레드로 보낸다.
-     * 플레이어: 포스트 텔레포트 티켓(5틱), 탈것에서 내리고, 자던 중이면 깨운 뒤 연결의 보정 텔레포트.
-     * 그 밖: 위치·회전, 승객 자리, 수평 이동만 남기고(y 속도 0) 땅에 선 상태로, 길 찾기 중단.
+     * 대상을 dimension 의 (x, y, z) 로 옮기고 회전을 맞춘다(바닐라 TeleportCommand.performTeleport → Entity.teleportTo(level, …)).
+     * 일은 대상의 주인 스레드로 보낸다.
+     * 플레이어: 목적 레벨에 포스트 텔레포트 티켓(5틱), 탈것에서 내리고, 자던 중이면 깨운 뒤 같은 차원이면 연결의 보정 텔레포트,
+     * 다른 차원이면 차원 변경(속도 0, 도착 뒤 처리 없음).
+     * 그 밖, 같은 차원: 위치·회전, 승객 자리, 수평 이동만 남기고(y 속도 0) 땅에 선 상태로, 길 찾기 중단.
+     * 그 밖, 다른 차원: 승객을 내리고 목적 차원에 새로 만든다(속도 그대로 — 바닐라는 속도·땅·길 찾기 손질을 옛 엔티티에 한다).
      * 일이 끝나면(주인을 못 찾아 건너뛴 경우도) 완료되는 future 를 돌려준다.
      */
-    static java.util.concurrent.CompletableFuture<Void> teleport(CommandSource source, Rider target, double x, double y, double z, float yaw, float pitch) {
+    static java.util.concurrent.CompletableFuture<Void> teleport(CommandSource source, Rider target, String dimension,
+                                                                 double x, double y, double z, float yaw, float pitch) {
         var done = new java.util.concurrent.CompletableFuture<Void>();
         World world = worldOf(source, target);
+        World dest = source.getServer().world(dimension);
+        boolean across = dest != null && dest != world;
         if (target instanceof Player p) {
-            world.addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);
-            world.runAt(p.x(), p.z(), region -> {
-                try {
-                    if (p.vehicle() != null) p.stopRiding();
-                    if (p.isSleeping()) PlayerSleeping.stopSleepInBed(p, region.level(), true, true);
-                    p.teleportTo(x, y, z, yaw, pitch);
-                    done.complete(null);
-                } catch (Throwable t) {
-                    done.completeExceptionally(t);
-                }
-            });
+            (across ? dest : world).addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);
+            teleportPlayer(world, p, across ? dimension : null, x, y, z, yaw, pitch, done, MAX_PLAYER_RETRIES);
         } else if (target instanceof Entity en) {
             org.domi.furnace.server.command.EntityOps.runOnOwner(source, en, e -> {
                 try {
-                    if (!e.isRemoved()) {
+                    if (e.isRemoved()) {
+                        done.complete(null);
+                    } else if (across) {
+                        if (!e.teleportToDimension(dimension, x, y, z, yaw, pitch, () -> done.complete(null))) done.complete(null);
+                    } else {
                         e.teleportSameLevel(x, y, z, yaw, pitch);
                         if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
                         e.setDeltaMovement(e.vx(), 0.0, e.vz());
                         e.setOnGround(true);
                         if (e instanceof PathfinderMob m) m.getNavigation().stop();
+                        done.complete(null);
                     }
-                    done.complete(null);
                 } catch (Throwable t) {
                     done.completeExceptionally(t);
                 }
@@ -86,5 +90,25 @@ final class Teleports {
             done.complete(null);
         }
         return done;
+    }
+
+    /** 플레이어가 있는 region 에서 옮긴다. 다른 차원이면 그 region 에서 떼어 보낸다(사이에 region 을 넘어갔으면 다시 찾는다). */
+    private static void teleportPlayer(World world, Player p, String acrossTo, double x, double y, double z, float yaw, float pitch,
+                                       java.util.concurrent.CompletableFuture<Void> done, int tries) {
+        world.runAt(p.x(), p.z(), region -> {
+            try {
+                if (p.vehicle() != null) p.stopRiding();
+                if (p.isSleeping()) PlayerSleeping.stopSleepInBed(p, region.level(), true, true);
+                if (acrossTo == null) {
+                    p.teleportTo(x, y, z, yaw, pitch);
+                    done.complete(null);
+                } else if (!region.teleportAcross(p, acrossTo, x, y, z, yaw, pitch, () -> done.complete(null))) {
+                    if (tries > 0) teleportPlayer(world, p, acrossTo, x, y, z, yaw, pitch, done, tries - 1);
+                    else done.complete(null);
+                }
+            } catch (Throwable t) {
+                done.completeExceptionally(t);
+            }
+        });
     }
 }

@@ -1,4 +1,4 @@
-// /tick: 속도·정지·step 상태와 전역 틱(시간) 반영, 권한, 틱 시간 표본(query 백분위).
+// /tick: 속도·정지·step·sprint 상태와 전역 틱(시간) 반영, 권한, 틱 시간 표본(query 백분위).
 package org.domi.furnace.server.command.builtin;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -120,6 +120,80 @@ class TickCommandTest {
     void permissionThreeRequired() {
         assertFailsWith("tick query", src.withPermission(2), "Unknown or incomplete command, see below for error");
         assertTrue(core.commands().performPrefixedCommandAsync(src.withPermission(3), "tick query").join().success());
+    }
+
+    private java.util.List<org.domi.furnace.api.text.Text> console() {
+        java.util.List<org.domi.furnace.api.text.Text> msgs = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        core.addConsoleListener(msgs::add);
+        return msgs;
+    }
+
+    private static boolean has(java.util.List<org.domi.furnace.api.text.Text> msgs, String key) {
+        synchronized (msgs) {
+            for (var t : msgs) if (key.equals(t.translationKey())) return true;
+        }
+        return false;
+    }
+
+    @Test
+    void sprintRunsGlobalAndRegionTicksWithoutWaiting_thenReportsAndRestoresFreeze() throws Exception {
+        var world = core.world();
+        world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> r.loadChunk(new org.domi.furnace.server.world.ChunkPos(0, 0))).get();
+        world.startTicking();
+        var msgs = console();
+        TickState ts = core.tickState();
+        assertEquals(1, run("tick freeze"));
+        long t0 = core.clock().gameTime();
+        long r0 = world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> r.tickCount()).get();
+        long start = System.nanoTime();
+        assertEquals(1, run("tick sprint 200"));
+        assertTrue(ts.sprinting());
+        assertFalse(ts.frozen(), "sprint 중에는 정지를 푼다");
+        assertTrue(has(msgs, "commands.tick.status.sprinting"));
+        assertEquals(20, run("tick query"));
+        assertTrue(has(msgs, "commands.tick.query.rate.sprinting"));
+        // 전역 틱 반복(원래 50ms 마다)을 쉬지 않고 불러 sprint 를 끝까지
+        for (int i = 0; i < 2000 && ts.sprinting(); i++) {
+            core.scheduledTick();
+            Thread.sleep(1);
+        }
+        assertFalse(ts.sprinting(), "sprint 가 끝났다");
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+        assertEquals(t0 + 200, core.clock().gameTime(), "전역 시계는 정확히 200 틱");
+        long r1 = world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> r.tickCount()).get();
+        assertTrue(r1 - r0 >= 200, "region 도 200 틱 이상 돌았다: " + (r1 - r0));
+        assertTrue(elapsedMs < 8_000, "20 TPS 라면 10초 — 기다리지 않고 돌았다: " + elapsedMs + "ms");
+        assertTrue(has(msgs, "commands.tick.sprint.report"));
+        assertTrue(ts.frozen(), "끝나면 원래 정지 상태로");
+        // 멈출 sprint 가 없다
+        assertEquals(0, run("tick sprint stop"));
+        // 도중에 멈춤: 보고 + stop.success, 정지 상태 복구
+        run("tick unfreeze");
+        run("tick sprint 1d");
+        assertEquals(24000, ts.sprintTicks());
+        core.scheduledTick();
+        msgs.clear();
+        assertEquals(1, run("tick sprint stop"));
+        assertTrue(has(msgs, "commands.tick.sprint.report"));
+        assertTrue(has(msgs, "commands.tick.sprint.stop.success"));
+        assertFalse(ts.sprinting());
+        assertFalse(ts.frozen());
+        // sprint 중 freeze 는 sprint 를 먼저 멈춘다(보고 포함)
+        run("tick sprint 1d");
+        msgs.clear();
+        assertEquals(1, run("tick freeze"));
+        assertFalse(ts.sprinting());
+        assertTrue(ts.frozen());
+        assertTrue(has(msgs, "commands.tick.sprint.report"));
+        // 이미 sprint 중에 다시 sprint: stop.success 뒤 sprinting
+        run("tick sprint 100");
+        msgs.clear();
+        run("tick sprint 50");
+        assertTrue(has(msgs, "commands.tick.sprint.stop.success"));
+        assertEquals(50, ts.sprintTicks());
+        assertFalse(ts.frozen(), "다시 시작하면 그 시점(풀린) 상태를 기억한다 — 바닐라와 같다");
+        run("tick sprint stop");
+        assertFalse(ts.frozen());
     }
 
     /** 실패 결과와 첫 실패 메시지(파싱 오류 문구)를 함께 확인한다. */
