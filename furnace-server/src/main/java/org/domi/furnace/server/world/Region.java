@@ -796,6 +796,7 @@ public final class Region {
             p.currentLevel = level;
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
+            p.sendPendingKnockback();   // hurtMarked 가 선 틱에만 속도 패킷 한 번
             // Entity.checkInsideBlocks 의 포털 칸 + baseTick 의 handlePortal(차원을 옮기면 이 region 에서 빠진다)
             if (level != null && checkInsidePortals(p)) { it.remove(); continue; }
             if (level != null && handlePlayerPortal(p)) { it.remove(); continue; }
