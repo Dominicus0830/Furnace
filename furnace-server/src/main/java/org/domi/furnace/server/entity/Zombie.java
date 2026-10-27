@@ -386,7 +386,7 @@ public class Zombie extends Monster {
         super.readAdditionalSaveData(tag);
         setBaby(tag.getBoolean("IsBaby"));
         canBreakDoors = tag.getBoolean("CanBreakDoors");
-        inWaterTime = tag.getInt("InWaterTime");
+        inWaterTime = tag.getIntOr0("InWaterTime");   // 바닐라 getInt: 없으면 0(구조물이 남긴 좀비 주민 NBT 등)
         if (tag.contains("DrownedConversionTime") && tag.getInt("DrownedConversionTime") > -1) startUnderWaterConversion(tag.getInt("DrownedConversionTime"));
     }
 }
