@@ -110,7 +110,7 @@ class AnvilChunkCodecTest {
         furnace.putList("Items", fItems);
         bes.add(furnace);
         NbtCompound sign = new NbtCompound();
-        sign.putString("id", "minecraft:bed");   // 아직 이식하지 않은 종류(표지판은 이식됨)
+        sign.putString("id", "minecraft:conduit");   // 아직 이식하지 않은 종류(표지판·침대는 이식됨)
         sign.putInt("x", 5); sign.putInt("y", -60); sign.putInt("z", 5);
         bes.add(sign);
         nbt.putList("block_entities", bes);
@@ -119,6 +119,6 @@ class AnvilChunkCodecTest {
         ChestBlockEntity c = col.chestAt(1, -60, 2);
         assertNotNull(c, "바닐라 상자는 블록 엔티티로 읽혀야 한다");
         assertEquals(7, c.items[3].count());
-        assertEquals(2, col.blockEntities().size(), "상자·화로는 읽히고, 미지원 종류(침대)는 상자로 둔갑하면 안 된다");
+        assertEquals(2, col.blockEntities().size(), "상자·화로는 읽히고, 미지원 종류(전달체)는 상자로 둔갑하면 안 된다");
     }
 }

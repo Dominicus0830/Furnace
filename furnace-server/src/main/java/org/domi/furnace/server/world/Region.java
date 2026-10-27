@@ -253,6 +253,7 @@ public final class Region {
         c = world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                 ? anvil.generate(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()))
                 : world.worldSource().generate(cp.x(), cp.z());
+        c.promotePendingBlockEntities(cp.x(), cp.z(), c.freshlyGenerated() || !(world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource));
         world.putChunk(cp.x(), cp.z(), c);
         level().lightNewChunk(cp.x(), cp.z());
         level().runLightUpdates();
@@ -286,10 +287,13 @@ public final class Region {
                         : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
         // 청크 안쪽 조명은 생성 스레드에서 미리 계산한다(region 틱 스레드가 청크당 ~2ms 를 쓰던 것) — 이웃과의 가장자리는 올릴 때 맞춘다.
         final boolean sky = level().hasSkyLight();
+        final boolean anvilSource = world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource;
         final int bedrock = level().lightBedrockState();
         sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 생성 풀에서 계산한다
             if (col != null) {
                 if (col.poi() == null) col.poi(org.domi.furnace.server.world.poi.PoiManager.restore(col, cp.x(), cp.z(), col.poiNbt()));
+                // registerAllBlockEntitiesAfterLevelLoad: 남은 NBT·월드젠 칸을 블록 엔티티로(침대·종은 없으면 클라이언트가 안 그린다)
+                col.promotePendingBlockEntities(cp.x(), cp.z(), col.freshlyGenerated() || !anvilSource);
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
@@ -1261,7 +1265,7 @@ public final class Region {
     }
 
     /** 지도가 읽는 지형: 이 region 이 가진 로드된 청크만(마지막 청크를 기억해 열 단위 연속 조회를 싸게). */
-    private final class MapTerrain implements org.domi.furnace.server.map.MapRenderer.Terrain {
+    final class MapTerrain implements org.domi.furnace.server.map.MapRenderer.Terrain {
         private int lastCx = Integer.MIN_VALUE, lastCz;
         private ChunkColumn last;
 
@@ -1293,7 +1297,7 @@ public final class Region {
         @Override public org.domi.furnace.server.map.MapData.Banner bannerAt(int x, int y, int z) {
             ChunkColumn c = chunk(x >> 4, z >> 4);
             if (c == null || y < c.minY() || y > c.maxY()) return null;
-            return c.blockEntityAt(x & 15, y, z & 15) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity be
+            return c.blockEntityAt(x, y, z) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity be
                     ? new org.domi.furnace.server.map.MapData.Banner(x, y, z, be.baseColor(), be.customName) : null;
         }
     }

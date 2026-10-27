@@ -235,6 +235,72 @@ public final class ChunkColumn {
         touch();
     }
 
+    /** 블록별: newBlockEntity 가 블록 엔티티를 만드는가(상자는 ChestBlockEntity 별도 경로라 제외). */
+    private static volatile boolean[] HAS_BE;
+
+    private static boolean[] hasBlockEntityTable() {
+        boolean[] t = HAS_BE;
+        if (t != null) return t;
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        t = new boolean[blocks.blockCount()];
+        var origin = new org.domi.furnace.server.block.Pos(0, 0, 0);
+        for (int b = 0; b < t.length; b++) {
+            int s = blocks.defaultState(b);
+            t[b] = org.domi.furnace.server.block.BlockBehaviors.ofBlock(b).newBlockEntity(origin, s) != null;
+        }
+        return HAS_BE = t;
+    }
+
+    /**
+     * LevelChunk.registerAllBlockEntitiesAfterLevelLoad 의 promotePendingBlockEntity 부분(청크를 올리기 전, 소유 스레드 밖에서 아직 공개 전인 청크에).
+     * 월드젠·저장 파일이 남긴 NBT 중 이식한 종류는 블록 엔티티로 바꾼다(상자는 adoptGeneratedChest 가 따로 맡는다).
+     * dummyScan 이면 바닐라 WorldGenRegion.setBlock 의 "DUMMY" NBT 처럼, 블록 엔티티가 있어야 할 칸에 없으면 newBlockEntity 로 만든다.
+     * 침대·종은 블록 엔티티가 없으면 클라이언트가 그리지 않는다(사용자 테스트 D1·D3).
+     */
+    public void promotePendingBlockEntities(int chunkX, int chunkZ, boolean dummyScan) {
+        if (generatedBlockEntities != null && !generatedBlockEntities.isEmpty()) {
+            java.util.List<int[]> keys = new java.util.ArrayList<>();
+            forEachGeneratedBlockEntity((lx, y, lz, nbt) -> {
+                Object id = nbt.tags().get("id");
+                if (id instanceof String s && !"minecraft:chest".equals(s) && !"minecraft:trapped_chest".equals(s)
+                        && org.domi.furnace.server.block.entity.BlockEntities.known(s)) keys.add(new int[]{lx, y, lz});
+            });
+            for (int[] k : keys) {
+                var nbt = generatedBlockEntities.get(blockEntityKey(k[0], k[1], k[2]));
+                int state = getBlock(k[0], k[1], k[2]);
+                var pos = new org.domi.furnace.server.block.Pos((chunkX << 4) + k[0], k[1], (chunkZ << 4) + k[2]);
+                var be = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, state, nbt);
+                if (be != null && be.isValid(state)) putBlockEntity(be);
+            }
+        }
+        if (!dummyScan) return;
+        boolean[] has = hasBlockEntityTable();
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        int baseX = chunkX, baseZ = chunkZ;
+        for (int i = 0; i < sectionCount; i++) {
+            ChunkSection cs = sections[i];
+            if (cs == null || cs.hasOnlyAir()) continue;
+            boolean any = false;
+            for (int s : cs.blocks()) if (has[blocks.blockOf(s)]) { any = true; break; }
+            if (!any) continue;
+            int by = minY + (i << 4);
+            for (int y = 0; y < 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int x = 0; x < 16; x++) {
+                        int s = cs.getBlock(x, y, z);
+                        if (!has[blocks.blockOf(s)]) continue;
+                        int wy = by + y;
+                        if (blockEntities.containsKey(blockEntityKey((baseX << 4) + x, wy, (baseZ << 4) + z))) continue;
+                        if (generatedBlockEntities != null && generatedBlockEntities.containsKey(blockEntityKey(x, wy, z))) continue;
+                        var pos = new org.domi.furnace.server.block.Pos((baseX << 4) + x, wy, (baseZ << 4) + z);
+                        var be = org.domi.furnace.server.block.BlockBehaviors.of(s).newBlockEntity(pos, s);
+                        if (be != null) putBlockEntity(be);
+                    }
+                }
+            }
+        }
+    }
+
     /** 생성·로드된 미지원 블록 엔티티를 (로컬 x, 월드 y, 로컬 z, NBT) 로 순회. */
     public void forEachGeneratedBlockEntity(GeneratedBlockEntityVisitor v) {
         if (generatedBlockEntities == null) return;
