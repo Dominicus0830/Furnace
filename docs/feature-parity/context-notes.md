@@ -275,3 +275,7 @@
 - `RegionFile` 은 바닐라 RegionBitmap 첫 적합 + "새 자리 데이터 → 헤더 → 옛 해제" 순서다. in-place 덮어쓰기를 되살리지 않는다(크래시 시 청크 손상, `RegionSectorAllocatorTest` 가 잡는다).
 - O_DSYNC 에서는 write 호출 수가 곧 동기화 횟수다. 헤더 두 항목(4B×2)을 따로 쓰면 8KB 한 번보다 느리다(측정 963 vs 1,210 청크/초). sync 일 때 헤더는 한 번에 쓴다.
 - `sync-chunk-writes=true`(기본) 저장 처리량은 꺼짐의 약 1/17. 끄는 것은 사용자 결정 항목(`docs/user-todo.md`).
+## 2026-10-28 /kill 전 엔티티·/tp 차원 간·/tick sprint
+- 바닐라 `/tp` 의 다른 레벨 경로(Entity.teleportTo)는 새 엔티티를 만들어 restoreFrom 하므로, TeleportCommand 가 그 뒤에 하는 손질(facing lookAt, y 속도 0, 땅 위, 길 찾기 중단)은 **옛 엔티티**에 걸려 새 엔티티에는 안 보인다. Furnace 도 그대로 따른다(일반 엔티티 차원 간 이동은 속도 유지·facing 무시). 승객은 unRide 로 원래 차원에 남는다(오류 없음).
+- `LivingEntity.kill` 은 generic_kill 피해 Float.MAX_VALUE, `Entity.kill` 은 KILLED 제거 + entity_die 게임 이벤트(이전엔 게임 이벤트가 빠져 있었다).
+- `/tick sprint` 보고 시간은 바닐라의 틱 작업 시간 합 대신 벽시계 시간이다(설계 `tick-sprint-design-2026-10-28.md`).

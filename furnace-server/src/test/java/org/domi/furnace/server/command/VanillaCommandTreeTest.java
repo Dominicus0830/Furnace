@@ -91,11 +91,10 @@ class VanillaCommandTreeTest {
     }
 
     /**
-     * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다).
+     * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi.
      */
     private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of(
-            "/locate", List.of("biome", "poi"),
-            "/tick", List.of("sprint"));
+            "/locate", List.of("biome", "poi"));
 
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
     private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute", "function", "return", "schedule", "place", "trigger", "teammsg", "tm");

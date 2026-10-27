@@ -46,6 +46,34 @@ public final class EntityOps {
         });
     }
 
+    /**
+     * 플레이어를 가진 region 스레드에서 task 를 돌린다. 플레이어의 지금 차원 월드에서 위치로 보내고, 도착한 region 의 players 에
+     * 있는지 **먼저** 확인한 뒤에만 task 를 부른다(아니면 지금 위치·차원으로 다시, 최대 5번). 끝내 못 찾으면(접속 끊김·차원 이동 중) onFail.
+     */
+    public static void runOnPlayerOwner(CommandSource source, Player p, java.util.function.Consumer<org.domi.furnace.server.world.Region> task, Runnable onFail) {
+        runOnPlayerOwner(source, p, task, onFail, MAX_OWNER_RETRIES);
+    }
+
+    private static void runOnPlayerOwner(CommandSource source, Player p, java.util.function.Consumer<org.domi.furnace.server.world.Region> task,
+                                         Runnable onFail, int tries) {
+        var world = source.getServer().world(p.dimension());
+        if (world == null) world = source.getServer().world();
+        world.runAt(p.x(), p.z(), region -> {
+            if (region.players().get(p.entityId()) == p) {
+                task.accept(region);
+            } else if (!p.isDisconnected() && tries > 0) {
+                runOnPlayerOwner(source, p, task, onFail, tries - 1);
+            } else {
+                onFail.run();
+            }
+        });
+    }
+
+    /** 주인을 끝내 못 찾았을 때의 실패(명령 오류로 보고된다). */
+    public static IllegalStateException ownerNotFound(Rider r) {
+        return new IllegalStateException("대상을 가진 region 을 찾지 못했다: " + describe(r));
+    }
+
     /** region 작업: 오류를 던질 수 있다. */
     @FunctionalInterface
     public interface RegionTask<T> {

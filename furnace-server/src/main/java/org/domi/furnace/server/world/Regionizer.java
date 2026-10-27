@@ -239,6 +239,7 @@ public final class Regionizer {
     private Region newRegion(long firstTick) {
         Region r = new Region(++nextId, world);
         r.inheritSteps(world.tickState().generation(), 0);   // 진행 중인 step 은 새 region 에 다시 주지 않는다
+        r.inheritSprint(world.tickState().sprintGeneration(), 0, false);   // sprint 도 같다(참여하지 않는다)
         regions.add(r);
         r.nextTickNanos = firstTick;
         schedule(r);
@@ -453,8 +454,17 @@ public final class Regionizer {
         }
         if (!r.alive) return;
         long now = System.nanoTime();
-        r.nextTickNanos += tickNanos;
-        if (r.nextTickNanos < now) r.nextTickNanos = now + tickNanos;   // 너무 밀렸으면 재동기(따라잡기 폭주 방지)
+        r.sprintSeen = r.sprintGeneration();
+        r.sprintPending = r.sprintLeft() > 0;
+        r.sprintJoinedSummary = r.sprintJoined();
+        r.sprintDoneSummary = r.sprintJoined() ? world.tickState().sprintTicks() - r.sprintLeft() : 0;
+        if (r.sprintPending) {
+            // /tick sprint: 기다리지 않고 곧바로 다음 틱(같은 풀의 다른 region 과는 마감 순서로 번갈아). 전역을 기다린 틱이면 잠깐 뒤에.
+            r.nextTickNanos = r.sprintHeld() ? now + SPRINT_HOLD_NANOS : now;
+        } else {
+            r.nextTickNanos += tickNanos;
+            if (r.nextTickNanos < now) r.nextTickNanos = now + tickNanos;   // 너무 밀렸으면 재동기(따라잡기 폭주 방지) — sprint 끝도 여기로 돌아온다
+        }
         schedule(r);
     }
 
@@ -466,12 +476,38 @@ public final class Regionizer {
     }
 
     /** 합칠 대상이 쉬면 흡수, 틱 중이면 양보(다음 틱을 잡지 않고 상대가 끝날 때 흡수된다). */
+    /** sprint 중 병합 조건: 두 region 의 sprint 참여·남은 틱이 같아야 모든 구역이 같은 N 틱을 받는다. */
+    private boolean sprintCompatible(Region r, Region o) {
+        var ts = world.tickState();
+        if (!ts.sprinting()) return true;
+        int gen = ts.sprintGeneration();
+        long lr = r.sprintSeen == gen && r.sprintJoinedSummary ? r.sprintLeft() : -1;
+        long lo = o.sprintSeen == gen && o.sprintJoinedSummary ? o.sprintLeft() : -1;
+        return lr == lo;
+    }
+
+    /** sprint 가 끝난 뒤 남은 region 이 미룬 병합을 다시 보게 깨우는 주기(나노초) — 전역을 기다린 region 의 재시도 간격도 같다. */
+    static final long SPRINT_HOLD_NANOS = 100_000L;
+
     private void resolveMerges(Region r) {
+        List<Region> deferred = new ArrayList<>();
+        try {
+            resolveMerges(r, deferred);
+        } finally {
+            r.pendingMerges.addAll(deferred);
+        }
+    }
+
+    private void resolveMerges(Region r, List<Region> deferred) {
         while (!r.pendingMerges.isEmpty()) {
             var it = r.pendingMerges.iterator();
             Region o = resolve(it.next());
             it.remove();
             if (o == null || o == r || !o.alive) continue;
+            if (!sprintCompatible(r, o)) {   // sprint 진행이 다르면 같아질 때까지(또는 sprint 가 끝날 때까지) 미룬다
+                deferred.add(o);
+                continue;
+            }
             if (o.ticking) {
                 r.yielded = true;
                 o.pendingMerges.addAll(r.pendingMerges);
@@ -558,7 +594,9 @@ public final class Regionizer {
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
             n.inheritSteps(r.stepGeneration(), r.stepsLeft());   // 나뉜 조각은 부모의 남은 걸음을 물려받는다
-            n.nextTickNanos = r.nextTickNanos + tickNanos;   // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게
+            n.inheritSprint(r.sprintGeneration(), r.sprintLeft(), r.sprintJoined());   // sprint 틱도
+            // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게. sprint 중이면 부모처럼 곧바로
+            n.nextTickNanos = r.sprintLeft() > 0 ? r.nextTickNanos : r.nextTickNanos + tickNanos;
             regions.add(n);
             created.add(n);
             for (long sk : parts.get(i)) {
@@ -607,6 +645,43 @@ public final class Regionizer {
     }
 
     // ------------------------------------------------------------------ 상태
+
+    /**
+     * /tick sprint 끝 판정(전역 스레드): 살아 있는 모든 region 이 그 sprint 세대를 보고 sprint 틱을 다 돌았으면 참.
+     * 게임 틱을 돌지 않는 월드(시작 전)는 참. 세대 요약은 틱 뒤 잠금 안에서 남긴 것을 읽는다.
+     */
+    /**
+     * lockstep(전역 스레드): 이 sprint 에 참여하는 region 들이 마친 sprint 틱 수의 최솟값. 아직 세대를 못 본 region 은 0,
+     * 참여하지 않는 region·흡수 대기 region 은 빼고, 없으면 Long.MAX_VALUE. 게임 틱을 돌지 않는 월드도 MAX.
+     */
+    public long sprintMinDone(int generation) {
+        if (!gameTicks) return Long.MAX_VALUE;
+        lock.lock();
+        try {
+            long min = Long.MAX_VALUE;
+            for (Region r : regions) {
+                if (!r.alive || r.yielded) continue;
+                if (r.sprintSeen != generation) min = 0;
+                else if (r.sprintJoinedSummary) min = Math.min(min, r.sprintDoneSummary);
+            }
+            return min;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean sprintDone(int generation) {
+        if (!gameTicks) return true;
+        lock.lock();
+        try {
+            for (Region r : regions) {
+                if (r.alive && !r.yielded && (r.sprintSeen != generation || r.sprintPending)) return false;
+            }
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
 
     /** 살아 있는 region 수(잠금 안 — 테스트·모니터링). */
     public int regionCount() {

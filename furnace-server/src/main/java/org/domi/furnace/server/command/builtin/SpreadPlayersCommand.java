@@ -315,7 +315,6 @@ public final class SpreadPlayersCommand {
         int minY = world.dimensionType().minY();
         if (maxHeight < minY) throw ERROR_INVALID_MAX_HEIGHT.create(maxHeight, minY);
         String dimension = world.dimension();
-        for (Rider t : targets) if (!t.dimensionKey().equals(dimension)) throw Teleports.ERROR_CROSS_DIMENSION.create();
         RandomSource random = RandomSource.create();
         double[] avg = new double[1];
         double minX = center.x() - maxRange, minZ = center.y() - maxRange, maxX = center.x() + maxRange, maxZ = center.y() + maxRange;   // float 뺄셈 뒤 double
@@ -339,7 +338,7 @@ public final class SpreadPlayersCommand {
             List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(placements.size());
             for (Placement p : placements) {
                 float yaw = p.target().riderYRot(), pitch = p.target().riderXRot();
-                moves.add(Teleports.teleport(source, p.target(), p.x(), p.y(), p.z(), yaw, pitch));
+                moves.add(Teleports.teleport(source, p.target(), dimension, p.x(), p.y(), p.z(), yaw, pitch));
             }
             return org.domi.furnace.server.command.EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
                 source.sendSuccess(() -> Text.translatable("commands.spreadplayers.success." + (respectTeams ? "teams" : "entities"),

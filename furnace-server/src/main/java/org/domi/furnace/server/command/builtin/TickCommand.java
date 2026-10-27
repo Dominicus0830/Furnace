@@ -1,6 +1,5 @@
-// 바닐라 TickCommand 중 서버 시계 구조로 가능한 것: /tick query | rate <속도> | freeze | unfreeze | step [시간|stop].
-// 없는 것: /tick sprint — Furnace 는 region 마다 따로 틱해 "N 틱을 가능한 빨리 돌리고 끝난 시각을 보고"할 한 줄기 서버 틱이 없다
-// (TickState 설명 참고). 속도·정지·step 의 적용 방식과 바닐라와의 차이는 world/TickState.java 머리말에 있다.
+// 바닐라 TickCommand: /tick query | rate <속도> | step [시간|stop] | sprint <시간|stop> | freeze | unfreeze.
+// 속도·정지·step 의 적용 방식과 바닐라와의 차이는 world/TickState.java 머리말, sprint 는 docs/feature-parity/tick-sprint-design-2026-10-28.md.
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -34,6 +33,11 @@ public final class TickCommand {
                         .then(argument("time", TimeArgument.time(1))
                                 .suggests((c, b) -> SharedSuggestions.suggest(new String[] {"1t", "1s"}, b))
                                 .executes(c -> step(c.getSource(), c.getArgument("time", Integer.class)))))
+                .then(literal("sprint")
+                        .then(literal("stop").executes(c -> stopSprinting(c.getSource())))
+                        .then(argument("time", TimeArgument.time(1))
+                                .suggests((c, b) -> SharedSuggestions.suggest(new String[] {"60s", "1d", "3d"}, b))
+                                .executes(c -> sprint(c.getSource(), c.getArgument("time", Integer.class)))))
                 .then(literal("unfreeze").executes(c -> setFreeze(c.getSource(), false)))
                 .then(literal("freeze").executes(c -> setFreeze(c.getSource(), true))));
     }
@@ -57,6 +61,10 @@ public final class TickCommand {
         String rate = String.format(Locale.ROOT, "%.1f", ts.rate());
         long average = ts.averageTickNanos();
         String averageMs = nanosToMillis(average);
+        if (ts.sprinting()) {
+            source.sendSuccess(() -> Text.translatable("commands.tick.status.sprinting"), false);
+            source.sendSuccess(() -> Text.translatable("commands.tick.query.rate.sprinting", rate, averageMs), false);
+        } else {
         if (ts.frozen()) {
             source.sendSuccess(() -> Text.translatable("commands.tick.status.frozen"), false);
         } else if (ts.nanosPerTick() < average) {
@@ -66,6 +74,7 @@ public final class TickCommand {
         }
         String target = nanosToMillis(ts.nanosPerTick());
         source.sendSuccess(() -> Text.translatable("commands.tick.query.rate.running", rate, averageMs, target), false);
+        }
         long[] sorted = ts.sampleCopy();
         Arrays.sort(sorted);
         String p50 = nanosToMillis(sorted[sorted.length / 2]);
@@ -78,6 +87,7 @@ public final class TickCommand {
 
     static int setFreeze(CommandSource source, boolean freeze) {
         ServerCore core = source.getServer();
+        if (freeze && core.tickState().sprinting()) core.finishSprint();   // 바닐라: 정지 전에 sprint 를 멈춘다(보고 포함)
         core.tickState().setFrozen(freeze);
         core.broadcastTickState();
         core.broadcastTickStep(0);
@@ -96,6 +106,22 @@ public final class TickCommand {
             source.sendSuccess(() -> Text.translatable("commands.tick.step.success", ticks), true);
         }
         return 1;
+    }
+
+    /** 바닐라 TickCommand.sprint: 이미 sprint 중이었으면 "멈춤" 메시지 뒤에 "sprint 중". */
+    static int sprint(CommandSource source, int ticks) {
+        if (source.getServer().startSprint(ticks)) source.sendSuccess(() -> Text.translatable("commands.tick.sprint.stop.success"), true);
+        source.sendSuccess(() -> Text.translatable("commands.tick.status.sprinting"), true);
+        return 1;
+    }
+
+    static int stopSprinting(CommandSource source) {
+        if (source.getServer().finishSprint()) {
+            source.sendSuccess(() -> Text.translatable("commands.tick.sprint.stop.success"), true);
+            return 1;
+        }
+        source.sendFailure(Text.translatable("commands.tick.sprint.stop.fail"));
+        return 0;
     }
 
     static int stopStepping(CommandSource source) {

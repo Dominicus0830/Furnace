@@ -523,6 +523,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
     @Override
     public boolean hurt(Damage source, float amount) { return hurtBy(source, amount, null); }
 
+    /** LivingEntity.kill: generic_kill 피해 Float.MAX_VALUE(무적 무시, 죽음 처리·전리품은 피해 경로가 한다). */
+    @Override
+    public void kill() { hurt(Damage.GENERIC_KILL, Float.MAX_VALUE); }
+
     // ------------------------------------------------------------------ Targetable
 
     @Override public int id() { return super.id(); }
