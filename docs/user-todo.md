@@ -9,7 +9,17 @@
 - 종 블록 몸통이 보이는지, 침대가 보이는지(블록 엔티티 추가), 종을 치면 습격자가 발광하는지, 지도 깃발 표식이 유지되는지
 - 마을에 주민·철 골렘·고양이가 처음부터 있는지, 주민이 침대·직업 블록을 얻고 문을 열고 일하는지 (구조물 템플릿 엔티티가 지금까지 생성되지 않던 버그와 주민 길찾기가 옛 레벨을 쓰던 버그를 고침). **수정 전에 만든 월드**는 청크를 처음 다시 로드할 때 주민·골렘이 한꺼번에 나타날 수 있음
 - 말 체력이 15~30 범위로 나오는지, 워든을 `/summon` 하면 땅속으로 들어가지 않는지, 토끼 스폰 NPE 가 사라졌는지
-- 새 명령: `/place` `/trigger` `/teammsg` `/version` `/plugins` `/execute`(as·at·positioned·rotated·facing·in·anchored·align·summon·on·run). `/execute if|unless|store` 는 아직 없음
+- 새 명령: `/place` `/trigger` `/teammsg` `/version` `/plugins`
+
+## /execute·함수·/schedule·매크로 (구현함, 아직 접속 확인 못 함)
+- 설계 대비 차이와 의도한 한계: `docs/feature-parity/execute-function-design-2026-10-27.md` 맨 앞 요약. 아래는 접속해서 해 볼 시나리오.
+- 점수 저장: `/scoreboard objectives add t dummy` 후 `/execute as @e[type=cow] store result score @s t run data get entity @s Health` → `/scoreboard players list @e[type=cow,limit=1]` 에 체력이 있는지(소가 여러 마리면 각자 저장)
+- 조건: `/execute if entity @e[type=cow,distance=..10] run say 소 있음`, `/execute unless block ~ ~-1 ~ air run say 발밑 블록`, `/execute if score @s t matches 10.. run say 큼`
+- 데이터 저장: `/execute store result storage t:x v int 1 run data get entity @e[type=cow,limit=1] Health` 뒤 `/data get storage t:x v`
+- 함수 데이터팩: `world/datapacks/test/pack.mcmeta`(pack_format 48) + `data/t/function/a.mcfunction`(예: `say hi` / `scoreboard players add #n t 1`) 를 만들고 `/reload` → `/function t:a` 가 실행되고 결과 메시지가 나오는지. `data/minecraft/tags/function/tick.json`(`{"values":["t:a"]}`)이면 매 틱, `load.json` 이면 `/reload` 뒤 한 번 실행되는지
+- 예약: `/schedule function t:a 5s` 가 5초 뒤 실행, `/schedule function t:a 5s append`, `/schedule clear t:a`, 서버 재시작 뒤에도 남아 있는지
+- 매크로: 함수 파일 줄이 `$say $(msg)` 일 때 `/function t:m {msg:"hello"}` 와 `/function t:m with storage t:x` 로 치환되는지, 인자 누락 오류 메시지
+- 주의: 다른 region(멀리 떨어진 곳)의 엔티티를 오가는 긴 함수는 몇 틱 걸릴 수 있음(의도한 차이). 오래 걸리면 서버 로그의 100틱 경고를 알려 주세요.
 
 ## 아직 원인을 못 찾은 버그 (실접속 정보가 필요함)
 - 투명 아이템(히트박스만 보임): 어떤 아이템이고 어떻게 생겼는지(몹이 죽어 드롭, 상자, 던짐, 합쳐짐 등) 알려 주세요
@@ -91,7 +101,7 @@
 ## 명령
 - 이번까지 추가: `/give` `/clear` `/enchant` `/tp` `/ride` `/random` `/tag` `/spreadplayers` `/forceload` `/tick`(sprint 제외) `/tellraw` `/title` `/playsound` `/stopsound` `/bossbar` `/transfer` `/particle` `/damage` `/data` `/item` `/loot` `/scoreboard` `/team` `/attribute` `/clone` `/fillbiome` `/place` `/trigger` `/teammsg` `/execute`(일부), 모두 실접속 미확인. 일반 엔티티를 고르는 `@e` 명령은 이제 바닐라 반환값을 낸다 (`/execute store` 는 S3~S4 에서)
 - `/tp` 는 차원 간 이동 불가(다른 차원 대상이면 실패)
-- 아직 없음: `/execute if|unless|store` `/function` `/return` `/schedule` `/tick sprint` 등. 순서는 docs/feature-parity/roadmap-2026-10-09.md 의 작업 리스트
+- 아직 없음: `/tick sprint`, 명령 블록 등. 순서는 docs/feature-parity/roadmap-2026-10-09.md 의 작업 리스트
 - 벌·벌집·고양이 스포너: 벌집 만지기/꿀병/가위, 밤에 벌이 들어가는지, 벌에 쏘이면 독, 마을 근처 고양이 스폰
 
 ## 블록 엔티티

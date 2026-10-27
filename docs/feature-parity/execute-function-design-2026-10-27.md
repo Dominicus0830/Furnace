@@ -4,6 +4,56 @@
 
 선행 조사: `survey-structures-commands-2026-10-27.md` B-4a(execute 5단계), B-5. 알려진 한계: `context-notes.md` 2026-10-27 "반환값 차이".
 
+## 구현 결과 요약 (S8, 2026-10-27 — 구현 완료 후 실제와의 차이)
+
+아래 §0 이후 본문은 구현 전 확정 설계서 그대로다. 구현과 다른 곳은 이 절과 `context-notes.md` 의 2026-10-27 항목(명령 실행 코어·/execute E1~E4·함수 시스템·/schedule)이 우선한다. S0~S7 모두 병합됐다. 전체 `:furnace-server:test`(`ORG_GRADLE_PROJECT_skipOracle=true`, 병합 HEAD `04eb928c` 기준 로그 `full12.log`)는 BUILD SUCCESSFUL(10분 53초)이었다. 개별 테스트 개수는 로그에서 집계하지 않았으므로 적지 않는다.
+
+### 단계별 커밋 (기능 커밋 / 검토 반영 커밋)
+| 단계 | 기능 | 검토 반영 |
+|---|---|---|
+| 설계서 | `da80e2ca` | `bbd706c8` |
+| S0 실행 코어 | `c7e6a956` | `2cd8b71b` |
+| S0.5 fire-and-forget 전환 | `8a1bc7c6` | `0c03dadd` |
+| S1 `/execute` E1 | `749d1670` | `3d78e193` |
+| S2 `if\|unless` E2 | `7999666d` | `1cd9d1e2` |
+| S3 score·store score·bossbar | `b36a9581` | `3e9a1e20` |
+| S4 store block·entity·storage, if data | `e3a6f90f` | `75b329e9` |
+| S5 함수·`/return`·#load·#tick·reload | `6219e473` | `800de8a6` |
+| S6 `/schedule` | `7d2335b7` | `1d04bcf0` |
+| S7 매크로 | `107ccbed` | `d34adfc5` |
+| S8 문서·지도 | 이 문서를 포함한 커밋 | — |
+
+### 설계서와 달라진 점
+- **S1 소스 변형 읽기(§2.3 정정)**: 전역 스레드에서 다른 region 엔티티의 위치·회전·차원을 직접 읽는다는 §2.3 은 `/execute` 에서 폐기. 엔티티 스냅샷을 쓰고 `at`/`positioned over` 는 `ownerOf` 선확인으로 region 을 만들지 않는다(문서 끝 "2.3 정정").
+- **비동기 수정자**: `AsyncRedirectModifier`/`AsyncSingleRedirectModifier` + `BuildContexts.AsyncStage` 로 소스를 하나씩 적용하다 미완료 future 에서 큐를 멈추고 전역에서 재개. 변환은 `ExecuteCommands.onGlobal`.
+- **S0 비-문법 예외**: 지연 결과가 CommandSyntaxException 이 아닌 예외로 끝나면 forked 여부와 무관하게 `command.failed` 를 보내고 실패 콜백 뒤 컨텍스트를 계속 돈다(바닐라는 컨텍스트 전체 중단). 동기 본문 예외는 바닐라처럼 중단.
+- **S2 `if predicate`**: 엔티티는 소유 region 에서 스냅샷, 평가는 origin 청크의 region 에서. origin 청크에 주인이 없으면 위치 조건은 거짓(바닐라는 청크를 불러와 읽음). `if loaded` 는 `Region.isEntityTickingLoaded`. `if biome` 은 미로드 청크에서 생성기 바이옴. 주크박스는 `if items block` 컨테이너 집합에서 빠짐(Furnace 에서 ContainerBlockEntity 가 아님).
+- **S3**: `store bossbar` 가 S4 가 아니라 S3 에 포함. `if score` 오류 순서는 바닐라(target→targetObjective→source→sourceObjective)와 같되, 아직 안 끝난 선택자(region 왕복)의 실패는 기준 오류보다 늦게 나옴. 콜백 예외는 컨텍스트 전체를 끝냄.
+- **S4**: 콜백이 future 를 돌려주고 `ExecuteCommand.awaitCallback` 이 완료까지 컨텍스트를 멈춤. 콜백 안 문법 오류는 바닐라처럼 조용히 삼킴. 블록 Handle 은 좌표를 붙들고 쓸 때 다시 찾음. 대상 엔티티가 그새 사라지면 쓰기를 건너뛰고 조용히 끝남.
+- **S5**: 함수 파싱은 플러그인 onEnable 뒤(`ServerCore.loadFunctions`)에 한다. 컴파일 소스 레벨은 오버월드. tick 함수가 아직 시작 못 하고 큐에 있으면 그 틱 호출을 건너뛴다(함수마다 경고 1회). 다중 소스 `return` 의 비동기 콜백 처리는 검토 반영에서 보강.
+- **S6**: 예약 함수는 `gameTime+1` 직후 CommandQueue 로 들어간다(clock 락 밖). 종료 중(큐 닫힘)에는 이벤트를 꺼내지 않아 level.dat 에 남는다(유실 방지).
+- **S7**: 매크로 줄·`$(name)` 치환·`/function` 인자·`with block|entity|storage` 구현. 검토 반영으로 with 다중 소스 순서, 인스턴스 id 해시, 비문법 실패 콜백을 바로잡음. 알려진 한계는 `context-notes.md` 참조.
+- **플러그인 진입**: `CommandRegistryImpl.dispatch`/`PlayerHandle.performCommand` 는 전역 스레드가 아니면 `global().execute` 로 넘기고, 전역 스레드에서 미완료 future 를 join 하면 assert 로 잡는다(설계 §1.5 그대로 구현, 플러그인 문서에 반영 필요 — 아래 남은 위험).
+
+### 의도한 차이 (바닐라와 관측 결과가 다를 수 있는 것)
+1. **head-of-line**: 한 컨텍스트가 region 왕복으로 여러 틱에 걸치면 뒤 최상위 명령이 모두 기다린다. `CommandQueue.pendingCount/currentContextTicks` 지표와 100틱 경고로만 관측.
+2. **늦은 부작용 순서**: 5초(벽시계) 타임아웃 뒤 끝난 region 작업의 블록·엔티티 변경은 되돌리지 않고 콜백만 버린다. 뒤 명령이 그 결과를 볼 수 있다.
+3. **명령 블록 범위 밖**: 블록 엔티티 프레임워크 뒤 별도 설계. `SuccessCount` 콜백 경로 없음.
+4. **region 간 스냅샷 시차**: 서로 다른 region 의 엔티티 값을 한 명령 안에서 읽으면 같은 틱 값이 아닐 수 있다(`if predicate` 의 엔티티 vs origin 등).
+5. **`if blocks`/`/clone` 류의 한 region 제약**: 시작 영역 최소 모서리 청크의 region 하나에 필요한 청크가 모두 있어야 하고, 아니면 `argument.pos.unloaded`(바닐라는 사이 청크를 불러옴).
+6. **다중 소스 순서 규칙**: 소스가 여럿이면 소스 순서대로 하나씩 적용(비동기 수정자는 미완료에서 멈춤). 같은 점수에 store 를 여럿 걸면 앞 store 가 먼저 쓰고 뒤가 최종값. `if function`/`return` 다중 소스 합산은 바닐라 규칙을 따르되 콜백은 비동기.
+7. `execute on leasher`(끈 체계 없음)는 항상 비어 있고, `on target` 은 Mob 만.
+8. 예약 함수·tick 함수가 큐 뒤로 밀리면 dayTime 증가 뒤나 다음 틱 이후에 돈다(바닐라 순서와 다를 수 있음).
+
+### 남은 위험
+- 콜백 future 가 5초 타임아웃에 걸리면 region 쓰기가 늦게 반영된다(의도한 차이 2의 결과).
+- `ExecuteCommand` 는 "실행 하나당 콜백 future 하나" 가정. 두 번째 미완료 콜백을 같은 단계에서 suspend 하면 `ExecutionContext.suspend` 가 IllegalStateException.
+- `CustomCommandExecutor.WithErrorHandling`·`FallthroughTask` 는 콜백이 돌려준 future 를 버린다 — 실패로 끝나는 `store block … run function` 은 다음 줄이 옛 값을 볼 수 있다.
+- 멈춘 컨텍스트의 재개 body 안에서 다시 명령을 넣으면(S0 검토 S-3) 같은 컨텍스트에 합쳐지지 않고 pending 으로 간다.
+- tick 함수 건너뛰기 보호로 `#tick` 실행 횟수가 바닐라보다 줄 수 있다.
+- 플러그인 API 문서에 `performCommand` 의미 변경(전역으로 넘김)과 전역 join 금지를 아직 쓰지 않았다(survey B-2 행 갱신도 미완).
+- 실접속 확인 전: `docs/user-todo.md` 의 `/execute`·함수·`/schedule`·매크로 시나리오.
+
 ## 0. 요약(결정)
 
 | # | 결정 |
