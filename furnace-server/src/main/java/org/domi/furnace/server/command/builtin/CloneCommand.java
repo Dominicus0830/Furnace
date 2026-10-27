@@ -187,7 +187,7 @@ public final class CloneCommand {
     }
 
     /** 바닐라 hasChunksAt(from, to): 사이 모든 청크가 로드돼 있고 높이가 월드 안에 걸치는가. */
-    private static boolean chunksLoaded(RegionLevel level, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+    static boolean chunksLoaded(RegionLevel level, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         if (maxY < level.minBuildHeight() || minY >= level.maxBuildHeight()) return false;
         for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
             for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
