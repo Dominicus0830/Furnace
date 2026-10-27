@@ -28,7 +28,7 @@ class RegionFileTest {
         Path f = dir.resolve("r.0.0.mca");
         try (RegionFile rf = new RegionFile(f)) {
             rf.writeChunk(1, 1, new byte[5000]); // 2섹터
-            rf.writeChunk(1, 1, new byte[100]);  // 1섹터(in-place 축소)
+            rf.writeChunk(1, 1, new byte[100]);  // 1섹터(새 자리, 옛 2섹터 해제)
             assertEquals(100, rf.readChunk(1, 1).length);
         }
     }

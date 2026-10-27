@@ -45,7 +45,7 @@ class RegionDeflateOutsideLockTest {
         byte[][] last = new byte[1024][];
         for (int n = 0; n < 1500; n++) {
             int cx = r.nextInt(32), cz = r.nextInt(32);
-            // 크기 다양: in-place 재사용·append·외부(.mcc, 255섹터 초과) 경로를 모두 탄다
+            // 크기 다양: 섹터 재사용·끝 할당·외부(.mcc, 255섹터 초과) 경로를 모두 탄다
             int len = r.nextInt(50) == 0 ? 1_400_000 + r.nextInt(100_000) : 200 + r.nextInt(r.nextBoolean() ? 3000 : 60000);
             byte[] data = len > 1_000_000 || r.nextInt(60) == 0 ? randomBytes(r, len) : payload(r, len);
             store.writeChunk(cx, cz, data);
