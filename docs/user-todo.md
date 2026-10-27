@@ -108,3 +108,10 @@
 
 ## 월드젠 감사에서 고친 실제 버그
 - 서버 경로에서 장식 중인 구조물 시작점이 상한 정리로 버려져 사막 신전 상자 등이 달라질 수 있던 문제 수정(`decoStarts`). 새 월드젠 후 사막 신전 상자 4개 확인해 볼 만함
+
+## 이번 라운드에 추가된 명령 (실접속 미확인)
+- `/give` `/clear` `/enchant` `/tp(/teleport)` `/ride` `/random` `/tag` `/spreadplayers` `/forceload` `/tick(sprint 제외)` `/tellraw` `/title` `/playsound` `/stopsound` `/bossbar` `/transfer` `/particle`
+- `/give` 가 떨군 아이템/소리가 region 비동기라 성공 메시지가 먼저 나갈 수 있음. 일반 엔티티를 고르는 `@e` 명령은 반환값이 항상 1(실행 의미에 영향: `/execute store` 아직 없음)
+- `/tp` 는 차원 간 이동 불가(다른 차원 대상이면 실패)
+- 아직 없음: `/item` `/data` `/execute` `/scoreboard` `/team` `/function` `/loot` `/damage` `/schedule` `/clone` `/place` `/fillbiome` `/attribute` `/trigger` 등
+- 벌·벌집·고양이 스포너: 벌집 만지기/꿀병/가위, 밤에 벌이 들어가는지, 벌에 쏘이면 독, 마을 근처 고양이 스폰
