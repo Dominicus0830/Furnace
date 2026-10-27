@@ -1,7 +1,7 @@
 // 바닐라 ExecuteCommand(amt) 중 E1 단계: run·as·at·positioned(as, over)·rotated(as)·facing(entity)·align·anchored·in·summon·on.
 // 수정자는 소스를 바꿀 뿐 부수효과가 없다. region 에서 읽어야 하는 것(over·summon·on)과 선택자 해석(as·at·…)은 비동기 수정자로 만들어,
 // 실행 코어(BuildContexts)가 미완료면 큐를 멈췄다가 전역 스레드에서 이어 가게 한다. 소스 변형(엔티티 위치·회전·차원 읽기)은 전역 스레드에서 한다.
-// if/unless 의 entity·block·blocks·biome·loaded·dimension·predicate·items 는 ExecuteConditions(E2). score·store score(E3)가 있고 data·function·store 나머지(E4~E5)는 아직 없다 — VanillaCommandTreeTest.NOT_YET 가 그만큼만 빼 준다.
+// if/unless 의 entity·block·blocks·biome·loaded·dimension·predicate·items 는 ExecuteConditions(E2). score·store score·bossbar(E3)가 있고 data·function·store 나머지(E4~E5)는 아직 없다 — VanillaCommandTreeTest.NOT_YET 가 그만큼만 빼 준다.
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -28,6 +28,8 @@ import org.domi.furnace.server.command.arguments.RotationArgument;
 import org.domi.furnace.server.command.arguments.ScoreHolderArgument;
 import org.domi.furnace.server.command.arguments.ScoreboardArguments;
 import org.domi.furnace.server.command.exec.ResultCallback;
+import org.domi.furnace.server.bossbar.CustomBossEvent;
+import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.scores.Objective;
 import org.domi.furnace.server.scores.ScoreHolder;
 import org.domi.furnace.server.scores.ServerScoreboard;
@@ -121,7 +123,11 @@ public final class ExecuteCommands {
     // ---------------------------------------------------------------- store (E3: score 만; bossbar·block·entity·storage 는 E4)
 
     private static LiteralArgumentBuilder<CommandSource> store(LiteralCommandNode<CommandSource> execute, LiteralArgumentBuilder<CommandSource> b, boolean result) {
-        return b.then(literal("score").then(argument("targets", ScoreHolderArgument.scoreHolders()).suggests(ScoreHolderArgument.SUGGEST_SCORE_HOLDERS)
+        return b
+                .then(literal("bossbar").then(argument("id", ResourceLocationArgument.id())
+                        .then(literal("value").redirect(execute, c -> storeBossbar(c, true, result)))
+                        .then(literal("max").redirect(execute, c -> storeBossbar(c, false, result)))))
+                .then(literal("score").then(argument("targets", ScoreHolderArgument.scoreHolders()).suggests(ScoreHolderArgument.SUGGEST_SCORE_HOLDERS)
                 .then(argument("objective", ScoreboardArguments.objective()).redirectAsync(execute, c -> {
                     CommandSource source = c.getSource();
                     // 바닐라는 redirect 수정자에서 대상 목록을 한 번 풀고(빈 목록·기준 없음은 여기서 오류), 콜백은 명령 결과마다 그 목록에 쓴다
@@ -129,6 +135,19 @@ public final class ExecuteCommands {
                     Objective objective = ScoreboardArguments.getObjective(c, "objective");
                     return ExecuteCommands.<Collection<ScoreHolder>, CommandSource>onGlobal(source, holders, list -> storeScore(source, list, objective, result));
                 }))));
+    }
+
+    /** 바닐라 amt.a(et, als, value, result): 보스바 값/최대를 쓴다(CustomBossEvent 는 synchronized). 막대 조회는 redirect 때 한다. */
+    private static CommandSource storeBossbar(CommandContext<CommandSource> c, boolean value, boolean result) throws CommandSyntaxException {
+        ResourceId id = ResourceLocationArgument.getId(c, "id");
+        CustomBossEvent bar = c.getSource().getServer().customBossEvents().get(id);
+        if (bar == null) throw BossBarCommands.ERROR_DOESNT_EXIST.create(id.toString());
+        return c.getSource().withCallback((success, v) -> {
+            int n = result ? v : (success ? 1 : 0);
+            if (value) bar.setValue(n);
+            else bar.setMax(n);
+            return ResultCallback.DONE;
+        }, ResultCallback::chain);
     }
 
     /** 바닐라 amt.a(et, Collection, objective, result): 소스 콜백에 점수 쓰기를 chain 한다. 점수판은 synchronized 라 어느 스레드에서 불려도 안전하다. */

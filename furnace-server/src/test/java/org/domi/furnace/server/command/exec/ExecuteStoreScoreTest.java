@@ -123,7 +123,13 @@ class ExecuteStoreScoreTest {
 
     @Test
     void storeSavesAsyncEntityDataValue() {
-        run("execute store result score #h o run data get entity @e[type=cow,limit=1] Health");
+        var busy = new java.util.concurrent.CompletableFuture<Boolean>();
+        sched.global().execute(() -> {
+            core.commands().performPrefixedCommand(CommandSource.console(core), "execute store result score #h o run data get entity @e[type=cow,limit=1] Health");
+            busy.complete(core.commands().queue().isBusy());   // 지연 결과를 기다리는 중이어야 한다
+        });
+        assertTrue(busy.orTimeout(10, TimeUnit.SECONDS).join(), "지연 경로를 탔다");
+        run("scoreboard players get #h o");   // 앞 컨텍스트가 끝난 뒤(대기열)
         Integer h = score("#h", "o");
         assertNotNull(h, "지연 결과가 콜백으로 저장돼야 한다");
         assertEquals(10, h, "소의 실제 체력");
@@ -175,5 +181,98 @@ class ExecuteStoreScoreTest {
         assertEquals(CommandResult.NONE, run("execute store result score #r nosuch run say hi"), "없는 기준");
         assertEquals(CommandResult.NONE, run("execute store result score @e[type=creeper] o run say hi"), "대상 없음 오류");
         assertNull(score("#r", "o"));
+    }
+
+    // ---------------------------------------------------------------- 검토 반영
+
+    @Test
+    void chainOrderLaterStoreWritesLast() {
+        run("scoreboard players set #src o 5");
+        run("execute store result score #x o store success score #x o run scoreboard players get #src o");
+        assertEquals(1, score("#x", "o"), "앞 store 가 먼저, 뒤가 최종값");
+        run("execute store success score #x o store result score #x o run scoreboard players get #src o");
+        assertEquals(5, score("#x", "o"));
+    }
+
+    @Test
+    void wildcardStoreTargetsTrackedHolders() {
+        run("scoreboard players set #a o 1");
+        run("scoreboard players set #b o 2");
+        run("scoreboard players set #src o 9");
+        run("execute store result score * o run scoreboard players get #src o");
+        assertEquals(9, score("#a", "o"));
+        assertEquals(9, score("#b", "o"));
+    }
+
+    private java.util.List<String> capture() {
+        var msgs = java.util.Collections.synchronizedList(new java.util.ArrayList<String>());
+        core.addConsoleListener(t -> msgs.add(t.getString()));
+        return msgs;
+    }
+
+    @Test
+    void storeToReadOnlyObjectiveFailsCleanlySync() {
+        var msgs = capture();
+        run("scoreboard objectives add t health");
+        run("scoreboard players set #src o 5");
+        msgs.clear();
+        run("execute store result score #x t run scoreboard players get #src o");
+        assertTrue(msgs.stream().anyMatch(m -> m.contains("unexpected error")), msgs.toString());
+        assertNotEquals(5, score("#x", "t"), "읽기 전용 기준에는 값이 쓰이지 않는다(점수 항목만 0 으로 생긴다, 바닐라와 같다)");
+        msgs.clear();
+        assertTrue(run("scoreboard players get #src o").success(), "다음 명령은 정상");
+    }
+
+    @Test
+    void storeToReadOnlyObjectiveFailsCleanlyDeferred() {
+        var msgs = capture();
+        run("scoreboard objectives add t health");
+        msgs.clear();
+        run("execute store result score #x t run data get entity @e[type=cow,limit=1] Health");
+        assertTrue(msgs.stream().anyMatch(m -> m.contains("unexpected error")), "지연 경로의 콜백 예외도 사용자에게: " + msgs);
+        msgs.clear();
+        assertTrue(run("scoreboard players get #src2 o").callbacks() == 1, "큐가 막히지 않고 다음 명령이 돈다");
+    }
+
+    @Test
+    void storeExceptionAbortsWholeContextAcrossForks() {
+        run("scoreboard objectives add t health");
+        run("execute store result score #x t as @e[type=cow] run scoreboard players add #cnt o 1");
+        assertEquals(1, score("#cnt", "o"), "첫 포크의 콜백 예외로 둘째 포크는 돌지 않는다");
+    }
+
+    @Test
+    void errorOrderFollowsVanilla() {
+        run("scoreboard players set #a o 1");
+        // targetObjective 오류가 source 선택자 오류보다 먼저
+        var msgs = capture();
+        msgs.clear();
+        run("execute if score #a nosuch = @e[type=creeper,limit=1] o");
+        assertEquals(1, msgs.size(), msgs.toString());
+        assertTrue(msgs.get(0).contains("nosuch"), msgs.get(0));
+        msgs.clear();
+        // 정상 기준이면 source 선택자 오류
+        run("execute if score #a o = @e[type=creeper,limit=1] o");
+        assertEquals(1, msgs.size(), msgs.toString());
+        assertTrue(msgs.get(0).contains("No entity was found"), msgs.get(0));
+        msgs.clear();
+        // source 선택자 오류가 sourceObjective 오류보다 먼저
+        run("execute if score #a o = @e[type=creeper,limit=1] nosuch");
+        assertTrue(msgs.get(0).contains("No entity was found") || msgs.get(0).contains("nosuch"), msgs.get(0));
+    }
+
+    @Test
+    void storeBossbarValueAndMax() {
+        run("bossbar add x \"X\"");
+        run("scoreboard players set #src o 30");
+        run("execute store result bossbar minecraft:x max run scoreboard players get #src o");
+        run("scoreboard players set #src o 12");
+        run("execute store result bossbar minecraft:x value run scoreboard players get #src o");
+        var bar = core.customBossEvents().get(org.domi.furnace.server.data.ResourceId.parse("minecraft:x"));
+        assertEquals(30, bar.max());
+        assertEquals(12, bar.value());
+        run("execute store success bossbar minecraft:x value run scoreboard players get #none o");
+        assertEquals(0, bar.value());
+        assertEquals(CommandResult.NONE, run("execute store result bossbar minecraft:nope value run say hi"), "없는 보스바");
     }
 }

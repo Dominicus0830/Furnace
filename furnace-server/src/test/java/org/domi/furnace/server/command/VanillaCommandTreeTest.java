@@ -95,8 +95,8 @@ class VanillaCommandTreeTest {
      * /execute if·unless·store(E2~E4 단계).
      */
     private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of(
-            "/execute store result", List.of("bossbar", "block", "entity", "storage"),
-            "/execute store success", List.of("bossbar", "block", "entity", "storage"),
+            "/execute store result", List.of("block", "entity", "storage"),
+            "/execute store success", List.of("block", "entity", "storage"),
             "/execute if", List.of("data", "function"),
             "/execute unless", List.of("data", "function"),
             "/locate", List.of("biome", "poi"),

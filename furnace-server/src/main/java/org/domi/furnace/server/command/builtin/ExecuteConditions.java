@@ -139,8 +139,10 @@ final class ExecuteConditions {
         targetObjective.then(literal("matches").then(bool(execute, argument("range", IntRangeArgument.intRange()), expected, c -> {
             CommandSource s = c.getSource();
             var range = IntRangeArgument.getRange(c, "range");
-            return ExecuteCommands.<Collection<ScoreHolder>, Boolean>onGlobal(s, ScoreHolderArgument.getName(c, "target"), list -> {
-                Objective o = ScoreboardArguments.getObjective(c, "targetObjective");
+            CompletableFuture<Collection<ScoreHolder>> target = ScoreHolderArgument.getName(c, "target");
+            if (failedNow(target)) return target.thenApply(x -> false);
+            Objective o = ScoreboardArguments.getObjective(c, "targetObjective");
+            return ExecuteCommands.<Collection<ScoreHolder>, Boolean>onGlobal(s, target, list -> {
                 Integer v = scoreOf(s, list, o);
                 return v != null && range.matches(v);
             });
@@ -153,27 +155,34 @@ final class ExecuteConditions {
         boolean test(int a, int b);
     }
 
+    private static boolean failedNow(CompletableFuture<?> f) { return f.isDone() && f.isCompletedExceptionally(); }
+
+    /**
+     * 바닐라 순서(target → targetObjective → source → sourceObjective)로 오류를 낸다. 기준 조회는 동기라 선택자 future 를 기다리지 않고 바로 하되,
+     * 이미 실패로 끝난 선택자 future 는 그 다음 기준 조회보다 먼저 돌려준다. 아직 안 끝난 선택자(region 왕복)의 실패는 뒤따르는 기준 오류보다 늦을 수 있다(context-notes).
+     */
     private static CompletableFuture<Boolean> scoreCompare(CommandContext<CommandSource> c, IntBinaryPredicate test) throws CommandSyntaxException {
         CommandSource s = c.getSource();
         CompletableFuture<Collection<ScoreHolder>> target = ScoreHolderArgument.getName(c, "target");
+        if (failedNow(target)) return target.thenApply(x -> false);
+        Objective to = ScoreboardArguments.getObjective(c, "targetObjective");
         CompletableFuture<Collection<ScoreHolder>> source = ScoreHolderArgument.getName(c, "source");
+        if (failedNow(source)) return source.thenApply(x -> false);
+        Objective so = ScoreboardArguments.getObjective(c, "sourceObjective");
         CompletableFuture<List<Collection<ScoreHolder>>> both = target.thenCombine(source, List::of);
         return ExecuteCommands.<List<Collection<ScoreHolder>>, Boolean>onGlobal(s, both, l -> {
-            Objective to = ScoreboardArguments.getObjective(c, "targetObjective");
-            Objective so = ScoreboardArguments.getObjective(c, "sourceObjective");
             Integer a = scoreOf(s, l.get(0), to);
             Integer b = scoreOf(s, l.get(1), so);
             return a != null && b != null && test.test(a, b);   // 점수가 없으면 거짓
         });
     }
 
-    /** 점수판 읽기(synchronized). 점수가 없으면 null. */
+    /** 점수판 읽기: 조회와 값 읽기를 같은 락 안에서 한다. 점수가 없으면 null. */
     private static Integer scoreOf(CommandSource s, Collection<ScoreHolder> holders, Objective objective) {
         var board = s.getServer().scoreboard();
-        var score = board.getPlayerScoreInfo(holders.iterator().next(), objective);
-        if (score == null) return null;
         synchronized (board) {
-            return score.value();
+            var score = board.getPlayerScoreInfo(holders.iterator().next(), objective);
+            return score == null ? null : score.value();
         }
     }
 
