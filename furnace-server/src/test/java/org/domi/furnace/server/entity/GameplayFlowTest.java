@@ -52,6 +52,7 @@ class GameplayFlowTest {
                 assertEquals(0, abilities.readByte(), "level.dat 기본 서바이벌: 능력 플래그 없음");
 
                 for (int i = 0; i < 500 && core.playerByName("Tester") == null; i++) Thread.sleep(20);   // 접속 처리 완료 대기(부하 시 최대 10초)
+                assertNotNull(core.playerByName("Tester"), "접속 처리가 10초 안에 끝났다");
                 CommandSource console = CommandSource.console(core);
                 core.commands().performPrefixedCommandAsync(console, "gamemode creative Tester").join();
                 ByteBuf ev = c.await(0x22, b -> b.readByte() == 3);

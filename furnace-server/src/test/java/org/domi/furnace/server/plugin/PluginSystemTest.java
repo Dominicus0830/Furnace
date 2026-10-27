@@ -137,10 +137,13 @@ class PluginSystemTest {
             }
             return null;
         });
-        assertTrue(held.await(30, java.util.concurrent.TimeUnit.SECONDS), "전역 스레드가 붙잡혔다");
-        assertTrue(host.dispatchCommand(host.console(), "/hello a b"), "접수");
-        assertFalse(console.contains("hello a,b"), "테스트 스레드에서 부르면 바로 돌지 않고 전역으로 넘어간다");
-        gate.countDown();
+        try {
+            assertTrue(held.await(30, java.util.concurrent.TimeUnit.SECONDS), "전역 스레드가 붙잡혔다");
+            assertTrue(host.dispatchCommand(host.console(), "/hello a b"), "접수");
+            assertFalse(console.contains("hello a,b"), "테스트 스레드에서 부르면 바로 돌지 않고 전역으로 넘어간다");
+        } finally {
+            gate.countDown();   // 단언이 실패해도 전역 스레드를 풀어 준다
+        }
         gateTask.join();
         globalBarrier();   // 명령은 전역 스레드로 넘어가 실행된다
         assertTrue(console.contains("hello a,b"));

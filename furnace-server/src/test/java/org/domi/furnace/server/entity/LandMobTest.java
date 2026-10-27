@@ -508,6 +508,8 @@ class LandMobTest {
         }
         assertTrue(hoglin.isRemoved(), "오버월드의 호글린은 조글린이 된다");
         assertTrue(piglin.isRemoved(), "오버월드의 피글린은 좀비 피글린이 된다: alive=" + piglin.isAlive() + " hp=" + piglin.health());
+        assertTrue(piglin.health() > 0.0F, "싸우다 죽어서가 아니라 변신해서 사라졌다(죽었다면 체력 0): hp=" + piglin.health());
+        assertTrue(hoglin.health() > 0.0F, "호글린도 죽어서가 아니라 변신해서 사라졌다: hp=" + hoglin.health());
         assertTrue(seenZoglin, "조글린이 나타났다");
         assertTrue(seenZombifiedPiglin, "좀비 피글린이 나타났다");
     }
