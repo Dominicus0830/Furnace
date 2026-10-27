@@ -1,5 +1,5 @@
 // S→C 입자(level_particles 0x29): Boolean 장거리, double×3 위치, float×3 퍼짐, float 최대속도, Int 개수, 입자(종류 VarInt+옵션).
-// 배치는 1.21.1 기준(가정: alwaysShow 필드는 1.21.2 이후라 없음). id 는 packets.json 의 play/clientbound level_particles = 41.
+// 배치는 1.21.1 기준(바이트코드로 확인: alwaysShow 필드 없음). id 는 packets.json 의 play/clientbound level_particles = 41.
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;

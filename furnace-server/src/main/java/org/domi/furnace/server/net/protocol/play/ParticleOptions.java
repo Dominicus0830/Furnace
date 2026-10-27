@@ -56,7 +56,7 @@ public sealed interface ParticleOptions {
         }
     }
 
-    /** ColorParticleOption(entity_effect): ARGB int (가정: 1.21.1 은 Int 하나 — 알파 포함). */
+    /** ColorParticleOption(entity_effect): ARGB int (1.21.1 바이트코드로 확인: Int 하나, 알파 포함). */
     record Color(int argb) implements ParticleOptions {
         @Override public String type() { return "minecraft:entity_effect"; }
         @Override public void writeData(ByteBuf buf) { buf.writeInt(argb); }
@@ -64,6 +64,7 @@ public sealed interface ParticleOptions {
 
     /** ItemParticleOption(item): ItemStack 와이어(개수 VarInt, 아이템 id, 컴포넌트 패치). */
     record Item(ItemStack stack) implements ParticleOptions {
+        public Item { if (stack == null || stack.isEmpty()) throw new IllegalArgumentException("Empty stack not allowed"); }   // 바닐라도 예외
         @Override public String type() { return "minecraft:item"; }
         @Override public void writeData(ByteBuf buf) { ContainerSetContent.writeSlot(buf, stack); }
     }
@@ -82,7 +83,7 @@ public sealed interface ParticleOptions {
 
     /**
      * VibrationParticleOption(vibration): 위치 소스(VarInt 종류 0 블록 / 1 엔티티) + 데이터 + 도착 틱 VarInt.
-     * 블록은 BlockPos, 엔티티는 VarInt id + float 눈높이 보정(가정: 1.21.1 EntityPositionSource 배치).
+     * 블록은 BlockPos, 엔티티는 VarInt id + float 눈높이 보정(1.21.1 바이트코드로 확인).
      */
     record Vibration(boolean entitySource, int x, int y, int z, int entityId, float yOffset, int arrivalTicks) implements ParticleOptions {
         public static Vibration toBlock(int x, int y, int z, int arrivalTicks) { return new Vibration(false, x, y, z, 0, 0.0F, arrivalTicks); }

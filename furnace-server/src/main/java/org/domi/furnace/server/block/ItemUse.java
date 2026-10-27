@@ -806,10 +806,11 @@ public final class ItemUse {
         level.playSound(null, pos, "minecraft:entity.generic.splash", "blocks", 1.0F, 1.0F);
         player.setItemInHand(hand, player.createFilledResult(stack, stack("minecraft:glass_bottle")));
         player.awardStat("minecraft:used:minecraft:potion");
-        // 물 튀김 파티클(sendParticles 5번 — x·z 에 레벨 난수를 쓴다). TODO(파티클): 정확한 인자를 바닐라 소스로 확인하지 못해 아직 보내지 않는다
+        // 물 튀김 파티클(sendParticles 5번 — x·z 에 레벨 난수를 쓴다, x 먼저)
         for (int i = 0; i < 5; i++) {
-            level.random().nextDouble();
-            level.random().nextDouble();
+            double px = pos.x() + level.random().nextDouble();
+            double pz = pos.z() + level.random().nextDouble();
+            level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("splash"), px, pos.y() + 1, pz, 1, 0.0, 0.0, 0.0, 1.0);
         }
         level.playSound(null, pos, "minecraft:item.bottle.empty", "blocks", 1.0F, 1.0F);
         level.gameEvent("minecraft:fluid_place", pos, null, -1);

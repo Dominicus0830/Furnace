@@ -131,14 +131,14 @@ public final class PlayerMelee {
         }
         if (!crit && !sweep) sound(level, p, strong ? "minecraft:entity.player.attack.strong" : "minecraft:entity.player.attack.weak");
         if (g > 0.0F) animate(p, target, 5);   // magicCrit
-        float dealt = before - healthOf(target);
+        p.setLastHurtMob(target);
+        int cost = isLiving(target) ? weaponDurabilityCost(weapon) : 0;   // hurtEnemy → postHurtEnemy
+        postAttack(weapon, target);
+        float dealt = before - healthOf(target);   // 바닐라 순서: setLastHurtMob → 공격 후 효과 → 피해 표시 → 통계
         if (level != null && isLiving(target) && dealt > 2.0F) {   // damage_indicator: 입힌 양 × 0.5 개
             level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("damage_indicator"),
                     target.x(), target.y() + target.bbHeight() * 0.5, target.z(), (int) (dealt * 0.5), 0.1, 0.0, 0.1, 0.2);
         }
-        p.setLastHurtMob(target);
-        int cost = isLiving(target) ? weaponDurabilityCost(weapon) : 0;   // hurtEnemy → postHurtEnemy
-        postAttack(weapon, target);
         if (isLiving(target)) p.awardStat("minecraft:damage_dealt", Math.round((before - healthOf(target)) * 10.0F));
         p.vitals().causeFoodExhaustion(0.1F);
         return new Result(true, cost);
