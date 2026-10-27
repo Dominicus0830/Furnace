@@ -154,6 +154,8 @@ public final class ChunkColumn {
         generatedEntities.add(nbt);
     }
 
+    public void clearGeneratedEntities() { generatedEntities = null; touch(); }
+
     public java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities() {
         return generatedEntities == null ? java.util.List.of() : generatedEntities;
     }
@@ -184,7 +186,7 @@ public final class ChunkColumn {
         Object id = nbt.tags().get("id");
         if (!"minecraft:chest".equals(id) && !"minecraft:trapped_chest".equals(id)) return null;
         if (nbt.contains("Items") && nbt.getList("Items").size() > 0) return null;   // 아이템이 든 생성 상자는 아직 해석하지 않는다
-        ChestBlockEntity c = ChestBlockEntity.empty(x, y, z);
+        ChestBlockEntity c = ChestBlockEntity.empty((String) id, x, y, z);
         if (nbt.tags().get("LootTable") instanceof String t) {
             c.lootTable = t;
             c.lootSeed = nbt.tags().get("LootTableSeed") instanceof Long l ? l : 0L;
@@ -235,7 +237,7 @@ public final class ChunkColumn {
         touch();
     }
 
-    /** 블록별: newBlockEntity 가 블록 엔티티를 만드는가(상자는 ChestBlockEntity 별도 경로라 제외). */
+    /** 블록별: 블록 엔티티가 있어야 하는가(newBlockEntity 가 만든다, 또는 상자·덫 상자 — 상자는 ChestBlockEntity 별도 경로). */
     private static volatile boolean[] HAS_BE;
 
     private static boolean[] hasBlockEntityTable() {
@@ -248,12 +250,15 @@ public final class ChunkColumn {
             int s = blocks.defaultState(b);
             t[b] = org.domi.furnace.server.block.BlockBehaviors.ofBlock(b).newBlockEntity(origin, s) != null;
         }
+        t[blocks.block("minecraft:chest")] = true;
+        t[blocks.block("minecraft:trapped_chest")] = true;
         return HAS_BE = t;
     }
 
     /**
      * LevelChunk.registerAllBlockEntitiesAfterLevelLoad 의 promotePendingBlockEntity 부분(청크를 올리기 전, 소유 스레드 밖에서 아직 공개 전인 청크에).
-     * 월드젠·저장 파일이 남긴 NBT 중 이식한 종류는 블록 엔티티로 바꾼다(상자는 adoptGeneratedChest 가 따로 맡는다).
+     * 월드젠·저장 파일이 남긴 NBT 중 이식한 종류는 블록 엔티티로 바꾼다. 상자는 adoptGeneratedChest 로(아이템이 든 생성 상자는 아직 NBT 로 남는다).
+     * 상자도 청크 패킷 block_entities 에 있어야 클라이언트가 그린다.
      * dummyScan 이면 바닐라 WorldGenRegion.setBlock 의 "DUMMY" NBT 처럼, 블록 엔티티가 있어야 할 칸에 없으면 newBlockEntity 로 만든다.
      * 침대·종은 블록 엔티티가 없으면 클라이언트가 그리지 않는다(사용자 테스트 D1·D3).
      */
@@ -262,11 +267,17 @@ public final class ChunkColumn {
             java.util.List<int[]> keys = new java.util.ArrayList<>();
             forEachGeneratedBlockEntity((lx, y, lz, nbt) -> {
                 Object id = nbt.tags().get("id");
-                if (id instanceof String s && !"minecraft:chest".equals(s) && !"minecraft:trapped_chest".equals(s)
-                        && org.domi.furnace.server.block.entity.BlockEntities.known(s)) keys.add(new int[]{lx, y, lz});
+                if (id instanceof String s && ("minecraft:chest".equals(s) || "minecraft:trapped_chest".equals(s)
+                        || org.domi.furnace.server.block.entity.BlockEntities.known(s))) keys.add(new int[]{lx, y, lz});
             });
             for (int[] k : keys) {
                 var nbt = generatedBlockEntities.get(blockEntityKey(k[0], k[1], k[2]));
+                Object cid = nbt.tags().get("id");
+                if ("minecraft:chest".equals(cid) || "minecraft:trapped_chest".equals(cid)) {
+                    int cs = getBlock(k[0], k[1], k[2]);
+                    if (chestMatches(cs, cid)) adoptGeneratedChest((chunkX << 4) + k[0], k[1], (chunkZ << 4) + k[2]);
+                    continue;
+                }
                 int state = getBlock(k[0], k[1], k[2]);
                 var pos = new org.domi.furnace.server.block.Pos((chunkX << 4) + k[0], k[1], (chunkZ << 4) + k[2]);
                 var be = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, state, nbt);
@@ -293,6 +304,11 @@ public final class ChunkColumn {
                         if (blockEntities.containsKey(blockEntityKey((baseX << 4) + x, wy, (baseZ << 4) + z))) continue;
                         if (generatedBlockEntities != null && generatedBlockEntities.containsKey(blockEntityKey(x, wy, z))) continue;
                         var pos = new org.domi.furnace.server.block.Pos((baseX << 4) + x, wy, (baseZ << 4) + z);
+                        String chestId = chestIdOf(s);
+                        if (chestId != null) {
+                            putBlockEntity(ChestBlockEntity.empty(chestId, pos.x(), pos.y(), pos.z()));
+                            continue;
+                        }
                         var be = org.domi.furnace.server.block.BlockBehaviors.of(s).newBlockEntity(pos, s);
                         if (be != null) putBlockEntity(be);
                     }
@@ -300,6 +316,14 @@ public final class ChunkColumn {
             }
         }
     }
+
+    private static String chestIdOf(int state) {
+        String n = org.domi.furnace.server.block.Blocks.get().nameOfState(state);
+        return "minecraft:chest".equals(n) || "minecraft:trapped_chest".equals(n) ? n : null;
+    }
+
+    /** 그 칸 블록이 NBT 의 상자 종류와 같은가(BlockEntityType.isValid). */
+    private static boolean chestMatches(int state, Object id) { return id.equals(chestIdOf(state)); }
 
     /** 생성·로드된 미지원 블록 엔티티를 (로컬 x, 월드 y, 로컬 z, NBT) 로 순회. */
     public void forEachGeneratedBlockEntity(GeneratedBlockEntityVisitor v) {

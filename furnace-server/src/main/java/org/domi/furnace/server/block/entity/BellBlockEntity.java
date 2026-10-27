@@ -90,7 +90,7 @@ public class BellBlockEntity extends BlockEntity {
             nearbyEntities = cl.getEntitiesOfClass(LivingEntity.class, box, e -> true);
         }
         for (LivingEntity e : nearbyEntities) {
-            if (e.isAlive() && !e.isRemoved() && closer(pos, e, 32.0) && e instanceof Mob m && m.getBrain() != null) {
+            if (e.isAlive() && !e.isRemoved() && owned(e) && closer(pos, e, 32.0) && e instanceof Mob m && m.getBrain() != null) {
                 m.getBrain().setMemory(MemoryModuleType.HEARD_BELL_TIME, now);
             }
         }
@@ -101,16 +101,24 @@ public class BellBlockEntity extends BlockEntity {
         return dx * dx + dy * dy + dz * dz < d * d;
     }
 
-    private static boolean areRaidersNearby(Pos pos, List<LivingEntity> list) {
+    /**
+     * 캐시(60틱) 사이에 다른 region 으로 넘어간 엔티티는 다른 스레드 소유 — 건드리지 않는다.
+     * 차이: 바닐라는 같은 레벨이라 그대로 효과·기억을 준다. 넘어간 몹은 이 종소리를 못 듣는다(가정: 경계 근처에서만 드물게 생긴다).
+     */
+    private boolean owned(LivingEntity e) { return e.level() == level; }
+
+    private boolean areRaidersNearby(Pos pos, List<LivingEntity> list) {
+        if (list == null) return false;
         for (LivingEntity e : list) {
-            if (e.isAlive() && !e.isRemoved() && closer(pos, e, 32.0) && e.typeInTag("minecraft:raiders")) return true;
+            if (e.isAlive() && !e.isRemoved() && owned(e) && closer(pos, e, 32.0) && e.typeInTag("minecraft:raiders")) return true;
         }
         return false;
     }
 
-    private static void makeRaidersGlow(Pos pos, List<LivingEntity> list) {
+    private void makeRaidersGlow(Pos pos, List<LivingEntity> list) {
+        if (list == null) return;
         for (LivingEntity e : list) {
-            if (e.isAlive() && !e.isRemoved() && closer(pos, e, 48.0) && e.typeInTag("minecraft:raiders")) {
+            if (e.isAlive() && !e.isRemoved() && owned(e) && closer(pos, e, 48.0) && e.typeInTag("minecraft:raiders")) {
                 e.addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.GLOWING, 60));
             }
         }
