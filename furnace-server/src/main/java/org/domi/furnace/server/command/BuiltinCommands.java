@@ -29,6 +29,8 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.BlockCommands.registerFill(d);
         org.domi.furnace.server.command.builtin.FillBiomeCommand.register(d);
         org.domi.furnace.server.command.builtin.ForceLoadCommand.register(d);
+        org.domi.furnace.server.command.builtin.FunctionCommands.registerFunction(d);
+        org.domi.furnace.server.command.builtin.FunctionCommands.registerExecuteBranch(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerGameRule(d);
         org.domi.furnace.server.command.builtin.ItemCommands.registerGive(d);
@@ -46,6 +48,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.RandomCommand.register(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerReload(d);
         org.domi.furnace.server.command.builtin.RecipeCommands.register(d);
+        org.domi.furnace.server.command.builtin.FunctionCommands.registerReturn(d);
         org.domi.furnace.server.command.builtin.RideCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerSay(d);
         org.domi.furnace.server.command.builtin.ScoreboardCommand.register(d);

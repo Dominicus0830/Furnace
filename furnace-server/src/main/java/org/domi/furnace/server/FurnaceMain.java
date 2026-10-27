@@ -368,6 +368,7 @@ public final class FurnaceMain {
 
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
         core.plugins().pluginsImpl().enableAll();
+        core.loadFunctions();   // 플러그인(onLoad·onEnable)·Furnace 명령이 모두 등록된 뒤 함수를 파싱한다 — 그 명령을 쓰는 함수가 시작 때 빠지지 않게
         network.start();
 
         // 바닐라 자동 저장 주기마다 level.dat 도 저장한다(/save-off 면 건너뜀).
