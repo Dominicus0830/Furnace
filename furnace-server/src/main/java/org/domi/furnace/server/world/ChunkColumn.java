@@ -380,6 +380,23 @@ public final class ChunkColumn {
         touch();
     }
 
+    /**
+     * N-09: 디스크 로드 전용 — 전부 AIR(0)인 새 섹션에 4096 블록을 한 번에 넣는다. 블록마다 setBlock 한 것과 결과가 같도록
+     * 높이맵 캐시를 미설정으로 돌리고 dirty 를 세운다. 표면·WG 높이맵은 호출 측이 rebuildHeightmapsAfterSurface 로 다시 만든다.
+     */
+    public void loadSectionBlocks(int sectionIdx, int[] blocks) {
+        sections[sectionIdx].replaceBlocks(blocks, 0);
+        for (int i = 0; i < 4096; i++) {
+            if (blocks[i] != ChunkSection.AIR) {
+                java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
+                java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
+                dirty = true;
+                break;
+            }
+        }
+        touch();
+    }
+
     public void loadGenerated(int[] blockIds, int[] biomeIds) {
         for (int i = 0; i < sectionCount; i++) {
             sections[i].replaceBlocks(blockIds, i * 4096);

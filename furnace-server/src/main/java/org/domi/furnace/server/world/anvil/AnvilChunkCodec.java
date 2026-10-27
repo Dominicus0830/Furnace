@@ -286,11 +286,15 @@ public final class AnvilChunkCodec {
         ChunkColumn col = new ChunkColumn(defaultBiome, registry.directBits(), ChunkColumn.DEFAULT_BIOME_DIRECT_BITS, minY, sectionCount);
         int minSection = minY >> 4;
         NbtList sections = root.contains("sections") ? root.getList("sections") : new NbtList(NbtIo.TAG_COMPOUND);
+        boolean[] blocksLoaded = new boolean[sectionCount];   // 새 컬럼 섹션은 전부 AIR(0)
         for (Object o : sections.items()) {
             NbtCompound s = (NbtCompound) o;
             int sectionIdx = s.getByte("Y") - minSection;
             if (sectionIdx < 0 || sectionIdx >= sectionCount) continue; // 조명 전용 섹션(위·아래 한 칸)
-            if (s.contains("block_states")) applyBlockStates(col, sectionIdx, s.getCompound("block_states"));
+            if (s.contains("block_states")) {
+                applyBlockStates(col, sectionIdx, s.getCompound("block_states"), !blocksLoaded[sectionIdx]);
+                blocksLoaded[sectionIdx] = true;
+            }
             if (biomeNames != null && s.contains("biomes")) applyBiomes(col, sectionIdx, s.getCompound("biomes"));
         }
         col.rebuildHeightmapsAfterSurface();
@@ -407,7 +411,7 @@ public final class AnvilChunkCodec {
         for (int i = 0; i < 64; i++) section.setBiome(i & 3, i >> 4, (i >> 2) & 3, ids[store.get(i)]);
     }
 
-    private void applyBlockStates(ChunkColumn col, int sectionIdx, NbtCompound bs) {
+    private void applyBlockStates(ChunkColumn col, int sectionIdx, NbtCompound bs, boolean bulk) {
         NbtList paletteList = bs.getList("palette");
         int[] paletteIds = new int[paletteList.size()];
         for (int i = 0; i < paletteIds.length; i++) {
@@ -424,14 +428,28 @@ public final class AnvilChunkCodec {
             }
         }
         int baseY = minY + sectionIdx * 16;
+        // N-09: 이 섹션을 처음 채우면(보통 경우) 4096 칸을 배열로 풀어 한 번에 넣는다. 같은 Y 섹션이 두 번 나오는
+        // 비정상 NBT 등 이미 채운 섹션이면 예전 블록별 경로(공기는 건너뜀 = 덮어쓰지 않음)를 그대로 탄다.
         if (!bs.contains("data")) {
             if (paletteIds.length == 0 || paletteIds[0] == ChunkSection.AIR) return; // 전부 air
+            if (bulk) {
+                int[] blocks = new int[4096];
+                java.util.Arrays.fill(blocks, paletteIds[0]);
+                col.loadSectionBlocks(sectionIdx, blocks);
+                return;
+            }
             for (int idx = 0; idx < 4096; idx++) setFromIndex(col, baseY, idx, paletteIds[0]);
             return;
         }
         long[] data = bs.getLongArray("data");
         int bits = Math.max(4, ceillog2(paletteIds.length));
         BitStorage store = BitStorage.wrap(bits, 4096, data);
+        if (bulk) {
+            int[] blocks = new int[4096];
+            for (int idx = 0; idx < 4096; idx++) blocks[idx] = paletteIds[store.get(idx)];
+            col.loadSectionBlocks(sectionIdx, blocks);
+            return;
+        }
         for (int idx = 0; idx < 4096; idx++) {
             int stateId = paletteIds[store.get(idx)];
             if (stateId != ChunkSection.AIR) setFromIndex(col, baseY, idx, stateId);
