@@ -5,7 +5,7 @@
 // region 상태(블록·바이옴·엔티티 칸·청크)는 소유 region 에서 읽고, 판정과 메시지는 전역 스레드에서 한다. 조회성 조건(block·blocks·biome·loaded·items block)은
 // 주인 region 이 없으면 region 을 만들지 않고 즉시 "로드 안 됨"(loaded 는 거짓)으로 끝낸다.
 // 차이: blocks 는 두 영역과 세 모서리가 시작 영역의 최소 모서리 청크를 가진 region 한 곳에 모두 로드돼 있어야 한다(/clone 과 같은 제약, 아니면 argument.pos.unloaded).
-//       loaded 는 바닐라의 "엔티티 틱 청크" 대신 region 에 로드된 청크로 본다. biome 의 지터 이웃 청크가 이 region 밖이거나 안 불러져 있으면 일치 없음으로 본다.
+//       loaded 는 바닐라처럼 엔티티 틱 단계 + 엔티티 로드 완료 청크여야 참이다(Region.isEntityTickingLoaded — 플레이어 시뮬레이션 거리 안 또는 /forceload). biome 의 지터 이웃 청크가 안 불러져 있으면 바닐라처럼 생성기 바이옴으로 본다.
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -202,7 +202,7 @@ final class ExecuteConditions {
         ChunkPos cp = new ChunkPos(p.x() >> 4, p.z() >> 4);
         World w = s.level();
         if (w.regionizer().ownerOf(cp.x(), cp.z()) == null) return CompletableFuture.completedFuture(false);
-        CompletableFuture<Boolean> f = w.submitAtOwnedChunk(cp, r -> r.level() != null && r.level().hasChunkAt(p));
+        CompletableFuture<Boolean> f = w.submitAtOwnedChunk(cp, r -> r.isEntityTickingLoaded(cp.x(), cp.z()));
         return f == null ? CompletableFuture.completedFuture(false) : f;
     }
 
@@ -210,6 +210,7 @@ final class ExecuteConditions {
         CommandSource s = c.getSource();
         Pos p = pos(c, "pos");
         IntPredicate filter = biomeFilter(s, ResourceOrTagKeyArgument.get(c, "biome"));
+        List<String> names = s.getServer().dataPacks().loot().registries().entries(BIOME_REGISTRY);
         World w = s.level();
         int[] q = BiomeZoom.quart(s.getServer().biomeZoomSeed(), p.x(), p.y(), p.z());
         CompletableFuture<Boolean> loaded = atLoaded(s, p, level -> true);
@@ -219,7 +220,15 @@ final class ExecuteConditions {
             if (w.regionizer().ownerOf(qc.x(), qc.z()) == null) return CompletableFuture.completedFuture(-1);
             CompletableFuture<Integer> id = w.submitAtOwnedChunk(qc, r -> r.biomeIdAtQuart(q[0], q[1], q[2]));
             return id == null ? CompletableFuture.completedFuture(-1) : id;
-        }).thenCompose(f -> f).thenApply(id -> id >= 0 && filter.test(id));
+        }).thenCompose(f -> f).thenApply(id -> {
+            if (id < 0) {
+                // 바닐라 LevelReader.getNoiseBiome: 그 quart 의 청크가 없으면 생성기 바이옴(getUncachedNoiseBiome)
+                var src = org.domi.furnace.server.world.gen.NoiseWorldSource.of(w.worldSource());
+                String gen = src == null ? null : src.biomeAt(q[0] << 2, q[1] << 2, q[2] << 2);
+                id = gen == null ? -1 : names.indexOf(gen);
+            }
+            return id >= 0 && filter.test(id);
+        });
     }
 
     /** 바이옴 이름 목록의 인덱스가 바이옴 id. 모르는 id/태그는 실행 때 바닐라와 같은 오류. */
@@ -245,14 +254,53 @@ final class ExecuteConditions {
                 .thenApply(l -> l.isEmpty() ? OptionalInt.empty() : OptionalInt.of(l.size()));
     }
 
+    /**
+     * 바닐라 COMMAND 문맥: origin = 소스 위치, 소스 엔티티가 있으면 this_entity.
+     * this_entity 는 그 엔티티의 소유 region 에서 스냅샷으로 읽고, 조건 평가는 origin 청크의 소유 region 에서 한다
+     * (위치 조건 biome·block 이 그 region 의 청크만 읽는다). 엔티티와 origin 이 다른 region 이면 엔티티 값은 스냅샷 시점 것이다.
+     * origin 청크에 주인이 없으면 region 을 만들지 않고 전역에서 평가한다 — 위치 조건은 읽을 곳이 없어 거짓이다.
+     */
     private static CompletableFuture<Boolean> predicate(CommandContext<CommandSource> c) throws CommandSyntaxException {
         CommandSource s = c.getSource();
         LootCondition cond = resolveCondition(s, ResourceOrIdArgument.get(c, "predicate"));
-        // 바닐라 COMMAND 문맥: origin = 소스 위치, 소스 엔티티가 있으면 this_entity. 엔티티 필드는 전역에서 읽기만 한다.
-        var params = new LootParams().with(LootParams.ORIGIN, new double[] {s.x(), s.y(), s.z()});
+        double[] origin = {s.x(), s.y(), s.z()};
         Rider self = s.entity();
-        if (self != null) params.with(LootParams.THIS_ENTITY, lootEntity(self));
-        return CompletableFuture.completedFuture(s.getServer().commandCondition(s.level(), cond, params));
+        CompletableFuture<LootEntity> snap = self == null ? CompletableFuture.completedFuture(null)
+                : EntityOps.onOwner(s, self, r -> snapshot(lootEntity(r)));
+        return ExecuteCommands.<LootEntity, CompletableFuture<Boolean>>onGlobal(s, snap, ent -> {
+            var params = new LootParams().with(LootParams.ORIGIN, origin);
+            if (ent != null) params.with(LootParams.THIS_ENTITY, ent);
+            World w = s.level();
+            ChunkPos cp = ChunkPos.ofBlock(origin[0], origin[2]);
+            CompletableFuture<Boolean> f = w.regionizer().ownerOf(cp.x(), cp.z()) == null ? null
+                    : w.submitAtOwnedChunk(cp, r -> s.getServer().commandCondition(w, cond, params));
+            return f != null ? f : CompletableFuture.completedFuture(s.getServer().commandCondition(w, cond, params));
+        }).thenCompose(f -> f);
+    }
+
+    private static final String[] EQUIPMENT_SLOTS = {"mainhand", "offhand", "head", "chest", "legs", "feet", "body"};
+
+    /** 소유 스레드에서 한 번에 읽은 전리품 엔티티 값(typeSpecific 만 살아 있는 보기로 넘긴다). */
+    private static LootEntity snapshot(LootEntity live) {
+        String type = live.type();
+        boolean fire = live.isOnFire(), crouch = live.isCrouching(), sprint = live.isSprinting(), swim = live.isSwimming(), baby = live.isBaby(), ground = live.onGround();
+        double[] pos = live.position() == null ? null : live.position().clone();
+        float luck = live.luck();
+        java.util.Map<String, org.domi.furnace.server.loot.LootStack> eq = new java.util.HashMap<>();
+        for (String slot : EQUIPMENT_SLOTS) eq.put(slot, live.equipment(slot));
+        return new LootEntity() {
+            public String type() { return type; }
+            public boolean isOnFire() { return fire; }
+            public boolean isCrouching() { return crouch; }
+            public boolean isSprinting() { return sprint; }
+            public boolean isSwimming() { return swim; }
+            public boolean isBaby() { return baby; }
+            public boolean onGround() { return ground; }
+            public double[] position() { return pos == null ? null : pos.clone(); }
+            public float luck() { return luck; }
+            public org.domi.furnace.server.loot.LootStack equipment(String slot) { return eq.containsKey(slot) ? eq.get(slot) : live.equipment(slot); }
+            public Object typeSpecific(String key) { return live.typeSpecific(key); }
+        };
     }
 
     private static LootCondition resolveCondition(CommandSource s, ResourceOrIdArgument.Ref ref) throws CommandSyntaxException {

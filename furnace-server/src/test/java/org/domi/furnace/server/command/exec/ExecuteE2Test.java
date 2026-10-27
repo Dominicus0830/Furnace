@@ -99,6 +99,9 @@ class ExecuteE2Test {
         Files.createDirectories(pack.resolve("data/test/predicate"));
         Files.writeString(pack.resolve("pack.mcmeta"), "{\"pack\":{\"description\":\"t\",\"pack_format\":48}}");
         Files.writeString(pack.resolve("data/test/predicate/" + predicateName + ".json"), predicateJson);
+        Files.createDirectories(pack.resolve("data/test/loot_table"));
+        Files.writeString(pack.resolve("data/test/loot_table/chest.json"), "{\"pools\":[{\"rolls\":1,\"entries\":[{\"type\":\"minecraft:item\",\"name\":\"minecraft:stone\","
+                + "\"functions\":[{\"function\":\"minecraft:set_count\",\"count\":5}]}]}]}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
@@ -176,7 +179,11 @@ class ExecuteE2Test {
     @Test
     void loadedAndDimensionAreBooleans() {
         int before = core.world().regionCount();
+        // 바닐라 ENTITY_TICKING: 플레이어도 forceload 도 없으면 로드돼 있어도 거짓
+        assertEquals(new CommandResult(false, 0, 1), run("execute if loaded 0 0 0"));
+        assertEquals(1, run("forceload add 0 0").callbacks());
         assertEquals(new CommandResult(true, 1, 1), run("execute if loaded 0 0 0"));
+        assertEquals(new CommandResult(false, 0, 1), run("execute unless loaded 0 0 0"));
         assertEquals(new CommandResult(false, 0, 1), run("execute if loaded 1000000 0 1000000"));
         assertEquals(new CommandResult(true, 1, 1), run("execute unless loaded 1000000 0 1000000"));
         assertEquals(CommandResult.NONE, run("execute if loaded 1000000 0 1000000 run probe"));
@@ -231,6 +238,17 @@ class ExecuteE2Test {
         assertEquals(before, core.world().regionCount(), "if blocks 가 region 을 만들었다");
     }
 
+    @Test
+    void blocksWithStartInAnotherRegionIsUnloaded() throws Exception {
+        core.world().awaitChunk(new ChunkPos(200, 200));   // 멀리 떨어진 두 번째 region
+        int before = core.world().regionCount();
+        // 시작 영역은 (200,200) region, 대상은 (0,0) region — 한 region 에 같이 로드돼 있지 않다
+        assertEquals(new CommandResult(false, 0, 1), run("execute if blocks 3200 -60 3200 3201 -60 3201 0 -60 0 all"));
+        assertEquals(List.of("That position is not loaded"), messages);
+        assertEquals(new CommandResult(false, 0, 1), run("execute if blocks 0 -60 0 1 -60 1 3200 -60 3200 all"));
+        assertEquals(before, core.world().regionCount());
+    }
+
     // ---------------------------------------------------------------- biome
 
     @Test
@@ -251,7 +269,11 @@ class ExecuteE2Test {
         int before = core.world().regionCount();
         assertEquals(new CommandResult(false, 0, 1), run("execute if biome 1000000 0 1000000 " + here));
         assertEquals(before, core.world().regionCount());
-        assertEquals(new CommandResult(false, 0, 1), run("execute if biome 3 -60 3 minecraft:not_a_biome"));
+        // 바닐라는 파싱 때 위치가 붙은 오류 — 명령이 실행되지 않는다
+        assertEquals(CommandResult.NONE, run("execute if biome 3 -60 3 minecraft:not_a_biome"));
+        assertTrue(messages.stream().anyMatch(m -> m.contains("minecraft:not_a_biome")) && messages.stream().anyMatch(m -> m.contains("<--[HERE]")), messages.toString());
+        assertEquals(CommandResult.NONE, run("execute if biome 3 -60 3 #minecraft:not_a_tag run probe"));
+        assertTrue(messages.stream().anyMatch(m -> m.contains("minecraft:not_a_tag")), messages.toString());
     }
 
     // ---------------------------------------------------------------- predicate
@@ -270,6 +292,33 @@ class ExecuteE2Test {
         assertEquals(CommandResult.NONE, run("execute as @e[type=cow] unless predicate " + isCow + " run probe"));
     }
 
+    @Test
+    void predicateLocationConditionsReadBiomeAndBlockInTheOwningRegion() throws Exception {
+        loadPacks("always", "{\"condition\":\"minecraft:random_chance\",\"chance\":1.0}");
+        set(3, -60, 3, "minecraft:stone");
+        var names = packs.loot().registries().entries("minecraft:worldgen/biome");
+        int[] q = org.domi.furnace.server.world.BiomeZoom.quart(core.biomeZoomSeed(), 3, -60, 3);
+        String here = names.get(inRegion(() -> core.world().regionizer().ownerOf(0, 0).biomeIdAtQuart(q[0], q[1], q[2])));
+        String other = names.stream().filter(n -> !n.equals(here)).findFirst().orElseThrow();
+        String inBiome = "{condition:\"minecraft:location_check\",predicate:{biomes:\"%s\"}}";
+        String isStone = "{condition:\"minecraft:location_check\",predicate:{block:{blocks:\"minecraft:stone\"}}}";
+        assertEquals(new CommandResult(true, 1, 1), run("execute positioned 3.5 -60 3.5 if predicate " + inBiome.formatted(here)));
+        assertEquals(new CommandResult(false, 0, 1), run("execute positioned 3.5 -60 3.5 if predicate " + inBiome.formatted(other)));
+        assertEquals(new CommandResult(true, 1, 1), run("execute positioned 3.5 -60 3.5 unless predicate " + inBiome.formatted(other)));
+        assertEquals(new CommandResult(false, 0, 1), run("execute positioned 3.5 -60 3.5 unless predicate " + inBiome.formatted(here)));
+        assertEquals(new CommandResult(true, 1, 1), run("execute positioned 3.5 -60 3.5 if predicate " + isStone));
+        assertEquals(new CommandResult(false, 0, 1), run("execute positioned 3.5 -59 3.5 if predicate " + isStone));
+        assertEquals(new CommandResult(true, 1, 1), run("execute positioned 3.5 -59 3.5 unless predicate " + isStone));
+        // 주인 region 이 없는 곳은 region 을 만들지 않고 위치 조건이 거짓
+        int before = core.world().regionCount();
+        assertEquals(new CommandResult(false, 0, 1), run("execute positioned 1000000.5 -60 1000000.5 if predicate " + isStone));
+        assertEquals(before, core.world().regionCount());
+        // this_entity 의 위치 조건(entity_properties.location)도 같은 경로
+        String cowHere = "{condition:\"minecraft:entity_properties\",entity:\"this\",predicate:{location:{block:{blocks:\"minecraft:stone\"}}}}";
+        inRegion(() -> cows[0].moveTo(3.5, -60, 3.5, 0, 0));
+        assertEquals(1, run("execute as @e[tag=a] at @s if predicate " + cowHere + " run probe").callbacks());
+    }
+
     // ---------------------------------------------------------------- items
 
     @Test
@@ -285,6 +334,45 @@ class ExecuteE2Test {
         // 대상이 없으면 오류(getEntities)
         assertEquals(new CommandResult(false, 0, 1), run("execute if items entity @e[tag=none] weapon.mainhand *"));
         assertEquals(List.of("No entity was found"), messages);
+    }
+
+    @Test
+    void itemsBlockCountsChestSlotsAndUnpacksLootTable() throws Exception {
+        loadPacks("always", "{\"condition\":\"minecraft:random_chance\",\"chance\":1.0}");
+        assertEquals(1, run("setblock 5 -60 5 minecraft:chest").callbacks());
+        assertEquals(1, run("item replace block 5 -60 5 container.0 with minecraft:stone 3").callbacks());
+        assertEquals(1, run("item replace block 5 -60 5 container.4 with minecraft:stone 4").callbacks());
+        assertEquals(new CommandResult(true, 7, 1), run("execute if items block 5 -60 5 container.* minecraft:stone"));
+        assertEquals(new CommandResult(true, 3, 1), run("execute if items block 5 -60 5 container.0 minecraft:stone"));
+        assertEquals(new CommandResult(false, 0, 1), run("execute if items block 5 -60 5 container.1 minecraft:stone"));
+        assertEquals(new CommandResult(false, 0, 1), run("execute if items block 5 -60 5 container.0 minecraft:dirt"));
+        assertEquals(new CommandResult(false, 0, 1), run("execute unless items block 5 -60 5 container.0 minecraft:stone"));
+        assertEquals(List.of("Test failed, count: 3"), messages);
+        // 범위 밖 칸(상자는 27칸)은 건너뛴다
+        assertEquals(new CommandResult(true, 7, 1), run("execute if items block 5 -60 5 container.* minecraft:stone"));
+        // 전리품 표가 걸린 상자: 조회가 풀어서 센다
+        run("setblock 12 -60 5 minecraft:chest");
+        inRegion(() -> ((org.domi.furnace.server.block.entity.ContainerBlockEntity) column.blockEntityAt(12, -60, 5)).lootTable = "test:chest");
+        assertEquals(new CommandResult(true, 5, 1), run("execute if items block 12 -60 5 container.* minecraft:stone"));
+    }
+
+    @Test
+    void blocksComparesBlockEntitiesByTypeAndContents() {
+        run("setblock 5 -60 5 minecraft:chest");
+        run("setblock 9 -60 5 minecraft:chest");
+        run("item replace block 5 -60 5 container.2 with minecraft:stone 3");
+        run("item replace block 9 -60 5 container.2 with minecraft:stone 3");
+        // 좌표가 다른 같은 내용의 상자 둘은 일치해야 한다(id·x·y·z 는 비교하지 않는다)
+        assertEquals(new CommandResult(true, 1, 1), run("execute if blocks 5 -60 5 5 -60 5 9 -60 5 all"));
+        run("item replace block 9 -60 5 container.2 with minecraft:stone 4");
+        assertEquals(CommandResult.NONE, run("execute if blocks 5 -60 5 5 -60 5 9 -60 5 all run probe"));
+        assertEquals(new CommandResult(true, 1, 1), run("execute unless blocks 5 -60 5 5 -60 5 9 -60 5 all"));
+        // 블록 엔티티가 없는 쪽과는 불일치
+        run("setblock 9 -60 5 minecraft:chest");
+        run("item replace block 9 -60 5 container.2 with minecraft:stone 3");
+        run("setblock 5 -60 5 minecraft:stone");
+        run("setblock 9 -60 5 minecraft:stone");
+        assertEquals(new CommandResult(true, 1, 1), run("execute if blocks 5 -60 5 5 -60 5 9 -60 5 all"));
     }
 
     @Test

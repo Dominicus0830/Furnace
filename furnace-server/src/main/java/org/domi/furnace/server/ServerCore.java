@@ -141,6 +141,13 @@ public final class ServerCore {
             return id >= 0 && id < names.size() ? names.get(id) : null;
         }
 
+        /** 그 칸 청크를 지금 스레드가 가진 region 에서만 읽는다(아니면 null — 위치 조건은 거짓). */
+        public org.domi.furnace.server.loot.LootBlockState blockAt(int x, int y, int z) {
+            int cx = x >> 4, cz = z >> 4;
+            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
+            return lootBlockState(world.regionizer().ownerOf(cx, cz).getBlock(x, y, z));
+        }
+
         public String dimension() { return world.dimension(); }
         };
     }

@@ -1029,6 +1029,16 @@ public final class Region {
         return false;
     }
 
+    /**
+     * /execute if loaded 의 바닐라 조건: 청크가 FULL 이상이고 엔티티 틱 단계(ENTITY_TICKING)이며 엔티티가 불러와졌다(areEntitiesLoaded).
+     * 이 region 이 가진 청크만 안다. 이 region 스레드에서만.
+     */
+    public boolean isEntityTickingLoaded(int cx, int cz) {
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(cx, cz);
+        return col != null && col.entitiesLoaded() && blockEntityTicking(((long) cx << 32) | (cz & 0xFFFFFFFFL));
+    }
+
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {
         double mx = cx * 16 + 8, mz = cz * 16 + 8;
         for (Player p : players.values()) {
