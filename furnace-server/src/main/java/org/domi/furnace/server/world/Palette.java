@@ -20,11 +20,14 @@ public final class Palette {
         int limit = 1 << maxIndirectBits;
         int cap = Integer.highestOneBit(Math.max(limit, 1) * 2) << 1;   // 적재율 <= 1/2
         int mask = cap - 1;
-        int[] keys = new int[cap];
-        int[] slot = new int[cap];   // 팰릿 인덱스 + 1(0 = 빈 칸)
-        int[] palette = new int[limit + 1];
-        int[] idx = new int[values.length];
+        Scratch sc = SCRATCH.get().ensure(cap, limit + 1, values.length);
+        int[] keys = sc.keys;
+        int[] slot = sc.slot;        // 팰릿 인덱스 + 1(0 = 빈 칸). 끝나면 쓴 칸만 0 으로 되돌린다
+        int[] palette = sc.palette;
+        int[] usedH = sc.usedH;      // 채운 해시 칸(정리용)
+        int[] idx = sc.idx;
         int size = 0;
+        try {
         int lastV = 0, lastI = -1;
         for (int i = 0; i < values.length; i++) {
             int v = values[i];
@@ -37,6 +40,7 @@ public final class Palette {
                     if (size == limit) { size = limit + 1; break; }   // 한도 초과 → 직접
                     keys[h] = v;
                     slot[h] = size + 1;
+                    usedH[size] = h;
                     palette[size] = v;
                     found = size++;
                     break;
@@ -71,6 +75,23 @@ public final class Palette {
             BitStorage store = new BitStorage(directBits, values.length);
             for (int i = 0; i < values.length; i++) store.set(i, values[i]);
             writeLongs(buf, store.data());
+        }
+        } finally {
+            for (int p = 0, n = Math.min(size, limit); p < n; p++) slot[usedH[p]] = 0;
+        }
+    }
+
+    /** 스레드별 작업 배열(N-07). write 는 재진입하지 않는다. */
+    private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(Scratch::new);
+
+    private static final class Scratch {
+        int[] keys = new int[0], slot = new int[0], palette = new int[0], usedH = new int[0], idx = new int[0];
+
+        Scratch ensure(int cap, int paletteLen, int values) {
+            if (slot.length < cap) { keys = new int[cap]; slot = new int[cap]; }
+            if (palette.length < paletteLen) { palette = new int[paletteLen]; usedH = new int[paletteLen]; }
+            if (idx.length < values) idx = new int[values];
+            return this;
         }
     }
 

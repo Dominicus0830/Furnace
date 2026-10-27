@@ -50,6 +50,67 @@ class PaletteWireParityTest {
         }
     }
 
+    /** 스레드 로컬 재사용 전의 배열 구현(1차 N-07 커밋) — 재사용 효과 측정·대조용. */
+    static void arrayNoReuseWrite(ByteBuf buf, int[] values, int directBits,
+                             int minIndirectBits, int maxIndirectBits) {
+        // 고유값 수집(삽입 순서 = 팰릿 인덱스). 간접 한도(1<<maxIndirectBits)를 넘으면 직접이라 거기서 멈춘다.
+        int limit = 1 << maxIndirectBits;
+        int cap = Integer.highestOneBit(Math.max(limit, 1) * 2) << 1;   // 적재율 <= 1/2
+        int mask = cap - 1;
+        int[] keys = new int[cap];
+        int[] slot = new int[cap];   // 팰릿 인덱스 + 1(0 = 빈 칸)
+        int[] palette = new int[limit + 1];
+        int[] idx = new int[values.length];
+        int size = 0;
+        int lastV = 0, lastI = -1;
+        for (int i = 0; i < values.length; i++) {
+            int v = values[i];
+            if (lastI >= 0 && v == lastV) { idx[i] = lastI; continue; }
+            int h = (v * 0x9E3779B9) >>> 16 & mask;
+            int found = -1;
+            while (true) {
+                int sl = slot[h];
+                if (sl == 0) {
+                    if (size == limit) { size = limit + 1; break; }   // 한도 초과 → 직접
+                    keys[h] = v;
+                    slot[h] = size + 1;
+                    palette[size] = v;
+                    found = size++;
+                    break;
+                }
+                if (keys[h] == v) { found = sl - 1; break; }
+                h = (h + 1) & mask;
+            }
+            if (size > limit) break;
+            idx[i] = found;
+            lastV = v;
+            lastI = found;
+        }
+
+        if (size == 1) { // 단일값
+            buf.writeByte(0);
+            Types.writeVarInt(buf, palette[0]);
+            Types.writeVarInt(buf, 0); // long 수 0
+            return;
+        }
+
+        if (size != 0 && size <= limit) { // 간접
+            int neededBits = 32 - Integer.numberOfLeadingZeros(size - 1);
+            int bits = Math.max(neededBits, minIndirectBits);
+            buf.writeByte(bits);
+            Types.writeVarInt(buf, size);
+            for (int p = 0; p < size; p++) Types.writeVarInt(buf, palette[p]);
+            BitStorage store = new BitStorage(bits, values.length);
+            for (int i = 0; i < values.length; i++) store.set(i, idx[i]);
+            writeLongs(buf, store.data());
+        } else { // 직접
+            buf.writeByte(directBits);
+            BitStorage store = new BitStorage(directBits, values.length);
+            for (int i = 0; i < values.length; i++) store.set(i, values[i]);
+            writeLongs(buf, store.data());
+        }
+    }
+
     private static void writeLongs(ByteBuf buf, long[] data) {
         Types.writeVarInt(buf, data.length);
         for (long l : data) buf.writeLong(l);
@@ -85,6 +146,10 @@ class PaletteWireParityTest {
             // 블록(4096, 직접 15비트, 4..8)
             int[] blocks = randomValues(r, 4096, d, 27_000, runs);
             assertArrayEquals(bytes(blocks, 15, 4, 8, true), bytes(blocks, 15, 4, 8, false), "블록 iter=" + iter);
+            ByteBuf nb = Unpooled.buffer();
+            arrayNoReuseWrite(nb, blocks, 15, 4, 8);
+            assertArrayEquals(bytes(blocks, 15, 4, 8, true), ByteBufUtil.getBytes(nb), "블록(재사용 전 배열) iter=" + iter);
+            nb.release();
             // 바이옴(64, 직접 7비트, 1..3)
             int[] biomes = randomValues(r, 64, Math.min(d, 64), 64, runs);
             assertArrayEquals(bytes(biomes, 7, 1, 3, true), bytes(biomes, 7, 1, 3, false), "바이옴 iter=" + iter);
@@ -107,12 +172,15 @@ class PaletteWireParityTest {
             for (int i = 0; i < sets.length; i++) sets[i] = randomValues(r, 4096, d, 27_000, true);
             ByteBuf b = Unpooled.buffer(1 << 16);
             for (int round = 0; round < 5; round++) {
-                for (int legacy = 0; legacy < 2; legacy++) {
+                for (int legacy = 0; legacy < 3; legacy++) {
                     boolean old = legacy == 0;
+                    boolean noReuse = legacy == 1;
                     Runnable run = () -> {
                         for (int[] s : sets) {
                             b.clear();
-                            if (old) legacyWrite(b, s, 15, 4, 8); else Palette.write(b, s, 15, 4, 8);
+                            if (old) legacyWrite(b, s, 15, 4, 8);
+                            else if (noReuse) arrayNoReuseWrite(b, s, 15, 4, 8);
+                            else Palette.write(b, s, 15, 4, 8);
                             sink += b.writerIndex();
                         }
                     };
@@ -120,7 +188,7 @@ class PaletteWireParityTest {
                     long t = System.nanoTime();
                     for (int w = 0; w < 200; w++) run.run();
                     double us = (System.nanoTime() - t) / 1000.0 / (200 * 64);
-                    System.out.printf("[BENCH] N-07 distinct=%d round=%d %s %.2f us/섹션%n", d, round, old ? "전" : "후", us);
+                    System.out.printf("[BENCH] N-07 distinct=%d round=%d %s %.2f us/섹션%n", d, round, old ? "전" : noReuse ? "후(재사용 없음)" : "후(스레드 로컬)", us);
                 }
             }
             b.release();
