@@ -36,6 +36,7 @@ public final class FurnaceMain {
     public static final String SERVER_BRAND = "Furnace";
 
     public static void main(String[] args) throws InterruptedException {
+        CrashReport.install(java.nio.file.Path.of("crash-reports"));
         try {
             run(Options.parse(args));
         } catch (InterruptedException e) {
@@ -44,6 +45,7 @@ public final class FurnaceMain {
             // 기동 실패 시 비데몬 스케줄러/Netty 스레드가 JVM을 붙잡아 좀비 프로세스가 되지 않게 비정상 종료한다.
             // (종료 훅이 이미 등록됐다면 exit가 훅을 돌려 flush한다.)
             log.error("기동 실패 — 종료합니다", t);
+            CrashReport.write(java.nio.file.Path.of("crash-reports"), "Failed to start server", t, Thread.currentThread());
             System.exit(1);
         }
     }
@@ -301,6 +303,8 @@ public final class FurnaceMain {
         // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().loadAll();
+        // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
+        org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
         core.onSaveAll(() -> {
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
