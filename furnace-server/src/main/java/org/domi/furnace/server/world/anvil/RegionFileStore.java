@@ -19,8 +19,16 @@ public final class RegionFileStore {
 
     /** 다른 하위 디렉토리(엔티티는 "entities"). */
     public RegionFileStore(Path worldDir, String subDir) {
-        this.regionDir = worldDir.resolve(subDir);
+        this(worldDir, subDir, false);
     }
+
+    /** sync = server.properties sync-chunk-writes(바닐라 기본 true). */
+    public RegionFileStore(Path worldDir, String subDir, boolean sync) {
+        this.regionDir = worldDir.resolve(subDir);
+        this.sync = sync;
+    }
+
+    private final boolean sync;
 
     private static long key(int rx, int rz) {
         return ((long) rx << 32) | (rz & 0xFFFFFFFFL);
@@ -40,7 +48,7 @@ public final class RegionFileStore {
         synchronized (this) {
             RegionFile rf = open.get(k);
             if (rf != null) return rf;
-            rf = new RegionFile(regionDir.resolve("r." + rx + "." + rz + ".mca"));
+            rf = new RegionFile(regionDir.resolve("r." + rx + "." + rz + ".mca"), sync);
             open.put(k, rf);
             if (open.size() > MAX_OPEN) {
                 var it = open.entrySet().iterator();
@@ -102,6 +110,9 @@ public final class RegionFileStore {
         byte[] comp = Compression.deflate(nbtBytes);
         withFile(chunkX, chunkZ, rf -> { rf.writeCompressed(chunkX, chunkZ, comp); return null; });
     }
+
+    /** 테스트용: 그 청크의 열린 핸들(없으면 null). */
+    synchronized RegionFile openHandle(int chunkX, int chunkZ) { return open.get(key(chunkX >> 5, chunkZ >> 5)); }
 
     /** 테스트용: 지금 열린 핸들 수. */
     synchronized int openCount() { return open.size(); }

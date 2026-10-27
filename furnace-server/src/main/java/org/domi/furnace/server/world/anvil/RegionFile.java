@@ -26,15 +26,29 @@ public final class RegionFile implements Closeable {
     private boolean overlapping;
     /** 시험용 크래시 모의: 남은 기록 바이트 예산(음수면 끔). 다 쓰면 그 지점에서 SimulatedCrash. */
     long crashBudget = -1;
+    /** 시험용: true 면 바닐라처럼 매번 헤더 8KB 를 통째로 쓴다(바이트 동일성 대조용). */
+    boolean fullHeaderWrites;
+    /** 시험용 시계(초). */
+    java.util.function.IntSupplier clock = () -> (int) (System.currentTimeMillis() / 1000);
+    /** 로드 때 무효 항목을 0 으로 지웠다 — 다음 기록 때 헤더를 통째로 써서 디스크에도 반영한다(바닐라와 같은 시점). */
+    private boolean headerDirty;
+    /** sync-chunk-writes: 바닐라처럼 기록마다 데이터 동기화(O_DSYNC, RandomAccessFile "rwd"). */
+    final boolean sync;
+    /** 시험용: close 때 force 호출 횟수. */
+    int forceCount;
 
     static final class SimulatedCrash extends IOException {
         SimulatedCrash() { super("simulated crash"); }
     }
 
-    public RegionFile(Path path) throws IOException {
+    public RegionFile(Path path) throws IOException { this(path, false); }
+
+    /** sync 면 바닐라 RegionFile 의 DSYNC 열기와 같다(server.properties sync-chunk-writes). */
+    public RegionFile(Path path, boolean sync) throws IOException {
         this.path = path;
+        this.sync = sync;
         Files.createDirectories(path.getParent());
-        this.raf = new RandomAccessFile(path.toFile(), "rw");
+        this.raf = new RandomAccessFile(path.toFile(), sync ? "rwd" : "rw");
         long size = raf.length();
         if (size < 2L * SECTOR) {
             raf.setLength(2L * SECTOR); // 빈 헤더 2섹터
@@ -66,7 +80,7 @@ public final class RegionFile implements Closeable {
                 used.set(off, cnt);
             }
             locations[i] = loc;
-            if (loc == 0) writeIntAt(header, i * 4, 0);
+            if (loc == 0 && readIntAt(header, i * 4) != 0) { writeIntAt(header, i * 4, 0); headerDirty = true; }
         }
     }
 
@@ -199,8 +213,17 @@ public final class RegionFile implements Closeable {
         int newLoc = (offset << 8) | needed;
         locations[idx] = newLoc;
         writeIntAt(header, idx * 4, newLoc);
-        writeIntAt(header, SECTOR + idx * 4, (int) (System.currentTimeMillis() / 1000));
-        pwrite(0, header, 0, header.length);
+        writeIntAt(header, SECTOR + idx * 4, clock.getAsInt());
+        // 바닐라는 8KB 를 통째로 쓰지만 디스크와 메모리 사본이 같으면 바뀐 두 항목만 쓴 결과와 바이트가 같다.
+        // 각 항목은 4바이트 정렬이라 섹터 경계에서 찢어지지 않는다. 위치 항목 → 타임스탬프 순.
+        // sync 면 기록마다 동기화가 붙어 두 번 쓰기가 한 번(8KB)보다 느리다(측정: f05 설계서 6장) → 통째로 한 번.
+        if (fullHeaderWrites || headerDirty || sync) {
+            pwrite(0, header, 0, header.length);
+            headerDirty = false;
+        } else {
+            pwrite((long) idx * 4, header, idx * 4, 4);
+            pwrite(SECTOR + (long) idx * 4, header, SECTOR + idx * 4, 4);
+        }
         if (!external) {
             step();
             Files.deleteIfExists(ext);               // 예전에 외부로 뺐던 청크가 다시 작아졌다
@@ -217,7 +240,13 @@ public final class RegionFile implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
-        raf.close();
+    public synchronized void close() throws IOException {
+        // 바닐라 RegionFile.close: sync 여부와 상관없이 force(true) 후 닫는다
+        try {
+            raf.getChannel().force(true);
+            forceCount++;
+        } finally {
+            raf.close();
+        }
     }
 }

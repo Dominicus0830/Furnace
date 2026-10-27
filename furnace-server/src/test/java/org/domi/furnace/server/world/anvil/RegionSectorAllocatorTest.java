@@ -394,4 +394,123 @@ class RegionSectorAllocatorTest {
             assertArrayEquals("a".getBytes(), rf.readChunk(0, 0));
         }
     }
+
+    // 헤더 두 항목(위치·타임스탬프 4B씩)만 쓰는 방식이 바닐라식 8KB 통째 쓰기와 매 순간 같은 파일 바이트를 만든다.
+    // 무효 항목: 바닐라는 로드 때 메모리에서 0 으로 만들고 첫 헤더 기록 때 디스크에도 0 을 쓴다. 여기서는 headerDirty 로
+    // 첫 기록만 통째로 써서 같은 시점에 반영한다. 그 전에는 두 방식 모두 디스크에 옛 값이 남아 있고, 다시 열면 또 0 이 되므로 관측상 같다.
+    @Test
+    void twoEntryHeaderWrites_byteIdenticalToFullHeader(@TempDir Path dir) throws Exception {
+        Random r = new Random(0xB17E);
+        Pool pool = new Pool(r, true);
+        for (int round = 0; round < 3; round++) {
+            Path a = dir.resolve("a" + round).resolve("r.0.0.mca"), b = dir.resolve("b" + round).resolve("r.0.0.mca");
+            Files.createDirectories(a.getParent());
+            Files.createDirectories(b.getParent());
+            if (round > 0) {   // 무효 항목(헤더 겹침·0섹터·파일 밖)이 있는 파일에서 시작
+                try (RegionFile seed = new RegionFile(a)) {
+                    seed.clock = () -> 7;
+                    for (int n = 0; n < 50; n++) seed.writeCompressed(n & 31, n >> 5, pool.comp[pool.pick(r)]);
+                }
+                try (RandomAccessFile raf = new RandomAccessFile(a.toFile(), "rw")) {
+                    raf.seek(4 * 60); raf.writeInt(1 << 8 | 1);
+                    raf.seek(4 * 61); raf.writeInt(9 << 8);
+                    raf.seek(4 * 62); raf.writeInt(900_000 << 8 | 3);
+                }
+                Files.copy(a, b, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            int[] tick = {1000};
+            try (RegionFile full = new RegionFile(a); RegionFile two = new RegionFile(b)) {
+                full.fullHeaderWrites = true;
+                full.clock = () -> tick[0];
+                two.clock = () -> tick[0];
+                for (int n = 0; n < 4000; n++) {
+                    int idx = r.nextInt(round == 2 ? 1024 : 100);
+                    int p = pool.pick(r);
+                    full.writeCompressed(idx & 31, idx >> 5, pool.comp[p]);
+                    two.writeCompressed(idx & 31, idx >> 5, pool.comp[p]);
+                    tick[0] += r.nextInt(3);
+                    if (n < 20 || n % 400 == 0)
+                        assertArrayEquals(Files.readAllBytes(a), Files.readAllBytes(b), "round " + round + " op " + n);
+                }
+            }
+            assertArrayEquals(Files.readAllBytes(a), Files.readAllBytes(b), "round " + round + " end");
+        }
+    }
+
+    /** /proc/self/fdinfo 에서 그 파일을 연 fd 의 flags(8진). 리눅스 전용. */
+    static java.util.List<Integer> openFlags(Path file) throws Exception {
+        java.util.List<Integer> out = new ArrayList<>();
+        Path real = file.toRealPath();
+        try (var fds = Files.list(Path.of("/proc/self/fd"))) {
+            for (Path fd : fds.toList()) {
+                try {
+                    if (!Files.readSymbolicLink(fd).equals(real)) continue;
+                } catch (Exception e) { continue; }
+                for (String line : Files.readAllLines(Path.of("/proc/self/fdinfo", fd.getFileName().toString())))
+                    if (line.startsWith("flags:")) out.add(Integer.parseInt(line.substring(6).trim(), 8));
+            }
+        }
+        return out;
+    }
+
+    // sync-chunk-writes: on 이면 O_DSYNC 로 열리고, off 면 아니다. 닫을 때는 바닐라처럼 항상 force.
+    @Test
+    void syncFlag_controlsOpenModeAndCloseForces(@TempDir Path dir) throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.isDirectory(Path.of("/proc/self/fdinfo")), "리눅스 /proc 필요");
+        final int O_DSYNC = 010000;
+        for (boolean sync : new boolean[]{true, false}) {
+            Path f = dir.resolve("s" + sync).resolve("r.0.0.mca");
+            RegionFile rf = new RegionFile(f, sync);
+            rf.writeChunk(0, 0, "x".getBytes());
+            var flags = openFlags(f);
+            assertEquals(1, flags.size(), "열린 fd 하나");
+            assertEquals(sync, (flags.get(0) & O_DSYNC) != 0, "sync=" + sync + " flags=" + Integer.toOctalString(flags.get(0)));
+            assertEquals(0, rf.forceCount);
+            rf.close();
+            assertEquals(1, rf.forceCount, "close 때 force(true)");
+        }
+        // RegionFileStore 가 설정을 핸들에 넘긴다
+        for (boolean sync : new boolean[]{true, false}) {
+            RegionFileStore store = new RegionFileStore(dir.resolve("w" + sync), "region", sync);
+            store.writeChunk(1, 1, "y".getBytes());
+            assertEquals(sync, store.openHandle(1, 1).sync);
+            store.closeAll();
+        }
+        assertFalse(new RegionFileStore(dir.resolve("w")).regionDir().toString().isEmpty());
+    }
+
+    // 측정(출력만): 청크 1000개 저장 — 헤더 8KB/두 항목 × DSYNC off/on, 3회. 벽시계·스레드 CPU·기록 바이트.
+    @Test
+    void measure_saveThroughput(@TempDir Path dir) throws Exception {
+        Random r = new Random(0x5A7E);
+        // 청크 압축본 크기 분포 비슷하게: 2~12KB
+        byte[][] comps = new byte[64][];
+        for (int i = 0; i < comps.length; i++) {
+            byte[] raw = RegionDeflateOutsideLockTest.payload(r, 20_000 + r.nextInt(60_000));
+            comps[i] = Compression.deflate(raw);
+        }
+        var mx = java.lang.management.ManagementFactory.getThreadMXBean();
+        for (boolean sync : new boolean[]{false, true}) {
+            for (boolean full : sync ? new boolean[]{false} : new boolean[]{true, false}) {
+                for (int rep = 0; rep < 3; rep++) {
+                    Path f = dir.resolve("m" + sync + full + rep).resolve("r.0.0.mca");
+                    long dataBytes = 0;
+                    long cpu0 = mx.getCurrentThreadCpuTime(), t0 = System.nanoTime();
+                    try (RegionFile rf = new RegionFile(f, sync)) {
+                        rf.fullHeaderWrites = full;
+                        for (int n = 0; n < 1000; n++) {
+                            byte[] c = comps[n % comps.length];
+                            rf.writeCompressed(n & 31, n >> 5 & 31, c);
+                            dataBytes += ((c.length + 5 + SECTOR - 1) / SECTOR) * (long) SECTOR;
+                        }
+                    }
+                    long wall = System.nanoTime() - t0, cpu = mx.getCurrentThreadCpuTime() - cpu0;
+                    boolean eff = full || sync;   // sync 면 구현이 항상 8KB 한 번으로 쓴다
+                    long hdr = eff ? 8192 : 8;
+                    System.out.printf("[F05-measure] sync=%s header=%s rep=%d: wall %.1f ms (%.0f chunks/s), cpu %.1f ms, 청크당 기록 %.0f B(헤더 %d B)%n",
+                            sync, eff ? "8KB" : "2x4B", rep, wall / 1e6, 1000 / (wall / 1e9), cpu / 1e6, dataBytes / 1000.0 + hdr, hdr);
+                }
+            }
+        }
+    }
 }

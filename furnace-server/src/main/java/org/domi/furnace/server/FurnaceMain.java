@@ -163,7 +163,7 @@ public final class FurnaceMain {
         int biomeDirectBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
         ChunkWorkerPool chunkPool = new ChunkWorkerPool(Runtime.getRuntime().availableProcessors());
         var dimension = NoiseWorldSource.Dimension.OVERWORLD;
-        var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir));
+        var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "region", props.syncChunkWrites);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                 registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
         var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
@@ -179,9 +179,9 @@ public final class FurnaceMain {
         }
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, flatSource != null ? flatSource : noiseSource);
-        var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities");
+        var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities", props.syncChunkWrites);
         anvilSource.entityStore(entityStore);
-        var poiStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "poi");
+        var poiStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "poi", props.syncChunkWrites);
         anvilSource.poiStore(poiStore);
         java.util.concurrent.ExecutorService ioPool =
                 java.util.concurrent.Executors.newFixedThreadPool(config.ioThreads());
@@ -264,13 +264,13 @@ public final class FurnaceMain {
         java.util.List<org.domi.furnace.server.world.anvil.RegionFileStore> extraStores = new java.util.ArrayList<>();
         for (var type : java.util.List.of(org.domi.furnace.server.world.DimensionType.NETHER, org.domi.furnace.server.world.DimensionType.END)) {
             var dir = type.storageDir(worldDir);
-            var store = new org.domi.furnace.server.world.anvil.RegionFileStore(dir);
+            var store = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "region", props.syncChunkWrites);
             var codec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                     registries.entries("minecraft:worldgen/biome"), plainsBiome, type.minY(), type.sectionCount());
             var gen = NoiseWorldSource.create(type.gen(), config.levelSeed(), blockRegistry, registries);
             var src = new org.domi.furnace.server.world.gen.AnvilWorldSource(worldDir, store, codec, gen);
-            var ents = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "entities");
-            var pois = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "poi");
+            var ents = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "entities", props.syncChunkWrites);
+            var pois = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "poi", props.syncChunkWrites);
             src.entityStore(ents);
             src.poiStore(pois);
             extraStores.add(store);
