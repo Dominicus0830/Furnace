@@ -155,7 +155,15 @@ public final class World {
     public String dimension() { return dimensionType.levelKey(); }
 
     /** 게임 틱을 켠다(서버 준비가 끝난 뒤). 꺼져 있으면 region 은 작업만 처리한다. */
-    public void startTicking() { regionizer.gameTicks(true); }
+    public void startTicking() {
+        regionizer.gameTicks(true);
+        // /forceload 로 붙잡아 둔 청크를 다시 올린다(chunks.dat)
+        var f = forcedChunks();
+        for (long k : f.sortedKeys()) {
+            ChunkPos cp = new ChunkPos(ForcedChunks.xOf(k), ForcedChunks.zOf(k));
+            runAtChunk(cp, r -> r.loadChunk(cp));
+        }
+    }
 
     /** 모든 region 에서 게임 틱을 한 번씩(테스트용 — 게임 틱이 꺼져 있을 때 손으로 돌린다). */
     public CompletableFuture<Void> tickOnce() {
@@ -273,6 +281,8 @@ public final class World {
         // 모든 region 이 습격 스냅샷을 올린 뒤 raids.dat 하나로 쓴다
         fs.add(CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).handle((v, t) -> {
             raidStore().saveIfDirty();
+            var forced = forcedChunks;
+            if (forced != null) forced.saveIfDirty();
             return null;
         }));
         return fs;
@@ -805,8 +815,37 @@ public final class World {
         }
     }
 
-    /** 그 청크에 살아 있는 티켓이 있는가(지난 것은 지운다). */
+    private volatile ForcedChunks forcedChunks;
+
+    /** /forceload 로 붙잡은 청크(<차원 폴더>/data/chunks.dat). 디스크 월드면 처음 쓸 때 읽고, 아니면 메모리에서만. */
+    public ForcedChunks forcedChunks() {
+        var f = forcedChunks;
+        if (f != null) return f;
+        synchronized (this) {
+            if (forcedChunks == null) {
+                forcedChunks = worldSource instanceof AnvilWorldSource && worldDir != null ? ForcedChunks.open(dimensionType.storageDir(worldDir)) : ForcedChunks.detached();
+            }
+            return forcedChunks;
+        }
+    }
+
+    /**
+     * 바닐라 ServerLevel.setChunkForced: 붙잡거나(add) 놓는다. 바뀌었으면 참. 붙잡은 청크는 구독자가 없어도 내리지 않고, 붙잡는 즉시
+     * 올려 둔다(주인 region 이 불러온다).
+     */
+    public boolean setChunkForced(int cx, int cz, boolean forced) {
+        boolean changed = forcedChunks().set(cx, cz, forced);
+        if (changed && forced) {
+            ChunkPos cp = new ChunkPos(cx, cz);
+            runAtChunk(cp, r -> r.loadChunk(cp));
+        }
+        return changed;
+    }
+
+    /** 그 청크에 살아 있는 티켓이 있는가(지난 것은 지운다). 강제 로드 청크는 늘 있다. */
     boolean ticketed(long chunkKey) {
+        var forced = forcedChunks;
+        if (forced != null && forced.size() > 0 && forced.contains(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey))) return true;
         Long until = tickets.get(chunkKey);
         if (until == null) return false;
         if (until < gameTime()) {

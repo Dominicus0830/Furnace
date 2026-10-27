@@ -20,6 +20,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.ChatCommands.registerMe(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerExperience(d);
         org.domi.furnace.server.command.builtin.BlockCommands.registerFill(d);
+        org.domi.furnace.server.command.builtin.ForceLoadCommand.register(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerGameRule(d);
         ServerCommands.registerHelp(d);
@@ -40,6 +41,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSpawnPoint(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSetWorldSpawn(d);
         org.domi.furnace.server.command.builtin.SoundCommands.registerStopSound(d);
+        org.domi.furnace.server.command.builtin.SpreadPlayersCommand.register(d);
         org.domi.furnace.server.command.builtin.SummonCommand.register(d);
         org.domi.furnace.server.command.builtin.TextCommands.registerTellRaw(d);
         org.domi.furnace.server.command.builtin.TagCommand.register(d);
