@@ -85,7 +85,11 @@ public final class RegionFile implements Closeable {
     /** NBT 직렬 바이트를 zlib 압축해 섹터에 기록(in-place 가능하면 재사용, 아니면 append). */
     public void writeChunk(int chunkX, int chunkZ, byte[] nbtBytes) throws IOException {
         if (nbtBytes == null) throw new IllegalArgumentException("nbtBytes null");
-        byte[] comp = Compression.deflate(nbtBytes);
+        writeCompressed(chunkX, chunkZ, Compression.deflate(nbtBytes));
+    }
+
+    /** 이미 zlib(type 2)로 압축한 본문을 기록. RegionFileStore 가 파일 잠금 밖에서 압축한 뒤 부른다(F-01). */
+    void writeCompressed(int chunkX, int chunkZ, byte[] comp) throws IOException {
         long total0 = comp.length + 5L;              // len(4)+type(1)+data
         long needed0 = (total0 + SECTOR - 1) / SECTOR;
         boolean external = needed0 > MAX_SECTORS;     // 1바이트 섹터 수에 안 들어간다 — 잘라 쓰면 헤더가 깨진다

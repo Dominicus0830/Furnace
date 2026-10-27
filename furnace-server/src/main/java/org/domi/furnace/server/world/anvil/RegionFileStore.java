@@ -95,7 +95,10 @@ public final class RegionFileStore {
     }
 
     public void writeChunk(int chunkX, int chunkZ, byte[] nbtBytes) throws IOException {
-        withFile(chunkX, chunkZ, rf -> { rf.writeChunk(chunkX, chunkZ, nbtBytes); return null; });
+        if (nbtBytes == null) throw new IllegalArgumentException("nbtBytes null");
+        // F-01: deflate 는 순수 CPU 라 파일 잠금 밖에서 한다. 잠금 안에는 섹터 할당·기록만 남는다(같은 파일 병렬도↑).
+        byte[] comp = Compression.deflate(nbtBytes);
+        withFile(chunkX, chunkZ, rf -> { rf.writeCompressed(chunkX, chunkZ, comp); return null; });
     }
 
     /** 테스트용: 지금 열린 핸들 수. */
