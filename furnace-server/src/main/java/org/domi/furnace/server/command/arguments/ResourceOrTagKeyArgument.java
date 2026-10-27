@@ -47,6 +47,31 @@ public final class ResourceOrTagKeyArgument implements ArgumentType<ResourceOrTa
         return new Result(ResourceLocationArgument.id().parse(reader), false);
     }
 
+    private static final org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType ERROR_UNKNOWN_RESOURCE =
+            new org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType((id, reg) -> org.domi.furnace.api.text.Text.translatable("argument.resource.not_found", id, reg));
+    private static final org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType ERROR_UNKNOWN_TAG =
+            new org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType((id, reg) -> org.domi.furnace.api.text.Text.translatable("argument.resource_tag.not_found", id, reg));
+
+    /**
+     * 바닐라는 파싱 때 레지스트리에서 찾고 없으면 위치가 붙은 오류를 낸다. 데이터 팩(레지스트리 목록)이 있으면 같게 파싱 때 검증하고,
+     * 없으면(시험·기동 전) 검증하지 않는다 — 각 명령이 실행 때 따로 거른다.
+     */
+    @Override
+    public <S> Result parse(StringReader reader, S source) throws CommandSyntaxException {
+        Result r = parse(reader);
+        if (source instanceof CommandSource cs && cs.getServer().dataPacks() != null && cs.getServer().dataPacks().loot() != null) {
+            var regs = cs.getServer().dataPacks().loot().registries();
+            List<String> names = regs.entries(registry);
+            if (!names.isEmpty()) {
+                String name = r.id().namespace() + ":" + r.id().path();
+                if (r.tag() ? !regs.hasTag(registry, name) : !names.contains(name)) {
+                    throw (r.tag() ? ERROR_UNKNOWN_TAG : ERROR_UNKNOWN_RESOURCE).createWithContext(reader, name, registry);
+                }
+            }
+        }
+        return r;
+    }
+
     @Override
     public Collection<String> getExamples() { return List.of("foo", "foo:bar", "012", "#skeletons", "#minecraft:skeletons"); }
 

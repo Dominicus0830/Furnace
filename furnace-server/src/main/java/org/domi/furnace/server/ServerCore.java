@@ -141,6 +141,13 @@ public final class ServerCore {
             return id >= 0 && id < names.size() ? names.get(id) : null;
         }
 
+        /** 그 칸 청크를 지금 스레드가 가진 region 에서만 읽는다(아니면 null — 위치 조건은 거짓). */
+        public org.domi.furnace.server.loot.LootBlockState blockAt(int x, int y, int z) {
+            int cx = x >> 4, cz = z >> 4;
+            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
+            return lootBlockState(world.regionizer().ownerOf(cx, cz).getBlock(x, y, z));
+        }
+
         public String dimension() { return world.dimension(); }
         };
     }
@@ -156,6 +163,20 @@ public final class ServerCore {
             if (is != null && !is.isEmpty()) out.add(is);
         }
         return out;
+    }
+
+    /** 바이옴 확대 지터 시드(Level.getBiome — 명령의 biome 조건용). */
+    public long biomeZoomSeed() { return biomeZoomSeed; }
+
+    /**
+     * /execute if predicate: 명령 문맥(origin, 있으면 this_entity)에서 조건 하나를 평가한다. 난수는 월드 난수(바닐라 level.getRandom).
+     * 데이터 팩이 없으면 false.
+     */
+    public boolean commandCondition(World w, org.domi.furnace.server.loot.LootCondition cond, org.domi.furnace.server.loot.LootParams params) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return false;
+        var lw = lootWorldFor(w);
+        return dp.loot().test(cond, new org.domi.furnace.server.loot.LootContext(dp.loot(), lw, params, lw.random()));
     }
 
     /** 명령이 아이템 수정자를 적용한다(/item modify, 바닐라 ItemCommands.applyModifier — 월드 난수). */

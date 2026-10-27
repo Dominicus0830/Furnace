@@ -733,10 +733,13 @@ public final class PlayerVitals {
         for (Runnable r : after) r.run();
         runPendingEffectHurts();
         applyPendingStarve();
+        final int epoch;
         synchronized (this) {
             collectChanges(toSelf, toTrackers);
+            epoch = respawnEpoch;
         }
-        for (Packet p : toSelf) player.send(p);
+        // 모은 뒤 리스폰이 끼면(연결 스레드) 낡은 체력 0 등이 Respawn 패킷 뒤에 가서 클라가 죽은 채로 남는다 — 쓰는 순간 세대를 비교해 버린다
+        for (Packet p : toSelf) player.send(p, () -> respawnEpoch == epoch);
         for (Packet p : toTrackers) env.broadcastToTrackers(player.entityId(), p);
     }
 
@@ -967,6 +970,7 @@ public final class PlayerVitals {
      * 게임 모드·스폰 지점·마지막 사망 위치·경험치 씨앗은 유지.
      */
     public synchronized void respawn() {
+        respawnEpoch++;
         boolean keepXp = keepLevelOnRespawn || gameMode == GameMode.SPECTATOR;
         keepLevelOnRespawn = false;
         effects.clear();
@@ -1003,6 +1007,9 @@ public final class PlayerVitals {
         lastDataAir = MAX_AIR;
         lastDataAbsorption = 0.0f;
     }
+
+    /** 리스폰 세대: respawn() 마다 올라간다. tick 이 모은 패킷이 리스폰을 넘어 낡은 채로 나가는 걸 막는 데 쓴다. */
+    private volatile int respawnEpoch;
 
     /** 접속 때 바로 보낼 체력·허기·경험치·엔티티 데이터(바닐라는 첫 doTick 에서 같은 값을 보낸다 — 이후 틱은 바뀔 때만). */
     public synchronized java.util.List<Packet> joinPackets() {
