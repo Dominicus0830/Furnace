@@ -34,6 +34,9 @@ public final class ChunkColumn {
     // (round12: OreFeature의 OCEAN_FLOOR_WG 게이트가 carve 이후 decoration 중 라이브로 계속 갱신되던 버그 수정).
     private boolean wgHeightmapsFrozen;
     private byte[] cachedSerializedBody;
+    // 지금 직렬화 중인 본문(현재 modCount 기준). 같은 버전을 동시에 요청한 플레이어들이 하나의 결과(같은 byte[])를 받아
+    // 스냅샷·직렬화·공유 압축 프레임이 한 번씩만 돈다. touch() 가 비운다. 주인 region 스레드 전용.
+    private java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody;
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
@@ -440,6 +443,7 @@ public final class ChunkColumn {
     private void touch() {
         modCount++;
         cachedSerializedBody = null;
+        inflightSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
         cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
@@ -457,6 +461,8 @@ public final class ChunkColumn {
     }
     public byte[] cachedSerializedBody() { return cachedSerializedBody; }
     public void cachedSerializedBody(byte[] body) { this.cachedSerializedBody = body; }
+    public java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody() { return inflightSerializedBody; }
+    public void inflightSerializedBody(java.util.concurrent.CompletableFuture<byte[]> f) { this.inflightSerializedBody = f; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 

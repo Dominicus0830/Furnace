@@ -710,6 +710,9 @@ public final class World {
                     // 캐시는 청크가 바뀔 때마다(ChunkColumn.touch) 비워진다 — 새로 생성돼 아직 저장 전(dirty)인 청크도 캐시한다.
                     byte[] cached = col.cachedSerializedBody();
                     if (cached != null) return CompletableFuture.<byte[]>completedFuture(cached);
+                    // 같은 버전이 이미 직렬화 중이면 그 결과를 같이 받는다(touch 가 비우므로 남아 있으면 같은 버전이다).
+                    CompletableFuture<byte[]> inflight = col.inflightSerializedBody();
+                    if (inflight != null) return inflight;
 
                     // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
                     ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
@@ -718,10 +721,17 @@ public final class World {
                     // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
                     long version = col.modCount();
                     ChunkSnapshot finalSnapshot = snapshot;
-                    return chunkPool.submit(() -> serializeChunkBody(finalSnapshot)).thenCompose(body -> submitAtChunk(cp, r2 -> {
+                    CompletableFuture<byte[]> f = chunkPool.submit(() -> serializeChunkBody(finalSnapshot)).thenCompose(body -> submitAtChunk(cp, r2 -> {
                         if (col.modCount() == version) col.cachedSerializedBody(body);
                         return body;
                     }));
+                    col.inflightSerializedBody(f);
+                    // 끝나면(실패 포함) 주인 스레드서 내린다 — 실패한 것을 다음 요청이 물려받지 않게.
+                    f.whenComplete((b, ex) -> submitAtChunk(cp, r3 -> {
+                        if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
+                        return null;
+                    }));
+                    return f;
                 }).thenCompose(f -> f));
     }
 

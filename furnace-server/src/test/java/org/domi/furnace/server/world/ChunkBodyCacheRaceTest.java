@@ -89,4 +89,43 @@ class ChunkBodyCacheRaceTest {
         assertSame(a, b, "변경 없는 청크는 같은 본문 인스턴스를 재사용해야 한다(캐시 이득 유지)");
         e.sched().close();
     }
+
+    /** 직렬화가 끝나기 전 같은 청크를 여럿이 요청하면 한 번만 직렬화하고 같은 본문(같은 압축 프레임 키)을 나눠 받는다. */
+    @Test
+    void concurrentRequests_shareOneSerialization() throws Exception {
+        Env e = env();
+        CountDownLatch gate = new CountDownLatch(1);
+        e.pool().submit(() -> { try { gate.await(); } catch (InterruptedException ignored) { } return null; });
+        CompletableFuture<byte[]> a = e.w().serializedChunkBody(C00);
+        awaitSnapshotTaken(e);
+        CompletableFuture<byte[]> b = e.w().serializedChunkBody(C00);
+        CompletableFuture<byte[]> c = e.w().serializedChunkBody(C00);
+        e.sched().region(R00).execute(() -> { }).get(10, TimeUnit.SECONDS);   // b·c 가 주인 스레드를 지나가게
+        gate.countDown();
+        byte[] ba = a.get(10, TimeUnit.SECONDS);
+        assertSame(ba, b.get(10, TimeUnit.SECONDS));
+        assertSame(ba, c.get(10, TimeUnit.SECONDS));
+        assertEquals(1, e.w().bodySnapshots.get(), "동시 요청은 스냅샷·직렬화를 한 번만 해야 한다");
+        assertArrayEquals(freshBody(e), ba, "공유 본문은 직접 직렬화한 것과 같아야 한다");
+        e.sched().close();
+    }
+
+    /** 직렬화 중 편집이 끼면 그 뒤 요청은 진행 중인 낡은 본문에 붙지 않고 새로 직렬화한다. */
+    @Test
+    void editDuringInflight_laterRequestDoesNotJoinStale() throws Exception {
+        Env e = env();
+        CountDownLatch gate = new CountDownLatch(1);
+        e.pool().submit(() -> { try { gate.await(); } catch (InterruptedException ignored) { } return null; });
+        CompletableFuture<byte[]> first = e.w().serializedChunkBody(C00);
+        awaitSnapshotTaken(e);
+        e.sched().region(R00).execute(() -> e.w().regionAt(R00).breakBlock(0, -61, 0)).get(10, TimeUnit.SECONDS);
+        CompletableFuture<byte[]> second = e.w().serializedChunkBody(C00);
+        e.sched().region(R00).execute(() -> { }).get(10, TimeUnit.SECONDS);
+        gate.countDown();
+        byte[] stale = first.get(10, TimeUnit.SECONDS);
+        byte[] fresh = freshBody(e);
+        assertFalse(Arrays.equals(stale, fresh));
+        assertArrayEquals(fresh, second.get(10, TimeUnit.SECONDS));
+        e.sched().close();
+    }
 }
