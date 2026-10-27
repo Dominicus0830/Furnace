@@ -18,7 +18,10 @@ public class SculkCatalystBlock extends BaseEntityBlock {
         if (PULSE.is(state)) level.setBlock(pos, PULSE.with(state, false), 3);
     }
 
-    // TODO(블록 엔티티): SculkCatalystBlockEntity — 죽음 게임 이벤트를 듣고 SculkSpreader 로 퍼뜨린다.
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.SculkCatalystBlockEntity(pos, state);
+    }
 
     @Override
     public void spawnAfterBreak(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.ItemStack tool, boolean dropExperience) {

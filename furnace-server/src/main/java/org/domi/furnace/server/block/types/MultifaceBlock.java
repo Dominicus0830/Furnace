@@ -25,6 +25,13 @@ public abstract class MultifaceBlock extends BlockBehavior {
 
     public static boolean hasFace(int state, int dir) { return FACE[dir].has(state) && FACE[dir].is(state); }
 
+    /** pack(방향들): 방향 번호 비트 묶음. */
+    public static byte pack(java.util.Collection<Integer> dirs) {
+        byte b = 0;
+        for (int d : dirs) b = (byte) (b | 1 << d);
+        return b;
+    }
+
     protected static boolean hasAnyFace(int state) {
         for (int d : Dir.ALL) if (hasFace(state, d)) return true;
         return false;

@@ -8,8 +8,9 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.block.RandomSource;
 
-public class SculkVeinBlock extends MultifaceBlock {
+public class SculkVeinBlock extends MultifaceBlock implements SculkBehaviour {
 
     private static final int SCULK = B.id("sculk"), SCULK_CATALYST = B.id("sculk_catalyst"), SCULK_VEIN = B.id("sculk_vein"),
             WATER = B.id("water");
@@ -40,7 +41,49 @@ public class SculkVeinBlock extends MultifaceBlock {
         return true;
     }
 
-    // TODO(블록 엔티티): SculkBehaviour — onDischarged(스컬크에 붙은 면을 지우고 면이 없으면 공기·물), attemptUseCharge(맥 번짐·스컬크로 바꾸기).
+    /** onDischarged: 스컬크에 붙은 면을 지우고, 면이 하나도 없으면 공기(유체가 있으면 물). */
+    @Override
+    public void onDischarged(BlockLevel level, int state, Pos pos, RandomSource random) {
+        if (!B.is(state, block)) return;
+        for (int d : Dir.ALL) {
+            if (FACE[d].is(state) && B.is(level.getBlockState(pos.relative(d)), SCULK)) state = FACE[d].with(state, false);
+        }
+        if (!hasAnyFace(state)) state = B.defaultState(Fluids.isEmpty(level.getFluidState(pos)) ? B.id("air") : WATER);
+        level.setBlock(pos, state, 3);
+    }
+
+    @Override
+    public int attemptUseCharge(SculkSpreader.ChargeCursor cursor, BlockLevel level, Pos pos, RandomSource random, SculkSpreader spreader,
+                                boolean shouldConvertBlocks) {
+        if (shouldConvertBlocks && attemptPlaceSculk(spreader, level, cursor.getPos(), random)) return cursor.getCharge() - 1;
+        return random.nextInt(spreader.chargeDecayRate()) == 0 ? (int) Math.floor(cursor.getCharge() * 0.5F) : cursor.getCharge();
+    }
+
+    /** attemptPlaceSculk: 섞은 방향 순서로 붙은 면 너머 대체 가능 블록 하나를 스컬크로 바꾸고 거기서 맥을 번지게 한다. */
+    private boolean attemptPlaceSculk(SculkSpreader spreader, BlockLevel level, Pos pos, RandomSource random) {
+        int state = level.getBlockState(pos);
+        String tag = spreader.replaceableBlocks();
+        for (int d : MultifaceSpreader.allShuffled(random)) {
+            if (!hasFace(state, d)) continue;
+            Pos p = pos.relative(d);
+            int bs = level.getBlockState(p);
+            if (!B.isTag(bs, tag)) continue;
+            int sculk = B.defaultState(SCULK);
+            level.setBlock(p, sculk, 3);
+            // TODO(엔티티): Block.pushEntitiesUp(bs, sculk, level, p) — 대체 블록은 대개 꽉 찬 블록이라 영향이 없다.
+            level.playSound(null, p, "minecraft:block.sculk.spread", "blocks", 1.0F, 1.0F);
+            veinSpreader.spreadAll(sculk, level, p, spreader.isWorldGeneration());
+            int opp = Dir.opposite(d);
+            for (int e : Dir.ALL) {
+                if (e == opp) continue;
+                Pos q = p.relative(e);
+                int qs = level.getBlockState(q);
+                if (B.is(qs, block)) onDischarged(level, qs, q, random);
+            }
+            return true;
+        }
+        return false;
+    }
 
     /** hasSubstrateAccess: 맥이 붙은 면 너머가 #sculk_replaceable 인가. */
     public static boolean hasSubstrateAccess(BlockLevel level, int state, Pos pos) {

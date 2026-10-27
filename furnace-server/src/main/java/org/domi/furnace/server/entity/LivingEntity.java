@@ -617,7 +617,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (isRemoved() || dead) return;
         dead = true;
         boolean drops = !(lastHurtByMob instanceof Mob killer) || killer.killedEntity(this);   // Entity.killedEntity: false 면 드롭 없음(좀비가 주민을 감염시킴)
-        if (drops) dropAllDeathLoot(source);
+        if (drops) {
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);   // 스컬크 촉매가 여기서 경험치를 가져간다
+            dropAllDeathLoot(source);
+        }
         if (tracker != null) tracker.broadcast(new EntityEvent(id(), (byte) 3));
     }
 
@@ -653,7 +656,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
         }
     }
 
-    protected boolean wasExperienceConsumed() { return false; }
+    /** skipDropExperience: 스컬크 촉매가 경험치를 가져갔다. */
+    private boolean skipDropExperience;
+
+    public void skipDropExperience() { skipDropExperience = true; }
+
+    public boolean wasExperienceConsumed() { return skipDropExperience; }
+
+    /** getExperienceReward(level, killer) — 촉매 리스너용(난수를 쓸 수 있다). */
+    public final int experienceReward() { return getExperienceReward(); }
+
+    public final boolean dropsExperience() { return shouldDropExperience(); }
 
     protected boolean isAlwaysExperienceDropper() { return false; }
 
