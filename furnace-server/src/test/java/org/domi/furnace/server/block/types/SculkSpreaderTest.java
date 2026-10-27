@@ -157,4 +157,27 @@ class SculkSpreaderTest {
         }
         assertTrue(a.size() >= 2, "7 + 1000 + 200 (합쳐질 수 있다)");
     }
+
+    /** 사용자 버그 C3: 촉매 근처에서 몹이 죽은 뒤 블록 엔티티 틱만으로 스컬크가 땅으로 번진다(전하만큼). */
+    @Test
+    void mobDeathNearCatalystSpreadsSculkOverTicks() {
+        Lvl l = new Lvl();
+        l.setBlock(ROOT.below(), B.defaultState(B.id("sculk_catalyst")), 3);
+        var be = (SculkCatalystBlockEntity) l.getBlockEntity(ROOT.below());
+        org.domi.furnace.server.entity.Zombie z = new org.domi.furnace.server.entity.Zombie(l, l.nextEntityId());
+        z.moveTo(3.5, -60.0, 0.5, 0, 0);
+        l.addFreshEntity(z);
+        z.die(new Entity.Damage("minecraft:generic", false, false, false));
+        assertTrue(z.wasExperienceConsumed());
+        int charge = be.getSculkSpreader().getCursors().stream().mapToInt(SculkSpreader.ChargeCursor::getCharge).sum();
+        assertEquals(5, charge, "좀비 경험치 5");
+        for (int t = 0; t < 600; t++) l.step();
+        assertTrue(be.getSculkSpreader().getCursors().isEmpty(), "전하를 다 썼다");
+        int sculk = 0;
+        for (int x = -10; x <= 10; x++)
+            for (int zz = -10; zz <= 10; zz++)
+                for (int y = -64; y <= -58; y++) if (B.is(l.getBlockState(new Pos(x, y, zz)), B.id("sculk"))) sculk++;
+        System.out.println("C3 sculk=" + sculk);
+        assertTrue(sculk >= 3, "땅이 여러 칸 스컬크가 됐다: " + sculk);
+    }
 }
