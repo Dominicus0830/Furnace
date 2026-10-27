@@ -61,7 +61,7 @@ public final class SpreadPlayersCommand {
         float maxRange = c.getArgument("maxRange", Float.class);
         boolean respectTeams = c.getArgument("respectTeams", Boolean.class);
         int maxY = maxHeight != null ? maxHeight : source.level().dimensionType().maxY();
-        return EntityArgument.withEntities(c, "targets", targets -> spread(source, center, spreadDistance, maxRange, maxY, respectTeams, targets));
+        return org.domi.furnace.server.command.EntityOps.result(source, EntityArgument.withEntitiesAsync(c, "targets", targets -> spread(source, center, spreadDistance, maxRange, maxY, respectTeams, targets)));
     }
 
     // ------------------------------------------------------------------ 땅 조회
@@ -309,7 +309,7 @@ public final class SpreadPlayersCommand {
     /** 팀 수 — 팀이 없으니 대상이 있으면 1(모두 "팀 없음" 하나). */
     private static int teamCount(List<Rider> targets) { return targets.isEmpty() ? 0 : 1; }
 
-    static int spread(CommandSource source, Vec2Argument.Vec2 center, float spreadDistance, float maxRange, int maxHeight, boolean respectTeams,
+    static CompletableFuture<Integer> spread(CommandSource source, Vec2Argument.Vec2 center, float spreadDistance, float maxRange, int maxHeight, boolean respectTeams,
                       List<Rider> targets) throws CommandSyntaxException {
         World world = source.level();
         int minY = world.dimensionType().minY();
@@ -317,27 +317,35 @@ public final class SpreadPlayersCommand {
         String dimension = world.dimension();
         for (Rider t : targets) if (!t.dimensionKey().equals(dimension)) throw Teleports.ERROR_CROSS_DIMENSION.create();
         RandomSource random = RandomSource.create();
+        double[] avg = new double[1];
         double minX = center.x() - maxRange, minZ = center.y() - maxRange, maxX = center.x() + maxRange, maxZ = center.y() + maxRange;   // float 뺄셈 뒤 double
         Position[] positions = createInitialPositions(random, respectTeams ? teamCount(targets) : targets.size(), minX, minZ, maxX, maxZ);
-        // 땅을 읽느라 기다리므로 region·연결 스레드를 막지 않게 따로 돌린다
-        Thread.startVirtualThread(() -> {
+        // 땅을 읽느라 기다리므로 region·연결 스레드를 막지 않게 따로 돌린다(가상 스레드). 옮김·메시지는 전역에서.
+        CompletableFuture<List<Placement>> computed = CompletableFuture.supplyAsync(() -> {
             try {
                 Terrain terrain = new WorldTerrain(world, maxHeight);
                 spreadPositions(center.x(), center.y(), spreadDistance, terrain, random, minX, minZ, maxX, maxZ, positions, respectTeams);
                 List<Placement> placements = new java.util.ArrayList<>();
-                double avg = place(targets, terrain, positions, respectTeams, placements);
-                for (Placement p : placements) {
-                    float yaw = p.target().riderYRot(), pitch = p.target().riderXRot();
-                    Teleports.teleport(source, p.target(), p.x(), p.y(), p.z(), yaw, pitch);
-                }
-                source.sendSuccess(() -> Text.translatable("commands.spreadplayers.success." + (respectTeams ? "teams" : "entities"),
-                        positions.length, center.x(), center.y(), String.format(Locale.ROOT, "%.2f", avg)), true);
+                avg[0] = place(targets, terrain, positions, respectTeams, placements);
+                return placements;
             } catch (CommandSyntaxException e) {
-                source.sendFailure(e.getRawMessage());
+                throw new java.util.concurrent.CompletionException(e);
             } catch (RuntimeException e) {
-                source.sendFailure(Text.text("/spreadplayers failed: " + e.getMessage()));
+                throw new java.util.concurrent.CompletionException(new org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType(
+                        Text.text("/spreadplayers failed: " + e.getMessage())).create());
             }
+        }, r -> Thread.startVirtualThread(r));
+        return org.domi.furnace.server.command.EntityOps.awaitAsync(source, computed, placements -> {
+            List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(placements.size());
+            for (Placement p : placements) {
+                float yaw = p.target().riderYRot(), pitch = p.target().riderXRot();
+                moves.add(Teleports.teleport(source, p.target(), p.x(), p.y(), p.z(), yaw, pitch));
+            }
+            return org.domi.furnace.server.command.EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
+                source.sendSuccess(() -> Text.translatable("commands.spreadplayers.success." + (respectTeams ? "teams" : "entities"),
+                        positions.length, center.x(), center.y(), String.format(Locale.ROOT, "%.2f", avg[0])), true);
+                return CompletableFuture.completedFuture(positions.length);
+            });
         });
-        return positions.length;
     }
 }

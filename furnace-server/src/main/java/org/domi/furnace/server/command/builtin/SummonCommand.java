@@ -64,7 +64,7 @@ public final class SummonCommand {
         if (by < -20000000 || by >= 20000000 || bx < -30000000 || bz < -30000000 || bx >= 30000000 || bz >= 30000000) throw INVALID_POSITION.create();
         CompletableFuture<Entity> spawned = summonAt(source, id, pos, nbt, randomizeProperties);
         return EntityOps.result(source, EntityOps.awaitAsync(source, spawned, e -> {   // 이 람다는 전역 스레드에서 돈다
-            source.sendSuccess(() -> Text.translatable("commands.summon.success", Text.translatable("entity." + rl.namespace() + "." + rl.path())), true);
+            source.sendSuccess(() -> Text.translatable("commands.summon.success", e.displayName()), true);
             return CompletableFuture.completedFuture(1);
         }));
     }

@@ -17,7 +17,6 @@ import org.domi.furnace.server.TestServers;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.command.CommandSource;
-import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.ContextChain;
 import org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder;
@@ -41,6 +40,7 @@ class CommandOrderTest {
     ServerCore core;
     ThreadOwner global;
     Cow[] cows;
+    org.domi.furnace.server.world.ChunkColumn column;
     final List<String> log = Collections.synchronizedList(new ArrayList<>());
     final List<String> messages = Collections.synchronizedList(new ArrayList<>());
     final List<Boolean> messageOnGlobal = Collections.synchronizedList(new ArrayList<>());
@@ -50,7 +50,7 @@ class CommandOrderTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         global = (ThreadOwner) sched.global();
-        core.world().awaitChunk(new ChunkPos(0, 0));
+        column = core.world().awaitChunk(new ChunkPos(0, 0));
         cows = DeferredResultTest.spawnCows(core, 2);
         core.addConsoleListener(t -> {
             messages.add(t.getString());
@@ -64,19 +64,16 @@ class CommandOrderTest {
                                 .then(RequiredArgumentBuilder.<CommandSource, Integer>argument("z", Arguments.integer()).executes(c -> {
                                     CommandSource s = c.getSource();
                                     Pos pos = new Pos(c.getArgument("x", Integer.class), c.getArgument("y", Integer.class), c.getArgument("z", Integer.class));
-                                    return EntityOps.result(s, EntityOps.awaitAsync(s, EntityOps.atRegion(s.level(), pos.x(), pos.z(),
-                                            r -> r.level().getBlockState(pos)), st -> {
-                                        log.add("block=" + st);
-                                        return CompletableFuture.completedFuture(1);
-                                    }));
+                                    // 일부러 region 을 거치지 않고 전역에서 직접 읽는다: 명령이 region 일을 기다리지 않고 끝났다면 옛 값이 보인다
+                                    log.add("block=" + column.getBlock(pos.x() & 15, pos.y(), pos.z() & 15));
+                                    return 1;
                                 })))));
         // probecow: 첫 소의 위치를 주인 region 에서 읽어 기록(execute at @e 의 대역)
         d.register(LiteralArgumentBuilder.<CommandSource>literal("probecow").executes(c -> {
             CommandSource s = c.getSource();
-            return EntityOps.result(s, EntityOps.awaitAsync(s, EntityOps.onOwner(s, cows[0], r -> r.x() + "," + r.y() + "," + r.z()), pos -> {
-                log.add("cow=" + pos);
-                return CompletableFuture.completedFuture(1);
-            }));
+            // 전역에서 직접 읽는다(execute at @e 가 소스 위치를 전역에서 스냅샷하는 것과 같다)
+            log.add("cow=" + cows[0].x() + "," + cows[0].y() + "," + cows[0].z());
+            return 1;
         }));
     }
 
@@ -142,18 +139,38 @@ class CommandOrderTest {
     }
 
     @Test
-    void summonCommandThenNextLineRuns() {
-        runLines("summon minecraft:cow 12.5 -60 12.5", "setblock 1 100 1 minecraft:stone");
-        assertTrue(messages.stream().anyMatch(m -> m.startsWith("Summoned new")), messages.toString());
-        assertTrue(messages.contains("Changed the block at 1, 100, 1"), messages.toString());
+    void summonMessageComesBeforeNextLineMessageAndFromGlobal() {
+        runLines("summon minecraft:cow 12.5 -60 12.5 {Tags:[\"s\"]}", "setblock 1 100 1 minecraft:stone");
+        int summoned = -1, changed = -1;
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i).startsWith("Summoned new")) summoned = i;
+            if (messages.get(i).equals("Changed the block at 1, 100, 1")) changed = i;
+        }
+        assertTrue(summoned >= 0 && changed > summoned, messages.toString());
         assertFalse(messageOnGlobal.contains(false), "summon 성공 메시지는 전역 스레드에서");
     }
 
     @Test
-    void rideMessagesAreSentFromGlobal() {
-        runLines("ride @e[type=cow,limit=1,sort=arbitrary] mount @e[type=cow,limit=1,sort=furthest]");
-        runLines("ride @e[type=cow,limit=1,sort=arbitrary] mount @e[type=cow,limit=1,sort=furthest]");   // 이미 탔거나 실패 → 메시지
-        assertFalse(messages.isEmpty());
-        assertFalse(messageOnGlobal.contains(false), "ride 메시지는 전역 스레드에서: " + messages);
+    void rideMountFailureMessageIsSentFromGlobal() {
+        // 탈것(원점)과 다른 region 에 있는 소를 태우려 하면 mount 검사에서 ERROR_MOUNT_FAILED 가 region 안에서 난다
+        runLines("summon minecraft:cow 100000.5 -60 0.5 {Tags:[\"far\"]}");
+        messages.clear();
+        messageOnGlobal.clear();
+        runLines("ride @e[type=cow,tag=far,limit=1] mount @e[type=cow,tag=!far,limit=1]");
+        assertEquals(1, messages.size(), messages.toString());
+        assertTrue(messages.get(0).contains("start riding"), messages.toString());
+        assertEquals(List.of(true), messageOnGlobal);
+    }
+
+    @Test
+    void rideSuccessMessageIsSentFromGlobal() {
+        cows[0].addTag("rider");
+        cows[1].addTag("vehicle");
+        runLines("ride @e[tag=rider,limit=1] mount @e[tag=vehicle,limit=1]");
+        assertTrue(messages.stream().anyMatch(m -> m.contains("started riding")), messages.toString());
+        assertFalse(messageOnGlobal.contains(false), messages.toString());
+        runLines("ride @e[tag=rider,limit=1] dismount");
+        assertTrue(messages.stream().anyMatch(m -> m.contains("stopped riding")), messages.toString());
+        assertFalse(messageOnGlobal.contains(false), messages.toString());
     }
 }

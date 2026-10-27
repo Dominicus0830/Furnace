@@ -61,23 +61,22 @@ public final class LocateCommand {
         if (gen == null) throw ERROR_STRUCTURE_NOT_FOUND.create(arg.printable());
         // BlockPos.containing(source.getPosition())
         int ox = (int) Math.floor(source.x()), oy = (int) Math.floor(source.y()), oz = (int) Math.floor(source.z());
-        WORKER.execute(() -> {
-            long t0 = System.nanoTime();
-            StructureLocator.Found f;
+        long t0 = System.nanoTime();
+        java.util.concurrent.CompletableFuture<StructureLocator.Found> found = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
             try {
-                f = gen.structureLocator().findNearest(ids, ox, oy, oz, MAX_STRUCTURE_SEARCH_RADIUS);
+                return gen.structureLocator().findNearest(ids, ox, oy, oz, MAX_STRUCTURE_SEARCH_RADIUS);
             } catch (RuntimeException e) {
                 LOG.warn("구조물 찾기 실패", e);
-                f = null;
+                return null;
             }
-            if (f == null) {
-                source.sendFailure(ERROR_STRUCTURE_NOT_FOUND.create(arg.printable()).getRawMessage());
-                return;
-            }
+        }, WORKER);
+        // 결과 메시지는 전역 스레드에서, 명령 결과는 바닐라처럼 거리
+        return org.domi.furnace.server.command.EntityOps.result(source, org.domi.furnace.server.command.EntityOps.awaitAsync(source, found, f -> {
+            if (f == null) throw ERROR_STRUCTURE_NOT_FOUND.create(arg.printable());
             String name = arg.tag() ? arg.printable() + " (" + f.structureId() + ")" : arg.printable();
-            showLocateResult(source, ox, oz, f.x(), f.z(), "commands.locate.structure.success", name, (System.nanoTime() - t0) / 1_000_000);
-        });
-        return 1;
+            return java.util.concurrent.CompletableFuture.completedFuture(
+                    showLocateResult(source, ox, oz, f.x(), f.z(), "commands.locate.structure.success", name, (System.nanoTime() - t0) / 1_000_000));
+        }));
     }
 
     /** LocateCommand.showLocateResult(absoluteY=false): 수평 거리, 좌표는 [x, ~, z] 녹색·클릭하면 /tp. */

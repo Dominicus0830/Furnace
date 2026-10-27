@@ -76,7 +76,6 @@ public final class RideCommand {
         if (v == null) throw ERROR_NOT_RIDING.create(rider.displayName());
         PostMessages post = new PostMessages();
         return post.after(source, EntityOps.atRegion(Teleports.worldOf(source, v), v.x(), v.z(), region -> {
-            if (rider.vehicle() != v) return 1;
             rider.stopRiding();
             post.success(source, () -> Text.translatable("commands.ride.dismount.success", rider.displayName(), v.displayName()), true);
             return 1;
