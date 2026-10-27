@@ -91,16 +91,18 @@ class VanillaCommandTreeTest {
     }
 
     /**
-     * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다).
+     * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다),
+     * /execute if·unless·store(E2~E4 단계).
      */
     private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of(
+            "/execute", List.of("if", "unless", "store"),
             "/locate", List.of("biome", "poi"),
             "/tick", List.of("sprint"));
 
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
-    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team");
+    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute");
 
-    private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx) {
+    private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx, int root) {
         Node n = nodes.get(idx);
         String type = vanilla.get("type").getAsString();
         assertEquals(type, switch (n.type()) { case 0 -> "root"; case 1 -> "literal"; default -> "argument"; }, path + " 종류");
@@ -111,14 +113,15 @@ class VanillaCommandTreeTest {
             if (vp == null) assertNull(n.props(), path + " 속성");
             else assertEquals(normalize(vp.getAsJsonObject()), normalize(n.props()), path + " 속성");
         }
-        assertEquals(vanilla.has("redirect"), n.redirect() >= 0, path + " 리다이렉트");
+        // 루트로 가는 리다이렉트(execute run)는 패킷에는 있지만 바닐라 덤프(JSON)에는 경로가 비어 키가 없다
+        assertEquals(vanilla.has("redirect"), n.redirect() >= 0 && n.redirect() != root, path + " 리다이렉트");
         JsonObject vc = vanilla.has("children") ? vanilla.getAsJsonObject("children") : new JsonObject();
         TreeSet<String> ours = new TreeSet<>();
         for (int c : n.children()) ours.add(nodes.get(c).name());
         TreeSet<String> expected = new TreeSet<>(vc.keySet());
         for (String m : NOT_YET.getOrDefault(path, List.of())) expected.remove(m);
         assertEquals(expected, ours, path + " 자식");
-        for (int c : n.children()) compare(path + " " + nodes.get(c).name(), vc.getAsJsonObject(nodes.get(c).name()), nodes, c);
+        for (int c : n.children()) compare(path + " " + nodes.get(c).name(), vc.getAsJsonObject(nodes.get(c).name()), nodes, c, root);
     }
 
     private static String normalize(JsonObject o) {
@@ -148,7 +151,7 @@ class VanillaCommandTreeTest {
             for (int c : nodes.get(root[0]).children()) {
                 String name = nodes.get(c).name();
                 assertTrue(vanilla.has(name), "바닐라에 없는 명령: " + name);
-                compare("/" + name, vanilla.getAsJsonObject(name), nodes, c);
+                compare("/" + name, vanilla.getAsJsonObject(name), nodes, c, root[0]);
                 checked++;
             }
             assertTrue(checked >= 18, "검사한 명령 수 " + checked);
