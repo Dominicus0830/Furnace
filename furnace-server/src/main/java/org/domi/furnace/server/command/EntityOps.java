@@ -46,6 +46,25 @@ public final class EntityOps {
         });
     }
 
+    /** region 작업: 오류를 던질 수 있다. */
+    @FunctionalInterface
+    public interface RegionTask<T> {
+        T run(org.domi.furnace.server.world.Region region) throws Exception;
+    }
+
+    /** 그 좌표 청크의 주인 region 에서 task 를 돌리고 결과(오류 포함)를 future 로 돌려준다. 메시지는 이 안에서 보내지 말고 PostMessages 에 모은다. */
+    public static <T> CompletableFuture<T> atRegion(org.domi.furnace.server.world.World world, double blockX, double blockZ, RegionTask<T> task) {
+        CompletableFuture<T> f = new CompletableFuture<>();
+        world.runAt(blockX, blockZ, region -> {
+            try {
+                f.complete(task.run(region));
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
+    }
+
     /** r 의 주인 스레드에서 fn 을 돌린다. 플레이어는 지금 스레드에서 바로 돌린다. */
     public static <T> CompletableFuture<T> onOwner(CommandSource source, Rider r, Function<Rider, T> fn) {
         if (!(r instanceof Entity e)) return CompletableFuture.completedFuture(fn.apply(r));

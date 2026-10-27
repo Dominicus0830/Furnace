@@ -5,6 +5,7 @@ package org.domi.furnace.server.command.builtin;
 
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.server.command.EntityOps;
+import org.domi.furnace.server.command.PostMessages;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
@@ -39,9 +40,9 @@ public final class RideCommand {
                         .then(literal("mount").then(argument("vehicle", EntityArgument.entity())
                                 .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntityAsync(c, "target",
                                         t -> EntityArgument.withEntityAsync(c, "vehicle",
-                                                v -> CompletableFuture.completedFuture(mount(c.getSource(), t.get(0), v.get(0)))))))))
+                                                v -> mount(c.getSource(), t.get(0), v.get(0))))))))
                         .then(literal("dismount")
-                                .executes(c -> EntityArgument.withEntity(c, "target", t -> dismount(c.getSource(), t.get(0)))))));
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntityAsync(c, "target", t -> dismount(c.getSource(), t.get(0))))))));
     }
 
     /** 이 region 에서 r 이 있는가(탈것을 가진 region 이 두 쪽을 모두 만질 수 있어야 한다). */
@@ -50,7 +51,7 @@ public final class RideCommand {
         return r instanceof Entity e && region.level() != null && region.level().entities().contains(e);
     }
 
-    static int mount(CommandSource source, Rider rider, Rider vehicle) throws CommandSyntaxException {
+    static CompletableFuture<Integer> mount(CommandSource source, Rider rider, Rider vehicle) throws CommandSyntaxException {
         // 바닐라 검사 순서대로 — 플레이어는 탈것이 될 수 없다는 것은 어디서든 같다
         if (rider.vehicle() != null) throw ERROR_ALREADY_RIDING.create(rider.displayName(), rider.vehicle().displayName());
         if (vehicle instanceof Player) throw ERROR_MOUNTING_PLAYER.create();
@@ -60,27 +61,24 @@ public final class RideCommand {
         if (rider instanceof Entity re) re.collectIndirectPassengers(chain);
         for (Rider r : chain) if (r == v) throw ERROR_MOUNTING_LOOP.create();
         if (!rider.dimensionKey().equals(vehicle.dimensionKey())) throw ERROR_WRONG_DIMENSION.create();
-        Teleports.worldOf(source, vehicle).runAt(v.x(), v.z(), region -> {
-            try {
-                if (!ownedHere(region, rider) || !ownedHere(region, v) || !rider.startRiding(v, true)) {
-                    throw ERROR_MOUNT_FAILED.create(rider.displayName(), vehicle.displayName());
-                }
-                source.sendSuccess(() -> Text.translatable("commands.ride.mount.success", rider.displayName(), vehicle.displayName()), true);
-            } catch (CommandSyntaxException e) {
-                source.sendFailure(e.getRawMessage());
+        PostMessages post = new PostMessages();
+        return post.after(source, EntityOps.atRegion(Teleports.worldOf(source, vehicle), v.x(), v.z(), region -> {
+            if (!ownedHere(region, rider) || !ownedHere(region, v) || !rider.startRiding(v, true)) {
+                throw ERROR_MOUNT_FAILED.create(rider.displayName(), vehicle.displayName());
             }
-        });
-        return 1;
+            post.success(source, () -> Text.translatable("commands.ride.mount.success", rider.displayName(), vehicle.displayName()), true);
+            return 1;
+        }));
     }
 
-    static int dismount(CommandSource source, Rider rider) throws CommandSyntaxException {
+    static CompletableFuture<Integer> dismount(CommandSource source, Rider rider) throws CommandSyntaxException {
         Entity v = rider.vehicle();
         if (v == null) throw ERROR_NOT_RIDING.create(rider.displayName());
-        Teleports.worldOf(source, v).runAt(v.x(), v.z(), region -> {
-            if (rider.vehicle() != v) return;
+        PostMessages post = new PostMessages();
+        return post.after(source, EntityOps.atRegion(Teleports.worldOf(source, v), v.x(), v.z(), region -> {
             rider.stopRiding();
-            source.sendSuccess(() -> Text.translatable("commands.ride.dismount.success", rider.displayName(), v.displayName()), true);
-        });
-        return 1;
+            post.success(source, () -> Text.translatable("commands.ride.dismount.success", rider.displayName(), v.displayName()), true);
+            return 1;
+        }));
     }
 }

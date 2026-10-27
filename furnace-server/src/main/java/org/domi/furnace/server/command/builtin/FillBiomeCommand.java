@@ -7,9 +7,12 @@ import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.IntPredicate;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.EntityOps;
+import org.domi.furnace.server.command.PostMessages;
 import org.domi.furnace.server.command.arguments.BlockPosArgument;
 import org.domi.furnace.server.command.arguments.ResourceArgument;
 import org.domi.furnace.server.command.arguments.ResourceOrTagKeyArgument;
@@ -47,12 +50,12 @@ public final class FillBiomeCommand {
     private static int fill(CommandContext<CommandSource> c, ResourceOrTagKeyArgument.Result filterArg) throws CommandSyntaxException {
         CommandSource source = c.getSource();
         LootRegistries regs = source.getServer().dataPacks().loot().registries();
-        return fill(source, regs.entries(REGISTRY), regs::hasTag, regs::tag, c.getArgument("biome", ResourceId.class), filterArg,
-                BlockPosArgument.getBlockPos(c, "from"), BlockPosArgument.getBlockPos(c, "to"));
+        return EntityOps.result(source, fillAsync(source, regs.entries(REGISTRY), regs::hasTag, regs::tag, c.getArgument("biome", ResourceId.class), filterArg,
+                BlockPosArgument.getBlockPos(c, "from"), BlockPosArgument.getBlockPos(c, "to")));
     }
 
     /** 레지스트리 조회를 인자로 받는 본문(바이옴 이름 목록의 인덱스가 바이옴 id). */
-    static int fill(CommandSource source, List<String> names, java.util.function.BiPredicate<String, String> hasTag,
+    static CompletableFuture<Integer> fillAsync(CommandSource source, List<String> names, java.util.function.BiPredicate<String, String> hasTag,
                     java.util.function.BiFunction<String, String, List<String>> tag, ResourceId bid, ResourceOrTagKeyArgument.Result filterArg,
                     int[] a, int[] b) throws CommandSyntaxException {
         String biomeName = bid.namespace() + ":" + bid.path();
@@ -75,20 +78,15 @@ public final class FillBiomeCommand {
         int minX = Math.min(ax, bx), minY = Math.min(ay, by), minZ = Math.min(az, bz);
         int maxX = Math.max(ax, bx), maxY = Math.max(ay, by), maxZ = Math.max(az, bz);
         IntPredicate f = filter;
-        source.level().runAt(minX, minZ, region -> {
+        PostMessages post = new PostMessages();
+        return post.after(source, EntityOps.atRegion(source.level(), minX, minZ, region -> {
             int volume = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
             int limit = region.level().gameRuleInt("commandModificationBlockLimit");
-            if (volume > limit) {
-                source.sendFailure(ERROR_VOLUME_TOO_LARGE.create(limit, volume).getRawMessage());
-                return;
-            }
+            if (volume > limit) throw ERROR_VOLUME_TOO_LARGE.create(limit, volume);
             int n = region.fillBiomes(minX, minY, minZ, maxX, maxY, maxZ, biomeId, f);
-            if (n < 0) {
-                source.sendFailure(BlockPosArgument.ERROR_NOT_LOADED.create().getRawMessage());
-                return;
-            }
-            source.sendSuccess(() -> Text.translatable("commands.fillbiome.success.count", n, minX, minY, minZ, maxX, maxY, maxZ), true);
-        });
-        return 1;
+            if (n < 0) throw BlockPosArgument.ERROR_NOT_LOADED.create();
+            post.success(source, () -> Text.translatable("commands.fillbiome.success.count", n, minX, minY, minZ, maxX, maxY, maxZ), true);
+            return n;
+        }));
     }
 }

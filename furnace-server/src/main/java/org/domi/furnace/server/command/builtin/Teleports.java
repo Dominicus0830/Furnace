@@ -50,25 +50,41 @@ final class Teleports {
      * 대상을 (x, y, z) 로 옮기고 회전을 맞춘다(바닐라 TeleportCommand.performTeleport 의 같은 차원 경로). 일은 대상의 주인 스레드로 보낸다.
      * 플레이어: 포스트 텔레포트 티켓(5틱), 탈것에서 내리고, 자던 중이면 깨운 뒤 연결의 보정 텔레포트.
      * 그 밖: 위치·회전, 승객 자리, 수평 이동만 남기고(y 속도 0) 땅에 선 상태로, 길 찾기 중단.
+     * 일이 끝나면(주인을 못 찾아 건너뛴 경우도) 완료되는 future 를 돌려준다.
      */
-    static void teleport(CommandSource source, Rider target, double x, double y, double z, float yaw, float pitch) {
+    static java.util.concurrent.CompletableFuture<Void> teleport(CommandSource source, Rider target, double x, double y, double z, float yaw, float pitch) {
+        var done = new java.util.concurrent.CompletableFuture<Void>();
         World world = worldOf(source, target);
         if (target instanceof Player p) {
             world.addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);
             world.runAt(p.x(), p.z(), region -> {
-                if (p.vehicle() != null) p.stopRiding();
-                if (p.isSleeping()) PlayerSleeping.stopSleepInBed(p, region.level(), true, true);
-                p.teleportTo(x, y, z, yaw, pitch);
+                try {
+                    if (p.vehicle() != null) p.stopRiding();
+                    if (p.isSleeping()) PlayerSleeping.stopSleepInBed(p, region.level(), true, true);
+                    p.teleportTo(x, y, z, yaw, pitch);
+                    done.complete(null);
+                } catch (Throwable t) {
+                    done.completeExceptionally(t);
+                }
             });
         } else if (target instanceof Entity en) {
             org.domi.furnace.server.command.EntityOps.runOnOwner(source, en, e -> {
-                if (e.isRemoved()) return;
-                e.teleportSameLevel(x, y, z, yaw, pitch);
-                if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
-                e.setDeltaMovement(e.vx(), 0.0, e.vz());
-                e.setOnGround(true);
-                if (e instanceof PathfinderMob m) m.getNavigation().stop();
-            }, () -> { });
+                try {
+                    if (!e.isRemoved()) {
+                        e.teleportSameLevel(x, y, z, yaw, pitch);
+                        if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
+                        e.setDeltaMovement(e.vx(), 0.0, e.vz());
+                        e.setOnGround(true);
+                        if (e instanceof PathfinderMob m) m.getNavigation().stop();
+                    }
+                    done.complete(null);
+                } catch (Throwable t) {
+                    done.completeExceptionally(t);
+                }
+            }, () -> done.complete(null));
+        } else {
+            done.complete(null);
         }
+        return done;
     }
 }
