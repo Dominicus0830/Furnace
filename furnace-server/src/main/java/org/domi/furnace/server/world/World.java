@@ -222,6 +222,15 @@ public final class World {
         return f;
     }
 
+    /** submitAtChunk 의 조회판: 그 청크에 주인 region 이 없으면 region 을 만들지 않고 null. */
+    public <T> CompletableFuture<T> submitAtOwnedChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
+        CompletableFuture<T> f = new CompletableFuture<>();
+        boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), r -> {
+            try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
+        });
+        return sent ? f : null;
+    }
+
     /** 살아 있는 region 마다 한 번씩(저장·종료 정리). */
     public List<CompletableFuture<Void>> forEachRegion(java.util.function.Consumer<Region> task) {
         return regionizer.forEachRegion(task);

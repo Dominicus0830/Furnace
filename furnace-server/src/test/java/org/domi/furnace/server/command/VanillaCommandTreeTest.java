@@ -113,8 +113,16 @@ class VanillaCommandTreeTest {
             if (vp == null) assertNull(n.props(), path + " 속성");
             else assertEquals(normalize(vp.getAsJsonObject()), normalize(n.props()), path + " 속성");
         }
-        // 루트로 가는 리다이렉트(execute run)는 패킷에는 있지만 바닐라 덤프(JSON)에는 경로가 비어 키가 없다
-        assertEquals(vanilla.has("redirect"), n.redirect() >= 0 && n.redirect() != root, path + " 리다이렉트");
+        // 리다이렉트 대상 경로까지 비교한다. 루트로 가는 것(execute run)은 바닐라 덤프(JSON)에 경로가 비어 키가 없다 — 그때만 키 없음으로 본다.
+        boolean toRoot = n.redirect() == root;
+        assertEquals(vanilla.has("redirect"), n.redirect() >= 0 && !toRoot, path + " 리다이렉트");
+        if (n.redirect() >= 0 && !toRoot) {
+            List<String> expectedPath = new ArrayList<>();
+            for (JsonElement e : vanilla.getAsJsonArray("redirect")) expectedPath.add(e.getAsString());
+            assertEquals(expectedPath, pathOf(nodes, root, n.redirect()), path + " 리다이렉트 대상");
+        } else if (toRoot) {
+            assertEquals("/execute run", path, "루트로 가는 리다이렉트는 execute run 만 허용");
+        }
         JsonObject vc = vanilla.has("children") ? vanilla.getAsJsonObject("children") : new JsonObject();
         TreeSet<String> ours = new TreeSet<>();
         for (int c : n.children()) ours.add(nodes.get(c).name());
@@ -122,6 +130,22 @@ class VanillaCommandTreeTest {
         for (String m : NOT_YET.getOrDefault(path, List.of())) expected.remove(m);
         assertEquals(expected, ours, path + " 자식");
         for (int c : n.children()) compare(path + " " + nodes.get(c).name(), vc.getAsJsonObject(nodes.get(c).name()), nodes, c, root);
+    }
+
+    /** 루트에서 target 노드까지 자식 이름 경로(리다이렉트는 따라가지 않는다). */
+    private static List<String> pathOf(List<Node> nodes, int root, int target) {
+        List<String> path = new ArrayList<>();
+        return find(nodes, root, target, path) ? path : null;
+    }
+
+    private static boolean find(List<Node> nodes, int cur, int target, List<String> path) {
+        if (cur == target) return true;
+        for (int c : nodes.get(cur).children()) {
+            path.add(nodes.get(c).name());
+            if (find(nodes, c, target, path)) return true;
+            path.remove(path.size() - 1);
+        }
+        return false;
     }
 
     private static String normalize(JsonObject o) {

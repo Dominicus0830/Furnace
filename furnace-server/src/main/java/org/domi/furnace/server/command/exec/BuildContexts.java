@@ -168,15 +168,18 @@ public class BuildContexts {
                 Throwable t = EntityOps.unwrap(ex);
                 if (t instanceof CommandSyntaxException cse) {
                     source.handleError(cse, forkedMode);
-                } else if (t instanceof TimeoutException) {
+                    if (!forkedMode) return false;
+                    index++;
+                    return true;
+                }
+                // CSE 가 아닌 실패(타임아웃·예상 못한 예외)는 바닐라처럼 명령 전체를 끝낸다(포크 여부와 무관, applyAsync 의 RuntimeException 과 같다)
+                if (t instanceof TimeoutException) {
                     log.warn("수정자 결과 대기 시간 초과: /{}", commandInput);
                     if (!forkedMode) source.sendFailure(Text.translatable("command.failed"));
                 } else {
                     EntityOps.reportFailure(source, t);
                 }
-                if (!forkedMode) return false;
-                index++;
-                return true;
+                return false;
             }
             int forkLimit = context.forkLimit();
             if (nextSources.size() + v.size() >= forkLimit) {

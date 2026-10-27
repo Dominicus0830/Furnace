@@ -58,11 +58,11 @@ public final class ExecuteCommands {
         d.register(literal("execute").requires(s -> s.hasPermission(2))
                 .then(literal("run").redirect(d.getRoot()))
                 .then(literal("as").then(argument("targets", EntityArgument.entities())
-                        .forkAsync(execute, c -> entities(c, "targets", (s, e) -> s.withEntity(e)))))
+                        .forkAsync(execute, c -> entities(c, "targets", (s, e) -> s.withEntity(e.entity())))))
                 .then(literal("at").then(argument("targets", EntityArgument.entities())
                         .forkAsync(execute, c -> entities(c, "targets", (s, e) -> {
-                            World w = s.getServer().world(e.dimensionKey());
-                            return (w == null ? s : s.withLevel(w)).withPosition(e.x(), e.y(), e.z()).withRotation(e.riderYRot(), e.riderXRot());
+                            World w = s.getServer().world(e.dim());
+                            return (w == null ? s : s.withLevel(w)).withPosition(e.x(), e.y(), e.z()).withRotation(e.yRot(), e.xRot());
                         }))))
                 .then(literal("positioned")
                         .then(argument("pos", Vec3Argument.vec3()).redirect(execute, c -> {
@@ -79,13 +79,13 @@ public final class ExecuteCommands {
                             return c.getSource().withRotation(v.y(), v.x());
                         }))
                         .then(literal("as").then(argument("targets", EntityArgument.entities())
-                                .forkAsync(execute, c -> entities(c, "targets", (s, e) -> s.withRotation(e.riderYRot(), e.riderXRot()))))))
+                                .forkAsync(execute, c -> entities(c, "targets", (s, e) -> s.withRotation(e.yRot(), e.xRot()))))))
                 .then(literal("facing")
                         .then(literal("entity").then(argument("targets", EntityArgument.entities())
                                 .then(argument("anchor", EntityAnchorArgument.anchor()).forkAsync(execute, c -> {
                                     EntityAnchorArgument.Anchor anchor = EntityAnchorArgument.getAnchor(c, "anchor");
                                     return entities(c, "targets", (s, e) -> {
-                                        double[] p = anchor.apply(e);
+                                        double[] p = e.anchor(anchor);
                                         return s.facing(p[0], p[1], p[2]);
                                     });
                                 }))))
@@ -113,17 +113,41 @@ public final class ExecuteCommands {
 
     @FunctionalInterface
     private interface SourceMapper {
-        CommandSource map(CommandSource source, Rider entity);
+        CommandSource map(CommandSource source, Snap entity);
     }
 
-    /** 선택자(0개 이상 허용, 바닐라 getOptionalEntities)를 풀어 엔티티마다 소스를 만든다. 매핑은 전역 스레드에서(읽기뿐). */
+    /** 엔티티의 (차원, 위치, 회전, 눈높이) 불변 스냅샷 — 소유 region 스레드에서 한 번에 읽어 전역으로 넘긴다(한 틱의 일관된 값). */
+    private record Snap(Rider entity, String dim, double x, double y, double z, float yRot, float xRot, double eyeY) {
+        static Snap of(Rider r) {
+            return new Snap(r, r.dimensionKey(), r.x(), r.y(), r.z(), r.riderYRot(), r.riderXRot(), r.eyeY());
+        }
+
+        double[] anchor(EntityAnchorArgument.Anchor a) { return a == EntityAnchorArgument.Anchor.FEET ? new double[] {x, y, z} : new double[] {x, eyeY, z}; }
+    }
+
+    /**
+     * 선택자(0개 이상 허용, 바닐라 getOptionalEntities)를 풀어 엔티티마다 소스를 만든다.
+     * 엔티티 상태는 소유 region 에서 스냅샷으로 읽고(플레이어는 그 자리에서), 전역 스레드에서는 소스만 조립한다.
+     * 그새 사라져 주인을 못 찾은 엔티티는 뺀다.
+     */
     private static CompletableFuture<Collection<CommandSource>> entities(CommandContext<CommandSource> c, String name, SourceMapper mapper)
             throws CommandSyntaxException {
         CommandSource source = c.getSource();
         CompletableFuture<List<Rider>> found = c.getArgument(name, EntitySelector.class).findRiders(source);
-        return ExecuteCommands.<List<Rider>, Collection<CommandSource>>onGlobal(source, found, list -> {
+        CompletableFuture<List<CompletableFuture<Snap>>> reads = ExecuteCommands.<List<Rider>, List<CompletableFuture<Snap>>>onGlobal(source, found, list -> {
+            List<CompletableFuture<Snap>> fs = new java.util.ArrayList<>(list.size());
+            for (Rider r : list) fs.add(EntityOps.onOwner(source, r, Snap::of).exceptionally(t -> null));
+            return fs;
+        });
+        CompletableFuture<List<Snap>> snaps = reads.thenCompose(fs -> CompletableFuture.allOf(fs.toArray(new CompletableFuture[0]))
+                .thenApply(v -> {
+                    List<Snap> out = new java.util.ArrayList<>(fs.size());
+                    for (var f : fs) if (f.join() != null) out.add(f.join());
+                    return out;
+                }));
+        return ExecuteCommands.<List<Snap>, Collection<CommandSource>>onGlobal(source, snaps, list -> {
             java.util.ArrayList<CommandSource> out = new java.util.ArrayList<>(list.size());
-            for (Rider e : list) out.add(mapper.map(source, e));
+            for (Snap s : list) out.add(mapper.map(source, s));
             return out;
         });
     }
@@ -138,7 +162,8 @@ public final class ExecuteCommands {
         // 조회성: 주인 region 이 없으면 region 을 만들지 말고 바로 "로드 안 됨"으로 끝낸다(runAtRequested 와 같은 원칙).
         if (level.regionizer().ownerOf(bx >> 4, bz >> 4) == null) throw BlockPosArgument.ERROR_NOT_LOADED.create();
         var type = HeightmapTypeArgument.getHeightmap(c, "heightmap");
-        CompletableFuture<Integer> height = level.submitAtChunk(new ChunkPos(bx >> 4, bz >> 4), r -> r.heightAt(type, bx, bz));
+        CompletableFuture<Integer> height = level.submitAtOwnedChunk(new ChunkPos(bx >> 4, bz >> 4), r -> r.heightAt(type, bx, bz));
+        if (height == null) throw BlockPosArgument.ERROR_NOT_LOADED.create();
         return onGlobal(source, height, h -> {
             if (h == Integer.MIN_VALUE) throw BlockPosArgument.ERROR_NOT_LOADED.create();
             return source.withPosition(x, h, z);
@@ -151,6 +176,7 @@ public final class ExecuteCommands {
         CommandSource source = c.getSource();
         CompletableFuture<Entity> spawned = SummonCommand.summonChecked(source, ResourceLocationArgument.getId(c, "entity"),
                 new double[] {source.x(), source.y(), source.z()}, new NbtCompound(), true);
+        // 타임아웃 뒤 늦게 끝나면 엔티티는 이미 생겼고 결과(소스 변환)만 버려진다(세대 토큰, 설계서 §7 "늦은 부작용")
         return onGlobal(source, spawned, source::withEntity);
     }
 
@@ -174,11 +200,13 @@ public final class ExecuteCommands {
             CommandSource source = c.getSource();
             Rider self = source.entity();
             if (self == null) return CompletableFuture.<Collection<CommandSource>>completedFuture(List.of());
-            CompletableFuture<List<Rider>> read = EntityOps.onOwner(source, self, fn)
+            // 제거 여부는 관계를 읽는 순간 소유 region 안에서 거른다(바닐라 amt.java:693,701)
+            Function<Rider, List<Rider>> live = r -> fn.apply(r).stream().filter(x -> !(x instanceof Entity e && e.isRemoved())).toList();
+            CompletableFuture<List<Rider>> read = EntityOps.onOwner(source, self, live)
                     .exceptionally(t -> EntityOps.unwrap(t) instanceof IllegalStateException ? List.of() : rethrow(t));   // 그새 사라진 엔티티는 관계가 없다
             return ExecuteCommands.<List<Rider>, Collection<CommandSource>>onGlobal(source, read, list -> {
                 java.util.ArrayList<CommandSource> out = new java.util.ArrayList<>(list.size());
-                for (Rider r : list) if (!(r instanceof Entity e && e.isRemoved())) out.add(source.withEntity(r));
+                for (Rider r : list) if (!(r instanceof Player p && !source.getServer().players().contains(p))) out.add(source.withEntity(r));   // 접속이 끊긴 플레이어는 뺀다
                 return out;
             });
         };
