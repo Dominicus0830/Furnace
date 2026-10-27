@@ -1,4 +1,4 @@
-// 바닐라 ExecuteCommand(amt) 중 E2 단계: execute if|unless entity·block·blocks·biome·loaded·dimension·predicate·items.
+// 바닐라 ExecuteCommand(amt) 중 E2·E3 단계: execute if|unless score(E3)·entity·block·blocks·biome·loaded·dimension·predicate·items.
 // 조건 하나는 포크(참이면 소스 유지, 아니면 사라짐)와 종단 실행(성공 1 / 개수 / 실패)의 두 얼굴을 가진다. 결과 의미는 바닐라 그대로:
 //  - 불리언 조건: if 는 참이면 1(conditional.pass), 아니면 conditional.fail. unless 는 반대.
 //  - 개수 조건(entity·items·blocks): if 는 개수가 있으면 그 개수(pass_count), 없으면 fail. unless 는 없으면 1, 있으면 fail_count(개수).
@@ -33,7 +33,12 @@ import org.domi.furnace.server.command.arguments.BlockPredicateArgument;
 import org.domi.furnace.server.command.arguments.DimensionArgument;
 import org.domi.furnace.server.command.arguments.EntityArgument;
 import org.domi.furnace.server.command.arguments.EntitySelector;
+import org.domi.furnace.server.command.arguments.IntRangeArgument;
 import org.domi.furnace.server.command.arguments.ItemPredicateArgument;
+import org.domi.furnace.server.command.arguments.ScoreHolderArgument;
+import org.domi.furnace.server.command.arguments.ScoreboardArguments;
+import org.domi.furnace.server.scores.Objective;
+import org.domi.furnace.server.scores.ScoreHolder;
 import org.domi.furnace.server.command.arguments.ResourceOrIdArgument;
 import org.domi.furnace.server.command.arguments.ResourceOrTagKeyArgument;
 import org.domi.furnace.server.command.arguments.SlotsArgument;
@@ -103,6 +108,8 @@ final class ExecuteConditions {
                 .then(literal("loaded").then(bool(execute, argument("pos", BlockPosArgument.blockPos()), expected, ExecuteConditions::loaded)))
                 .then(literal("dimension").then(bool(execute, argument("dimension", DimensionArgument.dimension()), expected,
                         c -> CompletableFuture.completedFuture(DimensionArgument.getDimension(c, "dimension") == c.getSource().level()))))
+                .then(literal("score").then(argument("target", ScoreHolderArgument.scoreHolder()).suggests(ScoreHolderArgument.SUGGEST_SCORE_HOLDERS)
+                        .then(scoreCompare(execute, expected))))
                 .then(literal("entity").then(count(execute, argument("entities", EntityArgument.entities()), expected, ExecuteConditions::entity)))
                 .then(literal("predicate").then(bool(execute, argument("predicate", ResourceOrIdArgument.lootPredicate()).suggests((c, b) -> {
                     var dp = c.getSource().getServer().dataPacks();
@@ -117,6 +124,57 @@ final class ExecuteConditions {
                                 .then(count(execute, argument("item_predicate", ItemPredicateArgument.itemPredicate()), expected, ExecuteConditions::itemsEntity)))))
                         .then(literal("block").then(argument("pos", BlockPosArgument.blockPos()).then(argument("slots", SlotsArgument.slots())
                                 .then(count(execute, argument("item_predicate", ItemPredicateArgument.itemPredicate()), expected, ExecuteConditions::itemsBlock))))));
+    }
+
+    /** 바닐라 if score: targetObjective 뒤에 비교 연산자 5개와 matches. */
+    private static ArgumentBuilder<CommandSource, ?> scoreCompare(LiteralCommandNode<CommandSource> execute, boolean expected) {
+        var targetObjective = argument("targetObjective", ScoreboardArguments.objective());
+        String[] ops = {"=", "<", "<=", ">", ">="};
+        IntBinaryPredicate[] tests = {(a, b) -> a == b, (a, b) -> a < b, (a, b) -> a <= b, (a, b) -> a > b, (a, b) -> a >= b};
+        for (int i = 0; i < ops.length; i++) {
+            IntBinaryPredicate t = tests[i];
+            targetObjective.then(literal(ops[i]).then(argument("source", ScoreHolderArgument.scoreHolder()).suggests(ScoreHolderArgument.SUGGEST_SCORE_HOLDERS)
+                    .then(bool(execute, argument("sourceObjective", ScoreboardArguments.objective()), expected, c -> scoreCompare(c, t)))));
+        }
+        targetObjective.then(literal("matches").then(bool(execute, argument("range", IntRangeArgument.intRange()), expected, c -> {
+            CommandSource s = c.getSource();
+            var range = IntRangeArgument.getRange(c, "range");
+            return ExecuteCommands.<Collection<ScoreHolder>, Boolean>onGlobal(s, ScoreHolderArgument.getName(c, "target"), list -> {
+                Objective o = ScoreboardArguments.getObjective(c, "targetObjective");
+                Integer v = scoreOf(s, list, o);
+                return v != null && range.matches(v);
+            });
+        })));
+        return targetObjective;
+    }
+
+    @FunctionalInterface
+    private interface IntBinaryPredicate {
+        boolean test(int a, int b);
+    }
+
+    private static CompletableFuture<Boolean> scoreCompare(CommandContext<CommandSource> c, IntBinaryPredicate test) throws CommandSyntaxException {
+        CommandSource s = c.getSource();
+        CompletableFuture<Collection<ScoreHolder>> target = ScoreHolderArgument.getName(c, "target");
+        CompletableFuture<Collection<ScoreHolder>> source = ScoreHolderArgument.getName(c, "source");
+        CompletableFuture<List<Collection<ScoreHolder>>> both = target.thenCombine(source, List::of);
+        return ExecuteCommands.<List<Collection<ScoreHolder>>, Boolean>onGlobal(s, both, l -> {
+            Objective to = ScoreboardArguments.getObjective(c, "targetObjective");
+            Objective so = ScoreboardArguments.getObjective(c, "sourceObjective");
+            Integer a = scoreOf(s, l.get(0), to);
+            Integer b = scoreOf(s, l.get(1), so);
+            return a != null && b != null && test.test(a, b);   // 점수가 없으면 거짓
+        });
+    }
+
+    /** 점수판 읽기(synchronized). 점수가 없으면 null. */
+    private static Integer scoreOf(CommandSource s, Collection<ScoreHolder> holders, Objective objective) {
+        var board = s.getServer().scoreboard();
+        var score = board.getPlayerScoreInfo(holders.iterator().next(), objective);
+        if (score == null) return null;
+        synchronized (board) {
+            return score.value();
+        }
     }
 
     /** 바닐라 addConditional(boolean): 포크는 참/거짓에 따라 소스를 남기고, 종단은 pass(1) 또는 fail. */
