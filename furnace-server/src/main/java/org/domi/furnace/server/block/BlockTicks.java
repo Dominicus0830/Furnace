@@ -97,4 +97,27 @@ public final class BlockTicks {
         });
         return out;
     }
+
+    /**
+     * 바닐라 LevelTicks.copyAreaFrom: src 에서 상자(포함) 안 칸의 예약을 (dx,dy,dz) 만큼 옮겨 이 쪽에 예약한다. 실행 시각·우선순위는 그대로,
+     * 순번은 (원래 순번 - 모은 것 중 최소 + 최대 + 1) 이다(바닐라 식 그대로). 먼저 다 모은 뒤 넣으므로 src 가 this 여도 된다.
+     */
+    public void copyAreaFrom(BlockTicks src, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int dx, int dy, int dz) {
+        java.util.List<Scheduled> list = new java.util.ArrayList<>();
+        for (Scheduled s : src.queue) {
+            Pos p = Pos.of(s.pos);
+            if (p.x() >= minX && p.x() <= maxX && p.y() >= minY && p.y() <= maxY && p.z() >= minZ && p.z() <= maxZ) list.add(s);
+        }
+        if (list.isEmpty()) return;
+        long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
+        for (Scheduled s : list) {
+            min = Math.min(min, s.subTickOrder);
+            max = Math.max(max, s.subTickOrder);
+        }
+        list.sort(src.queue.comparator());
+        for (Scheduled s : list) {
+            Pos p = Pos.of(s.pos);
+            schedule(new Pos(p.x() + dx, p.y() + dy, p.z() + dz), s.type, s.triggerTick, s.priority, s.subTickOrder - min + max + 1L);
+        }
+    }
 }

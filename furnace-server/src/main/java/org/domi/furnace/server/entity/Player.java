@@ -156,6 +156,35 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public PlayerInventory inventory() { return inventory; }
 
+    private org.domi.furnace.server.attribute.AttributeMap attributes;
+
+    /**
+     * 바닐라 Player.createAttributes 의 속성 목록(/attribute 용). 차이: 이 맵의 값은 아직 전투·이동 계산에 쓰이지 않고 클라이언트로도
+     * 보내지 않는다(플레이어 능력치는 PlayerVitals 등이 따로 들고 있다).
+     */
+    public synchronized org.domi.furnace.server.attribute.AttributeMap attributes() {
+        if (attributes == null) {
+            var m = new org.domi.furnace.server.attribute.AttributeMap();
+            m.add(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, 20.0).add(org.domi.furnace.server.attribute.Attribute.KNOCKBACK_RESISTANCE, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.7).add(org.domi.furnace.server.attribute.Attribute.ARMOR, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.ARMOR_TOUGHNESS, 0.0).add(org.domi.furnace.server.attribute.Attribute.MAX_ABSORPTION, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.STEP_HEIGHT, 0.6).add(org.domi.furnace.server.attribute.Attribute.SCALE, 1.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.GRAVITY, 0.08).add(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE, 3.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH, 0.42)
+                    .add(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS, 0.0).add(org.domi.furnace.server.attribute.Attribute.BURNING_TIME, 1.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_EFFICIENCY, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.ATTACK_DAMAGE, 1.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, (double) 0.1F)
+                    .add(org.domi.furnace.server.attribute.Attribute.ATTACK_SPEED, 4.0).add(org.domi.furnace.server.attribute.Attribute.LUCK, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.BLOCK_INTERACTION_RANGE, 4.5).add(org.domi.furnace.server.attribute.Attribute.ENTITY_INTERACTION_RANGE, 3.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.BLOCK_BREAK_SPEED, 1.0).add(org.domi.furnace.server.attribute.Attribute.SUBMERGED_MINING_SPEED, 0.2)
+                    .add(org.domi.furnace.server.attribute.Attribute.SNEAKING_SPEED, 0.3).add(org.domi.furnace.server.attribute.Attribute.MINING_EFFICIENCY, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.SWEEPING_DAMAGE_RATIO, 0.0);
+            attributes = m;
+        }
+        return attributes;
+    }
+
     public void inventory(PlayerInventory inv) { this.inventory = inv; }
 
     public InventoryHost inventoryHost() { return inventoryHost; }
