@@ -142,9 +142,25 @@ public final class NoiseBasedAquifer implements Aquifer {
         // 가장 가까운 상태의 at(y) 가 공기이고, 어떤 두 상태 쌍의 압력도 d11 = (M - y - 0.5)/2.5 < -2 라 장벽 노이즈 없이 음수
         // (2·d11)라서 장벽(NO_CARVE)이 생기지 않는다. 지표 위 공기·물 없는 동굴 대부분이 여기서 끝난다.
         if (AIR_SHORTCUT && i1 >= maxFluidLevelAround(i3, i4, i5) + 5) {
+            if (verifyShortcut) verifyShortcutHit(context, i, i1, i2, i3, i4, i5, substance);
             this.shouldScheduleFluidUpdate = false;
             return 0;
         }
+        return computeSubstanceSlow(context, i, i1, i2, i3, i4, i5, substance);
+    }
+
+    // 테스트 전용 fuzz 게이트(감사 W-10): true 면 빠른 길이 잡은 블록마다 바닐라 식 결과를 다시 계산해 공기가 아닌 수를 센다.
+    // (shouldScheduleFluidUpdate 는 공기 블록에선 바닐라가 읽지 않으므로 대조하지 않는다.)
+    static boolean verifyShortcut;
+    static final java.util.concurrent.atomic.AtomicLong shortcutHits = new java.util.concurrent.atomic.AtomicLong();
+    static final java.util.concurrent.atomic.AtomicLong shortcutMismatches = new java.util.concurrent.atomic.AtomicLong();
+
+    private void verifyShortcutHit(DensityFunction.FunctionContext context, int i, int i1, int i2, int i3, int i4, int i5, double substance) {
+        shortcutHits.incrementAndGet();
+        if (computeSubstanceSlow(context, i, i1, i2, i3, i4, i5, substance) != 0) shortcutMismatches.incrementAndGet();
+    }
+
+    private int computeSubstanceSlow(DensityFunction.FunctionContext context, int i, int i1, int i2, int i3, int i4, int i5, double substance) {
         int i6 = Integer.MAX_VALUE, i7 = Integer.MAX_VALUE, i8 = Integer.MAX_VALUE, i9 = Integer.MAX_VALUE;
         int idx0 = -1, idx1 = -1, idx2 = -1, idx3 = -1;
         int x0 = 0, y0 = 0, z0 = 0;
