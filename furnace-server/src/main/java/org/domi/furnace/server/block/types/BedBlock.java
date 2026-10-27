@@ -18,6 +18,11 @@ public class BedBlock extends HorizontalDirectionalBlock {
 
     public BedBlock(int block) { super(block); }
 
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.BedBlockEntity(pos, state);
+    }
+
     private static int facing(int state) { return Dir.byName(FACING.valueName(state)); }
 
     private static boolean head(int state) { return "head".equals(PART.valueName(state)); }
