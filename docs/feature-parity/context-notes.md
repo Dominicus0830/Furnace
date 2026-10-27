@@ -248,3 +248,8 @@
 - `if score` 오류 순서: 바닐라는 target → targetObjective → source → sourceObjective. 기준 조회는 선택자 future 를 기다리지 않고 동기로 하되, 이미 실패한 선택자 future 는 다음 기준 조회보다 먼저 돌려준다. **알려진 차이**: 아직 안 끝난 선택자(region 왕복)의 실패는 뒤따르는 기준 오류보다 늦게 나온다(기준 오류가 먼저).
 - store bossbar 는 설계서 S3 행(287)의 범위라 이 단계에 넣었다(S4 는 block·entity·storage). 보스바 조회는 redirect 때, 쓰기는 `CustomBossEvent` 의 synchronized setValue/setMax.
 
+
+## 2026-10-27 함수 시스템(S5) 의 의도한 한계
+- 매크로(`$` 줄) 함수는 S7 전까지 **로드 실패로 빠진다**(로그 "Macro line … is not supported yet (매크로는 S7)"). 연쇄 효과: 그 함수를 필수로 참조하는 함수 태그(`#minecraft:tick`·`#minecraft:load` 포함)는 태그 전체가 빠지고(TagLoader 필수 참조 규칙), `function x:y {…}`·`function x:y with …` 를 쓰는 일반 함수도 그 인자 노드가 트리에 없어 파싱 실패로 빠진다.
+- tick 함수가 region 왕복으로 길어져 같은 함수가 아직 시작도 못 하고 명령 큐에 기다리고 있으면, 그 틱의 같은 함수 호출은 건너뛴다(함수마다 경고 1회, 리로드 뒤 다시 1회). 바닐라에는 없는 보호라 그만큼 #tick 실행 횟수가 줄 수 있다.
+- 함수 파싱은 플러그인 onEnable 뒤(`ServerCore.loadFunctions`, FurnaceMain)에 한다 — 플러그인 명령을 쓰는 함수가 시작 때 빠지지 않게. 컴파일 소스 레벨은 바닐라(null)와 달리 오버월드다(파싱은 레벨을 읽지 않는다).

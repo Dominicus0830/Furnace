@@ -31,6 +31,7 @@ class FunctionTest {
     ServerCore core;
     DataPackManager packs;
     Path functionDir;
+    final List<java.util.concurrent.CompletableFuture<Integer>> hangs = Collections.synchronizedList(new ArrayList<>());
     final List<String> messages = Collections.synchronizedList(new ArrayList<>());
 
     @BeforeEach
@@ -63,6 +64,11 @@ class FunctionTest {
         fn("comments", "# 주석", "", "scoreboard players \\", "  add #cont o 4");
         fn("bad", "scoreboard players set");
         fn("slash", "/say hi");
+        fn("useplugin", "plugincmd");
+        fn("macro", "$scoreboard players set #m o $(v)");
+        fn("callsmacro", "function t:macro {v:1}");
+        fn("hangfn", "hang");
+        tag("t", "withmacro", "t:macro", "t:ret1");
         fn("onload", "scoreboard players add #load o 1");
         fn("ontick", "scoreboard players add #tick o 1", "execute if score #load o matches 1.. run scoreboard players add #after o 1");
         tag("t", "mixed", "t:three", "t:fail");
@@ -75,7 +81,17 @@ class FunctionTest {
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+        // 플러그인 명령 흉내: 함수 로드(loadFunctions) 전에 등록돼 있으면 그 명령을 쓰는 함수가 시작 때부터 실린다
+        var d = core.commands().getDispatcher();
+        d.register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal("plugincmd").executes(c -> 9));
+        d.register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal("hang").executes(c -> {
+            var f = new java.util.concurrent.CompletableFuture<Integer>();
+            hangs.add(f);
+            c.getSource().defer(f);
+            return 1;
+        }));
         core.dataPacks(packs);
+        core.loadFunctions();
         onGlobal(() -> { });   // replaceLibrary 홉이 끝나기를 기다린다(전역 실행기는 FIFO)
         run("scoreboard objectives add o dummy");
     }
@@ -241,5 +257,79 @@ class FunctionTest {
         assertEquals(2, score("#load"), "리로드 뒤 다음 틱에 #load 다시");
         assertEquals(13, score("#tick"), "새 tick 함수로 바뀐다");
         assertEquals(1, core.functions().tickingCount());
+    }
+
+    @Test
+    void functionUsingPluginCommandLoadsAtStartup() {
+        assertTrue(core.functions().library().function(ResourceId.parse("t:useplugin")).isPresent());
+    }
+
+    @Test
+    void macroFunctionsAreExcludedAndDropTagsThatRequireThem() {
+        // 의도한 한계(S7 전까지): 매크로 함수와, 그것을 부르는 함수(function … {…} 은 아직 트리에 없다), 그것을 필수 참조하는 태그가 빠진다
+        var lib = core.functions().library();
+        assertTrue(lib.function(ResourceId.parse("t:macro")).isEmpty());
+        assertTrue(lib.function(ResourceId.parse("t:callsmacro")).isEmpty());
+        assertTrue(lib.tag(ResourceId.parse("t:withmacro")).isEmpty());
+    }
+
+    @Test
+    void frozenTicksSkipFunctionsAndStepRunsThem() throws Exception {
+        run("tick freeze");
+        onGlobal(core::scheduledTick);
+        assertNull(score("#tick"), "freeze 중에는 함수 틱 없음");
+        assertNull(score("#load"));
+        run("tick step 1");
+        onGlobal(core::scheduledTick);
+        assertEquals(1, score("#load"));
+        assertEquals(1, score("#tick"), "step 중에는 함수 틱이 돈다");
+        run("tick unfreeze");
+    }
+
+    @Test
+    void waitingTickFunctionIsSkippedAndReloadDuringSuspendIsSafe() throws Exception {
+        tag("minecraft", "tick", "t:hangfn");
+        packs.reload(packs.repository().selectedIds(), ForkJoinPool.commonPool()).get(20, TimeUnit.SECONDS);
+        onGlobal(() -> { });
+        for (int i = 0; i < 3; i++) onGlobal(core::tick);
+        assertEquals(1, hangs.size(), "첫 실행이 멈춰 있다");
+        int[] pending = new int[1];
+        onGlobal(() -> pending[0] = core.commands().queue().pendingCount());
+        assertEquals(1, pending[0], "둘째 틱 것은 대기, 셋째 틱 것은 같은 함수가 대기 중이라 건너뜀");
+        // 멈춘 컨텍스트가 있는 채로 리로드: 옛 함수 객체로 끝까지 돈다
+        fn("hangfn", "scoreboard players add #h2 o 1");
+        packs.reload(packs.repository().selectedIds(), ForkJoinPool.commonPool()).get(20, TimeUnit.SECONDS);
+        onGlobal(() -> { });
+        hangs.get(0).complete(1);
+        for (int i = 0; i < 200 && hangs.size() < 2; i++) Thread.sleep(10);
+        assertEquals(2, hangs.size(), "대기하던 실행은 옛 함수(hang)로 시작한다");
+        hangs.get(1).complete(1);
+        boolean[] busy = {true};
+        for (int i = 0; i < 200 && busy[0]; i++) {
+            onGlobal(() -> busy[0] = core.commands().queue().isBusy());
+            if (busy[0]) Thread.sleep(10);
+        }
+        assertFalse(busy[0]);
+        onGlobal(core::tick);
+        assertEquals(1, score("#h2"), "리로드 뒤 새 tick 함수");
+    }
+
+    @Test
+    void returnFromManySourcesWithAsyncCallbackKeepsOrder() throws Exception {
+        // 소스 콜백이 미완료 future 를 돌려주면(store block/entity 와 같은 꼴) 소스마다 차례로 기다린다 — 두 번째 소스가 다시 멈추려다 터지지 않는다
+        List<String> order = Collections.synchronizedList(new ArrayList<>());
+        ResultCallback async = (ok, v) -> {
+            order.add("src " + v);
+            var f = new java.util.concurrent.CompletableFuture<Void>();
+            java.util.concurrent.CompletableFuture.delayedExecutor(30, TimeUnit.MILLISECONDS).execute(() -> sched.global().execute(() -> {
+                order.add("done");
+                f.complete(null);
+            }));
+            return f;
+        };
+        CommandResult r = core.commands().performPrefixedCommandAsync(CommandSource.console(core).withCallback(async),
+                "execute as @e[type=cow] run return 5").orTimeout(20, TimeUnit.SECONDS).join();
+        assertEquals(2, r.callbacks());
+        assertEquals(List.of("src 5", "done", "src 5", "done"), order);
     }
 }

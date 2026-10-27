@@ -31,7 +31,11 @@ public interface ResultCallback {
         return (success, result) -> {
             CompletableFuture<Void> fa = a.onResult(success, result);
             if (fa.isDone() && !fa.isCompletedExceptionally()) return b.onResult(success, result);
-            return fa.thenCompose(v -> b.onResult(success, result));
+            // a 가 실패해도 b 는 부른다(바닐라는 동기라 늘 둘 다 불린다). a 의 예외는 b 뒤에 그대로 전한다
+            return fa.handle((v, ex) -> ex).thenCompose(ex -> b.onResult(success, result).thenApply(v -> {
+                if (ex != null) throw ex instanceof java.util.concurrent.CompletionException ce ? ce : new java.util.concurrent.CompletionException(ex);
+                return null;
+            }));
         };
     }
 

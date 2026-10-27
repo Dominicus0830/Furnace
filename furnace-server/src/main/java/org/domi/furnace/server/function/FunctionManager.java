@@ -89,6 +89,7 @@ public final class FunctionManager {
         this.library = lib;
         this.ticking = List.copyOf(lib.tag(TICK_FUNCTION_TAG));
         this.postReload = true;
+        this.warnedSkip.clear();   // 리로드 뒤에는 다시 한 번 경고한다
     }
 
     /** 바닐라 getGameLoopSender: 서버 소스, 권한 2, 출력 숨김. */

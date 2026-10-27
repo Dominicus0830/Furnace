@@ -89,10 +89,6 @@ public final class ServerCore {
     /** 데이터 팩을 붙인다 — /reload 가 끝나면 접속자에게 새 태그를 보낸다(바닐라 PlayerList.reloadResources). */
     public void dataPacks(org.domi.furnace.server.data.DataPackManager m) {
         this.dataPacks = m;
-        // 함수는 명령 디스패처가 있어야 파싱된다 — 붙일 때 로더를 넘기고(지금 리소스로 한 번 읽음) 이후 리로드는 loadFrom 이 레시피 뒤에 읽는다
-        var compile = org.domi.furnace.server.command.CommandSource.forProfile(this, "", functionCompilationLevel());
-        m.functionLoader(rm -> org.domi.furnace.server.function.FunctionLibrary.load(rm, commands.getDispatcher(), compile));
-        installFunctions(m.functions());
         m.onReload(dp -> {
             installFunctions(dp.functions());   // 리로드 스레드(background)에서 오므로 전역으로 넘긴다(설계 §4.4 I4)
             // 바닐라 reloadResources: 플레이어 발전 과제를 저장한 뒤 새 매니저로 다시 읽는다(보내는 것은 다음 틱 flushDirty)
@@ -115,6 +111,19 @@ public final class ServerCore {
                 p.send(p.recipeBook().initPacket());
             }
         });
+    }
+
+    /**
+     * 함수 로더를 붙이고 지금 리소스로 함수를 읽는다. 함수 줄은 디스패처로 파싱되므로 플러그인 명령까지 등록된 뒤(FurnaceMain: 플러그인 loadAll 뒤)
+     * 불러야 한다. 이후 /reload 는 DataPackManager.loadFrom 이 레시피 뒤·발전 과제 앞에서 읽는다.
+     */
+    public void loadFunctions() {
+        var m = dataPacks;
+        if (m == null) return;
+        // 바닐라 alf 의 컴파일 소스: 위치 (0,0,0)·회전 0. 레벨은 Furnace 소스가 null 을 못 가져 오버월드(파싱은 레벨을 읽지 않는다)
+        var compile = org.domi.furnace.server.command.CommandSource.forProfile(this, "", functionCompilationLevel()).withPosition(0, 0, 0);
+        m.functionLoader(rm -> org.domi.furnace.server.function.FunctionLibrary.load(rm, commands.getDispatcher(), compile));
+        installFunctions(m.functions());
     }
 
     /** 새 함수 라이브러리를 전역 스레드에서 끼운다(tick 스냅샷·postReload 는 전역 틱이 읽는다). */

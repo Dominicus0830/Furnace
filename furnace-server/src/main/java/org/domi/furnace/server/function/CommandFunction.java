@@ -67,7 +67,7 @@ public interface CommandFunction {
             }
             if (reader.peek() == '$') {
                 // 가정: 매크로는 S7. 바닐라는 MacroFunction 으로 로드하지만 지금은 그 함수를 빼 둔다
-                throw new IllegalArgumentException("Macro line on line " + lineNumber + " is not supported yet");
+                throw new IllegalArgumentException("Macro line on line " + lineNumber + " is not supported yet (매크로는 S7)");
             }
             try {
                 entries.add(parseCommand(dispatcher, compilationContext, reader));

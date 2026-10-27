@@ -32,14 +32,22 @@ public final class SharedSuggestions {
         return builder.buildFuture();
     }
 
-    /** 바닐라 suggestResource(ids, builder, prefix) — 접두(예: 함수 태그의 "#")를 붙인 채로 맞춰 보고 제안한다. */
+    /** 바닐라 suggestResource(ids, builder, prefix)(ey.java:81-96): 입력이 비면 전부, 아니면 입력과 접두의 공통 접두를 떼고 거른다(공통 접두가 없으면 없음). */
     public static CompletableFuture<Suggestions> suggestResource(Iterable<org.domi.furnace.server.data.ResourceId> ids, SuggestionsBuilder builder,
                                                                  String prefix) {
         String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
-        boolean full = remaining.indexOf(':') > -1;
+        if (remaining.isEmpty()) {
+            for (var id : ids) builder.suggest(prefix + id);
+            return builder.buildFuture();
+        }
+        int n = 0;
+        while (n < remaining.length() && n < prefix.length() && remaining.charAt(n) == prefix.charAt(n)) n++;
+        if (n == 0) return builder.buildFuture();
+        String rest = remaining.substring(n);
+        boolean full = rest.indexOf(':') > -1;
         for (var id : ids) {
-            boolean match = full ? matchesSubStr(remaining, prefix + id)
-                    : matchesSubStr(remaining, prefix + id.namespace()) || id.namespace().equals("minecraft") && matchesSubStr(remaining, prefix + id.path());
+            boolean match = full ? matchesSubStr(rest, id.toString())
+                    : matchesSubStr(rest, id.namespace()) || id.namespace().equals("minecraft") && matchesSubStr(rest, id.path());
             if (match) builder.suggest(prefix + id);
         }
         return builder.buildFuture();

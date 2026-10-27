@@ -86,7 +86,15 @@ public class BuildContexts {
         CommandContext<CommandSource> executable = currentStage.getTopContext();
         if (executable.getCommand() instanceof CustomCommandExecutor custom) {
             ExecutionControl control = ExecutionControl.create(context, frame);
-            for (CommandSource source : currentSources) custom.run(source, currentStage, modifiers, control);
+            for (int i = 0; i < currentSources.size(); i++) {
+                custom.run(currentSources.get(i), currentStage, modifiers, control);
+                // Furnace: 실행기가 비동기 콜백을 기다리며 멈췄으면 남은 소스는 재개 뒤 이어 간다(바닐라는 동기라 그 자리에서 계속)
+                if (context.isSuspended() && i + 1 < currentSources.size()) {
+                    context.queueNext(new CommandQueueEntry(frame, new Continuation(commandInput, currentStage, modifiers, originalSource,
+                            List.copyOf(currentSources.subList(i + 1, currentSources.size())))));
+                    return;
+                }
+            }
         } else {
             if (modifiers.isReturn()) {
                 CommandSource returningSource = currentSources.get(0);
