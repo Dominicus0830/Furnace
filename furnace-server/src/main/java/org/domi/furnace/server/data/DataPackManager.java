@@ -30,6 +30,8 @@ public final class DataPackManager implements AutoCloseable {
     private volatile org.domi.furnace.server.recipe.RecipeManager recipes;
     private volatile org.domi.furnace.server.loot.LootData loot;
     private volatile org.domi.furnace.server.advancement.AdvancementManager advancements;
+    private volatile org.domi.furnace.server.function.FunctionLibrary functions = org.domi.furnace.server.function.FunctionLibrary.EMPTY;
+    private volatile java.util.function.Function<ResourceManager, org.domi.furnace.server.function.FunctionLibrary> functionLoader;
     private final List<Consumer<DataPackManager>> reloadListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private DataPackManager(PackRepository repository, TagRegistries tagRegistries, LevelData levelData) {
@@ -130,7 +132,8 @@ public final class DataPackManager implements AutoCloseable {
 
     /** 리로드 한 번의 결과(바닐라 ReloadableServerResources 에 해당). */
     private record Loaded(ResourceManager rm, TagSet tags, org.domi.furnace.server.recipe.RecipeManager recipes,
-                          org.domi.furnace.server.loot.LootData loot, org.domi.furnace.server.advancement.AdvancementManager advancements) {}
+                          org.domi.furnace.server.loot.LootData loot, org.domi.furnace.server.function.FunctionLibrary functions,
+                          org.domi.furnace.server.advancement.AdvancementManager advancements) {}
 
     private Loaded loadFrom(ResourceManager rm) {
         var tagIds = tagRegistries.loadAll(rm);
@@ -144,8 +147,10 @@ public final class DataPackManager implements AutoCloseable {
         };
         // 바닐라 리로드 순서: 태그 → 레시피 → 함수 → 발전 과제
         var recipeManager = org.domi.furnace.server.recipe.RecipeManager.load(rm, recipeCtx);
+        var loader = functionLoader;
+        var functionLibrary = loader == null ? org.domi.furnace.server.function.FunctionLibrary.EMPTY : loader.apply(rm);
         var advancementManager = org.domi.furnace.server.advancement.AdvancementManager.load(rm, loot.registries(), network);
-        return new Loaded(rm, t, recipeManager, loot, advancementManager);
+        return new Loaded(rm, t, recipeManager, loot, functionLibrary, advancementManager);
     }
 
     private void apply(Loaded l) {
@@ -157,6 +162,7 @@ public final class DataPackManager implements AutoCloseable {
         org.domi.furnace.server.item.JukeboxSongs.install(l.rm());
         org.domi.furnace.server.entity.spawn.StructureSpawnOverrides.install(l.rm());
         loot = l.loot();
+        functions = l.functions();
         advancements = l.advancements();
         if (old != null) old.close();
     }
@@ -207,6 +213,19 @@ public final class DataPackManager implements AutoCloseable {
     }
 
     public void onReload(Consumer<DataPackManager> l) { reloadListeners.add(l); }
+
+    /**
+     * 함수 로더(명령 디스패처가 필요해 서버가 붙일 때 준다). 지금 리소스로 바로 한 번 읽고, 이후 리로드는 loadFrom 이 레시피 뒤·발전 과제 앞에서 읽는다.
+     * 시작 때의 첫 load() 는 로더가 없어 빈 라이브러리다.
+     */
+    public synchronized void functionLoader(java.util.function.Function<ResourceManager, org.domi.furnace.server.function.FunctionLibrary> loader) {
+        this.functionLoader = loader;
+        ResourceManager rm = resources;
+        if (rm != null) functions = loader.apply(rm);
+    }
+
+    /** 데이터 팩 함수·함수 태그(바닐라 ServerFunctionLibrary). */
+    public org.domi.furnace.server.function.FunctionLibrary functions() { return functions; }
 
     public PackRepository repository() { return repository; }
 

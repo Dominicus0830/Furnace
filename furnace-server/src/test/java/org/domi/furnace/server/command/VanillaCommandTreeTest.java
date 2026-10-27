@@ -92,18 +92,19 @@ class VanillaCommandTreeTest {
 
     /**
      * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다),
-     * /execute if·unless·store(E2~E4 단계).
+     * /execute if·unless data·store block/entity/storage(E4 단계), /function 의 매크로 인자(arguments·with, S7).
      */
     private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of(
             "/execute store result", List.of("block", "entity", "storage"),
             "/execute store success", List.of("block", "entity", "storage"),
-            "/execute if", List.of("data", "function"),
-            "/execute unless", List.of("data", "function"),
+            "/execute if", List.of("data"),
+            "/execute unless", List.of("data"),
+            "/function name", List.of("arguments", "with"),
             "/locate", List.of("biome", "poi"),
             "/tick", List.of("sprint"));
 
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
-    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute", "place", "trigger", "teammsg", "tm");
+    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute", "function", "return", "place", "trigger", "teammsg", "tm");
 
     private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx, int root) {
         Node n = nodes.get(idx);
@@ -124,7 +125,7 @@ class VanillaCommandTreeTest {
             for (JsonElement e : vanilla.getAsJsonArray("redirect")) expectedPath.add(e.getAsString());
             assertEquals(expectedPath, pathOf(nodes, root, n.redirect()), path + " 리다이렉트 대상");
         } else if (toRoot) {
-            assertEquals("/execute run", path, "루트로 가는 리다이렉트는 execute run 만 허용");
+            assertTrue(path.equals("/execute run") || path.equals("/return run"), "루트로 가는 리다이렉트는 execute run·return run 만 허용: " + path);
         }
         JsonObject vc = vanilla.has("children") ? vanilla.getAsJsonObject("children") : new JsonObject();
         TreeSet<String> ours = new TreeSet<>();

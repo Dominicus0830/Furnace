@@ -38,6 +38,8 @@ public final class CommandQueue {
     private long currentTicks;
     private boolean slowWarned;
     private boolean pumping;
+    /** 지금 drive(완료 처리 body + run) 중인 컨텍스트 — 재개 body 안에서 들어온 명령도 그 컨텍스트에 합친다(S0 검토 S-3). */
+    private ExecutionContext driving;
     private volatile boolean closed;
 
     public CommandQueue(TaskScheduler global, ThreadOwner owner, IntSupplier chainLimit, IntSupplier forkLimit, Duration deferredTimeout) {
@@ -61,8 +63,8 @@ public final class CommandQueue {
     public CompletableFuture<Void> enqueue(CommandSource source, String input, Consumer<ExecutionContext> init) {
         checkThread();
         if (closed) return CompletableFuture.completedFuture(null);
-        if (current != null && current.isRunning()) {
-            init.accept(current);   // 같은 컨텍스트 안의 재진입: 바닐라처럼 합친다
+        if (current != null && (current.isRunning() || driving == current)) {
+            init.accept(current);   // 같은 컨텍스트 안의 재진입(재개 body 포함): 바닐라처럼 합친다
             return current.onFinished();
         }
         Pending p = new Pending(source, input, init, new CompletableFuture<>());
@@ -94,6 +96,8 @@ public final class CommandQueue {
     /** 완료 처리(body) 뒤 큐를 이어 간다. 항목 실행 중 예외는 바닐라 performCommand 의 catch 처럼 command.failed 를 보내고 컨텍스트를 끝낸다. */
     private void drive(ExecutionContext ctx, Pending p, Runnable body) {
         boolean handled = false;
+        ExecutionContext prevDriving = driving;
+        driving = ctx;
         try {
             if (body != null) body.run();
             ctx.run();
@@ -103,6 +107,7 @@ public final class CommandQueue {
             reportException(p, e);
             ctx.abort();
         } finally {
+            driving = prevDriving;
             if (!handled) ctx.abort();   // Error: 컨텍스트를 끝내고 그대로 던진다(큐가 막히지 않게)
             if (ctx.isFinished() && current == ctx) {
                 current = null;

@@ -32,6 +32,19 @@ public final class SharedSuggestions {
         return builder.buildFuture();
     }
 
+    /** 바닐라 suggestResource(ids, builder, prefix) — 접두(예: 함수 태그의 "#")를 붙인 채로 맞춰 보고 제안한다. */
+    public static CompletableFuture<Suggestions> suggestResource(Iterable<org.domi.furnace.server.data.ResourceId> ids, SuggestionsBuilder builder,
+                                                                 String prefix) {
+        String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        boolean full = remaining.indexOf(':') > -1;
+        for (var id : ids) {
+            boolean match = full ? matchesSubStr(remaining, prefix + id)
+                    : matchesSubStr(remaining, prefix + id.namespace()) || id.namespace().equals("minecraft") && matchesSubStr(remaining, prefix + id.path());
+            if (match) builder.suggest(prefix + id);
+        }
+        return builder.buildFuture();
+    }
+
     public static CompletableFuture<Suggestions> suggest(String[] values, SuggestionsBuilder builder) {
         return suggest(java.util.Arrays.asList(values), builder);
     }

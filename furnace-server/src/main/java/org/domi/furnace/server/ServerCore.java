@@ -61,11 +61,17 @@ public final class ServerCore {
         this.customBossEvents.load(levelData.customBossEventsData());
         this.scoreboard = org.domi.furnace.server.scores.ServerScoreboard.open(this::players, world.worldDir());
         this.commands = new Commands(this);
+        this.functions = new org.domi.furnace.server.function.FunctionManager(this,
+                (org.domi.furnace.api.concurrent.ThreadOwner) scheduler.global(), org.domi.furnace.server.function.FunctionLibrary.EMPTY);
         world.levelServices(levelServices);
         this.pluginHost = new org.domi.furnace.server.plugin.PluginHost(this, java.nio.file.Path.of("plugins"));
     }
 
     private final org.domi.furnace.server.plugin.PluginHost pluginHost;
+    private final org.domi.furnace.server.function.FunctionManager functions;
+
+    /** 데이터 팩 함수(바닐라 ServerFunctionManager). */
+    public org.domi.furnace.server.function.FunctionManager functions() { return functions; }
     private final org.domi.furnace.server.scores.ServerScoreboard scoreboard;
 
     /** 서버 점수판(모든 차원이 함께 쓴다). */
@@ -83,7 +89,12 @@ public final class ServerCore {
     /** 데이터 팩을 붙인다 — /reload 가 끝나면 접속자에게 새 태그를 보낸다(바닐라 PlayerList.reloadResources). */
     public void dataPacks(org.domi.furnace.server.data.DataPackManager m) {
         this.dataPacks = m;
+        // 함수는 명령 디스패처가 있어야 파싱된다 — 붙일 때 로더를 넘기고(지금 리소스로 한 번 읽음) 이후 리로드는 loadFrom 이 레시피 뒤에 읽는다
+        var compile = org.domi.furnace.server.command.CommandSource.forProfile(this, "", functionCompilationLevel());
+        m.functionLoader(rm -> org.domi.furnace.server.function.FunctionLibrary.load(rm, commands.getDispatcher(), compile));
+        installFunctions(m.functions());
         m.onReload(dp -> {
+            installFunctions(dp.functions());   // 리로드 스레드(background)에서 오므로 전역으로 넘긴다(설계 §4.4 I4)
             // 바닐라 reloadResources: 플레이어 발전 과제를 저장한 뒤 새 매니저로 다시 읽는다(보내는 것은 다음 틱 flushDirty)
             var advancements = dp.advancements();
             for (Player p : players()) {
@@ -104,6 +115,16 @@ public final class ServerCore {
                 p.send(p.recipeBook().initPacket());
             }
         });
+    }
+
+    /** 새 함수 라이브러리를 전역 스레드에서 끼운다(tick 스냅샷·postReload 는 전역 틱이 읽는다). */
+    private void installFunctions(org.domi.furnace.server.function.FunctionLibrary lib) {
+        if (lib == null) return;
+        try {
+            scheduler.global().execute(() -> functions.replaceLibrary(lib));
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            // 종료 중
+        }
     }
 
     /** 전리품 평가가 보는 월드(난수 시퀀스는 월드 시드로 — 바닐라 RandomSequences). */
@@ -409,6 +430,7 @@ public final class ServerCore {
 
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
+        functions.tick();   // 바닐라 tickChildren: 함수(#tick, 리로드 뒤 #load)가 레벨 틱보다 먼저
         border.tick();
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };
         clock.tickWeather(gameRules, all, packet -> { for (Player p : players()) if (world.dimension().equals(p.dimension())) p.send(packet); });

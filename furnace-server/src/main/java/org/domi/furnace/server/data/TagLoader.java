@@ -56,6 +56,25 @@ public final class TagLoader {
         return out;
     }
 
+    /**
+     * 숫자 id 가 없는 레지스트리(함수 등)용: 이름 → 원소 표로 태그를 푼다. 없는 원소를 필수로 참조하면 그 태그는 빠진다(바닐라와 같다).
+     * 결과의 원소 순서는 첫 등장 순·중복 제거.
+     */
+    public static <T> Map<ResourceId, List<T>> loadNamed(ResourceManager rm, String registry, Map<ResourceId, T> elements) {
+        List<T> byIndex = new ArrayList<>(elements.values());
+        Map<ResourceId, Integer> index = new HashMap<>();
+        int i = 0;
+        for (ResourceId id : elements.keySet()) index.put(id, i++);
+        Map<ResourceId, int[]> built = build(read(rm, tagsDir(registry)), index::get);
+        Map<ResourceId, List<T>> out = new LinkedHashMap<>();
+        for (var e : new TreeMap<>(built).entrySet()) {
+            List<T> list = new ArrayList<>(e.getValue().length);
+            for (int x : e.getValue()) list.add(byIndex.get(x));
+            out.put(e.getKey(), List.copyOf(list));
+        }
+        return out;
+    }
+
     static Map<ResourceId, List<Entry>> read(ResourceManager rm, String dir) {
         Map<ResourceId, List<Entry>> out = new HashMap<>();
         String prefix = dir + "/";

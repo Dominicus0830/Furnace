@@ -148,7 +148,7 @@ public final class Commands {
                 ctx -> ExecutionContext.queueInitialCommandExecution(ctx, command, chain, source, ResultCallback.EMPTY));
     }
 
-    private static void validateParseResults(ParseResults<CommandSource> parse) throws CommandSyntaxException {
+    public static void validateParseResults(ParseResults<CommandSource> parse) throws CommandSyntaxException {
         if (!parse.getReader().canRead()) return;
         if (parse.getExceptions().size() == 1) throw parse.getExceptions().values().iterator().next();
         if (parse.getContext().getRange().isEmpty()) {
