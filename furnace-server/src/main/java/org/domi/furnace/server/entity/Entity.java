@@ -137,6 +137,9 @@ public abstract non-sealed class Entity implements Rider {
 
     public UUID uuid() { return uuid; }
 
+    /** setUUID(/data 가 load 뒤 원래 UUID 를 되돌릴 때). */
+    public void setUuid(UUID id) { this.uuid = id; }
+
     public ChunkLevel level() { return level; }
 
     public void setLevel(ChunkLevel level) { this.level = level; }

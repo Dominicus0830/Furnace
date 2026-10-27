@@ -190,7 +190,7 @@ public final class PlayerData {
         return -1;
     }
 
-    static int vanillaToWindowSlot(int slot) {
+    public static int vanillaToWindowSlot(int slot) {
         if (slot >= 0 && slot <= 8) return slot + 36;
         if (slot >= 9 && slot <= 35) return slot;
         if (slot >= 100 && slot <= 103) return 5 + (103 - slot);
@@ -230,6 +230,31 @@ public final class PlayerData {
             inventory.add(entry);
         }
         return inventory;
+    }
+
+    /**
+     * 접속 중인 플레이어의 저장 꼴 NBT(/data get entity 용, 바닐라 saveWithoutId 근사): 저장 때 쓰는 필드 + SelectedItem.
+     * 차이: 저장 경로와 같은 조각만 담는다(Motion·Fire 같은 엔티티 공통 필드 일부는 없다).
+     */
+    public static NbtCompound snapshotNbt(Player p) {
+        NbtCompound root = p.vitals().saveData();
+        ItemStack[] slots = p.inventory().snapshot();
+        int selected = p.inventory().selected();
+        root.putInt("SelectedItemSlot", selected);
+        if (items != null) root.putList("EnderItems", enderItemsToNbt(p.enderChest().snapshot()));
+        root.putCompound("recipeBook", p.recipeBook().save());
+        root.putString("Dimension", p.dimension());
+        root.putBoolean("seenCredits", p.seenCredits);
+        p.saveTags(root);
+        fill(root, p.uuid(), p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround(), slots);
+        root.tags().remove("DataVersion");
+        root.tags().remove(FURNACE_CRAFTING);
+        if (items != null) {
+            ItemStack held = slots[PlayerInventory.windowSlot(selected)];
+            NbtCompound it = held == null || held.isEmpty() ? null : vanillaItem(held);
+            if (it != null) root.putCompound("SelectedItem", it);   // NbtPredicate.getEntityTagToCompare
+        }
+        return root;
     }
 
     /** 아이템 레지스트리가 있는가(없으면 EnderItems 를 읽거나 쓰지 않고 파일의 것을 그대로 둔다). */

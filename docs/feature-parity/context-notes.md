@@ -170,7 +170,6 @@
 - **반환값 차이(알려진 한계)**: 일반 엔티티를 고를 수 있는 선택자(`@e` 등)를 쓰는 명령(/tp /tag /ride /spreadplayers)은 region 에서 후보를 모으는 동안 끝나지 않으면 즉시 1 을 돌려주고 결과(성공 개수·실패)는 나중에 메시지로만 온다. 그래서 `/execute store`, 명령 블록 조건부 사슬, 함수가 반환값에 의존하면 바닐라와 다르다(0 개 일치·실패여도 1). 플레이어만 고르는 선택자와 `@s` 는 즉시 끝나 바닐라 값을 낸다. 계획: `execute`·함수 시스템이 생길 때 명령 실행을 `CompletableFuture<Integer>` 로 바꾸거나, 대상이 일반 엔티티를 포함할 때 전역 스레드에서 한 틱 동안 region 스냅샷을 동기로 모으는 경로를 두어 값을 낸다.
 - 의도한 차이: `/tp facing` 의 바라보는 쪽 앵커는 늘 FEET(바닐라는 `source.getAnchor()`, `execute anchored` 가 생기면 연결). `/tp` 도착 엔티티·`/spreadplayers` 대상의 위치·회전은 명령 스레드에서 읽는다(소유 스레드가 아님; 읽기뿐). `/tick freeze` 는 플레이어가 탄 탈것도 멈춘다(바닐라 `isEntityFrozen` 은 플레이어와 플레이어가 탄 것을 정지에서 뺀다). `/tick step` 도중 새로 생긴 region 은 그 step 을 받지 않고 정지 상태로 남고, 나뉜 조각은 부모의 남은 걸음을 물려받는다.
 - 일반 엔티티를 바꾸는 명령은 도착한 region 이 그 엔티티를 실제로 갖는지 확인하고 아니면 현재 위치로 다시 보낸다(`EntityOps.runOnOwner`, 최대 5번).
-<<<<<<< HEAD
 
 ## 2026-10-27 피해 유형·/damage 차이
 - damage_type 47종은 `registries/damage_types-1.21.1.txt`(tools/vanilla-data/extract_damage_types.py)에서, 성질은 damage_type 태그에서 읽는다. 상수 18개는 이름만 남은 호환용이다.
@@ -182,6 +181,4 @@
 - 저장은 `<월드>/data/scoreboard.dat`(writeLevelData 때). 바닐라 맵은 fastutil 해시 순서라 목록·저장 순서가 다를 수 있다(여기는 삽입 순서).
 - 같은 팀에 다시 join 해도 바닐라는 빼고 다시 넣어 참(성공)이다.
 - 아직 없음: 처치 기준(totalKillCount·playerKillCount·teamkill.*·killedByTeam.*)은 처치 기록 경로가 없어 갱신 안 함, 이름표/충돌/투명 아군 규칙 적용, 텍스트 score 내용 풀기, 전리품 score 숫자 공급자, 엔티티 제거 시 점수 삭제(entityRemoved 미연결), /trigger.
-=======
 - (2026-10-27) `/attribute`·`/clone`·`/fillbiome`: 플레이어는 LivingEntity 가 아니라 `Player.attributes()` 가 바닐라 기본 속성 맵을 따로 들고 있다(값은 전투·이동에 아직 안 쓰이고 클라이언트로도 안 감). `/clone`·`/fillbiome` 은 영역 전체가 명령을 받은 region 한 곳에 로드돼 있어야 하고 아니면 `argument.pos.unloaded`(바닐라는 청크를 불러 와 계속함); `/clone from|to <차원>` 은 같은 차원일 때만 동작. `/fillbiome` 재전송(`chunks_biomes` 0x0E)은 청크마다 패킷 하나. `/place`(월드젠 feature 가 살아 있는 레벨이 아니라 `FeatureWorldView` 위에서 돌아 어댑터가 필요)와 `/schedule`(함수 시스템 없음)은 아직 없다.
->>>>>>> 3d06e50b (feat(command): /fillbiome 이식과 chunks_biomes 패킷)

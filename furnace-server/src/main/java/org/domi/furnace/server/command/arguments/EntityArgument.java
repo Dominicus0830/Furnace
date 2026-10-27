@@ -99,6 +99,14 @@ public final class EntityArgument implements ArgumentType<EntitySelector> {
         return 1;
     }
 
+    /** 대상 하나 또는 여럿을 future 로(없으면 "No entity was found" 로 실패한 future). 다른 비동기 단계와 이어 붙일 때. */
+    public static java.util.concurrent.CompletableFuture<List<Rider>> findRiders(CommandContext<CommandSource> ctx, String name, boolean single) throws CommandSyntaxException {
+        return ctx.getArgument(name, EntitySelector.class).findRiders(ctx.getSource()).thenApply(list -> {
+            if (single ? list.size() != 1 : list.isEmpty()) throw new java.util.concurrent.CompletionException(EntitySelector.NO_ENTITIES_FOUND.create());
+            return list;
+        });
+    }
+
     private static int run(List<Rider> list, boolean single, RiderAction action) throws CommandSyntaxException {
         if (single ? list.size() != 1 : list.isEmpty()) throw EntitySelector.NO_ENTITIES_FOUND.create();
         return action.run(list);

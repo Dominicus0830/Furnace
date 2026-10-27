@@ -268,6 +268,7 @@ public final class Snbt {
             case byte[] a -> { b.append("[B;"); for (int k = 0; k < a.length; k++) { if (k > 0) b.append(','); b.append(a[k]).append('B'); } b.append(']'); }
             case int[] a -> { b.append("[I;"); for (int k = 0; k < a.length; k++) { if (k > 0) b.append(','); b.append(a[k]); } b.append(']'); }
             case long[] a -> { b.append("[L;"); for (int k = 0; k < a.length; k++) { if (k > 0) b.append(','); b.append(a[k]).append('L'); } b.append(']'); }
+            case org.domi.furnace.server.net.io.nbt.NbtArray a -> write(a.toArray(), b);
             case NbtList l -> {
                 b.append('[');
                 for (int k = 0; k < l.size(); k++) { if (k > 0) b.append(','); write(l.get(k), b); }
@@ -291,6 +292,9 @@ public final class Snbt {
             default -> throw new IllegalArgumentException("NBT 값이 아님: " + v);
         }
     }
+
+    /** quote 의 공개판(명령 출력용). */
+    public static void quoteString(String s, StringBuilder out) { quote(s, out); }
 
     /** 바닐라 StringTag.quoteAndEscape: 작은따옴표/큰따옴표 중 내용에 덜 걸리는 쪽. */
     static void quote(String s, StringBuilder out) {

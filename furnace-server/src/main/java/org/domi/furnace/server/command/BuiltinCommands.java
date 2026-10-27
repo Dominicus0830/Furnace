@@ -17,6 +17,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.ItemCommands.registerClear(d);
         org.domi.furnace.server.command.builtin.DamageCommand.register(d);
         org.domi.furnace.server.command.builtin.CloneCommand.register(d);
+        org.domi.furnace.server.command.builtin.DataCommands.register(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerDataPack(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerDefaultGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerDifficulty(d);

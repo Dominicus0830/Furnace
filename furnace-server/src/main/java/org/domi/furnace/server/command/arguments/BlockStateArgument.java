@@ -185,14 +185,7 @@ public final class BlockStateArgument implements ArgumentType<BlockStateArgument
 
     /** TagParser.readStruct — SNBT compound 하나. */
     private static Object readNbt(StringReader reader) throws CommandSyntaxException {
-        int[] end = new int[1];
-        try {
-            Object v = org.domi.furnace.server.item.Snbt.parsePrefix(reader.getString(), reader.getCursor(), end);
-            reader.setCursor(end[0]);
-            return v;
-        } catch (RuntimeException e) {
-            throw new SimpleCommandExceptionType(Text.text(String.valueOf(e.getMessage()))).createWithContext(reader);
-        }
+        return new TagParser(reader).readStruct();
     }
 
     @Override

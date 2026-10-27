@@ -281,6 +281,8 @@ public final class World {
         // 모든 region 이 습격 스냅샷을 올린 뒤 raids.dat 하나로 쓴다
         fs.add(CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).handle((v, t) -> {
             raidStore().saveIfDirty();
+            var storage = commandStorage;
+            if (storage != null) storage.saveIfDirty();
             var forced = forcedChunks;
             if (forced != null) forced.saveIfDirty();
             return null;
@@ -452,6 +454,20 @@ public final class World {
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
 
     private volatile org.domi.furnace.server.world.raid.RaidStore raidStore;
+    private volatile CommandStorage commandStorage;
+
+    /** /data storage 저장소(차원 data 폴더 — 명령은 주 월드 것을 쓴다). 디스크 월드가 아니면 메모리에서만. */
+    public CommandStorage commandStorage() {
+        var s = commandStorage;
+        if (s != null) return s;
+        synchronized (this) {
+            if (commandStorage == null) {
+                commandStorage = new CommandStorage(worldSource instanceof AnvilWorldSource && worldDir != null
+                        ? dimensionType.storageDir(worldDir).resolve("data") : null);
+            }
+            return commandStorage;
+        }
+    }
 
     /** 습격 저장소(world/data/raids.dat). 디스크 월드면 처음 쓸 때 읽고, 아니면 메모리에서만. */
     public org.domi.furnace.server.world.raid.RaidStore raidStore() {

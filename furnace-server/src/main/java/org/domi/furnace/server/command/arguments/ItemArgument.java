@@ -149,14 +149,7 @@ public final class ItemArgument implements ArgumentType<ItemArgument.ItemInput> 
 
     /** TagParser.readValue — SNBT 값 하나. */
     public static Object readTag(StringReader reader) throws CommandSyntaxException {
-        int[] end = new int[1];
-        try {
-            Object v = org.domi.furnace.server.item.Snbt.parsePrefix(reader.getString(), reader.getCursor(), end);
-            reader.setCursor(end[0]);
-            return v;
-        } catch (RuntimeException e) {
-            throw new SimpleCommandExceptionType(Text.text(String.valueOf(e.getMessage()))).createWithContext(reader);
-        }
+        return new TagParser(reader).readValue();
     }
 
     /** ItemStack.validateComponents: 내구도가 있으면서 겹칠 수 없다. */

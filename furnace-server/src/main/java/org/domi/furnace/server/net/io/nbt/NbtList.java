@@ -6,7 +6,7 @@ import java.util.List;
 
 public final class NbtList {
 
-    private final byte elementType;
+    private byte elementType;
     private final List<Object> items = new ArrayList<>();
 
     public NbtList(byte elementType) {
@@ -18,6 +18,45 @@ public final class NbtList {
     public int size() { return items.size(); }
     public byte elementType() { return elementType; }
     public List<Object> items() { return items; }
+
+    // ---- 바닐라 ListTag 의 종류 규칙(빈 리스트는 첫 원소로 종류가 정해지고, 비면 TAG_END 로 돌아간다)
+
+    /** ListTag.updateType: 이 종류의 원소를 받을 수 있는가(빈 리스트면 종류를 정한다). */
+    private boolean updateType(byte type) {
+        if (type == NbtIo.TAG_END) return false;
+        if (elementType == NbtIo.TAG_END || items.isEmpty()) {
+            elementType = type;
+            return true;
+        }
+        return elementType == type;
+    }
+
+    /** ListTag.addTag(i, tag): 종류가 맞으면 끼워 넣고 true. */
+    public boolean addTag(int i, Object v, byte type) {
+        if (!updateType(type)) return false;
+        items.add(i, v);
+        return true;
+    }
+
+    /** ListTag.setTag(i, tag): 종류가 맞으면 바꾸고 true. */
+    public boolean setTag(int i, Object v, byte type) {
+        if (!updateType(type)) return false;
+        items.set(i, v);
+        return true;
+    }
+
+    /** ListTag.remove(i): 비면 종류를 TAG_END 로. */
+    public Object remove(int i) {
+        Object o = items.remove(i);
+        if (items.isEmpty()) elementType = NbtIo.TAG_END;
+        return o;
+    }
+
+    /** ListTag.clear. */
+    public void clear() {
+        items.clear();
+        elementType = NbtIo.TAG_END;
+    }
 
     static Object copyValue(Object v) {
         if (v instanceof NbtCompound c) return c.copy();

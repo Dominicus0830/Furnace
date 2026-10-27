@@ -3,12 +3,10 @@ package org.domi.furnace.server.command.arguments;
 
 import java.util.Collection;
 import java.util.List;
-import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.ArgumentType;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
-import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
@@ -24,18 +22,7 @@ public final class CompoundTagArgument implements ArgumentType<NbtCompound> {
 
     @Override
     public NbtCompound parse(StringReader reader) throws CommandSyntaxException {
-        int[] end = new int[1];
-        Object v;
-        try {
-            v = org.domi.furnace.server.item.Snbt.parsePrefix(reader.getString(), reader.getCursor(), end);
-        } catch (RuntimeException e) {
-            throw new SimpleCommandExceptionType(Text.text(String.valueOf(e.getMessage()))).createWithContext(reader);
-        }
-        if (!(v instanceof NbtCompound c)) {
-            throw new SimpleCommandExceptionType(Text.translatable("argument.nbt.expected.compound")).createWithContext(reader);
-        }
-        reader.setCursor(end[0]);
-        return c;
+        return new TagParser(reader).readStruct();
     }
 
     @Override
