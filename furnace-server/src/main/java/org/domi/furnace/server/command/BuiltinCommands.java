@@ -12,6 +12,7 @@ final class BuiltinCommands {
     static void registerAll(CommandDispatcher<CommandSource> d) {
         // 바닐라 Commands 생성자 순서(공통 → 전용 서버 전용). 아직 없는 명령은 기능과 함께 제자리에 끼운다.
         org.domi.furnace.server.command.builtin.AdvancementCommands.register(d);
+        org.domi.furnace.server.command.builtin.BossBarCommands.register(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerDataPack(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerDefaultGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerDifficulty(d);
@@ -28,6 +29,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.LocateCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMsg(d);
         org.domi.furnace.server.command.builtin.ParticleCommand.register(d);
+        org.domi.furnace.server.command.builtin.SoundCommands.registerPlaySound(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerReload(d);
         org.domi.furnace.server.command.builtin.RecipeCommands.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerSay(d);
@@ -35,8 +37,11 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.BlockCommands.registerSetBlock(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSpawnPoint(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSetWorldSpawn(d);
+        org.domi.furnace.server.command.builtin.SoundCommands.registerStopSound(d);
         org.domi.furnace.server.command.builtin.SummonCommand.register(d);
+        org.domi.furnace.server.command.builtin.TextCommands.registerTellRaw(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);
+        org.domi.furnace.server.command.builtin.TextCommands.registerTitle(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);
         org.domi.furnace.server.command.builtin.WorldBorderCommand.register(d);
         // 전용 서버 전용
@@ -52,6 +57,7 @@ final class BuiltinCommands {
         ServerCommands.registerSaveOn(d);
         ServerCommands.registerSetIdleTimeout(d);
         ServerCommands.registerStop(d);
+        org.domi.furnace.server.command.builtin.TransferCommand.register(d);
         PlayerListCommands.registerWhitelist(d);
     }
 }

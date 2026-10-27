@@ -28,12 +28,12 @@ public final class MessageArgument implements ArgumentType<MessageArgument.Messa
             Text out = Text.text(text.substring(0, parts.get(0).start()));
             int i = parts.get(0).start();
             for (Part p : parts) {
-                if (p.start() > i) out.append(Text.text(text.substring(i, p.start())));
+                if (p.start() > i) out = out.append(Text.text(text.substring(i, p.start())));
                 List<Player> found = p.selector().findPlayers(source);
-                if (!found.isEmpty()) out.append(EntitySelector.joinNames(found));
+                if (!found.isEmpty()) out = out.append(EntitySelector.joinNames(found));
                 i = p.end();
             }
-            if (i < text.length()) out.append(Text.text(text.substring(i)));
+            if (i < text.length()) out = out.append(Text.text(text.substring(i)));
             return out;
         }
     }

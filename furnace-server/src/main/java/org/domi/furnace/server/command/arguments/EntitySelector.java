@@ -133,8 +133,8 @@ public final class EntitySelector {
     public static Text joinNames(List<Player> players) {
         Text out = Text.empty();
         for (int i = 0; i < players.size(); i++) {
-            if (i > 0) out.append(Text.text(", ").color(org.domi.furnace.api.text.NamedTextColor.GRAY));
-            out.append(Text.text(players.get(i).name()));
+            if (i > 0) out = out.append(Text.text(", ").color(org.domi.furnace.api.text.NamedTextColor.GRAY));
+            out = out.append(Text.text(players.get(i).name()));
         }
         return out;
     }

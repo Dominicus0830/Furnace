@@ -51,6 +51,15 @@ public final class LevelData {
     public WorldBorder.Settings worldBorder = new WorldBorder().createSettings();
     /** 엔드 드래곤 전투(EndDragonFight.Data) — 엔드 월드가 저장 때 갈아 끼운다. null 이면 읽은 값(없으면 기본값). */
     public volatile NbtCompound dragonFight;
+    /** 커스텀 보스바(level.dat CustomBossEvents) — 서버가 저장 때 갈아 끼운다. null 이면 읽은 값(없으면 빈 compound). */
+    public volatile NbtCompound customBossEvents;
+
+    /** 읽은(또는 빈) 커스텀 보스바 compound. */
+    public NbtCompound customBossEventsData() {
+        NbtCompound d = customBossEvents;
+        if (d != null) return d;
+        return raw.contains("CustomBossEvents") ? raw.getCompound("CustomBossEvents").copy() : new NbtCompound();
+    }
 
     /** 읽은(또는 기본) 드래곤 전투 상태. */
     public NbtCompound dragonFightData() {
@@ -204,7 +213,9 @@ public final class LevelData {
         worldBorder.write(d);
         putIfAbsent(d, "WanderingTraderSpawnDelay", 24000);
         putIfAbsent(d, "WanderingTraderSpawnChance", 25);
-        putIfAbsent(d, "CustomBossEvents", new NbtCompound());
+        NbtCompound bars = customBossEvents;
+        if (bars != null) d.putCompound("CustomBossEvents", bars);
+        else putIfAbsent(d, "CustomBossEvents", new NbtCompound());
         putIfAbsent(d, "ScheduledEvents", new NbtList(NbtIo.TAG_END));
         NbtCompound fight = dragonFight;
         if (fight != null) d.putCompound("DragonFight", fight);

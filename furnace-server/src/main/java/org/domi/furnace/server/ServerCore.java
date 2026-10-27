@@ -57,12 +57,18 @@ public final class ServerCore {
         // 바닐라 createLevels: 저장된 보더 설정을 적용한 뒤에 리스너를 붙인다(적용 중 변경은 접속자에게 알리지 않는다).
         this.border.applySettings(levelData.worldBorder);
         this.border.addListener(new BorderBroadcaster());
+        this.customBossEvents = new org.domi.furnace.server.bossbar.CustomBossEvents(this::playerByUuid);
+        this.customBossEvents.load(levelData.customBossEventsData());
         this.commands = new Commands(this);
         world.levelServices(levelServices);
         this.pluginHost = new org.domi.furnace.server.plugin.PluginHost(this, java.nio.file.Path.of("plugins"));
     }
 
     private final org.domi.furnace.server.plugin.PluginHost pluginHost;
+    private final org.domi.furnace.server.bossbar.CustomBossEvents customBossEvents;
+
+    /** /bossbar 로 만든 커스텀 보스바. */
+    public org.domi.furnace.server.bossbar.CustomBossEvents customBossEvents() { return customBossEvents; }
 
     private volatile org.domi.furnace.server.data.DataPackManager dataPacks;
 
@@ -347,6 +353,7 @@ public final class ServerCore {
         levelData.raining = clock.rainingFlag();
         levelData.thundering = clock.thunderingFlag();
         levelData.worldBorder = border.createSettings();
+        levelData.customBossEvents = customBossEvents.save();
         levelData.gameRules.clear();
         levelData.gameRules.putAll(gameRules.toStrings());
     }

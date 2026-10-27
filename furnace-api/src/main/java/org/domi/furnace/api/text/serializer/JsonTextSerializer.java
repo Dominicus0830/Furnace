@@ -41,6 +41,14 @@ public final class JsonTextSerializer {
      */
     public Text deserialize(String json) { return toText(MiniJson.parse(json)); }
 
+    /** 명령 인자용: text 의 start 부터 lenient JSON 값 하나를 Text 로 읽는다(바닐라 ComponentArgument). 읽은 뒤 위치를 함께 돌려준다. */
+    public record Parsed(Text text, int end) {}
+
+    public Parsed deserializePrefix(String text, int start) {
+        MiniJson.Prefix p = MiniJson.parsePrefix(text, start);
+        return new Parsed(toText(p.value()), p.end());
+    }
+
     // ------------------------------------------------------------------ 변환
 
     @SuppressWarnings("unchecked")

@@ -21,6 +21,10 @@ public record BossEvent(UUID bossId, int action, Text name, float progress, int 
 
     public static BossEvent name(UUID id, Text name) { return new BossEvent(id, UPDATE_NAME, name, 0, 0, 0, 0); }
 
+    public static BossEvent style(UUID id, int color, int overlay) { return new BossEvent(id, UPDATE_STYLE, null, 0, color, overlay, 0); }
+
+    public static BossEvent properties(UUID id, int flags) { return new BossEvent(id, UPDATE_PROPERTIES, null, 0, 0, 0, flags); }
+
     @Override public int id() { return ID; }
 
     @Override

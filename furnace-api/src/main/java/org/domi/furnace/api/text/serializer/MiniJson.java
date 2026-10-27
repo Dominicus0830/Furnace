@@ -12,8 +12,20 @@ final class MiniJson {
 
     private final String s;
     private int pos;
+    private boolean lenient;   // 바닐라 명령 인자(Gson lenient JsonReader): 작은따옴표·따옴표 없는 이름/값 허용
 
     private MiniJson(String s) { this.s = s; }
+
+    /** 앞부분의 값 하나를 lenient 로 읽는다(명령 인자용) — 값과 읽은 뒤 위치. 뒤 글자는 검사하지 않는다. */
+    record Prefix(Object value, int end) {}
+
+    static Prefix parsePrefix(String text, int start) {
+        MiniJson p = new MiniJson(text);
+        p.pos = start;
+        p.lenient = true;
+        Object v = p.value(0);
+        return new Prefix(v, p.pos);
+    }
 
     /** 값 하나를 읽는다(뒤에 공백 외의 글자가 남으면 오류). null 은 JSON null. */
     static Object parse(String text) {
@@ -45,10 +57,14 @@ final class MiniJson {
             case '{': return object(depth);
             case '[': return array(depth);
             case '"': return string();
-            case 't': literal("true"); return Boolean.TRUE;
-            case 'f': literal("false"); return Boolean.FALSE;
-            case 'n': literal("null"); return null;
+            case '\'':
+                if (lenient) return string();
+                throw error("예상치 못한 글자 '" + c + "'");
+            case 't': if (lenient) return unquoted(); literal("true"); return Boolean.TRUE;
+            case 'f': if (lenient) return unquoted(); literal("false"); return Boolean.FALSE;
+            case 'n': if (lenient) return unquoted(); literal("null"); return null;
             default:
+                if (lenient) return unquoted();
                 if (c == '-' || c >= '0' && c <= '9') return number();
                 throw error("예상치 못한 글자 '" + c + "'");
         }
@@ -69,8 +85,12 @@ final class MiniJson {
         }
         while (true) {
             ws();
-            if (pos >= s.length() || s.charAt(pos) != '"') throw error("키(문자열)가 필요하다");
-            String k = string();
+            if (pos >= s.length()) throw error("키(문자열)가 필요하다");
+            char kc = s.charAt(pos);
+            String k;
+            if (kc == '"' || lenient && kc == '\'') k = string();
+            else if (lenient) k = String.valueOf(unquoted());
+            else throw error("키(문자열)가 필요하다");
             ws();
             if (pos >= s.length() || s.charAt(pos) != ':') throw error("':' 가 필요하다");
             pos++;
@@ -102,13 +122,14 @@ final class MiniJson {
     }
 
     private String string() {
+        char quote = s.charAt(pos);
         pos++; // 여는 따옴표
         StringBuilder sb = null;
         int seg = pos;
         while (true) {
             if (pos >= s.length()) throw error("문자열이 닫히지 않았다");
             char c = s.charAt(pos);
-            if (c == '"') {
+            if (c == quote) {
                 String r = sb == null ? s.substring(seg, pos) : sb.append(s, seg, pos).toString();
                 pos++;
                 return r;
@@ -120,7 +141,7 @@ final class MiniJson {
                 if (pos >= s.length()) throw error("이스케이프가 끝났다");
                 char e = s.charAt(pos++);
                 switch (e) {
-                    case '"', '\\', '/' -> sb.append(e);
+                    case '"', '\'', '\\', '/' -> sb.append(e);
                     case 'b' -> sb.append('\b');
                     case 'f' -> sb.append('\f');
                     case 'n' -> sb.append('\n');
@@ -175,5 +196,33 @@ final class MiniJson {
                 throw error("숫자가 아니다: " + t);
             }
         }
+    }
+
+    /** Gson lenient 의 따옴표 없는 값: 구분 글자 앞까지. true/false/null/숫자면 그 값으로 읽는다. */
+    private Object unquoted() {
+        int start = pos;
+        while (pos < s.length() && "/\\;#={}[]:, \t\f\r\n".indexOf(s.charAt(pos)) < 0) pos++;
+        if (pos == start) throw error("값이 필요하다");
+        String t = s.substring(start, pos);
+        switch (t) {
+            case "true": return Boolean.TRUE;
+            case "false": return Boolean.FALSE;
+            case "null": return null;
+            default: break;
+        }
+        char c = t.charAt(0);
+        if (c == '-' || c >= '0' && c <= '9') {
+            try {
+                long l = Long.parseLong(t);
+                return l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE ? (Number) (int) l : (Number) l;
+            } catch (NumberFormatException e) {
+                try {
+                    return Double.parseDouble(t);
+                } catch (NumberFormatException e2) {
+                    return t;
+                }
+            }
+        }
+        return t;
     }
 }

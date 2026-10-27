@@ -991,6 +991,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
         if (login.core != null) announceJoin(login.core, p);
+        if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
 
     /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.
@@ -2733,6 +2734,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerQuitEvent.class)) {
                     msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg)).quitMessage();
                 }
+                core.customBossEvents().onPlayerDisconnect(p);
                 world.playerOffline(p.entityId());   // 방송 대상에서 먼저 뺀다(바닐라: 퇴장자는 자기 퇴장 메시지를 받지 않는다)
                 p.markDisconnected();
                 if (msg != null) core.broadcastSystemMessage(msg, false);
