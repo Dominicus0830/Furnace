@@ -235,12 +235,12 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
 
     /**
      * 바닐라 Villager.die: 죽인 엔티티가 있으면 주변 주민(NEAREST_LIVING_ENTITIES)에게 VILLAGER_KILLED 를 알리고 POI 를 돌려준다.
-     * 차이: Damage 에 원인 엔티티가 없어, 이번 틱에 때린 lastHurtByMob 을 죽인 엔티티로 본다.
+     * 죽인 엔티티 = 죽인 피해의 원인 엔티티(damageSourceEntity). 차이: 살아 있지 않은 원인(주인 없는 투사체 등)은 보지 않는다.
      */
     @Override
     public void die(Damage source) {
         if (!isRemoved() && !dead) {
-            Targetable killer = lastHurtByMob != null && lastHurtByMobTimestamp == tickCount ? lastHurtByMob : null;
+            Targetable killer = damageSourceEntity();
             if (killer != null) tellWitnessesThatIWasMurdered(killer);
             releaseAllPois();
         }

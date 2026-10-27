@@ -150,6 +150,19 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** 지금 처리 중인 피해의 직접 원인 엔티티(투사체 등, 없으면 null). */
     protected Entity directCause() { return pendingDirect; }
 
+    /** 지금 처리 중인 피해의 명시 위치(바닐라 DamageSource(type, Vec3), 없으면 null). */
+    private double[] pendingPos;
+
+    /** 원인·직접 엔티티·위치를 가진 피해(/damage). 원인이 살아 있는 것이 아니면 때린 쪽 없이 직접 엔티티만 본다. */
+    public boolean hurtBySource(org.domi.furnace.server.entity.damage.DamageSource src, float amount) {
+        pendingPos = src.position();
+        try {
+            return hurtByVia(Damage.of(src.type()), amount, src.attacker(), src.directEntity());
+        } finally {
+            pendingPos = null;
+        }
+    }
+
     public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) {
         pendingDirect = direct;
         try {
@@ -168,7 +181,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (amount < 0.0F) amount = 0.0F;
         boolean blocked = false;
         Entity srcEntity = pendingDirect != null ? pendingDirect : attacker instanceof Entity ae ? ae : null;
-        if (amount > 0.0F && Shields.isDamageSourceBlocked(isBlocking(), yRot(), x(), z(), shieldSource(source.type(), srcEntity, attacker))) {
+        if (amount > 0.0F && Shields.isDamageSourceBlocked(isBlocking(), yRot(), x(), z(), pendingPos != null ? new Shields.Source(source.type(), true, pendingPos[0], pendingPos[2], attacker, false, false, null)
+                : shieldSource(source.type(), srcEntity, attacker))) {
             hurtCurrentlyUsedShield(amount);
             amount = 0.0F;
             // blockUsingShield(attacker) → attacker.blockedByShield(this): 막은 쪽이 0.5 밀린다
@@ -196,7 +210,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             int cause = attacker == null ? -1 : attacker.id();
             int directId = pendingDirect != null ? pendingDirect.id() : cause;
             if (blocked) broadcastEntityEvent((byte) 29);
-            else if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, directId, null));
+            else if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, directId, pendingPos));
             if (!t.noImpact() && !blocked) markHurt();
         }
         if (attacker != null) {   // 맞은 뒤 기록: 마지막으로 때린 몹, 플레이어면 100틱 동안 경험치·전리품 자격
@@ -206,8 +220,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 lastHurtByPlayer = pl;
             }
         }
-        if (fresh && (attacker != null || pendingDirect != null) && !DamageType.byKey(source.type()).noKnockback()) {
-            double dx = (pendingDirect != null ? pendingDirect.x() : attacker.x()) - x(), dz = (pendingDirect != null ? pendingDirect.z() : attacker.z()) - z();
+        if (fresh && (attacker != null || pendingDirect != null || pendingPos != null) && !DamageType.byKey(source.type()).noKnockback()) {
+            // getSourcePosition: 명시 위치 → 직접 엔티티 → (근사) 때린 쪽
+            double dx = (pendingPos != null ? pendingPos[0] : pendingDirect != null ? pendingDirect.x() : attacker.x()) - x();
+            double dz = (pendingPos != null ? pendingPos[2] : pendingDirect != null ? pendingDirect.z() : attacker.z()) - z();
             while (dx * dx + dz * dz < 1.0E-4) {
                 dx = (random.nextDouble() - random.nextDouble()) * 0.01;
                 dz = (random.nextDouble() - random.nextDouble()) * 0.01;
@@ -613,10 +629,14 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     /** LivingEntity.die: 전리품·경험치를 떨군 뒤 죽음 이벤트(3)를 알린다. */
+    /** die 안에서: 죽인 피해의 원인 엔티티(damageSource.getEntity, 살아 있는 것만). hurtBy 가 die 직전에 기록한다. */
+    protected Targetable damageSourceEntity() { return lastDamageAttacker; }
+
     public void die(Damage source) {
         if (isRemoved() || dead) return;
         dead = true;
-        boolean drops = !(lastHurtByMob instanceof Mob killer) || killer.killedEntity(this);   // Entity.killedEntity: false 면 드롭 없음(좀비가 주민을 감염시킴)
+        // damageSource.getEntity().killedEntity: false 면 드롭 없음(좀비가 주민을 감염시킴)
+        boolean drops = !(damageSourceEntity() instanceof Mob killer) || killer.killedEntity(this);
         if (drops) {
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);   // 스컬크 촉매가 여기서 경험치를 가져간다
             dropAllDeathLoot(source);

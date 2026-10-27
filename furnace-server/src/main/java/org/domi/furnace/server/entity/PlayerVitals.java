@@ -5,6 +5,7 @@
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.entity.damage.CombatTracker;
+import org.domi.furnace.server.entity.damage.DamageSource;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
@@ -391,6 +392,29 @@ public final class PlayerVitals {
 
     /** 방패 막기(LivingEntity.hurt 의 isDamageSourceBlocked 분기)까지 보는 피해. shield 는 원인 종류·위치. */
     public boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield) {
+        Rider a = attacker instanceof Rider r ? r : null;
+        return hurt(type, amount, attacker, shield, a, a, null);
+    }
+
+    /**
+     * 원인·직접 엔티티와 위치를 다 가진 피해(바닐라 DamageSource 그대로, /damage 가 쓴다). 방패 막기 위치는 명시 위치,
+     * 없으면 직접 엔티티(플레이어가 직접 때렸으면 그 플레이어).
+     */
+    public boolean hurt(DamageSource source, float amount) {
+        DamageType type = source.type();
+        Targetable attacker = source.attacker();
+        Shields.Source shield;
+        if (source.position() != null) {
+            double[] p = source.position();
+            shield = new Shields.Source(type.key(), true, p[0], p[2], attacker, false, false, null);
+        } else {
+            Targetable shieldAttacker = source.direct() instanceof Player dp ? dp : attacker;
+            shield = player.shieldSource(type.key(), shieldAttacker, source.directEntity());
+        }
+        return hurt(type, amount, attacker, shield, source.causing(), source.direct(), source.position());
+    }
+
+    private boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield, Rider causing, Rider direct, double[] pos) {
         lastHurtFresh = false;
         boolean died;
         boolean newHurt;
@@ -407,7 +431,7 @@ public final class PlayerVitals {
             // LivingEntity.hurt: 자고 있으면 깬다(Player.stopSleeping = stopSleepInBed(true, true))
             if (player.isSleeping()) PlayerSleeping.stopSleepInBed(player, player.currentLevel, true, true);
             if (attacker != null) player.setLastHurtByMob(attacker);
-            if (type.scalesWithDifficulty() && ((attacker != null && !attacker.isPlayer()) || type.scalesAlways())) {   // Player.hurt: 난이도 배율
+            if (type.scalesWithDifficulty(causing != null ? causing instanceof LivingEntity : attacker != null && !attacker.isPlayer())) {   // Player.hurt: 난이도 배율(scaling)
                 Difficulty d = env.difficulty();
                 if (d == Difficulty.PEACEFUL) amount = 0.0f;
                 if (d == Difficulty.EASY) amount = Math.min(amount / 2.0f + 1.0f, amount);
@@ -424,13 +448,13 @@ public final class PlayerVitals {
             }
             if (invulnerableTime > 10) {
                 if (amount <= lastHurt) return false;
-                actuallyHurt(type, amount - lastHurt, attacker);
+                actuallyHurt(type, amount - lastHurt, causing, direct);
                 lastHurt = amount;
                 newHurt = false;
             } else {
                 lastHurt = amount;
                 invulnerableTime = 20;
-                actuallyHurt(type, amount, attacker);
+                actuallyHurt(type, amount, causing, direct);
                 hurtTime = 10;
                 newHurt = true;
             }
@@ -439,8 +463,8 @@ public final class PlayerVitals {
         lastHurtFresh = newHurt;
         if (newHurt) {   // 막았으면 damage_event 대신 엔티티 이벤트 29(방패 소리)
             Packet ev = blocked ? new EntityEvent(player.entityId(), (byte) 29)
-                    : attacker == null ? DamageEvent.environmental(player.entityId(), type.registryId())
-                    : new DamageEvent(player.entityId(), type.registryId(), attacker.id(), attacker.id(), null);
+                    : causing == null && direct == null && pos == null ? DamageEvent.environmental(player.entityId(), type.registryId())
+                    : new DamageEvent(player.entityId(), type.registryId(), DamageSource.idOf(causing), DamageSource.idOf(direct), pos);
             player.send(ev);
             env.broadcastToTrackers(player.entityId(), ev);
         }
@@ -450,7 +474,7 @@ public final class PlayerVitals {
     }
 
     /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */
-    private void actuallyHurt(DamageType type, float amount, Targetable attacker) {
+    private void actuallyHurt(DamageType type, float amount, Rider causing, Rider direct) {
         if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
             float armor = player.armorValue(), toughness = player.armorToughness();
             player.hurtArmor(amount);
@@ -468,7 +492,7 @@ public final class PlayerVitals {
         setAbsorptionLocked(absorption - (amount - afterAbsorb));
         if (afterAbsorb != 0.0f) {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
-            combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, attacker == null ? null : attacker.displayName());
+            combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct));
             setHealthRaw(health - afterAbsorb);
         }
     }
@@ -490,7 +514,8 @@ public final class PlayerVitals {
         Text message;
         boolean spectator;
         synchronized (this) {
-            message = showMessages ? combat.getDeathMessage(name) : null;
+            Targetable credit = player.getLastHurtByMob();   // getKillCredit
+            message = showMessages ? combat.getDeathMessage(name, credit == null ? null : credit.displayName()) : null;
             spectator = gameMode == GameMode.SPECTATOR;
             combat.recheckStatus(tickCount, false);
             lastDeathDimension = "minecraft:overworld";

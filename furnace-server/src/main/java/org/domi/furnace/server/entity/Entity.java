@@ -51,6 +51,11 @@ public abstract non-sealed class Entity implements Rider {
         public static final Damage EXPLOSION = new Damage("explosion", false, true, false);
         public static final Damage OUT_OF_WORLD = new Damage("out_of_world", false, false, true);
         public static final Damage GENERIC_KILL = new Damage("generic_kill", false, false, true);
+
+        /** 피해 유형 하나에서(성질은 damage_type 태그). */
+        public static Damage of(org.domi.furnace.server.entity.damage.DamageType t) {
+            return new Damage(t.path(), t.isFire(), t.isExplosion(), t.bypassesInvulnerability());
+        }
     }
 
     protected final EntityType type;
