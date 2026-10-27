@@ -44,6 +44,15 @@ public interface BlockActor {
     /** Entity.getDirection = Direction.fromYRot(yRot). */
     default int direction() { return Dir.fromYRot(yRot()); }
 
+    /** Player.startSleepInBed(pos) — pos 는 침대 머리 칸. 실패해 보일 메시지(성공·조용한 실패면 null). 플레이어가 아니면 아무것도 안 한다. */
+    default org.domi.furnace.api.text.Text startSleepInBed(BlockLevel level, Pos pos) { return null; }
+
+    /** 리스폰 지점이 그 차원의 그 칸인가(ServerPlayer.getRespawnDimension·getRespawnPosition). */
+    default boolean respawnPointIs(String dimension, Pos pos) { return false; }
+
+    /** ServerPlayer.setRespawnPosition(dim, pos, angle, forced, sendMessage). */
+    default void setRespawnPosition(String dimension, Pos pos, float angle, boolean forced, boolean sendMessage) {}
+
     /** 그 아이템이 재사용 대기 중인가(getCooldowns().isOnCooldown). */
     default boolean isOnCooldown(int itemId) { return false; }
 

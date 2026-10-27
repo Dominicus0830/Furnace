@@ -70,6 +70,9 @@ public final class RegionLevel extends ChunkLevel {
     public World world() { return world; }
 
     @Override
+    public void updateSleepingPlayerList() { world.updateSleepingPlayerList(); }
+
+    @Override
     public void afterDimensionTransition(org.domi.furnace.server.entity.DimensionTransition t) {
         if (t.ticketPos() != null) world.placePortalTicket(t.ticketPos().x(), t.ticketPos().z());
     }

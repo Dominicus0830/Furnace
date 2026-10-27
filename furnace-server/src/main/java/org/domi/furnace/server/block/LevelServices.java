@@ -137,7 +137,13 @@ public interface LevelServices {
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
         public boolean gameRule(String name) { return !DEFAULT_FALSE_RULES.contains(name); }
-        public int gameRuleInt(String name) { return name.equals("randomTickSpeed") ? 3 : 0; }
+        public int gameRuleInt(String name) {
+            return switch (name) {
+                case "randomTickSpeed" -> 3;
+                case "playersSleepingPercentage" -> 100;
+                default -> 0;
+            };
+        }
         public int difficulty() { return 2; }
         public boolean withinBorder(int x, int z) { return true; }
         public boolean isRaining() { return false; }

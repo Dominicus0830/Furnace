@@ -1,4 +1,4 @@
-// 바닐라 BedBlock: 두 칸 침대(발·머리). 쓰면 잠자기·스폰 지점(오버월드), 잠잘 수 없는 차원이면 터진다.
+// 바닐라 BedBlock: 두 칸 침대(발·머리). 쓰면 잠자기·스폰 지점(오버월드), 잠잘 수 없는 차원이면 두 칸을 지우고 터진다(불, 5.0).
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.B;
@@ -36,16 +36,30 @@ public class BedBlock extends HorizontalDirectionalBlock {
             level.removeBlock(pos, false);
             Pos other = pos.relative(Dir.opposite(facing(state)));
             if (B.is(level.getBlockState(other), block)) level.removeBlock(other, false);
-            // TODO(폭발): level.explode(BAD_RESPAWN_POINT, 가운데, 5.0, 불, BLOCK)
+            // level.explode(null, badRespawnPointExplosion(가운데), null, 가운데, 5.0, 불, BLOCK)
+            if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) cl.explodeBadRespawnPoint(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, null, 0.0F);
             return InteractionResult.SUCCESS;
         }
         if (OCCUPIED.is(state)) {
-            // TODO(엔티티): 자고 있는 마을 사람이 있으면 깨운다(kickVillagerOutOfBed) — 없으면 메시지
-            level.sendActionBar(player, org.domi.furnace.api.text.Text.translatable("block.minecraft.bed.occupied"));
+            if (!kickVillagerOutOfBed(level, pos)) {
+                level.sendActionBar(player, org.domi.furnace.api.text.Text.translatable("block.minecraft.bed.occupied"));
+            }
             return InteractionResult.SUCCESS;
         }
-        // TODO(수면): Player.startSleepInBed — 스폰 지점 설정, 밤·천둥·괴물 검사, 문제 메시지
+        // player.startSleepInBed(pos).ifLeft(문제 → 메시지가 있으면 액션바)
+        org.domi.furnace.api.text.Text problem = player.startSleepInBed(level, pos);
+        if (problem != null) level.sendActionBar(player, problem);
         return InteractionResult.SUCCESS;
+    }
+
+    /** kickVillagerOutOfBed: 그 칸에서 자는 마을 사람이 있으면 첫째를 깨운다. */
+    private static boolean kickVillagerOutOfBed(BlockLevel level, Pos pos) {
+        if (!(level instanceof org.domi.furnace.server.block.ChunkLevel cl)) return false;
+        var box = new org.domi.furnace.server.entity.AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1, pos.y() + 1, pos.z() + 1);
+        var list = cl.getEntitiesOfClass(org.domi.furnace.server.entity.Villager.class, box, org.domi.furnace.server.entity.LivingEntity::isSleeping);
+        if (list.isEmpty()) return false;
+        list.get(0).stopSleeping();
+        return true;
     }
 
     /** canSetSpawn: 차원의 bedWorks(오버월드만). */

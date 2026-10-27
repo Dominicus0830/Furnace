@@ -65,29 +65,40 @@ public final class DismountHelper {
 
     /** BedBlock.findStandUpPosition(type, level, pos, facing, yRot). 자리가 없으면 null. */
     public static Vec3 bedStandUpPosition(LivingEntity e, Pos pos, int facing, float yRot) {
+        return bedStandUpPosition(e.level(), e.type().width(), e.type().height(), pos, facing, yRot);
+    }
+
+    /** 플레이어(EntityType.PLAYER 0.6×1.8)가 침대에서 일어설 자리. 없으면 null. */
+    public static Vec3 playerBedStandUpPosition(ChunkLevel level, Pos pos, int facing, float yRot) {
+        return bedStandUpPosition(level, PLAYER_WIDTH, PLAYER_HEIGHT, pos, facing, yRot);
+    }
+
+    /** EntityType.PLAYER 의 몸 크기. */
+    public static final float PLAYER_WIDTH = 0.6F, PLAYER_HEIGHT = 1.8F;
+
+    private static Vec3 bedStandUpPosition(ChunkLevel level, float w, float h, Pos pos, int facing, float yRot) {
         int cw = org.domi.furnace.server.block.Dir.clockWise(facing);
         int side = isFacingAngle(cw, yRot) ? org.domi.furnace.server.block.Dir.opposite(cw) : cw;
-        ChunkLevel level = e.level();
         if (org.domi.furnace.server.block.B.isTag(level.getBlockState(pos.below()), "minecraft:beds")) {
             int[][] around = surround(facing, side);
-            Vec3 v = atOffset(e, pos, around, true);
+            Vec3 v = atOffset(level, w, h, pos, around, true);
             if (v != null) return v;
-            v = atOffset(e, pos.below(), around, true);
+            v = atOffset(level, w, h, pos.below(), around, true);
             if (v != null) return v;
             int[][] above = aboveOffsets(facing);
-            v = atOffset(e, pos, above, true);
+            v = atOffset(level, w, h, pos, above, true);
             if (v != null) return v;
-            v = atOffset(e, pos, around, false);
+            v = atOffset(level, w, h, pos, around, false);
             if (v != null) return v;
-            v = atOffset(e, pos.below(), around, false);
-            return v != null ? v : atOffset(e, pos, above, false);
+            v = atOffset(level, w, h, pos.below(), around, false);
+            return v != null ? v : atOffset(level, w, h, pos, above, false);
         }
         int[][] a = surround(facing, side), b = aboveOffsets(facing);
         int[][] offs = new int[a.length + b.length][];
         System.arraycopy(a, 0, offs, 0, a.length);
         System.arraycopy(b, 0, offs, a.length, b.length);
-        Vec3 v = atOffset(e, pos, offs, true);
-        return v != null ? v : atOffset(e, pos, offs, false);
+        Vec3 v = atOffset(level, w, h, pos, offs, true);
+        return v != null ? v : atOffset(level, w, h, pos, offs, false);
     }
 
     private static int[][] surround(int f, int s) {
@@ -101,9 +112,9 @@ public final class DismountHelper {
         return new int[][] {{0, 0}, {-org.domi.furnace.server.block.Dir.DX[f], -org.domi.furnace.server.block.Dir.DZ[f]}};
     }
 
-    private static Vec3 atOffset(LivingEntity e, Pos pos, int[][] offs, boolean checkDangerous) {
+    private static Vec3 atOffset(ChunkLevel level, float w, float h, Pos pos, int[][] offs, boolean checkDangerous) {
         for (int[] o : offs) {
-            Vec3 v = findSafeDismountLocation(e, new Pos(pos.x() + o[0], pos.y(), pos.z() + o[1]), checkDangerous);
+            Vec3 v = findSafeDismountLocation(level, w, h, new Pos(pos.x() + o[0], pos.y(), pos.z() + o[1]), checkDangerous);
             if (v != null) return v;
         }
         return null;
@@ -118,13 +129,18 @@ public final class DismountHelper {
 
     /** DismountHelper.findSafeDismountLocation(type, level, pos, checkDangerous). TODO(월드 보더): 상자 전체 대신 칸 하나로 검사한다. */
     public static Vec3 findSafeDismountLocation(LivingEntity e, Pos pos, boolean checkDangerous) {
-        ChunkLevel level = e.level();
+        return findSafeDismountLocation(e.level(), e.type().width(), e.type().height(), pos, checkDangerous);
+    }
+
+    /** 몸 크기 w×h(불 면역 아님)로 findSafeDismountLocation. */
+    public static Vec3 findSafeDismountLocation(ChunkLevel level, float w, float hgt, Pos pos, boolean checkDangerous) {
         if (checkDangerous && isBlockDangerous(level.getBlockState(pos))) return null;
         double h = blockFloorHeight(level, pos);
         if (!isBlockFloorValid(h)) return null;
         if (checkDangerous && h <= 0.0 && isBlockDangerous(level.getBlockState(pos.below()))) return null;
         Vec3 v = new Vec3(pos.x() + 0.5, pos.y() + h, pos.z() + 0.5);
-        AABB box = e.type().makeBoundingBox(v.x(), v.y(), v.z());
+        double hw = w / 2.0F;
+        AABB box = new AABB(v.x() - hw, v.y(), v.z() - hw, v.x() + hw, v.y() + hgt, v.z() + hw);
         if (!level.noCollision(box)) return null;
         return level.withinBorder(pos) ? v : null;
     }

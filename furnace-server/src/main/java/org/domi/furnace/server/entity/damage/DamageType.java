@@ -21,7 +21,9 @@ public enum DamageType {
     PLAYER_EXPLOSION("player_explosion", "explosion.player", 0.1f, false, false, false, false, false, false, false),
     MOB_PROJECTILE("mob_projectile", "mob", 0.1f, false, false, false, false, false, false, false),
     WITHER("wither", "wither", 0.0f, false, true, false, false, false, false, false),
-    CAMPFIRE("campfire", "inFire", 0.1f, false, false, false, false, false, false, false);
+    CAMPFIRE("campfire", "inFire", 0.1f, false, false, false, false, false, false, false),
+    /** 침대(네더·엔드)·리스폰 정박기(네더 밖) 폭발 — death_message_type intentional_game_design, 태그 is_explosion·no_knockback. */
+    BAD_RESPAWN_POINT("bad_respawn_point", "badRespawnPoint", 0.1f, false, false, false, false, false, true, false);
 
     private final String key;
     private final String msgId;
@@ -63,9 +65,12 @@ public enum DamageType {
     public boolean alwaysMostSignificantFall() { return this == OUT_OF_WORLD; }
     public boolean isFall() { return isFall; }
     /** damage_type scaling when_caused_by_living_non_player: 난이도에 따라 피해가 바뀐다(몹이 때린 근접·화살 등). */
-    public boolean scalesWithDifficulty() { return this == MOB_ATTACK || this == ARROW || this == MOB_PROJECTILE || this == EXPLOSION || this == PLAYER_EXPLOSION; }
+    public boolean scalesWithDifficulty() { return this == MOB_ATTACK || this == ARROW || this == MOB_PROJECTILE || scalesAlways(); }
     /** 난이도 배율이 때린 쪽과 무관하게 항상 붙는가(explosion 은 always). */
-    public boolean scalesAlways() { return this == EXPLOSION || this == PLAYER_EXPLOSION; }
+    public boolean scalesAlways() { return this == EXPLOSION || this == PLAYER_EXPLOSION || this == BAD_RESPAWN_POINT; }
+
+    /** death_message_type intentional_game_design(bad_respawn_point). */
+    public boolean intentionalGameDesign() { return this == BAD_RESPAWN_POINT; }
     public boolean noImpact() { return noImpact; }
     public boolean noKnockback() { return noKnockback; }
     public boolean isDrowning() { return isDrowning; }

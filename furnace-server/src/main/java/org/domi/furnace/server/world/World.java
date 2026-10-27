@@ -528,6 +528,38 @@ public final class World {
 
     public void levelServices(org.domi.furnace.server.block.LevelServices s) { this.levelServices = s; }
 
+    // ------------------------------------------------------------------ 잠(바닐라 ServerLevel.sleepStatus)
+
+    private final SleepStatus sleepStatus = new SleepStatus();
+
+    public SleepStatus sleepStatus() { return sleepStatus; }
+
+    /** 이 차원 접속자 목록(ServerLevel.players). */
+    public java.util.List<Player> playersHere() {
+        java.util.List<Player> list = new java.util.ArrayList<>();
+        forEachPlayerHere(list::add);
+        return list;
+    }
+
+    /** ServerLevel.canSleepThroughNights: playersSleepingPercentage ≤ 100. */
+    public boolean canSleepThroughNights() { return levelServices.gameRuleInt("playersSleepingPercentage") <= 100; }
+
+    /** ServerLevel.updateSleepingPlayerList: 다시 세어 바뀌었으면 announceSleepStatus. */
+    public void updateSleepingPlayerList() {
+        var players = playersHere();
+        if (!players.isEmpty() && sleepStatus.update(players)) announceSleepStatus(players);
+    }
+
+    /** announceSleepStatus: 밤을 건너뛸 수 있는 규칙이면 이 차원 모두에게 액션바(전용 서버는 늘 알린다). */
+    private void announceSleepStatus(java.util.List<Player> players) {
+        if (!canSleepThroughNights()) return;
+        int pct = levelServices.gameRuleInt("playersSleepingPercentage");
+        org.domi.furnace.api.text.Text msg = sleepStatus.areEnoughSleeping(pct)
+                ? org.domi.furnace.api.text.Text.translatable("sleep.skipping_night")
+                : org.domi.furnace.api.text.Text.translatable("sleep.players_sleeping", sleepStatus.amountSleeping(), sleepStatus.sleepersNeeded(pct));
+        for (Player p : players) p.sendSystemMessage(msg, true);
+    }
+
     public void playerOnline(Player p) { online.put(p); }
 
     public void playerOffline(int eid) {

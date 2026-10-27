@@ -35,6 +35,12 @@ public final class CombatTracker {
         Entry last = entries.get(entries.size() - 1);
         Entry fall = mostSignificantFall();
         if (last.source().fallVariants() && fall != null) return fallMessage(fall, victim);
+        if (last.source().intentionalGameDesign()) {   // [의도된 게임 디자인] 링크(MCPE-28723)
+            Text link = Text.translatable("chat.square_brackets", Text.translatable("death.attack.badRespawnPoint.link"))
+                    .style(st -> st.clickEvent(org.domi.furnace.api.text.ClickEvent.openUrl("https://bugs.mojang.com/browse/MCPE-28723"))
+                            .hoverEvent(org.domi.furnace.api.text.HoverEvent.showText(Text.text("MCPE-28723"))));
+            return Text.translatable("death.attack.badRespawnPoint.message", victim, link);
+        }
         // 바닐라 DamageSource.getLocalizedDeathMessage: 원인 엔티티 없음 → killCredit 이 없으면 "death.attack.<msgId>"
         if (last.attacker() != null) return Text.translatable("death.attack." + last.source().msgId(), victim, last.attacker());   // TODO(손에 든 아이템 이름): .item 변형
         return Text.translatable("death.attack." + last.source().msgId(), victim);

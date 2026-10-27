@@ -41,6 +41,19 @@ public final class Explosion {
     }
 
     private Calculator calculator;
+    /** 피해 종류(기본 explosion, 리스폰 지점 폭발이면 bad_respawn_point). */
+    private DamageType damageType = DamageType.EXPLOSION;
+    /** 이 칸의 폭발 저항을 덮어쓴다(리스폰 정박기 옆 물 — RespawnAnchorBlock.explode 의 계산기). */
+    private Pos resistancePos;
+    private float resistanceOverride;
+
+    /** 리스폰 지점 폭발(DamageSources.badRespawnPointExplosion): 피해 종류, 그리고 저항을 덮어쓸 칸(없으면 null). */
+    public Explosion badRespawnPoint(Pos overridePos, float resistance) {
+        damageType = DamageType.BAD_RESPAWN_POINT;
+        resistancePos = overridePos;
+        resistanceOverride = resistance;
+        return this;
+    }
     private int smallParticle = 22, largeParticle = 21;
     private String soundName = "minecraft:entity.generic.explode";
 
@@ -104,6 +117,7 @@ public final class Explosion {
     private static double lerp(double t, double a, double b) { return a + t * (b - a); }
 
     private float blockResistance(Pos pos, int state, int fluid) {
+        if (resistancePos != null && resistancePos.equals(pos)) return resistanceOverride;
         if (BlockInfo.get().isAir(state) && Fluids.isEmpty(fluid)) return -1.0F;
         if (calculator != null) {
             Float r = calculator.blockResistance(state);
@@ -204,15 +218,17 @@ public final class Explosion {
 
     private void hurtTarget(Object t, float damage) {
         Mob attacker = source instanceof Mob m ? m : (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt && tnt.getOwner() instanceof Mob m2 ? m2 : null);
-        Entity.Damage dmg = Entity.Damage.EXPLOSION;
+        Entity.Damage dmg = damageType == DamageType.BAD_RESPAWN_POINT ? BAD_RESPAWN_POINT_DAMAGE : Entity.Damage.EXPLOSION;
         if (t instanceof LivingEntity le) {
             le.hurtByVia(dmg, damage, attacker, source);
         } else if (t instanceof Player p) {
-            p.vitals().hurt(DamageType.EXPLOSION, damage, attacker, p.shieldSource(DamageType.EXPLOSION.key(), attacker, source));   // 원인 위치 = 폭발 원인 엔티티
+            p.vitals().hurt(damageType, damage, attacker, p.shieldSource(damageType.key(), attacker, source));   // 원인 위치 = 폭발 원인 엔티티
         } else if (t instanceof Entity e) {
             e.hurt(dmg, damage);
         }
     }
+
+    private static final Entity.Damage BAD_RESPAWN_POINT_DAMAGE = new Entity.Damage("bad_respawn_point", false, true, false);
 
     /** Explosion.finalizeExplosion(particles): 소리·패킷, 블록 부수기·불. */
     public void finalizeExplosion(boolean particles) {

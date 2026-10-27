@@ -881,7 +881,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.viewDistance(effVd);
         this.player = p;
         // 서버가 플레이어를 옮긴다(엔더 진주 등): 어느 스레드에서 불러도 IO 스레드에서 한다.
-        p.teleporter(t -> ctx.executor().execute(() -> teleportPlayer(ctx, t[0], t[1], t[2])));
+        p.teleporter(t -> ctx.executor().execute(() -> {
+            if (t.length >= 5) { iyaw = (float) t[3]; ipitch = (float) t[4]; }
+            teleportPlayer(ctx, t[0], t[1], t[2]);
+        }));
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
         p.dimensionChanger((target, t, cooldown) -> ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown)));
         if (saved != null && saved.root() != null) p.seenCredits = saved.root().getBoolean("seenCredits");
@@ -899,6 +902,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
         world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때). 다른 접속자에게는 그쪽 region 틱이 올린다.
+        world.updateSleepingPlayerList();   // ServerLevel EntityCallbacks.onTrackingStart
         send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
         p.listed().put(p.entityId(), p.uuid());
         // 바닐라 sendLevelInfo: 보더 → 시간 → 월드 공유 스폰(나침반) → 비 → 청크 대기 → 틱 상태
@@ -1123,7 +1127,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
+                if (p != null && pendingTeleportId == -1 && p.isSleeping()) {
+                    acceptSleeping(ctx, p, x, y, z, iyaw, ipitch);
+                } else if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
                     acceptRiding(p, iyaw, ipitch, g);
                 } else if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
                     ig = g;
@@ -1136,7 +1142,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
+                if (p != null && pendingTeleportId == -1 && p.isSleeping()) {
+                    acceptSleeping(ctx, p, x, y, z, finiteOr0(yaw), finiteOr0(pitch));
+                } else if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
                     acceptRiding(p, finiteOr0(yaw), finiteOr0(pitch), g);
                 } else if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
                     iyaw = finiteOr0(yaw);
@@ -1150,7 +1158,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
                 Player p = player;
-                if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
+                if (p != null && pendingTeleportId == -1 && p.isSleeping()) {
+                    acceptSleeping(ctx, p, p.x(), p.y(), p.z(), finiteOr0(yaw), finiteOr0(pitch));
+                } else if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
                     acceptRiding(p, finiteOr0(yaw), finiteOr0(pitch), g);
                 } else if (p != null && pendingTeleportId == -1 && correctionTpId == -1) {
                     iyaw = finiteOr0(yaw);
@@ -1213,6 +1223,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     switch (action) {
                         case 0 -> p.sneaking(true);      // PRESS_SHIFT_KEY
                         case 1 -> p.sneaking(false);     // RELEASE_SHIFT_KEY
+                        case 2 -> world.runAt(p.x(), p.z(), region -> {   // STOP_SLEEPING: 침대에서 나가기 버튼
+                            if (p.isSleeping()) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, region.level(), false, true);
+                        });
                         case 3 -> p.sprinting(true);     // START_SPRINTING
                         case 4 -> p.sprinting(false);    // STOP_SPRINTING
                         case 5, 6, 7 -> { int act = action; int data = jumpData; world.runAt(p.x(), p.z(), region -> handleRidingCommand(p, act, data)); }
@@ -2145,64 +2158,66 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         world.runAt(p.x(), p.z(), region -> region.playerDrop(p, stack, dropAround, includeThrower));
     }
 
-    /** client_command 0: 죽어 있으면 리스폰 지점을 정해(강제 스폰 지점은 그 블록을 소유 region 에서 확인) 리스폰한다. */
+    /**
+     * client_command 0: 죽어 있으면 리스폰 위치를 정해(RespawnFinder — 리스폰 차원 region 이 침대·정박기·강제 지점을 본다) 리스폰한다.
+     * 리스폰 차원이 지금 차원과 다르면 지금 차원 region 에서 떼어 낸 뒤 보낸다(바닐라 PlayerList.respawn — 리스폰 차원 레벨에 새로).
+     */
     private void requestRespawn(ChannelHandlerContext ctx) {
         Player p = player;
         if (p != null && p.wonGame && !respawnPending) {   // 크레딧 끝: PlayerList.respawn(player, true, CHANGED_DIMENSION)
             respawnPending = true;
             p.wonGame = false;
-            World over = login.core != null ? login.core.world() : world;
+            World over = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
             World end = world;
-            end.runAt(ix, iz, r -> {
-                var plan = r.respawnTravel(p);
-                end.travelService().travel(plan, (level, t) -> ctx.executor().execute(() -> {
-                    respawnPending = false;
-                    if (t == null || !(level instanceof org.domi.furnace.server.world.RegionLevel rl)) {
-                        SpawnPoint spawn = over.defaultSpawn();
-                        finishWinRespawn(ctx, over, new org.domi.furnace.server.entity.DimensionTransition(null, spawn.playerX(), spawn.playerY(),
-                                spawn.playerZ(), 0, 0, 0, spawn.yaw(), 0f));
-                    } else {
-                        finishWinRespawn(ctx, rl.world(), t);
-                    }
-                }));
-            });
+            org.domi.furnace.server.world.RespawnFinder.travel(end, p, true, (level, t) -> ctx.executor().execute(() -> {
+                respawnPending = false;
+                if (t == null || !(level instanceof org.domi.furnace.server.world.RegionLevel rl)) {
+                    SpawnPoint spawn = over.defaultSpawn();
+                    finishWinRespawn(ctx, over, new org.domi.furnace.server.entity.DimensionTransition(null, spawn.playerX(), spawn.playerY(),
+                            spawn.playerZ(), 0, 0, 0, spawn.yaw(), 0f));
+                } else {
+                    finishWinRespawn(ctx, rl.world(), t);
+                }
+            }));
             return;
         }
         if (p == null || !p.vitals().isDeadOrDying() || respawnPending) return;
-        World over = login.core != null ? login.core.world() : world;
-        if (world != over) {
-            // 다른 차원에서 죽었다: 그 차원 region 에서 떼어 낸 뒤 오버월드로 리스폰(바닐라 PlayerList.respawn — 리스폰 차원 레벨에 새로)
-            respawnPending = true;
-            World from = world;
-            java.util.concurrent.CompletableFuture.allOf(from.forEachRegion(r -> r.removeForDimensionChange(p))
-                    .toArray(new java.util.concurrent.CompletableFuture[0])).whenComplete((v, e) -> ctx.executor().execute(() -> {
-                        respawnPending = false;
-                        respawnFrom = from.dimension();
-                        world = over;
-                        p.dimension(over.dimension());
-                        requestRespawn(ctx);
-                    }));
-            return;
-        }
         respawnPending = true;
-        int[] rp = p.vitals().respawnPos();
-        SpawnPoint spawn = world.defaultSpawn();
-        if (rp == null || !p.vitals().respawnForced()) {
-            // 침대·리스폰 정박기는 3단계 — 강제가 아닌 스폰 지점은 블록이 없으므로 "없음" 처리(바닐라 missingRespawnBlock)
-            finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), rp != null, true);
+        World from = world;
+        org.domi.furnace.server.world.RespawnFinder.find(from, p, false, o -> ctx.executor().execute(() -> respawnResolved(ctx, from, o)));
+    }
+
+    /** 리스폰 위치가 정해졌다(연결 스레드): 다른 차원이면 지금 차원에서 떼어 낸 뒤, 리스폰을 보낸다. */
+    private void respawnResolved(ChannelHandlerContext ctx, World from, org.domi.furnace.server.world.RespawnFinder.Outcome o) {
+        Player p = player;
+        if (p == null || !ctx.channel().isActive() || world != from) {
+            respawnPending = false;
             return;
         }
-        float angle = p.vitals().respawnAngle();
-        world.runAt(rp[0], rp[2], region -> {
-            var attrs = org.domi.furnace.server.world.BlockAttrs.get();
-            int a = region.getBlock(rp[0], rp[1], rp[2]), b = region.getBlock(rp[0], rp[1] + 1, rp[2]);
-            // Block.isPossibleToRespawnInThis: 단단하지 않고 액체가 아님(발·머리 두 칸)
-            boolean ok = !attrs.isSolid(a) && !attrs.isLiquid(a) && !attrs.isSolid(b) && !attrs.isLiquid(b);
-            ctx.channel().eventLoop().execute(() -> {
-                if (ok) finishRespawn(ctx, rp[0] + 0.5, rp[1] + 0.1, rp[2] + 0.5, angle, false, false);
-                else finishRespawn(ctx, spawn.playerX(), spawn.playerY(), spawn.playerZ(), spawn.yaw(), true, true);
-            });
-        });
+        World target;
+        double x, y, z;
+        float yaw;
+        if (o.transition() != null) {
+            target = o.world();
+            x = o.transition().x(); y = o.transition().y(); z = o.transition().z(); yaw = o.transition().yRot();
+        } else {
+            target = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
+            SpawnPoint spawn = target.defaultSpawn();
+            x = spawn.playerX(); y = spawn.playerY(); z = spawn.playerZ(); yaw = spawn.yaw();
+        }
+        boolean worldSpawn = o.transition() == null, missing = o.missing();
+        Long seed = o.depleteSoundSeed();
+        if (target == from) {
+            finishRespawn(ctx, x, y, z, yaw, missing, worldSpawn, seed);
+            return;
+        }
+        java.util.concurrent.CompletableFuture.allOf(from.forEachRegion(r -> r.removeForDimensionChange(p))
+                .toArray(new java.util.concurrent.CompletableFuture[0])).whenComplete((v, e) -> ctx.executor().execute(() -> {
+                    respawnFrom = from.dimension();
+                    world = target;
+                    p.dimension(target.dimension());
+                    finishRespawn(ctx, x, y, z, yaw, missing, worldSpawn, seed);
+                }));
     }
 
     private boolean respawnPending;
@@ -2283,7 +2298,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 바닐라 PlayerList.respawn 이 보내는 순서대로 — 능력, (스폰 블록 없음), Respawn, 위치, 스폰 지점, 난이도, 경험치, 레벨 정보, 권한, 인벤토리. */
-    private void finishRespawn(ChannelHandlerContext ctx, double x, double y, double z, float yaw, boolean missingRespawnBlock, boolean worldSpawn) {
+    private void finishRespawn(ChannelHandlerContext ctx, double x, double y, double z, float yaw, boolean missingRespawnBlock, boolean worldSpawn,
+                               Long depleteSoundSeed) {
         respawnPending = false;
         Player p = player;
         if (p == null || !ctx.channel().isActive() || !p.vitals().isDeadOrDying()) return;
@@ -2291,20 +2307,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         float pitch = 0f;
         if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerRespawnEvent.class)) {
             var ev = core.events().call(new org.domi.furnace.api.event.player.PlayerRespawnEvent(core.plugins().player(p),
-                    new org.domi.furnace.api.world.Location("minecraft:overworld", x, y, z, yaw, 0f), worldSpawn));
+                    new org.domi.furnace.api.world.Location(world.dimension(), x, y, z, yaw, 0f), worldSpawn));
             var l = ev.respawnLocation();
             x = l.x(); y = l.y(); z = l.z(); yaw = l.yaw(); pitch = l.pitch();
         }
         boolean keepInventory = core != null && core.gameRules().getBoolean("keepInventory");
         var vitals = p.vitals();
         vitals.respawn();
+        // PlayerList.respawn: 리스폰 블록이 없었으면 새 플레이어는 리스폰 지점을 이어받지 않는다
+        if (missingRespawnBlock) vitals.setRespawnPosition("minecraft:overworld", null, 0.0F, false);
         p.bumpSpawnGeneration();
         send(ctx, vitals.abilitiesPacket());
         if (missingRespawnBlock) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
         var prev = vitals.previousGameMode();
         long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
-        int dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
-        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimIndex, "minecraft:overworld", hashedSeed,
+        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(world), world.dimension(), hashedSeed,
                 vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0, (byte) 0));
         // 서버가 정한 위치로 텔레포트 — 확인 전까지 클라 이동은 받지 않는다.
         p.clearMoves();
@@ -2313,7 +2330,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new SyncPlayerPosition(x, y, z, yaw, pitch, correctionTpId));
         p.pushTeleport(x, y, z);
         publishInput(p);
-        SpawnPoint spawn = world.defaultSpawn();
+        SpawnPoint spawn = (core != null ? core.world() : world).defaultSpawn();   // 공유 스폰(DerivedLevelData — 오버월드 것)
         send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
         if (core != null) {
             send(ctx, new ChangeDifficulty(core.levelData().difficulty.id(), core.levelData().difficultyLocked));
@@ -2336,6 +2353,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (core != null) core.sendPlayerPermissionLevel(p);
         synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
         send(ctx, new SetHeldSlot(inv.selected()));
+        if (depleteSoundSeed != null) {   // 리스폰 자리 칸이 정박기: 그 칸 좌표에서 deplete 소리(본인에게만)
+            send(ctx, new org.domi.furnace.server.net.protocol.play.SoundPacket(
+                    org.domi.furnace.server.item.ItemContext.id("minecraft:sound_event", "minecraft:block.respawn_anchor.deplete"), null,
+                    org.domi.furnace.server.net.protocol.play.SoundPacket.source("blocks"), Math.floor(x), Math.floor(y), Math.floor(z), 1.0F, 1.0F,
+                    depleteSoundSeed));
+        }
         if (respawnFrom != null) {   // 다른 차원에서 왔다 — 이제 이 차원 region 에 넣는다
             respawnFrom = null;
             var t = new org.domi.furnace.server.entity.DimensionTransition(null, x, y, z, 0, 0, 0, yaw, pitch);
@@ -2354,7 +2377,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var vitals = p.vitals();
         String from = world.dimension();
         p.bumpSpawnGeneration();   // 바닐라: 새 ServerPlayer — 관찰자가 지웠다 다시 스폰한다
-        if (t.missingRespawnBlock()) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
+        if (t.missingRespawnBlock()) {
+            send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
+            vitals.setRespawnPosition("minecraft:overworld", null, 0.0F, false);   // 리스폰 지점을 이어받지 않는다
+        }
         var prev = vitals.previousGameMode();
         long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
         send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
@@ -2394,6 +2420,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 탄 동안의 이동 패킷(바닐라 handleMovePlayer 의 isPassenger 가지): 위치는 버리고 회전만 받는다. 수락 위치는 서버가 정한
      * 지금 위치(탈것이 옮긴 것)로 맞춰 둔다 — 도달 거리 검사와 내린 뒤 이동 검증의 기준점.
      */
+    /**
+     * 자는 동안의 이동 패킷(바닐라 handleMovePlayer 의 isSleeping 가지): 받아들이지 않는다. 서버 위치(침대 위)와 제곱 거리가 1 을 넘으면
+     * 서버 위치로 되돌리는 텔레포트(패킷의 회전). 수락 위치는 서버 위치로 맞춘다.
+     */
+    private void acceptSleeping(ChannelHandlerContext ctx, Player p, double x, double y, double z, float yaw, float pitch) {
+        double sx = p.x(), sy = p.y(), sz = p.z();
+        ix = sx;
+        iy = sy;
+        iz = sz;
+        double dx = x - sx, dy = y - sy, dz = z - sz;
+        if (dx * dx + dy * dy + dz * dz > 1.0) {
+            iyaw = yaw;
+            ipitch = pitch;
+            teleportPlayer(ctx, sx, sy, sz);
+        }
+    }
+
     private void acceptRiding(Player p, float yaw, float pitch, boolean g) {
         ix = p.x();
         iy = p.y();

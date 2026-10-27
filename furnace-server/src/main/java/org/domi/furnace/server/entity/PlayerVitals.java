@@ -404,6 +404,8 @@ public final class PlayerVitals {
             if (attacker != null && attacker.isPlayer() && attacker != player && !env.pvp()) return false;
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
+            // LivingEntity.hurt: 자고 있으면 깬다(Player.stopSleeping = stopSleepInBed(true, true))
+            if (player.isSleeping()) PlayerSleeping.stopSleepInBed(player, player.currentLevel, true, true);
             if (attacker != null) player.setLastHurtByMob(attacker);
             if (type.scalesWithDifficulty() && ((attacker != null && !attacker.isPlayer()) || type.scalesAlways())) {   // Player.hurt: 난이도 배율
                 Difficulty d = env.difficulty();
@@ -843,6 +845,19 @@ public final class PlayerVitals {
         respawnDimension = dimension;
         respawnAngle = angle;
         respawnForced = forced;
+    }
+
+    /**
+     * ServerPlayer.setRespawnPosition(dim, pos, angle, forced, sendMessage): 같은 차원·같은 칸이 아니고 sendMessage 면
+     * "block.minecraft.set_spawn" 시스템 메시지. pos 가 null 이면 지운다(오버월드·0·강제 아님).
+     */
+    public void setRespawnPosition(String dimension, int[] pos, float angle, boolean forced, boolean sendMessage) {
+        boolean message;
+        synchronized (this) {
+            message = pos != null && sendMessage && !(java.util.Arrays.equals(pos, respawnPos) && dimension.equals(respawnDimension));
+            setRespawnPosition(dimension, pos, angle, forced);
+        }
+        if (message && player != null) player.sendSystemMessage(Text.translatable("block.minecraft.set_spawn"), false);
     }
 
     public synchronized int[] respawnPos() { return respawnPos == null ? null : respawnPos.clone(); }

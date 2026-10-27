@@ -171,6 +171,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         double[] p = this.pending;
         if (p == null) return false;
         this.pending = null;
+        if (sleepingPos != null) return false;   // 자는 동안은 클라이언트 위치·회전을 받지 않는다(handleMovePlayer 의 isSleeping 가지)
         if (vehicle != null) applyRotation((float) p[3], (float) p[4], p[5] != 0);
         else applyMove(p[0], p[1], p[2], (float) p[3], (float) p[4], p[5] != 0);
         return true;
@@ -419,14 +420,51 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     @Override public int id() { return entityId; }
 
-    @Override public double eyeY() { return y + (sneaking ? 1.27 : 1.62); }
+    /** 눈 높이: 잠(SLEEPING_DIMENSIONS) 0.2, 웅크림 1.27, 서기 1.62. */
+    @Override public double eyeY() { return y + (sleepingPos != null ? 0.2 : sneaking ? 1.27 : 1.62); }
 
-    @Override public float bbWidth() { return 0.6F; }
+    @Override public float bbWidth() { return sleepingPos != null ? 0.2F : 0.6F; }
 
-    @Override public float bbHeight() { return sneaking ? 1.5F : 1.8F; }
+    @Override public float bbHeight() { return sleepingPos != null ? 0.2F : sneaking ? 1.5F : 1.8F; }
 
     @Override
-    public AABB boundingBox() { return new AABB(x - 0.3, y, z - 0.3, x + 0.3, y + bbHeight(), z + 0.3); }
+    public AABB boundingBox() {
+        double hw = bbWidth() / 2.0;
+        return new AABB(x - hw, y, z - hw, x + hw, y + bbHeight(), z + hw);
+    }
+
+    // ------------------------------------------------------------------ 잠(바닐라 Player.sleepCounter·LivingEntity.DATA_SLEEPING_POS)
+    // 소유 region 스레드가 쓰고, 전역 스레드(밤 건너뛰기)와 연결 스레드(이동 패킷 무시)가 읽는다.
+
+    private volatile org.domi.furnace.server.block.Pos sleepingPos;
+    private volatile int sleepCounter;
+    /** 이 플레이어를 가진 region 의 블록 레벨(소유 region 이 매 틱 넣는다 — 피해로 깰 때 침대를 고친다). */
+    public volatile org.domi.furnace.server.block.ChunkLevel currentLevel;
+
+    public java.util.Optional<org.domi.furnace.server.block.Pos> getSleepingPos() { return java.util.Optional.ofNullable(sleepingPos); }
+
+    public org.domi.furnace.server.block.Pos sleepingPos() { return sleepingPos; }
+
+    public void setSleepingPos(org.domi.furnace.server.block.Pos p) { sleepingPos = p; }
+
+    public boolean isSleeping() { return sleepingPos != null; }
+
+    public int sleepCounter() { return sleepCounter; }
+
+    public void sleepCounter(int v) { sleepCounter = v; }
+
+    /** Player.isSleepingLongEnough: 자는 중이고 100틱 이상. */
+    public boolean isSleepingLongEnough() { return sleepingPos != null && sleepCounter >= 100; }
+
+    /** 서버 쪽 위치만 바꾼다(패킷 없음 — 바닐라 setPos). 소유 region 스레드. */
+    public void setPosRaw(double x, double y, double z) {
+        this.x = x; this.y = y; this.z = z;
+    }
+
+    /** 서버 쪽 회전만 바꾼다(setYRot·setXRot). */
+    public void setRotRaw(float yaw, float pitch) {
+        this.yaw = yaw; this.pitch = pitch;
+    }
 
     @Override
     public org.domi.furnace.server.block.Pos blockPosition() { return new org.domi.furnace.server.block.Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)); }
@@ -570,7 +608,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0)); }
 
     /** Player.updatePlayerPose: 회전 공격이면 SPIN_ATTACK(4), 웅크리면 CROUCHING(5), 아니면 STANDING(0). TODO(겉날개·잠·수영 자세). */
-    public int pose() { return autoSpinAttackTicks > 0 ? 4 : sneaking ? 5 : 0; }
+    public int pose() { return sleepingPos != null ? 2 : autoSpinAttackTicks > 0 ? 4 : sneaking ? 5 : 0; }
+
+    private org.domi.furnace.server.block.Pos sentSleepingPos;
+
+    private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item sleepingPosItem(org.domi.furnace.server.block.Pos p) {
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(14, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_OPTIONAL_BLOCK_POS,
+                p == null ? null : new int[] {p.x(), p.y(), p.z()});
+    }
 
     private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item flagItem(int index, byte v) {
         return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(index, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE, v);
@@ -588,10 +633,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (shared != sentSharedFlags) items.add(flagItem(0, shared));
         if (pose != sentPose) items.add(poseItem(pose));
         if (f != sentLivingFlags) items.add(flagItem(8, f));
+        var sp = sleepingPos;
+        if (!java.util.Objects.equals(sp, sentSleepingPos)) items.add(sleepingPosItem(sp));
         if (items.isEmpty()) return;
         sentSharedFlags = shared;
         sentPose = pose;
         sentLivingFlags = f;
+        sentSleepingPos = sp;
         var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
         send(pkt);
         vitals.broadcastToTrackers(pkt);
@@ -603,6 +651,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (sentSharedFlags != 0) items.add(flagItem(0, sentSharedFlags));
         if (sentPose != 0) items.add(poseItem(sentPose));
         if (sentLivingFlags != 0) items.add(flagItem(8, sentLivingFlags));
+        if (sentSleepingPos != null) items.add(sleepingPosItem(sentSleepingPos));
         return items.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
     }
 
@@ -806,6 +855,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void teleportTo(double x, double y, double z) {
         var t = teleporter;
         if (t != null) t.accept(new double[] {x, y, z});
+    }
+
+    /** connection.teleport(x, y, z, yRot, xRot): 회전까지 정해 보정 텔레포트. */
+    public void teleportTo(double x, double y, double z, float yaw, float pitch) {
+        var t = teleporter;
+        if (t != null) t.accept(new double[] {x, y, z, yaw, pitch});
     }
 
     // ------------------------------------------------------------------ 포털·차원 이동(region 스레드 전용 — 옮기는 동안은 어느 region 에도 없다)

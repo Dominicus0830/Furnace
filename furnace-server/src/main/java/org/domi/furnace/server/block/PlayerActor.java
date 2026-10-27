@@ -55,6 +55,24 @@ public class PlayerActor implements BlockActor {
     @Override public double[] knownMovement() { return player.knownMovement(); }
     @Override public boolean onGround() { return player.onGround(); }
 
+    @Override
+    public org.domi.furnace.api.text.Text startSleepInBed(BlockLevel level, Pos pos) {
+        if (!(level instanceof ChunkLevel cl)) return null;
+        var problem = org.domi.furnace.server.entity.PlayerSleeping.startSleepInBed(player, cl, pos);
+        return problem == null ? null : problem.message();
+    }
+
+    @Override
+    public boolean respawnPointIs(String dimension, Pos pos) {
+        int[] rp = player.vitals().respawnPos();
+        return rp != null && rp[0] == pos.x() && rp[1] == pos.y() && rp[2] == pos.z() && dimension.equals(player.vitals().respawnDimension());
+    }
+
+    @Override
+    public void setRespawnPosition(String dimension, Pos pos, float angle, boolean forced, boolean sendMessage) {
+        player.vitals().setRespawnPosition(dimension, pos == null ? null : new int[] {pos.x(), pos.y(), pos.z()}, angle, forced, sendMessage);
+    }
+
     /** 블록 상호작용 거리 판정(Player.canInteractWithBlock): 블록 상자와 눈 사이 거리 < 사거리 + buffer. 크리에이티브 사거리 5.0. */
     public boolean canInteractWithBlock(Pos pos, double buffer) {
         double r = (isCreative() ? 5.0 : 4.5) + buffer;

@@ -310,8 +310,31 @@ public final class ServerCore {
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
         border.tick();
-        clock.tick(gameRules, packet -> { for (Player p : players()) p.send(packet); },
-                packet -> { for (Player p : players()) if (world.dimension().equals(p.dimension())) p.send(packet); });
+        java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };
+        clock.tickWeather(gameRules, all, packet -> { for (Player p : players()) if (world.dimension().equals(p.dimension())) p.send(packet); });
+        tickSleep();
+        clock.tickTime(gameRules, all);
+    }
+
+    /**
+     * ServerLevel.tick 의 밤 건너뛰기(오버월드 — 다른 차원은 잘 수 없다): 자는 사람이 playersSleepingPercentage 만큼이고 그만큼이
+     * 100틱 넘게 잤으면 아침으로·깨우기·날씨 초기화. 깨우기는 각 플레이어의 region 스레드로 넘긴다(다음 region 틱).
+     */
+    private void tickSleep() {
+        int pct = gameRules.getInt("playersSleepingPercentage");
+        var status = world.sleepStatus();
+        if (!status.areEnoughSleeping(pct)) return;
+        var here = world.playersHere();
+        if (!status.areEnoughDeepSleeping(pct, here)) return;
+        clock.skipNight(gameRules, () -> {
+            status.removeAllSleepers();   // wakeUpAllPlayers
+            for (Player p : here) {
+                if (!p.isSleeping()) continue;
+                world.runAt(p.x(), p.z(), r -> {
+                    if (p.isSleeping()) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, r.level(), false, false);
+                });
+            }
+        });
     }
 
     /** level.dat 저장 전에 런타임 상태를 LevelData 에 반영한다. */

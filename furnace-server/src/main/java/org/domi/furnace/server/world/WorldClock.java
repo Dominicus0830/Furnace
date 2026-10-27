@@ -81,10 +81,44 @@ public final class WorldClock {
      * 비 시작/끝과 그 뒤 세기 두 개는 모든 플레이어에게(바닐라 broadcastAll).
      */
     public synchronized void tick(GameRules rules, Consumer<Packet> broadcast, Consumer<Packet> skyBroadcast) {
+        tickWeather(rules, broadcast, skyBroadcast);
+        tickTime(rules, broadcast);
+    }
+
+    /** ServerLevel.tick 의 날씨 단계(advanceWeatherCycle). 밤 건너뛰기 판정은 이 뒤, 시간 진행 전에 온다. */
+    public synchronized void tickWeather(GameRules rules, Consumer<Packet> broadcast, Consumer<Packet> skyBroadcast) {
         advanceWeatherCycle(rules, broadcast, skyBroadcast);
+    }
+
+    /** ServerLevel.tickTime + MinecraftServer 의 20틱마다 시간 동기화. */
+    public synchronized void tickTime(GameRules rules, Consumer<Packet> broadcast) {
         gameTime++;
         if (rules.getBoolean("doDaylightCycle")) dayTime++;
         if (++tickCount % 20 == 0) broadcast.accept(timePacket(rules));
+    }
+
+    /** 밤을 건너뛴 시각: (dayTime + 24000) 에서 24000 의 나머지를 뺀다(다음 날 0). */
+    public static long nextMorning(long dayTime) {
+        long t = dayTime + 24000L;
+        return t - t % 24000L;
+    }
+
+    /**
+     * ServerLevel.tick 의 밤 건너뛰기(충분히 잤을 때): doDaylightCycle 이면 다음 날 아침으로, doWeatherCycle 이고 비가 오면
+     * resetWeatherCycle(비·천둥 시간 0, 비·천둥 끔). 깨우기(wakeUpAllPlayers)는 부르는 쪽이 한다.
+     */
+    public synchronized void skipNight(GameRules rules, Runnable wakeUpAllPlayers) {
+        if (rules.getBoolean("doDaylightCycle")) dayTime = nextMorning(dayTime);
+        wakeUpAllPlayers.run();
+        if (rules.getBoolean("doWeatherCycle") && isRaining()) resetWeatherCycle();
+    }
+
+    /** ServerLevel.resetWeatherCycle. */
+    public synchronized void resetWeatherCycle() {
+        rainTime = 0;
+        raining = false;
+        thunderTime = 0;
+        thundering = false;
     }
 
     public synchronized SetTime timePacket(GameRules rules) {

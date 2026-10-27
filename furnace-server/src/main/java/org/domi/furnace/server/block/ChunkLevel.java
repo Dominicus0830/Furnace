@@ -915,6 +915,12 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public int gameRuleInt(String name) { return services().gameRuleInt(name); }
 
+    /** ServerLevel.canSleepThroughNights: playersSleepingPercentage ≤ 100. */
+    public boolean canSleepThroughNights() { return gameRuleInt("playersSleepingPercentage") <= 100; }
+
+    /** ServerLevel.updateSleepingPlayerList(차원 전체 — 월드가 없는 레벨은 아무것도 안 한다). */
+    public void updateSleepingPlayerList() {}
+
     @Override
     public int difficulty() { return services().difficulty(); }
 
@@ -1217,6 +1223,17 @@ public abstract class ChunkLevel implements BlockLevel {
     /** Level.explode(source, x, y, z, radius, fire, interaction): 폭발 계산 → 소리·패킷·블록 부수기. 만든 Explosion 을 돌려준다. */
     public Explosion explode(Entity source, double x, double y, double z, float radius, boolean fire, Explosion.BlockInteraction interaction) {
         Explosion e = new Explosion(this, source, x, y, z, radius, fire, interaction);
+        e.explode();
+        e.finalizeExplosion(true);
+        return e;
+    }
+
+    /**
+     * 리스폰 지점 폭발(침대·정박기의 level.explode(null, badRespawnPointExplosion(center), 계산기, center, 5.0, 불, BLOCK)).
+     * overridePos 가 null 이 아니면 그 칸의 폭발 저항을 resistance 로(정박기 옆 물).
+     */
+    public Explosion explodeBadRespawnPoint(double x, double y, double z, Pos overridePos, float resistance) {
+        Explosion e = new Explosion(this, null, x, y, z, 5.0F, true, destroyType("BLOCK")).badRespawnPoint(overridePos, resistance);
         e.explode();
         e.finalizeExplosion(true);
         return e;

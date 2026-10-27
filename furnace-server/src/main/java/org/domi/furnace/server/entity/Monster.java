@@ -13,6 +13,9 @@ public abstract class Monster extends PathfinderMob implements Enemy {
         xpReward = 5;
     }
 
+    /** Monster.isPreventingPlayerRest: 근처에 있으면 그 플레이어가 잘 수 없다(좀비 피글린은 화난 상대에게만). */
+    public boolean isPreventingPlayerRest(Player player) { return true; }
+
     @Override
     protected void createAttributes(AttributeMap map) {   // Monster.createMonsterAttributes
         super.createAttributes(map);

@@ -669,11 +669,14 @@ public final class Region {
         while (it.hasNext()) {
             Player p = it.next();
             if (p.isDisconnected()) {
+                // ServerPlayer.disconnect: 자고 있었으면 깨운다(목록 갱신은 빠진 뒤 — onTrackingEnd)
+                if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, false);
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
                 for (Integer eid : p.tracked().keySet()) world.removeTracker(eid, p);
                 // 저장은 ConnectionHandler.channelInactive가 IO 위치+인벤토리로 수행(여기선 0,0,0 위험).
                 world.playerOffline(p.entityId());   // 다른 관찰자는 grace 후 탭에서 뺀다
+                world.updateSleepingPlayerList();   // ServerLevel EntityCallbacks.onTrackingEnd
                 broadcastRemove(p.entityId());
                 if (level != null) level.playerLeft(p);
                 continue;
@@ -687,6 +690,8 @@ public final class Region {
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
             if (moved) checkInsideCampfires(p);
             p.drainPending();
+            p.currentLevel = level;
+            if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
             // Entity.checkInsideBlocks 의 포털 칸 + baseTick 의 handlePortal(차원을 옮기면 이 region 에서 빠진다)
             if (level != null && checkInsidePortals(p)) { it.remove(); continue; }
@@ -1200,12 +1205,12 @@ public final class Region {
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
         p.vitals().tick(s);
         p.wardenSpawnTracker().tick();   // ServerPlayer.tick
-        if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계 (잠은 아직 없어 time_since_rest 는 늘 센다)
+        if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계(time_since_rest 는 깨어 있을 때만)
             p.awardStat("minecraft:play_time", 1);
             p.awardStat("minecraft:total_world_time", 1);
             if (!p.vitals().isDeadOrDying()) p.awardStat("minecraft:time_since_death", 1);
             if (p.sneaking()) p.awardStat("minecraft:sneak_time", 1);
-            p.awardStat("minecraft:time_since_rest", 1);
+            if (!p.isSleeping()) p.awardStat("minecraft:time_since_rest", 1);
         }
         var adv = p.advancements();
         if (adv != null) adv.tickPlayer();
@@ -1285,8 +1290,8 @@ public final class Region {
             var plan = pp.prepareTravel(level, org.domi.furnace.server.entity.Traveler.of(p));
             if (plan == null || plan.targetDimension().equals(world.dimension()) || !travel.isLevelEnabled(plan.targetDimension())) return false;
             if (world.dimensionType() == DimensionType.END && pp.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock) {
-                plan = respawnTravel(p);   // findRespawnPositionAndUseSpawnBlock(false, DO_NOTHING)
-                if (plan == null) return false;
+                sendAcrossToRespawn(p);   // findRespawnPositionAndUseSpawnBlock(false, DO_NOTHING)
+                return true;
             }
             sendAcross(p, plan);
             return true;
@@ -1297,27 +1302,20 @@ public final class Region {
     }
 
     /**
-     * 리스폰 위치로 가는 계획(ServerPlayer.findRespawnPositionAndUseSpawnBlock): 강제 스폰 지점이 서 있을 수 있는 칸이면 그 자리,
-     * 아니면 월드 스폰(지점이 있었으면 no_respawn_block). 침대·리스폰 정박기는 아직 없다(ConnectionHandler.requestRespawn 과 같은 규칙).
+     * 엔드 귀환 포털: 리스폰 위치(ServerPlayer.findRespawnPositionAndUseSpawnBlock(false) — 침대·충전 소모하는 정박기·강제 지점, 없으면
+     * 오버월드 월드 스폰)로 보낸다. 목적지를 못 정하면 이 월드로 되돌린다. 목적지가 이 차원이면 떠난 자리로 되돌려 텔레포트.
      */
-    public org.domi.furnace.server.entity.PortalTravel respawnTravel(Player p) {
-        int[] rp = p.vitals().respawnPos();
-        // 가정: 오버월드가 아닌 리스폰 차원(네더 정박기)은 블록이 아직 없어 "블록 없음"으로 본다
-        boolean forced = p.vitals().respawnForced() && DimensionType.OVERWORLD.levelKey().equals(p.vitals().respawnDimension());
-        float angle = p.vitals().respawnAngle();
-        SpawnPoint spawn = world.defaultSpawn();
-        int cx = rp != null && forced ? rp[0] : spawn.x(), cz = rp != null && forced ? rp[2] : spawn.z();
-        return new org.domi.furnace.server.entity.PortalTravel(DimensionType.OVERWORLD.levelKey(), cx, cz, 0, 0, target -> {
-            if (rp != null && forced) {
-                var attrs = BlockAttrs.get();
-                int a = target.getBlockState(new org.domi.furnace.server.block.Pos(rp[0], rp[1], rp[2]));
-                int b = target.getBlockState(new org.domi.furnace.server.block.Pos(rp[0], rp[1] + 1, rp[2]));
-                if (!attrs.isSolid(a) && !attrs.isLiquid(a) && !attrs.isSolid(b) && !attrs.isLiquid(b)) {
-                    return new org.domi.furnace.server.entity.DimensionTransition(target, rp[0] + 0.5, rp[1] + 0.1, rp[2] + 0.5, 0, 0, 0, angle, 0f);
-                }
+    void sendAcrossToRespawn(Player p) {
+        final int cooldown = p.portalCooldown;
+        detachForDimensionChange(p);
+        World src = world;
+        RespawnFinder.travel(src, p, false, (target, t) -> {
+            if (target instanceof RegionLevel rl && t != null && rl.world() == src) {
+                src.runAt(p.x(), p.z(), r -> r.adopt(p));
+                p.teleportTo(t.x(), t.y(), t.z(), t.yRot(), t.xRot());
+            } else if (target == null || t == null || !(target instanceof RegionLevel rl) || !p.changeDimension(rl.world(), t, cooldown)) {
+                src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
             }
-            return new org.domi.furnace.server.entity.DimensionTransition(target, spawn.playerX(), spawn.playerY(), spawn.playerZ(), 0, 0, 0,
-                    spawn.yaw(), 0f, false, null, rp != null);
         });
     }
 
@@ -1362,6 +1360,12 @@ public final class Region {
     public void adoptAfterDimensionChange(Player p, org.domi.furnace.server.entity.DimensionTransition t, String fromDimension) {
         p.vitals().resetSentInfo();
         adopt(p);
+        // EntityCallbacks.onTrackingStart/End: 들어온 차원과 떠난 차원의 잠 목록
+        world.updateSleepingPlayerList();
+        for (DimensionType dt : DimensionType.ALL) {
+            World other = world.otherWorld(dt.levelKey());
+            if (other != null && other != world) other.updateSleepingPlayerList();
+        }
         if (level != null) level.afterDimensionTransition(t);
         var adv = p.advancements();
         if (adv != null && fromDimension != null) adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, world.dimension()});

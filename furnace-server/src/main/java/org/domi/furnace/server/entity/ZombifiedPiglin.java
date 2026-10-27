@@ -133,4 +133,8 @@ public class ZombifiedPiglin extends Zombie implements NeutralMob {
         super.readAdditionalSaveData(tag);
         readPersistentAngerSaveData(tag);
     }
+
+    /** ZombifiedPiglin.isPreventingPlayerRest: 그 플레이어에게 화났을 때만. */
+    @Override
+    public boolean isPreventingPlayerRest(Player player) { return isAngryAt(player); }
 }
