@@ -710,6 +710,10 @@ public final class World {
                     // 캐시는 청크가 바뀔 때마다(ChunkColumn.touch) 비워진다 — 새로 생성돼 아직 저장 전(dirty)인 청크도 캐시한다.
                     byte[] cached = col.cachedSerializedBody();
                     if (cached != null) return CompletableFuture.<byte[]>completedFuture(cached);
+                    // 같은 버전이 이미 직렬화 중이면 그 결과를 같이 받는다. 필드 읽기·쓰기·touch 가 모두 주인 region 스레드
+                    // 태스크라, 남아 있으면 지금 modCount 와 같은 버전이고 아직 끝나지 않은 것이다.
+                    CompletableFuture<byte[]> inflight = col.inflightSerializedBody();
+                    if (inflight != null) return inflight;
 
                     // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
                     ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
@@ -718,14 +722,29 @@ public final class World {
                     // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
                     long version = col.modCount();
                     ChunkSnapshot finalSnapshot = snapshot;
-                    return chunkPool.submit(() -> serializeChunkBody(finalSnapshot)).thenCompose(body -> submitAtChunk(cp, r2 -> {
-                        if (col.modCount() == version) col.cachedSerializedBody(body);
+                    CompletableFuture<byte[]> f = new CompletableFuture<>();
+                    col.inflightSerializedBody(f);
+                    // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
+                    // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
+                    chunkPool.submit(() -> serializeChunkBody(finalSnapshot)).handle((body, ex) -> submitAtChunk(cp, r2 -> {
+                        if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
+                        if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
                         return body;
+                    }).whenComplete((body2, ex2) -> {
+                        if (ex != null) f.completeExceptionally(ex);
+                        else if (ex2 != null) f.completeExceptionally(ex2);
+                        else f.complete(body);
                     }));
+                    return f;
                 }).thenCompose(f -> f));
     }
 
+    /** 시험용: 본문 직렬화 실패 주입(null 이면 없음). */
+    volatile Runnable serializeFaultHook;
+
     private byte[] serializeChunkBody(ChunkSnapshot snap) {
+        Runnable hook = serializeFaultHook;
+        if (hook != null) hook.run();
         ByteBuf body = Unpooled.buffer();
         try {
             DimensionType t = dimensionType;
