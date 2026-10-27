@@ -101,6 +101,30 @@ public final class DensityFunctions {
         return new Marker(Marker.Type.CacheAllInCell, wrapped);
     }
 
+    /**
+     * W-09: 노드가 blockY 에 의존하지 않음이 구조상 확실한가(보수적 — 모르면 false).
+     * 자식·셀 래퍼(Marker 구현체) 판정은 child 에 맡긴다. yScale 0 노이즈는 y*0 = ±0 이 비영 오프셋과 더해져 비트가 같다.
+     */
+    public static boolean yInvariantNode(DensityFunction df, java.util.function.Predicate<DensityFunction> child) {
+        return switch (df) {
+            case Constant c -> true;
+            case BlendAlpha a -> true;
+            case BlendOffset o -> true;
+            case ShiftA s -> true;
+            case ShiftB s -> true;
+            case EndIslands e -> true;
+            case Noise n -> n.yScale() == 0.0;
+            case ShiftedNoise s -> s.yScale() == 0.0 && child.test(s.shiftX()) && child.test(s.shiftY()) && child.test(s.shiftZ());
+            case Ap2 a -> child.test(a.argument1()) && child.test(a.argument2());
+            case MulOrAdd m -> child.test(m.input());
+            case Clamp c -> child.test(c.input());
+            case Mapped m -> child.test(m.input());
+            case RangeChoice r -> child.test(r.input()) && child.test(r.whenInRange()) && child.test(r.whenOutOfRange());
+            case BlendDensity b -> child.test(b.input());
+            default -> false;
+        };
+    }
+
     // blend 노드
     public static DensityFunction blendAlpha()  { return BlendAlpha.INSTANCE;  }
     public static DensityFunction blendOffset() { return BlendOffset.INSTANCE; }

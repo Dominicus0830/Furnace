@@ -158,6 +158,22 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     }
 
     private double[][][][] buildClimateCache() {
+        // W-09: 구조상 Y-불변인 차원(오버월드는 depth 외 5개)은 j=0 에서 한 번만 평가하고 위로 복사한다.
+        boolean[] yInv = new boolean[6];
+        for (int d = 0; d < 6; d++) yInv[d] = isYInvariant(wrappedClimate[d]);
+        return buildClimateCache(yInv);
+    }
+
+    /** 테스트용: 게이트 없이 전 칸 평가한 기후 캐시(새 NoiseChunk 상태에 영향 없음 — DF 는 순수, 캐시는 메모이즈뿐). */
+    double[][][][] climateCacheUngatedForTest() { return buildClimateCache(new boolean[6]); }
+
+    double[][][][] climateCacheForTest() { return climateCache; }
+
+    double[][][][] rebuildClimateCacheForTest() { return buildClimateCache(); }
+
+    boolean climateYInvariantForTest(int d) { return isYInvariant(wrappedClimate[d]); }
+
+    private double[][][][] buildClimateCache(boolean[] yInv) {
         int xn = noiseSizeXZ + 1;   // 5
         int yn = cellCountY + 1;    // 49
         int zn = noiseSizeXZ + 1;   // 5
@@ -171,12 +187,20 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     DensityFunction.SinglePointContext ctx =
                         new DensityFunction.SinglePointContext(bx, by, bz);
                     for (int d = 0; d < 6; d++) {
-                        cache[d][i][j][k] = wrappedClimate[d].compute(ctx);
+                        cache[d][i][j][k] = j > 0 && yInv[d] ? cache[d][i][0][k] : wrappedClimate[d].compute(ctx);
                     }
                 }
             }
         }
         return cache;
+    }
+
+    /** 래핑된 DF 가 blockY 에 의존하지 않음이 구조상 확실한가. FlatCache 는 청크 쿼트 범위 안에서 XZ 표만 읽는다. */
+    private boolean isYInvariant(DensityFunction df) {
+        if (df instanceof FlatCache) return true;
+        if (df instanceof Cache2D c) return isYInvariant(c.wrapped());
+        if (df instanceof DensityFunctions.MarkerOrMarked) return false;   // 보간·셀 캐시는 청크 상태 의존
+        return DensityFunctions.yInvariantNode(df, this::isYInvariant);
     }
 
     /**
