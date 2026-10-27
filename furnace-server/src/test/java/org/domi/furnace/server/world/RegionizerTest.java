@@ -40,7 +40,7 @@ class RegionizerTest {
     private void load(int sectionX) throws Exception {
         ChunkPos cp = new ChunkPos(sectionX * 16, 0);
         try {
-            w.submitAtChunk(cp, r -> r.chunkAt(cp)).get(5, TimeUnit.SECONDS);
+            w.submitAtChunk(cp, r -> r.chunkAtBlocking(cp)).get(5, TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
             throw new AssertionError("timeout\n" + w.regionizer().debugState());
         }

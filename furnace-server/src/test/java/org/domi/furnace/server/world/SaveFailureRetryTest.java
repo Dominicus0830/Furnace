@@ -73,7 +73,7 @@ class SaveFailureRetryTest {
         ChunkPos cp = new ChunkPos(0, 0);
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
-            r.chunkAt(cp);
+            r.chunkAtBlocking(cp);
             r.breakBlock(0, -61, 0);
         }).get();
 
@@ -97,7 +97,7 @@ class SaveFailureRetryTest {
         do {
             sched.region(rp).execute(() -> {
                 Region r = w.regionAt(rp);
-                dirty[0] = r.chunkAt(cp).dirty();
+                dirty[0] = r.chunkAtBlocking(cp).dirty();
                 count[0] = r.dirtyChunkCount();
             }).get();
         } while (!dirty[0] && System.nanoTime() < deadline);

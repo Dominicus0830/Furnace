@@ -32,9 +32,9 @@ class BlockBreakTest {
 
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
-            assertEquals(grass, r.chunkAt(cp).getBlock(0, -61, 0)); // 부수기 전 grass
+            assertEquals(grass, r.chunkAtBlocking(cp).getBlock(0, -61, 0)); // 부수기 전 grass
             r.breakBlock(0, -61, 0);
-            assertEquals(ChunkSection.AIR, r.chunkAt(cp).getBlock(0, -61, 0)); // air로
+            assertEquals(ChunkSection.AIR, r.chunkAtBlocking(cp).getBlock(0, -61, 0)); // air로
         }).get();
 
         // viewer 채널이 BlockUpdate를 받았는지(eventLoop 마샬 → flush 처리)

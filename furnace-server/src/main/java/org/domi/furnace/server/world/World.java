@@ -629,6 +629,16 @@ public final class World {
     }
 
     /**
+     * 외부 스레드(플러그인·콘솔·시험)용: 청크를 비동기 로드하고 로드가 끝날 때까지 이 스레드에서 기다린다.
+     * region 스레드에서 부르면 자기 인박스를 기다리게 되므로 금지한다.
+     */
+    public ChunkColumn awaitChunk(ChunkPos cp) {
+        Region here = regionizer.ownerOf(cp.x(), cp.z());
+        if (here != null && here.isOwnerThread()) throw new IllegalStateException("region 스레드에서 awaitChunk 금지: " + cp);
+        return submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f).join();
+    }
+
+    /**
      * 청크의 canonical 불변 스냅샷을 비동기로 반환. 청크 소유 region 스레드서
      * get-or-load 후 스냅샷을 떠 — 단일 소유 보장(교차region 로더도 같은 청크를 본다).
      */

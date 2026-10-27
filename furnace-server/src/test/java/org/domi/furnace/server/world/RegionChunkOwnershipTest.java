@@ -21,8 +21,8 @@ class RegionChunkOwnershipTest {
         ChunkPos cp = new ChunkPos(0, 0);
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
-            seen[0] = r.chunkAt(cp);
-            seen[1] = r.chunkAt(cp);
+            seen[0] = r.chunkAtBlocking(cp);
+            seen[1] = r.chunkAtBlocking(cp);
         }).get();
         assertNotNull(seen[0]);
         assertSame(seen[0], seen[1]); // 보관 — 두 번째 호출 동일 인스턴스

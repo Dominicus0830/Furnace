@@ -41,7 +41,7 @@ class BlockPlaceTest {
             res[0] = w.regionAt(rp).placeBlock(5, -60, 5, stone);   // 빈 자리 → 설치
             res[1] = w.regionAt(rp).placeBlock(0, -60, 0, stone);   // 플레이어 겹침 → 거부
             // 확인
-            ChunkColumn far = w.regionAt(rp).chunkAt(new ChunkPos(0, 0));
+            ChunkColumn far = w.regionAt(rp).chunkAtBlocking(new ChunkPos(0, 0));
             assertEquals(stone, far.getBlock(5, -60, 5));            // 설치됨
             assertEquals(ChunkSection.AIR, far.getBlock(0, -60, 0)); // 거부(여전히 air)
             assertTrue(far.dirty());

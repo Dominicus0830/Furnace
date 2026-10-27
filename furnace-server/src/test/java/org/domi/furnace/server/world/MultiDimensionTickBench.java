@@ -63,7 +63,7 @@ class MultiDimensionTickBench {
                 done.add(f);
                 long key = Regionizer.chunkKey(cp.x(), cp.z());
                 w.runAtChunk(cp, r -> {
-                    r.chunkAt(cp);
+                    r.chunkAtBlocking(cp);
                     r.schedule(key, new java.util.function.Consumer<Region>() {
                         @Override public void accept(Region r2) {
                             long now = System.nanoTime();

@@ -28,11 +28,11 @@ class RegionPlaceBlockTest {
             assertTrue(r.placeBlock(3, -60, 3, chest), "공기 칸엔 설치돼야");
             assertFalse(r.placeBlock(3, -60, 3, stone), "체스트 위에 덮어쓰면 안 된다");
             assertNotNull(r.chestAt(3, -60, 3), "거부됐으니 체스트 블록엔티티가 남아야");
-            assertEquals(chest, r.chunkAt(new ChunkPos(0, 0)).getBlock(3, -60, 3));
-            int ground = r.chunkAt(new ChunkPos(0, 0)).getBlock(5, -61, 5);
+            assertEquals(chest, r.chunkAtBlocking(new ChunkPos(0, 0)).getBlock(3, -60, 3));
+            int ground = r.chunkAtBlocking(new ChunkPos(0, 0)).getBlock(5, -61, 5);
             assertNotEquals(ChunkSection.AIR, ground);
             assertFalse(r.placeBlock(5, -61, 5, stone), "지면(고체) 덮어쓰기 거부");
-            assertEquals(ground, r.chunkAt(new ChunkPos(0, 0)).getBlock(5, -61, 5));
+            assertEquals(ground, r.chunkAtBlocking(new ChunkPos(0, 0)).getBlock(5, -61, 5));
         }).get();
         io.shutdown(); sched.close();
     }

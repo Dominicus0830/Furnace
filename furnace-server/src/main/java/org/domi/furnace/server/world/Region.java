@@ -217,12 +217,57 @@ public final class Region {
         return world.loadedChunk(cx, cz);
     }
 
-    /** 이 region 구역의 청크를 얻거나(없으면 동기 생성 — 테스트·도구용, 편집은 로드된 청크 대상). */
+    /** -동기 생성·디스크 읽기({@link #chunkAtBlocking}) 횟수. 운영 경로가 이 경로를 타지 않음을 시험이 확인한다. */
+    public static final java.util.concurrent.atomic.AtomicLong BLOCKING_LOADS = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * 로드된 청크를 돌려준다. 로드 안 됐으면 region 스레드를 막지 않고 null 을 돌려주며 비동기 로드({@link #loadChunk})를 건다.
+     * 다른 region 구역이라 이 region 이 로드를 걸 수 없으면 로드 요청 없이 null.
+     */
     public ChunkColumn chunkAt(ChunkPos cp) {
         world.assertOwns(this);
         ChunkColumn c = world.loadedChunk(cp.x(), cp.z());
         if (c != null) return c;
+        requestLoad(cp);
+        return null;
+    }
+
+    /** 비동기 로드 요청(결과는 버린다 — 실패는 loadChunk 가 로그로 남기고 다음 요청에서 재시도). 다른 region 구역이면 무시. */
+    private void requestLoad(ChunkPos cp) {
+        try {
+            loadChunk(cp);
+        } catch (IllegalStateException otherRegion) {
+            // 다른 region 의 청크 — 이 region 이 로드할 수 없다(옛 동기 경로도 여기서 예외였다)
+        }
+    }
+
+    /**
+     * 청크가 로드돼 있으면 지금 then 을 부르고, 아니면 비동기 로드가 끝난 뒤 그때의 주인 region 스레드에서 부른다.
+     * region 스레드에서 미로드 청크를 다룰 때 동기 생성 대신 쓴다.
+     */
+    public void withChunk(ChunkPos cp, java.util.function.BiConsumer<Region, ChunkColumn> then) {
+        world.assertOwns(this);
+        ChunkColumn c = world.loadedChunk(cp.x(), cp.z());
+        if (c != null) { then.accept(this, c); return; }
+        loadChunk(cp).whenComplete((col, err) -> {
+            if (err != null) return;   // loadChunk 가 이미 로그로 남겼다
+            world.runAtChunk(cp, r -> {
+                ChunkColumn now = world.loadedChunk(cp.x(), cp.z());
+                if (now != null) then.accept(r, now);
+            });
+        });
+    }
+
+    /**
+     * 시험·도구 전용: 청크를 얻거나 없으면 이 스레드에서 동기 생성·디스크 읽기. region 스레드를 막으므로 운영 경로에서 부르지 않는다
+     * (외부 스레드는 {@link World#awaitChunk} 로 기다린다).
+     */
+    public ChunkColumn chunkAtBlocking(ChunkPos cp) {
+        world.assertOwns(this);
+        ChunkColumn c = world.loadedChunk(cp.x(), cp.z());
+        if (c != null) return c;
         claim(cp);
+        BLOCKING_LOADS.incrementAndGet();
         // 디스크 읽기는 비동기 로드·저장과 같은 IO 레인을 거친다(대기 중인 저장보다 먼저 읽어 옛 내용을 되살리지 않게)
         c = world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                 ? anvil.generate(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()))
@@ -368,7 +413,7 @@ public final class Region {
      */
     public boolean breakBlock(Player breaker, int bx, int by, int bz) {
         world.assertOwns(this);
-        chunkAt(ChunkPos.ofBlock(bx, bz));   // 로드 보장(호출 쪽이 보통 이미 확인)
+        if (chunkAt(ChunkPos.ofBlock(bx, bz)) == null) return false;   // 미로드 — 동기 생성하지 않는다(비동기 로드만 건다)
         RegionLevel l = level();
         org.domi.furnace.server.block.Pos p = new org.domi.furnace.server.block.Pos(bx, by, bz);
         int state = l.getBlockState(p);
@@ -379,6 +424,7 @@ public final class Region {
 
     /** 테스트·도구용: 파괴하고 바로 방송한다. */
     public void breakBlock(int bx, int by, int bz) {
+        chunkAtBlocking(ChunkPos.ofBlock(bx, bz));
         breakBlock(null, bx, by, bz);
         level().broadcastChanges();
     }
@@ -398,10 +444,11 @@ public final class Region {
         }
     }
 
-    /** 이 region 스레드에서 블록 조회(0x38 체스트 판별용). */
+    /** 이 region 스레드에서 블록 조회(0x38 체스트 판별용). 미로드 청크는 공기(비동기 로드만 건다). */
     public int getBlock(int x, int y, int z) {
         world.assertOwns(this);
-        return chunkAt(ChunkPos.ofBlock(x, z)).getBlock(x & 15, y, z & 15);
+        ChunkColumn c = chunkAt(ChunkPos.ofBlock(x, z));
+        return c == null ? ChunkSection.AIR : c.getBlock(x & 15, y, z & 15);
     }
 
     /** 바이옴 quart 의 레지스트리 id(청크가 없거나 이 region 것이 아니면 -1). 이 region 스레드에서만. */
@@ -414,20 +461,22 @@ public final class Region {
         return col.sections()[sec].getBiome(qx & 3, qy & 3, qz & 3);
     }
 
-    /** 이 region 스레드에서 체스트 블록엔티티 조회(없으면 null). */
+    /** 이 region 스레드에서 체스트 블록엔티티 조회(없거나 미로드면 null). */
     public ChestBlockEntity chestAt(int x, int y, int z) {
         world.assertOwns(this);
-        return chunkAt(ChunkPos.ofBlock(x, z)).chestAt(x, y, z);
+        ChunkColumn c = chunkAt(ChunkPos.ofBlock(x, z));
+        return c == null ? null : c.chestAt(x, y, z);
     }
 
     /** 체스트 슬롯 갱신(Container Click). 존재하지 않으면 무시. 청크 dirty 마크(영속, §3.6). */
     public void setChestItem(int cx, int cy, int cz, int slot, ItemStack item) {
         world.assertOwns(this);
         ChunkPos cp = ChunkPos.ofBlock(cx, cz);
-        ChestBlockEntity chest = chunkAt(cp).chestAt(cx, cy, cz);
+        ChunkColumn col = chunkAt(cp);
+        ChestBlockEntity chest = col == null ? null : col.chestAt(cx, cy, cz);
         if (chest == null || slot < 0 || slot >= chest.items.length) return;
         chest.items[slot] = item;
-        chunkAt(cp).markDirty();
+        col.markDirty();
         dirtyChunks.add(cp);
         chest.setChanged(level());   // 비교기에 알린다
     }
@@ -437,7 +486,9 @@ public final class Region {
         world.assertOwns(this);
         var p = be.pos();
         ChunkPos cp = ChunkPos.ofBlock(p.x(), p.z());
-        chunkAt(cp).markDirty();
+        ChunkColumn col = world.loadedChunk(cp.x(), cp.z());
+        if (col == null) return;   // 내린 청크의 블록 엔티티 — 저장은 이미 끝났다
+        col.markDirty();
         dirtyChunks.add(cp);
         be.setChanged(level());
     }
@@ -446,9 +497,11 @@ public final class Region {
     public void markChestChanged(int cx, int cy, int cz) {
         world.assertOwns(this);
         ChunkPos cp = ChunkPos.ofBlock(cx, cz);
-        chunkAt(cp).markDirty();
+        ChunkColumn col = world.loadedChunk(cp.x(), cp.z());
+        if (col == null) return;
+        col.markDirty();
         dirtyChunks.add(cp);
-        ChestBlockEntity chest = chunkAt(cp).chestAt(cx, cy, cz);
+        ChestBlockEntity chest = col.chestAt(cx, cy, cz);
         if (chest != null) chest.setChanged(level());
     }
 
@@ -472,7 +525,7 @@ public final class Region {
     public boolean placeBlock(int bx, int by, int bz, int stateId) {
         world.assertOwns(this);
         if (org.domi.furnace.server.block.BlockInfo.get().isAir(stateId)) return false;
-        chunkAt(ChunkPos.ofBlock(bx, bz));
+        chunkAtBlocking(ChunkPos.ofBlock(bx, bz));   // 도구·시험 경로 — 운영 설치는 BlockPlacement
         RegionLevel l = level();
         var p = new org.domi.furnace.server.block.Pos(bx, by, bz);
         if (!org.domi.furnace.server.block.BlockInfo.get().replaceable(l.getBlockState(p))) return false;

@@ -76,7 +76,7 @@ class RegionTickBench {
             String[] types = System.getProperty("furnace.bench.types", "minecraft:cow,minecraft:sheep,minecraft:pig,minecraft:chicken,minecraft:zombie,minecraft:skeleton,minecraft:creeper,minecraft:spider").split(",");
             java.util.Random rnd = new java.util.Random(1);
             for (int i = 0; i < mobs; i++) {
-                r.chunkAt(new ChunkPos(((int) cx0 >> 4) + rnd.nextInt(5) - 2, ((int) cz0 >> 4) + rnd.nextInt(5) - 2));
+                r.chunkAtBlocking(new ChunkPos(((int) cx0 >> 4) + rnd.nextInt(5) - 2, ((int) cz0 >> 4) + rnd.nextInt(5) - 2));
             }
             rnd = new java.util.Random(1);
             for (int i = 0; i < mobs; i++) {

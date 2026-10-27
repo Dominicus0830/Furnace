@@ -940,7 +940,7 @@ class ConnectionInputTest {
         int[] state = new int[1];
         for (int i = 0; i < 20; i++) {
             ch.runPendingTasks();
-            sched.region(r00).execute(() -> state[0] = world.regionAt(r00).chunkAt(new ChunkPos(0, 0)).getBlock(1, -61, 1)).get();
+            sched.region(r00).execute(() -> state[0] = world.regionAt(r00).chunkAtBlocking(new ChunkPos(0, 0)).getBlock(1, -61, 1)).get();
             if (state[0] == ChunkSection.AIR) break;
             Thread.sleep(25);
         }

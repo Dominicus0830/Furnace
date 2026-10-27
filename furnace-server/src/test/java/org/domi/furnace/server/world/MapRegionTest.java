@@ -87,7 +87,7 @@ class MapRegionTest {
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.adopt(p);
-            r.chunkAt(new ChunkPos(0, 0));
+            r.chunkAtBlocking(new ChunkPos(0, 0));
             for (int i = 0; i < 20; i++) r.tick();
             counts[0] = mapPackets(ch, body);
             for (int i = 0; i < 40; i++) r.tick();   // 더 바뀔 것이 없다

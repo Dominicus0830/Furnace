@@ -37,10 +37,10 @@ class ChunkEvictionTest {
         boolean[] has = new boolean[3];
         sched.region(R00).execute(() -> {
             Region r = w.regionAt(R00);
-            r.chunkAt(clean);
-            r.chunkAt(edited);
+            r.chunkAtBlocking(clean);
+            r.chunkAtBlocking(edited);
             r.breakBlock(16, -61, 0);            // edited 청크의 (0,-61,0) — 슈퍼플랫 풀 블록을 공기로
-            r.chunkAt(watched);
+            r.chunkAtBlocking(watched);
             for (int i = 0; i < 10; i++) r.tick();   // 퇴출 유예(3틱) 경과
             has[0] = r.chunkLoaded(clean);
             has[1] = r.chunkLoaded(edited);

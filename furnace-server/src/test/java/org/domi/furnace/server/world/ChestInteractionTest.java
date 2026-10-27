@@ -59,13 +59,13 @@ class ChestInteractionTest {
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.placeBlock(3, -60, 3, chestState);
-            r.chunkAt(cp).clearDirty(); // 설치 자체의 dirty는 별도 — 클릭만의 dirty를 확인하기 위해 리셋
+            r.chunkAtBlocking(cp).clearDirty(); // 설치 자체의 dirty는 별도 — 클릭만의 dirty를 확인하기 위해 리셋
             ItemStack stone = new ItemStack(1, 5, null);
             r.setChestItem(3, -60, 3, 0, stone);
             ChestBlockEntity chest = r.chestAt(3, -60, 3);
             assertEquals(1, chest.items[0].itemId());
             assertEquals(5, chest.items[0].count());
-            assertTrue(r.chunkAt(cp).dirty(), "체스트 슬롯 변경은 청크를 dirty로 마크해야(§3.6)");
+            assertTrue(r.chunkAtBlocking(cp).dirty(), "체스트 슬롯 변경은 청크를 dirty로 마크해야(§3.6)");
         }).get();
         io.shutdown(); sched.close();
     }

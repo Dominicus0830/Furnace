@@ -36,7 +36,7 @@ class ChunkBodyCacheRaceTest {
     /** 소유 스레드서 현재 청크를 직접 직렬화한 "정답" 본문. */
     private static byte[] freshBody(Env e) throws Exception {
         return e.sched().region(R00).submit(() -> {
-            ChunkColumn col = e.w().regionAt(R00).chunkAt(C00);
+            ChunkColumn col = e.w().regionAt(R00).chunkAtBlocking(C00);
             ByteBuf b = Unpooled.buffer();
             ChunkSerializer.serialize(b, ChunkSnapshot.of(0, 0, col), e.reg().directBits(), 7);
             byte[] out = new byte[b.readableBytes()];

@@ -41,7 +41,7 @@ class EntityRegionTest {
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.adopt(p);
-            r.chunkAt(new ChunkPos(0, 0));
+            r.chunkAtBlocking(new ChunkPos(0, 0));
             var level = r.level();
             item[0] = new ItemEntity(level, level.nextEntityId(), 1.5, -59.5, 0.5,
                     org.domi.furnace.server.block.B.stack("minecraft:dirt", 3), 0, 0, 0);
@@ -70,7 +70,7 @@ class EntityRegionTest {
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.adopt(p);
-            r.chunkAt(new ChunkPos(0, 0));
+            r.chunkAtBlocking(new ChunkPos(0, 0));
             var level = r.level();
             level.dropResources(level.getBlockState(new org.domi.furnace.server.block.Pos(2, -61, 2)), new org.domi.furnace.server.block.Pos(2, -55, 2),
                     null, null, ItemStack.EMPTY);   // 전리품 표가 없는 테스트 서비스 — 직접 떨군다
