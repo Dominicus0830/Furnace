@@ -134,6 +134,9 @@ public interface LevelServices {
     java.util.Set<String> DEFAULT_FALSE_RULES = java.util.Set.of("lavaSourceConversion", "doImmediateRespawn", "doLimitedCrafting",
             "universalAnger", "reducedDebugInfo", "disableElytraMovementCheck", "disableRaids");
 
+    /** 표지판 클릭 명령(BlockLevel.runSignCommand). player 는 Player(없으면 null). */
+    default void runSignCommand(Player player, int x, int y, int z, String command) {}
+
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
         public boolean gameRule(String name) { return !DEFAULT_FALSE_RULES.contains(name); }
@@ -208,5 +211,6 @@ public interface LevelServices {
         public int[] sharedSpawnPos() { return d.sharedSpawnPos(); }
         public boolean spawnMonsters() { return d.spawnMonsters(); }
         public boolean spawnAnimals() { return d.spawnAnimals(); }
+        public void runSignCommand(Player player, int x, int y, int z, String command) { d.runSignCommand(player, x, y, z, command); }
     }
 }

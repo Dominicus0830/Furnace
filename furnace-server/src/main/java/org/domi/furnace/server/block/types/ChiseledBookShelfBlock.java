@@ -12,6 +12,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.block.entity.ChiseledBookShelfBlockEntity;
 
 public class ChiseledBookShelfBlock extends BaseEntityBlock {
 
@@ -22,16 +23,48 @@ public class ChiseledBookShelfBlock extends BaseEntityBlock {
     public ChiseledBookShelfBlock(int block) { super(block); }
 
     @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return new ChiseledBookShelfBlockEntity(pos, state); }
+
+    @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
-        // TODO(블록 엔티티): ChiseledBookShelfBlockEntity 가 있으면 #bookshelf_books 아이템을 맞은 빈 칸에 꽂는다
-        //   (getHitSlot 이 없으면 SKIP_DEFAULT, 찬 칸이면 PASS_TO_DEFAULT, 꽂으면 CONSUME·소리 insert(.enchanted)). 블록 엔티티가 없으면 바닐라도 SKIP_DEFAULT.
-        return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        if (!(level.getBlockEntity(pos) instanceof ChiseledBookShelfBlockEntity be)) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        if (!ChiseledBookShelfBlockEntity.isBook(stack)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        int slot = getHitSlot(hit, state);
+        if (slot < 0) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        if (SLOT_OCCUPIED[slot].is(state)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        addBook(level, pos, player, hand, be, stack, slot);
+        return ItemInteractionResult.sidedSuccess(false);
     }
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(블록 엔티티): 맞은 칸의 책을 빼서 인벤토리(안 되면 바닥)로, 소리 pickup(.enchanted)·block_change. 블록 엔티티가 없으면 바닐라도 PASS.
-        return InteractionResult.PASS;
+        if (!(level.getBlockEntity(pos) instanceof ChiseledBookShelfBlockEntity be)) return InteractionResult.PASS;
+        int slot = getHitSlot(hit, state);
+        if (slot < 0) return InteractionResult.PASS;
+        if (!SLOT_OCCUPIED[slot].is(state)) return InteractionResult.CONSUME;
+        removeBook(level, pos, player, be, slot);
+        return InteractionResult.sidedSuccess(false);
+    }
+
+    private static boolean enchanted(ItemStack s) { return "minecraft:enchanted_book".equals(org.domi.furnace.server.item.ItemTools.itemName(s)); }
+
+    /** addBook: 사용 통계, 소리 고르기, consumeAndReturn(1) 을 칸에, 소리. */
+    private static void addBook(BlockLevel level, Pos pos, BlockActor player, int hand, ChiseledBookShelfBlockEntity be, ItemStack stack, int slot) {
+        player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
+        String sound = enchanted(stack) ? "minecraft:block.chiseled_bookshelf.insert.enchanted" : "minecraft:block.chiseled_bookshelf.insert";
+        ItemStack one = stack.withCount(1);
+        if (!player.instabuild()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+        be.setItem(slot, one, level);
+        level.playSound(null, pos, sound, "blocks", 1.0F, 1.0F);
+    }
+
+    /** removeBook: 칸을 비워 인벤토리에(못 넣으면 떨군다), 소리, block_change. */
+    private static void removeBook(BlockLevel level, Pos pos, BlockActor player, ChiseledBookShelfBlockEntity be, int slot) {
+        ItemStack s = be.removeItem(slot, 1, level);
+        String sound = enchanted(s) ? "minecraft:block.chiseled_bookshelf.pickup.enchanted" : "minecraft:block.chiseled_bookshelf.pickup";
+        level.playSound(null, pos, sound, "blocks", 1.0F, 1.0F);
+        if (!player.addToInventory(s)) player.drop(s);
+        level.gameEvent("minecraft:block_change", pos, player, level.getBlockState(pos));
     }
 
     /** getHitSlot: 앞면을 맞혔으면 그 칸 번호(0..5), 아니면 -1. */
@@ -55,8 +88,18 @@ public class ChiseledBookShelfBlock extends BaseEntityBlock {
 
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
-        // TODO(블록 엔티티): 다른 블록이 되면 6칸 책을 쏟고 비운 뒤 updateNeighbourForOutputSignal.
+        if (B.is(newState, block)) return;
+        boolean spilled = false;
+        if (level.getBlockEntity(pos) instanceof ChiseledBookShelfBlockEntity be && !be.isEmpty()) {
+            for (int i = 0; i < 6; i++) {
+                ItemStack s = be.getItem(i);
+                if (!s.isEmpty()) level.dropItemStack(pos.x(), pos.y(), pos.z(), s);
+            }
+            be.clearContent();
+            spilled = true;
+        }
         super.onRemove(state, level, pos, newState, moved);
+        if (spilled) level.updateNeighbourForOutputSignal(pos, block);
     }
 
     @Override
@@ -65,5 +108,10 @@ public class ChiseledBookShelfBlock extends BaseEntityBlock {
     }
 
     @Override
-    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) { return 0; }   // TODO(블록 엔티티): 마지막으로 바뀐 칸 + 1
+    public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {
+        return level.getBlockEntity(pos) instanceof ChiseledBookShelfBlockEntity be ? be.lastInteractedSlot() + 1 : 0;
+    }
+
+    @Override
+    public boolean hasAnalogOutputSignal(int state) { return true; }
 }

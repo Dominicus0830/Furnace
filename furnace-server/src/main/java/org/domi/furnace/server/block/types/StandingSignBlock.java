@@ -14,6 +14,10 @@ public class StandingSignBlock extends SignBlock {
 
     public StandingSignBlock(int block) { super(block); }
 
+    /** RotationSegment.convertToDegrees. */
+    @Override
+    public float yRotationDegrees(int state) { return ROTATION.intValue(state) * 22.5F; }
+
     @Override
     public boolean canSurvive(int state, BlockLevel level, Pos pos) { return B.isSolid(level.getBlockState(pos.below())); }
 

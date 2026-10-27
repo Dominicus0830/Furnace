@@ -1357,6 +1357,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player actor = player;
                 if (actor != null) handleUseItemOn(ctx, actor, hand, bp, face, cx, cy, cz, inside, seq);
             }
+            case 0x35 -> { // sign_update: pos, 앞면인가, 줄 4개(각 384자)
+                int[] bp = Types.readBlockPos(frame);
+                boolean front = frame.readBoolean();
+                java.util.List<String> lines = new java.util.ArrayList<>(4);
+                for (int i = 0; i < 4; i++) lines.add(stripFormatting(Types.readString(frame, 384)));
+                Player actor = player;
+                if (actor != null) handleSignUpdate(actor, bp, front, lines);
+            }
             case 0x39 -> { // Use Item: hand, sequence, yRot, xRot
                 int hand = Types.readVarInt(frame);
                 int seq = Types.readVarInt(frame);
@@ -2521,6 +2529,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         ix = x; iy = y; iz = z;
         return true;
+    }
+
+    private static final java.util.regex.Pattern FORMATTING_CODE = java.util.regex.Pattern.compile("(?i)\u00A7[0-9A-FK-OR]");
+
+    /** ChatFormatting.stripFormatting. */
+    static String stripFormatting(String s) { return FORMATTING_CODE.matcher(s).replaceAll(""); }
+
+    /** 바닐라 updateSignText: 그 칸 region 스레드에서, 청크가 있고 표지판이면 글을 바꾼다(거르기 없음). */
+    private void handleSignUpdate(Player actor, int[] bp, boolean front, java.util.List<String> lines) {
+        // TODO(플레이어): resetLastActionTime(자리 비움 추방 시계)
+        var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
+        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
+            var level = region.level();
+            if (!level.hasChunkAt(pos)) return;
+            if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SignBlockEntity sign) {
+                sign.updateSignText(actor.uuid(), false, front, lines, level);
+            }
+        });
     }
 
     /** 블록 요청(파괴/설치) 허용 여부 — 월드 높이 안이고, 마지막 수락 위치(눈 높이)에서 도달 거리 안인가. */

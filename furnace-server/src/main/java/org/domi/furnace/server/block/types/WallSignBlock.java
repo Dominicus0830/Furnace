@@ -16,6 +16,21 @@ public class WallSignBlock extends SignBlock {
 
     static int facing(int state) { return Dir.byName(FACING.valueName(state)); }
 
+    /** Direction.toYRot. */
+    @Override
+    public float yRotationDegrees(int state) { return (Dir.to2D(facing(state)) & 3) * 90; }
+
+    /** 벽 표지판 모양(높이 4.5..12.5, 두께 2) 상자의 가운데. */
+    @Override
+    public double[] hitboxCenter(int state) {
+        return switch (facing(state)) {
+            case Dir.NORTH -> new double[] {0.5, 15.0 / 16.0};
+            case Dir.SOUTH -> new double[] {0.5, 1.0 / 16.0};
+            case Dir.EAST -> new double[] {1.0 / 16.0, 0.5};
+            default -> new double[] {15.0 / 16.0, 0.5};
+        };
+    }
+
     @Override
     public boolean canSurvive(int state, BlockLevel level, Pos pos) {
         return B.isSolid(level.getBlockState(pos.relative(Dir.opposite(facing(state)))));

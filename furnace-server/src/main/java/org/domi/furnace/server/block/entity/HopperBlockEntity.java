@@ -3,7 +3,7 @@
 // 쿨다운 8(같은 틱에 먼저 돈 깔때기에서 받으면 7). 위에 떨어진 아이템 엔티티는 entityInside 로도 빨아들인다.
 // 용기 찾기(getContainerAt): 블록 엔티티 용기(상자는 겹상자로), 없으면 그 칸 가운데 1×1×1 안의 용기 엔티티 중 레벨 난수로 하나.
 // 면별 규칙(WorldlyContainer): 화로·용광로·훈연기, 양조기, 셜커 상자. 쌓기는 아이템 최대 수량(용기 99 제한은 깔때기 setItem 의 limitSize).
-// 생략: 퇴비통(WorldlyContainerHolder)·주크박스·조각된 책장·제작기는 Furnace 에 용기 블록 엔티티가 없어 용기로 보지 않는다.
+// 퇴비통은 WorldlyContainerHolder(칸 상태별 임시 용기), 주크박스·조각된 책장은 칸 규칙이 있는 Container.
 //   용기 엔티티의 전리품 표는 풀지 않는다(바닐라는 칸을 읽을 때 푼다).
 package org.domi.furnace.server.block.entity;
 
@@ -291,7 +291,9 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
     private static Inv getBlockContainer(BlockLevel level, Pos p, int state) {
         if (B.isAir(state)) return null;
+        if (BlockBehaviors.of(state) instanceof org.domi.furnace.server.block.types.ComposterBlock) return ComposterInv.of(level, p, state);   // WorldlyContainerHolder
         Object be = level.getBlockEntity(p);
+        if (be instanceof JukeboxBlockEntity j) return new JukeboxInv(level, j);
         if (!(be instanceof ContainerBlockEntity c) || be instanceof CampfireBlockEntity) return null;   // 모닥불은 바닐라 Container 가 아니다
         if (be instanceof org.domi.furnace.server.world.ChestBlockEntity
                 && BlockBehaviors.of(state) instanceof org.domi.furnace.server.block.types.ChestBlock cb) {
@@ -384,6 +386,10 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
         @Override
         public void setItem(int i, ItemStack s) {
+            if (be instanceof ChiseledBookShelfBlockEntity b) {   // 책장 setItem: 상태 갱신, setChanged 없음
+                b.setItem(i, s, level);
+                return;
+            }
             unpack();
             ItemStack old = get(i);
             if (be instanceof HopperBlockEntity) {   // 깔때기 setItem: limitSize, setChanged 없음
@@ -400,6 +406,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
         @Override
         public ItemStack removeItem(int i, int n) {
+            if (be instanceof ChiseledBookShelfBlockEntity b) return b.removeItem(i, n, level);
             unpack();
             ItemStack cur = get(i);
             if (cur.isEmpty() || n <= 0) return ItemStack.EMPTY;
@@ -431,7 +438,21 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         }
 
         @Override
+        public boolean canTakeItem(Inv target, int slot, ItemStack s) {
+            if (be instanceof ChiseledBookShelfBlockEntity) {
+                // 받는 쪽에 빈 칸이 있거나, 같은 아이템이라 합쳐도 최대 수량을 넘지 않는 칸이 있다
+                for (int i = 0; i < target.size(); i++) {
+                    ItemStack t = target.get(i);
+                    if (t.isEmpty() || Stacks.isSameItemSameComponents(s, t) && t.count() + s.count() <= ItemStackCodecs.maxStackSize(t)) return true;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        @Override
         public boolean canPlaceItem(int slot, ItemStack s) {
+            if (be instanceof ChiseledBookShelfBlockEntity b) return b.canPlaceItem(slot, s);
             if (be instanceof FurnaceBlockEntity) {
                 // AbstractFurnaceBlockEntity.canPlaceItem: 결과 칸 불가, 연료 칸은 연료 또는 (연료 칸이 양동이가 아닐 때) 양동이
                 if (slot == 2) return false;
@@ -461,6 +482,131 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
             }
             if (be instanceof BrewingStandBlockEntity) return slot != 3 || isItem(s, "minecraft:glass_bottle");
             return true;
+        }
+    }
+
+    /** 주크박스(ContainerSingleItem): 칸 하나, 빼면 음반 통째로, 넣기는 jukebox_playable 이고 비었을 때, 빼기는 받는 쪽에 빈 칸이 있을 때. */
+    static final class JukeboxInv implements Inv {
+        private final BlockLevel level;
+        private final JukeboxBlockEntity be;
+
+        JukeboxInv(BlockLevel level, JukeboxBlockEntity be) {
+            this.level = level;
+            this.be = be;
+        }
+
+        @Override public int size() { return 1; }
+
+        @Override public ItemStack get(int i) { return i == 0 ? be.theItem() : ItemStack.EMPTY; }
+
+        @Override public void setItem(int i, ItemStack s) { if (i == 0) be.setTheItem(s, level); }
+
+        @Override public void put(int i, ItemStack s) { if (i == 0) be.putRaw(s); }
+
+        @Override
+        public ItemStack removeItem(int i, int n) {
+            if (i != 0) return ItemStack.EMPTY;
+            ItemStack s = be.theItem();   // splitTheItem: 수와 관계없이 통째로
+            be.setTheItem(ItemStack.EMPTY, level);
+            return s;
+        }
+
+        @Override public void setChanged() { be.setChanged(level); }
+
+        @Override
+        public boolean canPlaceItem(int slot, ItemStack s) {
+            return ItemTools.component(s, "minecraft:jukebox_playable") != null && get(slot).isEmpty();
+        }
+
+        @Override
+        public boolean canTakeItem(Inv target, int slot, ItemStack s) {
+            for (int i = 0; i < target.size(); i++) if (target.get(i).isEmpty()) return true;
+            return false;
+        }
+    }
+
+    /**
+     * ComposterBlock.getContainer: 8 이면 아래로 뼛가루 한 개를 빼 주는 칸(빼면 비운다), 7 미만이면 위에서 퇴비 아이템 한 개를 받는 칸
+     * (받으면 insertItem + levelEvent 1500), 7 이면 칸 없음. 한 번 쓰면(changed) 더는 받지도 내주지도 않는다.
+     */
+    static final class ComposterInv implements Inv {
+        private static final int NONE = 0, INPUT = 1, OUTPUT = 2;
+        private final BlockLevel level;
+        private final Pos pos;
+        private final int state, kind;
+        private ItemStack item;
+        private boolean changed;
+
+        private ComposterInv(BlockLevel level, Pos pos, int state, int kind, ItemStack item) {
+            this.level = level;
+            this.pos = pos;
+            this.state = state;
+            this.kind = kind;
+            this.item = item;
+        }
+
+        static ComposterInv of(BlockLevel level, Pos pos, int state) {
+            int lvl = B.prop("level").intValue(state);
+            if (lvl == org.domi.furnace.server.block.types.ComposterBlock.READY) return new ComposterInv(level, pos, state, OUTPUT, B.stack("minecraft:bone_meal", 1));
+            return new ComposterInv(level, pos, state, lvl < org.domi.furnace.server.block.types.ComposterBlock.MAX_LEVEL ? INPUT : NONE, ItemStack.EMPTY);
+        }
+
+        @Override public int size() { return kind == NONE ? 0 : 1; }
+
+        @Override public ItemStack get(int i) { return item; }
+
+        /** SimpleContainer.setItem: 최대 수량 1 로 자르고 setChanged. */
+        @Override
+        public void setItem(int i, ItemStack s) {
+            item = s.count() > 1 ? s.withCount(1) : s;
+            setChanged();
+        }
+
+        @Override public void put(int i, ItemStack s) { item = s; }
+
+        /** SimpleContainer.removeItem: 쪼개고, 무엇이든 빠졌으면 setChanged. */
+        @Override
+        public ItemStack removeItem(int i, int n) {
+            if (item.isEmpty() || n <= 0) return ItemStack.EMPTY;
+            int k = Math.min(n, item.count());
+            ItemStack out = item.withCount(k);
+            item = item.withCount(item.count() - k);
+            setChanged();
+            return out;
+        }
+
+        @Override
+        public void setChanged() {
+            if (kind == INPUT) {
+                if (!item.isEmpty()) {
+                    changed = true;
+                    int ns = org.domi.furnace.server.block.types.ComposterBlock.insertItem(null, state, level, item, pos);
+                    level.levelEvent(null, 1500, pos, ns != state ? 1 : 0);
+                    item = ItemStack.EMPTY;   // removeItemNoUpdate
+                }
+            } else if (kind == OUTPUT) {
+                org.domi.furnace.server.block.types.ComposterBlock.emptyFromHopper(state, level, pos);
+                changed = true;
+            }
+        }
+
+        @Override public boolean worldly() { return true; }
+
+        @Override
+        public int[] slotsForFace(int dir) {
+            if (kind == INPUT) return dir == Dir.UP ? new int[] {0} : new int[0];
+            if (kind == OUTPUT) return dir == Dir.DOWN ? new int[] {0} : new int[0];
+            return new int[0];
+        }
+
+        @Override
+        public boolean canPlaceItemThroughFace(int slot, ItemStack s, int dir) {
+            return kind == INPUT && !changed && dir == Dir.UP && org.domi.furnace.server.block.types.ComposterBlock.isCompostable(s);
+        }
+
+        @Override
+        public boolean canTakeItemThroughFace(int slot, ItemStack s, int dir) {
+            return kind == OUTPUT && !changed && dir == Dir.DOWN && isItem(s, "minecraft:bone_meal");
         }
     }
 

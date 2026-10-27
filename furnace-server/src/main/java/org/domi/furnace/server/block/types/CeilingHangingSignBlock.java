@@ -21,9 +21,14 @@ public class CeilingHangingSignBlock extends SignBlock {
     public CeilingHangingSignBlock(int block) { super(block); }
 
     @Override
+    public float yRotationDegrees(int state) { return ROTATION.intValue(state) * 22.5F; }
+
+    @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
         // shouldTryToChainAnotherHangingSign: 클릭 명령이 없고 매단 표지판을 들고 아랫면을 클릭 — 아래에 이어 달게 넘긴다.
-        if (isHangingSignItem(stack) && hit.face() == Dir.DOWN) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SignBlockEntity sign
+                && !sign.canExecuteClickCommands(isFacingFrontText(sign, player), player.isTextFilteringEnabled())
+                && isHangingSignItem(stack) && hit.face() == Dir.DOWN) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
         return super.useItemOn(stack, state, level, pos, player, hand, hit);
     }
 

@@ -29,6 +29,9 @@ public class JukeboxBlockEntity extends BlockEntity {
 
     public ItemStack theItem() { return item; }
 
+    /** 부수 효과 없이 칸만 바꾼다(깔때기가 같은 스택의 수를 되돌릴 때). */
+    void putRaw(ItemStack s) { item = s == null ? ItemStack.EMPTY : s; }
+
     /** JukeboxSongPlayer.isPlaying. */
     public boolean isPlaying() { return song != null; }
 

@@ -22,9 +22,14 @@ public class WallHangingSignBlock extends SignBlock implements BlockPlacement.Wa
     static int facing(int state) { return Dir.byName(FACING.valueName(state)); }
 
     @Override
+    public float yRotationDegrees(int state) { return (Dir.to2D(facing(state)) & 3) * 90; }
+
+    @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
         // shouldTryToChainAnotherHangingSign: 매단 표지판을 들고 판 앞뒤가 아닌 면을 클릭.
-        if (isHangingSignItem(stack) && Dir.axis(hit.face()) != Dir.axis(facing(state))) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SignBlockEntity sign
+                && !sign.canExecuteClickCommands(isFacingFrontText(sign, player), player.isTextFilteringEnabled())
+                && isHangingSignItem(stack) && Dir.axis(hit.face()) != Dir.axis(facing(state))) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
         return super.useItemOn(stack, state, level, pos, player, hand, hit);
     }
 

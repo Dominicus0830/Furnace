@@ -105,6 +105,8 @@ public final class BlockPlacement {
         if (BLOCKS.blockOf(placed) == BLOCKS.blockOf(s)) {
             placed = updateBlockStateFromTag(pos, level, stack, placed);
             // updateCustomBlockEntityTag / updateBlockEntityComponents: 블록 엔티티 체계가 들어오면 여기서
+            if (e.kind() == BlockItems.Kind.SIGN || e.kind() == BlockItems.Kind.HANGING_SIGN)
+                org.domi.furnace.server.block.types.SignBlock.afterPlaced(level, pos, player, stack);   // SignItem.updateCustomBlockEntityTag
             BlockBehaviors.of(placed).setPlacedBy(level, pos, placed, player, stack);
             if (player != null) player.trigger("minecraft:placed_block", pos, stack);
         }

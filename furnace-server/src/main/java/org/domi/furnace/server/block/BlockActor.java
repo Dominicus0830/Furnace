@@ -41,6 +41,15 @@ public interface BlockActor {
     /** 행위자 본체(소리 등에서 "이 플레이어는 빼고" 판단용). */
     Object handle();
 
+    /** 플레이어 UUID(플레이어가 아니면 null). */
+    default java.util.UUID uuid() { return null; }
+
+    /** isTextFilteringEnabled — 이 서버는 글 거르기를 하지 않는다. */
+    default boolean isTextFilteringEnabled() { return false; }
+
+    /** ServerPlayer.openTextEdit: 그 칸 블록 갱신 + open_sign_editor. */
+    default void openTextEdit(Pos pos, int state, boolean front) {}
+
     /** Entity.getDirection = Direction.fromYRot(yRot). */
     default int direction() { return Dir.fromYRot(yRot()); }
 

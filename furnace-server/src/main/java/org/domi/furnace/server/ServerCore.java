@@ -482,6 +482,10 @@ public final class ServerCore {
         public boolean gameRule(String name) { return gameRules.getBoolean(name); }
         public int gameRuleInt(String name) { return gameRules.getInt(name); }
         public int difficulty() { return levelData.difficulty.id(); }
+        public void runSignCommand(Player player, int x, int y, int z, String command) {
+            scheduler().global().execute(() -> commands().performPrefixedCommand(
+                    org.domi.furnace.server.command.CommandSource.sign(ServerCore.this, player, x, y, z), command));
+        }
         public boolean withinBorder(int x, int z) { return border.isWithinBounds(x, z); }
         public double[] borderBounds() { return new double[] {border.getMinX(), border.getMinZ(), border.getMaxX(), border.getMaxZ()}; }
         public boolean isRaining() { return clock.isRaining(); }

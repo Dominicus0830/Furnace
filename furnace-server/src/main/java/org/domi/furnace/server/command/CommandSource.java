@@ -52,6 +52,14 @@ public final class CommandSource {
                 p.x(), p.y(), p.z(), p.yaw(), p.pitch());
     }
 
+    /** 표지판 클릭 명령(SignBlockEntity.createCommandSourceStack): 권한 2, 칸 가운데, 회전 0, 이름은 플레이어(없으면 "Sign"). */
+    public static CommandSource sign(ServerCore server, Player p, int x, int y, int z) {
+        String name = p == null ? "Sign" : p.name();
+        Text display = p == null ? Text.text("Sign") : Text.text(p.name()).insertion(p.name()).clickEvent(
+                new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + p.name() + " "));
+        return new CommandSource(server, p, name, display, 2, false, x + 0.5, y + 0.5, z + 0.5, 0f, 0f);
+    }
+
     /** 명령 트리 필터용: 접속 직전 플레이어의 이름·권한만 가진 소스(Player 객체가 아직 없을 때). */
     public static CommandSource forProfile(ServerCore server, String name, int permissionLevel) {
         var spawn = server.world().defaultSpawn();

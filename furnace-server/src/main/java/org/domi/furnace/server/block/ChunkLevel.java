@@ -752,6 +752,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 short l = set.first();
                 int x = cx << 4 | l >> 8 & 15, z = cz << 4 | l >> 4 & 15, y = sy << 4 | l & 15;
                 broadcastToChunk(cx, cz, new BlockUpdate(x, y, z, getBlockState(new Pos(x, y, z))));
+                broadcastBlockEntityIfNeeded(cx, cz, new Pos(x, y, z));
             } else {
                 short[] pos = new short[set.size()];
                 int[] states = new int[set.size()];
@@ -761,9 +762,16 @@ public abstract class ChunkLevel implements BlockLevel {
                     states[i++] = getBlockState(new Pos(cx << 4 | l >> 8 & 15, sy << 4 | l & 15, cz << 4 | l >> 4 & 15));
                 }
                 broadcastToChunk(cx, cz, new SectionBlocksUpdate(cx, sy, cz, pos, states));
+                for (short l : set) broadcastBlockEntityIfNeeded(cx, cz, new Pos(cx << 4 | l >> 8 & 15, sy << 4 | l & 15, cz << 4 | l >> 4 & 15));
             }
         }
         changed.clear();
+    }
+
+    /** ChunkHolder.broadcastBlockEntityIfNeeded: 그 칸의 블록 엔티티가 갱신 패킷(getUpdatePacket)을 내면 보낸다. */
+    private void broadcastBlockEntityIfNeeded(int cx, int cz, Pos p) {
+        if (!(getBlockEntity(p) instanceof BlockEntity be) || !be.hasUpdatePacket()) return;
+        broadcastToChunk(cx, cz, new org.domi.furnace.server.net.protocol.play.BlockEntityDataPacket(p.x(), p.y(), p.z(), be.typeId(), be.updateTag()));
     }
 
     // ------------------------------------------------------------------ 소리·이벤트
@@ -993,6 +1001,24 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override
     public boolean isHandlingTick() { return handlingTick; }
+
+    @Override
+    public void sendBlockUpdated(Pos pos) {
+        if (hasChunkAt(pos)) markChanged(pos);
+    }
+
+    @Override
+    public Player playerByUuid(java.util.UUID uuid) {
+        Player[] found = new Player[1];
+        services().forEachPlayer(p -> { if (!p.isDisconnected() && uuid.equals(p.uuid())) found[0] = p; });
+        return found[0];
+    }
+
+    @Override
+    public void runSignCommand(BlockActor player, Pos pos, String command) {
+        Player p = player != null && player.handle() instanceof Player pl ? pl : null;
+        services().runSignCommand(p, pos.x(), pos.y(), pos.z(), command);
+    }
 
     @Override
     public void blockEntityChanged(Pos pos) {

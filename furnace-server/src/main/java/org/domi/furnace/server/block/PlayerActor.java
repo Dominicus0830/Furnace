@@ -50,6 +50,13 @@ public class PlayerActor implements BlockActor {
     }
 
     @Override public Object handle() { return player; }
+    @Override public java.util.UUID uuid() { return player.uuid(); }
+
+    @Override
+    public void openTextEdit(Pos pos, int state, boolean front) {
+        player.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(pos.x(), pos.y(), pos.z(), state));
+        player.send(new org.domi.furnace.server.net.protocol.play.OpenSignEditor(pos.x(), pos.y(), pos.z(), front));
+    }
     @Override public boolean isOnCooldown(int itemId) { return player.isOnCooldown(itemId); }
     @Override public void addCooldown(int itemId, int ticks) { player.addCooldown(itemId, ticks); }
     @Override public double[] knownMovement() { return player.knownMovement(); }

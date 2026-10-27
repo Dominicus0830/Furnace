@@ -132,5 +132,6 @@ public class ComposterBlock extends BlockBehavior {
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) { return LEVEL.intValue(state); }
 
-    // TODO(3-4e 호퍼): getContainer — 7 미만이면 위에서 넣는 칸(insertItem), 8 이면 아래에서 뼛가루를 빼는 칸(extractProduce 와 같은 비우기, 아이템 엔티티 없이).
+    /** OutputContainer.setChanged 의 ComposterBlock.empty(null, …): 용기를 만들 때의 상태로 비운다. 칸 용기는 HopperBlockEntity.ComposterInv. */
+    public static int emptyFromHopper(int state, BlockLevel level, Pos pos) { return empty(null, state, level, pos); }
 }

@@ -38,6 +38,9 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:calibrated_sculk_sensor", SculkSensorBlockEntity::calibrated);
         FACTORIES.put("minecraft:sculk_shrieker", SculkShriekerBlockEntity::new);
         FACTORIES.put("minecraft:sculk_catalyst", SculkCatalystBlockEntity::new);
+        FACTORIES.put("minecraft:sign", SignBlockEntity::new);
+        FACTORIES.put("minecraft:chiseled_bookshelf", ChiseledBookShelfBlockEntity::new);
+        FACTORIES.put("minecraft:hanging_sign", SignBlockEntity::hanging);
     }
 
     public static boolean known(String type) { return FACTORIES.containsKey(type); }

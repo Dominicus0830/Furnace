@@ -254,6 +254,18 @@ public interface BlockLevel {
 
     void removeBlockEntity(Pos pos);
 
+    /** Level.sendBlockUpdated(pos, old, new, flags): 그 칸을 변경 방송 대상으로(상태가 같아도 블록 갱신·블록 엔티티 데이터를 다시 보낸다). */
+    default void sendBlockUpdated(Pos pos) {}
+
+    /** Level.getPlayerByUUID: 이 레벨의 접속 중인 플레이어(없으면 null). */
+    default org.domi.furnace.server.entity.Player playerByUuid(java.util.UUID uuid) { return null; }
+
+    /**
+     * SignBlockEntity.executeClickCommandsIfPresent 의 명령 실행: 권한 2, 위치 = 칸 가운데, 이름 = 플레이어(없으면 "Sign").
+     * 명령은 전역 스레드에서 돈다(바닐라는 그 자리에서 바로 실행). 서버가 없는 레벨은 아무것도 안 한다.
+     */
+    default void runSignCommand(BlockActor player, Pos pos, String command) {}
+
     /** 행위자에게 액션바 메시지(예: build.tooHigh). */
     void sendActionBar(BlockActor actor, org.domi.furnace.api.text.Text text);
 

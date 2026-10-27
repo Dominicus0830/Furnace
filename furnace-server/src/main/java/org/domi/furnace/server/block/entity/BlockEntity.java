@@ -84,6 +84,9 @@ public abstract class BlockEntity {
     /** getUpdateTag — 청크 패킷에 싣는 내용(바닐라 기본은 빈 태그 → 패킷에는 null). */
     public NbtCompound updateTag() { return new NbtCompound(); }
 
+    /** getUpdatePacket 이 null 이 아닌가(블록 갱신 방송 때 block_entity_data 를 함께 보낸다). 이식한 종류만 켠다. */
+    public boolean hasUpdatePacket() { return false; }
+
     /** setChanged(level, pos, state): 청크를 저장 대상으로, 블록이 공기가 아니면 비교기 쪽에 알린다. */
     public void setChanged(BlockLevel level) {
         level.blockEntityChanged(pos);
