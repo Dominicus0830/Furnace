@@ -84,6 +84,15 @@ public final class JigsawStructure extends StructureType {
         int y0 = sampleHeight(startHeight, random, c.terrain.minY(), c.terrain.genDepth());
         int px = c.minBlockX(), pz = c.minBlockZ();
         PoolAliases aliases = PoolAliases.create(poolAliases, px, y0, pz, c.seed);
+        return addPieces(c, startPool, startJigsawName, maxDepth, px, y0, pz, useExpansionHack, projectHeightmap, maxDistanceFromCenter,
+            aliases, paddingBottom, paddingTop, keepLiquids);
+    }
+
+    /** 바닐라 JigsawPlacement.addPieces — 시작 위치(startPos)에서 풀의 조각을 이어 붙이는 stub. */
+    static Optional<Stub> addPieces(GenContext c, String startPool, String startJigsawName, int maxDepth, int px, int y0, int pz,
+                                    boolean useExpansionHack, Integer projectHeightmap, int maxDistanceFromCenter, PoolAliases aliases,
+                                    int paddingBottom, int paddingTop, boolean keepLiquids) {
+        LegacyRandom random = c.random;
         StructureEngine e = c.engine;
         BlockStateTable table = e.table();
 
@@ -97,7 +106,7 @@ public final class JigsawStructure extends StructureType {
         if (startJigsawName != null) {
             Jig found = null;
             for (Jig j : start.shuffledJigsaws(e, px, y0, pz, rotation, random)) {
-                if (startJigsawName.equals(j.name())) { found = j; break; }
+                if (j.name() != null && PoolAliases.ns(startJigsawName).equals(PoolAliases.ns(j.name()))) { found = j; break; }   // ResourceLocation 비교
             }
             if (found == null) return Optional.empty();
             ax = found.x(); ay = found.y(); az = found.z();
@@ -132,6 +141,23 @@ public final class JigsawStructure extends StructureType {
             }
             for (JigsawPiece p : pieces) builder.addPiece(p);
         }));
+    }
+
+    /**
+     * 바닐라 JigsawPlacement.generateJigsaw 의 조각 생성 부분(/place jigsaw): 시작 높이 = pos.y, 별칭 없음, 확장 핵·투영 없음,
+     * 최대 거리 128, 기본 패딩(0)·액체 설정(침수 적용). 실패하면 null. 조각은 PiecesBuilder 순서.
+     */
+    public static List<JigsawPiece> generateForCommand(StructureEngine engine, TerrainAccess terrain, String pool, String target, int maxDepth,
+                                                      int x, int y, int z) {
+        StructureRegistry.Def dummy = new StructureRegistry.Def("minecraft:jigsaw_command", "minecraft:jigsaw", 0, "none", java.util.Set.of(), new JsonObject());
+        GenContext ctx = new GenContext(engine, dummy, engine.seed(), Math.floorDiv(x, 16), Math.floorDiv(z, 16), terrain);
+        Optional<Stub> stub = addPieces(ctx, pool, target, maxDepth, x, y, z, false, null, 128, new PoolAliases(Map.of()), 0, 0, true);
+        if (stub.isEmpty()) return null;
+        PiecesBuilder b = new PiecesBuilder();
+        stub.get().generator().accept(b);
+        List<JigsawPiece> out = new ArrayList<>();
+        for (StructurePiece p : b.pieces()) if (p instanceof JigsawPiece jp) out.add(jp);
+        return out;
     }
 
     // ------------------------------------------------------------------ 빈 공간(VoxelShape 대체)
@@ -356,7 +382,7 @@ public final class JigsawStructure extends StructureType {
     static final class PoolAliases {
         private final Map<String, String> map;
 
-        private PoolAliases(Map<String, String> map) { this.map = map; }
+        PoolAliases(Map<String, String> map) { this.map = map; }
 
         String lookup(String id) {
             String key = id.contains(":") ? id : "minecraft:" + id;

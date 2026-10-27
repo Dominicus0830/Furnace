@@ -41,6 +41,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.LootCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMsg(d);
         org.domi.furnace.server.command.builtin.ParticleCommand.register(d);
+        org.domi.furnace.server.command.builtin.PlaceCommand.register(d);
         org.domi.furnace.server.command.builtin.SoundCommands.registerPlaySound(d);
         org.domi.furnace.server.command.builtin.RandomCommand.register(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerReload(d);
@@ -58,10 +59,12 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.TextCommands.registerTellRaw(d);
         org.domi.furnace.server.command.builtin.TagCommand.register(d);
         org.domi.furnace.server.command.builtin.TeamCommand.register(d);
+        org.domi.furnace.server.command.builtin.TeamMsgCommand.register(d);
         org.domi.furnace.server.command.builtin.TeleportCommand.register(d);
         org.domi.furnace.server.command.builtin.TickCommand.register(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);
         org.domi.furnace.server.command.builtin.TextCommands.registerTitle(d);
+        org.domi.furnace.server.command.builtin.TriggerCommand.register(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);
         org.domi.furnace.server.command.builtin.WorldBorderCommand.register(d);
         // 전용 서버 전용

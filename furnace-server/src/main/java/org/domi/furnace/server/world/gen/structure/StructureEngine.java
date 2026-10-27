@@ -314,6 +314,31 @@ public final class StructureEngine {
     /** 테스트/진단용: 지정한 구조물만 생성(null = 전부). 옛 오라클 픽스처(특정 구조물만 켠 순정)와 비교할 때 쓴다. */
     public void restrictTo(Set<String> ids) { this.onlyStructures = ids; }
 
+    /** generateForCommand 결과: 구조물 정의가 없음 / 아직 구현 안 됨 / 생성 실패(start=null) / 성공. */
+    public record CommandStart(boolean known, boolean supported, StructureStart start) {}
+
+    /**
+     * 바닐라 Structure.generate(..., chunkPos, references=0, level, biome -> true) — /place structure 용.
+     * 배치(structure set)·바이옴 판정 없이 그 청크를 시작점으로 조각을 만든다.
+     */
+    public CommandStart generateForCommand(String structureId, int cx, int cz, TerrainAccess terrain) {
+        StructureRegistry.Def def = registry.structure(structureId);
+        if (def == null) return new CommandStart(false, false, null);
+        StructureType type = typeOf(def);
+        if (type == null) return new CommandStart(true, false, null);
+        GenContext ctx = new GenContext(this, def, seed, cx, cz, terrain);
+        Optional<StructureType.Stub> stub = type.findGenerationPoint(ctx);
+        if (stub.isEmpty()) return new CommandStart(true, true, null);
+        PiecesBuilder b = new PiecesBuilder();
+        try {
+            stub.get().generator().accept(b);
+        } catch (StructureTemplate.MissingTemplateException e) {
+            return new CommandStart(true, false, null);
+        }
+        if (b.isEmpty()) return new CommandStart(true, true, null);
+        return new CommandStart(true, true, new StructureStart(def.id(), cx, cz, b.pieces(), def.terrainAdaptation(), type));
+    }
+
     private boolean tryGenerate(StructureRegistry.Entry entry, int cx, int cz, TerrainAccess terrain, List<StructureStart> out) {
         StructureRegistry.Def def = registry.structure(entry.structureId());
         Set<String> only = onlyStructures;

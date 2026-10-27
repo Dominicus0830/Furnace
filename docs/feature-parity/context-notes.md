@@ -224,3 +224,11 @@
 - 조회성: `positioned over` 는 `regionizer().ownerOf(cx,cz) == null` 이면 region 을 만들지 않고 `argument.pos.unloaded`. 주인이 있어도 청크가 로드돼 있지 않으면(`Region.heightAt` == MIN_VALUE) 같은 오류.
 - **알려진 차이**: `execute on leasher` 는 끈 체계가 없어(isLeashed 항상 거짓) 항상 비어 있다. `on target` 은 Mob 만(Interaction 엔티티 없음). `on origin` 은 발사체·효과 구름·송곳니·점화 TNT·벡스·떨어진 아이템.
 - `VanillaCommandTreeTest`: 바닐라 덤프 JSON 은 루트로 가는 리다이렉트(`execute run`)에 `redirect` 키가 없다(경로가 비어서). 패킷에는 플래그가 있다 → 비교에서 루트 리다이렉트는 "없음"으로 본다. NOT_YET 에 `/execute` if·unless·store.
+
+## 2026-10-27 /place — 바닐라와 다른 점(Furnace 전용)
+- 방식: region 스레드에서 실제 청크 `copy()` 격자에 월드젠 코드를 돌리고, 바뀐 칸만 실제 월드에 `setBlock` 으로 옮긴다(feature 는 flag 3 = Feature.setBlock 기본, template·structure·jigsaw 는 flag 2). 칸 순서는 y→z→x 라 바닐라의 쓰기 순서와 다르다.
+- 관측 차이(feature): 바닐라는 feature 마다 자기 flag(나무 19 등)로 ServerLevel 에 직접 쓴다. 여기선 일괄 flag 3 이라 나무 잎처럼 모양 갱신을 일부러 끄는 feature 도 이웃 갱신을 받는다. 중간 상태에서 일어나는 갱신(모래 낙하 순서 등)도 다를 수 있다. FeatureWorldView 에 틱 예약 API 가 없어 `level.scheduleTick`(spring_feature 의 유체 틱 등)은 재현하지 않는다. 다만 옮길 때 `setBlock` 의 onPlace·이웃 갱신으로 유체 틱이 걸릴 수는 있다. 사본의 postProcessMarks 는 버린다(바닐라 LevelChunk 도 승격 때만 처리한다).
+- template·structure: 유체 침수 처리와 updateShapeAtEdge 는 사본(실제 월드와 같은 상태) 안에서 한다. 결과 상태는 바닐라와 같고, 옮기기는 바닐라와 같은 flag 2 다.
+- 로드 요건이 바닐라보다 엄격하다: 바닐라 template 은 checkLoaded(pos, pos+size), jigsaw 는 원점 청크만 검사하고 나머지는 그 자리에서 불러온다. Furnace 는 회전된 범위, 모든 조각이 닿는 청크까지 한 region 에 로드돼 있어야 한다. 격자 밖·미로드 청크를 읽거나 쓰면(`FeatureWorldView.missingAccess`) 아무것도 옮기지 않고 argument.pos.unloaded 로 끝난다.
+- 크기 상한: 격자는 최대 19x19 청크(반경 9)다. 넘으면 미지원 오류로 끝난다. jigsaw 는 최대 거리 128 이라 약 17x17 이다. 사본과 칸 비교 비용은 청크 수×384×256 이고, 361청크면 약 3500만 칸을 region 스레드에서 비교한다(측정 전 추정).
+- feature 하위 트리(필드로 이어진 selector 자식 등) 어디에라도 NoopFeature 가 있으면 미지원 오류다(규칙 3).
