@@ -94,3 +94,7 @@
 - 죽으면 침대/정박기 위치에서 리스폰, 침대 없으면 월드 스폰 + 메시지, 엔드 귀환 시 리스폰
 - 알려진 차이: 밤 건너뛰기 후 깨우기가 다음 region 틱, 자는 중 접속 종료 시 침대 위 위치 저장(바닐라는 일어선 자리), 네더·엔드 월드의 기본 스폰 (0,64,0) 전송
 - 미구현: 자는 중 텔레포트·차원 이동 시 깨우기
+
+## 명령 부족 (현황 조사로 확인, 중요)
+- 바닐라 루트 명령 83개 중 40개 미등록: `/give` `/tp(/teleport)` `/clear` `/damage` `/execute` `/data` `/item` `/scoreboard` `/team` `/bossbar` `/title` `/tag` `/loot` `/particle` `/playsound` `/clone` `/place` `/random` `/ride` `/spreadplayers` `/function` `/schedule` `/tellraw` `/tick` `/forceload` `/stopsound` `/trigger` `/enchant` `/attribute` 등. 접속 테스트할 때 불편 — 우선 구현 대상
+- 상세·순서: docs/feature-parity/survey-structures-commands-2026-10-27.md
