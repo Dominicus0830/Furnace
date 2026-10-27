@@ -137,7 +137,8 @@ public final class PlaceCommand {
         if (!Resources.has(DATA + "worldgen/configured_feature/" + id.path() + ".json", id)) throw ERROR_INVALID_FEATURE.create(key);
         if (gen == null) throw ERROR_UNSUPPORTED.create("features in this world type");
         ConfiguredFeature feature = gen.featurePlacer().biomeData().configuredFeatureById(key);
-        if (feature == null || feature instanceof NoopFeature) throw ERROR_UNSUPPORTED.create("feature " + key);
+        // 하위 feature 트리 어디에라도 Noop 이 있으면 결과(성공·실패 모두)를 믿을 수 없다 — 규칙 3
+        if (feature == null || containsNoop(feature, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()))) throw ERROR_UNSUPPORTED.create("feature " + key);
         int[] p = posArg == null ? sourceBlockPos(source) : BlockPosArgument.getBlockPos(c, posArg);
         boolean loadedCheck = posArg != null;
         PostMessages post = new PostMessages();
@@ -146,12 +147,14 @@ public final class PlaceCommand {
             if (loadedCheck) checkLoadedPos(level, p);
             int cx = p[0] >> 4, cz = p[2] >> 4;
             checkLoaded(level, cx - 1, cz - 1, cx + 1, cz + 1);
-            // Level.getRandom(): 서버 레벨 난수에서 한 번 뽑은 시드의 LCG(바닐라는 레벨 난수를 직접 쓴다 — 시드가 없는 난수라 관측 차이 없음)
+            // Level.getRandom(): 서버 레벨 난수에서 한 번 뽑은 시드의 LCG(바닐라는 레벨 난수를 직접 쓴다). 가정: 시드가 없는 난수라 관측 차이가 없다
             WorldgenRandom random = new WorldgenRandom();
             random.setSeed(level.random().nextLong());
             LiveGrid grid = new LiveGrid(level, cx, cz, 2, gen.seed());
-            if (!feature.place(grid.view, random, p[0], p[1], p[2])) throw ERROR_FEATURE_FAILED.create();
-            grid.commit();
+            boolean placed = feature.place(grid.view, random, p[0], p[1], p[2]);
+            grid.checkComplete();
+            if (!placed) throw ERROR_FEATURE_FAILED.create();
+            grid.commit(3);   // Feature.setBlock 의 기본 flag(UPDATE_ALL)
             post.success(source, () -> Text.translatable("commands.place.feature.success", key, p[0], p[1], p[2]), true);
             return 1;
         }));
@@ -195,7 +198,8 @@ public final class PlaceCommand {
                     Integer.MAX_VALUE / 2, Integer.MAX_VALUE / 2, Integer.MAX_VALUE / 2);
             PostCtx ctx = new PostCtx(engine, grid.view, random, random, infinite, cx, cz, p[0], p[1], p[2]);
             for (JigsawPiece piece : pieces) piece.place(ctx, false);
-            grid.commit();
+            grid.checkComplete();
+            grid.commit(2);   // 템플릿·구조물 배치 flag(2) — 모양 갱신은 사본 안에서 이미 했다
             post.success(source, () -> Text.translatable("commands.place.jigsaw.success", p[0], p[1], p[2]), true);
             return 1;
         }));
@@ -237,7 +241,8 @@ public final class PlaceCommand {
                     }
                 }
             }
-            grid.commit();
+            grid.checkComplete();
+            grid.commit(2);   // 템플릿·구조물 배치 flag(2) — 모양 갱신은 사본 안에서 이미 했다
             post.success(source, () -> Text.translatable("commands.place.structure.success", key, p[0], p[1], p[2]), true);
             return 1;
         }));
@@ -286,10 +291,39 @@ public final class PlaceCommand {
             boolean ok = TemplatePlacer.placeInWorld(template, grid.view, engine.shapes(), engine.table(), new Processor.Ctx(grid.view, engine.table()),
                     p[0], p[1], p[2], p[0], p[1], p[2], st, createRandom(seed), 2);
             if (!ok) throw ERROR_TEMPLATE_FAILED.create();
-            grid.commit();
+            grid.checkComplete();
+            grid.commit(2);   // 템플릿·구조물 배치 flag(2) — 모양 갱신은 사본 안에서 이미 했다
             post.success(source, () -> Text.translatable("commands.place.template.success", id.toString(), p[0], p[1], p[2]), true);
             return 1;
         }));
+    }
+
+    /** feature 트리(필드로 이어진 ConfiguredFeature·PlacedFeature·목록)에 Noop 이 있는가. */
+    static boolean containsNoop(Object o, java.util.Set<Object> seen) {
+        if (o == null || !seen.add(o)) return false;
+        if (o instanceof NoopFeature) return true;
+        if (o instanceof Iterable<?> it) {
+            for (Object e : it) if (containsNoop(e, seen)) return true;
+            return false;
+        }
+        if (o instanceof Object[] arr) {
+            for (Object e : arr) if (containsNoop(e, seen)) return true;
+            return false;
+        }
+        if (o instanceof java.util.Map<?, ?> m) return containsNoop(m.values(), seen);
+        if (!o.getClass().getName().startsWith("org.domi.furnace.server.world.gen.feature")) return false;
+        for (Class<?> c = o.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
+                try {
+                    f.setAccessible(true);
+                    if (containsNoop(f.get(o), seen)) return true;
+                } catch (ReflectiveOperationException | RuntimeException e) {
+                    // 읽지 못하는 필드는 건너뛴다
+                }
+            }
+        }
+        return false;
     }
 
     /** StructureBlockEntity.createRandom: 0 이면 현재 시각 시드. */
@@ -345,7 +379,7 @@ public final class PlaceCommand {
                     ChunkColumn col = level.listenerChunk(centerX + dx, centerZ + dz);
                     if (col == null) continue;
                     live[i] = col;
-                    copy[i] = col.copy();
+                    copy[i] = col.copy();   // blockEntities 는 얕은 복사(같은 BE 객체) — 월드젠 코드는 BE 를 고치지 않고 생성 NBT 만 남긴다는 전제
                     biomes[i] = biomeIds(col);
                 }
             }
@@ -353,9 +387,13 @@ public final class PlaceCommand {
         }
 
         /** 청크 범위를 덮는 가장 작은 정사각 격자. */
-        static LiveGrid covering(RegionLevel level, int minCx, int minCz, int maxCx, int maxCz, long seed) {
+        static final int MAX_GRID_RADIUS = 9;
+
+        static LiveGrid covering(RegionLevel level, int minCx, int minCz, int maxCx, int maxCz, long seed) throws CommandSyntaxException {
             int cx = Math.floorDiv(minCx + maxCx, 2), cz = Math.floorDiv(minCz + maxCz, 2);
             int r = Math.max(Math.max(cx - minCx, maxCx - cx), Math.max(cz - minCz, maxCz - cz));
+            // 상한: 19x19 청크(사본 약 361개). jigsaw(최대 거리 128 → 약 17x17)까지 들어간다. 넘으면 실패.
+            if (r > MAX_GRID_RADIUS) throw ERROR_UNSUPPORTED.create("anything larger than 19x19 chunks");
             return new LiveGrid(level, cx, cz, Math.max(r, 1), seed);
         }
 
@@ -374,7 +412,12 @@ public final class PlaceCommand {
         }
 
         /** 바뀐 칸을 실제 월드에 놓는다(flag 2). 생성된 블록 엔티티 NBT 를 붙이고 엔티티를 세계에 넣는다. 바뀐 칸 수. */
-        int commit() {
+        /** 범위 밖·로드 안 된 청크를 읽거나 썼으면 일부만 놓인 결과다 — 옮기지 않고 실패한다. */
+        void checkComplete() throws CommandSyntaxException {
+            if (view.missingAccess() > 0) throw BlockPosArgument.ERROR_NOT_LOADED.create();
+        }
+
+        int commit(int flags) {
             int changed = 0;
             for (int i = 0; i < live.length; i++) {
                 ChunkColumn l = live[i], cp = copy[i];
@@ -385,7 +428,7 @@ public final class PlaceCommand {
                         for (int x = 0; x < 16; x++) {
                             int s = cp.getBlock(x, y, z);
                             if (s == l.getBlock(x, y, z)) continue;
-                            level.setBlock(new Pos(ox + x, y, oz + z), s, 2);
+                            level.setBlock(new Pos(ox + x, y, oz + z), s, flags);
                             changed++;
                         }
                     }

@@ -49,7 +49,7 @@ public final class TriggerCommand {
         if (source.entity() != null) {
             ScoreHolder holder = ScoreHolder.of(source.entity());
             Scoreboard board = source.getServer().scoreboard();
-            for (Objective o : board.getObjectives()) {
+            if (board != null) for (Objective o : board.getObjectives()) {
                 if (o.criteria() == ObjectiveCriteria.TRIGGER) {
                     Score info = board.getPlayerScoreInfo(holder, o);
                     if (info != null && !info.isLocked()) out.add(o.name());
@@ -82,6 +82,7 @@ public final class TriggerCommand {
 
     /** trigger 목표가 아니면 invalid, 점수가 없거나 잠겼으면 unprimed. 통과하면 다시 잠근 손잡이. */
     private static ScoreAccess getScore(Scoreboard board, ScoreHolder holder, Objective objective) throws CommandSyntaxException {
+        if (board == null) throw ERROR_NOT_PRIMED.create();
         if (objective.criteria() != ObjectiveCriteria.TRIGGER) throw ERROR_INVALID_OBJECTIVE.create();
         Score info = board.getPlayerScoreInfo(holder, objective);
         if (info == null || info.isLocked()) throw ERROR_NOT_PRIMED.create();

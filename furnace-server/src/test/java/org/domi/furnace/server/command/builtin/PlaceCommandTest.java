@@ -20,26 +20,27 @@ import org.domi.furnace.server.world.RegionLevel;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class PlaceCommandTest {
 
-    @TempDir Path tmp;
-    FurnaceSchedulerImpl sched;
-    ServerCore core;
-    final List<String> console = new ArrayList<>();
+    @TempDir static Path tmp;
+    static FurnaceSchedulerImpl sched;
+    static ServerCore core;
+    static final List<String> console = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-    @BeforeEach
-    void setUp() throws Exception {
+    // 노이즈 청크 생성이 비싸서 한 번만 만든다. 시험마다 서로 다른 자리를 쓴다.
+    @BeforeAll
+    static void setUp() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched, reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")));
         core.addConsoleListener(t -> console.add(t.getString()));
-        // (0..3, 0..3) 청크를 올려 둔다
-        for (int cx = 0; cx <= 3; cx++) {
-            for (int cz = 0; cz <= 3; cz++) {
+        // (0..5, 0..5) 청크를 올려 둔다
+        for (int cx = 0; cx <= 5; cx++) {
+            for (int cz = 0; cz <= 5; cz++) {
                 var cp = new org.domi.furnace.server.world.ChunkPos(cx, cz);
                 var loaded = new CompletableFuture<CompletableFuture<?>>();
                 core.world().runAtChunk(cp, r -> loaded.complete(r.loadChunk(cp)));
@@ -48,16 +49,16 @@ class PlaceCommandTest {
         }
     }
 
-    @AfterEach
-    void tearDown() { sched.close(); }
+    @AfterAll
+    static void tearDown() { sched.close(); }
 
-    private List<String> run(String cmd) {
+    private static List<String> run(String cmd) {
         console.clear();
         core.commands().performPrefixedCommandAsync(CommandSource.console(core), cmd).join();
         return List.copyOf(console);
     }
 
-    private <T> T onRegion(Function<RegionLevel, T> f) throws Exception {
+    private static <T> T onRegion(Function<RegionLevel, T> f) throws Exception {
         var fut = new CompletableFuture<T>();
         core.world().runAt(0.5, 0.5, region -> {
             try {
@@ -69,7 +70,7 @@ class PlaceCommandTest {
         return fut.get(10, TimeUnit.SECONDS);
     }
 
-    private int at(int x, int y, int z) throws Exception { return onRegion(l -> l.getBlockState(new Pos(x, y, z))); }
+    private static int at(int x, int y, int z) throws Exception { return onRegion(l -> l.getBlockState(new Pos(x, y, z))); }
 
 
     @Test
@@ -102,6 +103,25 @@ class PlaceCommandTest {
         // 아직 구현하지 않은 feature 는 성공으로 위장하지 않는다
         assertEquals(List.of("Placing feature minecraft:bonus_chest is not supported yet"), run("place feature minecraft:bonus_chest 24 200 40"));
         assertTrue(B.isAir(at(24, 200, 40)));
+    }
+
+    @Test
+    void jigsawAndStructureSucceed() throws Exception {
+        assertEquals(List.of("Generated jigsaw at 48, 100, 48"),
+                run("place jigsaw minecraft:village/plains/town_centers minecraft:bottom 1 48 100 48"));
+        // 마을 중심 조각이 놓였다: 원점 근처 칸 중 공기가 아닌 것이 생겼다
+        int solid = 0;
+        for (int y = 100; y < 110; y++) for (int dx = -4; dx <= 4; dx++) if (!B.isAir(at(48 + dx, y, 48))) solid++;
+        assertTrue(solid > 0, "jigsaw 블록 " + solid);
+        List<String> out = run("place structure minecraft:igloo 20 100 52");
+        assertEquals(List.of("Generated structure \"minecraft:igloo\" at 20, 100, 52"), out);
+    }
+
+    @Test
+    void noopAnywhereInTreeIsUnsupported() {
+        assertTrue(PlaceCommand.containsNoop(List.of(org.domi.furnace.server.world.gen.feature.NoopFeature.INSTANCE),
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>())));
+        assertFalse(PlaceCommand.containsNoop(List.of("x"), java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>())));
     }
 
     @Test

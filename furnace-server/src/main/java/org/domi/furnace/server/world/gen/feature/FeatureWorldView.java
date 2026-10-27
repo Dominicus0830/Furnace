@@ -23,6 +23,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private final int gridReadRadius;
     /** 쓰기 범위(origin ±writeRadius 청크). 월드젠은 oracle 과 같은 1 고정, /place 의 라이브 격자만 넓힌다. */
     private int writeRadius = 1;
+    private boolean live;
+    private int missingAccess;
     private int debugSetBlockCalls;
     /** LevelHeightAccessor.getMinBuildHeight(). */
     public int minBuildHeight() { return minY; }
@@ -99,6 +101,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     public static FeatureWorldView liveGrid(ChunkColumn[] grid, int[][] biomeIdsGrid, int centerX, int centerZ, int radius, long worldSeed) {
         FeatureWorldView v = new FeatureWorldView(grid, biomeIdsGrid, centerX, centerZ, centerX, centerZ, radius, false, worldSeed);
         v.writeRadius = radius;
+        v.live = true;
         return v;
     }
 
@@ -127,7 +130,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
             if (writeCenterOnly && (nx != cx || nz != cz)) return false;
-            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return false;
+            if (!inWriteRange(nx, nz) || cell(nx, nz) == null) return false;
         } else if (!inCenterChunk(worldX, worldZ)) {
             return false;
         }
@@ -142,8 +145,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
-            target = gridCols[gridIndex(nx, nz)];
+            if (!inWriteRange(nx, nz) || cell(nx, nz) == null) return;
+            target = cell(nx, nz);
             lx = worldX - nx * 16;
             lz = worldZ - nz * 16;
         } else {
@@ -162,8 +165,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(bx, 16);
             int nz = Math.floorDiv(bz, 16);
-            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return new org.domi.furnace.server.net.io.nbt.NbtCompound();
-            target = gridCols[gridIndex(nx, nz)];
+            if (!inWriteRange(nx, nz) || cell(nx, nz) == null) return new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            target = cell(nx, nz);
         } else {
             if (!inCenterChunk(bx, bz)) return new org.domi.furnace.server.net.io.nbt.NbtCompound();
             target = col;
@@ -185,8 +188,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
         int nx = Math.floorDiv(bx, 16), nz = Math.floorDiv(bz, 16);
         if (gridCols != null) {
-            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
-            gridCols[gridIndex(nx, nz)].addGeneratedEntity(nbt);
+            if (!inWriteRange(nx, nz) || cell(nx, nz) == null) return;
+            cell(nx, nz).addGeneratedEntity(nbt);
         } else if (inCenterChunk(bx, bz)) {
             col.addGeneratedEntity(nbt);
         }
@@ -197,8 +200,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inWriteRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return;
-            gridCols[gridIndex(nx, nz)].markPosForPostprocessing(worldX - nx * 16, worldY, worldZ - nz * 16);
+            if (!inWriteRange(nx, nz) || cell(nx, nz) == null) return;
+            cell(nx, nz).markPosForPostprocessing(worldX - nx * 16, worldY, worldZ - nz * 16);
             return;
         }
         if (!inCenterChunk(worldX, worldZ)) return;
@@ -210,8 +213,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return null;
-            return gridCols[gridIndex(nx, nz)].generatedBlockEntity(worldX - nx * 16, worldY, worldZ - nz * 16);
+            if (!inReadRange(nx, nz) || cell(nx, nz) == null) return null;
+            return cell(nx, nz).generatedBlockEntity(worldX - nx * 16, worldY, worldZ - nz * 16);
         }
         if (!inCenterChunk(worldX, worldZ)) return null;
         return col.generatedBlockEntity(worldX - cx * 16, worldY, worldZ - cz * 16);
@@ -265,7 +268,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
             if (!inReadRange(nx, nz)) return minY - 1;
-            ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+            ChunkColumn neighbor = cell(nx, nz);
             if (neighbor == null) return minY - 1;
             return neighbor.motionBlockingBlockY(worldX - nx * 16, worldZ - nz * 16);
         }
@@ -278,8 +281,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inReadRange(nx, nz) || gridCols[gridIndex(nx, nz)] == null) return minY - 1;
-            return gridCols[gridIndex(nx, nz)].motionBlockingNoLeavesBlockY(worldX - nx * 16, worldZ - nz * 16);
+            if (!inReadRange(nx, nz) || cell(nx, nz) == null) return minY - 1;
+            return cell(nx, nz).motionBlockingNoLeavesBlockY(worldX - nx * 16, worldZ - nz * 16);
         }
         if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.motionBlockingNoLeavesBlockY(worldX - cx * 16, worldZ - cz * 16);
@@ -441,7 +444,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz) || !inWorldY(worldY)) return ChunkSection.AIR;
-        ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+        ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return ChunkSection.AIR;
         return neighbor.getBlock(worldX - nx * 16, worldY, worldZ - nz * 16);
     }
@@ -451,7 +454,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nz = Math.floorDiv(worldZ, 16);
         if (writeCenterOnly && (nx != cx || nz != cz)) return;
         if (!inWriteRange(nx, nz) || !inWorldY(worldY)) return;
-        ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+        ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return;
         debugSetBlockCalls++;
         neighbor.setBlock(worldX - nx * 16, worldY, worldZ - nz * 16, stateId);
@@ -461,7 +464,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY - 1;
-        ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+        ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return minY - 1;
         return neighbor.surfaceBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -470,7 +473,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY - 1;
-        ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+        ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return minY - 1;
         return neighbor.worldSurfaceWgBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -479,7 +482,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY - 1;
-        ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+        ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return minY - 1;
         return neighbor.oceanFloorBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -488,7 +491,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY;
-        ChunkColumn neighbor = gridCols[gridIndex(nx, nz)];
+        ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return minY;
         return neighbor.wgOceanFloorHeight(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -508,13 +511,27 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     // 읽기(makeLimb의 isFree 등) — 파이프라인 grid center 기준 ±gridReadRadius. oracle의
     // OracleWorldGenLevel.getChunk(radius=grid 전체)와 동일한 범위여야 fancy oak 분기(dry-run) 판정이 일치한다.
     private boolean inReadRange(int chunkX, int chunkZ) {
-        return Math.abs(chunkX - gridCenterX) <= gridReadRadius && Math.abs(chunkZ - gridCenterZ) <= gridReadRadius;
+        boolean in = Math.abs(chunkX - gridCenterX) <= gridReadRadius && Math.abs(chunkZ - gridCenterZ) <= gridReadRadius;
+        if (!in && live) missingAccess++;
+        return in;
     }
 
     // 쓰기 — oracle의 OracleWorldGenLevel.setBlock(writeRadius=1 고정)과 동일하게 origin(cx,cz) ±1로 제한.
     private boolean inWriteRange(int chunkX, int chunkZ) {
-        return Math.abs(chunkX - cx) <= writeRadius && Math.abs(chunkZ - cz) <= writeRadius;
+        boolean in = Math.abs(chunkX - cx) <= writeRadius && Math.abs(chunkZ - cz) <= writeRadius;
+        if (!in && live) missingAccess++;
+        return in;
     }
+
+    /** 격자 칸의 청크(없으면 null). /place 라이브 격자에서는 없는 칸에 닿은 횟수를 센다. */
+    private ChunkColumn cell(int chunkX, int chunkZ) {
+        ChunkColumn c = gridCols[gridIndex(chunkX, chunkZ)];
+        if (c == null && live) missingAccess++;
+        return c;
+    }
+
+    /** /place 라이브 격자: 범위 밖·로드 안 된 청크를 읽거나 쓴 횟수(0 이 아니면 결과를 믿을 수 없다). */
+    public int missingAccess() { return missingAccess; }
 
     private int gridIndex(int chunkX, int chunkZ) {
         int size = 2 * gridReadRadius + 1;
