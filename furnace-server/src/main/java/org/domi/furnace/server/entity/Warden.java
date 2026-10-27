@@ -286,13 +286,23 @@ public class Warden extends Monster implements VibrationSystem {
         return null;
     }
 
+    /**
+     * Warden.finalizeSpawn(그 밖의 이유: /summon·알 등): 파고들기 대기 1200 만 두고 Mob.finalizeSpawn.
+     * 이것이 없으면 DIG 활동 조건(DIG_COOLDOWN 없음)이 바로 맞아 소환 직후 땅속으로 들어간다.
+     */
+    @Override
+    public void finalizeSpawn(org.domi.furnace.server.block.RandomSource levelRandom, org.domi.furnace.server.entity.DifficultyInstance difficulty) {
+        getBrain().setMemoryWithExpiry(MemoryModuleType.DIG_COOLDOWN, Unit.INSTANCE, WardenAi.DIGGING_COOLDOWN);
+        super.finalizeSpawn(levelRandom, difficulty);
+    }
+
     /** finalizeSpawn(TRIGGERED): 파고들기 대기 1200, 나오기 자세·기억, agitated 소리, 그다음 Mob.finalizeSpawn. */
     public void finalizeTriggeredSpawn(ChunkLevel level) {
         getBrain().setMemoryWithExpiry(MemoryModuleType.DIG_COOLDOWN, Unit.INSTANCE, WardenAi.DIGGING_COOLDOWN);
         setPose(POSE_EMERGING);
         getBrain().setMemoryWithExpiry(MemoryModuleType.IS_EMERGING, Unit.INSTANCE, WardenAi.EMERGE_DURATION);
         playSound("minecraft:entity.warden.agitated", 5.0F, 1.0F);
-        finalizeSpawn(level.random(), level.getCurrentDifficultyAt(blockPosition()));
+        super.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(blockPosition()));
         playAmbientSound();
     }
 

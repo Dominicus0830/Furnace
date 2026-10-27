@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class WardenTest {
 
-    static final class Lvl extends BlockPlacementTest.TestLevel {
+    static class Lvl extends BlockPlacementTest.TestLevel {
         long time = 100;
         final LevelServices svc = new LevelServices.Delegating(LevelServices.DEFAULT) {
             @Override public long gameTime() { return time; }
@@ -143,5 +143,56 @@ class WardenTest {
         assertEquals(dz + 0.5, w.z());
         assertEquals(org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(yaw), w.yRot());
         assertEquals(Entity.POSE_EMERGING, w.getPose());
+    }
+
+    /** 사용자 버그 C2: /summon(COMMAND) 의 finalizeSpawn 은 DIG_COOLDOWN 1200 만 두고 기본 자세 — 틱을 돌려도 파고들지 않는다. */
+    @Test
+    void summonedWardenDoesNotDigImmediately() {
+        Lvl l = new Lvl();
+        Warden w = new Warden(l, l.nextEntityId());
+        w.moveTo(0.5, -60, 0.5, 0, 0);
+        w.finalizeSpawn(l.random(), l.getCurrentDifficultyAt(w.blockPosition()));
+        assertTrue(l.addFreshEntity(w));
+        assertEquals(Entity.POSE_STANDING, w.getPose(), "소환 직후 기본 자세(EMERGING 아님)");
+        assertTrue(w.getBrain().hasMemoryValue(MemoryModuleType.DIG_COOLDOWN));
+        assertFalse(w.getBrain().hasMemoryValue(MemoryModuleType.IS_EMERGING));
+        for (int t = 0; t < 200; t++) {
+            l.time++;
+            w.tick();
+            assertNotEquals(Entity.POSE_DIGGING, w.getPose(), "틱 " + t + " 에 파고들기 시작");
+        }
+        assertFalse(w.isRemoved());
+    }
+
+    /** 사용자 버그 C2: 소환 가능한 비명체를 같은 플레이어가 대기(200틱) 간격으로 울리면 경고 단계 1→2→3→4, 4단계에 워든이 나온다. */
+    @Test
+    void shriekerWarningLevelsRiseAndSummonAtFour() {
+        Player p = new Player(1, java.util.UUID.randomUUID(), "A", new io.netty.channel.embedded.EmbeddedChannel());
+        p.applyMove(4.5, -60, 4.5, 0, 0, true);
+        Lvl l = new Lvl() {
+            final LevelServices withPlayer = new LevelServices.Delegating(svc) {
+                @Override public void forEachPlayer(java.util.function.Consumer<Player> c) { c.accept(p); }
+            };
+            @Override protected LevelServices services() { return withPlayer; }
+        };
+        Pos sp = new Pos(0, -60, 0);
+        var canSummon = org.domi.furnace.server.block.B.prop("can_summon");
+        var shrieking = org.domi.furnace.server.block.B.prop("shrieking");
+        l.setBlock(sp, canSummon.with(org.domi.furnace.server.block.B.defaultState(org.domi.furnace.server.block.B.id("sculk_shrieker")), true), 3);
+        var be = assertInstanceOf(org.domi.furnace.server.block.entity.SculkShriekerBlockEntity.class, l.getBlockEntity(sp));
+        for (int level = 1; level <= 4; level++) {
+            be.tryShriek(l, p);
+            assertEquals(level, be.warningLevel(), "경고 단계");
+            assertEquals(level, p.wardenSpawnTracker().getWarningLevel());
+            assertTrue(shrieking.is(l.getBlockState(sp)), "비명 중");
+            for (int t = 0; t < 200; t++) {   // 비명 90틱 뒤 응답, 추적기 대기 200틱
+                l.time++;
+                l.runScheduledTicks();
+                p.wardenSpawnTracker().tick();
+            }
+            assertFalse(shrieking.is(l.getBlockState(sp)));
+            int wardens = l.getEntitiesOfClass(Warden.class, new AABB(-30, -90, -30, 30, -30, 30), e -> true).size();
+            assertEquals(level == 4 ? 1 : 0, wardens, "단계 " + level + " 의 워든 수");
+        }
     }
 }
