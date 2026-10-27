@@ -1418,6 +1418,7 @@ public final class Region {
     /** 탭 목록에 올려둔 eid가 있으면 PlayerInfoRemove로 빼고 기록을 지운다. */
     private static void removeFromTabList(Player a, int eid) {
         java.util.UUID uuid = a.listed().remove(eid);
+        a.tabEpoch = -1;   // 다음 동기화에서 다시 훑는다(아직 접속 중이면 다시 올린다)
         a.missingTicks().remove(eid);
         if (uuid != null) a.send(new PlayerInfoRemove(java.util.List.of(uuid)));
     }
@@ -1543,6 +1544,9 @@ public final class Region {
      * 스폰 패킷보다 반드시 먼저 호출해야 한다(탭 항목 없이 플레이어 엔티티를 스폰하면 안 됨).
      */
     private void syncTabList(Player a) {
+        // 접속자 집합이 그대로면 훑을 것이 없다(예전엔 매 틱 관찰자 × 접속자 O(P²) 조회)
+        long epoch = Player.rosterEpoch();
+        if (a.tabEpoch == epoch) return;
         List<UUID> gone = new ArrayList<>();
         var it = a.listed().entrySet().iterator();
         while (it.hasNext()) {
@@ -1567,6 +1571,7 @@ public final class Region {
             }
         }
         if (add != null) a.send(new PlayerInfoUpdate(add));
+        a.tabEpoch = epoch;
     }
 
     /** 바닐라처럼 600틱마다 접속자 전원의 핑을 모든 플레이어에게 갱신해 보낸다. */
@@ -1605,7 +1610,7 @@ public final class Region {
                 if (bd != null) a.send(bd);
                 var bv = bp == null ? null : bp.vehicle();
                 if (bv != null) a.send(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
-                startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation()});
+                startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw())});
             } else if (!near && tracking) {
                 a.send(new RemoveEntities(java.util.List.of(b.entityId())));
                 stopTracking(a, b.entityId());
@@ -1659,7 +1664,17 @@ public final class Region {
         } else {
             a.send(new MoveEntityRot(b.entityId(), b.yaw(), b.pitch(), b.onGround()));
         }
-        a.send(new SetHeadRotation(b.entityId(), b.yaw()));
+        // 바닐라 ServerEntity.sendChanges: 머리 각도(256분할 내림 값)가 바뀌었을 때만 RotateHead 를 보낸다(이동만 했으면 보내지 않음)
+        int head = headRotp(b.yaw());
+        if (head != (int) last[6]) {
+            a.send(new SetHeadRotation(b.entityId(), b.yaw()));
+            last[6] = head;
+        }
         last[0] = b.x(); last[1] = b.y(); last[2] = b.z(); last[3] = b.yaw(); last[4] = b.pitch();
+    }
+
+    /** 바닐라 yHeadRotp: Mth.floor(yHeadRot * 256 / 360). 플레이어는 머리 yaw = 몸통 yaw 로 보낸다. */
+    static int headRotp(float yaw) {
+        return (int) Math.floor(yaw * 256.0f / 360.0f);
     }
 }

@@ -46,4 +46,27 @@ class FramingTest {
         assertThrows(Exception.class, () -> dec.writeInbound(buf));
         dec.finishAndReleaseAll();
     }
+
+    @Test
+    void decoder_honorsPerStateLimit() {
+        FrameDecoder fd = new FrameDecoder();
+        fd.maxLength(1024);
+        EmbeddedChannel dec = new EmbeddedChannel(fd);
+        ByteBuf ok = Unpooled.buffer();
+        Types.writeVarInt(ok, 1024);
+        ok.writeZero(1024);
+        assertTrue(dec.writeInbound(ok));
+        ((ByteBuf) dec.readInbound()).release();
+        ByteBuf big = Unpooled.buffer();
+        Types.writeVarInt(big, 1025);                // 본문이 오기 전에 길이만으로 끊는다
+        assertThrows(Exception.class, () -> dec.writeInbound(big));
+        dec.finishAndReleaseAll();
+    }
+
+    @Test
+    void decoder_limitCannotExceedProtocolMaximum() {
+        FrameDecoder fd = new FrameDecoder();
+        fd.maxLength(Integer.MAX_VALUE);
+        assertEquals(2 * 1024 * 1024, fd.maxLength());
+    }
 }

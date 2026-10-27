@@ -139,8 +139,14 @@ public final class RegionFile implements Closeable {
         return max;
     }
 
+    private boolean closed;
+
+    /** 닫혔는가(RegionFileStore 의 LRU 가 닫은 핸들을 다시 열게). 파일 잠금 안에서 읽는다. */
+    boolean isClosed() { return closed; }
+
     @Override
     public void close() throws IOException {
+        closed = true;
         raf.close();
     }
 }

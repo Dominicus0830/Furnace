@@ -290,7 +290,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public boolean inputJumping() { return inputJumping; }
 
-    public void markDisconnected() { this.disconnected = true; }
+    public void markDisconnected() { this.disconnected = true; bumpRoster(); }
+
+    // 접속자 집합(입장·퇴장·퇴장 표시)이 바뀔 때마다 오르는 전역 번호. 탭 목록 동기화가 바뀐 틱에만 전원을 훑게 한다(E-11).
+    private static final java.util.concurrent.atomic.AtomicLong ROSTER_EPOCH = new java.util.concurrent.atomic.AtomicLong();
+
+    /** 상태를 바꾼 뒤에 부른다(읽는 쪽은 번호를 먼저 읽고 훑으므로 그 사이 변경은 다음 틱에 다시 훑는다). */
+    public static void bumpRoster() { ROSTER_EPOCH.incrementAndGet(); }
+
+    public static long rosterEpoch() { return ROSTER_EPOCH.get(); }
+
+    /** 이 플레이어의 탭 목록을 마지막으로 맞춘 번호(-1 = 다시 훑어야 함). 소유 region 스레드 전용. */
+    public long tabEpoch = -1;
     public boolean isDisconnected() { return disconnected; }
     public int viewDistance() { return viewDistance; }
     public void viewDistance(int vd) { this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd); }

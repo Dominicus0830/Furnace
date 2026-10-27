@@ -157,17 +157,42 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf frame) {
         this.ctx = ctx;
         int packetId = Types.readVarInt(frame);
+        // 속도 제한은 모든 단계에 건다 — 로그인 전 단계에서 무제한으로 패킷을 처리하지 않게(바닐라 클라는 이 단계에 몇 개만 보낸다)
+        if (!packetBucket.tryAcquire(1)) { kick(ctx, "Too many packets"); return; }
         switch (state) {
             case HANDSHAKE -> handleHandshake(ctx, packetId, frame);
             case STATUS -> handleStatus(ctx, packetId, frame);
             case LOGIN -> handleLogin(ctx, packetId, frame);
             case CONFIGURATION -> handleConfiguration(ctx, packetId, frame);
-            case PLAY -> {
-                if (!packetBucket.tryAcquire(1)) { kick(ctx, "Too many packets"); return; }
-                handlePlay(ctx, packetId, frame);
-            }
+            case PLAY -> handlePlay(ctx, packetId, frame);
             default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
+        if (state != frameLimitState) applyFrameLimit(ctx);
+    }
+
+    // 단계별 프레임 상한(1.21.1 기준). 핸드셰이크: id(1) + 프로토콜 VarInt(5) + 주소 문자열(255자 → 최대 765B + 길이 3)
+    // + 포트(2) + 다음 단계 VarInt(5) = 781B. 상태: 요청(id 만)·핑(id + long) = 9B. 그 뒤는 바닐라 21비트 프레임(2 MiB).
+    static final int HANDSHAKE_FRAME_MAX = 1024;
+    static final int STATUS_FRAME_MAX = 64;
+    private ConnectionState frameLimitState;
+
+    static int frameLimit(ConnectionState s) {
+        return switch (s) {
+            case HANDSHAKE -> HANDSHAKE_FRAME_MAX;
+            case STATUS -> STATUS_FRAME_MAX;
+            default -> Integer.MAX_VALUE;   // FrameDecoder 가 2 MiB 로 자른다
+        };
+    }
+
+    private void applyFrameLimit(ChannelHandlerContext ctx) {
+        frameLimitState = state;
+        org.domi.furnace.server.net.io.FrameDecoder fd = ctx.pipeline().get(org.domi.furnace.server.net.io.FrameDecoder.class);
+        if (fd != null) fd.maxLength(frameLimit(state));
+    }
+
+    @Override
+    public void handlerAdded(ChannelHandlerContext ctx) {
+        applyFrameLimit(ctx);
     }
 
     private void handleHandshake(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {

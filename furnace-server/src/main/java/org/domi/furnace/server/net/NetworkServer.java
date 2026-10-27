@@ -7,7 +7,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import java.net.InetSocketAddress;
 import org.domi.furnace.api.sched.FurnaceScheduler;
@@ -32,6 +31,11 @@ public final class NetworkServer {
     private volatile int readTimeoutSeconds = 30;   // 바닐라 ReadTimeoutHandler(30)와 같다. 핸드셰이크 후 침묵하는 소켓을 정리
     private final io.netty.channel.group.ChannelGroup allChannels =
             new io.netty.channel.group.DefaultChannelGroup(io.netty.util.concurrent.GlobalEventExecutor.INSTANCE);
+
+    private volatile boolean useNativeTransport = true;   // server.properties use-native-transport(바닐라 기본 true)
+
+    /** start() 전에: epoll 을 쓸 수 있으면 쓸지(바닐라 ServerConnectionListener.startTcpServerListener 와 같은 선택). */
+    public void useNativeTransport(boolean v) { this.useNativeTransport = v; }
 
     /** 테스트용: start() 전에 읽기 타임아웃(초)을 바꾼다. */
     void readTimeoutSeconds(int seconds) { this.readTimeoutSeconds = seconds; }
@@ -60,17 +64,29 @@ public final class NetworkServer {
 
     /** 서버 기동. 실제 바인딩된 포트 반환(port=0이면 OS 배정 포트). */
     public int start() {
-        bossGroup = new NioEventLoopGroup(1);
-        workerGroup = new NioEventLoopGroup();
+        // 바닐라: Epoll.isAvailable() && use-native-transport 면 epoll, 아니면 NIO("Using epoll channel type"/"Using default channel type")
+        boolean epoll = useNativeTransport && io.netty.channel.epoll.Epoll.isAvailable();
+        Class<? extends io.netty.channel.ServerChannel> channelType;
+        if (epoll) {
+            bossGroup = new io.netty.channel.epoll.EpollEventLoopGroup(1);
+            workerGroup = new io.netty.channel.epoll.EpollEventLoopGroup();
+            channelType = io.netty.channel.epoll.EpollServerSocketChannel.class;
+            log.info("Using epoll channel type");
+        } else {
+            bossGroup = new NioEventLoopGroup(1);
+            workerGroup = new NioEventLoopGroup();
+            channelType = NioServerSocketChannel.class;
+            log.info("Using default channel type");
+        }
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
-                .channel(NioServerSocketChannel.class)
+                .channel(channelType)
                 .childOption(ChannelOption.TCP_NODELAY, true)
                 .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK,
                         new io.netty.channel.WriteBufferWaterMark(512 * 1024, 2 * 1024 * 1024))
-                .childHandler(new ChannelInitializer<SocketChannel>() {
+                .childHandler(new ChannelInitializer<io.netty.channel.Channel>() {
                     @Override
-                    protected void initChannel(SocketChannel ch) {
+                    protected void initChannel(io.netty.channel.Channel ch) {
                         allChannels.add(ch);
                         ch.pipeline()
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(readTimeoutSeconds))

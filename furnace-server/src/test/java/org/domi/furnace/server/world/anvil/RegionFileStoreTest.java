@@ -18,4 +18,41 @@ class RegionFileStoreTest {
         assertNull(store.readChunk(5, 5));
         store.closeAll();
     }
+
+    @Test
+    void lru_closesOldestHandles_andReopensOnDemand(@TempDir Path dir) throws Exception {
+        RegionFileStore store = new RegionFileStore(dir);
+        int files = RegionFileStore.MAX_OPEN + 20;
+        for (int i = 0; i < files; i++) store.writeChunk(i * 32, 0, ("c" + i).getBytes());
+        assertEquals(RegionFileStore.MAX_OPEN, store.openCount());   // 바닐라처럼 256개 넘게 열어 두지 않는다
+        for (int i = 0; i < files; i++) assertArrayEquals(("c" + i).getBytes(), store.readChunk(i * 32, 0));
+        assertEquals(RegionFileStore.MAX_OPEN, store.openCount());
+        store.closeAll();
+    }
+
+    @Test
+    void lru_concurrentAccessSurvivesEviction(@TempDir Path dir) throws Exception {
+        RegionFileStore store = new RegionFileStore(dir);
+        int files = RegionFileStore.MAX_OPEN * 2;
+        for (int i = 0; i < files; i++) store.writeChunk(i * 32, 0, ("c" + i).getBytes());
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        try {
+            java.util.List<java.util.concurrent.Future<?>> fs = new java.util.ArrayList<>();
+            for (int t = 0; t < 8; t++) {
+                int seed = t;
+                fs.add(pool.submit(() -> {
+                    java.util.Random r = new java.util.Random(seed);
+                    for (int n = 0; n < 2000; n++) {
+                        int i = r.nextInt(files);
+                        assertArrayEquals(("c" + i).getBytes(), store.readChunk(i * 32, 0));
+                    }
+                    return null;
+                }));
+            }
+            for (var f : fs) f.get();
+        } finally {
+            pool.shutdownNow();
+        }
+        store.closeAll();
+    }
 }

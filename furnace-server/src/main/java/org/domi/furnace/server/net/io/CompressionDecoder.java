@@ -10,10 +10,11 @@ import org.domi.furnace.server.net.protocol.ProtocolException;
 
 public final class CompressionDecoder extends ByteToMessageDecoder {
 
+    // 바닐라 상한은 8 MiB(CompressionDecoder.MAXIMUM_UNCOMPRESSED_LENGTH)지만 C→S 패킷 중 가장 큰 것도 1 MiB(로그인 커스텀 응답)라
+    // 더 좁은 2 MiB 를 유지한다 — 압축 해제 증폭으로 채널당 잡는 버퍼를 줄인다.
     private static final int MAX = 2 * 1024 * 1024;
     private final Inflater inflater = new Inflater();
     private byte[] inputScratch = new byte[0]; // 연속 nio 버퍼가 아닐 때만 쓰는 채널당 재사용 배열
-    @SuppressWarnings("unused")
     private final int threshold;
 
     public CompressionDecoder(int threshold) {
@@ -27,6 +28,10 @@ public final class CompressionDecoder extends ByteToMessageDecoder {
         if (dataLength == 0) {
             out.add(in.readRetainedSlice(in.readableBytes())); // 비압축
             return;
+        }
+        // 바닐라 CompressionDecoder(서버는 validateDecompressed=true): 임계값 미만인데 압축한 패킷은 거부한다
+        if (dataLength < threshold) {
+            throw new ProtocolException("Badly compressed packet - size of " + dataLength + " is below server threshold of " + threshold);
         }
         if (dataLength > MAX) {
             throw new ProtocolException("Decompressed size too large: " + dataLength);

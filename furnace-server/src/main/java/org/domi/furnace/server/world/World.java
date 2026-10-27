@@ -483,6 +483,7 @@ public final class World {
             synchronized (map) {
                 map.put(p.entityId(), p);
                 array = map.values().toArray(new Player[0]);
+                Player.bumpRoster();
             }
         }
 
@@ -490,6 +491,7 @@ public final class World {
             synchronized (map) {
                 map.remove(eid);
                 array = map.values().toArray(new Player[0]);
+                Player.bumpRoster();
             }
         }
     }

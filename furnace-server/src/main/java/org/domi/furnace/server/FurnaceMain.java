@@ -308,6 +308,7 @@ public final class FurnaceMain {
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
+        network.useNativeTransport(props.useNativeTransport);
         CountDownLatch shutdown = new CountDownLatch(1);
 
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.

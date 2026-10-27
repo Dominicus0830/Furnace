@@ -43,12 +43,15 @@ class NetworkServerTest {
             NetworkServer server = new NetworkServer(occupied.getLocalPort(), -1, "Furnace Server", sched,
                     world, new EntityIdAllocator());
             Throwable thrown = assertThrows(Throwable.class, server::start);
-            assertTrue(thrown instanceof java.net.BindException, "BindException이 그대로 전달돼야: " + thrown);
+            // NIO 는 BindException, epoll 은 NativeIoException(IOException, "Address already in use")
+            assertTrue(thrown instanceof java.net.BindException
+                    || (thrown instanceof java.io.IOException && String.valueOf(thrown.getMessage()).contains("Address already in use")),
+                    "bind 실패 예외가 그대로 전달돼야: " + thrown);
             long deadline = System.nanoTime() + 5_000_000_000L;
             long alive;
             do {
                 alive = Thread.getAllStackTraces().keySet().stream()
-                        .filter(t -> t.getName().startsWith("nioEventLoopGroup") && t.isAlive()).count();
+                        .filter(t -> (t.getName().startsWith("nioEventLoopGroup") || t.getName().startsWith("epollEventLoopGroup")) && t.isAlive()).count();
                 if (alive == 0) break;
                 Thread.sleep(50);
             } while (System.nanoTime() < deadline);

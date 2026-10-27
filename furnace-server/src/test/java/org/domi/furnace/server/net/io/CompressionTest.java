@@ -44,6 +44,29 @@ class CompressionTest {
         out.release();
     }
 
+    @Test
+    void rejects_compressedPacketBelowThreshold() {
+        // 바닐라: "Badly compressed packet - size of N is below server threshold of T"
+        int threshold = 256;
+        EmbeddedChannel enc = new EmbeddedChannel(new CompressionEncoder(16));
+        enc.writeOutbound(bytes(100, 5));            // 임계값 16 으로 압축된 100B
+        ByteBuf compressed = enc.readOutbound();
+        EmbeddedChannel dec = new EmbeddedChannel(new CompressionDecoder(threshold));
+        Exception e = assertThrows(Exception.class, () -> dec.writeInbound(compressed));
+        assertTrue(e.getMessage().contains("below server threshold of 256"), e.getMessage());
+        try { dec.finishAndReleaseAll(); } catch (Exception ignored) { }   // 이미 던진 예외를 다시 던진다
+    }
+
+    @Test
+    void rejects_declaredSizeAboveMaximum() {
+        EmbeddedChannel dec = new EmbeddedChannel(new CompressionDecoder(256));
+        ByteBuf buf = Unpooled.buffer();
+        Types.writeVarInt(buf, 2 * 1024 * 1024 + 1);   // 압축 해제 상한 초과(본문 없이 선언만)
+        buf.writeByte(0x78);
+        assertThrows(Exception.class, () -> dec.writeInbound(buf));
+        try { dec.finishAndReleaseAll(); } catch (Exception ignored) { }   // 이미 던진 예외를 다시 던진다
+    }
+
     /** 예전 인코더(byte[] 복사 + 기본 Deflater + 8KB 임시 배열)와 같은 방식으로 만든 기준 바이트. */
     private static byte[] reference(byte[] data, int threshold) {
         ByteBuf out = Unpooled.buffer();
