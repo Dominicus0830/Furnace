@@ -7,7 +7,7 @@
 
 ## 결정 필요
 - **[중요] Mojang 서버 jar·풀어낸 클래스가 git 에 커밋돼 있음(감사 I-8)**: tools/vanilla-data/ 의 minecraft_server.1.21.1.jar, versions/1.21.1/server-1.21.1.jar, server-1.21.1/*.class 6,148개, libraries/*.jar 등 1만 3천여 파일(.git 158MB). 규칙·EULA 위반. 선택지: (a) 작업 트리에서만 제거+.gitignore(쉬움, 단 pull 하면 로컬 사본도 지워질 수 있으니 먼저 백업) (b) 히스토리까지 정리(파괴적 — 이미 push 된 브랜치 영향). 어느 쪽으로 할지 정해 주세요.
-- 공유 스케줄러(B안): 검토 문서 docs/feature-parity/shared-scheduler-review-2026-10-27.md, 권고=채택. 구현 착수 여부는 재검토 후 결정
+- 공유 스케줄러(B안): 검토 문서 docs/feature-parity/shared-scheduler-review-2026-10-27.md (7장 최종 재검증). 최종 권고=**조건부 채택**(선행: chunkAt 동기 생성 제거, 풀 참조 계수, 잠금 순서 명시, 차원 최소 보장+과부하 벤치). 작업 규모 재추정 커밋 7~10·파일 10~14. 구현 착수 여부 결정 필요
 - 브랜치 3개(claude/kind-goldberg-au63ot, cool-mayer-hqp9tw, work-continuation-u597cw) 삭제: 권한 없음(403) → GitHub 웹에서 직접
 - F-14 정책: 생성만 하고 편집 안 한 청크를 디스크에 저장할지(재방문 시 월드젠 CPU 절약 ↔ 지형 갱신 고정)
 
