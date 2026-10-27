@@ -48,23 +48,23 @@ public final class NaturalSpawner {
             this.players = players;
         }
 
-        private List<Player> playersNear(int cx, int cz) {
-            List<Player> out = new ArrayList<>();
-            double mx = cx * 16 + 8, mz = cz * 16 + 8;
-            for (Player p : players) {
-                if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) continue;
-                double dx = p.x() - mx, dz = p.z() - mz;
-                if (dx * dx + dz * dz <= 128.0 * 128.0) out.add(p);
-            }
-            return out;
+        // 바닐라 LocalMobCapCalculator.getPlayersNear 와 같은 판정(관전자 제외, 청크 중심 128블록). 예전엔 호출마다 목록을
+        // 새로 만들어 플레이어가 많으면 틱 할당 상위였다(perf-c4) — 같은 순서로 바로 훑는다.
+        private boolean near(Player p, int cx, int cz) {
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return false;
+            double dx = p.x() - (cx * 16 + 8), dz = p.z() - (cz * 16 + 8);
+            return dx * dx + dz * dz <= 128.0 * 128.0;
         }
 
         void addMobToLocalCaps(int cx, int cz, MobCategory cat) {
-            for (Player p : playersNear(cx, cz)) playerCounts.computeIfAbsent(p, k -> new EnumMap<>(MobCategory.class)).merge(cat, 1, Integer::sum);
+            for (Player p : players) {
+                if (near(p, cx, cz)) playerCounts.computeIfAbsent(p, k -> new EnumMap<>(MobCategory.class)).merge(cat, 1, Integer::sum);
+            }
         }
 
         private boolean localCanSpawn(MobCategory cat, int cx, int cz) {
-            for (Player p : playersNear(cx, cz)) {
+            for (Player p : players) {
+                if (!near(p, cx, cz)) continue;
                 var m = playerCounts.get(p);
                 if (m == null || m.getOrDefault(cat, 0) < cat.max()) return true;
             }
