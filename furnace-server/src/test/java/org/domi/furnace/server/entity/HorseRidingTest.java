@@ -141,4 +141,24 @@ class HorseRidingTest {
         assertEquals(-60.0, at.y(), 1e-9, "바닥 위");
         assertEquals(0.5, at.z(), 1e-5);
     }
+
+    /** 사용자 버그 C1: 최대 체력은 15 + nextInt(8) + nextInt(9) 이고, 첫 틱에 체력(기본 53)이 그 값으로 깎인다(refreshDirtyAttributes). */
+    @Test
+    void spawnedHorseHealthClampedToRandomizedMax() {
+        for (long seed = 1; seed <= 20; seed++) {
+            BlockPlacementTest.TestLevel level = new BlockPlacementTest.TestLevel();
+            ((LegacyRandomSource) level.random()).setSeed(seed);
+            RandomSource ref = RandomSource.create(seed);
+            ref.nextInt(7);   // Horse.finalizeSpawn: 색
+            ref.nextInt(5);   // 무늬
+            float max = 15.0F + ref.nextInt(8) + ref.nextInt(9);
+            Horse h = horse(level);
+            h.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(h.blockPosition()), null);
+            assertEquals(max, h.maxHealth(), "시드 " + seed);
+            assertTrue(level.addFreshEntity(h));
+            h.tick();
+            assertEquals(max, h.health(), "첫 틱 뒤 체력 = 최대 체력");
+            assertTrue(h.health() >= 15.0F && h.health() <= 30.0F);
+        }
+    }
 }

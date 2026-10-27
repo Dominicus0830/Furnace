@@ -819,6 +819,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
         while (xRot() - xRotO >= 180.0F) xRotO += 360.0F;
         while (yHeadRot - yHeadRotO < -180.0F) yHeadRotO -= 360.0F;
         while (yHeadRot - yHeadRotO >= 180.0F) yHeadRotO += 360.0F;
+        refreshDirtyAttributes();
+    }
+
+    /** LivingEntity.refreshDirtyAttributes → onAttributeUpdated: 최대 체력이 바뀌어 체력이 넘치면 깎는다. (흡수 상한은 흡수 미구현) */
+    protected void refreshDirtyAttributes() {
+        for (Attribute a : attributes().takeToUpdate()) {
+            if (a == Attribute.MAX_HEALTH) {
+                float max = maxHealth();
+                if (health() > max) setHealth(max);
+            }
+        }
     }
 
     /** tickHeadTurn: 몸통 방향이 시선에서 최대 50도(Mob 은 maxBodyYRotDiff) 넘게 벌어지지 않게 끌어온다. */

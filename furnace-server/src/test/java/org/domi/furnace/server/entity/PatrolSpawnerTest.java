@@ -214,4 +214,40 @@ class PatrolSpawnerTest {
         goal.tick();
         assertFalse(p.isPatrolling());
     }
+
+    /**
+     * 사용자 버그 C4: 145일째 낮에 시간을 흘려 보내면 12000+nextInt(1200) 틱마다 판정하고, 1/5 판정이 맞는 주기에 순찰대가 난다.
+     * 판정 사이(대기 중)에는 난수를 쓰지 않는다.
+     */
+    @Test
+    void patrolAttemptsEveryCycleAfterTimePasses() {
+        var level = new PatrolLevel(42L);
+        level.day = 145 * 24000L + 6000L;   // 145일째 정오
+        var spawner = new PatrolSpawner(p -> false);
+        List<Player> players = List.of(player(GameMode.SURVIVAL));
+        RandomSource m = RandomSource.create(42L);
+        int checks = 0, spawned = 0;
+        long next = 0;
+        for (int t = 0; t < 20 * 13200 && spawned == 0; t++) {
+            int n = spawner.tick(level, players, true);
+            next--;
+            if (next <= 0) {   // 이 틱에 판정: 대기 다시 걸기 + 1/5
+                checks++;
+                next += 12000 + m.nextInt(1200);
+                boolean roll = m.nextInt(5) == 0;
+                assertEquals(next, spawner.nextTick(), "대기 다시 걸기(" + checks + "번째 판정)");
+                if (roll) {
+                    assertTrue(n > 0, "1/5 판정이 맞으면 순찰대가 난다");
+                    spawned = n;
+                } else {
+                    assertEquals(0, n);
+                }
+            } else {
+                assertEquals(0, n, "대기 중에는 내지 않는다");
+            }
+        }
+        assertTrue(spawned > 0, "판정 " + checks + "번 안에 순찰대");
+        assertEquals(spawned, pillagers(level).size());
+        assertTrue(checks >= 1);
+    }
 }
