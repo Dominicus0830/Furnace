@@ -199,3 +199,7 @@
 - **의도한 차이**: 지연 결과가 CommandSyntaxException 이 아닌 예외로 끝나면(`EntityOps.reportFailure`) forked 여부와 상관없이 `command.failed` 메시지를 보내고 실패 콜백 뒤 컨텍스트를 **계속** 돈다. 바닐라는 큐 실행 중 비-CSE 예외면 `performCommand` catch 로 컨텍스트 전체가 중단된다. 동기 경로(명령 본문이 바로 던진 예외)는 바닐라처럼 중단한다. (가정: region 실패는 대상 하나의 문제라 뒤 줄을 살리는 쪽을 택함 — S5 함수 테스트에서 재검토)
 - **의도한 차이**: 지연 결과 타임아웃(벽시계 5초) 뒤 늦게 끝난 region 작업의 부작용(블록·엔티티 변경)은 되돌리지 않고 콜백만 버린다(세대 토큰). 뒤 명령이 그 결과를 볼 수 있다.
 - **의도한 차이**: 한 컨텍스트가 region 왕복으로 여러 틱에 걸치면 뒤 최상위 명령이 모두 기다린다(head-of-line). `CommandQueue.pendingCount/currentContextTicks` 지표와 100틱 경고로 관측한다.
+
+## 2026-10-27 플레이어 외형 동기(set_equipment·엔티티 데이터 17/18)
+- **알려진 차이**: 손 바꾸기(F 키)에서 바닐라는 두 손 변경을 set_equipment 목록에서 빼고 EntityEvent 55(손 바꿈)를 보낸다(LivingEntity.handleHandSwap). Furnace 는 `Player.syncEquipment` 가 두 칸을 set_equipment 로 보낸다. 클라 화면 결과는 같고 손 바꿈 애니메이션 차이만 있다(가정: 1.21.1 클라 기준 미확인).
+- 함정: `Player` 는 `LivingEntity` 가 아니라 몹 트래커 경로(`EntityTracker.addPairing`)를 타지 않는다. 플레이어 외형은 `Region.updateVisibility` + `Player.pairingData/pairingEquipment`(소유 스레드가 공개하는 volatile 불변 스냅샷)로 따로 보낸다. 리스폰(새 ServerPlayer)은 `markEntityDataResend` 로 기본값 기준 재전송.

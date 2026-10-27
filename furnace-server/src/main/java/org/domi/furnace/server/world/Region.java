@@ -804,6 +804,7 @@ public final class Region {
             org.domi.furnace.server.entity.Consuming.tick(p, this);
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
+            p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
             pushMinecarts(p);
             touchEntities(p);
             tickBreaking(p);
@@ -1687,6 +1688,8 @@ public final class Region {
                 Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
                 var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
                 if (bd != null) a.send(bd);
+                var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
+                if (be != null) a.send(be);
                 var bv = bp == null ? null : bp.vehicle();
                 if (bv != null) a.send(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
                 startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw())});
