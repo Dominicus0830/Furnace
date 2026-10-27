@@ -349,6 +349,15 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
         default boolean canTakeItemThroughFace(int slot, ItemStack s, int dir) { return true; }
 
+        /** Container.getMaxStackSize()(용기 쪽 한도, 기본 99). */
+        default int maxStackSize() { return 99; }
+
+        /** Container.getMaxStackSize(stack) = min(용기 한도, 아이템 최대 수량). */
+        default int maxStackSize(ItemStack s) { return Math.min(maxStackSize(), ItemStackCodecs.maxStackSize(s)); }
+
+        /** 블록 엔티티 용기면 그 블록 엔티티(없으면 null). */
+        default Object blockEntity() { return null; }
+
         /** 이 용기가 깔때기 블록 엔티티면 그것(쿨다운 규칙용). */
         default Object hopper() { return null; }
 
@@ -390,6 +399,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
                 b.setItem(i, s, level);
                 return;
             }
+            if (be instanceof CrafterBlockEntity c) c.beforeSetItem(i, level);
             unpack();
             ItemStack old = get(i);
             if (be instanceof HopperBlockEntity) {   // 깔때기 setItem: limitSize, setChanged 없음
@@ -419,6 +429,10 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         @Override public void setChanged() { be.setChanged(level); }
 
         @Override public Object hopper() { return be instanceof HopperBlockEntity ? be : null; }
+
+        @Override public int maxStackSize() { return be instanceof ChiseledBookShelfBlockEntity ? 1 : 99; }
+
+        @Override public Object blockEntity() { return be; }
 
         @Override
         public boolean worldly() {
@@ -453,6 +467,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         @Override
         public boolean canPlaceItem(int slot, ItemStack s) {
             if (be instanceof ChiseledBookShelfBlockEntity b) return b.canPlaceItem(slot, s);
+            if (be instanceof CrafterBlockEntity c) return c.canPlaceItem(slot, s);
             if (be instanceof FurnaceBlockEntity) {
                 // AbstractFurnaceBlockEntity.canPlaceItem: 결과 칸 불가, 연료 칸은 연료 또는 (연료 칸이 양동이가 아닐 때) 양동이
                 if (slot == 2) return false;
@@ -513,6 +528,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
         @Override public void setChanged() { be.setChanged(level); }
 
+        @Override public int maxStackSize() { return 1; }
+
         @Override
         public boolean canPlaceItem(int slot, ItemStack s) {
             return ItemTools.component(s, "minecraft:jukebox_playable") != null && get(slot).isEmpty();
@@ -552,6 +569,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         }
 
         @Override public int size() { return kind == NONE ? 0 : 1; }
+
+        @Override public int maxStackSize() { return kind == NONE ? 99 : 1; }
 
         @Override public ItemStack get(int i) { return item; }
 

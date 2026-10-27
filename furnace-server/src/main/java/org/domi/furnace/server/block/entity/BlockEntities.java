@@ -39,6 +39,8 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:sculk_shrieker", SculkShriekerBlockEntity::new);
         FACTORIES.put("minecraft:sculk_catalyst", SculkCatalystBlockEntity::new);
         FACTORIES.put("minecraft:sign", SignBlockEntity::new);
+        FACTORIES.put("minecraft:mob_spawner", SpawnerBlockEntity::new);
+        FACTORIES.put("minecraft:crafter", CrafterBlockEntity::new);
         FACTORIES.put("minecraft:chiseled_bookshelf", ChiseledBookShelfBlockEntity::new);
         FACTORIES.put("minecraft:hanging_sign", SignBlockEntity::hanging);
     }

@@ -459,14 +459,24 @@ public final class ItemUse {
 
     /**
      * SpawnEggItem.useOn: 맞은 칸의 충돌 모양이 비었으면 그 칸, 아니면 맞은 면 앞 칸에 몹을 만든다(바닥에 맞춰 내림).
-     * TODO(스포너·ENTITY_DATA 컴포넌트): 스포너면 종류만 바꾸고, 알의 entity_data 로 종류·태그를 덮어쓴다.
+     * 생성기면 종류만 바꾼다. TODO(ENTITY_DATA 컴포넌트): 알의 entity_data 로 종류·태그를 덮어쓴다.
      */
     private static InteractionResult spawnEgg(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack, String itemName) {
         Pos pos = hit.pos();
         int state = level.getBlockState(pos);
-        if (B.is(state, "minecraft:spawner")) return InteractionResult.PASS;
-        Pos target = B.INFO.collisionShape(state).isEmpty() ? pos : pos.relative(hit.face());
         String type = "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length());
+        if (B.is(state, "minecraft:spawner")) {
+            // 생성기면 다음 스폰 데이터의 종류만 바꾼다(shrink 는 크리에이티브에서도).
+            if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SpawnerBlockEntity sp) {
+                sp.setEntityId(type, level);
+                level.sendBlockUpdated(pos);
+                level.gameEvent("minecraft:block_change", pos, player, -1);
+                player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+                return InteractionResult.CONSUME;
+            }
+            return InteractionResult.PASS;
+        }
+        Pos target = B.INFO.collisionShape(state).isEmpty() ? pos : pos.relative(hit.face());
         if (level.spawnMobFromEgg(type, target, true, !pos.equals(target) && hit.face() == Dir.UP)) {
             player.setItemInHand(hand, stack.withCount(stack.count() - 1));
             level.gameEvent("minecraft:entity_place", pos, player, -1);

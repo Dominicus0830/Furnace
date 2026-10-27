@@ -1002,6 +1002,17 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean isHandlingTick() { return handlingTick; }
 
+    /** EntityGetter.hasNearbyAlivePlayer: 관전자 아니고 살아 있는 플레이어가 (x,y,z) 에서 range 안(< range²). */
+    public boolean hasNearbyAlivePlayer(double x, double y, double z, double range) {
+        boolean[] found = {false};
+        services().forEachPlayer(p -> {
+            if (found[0] || p.isDisconnected() || p.isSpectator() || !p.isAlive()) return;
+            double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
+            if (dx * dx + dy * dy + dz * dz < range * range) found[0] = true;
+        });
+        return found[0];
+    }
+
     @Override
     public void sendBlockUpdated(Pos pos) {
         if (hasChunkAt(pos)) markChanged(pos);
