@@ -796,6 +796,7 @@ public final class Region {
             p.currentLevel = level;
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
+            p.sendPendingKnockback();   // hurtMarked 가 선 틱에만 속도 패킷 한 번
             // Entity.checkInsideBlocks 의 포털 칸 + baseTick 의 handlePortal(차원을 옮기면 이 region 에서 빠진다)
             if (level != null && checkInsidePortals(p)) { it.remove(); continue; }
             if (level != null && handlePlayerPortal(p)) { it.remove(); continue; }
@@ -1353,8 +1354,13 @@ public final class Region {
      * Entity.checkInsideBlocks 중 포털 칸: 몸통(1e-7 안쪽)이 걸친 지옥문·엔드 포털. 엔드에서 크레딧을 본 적 없이 엔드 포털에 들면
      * 크레딧을 띄우고 이 region 에서 뺀다(참 — 호출자가 목록에서 지운다).
      */
+    /** canUsePortal(false) + 관전자 제외: 관전자는 noPhysics 라 Entity.move 가 checkInsideBlocks 를 건너뛰어 포털 칸에 들 수 없다. */
+    public static boolean canTriggerPortals(Player p) {
+        return p.vehicle() == null && !p.vitals().isDeadOrDying() && p.gameMode() != GameMode.SPECTATOR;
+    }
+
     private boolean checkInsidePortals(Player p) {
-        if (p.vehicle() != null || p.vitals().isDeadOrDying()) return false;   // canUsePortal(false)
+        if (!canTriggerPortals(p)) return false;
         double h = p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
         var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3);
         int x0 = (int) Math.floor(box.minX() + 1.0E-7), x1 = (int) Math.floor(box.maxX() - 1.0E-7);

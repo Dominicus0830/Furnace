@@ -26,8 +26,10 @@ class ShieldTest {
     private static ItemStack item(String name) { return new ItemStack(ItemContext.id("minecraft:item", name), 1, null); }
 
     /** x=7.5 에서 -x 쪽(yaw 90)을 보는 플레이어, 주 손에 방패. */
-    private static Player player(ZombieCombatTest.ArenaLevel level, GameMode mode) {
-        var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+    private static Player player(ZombieCombatTest.ArenaLevel level, GameMode mode) { return player(level, mode, new EmbeddedChannel()); }
+
+    private static Player player(ZombieCombatTest.ArenaLevel level, GameMode mode, EmbeddedChannel ch) {
+        var p = new Player(7, UUID.randomUUID(), "Steve", ch);
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, mode, false);
         p.applyMove(7.5, -60, 0.5, 90, 0, true);
@@ -148,5 +150,56 @@ class ShieldTest {
         z.moveTo(0.5, -60, 0.5, 90, 0);   // 등을 돌림
         assertTrue(z.hurtBy(new Entity.Damage("player_attack", false, false, false), 4.0F, attacker));
         assertTrue(z.health() < hp);
+    }
+
+    @Test
+    void blockingMobKnockbackNearlyCancels() {
+        // 바닐라 blockedByShield: defender.knockback(0.5, defender−attacker) 로 공격자 쪽 0.5, 이어 일반 0.4 로 반대 → 순 -0.15(공격자 반대 쪽으로 조금)
+        var level = new ZombieCombatTest.ArenaLevel();
+        var attacker = player(level, GameMode.SURVIVAL);
+        level.player = null;
+        var z = zombie(level, 0.5);
+        z.setItemSlot(EquipmentSlot.MAINHAND, item("minecraft:shield"));
+        z.startUsingItem(0);
+        for (int i = 0; i < 5; i++) z.tick();
+        z.moveTo(0.5, -60, 0.5, -90, 0);
+        z.setOnGround(false);
+        z.setDeltaMovement(0.0, 0.0, 0.0);
+        assertFalse(z.hurtBy(new Entity.Damage("player_attack", false, false, false), 4.0F, attacker));
+        assertEquals(-0.15, z.vx(), 1e-6, "공격자(+x) 반대로 순 0.15 만");
+    }
+
+    private static int motionPackets(EmbeddedChannel ch) {
+        ch.runPendingTasks();
+        int n = 0;
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            io.netty.buffer.ByteBuf bb = (io.netty.buffer.ByteBuf) o;
+            if (org.domi.furnace.server.net.io.Types.readVarInt(bb) == org.domi.furnace.server.net.protocol.play.SetEntityMotion.ID) n++;
+            bb.release();
+        }
+        return n;
+    }
+
+    @Test
+    void fullyBlockedPlayerGetsNoMotionPacket_unblockedGetsOne() {
+        // 바닐라: 완전히 막으면 markHurt 가 안 서서 속도 패킷 0건(안 밀림), 못 막은 피격은 hurtMarked 로 틱 끝에 한 번
+        var level = new ZombieCombatTest.ArenaLevel();
+        var ch = new EmbeddedChannel();
+        var p = player(level, GameMode.SURVIVAL, ch);
+        raise(p, 5);
+        motionPackets(ch);   // 비우기
+        assertFalse(p.hurtByMob(MOB, 5.0F, zombie(level, 0.5)), "정면은 막힌다");
+        p.knockback(0.4, 0.5 - p.x(), 0.5 - p.z());   // 이어지는 일반 넉백(막혀도 deltaMovement 에는 쌓인다)
+        p.sendPendingKnockback();
+        assertEquals(0, motionPackets(ch), "막으면 속도 패킷 없음");
+        for (int i = 0; i < 30; i++) p.vitals().tick(DRY);   // 무적 시간 지나기
+        p.applyMove(7.5, -60, 0.5, 270, 0, true);   // 등을 돌림 → 못 막는다
+        assertTrue(p.hurtByMob(MOB, 1.0F, zombie(level, 0.5)));
+        p.knockback(0.4, 0.5 - p.x(), 0.5 - p.z());
+        p.sendPendingKnockback();
+        assertEquals(1, motionPackets(ch), "못 막은 피격은 한 번");
+        p.sendPendingKnockback();
+        assertEquals(0, motionPackets(ch));
     }
 }

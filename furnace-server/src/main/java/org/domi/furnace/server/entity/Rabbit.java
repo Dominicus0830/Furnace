@@ -201,17 +201,16 @@ public class Rabbit extends Animal {
         entityData.set(DATA_TYPE, v);
     }
 
-    private static int variantForSpawn(ChunkLevel level, Pos pos) {
-        String biome = level.biomeAt(pos.x(), pos.y(), pos.z());
+    /**
+     * Rabbit.getRandomRabbitVariant: 난수(nextInt(100))를 먼저 뽑고 바이옴 태그로 가른다.
+     * 바이옴을 못 읽는 경우(주인 region 이 아닌 이웃 청크로 확대 지터가 넘어간 경계 등)는 어느 태그도 아닌 것으로 취급한다(가정).
+     */
+    static int variantForSpawn(ChunkLevel level, Pos pos) {
         int r = level.random().nextInt(100);
-        if (WHITE_BIOMES.contains(biome)) return r < 80 ? TYPE_WHITE : TYPE_WHITE_SPLOTCHED;
-        if (biome != null && biome.equals("minecraft:desert")) return TYPE_GOLD;
+        if (level.biomeIs(pos, "minecraft:spawns_white_rabbits")) return r < 80 ? TYPE_WHITE : TYPE_WHITE_SPLOTCHED;
+        if (level.biomeIs(pos, "minecraft:spawns_gold_rabbits")) return TYPE_GOLD;
         return r < 50 ? TYPE_BROWN : (r < 90 ? TYPE_SALT : TYPE_BLACK);
     }
-
-    private static final java.util.Set<String> WHITE_BIOMES = java.util.Set.of("minecraft:snowy_plains", "minecraft:ice_spikes", "minecraft:frozen_ocean",
-            "minecraft:snowy_taiga", "minecraft:frozen_river", "minecraft:snowy_beach", "minecraft:frozen_peaks", "minecraft:jagged_peaks",
-            "minecraft:snowy_slopes", "minecraft:grove");
 
     @Override
     public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {

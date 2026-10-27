@@ -136,4 +136,29 @@ class HopperTransferTest {
         cart.setEnabled(false);
         assertTrue(cart.suckInItems(), "suckInItems 자체는 켜짐과 무관(틱이 막는다)");
     }
+
+    @Test
+    void hopperBelowJukeboxTakesDiscAndStopsSong() {
+        // 바닐라: 깔때기가 주크박스 음반을 빼면 removeItem → setTheItem(EMPTY) → 정지(levelEvent 1011), has_record 해제
+        org.domi.furnace.server.item.JukeboxSongs.put("minecraft:13", 178.0F, 1);
+        var events = new java.util.ArrayList<int[]>();
+        var l = new PoiManagerTest.Lvl() {
+            @Override public void levelEvent(org.domi.furnace.server.block.BlockActor except, int type, Pos pos, int data) { events.add(new int[] {type, data}); }
+        };
+        Pos jp = new Pos(0, -49, 0), hp = new Pos(0, -50, 0);
+        l.setBlock(jp, B.defaultState("minecraft:jukebox"), 3);
+        var jb = (org.domi.furnace.server.block.entity.JukeboxBlockEntity) l.getBlockEntity(jp);
+        assertNotNull(jb);
+        var h = placeHopper(l, hp, "down");
+        ItemStack disc = stack("music_disc_13", 1);
+        org.junit.jupiter.api.Assumptions.assumeTrue(org.domi.furnace.server.item.JukeboxSongs.of(disc) != null, "아이템 기본 컴포넌트 없음");
+        jb.insert(disc, null, l);
+        assertTrue(jb.isPlaying());
+        h.tick(l);
+        assertTrue(jb.theItem().isEmpty(), "깔때기가 음반을 가져간다(바닐라도 재생 중 허용)");
+        assertFalse(jb.isPlaying(), "노래가 멈춘다");
+        assertFalse(B.prop("has_record").is(l.getBlockState(jp)));
+        assertEquals(1011, events.get(events.size() - 1)[0], "정지 이벤트가 나간다");
+        assertFalse(h.items[0].isEmpty());
+    }
 }

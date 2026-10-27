@@ -107,6 +107,9 @@ public final class PlayerVitals {
     private int air = MAX_AIR;
     private float fallDistance;
     private int invulnerableTime, hurtTime, deathTime, tickCount;
+
+    /** 틱마다 올라가는 시계(같은 틱 안의 밀침을 쌓는 기준). */
+    public synchronized int tickCount() { return tickCount; }
     private int spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
     private float lastHurt;
     private boolean invulnerableFlag;          // 엔티티 NBT "Invulnerable"
@@ -480,6 +483,7 @@ public final class PlayerVitals {
             died = health <= 0.0f;
         }
         lastHurtFresh = newHurt;
+        if (newHurt && !type.noImpact() && (!blocked || amount > 0.0f)) player.markHurt();   // 완전히 막으면 markHurt 없음 → 속도 패킷 0건
         if (newHurt) {   // 막았으면 damage_event 대신 엔티티 이벤트 29(방패 소리)
             Packet ev = blocked ? new EntityEvent(player.entityId(), (byte) 29)
                     : causing == null && direct == null && pos == null ? DamageEvent.environmental(player.entityId(), type.registryId())

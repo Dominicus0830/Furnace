@@ -81,7 +81,7 @@ class NetherPortalTravelTest {
         }
         // 원천 1×2 사각형 안 가로 0.5, 세로 0 → 출구 2×3 의 가운데 바닥: (2 + 0.45 + 1.1·0.5, −60, 0.5)
         assertEquals(3.0, arrived.x(), 1e-9);
-        assertEquals(-60.0, arrived.y(), 1e-5);   // 몸 상자를 1e-6 줄여 찾으므로 1e-6 위
+        assertEquals(-60.0, arrived.y(), 1e-5);   // 몸 상자를 1e-6 늘려 찾는다(바닐라 inflate) — 오차 안
         assertEquals(0.5, arrived.z(), 1e-9);
         assertEquals(30.0F, arrived.yRot(), 1e-6, "같은 축이면 돌지 않는다");
         assertTrue(arrived.isOnPortalCooldown());
@@ -102,7 +102,7 @@ class NetherPortalTravelTest {
         Entity arrived = only(over, Pig.class);
         assertNotNull(arrived, "오버월드에 도착");
         assertEquals(85.5, arrived.x(), 1e-9);
-        assertEquals(-60.0, arrived.y(), 1e-5);   // 몸 상자를 1e-6 줄여 찾으므로 1e-6 위
+        assertEquals(-60.0, arrived.y(), 1e-5);   // 몸 상자를 1e-6 늘려 찾는다(바닐라 inflate) — 오차 안
         assertEquals(85.5, arrived.z(), 1e-9);
         assertFalse(B.is(over.getBlockState(new Pos(84, -61, 84)), "minecraft:obsidian"), "새 지옥문을 만들지 않았다");
     }
@@ -137,5 +137,15 @@ class NetherPortalTravelTest {
         assertEquals(new Pos(0, -60, 5), r.minCorner());
         assertEquals(3, r.axis1Size());
         assertEquals(4, r.axis2Size());
+    }
+
+    @Test
+    void spectatorCannotTriggerPortals() {
+        var p = new Player(1, java.util.UUID.randomUUID(), "A", new io.netty.channel.embedded.EmbeddedChannel());
+        assertTrue(org.domi.furnace.server.world.Region.canTriggerPortals(p));
+        p.vitals().setGameMode(org.domi.furnace.server.world.GameMode.SPECTATOR);
+        assertFalse(org.domi.furnace.server.world.Region.canTriggerPortals(p), "관전자는 포털을 탈 수 없다");
+        p.vitals().setGameMode(org.domi.furnace.server.world.GameMode.CREATIVE);
+        assertTrue(org.domi.furnace.server.world.Region.canTriggerPortals(p));
     }
 }

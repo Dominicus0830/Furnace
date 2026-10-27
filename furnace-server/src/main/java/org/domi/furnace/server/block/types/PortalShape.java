@@ -142,9 +142,9 @@ public final class PortalShape {
         if (width > 4.0 || height > 4.0) return new double[] {x, y, z};
         double half = height / 2.0;
         double cx = x, cy = y + half, cz = z;
-        // AABB.ofSize(center, w, 0, w).expandTowards(0, 1, 0).deflate(1.0E-6)
-        double[] start = {cx - width / 2.0 + 1.0E-6, cy + 1.0E-6, cz - width / 2.0 + 1.0E-6,
-                cx + width / 2.0 - 1.0E-6, cy + 1.0 - 1.0E-6, cz + width / 2.0 - 1.0E-6};
+        // AABB.ofSize(center, w, 0, w).expandTowards(0, 1, 0).inflate(1.0E-6) — 바닐라 1.21.1 은 늘린다(줄이지 않는다)
+        double[] start = {cx - width / 2.0 - 1.0E-6, cy - 1.0E-6, cz - width / 2.0 - 1.0E-6,
+                cx + width / 2.0 + 1.0E-6, cy + 1.0 + 1.0E-6, cz + width / 2.0 + 1.0E-6};
         var search = new org.domi.furnace.server.entity.AABB(start[0], start[1], start[2], start[3], start[4], start[5]).inflate(width, height, width);
         java.util.List<double[]> free = new java.util.ArrayList<>();
         free.add(start);

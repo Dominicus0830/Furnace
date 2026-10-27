@@ -600,14 +600,47 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, moveDx + dx, moveDy + dy, moveDz + dz));
     }
 
-    /** LivingEntity.knockback: 밀려나는 속도를 그 플레이어에게 보낸다(set_entity_motion). */
+    // 바닐라 구조: knockback 은 deltaMovement 만 바꾸고, 속도 패킷은 hurtMarked(markHurt)가 선 틱에 한 번만 나간다.
+    // 방패로 완전히 막으면 markHurt 가 서지 않아 패킷이 0건이다. 여러 region 스레드가 맞출 수 있어 잠금으로 묶는다.
+    private final Object knockbackLock = new Object();
+    private double[] knockbackPending;
+    private boolean hurtMarked;
+
+    /** LivingEntity.markHurt: 이번 틱 끝에 쌓인 밀침 속도를 보낸다. */
+    public void markHurt() {
+        synchronized (knockbackLock) { hurtMarked = true; }
+    }
+
+    /** ServerEntity 의 `if (hurtMarked)`: 표시가 섰고 쌓인 속도가 있으면 set_entity_motion 한 번. 어느 쪽이든 쌓인 것은 비운다. */
+    public void sendPendingKnockback() {
+        double[] m;
+        synchronized (knockbackLock) {
+            m = hurtMarked ? knockbackPending : null;
+            hurtMarked = false;
+            knockbackPending = null;
+        }
+        if (m != null) send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, m[0], m[1], m[2]));
+    }
+
+    /**
+     * LivingEntity.knockback: 막힘 저항을 곱하고, 방향이 거의 0 이면 무작위로 다시 뽑고, 속도를 쌓는다(보내기는 sendPendingKnockback).
+     * 기준 속도는 마지막 이동 패킷의 이동량(서버가 플레이어 속도를 모른다).
+     */
     @Override
     public void knockback(double strength, double dx, double dz) {
+        strength *= 1.0 - attributes().value(org.domi.furnace.server.attribute.Attribute.KNOCKBACK_RESISTANCE);
         if (strength <= 0.0) return;
+        var rnd = java.util.concurrent.ThreadLocalRandom.current();
+        while (dx * dx + dz * dz < 1.0E-5F) {
+            dx = (rnd.nextDouble() - rnd.nextDouble()) * 0.01;
+            dz = (rnd.nextDouble() - rnd.nextDouble()) * 0.01;
+        }
         double len = Math.sqrt(dx * dx + dz * dz);
-        double nx = len < 1.0E-5 ? 0.0 : dx / len * strength, nz = len < 1.0E-5 ? 0.0 : dz / len * strength;
-        send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, moveDx / 2.0 - nx,
-                onGround ? Math.min(0.4, moveDy / 2.0 + strength) : moveDy, moveDz / 2.0 - nz));
+        double nx = dx / len * strength, nz = dz / len * strength;
+        synchronized (knockbackLock) {
+            double[] base = knockbackPending != null ? knockbackPending : new double[] {moveDx, moveDy, moveDz};
+            knockbackPending = new double[] {base[0] / 2.0 - nx, onGround ? Math.min(0.4, base[1] / 2.0 + strength) : base[1], base[2] / 2.0 - nz};
+        }
     }
 
     /**
