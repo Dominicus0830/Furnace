@@ -152,14 +152,22 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     /** 지금 처리 중인 피해의 명시 위치(바닐라 DamageSource(type, Vec3), 없으면 null). */
     private double[] pendingPos;
+    /** damage_event 에 실을 명시 위치와 직접 엔티티 id(-1 없음, -2 원인만 있음 = 직접 없음, -3 hurtBySource 밖). */
+    private double[] pendingEventPos;
+    private int pendingDirectId = -3;
 
     /** 원인·직접 엔티티·위치를 가진 피해(/damage). 원인이 살아 있는 것이 아니면 때린 쪽 없이 직접 엔티티만 본다. */
     public boolean hurtBySource(org.domi.furnace.server.entity.damage.DamageSource src, float amount) {
-        pendingPos = src.position();
+        // getSourcePosition: 명시 위치, 없으면 직접 엔티티(플레이어도) 위치. damage_event 에는 명시 위치만 싣는다.
+        pendingPos = src.position() != null ? src.position() : src.direct() instanceof Player ? src.sourcePosition() : null;
+        pendingEventPos = src.position();
+        pendingDirectId = src.direct() != null ? src.direct().id() : src.causing() != null ? -2 : -3;
         try {
             return hurtByVia(Damage.of(src.type()), amount, src.attacker(), src.directEntity());
         } finally {
             pendingPos = null;
+            pendingEventPos = null;
+            pendingDirectId = -3;
         }
     }
 
@@ -208,9 +216,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (fresh) {
             DamageType t = DamageType.byKey(source.type());
             int cause = attacker == null ? -1 : attacker.id();
-            int directId = pendingDirect != null ? pendingDirect.id() : cause;
+            int directId = pendingDirectId >= 0 ? pendingDirectId : pendingDirectId == -2 ? -1 : pendingDirect != null ? pendingDirect.id() : cause;
             if (blocked) broadcastEntityEvent((byte) 29);
-            else if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, directId, pendingPos));
+            else if (tracker != null) tracker.broadcast(new DamageEvent(id(), t.registryId(), cause, directId, pendingEventPos));
             if (!t.noImpact() && !blocked) markHurt();
         }
         if (attacker != null) {   // 맞은 뒤 기록: 마지막으로 때린 몹, 플레이어면 100틱 동안 경험치·전리품 자격

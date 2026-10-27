@@ -18,8 +18,36 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private Targetable lastHurtByMob, lastHurtMob;
     private int combatTicks, lastHurtByMobTimestamp, lastHurtMobTimestamp;
 
-    /** 틱마다 1 올라가는 전투 시계(LivingEntity.tickCount 에 해당). */
-    void combatTick() { combatTicks++; }
+    /** 바닐라 lastHurtByPlayer·lastHurtByPlayerTime(플레이어가 때리면 100틱 동안 남는다). */
+    private Player lastHurtByPlayer;
+    private int lastHurtByPlayerTime;
+
+    /** 틱마다 1 올라가는 전투 시계(LivingEntity.tickCount 에 해당). LivingEntity.baseTick 처럼 오래된 피격 기록을 지운다. */
+    void combatTick() {
+        combatTicks++;
+        if (lastHurtByPlayerTime > 0) lastHurtByPlayerTime--;
+        else lastHurtByPlayer = null;
+        if (lastHurtByMob != null) {
+            if (!lastHurtByMob.isAlive()) setLastHurtByMob(null);
+            else if (combatTicks - lastHurtByMobTimestamp > 100) setLastHurtByMob(null);
+        }
+    }
+
+    /** LivingEntity.hurt: 원인 엔티티가 플레이어면 lastHurtByPlayerTime = 100. */
+    void markHurtByPlayer(Player p) {
+        lastHurtByPlayer = p;
+        lastHurtByPlayerTime = 100;
+    }
+
+    /** 바닐라 getKillCredit: lastHurtByPlayer, 없으면 lastHurtByMob. */
+    public Targetable getKillCredit() { return lastHurtByPlayer != null ? lastHurtByPlayer : lastHurtByMob; }
+
+    /** 리스폰: 바닐라는 새 엔티티라 피격 기록이 없다. */
+    void clearHurtRecords() {
+        lastHurtByMob = null;
+        lastHurtByPlayer = null;
+        lastHurtByPlayerTime = 0;
+    }
 
     @Override public Targetable getLastHurtByMob() { return lastHurtByMob; }
 

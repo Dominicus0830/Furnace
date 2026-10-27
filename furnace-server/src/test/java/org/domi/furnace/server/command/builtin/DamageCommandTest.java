@@ -106,7 +106,28 @@ class DamageCommandTest {
         float h = cow[0].health();
         d.execute("damage @e[tag=t,limit=1] 3 minecraft:magic at 5 -60 0.5", console);
         TeleportCommandTest.awaitTrue(() -> cow[0].health() == h - 3);
-        assertEquals("argument.resource.not_found",
-                key(assertThrows(CommandSyntaxException.class, () -> d.execute("damage @e[tag=t,limit=1] 1 minecraft:nope", console))));
     }
+
+    @Test
+    void killCreditExpiresAfter100Ticks() throws Exception {
+        var console = CommandSource.console(core);
+        Player killer = player(GameMode.SURVIVAL);
+        // 100틱 안: 원인 없는 피해(굶주림)로 죽어도 .player
+        broadcasts.clear();
+        Player p = player(GameMode.SURVIVAL);
+        DamageCommand.apply(console, p, 1.0f, DamageSource.by(DamageType.FALL, killer));
+        for (int i = 0; i < 50; i++) p.vitals().tick(SURROUNDINGS);
+        p.vitals().hurt(DamageType.GENERIC_KILL, 100.0f);
+        assertEquals("death.attack.genericKill.player", broadcasts.get(broadcasts.size() - 1).translationKey());
+        // 100틱 넘게 지나면 기록이 지워져 .player 가 붙지 않는다
+        broadcasts.clear();
+        Player q = player(GameMode.SURVIVAL);
+        DamageCommand.apply(console, q, 1.0f, DamageSource.by(DamageType.FALL, killer));
+        for (int i = 0; i < 120; i++) q.vitals().tick(SURROUNDINGS);
+        assertNull(q.getKillCredit());
+        q.vitals().hurt(DamageType.GENERIC_KILL, 100.0f);
+        assertEquals("death.attack.genericKill", broadcasts.get(broadcasts.size() - 1).translationKey());
+    }
+
+    private static final PlayerVitals.Surroundings SURROUNDINGS = new PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
 }

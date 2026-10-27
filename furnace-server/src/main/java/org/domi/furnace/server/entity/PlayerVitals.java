@@ -411,7 +411,14 @@ public final class PlayerVitals {
             Targetable shieldAttacker = source.direct() instanceof Player dp ? dp : attacker;
             shield = player.shieldSource(type.key(), shieldAttacker, source.directEntity());
         }
-        return hurt(type, amount, attacker, shield, source.causing(), source.direct(), source.position());
+        boolean r = hurt(type, amount, attacker, shield, source.causing(), source.direct(), source.position());
+        // LivingEntity.hurt: 새 피해이고 no_knockback 이 아니면 원인 위치 쪽에서 0.4 민다(위치가 없으면 (0, 0)).
+        // 차이: 직접 엔티티가 투사체일 때의 calculateHorizontalHurtKnockbackDirection 은 위치로 근사한다.
+        if (lastHurtFresh && !type.noKnockback()) {
+            double[] p = source.sourcePosition();
+            player.knockback(0.4, p == null ? 0.0 : p[0] - player.x(), p == null ? 0.0 : p[2] - player.z());
+        }
+        return r;
     }
 
     private boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield, Rider causing, Rider direct, double[] pos) {
@@ -431,7 +438,8 @@ public final class PlayerVitals {
             // LivingEntity.hurt: 자고 있으면 깬다(Player.stopSleeping = stopSleepInBed(true, true))
             if (player.isSleeping()) PlayerSleeping.stopSleepInBed(player, player.currentLevel, true, true);
             if (attacker != null) player.setLastHurtByMob(attacker);
-            if (type.scalesWithDifficulty(causing != null ? causing instanceof LivingEntity : attacker != null && !attacker.isPlayer())) {   // Player.hurt: 난이도 배율(scaling)
+            if (causing instanceof Player cp) player.markHurtByPlayer(cp);
+            if (type.scalesWithDifficulty(causing instanceof LivingEntity)) {   // Player.hurt: 난이도 배율(scaling)
                 Difficulty d = env.difficulty();
                 if (d == Difficulty.PEACEFUL) amount = 0.0f;
                 if (d == Difficulty.EASY) amount = Math.min(amount / 2.0f + 1.0f, amount);
@@ -514,7 +522,7 @@ public final class PlayerVitals {
         Text message;
         boolean spectator;
         synchronized (this) {
-            Targetable credit = player.getLastHurtByMob();   // getKillCredit
+            Targetable credit = player.getKillCredit();
             message = showMessages ? combat.getDeathMessage(name, credit == null ? null : credit.displayName()) : null;
             spectator = gameMode == GameMode.SPECTATOR;
             combat.recheckStatus(tickCount, false);
@@ -927,6 +935,7 @@ public final class PlayerVitals {
         deathTime = 0;
         lastHurt = 0;
         spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
+        player.clearHurtRecords();
         combat = new CombatTracker();
         inWater = false;
         lastClimbable = null;

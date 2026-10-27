@@ -1,6 +1,7 @@
 // 바닐라 DamageCommand: /damage <대상> <양> [<유형> [at <위치> | by <엔티티> [from <원인>]]].
 // 대상이 플레이어면 PlayerVitals.hurt, 일반 엔티티면 그 엔티티를 가진 region 스레드에서 hurt 를 부른다.
 // 차이: 일반 엔티티 대상은 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
+// 차이: LivingEntity 가 아닌 대상(아이템·액자 등)은 Entity.hurtBy 로 가서 직접 엔티티·위치를 보지 않는다(그 hurt 들이 원인을 안 본다).
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -44,22 +45,28 @@ public final class DamageCommand {
         d.register(literal("damage").requires(s -> s.hasPermission(2))
                 .then(argument("target", EntityArgument.entity())
                         .then(argument("amount", Arguments.floatArg(0.0F, Float.MAX_VALUE))
-                                .executes(c -> damage(c, DamageSource.of(DamageType.GENERIC)))
+                                .executes(c -> damage(c, () -> DamageSource.of(DamageType.GENERIC), null))
                                 .then(argument("damageType", ResourceArgument.resource("minecraft:damage_type"))
-                                        .executes(c -> damage(c, DamageSource.of(type(c))))
+                                        .executes(c -> damage(c, () -> DamageSource.of(type(c)), null))
                                         .then(literal("at").then(argument("location", Vec3Argument.vec3())
-                                                .executes(c -> damage(c, DamageSource.at(type(c), Vec3Argument.getVec3(c, "location"))))))
+                                                .executes(c -> damage(c, () -> DamageSource.at(type(c), Vec3Argument.getVec3(c, "location")), null))))
                                         .then(literal("by").then(argument("entity", EntityArgument.entity())
-                                                .executes(c -> {
-                                                    DamageType t = type(c);
-                                                    return EntityArgument.withEntity(c, "entity", e -> damage(c, DamageSource.by(t, e.get(0))));
-                                                })
+                                                .executes(c -> damage(c, null, (t, go) -> EntityArgument.withEntity(c, "entity",
+                                                        e -> go.run(DamageSource.by(t, e.get(0))))))
                                                 .then(literal("from").then(argument("cause", EntityArgument.entity())
-                                                        .executes(c -> {
-                                                            DamageType t = type(c);
-                                                            return EntityArgument.withEntity(c, "entity", e -> EntityArgument.withEntity(c, "cause",
-                                                                    cause -> damage(c, DamageSource.by(t, e.get(0), cause.get(0)))));
-                                                        })))))))));
+                                                        .executes(c -> damage(c, null, (t, go) -> EntityArgument.withEntity(c, "entity",
+                                                                e -> EntityArgument.withEntity(c, "cause", cause -> go.run(DamageSource.by(t, e.get(0), cause.get(0)))))))))))))));
+    }
+
+    @FunctionalInterface
+    private interface Simple {
+        DamageSource make() throws CommandSyntaxException;
+    }
+
+    /** by/from: 유형을 받고 엔티티를 해석한 뒤 go 로 출처를 넘긴다. */
+    @FunctionalInterface
+    private interface WithEntities {
+        int resolve(DamageType type, SourceMaker go) throws CommandSyntaxException;
     }
 
     static DamageType type(CommandContext<CommandSource> c) throws CommandSyntaxException {
@@ -69,9 +76,13 @@ public final class DamageCommand {
         return t;
     }
 
-    private static int damage(CommandContext<CommandSource> c, DamageSource src) throws CommandSyntaxException {
+    /** 바닐라 인자 평가 순서: 대상 → 양 → 유형 → by 엔티티 → from 원인. */
+    private static int damage(CommandContext<CommandSource> c, Simple simple, WithEntities with) throws CommandSyntaxException {
         float amount = c.getArgument("amount", Float.class);
-        return EntityArgument.withEntity(c, "target", t -> apply(c.getSource(), t.get(0), amount, src));
+        return EntityArgument.withEntity(c, "target", t -> {
+            if (simple != null) return apply(c.getSource(), t.get(0), amount, simple.make());
+            return with.resolve(type(c), src -> apply(c.getSource(), t.get(0), amount, src));
+        });
     }
 
     /** 바닐라 DamageCommand.damage: target.hurt 가 참이면 성공 메시지, 아니면 invulnerable. */
