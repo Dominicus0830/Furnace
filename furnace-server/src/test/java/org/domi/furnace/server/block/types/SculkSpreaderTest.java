@@ -180,4 +180,23 @@ class SculkSpreaderTest {
         System.out.println("C3 sculk=" + sculk);
         assertTrue(sculk >= 3, "땅이 여러 칸 스컬크가 됐다: " + sculk);
     }
+
+    /** 확인용(C3 후보 c): 실서버와 같은 블록 태그 경로에서 돌·심층암 바닥도 #sculk_replaceable 이라 스컬크로 바뀐다. */
+    @Test
+    void spreadsOverStoneAndDeepslate() {
+        for (String floor : new String[] {"minecraft:stone", "minecraft:deepslate"}) {
+            assertTrue(B.isTag(B.defaultState(B.id(floor)), "minecraft:sculk_replaceable"), floor);
+            Lvl l = new Lvl();
+            for (int x = -8; x <= 12; x++)
+                for (int z = -8; z <= 12; z++) l.setBlock(new Pos(x, -61, z), B.defaultState(B.id(floor)), 2);
+            SculkSpreader sp = SculkSpreader.createLevelSpreader();
+            sp.addCursors(AIR, 10);
+            RandomSource r = RandomSource.create(9L);
+            for (int t = 0; t < 400 && !sp.getCursors().isEmpty(); t++) sp.updateCursors(l, ROOT, r, true);
+            int sculk = 0;
+            for (int x = -8; x <= 12; x++)
+                for (int z = -8; z <= 12; z++) if (B.is(l.getBlockState(new Pos(x, -61, z)), B.id("sculk"))) sculk++;
+            assertTrue(sculk >= 3, floor + " 위 스컬크 " + sculk);
+        }
+    }
 }

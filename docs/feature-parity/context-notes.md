@@ -199,3 +199,11 @@
 - **의도한 차이**: 지연 결과가 CommandSyntaxException 이 아닌 예외로 끝나면(`EntityOps.reportFailure`) forked 여부와 상관없이 `command.failed` 메시지를 보내고 실패 콜백 뒤 컨텍스트를 **계속** 돈다. 바닐라는 큐 실행 중 비-CSE 예외면 `performCommand` catch 로 컨텍스트 전체가 중단된다. 동기 경로(명령 본문이 바로 던진 예외)는 바닐라처럼 중단한다. (가정: region 실패는 대상 하나의 문제라 뒤 줄을 살리는 쪽을 택함 — S5 함수 테스트에서 재검토)
 - **의도한 차이**: 지연 결과 타임아웃(벽시계 5초) 뒤 늦게 끝난 region 작업의 부작용(블록·엔티티 변경)은 되돌리지 않고 콜백만 버린다(세대 토큰). 뒤 명령이 그 결과를 볼 수 있다.
 - **의도한 차이**: 한 컨텍스트가 region 왕복으로 여러 틱에 걸치면 뒤 최상위 명령이 모두 기다린다(head-of-line). `CommandQueue.pendingCount/currentContextTicks` 지표와 100틱 경고로 관측한다.
+
+## 2026-10-27 사용자 버그 묶음 C — 확정 못 한 후보와 확인 방법
+- region 경계 가설(C1 상호작용 엔티티 조회, C4 `hasChunksAt`, C3 게임 이벤트 리스너): `Regionizer.sectionFor` 는 반경(radius ≥ 1) 안의 구역을 가진 region 끼리 `pendingMerges` 로 묶고, 쉬는 틈에 합친다. 그래서 플레이어 주변의 연속된 로드 청크는 합치기 전 잠깐을 빼면 한 region 이다. 상시 원인으로는 확정하지 못했다. 확인 방법: 실서버에서 말·순찰 위치 청크의 `regionizer.ownerOf` 가 플레이어 쪽 region 과 다른지 로그로 본다.
+- C1 시프트 뒤 재탑승: 바닐라도 `removePassenger` 가 승객의 `boardingCooldown` 을 60 으로 둔다(3초 동안 못 탄다). `Player.tickRiding` 은 플레이어 틱마다 돈다. RELEASE_SHIFT_KEY 가 오면 sneaking 이 풀린다.
+- C1 상호작용 거리: Furnace 는 중심 거리 < 6 이라 바닐라(눈→AABB, 3+1)보다 넓다. 그래서 탑승이 막히는 원인은 아니다. 바닐라 판정과 맞추는 일은 남아 있다.
+- C2 경고 단계: 직접 설치한 비명체는 can_summon=false 라서 바닐라도 경고 없이 비명만 지른다. 평화 난이도, doWardenSpawning=false 일 때도 같다. 확인 방법: 비명체의 can_summon 상태와 플레이어 `warden_spawn_tracker` NBT 를 본다.
+- C3: 촉매 경험치(소 1~3, 좀비 5)만큼만 퍼지는 것은 바닐라 그대로다. 돌·심층암 위 퍼짐은 시험으로 확인했다.
+- C4: 마을 섹션 거리 2 이내에서는 바닐라도 순찰이 나오지 않는다. 판정은 10~11분마다 한 번, 그중 1/5 만 성공, 낮에만 된다.
