@@ -146,6 +146,33 @@ public final class ServerCore {
     }
     private final long biomeZoomSeed;
 
+    /** 명령이 전리품 표를 평가한다(/loot): random_sequence 또는 월드 난수, 최대 스택으로 나눈 결과. 데이터 팩이 없으면 빈 목록. */
+    public java.util.List<ItemStack> commandLoot(org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return java.util.List.of();
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        for (var st : table.getRandomItems(table.context(dp.loot(), lootWorld, params, 0L))) {
+            ItemStack is = dp.network().toItemStack(st);
+            if (is != null && !is.isEmpty()) out.add(is);
+        }
+        return out;
+    }
+
+    /** 명령이 아이템 수정자를 적용한다(/item modify, 바닐라 ItemCommands.applyModifier — 월드 난수). */
+    public ItemStack applyModifier(org.domi.furnace.server.loot.LootFunction modifier, ItemStack stack, org.domi.furnace.server.loot.LootParams params) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return stack;
+        var ctx = new org.domi.furnace.server.loot.LootContext(dp.loot(), lootWorld, params, lootWorld.random());
+        ItemStack out = dp.network().toItemStack(modifier.apply(lootStack(stack), ctx));
+        return out == null ? ItemStack.EMPTY : out;
+    }
+
+    /** 서버 아이템 → 전리품 스택(명령용 공개판). */
+    public static org.domi.furnace.server.loot.LootStack toLootStack(ItemStack s) { return lootStack(s); }
+
+    /** 플레이어의 전리품 엔티티 보기(명령용 공개판). */
+    public static org.domi.furnace.server.loot.LootEntity playerLootEntity(Player p) { return lootEntity(p); }
+
     /** 전리품 조건이 보는 플레이어(바닐라 ADVANCEMENT_ENTITY 의 this_entity). */
     private static org.domi.furnace.server.loot.LootEntity lootEntity(Player p) {
         return new org.domi.furnace.server.loot.LootEntity() {

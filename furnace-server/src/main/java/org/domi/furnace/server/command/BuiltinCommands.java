@@ -32,10 +32,12 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.WorldCommands.registerGameRule(d);
         org.domi.furnace.server.command.builtin.ItemCommands.registerGive(d);
         ServerCommands.registerHelp(d);
+        org.domi.furnace.server.command.builtin.ItemSlotCommands.register(d);
         ServerCommands.registerKick(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerKill(d);
         ServerCommands.registerList(d);
         org.domi.furnace.server.command.builtin.LocateCommand.register(d);
+        org.domi.furnace.server.command.builtin.LootCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerMsg(d);
         org.domi.furnace.server.command.builtin.ParticleCommand.register(d);
         org.domi.furnace.server.command.builtin.SoundCommands.registerPlaySound(d);

@@ -373,6 +373,11 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
     private static final int[] BREWING_UP = {3}, BREWING_DOWN = {0, 1, 2, 3}, BREWING_SIDES = {0, 1, 2, 4};
 
     /** 블록 엔티티 용기. 쓰기는 그 블록의 region 스레드(깔때기 틱)에서만. */
+    /** 바닐라 Container 로 본 용기 블록 엔티티(전리품 풀기·setItem 부수 효과 포함). 캠프파이어는 바닐라에서 Container 가 아니라 null. */
+    public static Inv containerOf(BlockLevel level, Object be) {
+        return be instanceof ContainerBlockEntity c && !(be instanceof CampfireBlockEntity) ? new BlockInv(level, c) : null;
+    }
+
     static class BlockInv implements Inv {
         final BlockLevel level;
         final ContainerBlockEntity be;

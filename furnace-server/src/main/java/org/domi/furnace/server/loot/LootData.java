@@ -83,6 +83,21 @@ public final class LootData {
 
     public LootRegistries registries() { return registries; }
 
+    /** 아이템 수정자(item_modifier/*.json). 없으면 null. */
+    public LootFunction modifier(String id) { return modifiers.get(LootJson.id(id)); }
+
+    /** 아이템 수정자 id 목록(제안용). */
+    public java.util.Set<String> modifierIds() { return modifiers.keySet(); }
+
+    /** 표가 있는가(LootTable.EMPTY 기본값과 구분). */
+    public boolean hasTable(String id) { return tables.containsKey(LootJson.id(id)); }
+
+    /** 명령 인자의 인라인 표(JSON 꼴). */
+    public LootTable parseTable(JsonElement e) { return LootTable.parse(e.getAsJsonObject(), registries); }
+
+    /** 명령 인자의 인라인 수정자(JSON 꼴, 배열이면 순서대로). */
+    public LootFunction parseModifier(JsonElement e) { return LootFunction.parse(e, registries); }
+
     /** 표(없으면 빈 표 — 바닐라와 같다). */
     public LootTable table(String id) { return tables.getOrDefault(LootJson.id(id), LootTable.EMPTY); }
 

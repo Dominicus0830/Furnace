@@ -182,3 +182,11 @@
 - 같은 팀에 다시 join 해도 바닐라는 빼고 다시 넣어 참(성공)이다.
 - 아직 없음: 처치 기준(totalKillCount·playerKillCount·teamkill.*·killedByTeam.*)은 처치 기록 경로가 없어 갱신 안 함, 이름표/충돌/투명 아군 규칙 적용, 텍스트 score 내용 풀기, 전리품 score 숫자 공급자, 엔티티 제거 시 점수 삭제(entityRemoved 미연결), /trigger.
 - (2026-10-27) `/attribute`·`/clone`·`/fillbiome`: 플레이어는 LivingEntity 가 아니라 `Player.attributes()` 가 바닐라 기본 속성 맵을 따로 들고 있다(값은 전투·이동에 아직 안 쓰이고 클라이언트로도 안 감). `/clone`·`/fillbiome` 은 영역 전체가 명령을 받은 region 한 곳에 로드돼 있어야 하고 아니면 `argument.pos.unloaded`(바닐라는 청크를 불러 와 계속함); `/clone from|to <차원>` 은 같은 차원일 때만 동작. `/fillbiome` 재전송(`chunks_biomes` 0x0E)은 청크마다 패킷 하나. `/place`(월드젠 feature 가 살아 있는 레벨이 아니라 `FeatureWorldView` 위에서 돌아 어댑터가 필요)와 `/schedule`(함수 시스템 없음)은 아직 없다.
+## 2026-10-27 NBT 경로·/data·/loot·/item
+- **명령 SNBT 는 `TagParser`(바닐라 이식)로 읽는다.** `item/Snbt` 는 코덱용으로 더 너그럽다(`[B;1,2]` 허용). 명령 인자(nbt_compound_tag·nbt_tag·nbt_path 필터·블록 상태 NBT·아이템 컴포넌트·loot_table 인라인)는 바닐라처럼 `[B;1b,2b]` 만 받고 `argument.nbt.*` 키로 실패한다.
+- NBT 경로 연산은 태그 정체성(같은 compound·list 를 고쳐 씀)에 기댄다. 값 모형에서 배열이 `byte[]/int[]/long[]` 라 그 자리에서 끼울 수 없어, 연산 동안만 `NbtTags.thaw` 로 `NbtArray` 로 바꾸고 저장할 때 `freeze` 한다. `NbtList` 는 바닐라 ListTag 처럼 비면 종류가 풀린다(`addTag/setTag/remove/clear`).
+- `/data get` 출력의 compound 키 순서: 바닐라 CompoundTag 는 HashMap 순서. 키로 새 HashMap 을 만들어 그 순서를 따른다(지우기 이력으로 표 크기가 다르면 드물게 다를 수 있음 — 가정).
+- 플레이어 `/data get entity` 는 저장 경로의 조각(vitals·인벤토리·엔더 상자·레시피 북·태그·위치)으로 만든 근사 NBT 다. Motion·Fire 같은 엔티티 공통 필드 일부가 없다.
+- `/loot`·`/item` 의 엔티티 칸은 플레이어(인벤토리·엔더 상자·커서·제작 칸·장비)와 생물 장비뿐. 말·마을 주민·알레이·상자 보트·광산 수레·아이템 액자·아이템 디스플레이 전용 칸은 없다(칸 없음 취급). 블록 용기는 `ContainerBlockEntity`(캠프파이어 제외); 주크박스는 바닐라에선 용기지만 여기선 아니다.
+- loot_table·loot_modifier 인자는 데이터 팩을 실행 때 보므로 없는 id 오류(`argument.resource_or_id.failed_to_parse`)가 바닐라(파싱 때)보다 늦게 난다.
+- `/loot mine` 의 this_entity·block_entity 문맥은 비어 있고, `/loot kill` 의 magic 피해 태그는 비어 있다(TODO).
