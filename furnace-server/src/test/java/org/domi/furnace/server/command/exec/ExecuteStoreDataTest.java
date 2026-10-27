@@ -203,11 +203,33 @@ class ExecuteStoreDataTest {
 
     @Test
     void entityRemovedBeforeTheCallbackDoesNotBlockTheQueue() {
-        // run 이 대상을 없앤다 → 콜백의 runOnOwner 가 주인을 못 찾는다(CommandSyntaxException 이 아닌 실패) → 로그만, 컨텍스트는 끝나고 다음 명령이 돈다
-        CommandResult r = run("execute store result entity @e[type=cow,limit=1,sort=nearest] Age int 1 run kill @e[type=cow,limit=1,sort=nearest]");
-        assertEquals(1, r.callbacks());
+        // run 이 대상을 없앤다(/kill 은 아직 플레이어 전용이라 테스트 명령으로 소유 region 에서 discard) → 콜백의 runOnOwner 가 주인을 못 찾는다
+        // → 바닐라(죽은 엔티티에 조용히 load)처럼 쓰기를 건너뛰고 조용히 끝난다. 두 region 작업은 같은 인박스에 순서대로 들어가 discard 가 먼저다.
+        core.commands().getDispatcher().register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal("discardcow").executes(c -> {
+            org.domi.furnace.server.command.EntityOps.runOnOwner(c.getSource(), cows[0], org.domi.furnace.server.entity.Entity::discard, () -> { });
+            return 1;
+        }));
+        CommandResult r = run("execute store result entity @e[type=cow,limit=1,sort=nearest] Age int 1 run discardcow");
+        assertEquals(new CommandResult(true, 1, 1), r);
+        assertTrue(inRegion(() -> cows[0].isRemoved()));
+        assertEquals(List.of(), messages, "오류·실패 메시지가 없다");
         assertEquals(new CommandResult(true, 7, 1), run("scoreboard players get #src o"), "큐는 이어진다");
         assertEquals(0, cowNbt(cows[1]).getInt("Age"), "남은 소는 바뀌지 않았다");
+    }
+
+    @Test
+    void nonSyntaxCallbackFailureReportsCommandFailedAndAbortsTheContext() {
+        // 콜백이 region 에서 던진 비-CommandSyntaxException(Items 를 int 로 덮어 load 의 (NbtList) 캐스팅 실패)은 동기 콜백 예외와 같은 길:
+        // CommandQueue.drive 의 catch 가 command.failed 를 알리고 컨텍스트를 끝낸다(남은 포크는 돌지 않는다). 다음 최상위 명령은 정상.
+        run("setblock 5 -60 5 minecraft:chest");
+        run("item replace block 5 -60 5 container.0 with minecraft:stone 3");
+        run("scoreboard players set #cnt o 0");
+        run("execute store result block 5 -60 5 Items int 1 as @e[type=cow] run scoreboard players add #cnt o 1");
+        assertTrue(messages.stream().anyMatch(m -> m.contains("unexpected error")), "비-문법 콜백 실패는 사용자에게 알린다: " + messages);
+        var board = core.scoreboard();
+        assertEquals(1, board.getPlayerScoreInfo(org.domi.furnace.server.scores.ScoreHolder.forNameOnly("#cnt"), board.getObjective("o")).value(),
+                "첫 포크의 콜백 실패로 둘째 포크는 돌지 않는다");
+        assertEquals(new CommandResult(true, 7, 1), run("scoreboard players get #src o"), "큐는 이어진다");
     }
 
     @Test

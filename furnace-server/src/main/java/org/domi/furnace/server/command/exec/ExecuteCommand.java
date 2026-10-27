@@ -82,22 +82,32 @@ public final class ExecuteCommand implements UnboundEntryAction {
         awaitCallback(context, cb);
     }
 
-    /** 콜백이 미완료 future 를 돌려주면(E4 store block 등) 그 완료까지 큐를 멈춘다. */
+    /**
+     * 콜백이 미완료 future 를 돌려주면(E4 store block 등) 그 완료까지 큐를 멈춘다.
+     * 콜백의 실패(CommandSyntaxException 이 아닌 것 — 문법 오류는 store 콜백이 바닐라처럼 삼킨다)는 동기 콜백이 던진 예외와 같은 길로 보낸다:
+     * 다시 던져 CommandQueue.drive 의 catch(바닐라 performCommand catch)가 command.failed 를 알리고 컨텍스트를 끝낸다.
+     */
     private static void awaitCallback(ExecutionContext context, CompletableFuture<Void> cb) {
         if (cb.isDone()) {
-            if (cb.isCompletedExceptionally()) logCallbackFailure(cb);
+            if (cb.isCompletedExceptionally()) rethrowCallbackFailure(cb);
             return;
         }
         context.suspend(cb, (v, ex) -> {
-            if (ex != null) log.warn("명령 결과 콜백 실패", EntityOps.unwrap(ex));
+            if (ex != null) throw asRuntime(EntityOps.unwrap(ex));
         });
     }
 
-    private static void logCallbackFailure(CompletableFuture<Void> cb) {
+    private static void rethrowCallbackFailure(CompletableFuture<Void> cb) {
         try {
             cb.join();
         } catch (RuntimeException e) {
-            log.warn("명령 결과 콜백 실패", EntityOps.unwrap(e));
+            throw asRuntime(EntityOps.unwrap(e));
         }
+    }
+
+    private static RuntimeException asRuntime(Throwable t) {
+        if (t instanceof RuntimeException re) return re;
+        if (t instanceof Error err) throw err;
+        return new RuntimeException("명령 결과 콜백 실패", t);
     }
 }

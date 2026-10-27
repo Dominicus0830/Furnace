@@ -130,7 +130,13 @@ public final class DataCommands {
                 return EntityArgument.findRiders(ctx, name, true).thenApply(list -> {
                     Rider r = list.get(0);
                     return new Handle() {
-                        public <T> CompletableFuture<T> with(CommandSource source, Op<T> op) { return onEntity(source, r, op); }
+                        public <T> CompletableFuture<T> with(CommandSource source, Op<T> op) {
+                            // 바닐라는 붙든 엔티티가 그새 죽었어도(execute store … entity @s … run kill @s) 조용히 load 한다 → 주인을 못 찾으면 쓰기를 건너뛰고 조용히 끝낸다
+                            return onEntity(source, r, op).exceptionally(t -> {
+                                if (EntityOps.unwrap(t) instanceof IllegalStateException) return null;
+                                throw t instanceof CompletionException ce ? ce : new CompletionException(t);
+                            });
+                        }
                     };
                 });
             }
