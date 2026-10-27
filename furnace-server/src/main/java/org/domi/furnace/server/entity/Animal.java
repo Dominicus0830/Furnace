@@ -124,7 +124,7 @@ public abstract class Animal extends AgeableMob {
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
-        inLove = tag.getInt("InLove");
+        inLove = tag.getIntOr0("InLove");
         loveCause = tag.tags().get("LoveCause") instanceof int[] u && u.length == 4
                 ? new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL) : null;
     }

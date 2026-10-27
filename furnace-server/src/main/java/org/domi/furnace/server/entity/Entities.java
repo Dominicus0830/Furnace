@@ -89,6 +89,7 @@ public final class Entities {
             case "minecraft:strider" -> new Strider(level, level.nextEntityId());
             case "minecraft:fox" -> new Fox(level, level.nextEntityId());
             case "minecraft:parrot" -> new Parrot(level, level.nextEntityId());
+            case "minecraft:bee" -> new Bee(level, level.nextEntityId());
             case "minecraft:snowball" -> new Snowball(level, level.nextEntityId());
             case "minecraft:snow_golem" -> new SnowGolem(level, level.nextEntityId());
             case "minecraft:iron_golem" -> new IronGolem(level, level.nextEntityId());
@@ -223,6 +224,7 @@ public final class Entities {
             case "minecraft:strider" -> new Strider(level, level.nextEntityId());
             case "minecraft:fox" -> new Fox(level, level.nextEntityId());
             case "minecraft:parrot" -> new Parrot(level, level.nextEntityId());
+            case "minecraft:bee" -> new Bee(level, level.nextEntityId());
             case "minecraft:snowball" -> new Snowball(level, level.nextEntityId());
             case "minecraft:snow_golem" -> new SnowGolem(level, level.nextEntityId());
             case "minecraft:iron_golem" -> new IronGolem(level, level.nextEntityId());

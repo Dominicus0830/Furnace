@@ -154,7 +154,11 @@ public class Cat extends TamableAnimal {
         data = super.finalizeSpawn(r, difficulty, data);
         boolean fullMoon = level.moonBrightness() > 0.9F;
         setVariant(level.random().nextInt(fullMoon ? 11 : 10));
-        // TODO(구조물): 마녀 오두막 안이면 all_black 변종 + 유지(setPersistenceRequired)
+        // #cats_spawn_as_black(swamp_hut) 조각 안이면 all_black + 유지. CatSpawner 는 moveTo 전에 불러 원점 기준이다(바닐라 그대로).
+        if (level.structureWithPieceAt(blockPosition(), "minecraft:swamp_hut") != null) {
+            setVariant(10);
+            persistenceRequired = true;
+        }
         return data;
     }
 

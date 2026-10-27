@@ -261,6 +261,7 @@ public final class Explosion {
                 if (b.dropFromExplosion() && !interactionTriggerOnly()) {
                     Object be = level.getBlockEntity(pos);
                     Float rad = interaction == BlockInteraction.DESTROY_WITH_DECAY ? radius : null;
+                    org.domi.furnace.server.block.types.BeehiveBlock.onExplodedBy(source, be, state, level);   // 바닐라 BeehiveBlock.getDrops 의 this_entity 검사
                     for (ItemStack s : b.getDrops(state, level, pos, be, null, ItemStack.EMPTY, rad)) addOrAppendStack(drops, s, pos);
                 }
                 level.setBlock(pos, 0, 3, 512);

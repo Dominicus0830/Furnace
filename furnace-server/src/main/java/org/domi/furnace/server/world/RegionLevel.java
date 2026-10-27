@@ -184,6 +184,7 @@ public final class RegionLevel extends ChunkLevel {
      */
     private final org.domi.furnace.server.entity.spawn.PhantomSpawner phantomSpawner = new org.domi.furnace.server.entity.spawn.PhantomSpawner();
     private final org.domi.furnace.server.entity.spawn.PatrolSpawner patrolSpawner = new org.domi.furnace.server.entity.spawn.PatrolSpawner();
+    private final org.domi.furnace.server.entity.spawn.CatSpawner catSpawner = new org.domi.furnace.server.entity.spawn.CatSpawner();
     private final org.domi.furnace.server.entity.spawn.WanderingTraderSpawner traderSpawner = new org.domi.furnace.server.entity.spawn.WanderingTraderSpawner();
 
     /** @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다. */
@@ -217,7 +218,8 @@ public final class RegionLevel extends ChunkLevel {
                 java.util.List<Player> here = new java.util.ArrayList<>();
                 services().forEachPlayer(pl -> { if (inRegion.test(pl)) here.add(pl); });
                 phantomSpawner.tick(this, here, spawnMonsters);
-                patrolSpawner.tick(this, here, spawnMonsters);   // 바닐라 customSpawners 순서: 팬텀 → 순찰 → (고양이·포위) → 상인
+                patrolSpawner.tick(this, here, spawnMonsters);   // 바닐라 customSpawners 순서: 팬텀 → 순찰 → 고양이 → (포위) → 상인
+                catSpawner.tick(this, here, spawnAnimals);
                 traderSpawner.tick(this, here);
             }
         }

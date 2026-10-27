@@ -93,8 +93,8 @@ public abstract class AgeableMob extends PathfinderMob {
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
-        setAge(tag.getInt("Age"));
-        forcedAge = tag.getInt("ForcedAge");
+        setAge(tag.getIntOr0("Age"));
+        forcedAge = tag.getIntOr0("ForcedAge");
     }
 
     @Override

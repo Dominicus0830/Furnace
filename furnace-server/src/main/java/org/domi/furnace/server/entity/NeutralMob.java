@@ -34,7 +34,7 @@ public interface NeutralMob {
     }
 
     default void readPersistentAngerSaveData(NbtCompound tag) {
-        setRemainingPersistentAngerTime(tag.getInt("AngerTime"));
+        setRemainingPersistentAngerTime(tag.getIntOr0("AngerTime"));
         if (!(tag.tags().get("AngryAt") instanceof int[] u && u.length == 4)) {
             setPersistentAngerTarget(null);
             return;

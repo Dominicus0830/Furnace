@@ -39,13 +39,27 @@ public final class FlyingRandomPos {
     public static double[] getHoverPos(PathfinderMob mob, int horizontal, int vertical, int yOffset, double x, double z, double maxAngle) {
         boolean restrict = GoalUtils.mobRestricted(mob, horizontal);
         var rand = rand(mob);
+        return RandomPos.generateRandomPos(mob, () -> hoverPosOnce(mob, horizontal, vertical, yOffset, x, z, maxAngle, restrict, rand));
+    }
+
+    /** AirAndWaterRandomPos.generateRandomPos 한 번. */
+    private static Pos hoverPosOnce(PathfinderMob mob, int horizontal, int vertical, int yOffset, double x, double z, double maxAngle, boolean restrict, RandomPos.Rand rand) {
+        Pos rel = RandomPos.generateRandomDirectionWithinRadians(rand, horizontal, vertical, yOffset, x, z, maxAngle);
+        if (rel == null) return null;
+        Pos p = RandomPos.generateRandomPosTowardDirection(mob, horizontal, rand, rel);
+        if (GoalUtils.isOutsideLimits(p, mob) || GoalUtils.isRestricted(restrict, mob, p)) return null;
+        p = RandomPos.moveUpOutOfSolid(p, mob.level().maxBuildHeight(), q -> GoalUtils.isSolid(mob, q));
+        return GoalUtils.hasMalus(mob, p) ? null : p;
+    }
+
+    /** AirRandomPos.getPosTowards(mob, h, v, yOffset, target, maxAngle): 목표 쪽 방향으로 AirAndWater 한 번씩, 물이 아닌 칸. */
+    public static double[] getAirPosTowardsTarget(PathfinderMob mob, int horizontal, int vertical, int yOffset, double tx, double ty, double tz, double maxAngle) {
+        double x = tx - mob.x(), z = tz - mob.z();
+        boolean restrict = GoalUtils.mobRestricted(mob, horizontal);
+        var rand = rand(mob);
         return RandomPos.generateRandomPos(mob, () -> {
-            Pos rel = RandomPos.generateRandomDirectionWithinRadians(rand, horizontal, vertical, yOffset, x, z, maxAngle);
-            if (rel == null) return null;
-            Pos p = RandomPos.generateRandomPosTowardDirection(mob, horizontal, rand, rel);
-            if (GoalUtils.isOutsideLimits(p, mob) || GoalUtils.isRestricted(restrict, mob, p)) return null;
-            p = RandomPos.moveUpOutOfSolid(p, mob.level().maxBuildHeight(), q -> GoalUtils.isSolid(mob, q));
-            return GoalUtils.hasMalus(mob, p) ? null : p;
+            Pos p = hoverPosOnce(mob, horizontal, vertical, yOffset, x, z, maxAngle, restrict, rand);
+            return p != null && !GoalUtils.isWater(mob, p) ? p : null;
         });
     }
 }
