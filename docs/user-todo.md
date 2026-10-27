@@ -98,3 +98,13 @@
 ## 명령 부족 (현황 조사로 확인, 중요)
 - 바닐라 루트 명령 83개 중 40개 미등록: `/give` `/tp(/teleport)` `/clear` `/damage` `/execute` `/data` `/item` `/scoreboard` `/team` `/bossbar` `/title` `/tag` `/loot` `/particle` `/playsound` `/clone` `/place` `/random` `/ride` `/spreadplayers` `/function` `/schedule` `/tellraw` `/tick` `/forceload` `/stopsound` `/trigger` `/enchant` `/attribute` 등. 접속 테스트할 때 불편 — 우선 구현 대상
 - 상세·순서: docs/feature-parity/survey-structures-commands-2026-10-27.md
+
+## 블록 엔티티 묶음 (이식 완료, 실접속 미확인)
+- 표지판 설치 → 편집 화면 열림, 글 입력 후 확정, 밀랍 칠, 염색/발광, 클릭 명령
+- 조각된 책장(책 넣기/빼기, 비교기), 셜커 상자 열기 막힘 조건, 몬스터 스포너(스폰 알로 종류 변경), 제작기(신호로 제작)
+- 깔때기가 퇴비통·주크박스·책장을 용기로 인식
+- 미구현: 제작기 메뉴(칸 잠금 클릭 불가), 스포너 승객/장비, 벌집, 표지판 텍스트 선택자/점수 해석
+- 확인 못 함: 표지판 JSON 직렬화가 바닐라와 바이트 동일한지(클라가 파싱하면 문제 없음)
+
+## 월드젠 감사에서 고친 실제 버그
+- 서버 경로에서 장식 중인 구조물 시작점이 상한 정리로 버려져 사막 신전 상자 등이 달라질 수 있던 문제 수정(`decoStarts`). 새 월드젠 후 사막 신전 상자 4개 확인해 볼 만함
