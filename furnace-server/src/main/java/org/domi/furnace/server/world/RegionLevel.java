@@ -186,31 +186,34 @@ public final class RegionLevel extends ChunkLevel {
     private final org.domi.furnace.server.entity.spawn.PatrolSpawner patrolSpawner = new org.domi.furnace.server.entity.spawn.PatrolSpawner();
     private final org.domi.furnace.server.entity.spawn.WanderingTraderSpawner traderSpawner = new org.domi.furnace.server.entity.spawn.WanderingTraderSpawner();
 
-    void tickBlocks(long[] tickingChunks, int count, java.util.function.LongPredicate blockEntityTicking,
-                    java.util.function.Predicate<Player> inRegion) {
+    /** @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다. */
+    void tickBlocks(long[] tickingChunks, int count, int spawnCount, java.util.function.LongPredicate blockEntityTicking,
+                    java.util.function.Predicate<Player> inRegion, boolean frozen) {
         clearChunkCache();   // 틱 사이에 합치기·나누기가 있었을 수 있다
-        runScheduledTicks();
-        raids().tick();   // 바닐라 ServerLevel.tick: 예약 틱 → 습격 → 청크(스폰·무작위 틱)
+        if (!frozen) {   // /tick freeze: 예약 틱·습격·청크 틱·스폰은 멈춘다(count 도 0 으로 온다)
+            runScheduledTicks();
+            raids().tick();   // 바닐라 ServerLevel.tick: 예약 틱 → 습격 → 청크(스폰·무작위 틱)
+        }
         if (count > 0) {
-            shuffle(tickingChunks, count);
+            shuffle(tickingChunks, spawnCount);
             int speed = gameRuleInt("randomTickSpeed");
             // ServerChunkCache.tickChunks: 몹 수를 세고, 청크마다 자연 스폰(doMobSpawning)한 뒤 무작위 틱
             boolean spawnMonsters = spawnMonstersAllowed() && difficulty() != 0, spawnAnimals = spawnAnimalsAllowed();
             org.domi.furnace.server.entity.spawn.NaturalSpawner.SpawnState spawnState = null;
-            if (gameRule("doMobSpawning") && (spawnMonsters || spawnAnimals)) {
-                spawnState = org.domi.furnace.server.entity.spawn.NaturalSpawner.createState(count, entities().tickSnapshot(), this);
+            if (spawnCount > 0 && gameRule("doMobSpawning") && (spawnMonsters || spawnAnimals)) {
+                spawnState = org.domi.furnace.server.entity.spawn.NaturalSpawner.createState(spawnCount, entities().tickSnapshot(), this);
             }
             boolean spawnPassives = gameTime() % 400L == 0L;
             for (int i = 0; i < count; i++) {
                 long k = tickingChunks[i];
                 int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
-                if (spawnState != null && withinBorder(new org.domi.furnace.server.block.Pos(cx * 16 + 8, 64, cz * 16 + 8))) {
+                if (spawnState != null && i < spawnCount && withinBorder(new org.domi.furnace.server.block.Pos(cx * 16 + 8, 64, cz * 16 + 8))) {
                     org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnForChunk(this, cx, cz, spawnState, spawnAnimals, spawnMonsters, spawnPassives);
                 }
                 tickChunk(cx, cz, speed);
             }
             // ServerLevel.tickCustomSpawners: 청크 스폰·틱 뒤 팬텀 등 특수 스포너(doMobSpawning 일 때)
-            if (gameRule("doMobSpawning")) {
+            if (spawnCount > 0 && gameRule("doMobSpawning")) {
                 java.util.List<Player> here = new java.util.ArrayList<>();
                 services().forEachPlayer(pl -> { if (inRegion.test(pl)) here.add(pl); });
                 phantomSpawner.tick(this, here, spawnMonsters);
@@ -223,6 +226,7 @@ public final class RegionLevel extends ChunkLevel {
         java.util.function.LongPredicate entityTicking = k -> chunk((int) (k >> 32), (int) k) != null && blockEntityTicking.test(k);
         trackEntities(entityTicking, inRegion);   // 바닐라 ChunkMap.tick — 청크 틱 끝 방송 뒤
         runBlockEvents();
+        if (frozen) return;   // 정지 중에는 엔티티·블록 엔티티·드래곤 전투를 틱하지 않는다
         world.tickDragonFight(region, this);   // 바닐라 ServerLevel.tick: 엔티티 틱 바로 앞
         tickEntities(entityTicking);
         tickBlockEntities(blockEntityTicking);

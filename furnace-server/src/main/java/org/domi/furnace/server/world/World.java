@@ -815,7 +815,22 @@ public final class World {
         }
     }
 
+    private volatile TickState tickState = new TickState();
+
+    /** /tick 상태(속도·정지·step·틱 시간 표본). 차원 사이에 같은 객체를 공유한다(ServerCore.dimensions). */
+    public TickState tickState() { return tickState; }
+
+    public void tickState(TickState state) { this.tickState = state; }
+
+    /** /tick rate: 이 월드 모든 region 의 틱 주기(ns). */
+    public void setTickNanos(long nanos) { regionizer.setTickNanos(nanos); }
+
+    public long tickNanos() { return regionizer.tickNanos(); }
+
     private volatile ForcedChunks forcedChunks;
+
+    /** 아직 열지 않았으면 null — 매 틱 부르는 곳에서 파일 읽기를 일으키지 않으려는 용도. */
+    ForcedChunks forcedChunksOrNull() { return forcedChunks; }
 
     /** /forceload 로 붙잡은 청크(<차원 폴더>/data/chunks.dat). 디스크 월드면 처음 쓸 때 읽고, 아니면 메모리에서만. */
     public ForcedChunks forcedChunks() {

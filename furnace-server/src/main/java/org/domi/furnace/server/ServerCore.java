@@ -316,6 +316,43 @@ public final class ServerCore {
 
     public org.domi.furnace.server.world.WorldBorder border() { return border; }
 
+    /** /tick 이 바꾸는 서버 틱 상태(모든 차원이 같은 객체를 본다). */
+    public org.domi.furnace.server.world.TickState tickState() { return world.tickState(); }
+
+    private float globalTickCredit;
+
+    /**
+     * 전역 틱 반복(50ms 마다)이 부르는 진입점. /tick rate 는 한 번에 rate/20 틱씩 낸다(20 미만이면 몇 번 걸러서), /tick freeze 중에는
+     * 시간·날씨·보더를 멈추고 /tick step 으로 요청한 만큼만 낸다.
+     */
+    public void scheduledTick() {
+        var ts = tickState();
+        if (ts.frozen()) {
+            if (ts.takeGlobalStep()) {
+                tick();
+                if (ts.globalStepsLeft() == 0) broadcastTickStep(0);
+            }
+            return;
+        }
+        globalTickCredit += ts.rate() / org.domi.furnace.server.world.TickState.DEFAULT_RATE;
+        int n = Math.min((int) globalTickCredit, 1000);
+        globalTickCredit -= (int) globalTickCredit;
+        for (int i = 0; i < n; i++) tick();
+    }
+
+    /** 모든 접속자에게 틱 속도·정지 상태(ClientboundTickingStatePacket)를 알린다. */
+    public void broadcastTickState() {
+        var ts = tickState();
+        var pkt = new org.domi.furnace.server.net.protocol.play.TickingState(ts.rate(), ts.frozen());
+        for (Player p : players()) p.send(pkt);
+    }
+
+    /** 정지 중 남은 진행 틱 수(ClientboundTickingStepPacket). */
+    public void broadcastTickStep(int steps) {
+        var pkt = new org.domi.furnace.server.net.protocol.play.TickingStep(steps);
+        for (Player p : players()) p.send(pkt);
+    }
+
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
         border.tick();
@@ -555,7 +592,11 @@ public final class ServerCore {
     /** 차원 월드를 붙인다: 오버월드가 아닌 월드에는 그 차원의 블록 레벨 서비스를 단다(게임룰·난이도·보더는 서버 공용). */
     public void dimensions(org.domi.furnace.server.world.Dimensions d) {
         this.dimensions = d;
-        for (World w : d.all()) if (w != world) w.levelServices(new DimensionServices(w));
+        for (World w : d.all()) {
+            if (w == world) continue;
+            w.levelServices(new DimensionServices(w));
+            w.tickState(world.tickState());   // /tick 상태는 차원 공용
+        }
     }
 
     /** 그 차원의 월드(없으면 null). 오버월드는 world(). */

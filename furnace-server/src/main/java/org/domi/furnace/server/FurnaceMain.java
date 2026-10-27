@@ -368,7 +368,7 @@ public final class FurnaceMain {
         }, config.autosaveTicks()), config.autosaveTicks());
         ConsoleInput.start(core);
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분).
-        scheduler.global().executeDelayed(new Repeating(scheduler, core::tick, 1), 1);
+        scheduler.global().executeDelayed(new Repeating(scheduler, core::scheduledTick, 1), 1);
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler, world), 100);

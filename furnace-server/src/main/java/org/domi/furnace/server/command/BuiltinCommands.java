@@ -46,6 +46,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.TextCommands.registerTellRaw(d);
         org.domi.furnace.server.command.builtin.TagCommand.register(d);
         org.domi.furnace.server.command.builtin.TeleportCommand.register(d);
+        org.domi.furnace.server.command.builtin.TickCommand.register(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);
         org.domi.furnace.server.command.builtin.TextCommands.registerTitle(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);

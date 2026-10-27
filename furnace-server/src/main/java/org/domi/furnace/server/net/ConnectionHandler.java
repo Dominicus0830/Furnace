@@ -947,8 +947,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, coreJ.clock().thunderLevel()));
         }
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
-        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(20.0f, false));
-        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(0));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(world.tickState().rate(), world.tickState().frozen()));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(world.tickState().globalStepsLeft()));
         for (Packet effectPacket : p.vitals().effectPackets()) send(ctx, effectPacket);   // 바닐라: sendLevelInfo 다음 활성 효과
         ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
@@ -2278,8 +2278,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, core.clock().thunderLevel()));
         }
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
-        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(20.0f, false));
-        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(0));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(world.tickState().rate(), world.tickState().frozen()));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(world.tickState().globalStepsLeft()));
     }
 
     private int dimensionTypeIndex(World w) {

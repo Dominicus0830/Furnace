@@ -89,8 +89,15 @@ class VanillaCommandTreeTest {
         return o.size() == 0 ? null : o;
     }
 
-    /** 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi. */
-    private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of("/locate", List.of("biome", "poi"));
+    /**
+     * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다).
+     */
+    private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of(
+            "/locate", List.of("biome", "poi"),
+            "/tick", List.of("sprint"));
+
+    /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
+    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick");
 
     private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx) {
         Node n = nodes.get(idx);
@@ -144,6 +151,9 @@ class VanillaCommandTreeTest {
                 checked++;
             }
             assertTrue(checked >= 18, "검사한 명령 수 " + checked);
+            TreeSet<String> registered = new TreeSet<>();
+            for (int c : nodes.get(root[0]).children()) registered.add(nodes.get(c).name());
+            for (String name : MOVEMENT_COMMANDS) assertTrue(registered.contains(name), "등록돼 있어야 하는 명령: " + name);
             // 권한 0 이면 help·list·me·msg·random·tell·w 만(바닐라 random 은 requires 가 없다)
             List<Node> guest = decode(core.commands().treeFor(CommandSource.forProfile(core, "Guest", 0)), root);
             TreeSet<String> names = new TreeSet<>();

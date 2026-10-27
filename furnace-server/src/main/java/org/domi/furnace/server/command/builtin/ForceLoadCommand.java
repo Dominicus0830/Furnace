@@ -1,7 +1,8 @@
 // 바닐라 ForceLoadCommand: /forceload add|remove <from> [to] | remove all | query [pos]. 붙잡은 청크는 구독자가 없어도 내려가지 않고
 // 차원 폴더의 data/chunks.dat 에 저장된다(World.forcedChunks). 한 번에 256 청크까지.
-// 차이: 바닐라의 "강제 로드 = 엔티티 틱 레벨 티켓"은 없다 — 청크가 올라와 있는 동안 그 region 이 엔티티·블록을 틱하는 것은 같지만,
-// 플레이어가 가까이 없을 때의 무작위 틱·스폰은 Furnace 일반 규칙(플레이어 근처만)을 따른다.
+// 붙잡은 청크는 플레이어 없이도 엔티티·블록 엔티티·무작위 틱을 받는다(Region.blockEntityTicking·collectTickingChunks). 자연 스폰은
+// 플레이어 근처만이다(바닐라도 플레이어가 없으면 몹 수 제한 때문에 스폰되지 않는다).
+// 차이: 바닐라 티켓 레벨 31 은 둘레 8 청크를 블록 틱 레벨(32)로 함께 올리지만, 여기선 그 청크 한 장만 틱한다.
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;

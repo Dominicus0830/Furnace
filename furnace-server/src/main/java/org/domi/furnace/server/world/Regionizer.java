@@ -35,7 +35,8 @@ public final class Regionizer {
     private final World world;
     private final int shift;
     private final int radius;
-    private final long tickNanos;
+    /** region 틱 주기. /tick rate 가 바꾼다. */
+    private volatile long tickNanos;
 
     final ReentrantLock lock = new ReentrantLock();
     private final Condition wake = lock.newCondition();
@@ -91,6 +92,10 @@ public final class Regionizer {
     public int radius() { return radius; }
 
     public int threadCount() { return workers.length; }
+
+    void setTickNanos(long nanos) { this.tickNanos = Math.max(1L, nanos); }
+
+    long tickNanos() { return tickNanos; }
 
     void gameTicks(boolean on) { this.gameTicks = on; }
 
@@ -370,7 +375,10 @@ public final class Regionizer {
             }
             long t0 = STATS ? System.nanoTime() : 0L;
             try {
-                r.runTick(gameTicks);
+                boolean game = gameTicks;
+                long tickStart = game ? System.nanoTime() : 0L;
+                r.runTick(game);
+                if (game) world.tickState().record(System.nanoTime() - tickStart);   // /tick query 의 틱 시간 표본
             } catch (Throwable t) {
                 log.error("[TICK] region #{} 실패", r.id, t);
             }

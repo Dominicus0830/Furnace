@@ -688,12 +688,27 @@ public final class Region {
         lapT = n;
     }
 
+    /** /tick step: 이 region 이 본 step 세대와 남은 걸음(region 스레드 전용). */
+    private int stepGeneration;
+    private int stepsLeft;
+
     public void tick() {
         world.assertOwns(this);
         if (Regionizer.STATS) lapT = System.nanoTime();
+        // /tick freeze: 정지 중이면 월드 진행만 건너뛴다(플레이어 처리·변경 방송은 계속). /tick step 은 정지 중에도 N 번 진행한다.
+        TickState tickState = world.tickState();
+        boolean frozen = tickState.frozen();
+        if (stepGeneration != tickState.generation()) {
+            stepGeneration = tickState.generation();
+            stepsLeft = tickState.requestedSteps();
+        }
+        if (frozen && stepsLeft > 0) {
+            stepsLeft--;
+            frozen = false;
+        }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
-            int n = collectTickingChunks();
-            level.tickBlocks(tickingChunks, n, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()));
+            int n = frozen ? 0 : collectTickingChunks();
+            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
             level.runLightUpdates();
             lap(1);
@@ -900,22 +915,44 @@ public final class Region {
      * 자연 스폰 범위 8 청크 안)이고 청크 가운데에서 128 블록 안(anyPlayerCloseEnoughForSpawning)인 것. 순서는 레벨이 섞는다.
      */
     private int collectTickingChunks() {
-        if (players.isEmpty()) return 0;
+        spawnChunkCount = 0;
+        var forced = world.forcedChunksOrNull();
+        boolean anyForced = forced != null && forced.size() > 0;
+        if (players.isEmpty() && !anyForced) return 0;
         org.domi.furnace.server.block.BlockBehaviors.ofBlock(0);   // 무작위 틱 표를 섹션에 건다
         int sim = Math.clamp(world.levelServices().simulationDistance(), 2, 11) - 1;
         int range = Math.min(sim, 8);
         int n = 0;
-        for (long key : present) {
-            int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
-            if (!closeToPlayer(cx, cz, range)) continue;
-            ChunkColumn col = ownedChunk(cx, cz);
-            if (col == null) continue;
-            col.inhabitedTime(col.inhabitedTime() + 1);   // LevelChunk.incrementInhabitedTime(1)
-            if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
-            tickingChunks[n++] = key;
+        if (!players.isEmpty()) {
+            for (long key : present) {
+                int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+                if (!closeToPlayer(cx, cz, range)) continue;
+                ChunkColumn col = ownedChunk(cx, cz);
+                if (col == null) continue;
+                col.inhabitedTime(col.inhabitedTime() + 1);   // LevelChunk.incrementInhabitedTime(1)
+                if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
+                tickingChunks[n++] = key;
+            }
+        }
+        spawnChunkCount = n;   // 자연 스폰은 위에 모인 "플레이어 가까운" 청크만(바닐라: 강제 로드 청크는 몹 수 제한 때문에 스폰이 안 된다)
+        if (anyForced) {
+            // /forceload 로 붙잡은 청크는 플레이어 없이도 블록 틱(무작위 틱)을 받는다 — 바닐라 티켓 레벨 31(엔티티 틱)
+            for (long key : present) {
+                int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+                if (!forced.contains(cx, cz)) continue;
+                if (!players.isEmpty() && closeToPlayer(cx, cz, range)) continue;   // 이미 위에서 모았다
+                ChunkColumn col = ownedChunk(cx, cz);
+                if (col == null) continue;
+                col.inhabitedTime(col.inhabitedTime() + 1);
+                if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
+                tickingChunks[n++] = key;
+            }
         }
         return n;
     }
+
+    /** collectTickingChunks 가 모은 앞쪽 몇 칸이 자연 스폰 대상(플레이어 근처)인가. 뒤는 강제 로드 청크. */
+    private int spawnChunkCount;
 
     /**
      * 그 청크가 블록 엔티티 틱을 받는가 — 바닐라 LevelChunk.isTicking: 엔티티 틱 단계(플레이어 표가 시뮬레이션 거리 - 1 안,
@@ -923,6 +960,8 @@ public final class Region {
      */
     private boolean blockEntityTicking(long key) {
         int cx = (int) (key >> 32), cz = (int) key;
+        var forced = world.forcedChunksOrNull();
+        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
         int range = Math.max(world.levelServices().simulationDistance(), 2) - 1;
         for (Player p : players.values()) {
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
