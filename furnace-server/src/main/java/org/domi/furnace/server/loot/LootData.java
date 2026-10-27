@@ -105,6 +105,22 @@ public final class LootData {
 
     public int size() { return tables.size(); }
 
+    /** 조건(predicate/*.json). 없으면 null. */
+    public LootCondition predicate(String id) { return predicates.get(LootJson.id(id)); }
+
+    /** 조건 id 목록(제안용). */
+    public java.util.Set<String> predicateIds() { return predicates.keySet(); }
+
+    /** 바닐라 /execute if predicate 의 최상위 평가: 이 조건을 방문 목록에 올리고 시험한다(자기 참조는 참조 지점에서 끊긴다). */
+    public boolean test(LootCondition c, LootContext ctx) {
+        ctx.pushVisited(c);
+        try {
+            return c.test(ctx);
+        } finally {
+            ctx.popVisited(c);
+        }
+    }
+
     boolean testPredicate(String id, LootContext ctx) {
         LootCondition c = predicates.get(id);
         if (c == null) {

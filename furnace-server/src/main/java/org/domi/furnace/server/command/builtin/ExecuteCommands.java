@@ -1,7 +1,7 @@
 // 바닐라 ExecuteCommand(amt) 중 E1 단계: run·as·at·positioned(as, over)·rotated(as)·facing(entity)·align·anchored·in·summon·on.
 // 수정자는 소스를 바꿀 뿐 부수효과가 없다. region 에서 읽어야 하는 것(over·summon·on)과 선택자 해석(as·at·…)은 비동기 수정자로 만들어,
 // 실행 코어(BuildContexts)가 미완료면 큐를 멈췄다가 전역 스레드에서 이어 가게 한다. 소스 변형(엔티티 위치·회전·차원 읽기)은 전역 스레드에서 한다.
-// if/unless/store(E2~E4)와 function 은 아직 없다 — VanillaCommandTreeTest.NOT_YET 가 그만큼만 빼 준다.
+// if/unless 의 entity·block·blocks·biome·loaded·dimension·predicate·items 는 ExecuteConditions(E2). score·data·function·store(E3~E5)는 아직 없다 — VanillaCommandTreeTest.NOT_YET 가 그만큼만 빼 준다.
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -106,7 +106,9 @@ public final class ExecuteCommands {
                         .redirect(execute, c -> c.getSource().withLevel(DimensionArgument.getDimension(c, "dimension")))))
                 .then(literal("summon").then(argument("entity", ResourceArgument.resource("minecraft:entity_type")).suggests(SummonCommand.SUMMONABLE_ENTITIES)
                         .redirectAsync(execute, ExecuteCommands::summon)))
-                .then(on(execute, literal("on"))));
+                .then(on(execute, literal("on")))
+                .then(ExecuteConditions.build(execute, literal("if"), true))
+                .then(ExecuteConditions.build(execute, literal("unless"), false)));
     }
 
     // ---------------------------------------------------------------- 선택자 포크
@@ -247,7 +249,7 @@ public final class ExecuteCommands {
     // ---------------------------------------------------------------- 공통
 
     @FunctionalInterface
-    private interface Mapper<T, R> {
+    interface Mapper<T, R> {
         R apply(T value) throws CommandSyntaxException;
     }
 
@@ -255,7 +257,7 @@ public final class ExecuteCommands {
      * future 를 값으로 바꾸는 단계를 **전역 스레드에서** 돌린다. 이미 끝나 있으면(우리는 전역 스레드) 그 자리에서,
      * 아니면 완료 뒤 전역으로 넘겨서 — region 스레드에서 완성되는 future 에 그냥 thenApply 를 붙이면 변환이 region 에서 돈다.
      */
-    private static <T, R> CompletableFuture<R> onGlobal(CommandSource source, CompletableFuture<T> f, Mapper<T, R> fn) {
+    static <T, R> CompletableFuture<R> onGlobal(CommandSource source, CompletableFuture<T> f, Mapper<T, R> fn) {
         if (f.isDone()) {
             try {
                 return CompletableFuture.completedFuture(fn.apply(f.join()));

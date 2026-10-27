@@ -158,6 +158,20 @@ public final class ServerCore {
         return out;
     }
 
+    /** 바이옴 확대 지터 시드(Level.getBiome — 명령의 biome 조건용). */
+    public long biomeZoomSeed() { return biomeZoomSeed; }
+
+    /**
+     * /execute if predicate: 명령 문맥(origin, 있으면 this_entity)에서 조건 하나를 평가한다. 난수는 월드 난수(바닐라 level.getRandom).
+     * 데이터 팩이 없으면 false.
+     */
+    public boolean commandCondition(World w, org.domi.furnace.server.loot.LootCondition cond, org.domi.furnace.server.loot.LootParams params) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return false;
+        var lw = lootWorldFor(w);
+        return dp.loot().test(cond, new org.domi.furnace.server.loot.LootContext(dp.loot(), lw, params, lw.random()));
+    }
+
     /** 명령이 아이템 수정자를 적용한다(/item modify, 바닐라 ItemCommands.applyModifier — 월드 난수). */
     public ItemStack applyModifier(org.domi.furnace.server.loot.LootFunction modifier, ItemStack stack, org.domi.furnace.server.loot.LootParams params) {
         var dp = dataPacks;
