@@ -41,6 +41,12 @@ public final class ItemContext {
         return false;
     }
 
+    /** 그 레지스트리에 그 태그가 있는가(태그가 아직 안 걸렸으면 거짓). */
+    public static boolean hasTag(String registry, String tag) {
+        var t = tags;
+        return t != null && t.ids(registry, tag.indexOf(':') < 0 ? "minecraft:" + tag : tag) != null;
+    }
+
     /** 태그의 엔트리 숫자 id들(태그 파일에 적힌 순서, 없으면 빈 배열). */
     public static int[] tagEntries(String registry, String tag) {
         var t = tags;
