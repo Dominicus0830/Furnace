@@ -54,6 +54,13 @@ public abstract class Mob extends LivingEntity {
         map.add(Attribute.FOLLOW_RANGE, 16.0);
     }
 
+    /** 다른 region 으로 넘어가면(adoptEntity) 길찾기도 새 레벨을 보게 한다 — 생성 때 레벨에 묶여 있으면 옛 region 청크를 읽는다. */
+    @Override
+    public void setLevel(ChunkLevel level) {
+        super.setLevel(level);
+        if (navigation != null) navigation.setLevel(level);
+    }
+
     protected PathNavigation createNavigation(ChunkLevel level) { return new GroundPathNavigation(this, level); }
 
     /** getNavigation: 내가 조종하는 탈것이 몹이면 그 탈것의 길찾기. */

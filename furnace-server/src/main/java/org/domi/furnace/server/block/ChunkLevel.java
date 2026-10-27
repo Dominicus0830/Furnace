@@ -1730,6 +1730,26 @@ public abstract class ChunkLevel implements BlockLevel {
     // ------------------------------------------------------------------ 엔티티 저장(entities/ — 바닐라 EntityStorage)
 
     /** 불러온 엔티티 묶음을 넣는다(addLegacyChunkEntities). 다루지 못하는 종류는 원본 NBT 로 청크에 둔다. */
+    /**
+     * ChunkMap.postLoadProtoChunk → ServerLevel.addWorldGenChunkEntities: 월드젠(구조물 템플릿·지형 지물)이 청크 NBT 로 남긴 엔티티를
+     * 청크를 올릴 때 한 번 실제 엔티티로 넣고 목록을 비운다(옛 저장의 chunk "entities" 도 같은 길 — 바닐라 postLoadChunk).
+     * 모르는 종류는 버리지 않고 엔티티 묶음 저장으로 넘긴다. 넣었으면 참(청크를 저장 대상으로).
+     */
+    public boolean addWorldGenChunkEntities(ChunkColumn col) {
+        var list = col.generatedEntities();
+        if (list.isEmpty()) return false;
+        var copy = new java.util.ArrayList<>(list);
+        col.clearGeneratedEntities();
+        // 청크 파일을 다시 써야 "entities" 가 지워진다 — 아니면 디스크 청크를 올릴 때마다 또 넣어 복제된다(넣은 것은 entities/ 에 저장된다)
+        col.markDirty();
+        for (var tag : copy) {
+            Entity e = org.domi.furnace.server.entity.Entities.load(this, tag);
+            if (e == null) col.foreignEntities().add(tag);
+            else addFreshEntityWithPassengers(e);
+        }
+        return true;
+    }
+
     public void loadChunkEntities(ChunkColumn col, org.domi.furnace.server.net.io.nbt.NbtCompound root) {
         col.entitiesLoaded(true);
         if (root == null || !(root.tags().get("Entities") instanceof org.domi.furnace.server.net.io.nbt.NbtList list) || list.size() == 0) return;

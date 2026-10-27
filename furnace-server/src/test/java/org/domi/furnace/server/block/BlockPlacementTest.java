@@ -39,6 +39,9 @@ public class BlockPlacementTest {
             return chunks.computeIfAbsent((long) x << 32 | (z & 0xFFFFFFFFL), k -> gen.generate(x, z));
         }
 
+        /** 시험용: 그 청크(없으면 만든다). */
+        public ChunkColumn column(int x, int z) { return chunk(x, z); }
+
         @Override protected void markDirty(int x, int z) {}
         @Override protected void broadcastToChunk(int x, int z, Packet p) { broadcasts.add(p); }
         @Override protected LevelServices services() { return LevelServices.DEFAULT; }

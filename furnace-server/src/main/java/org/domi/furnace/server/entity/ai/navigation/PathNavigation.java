@@ -15,7 +15,8 @@ public abstract class PathNavigation {
     private static final float STUCK_THRESHOLD_DISTANCE_FACTOR = 0.25F;
 
     protected final Mob mob;
-    protected final ChunkLevel level;
+    /** 몹이 다른 region 레벨로 넘어가면 setLevel 로 바뀐다(옛 레벨은 다른 스레드 소유 — 읽으면 안 된다). */
+    protected ChunkLevel level;
     protected Path path;
     protected double speedModifier;
     protected int tick;
@@ -41,6 +42,9 @@ public abstract class PathNavigation {
         int maxVisited = (int) Math.floor(mob.attributeValue(Attribute.FOLLOW_RANGE) * 16.0);
         this.pathFinder = createPathFinder(maxVisited);
     }
+
+    /** 몹의 레벨이 바뀌었다(region 핸드오프). 진행 중 길은 옛 레벨 기준이라 버리지 않고 그대로 따라간다. */
+    public void setLevel(ChunkLevel level) { this.level = level; }
 
     public void resetMaxVisitedNodesMultiplier() { maxVisitedNodesMultiplier = 1.0F; }
 
