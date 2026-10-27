@@ -103,6 +103,9 @@ public final class ServerCore {
 
     /** 전리품 평가가 보는 월드(난수 시퀀스는 월드 시드로 — 바닐라 RandomSequences). */
     private final org.domi.furnace.server.loot.RandomSequences randomSequences;
+
+    /** 난수 시퀀스 저장소(전리품 표와 /random 이 함께 쓴다). */
+    public org.domi.furnace.server.loot.RandomSequences randomSequences() { return randomSequences; }
     private final org.domi.furnace.server.loot.LootWorld lootWorld;
 
     /** 그 차원 월드를 보는 전리품 월드(바이옴·차원 조건). */

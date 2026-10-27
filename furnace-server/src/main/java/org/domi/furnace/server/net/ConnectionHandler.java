@@ -912,7 +912,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }));
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
         p.dimensionChanger((target, t, cooldown) -> ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown)));
-        if (saved != null && saved.root() != null) p.seenCredits = saved.root().getBoolean("seenCredits");
+        if (saved != null && saved.root() != null) {
+            p.seenCredits = saved.root().getBoolean("seenCredits");
+            p.loadTags(saved.root());
+        }
         // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
@@ -2772,6 +2775,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         extra.putCompound("recipeBook", p.recipeBook().save());
         extra.putString("Dimension", p.dimension());   // 바닐라 ServerPlayer.addAdditionalSaveData — 지금 레벨
         extra.putBoolean("seenCredits", p.seenCredits);
+        p.saveTags(extra);
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
         final var statsToSave = p.stats();

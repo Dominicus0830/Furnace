@@ -8,6 +8,8 @@ public sealed interface Rider permits Entity, Player {
 
     int id();
 
+    double eyeY();
+
     double x();
 
     double y();
@@ -36,6 +38,9 @@ public sealed interface Rider permits Entity, Player {
     /** stopRiding: 탈것에서 내린다(살아 있는 것은 내릴 자리로 옮긴다). */
     void stopRiding();
 
+    /** startRiding(vehicle, force): 탈것 주인 region 스레드에서만 부른다. */
+    boolean startRiding(Entity v, boolean force);
+
     /** canRide(vehicle): 승객 쪽 조건(웅크리지 않음·다시 타기 기다림 끝). */
     boolean canRide(Entity vehicle);
 
@@ -49,4 +54,31 @@ public sealed interface Rider permits Entity, Player {
     float bbHeight();
 
     float riderYRot();
+
+    /** 바닐라 Entity.getXRot: 위·아래 각. */
+    float riderXRot();
+
+    /** 충돌 상자(선택자의 dx·dy·dz 겹침 판정용). */
+    AABB boundingBox();
+
+    /** 지금 있는 차원 키(minecraft:overworld …). */
+    String dimensionKey();
+
+    /** 종류 이름(minecraft:player, minecraft:cow …). */
+    String typeName();
+
+    /** 바닐라 Entity.getDisplayName. */
+    org.domi.furnace.api.text.Text displayName();
+
+    /** 선택자 name= 이 비교하는 이름(커스텀 이름이 없으면 null). 플레이어는 접속 이름. */
+    String selectorName();
+
+    /** 바닐라 Entity.getTags — 읽기 전용 사본(순서는 HashSet 순서). */
+    java.util.Set<String> getTags();
+
+    /** 바닐라 Entity.addTag: 1024 개를 넘으면 거짓. 새로 넣었으면 참. */
+    boolean addTag(String tag);
+
+    /** 바닐라 Entity.removeTag. */
+    boolean removeTag(String tag);
 }

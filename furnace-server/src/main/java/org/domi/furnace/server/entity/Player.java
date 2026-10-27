@@ -205,6 +205,44 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     @Override public float riderYRot() { return yaw; }
 
+    @Override public float riderXRot() { return pitch; }
+
+    @Override public String dimensionKey() { return dimension; }
+
+    @Override public String typeName() { return "minecraft:player"; }
+
+    @Override public String selectorName() { return name; }
+
+    /** 바닐라 Entity.tags — 명령 스레드가 바꾸고 IO 스레드가 저장하므로 동기화한다. */
+    private final java.util.Set<String> commandTags = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+    @Override public java.util.Set<String> getTags() { synchronized (commandTags) { return java.util.Collections.unmodifiableSet(new java.util.HashSet<>(commandTags)); } }
+
+    @Override public boolean addTag(String tag) { synchronized (commandTags) { return commandTags.size() < 1024 && commandTags.add(tag); } }
+
+    @Override public boolean removeTag(String tag) { return commandTags.remove(tag); }
+
+    /** 플레이어 NBT 의 "Tags"(문자열 목록)를 쓴다. 비었으면 쓰지 않는다. */
+    public void saveTags(org.domi.furnace.server.net.io.nbt.NbtCompound out) {
+        synchronized (commandTags) {
+            if (commandTags.isEmpty()) return;
+            var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_STRING);
+            for (String t : commandTags) list.add(t);
+            out.put("Tags", list);
+        }
+    }
+
+    /** 플레이어 NBT 의 "Tags" 를 읽는다(최대 1024). */
+    public void loadTags(org.domi.furnace.server.net.io.nbt.NbtCompound in) {
+        synchronized (commandTags) {
+            commandTags.clear();
+            if (in.tags().get("Tags") instanceof org.domi.furnace.server.net.io.nbt.NbtList list) {
+                int n = Math.min(list.size(), 1024);
+                for (int i = 0; i < n; i++) commandTags.add(list.get(i) instanceof String t ? t : "");
+            }
+        }
+    }
+
     /** canRide: 웅크리지 않았고 다시 타기 기다림이 끝났다(Entity.canRide). */
     @Override public boolean canRide(Entity v) { return !sneaking && boardingCooldown <= 0; }
 

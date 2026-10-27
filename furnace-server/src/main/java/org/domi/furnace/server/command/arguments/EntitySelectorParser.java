@@ -11,6 +11,7 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.api.text.Text;
 
 public final class EntitySelectorParser {
@@ -43,7 +44,7 @@ public final class EntitySelectorParser {
     private UUID entityUUID;
     private boolean usesSelectors;
     private boolean limited, sorted, typeLimited, nameSet, gamemodeSet, levelSet;
-    private final List<Predicate<Player>> predicates = new ArrayList<>();
+    private final List<Predicate<Rider>> predicates = new ArrayList<>();
 
     public EntitySelectorParser(StringReader reader, boolean allowSelectors) {
         this.reader = reader;
@@ -152,7 +153,7 @@ public final class EntitySelectorParser {
                 boolean invert = shouldInvertValue();
                 String value = reader.readString();
                 if (!invert) nameSet = true;
-                predicates.add(p -> p.name().equals(value) != invert);
+                predicates.add(p -> value.equals(p.selectorName()) != invert);
                 if (start < 0) throw new IllegalStateException();
             }
             case "distance" -> {
@@ -186,7 +187,7 @@ public final class EntitySelectorParser {
             case "x_rotation", "y_rotation" -> {
                 MinMaxBounds b = MinMaxBounds.fromReader(reader, false);
                 boolean pitch = name.equals("x_rotation");
-                predicates.add(p -> b.matches(wrapDegrees(pitch ? p.pitch() : p.yaw())));
+                predicates.add(p -> b.matches(wrapDegrees(pitch ? p.riderXRot() : p.riderYRot())));
             }
             case "limit" -> {
                 if (currentEntity || limited) inapplicable(name, optionStart);
@@ -229,7 +230,7 @@ public final class EntitySelectorParser {
                 includesEntities = false;
                 if (!invert) gamemodeSet = true;
                 org.domi.furnace.server.world.GameMode target = mode;
-                predicates.add(p -> (p.gameMode() == target) != invert);
+                predicates.add(p -> p instanceof Player pl && pl.gameMode() == target != invert);
             }
             case "type" -> {
                 if (typeLimited) inapplicable(name, optionStart);
@@ -238,8 +239,14 @@ public final class EntitySelectorParser {
                 if (reader.canRead() && reader.peek() == '#') {
                     reader.skip();
                     String tag = readResourceLocation();
-                    predicates.add(p -> invert); // 엔티티 타입 태그는 플레이어를 포함하지 않는다고 본다
-                    if (tag.isEmpty()) throw new IllegalStateException();
+                    String fullTag = tag.contains(":") ? tag : "minecraft:" + tag;
+                    int[] ids = org.domi.furnace.server.entity.EntityTypeTags.ids(fullTag);
+                    predicates.add(p -> {
+                        var t = org.domi.furnace.server.entity.EntityType.byName(p.typeName());
+                        boolean in = false;
+                        if (t != null && ids != null) for (int id : ids) if (id == t.id()) in = true;
+                        return in != invert;
+                    });
                 } else {
                     String type = readResourceLocation();
                     String full = type.contains(":") ? type : "minecraft:" + type;
@@ -250,13 +257,22 @@ public final class EntitySelectorParser {
                     boolean isPlayer = full.equals("minecraft:player");
                     if (isPlayer && !invert) includesEntities = false;
                     if (!invert) typeLimited = true;
-                    predicates.add(p -> isPlayer != invert);
+                    predicates.add(p -> p.typeName().equals(full) != invert);
                 }
             }
-            case "tag", "team" -> {
+            case "tag" -> {
                 boolean invert = shouldInvertValue();
                 String v = reader.readUnquotedString();
-                // 태그·팀은 아직 없다: 빈 값 조건("tag=" = 태그 없음)만 참
+                // 바닐라: 빈 값이면 태그가 하나도 없는 것, 아니면 그 태그를 가진 것(! 이면 반대)
+                predicates.add(p -> {
+                    var tags = p.getTags();
+                    return (v.isEmpty() ? tags.isEmpty() : tags.contains(v)) != invert;
+                });
+            }
+            case "team" -> {
+                boolean invert = shouldInvertValue();
+                String v = reader.readUnquotedString();
+                // 팀은 아직 없다: 빈 값 조건("team=" = 팀 없음)만 참
                 predicates.add(p -> v.isEmpty() != invert);
             }
             case "nbt", "scores", "advancements", "predicate" -> {

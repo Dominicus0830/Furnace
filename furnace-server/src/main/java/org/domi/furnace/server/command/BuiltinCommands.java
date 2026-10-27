@@ -30,8 +30,10 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.ChatCommands.registerMsg(d);
         org.domi.furnace.server.command.builtin.ParticleCommand.register(d);
         org.domi.furnace.server.command.builtin.SoundCommands.registerPlaySound(d);
+        org.domi.furnace.server.command.builtin.RandomCommand.register(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerReload(d);
         org.domi.furnace.server.command.builtin.RecipeCommands.register(d);
+        org.domi.furnace.server.command.builtin.RideCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerSay(d);
         ServerCommands.registerSeed(d);
         org.domi.furnace.server.command.builtin.BlockCommands.registerSetBlock(d);
@@ -40,6 +42,8 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.SoundCommands.registerStopSound(d);
         org.domi.furnace.server.command.builtin.SummonCommand.register(d);
         org.domi.furnace.server.command.builtin.TextCommands.registerTellRaw(d);
+        org.domi.furnace.server.command.builtin.TagCommand.register(d);
+        org.domi.furnace.server.command.builtin.TeleportCommand.register(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerTime(d);
         org.domi.furnace.server.command.builtin.TextCommands.registerTitle(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);

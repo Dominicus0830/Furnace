@@ -299,6 +299,23 @@ public abstract non-sealed class Entity implements Rider {
 
     public void teleportTo(double nx, double ny, double nz) { moveTo(nx, ny, nz, yRot, xRot); }
 
+    /**
+     * Entity.teleportTo(level, x, y, z, 상대 없음, yRot, xRot) 의 같은 레벨 경로: 위아래 각을 ±90 으로 자르고 옮긴 뒤 승객 자리를
+     * 다시 맞춘다(reapplyPosition). 머리 각도는 호출한 쪽(LivingEntity)이 맞춘다. 주인 region 스레드에서만 부른다.
+     */
+    public void teleportSameLevel(double nx, double ny, double nz, float yr, float xr) {
+        moveTo(nx, ny, nz, yr, Math.clamp(xr, -90.0F, 90.0F));
+        reapplyPosition();
+    }
+
+    /** Entity.reapplyPosition: 나와 내 승객 사슬 전체의 승객을 탈것 위치에 다시 놓는다. */
+    public void reapplyPosition() {
+        for (Rider r : passengers) {
+            positionRider(r);
+            if (r instanceof Entity e) e.reapplyPosition();
+        }
+    }
+
     /** absMoveTo(x, y, z, yRot, xRot): x·z 를 ±3e7 로 자르고 이전 위치까지 맞춘 뒤 회전(yRot % 360, xRot 은 ±90 으로 잘라 % 360). */
     public void absMoveTo(double nx, double ny, double nz, float yr, float xr) {
         double cx = Math.clamp(nx, -3.0E7, 3.0E7), cz = Math.clamp(nz, -3.0E7, 3.0E7);
@@ -1233,6 +1250,11 @@ public abstract non-sealed class Entity implements Rider {
         if (isNoGravity()) tag.putBoolean("NoGravity", true);
         int frozen = (Integer) entityData.get(DATA_TICKS_FROZEN);
         if (frozen > 0) tag.putInt("TicksFrozen", frozen);
+        if (!commandTags.isEmpty()) {
+            NbtList tagList = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_STRING);
+            for (String t : commandTags) tagList.add(t);
+            tag.put("Tags", tagList);
+        }
         addAdditionalSaveData(tag);
         if (!passengers.isEmpty()) {
             NbtList list = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
@@ -1285,6 +1307,11 @@ public abstract non-sealed class Entity implements Rider {
         setInvisible(tag.getBoolean("Invisible"));
         entityData.set(DATA_NO_GRAVITY, tag.getBoolean("NoGravity"));
         entityData.set(DATA_TICKS_FROZEN, tag.getIntOr0("TicksFrozen"));
+        commandTags.clear();
+        if (tag.tags().get("Tags") instanceof NbtList tagList) {
+            int n = Math.min(tagList.size(), 1024);
+            for (int i = 0; i < n; i++) commandTags.add(tagList.get(i) instanceof String t ? t : "");
+        }
         readAdditionalSaveData(tag);
     }
 
@@ -1326,6 +1353,33 @@ public abstract non-sealed class Entity implements Rider {
 
     @Override
     public float riderYRot() { return yRot; }
+
+    @Override public float riderXRot() { return xRot; }
+
+    @Override public String dimensionKey() { return level.dimension(); }
+
+    @Override public String typeName() { return type.name(); }
+
+    /** 선택자 name=: 커스텀 이름 저장이 아직 없어 늘 null. */
+    @Override public String selectorName() { return null; }
+
+    /** 바닐라 Entity.getDisplayName(커스텀 이름이 없을 때): 종류 이름. */
+    @Override public org.domi.furnace.api.text.Text displayName() {
+        String n = type.name();
+        int i = n.indexOf(':');
+        return org.domi.furnace.api.text.Text.translatable("entity." + n.substring(0, i) + "." + n.substring(i + 1));
+    }
+
+    // ------------------------------------------------------------------ 명령 태그(Entity.tags, NBT "Tags")
+
+    /** 바닐라 Entity.tags: HashSet 순서가 저장·목록 순서가 된다. */
+    private final java.util.Set<String> commandTags = new java.util.HashSet<>();
+
+    @Override public java.util.Set<String> getTags() { return java.util.Collections.unmodifiableSet(commandTags); }
+
+    @Override public boolean addTag(String tag) { return commandTags.size() < 1024 && commandTags.add(tag); }
+
+    @Override public boolean removeTag(String tag) { return commandTags.remove(tag); }
 
     private static final int FLAG_SHIFT_KEY_DOWN = 1;
 

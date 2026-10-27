@@ -118,6 +118,12 @@ public final class CommandSource {
         return player;
     }
 
+    /** 바닐라 getEntityOrException: 실행 주체 엔티티(지금은 플레이어뿐), 콘솔이면 "permissions.requires.entity". */
+    public org.domi.furnace.server.entity.Rider getEntityOrException() throws CommandSyntaxException {
+        if (player == null) throw ERROR_NOT_ENTITY.create();
+        return player;
+    }
+
     public double x() { return x; }
 
     public double y() { return y; }

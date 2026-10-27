@@ -144,11 +144,11 @@ class VanillaCommandTreeTest {
                 checked++;
             }
             assertTrue(checked >= 18, "검사한 명령 수 " + checked);
-            // 권한 0 이면 help·list·me·msg·tell·w 만(바닐라와 같다)
+            // 권한 0 이면 help·list·me·msg·random·tell·w 만(바닐라 random 은 requires 가 없다)
             List<Node> guest = decode(core.commands().treeFor(CommandSource.forProfile(core, "Guest", 0)), root);
             TreeSet<String> names = new TreeSet<>();
             for (int c : guest.get(root[0]).children()) names.add(guest.get(c).name());
-            assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "tell", "w")), names);
+            assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "random", "tell", "w")), names);
         } finally {
             sched.close();
         }

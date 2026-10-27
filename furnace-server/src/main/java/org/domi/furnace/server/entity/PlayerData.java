@@ -89,7 +89,7 @@ public final class PlayerData {
 
     /** PlayerVitals.save 가 쓰는 선택 필드 — 값이 없어지면 파일에서도 지워야 하는 것. */
     private static final String[] VITALS_KEYS = {"previousPlayerGameType", "SpawnX", "SpawnY", "SpawnZ", "SpawnForced",
-            "SpawnAngle", "SpawnDimension", "LastDeathLocation", "raid_omen_position"};
+            "SpawnAngle", "SpawnDimension", "LastDeathLocation", "raid_omen_position", "Tags"};
 
     private static NbtCompound readExisting(Path f) {
         if (!Files.exists(f)) return new NbtCompound();
