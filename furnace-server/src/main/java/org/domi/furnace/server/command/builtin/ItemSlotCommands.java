@@ -17,6 +17,7 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.entity.HopperBlockEntity;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.PostMessages;
 import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.ItemSlots;
 import org.domi.furnace.server.command.SharedSuggestions;
@@ -177,14 +178,15 @@ public final class ItemSlotCommands {
         CommandSource source = c.getSource();
         Pos p = pos(c, "pos");
         int slot = SlotArgument.getSlot(c, "slot");
+        PostMessages post = new PostMessages();
         CompletableFuture<Integer> f = item.get(c).thenCompose(stack -> atPos(source, p, level -> {
             var container = container(level, p, true);
             if (slot < 0 || slot >= container.size()) throw LootCommand.ItemCommandsExt.ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
             container.setItem(slot, stack);
-            source.sendSuccess(() -> Text.translatable("commands.item.block.set.success", p.x(), p.y(), p.z(), ItemCommands.displayName(stack)), true);
+            post.success(source, () -> Text.translatable("commands.item.block.set.success", p.x(), p.y(), p.z(), ItemCommands.displayName(stack)), true);
             return 1;
         }));
-        return DataCommands.finish(source, f);
+        return post.finish(source, f);
     }
 
     private static int modifyBlockItem(CommandContext<CommandSource> c) throws CommandSyntaxException {
@@ -192,12 +194,13 @@ public final class ItemSlotCommands {
         Pos p = pos(c, "pos");
         int slot = SlotArgument.getSlot(c, "slot");
         LootFunction m = resolveModifier(source, ResourceOrIdArgument.get(c, "modifier"));
-        return DataCommands.finish(source, atPos(source, p, level -> {
+        PostMessages post = new PostMessages();
+        return post.finish(source, atPos(source, p, level -> {
             var container = container(level, p, true);
             if (slot < 0 || slot >= container.size()) throw LootCommand.ItemCommandsExt.ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
             ItemStack result = applyModifier(source, m, container.get(slot));
             container.setItem(slot, result);
-            source.sendSuccess(() -> Text.translatable("commands.item.block.set.success", p.x(), p.y(), p.z(), ItemCommands.displayName(result)), true);
+            post.success(source, () -> Text.translatable("commands.item.block.set.success", p.x(), p.y(), p.z(), ItemCommands.displayName(result)), true);
             return 1;
         }));
     }
@@ -245,15 +248,15 @@ public final class ItemSlotCommands {
         int slot = SlotArgument.getSlot(c, "slot");
         CompletableFuture<Integer> f = item.get(c).thenCompose(stack -> {
             try {
-                return forTargets(c, slot, a -> a.set(stack) ? stack : null).thenApply(changed -> {
-                    if (changed.isEmpty()) throw new CompletionException(LootCommand.ItemCommandsExt.ERROR_TARGET_NOT_CHANGED_KNOWN_ITEM.create(ItemCommands.displayName(stack), slot));
+                return EntityOps.awaitAsync(source, forTargets(c, slot, a -> a.set(stack) ? stack : null), changed -> {   // 메시지는 전역 스레드에서
+                    if (changed.isEmpty()) throw LootCommand.ItemCommandsExt.ERROR_TARGET_NOT_CHANGED_KNOWN_ITEM.create(ItemCommands.displayName(stack), slot);
                     if (changed.size() == 1) {
                         Rider r = changed.keySet().iterator().next();
                         source.sendSuccess(() -> Text.translatable("commands.item.entity.set.success.single", r.displayName(), ItemCommands.displayName(stack)), true);
                     } else {
                         source.sendSuccess(() -> Text.translatable("commands.item.entity.set.success.multiple", changed.size(), ItemCommands.displayName(stack)), true);
                     }
-                    return changed.size();
+                    return CompletableFuture.completedFuture(changed.size());
                 });
             } catch (CommandSyntaxException e) {
                 throw new CompletionException(e);
@@ -266,18 +269,18 @@ public final class ItemSlotCommands {
         CommandSource source = c.getSource();
         int slot = SlotArgument.getSlot(c, "slot");
         LootFunction m = resolveModifier(source, ResourceOrIdArgument.get(c, "modifier"));
-        CompletableFuture<Integer> f = forTargets(c, slot, a -> {
+        CompletableFuture<Integer> f = EntityOps.awaitAsync(source, forTargets(c, slot, a -> {
             ItemStack result = applyModifier(source, m, a.get());
             return a.set(result) ? result : null;
-        }).thenApply(changed -> {
-            if (changed.isEmpty()) throw new CompletionException(LootCommand.ItemCommandsExt.ERROR_TARGET_NOT_CHANGED.create(slot));
+        }), changed -> {   // 메시지는 전역 스레드에서
+            if (changed.isEmpty()) throw LootCommand.ItemCommandsExt.ERROR_TARGET_NOT_CHANGED.create(slot);
             if (changed.size() == 1) {
                 var e = changed.entrySet().iterator().next();
                 source.sendSuccess(() -> Text.translatable("commands.item.entity.set.success.single", e.getKey().displayName(), ItemCommands.displayName(e.getValue())), true);
             } else {
                 source.sendSuccess(() -> Text.translatable("commands.item.entity.set.success.multiple", changed.size()), true);
             }
-            return changed.size();
+            return CompletableFuture.completedFuture(changed.size());
         });
         return DataCommands.finish(source, f);
     }

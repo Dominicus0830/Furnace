@@ -5,7 +5,9 @@ import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
 import org.domi.furnace.api.text.Text;
+import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.NamedSuggestionProvider;
 import org.domi.furnace.server.command.SharedSuggestions;
 import org.domi.furnace.server.command.arguments.CompoundTagArgument;
@@ -60,27 +62,33 @@ public final class SummonCommand {
         if (!EntityTypes.isKnown(id) || !summonable(id)) throw new SimpleCommandExceptionType(Text.translatable("entity.not_summonable", id)).create();
         int bx = (int) Math.floor(pos[0]), by = (int) Math.floor(pos[1]), bz = (int) Math.floor(pos[2]);
         if (by < -20000000 || by >= 20000000 || bx < -30000000 || bz < -30000000 || bx >= 30000000 || bz >= 30000000) throw INVALID_POSITION.create();
-        source.level().runAt(pos[0], pos[2], region -> {
+        CompletableFuture<Entity> spawned = summonAt(source, id, pos, nbt, randomizeProperties);
+        return EntityOps.result(source, EntityOps.awaitAsync(source, spawned, e -> {   // 이 람다는 전역 스레드에서 돈다
+            source.sendSuccess(() -> Text.translatable("commands.summon.success", Text.translatable("entity." + rl.namespace() + "." + rl.path())), true);
+            return CompletableFuture.completedFuture(1);
+        }));
+    }
+
+    /**
+     * 위치의 region 에서 엔티티를 만들어 세계에 넣고 돌려준다(execute summon 도 재사용). 실패는 CommandSyntaxException 으로 끝난다. 메시지는 보내지 않는다.
+     */
+    public static CompletableFuture<Entity> summonAt(CommandSource source, String id, double[] pos, NbtCompound nbt, boolean randomizeProperties) {
+        return EntityOps.atRegion(source.level(), pos[0], pos[2], region -> {
             var level = region.level();
-            try {
-                NbtCompound tag = nbt.copy();
-                tag.tags().put("id", id);
-                Entity e = Entities.load(level, tag);
-                if (e == null) throw ERROR_FAILED.create();
-                e.moveTo(pos[0], pos[1], pos[2], e.yRot(), e.xRot());
-                var riders = new java.util.ArrayList<org.domi.furnace.server.entity.Rider>();
-                e.collectIndirectPassengers(riders);
-                for (var r : riders) if (r instanceof Entity pe) pe.moveTo(pos[0], pos[1], pos[2], pe.yRot(), pe.xRot());
-                if (randomizeProperties && e instanceof Mob mob) {
-                    if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND);
-                    mob.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()));
-                }
-                if (!level.addFreshEntityWithPassengers(e)) throw ERROR_DUPLICATE_UUID.create();
-                source.sendSuccess(() -> Text.translatable("commands.summon.success", Text.translatable("entity." + rl.namespace() + "." + rl.path())), true);
-            } catch (CommandSyntaxException ex) {
-                source.sendFailure(ex.getRawMessage());
+            NbtCompound tag = nbt.copy();
+            tag.tags().put("id", id);
+            Entity e = Entities.load(level, tag);
+            if (e == null) throw ERROR_FAILED.create();
+            e.moveTo(pos[0], pos[1], pos[2], e.yRot(), e.xRot());
+            var riders = new java.util.ArrayList<org.domi.furnace.server.entity.Rider>();
+            e.collectIndirectPassengers(riders);
+            for (var r : riders) if (r instanceof Entity pe) pe.moveTo(pos[0], pos[1], pos[2], pe.yRot(), pe.xRot());
+            if (randomizeProperties && e instanceof Mob mob) {
+                if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND);
+                mob.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()));
             }
+            if (!level.addFreshEntityWithPassengers(e)) throw ERROR_DUPLICATE_UUID.create();
+            return e;
         });
-        return 1;
     }
 }

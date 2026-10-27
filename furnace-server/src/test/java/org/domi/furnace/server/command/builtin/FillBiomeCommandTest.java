@@ -80,7 +80,7 @@ class FillBiomeCommandTest {
     private void run(CommandSource src, String biome, String filter, int x1, int y1, int z1, int x2, int y2, int z2) throws Exception {
         var f = filter == null ? null : new org.domi.furnace.server.command.arguments.ResourceOrTagKeyArgument.Result(
                 org.domi.furnace.server.data.ResourceId.parse(filter), false);
-        FillBiomeCommand.fill(src, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse(biome), f,
+        FillBiomeCommand.fillAsync(src, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse(biome), f,
                 new int[]{x1, y1, z1}, new int[]{x2, y2, z2});
     }
 
@@ -91,7 +91,7 @@ class FillBiomeCommandTest {
                 () -> run(console, "minecraft:nope", null, 0, 0, 0, 1, 1, 1));
         assertEquals("argument.resource.not_found", e.getRawMessage().translationKey());
         e = assertThrows(org.domi.furnace.server.command.brigadier.CommandSyntaxException.class,
-                () -> FillBiomeCommand.fill(console, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse("minecraft:desert"),
+                () -> FillBiomeCommand.fillAsync(console, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse("minecraft:desert"),
                         new org.domi.furnace.server.command.arguments.ResourceOrTagKeyArgument.Result(org.domi.furnace.server.data.ResourceId.parse("minecraft:nope"), true),
                         new int[]{0, 0, 0}, new int[]{1, 1, 1}));
         assertEquals("argument.resource_tag.not_found", e.getRawMessage().translationKey());

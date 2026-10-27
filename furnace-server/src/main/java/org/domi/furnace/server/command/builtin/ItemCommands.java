@@ -16,6 +16,7 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.text.TextColor;
 import org.domi.furnace.api.text.TextDecoration;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.arguments.EntityArgument;
 import org.domi.furnace.server.command.arguments.ItemArgument;
 import org.domi.furnace.server.command.arguments.ItemPredicateArgument;
@@ -62,13 +63,19 @@ public final class ItemCommands {
     }
 
     static int give(CommandSource source, ItemArgument.ItemInput item, Collection<Player> targets, int count) throws CommandSyntaxException {
+        return EntityOps.result(source, giveAsync(source, item, targets, count));
+    }
+
+    /** 드롭이 끝난 뒤(다음 줄이 떨어진 아이템을 보도록) 전역 스레드에서 메시지를 보낸다. 결과는 대상 수. */
+    static java.util.concurrent.CompletableFuture<Integer> giveAsync(CommandSource source, ItemArgument.ItemInput item, Collection<Player> targets, int count) throws CommandSyntaxException {
         ItemStack proto = item.createItemStack(1, false);
         int max = ItemArgument.maxStackSize(proto);
         int limit = max * MAX_ALLOWED_ITEMSTACKS;
         if (count > limit) {
             source.sendFailure(Text.translatable("commands.give.failed.toomanyitems", limit, displayName(proto)));
-            return 0;
+            return java.util.concurrent.CompletableFuture.completedFuture(0);
         }
+        List<java.util.concurrent.CompletableFuture<Void>> drops = new ArrayList<>();
         for (Player p : targets) {
             List<java.util.function.Consumer<org.domi.furnace.server.world.Region>> ops = new ArrayList<>();
             giveTo(p, item, count, new GiveEffects() {
@@ -76,10 +83,17 @@ public final class ItemCommands {
 
                 public void drop(ItemStack rest) { ops.add(r -> pending(r, p, rest, false)); }
             });
-            if (!ops.isEmpty()) source.level().runAt(p.x(), p.z(), region -> { for (var op : ops) op.accept(region); });
+            if (!ops.isEmpty()) {
+                drops.add(EntityOps.atRegion(source.level(), p.x(), p.z(), region -> {
+                    for (var op : ops) op.accept(region);
+                    return null;
+                }));
+            }
         }
-        source.sendSuccess(() -> giveMessage(count, proto, targets), true);
-        return targets.size();
+        return EntityOps.awaitAsync(source, java.util.concurrent.CompletableFuture.allOf(drops.toArray(new java.util.concurrent.CompletableFuture[0])), v -> {
+            source.sendSuccess(() -> giveMessage(count, proto, targets), true);
+            return java.util.concurrent.CompletableFuture.completedFuture(targets.size());
+        });
     }
 
     /** 성공 메시지. 바닐라 1.21.1 은 여러 명이어도 .single 키에 인원 수를 넣는다(그대로 따른다). */
