@@ -94,6 +94,10 @@ public interface LevelServices {
     default java.util.List<org.domi.furnace.server.entity.ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y,
             double z, org.domi.furnace.server.entity.ItemStack tool, float luck) { return java.util.List.of(); }
 
+    /** 선물 전리품(GIFT 문맥: origin·this_entity). 표의 random_sequence 가 없으면 월드 난수. 데이터 팩이 없으면 빈 목록. */
+    default java.util.List<org.domi.furnace.server.entity.ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self,
+            double x, double y, double z) { return java.util.List.of(); }
+
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
@@ -182,6 +186,10 @@ public interface LevelServices {
         public java.util.List<org.domi.furnace.server.entity.ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y,
                 double z, org.domi.furnace.server.entity.ItemStack tool, float luck) {
             return d.fishingLoot(hook, x, y, z, tool, luck);
+        }
+        public java.util.List<org.domi.furnace.server.entity.ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self,
+                double x, double y, double z) {
+            return d.giftLoot(lootTable, self, x, y, z);
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }

@@ -1,6 +1,5 @@
 // 바닐라 VillagerGoalPackages(1.21.1): 활동별 행동 묶음과 우선순위·가중치를 그대로 옮긴다.
-// 아직 옮기지 않은 행동(Unported: 밭 갈기·뼛가루·거래품 보여 주기·영웅 선물·레이드/숨기 묶음)은 시작하지 않는 자리표시로 두어
-// 무작위 묶음(RunOne)의 가중치·순서는 유지한다. 레이드·숨기 활동(PRE_RAID/RAID/HIDE)은 들어가게 하는 행동(종 울림·레이드 상태)이 없어 등록하지 않는다.
+// 레이드·숨기 활동(PRE_RAID/RAID/HIDE) 묶음까지 모두 옮겼다.
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;
@@ -22,17 +21,6 @@ public final class VillagerGoalPackages {
     private static final float STROLL_SPEED_MODIFIER = 0.4F;
 
     private VillagerGoalPackages() {}
-
-    /** 아직 옮기지 않은 바닐라 행동: 시작하지 않는다(이름만 남긴다). */
-    static final class Unported<E extends Mob> extends OneShot<E> {
-        private final String name;
-
-        Unported(String name) { this.name = name; }
-
-        @Override protected boolean trigger(ChunkLevel level, E entity, long time) { return false; }
-
-        @Override public String debugString() { return "Unported(" + name + ")"; }
-    }
 
     private static Map.Entry<Integer, BehaviorControl<? super Villager>> p(int prio, BehaviorControl b) { return Map.entry(prio, (BehaviorControl<? super Villager>) b); }
 
@@ -63,8 +51,8 @@ public final class VillagerGoalPackages {
                 p(0, new LookAtTargetSink(45, 90)),
                 p(0, new VillagerPanicTrigger()),
                 p(0, WakeUp.create()),
-                p(0, new Unported<>("ReactToBell")),
-                p(0, new Unported<>("SetRaidStatus")),
+                p(0, VillagerRaidBehaviors.reactToBell()),
+                p(0, VillagerRaidBehaviors.setRaidStatus()),
                 p(0, ValidateNearbyPoi.create(Villager.heldJobSite(profession), MemoryModuleType.JOB_SITE)),
                 p(0, ValidateNearbyPoi.create(Villager.acquirableJobSite(profession), MemoryModuleType.POTENTIAL_JOB_SITE)),
                 p(1, new MoveToTargetSink()),
@@ -90,12 +78,12 @@ public final class VillagerGoalPackages {
                         w(StrollAroundPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED_MODIFIER, 4), 2),
                         w(StrollToPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED_MODIFIER, 1, 10), 5),
                         w(StrollToPoiList.create(MemoryModuleType.SECONDARY_JOB_SITE, speed, 1, 6, MemoryModuleType.JOB_SITE), 5),
-                        w(new Unported<>("HarvestFarmland"), farmer ? 2 : 5),
-                        w(new Unported<>("UseBonemeal"), farmer ? 4 : 7)))),
-                p(10, new Unported<>("ShowTradesToPlayer")),
+                        w(new HarvestFarmland(), farmer ? 2 : 5),
+                        w(new UseBonemeal(), farmer ? 4 : 7)))),
+                p(10, new ShowTradesToPlayer(400, 1600)),
                 p(10, SetLookAndInteract.create(Targetable::isPlayer, 4)),
                 p(2, SetWalkTargetFromBlockMemory.create(MemoryModuleType.JOB_SITE, speed, 9, 100, 1200)),
-                p(3, new Unported<>("GiveGiftToHero")),
+                p(3, new GiveGiftToHero(100)),
                 p(99, UpdateActivityFromSchedule.create()));
     }
 
@@ -131,10 +119,10 @@ public final class VillagerGoalPackages {
     public static List<Map.Entry<Integer, ? extends BehaviorControl<? super Villager>>> getMeetPackage(String profession, float speed) {
         return list(
                 p(2, TriggerGate.triggerOneShuffled(List.of(t(StrollAroundPoi.create(MemoryModuleType.MEETING_POINT, 0.4F, 40), 2), t(SocializeAtBell.create(), 2)))),
-                p(10, new Unported<>("ShowTradesToPlayer")),
+                p(10, new ShowTradesToPlayer(400, 1600)),
                 p(10, SetLookAndInteract.create(Targetable::isPlayer, 4)),
                 p(2, SetWalkTargetFromBlockMemory.create(MemoryModuleType.MEETING_POINT, speed, 6, 100, 200)),
-                p(3, new Unported<>("GiveGiftToHero")),
+                p(3, new GiveGiftToHero(100)),
                 p(3, ValidateNearbyPoi.create(t -> t == PoiTypes.MEETING, MemoryModuleType.MEETING_POINT)),
                 p(3, new GateBehavior<Villager>(Map.of(), Set.of(MemoryModuleType.INTERACTION_TARGET), GateBehavior.OrderPolicy.ORDERED, GateBehavior.RunningPolicy.RUN_ONE,
                         List.of(w(new TradeWithVillager(), 1)))),
@@ -152,9 +140,9 @@ public final class VillagerGoalPackages {
                         w(SetWalkTargetFromLookTarget.create(speed, 2), 1),
                         w(new JumpOnBed(speed), 1),
                         w(new DoNothing(30, 60), 1)))),
-                p(3, new Unported<>("GiveGiftToHero")),
+                p(3, new GiveGiftToHero(100)),
                 p(3, SetLookAndInteract.create(Targetable::isPlayer, 4)),
-                p(3, new Unported<>("ShowTradesToPlayer")),
+                p(3, new ShowTradesToPlayer(400, 1600)),
                 p(3, new GateBehavior<Villager>(Map.of(), Set.of(MemoryModuleType.INTERACTION_TARGET), GateBehavior.OrderPolicy.ORDERED, GateBehavior.RunningPolicy.RUN_ONE,
                         List.of(w(new TradeWithVillager(), 1)))),
                 p(3, new GateBehavior<Villager>(Map.of(), Set.of(MemoryModuleType.BREED_TARGET), GateBehavior.OrderPolicy.ORDERED, GateBehavior.RunningPolicy.RUN_ONE,
@@ -170,6 +158,35 @@ public final class VillagerGoalPackages {
                 p(1, SetWalkTargetAwayFrom.entity(MemoryModuleType.NEAREST_HOSTILE, f, 6, false)),
                 p(1, SetWalkTargetAwayFrom.entity(MemoryModuleType.HURT_BY_ENTITY, f, 6, false)),
                 p(3, VillageBoundRandomStroll.create(f, 2, 2)),
+                getMinimalLookBehavior());
+    }
+
+    /** getPreRaidPackage: 종 울리기, 모임 장소로(가중 6)·마을 안 서성이기(가중 2) 중 하나, 레이드 끝 확인. */
+    public static List<Map.Entry<Integer, ? extends BehaviorControl<? super Villager>>> getPreRaidPackage(String profession, float speed) {
+        return list(
+                p(0, VillagerRaidBehaviors.ringBell()),
+                p(0, TriggerGate.triggerOneShuffled(List.of(t(SetWalkTargetFromBlockMemory.create(MemoryModuleType.MEETING_POINT, speed * 1.5F, 2, 150, 200), 6),
+                        t(VillageBoundRandomStroll.create(speed * 1.5F), 2)))),
+                getMinimalLookBehavior(),
+                p(99, VillagerRaidBehaviors.resetRaidStatus()));
+    }
+
+    /** getRaidPackage: 이겼으면 하늘 보이는 곳으로(5)·서성이기(2), 축하, 진행 중이면 숨을 곳 찾기, 레이드 끝 확인. */
+    public static List<Map.Entry<Integer, ? extends BehaviorControl<? super Villager>>> getRaidPackage(String profession, float speed) {
+        return list(
+                p(0, OneShot.sequence(OneShot.<Villager>triggerIf(VillagerRaidBehaviors::raidVictory),
+                        TriggerGate.triggerOneShuffled(List.of(t(VillagerRaidBehaviors.moveToSkySeeingSpot(speed), 5), t(VillageBoundRandomStroll.create(speed * 1.1F), 2))))),
+                p(0, new CelebrateVillagersSurvivedRaid(600, 600)),
+                p(2, OneShot.sequence(OneShot.<Villager>triggerIf(VillagerRaidBehaviors::raidExistsAndActive), VillagerRaidBehaviors.locateHidingPlace(24, speed * 1.4F, 1))),
+                getMinimalLookBehavior(),
+                p(99, VillagerRaidBehaviors.resetRaidStatus()));
+    }
+
+    /** getHidePackage: 숨은 상태 세기(15초, 3칸), 숨을 곳 찾기(32칸). */
+    public static List<Map.Entry<Integer, ? extends BehaviorControl<? super Villager>>> getHidePackage(String profession, float speed) {
+        return list(
+                p(0, VillagerRaidBehaviors.setHiddenState(15, 3)),
+                p(1, VillagerRaidBehaviors.locateHidingPlace(32, speed * 1.25F, 2)),
                 getMinimalLookBehavior());
     }
 

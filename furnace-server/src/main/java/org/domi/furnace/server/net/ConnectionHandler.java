@@ -1582,7 +1582,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             var inv = p.inventory();
             mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region);
         } else if (e instanceof org.domi.furnace.server.entity.Villager vv && !p.sneaking()) {
-            if (vv.canTrade()) openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
+            if (vv.canTrade()) {
+                vv.updateSpecialPrices(p);   // 바닐라 startTrading: 평판·영웅 특별 가격 → 거래 화면
+                openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
+            }
             else vv.playSound("entity.villager.no", 1.0F, 1.0F);
         }
     }

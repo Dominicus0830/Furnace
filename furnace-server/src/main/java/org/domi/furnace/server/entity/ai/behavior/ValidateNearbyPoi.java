@@ -41,7 +41,7 @@ public final class ValidateNearbyPoi {
     }
 
     /** Vec3i.closerToCenterThan(position, d): 칸 가운데까지 거리 < d. */
-    static boolean closerToCenterThan(Pos p, Mob mob, double d) {
+    public static boolean closerToCenterThan(Pos p, Mob mob, double d) {
         double dx = p.x() + 0.5 - mob.x(), dy = p.y() + 0.5 - mob.y(), dz = p.z() + 0.5 - mob.z();
         return dx * dx + dy * dy + dz * dz < d * d;
     }

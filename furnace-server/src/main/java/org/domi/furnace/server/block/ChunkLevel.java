@@ -1075,6 +1075,10 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** 낚시 전리품 평가(services 위임). */
+    public java.util.List<ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
+        return services().giftLoot(lootTable, self, x, y, z);
+    }
+
     public java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool, float luck) {
         return services().fishingLoot(hook, x, y, z, tool, luck);
     }
@@ -1291,6 +1295,7 @@ public abstract class ChunkLevel implements BlockLevel {
         mob.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
         mob.setYHeadRot(mob.yRot());
         mob.setYBodyRot(mob.yRot());
+        if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG);
         mob.finalizeSpawn(random, getCurrentDifficultyAt(mob.blockPosition()));
         addFreshEntityWithPassengers(mob);
         mob.makeSound(mob.ambientSoundForSpawn());

@@ -164,6 +164,7 @@ public class Zombie extends Monster {
             zv.moveTo(v.x(), v.y(), v.z(), v.yRot(), v.xRot());
             int[] d = v.villagerData();
             zv.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
+            zv.setGossips(v.getGossips().store());
             zv.setOffers(v.offers());
             zv.setVillagerXp(v.villagerXp());
             zv.finalizeSpawnForConversion(level.random(), level.getCurrentDifficultyAt(zv.blockPosition()));

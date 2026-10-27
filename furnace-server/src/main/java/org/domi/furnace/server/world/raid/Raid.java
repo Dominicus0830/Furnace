@@ -208,6 +208,9 @@ public final class Raid {
 
     public boolean hasFirstWaveSpawned() { return groupsSpawned > 0; }
 
+    /** isBetweenWaves: 첫 웨이브가 나왔고 살아 있는 습격자가 없으며 쉬는 시간이 남았다. */
+    public boolean isBetweenWaves() { return hasFirstWaveSpawned() && getTotalRaidersAlive() == 0 && raidCooldownTicks > 0; }
+
     public Set<UUID> heroesOfTheVillage() { return heroesOfTheVillage; }
 
     // ------------------------------------------------------------------ 파도

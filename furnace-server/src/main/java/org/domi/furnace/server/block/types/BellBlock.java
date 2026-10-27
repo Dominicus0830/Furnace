@@ -71,6 +71,25 @@ public class BellBlock extends BaseEntityBlock {
         return true;
     }
 
+    /**
+     * BellBlockEntity.triggerEvent(1) → updateEntities: 48칸 상자 안 살아 있는 몹 중 칸 가운데에서 32 안이면 HEARD_BELL_TIME = 지금.
+     * 차이: 바닐라는 목록을 60틱 동안 캐시한다(그사이 들어온 몹은 못 듣는다). 여기서는 울릴 때마다 다시 모은다.
+     */
+    @Override
+    public boolean triggerEvent(int state, BlockLevel level, Pos pos, int type, int data) {
+        if (type != 1) return false;
+        if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) {
+            var box = new org.domi.furnace.server.entity.AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1, pos.y() + 1, pos.z() + 1).inflate(48.0, 48.0, 48.0);
+            long now = cl.gameTime();
+            for (var m : cl.getEntitiesOfClass(org.domi.furnace.server.entity.Mob.class, box, e -> true)) {
+                double dx = pos.x() + 0.5 - m.x(), dy = pos.y() + 0.5 - m.y(), dz = pos.z() + 0.5 - m.z();
+                if (m.isAlive() && !m.isRemoved() && dx * dx + dy * dy + dz * dz < 32.0 * 32.0 && m.getBrain() != null)
+                    m.getBrain().setMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.HEARD_BELL_TIME, now);
+            }
+        }
+        return true;
+    }
+
     @Override
     public int getStateForPlacement(PlaceContext ctx) {
         int face = ctx.clickedFace();

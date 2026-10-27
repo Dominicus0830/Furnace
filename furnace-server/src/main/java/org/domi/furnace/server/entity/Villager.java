@@ -1,6 +1,6 @@
 // 바닐라 Villager(+AbstractVillager): 거래(Merchant)·거래표 생성(updateTrades)·경험치와 레벨업·재고 보충·마을 사람 데이터(종류·직업·레벨)·저장,
 // 브레인(VillagerGoalPackages: 핵심·일·놀이·휴식·만남·한가·공황 + 시간표)과 POI(집·직업·모임 장소) 티켓, 음식·번식, 철 골렘 소환.
-// TODO(평판): 소문(gossip)·특별 가격은 아직 없다. TODO(레이드): 레이드·숨기 활동과 종 반응은 아직 없다.
+// 소문(GossipContainer)과 평판에 따른 특별 가격, 레이드·숨기 활동(PRE_RAID/RAID/HIDE), 생성 이유별 finalizeSpawn.
 package org.domi.furnace.server.entity;
 
 import java.util.List;
@@ -69,8 +69,13 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
     private long lastGossipTime;
     private long lastRestockCheckDayTime;
     private boolean assignProfessionWhenSpawned;
-    /** 거래 직후 다음 AI 틱에 기쁨 표시(14)를 낸다(바닐라 lastTradedPlayer). */
-    private boolean tradedSinceLastTick;
+    /** 바닐라 lastTradedPlayer: 거래 직후 다음 AI 틱에 TRADE 평판 소문과 기쁨 표시(14)를 낸다. */
+    private Player lastTradedPlayer;
+    /** 소문과 마지막 하루 감쇠 시각(LastGossipDecay). */
+    private final org.domi.furnace.server.entity.gossip.GossipContainer gossips = new org.domi.furnace.server.entity.gossip.GossipContainer();
+    private long lastGossipDecayTime;
+    /** finalizeSpawn 에 넘어오지 않는 바닐라 MobSpawnType 대신(부르는 쪽이 finalizeSpawn 직전에 정한다). 기본 NATURAL. */
+    private org.domi.furnace.server.entity.spawn.SpawnReason finalizeReason = org.domi.furnace.server.entity.spawn.SpawnReason.NATURAL;
 
     public Villager(ChunkLevel level, int id) {
         super(EntityType.VILLAGER, level, id);
@@ -126,6 +131,9 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         b.addActivity(Activity.REST, VillagerGoalPackages.getRestPackage(prof, 0.5F));
         b.addActivity(Activity.IDLE, VillagerGoalPackages.getIdlePackage(prof, 0.5F));
         b.addActivity(Activity.PANIC, VillagerGoalPackages.getPanicPackage(prof, 0.5F));
+        b.addActivity(Activity.PRE_RAID, VillagerGoalPackages.getPreRaidPackage(prof, 0.5F));
+        b.addActivity(Activity.RAID, VillagerGoalPackages.getRaidPackage(prof, 0.5F));
+        b.addActivity(Activity.HIDE, VillagerGoalPackages.getHidePackage(prof, 0.5F));
         b.setCoreActivities(java.util.Set.of(Activity.CORE));
         b.setDefaultActivity(Activity.IDLE);
         b.setActiveActivityIfPossible(Activity.IDLE);
@@ -171,6 +179,26 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
 
     public boolean assignProfessionWhenSpawned() { return assignProfessionWhenSpawned; }
 
+    public void setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason r) { finalizeReason = r; }
+
+    /**
+     * 바닐라 Villager.finalizeSpawn: 번식 = 무직, 명령·스폰 알·스포너·디스펜서 = 그 자리 바이옴의 종류, 구조물 = 처음 AI 틱에 직업 받기.
+     * 그다음 AgeableMob/Mob.finalizeSpawn(난수는 거기서만 쓴다).
+     */
+    @Override
+    public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        var reason = finalizeReason;
+        finalizeReason = org.domi.furnace.server.entity.spawn.SpawnReason.NATURAL;
+        if (reason == org.domi.furnace.server.entity.spawn.SpawnReason.BREEDING) setProfession("none");
+        if (reason == org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND || reason == org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG
+                || reason.isSpawner() || reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER) {
+            var p = blockPosition();
+            setVillagerData(typeForBiome(level.biomeAt(p.x(), p.y(), p.z())), profession(), villagerLevel());
+        }
+        if (reason == org.domi.furnace.server.entity.spawn.SpawnReason.STRUCTURE) assignProfessionWhenSpawned = true;
+        super.finalizeSpawn(r, difficulty);
+    }
+
     public void setAssignProfessionWhenSpawned(boolean v) { assignProfessionWhenSpawned = v; }
 
     /** playWorkSound: 직업 소리(무직·바보는 없음). */
@@ -205,10 +233,111 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         releasePoi(MemoryModuleType.MEETING_POINT);
     }
 
+    /**
+     * 바닐라 Villager.die: 죽인 엔티티가 있으면 주변 주민(NEAREST_LIVING_ENTITIES)에게 VILLAGER_KILLED 를 알리고 POI 를 돌려준다.
+     * 차이: Damage 에 원인 엔티티가 없어, 이번 틱에 때린 lastHurtByMob 을 죽인 엔티티로 본다.
+     */
     @Override
     public void die(Damage source) {
-        if (!isRemoved() && !dead) releaseAllPois();
+        if (!isRemoved() && !dead) {
+            Targetable killer = lastHurtByMob != null && lastHurtByMobTimestamp == tickCount ? lastHurtByMob : null;
+            if (killer != null) tellWitnessesThatIWasMurdered(killer);
+            releaseAllPois();
+        }
         super.die(source);
+    }
+
+    private void tellWitnessesThatIWasMurdered(Targetable killer) {
+        brain.getMemory(MemoryModuleType.NEAREST_LIVING_ENTITIES).ifPresent(list -> {
+            for (Targetable t : list) if (t instanceof Villager v) v.onReputationEvent(ReputationEvent.VILLAGER_KILLED, killer);
+        });
+    }
+
+    /** 바닐라 setLastHurtByMob: 때린 쪽에 VILLAGER_HURT 소문, 살아 있고 플레이어가 때렸으면 화남 표시(13). */
+    @Override
+    public void setLastHurtByMob(Targetable e) {
+        if (e != null && level != null) {
+            onReputationEvent(ReputationEvent.VILLAGER_HURT, e);
+            if (isAlive() && e instanceof Player) broadcastEntityEvent((byte) 13);
+        }
+        super.setLastHurtByMob(e);
+    }
+
+    // ------------------------------------------------------------------ 소문·평판
+
+    /** 바닐라 ReputationEventType. */
+    public enum ReputationEvent { ZOMBIE_VILLAGER_CURED, GOLEM_KILLED, VILLAGER_HURT, VILLAGER_KILLED, TRADE }
+
+    public org.domi.furnace.server.entity.gossip.GossipContainer getGossips() { return gossips; }
+
+    /** 엔티티·플레이어의 UUID(소문 대상). */
+    public static java.util.UUID uuidOf(Targetable t) {
+        if (t instanceof Player p) return p.uuid();
+        if (t instanceof Entity e) return e.uuid();
+        return null;
+    }
+
+    /** onReputationEvent: 치료 = 큰 긍정 20 + 작은 긍정 25, 거래 = 거래 2, 다침 = 작은 부정 25, 죽임 = 큰 부정 25. */
+    public void onReputationEvent(ReputationEvent type, Targetable target) {
+        java.util.UUID u = uuidOf(target);
+        if (u != null) onReputationEvent(type, u);
+    }
+
+    public void onReputationEvent(ReputationEvent type, java.util.UUID u) {
+        switch (type) {
+            case ZOMBIE_VILLAGER_CURED -> {
+                gossips.add(u, org.domi.furnace.server.entity.gossip.GossipContainer.GossipType.MAJOR_POSITIVE, 20);
+                gossips.add(u, org.domi.furnace.server.entity.gossip.GossipContainer.GossipType.MINOR_POSITIVE, 25);
+            }
+            case TRADE -> gossips.add(u, org.domi.furnace.server.entity.gossip.GossipContainer.GossipType.TRADING, 2);
+            case VILLAGER_HURT -> gossips.add(u, org.domi.furnace.server.entity.gossip.GossipContainer.GossipType.MINOR_NEGATIVE, 25);
+            case VILLAGER_KILLED -> gossips.add(u, org.domi.furnace.server.entity.gossip.GossipContainer.GossipType.MAJOR_NEGATIVE, 25);
+            default -> { }
+        }
+    }
+
+    /** getPlayerReputation: 그 플레이어의 모든 종류 가중 값 합. */
+    public int getPlayerReputation(Player p) { return gossips.getReputation(p.uuid(), t -> true); }
+
+    /**
+     * 바닐라 updateSpecialPrices(거래 시작): 평판 × 가격 배수(내림)만큼 깎고, 마을의 영웅이면 (0.3 + 0.0625 × 증폭) × 기본 값 개수(내림, 최소 1)만큼 더 깎는다.
+     */
+    public void updateSpecialPrices(Player p) {
+        int rep = getPlayerReputation(p);
+        if (rep != 0) {
+            for (MerchantOffer o : offers()) o.addToSpecialPriceDiff(-org.domi.furnace.server.entity.ai.control.Mth.floor(rep * o.priceMultiplier()));
+        }
+        var hero = p.vitals().getEffect(org.domi.furnace.server.effect.MobEffect.HERO_OF_THE_VILLAGE);
+        if (hero != null) {
+            int amp = hero.amplifier();
+            for (MerchantOffer o : offers()) {
+                double d = 0.3 + 0.0625 * amp;
+                int k = (int) Math.floor(d * o.baseCostA().count());
+                o.addToSpecialPriceDiff(-Math.max(k, 1));
+            }
+        }
+    }
+
+    /** resetSpecialPrices(거래 끝). */
+    private void resetSpecialPrices() {
+        if (offers == null) return;
+        for (MerchantOffer o : offers) o.resetSpecialPriceDiff();
+    }
+
+    /** maybeDecayGossip: 처음이면 시각만 적고, 24000틱마다 하루치 감쇠. */
+    private void maybeDecayGossip() {
+        long now = level.gameTime();
+        if (lastGossipDecayTime == 0L) lastGossipDecayTime = now;
+        else if (now >= lastGossipDecayTime + 24000L) {
+            gossips.decay();
+            lastGossipDecayTime = now;
+        }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (!isRemoved()) maybeDecayGossip();
     }
 
     // ------------------------------------------------------------------ 잠
@@ -265,6 +394,18 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         foodLevel -= BREEDING_FOOD_THRESHOLD;
     }
 
+    /** hasFarmSeeds: 가방에 심을 씨앗(villager_plantable_seeds)이 있다. */
+    public boolean hasFarmSeeds() {
+        for (int i = 0; i < inventory.size(); i++) {
+            ItemStack s = inventory.get(i);
+            if (!s.isEmpty() && org.domi.furnace.server.entity.ai.behavior.HarvestFarmland.PLANTABLE_SEEDS.containsKey(ItemTools.itemName(s))) return true;
+        }
+        return false;
+    }
+
+    /** AbstractVillager.playCelebrateSound. */
+    public void playCelebrateSound() { playSound("entity.villager.celebrate", getSoundVolume(), getVoicePitch()); }
+
     public boolean hasExcessFood() { return countFoodPointsInInventory() >= 24; }
 
     public boolean wantsMoreFood() { return countFoodPointsInInventory() < 12; }
@@ -294,6 +435,7 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         else type = TYPES.get(((Villager) partner).villagerData()[0]);
         Villager child = new Villager(level, level.nextEntityId());
         child.setVillagerData(type, "none", 1);
+        child.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.BREEDING);
         child.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(child.blockPosition()), null);
         return child;
     }
@@ -324,9 +466,10 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         return slept.isPresent() && time - slept.get() < 24000L;
     }
 
-    /** gossip: 둘 다 1200틱 안에 나눈 적이 없으면 시각을 맞추고 골렘 소환(5명)을 확인한다. TODO(평판): 소문 옮기기(GossipContainer.transferFrom). */
+    /** gossip: 둘 다 1200틱 안에 나눈 적이 없으면 상대 소문 10개를 옮겨 오고(엔티티 난수) 시각을 맞춘 뒤 골렘 소환(5명)을 확인한다. */
     public void gossip(ChunkLevel level, Villager other, long time) {
         if ((time < lastGossipTime || time >= lastGossipTime + 1200L) && (time < other.lastGossipTime || time >= other.lastGossipTime + 1200L)) {
+            gossips.transferFrom(other.gossips, random, 10);
             lastGossipTime = time;
             other.lastGossipTime = time;
             spawnGolemIfNeeded(level, time, 5);
@@ -391,7 +534,13 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
 
     // ------------------------------------------------------------------ 거래(Merchant)
 
-    @Override public void setTradingPlayer(MenuPlayer player) { this.tradingPlayer = player; }
+    /** 바닐라 setTradingPlayer: 거래 중이던 플레이어가 빠지면(stopTrading) 특별 가격을 되돌린다. */
+    @Override
+    public void setTradingPlayer(MenuPlayer player) {
+        boolean stop = tradingPlayer != null && player == null;
+        this.tradingPlayer = player;
+        if (stop) resetSpecialPrices();
+    }
 
     @Override public MenuPlayer tradingPlayer() { return tradingPlayer; }
 
@@ -497,23 +646,30 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         numberOfRestocksToday = 0;
     }
 
+    /** AbstractVillager.notifyTrade: 사용 횟수 + 주변 소리 시계 되돌림 → rewardTradeXp(경험치·레벨업 대기·구슬 하나). TODO(발전 과제): villager_trade. */
     @Override
     public void notifyTrade(MerchantOffer offer) {
         offer.increaseUses();
+        resetAmbientSoundTime();
         int xp = 3 + random.nextInt(4);
         villagerXp += offer.xp();
-        tradedSinceLastTick = tradingPlayer != null;
+        lastTradedPlayer = tradingPlayer == null ? null : tradingPlayer.entityPlayer();
         if (shouldIncreaseLevel()) {
             updateMerchantTimer = 40;
             increaseProfessionLevelOnUpdate = true;
             xp += 5;
         }
-        if (offer.shouldRewardExp()) ExperienceOrb.award(level, x(), y() + 0.5, z(), xp);
+        // 바닐라는 나누지 않고 구슬 하나(new ExperienceOrb)를 놓는다
+        if (offer.shouldRewardExp()) level.addFreshEntity(new ExperienceOrb(level, level.nextEntityId(), x(), y() + 0.5, z(), xp));
     }
 
+    /** AbstractVillager.notifyTradeUpdated: 마지막 소리에서 20틱이 지났을 때만 예/아니요 소리(볼륨·목소리 높이). */
     @Override
     public void notifyTradeUpdated(ItemStack stack) {
-        playSound(stack.isEmpty() ? "entity.villager.no" : "entity.villager.yes", 1.0F, 1.0F);
+        if (ambientSoundTime > -getAmbientSoundInterval() + 20) {
+            resetAmbientSoundTime();
+            playSound(stack.isEmpty() ? "entity.villager.no" : "entity.villager.yes", getSoundVolume(), getVoicePitch());
+        }
     }
 
     @Override public int villagerXp() { return villagerXp; }
@@ -551,7 +707,9 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         tag.putInt("Xp", villagerXp);
         tag.putByte("FoodLevel", (byte) foodLevel);
         tag.putBoolean("Willing", false);
+        tag.putList("Gossips", gossips.store());
         tag.putLong("LastRestock", lastRestockGameTime);
+        tag.putLong("LastGossipDecay", lastGossipDecayTime);
         tag.putInt("RestocksToday", numberOfRestocksToday);
         if (assignProfessionWhenSpawned) tag.putBoolean("AssignProfessionWhenSpawned", true);
         writeInventoryToSave(tag);
@@ -574,7 +732,9 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         }
         villagerXp = tag.getIntOr0("Xp");
         foodLevel = tag.tags().get("FoodLevel") instanceof Number n ? n.intValue() : 0;
+        if (tag.tags().get("Gossips") instanceof NbtList gl) gossips.update(gl);
         lastRestockGameTime = tag.tags().get("LastRestock") instanceof Number n ? n.longValue() : 0L;
+        lastGossipDecayTime = tag.tags().get("LastGossipDecay") instanceof Number n ? n.longValue() : 0L;
         numberOfRestocksToday = tag.getIntOr0("RestocksToday");
         if (tag.contains("AssignProfessionWhenSpawned")) assignProfessionWhenSpawned = tag.getBoolean("AssignProfessionWhenSpawned");
         readInventoryFromSave(tag);
@@ -646,10 +806,10 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
                 addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.byName("regeneration"), 200, 0));
             }
         }
-        if (tradedSinceLastTick) {
-            // TODO(평판): level.onReputationEvent(TRADE, 플레이어, 이 주민)
+        if (lastTradedPlayer != null) {
+            onReputationEvent(ReputationEvent.TRADE, lastTradedPlayer);
             broadcastEntityEvent((byte) 14);
-            tradedSinceLastTick = false;
+            lastTradedPlayer = null;
         }
         if (!isNoAi() && random.nextInt(100) == 0) {
             var raid = level.raids() == null ? null : level.raids().getRaidAt(blockPosition());

@@ -174,6 +174,8 @@ public final class TemplatePlacer {
             if (nbt.contains("TileX")) {   // 걸이 엔티티(액자·그림)의 블록 좌표
                 nbt.putInt("TileX", bx); nbt.putInt("TileY", by); nbt.putInt("TileZ", bz);
             }
+            // Villager.finalizeSpawn(STRUCTURE): 처음 AI 틱에 근처 직업 블록으로 직업을 받도록 표시해 저장된다
+            if ("minecraft:villager".equals(nbt.tags().get("id"))) nbt.putBoolean("AssignProfessionWhenSpawned", true);
             view.addEntityNbt(nbt, wx, wz);
         }
     }

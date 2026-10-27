@@ -1,5 +1,5 @@
 // 바닐라 ZombieVillager: 주민 데이터(종류·직업·레벨)와 거래·경험치를 갖고, 약화 효과 + 황금 사과로 치료(3600~6000틱)하면 주민으로 돌아온다.
-// TODO: 소문(Gossips)·치료한 플레이어의 업적·평판.
+// 소문(Gossips)은 NBT 목록으로 들고 있다가 치료되면 주민에게 넘기고, 치료한 플레이어에게 ZOMBIE_VILLAGER_CURED 평판. TODO(발전 과제): cured_zombie_villager.
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -21,6 +21,8 @@ public class ZombieVillager extends Zombie {
     private UUID conversionStarter;
     private MerchantOffers tradeOffers;
     private int villagerXp;
+    /** 바닐라 gossips(Tag): 주민 시절 소문 NBT 그대로. */
+    private NbtList gossips;
 
     public ZombieVillager(ChunkLevel level, int id) {
         super(EntityType.ZOMBIE_VILLAGER, level, id);
@@ -47,6 +49,8 @@ public class ZombieVillager extends Zombie {
     public void setOffers(MerchantOffers offers) { tradeOffers = offers; }
 
     public void setVillagerXp(int xp) { villagerXp = xp; }
+
+    public void setGossips(NbtList g) { gossips = g; }
 
     public boolean isConverting() { return (Boolean) entityData.get(DATA_CONVERTING_ID); }
 
@@ -103,8 +107,13 @@ public class ZombieVillager extends Zombie {
         }
         int[] d = villagerData();
         v.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
+        if (gossips != null) v.getGossips().update(gossips);
         if (tradeOffers != null) v.setOffers(tradeOffers);
         v.overrideXp(villagerXp);
+        if (conversionStarter != null) {
+            UUID starter = conversionStarter;
+            level.forEachPlayer(p -> { if (p.uuid().equals(starter)) v.onReputationEvent(Villager.ReputationEvent.ZOMBIE_VILLAGER_CURED, p); });
+        }
         v.addEffect(new MobEffectInstance(MobEffect.NAUSEA, 200, 0));
         if (!isSilent()) level.levelEvent(null, 1027, blockPosition(), 0);
     }
@@ -177,6 +186,7 @@ public class ZombieVillager extends Zombie {
             wrapper.putList("Recipes", recipes);
             tag.putCompound("Offers", wrapper);
         }
+        if (gossips != null) tag.putList("Gossips", gossips);
         tag.putInt("ConversionTime", isConverting() ? villagerConversionTime : -1);
         if (conversionStarter != null) tag.putIntArray("ConversionPlayer", uuidToInts(conversionStarter));
         tag.putInt("Xp", villagerXp);
@@ -197,6 +207,7 @@ public class ZombieVillager extends Zombie {
                 if (o != null) tradeOffers.add(o);
             }
         }
+        if (tag.tags().get("Gossips") instanceof NbtList g) gossips = g;
         if (tag.contains("ConversionTime") && tag.getInt("ConversionTime") > -1) {
             UUID starter = tag.tags().get("ConversionPlayer") instanceof int[] u && u.length == 4
                     ? new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL) : null;
