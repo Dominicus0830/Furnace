@@ -151,7 +151,7 @@ public final class NoiseBasedAquifer implements Aquifer {
 
     // 테스트 전용 fuzz 게이트(감사 W-10): true 면 빠른 길이 잡은 블록마다 바닐라 식 결과를 다시 계산해 공기가 아닌 수를 센다.
     // (shouldScheduleFluidUpdate 는 공기 블록에선 바닐라가 읽지 않으므로 대조하지 않는다.)
-    static boolean verifyShortcut;
+    static volatile boolean verifyShortcut;
     static final java.util.concurrent.atomic.AtomicLong shortcutHits = new java.util.concurrent.atomic.AtomicLong();
     static final java.util.concurrent.atomic.AtomicLong shortcutMismatches = new java.util.concurrent.atomic.AtomicLong();
 

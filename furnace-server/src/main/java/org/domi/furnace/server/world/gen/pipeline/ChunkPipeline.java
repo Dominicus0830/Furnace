@@ -502,6 +502,8 @@ public final class ChunkPipeline {
         if (DEBUG_EVICT && finalizes % 200 == 0) {
             LOG.info("[WORLDGEN-DBG] finalizes={} store={} parked={} evictScans={} evictMs={}", finalizes, store.size(), parked.size(), evictCalls, evictNanos / 1_000_000);
         }
+        // 시작점 상한은 store 크기와 무관하게 매 완성마다 본다(크기 비교만이라 싸다)
+        if (decoStarts.size() > decoStartsCap) trimDecoStarts();
         if (store.size() <= SHARED_SOFT_CAP) return;
         // 훑기는 완성 64번에 한 번(hard cap 을 넘었을 때만 바로) — 매번 전체를 훑으면 장식 레인이 그만큼 느려진다.
         if (store.size() <= SHARED_HARD_CAP && finalizes - lastEvictAt < 64) return;
@@ -549,9 +551,40 @@ public final class ChunkPipeline {
                 LOG.warn("[WORLDGEN] 미완성 청크 보관함이 가득 차 오래된 것을 버렸다(그 근처를 다시 만들면 장식이 일부 빠질 수 있다)");
             }
         }
-        if (decoStarts.size() > (1 << 18)) decoStarts.clear();
         if (decoratedKeys.size() > (1 << 21)) decoratedKeys.clear();
         if (finalizedKeys.size() > (1 << 21)) finalizedKeys.clear();
+    }
+
+    /** 테스트용: 서버 경로가 이 청크에 대해 들고 있는 시작점 목록(없으면 null). */
+    List<StructureStart> decoStartsAt(int cx, int cz) { return decoStarts.get(chunkKey(cx, cz)); }
+
+    // decoStarts 상한. 넘으면 다시 만들어도 같은 결과인 항목만 버린다(테스트가 낮춘다).
+    int decoStartsCap = 1 << 18;
+
+    // 감사 I-1 후속: 통째로 clear() 하면 장식 도중인 시작점(사막 신전 hasPlacedChest·heightPosition 등)이 새 객체로 다시 만들어져
+    // 남은 청크를 처음 상태로 장식한다. 버려도 되는 것은 ① 가변 조각이 없는 결과(빈 결과·jigsaw 전용 — 다시 만들어도 같다)
+    // ② 반경 8 안 청크가 전부 완성돼 더는 장식·참조 질의에 쓰이지 않는 결과뿐이다. 그래도 남으면 상한을 늘린다.
+    private void trimDecoStarts() {
+        var it = decoStarts.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            boolean immutable = true;
+            for (StructureStart st : e.getValue()) {
+                for (var piece : st.pieces()) if (!(piece instanceof org.domi.furnace.server.world.gen.structure.JigsawPiece)) { immutable = false; break; }
+                if (!immutable) break;
+            }
+            if (immutable) { it.remove(); continue; }
+            int kx = (int) (e.getKey() >> 32), kz = (int) (long) e.getKey();
+            if (allFinalizedAround(kx, kz, STRUCTURE_START_RADIUS)) it.remove();
+        }
+        if (decoStartsCap > 0 && decoStarts.size() > decoStartsCap * 3 / 4) decoStartsCap = Math.max(decoStartsCap, decoStarts.size() * 2);
+    }
+
+    private boolean allFinalizedAround(int cx, int cz, int r) {
+        for (int dz = -r; dz <= r; dz++)
+            for (int dx = -r; dx <= r; dx++)
+                if (!finalizedKeys.contains(chunkKey(cx + dx, cz + dz))) return false;
+        return true;
     }
 
     private boolean allDecoratedAround(int cx, int cz, int r) {
