@@ -442,6 +442,50 @@ public final class Region {
         return col.sections()[sec].getBiome(qx & 3, qy & 3, qz & 3);
     }
 
+    /**
+     * 바닐라 FillBiomeCommand 의 청크 쪽: 상자(블록 좌표, 포함) 안 바이옴 칸(quart)을 biomeId 로 바꾼다(filter 가 현재 바이옴 id 를 받아 참이면).
+     * 청크는 z 바깥·x 안쪽 순서. 상자가 걸친 청크 중 이 region 이 로드해 가진 게 아닌 것이 있으면 아무것도 바꾸지 않고 -1.
+     * 바뀐 청크는 저장 대상으로 표시하고 바이옴만 다시 보낸다(chunks_biomes). 반환: filter 를 통과한 칸 수(이미 같은 바이옴이어도 센다).
+     */
+    public int fillBiomes(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int biomeId, java.util.function.IntPredicate filter) {
+        world.assertOwns(this);
+        java.util.List<ChunkPos> cps = new java.util.ArrayList<>();
+        java.util.List<ChunkColumn> cols = new java.util.ArrayList<>();
+        for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
+            for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
+                ChunkColumn col = ownedChunk(cx, cz);
+                if (col == null) return -1;
+                cps.add(new ChunkPos(cx, cz));
+                cols.add(col);
+            }
+        }
+        int count = 0;
+        for (int k = 0; k < cols.size(); k++) {
+            ChunkColumn col = cols.get(k);
+            ChunkPos cp = cps.get(k);
+            var secs = col.sections();
+            java.util.List<int[]> after = new java.util.ArrayList<>();
+            for (int i = 0; i < secs.length; i++) {
+                int qyBase = (col.minY() >> 2) + i * 4;
+                for (int lx = 0; lx < 4; lx++) for (int ly = 0; ly < 4; ly++) for (int lz = 0; lz < 4; lz++) {
+                    int bx = ((cp.x() << 2) + lx) << 2, by = (qyBase + ly) << 2, bz = ((cp.z() << 2) + lz) << 2;
+                    int cur = secs[i].getBiome(lx, ly, lz);
+                    if (bx >= minX && bx <= maxX && by >= minY && by <= maxY && bz >= minZ && bz <= maxZ && filter.test(cur)) {
+                        count++;
+                        secs[i].setBiome(lx, ly, lz, biomeId);
+                    }
+                }
+                after.add(secs[i].biomes());
+            }
+            col.markDirty();
+            dirtyChunks.add(cp);
+            world.broadcastBlockUpdate(cp, new org.domi.furnace.server.net.protocol.play.ChunksBiomes(
+                    java.util.List.of(new org.domi.furnace.server.net.protocol.play.ChunksBiomes.Entry(cp.x(), cp.z(), after.toArray(new int[0][]))),
+                    world.biomeDirectBits()));
+        }
+        return count;
+    }
+
     /** 이 region 스레드에서 체스트 블록엔티티 조회(없거나 미로드면 null). */
     public ChestBlockEntity chestAt(int x, int y, int z) {
         world.assertOwns(this);

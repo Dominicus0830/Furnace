@@ -21,10 +21,14 @@ public final class ResourceOrTagKeyArgument implements ArgumentType<ResourceOrTa
     }
 
     private final String registry;
+    private final String networkId;
 
-    private ResourceOrTagKeyArgument(String registry) { this.registry = registry; }
+    private ResourceOrTagKeyArgument(String registry, String networkId) { this.registry = registry; this.networkId = networkId; }
 
-    public static ResourceOrTagKeyArgument resourceOrTagKey(String registry) { return new ResourceOrTagKeyArgument(registry); }
+    /** 바닐라 ResourceOrTagArgument(minecraft:resource_or_tag): 파싱은 같고 네트워크 id 만 다르다. */
+    public static ResourceOrTagKeyArgument resourceOrTag(String registry) { return new ResourceOrTagKeyArgument(registry, "minecraft:resource_or_tag"); }
+
+    public static ResourceOrTagKeyArgument resourceOrTagKey(String registry) { return new ResourceOrTagKeyArgument(registry, "minecraft:resource_or_tag_key"); }
 
     public static Result get(CommandContext<CommandSource> ctx, String name) { return ctx.getArgument(name, Result.class); }
 
@@ -47,7 +51,7 @@ public final class ResourceOrTagKeyArgument implements ArgumentType<ResourceOrTa
     public Collection<String> getExamples() { return List.of("foo", "foo:bar", "012", "#skeletons", "#minecraft:skeletons"); }
 
     @Override
-    public String networkId() { return "minecraft:resource_or_tag_key"; }
+    public String networkId() { return networkId; }
 
     @Override
     public void writeProperties(ByteBuf buf) { Types.writeString(buf, registry); }

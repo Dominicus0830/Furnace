@@ -25,6 +25,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.ItemCommands.registerEnchant(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerExperience(d);
         org.domi.furnace.server.command.builtin.BlockCommands.registerFill(d);
+        org.domi.furnace.server.command.builtin.FillBiomeCommand.register(d);
         org.domi.furnace.server.command.builtin.ForceLoadCommand.register(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerGameRule(d);
