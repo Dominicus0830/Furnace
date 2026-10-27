@@ -40,6 +40,7 @@ class SkeletonCombatTest {
     @Test
     void skeletonShootsArrowsThatHitSurvivalPlayer() {
         var level = new ArenaLevel();
+        level.dayTime = 18000;   // 낮이면 스켈레톤이 햇빛에 타 죽어(난수) 화살을 못 쏠 수 있다
         var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);

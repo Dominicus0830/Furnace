@@ -57,7 +57,7 @@ class GameplayFlowTest {
                 ByteBuf ev = c.await(0x22, b -> b.readByte() == 3);
                 ev.readByte();
                 assertEquals(1.0f, ev.readFloat(), "CHANGE_GAME_MODE → creative(1)");
-                assertTrue(text(c.await(0x6C)).contains("gameMode.changed"), "대상에게 알림");
+                assertNotNull(c.await(0x6C, b -> text(b).contains("gameMode.changed")), "대상에게 알림");   // 접속 알림 등 다른 채팅이 먼저 올 수 있어 내용으로 고른다
                 Player p = core.playerByName("Tester");
                 assertEquals(GameMode.CREATIVE, p.gameMode());
                 assertEquals(GameMode.SURVIVAL, p.vitals().previousGameMode());

@@ -91,7 +91,8 @@ class NaturalSpawnerTest {
             double dx = e.x() - 8.5, dz = e.z() - 8.5;
             assertTrue(dx * dx + dz * dz > 20.0 * 20.0, "플레이어에서 24칸 안에는 나지 않는다: " + e.type().name());
         }
-        assertTrue(mobs.size() <= 10 * 289 / 289 + 4, "상한(10) 안팎: " + mobs.size());
+        // 상한 검사는 무리를 내기 전에만 한다(바닐라 같음): 9마리에서 가장 큰 무리(말 6)가 나면 15마리까지 갈 수 있다
+        assertTrue(mobs.size() <= 10 - 1 + 6, "상한(10) 안팎: " + mobs.size() + " " + mobs.stream().map(e -> e.type().name()).sorted().toList());
     }
 
     @Test
