@@ -92,13 +92,9 @@ class VanillaCommandTreeTest {
 
     /**
      * 아직 구현하지 않은 하위 명령(서버에 그 기능이 없다): /locate biome·poi, /tick sprint(region 마다 따로 틱해 한 줄기 서버 틱이 없다),
-     * /execute if·unless data·store block/entity/storage(E4 단계), /function 의 매크로 인자(arguments·with, S7).
+     * /function 의 매크로 인자(arguments·with, S7).
      */
     private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of(
-            "/execute store result", List.of("block", "entity", "storage"),
-            "/execute store success", List.of("block", "entity", "storage"),
-            "/execute if", List.of("data"),
-            "/execute unless", List.of("data"),
             "/function name", List.of("arguments", "with"),
             "/locate", List.of("biome", "poi"),
             "/tick", List.of("sprint"));
