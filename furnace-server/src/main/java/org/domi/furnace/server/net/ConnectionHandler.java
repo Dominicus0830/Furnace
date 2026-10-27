@@ -111,7 +111,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private io.netty.util.concurrent.ScheduledFuture<?> slowLoginTimer;
     private boolean knownPacksHandled;      // Known Packs 응답은 연결당 1회(레지스트리 재전송 증폭 방지)
     private boolean finishConfigSent;       // FinishConfiguration을 보낸 뒤에만 PLAY 진입 수락
-    // D-14: ack 뒤 PlayerData.load 를 IO 풀에서 읽는 동안 도착한 play 패킷(id, 남은 본문). 이벤트루프 전용.
+    // D-14: ack 뒤 PlayerData.load 를 플레이어 데이터 실행기(world.playerIo)에서 읽는 동안 도착한 play 패킷(id, 남은 본문). 이벤트루프 전용.
     // 읽기가 끝나면 onEnterPlay 직후 도착 순서대로 처리한다 — 동기 읽기 때와 같은 처리 순서.
     private java.util.ArrayDeque<Object[]> pendingPlayFrames;
     private String playerName;
@@ -729,7 +729,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x03 -> { // Acknowledge Finish Configuration
                 if (!finishConfigSent) { ctx.close(); return; }          // Finish를 보내기 전의 ack는 프로토콜 위반
-                if (pendingPlayFrames != null) return;                   // 이미 진입 중(중복 ack)
                 state = ConnectionState.PLAY;
                 beginEnterPlay(ctx);
             }
@@ -766,12 +765,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /**
-     * D-14: 저장 데이터를 IO 풀에서 읽고(이벤트루프 블로킹 제거) 이벤트루프로 돌아와 onEnterPlay 를 부른다.
-     * 그 사이 play 패킷은 보관했다가 onEnterPlay 직후 순서대로 처리한다. IO 풀이 없거나 거부하면 예전처럼 동기로 읽는다.
-     * 같은 IO 풀이 퇴장 저장을 FIFO 로 받으므로, 먼저 제출된 저장 뒤에 읽는다.
+     * D-14: 저장 데이터를 플레이어 데이터 전용 직렬 실행기(world.playerIo)에서 읽고(이벤트루프 블로킹 제거) 이벤트루프로 돌아와
+     * onEnterPlay 를 부른다. 그 사이 play 패킷은 보관했다가 onEnterPlay 직후 순서대로 처리한다. 실행기가 거부하면 동기로 읽는다.
+     * 퇴장 저장(savePlayerSnapshot)도 같은 단일 스레드 실행기라, 먼저 제출된 저장이 끝난 뒤에 읽는다(청크 IO 대기열과도 분리).
      */
     private void beginEnterPlay(ChannelHandlerContext ctx) {
-        java.util.concurrent.ExecutorService io = world.ioPool();
+        java.util.concurrent.Executor io = world.playerIo();
         java.nio.file.Path dir = world.worldDir();
         java.util.UUID uuid = playerUuid;
         if (io != null) {
@@ -787,7 +786,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                     final var s = saved;
                     final Throwable f = fail;
-                    ctx.executor().execute(() -> finishEnterPlay(ctx, s, f));
+                    try {
+                        ctx.executor().execute(() -> finishEnterPlay(ctx, s, f));
+                    } catch (java.util.concurrent.RejectedExecutionException closed) {
+                        // 이벤트루프가 이미 끝났다(서버 종료) — 보관 패킷을 만질 스레드가 없으니 여기서 해제한다
+                        java.util.ArrayDeque<Object[]> q = pendingPlayFrames;
+                        pendingPlayFrames = null;
+                        releasePendingFrames(q);
+                    }
                 });
                 return;
             } catch (java.util.concurrent.RejectedExecutionException e) {
@@ -813,6 +819,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         dispatch(ctx, (Integer) q[0], frame);
                     } finally {
                         frame.release();
+                    }
+                    if (pendingPlayFrames != null) {
+                        // 재생 중 재구성(play→config→ack)으로 새 진입이 시작됐다 — 남은 패킷은 새 진입 뒤로 넘겨 순서를 지킨다
+                        while (!queued.isEmpty()) pendingPlayFrames.add(queued.poll());
+                        break;
                     }
                 }
             } catch (Throwable t) {
@@ -2843,8 +2854,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /**
-     * 이벤트 루프가 가진 위치·인벤토리를 스냅샷 떠서 IO 풀로 저장한다(퇴장·자동저장 공용).
-     * 시퀀스 번호로 풀에서 순서가 뒤바뀌어도 옛 스냅샷이 최신을 덮어쓰지 못한다. IO 풀은 종료 훅이 대기하므로 종료 시 저장도 마무리된다.
+     * 이벤트 루프가 가진 위치·인벤토리를 스냅샷 떠서 플레이어 데이터 직렬 실행기(world.playerIo)로 저장한다(퇴장·자동저장 공용).
+     * 시퀀스 번호로 풀에서 순서가 뒤바뀌어도 옛 스냅샷이 최신을 덮어쓰지 못한다. 종료 훅이 PlayerData.awaitIo 로 대기하므로 종료 시 저장도 마무리된다.
      */
     private void savePlayerSnapshot() {
         Player p = player;
@@ -2866,7 +2877,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         final var advancements = p.advancements();
         final var statsToSave = p.stats();
         try {
-            world.ioPool().execute(() -> {
+            world.playerIo().execute(() -> {   // 읽기와 같은 직렬 실행기(UUID 별 저장→재접속 읽기 순서)
                 try {
                     org.domi.furnace.server.entity.PlayerData.saveSequenced(seq, world.worldDir(), p.uuid(),
                             sx, sy, sz, syaw, spitch, sg, snapshot, extra);

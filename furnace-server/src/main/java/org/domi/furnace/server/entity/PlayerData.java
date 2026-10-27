@@ -35,6 +35,28 @@ public final class PlayerData {
     /** 바닐라 인벤토리에 자리가 없는 제작 칸(창 슬롯 1..4) 아이템 — 바닐라는 접속 종료 때 인벤토리로 돌려준다. */
     private static final String FURNACE_CRAFTING = "furnace:crafting";
 
+    // 플레이어 데이터 읽기·쓰기 전용 단일 스레드(D-14). 청크 IO 풀과 분리해 대기열 지연을 받지 않고,
+    // 제출 순서대로 직렬이라 퇴장 저장 → 같은 UUID 재접속 읽기 순서가 보장된다. 종료 경로는 awaitIo 로 비운다.
+    private static final java.util.concurrent.ExecutorService IO = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "furnace-playerdata-io");
+        t.setDaemon(true);
+        return t;
+    });
+
+    public static java.util.concurrent.Executor io() { return IO; }
+
+    /** 지금까지 io() 에 제출된 작업이 끝날 때까지 기다린다(서버 종료·테스트). 시간 안에 끝나면 true. */
+    public static boolean awaitIo(long timeout, java.util.concurrent.TimeUnit unit) throws InterruptedException {
+        try {
+            IO.submit(() -> { }).get(timeout, unit);
+            return true;
+        } catch (java.util.concurrent.TimeoutException e) {
+            return false;
+        } catch (java.util.concurrent.ExecutionException e) {
+            return true;
+        }
+    }
+
     private static Path file(Path worldDir, UUID id) {
         return worldDir.resolve("playerdata").resolve(id + ".dat");
     }

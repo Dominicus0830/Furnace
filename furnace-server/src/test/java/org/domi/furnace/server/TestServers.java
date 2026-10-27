@@ -25,6 +25,8 @@ public final class TestServers {
 
     /** 등록된 IO 풀을 닫고 남은 저장 작업이 끝날 때까지 기다린다. */
     public static void drainIoPools() throws InterruptedException {
+        // 플레이어 데이터 저장은 전용 직렬 실행기(PlayerData.io)에서 돈다
+        if (!org.domi.furnace.server.entity.PlayerData.awaitIo(30, java.util.concurrent.TimeUnit.SECONDS)) throw new IllegalStateException("플레이어 데이터 IO 가 30초 안에 끝나지 않았다");
         java.util.concurrent.ExecutorService e;
         while ((e = IO_POOLS.poll()) != null) {
             e.shutdown();

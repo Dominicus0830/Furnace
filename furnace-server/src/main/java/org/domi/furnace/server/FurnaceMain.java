@@ -338,6 +338,10 @@ public final class FurnaceMain {
                         log.error("[STOP] region flush 실패/지연", e);
                     }
                 }
+                // 플레이어 데이터(퇴장 저장·통계·발전 과제)는 전용 직렬 실행기에서 돈다 — 데몬 스레드라 여기서 비운다
+                if (!org.domi.furnace.server.entity.PlayerData.awaitIo(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                    log.error("[STOP] 플레이어 데이터 저장이 30초 안에 끝나지 않았다");
+                }
                 ioPool.shutdown();
                 genPool.shutdown();
                 ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);

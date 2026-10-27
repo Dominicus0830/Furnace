@@ -1074,6 +1074,17 @@ public final class World {
     }
 
     public ExecutorService ioPool() { return ioPool; }
+
+    private volatile java.util.concurrent.Executor playerIo;
+
+    /** 플레이어 데이터 읽기·쓰기 실행기. 기본은 PlayerData 전용 단일 스레드(청크 IO 풀과 분리, 제출 순서 직렬). */
+    public java.util.concurrent.Executor playerIo() {
+        java.util.concurrent.Executor e = playerIo;
+        return e != null ? e : org.domi.furnace.server.entity.PlayerData.io();
+    }
+
+    /** 테스트용: 플레이어 데이터 실행기 교체. */
+    public void playerIo(java.util.concurrent.Executor executor) { this.playerIo = executor; }
     public ExecutorService genPool() { return genPool; }
     public FurnaceScheduler scheduler() { return scheduler; }
     public WorldSource worldSource() { return worldSource; }

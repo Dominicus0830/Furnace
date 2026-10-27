@@ -56,8 +56,9 @@ class EnterPlayAsyncLoadTest {
     private World world(ManualPool pool) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, pool);
+        World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, new ManualPool());
         w.worldDir(tmp);
+        if (pool != null) w.playerIo(pool);   // null 이면 운영 기본(PlayerData 전용 직렬 실행기)
         return w;
     }
 
@@ -146,6 +147,50 @@ class EnterPlayAsyncLoadTest {
         ch.runPendingTasks();
         assertNotNull(field(h, "player"), "IO 풀이 거부하면 예전처럼 동기로 읽고 진입한다");
         assertNull(field(h, "pendingPlayFrames"));
+        ch.finishAndReleaseAll();
+    }
+
+    /** 퇴장 저장이 느려도(먼저 제출) 같은 UUID 재접속 읽기는 저장이 끝난 뒤의 값을 본다. */
+    @Test
+    void slowQuitSaveIsVisibleToImmediateRejoin() throws Exception {
+        UUID uuid = UUID.nameUUIDFromBytes("OfflinePlayer:Tester".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        ItemStack[] slots = new ItemStack[46];
+        java.util.Arrays.fill(slots, ItemStack.EMPTY);
+        PlayerData.save(tmp, uuid, 1.5, -60, 1.5, 0f, 0f, true, slots);   // 옛 값
+        World w = world(null);
+        java.util.concurrent.CountDownLatch saving = new java.util.concurrent.CountDownLatch(1);
+        w.playerIo().execute(() -> {   // 퇴장 저장 모의: 먼저 제출되고 느리다
+            saving.countDown();
+            try { Thread.sleep(300); } catch (InterruptedException ignored) { }
+            PlayerData.saveSequenced(PlayerData.nextSeq(), tmp, uuid, 7.5, -60, 8.5, 0f, 0f, true, slots);
+        });
+        saving.await();
+        ConnectionHandler h = new ConnectionHandler("t", -1, sched, w, new EntityIdAllocator());
+        EmbeddedChannel ch = new EmbeddedChannel(h);
+        toAck(ch);
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (field(h, "player") == null) {
+            ch.runPendingTasks();
+            assertTrue(System.nanoTime() < deadline, "진입이 끝나지 않음");
+            Thread.sleep(5);
+        }
+        assertEquals(7.5, (double) field(h, "ix"), 1e-9, "느린 퇴장 저장 뒤의 값을 읽어야 한다(옛 데이터 롤백 금지)");
+        ch.finishAndReleaseAll();
+    }
+
+    /** 청크 IO 풀이 막혀 있어도(작업이 영원히 안 돎) 플레이어 데이터 읽기는 전용 실행기라 진입이 상한 안에 끝난다. */
+    @Test
+    void blockedChunkIoPoolDoesNotDelayEnterPlay() throws Exception {
+        World w = world(null);   // ioPool = 실행하지 않는 ManualPool
+        ConnectionHandler h = new ConnectionHandler("t", -1, sched, w, new EntityIdAllocator());
+        EmbeddedChannel ch = new EmbeddedChannel(h);
+        long t0 = System.nanoTime();
+        toAck(ch);
+        while (field(h, "player") == null) {
+            ch.runPendingTasks();
+            assertTrue(System.nanoTime() - t0 < 2_000_000_000L, "IO 풀이 막혀도 2초 안에 진입해야 한다");
+            Thread.sleep(2);
+        }
         ch.finishAndReleaseAll();
     }
 
