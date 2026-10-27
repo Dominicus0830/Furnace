@@ -731,6 +731,19 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(6, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_POSE, pose);
     }
 
+    /** Player.DATA_PLAYER_MODE_CUSTOMISATION(17, byte, 기본 0)·DATA_PLAYER_MAIN_HAND(18, byte, 기본 1=오른손) — 1.21.1 번호. */
+    public static final int DATA_PLAYER_MODE_CUSTOMISATION = 17, DATA_PLAYER_MAIN_HAND = 18;
+
+    /** 클라 설정(ClientInformation)의 보이는 스킨 부위·주 손 — 연결 스레드가 쓰고 region 스레드가 syncLivingFlags 에서 보낸다. */
+    private volatile byte skinParts, mainArm = 1;
+    private byte sentSkinParts, sentMainArm = 1;
+
+    /** ServerPlayer.updateOptions: 스킨 부위 비트와 주 손(0 왼손, 1 오른손). */
+    public void clientOptions(int skinParts, int mainArm) {
+        this.skinParts = (byte) skinParts;
+        this.mainArm = (byte) (mainArm == 0 ? 0 : 1);
+    }
+
     /** 바뀐 엔티티 데이터(공유 플래그 0·자세 6·사용 중 플래그 8)를 본인과 보는 사람에게(ServerEntity.sendDirtyEntityData). */
     public void syncLivingFlags() {
         byte shared = sharedFlags(), f = livingFlags();
@@ -741,14 +754,67 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (f != sentLivingFlags) items.add(flagItem(8, f));
         var sp = sleepingPos;
         if (!java.util.Objects.equals(sp, sentSleepingPos)) items.add(sleepingPosItem(sp));
+        byte skin = skinParts, arm = mainArm;
+        if (skin != sentSkinParts) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, skin));
+        if (arm != sentMainArm) items.add(flagItem(DATA_PLAYER_MAIN_HAND, arm));
         if (items.isEmpty()) return;
         sentSharedFlags = shared;
         sentPose = pose;
         sentLivingFlags = f;
         sentSleepingPos = sp;
+        sentSkinParts = skin;
+        sentMainArm = arm;
         var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
         send(pkt);
         vitals.broadcastToTrackers(pkt);
+    }
+
+    // ------------------------------------------------------------------ 장비 동기(LivingEntity.detectEquipmentUpdates) — region 스레드 전용
+
+    private final ItemStack[] lastEquipment = new ItemStack[EquipmentSlot.values().length];
+    { java.util.Arrays.fill(lastEquipment, ItemStack.EMPTY); }
+
+    /** 그 장비 칸의 아이템: 주 손 = 든 핫바 칸, 보조 손 = 45, 방어구 = 5(머리)..8(발). 몸 칸은 늘 비어 있다. */
+    public ItemStack equipment(EquipmentSlot slot) {
+        PlayerInventory inv = inventory;
+        return switch (slot) {
+            case MAINHAND -> inv.get(inv.heldWindowSlot());
+            case OFFHAND -> inv.get(45);
+            case HEAD -> inv.get(5);
+            case CHEST -> inv.get(6);
+            case LEGS -> inv.get(7);
+            case FEET -> inv.get(8);
+            case BODY -> ItemStack.EMPTY;
+        };
+    }
+
+    /** collectEquipmentChanges: 지난번과 다른(ItemStack.matches 아님) 칸들. 없으면 null. */
+    java.util.List<org.domi.furnace.server.net.protocol.play.SetEquipment.Entry> equipmentChanges() {
+        java.util.List<org.domi.furnace.server.net.protocol.play.SetEquipment.Entry> out = null;
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack cur = equipment(slot), last = lastEquipment[slot.ordinal()];
+            if (cur.equals(last) || cur.isEmpty() && last.isEmpty()) continue;
+            if (out == null) out = new java.util.ArrayList<>();
+            out.add(new org.domi.furnace.server.net.protocol.play.SetEquipment.Entry(slot, cur));
+            lastEquipment[slot.ordinal()] = cur;
+        }
+        return out;
+    }
+
+    /** 바뀐 장비를 보는 사람에게(본인 제외 — 바닐라 ChunkMap.broadcast). */
+    public void syncEquipment() {
+        var changes = equipmentChanges();
+        if (changes != null) vitals.broadcastToTrackers(new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, changes));
+    }
+
+    /** sendPairingData 의 장비: 비어 있지 않은 칸 전부(마지막으로 동기한 값). 없으면 null. */
+    public org.domi.furnace.server.net.protocol.play.SetEquipment pairingEquipment() {
+        java.util.List<org.domi.furnace.server.net.protocol.play.SetEquipment.Entry> eq = new java.util.ArrayList<>();
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack st = lastEquipment[slot.ordinal()];
+            if (!st.isEmpty()) eq.add(new org.domi.furnace.server.net.protocol.play.SetEquipment.Entry(slot, st));
+        }
+        return eq.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, eq);
     }
 
     /** ServerEntity.sendPairingData 의 기본값이 아닌 엔티티 데이터(새로 보게 된 사람에게). 없으면 null. */
@@ -758,6 +824,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (sentPose != 0) items.add(poseItem(sentPose));
         if (sentLivingFlags != 0) items.add(flagItem(8, sentLivingFlags));
         if (sentSleepingPos != null) items.add(sleepingPosItem(sentSleepingPos));
+        if (sentSkinParts != 0) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, sentSkinParts));
+        if (sentMainArm != 1) items.add(flagItem(DATA_PLAYER_MAIN_HAND, sentMainArm));
         return items.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
     }
 

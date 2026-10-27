@@ -102,6 +102,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private boolean statusHandled;
     private boolean clientAllowsListing = true;
     private volatile String clientLocale = "en_us";
+    private volatile int clientSkinParts, clientMainArm = 1;   // ClientInformation 의 스킨 부위·주 손(플레이어 생성 전에도 받는다)
     private int chatVisibility = org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_FULL;
     private int velocityMessageId;
     private java.net.InetSocketAddress forwardedAddress;   // Velocity 포워딩으로 받은 실제 주소          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
@@ -736,8 +737,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             this.chatVisibility = Types.readVarInt(frame); // chat mode: 0 전부, 1 시스템만, 2 숨김
             if (p != null) p.chat().visibility(chatVisibility);
             frame.readBoolean();                         // chat colors
-            frame.readUnsignedByte();                    // displayed skin parts
-            Types.readVarInt(frame);                     // main hand
+            this.clientSkinParts = frame.readUnsignedByte(); // displayed skin parts(겉옷·겉머리 등 비트)
+            this.clientMainArm = Types.readVarInt(frame);    // main hand: 0 왼손, 1 오른손
+            if (p != null) p.clientOptions(clientSkinParts, clientMainArm);
             frame.readBoolean();                         // text filtering
             this.clientAllowsListing = frame.readBoolean(); // 서버 목록(상태 응답 sample)에 이름 공개 허용
             if (p != null) p.allowsListing(clientAllowsListing);
@@ -899,6 +901,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         p.chat().visibility(chatVisibility);
         p.locale(clientLocale);
+        p.clientOptions(clientSkinParts, clientMainArm);
         p.remoteAddress(clientAddress(ctx));
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
