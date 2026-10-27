@@ -157,6 +157,47 @@ class TickCommandTest {
         return w.submitAtChunk(org.domi.furnace.server.world.ChunkPos.ofBlock(e.x(), e.z()), r -> e.tickCount).get();
     }
 
+    /** 그 칸의 region 이 n 번 더 돌 때까지 기다린다(넉넉한 상한 30초). */
+    private void awaitRegionTicks(org.domi.furnace.server.world.World w, double x, double z, int n) throws Exception {
+        var cp = org.domi.furnace.server.world.ChunkPos.ofBlock(x, z);
+        long start = w.submitAtChunk(cp, r -> r.tickCount()).get();
+        long deadline = System.nanoTime() + 30_000_000_000L;
+        while (w.submitAtChunk(cp, r -> r.tickCount()).get() < start + n) {
+            assertTrue(System.nanoTime() < deadline, "region 이 돌지 않는다");
+            Thread.onSpinWait();
+        }
+    }
+
+    @Test
+    void heldRegionDoesNotRunPlayerTicks_whileWaitingForSlowGlobal() throws Exception {
+        var world = core.world();
+        var p = new org.domi.furnace.server.entity.Player(world.entityIds().next(), java.util.UUID.randomUUID(), "A",
+                new io.netty.channel.embedded.EmbeddedChannel());
+        p.applyMove(8.5, -60, 8.5, 0, 0, true);
+        world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> {
+            r.adopt(p);
+            return null;
+        }).get();
+        world.startTicking();
+        TickState ts = core.tickState();
+        awaitRegionTicks(world, 8, 8, 2);
+        int before = world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> p.attackStrengthTicker).get();
+        long start = System.nanoTime();
+        run("tick sprint 100");
+        // 전역을 느리게(반복 사이 10ms) — region 은 대부분 전역을 기다린다
+        long deadline = System.nanoTime() + 60_000_000_000L;
+        while (ts.sprinting()) {
+            assertTrue(System.nanoTime() < deadline);
+            core.scheduledTick();
+            Thread.sleep(10);
+        }
+        long elapsedTicks = (System.nanoTime() - start) / 50_000_000L;
+        int after = world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> p.attackStrengthTicker).get();
+        // sprint 100 틱 + sprint 앞뒤로 평소 주기(50ms)로 돈 틱만. 기다리는 차례(100µs 마다)가 플레이어를 틱하면 수천이 된다
+        assertTrue(after - before >= 100, "sprint 틱만큼은 진행: " + (after - before));
+        assertTrue(after - before <= 100 + elapsedTicks + 5, "기다리는 차례는 플레이어 틱이 아니다: " + (after - before) + ", 경과 " + elapsedTicks);
+    }
+
     @Test
     void sprintGivesEveryRegionExactlyNWorldTicks_evenWhenRegionsWouldMergeMidSprint() throws Exception {
         var world = core.world();
@@ -168,7 +209,8 @@ class TickCommandTest {
         world.startTicking();
         TickState ts = core.tickState();
         run("tick freeze");   // 정지 중에는 엔티티가 틱을 받지 않는다 — sprint 틱만 센다
-        Thread.sleep(200);
+        awaitRegionTicks(world, 8, 8, 3);   // 정지 전 마지막 틱이 끝나도록 region 이 정지 상태로 몇 번 돈 뒤에 잰다
+        awaitRegionTicks(world, 776, 8, 3);
         int ta = ticksOf(world, sa), tb = ticksOf(world, sb);
         run("tick sprint 300");
         // sprint 도중 사이 구역 청크를 올려 두 region 이 합쳐지려 하게 한다(새로 생긴 region 은 sprint 에 참여하지 않는다)
@@ -179,7 +221,7 @@ class TickCommandTest {
         }
         sprintToEnd(ts);
         assertTrue(ts.frozen());
-        Thread.sleep(300);   // 끝난 뒤 미뤄 둔 병합이 일어나도 정지 중이라 그대로
+        awaitRegionTicks(world, 8, 8, 3);   // 끝난 뒤 병합이 일어나도 정지 중이라 그대로
         assertEquals(ta + 300, ticksOf(world, sa), "구역 A 는 정확히 300 틱 진행");
         assertEquals(tb + 300, ticksOf(world, sb), "구역 B 는 정확히 300 틱 진행");
     }

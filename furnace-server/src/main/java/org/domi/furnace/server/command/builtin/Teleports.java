@@ -104,7 +104,7 @@ final class Teleports {
                     p.teleportTo(x, y, z, yaw, pitch);
                     done.complete(null);
                 } else if (!region.teleportAcross(p, dimension, x, y, z, yaw, pitch, () -> done.complete(null))) {
-                    done.completeExceptionally(org.domi.furnace.server.command.EntityOps.ownerNotFound(p));   // 방금 확인했으니 일어나지 않는다
+                    done.completeExceptionally(org.domi.furnace.server.command.EntityOps.ownerNotFound(p));   // runOnPlayerOwner 가 같은 region 스레드 작업 안에서 players 에 있음을 확인했고 그 사이 다른 코드가 돌지 않으므로 players.remove 는 실패하지 않는다
                 }
             } catch (Throwable t) {
                 done.completeExceptionally(t);

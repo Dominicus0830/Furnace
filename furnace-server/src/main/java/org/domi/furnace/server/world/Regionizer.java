@@ -445,6 +445,7 @@ public final class Regionizer {
 
     /** 틱 끝(잠금 안): 합치기 → 나누기 → 빈 region 정리 → 다음 틱 예약. */
     private void afterTick(Region r) {
+        updateSprintSummary(r);
         resolveMerges(r);
         if (!r.alive || r.yielded) return;
         r.ticksSinceRecalc++;
@@ -454,10 +455,7 @@ public final class Regionizer {
         }
         if (!r.alive) return;
         long now = System.nanoTime();
-        r.sprintSeen = r.sprintGeneration();
-        r.sprintPending = r.sprintLeft() > 0;
-        r.sprintJoinedSummary = r.sprintJoined();
-        r.sprintDoneSummary = r.sprintJoined() ? world.tickState().sprintTicks() - r.sprintLeft() : 0;
+        updateSprintSummary(r);   // 병합으로 이어받은 상태까지
         if (r.sprintPending) {
             // /tick sprint: 기다리지 않고 곧바로 다음 틱(같은 풀의 다른 region 과는 마감 순서로 번갈아). 전역을 기다린 틱이면 잠깐 뒤에.
             r.nextTickNanos = r.sprintHeld() ? now + SPRINT_HOLD_NANOS : now;
@@ -476,35 +474,50 @@ public final class Regionizer {
     }
 
     /** 합칠 대상이 쉬면 흡수, 틱 중이면 양보(다음 틱을 잡지 않고 상대가 끝날 때 흡수된다). */
-    /** sprint 중 병합 조건: 두 region 의 sprint 참여·남은 틱이 같아야 모든 구역이 같은 N 틱을 받는다. */
+    /** 틱 뒤 요약(잠금 안): 본 세대, 남은 sprint 틱 여부, 참여 여부, 마친 틱 수 — 다른 스레드는 이 요약만 읽는다. */
+    private void updateSprintSummary(Region r) {
+        r.sprintSeen = r.sprintGeneration();
+        r.sprintPending = r.sprintLeft() > 0;
+        r.sprintJoinedSummary = r.sprintJoined();
+        r.sprintDoneSummary = r.sprintJoined() ? world.tickState().sprintTicks() - r.sprintLeft() : 0;
+    }
+
+    /**
+     * sprint 중 병합 조건(잠금 안 요약으로): 둘 다 참여 중인데 마친 틱 수가 다르면 잠깐 미룬다. lockstep 이라 차이는 1 이하이고
+     * 뒤진 쪽은 전역에 막히지 않으므로 다음 한 틱 안에 같아진다(소유권이 겹치는 구간은 평소 병합 대기와 같은 한 틱).
+     * 한쪽만 참여하면 미루지 않고 곧바로 합치며, 합친 region 은 참여 쪽 상태를 따른다(absorb).
+     */
     private boolean sprintCompatible(Region r, Region o) {
         var ts = world.tickState();
         if (!ts.sprinting()) return true;
         int gen = ts.sprintGeneration();
-        long lr = r.sprintSeen == gen && r.sprintJoinedSummary ? r.sprintLeft() : -1;
-        long lo = o.sprintSeen == gen && o.sprintJoinedSummary ? o.sprintLeft() : -1;
-        return lr == lo;
+        boolean jr = r.sprintSeen == gen && r.sprintJoinedSummary, jo = o.sprintSeen == gen && o.sprintJoinedSummary;
+        if (!jr || !jo) return true;
+        return r.sprintDoneSummary == o.sprintDoneSummary;
     }
 
     /** sprint 가 끝난 뒤 남은 region 이 미룬 병합을 다시 보게 깨우는 주기(나노초) — 전역을 기다린 region 의 재시도 간격도 같다. */
     static final long SPRINT_HOLD_NANOS = 100_000L;
 
     private void resolveMerges(Region r) {
-        List<Region> deferred = new ArrayList<>();
+        if (r.pendingMerges.isEmpty()) return;
+        List<Region> deferred = null;
         try {
-            resolveMerges(r, deferred);
+            deferred = resolveMerges(r, null);
         } finally {
-            r.pendingMerges.addAll(deferred);
+            if (deferred != null) r.pendingMerges.addAll(deferred);
         }
     }
 
-    private void resolveMerges(Region r, List<Region> deferred) {
+    /** 미룬 병합 상대 목록(없으면 null)을 돌려준다. */
+    private List<Region> resolveMerges(Region r, List<Region> deferred) {
         while (!r.pendingMerges.isEmpty()) {
             var it = r.pendingMerges.iterator();
             Region o = resolve(it.next());
             it.remove();
             if (o == null || o == r || !o.alive) continue;
-            if (!sprintCompatible(r, o)) {   // sprint 진행이 다르면 같아질 때까지(또는 sprint 가 끝날 때까지) 미룬다
+            if (!sprintCompatible(r, o)) {   // 참여 region 끼리 마친 틱이 다르면 한 틱 미룬다
+                if (deferred == null) deferred = new ArrayList<>();
                 deferred.add(o);
                 continue;
             }
@@ -514,10 +527,11 @@ public final class Regionizer {
                 o.pendingMerges.remove(o);
                 o.pendingMerges.add(r);
                 r.pendingMerges.clear();
-                return;
+                return deferred;
             }
             absorb(r, o);
         }
+        return deferred;
     }
 
     /** o 를 r 로 흡수(둘 다 쉬는 중, 잠금 안). */
@@ -535,6 +549,7 @@ public final class Regionizer {
         for (Region p : o.pendingMerges) if (resolve(p) != r) r.pendingMerges.add(p);
         o.pendingMerges.clear();
         r.absorbData(o);
+        r.adoptSprintFrom(o);   // 참여하지 않던 쪽이 흡수하면 참여 쪽 sprint 상태를 이어받는다
         reroute(o);
         if (o.yielded) o.yielded = false;
     }

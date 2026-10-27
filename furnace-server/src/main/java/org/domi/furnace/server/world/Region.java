@@ -98,7 +98,9 @@ public final class Region {
 
     /** 작업 큐 → 지연 작업 → (켜져 있으면) 게임 틱. */
     void runTick(boolean gameTick) {
-        tickCount++;
+        // /tick sprint lockstep: 전역을 앞서면 이번 차례는 작업 큐만 비우고 틱(지연 작업 시계·월드·플레이어 처리)은 하지 않는다
+        sprintHeld = gameTick && sprintHoldsNow();
+        if (!sprintHeld) tickCount++;
         long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Task t;
         int n = 0;
@@ -107,6 +109,7 @@ public final class Region {
             else rz().enqueue(t.chunkKey(), t.run());
             if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
         }
+        if (sprintHeld) return;
         while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) {
             Delayed d = delayed.poll();
             if (mine(d.chunkKey)) runTask(d.run);
@@ -810,6 +813,28 @@ public final class Region {
 
     boolean sprintJoined() { return sprintJoined; }
 
+    /** 세대가 바뀌면 참여 여부(그 순간 sprint 중인가)와 남은 sprint 틱(N 또는 0)을 다시 채운다. */
+    private void refreshSprintGeneration(TickState ts) {
+        if (sprintGeneration != ts.sprintGeneration()) {
+            sprintGeneration = ts.sprintGeneration();
+            sprintJoined = ts.sprinting();
+            sprintLeft = sprintJoined ? ts.sprintTicks() : 0;
+        }
+    }
+
+    /** lockstep: 남은 sprint 틱이 있는데 마친 틱 수가 전역이 시작한 틱 수에 닿았으면 참(이번 차례는 기다린다). */
+    private boolean sprintHoldsNow() {
+        TickState ts = world.tickState();
+        refreshSprintGeneration(ts);
+        return sprintLeft > 0 && ts.sprintTicks() - sprintLeft >= ts.sprintGlobalDone();
+    }
+
+    /** 병합(Regionizer 잠금 안, 둘 다 쉬는 중): 참여하지 않던 이 region 이 참여 region 을 흡수하면 그 sprint 상태를 이어받는다. */
+    void adoptSprintFrom(Region o) {
+        if (sprintJoined || !o.sprintJoined || o.sprintGeneration != world.tickState().sprintGeneration()) return;
+        inheritSprint(o.sprintGeneration, o.sprintLeft, true);
+    }
+
     boolean sprintHeld() { return sprintHeld; }
 
     int sprintGeneration() { return sprintGeneration; }
@@ -830,22 +855,11 @@ public final class Region {
             stepsLeft--;
             frozen = false;
         }
-        // /tick sprint: 세대가 바뀌면 남은 sprint 틱을 다시 채운다(끝났거나 멈췄으면 0). sprint 틱은 기다리지 않고 곧바로 다음 틱을 잡는다(Regionizer.afterTick).
-        if (sprintGeneration != tickState.sprintGeneration()) {
-            sprintGeneration = tickState.sprintGeneration();
-            sprintJoined = tickState.sprinting();
-            sprintLeft = sprintJoined ? tickState.sprintTicks() : 0;
-        }
-        sprintHeld = false;
+        // /tick sprint: sprint 틱이면 정지여도 진행한다. 전역을 앞서는지는 runTick 이 먼저 보고 이 틱 자체를 건너뛴다(lockstep).
+        refreshSprintGeneration(tickState);
         if (sprintLeft > 0) {
-            // lockstep: 전역이 시작한 틱 수보다 앞서 나가지 않는다(시간·날씨·보더가 이 틱과 같은 시점이도록). 앞서면 이번 틱은 진행 없이 기다린다.
-            if (tickState.sprintTicks() - sprintLeft >= tickState.sprintGlobalDone()) {
-                sprintHeld = true;
-                frozen = true;
-            } else {
-                sprintLeft--;
-                frozen = false;
-            }
+            sprintLeft--;
+            frozen = false;
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();

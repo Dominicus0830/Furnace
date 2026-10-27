@@ -100,6 +100,7 @@ public final class PlayerStateCommands {
         for (var r : targets) {
             var f = new java.util.concurrent.CompletableFuture<Text>();
             if (r instanceof Player p) {
+                Text name = p.displayName();   // 접속 이름 기반 — 스레드와 무관한 값
                 // 플레이어도 일반 엔티티와 같은 규칙: 그 플레이어를 가진 region 에서(소유 확인 뒤) 죽인다
                 org.domi.furnace.server.command.EntityOps.runOnPlayerOwner(source, p, region -> {
                     try {
@@ -108,7 +109,7 @@ public final class PlayerStateCommands {
                     } catch (Throwable t) {
                         f.completeExceptionally(t);
                     }
-                }, () -> f.completeExceptionally(org.domi.furnace.server.command.EntityOps.ownerNotFound(p)));
+                }, () -> f.complete(name));   // 끝내 못 찾음(접속 끊김) — 바닐라 /kill 은 고른 대상을 그대로 센다
             } else if (r instanceof org.domi.furnace.server.entity.Entity e) {
                 // 주인을 못 찾으면(이미 사라진 엔티티) 죽일 것이 없다 — 바닐라도 대상 수를 그대로 센다. 이름은 이 스레드에서 읽지 않고 종류 이름으로
                 String tn = e.type().name();

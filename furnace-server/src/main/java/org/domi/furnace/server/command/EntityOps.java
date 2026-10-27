@@ -22,6 +22,8 @@ public final class EntityOps {
     }
 
     private static final int MAX_OWNER_RETRIES = 5;
+    /** 플레이어 주인 찾기 재시도 상한(틱 — 한 번에 50ms 뒤). 차원 이동은 목적 청크 준비로 몇 틱 걸린다. */
+    private static final int PLAYER_OWNER_RETRY_TICKS = 40;
 
     /**
      * e 를 가진 region 스레드에서 task 를 돌린다. 위치를 읽고 보내는 사이 엔티티가 다른 region 으로 넘어갔을 수 있으므로, 도착한 region 이
@@ -48,10 +50,10 @@ public final class EntityOps {
 
     /**
      * 플레이어를 가진 region 스레드에서 task 를 돌린다. 플레이어의 지금 차원 월드에서 위치로 보내고, 도착한 region 의 players 에
-     * 있는지 **먼저** 확인한 뒤에만 task 를 부른다(아니면 지금 위치·차원으로 다시, 최대 5번). 끝내 못 찾으면(접속 끊김·차원 이동 중) onFail.
+     * 있는지 **먼저** 확인한 뒤에만 task 를 부른다(아니면 한 틱 뒤 지금 위치·차원으로 다시, 최대 40틱). 끝내 못 찾으면(접속 끊김·차원 이동 중) onFail.
      */
     public static void runOnPlayerOwner(CommandSource source, Player p, java.util.function.Consumer<org.domi.furnace.server.world.Region> task, Runnable onFail) {
-        runOnPlayerOwner(source, p, task, onFail, MAX_OWNER_RETRIES);
+        runOnPlayerOwner(source, p, task, onFail, PLAYER_OWNER_RETRY_TICKS);
     }
 
     private static void runOnPlayerOwner(CommandSource source, Player p, java.util.function.Consumer<org.domi.furnace.server.world.Region> task,
@@ -62,7 +64,9 @@ public final class EntityOps {
             if (region.players().get(p.entityId()) == p) {
                 task.accept(region);
             } else if (!p.isDisconnected() && tries > 0) {
-                runOnPlayerOwner(source, p, task, onFail, tries - 1);
+                // 넘기기 대기·차원 이동 중일 수 있다 — 한 틱(50ms) 뒤 지금 위치·차원으로 다시
+                CompletableFuture.delayedExecutor(50, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        .execute(() -> runOnPlayerOwner(source, p, task, onFail, tries - 1));
             } else {
                 onFail.run();
             }
