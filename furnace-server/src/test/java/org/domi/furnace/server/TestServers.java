@@ -40,13 +40,17 @@ public final class TestServers {
 
     /** 월드 생성기를 고른 판(예: 노이즈 오버월드). */
     public static ServerCore core(Path tmp, FurnaceSchedulerImpl sched, java.util.function.Function<BlockRegistry, org.domi.furnace.server.world.gen.WorldSource> source) {
+        return core(tmp, sched, source, LevelData.create("world", 1234L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of("vanilla"), List.of()));
+    }
+
+    /** 이미 만든(또는 파일에서 읽은) LevelData 로 서버를 띄운다 — 재시작 시험용. */
+    public static ServerCore core(Path tmp, FurnaceSchedulerImpl sched, java.util.function.Function<BlockRegistry, org.domi.furnace.server.world.gen.WorldSource> source, LevelData level) {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World world = new World(source.apply(reg), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, ioPool());
         world.worldDir(tmp);
         ServerPropertiesFile settings = new ServerPropertiesFile(tmp.resolve("server.properties"));
         PlayerLists lists = new PlayerLists(tmp, settings);
-        LevelData level = LevelData.create("world", 1234L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of("vanilla"), List.of());
         return new ServerCore(settings, lists, new GameProfileCache(ProfileLookup.NONE, tmp.resolve("usercache.json")), world, level, sched);
     }
 

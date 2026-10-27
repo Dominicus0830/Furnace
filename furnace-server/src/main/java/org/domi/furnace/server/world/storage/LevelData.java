@@ -227,7 +227,7 @@ public final class LevelData {
         if (bars != null) d.putCompound("CustomBossEvents", bars);
         else putIfAbsent(d, "CustomBossEvents", new NbtCompound());
         NbtList events = scheduledEvents;
-        if (events != null) d.putList("ScheduledEvents", events);
+        if (events != null) d.putList("ScheduledEvents", events.copy());
         else putIfAbsent(d, "ScheduledEvents", new NbtList(NbtIo.TAG_END));
         NbtCompound fight = dragonFight;
         if (fight != null) d.putCompound("DragonFight", fight);

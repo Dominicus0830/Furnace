@@ -261,3 +261,6 @@
 - **차이**: 블록 Handle 은 블록 엔티티 객체가 아니라 좌표를 붙들고 쓸 때 다시 찾는다(바닐라는 옛 객체에 쓴다). 엔티티 Handle 은 해석 시점의 엔티티를 붙들되, 콜백 때 주인 region 을 못 찾으면(그새 kill 됨) 바닐라가 죽은 엔티티에 조용히 load 하는 것처럼 **쓰기를 건너뛰고 조용히** 끝낸다.
 - 콜백의 비-문법 실패(지연 future 가 예외로 끝남)는 동기 콜백 예외와 같은 길이다: `awaitCallback` 이 다시 던져 `CommandQueue.drive` 의 catch 가 `command.failed` 를 보내고 컨텍스트를 끝낸다(남은 포크는 안 돈다, forked 여부 무관 — 바닐라 performCommand catch 와 같다).
 - **알려진 위험**: (1) 콜백 future 가 5 초 타임아웃(`ExecutionContext.suspend`)에 걸리면 컨텍스트는 이어 가지만 region 쓰기는 늦게 반영될 수 있다(되돌리지 않음, 설계서 §7 늦은 부작용). (2) `ExecuteCommand` 는 "실행 하나당 콜백 future 하나" 를 전제한다 — `chain` 이 여러 store 를 future 하나로 합성하므로 성립하고, 두 번째 미완료 콜백을 같은 단계에서 suspend 하면 `ExecutionContext.suspend` 가 IllegalStateException 을 낸다. S5 가 포크 결과를 몰아 부르게 바꾸면 다시 확인. (3) `CustomCommandExecutor.WithErrorHandling`(문법 오류 시 `onFailure()`)과 `FallthroughTask`(`returnFailure()`)는 콜백이 돌려준 future 를 버린다 — `store block … run function` 이 실패로 끝날 때 블록 쓰기 완료를 기다리지 않아 다음 줄이 옛 값을 볼 수 있다(S5 의 ExecutionControl 에서 합류시킬 것).
+
+## 2026-10-27 /schedule (S6) 의 의도한 차이
+- 예약 함수는 `gameTime+1` 직후에 `CommandQueue` 로 들어간다(clock 락 밖). 큐가 idle 이면 그 자리에서 동기로 끝나 바닐라 순서(gameTime+1 → 예약 함수 → dayTime+1)와 같지만, 같은 틱 앞의 `#tick` 함수나 다른 명령이 region 왕복으로 기다리는 중이면 FIFO 뒤로 밀려 dayTime 증가 뒤나 다음 틱 이후에 돈다. 종료 중(큐 닫힘)에는 이벤트를 꺼내지 않아 level.dat 에 남는다.

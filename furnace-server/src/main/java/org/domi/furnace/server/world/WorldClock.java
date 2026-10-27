@@ -91,12 +91,19 @@ public final class WorldClock {
     }
 
     /** ServerLevel.tickTime + MinecraftServer 의 20틱마다 시간 동기화. */
-    public synchronized void tickTime(GameRules rules, Consumer<Packet> broadcast) { tickTime(rules, broadcast, t -> { }); }
+    public synchronized void tickTime(GameRules rules, Consumer<Packet> broadcast) {
+        advanceGameTime();
+        advanceDayTime(rules, broadcast);
+    }
 
-    /** afterGameTime: gameTime 증가 직후, dayTime 증가 직전에 새 gameTime 으로 불린다(바닐라 aqu.b 의 timerQueue.tick 자리). */
-    public synchronized void tickTime(GameRules rules, Consumer<Packet> broadcast, java.util.function.LongConsumer afterGameTime) {
-        gameTime++;
-        afterGameTime.accept(gameTime);
+    /**
+     * tickTime 의 앞 절반: gameTime+1 만. 사이에 예약 함수(바닐라 timerQueue.tick)를 끼우려고 나눴다 — 그 함수는 clock 락 밖에서
+     * 돌아야 다른 스레드의 getter 를 막지 않는다. 부르는 쪽이 곧바로 advanceDayTime 을 이어 불러야 한다.
+     */
+    public synchronized long advanceGameTime() { return ++gameTime; }
+
+    /** tickTime 의 뒤 절반: dayTime 증가(doDaylightCycle)와 20틱마다 시간 동기화. */
+    public synchronized void advanceDayTime(GameRules rules, Consumer<Packet> broadcast) {
         if (rules.getBoolean("doDaylightCycle")) dayTime++;
         if (++tickCount % 20 == 0) broadcast.accept(timePacket(rules));
     }

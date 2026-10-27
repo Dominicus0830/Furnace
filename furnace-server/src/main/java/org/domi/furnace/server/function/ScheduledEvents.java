@@ -41,12 +41,15 @@ public final class ScheduledEvents {
      * 바닐라 tick: time <= gameTime 인 것을 순서대로 꺼내 실행한다. 이름×시각 표에서는 gameTime 키를 지운다(바닐라 그대로 —
      * 시각이 이미 지난 항목이면 표에 자기 키가 남는데, 같은 (이름, 시각) 을 다시 등록하려 할 때만 영향이 있다).
      */
-    public void tick(long gameTime, Consumer<Callback> run) {
+    public void tick(long gameTime, Consumer<Callback> run) { tick(gameTime, () -> true, run); }
+
+    /** ready 가 거짓이면(명령 큐가 닫힌 종료 중) 꺼내지 않고 멈춘다 — 실행 못 한 이벤트가 유실되지 않고 저장된다. */
+    public void tick(long gameTime, java.util.function.BooleanSupplier ready, Consumer<Callback> run) {
         while (true) {
             Event e;
             synchronized (this) {
                 e = queue.peek();
-                if (e == null || e.time() > gameTime) return;
+                if (e == null || e.time() > gameTime || !ready.getAsBoolean()) return;
                 queue.remove();
                 Map<Long, Event> row = byName.get(e.name());
                 if (row != null) {

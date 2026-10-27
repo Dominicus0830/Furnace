@@ -1,5 +1,6 @@
 // 바닐라 FunctionArgument(hb, minecraft:function) — "ns:path" 또는 "#ns:태그". 해석은 실행 때 서버 함수 라이브러리에서 한다.
-// 없는 함수는 arguments.function.unknown, 없는 태그는 바닐라 라이브러리가 빈 목록을 돌려주므로 오류가 아니라 빈 목록이다.
+// 없는 함수는 arguments.function.unknown, 정의가 없는 태그는 라이브러리가 빈 목록을 돌려주므로 오류가 아니라 빈 목록이다
+// (tag.unknown 은 라이브러리가 null 을 돌려줄 때만 — 현재 구현에서는 도달하지 않는 방어 분기).
 package org.domi.furnace.server.command.arguments;
 
 import java.util.Collection;

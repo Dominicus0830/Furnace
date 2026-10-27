@@ -449,8 +449,12 @@ public final class ServerCore {
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };
         clock.tickWeather(gameRules, all, packet -> { for (Player p : players()) if (world.dimension().equals(p.dimension())) p.send(packet); });
         tickSleep();
-        // 바닐라 ServerLevel.tickTime: gameTime+1 직후, dayTime 증가 전에 예약된 함수를 돌린다
-        clock.tickTime(gameRules, all, gameTime -> scheduledEvents.tick(gameTime, functions::runScheduled));
+        // 바닐라 ServerLevel.tickTime: gameTime+1 → 예약된 함수 → dayTime+1. 예약 함수는 clock 락 밖에서 돈다.
+        // 한계(가정): 명령 큐가 idle 이면 함수 본문이 여기서 동기로 끝나 바닐라 순서와 같다. 앞선 컨텍스트(#tick 함수, 다른 명령)가
+        // region 왕복으로 기다리는 중이면 FIFO 뒤로 밀려 dayTime 증가 뒤나 다음 틱 이후에 돈다(context-notes 의도한 차이).
+        long gameTimeNow = clock.advanceGameTime();
+        scheduledEvents.tick(gameTimeNow, () -> !commands.queue().isClosed(), functions::runScheduled);
+        clock.advanceDayTime(gameRules, all);
     }
 
     /**

@@ -53,17 +53,33 @@ class ScheduleTest {
         fn("b", "scoreboard players set #seq o 2");
         fn("m1", "scoreboard players add #m o 1");
         fn("m2", "scoreboard players add #m o 10");
+        fn("probefn", "probe");
+        fn("settime", "time set 0");
         Path tags = tmp.resolve("datapacks/mine/data/t/tags/function");
         Files.createDirectories(tags);
         Files.writeString(tags.resolve("both.json"), "{\"values\":[\"t:m1\",\"t:m2\"]}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+        // 예약 함수가 도는 동안 다른 스레드가 clock getter 를 부를 수 있는지 재는 명령(함수 로드 전에 등록)
+        core.commands().getDispatcher().register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal("probe").executes(c -> {
+            Thread t = new Thread(() -> core.clock().rainLevel());
+            t.start();
+            try {
+                t.join(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            probeBlocked = t.isAlive();
+            return 1;
+        }));
         core.dataPacks(packs);
         core.loadFunctions();
         onGlobal(() -> { });
         run("scoreboard objectives add o dummy");
     }
+
+    volatile boolean probeBlocked;
 
     @AfterEach
     void tearDown() {
@@ -215,6 +231,68 @@ class ScheduleTest {
         onGlobal(core::scheduledTick);
         assertEquals(1, score("#n"), "step 으로 gameTime 이 2 가면 실행");
         run("tick unfreeze");
+        long g = core.clock().gameTime();
+        onGlobal(core::scheduledTick);
+        assertEquals(g + 1, core.clock().gameTime(), "unfreeze 뒤에는 틱마다 gameTime 이 다시 간다");
+        run("schedule function t:inc 1");
+        onGlobal(core::scheduledTick);
+        assertEquals(2, score("#n"), "unfreeze 뒤 새 예약도 정상 실행");
+    }
+
+    @Test
+    void scheduledFunctionRunsOutsideClockLock() throws Exception {
+        run("schedule function t:probefn 1");
+        tick(1);
+        assertEquals(0, core.scheduledEvents().size());
+        assertFalse(probeBlocked, "예약 함수가 도는 동안 다른 스레드의 clock getter 가 막히면 안 된다");
+    }
+
+    @Test
+    void timeSetInScheduledFunctionThenDayTimeAdvancesLikeVanilla() throws Exception {
+        core.clock().setDayTime(5000);
+        run("schedule function t:settime 1");
+        tick(1);
+        assertEquals(1, core.clock().dayTime(), "gameTime+1 → 예약 함수(time set 0) → dayTime+1 = 1 (바닐라 순서)");
+    }
+
+    @Test
+    void restartRestoresEventsFromLevelDatFileAndRunsThem(@TempDir Path dir) throws Exception {
+        run("schedule function t:inc 3");
+        run("schedule function #t:both 5 append");
+        tick(1);
+        core.writeLevelData();
+        long savedTime = core.clock().gameTime();
+        try (var storage = org.domi.furnace.server.world.storage.LevelStorage.open(dir)) {
+            storage.saveLevelData(core.levelData());
+        }
+        // "재시작": 파일에서 다시 읽은 LevelData 로 새 서버를 띄우고 같은 함수 라이브러리를 올린다
+        org.domi.furnace.server.world.storage.LevelData loaded;
+        try (var storage = org.domi.furnace.server.world.storage.LevelStorage.open(dir)) {
+            loaded = storage.loadLevelData();
+        }
+        Path tmp2 = dir.resolve("srv2");
+        Files.createDirectories(tmp2);
+        ServerCore core2 = TestServers.core(tmp2, sched, reg -> new org.domi.furnace.server.world.gen.SuperflatWorldSource(reg, 0), loaded);
+        core2.dataPacks(packs);
+        core2.loadFunctions();
+        onGlobal(() -> { });
+        assertEquals(savedTime, core2.clock().gameTime());
+        assertEquals(java.util.Set.of("t:inc", "#t:both"), core2.scheduledEvents().names());
+        core2.commands().performPrefixedCommandAsync(CommandSource.console(core2), "scoreboard objectives add o dummy").join();
+        for (int i = 0; i < 4; i++) sched.global().execute(core2::tick).get(10, TimeUnit.SECONDS);
+        assertEquals(0, core2.scheduledEvents().size(), "남은 시간(2틱, 4틱) 뒤 둘 다 실행됐다");
+        int n = core2.commands().performPrefixedCommandAsync(CommandSource.console(core2), "scoreboard players get #n o").join().result();
+        int m = core2.commands().performPrefixedCommandAsync(CommandSource.console(core2), "scoreboard players get #m o").join().result();
+        assertEquals(1, n);
+        assertEquals(11, m);
+    }
+
+    @Test
+    void closedCommandQueueKeepsEventsPending() throws Exception {
+        run("schedule function t:inc 1");
+        onGlobal(() -> core.commands().queue().close());
+        tick(2);
+        assertEquals(1, core.scheduledEvents().size(), "큐가 닫혔으면 이벤트를 꺼내지 않아 저장에 남는다");
     }
 
     @Test
