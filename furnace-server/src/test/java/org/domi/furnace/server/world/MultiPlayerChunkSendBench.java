@@ -24,16 +24,39 @@ import org.junit.jupiter.api.Test;
 class MultiPlayerChunkSendBench {
 
     static volatile long sink;
+    static int poolThreads;
+
+    /** 이름 접두사별 스레드 CPU ns·할당 바이트 합(살아 있는 스레드만). */
+    static long[] threadStats(String prefix) {
+        var mx = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        long cpu = 0, alloc = 0;
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (!t.getName().startsWith(prefix)) continue;
+            cpu += Math.max(0, mx.getThreadCpuTime(t.threadId()));
+            alloc += Math.max(0, mx.getThreadAllocatedBytes(t.threadId()));
+        }
+        return new long[] {cpu, alloc};
+    }
+
+    static long[] gcStats() {
+        long c = 0, ms = 0;
+        for (var g : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) { c += g.getCollectionCount(); ms += g.getCollectionTime(); }
+        return new long[] {c, ms};
+    }
 
     @Test
     void playersSameView() throws Exception {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int reps = Integer.getInteger("furnace.bench.reps", 5);
         int vd = Integer.getInteger("furnace.bench.vd", 8);
+        String[] pools = System.getProperty("furnace.bench.pools", "").split(",");
         for (int rep = 0; rep < reps; rep++) {
-            for (int n : new int[] {1, 2, 4, 8}) {
-                run(n, vd, rep, false);
-                run(n, vd, rep, true);
+            for (String ps : pools) {
+                poolThreads = ps.isBlank() ? Runtime.getRuntime().availableProcessors() : Integer.parseInt(ps.trim());
+                for (int n : new int[] {1, 2, 4, 8}) {
+                    run(n, vd, rep, false);
+                    if (pools.length == 1) run(n, vd, rep, true);
+                }
             }
         }
     }
@@ -44,7 +67,7 @@ class MultiPlayerChunkSendBench {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
         int cores = Runtime.getRuntime().availableProcessors();
-        World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(cores), sched, cores, 4, 1, vd, vd,
+        World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(poolThreads), sched, cores, 4, 1, vd, vd,
                 reg.directBits(), 7, io, gen);
         w.configurePersistence(Integer.MAX_VALUE, Integer.MAX_VALUE);
         List<ChunkPos> view = new ArrayList<>();
@@ -64,6 +87,8 @@ class MultiPlayerChunkSendBench {
         int snap0 = w.bodySnapshots.get();
         long enc0 = SharedChunkFrames.ENCODES.get();
         IdentityHashMap<byte[], Boolean> distinct = new IdentityHashMap<>();
+        long[] w0 = threadStats("chunk-worker"), r0 = threadStats("furnace-region"), g0 = gcStats();
+        long a0 = ((com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean()).getTotalThreadAllocatedBytes();
         long t0 = System.nanoTime();
         List<List<byte[]>> got = new ArrayList<>();
         if (staggered) {
@@ -87,6 +112,11 @@ class MultiPlayerChunkSendBench {
             }
         }
         long t1 = System.nanoTime();
+        long[] w1 = threadStats("chunk-worker"), r1 = threadStats("furnace-region"), g1 = gcStats();
+        long a1 = ((com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean()).getTotalThreadAllocatedBytes();
+        System.out.printf("MPCPU rep=%d pool=%d players=%d mode=%s | 풀CPU=%.1fms 풀할당=%.1fMB regionCPU=%.1fms region할당=%.1fMB 전체할당=%.1fMB GC=%d회 %dms%n",
+                rep, poolThreads, players, staggered ? "staggered" : "together", (w1[0] - w0[0]) / 1e6, (w1[1] - w0[1]) / 1e6,
+                (r1[0] - r0[0]) / 1e6, (r1[1] - r0[1]) / 1e6, (a1 - a0) / 1e6, g1[0] - g0[0], g1[1] - g0[1]);
         System.out.printf("MPBENCH rep=%d players=%d mode=%-9s chunks=%d | 스냅샷=%d 고유본문=%d 압축=%d (이상적 %d) | 직렬화 %.1fms 송출 %.1fms 합 %.1fms%n",
                 rep, players, staggered ? "staggered" : "together", view.size(),
                 w.bodySnapshots.get() - snap0, distinct.size(), SharedChunkFrames.ENCODES.get() - enc0, view.size(),

@@ -126,6 +126,29 @@ class ChunkBodyCacheRaceTest {
         byte[] fresh = freshBody(e);
         assertFalse(Arrays.equals(stale, fresh));
         assertArrayEquals(fresh, second.get(10, TimeUnit.SECONDS));
+        assertEquals(2, e.w().bodySnapshots.get(), "편집 뒤 요청은 새로 직렬화해야 한다");
+        e.sched().close();
+    }
+
+    /** 직렬화가 실패하면 기다리던 요청은 모두 예외로 끝나고, 그 뒤 요청은 실패를 물려받지 않고 새로 직렬화한다. */
+    @Test
+    void failedSerialization_waitersFail_nextRequestRetries() throws Exception {
+        Env e = env();
+        CountDownLatch gate = new CountDownLatch(1);
+        e.pool().submit(() -> { try { gate.await(); } catch (InterruptedException ignored) { } return null; });
+        e.w().serializeFaultHook = () -> { throw new IllegalStateException("주입된 실패"); };
+        CompletableFuture<byte[]> a = e.w().serializedChunkBody(C00);
+        awaitSnapshotTaken(e);
+        CompletableFuture<byte[]> b = e.w().serializedChunkBody(C00);
+        e.sched().region(R00).execute(() -> { }).get(10, TimeUnit.SECONDS);
+        gate.countDown();
+        assertThrows(java.util.concurrent.ExecutionException.class, () -> a.get(10, TimeUnit.SECONDS));
+        assertThrows(java.util.concurrent.ExecutionException.class, () -> b.get(10, TimeUnit.SECONDS));
+        assertEquals(1, e.w().bodySnapshots.get());
+        e.w().serializeFaultHook = null;
+        byte[] c = e.w().serializedChunkBody(C00).get(10, TimeUnit.SECONDS);
+        assertEquals(2, e.w().bodySnapshots.get(), "실패 뒤 요청은 새로 직렬화해야 한다");
+        assertArrayEquals(freshBody(e), c);
         e.sched().close();
     }
 }
