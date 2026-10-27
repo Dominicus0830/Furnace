@@ -348,7 +348,13 @@ public final class Regionizer {
         }
     }
 
+    /** 지금 스레드가 (어느 차원이든) region 틱 워커인가. */
+    private static final ThreadLocal<Boolean> WORKER = ThreadLocal.withInitial(() -> false);
+
+    public static boolean isRegionWorkerThread() { return WORKER.get(); }
+
     private void workerLoop() {
+        WORKER.set(true);
         while (running) {
             Region r;
             lock.lock();

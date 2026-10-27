@@ -628,13 +628,20 @@ public final class World {
         return blockRegistry.stateIdOrAir(itemRegistry.nameOf(itemId));
     }
 
+    private final java.util.concurrent.atomic.AtomicLong blockingLoads = new java.util.concurrent.atomic.AtomicLong();
+
+    void countBlockingLoad() { blockingLoads.incrementAndGet(); }
+
+    /** 이 월드에서 {@link Region#chunkAtBlocking} 이 실제로 동기 생성·디스크 읽기를 한 횟수(시험 계측). */
+    public long blockingLoads() { return blockingLoads.get(); }
+
     /**
      * 외부 스레드(플러그인·콘솔·시험)용: 청크를 비동기 로드하고 로드가 끝날 때까지 이 스레드에서 기다린다.
      * region 스레드에서 부르면 자기 인박스를 기다리게 되므로 금지한다.
      */
     public ChunkColumn awaitChunk(ChunkPos cp) {
-        Region here = regionizer.ownerOf(cp.x(), cp.z());
-        if (here != null && here.isOwnerThread()) throw new IllegalStateException("region 스레드에서 awaitChunk 금지: " + cp);
+        // 어느 region 워커든(다른 region·다른 차원 포함) 막으면 규칙 6 위반이고, 워커가 하나면 영구 교착이다
+        if (Regionizer.isRegionWorkerThread()) throw new IllegalStateException("region 스레드에서 awaitChunk 금지: " + cp);
         return submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f).join();
     }
 

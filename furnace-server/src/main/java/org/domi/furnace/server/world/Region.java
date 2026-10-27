@@ -217,8 +217,6 @@ public final class Region {
         return world.loadedChunk(cx, cz);
     }
 
-    /** -동기 생성·디스크 읽기({@link #chunkAtBlocking}) 횟수. 운영 경로가 이 경로를 타지 않음을 시험이 확인한다. */
-    public static final java.util.concurrent.atomic.AtomicLong BLOCKING_LOADS = new java.util.concurrent.atomic.AtomicLong();
 
     /**
      * 로드된 청크를 돌려준다. 로드 안 됐으면 region 스레드를 막지 않고 null 을 돌려주며 비동기 로드({@link #loadChunk})를 건다.
@@ -242,23 +240,6 @@ public final class Region {
     }
 
     /**
-     * 청크가 로드돼 있으면 지금 then 을 부르고, 아니면 비동기 로드가 끝난 뒤 그때의 주인 region 스레드에서 부른다.
-     * region 스레드에서 미로드 청크를 다룰 때 동기 생성 대신 쓴다.
-     */
-    public void withChunk(ChunkPos cp, java.util.function.BiConsumer<Region, ChunkColumn> then) {
-        world.assertOwns(this);
-        ChunkColumn c = world.loadedChunk(cp.x(), cp.z());
-        if (c != null) { then.accept(this, c); return; }
-        loadChunk(cp).whenComplete((col, err) -> {
-            if (err != null) return;   // loadChunk 가 이미 로그로 남겼다
-            world.runAtChunk(cp, r -> {
-                ChunkColumn now = world.loadedChunk(cp.x(), cp.z());
-                if (now != null) then.accept(r, now);
-            });
-        });
-    }
-
-    /**
      * 시험·도구 전용: 청크를 얻거나 없으면 이 스레드에서 동기 생성·디스크 읽기. region 스레드를 막으므로 운영 경로에서 부르지 않는다
      * (외부 스레드는 {@link World#awaitChunk} 로 기다린다).
      */
@@ -267,7 +248,7 @@ public final class Region {
         ChunkColumn c = world.loadedChunk(cp.x(), cp.z());
         if (c != null) return c;
         claim(cp);
-        BLOCKING_LOADS.incrementAndGet();
+        world.countBlockingLoad();
         // 디스크 읽기는 비동기 로드·저장과 같은 IO 레인을 거친다(대기 중인 저장보다 먼저 읽어 옛 내용을 되살리지 않게)
         c = world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                 ? anvil.generate(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()))
@@ -413,7 +394,7 @@ public final class Region {
      */
     public boolean breakBlock(Player breaker, int bx, int by, int bz) {
         world.assertOwns(this);
-        if (chunkAt(ChunkPos.ofBlock(bx, bz)) == null) return false;   // 미로드 — 동기 생성하지 않는다(비동기 로드만 건다)
+        if (world.loadedChunk(bx >> 4, bz >> 4) == null) return false;   // 미로드 — 동기 생성하지 않는다
         RegionLevel l = level();
         org.domi.furnace.server.block.Pos p = new org.domi.furnace.server.block.Pos(bx, by, bz);
         int state = l.getBlockState(p);
@@ -444,10 +425,10 @@ public final class Region {
         }
     }
 
-    /** 이 region 스레드에서 블록 조회(0x38 체스트 판별용). 미로드 청크는 공기(비동기 로드만 건다). */
+    /** 이 region 스레드에서 블록 조회(0x38 체스트 판별용). 미로드 청크는 공기 — 로드 요청도 걸지 않는다(매 틱 stillValid 가 region 을 넓히지 않게). */
     public int getBlock(int x, int y, int z) {
         world.assertOwns(this);
-        ChunkColumn c = chunkAt(ChunkPos.ofBlock(x, z));
+        ChunkColumn c = world.loadedChunk(x >> 4, z >> 4);
         return c == null ? ChunkSection.AIR : c.getBlock(x & 15, y, z & 15);
     }
 
@@ -464,7 +445,7 @@ public final class Region {
     /** 이 region 스레드에서 체스트 블록엔티티 조회(없거나 미로드면 null). */
     public ChestBlockEntity chestAt(int x, int y, int z) {
         world.assertOwns(this);
-        ChunkColumn c = chunkAt(ChunkPos.ofBlock(x, z));
+        ChunkColumn c = world.loadedChunk(x >> 4, z >> 4);
         return c == null ? null : c.chestAt(x, y, z);
     }
 
@@ -472,7 +453,7 @@ public final class Region {
     public void setChestItem(int cx, int cy, int cz, int slot, ItemStack item) {
         world.assertOwns(this);
         ChunkPos cp = ChunkPos.ofBlock(cx, cz);
-        ChunkColumn col = chunkAt(cp);
+        ChunkColumn col = world.loadedChunk(cp.x(), cp.z());
         ChestBlockEntity chest = col == null ? null : col.chestAt(cx, cy, cz);
         if (chest == null || slot < 0 || slot >= chest.items.length) return;
         chest.items[slot] = item;

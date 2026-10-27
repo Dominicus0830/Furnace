@@ -71,9 +71,9 @@ class SaveFailureRetryTest {
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
         ChunkPos cp = new ChunkPos(0, 0);
+        w.awaitChunk(cp);   // 운영 비동기 로드 경로(finishLoad)
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
-            r.chunkAtBlocking(cp);
             r.breakBlock(0, -61, 0);
         }).get();
 
@@ -97,7 +97,7 @@ class SaveFailureRetryTest {
         do {
             sched.region(rp).execute(() -> {
                 Region r = w.regionAt(rp);
-                dirty[0] = r.chunkAtBlocking(cp).dirty();
+                dirty[0] = r.chunkAt(cp).dirty();
                 count[0] = r.dirtyChunkCount();
             }).get();
         } while (!dirty[0] && System.nanoTime() < deadline);

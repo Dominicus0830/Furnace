@@ -34,6 +34,7 @@ class ChestInteractionTest {
         w.setRegistries(reg, items);
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             assertTrue(r.placeBlock(3, -60, 3, chestState));
@@ -56,16 +57,17 @@ class ChestInteractionTest {
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
         ChunkPos cp = new ChunkPos(0, 0);
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.placeBlock(3, -60, 3, chestState);
-            r.chunkAtBlocking(cp).clearDirty(); // 설치 자체의 dirty는 별도 — 클릭만의 dirty를 확인하기 위해 리셋
+            r.chunkAt(cp).clearDirty(); // 설치 자체의 dirty는 별도 — 클릭만의 dirty를 확인하기 위해 리셋
             ItemStack stone = new ItemStack(1, 5, null);
             r.setChestItem(3, -60, 3, 0, stone);
             ChestBlockEntity chest = r.chestAt(3, -60, 3);
             assertEquals(1, chest.items[0].itemId());
             assertEquals(5, chest.items[0].count());
-            assertTrue(r.chunkAtBlocking(cp).dirty(), "체스트 슬롯 변경은 청크를 dirty로 마크해야(§3.6)");
+            assertTrue(r.chunkAt(cp).dirty(), "체스트 슬롯 변경은 청크를 dirty로 마크해야(§3.6)");
         }).get();
         io.shutdown(); sched.close();
     }
@@ -78,6 +80,7 @@ class ChestInteractionTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.setChestItem(3, -60, 3, 0, new ItemStack(1, 1, null)); // 체스트 없음 — 예외 없이 무시
@@ -118,6 +121,7 @@ class ChestInteractionTest {
             }
         });
 
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.placeBlock(3, -60, 3, chestState);
@@ -157,6 +161,7 @@ class ChestInteractionTest {
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
 
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.placeBlock(2, -60, 2, chestState);
