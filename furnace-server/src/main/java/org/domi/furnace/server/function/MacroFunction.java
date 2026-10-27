@@ -99,7 +99,8 @@ public final class MacroFunction implements CommandFunction {
             for (int idx : e.parameters()) lineArgs.add(values.get(idx));
             out.add(e.instantiate(lineArgs, dispatcher, id));
         }
-        return new PlainTextFunction(id.withPath(id.path() + "/" + values.hashCode()), List.copyOf(out));
+        // 바닐라 ij.a: 접미사는 매개변수 이름 목록의 hashCode — 함수마다 고정(인자 값과 무관)
+        return new PlainTextFunction(id.withPath(id.path() + "/" + parameters.hashCode()), List.copyOf(out));
     }
 
     // ---------------------------------------------------------------- 줄

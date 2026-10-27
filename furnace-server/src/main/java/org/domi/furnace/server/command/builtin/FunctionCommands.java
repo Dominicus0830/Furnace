@@ -82,17 +82,17 @@ public final class FunctionCommands {
     public static void registerFunction(CommandDispatcher<CommandSource> d) {
         var with = literal("with");
         for (DataCommands.DataProvider provider : DataCommands.SOURCE_PROVIDERS) {
-            provider.wrap(with, b -> b.executes(new FunctionExecutor(c -> provider.with(c, DataCommands.DataAccessor::getData)))
+            provider.wrap(with, b -> b.executes(new FunctionExecutor(c -> provider.with(c, DataCommands.DataAccessor::getData), true))
                     .then(argument("path", NbtPathArgument.nbtPath()).executes(new FunctionExecutor(c -> {
                         NbtPathArgument.NbtPath path = NbtPathArgument.getPath(c, "path");
                         return provider.with(c, a -> getArgumentTag(path, a));
-                    }))));
+                    }, true))));
         }
         d.register(literal("function").requires(s -> s.hasPermission(2))
                 .then(argument("name", FunctionArgument.functions()).suggests(SUGGEST_FUNCTION)
-                        .executes(new FunctionExecutor(c -> CompletableFuture.completedFuture(null)))
+                        .executes(new FunctionExecutor(c -> CompletableFuture.completedFuture(null), false))
                         .then(argument("arguments", CompoundTagArgument.compoundTag())
-                                .executes(new FunctionExecutor(c -> CompletableFuture.completedFuture(CompoundTagArgument.getCompoundTag(c, "arguments")))))
+                                .executes(new FunctionExecutor(c -> CompletableFuture.completedFuture(CompoundTagArgument.getCompoundTag(c, "arguments")), false)))
                         .then(with)));
     }
 
@@ -128,11 +128,35 @@ public final class FunctionCommands {
     /** 바닐라 amy.c: 함수 목록을 풀고 "Running function …" 을 먼저 알린 뒤 호출을 큐에 넣는다. */
     static final class FunctionExecutor extends CustomCommandExecutor.WithErrorHandling implements CustomCommandExecutor.CommandAdapter {
         private final ArgumentsGetter arguments;
+        /** with block|entity|storage: 인자 읽기를 소스마다 항목 하나로 미룬다(아래 runGuarded 주석). */
+        private final boolean deferred;
 
-        FunctionExecutor(ArgumentsGetter arguments) { this.arguments = arguments; }
+        FunctionExecutor(ArgumentsGetter arguments, boolean deferred) {
+            this.arguments = arguments;
+            this.deferred = deferred;
+        }
 
         @Override
         protected void runGuarded(CommandSource source, ContextChain<CommandSource> chain, ChainModifiers modifiers, ExecutionControl control)
+                throws CommandSyntaxException {
+            if (!deferred) {
+                resolveAndSchedule(source, chain, modifiers, control);
+                return;
+            }
+            // with …: 바닐라 amy.c 는 소스마다 그 자리에서 인자를 읽고 호출을 넣는다(동기). region 왕복을 멈춤으로 기다리면 남은 소스의
+            // Continuation 이 이 소스의 호출보다 앞에 놓여 순서가 뒤집히므로, 소스마다 항목을 넣어 그 항목 안에서 읽고·기다리고·호출한다.
+            // 항목은 넣은 순서대로, 각 항목이 넣은 호출은 다음 항목보다 먼저 돈다 → 소스 순서와 "앞 소스의 함수가 끝난 뒤 다음 소스 읽기" 가 바닐라와 같다.
+            control.queueNext((context, frame) -> {
+                try {
+                    resolveAndSchedule(source, chain, modifiers, control);
+                } catch (CommandSyntaxException e) {
+                    onError(e, source, modifiers);
+                    source.callback().onFailure();
+                }
+            });
+        }
+
+        private void resolveAndSchedule(CommandSource source, ContextChain<CommandSource> chain, ChainModifiers modifiers, ExecutionControl control)
                 throws CommandSyntaxException {
             CommandContext<CommandSource> ctx = chain.getTopContext().copyFor(source);
             FunctionArgument.Resolved r = FunctionArgument.getFunctionCollection(ctx, "name");
@@ -146,7 +170,7 @@ public final class FunctionCommands {
                 } catch (CompletionException | CancellationException e) {
                     Throwable t = EntityOps.unwrap(e);
                     if (t instanceof CommandSyntaxException cse) throw cse;
-                    EntityOps.reportFailure(source, t);
+                    failUnexpected(source, t, modifiers, control);
                     return;
                 }
                 schedule(source, functions, a, modifiers, control);
@@ -158,11 +182,7 @@ public final class FunctionCommands {
                     if (ex != null) {
                         Throwable t = EntityOps.unwrap(ex);
                         if (t instanceof CommandSyntaxException cse) throw cse;
-                        if (t instanceof TimeoutException) {
-                            if (!modifiers.isForked()) source.sendFailure(Text.translatable("command.failed"));
-                        } else {
-                            EntityOps.reportFailure(source, t);
-                        }
+                        failUnexpected(source, t, modifiers, control);
                         return;
                     }
                     schedule(source, functions, a, modifiers, control);
@@ -171,6 +191,20 @@ public final class FunctionCommands {
                     source.callback().onFailure();
                 }
             });
+        }
+
+        /**
+         * 문법 오류가 아닌 실패(region 왕복 타임아웃·예상 못한 예외) — 바닐라에는 없는 경로(인자 읽기가 동기).
+         * 지연 결과(ExecuteCommand.onDeferredDone)와 같은 규칙: command.failed(타임아웃은 비포크일 때만) + 소스 콜백 onFailure,
+         * 컨텍스트는 이어 간다. onFailure 를 불러야 execute store … run function … with entity 의 store 콜백이 빠지지 않는다.
+         */
+        private static void failUnexpected(CommandSource source, Throwable t, ChainModifiers modifiers, ExecutionControl control) {
+            if (t instanceof TimeoutException) {
+                if (!modifiers.isForked()) source.sendFailure(Text.translatable("command.failed"));
+            } else {
+                EntityOps.reportFailure(source, t);
+            }
+            CallbackAwait.then(control.context(), source.callback().onFailure(), () -> {});
         }
 
         private void schedule(CommandSource source, Collection<CommandFunction> functions, NbtCompound arguments, ChainModifiers modifiers,

@@ -76,6 +76,9 @@ public final class FunctionManager {
             instantiated = function.instantiate(null, server.commands().getDispatcher());
         } catch (FunctionInstantiationException e) {
             return;
+        } catch (Exception e) {
+            log.warn("Failed to execute function {}", id, e);   // 바닐라 alg.java:59-60
+            return;
         }
         if (tick) {
             if (waitingTick.contains(id)) {

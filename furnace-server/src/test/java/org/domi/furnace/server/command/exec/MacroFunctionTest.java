@@ -64,6 +64,7 @@ class MacroFunctionTest {
         fn("novars", "$say hi");
         fn("unterminated", "$say $(v");
         fn("badname", "$say $(a-b)");
+        fn("seq", "$data modify storage t:out seq append value \"$(Health)\"", "data modify storage t:out seq append value \"x\"");
         fn("plain", "scoreboard players add #plain o 1");
         fn("ontick", "scoreboard players add #tick o 1");
         tag("t", "withmacro", "t:m", "t:plain");
@@ -234,7 +235,7 @@ class MacroFunctionTest {
         for (int i = 0; i < 2; i++) onGlobal(core::tick);
         assertEquals(2, score("#tick"));
         assertEquals(4, score("#m"));
-        // if function 은 포크 체인이라 바닐라도 오류 메시지를 숨긴다(handleError(e, forked=true))
+        // if function 은 fork 노드라 BuildContexts(바닐라 hy.java:33-35)가 수정자 실행기 호출 전에 forked 를 켠다 → 오류 메시지를 숨긴다
         run("execute if function t:m run scoreboard players set #if o 1");
         assertNull(score("#if"));
     }
@@ -275,5 +276,41 @@ class MacroFunctionTest {
         r = run("function t:m with entity @e[type=cow,limit=1] Pos");
         assertFalse(r.success());
         assertTrue(messages.contains("Invalid argument type: LIST, expected Compound"), messages.toString());
+    }
+
+    @Test
+    void withEntityKeepsSourceOrderAcrossRegions() throws Exception {
+        // 소 3마리(둘은 0 근처, 하나는 다른 region) — 소스마다 그 소의 값으로 치환되고, 함수 전체가 소스 순서대로 돈다
+        core.world().awaitChunk(new ChunkPos(40, 0));
+        var done = new java.util.concurrent.CountDownLatch(1);
+        core.world().runAt(640.5, 0.5, region -> {
+            var lvl = region.level();
+            var cow = new org.domi.furnace.server.entity.Cow(lvl, lvl.nextEntityId());
+            cow.moveTo(640.5, -60, 0.5, 0, 0);
+            lvl.addFreshEntity(cow);
+            done.countDown();
+        });
+        assertTrue(done.await(10, TimeUnit.SECONDS));
+        DeferredResultTest.spawnCows(core, 1);
+        run("execute as @e[type=cow] store result entity @s Health float 1 run scoreboard players add #k o 1");   // 1,2,3 서로 다르게
+        assertEquals(3, run("execute if entity @e[type=cow]").result());
+        run("execute as @e[type=cow] run data modify storage t:out ref append from entity @s Health");
+        run("data remove storage t:out seq");
+        run("execute as @e[type=cow] run function t:seq with entity @s");
+        // ref: [h1,h2,h3], seq: ["h1","x","h2","x","h3","x"] 이어야 한다(역순·끼어들기면 다르다)
+        List<String> ref = new ArrayList<>(), seq = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            run("data get storage t:out ref[" + i + "]");
+            ref.add(String.join("", messages));
+        }
+        for (int i = 0; i < 6; i++) {
+            run("data get storage t:out seq[" + i + "]");
+            seq.add(String.join("", messages));
+        }
+        for (int i = 0; i < 3; i++) {
+            String h = ref.get(i).substring(ref.get(i).lastIndexOf(' ') + 1).replace(".0f", "");
+            assertTrue(seq.get(2 * i).endsWith("\"" + h + "\""), "소스 " + i + " 의 값 — ref=" + ref + " seq=" + seq);
+            assertTrue(seq.get(2 * i + 1).endsWith("\"x\""), seq.toString());
+        }
     }
 }
