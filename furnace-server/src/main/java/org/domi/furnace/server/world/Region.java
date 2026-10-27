@@ -253,11 +253,15 @@ public final class Region {
         c = world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                 ? anvil.generate(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()))
                 : world.worldSource().generate(cp.x(), cp.z());
+        c.promotePendingBlockEntities(cp.x(), cp.z(), true);
         world.putChunk(cp.x(), cp.z(), c);
         level().lightNewChunk(cp.x(), cp.z());
         level().runLightUpdates();
         level().raids().claim(cp.x(), cp.z());   // raids.dat 에서 이 청크가 중심인 습격
         loadEntities(cp, c);
+        level().addWorldGenChunkEntities(c);
+        // 동기 경로도 비동기 finishLoad 와 같게 블록 엔티티를 틱 목록에
+        if (!c.blockEntities().isEmpty()) level().registerBlockEntities(c);
         // 새로 생성된 청크는 바닐라처럼 저장 대상(dirty)으로 남긴다. 디스크에서 읽은 청크는 깨끗하다.
         if (c.dirty()) dirtyChunks.add(cp);
         return c;
@@ -290,6 +294,10 @@ public final class Region {
         sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 생성 풀에서 계산한다
             if (col != null) {
                 if (col.poi() == null) col.poi(org.domi.furnace.server.world.poi.PoiManager.restore(col, cp.x(), cp.z(), col.poiNbt()));
+                // registerAllBlockEntitiesAfterLevelLoad: 남은 NBT·월드젠 칸을 블록 엔티티로(침대·종·상자는 없으면 클라이언트가 안 그린다).
+                // 빈 칸 채우기(DUMMY)는 디스크 청크에도 한다 — 수정 전에 저장된 월드의 침대·종을 되살리고, Anvil+평지처럼 freshlyGenerated 가 안 서는 새 청크도 덮는다.
+                // 비용은 생성 풀에서 구역당 블록 배열 한 번 훑기(POI mayHavePoi 와 같은 꼴).
+                col.promotePendingBlockEntities(cp.x(), cp.z(), true);
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
@@ -332,6 +340,7 @@ public final class Region {
         long t2 = Regionizer.STATS ? System.nanoTime() : 0L;
         level().raids().claim(cp.x(), cp.z());   // raids.dat 에서 이 청크가 중심인 습격
         loadEntities(cp, col);
+        if (level().addWorldGenChunkEntities(col)) dirtyChunks.add(cp);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
             level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
@@ -1280,7 +1289,7 @@ public final class Region {
     }
 
     /** 지도가 읽는 지형: 이 region 이 가진 로드된 청크만(마지막 청크를 기억해 열 단위 연속 조회를 싸게). */
-    private final class MapTerrain implements org.domi.furnace.server.map.MapRenderer.Terrain {
+    final class MapTerrain implements org.domi.furnace.server.map.MapRenderer.Terrain {
         private int lastCx = Integer.MIN_VALUE, lastCz;
         private ChunkColumn last;
 
@@ -1312,7 +1321,7 @@ public final class Region {
         @Override public org.domi.furnace.server.map.MapData.Banner bannerAt(int x, int y, int z) {
             ChunkColumn c = chunk(x >> 4, z >> 4);
             if (c == null || y < c.minY() || y > c.maxY()) return null;
-            return c.blockEntityAt(x & 15, y, z & 15) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity be
+            return c.blockEntityAt(x, y, z) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity be
                     ? new org.domi.furnace.server.map.MapData.Banner(x, y, z, be.baseColor(), be.customName) : null;
         }
     }

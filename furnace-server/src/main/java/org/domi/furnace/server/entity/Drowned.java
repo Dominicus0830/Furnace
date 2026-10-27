@@ -21,6 +21,13 @@ public class Drowned extends Zombie implements RangedAttackMob {
     protected final WaterBoundPathNavigation waterNavigation;
     protected final GroundPathNavigation groundNavigation;
 
+    @Override
+    public void setLevel(ChunkLevel level) {
+        super.setLevel(level);
+        if (waterNavigation != null) waterNavigation.setLevel(level);
+        if (groundNavigation != null) groundNavigation.setLevel(level);
+    }
+
     public Drowned(ChunkLevel level, int id) {
         super(EntityType.DROWNED, level, id);
         moveControl = new DrownedMoveControl(this);
@@ -203,18 +210,16 @@ public class Drowned extends Zombie implements RangedAttackMob {
         private final PathfinderMob mob;
         private double wantedX, wantedY, wantedZ;
         private final double speedModifier;
-        private final ChunkLevel level;
 
         DrownedGoToWaterGoal(PathfinderMob mob, double speed) {
             this.mob = mob;
             this.speedModifier = speed;
-            this.level = mob.level();
             setFlags(java.util.EnumSet.of(Flag.MOVE));
         }
 
         @Override
         public boolean canUse() {
-            if (!level.isDay()) return false;
+            if (!mob.level().isDay()) return false;
             if (mob.isInWater()) return false;
             double[] p = getWaterPos();
             if (p == null) return false;
@@ -233,7 +238,7 @@ public class Drowned extends Zombie implements RangedAttackMob {
             Pos base = mob.blockPosition();
             for (int i = 0; i < 10; i++) {
                 Pos p = new Pos(base.x() + r.nextInt(20) - 10, base.y() + 2 - r.nextInt(8), base.z() + r.nextInt(20) - 10);
-                if (B.is(level.getBlockState(p), "minecraft:water")) return new double[] {p.x() + 0.5, p.y(), p.z() + 0.5};
+                if (B.is(mob.level().getBlockState(p), "minecraft:water")) return new double[] {p.x() + 0.5, p.y(), p.z() + 0.5};
             }
             return null;
         }

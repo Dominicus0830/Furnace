@@ -48,6 +48,11 @@ public final class JigsawPiece extends StructurePiece {
         element.place(c, px, py, pz, rotation, c.writableBox, keepLiquids, false);
     }
 
+    /** 바닐라 PoolElementStructurePiece.place(level, …, random, box, pivot, keepJigsaws) — 피벗·상자는 c 의 것. */
+    public void place(PostCtx c, boolean keepJigsaws) {
+        element.place(c, px, py, pz, rotation, c.writableBox, keepLiquids, keepJigsaws);
+    }
+
     @Override
     public String toString() {
         return "<JigsawPiece | " + px + "," + py + "," + pz + " | rot" + rotation + " | " + element + ">";

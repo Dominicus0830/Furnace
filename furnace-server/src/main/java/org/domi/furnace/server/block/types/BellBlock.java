@@ -60,34 +60,28 @@ public class BellBlock extends BaseEntityBlock {
         };
     }
 
-    /** attemptToRing: 블록 엔티티 흔들림(블록 이벤트 1, 방향) + 소리 + BLOCK_CHANGE. dir 이 -1 이면 종이 보는 방향. */
+    /** attemptToRing: 블록 엔티티가 있으면 onHit(흔들림 + 블록 이벤트 1) + 소리 + BLOCK_CHANGE. dir 이 -1 이면 종이 보는 방향. */
     public boolean attemptToRing(BlockActor source, BlockLevel level, Pos pos, int dir) {
-        int state = level.getBlockState(pos);
-        if (!B.is(state, block)) return false;   // 바닐라: BellBlockEntity 가 있을 때
-        if (dir < 0) dir = facing(state);
-        level.blockEvent(pos, block, 1, dir);
-        level.playSound(null, pos, "minecraft:block.bell.use", "blocks", 2.0F, 1.0F);
-        level.gameEvent("minecraft:block_change", pos, source, -1);
-        return true;
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BellBlockEntity bell) {
+            if (dir < 0) dir = facing(level.getBlockState(pos));
+            bell.onHit(level, dir);
+            level.playSound(null, pos, "minecraft:block.bell.use", "blocks", 2.0F, 1.0F);
+            level.gameEvent("minecraft:block_change", pos, source, -1);
+            return true;
+        }
+        return false;
     }
 
-    /**
-     * BellBlockEntity.triggerEvent(1) → updateEntities: 48칸 상자 안 살아 있는 몹 중 칸 가운데에서 32 안이면 HEARD_BELL_TIME = 지금.
-     * 차이: 바닐라는 목록을 60틱 동안 캐시한다(그사이 들어온 몹은 못 듣는다). 여기서는 울릴 때마다 다시 모은다.
-     */
+    /** 블록 이벤트는 BellBlockEntity.triggerEvent 로(BaseEntityBlock). 몹 목록을 모을 레벨을 먼저 알려 준다. */
     @Override
     public boolean triggerEvent(int state, BlockLevel level, Pos pos, int type, int data) {
-        if (type != 1) return false;
-        if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) {
-            var box = new org.domi.furnace.server.entity.AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1, pos.y() + 1, pos.z() + 1).inflate(48.0, 48.0, 48.0);
-            long now = cl.gameTime();
-            for (var m : cl.getEntitiesOfClass(org.domi.furnace.server.entity.Mob.class, box, e -> true)) {
-                double dx = pos.x() + 0.5 - m.x(), dy = pos.y() + 0.5 - m.y(), dz = pos.z() + 0.5 - m.z();
-                if (m.isAlive() && !m.isRemoved() && dx * dx + dy * dy + dz * dz < 32.0 * 32.0 && m.getBrain() != null)
-                    m.getBrain().setMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.HEARD_BELL_TIME, now);
-            }
-        }
-        return true;
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BellBlockEntity bell) bell.level(level);
+        return super.triggerEvent(state, level, pos, type, data);
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.BellBlockEntity(pos, state);
     }
 
     @Override

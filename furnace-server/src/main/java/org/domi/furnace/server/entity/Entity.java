@@ -1564,7 +1564,7 @@ public abstract non-sealed class Entity implements Rider {
     @Override
     public boolean canControlVehicle() { return !typeInTag("minecraft:non_controlling_rider"); }
 
-    private boolean typeInTag(String tag) {
+    public boolean typeInTag(String tag) {
         int[] ids = EntityTypeTags.ids(tag);
         if (ids == null) return false;
         for (int i : ids) if (i == type.id()) return true;

@@ -209,6 +209,18 @@ public final class BiomeFeatureData {
         }
     }
 
+    /**
+     * id 로 configured feature 를 얻는다(/place feature 용). 데이터가 없으면 null, 미구현 타입이면 {@link NoopFeature}(또는 null).
+     */
+    public ConfiguredFeature configuredFeatureById(String id) {
+        if (loader == null) return null;
+        String key = id.contains(":") ? id : "minecraft:" + id;
+        synchronized (loader) {
+            if (!loader.data.hasConfiguredFeature(key)) return null;
+            return loader.configuredFeature(key);
+        }
+    }
+
     public Set<String> biomes() {
         return biomeFeatures.keySet();
     }
