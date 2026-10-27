@@ -107,6 +107,9 @@ public final class PlayerVitals {
     private int air = MAX_AIR;
     private float fallDistance;
     private int invulnerableTime, hurtTime, deathTime, tickCount;
+
+    /** 틱마다 올라가는 시계(같은 틱 안의 밀침을 쌓는 기준). */
+    public synchronized int tickCount() { return tickCount; }
     private int spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
     private float lastHurt;
     private boolean invulnerableFlag;          // 엔티티 NBT "Invulnerable"

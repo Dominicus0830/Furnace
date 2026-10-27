@@ -600,14 +600,25 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, moveDx + dx, moveDy + dy, moveDz + dz));
     }
 
-    /** LivingEntity.knockback: 밀려나는 속도를 그 플레이어에게 보낸다(set_entity_motion). */
+    /** 같은 틱에 앞서 보낸 밀침의 결과 속도(바닐라는 deltaMovement 에 쌓았다가 틱 끝에 한 번 보낸다). 없으면 null. */
+    private double[] knockbackMotion;
+    private int knockbackTick = -1;
+
+    /**
+     * LivingEntity.knockback: 밀려나는 속도를 그 플레이어에게 보낸다(set_entity_motion). 같은 틱의 둘째 밀침은 첫째 결과 위에 쌓는다
+     * (방패 막기는 blockedByShield 0.5 와 일반 0.4 가 연달아 와서, 쌓지 않으면 뒤의 것만 남는다).
+     */
     @Override
     public void knockback(double strength, double dx, double dz) {
         if (strength <= 0.0) return;
         double len = Math.sqrt(dx * dx + dz * dz);
         double nx = len < 1.0E-5 ? 0.0 : dx / len * strength, nz = len < 1.0E-5 ? 0.0 : dz / len * strength;
-        send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, moveDx / 2.0 - nx,
-                onGround ? Math.min(0.4, moveDy / 2.0 + strength) : moveDy, moveDz / 2.0 - nz));
+        int tick = vitals.tickCount();
+        double[] base = knockbackMotion != null && knockbackTick == tick ? knockbackMotion : new double[] {moveDx, moveDy, moveDz};
+        double[] m = {base[0] / 2.0 - nx, onGround ? Math.min(0.4, base[1] / 2.0 + strength) : base[1], base[2] / 2.0 - nz};
+        knockbackMotion = m;
+        knockbackTick = tick;
+        send(new org.domi.furnace.server.net.protocol.play.SetEntityMotion(entityId, m[0], m[1], m[2]));
     }
 
     /**

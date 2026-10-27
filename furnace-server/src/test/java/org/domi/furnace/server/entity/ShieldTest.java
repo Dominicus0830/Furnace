@@ -149,4 +149,48 @@ class ShieldTest {
         assertTrue(z.hurtBy(new Entity.Damage("player_attack", false, false, false), 4.0F, attacker));
         assertTrue(z.health() < hp);
     }
+
+    @Test
+    void blockingMobKnockbackNearlyCancels() {
+        // 바닐라 blockedByShield: defender.knockback(0.5, defender−attacker) 로 공격자 쪽 0.5, 이어 일반 0.4 로 반대 → 순 -0.15(공격자 반대 쪽으로 조금)
+        var level = new ZombieCombatTest.ArenaLevel();
+        var attacker = player(level, GameMode.SURVIVAL);
+        level.player = null;
+        var z = zombie(level, 0.5);
+        z.setItemSlot(EquipmentSlot.MAINHAND, item("minecraft:shield"));
+        z.startUsingItem(0);
+        for (int i = 0; i < 5; i++) z.tick();
+        z.moveTo(0.5, -60, 0.5, -90, 0);
+        z.setOnGround(false);
+        z.setDeltaMovement(0.0, 0.0, 0.0);
+        assertFalse(z.hurtBy(new Entity.Damage("player_attack", false, false, false), 4.0F, attacker));
+        assertEquals(-0.15, z.vx(), 1e-6, "공격자(+x) 반대로 순 0.15 만");
+    }
+
+    @Test
+    void blockingPlayerKnockbackStacksWithinTick() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var ch = new EmbeddedChannel();
+        var p = new Player(7, UUID.randomUUID(), "Steve", ch);
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.applyMove(7.5, -60, 0.5, 90, 0, false);
+        p.applyMove(7.5, -60, 0.5, 90, 0, false);   // 이동량 0
+        level.player = p;
+        var z = zombie(level, 0.5);
+        Shields.blockUsingShield(p, z);   // 공격자(서쪽) 쪽으로 0.5
+        p.knockback(0.4, z.x() - p.x(), z.z() - p.z());   // 이어지는 일반 넉백: 공격자 반대로 0.4
+        ch.runPendingTasks();
+        int lastVx = Integer.MIN_VALUE;
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            io.netty.buffer.ByteBuf bb = (io.netty.buffer.ByteBuf) o;
+            if (org.domi.furnace.server.net.io.Types.readVarInt(bb) == org.domi.furnace.server.net.protocol.play.SetEntityMotion.ID) {
+                org.domi.furnace.server.net.io.Types.readVarInt(bb);   // 엔티티 번호
+                lastVx = bb.readShort();
+            }
+            bb.release();
+        }
+        assertNotEquals(Integer.MIN_VALUE, lastVx, "속도 패킷이 나가야 한다");
+        assertEquals(0.15, lastVx / 8000.0, 1e-3, "앞 밀침 위에 쌓여 순 0.15 만 밀린다");
+    }
 }
