@@ -100,7 +100,7 @@ class VanillaCommandTreeTest {
             "/tick", List.of("sprint"));
 
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
-    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute", "function", "return", "place", "trigger", "teammsg", "tm");
+    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute", "function", "return", "schedule", "place", "trigger", "teammsg", "tm");
 
     private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx, int root) {
         Node n = nodes.get(idx);

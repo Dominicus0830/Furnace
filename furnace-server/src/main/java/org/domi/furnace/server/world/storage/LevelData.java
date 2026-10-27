@@ -54,6 +54,16 @@ public final class LevelData {
     /** 커스텀 보스바(level.dat CustomBossEvents) — 서버가 저장 때 갈아 끼운다. null 이면 읽은 값(없으면 빈 compound). */
     public volatile NbtCompound customBossEvents;
 
+    /** 예약된 함수(/schedule, level.dat ScheduledEvents) — 서버가 저장 때 갈아 끼운다. null 이면 읽은 값(없으면 빈 목록). */
+    public volatile NbtList scheduledEvents;
+
+    /** 읽은(또는 빈) 예약 이벤트 목록. */
+    public NbtList scheduledEventsData() {
+        NbtList l = scheduledEvents;
+        if (l != null) return l;
+        return raw.contains("ScheduledEvents") && raw.tags().get("ScheduledEvents") instanceof NbtList rl ? rl.copy() : new NbtList(NbtIo.TAG_END);
+    }
+
     /** 읽은(또는 빈) 커스텀 보스바 compound. */
     public NbtCompound customBossEventsData() {
         NbtCompound d = customBossEvents;
@@ -216,7 +226,9 @@ public final class LevelData {
         NbtCompound bars = customBossEvents;
         if (bars != null) d.putCompound("CustomBossEvents", bars);
         else putIfAbsent(d, "CustomBossEvents", new NbtCompound());
-        putIfAbsent(d, "ScheduledEvents", new NbtList(NbtIo.TAG_END));
+        NbtList events = scheduledEvents;
+        if (events != null) d.putList("ScheduledEvents", events);
+        else putIfAbsent(d, "ScheduledEvents", new NbtList(NbtIo.TAG_END));
         NbtCompound fight = dragonFight;
         if (fight != null) d.putCompound("DragonFight", fight);
         else if (!d.contains("DragonFight")) d.putCompound("DragonFight", defaultDragonFight(seed));

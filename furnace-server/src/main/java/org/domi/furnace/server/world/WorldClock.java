@@ -91,8 +91,12 @@ public final class WorldClock {
     }
 
     /** ServerLevel.tickTime + MinecraftServer 의 20틱마다 시간 동기화. */
-    public synchronized void tickTime(GameRules rules, Consumer<Packet> broadcast) {
+    public synchronized void tickTime(GameRules rules, Consumer<Packet> broadcast) { tickTime(rules, broadcast, t -> { }); }
+
+    /** afterGameTime: gameTime 증가 직후, dayTime 증가 직전에 새 gameTime 으로 불린다(바닐라 aqu.b 의 timerQueue.tick 자리). */
+    public synchronized void tickTime(GameRules rules, Consumer<Packet> broadcast, java.util.function.LongConsumer afterGameTime) {
         gameTime++;
+        afterGameTime.accept(gameTime);
         if (rules.getBoolean("doDaylightCycle")) dayTime++;
         if (++tickCount % 20 == 0) broadcast.accept(timePacket(rules));
     }

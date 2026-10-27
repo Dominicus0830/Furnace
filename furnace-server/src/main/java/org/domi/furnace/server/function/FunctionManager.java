@@ -83,6 +83,16 @@ public final class FunctionManager {
         });
     }
 
+    /** 바닐라 FunctionCallback·FunctionTagCallback: 라이브러리에서 지금 찾아 게임 루프 소스로 실행한다(없으면 조용히 무시). */
+    public void runScheduled(ScheduledEvents.Callback cb) {
+        checkThread();
+        if (cb.tag()) {
+            for (CommandFunction f : library.tag(cb.id())) execute(f, gameLoopSender());
+        } else {
+            library.function(cb.id()).ifPresent(f -> execute(f, gameLoopSender()));
+        }
+    }
+
     /** 바닐라 alg.a(alf): 새 라이브러리로 바꾸고 tick 스냅샷 갱신, 다음 틱에 #load. /reload 의 background 스레드에서 부르지 말고 전역으로 넘긴다. */
     public void replaceLibrary(FunctionLibrary lib) {
         checkThread();

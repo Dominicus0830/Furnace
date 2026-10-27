@@ -59,6 +59,7 @@ public final class ServerCore {
         this.border.addListener(new BorderBroadcaster());
         this.customBossEvents = new org.domi.furnace.server.bossbar.CustomBossEvents(this::playerByUuid);
         this.customBossEvents.load(levelData.customBossEventsData());
+        this.scheduledEvents.load(levelData.scheduledEventsData());
         this.scoreboard = org.domi.furnace.server.scores.ServerScoreboard.open(this::players, world.worldDir());
         this.commands = new Commands(this);
         this.functions = new org.domi.furnace.server.function.FunctionManager(this,
@@ -69,6 +70,10 @@ public final class ServerCore {
 
     private final org.domi.furnace.server.plugin.PluginHost pluginHost;
     private final org.domi.furnace.server.function.FunctionManager functions;
+    /** /schedule 이 쓰는 지연 실행 큐(바닐라는 오버월드 레벨 데이터의 TimerQueue). 전역 스레드 전용. */
+    private final org.domi.furnace.server.function.ScheduledEvents scheduledEvents = new org.domi.furnace.server.function.ScheduledEvents();
+
+    public org.domi.furnace.server.function.ScheduledEvents scheduledEvents() { return scheduledEvents; }
 
     /** 데이터 팩 함수(바닐라 ServerFunctionManager). */
     public org.domi.furnace.server.function.FunctionManager functions() { return functions; }
@@ -444,7 +449,8 @@ public final class ServerCore {
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };
         clock.tickWeather(gameRules, all, packet -> { for (Player p : players()) if (world.dimension().equals(p.dimension())) p.send(packet); });
         tickSleep();
-        clock.tickTime(gameRules, all);
+        // 바닐라 ServerLevel.tickTime: gameTime+1 직후, dayTime 증가 전에 예약된 함수를 돌린다
+        clock.tickTime(gameRules, all, gameTime -> scheduledEvents.tick(gameTime, functions::runScheduled));
     }
 
     /**
@@ -479,6 +485,7 @@ public final class ServerCore {
         levelData.thundering = clock.thunderingFlag();
         levelData.worldBorder = border.createSettings();
         levelData.customBossEvents = customBossEvents.save();
+        levelData.scheduledEvents = scheduledEvents.save();
         scoreboard.saveIfDirty();   // 바닐라는 overworld 데이터 저장소(data/scoreboard.dat)와 함께 저장
         levelData.gameRules.clear();
         levelData.gameRules.putAll(gameRules.toStrings());

@@ -51,6 +51,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.FunctionCommands.registerReturn(d);
         org.domi.furnace.server.command.builtin.RideCommand.register(d);
         org.domi.furnace.server.command.builtin.ChatCommands.registerSay(d);
+        org.domi.furnace.server.command.builtin.ScheduleCommand.register(d);
         org.domi.furnace.server.command.builtin.ScoreboardCommand.register(d);
         ServerCommands.registerSeed(d);
         org.domi.furnace.server.command.builtin.BlockCommands.registerSetBlock(d);
