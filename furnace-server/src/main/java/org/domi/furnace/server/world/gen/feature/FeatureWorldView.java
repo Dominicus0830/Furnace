@@ -21,6 +21,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private final int gridCenterX;
     private final int gridCenterZ;
     private final int gridReadRadius;
+    /** 쓰기 범위(origin ±writeRadius 청크). 월드젠은 oracle 과 같은 1 고정, /place 의 라이브 격자만 넓힌다. */
+    private int writeRadius = 1;
     private int debugSetBlockCalls;
     /** LevelHeightAccessor.getMinBuildHeight(). */
     public int minBuildHeight() { return minY; }
@@ -88,6 +90,16 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         this.gridCenterX = gridCenterX;
         this.gridCenterZ = gridCenterZ;
         this.gridReadRadius = gridReadRadius;
+    }
+
+    /**
+     * 명령(/place)용: 실제 월드 청크 복사본 격자(center ±radius) 전체를 읽고 쓰는 view. 없는 칸(null)은 읽으면 공기, 쓰면 무시된다.
+     * 월드젠 경로는 쓰지 않는다(쓰기 범위가 oracle 과 달라진다).
+     */
+    public static FeatureWorldView liveGrid(ChunkColumn[] grid, int[][] biomeIdsGrid, int centerX, int centerZ, int radius, long worldSeed) {
+        FeatureWorldView v = new FeatureWorldView(grid, biomeIdsGrid, centerX, centerZ, centerX, centerZ, radius, false, worldSeed);
+        v.writeRadius = radius;
+        return v;
     }
 
     public int getBlock(int worldX, int worldY, int worldZ) {
@@ -501,7 +513,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
     // 쓰기 — oracle의 OracleWorldGenLevel.setBlock(writeRadius=1 고정)과 동일하게 origin(cx,cz) ±1로 제한.
     private boolean inWriteRange(int chunkX, int chunkZ) {
-        return Math.abs(chunkX - cx) <= 1 && Math.abs(chunkZ - cz) <= 1;
+        return Math.abs(chunkX - cx) <= writeRadius && Math.abs(chunkZ - cz) <= writeRadius;
     }
 
     private int gridIndex(int chunkX, int chunkZ) {

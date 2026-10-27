@@ -78,7 +78,7 @@ class VanillaCommandTreeTest {
             case "brigadier:double" -> { int f = b.readByte(); if ((f & 1) != 0) o.addProperty("min", b.readDouble()); if ((f & 2) != 0) o.addProperty("max", b.readDouble()); }
             case "minecraft:time" -> o.addProperty("min", b.readInt());
             case "brigadier:string" -> o.addProperty("type", new String[]{"word", "phrase", "greedy"}[Types.readVarInt(b)]);
-            case "minecraft:resource", "minecraft:resource_or_tag", "minecraft:resource_or_tag_key" -> o.addProperty("registry", Types.readString(b, 32767));
+            case "minecraft:resource", "minecraft:resource_or_tag", "minecraft:resource_or_tag_key", "minecraft:resource_key" -> o.addProperty("registry", Types.readString(b, 32767));
             case "minecraft:entity" -> {
                 int f = b.readByte();
                 o.addProperty("type", (f & 2) != 0 ? "players" : "entities");
@@ -98,7 +98,7 @@ class VanillaCommandTreeTest {
             "/tick", List.of("sprint"));
 
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
-    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team");
+    private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "place", "trigger", "teammsg", "tm");
 
     private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx) {
         Node n = nodes.get(idx);
@@ -155,11 +155,11 @@ class VanillaCommandTreeTest {
             TreeSet<String> registered = new TreeSet<>();
             for (int c : nodes.get(root[0]).children()) registered.add(nodes.get(c).name());
             for (String name : MOVEMENT_COMMANDS) assertTrue(registered.contains(name), "등록돼 있어야 하는 명령: " + name);
-            // 권한 0 이면 help·list·me·msg·random·tell·w 만(바닐라 random 은 requires 가 없다)
+            // 권한 0 이면 help·list·me·msg·random·teammsg·tell·tm·trigger·w 만(바닐라 random·teammsg·trigger 는 requires 가 없다)
             List<Node> guest = decode(core.commands().treeFor(CommandSource.forProfile(core, "Guest", 0)), root);
             TreeSet<String> names = new TreeSet<>();
             for (int c : guest.get(root[0]).children()) names.add(guest.get(c).name());
-            assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "random", "tell", "w")), names);
+            assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "random", "teammsg", "tell", "tm", "trigger", "w")), names);
         } finally {
             sched.close();
         }

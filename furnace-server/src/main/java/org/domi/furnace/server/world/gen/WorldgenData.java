@@ -117,6 +117,10 @@ public final class WorldgenData {
         return jsonResource(idToPath(id, "worldgen/configured_feature")).getAsJsonObject();
     }
 
+    public boolean hasConfiguredFeature(String id) {
+        return loadResource(idToPath(id, "worldgen/configured_feature")) != null;
+    }
+
     public JsonObject structureSet(String id) {
         String localPath = id.contains(":") ? id.substring(id.indexOf(':') + 1) : id;
         return jsonResource(basePath + "/structure_set_" + localPath + ".json").getAsJsonObject();

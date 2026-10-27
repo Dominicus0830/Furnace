@@ -33,8 +33,13 @@ public final class TestServers {
     }
 
     public static ServerCore core(Path tmp, FurnaceSchedulerImpl sched) {
+        return core(tmp, sched, reg -> new SuperflatWorldSource(reg, 0));
+    }
+
+    /** 월드 생성기를 고른 판(예: 노이즈 오버월드). */
+    public static ServerCore core(Path tmp, FurnaceSchedulerImpl sched, java.util.function.Function<BlockRegistry, org.domi.furnace.server.world.gen.WorldSource> source) {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
+        World world = new World(source.apply(reg), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, ioPool());
         world.worldDir(tmp);
         ServerPropertiesFile settings = new ServerPropertiesFile(tmp.resolve("server.properties"));
