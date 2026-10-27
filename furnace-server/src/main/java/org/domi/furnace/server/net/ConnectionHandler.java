@@ -111,6 +111,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private io.netty.util.concurrent.ScheduledFuture<?> slowLoginTimer;
     private boolean knownPacksHandled;      // Known Packs 응답은 연결당 1회(레지스트리 재전송 증폭 방지)
     private boolean finishConfigSent;       // FinishConfiguration을 보낸 뒤에만 PLAY 진입 수락
+    // D-14: ack 뒤 PlayerData.load 를 IO 풀에서 읽는 동안 도착한 play 패킷(id, 남은 본문). 이벤트루프 전용.
+    // 읽기가 끝나면 onEnterPlay 직후 도착 순서대로 처리한다 — 동기 읽기 때와 같은 처리 순서.
+    private java.util.ArrayDeque<Object[]> pendingPlayFrames;
     private String playerName;
     private UUID playerUuid;
     private Player player; // play 진입 후 생성
@@ -160,6 +163,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int packetId = Types.readVarInt(frame);
         // 속도 제한은 모든 단계에 건다 — 로그인 전 단계에서 무제한으로 패킷을 처리하지 않게(바닐라 클라는 이 단계에 몇 개만 보낸다)
         if (!packetBucket.tryAcquire(1)) { kick(ctx, "Too many packets"); return; }
+        if (pendingPlayFrames != null) {   // 플레이어 데이터 읽는 중 — 들어온 순서대로 보관
+            pendingPlayFrames.add(new Object[]{packetId, frame.retain()});
+            return;
+        }
+        dispatch(ctx, packetId, frame);
+    }
+
+    private void dispatch(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (state) {
             case HANDSHAKE -> handleHandshake(ctx, packetId, frame);
             case STATUS -> handleStatus(ctx, packetId, frame);
@@ -718,8 +729,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x03 -> { // Acknowledge Finish Configuration
                 if (!finishConfigSent) { ctx.close(); return; }          // Finish를 보내기 전의 ack는 프로토콜 위반
+                if (pendingPlayFrames != null) return;                   // 이미 진입 중(중복 ack)
                 state = ConnectionState.PLAY;
-                onEnterPlay(ctx); // Task 9에서 구현
+                beginEnterPlay(ctx);
             }
             default -> log.debug("미처리 config 패킷 id=0x{}", Integer.toHexString(packetId));
         }
@@ -753,15 +765,77 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return Math.max(Config.MIN_VIEW_DISTANCE, Math.min(world.viewDistance(), clientViewDistance));
     }
 
-    private void onEnterPlay(ChannelHandlerContext ctx) {
+    /**
+     * D-14: 저장 데이터를 IO 풀에서 읽고(이벤트루프 블로킹 제거) 이벤트루프로 돌아와 onEnterPlay 를 부른다.
+     * 그 사이 play 패킷은 보관했다가 onEnterPlay 직후 순서대로 처리한다. IO 풀이 없거나 거부하면 예전처럼 동기로 읽는다.
+     * 같은 IO 풀이 퇴장 저장을 FIFO 로 받으므로, 먼저 제출된 저장 뒤에 읽는다.
+     */
+    private void beginEnterPlay(ChannelHandlerContext ctx) {
+        java.util.concurrent.ExecutorService io = world.ioPool();
+        java.nio.file.Path dir = world.worldDir();
+        java.util.UUID uuid = playerUuid;
+        if (io != null) {
+            pendingPlayFrames = new java.util.ArrayDeque<>();
+            try {
+                io.execute(() -> {
+                    org.domi.furnace.server.entity.PlayerData.Snapshot saved = null;
+                    Throwable fail = null;
+                    try {
+                        saved = org.domi.furnace.server.entity.PlayerData.load(dir, uuid);
+                    } catch (Throwable t) {
+                        fail = t;
+                    }
+                    final var s = saved;
+                    final Throwable f = fail;
+                    ctx.executor().execute(() -> finishEnterPlay(ctx, s, f));
+                });
+                return;
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                pendingPlayFrames = null;   // 종료 중 — 아래 동기 경로
+            }
+        }
+        onEnterPlay(ctx, org.domi.furnace.server.entity.PlayerData.load(dir, uuid));
+    }
+
+    /** 이벤트루프에서: 읽은 저장 데이터로 진입을 마치고 보관한 패킷을 도착 순서대로 처리한다. */
+    private void finishEnterPlay(ChannelHandlerContext ctx, org.domi.furnace.server.entity.PlayerData.Snapshot saved, Throwable fail) {
+        java.util.ArrayDeque<Object[]> queued = pendingPlayFrames;
+        pendingPlayFrames = null;
+        try {
+            if (!ctx.channel().isActive()) return;   // 읽는 동안 끊겼다 — 플레이어를 만들지 않는다(저장할 것도 없다)
+            if (fail != null) { exceptionCaught(ctx, fail); return; }   // 예전엔 channelRead0 예외 → exceptionCaught
+            try {
+                onEnterPlay(ctx, saved);
+                while (queued != null && !queued.isEmpty() && ctx.channel().isActive()) {
+                    Object[] q = queued.poll();
+                    ByteBuf frame = (ByteBuf) q[1];
+                    try {
+                        dispatch(ctx, (Integer) q[0], frame);
+                    } finally {
+                        frame.release();
+                    }
+                }
+            } catch (Throwable t) {
+                exceptionCaught(ctx, t);
+            }
+        } finally {
+            releasePendingFrames(queued);
+        }
+    }
+
+    private static void releasePendingFrames(java.util.ArrayDeque<Object[]> queued) {
+        if (queued == null) return;
+        Object[] q;
+        while ((q = queued.poll()) != null) ((ByteBuf) q[1]).release();
+    }
+
+    private void onEnterPlay(ChannelHandlerContext ctx, org.domi.furnace.server.entity.PlayerData.Snapshot saved) {
         int eid = idAllocator.next();
         int dimIndex = Math.max(0,
                 REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
         int effVd = effectiveViewDistance();
         org.domi.furnace.server.ServerCore coreJ = login.core;
-        // 저장 데이터를 먼저 읽는다 — 게임 모드·체력 등이 LoginPlay 부터 들어간다(바닐라 placeNewPlayer: load → loadGameTypes).
-        org.domi.furnace.server.entity.PlayerData.Snapshot saved =
-                org.domi.furnace.server.entity.PlayerData.load(world.worldDir(), playerUuid);
+        // 저장 데이터는 beginEnterPlay 가 먼저 읽었다 — 게임 모드·체력 등이 LoginPlay 부터 들어간다(바닐라 placeNewPlayer: load → loadGameTypes).
         // 바닐라 placeNewPlayer: 저장된 Dimension 의 레벨(없는 차원이면 경고 후 오버월드 — 위치는 저장된 그대로)
         if (saved != null && coreJ != null && saved.root() != null && saved.root().tags().get("Dimension") instanceof String savedDim) {
             World w = coreJ.world(savedDim);
@@ -2733,6 +2807,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        java.util.ArrayDeque<Object[]> queued = pendingPlayFrames;
+        if (queued != null) {   // 저장 데이터 읽는 중에 끊김 — 보관 패킷 해제(finishEnterPlay 는 비활성 채널이라 진입하지 않는다)
+            pendingPlayFrames = null;
+            releasePendingFrames(queued);
+        }
         Player p = player;
         if (p != null) {
             org.domi.furnace.server.ServerCore core = login.core;
