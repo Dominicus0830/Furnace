@@ -272,7 +272,12 @@ class GeneratedChunkSaveTest {
         var mx = ManagementFactory.getThreadMXBean();
         long[] res = sched.region(R00).submit(() -> {
             Region r = w.regionAt(R00);
-            for (int i = 0; i < 20; i++) r.tick();
+            long base = 0;
+            for (int i = 0; i < 20; i++) {
+                long t0 = mx.getCurrentThreadCpuTime();
+                r.tick();
+                base = Math.max(base, mx.getCurrentThreadCpuTime() - t0);
+            }
             w.configurePersistence(1_000_000, 1);
             long max = 0, total = 0;
             long[] each = new long[10_000];
@@ -287,13 +292,115 @@ class GeneratedChunkSaveTest {
             }
             long[] sorted = java.util.Arrays.copyOf(each, ticks);
             java.util.Arrays.sort(sorted);
-            return new long[]{max, total, ticks, r.dirtyChunkCount(), sorted[ticks / 2], sorted[(int) (ticks * 0.95)]};
+            return new long[]{max, total, ticks, r.dirtyChunkCount(), sorted[ticks / 2], sorted[(int) (ticks * 0.95)], base};
         }).get();
         System.out.printf("[F-14] 퇴출 576청크: 틱 최대=%.2fms 중앙=%.2fms p95=%.2fms 합계=%.2fms 틱수=%d%n",
                 res[0] / 1e6, res[4] / 1e6, res[5] / 1e6, res[1] / 1e6, res[2]);
         assertEquals(0, res[3], "결국 다 저장·퇴출된다");
         assertTrue(res[2] > 10, "여러 틱에 나뉜다: " + res[2]);
-        assertTrue(res[5] < 20_000_000L, "p95 틱 CPU: " + res[5] / 1e6 + " ms");
+        assertTrue(res[5] < res[6] + 10_000_000L, "p95 틱 CPU 는 기준 틱 + 예산 근처: " + res[5] / 1e6 + " ms");
+        io.shutdown();
+        sched.close();
+    }
+
+    /** 퇴출과 자동 저장이 같은 틱에 겹쳐도 저장 예산은 하나(4 ms)를 나눠 쓴다. 절반은 티켓으로 붙들어 자동 저장, 절반은 퇴출. */
+    @Test
+    void evictionAndAutosaveInSameTick_shareOneBudget(@TempDir Path dir) throws Exception {
+        var gen = new SuperflatWorldSource(REG, PLAINS);
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        ExecutorService io = Executors.newFixedThreadPool(2);
+        World w = world(dir, gen, sched, io, 1_000_000);
+        int n = 24;
+        for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) w.awaitChunk(new ChunkPos(x, z));
+        for (int x = 0; x < n / 2; x++) for (int z = 0; z < n; z++) w.addTicket(x, z, 0, 1L << 40);
+        var mx = ManagementFactory.getThreadMXBean();
+        long[] res = sched.region(R00).submit(() -> {
+            Region r = w.regionAt(R00);
+            long base = 0;
+            for (int i = 0; i < 20; i++) {
+                long t0 = mx.getCurrentThreadCpuTime();
+                r.tick();
+                base = Math.max(base, mx.getCurrentThreadCpuTime() - t0);
+            }
+            w.configurePersistence(1, 1);   // 다음 틱에 퇴출·자동 저장이 함께 시작
+            long max = 0;
+            long[] each = new long[10_000];
+            int ticks = 0;
+            while (r.dirtyChunkCount() > 0 && ticks < 10_000) {
+                long t0 = mx.getCurrentThreadCpuTime();
+                r.tick();
+                long d = mx.getCurrentThreadCpuTime() - t0;
+                max = Math.max(max, d);
+                each[ticks++] = d;
+                w.configurePersistence(1_000_000, 1);
+            }
+            long[] sorted = java.util.Arrays.copyOf(each, ticks);
+            java.util.Arrays.sort(sorted);
+            return new long[]{base, max, sorted[ticks / 2], sorted[(int) (ticks * 0.95)], ticks, r.dirtyChunkCount()};
+        }).get();
+        System.out.printf("[F-14] 퇴출+자동저장 겹침: 기준=%.2fms 최대=%.2fms 중앙=%.2fms p95=%.2fms 틱수=%d%n",
+                res[0] / 1e6, res[1] / 1e6, res[2] / 1e6, res[3] / 1e6, res[4]);
+        assertEquals(0, res[5]);
+        assertTrue(res[4] > 10, "여러 틱에 나뉜다");
+        // 예산 하나면 p95 ≈ 기준 + 4 ms + 한 항목. 예산이 둘이면 +8 ms 이상
+        assertTrue(res[3] < res[0] + 7_000_000L, "p95 틱 CPU 는 기준 + 예산 하나 근처: " + res[3] / 1e6 + " ms");
+        io.shutdown();
+        sched.close();
+    }
+
+    /** IO 레인이 밀리면(바탕 풀 막힘) 저장 제출을 멈추고, 풀리면 이어 간다. 대기열은 임계 근처에서 멈춘다. */
+    @Test
+    void ioBacklog_pausesSavesAndResumes(@TempDir Path dir) throws Exception {
+        var gen = new SuperflatWorldSource(REG, PLAINS);
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        World w = world(dir, gen, sched, io, 1_000_000);
+        int n = 12;
+        for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) w.awaitChunk(new ChunkPos(x, z));
+        w.ioBacklogLimit(8);
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        io.execute(() -> { try { gate.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } });
+        int[] blocked = sched.region(R00).submit(() -> {
+            Region r = w.regionAt(R00);
+            w.configurePersistence(1, 1_000_000);
+            r.tick();
+            w.configurePersistence(1_000_000, 1_000_000);
+            for (int i = 0; i < 50; i++) r.tick();
+            return new int[]{r.dirtyChunkCount(), w.ioBacklog()};
+        }).get();
+        assertTrue(blocked[1] <= 8 + 1, "대기열이 임계 근처에서 멈춘다: " + blocked[1]);
+        assertTrue(blocked[0] >= n * n - 9, "막힌 동안 저장이 미뤄진다: 남은 dirty " + blocked[0]);
+        gate.countDown();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (sched.region(R00).submit(() -> { w.regionAt(R00).tick(); return w.regionAt(R00).dirtyChunkCount(); }).get() > 0) {
+            assertTrue(System.nanoTime() < deadline, "풀린 뒤 저장이 이어져야 한다");
+            Thread.sleep(1);
+        }
+        System.out.printf("[F-14] 역압: 막힌 동안 남은 dirty=%d 대기열=%d%n", blocked[0], blocked[1]);
+        io.shutdown();
+        sched.close();
+    }
+
+    /** 같은 청크: 퇴출 저장이 레인에 밀려 있는 동안 다시 읽어도 FIFO 라 최신 내용을 읽는다. */
+    @Test
+    void saveThenReload_readsLatestUnderBacklog(@TempDir Path dir) throws Exception {
+        var gen = new SuperflatWorldSource(REG, PLAINS);
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        World w = world(dir, gen, sched, io, 3);
+        w.awaitChunk(CP);
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        io.execute(() -> { try { gate.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } });
+        var loaded = sched.region(R00).submit(() -> {
+            Region r = w.regionAt(R00);
+            r.breakBlock(16, -61, 16);
+            for (int i = 0; i < 10; i++) r.tick();
+            assertFalse(r.chunkLoaded(CP), "저장 제출 후 퇴출");
+            return r.loadChunk(CP);   // 레인에서 저장 뒤에 줄 선다
+        }).get();
+        gate.countDown();
+        ChunkColumn c = loaded.get(30, TimeUnit.SECONDS);
+        assertEquals(ChunkSection.AIR, sched.region(R00).submit(() -> c.getBlock(0, -61, 0)).get(), "편집이 남아 있다");
         io.shutdown();
         sched.close();
     }

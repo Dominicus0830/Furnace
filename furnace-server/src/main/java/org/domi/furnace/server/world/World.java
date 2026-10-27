@@ -340,6 +340,50 @@ public final class World {
     /** 재시도 끝에 실패한 저장(청크·엔티티) 수. */
     public long saveFailures() { return saveFailures.get(); }
 
+    /** 레인당 대기 작업이 이 수를 넘으면 region 쪽 퇴출·자동 저장이 그 틱 저장을 멈춘다(내리지 않고 다음 틱에). -Dfurnace.io.backlogLimit */
+    private volatile int ioBacklogLimit = Integer.getInteger("furnace.io.backlogLimit", 256);
+
+    public int ioBacklogLimit() { return ioBacklogLimit; }
+
+    public void ioBacklogLimit(int v) { ioBacklogLimit = v; }
+
+    /** 가장 긴 IO 레인 대기열 길이. */
+    public int ioBacklog() { return ioLanes == null ? 0 : ioLanes.maxBacklog(); }
+
+    /** 저장 역압: 레인이 밀려 있으면 이번 틱 저장 제출을 멈춘다. */
+    public boolean ioBackedUp() { return ioBacklog() >= ioBacklogLimit; }
+
+    private final java.util.concurrent.atomic.AtomicLong lastDiskLog = new java.util.concurrent.atomic.AtomicLong(Long.MIN_VALUE);
+
+    /** 자동 저장마다 한 번(여러 region 이 불러도 한 줄): region/ 크기·파일 수·여유 공간, 레인 대기열 최대·대기 시간. IO 풀에서. */
+    void logStorageOnce() {
+        long now = gameTime();
+        long prev = lastDiskLog.get();
+        if (prev != Long.MIN_VALUE && now - prev < Math.max(1, autosaveTicks / 2)) return;
+        if (!lastDiskLog.compareAndSet(prev, now)) return;
+        if (!(worldSource instanceof AnvilWorldSource anvil) || ioPool == null) return;
+        long[] lane = ioLanes == null ? new long[2] : ioLanes.drainStats();
+        java.nio.file.Path dir = anvil.store().regionDir();
+        ioPool.execute(() -> {
+            var log = org.slf4j.LoggerFactory.getLogger(World.class);
+            long bytes = 0, files = 0, usable = -1;
+            try (var st = java.nio.file.Files.list(dir)) {
+                for (var p : (Iterable<java.nio.file.Path>) st::iterator) {
+                    if (!p.getFileName().toString().endsWith(".mca")) continue;
+                    files++;
+                    bytes += java.nio.file.Files.size(p);
+                }
+                usable = java.nio.file.Files.getFileStore(dir).getUsableSpace();
+            } catch (java.io.IOException | RuntimeException e) {
+                log.debug("[SAVE] 저장소 크기 확인 실패 {}", dir, e);
+                return;
+            }
+            String msg = String.format("[SAVE] %s: region 파일 %d개 %.1f MB, 여유 %.1f GB, IO 레인 최대 대기열 %d · 최대 대기 %.1f ms",
+                    dir, files, bytes / 1048576.0, usable / 1073741824.0, lane[0], lane[1] / 1e6);
+            if (usable < 1L << 30) log.warn("{} — 디스크 여유 1GB 미만", msg); else log.info(msg);
+        });
+    }
+
     /** 그 청크가 든 region 파일의 직렬 IO 레인. */
     public java.util.concurrent.Executor ioLane(int chunkX, int chunkZ) {
         return ioLanes == null ? Runnable::run : ioLanes.lane(chunkX, chunkZ);

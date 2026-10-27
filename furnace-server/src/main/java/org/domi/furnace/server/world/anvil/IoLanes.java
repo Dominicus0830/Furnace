@@ -23,6 +23,27 @@ public final class IoLanes {
         return lanes[index(chunkX >> 5, chunkZ >> 5)];
     }
 
+    /** 레인 대기열(아직 시작 안 한 작업) 길이 중 가장 긴 것 — region 쪽 저장 역압 기준. */
+    public int maxBacklog() {
+        int m = 0;
+        for (Lane l : lanes) m = Math.max(m, l.pending);
+        return m;
+    }
+
+    /** 지금까지 본 레인 대기열 최대 길이·작업 최대 대기 시간(ns). 읽으면 0 으로 되돌린다(주기 로그용). */
+    public long[] drainStats() {
+        long q = 0, w = 0;
+        for (Lane l : lanes) {
+            synchronized (l) {
+                q = Math.max(q, l.peakPending);
+                w = Math.max(w, l.peakWaitNanos);
+                l.peakPending = 0;
+                l.peakWaitNanos = 0;
+            }
+        }
+        return new long[]{q, w};
+    }
+
     int index(int regionX, int regionZ) {
         long k = ((long) regionX << 32) | (regionZ & 0xFFFFFFFFL);
         k ^= k >>> 33;
@@ -33,12 +54,19 @@ public final class IoLanes {
 
     private final class Lane implements Executor, Runnable {
         private final ArrayDeque<Runnable> queue = new ArrayDeque<>();
+        private final ArrayDeque<Long> enqueuedAt = new ArrayDeque<>();
+        private volatile int pending;          // 대기열 길이(다른 스레드가 잠금 없이 읽는다)
+        private int peakPending;
+        private long peakWaitNanos;
         private boolean active;   // drain 이 바탕 풀에 올라가 있거나 도는 중
 
         @Override
         public void execute(Runnable task) {
             synchronized (this) {
                 queue.add(task);
+                enqueuedAt.add(System.nanoTime());
+                pending = queue.size();
+                if (queue.size() > peakPending) peakPending = queue.size();
                 if (active) return;
                 active = true;
             }
@@ -57,6 +85,9 @@ public final class IoLanes {
                 synchronized (this) {
                     r = queue.poll();
                     if (r == null) { active = false; return; }
+                    long wait = System.nanoTime() - enqueuedAt.poll();
+                    if (wait > peakWaitNanos) peakWaitNanos = wait;
+                    pending = queue.size();
                 }
                 try {
                     r.run();

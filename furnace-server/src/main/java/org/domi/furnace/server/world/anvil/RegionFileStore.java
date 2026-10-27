@@ -15,6 +15,8 @@ public final class RegionFileStore {
         this(worldDir, "region");
     }
 
+    public Path regionDir() { return regionDir; }
+
     /** 다른 하위 디렉토리(엔티티는 "entities"). */
     public RegionFileStore(Path worldDir, String subDir) {
         this.regionDir = worldDir.resolve(subDir);

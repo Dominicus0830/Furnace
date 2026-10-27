@@ -599,6 +599,7 @@ public final class Region {
         if (dirtyChunks.isEmpty()) return;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
+            if (world.ioBackedUp()) { autosaveChunkQueue.addFirst(cp); return; }   // 레인이 밀렸다 — 다음 틱에
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
@@ -620,14 +621,20 @@ public final class Region {
         world.autosaveDragonFight(this);
         var store = world.raidStore();
         if (io != null) io.execute(store::saveIfDirty);   // raids.dat(다른 region 은 마지막으로 올린 스냅샷)
+        world.logStorageOnce();
         autosaveEntityQueue = new java.util.ArrayDeque<>(present);
         autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks);
     }
 
+    /** 이 틱의 저장 마감 시각 — 퇴출이 먼저 쓰고 남은 시간을 자동 저장이 쓴다(예산 하나를 공유). */
+    private long saveDeadline;
+
     private void stepAutosave() {
-        long deadline = System.nanoTime() + AUTOSAVE_BUDGET_NANOS;
+        long deadline = saveDeadline;
+        if (System.nanoTime() > deadline || world.ioBackedUp()) return;
         Long key;
         while (autosaveEntityQueue != null && (key = autosaveEntityQueue.poll()) != null) {
+            if (world.ioBackedUp()) { autosaveEntityQueue.addFirst(key); return; }
             int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
             ChunkColumn col = level == null ? null : ownedChunk(cx, cz);
             if (col != null) {
@@ -640,6 +647,7 @@ public final class Region {
         ChunkPos cp;
         while (autosaveChunkQueue != null && (cp = autosaveChunkQueue.poll()) != null) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
+            if (world.ioBackedUp()) { autosaveChunkQueue.addFirst(cp); return; }   // 레인이 밀렸다 — 다음 틱에
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
@@ -688,9 +696,9 @@ public final class Region {
         }
         if (drop == null) return;
         // 퇴출(저장 포함)도 틱당 시간 예산 안에서 — 생성 청크도 dirty 라(F-14) 한꺼번에 내리면 틱이 수백 ms 튄다. 남은 것은 다음 틱에.
-        long deadline = System.nanoTime() + AUTOSAVE_BUDGET_NANOS;
+        long deadline = saveDeadline;
         for (long key : drop) {
-            if (System.nanoTime() > deadline) break;
+            if (System.nanoTime() > deadline || world.ioBackedUp()) break;   // 내리지 않고 다음 틱에(레인 역압 포함)
             int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
             ChunkPos cp = new ChunkPos(cx, cz);
             ChunkColumn col = world.loadedChunk(cx, cz);
@@ -870,6 +878,7 @@ public final class Region {
         }
         if (level != null) level.flushAcks();   // 바닐라: 연결 틱 첫머리의 블록 변경 ack — 이 틱의 방송 뒤
         handOffEntities();
+        saveDeadline = System.nanoTime() + AUTOSAVE_BUDGET_NANOS;
         evictIdleChunks();
         if (++autosaveCounter >= world.autosaveTicks() && world.autosaveEnabled()) {
             autosaveCounter = 0;
