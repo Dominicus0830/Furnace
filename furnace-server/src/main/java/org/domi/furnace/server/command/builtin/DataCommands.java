@@ -51,6 +51,8 @@ import org.domi.furnace.server.net.io.nbt.NbtArray;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
+import org.domi.furnace.server.world.ChunkPos;
+import org.domi.furnace.server.world.World;
 
 public final class DataCommands {
     private DataCommands() {}
@@ -86,9 +88,21 @@ public final class DataCommands {
         T apply(DataAccessor a) throws CommandSyntaxException;
     }
 
+    /**
+     * 바닐라 DataProvider.access(ctx) 가 돌려주는 접근자에 해당하는 손잡이: 대상은 이미 해석돼 있고, 나중에(execute store 콜백) 주인 스레드에서 op 를 돌린다.
+     * 블록은 칸 좌표만 붙들고 쓸 때 블록 엔티티를 다시 찾는다(그새 바뀌었으면 commands.data.block.invalid).
+     */
+    @FunctionalInterface
+    public interface Handle {
+        <T> CompletableFuture<T> with(CommandSource source, Op<T> op);
+    }
+
     /** 바닐라 DataCommands.DataProvider: 대상 해석(+ 주인 스레드에서 일하기)과 트리 꾸미기. */
     public interface DataProvider {
         <T> CompletableFuture<T> with(CommandContext<CommandSource> ctx, Op<T> op) throws CommandSyntaxException;
+
+        /** 바닐라 access(ctx): 대상을 지금 해석한다(없는 엔티티·블록 엔티티 아님·로드 안 됨 오류는 여기서). 플레이어 쓰기 거부는 setData 때. */
+        CompletableFuture<Handle> resolve(CommandContext<CommandSource> ctx) throws CommandSyntaxException;
 
         ArgumentBuilder<CommandSource, ?> wrap(ArgumentBuilder<CommandSource, ?> parent,
                                                Function<ArgumentBuilder<CommandSource, ?>, ArgumentBuilder<CommandSource, ?>> fn);
@@ -109,6 +123,16 @@ public final class DataCommands {
             public <T> CompletableFuture<T> with(CommandContext<CommandSource> ctx, Op<T> op) throws CommandSyntaxException {
                 CommandSource source = ctx.getSource();
                 return EntityArgument.findRiders(ctx, name, true).thenCompose(list -> onEntity(source, list.get(0), op));
+            }
+
+            public CompletableFuture<Handle> resolve(CommandContext<CommandSource> ctx) throws CommandSyntaxException {
+                // 바닐라 EntityDataAccessor 는 해석 시점의 엔티티를 붙든다(순수 변환이라 완성 스레드와 무관)
+                return EntityArgument.findRiders(ctx, name, true).thenApply(list -> {
+                    Rider r = list.get(0);
+                    return new Handle() {
+                        public <T> CompletableFuture<T> with(CommandSource source, Op<T> op) { return onEntity(source, r, op); }
+                    };
+                });
             }
 
             public ArgumentBuilder<CommandSource, ?> wrap(ArgumentBuilder<CommandSource, ?> parent,
@@ -165,22 +189,21 @@ public final class DataCommands {
     static DataProvider blockProvider(String name) {
         return new DataProvider() {
             public <T> CompletableFuture<T> with(CommandContext<CommandSource> ctx, Op<T> op) {
-                int[] p = BlockPosArgument.getBlockPos(ctx, name + "Pos");
-                Pos pos = new Pos(p[0], p[1], p[2]);
-                CompletableFuture<T> f = new CompletableFuture<>();
-                ctx.getSource().level().runAt(pos.x(), pos.z(), region -> {
-                    try {
-                        var level = region.level();
-                        // BlockPosArgument.getLoadedBlockPos
-                        if (!level.hasChunkAt(pos)) throw BlockPosArgument.ERROR_NOT_LOADED.create();
-                        if (!level.isInWorldBounds(pos)) throw BlockPosArgument.ERROR_OUT_OF_WORLD.create();
-                        if (!(level.getBlockEntity(pos) instanceof BlockEntity be)) throw ERROR_NOT_A_BLOCK_ENTITY.create();
-                        f.complete(op.apply(new BlockAccessor(level, be, pos)));
-                    } catch (Throwable t) {
-                        f.completeExceptionally(t);
-                    }
+                return atBlockEntity(ctx.getSource().level(), blockPos(ctx), op);
+            }
+
+            public CompletableFuture<Handle> resolve(CommandContext<CommandSource> ctx) {
+                World level = ctx.getSource().level();
+                Pos pos = blockPos(ctx);
+                // 바닐라 BlockDataAccessor 는 해석 시점에 블록 엔티티가 있어야 한다. 손잡이는 칸 좌표를 붙들고 쓸 때 다시 찾는다.
+                return atBlockEntity(level, pos, a -> new Handle() {
+                    public <T> CompletableFuture<T> with(CommandSource source, Op<T> op) { return atBlockEntity(level, pos, op); }
                 });
-                return f;
+            }
+
+            private Pos blockPos(CommandContext<CommandSource> ctx) {
+                int[] p = BlockPosArgument.getBlockPos(ctx, name + "Pos");
+                return new Pos(p[0], p[1], p[2]);
             }
 
             public ArgumentBuilder<CommandSource, ?> wrap(ArgumentBuilder<CommandSource, ?> parent,
@@ -188,6 +211,27 @@ public final class DataCommands {
                 return parent.then(literal("block").then(fn.apply(argument(name + "Pos", BlockPosArgument.blockPos()))));
             }
         };
+    }
+
+    /**
+     * 칸 pos 의 블록 엔티티 접근자로 op 를 그 칸의 주인 region 에서 돌린다(바닐라 BlockPosArgument.getLoadedBlockPos + getBlockEntity).
+     * 조회성이라 주인 region 이 없으면 region 을 만들지 않고 argument.pos.unloaded 로 끝낸다(설계서 §3 I7).
+     */
+    static <T> CompletableFuture<T> atBlockEntity(World world, Pos pos, Op<T> op) {
+        ChunkPos cp = ChunkPos.ofBlock(pos.x(), pos.z());
+        if (world.regionizer().ownerOf(cp.x(), cp.z()) == null) return CompletableFuture.failedFuture(BlockPosArgument.ERROR_NOT_LOADED.create());
+        CompletableFuture<T> f = world.submitAtOwnedChunk(cp, region -> {
+            try {
+                var level = region.level();
+                if (level == null || !level.hasChunkAt(pos)) throw BlockPosArgument.ERROR_NOT_LOADED.create();
+                if (!level.isInWorldBounds(pos)) throw BlockPosArgument.ERROR_OUT_OF_WORLD.create();
+                if (!(level.getBlockEntity(pos) instanceof BlockEntity be)) throw ERROR_NOT_A_BLOCK_ENTITY.create();
+                return op.apply(new BlockAccessor(level, be, pos));
+            } catch (CommandSyntaxException e) {
+                throw new CompletionException(e);
+            }
+        });
+        return f == null ? CompletableFuture.failedFuture(BlockPosArgument.ERROR_NOT_LOADED.create()) : f;
     }
 
     /** 바닐라 BlockDataAccessor. 쓰면 loadWithComponents → setChanged → sendBlockUpdated. */
@@ -220,6 +264,18 @@ public final class DataCommands {
                 synchronized (storage) {
                     return runNow(new StorageAccessor(storage, ResourceLocationArgument.getId(ctx, name).toString()), op);
                 }
+            }
+
+            public CompletableFuture<Handle> resolve(CommandContext<CommandSource> ctx) {
+                var storage = ctx.getSource().getServer().world().commandStorage();
+                String id = ResourceLocationArgument.getId(ctx, name).toString();
+                return CompletableFuture.completedFuture(new Handle() {
+                    public <T> CompletableFuture<T> with(CommandSource source, Op<T> op) {
+                        synchronized (storage) {
+                            return runNow(new StorageAccessor(storage, id), op);
+                        }
+                    }
+                });
             }
 
             public ArgumentBuilder<CommandSource, ?> wrap(ArgumentBuilder<CommandSource, ?> parent,

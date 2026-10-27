@@ -1,4 +1,4 @@
-// 바닐라 ExecuteCommand(amt) 중 E2·E3 단계: execute if|unless score(E3)·entity·block·blocks·biome·loaded·dimension·predicate·items.
+// 바닐라 ExecuteCommand(amt) 중 E2~E4 단계: execute if|unless score(E3)·data(E4: block|entity|storage 경로 일치 수)·entity·block·blocks·biome·loaded·dimension·predicate·items.
 // 조건 하나는 포크(참이면 소스 유지, 아니면 사라짐)와 종단 실행(성공 1 / 개수 / 실패)의 두 얼굴을 가진다. 결과 의미는 바닐라 그대로:
 //  - 불리언 조건: if 는 참이면 1(conditional.pass), 아니면 conditional.fail. unless 는 반대.
 //  - 개수 조건(entity·items·blocks): if 는 개수가 있으면 그 개수(pass_count), 없으면 fail. unless 는 없으면 1, 있으면 fail_count(개수).
@@ -35,6 +35,8 @@ import org.domi.furnace.server.command.arguments.EntityArgument;
 import org.domi.furnace.server.command.arguments.EntitySelector;
 import org.domi.furnace.server.command.arguments.IntRangeArgument;
 import org.domi.furnace.server.command.arguments.ItemPredicateArgument;
+import org.domi.furnace.server.command.arguments.NbtPathArgument;
+import org.domi.furnace.server.command.arguments.NbtPathArgument.NbtPath;
 import org.domi.furnace.server.command.arguments.ScoreHolderArgument;
 import org.domi.furnace.server.command.arguments.ScoreboardArguments;
 import org.domi.furnace.server.scores.Objective;
@@ -100,6 +102,12 @@ final class ExecuteConditions {
 
     /** if(expected=true) 또는 unless(expected=false) 노드. */
     static LiteralArgumentBuilder<CommandSource> build(LiteralCommandNode<CommandSource> execute, LiteralArgumentBuilder<CommandSource> root, boolean expected) {
+        // 바닐라: SOURCE_PROVIDERS(source·sourcePos) 마다 같은 data 리터럴에 block|entity|storage 를 붙인다. 조건은 경로 일치 수 > 0, 종단은 일치 수.
+        LiteralArgumentBuilder<CommandSource> data = literal("data");
+        for (DataCommands.DataProvider provider : DataCommands.SOURCE_PROVIDERS) {
+            provider.wrap(data, b -> b.then(count(execute, argument("path", NbtPathArgument.nbtPath()), expected, c -> data(c, provider))));
+        }
+        root.then(data);
         return root
                 .then(literal("block").then(argument("pos", BlockPosArgument.blockPos())
                         .then(bool(execute, argument("block", BlockPredicateArgument.blockPredicate()), expected, ExecuteConditions::block))))
@@ -390,6 +398,14 @@ final class ExecuteConditions {
         if (r instanceof LivingEntity l) return l.lootEntity();
         String type = r.typeName();
         return () -> type;
+    }
+
+    // ---------------------------------------------------------------- data
+
+    /** 바닐라 amt.a(DataAccessor, NbtPath) = path.countMatching(getData()). 대상 해석 오류(엔티티 없음·블록 엔티티 아님·로드 안 됨)는 명령 오류. */
+    private static CompletableFuture<OptionalInt> data(CommandContext<CommandSource> c, DataCommands.DataProvider provider) throws CommandSyntaxException {
+        NbtPath path = NbtPathArgument.getPath(c, "path");
+        return provider.with(c, a -> path.countMatching(a.getData())).thenApply(n -> n > 0 ? OptionalInt.of(n) : OptionalInt.empty());
     }
 
     // ---------------------------------------------------------------- items

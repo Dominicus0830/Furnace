@@ -1,7 +1,8 @@
 // 바닐라 ExecuteCommand(amt) 중 E1 단계: run·as·at·positioned(as, over)·rotated(as)·facing(entity)·align·anchored·in·summon·on.
 // 수정자는 소스를 바꿀 뿐 부수효과가 없다. region 에서 읽어야 하는 것(over·summon·on)과 선택자 해석(as·at·…)은 비동기 수정자로 만들어,
 // 실행 코어(BuildContexts)가 미완료면 큐를 멈췄다가 전역 스레드에서 이어 가게 한다. 소스 변형(엔티티 위치·회전·차원 읽기)은 전역 스레드에서 한다.
-// if/unless 의 entity·block·blocks·biome·loaded·dimension·predicate·items 는 ExecuteConditions(E2). score·store score·bossbar(E3)가 있고 data·function·store 나머지(E4~E5)는 아직 없다 — VanillaCommandTreeTest.NOT_YET 가 그만큼만 빼 준다.
+// if/unless 의 entity·block·blocks·biome·loaded·dimension·predicate·items(E2)·score(E3)·data(E4) 는 ExecuteConditions. store 는 score·bossbar(E3) 와
+// block·entity·storage(E4, 콜백이 주인 스레드에서 쓰고 컨텍스트가 완료를 기다린다). function(E5) 만 아직 없다 — VanillaCommandTreeTest.NOT_YET 가 그만큼만 빼 준다.
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -22,6 +23,8 @@ import org.domi.furnace.server.command.arguments.EntityAnchorArgument;
 import org.domi.furnace.server.command.arguments.EntityArgument;
 import org.domi.furnace.server.command.arguments.EntitySelector;
 import org.domi.furnace.server.command.arguments.HeightmapTypeArgument;
+import org.domi.furnace.server.command.arguments.NbtPathArgument;
+import org.domi.furnace.server.command.arguments.NbtPathArgument.NbtPath;
 import org.domi.furnace.server.command.arguments.ResourceArgument;
 import org.domi.furnace.server.command.arguments.ResourceLocationArgument;
 import org.domi.furnace.server.command.arguments.RotationArgument;
@@ -35,6 +38,7 @@ import org.domi.furnace.server.scores.ScoreHolder;
 import org.domi.furnace.server.scores.ServerScoreboard;
 import org.domi.furnace.server.command.arguments.SwizzleArgument;
 import org.domi.furnace.server.command.arguments.Vec3Argument;
+import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.AsyncRedirectModifier;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
@@ -120,9 +124,31 @@ public final class ExecuteCommands {
                 .then(ExecuteConditions.build(execute, literal("unless"), false)));
     }
 
-    // ---------------------------------------------------------------- store (E3: score 만; bossbar·block·entity·storage 는 E4)
+    // ---------------------------------------------------------------- store (E3: score·bossbar, E4: block·entity·storage)
+
+    /** 바닐라 amt 의 IntFunction<Tag>: 결과 × scale 을 그 타입으로 캐스팅한 NBT 값(바닐라 캐스팅 순서 그대로: double 곱 뒤 캐스팅). */
+    @FunctionalInterface
+    private interface TagMaker {
+        Object make(int value, double scale);
+    }
+
+    private static final String[] STORE_TYPES = {"int", "float", "short", "long", "double", "byte"};
+    private static final TagMaker[] STORE_MAKERS = {
+            (v, s) -> (int) (v * s), (v, s) -> (float) (v * s), (v, s) -> (short) (v * s),
+            (v, s) -> (long) (v * s), (v, s) -> v * s, (v, s) -> (byte) (v * s)};
 
     private static LiteralArgumentBuilder<CommandSource> store(LiteralCommandNode<CommandSource> execute, LiteralArgumentBuilder<CommandSource> b, boolean result) {
+        for (DataCommands.DataProvider provider : DataCommands.TARGET_PROVIDERS) {
+            provider.wrap(b, node -> {
+                var path = argument("path", NbtPathArgument.nbtPath());
+                for (int i = 0; i < STORE_TYPES.length; i++) {
+                    TagMaker maker = STORE_MAKERS[i];
+                    path.then(literal(STORE_TYPES[i]).then(argument("scale", Arguments.doubleArg(-Double.MAX_VALUE, Double.MAX_VALUE))
+                            .redirectAsync(execute, c -> storeData(c, provider, maker, result))));
+                }
+                return node.then(path);
+            });
+        }
         return b
                 .then(literal("bossbar").then(argument("id", ResourceLocationArgument.id())
                         .then(literal("value").redirect(execute, c -> storeBossbar(c, true, result)))
@@ -158,6 +184,52 @@ public final class ExecuteCommands {
             for (ScoreHolder h : holders) board.getOrCreatePlayerScore(h, objective).set(v);
             return ResultCallback.DONE;
         }, ResultCallback::chain);
+    }
+
+    /**
+     * 바닐라 amt.a(et, DataAccessor, NbtPath, IntFunction<Tag>, result): 대상은 redirect 때 해석하고(오류는 여기서 명령 오류),
+     * 콜백은 결과마다 주인 스레드에서 getData → path.set → setData 를 하고 완료 future 를 돌려준다(컨텍스트가 완료까지 기다린다).
+     * 콜백 안 CommandSyntaxException(플레이어 대상 commands.data.entity.invalid, 블록 엔티티 사라짐, 경로 너무 깊음)은 바닐라처럼 삼킨다 — 메시지 없음.
+     */
+    private static CompletableFuture<CommandSource> storeData(CommandContext<CommandSource> c, DataCommands.DataProvider provider, TagMaker maker, boolean result)
+            throws CommandSyntaxException {
+        CommandSource source = c.getSource();
+        NbtPath path = NbtPathArgument.getPath(c, "path");
+        double scale = c.getArgument("scale", Double.class);
+        CompletableFuture<DataCommands.Handle> handle = provider.resolve(c);
+        return ExecuteCommands.<DataCommands.Handle, CommandSource>onGlobal(source, handle, h -> source.withCallback((success, value) -> {
+            int v = result ? value : (success ? 1 : 0);
+            Object tag = maker.make(v, scale);
+            CompletableFuture<Void> write = h.with(source, a -> {
+                NbtCompound data = a.getData();
+                path.set(data, tag);
+                a.setData(data);
+                return null;
+            });
+            return swallowSyntaxErrors(source, write);
+        }, ResultCallback::chain));
+    }
+
+    /** 콜백 쓰기의 CommandSyntaxException 은 삼키고(바닐라), 그 밖 오류는 그대로 실패. 미완료면 완료를 전역 스레드로 되돌린다(ResultCallback 규약). */
+    private static CompletableFuture<Void> swallowSyntaxErrors(CommandSource source, CompletableFuture<Void> write) {
+        if (write.isDone()) {
+            if (!write.isCompletedExceptionally()) return ResultCallback.DONE;
+            try {
+                write.join();
+            } catch (CompletionException | java.util.concurrent.CancellationException e) {
+                Throwable t = EntityOps.unwrap(e);
+                if (t instanceof CommandSyntaxException) return ResultCallback.DONE;
+                if (t instanceof RuntimeException re) throw re;   // 바닐라 performCommand catch(= CommandQueue.drive) 로
+                if (t instanceof Error err) throw err;
+                throw new CompletionException(t);
+            }
+            return ResultCallback.DONE;
+        }
+        Executor global = r -> source.getServer().scheduler().global().execute(r);
+        return write.<Void>handleAsync((v, ex) -> {
+            if (ex == null || EntityOps.unwrap(ex) instanceof CommandSyntaxException) return null;
+            throw ex instanceof CompletionException ce ? ce : new CompletionException(ex);
+        }, global);
     }
 
     // ---------------------------------------------------------------- 선택자 포크
