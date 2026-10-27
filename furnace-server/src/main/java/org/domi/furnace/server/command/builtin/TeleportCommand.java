@@ -34,17 +34,17 @@ public final class TeleportCommand {
     public static void register(CommandDispatcher<CommandSource> d) {
         var node = d.register(literal("teleport").requires(s -> s.hasPermission(2))
                 .then(argument("location", Vec3Argument.vec3())
-                        .executes(c -> toPosition(c, self(c.getSource()), Vec3Argument.getVec3(c, "location"), sourceRotation(c.getSource()), null)))
+                        .executes(c -> EntityOps.result(c.getSource(), toPosition(c, self(c.getSource()), Vec3Argument.getVec3(c, "location"), sourceRotation(c.getSource()), null))))
                 .then(argument("destination", EntityArgument.entity())
-                        .executes(c -> EntityArgument.withEntity(c, "destination", dest -> toEntity(c.getSource(), self(c.getSource()), dest.get(0)))))
+                        .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntityAsync(c, "destination", dest -> toEntityAsync(c.getSource(), self(c.getSource()), dest.get(0))))))
                 .then(argument("targets", EntityArgument.entities())
                         .then(argument("location", Vec3Argument.vec3())
-                                .executes(c -> EntityArgument.withEntities(c, "targets",
-                                        t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, null)))
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                        t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, null))))
                                 .then(argument("rotation", RotationArgument.rotation())
-                                        .executes(c -> EntityArgument.withEntities(c, "targets",
+                                        .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
                                                 t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"),
-                                                        RotationArgument.getRotation(c, "rotation").get(c.getSource()), null))))
+                                                        RotationArgument.getRotation(c, "rotation").get(c.getSource()), null)))))
                                 .then(literal("facing")
                                         .then(literal("entity")
                                                 .then(argument("facingEntity", EntityArgument.entity())
@@ -52,19 +52,19 @@ public final class TeleportCommand {
                                                         .then(argument("facingAnchor", EntityAnchorArgument.anchor())
                                                                 .executes(c -> facingEntity(c, EntityAnchorArgument.getAnchor(c, "facingAnchor"))))))
                                         .then(argument("facingLocation", Vec3Argument.vec3())
-                                                .executes(c -> EntityArgument.withEntities(c, "targets",
+                                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
                                                         t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null,
-                                                                new LookAt(Vec3Argument.getVec3(c, "facingLocation"))))))))
+                                                                new LookAt(Vec3Argument.getVec3(c, "facingLocation")))))))))
                         .then(argument("destination", EntityArgument.entity())
                                 .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
                                         t -> EntityArgument.withEntityAsync(c, "destination",
-                                                dest -> CompletableFuture.completedFuture(toEntity(c.getSource(), t, dest.get(0))))))))));
+                                                dest -> toEntityAsync(c.getSource(), t, dest.get(0)))))))));
         d.register(literal("tp").requires(s -> s.hasPermission(2)).redirect(node));
     }
 
     private static int facingEntity(CommandContext<CommandSource> c, EntityAnchorArgument.Anchor anchor) throws CommandSyntaxException {
         return EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets", t -> EntityArgument.withEntityAsync(c, "facingEntity",
-                f -> CompletableFuture.completedFuture(toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, new LookAt(anchor.apply(f.get(0))))))));
+                f -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, new LookAt(anchor.apply(f.get(0)))))));
     }
 
     private static List<Rider> self(CommandSource source) throws CommandSyntaxException {
@@ -74,16 +74,17 @@ public final class TeleportCommand {
     private static Vec2Argument.Vec2 sourceRotation(CommandSource source) { return new Vec2Argument.Vec2(source.xRot(), source.yRot()); }
 
     /** 좌표로 옮긴다. rotation(x=pitch, y=yaw)이 null 이면 각자 지금 회전을 유지한다. */
-    private static int toPosition(CommandContext<CommandSource> c, List<Rider> targets, double[] pos, Vec2Argument.Vec2 rotation, LookAt look)
+    private static CompletableFuture<Integer> toPosition(CommandContext<CommandSource> c, List<Rider> targets, double[] pos, Vec2Argument.Vec2 rotation, LookAt look)
             throws CommandSyntaxException {
-        return toPosition(c.getSource(), targets, pos, rotation, look);
+        return toPositionAsync(c.getSource(), targets, pos, rotation, look);
     }
 
-    static int toPosition(CommandSource source, List<Rider> targets, double[] pos, Vec2Argument.Vec2 rotation, LookAt look)
+    static CompletableFuture<Integer> toPositionAsync(CommandSource source, List<Rider> targets, double[] pos, Vec2Argument.Vec2 rotation, LookAt look)
             throws CommandSyntaxException {
         if (!Teleports.inSpawnableBounds(pos[0], pos[1], pos[2])) throw INVALID_POSITION.create();
         String dimension = source.level().dimension();
         for (Rider t : targets) if (!t.dimensionKey().equals(dimension)) throw Teleports.ERROR_CROSS_DIMENSION.create();
+        List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(targets.size());
         for (Rider t : targets) {
             float yaw = Teleports.wrapDegrees(rotation == null ? t.riderYRot() : rotation.y());
             float pitch = Teleports.wrapDegrees(rotation == null ? t.riderXRot() : rotation.x());
@@ -92,33 +93,39 @@ public final class TeleportCommand {
                 yaw = r[0];
                 pitch = r[1];
             }
-            Teleports.teleport(source, t, pos[0], pos[1], pos[2], yaw, pitch);
+            moves.add(Teleports.teleport(source, t, pos[0], pos[1], pos[2], yaw, pitch));
         }
-        if (targets.size() == 1) {
-            Rider t = targets.get(0);
-            source.sendSuccess(() -> Text.translatable("commands.teleport.success.location.single", t.displayName(),
-                    format(pos[0]), format(pos[1]), format(pos[2])), true);
-        } else {
-            source.sendSuccess(() -> Text.translatable("commands.teleport.success.location.multiple", targets.size(),
-                    format(pos[0]), format(pos[1]), format(pos[2])), true);
-        }
-        return targets.size();
+        // 옮김이 모두 끝난 뒤(다음 줄이 새 위치를 읽도록) 전역 스레드에서 메시지
+        return EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
+            if (targets.size() == 1) {
+                Rider t = targets.get(0);
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.location.single", t.displayName(),
+                        format(pos[0]), format(pos[1]), format(pos[2])), true);
+            } else {
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.location.multiple", targets.size(),
+                        format(pos[0]), format(pos[1]), format(pos[2])), true);
+            }
+            return CompletableFuture.completedFuture(targets.size());
+        });
     }
 
     /** 도착 엔티티의 위치·회전으로 옮긴다. */
-    static int toEntity(CommandSource source, List<Rider> targets, Rider destination) throws CommandSyntaxException {
+    static CompletableFuture<Integer> toEntityAsync(CommandSource source, List<Rider> targets, Rider destination) throws CommandSyntaxException {
         double x = destination.x(), y = destination.y(), z = destination.z();
         if (!Teleports.inSpawnableBounds(x, y, z)) throw INVALID_POSITION.create();
         String dimension = destination.dimensionKey();
         for (Rider t : targets) if (!t.dimensionKey().equals(dimension)) throw Teleports.ERROR_CROSS_DIMENSION.create();
         float yaw = Teleports.wrapDegrees(destination.riderYRot()), pitch = Teleports.wrapDegrees(destination.riderXRot());
-        for (Rider t : targets) Teleports.teleport(source, t, x, y, z, yaw, pitch);
-        if (targets.size() == 1) {
-            source.sendSuccess(() -> Text.translatable("commands.teleport.success.entity.single", targets.get(0).displayName(), destination.displayName()), true);
-        } else {
-            source.sendSuccess(() -> Text.translatable("commands.teleport.success.entity.multiple", targets.size(), destination.displayName()), true);
-        }
-        return targets.size();
+        List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(targets.size());
+        for (Rider t : targets) moves.add(Teleports.teleport(source, t, x, y, z, yaw, pitch));
+        return EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
+            if (targets.size() == 1) {
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.entity.single", targets.get(0).displayName(), destination.displayName()), true);
+            } else {
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.entity.multiple", targets.size(), destination.displayName()), true);
+            }
+            return CompletableFuture.completedFuture(targets.size());
+        });
     }
 
     /** String.format(Locale.ROOT, "%f", v). */

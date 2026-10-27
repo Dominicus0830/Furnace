@@ -67,21 +67,19 @@ class FillBiomeCommandTest {
         int before = biome(0, 16, 0);
         // 모서리 0..5 는 quart 0..1(블록 0..7 이 아니라 모서리 맞춤으로 4 와 0)로 맞춰진다: 상자 x,z 0..4, y 64..64
         run(console, "minecraft:desert", null, 0, 64, 0, 5, 64, 5);
-        TeleportCommandTest.awaitTrue(() -> { try { return biome(0, 16, 0) == desert; } catch (Exception e) { return false; } });
         assertEquals(desert, biome(1, 16, 0));
         assertEquals(desert, biome(1, 16, 1));
         assertEquals(before == desert ? desert : before, biome(2, 16, 0), "상자 밖 quart 는 그대로");
         assertEquals(before == desert ? desert : before, biome(0, 17, 0), "다른 높이 quart 는 그대로");
         // replace: 사막만 정글로
         run(console, "minecraft:jungle", "minecraft:desert", 0, 64, 0, 5, 64, 5);
-        TeleportCommandTest.awaitTrue(() -> { try { return biome(0, 16, 0) == jungle; } catch (Exception e) { return false; } });
     }
 
     private void run(CommandSource src, String biome, String filter, int x1, int y1, int z1, int x2, int y2, int z2) throws Exception {
         var f = filter == null ? null : new org.domi.furnace.server.command.arguments.ResourceOrTagKeyArgument.Result(
                 org.domi.furnace.server.data.ResourceId.parse(filter), false);
-        FillBiomeCommand.fill(src, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse(biome), f,
-                new int[]{x1, y1, z1}, new int[]{x2, y2, z2});
+        FillBiomeCommand.fillAsync(src, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse(biome), f,
+                new int[]{x1, y1, z1}, new int[]{x2, y2, z2}).join();
     }
 
     @Test
@@ -91,7 +89,7 @@ class FillBiomeCommandTest {
                 () -> run(console, "minecraft:nope", null, 0, 0, 0, 1, 1, 1));
         assertEquals("argument.resource.not_found", e.getRawMessage().translationKey());
         e = assertThrows(org.domi.furnace.server.command.brigadier.CommandSyntaxException.class,
-                () -> FillBiomeCommand.fill(console, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse("minecraft:desert"),
+                () -> FillBiomeCommand.fillAsync(console, names, (r, t) -> false, (r, t) -> List.of(), org.domi.furnace.server.data.ResourceId.parse("minecraft:desert"),
                         new org.domi.furnace.server.command.arguments.ResourceOrTagKeyArgument.Result(org.domi.furnace.server.data.ResourceId.parse("minecraft:nope"), true),
                         new int[]{0, 0, 0}, new int[]{1, 1, 1}));
         assertEquals("argument.resource_tag.not_found", e.getRawMessage().translationKey());

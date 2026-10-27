@@ -143,9 +143,9 @@ class TeleportCommandTest {
         Player a = player("Alice", 0, 64, 0, 0, 0, m1);
         Player b = player("Bob", 100.5, 70, -30.25, 135, 20, m2);
         var src = CommandSource.console(core);
-        assertEquals(1, TeleportCommand.toEntity(src, List.of(a), b));
+        assertEquals(1, TeleportCommand.toEntityAsync(src, List.of(a), b).join());
         assertArrayEquals(new double[] {100.5, 70, -30.25, 135, 20}, next(m1), 1e-9);
-        assertEquals(2, TeleportCommand.toEntity(src, List.of(a, b), b));
+        assertEquals(2, TeleportCommand.toEntityAsync(src, List.of(a, b), b).join());
         assertArrayEquals(new double[] {100.5, 70, -30.25, 135, 20}, next(m1), 1e-9);
         assertArrayEquals(new double[] {100.5, 70, -30.25, 135, 20}, next(m2), 1e-9);
     }

@@ -20,6 +20,8 @@ import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.entity.ChiseledBookShelfBlockEntity;
 import org.domi.furnace.server.block.entity.ContainerBlockEntity;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.EntityOps;
+import org.domi.furnace.server.command.PostMessages;
 import org.domi.furnace.server.command.arguments.BlockPosArgument;
 import org.domi.furnace.server.command.arguments.BlockPredicateArgument;
 import org.domi.furnace.server.command.arguments.DimensionArgument;
@@ -104,7 +106,8 @@ public final class CloneCommand {
         World srcWorld = srcFn.apply(c), dstWorld = dstFn.apply(c);
         int minX = Math.min(b[0], e[0]), minY = Math.min(b[1], e[1]), minZ = Math.min(b[2], e[2]);
         int maxX = Math.max(b[0], e[0]), maxY = Math.max(b[1], e[1]), maxZ = Math.max(b[2], e[2]);
-        srcWorld.runAt(minX, minZ, region -> {
+        PostMessages post = new PostMessages();
+        return post.finish(source, EntityOps.atRegion(srcWorld, minX, minZ, region -> {
             try {
                 RegionLevel level = region.level();
                 // 바닐라 getLoadedBlockPos 세 번(begin·end·destination) — 원본 차원은 begin·end, 대상 차원은 destination
@@ -113,12 +116,12 @@ public final class CloneCommand {
                 if (dstWorld != srcWorld) throw new Failed(BlockPosArgument.ERROR_NOT_LOADED.create());
                 checkLoaded(level, new Pos(t[0], t[1], t[2]));
                 int count = doClone(source, level, minX, minY, minZ, maxX, maxY, maxZ, t[0], t[1], t[2], filter, mode);
-                source.sendSuccess(() -> Text.translatable("commands.clone.success", count), true);
+                post.success(source, () -> Text.translatable("commands.clone.success", count), true);
+                return count;
             } catch (Failed f) {
-                source.sendFailure(f.cause.getRawMessage());
+                throw f.cause;
             }
-        });
-        return 1;
+        }));
     }
 
     /** 바닐라 clone(): 같은 레벨 안에서 [min,max] 를 (dx,dy,dz) 를 맨 앞 모서리로 하는 자리에 복사한다. 놓은 칸 수를 돌려준다. */

@@ -22,6 +22,7 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.PostMessages;
 import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.NbtText;
 import org.domi.furnace.server.command.SharedSuggestions;
@@ -395,6 +396,7 @@ public final class DataCommands {
     private static int manipulate(CommandContext<CommandSource> c, DataProvider target, DataManipulator m, SourceGetter source) throws CommandSyntaxException {
         NbtPath path = NbtPathArgument.getPath(c, "targetPath");
         CommandSource src = c.getSource();
+        PostMessages post = new PostMessages();
         CompletableFuture<Integer> f = source.get(c).thenCompose(values -> {
             try {
                 return target.with(c, a -> {
@@ -402,24 +404,25 @@ public final class DataCommands {
                     int n = m.modify(c, data, path, values);
                     if (n == 0) throw ERROR_MERGE_UNCHANGED.create();
                     a.setData(data);
-                    src.sendSuccess(a::getModifiedSuccess, true);
+                    post.success(src, a::getModifiedSuccess, true);
                     return n;
                 });
             } catch (CommandSyntaxException e) {
                 throw new CompletionException(e);
             }
         });
-        return finish(src, f);
+        return post.finish(src, f);
     }
 
     private static int removeData(CommandContext<CommandSource> c, DataProvider target, NbtPath path) throws CommandSyntaxException {
         CommandSource src = c.getSource();
-        return finish(src, target.with(c, a -> {
+        PostMessages post = new PostMessages();
+        return post.finish(src, target.with(c, a -> {
             NbtCompound data = a.getData();
             int n = path.remove(data);
             if (n == 0) throw ERROR_MERGE_UNCHANGED.create();
             a.setData(data);
-            src.sendSuccess(a::getModifiedSuccess, true);
+            post.success(src, a::getModifiedSuccess, true);
             return n;
         }));
     }
@@ -434,7 +437,8 @@ public final class DataCommands {
 
     private static int getData(CommandContext<CommandSource> c, DataProvider target, NbtPath path) throws CommandSyntaxException {
         CommandSource src = c.getSource();
-        return finish(src, target.with(c, a -> {
+        PostMessages post = new PostMessages();
+        return post.finish(src, target.with(c, a -> {
             Object t = getSingleTag(path, a);
             int n;
             if (t instanceof Number num) n = NbtTags.floor(num.doubleValue());
@@ -443,27 +447,29 @@ public final class DataCommands {
             else if (t instanceof NbtCompound tc) n = tc.tags().size();
             else if (t instanceof String s) n = s.length();
             else throw ERROR_GET_NON_EXISTENT.create(path.toString());
-            src.sendSuccess(() -> a.getPrintSuccess(t), false);
+            post.success(src, () -> a.getPrintSuccess(t), false);
             return n;
         }));
     }
 
     private static int getNumeric(CommandContext<CommandSource> c, DataProvider target, NbtPath path, double scale) throws CommandSyntaxException {
         CommandSource src = c.getSource();
-        return finish(src, target.with(c, a -> {
+        PostMessages post = new PostMessages();
+        return post.finish(src, target.with(c, a -> {
             Object t = getSingleTag(path, a);
             if (!(t instanceof Number num)) throw ERROR_GET_NOT_NUMBER.create(path.toString());
             int n = NbtTags.floor(num.doubleValue() * scale);
-            src.sendSuccess(() -> a.getPrintSuccess(path, scale, n), false);
+            post.success(src, () -> a.getPrintSuccess(path, scale, n), false);
             return n;
         }));
     }
 
     private static int getData(CommandContext<CommandSource> c, DataProvider target) throws CommandSyntaxException {
         CommandSource src = c.getSource();
-        return finish(src, target.with(c, a -> {
+        PostMessages post = new PostMessages();
+        return post.finish(src, target.with(c, a -> {
             NbtCompound data = a.getData();
-            src.sendSuccess(() -> a.getPrintSuccess(data), false);
+            post.success(src, () -> a.getPrintSuccess(data), false);
             return 1;
         }));
     }
@@ -471,13 +477,14 @@ public final class DataCommands {
     private static int mergeData(CommandContext<CommandSource> c, DataProvider target, NbtCompound nbt) throws CommandSyntaxException {
         CommandSource src = c.getSource();
         Object patch = NbtTags.thaw(nbt.copy());
-        return finish(src, target.with(c, a -> {
+        PostMessages post = new PostMessages();
+        return post.finish(src, target.with(c, a -> {
             NbtCompound data = a.getData();
             if (NbtPath.isTooDeep(patch, 0)) throw NbtPathArgument.ERROR_DATA_TOO_DEEP.create();
             NbtCompound merged = NbtTags.merge(data.copy(), (NbtCompound) patch);
             if (NbtTags.equal(data, merged)) throw ERROR_MERGE_UNCHANGED.create();
             a.setData(merged);
-            src.sendSuccess(a::getModifiedSuccess, true);
+            post.success(src, a::getModifiedSuccess, true);
             return 1;
         }));
     }
