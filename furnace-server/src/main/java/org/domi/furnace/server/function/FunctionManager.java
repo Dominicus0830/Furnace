@@ -70,6 +70,13 @@ public final class FunctionManager {
     private void execute(CommandFunction function, CommandSource source, boolean tick) {
         checkThread();
         ResourceId id = function.id();
+        CommandFunction.PlainTextFunction instantiated;
+        try {
+            // 바닐라 alg.a: 인자 없이 인스턴스화 — 매크로 함수는 missing_arguments 로 조용히 실행만 실패한다(태그는 그대로)
+            instantiated = function.instantiate(null, server.commands().getDispatcher());
+        } catch (FunctionInstantiationException e) {
+            return;
+        }
         if (tick) {
             if (waitingTick.contains(id)) {
                 if (warnedSkip.add(id)) log.warn("tick 함수 {} 가 앞 실행을 기다리는 중이라 이번 틱 실행을 건너뜀(region 왕복이 긴 함수)", id);
@@ -79,7 +86,7 @@ public final class FunctionManager {
         }
         server.commands().queue().enqueue(source, "function " + id, ctx -> {
             if (tick) waitingTick.remove(id);
-            CallFunction.queueInitial(ctx, function, source, ResultCallback.EMPTY);
+            CallFunction.queueInitial(ctx, instantiated, source, ResultCallback.EMPTY);
         });
     }
 

@@ -1,6 +1,6 @@
 // 바닐라 FunctionCommand(amy) · ReturnCommand(anx) · ExecuteCommand 의 if|unless function(amt.d, amt.a).
 // 셋 다 큐를 직접 다루는 사용자 정의 실행기다(CustomCommandExecutor / CustomModifierExecutor) — 결과는 프레임 콜백으로 흐른다.
-// 매크로 인자(function <name> <arguments> / with …)는 S7 — 트리에 아직 없다(VanillaCommandTreeTest.NOT_YET).
+// 매크로 인자: function <name> <arguments> 와 function <name> with (block|entity|storage) <source> [<path>](S7).
 package org.domi.furnace.server.command.builtin;
 
 import static org.domi.furnace.server.command.Commands.argument;
@@ -9,9 +9,20 @@ import static org.domi.furnace.server.command.Commands.literal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.IntPredicate;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.ComponentUtils;
+import org.domi.furnace.server.command.EntityOps;
+import org.domi.furnace.server.command.arguments.CompoundTagArgument;
+import org.domi.furnace.server.command.arguments.NbtPathArgument;
+import org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType;
+import org.domi.furnace.server.function.FunctionInstantiationException;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.SharedSuggestions;
 import org.domi.furnace.server.command.arguments.FunctionArgument;
@@ -55,9 +66,60 @@ public final class FunctionCommands {
 
     // ---------------------------------------------------------------- /function
 
+    static final DynamicCommandExceptionType ERROR_ARGUMENT_NOT_COMPOUND =
+            new DynamicCommandExceptionType(t -> Text.translatable("commands.function.error.argument_not_compound", t));
+    static final Dynamic2CommandExceptionType ERROR_FUNCTION_INSTANTATION_FAILURE =
+            new Dynamic2CommandExceptionType((id, msg) -> Text.translatable("commands.function.instantiationFailure", id, msg));
+    static final Dynamic2CommandExceptionType ERROR_EXECUTE_INSTANTATION_FAILURE =
+            new Dynamic2CommandExceptionType((id, msg) -> Text.translatable("commands.execute.function.instantiationFailure", id, msg));
+
+    /** 함수 인자 compound(없으면 null). entity·block 은 region 왕복이라 future — 실패는 CommandSyntaxException 으로 완료된다. */
+    @FunctionalInterface
+    interface ArgumentsGetter {
+        CompletableFuture<NbtCompound> get(CommandContext<CommandSource> ctx) throws CommandSyntaxException;
+    }
+
     public static void registerFunction(CommandDispatcher<CommandSource> d) {
+        var with = literal("with");
+        for (DataCommands.DataProvider provider : DataCommands.SOURCE_PROVIDERS) {
+            provider.wrap(with, b -> b.executes(new FunctionExecutor(c -> provider.with(c, DataCommands.DataAccessor::getData)))
+                    .then(argument("path", NbtPathArgument.nbtPath()).executes(new FunctionExecutor(c -> {
+                        NbtPathArgument.NbtPath path = NbtPathArgument.getPath(c, "path");
+                        return provider.with(c, a -> getArgumentTag(path, a));
+                    }))));
+        }
         d.register(literal("function").requires(s -> s.hasPermission(2))
-                .then(argument("name", FunctionArgument.functions()).suggests(SUGGEST_FUNCTION).executes(new FunctionExecutor())));
+                .then(argument("name", FunctionArgument.functions()).suggests(SUGGEST_FUNCTION)
+                        .executes(new FunctionExecutor(c -> CompletableFuture.completedFuture(null)))
+                        .then(argument("arguments", CompoundTagArgument.compoundTag())
+                                .executes(new FunctionExecutor(c -> CompletableFuture.completedFuture(CompoundTagArgument.getCompoundTag(c, "arguments")))))
+                        .then(with)));
+    }
+
+    /** 바닐라 amy.a(fl.g, apg): 경로의 값이 하나여야 하고(data get 과 같은 오류) compound 여야 한다. */
+    static NbtCompound getArgumentTag(NbtPathArgument.NbtPath path, DataCommands.DataAccessor accessor) throws CommandSyntaxException {
+        Object tag = DataCommands.getSingleTag(path, accessor);
+        if (tag instanceof NbtCompound c) return c;
+        throw ERROR_ARGUMENT_NOT_COMPOUND.create(typeName(tag));
+    }
+
+    /** 바닐라 TagType.getName. */
+    private static String typeName(Object tag) {
+        return switch (NbtTags.typeOf(tag)) {
+            case 1 -> "BYTE";
+            case 2 -> "SHORT";
+            case 3 -> "INT";
+            case 4 -> "LONG";
+            case 5 -> "FLOAT";
+            case 6 -> "DOUBLE";
+            case 7 -> "BYTE[]";
+            case 8 -> "STRING";
+            case 9 -> "LIST";
+            case 10 -> "COMPOUND";
+            case 11 -> "INT[]";
+            case 12 -> "LONG[]";
+            default -> "END";
+        };
     }
 
     /** 바닐라 amy.a(et): 호출 소스는 출력 숨김 + 권한을 2 이상으로. */
@@ -65,6 +127,10 @@ public final class FunctionCommands {
 
     /** 바닐라 amy.c: 함수 목록을 풀고 "Running function …" 을 먼저 알린 뒤 호출을 큐에 넣는다. */
     static final class FunctionExecutor extends CustomCommandExecutor.WithErrorHandling implements CustomCommandExecutor.CommandAdapter {
+        private final ArgumentsGetter arguments;
+
+        FunctionExecutor(ArgumentsGetter arguments) { this.arguments = arguments; }
+
         @Override
         protected void runGuarded(CommandSource source, ContextChain<CommandSource> chain, ChainModifiers modifiers, ExecutionControl control)
                 throws CommandSyntaxException {
@@ -72,6 +138,43 @@ public final class FunctionCommands {
             FunctionArgument.Resolved r = FunctionArgument.getFunctionCollection(ctx, "name");
             Collection<CommandFunction> functions = r.functions();
             if (functions.isEmpty()) throw ERROR_NO_FUNCTIONS.create(r.id().toString());
+            CompletableFuture<NbtCompound> args = arguments.get(ctx);
+            if (args.isDone()) {
+                NbtCompound a;
+                try {
+                    a = args.join();
+                } catch (CompletionException | CancellationException e) {
+                    Throwable t = EntityOps.unwrap(e);
+                    if (t instanceof CommandSyntaxException cse) throw cse;
+                    EntityOps.reportFailure(source, t);
+                    return;
+                }
+                schedule(source, functions, a, modifiers, control);
+                return;
+            }
+            // entity·block 인자: region 왕복을 기다렸다가 전역에서 이어 간다(오류는 hp.b 규칙: handleError → 소스 콜백 onFailure)
+            control.context().suspend(args, (a, ex) -> {
+                try {
+                    if (ex != null) {
+                        Throwable t = EntityOps.unwrap(ex);
+                        if (t instanceof CommandSyntaxException cse) throw cse;
+                        if (t instanceof TimeoutException) {
+                            if (!modifiers.isForked()) source.sendFailure(Text.translatable("command.failed"));
+                        } else {
+                            EntityOps.reportFailure(source, t);
+                        }
+                        return;
+                    }
+                    schedule(source, functions, a, modifiers, control);
+                } catch (CommandSyntaxException e) {
+                    onError(e, source, modifiers);
+                    source.callback().onFailure();
+                }
+            });
+        }
+
+        private void schedule(CommandSource source, Collection<CommandFunction> functions, NbtCompound arguments, ChainModifiers modifiers,
+                              ExecutionControl control) throws CommandSyntaxException {
             CommandSource callSource = modifySenderForExecution(source);
             if (functions.size() == 1) {
                 source.sendSuccess(() -> Text.translatable("commands.function.scheduled.single", Text.text(functions.iterator().next().id().toString())), true);
@@ -79,7 +182,7 @@ public final class FunctionCommands {
                 List<Text> names = functions.stream().map(f -> Text.text(f.id().toString())).toList();
                 source.sendSuccess(() -> Text.translatable("commands.function.scheduled.multiple", formatList(names)), true);
             }
-            queueFunctions(functions, source, callSource, control, modifiers);
+            queueFunctions(functions, arguments, source, callSource, control, modifiers);
         }
     }
 
@@ -93,10 +196,22 @@ public final class FunctionCommands {
     }
 
     /** 바닐라 amy.a(Collection, ub, T, T, ht, b, hn): isReturn 이면 프레임으로 되돌리는 호출, 아니면 합산 호출. */
-    public static void queueFunctions(Collection<CommandFunction> functions, CommandSource originalSource, CommandSource functionSource,
-                                      ExecutionControl control, ChainModifiers modifiers) {
-        if (modifiers.isReturn()) queueFunctionsAsReturn(functions, originalSource, functionSource, control);
-        else queueFunctionsNoReturn(functions, originalSource, functionSource, control);
+    public static void queueFunctions(Collection<CommandFunction> functions, NbtCompound arguments, CommandSource originalSource,
+                                      CommandSource functionSource, ExecutionControl control, ChainModifiers modifiers) throws CommandSyntaxException {
+        if (modifiers.isReturn()) queueFunctionsAsReturn(functions, arguments, originalSource, functionSource, control);
+        else queueFunctionsNoReturn(functions, arguments, originalSource, functionSource, control);
+    }
+
+    /** 바닐라 amy.a(ub, ht, dispatcher, T, ig, akr, eq, boolean): 인스턴스화(실패는 instantiationFailure) 뒤 호출을 큐에 넣는다. */
+    private static void instantiateAndQueue(NbtCompound arguments, ExecutionControl control, CommandSource source, CommandFunction function,
+                                            ResultCallback callback, boolean returnParentFrame) throws CommandSyntaxException {
+        CommandFunction instantiated;
+        try {
+            instantiated = function.instantiate(arguments, source.getServer().commands().getDispatcher());
+        } catch (FunctionInstantiationException e) {
+            throw ERROR_FUNCTION_INSTANTATION_FAILURE.create(Text.text(function.id().toString()), e.messageComponent());
+        }
+        control.queueNext(new CallFunction(instantiated, callback, returnParentFrame).bind(source));
     }
 
     /** 바닐라 amy.a(T, b, akr, eq): 원 소스가 조용하지 않으면 함수마다 "Function … returned …" 을 원 소스에 알린 뒤 콜백. */
@@ -108,28 +223,28 @@ public final class FunctionCommands {
         };
     }
 
-    private static void queueFunctionsAsReturn(Collection<CommandFunction> functions, CommandSource originalSource, CommandSource functionSource,
-                                               ExecutionControl control) {
+    private static void queueFunctionsAsReturn(Collection<CommandFunction> functions, NbtCompound arguments, CommandSource originalSource,
+                                               CommandSource functionSource, ExecutionControl control) throws CommandSyntaxException {
         CommandSource src = functionSource.clearCallbacks();
         ResultCallback functionCommandOutputCallback = ResultCallback.chain(originalSource.callback(), control.currentFrame().returnValueConsumer());
         for (CommandFunction f : functions) {
             ResultCallback cb = decorateOutputIfNeeded(originalSource, f.id(), functionCommandOutputCallback);
-            control.queueNext(new CallFunction(f, cb, true).bind(src));
+            instantiateAndQueue(arguments, control, src, f, cb, true);
         }
         control.queueNext(FallthroughTask.INSTANCE);
     }
 
-    private static void queueFunctionsNoReturn(Collection<CommandFunction> functions, CommandSource originalSource, CommandSource functionSource,
-                                               ExecutionControl control) {
+    private static void queueFunctionsNoReturn(Collection<CommandFunction> functions, NbtCompound arguments, CommandSource originalSource,
+                                               CommandSource functionSource, ExecutionControl control) throws CommandSyntaxException {
         CommandSource src = functionSource.clearCallbacks();
         ResultCallback functionCommandOutputCallback = originalSource.callback();
         if (functions.isEmpty()) return;
         if (functions.size() == 1) {
             CommandFunction f = functions.iterator().next();
-            control.queueNext(new CallFunction(f, decorateOutputIfNeeded(originalSource, f.id(), functionCommandOutputCallback), false).bind(src));
+            instantiateAndQueue(arguments, control, src, f, decorateOutputIfNeeded(originalSource, f.id(), functionCommandOutputCallback), false);
         } else if (functionCommandOutputCallback == ResultCallback.EMPTY) {
             for (CommandFunction f : functions) {
-                control.queueNext(new CallFunction(f, decorateOutputIfNeeded(originalSource, f.id(), functionCommandOutputCallback), false).bind(src));
+                instantiateAndQueue(arguments, control, src, f, decorateOutputIfNeeded(originalSource, f.id(), functionCommandOutputCallback), false);
             }
         } else {
             // 바닐라 Accumulator: success 를 무시하고 결과를 더한다. 하나라도 결과가 왔으면 마지막에 onSuccess(합)
@@ -144,7 +259,7 @@ public final class FunctionCommands {
                 return ResultCallback.DONE;
             };
             for (CommandFunction f : functions) {
-                control.queueNext(new CallFunction(f, decorateOutputIfNeeded(originalSource, f.id(), partial), false).bind(src));
+                instantiateAndQueue(arguments, control, src, f, decorateOutputIfNeeded(originalSource, f.id(), partial), false);
             }
             control.queueNext((context, frame) -> {
                 if (acc.anyResult) CallbackAwait.then(context, functionCommandOutputCallback.onSuccess(acc.sum), () -> {});
@@ -230,7 +345,19 @@ public final class FunctionCommands {
                 return;
             }
             if (functions.isEmpty()) return;   // 바닐라: 아무것도 큐에 넣지 않는다(다음 단계도 없다)
-            List<CommandFunction> instantiated = List.copyOf(functions);   // 매크로가 없어 인스턴스화 = 그대로(S7)
+            // 바닐라 amt.a: 인자 없이 인스턴스화. 실패하면 오류를 알리고 그때까지 된 것만으로 이어 간다(바닐라 그대로)
+            List<CommandFunction> instantiated = new ArrayList<>(functions.size());
+            try {
+                for (CommandFunction f : functions) {
+                    try {
+                        instantiated.add(f.instantiate(null, originalSource.getServer().commands().getDispatcher()));
+                    } catch (FunctionInstantiationException e) {
+                        throw ERROR_EXECUTE_INSTANTATION_FAILURE.create(Text.text(f.id().toString()), e.messageComponent());
+                    }
+                }
+            } catch (CommandSyntaxException e) {
+                originalSource.handleError(e, modifiers.isForked());
+            }
             for (CommandSource source : currentSources) {
                 CommandSource newSource = modifySenderForExecution(source.clearCallbacks());
                 ResultCallback filter = ResultCallback.sync((success, result) -> {

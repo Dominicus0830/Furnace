@@ -265,12 +265,14 @@ class FunctionTest {
     }
 
     @Test
-    void macroFunctionsAreExcludedAndDropTagsThatRequireThem() {
-        // 의도한 한계(S7 전까지): 매크로 함수와, 그것을 부르는 함수(function … {…} 은 아직 트리에 없다), 그것을 필수 참조하는 태그가 빠진다
+    void macroFunctionsLoadAndTagsThatRequireThemStay() {
+        // S7: 매크로 함수·그것을 부르는 함수·그것을 필수 참조하는 태그가 모두 실린다(S5 의 연쇄 탈락이 사라진다)
         var lib = core.functions().library();
-        assertTrue(lib.function(ResourceId.parse("t:macro")).isEmpty());
-        assertTrue(lib.function(ResourceId.parse("t:callsmacro")).isEmpty());
-        assertTrue(lib.tag(ResourceId.parse("t:withmacro")).isEmpty());
+        assertTrue(lib.function(ResourceId.parse("t:macro")).isPresent());
+        assertTrue(lib.function(ResourceId.parse("t:callsmacro")).isPresent());
+        assertEquals(List.of("t:macro", "t:ret1"), lib.tag(ResourceId.parse("t:withmacro")).stream().map(f -> f.id().toString()).toList());
+        run("function t:callsmacro");
+        assertEquals(1, score("#m"));
     }
 
     @Test

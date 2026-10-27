@@ -1,8 +1,7 @@
 // 바닐라 CommandFunction(ig) + PlainTextFunction(ik) — .mcfunction 한 개. 줄은 로드 시점에 파싱해 둔 UnboundEntryAction 목록이다.
-// 매크로 줄($)은 S7 에서 MacroFunction 으로 이식한다 — 지금은 그런 함수를 로드 실패로 빼 둔다(근사 실행을 하지 않는다).
+// 매크로 줄($)이 있으면 MacroFunction(ij) 이 되고, 호출 때 instantiate 로 인자를 치환해 PlainTextFunction 을 얻는다.
 package org.domi.furnace.server.function;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.domi.furnace.server.command.CommandSource;
@@ -15,6 +14,7 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.exec.BuildContexts;
 import org.domi.furnace.server.command.exec.UnboundEntryAction;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public interface CommandFunction {
 
@@ -23,10 +23,16 @@ public interface CommandFunction {
 
     ResourceId id();
 
-    /** 실행할 줄들(바닐라 InstantiatedFunction.entries). 매크로가 없으므로 인스턴스화가 곧 자기 자신이다. */
+    /** 실행할 줄들(바닐라 InstantiatedFunction.entries). instantiate 결과에서만 부른다(매크로 함수는 IllegalStateException). */
     List<UnboundEntryAction> entries();
 
-    record PlainTextFunction(ResourceId id, List<UnboundEntryAction> entries) implements CommandFunction {}
+    /** 바닐라 ig.a(ub, dispatcher): 인자(없으면 null)로 실행 가능한 함수를 만든다. 평범한 함수는 자기 자신. */
+    PlainTextFunction instantiate(NbtCompound arguments, CommandDispatcher<CommandSource> dispatcher) throws FunctionInstantiationException;
+
+    record PlainTextFunction(ResourceId id, List<UnboundEntryAction> entries) implements CommandFunction {
+        @Override
+        public PlainTextFunction instantiate(NbtCompound arguments, CommandDispatcher<CommandSource> dispatcher) { return this; }
+    }
 
     private static boolean shouldConcatenateNextLine(CharSequence line) {
         int n = line.length();
@@ -35,7 +41,7 @@ public interface CommandFunction {
 
     /** 바닐라 ig.a(akr, CommandDispatcher, T, List): 줄 이어 붙이기·주석·'/' 오류·파싱. 실패는 IllegalArgumentException/IllegalStateException. */
     static CommandFunction fromLines(ResourceId id, CommandDispatcher<CommandSource> dispatcher, CommandSource compilationContext, List<String> lines) {
-        List<UnboundEntryAction> entries = new ArrayList<>();
+        MacroFunction.Builder builder = new MacroFunction.Builder();
         for (int i = 0; i < lines.size(); i++) {
             int lineNumber = i + 1;
             String inputLine = lines.get(i).trim();
@@ -66,16 +72,16 @@ public interface CommandFunction {
                         + "'? Do not use a preceding forwards slash.)");
             }
             if (reader.peek() == '$') {
-                // 가정: 매크로는 S7. 바닐라는 MacroFunction 으로 로드하지만 지금은 그 함수를 빼 둔다
-                throw new IllegalArgumentException("Macro line on line " + lineNumber + " is not supported yet (매크로는 S7)");
+                builder.addMacro(line.substring(1), lineNumber, compilationContext);
+                continue;
             }
             try {
-                entries.add(parseCommand(dispatcher, compilationContext, reader));
+                builder.addCommand(parseCommand(dispatcher, compilationContext, reader));
             } catch (CommandSyntaxException e) {
                 throw new IllegalArgumentException("Whilst parsing command on line " + lineNumber + ": " + e.getMessage());
             }
         }
-        return new PlainTextFunction(id, List.copyOf(entries));
+        return builder.build(id);
     }
 
     static void checkCommandLineLength(CharSequence s) {
