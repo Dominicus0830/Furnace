@@ -26,7 +26,46 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
     /** 체스트 block_entity_type id(§0.2 BlockEntityType 등록순서: FURNACE=0, CHEST=1). */
     public static final int CHEST_TYPE_ID = 1;
 
-    public record Section(short nonAirCount, int[] blocks, int[] biomes) {}
+    /**
+     * 섹션 사본. C-5: region 스레드에서는 팔레트 원본(PaletteStorage 읽기 사본, 4비트면 약 2KB)만 복사하고
+     * int[4096] 풀기는 처음 {@link #blocks()} 를 부르는 스레드(본문 직렬화 풀)로 미룬다. 푼 값은 예전 즉시 풀기와 같은 배열이다.
+     */
+    public static final class Section {
+        private final short nonAirCount;
+        private final PaletteStorage blockSrc, biomeSrc;
+        private volatile int[] blocks, biomes;
+
+        public Section(short nonAirCount, int[] blocks, int[] biomes) {
+            this.nonAirCount = nonAirCount;
+            this.blockSrc = null;
+            this.biomeSrc = null;
+            this.blocks = blocks;
+            this.biomes = biomes;
+        }
+
+        private Section(ChunkSection s) {
+            this.nonAirCount = s.nonAirCount();
+            this.blockSrc = s.blocksReadCopy();
+            this.biomeSrc = s.biomesReadCopy();
+            if (blockSrc == null) this.blocks = s.blocks();   // scratch 가 열려 있으면 예전처럼 즉시 복사
+        }
+
+        public short nonAirCount() { return nonAirCount; }
+
+        /** 블록 상태 id 4096개(YZX). 같은 배열을 돌려준다 — 고치지 않는다. */
+        public int[] blocks() {
+            int[] b = blocks;
+            if (b == null) blocks = b = blockSrc.unpack();   // 경합 시 같은 값으로 두 번 풀 수 있을 뿐(무해)
+            return b;
+        }
+
+        /** 바이옴 id 64개. 같은 배열을 돌려준다 — 고치지 않는다. */
+        public int[] biomes() {
+            int[] b = biomes;
+            if (b == null) biomes = b = biomeSrc.unpack();
+            return b;
+        }
+    }
 
     /** 청크 패킷 block_entities 배열 항목 — localX/localZ는 청크 내부 0..15, y는 절대 월드 y. */
     public record BlockEntitySnapshot(int localX, int y, int localZ, int typeId, NbtCompound tag) {}
@@ -36,7 +75,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         ChunkSection[] src = col.sections();
         Section[] out = new Section[src.length];
         for (int i = 0; i < src.length; i++) {
-            out[i] = new Section(src[i].nonAirCount(), src[i].blocks(), src[i].biomes());
+            out[i] = new Section(src[i]);
         }
         List<BlockEntitySnapshot> beOut = new ArrayList<>();
         for (var be : col.blockEntities().values()) {
@@ -107,14 +146,33 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
         return tag;
     }
 
+    /** 모두 0·모두 15 인 빛 층의 공유 사본(C-5). 스냅샷 빛 배열은 읽기 전용이라 여러 스냅샷이 같이 가리켜도 된다 — 고치지 않는다. */
+    private static final byte[] ZERO_LAYER = new byte[2048], FULL_LAYER = new byte[2048];
+    static {
+        java.util.Arrays.fill(FULL_LAYER, (byte) 0xFF);
+    }
+
     private static Light copyLight(ChunkColumn col) {
         var l = col.light();
         if (l == null) return null;
         byte[][] sky = new byte[l.sky.length][], block = new byte[l.block.length][];
         for (int i = 0; i < sky.length; i++) {
-            sky[i] = l.sky[i].clone();
-            block[i] = l.block[i].clone();
+            sky[i] = copyLayer(l.sky[i]);
+            block[i] = copyLayer(l.block[i]);
         }
         return new Light(sky, block);
+    }
+
+    /** 균일한 층(0 또는 0xFF)이면 공유 사본, 아니면 복제. 내용은 언제나 원본과 같다. */
+    static byte[] copyLayer(byte[] a) {
+        if (a.length == 2048) {
+            byte first = a[0];
+            if (first == 0 || first == (byte) 0xFF) {
+                int i = 1;
+                while (i < 2048 && a[i] == first) i++;
+                if (i == 2048) return first == 0 ? ZERO_LAYER : FULL_LAYER;
+            }
+        }
+        return a.clone();
     }
 }

@@ -132,6 +132,16 @@ public final class ChunkSection {
         return biomes.unpack();
     }
 
+    /** 스냅샷용 블록 사본: 팔레트 원본 그대로(풀지 않음). scratch 가 열려 있으면 null — 그때는 {@link #blocks()} 를 쓴다. */
+    PaletteStorage blocksReadCopy() {
+        return scratch != null ? null : blocks.readCopy();
+    }
+
+    /** 스냅샷용 바이옴 사본(팔레트 원본 그대로). */
+    PaletteStorage biomesReadCopy() {
+        return biomes.readCopy();
+    }
+
     int[] openScratch() {
         tickingCount = -1;   // 바깥에서 scratch 를 직접 고친다
         if (scratch == null) scratch = blocks.unpack();
