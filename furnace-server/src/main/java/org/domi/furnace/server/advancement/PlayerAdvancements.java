@@ -181,6 +181,11 @@ public final class PlayerAdvancements {
         progress.put(a.id(), p);
     }
 
+    /** 선택자 advancements= 용: 이 객체의 잠금 안에서 진행을 판정한다(다른 스레드의 award·revoke 와 겹치지 않게). */
+    public synchronized boolean testProgress(Advancement a, java.util.function.Predicate<AdvancementProgress> test) {
+        return test.test(getOrStartProgress(a));
+    }
+
     public synchronized boolean award(Advancement a, String criterion) {
         boolean changed = false;
         AdvancementProgress p = getOrStartProgress(a);

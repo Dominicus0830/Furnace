@@ -43,10 +43,13 @@ public final class EntitySelectorParser {
     private String playerName;
     private UUID entityUUID;
     private boolean usesSelectors;
-    private boolean limited, sorted, typeLimited, nameSet, gamemodeSet, levelSet;
+    private boolean limited, sorted, typeLimited, nameSet, gamemodeSet, levelSet, advancementsSet;
     private final List<Predicate<Rider>> predicates = new ArrayList<>();
     /** 점수판이 필요한 조건(team=·scores=) — 해석할 때 서버 점수판을 받는다. */
     private final List<java.util.function.BiPredicate<org.domi.furnace.server.scores.Scoreboard, Rider>> boardPredicates = new ArrayList<>();
+
+    /** 서버 상태가 필요한 조건(advancements=·predicate=) — 해석할 때 서버를 받는다. */
+    private final List<java.util.function.BiPredicate<org.domi.furnace.server.ServerCore, Rider>> serverPredicates = new ArrayList<>();
 
     public EntitySelectorParser(StringReader reader, boolean allowSelectors) {
         this.reader = reader;
@@ -61,7 +64,7 @@ public final class EntitySelectorParser {
         } else {
             parseNameOrUUID();
         }
-        return new EntitySelector(maxResults, includesEntities, worldLimited, List.copyOf(predicates), List.copyOf(boardPredicates), distance, x, y, z,
+        return new EntitySelector(maxResults, includesEntities, worldLimited, List.copyOf(predicates), List.copyOf(boardPredicates), List.copyOf(serverPredicates), distance, x, y, z,
                 deltaX, deltaY, deltaZ, order, currentEntity, playerName, entityUUID, usesSelectors);
     }
 
@@ -178,7 +181,8 @@ public final class EntitySelectorParser {
                 }
                 levelSet = true;
                 includesEntities = false;
-                predicates.add(p -> b.matches(0)); // 경험치 레벨은 2-7 에서 연결
+                // 바닐라: 플레이어만, 경험 레벨이 범위 안인가
+                predicates.add(p -> p instanceof Player pl && b.matches(pl.vitals().xpLevel()));
             }
             case "x" -> { x = reader.readDouble(); worldLimited = true; }
             case "y" -> { y = reader.readDouble(); worldLimited = true; }
@@ -309,10 +313,96 @@ public final class EntitySelectorParser {
                     });
                 }
             }
-            case "nbt", "advancements", "predicate" -> {
-                boolean invert = name.equals("nbt") || name.equals("predicate") ? shouldInvertValue() : false;
-                skipValue();
-                predicates.add(p -> invert);
+            case "nbt" -> {
+                boolean invert = shouldInvertValue();
+                org.domi.furnace.server.net.io.nbt.NbtCompound pattern = new TagParser(reader).readStruct();
+                // 바닐라: 저장 꼴 NBT(플레이어는 SelectedItem 포함)와 부분 일치. 엔티티는 소유 region 스레드에서 판정된다.
+                predicates.add(p -> {
+                    org.domi.furnace.server.net.io.nbt.NbtCompound tag;
+                    if (p instanceof Player pl) {
+                        synchronized (pl.menuLock()) { tag = org.domi.furnace.server.entity.PlayerData.snapshotNbt(pl); }
+                    } else {
+                        tag = ((org.domi.furnace.server.entity.Entity) p).saveWithoutId(new org.domi.furnace.server.net.io.nbt.NbtCompound());
+                    }
+                    return org.domi.furnace.server.net.io.nbt.NbtTags.compareNbt(pattern, tag, true) != invert;
+                });
+            }
+            case "advancements" -> {
+                if (advancementsSet) inapplicable(name, optionStart);
+                java.util.Map<org.domi.furnace.server.data.ResourceId, Predicate<org.domi.furnace.server.advancement.AdvancementProgress>> map = new java.util.HashMap<>();
+                reader.expect('{');
+                reader.skipWhitespace();
+                while (reader.canRead() && reader.peek() != '}') {
+                    reader.skipWhitespace();
+                    var id = ResourceLocationArgument.id().parse(reader);
+                    reader.skipWhitespace();
+                    reader.expect('=');
+                    reader.skipWhitespace();
+                    if (reader.canRead() && reader.peek() == '{') {
+                        java.util.Map<String, Boolean> crit = new java.util.HashMap<>();
+                        reader.skipWhitespace();
+                        reader.expect('{');
+                        reader.skipWhitespace();
+                        while (reader.canRead() && reader.peek() != '}') {
+                            reader.skipWhitespace();
+                            String c = reader.readUnquotedString();
+                            reader.skipWhitespace();
+                            reader.expect('=');
+                            reader.skipWhitespace();
+                            crit.put(c, reader.readBoolean());
+                            reader.skipWhitespace();
+                            if (reader.canRead() && reader.peek() == ',') reader.skip();
+                        }
+                        reader.skipWhitespace();
+                        reader.expect('}');
+                        reader.skipWhitespace();
+                        // 진행에 없는 기준이면 거짓
+                        map.put(id, prog -> {
+                            for (var e : crit.entrySet()) {
+                                Boolean done = prog.criterionState(e.getKey());
+                                if (done == null || done.booleanValue() != e.getValue()) return false;
+                            }
+                            return true;
+                        });
+                    } else {
+                        boolean want = reader.readBoolean();
+                        map.put(id, prog -> prog.isDone() == want);
+                    }
+                    reader.skipWhitespace();
+                    if (reader.canRead() && reader.peek() == ',') reader.skip();
+                }
+                reader.expect('}');
+                if (!map.isEmpty()) {
+                    serverPredicates.add((server, p) -> {
+                        if (!(p instanceof Player pl)) return false;
+                        var dp = server.dataPacks();
+                        var mgr = dp == null ? null : dp.advancements();
+                        for (var e : map.entrySet()) {
+                            var adv = mgr == null ? null : mgr.get(e.getKey());
+                            var pa = pl.advancements();
+                            // 진행 읽기는 PlayerAdvancements 잠금 안에서(award·revoke 와 겹치지 않게)
+                            if (adv == null || pa == null || !pa.testProgress(adv, e.getValue())) return false;
+                        }
+                        return true;
+                    });
+                    includesEntities = false;
+                }
+                advancementsSet = true;
+            }
+            case "predicate" -> {
+                boolean invert = shouldInvertValue();
+                String id = ResourceLocationArgument.id().parse(reader).toString();
+                // 바닐라 SELECTOR 문맥: this_entity = 대상, origin = 대상 위치. 없는 predicate 는 반전과 무관하게 거짓.
+                serverPredicates.add((server, p) -> {
+                    var dp = server.dataPacks();
+                    var cond = dp == null || dp.loot() == null ? null : dp.loot().predicate(id);
+                    var w = server.world(p.dimensionKey());
+                    if (cond == null || w == null) return false;
+                    var params = new org.domi.furnace.server.loot.LootParams()
+                            .with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p))
+                            .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{p.x(), p.y(), p.z()});
+                    return invert ^ server.commandCondition(w, cond, params);
+                });
             }
             default -> {
                 reader.setCursor(optionStart);
@@ -331,22 +421,17 @@ public final class EntitySelectorParser {
         return c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c == '_' || c == ':' || c == '/' || c == '.' || c == '-';
     }
 
-    /** {…}·[…]·따옴표를 짝 맞춰 건너뛴다(아직 해석하지 않는 옵션 값). */
-    private void skipValue() throws CommandSyntaxException {
-        int depth = 0;
-        while (reader.canRead()) {
-            char c = reader.peek();
-            if (c == '"' || c == '\'') {
-                reader.readQuotedString();
-                continue;
-            }
-            if (c == '{' || c == '[') depth++;
-            else if (c == '}' || c == ']') {
-                if (depth == 0) return;
-                depth--;
-            } else if (c == ',' && depth == 0) return;
-            reader.skip();
-        }
+    private static org.domi.furnace.server.loot.LootEntity lootEntity(Rider r) {
+        if (r instanceof Player p) return org.domi.furnace.server.ServerCore.playerLootEntity(p);
+        if (r instanceof org.domi.furnace.server.entity.LivingEntity l) return l.lootEntity();
+        // 비생명체: 소유 스레드에서 불린다 — 종류·불·땅·위치만(장비·종류별 값은 없다)
+        var e = (org.domi.furnace.server.entity.Entity) r;
+        return new org.domi.furnace.server.loot.LootEntity() {
+            public String type() { return e.typeName(); }
+            public boolean isOnFire() { return e.isOnFire(); }
+            public boolean onGround() { return e.onGround(); }
+            public double[] position() { return new double[]{e.x(), e.y(), e.z()}; }
+        };
     }
 
     private static double wrapDegrees(float v) {

@@ -309,3 +309,6 @@
 - 꽃 feature 찾기는 바닐라 PlacedFeature.getFeatures() 펼침(자기 먼저, 선택기·패치·식생 패치·뿌리 하위 순)에서 첫 flower 타입이다.
 - 블록 엔티티를 생성 NBT 로 바꿔 넣을 때(addBlockEntity) 옛 것은 setRemoved 한다(바닐라 LevelChunk.setBlockEntity). 전에는 옛 벌집이 틱 목록에 남았다.
 - 바닐라 실서버와의 블록 단위 대조는 아직 안 했다(oracle 불가 환경) — 나무 모양은 월드젠 fixture 로 검증된 TreeFeature 를 그대로 쓴다는 가정.
+## 2026-10-28 선택자 nbt·level·advancements·predicate
+- `predicate=` 는 기존 `ServerCore.commandCondition`·`LootEntity` 를 상속한다. 차이: `EntityPredicate` 에 nbt 조건이 없고, 비생명체는 종류·불·땅·위치만, 생명체도 장비·플래그 일부만 본다. 난수는 ThreadLocalRandom(바닐라 레벨 난수). 참조 재귀는 `LootContext.visited` 가 막는다.
+- 플레이어 대상 판정은 명령 스레드에서 한다(기존 선택자와 같다). 발전과제 진행은 `PlayerAdvancements.testProgress` 잠금 안에서, NBT 는 `menuLock` 안에서 읽는다. 위치 조건은 플레이어 region 밖에서 청크를 읽을 수 있다(위험).

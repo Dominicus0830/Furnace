@@ -68,6 +68,12 @@ public final class AdvancementProgress implements Comparable<AdvancementProgress
 
     CriterionProgress criterion(String n) { return criteria.get(n); }
 
+    /** 선택자 advancements= 용: 기준 달성 여부(진행에 없는 기준이면 null). */
+    public Boolean criterionState(String n) {
+        CriterionProgress c = criteria.get(n);
+        return c == null ? null : c.isDone();
+    }
+
     /** 바닐라 getRemainingCriteria — 진행 맵(HashMap) 순서. */
     public List<String> remainingCriteria() {
         List<String> l = new ArrayList<>();

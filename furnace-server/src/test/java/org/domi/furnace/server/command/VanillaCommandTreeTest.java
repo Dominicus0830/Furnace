@@ -222,8 +222,21 @@ class VanillaCommandTreeTest {
             TreeSet<String> names = new TreeSet<>();
             for (int c : guest.get(root[0]).children()) names.add(guest.get(c).name());
             assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "random", "teammsg", "tell", "tm", "trigger", "w")), names);
+            // 바닐라 권한 레벨 3 명령(KickCommand 등)은 레벨 2 트리에 없고 레벨 3 트리에 있다
+            for (String name : List.of("kick", "ban", "op", "deop", "whitelist")) {
+                assertFalse(names(core, 2).contains(name), "레벨 2 에 보이면 안 됨: " + name);
+                assertTrue(names(core, 3).contains(name), "레벨 3 에 보여야 함: " + name);
+            }
         } finally {
             sched.close();
         }
+    }
+
+    private static TreeSet<String> names(ServerCore core, int level) {
+        int[] root = new int[1];
+        List<Node> nodes = decode(core.commands().treeFor(CommandSource.forProfile(core, "L" + level, level)), root);
+        TreeSet<String> out = new TreeSet<>();
+        for (int c : nodes.get(root[0]).children()) out.add(nodes.get(c).name());
+        return out;
     }
 }

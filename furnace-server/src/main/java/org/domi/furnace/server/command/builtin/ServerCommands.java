@@ -51,7 +51,7 @@ public final class ServerCommands {
     }
 
     public static void registerKick(CommandDispatcher<CommandSource> d) {
-        d.register(literal("kick").requires(s -> s.hasPermission(2))
+        d.register(literal("kick").requires(s -> s.hasPermission(3))
                 .then(argument("targets", EntityArgument.players())
                         .executes(c -> kickPlayers(c.getSource(), EntityArgument.getPlayers(c, "targets"),
                                 Text.translatable("multiplayer.disconnect.kicked")))
@@ -63,8 +63,9 @@ public final class ServerCommands {
     private static int kickPlayers(CommandSource source, Collection<Player> players, Text reason) throws CommandSyntaxException {
         int i = 0;
         for (Player p : players) {
+            Text name = p.displayName();   // 바닐라 getDisplayName
             p.kick(new Disconnect(reason));
-            source.sendSuccess(() -> Text.translatable("commands.kick.success", Text.text(p.name()), reason), true);
+            source.sendSuccess(() -> Text.translatable("commands.kick.success", name, reason), true);
             i++;
         }
         if (i == 0) throw ERROR_KICKING_OWNER.create();
