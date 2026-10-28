@@ -39,6 +39,8 @@ public final class LocateCommand {
     private static final int BIOME_SAMPLE_RESOLUTION_HORIZONTAL = 32;
     private static final int BIOME_SAMPLE_RESOLUTION_VERTICAL = 64;
     private static final int POI_SEARCH_RADIUS = 256;
+    /** 벽시계 상한(바닐라에는 없다). 넘으면 취소하고 일반 명령 실패로 끝낸다. */
+    static final long BIOME_TIMEOUT_SECONDS = 120, POI_TIMEOUT_SECONDS = 30;
     static final String BIOME_REGISTRY = "minecraft:worldgen/biome";
     static final String POI_REGISTRY = "minecraft:point_of_interest_type";
 
@@ -136,12 +138,14 @@ public final class LocateCommand {
         var ws = world.worldSource();
         if (ws instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) ws = a.base();
         long t0 = System.nanoTime();
+        var timedOut = new java.util.concurrent.atomic.AtomicBoolean();
+        var cancel = canceller(source, timedOut);
         java.util.concurrent.CompletableFuture<String[]> found;
         if (ws instanceof NoiseWorldSource gen) {
             found = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
                 var f = org.domi.furnace.server.world.gen.BiomeLocator.findClosestBiome3d(ox, oy, oz, MAX_BIOME_SEARCH_RADIUS,
                     BIOME_SAMPLE_RESOLUTION_HORIZONTAL, BIOME_SAMPLE_RESOLUTION_VERTICAL, gen.possibleBiomeIds(),
-                    id -> pred.test(gen.biomeName(id)), gen::noiseBiomeIdAtQuart, minY, maxY);
+                    id -> pred.test(gen.biomeName(id)), gen::noiseBiomeIdAtQuart, minY, maxY, cancel);
                 return f == null ? null : new String[] {gen.biomeName(f.biomeId()), "" + f.x(), "" + f.y(), "" + f.z()};
             }, WORKER);
         } else if (ws instanceof org.domi.furnace.server.world.gen.SuperflatWorldSource flat) {
@@ -154,6 +158,7 @@ public final class LocateCommand {
         } else {
             throw ERROR_BIOME_NOT_FOUND.create(arg.printable());
         }
+        found = withTimeout(found, BIOME_TIMEOUT_SECONDS, timedOut);
         return org.domi.furnace.server.command.EntityOps.result(source, org.domi.furnace.server.command.EntityOps.awaitAsync(source, found, f -> {
             if (f == null) throw ERROR_BIOME_NOT_FOUND.create(arg.printable());
             return java.util.concurrent.CompletableFuture.completedFuture(showLocateResult(source, ox, oy, oz,
@@ -168,14 +173,30 @@ public final class LocateCommand {
         var pred = poiPredicate(arg, arg.tag() ? tagMembers(source, POI_REGISTRY, arg.id().toString()) : null);
         int ox = (int) Math.floor(source.x()), oy = (int) Math.floor(source.y()), oz = (int) Math.floor(source.z());
         long t0 = System.nanoTime();
-        var found = org.domi.furnace.server.world.poi.PoiLocator.findClosest(source.level(), pred,
-            new org.domi.furnace.server.block.Pos(ox, oy, oz), POI_SEARCH_RADIUS, WORKER);
+        var timedOut = new java.util.concurrent.atomic.AtomicBoolean();
+        var found = withTimeout(org.domi.furnace.server.world.poi.PoiLocator.findClosest(source.level(), pred,
+            new org.domi.furnace.server.block.Pos(ox, oy, oz), POI_SEARCH_RADIUS, WORKER, canceller(source, timedOut)),
+            POI_TIMEOUT_SECONDS, timedOut);
         return org.domi.furnace.server.command.EntityOps.result(source, org.domi.furnace.server.command.EntityOps.awaitAsync(source, found, f -> {
             if (f == null) throw ERROR_POI_NOT_FOUND.create(arg.printable());
             return java.util.concurrent.CompletableFuture.completedFuture(showLocateResult(source, ox, oy, oz,
                 f.pos().x(), f.pos().y(), f.pos().z(), false,
                 "commands.locate.poi.success", displayName(arg, f.type().name()), (System.nanoTime() - t0) / 1_000_000));
         }));
+    }
+
+    /** 취소: 상한을 넘었거나 실행한 플레이어가 나갔다. */
+    static java.util.function.BooleanSupplier canceller(CommandSource source, java.util.concurrent.atomic.AtomicBoolean timedOut) {
+        var e = source.entity();
+        return () -> timedOut.get() || (e instanceof org.domi.furnace.server.entity.Player p && p.isDisconnected());
+    }
+
+    /** 상한을 넘으면 탐색에 취소를 알리고 TimeoutException 으로 끝낸다(기존 명령 실패 경로). */
+    static <T> java.util.concurrent.CompletableFuture<T> withTimeout(java.util.concurrent.CompletableFuture<T> f, long seconds,
+                                                                     java.util.concurrent.atomic.AtomicBoolean timedOut) {
+        return f.orTimeout(seconds, java.util.concurrent.TimeUnit.SECONDS).whenComplete((v, t) -> {
+            if (org.domi.furnace.server.command.EntityOps.unwrap(t == null ? new RuntimeException() : t) instanceof java.util.concurrent.TimeoutException) timedOut.set(true);
+        });
     }
 
     static int showLocateResult(CommandSource source, int ox, int oz, int x, int z, String key, String name, long ms) {

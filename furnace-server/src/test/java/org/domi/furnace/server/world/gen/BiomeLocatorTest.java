@@ -49,5 +49,8 @@ class BiomeLocatorTest {
         assertEquals(new BiomeLocator.Found(416, 64, -384, 7), f);
         assertNull(BiomeLocator.findClosestBiome3d(0, 0, 0, 6400, 32, 64, Set.of(1), b -> b == 7, s, -64, 320));
         assertEquals(new BiomeLocator.Found(5, 6, 7, 3), BiomeLocator.fixed(5, 6, 7, 3, b -> b == 3));
+        // 취소는 못 찾음(null)과 구분된다
+        assertThrows(java.util.concurrent.CancellationException.class, () ->
+            BiomeLocator.findClosestBiome3d(0, 0, 0, 6400, 32, 64, Set.of(1, 7), b -> b == 7, s, -64, 320, () -> true));
     }
 }

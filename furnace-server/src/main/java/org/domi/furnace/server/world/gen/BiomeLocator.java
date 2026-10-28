@@ -31,6 +31,14 @@ public final class BiomeLocator {
     public static Found findClosestBiome3d(int ox, int oy, int oz, int radius, int horizontalStep, int verticalStep,
                                            Set<Integer> possibleBiomes, IntPredicate predicate, NoiseBiome sampler,
                                            int minBuildHeight, int maxBuildHeight) {
+        return findClosestBiome3d(ox, oy, oz, radius, horizontalStep, verticalStep, possibleBiomes, predicate, sampler,
+            minBuildHeight, maxBuildHeight, () -> false);
+    }
+
+    /** 취소 판정을 받는 판: 취소되면 CancellationException(못 찾음과 구분). */
+    public static Found findClosestBiome3d(int ox, int oy, int oz, int radius, int horizontalStep, int verticalStep,
+                                           Set<Integer> possibleBiomes, IntPredicate predicate, NoiseBiome sampler,
+                                           int minBuildHeight, int maxBuildHeight, java.util.function.BooleanSupplier cancelled) {
         java.util.Set<Integer> set = new java.util.HashSet<>();
         for (int b : possibleBiomes) if (predicate.test(b)) set.add(b);
         if (set.isEmpty()) return null;
@@ -38,6 +46,7 @@ public final class BiomeLocator {
         int[] ys = outFromOrigin(oy, minBuildHeight + 1, maxBuildHeight, verticalStep).toArray();
         Found[] out = {null};
         spiralAround(steps, (dx, dz) -> {
+            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("locate biome 취소");
             int x = ox + dx * horizontalStep, z = oz + dz * horizontalStep;
             int qx = x >> 2, qz = z >> 2;
             for (int y : ys) {

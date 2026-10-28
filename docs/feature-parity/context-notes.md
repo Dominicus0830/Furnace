@@ -286,4 +286,6 @@
 ## 2026-10-28 /locate biome·poi
 - biome: `BiomeSource.findClosestBiome3d`(반경 6400, 가로 32, 세로 64)를 `BiomeLocator` 로 옮겼다. 3d 판은 난수를 안 쓴다. 나선은 `BlockPos.spiralAround(동, 남)` 반복자 그대로(마지막 변 순서까지), 세로는 `Mth.outFromOrigin(y, minY+1, minY+height, 64)`. 바이옴은 청크 저장값이 아니라 climate sampler 값(바닐라와 같다 — `/fillbiome` 결과는 안 보인다). 거리는 3차원 `floor(sqrt((float) distSqr))`, 좌표 y 는 절대값. 고정 바이옴(superflat)은 맞으면 출발점.
 - poi: `PoiManager.findClosestWithType`(반경 256, ANY). 청크 사각마다 올라온 청크는 주인 region 스레드에서 복사, 주인이 없거나 안 올라온 청크는 poi/ 파일에서 읽는다(`PoiLocator`, locate 작업 스레드).
-- 차이(가정 포함): 바닐라는 서버 스레드에서 막고 돈다. 여기서는 작업 스레드라 그 사이 틱이 지나간다. 막 내려가 저장 대기 중인 청크의 POI 는 디스크에 아직 없을 수 있다. 같은 섹션 안 같은 거리 POI 의 우열은 바닐라도 HashMap 순서라 맞추지 않았다. 실서버 대조(같은 시드 좌표)는 아직 안 했다.
+- 디스크 읽기는 그 청크의 IO 레인(FIFO)에서 해서, 내릴 때 넣은 `savePoiAsync` 가 끝난 뒤 내용을 본다. 묶음 실행 사이 region 합병·분할로 주인이 바뀐 청크는 새 주인에게 다시 보낸다(최대 8회, 넘으면 디스크). 조회는 `submitAtOwnedChunk` 라 region 을 새로 만들지 않는다.
+- 바닐라에 없는 상한: biome 120초, poi 30초 벽시계. 넘거나 실행한 플레이어가 나가면 탐색을 멈추고 일반 명령 실패(`command.failed`)로 끝낸다 — not_found 를 내지 않는다.
+- 차이(가정 포함): 바닐라는 서버 스레드에서 막고 돈다. 여기서는 작업 스레드라 그 사이 틱이 지나간다. 같은 섹션 안 같은 거리 POI 의 우열은 바닐라도 HashMap 순서라 맞추지 않았다. 실서버 대조(같은 시드 좌표)는 아직 안 했다.
