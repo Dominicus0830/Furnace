@@ -3059,61 +3059,67 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             org.domi.furnace.server.block.entity.BeaconBlockEntity beacon) { }
 
     /**
-     * 용기를 클릭했을 때 화면 열기(ServerPlayer.openMenu(getMenuProvider)): region 스레드에서 블록 엔티티(와 더블 상자의 짝)를 찾고 열지 않은
-     * 전리품을 채운 뒤, 이벤트 루프에서 열려 있던 창을 닫고 → 번호를 올리고 → 메뉴를 만들어 open_screen → 첫 container_set_content 를 보낸다.
+     * 용기를 클릭했을 때 화면 열기(ServerPlayer.openMenu(getMenuProvider)): 그 블록의 region 스레드에서 블록 엔티티(와 더블 상자의 짝)를 찾고
+     * 열지 않은 전리품을 채운 뒤, 같은 region 작업 안에서 열려 있던 창을 닫고 → 번호를 올리고 → 메뉴를 만들어 open_screen → 첫 container_set_content.
+     * 메뉴 생성(제작기 결과 미리보기)과 첫 내용은 블록 엔티티를 읽으므로 이벤트 루프가 아니라 소유 region 에서 한다(틱 도중의 반쯤 바뀐 칸을 보내지 않게).
      */
     private void openContainer(int x, int y, int z) {
         Player p = player;
         if (p == null) return;
-        world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> resolveOpenSpec(region, p, new org.domi.furnace.server.block.Pos(x, y, z)))
-            .thenAccept(spec -> ctx.channel().eventLoop().execute(() -> {
-                if (spec == null) return;
-                synchronized (p.menuLock()) {
-                    if (p.hasOpenContainer()) closeContainer(p);
-                    int containerId = p.nextContainerCounter();
-                    int[] bp = {x, y, z};
-                    var inventory = p.inventoryMenu().inventoryContainer();
-                    org.domi.furnace.server.menu.AbstractContainerMenu menu;
-                    var f = spec.first();
-                    if (spec.beacon() != null) {
-                        menu = new org.domi.furnace.server.menu.BeaconMenu(containerId, inventory, spec.beacon(), bp, new org.domi.furnace.server.menu.BlockAccess() {
-                            @Override public boolean stillBlock() {
-                                var region = org.domi.furnace.server.world.MenuBlockContext.current();
-                                return region == null || "minecraft:beacon".equals(world.blockRegistry().nameOf(region.getBlock(bp[0], bp[1], bp[2])));
-                            }
+        world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> {
+            OpenSpec spec = resolveOpenSpec(region, p, new org.domi.furnace.server.block.Pos(x, y, z));
+            if (spec != null) org.domi.furnace.server.world.MenuBlockContext.runIn(region, () -> openResolved(p, spec, x, y, z));
+            return null;
+        });
+    }
 
-                            @Override public long gameTime() { return 0L; }
-
-                            @Override public void playSound(String sound) { }
-                        });
-                    } else if (spec.lectern() != null) {
-                        menu = new org.domi.furnace.server.menu.LecternMenu(containerId, new org.domi.furnace.server.world.LecternContainer(spec.lectern()), bp);
-                    } else if (spec.ender() != null) {   // 엔더 상자: 이 플레이어의 엔더 인벤토리(엔더 상자 블록이 여는 수·소리를 센다)
-                        var c = new org.domi.furnace.server.world.EnderChestContainer(p.enderChest(), spec.ender(), world::runAt);
-                        menu = org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);
-                    } else if (spec.second() != null) {
-                        var c = new org.domi.furnace.server.menu.CompoundContainer(new org.domi.furnace.server.world.BlockEntityContainer(f, world::runAt),
-                                new org.domi.furnace.server.world.BlockEntityContainer(spec.second(), world::runAt));
-                        menu = org.domi.furnace.server.menu.ChestMenu.sixRows(containerId, inventory, c, bp, menus);
-                    } else {
-                        var c = new org.domi.furnace.server.world.BlockEntityContainer(f, world::runAt);
-                        menu = switch (f.type()) {
-                            case "minecraft:shulker_box" -> new org.domi.furnace.server.menu.ShulkerBoxMenu(containerId, inventory, c, bp, menus);
-                            case "minecraft:hopper" -> new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, bp, menus);
-                            case "minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker" ->
-                                new org.domi.furnace.server.menu.FurnaceMenu(f.type(), containerId, inventory, c, bp, menus);
-                            case "minecraft:brewing_stand" -> new org.domi.furnace.server.menu.BrewingStandMenu(containerId, inventory, c, bp);
-                            case "minecraft:dispenser", "minecraft:dropper" -> new org.domi.furnace.server.menu.DispenserMenu(containerId, inventory, c, bp, menus);
-                            case "minecraft:crafter" -> new org.domi.furnace.server.menu.CrafterMenu(containerId, inventory, c, bp, menus);
-                            default -> org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);   // 상자·통
-                        };
+    /** openContainer 의 뒷부분 — 블록의 region 스레드, MenuBlockContext 안. 패킷은 menus.out(p.send) 으로 이 순서대로 나간다. */
+    private void openResolved(Player p, OpenSpec spec, int x, int y, int z) {
+        synchronized (p.menuLock()) {
+            if (p.hasOpenContainer()) closeContainer(p);
+            int containerId = p.nextContainerCounter();
+            int[] bp = {x, y, z};
+            var inventory = p.inventoryMenu().inventoryContainer();
+            org.domi.furnace.server.menu.AbstractContainerMenu menu;
+            var f = spec.first();
+            if (spec.beacon() != null) {
+                menu = new org.domi.furnace.server.menu.BeaconMenu(containerId, inventory, spec.beacon(), bp, new org.domi.furnace.server.menu.BlockAccess() {
+                    @Override public boolean stillBlock() {
+                        var region = org.domi.furnace.server.world.MenuBlockContext.current();
+                        return region == null || "minecraft:beacon".equals(world.blockRegistry().nameOf(region.getBlock(bp[0], bp[1], bp[2])));
                     }
-                    send(ctx, new OpenScreen(containerId, menuTypeId(menu), spec.title()));
-                    menu.addSlotListener(menus);
-                    p.setContainerMenu(menu);
-                    menu.setSynchronizer(menus);   // 첫 container_set_content
-                }
-            }));
+
+                    @Override public long gameTime() { return 0L; }
+
+                    @Override public void playSound(String sound) { }
+                });
+            } else if (spec.lectern() != null) {
+                menu = new org.domi.furnace.server.menu.LecternMenu(containerId, new org.domi.furnace.server.world.LecternContainer(spec.lectern()), bp);
+            } else if (spec.ender() != null) {   // 엔더 상자: 이 플레이어의 엔더 인벤토리(엔더 상자 블록이 여는 수·소리를 센다)
+                var c = new org.domi.furnace.server.world.EnderChestContainer(p.enderChest(), spec.ender(), world::runAt);
+                menu = org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);
+            } else if (spec.second() != null) {
+                var c = new org.domi.furnace.server.menu.CompoundContainer(new org.domi.furnace.server.world.BlockEntityContainer(f, world::runAt),
+                        new org.domi.furnace.server.world.BlockEntityContainer(spec.second(), world::runAt));
+                menu = org.domi.furnace.server.menu.ChestMenu.sixRows(containerId, inventory, c, bp, menus);
+            } else {
+                var c = new org.domi.furnace.server.world.BlockEntityContainer(f, world::runAt);
+                menu = switch (f.type()) {
+                    case "minecraft:shulker_box" -> new org.domi.furnace.server.menu.ShulkerBoxMenu(containerId, inventory, c, bp, menus);
+                    case "minecraft:hopper" -> new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, bp, menus);
+                    case "minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker" ->
+                        new org.domi.furnace.server.menu.FurnaceMenu(f.type(), containerId, inventory, c, bp, menus);
+                    case "minecraft:brewing_stand" -> new org.domi.furnace.server.menu.BrewingStandMenu(containerId, inventory, c, bp);
+                    case "minecraft:dispenser", "minecraft:dropper" -> new org.domi.furnace.server.menu.DispenserMenu(containerId, inventory, c, bp, menus);
+                    case "minecraft:crafter" -> new org.domi.furnace.server.menu.CrafterMenu(containerId, inventory, c, bp, menus);
+                    default -> org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);   // 상자·통
+                };
+            }
+            menus.out(new OpenScreen(containerId, menuTypeId(menu), spec.title()));
+            menu.addSlotListener(menus);
+            p.setContainerMenu(menu);
+            menu.setSynchronizer(menus);   // 첫 container_set_content
+        }
     }
 
     /** region 스레드: 그 칸 용기와 짝(더블 상자)을 찾고 전리품을 풀어 OpenSpec 을 만든다(막혔거나 용기가 없으면 null). */

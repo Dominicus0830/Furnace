@@ -401,6 +401,44 @@ class ConnectionInputTest {
         assertFalse(be.isSlotDisabled(2), "다시 풀기");
     }
 
+    /**
+     * 제작기 열기는 블록의 region 스레드에서 끝난다 — 메뉴 생성(결과 미리보기)·첫 내용이 블록 엔티티를 읽으므로 이벤트 루프로 넘기지 않는다.
+     * 이벤트 루프 작업을 돌리지 않아도 창이 열리고 첫 내용이 맞으며, 패킷은 open_screen → container_set_content 순서다.
+     */
+    @Test
+    void crafterOpen_buildsMenuOnOwnerRegion_notEventLoop() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        RegionPos rp = new RegionPos(0, 0);
+        org.domi.furnace.server.block.entity.ContainerBlockEntity[] be = new org.domi.furnace.server.block.entity.ContainerBlockEntity[1];
+        sched.region(rp).execute(() -> {
+            var r = world.regionAt(rp);
+            r.placeBlock(2, -60, 2, reg.defaultStateId("minecraft:crafter"));
+            be[0] = (org.domi.furnace.server.block.entity.ContainerBlockEntity) r.level().getBlockEntity(new org.domi.furnace.server.block.Pos(2, -60, 2));
+            be[0].items[4] = new ItemStack(1, 3, null);
+        }).get();
+        drainOutbound();
+        java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
+        m.setAccessible(true);
+        m.invoke(handler, 2, -60, 2);
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (!p.hasOpenContainer()) {   // 이벤트 루프(ch.runPendingTasks)는 돌리지 않는다
+            assertTrue(System.nanoTime() < deadline, "region 작업만으로 창이 열려야 한다");
+            Thread.sleep(10);
+        }
+        var menu = p.containerMenu();
+        assertEquals("minecraft:crafter_3x3", menu.menuType());
+        assertEquals(3, menu.getSlot(4).getItem().count());
+        List<int[]> out = drainOutbound();
+        int open = -1, content = -1;
+        for (int i = 0; i < out.size(); i++) {
+            if (out.get(i)[0] == 0x33 && open < 0) open = i;
+            if (out.get(i)[0] == 0x13 && content < 0) content = i;
+        }
+        assertTrue(open >= 0 && content > open, "open_screen 뒤에 container_set_content");
+    }
+
     /** 조건이 참이 될 때까지 채널 작업을 돌리며 기다린다. */
     private interface Cond { boolean test() throws Exception; }
 
@@ -476,8 +514,8 @@ class ConnectionInputTest {
             b.writeShort(0); writeStrictSlot(b, 5, 1, 0);
             writeStrictSlot(b, 0, 0, 0);
         }));
-        await("상자로 되돌림", () -> chest.items[0].count() == 5);
-        assertTrue(slotsOf()[9].isEmpty());
+        // region 스레드가 상자 칸을 먼저 쓰고 인벤토리 칸을 비운다 — 둘 다 끝날 때까지 기다린다
+        await("상자로 되돌림", () -> chest.items[0].count() == 5 && slotsOf()[9].isEmpty());
 
         // 닫기: 클라이언트가 보낸 container_close — 서버는 인벤토리 창으로 돌아가고 닫힘 패킷은 보내지 않는다
         ch.writeInbound(frame(0x0F, b -> Types.writeVarInt(b, 1)));
