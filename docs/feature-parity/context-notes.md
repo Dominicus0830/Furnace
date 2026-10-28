@@ -289,3 +289,11 @@
 - 디스크 읽기는 그 청크의 IO 레인(FIFO)에서 해서, 내릴 때 넣은 `savePoiAsync` 가 끝난 뒤 내용을 본다. 묶음 실행 사이 region 합병·분할로 주인이 바뀐 청크는 새 주인에게 다시 보낸다(최대 8회, 넘으면 디스크). 조회는 `submitAtOwnedChunk` 라 region 을 새로 만들지 않는다.
 - 바닐라에 없는 상한: biome 120초, poi 30초 벽시계. 넘거나 실행한 플레이어가 나가면 탐색을 멈추고 일반 명령 실패(`command.failed`)로 끝낸다 — not_found 를 내지 않는다.
 - 차이(가정 포함): 바닐라는 서버 스레드에서 막고 돈다. 여기서는 작업 스레드라 그 사이 틱이 지나간다. 같은 섹션 안 같은 거리 POI 의 우열은 바닐라도 HashMap 순서라 맞추지 않았다. 실서버 대조(같은 시드 좌표)는 아직 안 했다.
+## 2026-10-28 미등록 루트 명령 정리 (/spectate·/debug·/jfr, /publish·/perf 보류)
+- 바닐라 `Commands` 생성자: `/publish` 는 `includeIntegrated`(통합 서버) 에서만 등록한다. 전용 서버(DEDICATED) 트리에는 없으므로 이 서버도 등록하지 않는다(commands.json 은 ALL 로 뽑아 있다). `/jfr` 은 `JvmProfiler.isAvailable`(JFR 모듈이 있는 JVM) 일 때만, 공통 명령 뒤 전용 서버 명령 앞에 등록된다.
+- `/perf` 는 10 초 성능 표본(틱·CPU·GC 등 MetricsRecorder)을 모아 debug/ 에 zip 보고서를 만든다. 표본 수집 체계가 없어 보류(VanillaCommandTreeTest.ABSENT_ROOTS). 메시지만 내면 거짓 보고가 된다.
+- `/spectate`: 카메라는 관전자의 소유 region 이 정한다(`Region.setCamera`). 보정 텔레포트의 회전은 대상이 아니라 관전자 자신의 것이다(틱 동기 때만 대상 회전). 패킷 순서는 보정 텔레포트(player_position) → set_camera(0x52) → 명령 메시지. 대상이 다른 차원이면 바닐라(teleportTo 6인자 첫 줄 setCamera(this))대로 자기 자리 보정 → set_camera(자기 id) → 차원 이동 → set_camera(자기 id) 이고 카메라는 자기 자신으로 끝난다(메시지는 started, 대상을 계속 따라가지 않는다). 같은 카메라로 다시 지정하면 패킷 없이 메시지만. 틱마다 대상 위치로 서버 쪽 위치를 맞추고(패킷 없음), 웅크리기·대상 죽음/사라짐·관전 모드 해제 때 자기 시점으로 돌아간다. 차이: 관전 모드 해제는 바닐라가 그 자리에서, 여기서는 다음 region 틱에 되돌린다. 대상이 다른 region 이면 대상 주인 region 이 뜬 표본(Player.CameraView, 비동기 갱신)으로 따라가고, 40틱 넘게 대상을 못 찾으면(차원을 옮긴 비플레이어 엔티티의 옛 객체 등) 복귀한다. 표본 요청의 라우팅용 좌표 읽기만 비소유(EntityOps.runOnOwner 와 같은 가정).
+- 관전자의 왼쪽 클릭(공격 패킷)도 바닐라처럼 그 엔티티로 시점을 옮긴다(`ServerPlayer.attack` 의 관전 분기).
+- `/debug start|stop`: 바닐라 1.21.1 은 stop 이 파일을 쓰지 않고 시간·틱 수·초당 틱 메시지만 낸다. 시작 요청은 다음 틱 머리에서 이뤄지고, 시작 틱 전에 stop 하면 0 초·0 틱·NaN 이며 요청이 남는다(바닐라 `bk()` 가 아직 시작 안 한 요청을 지우지 않음).
+- `/debug function`: 추적 소스(`CommandSource.withTraceOutput`)는 성공·실패 메시지를 늘 받고(sendCommandFeedback 무시, withSilent 무효) 채팅 대신 파일 `[M]` 줄로 간다. `[E]` 줄은 줄바꿈 없이 끝나 바로 뒤 `[M]` 이 같은 줄에 붙는다 — 바닐라 Tracer 그대로이니 "고치지" 않는다. 추적 파일은 컨텍스트가 끝날 때 닫힌다.
+- `/jfr`: 바닐라는 Mojang 설정(.jfc)과 전용 JFR 이벤트를 켜고 멈춘 뒤 jfr-report-*.json 요약을 만든다. 여기는 JDK 기본 `profile` 설정만 쓰고 전용 이벤트·요약이 없다.

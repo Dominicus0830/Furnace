@@ -22,6 +22,8 @@ public final class CallFunction implements UnboundEntryAction {
     public void execute(CommandSource source, ExecutionContext context, Frame frame) {
         context.incrementCost();
         List<UnboundEntryAction> entries = function.entries();
+        TraceCallbacks tracer = context.tracer();
+        if (tracer != null) tracer.onCall(frame.depth(), function.id(), entries.size());
         int depth = frame.depth() + 1;
         Frame.FrameControl control = returnParentFrame ? frame.frameControl() : context.frameControlForDepth(depth);
         Frame newFrame = new Frame(depth, resultCallback, control);

@@ -150,7 +150,7 @@ public final class FunctionCommands {
                 try {
                     resolveAndSchedule(source, chain, modifiers, control);
                 } catch (CommandSyntaxException e) {
-                    onError(e, source, modifiers);
+                    onError(e, source, modifiers, control);
                     source.callback().onFailure();
                 }
             });
@@ -187,7 +187,7 @@ public final class FunctionCommands {
                     }
                     schedule(source, functions, a, modifiers, control);
                 } catch (CommandSyntaxException e) {
-                    onError(e, source, modifiers);
+                    onError(e, source, modifiers, control);
                     source.callback().onFailure();
                 }
             });
@@ -375,7 +375,7 @@ public final class FunctionCommands {
             try {
                 functions = FunctionArgument.getFunctions(currentStep.getTopContext().copyFor(originalSource), "name");
             } catch (CommandSyntaxException e) {
-                originalSource.handleError(e, modifiers.isForked());
+                originalSource.handleError(e, modifiers.isForked(), control.tracer());
                 return;
             }
             if (functions.isEmpty()) return;   // 바닐라: 아무것도 큐에 넣지 않는다(다음 단계도 없다)
@@ -390,7 +390,7 @@ public final class FunctionCommands {
                     }
                 }
             } catch (CommandSyntaxException e) {
-                originalSource.handleError(e, modifiers.isForked());
+                originalSource.handleError(e, modifiers.isForked(), control.tracer());
             }
             for (CommandSource source : currentSources) {
                 CommandSource newSource = modifySenderForExecution(source.clearCallbacks());

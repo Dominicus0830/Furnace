@@ -1689,7 +1689,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player tp = region.players().get(entityId);
         if (tp != null) {   // 다른 플레이어: 공격만(상호작용은 플레이어에게 할 것이 없다). 관전자는 공격 대신 시점이라 넘어간다
             double dx = p.x() - tp.x(), dy = p.y() + 1.62 - tp.y(), dz = p.z() - tp.z();
-            if (action == 1 && dx * dx + dy * dy + dz * dz < 36.0 && p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) region.attackPlayer(p, tp);
+            if (action == 1 && dx * dx + dy * dy + dz * dz < 36.0) {
+                // ServerPlayer.attack: 관전자는 때리지 않고 그 대상의 시점으로
+                if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) { if (tp != p) region.setCamera(p, tp); }
+                else region.attackPlayer(p, tp);
+            }
             return;
         }
         var e = region.level().entities().get(entityId);
@@ -1711,7 +1715,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (e == null || e.isRemoved()) return;
         double dx = p.x() - e.x(), dy = p.y() + 1.62 - e.y(), dz = p.z() - e.z();
         if (dx * dx + dy * dy + dz * dz >= 36.0) return;
-        if (action == 1) {
+        if (action == 1 && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) {
+            // ServerPlayer.attack: 관전자의 왼쪽 클릭은 공격 대신 그 엔티티의 시점으로
+            if (e instanceof org.domi.furnace.server.entity.LivingEntity || e.isPickable()) region.setCamera(p, e);
+        } else if (action == 1) {
             if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
             else if (e.isPickable()) region.attackEntity(p, e);
         } else if (e instanceof org.domi.furnace.server.entity.Boat boat) {

@@ -19,6 +19,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.CloneCommand.register(d);
         org.domi.furnace.server.command.builtin.DataCommands.register(d);
         org.domi.furnace.server.command.builtin.DataPackCommands.registerDataPack(d);
+        org.domi.furnace.server.command.builtin.DebugCommand.register(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerDefaultGameMode(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerDifficulty(d);
         org.domi.furnace.server.command.builtin.EffectCommand.register(d);
@@ -57,6 +58,7 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.BlockCommands.registerSetBlock(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSpawnPoint(d);
         org.domi.furnace.server.command.builtin.PlayerStateCommands.registerSetWorldSpawn(d);
+        org.domi.furnace.server.command.builtin.SpectateCommand.register(d);
         org.domi.furnace.server.command.builtin.SoundCommands.registerStopSound(d);
         org.domi.furnace.server.command.builtin.SpreadPlayersCommand.register(d);
         org.domi.furnace.server.command.builtin.SummonCommand.register(d);
@@ -71,7 +73,8 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.TriggerCommand.register(d);
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);
         org.domi.furnace.server.command.builtin.WorldBorderCommand.register(d);
-        // 전용 서버 전용
+        org.domi.furnace.server.command.builtin.JfrCommand.register(d);   // JFR 을 쓸 수 있는 JVM 에서만
+        // 전용 서버 전용 (/publish 는 통합 서버 전용이라 전용 서버 트리에 없다, /perf 는 NOT_YET — VanillaCommandTreeTest)
         PlayerListCommands.registerBanIp(d);
         PlayerListCommands.registerBanList(d);
         PlayerListCommands.registerBan(d);

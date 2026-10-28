@@ -95,7 +95,23 @@ class VanillaCommandTreeTest {
      */
     private static final java.util.Map<String, List<String>> NOT_YET = java.util.Map.of();
 
+    /**
+     * 바닐라 트리에는 있으나 이 서버가 등록하지 않는 루트 명령과 사유. 등록 안 된 루트가 이 목록과 정확히 같아야 한다(새 바닐라 루트가
+     * 생기거나 구현되면 이 표를 고치게 한다).
+     * <ul>
+     *   <li>publish: 바닐라 Commands 가 includeIntegrated(통합 서버·ALL)일 때만 등록한다. 전용 서버(DEDICATED)의 commands 패킷에는 없다.
+     *       (이 서버는 전용 서버라 바닐라 전용 서버와 같게 등록하지 않는다 — 가짜로 만들 대상이 아님.)</li>
+     *   <li>perf: 바닐라 /perf 는 10초 성능 프로파일(MetricsRecorder 의 틱·CPU·GC 표본)을 모아 debug/ 에 zip 보고서를 만든다.
+     *       이 서버에는 그 표본 수집 체계가 없고, 없이 메시지만 내면 거짓 보고가 된다.</li>
+     * </ul>
+     */
+    private static final java.util.Map<String, String> ABSENT_ROOTS = java.util.Map.of(
+            "publish", "통합 서버 전용 — 전용 서버 트리에 없다",
+            "perf", "성능 표본 수집·zip 보고서 체계가 없다");
+
     /** 이동·엔티티 명령 묶음 — 구현돼 있어야 하고(트리 대조를 빠져나가지 못하게) 바닐라 트리와 같아야 한다. */
+    private static final List<String> PROFILING_COMMANDS = List.of("debug", "spectate", "jfr");
+
     private static final List<String> MOVEMENT_COMMANDS = List.of("teleport", "tp", "spreadplayers", "ride", "random", "tag", "forceload", "tick", "scoreboard", "team", "execute", "function", "return", "schedule", "place", "trigger", "teammsg", "tm");
 
     private static void compare(String path, JsonObject vanilla, List<Node> nodes, int idx, int root) {
@@ -154,6 +170,13 @@ class VanillaCommandTreeTest {
         return parts.toString();
     }
 
+    private static TreeSet<String> rootNames(ServerCore core, int permission, int[] root) {
+        List<Node> nodes = decode(core.commands().treeFor(CommandSource.forProfile(core, "P" + permission, permission)), root);
+        TreeSet<String> names = new TreeSet<>();
+        for (int c : nodes.get(root[0]).children()) names.add(nodes.get(c).name());
+        return names;
+    }
+
     @Test
     void implementedCommandsMatchVanillaTree() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
@@ -178,6 +201,22 @@ class VanillaCommandTreeTest {
             TreeSet<String> registered = new TreeSet<>();
             for (int c : nodes.get(root[0]).children()) registered.add(nodes.get(c).name());
             for (String name : MOVEMENT_COMMANDS) assertTrue(registered.contains(name), "등록돼 있어야 하는 명령: " + name);
+            // jfr 은 JFR 을 쓸 수 있는 JVM 에서만 등록된다(바닐라 JvmProfiler.isAvailable)
+            for (String name : PROFILING_COMMANDS) {
+                if (name.equals("jfr") && !org.domi.furnace.server.profiling.JfrProfiler.isAvailable()) continue;
+                assertTrue(registered.contains(name), "등록돼 있어야 하는 명령: " + name);
+            }
+            // 바닐라 루트 중 등록하지 않은 것은 사유가 적힌 ABSENT_ROOTS 뿐이다
+            TreeSet<String> unregistered = new TreeSet<>(vanilla.keySet());
+            unregistered.removeAll(registered);
+            if (!org.domi.furnace.server.profiling.JfrProfiler.isAvailable()) unregistered.remove("jfr");
+            assertEquals(new TreeSet<>(ABSENT_ROOTS.keySet()), unregistered, "등록하지 않은 바닐라 루트 명령");
+            // 권한: 바닐라 requires 와 같다 — spectate 2, debug 3, jfr 4
+            TreeSet<String> at2 = rootNames(core, 2, root), at3 = rootNames(core, 3, root), at4 = rootNames(core, 4, root);
+            assertTrue(at2.contains("spectate") && !at2.contains("debug") && !at2.contains("jfr"));
+            assertTrue(at3.contains("spectate") && at3.contains("debug") && !at3.contains("jfr"));
+            assertTrue(at4.contains("spectate") && at4.contains("debug"));
+            assertEquals(org.domi.furnace.server.profiling.JfrProfiler.isAvailable(), at4.contains("jfr"));
             // 권한 0 이면 help·list·me·msg·random·teammsg·tell·tm·trigger·w 만(바닐라 random·teammsg·trigger 는 requires 가 없다)
             List<Node> guest = decode(core.commands().treeFor(CommandSource.forProfile(core, "Guest", 0)), root);
             TreeSet<String> names = new TreeSet<>();

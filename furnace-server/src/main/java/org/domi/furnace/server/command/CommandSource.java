@@ -40,11 +40,17 @@ public final class CommandSource {
     private final ExecutionContext execution;
     // 서명된 명령 인자(바닐라 CommandSigningContext) — 인자 이름 → 검증된 메시지. 없으면 빈 맵(서명 없음).
     private final java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> signedArguments;
+    /**
+     * 추적 출력(/debug function 의 TracerSource): 있으면 메시지가 출력 대상 대신 여기로 간다. 바닐라 추적 소스처럼 성공·실패 메시지를 늘 받고
+     * (sendCommandFeedback 무시, withSilent 로 숨겨지지 않는다) 다른 관리자에게 알리지 않는다.
+     */
+    private final java.util.function.Consumer<Text> traceOutput;
 
     private CommandSource(ServerCore server, Player output, Rider entity, World level, String textName, Text displayName, int permissionLevel,
                           boolean silent, double x, double y, double z, float yRot, float xRot, EntityAnchorArgument.Anchor anchor,
                           ResultCallback callback, ExecutionContext execution,
-                          java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> signedArguments) {
+                          java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> signedArguments,
+                          java.util.function.Consumer<Text> traceOutput) {
         this.server = server;
         this.output = output;
         this.entity = entity;
@@ -62,6 +68,7 @@ public final class CommandSource {
         this.callback = callback;
         this.execution = execution;
         this.signedArguments = signedArguments;
+        this.traceOutput = traceOutput;
     }
 
     private static CommandSource create(ServerCore server, Player p, String name, Text display, int level, boolean silent,
@@ -72,7 +79,7 @@ public final class CommandSource {
             if (pw != null) w = pw;
         }
         return new CommandSource(server, p, p, w, name, display, level, silent, x, y, z, yRot, xRot, EntityAnchorArgument.Anchor.FEET,
-                ResultCallback.EMPTY, null, java.util.Map.of());
+                ResultCallback.EMPTY, null, java.util.Map.of(), null);
     }
 
     /** 콘솔: 이름 "Server", 레벨 4, 월드 스폰 위치. */
@@ -104,7 +111,7 @@ public final class CommandSource {
 
     public CommandSource withSignedArguments(java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> args) {
         return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, silent, x, y, z, yRot, xRot, anchor,
-                callback, execution, java.util.Map.copyOf(args));
+                callback, execution, java.util.Map.copyOf(args), traceOutput);
     }
 
     public org.domi.furnace.server.chat.PlayerChatMessage signedArgument(String name) { return signedArguments.get(name); }
@@ -128,25 +135,25 @@ public final class CommandSource {
         String name = e == null ? textName : e instanceof Player p ? p.name() : e.displayName().getString();
         Text display = e == null ? displayName : e.displayName();
         return new CommandSource(server, output, e, level, name, display, permissionLevel, silent, x, y, z, yRot, xRot, anchor, callback,
-                execution, signedArguments);
+                execution, signedArguments, traceOutput);
     }
 
     public CommandSource withPosition(double nx, double ny, double nz) {
         if (nx == x && ny == y && nz == z) return this;
         return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, silent, nx, ny, nz, yRot, xRot, anchor,
-                callback, execution, signedArguments);
+                callback, execution, signedArguments, traceOutput);
     }
 
     public CommandSource withRotation(float nyRot, float nxRot) {
         if (nyRot == yRot && nxRot == xRot) return this;
         return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, silent, x, y, z, nyRot, nxRot, anchor,
-                callback, execution, signedArguments);
+                callback, execution, signedArguments, traceOutput);
     }
 
     public CommandSource withCallback(ResultCallback cb) {
         if (Objects.equals(callback, cb)) return this;
         return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, silent, x, y, z, yRot, xRot, anchor,
-                cb, execution, signedArguments);
+                cb, execution, signedArguments, traceOutput);
     }
 
     public CommandSource withCallback(ResultCallback cb, BinaryOperator<ResultCallback> combiner) {
@@ -159,15 +166,15 @@ public final class CommandSource {
     public ResultCallback callback() { return callback; }
 
     public CommandSource withSilent() {
-        if (silent) return this;
+        if (silent || traceOutput != null) return this;   // 바닐라 withSuppressedOutput: alwaysAccepts 인 출력(추적 소스)은 숨기지 않는다
         return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, true, x, y, z, yRot, xRot, anchor,
-                callback, execution, signedArguments);
+                callback, execution, signedArguments, traceOutput);
     }
 
     public CommandSource withPermission(int lvl) {
         if (lvl == permissionLevel) return this;
         return new CommandSource(server, output, entity, level, textName, displayName, lvl, silent, x, y, z, yRot, xRot, anchor, callback,
-                execution, signedArguments);
+                execution, signedArguments, traceOutput);
     }
 
     /** 바닐라 withMaximumPermission: 올리기만 한다. */
@@ -176,7 +183,7 @@ public final class CommandSource {
     public CommandSource withAnchor(EntityAnchorArgument.Anchor a) {
         if (a == anchor) return this;
         return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, silent, x, y, z, yRot, xRot, a,
-                callback, execution, signedArguments);
+                callback, execution, signedArguments, traceOutput);
     }
 
     public EntityAnchorArgument.Anchor getAnchor() { return anchor; }
@@ -186,7 +193,7 @@ public final class CommandSource {
         if (w == level) return this;
         double scale = org.domi.furnace.server.world.DimensionType.teleportationScale(level.dimensionType(), w.dimensionType());
         return new CommandSource(server, output, entity, w, textName, displayName, permissionLevel, silent, x * scale, y, z * scale, yRot, xRot,
-                anchor, callback, execution, signedArguments);
+                anchor, callback, execution, signedArguments, traceOutput);
     }
 
     /** 바닐라 EntityAnchorArgument.Anchor.apply(source): 엔티티가 있으면 눈 높이를 더한다. */
@@ -218,7 +225,7 @@ public final class CommandSource {
     public CommandSource withExecutionContext(ExecutionContext ctx) {
         if (ctx == execution) return this;
         return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, silent, x, y, z, yRot, xRot, anchor,
-                callback, ctx, signedArguments);
+                callback, ctx, signedArguments, traceOutput);
     }
 
     public ExecutionContext executionContext() { return execution; }
@@ -234,7 +241,19 @@ public final class CommandSource {
 
     /** 바닐라 handleError: forked 가 아니면 사용자에게 빨간 메시지. */
     public void handleError(CommandSyntaxException e, boolean forked) {
+        handleError(e, forked, null);
+    }
+
+    /** 바닐라 handleError(…, tracer): 추적 중이면 오류 메시지의 평문을 먼저 추적기에 알린다. */
+    public void handleError(CommandSyntaxException e, boolean forked, org.domi.furnace.server.command.exec.TraceCallbacks tracer) {
+        if (tracer != null) tracer.onError(e.getRawMessage().plainText(java.util.Locale.US));
         if (!forked) sendFailure(e.getRawMessage());
+    }
+
+    /** 바닐라 withSource(TracerSource): 메시지를 out 으로 보내는 소스. 이름·권한·위치 등은 그대로. */
+    public CommandSource withTraceOutput(java.util.function.Consumer<Text> out) {
+        return new CommandSource(server, output, entity, level, textName, displayName, permissionLevel, silent, x, y, z, yRot, xRot, anchor,
+                callback, execution, signedArguments, out);
     }
 
     // ---------------------------------------------------------------- 읽기
@@ -281,9 +300,9 @@ public final class CommandSource {
 
     public float xRot() { return xRot; }
 
-    private boolean acceptsSuccess() { return output == null || server.gameRule("sendCommandFeedback"); }
+    private boolean acceptsSuccess() { return traceOutput != null || output == null || server.gameRule("sendCommandFeedback"); }
 
-    private boolean shouldInformAdmins() { return output != null || server.settings().get().broadcastConsoleToOps; }
+    private boolean shouldInformAdmins() { return traceOutput == null && (output != null || server.settings().get().broadcastConsoleToOps); }
 
     /** sendSuccess 가 실제로 누군가에게 보낼지(region 에서 메시지 본문을 미리 만들 때 낭비를 피하는 검사). */
     public boolean wouldSendSuccess(boolean allowLogging) {
@@ -315,7 +334,8 @@ public final class CommandSource {
     }
 
     public void sendSystemMessage(Text message) {
-        if (output != null) output.sendSystemMessage(message, false);
+        if (traceOutput != null) traceOutput.accept(message);
+        else if (output != null) output.sendSystemMessage(message, false);
         else server.sendSystemMessage(message);
     }
 }

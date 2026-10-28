@@ -145,6 +145,13 @@ public final class ExecutionContext {
 
     public int forkLimit() { return forkLimit; }
 
+    /** 명령 실행 추적기(/debug function). 없으면 null. 바닐라 ExecutionContext.tracer. */
+    private TraceCallbacks tracer;
+
+    public TraceCallbacks tracer() { return tracer; }
+
+    public void tracer(TraceCallbacks tracer) { this.tracer = tracer; }
+
     /** 바닐라 incrementCost: 체인 예산 1 감소(수정자 단계·함수 호출·명령 실행 세 곳에서만). */
     public void incrementCost() { commandQuota--; }
 
@@ -209,6 +216,13 @@ public final class ExecutionContext {
     private void finish() {
         if (finished) return;
         finished = true;
+        if (tracer != null) {   // 바닐라 ExecutionContext.close: 컨텍스트가 끝나면 추적 파일을 닫는다
+            try {
+                tracer.close();
+            } catch (RuntimeException e) {
+                log.warn("추적기 닫기 실패", e);
+            }
+        }
         done.complete(null);
     }
 

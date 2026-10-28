@@ -1125,6 +1125,32 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return false;
     }
 
+    // ------------------------------------------------------------------ 관전 시점(/spectate, 관전자의 왼쪽 클릭) — 바닐라 ServerPlayer.camera
+
+    /** 카메라 대상. null 이면 자기 자신. 바꾸는 쪽은 이 플레이어의 소유 region 스레드뿐이고, 다른 스레드는 읽기만 한다. */
+    private volatile Rider camera;
+
+    /** 바닐라 getCamera: 카메라 대상(자기 자신이면 this). */
+    public Rider cameraOrSelf() { Rider c = camera; return c == null ? this : c; }
+
+    /** 자기 자신 외의 카메라 대상(없으면 null). */
+    public Rider cameraTarget() { return camera; }
+
+    /** 카메라 대상의 한 시점 표본(대상의 주인 스레드가 한 번에 뜬다). */
+    public record CameraView(Rider target, double x, double y, double z, float yaw, float pitch, boolean alive) { }
+
+    private volatile CameraView cameraView;
+    /** 비소유 대상 표본을 갱신하는 요청이 진행 중인가 / 연속으로 대상을 못 찾은 횟수(소유 region 틱이 쓴다). */
+    public final java.util.concurrent.atomic.AtomicBoolean cameraRefreshing = new java.util.concurrent.atomic.AtomicBoolean();
+    public final java.util.concurrent.atomic.AtomicInteger cameraMisses = new java.util.concurrent.atomic.AtomicInteger();
+
+    public CameraView cameraView() { return cameraView; }
+
+    public void cameraView(CameraView v) { this.cameraView = v; }
+
+    /** Region.setCamera 만 부른다. null 이면 자기 자신으로 되돌린다. */
+    public void cameraField(Rider target) { this.camera = target; }
+
     private volatile java.util.function.Consumer<double[]> teleporter;
 
     public void teleporter(java.util.function.Consumer<double[]> t) { this.teleporter = t; }

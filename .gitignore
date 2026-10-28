@@ -68,3 +68,7 @@ tools/vanilla-data/*.jar
 tools/vanilla-data/libraries/
 tools/vanilla-data/versions/
 tools/vanilla-data/server-1.21.1/**/*.class
+
+### 서버 실행 산출물 ###
+/debug/
+/*/debug/
