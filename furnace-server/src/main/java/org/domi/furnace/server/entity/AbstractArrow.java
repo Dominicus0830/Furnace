@@ -256,12 +256,31 @@ public abstract class AbstractArrow extends Projectile {
             if (getPierceLevel() <= 0) discard();
         } else {
             if (target instanceof Entity e) e.setRemainingFireTicks(oldFire);
-            // 막히거나 무적이면 튕겨 나간다: 속도 × -0.1, 회전 +180~
-            setDeltaMovement(vx() * -0.1, vy() * -0.1, vz() * -0.1);
-            setYRot(yRot() + 180.0F);
-            yRotO += 180.0F;
-            if (vx() * vx() + vy() * vy() + vz() * vz() < 1.0E-7) discard();
+            // 막히거나 무적이면 deflect(REVERSE) 후 속도 × 0.2. 거의 멈췄으면 (줍기 가능 시 아이템을 떨구고) 사라진다
+            deflectReverse();
+            setOwner(getOwner());
+            setDeltaMovement(vx() * 0.2, vy() * 0.2, vz() * 0.2);
+            if (vx() * vx() + vy() * vy() + vz() * vz() < 1.0E-7) {
+                if (pickup == Pickup.ALLOWED) {
+                    ItemStack stack = getPickupItem();
+                    if (!stack.isEmpty()) {
+                        var ie = new ItemEntity(level, level.nextEntityId(), x(), y() + 0.1F, z(), stack);
+                        ie.setDefaultPickUpDelay();
+                        level.addFreshEntity(ie);
+                    }
+                }
+                discard();
+            }
         }
+    }
+
+    /** ProjectileDeflection.REVERSE: 회전 170 + nextFloat*20 (엔티티 난수 1회), 속도 × -0.5, hasImpulse. */
+    void deflectReverse() {
+        float rot = 170.0F + random.nextFloat() * 20.0F;
+        setDeltaMovement(vx() * -0.5, vy() * -0.5, vz() * -0.5);
+        setYRot(yRot() + rot);
+        yRotO += rot;
+        hasImpulse = true;
     }
 
     protected void doPostHurtEffects(LivingEntity target) {}
