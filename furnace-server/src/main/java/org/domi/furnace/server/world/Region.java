@@ -92,6 +92,9 @@ public final class Region {
     /** 지금 스레드가 이 region 을 돌리고 있는가. */
     public boolean isOwnerThread() { return tickThread == Thread.currentThread(); }
 
+    /** 이 region 스레드에서만: 그 플레이어가 지금 이 region 소속인가. */
+    public boolean ownsPlayer(Player p) { return isOwnerThread() && players.get(p.entityId()) == p; }
+
     private Regionizer rz() { return world.regionizer(); }
 
     // ------------------------------------------------------------------ 틱(Regionizer 작업 스레드)
@@ -602,7 +605,8 @@ public final class Region {
         if (dirtyChunks.isEmpty()) return;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
-            if (world.ioBackedUp()) { autosaveChunkQueue.addFirst(cp); return; }   // 레인이 밀렸다 — 다음 틱에
+            // 레인이 밀렸다 — 남은 dirty 청크(cp 포함, 아직 지우지 않았다)를 자동 저장 큐로 넘겨 다음 틱부터 나눠 저장
+            if (world.ioBackedUp()) { autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks); return; }
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
@@ -633,8 +637,9 @@ public final class Region {
     private long saveDeadline;
 
     private void stepAutosave() {
+        // 퇴출이 예산을 다 써도 틱마다 적어도 하나는 저장한다(아니면 자동 저장이 영영 진행되지 않을 수 있다). 마감은 처리 뒤에 본다.
         long deadline = saveDeadline;
-        if (System.nanoTime() > deadline || world.ioBackedUp()) return;
+        if (world.ioBackedUp()) return;
         Long key;
         while (autosaveEntityQueue != null && (key = autosaveEntityQueue.poll()) != null) {
             if (world.ioBackedUp()) { autosaveEntityQueue.addFirst(key); return; }
@@ -895,6 +900,8 @@ public final class Region {
             if (moved) checkInsideCampfires(p);
             p.drainPending();
             p.currentLevel = level;
+            p.ownerRegion = this;
+            p.drainOwnerTasks();   // 다른 스레드가 맡긴 플레이어 작업(발전 과제·통계·점수) — 주인 스레드에서
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
             p.sendPendingKnockback();   // hurtMarked 가 선 틱에만 속도 패킷 한 번
@@ -1446,6 +1453,7 @@ public final class Region {
     /**
      * Entity.checkInsideBlocks 중 모닥불만(바닐라 handleMovePlayer 의 player.move 뒤): 몸통(1e-7 안쪽)이 걸친 칸의 켜진 모닥불이
      * 플레이어에게 불 피해를 준다. 나머지 블록의 entityInside 는 플레이어에게 아직 연결되지 않았다.
+     * 같은 칸 순회에서 ServerPlayer.onInsideBlock(state) → enter_block 트리거(공기 포함, 칸마다 entityInside 다음).
      */
     private void checkInsideCampfires(Player p) {
         if (level == null || p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
@@ -1454,9 +1462,12 @@ public final class Region {
         int y0 = (int) Math.floor(p.y() + 1.0E-7), y1 = (int) Math.floor(p.y() + h - 1.0E-7);
         int z0 = (int) Math.floor(p.z() - 0.3 + 1.0E-7), z1 = (int) Math.floor(p.z() + 0.3 - 1.0E-7);
         if (!level.hasChunksAt(x0, z0, x1, z1)) return;
+        var adv = p.advancements();
+        boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             if (org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.CampfireBlock cf) cf.entityInsidePlayer(s, p.vitals());
+            if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
         }
     }
 

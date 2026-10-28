@@ -76,6 +76,7 @@ public final class Consuming {
             int nutrition = f.get("nutrition") instanceof Number x ? x.intValue() : 0;
             float sat = f.get("saturation") instanceof Number x ? x.floatValue() : 0;
             v.eatFood(nutrition, sat);
+            consumeTrigger(p, s);   // 바닐라 Player.eat: foodData.eat → consume_item → super.eat(효과)
             if (f.get("effects") instanceof List<?> fx) {
                 for (Object o : fx) {
                     if (!(o instanceof Map<?, ?> m) || !(m.get("effect") instanceof Map<?, ?> e)) continue;
@@ -85,6 +86,8 @@ public final class Consuming {
             }
             if (f.get("using_converts_to") instanceof Map<?, ?> c && c.get("id") instanceof String id) leftover = id;
         }
+        // 바닐라 HoneyBottle·MilkBucket·PotionItem.finishUsingItem: 고유 효과 전에 consume_item(꿀은 음식 경로와 합쳐 두 번)
+        if (n.equals("minecraft:honey_bottle") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:potion")) consumeTrigger(p, s);
         switch (n) {
             case "minecraft:honey_bottle" -> { v.removeEffect(MobEffect.byName("poison")); leftover = "minecraft:glass_bottle"; }
             case "minecraft:milk_bucket" -> { v.removeAllEffects(); leftover = "minecraft:bucket"; }
@@ -103,6 +106,11 @@ public final class Consuming {
                 if (!left.isEmpty()) region.playerDrop(p, left, false, true);
             }
         }
+    }
+
+    private static void consumeTrigger(Player p, ItemStack s) {
+        var adv = p.advancements();
+        if (adv != null) adv.trigger("minecraft:consume_item", org.domi.furnace.server.ServerCore.lootStackOf(s));
     }
 
     /** PotionContents.getAllEffects: 기본 물약 효과 + 사용자 지정 효과. */

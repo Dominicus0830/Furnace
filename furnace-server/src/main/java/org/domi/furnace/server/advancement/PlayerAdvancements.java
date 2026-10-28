@@ -60,6 +60,9 @@ public final class PlayerAdvancements {
         LootContext playerContext();
 
         LootRegistries registries();
+
+        /** 바닐라 AdvancementRewards.function: 플레이어를 실행 주체로, 권한 2, 출력 없이 함수 실행. 함수가 없으면 아무것도 안 한다. */
+        default void runFunction(String function) {}
     }
 
     private record Listener(ResourceId advancement, String criterion) {}
@@ -216,7 +219,7 @@ public final class PlayerAdvancements {
         host.giveExperience(r.experience());
         for (String table : r.loot()) host.giveLoot(table);
         if (!r.recipes().isEmpty()) host.awardRecipes(r.recipes());
-        // 함수(mcfunction)는 아직 없다
+        if (r.function() != null) host.runFunction(r.function());
     }
 
     /** 바닐라 Advancement.name — "[제목]" (틀 색), 마우스를 올리면 제목·설명. */
@@ -286,6 +289,52 @@ public final class PlayerAdvancements {
             Advancement a = manager.get(l.advancement);
             if (a != null) award(a, l.criterion);
         }
+    }
+
+    /** 그 트리거를 기다리는 조건이 하나라도 있나(사건 만들기 비용을 아끼는 용도). */
+    public synchronized boolean hasListeners(String trigger) {
+        LinkedHashSet<Listener> set = listeners.get(trigger);
+        return set != null && !set.isEmpty();
+    }
+
+    /**
+     * 바닐라 KilledTrigger.trigger — entity 조건 문맥은 EntityPredicate.createContext(player, entity):
+     * this_entity = 상대, origin = 이 플레이어 위치. killing_blow 는 플레이어 위치에서 본다.
+     */
+    public void triggerKill(String trigger, org.domi.furnace.server.loot.LootEntity entity, org.domi.furnace.server.loot.LootDamageSource source) {
+        if (!hasListeners(trigger)) return;
+        LootContext pc = host.playerContext();
+        double[] origin = pc.param(org.domi.furnace.server.loot.LootParams.ORIGIN);
+        trigger(trigger, new Criterion.KillEvent(entityContext(pc, entity), pc, origin, source));
+    }
+
+    /** 바닐라 TameAnimalTrigger.trigger(player, animal). */
+    public void triggerTame(org.domi.furnace.server.loot.LootEntity animal) {
+        if (!hasListeners("minecraft:tame_animal")) return;
+        trigger("minecraft:tame_animal", entityContext(host.playerContext(), animal));
+    }
+
+    /** 바닐라 BredAnimalsTrigger.trigger(player, parent, partner, child). child 는 null 일 수 있다. */
+    public void triggerBred(org.domi.furnace.server.loot.LootEntity parent, org.domi.furnace.server.loot.LootEntity partner,
+                            org.domi.furnace.server.loot.LootEntity child) {
+        if (!hasListeners("minecraft:bred_animals")) return;
+        LootContext pc = host.playerContext();
+        trigger("minecraft:bred_animals", new Criterion.BreedEvent(entityContext(pc, parent), entityContext(pc, partner),
+                child == null ? null : entityContext(pc, child)));
+    }
+
+    /** 바닐라 TradeTrigger.trigger(player, villager, result). */
+    public void triggerTrade(org.domi.furnace.server.loot.LootEntity villager, org.domi.furnace.server.loot.LootStack result) {
+        if (!hasListeners("minecraft:villager_trade")) return;
+        trigger("minecraft:villager_trade", new Criterion.TradeEvent(entityContext(host.playerContext(), villager), result));
+    }
+
+    /** 바닐라 EntityPredicate.createContext(player, entity): this_entity = 상대, origin = 플레이어 위치. */
+    private static LootContext entityContext(LootContext pc, org.domi.furnace.server.loot.LootEntity entity) {
+        var params = new org.domi.furnace.server.loot.LootParams()
+                .with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, entity)
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, pc.param(org.domi.furnace.server.loot.LootParams.ORIGIN));
+        return new LootContext(pc.data(), pc.world(), params, pc.random());
     }
 
     private int ticks;

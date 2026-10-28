@@ -48,6 +48,15 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
     /** placed_block·item_used_on_block 사건: ADVANCEMENT_LOCATION 문맥(위치·블록 상태·도구·플레이어). */
     public record LocationEvent(LootContext context) {}
 
+    /** player_killed_entity·entity_killed_player 사건: 상대 문맥, 플레이어 문맥·위치, 죽인 피해. */
+    public record KillEvent(LootContext entity, LootContext player, double[] playerPos, org.domi.furnace.server.loot.LootDamageSource source) {}
+
+    /** bred_animals 사건: 부모·짝·새끼 문맥(새끼가 없으면 null). */
+    public record BreedEvent(LootContext parent, LootContext partner, LootContext child) {}
+
+    /** villager_trade 사건: 상인 문맥과 거래 결과 스택. */
+    public record TradeEvent(LootContext villager, LootStack item) {}
+
     static Criterion parse(JsonElement e, LootRegistries regs) {
         JsonObject o = e.getAsJsonObject();
         if (!o.has("trigger")) throw new IllegalArgumentException("Missing \"trigger\" in: MapLike[" + o + "]");
@@ -133,6 +142,41 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
                 ItemPredicate item = c.has("item") ? ItemPredicate.parse(c.get("item"), regs) : null;
                 yield (ev, r) -> item == null || item.test((LootStack) ev, r);
             }
+            case "minecraft:player_killed_entity", "minecraft:entity_killed_player" -> {
+                // 바닐라 KilledTrigger.TriggerInstance.matches: killing_blow 먼저, 그다음 entity
+                List<LootCondition> entity = c.has("entity") ? playerPredicate(c.get("entity"), regs) : List.of();
+                org.domi.furnace.server.loot.DamageSourcePredicate blow =
+                        c.has("killing_blow") ? org.domi.furnace.server.loot.DamageSourcePredicate.parse(c.get("killing_blow"), regs) : null;
+                yield (ev, r) -> {
+                    KillEvent k = (KillEvent) ev;
+                    if (blow != null && !blow.matches(k.player(), k.playerPos(), k.source())) return false;
+                    return entity.isEmpty() || LootCondition.allOf(entity, k.entity());
+                };
+            }
+            case "minecraft:tame_animal" -> {
+                List<LootCondition> entity = c.has("entity") ? playerPredicate(c.get("entity"), regs) : List.of();
+                yield (ev, r) -> entity.isEmpty() || LootCondition.allOf(entity, (LootContext) ev);
+            }
+            case "minecraft:bred_animals" -> {
+                // 바닐라 BredAnimalsTrigger.TriggerInstance.matches: child 먼저, 그다음 (parent, partner) 또는 뒤바꾼 짝
+                List<LootCondition> parent = c.has("parent") ? playerPredicate(c.get("parent"), regs) : null;
+                List<LootCondition> partner = c.has("partner") ? playerPredicate(c.get("partner"), regs) : null;
+                List<LootCondition> child = c.has("child") ? playerPredicate(c.get("child"), regs) : null;
+                yield (ev, r) -> {
+                    BreedEvent b = (BreedEvent) ev;
+                    if (child != null && (b.child() == null || !LootCondition.allOf(child, b.child()))) return false;
+                    return opt(parent, b.parent()) && opt(partner, b.partner()) || opt(parent, b.partner()) && opt(partner, b.parent());
+                };
+            }
+            case "minecraft:villager_trade" -> {
+                List<LootCondition> villager = c.has("villager") ? playerPredicate(c.get("villager"), regs) : null;
+                ItemPredicate item = c.has("item") ? ItemPredicate.parse(c.get("item"), regs) : null;
+                yield (ev, r) -> {
+                    TradeEvent t = (TradeEvent) ev;
+                    if (villager != null && !LootCondition.allOf(villager, t.villager())) return false;
+                    return item == null || item.test(t.item(), r);
+                };
+            }
             case "minecraft:enter_block" -> {
                 String block = c.has("block") ? ResourceId.parse(c.get("block").getAsString()).toString() : null;
                 java.util.Map<String, JsonElement> state = new java.util.LinkedHashMap<>();
@@ -153,6 +197,8 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
             default -> (ev, r) -> false;   // 사건이 아직 없는 트리거
         };
     }
+
+    private static boolean opt(List<LootCondition> p, LootContext ctx) { return p == null || LootCondition.allOf(p, ctx); }
 
     private static List<LootCondition> playerPredicateList(JsonElement e, LootRegistries regs) {
         List<LootCondition> l = new ArrayList<>();
