@@ -54,6 +54,7 @@ class MultiDimensionTickBench {
         int[] count = new int[total];
         long spin = (long) (loadMs * 1_000_000L);
         List<CompletableFuture<Void>> done = new ArrayList<>();
+        long cpu0 = processCpuNanos(), wall0 = System.nanoTime();
         int idx = 0;
         for (World w : worlds) {
             for (int k = 0; k < regionsPerDim; k++) {
@@ -79,14 +80,16 @@ class MultiDimensionTickBench {
             }
         }
         CompletableFuture.allOf(done.toArray(new CompletableFuture[0])).get(ticks * 200L + 60_000L, TimeUnit.MILLISECONDS);
+        long cpu = processCpuNanos() - cpu0, wall = System.nanoTime() - wall0;
         // 첫 5 간격(예열) 제외, 늦음 = 간격 - 틱
         List<Long> late = new ArrayList<>();
         for (int s = 0; s < total; s++) for (int i = 6; i <= ticks; i++) late.add(starts[s][i] - starts[s][i - 1] - TICK);
         long[] a = late.stream().mapToLong(Long::longValue).sorted().toArray();
         System.out.printf("MDBENCH dims=%d regions/dim=%d regionThreads=%d (per-dim %d) cores=%d loadMs=%.1f samples=%d"
-                        + " | 간격-50ms p50=%.3fms p95=%.3fms p99=%.3fms max=%.3fms min=%.3fms%n",
+                        + " | 간격-50ms p50=%.3fms p95=%.3fms p99=%.3fms max=%.3fms min=%.3fms | cpu=%.0fms wall=%.0fms%n",
                 dims, regionsPerDim, regionThreads, threads, Runtime.getRuntime().availableProcessors(), loadMs, a.length,
-                a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length * 99 / 100] / 1e6, a[a.length - 1] / 1e6, a[0] / 1e6);
+                a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length * 99 / 100] / 1e6, a[a.length - 1] / 1e6, a[0] / 1e6,
+                cpu / 1e6, wall / 1e6);
         sched.close();
         for (World w : worlds) w.regionizer().close();
         for (ExecutorService e : pools) e.shutdownNow();
@@ -210,5 +213,11 @@ class MultiDimensionTickBench {
         sched.close();
         for (World w : worlds) w.regionizer().close();
         for (ExecutorService e : pools) e.shutdownNow();
+    }
+
+    /** 프로세스 CPU 시간(ns). 공유 머신이라 다른 프로세스는 빠지지만 이 JVM 의 다른 스레드(GC·JIT)는 들어간다. */
+    static long processCpuNanos() {
+        var os = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+        return os instanceof com.sun.management.OperatingSystemMXBean s ? s.getProcessCpuTime() : 0L;
     }
 }

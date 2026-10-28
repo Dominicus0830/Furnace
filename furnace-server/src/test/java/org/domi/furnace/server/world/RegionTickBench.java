@@ -88,6 +88,7 @@ class RegionTickBench {
         long[] samples = new long[ticks];
         long[] rawSamples = new long[ticks];
         long[] ph = new long[5];
+        long cpu0 = MultiDimensionTickBench.processCpuNanos(), wall0 = System.nanoTime();
         for (int t = 0; t < ticks; t++) {
             // 반지름 24 블록 원을 걷는다(틱당 ~0.2 블록 — 걷기 속도)
             // furnace.bench.speed>0 이면 그 속도(블록/틱)로 +x 직진 — 새 청크 로드·전송·퇴출이 계속 일어난다
@@ -111,6 +112,8 @@ class RegionTickBench {
             Object o;
             while ((o = ch.readOutbound()) != null) io.netty.util.ReferenceCountUtil.release(o);
         }
+        long cpu = MultiDimensionTickBench.processCpuNanos() - cpu0, wall = System.nanoTime() - wall0;
+        System.out.printf("RBENCH cpu=%.0fms wall=%.0fms (틱 %d)%n", cpu / 1e6, wall / 1e6, ticks);
         if (Boolean.getBoolean("furnace.bench.dump")) {
             StringBuilder sbd = new StringBuilder("RBENCH per-tick ms:");
             for (int t = 0; t < Math.min(ticks, 200); t++) sbd.append(String.format(" %.0f", rawSamples[t] / 1e6));
@@ -128,7 +131,8 @@ class RegionTickBench {
             Region r = w.regionAt(new RegionPos(p.chunkPos().x(), p.chunkPos().z()));
             System.out.printf("RBENCH loaded=%d entities=%d%n", p.loadedChunks().size(), r.level().entities().size());
         }).get();
-        long[] is = Region.INSTALL_STATS;
+        long[] is = new long[4];   // region 별 표의 합(흡수·없어진 region 몫은 빠진다)
+        for (Region rr : w.regionizer().regionsSnapshot()) for (int i = 0; i < 4; i++) is[i] += rr.installStats[i];
         System.out.printf("RBENCH install count=%d put=%dms light=%dms ent=%dms%n", is[0], is[1] / 1000000, is[2] / 1000000, is[3] / 1000000);
         ioPool.shutdown();
         genPool.shutdown();

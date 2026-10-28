@@ -7,7 +7,8 @@ paths:
 # 스케줄러·스레드 소유권 규칙
 
 ## 모델
-- `GlobalThread` 1개 + `RegionThread` N개. 각 스레드가 20 TPS 틱 루프를 돌며 자기 inbox를 매 틱 드레인한다.
+- `GlobalThread` 1개 + region 작업 스레드 풀(`Regionizer`, 실서버 경로). region 마다 20 TPS 마감이 있고 풀이 가장 이른 region 부터 돌며 그 inbox 를 드레인한다. `RegionThread` 는 월드 없는 fallback 경로만.
+- **같은 region 은 동시에 한 스레드에서만 돈다. 매 틱 다른 워커일 수 있다.** 주인 판정은 "지금 이 region 을 돌리는 스레드인가"(`Region.isOwnerThread`)다.
 - `FurnaceScheduler.region(RegionPos)`는 같은 `RegionPos`를 항상 같은 스레드로 라우팅한다(결정적 매핑). 여러 `RegionPos`가 한 스레드를 공유할 수 있다. 절대 null이 아니다.
 - region 상태(청크, 엔티티, 플레이어)는 **소유 region 스레드에서만** 읽고 쓴다. 다른 스레드에서는 `TaskScheduler`로 작업을 넘긴다.
 - `Owned<T>.get()`은 소유 스레드가 아니면 AssertionError(assertion 활성 빌드)를 낸다. 운영 빌드에서는 가드가 사라지므로 **테스트로 위반을 잡는다.** 가드를 우회하려고 `Owned` 밖으로 값을 빼 두지 않는다.
