@@ -425,10 +425,15 @@ public final class PlayerVitals {
         }
         boolean r = hurt(type, amount, attacker, shield, source.causing(), source.direct(), source.position());
         // LivingEntity.hurt: 새 피해이고 no_knockback 이 아니면 원인 위치 쪽에서 0.4 민다(위치가 없으면 (0, 0)).
-        // 차이: 직접 엔티티가 투사체일 때의 calculateHorizontalHurtKnockbackDirection 은 위치로 근사한다.
+        // 직접 엔티티가 투사체면 -calculateHorizontalHurtKnockbackDirection.
         if (lastHurtFresh && !type.noKnockback()) {
-            double[] p = source.sourcePosition();
-            player.knockback(0.4, p == null ? 0.0 : p[0] - player.x(), p == null ? 0.0 : p[2] - player.z());
+            if (source.directEntity() instanceof Projectile pr) {
+                double[] d = pr.hurtKnockbackDirection(player);
+                player.knockback(0.4, -d[0], -d[1]);
+            } else {
+                double[] p = source.sourcePosition();
+                player.knockback(0.4, p == null ? 0.0 : p[0] - player.x(), p == null ? 0.0 : p[2] - player.z());
+            }
         }
         return r;
     }

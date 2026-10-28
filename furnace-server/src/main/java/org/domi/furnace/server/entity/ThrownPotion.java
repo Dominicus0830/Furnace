@@ -107,4 +107,8 @@ public class ThrownPotion extends ThrowableProjectile {
             }
         }
     }
+
+    /** 물약은 속도가 아니라 대상 위치 − 물약 위치. */
+    @Override
+    public double[] hurtKnockbackDirection(Targetable target) { return new double[] {target.x() - x(), target.z() - z()}; }
 }
