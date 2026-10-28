@@ -100,6 +100,21 @@ public final class World {
     public World(DimensionType type, WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
                  int regionThreads, int sectionShift, int mergeRadius, int viewDistance, int entityViewDistance,
                  int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
+        this(type, worldSource, chunkPool, scheduler, regionThreads, null, sectionShift, mergeRadius, viewDistance, entityViewDistance,
+                blockDirectBits, biomeDirectBits, ioPool, genPool);
+    }
+
+    /** 이미 있는 작업 스레드 풀에 이 월드를 건다(패키지 전용 — 공유 풀 시험. 실서버 연결은 다음 단계 S4). 풀 수명은 부르는 쪽이 갖는다. */
+    World(DimensionType type, WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler, SharedScheduler pool,
+          int sectionShift, int mergeRadius, int viewDistance, int entityViewDistance,
+          int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
+        this(type, worldSource, chunkPool, scheduler, pool.threadCount(), pool, sectionShift, mergeRadius, viewDistance, entityViewDistance,
+                blockDirectBits, biomeDirectBits, ioPool, genPool);
+    }
+
+    private World(DimensionType type, WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
+                  int regionThreads, SharedScheduler pool, int sectionShift, int mergeRadius, int viewDistance, int entityViewDistance,
+                  int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
         this.dimensionType = type;
         this.worldSource = worldSource;
         this.ioPool = ioPool;
@@ -112,7 +127,9 @@ public final class World {
         this.blockDirectBits = blockDirectBits;
         this.biomeDirectBits = biomeDirectBits;
         long tickNanos = scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl ? impl.tickNanos() : 50_000_000L;
-        this.regionizer = new Regionizer(this, regionThreads, sectionShift, mergeRadius, tickNanos);
+        this.regionizer = pool == null
+                ? new Regionizer(this, regionThreads, sectionShift, mergeRadius, tickNanos)
+                : new Regionizer(this, pool, sectionShift, mergeRadius, tickNanos);
         if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) {
             if (type == DimensionType.OVERWORLD) impl.installRouter((cx, cz) -> chunkScheduler(cx, cz), regionizer::close);
             else impl.addCloseHook(regionizer::close);

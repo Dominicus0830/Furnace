@@ -13,7 +13,8 @@
     (바닐라 `advanceWeatherCycle` 이 `hasSkyLight` 일 때만 세기를 바꾼다) → 그 차원의 `isRaining` 은 거짓, 세기 변화 패킷은
     오버월드 플레이어에게만, 비 시작/끝은 모두에게.
 - region 스레드 풀: **월드마다 따로** 둔다. 지금 `Regionizer` 의 대기열·잠금·작업 스레드가 월드 하나에 묶여 있어서다(Folia 도
-  월드마다 regionizer). 쉬는 차원의 스레드는 조건 변수에서 잠들어 비용이 거의 없다. 한 풀을 여러 월드가 나눠 쓰게 하려면
+  월드마다 regionizer). 쉬는 차원의 스레드는 park 로 잠들어 비용이 거의 없다(2026-10-28 S2: 워커 루프는 `SharedScheduler` 로
+  분리됐고 지금은 월드마다 그 인스턴스 하나 — 공유는 S4). 한 풀을 여러 월드가 나눠 쓰게 하려면
   대기열을 월드 밖으로 빼야 한다 — 성능 측정 뒤 제안할 후보.
 - 스케줄러의 `RegionPos` 라우팅(플러그인 region 스케줄러)은 오버월드만 건다(API 의 RegionPos 에 차원이 없다).
 - 블록 레벨 서비스: 오버월드는 `ServerCore.levelServices`, 다른 차원은 그것을 감싼 `DimensionServices`(차원 타입, 그 차원의

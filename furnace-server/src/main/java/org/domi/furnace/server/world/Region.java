@@ -60,6 +60,10 @@ public final class Region {
     boolean yielded;
     boolean queued;
     long nextTickNanos;
+    /** 스케줄 계측(잠금 안에서만 쓰고 읽는다): 꺼낸 틱 수, 큐 지연(꺼낸 시각 - 마감) 합·최대(ns). */
+    long schedTicks, schedDelaySum, schedDelayMax;
+    /** -Dfurnace.tickstats: [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍. 틱 중(이 region 이 RUNNING)에만 만진다. */
+    final long[] tickStat = new long[2 + 200];
     int ticksSinceRecalc;
     int deadSections;
     final Set<Long> sections = new HashSet<>();
@@ -321,8 +325,8 @@ public final class Region {
         return f;
     }
 
-    /** -Dfurnace.tickstats: 청크 설치 비용 {개수, 넣기, 빛, 엔티티·블록엔티티·예약틱} ns 합계(region 스레드들이 함께 올리므로 근사). */
-    static final long[] INSTALL_STATS = new long[4];
+    /** -Dfurnace.tickstats: 이 region 의 청크 설치 비용 {개수, 넣기, 빛, 엔티티·블록엔티티·예약틱} ns 합계. 틱 중에만 만진다. */
+    final long[] installStats = new long[4];
 
     private void finishLoad(ChunkPos cp, long key, ChunkColumn col, Throwable err, CompletableFuture<ChunkColumn> f) {
         world.removeLoading(key, f);
@@ -361,10 +365,10 @@ public final class Region {
         }
         if (Regionizer.STATS) {
             long t3 = System.nanoTime();
-            INSTALL_STATS[0]++;
-            INSTALL_STATS[1] += t1 - t0;
-            INSTALL_STATS[2] += t2 - t1;
-            INSTALL_STATS[3] += t3 - t2;
+            installStats[0]++;
+            installStats[1] += t1 - t0;
+            installStats[2] += t2 - t1;
+            installStats[3] += t3 - t2;
         }
         f.complete(col);
     }

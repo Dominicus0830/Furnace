@@ -1,5 +1,6 @@
 // 동적 region(Folia ThreadedRegionizer 방식): 청크를 구역(2^shift 청크 정사각형)으로 묶고, 반경 안의 구역을 가진 region 은 합친다.
-// 멀어지면(죽은 구역이 늘면) 연결 성분으로 나눈다. region 마다 다음 틱 시각을 갖고 작업 스레드 풀이 가장 이른 region 부터 돈다.
+// 멀어지면(죽은 구역이 늘면) 연결 성분으로 나눈다. region 마다 다음 틱 시각을 갖고 작업 스레드 풀(SharedScheduler)이 가장 이른 region 부터 돈다.
+// 풀은 잠금 없이 headDue(큐 머리 마감)만 읽고, 꺼내기(tryTake)·끝내기(finishTick)는 이 차원 잠금 안에서 한다.
 // 구조 변경(구역 추가·제거, 합치기·나누기, 틱 시작·끝)은 한 잠금 아래에서만. 합치기·나누기는 region 이 쉬는 동안(틱 사이)만 한다.
 // 설계: docs/superpowers/specs/2026-10-17-dynamic-regionizer.md
 package org.domi.furnace.server.world;
@@ -14,8 +15,6 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,18 +38,31 @@ public final class Regionizer {
     private volatile long tickNanos;
 
     final ReentrantLock lock = new ReentrantLock();
-    private final Condition wake = lock.newCondition();
     /** 구역 키 → 구역. 쓰기는 잠금 안, 읽기(주인 조회)는 어디서나. */
     private final ConcurrentHashMap<Long, Section> sections = new ConcurrentHashMap<>();
     /** 살아 있는 region(잠금 안). */
     private final Set<Region> regions = new LinkedHashSet<>();
     /** 틱 대기열(잠금 안, 지연 삭제 — 꺼낼 때 상태를 다시 본다). */
     private final PriorityQueue<Region> queue = new PriorityQueue<>((a, b) -> Long.compare(a.nextTickNanos, b.nextTickNanos));
-    private final Thread[] workers;
-    private volatile boolean running = true;
+    /** 작업 스레드 풀. 지금은 차원마다 하나(ownsPool) — 공유 풀은 S4. */
+    private final SharedScheduler pool;
+    private final boolean ownsPool;
+    /** 큐 머리의 마감(비면 Long.MAX_VALUE). 쓰기는 잠금 안(publishHead), 읽기는 어디서나 — 힌트일 뿐 결정은 tryTake 가 다시 한다. */
+    private volatile long headDue = Long.MAX_VALUE;
+    /** close 뒤 참: tryTake 는 null, schedule 은 넣지 않는다. */
+    private volatile boolean closed;
     /** 거짓이면 region 틱은 작업만 처리하고 게임 틱은 건너뛴다(서버가 다 준비되기 전·테스트). */
     private volatile boolean gameTicks;
     private int nextId;
+
+    // ------------------------------------------------------------------ 스케줄 계측(동작에 영향 없음)
+    /** 지금 틱 중인 region 수(= 바쁜 워커 수)와 그 최대. */
+    private final java.util.concurrent.atomic.AtomicInteger activeTicks = new java.util.concurrent.atomic.AtomicInteger();
+    private volatile int peakActiveTicks;
+    /** 꺼낸 틱 수, 큐 지연 합·최대(ns), 지연 분포(2의 거듭제곱 µs 칸: 0=<1µs, i=[2^(i-1),2^i)µs). 잠금 안에서만. */
+    private long schedTicks, schedDelaySum, schedDelayMax;
+    private final long[] schedDelayHist = new long[DELAY_BUCKETS];
+    static final int DELAY_BUCKETS = 32;
 
     /** 구역: 그 안의 "있는 청크" 수와 주인 region. */
     static final class Section {
@@ -75,23 +87,36 @@ public final class Regionizer {
         this.radius = radius;
         this.tickNanos = tickNanos;
         if (STATS) log.info("[TICKSTATS] 틱 계측 켜짐 — region 틱 100번마다 간격/소요 시간을 기록합니다");
-        this.workers = new Thread[Math.max(1, threads)];
-        for (int i = 0; i < workers.length; i++) {
-            // 차원마다 작업 스레드가 따로다(오버월드 furnace-region-N, 네더 furnace-region-the_nether-N …)
-            String dim = world.dimensionType() == DimensionType.OVERWORLD ? "" : world.dimension().substring(world.dimension().indexOf(':') + 1) + "-";
-            Thread t = new Thread(this::workerLoop, "furnace-region-" + dim + i);
-            t.setDaemon(true);
-            t.setPriority(Thread.MAX_PRIORITY - 1);   // 틱 스레드는 백그라운드 생성·저장보다 먼저 CPU 를 받는다
-            workers[i] = t;
-            t.start();
-        }
+        // 차원마다 작업 스레드가 따로다(오버월드 furnace-region-N, 네더 furnace-region-the_nether-N …)
+        String dim = world.dimensionType() == DimensionType.OVERWORLD ? "" : world.dimension().substring(world.dimension().indexOf(':') + 1) + "-";
+        this.pool = new SharedScheduler(threads, "furnace-region-" + dim);
+        this.ownsPool = true;
+        pool.register(this);
+        pool.start();
+    }
+
+    /** 이미 있는 풀에 건다(ownsPool=false — close 는 이 차원만 떼고 풀은 멈추지 않는다). */
+    Regionizer(World world, SharedScheduler pool, int shift, int radius, long tickNanos) {
+        this.world = world;
+        this.shift = shift;
+        this.radius = radius;
+        this.tickNanos = tickNanos;
+        if (STATS) log.info("[TICKSTATS] 틱 계측 켜짐 — region 틱 100번마다 간격/소요 시간을 기록합니다");
+        this.pool = pool;
+        this.ownsPool = false;
+        pool.register(this);
     }
 
     public int shift() { return shift; }
 
     public int radius() { return radius; }
 
-    public int threadCount() { return workers.length; }
+    public int threadCount() { return pool.threadCount(); }
+
+    /** 큐 머리 마감(잠금 없음, 힌트). */
+    long headDue() { return headDue; }
+
+    SharedScheduler pool() { return pool; }
 
     void setTickNanos(long nanos) { this.tickNanos = Math.max(1L, nanos); }
 
@@ -320,12 +345,10 @@ public final class Regionizer {
 
     /** -Dfurnace.tickstats=true: region 틱 간격·소요 시간을 100틱마다 p50/p95/최대로 기록한다(끊김 진단용). */
     static final boolean STATS = Boolean.getBoolean("furnace.tickstats") || System.getenv("FURNACE_TICKSTATS") != null;
-    private final java.util.concurrent.ConcurrentHashMap<Integer, long[]> tickStats = new java.util.concurrent.ConcurrentHashMap<>();
 
-    private long[] lastInstall = new long[4];
-
+    /** 틱 뒤·끝내기 앞(region 이 아직 RUNNING — 다른 워커가 못 꺼낸다)에 부른다. 표는 region 인스턴스 필드다. */
     private void recordTick(Region r, long start, long end) {
-        long[] st = tickStats.computeIfAbsent(r.id, k -> new long[2 + 200]);   // [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍
+        long[] st = r.tickStat;   // [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍
         int n = (int) st[1];
         if (st[0] != 0L) {
             st[2 + n * 2] = start - st[0];
@@ -341,7 +364,7 @@ public final class Regionizer {
             }
             java.util.Arrays.sort(gap);
             java.util.Arrays.sort(dur);
-            log.info("[TICKSTATS] region #{} 간격 p50={}ms p95={}ms max={}ms / 소요 p50={}ms p95={}ms max={}ms", r.id,
+            log.info("[TICKSTATS] region {}#{} 간격 p50={}ms p95={}ms max={}ms / 소요 p50={}ms p95={}ms max={}ms", world.dimension(), r.id,
                     gap[n / 2] / 1_000_000, gap[n * 95 / 100] / 1_000_000, gap[n - 1] / 1_000_000,
                     dur[n / 2] / 1_000_000, dur[n * 95 / 100] / 1_000_000, dur[n - 1] / 1_000_000);
             st[1] = 0;
@@ -353,10 +376,8 @@ public final class Regionizer {
                 r.phaseMax[i] = 0;
             }
             log.info("[TICKSTATS]   단계별:{}", b);
-            long[] is = Region.INSTALL_STATS.clone();
-            long[] d = new long[4];
-            for (int i = 0; i < 4; i++) d[i] = is[i] - lastInstall[i];
-            lastInstall = is;
+            long[] d = r.installStats.clone();
+            java.util.Arrays.fill(r.installStats, 0L);
             if (d[0] > 0) {
                 log.info("[TICKSTATS]   청크 설치 {}개: 넣기 {}ms 빛 {}ms 엔티티·예약틱 {}ms (개당 평균 {}µs)", d[0], d[1] / 1_000_000, d[2] / 1_000_000,
                         d[3] / 1_000_000, (d[1] + d[2] + d[3]) / d[0] / 1000);
@@ -369,78 +390,136 @@ public final class Regionizer {
 
     public static boolean isRegionWorkerThread() { return WORKER.get(); }
 
-    private void workerLoop() {
-        WORKER.set(true);
-        while (running) {
-            Region r;
-            lock.lock();
-            try {
-                r = takeDue();
-                if (r == null) continue;
-                r.ticking = true;
-                r.tickThread = Thread.currentThread();
-            } catch (InterruptedException e) {
-                return;
-            } finally {
-                lock.unlock();
+    /** 풀 워커가 시작할 때 부른다. */
+    static void markWorkerThread() { WORKER.set(true); }
+
+    /**
+     * 꺼내기(워커, 잠금 안): 머리의 낡은 항목(죽음·양보·틱 중·큐 밖)을 지우고, 때가 된 머리를 RUNNING 으로 꺼낸다.
+     * 머리가 없거나 아직 때가 아니거나 닫혔으면 null(워커가 다시 고른다).
+     */
+    Region tryTake(long now) {
+        lock.lock();
+        try {
+            if (closed) return null;
+            while (true) {
+                Region head = queue.peek();
+                if (head == null) {
+                    publishHead();
+                    return null;
+                }
+                if (!head.alive || head.yielded || head.ticking || !head.queued) {
+                    queue.poll();
+                    head.queued = false;
+                    continue;
+                }
+                long late = now - head.nextTickNanos;
+                if (late < 0) {
+                    publishHead();
+                    return null;
+                }
+                queue.poll();
+                head.queued = false;
+                head.ticking = true;
+                head.tickThread = Thread.currentThread();
+                noteTaken(head, late);
+                publishHead();
+                // 새 머리가 자는 워커의 깰 시각보다 이르면 하나 깨운다(지금까지의 signalAll 과 같은 효과 — 같은 마감 region 을 다른 워커가 받는다)
+                pool.wake(headDue);
+                return head;
             }
-            long t0 = STATS ? System.nanoTime() : 0L;
-            try {
-                boolean game = gameTicks;
-                long tickStart = game ? System.nanoTime() : 0L;
-                r.runTick(game);
-                if (game) world.tickState().record(System.nanoTime() - tickStart);   // /tick query 의 틱 시간 표본
-            } catch (Throwable t) {
-                log.error("[TICK] region #{} 실패", r.id, t);
-            }
-            if (STATS) recordTick(r, t0, System.nanoTime());
-            lock.lock();
-            try {
-                r.ticking = false;
-                r.tickThread = null;
-                afterTick(r);
-            } catch (Throwable t) {
-                log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
-            } finally {
-                lock.unlock();
-            }
+        } finally {
+            lock.unlock();
         }
     }
 
-    /** 다음에 돌 region(잠금 안). 아직 때가 안 됐으면 기다린다. 기다리다 깨면 null(다시 고른다). */
-    private Region takeDue() throws InterruptedException {
-        while (true) {
-            Region head = queue.peek();
-            if (head == null) {
-                wake.await(50, TimeUnit.MILLISECONDS);
-                return null;
-            }
-            if (!head.alive || head.yielded || head.ticking || !head.queued) {
-                queue.poll();
-                head.queued = false;
-                continue;
-            }
-            long wait = head.nextTickNanos - System.nanoTime();
-            if (wait > 0) {
-                long spin = org.domi.furnace.server.sched.PreciseWait.spinMargin();
-                if (spin > 0L && wait <= spin) {
-                    // 대기 해상도가 거친 플랫폼: 마지막 구간은 잠금을 놓고 돌며 기다려 틱 시작이 흔들리지 않게 한다
-                    long due = head.nextTickNanos;
-                    lock.unlock();
-                    try {
-                        org.domi.furnace.server.sched.PreciseWait.parkUntil(due);
-                    } finally {
-                        lock.lock();
-                    }
-                    return null;
-                }
-                wake.awaitNanos(spin > 0L ? wait - spin : wait);
-                return null;
-            }
-            queue.poll();
-            head.queued = false;
-            return head;
+    /** 틱 하나(워커, 잠금 밖): 본문 → /tick 표본 → 계측 → 끝내기. 순서는 예전 workerLoop 와 같다. */
+    void runOne(Region r) {
+        long t0 = STATS ? System.nanoTime() : 0L;
+        try {
+            boolean game = gameTicks;
+            long tickStart = game ? System.nanoTime() : 0L;
+            r.runTick(game);
+            if (game) world.tickState().record(System.nanoTime() - tickStart);   // /tick query 의 틱 시간 표본
+        } catch (Throwable t) {
+            log.error("[TICK] region #{} 실패", r.id, t);
         }
+        if (STATS) recordTick(r, t0, System.nanoTime());
+        finishTick(r);
+    }
+
+    /** 끝내기(워커, 잠금 안): RUNNING → IDLE/QUEUED. */
+    void finishTick(Region r) {
+        lock.lock();
+        try {
+            r.ticking = false;
+            r.tickThread = null;
+            activeTicks.decrementAndGet();
+            afterTick(r);
+        } catch (Throwable t) {
+            log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** 큐 머리 마감을 발행한다(잠금 안, 큐가 바뀐 자리 끝). 낡은 머리를 발행해도 앞당길 뿐 늦추지 않는다. */
+    private void publishHead() {
+        Region h = queue.peek();
+        headDue = h == null ? Long.MAX_VALUE : h.nextTickNanos;
+    }
+
+    /** 꺼낸 region 의 큐 지연을 남긴다(잠금 안). */
+    private void noteTaken(Region r, long delay) {
+        if (delay < 0) delay = 0;
+        schedTicks++;
+        schedDelaySum += delay;
+        if (delay > schedDelayMax) schedDelayMax = delay;
+        long us = delay / 1000;
+        schedDelayHist[Math.min(DELAY_BUCKETS - 1, 64 - Long.numberOfLeadingZeros(us))]++;
+        r.schedTicks++;
+        r.schedDelaySum += delay;
+        if (delay > r.schedDelayMax) r.schedDelayMax = delay;
+        int a = activeTicks.incrementAndGet();
+        if (a > peakActiveTicks) peakActiveTicks = a;
+    }
+
+    /** region 별 스케줄 계측. */
+    public record RegionSchedStats(int id, long ticks, long queueDelaySumNanos, long queueDelayMaxNanos) {}
+
+    /**
+     * 차원(이 Regionizer) 스케줄 계측 사본. queueDelay = 꺼낸 시각 - 예정 마감. waitNanos/wakeups = 이 차원 풀의 워커가 기다린 시간·횟수
+     * (풀을 공유하면 풀 전체 값).
+     * activeWorkers = 지금 틱 중인 워커 수, peakActiveWorkers = 그 최대.
+     */
+    public record SchedStats(String dimension, int threads, long ticks, long queueDelaySumNanos, long queueDelayMaxNanos,
+                             long queueDelayP50Nanos, long queueDelayP95Nanos, long queueDelayP99Nanos,
+                             long waitNanos, long wakeups, int activeWorkers, int peakActiveWorkers,
+                             List<RegionSchedStats> regions) {
+        public double queueDelayAvgNanos() { return ticks == 0 ? 0 : (double) queueDelaySumNanos / ticks; }
+    }
+
+    public SchedStats schedStats() {
+        lock.lock();
+        try {
+            List<RegionSchedStats> rs = new ArrayList<>();
+            for (Region r : regions) rs.add(new RegionSchedStats(r.id, r.schedTicks, r.schedDelaySum, r.schedDelayMax));
+            return new SchedStats(world.dimension(), threadCount(), schedTicks, schedDelaySum, schedDelayMax,
+                    delayQuantile(0.50), delayQuantile(0.95), delayQuantile(0.99),
+                    pool.waitNanos(), pool.wakeups(), activeTicks.get(), peakActiveTicks, rs);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** 지연 분포 칸의 위 경계(ns)로 본 분위수(잠금 안). */
+    private long delayQuantile(double q) {
+        if (schedTicks == 0) return 0;
+        long need = (long) Math.ceil(schedTicks * q), acc = 0;
+        for (int i = 0; i < DELAY_BUCKETS; i++) {
+            acc += schedDelayHist[i];
+            if (acc >= need) return i == 0 ? 1_000L : (1L << i) * 1_000L;
+        }
+        return schedDelayMax;
     }
 
     /** 틱 끝(잠금 안): 합치기 → 나누기 → 빈 region 정리 → 다음 틱 예약. */
@@ -467,10 +546,12 @@ public final class Regionizer {
     }
 
     private void schedule(Region r) {
-        if (r.queued || !r.alive || r.yielded) return;
+        if (closed || r.queued || !r.alive || r.yielded) return;
         r.queued = true;
         queue.add(r);
-        wake.signalAll();
+        long prev = headDue;
+        publishHead();
+        if (SharedScheduler.earlier(headDue, prev)) pool.wake(headDue);   // 머리가 앞당겨졌다 — 늦게 깰 워커 하나를 깨운다(잠금 없음)
     }
 
     /** 합칠 대상이 쉬면 흡수, 틱 중이면 양보(다음 틱을 잡지 않고 상대가 끝날 때 흡수된다). */
@@ -737,20 +818,16 @@ public final class Regionizer {
         }
     }
 
+    /** 이 차원을 풀에서 뗀다. 돌던 틱은 끝까지 돌고(다음 예약은 거절) 풀이 이 차원 것이면 워커도 멈춘다(join 1초 상한). */
     void close() {
-        running = false;
         lock.lock();
         try {
-            wake.signalAll();
+            closed = true;
+            headDue = Long.MAX_VALUE;
         } finally {
             lock.unlock();
         }
-        for (Thread t : workers) {
-            try {
-                t.join(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
+        pool.unregister(this);   // 잠금을 놓은 뒤(R1)
+        if (ownsPool) pool.close();
     }
 }
