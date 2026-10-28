@@ -283,3 +283,10 @@
 - 바닐라 EndDragonFight.isArenaLoaded 는 안쪽 반복 오타(`z = 8 + cz; z <= 8 + cz`)로 x -8..8, z +8 한 줄만 본다. "고쳐서" 전체를 보면 parity 가 깨진다.
 - `TargetingConditions.test` 는 출처가 null 이면 거리·투명 검사를 건너뛴다. 수정 파괴 시 플레이어 찾기는 출처 없이 부른다(거리 무제한).
 - 앉은 단계는 화살뿐 아니라 WindCharge 도 불붙이고 무시한다. 상세: `dragon-parity-recheck-2026-10-28.md`.
+## 2026-10-28 swing·pick_item / 구조물 스위치·light_update / 게임룰
+- swing(0x36) → `Player.swing(hand, false)`: animate(0x03, 주 손 0·보조 손 3)를 보는 사람에게만(본인 제외), 휘두르는 중 절반(getCurrentSwingDuration/2) 전에는 다시 안 보낸다. 서버가 직접 휘두르는 곳은 use_item_on·use_item 결과가 SUCCESS 류일 때(본인 포함). 공격·블록 파괴는 클라이언트가 swing 을 따로 보낸다(서버 호출 없음). 엔티티 상호작용의 shouldSwing 은 interact 가 결과를 돌려주지 않아 아직 없다.
+- pick_item(0x20)은 1.21.1 에서 인벤토리 번호만 온다(서바이벌 휠클릭): pickSlot(getSuitableHotbarSlot → 맞바꾸기) 후 set_slot(-2) 두 개 + set_carried_item. 크리에이티브 복제는 클라이언트가 set_creative_mode_slot 으로 한다. 0..35 밖 번호는 끊는다(바닐라는 검사 없이 예외 — 가정).
+- generate_features(level.dat)를 모든 차원 StructureEngine 에 연결. 탐험 지도(findNearestMapStructure)도 server.properties 가 아니라 level.dat 값을 본다. `/locate` 의 StructureLocator 는 꺼져 있으면 시작점을 못 찾는다(바닐라 /locate 는 미생성 청크를 예측해 찾을 수 있음 — 차이).
+- light_update(0x2A): 바닐라 ChunkHolder.broadcastChanges 는 바뀐 빛 섹션(setStoredLevel 칸의 ±1 상자가 걸친 섹션)을 블록 변경보다 먼저, `getPlayers(pos, true)` — 그 청크를 보면서 둘레 8칸 중 하나라도 안 보는(가장자리) 플레이어에게만 보낸다. 안쪽은 클라이언트가 스스로 계산한다. Furnace 는 이웃 "보는가"를 구독 여부로만 본다(이웃 ready 는 다른 region 소유) — 아직 안 보낸 이웃 청크를 본다고 치는 차이.
+- 게임룰: fireDamage·freezeDamage(Player.isInvulnerableTo), enderPearlsVanishOnDeath(ThrownEnderpearl.tick), spawnRadius(adjustSpawnLocation: 첫 접속·리스폰 블록 없는 리스폰·크레딧 뒤) 구현. 흩뿌린 자리의 회전은 바닐라처럼 0. 미리 올리는 반경은 128칸까지(그 밖은 올라온 청크만 — 바닐라는 필요 때 불러온다). noCollision 은 블록만 본다(보트·셜커 충돌, 보더 충돌 없음).
+- 제외: projectilesCanBreakBlocks(소비처 Block.onProjectileHit 훅이 아직 없다), spectatorsGenerateChunks(관전자가 청크를 올리지 않고 남이 올린 청크만 받는 구독 모델이 필요), maxEntityCramming(성능 설계 필요), commandBlockOutput(명령 블록 미구현).

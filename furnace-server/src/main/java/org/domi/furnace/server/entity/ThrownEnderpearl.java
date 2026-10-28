@@ -8,6 +8,16 @@ public class ThrownEnderpearl extends ThrowableProjectile {
 
     @Override protected String defaultItem() { return "minecraft:ender_pearl"; }
 
+    /** ThrownEnderpearl.tick: 던진 플레이어가 죽어 있고 enderPearlsVanishOnDeath 면 사라진다. */
+    @Override
+    public void tick() {
+        if (lastOwner() instanceof Player p && !p.isDisconnected() && !p.isAlive() && level.gameRule("enderPearlsVanishOnDeath")) {
+            discard();
+            return;
+        }
+        super.tick();
+    }
+
     @Override
     protected void onHitEntity(Hit hit) {
         Targetable owner = getOwner();

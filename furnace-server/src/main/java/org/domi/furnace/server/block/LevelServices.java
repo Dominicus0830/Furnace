@@ -11,6 +11,9 @@ public interface LevelServices {
 
     int difficulty();
 
+    /** 월드 기본 게임 모드(level.dat GameType)가 모험인가 — adjustSpawnLocation 이 모험이면 흩뿌리지 않는다. */
+    default boolean worldAdventure() { return false; }
+
     boolean withinBorder(int x, int z);
 
     /** 보더 {minX, minZ, maxX, maxZ}(기본은 최대 크기). */
@@ -168,6 +171,7 @@ public interface LevelServices {
         public boolean gameRule(String name) { return d.gameRule(name); }
         public int gameRuleInt(String name) { return d.gameRuleInt(name); }
         public int difficulty() { return d.difficulty(); }
+        public boolean worldAdventure() { return d.worldAdventure(); }
         public boolean withinBorder(int x, int z) { return d.withinBorder(x, z); }
         public double[] borderBounds() { return d.borderBounds(); }
         public boolean isRaining() { return d.isRaining(); }

@@ -70,6 +70,26 @@ public final class RespawnFinder {
         }), (level, t) -> done.accept(t == null ? new Outcome(null, null, true, null) : new Outcome(target, t, false, seed[0])));
     }
 
+    /** 월드 스폰 흩뿌리기에서 미리 올릴 최대 반경(블록). 이보다 큰 spawnRadius 는 올라와 있는 청크 안에서만 고른다(바닐라는 필요할 때 불러온다). */
+    public static final int MAX_SPAWN_PRELOAD = 128;
+
+    /**
+     * 월드 스폰의 설 자리: ServerPlayer.adjustSpawnLocation(오버월드, 공유 스폰).getBottomCenter(), 회전 0(바닐라 생성자·DimensionTransition 모두 0).
+     * 오버월드 region 스레드에서 계산하고 done(자리)는 아무 스레드에서나. 못 정하면 공유 스폰 그대로.
+     */
+    public static void worldSpawn(World over, int spawnRadius, boolean worldAdventure, Consumer<Spot> done) {
+        SpawnPoint spawn = over.defaultSpawn();
+        Spot fallback = new Spot(spawn.playerX(), spawn.playerY(), spawn.playerZ(), 0.0F);
+        Spot[] out = new Spot[1];
+        int pre = Math.min(Math.max(0, spawnRadius), MAX_SPAWN_PRELOAD);
+        over.completeTravel(new PortalTravel(over.dimension(), spawn.x(), spawn.z(), 0, pre, level -> {
+            Pos p = org.domi.furnace.server.block.SpawnLocation.adjust(level, new Pos(spawn.x(), spawn.y(), spawn.z()), spawnRadius, worldAdventure);
+            Spot s = new Spot(p.x() + 0.5, p.y(), p.z() + 0.5, 0.0F);
+            out[0] = s;
+            return new DimensionTransition(level, s.x(), s.y(), s.z(), 0, 0, 0, 0.0F, 0.0F);
+        }), (level, t) -> done.accept(out[0] != null ? out[0] : fallback));
+    }
+
     /**
      * find 뒤 월드 스폰까지 이어 목적지를 정한다(엔드 귀환·크레딧 뒤 리스폰): arrive(목적 레벨, 목적지)를 목적 region 스레드에서.
      * 못 정하면 arrive(null, null).
@@ -82,8 +102,12 @@ public final class RespawnFinder {
             }
             World over = overworld(src);
             SpawnPoint spawn = over.defaultSpawn();
-            over.completeTravel(new PortalTravel(over.dimension(), spawn.x(), spawn.z(), 0, 0, level -> new DimensionTransition(level,
-                    spawn.playerX(), spawn.playerY(), spawn.playerZ(), 0, 0, 0, spawn.yaw(), 0.0F, false, null, o.missing())), arrive);
+            int radius = over.levelServices().gameRuleInt("spawnRadius");
+            boolean adventure = over.levelServices().worldAdventure();
+            over.completeTravel(new PortalTravel(over.dimension(), spawn.x(), spawn.z(), 0, Math.min(Math.max(0, radius), MAX_SPAWN_PRELOAD), level -> {
+                Pos at = org.domi.furnace.server.block.SpawnLocation.adjust(level, new Pos(spawn.x(), spawn.y(), spawn.z()), radius, adventure);
+                return new DimensionTransition(level, at.x() + 0.5, at.y(), at.z() + 0.5, 0, 0, 0, 0.0F, 0.0F, false, null, o.missing());
+            }), arrive);
         });
     }
 

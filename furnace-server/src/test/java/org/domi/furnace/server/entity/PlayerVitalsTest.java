@@ -116,6 +116,22 @@ class PlayerVitalsTest {
     }
 
     @Test
+    void fireAndFreezeDamageGameRules() {
+        for (int i = 0; i < 60; i++) v.tick(DRY);   // 접속 무적 지나기
+        DamageType fire = DamageType.find("on_fire"), freeze = DamageType.find("freeze");
+        env.rules.put("fireDamage", false);
+        env.rules.put("freezeDamage", false);
+        assertFalse(v.hurt(fire, 2), "fireDamage=false 면 불 피해 무시(Player.isInvulnerableTo)");
+        assertFalse(v.hurt(freeze, 2), "freezeDamage=false 면 동결 피해 무시");
+        assertEquals(20.0f, v.health());
+        env.rules.put("fireDamage", true);
+        assertTrue(v.hurt(fire, 2));
+        for (int i = 0; i < 20; i++) v.tick(DRY);
+        env.rules.put("freezeDamage", true);
+        assertTrue(v.hurt(freeze, 2));
+    }
+
+    @Test
     void voidHurtsFourEveryTenTicks() {
         NbtCompound tag = new NbtCompound();
         tag.putInt("foodLevel", 17);   // 자연 회복이 끼지 않게

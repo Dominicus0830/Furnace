@@ -28,6 +28,9 @@ public abstract class Projectile extends Entity {
         }
     }
 
+    /** 마지막으로 찾은 주인(살아 있는지 보지 않는다 — 바닐라 getOwner 는 제거되지 않았으면 죽었어도 돌려준다). */
+    protected Targetable lastOwner() { return owner; }
+
     public Targetable getOwner() {
         if (owner != null && owner.isAlive()) return owner;
         if (ownerUUID != null) {

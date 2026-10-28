@@ -786,6 +786,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                     final var s = saved;
                     final Throwable f = fail;
+                    if (s == null && f == null && login.core != null) {
+                        // 처음 들어오는 플레이어: ServerPlayer 생성자의 adjustSpawnLocation(오버월드 공유 스폰) — 오버월드 region 에서 계산
+                        World over = login.core.world();
+                        org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"),
+                                over.levelServices().worldAdventure(), spot -> {
+                                    try {
+                                        ctx.executor().execute(() -> {
+                                            firstSpawn = spot;
+                                            finishEnterPlay(ctx, null, null);
+                                        });
+                                    } catch (java.util.concurrent.RejectedExecutionException closed) {
+                                        java.util.ArrayDeque<Object[]> q = pendingPlayFrames;
+                                        pendingPlayFrames = null;
+                                        releasePendingFrames(q);
+                                    }
+                                });
+                        return;
+                    }
                     try {
                         ctx.executor().execute(() -> finishEnterPlay(ctx, s, f));
                     } catch (java.util.concurrent.RejectedExecutionException closed) {
@@ -963,10 +981,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, p.recipeBook().initPacket());
         // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
         SpawnPoint defaultSpawn = world.defaultSpawn();
-        double sx = saved != null ? saved.x() : defaultSpawn.playerX();
-        double sy = saved != null ? saved.y() : defaultSpawn.playerY();
-        double sz = saved != null ? saved.z() : defaultSpawn.playerZ();
-        float syaw = saved != null ? saved.yaw() : defaultSpawn.yaw();
+        var first = firstSpawn;   // 새 플레이어: 흩뿌린 자리(회전 0 — ServerPlayer 생성자)
+        firstSpawn = null;
+        double sx = saved != null ? saved.x() : first != null ? first.x() : defaultSpawn.playerX();
+        double sy = saved != null ? saved.y() : first != null ? first.y() : defaultSpawn.playerY();
+        double sz = saved != null ? saved.z() : first != null ? first.z() : defaultSpawn.playerZ();
+        float syaw = saved != null ? saved.yaw() : first != null ? first.yaw() : defaultSpawn.yaw();
         float spitch = saved != null ? saved.pitch() : 0f;
         if (saved != null) inv.load(saved.slots());
         menus = new ServerMenus(p);
@@ -2367,17 +2387,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             respawnPending = false;
             return;
         }
-        World target;
-        double x, y, z;
-        float yaw;
         if (o.transition() != null) {
-            target = o.world();
-            x = o.transition().x(); y = o.transition().y(); z = o.transition().z(); yaw = o.transition().yRot();
-        } else {
-            target = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
-            SpawnPoint spawn = target.defaultSpawn();
-            x = spawn.playerX(); y = spawn.playerY(); z = spawn.playerZ(); yaw = spawn.yaw();
+            respawnAt(ctx, from, o, o.world(), o.transition().x(), o.transition().y(), o.transition().z(), o.transition().yRot());
+            return;
         }
+        // 리스폰 블록 없음: 오버월드 월드 스폰에서 흩뿌린 자리(adjustSpawnLocation — 블록을 읽으므로 오버월드 region 에서)
+        World over = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
+        org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"), over.levelServices().worldAdventure(),
+                s -> ctx.executor().execute(() -> {
+                    if (player != p || !ctx.channel().isActive() || world != from) {
+                        respawnPending = false;
+                        return;
+                    }
+                    respawnAt(ctx, from, o, over, s.x(), s.y(), s.z(), s.yaw());
+                }));
+    }
+
+    private void respawnAt(ChannelHandlerContext ctx, World from, org.domi.furnace.server.world.RespawnFinder.Outcome o, World target,
+                           double x, double y, double z, float yaw) {
+        Player p = player;
         boolean worldSpawn = o.transition() == null, missing = o.missing();
         Long seed = o.depleteSoundSeed();
         if (target == from) {
@@ -2394,6 +2422,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private boolean respawnPending;
+    /** 처음 들어오는 플레이어의 스폰 자리(beginEnterPlay 가 정하고 onEnterPlay 가 한 번 쓴다). 이벤트루프 전용. */
+    private org.domi.furnace.server.world.RespawnFinder.Spot firstSpawn;
     /** 다른 차원에서 리스폰해 오는 중이면 원래 차원(리스폰을 다 보낸 뒤 오버월드 region 에 넣는다). */
     private String respawnFrom;
 
