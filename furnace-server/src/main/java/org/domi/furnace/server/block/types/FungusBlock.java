@@ -11,10 +11,12 @@ public class FungusBlock extends BushBlock implements BonemealableBlock {
 
     private static final int MYCELIUM = B.id("mycelium"), SOUL_SOIL = B.id("soul_soil");
     private final int growsOn;
+    private final String feature;
 
     public FungusBlock(int block) {
         super(block);
         this.growsOn = B.id(Blocks.get().params(block).get("grows_on").getAsString());
+        this.feature = Blocks.get().params(block).get("feature").getAsString();
     }
 
     @Override
@@ -30,6 +32,8 @@ public class FungusBlock extends BushBlock implements BonemealableBlock {
 
     @Override
     public void performBonemeal(BlockLevel level, RandomSource random, Pos pos, int state) {
-        // TODO(지형 생성): 정의 인자 feature(crimson/warped_fungus_planted) 를 이 칸에 배치.
+        // 바닐라: feature 를 이 칸에 그대로 놓는다(planted 설정이 균 자리를 대신한다)
+        org.domi.furnace.server.block.LevelFeature f = level.configuredFeature(feature);
+        if (f != null && f.supported()) level.placeFeature(f, pos, random);
     }
 }

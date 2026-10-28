@@ -24,6 +24,6 @@ public class AzaleaBlock extends BushBlock implements BonemealableBlock {
 
     @Override
     public void performBonemeal(BlockLevel level, RandomSource random, Pos pos, int state) {
-        // TODO(지형 생성): TreeGrower.AZALEA.growTree(level, chunkGenerator, pos, state, random)
+        TreeGrower.growTree(TreeGrower.of("azalea"), level, pos, state, random);
     }
 }

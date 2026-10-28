@@ -102,12 +102,46 @@ public final class ChunkColumn {
         return c;
     }
 
+    /** 쓰기 시 복사 사본: 섹션은 원본과 같이 쓰다가 처음 쓸 때 그 섹션만 복사한다(블록 쪽 feature 배치용, 사본이 사는 동안 원본을 바꾸지 않는다는 전제). */
+    public ChunkColumn cowCopy() {
+        ChunkColumn c = new ChunkColumn(minY, sectionCount);
+        System.arraycopy(sections, 0, c.sections, 0, sectionCount);
+        c.sharedSections = new boolean[sectionCount];
+        java.util.Arrays.fill(c.sharedSections, true);
+        System.arraycopy(surface, 0, c.surface, 0, surface.length);
+        System.arraycopy(surfaceWg, 0, c.surfaceWg, 0, surfaceWg.length);
+        System.arraycopy(oceanFloor, 0, c.oceanFloor, 0, oceanFloor.length);
+        System.arraycopy(wgOceanFloor, 0, c.wgOceanFloor, 0, wgOceanFloor.length);
+        System.arraycopy(motionBlocking, 0, c.motionBlocking, 0, motionBlocking.length);
+        c.blockEntities.putAll(blockEntities);
+        c.dirty = dirty;
+        c.wgHeightmapsFrozen = wgHeightmapsFrozen;
+        c.structures = structures;
+        return c;
+    }
+
+    /** cowCopy 의 아직 공유 중인 섹션 표시(보통 null). */
+    private boolean[] sharedSections;
+
+    private ChunkSection ownSection(int i) {
+        if (sharedSections != null && sharedSections[i]) {
+            sections[i] = sections[i].copy();
+            sharedSections[i] = false;
+        }
+        return sections[i];
+    }
+
+    private void ownAllSections() {
+        if (sharedSections != null) for (int i = 0; i < sectionCount; i++) ownSection(i);
+    }
+
     public ChunkSection[] sections() {
+        ownAllSections();
         return sections;
     }
 
     public int[] sectionBlocks(int sectionIndex) {
-        return sections[sectionIndex].openScratch();
+        return ownSection(sectionIndex).openScratch();
     }
 
     // key = ((x&0x3FFFFFF)<<38) | ((z&0x3FFFFFF)<<12) | (y&0xFFF) — Types.writeBlockPos와 동형(자체 인코딩, 프로토콜과 무관)
@@ -415,13 +449,14 @@ public final class ChunkColumn {
     }
 
     public void compactSections() {
+        ownAllSections();
         for (ChunkSection section : sections) section.compact();
     }
 
     /** worldY 절대좌표에 블록 설정. */
     public void setBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - minY;
-        sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        ownSection(local >> 4).setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         updateWgOceanFloor(x, worldY, z, stateId);
@@ -433,7 +468,7 @@ public final class ChunkColumn {
 
     public void setGeneratedBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - minY;
-        sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        ownSection(local >> 4).setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         touch();
@@ -480,7 +515,7 @@ public final class ChunkColumn {
      * quartX, quartZ 0..3, quartY 0..95 (블록 y = -64 + quartY*4).
      */
     public void setBiome(int quartX, int quartY, int quartZ, int biomeId) {
-        sections[quartY / 4].setBiome(quartX, quartY % 4, quartZ, biomeId);
+        ownSection(quartY / 4).setBiome(quartX, quartY % 4, quartZ, biomeId);
         touch();
     }
 
@@ -489,7 +524,7 @@ public final class ChunkColumn {
      * 높이맵 캐시를 미설정으로 돌리고 dirty 를 세운다. 표면·WG 높이맵은 호출 측이 rebuildHeightmapsAfterSurface 로 다시 만든다.
      */
     public void loadSectionBlocks(int sectionIdx, int[] blocks) {
-        sections[sectionIdx].replaceBlocks(blocks, 0);
+        ownSection(sectionIdx).replaceBlocks(blocks, 0);
         for (int i = 0; i < 4096; i++) {
             if (blocks[i] != ChunkSection.AIR) {
                 java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
@@ -503,7 +538,7 @@ public final class ChunkColumn {
 
     public void loadGenerated(int[] blockIds, int[] biomeIds) {
         for (int i = 0; i < sectionCount; i++) {
-            sections[i].replaceBlocks(blockIds, i * 4096);
+            ownSection(i).replaceBlocks(blockIds, i * 4096);
             sections[i].replaceBiomes(biomeIds, i * 64);
         }
         rebuildSurface(blockIds);

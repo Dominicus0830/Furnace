@@ -253,6 +253,10 @@ public final class TreeFeature implements ConfiguredFeature {
         int nx = x + dir.dx();
         int ny = y + dir.dy();
         int nz = z + dir.dz();
+        if (view.recordsLiveEdges()) {
+            view.recordLiveEdge(x, y, z, dir.dx(), dir.dy(), dir.dz());
+            return;
+        }
         int state = view.getBlock(x, y, z);
         int neighbor = view.getBlock(nx, ny, nz);
         int newState = VineSupport.updateShape(view, state, dir, x, y, z);

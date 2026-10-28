@@ -8,7 +8,13 @@ import org.domi.furnace.server.block.RandomSource;
 
 public class MushroomBlock extends BushBlock implements BonemealableBlock {
 
-    public MushroomBlock(int block) { super(block); }
+    /** 거대 버섯 configured feature(정의 인자 feature). */
+    private final String feature;
+
+    public MushroomBlock(int block) {
+        super(block);
+        this.feature = org.domi.furnace.server.block.Blocks.get().params(block).get("feature").getAsString();
+    }
 
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
@@ -47,6 +53,16 @@ public class MushroomBlock extends BushBlock implements BonemealableBlock {
 
     @Override
     public void performBonemeal(BlockLevel level, RandomSource random, Pos pos, int state) {
-        // TODO(지형 생성): growMushroom — 칸을 지우고 거대 버섯 기능(정의 인자 feature) 배치, 실패하면 되돌림.
+        growMushroom(level, pos, state, random);
+    }
+
+    /** growMushroom: 칸을 지우고(removeBlock) 거대 버섯을 놓는다. 실패하면 버섯을 되돌린다(flag 3). 미구현 feature 면 아무것도 안 한다. */
+    public boolean growMushroom(BlockLevel level, Pos pos, int state, RandomSource random) {
+        org.domi.furnace.server.block.LevelFeature f = level.configuredFeature(feature);
+        if (f == null || !f.supported()) return false;
+        level.removeBlock(pos, false);
+        if (level.placeFeature(f, pos, random)) return true;
+        level.setBlock(pos, state, 3);
+        return false;
     }
 }

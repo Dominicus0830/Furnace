@@ -19,6 +19,7 @@ public class MossBlock extends BlockBehavior implements BonemealableBlock {
 
     @Override
     public void performBonemeal(BlockLevel level, RandomSource random, Pos pos, int state) {
-        // TODO(지형 생성 연결): configured feature moss_patch_bonemeal 을 pos.above() 에 놓는다.
+        org.domi.furnace.server.block.LevelFeature f = level.configuredFeature("minecraft:moss_patch_bonemeal");
+        if (f != null && f.supported()) level.placeFeature(f, pos.above(), random);
     }
 }

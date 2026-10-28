@@ -115,7 +115,10 @@ public abstract class ChunkLevel implements BlockLevel {
     /** addAndRegisterBlockEntity: 청크에 두고 틱을 받는 종류면 틱 목록에. */
     protected void addBlockEntity(ChunkColumn col, BlockEntity be) {
         BlockEntity old = col.blockEntityAt(be.pos().x(), be.pos().y(), be.pos().z());
-        if (old != null && old != be) removeGameEventListener(col, old);
+        if (old != null && old != be) {
+            removeGameEventListener(col, old);
+            old.setRemoved();   // 바닐라 LevelChunk.setBlockEntity: 바뀐 옛 것은 지운다(틱 목록에서 빠진다)
+        }
         be.clearRemoved();
         col.putBlockEntity(be);
         if (old != be) addGameEventListener(col, be);
@@ -1223,7 +1226,33 @@ public abstract class ChunkLevel implements BlockLevel {
         return result;
     }
 
+    @Override
     public String biomeAt(int x, int y, int z) { return services().biomeAt(x, y, z); }
+
+    // ------------------------------------------------------------------ 지형 생성 기능(묘목·뼛가루)
+
+    /** 이 레벨이 쓰는 feature 표. 기본은 내장 1.21.1 데이터(노이즈 생성기가 있는 월드는 RegionLevel 이 그 표를 준다). */
+    protected org.domi.furnace.server.world.gen.feature.BiomeFeatureData featureData() {
+        return org.domi.furnace.server.world.LiveFeatures.fallbackData();
+    }
+
+    /** 바이옴 확대 지터 시드(feature 안의 바이옴 조회용). */
+    protected long featureSeed() { return 0L; }
+
+    @Override
+    public LevelFeature configuredFeature(String id) { return org.domi.furnace.server.world.LiveFeatures.configured(featureData(), id); }
+
+    @Override
+    public LevelFeature placedFeature(String id) { return org.domi.furnace.server.world.LiveFeatures.placed(featureData(), id); }
+
+    @Override
+    public LevelFeature biomeFlowerFeature(String biome) { return org.domi.furnace.server.world.LiveFeatures.flower(featureData(), biome); }
+
+    @Override
+    public boolean placeFeature(LevelFeature feature, Pos pos, RandomSource random) {
+        return feature instanceof org.domi.furnace.server.world.LiveFeatures.Handle h
+                && org.domi.furnace.server.world.LiveFeatures.place(this, h, pos, random, featureSeed());
+    }
 
     public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
 
