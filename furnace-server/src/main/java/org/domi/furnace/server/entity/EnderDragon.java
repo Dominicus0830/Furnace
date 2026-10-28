@@ -285,7 +285,8 @@ public class EnderDragon extends Mob implements Enemy {
             double dx = p.x() - cx, dz = p.z() - cz;
             double d = Math.max(dx * dx + dz * dz, 0.1);
             p.addDeltaMovement(dx / d * 4.0, 0.2F, dz / d * 4.0);
-            if (!phaseManager.getCurrentPhase().isSitting()) p.hurtByMob(new Damage("mob_attack", false, false, false), 5.0F, this);
+            // 바닐라는 플레이어도 같은 목록이라 마지막으로 맞은 틱 검사를 똑같이 받는다
+            if (!phaseManager.getCurrentPhase().isSitting() && p.getLastHurtByMobTimestamp() < p.combatTicks() - 2) p.hurtByMob(new Damage("mob_attack", false, false, false), 5.0F, this);
         }
     }
 
@@ -481,7 +482,7 @@ public class EnderDragon extends Mob implements Enemy {
 
     @Override
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
-        if (isInvulnerableTo(source)) return false;
+        // 바닐라 EnderDragon.hurt: 무적 검사 없이 몸통으로 넘긴다(무적은 reallyHurt 의 LivingEntity.hurt 가 본다)
         return hurt(body, source, amount, attacker);
     }
 
@@ -518,7 +519,7 @@ public class EnderDragon extends Mob implements Enemy {
 
     /** 엔드 수정이 부서졌다: 연결된 것이면 머리에 10 폭발 피해, 그리고 단계에 알린다. */
     public void onCrystalDestroyed(EndCrystal crystal, Pos pos, Damage source, Targetable destroyer) {
-        Player player = destroyer instanceof Player p ? p : level.getNearestPlayer(CRYSTAL_DESTROY_TARGETING, this, pos.x(), pos.y(), pos.z());
+        Player player = destroyer instanceof Player p ? p : level.getNearestPlayer(CRYSTAL_DESTROY_TARGETING, null, pos.x(), pos.y(), pos.z());   // 바닐라: 출처 없음 → 거리 제한 없음
         if (crystal == nearestCrystal) hurt(head, new Damage("explosion", false, true, false), 10.0F, player);
         phaseManager.getCurrentPhase().onCrystalDestroyed(crystal, pos, source, player);
     }
@@ -552,6 +553,7 @@ public class EnderDragon extends Mob implements Enemy {
             if (loot) ExperienceOrb.award(level, x(), y(), z(), Mth.floor(xp * 0.2F));
             if (dragonFight != null) dragonFight.setDragonKilled(this);
             remove(RemovalReason.KILLED);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);
         }
     }
 
@@ -570,7 +572,11 @@ public class EnderDragon extends Mob implements Enemy {
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
-        if (tag.contains("DragonPhase")) phaseManager.setPhase(Math.clamp(tag.getIntOr0("DragonPhase"), 0, DragonPhase.COUNT - 1));
+        if (tag.contains("DragonPhase")) {
+            // EnderDragonPhase.getById: 범위 밖은 HOLDING_PATTERN
+            int id = tag.getIntOr0("DragonPhase");
+            phaseManager.setPhase(id >= 0 && id < DragonPhase.COUNT ? id : DragonPhase.HOLDING_PATTERN);
+        }
         if (tag.contains("DragonDeathTime")) dragonDeathTime = tag.getIntOr0("DragonDeathTime");
     }
 

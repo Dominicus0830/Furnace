@@ -28,10 +28,16 @@ public class DragonFireball extends AbstractHurtingProjectile {
         cloud.setRadiusPerTick((7.0F - cloud.getRadius()) / cloud.durationTicks());
         cloud.setEffects(List.of(new MobEffectInstance(MobEffect.INSTANT_DAMAGE, 1, 1)), 0);
         cloud.setParticle(new int[] {AreaEffectCloud.DRAGON_BREATH_PARTICLE});
-        for (Entity e : near) {
-            double dx = e.x() - x(), dy = e.y() - y(), dz = e.z() - z();
+        // 바닐라 getEntitiesOfClass(LivingEntity, NO_SPECTATORS)는 플레이어도 담는다. 순서는 엔티티 뒤에 플레이어(가정: 바닐라는 섹션 순 한 목록)
+        java.util.List<double[]> cands = new java.util.ArrayList<>();
+        for (Entity e : near) cands.add(new double[] {e.x(), e.y(), e.z()});
+        level.forEachPlayerIn(boundingBox().inflate(4.0, 2.0, 4.0), p -> {
+            if (p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) cands.add(new double[] {p.x(), p.y(), p.z()});
+        });
+        for (double[] c : cands) {
+            double dx = c[0] - x(), dy = c[1] - y(), dz = c[2] - z();
             if (dx * dx + dy * dy + dz * dz < 16.0) {
-                cloud.moveTo(e.x(), e.y(), e.z(), 0.0F, 0.0F);
+                cloud.moveTo(c[0], c[1], c[2], 0.0F, 0.0F);
                 break;
             }
         }

@@ -41,6 +41,8 @@ public final class EnderDragonPart {
 
     /** hurt: 본체에 이 파트로 맞았다고 넘긴다. */
     public boolean hurt(Entity.Damage source, float amount, Targetable attacker) {
-        return !parent.isInvulnerableTo(source) && parent.hurt(this, source, amount, attacker);
+        // 파트 자신의 isInvulnerableTo: 파트는 무적 표시가 없다 — 지워졌거나 불 피해(드래곤 종류는 불에 면역)만 막는다
+        if (parent.isRemoved() || source.fire() && parent.fireImmune()) return false;
+        return parent.hurt(this, source, amount, attacker);
     }
 }
