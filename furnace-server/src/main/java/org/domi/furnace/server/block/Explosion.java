@@ -172,13 +172,11 @@ public final class Explosion {
         int j2 = (int) Math.floor(z - f2 - 1.0), j1 = (int) Math.floor(z + f2 + 1.0);
         AABB box = new AABB(k1, i2, j2, l1, i1, j1);
         for (Entity e : level.getEntities(source, box, en -> true)) {
-            if (e.ignoreExplosion()) continue;
-            double[] kb = affect(e.x(), e.y(), e.eyeYForExplosion(), e.z(), e.boundingBox(), f2, e);
-            if (kb == null) continue;
-            double m = kb[3];
-            if (e instanceof LivingEntity le) m *= 1.0 - le.attributeValue(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE);
-            if (calculator != null) m *= calculator.knockbackMultiplier(e);
-            e.setDeltaMovement(e.vx() + kb[0] * m, e.vy() + kb[1] * m, e.vz() + kb[2] * m);
+            affectEntity(e, f2);
+            // 바닐라 Level.getEntities: 드래곤 바로 뒤에 그 파트들(상자 검사 없이). 파트마다 자기 위치·상자·눈높이로 피해, 밀림은 효과가 없어 생략
+            if (e instanceof org.domi.furnace.server.entity.EnderDragon dragon) {
+                for (var part : dragon.subEntities) affect(part.x(), part.y(), part.eyeY(), part.z(), part.boundingBox(), f2, part);
+            }
         }
         List<Player> players = new ArrayList<>();
         level.forEachPlayerIn(box, players::add);
@@ -190,6 +188,16 @@ public final class Explosion {
                 hitPlayers.put(p, new double[] {kb[0] * pm, kb[1] * pm, kb[2] * pm});
             }
         }
+    }
+
+    private void affectEntity(Entity e, float f2) {
+        if (e.ignoreExplosion()) return;
+        double[] kb = affect(e.x(), e.y(), e.eyeYForExplosion(), e.z(), e.boundingBox(), f2, e);
+        if (kb == null) return;
+        double m = kb[3];
+        if (e instanceof LivingEntity le) m *= 1.0 - le.attributeValue(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE);
+        if (calculator != null) m *= calculator.knockbackMultiplier(e);
+        e.setDeltaMovement(e.vx() + kb[0] * m, e.vy() + kb[1] * m, e.vz() + kb[2] * m);
     }
 
     /** 대상 하나에 피해를 주고 [방향 x, y, z, 밀림 세기]를 돌려준다(범위 밖이면 null). */
@@ -206,7 +214,8 @@ public final class Explosion {
         float seen = getSeenPercent(level, x, y, z, bb);
         double d10 = (1.0 - dist) * seen;
         float damage = (float) ((d10 * d10 + d10) / 2.0 * 7.0 * f2 + 1.0);
-        if (calculator == null || !(target instanceof Entity te) || calculator.shouldDamageEntity(te)) {
+        Object dmgTarget = target instanceof org.domi.furnace.server.entity.EnderDragonPart part ? part.parent : target;   // 파트는 부모 종류로 판정
+        if (calculator == null || !(dmgTarget instanceof Entity te) || calculator.shouldDamageEntity(te)) {
             if (!(calculator != null && target instanceof Player)) hurtTarget(target, damage);
         }
         return new double[] {dx, dy, dz, d10};
@@ -219,7 +228,9 @@ public final class Explosion {
     private void hurtTarget(Object t, float damage) {
         Mob attacker = source instanceof Mob m ? m : (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt && tnt.getOwner() instanceof Mob m2 ? m2 : null);
         Entity.Damage dmg = damageType == DamageType.BAD_RESPAWN_POINT ? BAD_RESPAWN_POINT_DAMAGE : Entity.Damage.EXPLOSION;
-        if (t instanceof LivingEntity le) {
+        if (t instanceof org.domi.furnace.server.entity.EnderDragonPart part) {
+            part.hurtVia(dmg, damage, attacker, source);
+        } else if (t instanceof LivingEntity le) {
             le.hurtByVia(dmg, damage, attacker, source);
         } else if (t instanceof Player p) {
             p.vitals().hurt(damageType, damage, attacker, p.shieldSource(damageType.key(), attacker, source));   // 원인 위치 = 폭발 원인 엔티티

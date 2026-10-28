@@ -1697,8 +1697,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             for (int k = 1; k <= 8 && e == null; k++) {
                 if (region.level().entities().get(entityId - k) instanceof org.domi.furnace.server.entity.EnderDragon dragon) {
                     var part = dragon.partById(entityId);
-                    double dx = p.x() - part.x(), dy = p.y() + 1.62 - part.y(), dz = p.z() - part.z();
-                    if (action == 1 && dragon.isAlive() && dx * dx + dy * dy + dz * dz < 36.0) region.attackDragonPart(p, part);
+                    // 바닐라 handleInteract: canInteractWithEntity(대상 상자, 1.0) — 상자와 눈 위치 거리² < (3 + 1)²
+                    var bb = part.boundingBox();
+                    double ex = p.x(), ey = p.y() + 1.62, ez = p.z();
+                    double dx = Math.max(Math.max(bb.minX() - ex, ex - bb.maxX()), 0.0);
+                    double dy = Math.max(Math.max(bb.minY() - ey, ey - bb.maxY()), 0.0);
+                    double dz = Math.max(Math.max(bb.minZ() - ez, ez - bb.maxZ()), 0.0);
+                    if (action == 1 && dragon.isAlive() && dx * dx + dy * dy + dz * dz < 16.0) region.attackDragonPart(p, part);
                     return;
                 }
             }

@@ -88,7 +88,7 @@ public abstract class DragonPhase {
         return new Vec3(p.x(), y, p.z());
     }
 
-    /** 앉은 단계 공통(AbstractDragonSittingPhase): 화살은 불붙이고 무시. */
+    /** 앉은 단계 공통(AbstractDragonSittingPhase): 화살·돌풍구(WindCharge)는 불붙이고 무시. */
     abstract static class Sitting extends DragonPhase {
         Sitting(EnderDragon d) { super(d); }
 
@@ -96,7 +96,7 @@ public abstract class DragonPhase {
 
         @Override
         public float onHurt(Entity.Damage source, Entity direct, float amount) {
-            if (direct instanceof AbstractArrow) {
+            if (direct instanceof AbstractArrow || direct instanceof WindCharge) {
                 direct.igniteForSeconds(1.0F);
                 return 0.0F;
             }

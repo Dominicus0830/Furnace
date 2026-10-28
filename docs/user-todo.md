@@ -76,8 +76,8 @@
 - 미구현: 용기 엔티티 전리품 표 풀기, VindicatorBreakDoorGoal
 
 ## 엔더 드래곤
-- 드래곤 난수 순서는 기억 기반(oracle 대조 못 함), 죽음 회전·normalize 기준값·always_hurts_ender_dragons 태그는 가정
-- **드래곤 AI·패턴이 바닐라와 같은지 코드로 한 번 더 확인 필요** (사용자 요청, 작업 리스트에 넣어 둠)
+- 2026-10-28 디컴파일 한 줄 대조 완료: 난수 순서·죽음 연출·normalize·always_hurts_ender_dragons(= #is_explosion) 확정, 차이 15건 수정 (docs/feature-parity/dragon-parity-recheck-2026-10-28.md)
+- 남은 차이: 화살·폭발이 파트가 아닌 본체로 맞음(엔티티 조회에 파트 없음), 활성 출구 포털 판정(end_portal·관문 블록 엔티티 없음), 공격 후 마법 부여 효과, 사용자 이름 보스 바
 
 ## 주민 AI
 - 주민 FOLLOW_RANGE 가 16→48(바닐라 값)로 바뀜

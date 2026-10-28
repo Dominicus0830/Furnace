@@ -23,6 +23,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private int lastHurtByPlayerTime;
 
     /** 틱마다 1 올라가는 전투 시계(LivingEntity.tickCount 에 해당). LivingEntity.baseTick 처럼 오래된 피격 기록을 지운다. */
+    /** 전투 시계 값(바닐라 LivingEntity.tickCount 자리). */
+    public int combatTicks() { return combatTicks; }
+
     void combatTick() {
         combatTicks++;
         if (lastHurtByPlayerTime > 0) lastHurtByPlayerTime--;
@@ -63,7 +66,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     @Override public int getLastHurtMobTimestamp() { return lastHurtMobTimestamp; }
 
     public void setLastHurtMob(Targetable t) {
-        lastHurtMob = t;
+        lastHurtMob = t instanceof EnderDragonPart ? null : t;   // 바닐라: LivingEntity 가 아니면 null
         lastHurtMobTimestamp = combatTicks;
     }
 

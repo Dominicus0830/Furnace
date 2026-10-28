@@ -37,7 +37,9 @@ public final class EndDragonFight {
     private boolean barVisible = true;
     private float barProgress = 1.0F;
     private Text barName = Text.translatable("entity.minecraft.ender_dragon");
-    private int ticksSinceDragonSeen, crystalsAlive, ticksSinceCrystalsScanned, ticksSinceLastPlayerScan;
+    private int ticksSinceDragonSeen, crystalsAlive, ticksSinceCrystalsScanned;
+    /** 바닐라 초기값 21: 첫 틱에 바로 플레이어를 훑는다. */
+    private int ticksSinceLastPlayerScan = 21;
     private boolean dragonKilled, previouslyKilled;
     private boolean needsStateScanning = true;
     private boolean skipArenaLoadedCheck;
@@ -91,6 +93,15 @@ public final class EndDragonFight {
     // ------------------------------------------------------------------ 틱
 
     public void tick() {
+        // 받침대 청크가 없어 미뤄 둔 출구 포털·알을 청크가 들어온 첫 틱에 놓는다(바닐라는 동기 로드로 그 자리에서 놓는다)
+        if ((pendingExitPortal != null || pendingEgg) && podiumChunksLoaded()) {
+            Boolean active = pendingExitPortal;
+            boolean egg = pendingEgg;
+            pendingExitPortal = null;
+            pendingEgg = false;
+            if (active != null) spawnExitPortal(active);
+            if (egg) placeEgg();
+        }
         setBarVisible(!dragonKilled);
         if (++ticksSinceLastPlayerScan >= 20) {
             updatePlayers();
@@ -98,7 +109,9 @@ public final class EndDragonFight {
         }
         if (ticketHook != null) ticketHook.accept(!barPlayers.isEmpty());   // addRegionTicket / removeRegionTicket(DRAGON)
         if (barPlayers.isEmpty()) return;
-        boolean loaded = isArenaLoaded();
+        // 의도한 차이: 바닐라는 받침대 높이를 볼 때 청크를 동기로 불러오지만 region 스레드에선 못 하므로,
+        // 받침대 청크가 없으면 상태 훑기·부활·드래곤 찾기를 이 틱엔 건너뛰고 다음 틱에 다시 본다.
+        boolean loaded = isArenaLoaded() && podiumChunksLoaded();
         if (needsStateScanning && loaded) {
             scanState();
             needsStateScanning = false;
@@ -122,8 +135,14 @@ public final class EndDragonFight {
         }
     }
 
+    /**
+     * isArenaLoaded: 바닐라 그대로 — 안쪽 반복이 {@code z = 8 + cz; z <= 8 + cz} 라 중심 청크 기준 x -8..8, z +8 한 줄만 본다.
+     * 바닐라는 FULL 청크이고 BLOCK_TICKING 이상인지 보지만 여기선 불러와 있는지만 본다(가정).
+     */
     private boolean isArenaLoaded() {
-        return skipArenaLoadedCheck || level.hasChunksAt(-128, -128, 143, 143);
+        if (skipArenaLoadedCheck) return true;
+        int cx = origin.x() >> 4, cz = origin.z() >> 4;
+        return level.hasChunksAt((cx - 8) << 4, (cz + 8) << 4, ((cx + 8) << 4) + 15, ((cz + 8) << 4) + 15);
     }
 
     private List<EnderDragon> dragons() {
@@ -184,7 +203,7 @@ public final class EndDragonFight {
     /** updatePlayers: 살아 있고 (0, 128, 0) 에서 192 안의 플레이어만 바를 본다. */
     private void updatePlayers() {
         Set<Player> now = new HashSet<>();
-        double cx = origin.x(), cy = 128.0, cz = origin.z();
+        double cx = origin.x(), cy = 128 + origin.y(), cz = origin.z();
         level.forEachPlayer(p -> {
             double dx = p.x() - cx, dy = p.y() - cy, dz = p.z() - cz;
             if (p.isAlive() && !p.isDisconnected() && dx * dx + dy * dy + dz * dz <= 192.0 * 192.0) now.add(p);
@@ -229,8 +248,8 @@ public final class EndDragonFight {
         spawnExitPortal(true);
         spawnNewGateway();
         if (!previouslyKilled) {
-            Pos p = new Pos(origin.x(), level.getMotionBlockingHeight(origin.x(), origin.z()), origin.z());
-            level.setBlock(p, B.defaultState("minecraft:dragon_egg"), 3);
+            if (podiumChunksLoaded()) placeEgg();
+            else pendingEgg = true;
         }
         previouslyKilled = true;
         dragonKilled = true;
@@ -302,7 +321,26 @@ public final class EndDragonFight {
     }
 
     /** spawnExitPortal(active): 처음이면 받침대 높이 바로 아래(기반암이면 해수면까지 더 내려감)를 기억하고 받침대를 놓는다. */
+    /** 받침대(origin ±4) 청크가 불러와 있는가. 없으면 높이 지도가 최저 높이를 돌려줘 잘못된 위치를 영구 기록하게 된다. */
+    boolean podiumChunksLoaded() {
+        return skipArenaLoadedCheck || level.hasChunksAt(origin.x() - 4, origin.z() - 4, origin.x() + 4, origin.z() + 4);
+    }
+
+    /** 받침대 청크가 없어 미룬 spawnExitPortal 의 active(null = 없음, 마지막 호출이 이긴다)와 알. */
+    private Boolean pendingExitPortal;
+    private boolean pendingEgg;
+
+    private void placeEgg() {
+        Pos p = new Pos(origin.x(), level.getMotionBlockingHeight(origin.x(), origin.z()), origin.z());
+        level.setBlock(p, B.defaultState("minecraft:dragon_egg"), 3);
+    }
+
     public void spawnExitPortal(boolean active) {
+        if (!podiumChunksLoaded()) {   // 위 의도한 차이: 청크가 없으면 기록·블록 쓰기를 미루고 청크가 들어온 틱에 다시 한다
+            pendingExitPortal = active;
+            return;
+        }
+        pendingExitPortal = null;
         if (portalLocation == null) {
             Pos p = new Pos(origin.x(), level.getMotionBlockingNoLeavesHeight(origin.x(), origin.z()) - 1, origin.z());
             while (B.is(level.getBlockState(p), "minecraft:bedrock") && p.y() > 0) p = new Pos(p.x(), p.y() - 1, p.z());
@@ -350,24 +388,44 @@ public final class EndDragonFight {
         return false;
     }
 
-    /** findExitPortal(가정): 기억한 위치, 아니면 받침대 가운데 기반암 기둥(포털 층 + 위 3칸)을 위에서부터 찾는다. */
+    /**
+     * findExitPortal: 바닐라는 (1) 중심 청크 ±8 의 end_portal·end_gateway 블록 엔티티 자리에서 BlockPattern 을 찾고,
+     * (2) 없으면 MOTION_BLOCKING 높이부터 최저 높이까지 내려가며 찾는다. 찾은 패턴의 (3,3,3) = 포털 층 가운데를,
+     * 기억한 위치가 없을 때만 기억한다. 여기선 (1) 없이 (2) 만, 가운데 기둥 x·z 가 origin 인 경우만 본다(가정: 받침대는 origin 에 놓인다).
+     */
     private Pos findExitPortal() {
-        if (portalLocation != null && isPodiumAt(portalLocation)) return portalLocation;
-        int top = level.getMotionBlockingNoLeavesHeight(origin.x(), origin.z());
-        for (int y = top; y >= 4; y--) {
+        int top = level.getMotionBlockingHeight(origin.x(), origin.z());
+        for (int y = top; y >= level.minBuildHeight(); y--) {
             Pos p = new Pos(origin.x(), y, origin.z());
             if (isPodiumAt(p)) {
-                portalLocation = p;
+                if (portalLocation == null) portalLocation = p;
                 return p;
             }
         }
         return null;
     }
 
+    /** 패턴 층(위에서부터): 기둥 3층, 포털 층(테 + 가운데), 바닥 원판. '#' = 기반암, 나머지는 아무것이나. */
+    private static final String[][] PODIUM_PATTERN = {
+            {"       ", "       ", "       ", "   #   ", "       ", "       ", "       "},
+            {"       ", "       ", "       ", "   #   ", "       ", "       ", "       "},
+            {"       ", "       ", "       ", "   #   ", "       ", "       ", "       "},
+            {"  ###  ", " #   # ", "#     #", "#  #  #", "#     #", " #   # ", "  ###  "},
+            {"       ", "  ###  ", " ##### ", " ##### ", " ##### ", "  ###  ", "       "}};
+
+    /** p = 포털 층 가운데. 패턴은 네 방향 대칭이라 회전은 따로 보지 않는다(위아래 뒤집힌 방향은 가정상 무시). */
     private boolean isPodiumAt(Pos p) {
-        for (int i = 0; i < 4; i++) if (!B.is(level.getBlockState(new Pos(p.x(), p.y() + i, p.z())), "minecraft:bedrock")) return false;
-        return B.is(level.getBlockState(new Pos(p.x() + 3, p.y(), p.z())), "minecraft:bedrock")
-                && B.is(level.getBlockState(new Pos(p.x(), p.y() - 1, p.z() + 2)), "minecraft:bedrock");
+        for (int layer = 0; layer < 5; layer++) {
+            int y = p.y() + 3 - layer;
+            for (int row = 0; row < 7; row++) {
+                String r = PODIUM_PATTERN[layer][row];
+                for (int col = 0; col < 7; col++) {
+                    if (r.charAt(col) != '#') continue;
+                    if (!B.is(level.getBlockState(new Pos(p.x() + col - 3, y, p.z() + row - 3)), "minecraft:bedrock")) return false;
+                }
+            }
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------ 부활
@@ -379,6 +437,7 @@ public final class EndDragonFight {
         if (p == null) {
             if (findExitPortal() == null) spawnExitPortal(true);
             p = portalLocation;
+            if (p == null) return;   // 받침대 청크가 아직 없다 — 다음에 다시
         }
         List<EndCrystal> all = new ArrayList<>();
         Pos up = new Pos(p.x(), p.y() + 1, p.z());
@@ -394,15 +453,22 @@ public final class EndDragonFight {
 
     private void respawnDragon(List<EndCrystal> crystals) {
         if (!dragonKilled || respawnStage != null) return;
-        Pos p = findExitPortal();
-        if (p != null) {
-            // 찾은 패턴 상자(7×7, 포털 층 -1 ~ +3)의 기반암·포털을 엔드 돌로
-            int endStone = B.defaultState("minecraft:end_stone");
+        if (!podiumChunksLoaded()) return;   // 청크가 없으면 치환이 헛돈다 — 부활을 시작하지 않고 다음 시도에
+        // 바닐라: 패턴을 못 찾을 때까지 되풀이해 찾은 상자(7×7, 포털 층 -1 ~ +3)의 기반암·포털을 엔드 돌로
+        int endStone = B.defaultState("minecraft:end_stone");
+        // 안전 상한: 바꿔도 같은 자리가 또 잡히면(청크 없음 등으로 setBlock 무효) region 스레드가 멈추지 않게 끊는다
+        int guard = 0;
+        for (Pos p = findExitPortal(); p != null && guard++ < 64; p = findExitPortal()) {
+            boolean changed = false;
             for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -1; dy <= 3; dy++) {
                 Pos q = new Pos(p.x() + dx, p.y() + dy, p.z() + dz);
                 int s = level.getBlockState(q);
-                if (B.is(s, "minecraft:bedrock") || B.is(s, "minecraft:end_portal")) level.setBlock(q, endStone, 3);
+                if (B.is(s, "minecraft:bedrock") || B.is(s, "minecraft:end_portal")) {
+                    level.setBlock(q, endStone, 3);
+                    changed |= !B.is(level.getBlockState(q), "minecraft:bedrock") && !B.is(level.getBlockState(q), "minecraft:end_portal");
+                }
             }
+            if (!changed) break;
         }
         respawnStage = RespawnStage.START;
         respawnTime = 0;
@@ -446,9 +512,10 @@ public final class EndDragonFight {
                         if (start) {
                             for (EndCrystal c : respawnCrystals) c.setBeamTarget(new Pos(s.centerX(), s.height() + 1, s.centerZ()));
                         } else {
-                            for (int x = s.centerX() - 10; x <= s.centerX() + 10; x++)
+                            // BlockPos.betweenClosed 순서: x 가 가장 빨리, 그다음 y, z
+                            for (int z = s.centerZ() - 10; z <= s.centerZ() + 10; z++)
                                 for (int y = s.height() - 10; y <= s.height() + 10; y++)
-                                    for (int z = s.centerZ() - 10; z <= s.centerZ() + 10; z++) level.removeBlock(new Pos(x, y, z), false);
+                                    for (int x = s.centerX() - 10; x <= s.centerX() + 10; x++) level.removeBlock(new Pos(x, y, z), false);
                             level.explode(null, s.centerX() + 0.5F, s.height(), s.centerZ() + 0.5F, 5.0F, false, level.destroyType("BLOCK"));
                             placeSpike(s);
                         }
@@ -526,6 +593,7 @@ public final class EndDragonFight {
         t.putBoolean("NeedsStateScanning", needsStateScanning);
         t.putBoolean("DragonKilled", dragonKilled);
         t.putBoolean("PreviouslyKilled", previouslyKilled);
+        // IsRespawning: 바닐라는 언제나 false 를 넘기고 lenientOptionalFieldOf(기본 false)라 키를 쓰지 않는다
         if (dragonUUID != null) t.putIntArray("Dragon", Entity.uuidToInts(dragonUUID));
         if (portalLocation != null) t.putIntArray("ExitPortalLocation", new int[] {portalLocation.x(), portalLocation.y(), portalLocation.z()});
         int[] g = new int[gateways.size()];
@@ -538,6 +606,7 @@ public final class EndDragonFight {
         needsStateScanning = !t.contains("NeedsStateScanning") || t.getBoolean("NeedsStateScanning");
         dragonKilled = t.getBoolean("DragonKilled");
         previouslyKilled = t.getBoolean("PreviouslyKilled");
+        if (t.contains("IsRespawning") && t.getBoolean("IsRespawning")) respawnStage = RespawnStage.START;
         if (t.tags().get("Dragon") instanceof int[] u && u.length == 4) dragonUUID = new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
         if (t.tags().get("ExitPortalLocation") instanceof int[] p && p.length == 3) portalLocation = new Pos(p[0], p[1], p[2]);
         if (t.tags().get("Gateways") instanceof int[] g) {
