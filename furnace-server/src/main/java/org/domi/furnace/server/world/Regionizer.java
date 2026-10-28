@@ -43,7 +43,7 @@ public final class Regionizer {
     /** 살아 있는 region(잠금 안). */
     private final Set<Region> regions = new LinkedHashSet<>();
     /** 틱 대기열(잠금 안, 지연 삭제 — 꺼낼 때 상태를 다시 본다). */
-    private final PriorityQueue<Region> queue = new PriorityQueue<>((a, b) -> Long.compare(a.nextTickNanos, b.nextTickNanos));
+    private final PriorityQueue<Region> queue = new PriorityQueue<>((a, b) -> compareDue(a.nextTickNanos, b.nextTickNanos));   // nanoTime 오버플로에 안전한 차이 비교
     /** 작업 스레드 풀. 지금은 차원마다 하나(ownsPool) — 공유 풀은 S4. */
     private final SharedScheduler pool;
     private final boolean ownsPool;
@@ -115,6 +115,9 @@ public final class Regionizer {
 
     /** 큐 머리 마감(잠금 없음, 힌트). */
     long headDue() { return headDue; }
+
+    /** 시험 전용: 머리 마감을 직접 발행한다(깨우기 경합 재현). 프로덕션은 부르지 않는다. */
+    void setHeadDueForTest(long due) { headDue = due; }
 
     SharedScheduler pool() { return pool; }
 
@@ -376,13 +379,22 @@ public final class Regionizer {
                 r.phaseMax[i] = 0;
             }
             log.info("[TICKSTATS]   단계별:{}", b);
-            long[] d = r.installStats.clone();
-            java.util.Arrays.fill(r.installStats, 0L);
+            long[] d = new long[4];
+            for (int i = 0; i < 4; i++) {   // 누적값과 지난 출력 사본의 차이 — installStats 는 리셋하지 않는다
+                d[i] = r.installStats[i] - r.installStatsLogged[i];
+                r.installStatsLogged[i] = r.installStats[i];
+            }
             if (d[0] > 0) {
                 log.info("[TICKSTATS]   청크 설치 {}개: 넣기 {}ms 빛 {}ms 엔티티·예약틱 {}ms (개당 평균 {}µs)", d[0], d[1] / 1_000_000, d[2] / 1_000_000,
                         d[3] / 1_000_000, (d[1] + d[2] + d[3]) / d[0] / 1000);
             }
         }
+    }
+
+    /** 마감 비교(nanoTime 은 넘칠 수 있어 값이 아니라 차이로 본다). 두 값이 2^63 ns(약 292년) 안일 때만 유효. */
+    static int compareDue(long a, long b) {
+        long d = a - b;
+        return d < 0 ? -1 : d > 0 ? 1 : 0;
     }
 
     /** 지금 스레드가 (어느 차원이든) region 틱 워커인가. */
@@ -540,7 +552,7 @@ public final class Regionizer {
             r.nextTickNanos = r.sprintHeld() ? now + SPRINT_HOLD_NANOS : now;
         } else {
             r.nextTickNanos += tickNanos;
-            if (r.nextTickNanos < now) r.nextTickNanos = now + tickNanos;   // 너무 밀렸으면 재동기(따라잡기 폭주 방지) — sprint 끝도 여기로 돌아온다
+            if (r.nextTickNanos - now < 0) r.nextTickNanos = now + tickNanos;   // 너무 밀렸으면 재동기(따라잡기 폭주 방지) — sprint 끝도 여기로 돌아온다
         }
         schedule(r);
     }

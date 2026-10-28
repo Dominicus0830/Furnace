@@ -326,8 +326,10 @@ public final class Region {
         return f;
     }
 
-    /** -Dfurnace.tickstats: 이 region 의 청크 설치 비용 {개수, 넣기, 빛, 엔티티·블록엔티티·예약틱} ns 합계. 틱 중에만 만진다. */
+    /** -Dfurnace.tickstats: 이 region 의 청크 설치 비용 {개수, 넣기, 빛, 엔티티·블록엔티티·예약틱} ns 합계. 틱 중에만 만진다. 누적값. */
     final long[] installStats = new long[4];
+    /** 마지막 [TICKSTATS] 출력 때의 installStats 사본. 출력은 차이만 쓰고 installStats 는 누적으로 둔다(벤치가 총합을 읽는다). */
+    final long[] installStatsLogged = new long[4];
 
     private void finishLoad(ChunkPos cp, long key, ChunkColumn col, Throwable err, CompletableFuture<ChunkColumn> f) {
         world.removeLoading(key, f);

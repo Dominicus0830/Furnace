@@ -36,6 +36,18 @@ class RegionizerTest {
         sched.close();
     }
 
+    /** nanoTime 오버플로 경계: 값으로는 a 가 작아 보여도 차이로는 b 가 이르다. 정상 범위에서는 Long.compare 와 같다. */
+    @Test
+    void compareDueIsOverflowSafe() {
+        long nearMax = Long.MAX_VALUE - 5, wrapped = Long.MIN_VALUE + 5;   // wrapped 는 nearMax 보다 10ns 뒤
+        assertTrue(Regionizer.compareDue(nearMax, wrapped) < 0);
+        assertTrue(Regionizer.compareDue(wrapped, nearMax) > 0);
+        assertEquals(0, Regionizer.compareDue(wrapped, wrapped));
+        for (long a : new long[] {-7, 0, 3, 1_000_000_000L}) {
+            for (long b : new long[] {-7, 0, 3, 1_000_000_000L}) assertEquals(Long.compare(a, b), Regionizer.compareDue(a, b));
+        }
+    }
+
     /** 구역 = 16 청크. 구역 x 번호의 청크 하나를 이 region 의 있는 청크로 만든다. */
     private void load(int sectionX) throws Exception {
         ChunkPos cp = new ChunkPos(sectionX * 16, 0);

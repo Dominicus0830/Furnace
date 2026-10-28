@@ -140,7 +140,126 @@ class SharedSchedulerTest {
         }
         java.util.Arrays.sort(lat);
         assertTrue(lat[lat.length / 2] < 5_000_000L, "두 차원 모두 5ms 안에 시작(중앙값): " + java.util.Arrays.toString(lat));
+        assertLatency(lat);
     }
+
+    /** 깨우기를 놓치면 PARK_MAX(50ms) 뒤에야 도므로, p90·최댓값이 그보다 확실히 작아야 한다. */
+    private static void assertLatency(long[] sorted) {
+        java.util.Arrays.sort(sorted);
+        long p90 = sorted[(int) Math.ceil(sorted.length * 0.9) - 1], max = sorted[sorted.length - 1];
+        assertTrue(p90 < 10_000_000L, "p90 < 10ms: " + java.util.Arrays.toString(sorted));
+        assertTrue(max < SharedScheduler.PARK_MAX * 7 / 10, "max < PARK_MAX*0.7(깨우기 유실이면 ~50ms): " + java.util.Arrays.toString(sorted));
+    }
+
+    /** 기본 경로(차원 하나·자기 풀 하나, 워커 2): 자는 워커에게 일을 넣은 뒤 첫 틱까지의 지연 30회. */
+    @Test
+    void defaultPathScheduleToWakeLatency() throws Exception {
+        World w = world(200_000_000L, 2, null);
+        long[] lat = new long[30];
+        for (int i = 0; i < lat.length; i++) {
+            Thread.sleep(25);   // 워커가 잠들게
+            Region r = w.regionizer().ownerForTask(i * 4096, 0);
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            long d;
+            while ((d = firstTickDelay(w, r)) < 0) {
+                assertTrue(System.nanoTime() < deadline, "새 region 이 돌지 않는다");
+                Thread.sleep(1);
+            }
+            lat[i] = d;
+        }
+        assertLatency(lat);
+    }
+
+    private static void awaitParked(SharedScheduler pool, int n) throws Exception {
+        long deadline = System.nanoTime() + 3_000_000_000L;
+        while (pool.parkedCount() < n) {
+            assertTrue(System.nanoTime() < deadline, "워커가 잠들지 않았다");
+            Thread.sleep(1);
+        }
+        Thread.sleep(5);
+    }
+
+    /** 누가 뽑아 깨운 스레드들(park 복귀 때 이미 자는 목록에서 빠져 있음 — 타임아웃 복귀는 아님). 부하로 타이밍이 흔들려도 결정적이다. */
+    private static java.util.Set<Thread> recordEarlyWakers(SharedScheduler pool, java.util.function.Consumer<SharedScheduler.Parked> then) {
+        java.util.Set<Thread> early = ConcurrentHashMap.newKeySet();
+        pool.afterParkHook = me -> {
+            if (!pool.isParkedForTest(me)) early.add(Thread.currentThread());
+            if (then != null) then.accept(me);
+        };
+        return early;
+    }
+
+    private static void awaitEarlyWakers(java.util.Set<Thread> early, int n, long withinMs) throws Exception {
+        long deadline = System.nanoTime() + withinMs * 1_000_000L;
+        while (early.size() < n && System.nanoTime() - deadline < 0) Thread.sleep(1);
+    }
+
+    private static void awaitWakeups(SharedScheduler pool, long target, long withinMs) throws Exception {
+        long deadline = System.nanoTime() + withinMs * 1_000_000L;
+        while (pool.wakeups() < target && System.nanoTime() - deadline < 0) Thread.sleep(1);
+    }
+
+    /**
+     * N1-② 결정적 재현: 워커 X 가 자기를 등록한 직후 깨우는 쪽이 X 를 뽑고, 머리는 이미 때가 된 상태.
+     * X 는 안 자고 나가므로 뽑힌 깨우기를 다른 자는 워커 Y 에게 넘겨야 한다(passBaton). 넘기지 않으면 Y 는 PARK_MAX 뒤에야 깬다.
+     * 깨어남 수: X(처음 깨움) 1 + Y(바통) 1 = 2 가 PARK_MAX 한참 전에 되어야 한다.
+     */
+    @Test
+    void pickedBeforeSleepPassesBaton() throws Exception {
+        SharedScheduler pool = sharedPool(2);
+        World w = world(200_000_000L, 2, pool);
+        Regionizer rz = w.regionizer();
+        awaitParked(pool, 2);
+        java.util.concurrent.atomic.AtomicReference<Thread> x = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.Set<Thread> early = recordEarlyWakers(pool, null);
+        pool.afterRegisterHook = me -> {
+            if (!x.compareAndSet(null, Thread.currentThread())) return;
+            rz.setHeadDueForTest(System.nanoTime() - 1_000_000L);   // 등록 직후 머리가 이미 때가 됨(N1-②)
+            pool.pickForTest(me);                                  // 그 사이 깨우는 쪽이 나를 뽑음
+        };
+        pool.wake(System.nanoTime() + 1_000_000L);   // 워커 하나(X)를 깨워 sleep 을 다시 타게 한다
+        try {
+            awaitEarlyWakers(early, 2, PARK_MAX_MS / 2);
+            assertNotNull(x.get(), "훅이 불리지 않았다");
+            assertTrue(early.size() >= 2 && early.stream().anyMatch(t -> t != x.get()),
+                    "뽑힌 깨우기를 다른 자는 워커에게 넘기지 않았다(그 워커는 PARK_MAX 까지 잔다)");
+        } finally {
+            rz.setHeadDueForTest(Long.MAX_VALUE);
+            pool.afterRegisterHook = null;
+            pool.afterParkHook = null;
+        }
+    }
+
+    /**
+     * N1-③ 결정적 재현: X 가 타임아웃으로 깬 순간 깨우는 쪽이 X 를 뽑음(뽑힘과 타임아웃 겹침) → X 는 바통을 Y 에게 넘겨야 한다.
+     * Y 가 타임아웃이 아니라 바통으로 깨어야 한다.
+     */
+    @Test
+    void pickedAtTimeoutPassesBaton() throws Exception {
+        SharedScheduler pool = sharedPool(2);
+        World w = world(200_000_000L, 2, pool);
+        Regionizer rz = w.regionizer();
+        awaitParked(pool, 2);
+        long t = System.nanoTime() + 8_000_000L;
+        java.util.concurrent.atomic.AtomicReference<Thread> x = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.Set<Thread> early = recordEarlyWakers(pool, me -> {
+            if (System.nanoTime() - t < 0 || !x.compareAndSet(null, Thread.currentThread())) return;   // 타임아웃으로 깬 첫 번째만
+            rz.setHeadDueForTest(Long.MAX_VALUE);
+            pool.pickForTest(me);
+        });
+        rz.setHeadDueForTest(t);
+        pool.wake(t);
+        try {
+            awaitEarlyWakers(early, 2, PARK_MAX_MS / 2);
+            assertNotNull(x.get(), "훅이 불리지 않았다");
+            assertTrue(early.stream().anyMatch(th -> th != x.get()), "타임아웃과 겹친 뽑힘을 넘기지 않았다(다른 워커가 PARK_MAX 까지 잔다)");
+        } finally {
+            rz.setHeadDueForTest(Long.MAX_VALUE);
+            pool.afterParkHook = null;
+        }
+    }
+
+    private static final long PARK_MAX_MS = SharedScheduler.PARK_MAX / 1_000_000L;
 
     /** 그 region 의 첫 틱 큐 지연(ns). 아직 안 돌았으면 -1. */
     private static long firstTickDelay(World w, Region r) {
