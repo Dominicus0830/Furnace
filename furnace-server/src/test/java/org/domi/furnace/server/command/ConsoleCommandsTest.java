@@ -194,4 +194,29 @@ class ConsoleCommandsTest {
         assertEquals(List.of("Can't summon entity of type minecraft:player"), run("summon minecraft:player"));
         assertEquals(List.of("Invalid position for summon"), run("summon minecraft:pig 0 999999999 0"));
     }
+
+    /** resource_or_tag(_key) 서버 제안: 태그 "#…" 다음 엔트리(바닐라 suggestRegistryElements ALL), 정렬은 Suggestions 가. */
+    @Test
+    void locateSuggestsRegistryElementsAndTags() throws Exception {
+        CommandSource console = CommandSource.console(core);
+        java.util.function.Function<String, List<String>> sug = cmd -> {
+            try {
+                return core.commands().suggestions(console, cmd).get().getList().stream().map(s -> s.getText()).toList();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+        assertEquals(List.of("minecraft:village_desert", "minecraft:village_plains", "minecraft:village_savanna",
+                "minecraft:village_snowy", "minecraft:village_taiga"), sug.apply("/locate structure village_"));
+        assertEquals(List.of("#minecraft:village"), sug.apply("/locate structure #vil"));
+        List<String> all = sug.apply("/locate structure ");
+        assertEquals(34 + 13, all.size(), "구조물 34 + 태그 13");
+        assertTrue(all.contains("#minecraft:mineshaft") && all.contains("minecraft:ancient_city"));
+        List<String> biomes = sug.apply("/locate biome plai");
+        List<String> poi = sug.apply("/locate poi #vil");
+        if (core.dataPacks() != null && core.dataPacks().loot() != null) {
+            assertEquals(List.of("minecraft:plains"), biomes);
+            assertEquals(List.of("#minecraft:village"), poi);
+        }
+    }
 }
