@@ -255,8 +255,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
         lastDamageAttacker = attacker;
         lastDamageStamp = level.gameTime();
         if (isDeadOrDying()) {
-            if (fresh) makeSound(getDeathSound());
-            die(source);
+            if (!checkTotemDeathProtection(source)) {
+                if (fresh) makeSound(getDeathSound());
+                die(source);
+            }
         } else if (fresh) {
             playHurtSound(source);
         }
@@ -621,6 +623,31 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 getItemBySlot(EquipmentSlot.HEAD), getItemBySlot(EquipmentSlot.CHEST), getItemBySlot(EquipmentSlot.LEGS), getItemBySlot(EquipmentSlot.FEET));
         if (prot > 0.0F) amount = org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterMagicAbsorb(amount, prot);
         return amount;
+    }
+
+    /**
+     * LivingEntity.checkTotemDeathProtection(1.21.1): bypasses_invulnerability 가 아니면 주 손 → 보조 손 순으로 불사의 토템을 찾아
+     * 하나 줄이고 체력 1, 효과 전부 제거, 재생 II 900·흡수 II 100·화염 저항 800, 엔티티 이벤트 35.
+     */
+    protected boolean checkTotemDeathProtection(Damage source) {
+        if (DamageType.keyHasTag(source.type(), "bypasses_invulnerability")) return false;
+        ItemStack used = null;
+        for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND}) {
+            ItemStack s = getItemBySlot(slot);
+            if (!s.isEmpty() && "minecraft:totem_of_undying".equals(org.domi.furnace.server.item.ItemTools.itemName(s))) {
+                used = s.withCount(1);
+                setItemSlot(slot, s.withCount(s.count() - 1));
+                break;
+            }
+        }
+        if (used == null) return false;
+        setHealth(1.0F);
+        removeAllEffects();
+        addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.REGENERATION, 900, 1));
+        addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.ABSORPTION, 100, 1));
+        addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.FIRE_RESISTANCE, 800, 0));
+        broadcastEntityEvent((byte) 35);
+        return true;
     }
 
     /** LivingEntity.knockback(strength, x, z): 방향(x,z)의 반대로 밀린다(저항 속성은 아직 없다). */

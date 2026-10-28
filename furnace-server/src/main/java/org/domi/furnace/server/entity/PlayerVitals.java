@@ -499,7 +499,7 @@ public final class PlayerVitals {
             player.send(ev);
             env.broadcastToTrackers(player.entityId(), ev);
         }
-        if (died) die(type, causing, direct);
+        if (died && !checkTotemDeathProtection(type)) die(type, causing, direct);
         if (blockedAmount > 0.0f && blockedAmount < 3.4028235E37F) player.awardStat("minecraft:damage_blocked_by_shield", Math.round(blockedAmount * 10.0f));
         return !blocked;
     }
@@ -532,6 +532,41 @@ public final class PlayerVitals {
         float prot = CombatRules.damageProtection(type.key(), inv.get(5), inv.get(6), inv.get(7), inv.get(8));
         if (prot > 0.0f) amount = CombatRules.getDamageAfterMagicAbsorb(amount, prot);
         return amount;
+    }
+
+    /**
+     * LivingEntity.checkTotemDeathProtection(1.21.1, ServerPlayer 분기 포함): bypasses_invulnerability 가 아니면 주 손 → 보조 손에서
+     * 불사의 토템을 하나 줄이고, used:totem_of_undying 통계·used_totem 발전과제·item_interact_finish 게임 이벤트,
+     * 체력 1·효과 전부 제거·재생 II 900·흡수 II 100·화염 저항 800, 엔티티 이벤트 35(입자·item.totem.use 소리는 클라이언트).
+     */
+    boolean checkTotemDeathProtection(DamageType type) {
+        if (type.bypassesInvulnerability()) return false;
+        PlayerInventory inv = player.inventory();
+        ItemStack used = null;
+        for (int ws : new int[] {inv.heldWindowSlot(), 45}) {
+            ItemStack s = inv.get(ws);
+            if (!s.isEmpty() && "minecraft:totem_of_undying".equals(org.domi.furnace.server.item.ItemTools.itemName(s))) {
+                used = s.withCount(1);
+                inv.set(ws, s.withCount(s.count() - 1));
+                break;
+            }
+        }
+        if (used == null) return false;
+        player.awardStat("minecraft:used:minecraft:totem_of_undying", 1);
+        var adv = player.advancements();
+        if (adv != null) adv.trigger("minecraft:used_totem", org.domi.furnace.server.ServerCore.lootStackOf(used));
+        var level = player.currentLevel;
+        if (level != null) level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH,
+                new Vec3(player.x(), player.y(), player.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
+        synchronized (this) { setHealthRaw(1.0f); }
+        removeAllEffects();
+        addEffect(new MobEffectInstance(MobEffect.REGENERATION, 900, 1));
+        addEffect(new MobEffectInstance(MobEffect.ABSORPTION, 100, 1));
+        addEffect(new MobEffectInstance(MobEffect.FIRE_RESISTANCE, 800, 0));
+        Packet ev = new EntityEvent(player.entityId(), (byte) 35);
+        player.send(ev);
+        env.broadcastToTrackers(player.entityId(), ev);
+        return true;
     }
 
     /** 이 플레이어를 보는 사람 모두에게(본인 제외) 패킷. */

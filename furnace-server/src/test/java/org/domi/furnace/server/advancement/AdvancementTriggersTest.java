@@ -145,6 +145,24 @@ class AdvancementTriggersTest {
     }
 
     @Test
+    void totemTriggersUsedTotem(@TempDir Path dir) {
+        org.domi.furnace.server.item.ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        Player p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.SURVIVAL, false);
+        var dry = new org.domi.furnace.server.entity.PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
+        for (int i = 0; i < 60; i++) p.vitals().tick(dry);   // 접속 무적 지나기
+        PlayerAdvancements a = new PlayerAdvancements(dir, p.uuid(), manager, new Host());
+        p.advancements(a);
+        var inv = p.inventory();
+        inv.set(inv.heldWindowSlot(), new org.domi.furnace.server.entity.ItemStack(
+                org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:totem_of_undying"), 1));
+        assertFalse(done(a, "adventure/totem_of_undying", "used_totem"));
+        p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.GENERIC, 100f);
+        assertEquals(1f, p.vitals().health(), 0.0f);
+        assertTrue(done(a, "adventure/totem_of_undying", "used_totem"));
+    }
+
+    @Test
     void husbandryAndTradeTriggers(@TempDir Path dir) {
         Host h = new Host();
         PlayerAdvancements a = new PlayerAdvancements(dir, UUID.randomUUID(), manager, h);
