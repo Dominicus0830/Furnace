@@ -43,32 +43,43 @@ public final class ExecuteCommand implements UnboundEntryAction {
             }, forked);
             deferred = context.takeDeferred();
             if (deferred == null) {
-                awaitCallback(context, source.callback().onResult(ok[0], value[0]));
+                // 바닐라 순서: 소스 콜백(runExecutable 안) → 추적기 onReturn
+                int result = value[0];
+                awaitCallback(context, source.callback().onResult(ok[0], result), () -> traceReturn(context, frame, result));
                 return;
             }
         } catch (CommandSyntaxException e) {
             // 비-forked 에서만 여기로 온다(forked 면 runExecutable 이 삼킨다) — 바닐라 handleError
             context.takeDeferred();
-            awaitCallback(context, source.callback().onFailure());
-            source.handleError(e, forked);
+            awaitCallback(context, source.callback().onFailure(), () -> { });
+            source.handleError(e, forked, context.tracer());
             return;
         } catch (RuntimeException e) {
             context.takeDeferred();
             throw e;
         }
         Deferred d = new Deferred(deferred, forked, commandInput);
-        context.suspend(d.future(), (v, ex) -> onDeferredDone(context, source, d, v, ex));
+        context.suspend(d.future(), (v, ex) -> onDeferredDone(context, frame, source, d, v, ex));
+    }
+
+    private void traceReturn(ExecutionContext context, Frame frame, int result) {
+        TraceCallbacks tracer = context.tracer();
+        if (tracer != null) tracer.onReturn(frame.depth(), commandInput, result);
     }
 
     /** forked 에서 runExecutable 이 오류를 삼킨 경우도 콜백은 (false, 0) 이다 — 위 소비자가 받는다. */
-    private static void onDeferredDone(ExecutionContext context, CommandSource source, Deferred d, Integer v, Throwable ex) {
+    private void onDeferredDone(ExecutionContext context, Frame frame, CommandSource source, Deferred d, Integer v, Throwable ex) {
         CompletableFuture<Void> cb;
+        Runnable then = () -> { };
         if (ex == null) {
-            cb = source.callback().onResult(true, v == null ? 0 : v);
+            int result = v == null ? 0 : v;
+            cb = source.callback().onResult(true, result);
+            then = () -> traceReturn(context, frame, result);
         } else {
             Throwable t = EntityOps.unwrap(ex);
             if (t instanceof CommandSyntaxException cse) {
                 cb = source.callback().onFailure();
+                if (context.tracer() != null) context.tracer().onError(cse.getRawMessage().plainText(java.util.Locale.US));
                 if (!d.forked()) source.sendFailure(cse.getRawMessage());
             } else if (t instanceof TimeoutException) {
                 cb = source.callback().onFailure();
@@ -79,7 +90,7 @@ public final class ExecuteCommand implements UnboundEntryAction {
                 cb = source.callback().onFailure();
             }
         }
-        awaitCallback(context, cb);
+        awaitCallback(context, cb, then);
     }
 
     /**
@@ -87,13 +98,15 @@ public final class ExecuteCommand implements UnboundEntryAction {
      * 콜백의 실패(CommandSyntaxException 이 아닌 것 — 문법 오류는 store 콜백이 바닐라처럼 삼킨다)는 동기 콜백이 던진 예외와 같은 길로 보낸다:
      * 다시 던져 CommandQueue.drive 의 catch(바닐라 performCommand catch)가 command.failed 를 알리고 컨텍스트를 끝낸다.
      */
-    private static void awaitCallback(ExecutionContext context, CompletableFuture<Void> cb) {
+    private static void awaitCallback(ExecutionContext context, CompletableFuture<Void> cb, Runnable then) {
         if (cb.isDone()) {
             if (cb.isCompletedExceptionally()) rethrowCallbackFailure(cb);
+            then.run();
             return;
         }
         context.suspend(cb, (v, ex) -> {
             if (ex != null) throw asRuntime(EntityOps.unwrap(ex));
+            then.run();
         });
     }
 

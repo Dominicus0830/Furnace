@@ -418,6 +418,41 @@ public final class ServerCore {
     /** /tick 이 바꾸는 서버 틱 상태(모든 차원이 같은 객체를 본다). */
     public org.domi.furnace.server.world.TickState tickState() { return world.tickState(); }
 
+    // ------------------------------------------------------------------ /debug start·stop 의 틱 프로파일(바닐라 MinecraftServer.tickCount·profiler 상태)
+
+    /** 바닐라 tickCount 에 해당하는 서버 틱 번호. 전역 스레드(전역 틱 반복)만 늘린다. */
+    private volatile long serverTickCount;
+    /** /debug start 가 요청했고 다음 틱 머리에서 시작을 기다리는 중. */
+    private volatile boolean tickProfileRequested;
+    /** 진행 중인 틱 프로파일 {시작 nanoTime, 시작 틱 번호}. 없으면 null. */
+    private volatile long[] tickProfile;
+
+    /** 바닐라 isRecordingMetrics 의 "요청됨 또는 진행 중". */
+    public boolean isTickProfiling() { return tickProfileRequested || tickProfile != null; }
+
+    /** /debug start: 다음 틱 머리에서 시작하게 요청한다(바닐라 startTickMetric). */
+    public void requestTickProfile() { tickProfileRequested = true; }
+
+    /**
+     * /debug stop: 진행 중이던 프로파일을 끝내고 {걸린 시간 nanos, 센 틱 수}를 돌려준다. 시작 틱 전에 멈추면 {0, 0}이고 요청은 그대로 남는다
+     * (바닐라 stopRecordingMetrics 가 아직 시작 안 한 요청을 지우지 않는 것과 같다).
+     */
+    public long[] stopTickProfile() {
+        long[] p = tickProfile;
+        if (p == null) return new long[] {0L, 0L};
+        tickProfile = null;
+        return new long[] {System.nanoTime() - p[0], serverTickCount - p[1]};
+    }
+
+    /** 틱 하나의 머리: 요청이 있으면 프로파일을 시작하고(틱 번호를 올리기 전) 서버 틱 번호를 올린다. */
+    private void beginServerTick() {
+        if (tickProfileRequested) {
+            tickProfileRequested = false;
+            tickProfile = new long[] {System.nanoTime(), serverTickCount};
+        }
+        serverTickCount++;
+    }
+
     private float globalTickCredit;
 
     /**
@@ -435,6 +470,8 @@ public final class ServerCore {
             if (ts.takeGlobalStep()) {
                 tick();
                 if (ts.globalStepsLeft() == 0) broadcastTickStep(0);
+            } else {
+                beginServerTick();   // 바닐라는 정지 중에도 서버 틱 번호가 간다
             }
             return;
         }
@@ -512,6 +549,7 @@ public final class ServerCore {
 
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
+        beginServerTick();
         functions.tick();   // 바닐라 tickChildren: 함수(#tick, 리로드 뒤 #load)가 레벨 틱보다 먼저
         border.tick();
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };

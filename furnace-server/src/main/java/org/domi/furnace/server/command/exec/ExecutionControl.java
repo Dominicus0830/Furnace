@@ -9,6 +9,9 @@ public interface ExecutionControl {
 
     ExecutionContext context();
 
+    /** 이 컨텍스트의 실행 추적기(없으면 null). */
+    default TraceCallbacks tracer() { return context().tracer(); }
+
     static ExecutionControl create(ExecutionContext ctx, Frame frame) {
         return new ExecutionControl() {
             public void queueNext(EntryAction action) { ctx.queueNext(new CommandQueueEntry(frame, action)); }

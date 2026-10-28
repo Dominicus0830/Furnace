@@ -283,3 +283,11 @@
 - 바닐라 EndDragonFight.isArenaLoaded 는 안쪽 반복 오타(`z = 8 + cz; z <= 8 + cz`)로 x -8..8, z +8 한 줄만 본다. "고쳐서" 전체를 보면 parity 가 깨진다.
 - `TargetingConditions.test` 는 출처가 null 이면 거리·투명 검사를 건너뛴다. 수정 파괴 시 플레이어 찾기는 출처 없이 부른다(거리 무제한).
 - 앉은 단계는 화살뿐 아니라 WindCharge 도 불붙이고 무시한다. 상세: `dragon-parity-recheck-2026-10-28.md`.
+## 2026-10-28 미등록 루트 명령 정리 (/spectate·/debug·/jfr, /publish·/perf 보류)
+- 바닐라 `Commands` 생성자: `/publish` 는 `includeIntegrated`(통합 서버) 에서만 등록한다. 전용 서버(DEDICATED) 트리에는 없으므로 이 서버도 등록하지 않는다(commands.json 은 ALL 로 뽑아 있다). `/jfr` 은 `JvmProfiler.isAvailable`(JFR 모듈이 있는 JVM) 일 때만, 공통 명령 뒤 전용 서버 명령 앞에 등록된다.
+- `/perf` 는 10 초 성능 표본(틱·CPU·GC 등 MetricsRecorder)을 모아 debug/ 에 zip 보고서를 만든다. 표본 수집 체계가 없어 보류(VanillaCommandTreeTest.ABSENT_ROOTS). 메시지만 내면 거짓 보고가 된다.
+- `/spectate`: 카메라는 관전자의 소유 region 이 정한다(`Region.setCamera`). 패킷 순서는 보정 텔레포트(player_position) → set_camera(0x52) → 명령 메시지. 같은 카메라로 다시 지정하면 패킷 없이 메시지만. 틱마다 대상 위치로 서버 쪽 위치를 맞추고(패킷 없음), 웅크리기·대상 죽음/사라짐·관전 모드 해제 때 자기 시점으로 돌아간다. 차이: 관전 모드 해제는 바닐라가 그 자리에서, 여기서는 다음 region 틱에 되돌린다. 대상이 다른 region 이면 위치를 읽기만 하고 실제 이동은 기존 region 넘기기가 한다(명령 라우팅이 하는 읽기와 같은 가정).
+- 관전자의 왼쪽 클릭(공격 패킷)도 바닐라처럼 그 엔티티로 시점을 옮긴다(`ServerPlayer.attack` 의 관전 분기).
+- `/debug start|stop`: 바닐라 1.21.1 은 stop 이 파일을 쓰지 않고 시간·틱 수·초당 틱 메시지만 낸다. 시작 요청은 다음 틱 머리에서 이뤄지고, 시작 틱 전에 stop 하면 0 초·0 틱·NaN 이며 요청이 남는다(바닐라 `bk()` 가 아직 시작 안 한 요청을 지우지 않음).
+- `/debug function`: 추적 소스(`CommandSource.withTraceOutput`)는 성공·실패 메시지를 늘 받고(sendCommandFeedback 무시, withSilent 무효) 채팅 대신 파일 `[M]` 줄로 간다. `[E]` 줄은 줄바꿈 없이 끝나 바로 뒤 `[M]` 이 같은 줄에 붙는다 — 바닐라 Tracer 그대로이니 "고치지" 않는다. 추적 파일은 컨텍스트가 끝날 때 닫힌다.
+- `/jfr`: 바닐라는 Mojang 설정(.jfc)과 전용 JFR 이벤트를 켜고 멈춘 뒤 jfr-report-*.json 요약을 만든다. 여기는 JDK 기본 `profile` 설정만 쓰고 전용 이벤트·요약이 없다.

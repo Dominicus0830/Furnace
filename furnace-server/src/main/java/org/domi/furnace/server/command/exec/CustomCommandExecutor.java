@@ -26,13 +26,13 @@ public interface CustomCommandExecutor {
             try {
                 runGuarded(source, chain, modifiers, control);
             } catch (CommandSyntaxException e) {
-                onError(e, source, modifiers);
+                onError(e, source, modifiers, control);
                 source.callback().onFailure();
             }
         }
 
-        protected void onError(CommandSyntaxException e, CommandSource source, ChainModifiers modifiers) {
-            source.handleError(e, modifiers.isForked());
+        protected void onError(CommandSyntaxException e, CommandSource source, ChainModifiers modifiers, ExecutionControl control) {
+            source.handleError(e, modifiers.isForked(), control.tracer());
         }
 
         protected abstract void runGuarded(CommandSource source, ContextChain<CommandSource> chain, ChainModifiers modifiers,

@@ -37,6 +37,12 @@ public class BuildContexts {
         runStages(originalSource, command, initialModifiers, initialSources, context, frame);
     }
 
+    /** 바닐라 hy.a(hs, hu): 추적 중이면 명령 시작을 알린다(TopLevel·Unbound 만 — Continuation 은 이미 시작한 명령의 이어 가기다). */
+    protected void traceCommandStart(ExecutionContext context, Frame frame) {
+        TraceCallbacks tracer = context.tracer();
+        if (tracer != null) tracer.onCommand(frame.depth(), commandInput);
+    }
+
     /** 수정자 단계를 돌고 실행 노드를 큐에 넣는다. 비동기 수정자가 미완료면 거기서 멈췄다가 {@link AsyncStage} 가 다음 단계부터 이어 부른다. */
     private void runStages(CommandSource originalSource, ContextChain<CommandSource> stage, ChainModifiers initialModifiers,
                            List<CommandSource> initialSources, ExecutionContext context, Frame frame) {
@@ -66,12 +72,12 @@ public class BuildContexts {
                         try {
                             Collection<CommandSource> newSources = ContextChain.runModifier(modifier, source, (c, s, r) -> {}, forkedMode);
                             if (nextSources.size() + newSources.size() >= forkLimit) {
-                                originalSource.handleError(ERROR_FORK_LIMIT_REACHED.create(forkLimit), forkedMode);
+                                originalSource.handleError(ERROR_FORK_LIMIT_REACHED.create(forkLimit), forkedMode, context.tracer());
                                 return;
                             }
                             nextSources.addAll(newSources);
                         } catch (CommandSyntaxException e) {
-                            source.handleError(e, forkedMode);
+                            source.handleError(e, forkedMode, context.tracer());
                             if (!forkedMode) return;
                         }
                     }
@@ -143,7 +149,7 @@ public class BuildContexts {
                 try {
                     f = fn.applyAsync(modifier.copyFor(source));
                 } catch (CommandSyntaxException e) {
-                    source.handleError(e, forkedMode);
+                    source.handleError(e, forkedMode, context.tracer());
                     if (!forkedMode) return;
                     index++;
                     continue;
@@ -175,7 +181,7 @@ public class BuildContexts {
             if (ex != null) {
                 Throwable t = EntityOps.unwrap(ex);
                 if (t instanceof CommandSyntaxException cse) {
-                    source.handleError(cse, forkedMode);
+                    source.handleError(cse, forkedMode, context.tracer());
                     if (!forkedMode) return false;
                     index++;
                     return true;
@@ -191,7 +197,7 @@ public class BuildContexts {
             }
             int forkLimit = context.forkLimit();
             if (nextSources.size() + v.size() >= forkLimit) {
-                originalSource.handleError(ERROR_FORK_LIMIT_REACHED.create(forkLimit), forkedMode);
+                originalSource.handleError(ERROR_FORK_LIMIT_REACHED.create(forkLimit), forkedMode, context.tracer());
                 return false;
             }
             nextSources.addAll(v);
@@ -231,7 +237,10 @@ public class BuildContexts {
         }
 
         @Override
-        public void execute(ExecutionContext context, Frame frame) { execute(source, List.of(source), context, frame, ChainModifiers.DEFAULT); }
+        public void execute(ExecutionContext context, Frame frame) {
+            traceCommandStart(context, frame);
+            execute(source, List.of(source), context, frame, ChainModifiers.DEFAULT);
+        }
     }
 
     /** 바닐라 hy.c(Unbound): 함수 줄처럼 소스가 나중에 묶이는 명령. */
@@ -240,6 +249,7 @@ public class BuildContexts {
 
         @Override
         public void execute(CommandSource source, ExecutionContext context, Frame frame) {
+            traceCommandStart(context, frame);
             execute(source, List.of(source), context, frame, ChainModifiers.DEFAULT);
         }
     }

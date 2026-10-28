@@ -19,6 +19,7 @@ import org.domi.furnace.server.entity.EntityView;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.PlayerVitals;
+import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.net.protocol.play.BlockUpdate;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
@@ -898,6 +899,7 @@ public final class Region {
             p.tickCooldowns();
             p.tickAttackStrength();
             p.tickRiding();
+            tickCamera(p);
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
             boolean moved = processMoves(p);
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
@@ -1589,6 +1591,66 @@ public final class Region {
             }
         });
         return true;
+    }
+
+    // ------------------------------------------------------------------ 관전 시점(바닐라 ServerPlayer.setCamera / tick 의 카메라 동기)
+
+    /**
+     * 바닐라 ServerPlayer.setCamera(target): target 이 null 이면 자기 자신. 카메라가 바뀌면 대상의 자리(dim·x·y·z·회전)로 보정 텔레포트
+     * (같은 차원이면 연결의 teleport, 다르면 차원 이동 — 타고 있으면 내리고 자고 있으면 깨운다)한 뒤 set_camera 패킷을 보낸다.
+     * 패킷 순서는 위치(player_position) → 카메라(set_camera). 바뀌지 않았으면 아무 패킷도 없다. 어느 쪽이든 done 을 한 번 부른다.
+     * p 는 이 region 의 플레이어여야 한다(region 스레드).
+     */
+    public void setCamera(Player p, Rider target, String dimension, double x, double y, double z, float yaw, float pitch, Runnable done) {
+        world.assertOwns(this);
+        Rider old = p.cameraOrSelf();
+        Rider now = target == null ? p : target;
+        p.cameraField(target);
+        if (old == now) {
+            done.run();
+            return;
+        }
+        Runnable finish = () -> {
+            p.send(new org.domi.furnace.server.net.protocol.play.SetCamera(now.id()));
+            done.run();
+        };
+        boolean across = !dimension.equals(p.dimension()) && world.otherWorld(dimension) != null;
+        World dest = across ? world.otherWorld(dimension) : world;
+        dest.addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);   // POST_TELEPORT 티켓
+        if (p.vehicle() != null) p.stopRiding();
+        if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, true);
+        if (!across) {
+            p.teleportTo(x, y, z, yaw, pitch);
+            finish.run();
+        } else if (!teleportAcross(p, dimension, x, y, z, yaw, pitch, finish)) {
+            finish.run();
+        }
+    }
+
+    /** 같은 차원의 대상(이 region 이 보는)을 카메라로: 대상의 지금 자리로 옮긴다. target 이 null 이면 자기 자리에서 자기 시점으로. */
+    public void setCamera(Player p, Rider target) {
+        Rider at = target == null ? p : target;
+        setCamera(p, target, p.dimension(), at.x(), at.y(), at.z(), at.riderYRot(), at.riderXRot(), () -> { });
+    }
+
+    private static boolean cameraAlive(Rider r) {
+        return r instanceof Player pl ? pl.isAlive() && !pl.isDisconnected() : r instanceof org.domi.furnace.server.entity.Entity e && e.isAlive();
+    }
+
+    /**
+     * ServerPlayer.tick 의 카메라 동기: 카메라가 자기 자신이 아니면 대상이 살아 있는 동안 대상의 자리·회전으로 서버 쪽 위치를 맞추고(패킷 없이)
+     * 청크·가시성 추적을 갱신한다. 웅크리면(wantsToStopRiding)·대상이 죽거나 사라지면·관전 모드가 아니면 자기 시점으로 돌아간다.
+     * 대상이 다른 region 에 있어도 위치만 읽는다(실제 이동은 아래 넘기기가 한다 — 명령 라우팅이 하는 읽기와 같은 가정).
+     */
+    private void tickCamera(Player p) {
+        Rider cam = p.cameraTarget();
+        if (cam == null) return;
+        if (p.gameMode() == GameMode.SPECTATOR && cameraAlive(cam)) {
+            p.applyMove(cam.x(), cam.y(), cam.z(), cam.riderYRot(), cam.riderXRot(), p.onGround());
+            if (level != null) level.playerMoved(p);
+            if (!p.isShiftKeyDown()) return;
+        }
+        setCamera(p, null);
     }
 
     /** 이 region 에서 떼어 목적 차원으로 보낸다. 목적지를 못 정하면 이 월드로 되돌린다. */
