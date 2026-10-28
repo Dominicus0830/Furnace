@@ -26,6 +26,7 @@ import org.domi.furnace.server.world.gen.feature.ConfiguredFeature;
 import org.domi.furnace.server.world.gen.feature.FeatureSupport;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.feature.PlacedFeature;
+import org.domi.furnace.server.world.gen.feature.TreeFeature;
 
 public final class LiveFeatures {
 
@@ -121,14 +122,17 @@ public final class LiveFeatures {
             ChunkColumn col = level.listenerChunk(cx + (i % size) - RADIUS, cz + (i / size) - RADIUS);
             if (col == null) return;
             live[i] = col;
-            copy[i] = col.copy();   // 블록 엔티티는 얕은 복사 — 월드젠 코드는 생성 NBT 만 남긴다
+            copy[i] = copyOnWrite ? col.cowCopy() : col.copy();   // 블록 엔티티는 얕은 복사 — 월드젠 코드는 생성 NBT 만 남긴다
             biomes[i] = biomeIds(col);
         };
         int center = RADIUS * size + RADIUS;
         fill.accept(center);
         if (copy[center] == null) return false;
         List<long[]> writes = new ArrayList<>();
-        FeatureWorldView view = FeatureWorldView.lazyLiveGrid(copy, biomes, cx, cz, RADIUS, worldSeed, fill, writes);
+        List<int[]> edges = new ArrayList<>();
+        FeatureWorldView view = FeatureWorldView.lazyLiveGrid(copy, biomes, cx, cz, RADIUS, worldSeed, fill, writes, edges);
+        // 바닐라 TreeFeature: 통나무·잎·장식·잎 거리 모두 flag 19(UPDATE_KNOWN_SHAPE), 가장자리만 따로 모양 갱신
+        if (h.configured() instanceof TreeFeature) view.setLiveWriteFlags(19);
         WorldgenRandom wr = new WorldgenRandom();
         bridgeIn(random, wr);
         boolean placed;
@@ -141,15 +145,18 @@ public final class LiveFeatures {
         }
         if (view.missingAccess() > 0) return false;
         commit(level, cx, cz, size, live, copy, writes);
+        updateShapeAtEdge(level, edges, 3);
         return placed;
     }
 
     /** 쓴 칸을 쓴 순서대로(칸마다 처음 쓴 차례) 실제 월드에 놓는다(flag 3 = Feature.setBlock 기본). 생성 NBT·엔티티도 옮긴다. */
     private static void commit(ChunkLevel level, int cx, int cz, int size, ChunkColumn[] live, ChunkColumn[] copy, List<long[]> writes) {
         Map<Long, Pos> order = new LinkedHashMap<>();
+        Map<Long, Integer> flags = new java.util.HashMap<>();
         for (long[] w : writes) {
             Pos p = new Pos((int) w[0], (int) w[1], (int) w[2]);
             order.putIfAbsent(p.asLong(), p);
+            flags.putIfAbsent(p.asLong(), (int) w[3]);
         }
         for (Pos p : order.values()) {
             int i = index(cx, cz, size, p.x() >> 4, p.z() >> 4);
@@ -157,7 +164,7 @@ public final class LiveFeatures {
             if (cp == null) continue;
             int s = cp.getBlock(p.x() & 15, p.y(), p.z() & 15);
             if (s == live[i].getBlock(p.x() & 15, p.y(), p.z() & 15)) continue;
-            level.setBlock(p, s, 3);
+            level.setBlock(p, s, flags.get(p.asLong()));
         }
         for (int i = 0; i < copy.length; i++) {
             ChunkColumn l = live[i], cp = copy[i];
@@ -170,6 +177,29 @@ public final class LiveFeatures {
             }
         }
     }
+
+    /** StructureTemplate.updateShapeAtEdge(level, flags, shape, …): 면마다 안쪽 → 바깥쪽 순으로 updateShape(flag & ~1). */
+    private static void updateShapeAtEdge(ChunkLevel level, List<int[]> edges, int flags) {
+        for (int[] e : edges) {
+            Pos pos = new Pos(e[0], e[1], e[2]), npos = new Pos(e[0] + e[3], e[1] + e[4], e[2] + e[5]);
+            int dir = fromDelta(e[3], e[4], e[5]);
+            int s = level.getBlockState(pos), n = level.getBlockState(npos);
+            int s2 = org.domi.furnace.server.block.B.behavior(s).updateShape(s, dir, n, level, pos, npos);
+            if (s2 != s) level.setBlock(pos, s2, flags & ~1);
+            int n2 = org.domi.furnace.server.block.B.behavior(n).updateShape(n, org.domi.furnace.server.block.Dir.opposite(dir), s2, level, npos, pos);
+            if (n2 != n) level.setBlock(npos, n2, flags & ~1);
+        }
+    }
+
+    private static int fromDelta(int dx, int dy, int dz) {
+        for (int d = 0; d < 6; d++) {
+            if (org.domi.furnace.server.block.Dir.DX[d] == dx && org.domi.furnace.server.block.Dir.DY[d] == dy && org.domi.furnace.server.block.Dir.DZ[d] == dz) return d;
+        }
+        throw new IllegalArgumentException("방향 아님");
+    }
+
+    /** 측정·비교용: false 면 예전처럼 청크 기둥 전체를 복사한다. */
+    public static volatile boolean copyOnWrite = true;
 
     private static int index(int cx, int cz, int size, int chunkX, int chunkZ) {
         return (chunkZ - cz + RADIUS) * size + (chunkX - cx + RADIUS);

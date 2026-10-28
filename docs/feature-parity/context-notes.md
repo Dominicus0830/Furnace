@@ -288,4 +288,10 @@
 - 난수: 레벨 난수(LegacyRandomSource) 48비트 상태·가우스 보관값을 WorldgenRandom 으로 옮겨 돌리고 되돌린다. 같은 LCG 라 소비 순서가 바닐라와 같다. LegacyRandomSource 가 아닌 난수(시험용)만 nextLong 시드로 대신한다.
 - TreeGrower 는 바닐라 그대로: 큰 나무 고르기(보조 큰 나무 있을 때만 nextFloat) → 2×2 를 (0,0),(0,-1),(-1,0),(-1,-1) 순으로 찾아 4칸 공기(flag 4) → 실패면 4칸 원래 묘목 → 아니면 hasFlowers(±2,±1) 계산 뒤 nextFloat(항상) 로 보조/꽃 변형. 일반 경로는 자리에 유체 레거시 블록(flag 4) 후 놓고 실패면 묘목으로.
 - 미구현(Noop 이 하위에 있는) feature 를 고르면 묘목·블록을 건드리지 않는다(다른 나무로 대신 키우지 않음). 2026-10-28 기준 대상 27개 configured + grass_bonemeal + 8개 바이옴 꽃 feature 는 모두 구현돼 있다(`SaplingBonemealGrowthTest.neededFeaturesAreImplemented`).
-- 바닐라와 다른 점: (1) 나무도 flag 3 으로 옮긴다(바닐라 TreeFeature 는 19 + 가장자리 updateShapeAtEdge) — 이웃 모양 갱신 횟수·순서 차이, (2) feature 가 다른 region·미로드 청크에 닿으면 아무것도 옮기지 않는다(난수는 이미 소비, 묘목 유지 — 바닐라는 그 청크를 불러 놓는다), (3) 잔디 뼛가루의 바이옴 조회(biomeAt)가 다른 region 칸이면 null → 그 시도는 꽃을 건너뛴다. 바닐라 실서버와의 블록 단위 대조는 아직 안 했다(oracle 불가 환경) — 나무 모양 자체는 월드젠 fixture 로 검증된 TreeFeature 를 그대로 쓴다는 가정.
+- 반영 flag: 쓴 칸마다 flag 를 남긴다. TreeFeature 계열은 바닐라처럼 19(UPDATE_KNOWN_SHAPE), 나머지는 Feature.setBlock 기본 3. 나무 가장자리 모양 갱신은 사본 안 근사(VineSupport) 대신 반영 뒤 실제 updateShape 를 바닐라 면 순서(flag 3&~1)로 부른다 → 가장자리 잎만 예약 틱, 안쪽 잎은 없음(시험 확인).
+- 복사: 청크 기둥은 쓰기 시 복사(`ChunkColumn.cowCopy`, 섹션은 처음 쓸 때만 복사). 잔디 뼛가루 1회 할당 측정 9,696,488 B → 741,392 B(`copyOnWriteReducesAllocation`).
+- 한계(바닐라와 다름): feature 가 ±1 청크 밖, 다른 region 소유, 미로드 청크에 닿으면 아무것도 옮기지 않는다. 이때 묘목은 그대로지만 feature 가 쓴 레벨 난수는 이미 소비된 상태다(바닐라는 그 청크를 불러 놓고 성공). region 경계·미로드 청크 옆 묘목은 그 조건이 풀릴 때까지 자라지 않는다. 다른 region 쓰기 위임(읽기 스냅샷 + 소유 region 에 쓰기)은 두 region 상태가 한 틱 안에서 원자적이지 않아(그 사이 상대 칸이 바뀔 수 있음) 이번엔 하지 않았다.
+- 잔디 뼛가루: grass_bonemeal 이 미구현이면 통째로 안 한다. 꽃 feature 는 바이옴마다 걷기 뒤에야 알 수 있어, 미구현이면 이미 쓴 걷기 난수는 두고 그 시도만 건너뛴다(현재 데이터엔 미구현 꽃 없음). 바이옴 조회(biomeAt)가 다른 region 칸이면 null → 그 시도의 꽃을 건너뛴다.
+- 꽃 feature 찾기는 바닐라 PlacedFeature.getFeatures() 펼침(자기 먼저, 선택기·패치·식생 패치·뿌리 하위 순)에서 첫 flower 타입이다.
+- 블록 엔티티를 생성 NBT 로 바꿔 넣을 때(addBlockEntity) 옛 것은 setRemoved 한다(바닐라 LevelChunk.setBlockEntity). 전에는 옛 벌집이 틱 목록에 남았다.
+- 바닐라 실서버와의 블록 단위 대조는 아직 안 했다(oracle 불가 환경) — 나무 모양은 월드젠 fixture 로 검증된 TreeFeature 를 그대로 쓴다는 가정.

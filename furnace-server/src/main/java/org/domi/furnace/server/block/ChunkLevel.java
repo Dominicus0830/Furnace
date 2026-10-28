@@ -115,7 +115,10 @@ public abstract class ChunkLevel implements BlockLevel {
     /** addAndRegisterBlockEntity: 청크에 두고 틱을 받는 종류면 틱 목록에. */
     protected void addBlockEntity(ChunkColumn col, BlockEntity be) {
         BlockEntity old = col.blockEntityAt(be.pos().x(), be.pos().y(), be.pos().z());
-        if (old != null && old != be) removeGameEventListener(col, old);
+        if (old != null && old != be) {
+            removeGameEventListener(col, old);
+            old.setRemoved();   // 바닐라 LevelChunk.setBlockEntity: 바뀐 옛 것은 지운다(틱 목록에서 빠진다)
+        }
         be.clearRemoved();
         col.putBlockEntity(be);
         if (old != be) addGameEventListener(col, be);

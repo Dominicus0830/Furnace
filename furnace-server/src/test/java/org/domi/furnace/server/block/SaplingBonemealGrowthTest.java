@@ -219,6 +219,83 @@ class SaplingBonemealGrowthTest {
     }
 
     @Test
+    void edgeOfLoadedAreaFailsKeepsSaplingButConsumesRandom() throws Exception {
+        // 청크 6 은 불러오지 않았다: x=95 의 나무 잎이 그쪽에 닿는다
+        Pos p = new Pos(95, 200, 40);
+        onRegion(l -> {
+            l.setBlock(p.below(), B.defaultState("minecraft:dirt"), 2);
+            int s = sapling("minecraft:oak_sapling", 1);
+            l.setBlock(p, s, 2);
+            LegacyRandomSource r = seeded(l, 12345L);
+            ((SaplingBlock) B.behavior(s)).advanceTree(l, p, s, r);
+            assertEquals(s, l.getBlockState(p), "경계 밖에 닿으면 묘목 그대로");
+            assertTrue(B.isAir(l.getBlockState(p.above())), "일부만 놓지 않는다");
+            LegacyRandomSource ref = new LegacyRandomSource(12345L);
+            ref.nextFloat();
+            assertNotEquals(ref.rawState(), r.rawState(), "feature 가 쓴 난수는 소비된 채(바닐라와 다른 점, 문서화)");
+            return null;
+        });
+    }
+
+    @Test
+    void treeUsesKnownShapeFlagsAndEdgeUpdatesAndMovesBeehive() throws Exception {
+        Pos p = new Pos(72, 200, 24);
+        onRegion(l -> {
+            l.setBlock(p.below(), B.defaultState("minecraft:dirt"), 2);
+            LevelFeature f = l.configuredFeature("minecraft:fancy_oak_bees");   // 벌집 확률 1.0
+            assertTrue(f != null && f.supported());
+            assertTrue(l.placeFeature(f, p, seeded(l, 77L)));
+            int hives = 0, edgeTicked = 0, edges = 0, inner = 0, innerTicked = 0;
+            for (int y = -1; y <= 16; y++)
+                for (int z = -8; z <= 8; z++)
+                    for (int x = -8; x <= 8; x++) {
+                        Pos q = p.offset(x, y, z);
+                        int s = l.getBlockState(q);
+                        if (B.is(s, "minecraft:bee_nest") || B.is(s, "minecraft:beehive")) {
+                            hives++;
+                            assertNotNull(l.getBlockEntity(q), "벌집 블록 엔티티");
+                        }
+                        if (!B.is(s, "minecraft:oak_leaves")) continue;
+                        boolean open = false;
+                        for (int d = 0; d < 6; d++) {
+                            int n = l.getBlockState(q.offset(Dir.DX[d], Dir.DY[d], Dir.DZ[d]));
+                            if (!B.is(n, "minecraft:oak_leaves") && !B.is(n, "minecraft:oak_log")) open = true;
+                        }
+                        boolean ticked = l.hasScheduledTick(q, B.block(s));
+                        if (open) { edges++; if (ticked) edgeTicked++; } else { inner++; if (ticked) innerTicked++; }
+                    }
+            assertTrue(hives > 0, "벌집 없음");
+            assertTrue(edges > 0 && edgeTicked > 0, "가장자리 잎 모양 갱신(예약 틱) " + edgeTicked + "/" + edges);
+            assertEquals(0, innerTicked, "안쪽 잎은 flag 19 라 모양 갱신 없음(" + inner + "칸)");
+            return null;
+        });
+    }
+
+    @Test
+    void copyOnWriteReducesAllocation() throws Exception {
+        var mx = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        long[] bytes = new long[2];
+        for (int mode = 0; mode < 2; mode++) {
+            boolean cow = mode == 1;
+            int m = mode;
+            onRegion(l -> {
+                Pos g = new Pos(40, 250, 24 + 32 * m);   // 서로 다른 판
+                for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) l.setBlock(g.offset(x, 0, z), B.defaultState("minecraft:grass_block"), 2);
+                int gs = l.getBlockState(g);
+                org.domi.furnace.server.world.LiveFeatures.copyOnWrite = cow;
+                long t = Thread.currentThread().threadId();
+                long before = mx.getThreadAllocatedBytes(t);
+                ((BonemealableBlock) B.behavior(gs)).performBonemeal(l, seeded(l, 1L), g, gs);
+                bytes[m] = mx.getThreadAllocatedBytes(t) - before;
+                org.domi.furnace.server.world.LiveFeatures.copyOnWrite = true;
+                return null;
+            });
+        }
+        System.out.println("GRASS_BONEMEAL_ALLOC full=" + bytes[0] + " cow=" + bytes[1]);
+        assertTrue(bytes[1] < bytes[0], "쓰기 시 복사가 덜 할당해야 한다");
+    }
+
+    @Test
     void bonemealSuccessUsesOneLevelFloat() throws Exception {
         onRegion(l -> {
             Pos p = new Pos(30, 240, 30);

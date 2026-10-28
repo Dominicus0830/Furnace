@@ -222,9 +222,9 @@ public final class BiomeFeatureData {
     }
 
     /**
-     * BiomeGenerationSettings.getFlowerFeatures().get(0).config().feature(): 그 바이옴 feature 목록(단계 순) 중
-     * 처음 나오는 flower 타입 configured feature 의 내부 placed feature. 없으면 null.
-     * flower 타입은 1.21.1 데이터에서 최상위로만 쓰인다(선택기 안에 들어간 예 없음) — 하위 탐색은 생략한다(가정, 데이터로 확인).
+     * BiomeGenerationSettings.getFlowerFeatures().get(0).config().feature(): 바이옴 feature 목록(단계 순)을
+     * PlacedFeature.getFeatures() 로 펼쳐(자기 자신 먼저, 그다음 config.getFeatures() 의 하위) 처음 나오는 flower 타입의 내부 placed feature.
+     * 없으면 null.
      */
     public PlacedFeature flowerFeature(String biomeId) {
         if (loader == null) return null;
@@ -238,17 +238,52 @@ public final class BiomeFeatureData {
             JsonArray features = biome.getAsJsonArray("features");
             if (features == null) return null;
             for (JsonElement step : features) {
-                for (JsonElement placedId : step.getAsJsonArray()) {
-                    JsonElement cf = loader.data.placedFeature(placedId.getAsString()).get("feature");
-                    if (!cf.isJsonPrimitive()) continue;
-                    JsonObject cfJson = loader.data.configuredFeature(cf.getAsString());
-                    if (!"minecraft:flower".equals(cfJson.get("type").getAsString())) continue;
-                    ConfiguredFeature f = loader.configuredFeature(cf.getAsString());
+                for (JsonElement placed : step.getAsJsonArray()) {
+                    JsonObject flower = firstFlower(placedJson(placed));
+                    if (flower == null) continue;
+                    ConfiguredFeature f = loader.parseConfiguredPublic(flower);
                     return f instanceof RandomPatchFeature rp ? rp.feature() : null;
                 }
             }
             return null;
         }
+    }
+
+    private JsonObject placedJson(JsonElement el) {
+        return el.isJsonPrimitive() ? loader.data.placedFeature(el.getAsString()) : el.getAsJsonObject();
+    }
+
+    private JsonObject configuredJson(JsonElement el) {
+        return el.isJsonPrimitive() ? loader.data.configuredFeature(el.getAsString()) : el.getAsJsonObject();
+    }
+
+    /** placed feature json → getFeatures() 펼침에서 처음 나오는 flower 타입 configured json. */
+    private JsonObject firstFlower(JsonObject placed) {
+        JsonObject cf = configuredJson(placed.get("feature"));
+        if ("minecraft:flower".equals(cf.get("type").getAsString())) return cf;
+        JsonObject c = cf.getAsJsonObject("config");
+        if (c == null) return null;
+        List<JsonElement> subs = new ArrayList<>();
+        switch (cf.get("type").getAsString()) {
+            // RandomPatch·NoBonemealFlower(=random patch 설정)·VegetationPatch·RootSystem: 하위 하나
+            case "minecraft:random_patch", "minecraft:no_bonemeal_flower" -> subs.add(c.get("feature"));
+            case "minecraft:vegetation_patch", "minecraft:waterlogged_vegetation_patch" -> subs.add(c.get("vegetation_feature"));
+            case "minecraft:root_system" -> subs.add(c.get("feature"));
+            // RandomFeatureConfiguration: features 의 feature 들, 그다음 default
+            case "minecraft:random_selector" -> {
+                for (JsonElement e : c.getAsJsonArray("features")) subs.add(e.getAsJsonObject().get("feature"));
+                subs.add(c.get("default"));
+            }
+            case "minecraft:simple_random_selector" -> { for (JsonElement e : c.getAsJsonArray("features")) subs.add(e); }
+            case "minecraft:random_boolean_selector" -> { subs.add(c.get("feature_true")); subs.add(c.get("feature_false")); }
+            default -> { }
+        }
+        for (JsonElement e : subs) {
+            if (e == null) continue;
+            JsonObject r = firstFlower(placedJson(e));
+            if (r != null) return r;
+        }
+        return null;
     }
 
     public Set<String> biomes() {
@@ -316,6 +351,8 @@ public final class BiomeFeatureData {
             JsonObject obj = el.getAsJsonObject();
             return obj.has("name") ? obj.get("name").getAsString() : obj.get("id").getAsString();
         }
+
+        ConfiguredFeature parseConfiguredPublic(JsonObject json) { return parseConfigured(json); }
 
         ConfiguredFeature configuredFeature(String id) {
             ConfiguredFeature cached = configuredCache.get(id);

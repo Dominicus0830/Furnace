@@ -458,7 +458,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (neighbor == null) return;
         debugSetBlockCalls++;
         neighbor.setBlock(worldX - nx * 16, worldY, worldZ - nz * 16, stateId);
-        if (writeLog != null) writeLog.add(new long[]{worldX, worldY, worldZ});
+        if (writeLog != null) writeLog.add(new long[]{worldX, worldY, worldZ, liveWriteFlags});
     }
 
     private int getGridSurfaceY(int worldX, int worldZ) {
@@ -537,13 +537,25 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     // 블록 쪽(묘목·뼛가루) 라이브 격자: 칸 청크를 처음 닿을 때 복사하고(idx → gridCols/biomeIdsGrid 채움), 쓴 칸을 순서대로 남긴다.
     private java.util.function.IntConsumer lazyFill;
     private java.util.List<long[]> writeLog;
+    /** 라이브 반영 때 이 쓰기에 쓸 setBlock flag(Feature.setBlock 기본 3, TreeFeature 는 19). */
+    private int liveWriteFlags = 3;
+    /** TreeFeature 가장자리 모양 갱신(StructureTemplate.updateShapeAtEdge)을 실제 월드에서 하도록 남긴 면들: {x,y,z,dx,dy,dz}. */
+    private java.util.List<int[]> edgeLog;
+
+    public void setLiveWriteFlags(int flags) { liveWriteFlags = flags; }
+
+    /** 블록 레벨 라이브 격자면 가장자리 면을 남긴다(사본 안에서 근사하지 않고 반영 뒤 실제 updateShape 를 부른다). */
+    public boolean recordsLiveEdges() { return edgeLog != null; }
+
+    public void recordLiveEdge(int x, int y, int z, int dx, int dy, int dz) { edgeLog.add(new int[]{x, y, z, dx, dy, dz}); }
 
     /** 블록 레벨용 라이브 격자: 중심 칸만 미리 채우고 나머지는 lazyFill 이 처음 닿을 때 채운다. 쓴 칸은 writeLog 에 쌓인다. */
     public static FeatureWorldView lazyLiveGrid(ChunkColumn[] grid, int[][] biomeIdsGrid, int centerX, int centerZ, int radius, long worldSeed,
-            java.util.function.IntConsumer lazyFill, java.util.List<long[]> writeLog) {
+            java.util.function.IntConsumer lazyFill, java.util.List<long[]> writeLog, java.util.List<int[]> edgeLog) {
         FeatureWorldView v = liveGrid(grid, biomeIdsGrid, centerX, centerZ, radius, worldSeed);
         v.lazyFill = lazyFill;
         v.writeLog = writeLog;
+        v.edgeLog = edgeLog;
         return v;
     }
 
