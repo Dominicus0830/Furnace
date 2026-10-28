@@ -1,19 +1,73 @@
 # 사용자 확인·결정 필요 항목 (대화 걸면 알려 줄 것)
 
-2026-10-27 사용자 실접속 테스트 반영 후 정리본. 잘 되는 것으로 확인된 줄은 지웠다. 버그 상세와 원인 조사는 `docs/feature-parity/user-test-bugs-2026-10-27.md`.
+2026-10-28 정리. 잘 되는 것으로 확인된 줄은 지웠다. 버그 상세와 원인 조사는 `docs/feature-parity/user-test-bugs-2026-10-27.md`.
+아래 **A. 접속 시험**은 분류별로 "어떻게 / 기대 결과"를 적었다. 복붙할 명령은 코드로 표시. 시험 전에 `/gamemode creative`, `/gamerule doDaylightCycle false` 정도는 필요에 따라 쓰면 된다. 결과가 기대와 다르면 분류 이름과 항목 번호만 알려 주면 된다.
 
-## 다시 접속해서 확인할 것 (수정함, 아직 접속 확인 못 함)
-- 다른 플레이어가 손에 든 아이템·방어구가 보이는지, 겉옷·겉머리 스킨 레이어가 보이는지, 죽었다 리스폰한 뒤에도 보이는지 (패킷 `set_equipment`, 엔티티 데이터 17·18 추가)
-- 방패로 근접 공격을 막으면 밀리지 않는지(바닐라는 막은 플레이어에게 속도 패킷이 가지 않는다 — 구조를 바닐라와 같게 고침)
-- 네더 포탈에서 관전 모드는 포탈을 못 타는지
-- 종 블록 몸통이 보이는지, 침대가 보이는지(블록 엔티티 추가), 종을 치면 습격자가 발광하는지, 지도 깃발 표식이 유지되는지
-- 마을에 주민·철 골렘·고양이가 처음부터 있는지, 주민이 침대·직업 블록을 얻고 문을 열고 일하는지 (구조물 템플릿 엔티티가 지금까지 생성되지 않던 버그와 주민 길찾기가 옛 레벨을 쓰던 버그를 고침). **수정 전에 만든 월드**는 청크를 처음 다시 로드할 때 주민·골렘이 한꺼번에 나타날 수 있음
-- 말 체력이 15~30 범위로 나오는지, 워든을 `/summon` 하면 땅속으로 들어가지 않는지, 토끼 스폰 NPE 가 사라졌는지
-- 발전과제: kill·번식·길들이기·음식 섭취 트리거가 연결됨(`docs/feature-parity/advancement-triggers-2026-10-28.md`). 다른 region 에서 일어난 처치는 최대 한 틱 늦게 반영될 수 있음
-- 새 명령: `/place` `/trigger` `/teammsg` `/version` `/plugins`
+# A. 접속 시험 (수정·구현했지만 접속 확인 못 함)
 
-## /execute·함수·/schedule·매크로 (구현함, 아직 접속 확인 못 함)
-- 설계 대비 차이와 의도한 한계: `docs/feature-parity/execute-function-design-2026-10-27.md` 맨 앞 요약. 아래는 접속해서 해 볼 시나리오.
+## A1. 두 명이 접속해야 보이는 것 (외형·패킷)
+클라이언트 2개(또는 친구 1명) 필요.
+1. 손·방어구 보이기: 한 명이 `/give @s diamond_sword` `/give @s diamond_chestplate` `/give @s diamond_helmet` 후 장착. 다른 쪽에서 손 아이템과 방어구가 보여야 함. 그 뒤 `/kill @s` 로 죽고 리스폰해도 다시 보여야 함.
+2. 스킨 겉옷·겉머리: 클라이언트 설정(스킨 사용자 지정)에서 레이어를 켠 쪽을 상대가 볼 때 겉옷·모자 레이어가 보여야 함.
+3. 웅크림·활 당김 포즈, 삼지창 급류(물/비 속): `/give @s trident{}`은 쓰지 말고 `/give @s minecraft:trident[minecraft:enchantments={levels:{"minecraft:riptide":3}}]` 후 물속에서 사용.
+4. 방패: `/give @s shield` 를 들고 우클릭으로 막은 채 좀비(`/summon zombie ~2 ~ ~`)에게 맞는다. 막은 쪽이 **밀리지 않아야** 함. 도끼 든 좀비(`/summon zombie ~2 ~ ~ {HandItems:[{id:"minecraft:iron_axe",count:1},{}]}`)는 방패를 비활성화함.
+
+## A2. 차원·이동
+1. 텔레포트 높이: `/tp @s ~ ~ ~` 해도 F3 의 Y 가 변하지 않아야 함. 네더로: `/execute in minecraft:the_nether run tp @s 0 100 0` → F3 Y 가 100 이고 `Dimension` 이 네더여야 함. 돌아오기: `/execute in minecraft:overworld run tp @s 0 100 0`.
+2. 포탈: 흑요석 포탈을 만들어 들어갔다 같은 문으로 돌아올 때 Y 가 한 칸 아래로 끼는지(F3 의 Y 와 서버 로그 비교) 확인.
+3. 관전 모드는 포탈 못 탐: `/gamemode spectator` 상태로 포탈 안에 서 있어도 이동되지 않아야 함.
+4. 자는 중 텔레포트 깨우기는 미구현이라 시험 불가(아래 알려진 차이).
+
+## A3. 마을·주민·종·침대·지도
+1. 마을 찾기: `/locate structure minecraft:village_plains` → 클릭한 좌표로 `/tp @s <x> ~ <z>`. 새 월드 또는 `region/` 삭제 후 처음 생성한 마을일수록 좋음.
+2. 마을에 주민·철 골렘·고양이가 처음부터 있는지, 침대·직업 블록이 보이는지, 주민이 문을 열고 일하는지(낮에 직업 블록 주변을 오가는지).
+3. 종: 마을 종을 우클릭 → 몸통 모델이 보이고 소리가 나야 함. 주민은 숨으러 침대로 감(침대가 정상이어야 함). 습격자 발광: `/summon pillager ~5 ~ ~` 근처에서 종을 치면 발광.
+4. 습격 시작: `/effect give @s minecraft:bad_omen 1000 0` 후 마을로 걸어 들어가기(바닐라는 "나쁜 징조" 상태여야 시작).
+5. 지도 깃발: `/give @s map` (주먹으로 우클릭해 활성화) 후 `/give @s white_banner` 를 땅에 설치하고 지도를 든 채 깃발에 우클릭 → 지도에 표식이 생기고 **계속 유지**돼야 함(예전엔 0.3초 뒤 사라짐).
+
+## A4. 몹
+1. 말: `/summon horse ~ ~ ~` 를 5~10회 반복해 `/data get entity @e[type=horse,limit=1,sort=nearest] Health` 값이 15~30 범위인지. 탑승: 우클릭으로 안장 없이 타지지 않아도 정상, 안장: `/give @s saddle` 후 말에 우클릭 → 탑승. 내린 뒤 약 3초 안엔 못 타는 것도 바닐라와 같음.
+2. 말 장비 창: 길들인 말에 웅크려 우클릭 → 안장/갑옷 칸. 당나귀 상자 창.
+3. 워든: `/summon warden ~ ~ ~` → 땅속으로 들어가지 않고 서 있어야 함. 소리 확인, 웅크려 걸으면 감지 못 하는지, 양털로 진동이 막히는지.
+4. 토끼: `/summon rabbit ~ ~ ~` 와 사막/설원 바이옴에서 자연 스폰 시 서버 로그에 NPE 가 없어야 함.
+5. 고양이·마을 스폰, 벌·벌집: `/summon bee ~ ~ ~` 후 벌집/꿀병/가위 사용, 벌에 쏘이면 독, 밤에 벌이 벌집으로 들어가는지.
+6. 스컬크: `/give @s sculk_catalyst` 를 놓고 그 근처에서 좀비·스켈레톤(`/summon zombie ~ ~ ~`)을 `/kill @e[type=zombie,distance=..5]` 로 죽임 → 스컬크가 퍼지는지(소 같은 경험치 적은 몹이면 1~3칸만 생기는 게 정상).
+7. 약탈자 순찰: 시간 이동(`/time set`)이 아니라 실제 틱이 흐르는 상태로 낮에 대기. 순찰대는 낮에 약 10분마다 한 번 판정. 자주 보려면 `/gamerule doPatrolSpawning true`(기본) 확인.
+
+## A5. 엔더 드래곤
+1. 엔드로: `/execute in minecraft:the_end run tp @s 0 70 0`.
+2. 화살로 날개·머리 맞추기: `/give @s bow` `/give @s arrow 64` → 드래곤이 가까이 올 때 머리 명중(큰 피해)과 날개 명중(작은 피해)이 구분되는지, 화살이 몸통을 **통과하지 않는지**.
+3. 폭발: 침대 폭발(`/give @s red_bed`, 엔드에서 사용) 또는 TNT(`/give @s tnt` 후 불)로 드래곤에 피해.
+4. 부활: 포탈 가운데 받침에 `/give @s end_crystal 4` 로 4방향 크리스탈을 놓으면 부활 연출이 시작되는지, 처치 후 출구 포털과 알이 생기는지.
+5. 보스 바 사용자 이름은 미구현(알려진 차이).
+
+## A6. 블록·메뉴·용기
+1. 제작기: `/give @s crafter` 를 놓고 우클릭 → 메뉴가 열림. 칸을 클릭해 잠금(×)이 토글되고, 레드스톤 신호(`/give @s redstone_block` 를 옆에 붙이거나 레버)로 제작되는지.
+2. 주크박스+깔때기: `/give @s jukebox` `/give @s hopper` `/give @s music_disc_cat` → 주크박스 위에 깔때기를 놓고 음반을 넣었을 때 **재생이 끝나기 전엔 음반이 빠지지 않는지**.
+3. 메뉴 열기: 화로에 재료를 넣어 굽는 도중, 깔때기가 연결된 상자를 열었을 때 첫 화면에 내용이 한 번에 정상으로 보이는지(깜빡임·잘못된 개수 없어야 함).
+4. 표지판: `/give @s oak_sign` 에 텍스트 입력 후 저장/재접속해도 유지.
+5. 사막 신전: `/locate structure minecraft:desert_pyramid` 후 상자 4개(새 월드젠 기준).
+
+## A7. 발전과제
+먼저 `/advancement revoke @s everything` 로 초기화한 뒤 `L` 화면에서 확인.
+1. 몹 처치: `/summon zombie ~2 ~ ~` 를 때려 죽임 → "Monster Hunter".
+2. 번식: `/summon cow ~2 ~ ~` 두 마리 + `/give @s wheat 4` 로 먹여 번식 → "The Parent of Parents".
+3. 길들이기: `/summon wolf ~2 ~ ~` + `/give @s bone 10` → "Best Friends Forever". 말은 맨손으로 반복 우클릭해 길들이기.
+4. 음식 섭취(consume_item): `/give @s golden_apple` 먹기 → "Zombie Doctor" 같은 트리거 대신 사과/물약 섭취 조건 발전과제.
+5. 다른 region(멀리)에서의 처치는 최대 한 틱 늦게 반영될 수 있음(의도한 차이).
+
+## A8. 새 명령
+1. `/version`, `/plugins`
+2. `/place feature minecraft:oak ~ ~ ~` / `/place structure minecraft:igloo ~ ~ ~`
+3. `/trigger`: `/scoreboard objectives add tr trigger` → `/scoreboard players enable @s tr` → `/trigger tr add 5` → `/scoreboard players get @s tr` 가 5.
+4. `/teammsg`: `/team add red` → `/team join red @s` → `/teammsg hello` (같은 팀원에게만).
+5. `/kill`: `/kill @s`, `/kill @e[type=zombie]` 메시지·수.
+6. `/tick`: `/tick query`, `/tick freeze`, `/tick unfreeze`, `/tick step 20`, `/tick rate 40`(→ `/tick rate 20` 복구), `/tick sprint 200` 후 완료 메시지(여러 차원에 플레이어를 두고도 시험).
+7. `/locate`: `/locate structure minecraft:village_plains`, (병합 후) `/locate biome minecraft:desert`, `/locate poi minecraft:librarian`.
+8. 다차원 이동 명령: `/execute in minecraft:the_nether run tp @s 0 100 0`.
+
+## A9. /execute·함수·/schedule·매크로
+설계 대비 차이와 의도한 한계: `docs/feature-parity/execute-function-design-2026-10-27.md` 맨 앞 요약.
 - 점수 저장: `/scoreboard objectives add t dummy` 후 `/execute as @e[type=cow] store result score @s t run data get entity @s Health` → `/scoreboard players list @e[type=cow,limit=1]` 에 체력이 있는지(소가 여러 마리면 각자 저장)
 - 조건: `/execute if entity @e[type=cow,distance=..10] run say 소 있음`, `/execute unless block ~ ~-1 ~ air run say 발밑 블록`, `/execute if score @s t matches 10.. run say 큼`
 - 데이터 저장: `/execute store result storage t:x v int 1 run data get entity @e[type=cow,limit=1] Health` 뒤 `/data get storage t:x v`
@@ -21,6 +75,14 @@
 - 예약: `/schedule function t:a 5s` 가 5초 뒤 실행, `/schedule function t:a 5s append`, `/schedule clear t:a`, 서버 재시작 뒤에도 남아 있는지
 - 매크로: 함수 파일 줄이 `$say $(msg)` 일 때 `/function t:m {msg:"hello"}` 와 `/function t:m with storage t:x` 로 치환되는지, 인자 누락 오류 메시지
 - 주의: 다른 region(멀리 떨어진 곳)의 엔티티를 오가는 긴 함수는 몇 틱 걸릴 수 있음(의도한 차이). 오래 걸리면 서버 로그의 100틱 경고를 알려 주세요.
+- 알려진 구멍(감사 2026-10-28): 선택자 옵션 `nbt=` `advancements=` `predicate=` `level=` 는 아직 동작하지 않음(항상 거짓/레벨 0). 이 옵션으로 시험하면 실패하는 게 정상이고 수정 작업 예정.
+
+## A10. 저장·성능 체감
+1. 저장 유지: 탐험한 뒤 서버를 정상 종료/재시작해도 같은 지형이 나오는지(생성만 한 청크도 저장됨 — 디스크 사용량 증가).
+2. 2명 이상 접속해 빠르게 이동할 때 청크 전송 지연이 1명일 때와 큰 차이가 없는지(체감).
+3. 서버 로그에 `100틱` 경고, `Can't keep up` 계열 메시지가 없는지.
+
+# B. 결정 필요·재현 정보 필요 (아래 섹션)
 
 ## 결정 필요: sync-chunk-writes (2026-10-28)
 - 이제 server.properties `sync-chunk-writes`(기본 true, 바닐라와 같음)가 실제로 적용된다. 켜면 청크 저장마다 디스크 동기화를 해서 전원이 나가도 저장된 청크가 깨지지 않지만, 저장 처리량이 약 17배 떨어진다(측정 약 21,000 → 1,200 청크/초, `docs/feature-parity/f05-sector-allocator-2026-10-28.md` 6장).
@@ -106,12 +168,12 @@
 
 ## 명령
 - 이번까지 추가: `/give` `/clear` `/enchant` `/tp` `/ride` `/random` `/tag` `/spreadplayers` `/forceload` `/tick`(sprint 제외) `/tellraw` `/title` `/playsound` `/stopsound` `/bossbar` `/transfer` `/particle` `/damage` `/data` `/item` `/loot` `/scoreboard` `/team` `/attribute` `/clone` `/fillbiome` `/place` `/trigger` `/teammsg` `/execute`(일부), 모두 실접속 미확인. 일반 엔티티를 고르는 `@e` 명령은 이제 바닐라 반환값을 낸다 (`/execute store` 는 S3~S4 에서)
-- `/tp` 는 차원 간 이동 불가(다른 차원 대상이면 실패)
-- 아직 없음: `/tick sprint`, 명령 블록 등. 순서는 docs/feature-parity/roadmap-2026-10-09.md 의 작업 리스트
+- `/tp` 는 차원 간 이동 가능(2026-10-28 구현, 아래 시험 항목 참고)
+- 아직 없음: 명령 블록 등(`/tick sprint` 는 구현됨). 순서는 docs/feature-parity/roadmap-2026-10-09.md 의 작업 리스트
 - 벌·벌집·고양이 스포너: 벌집 만지기/꿀병/가위, 밤에 벌이 들어가는지, 벌에 쏘이면 독, 마을 근처 고양이 스폰
 
 ## 블록 엔티티
-- 미구현: 제작기 메뉴(칸 잠금 클릭 불가 — 지금은 열리지 않음), 스포너 승객/장비, 벌집, 표지판 텍스트 선택자/점수 해석
+- 제작기 메뉴는 구현됨(아래 시험 항목). 미구현: 스포너 승객/장비, 벌집, 표지판 텍스트 선택자/점수 해석
 - 확인 못 함: 표지판 JSON 직렬화가 바닐라와 바이트 동일한지(클라가 파싱하면 문제 없음)
 
 ## 월드젠 확인
