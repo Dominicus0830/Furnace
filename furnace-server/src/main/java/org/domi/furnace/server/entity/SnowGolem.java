@@ -88,15 +88,15 @@ public class SnowGolem extends AbstractGolem implements RangedAttackMob {
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         if (!held.isEmpty() && ItemTools.itemName(held).equals("minecraft:shears") && readyForShearing()) {
-            shear();
+            shear("players");
             hurtHeldItem(p, hand, held, 1);
             return true;
         }
         return false;
     }
 
-    public void shear() {
-        level.playSound(null, x(), y(), z(), "entity.snow_golem.shear", "players", 1.0F, 1.0F);
+    public void shear(String source) {
+        level.playSound(null, x(), y(), z(), "entity.snow_golem.shear", source, 1.0F, 1.0F);
         setPumpkin(false);
         spawnAtLocation(new ItemStack(ItemContext.id("minecraft:item", "carved_pumpkin"), 1), 1.7F);
     }

@@ -36,8 +36,7 @@ public class Bogged extends AbstractSkeleton {
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         if (!held.isEmpty() && ItemTools.itemName(held).equals("minecraft:shears") && readyForShearing()) {
-            level.playSound(null, x(), y(), z(), "entity.bogged.shear", "players", 1.0F, 1.0F);
-            setSheared(true);
+            shear("players");
             var inv = p.inventory();
             int ws = hand == 0 ? inv.heldWindowSlot() : 45;
             var actor = new org.domi.furnace.server.block.PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);
@@ -46,6 +45,12 @@ public class Bogged extends AbstractSkeleton {
             return true;
         }
         return super.interact(p, hand, held, region);
+    }
+
+    /** Shearable.shear(source): 소리 → 깎임. TODO: 깎기 전리품(shearing/bogged 버섯). */
+    public void shear(String source) {
+        level.playSound(null, x(), y(), z(), "entity.bogged.shear", source, 1.0F, 1.0F);
+        setSheared(true);
     }
 
     @Override protected void prepareArrow(Arrow arrow) { arrow.addEffect(new MobEffectInstance(MobEffect.POISON, 100)); }

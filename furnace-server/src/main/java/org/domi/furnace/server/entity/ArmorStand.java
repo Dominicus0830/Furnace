@@ -147,6 +147,8 @@ public class ArmorStand extends LivingEntity {
         return r;
     }
 
+    public boolean isSlotDisabled(EquipmentSlot slot) { return isDisabled(slot); }
+
     private boolean isDisabled(EquipmentSlot slot) {
         return (disabledSlots & 1 << slotBit(slot)) != 0 || slot.type() == EquipmentSlot.Type.HAND && !showArms();
     }
