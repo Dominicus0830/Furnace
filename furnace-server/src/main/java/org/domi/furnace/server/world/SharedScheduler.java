@@ -1,6 +1,8 @@
 // region 틱 작업 스레드 풀. 등록된 Regionizer(차원)마다 잠금 없이 발행된 "큐 머리 마감"(headDue)을 보고 가장 이른 차원을 고르고,
 // 꺼내기·끝내기만 그 차원 잠금 안에서 한다(tryTake/finishTick). 깨우기는 LockSupport.unpark — 풀에는 잠금이 없다.
-// 지금(S2)은 차원마다 풀 하나(호환 경로)만 쓴다. 설계: docs/feature-parity/shared-scheduler-design-2026-10-28.md §2.1·§3
+// 차원마다 풀 하나(호환 경로, 기본)이거나 -Dfurnace.sharedRegionPool=true 면 서버 전체 하나(S4).
+// 공정성(§4.1): EDF + 머리가 2틱 넘게 밀린 차원 먼저 + 다른 차원에 때가 된 머리가 있으면 한 차원은 T-1 워커까지.
+// 설계: docs/feature-parity/shared-scheduler-design-2026-10-28.md §2.1·§3·§4
 package org.domi.furnace.server.world;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -52,6 +54,32 @@ public final class SharedScheduler implements AutoCloseable {
     /** 시험 전용: 지금 자는(등록된) 워커 수. */
     int parkedCount() { return parked.size(); }
 
+    /** 한 차원의 동시 실행 상한(다른 차원에 때가 된 머리가 있을 때만). 워커 1개면 상한 없음. */
+    private final int perDimCap;
+    /** 굶음 판정: 머리 지연 >= 이 배수 × 그 차원 틱 주기. */
+    private final int starveTicks;
+    /** 같은 클래스에서 마감 차가 이 이하면 동률 — rr 로 번갈아 고른다. */
+    static final long TIE_NANOS = 1_000L;
+    private final java.util.concurrent.atomic.AtomicInteger rr = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 서버 전체 공유 풀을 만들고 시작한다(FurnaceMain, 스위치 켬). */
+    public static SharedScheduler startShared(int threads, String name) {
+        SharedScheduler p = new SharedScheduler(threads, name);
+        p.start();
+        return p;
+    }
+
+    /**
+     * 시험 전용(-Dfurnace.test.sharedRegionPool=true): int 생성자로 만든 월드도 워커 수별 프로세스 공용 풀에 건다 — 기존 시험을
+     * 공유 풀 모드로 다시 돌리기 위한 것. 운영 경로(FurnaceMain)는 이 값을 보지 않는다.
+     */
+    static final boolean TEST_SHARED = Boolean.getBoolean("furnace.test.sharedRegionPool");
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, SharedScheduler> TEST_POOLS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static SharedScheduler testShared(int threads) {
+        return TEST_POOLS.computeIfAbsent(Math.max(1, threads), t -> startShared(t, "furnace-region-"));
+    }
+
     static final class Parked {
         final Thread t;
         volatile long until;
@@ -69,6 +97,9 @@ public final class SharedScheduler implements AutoCloseable {
     SharedScheduler(int threads, String name, long spinMargin) {
         this.spinMargin = Math.max(0L, spinMargin);
         this.workers = new Thread[Math.max(1, threads)];
+        int cap = Integer.getInteger("furnace.sched.dimCap", workers.length - 1);
+        this.perDimCap = workers.length <= 1 || cap <= 0 ? Integer.MAX_VALUE : cap;
+        this.starveTicks = Math.max(1, Integer.getInteger("furnace.sched.starveTicks", 2));
         for (int i = 0; i < workers.length; i++) {
             Thread t = new Thread(this::workerLoop, name + i);
             t.setDaemon(true);
@@ -92,6 +123,11 @@ public final class SharedScheduler implements AutoCloseable {
 
     public int threadCount() { return workers.length; }
 
+    /** 등록된 차원 수. */
+    public int dimensionCount() { return dims.size(); }
+
+    int perDimCap() { return perDimCap; }
+
     /** 계측: 워커가 park 에서 돌아온 횟수. */
     public long wakeups() { return wakeups.get(); }
 
@@ -110,18 +146,57 @@ public final class SharedScheduler implements AutoCloseable {
         return a - b < 0;
     }
 
-    /** 등록된 차원 중 머리 마감이 가장 이른 것(없으면 null). 잠금 없음. */
-    private Regionizer select() {
-        Regionizer best = null;
-        long bestDue = Long.MAX_VALUE;
-        for (Regionizer rz : dims) {
+    /** select 의 결과를 워커가 받는 자리(워커 스레드마다 하나 — 할당 없음). */
+    private static final class Pick {
+        Regionizer best;
+        long due;
+        int maxRunning;
+    }
+
+    private static final ThreadLocal<Pick> PICK = ThreadLocal.withInitial(Pick::new);
+
+    /**
+     * 선택기(§4.1, 잠금 없음): 차원마다 키 = (capped ? 2 : starved ? 0 : 1, headDue), 사전식 최소. 같은 클래스에서 마감 차 ≤ TIE 면
+     * 시작 위치를 rr 로 돌려 번갈아 고른다. maxRunning = 다른 차원에 때가 된 머리가 있으면 perDimCap, 없으면 상한 없음(N3) —
+     * 상한은 tryTake 가 잠금 안에서 다시 확인한다. 차원이 하나면 순수 EDF(호환 경로와 같은 동작).
+     */
+    private Pick select(long now, Pick out) {
+        out.best = null;
+        out.due = Long.MAX_VALUE;
+        out.maxRunning = Integer.MAX_VALUE;
+        Object[] ds = dims.toArray();
+        int n = ds.length;
+        if (n == 0) return out;
+        if (n == 1) {
+            Regionizer rz = (Regionizer) ds[0];
             long d = rz.headDue();
-            if (earlier(d, bestDue)) {
-                best = rz;
-                bestDue = d;
+            if (d != Long.MAX_VALUE) { out.best = rz; out.due = d; }
+            return out;
+        }
+        int dueCount = 0;
+        for (Object o : ds) if (isDue(((Regionizer) o).headDue(), now)) dueCount++;
+        int start = Math.floorMod(rr.getAndIncrement(), n);
+        int bestClass = 3;
+        boolean bestOthersDue = false;
+        for (int k = 0; k < n; k++) {
+            Regionizer rz = (Regionizer) ds[(start + k) % n];
+            long d = rz.headDue();
+            if (d == Long.MAX_VALUE) continue;                       // N4: MAX 먼저 거른다
+            boolean due = now - d >= 0;
+            boolean othersDue = dueCount - (due ? 1 : 0) > 0;
+            int cls;
+            if (othersDue && rz.activeTicks() >= perDimCap) cls = 2;
+            else if (due && now - d >= starveTicks * rz.tickNanos()) cls = 0;
+            else cls = 1;
+            if (cls < bestClass || (cls == bestClass && d - out.due < -TIE_NANOS)) {
+                bestClass = cls;
+                out.best = rz;
+                out.due = d;
+                bestOthersDue = othersDue;
             }
         }
-        return best;
+        out.maxRunning = bestOthersDue ? perDimCap : Integer.MAX_VALUE;
+        return out;
     }
 
     private long earliestHeadDue() {
@@ -192,12 +267,13 @@ public final class SharedScheduler implements AutoCloseable {
         while (running) {
             try {
                 long now = System.nanoTime();
-                Regionizer best = select();
+                Pick pick = select(now, PICK.get());
+                Regionizer best = pick.best;
                 if (best == null) {
                     sleep(now + PARK_MAX, spinMargin);
                     continue;
                 }
-                long due = best.headDue();
+                long due = pick.due;
                 if (!isDue(due, now)) {
                     if (due == Long.MAX_VALUE) continue;   // 그 사이 비었다 — 다시 고른다
                     long wait = due - now;
@@ -211,8 +287,8 @@ public final class SharedScheduler implements AutoCloseable {
                     sleep(now + Math.min(wait, PARK_MAX), spinMargin);   // 머리보다 spinMargin 일찍 깬다
                     continue;
                 }
-                Region r = best.tryTake(now);
-                if (r == null) continue;                    // 낡은 머리/닫힘 → 다시 고른다
+                Region r = best.tryTake(now, pick.maxRunning);
+                if (r == null) continue;                    // 낡은 머리/닫힘/상한 → 다시 고른다
                 best.runOne(r);
             } catch (Throwable t) {
                 log.error("[TICK] region 워커 루프 오류", t);
