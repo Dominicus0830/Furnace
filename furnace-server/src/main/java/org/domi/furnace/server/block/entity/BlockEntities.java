@@ -46,6 +46,7 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:beehive", BeehiveBlockEntity::new);
         FACTORIES.put("minecraft:bell", BellBlockEntity::new);
         FACTORIES.put("minecraft:bed", BedBlockEntity::new);
+        FACTORIES.put("minecraft:skull", SkullBlockEntity::new);
     }
 
     public static boolean known(String type) { return FACTORIES.containsKey(type); }
@@ -57,6 +58,7 @@ public final class BlockEntities {
         if (f == null) return null;
         BlockEntity be = f.apply(pos, state);
         be.load(tag);
+        be.loadComponents(tag);   // loadWithComponents
         return be;
     }
 }

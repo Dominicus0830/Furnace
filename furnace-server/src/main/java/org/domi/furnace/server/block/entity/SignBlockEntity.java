@@ -178,7 +178,7 @@ public class SignBlockEntity extends BlockEntity {
         tag.putBoolean("is_waxed", isWaxed);
     }
 
-    @Override public NbtCompound updateTag() { return saveWithoutMetadata(); }
+    @Override public NbtCompound updateTag() { return saveCustomOnly(); }
 
     @Override public boolean hasUpdatePacket() { return true; }
 

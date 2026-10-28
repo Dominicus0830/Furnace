@@ -387,6 +387,9 @@ public final class AnvilChunkCodec {
             chest.lootTable = table;
             chest.lootSeed = e.tags().get("LootTableSeed") instanceof Long seed ? seed : 0L;
         }
+        chest.customName = e.tags().get("CustomName") instanceof String n ? n : null;
+        chest.lock = e.tags().get("Lock") instanceof String l ? l : null;
+        chest.loadComponents(e);
         return chest;
     }
 
@@ -407,7 +410,9 @@ public final class AnvilChunkCodec {
                 stacks[slot] = new ItemStack(itemId, ie.getInt("Count"), patch);
             }
         }
-        return new ChestBlockEntity(x, y, z, stacks);
+        ChestBlockEntity chest = new ChestBlockEntity(x, y, z, stacks);
+        chest.loadComponents(e);
+        return chest;
     }
 
     private void applyBiomes(ChunkColumn col, int sectionIdx, NbtCompound bs) {

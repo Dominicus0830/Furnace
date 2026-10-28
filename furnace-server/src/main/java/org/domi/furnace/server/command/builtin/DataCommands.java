@@ -245,8 +245,9 @@ public final class DataCommands {
         public NbtCompound getData() { return (NbtCompound) NbtTags.thaw(entity.saveWithFullMetadata()); }
 
         public void setData(NbtCompound tag) {
-            // 차이: 데이터 컴포넌트(custom_name 등)는 블록 엔티티 쪽이 아직 읽지 않는다(loadAdditional 만).
-            entity.load((NbtCompound) NbtTags.freeze(NbtTags.copy(tag)));
+            NbtCompound t = (NbtCompound) NbtTags.freeze(NbtTags.copy(tag));
+            entity.load(t);
+            entity.loadComponents(t);   // loadWithComponents
             entity.setChanged(level);
             level.sendBlockUpdated(pos);
         }

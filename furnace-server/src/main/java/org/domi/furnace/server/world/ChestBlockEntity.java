@@ -33,6 +33,9 @@ public final class ChestBlockEntity extends org.domi.furnace.server.block.entity
 
     @Override public String defaultTitleKey() { return "container.chest"; }
 
+
+    @Override protected boolean randomizable() { return true; }
+
     @Override protected boolean usesOpenersCounter() { return true; }
 
     @Override protected void onOpen(BlockLevel level, Pos pos, int state) { playSound(level, pos, state, "minecraft:block.chest.open"); }

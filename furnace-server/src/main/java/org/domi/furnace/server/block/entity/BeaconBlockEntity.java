@@ -164,6 +164,22 @@ public class BeaconBlockEntity extends BlockEntity {
         primaryPower = tag.tags().get("primary_effect") instanceof String s ? filterEffect(s) : null;
         secondaryPower = tag.tags().get("secondary_effect") instanceof String s ? filterEffect(s) : null;
         customName = tag.tags().get("CustomName") instanceof String s ? s : null;
+        lock = tag.tags().get("Lock") instanceof String l && !l.isEmpty() ? l : null;
+    }
+
+    /** 잠금(LockCode 열쇠 이름) — 보존만. */
+    public String lock;
+
+    @Override
+    protected void applyImplicitComponents(ComponentInput in) {
+        customName = in.get("minecraft:custom_name") instanceof String n ? n : null;
+        lock = in.get("minecraft:lock") instanceof String l && !l.isEmpty() ? l : null;
+    }
+
+    @Override
+    protected void collectImplicitComponents(java.util.Map<String, Object> out) {
+        out.put("minecraft:custom_name", customName);
+        if (lock != null) out.put("minecraft:lock", lock);
     }
 
     @Override
@@ -172,14 +188,10 @@ public class BeaconBlockEntity extends BlockEntity {
         if (secondaryPower != null) tag.putString("secondary_effect", secondaryPower);
         tag.putInt("Levels", levels);
         if (customName != null) tag.putString("CustomName", customName);
+        if (lock != null) tag.putString("Lock", lock);
     }
 
-    /** 청크 패킷/갱신: 클라이언트가 빛줄기 단수를 알도록 Levels·효과를 싣는다(바닐라 getUpdateTag = saveCustomOnly). */
+    /** 청크 패킷/갱신: 바닐라 getUpdateTag = saveCustomOnly(Levels·효과·CustomName·Lock). */
     @Override
-    public NbtCompound updateTag() {
-        NbtCompound t = new NbtCompound();
-        saveAdditional(t);
-        t.tags().remove("CustomName");
-        return t;
-    }
+    public NbtCompound updateTag() { return saveCustomOnly(); }
 }

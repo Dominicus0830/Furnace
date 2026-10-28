@@ -36,4 +36,7 @@ public class BarrelBlockEntity extends ContainerBlockEntity {
     }
 
     @Override public String defaultTitleKey() { return "container.barrel"; }
+
+
+    @Override protected boolean randomizable() { return true; }
 }

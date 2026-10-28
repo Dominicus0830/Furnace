@@ -104,6 +104,63 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
         if (list.size() > 0 || alwaysWriteItems()) tag.putList("Items", list);
     }
 
+    // ------------------------------------------------------------------ 컴포넌트(BaseContainerBlockEntity·RandomizableContainerBlockEntity)
+
+    /** RandomizableContainerBlockEntity 인가(container_loot 를 주고받는다). 상자·통·발사기·공급기·깔때기·셜커·제작기. */
+    protected boolean randomizable() { return false; }
+
+    @Override
+    protected void applyImplicitComponents(ComponentInput in) {
+        super.applyImplicitComponents(in);
+        customName = in.get("minecraft:custom_name") instanceof String n ? n : null;
+        Object l = in.get("minecraft:lock");
+        lock = l instanceof String k && !k.isEmpty() ? k : null;
+        copyContainerInto(in.get("minecraft:container"), items);
+        if (randomizable() && in.get("minecraft:container_loot") instanceof java.util.Map<?, ?> loot) {
+            lootTable = (String) loot.get("loot_table");
+            lootSeed = loot.get("seed") instanceof Number n ? n.longValue() : 0L;
+        }
+    }
+
+    @Override
+    protected void collectImplicitComponents(java.util.Map<String, Object> out) {
+        super.collectImplicitComponents(out);
+        out.put("minecraft:custom_name", customName);
+        if (lock != null && !lock.isEmpty()) out.put("minecraft:lock", lock);
+        out.put("minecraft:container", containerOf(items));
+        if (randomizable() && lootTable != null) {
+            java.util.Map<String, Object> loot = new java.util.LinkedHashMap<>();
+            loot.put("loot_table", lootTable);
+            loot.put("seed", lootSeed);
+            out.put("minecraft:container_loot", loot);
+        }
+    }
+
+    /** ItemContainerContents.fromItems: 비지 않은 칸만 {slot, item} 으로(정규 값). */
+    public static java.util.List<Object> containerOf(ItemStack[] items) {
+        java.util.List<Object> l = new java.util.ArrayList<>();
+        for (int i = 0; i < items.length; i++) {
+            ItemStack s = items[i];
+            if (s == null || s.isEmpty()) continue;
+            java.util.Map<String, Object> e = new java.util.LinkedHashMap<>();
+            e.put("slot", i);
+            e.put("item", org.domi.furnace.server.item.ItemStackCodecs.toCanonical(s));
+            l.add(e);
+        }
+        return l;
+    }
+
+    /** ItemContainerContents.copyInto: 모든 칸을 덮어쓴다(없는 칸은 빈 칸). 값이 없으면 기본값(빈 용기)과 같다. */
+    public static void copyContainerInto(Object container, ItemStack[] items) {
+        Arrays.fill(items, ItemStack.EMPTY);
+        if (!(container instanceof java.util.List<?> list)) return;
+        for (Object o : list) {
+            if (!(o instanceof java.util.Map<?, ?> m) || !(m.get("slot") instanceof Integer slot) || slot < 0 || slot >= items.length) continue;
+            @SuppressWarnings("unchecked") var item = (java.util.Map<String, Object>) m.get("item");
+            if (item != null) items[slot] = org.domi.furnace.server.item.ItemStackCodecs.fromCanonical(item);
+        }
+    }
+
     /** 칸이 모두 비어도 Items 목록을 쓰는가(바닐라 saveAllItems 의 alwaysPutTag — 셜커 상자만 거짓). */
     protected boolean alwaysWriteItems() { return true; }
 }

@@ -262,6 +262,32 @@ public class BeehiveBlockEntity extends BlockEntity {
         return l;
     }
 
+    /** applyImplicitComponents: bees 를 그대로 담는다(있던 벌은 비운다). */
+    @Override
+    protected void applyImplicitComponents(ComponentInput in) {
+        stored.clear();
+        if (!(in.getOrDefault("minecraft:bees", List.of()) instanceof List<?> list)) return;
+        for (Object o : list) {
+            if (o instanceof java.util.Map<?, ?> m && m.get("ticks_in_hive") instanceof Number t && m.get("min_ticks_in_hive") instanceof Number mt) {
+                NbtCompound data = m.get("entity_data") instanceof NbtCompound c ? c.copy() : new NbtCompound();
+                storeBee(new Occupant(data, t.intValue(), mt.intValue()));
+            }
+        }
+    }
+
+    @Override
+    protected void collectImplicitComponents(java.util.Map<String, Object> out) {
+        List<Object> bees = new ArrayList<>();
+        for (Occupant o : getBees()) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("entity_data", o.entityData().copy());
+            m.put("ticks_in_hive", o.ticksInHive());
+            m.put("min_ticks_in_hive", o.minTicksInHive());
+            bees.add(m);
+        }
+        out.put("minecraft:bees", bees);
+    }
+
     @Override
     public void load(NbtCompound tag) {
         stored.clear();

@@ -25,6 +25,13 @@ public class CampfireBlockEntity extends ContainerBlockEntity {
 
     @Override public String defaultTitleKey() { return "container.campfire"; }
 
+    /** 바닐라는 BaseContainerBlockEntity 가 아니다 — container 만 주고받는다(이름·잠금 없음). */
+    @Override
+    protected void applyImplicitComponents(ComponentInput in) { copyContainerInto(in.get("minecraft:container"), items); }
+
+    @Override
+    protected void collectImplicitComponents(java.util.Map<String, Object> out) { out.put("minecraft:container", containerOf(items)); }
+
     @Override public boolean ticking() { return true; }
 
     /** 바닐라 getCookableRecipe: 빈 칸이 하나도 없으면 없다. */

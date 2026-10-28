@@ -778,8 +778,8 @@ public final class ServerCore {
         }
 
         public java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity,
-                                                    Float explosionRadius) {
-            return ServerCore.this.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
+                                                    Float explosionRadius, java.util.Map<String, Object> blockEntity) {
+            return ServerCore.this.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius, blockEntity);
         }
         public java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool, float luck) {
             return ServerCore.this.fishingLoot(hook, x, y, z, tool, luck);
@@ -867,8 +867,8 @@ public final class ServerCore {
             return b != null && dp != null && dp.loot() != null && dp.loot().registries().tag("minecraft:worldgen/biome", tag).contains(b);
         }
         @Override public java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity,
-                                                              Float explosionRadius) {
-            return ServerCore.this.blockDrops(lw, lootTable, state, x, y, z, tool, entity, explosionRadius);
+                                                              Float explosionRadius, java.util.Map<String, Object> blockEntity) {
+            return ServerCore.this.blockDrops(lw, lootTable, state, x, y, z, tool, entity, explosionRadius, blockEntity);
         }
         @Override public java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z,
                 String damageType, Player attacker, Player lastPlayer, long seed) {
@@ -884,12 +884,13 @@ public final class ServerCore {
     }
 
     /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */
-    java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity, Float explosionRadius) {
-        return blockDrops(lootWorld, lootTable, state, x, y, z, tool, entity, explosionRadius);
+    java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity, Float explosionRadius,
+                                         java.util.Map<String, Object> blockEntity) {
+        return blockDrops(lootWorld, lootTable, state, x, y, z, tool, entity, explosionRadius, blockEntity);
     }
 
     java.util.List<ItemStack> blockDrops(org.domi.furnace.server.loot.LootWorld lootWorld, String lootTable, int state, double x, double y, double z,
-                                         ItemStack tool, Object entity, Float explosionRadius) {
+                                         ItemStack tool, Object entity, Float explosionRadius, java.util.Map<String, Object> blockEntity) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null || lootTable == null || lootTable.equals("minecraft:empty")) return java.util.List.of();
         var loot = dp.loot();
@@ -900,6 +901,7 @@ public final class ServerCore {
                 .with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, lootBlockState(state))
                 .with(org.domi.furnace.server.loot.LootParams.EXPLOSION_RADIUS, explosionRadius);
         if (entity instanceof Player p) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p));
+        if (blockEntity != null) params.with(org.domi.furnace.server.loot.LootParams.BLOCK_ENTITY, blockEntity);   // collectComponents(region 스레드에서 모은 것)
         var ctx = table.context(loot, lootWorld, params, 0L);
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var s : table.getRandomItems(ctx)) {

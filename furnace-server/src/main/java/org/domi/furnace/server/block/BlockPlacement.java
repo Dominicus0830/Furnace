@@ -104,9 +104,10 @@ public final class BlockPlacement {
         int placed = level.getBlockState(pos);
         if (BLOCKS.blockOf(placed) == BLOCKS.blockOf(s)) {
             placed = updateBlockStateFromTag(pos, level, stack, placed);
-            // updateCustomBlockEntityTag / updateBlockEntityComponents: 블록 엔티티 체계가 들어오면 여기서
+            // updateCustomBlockEntityTag: TODO(블록 엔티티) block_entity_data 적용은 아직 없다
             if (e.kind() == BlockItems.Kind.SIGN || e.kind() == BlockItems.Kind.HANGING_SIGN)
                 org.domi.furnace.server.block.types.SignBlock.afterPlaced(level, pos, player, stack);   // SignItem.updateCustomBlockEntityTag
+            updateBlockEntityComponents(level, pos, stack);
             BlockBehaviors.of(placed).setPlacedBy(level, pos, placed, player, stack);
             if (player != null) player.trigger("minecraft:placed_block", pos, stack);
         }
@@ -119,6 +120,14 @@ public final class BlockPlacement {
             player.setItemInHand(ctx.hand(), cur.withCount(cur.count() - 1));
         }
         return InteractionResult.CONSUME;
+    }
+
+    /** BlockItem.updateBlockEntityComponents: 놓인 칸의 블록 엔티티가 아이템 컴포넌트를 받는다. */
+    public static void updateBlockEntityComponents(BlockLevel level, Pos pos, ItemStack stack) {
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
+            be.applyComponentsFromItemStack(stack);
+            be.setChanged(level);
+        }
     }
 
     /** updatePlacementContext — 비계만 바꾼다. */

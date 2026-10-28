@@ -176,6 +176,7 @@ public final class CloneCommand {
         for (Entry en : withBe) {
             if (en.tag != null && level.getBlockEntity(en.pos) instanceof BlockEntity be) {
                 be.load(en.tag);
+                be.loadComponents(en.tag);   // 바닐라 loadCustomOnly + setComponents
                 be.setChanged(level);
             }
             level.setBlock(en.pos, en.state, 2);

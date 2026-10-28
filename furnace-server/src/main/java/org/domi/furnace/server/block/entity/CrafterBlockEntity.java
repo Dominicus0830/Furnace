@@ -31,6 +31,9 @@ public class CrafterBlockEntity extends ContainerBlockEntity {
 
     @Override public String defaultTitleKey() { return "container.crafter"; }
 
+
+    @Override protected boolean randomizable() { return true; }
+
     /** setSlotState(slot, enabled): 빈 칸만 잠그거나 풀 수 있다. */
     public void setSlotState(int slot, boolean enabled, BlockLevel level) {
         if (slotCanBeDisabled(slot)) {
