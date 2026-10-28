@@ -66,6 +66,9 @@ class SpectateCommandTest {
         return out;
     }
 
+    /** 마지막 보정 텔레포트 {x,y,z,yaw,pitch}. */
+    volatile double[] lastTp;
+
     private Player spectator(EmbeddedChannel ch, double x, double z) throws Exception { return spectator(ch, "Spec", x, z); }
 
     private Player spectator(EmbeddedChannel ch, String name, double x, double z) throws Exception {
@@ -75,6 +78,7 @@ class SpectateCommandTest {
         p.applyMove(x, -60, z, 0, 0, true);
         // 연결의 보정 텔레포트 대신 위치 패킷을 보내고 서버 위치를 맞춘다(연결 스레드가 하는 일)
         p.teleporter(t -> {
+            lastTp = t;
             p.send(new SyncPlayerPosition(t[0], t[1], t[2], t.length > 3 ? (float) t[3] : 0f, t.length > 4 ? (float) t[4] : 0f, 1));
         });
         world.playerOnline(p);
@@ -149,6 +153,22 @@ class SpectateCommandTest {
         // 이미 자기 시점이면 메시지만
         core.commands().performPrefixedCommandAsync(src, "spectate").join();
         assertEquals(List.of("msg:commands.spectate.success.stopped"), outbound(ch, "commands.spectate.success.stopped"));
+    }
+
+    @Test
+    void correctionTeleportKeepsTheSpectatorsOwnRotation() throws Exception {
+        var ch = new EmbeddedChannel();
+        var p = spectator(ch, 0.5, 0.5);
+        p.applyMove(0.5, -60, 0.5, 33f, 7f, true);
+        var cow = cow(4.5, 0.5);   // 소의 회전은 90/10
+        var src = CommandSource.player(core, p).withPermission(2);
+        core.commands().performPrefixedCommandAsync(src, "spectate @e[type=cow,limit=1]").join();
+        assertSame(cow, p.cameraTarget());
+        assertEquals(4.5, lastTp[0], 1e-9);
+        assertEquals(33.0, lastTp[3], 1e-6, "대상(90)이 아니라 관전자 자신의 회전");
+        assertEquals(7.0, lastTp[4], 1e-6);
+        core.commands().performPrefixedCommandAsync(src, "spectate").join();
+        assertEquals(33.0, lastTp[3], 1e-6);
     }
 
     @Test

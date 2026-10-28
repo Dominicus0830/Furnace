@@ -17,6 +17,8 @@ public final class ExecuteCommand implements UnboundEntryAction {
 
     private static final Logger log = LoggerFactory.getLogger(ExecuteCommand.class);
 
+    private static final Runnable NO_OP = () -> { };
+
     private final String commandInput;
     private final ChainModifiers modifiers;
     private final CommandContext<CommandSource> executionContext;
@@ -45,7 +47,7 @@ public final class ExecuteCommand implements UnboundEntryAction {
             if (deferred == null) {
                 // 바닐라 순서: 소스 콜백(runExecutable 안) → 추적기 onReturn
                 int result = value[0];
-                awaitCallback(context, source.callback().onResult(ok[0], result), () -> traceReturn(context, frame, result));
+                awaitCallback(context, source.callback().onResult(ok[0], result), context.tracer() == null ? NO_OP : () -> traceReturn(context, frame, result));
                 return;
             }
         } catch (CommandSyntaxException e) {

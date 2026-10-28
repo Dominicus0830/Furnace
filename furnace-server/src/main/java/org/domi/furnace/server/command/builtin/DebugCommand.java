@@ -157,7 +157,7 @@ public final class DebugCommand {
         }
 
         @Override
-        public void onCommand(int depth, String command) {
+        public synchronized void onCommand(int depth, String command) {
             newLine();
             indentAndSave(depth);
             out.print("[C] ");
@@ -166,7 +166,7 @@ public final class DebugCommand {
         }
 
         @Override
-        public void onReturn(int depth, String command, int result) {
+        public synchronized void onReturn(int depth, String command, int result) {
             if (waitingResult) {
                 out.print(" -> ");
                 out.println(result);
@@ -181,7 +181,7 @@ public final class DebugCommand {
         }
 
         @Override
-        public void onCall(int depth, ResourceId function, int size) {
+        public synchronized void onCall(int depth, ResourceId function, int size) {
             newLine();
             indentAndSave(depth);
             out.print("[F] ");
@@ -192,7 +192,7 @@ public final class DebugCommand {
 
         /** 바닐라는 여기서 줄을 끝내지 않는다(다음 출력이 같은 줄에 이어질 수 있다). 그대로 따른다. */
         @Override
-        public void onError(String message) {
+        public synchronized void onError(String message) {
             newLine();
             indentAndSave(lastIndent + 1);
             out.print("[E] ");
@@ -200,7 +200,7 @@ public final class DebugCommand {
         }
 
         /** 추적 소스로 간 명령 출력(TracerSource.sendSystemMessage). */
-        void message(Text message) {
+        synchronized void message(Text message) {
             newLine();
             indent(lastIndent + 1);
             out.print("[M] ");
@@ -208,6 +208,6 @@ public final class DebugCommand {
         }
 
         @Override
-        public void close() { out.close(); }
+        public synchronized void close() { out.close(); }
     }
 }
