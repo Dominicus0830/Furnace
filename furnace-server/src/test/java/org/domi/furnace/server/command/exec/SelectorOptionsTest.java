@@ -95,6 +95,48 @@ class SelectorOptionsTest {
         assertEquals("argument.nbt.expected.key", key("@e[nbt={,}]"));
     }
 
+    @Test
+    void nbtTypesListsAndSelectedItem() throws Exception {
+        // 숫자 형이 다르면 불일치(Health 는 float)
+        assertEquals(2, count("@e[type=cow,nbt={Health:10.0f}]"));
+        assertEquals(0, count("@e[type=cow,nbt={Health:10}]"));
+        assertEquals(0, count("@e[type=cow,nbt={Health:10.0d}]"));
+        // 리스트는 부분집합 — 순서·중복 무관, 빈 리스트는 빈 것만
+        core.world().submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> cows[0].addTag("b")).orTimeout(10, TimeUnit.SECONDS).join();
+        assertEquals(1, count("@e[type=cow,nbt={Tags:[\"b\",\"a\"]}]"));
+        assertEquals(1, count("@e[type=cow,nbt={Tags:[\"a\",\"a\"]}]"));
+        assertEquals(0, count("@e[type=cow,nbt={Tags:[\"a\",\"c\"]}]"));
+        assertEquals(0, count("@e[type=cow,nbt={Tags:[]}]"));
+        // 플레이어는 SelectedItem 을 포함한다
+        var items = org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt");
+        org.domi.furnace.server.entity.PlayerData.itemRegistry(items);
+        try {
+            assertFalse(selfHit("@s[nbt={SelectedItem:{}}]"), "빈손이면 SelectedItem 없음");
+            int slot = org.domi.furnace.server.entity.PlayerInventory.windowSlot(steve.inventory().selected());
+            steve.inventory().set(slot, new org.domi.furnace.server.entity.ItemStack(items.idOf("minecraft:stone"), 3, null));
+            assertTrue(selfHit("@s[nbt={SelectedItem:{id:\"minecraft:stone\",count:3}}]"));
+            assertFalse(selfHit("@s[nbt={SelectedItem:{id:\"minecraft:dirt\"}}]"));
+            assertTrue(selfHit("@s[nbt=!{SelectedItem:{id:\"minecraft:dirt\"}}]"));
+        } finally {
+            org.domi.furnace.server.entity.PlayerData.itemRegistry(null);
+        }
+    }
+
+    @Test
+    void kickUsesDisplayNameAndLevel3() throws Exception {
+        steve.scoreboard(core.scoreboard());
+        var team = core.scoreboard().addPlayerTeam("red");
+        team.playerPrefix(Text.text("[R] "));
+        core.scoreboard().addPlayerToTeam("Steve", team);
+        List<Text> logged = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        core.addConsoleListener(logged::add);
+        var d = core.commands().getDispatcher();
+        assertThrows(CommandSyntaxException.class, () -> d.execute("kick @s", CommandSource.player(core, steve).withPermission(2)));
+        assertEquals(1, d.execute("kick @s", CommandSource.player(core, steve).withPermission(3)));
+        Text msg = logged.stream().filter(t -> t.toString().contains("commands.kick.success")).findFirst().orElseThrow();
+        assertTrue(msg.toString().contains("[R] "), "표시 이름(팀 접두사)이어야 함: " + msg);
+    }
+
     private void loadPacks() throws Exception {
         Path vanilla = tmp.resolve("vanilla");
         Files.createDirectories(vanilla.resolve("data/minecraft/tags/item"));

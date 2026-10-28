@@ -118,8 +118,13 @@ public final class EntitySelector {
             // @s: 소스의 실행 주체 엔티티(플레이어·일반 엔티티) — 조건을 통과하면 그것 하나(완료 future, 지름길)
             Rider self = source.entity();
             double sx = x != null ? x : source.x(), sy = y != null ? y : source.y(), sz = z != null ? z : source.z();
-            boolean hit = self != null && buildPredicate(source, sx, sy, sz).test(self);
-            return CompletableFuture.completedFuture(hit ? List.of(self) : List.of());
+            if (self == null) return CompletableFuture.completedFuture(List.of());
+            Predicate<Rider> test = buildPredicate(source, sx, sy, sz);
+            // 일반 엔티티는 소유 region 스레드에서 판정(nbt= 의 saveWithoutId 등). 플레이어는 지름길 그대로.
+            if (self instanceof Entity) {
+                return org.domi.furnace.server.command.EntityOps.onOwner(source, self, r -> test.test(r) ? List.of(r) : List.<Rider>of());
+            }
+            return CompletableFuture.completedFuture(test.test(self) ? List.of(self) : List.of());
         }
         var server = source.getServer();
         if (entityUUID != null) {
@@ -175,7 +180,18 @@ public final class EntitySelector {
 
     /** 위치·거리 말고 옵션 필터(name·tag·type·gamemode 등)만 적용한 판정. */
     public boolean matchesFilters(Rider r) {
+        if (!boardPredicates.isEmpty() || !serverPredicates.isEmpty())
+            throw new IllegalStateException("team=·scores=·advancements=·predicate= 는 서버가 필요하다 — matchesFilters(server, r) 를 쓴다");
         for (Predicate<Rider> q : predicates) if (!q.test(r)) return false;
+        return true;
+    }
+
+    /** 점수판·서버 조건까지 포함한 옵션 필터 판정. */
+    public boolean matchesFilters(org.domi.furnace.server.ServerCore server, Rider r) {
+        for (Predicate<Rider> q : predicates) if (!q.test(r)) return false;
+        var board = server.scoreboard();
+        for (var bp : boardPredicates) if (!bp.test(board, r)) return false;
+        for (var sp : serverPredicates) if (!sp.test(server, r)) return false;
         return true;
     }
 

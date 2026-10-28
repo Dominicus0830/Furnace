@@ -379,7 +379,9 @@ public final class EntitySelectorParser {
                         var mgr = dp == null ? null : dp.advancements();
                         for (var e : map.entrySet()) {
                             var adv = mgr == null ? null : mgr.get(e.getKey());
-                            if (adv == null || !e.getValue().test(pl.advancements().getOrStartProgress(adv))) return false;
+                            var pa = pl.advancements();
+                            // 진행 읽기는 PlayerAdvancements 잠금 안에서(award·revoke 와 겹치지 않게)
+                            if (adv == null || pa == null || !pa.testProgress(adv, e.getValue())) return false;
                         }
                         return true;
                     });
@@ -422,8 +424,14 @@ public final class EntitySelectorParser {
     private static org.domi.furnace.server.loot.LootEntity lootEntity(Rider r) {
         if (r instanceof Player p) return org.domi.furnace.server.ServerCore.playerLootEntity(p);
         if (r instanceof org.domi.furnace.server.entity.LivingEntity l) return l.lootEntity();
-        String type = r.typeName();
-        return () -> type;
+        // 비생명체: 소유 스레드에서 불린다 — 종류·불·땅·위치만(장비·종류별 값은 없다)
+        var e = (org.domi.furnace.server.entity.Entity) r;
+        return new org.domi.furnace.server.loot.LootEntity() {
+            public String type() { return e.typeName(); }
+            public boolean isOnFire() { return e.isOnFire(); }
+            public boolean onGround() { return e.onGround(); }
+            public double[] position() { return new double[]{e.x(), e.y(), e.z()}; }
+        };
     }
 
     private static double wrapDegrees(float v) {
