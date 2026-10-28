@@ -1,5 +1,5 @@
 // 바닐라 Cat: 길들이기(생선 1/3), 앉기, 목걸이 색, 고양이 변종(보름달엔 11종), 플레이어를 피함(길들이기 전).
-// TODO: 침대에 눕기·블록에 앉기·주인 위에서 쉬기·아침 선물(잠자기 필요), 마녀 오두막/마을에서 검은 고양이 변종, 토끼 사냥 외 거북 사냥.
+// TODO: 침대에 눕기·블록에 앉기·주인 위에서 쉬기·아침 선물(잠자기 필요), 마녀 오두막/마을에서 검은 고양이 변종
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -45,7 +45,7 @@ public class Cat extends TamableAnimal {
         goalSelector.addGoal(11, new WaterAvoidingRandomStrollGoal(this, 0.8, 1.0000001E-5F));
         goalSelector.addGoal(12, new LookAtPlayerGoal(this, 10.0F));
         targetSelector.addGoal(1, new CatNonTameTarget(this, Rabbit.class));
-        // TODO(거북): targetSelector 1 = 땅 위 아기 거북
+        targetSelector.addGoal(1, new NonTameRandomTargetGoal(this, Turtle.class, false, Turtle.BABY_ON_LAND_SELECTOR));
     }
 
     public int variant() { return (Integer) entityData.get(DATA_VARIANT); }

@@ -29,6 +29,11 @@ public class AvoidEntityGoal extends Goal {
         this(mob, cls, t -> true, maxDist, walk, sprint, t -> !(t instanceof Player p) || p.gameMode() != GameMode.CREATIVE && p.gameMode() != GameMode.SPECTATOR);
     }
 
+    /** 피할 대상 조건(predicateOnAvoidEntity)이 기본 '크리에이티브·관전자 제외'를 대신한다. */
+    public AvoidEntityGoal(PathfinderMob mob, Class<? extends Targetable> cls, float maxDist, double walk, double sprint, Predicate<Targetable> predicateOnAvoidEntity) {
+        this(mob, cls, t -> true, maxDist, walk, sprint, predicateOnAvoidEntity);
+    }
+
     public AvoidEntityGoal(PathfinderMob mob, Class<? extends Targetable> cls, Predicate<Targetable> avoidPredicate, float maxDist, double walk, double sprint,
             Predicate<Targetable> pathableTargetPredicate) {
         this.mob = mob;

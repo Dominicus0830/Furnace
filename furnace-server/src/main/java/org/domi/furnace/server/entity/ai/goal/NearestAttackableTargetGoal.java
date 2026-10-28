@@ -19,6 +19,8 @@ public class NearestAttackableTargetGoal extends TargetGoal {
 
     public NearestAttackableTargetGoal(Mob mob, Class<?> type, boolean mustSee) { this(mob, type, 10, mustSee, false, null); }
 
+    public NearestAttackableTargetGoal(Mob mob, Class<?> type, boolean mustSee, boolean mustReach) { this(mob, type, 10, mustSee, mustReach, null); }
+
     public NearestAttackableTargetGoal(Mob mob, Class<?> type, boolean mustSee, Predicate<Targetable> selector) { this(mob, type, 10, mustSee, false, selector); }
 
     public NearestAttackableTargetGoal(Mob mob, Class<?> type, int interval, boolean mustSee, boolean mustReach, Predicate<Targetable> selector) {
@@ -80,6 +82,9 @@ public class NearestAttackableTargetGoal extends TargetGoal {
     }
 
     public void setTarget(Targetable t) { target = t; }
+
+    /** 시험용: 찾는 대상 종류. */
+    public Class<?> targetType() { return targetType; }
 
     @Override protected double getFollowDistance() { return mob.attributeValue(Attribute.FOLLOW_RANGE); }
 }

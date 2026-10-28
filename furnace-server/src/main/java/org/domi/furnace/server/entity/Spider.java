@@ -1,5 +1,5 @@
 // 바닐라 Spider: 벽을 타고(WallClimberNavigation), 밝으면(밝기 ≥ 0.5) 중립이 된다. 거미줄에 걸리지 않고 독에 안 걸린다.
-// 스폰 시 해골 기수(1%)와 어려움에서 포션 효과. TODO: 아르마딜로(말아 쥠) 회피는 해당 몹 추가 시.
+// 스폰 시 해골 기수(1%)와 어려움에서 포션 효과.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -31,7 +31,7 @@ public class Spider extends Monster {
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(1, new FloatGoal(this));
-        // TODO(아르마딜로): 2 = 말지 않은 아르마딜로에게서 도망(6칸)
+        goalSelector.addGoal(2, new AvoidEntityGoal(this, Armadillo.class, 6.0F, 1.0, 1.2, t -> !((Armadillo) t).isScared()));
         goalSelector.addGoal(3, new LeapAtTargetGoal(this, 0.4F));
         goalSelector.addGoal(4, new SpiderAttackGoal(this));
         goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.8));
@@ -39,7 +39,7 @@ public class Spider extends Monster {
         goalSelector.addGoal(6, new RandomLookAroundGoal(this));
         targetSelector.addGoal(1, new HurtByTargetGoal(this));
         targetSelector.addGoal(2, new SpiderTargetGoal(this, Player.class));
-        // TODO(철 골렘): 3 = SpiderTargetGoal<IronGolem>
+        targetSelector.addGoal(3, new SpiderTargetGoal(this, IronGolem.class));
     }
 
     @Override
