@@ -72,7 +72,7 @@ public final class ServerProperties extends VanillaSettings {
     public final boolean broadcastRconToOps = get("broadcast-rcon-to-ops", true);
     public final boolean broadcastConsoleToOps = get("broadcast-console-to-ops", true);
     public final int maxWorldSize = get("max-world-size", v -> Math.clamp(v, 1, 29999984), 29999984);
-    public final boolean syncChunkWrites = get("sync-chunk-writes", true);
+    public final boolean syncChunkWrites = get("sync-chunk-writes", false);
     public final String regionFileCompression = get("region-file-compression", "deflate");
     public final boolean enableJmxMonitoring = get("enable-jmx-monitoring", false);
     public final boolean enableStatus = get("enable-status", true);
