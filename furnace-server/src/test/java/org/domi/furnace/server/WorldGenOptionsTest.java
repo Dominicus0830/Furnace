@@ -33,5 +33,7 @@ class WorldGenOptionsTest {
         NoiseWorldSource off = NoiseWorldSource.overworld(0L, reg, regs);
         FurnaceMain.applyWorldGenOptions(level(false), off);
         assertTrue(off.structureStartsFresh(cx, cz).isEmpty());
+        // /locate 는 구조물 스위치와 무관하게 예측으로 찾는다(바닐라 LocateCommand → StructureCheck)
+        assertEquals(f, off.structureLocator().findNearest(StructureRegistry.structureTag("minecraft:village"), 0, 70, 0, 100));
     }
 }

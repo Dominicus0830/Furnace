@@ -71,7 +71,7 @@ public final class RespawnFinder {
     }
 
     /** 월드 스폰 흩뿌리기에서 미리 올릴 최대 반경(블록). 이보다 큰 spawnRadius 는 올라와 있는 청크 안에서만 고른다(바닐라는 필요할 때 불러온다). */
-    public static final int MAX_SPAWN_PRELOAD = 128;
+    public static final int MAX_SPAWN_PRELOAD = 32;
 
     /**
      * 월드 스폰의 설 자리: ServerPlayer.adjustSpawnLocation(오버월드, 공유 스폰).getBottomCenter(), 회전 0(바닐라 생성자·DimensionTransition 모두 0).

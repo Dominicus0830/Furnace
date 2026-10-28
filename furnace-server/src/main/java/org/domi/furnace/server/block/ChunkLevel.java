@@ -743,7 +743,11 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 청크 키 → {하늘빛, 블록빛} 바뀐 빛 섹션 마스크(ChunkHolder.sectionLightChanged — 비트 = 섹션 y − 맨 아래 빛 섹션). */
     private final java.util.HashMap<Long, long[]> lightChanges = new java.util.HashMap<>();
 
+    /** 처음 빛을 만드는 청크(lightNewChunk 동안): 아직 안 보낸 청크라 변경을 표시하지 않는다(바닐라 sectionLightChanged 는 보낸 청크만). */
+    private long initialLightChunk = Long.MIN_VALUE;
+
     private void markLightChanged(int sx, int sy, int sz, boolean sky) {
+        if (initialLightChunk != Long.MIN_VALUE && initialLightChunk == ((long) sx << 32 | (sz & 0xFFFFFFFFL))) return;
         int idx = sy - ((minBuildHeight() >> 4) - 1);
         int count = ((maxBuildHeight() - minBuildHeight()) >> 4) + 2;
         if (idx < 0 || idx >= count) return;
@@ -1490,13 +1494,18 @@ public abstract class ChunkLevel implements BlockLevel {
     public void lightNewChunk(int cx, int cz) {
         ChunkColumn col = chunk(cx, cz);
         if (col == null) return;
-        if (col.lightPrecomputed()) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
-            col.lightPrecomputed(false);
-            lightEngine().attachPrecomputed(cx, cz);
-            return;
+        initialLightChunk = (long) cx << 32 | (cz & 0xFFFFFFFFL);
+        try {
+            if (col.lightPrecomputed()) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
+                col.lightPrecomputed(false);
+                lightEngine().attachPrecomputed(cx, cz);
+                return;
+            }
+            if (col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
+            lightEngine().lightChunk(cx, cz);
+        } finally {
+            initialLightChunk = Long.MIN_VALUE;
         }
-        if (col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
-        lightEngine().lightChunk(cx, cz);
     }
 
     /** 생성 스레드에서 청크 안쪽 빛을 미리 계산한다(월드 상태를 읽지 않는다). 올릴 때 lightNewChunk 가 가장자리를 맞춘다. */

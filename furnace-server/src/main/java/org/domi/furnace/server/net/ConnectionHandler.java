@@ -788,11 +788,29 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     final Throwable f = fail;
                     if (s == null && f == null && login.core != null) {
                         // 처음 들어오는 플레이어: ServerPlayer 생성자의 adjustSpawnLocation(오버월드 공유 스폰) — 오버월드 region 에서 계산
+                        // 계산이 늦으면(청크 생성 대기) FIRST_SPAWN_TIMEOUT_MS 뒤 흩뿌리지 않은 월드 스폰으로 들어간다 — 클라이언트 읽기 시간 초과(30초) 방지
                         World over = login.core.world();
+                        java.util.concurrent.atomic.AtomicBoolean once = new java.util.concurrent.atomic.AtomicBoolean();
+                        SpawnPoint ws = over.defaultSpawn();
+                        var plain = new org.domi.furnace.server.world.RespawnFinder.Spot(ws.playerX(), ws.playerY(), ws.playerZ(), 0.0F);
+                        try {
+                            ctx.executor().schedule(() -> {
+                                if (!once.compareAndSet(false, true)) return;
+                                log.warn("첫 스폰 자리 계산이 {}ms 안에 끝나지 않아 월드 스폰으로 들어간다: {}", FIRST_SPAWN_TIMEOUT_MS, playerName);
+                                firstSpawn = plain;
+                                finishEnterPlay(ctx, null, null);
+                            }, FIRST_SPAWN_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        } catch (java.util.concurrent.RejectedExecutionException closed) {
+                            java.util.ArrayDeque<Object[]> q = pendingPlayFrames;
+                            pendingPlayFrames = null;
+                            releasePendingFrames(q);
+                            return;
+                        }
                         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"),
                                 over.levelServices().worldAdventure(), spot -> {
                                     try {
                                         ctx.executor().execute(() -> {
+                                            if (!once.compareAndSet(false, true)) return;
                                             firstSpawn = spot;
                                             finishEnterPlay(ctx, null, null);
                                         });
@@ -986,7 +1004,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         double sx = saved != null ? saved.x() : first != null ? first.x() : defaultSpawn.playerX();
         double sy = saved != null ? saved.y() : first != null ? first.y() : defaultSpawn.playerY();
         double sz = saved != null ? saved.z() : first != null ? first.z() : defaultSpawn.playerZ();
-        float syaw = saved != null ? saved.yaw() : first != null ? first.yaw() : defaultSpawn.yaw();
+        float syaw = saved != null ? saved.yaw() : first != null ? first.yaw() : 0.0F;   // 새 플레이어는 회전 0(ServerPlayer 생성자)
         float spitch = saved != null ? saved.pitch() : 0f;
         if (saved != null) inv.load(saved.slots());
         menus = new ServerMenus(p);
@@ -2367,7 +2385,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (t == null || !(level instanceof org.domi.furnace.server.world.RegionLevel rl)) {
                     SpawnPoint spawn = over.defaultSpawn();
                     finishWinRespawn(ctx, over, new org.domi.furnace.server.entity.DimensionTransition(null, spawn.playerX(), spawn.playerY(),
-                            spawn.playerZ(), 0, 0, 0, spawn.yaw(), 0f));
+                            spawn.playerZ(), 0, 0, 0, 0f, 0f));
                 } else {
                     finishWinRespawn(ctx, rl.world(), t);
                 }
@@ -2422,6 +2440,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private boolean respawnPending;
+    /** 첫 접속 스폰 흩뿌리기를 기다리는 최대 시간(바닐라는 기다림 없이 메인 스레드에서 청크를 불러온다). */
+    static final long FIRST_SPAWN_TIMEOUT_MS = 5000;
     /** 처음 들어오는 플레이어의 스폰 자리(beginEnterPlay 가 정하고 onEnterPlay 가 한 번 쓴다). 이벤트루프 전용. */
     private org.domi.furnace.server.world.RespawnFinder.Spot firstSpawn;
     /** 다른 차원에서 리스폰해 오는 중이면 원래 차원(리스폰을 다 보낸 뒤 오버월드 region 에 넣는다). */

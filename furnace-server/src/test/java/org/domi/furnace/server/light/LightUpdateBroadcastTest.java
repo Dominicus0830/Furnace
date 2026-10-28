@@ -61,6 +61,14 @@ class LightUpdateBroadcastTest {
     }
 
     @Test
+    void initialChunkLight_isNotMarked() {
+        Level level = new Level();
+        level.lightNewChunk(2, 2);   // 둘레에 켜진 청크가 없다 — 바뀐 것은 새 청크뿐
+        level.broadcastChanges();
+        assertTrue(level.light.isEmpty(), "아직 안 보낸 새 청크의 첫 빛은 빛 갱신을 만들지 않는다");
+    }
+
+    @Test
     void emptyBitSet_hasZeroLongs() {
         LightUpdate u = new LightUpdate(1, -2, 0, 0, 0, 0, new byte[0][], new byte[0][]);
         ByteBuf buf = Unpooled.buffer();
