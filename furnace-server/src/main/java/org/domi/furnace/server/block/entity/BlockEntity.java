@@ -89,9 +89,14 @@ public abstract class BlockEntity {
         return tag;
     }
 
-    /** loadWithComponents 의 컴포넌트 부분: "components" 를 읽는다(잘못되면 바닐라처럼 건너뛴다). */
+    /** loadWithComponents 의 컴포넌트 부분: "components" 를 읽는다(없으면 빈 맵, 잘못되면 바닐라처럼 그대로 둔다). */
     public void loadComponents(NbtCompound tag) {
-        if (!(tag.tags().get("components") instanceof NbtCompound c)) return;
+        Object raw = tag.tags().get("components");
+        if (raw == null) {
+            components = Map.of();
+            return;
+        }
+        if (!(raw instanceof NbtCompound c)) return;
         try {
             components = componentMap(org.domi.furnace.server.item.ComponentPatch.fromCodec(c).entries());
         } catch (RuntimeException e) {

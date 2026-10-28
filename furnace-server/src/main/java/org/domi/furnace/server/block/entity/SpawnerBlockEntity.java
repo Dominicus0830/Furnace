@@ -49,7 +49,7 @@ public class SpawnerBlockEntity extends BlockEntity {
 
     @Override
     public NbtCompound updateTag() {
-        NbtCompound t = saveWithoutMetadata();
+        NbtCompound t = saveCustomOnly();   // getUpdateTag = saveCustomOnly 에서 SpawnPotentials 를 뺀 것
         t.tags().remove("SpawnPotentials");
         return t;
     }

@@ -191,13 +191,7 @@ public class BeaconBlockEntity extends BlockEntity {
         if (lock != null) tag.putString("Lock", lock);
     }
 
-    /** 청크 패킷/갱신: 클라이언트가 빛줄기 단수를 알도록 Levels·효과를 싣는다(바닐라 getUpdateTag = saveCustomOnly). */
+    /** 청크 패킷/갱신: 바닐라 getUpdateTag = saveCustomOnly(Levels·효과·CustomName·Lock). */
     @Override
-    public NbtCompound updateTag() {
-        NbtCompound t = new NbtCompound();
-        saveAdditional(t);
-        t.tags().remove("CustomName");
-        t.tags().remove("Lock");
-        return t;
-    }
+    public NbtCompound updateTag() { return saveCustomOnly(); }
 }

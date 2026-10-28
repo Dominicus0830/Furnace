@@ -410,7 +410,9 @@ public final class AnvilChunkCodec {
                 stacks[slot] = new ItemStack(itemId, ie.getInt("Count"), patch);
             }
         }
-        return new ChestBlockEntity(x, y, z, stacks);
+        ChestBlockEntity chest = new ChestBlockEntity(x, y, z, stacks);
+        chest.loadComponents(e);
+        return chest;
     }
 
     private void applyBiomes(ChunkColumn col, int sectionIdx, NbtCompound bs) {

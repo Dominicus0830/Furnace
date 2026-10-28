@@ -739,7 +739,6 @@ public final class ServerCore {
             return ServerCore.this.entityDrops(lootTable, self, x, y, z, damageType, attacker, lastPlayer, seed);
         }
 
-        public org.domi.furnace.server.scores.ServerScoreboard scoreboard() { return ServerCore.this.scoreboard(); }
         public java.util.List<ItemStack> blockDrops(String lootTable, int state, double x, double y, double z, ItemStack tool, Object entity,
                                                     Float explosionRadius, java.util.Map<String, Object> blockEntity) {
             return ServerCore.this.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius, blockEntity);

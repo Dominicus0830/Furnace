@@ -142,7 +142,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
 
     /** getUpdateTag = saveCustomOnly. */
     @Override
-    public NbtCompound updateTag() { return saveWithoutMetadata(); }
+    public NbtCompound updateTag() { return saveCustomOnly(); }
 
     /** NbtUtils.writeBlockState: {Name, Properties?}. */
     public static NbtCompound writeBlockState(int state) {
