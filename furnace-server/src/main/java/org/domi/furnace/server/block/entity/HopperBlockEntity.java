@@ -293,8 +293,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         if (B.isAir(state)) return null;
         if (BlockBehaviors.of(state) instanceof org.domi.furnace.server.block.types.ComposterBlock) return ComposterInv.of(level, p, state);   // WorldlyContainerHolder
         Object be = level.getBlockEntity(p);
-        if (be instanceof JukeboxBlockEntity j) return new JukeboxInv(level, j);
-        if (!(be instanceof ContainerBlockEntity c) || be instanceof CampfireBlockEntity) return null;   // 모닥불은 바닐라 Container 가 아니다
+        if (!(be instanceof ContainerBlockEntity c) || be instanceof CampfireBlockEntity) return containerOf(level, be);   // 주크박스, 또는 null(모닥불은 Container 가 아니다)
         if (be instanceof org.domi.furnace.server.world.ChestBlockEntity
                 && BlockBehaviors.of(state) instanceof org.domi.furnace.server.block.types.ChestBlock cb) {
             // ChestBlock.getContainer(…, ignoreBlocked = true): 겹상자면 FIRST(오른쪽) 가 앞
@@ -375,6 +374,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
     /** 블록 엔티티 용기. 쓰기는 그 블록의 region 스레드(깔때기 틱)에서만. */
     /** 바닐라 Container 로 본 용기 블록 엔티티(전리품 풀기·setItem 부수 효과 포함). 캠프파이어는 바닐라에서 Container 가 아니라 null. */
     public static Inv containerOf(BlockLevel level, Object be) {
+        if (be instanceof JukeboxBlockEntity j) return new JukeboxInv(level, j);   // 주크박스도 바닐라 Container(칸 1)
         return be instanceof ContainerBlockEntity c && !(be instanceof CampfireBlockEntity) ? new BlockInv(level, c) : null;
     }
 
@@ -505,7 +505,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         }
     }
 
-    /** 주크박스(ContainerSingleItem): 칸 하나, 빼면 음반 통째로, 넣기는 jukebox_playable 이고 비었을 때, 빼기는 받는 쪽에 빈 칸이 있을 때. */
+    /** 주크박스(ContainerSingleItem): 규칙은 모두 JukeboxBlockEntity 의 바닐라 Container 메서드에 있고 여기서는 넘겨주기만 한다. */
     static final class JukeboxInv implements Inv {
         private final BlockLevel level;
         private final JukeboxBlockEntity be;
@@ -515,36 +515,25 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
             this.be = be;
         }
 
-        @Override public int size() { return 1; }
+        @Override public int size() { return JukeboxBlockEntity.CONTAINER_SIZE; }
 
-        @Override public ItemStack get(int i) { return i == 0 ? be.theItem() : ItemStack.EMPTY; }
+        @Override public ItemStack get(int i) { return be.getItem(i); }
 
-        @Override public void setItem(int i, ItemStack s) { if (i == 0) be.setTheItem(s, level); }
+        @Override public void setItem(int i, ItemStack s) { be.setItem(i, s, level); }
 
         @Override public void put(int i, ItemStack s) { if (i == 0) be.putRaw(s); }
 
-        @Override
-        public ItemStack removeItem(int i, int n) {
-            if (i != 0) return ItemStack.EMPTY;
-            ItemStack s = be.theItem();   // splitTheItem: 수와 관계없이 통째로
-            be.setTheItem(ItemStack.EMPTY, level);
-            return s;
-        }
+        @Override public ItemStack removeItem(int i, int n) { return be.removeItem(i, n, level); }
 
         @Override public void setChanged() { be.setChanged(level); }
 
-        @Override public int maxStackSize() { return 1; }
+        @Override public int maxStackSize() { return be.maxStackSize(); }
 
-        @Override
-        public boolean canPlaceItem(int slot, ItemStack s) {
-            return ItemTools.component(s, "minecraft:jukebox_playable") != null && get(slot).isEmpty();
-        }
+        @Override public Object blockEntity() { return be; }
 
-        @Override
-        public boolean canTakeItem(Inv target, int slot, ItemStack s) {
-            for (int i = 0; i < target.size(); i++) if (target.get(i).isEmpty()) return true;
-            return false;
-        }
+        @Override public boolean canPlaceItem(int slot, ItemStack s) { return be.canPlaceItem(slot, s); }
+
+        @Override public boolean canTakeItem(Inv target, int slot, ItemStack s) { return JukeboxBlockEntity.canTakeItem(target::get, target.size()); }
     }
 
     /**

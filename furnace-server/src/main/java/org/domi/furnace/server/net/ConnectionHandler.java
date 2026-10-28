@@ -1514,6 +1514,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null) handleContainerButtonClick(p, containerId, buttonId);
             }
+            case 0x10 -> { // container_slot_state_changed: VarInt slotId, VarInt containerId, Boolean newState(true = 풀림)
+                int slotId = Types.readVarInt(frame);
+                int containerId = Types.readVarInt(frame);
+                boolean newState = frame.readBoolean();
+                Player p = player;
+                if (p != null) handleContainerSlotStateChanged(p, slotId, containerId, newState);
+            }
             case 0x0F -> { // Container Close(serverbound): VarInt containerId — 바닐라는 번호를 보지 않고 열린 창을 닫는다(doCloseContainer)
                 Types.readVarInt(frame);
                 Player p = player;
@@ -1760,6 +1767,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         };
         int[] bp = menu.containerBlockPos();
         world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+    }
+
+    /**
+     * 바닐라 handleContainerSlotStateChanged: 관전자가 아니고 열린 창 번호가 같고 제작기 창이면 setSlotState(빈 칸만 바뀐다).
+     * 바닐라는 stillValid 를 보지 않는다. 데이터 칸 변경은 다음 틱 broadcastChanges 가 보낸다.
+     */
+    private void handleContainerSlotStateChanged(Player p, int slotId, int containerId, boolean newState) {
+        if (!(p.containerMenu() instanceof org.domi.furnace.server.menu.CrafterMenu menu) || menu.containerId != containerId) return;
+        int[] bp = menu.containerBlockPos();
+        world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, () -> {
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            menu.crafter().setSlotState(slotId, newState, region.level());
+        }));
     }
 
     /** 바닐라 handleContainerButtonClick: 열린 창이 맞고 관전자가 아니며 유효하면 clickMenuButton, 바뀌었으면 broadcastChanges. */
@@ -2794,6 +2814,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var adv = actor.advancements();
         org.domi.furnace.server.ServerCore core = login.core;
         if (adv == null || core == null || core.dataPacks() == null || core.dataPacks().loot() == null) return;
+        if (criterion.equals("minecraft:filled_bucket")) {   // 바닐라 FilledBucketTrigger.trigger(player, stack) — 위치 문맥이 아니라 채운 양동이
+            adv.trigger(criterion, lootStack(stack));
+            return;
+        }
         adv.trigger(criterion, new org.domi.furnace.server.advancement.Criterion.LocationEvent(
                 core.locationContext(actor, x, y, z, world.blockRegistry().canonicalKeyOf(state), lootStack(stack))));
     }
@@ -3075,6 +3099,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                                 new org.domi.furnace.server.menu.FurnaceMenu(f.type(), containerId, inventory, c, bp, menus);
                             case "minecraft:brewing_stand" -> new org.domi.furnace.server.menu.BrewingStandMenu(containerId, inventory, c, bp);
                             case "minecraft:dispenser", "minecraft:dropper" -> new org.domi.furnace.server.menu.DispenserMenu(containerId, inventory, c, bp, menus);
+                            case "minecraft:crafter" -> new org.domi.furnace.server.menu.CrafterMenu(containerId, inventory, c, bp, menus);
                             default -> org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, bp, menus);   // 상자·통
                         };
                     }

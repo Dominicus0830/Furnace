@@ -239,6 +239,12 @@ public final class ServerScoreboard extends Scoreboard {
         if (c != null) forAllObjectives(c, ScoreHolder.of(p), s -> s.add(amount));
     }
 
+    /** 바닐라 ServerPlayer.resetStat 의 forAllObjectives(stat, …, ScoreAccess::reset). */
+    public void onStatReset(Player p, String stat) {
+        ObjectiveCriteria c = ObjectiveCriteria.forStat(stat);
+        if (c != null) forAllObjectives(c, ScoreHolder.of(p), ScoreAccess::reset);
+    }
+
     /** 바닐라 updateScoreForCriteria: 기준의 모든 목표에서 값을 정한다. */
     public void updateForCriteria(Player p, ObjectiveCriteria c, int value) {
         forAllObjectives(c, ScoreHolder.of(p), s -> s.set(value));

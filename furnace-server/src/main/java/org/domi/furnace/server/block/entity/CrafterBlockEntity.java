@@ -67,6 +67,15 @@ public class CrafterBlockEntity extends ContainerBlockEntity {
         if (isSlotDisabled(slot)) setSlotState(slot, true, level);
     }
 
+    /** containerData.get: 0..8 = 칸 잠금, 9 = triggered(메뉴 데이터 칸). */
+    public int dataValue(int i) { return i == 9 ? triggered : slotStates[i]; }
+
+    /** containerData.set(클라이언트가 바꾸지는 않는다 — 메뉴 setData 용). */
+    public void setDataValue(int i, int v) {
+        if (i == 9) triggered = v;
+        else slotStates[i] = v;
+    }
+
     public void setTriggered(boolean t) { triggered = t ? 1 : 0; }
 
     public boolean isTriggered() { return triggered == 1; }

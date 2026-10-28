@@ -86,7 +86,11 @@ public final class ObjectiveCriteria {
         PlayerStats.Stat stat = PlayerStats.parse(serverName);
         if (!stat.type().equals(type) || !PlayerStats.isValid(stat)) return Optional.empty();
         String canonical = statCriteriaName(stat);
-        return Optional.of(CACHE.computeIfAbsent(canonical, k -> new ObjectiveCriteria(k, false, RenderType.INTEGER)));
+        // 생성자가 CACHE 에 넣으므로 computeIfAbsent 안에서 만들면 Recursive update — 잠그고 확인 후 만든다
+        synchronized (CACHE) {
+            ObjectiveCriteria ex = CACHE.get(canonical);
+            return Optional.of(ex != null ? ex : new ObjectiveCriteria(canonical, false, RenderType.INTEGER));
+        }
     }
 
     /** 통계의 기준 이름(바닐라 Stat.buildName: 종류와 값의 ':' 를 '.' 로 바꿔 ':' 로 잇는다). */

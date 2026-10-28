@@ -71,6 +71,11 @@ public abstract class Animal extends AgeableMob {
 
     public UUID getLoveCauseUuid() { return loveCause; }
 
+    /** 바닐라 getLoveCause: 원인 UUID 의 플레이어(이 레벨에 없으면 null). */
+    public Player loveCausePlayer() {
+        return loveCause == null ? null : level.getTargetableByUuid(loveCause) instanceof Player p ? p : null;
+    }
+
     public boolean canFallInLove() { return inLove <= 0; }
 
     public void setInLove(Player cause) {
@@ -104,6 +109,20 @@ public abstract class Animal extends AgeableMob {
     }
 
     public void finalizeBreeding(ChunkLevel level, Animal partner, AgeableMob child) {
+        // 바닐라 finalizeSpawnChildFromBreeding: 내 사랑 원인, 없으면 짝의 — animals_bred 통계와 bred_animals
+        Player cause = loveCausePlayer();
+        if (cause == null) cause = partner.loveCausePlayer();
+        if (cause != null) {
+            Player c = cause;
+            var me = KillCredit.snapshot(lootEntity());
+            var mate = KillCredit.snapshot(partner.lootEntity());
+            var baby = child == null ? null : KillCredit.snapshot(child.lootEntity());
+            c.runOnOwner(() -> {
+                c.awardStat("minecraft:animals_bred", 1);
+                var adv = c.advancements();
+                if (adv != null) adv.triggerBred(me, mate, baby);
+            });
+        }
         setAge(6000);
         partner.setAge(6000);
         resetLove();

@@ -491,7 +491,7 @@ public final class PlayerVitals {
             player.send(ev);
             env.broadcastToTrackers(player.entityId(), ev);
         }
-        if (died) die(type);
+        if (died) die(type, causing, direct);
         if (blockedAmount > 0.0f && blockedAmount < 3.4028235E37F) player.awardStat("minecraft:damage_blocked_by_shield", Math.round(blockedAmount * 10.0f));
         return !blocked;
     }
@@ -530,7 +530,7 @@ public final class PlayerVitals {
     }
 
     /** 바닐라 ServerPlayer.die: 사망 메시지·사망 화면, 인벤토리 처리, 엔티티 이벤트 3, 마지막 사망 위치. */
-    private void die(DamageType type) {
+    private void die(DamageType type, Rider causing, Rider direct) {
         boolean showMessages = env.gameRule("showDeathMessages");
         boolean keepInventory = env.gameRule("keepInventory");
         Text name = player.displayName();
@@ -558,6 +558,15 @@ public final class PlayerVitals {
         if (l != null && !spectator) l.onDeath(outcome.keepInventory());
         var board = player.scoreboard();   // 바닐라 ServerPlayer.die: deathCount 기준 +1
         if (board != null) board.incrementCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.DEATH_COUNT);
+        Targetable killer = player.getKillCredit();
+        if (killer instanceof Rider kr) {   // killed_by:<종류> 통계 → killer.awardKillScore(this, deathScore, source)
+            player.awardStat("minecraft:killed_by:" + kr.typeName(), 1);
+            KillCredit.award(killer, player, KillCredit.source(type.key(), causing, direct));
+        }
+        // awardStat(DEATHS), resetStat(TIME_SINCE_DEATH), resetStat(TIME_SINCE_REST)
+        player.awardStat("minecraft:deaths", 1);
+        player.resetStat("minecraft:time_since_death");
+        player.resetStat("minecraft:time_since_rest");
         Packet ev = new EntityEvent(player.entityId(), (byte) 3);
         player.send(ev);
         env.broadcastToTrackers(player.entityId(), ev);
@@ -573,7 +582,7 @@ public final class PlayerVitals {
             setHealthRaw(h);
             kill = alive && health <= 0.0f;
         }
-        if (kill) die(DamageType.GENERIC);
+        if (kill) die(DamageType.GENERIC, null, null);
     }
 
     public synchronized void setFoodLevel(int food) { this.food.foodLevel(Math.clamp(food, 0, 20)); }

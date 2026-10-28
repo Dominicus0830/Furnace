@@ -126,10 +126,15 @@ public abstract class AbstractHorse extends Animal {
     @Override
     public boolean isImmobile() { return super.isImmobile() && isVehicle() && isSaddled() || isEating() || isStanding(); }
 
-    /** AbstractHorse.tameWithName: 주인을 정하고 길들인 뒤 하트 이벤트(7). TODO(발전 과제): tame_animal 트리거. */
+    /** AbstractHorse.tameWithName: 주인을 정하고 길들인 뒤 tame_animal, 하트 이벤트(7). */
     public boolean tameWithName(Player p) {
         ownerUUID = p.uuid();
         setTamed(true);
+        var me = KillCredit.snapshot(lootEntity());
+        p.runOnOwner(() -> {
+            var adv = p.advancements();
+            if (adv != null) adv.triggerTame(me);
+        });
         broadcastEntityEvent((byte) 7);
         return true;
     }
