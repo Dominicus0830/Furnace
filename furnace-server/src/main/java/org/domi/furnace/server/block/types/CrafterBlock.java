@@ -1,7 +1,7 @@
 // 바닐라 CrafterBlock: 신호가 새로 들어오면 4틱 뒤 안의 3×3 재료로 제작해 앞쪽(orientation 의 앞)으로 내보낸다.
 // 앞에 용기가 있으면 깔때기 규칙으로 넣고(제작기거나 결과가 용기 한도를 넘으면 한 개씩), 남으면 아이템으로 쏘아 낸다(속도 6, levelEvent 1049·2010).
 // 남은 재료(양동이 등)도 같은 방식으로 내보낸 뒤 칸마다 하나씩 줄인다. 제작하면 crafting=true 를 6틱 동안.
-// TODO(메뉴): 제작기 화면(CrafterMenu — 칸 잠금 클릭). 지금은 바닐라처럼 CONSUME 만 돌려준다.
+// 우클릭하면 제작기 화면(CrafterMenu, crafter_3x3)을 연다.
 // TODO(발전 과제): 17×17×17 안 플레이어에게 crafter_recipe_crafted.
 package org.domi.furnace.server.block.types;
 
@@ -87,7 +87,8 @@ public class CrafterBlock extends BaseEntityBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(메뉴): player.openMenu(제작기)
+        // 바닐라 useWithoutItem: 블록 엔티티가 제작기면 openMenu, 결과는 CONSUME
+        if (level.getBlockEntity(pos) instanceof CrafterBlockEntity) player.openContainer(pos);
         return InteractionResult.CONSUME;
     }
 
