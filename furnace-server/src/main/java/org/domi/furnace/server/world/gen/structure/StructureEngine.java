@@ -302,7 +302,9 @@ public final class StructureEngine {
         String cached = setStartCache.get(key);
         if (cached != null) return cached.isEmpty() ? null : cached;
         List<StructureStart> out = new ArrayList<>(1);
-        if (structuresEnabled) startsForSet(set, cx, cz, terrain, out);
+        // 구조물 스위치를 보지 않는다: 바닐라 /locate 는 generateStructures 와 무관하게 StructureCheck 예측으로 찾는다
+        // (findNearestMapStructure — 탐험 지도·엔더의 눈 — 은 부르는 쪽이 스위치를 본다)
+        startsForSet(set, cx, cz, terrain, out);
         String id = out.isEmpty() ? "" : out.get(0).structureId();
         if (setStartCache.size() > (1 << 16)) setStartCache.clear();
         setStartCache.put(key, id);

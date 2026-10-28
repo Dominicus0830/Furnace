@@ -71,7 +71,8 @@ public final class World {
      * ready/pending은 청크 소유 region 스레드서만 접근한다(브로드캐스트와 전달 완료 처리가 같은 스레드라 직렬화됨).
      */
     public static final class Subscription {
-        boolean ready;
+        /** 소유 region 스레드가 쓴다. 이웃 region 의 빛 가장자리 판정이 읽으므로 volatile. */
+        volatile boolean ready;
         final List<Packet> pending = new ArrayList<>();
     }
 
@@ -898,6 +899,32 @@ public final class World {
             if (sub.ready) e.getKey().send(pkt);
             else sub.pending.add(pkt);
         }
+    }
+
+    /**
+     * 빛 갱신(ChunkHolder.broadcastChanges → ChunkMap.getPlayers(pos, true)): 그 청크를 받은(isChunkTracked = 구독 && 전송 끝) 플레이어 중
+     * 둘레 8칸 중 하나라도 받지 않은 사람에게만. 안쪽 청크는 클라이언트가 스스로 빛을 다시 계산한다. 아직 청크를 못 받은 구독자는 건너뛴다
+     * (그 빛은 청크 패킷에 들어간다).
+     */
+    public void broadcastLightUpdate(ChunkPos cp, Packet pkt) {
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        if (s == null) return;
+        for (Map.Entry<Player, Subscription> e : s.entrySet()) {
+            if (e.getValue().ready && onTrackedBorder(cp, e.getKey())) e.getKey().send(pkt);
+        }
+    }
+
+    /** ChunkMap.isChunkOnTrackedBorder: 둘레 8칸 중 그 플레이어가 받지 않은(구독 없음 또는 전송 전) 청크가 있다. */
+    boolean onTrackedBorder(ChunkPos cp, Player p) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                ConcurrentHashMap<Player, Subscription> n = chunkSubscribers.get(new ChunkPos(cp.x() + dx, cp.z() + dz));
+                Subscription sub = n == null ? null : n.get(p);
+                if (sub == null || !sub.ready) return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ 청크 티켓(바닐라 TicketType.PORTAL·DRAGON)

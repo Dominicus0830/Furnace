@@ -786,6 +786,42 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                     final var s = saved;
                     final Throwable f = fail;
+                    if (s == null && f == null && login.core != null) {
+                        // 처음 들어오는 플레이어: ServerPlayer 생성자의 adjustSpawnLocation(오버월드 공유 스폰) — 오버월드 region 에서 계산
+                        // 계산이 늦으면(청크 생성 대기) FIRST_SPAWN_TIMEOUT_MS 뒤 흩뿌리지 않은 월드 스폰으로 들어간다 — 클라이언트 읽기 시간 초과(30초) 방지
+                        World over = login.core.world();
+                        java.util.concurrent.atomic.AtomicBoolean once = new java.util.concurrent.atomic.AtomicBoolean();
+                        SpawnPoint ws = over.defaultSpawn();
+                        var plain = new org.domi.furnace.server.world.RespawnFinder.Spot(ws.playerX(), ws.playerY(), ws.playerZ(), 0.0F);
+                        try {
+                            ctx.executor().schedule(() -> {
+                                if (!once.compareAndSet(false, true)) return;
+                                log.warn("첫 스폰 자리 계산이 {}ms 안에 끝나지 않아 월드 스폰으로 들어간다: {}", FIRST_SPAWN_TIMEOUT_MS, playerName);
+                                firstSpawn = plain;
+                                finishEnterPlay(ctx, null, null);
+                            }, FIRST_SPAWN_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        } catch (java.util.concurrent.RejectedExecutionException closed) {
+                            java.util.ArrayDeque<Object[]> q = pendingPlayFrames;
+                            pendingPlayFrames = null;
+                            releasePendingFrames(q);
+                            return;
+                        }
+                        org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"),
+                                over.levelServices().worldAdventure(), spot -> {
+                                    try {
+                                        ctx.executor().execute(() -> {
+                                            if (!once.compareAndSet(false, true)) return;
+                                            firstSpawn = spot;
+                                            finishEnterPlay(ctx, null, null);
+                                        });
+                                    } catch (java.util.concurrent.RejectedExecutionException closed) {
+                                        java.util.ArrayDeque<Object[]> q = pendingPlayFrames;
+                                        pendingPlayFrames = null;
+                                        releasePendingFrames(q);
+                                    }
+                                });
+                        return;
+                    }
                     try {
                         ctx.executor().execute(() -> finishEnterPlay(ctx, s, f));
                     } catch (java.util.concurrent.RejectedExecutionException closed) {
@@ -963,10 +999,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, p.recipeBook().initPacket());
         // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
         SpawnPoint defaultSpawn = world.defaultSpawn();
-        double sx = saved != null ? saved.x() : defaultSpawn.playerX();
-        double sy = saved != null ? saved.y() : defaultSpawn.playerY();
-        double sz = saved != null ? saved.z() : defaultSpawn.playerZ();
-        float syaw = saved != null ? saved.yaw() : defaultSpawn.yaw();
+        var first = firstSpawn;   // 새 플레이어: 흩뿌린 자리(회전 0 — ServerPlayer 생성자)
+        firstSpawn = null;
+        double sx = saved != null ? saved.x() : first != null ? first.x() : defaultSpawn.playerX();
+        double sy = saved != null ? saved.y() : first != null ? first.y() : defaultSpawn.playerY();
+        double sz = saved != null ? saved.z() : first != null ? first.z() : defaultSpawn.playerZ();
+        float syaw = saved != null ? saved.yaw() : first != null ? first.yaw() : 0.0F;   // 새 플레이어는 회전 0(ServerPlayer 생성자)
         float spitch = saved != null ? saved.pitch() : 0f;
         if (saved != null) inv.load(saved.slots());
         menus = new ServerMenus(p);
@@ -1400,6 +1438,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 String secondary = frame.readBoolean() ? org.domi.furnace.server.item.ItemContext.name("minecraft:mob_effect", Types.readVarInt(frame)) : null;
                 Player p = player;
                 if (p != null) handleSetBeacon(p, primary, secondary);
+            }
+            case 0x36 -> { // swing: 손(VarInt) — ServerGamePacketListenerImpl.handleAnimate → player.swing(hand): 보는 사람에게 animate(본인 제외)
+                int hand = Types.readVarInt(frame);
+                if (hand < 0 || hand > 1) {
+                    protocolError(ctx, "Swing", new IllegalArgumentException("bad enum"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) world.runAt(actor.x(), actor.z(), r -> actor.swing(hand, false));
+            }
+            case 0x20 -> { // pick_item: 인벤토리 번호(VarInt) — handlePickItem(서바이벌 휠클릭; 크리에이티브 복제는 클라이언트가 set_creative_mode_slot 으로)
+                int slot = Types.readVarInt(frame);
+                if (slot < 0 || slot >= 36) {   // 바닐라는 검사 없이 items.get → 예외(처리 오류) — 가정: 끊는다
+                    protocolError(ctx, "Pick Item", new IndexOutOfBoundsException(String.valueOf(slot)));
+                    break;
+                }
+                inv.pickSlot(slot);
+                int sel = inv.selected();
+                send(ctx, new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, sel, inv.get(inv.heldWindowSlot())));
+                send(ctx, new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, slot, inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(slot))));
+                send(ctx, new SetHeldSlot(sel));
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
@@ -2337,7 +2396,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (t == null || !(level instanceof org.domi.furnace.server.world.RegionLevel rl)) {
                     SpawnPoint spawn = over.defaultSpawn();
                     finishWinRespawn(ctx, over, new org.domi.furnace.server.entity.DimensionTransition(null, spawn.playerX(), spawn.playerY(),
-                            spawn.playerZ(), 0, 0, 0, spawn.yaw(), 0f));
+                            spawn.playerZ(), 0, 0, 0, 0f, 0f));
                 } else {
                     finishWinRespawn(ctx, rl.world(), t);
                 }
@@ -2357,17 +2416,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             respawnPending = false;
             return;
         }
-        World target;
-        double x, y, z;
-        float yaw;
         if (o.transition() != null) {
-            target = o.world();
-            x = o.transition().x(); y = o.transition().y(); z = o.transition().z(); yaw = o.transition().yRot();
-        } else {
-            target = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
-            SpawnPoint spawn = target.defaultSpawn();
-            x = spawn.playerX(); y = spawn.playerY(); z = spawn.playerZ(); yaw = spawn.yaw();
+            respawnAt(ctx, from, o, o.world(), o.transition().x(), o.transition().y(), o.transition().z(), o.transition().yRot());
+            return;
         }
+        // 리스폰 블록 없음: 오버월드 월드 스폰에서 흩뿌린 자리(adjustSpawnLocation — 블록을 읽으므로 오버월드 region 에서)
+        World over = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
+        org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"), over.levelServices().worldAdventure(),
+                s -> ctx.executor().execute(() -> {
+                    if (player != p || !ctx.channel().isActive() || world != from) {
+                        respawnPending = false;
+                        return;
+                    }
+                    respawnAt(ctx, from, o, over, s.x(), s.y(), s.z(), s.yaw());
+                }));
+    }
+
+    private void respawnAt(ChannelHandlerContext ctx, World from, org.domi.furnace.server.world.RespawnFinder.Outcome o, World target,
+                           double x, double y, double z, float yaw) {
+        Player p = player;
         boolean worldSpawn = o.transition() == null, missing = o.missing();
         Long seed = o.depleteSoundSeed();
         if (target == from) {
@@ -2384,6 +2451,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private boolean respawnPending;
+    /** 첫 접속 스폰 흩뿌리기를 기다리는 최대 시간(바닐라는 기다림 없이 메인 스레드에서 청크를 불러온다). */
+    static final long FIRST_SPAWN_TIMEOUT_MS = 5000;
+    /** 처음 들어오는 플레이어의 스폰 자리(beginEnterPlay 가 정하고 onEnterPlay 가 한 번 쓴다). 이벤트루프 전용. */
+    private org.domi.furnace.server.world.RespawnFinder.Spot firstSpawn;
     /** 다른 차원에서 리스폰해 오는 중이면 원래 차원(리스폰을 다 보낸 뒤 오버월드 region 에 넣는다). */
     private String respawnFrom;
 
@@ -2789,7 +2860,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             && org.domi.furnace.server.block.BlockPlacement.wasBlockPlacementAttempt(pa, before)) {
                         actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);
                     }
-                    // shouldSwing 이면 바닐라는 다른 플레이어에게 팔 휘두르기를 보낸다 — 서버 쪽 설치는 CONSUME 이라 해당 없음
+                    else if (r.shouldSwing()) actor.swing(hand, true);   // handleUseItemOn: 결과가 SUCCESS 류면 본인 포함 animate
                 }
             } else {
                 actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);

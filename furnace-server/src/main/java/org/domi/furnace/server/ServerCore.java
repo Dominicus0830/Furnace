@@ -255,7 +255,7 @@ public final class ServerCore {
                     org.domi.furnace.server.world.gen.structure.StructureRegistry.biomeTag("minecraft:water_on_map_outlines");
 
             public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius) {
-                if (!settings.get().generateStructures) return null;
+                if (!levelData.generateFeatures) return null;   // ServerLevel.findNearestMapStructure: level.dat 의 generate_features
                 var ids = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(tag);
                 if (ids == null) return null;
                 var f = gen.structureLocator().findNearest(ids, x, y, z, radius);
@@ -750,6 +750,7 @@ public final class ServerCore {
         public boolean gameRule(String name) { return gameRules.getBoolean(name); }
         public int gameRuleInt(String name) { return gameRules.getInt(name); }
         public int difficulty() { return levelData.difficulty.id(); }
+        public boolean worldAdventure() { return levelData.gameType == org.domi.furnace.server.world.GameMode.ADVENTURE; }
         public void runSignCommand(Player player, int x, int y, int z, String command) {
             scheduler().global().execute(() -> commands().performPrefixedCommand(
                     org.domi.furnace.server.command.CommandSource.sign(ServerCore.this, player, x, y, z), command));

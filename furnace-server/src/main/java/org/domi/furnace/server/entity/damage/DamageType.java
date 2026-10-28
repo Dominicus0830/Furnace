@@ -166,6 +166,7 @@ public final class DamageType {
     public boolean bypassesResistance() { return isInTag("minecraft:bypasses_resistance"); }
     /** 태그 is_fire(불·용암·모닥불 …): 화염 저항이 막는다. */
     public boolean isFire() { return isInTag("minecraft:is_fire"); }
+    public boolean isFreezing() { return isInTag("minecraft:is_freezing"); }
     /** 태그 panic_causes 에 들어 있나. */
     public boolean isPanicCause() { return isInTag("minecraft:panic_causes"); }
 

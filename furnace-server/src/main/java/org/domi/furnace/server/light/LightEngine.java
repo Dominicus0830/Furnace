@@ -101,7 +101,9 @@ public abstract class LightEngine {
     protected void setLevel(long pos, int v) {
         int x = px(pos), y = py(pos), z = pz(pos);
         ChunkLight cl = world.light(x >> 4, z >> 4);
-        ChunkLight.set(layers(cl)[ChunkLight.sectionIndex(y)], x, y, z, v);
+        byte[][] layers = layers(cl);
+        ChunkLight.set(layers[ChunkLight.sectionIndex(y)], x, y, z, v);
+        world.lightChanged(x, y, z, layers == cl.sky);
     }
 
     protected static int opacity(int state) { return Math.max(1, LightTables.lightBlock(state)); }

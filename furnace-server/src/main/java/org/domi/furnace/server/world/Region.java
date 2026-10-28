@@ -900,6 +900,7 @@ public final class Region {
             p.tickDropSpam();
             p.tickCooldowns();
             p.tickAttackStrength();
+            p.tickSwing();
             p.tickRiding();
             tickCamera(p);
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
@@ -1227,8 +1228,8 @@ public final class Region {
             writeBackHand(p, actor);
             return;
         }
-        org.domi.furnace.server.block.ItemUse.useItem(level(), actor, hand);
-        // shouldSwing(SUCCESS) 는 서버 쪽 결과(CONSUME)에서 나오지 않는다
+        var result = org.domi.furnace.server.block.ItemUse.useItem(level(), actor, hand);
+        if (result.shouldSwing()) p.swing(hand, true);   // handleUseItem: SUCCESS 류면 본인 포함 animate(서버 쪽 결과는 대개 CONSUME)
         writeBackHand(p, actor);
     }
 

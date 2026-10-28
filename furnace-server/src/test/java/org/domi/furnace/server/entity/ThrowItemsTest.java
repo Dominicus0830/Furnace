@@ -111,4 +111,17 @@ class ThrowItemsTest {
         assertEquals(before - 5.0F, p.vitals().health(), 0.001F, "낙하 피해 5");
         assertTrue(level.entities().tickSnapshot().stream().noneMatch(e -> e instanceof ThrownEnderpearl), "진주는 사라진다");
     }
+
+    @Test
+    void enderPearlVanishesWhenOwnerIsDead() {
+        var level = new BlockPlacementTest.TestLevel();
+        var p = player(GameMode.SURVIVAL);
+        double[][] target = new double[1][];
+        p.teleporter(t -> target[0] = t);
+        use(level, p, stack("ender_pearl", 2), new Object[1]);
+        assertTrue(p.vitals().kill());
+        level.tickEntities(k -> true);
+        assertTrue(level.entities().tickSnapshot().stream().noneMatch(e -> e instanceof ThrownEnderpearl), "죽은 주인의 진주는 사라진다(enderPearlsVanishOnDeath)");
+        assertNull(target[0]);
+    }
 }
