@@ -900,6 +900,34 @@ public final class World {
         }
     }
 
+    /**
+     * 빛 갱신(ChunkHolder.broadcastChanges → ChunkMap.getPlayers(pos, true)): 그 청크를 보면서 둘레 8칸 중 하나라도 안 보는 플레이어에게만.
+     * 안쪽 청크는 클라이언트가 스스로 빛을 다시 계산한다. 이웃은 구독 여부로만 본다(이웃 ready 는 다른 region 소유라 읽지 않는다).
+     * 아직 청크가 안 간 구독은 청크 뒤로 보류한다(청크 스냅숏이 변경 전일 수 있다).
+     */
+    public void broadcastLightUpdate(ChunkPos cp, Packet pkt) {
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        if (s == null) return;
+        for (Map.Entry<Player, Subscription> e : s.entrySet()) {
+            if (!onTrackedBorder(cp, e.getKey())) continue;
+            Subscription sub = e.getValue();
+            if (sub.ready) e.getKey().send(pkt);
+            else sub.pending.add(pkt);
+        }
+    }
+
+    /** ChunkMap.isChunkOnTrackedBorder: 둘레 8칸 중 그 플레이어가 구독하지 않은 청크가 있다. */
+    boolean onTrackedBorder(ChunkPos cp, Player p) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                ConcurrentHashMap<Player, Subscription> n = chunkSubscribers.get(new ChunkPos(cp.x() + dx, cp.z() + dz));
+                if (n == null || !n.containsKey(p)) return true;
+            }
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------ 청크 티켓(바닐라 TicketType.PORTAL·DRAGON)
 
     /** 청크 키 → 이 gameTime 까지는 구독자가 없어도 내리지 않는다. */

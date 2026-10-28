@@ -20,4 +20,7 @@ public interface LightWorld {
 
     /** 계산 끝 — 캐시를 비우고 쓰기를 멈춘다. */
     default void end() {}
+
+    /** 칸의 빛 값을 썼다(LayerLightSectionStorage.setStoredLevel → sectionsAffectedByLightUpdates). sky 면 하늘빛. */
+    default void lightChanged(int x, int y, int z, boolean sky) {}
 }

@@ -740,8 +740,38 @@ public abstract class ChunkLevel implements BlockLevel {
         changed.computeIfAbsent(key, k -> new TreeSet<>()).add(local);
     }
 
+    /** 청크 키 → {하늘빛, 블록빛} 바뀐 빛 섹션 마스크(ChunkHolder.sectionLightChanged — 비트 = 섹션 y − 맨 아래 빛 섹션). */
+    private final java.util.HashMap<Long, long[]> lightChanges = new java.util.HashMap<>();
+
+    private void markLightChanged(int sx, int sy, int sz, boolean sky) {
+        int idx = sy - ((minBuildHeight() >> 4) - 1);
+        int count = ((maxBuildHeight() - minBuildHeight()) >> 4) + 2;
+        if (idx < 0 || idx >= count) return;
+        long key = (long) sx << 32 | (sz & 0xFFFFFFFFL);
+        lightChanges.computeIfAbsent(key, k -> new long[2])[sky ? 0 : 1] |= 1L << idx;
+    }
+
+    /** 빛 갱신 패킷을 그 청크를 보는 플레이어 중 시야 가장자리인 사람에게(바닐라 getPlayers(pos, true)). 기본은 버린다. */
+    protected void broadcastLightToChunk(int chunkX, int chunkZ, Packet packet) {}
+
+    /** ChunkHolder.broadcastChanges 앞부분: 바뀐 빛 섹션이 있으면 그 섹션만 담은 빛 갱신(블록 변경보다 먼저). */
+    private void broadcastLightChanges() {
+        int lightBase = (minBuildHeight() >> 4) - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        int count = ((maxBuildHeight() - minBuildHeight()) >> 4) + 2;
+        for (var e : lightChanges.entrySet()) {
+            int cx = (int) (e.getKey() >> 32), cz = (int) (long) e.getKey();
+            ChunkColumn col = chunk(cx, cz);
+            if (col == null || col.light() == null) continue;
+            long[] m = e.getValue();
+            broadcastLightToChunk(cx, cz, org.domi.furnace.server.net.protocol.play.LightUpdate.of(cx, cz, col.light(), m[0], m[1], lightBase, count));
+        }
+        lightChanges.clear();
+        lightWorld.resetLast();
+    }
+
     /** 틱 끝에 모아 둔 변경을 보낸다: 칸 하나면 블록 갱신, 여럿이면 구역 갱신(그때의 상태로). */
     public void broadcastChanges() {
+        if (!lightChanges.isEmpty()) broadcastLightChanges();
         if (changed.isEmpty()) return;
         for (var e : changed.entrySet()) {
             long key = e.getKey();
@@ -1387,7 +1417,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     private org.domi.furnace.server.light.LevelLight lightEngine;
 
-    private final org.domi.furnace.server.light.LightWorld lightWorld = new org.domi.furnace.server.light.LightWorld() {
+    private final LightWorldImpl lightWorld = new LightWorldImpl();
+
+    private final class LightWorldImpl implements org.domi.furnace.server.light.LightWorld {
         // 빛 계산은 이웃 청크 칸을 번갈아 읽는다 — 한 계산 동안만 쓰는 4칸 직접 사상 캐시(청크 조회는 해시 맵이라 비싸다).
         private final int[] cacheX = new int[4], cacheZ = new int[4];
         private final ChunkColumn[] cacheCol = new ChunkColumn[4];
@@ -1427,10 +1459,26 @@ public abstract class ChunkLevel implements BlockLevel {
 
         public int unloadedState() { return bedrockState; }
 
+        // 같은 섹션 연속 기록은 건너뛴다(전파 중 매 칸 불린다)
+        private int lastX = Integer.MIN_VALUE, lastY, lastZ;
+        private boolean lastSky;
+
+        public void lightChanged(int x, int y, int z, boolean sky) {
+            // SectionPos.aroundAndAtBlockPos: (x±1, y±1, z±1) 상자가 걸친 섹션 전부
+            int x0 = (x - 1) >> 4, x1 = (x + 1) >> 4, y0 = (y - 1) >> 4, y1 = (y + 1) >> 4, z0 = (z - 1) >> 4, z1 = (z + 1) >> 4;
+            if (x0 == x1 && y0 == y1 && z0 == z1) {
+                if (x0 == lastX && y0 == lastY && z0 == lastZ && sky == lastSky) return;
+                lastX = x0; lastY = y0; lastZ = z0; lastSky = sky;
+            }
+            for (int sx = x0; sx <= x1; sx++) for (int sy = y0; sy <= y1; sy++) for (int sz = z0; sz <= z1; sz++) markLightChanged(sx, sy, sz, sky);
+        }
+
+        void resetLast() { lastX = Integer.MIN_VALUE; }
+
         public int minY() { return minBuildHeight(); }
 
         public int maxY() { return maxBuildHeight(); }
-    };
+    }
     private final int bedrockState = blocks.defaultState("minecraft:bedrock");
 
     public org.domi.furnace.server.light.LevelLight lightEngine() {

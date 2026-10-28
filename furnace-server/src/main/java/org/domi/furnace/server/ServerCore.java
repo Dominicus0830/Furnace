@@ -255,7 +255,7 @@ public final class ServerCore {
                     org.domi.furnace.server.world.gen.structure.StructureRegistry.biomeTag("minecraft:water_on_map_outlines");
 
             public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius) {
-                if (!settings.get().generateStructures) return null;
+                if (!levelData.generateFeatures) return null;   // ServerLevel.findNearestMapStructure: level.dat 의 generate_features
                 var ids = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(tag);
                 if (ids == null) return null;
                 var f = gen.structureLocator().findNearest(ids, x, y, z, radius);

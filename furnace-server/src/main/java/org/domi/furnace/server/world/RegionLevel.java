@@ -61,6 +61,9 @@ public final class RegionLevel extends ChunkLevel {
     protected void broadcastToChunk(int chunkX, int chunkZ, Packet packet) { world.broadcastBlockUpdate(new ChunkPos(chunkX, chunkZ), packet); }
 
     @Override
+    protected void broadcastLightToChunk(int chunkX, int chunkZ, Packet packet) { world.broadcastLightUpdate(new ChunkPos(chunkX, chunkZ), packet); }
+
+    @Override
     protected LevelServices services() { return world.levelServices(); }
 
     @Override

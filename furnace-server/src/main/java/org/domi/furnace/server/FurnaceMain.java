@@ -167,6 +167,7 @@ public final class FurnaceMain {
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                 registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
         var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
+        applyWorldGenOptions(levelData, noiseSource);
         // 오버월드 생성기: level.dat 의 생성기가 minecraft:flat 이면 평지(바닐라 FlatLevelSource 층), 아니면 노이즈
         var generator = levelData.overworldGenerator();
         org.domi.furnace.server.world.gen.SuperflatWorldSource flatSource = null;
@@ -268,6 +269,7 @@ public final class FurnaceMain {
             var codec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                     registries.entries("minecraft:worldgen/biome"), plainsBiome, type.minY(), type.sectionCount());
             var gen = NoiseWorldSource.create(type.gen(), config.levelSeed(), blockRegistry, registries);
+            applyWorldGenOptions(levelData, gen);
             var src = new org.domi.furnace.server.world.gen.AnvilWorldSource(worldDir, store, codec, gen);
             var ents = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "entities", props.syncChunkWrites);
             var pois = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "poi", props.syncChunkWrites);
@@ -435,5 +437,13 @@ public final class FurnaceMain {
             }
         }
         log.info("Time elapsed: {} ms", (System.nanoTime() - t0) / 1_000_000);
+    }
+
+    /**
+     * 바닐라 WorldOptions.generateStructures(level.dat WorldGenSettings.generate_features): 끄면 STRUCTURE_STARTS 단계가 시작점을 만들지 않는다
+     * (ChunkStatusTasks.generateStructureStarts). 모든 차원에 같은 값. 이미 저장된 청크의 구조물은 그대로다.
+     */
+    static void applyWorldGenOptions(LevelData levelData, NoiseWorldSource source) {
+        source.structureEngine().setStructuresEnabled(levelData.generateFeatures);
     }
 }
