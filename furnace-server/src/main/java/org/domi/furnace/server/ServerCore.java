@@ -304,6 +304,17 @@ public final class ServerCore {
             }
 
             public org.domi.furnace.server.loot.LootRegistries registries() { return dataPacks.loot().registries(); }
+
+            // 바닐라는 award 안에서 바로 실행한다. 함수 관리자는 전역 스레드 전용이라 전역으로 넘긴다(다음 전역 틱 차이).
+            public void runFunction(String function) {
+                // 실행 주체(위치·회전)는 플레이어 소유 스레드인 여기서 만든다
+                var source = org.domi.furnace.server.command.CommandSource.player(ServerCore.this, p).withSilent().withPermission(2);
+                var id = org.domi.furnace.server.data.ResourceId.parse(function);
+                scheduler().global().execute(() -> {
+                    var fm = functions();
+                    if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source));
+                });
+            }
         };
         var adv = new org.domi.furnace.server.advancement.PlayerAdvancements(world.worldDir(), p.uuid(), dp.advancements(), host);
         p.advancements(adv);
@@ -940,6 +951,9 @@ public final class ServerCore {
         for (var p : blocks.propsOf(blocks.blockOf(state))) props.put(p.name(), p.valueName(state));
         return new org.domi.furnace.server.loot.LootBlockState(blocks.name(blocks.blockOf(state)), props);
     }
+
+    /** 서버 아이템 → 전리품 스택(공개판 — 발전 과제 사건용). */
+    public static org.domi.furnace.server.loot.LootStack lootStackOf(ItemStack s) { return lootStack(s); }
 
     /** 서버 아이템 → 전리품 스택(컴포넌트 패치까지). */
     private static org.domi.furnace.server.loot.LootStack lootStack(ItemStack s) {

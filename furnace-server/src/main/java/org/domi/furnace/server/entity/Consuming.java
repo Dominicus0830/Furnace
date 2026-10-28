@@ -91,6 +91,9 @@ public final class Consuming {
             case "minecraft:potion" -> { applyPotion(v, s); leftover = "minecraft:glass_bottle"; }
             default -> { }
         }
+        // 바닐라 Player.eat·PotionItem·MilkBucketItem·HoneyBottleItem.finishUsingItem: 줄이기 전 스택으로 consume_item
+        var adv = p.advancements();
+        if (adv != null) adv.trigger("minecraft:consume_item", org.domi.furnace.server.ServerCore.lootStackOf(s));
         boolean creative = v.isCreative();
         if (creative) return;
         ItemStack rest = s.withCount(s.count() - 1);

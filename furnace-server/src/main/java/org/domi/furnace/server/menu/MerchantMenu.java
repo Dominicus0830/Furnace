@@ -266,6 +266,12 @@ public class MerchantMenu extends AbstractContainerMenu {
                 if (taken == null) taken = swap(offer.take(b, a));
                 if (taken != null) {
                     merchant.notifyTrade(offer);
+                    // 바닐라 AbstractVillager.notifyTrade 끝: villager_trade(거래 결과)
+                    var ep = p.entityPlayer();
+                    var adv = ep == null ? null : ep.advancements();
+                    if (adv != null && merchant instanceof org.domi.furnace.server.entity.LivingEntity le) {
+                        adv.triggerTrade(le.lootEntity(), org.domi.furnace.server.ServerCore.lootStackOf(offer.result()));
+                    }
                     p.awardStat("minecraft:traded_with_villager", 1);
                     slots.set(0, taken[0]);
                     slots.set(1, taken[1]);

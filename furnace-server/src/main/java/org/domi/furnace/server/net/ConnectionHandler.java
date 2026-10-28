@@ -2794,6 +2794,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var adv = actor.advancements();
         org.domi.furnace.server.ServerCore core = login.core;
         if (adv == null || core == null || core.dataPacks() == null || core.dataPacks().loot() == null) return;
+        if (criterion.equals("minecraft:filled_bucket")) {   // 바닐라 FilledBucketTrigger.trigger(player, stack) — 위치 문맥이 아니라 채운 양동이
+            adv.trigger(criterion, lootStack(stack));
+            return;
+        }
         adv.trigger(criterion, new org.domi.furnace.server.advancement.Criterion.LocationEvent(
                 core.locationContext(actor, x, y, z, world.blockRegistry().canonicalKeyOf(state), lootStack(stack))));
     }

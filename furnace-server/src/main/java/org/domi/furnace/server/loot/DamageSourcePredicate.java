@@ -8,7 +8,7 @@ import java.util.List;
 
 public record DamageSourcePredicate(List<String[]> tags, EntityPredicate source, EntityPredicate direct, Boolean isDirect) {
 
-    static DamageSourcePredicate parse(JsonElement e, LootRegistries regs) {
+    public static DamageSourcePredicate parse(JsonElement e, LootRegistries regs) {
         JsonObject o = e.getAsJsonObject();
         List<String[]> tags = new ArrayList<>();
         if (o.has("tags")) {
@@ -23,7 +23,7 @@ public record DamageSourcePredicate(List<String[]> tags, EntityPredicate source,
                 o.has("is_direct") ? o.get("is_direct").getAsBoolean() : null);
     }
 
-    boolean matches(LootContext ctx, double[] origin, LootDamageSource src) {
+    public boolean matches(LootContext ctx, double[] origin, LootDamageSource src) {
         for (String[] t : tags) if (src.is(t[0]) != Boolean.parseBoolean(t[1])) return false;
         if (direct != null && !direct.matches(ctx, origin, src.directEntity())) return false;
         if (source != null && !source.matches(ctx, origin, src.entity())) return false;

@@ -1446,6 +1446,7 @@ public final class Region {
     /**
      * Entity.checkInsideBlocks 중 모닥불만(바닐라 handleMovePlayer 의 player.move 뒤): 몸통(1e-7 안쪽)이 걸친 칸의 켜진 모닥불이
      * 플레이어에게 불 피해를 준다. 나머지 블록의 entityInside 는 플레이어에게 아직 연결되지 않았다.
+     * 같은 칸 순회에서 ServerPlayer.onInsideBlock(state) → enter_block 트리거(공기 포함, 칸마다 entityInside 다음).
      */
     private void checkInsideCampfires(Player p) {
         if (level == null || p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
@@ -1454,9 +1455,12 @@ public final class Region {
         int y0 = (int) Math.floor(p.y() + 1.0E-7), y1 = (int) Math.floor(p.y() + h - 1.0E-7);
         int z0 = (int) Math.floor(p.z() - 0.3 + 1.0E-7), z1 = (int) Math.floor(p.z() + 0.3 - 1.0E-7);
         if (!level.hasChunksAt(x0, z0, x1, z1)) return;
+        var adv = p.advancements();
+        boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             if (org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.CampfireBlock cf) cf.entityInsidePlayer(s, p.vitals());
+            if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
         }
     }
 

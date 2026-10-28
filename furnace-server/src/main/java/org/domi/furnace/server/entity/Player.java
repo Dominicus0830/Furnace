@@ -933,6 +933,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (b != null) b.onStat(this, stat, amount);   // 바닐라 ServerPlayer.awardStat: 통계 기준 목표에 더한다
     }
 
+    /** 바닐라 ServerPlayer.resetStat: 통계를 0 으로, 그 통계 기준 점수도 0. */
+    public void resetStat(String stat) {
+        var s = stats;
+        if (s != null) s.set(stat, 0);
+        var b = scoreboard;
+        if (b != null) b.onStatReset(this, stat);
+    }
+
     private volatile org.domi.furnace.server.scores.ServerScoreboard scoreboard;
 
     public org.domi.furnace.server.scores.ServerScoreboard scoreboard() { return scoreboard; }
