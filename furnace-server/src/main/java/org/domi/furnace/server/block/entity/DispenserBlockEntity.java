@@ -10,4 +10,7 @@ public class DispenserBlockEntity extends ContainerBlockEntity {
     @Override public boolean isValid(int state) { return org.domi.furnace.server.block.B.is(state, "dispenser"); }
 
     @Override public String defaultTitleKey() { return "container.dispenser"; }
+
+
+    @Override protected boolean randomizable() { return true; }
 }

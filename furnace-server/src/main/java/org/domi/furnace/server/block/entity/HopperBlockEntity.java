@@ -41,6 +41,9 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
     @Override public String defaultTitleKey() { return "container.hopper"; }
 
+
+    @Override protected boolean randomizable() { return true; }
+
     @Override public boolean ticking() { return true; }
 
     @Override

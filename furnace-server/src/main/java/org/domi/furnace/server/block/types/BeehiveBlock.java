@@ -117,20 +117,6 @@ public class BeehiveBlock extends BaseEntityBlock {
         return FACING.with(defaultState(), Dir.NAME[Dir.opposite(ctx.horizontalDirection())]);
     }
 
-    /** setPlacedBy: 아이템의 bees 구성 요소를 블록 엔티티에 담는다(applyComponentsFromItemStack). */
-    @Override
-    public void setPlacedBy(BlockLevel level, Pos pos, int state, BlockActor placer, ItemStack stack) {
-        super.setPlacedBy(level, pos, state, placer, stack);
-        if (stack.patch().entries().get("minecraft:bees") instanceof List<?> list && level.getBlockEntity(pos) instanceof BeehiveBlockEntity hive) {
-            for (Object o : list) {
-                if (o instanceof java.util.Map<?, ?> m && m.get("ticks_in_hive") instanceof Number t && m.get("min_ticks_in_hive") instanceof Number mt) {
-                    var data = m.get("entity_data") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound c ? c.copy() : new org.domi.furnace.server.net.io.nbt.NbtCompound();
-                    hive.storeBee(new BeehiveBlockEntity.Occupant(data, t.intValue(), mt.intValue()));
-                }
-            }
-        }
-    }
-
     /** updateShape: 이웃 칸이 불이면 벌을 모두 비상으로 내보낸다. */
     @Override
     public int updateShape(int state, int dir, int neighborState, BlockLevel level, Pos pos, Pos neighborPos) {
@@ -149,5 +135,5 @@ public class BeehiveBlock extends BaseEntityBlock {
         }
     }
 
-    // TODO(전리품): 실크 터치 드롭과 크리에이티브 파괴 드롭에 bees·block_state 구성 요소 싣기(전리품 BLOCK_ENTITY 매개변수가 아직 없다).
+    // TODO(전리품): 크리에이티브 파괴 드롭(playerWillDestroy)에 bees·block_state 싣기. 실크 터치 드롭은 표의 copy_components 가 한다.
 }

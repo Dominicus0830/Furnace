@@ -59,7 +59,7 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
 
     @Override
     public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {
-        // TODO(블록엔티티·엔티티): 크리에이티브이고 내용물이 있으면 내용물 담은 셜커 상자 아이템을 떨군다, 아니면 전리품 풀기.
+        // TODO(엔티티): 크리에이티브이고 내용물이 있으면 collectComponents 를 담은 셜커 상자 아이템을 떨군다, 아니면 전리품 풀기.
         return super.playerWillDestroy(level, pos, state, player);
     }
 

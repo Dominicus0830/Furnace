@@ -292,8 +292,9 @@ public interface BlockLevel {
 
     // ------------------------------------------------------------------ 드롭(바닐라 Block.dropResources·getDrops·popExperience)
 
-    /** 그 블록의 전리품 표(BLOCK 문맥) 결과 — origin 은 칸 가운데. explosionRadius 가 null 이면 폭발 아님. */
-    default java.util.List<ItemStack> lootDrops(String lootTable, int state, Pos pos, BlockActor entity, ItemStack tool, Float explosionRadius) {
+    /** 그 블록의 전리품 표(BLOCK 문맥) 결과 — origin 은 칸 가운데. explosionRadius 가 null 이면 폭발 아님. blockEntity 는 collectComponents(없으면 null). */
+    default java.util.List<ItemStack> lootDrops(String lootTable, int state, Pos pos, BlockActor entity, ItemStack tool, Float explosionRadius,
+                                                java.util.Map<String, Object> blockEntity) {
         return java.util.List.of();
     }
 

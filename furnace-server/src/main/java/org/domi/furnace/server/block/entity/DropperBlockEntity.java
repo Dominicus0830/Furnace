@@ -10,4 +10,7 @@ public class DropperBlockEntity extends ContainerBlockEntity {
     @Override public boolean isValid(int state) { return org.domi.furnace.server.block.B.is(state, "dropper"); }
 
     @Override public String defaultTitleKey() { return "container.dropper"; }
+
+
+    @Override protected boolean randomizable() { return true; }
 }

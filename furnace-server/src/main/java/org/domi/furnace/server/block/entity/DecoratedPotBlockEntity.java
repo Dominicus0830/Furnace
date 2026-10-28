@@ -30,6 +30,27 @@ public class DecoratedPotBlockEntity extends ContainerBlockEntity {
 
     @Override public String defaultTitleKey() { return "block.minecraft.decorated_pot"; }
 
+    /** 바닐라 DecoratedPotBlockEntity: pot_decorations ↔ 조각, container 의 첫 아이템 ↔ 담긴 아이템(이름·잠금 없음). */
+    @Override
+    protected void applyImplicitComponents(ComponentInput in) {
+        setSherds(in.getOrDefault("minecraft:pot_decorations", java.util.List.of()) instanceof java.util.List<?> l ? l : java.util.List.of());
+        items[0] = firstOf(in.get("minecraft:container"));   // ItemContainerContents.copyOne: 0번 칸
+    }
+
+    private static ItemStack firstOf(Object container) {
+        if (container instanceof java.util.List<?> l && !l.isEmpty() && l.get(0) instanceof java.util.Map<?, ?> m && Integer.valueOf(0).equals(m.get("slot")) && m.get("item") instanceof java.util.Map<?, ?> it) {
+            @SuppressWarnings("unchecked") var item = (java.util.Map<String, Object>) it;
+            return org.domi.furnace.server.item.ItemStackCodecs.fromCanonical(item);
+        }
+        return ItemStack.EMPTY;
+    }
+
+    @Override
+    protected void collectImplicitComponents(java.util.Map<String, Object> out) {
+        out.put("minecraft:pot_decorations", new java.util.ArrayList<Object>(java.util.Arrays.asList(sherds)));
+        out.put("minecraft:container", containerOf(new ItemStack[] {items[0]}));
+    }
+
     public ItemStack theItem() { return items[0]; }
 
     public boolean isEmpty() { return items[0].isEmpty(); }
@@ -121,5 +142,5 @@ public class DecoratedPotBlockEntity extends ContainerBlockEntity {
 
     /** getUpdateTag(saveCustomOnly): 클라이언트가 면 무늬를 그리도록 sherds·item 을 그대로. */
     @Override
-    public NbtCompound updateTag() { return saveWithoutMetadata(); }
+    public NbtCompound updateTag() { return saveCustomOnly(); }
 }

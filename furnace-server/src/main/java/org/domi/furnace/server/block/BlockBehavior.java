@@ -101,7 +101,7 @@ public class BlockBehavior {
     /** Block.wasExploded: 폭발에 부서진 뒤(TNT 는 점화). */
     public void wasExploded(BlockLevel level, Pos pos, Explosion explosion) {}
 
-    /** BlockBehaviour.getDrops: 전리품 표가 비었으면 없음, 아니면 BLOCK 문맥(block_state = 이 상태)으로 평가. */
+    /** BlockBehaviour.getDrops: 전리품 표가 비었으면 없음, 아니면 BLOCK 문맥(block_state = 이 상태, block_entity = 파괴 직전 블록 엔티티)으로 평가. */
     public java.util.List<ItemStack> getDrops(int state, BlockLevel level, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool) {
         return getDrops(state, level, pos, blockEntity, entity, tool, null);
     }
@@ -111,7 +111,9 @@ public class BlockBehavior {
                                               Float explosionRadius) {
         String table = INFO.lootTable(block);
         if (table == null || table.equals("minecraft:empty")) return java.util.List.of();
-        return level.lootDrops(table, state, pos, entity, tool, explosionRadius);
+        // block_entity: 부르는 쪽(이 칸의 region 스레드)에서 컴포넌트를 모아 넘긴다
+        java.util.Map<String, Object> be = blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity b ? b.collectComponents() : null;
+        return level.lootDrops(table, state, pos, entity, tool, explosionRadius, be);
     }
 
     /** Block.handlePrecipitation(state, level, pos, "rain"|"snow"): 비·눈이 내린 칸(가마솥만 반응). */

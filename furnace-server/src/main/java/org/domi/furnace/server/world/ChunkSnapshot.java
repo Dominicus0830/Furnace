@@ -111,6 +111,13 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
                 tag.putString("LootTable", ce.lootTable);
                 if (ce.lootSeed != 0L) tag.putLong("LootTableSeed", ce.lootSeed);
             }
+            if (ce.customName != null || ce.lock != null || !ce.components().isEmpty()) {   // 이름·잠금·남은 컴포넌트
+                if (tag == null) tag = new NbtCompound();
+                if (ce.customName != null) tag.putString("CustomName", ce.customName);
+                if (ce.lock != null) tag.putString("Lock", ce.lock);
+                NbtCompound full = ce.saveWithoutMetadata();
+                if (full.tags().get("components") instanceof NbtCompound c) tag.putCompound("components", c);
+            }
             chests.add(new BlockEntitySnapshot(ce.x & 15, ce.y, ce.z & 15, CHEST_TYPE_ID, tag));
         }
         col.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> generated.add(new BlockEntitySnapshot(lx, y, lz, -1, nbt.copy())));

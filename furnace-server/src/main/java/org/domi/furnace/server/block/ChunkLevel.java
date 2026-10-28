@@ -316,10 +316,14 @@ public abstract class ChunkLevel implements BlockLevel {
         return ok;
     }
 
+    /** 서버 점수판(없으면 null). */
+    public org.domi.furnace.server.scores.ServerScoreboard scoreboard() { return services().scoreboard(); }
+
     @Override
-    public java.util.List<ItemStack> lootDrops(String lootTable, int state, Pos pos, BlockActor entity, ItemStack tool, Float explosionRadius) {
+    public java.util.List<ItemStack> lootDrops(String lootTable, int state, Pos pos, BlockActor entity, ItemStack tool, Float explosionRadius,
+                                            java.util.Map<String, Object> blockEntity) {
         return services().blockDrops(lootTable, state, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, tool,
-                entity == null ? null : entity.handle(), explosionRadius);
+                entity == null ? null : entity.handle(), explosionRadius, blockEntity);
     }
 
     @Override

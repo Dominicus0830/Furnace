@@ -21,4 +21,9 @@ public abstract class AbstractSkullBlock extends BaseEntityBlock {
         boolean signal = level.hasNeighborSignal(pos);
         if (signal != POWERED.is(state)) level.setBlock(pos, POWERED.with(state, signal), 2);
     }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.SkullBlockEntity(pos, state);
+    }
 }

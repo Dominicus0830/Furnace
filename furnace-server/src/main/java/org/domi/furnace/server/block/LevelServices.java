@@ -77,8 +77,11 @@ public interface LevelServices {
      * 블록 전리품(Block.getDrops — BLOCK 문맥): 그 전리품 표를 origin·tool·block_state·this_entity·explosion_radius 로 평가한다.
      * entity 는 Player(없으면 null), explosionRadius 가 null 이면 폭발 아님. 데이터 팩이 없으면 빈 목록.
      */
+    /** 서버 점수판(없으면 null) — 엔티티 Team 읽기용. */
+    default org.domi.furnace.server.scores.ServerScoreboard scoreboard() { return null; }
+
     default java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
-            org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) { return java.util.List.of(); }
+            org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius, java.util.Map<String, Object> blockEntity) { return java.util.List.of(); }
 
     /**
      * 엔티티 사망 전리품(LivingEntity.dropFromLootTable): 표를 this_entity·origin·damage_source·attacking_entity·last_damage_player 로 평가.
@@ -184,9 +187,10 @@ public interface LevelServices {
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }
         public ChunkLevel otherLevel(String dimension) { return d.otherLevel(dimension); }
         public DimensionTravel dimensionTravel() { return d.dimensionTravel(); }
+        public org.domi.furnace.server.scores.ServerScoreboard scoreboard() { return d.scoreboard(); }
         public java.util.List<org.domi.furnace.server.entity.ItemStack> blockDrops(String lootTable, int state, double x, double y, double z,
-                org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius) {
-            return d.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius);
+                org.domi.furnace.server.entity.ItemStack tool, Object entity, Float explosionRadius, java.util.Map<String, Object> blockEntity) {
+            return d.blockDrops(lootTable, state, x, y, z, tool, entity, explosionRadius, blockEntity);
         }
         public java.util.List<org.domi.furnace.server.entity.ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self,
                 double x, double y, double z, String damageType, Player attacker, Player lastPlayer, long seed) {

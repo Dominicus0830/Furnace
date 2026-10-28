@@ -38,12 +38,6 @@ public class DecoratedPotBlock extends BaseEntityBlock {
     @Override
     public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return new DecoratedPotBlockEntity(pos, state); }
 
-    /** 아이템의 pot_decorations 컴포넌트 → 블록 엔티티의 조각(바닐라 applyComponentsFromItemStack). */
-    @Override
-    public void setPlacedBy(BlockLevel level, Pos pos, int state, BlockActor placer, ItemStack stack) {
-        super.setPlacedBy(level, pos, state, placer, stack);
-        if (level.getBlockEntity(pos) instanceof DecoratedPotBlockEntity be && ItemTools.component(stack, "minecraft:pot_decorations") instanceof java.util.List<?> l) be.setSherds(l);
-    }
 
     @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {

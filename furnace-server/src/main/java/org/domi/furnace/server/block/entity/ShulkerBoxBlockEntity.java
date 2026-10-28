@@ -21,6 +21,9 @@ public class ShulkerBoxBlockEntity extends ContainerBlockEntity {
 
     @Override public String defaultTitleKey() { return "container.shulkerBox"; }
 
+
+    @Override protected boolean randomizable() { return true; }
+
     @Override protected boolean alwaysWriteItems() { return false; }
 
     public AnimationStatus animationStatus() { return status; }

@@ -75,11 +75,85 @@ public abstract class BlockEntity {
         return tag;
     }
 
+    /** saveWithoutMetadata: 종류별 필드 + 남은 컴포넌트("components", 비면 안 씀). */
     public NbtCompound saveWithoutMetadata() {
+        NbtCompound tag = saveCustomOnly();
+        if (!components.isEmpty()) tag.putCompound("components", org.domi.furnace.server.item.ComponentPatch.ofNormalized(components).toNbt());
+        return tag;
+    }
+
+    /** saveCustomOnly: 종류별 필드만(컴포넌트 없음). */
+    public NbtCompound saveCustomOnly() {
         NbtCompound tag = new NbtCompound();
         saveAdditional(tag);
         return tag;
     }
+
+    /** loadWithComponents 의 컴포넌트 부분: "components" 를 읽는다(잘못되면 바닐라처럼 건너뛴다). */
+    public void loadComponents(NbtCompound tag) {
+        if (!(tag.tags().get("components") instanceof NbtCompound c)) return;
+        try {
+            components = componentMap(org.domi.furnace.server.item.ComponentPatch.fromCodec(c).entries());
+        } catch (RuntimeException e) {
+            // Failed to load components
+        }
+    }
+
+    // ------------------------------------------------------------------ 컴포넌트(바닐라 BlockEntity.components·applyComponents·collectComponents)
+
+    /** 아이템에서 받았으나 이 종류가 읽지 않은 컴포넌트(이름 → 정규 값). */
+    private Map<String, Object> components = Map.of();
+
+    public Map<String, Object> components() { return components; }
+
+    public void setComponents(Map<String, Object> m) { components = componentMap(m); }
+
+    private static Map<String, Object> componentMap(Map<String, Object> m) {
+        java.util.LinkedHashMap<String, Object> out = new java.util.LinkedHashMap<>();
+        for (var e : m.entrySet()) if (e.getValue() != null) out.put(e.getKey(), e.getValue());
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /** DataComponentInput: 아이템의 실제 컴포넌트 값(기본값 + 패치)을 읽고, 읽은 종류를 적어 둔다. */
+    public interface ComponentInput {
+        Object get(String name);
+
+        default Object getOrDefault(String name, Object def) {
+            Object v = get(name);
+            return v == null ? def : v;
+        }
+    }
+
+    /**
+     * applyComponentsFromItemStack: 종류별로 읽고(applyImplicitComponents), 읽지 않은 패치의 추가 항목을 components 로 남긴다.
+     * block_entity_data 는 늘 읽은 것으로 친다.
+     */
+    public final void applyComponentsFromItemStack(org.domi.furnace.server.entity.ItemStack stack) {
+        java.util.Set<String> read = new java.util.HashSet<>();
+        read.add("minecraft:block_entity_data");
+        applyImplicitComponents(name -> {
+            read.add(name);
+            return org.domi.furnace.server.item.ItemTools.component(stack, name);
+        });
+        java.util.LinkedHashMap<String, Object> rest = new java.util.LinkedHashMap<>();
+        for (var e : stack.patch().entries().entrySet())
+            if (!read.contains(e.getKey()) && e.getValue() != null) rest.put(e.getKey(), e.getValue());
+        components = componentMap(rest);
+    }
+
+    /** collectComponents: 남은 컴포넌트 + 종류별 컴포넌트(뒤가 이긴다). 이 블록의 region 스레드에서만. */
+    public final Map<String, Object> collectComponents() {
+        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>(components);
+        collectImplicitComponents(m);
+        m.values().removeIf(java.util.Objects::isNull);
+        return m;
+    }
+
+    /** applyImplicitComponents: 종류별로 아이템 컴포넌트를 읽어 필드에. */
+    protected void applyImplicitComponents(ComponentInput in) {}
+
+    /** collectImplicitComponents: 종류별 필드를 컴포넌트로(null 은 넣지 않은 것과 같다). */
+    protected void collectImplicitComponents(Map<String, Object> out) {}
 
     /** getUpdateTag — 청크 패킷에 싣는 내용(바닐라 기본은 빈 태그 → 패킷에는 null). */
     public NbtCompound updateTag() { return new NbtCompound(); }
