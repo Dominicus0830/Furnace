@@ -27,6 +27,7 @@ public record DamageSourcePredicate(List<String[]> tags, EntityPredicate source,
         for (String[] t : tags) if (src.is(t[0]) != Boolean.parseBoolean(t[1])) return false;
         if (direct != null && !direct.matches(ctx, origin, src.directEntity())) return false;
         if (source != null && !source.matches(ctx, origin, src.entity())) return false;
-        return isDirect == null || isDirect == (src.entity() != null && src.entity() == src.directEntity());
+        // 바닐라 DamageSource.isDirect = causingEntity == directEntity (둘 다 없으면 참)
+        return isDirect == null || isDirect == (src.entity() == src.directEntity());
     }
 }

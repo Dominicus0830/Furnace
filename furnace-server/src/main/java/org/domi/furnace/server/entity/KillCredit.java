@@ -13,15 +13,41 @@ public final class KillCredit {
 
     private KillCredit() {}
 
-    /** 전리품 조건이 보는 엔티티(플레이어·살아 있는 것·그 밖은 종류와 위치만). */
+    /** 전리품 조건이 보는 엔티티(플레이어·살아 있는 것·그 밖은 종류와 위치만). 그 엔티티 소유 스레드에서 지금 값을 떠 둔다. */
     public static LootEntity lootOf(Rider r) {
         if (r == null) return null;
-        if (r instanceof Player p) return ServerCore.playerLootEntity(p);
-        if (r instanceof LivingEntity l) return l.lootEntity();
+        if (r instanceof Player p) return snapshot(ServerCore.playerLootEntity(p));
+        if (r instanceof LivingEntity l) return snapshot(l.lootEntity());
         String type = r.typeName();
+        double[] pos = {r.x(), r.y(), r.z()};
         return new LootEntity() {
             public String type() { return type; }
-            public double[] position() { return new double[]{r.x(), r.y(), r.z()}; }
+            public double[] position() { return pos; }
+        };
+    }
+
+    /**
+     * 다른 스레드(플레이어 주인)에서 나중에 볼 수 있게 값을 떠 둔 사본. 장비·종류별 값(typeSpecific)은 원본에 묻는다
+     * (가정: 처치 직후 한 틱 안에는 바뀌지 않는다).
+     */
+    public static LootEntity snapshot(LootEntity e) {
+        if (e == null) return null;
+        String type = e.type();
+        boolean fire = e.isOnFire(), crouch = e.isCrouching(), sprint = e.isSprinting(), swim = e.isSwimming(), baby = e.isBaby(), ground = e.onGround();
+        double[] pos = e.position() == null ? null : e.position().clone();
+        float luck = e.luck();
+        return new LootEntity() {
+            public String type() { return type; }
+            public boolean isOnFire() { return fire; }
+            public boolean isCrouching() { return crouch; }
+            public boolean isSprinting() { return sprint; }
+            public boolean isSwimming() { return swim; }
+            public boolean isBaby() { return baby; }
+            public boolean onGround() { return ground; }
+            public double[] position() { return pos; }
+            public float luck() { return luck; }
+            public org.domi.furnace.server.loot.LootStack equipment(String slot) { return e.equipment(slot); }
+            public Object typeSpecific(String key) { return e.typeSpecific(key); }
         };
     }
 
@@ -44,27 +70,38 @@ public final class KillCredit {
      */
     public static void award(Targetable killer, Rider killed, LootDamageSource source) {
         if (killer == null || killed == null) return;
+        // ServerPlayer.awardKillScore 는 killed != this 일 때만 super(Entity.awardKillScore) 와 본문을 한다 — 자살은 아무것도 없다
+        if (killer == killed) return;
+        // 값은 지금(죽는 쪽 스레드에서) 떠 두고, 플레이어 상태는 그 플레이어 주인 스레드에서 바꾼다
         // Entity.awardKillScore: 죽은 쪽이 플레이어면 그 플레이어에게 entity_killed_player(entity = killer)
         if (killed instanceof Player victim && killer instanceof Rider kr) {
-            var adv = victim.advancements();
-            if (adv != null) adv.triggerKill("minecraft:entity_killed_player", lootOf(kr), source);
+            LootEntity killerLoot = lootOf(kr);
+            victim.runOnOwner(() -> {
+                var adv = victim.advancements();
+                if (adv != null) adv.triggerKill("minecraft:entity_killed_player", killerLoot, source);
+            });
         }
-        if (!(killer instanceof Player p) || killer == killed) return;
-        // ServerPlayer.awardKillScore 본문. increaseScore(deathScore) 는 바닐라 deathScore 가 늘 0 이라 값이 바뀌지 않는다.
-        var board = p.scoreboard();
-        if (board != null) board.incrementCriteria(p, ObjectiveCriteria.KILL_COUNT_ALL);
-        if (killed instanceof Player) {
-            p.awardStat("minecraft:player_kills", 1);
-            if (board != null) board.incrementCriteria(p, ObjectiveCriteria.KILL_COUNT_PLAYERS);
-        } else {
-            p.awardStat("minecraft:mob_kills", 1);
-        }
-        if (board != null) {
-            ScoreHolder self = ScoreHolder.of(p), other = ScoreHolder.of(killed);
-            board.handleTeamKill(self, other.scoreboardName(), ObjectiveCriteria.TEAM_KILL);
-            board.handleTeamKill(other, self.scoreboardName(), ObjectiveCriteria.KILLED_BY_TEAM);
-        }
-        var adv = p.advancements();
-        if (adv != null) adv.triggerKill("minecraft:player_killed_entity", lootOf(killed), source);
+        if (!(killer instanceof Player p)) return;
+        boolean killedIsPlayer = killed instanceof Player;
+        String killedName = ScoreHolder.of(killed).scoreboardName();
+        LootEntity killedLoot = lootOf(killed);
+        p.runOnOwner(() -> {
+            // ServerPlayer.awardKillScore 본문. increaseScore(deathScore) 는 바닐라 deathScore 가 늘 0 이라 값이 바뀌지 않는다.
+            var board = p.scoreboard();
+            if (board != null) board.incrementCriteria(p, ObjectiveCriteria.KILL_COUNT_ALL);
+            if (killedIsPlayer) {
+                p.awardStat("minecraft:player_kills", 1);
+                if (board != null) board.incrementCriteria(p, ObjectiveCriteria.KILL_COUNT_PLAYERS);
+            } else {
+                p.awardStat("minecraft:mob_kills", 1);
+            }
+            if (board != null) {
+                ScoreHolder self = ScoreHolder.of(p), other = ScoreHolder.forNameOnly(killedName);
+                board.handleTeamKill(self, killedName, ObjectiveCriteria.TEAM_KILL);
+                board.handleTeamKill(other, self.scoreboardName(), ObjectiveCriteria.KILLED_BY_TEAM);
+            }
+            var adv = p.advancements();
+            if (adv != null) adv.triggerKill("minecraft:player_killed_entity", killedLoot, source);
+        });
     }
 }

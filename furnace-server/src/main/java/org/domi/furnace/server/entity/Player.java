@@ -933,6 +933,23 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (b != null) b.onStat(this, stat, amount);   // 바닐라 ServerPlayer.awardStat: 통계 기준 목표에 더한다
     }
 
+    /** 마지막으로 이 플레이어를 틱한 region(주인 판별용, 낡을 수 있다 — ownsPlayer 로 확인). */
+    public volatile org.domi.furnace.server.world.Region ownerRegion;
+    private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> ownerTasks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** 플레이어 소유 스레드에서 실행한다: 지금 주인 region 스레드면 바로, 아니면 다음 플레이어 틱에(순서 보존). */
+    public void runOnOwner(Runnable task) {
+        var r = ownerRegion;
+        if (r != null && ownerTasks.isEmpty() && r.ownsPlayer(this)) task.run();
+        else ownerTasks.add(task);
+    }
+
+    /** 주인 region 이 플레이어 틱마다 부른다. */
+    public void drainOwnerTasks() {
+        Runnable t;
+        while ((t = ownerTasks.poll()) != null) t.run();
+    }
+
     /** 바닐라 ServerPlayer.resetStat: 통계를 0 으로, 그 통계 기준 점수도 0. */
     public void resetStat(String stat) {
         var s = stats;

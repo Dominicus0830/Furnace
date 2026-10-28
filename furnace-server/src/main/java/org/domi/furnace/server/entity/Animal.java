@@ -113,9 +113,15 @@ public abstract class Animal extends AgeableMob {
         Player cause = loveCausePlayer();
         if (cause == null) cause = partner.loveCausePlayer();
         if (cause != null) {
-            cause.awardStat("minecraft:animals_bred", 1);
-            var adv = cause.advancements();
-            if (adv != null) adv.triggerBred(lootEntity(), partner.lootEntity(), child == null ? null : child.lootEntity());
+            Player c = cause;
+            var me = KillCredit.snapshot(lootEntity());
+            var mate = KillCredit.snapshot(partner.lootEntity());
+            var baby = child == null ? null : KillCredit.snapshot(child.lootEntity());
+            c.runOnOwner(() -> {
+                c.awardStat("minecraft:animals_bred", 1);
+                var adv = c.advancements();
+                if (adv != null) adv.triggerBred(me, mate, baby);
+            });
         }
         setAge(6000);
         partner.setAge(6000);

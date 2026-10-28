@@ -74,8 +74,11 @@ public abstract class TamableAnimal extends Animal {
     public void tame(Player p) {
         setTame(true, true);
         setOwnerUUID(p.uuid());
-        var adv = p.advancements();   // 바닐라 TamableAnimal.tame: tame_animal
-        if (adv != null) adv.triggerTame(lootEntity());
+        var me = KillCredit.snapshot(lootEntity());   // 바닐라 TamableAnimal.tame: tame_animal
+        p.runOnOwner(() -> {
+            var adv = p.advancements();
+            if (adv != null) adv.triggerTame(me);
+        });
     }
 
     public boolean isOwnedBy(Targetable t) { return t != null && t == getOwner(); }

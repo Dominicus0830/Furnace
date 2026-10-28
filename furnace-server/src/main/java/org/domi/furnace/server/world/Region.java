@@ -92,6 +92,9 @@ public final class Region {
     /** 지금 스레드가 이 region 을 돌리고 있는가. */
     public boolean isOwnerThread() { return tickThread == Thread.currentThread(); }
 
+    /** 이 region 스레드에서만: 그 플레이어가 지금 이 region 소속인가. */
+    public boolean ownsPlayer(Player p) { return isOwnerThread() && players.get(p.entityId()) == p; }
+
     private Regionizer rz() { return world.regionizer(); }
 
     // ------------------------------------------------------------------ 틱(Regionizer 작업 스레드)
@@ -602,7 +605,8 @@ public final class Region {
         if (dirtyChunks.isEmpty()) return;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
-            if (world.ioBackedUp()) { autosaveChunkQueue.addFirst(cp); return; }   // 레인이 밀렸다 — 다음 틱에
+            // 레인이 밀렸다 — 남은 dirty 청크(cp 포함, 아직 지우지 않았다)를 자동 저장 큐로 넘겨 다음 틱부터 나눠 저장
+            if (world.ioBackedUp()) { autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks); return; }
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
@@ -633,8 +637,9 @@ public final class Region {
     private long saveDeadline;
 
     private void stepAutosave() {
+        // 퇴출이 예산을 다 써도 틱마다 적어도 하나는 저장한다(아니면 자동 저장이 영영 진행되지 않을 수 있다). 마감은 처리 뒤에 본다.
         long deadline = saveDeadline;
-        if (System.nanoTime() > deadline || world.ioBackedUp()) return;
+        if (world.ioBackedUp()) return;
         Long key;
         while (autosaveEntityQueue != null && (key = autosaveEntityQueue.poll()) != null) {
             if (world.ioBackedUp()) { autosaveEntityQueue.addFirst(key); return; }
@@ -895,6 +900,8 @@ public final class Region {
             if (moved) checkInsideCampfires(p);
             p.drainPending();
             p.currentLevel = level;
+            p.ownerRegion = this;
+            p.drainOwnerTasks();   // 다른 스레드가 맡긴 플레이어 작업(발전 과제·통계·점수) — 주인 스레드에서
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
             p.sendPendingKnockback();   // hurtMarked 가 선 틱에만 속도 패킷 한 번

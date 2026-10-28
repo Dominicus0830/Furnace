@@ -226,6 +226,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
             if (attacker instanceof Player pl) {
                 lastHurtByPlayerTime = 100;
                 lastHurtByPlayer = pl;
+            } else if (attacker instanceof Wolf wolf && wolf.isTame()) {   // 바닐라: 길들인 늑대가 때리면 주인(플레이어면)에게 크레딧
+                lastHurtByPlayerTime = 100;
+                lastHurtByPlayer = wolf.getOwner();
             }
         }
         if (fresh && (attacker != null || pendingDirect != null || pendingPos != null) && !DamageType.byKey(source.type()).noKnockback()) {
@@ -655,7 +658,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
         }
         dead = true;
         // damageSource.getEntity().killedEntity: false 면 드롭 없음(좀비가 주민을 감염시킴). Player.killedEntity 는 killed:<종류> 통계 후 true.
-        if (damageSourceEntity() instanceof Player pk) pk.awardStat("minecraft:killed:" + type.name(), 1);
+        if (damageSourceEntity() instanceof Player pk) {
+            String stat = "minecraft:killed:" + type.name();
+            pk.runOnOwner(() -> pk.awardStat(stat, 1));
+        }
         boolean drops = !(damageSourceEntity() instanceof Mob killer) || killer.killedEntity(this);
         if (drops) {
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);   // 스컬크 촉매가 여기서 경험치를 가져간다

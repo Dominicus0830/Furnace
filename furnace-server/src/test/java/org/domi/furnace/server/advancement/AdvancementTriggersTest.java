@@ -186,8 +186,14 @@ class AdvancementTriggersTest {
         blue.color(ChatFormatting.BLUE);
         board.addPlayerToTeam("V", red);
         board.addPlayerToTeam("K", blue);
-        KillCredit.award(killer, victim, KillCredit.source("minecraft:player_attack", killer, killer));
         ScoreHolder k = ScoreHolder.forNameOnly("K"), v = ScoreHolder.forNameOnly("V");
+        // 다른 region(주인 아닌 스레드)에서 죽었다: 킬러 상태는 그 자리에서 바뀌지 않고 킬러 주인 틱에 반영된다
+        Thread other = new Thread(() -> KillCredit.award(killer, victim, KillCredit.source("minecraft:player_attack", killer, killer)));
+        other.start();
+        try { other.join(); } catch (InterruptedException e) { throw new AssertionError(e); }
+        assertNull(board.getPlayerScoreInfo(k, total), "주인 스레드 밖에서는 바로 바꾸지 않는다");
+        killer.drainOwnerTasks();
+        victim.drainOwnerTasks();
         assertEquals(1, board.getPlayerScoreInfo(k, total).value());
         assertEquals(1, board.getPlayerScoreInfo(k, players).value());
         assertEquals(1, board.getPlayerScoreInfo(k, tk).value());
@@ -196,6 +202,7 @@ class AdvancementTriggersTest {
         assertNull(board.getPlayerScoreInfo(v, total), "죽은 쪽은 처치 수가 없다");
         // 자기 자신을 죽인 것은 세지 않는다(ServerPlayer.awardKillScore 의 killed != this)
         KillCredit.award(killer, killer, KillCredit.source("minecraft:player_attack", killer, killer));
+        killer.drainOwnerTasks();
         assertEquals(1, board.getPlayerScoreInfo(k, total).value());
     }
 }
