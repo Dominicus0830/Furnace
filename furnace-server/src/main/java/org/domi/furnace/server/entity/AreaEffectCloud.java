@@ -15,6 +15,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class AreaEffectCloud extends Entity {
+
+    /** getPistonPushReaction = IGNORE. */
+    @Override
+    public boolean ignoresPistonPush() { return true; }
+
     public static final int DATA_RADIUS = 8, DATA_WAITING = 9, DATA_PARTICLE = 10;
     private static final int ENTITY_EFFECT_PARTICLE = 20;
     public static final int DRAGON_BREATH_PARTICLE = 7;

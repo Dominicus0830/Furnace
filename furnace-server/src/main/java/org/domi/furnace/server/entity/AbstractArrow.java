@@ -201,6 +201,13 @@ public abstract class AbstractArrow extends Projectile {
 
     protected String defaultHitGroundSound() { return "entity.arrow.hit"; }
 
+    /** 스스로가 아닌 이동(피스톤 등)으로 박힌 곳에서 떨어지면 떨어지기 시작한다. */
+    @Override
+    public void move(int mover, double dx, double dy, double dz) {
+        super.move(mover, dx, dy, dz);
+        if (mover != MOVER_SELF && shouldFall()) startFalling();
+    }
+
     private boolean shouldFall() {
         return inGround && level.noCollision(boundingBox().inflate(0.06));
     }

@@ -9,6 +9,11 @@ import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public abstract class Display extends Entity {
+
+    /** getPistonPushReaction = IGNORE. */
+    @Override
+    public boolean ignoresPistonPush() { return true; }
+
     public static final int DATA_START_DELTA = 8, DATA_INTERPOLATION = 9, DATA_TELEPORT = 10, DATA_TRANSLATION = 11, DATA_SCALE = 12, DATA_LEFT_ROT = 13, DATA_RIGHT_ROT = 14,
             DATA_BILLBOARD = 15, DATA_BRIGHTNESS = 16, DATA_VIEW_RANGE = 17, DATA_SHADOW_RADIUS = 18, DATA_SHADOW_STRENGTH = 19, DATA_WIDTH = 20, DATA_HEIGHT = 21, DATA_GLOW = 22;
     private static final String[] BILLBOARDS = {"fixed", "vertical", "horizontal", "center"};

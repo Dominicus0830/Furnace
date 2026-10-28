@@ -92,6 +92,10 @@ public class ArmorStand extends LivingEntity {
 
     public boolean isMarker() { return flag(FLAG_MARKER); }
 
+    /** getPistonPushReaction: 마커면 IGNORE. */
+    @Override
+    public boolean ignoresPistonPush() { return isMarker(); }
+
     public void setMarker(boolean v) {
         setFlag(FLAG_MARKER, v);
         noPhysics = isMarker() || isNoGravity();

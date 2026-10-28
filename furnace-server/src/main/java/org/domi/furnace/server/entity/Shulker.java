@@ -125,10 +125,10 @@ public class Shulker extends AbstractGolem implements Enemy {
         if (ey < 0) minY += ey; else maxY += ey;
         if (ez < 0) minZ += ez; else maxZ += ez;
         double cx = -Dir.DX[dir] * (1.0 + d1) * size, cy = -Dir.DY[dir] * (1.0 + d1) * size, cz = -Dir.DZ[dir] * (1.0 + d1) * size;   // contract
-        if (cx > 0) minX += cx; else if (cx < 0) maxX += cx;
-        if (cy > 0) minY += cy; else if (cy < 0) maxY += cy;
-        if (cz > 0) minZ += cz; else if (cz < 0) maxZ += cz;
-        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
+        if (cx < 0) minX -= cx; else if (cx > 0) maxX -= cx;   // AABB.contract: 음수면 min 을, 양수면 max 를 줄인다
+        if (cy < 0) minY -= cy; else if (cy > 0) maxY -= cy;
+        if (cz < 0) minZ -= cz; else if (cz > 0) maxZ -= cz;
+        return AABB.of(minX, minY, minZ, maxX, maxY, maxZ);   // new AABB 는 min/max 를 정렬한다
     }
 
     @Override
@@ -185,7 +185,7 @@ public class Shulker extends AbstractGolem implements Enemy {
 
     @Override
     public void move(int mover, double dx, double dy, double dz) {
-        if (mover == MOVER_PISTON) teleportSomewhere();
+        if (mover == MOVER_SHULKER_BOX) teleportSomewhere();   // 바닐라 MoverType.SHULKER_BOX 일 때만(피스톤은 그냥 밀린다)
         else super.move(mover, dx, dy, dz);
     }
 
