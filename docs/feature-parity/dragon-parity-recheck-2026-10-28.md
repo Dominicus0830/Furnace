@@ -36,7 +36,7 @@
 | 14 | DragonRespawnAnimation SUMMONING_PILLARS | 기둥 주변 ±10 지우기가 betweenClosed 순서(x 가장 빠름, y, z) | x 바깥, z 안쪽 | 고침 |
 | 15 | EndDragonFight.Data | `IsRespawning` 은 `lenientOptionalFieldOf(기본 false)` 이고 저장 값이 언제나 false 라 키를 쓰지 않는다. 읽어서 true 면 START | 읽지 않음 | 고침(읽기만, 쓰지 않음 — 검토 반영) |
 | 16 | EndDragonFight.hasActiveExitPortal | 청크 (-8..8)² 의 TheEndPortalBlockEntity(관문 블록 엔티티 포함) 가 하나라도 있으면 true | 받침대 둘레 5×5 에 end_portal 블록이 있는가 | **못 고침**: Furnace 에 end_portal·end_gateway 블록 엔티티가 없다 |
-| 17 | 투사체·폭발 → 파트 | Level.getEntities 가 드래곤 파트를 포함 → 화살·폭발이 파트(머리면 배율 없음)에 맞는다 | 엔티티 조회에 파트가 없고 본체는 isPickable=false 라 투사체가 드래곤을 **통과**한다. 폭발은 본체(몸통 배율)로 맞는다 | **못 고침**(구조적: 엔티티 조회 전체에 파트 추가 필요) |
+| 17 | 투사체·폭발 → 파트 | Level.getEntities 가 드래곤 파트를 포함 → 화살·폭발이 파트(머리면 배율 없음)에 맞는다 | 엔티티 조회에 파트가 없고 본체는 isPickable=false 라 투사체가 드래곤을 **통과**한다. 폭발은 본체(몸통 배율)로 맞는다 | 고침(2차 커밋, 아래 "파트 판정") |
 | 18 | knockBack/hurtAll 피해 후 | `EnchantmentHelper.doPostAttackEffects` | 없음 | 못 고침(마법 부여 후처리 경로 없음) |
 | 19 | 날개·머리 대상 순서 | 섹션 순 한 목록(플레이어 섞임) | 엔티티 뒤 플레이어 | 기존 가정 유지 |
 | 20 | updateDragon | 드래곤에 사용자 이름이 있으면 보스 바 이름을 그것으로 | 없음 | 못 고침(Entity.hasCustomName 이 언제나 false) |
@@ -57,3 +57,12 @@
 
 ## 시험
 `DragonParityRecheckTest`: 잘못된 저장 단계 → HOLDING_PATTERN, 앉은 단계 WindCharge 무시, 무적 드래곤도 단계 onHurt 실행, 파트 불 면역·무적 표시 없음, 수정 파괴 출처 없는 플레이어 탐색(64 밖), 화염구 구름 플레이어 자리, 첫 틱 보스 바·IsRespawning 읽기, 앉은 단계 전이 시나리오(둘러보기→공격→숨결 ×4→이륙→맴돌기), 아무도 없으면 100틱 뒤 이륙.
+
+## 파트 판정 (2차, 검토 설계안)
+- EnderDragonPart 는 가벼운 Targetable: 레벨·저장·추적·틱 목록에 없고 isPickable=true, 몹 AI 겨냥 대상 아님(canBeSeenAsEnemy=false). 클라이언트는 본체 스폰 패킷 id+1..8 로 직접 만든다(본체 nextEntityIds(9) 유지).
+- 투사체(Projectile.findHitEntity): 조회에 드래곤이 잡히면 바로 뒤에 파트 8개를 상자 검사 없이 후보로(바닐라 Level.getEntities). 0.3 키운 파트 상자로 선분 대조. 맞으면 Projectile.onHit 가 주인(플레이어 포함)·투사체를 파트에 실어 각 투사체의 hurtByMob 경로가 그대로 본체 hurt(파트, …)로 간다 — 앉은 단계의 화살·돌풍구 처리도 동작.
+- 폭발(Explosion): 엔티티 반복에서 드래곤 바로 뒤에 파트마다 자기 위치·상자·눈높이(0.85h)로 피해, 밀림 생략. 중복 피해는 LivingEntity 무적 시간 규칙이 거른다. 계산기(shouldDamageEntity)는 부모로 판정(근사).
+- setLastHurtMob 에 파트가 오면 null(바닐라: LivingEntity 가 아니면 null).
+- 근접 공격(파트): 바닐라 handleInteract 의 canInteractWithEntity(상자, 1.0) = 상자–눈 거리² < 16 으로 바꿨다(다른 엔티티의 눈–발 거리² < 36 판정은 그대로 — 남은 차이).
+- 바닐라와 같은 특이점: 섹션 조회는 상자 ±2 만 넓혀, 드래곤 중심 청크와 먼 쪽에서 오는 투사체는 드래곤 자체가 안 잡혀 파트도 못 맞힌다.
+- region 경계: 파트는 부모와 같은 region 상태이고 조회는 기존 엔티티 조회의 region 범위를 따른다(다른 region 의 드래곤은 기존 엔티티처럼 보이지 않는다 — 가정, 별도 시험 없음).

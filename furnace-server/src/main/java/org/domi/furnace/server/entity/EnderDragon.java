@@ -482,8 +482,21 @@ public class EnderDragon extends Mob implements Enemy {
 
     @Override
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
-        // 바닐라 EnderDragon.hurt: 무적 검사 없이 몸통으로 넘긴다(무적은 reallyHurt 의 LivingEntity.hurt 가 본다)
-        return hurt(body, source, amount, attacker);
+        // 바닐라 EnderDragon.hurt: 무적 검사 없이 몸통으로 넘긴다(무적은 reallyHurt 의 LivingEntity.hurt 가 본다).
+        // 파트에서 온 피해(hurtPart)면 그 파트로
+        return hurt(pendingPart != null ? pendingPart : body, source, amount, attacker);
+    }
+
+    private EnderDragonPart pendingPart;
+
+    /** 파트가 맞았다: 직접 원인을 실어(hurtByVia) 그 파트 배율로. */
+    boolean hurtPart(EnderDragonPart part, Damage source, float amount, Targetable attacker, Entity direct) {
+        pendingPart = part;
+        try {
+            return hurtByVia(source, amount, attacker, direct);
+        } finally {
+            pendingPart = null;
+        }
     }
 
     /** hurt(part, source, damage): 단계 보정 → 머리 아니면 /4 + min(d, 1) → 플레이어·특수 피해만 깎는다. 체력이 다하면 1 로 두고 DYING. */

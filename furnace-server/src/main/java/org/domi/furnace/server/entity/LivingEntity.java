@@ -577,7 +577,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     @Override public int getLastHurtMobTimestamp() { return lastHurtMobTimestamp; }
 
     public void setLastHurtMob(Targetable t) {
-        lastHurtMob = t;
+        lastHurtMob = t instanceof EnderDragonPart ? null : t;   // 바닐라: LivingEntity 가 아니면 null
         lastHurtMobTimestamp = tickCount;
     }
 

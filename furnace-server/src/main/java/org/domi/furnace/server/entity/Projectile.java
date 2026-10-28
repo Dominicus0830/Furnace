@@ -142,8 +142,14 @@ public abstract class Projectile extends Entity {
         double bestD = Double.MAX_VALUE;
         Targetable bestT = null;
         double[] bestP = null;
+        // 바닐라 Level.getEntities: 드래곤이 잡히면 바로 뒤에 파트 8개를 상자 검사 없이 조건만으로 붙인다
+        java.util.List<Targetable> cands = new java.util.ArrayList<>();
         for (Entity e : level.getEntities(this, box, x -> true)) {
-            if (!(e instanceof Targetable t) || !canHitTarget(t) || !shouldHit(t)) continue;
+            if (e instanceof Targetable t) cands.add(t);
+            if (e instanceof EnderDragon d) java.util.Collections.addAll(cands, d.subEntities);
+        }
+        for (Targetable t : cands) {
+            if (!canHitTarget(t) || !shouldHit(t)) continue;
             double[] p = clipTarget(t, fx, fy, fz, tx, ty, tz);
             if (p == null) continue;
             double d = (p[0] - fx) * (p[0] - fx) + (p[1] - fy) * (p[1] - fy) + (p[2] - fz) * (p[2] - fz);
@@ -179,6 +185,16 @@ public abstract class Projectile extends Entity {
     }
 
     protected void onHit(Hit hit) {
+        if (hit.target() instanceof EnderDragonPart part) {
+            // 파트는 Entity·LivingEntity 가 아니라 각 투사체가 hurtByMob 으로 부른다 — 주인(플레이어 포함)·투사체를 실어 둔다
+            part.beginProjectileHit(getOwner(), this);
+            try {
+                onHitEntity(hit);
+            } finally {
+                part.endProjectileHit();
+            }
+            return;
+        }
         if (hit.isEntity()) onHitEntity(hit);
         else onHitBlock(hit);
     }
