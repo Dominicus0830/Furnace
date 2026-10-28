@@ -176,6 +176,19 @@ final class PaletteStorage {
         return c;
     }
 
+    /**
+     * 읽기 전용 사본(C-5): 팔레트·비트 저장소만 복사하고 역맵은 비운다. {@link #get}·{@link #unpack} 만 부른다 —
+     * set·load 를 부르면 역맵이 없는 큰 팔레트에서 선형 탐색으로 떨어질 뿐 결과는 같지만, 스냅샷은 고치지 않는다.
+     */
+    PaletteStorage readCopy() {
+        PaletteStorage c = new PaletteStorage(size, minIndirect, maxIndirect, directBits, singleValue);
+        c.bits = bits;
+        c.palette = palette == null ? null : palette.clone();
+        c.paletteSize = paletteSize;
+        c.storage = storage == null ? null : storage.copy();
+        return c;
+    }
+
     // 서로 다른 값 수(상한 cap 을 넘으면 cap+1). 해시 집합으로 세고 결과는 예전 선형 탐색과 같다.
     private int countDistinct(int[] src, int offset) {
         int cap = Math.min(size, (1 << maxIndirect) + 1);
