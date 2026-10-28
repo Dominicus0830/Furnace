@@ -458,6 +458,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (neighbor == null) return;
         debugSetBlockCalls++;
         neighbor.setBlock(worldX - nx * 16, worldY, worldZ - nz * 16, stateId);
+        if (writeLog != null) writeLog.add(new long[]{worldX, worldY, worldZ});
     }
 
     private int getGridSurfaceY(int worldX, int worldZ) {
@@ -501,6 +502,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return 0;
+        if (lazyFill != null && gridCols[gridIndex(nx, nz)] == null) lazyFill.accept(gridIndex(nx, nz));
         int[] neighborBiomeIds = biomeIdsGrid[gridIndex(nx, nz)];
         if (neighborBiomeIds == null) return 0;
         int qx = (worldX - nx * 16) >> 2;
@@ -525,9 +527,24 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
     /** 격자 칸의 청크(없으면 null). /place 라이브 격자에서는 없는 칸에 닿은 횟수를 센다. */
     private ChunkColumn cell(int chunkX, int chunkZ) {
-        ChunkColumn c = gridCols[gridIndex(chunkX, chunkZ)];
+        int idx = gridIndex(chunkX, chunkZ);
+        if (lazyFill != null && gridCols[idx] == null) lazyFill.accept(idx);
+        ChunkColumn c = gridCols[idx];
         if (c == null && live) missingAccess++;
         return c;
+    }
+
+    // 블록 쪽(묘목·뼛가루) 라이브 격자: 칸 청크를 처음 닿을 때 복사하고(idx → gridCols/biomeIdsGrid 채움), 쓴 칸을 순서대로 남긴다.
+    private java.util.function.IntConsumer lazyFill;
+    private java.util.List<long[]> writeLog;
+
+    /** 블록 레벨용 라이브 격자: 중심 칸만 미리 채우고 나머지는 lazyFill 이 처음 닿을 때 채운다. 쓴 칸은 writeLog 에 쌓인다. */
+    public static FeatureWorldView lazyLiveGrid(ChunkColumn[] grid, int[][] biomeIdsGrid, int centerX, int centerZ, int radius, long worldSeed,
+            java.util.function.IntConsumer lazyFill, java.util.List<long[]> writeLog) {
+        FeatureWorldView v = liveGrid(grid, biomeIdsGrid, centerX, centerZ, radius, worldSeed);
+        v.lazyFill = lazyFill;
+        v.writeLog = writeLog;
+        return v;
     }
 
     /** /place 라이브 격자: 범위 밖·로드 안 된 청크를 읽거나 쓴 횟수(0 이 아니면 결과를 믿을 수 없다). */

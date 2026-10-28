@@ -18,6 +18,17 @@ public class LegacyRandom implements org.domi.furnace.server.world.gen.noise.Noi
     /** 디버그: 내부 48비트 상태(바닐라 AtomicLong 시드와 동일 표현). */
     public long debugState() { return seed; }
 
+    /** 블록 쪽 레벨 난수와 상태를 주고받는다(같은 LCG — 월드에서 feature 를 놓을 때 레벨 난수를 그대로 이어 쓰기 위해). */
+    public boolean gaussianPending() { return haveNextNextGaussian; }
+
+    public double pendingGaussian() { return nextNextGaussian; }
+
+    public void restoreState(long rawSeed, boolean haveGaussian, double gaussian) {
+        this.seed = rawSeed & MASK;
+        this.haveNextNextGaussian = haveGaussian;
+        this.nextNextGaussian = gaussian;
+    }
+
     public void setSeed(long seed) {
         this.seed = (seed ^ MULTIPLIER) & MASK;
         this.haveNextNextGaussian = false;   // 바닐라 LegacyRandomSource.setSeed → gaussianSource.reset()

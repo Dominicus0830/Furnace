@@ -283,3 +283,9 @@
 - 바닐라 EndDragonFight.isArenaLoaded 는 안쪽 반복 오타(`z = 8 + cz; z <= 8 + cz`)로 x -8..8, z +8 한 줄만 본다. "고쳐서" 전체를 보면 parity 가 깨진다.
 - `TargetingConditions.test` 는 출처가 null 이면 거리·투명 검사를 건너뛴다. 수정 파괴 시 플레이어 찾기는 출처 없이 부른다(거리 무제한).
 - 앉은 단계는 화살뿐 아니라 WindCharge 도 불붙이고 무시한다. 상세: `dragon-parity-recheck-2026-10-28.md`.
+## 2026-10-28 묘목·뼛가루 지형 생성 연결(TreeGrower, 감사 H3/3-1/3-2)
+- 블록 쪽 훅: `BlockLevel.configuredFeature/placedFeature/biomeFlowerFeature/placeFeature`. 구현은 `world/LiveFeatures` — 그 칸 region 스레드에서 실제 청크 복사본(±1 청크, 처음 닿는 청크만 복사)에 월드젠 feature 를 돌리고 **쓴 칸만 쓴 순서대로** `setBlock(flag 3)` 으로 옮긴다.
+- 난수: 레벨 난수(LegacyRandomSource) 48비트 상태·가우스 보관값을 WorldgenRandom 으로 옮겨 돌리고 되돌린다. 같은 LCG 라 소비 순서가 바닐라와 같다. LegacyRandomSource 가 아닌 난수(시험용)만 nextLong 시드로 대신한다.
+- TreeGrower 는 바닐라 그대로: 큰 나무 고르기(보조 큰 나무 있을 때만 nextFloat) → 2×2 를 (0,0),(0,-1),(-1,0),(-1,-1) 순으로 찾아 4칸 공기(flag 4) → 실패면 4칸 원래 묘목 → 아니면 hasFlowers(±2,±1) 계산 뒤 nextFloat(항상) 로 보조/꽃 변형. 일반 경로는 자리에 유체 레거시 블록(flag 4) 후 놓고 실패면 묘목으로.
+- 미구현(Noop 이 하위에 있는) feature 를 고르면 묘목·블록을 건드리지 않는다(다른 나무로 대신 키우지 않음). 2026-10-28 기준 대상 27개 configured + grass_bonemeal + 8개 바이옴 꽃 feature 는 모두 구현돼 있다(`SaplingBonemealGrowthTest.neededFeaturesAreImplemented`).
+- 바닐라와 다른 점: (1) 나무도 flag 3 으로 옮긴다(바닐라 TreeFeature 는 19 + 가장자리 updateShapeAtEdge) — 이웃 모양 갱신 횟수·순서 차이, (2) feature 가 다른 region·미로드 청크에 닿으면 아무것도 옮기지 않는다(난수는 이미 소비, 묘목 유지 — 바닐라는 그 청크를 불러 놓는다), (3) 잔디 뼛가루의 바이옴 조회(biomeAt)가 다른 region 칸이면 null → 그 시도는 꽃을 건너뛴다. 바닐라 실서버와의 블록 단위 대조는 아직 안 했다(oracle 불가 환경) — 나무 모양 자체는 월드젠 fixture 로 검증된 TreeFeature 를 그대로 쓴다는 가정.

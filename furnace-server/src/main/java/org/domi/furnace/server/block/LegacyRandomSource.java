@@ -15,6 +15,19 @@ public final class LegacyRandomSource implements RandomSource {
         haveNextNextGaussian = false;
     }
 
+    /** 내부 48비트 상태와 가우스 보관값(지형 생성 난수와 상태를 주고받을 때). */
+    public long rawState() { return seed; }
+
+    public boolean gaussianPending() { return haveNextNextGaussian; }
+
+    public double pendingGaussian() { return nextNextGaussian; }
+
+    public void restoreState(long rawSeed, boolean haveGaussian, double gaussian) {
+        seed = rawSeed & MASK;
+        haveNextNextGaussian = haveGaussian;
+        nextNextGaussian = gaussian;
+    }
+
     private int next(int bits) {
         seed = seed * MULT + ADD & MASK;
         return (int) (seed >> 48 - bits);

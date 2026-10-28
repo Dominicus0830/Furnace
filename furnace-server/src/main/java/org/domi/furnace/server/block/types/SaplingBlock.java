@@ -14,10 +14,12 @@ public class SaplingBlock extends BushBlock implements BonemealableBlock {
 
     /** TreeGrower 이름(oak/spruce/…/mangrove/azalea). */
     protected final String tree;
+    private final TreeGrower.Spec grower;
 
     public SaplingBlock(int block) {
         super(block);
         this.tree = Blocks.get().params(block).get("tree").getAsString();
+        this.grower = TreeGrower.of(tree);
     }
 
     @Override
@@ -30,8 +32,7 @@ public class SaplingBlock extends BushBlock implements BonemealableBlock {
         if (STAGE.intValue(state) == 0) {
             level.setBlock(pos, STAGE.cycle(state), 4);
         } else {
-            // TODO(지형 생성 연결): TreeGrower.growTree(level, chunkGenerator, pos, state, random) — 큰 나무(2×2)·벌집·꽃 변형을 고르고
-            //   TreeFeature 로 놓는다(못 놓으면 묘목 그대로).
+            TreeGrower.growTree(grower, level, pos, state, random);
         }
     }
 

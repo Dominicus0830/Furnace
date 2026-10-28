@@ -50,8 +50,8 @@ import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.ConfiguredFeature;
+import org.domi.furnace.server.world.gen.feature.FeatureSupport;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
-import org.domi.furnace.server.world.gen.feature.NoopFeature;
 import org.domi.furnace.server.world.gen.structure.BoundingBox;
 import org.domi.furnace.server.world.gen.structure.JigsawPiece;
 import org.domi.furnace.server.world.gen.structure.JigsawStructure;
@@ -299,32 +299,7 @@ public final class PlaceCommand {
     }
 
     /** feature 트리(필드로 이어진 ConfiguredFeature·PlacedFeature·목록)에 Noop 이 있는가. */
-    static boolean containsNoop(Object o, java.util.Set<Object> seen) {
-        if (o == null || !seen.add(o)) return false;
-        if (o instanceof NoopFeature) return true;
-        if (o instanceof Iterable<?> it) {
-            for (Object e : it) if (containsNoop(e, seen)) return true;
-            return false;
-        }
-        if (o instanceof Object[] arr) {
-            for (Object e : arr) if (containsNoop(e, seen)) return true;
-            return false;
-        }
-        if (o instanceof java.util.Map<?, ?> m) return containsNoop(m.values(), seen);
-        if (!o.getClass().getName().startsWith("org.domi.furnace.server.world.gen.feature")) return false;
-        for (Class<?> c = o.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            for (java.lang.reflect.Field f : c.getDeclaredFields()) {
-                if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
-                try {
-                    f.setAccessible(true);
-                    if (containsNoop(f.get(o), seen)) return true;
-                } catch (ReflectiveOperationException | RuntimeException e) {
-                    // 읽지 못하는 필드는 건너뛴다
-                }
-            }
-        }
-        return false;
-    }
+    static boolean containsNoop(Object o, java.util.Set<Object> seen) { return FeatureSupport.containsNoop(o, seen); }
 
     /** StructureBlockEntity.createRandom: 0 이면 현재 시각 시드. */
     private static LegacyRandom createRandom(long seed) {

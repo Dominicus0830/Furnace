@@ -196,6 +196,26 @@ public interface BlockLevel {
     /** Level.isRainingAt(pos): 비가 오고, 하늘이 보이고, 그 바이옴이 비가 오는 곳. 기본 구현은 거짓(ChunkLevel 이 덮어쓴다). */
     default boolean isRainingAt(Pos pos) { return false; }
 
+    // ------------------------------------------------------------------ 지형 생성 기능(묘목·뼛가루)
+
+    /** registry 의 configured feature(없으면 null). 레지스트리에 없는 것과 미구현(supported()=false)을 구분한다. */
+    default LevelFeature configuredFeature(String id) { return null; }
+
+    /** registry 의 placed feature(없으면 null). */
+    default LevelFeature placedFeature(String id) { return null; }
+
+    /** 그 바이옴의 첫 꽃 feature 의 내부 placed feature(getFlowerFeatures().get(0).config().feature()). 없으면 null. */
+    default LevelFeature biomeFlowerFeature(String biome) { return null; }
+
+    /**
+     * ConfiguredFeature.place / PlacedFeature.place(level, generator, random, pos): 레벨 난수를 그대로 이어 쓰며 놓는다.
+     * 미지원이면 false(아무것도 바꾸지 않음).
+     */
+    default boolean placeFeature(LevelFeature feature, Pos pos, RandomSource random) { return false; }
+
+    /** Level.getBiome(pos) 의 바이옴 id(확대 지터 포함). 모르면 null. */
+    default String biomeAt(int x, int y, int z) { return null; }
+
     RandomSource random();
 
     long gameTime();

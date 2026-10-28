@@ -66,6 +66,19 @@ public final class RegionLevel extends ChunkLevel {
     @Override
     public DimensionType dimensionType() { return world.dimensionType(); }
 
+    @Override
+    protected org.domi.furnace.server.world.gen.feature.BiomeFeatureData featureData() {
+        var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(world.worldSource());
+        if (gen != null && gen.featurePlacer() != null) return gen.featurePlacer().biomeData();
+        return super.featureData();
+    }
+
+    @Override
+    protected long featureSeed() {
+        var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(world.worldSource());
+        return gen != null ? gen.seed() : 0L;
+    }
+
     /** 이 레벨의 월드. */
     public World world() { return world; }
 

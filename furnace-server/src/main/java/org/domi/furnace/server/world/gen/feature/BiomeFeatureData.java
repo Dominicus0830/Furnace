@@ -221,6 +221,36 @@ public final class BiomeFeatureData {
         }
     }
 
+    /**
+     * BiomeGenerationSettings.getFlowerFeatures().get(0).config().feature(): 그 바이옴 feature 목록(단계 순) 중
+     * 처음 나오는 flower 타입 configured feature 의 내부 placed feature. 없으면 null.
+     * flower 타입은 1.21.1 데이터에서 최상위로만 쓰인다(선택기 안에 들어간 예 없음) — 하위 탐색은 생략한다(가정, 데이터로 확인).
+     */
+    public PlacedFeature flowerFeature(String biomeId) {
+        if (loader == null) return null;
+        synchronized (loader) {
+            JsonObject biome;
+            try {
+                biome = loader.data.biome(biomeId);
+            } catch (RuntimeException e) {
+                return null;
+            }
+            JsonArray features = biome.getAsJsonArray("features");
+            if (features == null) return null;
+            for (JsonElement step : features) {
+                for (JsonElement placedId : step.getAsJsonArray()) {
+                    JsonElement cf = loader.data.placedFeature(placedId.getAsString()).get("feature");
+                    if (!cf.isJsonPrimitive()) continue;
+                    JsonObject cfJson = loader.data.configuredFeature(cf.getAsString());
+                    if (!"minecraft:flower".equals(cfJson.get("type").getAsString())) continue;
+                    ConfiguredFeature f = loader.configuredFeature(cf.getAsString());
+                    return f instanceof RandomPatchFeature rp ? rp.feature() : null;
+                }
+            }
+            return null;
+        }
+    }
+
     public Set<String> biomes() {
         return biomeFeatures.keySet();
     }
