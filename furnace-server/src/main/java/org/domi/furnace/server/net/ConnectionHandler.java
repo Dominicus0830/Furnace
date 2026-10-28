@@ -1386,6 +1386,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         case 3 -> p.sprinting(true);     // START_SPRINTING
                         case 4 -> p.sprinting(false);    // STOP_SPRINTING
                         case 5, 6, 7 -> { int act = action; int data = jumpData; world.runAt(p.x(), p.z(), region -> handleRidingCommand(p, act, data)); }
+                        case 8 -> world.runAt(p.x(), p.z(), region -> {   // START_FALL_FLYING: 안 되면 stopFallFlying(플래그 다시 보냄)
+                            if (region.hasPlayer(p)) org.domi.furnace.server.entity.ElytraFlight.handleStartCommand(p);
+                        });
                         default -> { }
                     }
                 }

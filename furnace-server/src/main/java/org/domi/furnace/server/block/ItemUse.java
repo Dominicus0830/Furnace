@@ -99,6 +99,7 @@ public final class ItemUse {
             case "minecraft:map": return emptyMapUse(level, player, stack);
             case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl", "minecraft:experience_bottle", "minecraft:splash_potion",
                     "minecraft:lingering_potion", "minecraft:wind_charge": return throwItem(level, player, stack, n);
+            case "minecraft:firework_rocket": return fireworkUse(level, player, stack);
             default: break;
         }
         if (n.endsWith("_boat") || n.endsWith("_raft")) return boatUse(level, player, stack, n);
@@ -553,7 +554,18 @@ public final class ItemUse {
         return InteractionResult.sidedSuccess(false);
     }
 
-    /** FireworkRocketItem.useOn: 맞은 지점에서 면 쪽으로 0.15 띄워 로켓을 쏘아 올린다. TODO(겉날개): use() 로 플레이어에 붙은 로켓. */
+    /** FireworkRocketItem.use: 겉날개 비행 중이면 몸에 붙은 로켓을 넣고 하나 쓴다(크리에이티브는 그대로), 아니면 넘긴다. */
+    private static Holder fireworkUse(BlockLevel level, BlockActor player, ItemStack stack) {
+        if (!(player.handle() instanceof org.domi.furnace.server.entity.Player p) || !p.isFallFlying()) return Holder.pass(stack);
+        if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
+        var rocket = new org.domi.furnace.server.entity.FireworkRocketEntity(cl, cl.nextEntityId(), stack, p);
+        cl.addFreshEntity(rocket);
+        ItemStack out = player.isCreative() ? stack : stack.withCount(stack.count() - 1);
+        player.awardStat("minecraft:used:minecraft:firework_rocket");
+        return Holder.success(out);
+    }
+
+    /** FireworkRocketItem.useOn: 맞은 지점에서 면 쪽으로 0.15 띄워 로켓을 쏘아 올린다. */
     private static InteractionResult fireworkOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
         if (!(level instanceof ChunkLevel cl)) return InteractionResult.PASS;
         int f = hit.face();

@@ -884,7 +884,7 @@ public abstract non-sealed class Entity implements Rider {
     public org.domi.furnace.server.world.gameevent.DynamicGameEventListener<?> dynamicGameEventListener() { return null; }
 
     /** Mth.equal(double, double): 차이가 1e-5 보다 작은가. */
-    private static boolean equalish(double a, double b) { return Math.abs(b - a) < 1.0E-5F; }
+    static boolean equalish(double a, double b) { return Math.abs(b - a) < 1.0E-5F; }
 
     protected void playEntityOnFireExtinguishedSound() {
         playSound("minecraft:entity.generic.extinguish_fire", 0.7F, 1.6F + (random.nextFloat() - random.nextFloat()) * 0.4F);
