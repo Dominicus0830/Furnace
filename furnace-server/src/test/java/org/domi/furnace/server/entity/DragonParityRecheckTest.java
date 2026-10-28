@@ -126,7 +126,7 @@ class DragonParityRecheckTest {
         assertTrue(fight.barPlayers().contains(p), "초기값 21 → 첫 틱에 훑는다");
 
         NbtCompound t = fight.save();
-        assertTrue(t.contains("IsRespawning"));
+        assertFalse(t.contains("IsRespawning"), "바닐라는 기본값 false 인 키를 쓰지 않는다");
         t.putBoolean("IsRespawning", true);
         var f2 = new EndDragonFight(level, 0L, new Pos(0, 0, 0));
         f2.load(t);
@@ -141,7 +141,6 @@ class DragonParityRecheckTest {
         EnderDragon d = dragon(level, 0.5, 100, 0.5);
         var pm = d.getPhaseManager();
         pm.setPhase(DragonPhase.LANDING);
-        pm.getPhase(DragonPhase.SITTING_FLAMING);
         ((DragonPhase.SittingFlaming) pm.getPhase(DragonPhase.SITTING_FLAMING)).resetFlameCount();
         pm.setPhase(DragonPhase.SITTING_SCANNING);
         for (int round = 1; round <= 4; round++) {
@@ -177,6 +176,71 @@ class DragonParityRecheckTest {
         assertEquals(DragonPhase.SITTING_SCANNING, pm.getCurrentPhase().id());
         pm.getCurrentPhase().doServerTick();
         assertEquals(DragonPhase.TAKEOFF, pm.getCurrentPhase().id(), "150칸 안에 아무도 없으면 이륙만");
+    }
+
+    /** 날개 밀치기: lastHurtByMobTimestamp < tickCount - 2 — 새로 들어온 플레이어(둘 다 0)는 3틱 동안 피해 없음, 맞은 직후 2틱도. */
+    @Test
+    void wingKnockbackRespectsLastHurtTimestampForPlayers() throws Exception {
+        var level = new DimensionTestLevel("minecraft:the_end");
+        var p = player(level, 0.5, 100, 0.5);
+        EnderDragon d = dragon(level, 0.5, 100, 0.5);
+        d.getPhaseManager().setPhase(DragonPhase.HOLDING_PATTERN);
+        var m = EnderDragon.class.getDeclaredMethod("knockBack", AABB.class);
+        m.setAccessible(true);
+        var dry = new PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
+        for (int i = 0; i < 100; i++) p.vitals().tick(dry);   // 접속 직후 무적 시간을 넘긴다
+        p.setLastHurtByMob(null);   // 마지막으로 맞은 틱 = 지금
+        AABB box = p.boundingBox().inflate(1.0);
+        float h0 = p.vitals().health();
+        m.invoke(d, box);
+        assertEquals(h0, p.vitals().health(), "t < t - 2 거짓 → 피해 없음");
+        for (int i = 0; i < 3; i++) p.combatTick();
+        m.invoke(d, box);
+        assertTrue(p.vitals().health() < h0, "3틱 뒤 t < (t+3) - 2 → 피해(난이도 보정 뒤 값)");
+    }
+
+    @Test
+    void arenaRowLoadedButPodiumMissingSkipsScanning() {
+        var level = new DimensionTestLevel("minecraft:the_end") {
+            @Override
+            protected org.domi.furnace.server.world.ChunkColumn chunk(int x, int z) {
+                return z == 8 ? super.chunk(x, z) : null;   // 바닐라가 보는 z+8 줄만 있다
+            }
+        };
+        player(level, 0.5, 100, 0.5);
+        var fight = new EndDragonFight(level, 0L, new Pos(0, 0, 0));
+        level.setDragonFight(fight);
+        for (int i = 0; i < 5; i++) fight.tick();
+        assertNull(fight.portalLocation(), "받침대 청크가 없으면 위치를 기록하지 않는다");
+        assertNull(fight.getDragonUUID(), "드래곤도 만들지 않는다");
+    }
+
+    /** 부활 시작의 패턴 치환: setBlock 이 무효여도(청크 없음 등) 끝난다. */
+    @Test
+    void respawnReplaceLoopTerminatesWhenSetBlockIsNoop() {
+        boolean[] frozen = {false};
+        var level = new DimensionTestLevel("minecraft:the_end") {
+            @Override
+            public boolean setBlock(Pos pos, int state, int flags, int recursionLeft) {
+                return !frozen[0] && super.setBlock(pos, state, flags, recursionLeft);
+            }
+        };
+        var fight = new EndDragonFight(level, 0L, new Pos(0, 0, 0));
+        fight.skipArenaLoadedCheck();
+        level.setDragonFight(fight);
+        EnderDragon first = fight.createNewDragon();
+        fight.setDragonKilled(first);
+        first.discard();
+        Pos portal = fight.portalLocation();
+        int[][] off = {{0, -2}, {2, 0}, {0, 2}, {-2, 0}};
+        for (int[] o : off) {
+            EndCrystal c = new EndCrystal(level, level.nextEntityId());
+            c.moveTo(portal.x() + o[0] + 0.5, portal.y() + 1, portal.z() + o[1] + 0.5, 0, 0);
+            level.addFreshEntity(c);
+        }
+        frozen[0] = true;
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), fight::tryRespawn);
+        assertEquals(EndDragonFight.RespawnStage.START, fight.respawnStage());
     }
 
     private static int countClouds(DimensionTestLevel level) {

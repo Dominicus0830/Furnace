@@ -26,7 +26,7 @@
 | 4 | EnderDragon.onCrystalDestroyed | 파괴자가 플레이어가 아니면 `getNearestPlayer(조건, x,y,z)` — 출처 없음이라 거리 64·투명 검사를 하지 않는다 | 드래곤을 출처로 넘겨 드래곤에서 64 안만 | 고침 |
 | 5 | AbstractDragonSittingPhase.onHurt | 직접 원인이 AbstractArrow **또는 WindCharge** 면 불 1초·피해 0 | 화살만 | 고침 |
 | 6 | EnderDragon.hurt(source) | 무적 검사 없이 몸통으로 넘긴다(단계 onHurt 가 먼저 돈다, 무적은 LivingEntity.hurt 가 막음) | 앞에서 isInvulnerableTo 로 막아 단계 onHurt 를 건너뜀 | 고침 |
-| 7 | EnderDragonPart.hurt | 파트 자신의 isInvulnerableTo(파트는 무적 표시 없음, 불 피해는 드래곤 종류라 면역) | 본체 isInvulnerableTo(무적 표시까지) | 고침 |
+| 7 | EnderDragonPart.hurt | 파트 자신의 isInvulnerableTo(파트는 무적 표시 없음, 불 피해는 드래곤 종류라 면역, isRemoved 는 파트 자신 — 늘 false) | 본체 isInvulnerableTo(무적 표시까지) | 고침(본체가 지워졌으면 막는 것은 의도한 차이) |
 | 8 | DragonFireball.onHit | `getEntitiesOfClass(LivingEntity, 상자)` — 플레이어 포함, 4칸 안 첫 대상 자리로 구름 이동 | 플레이어를 빼고 봄 | 고침(순서는 엔티티 뒤 플레이어 — 가정) |
 | 9 | EndDragonFight 생성 | `ticksSinceLastPlayerScan = 21` → 첫 틱에 플레이어 훑기 | 0 → 20틱 뒤 | 고침 |
 | 10 | EndDragonFight 보스 바 범위 | (x, 128 + origin.y, z) 에서 192 | y 128 고정 | 고침(origin.y=0 이면 같음) |
@@ -34,15 +34,20 @@
 | 12 | EndDragonFight.findExitPortal | 블록 엔티티 자리 → 없으면 MOTION_BLOCKING 높이부터 최저 높이까지 BlockPattern 전체 대조, 기억 위치는 null 일 때만 기록 | 기억 위치를 먼저 믿고, NO_LEAVES 높이부터 y 4 까지, 기반암 6칸만 대조, 매번 덮어씀 | 고침(패턴 '#' 전부 대조, 높이·하한·기록 규칙 바닐라대로). 블록 엔티티 단계는 미구현(아래) |
 | 13 | EndDragonFight.respawnDragon | 패턴을 못 찾을 때까지 되풀이해 기반암·포털을 엔드 돌로 | 한 번 | 고침 |
 | 14 | DragonRespawnAnimation SUMMONING_PILLARS | 기둥 주변 ±10 지우기가 betweenClosed 순서(x 가장 빠름, y, z) | x 바깥, z 안쪽 | 고침 |
-| 15 | EndDragonFight.Data | `IsRespawning` 을 쓴다(언제나 false), 읽어서 true 면 START | 쓰지도 읽지도 않음 | 고침 |
+| 15 | EndDragonFight.Data | `IsRespawning` 은 `lenientOptionalFieldOf(기본 false)` 이고 저장 값이 언제나 false 라 키를 쓰지 않는다. 읽어서 true 면 START | 읽지 않음 | 고침(읽기만, 쓰지 않음 — 검토 반영) |
 | 16 | EndDragonFight.hasActiveExitPortal | 청크 (-8..8)² 의 TheEndPortalBlockEntity(관문 블록 엔티티 포함) 가 하나라도 있으면 true | 받침대 둘레 5×5 에 end_portal 블록이 있는가 | **못 고침**: Furnace 에 end_portal·end_gateway 블록 엔티티가 없다 |
-| 17 | 투사체·폭발 → 파트 | Level.getEntities 가 드래곤 파트를 포함 → 화살·폭발이 파트(머리면 배율 없음)에 맞는다 | 엔티티 조회에 파트가 없어 본체(몸통 배율 /4+1)로 맞는다 | **못 고침**(구조적: 엔티티 조회 전체에 파트 추가 필요) |
+| 17 | 투사체·폭발 → 파트 | Level.getEntities 가 드래곤 파트를 포함 → 화살·폭발이 파트(머리면 배율 없음)에 맞는다 | 엔티티 조회에 파트가 없고 본체는 isPickable=false 라 투사체가 드래곤을 **통과**한다. 폭발은 본체(몸통 배율)로 맞는다 | **못 고침**(구조적: 엔티티 조회 전체에 파트 추가 필요) |
 | 18 | knockBack/hurtAll 피해 후 | `EnchantmentHelper.doPostAttackEffects` | 없음 | 못 고침(마법 부여 후처리 경로 없음) |
 | 19 | 날개·머리 대상 순서 | 섹션 순 한 목록(플레이어 섞임) | 엔티티 뒤 플레이어 | 기존 가정 유지 |
 | 20 | updateDragon | 드래곤에 사용자 이름이 있으면 보스 바 이름을 그것으로 | 없음 | 못 고침(Entity.hasCustomName 이 언제나 false) |
 | 21 | EndCrystal 폭발 | 원인 엔티티가 있으면 `explosion(crystal, 원인)` 피해 출처 | 원인 없이 | 미수정(드래곤은 태그로 어차피 맞음) |
 
 일치 확인(차이 없음): aiStep 비행 수식 전체, 파트 위치·xo 복원, flapTime, checkCrystals(10틱마다 +1, 32칸), checkWalls(dragon_transparent/dragon_immune, mobGriefing, 2008), hurt 배율(`/4 + min(d,1)`, 0.01 미만 false, 25% 앉은 피해 → TAKEOFF, 치명타 → 체력 1·DYING), 경험치 12000/500·8%/20%, 1028 이벤트, 노드 24개 좌표·높이(`max(seaLevel+10, 높이+5/15)`)·인접 비트·A* 와 실패 처리, 단계 11개의 doServerTick/begin/end/속도/회전 속도, getHeadLookVector, 관문 위치·EndGatewayFeature 모양, EndPodiumFeature 모양·횃불 방향, 기둥 재생성(흑요석·쇠창살 속성·수정·기반암·불), 부활 단계 타이밍(3001 이벤트 0/50/51/52/≥95, 40틱 주기, 80~100, 폭발 위력 5 BLOCK / 6 NONE), 수정 4개 탐색(N,E,S,W 2칸), 처치 시 알 위치(MOTION_BLOCKING).
+
+## 의도한 차이 (검토 반영, 2026-10-28)
+- 바닐라는 받침대 높이를 볼 때 청크를 동기로 불러온다. region 스레드는 동기 로드를 못 하므로 받침대 청크(origin ±4)가 없으면 상태 훑기·부활·드래곤 찾기·출구 포털 기록/블록 쓰기를 그 틱엔 건너뛰고 다음 틱에 다시 본다(경기장 판정은 바닐라 z+8 한 줄 그대로).
+- 부활 시작의 패턴 치환 반복에 안전 상한(64회, 바뀐 것이 없으면 중단)을 둔다. 정상 받침대에선 한 번에 끝나 결과가 같다. 치환 순서는 dx·dz·dy 이고 바닐라 BlockPattern 순서(방향에 따라 다름)와 다를 수 있다 — 엔드 돌로 바꾸는 것뿐이라 결과 블록은 같다.
+- 출구 포털 찾기 1단계(블록 엔티티 자리)와 BlockPattern.find 의 기준점 상자 [pos, pos+6] 24방향 탐색은 이식하지 않았다. Furnace 에 end_portal·end_gateway 블록 엔티티가 없다. 정상 받침대(origin 기둥)에선 두 경로 모두 같은 포털 층 가운데를 찾는다(기존 시험의 처치·부활 경로가 확인).
 
 ## 확정 못 한 것 (가정)
 - 패턴 탐색에서 받침대 가운데가 origin 기둥이 아닌 경우, 위아래 뒤집힌 방향 패턴(바닐라 BlockPattern 은 모든 방향을 본다).

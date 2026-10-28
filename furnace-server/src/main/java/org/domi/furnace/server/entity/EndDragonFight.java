@@ -100,7 +100,9 @@ public final class EndDragonFight {
         }
         if (ticketHook != null) ticketHook.accept(!barPlayers.isEmpty());   // addRegionTicket / removeRegionTicket(DRAGON)
         if (barPlayers.isEmpty()) return;
-        boolean loaded = isArenaLoaded();
+        // 의도한 차이: 바닐라는 받침대 높이를 볼 때 청크를 동기로 불러오지만 region 스레드에선 못 하므로,
+        // 받침대 청크가 없으면 상태 훑기·부활·드래곤 찾기를 이 틱엔 건너뛰고 다음 틱에 다시 본다.
+        boolean loaded = isArenaLoaded() && podiumChunksLoaded();
         if (needsStateScanning && loaded) {
             scanState();
             needsStateScanning = false;
@@ -310,7 +312,13 @@ public final class EndDragonFight {
     }
 
     /** spawnExitPortal(active): 처음이면 받침대 높이 바로 아래(기반암이면 해수면까지 더 내려감)를 기억하고 받침대를 놓는다. */
+    /** 받침대(origin ±4) 청크가 불러와 있는가. 없으면 높이 지도가 최저 높이를 돌려줘 잘못된 위치를 영구 기록하게 된다. */
+    boolean podiumChunksLoaded() {
+        return skipArenaLoadedCheck || level.hasChunksAt(origin.x() - 4, origin.z() - 4, origin.x() + 4, origin.z() + 4);
+    }
+
     public void spawnExitPortal(boolean active) {
+        if (!podiumChunksLoaded()) return;   // 위 의도한 차이: 청크가 없으면 기록·블록 쓰기를 하지 않는다
         if (portalLocation == null) {
             Pos p = new Pos(origin.x(), level.getMotionBlockingNoLeavesHeight(origin.x(), origin.z()) - 1, origin.z());
             while (B.is(level.getBlockState(p), "minecraft:bedrock") && p.y() > 0) p = new Pos(p.x(), p.y() - 1, p.z());
@@ -424,12 +432,19 @@ public final class EndDragonFight {
         if (!dragonKilled || respawnStage != null) return;
         // 바닐라: 패턴을 못 찾을 때까지 되풀이해 찾은 상자(7×7, 포털 층 -1 ~ +3)의 기반암·포털을 엔드 돌로
         int endStone = B.defaultState("minecraft:end_stone");
-        for (Pos p = findExitPortal(); p != null; p = findExitPortal()) {
+        // 안전 상한: 바꿔도 같은 자리가 또 잡히면(청크 없음 등으로 setBlock 무효) region 스레드가 멈추지 않게 끊는다
+        int guard = 0;
+        for (Pos p = findExitPortal(); p != null && guard++ < 64; p = findExitPortal()) {
+            boolean changed = false;
             for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -1; dy <= 3; dy++) {
                 Pos q = new Pos(p.x() + dx, p.y() + dy, p.z() + dz);
                 int s = level.getBlockState(q);
-                if (B.is(s, "minecraft:bedrock") || B.is(s, "minecraft:end_portal")) level.setBlock(q, endStone, 3);
+                if (B.is(s, "minecraft:bedrock") || B.is(s, "minecraft:end_portal")) {
+                    level.setBlock(q, endStone, 3);
+                    changed |= !B.is(level.getBlockState(q), "minecraft:bedrock") && !B.is(level.getBlockState(q), "minecraft:end_portal");
+                }
             }
+            if (!changed) break;
         }
         respawnStage = RespawnStage.START;
         respawnTime = 0;
@@ -554,7 +569,7 @@ public final class EndDragonFight {
         t.putBoolean("NeedsStateScanning", needsStateScanning);
         t.putBoolean("DragonKilled", dragonKilled);
         t.putBoolean("PreviouslyKilled", previouslyKilled);
-        t.putBoolean("IsRespawning", false);   // 바닐라 Data 도 언제나 false 로 쓴다
+        // IsRespawning: 바닐라는 언제나 false 를 넘기고 lenientOptionalFieldOf(기본 false)라 키를 쓰지 않는다
         if (dragonUUID != null) t.putIntArray("Dragon", Entity.uuidToInts(dragonUUID));
         if (portalLocation != null) t.putIntArray("ExitPortalLocation", new int[] {portalLocation.x(), portalLocation.y(), portalLocation.z()});
         int[] g = new int[gateways.size()];
