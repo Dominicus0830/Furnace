@@ -1401,6 +1401,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null) handleSetBeacon(p, primary, secondary);
             }
+            case 0x36 -> { // swing: 손(VarInt) — ServerGamePacketListenerImpl.handleAnimate → player.swing(hand): 보는 사람에게 animate(본인 제외)
+                int hand = Types.readVarInt(frame);
+                if (hand < 0 || hand > 1) {
+                    protocolError(ctx, "Swing", new IllegalArgumentException("bad enum"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) world.runAt(actor.x(), actor.z(), r -> actor.swing(hand, false));
+            }
+            case 0x20 -> { // pick_item: 인벤토리 번호(VarInt) — handlePickItem(서바이벌 휠클릭; 크리에이티브 복제는 클라이언트가 set_creative_mode_slot 으로)
+                int slot = Types.readVarInt(frame);
+                if (slot < 0 || slot >= 36) {   // 바닐라는 검사 없이 items.get → 예외(처리 오류) — 가정: 끊는다
+                    protocolError(ctx, "Pick Item", new IndexOutOfBoundsException(String.valueOf(slot)));
+                    break;
+                }
+                inv.pickSlot(slot);
+                int sel = inv.selected();
+                send(ctx, new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, sel, inv.get(inv.heldWindowSlot())));
+                send(ctx, new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, slot, inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(slot))));
+                send(ctx, new SetHeldSlot(sel));
+            }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
                 if (slot >= 0 && slot < 9) inv.setSelected(slot);
@@ -2778,7 +2799,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             && org.domi.furnace.server.block.BlockPlacement.wasBlockPlacementAttempt(pa, before)) {
                         actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);
                     }
-                    // shouldSwing 이면 바닐라는 다른 플레이어에게 팔 휘두르기를 보낸다 — 서버 쪽 설치는 CONSUME 이라 해당 없음
+                    else if (r.shouldSwing()) actor.swing(hand, true);   // handleUseItemOn: 결과가 SUCCESS 류면 본인 포함 animate
                 }
             } else {
                 actor.sendSystemMessage(org.domi.furnace.server.block.BlockPlacement.tooHigh(maxY - 1), true);

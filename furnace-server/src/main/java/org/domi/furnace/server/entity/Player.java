@@ -728,6 +728,53 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** getAttackStrengthScale(a): clamp((ticker + a) / delay, 0, 1). */
     public float attackStrengthScale(float a) { return Math.clamp(((float) attackStrengthTicker + a) / attackStrengthDelay(), 0.0F, 1.0F); }
 
+    // ------------------------------------------------------------------ 팔 휘두르기(LivingEntity.swing / updateSwingTime)
+
+    private boolean swinging;
+    private int swingTime;
+
+    public boolean isSwinging() { return swinging; }
+
+    /** LivingEntity.getCurrentSwingDuration: 성급함·전달체 힘이면 6−(1+증폭), 채굴 피로면 6+(1+증폭)×2, 아니면 6. */
+    public int currentSwingDuration() {
+        var haste = vitals.getEffect(org.domi.furnace.server.effect.MobEffect.HASTE);
+        var conduit = vitals.getEffect(org.domi.furnace.server.effect.MobEffect.CONDUIT_POWER);
+        if (haste != null || conduit != null) {
+            int amp = Math.max(haste == null ? 0 : haste.amplifier(), conduit == null ? 0 : conduit.amplifier());
+            return 6 - (1 + amp);
+        }
+        var fatigue = vitals.getEffect(org.domi.furnace.server.effect.MobEffect.MINING_FATIGUE);
+        return fatigue != null ? 6 + (1 + fatigue.amplifier()) * 2 : 6;
+    }
+
+    /**
+     * LivingEntity.swing(hand, updateSelf): 휘두르는 중 절반을 넘겼거나 아니면 새로 휘두르고, 보는 플레이어에게 animate(주 손 0, 보조 손 3).
+     * updateSelf 면 본인에게도(broadcastAndSend), 아니면 본인 제외(broadcast). 소유 region 스레드에서 부른다.
+     */
+    public void swing(int hand, boolean updateSelf) {
+        if (!swinging || swingTime >= currentSwingDuration() / 2 || swingTime < 0) {
+            swingTime = -1;
+            swinging = true;
+            var pkt = new org.domi.furnace.server.net.protocol.play.Animate(entityId,
+                    hand == 0 ? org.domi.furnace.server.net.protocol.play.Animate.SWING_MAIN_HAND : org.domi.furnace.server.net.protocol.play.Animate.SWING_OFF_HAND);
+            if (updateSelf) send(pkt);
+            vitals.broadcastToTrackers(pkt);
+        }
+    }
+
+    /** LivingEntity.updateSwingTime(Player.aiStep): 휘두르는 중이면 한 틱 진행, 길이를 채우면 끝. */
+    public void tickSwing() {
+        if (swinging) {
+            swingTime++;
+            if (swingTime >= currentSwingDuration()) {
+                swingTime = 0;
+                swinging = false;
+            }
+        } else {
+            swingTime = 0;
+        }
+    }
+
     /** Player.tick 의 공격 쿨다운 부분: ticker++ 하고, 주 손이 다른 아이템이 되면 0 으로. */
     public void tickAttackStrength() {
         attackStrengthTicker++;

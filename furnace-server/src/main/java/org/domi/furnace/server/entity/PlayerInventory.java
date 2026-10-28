@@ -53,6 +53,28 @@ public final class PlayerInventory {
     /** 든 칸(창 칸 36 + 선택). */
     public synchronized int heldWindowSlot() { return 36 + selected; }
 
+    /** Inventory.getSuitableHotbarSlot: 지금 칸부터 돌며 빈 칸, 없으면 마법 부여 안 된 칸, 그것도 없으면 지금 칸. */
+    public synchronized int suitableHotbarSlot() {
+        for (int i = 0; i < 9; i++) {
+            int s = (selected + i) % 9;
+            if (slots[36 + s].isEmpty()) return s;
+        }
+        for (int i = 0; i < 9; i++) {
+            int s = (selected + i) % 9;
+            if (org.domi.furnace.server.item.EnchantTools.levels(slots[36 + s], org.domi.furnace.server.item.EnchantTools.ENCHANTMENTS).isEmpty()) return s;
+        }
+        return selected;
+    }
+
+    /** Inventory.pickSlot(inventoryIndex): 알맞은 핫바 칸을 고르고 그 칸과 inventoryIndex(0..35) 칸을 맞바꾼다. */
+    public synchronized void pickSlot(int inventoryIndex) {
+        selected = suitableHotbarSlot();
+        int a = 36 + selected, b = windowSlot(inventoryIndex);
+        ItemStack t = slots[a];
+        slots[a] = slots[b];
+        slots[b] = t;
+    }
+
     /**
      * Inventory.add(stack): 손상된 아이템은 빈 칸에만, 아니면 같은 아이템이 덜 찬 칸(든 칸 → 왼손 → 0..35) 다음 빈 칸(0..35)에 나눠 넣는다.
      * 무한 재료(크리에이티브)면 못 넣은 것도 다 넣은 셈. 남은 스택(다 넣었으면 EMPTY)을 돌려준다.
