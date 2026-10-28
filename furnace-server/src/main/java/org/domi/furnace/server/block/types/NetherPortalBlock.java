@@ -83,6 +83,8 @@ public class NetherPortalBlock extends BlockBehavior implements Portal {
             srcAxis = axis(entry);
             BlockUtil.FoundRectangle r = BlockUtil.getLargestRectangleAround(pos, srcAxis, 21, Dir.AXIS_Y, 21, p -> level.getBlockState(p) == entry);
             rel = PortalShape.getRelativePosition(r, srcAxis, t.x(), t.y(), t.z(), t.width(), t.height());
+            // Entity.getRelativePortalPosition 재정의: 산 것·수레·배는 깊이 0
+            if (t.resetPortalDepth()) rel[2] = 0.0;
         } else {
             srcAxis = Dir.AXIS_X;
             rel = new double[] {0.5, 0.0, 0.0};
