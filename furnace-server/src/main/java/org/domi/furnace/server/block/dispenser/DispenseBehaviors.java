@@ -270,7 +270,7 @@ public final class DispenseBehaviors {
                 int dir = s.facing();
                 Pos p = s.front();
                 if (isEmptyBlock(level, p) && canSpawnWither(level, p)) {
-                    int rot = (int) Math.floor(BlockSource.toYRot(dir) / 22.5F + 0.5) & 15;   // RotationSegment.convertToSegment
+                    int rot = skullRotation(dir);
                     level.setBlock(p, ROTATION.withInt(B.defaultState("wither_skeleton_skull"), rot), 3);
                     level.gameEvent("minecraft:block_place", p, null, -1);
                     WitherSkullBlock.checkSpawn(level, p);   // 해골 블록 엔티티는 늘 있으므로 바로
@@ -403,6 +403,9 @@ public final class DispenseBehaviors {
             }
         });
     }
+
+    /** RotationSegment.convertToSegment(Direction): 수직이면 0, 아니면 2D 값 << 2. */
+    public static int skullRotation(int dir) { return Dir.horizontal(dir) ? Dir.to2D(dir) << 2 : 0; }
 
     /** SolidBucketItem.emptyContents(가루눈): 세계 안의 빈 칸이면 놓고 FLUID_PLACE·소리. */
     private static boolean emptyPowderSnow(BlockLevel level, Pos p) {

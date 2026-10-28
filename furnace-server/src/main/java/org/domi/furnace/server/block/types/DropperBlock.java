@@ -6,7 +6,6 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.dispenser.BlockSource;
 import org.domi.furnace.server.block.dispenser.DispenseBehaviors;
-import org.domi.furnace.server.block.dispenser.DispenseItemBehavior;
 import org.domi.furnace.server.block.entity.DropperBlockEntity;
 import org.domi.furnace.server.block.entity.HopperBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
@@ -14,9 +13,6 @@ import org.domi.furnace.server.entity.ItemStack;
 public class DropperBlock extends DispenserBlock {
 
     public DropperBlock(int block) { super(block); }
-
-    @Override
-    protected DispenseItemBehavior getDispenseMethod(BlockLevel level, ItemStack stack) { return DispenseBehaviors.DEFAULT; }
 
     @Override
     protected void dispenseFrom(BlockLevel level, int state, Pos pos) {

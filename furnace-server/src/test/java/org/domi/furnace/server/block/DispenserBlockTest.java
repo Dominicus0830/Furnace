@@ -29,7 +29,16 @@ class DispenserBlockTest {
     static final class Lvl extends BlockPlacementTest.TestLevel {
         final List<int[]> levelEvents = new ArrayList<>();
 
+        final List<String> gameEvents = new ArrayList<>();
+
         @Override public void levelEvent(BlockActor except, int type, Pos pos, int data) { levelEvents.add(new int[] {type, data}); }
+
+        @Override
+        public void gameEvent(org.domi.furnace.server.world.gameevent.GameEvent event, org.domi.furnace.server.entity.Vec3 pos,
+                org.domi.furnace.server.world.gameevent.GameEventContext ctx) {
+            gameEvents.add(event.name);
+            super.gameEvent(event, pos, ctx);
+        }
     }
 
     static final Pos POS = new Pos(0, -50, 0);
@@ -263,5 +272,123 @@ class DispenserBlockTest {
         fire(l);
         assertEquals(1, be.items[0].count(), "골렘 바탕도 생물도 없으면 그대로");
         assertArrayEquals(new int[] {1001, 0}, l.levelEvents.get(0));
+    }
+
+    @Test
+    void emptyDispenserEmitsBlockActivate() {
+        Lvl l = new Lvl();
+        place(l, "dispenser", "east");
+        l.gameEvents.clear();
+        fire(l);
+        assertEquals(List.of("minecraft:block_activate"), l.gameEvents);
+    }
+
+    @Test
+    void randomSlotIsReservoirWithNextIntOfRunningCount() {
+        for (long seed = 1; seed <= 20; seed++) {
+            Lvl l = new Lvl();
+            var be = place(l, "dispenser", "up");
+            int[] filled = {0, 3, 5, 8};
+            for (int i : filled) be.items[i] = item("stone", 10);
+            ((LegacyRandomSource) l.random()).setSeed(seed);
+            var r = new LegacyRandomSource(seed);
+            int expected = -1, j = 1;
+            for (int i : filled) if (r.nextInt(j++) == 0) expected = i;
+            fire(l);
+            for (int i : filled) assertEquals(i == expected ? 9 : 10, be.items[i].count(), "seed " + seed + " 칸 " + i);
+        }
+    }
+
+    private static double speed(Entity e) { return Math.sqrt(e.vx() * e.vx() + e.vy() * e.vy() + e.vz() * e.vz()); }
+
+    @Test
+    void projectilePowerFollowsDispenseConfig() {
+        Lvl l = new Lvl();
+        var be = place(l, "dispenser", "east");
+        be.items[0] = item("snowball", 1);
+        fire(l);
+        double snow = speed(entities(l, org.domi.furnace.server.entity.Snowball.class).get(0));
+        assertTrue(snow > 0.98 && snow < 1.23, "힘 1.1, 흩어짐 6: " + snow);
+        Lvl l2 = new Lvl();
+        var be2 = place(l2, "dispenser", "east");
+        be2.items[0] = item("experience_bottle", 1);
+        fire(l2);
+        double xp = speed(entities(l2, org.domi.furnace.server.entity.ThrownExperienceBottle.class).get(0));
+        assertTrue(xp > 1.29 && xp < 1.46, "힘 1.375, 흩어짐 3: " + xp);
+    }
+
+    @Test
+    void glassBottleWithNothingDropsButPlaysFailSound() {
+        Lvl l = new Lvl();
+        var be = place(l, "dispenser", "east");
+        be.items[0] = item("glass_bottle", 2);
+        fire(l);
+        assertEquals(1, be.items[0].count());
+        assertEquals(1, entities(l, ItemEntity.class).size(), "기본 던지기를 하되");
+        assertArrayEquals(new int[] {1001, 0}, l.levelEvents.get(0), "성공 표시는 false(바닐라)");
+    }
+
+    @Test
+    void shulkerBoxBlockedFailsAndKeepsStack() {
+        Lvl l = new Lvl();
+        var be = place(l, "dispenser", "east");
+        l.setBlock(POS.relative(Dir.EAST), B.defaultState("minecraft:stone"), 3);
+        be.items[0] = item("shulker_box", 1);
+        fire(l);
+        assertEquals(1, be.items[0].count());
+        assertArrayEquals(new int[] {1001, 0}, l.levelEvents.get(0));
+        Lvl l2 = new Lvl();
+        var be2 = place(l2, "dispenser", "east");
+        be2.items[0] = item("shulker_box", 1);
+        fire(l2);
+        assertTrue(be2.items[0].isEmpty());
+        assertTrue(B.is(l2.getBlockState(POS.relative(Dir.EAST)), "minecraft:shulker_box"));
+    }
+
+    @Test
+    void witherSkullRotationIsZeroWhenVertical() {
+        var d = org.domi.furnace.server.block.dispenser.DispenseBehaviors.class;
+        assertEquals(0, org.domi.furnace.server.block.dispenser.DispenseBehaviors.skullRotation(Dir.UP));
+        assertEquals(0, org.domi.furnace.server.block.dispenser.DispenseBehaviors.skullRotation(Dir.DOWN));
+        assertEquals(0, org.domi.furnace.server.block.dispenser.DispenseBehaviors.skullRotation(Dir.SOUTH));
+        assertEquals(4, org.domi.furnace.server.block.dispenser.DispenseBehaviors.skullRotation(Dir.WEST));
+        assertEquals(8, org.domi.furnace.server.block.dispenser.DispenseBehaviors.skullRotation(Dir.NORTH));
+        assertEquals(12, org.domi.furnace.server.block.dispenser.DispenseBehaviors.skullRotation(Dir.EAST));
+        assertNotNull(d);
+    }
+
+    @Test
+    void armorOnArmorStandEmitsEquipEvent() {
+        Lvl l = new Lvl();
+        var be = place(l, "dispenser", "east");
+        Pos front = POS.relative(Dir.EAST);
+        l.setBlock(front.below(), B.defaultState("minecraft:stone"), 3);
+        var stand = new org.domi.furnace.server.entity.ArmorStand(l, l.nextEntityId());
+        stand.moveTo(front.x() + 0.5, front.y(), front.z() + 0.5, 0.0F, 0.0F);
+        l.addFreshEntity(stand);
+        stand.tick();   // 첫 틱이 지나야 장착 소리·이벤트
+        be.items[0] = item("iron_helmet", 1);
+        l.gameEvents.clear();
+        fire(l);
+        assertEquals("minecraft:iron_helmet", ItemTools.itemName(stand.getItemBySlot(org.domi.furnace.server.entity.EquipmentSlot.HEAD)));
+        assertTrue(be.items[0].isEmpty());
+        assertTrue(l.gameEvents.contains("minecraft:equip"), "장착 게임 이벤트: " + l.gameEvents);
+    }
+
+    @Test
+    void dropperInsertsIntoChestMinecart() {
+        Lvl l = new Lvl();
+        var be = place(l, "dropper", "east");
+        Pos front = POS.relative(Dir.EAST);
+        var cart = org.domi.furnace.server.entity.AbstractMinecart.create(l, front.x() + 0.5, front.y() + 0.0625, front.z() + 0.5,
+                org.domi.furnace.server.entity.AbstractMinecart.Type.CHEST);
+        l.addFreshEntity(cart);
+        be.items[0] = item("stone", 2);
+        fire(l);
+        assertEquals(1, be.items[0].count());
+        var inv = org.domi.furnace.server.block.entity.HopperBlockEntity.getContainerAt(l, front);
+        assertNotNull(inv, "엔티티 용기");
+        assertEquals(1, inv.get(0).count());
+        assertTrue(l.levelEvents.isEmpty());
     }
 }

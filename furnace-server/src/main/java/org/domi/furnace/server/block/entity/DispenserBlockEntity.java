@@ -30,7 +30,7 @@ public class DispenserBlockEntity extends ContainerBlockEntity {
         return slot;
     }
 
-    /** insertItem(stack): 빈 칸이나 같은 아이템 칸에 앞에서부터 최대 수량까지 넣고 남은 것을 돌려준다(setItem 은 setChanged). */
+    /** insertItem(stack): 빈 칸이나 같은 아이템 칸에 앞에서부터 최대 수량까지 넣고 남은 것을 돌려준다. */
     public ItemStack insertItem(ItemStack stack, BlockLevel level) {
         int max = Math.min(99, ItemStackCodecs.maxStackSize(stack));
         for (int i = 0; i < items.length; i++) {
@@ -40,7 +40,7 @@ public class DispenserBlockEntity extends ContainerBlockEntity {
                 if (n > 0) {
                     items[i] = cur.isEmpty() ? stack.withCount(n) : cur.withCount(cur.count() + n);
                     stack = stack.withCount(stack.count() - n);
-                    setChanged(level);
+                    if (cur.isEmpty()) setChanged(level);   // 바닐라: 빈 칸은 setItem(setChanged), 합칠 때는 grow 만
                 }
                 if (stack.isEmpty()) break;
             }

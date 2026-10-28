@@ -86,9 +86,13 @@ public final class DispenserEquip {
                 case BODY -> -1;
             };
             if (ws >= 0) inv.set(ws, stack);
-            if (p.isSpectator() || equipableSlot(stack) != slot) return;
-            level.playSound(null, p.x(), p.y(), p.z(), org.domi.furnace.server.block.ItemUse.equipSound(ItemTools.itemName(stack)), "players", 1.0F, 1.0F);
-            p.random().nextLong();
+            if (p.isSpectator()) return;
+            if (equipableSlot(stack) == slot) {
+                level.playSound(null, p.x(), p.y(), p.z(), org.domi.furnace.server.block.ItemUse.equipSound(ItemTools.itemName(stack)), "players", 1.0F, 1.0F);
+                p.random().nextLong();
+            }
+            // Player.doesEmitEquipEvent: 방어구 칸만
+            if (slot.type() == EquipmentSlot.Type.HUMANOID_ARMOR) equipEvent(level, p.x(), p.y(), p.z(), p, stack);
             return;
         }
         LivingEntity e = (LivingEntity) o;
@@ -98,6 +102,13 @@ public final class DispenserEquip {
             e.level.playSound(null, e.x(), e.y(), e.z(), org.domi.furnace.server.block.ItemUse.equipSound(ItemTools.itemName(stack)), e.soundSource(), 1.0F, 1.0F);
             e.random.nextLong();
         }
+        equipEvent(level, e.x(), e.y(), e.z(), e, stack);   // doesEmitEquipEvent 기본 true
+    }
+
+    /** onEquipItem 의 게임 이벤트: 새 것이 장착 아이템이면 EQUIP, 아니면 UNEQUIP(엔티티 위치, 엔티티 출처). */
+    public static void equipEvent(ChunkLevel level, double x, double y, double z, Object source, ItemStack now) {
+        var ev = equipableSlot(now) != null ? org.domi.furnace.server.world.gameevent.GameEvent.EQUIP : org.domi.furnace.server.world.gameevent.GameEvent.UNEQUIP;
+        level.gameEvent(ev, new Vec3(x, y, z), org.domi.furnace.server.world.gameevent.GameEventContext.of(source));
     }
 
     /**
