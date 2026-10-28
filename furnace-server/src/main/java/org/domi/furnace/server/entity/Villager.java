@@ -30,6 +30,8 @@ import org.domi.furnace.server.world.poi.PoiType;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
 public final class Villager extends AgeableMob implements Merchant, InventoryCarrier {
+    /** 바닐라 AbstractVillager 하위(주민·떠돌이 상인)인가. 대상 종류 AbstractVillager.class 대신 쓴다. */
+    public static boolean isAbstractVillager(Targetable t) { return t instanceof Villager || t instanceof WanderingTrader; }
 
     /** AgeableMob 16 아기 여부, AbstractVillager 17 불만 카운터, Villager 18 마을 사람 데이터. */
     public static final int DATA_BABY = 16, DATA_UNHAPPY = 17, DATA_VILLAGER_DATA = 18;
