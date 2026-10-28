@@ -970,36 +970,53 @@ public abstract non-sealed class Entity implements Rider {
     /** Entity.maxUpStep: 걸어 오를 수 있는 높이. 기본 0, LivingEntity 는 step_height 속성. */
     public float maxUpStep() { return 0.0F; }
 
-    /** Entity.collide(movement): 블록 충돌로 줄인 이동 + 바닥에서 옆으로 막히면 maxUpStep 만큼 걸어 오르기(1.21.1). */
+    /**
+     * Entity.collide(movement) 1.21.1: 블록 충돌로 줄인 이동. 바닥(또는 낙하 착지)에서 옆으로 막히면
+     * 충돌 모양의 Y 좌표로 만든 후보 높이(step 이하)를 낮은 것부터 시도해 더 멀리 가는 첫 높이로 오른다.
+     * 엔티티 충돌(보트·셜커)·월드 보더 모양은 아직 목록에 없다(블록 충돌만).
+     */
     protected double[] collide(double dx, double dy, double dz) {
-        if (dx == 0.0 && dy == 0.0 && dz == 0.0) return new double[] {dx, dy, dz};
         AABB box = bb;
         var shapes = level.blockCollisions(box.expandTowards(dx, dy, dz));
-        double[] r = collideWithShapes(dx, dy, dz, box, shapes);
+        double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz} : collideWithShapes(dx, dy, dz, box, shapes);
         boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
-        boolean ground = onGround() || cy && dy < 0.0;
+        boolean below = cy && dy < 0.0;
         float step = maxUpStep();
-        if (step > 0.0F && ground && (cx || cz)) {
-            double[] a = collideStep(dx, step, dz, box);
-            double[] up = collideStep(0.0, step, 0.0, box.expandTowards(dx, 0.0, dz));
-            if (up[1] < step) {
-                double[] b = collideStep(dx, 0.0, dz, box.move(up[0], up[1], up[2]));
-                b[0] += up[0];
-                b[1] += up[1];
-                b[2] += up[2];
-                if (b[0] * b[0] + b[2] * b[2] > a[0] * a[0] + a[2] * a[2]) a = b;
-            }
-            if (a[0] * a[0] + a[2] * a[2] > r[0] * r[0] + r[2] * r[2]) {
-                double[] down = collideStep(0.0, -a[1] + dy, 0.0, box.move(a[0], a[1], a[2]));
-                return new double[] {a[0] + down[0], a[1] + down[1], a[2] + down[2]};
+        if (step > 0.0F && (below || onGround()) && (cx || cz)) {
+            AABB base = below ? box.move(0.0, r[1], 0.0) : box;
+            AABB search = base.expandTowards(dx, step, dz);
+            if (!below) search = search.expandTowards(0.0, -1.0E-5F, 0.0);
+            var stepShapes = level.blockCollisions(search);
+            for (float h : stepHeightCandidates(base, stepShapes, step, (float) r[1])) {
+                double[] c = collideWithShapes(dx, h, dz, base, stepShapes);
+                if (c[0] * c[0] + c[2] * c[2] > r[0] * r[0] + r[2] * r[2]) {
+                    c[1] -= box.minY() - base.minY();
+                    return c;
+                }
             }
         }
         return r;
     }
 
-    /** collideBoundingBox(movement, box): 이 상자 기준으로 블록 충돌을 새로 모아 자른다. */
-    private double[] collideStep(double dx, double dy, double dz, AABB box) {
-        return collideWithShapes(dx, dy, dz, box, level.blockCollisions(box.expandTowards(dx, dy, dz)));
+    /**
+     * collectCandidateStepUpHeights: 모양들의 Y 좌표 - base.minY 중 0 이상·step 이하·(float)dy 아닌 값, 오름차순.
+     * 바닐라는 VoxelShape 격자 좌표 전부를 쓰지만 여기서는 상자들의 minY/maxY 만 쓴다(오를 높이인 윗면은 둘 다 포함).
+     */
+    static float[] stepHeightCandidates(AABB base, java.util.List<Shape> shapes, float step, float dy) {
+        java.util.TreeSet<Float> set = new java.util.TreeSet<>();
+        for (Shape s : shapes) {
+            for (int i = 0; i < s.boxCount(); i++) {
+                double[] b = s.box(i);
+                for (double y : new double[] {b[1], b[4]}) {
+                    float h = (float) (y - base.minY());
+                    if (!(h < 0.0F) && h != dy && !(h > step)) set.add(h);
+                }
+            }
+        }
+        float[] out = new float[set.size()];
+        int i = 0;
+        for (float h : set) out[i++] = h;
+        return out;
     }
 
     /** Entity.collideWithShapes: y 먼저, 그다음 |x| < |z| 면 z·x, 아니면 x·z. */
