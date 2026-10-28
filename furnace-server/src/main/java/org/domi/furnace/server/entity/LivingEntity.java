@@ -1299,8 +1299,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
-        // 바닐라 순서: 흡수량은 속성보다 먼저 읽어 그때의 최대 흡수량으로 자른다
-        absorptionAmount = (float) Math.clamp(tag.getFloat("AbsorptionAmount"), 0.0, attributes().get(Attribute.MAX_ABSORPTION) != null ? attributeValue(Attribute.MAX_ABSORPTION) : 0.0);
+        // 바닐라: internalSetAbsorptionAmount(자르지 않고 그대로)
+        absorptionAmount = tag.getFloat("AbsorptionAmount");
         attributes().load(tag.tags().get("attributes") instanceof org.domi.furnace.server.net.io.nbt.NbtList l ? l : null);
         if (tag.tags().get("active_effects") instanceof org.domi.furnace.server.net.io.nbt.NbtList effects) {
             for (Object o : effects.items()) {

@@ -61,7 +61,7 @@ class EntityNbtRoundTripTest {
         t.putShort("HurtTime", (short) 0);
         t.putInt("HurtByTimestamp", 1234);
         t.putShort("DeathTime", (short) 0);
-        t.putFloat("AbsorptionAmount", 0.0F);
+        t.putFloat("AbsorptionAmount", 4.0F);   // 0 이 아닌 값도 그대로
         t.putBoolean("FallFlying", false);
         NbtList effects = new NbtList(NbtIo.TAG_COMPOUND);
         NbtCompound e = new NbtCompound();
