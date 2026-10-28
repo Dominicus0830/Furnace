@@ -39,6 +39,9 @@ public final class SuperflatWorldSource implements WorldSource {
         this.biomeId = biomeId;
     }
 
+    /** FixedBiomeSource 의 바이옴 레지스트리 id. */
+    public int biomeId() { return biomeId; }
+
     /** 바닐라 설정 compound(level.dat 의 flat 생성기 settings)의 층. */
     public static List<Layer> layersOf(NbtCompound settings) {
         if (settings == null || !settings.contains("layers")) return DEFAULT_LAYERS;
