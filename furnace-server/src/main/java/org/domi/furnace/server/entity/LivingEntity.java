@@ -732,7 +732,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     protected boolean isAlwaysExperienceDropper() { return false; }
 
-    protected boolean shouldDropExperience() { return true; }
+    /** LivingEntity.shouldDropExperience: 아기는 경험치(촉매 전하 포함)를 주지 않는다. */
+    protected boolean shouldDropExperience() { return !isBaby(); }
 
     /** getExperienceReward: 종류별 기본 경험치. */
     protected int getExperienceReward() { return 0; }
