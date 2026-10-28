@@ -120,7 +120,7 @@ configured_feature 전체의 루트 type 을 `BiomeFeatureData.HANDLED_CONFIGURE
 
 | 명령 | 판정 | 비고 |
 |---|---|---|
-| `locate` | 부분 | `structure` 만. `biome`, `poi` 없음(`LocateCommand.java:44`). 규모 소~중 |
+| `locate` | 구현 | `structure`·`biome`·`poi` (2026-10-28 추가, 차이는 `context-notes.md` 같은 날짜 항목) |
 | `summon` | 구현됨 | NBT 인자 있음: `SummonCommand.java:52-53` 에서 `CompoundTagArgument` 를 받아 `summon()` 에 전달(확인 완료) |
 | `advancement` | 구현됨 | grant/revoke × only/from/until/through/everything. 바닐라 트리와 `VanillaCommandTreeTest` 전수 비교 대상(B-5) |
 | `effect` | 구현됨 | give(infinite 포함)/clear |

@@ -790,6 +790,15 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return surfaceHeightCache;
     }
 
+    /** BiomeSource.getNoiseBiome(quart 좌표, climate sampler) 의 레지스트리 id(/locate biome). */
+    public int noiseBiomeIdAtQuart(int qx, int qy, int qz) { return biomeSampler.sampleQuart(qx, qy, qz, router); }
+
+    /** 레지스트리 id → 바이옴 이름(모르면 ""). */
+    public String biomeName(int id) { return (id >= 0 && id < registryBiomeNames.length) ? registryBiomeNames[id] : ""; }
+
+    /** BiomeSource.possibleBiomes 의 레지스트리 id. */
+    public java.util.Set<Integer> possibleBiomeIds() { return biomeSampler.possibleBiomeIds(); }
+
     /** vanilla getNoiseBiome(quart 좌표) — 구조물 validBiome 판정용. */
     private String biomeNameAt(int blockX, int blockY, int blockZ) {
         int qx = Math.floorDiv(blockX, 4);

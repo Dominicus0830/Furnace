@@ -115,6 +115,14 @@ public final class BiomeSampler {
 
     public List<BiomeEntry> entries() { return entries; }
 
+    /** BiomeSource.possibleBiomes: 파라미터 목록의 바이옴(끝은 5종) 레지스트리 id. */
+    public java.util.Set<Integer> possibleBiomeIds() {
+        java.util.Set<Integer> out = new java.util.LinkedHashSet<>();
+        if (endBiomes != null) for (int id : endBiomes) out.add(id);
+        for (BiomeEntry e : entries) out.add(e.registryId());
+        return out;
+    }
+
     // -- 로드 & 샘플링 --
 
     /** biome_parameters.json 에서 BiomeSampler 를 빌드한다. 레지스트리에 없는 바이옴(예: pale_garden)은 건너뛴다. */

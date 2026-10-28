@@ -31,4 +31,24 @@ class LocateCommandTest {
         assertEquals(1414, LocateCommand.dist(0, 0, 1000, -1000));
         assertEquals(0, LocateCommand.dist(7, 7, 7, 7));
     }
+
+    @Test
+    void biomeAndPoiNames() {
+        var id = new ResourceOrTagKeyArgument.Result(ResourceId.parse("minecraft:plains"), false);
+        var tag = new ResourceOrTagKeyArgument.Result(ResourceId.parse("minecraft:village"), true);
+        assertEquals("minecraft:plains", LocateCommand.displayName(id, "minecraft:plains"));
+        assertEquals("#minecraft:village (minecraft:home)", LocateCommand.displayName(tag, "minecraft:home"));
+        assertTrue(LocateCommand.biomePredicate(id, null).test("minecraft:plains"));
+        assertFalse(LocateCommand.biomePredicate(id, null).test("minecraft:desert"));
+        var p = LocateCommand.poiPredicate(tag, null);
+        assertTrue(p.test(org.domi.furnace.server.world.poi.PoiTypes.HOME));
+        assertFalse(p.test(org.domi.furnace.server.world.poi.PoiTypes.LODESTONE));
+        assertTrue(LocateCommand.poiPredicate(tag, List.of("minecraft:lodestone")).test(org.domi.furnace.server.world.poi.PoiTypes.LODESTONE));
+    }
+
+    @Test
+    void distance3d() {
+        assertEquals(13, LocateCommand.dist3(0, 0, 0, 3, 4, 12));
+        assertEquals(0, LocateCommand.dist3(1, 2, 3, 1, 2, 3));
+    }
 }

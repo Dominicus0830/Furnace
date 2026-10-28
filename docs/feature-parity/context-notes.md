@@ -283,3 +283,7 @@
 - 바닐라 EndDragonFight.isArenaLoaded 는 안쪽 반복 오타(`z = 8 + cz; z <= 8 + cz`)로 x -8..8, z +8 한 줄만 본다. "고쳐서" 전체를 보면 parity 가 깨진다.
 - `TargetingConditions.test` 는 출처가 null 이면 거리·투명 검사를 건너뛴다. 수정 파괴 시 플레이어 찾기는 출처 없이 부른다(거리 무제한).
 - 앉은 단계는 화살뿐 아니라 WindCharge 도 불붙이고 무시한다. 상세: `dragon-parity-recheck-2026-10-28.md`.
+## 2026-10-28 /locate biome·poi
+- biome: `BiomeSource.findClosestBiome3d`(반경 6400, 가로 32, 세로 64)를 `BiomeLocator` 로 옮겼다. 3d 판은 난수를 안 쓴다. 나선은 `BlockPos.spiralAround(동, 남)` 반복자 그대로(마지막 변 순서까지), 세로는 `Mth.outFromOrigin(y, minY+1, minY+height, 64)`. 바이옴은 청크 저장값이 아니라 climate sampler 값(바닐라와 같다 — `/fillbiome` 결과는 안 보인다). 거리는 3차원 `floor(sqrt((float) distSqr))`, 좌표 y 는 절대값. 고정 바이옴(superflat)은 맞으면 출발점.
+- poi: `PoiManager.findClosestWithType`(반경 256, ANY). 청크 사각마다 올라온 청크는 주인 region 스레드에서 복사, 주인이 없거나 안 올라온 청크는 poi/ 파일에서 읽는다(`PoiLocator`, locate 작업 스레드).
+- 차이(가정 포함): 바닐라는 서버 스레드에서 막고 돈다. 여기서는 작업 스레드라 그 사이 틱이 지나간다. 막 내려가 저장 대기 중인 청크의 POI 는 디스크에 아직 없을 수 있다. 같은 섹션 안 같은 거리 POI 의 우열은 바닐라도 HashMap 순서라 맞추지 않았다. 실서버 대조(같은 시드 좌표)는 아직 안 했다.
