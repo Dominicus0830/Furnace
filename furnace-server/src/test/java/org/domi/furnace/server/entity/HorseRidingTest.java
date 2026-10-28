@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
 import org.domi.furnace.server.block.LegacyRandomSource;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.ai.goal.RunAroundLikeCrazyGoal;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -160,5 +161,55 @@ class HorseRidingTest {
             assertEquals(max, h.health(), "첫 틱 뒤 체력 = 최대 체력");
             assertTrue(h.health() >= 15.0F && h.health() <= 30.0F);
         }
+    }
+
+    /** T5(a): /summon·알은 무리 데이터 경로(finalizeSpawnGroup)로 Horse.finalizeSpawn 을 불러 능력치를 굴린다. 예전엔 Mob 2인자 경로라 기본값(체력 53)이 남았다. */
+    @Test
+    void summonAndEggPathRandomizeAttributesInVanillaOrder() {
+        for (long seed = 1; seed <= 10; seed++) {
+            var level = new BlockPlacementTest.TestLevel();
+            ((LegacyRandomSource) level.random()).setSeed(seed);
+            RandomSource ref = RandomSource.create(seed);
+            ref.nextInt(7);   // 색
+            ref.nextInt(5);   // 무늬
+            float hp = 15.0F + ref.nextInt(8) + ref.nextInt(9);
+            double speed = (0.45F + ref.nextDouble() * 0.3 + ref.nextDouble() * 0.3 + ref.nextDouble() * 0.3) * 0.25;
+            double jump = 0.4F + ref.nextDouble() * 0.2 + ref.nextDouble() * 0.2 + ref.nextDouble() * 0.2;
+            Horse h = horse(level);
+            // SummonCommand.summonAt 과 같은 호출
+            h.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(h.blockPosition()), null);
+            assertEquals(hp, h.maxHealth(), "시드 " + seed);
+            assertEquals(speed, h.attributes().get(Attribute.MOVEMENT_SPEED).baseValue(), 1e-12);
+            assertEquals(jump, h.attributes().get(Attribute.JUMP_STRENGTH).baseValue(), 1e-12);
+            assertTrue(hp >= 15 && hp <= 30);
+            assertTrue(speed >= 0.1125 && speed <= 0.3375);
+            assertTrue(jump >= 0.4 && jump <= 1.0);
+            assertTrue(level.addFreshEntity(h));
+            h.tick();
+            assertEquals(hp, h.health(), "첫 틱 뒤 체력 = 최대 체력");
+        }
+        // 알 경로(EntityType.spawn): 체력이 기본 53 이 아니라 범위 안
+        var level = new BlockPlacementTest.TestLevel();
+        for (int i = 0; i < 8; i++) assertTrue(level.spawnMobFromEgg("minecraft:horse", new org.domi.furnace.server.block.Pos(i, -60, 0), true, false));
+        var hs = level.getEntitiesOfClass(Horse.class, new AABB(-50, -80, -50, 50, 80, 50), e -> true);
+        assertEquals(8, hs.size());
+        for (Horse h : hs) assertTrue(h.maxHealth() >= 15 && h.maxHealth() <= 30, "알 말 체력 " + h.maxHealth());
+    }
+
+    /** T5(b): 내리면 승객 boardingCooldown = 60(Entity.removePassenger). 그동안 canRide 가 거짓이라 우클릭해도 못 탄다(바닐라도 3초). */
+    @Test
+    void remountBlockedForSixtyTicksAfterDismount() {
+        var level = new BlockPlacementTest.TestLevel();
+        Horse h = horse(level);
+        Player p = player();
+        assertTrue(h.interact(p, 0, ItemStack.EMPTY, null));
+        p.stopRiding();
+        assertNull(p.vehicle());
+        for (int t = 0; t < 59; t++) p.tickRiding();
+        h.interact(p, 0, ItemStack.EMPTY, null);
+        assertNull(p.vehicle(), "59틱째는 아직 못 탄다");
+        p.tickRiding();
+        assertTrue(h.interact(p, 0, ItemStack.EMPTY, null));
+        assertSame(h, p.vehicle(), "60틱 뒤 다시 탄다");
     }
 }

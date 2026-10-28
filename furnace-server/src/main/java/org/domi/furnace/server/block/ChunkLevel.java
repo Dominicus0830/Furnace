@@ -1441,7 +1441,7 @@ public abstract class ChunkLevel implements BlockLevel {
         mob.setYHeadRot(mob.yRot());
         mob.setYBodyRot(mob.yRot());
         if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG);
-        mob.finalizeSpawn(random, getCurrentDifficultyAt(mob.blockPosition()));
+        mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
         addFreshEntityWithPassengers(mob);
         mob.makeSound(mob.ambientSoundForSpawn());
         return true;
