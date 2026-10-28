@@ -967,11 +967,39 @@ public abstract non-sealed class Entity implements Rider {
         stuckZ = mz;
     }
 
-    /** Entity.collide(movement): 블록 충돌로 줄인 이동. 걸어 오르기(maxUpStep)는 지금 엔티티에 없다. */
+    /** Entity.maxUpStep: 걸어 오를 수 있는 높이. 기본 0, LivingEntity 는 step_height 속성. */
+    public float maxUpStep() { return 0.0F; }
+
+    /** Entity.collide(movement): 블록 충돌로 줄인 이동 + 바닥에서 옆으로 막히면 maxUpStep 만큼 걸어 오르기(1.21.1). */
     protected double[] collide(double dx, double dy, double dz) {
         if (dx == 0.0 && dy == 0.0 && dz == 0.0) return new double[] {dx, dy, dz};
-        var shapes = level.blockCollisions(bb.expandTowards(dx, dy, dz));
-        return collideWithShapes(dx, dy, dz, bb, shapes);
+        AABB box = bb;
+        var shapes = level.blockCollisions(box.expandTowards(dx, dy, dz));
+        double[] r = collideWithShapes(dx, dy, dz, box, shapes);
+        boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
+        boolean ground = onGround() || cy && dy < 0.0;
+        float step = maxUpStep();
+        if (step > 0.0F && ground && (cx || cz)) {
+            double[] a = collideStep(dx, step, dz, box);
+            double[] up = collideStep(0.0, step, 0.0, box.expandTowards(dx, 0.0, dz));
+            if (up[1] < step) {
+                double[] b = collideStep(dx, 0.0, dz, box.move(up[0], up[1], up[2]));
+                b[0] += up[0];
+                b[1] += up[1];
+                b[2] += up[2];
+                if (b[0] * b[0] + b[2] * b[2] > a[0] * a[0] + a[2] * a[2]) a = b;
+            }
+            if (a[0] * a[0] + a[2] * a[2] > r[0] * r[0] + r[2] * r[2]) {
+                double[] down = collideStep(0.0, -a[1] + dy, 0.0, box.move(a[0], a[1], a[2]));
+                return new double[] {a[0] + down[0], a[1] + down[1], a[2] + down[2]};
+            }
+        }
+        return r;
+    }
+
+    /** collideBoundingBox(movement, box): 이 상자 기준으로 블록 충돌을 새로 모아 자른다. */
+    private double[] collideStep(double dx, double dy, double dz, AABB box) {
+        return collideWithShapes(dx, dy, dz, box, level.blockCollisions(box.expandTowards(dx, dy, dz)));
     }
 
     /** Entity.collideWithShapes: y 먼저, 그다음 |x| < |z| 면 z·x, 아니면 x·z. */
