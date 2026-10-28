@@ -21,7 +21,7 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 public abstract non-sealed class Entity implements Rider {
 
     /** 엔티티 데이터 번호(Entity.DATA_*): 0 공유 플래그, 1 공기, 2 이름, 3 이름 보임, 4 조용함, 5 중력 없음, 6 자세, 7 얼음 틱. */
-    public static final int DATA_SHARED_FLAGS = 0, DATA_AIR_SUPPLY = 1, DATA_CUSTOM_NAME_VISIBLE = 3, DATA_SILENT = 4,
+    public static final int DATA_SHARED_FLAGS = 0, DATA_AIR_SUPPLY = 1, DATA_CUSTOM_NAME = 2, DATA_CUSTOM_NAME_VISIBLE = 3, DATA_SILENT = 4,
             DATA_NO_GRAVITY = 5, DATA_POSE = 6, DATA_TICKS_FROZEN = 7;
     private static final int FLAG_ONFIRE = 0;
     private static final int FIRE_IMMUNE_TICKS = 1;   // getFireImmuneTicks
@@ -106,7 +106,7 @@ public abstract non-sealed class Entity implements Rider {
         this.uuid = randomUuid(random);
         entityData.define(DATA_SHARED_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
         entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, 300);
-        entityData.define(2, 6, null);   // DATA_CUSTOM_NAME(Optional<Component>) — 아직 쓰지 않는다
+        entityData.define(DATA_CUSTOM_NAME, SetEntityData.SERIALIZER_OPTIONAL_COMPONENT, null);   // Optional<Component>, null = 없음
         entityData.define(DATA_CUSTOM_NAME_VISIBLE, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_SILENT, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_NO_GRAVITY, SetEntityData.SERIALIZER_BOOLEAN, false);
@@ -371,7 +371,7 @@ public abstract non-sealed class Entity implements Rider {
             fallDistance *= 0.5F;
         }
         checkBelowWorld();
-        setSharedFlag(FLAG_ONFIRE, remainingFireTicks > 0);
+        setSharedFlagOnFire(remainingFireTicks > 0);
         firstTick = false;
     }
 
@@ -602,7 +602,26 @@ public abstract non-sealed class Entity implements Rider {
         else setSwimming(isSprinting() && isInWater() && level.isWaterAt(blockPosition()));
     }
 
-    public void setSharedFlagOnFire(boolean on) { setSharedFlag(FLAG_ONFIRE, on); }
+    /** setSharedFlagOnFire: 불 표시는 실제 불 또는 HasVisualFire. */
+    public void setSharedFlagOnFire(boolean on) { setSharedFlag(FLAG_ONFIRE, on || hasVisualFire); }
+
+    private static final int FLAG_GLOWING = 6;
+    /** Entity.hasGlowingTag(NBT "Glowing"). */
+    private boolean hasGlowingTag;
+    /** Entity.hasVisualFire(NBT "HasVisualFire"): 불 없이 불붙은 모습. */
+    private boolean hasVisualFire;
+
+    public final boolean hasGlowingTag() { return hasGlowingTag; }
+
+    /** setGlowingTag: 서버에서는 isCurrentlyGlowing = 태그 값. */
+    public final void setGlowingTag(boolean v) {
+        hasGlowingTag = v;
+        setSharedFlag(FLAG_GLOWING, v);
+    }
+
+    public boolean hasVisualFire() { return hasVisualFire; }
+
+    public void setHasVisualFire(boolean v) { hasVisualFire = v; }
 
     protected void setSharedFlag(int flag, boolean on) {
         byte b = (Byte) entityData.get(DATA_SHARED_FLAGS);
@@ -1085,8 +1104,38 @@ public abstract non-sealed class Entity implements Rider {
 
     public int getMaxAirSupply() { return 300; }
 
-    /** 사용자 지정 이름이 있나. TODO(이름표): 이름 표시·저장이 생기면 실제 값으로. */
-    public boolean hasCustomName() { return false; }
+    /** 불러온 CustomName JSON 원문. 이름을 안 바꾸면 그대로 다시 쓴다(서식 손실 없음). */
+    private String customNameJson;
+
+    public boolean hasCustomName() { return entityData.get(DATA_CUSTOM_NAME) != null; }
+
+    public org.domi.furnace.api.text.Text getCustomName() { return (org.domi.furnace.api.text.Text) entityData.get(DATA_CUSTOM_NAME); }
+
+    /** setCustomName(null = 지움). */
+    public void setCustomName(org.domi.furnace.api.text.Text name) {
+        customNameJson = name == null ? null : name.toJson();
+        entityData.set(DATA_CUSTOM_NAME, name);
+        onCustomNameChanged();
+    }
+
+    /** 이름이 바뀐 뒤(보스 바 이름 갱신 등). */
+    protected void onCustomNameChanged() {}
+
+    public boolean isCustomNameVisible() { return (Boolean) entityData.get(DATA_CUSTOM_NAME_VISIBLE); }
+
+    public void setCustomNameVisible(boolean v) { entityData.set(DATA_CUSTOM_NAME_VISIBLE, v); }
+
+    /** Entity.getName: 커스텀 이름, 없으면 종류 이름. */
+    public org.domi.furnace.api.text.Text getName() {
+        var n = getCustomName();
+        return n != null ? n : typeName(type);
+    }
+
+    static org.domi.furnace.api.text.Text typeName(EntityType type) {
+        String n = type.name();
+        int i = n.indexOf(':');
+        return org.domi.furnace.api.text.Text.translatable("entity." + n.substring(0, i) + "." + n.substring(i + 1));
+    }
 
     /** Entity.ignoreExplosion: 폭발이 건드리지 않는 엔티티. */
     public boolean ignoreExplosion() { return false; }
@@ -1294,11 +1343,15 @@ public abstract non-sealed class Entity implements Rider {
         tag.putBoolean("Invulnerable", invulnerable);
         tag.putInt("PortalCooldown", portalCooldown);
         tag.putIntArray("UUID", uuidToInts(uuid));
+        if (hasCustomName()) tag.putString("CustomName", customNameJson != null ? customNameJson : getCustomName().toJson());
+        if (isCustomNameVisible()) tag.putBoolean("CustomNameVisible", true);
         if (isInvisible()) tag.putBoolean("Invisible", true);
         if (isSilent()) tag.putBoolean("Silent", true);
         if (isNoGravity()) tag.putBoolean("NoGravity", true);
+        if (hasGlowingTag) tag.putBoolean("Glowing", true);
         int frozen = (Integer) entityData.get(DATA_TICKS_FROZEN);
         if (frozen > 0) tag.putInt("TicksFrozen", frozen);
+        if (hasVisualFire) tag.putBoolean("HasVisualFire", true);
         if (!commandTags.isEmpty()) {
             NbtList tagList = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_STRING);
             for (String t : commandTags) tagList.add(t);
@@ -1352,10 +1405,23 @@ public abstract non-sealed class Entity implements Rider {
         portalCooldown = tag.getIntOr0("PortalCooldown");
         if (tag.tags().get("UUID") instanceof int[] u && u.length == 4) uuid = new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
         if (Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)) setPos(x, y, z);
+        if (tag.tags().get("CustomName") instanceof String json) {
+            try {
+                var name = org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json);
+                entityData.set(DATA_CUSTOM_NAME, name);
+                customNameJson = name == null ? null : json;
+                onCustomNameChanged();
+            } catch (RuntimeException ignored) {
+                // 바닐라: 경고만 남기고 이름 없이 계속
+            }
+        }
+        setCustomNameVisible(tag.getBoolean("CustomNameVisible"));
         entityData.set(DATA_SILENT, tag.getBoolean("Silent"));
         setInvisible(tag.getBoolean("Invisible"));
         entityData.set(DATA_NO_GRAVITY, tag.getBoolean("NoGravity"));
+        setGlowingTag(tag.getBoolean("Glowing"));
         entityData.set(DATA_TICKS_FROZEN, tag.getIntOr0("TicksFrozen"));
+        hasVisualFire = tag.getBoolean("HasVisualFire");
         commandTags.clear();
         if (tag.tags().get("Tags") instanceof NbtList tagList) {
             int n = Math.min(tagList.size(), 1024);
@@ -1409,15 +1475,11 @@ public abstract non-sealed class Entity implements Rider {
 
     @Override public String typeName() { return type.name(); }
 
-    /** 선택자 name=: 커스텀 이름 저장이 아직 없어 늘 null. */
-    @Override public String selectorName() { return null; }
+    /** 선택자 name=: 커스텀 이름의 문자열. 없으면 null(종류 번역 이름 비교는 아직 없음). */
+    @Override public String selectorName() { return hasCustomName() ? getCustomName().getString() : null; }
 
-    /** 바닐라 Entity.getDisplayName(커스텀 이름이 없을 때): 종류 이름. */
-    @Override public org.domi.furnace.api.text.Text displayName() {
-        String n = type.name();
-        int i = n.indexOf(':');
-        return org.domi.furnace.api.text.Text.translatable("entity." + n.substring(0, i) + "." + n.substring(i + 1));
-    }
+    /** 바닐라 Entity.getDisplayName: getName(팀 서식·hover 는 아직 없음). */
+    @Override public org.domi.furnace.api.text.Text displayName() { return getName(); }
 
     // ------------------------------------------------------------------ 명령 태그(Entity.tags, NBT "Tags")
 

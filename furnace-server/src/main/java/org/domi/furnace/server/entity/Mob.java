@@ -782,6 +782,9 @@ public abstract class Mob extends LivingEntity {
         entityData.set(DATA_MOB_FLAGS, (byte) (v ? b | 1 : b & ~1));
     }
 
+    /** NBT "leash"(UUID 또는 울타리 좌표). 몹 끈 동작이 아직 없어 원본을 그대로 보존한다. */
+    private Object leashTag;   // NbtCompound{UUID} 또는 int[3]
+
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
         super.addAdditionalSaveData(tag);
@@ -804,7 +807,13 @@ public abstract class Mob extends LivingEntity {
             tag.putCompound("body_armor_item", ItemStackNbt.write(bodyArmorItem));
             tag.putFloat("body_armor_drop_chance", bodyArmorDropChance);
         }
+        if (leashTag instanceof NbtCompound c) tag.putCompound("leash", c.copy());
+        else if (leashTag instanceof int[] p) tag.putIntArray("leash", p.clone());
         tag.putBoolean("LeftHanded", ((Byte) entityData.get(DATA_MOB_FLAGS) & 2) != 0);
+        if (deathLootTable != null) {
+            tag.putString("DeathLootTable", deathLootTable);
+            if (deathLootTableSeed != 0L) tag.putLong("DeathLootTableSeed", deathLootTableSeed);
+        }
         if (isNoAi()) tag.putBoolean("NoAI", true);
     }
 
@@ -831,6 +840,12 @@ public abstract class Mob extends LivingEntity {
             bodyArmorDropChance = tag.getFloat("body_armor_drop_chance");
         } else {
             bodyArmorItem = ItemStack.EMPTY;
+        }
+        Object leash = tag.tags().get("leash");
+        leashTag = leash instanceof NbtCompound l ? l.copy() : leash instanceof int[] p && p.length == 3 ? p.clone() : null;
+        if (tag.tags().get("DeathLootTable") instanceof String lt) {
+            deathLootTable = lt;
+            deathLootTableSeed = tag.tags().get("DeathLootTableSeed") instanceof Number n ? n.longValue() : 0L;
         }
         byte b = (byte) ((tag.getBoolean("LeftHanded") ? 2 : 0));
         entityData.set(DATA_MOB_FLAGS, b);

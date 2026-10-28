@@ -118,7 +118,14 @@ public class WitherBoss extends Monster implements RangedAttackMob {
 
     // ------------------------------------------------------------------ 보스 바
 
-    private Text bossName() { return Text.translatable("entity.minecraft.wither"); }
+    /** bossEvent 이름 = getDisplayName(커스텀 이름 반영). */
+    private Text bossName() { return displayName(); }
+
+    /** WitherBoss.setCustomName: 보스 바 이름도 바꾼다. */
+    @Override
+    protected void onCustomNameChanged() {
+        for (Player p : bossViewers) if (!p.isDisconnected()) p.send(BossEvent.name(bossId, bossName()));
+    }
 
     @Override
     public void onStartSeenBy(Player p) {

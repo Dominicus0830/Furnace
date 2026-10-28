@@ -30,6 +30,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected int lastHurtByPlayerTime;
     protected Player lastHurtByPlayer;
     protected long deathLootTableSeed;
+    /** Mob.lootTable(NBT "DeathLootTable"): 있으면 종류 기본 표 대신 쓴다. */
+    protected String deathLootTable;
+    /** NBT "HurtByTimestamp", "FallFlying": 아직 동작에 쓰지 않고 값만 보존한다. */
+    protected int hurtByTimestamp;
+    protected boolean fallFlyingSaved;
+    /** LivingEntity.absorptionAmount. 몹 쪽 흡수 소비는 아직 없어 값만 보존한다. */
+    protected float absorptionAmount;
     protected String lastDamageType = "generic";
     private long lastDamageStamp = Long.MIN_VALUE / 2;
     private Targetable lastDamageAttacker;
@@ -546,6 +553,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override
     public org.domi.furnace.api.text.Text displayName() {
+        if (hasCustomName()) return getCustomName();
         return org.domi.furnace.api.text.Text.translatable("entity.minecraft." + type.name().substring("minecraft:".length()));
     }
 
@@ -687,7 +695,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     protected void dropFromLootTable(Damage source, boolean byPlayer) {
         Player killer = byPlayer ? lastHurtByPlayer : null;
-        for (ItemStack s : level.entityDrops(lootTable(), lootEntity(), x(), y(), z(), source.type(), killer, killer, deathLootTableSeed)) spawnAtLocation(s);
+        for (ItemStack s : level.entityDrops(deathLootTable != null ? deathLootTable : lootTable(), lootEntity(), x(), y(), z(), source.type(), killer, killer, deathLootTableSeed)) spawnAtLocation(s);
     }
 
     protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {}
@@ -1272,11 +1280,16 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected void addAdditionalSaveData(NbtCompound tag) {
         tag.putFloat("Health", health());
         tag.putShort("HurtTime", (short) hurtTime);
-        tag.putInt("HurtByTimestamp", 0);
+        tag.putInt("HurtByTimestamp", hurtByTimestamp);
         tag.putShort("DeathTime", (short) deathTime);
-        tag.putFloat("AbsorptionAmount", 0.0F);
-        tag.putBoolean("FallFlying", false);
+        tag.putFloat("AbsorptionAmount", absorptionAmount);
         tag.putList("attributes", attributes().save());
+        if (!activeEffects.isEmpty()) {
+            var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+            for (var e : activeEffects.values()) list.add(e.save());
+            tag.putList("active_effects", list);
+        }
+        tag.putBoolean("FallFlying", fallFlyingSaved);
         getSleepingPos().ifPresent(p -> {
             tag.putInt("SleepingX", p.x());
             tag.putInt("SleepingY", p.y());
@@ -1286,12 +1299,24 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
+        // 바닐라: internalSetAbsorptionAmount(자르지 않고 그대로)
+        absorptionAmount = tag.getFloat("AbsorptionAmount");
+        attributes().load(tag.tags().get("attributes") instanceof org.domi.furnace.server.net.io.nbt.NbtList l ? l : null);
+        if (tag.tags().get("active_effects") instanceof org.domi.furnace.server.net.io.nbt.NbtList effects) {
+            for (Object o : effects.items()) {
+                if (o instanceof NbtCompound c) {
+                    var e = org.domi.furnace.server.effect.MobEffectInstance.load(c);
+                    if (e != null) activeEffects.put(e.effect(), e);
+                }
+            }
+        }
         if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
         hurtTime = tag.getShort("HurtTime");
+        hurtByTimestamp = tag.getIntOr0("HurtByTimestamp");
+        fallFlyingSaved = tag.getBoolean("FallFlying");
         yHeadRot = yBodyRot = yRot();
         yHeadRotO = yBodyRotO = yRot();
         deathTime = tag.getShort("DeathTime");
-        attributes().load(tag.tags().get("attributes") instanceof org.domi.furnace.server.net.io.nbt.NbtList l ? l : null);
         if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
         if (tag.contains("SleepingX") && tag.contains("SleepingY") && tag.contains("SleepingZ")) {
             var p = new org.domi.furnace.server.block.Pos(tag.getIntOr0("SleepingX"), tag.getIntOr0("SleepingY"), tag.getIntOr0("SleepingZ"));
