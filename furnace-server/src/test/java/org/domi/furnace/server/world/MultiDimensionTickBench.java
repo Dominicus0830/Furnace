@@ -28,23 +28,36 @@ class MultiDimensionTickBench {
         int regionsPerDim = Integer.getInteger("furnace.bench.regions", 2);
         int ticks = Integer.getInteger("furnace.bench.ticks", 100);
         int threads = Integer.getInteger("furnace.bench.threads", Runtime.getRuntime().availableProcessors());
-        for (String n : ns) {
-            for (String l : loads) run(Integer.parseInt(n.trim()), regionsPerDim, Double.parseDouble(l.trim()), ticks, threads);
+        // 모드: perDim(차원별 풀, 현행) / shared(실제 SharedScheduler 하나를 모든 차원이 공유, S4). reps 번 모드를 번갈아 돈다
+        String[] modes = System.getProperty("furnace.bench.modes", "perDim").split(",");
+        int reps = Integer.getInteger("furnace.bench.reps", 1);
+        for (int rep = 0; rep < reps; rep++) {
+            for (String n : ns) {
+                for (String l : loads) {
+                    for (String m : modes) {
+                        System.out.printf("MDBENCH rep=%d mode=%s%n", rep, m.trim());
+                        run(Integer.parseInt(n.trim()), regionsPerDim, Double.parseDouble(l.trim()), ticks, threads, m.trim().equals("shared"));
+                    }
+                }
+            }
         }
     }
 
-    private void run(int dims, int regionsPerDim, double loadMs, int ticks, int threads) throws Exception {
+    private void run(int dims, int regionsPerDim, double loadMs, int ticks, int threads, boolean shared) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(TICK, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         List<ExecutorService> pools = new ArrayList<>();
         List<World> worlds = new ArrayList<>();
         long beforeThreads = Thread.getAllStackTraces().keySet().stream().filter(t -> t.getName().startsWith("furnace-region")).count();
+        SharedScheduler pool = shared ? SharedScheduler.startShared(threads, "furnace-region-") : null;
         for (int d = 0; d < dims; d++) {
             ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
             pools.add(io);
             pools.add(gen);
-            World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, threads, 4, 1, 2, 2,
-                    reg.directBits(), 7, io, gen);
+            World w = pool == null
+                    ? new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, threads, 4, 1, 2, 2, reg.directBits(), 7, io, gen)
+                    : new World(DimensionType.OVERWORLD, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, pool, 4, 1, 2, 2,
+                            reg.directBits(), 7, io, gen);
             w.configurePersistence(Integer.MAX_VALUE, Integer.MAX_VALUE);
             worlds.add(w);
         }
@@ -85,13 +98,14 @@ class MultiDimensionTickBench {
         List<Long> late = new ArrayList<>();
         for (int s = 0; s < total; s++) for (int i = 6; i <= ticks; i++) late.add(starts[s][i] - starts[s][i - 1] - TICK);
         long[] a = late.stream().mapToLong(Long::longValue).sorted().toArray();
-        System.out.printf("MDBENCH dims=%d regions/dim=%d regionThreads=%d (per-dim %d) cores=%d loadMs=%.1f samples=%d"
+        System.out.printf("MDBENCH " + (shared ? "shared" : "perDim") + " dims=%d regions/dim=%d regionThreads=%d (per-dim %d) cores=%d loadMs=%.1f samples=%d"
                         + " | 간격-50ms p50=%.3fms p95=%.3fms p99=%.3fms max=%.3fms min=%.3fms | cpu=%.0fms wall=%.0fms wakeups=%d%n",
                 dims, regionsPerDim, regionThreads, threads, Runtime.getRuntime().availableProcessors(), loadMs, a.length,
                 a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length * 99 / 100] / 1e6, a[a.length - 1] / 1e6, a[0] / 1e6,
                 cpu / 1e6, wall / 1e6, wakes);
         sched.close();
         for (World w : worlds) w.regionizer().close();
+        if (pool != null) pool.close();
         for (ExecutorService e : pools) e.shutdownNow();
     }
 
@@ -224,7 +238,8 @@ class MultiDimensionTickBench {
     /** 모든 월드 워커가 기다림에서 돌아온 횟수 합(계측). */
     private static long wakeups(List<World> worlds) {
         long n = 0;
-        for (World w : worlds) n += w.regionizer().schedStats().wakeups();
+        java.util.Set<SharedScheduler> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (World w : worlds) if (seen.add(w.regionizer().pool())) n += w.regionizer().schedStats().wakeups();   // 공유 풀은 한 번만
         return n;
     }
 }
