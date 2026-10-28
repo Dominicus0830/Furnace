@@ -422,7 +422,7 @@ public final class World {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return CompletableFuture.completedFuture(null);
         return CompletableFuture.supplyAsync(() -> {
             try {
-                synchronized (anvil.entityStore()) {
+                synchronized (anvil.entityLock(chunkX, chunkZ)) {
                     return anvil.readEntities(chunkX, chunkZ);
                 }
             } catch (Exception e) {
@@ -437,7 +437,7 @@ public final class World {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return;
         ioLane(chunkX, chunkZ).execute(() -> {
             boolean ok = runWithRetry(() -> {
-                synchronized (anvil.entityStore()) {   // 덧붙이기(읽고·쓰기)와 엇갈리지 않게
+                synchronized (anvil.entityLock(chunkX, chunkZ)) {   // 덧붙이기(읽고·쓰기)와 엇갈리지 않게
                     anvil.writeEntities(chunkX, chunkZ, root);
                 }
             }, "엔티티 " + chunkX + "," + chunkZ + " 저장");
@@ -454,11 +454,11 @@ public final class World {
         });
     }
 
-    /** 디스크의 그 청크 엔티티 묶음에 덧붙인다(읽고 → 더하고 → 쓰기, 엔티티 저장소 잠금 안에서). */
+    /** 디스크의 그 청크 엔티티 묶음에 덧붙인다(읽고 → 더하고 → 쓰기, 그 청크 엔티티 잠금 안에서). */
     public void appendEntitiesAsync(int chunkX, int chunkZ, List<NbtCompound> tags) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return;
         ioLane(chunkX, chunkZ).execute(() -> {
-            synchronized (anvil.entityStore()) {
+            synchronized (anvil.entityLock(chunkX, chunkZ)) {
                 try {
                     NbtCompound root = anvil.readEntities(chunkX, chunkZ);
                     if (root == null) {

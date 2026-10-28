@@ -123,6 +123,28 @@ public final class AnvilWorldSource implements WorldSource {
 
     private volatile RegionFileStore poiStore;
 
+    // C-5(F-01 후속): 저장소 전체 잠금 대신 청크별(줄무늬) 잠금. 같은 청크의 읽기·쓰기·덧붙이기(읽고·쓰기)만 서로 배제하면 되고,
+    // 다른 청크끼리는 RegionFileStore 의 파일 잠금이 섹터 기록을 지킨다 — NBT 인코딩·deflate 가 레인끼리 줄 서지 않는다.
+    private static final int LOCK_STRIPES = 256;
+    private final Object[] poiLocks = stripes(), entityLocks = stripes();
+
+    private static Object[] stripes() {
+        Object[] a = new Object[LOCK_STRIPES];
+        for (int i = 0; i < a.length; i++) a[i] = new Object();
+        return a;
+    }
+
+    private static int stripe(int chunkX, int chunkZ) {
+        int h = chunkX * 0x9E3779B1 ^ chunkZ * 0x85EBCA6B;
+        return (h ^ (h >>> 16)) & (LOCK_STRIPES - 1);
+    }
+
+    /** 그 청크 POI 묶음의 읽기·쓰기 잠금. */
+    public Object poiLock(int chunkX, int chunkZ) { return poiLocks[stripe(chunkX, chunkZ)]; }
+
+    /** 그 청크 엔티티 묶음의 읽기·쓰기·덧붙이기 잠금. */
+    public Object entityLock(int chunkX, int chunkZ) { return entityLocks[stripe(chunkX, chunkZ)]; }
+
     public void poiStore(RegionFileStore s) { this.poiStore = s; }
 
     public RegionFileStore poiStore() { return poiStore; }
@@ -133,7 +155,7 @@ public final class AnvilWorldSource implements WorldSource {
         if (ps == null || col == null) return col;
         try {
             byte[] bytes;
-            synchronized (ps) {
+            synchronized (poiLock(chunkX, chunkZ)) {
                 bytes = ps.readChunk(chunkX, chunkZ);
             }
             if (bytes != null) col.poiNbt(NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes))));
@@ -148,7 +170,7 @@ public final class AnvilWorldSource implements WorldSource {
         if (ps == null) return;
         java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
         NbtIo.write(new java.io.DataOutputStream(bos), root, "");
-        synchronized (ps) {
+        synchronized (poiLock(chunkX, chunkZ)) {
             ps.writeChunk(chunkX, chunkZ, bos.toByteArray());
         }
     }
