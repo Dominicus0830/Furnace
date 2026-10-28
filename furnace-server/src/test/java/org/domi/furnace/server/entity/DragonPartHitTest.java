@@ -109,6 +109,8 @@ class DragonPartHitTest {
         level.explode(null, d.head.x(), d.head.y(0.5), d.head.z(), 4.0F, false, Explosion.BlockInteraction.KEEP);
         float lost = 200.0F - d.health();
         assertTrue(lost > 0.0F, "폭발은 언제나 드래곤을 깎는다");
+        // 본체만 맞으면 최대 57/4 + 1 = 15.25 — 머리 파트(배율 없음)가 폭발 중심에 있어야 이를 넘는다
+        assertTrue(lost > 57.0F / 4.0F + 1.0F, "파트(머리)가 배율 없이 맞았다: " + lost);
         // 무적 시간 규칙: 여러 파트가 맞아도 가장 큰 한 번 몫까지만 깎인다(머리 근처라 배율 없는 머리 피해가 가장 크다)
         assertTrue(lost <= 4.0F * 2.0F * 7.0F + 1.0F + 1e-3, "한 폭발의 최대 피해를 넘지 않는다: " + lost);
         float bodyOnly = 200.0F;

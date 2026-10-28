@@ -243,6 +243,48 @@ class DragonParityRecheckTest {
         assertEquals(EndDragonFight.RespawnStage.START, fight.respawnStage());
     }
 
+    /** 받침대 청크(-1..0)를 켰다 껐다 할 수 있는 엔드. */
+    private static DimensionTestLevel toggleLevel(boolean[] podium) {
+        return new DimensionTestLevel("minecraft:the_end") {
+            @Override
+            protected org.domi.furnace.server.world.ChunkColumn chunk(int x, int z) {
+                if (!podium[0] && x >= -1 && x <= 0 && z >= -1 && z <= 0) return null;
+                return super.chunk(x, z);
+            }
+        };
+    }
+
+    @Test
+    void tryRespawnWithoutPodiumChunksDoesNotCrash() {
+        boolean[] podium = {false};
+        var level = toggleLevel(podium);
+        var fight = new EndDragonFight(level, 0L, new Pos(0, 0, 0));
+        NbtCompound t = fight.save();
+        t.putBoolean("DragonKilled", true);
+        fight.load(t);
+        assertDoesNotThrow(fight::tryRespawn);
+        assertNull(fight.portalLocation());
+        assertNull(fight.respawnStage());
+    }
+
+    @Test
+    void exitPortalAndEggDeferredUntilPodiumChunksLoad() {
+        boolean[] podium = {true};
+        var level = toggleLevel(podium);
+        var fight = new EndDragonFight(level, 0L, new Pos(0, 0, 0));
+        level.setDragonFight(fight);
+        EnderDragon d = fight.createNewDragon();
+        podium[0] = false;
+        fight.setDragonKilled(d);
+        assertNull(fight.portalLocation(), "청크가 없으면 미룬다");
+        podium[0] = true;
+        fight.tick();
+        Pos portal = fight.portalLocation();
+        assertNotNull(portal, "청크가 들어온 틱에 놓는다");
+        assertTrue(org.domi.furnace.server.block.B.is(level.getBlockState(new Pos(portal.x() + 1, portal.y(), portal.z())), "minecraft:end_portal"), "열린 포털");
+        assertTrue(org.domi.furnace.server.block.B.is(level.getBlockState(new Pos(0, level.getMotionBlockingHeight(0, 0) - 1, 0)), "minecraft:dragon_egg"));
+    }
+
     private static int countClouds(DimensionTestLevel level) {
         int n = 0;
         for (Entity e : level.entities().tickSnapshot()) if (e instanceof AreaEffectCloud a && !a.isRemoved()) n++;
