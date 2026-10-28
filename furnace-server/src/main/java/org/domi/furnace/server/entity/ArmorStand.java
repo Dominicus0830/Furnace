@@ -15,6 +15,11 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class ArmorStand extends LivingEntity {
+
+    /** ArmorStand.thunderHit: 번개에 맞아도 아무 일 없다. */
+    @Override
+    public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {}
+
     public static final int DATA_CLIENT_FLAGS = 15, DATA_HEAD_POSE = 16, DATA_BODY_POSE = 17, DATA_LEFT_ARM_POSE = 18, DATA_RIGHT_ARM_POSE = 19,
             DATA_LEFT_LEG_POSE = 20, DATA_RIGHT_LEG_POSE = 21;
     public static final int FLAG_SMALL = 1, FLAG_SHOW_ARMS = 4, FLAG_NO_BASE_PLATE = 8, FLAG_MARKER = 16;

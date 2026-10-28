@@ -255,7 +255,7 @@ public final class SpawnPlacements {
         reg("bat", Type.ON_GROUND, "bat");
         reg("blaze", Type.ON_GROUND, "anyLight");
         for (String n : new String[] {"bogged", "cave_spider", "creeper", "enderman", "giant", "skeleton", "spider", "witch", "wither", "wither_skeleton", "zombie", "zombie_villager", "ravager"}) reg(n, Type.ON_GROUND, "monster");
-        for (String n : new String[] {"chicken", "cow", "donkey", "horse", "llama", "mule", "pig", "sheep", "cat", "bee"}) reg(n, Type.ON_GROUND, "animal");
+        for (String n : new String[] {"chicken", "cow", "donkey", "horse", "llama", "mule", "pig", "sheep", "cat"}) reg(n, Type.ON_GROUND, "animal");
         reg("endermite", Type.ON_GROUND, "endermite");
         reg("ender_dragon", Type.ON_GROUND, "mob");
         reg("frog", Type.ON_GROUND, "frog");

@@ -1,5 +1,5 @@
 // 바닐라 Turtle: 물과 땅을 오간다. 바다에서 짝짓기 해 알을 품고, 태어난 해변(집)으로 돌아가 모래에 알을 낳는다. 아기가 자라면 스트라이프 조각(스쿠트)을 떨군다.
-// TODO(번개): 번개 맞으면 즉사. TODO(발걸음 소리): 걷는 소리.
+// TODO(발걸음 소리): 걷는 소리.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -23,6 +23,13 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Turtle extends Animal {
+
+    /** Turtle.thunderHit: 번개에 맞으면 즉사(최대 피해). */
+    @Override
+    public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {
+        hurt(new Damage("lightning_bolt", false, false, false), Float.MAX_VALUE);
+    }
+
     public static final int DATA_HOME_POS = 17, DATA_HAS_EGG = 18, DATA_LAYING_EGG = 19, DATA_TRAVEL_POS = 20, DATA_GOING_HOME = 21, DATA_TRAVELLING = 22;
     private static final Prop EGGS = B.prop("eggs");
     int layEggCounter;

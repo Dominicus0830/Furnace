@@ -131,14 +131,9 @@ public class Sheep extends Animal {
         }
     }
 
-    /** 깎인 양은 아무것도 떨구지 않고, 아니면 색별 표. */
+    /** Sheep.getDefaultLootTable: 깎였으면 종류 기본 표(entities/sheep, 양고기), 아니면 색별 표. */
     @Override
-    public String lootTable() { return isSheared() ? null : "minecraft:entities/sheep/" + getColor().key(); }
-
-    @Override
-    protected void dropFromLootTable(Damage source, boolean byPlayer) {
-        if (lootTable() != null) super.dropFromLootTable(source, byPlayer);
-    }
+    public String lootTable() { return isSheared() ? super.lootTable() : "minecraft:entities/sheep/" + getColor().key(); }
 
     @Override
     public AgeableMob getBreedOffspring(ChunkLevel level, AgeableMob partner) {

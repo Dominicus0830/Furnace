@@ -8,6 +8,11 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public class LeashFenceKnotEntity extends Entity {
+
+    /** BlockAttachedEntity.thunderHit: 번개에 맞아도 아무 일 없다. */
+    @Override
+    public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {}
+
     private Pos blockPos;
     private int checkInterval;
 

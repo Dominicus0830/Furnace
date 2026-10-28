@@ -20,6 +20,10 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Phantom extends FlyingMob implements Enemy {
+
+    @Override
+    protected boolean shouldDespawnInPeaceful() { return true; }
+
     public static final int DATA_ID_SIZE = 16;
     private static final TargetingConditions DEFAULT_TARGETING = TargetingConditions.forCombat();
     private double[] moveTargetPoint = {0.0, 0.0, 0.0};

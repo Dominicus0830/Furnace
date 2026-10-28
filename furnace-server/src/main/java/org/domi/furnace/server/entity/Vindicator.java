@@ -16,7 +16,7 @@ public class Vindicator extends AbstractIllager {
     @Override
     protected void createAttributes(AttributeMap map) {
         super.createAttributes(map);
-        map.add(Attribute.MOVEMENT_SPEED, 0.35F).add(Attribute.MAX_HEALTH, 12.0).add(Attribute.FOLLOW_RANGE, 24.0).add(Attribute.ATTACK_DAMAGE, 5.0);
+        map.add(Attribute.MOVEMENT_SPEED, 0.35F).add(Attribute.FOLLOW_RANGE, 12.0).add(Attribute.MAX_HEALTH, 24.0).add(Attribute.ATTACK_DAMAGE, 5.0);
     }
 
     @Override

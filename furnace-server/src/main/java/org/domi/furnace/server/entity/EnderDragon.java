@@ -21,6 +21,11 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.world.GameMode;
 
 public class EnderDragon extends Mob implements Enemy {
+
+    /** EnderDragon.checkDespawn: 비어 있다(평화로움·거리로 사라지지 않음). */
+    @Override
+    public void checkDespawn() {}
+
     public static final int DATA_PHASE = 16;
     private static final TargetingConditions CRYSTAL_DESTROY_TARGETING = TargetingConditions.forCombat().range(64.0);
     private static final int[] NODE_ADJACENCY = {6146, 8197, 8202, 16404, 32808, 32848, 65696, 131392, 131712, 263424, 526848, 525313,

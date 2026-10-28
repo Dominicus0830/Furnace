@@ -11,6 +11,8 @@ public final class Entities {
     /** EntityType.create: 새 엔티티(없는 종류면 null). */
     public static Entity create(ChunkLevel level, String id) {
         return switch (id) {
+            case "minecraft:item" -> new ItemEntity(level, level.nextEntityId());
+            case "minecraft:experience_orb" -> new ExperienceOrb(level, level.nextEntityId());
             case "minecraft:zombie" -> new Zombie(level, level.nextEntityId());
             case "minecraft:villager" -> new Villager(level, level.nextEntityId());
             case "minecraft:wandering_trader" -> new WanderingTrader(level, level.nextEntityId());

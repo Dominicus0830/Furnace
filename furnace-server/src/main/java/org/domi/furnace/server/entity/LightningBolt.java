@@ -1,6 +1,6 @@
 // 바닐라 LightningBolt: 번개. 처음 틱에 불을 붙이고(보통·어려움) 피뢰침을 켜고 구리를 벗기며, 살아 있는 동안(2틱+번쩍임 1~3번) 주변(3칸, 위 6칸) 엔티티를 thunderHit 한다.
 // 소리는 클라이언트가 낸다(서버는 안 낸다). 번쩍임 사이 간격은 레벨 난수(0~9)로 정한다.
-// TODO: 번개 맞은 플레이어 발전 과제(channeling·lightning_strike), 번개로 인한 일부 몹 변환(버섯소 등).
+// TODO: 번개 맞은 플레이어 발전 과제(channeling·lightning_strike).
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;

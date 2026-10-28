@@ -19,7 +19,7 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 public class Rabbit extends Animal {
     public static final int DATA_TYPE = 17;
     public static final int TYPE_BROWN = 0, TYPE_WHITE = 1, TYPE_BLACK = 2, TYPE_WHITE_SPLOTCHED = 3, TYPE_GOLD = 4, TYPE_SALT = 5, TYPE_EVIL = 99;
-    private static final String EVIL_ARMOR_MODIFIER = "minecraft:evil";
+    private static final String EVIL_ATTACK_MODIFIER = "minecraft:evil";
 
     private int jumpTicks, jumpDuration;
     private boolean wasOnGround;
@@ -36,7 +36,7 @@ public class Rabbit extends Animal {
     @Override
     protected void createAttributes(AttributeMap map) {
         super.createAttributes(map);
-        map.add(Attribute.MAX_HEALTH, 3.0).add(Attribute.MOVEMENT_SPEED, 0.3F).add(Attribute.ARMOR, 3.0);
+        map.add(Attribute.MAX_HEALTH, 3.0).add(Attribute.MOVEMENT_SPEED, 0.3F).add(Attribute.ATTACK_DAMAGE, 3.0);
     }
 
     @Override
@@ -194,9 +194,9 @@ public class Rabbit extends Animal {
             targetSelector.addGoal(1, new HurtByTargetGoal(this).setAlertOthers());
             targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, true));
             // TODO(늑대): targetSelector 2 = Wolf
-            attributes().get(Attribute.ARMOR).addOrReplaceModifier(new AttributeModifier(EVIL_ARMOR_MODIFIER, 5.0, AttributeModifier.ADD_VALUE));
+            attributes().get(Attribute.ATTACK_DAMAGE).addOrReplaceModifier(new AttributeModifier(EVIL_ATTACK_MODIFIER, 5.0, AttributeModifier.ADD_VALUE));
         } else {
-            attributes().get(Attribute.ARMOR).removeModifier(EVIL_ARMOR_MODIFIER);
+            attributes().get(Attribute.ATTACK_DAMAGE).removeModifier(EVIL_ATTACK_MODIFIER);
         }
         entityData.set(DATA_TYPE, v);
     }

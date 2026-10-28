@@ -1,5 +1,4 @@
 // 바닐라 MushroomCow: 빨강/갈색, 그릇으로 스튜, 가위로 소로 바뀌며 버섯 5개. 갈색은 작은 꽃을 먹여 수상한 스튜 효과를 저장한다.
-// TODO: 번개를 맞으면 종류가 바뀌는 것(번개 개체 필요).
 package org.domi.furnace.server.entity;
 
 import java.util.List;
@@ -12,6 +11,20 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.recipe.StewEffects;
 
 public class Mooshroom extends Cow {
+    /** 마지막으로 바꾼 번개(같은 번개로 여러 번 바뀌지 않게). 저장하지 않는다(바닐라와 같음). */
+    private java.util.UUID lastLightningBoltUUID;
+
+    /** MushroomCow.thunderHit: 새 번개면 빨강↔갈색을 바꾸고 변환 소리. */
+    @Override
+    public void thunderHit(ChunkLevel level, LightningBolt bolt) {
+        java.util.UUID id = bolt.uuid();
+        if (!id.equals(lastLightningBoltUUID)) {
+            setMushroomType(mushroomType().equals("red") ? "brown" : "red");
+            lastLightningBoltUUID = id;
+            playSound("entity.mooshroom.convert", 2.0F, 1.0F);
+        }
+    }
+
     public static final int DATA_TYPE = 17;
     private List<Object> stewEffects;
 
