@@ -28,6 +28,7 @@ public final class EntitySelector {
     final boolean worldLimited;
     final List<Predicate<Rider>> predicates;
     final List<java.util.function.BiPredicate<org.domi.furnace.server.scores.Scoreboard, Rider>> boardPredicates;
+    final List<java.util.function.BiPredicate<org.domi.furnace.server.ServerCore, Rider>> serverPredicates;
     final MinMaxBounds range;
     final Double x, y, z;            // 기준점(없으면 소스 위치)
     final Double dx, dy, dz;         // 상자 크기
@@ -38,7 +39,8 @@ public final class EntitySelector {
     final boolean usesSelector;
 
     EntitySelector(int maxResults, boolean includesEntities, boolean worldLimited, List<Predicate<Rider>> predicates,
-                   List<java.util.function.BiPredicate<org.domi.furnace.server.scores.Scoreboard, Rider>> boardPredicates, MinMaxBounds range,
+                   List<java.util.function.BiPredicate<org.domi.furnace.server.scores.Scoreboard, Rider>> boardPredicates,
+                   List<java.util.function.BiPredicate<org.domi.furnace.server.ServerCore, Rider>> serverPredicates, MinMaxBounds range,
                    Double x, Double y, Double z, Double dx, Double dy, Double dz, Order order, boolean currentEntity,
                    String playerName, UUID entityUUID, boolean usesSelector) {
         this.maxResults = maxResults;
@@ -46,6 +48,7 @@ public final class EntitySelector {
         this.worldLimited = worldLimited;
         this.predicates = predicates;
         this.boardPredicates = boardPredicates;
+        this.serverPredicates = serverPredicates;
         this.range = range;
         this.x = x;
         this.y = y;
@@ -182,6 +185,10 @@ public final class EntitySelector {
         if (!boardPredicates.isEmpty()) {
             var board = source.getServer().scoreboard();
             for (var bp : boardPredicates) p = p.and(q -> bp.test(board, q));
+        }
+        if (!serverPredicates.isEmpty()) {
+            var server = source.getServer();
+            for (var sp : serverPredicates) p = p.and(q -> sp.test(server, q));
         }
         if (dx != null || dy != null || dz != null) {
             double bx0 = ox, by0 = oy, bz0 = oz;
