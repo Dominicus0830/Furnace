@@ -225,6 +225,12 @@ public final class EndDragonFight {
         for (Player p : barPlayers) p.send(v ? addPacket() : BossEvent.remove(barId));
     }
 
+    private void setBarName(Text name) {
+        if (name.equals(barName)) return;
+        barName = name;
+        if (barVisible) for (Player p : barPlayers) p.send(BossEvent.name(barId, name));
+    }
+
     private void setBarProgress(float f) {
         if (f == barProgress) return;
         barProgress = f;
@@ -237,6 +243,7 @@ public final class EndDragonFight {
         if (d.uuid().equals(dragonUUID)) {
             setBarProgress(d.health() / d.maxHealth());
             ticksSinceDragonSeen = 0;
+            if (d.hasCustomName()) setBarName(d.displayName());
         }
     }
 
