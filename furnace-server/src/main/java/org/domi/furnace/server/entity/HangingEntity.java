@@ -10,6 +10,11 @@ import org.domi.furnace.server.block.types.DiodeBlock;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public abstract class HangingEntity extends Entity {
+
+    /** BlockAttachedEntity.thunderHit: 번개에 맞아도 아무 일 없다. */
+    @Override
+    public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {}
+
     protected Pos blockPos;
     protected int direction = Dir.SOUTH;
     private int checkInterval;

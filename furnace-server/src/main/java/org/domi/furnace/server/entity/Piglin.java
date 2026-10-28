@@ -14,6 +14,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Piglin extends AbstractPiglin implements CrossbowAttackMob, InventoryCarrier {
+
+    /** Piglin 은 평화로움에서 사라지지 않는다(PiglinBrute 는 Monster 그대로 참). */
+    @Override
+    protected boolean shouldDespawnInPeaceful() { return false; }
+
     public static final int DATA_BABY = 17, DATA_IS_CHARGING_CROSSBOW = 18, DATA_IS_DANCING = 19;
     private static final String BABY_MODIFIER_ID = "minecraft:baby";
     private final MobInventory inventory = new MobInventory(8);

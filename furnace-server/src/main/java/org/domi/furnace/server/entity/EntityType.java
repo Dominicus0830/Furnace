@@ -52,8 +52,8 @@ public record EntityType(String name, int id, float width, float height, float e
     /** OCELOT: sized(0.6, 0.7).clientTrackingRange(10) (눈높이 기본 0.595). */
     public static final EntityType OCELOT = of("minecraft:ocelot", 0.6F, 0.7F, 0.7F * 0.85F, 10, 3, true, false);
 
-    /** CAT: sized(0.6, 0.7).clientTrackingRange(8). */
-    public static final EntityType CAT = of("minecraft:cat", 0.6F, 0.7F, 0.7F * 0.85F, 8, 3, true, false);
+    /** CAT: sized(0.6, 0.7).eyeHeight(0.35).clientTrackingRange(8). */
+    public static final EntityType CAT = of("minecraft:cat", 0.6F, 0.7F, 0.35F, 8, 3, true, false);
 
     /** POLAR_BEAR: sized(1.4, 1.4).clientTrackingRange(10). */
     public static final EntityType POLAR_BEAR = of("minecraft:polar_bear", 1.4F, 1.4F, 1.4F * 0.85F, 10, 3, true, false);

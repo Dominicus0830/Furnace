@@ -15,6 +15,10 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Ghast extends FlyingMob implements Enemy {
+
+    @Override
+    protected boolean shouldDespawnInPeaceful() { return true; }
+
     public static final int DATA_IS_CHARGING = 16;
     private int explosionPower = 1;
 

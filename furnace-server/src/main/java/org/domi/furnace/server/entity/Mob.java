@@ -392,8 +392,8 @@ public abstract class Mob extends LivingEntity {
     /** Mob.requiresCustomPersistence: 탄 몹은 사라지지 않는다. */
     protected boolean requiresCustomPersistence() { return isPassenger(); }
 
-    /** Mob.shouldDespawnInPeaceful: 적대 몹은 평화로움에서 사라진다. */
-    protected boolean shouldDespawnInPeaceful() { return this instanceof Enemy; }
+    /** Mob.shouldDespawnInPeaceful: 기본 거짓. Monster·Ghast·Phantom·Slime 이 참으로, Piglin 이 다시 거짓으로 덮는다. */
+    protected boolean shouldDespawnInPeaceful() { return false; }
 
     /** Mob.checkDespawn: 평화로움이면 적대 몹 제거, 아니면 가장 가까운 플레이어와의 거리로 사라질지 정한다(128 넘으면 즉시, 32 넘고 600틱 무행동이면 1/800). */
     public void checkDespawn() {

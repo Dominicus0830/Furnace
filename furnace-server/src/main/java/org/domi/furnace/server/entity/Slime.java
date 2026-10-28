@@ -13,7 +13,7 @@ import org.domi.furnace.server.entity.ai.goal.NearestAttackableTargetGoal;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public class Slime extends Mob {
+public class Slime extends Mob implements Enemy {
     public static final int DATA_SIZE = 16;
     private boolean wasOnGround;
 
@@ -48,6 +48,9 @@ public class Slime extends Mob {
     }
 
     public int getSize() { return (Integer) entityData.get(DATA_SIZE); }
+
+    @Override
+    protected boolean shouldDespawnInPeaceful() { return getSize() > 0; }
 
     private void applySize() {
         int size = getSize();
