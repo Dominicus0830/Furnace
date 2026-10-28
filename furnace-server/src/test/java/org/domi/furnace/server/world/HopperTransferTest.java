@@ -138,8 +138,9 @@ class HopperTransferTest {
     }
 
     @Test
-    void hopperBelowJukeboxTakesDiscAndStopsSong() {
-        // 바닐라: 깔때기가 주크박스 음반을 빼면 removeItem → setTheItem(EMPTY) → 정지(levelEvent 1011), has_record 해제
+    void hopperBelowJukeboxIsLockedWhileSongPlaysThenTakesDisc() {
+        // 바닐라: 재생 시작·정지 때 notifyChange(updateNeighborsAt) — 재생 중 주크박스는 신호 15 라 아래 깔때기가 잠겨(enabled=false) 음반을 못 뺀다.
+        // 노래가 끝나 정지(1011)하면 깔때기가 풀리고 다음 틱에 음반을 가져간다(이미 멈춘 뒤라 1011 은 다시 나가지 않는다).
         org.domi.furnace.server.item.JukeboxSongs.put("minecraft:13", 178.0F, 1);
         var events = new java.util.ArrayList<int[]>();
         var l = new PoiManagerTest.Lvl() {
@@ -154,11 +155,83 @@ class HopperTransferTest {
         org.junit.jupiter.api.Assumptions.assumeTrue(org.domi.furnace.server.item.JukeboxSongs.of(disc) != null, "아이템 기본 컴포넌트 없음");
         jb.insert(disc, null, l);
         assertTrue(jb.isPlaying());
+        assertFalse(B.prop("enabled").is(l.getBlockState(hp)), "재생 중 신호 15 로 깔때기가 잠긴다");
         h.tick(l);
-        assertTrue(jb.theItem().isEmpty(), "깔때기가 음반을 가져간다(바닐라도 재생 중 허용)");
-        assertFalse(jb.isPlaying(), "노래가 멈춘다");
+        assertFalse(jb.theItem().isEmpty(), "잠긴 깔때기는 음반을 못 뺀다");
+        int total = 178 * 20 + 20;
+        for (int i = 0; i <= total; i++) jb.tick(l);
+        assertFalse(jb.isPlaying());
+        assertEquals(1011, events.get(events.size() - 1)[0], "노래가 끝나 정지 이벤트");
+        assertTrue(B.prop("enabled").is(l.getBlockState(hp)), "정지 뒤 깔때기가 풀린다");
+        int n = events.size();
+        h.tick(l);
+        assertTrue(jb.theItem().isEmpty(), "풀린 깔때기가 음반을 가져간다");
         assertFalse(B.prop("has_record").is(l.getBlockState(jp)));
-        assertEquals(1011, events.get(events.size() - 1)[0], "정지 이벤트가 나간다");
+        assertEquals(n, events.size(), "이미 멈춘 노래라 1011 이 다시 나가지 않는다");
         assertFalse(h.items[0].isEmpty());
+    }
+
+    @Test
+    void jukeboxIsVanillaSingleItemContainer() {
+        // 바닐라 JukeboxBlockEntity(ContainerSingleItem): 칸 1, 최대 1, 음반만·빈 칸에만, 빼면 통째로 + 정지(1011), 받는 쪽 빈 칸 필요
+        org.domi.furnace.server.item.JukeboxSongs.put("minecraft:13", 178.0F, 1);
+        var events = new java.util.ArrayList<int[]>();
+        var l = new PoiManagerTest.Lvl() {
+            @Override public void levelEvent(org.domi.furnace.server.block.BlockActor except, int type, Pos pos, int data) { events.add(new int[] {type, data}); }
+        };
+        Pos jp = new Pos(2, -49, 2);
+        l.setBlock(jp, B.defaultState("minecraft:jukebox"), 3);
+        var jb = (org.domi.furnace.server.block.entity.JukeboxBlockEntity) l.getBlockEntity(jp);
+        ItemStack disc = stack("music_disc_13", 1);
+        org.junit.jupiter.api.Assumptions.assumeTrue(org.domi.furnace.server.item.JukeboxSongs.of(disc) != null, "아이템 기본 컴포넌트 없음");
+        var c = HopperBlockEntity.containerOf(l, jb);
+        assertNotNull(c, "/item·execute if items block 이 쓰는 containerOf 에 주크박스가 잡힌다");
+        assertSame(jb, c.blockEntity());
+        assertEquals(1, c.size());
+        assertEquals(1, c.maxStackSize());
+        assertEquals(1, c.maxStackSize(stack("stone", 64)));
+        assertFalse(c.canPlaceItem(0, stack("stone", 1)), "음반이 아니면 못 넣는다");
+        assertTrue(c.canPlaceItem(0, disc));
+        c.setItem(0, disc);
+        assertTrue(jb.isPlaying());
+        assertEquals(1010, events.get(events.size() - 1)[0]);
+        assertTrue(B.prop("has_record").is(l.getBlockState(jp)));
+        assertFalse(c.canPlaceItem(0, disc), "찬 칸엔 못 넣는다");
+        var full = HopperBlockEntity.containerOf(l, placeHopper(l, new Pos(5, -50, 5), "down"));
+        for (int i = 0; i < full.size(); i++) ((HopperBlockEntity) full.blockEntity()).items[i] = stack("stone", 64);
+        assertFalse(c.canTakeItem(full, 0, disc), "받는 쪽에 빈 칸이 없으면 못 뺀다");
+        ((HopperBlockEntity) full.blockEntity()).items[4] = stack("stone", 1);
+        assertFalse(c.canTakeItem(full, 0, disc), "같은 아이템 합치기는 보지 않는다 — 빈 칸만");
+        ((HopperBlockEntity) full.blockEntity()).items[4] = ItemStack.EMPTY;
+        assertTrue(c.canTakeItem(full, 0, disc));
+        ItemStack out = c.removeItem(0, 1);
+        assertEquals(disc.itemId(), out.itemId());
+        assertFalse(jb.isPlaying());
+        assertEquals(1011, events.get(events.size() - 1)[0]);
+        assertFalse(B.prop("has_record").is(l.getBlockState(jp)));
+        assertTrue(c.get(0).isEmpty());
+        assertEquals(0, jb.updateTag().tags().size(), "바닐라는 주크박스 update tag 를 덮어쓰지 않는다(빈 태그)");
+    }
+
+    @Test
+    void hopperAboveJukeboxInsertsDiscAndStartsSong() {
+        org.domi.furnace.server.item.JukeboxSongs.put("minecraft:13", 178.0F, 1);
+        var events = new java.util.ArrayList<int[]>();
+        var l = new PoiManagerTest.Lvl() {
+            @Override public void levelEvent(org.domi.furnace.server.block.BlockActor except, int type, Pos pos, int data) { events.add(new int[] {type, data}); }
+        };
+        Pos jp = new Pos(0, -50, 0), hp = new Pos(0, -49, 0);
+        l.setBlock(jp, B.defaultState("minecraft:jukebox"), 3);
+        var jb = (org.domi.furnace.server.block.entity.JukeboxBlockEntity) l.getBlockEntity(jp);
+        var h = placeHopper(l, hp, "down");
+        ItemStack disc = stack("music_disc_13", 1);
+        org.junit.jupiter.api.Assumptions.assumeTrue(org.domi.furnace.server.item.JukeboxSongs.of(disc) != null, "아이템 기본 컴포넌트 없음");
+        h.items[0] = stack("stone", 1);
+        h.items[1] = disc;
+        h.tick(l);
+        assertEquals(1, h.items[0].count(), "돌은 주크박스에 못 들어가 그대로");
+        assertTrue(h.items[1].isEmpty(), "음반은 들어간다");
+        assertTrue(jb.isPlaying());
+        assertEquals(1010, events.get(events.size() - 1)[0]);
     }
 }

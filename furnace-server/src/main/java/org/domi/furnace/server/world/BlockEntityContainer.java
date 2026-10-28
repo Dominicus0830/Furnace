@@ -37,6 +37,8 @@ public class BlockEntityContainer extends OpenableContainer {
 
     /** setItem: 칸을 바꾸고 변경을 알린다(저장 대상 표시·비교기). */
     @Override public void set(int index, ItemStack stack) {
+        // 바닐라 CrafterBlockEntity.setItem: 잠긴 칸에 넣으면 먼저 푼다
+        if (be instanceof org.domi.furnace.server.block.entity.CrafterBlockEntity c) c.beforeSetItem(index, writer().level());
         ItemStack old = be.items[index];
         be.items[index] = stack == null ? ItemStack.EMPTY : stack;
         be.onItemSet(index, old == null ? ItemStack.EMPTY : old, be.items[index], writer().level());
