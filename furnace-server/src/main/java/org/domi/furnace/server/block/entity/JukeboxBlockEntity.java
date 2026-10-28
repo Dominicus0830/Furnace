@@ -1,4 +1,6 @@
 // 바닐라 JukeboxBlockEntity + JukeboxSongPlayer: 음반 한 장(RecordItem)과 재생 경과 틱(ticks_since_song_started).
+// 바닐라처럼 Container(ContainerSingleItem) 이다: 칸 1개, 최대 1개, 넣기는 jukebox_playable 이고 빈 칸일 때, 빼기는 받는 쪽에 빈 칸이 있을 때,
+// 빼면 음반 통째로(splitTheItem) 나오고 setTheItem(EMPTY) 로 재생이 멈춘다(gameEvent jukebox_stop_play + levelEvent 1011).
 // 재생 중 1초마다 음표 입자 위치용 난수 한 번(level.random.nextInt(4))을 쓴다 — 입자 패킷은 아직 없지만 난수는 바닐라와 같게 소비한다.
 package org.domi.furnace.server.block.entity;
 
@@ -29,8 +31,42 @@ public class JukeboxBlockEntity extends BlockEntity {
 
     public ItemStack theItem() { return item; }
 
-    /** 부수 효과 없이 칸만 바꾼다(깔때기가 같은 스택의 수를 되돌릴 때). */
+    /** 부수 효과 없이 칸만 바꾼다(깔때기가 같은 스택의 수를 되돌릴 때 — 바닐라 stack.setCount). */
     void putRaw(ItemStack s) { item = s == null ? ItemStack.EMPTY : s; }
+
+    // ---------------------------------------------------------------- 바닐라 Container(ContainerSingleItem.BlockContainerSingleItem)
+
+    public static final int CONTAINER_SIZE = 1;
+
+    /** getItem(slot): 칸 0 만. */
+    public ItemStack getItem(int slot) { return slot == 0 ? item : ItemStack.EMPTY; }
+
+    /** setItem(slot, stack): 칸 0 이면 setTheItem(재생 시작/정지). */
+    public void setItem(int slot, ItemStack stack, BlockLevel level) {
+        if (slot == 0) setTheItem(stack == null ? ItemStack.EMPTY : stack, level);
+    }
+
+    /** removeItem(slot, amount) → splitTheItem: 수와 관계없이 음반 통째로, 칸은 비우고 재생 정지. */
+    public ItemStack removeItem(int slot, int amount, BlockLevel level) {
+        if (slot != 0) return ItemStack.EMPTY;
+        ItemStack s = item;
+        setTheItem(ItemStack.EMPTY, level);
+        return s;
+    }
+
+    /** getMaxStackSize = 1. */
+    public int maxStackSize() { return 1; }
+
+    /** canPlaceItem: jukebox_playable 컴포넌트가 있고 칸이 비었다. */
+    public boolean canPlaceItem(int slot, ItemStack s) {
+        return org.domi.furnace.server.item.ItemTools.component(s, "minecraft:jukebox_playable") != null && getItem(slot).isEmpty();
+    }
+
+    /** canTakeItem(target, slot, stack): 받는 쪽에 빈 칸이 하나라도 있다(hasAnyMatching(isEmpty)). */
+    public static boolean canTakeItem(java.util.function.IntFunction<ItemStack> target, int targetSize) {
+        for (int i = 0; i < targetSize; i++) if (target.apply(i).isEmpty()) return true;
+        return false;
+    }
 
     /** JukeboxSongPlayer.isPlaying. */
     public boolean isPlaying() { return song != null; }
@@ -57,8 +93,9 @@ public class JukeboxBlockEntity extends BlockEntity {
     private void setHasRecordBlockState(BlockLevel level, boolean has) {
         int cur = level.getBlockState(pos);
         if (B.is(cur, "jukebox")) {   // 이미 다른 블록이 된 뒤(onRemove)에는 건드리지 않는다
-            level.setBlock(pos, HAS_RECORD.with(cur, has), 2);
-            level.gameEvent("minecraft:block_change", pos, null, cur);
+            int now = HAS_RECORD.with(cur, has);
+            level.setBlock(pos, now, 2);
+            level.gameEvent("minecraft:block_change", pos, null, now);   // 바닐라: 바뀐 뒤의 getBlockState()
         }
     }
 
@@ -66,6 +103,12 @@ public class JukeboxBlockEntity extends BlockEntity {
         song = s;
         ticksSinceSongStarted = 0L;
         level.levelEvent(null, 1010, pos, s.id());
+        onSongChanged(level);
+    }
+
+    /** 바닐라 onSongChanged(notifyChange): 이웃 갱신(재생 중 신호 15) 후 setChanged. */
+    private void onSongChanged(BlockLevel level) {
+        level.updateNeighborsAt(pos, B.block(blockState()));   // 블록 엔티티가 아는 상태의 블록
         setChanged(level);
     }
 
@@ -75,7 +118,7 @@ public class JukeboxBlockEntity extends BlockEntity {
             ticksSinceSongStarted = 0L;
             level.gameEvent("minecraft:jukebox_stop_play", pos, null, state);
             level.levelEvent(null, 1011, pos, 0);
-            setChanged(level);
+            onSongChanged(level);
         }
     }
 
@@ -151,7 +194,5 @@ public class JukeboxBlockEntity extends BlockEntity {
         if (song != null) tag.putLong("ticks_since_song_started", ticksSinceSongStarted);
     }
 
-    /** getUpdateTag(saveCustomOnly): 클라이언트가 음반·재생 경과를 알도록 그대로. */
-    @Override
-    public NbtCompound updateTag() { return saveWithoutMetadata(); }
+    // getUpdateTag: 바닐라 JukeboxBlockEntity 는 덮어쓰지 않는다(빈 태그) — 클라이언트에 음반·재생 경과를 보내지 않는다.
 }

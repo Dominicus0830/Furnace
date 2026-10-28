@@ -375,6 +375,32 @@ class ConnectionInputTest {
         assertTrue(slotsOf()[12].isEmpty());
     }
 
+    /** 0x10 container_slot_state_changed(VarInt 칸, VarInt 창 번호, Boolean 새 상태): 열린 제작기 창이면 그 region 에서 칸 잠금. */
+    @Test
+    void crafterSlotStateChanged_locksEmptySlot_ignoresWrongContainer() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        var be = new org.domi.furnace.server.block.entity.CrafterBlockEntity(new org.domi.furnace.server.block.Pos(1, -60, 1), 0);
+        var menu = new org.domi.furnace.server.menu.CrafterMenu(7, p.inventoryMenu().inventoryContainer(),
+                new org.domi.furnace.server.world.BlockEntityContainer(be), new int[]{1, -60, 1}, null);
+        p.setContainerMenu(menu);
+        ch.writeInbound(frame(0x10, b -> { Types.writeVarInt(b, 3); Types.writeVarInt(b, 8); b.writeBoolean(false); }));   // 다른 창 번호
+        ch.writeInbound(frame(0x10, b -> { Types.writeVarInt(b, 2); Types.writeVarInt(b, 7); b.writeBoolean(false); }));
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (!be.isSlotDisabled(2) && System.nanoTime() < deadline) {
+            ch.runPendingTasks();
+            Thread.sleep(20);
+        }
+        assertTrue(be.isSlotDisabled(2), "제작기 칸 잠금");
+        assertFalse(be.isSlotDisabled(3), "창 번호가 다르면 무시");
+        ch.writeInbound(frame(0x10, b -> { Types.writeVarInt(b, 2); Types.writeVarInt(b, 7); b.writeBoolean(true); }));
+        deadline = System.nanoTime() + 5_000_000_000L;
+        while (be.isSlotDisabled(2) && System.nanoTime() < deadline) {
+            ch.runPendingTasks();
+            Thread.sleep(20);
+        }
+        assertFalse(be.isSlotDisabled(2), "다시 풀기");
+    }
+
     /** 조건이 참이 될 때까지 채널 작업을 돌리며 기다린다. */
     private interface Cond { boolean test() throws Exception; }
 
