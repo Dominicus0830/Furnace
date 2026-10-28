@@ -333,8 +333,17 @@ public final class ItemUse {
         return Holder.success(rest);
     }
 
+    /** 발사기용: BucketItem.emptyContents(null, level, pos, null) — 붓는 생물·맞은 면 없이. */
+    public static boolean emptyBucketContents(BlockLevel level, int content, Pos pos) { return emptyContents(level, null, content, pos, null); }
+
+    /** HoneycombItem.getWaxed(state): 밀랍 칠한 블록(속성 그대로), 없으면 -1. */
+    public static int waxed(int state) {
+        Integer w = WAX_ON.get(B.block(state));
+        return w == null ? -1 : B.withPropertiesOf(w, state);
+    }
+
     /** PotionContents.createItemStack(Items.POTION, Potions.WATER). */
-    static ItemStack waterPotion() {
+    public static ItemStack waterPotion() {
         return new ItemStack(ItemContext.id("minecraft:item", "minecraft:potion"), 1,
                 ComponentPatch.of(Map.of("minecraft:potion_contents", Map.of("potion", "minecraft:water"))));
     }

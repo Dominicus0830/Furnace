@@ -13,6 +13,12 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.block.dispenser.BlockSource;
+import org.domi.furnace.server.block.dispenser.DispenseBehaviors;
+import org.domi.furnace.server.block.dispenser.DispenseItemBehavior;
+import org.domi.furnace.server.block.entity.DispenserBlockEntity;
+import org.domi.furnace.server.block.entity.DropperBlockEntity;
+import org.domi.furnace.server.entity.ItemStack;
 
 public class DispenserBlock extends BaseEntityBlock {
 
@@ -27,10 +33,31 @@ public class DispenserBlock extends BaseEntityBlock {
         return InteractionResult.CONSUME;
     }
 
-    /** dispenseFrom: 빈 발사기면 실패 소리(1001) + BLOCK_ACTIVATE. TODO(블록엔티티·아이템): 무작위 칸 고르기·아이템별 발사 동작. */
+    /**
+     * dispenseFrom: 무작위 칸(레벨 난수)을 고른다. 빈 발사기면 실패 소리(1001) + BLOCK_ACTIVATE(블록 엔티티의 상태),
+     * 아니면 아이템별 동작(getDispenseMethod)이 돌려준 스택을 그 칸에 넣는다(NOOP 이면 그대로).
+     */
     protected void dispenseFrom(BlockLevel level, int state, Pos pos) {
-        level.levelEvent(null, 1001, pos, 0);
-        level.gameEvent("minecraft:block_activate", pos, null, state);
+        if (!(level.getBlockEntity(pos) instanceof DispenserBlockEntity be) || be instanceof DropperBlockEntity) return;   // 바닐라: 경고만
+        int slot = be.getRandomSlot(level);
+        if (slot < 0) {
+            level.levelEvent(null, 1001, pos, 0);
+            level.gameEvent("minecraft:block_activate", pos, null, be.blockState());
+            return;
+        }
+        BlockSource source = new BlockSource(level, pos, state, be, slot);
+        ItemStack stack = be.items[slot];
+        DispenseItemBehavior b = getDispenseMethod(level, stack);
+        if (b != DispenseItemBehavior.NOOP) setSlot(be, slot, b.dispense(source, stack), level);
+    }
+
+    /** getDispenseMethod: 아이템별 등록 동작(없으면 기본 던지기). 공급기는 늘 기본. */
+    protected DispenseItemBehavior getDispenseMethod(BlockLevel level, ItemStack stack) { return DispenseBehaviors.get(stack); }
+
+    /** setItem(slot, stack): 칸을 바꾸고 setChanged. */
+    static void setSlot(DispenserBlockEntity be, int slot, ItemStack stack, BlockLevel level) {
+        be.items[slot] = stack.isEmpty() ? ItemStack.EMPTY : stack;
+        be.setChanged(level);
     }
 
     @Override

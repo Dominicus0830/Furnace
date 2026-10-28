@@ -2143,7 +2143,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 p.random().nextLong();   // playSeededSound 의 씨앗(엔티티 난수)
                 world.runAt(p.x(), p.z(), region -> region.level().playSound(null, p.x(), p.y(), p.z(), sound, "players", 1.0F, 1.0F));
             }
-            // TODO(게임 이벤트): equip/unequip — 청취자(스컬크 감지체)가 아직 없다.
+            // Player.doesEmitEquipEvent: 방어구 칸만 equip/unequip 게임 이벤트
+            if (slot.isArmor()) {
+                double ex = p.x(), ey = p.y(), ez = p.z();
+                world.runAt(ex, ez, region -> org.domi.furnace.server.entity.DispenserEquip.equipEvent(region.level(), ex, ey, ez, p, newItem));
+            }
         }
 
         @Override public boolean mayBuild() {

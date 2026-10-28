@@ -312,3 +312,9 @@
 ## 2026-10-28 선택자 nbt·level·advancements·predicate
 - `predicate=` 는 기존 `ServerCore.commandCondition`·`LootEntity` 를 상속한다. 차이: `EntityPredicate` 에 nbt 조건이 없고, 비생명체는 종류·불·땅·위치만, 생명체도 장비·플래그 일부만 본다. 난수는 ThreadLocalRandom(바닐라 레벨 난수). 참조 재귀는 `LootContext.visited` 가 막는다.
 - 플레이어 대상 판정은 명령 스레드에서 한다(기존 선택자와 같다). 발전과제 진행은 `PlayerAdvancements.testProgress` 잠금 안에서, NBT 는 `menuLock` 안에서 읽는다. 위치 조건은 플레이어 region 밖에서 청크를 읽을 수 있다(위험).
+
+## 2026-10-28 발사기·공급기 (감사 H1)
+- 구현: `block/dispenser/`(BlockSource·기본/선택 동작·등록표), `DispenserBlockEntity.getRandomSlot`(전리품 먼저 채우고 저수지 추출, 레벨 난수)·`insertItem`, 공급기는 앞 용기에 `HopperBlockEntity.addItem`(소리 없음), 없으면 기본 던지기. 엔티티 쪽은 `entity/DispenserEquip`.
+- 동작 구현: 기본 던지기(1000/2000), 빈 발사기 1001, 화살·물부리·분광 화살·알·눈덩이·경험치 병·투척/잔류 물약·폭죽(1004)·화염구(1018)·바람 구슬(1051), 생성 알, 갑옷 거치대, 안장, 말 갑옷, 상자(상자 말 무리), 배 9종×2, 수레 6종, 물·용암·가루눈 양동이, 빈 양동이, 부싯돌, 뼛가루, TNT, 머리·해골, 위더 해골(위더 바탕 BlockPattern 24방향), 깎은 호박(골렘 바탕), 셜커 상자 놓기, 유리병(벌집 꿀·물), 발광석(리스폰 정박기), 가위(벌집·양·버섯소·눈 골렘·보그드), 솔(아르마딜로), 밀랍, 물병(진흙), 갑옷 전반(ArmorItem.dispenseArmor: 몹·거치대·플레이어).
+- 보류(기본 던지기): 몹 양동이 6종(몹 양동이 체계 없음, H7), 양탄자 16색(라마 장식 없음).
+- 차이: OptionalDispenseItemBehavior 의 성공 표시(솔처럼 안 바꾸는 경로가 지난 값을 씀)는 바닐라는 전역, 여기는 스레드별. 갑옷 대상 목록에서 플레이어는 엔티티 뒤에 온다. 아이템 이름(custom_name)·entity_data 를 엔티티에 옮기지 않는다(ItemUse 와 같은 TODO). 보그드 깎기는 버섯 전리품이 없다(기존 TODO).

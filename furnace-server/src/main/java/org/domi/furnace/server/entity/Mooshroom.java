@@ -100,7 +100,17 @@ public class Mooshroom extends Cow {
     public boolean readyForShearing() { return isAlive() && !isBaby(); }
 
     private void shearToCow(Player p, int hand, ItemStack held) {
-        level.playSound(null, x(), y(), z(), "entity.mooshroom.shear", "players", 1.0F, 1.0F);
+        shear("players");
+        var inv = p.inventory();
+        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
+        var actor = new org.domi.furnace.server.block.PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);
+        org.domi.furnace.server.block.BlockBreaking.hurtAndBreak(level, actor, hand, held, 1);
+        if (actor.handChanged(hand)) inv.set(ws, actor.itemInHand(hand));
+    }
+
+    /** Shearable.shear(source): 소리 → 소로 바뀌고 버섯 5개. */
+    public void shear(String source) {
+        level.playSound(null, x(), y(), z(), "entity.mooshroom.shear", source, 1.0F, 1.0F);
         Cow cow = new Cow(level, level.nextEntityId());
         cow.moveTo(x(), y(), z(), yRot(), xRot());
         cow.setHealth(health());
@@ -113,11 +123,6 @@ public class Mooshroom extends Cow {
         for (int i = 0; i < 5; i++) {
             level.addFreshEntity(new ItemEntity(level, level.nextEntityId(), x(), y() + dimH, z(), new ItemStack(ItemContext.id("minecraft:item", item), 1)));
         }
-        var inv = p.inventory();
-        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
-        var actor = new org.domi.furnace.server.block.PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);
-        org.domi.furnace.server.block.BlockBreaking.hurtAndBreak(level, actor, hand, held, 1);
-        if (actor.handChanged(hand)) inv.set(ws, actor.itemInHand(hand));
     }
 
     @Override
