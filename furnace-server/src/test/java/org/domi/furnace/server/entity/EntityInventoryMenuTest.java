@@ -407,7 +407,7 @@ class EntityInventoryMenuTest {
         cb.setLootTable("minecraft:chests/shipwreck_treasure", 42L);
         var tag = cb.save();
         assertEquals("minecraft:chests/shipwreck_treasure", tag.getString("LootTable"));
-        assertNull(tag.getList("Items"), "표가 있으면 아이템 대신");
+        assertFalse(tag.contains("Items"), "표가 있으면 아이템 대신");
         ChestBoat l2 = (ChestBoat) Entities.load(level, tag);
         assertEquals("minecraft:chests/shipwreck_treasure", l2.lootTable());
         assertEquals(42L, l2.lootTableSeed());
