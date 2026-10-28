@@ -133,7 +133,7 @@ class RegionTickBench {
         }).get();
         long[] is = new long[4];   // region 별 표의 합(흡수·없어진 region 몫은 빠진다)
         for (Region rr : w.regionizer().regionsSnapshot()) for (int i = 0; i < 4; i++) is[i] += rr.installStats[i];
-        System.out.printf("RBENCH install count=%d put=%dms light=%dms ent=%dms%n", is[0], is[1] / 1000000, is[2] / 1000000, is[3] / 1000000);
+        System.out.printf("RBENCH install(누적, 100틱 리셋 없음) count=%d put=%dms light=%dms ent=%dms%n", is[0], is[1] / 1000000, is[2] / 1000000, is[3] / 1000000);
         ioPool.shutdown();
         genPool.shutdown();
         sched.close();

@@ -35,6 +35,23 @@ public final class SharedScheduler implements AutoCloseable {
     /** 스핀 자리를 잡을 남은 거친 구간 상한: 기다림 - spinMargin 이 이 이하이면 돈다. */
     static final long SPIN_HANDOFF = 1_000_000L;
 
+    /** 시험 전용 훅(프로덕션은 null — 동작 불변). sleep ① 등록 직후 / park 복귀 직후·자기 제거 직전에 불린다. */
+    volatile java.util.function.Consumer<Parked> afterRegisterHook;
+    volatile java.util.function.Consumer<Parked> afterParkHook;
+
+    /** 시험 전용: 깨우는 쪽이 p 를 뽑은 것처럼 목록에서 빼고 깨운다. */
+    boolean pickForTest(Parked p) {
+        boolean r = parked.remove(p);
+        if (r) LockSupport.unpark(p.t);
+        return r;
+    }
+
+    /** 시험 전용: p 가 아직 자는 목록에 있나(없으면 누가 뽑아 깨웠다). */
+    boolean isParkedForTest(Parked p) { return parked.contains(p); }
+
+    /** 시험 전용: 지금 자는(등록된) 워커 수. */
+    int parkedCount() { return parked.size(); }
+
     static final class Parked {
         final Thread t;
         volatile long until;
@@ -144,6 +161,8 @@ public final class SharedScheduler implements AutoCloseable {
         Thread self = Thread.currentThread();
         Parked me = new Parked(self, until);
         parked.add(me);                                    // ① 먼저 "잔다"고 등록
+        var h1 = afterRegisterHook;
+        if (h1 != null) h1.accept(me);
         long d = earliestHeadDue();                        // ② 그 다음 머리를 다시 본다
         if (d != Long.MAX_VALUE) {
             long target = d - margin;
@@ -160,6 +179,8 @@ public final class SharedScheduler implements AutoCloseable {
         long t1 = System.nanoTime();
         waitNanos.addAndGet(t1 - t0);
         wakeups.incrementAndGet();
+        var h2 = afterParkHook;
+        if (h2 != null) h2.accept(me);
         boolean picked = !parked.remove(me);
         if (picked && t1 - me.until >= 0) passBaton();     // (N1-③) 뽑혔는데 타임아웃과 겹친 경우만 넘긴다
     }
