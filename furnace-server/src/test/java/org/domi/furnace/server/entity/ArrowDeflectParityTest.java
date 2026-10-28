@@ -55,6 +55,24 @@ class ArrowDeflectParityTest {
         assertFalse(a.isRemoved());
     }
 
+    /** 막힌 크리티컬 화살: 엔티티 난수에서 crit nextInt → deflect nextFloat 순서. 레벨 난수는 안 쓴다. */
+    @Test
+    void blockedCritArrowConsumesEntityRandomInOrder() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var z = zombie(level, 0.5);
+        var a = blockedArrow(level, z, 1.0);   // 피해 ceil(1 × 2) = 2
+        a.setCritArrow(true);
+        a.setYRot(0.0F);
+        a.yRotO = 0.0F;
+        ((LegacyRandomSource) a.random()).setSeed(99L);
+        var ref = new LegacyRandomSource(99L);
+        ref.nextInt(2 / 2 + 2);
+        float rot = 170.0F + ref.nextFloat() * 20.0F;
+        a.onHitEntity(new Projectile.Hit(z, null, 0, 0.5, -59, 0.5));
+        assertEquals(rot, a.yRot());
+        assertEquals(ref.rawState(), ((LegacyRandomSource) a.random()).rawState());
+    }
+
     @Test
     void stoppedPickupArrowDropsItem() {
         var level = new ZombieCombatTest.ArenaLevel();
