@@ -36,7 +36,7 @@ public final class NbtCompound {
     /** 바닐라 contains(k, 99): 숫자 태그(byte..double)인가. */
     public boolean containsNumber(String k) { return tags.get(k) instanceof Number; }
     // ---- 바닐라 1.21.1 CompoundTag 게터: 키가 없거나 형이 맞지 않으면 기본값(0/false/""/빈 컬렉션)을 돌려준다.
-    // 숫자 태그끼리는 변환한다. 정수 태그는 좁히기(캐스팅), 부동소수 태그는 floor 후 좁히기(FloatTag/DoubleTag.getAs*).
+    // 숫자 태그끼리는 변환한다. 정수 태그는 좁히기(캐스팅). Float/Double 은 int·short·byte 는 floor 후 좁히고, long 은 Double 만 floor, Float 는 자르기.
 
     private static long floorLong(double v) {
         long l = (long) v;
@@ -56,7 +56,8 @@ public final class NbtCompound {
     public int getIntOr0(String k) { return getInt(k); }
     public long getLong(String k) {
         Object o = tags.get(k);
-        if (o instanceof Float || o instanceof Double) return floorLong(((Number) o).doubleValue());
+        if (o instanceof Double d) return floorLong(d);   // DoubleTag.getAsLong 은 floor
+        if (o instanceof Float f) return (long) (float) f;   // FloatTag.getAsLong 은 자르기
         return o instanceof Number n ? n.longValue() : 0L;
     }
     public short getShort(String k) {

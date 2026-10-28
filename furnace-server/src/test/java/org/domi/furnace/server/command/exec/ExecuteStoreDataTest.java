@@ -218,6 +218,39 @@ class ExecuteStoreDataTest {
     }
 
     @Test
+    void mismatchedItemsTagIsIgnoredLikeVanillaAndBothForksRun() {
+        // 바닐라 CompoundTag.getList 는 리스트가 아니면 빈 리스트라 load 는 예외 없이 Items 를 비운다: 오류 없이 두 포크가 모두 돈다.
+        run("setblock 5 -60 5 minecraft:chest");
+        run("item replace block 5 -60 5 container.0 with minecraft:stone 3");
+        run("scoreboard players set #cnt o 0");
+        run("execute store result block 5 -60 5 Items int 1 as @e[type=cow] run scoreboard players add #cnt o 1");
+        assertTrue(messages.stream().noneMatch(m -> m.contains("unexpected error")), "오류 메시지가 없다: " + messages);
+        var board = core.scoreboard();
+        assertEquals(2, board.getPlayerScoreInfo(org.domi.furnace.server.scores.ScoreHolder.forNameOnly("#cnt"), board.getObjective("o")).value());
+        assertEquals(0, chestCount(5, -60, 5, 0), "Items 가 비었다");
+    }
+
+    /** load 에서 RuntimeException 을 던지는 시험용 블록 엔티티. */
+    private static final class ThrowingBlockEntity extends org.domi.furnace.server.block.entity.BlockEntity {
+        ThrowingBlockEntity(int x, int y, int z) { super("minecraft:chest", new org.domi.furnace.server.block.Pos(x, y, z), 0); }
+        @Override public void load(NbtCompound tag) { throw new IllegalStateException("시험용 load 실패"); }
+    }
+
+    @Test
+    void nonSyntaxCallbackFailureReportsCommandFailedAndAbortsTheContext() {
+        // 콜백이 region 에서 던진 비-CommandSyntaxException 은 동기 콜백 예외와 같은 길:
+        // CommandQueue.drive 의 catch 가 command.failed 를 알리고 컨텍스트를 끝낸다(남은 포크는 돌지 않는다). 다음 최상위 명령은 정상.
+        inRegion(() -> { column.putBlockEntity(new ThrowingBlockEntity(6, -60, 6)); return null; });
+        run("scoreboard players set #cnt o 0");
+        run("execute store result block 6 -60 6 Items int 1 as @e[type=cow] run scoreboard players add #cnt o 1");
+        assertTrue(messages.stream().anyMatch(m -> m.contains("unexpected error")), "비-문법 콜백 실패는 사용자에게 알린다: " + messages);
+        var board = core.scoreboard();
+        assertEquals(1, board.getPlayerScoreInfo(org.domi.furnace.server.scores.ScoreHolder.forNameOnly("#cnt"), board.getObjective("o")).value(),
+                "첫 포크의 콜백 실패로 둘째 포크는 돌지 않는다");
+        assertEquals(new CommandResult(true, 7, 1), run("scoreboard players get #src o"), "큐는 이어진다");
+    }
+
+    @Test
     void playerTargetIsRejectedSilentlyAndTheChainContinues() throws Exception {
         var p = new Player(5, UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
         CommandSource src = CommandSource.player(core, p).withPermission(2);

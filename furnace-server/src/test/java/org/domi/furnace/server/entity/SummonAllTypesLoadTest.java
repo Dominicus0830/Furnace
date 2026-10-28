@@ -41,7 +41,7 @@ class SummonAllTypesLoadTest {
                 failures.add(id + ": " + t + (st.length > 0 ? " @ " + st[0] : ""));
             }
         }
-        System.out.println("로드 미구현(null) 종류 " + unimplemented.size() + "개: " + unimplemented);
+        assertEquals(List.of(), unimplemented, "load 가 null 인(미구현) 종류");
         assertTrue(failures.isEmpty(), "빈 NBT 로드 실패 " + failures.size() + "개:\n" + String.join("\n", failures));
     }
 
@@ -54,7 +54,14 @@ class SummonAllTypesLoadTest {
             Entity e = Entities.load(level, tag);
             if (e == null) return false;
             if (randomize && e instanceof Mob mob) mob.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()));
-            e.save();   // 빈 아이템·번개처럼 저장하지 않는 종류는 null 이어도 된다. 예외만 없으면 된다
+            NbtCompound saved = e.save();   // 빈 아이템·번개처럼 저장하지 않는 종류는 null 이어도 된다
+            if (saved != null) {   // 저장한 결과를 다시 읽어도 예외가 없고, 다시 저장하면 같은 NBT
+                Entity again = Entities.load(new BlockPlacementTest.TestLevel(), saved.copy());
+                assertNotNull(again, id + " 왕복 로드");
+                NbtCompound saved2 = again.save();
+                assertNotNull(saved2, id + " 왕복 저장");
+                assertEquals(saved.tags().keySet(), saved2.tags().keySet(), id + " 왕복 시 키 집합");
+            }
         }
         return true;
     }
