@@ -42,7 +42,7 @@
 
 ## 결정 필요 (제가 임시로 정한 것은 되돌릴 수 있음)
 - **Mojang jar·클래스**: 사용자 위임에 따라 (a) 로 처리함 — `tools/vanilla-data/` 의 jar·libraries·versions·`*.class` 약 6,180개를 git 추적에서 뺐고 `.gitignore` 로 막음(로컬 사본은 그대로). 이미 push 된 히스토리에는 남아 있음(.git 158MB). 히스토리까지 지우려면 force push 가 필요한 파괴적 작업이라 하지 않았음 — 원하시면 말씀하세요.
-- 공유 스케줄러(B안): 작업 리스트 마지막에 배치함(설계서 §10 의 N1~N7 보정을 먼저 적용). 구현 착수 여부는 그때 다시 여쭤봅니다.
+- 공유 스케줄러(B안): N1~N7 을 반영한 확정 설계서 `docs/feature-parity/shared-scheduler-design-2026-10-28.md` 작성 완료(선행 ①②도 끝남). 결정 필요 — (a) 설정: `region-threads` 이름 유지·의미를 "서버 전체 워커 수"로, 기본값 코어 수 그대로, 롤백 스위치 `-Dfurnace.sharedRegionPool`(기본 true, 한 릴리스 유지) 제안대로 할지 (b) 활성화 시점: S4 merge 때 바로 기본 켬 vs 한 릴리스 동안 기본 끔으로 측정만 (c) 동작 동일 리팩터링 단계(S1~S3)를 먼저 진행해도 되는지. 상세 §10.
 - F-14: 생성만 하고 편집 안 한 청크를 디스크에 저장할지 — 바닐라는 생성된 청크를 모두 저장하므로 parity 기준으로는 저장하는 쪽. 작업 리스트에 넣어 둠(되돌리려면 말씀하세요).
 - 브랜치 3개(claude/kind-goldberg-au63ot, cool-mayer-hqp9tw, work-continuation-u597cw) 삭제: 제게 권한이 없음(403) → GitHub 웹에서 직접
 - 이전에 push 한 커밋 일부의 trailer 에 모델 이름이 들어 있음. 다시 쓰려면 히스토리 재작성이 필요해 하지 않았음
