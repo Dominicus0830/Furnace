@@ -82,6 +82,12 @@ class ChunkSendPacketOrderGoldenTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
         try {
+            // 무작위 틱을 끈다 — 부순 칸 옆 잔디가 노출된 흙으로 번지면(바닐라 동작) 그 칸의 block 패킷이 시험 열 뒤에 불규칙하게 붙는다
+            var base = w.levelServices();
+            w.levelServices(new org.domi.furnace.server.block.LevelServices.Delegating(base) {
+                @Override
+                public int gameRuleInt(String name) { return name.equals("randomTickSpeed") ? 0 : super.gameRuleInt(name); }
+            });
             // 본문 캐시를 모두 채운다(-3..4 × -3..3) — 이후 요청은 모두 캐시 적중
             List<CompletableFuture<byte[]>> warm = new ArrayList<>();
             for (int x = -3; x <= 4; x++) for (int z = -3; z <= 3; z++) warm.add(w.serializedChunkBody(new ChunkPos(x, z)));

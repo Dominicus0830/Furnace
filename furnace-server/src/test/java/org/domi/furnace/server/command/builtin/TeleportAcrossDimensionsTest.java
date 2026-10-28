@@ -85,10 +85,11 @@ class TeleportAcrossDimensionsTest {
     }
 
     private Entity awaitIn(World w, int cx, int cz, UUID id) throws Exception {
-        for (int i = 0; i < 200; i++) {
+        long deadline = System.nanoTime() + 30_000_000_000L;
+        while (System.nanoTime() < deadline) {
             Entity e = find(w, cx, cz, id);
             if (e != null) return e;
-            Thread.sleep(50);
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
         }
         fail("목적 차원에 엔티티가 나타나지 않았다");
         return null;

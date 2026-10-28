@@ -487,7 +487,8 @@ class LandMobTest {
         brute.moveTo(-10.5, -60, 0.5, 0, 0);
         brute.setOnGround(true);
         brute.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(brute.blockPosition()));
-        level.addFreshEntity(brute);
+        // 브루트는 월드에 넣지 않는다 — 브루트도 오버월드에서 좀비 피글린으로 변하므로, 같이 두면 "좀비 피글린이 나타났다"가
+        // 피글린의 변신을 증명하지 못한다. 브루트는 저장·복원만 본다.
         var gold = new ItemEntity(level, level.nextEntityId(), 4.5, -60, 0.5, Mob.stackOf("minecraft:gold_ingot"));
         gold.setNoPickUpDelay();
         level.addFreshEntity(gold);
@@ -497,7 +498,7 @@ class LandMobTest {
         assertNotNull(Entities.load(level, piglin.save()));
         assertNotNull(Entities.load(level, brute.save()));
         assertNotNull(Entities.load(level, hoglin.save()));
-        // 변신 직후 조글린·좀비 피글린끼리/브루트와 싸워 한쪽이 죽을 수 있다(난수) — 끝 상태가 아니라 변신해 나타난 적이 있는지를 본다
+        // 변신 직후 조글린·좀비 피글린끼리 싸워 한쪽이 죽을 수 있다(난수) — 끝 상태가 아니라 변신해 나타난 적이 있는지를 본다
         boolean seenZoglin = false, seenZombifiedPiglin = false;
         for (int t = 0; t < 1500 && !(seenZoglin && seenZombifiedPiglin && hoglin.isRemoved() && piglin.isRemoved()); t++) {
             tick(level, 1);

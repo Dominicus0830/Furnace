@@ -177,7 +177,8 @@ class DimensionChangeTest {
         assertFalse(over.submitAtChunk(new ChunkPos(1, 0), r -> r.players().containsKey(p.entityId())).get(), "오버월드에서는 빠졌다");
         // 저장: 퇴장하면 플레이어 Dimension, 차원 flush 면 DIM-1/region
         ch.close();
-        io.submit(() -> { }).get();
+        // 퇴장 저장은 ch.close() 안에서 PlayerData 전용 IO 스레드에 제출된다(청크 IO 풀 io 가 아님) — 그 큐를 비운 뒤 읽는다.
+        assertTrue(org.domi.furnace.server.entity.PlayerData.awaitIo(30, java.util.concurrent.TimeUnit.SECONDS), "플레이어 데이터 IO 가 끝나지 않음");
         var saved = org.domi.furnace.server.entity.PlayerData.load(tmp, p.uuid());
         assertNotNull(saved);
         assertEquals("minecraft:the_nether", saved.root().getString("Dimension"));
