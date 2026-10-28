@@ -4,6 +4,7 @@
 // 블록을 봐야 하는 판정(물·사다리·착지 블록)은 소유 region 이 계산해 인자로 넘긴다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.entity.damage.CombatRules;
 import org.domi.furnace.server.entity.damage.CombatTracker;
 import org.domi.furnace.server.entity.damage.DamageSource;
 import org.domi.furnace.server.entity.damage.DamageType;
@@ -503,21 +504,14 @@ public final class PlayerVitals {
         return !blocked;
     }
 
-    /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */
+    /** 바닐라 Player.actuallyHurt: 방어구(내구도 소모 후 CombatRules) → 저항 효과 → 보호 인챈트 → 흡수 → 소모 → 기록 → 체력. 몹과 같은 CombatRules. */
     private void actuallyHurt(DamageType type, float amount, Rider causing, Rider direct) {
         if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
             float armor = player.armorValue(), toughness = player.armorToughness();
             player.hurtArmor(amount);
-            float f = 2.0f + toughness / 4.0f;
-            float g = Math.clamp(armor - amount / f, armor * 0.2f, 20.0f);
-            amount = amount * (1.0f - g / 25.0f);
+            amount = CombatRules.getDamageAfterAbsorb(amount, armor, toughness);
         }
-        MobEffectInstance resistance = effects.get(MobEffect.RESISTANCE);
-        if (resistance != null && !type.bypassesEffects() && !type.bypassesResistance()) {   // getDamageAfterMagicAbsorb
-            int i = (resistance.amplifier() + 1) * 5;
-            int j = 25 - i;
-            amount = Math.max(amount * j / 25.0f, 0.0f);
-        }
+        amount = getDamageAfterMagicAbsorb(type, amount);
         float afterAbsorb = Math.max(amount - absorption, 0.0f);
         setAbsorptionLocked(absorption - (amount - afterAbsorb));
         if (afterAbsorb != 0.0f) {
@@ -525,6 +519,19 @@ public final class PlayerVitals {
             combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct));
             setHealthRaw(health - afterAbsorb);
         }
+    }
+
+    /** LivingEntity.getDamageAfterMagicAbsorb: bypasses_effects → 그대로, 저항 효과, 0 이하면 0, bypasses_enchantments → 그대로, 보호 인챈트. */
+    private float getDamageAfterMagicAbsorb(DamageType type, float amount) {
+        if (type.bypassesEffects()) return amount;
+        MobEffectInstance resistance = effects.get(MobEffect.RESISTANCE);
+        if (resistance != null && !type.bypassesResistance()) amount = CombatRules.afterResistance(amount, resistance.amplifier());
+        if (amount <= 0.0f) return 0.0f;
+        if (type.bypassesEnchantments()) return amount;
+        PlayerInventory inv = player.inventory();
+        float prot = CombatRules.damageProtection(type.key(), inv.get(5), inv.get(6), inv.get(7), inv.get(8));
+        if (prot > 0.0f) amount = CombatRules.getDamageAfterMagicAbsorb(amount, prot);
+        return amount;
     }
 
     /** 이 플레이어를 보는 사람 모두에게(본인 제외) 패킷. */
