@@ -52,10 +52,10 @@ public class Drowned extends Zombie implements RangedAttackMob {
         goalSelector.addGoal(7, new RandomStrollGoal(this, 1.0));
         targetSelector.addGoal(1, new HurtByTargetGoal(this, Drowned.class).setAlertOthers(ZombifiedPiglin.class));
         targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, 10, true, false, this::okTarget));
-        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Villager.class, false));
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, PathfinderMob.class, false, Villager::isAbstractVillager));
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, IronGolem.class, true));
-        // TODO(아홀로틀): 3 = Axolotl(mustSee, !mustReach)
-        targetSelector.addGoal(5, new NearestAttackableTargetGoal(this, Turtle.class, 10, true, false, t -> t instanceof Turtle tt && tt.isBaby() && !tt.isInWater()));
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Axolotl.class, true, false));
+        targetSelector.addGoal(5, new NearestAttackableTargetGoal(this, Turtle.class, 10, true, false, Turtle.BABY_ON_LAND_SELECTOR));
     }
 
     @Override

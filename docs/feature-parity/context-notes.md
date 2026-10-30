@@ -327,6 +327,10 @@
 - 제외: projectilesCanBreakBlocks(소비처 Block.onProjectileHit 훅이 아직 없다), spectatorsGenerateChunks(관전자가 청크를 올리지 않고 남이 올린 청크만 받는 구독 모델이 필요), maxEntityCramming(성능 설계 필요), commandBlockOutput(명령 블록 미구현).
 - 2026-10-28 (T5 말): `Mob.finalizeSpawn(r, d)` 2인자는 무리 데이터 경로를 건너뛴다. AgeableMob·말(능력치 굴림·색)은 `finalizeSpawnGroup(r, d, null)` 로 불러야 바닐라 `finalizeSpawn(..., null)` 과 같다. `/summon`·알이 2인자를 불러 말 체력이 기본 53 으로 남았었다. 내린 뒤 재탑승 60틱 거부는 바닐라(`removePassenger` → `boardingCooldown = 60`, `canRide`)와 같다.
 
+## 2026-10-28 T8 스컬크 촉매 — 서버 단계별 실증
+- 실제 `RegionLevel` 과 `World.tickOnce`(Region.tick 전체, /forceload 로 블록 엔티티 틱 판정 통과)에서 (1) entity_die 발행 (2) 청크 구역 리스너 수신 (3) 커서 추가 (4) 블록 엔티티 틱의 updateCursors (5) 블록 변환이 모두 동작한다(`SculkCatalystRegionTest`, 플레이어 처치 경로 포함). 좀비 전하 5 → 스컬크 5칸, 소 3 → 3칸, 스켈레톤(활) 8 → 8칸, 풀 덮인 땅도 퍼짐.
+- 고친 차이: `LivingEntity.shouldDropExperience` 는 바닐라처럼 `!isBaby()`(아기 동물은 전하 없음). 올챙이 false, 호글린 true.
+- 서버 쪽에서는 끊긴 단계를 재현하지 못했다. 남은 후보(가정): 몹과 촉매 청크가 서로 다른 region 에 있을 때(디스패처는 다른 region 청크를 보지 않는다), 클라이언트 표시. 확인 방법: 실서버에서 처치 직후 bloom(촉매 윗면 빛) 여부와 경험치 구슬이 떨어지는지 본다 — 구슬이 떨어지면 리스너가 못 받은 것이다.
 ## 2026-10-28 피스톤·셜커 상자 엔티티 밀기 (감사 H4)
 - `PistonMovingBlockEntity.tick` 이 진행도를 올리기 전에 moveCollidedEntities·moveStuckEntities(꿀)를 바닐라 순서로 부른다. 밀 때 `NOCLIP`(ThreadLocal, region 스레드마다)로 그 방향으로 움직이는 칸의 충돌 모양을 받침만 남긴다. 슬라임은 미는 축 속도를 방향 단위값(±1)으로 바꾼 뒤 민다.
 - `Entity.move(MOVER_PISTON)` 은 limitPistonMovement(한 게임 틱 한 축 누적 ±0.51, 1e-5 이하는 안 움직임). getPistonPushReaction=IGNORE 는 `ignoresPistonPush()`(구름·표시·상호작용·마커·불길한 아이템 생성기·마커 갑옷 거치대).

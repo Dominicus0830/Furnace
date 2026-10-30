@@ -51,7 +51,7 @@ public class Enderman extends Monster implements NeutralMob {
         goalSelector.addGoal(11, new EndermanTakeBlockGoal(this));
         targetSelector.addGoal(1, new EndermanLookForPlayerGoal(this, this::isAngryAt));
         targetSelector.addGoal(2, new HurtByTargetGoal(this));
-        // TODO(엔더마이트): targetSelector 3 = Endermite(mustSee=true, mustReach=false)
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Endermite.class, true, false));
         targetSelector.addGoal(4, new ResetUniversalAngerTargetGoal<>(this, false));
     }
 

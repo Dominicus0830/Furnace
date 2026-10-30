@@ -199,4 +199,71 @@ class SculkSpreaderTest {
             assertTrue(sculk >= 3, floor + " 위 스컬크 " + sculk);
         }
     }
+
+    // ------------------------------------------------------------------ T8: 몹 종류별 경험치 → 퍼짐 개수, 풀 덮인 땅
+
+    /** 촉매(ROOT 아래) 근처에서 mob 을 죽이고 600틱 돌린 뒤 {전하 합, 스컬크 수, 맥 수}. */
+    private static int[] killNearCatalyst(Lvl l, org.domi.furnace.server.entity.LivingEntity mob, double x, double z) {
+        l.setBlock(ROOT.below(), B.defaultState(B.id("sculk_catalyst")), 3);
+        var be = (SculkCatalystBlockEntity) l.getBlockEntity(ROOT.below());
+        mob.moveTo(x, -60.0, z, 0, 0);
+        l.addFreshEntity(mob);
+        mob.die(new Entity.Damage("minecraft:generic", false, false, false));
+        int charge = be.getSculkSpreader().getCursors().stream().mapToInt(SculkSpreader.ChargeCursor::getCharge).sum();
+        for (int t = 0; t < 600; t++) l.step();
+        assertTrue(be.getSculkSpreader().getCursors().isEmpty(), "전하를 다 썼다");
+        int sculk = 0, vein = 0;
+        for (int xx = -12; xx <= 12; xx++)
+            for (int zz = -12; zz <= 12; zz++)
+                for (int y = -64; y <= -57; y++) {
+                    int st = l.getBlockState(new Pos(xx, y, zz));
+                    if (B.is(st, B.id("sculk"))) sculk++;
+                    if (B.is(st, B.id("sculk_vein"))) vein++;
+                }
+        return new int[] {charge, sculk, vein};
+    }
+
+    /** 소(1~3)보다 좀비(5)·스켈레톤(5+활 1~3)이 더 많이 퍼진다. 스컬크 한 칸에 전하 1을 쓴다. */
+    @Test
+    void spreadCountFollowsExperience() {
+        Lvl a = new Lvl();
+        int[] cow = killNearCatalyst(a, new Cow(a, a.nextEntityId()), 3.5, 0.5);
+        Lvl b = new Lvl();
+        int[] zombie = killNearCatalyst(b, new org.domi.furnace.server.entity.Zombie(b, b.nextEntityId()), 3.5, 0.5);
+        Lvl c = new Lvl();
+        var sk = new org.domi.furnace.server.entity.Skeleton(c, c.nextEntityId());
+        sk.setItemSlot(org.domi.furnace.server.entity.EquipmentSlot.MAINHAND, new org.domi.furnace.server.entity.ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "bow"), 1));
+        int[] skeleton = killNearCatalyst(c, sk, 3.5, 0.5);
+        System.out.println("T8 cow=" + java.util.Arrays.toString(cow) + " zombie=" + java.util.Arrays.toString(zombie)
+                + " skeleton=" + java.util.Arrays.toString(skeleton));
+        assertTrue(cow[0] >= 1 && cow[0] <= 3, "소 전하 1~3");
+        assertEquals(5, zombie[0], "좀비 전하 5");
+        assertTrue(skeleton[0] >= 6 && skeleton[0] <= 8, "스켈레톤 5 + 활 1~3");
+        assertTrue(cow[1] >= 1 && cow[1] <= cow[0], "소: 스컬크 1칸 이상, 전하 이하");
+        assertTrue(zombie[1] > cow[1] && zombie[1] <= 5, "좀비가 더 많이");
+        assertTrue(skeleton[1] >= zombie[1] && skeleton[1] <= skeleton[0], "스켈레톤 전하 이하");
+    }
+
+    /** 바닐라 LivingEntity.shouldDropExperience = !isBaby: 아기 소는 전하를 주지 않는다(bloom·경험치 흡수는 한다). */
+    @Test
+    void babyAnimalGivesNoCharge() {
+        Lvl l = new Lvl();
+        Cow cow = new Cow(l, l.nextEntityId());
+        cow.setBaby(true);
+        int[] r = killNearCatalyst(l, cow, 3.5, 0.5);
+        assertEquals(0, r[0]);
+        assertEquals(0, r[1]);
+        assertTrue(cow.wasExperienceConsumed());
+    }
+
+    /** 풀(short_grass)이 덮인 땅: 바닐라 SculkVeinSpreaderConfig 는 canBeReplaced 블록 자리에도 맥을 놓으므로 퍼진다. */
+    @Test
+    void spreadsUnderShortGrass() {
+        Lvl l = new Lvl();
+        for (int x = -12; x <= 12; x++)
+            for (int z = -12; z <= 12; z++) l.setBlock(new Pos(x, -60, z), B.defaultState(B.id("short_grass")), 2);
+        int[] r = killNearCatalyst(l, new org.domi.furnace.server.entity.Zombie(l, l.nextEntityId()), 3.5, 0.5);
+        System.out.println("T8 grass zombie=" + java.util.Arrays.toString(r));
+        assertTrue(r[1] >= 1, "풀 아래 땅도 스컬크로: " + r[1]);
+    }
 }

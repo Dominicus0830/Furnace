@@ -1,5 +1,5 @@
 // 바닐라 Wolf: 길들이기(뼈 1/3), 앉기, 목걸이 색, 분노(NeutralMob), 구걸. 길들이면 체력 40.
-// TODO: 늑대 변종(바이옴), 늑대 갑옷, 거북·해골·라마·여우 관련 목표(해당 몹 추가 시), 젖어 털기 입자, 죽음 알림.
+// TODO: 늑대 변종(바이옴), 늑대 갑옷, 젖어 털기 입자, 죽음 알림.
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -44,6 +44,7 @@ public class Wolf extends TamableAnimal implements NeutralMob {
         goalSelector.addGoal(1, new FloatGoal(this));
         goalSelector.addGoal(1, new TamablePanicGoal(this, 1.5, "minecraft:panic_environmental_causes"));
         goalSelector.addGoal(2, new SitWhenOrderedToDoGoal(this));
+        goalSelector.addGoal(3, new WolfAvoidEntityGoal(this, Llama.class, 24.0F, 1.5, 1.5));
         goalSelector.addGoal(4, new LeapAtTargetGoal(this, 0.4F));
         goalSelector.addGoal(5, new MeleeAttackGoal(this, 1.0, true));
         goalSelector.addGoal(6, new FollowOwnerGoal(this, 1.0, 10.0F, 2.0F));
@@ -57,7 +58,8 @@ public class Wolf extends TamableAnimal implements NeutralMob {
         targetSelector.addGoal(3, new HurtByTargetGoal(this).setAlertOthers());
         targetSelector.addGoal(4, new NearestAttackableTargetGoal(this, Player.class, 10, true, false, t -> isAngryAt(t)));
         targetSelector.addGoal(5, new NonTameRandomTargetGoal(this, Animal.class, false, t -> t instanceof Entity e && PREY.contains(e.type().name())));
-        // TODO(거북·해골·라마): 6 = 땅 위 아기 거북, 7 = 해골류, 3 = 라마에게서 도망(24칸)
+        targetSelector.addGoal(6, new NonTameRandomTargetGoal(this, Turtle.class, false, Turtle.BABY_ON_LAND_SELECTOR));
+        targetSelector.addGoal(7, new NearestAttackableTargetGoal(this, AbstractSkeleton.class, false));
         targetSelector.addGoal(8, new ResetUniversalAngerTargetGoal<>(this, true));
     }
 
@@ -244,4 +246,28 @@ public class Wolf extends TamableAnimal implements NeutralMob {
     /** 무리 크기(Mob.getMaxSpawnClusterSize)는 자연 스폰 때 쓴다. */
     public int maxSpawnClusterSize() { return 8; }
     @Override public int getMaxSpawnClusterSize() { return 8; }
+
+    /** 바닐라 Wolf.WolfAvoidEntityGoal: 길들지 않은 늑대는 힘(1~5)이 난수(0~4) 이상인 라마를 피하고, 피하는 동안 대상을 버린다. */
+    final class WolfAvoidEntityGoal extends AvoidEntityGoal {
+        WolfAvoidEntityGoal(Wolf wolf, Class<? extends Targetable> cls, float dist, double walk, double sprint) { super(wolf, cls, dist, walk, sprint); }
+
+        @Override
+        public boolean canUse() {
+            return super.canUse() && toAvoid instanceof Llama llama ? !isTame() && avoidLlama(llama) : false;
+        }
+
+        private boolean avoidLlama(Llama llama) { return llama.getStrength() >= random.nextInt(5); }
+
+        @Override
+        public void start() {
+            setTarget(null);
+            super.start();
+        }
+
+        @Override
+        public void tick() {
+            setTarget(null);
+            super.tick();
+        }
+    }
 }

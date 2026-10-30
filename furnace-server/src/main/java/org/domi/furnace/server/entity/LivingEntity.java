@@ -91,6 +91,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public float getStepHeight() { return (float) attributeValue(Attribute.STEP_HEIGHT); }
 
+    /** LivingEntity.maxUpStep: 플레이어가 조종하면 최소 1칸. */
+    @Override
+    public float maxUpStep() {
+        float f = getStepHeight();
+        return getControllingPassenger() instanceof Player ? Math.max(f, 1.0F) : f;
+    }
+
     /** 서버가 AI 를 돌리는 쪽인가(isEffectiveAi — 서버에서는 항상). */
     protected boolean isEffectiveAi() { return true; }
 
@@ -732,7 +739,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     protected boolean isAlwaysExperienceDropper() { return false; }
 
-    protected boolean shouldDropExperience() { return true; }
+    /** LivingEntity.shouldDropExperience: 아기는 경험치(촉매 전하 포함)를 주지 않는다. */
+    protected boolean shouldDropExperience() { return !isBaby(); }
 
     /** getExperienceReward: 종류별 기본 경험치. */
     protected int getExperienceReward() { return 0; }
