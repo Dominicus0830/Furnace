@@ -935,7 +935,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private volatile boolean resendEntityData;
 
     /** 죽은 뒤·엔드 뒤 리스폰: 다음 syncLivingFlags 가 본인과 보는 사람에게 기본값이 아닌 데이터를 다시 보낸다. */
-    public void markEntityDataResend() { resendEntityData = true; fallFlying = false; }   // 리스폰: 새 엔티티(겉날개 플래그 꺼짐)
+    public void markEntityDataResend() {
+        resendEntityData = true;
+        runOnOwner(() -> ElytraFlight.resetForRespawn(this));   // 새 엔티티: 겉날개 상태는 소유 스레드에서 지운다
+    }
 
     /** sendPairingData 의 장비(아무 스레드에서나 — 불변 스냅샷). 없으면 null. */
     public org.domi.furnace.server.net.protocol.play.SetEquipment pairingEquipment() { return pairingEquipmentSnap; }

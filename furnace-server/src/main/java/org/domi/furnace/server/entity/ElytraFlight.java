@@ -56,6 +56,13 @@ public final class ElytraFlight {
         p.forceSharedFlagsResend();
     }
 
+    /** 리스폰(새 ServerPlayer): 소유 스레드에서 비행 상태를 초기화한다. */
+    public static void resetForRespawn(Player p) {
+        p.setFallFlying(false);
+        p.fallFlyTicks = 0;
+        p.flyVx = p.flyVy = p.flyVz = 0.0;
+    }
+
     /** handlePlayerCommand START_FALL_FLYING. */
     public static void handleStartCommand(Player p) {
         if (!tryToStartFallFlying(p)) stopFallFlying(p);
@@ -67,7 +74,16 @@ public final class ElytraFlight {
      */
     public static void tick(Player p, ChunkLevel level) {
         updateFallFlying(p, level);
-        if (p.isFallFlying() && !p.wasTouchingWater) travel(p, level);   // 물 분기가 먼저(용암 분기는 아직 없다)
+        if (p.isFallFlying()) {
+            if (!p.wasTouchingWater) {
+                travel(p, level);
+            } else {   // 물 분기가 겉날개 분기를 가린다 — 물 이동은 서버가 굴리지 않아 이동 패킷 변위로 이어 간다(용암 분기는 아직 없다)
+                double[] m = p.knownMovement();
+                p.flyVx = m[0]; p.flyVy = m[1]; p.flyVz = m[2];
+            }
+        }
+        // Player.travel: 창조 비행 중이고 탈것이 아니면 travel 뒤 공유 플래그 7 을 끈다
+        if (p.vitals().isFlying() && p.vehicle() == null) p.setFallFlying(false);
         p.fallFlyTicks = p.isFallFlying() ? p.fallFlyTicks + 1 : 0;
     }
 

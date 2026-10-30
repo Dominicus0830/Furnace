@@ -188,4 +188,41 @@ class ElytraFlightTest {
         assertEquals(n + 1, env.trackerPackets.size());
         assertArrayEquals(new byte[] {11, 0, 0, 0, (byte) 0xFF}, bytes((SetEntityData) env.trackerPackets.get(n)));
     }
+
+    @Test
+    void creativeFlightAndRemovedElytraStop() {
+        var p = player(true);
+        assertTrue(ElytraFlight.tryToStartFallFlying(p));
+        p.vitals().loadGameTypes(null, GameMode.CREATIVE, false);
+        p.vitals().setFlying(true);   // Player.travel: abilities.flying 이면 travel 뒤 플래그 7 끔
+        ElytraFlight.tick(p, null);
+        assertFalse(p.isFallFlying());
+        assertEquals(0, p.fallFlyTicks);
+        var q = player(true);
+        assertTrue(ElytraFlight.tryToStartFallFlying(q));
+        ElytraFlight.tick(q, null);
+        q.inventory().set(ElytraFlight.CHEST_SLOT, ItemStack.EMPTY);
+        ElytraFlight.tick(q, null);
+        assertFalse(q.isFallFlying(), "겉날개를 벗으면 해제");
+    }
+
+    @Test
+    void unbreakingConsumesOneLevelRandomFloatPerWear() {
+        var level = new BlockPlacementTest.TestLevel();
+        var p = player(false);
+        p.applyMove(0.5, -20.0, 0.5, 0.0F, 0.0F, false);
+        p.inventory().set(ElytraFlight.CHEST_SLOT,
+                org.domi.furnace.server.item.EnchantTools.update(item("minecraft:elytra"), m -> m.put("minecraft:unbreaking", 3)));
+        assertTrue(ElytraFlight.tryToStartFallFlying(p));
+        ((org.domi.furnace.server.block.LegacyRandomSource) level.random()).setSeed(1234L);
+        var ref = org.domi.furnace.server.block.RandomSource.create(1234L);
+        int expected = 0;
+        for (int k = 0; k < 10; k++) if (!(ref.nextFloat() < 3.0F / 4.0F)) expected++;   // 비갑옷: L/(L+1)
+        for (int t = 0; t < 200; t++) {
+            p.applyMove(0.5, -20.0, 0.5, 0.0F, 0.0F, false);
+            ElytraFlight.tick(p, level);
+        }
+        assertTrue(p.isFallFlying());
+        assertEquals(expected, ItemTools.damage(p.inventory().get(ElytraFlight.CHEST_SLOT)));
+    }
 }

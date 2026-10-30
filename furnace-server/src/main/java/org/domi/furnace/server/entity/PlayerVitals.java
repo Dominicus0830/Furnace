@@ -180,7 +180,18 @@ public final class PlayerVitals {
         deathTime = tag.getShort("DeathTime");
         if (tag.containsNumber("Air")) air = tag.getShort("Air");
         fallDistance = tag.getFloat("FallDistance");
-        if (tag.getBoolean("FallFlying")) player.setFallFlying(true);   // LivingEntity.readAdditionalSaveData
+        if (tag.getBoolean("FallFlying")) {   // LivingEntity.readAdditionalSaveData — 서버 속도는 Motion 에서
+            player.setFallFlying(true);
+            var motion = tag.getList("Motion");
+            if (motion != null && motion.size() >= 3) {
+                double[] mv = new double[3];
+                for (int i = 0; i < 3; i++) {
+                    double d = motion.get(i) instanceof Number n ? n.doubleValue() : 0.0;
+                    mv[i] = Math.abs(d) > 10.0 ? 0.0 : d;
+                }
+                player.flyVx = mv[0]; player.flyVy = mv[1]; player.flyVz = mv[2];
+            }
+        }
         invulnerableFlag = tag.getBoolean("Invulnerable");
         xpProgress = tag.getFloat("XpP");
         xpLevel = tag.getIntOr0("XpLevel");

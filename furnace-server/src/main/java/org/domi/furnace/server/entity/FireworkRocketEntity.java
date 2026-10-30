@@ -82,9 +82,14 @@ public class FireworkRocketEntity extends Projectile {
     public void tick() {
         super.tick();
         if (entityData.get(DATA_ATTACHED_TO_TARGET) != null) {
-            // 붙은 플레이어는 같은 region 스레드에 있을 때만 건드린다(다른 region 이면 이 틱은 제자리)
+            // 붙은 플레이어의 상태는 같은 region 스레드일 때만 바꾼다. 다른 region 이면 위치(volatile)만 따라가
+            // 다음 틱 handOffEntities 가 로켓을 플레이어 region 으로 넘긴다(그 사이 가속은 빠진다).
             Player p = attached;
-            if (p != null && p.currentLevel == level) {
+            if (p != null && p.currentLevel != level) {
+                setPos(p.x(), p.y(), p.z());
+                double[] m = p.knownMovement();
+                setDeltaMovement(m[0], m[1], m[2]);
+            } else if (p != null) {
                 double[] hand;
                 if (p.isFallFlying()) {
                     double[] look = org.domi.furnace.server.block.Clip.viewVector(p.pitch(), p.yaw());
@@ -150,10 +155,12 @@ public class FireworkRocketEntity extends Projectile {
         float amount = ex.isEmpty() ? 0.0F : 5.0F + ex.size() * 2;
         if (amount <= 0.0F) return;
         Player p = attached;
-        if (p != null && p.currentLevel == level) {   // 붙은 대상은 거리·시야 없이 전부
+        if (p != null) {   // 붙은 대상은 거리·시야 없이 전부 — 플레이어 소유 스레드에서
             Rider owner = getOwner() instanceof Rider r ? r : null;
-            p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageSource.by(
-                    org.domi.furnace.server.entity.damage.DamageType.byKey("fireworks"), this, owner), amount);
+            var src = org.domi.furnace.server.entity.damage.DamageSource.by(
+                    org.domi.furnace.server.entity.damage.DamageType.byKey("fireworks"), this, owner);
+            float a = amount;
+            p.runOnOwner(() -> p.vitals().hurt(src, a));
         }
         Damage src = new Damage("fireworks", false, true, false);
         AABB box = boundingBox().inflate(5.0);
