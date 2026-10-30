@@ -262,8 +262,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
         lastDamageAttacker = attacker;
         lastDamageStamp = level.gameTime();
         if (isDeadOrDying()) {
-            if (fresh) makeSound(getDeathSound());
-            die(source);
+            if (!checkTotemDeathProtection(source)) {
+                if (fresh) makeSound(getDeathSound());
+                die(source);
+            }
         } else if (fresh) {
             playHurtSound(source);
         }
@@ -611,43 +613,48 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** LivingEntity.getDamageAfterArmorAbsorb: CombatRules.getDamageAfterAbsorb(damage, armor, toughness). */
     protected float getDamageAfterArmorAbsorb(Damage source, float amount) {
         if (DamageType.keyHasTag(source.type(), "bypasses_armor")) return amount;
-        float armor = (float) attributeValue(Attribute.ARMOR), toughness = (float) attributeValue(Attribute.ARMOR_TOUGHNESS);
-        float f = 2.0F + toughness / 4.0F;
-        float f1 = Math.clamp(armor - amount / f, armor * 0.2F, 20.0F);
-        return amount * (1.0F - f1 / 25.0F);
+        return org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterAbsorb(amount,
+                (float) attributeValue(Attribute.ARMOR), (float) attributeValue(Attribute.ARMOR_TOUGHNESS));
     }
 
     /** LivingEntity.getDamageAfterMagicAbsorb: 저항 효과와 방어구 보호 인챈트. */
     protected float getDamageAfterMagicAbsorb(Damage source, float amount) {
-        DamageType t = DamageType.byKey(source.type());
         if (DamageType.keyHasTag(source.type(), "bypasses_effects")) return amount;
         var res = getEffect(org.domi.furnace.server.effect.MobEffect.RESISTANCE);
         if (res != null && !DamageType.keyHasTag(source.type(), "bypasses_resistance")) {
-            int i = (res.amplifier() + 1) * 5;
-            int j = 25 - i;
-            amount = Math.max(amount * j / 25.0F, 0.0F);
+            amount = org.domi.furnace.server.entity.damage.CombatRules.afterResistance(amount, res.amplifier());
         }
         if (amount <= 0.0F) return 0.0F;
         if (DamageType.keyHasTag(source.type(), "bypasses_enchantments")) return amount;
-        float prot = getDamageProtection(source);
-        if (prot > 0.0F) amount = amount * (1.0F - Math.clamp(prot, 0.0F, 20.0F) / 25.0F);
+        float prot = org.domi.furnace.server.entity.damage.CombatRules.damageProtection(source.type(),
+                getItemBySlot(EquipmentSlot.HEAD), getItemBySlot(EquipmentSlot.CHEST), getItemBySlot(EquipmentSlot.LEGS), getItemBySlot(EquipmentSlot.FEET), getItemBySlot(EquipmentSlot.BODY));
+        if (prot > 0.0F) amount = org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterMagicAbsorb(amount, prot);
         return amount;
     }
 
-    /** EnchantmentHelper.getDamageProtection: 방어구 네 칸의 보호 인챈트 합. */
-    private float getDamageProtection(Damage source) {
-        DamageType t = DamageType.byKey(source.type());
-        int sum = 0;
-        for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+    /**
+     * LivingEntity.checkTotemDeathProtection(1.21.1): bypasses_invulnerability 가 아니면 주 손 → 보조 손 순으로 불사의 토템을 찾아
+     * 하나 줄이고 체력 1, 효과 전부 제거, 재생 II 900·흡수 II 100·화염 저항 800, 엔티티 이벤트 35.
+     */
+    protected boolean checkTotemDeathProtection(Damage source) {
+        if (DamageType.keyHasTag(source.type(), "bypasses_invulnerability")) return false;
+        ItemStack used = null;
+        for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND}) {
             ItemStack s = getItemBySlot(slot);
-            if (s.isEmpty()) continue;
-            sum += org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:protection");
-            if (source.fire()) sum += 2 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:fire_protection");
-            if (source.explosion()) sum += 2 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:blast_protection");
-            if (t == DamageType.ARROW || t == DamageType.MOB_PROJECTILE) sum += 2 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:projectile_protection");
-            if (t.isFall()) sum += 3 * org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:feather_falling");
+            if (!s.isEmpty() && "minecraft:totem_of_undying".equals(org.domi.furnace.server.item.ItemTools.itemName(s))) {
+                used = s;   // 바닐라: 줄이기 전 스택 복사
+                setItemSlot(slot, s.withCount(s.count() - 1));
+                break;
+            }
         }
-        return sum;
+        if (used == null) return false;
+        setHealth(1.0F);
+        removeAllEffects();
+        addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.REGENERATION, 900, 1));
+        addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.ABSORPTION, 100, 1));
+        addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.FIRE_RESISTANCE, 800, 0));
+        broadcastEntityEvent((byte) 35);
+        return true;
     }
 
     /** LivingEntity.knockback(strength, x, z): 방향(x,z)의 반대로 밀린다(저항 속성은 아직 없다). */

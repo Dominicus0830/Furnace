@@ -4,6 +4,7 @@
 // 블록을 봐야 하는 판정(물·사다리·착지 블록)은 소유 region 이 계산해 인자로 넘긴다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.entity.damage.CombatRules;
 import org.domi.furnace.server.entity.damage.CombatTracker;
 import org.domi.furnace.server.entity.damage.DamageSource;
 import org.domi.furnace.server.entity.damage.DamageType;
@@ -516,26 +517,19 @@ public final class PlayerVitals {
             player.send(ev);
             env.broadcastToTrackers(player.entityId(), ev);
         }
-        if (died) die(type, causing, direct);
+        if (died && !checkTotemDeathProtection(type)) die(type, causing, direct);
         if (blockedAmount > 0.0f && blockedAmount < 3.4028235E37F) player.awardStat("minecraft:damage_blocked_by_shield", Math.round(blockedAmount * 10.0f));
         return !blocked;
     }
 
-    /** 바닐라 Player.actuallyHurt: 방어구·효과 경감(지금 피해 종류는 모두 bypasses_armor) → 흡수 → 소모 → 기록 → 체력. */
+    /** 바닐라 Player.actuallyHurt: 방어구(내구도 소모 후 CombatRules) → 저항 효과 → 보호 인챈트 → 흡수 → 소모 → 기록 → 체력. 몹과 같은 CombatRules. */
     private void actuallyHurt(DamageType type, float amount, Rider causing, Rider direct) {
         if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
+            player.hurtArmor(amount);   // 바닐라 순서: 내구도를 먼저 깎고(깨지면 빠진 뒤) 방어력을 읽는다
             float armor = player.armorValue(), toughness = player.armorToughness();
-            player.hurtArmor(amount);
-            float f = 2.0f + toughness / 4.0f;
-            float g = Math.clamp(armor - amount / f, armor * 0.2f, 20.0f);
-            amount = amount * (1.0f - g / 25.0f);
+            amount = CombatRules.getDamageAfterAbsorb(amount, armor, toughness);
         }
-        MobEffectInstance resistance = effects.get(MobEffect.RESISTANCE);
-        if (resistance != null && !type.bypassesEffects() && !type.bypassesResistance()) {   // getDamageAfterMagicAbsorb
-            int i = (resistance.amplifier() + 1) * 5;
-            int j = 25 - i;
-            amount = Math.max(amount * j / 25.0f, 0.0f);
-        }
+        amount = getDamageAfterMagicAbsorb(type, amount);
         float afterAbsorb = Math.max(amount - absorption, 0.0f);
         setAbsorptionLocked(absorption - (amount - afterAbsorb));
         if (afterAbsorb != 0.0f) {
@@ -543,6 +537,54 @@ public final class PlayerVitals {
             combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct));
             setHealthRaw(health - afterAbsorb);
         }
+    }
+
+    /** LivingEntity.getDamageAfterMagicAbsorb: bypasses_effects → 그대로, 저항 효과, 0 이하면 0, bypasses_enchantments → 그대로, 보호 인챈트. */
+    private float getDamageAfterMagicAbsorb(DamageType type, float amount) {
+        if (type.bypassesEffects()) return amount;
+        MobEffectInstance resistance = effects.get(MobEffect.RESISTANCE);
+        if (resistance != null && !type.bypassesResistance()) amount = CombatRules.afterResistance(amount, resistance.amplifier());
+        if (amount <= 0.0f) return 0.0f;
+        if (type.bypassesEnchantments()) return amount;
+        PlayerInventory inv = player.inventory();
+        float prot = CombatRules.damageProtection(type.key(), inv.get(5), inv.get(6), inv.get(7), inv.get(8));
+        if (prot > 0.0f) amount = CombatRules.getDamageAfterMagicAbsorb(amount, prot);
+        return amount;
+    }
+
+    /**
+     * LivingEntity.checkTotemDeathProtection(1.21.1, ServerPlayer 분기 포함): bypasses_invulnerability 가 아니면 주 손 → 보조 손에서
+     * 불사의 토템을 하나 줄이고, used:totem_of_undying 통계·used_totem 발전과제·item_interact_finish 게임 이벤트,
+     * 체력 1·효과 전부 제거·재생 II 900·흡수 II 100·화염 저항 800, 엔티티 이벤트 35(입자·item.totem.use 소리는 클라이언트).
+     */
+    boolean checkTotemDeathProtection(DamageType type) {
+        if (type.bypassesInvulnerability()) return false;
+        PlayerInventory inv = player.inventory();
+        ItemStack used = null;
+        for (int ws : new int[] {inv.heldWindowSlot(), 45}) {
+            ItemStack s = inv.get(ws);
+            if (!s.isEmpty() && "minecraft:totem_of_undying".equals(org.domi.furnace.server.item.ItemTools.itemName(s))) {
+                used = s;   // 바닐라: 줄이기 전 스택 복사(개수 그대로)
+                inv.set(ws, s.withCount(s.count() - 1));
+                break;
+            }
+        }
+        if (used == null) return false;
+        player.awardStat("minecraft:used:minecraft:totem_of_undying", 1);
+        var adv = player.advancements();
+        if (adv != null) adv.trigger("minecraft:used_totem", org.domi.furnace.server.ServerCore.lootStackOf(used));
+        var level = player.currentLevel;
+        if (level != null) level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH,
+                new Vec3(player.x(), player.y(), player.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
+        synchronized (this) { setHealthRaw(1.0f); }
+        removeAllEffects();
+        addEffect(new MobEffectInstance(MobEffect.REGENERATION, 900, 1));
+        addEffect(new MobEffectInstance(MobEffect.ABSORPTION, 100, 1));
+        addEffect(new MobEffectInstance(MobEffect.FIRE_RESISTANCE, 800, 0));
+        Packet ev = new EntityEvent(player.entityId(), (byte) 35);
+        player.send(ev);
+        env.broadcastToTrackers(player.entityId(), ev);
+        return true;
     }
 
     /** 이 플레이어를 보는 사람 모두에게(본인 제외) 패킷. */
