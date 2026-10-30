@@ -1,10 +1,11 @@
 // 바닐라 Cat: 길들이기(생선 1/3), 앉기, 목걸이 색, 고양이 변종(보름달엔 11종), 플레이어를 피함(길들이기 전).
-// TODO: 침대에 눕기·블록에 앉기·주인 위에서 쉬기·아침 선물(잠자기 필요), 마녀 오두막/마을에서 검은 고양이 변종
+// TODO: 마녀 오두막/마을에서 검은 고양이 변종
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.item.ItemTools;
@@ -37,8 +38,11 @@ public class Cat extends TamableAnimal {
         goalSelector.addGoal(1, new FloatGoal(this));
         goalSelector.addGoal(1, new TamablePanicGoal(this, 1.5));
         goalSelector.addGoal(2, new SitWhenOrderedToDoGoal(this));
+        goalSelector.addGoal(3, new CatRelaxOnOwnerGoal(this));
         goalSelector.addGoal(4, temptGoal);
+        goalSelector.addGoal(5, new CatLieOnBedGoal(this, 1.1, 8));
         goalSelector.addGoal(6, new FollowOwnerGoal(this, 1.0, 10.0F, 5.0F));
+        goalSelector.addGoal(7, new CatSitOnBlockGoal(this, 0.8));
         goalSelector.addGoal(8, new LeapAtTargetGoal(this, 0.3F));
         goalSelector.addGoal(9, new OcelotAttackGoal(this));
         goalSelector.addGoal(10, new BreedGoal(this, 0.8));
@@ -61,6 +65,8 @@ public class Cat extends TamableAnimal {
     public void setLying(boolean v) { entityData.set(DATA_IS_LYING, v); }
 
     public boolean isRelaxStateOne() { return (Boolean) entityData.get(DATA_RELAX_STATE_ONE); }
+
+    void setRelaxStateOne(boolean v) { entityData.set(DATA_RELAX_STATE_ONE, v); }
 
     @Override
     protected void createAttributes(AttributeMap map) {
@@ -265,6 +271,187 @@ public class Cat extends TamableAnimal {
         }
 
         @Override public boolean canUse() { return !cat.isTame() && super.canUse(); }
+    }
+
+    /** CatLieOnBedGoal: 길든 고양이가 가까운 침대(반경 8, 위아래 6)에 올라가 눕는다. */
+    static final class CatLieOnBedGoal extends MoveToBlockGoal {
+        private final Cat cat;
+
+        CatLieOnBedGoal(Cat cat, double speed, int range) {
+            super(cat, speed, range, 6);
+            this.cat = cat;
+            this.verticalSearchStart = -2;
+            setFlags(java.util.EnumSet.of(Flag.JUMP, Flag.MOVE));
+        }
+
+        @Override public boolean canUse() { return cat.isTame() && !cat.isOrderedToSit() && !cat.isLying() && super.canUse(); }
+
+        @Override
+        public void start() {
+            super.start();
+            cat.setInSittingPose(false);
+        }
+
+        @Override protected int nextStartTick(org.domi.furnace.server.entity.PathfinderMob mob) { return 40; }
+
+        @Override
+        public void stop() {
+            super.stop();
+            cat.setLying(false);
+        }
+
+        @Override
+        public void tick() {
+            super.tick();
+            cat.setInSittingPose(false);
+            if (!isReachedTarget()) cat.setLying(false);
+            else if (!cat.isLying()) cat.setLying(true);
+        }
+
+        @Override
+        protected boolean isValidTarget(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos) {
+            return level.isEmptyBlock(pos.above()) && org.domi.furnace.server.block.B.isTag(level.getBlockState(pos), "minecraft:beds");
+        }
+    }
+
+    /** CatSitOnBlockGoal: 길든 고양이가 닫힌 상자·불 붙은 화로·침대 발 쪽에 앉는다. */
+    static final class CatSitOnBlockGoal extends MoveToBlockGoal {
+        private final Cat cat;
+
+        CatSitOnBlockGoal(Cat cat, double speed) {
+            super(cat, speed, 8);
+            this.cat = cat;
+        }
+
+        @Override public boolean canUse() { return cat.isTame() && !cat.isOrderedToSit() && super.canUse(); }
+
+        @Override
+        public void start() {
+            super.start();
+            cat.setInSittingPose(false);
+        }
+
+        @Override
+        public void stop() {
+            super.stop();
+            cat.setInSittingPose(false);
+        }
+
+        @Override
+        public void tick() {
+            super.tick();
+            cat.setInSittingPose(isReachedTarget());
+        }
+
+        @Override
+        protected boolean isValidTarget(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos) {
+            if (!level.isEmptyBlock(pos.above())) return false;
+            int state = level.getBlockState(pos);
+            if (org.domi.furnace.server.block.B.is(state, "minecraft:chest")) {
+                return !(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.OpenersBlockEntity o) || o.openCount < 1;
+            }
+            if (org.domi.furnace.server.block.B.is(state, "minecraft:furnace") && org.domi.furnace.server.block.B.prop("lit").is(state)) return true;
+            // 침대는 머리가 아닌 쪽만(part 속성이 없으면 true)
+            return org.domi.furnace.server.block.B.isTag(state, "minecraft:beds") && !"head".equals(org.domi.furnace.server.block.B.prop("part").valueName(state));
+        }
+    }
+
+    /** CatRelaxOnOwnerGoal: 자는 주인의 침대 곁에서 쉬다가, 새벽에 아침 선물을 가져다 놓는다. */
+    static final class CatRelaxOnOwnerGoal extends Goal {
+        private final Cat cat;
+        private Player ownerPlayer;
+        private org.domi.furnace.server.block.Pos goalPos;
+        private int onBedTicks;
+
+        CatRelaxOnOwnerGoal(Cat cat) { this.cat = cat; }
+
+        @Override
+        public boolean canUse() {
+            if (!cat.isTame()) return false;
+            if (cat.isOrderedToSit()) return false;
+            Player owner = cat.getOwner();
+            if (owner == null) return false;
+            ownerPlayer = owner;
+            if (!owner.isSleeping()) return false;
+            if (distSqr(owner) > 100.0) return false;
+            var pos = owner.blockPosition();
+            int state = cat.level().getBlockState(pos);
+            if (org.domi.furnace.server.block.B.isTag(state, "minecraft:beds")) {
+                var facing = org.domi.furnace.server.block.B.prop("facing");
+                goalPos = facing.has(state) ? pos.relative(org.domi.furnace.server.block.Dir.opposite(org.domi.furnace.server.block.Dir.byName(facing.valueName(state)))) : pos;
+                return !spaceIsOccupied();
+            }
+            return false;
+        }
+
+        private double distSqr(Player p) {
+            double dx = cat.x() - p.x(), dy = cat.y() - p.y(), dz = cat.z() - p.z();
+            return dx * dx + dy * dy + dz * dz;
+        }
+
+        private boolean spaceIsOccupied() {
+            var box = new org.domi.furnace.server.entity.AABB(goalPos.x(), goalPos.y(), goalPos.z(), goalPos.x() + 1, goalPos.y() + 1, goalPos.z() + 1).inflate(2.0);
+            for (Cat other : cat.level().getEntitiesOfClass(Cat.class, box, c -> true)) {
+                if (other != cat && (other.isLying() || other.isRelaxStateOne())) return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return cat.isTame() && !cat.isOrderedToSit() && ownerPlayer != null && ownerPlayer.isSleeping() && goalPos != null && !spaceIsOccupied();
+        }
+
+        @Override
+        public void start() {
+            if (goalPos != null) {
+                cat.setInSittingPose(false);
+                cat.getNavigation().moveTo(goalPos.x(), goalPos.y(), goalPos.z(), 1.100000023841858);
+            }
+        }
+
+        @Override
+        public void stop() {
+            cat.setLying(false);
+            float time = org.domi.furnace.server.block.B.timeOfDay(cat.level());
+            if (ownerPlayer.sleepCounter() >= 100 && time > 0.77 && time < 0.8 && cat.level().random().nextFloat() < 0.7) giveMorningGift();
+            onBedTicks = 0;
+            cat.setRelaxStateOne(false);
+            cat.getNavigation().stop();
+        }
+
+        private void giveMorningGift() {
+            var random = cat.random();
+            var pos = cat.blockPosition();
+            cat.randomTeleport(pos.x() + random.nextInt(11) - 5, pos.y() + random.nextInt(5) - 2, pos.z() + random.nextInt(11) - 5, false);
+            var at = cat.blockPosition();
+            var level = cat.level();
+            for (ItemStack s : level.giftLoot("minecraft:gameplay/cat_morning_gift", cat.lootEntity(), cat.x(), cat.y(), cat.z())) {
+                float rad = cat.yBodyRot() * (float) (Math.PI / 180.0);
+                level.addFreshEntity(new ItemEntity(level, level.nextEntityId(),
+                        at.x() - org.domi.furnace.server.entity.ai.control.Mth.sin(rad), at.y(), at.z() + org.domi.furnace.server.entity.ai.control.Mth.cos(rad), s));
+            }
+        }
+
+        @Override
+        public void tick() {
+            if (ownerPlayer != null && goalPos != null) {
+                cat.setInSittingPose(false);
+                cat.getNavigation().moveTo(goalPos.x(), goalPos.y(), goalPos.z(), 1.100000023841858);
+                if (distSqr(ownerPlayer) < 2.5) {
+                    onBedTicks++;
+                    if (onBedTicks > adjustedTickDelay(16)) {
+                        cat.setLying(true);
+                        cat.setRelaxStateOne(false);
+                    } else {
+                        cat.faceTarget(ownerPlayer, 45.0F, 45.0F);
+                        cat.setRelaxStateOne(true);
+                    }
+                } else {
+                    cat.setLying(false);
+                }
+            }
+        }
     }
 
     /** Cat.hiss: 하악질 소리(팬텀이 가까이 있을 때). */

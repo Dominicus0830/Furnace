@@ -48,7 +48,7 @@ public class Rabbit extends Animal {
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(1, new FloatGoal(this));
-        goalSelector.addGoal(1, new ClimbOnTopOfPowderSnowGoalStub());
+        goalSelector.addGoal(1, new ClimbOnTopOfPowderSnowGoal(this));
         goalSelector.addGoal(1, new RabbitPanicGoal(this, 2.2));
         goalSelector.addGoal(2, new BreedGoal(this, 0.8));
         goalSelector.addGoal(3, new TemptGoal(this, 1.0, s -> ItemTags.is(s, "minecraft:rabbit_food"), false));
@@ -58,11 +58,6 @@ public class Rabbit extends Animal {
         goalSelector.addGoal(5, new RaidGardenGoal(this));
         goalSelector.addGoal(6, new WaterAvoidingRandomStrollGoal(this, 0.6));
         goalSelector.addGoal(11, new LookAtPlayerGoal(this, 10.0F));
-    }
-
-    /** ClimbOnTopOfPowderSnowGoal(cab): 가루눈 위로 올라서는 목표. TODO: 가루눈 지원 때 실제 구현으로 바꾼다. */
-    private static final class ClimbOnTopOfPowderSnowGoalStub extends org.domi.furnace.server.entity.ai.Goal {
-        @Override public boolean canUse() { return false; }
     }
 
     @Override

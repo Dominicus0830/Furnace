@@ -1,6 +1,5 @@
 // 바닐라 Dolphin: 물속을 부드럽게 헤엄치고, 물 위로 뛰어오르며, 숨이 모자라면 수면으로 올라온다. 마르면(moistness) 피해를 입는다.
-// TODO(보물): 가장 가까운 보물 구조물을 못 찾는 것으로 처리(구조물 위치 탐색 필요). TODO(플레이어와 헤엄): 플레이어 수영 자세 필요.
-// TODO(아이템 가지고 놀기·보트 따라가기): 몹 아이템 줍기와 보트가 아직 없다.
+// TODO(보물): 가장 가까운 보물 구조물을 못 찾는 것으로 처리(구조물 위치 탐색 필요). TODO(플레이어와 헤엄): Player 수영 상태가 없어 DolphinSwimWithPlayerGoal 은 넣지 않았다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -30,7 +29,7 @@ public class Dolphin extends WaterAnimal {
         super(EntityType.DOLPHIN, level, id);
         this.moveControl = new SmoothSwimmingMoveControl(this, 85, 10, 0.02F, 0.1F, true);
         this.lookControl = new SmoothSwimmingLookControl(this, 10);
-        // setCanPickUpLoot(true) — 줍기는 TODO
+        setCanPickUpLoot(true);
     }
 
     @Override
@@ -97,13 +96,38 @@ public class Dolphin extends WaterAnimal {
         goalSelector.addGoal(0, new BreathAirGoal(this));
         goalSelector.addGoal(0, new TryFindWaterGoal(this));
         goalSelector.addGoal(1, new DolphinSwimToTreasureGoal(this));
+        // 2: DolphinSwimWithPlayerGoal(4.0) — Player 수영 상태(isSwimming)가 없어 넣지 않는다
         goalSelector.addGoal(4, new RandomSwimmingGoal(this, 1.0, 10));
         goalSelector.addGoal(4, new RandomLookAroundGoal(this));
         goalSelector.addGoal(5, new LookAtPlayerGoal(this, 6.0F));
         goalSelector.addGoal(5, new DolphinJumpGoal(this, 10));
         goalSelector.addGoal(6, new MeleeAttackGoal(this, 1.2, true));
+        goalSelector.addGoal(8, new PlayWithItemsGoal());
+        goalSelector.addGoal(8, new FollowBoatGoal(this));
         goalSelector.addGoal(9, new AvoidEntityGoal(this, Guardian.class, 8.0F, 1.0, 1.0));
         targetSelector.addGoal(1, new HurtByTargetGoal(this, Guardian.class).setAlertOthers());
+    }
+
+    /** Dolphin.canHoldItem: 주 손이 비어 있고 주 손에 들 물건일 때만. */
+    @Override
+    public boolean canHoldItem(ItemStack stack) {
+        EquipmentSlot slot = equipmentSlotFor(stack);
+        return getItemBySlot(slot).isEmpty() && slot == EquipmentSlot.MAINHAND && super.canHoldItem(stack);
+    }
+
+    /** Dolphin.pickUpItem: 주 손이 비었으면 통째로 들고(죽으면 확실히 떨굼) 아이템 엔티티를 지운다. */
+    @Override
+    protected void pickUpItem(ItemEntity ie) {
+        if (getItemBySlot(EquipmentSlot.MAINHAND).isEmpty()) {
+            ItemStack stack = ie.getItem();
+            if (canHoldItem(stack)) {
+                onItemPickup(ie);
+                setItemSlot(EquipmentSlot.MAINHAND, stack);
+                setDropChance(EquipmentSlot.MAINHAND, 2.0F);
+                ie.broadcastTake(this, stack.count());
+                ie.discard();
+            }
+        }
     }
 
     @Override
@@ -282,6 +306,145 @@ public class Dolphin extends WaterAnimal {
                 double h = Math.sqrt(vx * vx + vz * vz);
                 double d = Math.atan2(-vy, h) * 180.0F / (float) Math.PI;
                 dolphin.setXRot((float) d);
+            }
+        }
+    }
+
+    /** PlayWithItemsGoal: 물속의 떨어진 아이템 쪽으로 가서 주워 든 뒤, 일정 시간 가지고 놀다 던진다. */
+    private final class PlayWithItemsGoal extends Goal {
+        private int cooldown;
+
+        private java.util.List<ItemEntity> nearbyItems() {
+            return level().getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(8.0, 8.0, 8.0), ie -> !ie.hasPickUpDelay() && ie.isAlive() && ie.isInWater());
+        }
+
+        @Override
+        public boolean canUse() {
+            if (cooldown > tickCount) return false;
+            return !nearbyItems().isEmpty() || !getItemBySlot(EquipmentSlot.MAINHAND).isEmpty();
+        }
+
+        @Override
+        public void start() {
+            var list = nearbyItems();
+            if (!list.isEmpty()) {
+                getNavigation().moveToEntityAt(list.get(0).blockPosition(), 1.2F);
+                playSound("entity.dolphin.play", 1.0F, 1.0F);
+            }
+            cooldown = 0;
+        }
+
+        @Override
+        public void stop() {
+            ItemStack stack = getItemBySlot(EquipmentSlot.MAINHAND);
+            if (!stack.isEmpty()) {
+                drop(stack);
+                setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+                cooldown = tickCount + random.nextInt(100);
+            }
+        }
+
+        @Override
+        public void tick() {
+            var list = nearbyItems();
+            ItemStack stack = getItemBySlot(EquipmentSlot.MAINHAND);
+            if (!stack.isEmpty()) {
+                drop(stack);
+                setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+            } else if (!list.isEmpty()) {
+                getNavigation().moveToEntityAt(list.get(0).blockPosition(), 1.2F);
+            }
+        }
+
+        private void drop(ItemStack stack) {
+            if (stack.isEmpty()) return;
+            double y = eyeY() - 0.3F;
+            var ie = new ItemEntity(level(), level().nextEntityId(), x(), y, z(), stack);
+            ie.setPickUpDelay(40);
+            ie.setThrower(Dolphin.this);
+            float f1 = random.nextFloat() * (float) (Math.PI * 2);
+            float f2 = 0.02F * random.nextFloat();
+            float yr = yRot() * (float) (Math.PI / 180.0), xr = xRot() * (float) (Math.PI / 180.0);
+            ie.setDeltaMovement(
+                    0.3F * -Mth.sin(yr) * Mth.cos(xr) + Mth.cos(f1) * f2,
+                    0.3F * Mth.sin(xr) * 1.5F,
+                    0.3F * Mth.cos(yr) * Mth.cos(xr) + Mth.sin(f1) * f2);
+            level().addFreshEntity(ie);
+        }
+    }
+
+    /** FollowBoatGoal: 근처 보트를 모는 플레이어를 따라간다(먼저 뒤쪽으로 붙고, 가까워지면 진행 방향으로). */
+    static final class FollowBoatGoal extends Goal {
+        private enum Mode { TOWARDS_PLAYER, IN_BOAT_DIRECTION }
+
+        private int timeToRecalcPath;
+        private final PathfinderMob mob;
+        private Player following;
+        private Mode currentGoal;
+
+        FollowBoatGoal(PathfinderMob mob) { this.mob = mob; }
+
+        private static boolean moving(Player p) { return Math.abs(p.inputXxa()) > 0.0F || Math.abs(p.inputZza()) > 0.0F; }
+
+        private java.util.List<Boat> nearbyBoats() { return mob.level().getEntitiesOfClass(Boat.class, mob.boundingBox().inflate(5.0), b -> true); }
+
+        @Override
+        public boolean canUse() {
+            boolean flag = false;
+            for (Boat boat : nearbyBoats()) {
+                if (boat.getControllingPassenger() instanceof Player p && moving(p)) {
+                    flag = true;
+                    break;
+                }
+            }
+            return following != null && moving(following) || flag;
+        }
+
+        @Override public boolean requiresUpdateEveryTick() { return true; }
+
+        @Override public boolean canContinueToUse() { return following != null && following.isPassenger() && moving(following); }
+
+        @Override
+        public void start() {
+            for (Boat boat : nearbyBoats()) {
+                if (boat.getControllingPassenger() instanceof Player p) {
+                    following = p;
+                    break;
+                }
+            }
+            timeToRecalcPath = 0;
+            currentGoal = Mode.TOWARDS_PLAYER;
+        }
+
+        @Override public void stop() { following = null; }
+
+        @Override
+        public void tick() {
+            boolean flag = moving(following);
+            float f = currentGoal == Mode.IN_BOAT_DIRECTION ? (flag ? 0.01F : 0.0F) : 0.015F;
+            mob.moveRelative(f, mob.getXxa(), 0.0F, mob.getZza());
+            mob.move(Entity.MOVER_SELF, mob.vx(), mob.vy(), mob.vz());
+            if (--timeToRecalcPath <= 0) {
+                timeToRecalcPath = adjustedTickDelay(10);
+                int dir = Dir.fromYRot(following.yaw());
+                Pos at = following.blockPosition();
+                double dx = mob.x() - following.x(), dy = mob.y() - following.y(), dz = mob.z() - following.z();
+                double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (currentGoal == Mode.TOWARDS_PLAYER) {
+                    Pos p = at.relative(Dir.opposite(dir)).offset(0, -1, 0);
+                    mob.getNavigation().moveTo(p.x(), p.y(), p.z(), 1.0);
+                    if (dist < 4.0F) {
+                        timeToRecalcPath = 0;
+                        currentGoal = Mode.IN_BOAT_DIRECTION;
+                    }
+                } else {
+                    Pos p = at.relative(dir, 10);
+                    mob.getNavigation().moveTo(p.x(), p.y() - 1, p.z(), 1.0);
+                    if (dist > 12.0F) {
+                        timeToRecalcPath = 0;
+                        currentGoal = Mode.TOWARDS_PLAYER;
+                    }
+                }
             }
         }
     }

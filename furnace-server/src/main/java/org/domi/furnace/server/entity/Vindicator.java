@@ -1,5 +1,5 @@
 // 바닐라 Vindicator: 도끼를 든 일러저. 플레이어·주민·철 골렘을 노린다. 'Johnny' 이름이면 모든 생명체를 공격한다.
-// TODO(문·습격·이름표): VindicatorBreakDoorGoal(1), 습격 무기 마법 부여, 이름표 Johnny 감지.
+// TODO(습격·이름표): 습격 무기 마법 부여, 이름표 Johnny 감지.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -23,6 +23,7 @@ public class Vindicator extends AbstractIllager {
     protected void registerGoals() {
         super.registerGoals();
         goalSelector.addGoal(0, new FloatGoal(this));
+        goalSelector.addGoal(1, new VindicatorBreakDoorGoal(this));
         goalSelector.addGoal(2, new RaiderOpenDoorGoal(this));
         goalSelector.addGoal(3, new HoldGroundAttackGoal(this, 10.0F));
         goalSelector.addGoal(4, new MeleeAttackGoal(this, 1.0, false));
@@ -87,4 +88,28 @@ public class Vindicator extends AbstractIllager {
     @Override protected String getHurtSound(Damage source) { return "entity.vindicator.hurt"; }
 
     @Override public String getCelebrateSound() { return "entity.vindicator.celebrate"; }
+
+    /** VindicatorBreakDoorGoal: 습격 중에만, 보통 이상 난이도에서 문을 부순다. */
+    static final class VindicatorBreakDoorGoal extends BreakDoorGoal {
+        private final Vindicator vindicator;
+
+        VindicatorBreakDoorGoal(Vindicator mob) {
+            super(mob, 6, difficulty -> difficulty == 2 || difficulty == 3);
+            this.vindicator = mob;
+            setFlags(java.util.EnumSet.of(Flag.MOVE));
+        }
+
+        @Override public boolean canContinueToUse() { return vindicator.hasActiveRaid() && super.canContinueToUse(); }
+
+        @Override
+        public boolean canUse() {
+            return vindicator.hasActiveRaid() && vindicator.random().nextInt(adjustedTickDelay(10)) == 0 && super.canUse();
+        }
+
+        @Override
+        public void start() {
+            super.start();
+            vindicator.setNoActionTime(0);
+        }
+    }
 }

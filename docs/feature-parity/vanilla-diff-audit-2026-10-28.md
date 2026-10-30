@@ -49,4 +49,5 @@
 - 추가: Witch 타깃 1 `HurtByTargetGoal(Raider)`, 2 `NearestHealableRaiderTargetGoal`, 3 `NearestAttackableWitchTargetGoal`(치료 쿨다운 동안 플레이어 타깃 끔).
 - 부수 수정: `MoveToBlockGoal.start` 의 maxStayTicks 가 `nextInt(nextInt(1200)+1)` 이던 것을 바닐라 `nextInt(nextInt(1200)+1200)` 로(이 기반을 쓰는 모든 몹의 난수 소비가 바뀜). 좀비·드라운드의 주민 타깃을 AbstractVillager 범위(떠돌이 상인 포함)로.
 - 보류: M8 Cat 3종(침대·블록 앉기·주인 위), M9 Dolphin 3종, M10 Fox 마을 산책·가루눈, M11 Parrot 어깨 — 이번 작업 범위 밖(시간), 표는 그대로.
+- 후속(2026-10-30): M8 Cat 3종, M9 Dolphin 아이템 놀이·보트 따라가기, M10 Fox 마을 산책·가루눈 오르기, Vindicator 문 부수기를 추가했다(`context-notes.md` 참고). 아직 없음: Dolphin 플레이어와 헤엄(Player 수영 상태 없음), Parrot 어깨 앉기(플레이어 어깨 저장 없음), Dolphin 보물 탐색(구조물 연결).
 - 남은 차이: 다른 몹(Vex·Illager 등)의 AbstractVillager 타깃은 확인 안 함. Turtle 귀가 목표가 바닐라 `DefaultRandomPos`(PI/10) 대신 `LandRandomPos` 를 씀(별도 확인 필요).
