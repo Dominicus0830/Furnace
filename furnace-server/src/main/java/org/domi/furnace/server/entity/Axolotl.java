@@ -1,5 +1,5 @@
 // 바닐라 Axolotl: 브레인으로 움직이는 양서류. 물고기를 사냥하고, 맞으면 죽은 척하며, 플레이어를 도와 싸운다. 물 밖에서는 숨이 줄어든다.
-// TODO(양동이): 양동이로 잡기(Bucketable)는 따로. TODO(밀기): 죽은 척할 때 밀리지 않는 isPushable 은 밀기 규칙이 생기면.
+// TODO(밀기): 죽은 척할 때 밀리지 않는 isPushable 은 밀기 규칙이 생기면.
 package org.domi.furnace.server.entity;
 
 import java.util.Optional;
@@ -20,7 +20,7 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public class Axolotl extends Animal {
+public class Axolotl extends Animal implements Bucketable {
     public static final int DATA_VARIANT = 17, DATA_PLAYING_DEAD = 18, FROM_BUCKET = 19;
     public static final int PLAYDEAD_TICKS = 200;
     public static final int TOTAL_AIR_SUPPLY = 6000;
@@ -111,6 +111,13 @@ public class Axolotl extends Animal {
         return super.finalizeSpawn(r, difficulty, data);
     }
 
+    /** Axolotl.finalizeSpawn: 양동이에서 나올 때는 아무것도 굴리지 않고 데이터를 그대로 돌려준다(Mob.finalizeSpawn 난수도 없다). */
+    @Override
+    public Object finalizeSpawnGroup(RandomSource r, DifficultyInstance difficulty, Object group, org.domi.furnace.server.entity.spawn.SpawnReason reason) {
+        if (reason == org.domi.furnace.server.entity.spawn.SpawnReason.BUCKET) return group;
+        return super.finalizeSpawnGroup(r, difficulty, group, reason);
+    }
+
     @Override
     public void baseTick() {
         int air = getAirSupply();
@@ -147,9 +154,67 @@ public class Axolotl extends Animal {
 
     public void setPlayingDead(boolean v) { entityData.set(DATA_PLAYING_DEAD, v); }
 
-    public boolean fromBucket() { return (Boolean) entityData.get(FROM_BUCKET); }
+    @Override public boolean fromBucket() { return (Boolean) entityData.get(FROM_BUCKET); }
 
-    public void setFromBucket(boolean v) { entityData.set(FROM_BUCKET, v); }
+    @Override public void setFromBucket(boolean v) { entityData.set(FROM_BUCKET, v); }
+
+    /** Axolotl.requiresCustomPersistence: 양동이에서 나온 아홀로틀은 사라지지 않는다. */
+    @Override protected boolean requiresCustomPersistence() { return super.requiresCustomPersistence() || fromBucket(); }
+
+    @Override public ItemStack getBucketItemStack() { return stackOf("axolotl_bucket"); }
+
+    @Override public String getPickupSound() { return "minecraft:item.bucket.fill_axolotl"; }
+
+    /** Axolotl.mobInteract: 물 양동이면 잡고, 아니면 기본(먹이). */
+    @Override
+    public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
+        return Bucketable.bucketMobPickup(p, hand, held, this, region) || super.interact(p, hand, held, region);
+    }
+
+    /** Axolotl.usePlayerItem: 열대어 양동이를 먹이로 주면 물 양동이가 남는다(ItemUtils.createFilledResult, 중복 방지). */
+    @Override
+    protected void usePlayerItem(Player p, int hand, ItemStack held) {
+        if (!org.domi.furnace.server.item.ItemTools.itemName(held).equals("minecraft:tropical_fish_bucket")) {
+            super.usePlayerItem(p, hand, held);
+            return;
+        }
+        var inv = p.inventory();
+        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
+        ItemStack water = stackOf("water_bucket");
+        if (p.vitals().instabuild()) {
+            if (!inv.contains(water)) inv.add(water, false, 64, false);
+            return;
+        }
+        ItemStack rest = held.withCount(held.count() - 1);
+        if (rest.isEmpty()) {
+            inv.set(ws, water);
+        } else {
+            inv.set(ws, rest);
+            inv.add(water, false, 64, false);
+        }
+    }
+
+    /** Axolotl.saveToBucketTag: 공통 데이터 + Variant·Age·HuntingCooldown(남은 틱). */
+    @Override
+    public ItemStack saveToBucketTag(ItemStack bucket) {
+        ItemStack s = Bucketable.saveDefaultDataToBucketTag(this, bucket);
+        NbtCompound tag = Bucketable.bucketTag(s);
+        tag.putInt("Variant", variant());
+        tag.putInt("Age", getAge());
+        if (axolotlBrain().hasMemoryValue(MemoryModuleType.HAS_HUNTING_COOLDOWN)) {
+            tag.putLong("HuntingCooldown", axolotlBrain().getTimeUntilExpiry(MemoryModuleType.HAS_HUNTING_COOLDOWN));
+        }
+        return Bucketable.withBucketTag(s, tag);
+    }
+
+    /** Axolotl.loadFromBucketTag: 공통 데이터 + Variant, Age·HuntingCooldown 은 있을 때만. */
+    @Override
+    public void loadFromBucketTag(NbtCompound tag) {
+        Bucketable.loadDefaultDataFromBucketTag(this, tag);
+        setVariant(tag.getInt("Variant"));
+        if (tag.contains("Age")) setAge(tag.getInt("Age"));
+        if (tag.contains("HuntingCooldown")) axolotlBrain().setMemoryWithExpiry(MemoryModuleType.HAS_HUNTING_COOLDOWN, true, tag.getLong("HuntingCooldown"));
+    }
 
     @Override
     public AgeableMob getBreedOffspring(ChunkLevel level, AgeableMob partner) {

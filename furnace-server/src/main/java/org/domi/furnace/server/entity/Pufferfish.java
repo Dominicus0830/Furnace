@@ -156,4 +156,6 @@ public class Pufferfish extends AbstractFish {
         @Override
         public void stop() { fish.inflateCounter = 0; }
     }
+
+    @Override public ItemStack getBucketItemStack() { return stackOf("pufferfish_bucket"); }
 }

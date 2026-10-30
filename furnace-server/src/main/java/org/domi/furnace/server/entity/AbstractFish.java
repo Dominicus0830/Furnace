@@ -1,5 +1,4 @@
 // 바닐라 AbstractFish: 물고기 공통 — 물 길찾기, 헤엄치는 이동 제어, 물 밖에서 파닥이기, 겁먹으면 도망(플레이어 8칸), 양동이 속 여부(FromBucket).
-// TODO(양동이): 물 양동이로 잡기(Bucketable)와 양동이에서 풀어 줄 때의 NBT 복원.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -15,7 +14,7 @@ import org.domi.furnace.server.entity.ai.navigation.WaterBoundPathNavigation;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public abstract class AbstractFish extends WaterAnimal {
+public abstract class AbstractFish extends WaterAnimal implements Bucketable {
     public static final int DATA_FROM_BUCKET = 16;
 
     protected AbstractFish(EntityType type, ChunkLevel level, int id) {
@@ -35,9 +34,20 @@ public abstract class AbstractFish extends WaterAnimal {
         entityData.define(DATA_FROM_BUCKET, SetEntityData.SERIALIZER_BOOLEAN, false);
     }
 
-    public boolean fromBucket() { return (Boolean) entityData.get(DATA_FROM_BUCKET); }
+    @Override public boolean fromBucket() { return (Boolean) entityData.get(DATA_FROM_BUCKET); }
 
-    public void setFromBucket(boolean v) { entityData.set(DATA_FROM_BUCKET, v); }
+    @Override public void setFromBucket(boolean v) { entityData.set(DATA_FROM_BUCKET, v); }
+
+    /** AbstractFish.requiresCustomPersistence: 양동이에서 나온 물고기는 사라지지 않는다. */
+    @Override protected boolean requiresCustomPersistence() { return super.requiresCustomPersistence() || fromBucket(); }
+
+    @Override public String getPickupSound() { return "minecraft:item.bucket.fill_fish"; }
+
+    /** AbstractFish.mobInteract: 물 양동이면 잡고, 아니면 기본. */
+    @Override
+    public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
+        return Bucketable.bucketMobPickup(p, hand, held, this, region) || super.interact(p, hand, held, region);
+    }
 
     @Override
     public boolean removeWhenFarAway(double distSqr) { return !fromBucket() && !hasCustomName(); }

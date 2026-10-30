@@ -262,6 +262,14 @@ public final class ServerCore {
                 return f == null ? null : new int[] {f.x(), f.z()};
             }
 
+            public int[] findNearestStructurePos(String tag, int x, int y, int z, int radius) {
+                if (!levelData.generateFeatures) return null;
+                var ids = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(tag);
+                if (ids == null) return null;
+                var f = gen.structureLocator().findNearest(ids, x, y, z, radius);
+                return f == null ? null : new int[] {f.x(), f.y(), f.z()};
+            }
+
             public boolean waterOnMapOutlines(int bx, int bz) {
                 int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed, bx, 0, bz);
                 return waterBiomes.contains(gen.biomeAt(q[0] << 2, q[1] << 2, q[2] << 2));

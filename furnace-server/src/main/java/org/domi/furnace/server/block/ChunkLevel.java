@@ -1447,6 +1447,37 @@ public abstract class ChunkLevel implements BlockLevel {
         return true;
     }
 
+    /**
+     * MobBucketItem.spawn → EntityType.spawn(level, 양동이, null, pos, BUCKET, true, false): create → 칸 위에서 바닥에 맞춰 내림 → moveTo(무작위 방향) →
+     * 머리·몸통 방향 → finalizeSpawn(BUCKET) → 주변 소리 → 이름(custom_name) → 추가 → loadFromBucketTag → setFromBucket(true).
+     * TODO(ENTITY_DATA 컴포넌트): 양동이의 entity_data 로 덮어쓰는 updateCustomEntityTag.
+     */
+    public org.domi.furnace.server.entity.Mob spawnMobFromBucket(String entityType, ItemStack bucket, Pos pos) {
+        Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
+        if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return null;
+        mob.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
+        AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
+        double d0 = 1.0 + Entity.collideWithShapes(0.0, -1.0, 0.0, mob.boundingBox(), blockCollisions(box))[1];
+        mob.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
+        mob.setYHeadRot(mob.yRot());
+        mob.setYBodyRot(mob.yRot());
+        mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null, org.domi.furnace.server.entity.spawn.SpawnReason.BUCKET);
+        mob.makeSound(mob.ambientSoundForSpawn());
+        if (org.domi.furnace.server.item.ItemTools.component(bucket, "minecraft:custom_name") instanceof String json) {
+            try {
+                mob.setCustomName(org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json));
+            } catch (RuntimeException ignored) {
+                // 읽을 수 없는 이름은 이름 없이
+            }
+        }
+        addFreshEntityWithPassengers(mob);
+        if (mob instanceof org.domi.furnace.server.entity.Bucketable b) {
+            b.loadFromBucketTag(org.domi.furnace.server.entity.Bucketable.bucketTag(bucket));
+            b.setFromBucket(true);
+        }
+        return mob;
+    }
+
     // ------------------------------------------------------------------ 빛
 
     private org.domi.furnace.server.light.LevelLight lightEngine;

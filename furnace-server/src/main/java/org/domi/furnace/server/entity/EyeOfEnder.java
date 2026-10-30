@@ -1,5 +1,4 @@
 // 바닐라 EyeOfEnder: 던지면 목표(요새) 방향으로 12칸 안까지 떠올라 80틱 뒤 떨어지는 엔더의 눈. 5분의 4는 아이템으로 떨어지고 나머지는 깨진다.
-// TODO(구조물): 요새 위치 찾기(아이템 사용) — 구조물 배치 체계가 있을 때 EnderEyeItem.use 가 signalTo(pos) 로 부른다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -32,6 +31,15 @@ public class EyeOfEnder extends Entity {
     public void setItem(ItemStack stack) { entityData.set(DATA_ITEM_STACK, stack.isEmpty() ? defaultItem() : stack.withCount(1)); }
 
     public ItemStack getItem() { return (ItemStack) entityData.get(DATA_ITEM_STACK); }
+
+    /** 날아갈 목표(signalTo 가 정한 값) — 시험·관측용. */
+    public double targetX() { return tx; }
+
+    public double targetY() { return ty; }
+
+    public double targetZ() { return tz; }
+
+    public int life() { return life; }
 
     /** signalTo(pos): 12칸보다 멀면 그 방향 12칸 + 위 8칸을 향하고, 아니면 그 자리를 향한다. */
     public void signalTo(Pos pos) {
@@ -69,6 +77,11 @@ public class EyeOfEnder extends Entity {
         }
         int dir = y() < ty ? 1 : -1;
         setDeltaMovement(Math.cos(ang) * speed, vyy + (dir - vyy) * 0.015F, Math.sin(ang) * speed);
+        // 바닐라는 서버에서도 입자 호출의 인자(random.nextDouble() 두 번)를 평가한다: 물 밖이면 틱마다 엔티티 난수 두 번 소모
+        if (!isInWater()) {
+            random.nextDouble();
+            random.nextDouble();
+        }
         setPos(nx, ny, nz);
         life++;
         if (life > 80) {
@@ -83,8 +96,6 @@ public class EyeOfEnder extends Entity {
             }
         }
     }
-
-    @Override public boolean fireImmune() { return true; }
 
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) { tag.putCompound("Item", ItemStackNbt.write(getItem())); }

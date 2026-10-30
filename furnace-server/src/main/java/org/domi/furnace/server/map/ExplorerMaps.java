@@ -16,6 +16,15 @@ public final class ExplorerMaps {
          */
         int[] findNearestMapStructure(String structureTag, int x, int y, int z, int searchRadius);
 
+        /**
+         * findNearestMapStructure 의 {x, y, z}(StructurePlacement.getLocatePos — y 는 locate_offset 포함, 대개 0). skipKnownStructures=false 쪽.
+         * 기본은 {x, 0, z}.
+         */
+        default int[] findNearestStructurePos(String structureTag, int x, int y, int z, int searchRadius) {
+            int[] f = findNearestMapStructure(structureTag, x, y, z, searchRadius);
+            return f == null ? null : new int[] {f[0], 0, f[1]};
+        }
+
         /** 그 칸(블록 x, z — Level.getBiome 의 확대 지터 포함, y = 0)의 바이옴이 #water_on_map_outlines 인가. */
         boolean waterOnMapOutlines(int blockX, int blockZ);
 

@@ -1,5 +1,4 @@
 // 바닐라 Tadpole: 브레인으로 헤엄치는 올챙이. 24000틱 뒤 개구리로 자라고, 슬라임 볼을 주면 빨리 자란다.
-// TODO(양동이): 올챙이 양동이로 잡기는 Bucketable 구현 때.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -82,7 +81,27 @@ public class Tadpole extends AbstractFish {
             ageUp(getTicksLeftUntilAdult());
             return true;
         }
-        return false;
+        return Bucketable.bucketMobPickup(p, hand, held, this, region);
+    }
+
+    @Override public ItemStack getBucketItemStack() { return stackOf("tadpole_bucket"); }
+
+    @Override public String getPickupSound() { return "minecraft:item.bucket.fill_tadpole"; }
+
+    /** Tadpole.saveToBucketTag: 공통 데이터 + Age. */
+    @Override
+    public ItemStack saveToBucketTag(ItemStack bucket) {
+        ItemStack s = Bucketable.saveDefaultDataToBucketTag(this, bucket);
+        NbtCompound tag = Bucketable.bucketTag(s);
+        tag.putInt("Age", age);
+        return Bucketable.withBucketTag(s, tag);
+    }
+
+    /** Tadpole.loadFromBucketTag: 공통 데이터 + Age 가 있으면. */
+    @Override
+    public void loadFromBucketTag(NbtCompound tag) {
+        Bucketable.loadDefaultDataFromBucketTag(this, tag);
+        if (tag.contains("Age")) setAge(tag.getInt("Age"));
     }
 
     private void ageUp(int ticks) { setAge(age + ticks * 20); }
@@ -106,6 +125,9 @@ public class Tadpole extends AbstractFish {
     }
 
     @Override public boolean fromBucket() { return true; }
+
+    /** 올챙이는 늘 양동이에서 온 것으로 친다(setFromBucket 은 아무 일도 안 한다). */
+    @Override public void setFromBucket(boolean v) {}
 
     /** 바닐라 Tadpole: 경험치 없음. */
     @Override

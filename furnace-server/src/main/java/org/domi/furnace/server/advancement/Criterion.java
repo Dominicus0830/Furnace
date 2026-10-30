@@ -153,6 +153,14 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
                     return entity.isEmpty() || LootCondition.allOf(entity, k.entity());
                 };
             }
+            case "minecraft:used_ender_eye" -> {
+                // 바닐라 UsedEnderEyeTrigger.TriggerInstance.matches: distance.matchesSqr(수평 거리 제곱)
+                Bounds distance = c.has("distance") ? Bounds.parse(c.get("distance")) : Bounds.ANY;
+                yield (ev, r) -> {
+                    double sq = (Double) ev;
+                    return (distance.min() == null || distance.min() * distance.min() <= sq) && (distance.max() == null || sq <= distance.max() * distance.max());
+                };
+            }
             case "minecraft:tame_animal" -> {
                 List<LootCondition> entity = c.has("entity") ? playerPredicate(c.get("entity"), regs) : List.of();
                 yield (ev, r) -> entity.isEmpty() || LootCondition.allOf(entity, (LootContext) ev);

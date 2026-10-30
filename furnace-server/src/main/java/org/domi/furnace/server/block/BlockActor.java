@@ -74,6 +74,12 @@ public interface BlockActor {
     /** 발전 과제 기준 발동(placed_block·item_used_on_block·any_block_use·default_block_use) — pos 의 블록은 지금 상태. */
     default void trigger(String criterion, Pos pos, ItemStack stack) {}
 
+    /** LivingEntity.swing(hand, true): 팔 휘두르기를 본인과 보는 이에게 보낸다(소유 region 스레드에서 쓰는 쪽만 구현). */
+    default void swing(int hand) {}
+
+    /** 발전 과제 used_ender_eye(CriteriaTriggers.USED_ENDER_EYE.trigger(player, 구조물 칸)). */
+    default void usedEnderEye(Pos structure) {}
+
     /** 설치 직전 허가(플러그인 BlockPlaceEvent) — 거짓이면 설치하지 않는다(FAIL). */
     default boolean allowPlace(Pos pos, int state, Pos against) { return true; }
 

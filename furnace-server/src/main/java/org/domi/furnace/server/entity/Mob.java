@@ -442,6 +442,12 @@ public abstract class Mob extends LivingEntity {
         return group;
     }
 
+    /** 스폰 이유를 아는 finalizeSpawn(바닐라 finalizeSpawn(level, difficulty, spawnType, data)). 기본은 이유를 보지 않는다. */
+    public Object finalizeSpawnGroup(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, Object group,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason) {
+        return finalizeSpawnGroup(r, difficulty, group);
+    }
+
     /** Entity.getLightLevelDependentMagicValue: 눈 높이 칸의 밝기(청크가 없으면 0). 오버월드는 ambientLight 0 → 곡선 f/(4-3f). */
     public float getLightLevelDependentMagicValue() {
         Pos pos = new Pos((int) Math.floor(x()), (int) Math.floor(eyeY()), (int) Math.floor(z()));

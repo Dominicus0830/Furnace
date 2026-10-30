@@ -183,6 +183,8 @@ public final class DispenseBehaviors {
                 boolean ok = switch (n) {
                     case "minecraft:water_bucket" -> ItemUse.emptyBucketContents(s.level(), Fluids.WATER_SOURCE, p);
                     case "minecraft:lava_bucket" -> ItemUse.emptyBucketContents(s.level(), Fluids.LAVA_SOURCE, p);
+                    case "minecraft:cod_bucket", "minecraft:salmon_bucket", "minecraft:pufferfish_bucket", "minecraft:tropical_fish_bucket",
+                            "minecraft:axolotl_bucket", "minecraft:tadpole_bucket" -> ItemUse.emptyMobBucketContents(s.level(), stack, p);
                     default -> emptyPowderSnow(s.level(), p);
                 };
                 if (ok) return consumeWithRemainder(s, stack, B.stack("bucket", 1));
@@ -192,7 +194,9 @@ public final class DispenseBehaviors {
         register("lava_bucket", filledBucket);
         register("water_bucket", filledBucket);
         register("powder_snow_bucket", filledBucket);
-        // 몹 양동이(연어·대구·복어·열대어·아홀로틀·올챙이): 보류 — 기본 던지기
+        for (String m : new String[] {"cod_bucket", "salmon_bucket", "pufferfish_bucket", "tropical_fish_bucket", "axolotl_bucket", "tadpole_bucket"}) {
+            register(m, filledBucket);   // 몹 양동이도 물처럼 붓고(소리·되살리기는 ItemUse)
+        }
         register("bucket", new DefaultDispenseItemBehavior() {
             @Override
             protected ItemStack execute(BlockSource s, ItemStack stack) {

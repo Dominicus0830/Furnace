@@ -15,4 +15,6 @@ public class Salmon extends AbstractSchoolingFish {
     @Override protected String getHurtSound(Damage source) { return "entity.salmon.hurt"; }
 
     @Override protected String getFlopSound() { return "entity.salmon.flop"; }
+
+    @Override public ItemStack getBucketItemStack() { return stackOf("salmon_bucket"); }
 }

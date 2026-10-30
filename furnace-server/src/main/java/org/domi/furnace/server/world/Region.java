@@ -1337,6 +1337,20 @@ public final class Region {
                 p.send(pkt);
                 for (Player o : players.values()) if (o != p && o.tracked().containsKey(p.entityId())) o.send(pkt);
             }
+
+            @Override
+            public void swing(int hand) { p.swing(hand, true); }
+
+            @Override
+            public void usedEnderEye(org.domi.furnace.server.block.Pos structure) {
+                // UsedEnderEyeTrigger.trigger: 플레이어와 구조물 칸의 수평 거리 제곱
+                double dx = p.x() - structure.x(), dz = p.z() - structure.z();
+                double distSqr = dx * dx + dz * dz;
+                p.runOnOwner(() -> {
+                    var adv = p.advancements();
+                    if (adv != null) adv.trigger("minecraft:used_ender_eye", distSqr);
+                });
+            }
         }.withInventory(inv);
     }
 

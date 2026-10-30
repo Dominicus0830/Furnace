@@ -243,6 +243,8 @@ public abstract non-sealed class Entity implements Rider {
 
     public boolean isSilent() { return (Boolean) entityData.get(DATA_SILENT); }
 
+    public void setSilent(boolean v) { entityData.set(DATA_SILENT, v); }
+
     public boolean isNoGravity() { return (Boolean) entityData.get(DATA_NO_GRAVITY); }
 
     public void setNoGravity(boolean v) { entityData.set(DATA_NO_GRAVITY, v); }

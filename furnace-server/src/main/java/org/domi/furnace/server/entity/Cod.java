@@ -13,4 +13,6 @@ public class Cod extends AbstractSchoolingFish {
     @Override protected String getHurtSound(Damage source) { return "entity.cod.hurt"; }
 
     @Override protected String getFlopSound() { return "entity.cod.flop"; }
+
+    @Override public ItemStack getBucketItemStack() { return stackOf("cod_bucket"); }
 }

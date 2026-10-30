@@ -1,5 +1,4 @@
 // 바닐라 TropicalFish: 무늬(종류 12가지)와 두 색으로 이뤄진 변종 정수 하나를 가진다. 스폰할 때 90% 는 미리 정해진 22가지 중 하나, 10% 는 무작위 조합.
-// TODO(양동이): BucketVariantTag 저장.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -52,6 +51,24 @@ public class TropicalFish extends AbstractSchoolingFish {
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
         setVariant(tag.getIntOr0("Variant"));
+    }
+
+    @Override public ItemStack getBucketItemStack() { return stackOf("tropical_fish_bucket"); }
+
+    /** TropicalFish.saveToBucketTag: 공통 데이터 + BucketVariantTag(변종 정수). */
+    @Override
+    public ItemStack saveToBucketTag(ItemStack bucket) {
+        ItemStack s = Bucketable.saveDefaultDataToBucketTag(this, bucket);
+        NbtCompound tag = Bucketable.bucketTag(s);
+        tag.putInt("BucketVariantTag", getVariant());
+        return Bucketable.withBucketTag(s, tag);
+    }
+
+    /** TropicalFish.loadFromBucketTag: 공통 데이터 + BucketVariantTag 가 정수(태그 3)일 때만 변종. */
+    @Override
+    public void loadFromBucketTag(NbtCompound tag) {
+        Bucketable.loadDefaultDataFromBucketTag(this, tag);
+        if (tag.tags().get("BucketVariantTag") instanceof Integer v) setVariant(v);
     }
 
     /** 처음 스폰된 변종을 무리가 함께 쓰는 그룹 데이터. */

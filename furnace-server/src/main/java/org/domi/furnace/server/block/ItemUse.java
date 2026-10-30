@@ -95,6 +95,9 @@ public final class ItemUse {
             case "minecraft:bucket": return bucketUse(level, player, hand, stack, Fluids.EMPTY);
             case "minecraft:water_bucket": return bucketUse(level, player, hand, stack, Fluids.WATER_SOURCE);
             case "minecraft:lava_bucket": return bucketUse(level, player, hand, stack, Fluids.LAVA_SOURCE);
+            case "minecraft:cod_bucket", "minecraft:salmon_bucket", "minecraft:pufferfish_bucket", "minecraft:tropical_fish_bucket",
+                    "minecraft:axolotl_bucket", "minecraft:tadpole_bucket": return bucketUse(level, player, hand, stack, Fluids.WATER_SOURCE);
+            case "minecraft:ender_eye": return enderEyeUse(level, player, hand, stack);
             case "minecraft:glass_bottle": return glassBottleUse(level, player, stack);
             case "minecraft:map": return emptyMapUse(level, player, stack);
             case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl", "minecraft:experience_bottle", "minecraft:splash_potion",
@@ -241,7 +244,9 @@ public final class ItemUse {
         }
         int state = level.getBlockState(pos);
         Pos target = B.behavior(state).isLiquidContainer(state) && Fluids.isWater(content) ? pos : rel;
-        if (emptyContents(level, player, content, target, hit)) {
+        String mob = mobBucketType(name(stack));
+        if (emptyContents(level, player, content, target, hit, mobBucketSound(mob))) {
+            if (mob != null) checkExtraContent(level, player, stack, target, mob);
             player.trigger("minecraft:placed_block", target, stack);
             player.awardStat("minecraft:used:" + name(stack));
             ItemStack emptyBucket = player.instabuild() ? stack : stack("minecraft:bucket");
@@ -251,12 +256,12 @@ public final class ItemUse {
     }
 
     /** BucketItem.emptyContents: 비었거나 유체로 바뀔 수 있거나 담을 수 있으면 붓고, 아니면 맞은 면 앞 칸으로 한 번 더. */
-    private static boolean emptyContents(BlockLevel level, BlockActor player, int content, Pos pos, Clip.Result hit) {
+    private static boolean emptyContents(BlockLevel level, BlockActor player, int content, Pos pos, Clip.Result hit, String mobSound) {
         int state = level.getBlockState(pos);
         BlockBehavior b = B.behavior(state);
         boolean replaceable = b.canBeReplaced(state, Fluids.type(content));
         boolean ok = B.isAir(state) || replaceable || b.isLiquidContainer(state) && b.canPlaceLiquid(player, level, pos, state, Fluids.type(content));
-        if (!ok) return hit != null && emptyContents(level, player, content, hit.pos().relative(hit.face()), null);
+        if (!ok) return hit != null && emptyContents(level, player, content, hit.pos().relative(hit.face()), null, mobSound);
         if (level.ultraWarm() && Fluids.isWater(content)) {
             RandomSource r = level.random();
             level.playSound(player, pos, "minecraft:block.fire.extinguish", "blocks", 0.5F, 2.6F + (r.nextFloat() - r.nextFloat()) * 0.8F);
@@ -264,16 +269,58 @@ public final class ItemUse {
         }
         if (b.isLiquidContainer(state) && Fluids.isWater(content)) {
             b.placeLiquid(level, pos, state, content);
-            playEmptySound(level, player, content, pos);
+            playEmptySound(level, player, content, pos, mobSound);
             return true;
         }
         if (replaceable && !B.isLiquid(state)) level.destroyBlock(pos, true);
         if (!level.setBlock(pos, Fluids.createLegacyBlock(content), 11) && !Fluids.isSource(level.getFluidState(pos))) return false;
-        playEmptySound(level, player, content, pos);
+        playEmptySound(level, player, content, pos, mobSound);
         return true;
     }
 
-    private static void playEmptySound(BlockLevel level, BlockActor player, int content, Pos pos) {
+    /** MobBucketItem.type: 몹 양동이 아이템이 쏟아 내는 몹 종류(아니면 null). */
+    private static String mobBucketType(String item) {
+        return switch (item) {
+            case "minecraft:cod_bucket" -> "minecraft:cod";
+            case "minecraft:salmon_bucket" -> "minecraft:salmon";
+            case "minecraft:pufferfish_bucket" -> "minecraft:pufferfish";
+            case "minecraft:tropical_fish_bucket" -> "minecraft:tropical_fish";
+            case "minecraft:axolotl_bucket" -> "minecraft:axolotl";
+            case "minecraft:tadpole_bucket" -> "minecraft:tadpole";
+            default -> null;
+        };
+    }
+
+    /** MobBucketItem.emptySound: 물고기 4종은 empty_fish, 아홀로틀·올챙이는 각자. */
+    private static String mobBucketSound(String mobType) {
+        if (mobType == null) return null;
+        return switch (mobType) {
+            case "minecraft:axolotl" -> "minecraft:item.bucket.empty_axolotl";
+            case "minecraft:tadpole" -> "minecraft:item.bucket.empty_tadpole";
+            default -> "minecraft:item.bucket.empty_fish";
+        };
+    }
+
+    /** MobBucketItem.checkExtraContent: 서버 레벨이면 그 칸에 몹을 되살리고, 늘 entity_place 게임 이벤트. */
+    private static void checkExtraContent(BlockLevel level, BlockActor player, ItemStack stack, Pos pos, String mobType) {
+        if (level instanceof ChunkLevel cl) cl.spawnMobFromBucket(mobType, stack, pos);
+        level.gameEvent("minecraft:entity_place", pos, player, -1);
+    }
+
+    /** 발사기용 몹 양동이: 물을 붓고(소리만 몹 양동이 것) 몹을 되살린다. 붓지 못하면 false. */
+    public static boolean emptyMobBucketContents(BlockLevel level, ItemStack stack, Pos pos) {
+        String mob = mobBucketType(name(stack));
+        if (mob == null || !emptyContents(level, null, Fluids.WATER_SOURCE, pos, null, mobBucketSound(mob))) return false;
+        checkExtraContent(level, null, stack, pos, mob);
+        return true;
+    }
+
+    /** MobBucketItem.playEmptySound 는 소리만 neutral 로 내고 fluid_place 이벤트는 내지 않는다(BucketItem 의 것을 통째로 바꾼다). */
+    private static void playEmptySound(BlockLevel level, BlockActor player, int content, Pos pos, String mobSound) {
+        if (mobSound != null) {
+            level.playSound(player, pos, mobSound, "neutral", 1.0F, 1.0F);
+            return;
+        }
         level.playSound(player, pos, Fluids.isLava(content) ? "minecraft:item.bucket.empty_lava" : "minecraft:item.bucket.empty", "blocks", 1.0F, 1.0F);
         level.gameEvent("minecraft:fluid_place", pos, player, -1);
     }
@@ -335,7 +382,7 @@ public final class ItemUse {
     }
 
     /** 발사기용: BucketItem.emptyContents(null, level, pos, null) — 붓는 생물·맞은 면 없이. */
-    public static boolean emptyBucketContents(BlockLevel level, int content, Pos pos) { return emptyContents(level, null, content, pos, null); }
+    public static boolean emptyBucketContents(BlockLevel level, int content, Pos pos) { return emptyContents(level, null, content, pos, null, null); }
 
     /** HoneycombItem.getWaxed(state): 밀랍 칠한 블록(속성 그대로), 없으면 -1. */
     public static int waxed(int state) {
@@ -924,6 +971,42 @@ public final class ItemUse {
         java.util.Map<String, Object> entries = new java.util.LinkedHashMap<>(s.patch().entries());
         entries.put(key, raw);
         return new ItemStack(s.itemId(), s.count(), ComponentPatch.of(entries));
+    }
+
+    /**
+     * EnderEyeItem.use: 시선이 끝없는 틀을 맞히면 넘기고(useOn 이 채운다). 아니면 반경 100(청크 단위)의 #eye_of_ender_located(스트롱홀드)를
+     * 찾아 있으면 눈 엔티티를 몸 가운데 높이에서 띄워 그 위치로 보내고(projectile_shoot, used_ender_eye, 소리 피치는 레벨 난수), 하나 쓰고 팔을 휘두른다.
+     * 없으면 소모 없이 CONSUME. TODO(사용 중 표시): startUsingItem 의 생물 플래그는 플레이어에 아직 없다.
+     */
+    private static Holder enderEyeUse(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
+        Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.NONE);
+        if (!hit.miss() && B.is(level.getBlockState(hit.pos()), END_PORTAL_FRAME)) return Holder.pass(stack);
+        if (!(level instanceof ChunkLevel cl)) return new Holder(InteractionResult.CONSUME, stack);
+        int[] found = locateEyeTarget(cl, player);
+        if (found == null) return new Holder(InteractionResult.CONSUME, stack);
+        double midY = player.handle() instanceof org.domi.furnace.server.entity.Player pl ? pl.y() + (pl.boundingBox().maxY() - pl.boundingBox().minY()) * 0.5 : player.y() + 0.9;
+        var eye = new org.domi.furnace.server.entity.EyeOfEnder(cl, cl.nextEntityId(), player.x(), midY, player.z());
+        eye.setItem(stack);
+        Pos target = new Pos(found[0], found[1], found[2]);
+        eye.signalTo(target);
+        cl.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.PROJECTILE_SHOOT, new org.domi.furnace.server.entity.Vec3(eye.x(), eye.y(), eye.z()),
+                org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
+        cl.addFreshEntity(eye);
+        player.usedEnderEye(target);
+        float pitch = 0.33F + cl.random().nextFloat() * (0.5F - 0.33F);   // Mth.lerp(random.nextFloat(), 0.33F, 0.5F)
+        cl.playSound(null, player.x(), player.y(), player.z(), "minecraft:entity.ender_eye.launch", "neutral", 1.0F, pitch);
+        ItemStack rest = player.instabuild() ? stack : stack.withCount(stack.count() - 1);
+        player.awardStat("minecraft:used:" + name(stack));
+        player.swing(hand);
+        return new Holder(InteractionResult.SUCCESS, rest);
+    }
+
+    /** findNearestMapStructure(EYE_OF_ENDER_LOCATED, player.blockPosition(), 100, false) — 오버월드의 지도 지원이 있을 때만(가정: 다른 차원엔 스트롱홀드 없음). */
+    private static int[] locateEyeTarget(ChunkLevel cl, BlockActor player) {
+        var maps = cl.explorerMaps();
+        if (maps == null || !"minecraft:overworld".equals(cl.dimension())) return null;
+        return maps.findNearestStructurePos("minecraft:eye_of_ender_located", (int) Math.floor(player.x()), (int) Math.floor(player.y()),
+                (int) Math.floor(player.z()), 100);
     }
 
     /** EnderEyeItem.useOn: 눈이 없는 엔드 차원문 틀에 끼우고, 무늬가 다 차면 가운데 3×3 을 엔드 차원문으로(1038 은 전역). */
