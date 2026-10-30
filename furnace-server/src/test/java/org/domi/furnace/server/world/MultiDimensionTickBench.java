@@ -19,6 +19,9 @@ import org.junit.jupiter.api.Test;
 class MultiDimensionTickBench {
 
     private static final long TICK = 50_000_000L;
+    /** -Dfurnace.bench.cpuLoad=true: 부하를 벽시계가 아니라 스레드 CPU 시간으로 잰다(모드끼리 CPU 를 같은 일량으로 비교). */
+    private static final boolean CPU_LOAD = Boolean.getBoolean("furnace.bench.cpuLoad");
+    private static final java.lang.management.ThreadMXBean TMX = java.lang.management.ManagementFactory.getThreadMXBean();
 
     @Test
     void dimensionsTickJitter() throws Exception {
@@ -68,6 +71,7 @@ class MultiDimensionTickBench {
         long spin = (long) (loadMs * 1_000_000L);
         List<CompletableFuture<Void>> done = new ArrayList<>();
         long cpu0 = processCpuNanos(), wall0 = System.nanoTime(), wake0 = wakeups(worlds);
+        long[] c0 = poolCounters(worlds);
         int idx = 0;
         for (World w : worlds) {
             for (int k = 0; k < regionsPerDim; k++) {
@@ -84,7 +88,12 @@ class MultiDimensionTickBench {
                             int c = count[slot];
                             starts[slot][c] = now;
                             count[slot] = c + 1;
-                            if (spin > 0) { long end = now + spin; while (System.nanoTime() < end) Thread.onSpinWait(); }
+                            if (spin > 0) {
+                                if (CPU_LOAD) {   // 같은 일량: 이 스레드 CPU 시간이 spin 만큼 늘 때까지(선점돼도 일량이 같다)
+                                    long c0 = TMX.getCurrentThreadCpuTime();
+                                    while (TMX.getCurrentThreadCpuTime() - c0 < spin) Thread.onSpinWait();
+                                } else { long end = now + spin; while (System.nanoTime() < end) Thread.onSpinWait(); }
+                            }
                             if (c + 1 > ticks) f.complete(null);
                             else r2.schedule(key, this, 1);
                         }
@@ -94,15 +103,19 @@ class MultiDimensionTickBench {
         }
         CompletableFuture.allOf(done.toArray(new CompletableFuture[0])).get(ticks * 200L + 60_000L, TimeUnit.MILLISECONDS);
         long cpu = processCpuNanos() - cpu0, wall = System.nanoTime() - wall0, wakes = wakeups(worlds) - wake0;
+        long[] c1 = poolCounters(worlds);
+        long tickTotal = 0;
+        for (World w : worlds) for (var rs : w.regionizer().schedStats().regions()) tickTotal += rs.ticks();
         // 첫 5 간격(예열) 제외, 늦음 = 간격 - 틱
         List<Long> late = new ArrayList<>();
         for (int s = 0; s < total; s++) for (int i = 6; i <= ticks; i++) late.add(starts[s][i] - starts[s][i - 1] - TICK);
         long[] a = late.stream().mapToLong(Long::longValue).sorted().toArray();
         System.out.printf("MDBENCH " + (shared ? "shared" : "perDim") + " dims=%d regions/dim=%d regionThreads=%d (per-dim %d) cores=%d loadMs=%.1f samples=%d"
-                        + " | 간격-50ms p50=%.3fms p95=%.3fms p99=%.3fms max=%.3fms min=%.3fms | cpu=%.0fms wall=%.0fms wakeups=%d%n",
+                        + " | 간격-50ms p50=%.3fms p95=%.3fms p99=%.3fms max=%.3fms min=%.3fms | cpu=%.0fms wall=%.0fms wakeups=%d"
+                        + " timeouts=%d missed=%d takeMiss=%d regionTicks=%d cpuLoad=%b%n",
                 dims, regionsPerDim, regionThreads, threads, Runtime.getRuntime().availableProcessors(), loadMs, a.length,
                 a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length * 99 / 100] / 1e6, a[a.length - 1] / 1e6, a[0] / 1e6,
-                cpu / 1e6, wall / 1e6, wakes);
+                cpu / 1e6, wall / 1e6, wakes, c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2], tickTotal, CPU_LOAD);
         sched.close();
         for (World w : worlds) w.regionizer().close();
         if (pool != null) pool.close();
@@ -194,7 +207,12 @@ class MultiDimensionTickBench {
                             int c = count[slot];
                             if (c <= ticks) starts[slot][c] = now;
                             count[slot] = c + 1;
-                            if (spin > 0) { long end = now + spin; while (System.nanoTime() < end) Thread.onSpinWait(); }
+                            if (spin > 0) {
+                                if (CPU_LOAD) {   // 같은 일량: 이 스레드 CPU 시간이 spin 만큼 늘 때까지(선점돼도 일량이 같다)
+                                    long c0 = TMX.getCurrentThreadCpuTime();
+                                    while (TMX.getCurrentThreadCpuTime() - c0 < spin) Thread.onSpinWait();
+                                } else { long end = now + spin; while (System.nanoTime() < end) Thread.onSpinWait(); }
+                            }
                             if (c + 1 > ticks) f.complete(null);
                             if (!stop.get()) r2.schedule(key, this, 1);
                         }
@@ -233,6 +251,20 @@ class MultiDimensionTickBench {
     static long processCpuNanos() {
         var os = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
         return os instanceof com.sun.management.OperatingSystemMXBean s ? s.getProcessCpuTime() : 0L;
+    }
+
+    /** 풀별(중복 제외) 만료 복귀·깨우기 유실 의심·tryTake 실패 합. */
+    private static long[] poolCounters(List<World> worlds) {
+        long[] r = new long[3];
+        java.util.Set<SharedScheduler> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (World w : worlds) {
+            SharedScheduler p = w.regionizer().pool();
+            if (!seen.add(p)) continue;
+            r[0] += p.timeouts();
+            r[1] += p.missedWakeups();
+            r[2] += p.takeMisses();
+        }
+        return r;
     }
 
     /** 모든 월드 워커가 기다림에서 돌아온 횟수 합(계측). */

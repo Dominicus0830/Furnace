@@ -27,6 +27,10 @@ public final class SharedScheduler implements AutoCloseable {
     /** 자는 워커. until 은 갱신될 수 있다(N2). */
     private final ConcurrentLinkedQueue<Parked> parked = new ConcurrentLinkedQueue<>();
     private final AtomicLong wakeups = new AtomicLong();
+    /** 계측: PARK 만료로 깼는데 깰 시각(until)보다 1ms 넘게 이른, 이미 지난 머리가 있었던 횟수(깨우기 유실 의심) / 만료 복귀 수 / tryTake 실패 수. */
+    private final java.util.concurrent.atomic.LongAdder missedWakeups = new java.util.concurrent.atomic.LongAdder(),
+            timeouts = new java.util.concurrent.atomic.LongAdder(), takeMisses = new java.util.concurrent.atomic.LongAdder();
+    static final long MISSED_NANOS = 1_000_000L;
     private final AtomicLong waitNanos = new AtomicLong();
     /** 거친 타이머 플랫폼에서 마지막 구간을 돌며 기다릴 길이(ns). 0(리눅스 기본)이면 스핀 경로가 없다. */
     private final long spinMargin;
@@ -116,10 +120,17 @@ public final class SharedScheduler implements AutoCloseable {
     /** 잠금 없음. 부르는 쪽은 차원 잠금을 쥐지 않는다. */
     void register(Regionizer rz) {
         dims.addIfAbsent(rz);
+        snapshot = dims.toArray(new Regionizer[0]);
         wake(rz.headDue());
     }
 
-    void unregister(Regionizer rz) { dims.remove(rz); }
+    void unregister(Regionizer rz) {
+        dims.remove(rz);
+        snapshot = dims.toArray(new Regionizer[0]);
+    }
+
+    /** 선택기가 읽는 차원 배열(등록/해제 때만 바뀐다 — select 마다 할당하지 않는다). */
+    private volatile Regionizer[] snapshot = new Regionizer[0];
 
     public int threadCount() { return workers.length; }
 
@@ -127,6 +138,12 @@ public final class SharedScheduler implements AutoCloseable {
     public int dimensionCount() { return dims.size(); }
 
     int perDimCap() { return perDimCap; }
+
+    public long missedWakeups() { return missedWakeups.sum(); }
+
+    public long timeouts() { return timeouts.sum(); }
+
+    public long takeMisses() { return takeMisses.sum(); }
 
     /** 계측: 워커가 park 에서 돌아온 횟수. */
     public long wakeups() { return wakeups.get(); }
@@ -164,22 +181,22 @@ public final class SharedScheduler implements AutoCloseable {
         out.best = null;
         out.due = Long.MAX_VALUE;
         out.maxRunning = Integer.MAX_VALUE;
-        Object[] ds = dims.toArray();
+        Regionizer[] ds = snapshot;
         int n = ds.length;
         if (n == 0) return out;
         if (n == 1) {
-            Regionizer rz = (Regionizer) ds[0];
+            Regionizer rz = ds[0];
             long d = rz.headDue();
             if (d != Long.MAX_VALUE) { out.best = rz; out.due = d; }
             return out;
         }
         int dueCount = 0;
-        for (Object o : ds) if (isDue(((Regionizer) o).headDue(), now)) dueCount++;
+        for (Regionizer o : ds) if (isDue(o.headDue(), now)) dueCount++;
         int start = Math.floorMod(rr.getAndIncrement(), n);
         int bestClass = 3;
         boolean bestOthersDue = false;
         for (int k = 0; k < n; k++) {
-            Regionizer rz = (Regionizer) ds[(start + k) % n];
+            Regionizer rz = ds[(start + k) % n];
             long d = rz.headDue();
             if (d == Long.MAX_VALUE) continue;                       // N4: MAX 먼저 거른다
             boolean due = now - d >= 0;
@@ -201,7 +218,7 @@ public final class SharedScheduler implements AutoCloseable {
 
     private long earliestHeadDue() {
         long m = Long.MAX_VALUE;
-        for (Regionizer rz : dims) {
+        for (Regionizer rz : snapshot) {
             long d = rz.headDue();
             if (earlier(d, m)) m = d;
         }
@@ -258,6 +275,14 @@ public final class SharedScheduler implements AutoCloseable {
         if (h2 != null) h2.accept(me);
         boolean picked = !parked.remove(me);
         if (picked && t1 - me.until >= 0) passBaton();     // (N1-③) 뽑혔는데 타임아웃과 겹친 경우만 넘긴다
+        if (!picked && t1 - me.until >= 0) {
+            timeouts.increment();
+            long hd = earliestHeadDue();
+            if (hd != Long.MAX_VALUE && me.until - hd > MISSED_NANOS && t1 - hd > MISSED_NANOS) {   // 깰 시각보다 이른 머리를 아무도 알려 주지 않았다
+                missedWakeups.increment();
+                if (log.isDebugEnabled()) log.debug("[SCHED] 만료 복귀 때 머리가 {}µs 밀려 있었다(until 보다 {}µs 늦음)", (t1 - hd) / 1000, (t1 - me.until) / 1000);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ 워커
@@ -288,7 +313,10 @@ public final class SharedScheduler implements AutoCloseable {
                     continue;
                 }
                 Region r = best.tryTake(now, pick.maxRunning);
-                if (r == null) continue;                    // 낡은 머리/닫힘/상한 → 다시 고른다
+                if (r == null) {                            // 낡은 머리/닫힘/상한 → 다시 고른다
+                    takeMisses.increment();
+                    continue;
+                }
                 best.runOne(r);
             } catch (Throwable t) {
                 log.error("[TICK] region 워커 루프 오류", t);
