@@ -331,3 +331,10 @@
 - 실제 `RegionLevel` 과 `World.tickOnce`(Region.tick 전체, /forceload 로 블록 엔티티 틱 판정 통과)에서 (1) entity_die 발행 (2) 청크 구역 리스너 수신 (3) 커서 추가 (4) 블록 엔티티 틱의 updateCursors (5) 블록 변환이 모두 동작한다(`SculkCatalystRegionTest`, 플레이어 처치 경로 포함). 좀비 전하 5 → 스컬크 5칸, 소 3 → 3칸, 스켈레톤(활) 8 → 8칸, 풀 덮인 땅도 퍼짐.
 - 고친 차이: `LivingEntity.shouldDropExperience` 는 바닐라처럼 `!isBaby()`(아기 동물은 전하 없음). 올챙이 false, 호글린 true.
 - 서버 쪽에서는 끊긴 단계를 재현하지 못했다. 남은 후보(가정): 몹과 촉매 청크가 서로 다른 region 에 있을 때(디스패처는 다른 region 청크를 보지 않는다), 클라이언트 표시. 확인 방법: 실서버에서 처치 직후 bloom(촉매 윗면 빛) 여부와 경험치 구슬이 떨어지는지 본다 — 구슬이 떨어지면 리스너가 못 받은 것이다.
+
+## 2026-10-30 T3 마을 주민 AI — 단계별 실증
+- (A) POI: 실제 생성 경로(Anvil+Noise, seed 0 plains 272,944)에서 직업 블록·침대·종이 청크 로드 때 블록에서 복원된다. 구조물 주민은 AssignProfessionWhenSpawned 를 달고 들어온다. 문제없음.
+- (B) 브레인: CORE/WORK/MEET/REST/IDLE/PANIC/PRE_RAID/RAID/HIDE 패키지가 이미 바닐라 순서대로 있다. "일을 안 함·직업 없음"의 원인은 이동이었다. 흙길(15/16) 같은 낮은 블록을 못 올라서 경로가 있는데도 멈췄고, 직업 블록 2칸 안으로 못 들어갔다 → T4(Entity.collide maxUpStep) 병합 뒤 600틱 안에 직업을 얻는다.
+- (C) 습격자 발광: GLOWING 효과는 붙지만 공유 플래그 6 이 켜지지 않아 클라이언트에 외곽선이 안 보였다. 바닐라 LivingEntity.isCurrentlyGlowing(효과 || 태그)과 updateGlowingStatus 를 넣었다. 차이: 바닐라는 effectsDirty 로 다음 tickEffects 에서 맞추고, 여기서는 효과가 바뀌는 그 자리에서 맞춘다(투명과 같은 방식). 패킷 도착이 한 틱 빠를 수 있다.
+- 종 → HIDE: 단위 시험으로 숨기 진입과 15초 뒤 해제를 확인했다. 숨을 집(HOME POI)이 없으면 SetHiddenState 가 끝나지 않아 계속 숨는다 — 바닐라도 같다.
+- 시험 서버에서는 플레이어나 /forceload 가 없으면 엔티티가 틱하지 않는다(바닐라 엔티티 틱 레벨과 같음).
