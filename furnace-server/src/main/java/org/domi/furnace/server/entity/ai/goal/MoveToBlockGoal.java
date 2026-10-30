@@ -49,7 +49,7 @@ public abstract class MoveToBlockGoal extends Goal {
     public void start() {
         moveMobToBlock();
         tryTicks = 0;
-        maxStayTicks = mob.random().nextInt(mob.random().nextInt(1200) + 1) + 1200;
+        maxStayTicks = mob.random().nextInt(mob.random().nextInt(1200) + 1200) + 1200;
     }
 
     protected void moveMobToBlock() { mob.getNavigation().moveTo(blockPos.x() + 0.5, blockPos.y() + 1, blockPos.z() + 0.5, speedModifier); }

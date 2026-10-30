@@ -184,4 +184,8 @@ public class Hoglin extends Animal implements Enemy, HoglinBase {
     @Override protected String getDeathSound() { return "entity.hoglin.death"; }
 
 
+
+    /** 바닐라 Hoglin: 아기도 경험치를 준다. */
+    @Override
+    protected boolean shouldDropExperience() { return true; }
 }

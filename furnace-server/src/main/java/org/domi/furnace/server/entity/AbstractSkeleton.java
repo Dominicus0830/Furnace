@@ -44,7 +44,8 @@ public abstract class AbstractSkeleton extends Monster implements RangedAttackMo
         goalSelector.addGoal(6, new RandomLookAroundGoal(this));
         targetSelector.addGoal(1, new HurtByTargetGoal(this));
         targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, true));
-        // TODO(철 골렘·거북): 3 = 철 골렘(mustSee), 3 = 땅 위 아기 거북
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, IronGolem.class, true));
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Turtle.class, 10, true, false, Turtle.BABY_ON_LAND_SELECTOR));
     }
 
     abstract String getStepSound();

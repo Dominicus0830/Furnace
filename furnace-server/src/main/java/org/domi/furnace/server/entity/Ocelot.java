@@ -1,5 +1,4 @@
 // 바닐라 Ocelot: 생선(ocelot_food)으로 신뢰를 얻으면(1/3) 플레이어를 피하지 않는다. 가까이 있으면 웅크리고 달린다.
-// TODO: 거북 새끼 사냥.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -56,7 +55,7 @@ public class Ocelot extends Animal {
         goalSelector.addGoal(10, new WaterAvoidingRandomStrollGoal(this, 0.8, 1.0000001E-5F));
         goalSelector.addGoal(11, new LookAtPlayerGoal(this, 10.0F));
         targetSelector.addGoal(1, new NearestAttackableTargetGoal(this, Chicken.class, false));
-        // TODO(거북): targetSelector 1 = 땅 위 아기 거북(10칸)
+        targetSelector.addGoal(1, new NearestAttackableTargetGoal(this, Turtle.class, 10, false, false, Turtle.BABY_ON_LAND_SELECTOR));
     }
 
     @Override

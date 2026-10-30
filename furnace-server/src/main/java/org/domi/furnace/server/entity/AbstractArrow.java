@@ -232,7 +232,7 @@ public abstract class AbstractArrow extends Projectile {
             piercedEntities.add(target.id());
         }
         if (isCritArrow()) {
-            long extra = level.random().nextInt(damage / 2 + 2);
+            long extra = random.nextInt(damage / 2 + 2);   // 바닐라: 화살 자신의 엔티티 난수
             damage = (int) Math.min(extra + damage, Integer.MAX_VALUE);
         }
         Targetable owner = getOwner();
@@ -325,6 +325,7 @@ public abstract class AbstractArrow extends Projectile {
 
     protected abstract ItemStack getDefaultPickupItem();
 
+    /** 바닐라는 pickupItemStack.copy(). ItemStack 이 불변 record(ComponentPatch 도 불변)라 그대로 돌려줘도 같다. */
     protected ItemStack getPickupItem() { return pickupItem.isEmpty() ? getDefaultPickupItem() : pickupItem; }
 
     @Override

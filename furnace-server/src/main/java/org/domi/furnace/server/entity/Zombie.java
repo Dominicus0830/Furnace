@@ -1,5 +1,4 @@
 // 바닐라 Zombie: 적대 몹. 플레이어·주민을 쫓아 때리고, 아기는 빠르고 작으며, 소리·저장을 갖는다.
-// 아직 없는 것(주석 TODO): 마을 통과(POI 필요)·거북 알 목표.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -43,19 +42,39 @@ public class Zombie extends Monster {
 
     @Override
     protected void registerGoals() {
+        goalSelector.addGoal(4, new ZombieAttackTurtleEggGoal(this, 1.0, 3));
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, 8.0F));
         goalSelector.addGoal(8, new RandomLookAroundGoal(this));
         addBehaviourGoals();
     }
 
+    /** 바닐라 Zombie.ZombieAttackTurtleEggGoal: 거북 알을 밟아 깬다(도착 거리 1.14). */
+    final class ZombieAttackTurtleEggGoal extends org.domi.furnace.server.entity.ai.goal.RemoveBlockGoal {
+        ZombieAttackTurtleEggGoal(PathfinderMob mob, double speed, int verticalRange) { super("minecraft:turtle_egg", mob, speed, verticalRange); }
+
+        @Override
+        public void playDestroyProgressSound(ChunkLevel level, org.domi.furnace.server.block.Pos pos) {
+            level.playSound(null, pos, "minecraft:entity.zombie.destroy_egg", "hostile", 0.5F, 0.9F + Zombie.this.random.nextFloat() * 0.2F);
+        }
+
+        @Override
+        public void playBreakSound(ChunkLevel level, org.domi.furnace.server.block.Pos pos) {
+            level.playSound(null, pos, "minecraft:entity.turtle.egg_break", "blocks", 0.7F, 0.9F + level.random().nextFloat() * 0.2F);
+        }
+
+        @Override
+        public double acceptedDistance() { return 1.14; }
+    }
+
     protected void addBehaviourGoals() {
         goalSelector.addGoal(2, new ZombieAttackGoal(this, 1.0, false));
-        // TODO(마을 통과): 6 = MoveThroughVillageGoal(this, 1.0, true, 4, this::canBreakDoors) — 마을 POI 필요
+        goalSelector.addGoal(6, new org.domi.furnace.server.entity.ai.goal.MoveThroughVillageGoal(this, 1.0, true, 4, this::canBreakDoors));
         goalSelector.addGoal(7, new WaterAvoidingRandomStrollGoal(this, 1.0));
-        targetSelector.addGoal(1, new HurtByTargetGoal(this).setAlertOthers(/* ZombifiedPiglin: 아직 없음 */));
+        targetSelector.addGoal(1, new HurtByTargetGoal(this).setAlertOthers(ZombifiedPiglin.class));
         targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, true));
-        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Villager.class, false));
-        // TODO(대상): 3 = 철 골렘(mustSee), 5 = 땅 위의 아기 거북
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, PathfinderMob.class, false, Villager::isAbstractVillager));
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, IronGolem.class, true));
+        targetSelector.addGoal(5, new NearestAttackableTargetGoal(this, Turtle.class, 10, true, false, Turtle.BABY_ON_LAND_SELECTOR));
     }
 
     /** 햇빛에 타는 몹인가(Zombie.isSunSensitive). 허스크는 거짓. */

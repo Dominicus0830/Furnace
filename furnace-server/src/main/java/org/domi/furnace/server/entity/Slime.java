@@ -38,7 +38,7 @@ public class Slime extends Mob implements Enemy {
         goalSelector.addGoal(3, new SlimeRandomDirectionGoal(this));
         goalSelector.addGoal(5, new SlimeKeepOnJumpingGoal(this));
         targetSelector.addGoal(1, new NearestAttackableTargetGoal(this, Player.class, 10, true, false, t -> Math.abs(t.y() - y()) <= 4.0));
-        // TODO(철 골렘): targetSelector 3 = IronGolem
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, IronGolem.class, true));
     }
 
     @Override
