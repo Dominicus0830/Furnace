@@ -613,10 +613,21 @@ public abstract non-sealed class Entity implements Rider {
 
     public final boolean hasGlowingTag() { return hasGlowingTag; }
 
-    /** setGlowingTag: 서버에서는 isCurrentlyGlowing = 태그 값. */
+    /** setGlowingTag: 공유 플래그 6 = isCurrentlyGlowing(). */
     public final void setGlowingTag(boolean v) {
         hasGlowingTag = v;
-        setSharedFlag(FLAG_GLOWING, v);
+        setSharedFlag(FLAG_GLOWING, isCurrentlyGlowing());
+    }
+
+    /** isCurrentlyGlowing(서버): 태그 값. LivingEntity 는 발광 효과도 본다. */
+    public boolean isCurrentlyGlowing() { return hasGlowingTag; }
+
+    protected boolean getSharedFlag(int flag) { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << flag) != 0; }
+
+    /** LivingEntity.updateGlowingStatus 용. */
+    protected final void syncGlowingFlag() {
+        boolean g = isCurrentlyGlowing();
+        if (getSharedFlag(FLAG_GLOWING) != g) setSharedFlag(FLAG_GLOWING, g);
     }
 
     public boolean hasVisualFire() { return hasVisualFire; }

@@ -87,6 +87,37 @@ class VillageBlockEntityTest {
         level.game++;
         level.tickBlockEntities(k -> true);
         assertTrue(raider.hasEffect(MobEffect.GLOWING));
+        assertTrue(raider.getSharedFlag(6), "발광 효과가 공유 플래그 6(클라이언트 외곽선)으로 나간다");
         assertFalse(v.hasEffect(MobEffect.GLOWING), "주민은 습격자가 아니다");
+        assertFalse(v.getSharedFlag(6));
+        raider.removeEffect(MobEffect.GLOWING);
+        assertFalse(raider.getSharedFlag(6), "효과가 끝나면 플래그도 꺼진다");
+    }
+
+    @Test
+    void villagerHidesAfterBellAndStopsAfterFifteenSeconds() {
+        var level = new VillagerBrainTest.Clocked();
+        level.game = 100;
+        level.day = 3000;   // 일 시간대
+        Pos p = new Pos(2, -60, 2);
+        level.setBlock(p, B.defaultState("bell"), 3);
+        // 숨을 곳(HOME POI): 침대
+        level.setBlock(new Pos(8, -60, 9), B.defaultState("minecraft:red_bed"), 3);
+        level.setBlock(new Pos(8, -60, 8), B.prop("part").with(B.defaultState("minecraft:red_bed"), "head"), 3);
+        var v = new Villager(level, level.nextEntityId());
+        v.moveTo(5.5, -60, 5.5, 0, 0);
+        level.addFreshEntity(v);
+        level.step(v);
+        assertFalse(v.villagerBrain().isActive(org.domi.furnace.server.entity.ai.brain.Activity.HIDE));
+        ((BellBlock) B.behavior(level.getBlockState(p))).attemptToRing(null, level, p, -1);
+        level.runBlockEvents();
+        for (int i = 0; i < 40; i++) {
+            level.step(v);
+            assertTrue(v.villagerBrain().isActive(org.domi.furnace.server.entity.ai.brain.Activity.HIDE), "종소리 뒤 " + i + " 틱: 숨기");
+        }
+        // SetHiddenState: 15초(300틱) 지나면 HEARD_BELL_TIME 을 지우고 숨기를 끝낸다
+        for (int i = 0; i < 400; i++) level.step(v);
+        assertTrue(v.getBrain().getMemory(MemoryModuleType.HEARD_BELL_TIME).isEmpty());
+        assertFalse(v.villagerBrain().isActive(org.domi.furnace.server.entity.ai.brain.Activity.HIDE));
     }
 }

@@ -400,7 +400,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** LivingEntity.updateInvisibilityStatus: 효과가 바뀌면 투명 효과가 있을 때만 투명으로 둔다(효과가 하나도 없으면 해제). */
     private void updateInvisibilityStatus() {
         setInvisible(!activeEffects.isEmpty() && hasEffect(org.domi.furnace.server.effect.MobEffect.INVISIBILITY));
+        syncGlowingFlag();   // 바닐라 updateGlowingStatus(같은 effectsDirty 시점에 이어서 부른다)
     }
+
+    /** LivingEntity.isCurrentlyGlowing(서버): 발광 효과가 있거나 Glowing 태그. */
+    @Override
+    public boolean isCurrentlyGlowing() { return hasEffect(org.domi.furnace.server.effect.MobEffect.GLOWING) || super.isCurrentlyGlowing(); }
 
     protected void onEffectAdded(org.domi.furnace.server.effect.MobEffectInstance i) {
         updateInvisibilityStatus();
