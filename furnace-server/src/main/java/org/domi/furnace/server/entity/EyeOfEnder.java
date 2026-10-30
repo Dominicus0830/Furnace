@@ -89,7 +89,6 @@ public class EyeOfEnder extends Entity {
             discard();
             if (surviveAfterDeath) {
                 var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), getItem());
-                ie.setDefaultPickUpDelay();
                 level.addFreshEntity(ie);
             } else {
                 level.levelEvent(null, 2003, blockPosition(), 0);
