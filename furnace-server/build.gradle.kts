@@ -42,3 +42,22 @@ tasks.test {
         if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
     }
 }
+
+// 서버 + 의존성(furnace-api, netty, gson, slf4j, logback)을 한 jar 로 묶는다.
+//   ./gradlew -PskipOracle=true :furnace-server:fatJar   → furnace-server/build/libs/furnace-server.jar
+//   java -Xms2G -Xmx4G -jar furnace-server.jar
+// `assemble`/`build` 에도 포함된다(테스트는 안 돈다).
+val fatJar = tasks.register<Jar>("fatJar") {
+    group = "build"
+    description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
+    archiveFileName = "furnace-server.jar"
+    manifest { attributes["Main-Class"] = "org.domi.furnace.server.FurnaceMain" }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(sourceSets.main.get().output)
+    from({
+        configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) }
+    })
+    // 서명 파일이 남으면 합친 jar 가 SecurityException 으로 실행되지 않는다
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
+}
+tasks.named("assemble") { dependsOn(fatJar) }
