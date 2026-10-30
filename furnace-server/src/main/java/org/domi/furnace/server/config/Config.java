@@ -4,7 +4,7 @@ package org.domi.furnace.server.config;
 /**
  * velocitySecret: 비어 있지 않으면 Velocity 모던 포워딩을 켠다(Paper proxies.velocity.secret).
  * regionSectionShift·regionMergeRadius: 동적 region(Folia 방식)의 구역 크기(2^shift 청크)와 합치기 반경(구역 단위),
- * regionThreads: region 을 돌리는 작업 스레드 수.
+ * regionThreads: region 을 돌리는 작업 스레드 수. 기본은 차원마다 이만큼(-Dfurnace.sharedRegionPool=true 면 서버 전체 공유 풀의 크기).
  */
 public record Config(String serverName, long tickNanos, int port, int compressionThreshold,
                      int viewDistance, int entityViewDistance, int regionSectionShift, int regionMergeRadius, int regionThreads,

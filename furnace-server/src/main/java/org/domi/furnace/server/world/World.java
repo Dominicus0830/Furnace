@@ -105,8 +105,8 @@ public final class World {
                 blockDirectBits, biomeDirectBits, ioPool, genPool);
     }
 
-    /** 이미 있는 작업 스레드 풀에 이 월드를 건다(패키지 전용 — 공유 풀 시험. 실서버 연결은 다음 단계 S4). 풀 수명은 부르는 쪽이 갖는다. */
-    World(DimensionType type, WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler, SharedScheduler pool,
+    /** 이미 있는 작업 스레드 풀(서버 전체 공유, S4)에 이 월드를 건다. 풀 수명은 부르는 쪽이 갖는다 — 월드 close 는 자기 큐만 뗀다. */
+    public World(DimensionType type, WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler, SharedScheduler pool,
           int sectionShift, int mergeRadius, int viewDistance, int entityViewDistance,
           int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
         this(type, worldSource, chunkPool, scheduler, pool.threadCount(), pool, sectionShift, mergeRadius, viewDistance, entityViewDistance,
@@ -128,6 +128,7 @@ public final class World {
         this.blockDirectBits = blockDirectBits;
         this.biomeDirectBits = biomeDirectBits;
         long tickNanos = scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl ? impl.tickNanos() : 50_000_000L;
+        if (pool == null && SharedScheduler.TEST_SHARED) pool = SharedScheduler.testShared(regionThreads);   // 시험 전용: 기존 시험을 공유 풀에서 돌린다
         this.regionizer = pool == null
                 ? new Regionizer(this, regionThreads, sectionShift, mergeRadius, tickNanos)
                 : new Regionizer(this, pool, sectionShift, mergeRadius, tickNanos);

@@ -153,6 +153,10 @@ public final class FurnaceMain {
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
+        // 롤백 스위치(기본 끔): 켜면 모든 차원이 region 워커 풀 하나를 공유하고 region-threads 는 서버 전체 워커 수가 된다
+        boolean sharedRegionPool = Boolean.getBoolean("furnace.sharedRegionPool");
+        org.domi.furnace.server.world.SharedScheduler regionPool = sharedRegionPool
+                ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-") : null;
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
         ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
@@ -195,9 +199,13 @@ public final class FurnaceMain {
             t.setPriority(Thread.MIN_PRIORITY);
             return t;
         });
-        World world = new World(anvilSource, chunkPool,
-                scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),
-                config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
+        World world = regionPool != null
+                ? new World(org.domi.furnace.server.world.DimensionType.OVERWORLD, anvilSource, chunkPool, scheduler, regionPool,
+                        config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),
+                        config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool)
+                : new World(anvilSource, chunkPool,
+                        scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),
+                        config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
         if (!levelData.initialized) {
             // 새 월드: 바닐라 setInitialSpawn 에 해당하는 생성기 기본 스폰을 정해 level.dat 에 남긴다.
@@ -278,8 +286,11 @@ public final class FurnaceMain {
             extraStores.add(store);
             extraStores.add(ents);
             extraStores.add(pois);
-            World w = new World(type, src, chunkPool, scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(),
-                    config.viewDistance(), config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
+            World w = regionPool != null
+                    ? new World(type, src, chunkPool, scheduler, regionPool, config.regionSectionShift(), config.regionMergeRadius(),
+                            config.viewDistance(), config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool)
+                    : new World(type, src, chunkPool, scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(),
+                            config.viewDistance(), config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
             w.worldDir(worldDir);
             w.defaultSpawn(defaultSpawn);
             codec.gameTime(w::gameTime);
@@ -294,6 +305,10 @@ public final class FurnaceMain {
         }
         dimensions.levelEnabled(k -> !k.equals(org.domi.furnace.server.world.DimensionType.NETHER.levelKey()) || props.allowNether);
         for (World w : dimensions.all()) w.startTicking();
+        // 종료 훅은 등록 순: 월드들(자기 큐 분리) → 공유 풀 → fallback → global
+        if (regionPool != null) scheduler.addCloseHook(regionPool::close);
+        log.info("[SCHED] region 워커 {}개({}, 차원 {}개)", config.regionThreads(),
+                regionPool != null ? "서버 전체 공유" : "차원별", dimensions.all().size());
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);

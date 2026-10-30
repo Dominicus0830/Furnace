@@ -44,7 +44,7 @@ public final class Regionizer {
     private final Set<Region> regions = new LinkedHashSet<>();
     /** 틱 대기열(잠금 안, 지연 삭제 — 꺼낼 때 상태를 다시 본다). */
     private final PriorityQueue<Region> queue = new PriorityQueue<>((a, b) -> compareDue(a.nextTickNanos, b.nextTickNanos));   // nanoTime 오버플로에 안전한 차이 비교
-    /** 작업 스레드 풀. 지금은 차원마다 하나(ownsPool) — 공유 풀은 S4. */
+    /** 작업 스레드 풀. 차원마다 하나(ownsPool) 또는 서버 전체 공유(S4, -Dfurnace.sharedRegionPool=true). */
     private final SharedScheduler pool;
     private final boolean ownsPool;
     /** 큐 머리의 마감(비면 Long.MAX_VALUE). 쓰기는 잠금 안(publishHead), 읽기는 어디서나 — 힌트일 뿐 결정은 tryTake 가 다시 한다. */
@@ -115,6 +115,9 @@ public final class Regionizer {
 
     /** 큐 머리 마감(잠금 없음, 힌트). */
     long headDue() { return headDue; }
+
+    /** 지금 이 차원에서 틱 중인 region 수(잠금 없음). */
+    int activeTicks() { return activeTicks.get(); }
 
     /** 시험 전용: 머리 마감을 직접 발행한다(깨우기 경합 재현). 프로덕션은 부르지 않는다. */
     void setHeadDueForTest(long due) { headDue = due; }
@@ -409,7 +412,10 @@ public final class Regionizer {
      * 꺼내기(워커, 잠금 안): 머리의 낡은 항목(죽음·양보·틱 중·큐 밖)을 지우고, 때가 된 머리를 RUNNING 으로 꺼낸다.
      * 머리가 없거나 아직 때가 아니거나 닫혔으면 null(워커가 다시 고른다).
      */
-    Region tryTake(long now) {
+    Region tryTake(long now) { return tryTake(now, Integer.MAX_VALUE); }
+
+    /** maxRunning: 이 차원에서 동시에 도는 region 수 상한(§4.1 N3 — 선택기가 정하고 여기서 잠금 안에서 다시 확인한다). */
+    Region tryTake(long now, int maxRunning) {
         lock.lock();
         try {
             if (closed) return null;
@@ -426,6 +432,10 @@ public final class Regionizer {
                 }
                 long late = now - head.nextTickNanos;
                 if (late < 0) {
+                    publishHead();
+                    return null;
+                }
+                if (activeTicks.get() >= maxRunning) {   // 상한: 다른 차원 몫으로 남긴다
                     publishHead();
                     return null;
                 }
