@@ -534,11 +534,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     @Override public int id() { return entityId; }
 
     /** 눈 높이: 잠(SLEEPING_DIMENSIONS) 0.2, 웅크림 1.27, 서기 1.62. */
-    @Override public double eyeY() { return y + (sleepingPos != null ? 0.2 : sneaking ? 1.27 : 1.62); }
+    @Override public double eyeY() { return y + (fallFlying ? 0.4 : sleepingPos != null ? 0.2 : sneaking ? 1.27 : 1.62); }
 
-    @Override public float bbWidth() { return sleepingPos != null ? 0.2F : 0.6F; }
+    @Override public float bbWidth() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : 0.6F; }
 
-    @Override public float bbHeight() { return sleepingPos != null ? 0.2F : sneaking ? 1.5F : 1.8F; }
+    /** 자세 크기(Player.POSES): 겉날개 0.6×0.6(눈 0.4), 잠 0.2, 웅크림 1.5, 서기 1.8. */
+    @Override public float bbHeight() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : sneaking ? 1.5F : 1.8F; }
 
     @Override
     public AABB boundingBox() {
@@ -797,11 +798,29 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private byte sentSharedFlags;
     private int sentPose;
 
-    /** Entity.DATA_SHARED_FLAGS(0)의 웅크림(2)·질주(8) 비트. TODO(불·수영·투명·발광·겉날개). */
-    public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0)); }
+    /** Entity.DATA_SHARED_FLAGS(0)의 웅크림(2)·질주(8)·겉날개 비행(0x80, 플래그 7) 비트. TODO(불·수영·투명·발광). */
+    public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0) | (fallFlying ? 0x80 : 0)); }
 
-    /** Player.updatePlayerPose: 회전 공격이면 SPIN_ATTACK(4), 웅크리면 CROUCHING(5), 아니면 STANDING(0). TODO(겉날개·잠·수영 자세). */
-    public int pose() { return sleepingPos != null ? 2 : autoSpinAttackTicks > 0 ? 4 : sneaking ? 5 : 0; }
+    /** Player.updatePlayerPose: 겉날개 비행 FALL_FLYING(1), 잠 2, 회전 공격 SPIN_ATTACK(4), 웅크림 CROUCHING(5), 아니면 STANDING(0). TODO(수영 자세·끼임 검사). */
+    public int pose() { return fallFlying ? 1 : sleepingPos != null ? 2 : autoSpinAttackTicks > 0 ? 4 : sneaking ? 5 : 0; }
+
+    // ------------------------------------------------------------------ 겉날개 비행(LivingEntity 공유 플래그 7·fallFlyTicks) — 쓰기는 region 스레드
+    private volatile boolean fallFlying;
+    /** LivingEntity.fallFlyTicks. */
+    public int fallFlyTicks;
+    /** 서버가 굴리는 deltaMovement(비행 중에만 갱신 — 충돌 피해·로켓 가속에 쓴다). */
+    public double flyVx, flyVy, flyVz;
+    private boolean sharedFlagsForce;
+
+    public boolean isFallFlying() { return fallFlying; }
+
+    public void setFallFlying(boolean v) { fallFlying = v; }
+
+    /** 값이 같아도 다음 동기에서 공유 플래그를 다시 보낸다(SynchedEntityData dirty). */
+    public void forceSharedFlagsResend() { sharedFlagsForce = true; }
+
+    /** 서버가 아는 deltaMovement: 비행 중이면 굴리는 값, 아니면 마지막 이동 패킷 변위. */
+    public double[] serverMovement() { return fallFlying ? new double[] {flyVx, flyVy, flyVz} : knownMovement(); }
 
     private org.domi.furnace.server.block.Pos sentSleepingPos;
 
@@ -825,6 +844,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private volatile byte skinParts, mainArm = 1;
     private byte sentSkinParts, sentMainArm = 1;
 
+    /** 주 손: 0 왼손, 1 오른손. */
+    public int mainArm() { return mainArm; }
+
     /** ServerPlayer.updateOptions: 스킨 부위 비트와 주 손(0 왼손, 1 오른손). */
     public void clientOptions(int skinParts, int mainArm) {
         this.skinParts = (byte) skinParts;
@@ -841,7 +863,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         byte shared = sharedFlags(), f = livingFlags();
         int pose = pose();
         var items = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.SetEntityData.Item>(3);
-        if (shared != sentSharedFlags) items.add(flagItem(0, shared));
+        if (shared != sentSharedFlags || sharedFlagsForce) items.add(flagItem(0, shared));
+        sharedFlagsForce = false;
         if (pose != sentPose) items.add(poseItem(pose));
         if (f != sentLivingFlags) items.add(flagItem(8, f));
         var sp = sleepingPos;
@@ -912,7 +935,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private volatile boolean resendEntityData;
 
     /** 죽은 뒤·엔드 뒤 리스폰: 다음 syncLivingFlags 가 본인과 보는 사람에게 기본값이 아닌 데이터를 다시 보낸다. */
-    public void markEntityDataResend() { resendEntityData = true; }
+    public void markEntityDataResend() {
+        resendEntityData = true;
+        runOnOwner(() -> ElytraFlight.resetForRespawn(this));   // 새 엔티티: 겉날개 상태는 소유 스레드에서 지운다
+    }
 
     /** sendPairingData 의 장비(아무 스레드에서나 — 불변 스냅샷). 없으면 null. */
     public org.domi.furnace.server.net.protocol.play.SetEquipment pairingEquipment() { return pairingEquipmentSnap; }

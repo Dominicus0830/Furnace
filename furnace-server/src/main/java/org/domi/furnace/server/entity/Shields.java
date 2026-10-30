@@ -150,7 +150,7 @@ public final class Shields {
     }
 
     /** Player.playSound: 그 플레이어 자신은 빼고(클라이언트가 직접 낸다). */
-    private static void playSoundExceptSelf(Player p, org.domi.furnace.server.block.BlockLevel level, String sound, float vol, float pitch) {
+    static void playSoundExceptSelf(Player p, org.domi.furnace.server.block.BlockLevel level, String sound, float vol, float pitch) {
         org.domi.furnace.server.block.BlockActor self = new org.domi.furnace.server.block.BlockActor() {
             public float yRot() { return p.yaw(); }
             public float xRot() { return p.pitch(); }

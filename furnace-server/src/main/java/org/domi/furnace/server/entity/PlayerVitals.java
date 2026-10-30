@@ -180,6 +180,18 @@ public final class PlayerVitals {
         deathTime = tag.getShort("DeathTime");
         if (tag.containsNumber("Air")) air = tag.getShort("Air");
         fallDistance = tag.getFloat("FallDistance");
+        if (tag.getBoolean("FallFlying")) {   // LivingEntity.readAdditionalSaveData — 서버 속도는 Motion 에서
+            player.setFallFlying(true);
+            var motion = tag.getList("Motion");
+            if (motion != null && motion.size() >= 3) {
+                double[] mv = new double[3];
+                for (int i = 0; i < 3; i++) {
+                    double d = motion.get(i) instanceof Number n ? n.doubleValue() : 0.0;
+                    mv[i] = Math.abs(d) > 10.0 ? 0.0 : d;
+                }
+                player.flyVx = mv[0]; player.flyVy = mv[1]; player.flyVz = mv[2];
+            }
+        }
         invulnerableFlag = tag.getBoolean("Invulnerable");
         xpProgress = tag.getFloat("XpP");
         xpLevel = tag.getIntOr0("XpLevel");
@@ -234,6 +246,7 @@ public final class PlayerVitals {
         }
         tag.putShort("Air", (short) air);
         tag.putFloat("FallDistance", fallDistance);
+        tag.putBoolean("FallFlying", player.isFallFlying());
         tag.putBoolean("Invulnerable", invulnerableFlag);
         tag.putFloat("XpP", xpProgress);
         tag.putInt("XpLevel", xpLevel);
@@ -335,6 +348,11 @@ public final class PlayerVitals {
     public synchronized float fallDistance() { return fallDistance; }
 
     public synchronized void resetFallDistance() { fallDistance = 0.0f; }
+
+    /** Entity.checkSlowFallDistance: y 속도가 -0.5 보다 크면 낙하 거리를 1 로 줄인다(겉날개 비행). */
+    public synchronized void checkSlowFallDistance(double vy) {
+        if (vy > -0.5 && fallDistance > 1.0f) fallDistance = 1.0f;
+    }
 
     private void setHealthRaw(float h) { health = Math.clamp(h, 0.0f, maxHealthLocked()); }
 

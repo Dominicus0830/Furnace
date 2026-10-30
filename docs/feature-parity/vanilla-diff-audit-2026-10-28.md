@@ -23,7 +23,7 @@
 | 네트워크 | serverbound swing 미처리(팔 휘두름 미방송), pick_item 미처리 | 작업 중 |
 | 월드 | 게임룰 9종(fireDamage·freezeDamage·projectilesCanBreakBlocks·enderPearlsVanishOnDeath·spawnRadius 등) 저장만 됨 | 작업 중(일부) |
 | 엔티티 | 생물끼리 밀기·maxEntityCramming 없음(몹 농장 핵심) | 성능 설계 필요 — 대기 |
-| 플레이어 | 불사의 토템, 겉날개, 플레이어 방어구 인챈트 경감(보호 등), 플레이어 속성 연동 | 대기 |
+| 플레이어 | 불사의 토템, 겉날개(2026-10-28 구현 — context-notes 차이 참고), 플레이어 방어구 인챈트 경감(보호 등), 플레이어 속성 연동 | 대기 |
 | 네트워크 | light_update(0x2A) 미송신 의혹 — 실접속·바닐라 확인 필요 | 확인 작업 중 |
 | 블록 | 피스톤이 엔티티를 안 밂, 엔더의 눈 던지기, 몹 양동이(물고기·아홀로틀·올챙이), 솔·고고학, 트라이얼 스포너·금고, 명령/구조/직소 블록, 블록에 맞는 투사체 반응 12종 | 대기 |
 | 플러그인 | 이벤트 15종뿐, Entity·World·ItemStack·Inventory 타입 없음 | 대기 |
