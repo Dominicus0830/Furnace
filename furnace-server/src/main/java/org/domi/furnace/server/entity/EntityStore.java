@@ -91,6 +91,31 @@ public final class EntityStore {
         }
     }
 
+    /**
+     * forEachIn 과 같은 순서로, 사본 없이 돈다(밀기용: 콜백이 저장소를 바꾸지 않아야 한다).
+     * 구역 범위가 한 부호 안이면 순서 배열도 만들지 않는다.
+     */
+    public void forEachInNoCopy(AABB box, Consumer<Entity> out) {
+        int x0 = Entity.floor(box.minX() - 2.0) >> 4, y0 = Entity.floor(box.minY() - 4.0) >> 4, z0 = Entity.floor(box.minZ() - 2.0) >> 4;
+        int x1 = Entity.floor(box.maxX() + 2.0) >> 4, y1 = Entity.floor(box.maxY() + 0.0) >> 4, z1 = Entity.floor(box.maxZ() + 2.0) >> 4;
+        boolean wrapZ = z0 < 0 != z1 < 0, wrapY = y0 < 0 != y1 < 0;
+        int[] zs = wrapZ ? maskedOrder(z0, z1, 4194303) : null, ys = wrapY ? maskedOrder(y0, y1, 1048575) : null;
+        for (int sx = x0; sx <= x1; sx++) {
+            for (int zi = 0, zn = wrapZ ? zs.length : z1 - z0 + 1; zi < zn; zi++) {
+                int sz = wrapZ ? zs[zi] : z0 + zi;
+                for (int yi = 0, yn = wrapY ? ys.length : y1 - y0 + 1; yi < yn; yi++) {
+                    int sy = wrapY ? ys[yi] : y0 + yi;
+                    ArrayList<Entity> list = sections.get(Entity.sectionKey(sx, sy, sz));
+                    if (list == null) continue;
+                    for (int i = 0, n = list.size(); i < n; i++) {
+                        Entity ent = list.get(i);
+                        if (ent.boundingBox().intersects(box)) out.accept(ent);
+                    }
+                }
+            }
+        }
+    }
+
     private static int[] maskedOrder(int lo, int hi, int mask) {
         int[] v = new int[hi - lo + 1];
         for (int i = 0; i < v.length; i++) v[i] = lo + i;

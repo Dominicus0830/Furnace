@@ -513,6 +513,9 @@ public abstract class AbstractMinecart extends Entity {
     }
 
     /** push(player): 플레이어가 걸어 들어와 미는 쪽(Entity 판 push 와 같은 식, 플레이어 쪽 1/4 은 클라이언트 권위라 버린다). */
+    @Override
+    public void pushByPlayer(Player p) { pushedBy(p); }
+
     public void pushedBy(Player p) {
         if (noPhysics || hasPassenger(p)) return;
         double dx = p.x() - x(), dz = p.z() - z();

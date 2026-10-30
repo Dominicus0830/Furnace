@@ -934,6 +934,26 @@ public abstract class LivingEntity extends Entity implements Targetable {
         zza *= 0.98F;
         if (getControllingPassenger() instanceof Player p && isAlive()) travelRidden(p);
         else travel(xxa, yya, zza);
+        pushEntities();
+    }
+
+    /**
+     * LivingEntity.pushEntities(서버): 몸통에 걸친 밀 수 있는 엔티티를 모아, maxEntityCramming 이 켜져 있고 수가 넘치면
+     * 1/4 확률(nextInt(4))로 탈것에 안 탄 것 수를 세어 넘치면 cramming 6 피해, 그리고 후보마다 후보.push(나).
+     * 난수는 목록이 비지 않고 규칙 > 0 이고 크기 > 규칙-1 일 때만 부른다.
+     */
+    protected void pushEntities() {
+        if (level == null) return;
+        var s = level.pushScratch;
+        s.collect(level, this, boundingBox());
+        int n = s.size();
+        if (n == 0) return;
+        int rule = level.gameRuleInt("maxEntityCramming");
+        if (rule > 0 && n > rule - 1 && random.nextInt(4) == 0) {
+            if (s.countNonPassengers() > rule - 1) hurt(Damage.CRAMMING, 6.0F);
+        }
+        s.pushAllBy(this);
+        s.clear();
     }
 
     // ------------------------------------------------------------------ 장비

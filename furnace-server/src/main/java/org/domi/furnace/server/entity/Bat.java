@@ -12,6 +12,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Bat extends PathfinderMob {
+    /** Bat.isPushable = false, pushEntities 는 비어 있다. */
+    @Override public boolean isPushable() { return false; }
+
+    @Override protected void pushEntities() {}
+
     public static final int DATA_ID_FLAGS = 16;
     private static final TargetingConditions BAT_RESTING_TARGETING = TargetingConditions.forNonCombat().range(4.0);
     private Pos targetPosition;

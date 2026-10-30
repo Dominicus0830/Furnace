@@ -924,7 +924,7 @@ public final class Region {
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
             p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
-            pushMinecarts(p);
+            pushEntities(p);
             touchEntities(p);
             tickBreaking(p);
             broadcastInventory(p);
@@ -1038,15 +1038,22 @@ public final class Region {
      * Player.touch(바닐라 aiStep 끝): 살아 있고 관전자가 아니면 몸통을 (1, 0.5, 1) 넓힌 상자에 걸친 엔티티마다 playerTouch(아이템 줍기).
      */
     /**
-     * LivingEntity.pushEntities(서버, ServerPlayer.doTick 의 aiStep): 플레이어 몸통에 걸친 밀 수 있는 엔티티마다 e.push(player).
-     * TODO(밀기): 지금은 광산 수레만(몹·보트 밀기와 maxEntityCramming 은 아직 없다).
+     * LivingEntity.pushEntities(서버, ServerPlayer.doTick 의 aiStep): 플레이어 몸통에 걸친 밀 수 있는 엔티티·플레이어를 모아
+     * maxEntityCramming 판정(1/4 확률 → cramming 6 피해) 뒤 후보마다 후보.push(player). 다른 플레이어 쪽 속도는 클라이언트 권위라 버린다.
      */
-    private void pushMinecarts(Player p) {
-        if (level == null || level.entities().isEmpty()) return;
+    private void pushEntities(Player p) {
+        if (level == null) return;
         if (p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
-        for (var cart : level.getEntitiesOfClass(org.domi.furnace.server.entity.AbstractMinecart.class, p.boundingBox(), e -> e.isPushable())) {
-            if (!cart.isRemoved()) cart.pushedBy(p);
+        var s = level.pushScratch;
+        s.collect(level, p, p.boundingBox());
+        int n = s.size();
+        if (n == 0) return;
+        int rule = level.gameRuleInt("maxEntityCramming");
+        if (rule > 0 && n > rule - 1 && p.random().nextInt(4) == 0) {
+            if (s.countNonPassengers() > rule - 1) p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.CRAMMING, 6.0F);
         }
+        s.pushAllBy(p);
+        s.clear();
     }
 
     private void touchEntities(Player p) {

@@ -985,6 +985,12 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean gameRule(String name) { return services().gameRule(name); }
 
+    /** 팀 조회용 점수판(없으면 null). */
+    public org.domi.furnace.server.scores.Scoreboard scoreboard() { return services().scoreboard(); }
+
+    /** 엔티티 밀기가 쓰는 재사용 작업 공간(레벨은 한 번에 한 region 스레드만 돌린다). */
+    public final org.domi.furnace.server.entity.PushScratch pushScratch = new org.domi.furnace.server.entity.PushScratch();
+
     @Override
     public int gameRuleInt(String name) { return services().gameRuleInt(name); }
 
