@@ -337,3 +337,9 @@
 - 원인: `Behavior` 시간 초과는 전역 gameTime(전역 스레드가 올림), 기억 TTL 은 region 브레인 틱으로 줄어 둘이 어긋났다. SonicBoom 은 소리 대기 26틱이 지속 60틱 종료보다 1틱 늦게 풀리게 맞물려 있어, region 틱이 2틱 앞서면 한 충전에 음파가 두 번 나갔다.
 - 수정: 시간 초과를 시작 뒤 지난 브레인 틱 수로 잰다. 엔티티가 매 틱 브레인을 돌 때만 바닐라와 같은 값이다.
 - 의도한 차이: 엔티티가 틱을 건너뛰는 동안(NoAI 토글, lazy 청크, region 이동 공백) gameTime 만 흐르면 바닐라는 재개 즉시 시간 초과로 멈추지만 Furnace 는 남은 틱만큼 계속한다.
+## 2026-10-30 T3 마을 주민 AI — 단계별 실증
+- (A) POI: 실제 생성 경로(Anvil+Noise, seed 0 plains 272,944)에서 직업 블록·침대·종이 청크 로드 때 블록에서 복원된다. 구조물 주민은 AssignProfessionWhenSpawned 를 달고 들어온다. 문제없음.
+- (B) 브레인: CORE/WORK/MEET/REST/IDLE/PANIC/PRE_RAID/RAID/HIDE 패키지가 이미 바닐라 순서대로 있다. "일을 안 함·직업 없음"의 원인은 이동이었다. 흙길(15/16) 같은 낮은 블록을 못 올라서 경로가 있는데도 멈췄고, 직업 블록 2칸 안으로 못 들어갔다 → T4(Entity.collide maxUpStep) 병합 뒤 600틱 안에 직업을 얻는다.
+- (C) 습격자 발광: GLOWING 효과는 붙지만 공유 플래그 6 이 켜지지 않아 클라이언트에 외곽선이 안 보였다. 바닐라 LivingEntity.isCurrentlyGlowing(효과 || 태그)과 updateGlowingStatus 를 넣었다. 차이: 바닐라는 effectsDirty 로 다음 tickEffects 에서 맞추고, 여기서는 효과가 바뀌는 그 자리에서 맞춘다(투명과 같은 방식). 패킷 도착이 한 틱 빠를 수 있다.
+- 종 → HIDE: 단위 시험으로 숨기 진입과 15초 뒤 해제를 확인했다. 숨을 집(HOME POI)이 없으면 SetHiddenState 가 끝나지 않아 계속 숨는다 — 바닐라도 같다.
+- 시험 서버에서는 플레이어나 /forceload 가 없으면 엔티티가 틱하지 않는다(바닐라 엔티티 틱 레벨과 같음).
