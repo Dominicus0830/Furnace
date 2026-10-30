@@ -4,6 +4,9 @@ package org.domi.furnace.server.entity;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.domi.furnace.server.block.BlockPlacementTest;
 import org.domi.furnace.server.block.LegacyRandomSource;
 import org.domi.furnace.server.block.LevelServices;
@@ -162,6 +165,56 @@ class WardenTest {
             assertNotEquals(Entity.POSE_DIGGING, w.getPose(), "틱 " + t + " 에 파고들기 시작");
         }
         assertFalse(w.isRemoved());
+    }
+
+    /** 가까운 철 골렘을 노리는 워든을 n 틱 돌리며 음파(골렘 피해 10)와 근접 타격(피해 30) 틱을 모은다. */
+    static List<String> fightNear(int ticks, java.util.function.IntPredicate advanceGameTime) {
+        Lvl l = new Lvl();
+        Warden w = warden(l, 0.5, -60, 0.5);
+        IronGolem g = new IronGolem(l, l.nextEntityId());
+        g.moveTo(2.5, -60, 0.5, 0, 0);
+        assertTrue(l.addFreshEntity(g));
+        w.increaseAngerAt(g, 150, false);
+        w.setAttackTarget(g);
+        w.getBrain().eraseMemory(MemoryModuleType.SONIC_BOOM_COOLDOWN);   // setAttackTarget 의 200틱 대기를 건너뛰고 바로 시작
+        w.getBrain().setMemoryWithExpiry(MemoryModuleType.DIG_COOLDOWN, org.domi.furnace.server.entity.ai.brain.Unit.INSTANCE, 100000L);
+        List<String> events = new ArrayList<>();
+        for (int t = 0; t < ticks; t++) {
+            if (advanceGameTime.test(t)) l.time++;
+            w.tickCount++;
+            w.tick();
+            float lost = g.maxHealth() - g.health();
+            if (lost >= 30.0F) events.add("melee@" + t);
+            else if (lost >= 10.0F) events.add("boom@" + t);
+            g.setHealth(g.maxHealth());
+            g.hurtTime = 0;
+            g.invulnerableTime = 0;
+            g.moveTo(2.5, -60, 0.5, 0, 0);
+        }
+        return events;
+    }
+
+    /**
+     * 바닐라 출처(1.21.1 디컴파일 SonicBoom=bzh): 지속 ceil(60)=60, 발사 지연 ceil(34)=34, 소리 대기 60-34=26, 종료 쿨다운 40,
+     * 시작 시 ATTACK_COOLING_DOWN 60. WardenAi FIGHT 목록은 SonicBoom 다음 MeleeAttack.create(18), Warden.doHurtTarget 은 음파 쿨다운 40.
+     * 시작 틱 1 → 소리 대기 34 가 지난 틱 36 에 발사. 근접은 ATTACK_COOLING_DOWN 18 이 풀리는 데 19 브레인 틱(기억은 TTL 0 다음 틱에 지워짐).
+     * 사용자 버그 T6: 가까운 대상 — 음파 한 번(시작 35틱 뒤) 뒤에는 근접 공격이 19틱마다 이어지고(타격마다 음파 대기 40) 음파는 다시 안 나온다. */
+    @Test
+    void sonicBoomOnceThenMeleeWhenTargetIsNear() {
+        List<String> ev = fightNear(400, t -> true);
+        assertEquals("boom@36", ev.get(0), ev.toString());
+        assertEquals(1, ev.stream().filter(s -> s.startsWith("boom")).count(), ev.toString());
+        List<Integer> melee = ev.stream().filter(s -> s.startsWith("melee")).map(s -> Integer.parseInt(s.substring(6))).toList();
+        assertTrue(melee.size() >= 15, ev.toString());
+        assertTrue(melee.get(0) > 61, "음파가 도는 60틱(ATTACK_COOLING_DOWN) 동안은 근접 없음: " + ev);
+        for (int i = 1; i < melee.size(); i++) assertEquals(19, melee.get(i) - melee.get(i - 1), ev.toString());
+    }
+
+    /** 사용자 버그 T6: region 틱이 전역 gameTime 보다 앞서도(충전 중 gameTime 이 2틱 멈춤) 음파 한 번의 충전에 음파는 한 번이다. */
+    @Test
+    void sonicBoomFiresOncePerChargeEvenIfGameTimeLags() {
+        List<String> ev = fightNear(120, t -> t != 10 && t != 20);
+        assertEquals(1, ev.stream().filter(s -> s.startsWith("boom")).count(), ev.toString());
     }
 
     /** 사용자 버그 C2: 소환 가능한 비명체를 같은 플레이어가 대기(200틱) 간격으로 울리면 경고 단계 1→2→3→4, 4단계에 워든이 나온다. */
