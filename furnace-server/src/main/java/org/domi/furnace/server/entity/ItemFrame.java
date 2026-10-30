@@ -29,6 +29,12 @@ public class ItemFrame extends HangingEntity {
         this.glow = glow;
     }
 
+    /** 고정된 액자는 밀리지 않는다. */
+    @Override
+    public void move(int mover, double dx, double dy, double dz) {
+        if (!fixed) super.move(mover, dx, dy, dz);
+    }
+
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();

@@ -7,6 +7,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class OminousItemSpawner extends Entity {
+
+    /** getPistonPushReaction = IGNORE. */
+    @Override
+    public boolean ignoresPistonPush() { return true; }
+
     public static final int DATA_ITEM = 8;
     private long spawnItemAfterTicks;
 

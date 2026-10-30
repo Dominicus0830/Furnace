@@ -748,6 +748,15 @@ public abstract non-sealed class Entity implements Rider {
             return;
         }
         boolean wasOnFire = isOnFire();
+        if (mover == MOVER_PISTON) {
+            double[] lim = limitPistonMovement(dx, dy, dz);
+            if (lim == null) return;
+            dx = lim[0];
+            dy = lim[1];
+            dz = lim[2];
+            // movement.equals(Vec3.ZERO): Double.compare 라 +0.0 셋일 때만
+            if (Double.compare(dx, 0.0) == 0 && Double.compare(dy, 0.0) == 0 && Double.compare(dz, 0.0) == 0) return;
+        }
         if (stuckX * stuckX + stuckY * stuckY + stuckZ * stuckZ > 1.0E-7) {
             dx *= stuckX;
             dy *= stuckY;
@@ -785,6 +794,37 @@ public abstract non-sealed class Entity implements Rider {
         }
         if (isOnFire() && (isInPowderSnow || isInWaterRainOrBubble())) setRemainingFireTicks(-FIRE_IMMUNE_TICKS);
     }
+
+    /** 바닐라 Entity.pistonDeltas·pistonDeltasGameTime: 한 게임 틱에 피스톤이 한 축으로 미는 총량을 ±0.51 로 묶는다. */
+    private final double[] pistonDeltas = new double[3];
+    private long pistonDeltasGameTime;
+
+    /** limitPistonMovement: 한 축만 본다(x → y → z 순). 남은 양이 1e-5 이하면 null(=Vec3.ZERO, 움직이지 않음). */
+    private double[] limitPistonMovement(double dx, double dy, double dz) {
+        if (dx * dx + dy * dy + dz * dz <= 1.0E-7) return new double[] {dx, dy, dz};
+        long t = level.gameTime();
+        if (t != pistonDeltasGameTime) {
+            java.util.Arrays.fill(pistonDeltas, 0.0);
+            pistonDeltasGameTime = t;
+        }
+        int axis;
+        double d;
+        if (dx != 0.0) { axis = 0; d = dx; }
+        else if (dy != 0.0) { axis = 1; d = dy; }
+        else if (dz != 0.0) { axis = 2; d = dz; }
+        else return null;
+        double c = Math.clamp(d + pistonDeltas[axis], -0.51, 0.51);
+        double m = c - pistonDeltas[axis];
+        pistonDeltas[axis] = c;
+        if (Math.abs(m) <= 1.0E-5F) return null;
+        return new double[] {axis == 0 ? m : 0.0, axis == 1 ? m : 0.0, axis == 2 ? m : 0.0};
+    }
+
+    /** isSupportedBy: mainSupportingBlockPos 가 그 칸인가. */
+    public boolean isSupportedBy(Pos pos) { return supportingBlock != null && supportingBlock.equals(pos); }
+
+    /** getPistonPushReaction 이 IGNORE 인가(구름·표시·상호작용·마커·불길한 아이템 생성기·마커 갑옷 거치대). 기본 NORMAL. */
+    public boolean ignoresPistonPush() { return false; }
 
     // ------------------------------------------------------------------ 이동 방출(바닐라 Entity.move 의 MovementEmission 부분)
 

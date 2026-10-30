@@ -7,6 +7,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Interaction extends Entity {
+
+    /** getPistonPushReaction = IGNORE. */
+    @Override
+    public boolean ignoresPistonPush() { return true; }
+
     public static final int DATA_WIDTH = 8, DATA_HEIGHT = 9, DATA_RESPONSE = 10;
     private int[] attackPlayer, interactionPlayer;
     private long attackTime, interactionTime;

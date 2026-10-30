@@ -343,3 +343,8 @@
 - (C) 습격자 발광: GLOWING 효과는 붙지만 공유 플래그 6 이 켜지지 않아 클라이언트에 외곽선이 안 보였다. 바닐라 LivingEntity.isCurrentlyGlowing(효과 || 태그)과 updateGlowingStatus 를 넣었다. 차이: 바닐라는 effectsDirty 로 다음 tickEffects 에서 맞추고, 여기서는 효과가 바뀌는 그 자리에서 맞춘다(투명과 같은 방식). 패킷 도착이 한 틱 빠를 수 있다.
 - 종 → HIDE: 단위 시험으로 숨기 진입과 15초 뒤 해제를 확인했다. 숨을 집(HOME POI)이 없으면 SetHiddenState 가 끝나지 않아 계속 숨는다 — 바닐라도 같다.
 - 시험 서버에서는 플레이어나 /forceload 가 없으면 엔티티가 틱하지 않는다(바닐라 엔티티 틱 레벨과 같음).
+## 2026-10-28 피스톤·셜커 상자 엔티티 밀기 (감사 H4)
+- `PistonMovingBlockEntity.tick` 이 진행도를 올리기 전에 moveCollidedEntities·moveStuckEntities(꿀)를 바닐라 순서로 부른다. 밀 때 `NOCLIP`(ThreadLocal, region 스레드마다)로 그 방향으로 움직이는 칸의 충돌 모양을 받침만 남긴다. 슬라임은 미는 축 속도를 방향 단위값(±1)으로 바꾼 뒤 민다.
+- `Entity.move(MOVER_PISTON)` 은 limitPistonMovement(한 게임 틱 한 축 누적 ±0.51, 1e-5 이하는 안 움직임). getPistonPushReaction=IGNORE 는 `ignoresPistonPush()`(구름·표시·상호작용·마커·불길한 아이템 생성기·마커 갑옷 거치대).
+- 셜커 상자: 열리는 동안 뚜껑 띠 상자에 닿은 엔티티를 두께+0.01 만큼(MOVER_SHULKER_BOX). **고친 버그**: `Shulker.progressAabb` 의 contract 가 바닐라와 반대 방향이었다(셜커 엔티티 peek 밀기 상자도 틀렸었다). 셜커 엔티티는 SHULKER_BOX 이동에 순간이동(전에는 PISTON 에 잘못 걸려 있었다 — 피스톤은 셜커를 그냥 민다). 화살은 스스로가 아닌 이동 뒤 shouldFall 이면 떨어지고, 고정 액자는 밀리지 않는다.
+- **차이·한계**: (1) 플레이어는 레벨 엔티티가 아니고 위치를 클라이언트가 정해 서버는 밀지 않는다. 클라이언트가 같은 블록 엔티티로 스스로 밀린다. 바닐라도 피스톤 밀기에 따로 위치 보정 패킷을 보내지 않는다(슬라임 발사는 바닐라 서버도 ServerPlayer 를 건너뛴다). 바닐라는 일반 밀기에서 ServerPlayer 의 서버 위치를 옮기므로 다음 이동 패킷 전까지의 서버 쪽 위치만 다르다. (2) 엔티티는 블록 엔티티가 도는 region 레벨에 든 것만 본다. 붙은 region 은 합쳐지므로 다른 region 엔티티가 1칸 안에 있는 경우는 합치기 대기(pendingMerges) 중뿐이고, 그 동안은 밀리지 않는다(다른 스레드의 엔티티를 건드리지 않으며, 늦게 runAt 으로 미는 가짜도 만들지 않는다). (3) 바닐라 VoxelShape.toAabbs 는 상자를 합친 목록, Furnace 는 모양 데이터의 상자 목록 — 복잡한 모양에서 상자 분할이 다르면 깊이가 다를 수 있다(가정: 일반 블록은 같다). (4) 엔더 드래곤 파트는 목록에 없다.

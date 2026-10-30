@@ -5,6 +5,11 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public class Marker extends Entity {
+
+    /** getPistonPushReaction = IGNORE. */
+    @Override
+    public boolean ignoresPistonPush() { return true; }
+
     private NbtCompound data = new NbtCompound();
 
     public Marker(ChunkLevel level, int id) {
