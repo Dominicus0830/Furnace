@@ -198,4 +198,51 @@ class TotemAndProtectionTest {
         v.hurt(DamageType.GENERIC, 10f);
         assertEquals(20f - 10f * 0.8f * 0.84f, v.health(), 1.0e-4f);
     }
+
+    /** 내구도 1 남은 철 흉갑이 이 피해로 깨지면 깨진 뒤(방어 0)로 계산한다. */
+    @Test
+    void armorBreakingHitUsesArmorAfterBreak() {
+        ItemStack chest = item("minecraft:iron_chestplate", 1);
+        chest = ItemTools.withDamage(chest, ItemTools.maxDamage(chest) - 1);
+        player.inventory().set(6, chest);
+        assertEquals(6f, player.armorValue(), 0.0f);
+        v.hurt(DamageType.byKey("cactus"), 10f);
+        assertTrue(player.inventory().get(6).isEmpty(), "깨짐");
+        assertEquals(10f, v.health(), 1.0e-4f, "방어 0 으로 계산 → 경감 없음");
+        assertTrue(sawEvent(50), "가슴 칸 깨짐 이벤트");
+    }
+
+    /** arrow·trident(is_projectile): 발사체 보호 IV = 8, 가죽 신발 방어 1. */
+    @Test
+    void projectileProtection() {
+        float exp = CombatRules.getDamageAfterMagicAbsorb(CombatRules.getDamageAfterAbsorb(10f, 1f, 0f), 8f);
+        assertEquals(6.7456f, exp, 1.0e-4f);
+        for (String type : new String[] {"arrow", "trident"}) {
+            Player p = fresh(40 + type.length());
+            p.inventory().set(8, enchanted("minecraft:leather_boots", "minecraft:projectile_protection", 4));
+            p.vitals().hurt(DamageType.byKey(type), 10f);
+            assertEquals(20f - exp, p.vitals().health(), 1.0e-4f, type);
+        }
+        Player q = fresh(50);
+        q.inventory().set(8, enchanted("minecraft:leather_boots", "minecraft:projectile_protection", 4));
+        q.vitals().hurt(DamageType.byKey("cactus"), 10f);
+        assertEquals(20f - 9.92f, q.vitals().health(), 1.0e-4f, "발사체가 아니면 방어만");
+    }
+
+    /** in_fire(is_fire): 화염 보호 IV = 8. */
+    @Test
+    void fireProtection() {
+        player.inventory().set(5, enchanted("minecraft:leather_helmet", "minecraft:fire_protection", 4));
+        v.hurt(DamageType.byKey("in_fire"), 10f);
+        float exp = CombatRules.getDamageAfterMagicAbsorb(CombatRules.getDamageAfterAbsorb(10f, 1f, 0f), 8f);
+        assertEquals(20f - exp, v.health(), 1.0e-4f);
+    }
+
+    @Test
+    void usedTotemCopyKeepsCountBeforeShrink() {
+        PlayerInventory inv = player.inventory();
+        inv.set(inv.heldWindowSlot(), item("minecraft:totem_of_undying", 3));
+        v.hurt(DamageType.GENERIC, 100f);
+        assertEquals(2, inv.get(inv.heldWindowSlot()).count());
+    }
 }

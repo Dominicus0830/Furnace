@@ -507,8 +507,8 @@ public final class PlayerVitals {
     /** 바닐라 Player.actuallyHurt: 방어구(내구도 소모 후 CombatRules) → 저항 효과 → 보호 인챈트 → 흡수 → 소모 → 기록 → 체력. 몹과 같은 CombatRules. */
     private void actuallyHurt(DamageType type, float amount, Rider causing, Rider direct) {
         if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
+            player.hurtArmor(amount);   // 바닐라 순서: 내구도를 먼저 깎고(깨지면 빠진 뒤) 방어력을 읽는다
             float armor = player.armorValue(), toughness = player.armorToughness();
-            player.hurtArmor(amount);
             amount = CombatRules.getDamageAfterAbsorb(amount, armor, toughness);
         }
         amount = getDamageAfterMagicAbsorb(type, amount);
@@ -546,7 +546,7 @@ public final class PlayerVitals {
         for (int ws : new int[] {inv.heldWindowSlot(), 45}) {
             ItemStack s = inv.get(ws);
             if (!s.isEmpty() && "minecraft:totem_of_undying".equals(org.domi.furnace.server.item.ItemTools.itemName(s))) {
-                used = s.withCount(1);
+                used = s;   // 바닐라: 줄이기 전 스택 복사(개수 그대로)
                 inv.set(ws, s.withCount(s.count() - 1));
                 break;
             }

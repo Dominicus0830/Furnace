@@ -29,7 +29,7 @@ public final class CombatRules {
     }
 
     /**
-     * EnchantmentHelper.getDamageProtection: 방어구 칸(slots armor)마다 minecraft:damage_protection 효과를 더한다.
+     * EnchantmentHelper.getDamageProtection: 방어구 칸(slots armor = EquipmentSlot.isArmor: 머리·가슴·다리·발·BODY)마다 minecraft:damage_protection 효과를 더한다.
      * 1.21.1 데이터(enchantment/*.json): 모두 linear(base=b, per_level=b) 이고 조건은 bypasses_invulnerability 가 아닐 것 +
      * protection 1·is_fire 2(fire_protection)·is_explosion 2(blast)·is_projectile 2(projectile)·is_fall 3(feather_falling).
      * 가정: 데이터팩으로 바뀐 인챈트 정의는 반영하지 않는다.

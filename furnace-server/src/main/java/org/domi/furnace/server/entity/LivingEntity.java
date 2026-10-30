@@ -620,7 +620,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (amount <= 0.0F) return 0.0F;
         if (DamageType.keyHasTag(source.type(), "bypasses_enchantments")) return amount;
         float prot = org.domi.furnace.server.entity.damage.CombatRules.damageProtection(source.type(),
-                getItemBySlot(EquipmentSlot.HEAD), getItemBySlot(EquipmentSlot.CHEST), getItemBySlot(EquipmentSlot.LEGS), getItemBySlot(EquipmentSlot.FEET));
+                getItemBySlot(EquipmentSlot.HEAD), getItemBySlot(EquipmentSlot.CHEST), getItemBySlot(EquipmentSlot.LEGS), getItemBySlot(EquipmentSlot.FEET), getItemBySlot(EquipmentSlot.BODY));
         if (prot > 0.0F) amount = org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterMagicAbsorb(amount, prot);
         return amount;
     }
@@ -635,7 +635,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND}) {
             ItemStack s = getItemBySlot(slot);
             if (!s.isEmpty() && "minecraft:totem_of_undying".equals(org.domi.furnace.server.item.ItemTools.itemName(s))) {
-                used = s.withCount(1);
+                used = s;   // 바닐라: 줄이기 전 스택 복사
                 setItemSlot(slot, s.withCount(s.count() - 1));
                 break;
             }
