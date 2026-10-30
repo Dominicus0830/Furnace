@@ -359,3 +359,10 @@
 
 ## 2026-10-30 엔더의 눈 드롭 pickupDelay
 - 바닐라 80틱 드롭은 `new ItemEntity(...)` 만 쓰고 pickupDelay 를 건드리지 않는다(0). `setDefaultPickUpDelay()`(10) 호출을 제거했다. 눈의 `fireImmune` 재정의 제거(바닐라에 없음)와 함께 `EyeOfEnderTest` 로 고정.
+## 2026-10-30 생물끼리 밀기·maxEntityCramming (감사 "생물끼리 밀기")
+- `LivingEntity.pushEntities`(바닐라 btn.r)를 aiStep 끝에서 부른다. 난수 순서: 후보가 비지 않고 규칙 > 0 이고 크기 > 규칙-1 일 때만 `random.nextInt(4)`, 0 이면 탈것에 안 탄 수를 세어 넘치면 cramming 6 피해, 그다음 후보마다 `후보.push(나)`. 플레이어도 같은 흐름(Region.pushEntities, 난수는 `Player.random()`).
+- 후보 수집은 `PushScratch`(레벨당 하나 재사용)가 `EntityStore.forEachInNoCopy`(구역 인덱스, 구역별 임시 목록·람다 할당 없음)로 한다. 팀이 하나도 없으면(`Scoreboard.hasTeams`, volatile) 팀 조회를 건너뛴다. 엔티티는 같은 region(레벨) 것만 읽고 쓰고, 플레이어는 차원 전체를 읽기만 한다(쓰기 없음, 기존 forEachPlayerIn 선례). 관전 중인 플레이어도 바닐라처럼 후보가 있으면 굴림·cramming 판정을 돌고 밀기만 막힌다.
+- 후속 과제(성능): 플레이어 후보 수집이 `forEachPlayer` 전체 순회라 O(생물×플레이어)다. region 별 플레이어 공간 인덱스가 생기면 바꾼다.
+- 팀 충돌 규칙은 디컴파일 bsw.a 그대로: 내 규칙 never → 후보 없음, 상대 never → 제외, PUSH_OWN_TEAM 이고 같은 팀이면 제외, 그 밖에 PUSH_OTHER_TEAMS 가 끼면 같은 팀일 때만 허용. 이름과 뜻이 거꾸로 보이지만 디컴파일이 그렇다(가정: 확인은 디컴파일만).
+- 예외 엔티티를 바닐라에 맞춤: Bat(isPushable=false, pushEntities 비움), ArmorStand(isPushable=false, 거리² 0.2 이하 탈 수 있는 수레만 민다), AbstractHorse(`!isVehicle`).
+- **차이·한계**: (1) 플레이어는 레벨 엔티티가 아니라 후보 목록에서 엔티티 뒤에 붙는다(바닐라는 구역 순서). 속도 합산 순서가 달라 부동소수 마지막 자리가 다를 수 있다. (2) 플레이어끼리 미는 쪽 속도는 클라이언트 권위라 버린다(몹 쪽 몫만 적용). 크램밍 수에는 다른 플레이어도 센다. (3) 플레이어 isPushable 의 사다리 판정은 `Player.onClimbable` 필드를 쓴다. (4) `LivingEntity.push` 의 자동 회전 공격(riptide) 중 무시는 넣지 않았다(몹에는 해당 없음, 플레이어 쪽 속도는 어차피 버림). (5) Axolotl 죽은 척 중 isPushable 은 바닐라도 override 가 없어 그대로. (6) 다른 region 에 걸친 엔티티는 합치기 전까지 후보에서 빠진다.

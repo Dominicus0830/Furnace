@@ -222,6 +222,11 @@ public class Scoreboard {
 
     public synchronized PlayerTeam getPlayerTeam(String name) { return teamsByName.get(name); }
 
+    private volatile int teamCount;
+
+    /** 팀이 하나라도 있는가(락 없이 — 엔티티 밀기 같은 뜨거운 경로가 팀 조회를 건너뛰는 데 쓴다). */
+    public boolean hasTeams() { return teamCount > 0; }
+
     /** 바닐라 addPlayerTeam: 이미 있으면 그 팀(경고). */
     public synchronized PlayerTeam addPlayerTeam(String name) {
         PlayerTeam t = getPlayerTeam(name);
@@ -231,12 +236,14 @@ public class Scoreboard {
         }
         t = new PlayerTeam(this, name);
         teamsByName.put(name, t);
+        teamCount = teamsByName.size();
         onTeamAdded(t);
         return t;
     }
 
     public synchronized void removePlayerTeam(PlayerTeam team) {
         teamsByName.remove(team.name());
+        teamCount = teamsByName.size();
         for (String p : team.players()) teamsByPlayer.remove(p);
         onTeamRemoved(team);
     }

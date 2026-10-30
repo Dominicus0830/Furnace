@@ -45,6 +45,7 @@ public abstract non-sealed class Entity implements Rider {
         public static final Damage ON_FIRE = new Damage("on_fire", true, false, false);
         public static final Damage LAVA = new Damage("lava", true, false, false);
         public static final Damage HOT_FLOOR = new Damage("hot_floor", true, false, false);
+        public static final Damage CRAMMING = new Damage("cramming", false, false, false);
         public static final Damage CACTUS = new Damage("cactus", false, false, false);
         public static final Damage WITHER = new Damage("wither", false, false, false);
         public static final Damage SWEET_BERRY_BUSH = new Damage("sweet_berry_bush", false, false, false);
@@ -710,6 +711,34 @@ public abstract non-sealed class Entity implements Rider {
             if (!isVehicle() && isPushable()) push(-dx, 0.0, -dz);
             if (!e.isVehicle() && e.isPushable()) e.push(dx, 0.0, dz);
         }
+    }
+
+    /**
+     * 플레이어와 서로 미는 Entity.push 에서 내 몫(플레이어 쪽 속도는 클라이언트 권위라 버린다). 서버 상태는 이쪽만 바뀐다.
+     * 바닐라 push(other) 의 this=플레이어, other=나.
+     */
+    public void pushByPlayer(Player p) {
+        if (isPassengerOfSameVehicle(p) || noPhysics) return;
+        double dx = x - p.x(), dz = z - p.z();
+        double d = Math.max(Math.abs(dx), Math.abs(dz));
+        if (d >= 0.01F) {
+            d = Math.sqrt(d);
+            dx /= d;
+            dz /= d;
+            double f = 1.0 / d;
+            if (f > 1.0) f = 1.0;
+            dx *= f;
+            dz *= f;
+            dx *= 0.05F;
+            dz *= 0.05F;
+            if (!isVehicle() && isPushable()) push(dx, 0.0, dz);
+        }
+    }
+
+    /** Entity.getTeam: 점수판 이름(UUID 문자열)이 든 팀. 팀이 하나도 없으면 락 없이 null. */
+    public org.domi.furnace.server.scores.PlayerTeam getTeam() {
+        var b = level == null ? null : level.scoreboard();
+        return b == null || !b.hasTeams() ? null : b.getPlayersTeam(uuid.toString());
     }
 
     public void resetFallDistance() { fallDistance = 0.0F; }

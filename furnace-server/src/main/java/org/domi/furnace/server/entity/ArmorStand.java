@@ -16,6 +16,19 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class ArmorStand extends LivingEntity {
 
+    /** ArmorStand.isPushable = false. */
+    @Override public boolean isPushable() { return false; }
+
+    /** ArmorStand.pushEntities: 거리² 0.2 이하의 탈 수 있는 광산 수레만 민다. */
+    @Override
+    protected void pushEntities() {
+        if (level == null) return;
+        for (Entity e : level.getEntities(this, boundingBox(), en -> en instanceof AbstractMinecart m && m.getMinecartType() == AbstractMinecart.Type.RIDEABLE)) {
+            double dx = x() - e.x(), dy = y() - e.y(), dz = z() - e.z();
+            if (dx * dx + dy * dy + dz * dz <= 0.2) e.push(this);
+        }
+    }
+
     /** ArmorStand.thunderHit: 번개에 맞아도 아무 일 없다. */
     @Override
     public void thunderHit(org.domi.furnace.server.block.ChunkLevel level, LightningBolt bolt) {}

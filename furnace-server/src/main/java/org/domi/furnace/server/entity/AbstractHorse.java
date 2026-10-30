@@ -19,6 +19,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public abstract class AbstractHorse extends Animal {
+
+    /** AbstractHorse.isPushable: 누가 타고 있으면 밀리지 않는다. */
+    @Override public boolean isPushable() { return !isVehicle() && super.isPushable(); }
     public static final int DATA_ID_FLAGS = 17;
     public static final int FLAG_TAME = 2, FLAG_SADDLE = 4, FLAG_BRED = 8, FLAG_EATING = 16, FLAG_STANDING = 32, FLAG_OPEN_MOUTH = 64;
     private static final TargetingConditions MOMMY_TARGETING = TargetingConditions.forNonCombat().range(16.0).ignoreLineOfSight().selector(t -> t instanceof AbstractHorse h && h.isBred());

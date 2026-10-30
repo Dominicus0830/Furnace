@@ -758,6 +758,7 @@ public final class ServerCore {
         public boolean gameRule(String name) { return gameRules.getBoolean(name); }
         public int gameRuleInt(String name) { return gameRules.getInt(name); }
         public int difficulty() { return levelData.difficulty.id(); }
+        public org.domi.furnace.server.scores.Scoreboard scoreboard() { return scoreboard; }
         public boolean worldAdventure() { return levelData.gameType == org.domi.furnace.server.world.GameMode.ADVENTURE; }
         public void runSignCommand(Player player, int x, int y, int z, String command) {
             scheduler().global().execute(() -> commands().performPrefixedCommand(

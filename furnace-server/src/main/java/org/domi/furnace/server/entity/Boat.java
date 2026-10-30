@@ -509,6 +509,12 @@ public class Boat extends Entity {
         }
     }
 
+    /** 플레이어가 미는 쪽: 플레이어 밑면이 내 밑면 이하일 때만. */
+    @Override
+    public void pushByPlayer(Player p) {
+        if (p.boundingBox().minY() <= boundingBox().minY()) super.pushByPlayer(p);
+    }
+
     /** interact: 웅크리면 넘기고, 물에 잠긴 지 60 틱 안이면 탄다. TODO(끈): Leashable 상호작용. */
     public boolean interact(Player p, int hand) {
         if (p.sneaking()) return false;

@@ -45,6 +45,7 @@ public final class DamageType {
     public static final DamageType DROWN = require("drown");
     public static final DamageType OUTSIDE_BORDER = require("outside_border");
     public static final DamageType IN_WALL = require("in_wall");
+    public static final DamageType CRAMMING = require("cramming");
     public static final DamageType MAGIC = require("magic");
     public static final DamageType MOB_ATTACK = require("mob_attack");
     public static final DamageType PLAYER_ATTACK = require("player_attack");
