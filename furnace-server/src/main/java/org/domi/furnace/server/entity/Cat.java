@@ -422,7 +422,7 @@ public class Cat extends TamableAnimal {
 
         private void giveMorningGift() {
             var random = cat.random();
-            var pos = cat.blockPosition();
+            var pos = cat.isPassenger() ? cat.vehicle().blockPosition() : cat.blockPosition();
             cat.randomTeleport(pos.x() + random.nextInt(11) - 5, pos.y() + random.nextInt(5) - 2, pos.z() + random.nextInt(11) - 5, false);
             var at = cat.blockPosition();
             var level = cat.level();

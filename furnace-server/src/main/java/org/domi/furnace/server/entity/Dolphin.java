@@ -422,7 +422,7 @@ public class Dolphin extends WaterAnimal {
         public void tick() {
             boolean flag = moving(following);
             float f = currentGoal == Mode.IN_BOAT_DIRECTION ? (flag ? 0.01F : 0.0F) : 0.015F;
-            mob.moveRelative(f, mob.getXxa(), 0.0F, mob.getZza());
+            mob.moveRelative(f, mob.getXxa(), mob.getYya(), mob.getZza());
             mob.move(Entity.MOVER_SELF, mob.vx(), mob.vy(), mob.vz());
             if (--timeToRecalcPath <= 0) {
                 timeToRecalcPath = adjustedTickDelay(10);
