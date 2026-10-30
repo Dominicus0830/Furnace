@@ -1,5 +1,6 @@
 // LivingEntity.pushEntities 의 후보 수집기(EntitySelector.pushableBy). 레벨마다 하나를 재사용해 틱당 할당이 없다.
-// 같은 region(레벨)의 엔티티·플레이어만 만진다 — 레벨은 한 번에 한 region 스레드만 돌린다.
+// 엔티티는 같은 region(레벨) 것만 읽고 쓴다 — 레벨은 한 번에 한 region 스레드만 돌린다.
+// 플레이어는 차원 전체를 읽기만 한다(쓰기 없음, 기존 forEachPlayerIn 선례).
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;
@@ -74,6 +75,22 @@ public final class PushScratch {
     /** 플레이어 pusher 가 후보 엔티티마다 후보.push(플레이어). */
     public void pushAllBy(Player pusher) {
         for (int i = 0, c = entities.size(); i < c; i++) entities.get(i).pushByPlayer(pusher);
+    }
+
+    /**
+     * 플레이어의 pushEntities(Region 이 부른다). 바닐라는 자기 관전 여부를 보지 않고 후보가 있으면 굴림·cramming 판정을 돈다.
+     * 밀기만 관전자(noPhysics)면 막힌다.
+     */
+    public void pushFor(ChunkLevel level, Player p) {
+        collect(level, p, p.boundingBox());
+        int n = size();
+        if (n == 0) { clear(); return; }
+        int rule = level.gameRuleInt("maxEntityCramming");
+        if (rule > 0 && n > rule - 1 && p.random().nextInt(4) == 0) {
+            if (countNonPassengers() > rule - 1) p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.CRAMMING, 6.0F);
+        }
+        if (!p.isSpectator()) pushAllBy(p);
+        clear();
     }
 
     public void clear() {

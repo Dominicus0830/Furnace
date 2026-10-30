@@ -1043,17 +1043,8 @@ public final class Region {
      */
     private void pushEntities(Player p) {
         if (level == null) return;
-        if (p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
-        var s = level.pushScratch;
-        s.collect(level, p, p.boundingBox());
-        int n = s.size();
-        if (n == 0) return;
-        int rule = level.gameRuleInt("maxEntityCramming");
-        if (rule > 0 && n > rule - 1 && p.random().nextInt(4) == 0) {
-            if (s.countNonPassengers() > rule - 1) p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.CRAMMING, 6.0F);
-        }
-        s.pushAllBy(p);
-        s.clear();
+        if (p.vitals().health() <= 0.0F) return;
+        level.pushScratch.pushFor(level, p);
     }
 
     private void touchEntities(Player p) {

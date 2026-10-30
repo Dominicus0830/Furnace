@@ -10,6 +10,7 @@ import org.domi.furnace.server.block.LegacyRandomSource;
 import org.domi.furnace.server.block.LevelServices;
 import org.domi.furnace.server.scores.PlayerTeam.CollisionRule;
 import org.domi.furnace.server.scores.Scoreboard;
+import org.domi.furnace.server.world.GameMode;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -214,6 +215,57 @@ class PushEntitiesTest {
         level.board.removePlayerFromTeam(b.uuid().toString());   // 다른 팀(없음) + 내 규칙 OTHER → 거짓
         a.pushEntities();
         assertEquals(0.0, b.vx(), 0.0);
+    }
+
+    private static Player player(GameMode mode) {
+        var p = new Player(7, java.util.UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, mode, false);
+        p.applyMove(0.5, -60, 0.5, 0, 0, true);
+        return p;
+    }
+
+    @Test
+    void playerPathPushesMobAwayByHandComputedAmount() {
+        var level = new Arena();
+        Cow c = cow(level, 0.8, 0.5);
+        level.pushScratch.pushFor(level, player(GameMode.SURVIVAL));
+        // pushByPlayer: dx = 0.8 - 0.5 = 0.3, d = sqrt(0.3), dx/d = sqrt(0.3), 1/d > 1 → 1, 곱 0.05F.
+        assertEquals(Math.sqrt(0.3) * (double) 0.05F, c.vx(), 1e-12);
+        assertEquals(0.0, c.vz(), 0.0);
+    }
+
+    @Test
+    void spectatorPlayerStillRollsButDoesNotPush() {
+        var level = new Arena();
+        level.cramming = 2;
+        Cow c = cow(level, 0.8, 0.5);
+        cow(level, 0.7, 0.5);
+        Player p = player(GameMode.SPECTATOR);
+        long sd = seedWithFirstNextInt4(false);
+        ((LegacyRandomSource) p.random()).setSeed(sd);
+        level.pushScratch.pushFor(level, p);   // 후보 2 > 1 → 관전자여도 굴린다
+        var ref = new LegacyRandomSource(sd);
+        ref.nextInt(4);
+        assertEquals(ref.nextInt(4), p.random().nextInt(4));
+        assertEquals(0.0, c.vx(), 0.0);   // 밀기는 막힌다
+    }
+
+    @Test
+    void armorStandPushesRideableMinecartWithinSqrt02Only() {
+        var level = new Arena();
+        ArmorStand stand = new ArmorStand(level, level.nextEntityId());
+        stand.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(stand);
+        Minecart near = new Minecart(level, level.nextEntityId()), far = new Minecart(level, level.nextEntityId());
+        near.moveTo(0.5, -60, 0.6, 0, 0);   // 거리² 0.01
+        far.moveTo(0.5, -60, 1.0, 0, 0);    // 거리² 0.25 > 0.2
+        level.addFreshEntity(near);
+        level.addFreshEntity(far);
+        stand.pushEntities();
+        assertTrue(near.vx() != 0.0 || near.vz() != 0.0);
+        assertEquals(0.0, far.vx(), 0.0);
+        assertEquals(0.0, far.vz(), 0.0);
     }
 
     @Test
