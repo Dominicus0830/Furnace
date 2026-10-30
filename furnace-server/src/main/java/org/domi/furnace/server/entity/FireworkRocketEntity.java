@@ -190,4 +190,8 @@ public class FireworkRocketEntity extends Projectile {
         entityData.set(DATA_ID_FIREWORKS_ITEM, tag.tags().get("FireworksItem") instanceof NbtCompound c ? ItemStackNbt.read(c) : defaultItem());
         if (tag.contains("ShotAtAngle")) setShotAtAngle(tag.getBoolean("ShotAtAngle"));
     }
+
+    /** 폭죽은 속도가 아니라 대상 위치 − 폭죽 위치. */
+    @Override
+    public double[] hurtKnockbackDirection(Targetable target) { return new double[] {target.x() - x(), target.z() - z()}; }
 }

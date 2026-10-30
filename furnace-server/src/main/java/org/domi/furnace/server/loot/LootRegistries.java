@@ -39,6 +39,9 @@ public final class LootRegistries {
         return l == null ? List.of() : l;
     }
 
+    /** 태그 이름들(동기화 레지스트리만). */
+    public java.util.Set<String> tagNames(String registry) { return tags.getOrDefault(registry, Map.of()).keySet(); }
+
     public boolean hasTag(String registry, String tag) {
         Map<String, List<String>> t = tags.get(registry);
         return t != null && t.containsKey(LootJson.id(tag));

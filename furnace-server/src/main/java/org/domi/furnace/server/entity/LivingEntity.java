@@ -91,6 +91,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public float getStepHeight() { return (float) attributeValue(Attribute.STEP_HEIGHT); }
 
+    /** LivingEntity.maxUpStep: 플레이어가 조종하면 최소 1칸. */
+    @Override
+    public float maxUpStep() {
+        float f = getStepHeight();
+        return getControllingPassenger() instanceof Player ? Math.max(f, 1.0F) : f;
+    }
+
     /** 서버가 AI 를 돌리는 쪽인가(isEffectiveAi — 서버에서는 항상). */
     protected boolean isEffectiveAi() { return true; }
 
@@ -238,13 +245,16 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 lastHurtByPlayer = wolf.getOwner();
             }
         }
-        if (fresh && (attacker != null || pendingDirect != null || pendingPos != null) && !DamageType.byKey(source.type()).noKnockback()) {
-            // getSourcePosition: 명시 위치 → 직접 엔티티 → (근사) 때린 쪽
-            double dx = (pendingPos != null ? pendingPos[0] : pendingDirect != null ? pendingDirect.x() : attacker.x()) - x();
-            double dz = (pendingPos != null ? pendingPos[2] : pendingDirect != null ? pendingDirect.z() : attacker.z()) - z();
-            while (dx * dx + dz * dz < 1.0E-4) {
-                dx = (random.nextDouble() - random.nextDouble()) * 0.01;
-                dz = (random.nextDouble() - random.nextDouble()) * 0.01;
+        if (fresh && !DamageType.byKey(source.type()).noKnockback()) {
+            // 직접 원인이 투사체면 -calculateHorizontalHurtKnockbackDirection, 아니면 getSourcePosition − 자기 위치, 원인 없음은 (0, 0)
+            double dx = 0.0, dz = 0.0;
+            if (pendingDirect instanceof Projectile pr) {
+                double[] d = pr.hurtKnockbackDirection(this);
+                dx = -d[0];
+                dz = -d[1];
+            } else if (pendingPos != null || pendingDirect != null || attacker != null) {
+                dx = (pendingPos != null ? pendingPos[0] : pendingDirect != null ? pendingDirect.x() : attacker.x()) - x();
+                dz = (pendingPos != null ? pendingPos[2] : pendingDirect != null ? pendingDirect.z() : attacker.z()) - z();
             }
             knockback(0.4F, dx, dz);
         }
@@ -646,6 +656,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
         strength *= 1.0 - attributeValue(Attribute.KNOCKBACK_RESISTANCE);
         if (strength <= 0.0) return;
         hasImpulse = true;
+        // 방향이 거의 0 이면 Math.random 으로 다시 뽑는다(엔티티 난수는 쓰지 않는다)
+        while (dx * dx + dz * dz < 1.0E-5F) {
+            dx = (Math.random() - Math.random()) * 0.01;
+            dz = (Math.random() - Math.random()) * 0.01;
+        }
         double len = Math.sqrt(dx * dx + dz * dz);
         double nx = len < 1.0E-5 ? 0.0 : dx / len * strength, nz = len < 1.0E-5 ? 0.0 : dz / len * strength;
         setDeltaMovement(vx() / 2.0 - nx, onGround() ? Math.min(0.4, vy() / 2.0 + strength) : vy(), vz() / 2.0 - nz);
@@ -724,7 +739,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     protected boolean isAlwaysExperienceDropper() { return false; }
 
-    protected boolean shouldDropExperience() { return true; }
+    /** LivingEntity.shouldDropExperience: 아기는 경험치(촉매 전하 포함)를 주지 않는다. */
+    protected boolean shouldDropExperience() { return !isBaby(); }
 
     /** getExperienceReward: 종류별 기본 경험치. */
     protected int getExperienceReward() { return 0; }

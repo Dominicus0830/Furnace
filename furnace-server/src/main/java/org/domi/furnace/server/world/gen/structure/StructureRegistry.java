@@ -99,6 +99,12 @@ public final class StructureRegistry {
     /** StructurePlacement.locateOffset(기본 0,0,0). */
     public int[] locateOffset(String setId) { return locateOffsets.getOrDefault(setId, new int[3]); }
 
+    /** 바닐라 1.21.1 worldgen/structure 태그 이름(data/minecraft/tags/worldgen/structure). */
+    public static final List<String> STRUCTURE_TAG_NAMES = List.of(
+        "cats_spawn_as_black", "cats_spawn_in", "dolphin_located", "eye_of_ender_located", "mineshaft", "ocean_ruin",
+        "on_ocean_explorer_maps", "on_treasure_maps", "on_trial_chambers_maps", "on_woodland_explorer_maps", "ruined_portal",
+        "shipwreck", "village");
+
     /** 구조물 태그(worldgen/structure 태그)의 구조물 id 목록(파일 순서, 중첩 태그 펼침). 없는 태그면 null. */
     public static List<String> structureTag(String tag) {
         String ns = tag.contains(":") ? tag.substring(0, tag.indexOf(':')) : "minecraft";

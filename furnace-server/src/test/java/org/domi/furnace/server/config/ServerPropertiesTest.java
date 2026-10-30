@@ -31,7 +31,7 @@ class ServerPropertiesTest {
             "region-file-compression=deflate", "require-resource-pack=false", "resource-pack=", "resource-pack-id=",
             "resource-pack-prompt=", "resource-pack-sha1=", "server-ip=", "server-port=25565",
             "simulation-distance=10", "spawn-animals=true", "spawn-monsters=true", "spawn-npcs=true",
-            "spawn-protection=16", "sync-chunk-writes=true", "text-filtering-config=", "use-native-transport=true",
+            "spawn-protection=16", "sync-chunk-writes=false", "text-filtering-config=", "use-native-transport=true",
             "view-distance=10", "white-list=false");
 
     @Test

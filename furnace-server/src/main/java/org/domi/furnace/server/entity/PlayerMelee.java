@@ -152,13 +152,8 @@ public final class PlayerMelee {
             victim.shieldLevel = level;
             boolean r = victim.vitals().hurt(DamageType.PLAYER_ATTACK, amount, p, victim.shieldSource(DamageType.PLAYER_ATTACK.key(), p, null));
             if (victim.vitals().lastHurtFresh) {
-                double dx = p.x() - victim.x(), dz = p.z() - victim.z();
-                var rnd = victim.random();
-                while (dx * dx + dz * dz < 1.0E-4) {
-                    dx = (rnd.nextDouble() - rnd.nextDouble()) * 0.01;
-                    dz = (rnd.nextDouble() - rnd.nextDouble()) * 0.01;
-                }
-                victim.knockback(0.4F, dx, dz);
+                // 방향이 거의 0 일 때의 보정은 knockback 안에서(엔티티 난수 소비 없음)
+                victim.knockback(0.4F, p.x() - victim.x(), p.z() - victim.z());
             }
             return r;
         }

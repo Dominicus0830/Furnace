@@ -72,6 +72,32 @@ public final class ResourceOrTagKeyArgument implements ArgumentType<ResourceOrTa
         return r;
     }
 
+    /**
+     * 바닐라 제안(ResourceOrTagArgument.listSuggestions, ResourceOrTagKeyArgument → CommandSourceStack.suggestRegistryElements(ALL)):
+     * 태그를 "#" 접두로, 그다음 엔트리를 suggestResource 로. 레지스트리가 없으면 빈 제안. 클라이언트가 레지스트리를 모르면
+     * (worldgen/structure 등) 서버에 묻는다 — 그 응답이 이것이다.
+     */
+    @Override
+    public <S> java.util.concurrent.CompletableFuture<org.domi.furnace.server.command.brigadier.Suggestions> listSuggestions(
+            CommandContext<S> context, org.domi.furnace.server.command.brigadier.SuggestionsBuilder builder) {
+        if (!(context.getSource() instanceof CommandSource cs)) return builder.buildFuture();
+        List<ResourceId> tags = new java.util.ArrayList<>(), elements = new java.util.ArrayList<>();
+        if (registry.equals("minecraft:worldgen/structure")) {
+            for (String t : org.domi.furnace.server.world.gen.structure.StructureRegistry.STRUCTURE_TAG_NAMES) tags.add(ResourceId.parse("minecraft:" + t));
+            for (String e : org.domi.furnace.server.world.gen.structure.StructureRegistry.structureJsons().keySet()) elements.add(ResourceId.parse(e));
+        } else {
+            var dp = cs.getServer() == null ? null : cs.getServer().dataPacks();
+            if (dp == null || dp.loot() == null) return org.domi.furnace.server.command.brigadier.Suggestions.empty();
+            var regs = dp.loot().registries();
+            List<String> names = regs.entries(registry);
+            if (names.isEmpty()) return org.domi.furnace.server.command.brigadier.Suggestions.empty();
+            for (String t : regs.tagNames(registry)) tags.add(ResourceId.parse(t));
+            for (String e : names) elements.add(ResourceId.parse(e));
+        }
+        org.domi.furnace.server.command.SharedSuggestions.suggestResource(tags, builder, "#");
+        return org.domi.furnace.server.command.SharedSuggestions.suggestResource(elements, builder);
+    }
+
     @Override
     public Collection<String> getExamples() { return List.of("foo", "foo:bar", "012", "#skeletons", "#minecraft:skeletons"); }
 

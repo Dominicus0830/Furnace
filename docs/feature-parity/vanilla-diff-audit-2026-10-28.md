@@ -41,3 +41,12 @@
 ## 주의
 - 파일 머리의 TODO 주석 상당수가 낡았다(실제로는 구현됨). 주석만 믿고 판단하지 말 것.
 - 일부 항목은 기존 알려짐(roadmap·user-todo·context-notes) — 새 발견은 L3(`active_effects`), L4~L6, 블록 H2·H5~H9, 게임룰 9종, swing/light_update, 선택자 스텁, `/kick`.
+
+## 후속 처리: 몹 목표 누락(M3~M6) — 2026-10-28
+- 추가: 좀비 계열 4 `ZombieAttackTurtleEggGoal`(새 기반 `RemoveBlockGoal`), 6 `MoveThroughVillageGoal`(새 기반), 타깃 3 철 골렘·5 땅 위 아기 거북, HurtBy `alertOthers(ZombifiedPiglin)`; Drowned 타깃 3 아홀로틀(Drowned·ZombifiedPiglin 도 바닐라처럼 4번 거북 알 목표를 물려받음).
+- 추가: Spider 2 아르마딜로 회피·타깃 3 철 골렘, AbstractSkeleton 타깃 3 철 골렘·아기 거북, Slime 타깃 3 철 골렘, Wolf 3 라마 회피(`WolfAvoidEntityGoal`)·타깃 6 아기 거북·7 해골류, Rabbit 4 늑대 회피·킬러 토끼 타깃 2 늑대, Cat·Ocelot 타깃 1 아기 거북, PolarBear 타깃 4 여우, Enderman 타깃 3 엔더마이트, Guardian 선택자 아홀로틀.
+- 추가: IronGolem 타깃 1 `DefendVillageTargetGoal`, `MoveBackToVillageGoal`·`GolemRandomStrollInVillageGoal` 바닐라 본문(POI·주민 기반, LandRandomPos).
+- 추가: Witch 타깃 1 `HurtByTargetGoal(Raider)`, 2 `NearestHealableRaiderTargetGoal`, 3 `NearestAttackableWitchTargetGoal`(치료 쿨다운 동안 플레이어 타깃 끔).
+- 부수 수정: `MoveToBlockGoal.start` 의 maxStayTicks 가 `nextInt(nextInt(1200)+1)` 이던 것을 바닐라 `nextInt(nextInt(1200)+1200)` 로(이 기반을 쓰는 모든 몹의 난수 소비가 바뀜). 좀비·드라운드의 주민 타깃을 AbstractVillager 범위(떠돌이 상인 포함)로.
+- 보류: M8 Cat 3종(침대·블록 앉기·주인 위), M9 Dolphin 3종, M10 Fox 마을 산책·가루눈, M11 Parrot 어깨 — 이번 작업 범위 밖(시간), 표는 그대로.
+- 남은 차이: 다른 몹(Vex·Illager 등)의 AbstractVillager 타깃은 확인 안 함. Turtle 귀가 목표가 바닐라 `DefaultRandomPos`(PI/10) 대신 `LandRandomPos` 를 씀(별도 확인 필요).

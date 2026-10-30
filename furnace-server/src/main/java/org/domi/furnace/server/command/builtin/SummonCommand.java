@@ -90,7 +90,8 @@ public final class SummonCommand {
             for (var r : riders) if (r instanceof Entity pe) pe.moveTo(pos[0], pos[1], pos[2], pe.yRot(), pe.xRot());
             if (randomizeProperties && e instanceof Mob mob) {
                 if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND);
-                mob.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()));
+                // 바닐라 finalizeSpawn(level, difficulty, COMMAND, null): 무리 데이터 경로라야 말 능력치·아기 판정까지 돈다
+                mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
             }
             if (!level.addFreshEntityWithPassengers(e)) throw ERROR_DUPLICATE_UUID.create();
             return e;

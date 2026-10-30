@@ -1,4 +1,4 @@
-// 바닐라 Witch: 물약을 던져 공격하고(대상 상황에 맞는 물약), 불·물·체력에 따라 물약을 마신다. 피해 감소(자기 피해 0, 마법 ×0.15). TODO: 습격 연동 목표(치료 대상).
+// 바닐라 Witch: 물약을 던져 공격하고(대상 상황에 맞는 물약), 불·물·체력에 따라 물약을 마신다. 피해 감소(자기 피해 0, 마법 ×0.15).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -17,7 +17,8 @@ public class Witch extends Raider implements RangedAttackMob {
     private static final String SPEED_MODIFIER_DRINKING_ID = "minecraft:drinking";
     private static final AttributeModifier SPEED_MODIFIER_DRINKING = new AttributeModifier(SPEED_MODIFIER_DRINKING_ID, -0.25, AttributeModifier.ADD_VALUE);
     private int usingTime;
-    private NearestAttackableTargetGoal attackPlayersGoal;
+    private NearestHealableRaiderTargetGoal healRaidersGoal;
+    private NearestAttackableWitchTargetGoal attackPlayersGoal;
 
     public Witch(ChunkLevel level, int id) { super(EntityType.WITCH, level, id); }
 
@@ -36,14 +37,15 @@ public class Witch extends Raider implements RangedAttackMob {
     @Override
     protected void registerGoals() {
         super.registerGoals();
-        attackPlayersGoal = new NearestAttackableTargetGoal(this, Player.class, 10, true, false, null);
+        healRaidersGoal = new NearestHealableRaiderTargetGoal(this, Raider.class, true, t -> t != null && hasActiveRaid() && ((Entity) t).type() != EntityType.WITCH);
+        attackPlayersGoal = new NearestAttackableWitchTargetGoal(this, Player.class, 10, true, false, null);
         goalSelector.addGoal(1, new FloatGoal(this));
         goalSelector.addGoal(2, new RangedAttackGoal(this, 1.0, 60, 10.0F));
         goalSelector.addGoal(2, new WaterAvoidingRandomStrollGoal(this, 1.0));
         goalSelector.addGoal(3, new LookAtPlayerGoal(this, 8.0F));
         goalSelector.addGoal(3, new RandomLookAroundGoal(this));
-        targetSelector.addGoal(1, new HurtByTargetGoal(this));
-        // TODO(습격): targetSelector 2 = 치료 대상 습격자(NearestHealableRaiderTargetGoal)
+        targetSelector.addGoal(1, new HurtByTargetGoal(this, Raider.class));
+        targetSelector.addGoal(2, healRaidersGoal);
         targetSelector.addGoal(3, attackPlayersGoal);
     }
 
@@ -65,6 +67,8 @@ public class Witch extends Raider implements RangedAttackMob {
     @Override
     protected void aiStep() {
         if (isAlive()) {
+            healRaidersGoal.decrementCooldown();
+            attackPlayersGoal.setCanAttack(healRaidersGoal.getCooldown() <= 0);
             if (isDrinkingPotion()) {
                 if (usingTime-- <= 0) {
                     setUsingItemFlag(false);
@@ -158,4 +162,46 @@ public class Witch extends Raider implements RangedAttackMob {
     }
 
     @Override public String getCelebrateSound() { return "entity.witch.celebrate"; }
+
+    /** 바닐라 NearestHealableRaiderTargetGoal: 습격 중일 때 반반 확률로 습격자 동료를 대상(치료)으로 삼고 200틱 쉰다. */
+    static final class NearestHealableRaiderTargetGoal extends NearestAttackableTargetGoal {
+        private static final int DEFAULT_COOLDOWN = 200;
+        private int cooldown = 0;
+
+        NearestHealableRaiderTargetGoal(Raider mob, Class<?> type, boolean mustSee, java.util.function.Predicate<Targetable> selector) {
+            super(mob, type, 500, mustSee, false, selector);
+        }
+
+        int getCooldown() { return cooldown; }
+
+        void decrementCooldown() { cooldown--; }
+
+        @Override
+        public boolean canUse() {
+            if (cooldown > 0 || !mob.random().nextBoolean()) return false;
+            if (!((Raider) mob).hasActiveRaid()) return false;
+            findTarget();
+            return target != null;
+        }
+
+        @Override
+        public void start() {
+            cooldown = reducedTickDelay(DEFAULT_COOLDOWN);
+            super.start();
+        }
+    }
+
+    /** 바닐라 NearestAttackableWitchTargetGoal: 치료 쿨다운 중에는 플레이어를 노리지 않는다. */
+    static final class NearestAttackableWitchTargetGoal extends NearestAttackableTargetGoal {
+        private boolean canAttack = true;
+
+        NearestAttackableWitchTargetGoal(Raider mob, Class<?> type, int interval, boolean mustSee, boolean mustReach, java.util.function.Predicate<Targetable> selector) {
+            super(mob, type, interval, mustSee, mustReach, selector);
+        }
+
+        void setCanAttack(boolean v) { canAttack = v; }
+
+        @Override
+        public boolean canUse() { return canAttack && super.canUse(); }
+    }
 }
