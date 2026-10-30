@@ -13,7 +13,9 @@ public abstract class Behavior<E extends Mob> implements BehaviorControl<E> {
     private Status status = Status.STOPPED;
     // 바닐라는 endTimestamp = gameTime + 지속시간 으로 끈다. Furnace 는 region 틱과 전역 gameTime 이 따로 가서
     // (기억 TTL 은 브레인 틱마다 줄고 gameTime 은 전역 스레드가 올림) 둘이 어긋나면 SonicBoom 처럼 기억과 지속시간이
-    // 1틱 차이로 맞물린 행동이 두 번 발동한다. 그래서 시작 뒤 지난 브레인 틱 수로 잰다(엔티티가 매 gameTime 틱마다 도는 바닐라와 같은 값).
+    // 1틱 차이로 맞물린 행동이 두 번 발동한다. 그래서 시작 뒤 지난 브레인 틱 수로 잰다.
+    // 바닐라와 같은 값은 엔티티가 매 틱 브레인을 돌 때뿐이다. 엔티티가 틱을 건너뛰는 동안(NoAI 토글, lazy 청크,
+    // region 이동 공백) gameTime 만 흐르면 바닐라는 재개 즉시 시간 초과로 멈추지만 여기서는 남은 틱만큼 계속한다(의도한 차이).
     private long duration, elapsed;
     private final int minDuration, maxDuration;
 

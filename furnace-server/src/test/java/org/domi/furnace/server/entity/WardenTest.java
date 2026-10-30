@@ -194,7 +194,11 @@ class WardenTest {
         return events;
     }
 
-    /** 사용자 버그 T6: 가까운 대상 — 음파 한 번(시작 35틱 뒤) 뒤에는 근접 공격이 19틱마다 이어지고(타격마다 음파 대기 40) 음파는 다시 안 나온다. */
+    /**
+     * 바닐라 출처(1.21.1 디컴파일 SonicBoom=bzh): 지속 ceil(60)=60, 발사 지연 ceil(34)=34, 소리 대기 60-34=26, 종료 쿨다운 40,
+     * 시작 시 ATTACK_COOLING_DOWN 60. WardenAi FIGHT 목록은 SonicBoom 다음 MeleeAttack.create(18), Warden.doHurtTarget 은 음파 쿨다운 40.
+     * 시작 틱 1 → 소리 대기 34 가 지난 틱 36 에 발사. 근접은 ATTACK_COOLING_DOWN 18 이 풀리는 데 19 브레인 틱(기억은 TTL 0 다음 틱에 지워짐).
+     * 사용자 버그 T6: 가까운 대상 — 음파 한 번(시작 35틱 뒤) 뒤에는 근접 공격이 19틱마다 이어지고(타격마다 음파 대기 40) 음파는 다시 안 나온다. */
     @Test
     void sonicBoomOnceThenMeleeWhenTargetIsNear() {
         List<String> ev = fightNear(400, t -> true);
