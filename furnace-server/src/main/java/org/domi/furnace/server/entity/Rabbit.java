@@ -53,7 +53,7 @@ public class Rabbit extends Animal {
         goalSelector.addGoal(2, new BreedGoal(this, 0.8));
         goalSelector.addGoal(3, new TemptGoal(this, 1.0, s -> ItemTags.is(s, "minecraft:rabbit_food"), false));
         goalSelector.addGoal(4, new RabbitAvoidEntityGoal(this, Player.class, 8.0F, 2.2, 2.2));
-        // TODO(늑대): goalSelector 4 = Wolf 에게서 도망(10칸)
+        goalSelector.addGoal(4, new RabbitAvoidEntityGoal(this, Wolf.class, 10.0F, 2.2, 2.2));
         goalSelector.addGoal(4, new RabbitAvoidEntityGoal(this, Monster.class, 4.0F, 2.2, 2.2));
         goalSelector.addGoal(5, new RaidGardenGoal(this));
         goalSelector.addGoal(6, new WaterAvoidingRandomStrollGoal(this, 0.6));
@@ -193,7 +193,7 @@ public class Rabbit extends Animal {
             goalSelector.addGoal(4, new MeleeAttackGoal(this, 1.4, true));
             targetSelector.addGoal(1, new HurtByTargetGoal(this).setAlertOthers());
             targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, true));
-            // TODO(늑대): targetSelector 2 = Wolf
+            targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Wolf.class, true));
             attributes().get(Attribute.ATTACK_DAMAGE).addOrReplaceModifier(new AttributeModifier(EVIL_ATTACK_MODIFIER, 5.0, AttributeModifier.ADD_VALUE));
         } else {
             attributes().get(Attribute.ATTACK_DAMAGE).removeModifier(EVIL_ATTACK_MODIFIER);

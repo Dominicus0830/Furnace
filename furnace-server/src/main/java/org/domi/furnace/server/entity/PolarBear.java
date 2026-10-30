@@ -1,4 +1,4 @@
-// 바닐라 PolarBear: 새끼 곁에서는 적대적(NeutralMob), 맞으면 분노. 일어서서 경고하다 문다. TODO: 여우 사냥.
+// 바닐라 PolarBear: 새끼 곁에서는 적대적(NeutralMob), 맞으면 분노. 일어서서 경고하다 문다. 여우도 사냥한다.
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -53,7 +53,7 @@ public class PolarBear extends Animal implements NeutralMob {
         targetSelector.addGoal(1, new PolarBearHurtByTargetGoal());
         targetSelector.addGoal(2, new PolarBearAttackPlayersGoal());
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Player.class, 10, true, false, t -> isAngryAt(t)));
-        // TODO(여우): targetSelector 4 = Fox(10, mustSee, mustReach)
+        targetSelector.addGoal(4, new NearestAttackableTargetGoal(this, Fox.class, 10, true, true, null));
         targetSelector.addGoal(5, new ResetUniversalAngerTargetGoal<>(this, false));
     }
 

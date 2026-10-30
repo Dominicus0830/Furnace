@@ -107,6 +107,58 @@ class NetherPortalTravelTest {
         assertFalse(B.is(over.getBlockState(new Pos(84, -61, 84)), "minecraft:obsidian"), "새 지옥문을 만들지 않았다");
     }
 
+    /** 산 것은 깊이 오프셋을 0 으로(LivingEntity.getRelativePortalPosition) — x 축 포털: 폭(x) 상대 위치는 보존, z 는 출구 가운데. */
+    @Test
+    void livingEntityArrivesAtPortalDepthCenter_xAxis() {
+        var l = levels();
+        var over = l[0];
+        var nether = l[1];
+        portalColumn(over, 85, -60, 85);
+        portalColumn(over, 86, -60, 85);   // 2 폭 출구 (85..86, 85)
+        portalColumn(nether, 10, -60, 10);
+        portalColumn(nether, 11, -60, 10);
+        portalColumn(nether, 12, -60, 10);
+        portalColumn(nether, 13, -60, 10);   // 4 폭 원천 (10..13, 10)
+        Pig pig = new Pig(nether, nether.nextEntityId());
+        pig.setNoAi(true);
+        pig.moveTo(11.0, -60.0, 10.85, 0.0F, 0.0F);   // 폭 (11 − 10.45)/3.1, 깊이 +0.35
+        nether.addFreshEntity(pig);
+        nether.tickEntities(3);
+        Entity arrived = only(over, Pig.class);
+        assertNotNull(arrived);
+        double w = 0.9F;   // 몸 폭은 float(EntityDimensions)
+        assertEquals(85 + w / 2 + (2 - w) * ((11.0 - (10 + w / 2)) / (4 - w)), arrived.x(), 1e-12);
+        assertEquals(85.5, arrived.z(), 1e-9, "깊이는 가운데");
+    }
+
+    /** z 축 포털: 폭(z) 보존, 깊이(x) 가운데. */
+    @Test
+    void livingEntityArrivesAtPortalDepthCenter_zAxis() {
+        var l = levels();
+        var over = l[0];
+        var nether = l[1];
+        int pz = B.prop("axis").with(B.defaultState("minecraft:nether_portal"), "z");
+        for (int z = 20; z <= 22; z++) for (int y = -60; y <= -58; y++) over.setBlock(new Pos(20, y, z), pz, 18);
+        for (int z = 1; z <= 3; z++) for (int y = -60; y <= -58; y++) nether.setBlock(new Pos(2, y, z), pz, 18);
+        Pig pig = new Pig(over, over.nextEntityId());
+        pig.setNoAi(true);
+        pig.moveTo(20.2, -60.0, 21.0, 0.0F, 0.0F);   // 폭 (21 − 20.45)/2.1, 깊이 −0.3
+        over.addFreshEntity(pig);
+        over.tickEntities(3);
+        Entity arrived = only(nether, Pig.class);
+        assertNotNull(arrived);
+        assertEquals(2.5, arrived.x(), 1e-9, "깊이는 가운데");
+        double w = 0.9F;
+        assertEquals(1 + w / 2 + (3 - w) * ((21.0 - (20 + w / 2)) / (3 - w)), arrived.z(), 1e-12);
+    }
+
+    @Test
+    void depthResetOnlyForLivingMinecartBoat() {
+        var l = levels();
+        assertTrue(Traveler.of(new Pig(l[0], 1)).resetPortalDepth());
+        assertFalse(Traveler.of(new ItemEntity(l[0], 2)).resetPortalDepth(), "아이템은 깊이 오프셋 유지");
+    }
+
     @Test
     void perpendicularExitRotatesNinetyDegrees() {
         var l = levels();

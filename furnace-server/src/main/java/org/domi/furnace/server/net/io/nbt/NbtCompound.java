@@ -21,7 +21,6 @@ public final class NbtCompound {
     public void putByte(String k, byte v) { tags.put(k, v); }
     public void putInt(String k, int v) { tags.put(k, v); }
     public void putDouble(String k, double v) { tags.put(k, v); }
-    public double getDouble(String k) { return tags.get(k) instanceof Number n ? n.doubleValue() : 0.0; }
     public void putLong(String k, long v) { tags.put(k, v); }
     public void putByteArray(String k, byte[] v) { tags.put(k, v); }
     public void putString(String k, String v) { tags.put(k, v); }
@@ -36,18 +35,58 @@ public final class NbtCompound {
 
     /** 바닐라 contains(k, 99): 숫자 태그(byte..double)인가. */
     public boolean containsNumber(String k) { return tags.get(k) instanceof Number; }
-    /** 바닐라 CompoundTag 의 숫자 getter 처럼 타입이 달라도 숫자면 변환하고, 없으면 0. */
-    public int getIntOr0(String k) { return tags.get(k) instanceof Number n ? n.intValue() : 0; }
-    public float getFloat(String k) { return tags.get(k) instanceof Number n ? n.floatValue() : 0f; }
-    public short getShort(String k) { return tags.get(k) instanceof Number n ? n.shortValue() : 0; }
-    public boolean getBoolean(String k) { return tags.get(k) instanceof Number n && n.byteValue() != 0; }
+    // ---- 바닐라 1.21.1 CompoundTag 게터: 키가 없거나 형이 맞지 않으면 기본값(0/false/""/빈 컬렉션)을 돌려준다.
+    // 숫자 태그끼리는 변환한다. 정수 태그는 좁히기(캐스팅). Float/Double 은 int·short·byte 는 floor 후 좁히고, long 은 Double 만 floor, Float 는 자르기.
 
-    public byte getByte(String k) { return (Byte) tags.get(k); }
-    public int getInt(String k) { return (Integer) tags.get(k); }
-    public long getLong(String k) { return (Long) tags.get(k); }
-    public byte[] getByteArray(String k) { return (byte[]) tags.get(k); }
-    public String getString(String k) { return (String) tags.get(k); }
-    public long[] getLongArray(String k) { return (long[]) tags.get(k); }
-    public NbtList getList(String k) { return (NbtList) tags.get(k); }
-    public NbtCompound getCompound(String k) { return (NbtCompound) tags.get(k); }
+    private static long floorLong(double v) {
+        long l = (long) v;
+        return v < (double) l ? l - 1L : l;
+    }
+    private static int floorInt(double v) {
+        int i = (int) v;
+        return v < (double) i ? i - 1 : i;
+    }
+
+    public int getInt(String k) {
+        Object o = tags.get(k);
+        if (o instanceof Float || o instanceof Double) return floorInt(((Number) o).doubleValue());
+        return o instanceof Number n ? n.intValue() : 0;
+    }
+    /** 이전 이름 호환. */
+    public int getIntOr0(String k) { return getInt(k); }
+    public long getLong(String k) {
+        Object o = tags.get(k);
+        if (o instanceof Double d) return floorLong(d);   // DoubleTag.getAsLong 은 floor
+        if (o instanceof Float f) return (long) (float) f;   // FloatTag.getAsLong 은 자르기
+        return o instanceof Number n ? n.longValue() : 0L;
+    }
+    public short getShort(String k) {
+        Object o = tags.get(k);
+        if (o instanceof Float || o instanceof Double) return (short) (floorInt(((Number) o).doubleValue()) & 0xFFFF);
+        return o instanceof Number n ? n.shortValue() : 0;
+    }
+    public byte getByte(String k) {
+        Object o = tags.get(k);
+        if (o instanceof Float || o instanceof Double) return (byte) (floorInt(((Number) o).doubleValue()) & 0xFF);
+        return o instanceof Number n ? n.byteValue() : 0;
+    }
+    public float getFloat(String k) { return tags.get(k) instanceof Number n ? n.floatValue() : 0f; }
+    public double getDouble(String k) { return tags.get(k) instanceof Number n ? n.doubleValue() : 0.0; }
+    public boolean getBoolean(String k) { return getByte(k) != 0; }
+
+    public String getString(String k) { return tags.get(k) instanceof String s ? s : ""; }
+    public byte[] getByteArray(String k) { return tags.get(k) instanceof byte[] a ? a : new byte[0]; }
+    public int[] getIntArray(String k) { return tags.get(k) instanceof int[] a ? a : new int[0]; }
+    public long[] getLongArray(String k) { return tags.get(k) instanceof long[] a ? a : new long[0]; }
+    public NbtCompound getCompound(String k) { return tags.get(k) instanceof NbtCompound c ? c : new NbtCompound(); }
+    /** 리스트가 아니면 빈 리스트. */
+    public NbtList getList(String k) { return tags.get(k) instanceof NbtList l ? l : new NbtList(NbtIo.TAG_END); }
+    /** 바닐라 getList(k, type): 비어 있지 않고 원소 종류가 다르면 빈 리스트. */
+    public NbtList getList(String k, byte type) {
+        if (tags.get(k) instanceof NbtList l) {
+            if (!l.items().isEmpty() && l.elementType() != type) return new NbtList(NbtIo.TAG_END);
+            return l;
+        }
+        return new NbtList(NbtIo.TAG_END);
+    }
 }
