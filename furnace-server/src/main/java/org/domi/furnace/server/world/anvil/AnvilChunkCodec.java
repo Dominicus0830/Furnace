@@ -303,6 +303,13 @@ public final class AnvilChunkCodec {
                 // 블록 엔티티 하나가 이상해도 청크 전체 로드가 실패하면 안 된다(실패한 청크는 영구 로드 불가가 됐었다).
                 try {
                     NbtCompound be = (NbtCompound) o;
+                    // 바닐라는 좌표가 이 청크 밖이면 승격하지 않는다. 좌표가 없으면 (0,0,0) 으로 이 청크에 붙이지 말고 건너뛴다.
+                    if (!be.containsNumber("x") || !be.containsNumber("y") || !be.containsNumber("z")
+                            || (root.containsNumber("xPos") && (be.getInt("x") >> 4) != root.getInt("xPos"))
+                            || (root.containsNumber("zPos") && (be.getInt("z") >> 4) != root.getInt("zPos"))) {
+                        org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("블록 엔티티 좌표가 없거나 이 청크 밖, 건너뜀: {}", be.tags().get("id"));
+                        continue;
+                    }
                     String id = be.tags().get("id") instanceof String s ? s : null;
                     if (LEGACY_CHEST_ID.equals(id)) {
                         col.putChest(legacyChestFromNbt(be));

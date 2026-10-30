@@ -70,4 +70,74 @@ class HurtKnockbackParityTest {
         assertEquals(-0.4, z2.vx(), 1e-6);
         assertEquals(0.0, z2.vz(), 1e-12);
     }
+
+    @Test
+    void fireworkAndPotionUseTargetMinusSelf() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var z = zombie(level, 0.5);
+        var f = new FireworkRocketEntity(level, level.nextEntityId());
+        f.moveTo(5.5, -59, 0.5, 0, 0);
+        f.setDeltaMovement(0, 0, 1);   // 속도는 무시
+        assertTrue(z.hurtByVia(MOB, 1.0F, null, f));
+        assertEquals(-0.4, z.vx(), 1e-6, "폭죽 반대쪽(-x)으로");
+        assertEquals(0.0, z.vz(), 1e-9);
+
+        var z2 = zombie(level, 20.5);
+        var pot = new ThrownPotion(level, level.nextEntityId());
+        pot.moveTo(20.5, -59, 5.5, 0, 0);
+        pot.setDeltaMovement(1, 0, 0);
+        assertTrue(z2.hurtByVia(MOB, 1.0F, null, pot));
+        assertEquals(0.0, z2.vx(), 1e-9);
+        assertEquals(-0.4, z2.vz(), 1e-6, "물약 반대쪽(-z)으로");
+    }
+
+    /** 플레이어 DamageSource 경로: 직접 원인이 화살이면 위치가 아니라 화살 속도 쪽으로 밀린다(속도 패킷으로 확인). */
+    @Test
+    void playerDamageSourceProjectileUsesVelocity() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var ch = new io.netty.channel.embedded.EmbeddedChannel();
+        var p = new Player(7, java.util.UUID.randomUUID(), "Steve", ch);
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.SURVIVAL, false);
+        p.applyMove(7.5, -60, 0.5, 90, 0, true);
+        PlayerVitals.Surroundings dry = new PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
+        for (int i = 0; i < 100; i++) p.vitals().tick(dry);
+        level.player = p;
+        p.applyMove(7.5, -60, 0.5, 90, 0, true);   // 기준 이동량을 0 으로
+        var a = new Arrow(level, level.nextEntityId(), 12.5, -59, 0.5);   // +x 쪽, +z 로 날아감
+        a.setDeltaMovement(0, 0, 1);
+        drain(ch);
+        assertTrue(p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageSource.by(
+                org.domi.furnace.server.entity.damage.DamageType.ARROW, a, null), 1.0F));
+        p.sendPendingKnockback();
+        int[] m = lastMotion(ch);
+        assertNotNull(m, "속도 패킷");
+        assertEquals(0, m[0]);
+        assertEquals(SetEntityMotionEncode.z(0.4), m[2]);
+    }
+
+    private static final class SetEntityMotionEncode {
+        static int z(double v) { return (short) org.domi.furnace.server.net.protocol.play.SetEntityMotion.encode(v); }
+    }
+
+    private static void drain(io.netty.channel.embedded.EmbeddedChannel ch) {
+        ch.runPendingTasks();
+        Object o;
+        while ((o = ch.readOutbound()) != null) ((io.netty.buffer.ByteBuf) o).release();
+    }
+
+    private static int[] lastMotion(io.netty.channel.embedded.EmbeddedChannel ch) {
+        ch.runPendingTasks();
+        int[] r = null;
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            io.netty.buffer.ByteBuf bb = (io.netty.buffer.ByteBuf) o;
+            if (org.domi.furnace.server.net.io.Types.readVarInt(bb) == org.domi.furnace.server.net.protocol.play.SetEntityMotion.ID) {
+                org.domi.furnace.server.net.io.Types.readVarInt(bb);
+                r = new int[] {bb.readShort(), bb.readShort(), bb.readShort()};
+            }
+            bb.release();
+        }
+        return r;
+    }
 }

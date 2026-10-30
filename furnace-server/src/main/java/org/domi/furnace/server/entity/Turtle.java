@@ -23,6 +23,8 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Turtle extends Animal {
+    /** Turtle.BABY_ON_LAND_SELECTOR: 물 밖의 아기. */
+    public static final java.util.function.Predicate<Targetable> BABY_ON_LAND_SELECTOR = t -> t instanceof LivingEntity e && e.isBaby() && !e.isInWater();
 
     /** Turtle.thunderHit: 번개에 맞으면 즉사(최대 피해). */
     @Override

@@ -106,4 +106,8 @@ public class Tadpole extends AbstractFish {
     }
 
     @Override public boolean fromBucket() { return true; }
+
+    /** 바닐라 Tadpole: 경험치 없음. */
+    @Override
+    protected boolean shouldDropExperience() { return false; }
 }

@@ -1,5 +1,5 @@
 // 바닐라 IronGolem: 마을을 지키는 철 골렘(체력 100, 공격력 15, 넉백 저항 1). 적대 몹과 화난 대상을 공격하고, 때리면 상대를 공중으로 띄운다. 철 주괴로 25 회복.
-// TODO(마을): 마을 기억(MoveBackToVillage·마을 안 서성이기의 마을 부분)·DefendVillage(평판)·밀치기(doPush: 적대 몹 1/20 확률로 공격 대상).
+// TODO: 밀치기(doPush: 적대 몹 1/20 확률로 공격 대상).
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -8,7 +8,9 @@ import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
+import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
+import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
@@ -55,7 +57,7 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
         goalSelector.addGoal(5, new OfferFlowerGoal());
         goalSelector.addGoal(7, new LookAtPlayerGoal(this, 6.0F));
         goalSelector.addGoal(8, new RandomLookAroundGoal(this));
-        // targetSelector 1: DefendVillageTargetGoal (평판 필요)
+        targetSelector.addGoal(1, new DefendVillageTargetGoal(this));
         targetSelector.addGoal(2, new HurtByTargetGoal(this));
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Player.class, 10, true, false, this::isAngryAt));
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Mob.class, 5, false, false, t -> t instanceof Enemy && !(t instanceof Creeper)));
@@ -212,23 +214,117 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
         }
     }
 
-    /** GolemRandomStrollInVillageGoal: 난수 두 번을 쓴 뒤(30% 이면 아무 데나) 마을 쪽 목표를 찾는다. TODO(마을): 주민/POI 기반 목표는 없는 것으로 처리. */
-    private static final class GolemRandomStrollInVillageGoal extends RandomStrollGoal {
+    /** 바닐라 GolemRandomStrollInVillageGoal: 30% 는 아무 데나, 나머지는 골렘을 원하는 주민 쪽과 마을 섹션의 점유 POI 쪽 중 하나(70%/30% 로 먼저 볼 쪽)를 고른다. */
+    static final class GolemRandomStrollInVillageGoal extends RandomStrollGoal {
         GolemRandomStrollInVillageGoal(IronGolem golem, double speed) { super(golem, speed, 240, false); }
 
         @Override
         protected double[] getPosition() {
-            mob.level().random().nextFloat();
-            mob.level().random().nextFloat();   // 0.3 미만이면 아무 데나, 아니면 주민·마을 쪽을 먼저 보지만 없으면 결국 아무 데나
-            return DefaultRandomPos.getPos(mob, 10, 7);
+            float f = mob.level().random().nextFloat();
+            if (mob.level().random().nextFloat() < 0.3F) return getPositionTowardsAnywhere();
+            double[] v;
+            if (f < 0.7F) {
+                v = getPositionTowardsVillagerWhoWantsGolem();
+                if (v == null) v = getPositionTowardsPoi();
+            } else {
+                v = getPositionTowardsPoi();
+                if (v == null) v = getPositionTowardsVillagerWhoWantsGolem();
+            }
+            return v == null ? getPositionTowardsAnywhere() : v;
+        }
+
+        private double[] getPositionTowardsAnywhere() { return LandRandomPos.getPos(mob, 10, 7); }
+
+        private double[] getPositionTowardsVillagerWhoWantsGolem() {
+            ChunkLevel level = mob.level();
+            java.util.List<Villager> list = level.getEntitiesOfClass(Villager.class, mob.boundingBox().inflate(32.0),
+                    v -> v.type() == EntityType.VILLAGER && v.wantsToSpawnGolem(level.gameTime()));
+            if (list.isEmpty()) return null;
+            Villager v = list.get(level.random().nextInt(list.size()));
+            return LandRandomPos.getPosTowards(mob, 10, 7, new double[] {v.x(), v.y(), v.z()}, (float) (Math.PI / 2));
+        }
+
+        private double[] getPositionTowardsPoi() {
+            int[] section = getRandomVillageSection();
+            if (section == null) return null;
+            Pos poi = getRandomPoiWithinSection(section);
+            return poi == null ? null : LandRandomPos.getPosTowards(mob, 10, 7, new double[] {poi.x() + 0.5, poi.y(), poi.z() + 0.5}, (float) (Math.PI / 2));
+        }
+
+        /** SectionPos.cube(골렘 섹션, 2) 중 마을 거리 0 인 섹션(x → y → z 순) 하나를 무작위로. */
+        private int[] getRandomVillageSection() {
+            ChunkLevel level = mob.level();
+            Pos p = mob.blockPosition();
+            int sx = p.x() >> 4, sy = p.y() >> 4, sz = p.z() >> 4;
+            java.util.List<int[]> list = new java.util.ArrayList<>();
+            for (int z = sz - 2; z <= sz + 2; z++)
+                for (int y = sy - 2; y <= sy + 2; y++)
+                    for (int x = sx - 2; x <= sx + 2; x++)
+                        if (level.poiManager().sectionsToVillage(x, y, z) == 0) list.add(new int[] {x, y, z});
+            return list.isEmpty() ? null : list.get(level.random().nextInt(list.size()));
+        }
+
+        private Pos getRandomPoiWithinSection(int[] s) {
+            ChunkLevel level = mob.level();
+            Pos center = new Pos((s[0] << 4) + 8, (s[1] << 4) + 8, (s[2] << 4) + 8);
+            java.util.List<org.domi.furnace.server.world.poi.PoiRecord> list = level.poiManager().getInRange(t -> true, center, 8,
+                    org.domi.furnace.server.world.poi.PoiManager.Occupancy.IS_OCCUPIED);
+            return list.isEmpty() ? null : list.get(level.random().nextInt(list.size())).pos();
         }
     }
 
-    /** MoveBackToVillageGoal: 마을 구조물 밖이면 가까운 마을 쪽으로. TODO(마을): 마을 위치를 몰라 목표는 항상 없다(난수 1번은 쓴다). */
-    private static final class MoveBackToVillageGoal extends RandomStrollGoal {
+    /** 바닐라 MoveBackToVillageGoal: 마을 칸이 아니면 둘레 2섹션 중 마을에 더 가까운 섹션 가운데 쪽으로 걷는다. */
+    static final class MoveBackToVillageGoal extends RandomStrollGoal {
         MoveBackToVillageGoal(IronGolem golem, double speed, boolean checkNoActionTime) { super(golem, speed, 10, checkNoActionTime); }
 
         @Override
-        protected double[] getPosition() { return null; }
+        public boolean canUse() { return mob.level().isVillage(mob.blockPosition()) ? false : super.canUse(); }
+
+        @Override
+        protected double[] getPosition() {
+            Pos p = mob.blockPosition();
+            int[] sp = {p.x() >> 4, p.y() >> 4, p.z() >> 4};
+            int[] best = org.domi.furnace.server.entity.ai.behavior.VillageBoundRandomStroll.findSectionClosestToVillage(mob.level().poiManager(), sp, 2);
+            if (best == sp) return null;
+            return DefaultRandomPos.getPosTowards(mob, 10, 7, new double[] {(best[0] << 4) + 8 + 0.5, (best[1] << 4) + 8, (best[2] << 4) + 8 + 0.5}, (float) (Math.PI / 2));
+        }
+    }
+
+    /** 바닐라 DefendVillageTargetGoal: 둘레(10,8,10) 주민 중 누구에게든 평판 -100 이하인 플레이어(마지막 것)를 노린다. 찾은 대상은 지우지 않는다(바닐라 그대로). */
+    static final class DefendVillageTargetGoal extends TargetGoal {
+        private final IronGolem golem;
+        private Targetable potentialTarget;
+        private final TargetingConditions attackTargeting = TargetingConditions.forCombat().range(64.0);
+
+        DefendVillageTargetGoal(IronGolem golem) {
+            super(golem, false, true);
+            this.golem = golem;
+            setFlags(java.util.EnumSet.of(Flag.TARGET));
+        }
+
+        @Override
+        public boolean canUse() {
+            AABB box = golem.boundingBox().inflate(10.0, 8.0, 10.0);
+            ChunkLevel level = golem.level();
+            java.util.List<Villager> villagers = level.getEntitiesOfClass(Villager.class, box, v -> true);
+            villagers.removeIf(v -> !attackTargeting.test(golem, v));
+            java.util.List<Player> players = new java.util.ArrayList<>();
+            level.forEachPlayerIn(box, players::add);   // 바닐라 getNearbyPlayers: 위치가 상자 안인 플레이어
+            players.removeIf(pl -> !box.contains(pl.x(), pl.y(), pl.z()) || !attackTargeting.test(golem, pl));
+            for (Villager v : villagers) {
+                for (Player pl : players) {
+                    if (v.getPlayerReputation(pl) <= -100) potentialTarget = pl;
+                }
+            }
+            if (potentialTarget == null) return false;
+            return !(potentialTarget instanceof Player pl) || pl.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR
+                    && pl.gameMode() != org.domi.furnace.server.world.GameMode.CREATIVE;
+        }
+
+        @Override
+        public void start() {
+            golem.setTarget(potentialTarget);
+            super.start();
+        }
     }
 }

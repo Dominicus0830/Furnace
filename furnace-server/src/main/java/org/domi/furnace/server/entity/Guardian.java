@@ -132,7 +132,7 @@ public class Guardian extends Monster {
         }
     }
 
-    /** 먼저 고른 대상(플레이어·오징어, 3칸 밖)만 노린다. */
+    /** 먼저 고른 대상(플레이어·오징어·아홀로틀, 3칸 밖)만 노린다. */
     static final class GuardianAttackSelector implements java.util.function.Predicate<Targetable> {
         private final Guardian guardian;
 
@@ -140,7 +140,7 @@ public class Guardian extends Monster {
 
         @Override
         public boolean test(Targetable t) {
-            if (!(t instanceof Player || t instanceof Squid)) return false;
+            if (!(t instanceof Player || t instanceof Squid || t instanceof Axolotl)) return false;
             double dx = t.x() - guardian.x(), dy = t.y() - guardian.y(), dz = t.z() - guardian.z();
             return dx * dx + dy * dy + dz * dz > 9.0;
         }
