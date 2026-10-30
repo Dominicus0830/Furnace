@@ -74,7 +74,7 @@ class MobGoalTableTest {
                         "8 ResetUniversalAngerTargetGoal"));
         var rabbit = new Rabbit(LEVEL, id());
         check(rabbit,
-                List.of("1 FloatGoal", "1 ClimbOnTopOfPowderSnowGoalStub", "1 RabbitPanicGoal", "2 BreedGoal", "3 TemptGoal", "4 RabbitAvoidEntityGoal",
+                List.of("1 FloatGoal", "1 ClimbOnTopOfPowderSnowGoal", "1 RabbitPanicGoal", "2 BreedGoal", "3 TemptGoal", "4 RabbitAvoidEntityGoal",
                         "4 RabbitAvoidEntityGoal", "4 RabbitAvoidEntityGoal", "5 RaidGardenGoal", "6 WaterAvoidingRandomStrollGoal", "11 LookAtPlayerGoal"),
                 List.of());
         rabbit.setVariant(Rabbit.TYPE_EVIL);

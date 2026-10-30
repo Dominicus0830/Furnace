@@ -1,5 +1,5 @@
 // 바닐라 Fox: 낮에 자고, 몰래 다가가(crouch) 덮치는(pounce) 여우. 입에 아이템을 물고 있고, 신뢰하는 플레이어 2명(Trusted)을 기억한다. 눈 바이옴은 흰 여우.
-// TODO(마을 산책·가루눈 위 걷기): StrollThroughVillageGoal(마을 구조물)·ClimbOnTopOfPowderSnowGoal. TODO(먹이 효과): 입에 문 음식의 효과는 확률만 적용한다.
+// TODO(먹이 효과): 입에 문 음식의 효과는 확률만 적용한다.
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;
@@ -73,6 +73,7 @@ public class Fox extends Animal {
         turtleTargetGoal = new NearestAttackableTargetGoal(this, Turtle.class, 10, false, false, t -> t instanceof Turtle tt && tt.isBaby() && !tt.isInWater());
         fishTargetGoal = new NearestAttackableTargetGoal(this, AbstractFish.class, 20, false, false, t -> t instanceof AbstractSchoolingFish);
         goalSelector.addGoal(0, new FoxFloatGoal());
+        goalSelector.addGoal(0, new ClimbOnTopOfPowderSnowGoal(this));
         goalSelector.addGoal(1, new FaceplantGoal());
         goalSelector.addGoal(2, new FoxPanicGoal(2.2));
         goalSelector.addGoal(3, new FoxBreedGoal(1.0));
@@ -86,7 +87,7 @@ public class Fox extends Animal {
         goalSelector.addGoal(7, new FoxMeleeAttackGoal(1.2F, true));
         goalSelector.addGoal(7, new SleepGoal());
         goalSelector.addGoal(8, new FoxFollowParentGoal(1.25));
-        // 9: StrollThroughVillageGoal(32, 200) — TODO(마을)
+        goalSelector.addGoal(9, new FoxStrollThroughVillageGoal(200));
         goalSelector.addGoal(10, new EatBerriesGoal(1.2F, 12, 1));
         goalSelector.addGoal(10, new LeapAtTargetGoal(this, 0.4F));
         goalSelector.addGoal(11, new WaterAvoidingRandomStrollGoal(this, 1.0));
@@ -488,6 +489,23 @@ public class Fox extends Animal {
             level.forEachPlayerIn(boundingBox().inflate(12.0, 6.0, 12.0), p -> { if (alertableTargeting.test(Fox.this, p)) found[0] = true; });
             return found[0];
         }
+    }
+
+    /** Fox.FoxStrollThroughVillageGoal: 자거나 엎어지거나 방어 중이거나 목표가 있으면 걷지 않고, 시작 때 상태를 모두 푼다. */
+    private final class FoxStrollThroughVillageGoal extends StrollThroughVillageGoal {
+        FoxStrollThroughVillageGoal(int interval) { super(Fox.this, interval); }
+
+        @Override
+        public void start() {
+            clearStates();
+            super.start();
+        }
+
+        @Override public boolean canUse() { return super.canUse() && canStroll(); }
+
+        @Override public boolean canContinueToUse() { return super.canContinueToUse() && canStroll(); }
+
+        private boolean canStroll() { return !isSleeping() && !isFaceplanted() && !isDefending() && getTarget() == null; }
     }
 
     private final class FoxFloatGoal extends FloatGoal {

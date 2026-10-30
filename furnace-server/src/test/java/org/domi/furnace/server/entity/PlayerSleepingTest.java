@@ -37,6 +37,7 @@ class PlayerSleepingTest {
         String dim;
         Player player;
         int sleepListUpdates;
+        final java.util.List<String> giftTables = new java.util.ArrayList<>();
 
         @Override
         protected LevelServices services() {
@@ -45,6 +46,11 @@ class PlayerSleepingTest {
                 @Override public String dimension() { return dim != null ? dim : type.levelKey(); }
                 @Override public DimensionType dimensionType() { return type; }
                 @Override public void forEachPlayer(Consumer<Player> c) { if (player != null) c.accept(player); }
+                @Override
+                public java.util.List<ItemStack> giftLoot(String table, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
+                    giftTables.add(table);
+                    return java.util.List.of(B.stack("minecraft:rabbit_hide", 1));
+                }
             };
         }
 
