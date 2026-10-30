@@ -62,6 +62,16 @@ class SignedChatFlowTest {
             int port = server.start();
             int chatType = ChatType.CHAT.registryIndex();
             try (TestClient a = TestClient.join(port, "Alice"); TestClient b = TestClient.join(port, "Bob")) {
+                // 0) Bob 이 접속자 목록에 오른 뒤에 말을 시작한다. join() 은 LoginPlay 를 받으면 돌아오므로 그 전에
+                //    채팅을 보내면 Bob 은 방송 대상이 아니라 첫 채팅을 영영 못 받는다(부하 때 EOF 로 보이던 레이스).
+                //    접속 알림은 등록 뒤에 방송되므로 앨리스가 "Bob 접속" 시스템 메시지를 받으면 안전하다.
+                a.await(0x6C, x -> {
+                    byte[] raw = new byte[x.readableBytes()];
+                    x.readBytes(raw);
+                    String s = new String(raw, StandardCharsets.ISO_8859_1);
+                    return s.contains("multiplayer.player.joined") && s.contains("Bob");
+                });
+
                 // 1) 세션 없는 채팅: 서명 없이 전달, 로그는 [Not Secure]
                 a.write(0x06, x -> { Types.writeString(x, "hello"); x.writeLong(System.currentTimeMillis()); x.writeLong(0); x.writeBoolean(false);
                     Types.writeVarInt(x, 0); x.writeBytes(new byte[3]); });
