@@ -387,3 +387,16 @@
 - U3 점검 결과: `InteractWithDoor`(바닐라 bwf)는 이미 있고 `VillagerGoalPackages` CORE 에 들어 있으며, `Villager` 가 `setCanOpenDoors(true)`, 길찾기는 `WALKABLE_DOOR`(DOOR_WOOD_CLOSED 통과)·철문 차단(DOOR_IRON_CLOSED)이 맞다. 시험으로 열고 지나가기·철문 불통과를 확인했다.
 - 바닐라도 그런 점(이식 그대로): 브레인이 매 틱 도는데 다음 노드가 마지막 검사 노드와 다르면 20틱 쿨다운(`decrementAndGet`)이라 문 열기·닫기 검사가 약 20틱마다 일어난다. 그래서 문 앞에서 잠깐 멈췄다 열리고, 닫을 문은 주민이 문 중심에서 3칸 안에 있는 틱에만 닫힌다(그 밖이면 닫지 않고 기억에서만 뺀다). 사용자가 "문을 안 연다/안 닫는다"고 느낀 것이 이 지연·미닫음이면 바닐라와 같은 동작이다(가정: 바닐라 실서버 대조는 못 했다).
 - 시험: `FireworkOwnerTest`, `VillagerDoorTest`.
+
+## 2026-10-31 엔티티 NBT 공백 재확인(A)·블록 엔티티 전리품/설치(B)
+- (A) 재확인: 감사 문서가 적은 CustomName·CustomNameVisible·Glowing·HasVisualFire·DeathLootTable·active_effects·AbsorptionAmount 는 HEAD 에서 이미 저장·복원된다(`EntityNbtRoundTripTest` 가 기존 보장). Entity.saveWithoutId/load, LivingEntity, Mob 을 디컴파일(bsr/btn/btp)과 키 단위로 대조해 실제로 남은 차이만 고쳤다.
+- 고침 1: `Team` — 바닐라는 LivingEntity 읽을 때만 쓰고(저장 안 함, 점수판이 저장) 이름의 팀에 `uuid.toString()` 으로 넣는다. 없는 팀은 경고만. 구현 완료.
+- 고침 2: `Invisible` — 바닐라 Entity 는 읽지도 쓰지도 않고 갑옷 거치대·아이템 액자(+발광)만 항상 기록·읽는다. 공통 Entity 에서 빼고 두 클래스로 옮겼다(예전엔 모든 엔티티가 켜진 경우 기록해, 투명 소 등이 바닐라와 다른 NBT 였다).
+- 이미 같음(점검만): Pos/Motion/Rotation/Air/Fire/UUID/Tags/Passengers(탄 것은 탈것 좌표), Health/HurtTime/HurtByTimestamp/DeathTime/attributes/FallFlying/Sleeping*/Brain, Mob 의 ArmorItems/HandItems/드롭 확률/body_armor/LeftHanded/NoAI/DeathLootTable(+Seed). `leash` 는 키 보존만(다른 워커 담당).
+- 바닐라와 다른 점(남김): Mob 로드 시 `DATA_MOB_FLAGS` 를 통째로 덮어 aggressive 비트(4)가 사라진다(로드 직후엔 원래 0 이라 영향 없음, 가정). 잘못된 `DeathLootTable` 문자열 검증 없음.
+- (B) 재확인: 블록 엔티티 → 전리품 문맥(`LootParams.BLOCK_ENTITY`), `copy_components`/`copy_name`, 셜커 상자 container 드롭, 폭발·피스톤·유체·플레이어 파괴 경로는 이미 collectComponents 를 넘기고 있었다(`BlockEntityLootTest`). 빠진 두 곳을 구현했다.
+  - 크리에이티브 셜커 파괴(`ShulkerBoxBlock.playerWillDestroy`): 내용물이 있으면 collectComponents 를 담은 상자를 칸 중심에 기본 줍기 지연으로 떨군다. 아니면 `unpackLootTable(player)` 자리에 `unpackContainerLoot`(플레이어 문맥은 가정 — null).
+  - `block_entity_data` 설치 시 적용(`BlockPlacement.updateCustomBlockEntityTag`): saveCustomOnly + 병합 → 달라졌으면 load + setChanged. `onlyOpCanSetNbt`(스포너·표지판)는 관리자 블록 권한이 있어야 한다. 기본 `BlockEntity.onlyOpCanSetNbt()` 추가.
+  - 바닐라 동작 주의: 컨테이너의 `CustomName`/`Items` 를 block_entity_data 로 넣어도 이어지는 `applyComponents`(custom_name·container 컴포넌트)가 덮어쓴다 — 그대로 이식했으므로 이름 붙인 상자는 `custom_name` 컴포넌트로 가야 한다(가정: 디컴파일 BaseContainerBlockEntity 의 applyImplicitComponents 기억 기준, 이 항목은 직접 재확인하지 못함).
+  - 한계: 명령 블록·직소·구조 블록 블록 엔티티는 아직 없어 `onlyOpCanSetNbt` 를 달지 않았다(만들 때 true 로).
+- 시험: `EntityNbtRoundTripTest`(Team·Invisible·장비/승객 왕복·SNBT 소환→저장), `BlockEntityComponentsTest`(block_entity_data 병합·권한, 크리에이티브 셜커 드롭).

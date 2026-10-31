@@ -182,6 +182,20 @@ public abstract class BlockEntity {
     /** triggerEvent(type, data) — 블록 이벤트를 블록 엔티티가 받는다(기본 false). */
     public boolean triggerEvent(int type, int data) { return false; }
 
+    /** onlyOpCanSetNbt: 아이템의 block_entity_data 를 관리자만 적용할 수 있는 종류(스포너·표지판 등). */
+    public boolean onlyOpCanSetNbt() { return false; }
+
+    /** CustomData.loadInto: 저장한 customOnly 에 data 를 합쳐 달라졌으면 읽고 setChanged. 달라졌으면 true. */
+    public final boolean loadCustomDataInto(BlockLevel level, NbtCompound data) {
+        NbtCompound saved = saveCustomOnly();
+        NbtCompound before = saved.copy();
+        org.domi.furnace.server.net.io.nbt.NbtTags.merge(saved, data);
+        if (org.domi.furnace.server.net.io.nbt.NbtTags.equal(saved, before)) return false;
+        load(saved);
+        setChanged(level);
+        return true;
+    }
+
     /** BlockEntityType.isValid(state): 이 종류가 그 블록 상태에 붙을 수 있는가. */
     public boolean isValid(int state) { return true; }
 }

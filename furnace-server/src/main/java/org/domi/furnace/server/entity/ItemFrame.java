@@ -163,6 +163,7 @@ public class ItemFrame extends HangingEntity {
             tag.putFloat("ItemDropChance", dropChance);
         }
         tag.putByte("Facing", (byte) direction);
+        tag.putBoolean("Invisible", isInvisible());   // 바닐라: 액자·갑옷 거치대만 저장
         tag.putBoolean("Fixed", fixed);
     }
 
@@ -176,6 +177,7 @@ public class ItemFrame extends HangingEntity {
             if (tag.containsNumber("ItemDropChance")) dropChance = tag.getFloat("ItemDropChance");
         }
         setDirection(Dir.NAME.length > tag.getIntOr0("Facing") ? tag.getIntOr0("Facing") : Dir.SOUTH);
+        setInvisible(tag.getBoolean("Invisible"));
         fixed = tag.getBoolean("Fixed");
     }
 }

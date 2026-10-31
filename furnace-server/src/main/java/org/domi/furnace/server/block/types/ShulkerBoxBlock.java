@@ -59,7 +59,23 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
 
     @Override
     public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {
-        // TODO(엔티티): 크리에이티브이고 내용물이 있으면 collectComponents 를 담은 셜커 상자 아이템을 떨군다, 아니면 전리품 풀기.
+        if (level.getBlockEntity(pos) instanceof ShulkerBoxBlockEntity sb) {
+            boolean empty = true;
+            for (var s : sb.items) if (s != null && !s.isEmpty()) { empty = false; break; }
+            if (player.isCreative() && !empty) {
+                // 크리에이티브는 표를 안 돌리므로 내용물·이름을 담은 상자를 직접 떨군다(기본 줍기 지연)
+                var stack = new org.domi.furnace.server.entity.ItemStack(
+                        org.domi.furnace.server.item.ItemContext.id("minecraft:item", name()), 1);
+                var merged = new java.util.LinkedHashMap<String, Object>(stack.patch().entries());
+                merged.putAll(sb.collectComponents());
+                stack = new org.domi.furnace.server.entity.ItemStack(stack.itemId(), 1,
+                        org.domi.furnace.server.item.ComponentPatch.ofNormalized(merged)
+                                .normalizedFor(org.domi.furnace.server.item.ItemTools.itemName(stack)));
+                level.spawnItemEntity(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, stack);
+            } else {
+                level.unpackContainerLoot(sb);   // unpackLootTable(player) — 플레이어 문맥은 가정(null)
+            }
+        }
         return super.playerWillDestroy(level, pos, state, player);
     }
 

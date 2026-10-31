@@ -141,6 +141,102 @@ class EntityNbtRoundTripTest {
                 .deserialize((String) e.save().tags().get("CustomName")).getString());
     }
 
+    @Test
+    void teamIsReadFromNbtAndNotWritten() {
+        var board = new org.domi.furnace.server.scores.Scoreboard();
+        var team = board.addPlayerTeam("red");
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public org.domi.furnace.server.scores.Scoreboard scoreboard() { return board; }
+        };
+        NbtCompound in = vanillaCow();
+        in.putString("Team", "red");
+        Entity e = Entities.load(level, in);
+        assertSame(team, board.getPlayersTeam(e.uuid().toString()), "바닐라: Team 이름의 팀에 UUID 로 들어간다");
+        assertFalse(e.save().contains("Team"), "바닐라: Team 은 엔티티가 저장하지 않는다(점수판이 저장)");
+        // 없는 팀은 경고만 하고 로드는 계속된다
+        NbtCompound in2 = vanillaCow();
+        in2.putString("Team", "nope");
+        in2.putIntArray("UUID", new int[]{9, 9, 9, 9});
+        Entity e2 = Entities.load(level, in2);
+        assertNotNull(e2);
+        assertNull(board.getPlayersTeam(e2.uuid().toString()));
+    }
+
+    @Test
+    void invisibleIsOnlyPersistedByArmorStandAndItemFrame() {
+        var level = new BlockPlacementTest.TestLevel();
+        NbtCompound cow = vanillaCow();
+        cow.putBoolean("Invisible", true);
+        Entity c = Entities.load(level, cow);
+        assertFalse(c.isInvisible(), "바닐라 Entity.load 는 Invisible 을 읽지 않는다");
+        c.setInvisible(true);
+        assertFalse(c.save().contains("Invisible"));
+        for (String id : new String[]{"minecraft:armor_stand", "minecraft:item_frame", "minecraft:glow_item_frame"}) {
+            NbtCompound t = new NbtCompound();
+            t.putString("id", id);
+            t.put("Pos", doubles(0.5, -60.0, 0.5));
+            t.putBoolean("Invisible", true);
+            Entity e = Entities.load(level, t);
+            assertTrue(e.isInvisible(), id);
+            assertEquals((byte) 1, e.save().getByte("Invisible"), id);
+            e.setInvisible(false);
+            assertEquals((byte) 0, e.save().getByte("Invisible"), id + ": 항상 기록");
+        }
+    }
+
+    @Test
+    void mobEquipmentChancesAndPassengersRoundTrip() {
+        var level = new BlockPlacementTest.TestLevel();
+        NbtCompound in = vanillaCow();
+        NbtList hands = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound sword = new NbtCompound();
+        sword.putString("id", "minecraft:iron_sword");
+        sword.putInt("count", 1);
+        hands.add(sword);
+        hands.add(new NbtCompound());
+        in.put("HandItems", hands);
+        NbtList armor = new NbtList(NbtIo.TAG_COMPOUND);
+        for (int i = 0; i < 4; i++) armor.add(new NbtCompound());
+        in.put("ArmorItems", armor);
+        NbtCompound rider = new NbtCompound();
+        rider.putString("id", "minecraft:chicken");
+        rider.put("Pos", doubles(0.5, -59.0, 0.5));
+        rider.putIntArray("UUID", new int[]{7, 7, 7, 7});
+        NbtList pass = new NbtList(NbtIo.TAG_COMPOUND);
+        pass.add(rider);
+        in.put("Passengers", pass);
+        Entity e = Entities.load(level, in);
+        NbtCompound out = e.save();
+        assertTrue(same(in.tags().get("HandItems"), out.tags().get("HandItems")), "HandItems " + out.tags().get("HandItems"));
+        assertTrue(same(in.tags().get("ArmorItems"), out.tags().get("ArmorItems")));
+        assertEquals(1, out.getList("Passengers").size());
+        assertEquals("minecraft:chicken", ((NbtCompound) out.getList("Passengers").get(0)).getString("id"));
+        // 두 번째 왕복도 같다
+        NbtCompound out2 = Entities.load(new BlockPlacementTest.TestLevel(), out.copy()).save();
+        assertTrue(same(out, out2));
+    }
+
+    /** /summon 이 쓰는 SNBT 파서로 읽은 NBT → 소환 → /data get entity(save) 한 결과에 키가 그대로 있다. */
+    @Test
+    void summonSnbtThenDataGetKeepsKeys() throws Exception {
+        NbtCompound in = (NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.command.arguments.TagParser.parseTag(
+                "{id:\"minecraft:zombie\",Pos:[0.5d,-60.0d,0.5d],CustomName:'\"Z\"',CustomNameVisible:1b,Glowing:1b,HasVisualFire:1b,Silent:1b,"
+                + "AbsorptionAmount:3.0f,Health:12.0f,Tags:[\"a\"],DeathLootTable:\"minecraft:entities/sheep\",DeathLootTableSeed:5L,"
+                + "active_effects:[{id:\"minecraft:speed\",amplifier:1b,duration:600,show_icon:1b}],"
+                + "HandItems:[{id:\"minecraft:iron_sword\",count:1},{}],HandDropChances:[1.0f,0.5f],ArmorDropChances:[0.0f,0.0f,0.0f,0.0f],"
+                + "CanPickUpLoot:1b,PersistenceRequired:1b,LeftHanded:1b,NoAI:1b}"));
+        var level = new BlockPlacementTest.TestLevel();
+        Entity e = Entities.load(level, in);
+        NbtCompound out = e.save();
+        for (String k : new String[]{"CustomName", "CustomNameVisible", "Glowing", "HasVisualFire", "Silent", "AbsorptionAmount", "Tags",
+                "DeathLootTable", "DeathLootTableSeed", "active_effects", "HandItems", "HandDropChances", "ArmorDropChances", "CanPickUpLoot",
+                "PersistenceRequired", "LeftHanded", "NoAI"}) {
+            assertTrue(out.contains(k), "빠진 키: " + k);
+            assertTrue(same(in.tags().get(k), out.tags().get(k)), "다른 값: " + k + " " + in.tags().get(k) + " → " + out.tags().get(k));
+        }
+        assertEquals(3.0F, ((LivingEntity) e).absorptionAmount, 0.0F);
+    }
+
     private static boolean same(Object a, Object b) {
         if (a instanceof NbtCompound ca && b instanceof NbtCompound cb) {
             if (!ca.tags().keySet().equals(cb.tags().keySet())) return false;
