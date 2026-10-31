@@ -309,6 +309,7 @@ public class ArmorStand extends LivingEntity {
         for (ItemStack s : handItems) hands.add(ItemStackNbt.write(s));
         tag.putList("ArmorItems", armor);
         tag.putList("HandItems", hands);
+        tag.putBoolean("Invisible", isInvisible());
         tag.putBoolean("Small", isSmall());
         tag.putBoolean("ShowArms", showArms());
         tag.putInt("DisabledSlots", disabledSlots);
@@ -335,6 +336,7 @@ public class ArmorStand extends LivingEntity {
         if (tag.tags().get("HandItems") instanceof NbtList l) {
             for (int i = 0; i < handItems.length && i < l.size(); i++) handItems[i] = l.get(i) instanceof NbtCompound c ? ItemStackNbt.read(c) : ItemStack.EMPTY;
         }
+        setInvisible(tag.getBoolean("Invisible"));
         setSmall(tag.getBoolean("Small"));
         setShowArms(tag.getBoolean("ShowArms"));
         disabledSlots = tag.getIntOr0("DisabledSlots");
