@@ -523,3 +523,13 @@
   연결 플레이어는 UUID 만 들고 다른 region 플레이어도 위치만 읽는다(스케줄러 규칙의 읽기 전용 예외 — 기존 스컬크·시련 생성기와 같다).
 - 시험: `VaultBlockEntityTest`(템플릿 NBT·기본값 생략·범위 검증 거부, server/shared 왕복, 128명 제한, 진행도 손계산, 범위 경계 16/20.25, 표시 아이템 순환 난수, 열쇠 성공/실패/거절/창작/빈 보상, 배출 주기·높이, 배출 후 상태).
 
+## 2026-10-31 불길한 병·시련 징조 (작업 C-3)
+
+- 근거: `cvh`(OminousBottleItem), `brs`(BadOmen), `dsh.a/transformBadOmenIntoTrialOmen`, `bsb`(MobEffects).
+- 시련/불길한 시련 열쇠(`trial_key`, `ominous_trial_key`)는 바닐라에서 평범한 아이템(`new Item`)이다 — 쓰임은 금고 블록의 `useItemOn`(C-2)뿐. 일반 `BlockPlacement.useItemOn` 경로가 `item_used_on_block` 발동까지 해 준다.
+- `trial_omen` 효과는 자체 틱 동작이 없다(`MobEffect` 기본). 효과를 보는 쪽은 시련 생성기(C-1): 일반 생성기 감지에서 시련 징조가 있으면 불길해지고(소모 안 함), 나쁜 징조만 있으면 시련 징조로 바꾼다 —
+  지속 18000 × (증폭+1), 증폭 0, 나쁜 징조 제거. 이벤트 3020(플레이어 눈 칸, 데이터 0)과 생성기(데이터 1).
+- 불길한 병(`ominous_bottle`)을 마실 수 있게 했다(`Consuming`): 32틱 마시기, 끝나면 consume_item 발동·통계 used·`item.ominous_bottle.dispose`·나쁜 징조 120000틱(증폭 = `ominous_bottle_amplifier` 컴포넌트, 기본 0; 입자 없음·아이콘 있음).
+  병은 하나 줄고 **빈 병이 남지 않는다**(`ItemStack.consume` 만). 창작 모드는 소비하지 않는다. 나쁜 징조는 마을 안에서 기존 `Raids.tickOmens` 가 습격 징조로 바꾼다.
+- **미구현/다른 점**: 불길한 병 레시피/거래/약탈자 대장 드롭은 전리품 표·기존 코드가 맡는다(이 작업 범위 밖). 마시는 소리의 음원 분류는 플레이어("players").
+- 시험: `ConsumingTest` 불길한 병 2건(증폭 3 + 120000틱 + 효과 플래그 + 병 감소, 컴포넌트 없음 = 증폭 0 + 창작 비소비), 시련 징조 전환은 `TrialSpawnerBlockEntityTest`.

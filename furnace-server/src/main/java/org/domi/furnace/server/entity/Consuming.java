@@ -12,7 +12,7 @@ import org.domi.furnace.server.item.ItemTools;
 public final class Consuming {
     private Consuming() { }
 
-    private static final int DRINK_TICKS = 32, HONEY_TICKS = 40;
+    private static final int DRINK_TICKS = 32, HONEY_TICKS = 40, OMINOUS_BOTTLE_TICKS = 120000;
 
     /** 그 아이템을 지금 쓸 수 있으면 사용 시간(틱), 아니면 -1. */
     public static int duration(Player p, ItemStack s) {
@@ -20,6 +20,7 @@ public final class Consuming {
         switch (n) {
             case "minecraft:potion": return DRINK_TICKS;
             case "minecraft:milk_bucket": return DRINK_TICKS;
+            case "minecraft:ominous_bottle": return DRINK_TICKS;   // OminousBottleItem: use = startUsingInstantly, 32틱, 마시기
             case "minecraft:honey_bottle": return p.vitals().canEat(false) ? HONEY_TICKS : -1;
             default: break;
         }
@@ -64,7 +65,7 @@ public final class Consuming {
 
     private static int duration0(ItemStack s) {
         String n = ItemTools.itemName(s);
-        return n.equals("minecraft:potion") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:honey_bottle")
+        return n.equals("minecraft:potion") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:honey_bottle") || n.equals("minecraft:ominous_bottle")
                 || ItemTools.component(s, "minecraft:food") instanceof Map ? 1 : -1;
     }
 
@@ -88,6 +89,15 @@ public final class Consuming {
         }
         // 바닐라 HoneyBottle·MilkBucket·PotionItem.finishUsingItem: 고유 효과 전에 consume_item(꿀은 음식 경로와 합쳐 두 번)
         if (n.equals("minecraft:honey_bottle") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:potion")) consumeTrigger(p, s);
+        if (n.equals("minecraft:ominous_bottle")) {
+            // OminousBottleItem.finishUsingItem: consume_item 발동 + 사용 통계, 소리(소비 전), 나쁜 징조 120000틱(증폭 = ominous_bottle_amplifier, 입자 없음·아이콘 있음).
+            // 마신 뒤 병은 남지 않는다(ItemStack.consume 만).
+            consumeTrigger(p, s);
+            p.awardStat("minecraft:used:minecraft:ominous_bottle", 1);
+            if (region != null) region.level().playSound(null, p.x(), p.y(), p.z(), "minecraft:item.ominous_bottle.dispose", "players", 1.0F, 1.0F);
+            int amp = ItemTools.component(s, "minecraft:ominous_bottle_amplifier") instanceof Number x ? x.intValue() : 0;
+            v.addEffect(new MobEffectInstance(MobEffect.BAD_OMEN, OMINOUS_BOTTLE_TICKS, amp, false, false, true));
+        }
         switch (n) {
             case "minecraft:honey_bottle" -> { v.removeEffect(MobEffect.byName("poison")); leftover = "minecraft:glass_bottle"; }
             case "minecraft:milk_bucket" -> { v.removeAllEffects(); leftover = "minecraft:bucket"; }
