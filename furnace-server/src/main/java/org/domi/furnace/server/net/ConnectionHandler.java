@@ -1783,6 +1783,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } else if (action == 1) {
             if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
             else if (e.isPickable()) region.attackEntity(p, e);
+        } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Mob leashMob
+                && leashMob.interactLeash(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45))) {
+            // Entity.interact 의 끈 맺기·풀기(mobInteract 보다 먼저)
+        } else if (e instanceof org.domi.furnace.server.entity.LeashFenceKnotEntity knot) {
+            if (action == 0) knot.interact(p);
         } else if (e instanceof org.domi.furnace.server.entity.Boat boat) {
             if (action == 0) boat.interact(p, hand);
         } else if (e instanceof org.domi.furnace.server.entity.AbstractMinecart cart) {

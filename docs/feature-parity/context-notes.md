@@ -387,3 +387,18 @@
 - U3 점검 결과: `InteractWithDoor`(바닐라 bwf)는 이미 있고 `VillagerGoalPackages` CORE 에 들어 있으며, `Villager` 가 `setCanOpenDoors(true)`, 길찾기는 `WALKABLE_DOOR`(DOOR_WOOD_CLOSED 통과)·철문 차단(DOOR_IRON_CLOSED)이 맞다. 시험으로 열고 지나가기·철문 불통과를 확인했다.
 - 바닐라도 그런 점(이식 그대로): 브레인이 매 틱 도는데 다음 노드가 마지막 검사 노드와 다르면 20틱 쿨다운(`decrementAndGet`)이라 문 열기·닫기 검사가 약 20틱마다 일어난다. 그래서 문 앞에서 잠깐 멈췄다 열리고, 닫을 문은 주민이 문 중심에서 3칸 안에 있는 틱에만 닫힌다(그 밖이면 닫지 않고 기억에서만 뺀다). 사용자가 "문을 안 연다/안 닫는다"고 느낀 것이 이 지연·미닫음이면 바닐라와 같은 동작이다(가정: 바닐라 실서버 대조는 못 했다).
 - 시험: `FireworkOwnerTest`, `VillagerDoorTest`.
+
+## 2026-10-31 가죽끈(leash) 체계 (몹 능력 감사 작업 4-1)
+
+- 근거: 바닐라 `btk`(Leashable), `btp`(Mob), `cjb`(LeashFenceKnotEntity), `cuz`(LeadItem), `diw`(FenceBlock), `afa`(set_entity_link). 바닐라 1.21.1 `Leashable` 은 Mob 과 Boat 둘이 구현한다.
+- 구현(`Mob`): 붙잡은 쪽 `leashHolder`(플레이어 또는 엔티티) + 저장에서 읽어 아직 못 이은 `leashPending`(UUID 또는 울타리 Pos). 매 틱 `Entity.baseTick` 끝의 `tickLeash`:
+  끈 정보가 남았으면 붙잡은 쪽을 찾아 잇고(UUID 는 같은 region 엔티티 저장소·플레이어, 울타리 좌표는 그 칸 매듭을 찾거나 만듦), 100틱이 지나도 못 찾으면 끈 아이템을 떨구고 지운다.
+  몹이나 붙잡은 쪽이 죽었으면 끈을 풀고 끈 아이템을 떨군다. 거리(float) > 10 이면 끊김(`leashTooFarBehaviour`: 풀고 MOVE 플래그 끔), > 6 이면 속도에 `copySign(d²·0.4)` 를 더하고 낙하 거리를 1 로 줄임, 그 이하는 `PathfinderMob` 이 붙잡은 쪽으로 걷는다(패닉 제외).
+  `PathfinderMob.checkLeashDistance`: 붙잡은 쪽 칸 둘레 5칸으로 제한. `TamableAnimal`: 앉은 자세면 당기지 않고 10칸 넘으면 끊는다. 끈 정보가 완전히 사라지면 `clearRestriction`.
+- 상호작용(`Mob.interactLeash`, `ConnectionHandler` 에서 mobInteract 보다 먼저): 내가 맨 끈이면 풀고(크리에이티브는 아이템 안 떨굼) `ENTITY_INTERACT`; 끈 아이템을 들고 `canHaveALeashAttachedToIt`(Enemy 아님, 매이지 않음)이면 맨다. **끈 아이템 1개는 크리에이티브에서도 줄어든다**(바닐라 `shrink(1)` 그대로).
+- 울타리: `FenceBlock.useWithoutItem` 과 `ItemUse` 의 lead 가 `LeashFenceKnotEntity.bindPlayerMobs`(±7칸 박스, 첫 하나 묶을 때 매듭 설치 소리) → `block_attach`. 매듭 우클릭(`interact`): 내 끈을 옮기고, 없으면 매듭을 없앤다(크리에이티브는 매인 것도 풀기). 매듭을 때리면 죽고 깨지는 소리.
+- 패킷: `SetEntityLink`(0x59, **int 두 개**, VarInt 아님). 추적 시작(`addPairing`)과 맺기/풀기에 보낸다. id 는 로컬에 `reports/packets.json` 이 없어 디컴파일 `agg` 의 등록 순서(set_entity_data 바로 다음)로 확인했다(가정: 실제 json 대조는 못 함).
+- 그 밖: `execute on leasher`(`Mob.getLeashHolder`), `WanderingTraderSpawner` 가 짐 라마를 상인에게 맴, Bee/Llama/TraderLlama/Armadillo 의 `isLeashed` 연결(Mob 의 것을 쓴다). 저장 키 `leash`: 엔티티는 `{UUID:int[4]}`, 매듭은 `int[3]`.
+- 스레드: 붙잡은 쪽이 **다른 region 의 비플레이어 엔티티**면 `level.entities().contains` 가 거짓이라 거리 처리를 건너뛰고(위치를 읽지 않는다), 저장에서 읽은 경우 100틱 뒤 끈이 사라진다. 플레이어는 기존 방식대로 다른 region 이어도 위치를 읽는다(읽기만).
+- **미구현/다른 점**: (1) Boat 의 Leashable(우클릭 맺기·`leash` 저장)은 없다. 끈 아이템으로 보트를 클릭하면 탑승 쪽으로 간다. (2) 이름표·스폰알이 끈보다 먼저 처리되는 바닐라 순서는 Furnace 에 이름표 상호작용이 없어 해당 없음. (3) Camel/AbstractHorse 의 `checkLeashDistance` 재정의(앉은 낙타 일으키기, 먹는 말 멈추기), Sniffer/Camel 의 isLeashed 조건, Parrot FollowMobGoal 의 isLeashed 검사, Cat 선물 위치(`cfh:474`)는 연결하지 않았다. (4) 다른 차원 이동 시 `dropLeash(true,false)` 연결 안 함(끈 정보만 NBT 로 남는다). (5) 끈을 맨 몹이 죽으면 다음 틱 `tickLeash` 가 풀고 끈을 떨군다(바닐라 구조 그대로, 죽는 몹이 baseTick 을 도는지에 의존).
+- 시험: `LeashTest`(거리 8 → vx 0.4 손계산, 11 → 끊김+끈 아이템 1, 5 → 제한 구역 5, 저장/복원, 100틱 만료, 패킷 바이트).

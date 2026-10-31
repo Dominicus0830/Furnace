@@ -54,6 +54,16 @@ public abstract class TamableAnimal extends Animal {
 
     protected void applyTamingSideEffects() {}
 
+    /** TamableAnimal.checkLeashDistance(bul:64): 앉은 자세면 당기지 않고, 10칸 넘으면 끊는다. */
+    @Override
+    protected boolean checkLeashDistance(Rider holder, float dist) {
+        if (isInSittingPose()) {
+            if (dist > 10.0F) dropLeash(true, true);
+            return false;
+        }
+        return super.checkLeashDistance(holder, dist);
+    }
+
     public boolean isInSittingPose() { return ((Byte) entityData.get(DATA_FLAGS_ID) & 1) != 0; }
 
     public void setInSittingPose(boolean sit) {
@@ -92,7 +102,7 @@ public abstract class TamableAnimal extends Animal {
 
     public void setOrderedToSit(boolean v) { orderedToSit = v; }
 
-    public boolean unableToMoveToOwner() { return isOrderedToSit() || isPassenger() || getOwner() != null && getOwner().vitals().isSpectator(); }
+    public boolean unableToMoveToOwner() { return isOrderedToSit() || isPassenger() || mayBeLeashed() || getOwner() != null && getOwner().vitals().isSpectator(); }
 
     public boolean shouldTryTeleportToOwner() {
         Player o = getOwner();

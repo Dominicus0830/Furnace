@@ -788,8 +788,146 @@ public abstract class Mob extends LivingEntity {
         entityData.set(DATA_MOB_FLAGS, (byte) (v ? b | 1 : b & ~1));
     }
 
-    /** NBT "leash"(UUID 또는 울타리 좌표). 몹 끈 동작이 아직 없어 원본을 그대로 보존한다. */
-    private Object leashTag;   // NbtCompound{UUID} 또는 int[3]
+    // ------------------------------------------------------------------ 가죽끈(btk Leashable + btp 재정의)
+
+    /** LeashData.leashHolder(a). 플레이어 또는 매듭 등 엔티티. */
+    private Rider leashHolder;
+    /** LeashData.delayedLeashInfo(b): 저장에서 읽은 UUID 또는 울타리 Pos. 붙잡은 쪽이 로드되면 setLeashedTo 로 바뀐다. */
+    private Object leashPending;
+
+    /** isLeashed(N_): 붙잡은 쪽이 있다. */
+    public boolean isLeashed() { return leashHolder != null; }
+
+    /** mayBeLeashed(O_): 끈 정보가 있다(저장에서 읽어 아직 못 이은 것 포함). */
+    public boolean mayBeLeashed() { return leashHolder != null || leashPending != null; }
+
+    public Rider getLeashHolder() { return leashHolder; }
+
+    /** canBeLeashed(y): 적대 몹(Enemy)은 못 맨다. */
+    public boolean canBeLeashed() { return !(this instanceof Enemy); }
+
+    /** canHaveALeashAttachedToIt(q). */
+    public boolean canHaveALeashAttachedToIt() { return canBeLeashed() && !isLeashed(); }
+
+    static boolean holderAlive(Rider r) {
+        return r instanceof Entity e ? e.isAlive() : r instanceof Player p && p.isAlive() && !p.isDisconnected();
+    }
+
+    static java.util.UUID holderUuid(Rider r) { return r instanceof Entity e ? e.uuid() : ((Player) r).uuid(); }
+
+    /** Entity.distanceTo: float 로 계산한다. */
+    static float distanceTo(Entity self, Rider o) {
+        float f = (float) (self.x() - o.x()), g = (float) (self.y() - o.y()), h = (float) (self.z() - o.z());
+        return (float) Math.sqrt(f * f + g * g + h * h);
+    }
+
+    /** setLeashedTo(holder, broadcast)(b): 이으면 타고 있던 탈것에서 내린다. */
+    public void setLeashedTo(Rider holder, boolean broadcast) {
+        leashHolder = holder;
+        leashPending = null;
+        if (broadcast && tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.SetEntityLink(id(), holder.id()));
+        if (isPassenger()) stopRiding();
+    }
+
+    /** dropLeash(broadcast, dropItem)(a): 풀고, 끈 아이템을 떨구고, 풀렸다고 알린다. 끈 정보가 없어지면 제한 구역도 푼다. */
+    public void dropLeash(boolean broadcast, boolean dropItem) {
+        if (leashHolder != null) {
+            leashHolder = null;
+            if (dropItem) spawnAtLocation(stackOf("lead"));
+            if (broadcast && tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.SetEntityLink(id(), 0));
+        }
+        if (!mayBeLeashed()) clearRestriction();
+    }
+
+    /** leashTooFarBehaviour(z): 10칸 넘으면 끊고 이동 목표를 끈다. */
+    protected void leashTooFarBehaviour() {
+        dropLeash(true, true);
+        goalSelector.disableControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.MOVE);
+    }
+
+    /** a(holder, dist): 거리마다 불리는 검사. false 면 이번 틱 당김 처리를 건너뛴다. */
+    protected boolean checkLeashDistance(Rider holder, float dist) { return true; }
+
+    /** elasticRangeLeashBehaviour(b): 6칸 넘으면 속도를 더한다. */
+    protected void elasticRangeLeashBehaviour(Rider holder, float dist) {
+        double dx = (holder.x() - x()) / dist, dy = (holder.y() - y()) / dist, dz = (holder.z() - z()) / dist;
+        addDeltaMovement(Math.copySign(dx * dx * 0.4, dx), Math.copySign(dy * dy * 0.4, dy), Math.copySign(dz * dz * 0.4, dz));
+    }
+
+    /** closeRangeLeashBehaviour(b(bsr)): 기본은 아무것도 안 한다. */
+    protected void closeRangeLeashBehaviour(Rider holder) {}
+
+    /** Entity.checkSlowFallDistance(cr). */
+    protected void checkSlowFallDistance() {
+        if (vy() > -0.5 && fallDistance > 1.0F) fallDistance = 1.0F;
+    }
+
+    /** startRiding 재정의(btp:1242): 타게 되면 끈을 푼다. */
+    @Override
+    public boolean startRiding(Entity v, boolean force) {
+        boolean ok = super.startRiding(v, force);
+        if (ok && isLeashed()) dropLeash(true, true);
+        return ok;
+    }
+
+    /** Leashable.tickLeash(b_) + restoreLeashFromSave. 서버에서 baseTick 끝에 돈다. */
+    @Override
+    protected void tickLeash() {
+        if (leashPending != null) restoreLeashFromSave();
+        if (leashHolder == null) return;
+        if (!isAlive() || !holderAlive(leashHolder)) dropLeash(true, true);
+        Rider holder = leashHolder;
+        if (holder == null) return;
+        // 다른 region 의 엔티티는 읽지 않는다(플레이어는 위치 읽기가 허용된 기존 방식)
+        boolean sameLevel = holder instanceof Player p ? p.dimensionKey().equals(level.dimension())
+                : level.entities().contains((Entity) holder);
+        if (!sameLevel) return;
+        float dist = distanceTo(this, holder);
+        if (!checkLeashDistance(holder, dist)) return;
+        if (dist > 10.0) {
+            leashTooFarBehaviour();
+        } else if (dist > 6.0) {
+            elasticRangeLeashBehaviour(holder, dist);
+            checkSlowFallDistance();
+        } else {
+            closeRangeLeashBehaviour(holder);
+        }
+    }
+
+    private void restoreLeashFromSave() {
+        if (leashPending instanceof java.util.UUID id) {
+            Rider e = level.entities().get(id);
+            if (e == null) e = level.playerByUuid(id);
+            if (e != null) { setLeashedTo(e, true); return; }
+        } else if (leashPending instanceof Pos pos) {
+            setLeashedTo(LeashFenceKnotEntity.getOrCreateKnot(level, pos), true);
+            return;
+        }
+        if (tickCount > 100) {
+            spawnAtLocation(stackOf("lead"));
+            leashPending = null;
+        }
+    }
+
+    /**
+     * Entity.interact 의 끈 부분(bsr:1763): 내가 맨 끈이면 풀고, 끈 아이템을 들었고 맬 수 있으면 맨다(손 아이템 1개 감소 — 크리에이티브도).
+     * 처리했으면 true. Mob.interact 에서 이름표·알 다음, mobInteract 앞에 부른다.
+     */
+    public boolean interactLeash(Player p, int hand, ItemStack held) {
+        if (!isAlive()) return false;
+        if (leashHolder == p) {
+            dropLeash(true, !p.hasInfiniteMaterials());
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_INTERACT, p);
+            return true;
+        }
+        if (!held.isEmpty() && org.domi.furnace.server.item.ItemTools.itemName(held).equals("minecraft:lead") && canHaveALeashAttachedToIt()) {
+            setLeashedTo(p, true);
+            var inv = p.inventory();
+            inv.set(hand == 0 ? inv.heldWindowSlot() : 45, held.withCount(held.count() - 1));
+            return true;
+        }
+        return false;
+    }
 
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
@@ -813,8 +951,14 @@ public abstract class Mob extends LivingEntity {
             tag.putCompound("body_armor_item", ItemStackNbt.write(bodyArmorItem));
             tag.putFloat("body_armor_drop_chance", bodyArmorDropChance);
         }
-        if (leashTag instanceof NbtCompound c) tag.putCompound("leash", c.copy());
-        else if (leashTag instanceof int[] p) tag.putIntArray("leash", p.clone());
+        Object leash = leashHolder instanceof LeashFenceKnotEntity k ? k.pos() : leashHolder != null ? holderUuid(leashHolder) : leashPending;
+        if (leash instanceof java.util.UUID u) {
+            NbtCompound c = new NbtCompound();
+            c.putIntArray("UUID", Entity.uuidToInts(u));
+            tag.putCompound("leash", c);
+        } else if (leash instanceof Pos pos) {
+            tag.putIntArray("leash", new int[]{pos.x(), pos.y(), pos.z()});
+        }
         tag.putBoolean("LeftHanded", ((Byte) entityData.get(DATA_MOB_FLAGS) & 2) != 0);
         if (deathLootTable != null) {
             tag.putString("DeathLootTable", deathLootTable);
@@ -847,8 +991,14 @@ public abstract class Mob extends LivingEntity {
         } else {
             bodyArmorItem = ItemStack.EMPTY;
         }
-        Object leash = tag.tags().get("leash");
-        leashTag = leash instanceof NbtCompound l ? l.copy() : leash instanceof int[] p && p.length == 3 ? p.clone() : null;
+        Object leashNbt = tag.tags().get("leash");
+        leashHolder = null;
+        leashPending = null;
+        if (leashNbt instanceof NbtCompound l && l.tags().get("UUID") instanceof int[] u && u.length == 4) {
+            leashPending = new java.util.UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
+        } else if (leashNbt instanceof int[] p && p.length == 3) {
+            leashPending = new Pos(p[0], p[1], p[2]);
+        }
         if (tag.tags().get("DeathLootTable") instanceof String lt) {
             deathLootTable = lt;
             deathLootTableSeed = tag.tags().get("DeathLootTableSeed") instanceof Number n ? n.longValue() : 0L;

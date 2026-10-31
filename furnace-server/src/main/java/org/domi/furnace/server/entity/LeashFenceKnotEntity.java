@@ -1,5 +1,4 @@
 // 바닐라 LeashFenceKnotEntity: 울타리에 묶는 밧줄 매듭. 울타리 칸에 붙어 있고, 울타리가 없어지면 떨어진다(100틱마다 확인).
-// TODO(밧줄): 묶인 몹(Leashable)을 모으고 풀어 주는 상호작용·피해 처리는 밧줄 체계(리쉬)를 만들 때.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.B;
@@ -65,7 +64,73 @@ public class LeashFenceKnotEntity extends Entity {
 
     @Override public int spawnData() { return 0; }
 
-    @Override public boolean hurt(Damage source, float amount) { return false; }
+    /** BlockAttachedEntity.hurt: 맞으면 죽고(매인 몹은 다음 틱에 끈이 풀려 끈 아이템을 떨군다) 깨지는 소리. */
+    @Override
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) {
+        if (isInvulnerableTo(source)) return false;
+        if (!isRemoved()) {
+            kill();
+            markHurt();
+            playSound("entity.leash_knot.break", 1.0F, 1.0F);
+        }
+        return true;
+    }
+
+    @Override public boolean hurt(Damage source, float amount) { return hurtBy(source, amount, null); }
+
+    @Override
+    public boolean skipAttackInteraction(Player attacker) {
+        if (attacker.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return true;
+        hurtBy(new Damage("player_attack", false, false, false), 0.0F, attacker);
+        return true;
+    }
+
+    public void playPlacementSound() { playSound("entity.leash_knot.place", 1.0F, 1.0F); }
+
+    /** LeashableUtil.leashableInArea(cuz.a): 칸 둘레 ±7 안에서 조건에 맞는 끈 달린 몹. */
+    public static java.util.List<Mob> leashableInArea(ChunkLevel level, Pos pos, java.util.function.Predicate<Mob> test) {
+        AABB box = new AABB(pos.x() - 7.0, pos.y() - 7.0, pos.z() - 7.0, pos.x() + 7.0, pos.y() + 7.0, pos.z() + 7.0);
+        return level.getEntitiesOfClass(Mob.class, box, test::test);
+    }
+
+    /** LeadItem.bindPlayerMobs(cuz.a): 플레이어가 끌던 몹을 이 칸 매듭에 묶는다. 하나라도 묶으면 true. */
+    public static boolean bindPlayerMobs(Player player, ChunkLevel level, Pos pos, Object gameEventSource) {
+        LeashFenceKnotEntity knot = null;
+        var list = leashableInArea(level, pos, m -> m.getLeashHolder() == player);
+        for (Mob m : list) {
+            if (knot == null) {
+                knot = getOrCreateKnot(level, pos);
+                knot.playPlacementSound();
+            }
+            m.setLeashedTo(knot, true);
+        }
+        return !list.isEmpty();
+    }
+
+    /** LeashFenceKnotEntity.interact(cjb:46): 내 끈을 매듭에 옮기고, 없으면 매듭을 없앤다(크리에이티브는 매인 것도 푼다). */
+    public void interact(Player p) {
+        boolean attached = false;
+        var list = leashableInArea(level, blockPos, m -> m.getLeashHolder() == p || m.getLeashHolder() == this);
+        for (Mob m : list) {
+            if (m.getLeashHolder() == p) {
+                m.setLeashedTo(this, true);
+                attached = true;
+            }
+        }
+        boolean dropped = false;
+        if (!attached) {
+            discard();
+            if (p.hasInfiniteMaterials()) {
+                for (Mob m : list) {
+                    if (m.isLeashed() && m.getLeashHolder() == this) {
+                        m.dropLeash(true, false);
+                        dropped = true;
+                    }
+                }
+            }
+        }
+        if (attached || dropped) gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.BLOCK_ATTACH, p);
+    }
 
     @Override protected void addAdditionalSaveData(NbtCompound tag) {}
 

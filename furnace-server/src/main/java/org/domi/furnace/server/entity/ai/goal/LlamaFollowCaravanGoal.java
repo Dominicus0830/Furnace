@@ -1,5 +1,5 @@
 // 바닐라 LlamaFollowCaravanGoal: 줄에 묶인(또는 캐러밴 꼬리인) 라마 뒤를 따라 일렬로 걷는다.
-// TODO(보트·끈): 끈에 매인 라마(isLeashed)와 탑승 중 예외는 끈·탑승 시스템이 생기면.
+// 끈에 매인 라마(isLeashed)는 Mob 의 끈 체계를 쓴다. TODO(탑승): 탑승 중 예외.
 package org.domi.furnace.server.entity.ai.goal;
 
 import java.util.EnumSet;

@@ -240,7 +240,7 @@ public class Armadillo extends Animal {
         return true;
     }
 
-    public boolean canStayRolledUp() { return !isPanicking() && !isInLiquid(); }   // TODO(끈·탑승): 목줄/탑승 중이 아닐 것
+    public boolean canStayRolledUp() { return !isPanicking() && !isInLiquid() && !isLeashed() && !isPassenger() && !isVehicle(); }
 
     @Override
     public void setInLove(Player cause) {

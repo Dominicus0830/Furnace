@@ -475,6 +475,7 @@ public final class ItemUse {
             case "minecraft:end_crystal": return endCrystalOn(level, player, hand, hit, stack);
             case "minecraft:firework_rocket": return fireworkOn(level, player, hand, hit, stack);
             case "minecraft:item_frame", "minecraft:glow_item_frame", "minecraft:painting": return hangingOn(level, player, hand, hit, stack, n);
+            case "minecraft:lead": return leadOn(level, player, hit);
             default: break;
         }
         if (n.endsWith("_hoe")) return hoe(level, player, hand, hit, stack);
@@ -491,6 +492,20 @@ public final class ItemUse {
             default: break;
         }
         // TODO(엔티티): 끈, 솔(오래 쓰기).
+        return InteractionResult.PASS;
+    }
+
+    /** LeadItem.useOn: 울타리면 끌던 몹을 묶는다. 아니면 넘긴다(몹에게 쓰는 것은 엔티티 상호작용). */
+    private static InteractionResult leadOn(BlockLevel level, BlockActor player, Hit hit) {
+        Pos pos = hit.pos();
+        if (!B.isTag(level.getBlockState(pos), "minecraft:fences")) return InteractionResult.PASS;
+        if (level instanceof ChunkLevel cl && player.handle() instanceof org.domi.furnace.server.entity.Player p) {
+            if (org.domi.furnace.server.entity.LeashFenceKnotEntity.bindPlayerMobs(p, cl, pos, player)) {
+                cl.gameEvent("minecraft:block_attach", pos, player, -1);
+                return InteractionResult.SUCCESS;
+            }
+            return InteractionResult.PASS;
+        }
         return InteractionResult.PASS;
     }
 
