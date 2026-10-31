@@ -187,7 +187,7 @@ public final class Explosion {
                 double pm = kb[3] * (calculator != null ? calculator.knockbackMultiplier(p) : 1.0F);
                 hitPlayers.put(p, new double[] {kb[0] * pm, kb[1] * pm, kb[2] * pm});
             }
-            p.vitals().onExplosionHit(source);   // Entity.onExplosionHit(source): 충격 맥락 기록
+            if (!p.vitals().isSpectator()) p.vitals().onExplosionHit(source);   // 관전자는 ignoreExplosion 이라 대상이 아니다
         }
     }
 

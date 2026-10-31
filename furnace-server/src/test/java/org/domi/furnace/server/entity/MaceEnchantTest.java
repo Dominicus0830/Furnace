@@ -218,6 +218,23 @@ class MaceEnchantTest {
     }
 
     @Test
+    void expiredGraceStillExemptsLanding_andAirExpiryKeepsContext() {
+        var p = player(1, 0.5, 0, new PlayerVitalsTest.TestEnv());
+        var v = p.vitals();
+        v.setFallDistance(10.0F);
+        v.setCurrentImpulsePos(new double[] {0.5, -58, 0.5});
+        v.setIgnoreFallDamageFromCurrentImpulse(true);
+        for (int i = 0; i < 45; i++) v.tick(DRY);
+        v.currentMoveY(-59);
+        v.onMove(0, -1, 0, true, false, false, false, false, false, null, "minecraft:air", false);   // 공중 이동
+        assertTrue(v.isIgnoringFallDamageFromCurrentImpulse(), "공중에서 유예가 끝나도 지우지 않는다");
+        assertNotNull(v.currentImpulsePos());
+        v.currentMoveY(-60);
+        v.onMove(0, 0, 0, false, true, false, false, false, false, null, "minecraft:stone", false);
+        assertEquals(20.0F, v.health(), "유예 0 에서 착지해도 min(거리, top-y)=2 → 피해 없음");
+    }
+
+    @Test
     void impulseContextExpiresAfterGraceTicks() {
         var p = player(1, 0.5, 0, new PlayerVitalsTest.TestEnv());
         var v = p.vitals();

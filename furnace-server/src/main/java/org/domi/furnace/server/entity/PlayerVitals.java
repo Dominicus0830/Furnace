@@ -734,7 +734,6 @@ public final class PlayerVitals {
         synchronized (this) {
             if (wasOnGround && !onGround && dy > 0.0) causeFoodExhaustionLocked(sprinting ? 0.2f : 0.05f);   // jumpFromGround
             if (waterOnPath && fallDistance != 0.0f && dx * dx + dy * dy + dz * dz >= 1.0) fallDistance = 0.0f;
-            tryResetCurrentImpulseContext();   // Player.move 끝: 유예가 끝났으면 맥락 초기화
             if (landingBlock != null) fallDamage = checkFallDamage(dy, onGround, inWaterNow, landingBlock, sneaking);
         }
         // 바닐라 fallOn → causeFallDamage → hurt 는 낙하 거리를 초기화하기 전에 일어난다(전투 기록이 낙하 거리를 본다).

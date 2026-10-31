@@ -1,6 +1,7 @@
 // 바닐라 MaceItem: 스매시 조건(낙하 > 1.5, 겉날개 비행 아님)·낙하 거리 기반 추가 피해·착지 충격파 knockback.
 // 밀도(density)의 낙하 1칸당 +0.5×레벨(smash_damage_per_fallen_block)은 여기서 합산한다.
 // 소유권: 플레이어를 때리는 region 스레드에서만 부른다(주변 몹·플레이어를 같은 region 에서 민다).
+// 차이(가정): 충격파 대상의 isAlliedTo(팀) 검사 없음, 플레이어 넉백 저항은 방어구 합 근사, w.players() 는 호출 region 의 플레이어만, 레벨 이벤트 위치는 대상 getOnPos 근사.
 // 차이: 착지 추가 입자(setSpawnExtraParticlesOnFall)와 낙하-폭발 발전 과제(FALL_AFTER_EXPLOSION)는 아직 없다.
 package org.domi.furnace.server.entity;
 
@@ -77,7 +78,7 @@ public final class MaceSmash {
     static void knockback(PlayerMelee.World w, Player p, Targetable target) {
         ChunkLevel level = w.level();
         if (level == null) return;
-        level.levelEvent(null, 2013, new Pos((int) Math.floor(p.x()), (int) Math.floor(p.y() - 1.0E-5), (int) Math.floor(p.z())), 750);
+        level.levelEvent(null, 2013, new Pos((int) Math.floor(target.x()), (int) Math.floor(target.y() - 1.0E-5), (int) Math.floor(target.z())), 750);
         AABB box = target.boundingBox().inflate(3.5);
         boolean heavy = p.vitals().fallDistance() > 5.0F;
         for (LivingEntity le : level.getEntitiesOfClass(LivingEntity.class, box, e -> eligible(p, target, e))) {

@@ -397,3 +397,4 @@
 - 미구현(근사로 켜지 않음): 착지 추가 입자(spawnExtraParticlesOnFall)·낙하-폭발 발전 과제, 투사체(화살 등)로 맞았을 때 가시, 몹 무기의 후처리 인챈트(불 속성·돌풍), 몹 무기 modifyDamage, 가시 장비 파괴 통계. 가정: 플레이어 충격파 넉백 저항은 방어구 knockback_resistance 합, 레벨 이벤트 위치는 `floor(y-1e-5)`(getOnPos 근사).
 - 물갈퀴·서리 걸음·영혼 가속·호흡·민첩한 웅크리기·물 친화: 미구현. 서버 속성(물 이동 효율 등)·플레이어 속성 시스템이 없어 근사 없이 남긴다.
 - 시험: `MaceEnchantTest`.
+- 후속: 이동마다 맥락 초기화는 뺐다(착지 판정 안의 reset 만). 레벨 이벤트 2013 은 대상 위치. 충격파 isAlliedTo 없음·방어구 knockback 근사·players() 는 호출 region 한정(가정). 관전자는 onExplosionHit 건너뜀.
