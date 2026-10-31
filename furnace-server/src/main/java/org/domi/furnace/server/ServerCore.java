@@ -818,6 +818,10 @@ public final class ServerCore {
         public java.util.List<ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
             return ServerCore.this.giftLoot(lootWorld, lootTable, self, x, y, z);
         }
+        public java.util.List<ItemStack> lootItems(String lootTable, double[] origin, org.domi.furnace.server.loot.LootEntity thisEntity, float luck,
+                long seed, org.domi.furnace.server.block.RandomSource random) {
+            return ServerCore.this.lootItems(lootWorld, lootTable, origin, thisEntity, luck, seed, random);
+        }
         public String biomeAt(int x, int y, int z) { return lootWorld.biomeAt(x, y, z); }
         public org.domi.furnace.server.map.ExplorerMaps.Backend explorerMaps() { return explorerMapBackend(); }
         public long seed() { return levelData.seed; }
@@ -917,6 +921,10 @@ public final class ServerCore {
         @Override public java.util.List<ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
             return ServerCore.this.giftLoot(lw, lootTable, self, x, y, z);
         }
+        @Override public java.util.List<ItemStack> lootItems(String lootTable, double[] origin, org.domi.furnace.server.loot.LootEntity thisEntity,
+                float luck, long seed, org.domi.furnace.server.block.RandomSource random) {
+            return ServerCore.this.lootItems(lw, lootTable, origin, thisEntity, luck, seed, random);
+        }
     }
 
     /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */
@@ -1014,6 +1022,30 @@ public final class ServerCore {
                 .with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, self);
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var st : table.getRandomItems(table.context(loot, lootWorld, params, 0L))) {
+            ItemStack is = dp.network().toItemStack(st);
+            if (is != null && !is.isEmpty()) out.add(is);
+        }
+        return out;
+    }
+
+    /**
+     * 일반 전리품 평가: origin·this_entity·luck. 난수는 seed(0 아님) → 넘겨 준 레벨 난수 → 표의 random_sequence/월드 난수 순.
+     * 바닐라 LootTable.getRandomItems(params[, seed | random]) — 최대 스택으로 나눈다.
+     */
+    java.util.List<ItemStack> lootItems(org.domi.furnace.server.loot.LootWorld lootWorld, String lootTable, double[] origin,
+            org.domi.furnace.server.loot.LootEntity thisEntity, float luck, long seed, org.domi.furnace.server.block.RandomSource random) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return java.util.List.of();
+        var loot = dp.loot();
+        var table = loot.table(lootTable);
+        var params = new org.domi.furnace.server.loot.LootParams().luck(luck);
+        if (origin != null) params.with(org.domi.furnace.server.loot.LootParams.ORIGIN, origin);
+        if (thisEntity != null) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, thisEntity);
+        org.domi.furnace.server.loot.LootContext ctx = seed == 0L && random != null
+                ? new org.domi.furnace.server.loot.LootContext(loot, lootWorld, params, new org.domi.furnace.server.loot.LegacyNoiseRandom(random))
+                : table.context(loot, lootWorld, params, seed);
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        for (var st : table.getRandomItems(ctx)) {
             ItemStack is = dp.network().toItemStack(st);
             if (is != null && !is.isEmpty()) out.add(is);
         }

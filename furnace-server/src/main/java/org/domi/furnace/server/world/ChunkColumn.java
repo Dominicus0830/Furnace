@@ -314,6 +314,7 @@ public final class ChunkColumn {
                 Object id = nbt.tags().get("id");
                 if (id instanceof String s && ("minecraft:chest".equals(s) || "minecraft:trapped_chest".equals(s)
                         || org.domi.furnace.server.block.entity.BlockEntities.known(s))) keys.add(new int[]{lx, y, lz});
+                else if (id == null) keys.add(new int[]{lx, y, lz});   // 구조물 템플릿 NBT 는 id 가 없을 수 있다(시련 생성기) — 종류는 블록이 정한다
             });
             for (int[] k : keys) {
                 var nbt = generatedBlockEntities.get(blockEntityKey(k[0], k[1], k[2]));
@@ -325,7 +326,16 @@ public final class ChunkColumn {
                 }
                 int state = getBlock(k[0], k[1], k[2]);
                 var pos = new org.domi.furnace.server.block.Pos((chunkX << 4) + k[0], k[1], (chunkZ << 4) + k[2]);
-                var be = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, state, nbt);
+                org.domi.furnace.server.block.entity.BlockEntity be;
+                if (cid == null) {
+                    // StructureTemplate.placeInWorld: 블록이 만든 블록 엔티티에 loadWithComponents(nbt)
+                    be = org.domi.furnace.server.block.BlockBehaviors.of(state).newBlockEntity(pos, state);
+                    if (be == null || !org.domi.furnace.server.block.entity.BlockEntities.known(be.type())) continue;
+                    be.load(nbt);
+                    be.loadComponents(nbt);
+                } else {
+                    be = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, state, nbt);
+                }
                 if (be != null && be.isValid(state)) putBlockEntity(be);
             }
         }

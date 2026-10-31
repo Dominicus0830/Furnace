@@ -1211,6 +1211,12 @@ public abstract class ChunkLevel implements BlockLevel {
         return services().fishingLoot(hook, x, y, z, tool, luck);
     }
 
+    /** 일반 전리품 평가(services 위임): origin·this_entity·luck, 난수는 seed → random → 표 순. */
+    public java.util.List<ItemStack> lootItems(String lootTable, double[] origin, org.domi.furnace.server.loot.LootEntity thisEntity, float luck,
+            long seed, RandomSource random) {
+        return services().lootItems(lootTable, origin, thisEntity, luck, seed, random);
+    }
+
     /** 데이터 팩 전리품 데이터(인챈트 정의·마법 부여 제공자). 데이터 팩이 없으면 null. */
     public org.domi.furnace.server.loot.LootData lootData() { return services().loot(); }
 

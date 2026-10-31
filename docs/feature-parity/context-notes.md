@@ -489,3 +489,22 @@
 - 검증 쪽 안전장치: 서버 자세는 틱당 한 번 갱신되어 한 틱 늦을 수 있으므로 `PlayerMoveValidator.height` 는 수영·기어가기 자세이거나 질주 중 물에 닿았으면(곧 수영) 0.6 상자로 충돌을 본다(가정: 오탐보다 관대함을 택함).
 - 차이·한계: 수영 시작 조건의 "발 위치 블록이 물 FluidState" 는 "몸이 물에 닿음"으로 근사. 서 있을 틈 판정은 블록 충돌만(엔티티 충돌 없음). 관전자/탑승 시 틈 판정 생략은 바닐라와 같다.
 - 시험: `PlayerMoveValidatorTest` — 높이 1칸 통로에서 서 있으면 거절, 수영·기어가기·질주+물 접촉은 수락; 천장 아래 기어가기 자세·0.6 키·눈 0.4·수영 비트 없음; 물속 질주 시 수영 플래그·pose 3·비트 0x10 및 해제.
+
+## 2026-10-31 시련 생성기 블록 엔티티 (작업 C-1)
+
+- 근거: `dsc`(TrialSpawnerBlockEntity), `dsf`(TrialSpawner), `dsg`(Config), `dsh`(Data), `dsi`(State·전이), `dse`(PlayerDetector), `doo`(블록), `btb.a`(장비 표), `btu`(OminousItemSpawner).
+  구현 `block/entity/TrialSpawner{,Config,Data,State}`·`TrialSpawnerBlockEntity`. 월드젠이 놓는 NBT(`normal_config`·`ominous_config`: spawn_potentials·total_mobs 등, 불길한 쪽은 일반 위에 병합)를 그대로 읽는다.
+- **구조물 템플릿 NBT 에는 `id` 가 없다**(trial_spawner 14곳, 금고는 있음). 바닐라는 블록이 만든 블록 엔티티에 `loadWithComponents` 하므로, `ChunkColumn.promote` 가 id 없는 생성 NBT 를 그 칸 블록의 `newBlockEntity` 에 읽힌다.
+- 시선 검사는 `ClipContext.Block.VISUAL`(디컴 `dcf.a.c`)이다 — 충돌 모양이 아니라 `getVisualShape`. `BlockBehavior.getVisualShape`(기본 = 충돌 모양)와 `Clip.clipVisual` 신설. 오버라이드: 유리류(`TransparentBlock`)·`IronBarsBlock`·가루눈 = 빈 모양,
+  울타리·눈 층 = 외곽 모양, 진흙·영혼 모래 = 꽉 찬 블록(디컴 `djz/dol/dlt/diw/dni/dkx/dnl`).
+- 난수 순서: INACTIVE 판정마다 [다음 데이터가 없고 후보가 있으면 nextInt(합)] → 몹 생성 x(nextDouble×2)·y(nextInt(3))·z(nextDouble×2) → 회전 nextFloat → finalizeSpawn → 생성 후 다음 후보 nextInt(합).
+  불길한 ACTIVE: 아이템 추첨 nextInt(합) → nextBoolean → (2명 이상이면 nextInt) → 위치 nextInt(4) → OminousItemSpawner nextInt(61) → 소리 pitch nextFloat×2.
+- 상태: 일반 감지는 (pos.asLong + 게임시각) % 20 == 0 일 때만. **COOLDOWN 중에는 일반 플레이어를 등록하지 않는다**(불길해질 때만) — 바닐라 그대로.
+- **가정**: DFU `lenientOptionalFieldOf(이름, 기본값)` 인코더는 기본값과 같은 필드를 쓰지 않는다. 그래서 저장 NBT 가 짧고, 불길한 구성의 값이 기본값과 같으면(예: simultaneous_mobs 2.0) 저장에서 빠져 **다시 읽을 때 일반 구성 값을 물려받는다**
+  (바닐라도 같은 왕복 불일치를 낳는다고 본다 — 시험 `loadMergesOminousOverNormal…` 에 기록).
+- **미구현/다른 점**: ① 클라이언트 몫(입자·주변 소리·표시용 회전 몹)은 생략, 레벨 이벤트 3011~3014·3019~3021 과 서버 소리만 보낸다. ② 표시용 몹은 "만들 수 있는가"만 본다(`Entities.create`; 안 되는 id 는 매 틱 다시 시도하지 않음).
+  ③ `current_mobs` 는 이 region 저장소에서만 찾는다 — 다른 region 으로 넘어간 몹은 추적에서 빠진다(스레드 소유권 규칙; 47칸 안이면 보통 같은 region). ④ 탈것 승객(`Passengers`)은 BaseSpawner 와 같이 미이식.
+  ⑤ 장비 표는 `Mob.equipmentSlotFor`(이름 기준)로 Equipable 을 대신한다. ⑥ 감지기 SHEEP 변종(`dse.c`)은 바닐라 데이터가 쓰지 않아 생략. ⑦ 평화로움·`doMobSpawning` 검사는 레벨 값 그대로.
+  ⑧ 불길한 아이템 표 평가에 쓰는 origin 은 없음(바닐라 EMPTY 문맥).
+- 추가: `Mob.dropPreservedEquipment`·`setPersistenceRequired`, `ChunkLevel.lootItems`(origin·this_entity·luck, 시드/레벨 난수/표 난수), 스폰 알을 시련 생성기에 쓰면 다음 데이터 종류만 바뀜(`ItemUse`).
+- 시험: `TrialSpawnerBlockEntityTest`(구성 병합·기본값 생략·lenient, 상태 전이 전부, 시드 고정 스폰 위치 손계산, 시선(돌/유리), 불길한 전환·효과 변환, 보상 배출 주기, 불길한 아이템 생성기 난수 순서·위치, 템플릿 NBT 승격).

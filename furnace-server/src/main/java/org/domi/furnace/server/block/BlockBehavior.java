@@ -215,6 +215,9 @@ public class BlockBehavior {
 
     public Shape getShape(int state, BlockLevel level, Pos pos) { return INFO.shape(state); }
 
+    /** getVisualShape(state, level, pos): 시선 검사(ClipContext.Block.VISUAL)가 보는 모양 — 기본은 충돌 모양. */
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return getCollisionShape(state, level, pos, entity); }
+
     // ------------------------------------------------------------------ 엔티티(바닐라 BlockBehaviour·Block 의 엔티티 훅)
 
     /** entityInside(state, level, pos, entity): 엔티티 몸통이 이 칸에 걸쳐 있을 때 매 이동. */
