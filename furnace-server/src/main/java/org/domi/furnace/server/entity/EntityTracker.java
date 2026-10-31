@@ -162,6 +162,7 @@ public final class EntityTracker {
         }
         if (entity.isVehicle()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity));
         if (entity.isPassenger()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity.vehicle()));
+        if (entity instanceof Mob m && m.isLeashed()) list.add(new org.domi.furnace.server.net.protocol.play.SetEntityLink(entity.id(), m.getLeashHolder().id()));   // aqt.addPairing
         p.send(BundleDelimiter.INSTANCE);
         for (Packet pkt : list) p.send(pkt);
         p.send(BundleDelimiter.INSTANCE);

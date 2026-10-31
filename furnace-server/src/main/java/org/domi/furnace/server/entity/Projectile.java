@@ -28,6 +28,28 @@ public abstract class Projectile extends Entity {
         }
     }
 
+    /**
+     * Projectile.deflect(AIM_DEFLECT, deflecter, owner, byAttack)(cnp.a + cnq.c): 서버에서 던진 쪽의 시선 방향 단위 벡터를 속도로 하고
+     * 주인을 owner 로 바꾼 뒤 onDeflection. 튕김을 받지 않으면(canDeflect 거짓) false. 시선이 거의 0 이면 속도 0.
+     */
+    public boolean deflectAim(Player deflecter, Targetable newOwner, boolean byAttack) {
+        if (!canDeflect()) return false;
+        double[] v = org.domi.furnace.server.block.Clip.viewVector(deflecter.pitch(), deflecter.yaw());
+        double len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        if (len < 1.0E-5) setDeltaMovement(0.0, 0.0, 0.0);
+        else setDeltaMovement(v[0] / len, v[1] / len, v[2] / len);
+        hasImpulse = true;
+        setOwner(newOwner);
+        onDeflection(byAttack);
+        return true;
+    }
+
+    /** 튕김을 받는가(바람 구슬은 처음 5틱 동안 거짓). */
+    protected boolean canDeflect() { return true; }
+
+    /** Projectile.onDeflection(entity, byAttack): 기본은 아무것도 안 한다. */
+    protected void onDeflection(boolean byAttack) {}
+
     /** 마지막으로 찾은 주인(살아 있는지 보지 않는다 — 바닐라 getOwner 는 제거되지 않았으면 죽었어도 돌려준다). */
     protected Targetable lastOwner() { return owner; }
 

@@ -383,7 +383,11 @@ public abstract non-sealed class Entity implements Rider {
         checkBelowWorld();
         setSharedFlagOnFire(remainingFireTicks > 0);
         firstTick = false;
+        tickLeash();
     }
+
+    /** baseTick 끝의 Leashable.tickLeash 자리(서버 전용). 끈 달 수 있는 몹만 재정의한다. */
+    protected void tickLeash() {}
 
     // ------------------------------------------------------------------ 포털
 
@@ -971,6 +975,12 @@ public abstract non-sealed class Entity implements Rider {
 
     /** 이 엔티티가 가진 이동 게임 이벤트 리스너(워든·알레이). 없으면 null. */
     public org.domi.furnace.server.world.gameevent.DynamicGameEventListener<?> dynamicGameEventListener() { return null; }
+
+    /** Entity.updateDynamicGameEventListener: 리스너가 둘 이상인 엔티티(알레이: 진동 + 주크박스)는 재정의한다. */
+    public java.util.List<org.domi.furnace.server.world.gameevent.DynamicGameEventListener<?>> dynamicGameEventListeners() {
+        var l = dynamicGameEventListener();
+        return l == null ? java.util.List.of() : java.util.List.of(l);
+    }
 
     /** Mth.equal(double, double): 차이가 1e-5 보다 작은가. */
     static boolean equalish(double a, double b) { return Math.abs(b - a) < 1.0E-5F; }

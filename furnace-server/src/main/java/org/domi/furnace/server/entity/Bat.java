@@ -12,6 +12,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Bat extends PathfinderMob {
+    /** canBeLeashed(디컴파일 y): 박쥐(cey)는 못 맨다. */
+    @Override
+    public boolean canBeLeashed() { return false; }
+
+
     /** Bat.isPushable = false, pushEntities 는 비어 있다. */
     @Override public boolean isPushable() { return false; }
 

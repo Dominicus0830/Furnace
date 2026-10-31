@@ -870,6 +870,4 @@ public class Bee extends Animal implements NeutralMob {
         }
     }
 
-    /** 끈 체계가 아직 없다(바닐라 isLeashed). */
-    private boolean isLeashed() { return false; }
 }

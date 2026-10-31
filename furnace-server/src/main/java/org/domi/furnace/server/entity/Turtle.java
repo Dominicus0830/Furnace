@@ -23,6 +23,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Turtle extends Animal {
+    /** canBeLeashed(디컴파일 y): 거북(cgf)은 못 맨다. */
+    @Override
+    public boolean canBeLeashed() { return false; }
+
+
     /** Turtle.BABY_ON_LAND_SELECTOR: 물 밖의 아기. */
     public static final java.util.function.Predicate<Targetable> BABY_ON_LAND_SELECTOR = t -> t instanceof LivingEntity e && e.isBaby() && !e.isInWater();
 

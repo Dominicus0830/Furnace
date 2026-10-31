@@ -1,5 +1,5 @@
 // 바닐라 Llama: 힘(1~5)·털색 4가지, 침을 뱉어 늑대/피격 대상을 공격, 캐러밴으로 줄지어 걷는다. 상자를 달면 칸 수 = 3 × 힘.
-// TODO(끈·탑승·카펫): 끈에 매는 캐러밴 머리(isLeashed 는 항상 거짓)·카펫 장식·탑승은 해당 시스템이 생기면.
+// TODO(카펫·탑승): 카펫 장식·탑승은 해당 시스템이 생기면. 끈(isLeashed)은 Mob 에 있다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -239,7 +239,6 @@ public class Llama extends AbstractChestedHorse implements RangedAttackMob {
 
     // ------------------------------------------------------------------ 캐러밴
 
-    public boolean isLeashed() { return false; }
 
     public boolean inCaravan() { return caravanHead != null; }
 

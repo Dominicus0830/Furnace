@@ -1205,6 +1205,11 @@ public final class Region {
         world.assertOwns(this);
         if (!players.containsKey(p.entityId()) || target.isRemoved()) return;
         if (target.skipAttackInteraction(p)) return;
+        // Player.attack: redirectable_projectile 는 시선 방향으로 튕기고(AIM_DEFLECT, 주인은 플레이어) 피해·소모 없이 끝난다
+        if (target instanceof org.domi.furnace.server.entity.LargeFireball fb && fb.deflectAim(p, p, true)) {
+            level().playSound(null, p.x(), p.y(), p.z(), "entity.player.attack.nodamage", "players", 1.0F, 1.0F);
+            return;
+        }
         var inv = p.inventory();
         ItemStack held = inv.get(inv.heldWindowSlot());
         float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);

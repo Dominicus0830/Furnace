@@ -27,4 +27,30 @@ public abstract class PathfinderMob extends Mob {
         }
         return false;
     }
+
+    /** PathfinderMob.checkLeashDistance(btw:56): 끈에 매이면 붙잡은 쪽 둘레 5칸으로 제한한다. */
+    @Override
+    protected boolean checkLeashDistance(Rider holder, float dist) {
+        restrictTo(new Pos((int) Math.floor(holder.x()), (int) Math.floor(holder.y()), (int) Math.floor(holder.z())), 5);
+        return true;
+    }
+
+    protected boolean shouldStayCloseToLeashHolder() { return true; }
+
+    protected double followLeashSpeed() { return 1.0; }
+
+    /** closeRangeLeashBehaviour(btw:44): 가까울 때 붙잡은 쪽 쪽으로 걷는다(패닉 중이면 제외). */
+    @Override
+    protected void closeRangeLeashBehaviour(Rider holder) {
+        super.closeRangeLeashBehaviour(holder);
+        if (shouldStayCloseToLeashHolder() && !isPanicking()) {
+            goalSelector.enableControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.MOVE);
+            float f = Mob.distanceTo(this, holder);
+            double sc = Math.max(f - 2.0F, 0.0F);
+            double dx = holder.x() - x(), dy = holder.y() - y(), dz = holder.z() - z();
+            double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (len >= 1.0E-5) { dx = dx / len * sc; dy = dy / len * sc; dz = dz / len * sc; } else { dx = dy = dz = 0.0; }
+            getNavigation().moveTo(x() + dx, y() + dy, z() + dz, followLeashSpeed());
+        }
+    }
 }

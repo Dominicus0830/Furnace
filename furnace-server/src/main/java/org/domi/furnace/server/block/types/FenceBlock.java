@@ -28,7 +28,12 @@ public class FenceBlock extends CrossCollisionBlock {
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        // TODO(엔티티): LeadItem.bindPlayerMobs — 플레이어가 끈으로 끌던 동물을 이 울타리에 묶는다(묶은 게 있으면 CONSUME).
+        // FenceBlock.useWithoutItem: LeadItem.bindPlayerMobs — 끌던 몹을 이 울타리에 묶는다(묶은 게 있으면 SUCCESS)
+        if (level instanceof org.domi.furnace.server.block.ChunkLevel cl && player.handle() instanceof org.domi.furnace.server.entity.Player p
+                && org.domi.furnace.server.entity.LeashFenceKnotEntity.bindPlayerMobs(p, cl, pos, player)) {
+            cl.gameEvent("minecraft:block_attach", pos, player, -1);
+            return InteractionResult.SUCCESS;
+        }
         return InteractionResult.PASS;
     }
 

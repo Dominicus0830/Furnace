@@ -308,7 +308,7 @@ public final class ExecuteCommands {
     private static LiteralArgumentBuilder<CommandSource> on(LiteralCommandNode<CommandSource> execute, LiteralArgumentBuilder<CommandSource> on) {
         return on
                 .then(literal("owner").forkAsync(execute, relation(ExecuteCommands::owner)))
-                .then(literal("leasher").forkAsync(execute, relation(r -> List.of())))   // 끈 체계가 아직 없다(isLeashed 는 항상 거짓)
+                .then(literal("leasher").forkAsync(execute, relation(r -> r instanceof Mob m ? one(m.getLeashHolder()) : List.of())))
                 .then(literal("target").forkAsync(execute, relation(r -> r instanceof Mob m ? one(m.getTarget()) : List.of())))
                 .then(literal("attacker").forkAsync(execute, relation(r -> one(lastHurtBy(r)))))
                 .then(literal("vehicle").forkAsync(execute, relation(r -> one(r.vehicle()))))

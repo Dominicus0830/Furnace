@@ -63,6 +63,17 @@ public abstract class AbstractHurtingProjectile extends Projectile {
         }
     }
 
+    /** cne.onDeflection: 쳐서 튕기면 가속을 처음 값으로, 그 밖에는 반으로. */
+    @Override
+    protected void onDeflection(boolean byAttack) {
+        if (byAttack) accelerationPower = INITIAL_ACCELERATION_POWER;
+        else accelerationPower *= 0.5;
+    }
+
+    /** cne.hurt: 무적이 아니면 맞은 것으로 친다(아무 일도 없다). */
+    @Override
+    public boolean hurt(Damage source, float amount) { return !isInvulnerableTo(source); }
+
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
         super.addAdditionalSaveData(tag);

@@ -422,3 +422,56 @@
 - 물갈퀴·서리 걸음·영혼 가속·호흡·민첩한 웅크리기·물 친화: 미구현. 서버 속성(물 이동 효율 등)·플레이어 속성 시스템이 없어 근사 없이 남긴다.
 - 시험: `MaceEnchantTest`.
 - 후속: 이동마다 맥락 초기화는 뺐다(착지 판정 안의 reset 만). 레벨 이벤트 2013 은 대상 위치. 충격파 isAlliedTo 없음·방어구 knockback 근사·players() 는 호출 region 한정(가정). 관전자는 onExplosionHit 건너뜀.
+## 2026-10-31 가죽끈(leash) 체계 (몹 능력 감사 작업 4-1)
+
+- 근거: 바닐라 `btk`(Leashable), `btp`(Mob), `cjb`(LeashFenceKnotEntity), `cuz`(LeadItem), `diw`(FenceBlock), `afa`(set_entity_link). 바닐라 1.21.1 `Leashable` 은 Mob 과 Boat 둘이 구현한다.
+- 구현(`Mob`): 붙잡은 쪽 `leashHolder`(플레이어 또는 엔티티) + 저장에서 읽어 아직 못 이은 `leashPending`(UUID 또는 울타리 Pos). 매 틱 `Entity.baseTick` 끝의 `tickLeash`:
+  끈 정보가 남았으면 붙잡은 쪽을 찾아 잇고(UUID 는 같은 region 엔티티 저장소·플레이어, 울타리 좌표는 그 칸 매듭을 찾거나 만듦), 100틱이 지나도 못 찾으면 끈 아이템을 떨구고 지운다.
+  몹이나 붙잡은 쪽이 죽었으면 끈을 풀고 끈 아이템을 떨군다. 거리(float) > 10 이면 끊김(`leashTooFarBehaviour`: 풀고 MOVE 플래그 끔), > 6 이면 속도에 `copySign(d²·0.4)` 를 더하고 낙하 거리를 1 로 줄임, 그 이하는 `PathfinderMob` 이 붙잡은 쪽으로 걷는다(패닉 제외).
+  `PathfinderMob.checkLeashDistance`: 붙잡은 쪽 칸 둘레 5칸으로 제한. `TamableAnimal`: 앉은 자세면 당기지 않고 10칸 넘으면 끊는다. 끈 정보가 완전히 사라지면 `clearRestriction`.
+- 상호작용(`Mob.interactLeash`, `ConnectionHandler` 에서 mobInteract 보다 먼저): 내가 맨 끈이면 풀고(크리에이티브는 아이템 안 떨굼) `ENTITY_INTERACT`; 끈 아이템을 들고 `canHaveALeashAttachedToIt`(Enemy 아님, 매이지 않음)이면 맨다. **끈 아이템 1개는 크리에이티브에서도 줄어든다**(바닐라 `shrink(1)` 그대로).
+- 울타리: `FenceBlock.useWithoutItem` 과 `ItemUse` 의 lead 가 `LeashFenceKnotEntity.bindPlayerMobs`(±7칸 박스, 첫 하나 묶을 때 매듭 설치 소리) → `block_attach`. 매듭 우클릭(`interact`): 내 끈을 옮기고, 없으면 매듭을 없앤다(크리에이티브는 매인 것도 풀기). 매듭을 때리면 죽고 깨지는 소리.
+- 패킷: `SetEntityLink`(0x59, **int 두 개**, VarInt 아님). 추적 시작(`addPairing`)과 맺기/풀기에 보낸다. id 는 로컬에 `reports/packets.json` 이 없어 디컴파일 `agg` 의 등록 순서(set_entity_data 바로 다음)로 확인했다(가정: 실제 json 대조는 못 함).
+- 그 밖: `execute on leasher`(`Mob.getLeashHolder`), `WanderingTraderSpawner` 가 짐 라마를 상인에게 맴, Bee/Llama/TraderLlama/Armadillo 의 `isLeashed` 연결(Mob 의 것을 쓴다). 저장 키 `leash`: 엔티티는 `{UUID:int[4]}`, 매듭은 `int[3]`.
+- 스레드: 붙잡은 쪽이 **다른 region 의 비플레이어 엔티티**면 `level.entities().contains` 가 거짓이라 거리 처리를 건너뛰고(위치를 읽지 않는다), 저장에서 읽은 경우 100틱 뒤 끈이 사라진다. 플레이어는 기존 방식대로 다른 region 이어도 위치를 읽는다(읽기만).
+- **미구현/다른 점**: (1) Boat 의 Leashable(우클릭 맺기·`leash` 저장)은 없다. 끈 아이템으로 보트를 클릭하면 탑승 쪽으로 간다. (2) 이름표·스폰알이 끈보다 먼저 처리되는 바닐라 순서는 Furnace 에 이름표 상호작용이 없어 해당 없음. (3) Camel/AbstractHorse 의 `checkLeashDistance` 재정의(앉은 낙타 일으키기, 먹는 말 멈추기), Sniffer/Camel 의 isLeashed 조건, Parrot FollowMobGoal 의 isLeashed 검사, Cat 선물 위치(`cfh:474`)는 연결하지 않았다. (4) 다른 차원 이동 시 `dropLeash(true,false)` 연결 안 함(끈 정보만 NBT 로 남는다). (5) 끈을 맨 몹이 죽으면 다음 틱 `tickLeash` 가 풀고 끈을 떨군다(바닐라 구조 그대로, 죽는 몹이 baseTick 을 도는지에 의존).
+- 시험: `LeashTest`(거리 8 → vx 0.4 손계산, 11 → 끊김+끈 아이템 1, 5 → 제한 구역 5, 저장/복원, 100틱 만료, 패킷 바이트).
+
+## 2026-10-31 늑대 변종·늑대 갑옷 (몹 능력 감사 작업 4-2)
+
+- 변종: 엔티티 데이터 22(직렬화기 23 = wolf_variant, VarInt = 레지스트리 번호). 번호는 `registries/1.21.1.txt` 의 알파벳 순(ashen 0 … woods 8), 기본 pale(3).
+  스폰: 바이옴으로 `Wolf.variantForBiome`(taiga=pale, grove=snowy, old_growth_pine_taiga=black, snowy_taiga=ashen, forest=woods, old_growth_spruce_taiga=chestnut, #is_savanna=spotted, #is_jungle=rusty, #is_badlands=striped, 없으면 pale). 난수 소비 없음.
+  같은 무리(`WolfGroupData`)는 첫 늑대의 변종을 나눠 쓴다. 번식: 이전의 빈 `nextBoolean` 이 이제 부모 둘 중 변종 고르기(난수 순서 동일, 호출 1회). NBT `variant` = `minecraft:<이름>`.
+  바닐라가 변종 데이터(`wolf_variant/*.json`)를 레지스트리 순서로 훑어 첫 일치를 고르는데, 바이옴 집합이 서로 겹치지 않아 순서는 결과에 영향이 없다.
+- 갑옷: 몸통 칸. 소유자가 새끼가 아닌 늑대에게 늑대 갑옷을 들고 우클릭하면 장착(`setBodyArmorItem`: 떨굼 확률 2·장착 소리), 가위(내구도 -1, 귀속 저주는 크리에이티브만)로 벗기면 `unequip_wolf` 소리와 갑옷 떨굼,
+  앉은 늑대에게 아르마딜로 비늘로 수리(`(int)(maxDamage*0.125F)`, 아이템 1개는 크리에이티브도 줄어듦). 염료는 소유자만(같은 색이면 곧바로 부모 처리, 앉기 전환 없음 — 바닐라 순서).
+  피해: 갑옷이 있고 `#bypasses_wolf_armor` 가 아니면 늑대는 **피해를 전혀 받지 않고** 갑옷이 `ceil(피해)` 만큼 닳는다. 금 단계(0.95/0.69/0.32 이상)가 바뀌면 `item.wolf_armor.crack` 과 비늘 입자 20개. 아픈 소리도 `item.wolf_armor.damage`.
+  장비 패킷은 기존 `detectEquipmentUpdates`(BODY 칸 포함)가 보낸다.
+- **미구현/다른 점**: 갑옷 방어 속성(11)이 `bypasses_wolf_armor` 피해 경로의 방어 계산에 쓰이는 것과 그때의 `hurtArmor`(몸통 칸 내구도)는 `LivingEntity` 에 `hurtArmor` 가 몹용으로 없어 연결하지 않았다. 갑옷이 부서질 때의 깨짐 사운드·엔티티 이벤트(47+슬롯)는 `hurtEquipped` 가 하는 만큼만. 새끼 늑대 변종(번식)은 바이옴이 아니라 부모 중 하나.
+- 시험: `WolfVariantArmorTest`(바이옴 표, NBT, 금 단계 경계 3/4·19/20·43/44, 흡수 5→내구 5, 2.1→3, magic 은 늑대가 맞음).
+
+## 2026-10-31 알레이 음표 블록·주크박스 수신 (몹 능력 감사 작업 4-3)
+
+- 근거: `cgk`(Allay), `cgk.a`(주크박스 리스너), `cgk.b`(진동 사용자), `AllayAi.hearNoteblock`. 알레이는 리스너 둘을 가진다(`Entity.dynamicGameEventListeners()` 새로 추가, `ChunkLevel` 의 등록·이동·해제 4곳이 모두 돈다).
+  (1) 진동 수신기: 반경 16, 기억한 음표 블록(`LIKED_NOTEBLOCK_POSITION`)이 없으면 모든 진동을 받고, 있으면 그 칸·그 차원만. `note_block_play` 만 반응해 `hearNoteblock`(없으면 기억+600틱, 같은 칸이면 600틱 갱신). 틱마다 `VibrationSystem.Ticker`. NBT `listener` 저장/복원.
+  (2) 주크박스 수신기: 반경 10, `jukebox_play` → 아직 안 추면 그 칸을 기억하고 춤, `jukebox_stop_play` → 기억한 칸(또는 기억 없음)일 때만 멈춤. 기억한 칸은 저장하지 않는다(바닐라도 그렇다).
+  틱: 춤추는데 주크박스를 모르거나 10칸 밖(칸 가운데 기준 제곱거리 < 100)이거나 주크박스 블록이 아니면 20틱마다 춤을 멈추고 기억을 지운다. 겁먹으면(`isPanicking`) 춤 멈춤.
+- **미구현/다른 점**: 진동 입자 패킷은 공용 `VibrationSystem` 이 아직 보내지 않는다(기존 한계). 알레이 클라이언트 춤 애니메이션 값은 서버에 불필요해 생략.
+- 시험: `AllayListenerTest`(리스너 둘과 반경, 재생/정지 이벤트, 이미 춤추는 중 두 번째 주크박스 무시, 음표 블록 기억·필터, 600틱, NBT).
+
+## 2026-10-31 불덩이 되치기 (몹 능력 감사 작업 4-4)
+
+- 근거: `cmx.e`(Player.attack), `cnp.a`(Projectile.deflect), `cnq.c`(AIM_DEFLECT), `cne.b`(onDeflection), `cjx.a/b/g`(Ghast.hurt·isInvulnerableTo).
+- **감사 문서와 다른 점(디컴파일이 정답)**: 1.21.1 에서 플레이어가 쳐서 튕길 수 있는 투사체는 태그 `#redirectable_projectile` = `fireball`(가스트 큰 불덩이), `wind_charge`, `breeze_wind_charge` 뿐이다.
+  **블레이즈의 작은 불덩이(`small_fireball`)는 이 태그에 없어 튕기지 않는다**(맞을 수도 없다). 그래서 작은 불덩이는 손대지 않았다.
+- 구현: 큰 불덩이(`LargeFireball`)가 `isPickable` 이 되어 플레이어 공격 대상이 된다. `Region.attackEntity` 가 피해 전에 `deflectAim`: 시선 단위 벡터가 새 속도, 소유자는 플레이어, `hasImpulse`, 쳐서 튕기면 `accelerationPower = 0.1`(아니면 절반). 피해·허기 소모 없이 `entity.player.attack.nodamage` 소리.
+  `AbstractHurtingProjectile.hurt` 는 이제 무적이 아니면 참(바닐라). 가스트: 직접 원인이 큰 불덩이이고 때린 쪽이 플레이어면 무적 검사를 건너뛰고 피해 1000.
+- **미구현/다른 점**: 바람 구슬(`wind_charge`, `breeze_wind_charge`)의 튕김(처음 5틱은 튕기지 않음)은 연결하지 않았다. 플레이어의 공격 쿨다운·`isAttackable` 판정, 화살 등 다른 투사체가 불덩이를 맞힐 때의 세부 동작은 `isPickable` 이 참이 된 만큼만 바뀐다(가정: 바닐라와 같다고 보았으나 따로 대조하지 못함). Breeze 의 투사체 튕김(`Breeze.java` TODO)도 아직이다.
+- 시험: `FireballDeflectTest`(yaw 0 → (0,0,1), yaw 90 → x=-1, pitch -90 → y=1, 가속 0.1/절반, 플레이어 소유 불덩이에 가스트 사망, 다른 가스트 소유는 생존).
+
+## 2026-10-31 검토 후속: 끈 대상 제한·알레이 청취 태그·region 읽기 (작업 4 후속)
+
+- `canBeLeashed`(디컴파일 `y()`) 재정의를 전수 반영: 박쥐·판다·거북·`WaterAnimal`(false; 돌고래·오징어는 true)·주민·방랑 상인(false), 늑대는 분노 중이면 false, Hoglin/Zoglin 은 Enemy 여도 true. 끈 아이템을 든 주민 우클릭은 `interactLeash` 가 거절해 거래로 간다.
+- 알레이 진동 사용자가 `#allay_can_listen` 만 듣는다(걸음·블록 설치가 note_block_play 를 밀어내지 않음). 진동 틱은 바닐라처럼 `aiStep` 서버 쪽으로 옮겼다.
+- `tickLeash` 는 다른 region 엔티티를 읽지 않는다: 붙잡은 쪽이 이 region 저장소에 있으면 그때만 생존·거리를 보고, 있다가 없어지면(제거·이탈) 끈을 푼다. 처음부터 다른 region 소속이면 건너뛴다(플레이어 위치 읽기만 예외).
+- 늑대 갑옷 장착은 크리에이티브에서도 1개 줄어든다(`split(1)`).

@@ -2,7 +2,6 @@
 // 마을 종: 플레이어 근처 48칸의 MEETING POI(PoiManager.find, 첫 것)가 있으면 그 둘레, 없으면 플레이어 위치.
 // TODO(저장): spawnDelay/spawnChance 는 level.dat 의 WanderingTraderSpawnDelay/Chance, 상인 UUID 는 WanderingTraderId 에 저장해야 하나
 //   런타임이 아직 level.dat 에 되쓰지 않아(LevelData 는 읽은 값을 그대로 보존) region 레벨의 필드로만 둔다.
-// TODO(끈): 짐 라마를 상인에게 매는 setLeashedTo(trader, true) 는 끈 시스템이 없어 생략(TraderLlama 는 DespawnDelay 로 스스로 사라진다).
 package org.domi.furnace.server.entity.spawn;
 
 import org.domi.furnace.server.block.BlockInfo;
@@ -89,9 +88,7 @@ public final class WanderingTraderSpawner {
     private void tryToSpawnLlamaFor(ChunkLevel level, WanderingTrader trader, int range) {
         Pos pos = findSpawnPositionNear(level, trader.blockPosition(), range);
         if (pos == null) return;
-        if (spawnEvent(level, LLAMA, pos) instanceof TraderLlama) {
-            // TODO(끈): llama.setLeashedTo(trader, true)
-        }
+        if (spawnEvent(level, LLAMA, pos) instanceof TraderLlama llama) llama.setLeashedTo(trader, true);
     }
 
     /** 높이 맵 위의 칸을 range 둘레에서 최대 10번 무작위로 골라 방랑 상인이 설 수 있는 첫 칸. 난수는 x 다음 z. */
