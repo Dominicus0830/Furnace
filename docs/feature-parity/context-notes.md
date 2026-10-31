@@ -402,3 +402,16 @@
 - 스레드: 붙잡은 쪽이 **다른 region 의 비플레이어 엔티티**면 `level.entities().contains` 가 거짓이라 거리 처리를 건너뛰고(위치를 읽지 않는다), 저장에서 읽은 경우 100틱 뒤 끈이 사라진다. 플레이어는 기존 방식대로 다른 region 이어도 위치를 읽는다(읽기만).
 - **미구현/다른 점**: (1) Boat 의 Leashable(우클릭 맺기·`leash` 저장)은 없다. 끈 아이템으로 보트를 클릭하면 탑승 쪽으로 간다. (2) 이름표·스폰알이 끈보다 먼저 처리되는 바닐라 순서는 Furnace 에 이름표 상호작용이 없어 해당 없음. (3) Camel/AbstractHorse 의 `checkLeashDistance` 재정의(앉은 낙타 일으키기, 먹는 말 멈추기), Sniffer/Camel 의 isLeashed 조건, Parrot FollowMobGoal 의 isLeashed 검사, Cat 선물 위치(`cfh:474`)는 연결하지 않았다. (4) 다른 차원 이동 시 `dropLeash(true,false)` 연결 안 함(끈 정보만 NBT 로 남는다). (5) 끈을 맨 몹이 죽으면 다음 틱 `tickLeash` 가 풀고 끈을 떨군다(바닐라 구조 그대로, 죽는 몹이 baseTick 을 도는지에 의존).
 - 시험: `LeashTest`(거리 8 → vx 0.4 손계산, 11 → 끊김+끈 아이템 1, 5 → 제한 구역 5, 저장/복원, 100틱 만료, 패킷 바이트).
+
+## 2026-10-31 늑대 변종·늑대 갑옷 (몹 능력 감사 작업 4-2)
+
+- 변종: 엔티티 데이터 22(직렬화기 23 = wolf_variant, VarInt = 레지스트리 번호). 번호는 `registries/1.21.1.txt` 의 알파벳 순(ashen 0 … woods 8), 기본 pale(3).
+  스폰: 바이옴으로 `Wolf.variantForBiome`(taiga=pale, grove=snowy, old_growth_pine_taiga=black, snowy_taiga=ashen, forest=woods, old_growth_spruce_taiga=chestnut, #is_savanna=spotted, #is_jungle=rusty, #is_badlands=striped, 없으면 pale). 난수 소비 없음.
+  같은 무리(`WolfGroupData`)는 첫 늑대의 변종을 나눠 쓴다. 번식: 이전의 빈 `nextBoolean` 이 이제 부모 둘 중 변종 고르기(난수 순서 동일, 호출 1회). NBT `variant` = `minecraft:<이름>`.
+  바닐라가 변종 데이터(`wolf_variant/*.json`)를 레지스트리 순서로 훑어 첫 일치를 고르는데, 바이옴 집합이 서로 겹치지 않아 순서는 결과에 영향이 없다.
+- 갑옷: 몸통 칸. 소유자가 새끼가 아닌 늑대에게 늑대 갑옷을 들고 우클릭하면 장착(`setBodyArmorItem`: 떨굼 확률 2·장착 소리), 가위(내구도 -1, 귀속 저주는 크리에이티브만)로 벗기면 `unequip_wolf` 소리와 갑옷 떨굼,
+  앉은 늑대에게 아르마딜로 비늘로 수리(`(int)(maxDamage*0.125F)`, 아이템 1개는 크리에이티브도 줄어듦). 염료는 소유자만(같은 색이면 곧바로 부모 처리, 앉기 전환 없음 — 바닐라 순서).
+  피해: 갑옷이 있고 `#bypasses_wolf_armor` 가 아니면 늑대는 **피해를 전혀 받지 않고** 갑옷이 `ceil(피해)` 만큼 닳는다. 금 단계(0.95/0.69/0.32 이상)가 바뀌면 `item.wolf_armor.crack` 과 비늘 입자 20개. 아픈 소리도 `item.wolf_armor.damage`.
+  장비 패킷은 기존 `detectEquipmentUpdates`(BODY 칸 포함)가 보낸다.
+- **미구현/다른 점**: 갑옷 방어 속성(11)이 `bypasses_wolf_armor` 피해 경로의 방어 계산에 쓰이는 것과 그때의 `hurtArmor`(몸통 칸 내구도)는 `LivingEntity` 에 `hurtArmor` 가 몹용으로 없어 연결하지 않았다. 갑옷이 부서질 때의 깨짐 사운드·엔티티 이벤트(47+슬롯)는 `hurtEquipped` 가 하는 만큼만. 새끼 늑대 변종(번식)은 바이옴이 아니라 부모 중 하나.
+- 시험: `WolfVariantArmorTest`(바이옴 표, NBT, 금 단계 경계 3/4·19/20·43/44, 흡수 5→내구 5, 2.1→3, magic 은 늑대가 맞음).
