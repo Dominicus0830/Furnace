@@ -20,6 +20,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Panda extends Animal {
+    /** canBeLeashed(디컴파일 y): 판다(cft)는 못 맨다. */
+    @Override
+    public boolean canBeLeashed() { return false; }
+
+
     public static final int DATA_UNHAPPY_COUNTER = 17, DATA_SNEEZE_COUNTER = 18, DATA_EAT_COUNTER = 19, DATA_MAIN_GENE_ID = 20, DATA_HIDDEN_GENE_ID = 21, DATA_ID_FLAGS = 22;
     private static final int FLAG_SNEEZE = 2, FLAG_ROLL = 4, FLAG_SIT = 8, FLAG_ON_BACK = 16;
 

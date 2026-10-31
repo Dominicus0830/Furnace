@@ -5,6 +5,11 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.navigation.PathType;
 
 public abstract class WaterAnimal extends PathfinderMob {
+    /** canBeLeashed(디컴파일 y): WaterAnimal(cgg)은 못 맨다(돌고래·오징어는 true 로 재정의). */
+    @Override
+    public boolean canBeLeashed() { return false; }
+
+
 
     protected WaterAnimal(EntityType type, ChunkLevel level, int id) {
         super(type, level, id);

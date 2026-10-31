@@ -32,6 +32,11 @@ import org.domi.furnace.server.trade.MerchantOffers;
 import org.domi.furnace.server.trade.VillagerTrades;
 
 public final class WanderingTrader extends PathfinderMob implements Merchant {
+    /** canBeLeashed(디컴파일 y): AbstractVillager(cmf)는 못 맨다. */
+    @Override
+    public boolean canBeLeashed() { return false; }
+
+
 
     /** AgeableMob 16 아기 여부, AbstractVillager 17 불만 카운터. */
     public static final int DATA_BABY = 16, DATA_UNHAPPY = 17;

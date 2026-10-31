@@ -18,6 +18,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Zoglin extends Monster implements HoglinBase {
+    /** canBeLeashed(디컴파일 y): Zoglin(ckv)은 Enemy 여도 맬 수 있다. */
+    @Override
+    public boolean canBeLeashed() { return true; }
+
+
     public static final int DATA_BABY = 16;
     private int attackAnimationRemainingTicks;
 

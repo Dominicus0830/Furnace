@@ -91,6 +91,21 @@ class AllayListenerTest {
     }
 
     @Test
+    void onlyAllayCanListenEventsReachTheVibrationListener() {
+        var level = new BlockPlacementTest.TestLevel();
+        Allay a = allay(level);
+        var user = a.getVibrationUser();
+        assertEquals(GameEvent.ALLAY_CAN_LISTEN, user.getListenableEvents());
+        assertFalse(user.isValidVibration(GameEvent.STEP, GameEventContext.EMPTY));          // 걸음은 듣지 않는다
+        assertFalse(user.isValidVibration(GameEvent.BLOCK_PLACE, GameEventContext.EMPTY));   // 블록 설치도
+        assertTrue(user.isValidVibration(GameEvent.NOTE_BLOCK_PLAY, GameEventContext.EMPTY));
+        var l = a.dynamicGameEventListeners().get(0).getListener();
+        var at = new org.domi.furnace.server.entity.Vec3(3.5, -59.5, 3.5);
+        assertFalse(l.handleGameEvent(level, GameEvent.STEP, GameEventContext.EMPTY, at));
+        assertTrue(l.handleGameEvent(level, GameEvent.NOTE_BLOCK_PLAY, GameEventContext.EMPTY, at));
+    }
+
+    @Test
     void listenerNbtRoundTrip() {
         var level = new BlockPlacementTest.TestLevel();
         Allay a = allay(level);

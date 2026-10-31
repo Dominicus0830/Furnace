@@ -794,6 +794,8 @@ public abstract class Mob extends LivingEntity {
     private Rider leashHolder;
     /** LeashData.delayedLeashInfo(b): 저장에서 읽은 UUID 또는 울타리 Pos. 붙잡은 쪽이 로드되면 setLeashedTo 로 바뀐다. */
     private Object leashPending;
+    /** 붙잡은 쪽이 이 region 저장소에 있는 것을 본 적이 있다. */
+    private boolean holderSeenHere;
 
     /** isLeashed(N_): 붙잡은 쪽이 있다. */
     public boolean isLeashed() { return leashHolder != null; }
@@ -824,6 +826,7 @@ public abstract class Mob extends LivingEntity {
     /** setLeashedTo(holder, broadcast)(b): 이으면 타고 있던 탈것에서 내린다. */
     public void setLeashedTo(Rider holder, boolean broadcast) {
         leashHolder = holder;
+        holderSeenHere = holder instanceof Entity he && level.entities().contains(he);
         leashPending = null;
         if (broadcast && tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.SetEntityLink(id(), holder.id()));
         if (isPassenger()) stopRiding();
@@ -875,13 +878,19 @@ public abstract class Mob extends LivingEntity {
     protected void tickLeash() {
         if (leashPending != null) restoreLeashFromSave();
         if (leashHolder == null) return;
+        // 다른 region 의 엔티티는 읽지 않는다. 이 region 저장소에 있는 붙잡은 쪽만 살아 있는지 본다(있다가 없어졌으면 지워지거나 떠난 것).
+        if (leashHolder instanceof Entity he) {
+            if (level.entities().contains(he)) {
+                holderSeenHere = true;
+            } else {
+                if (holderSeenHere) dropLeash(true, true);
+                return;
+            }
+        }
         if (!isAlive() || !holderAlive(leashHolder)) dropLeash(true, true);
         Rider holder = leashHolder;
         if (holder == null) return;
-        // 다른 region 의 엔티티는 읽지 않는다(플레이어는 위치 읽기가 허용된 기존 방식)
-        boolean sameLevel = holder instanceof Player p ? p.dimensionKey().equals(level.dimension())
-                : level.entities().contains((Entity) holder);
-        if (!sameLevel) return;
+        if (holder instanceof Player p && !p.dimensionKey().equals(level.dimension())) return;   // 플레이어는 위치 읽기만 허용
         float dist = distanceTo(this, holder);
         if (!checkLeashDistance(holder, dist)) return;
         if (dist > 10.0) {

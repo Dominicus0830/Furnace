@@ -434,3 +434,10 @@
   `AbstractHurtingProjectile.hurt` 는 이제 무적이 아니면 참(바닐라). 가스트: 직접 원인이 큰 불덩이이고 때린 쪽이 플레이어면 무적 검사를 건너뛰고 피해 1000.
 - **미구현/다른 점**: 바람 구슬(`wind_charge`, `breeze_wind_charge`)의 튕김(처음 5틱은 튕기지 않음)은 연결하지 않았다. 플레이어의 공격 쿨다운·`isAttackable` 판정, 화살 등 다른 투사체가 불덩이를 맞힐 때의 세부 동작은 `isPickable` 이 참이 된 만큼만 바뀐다(가정: 바닐라와 같다고 보았으나 따로 대조하지 못함). Breeze 의 투사체 튕김(`Breeze.java` TODO)도 아직이다.
 - 시험: `FireballDeflectTest`(yaw 0 → (0,0,1), yaw 90 → x=-1, pitch -90 → y=1, 가속 0.1/절반, 플레이어 소유 불덩이에 가스트 사망, 다른 가스트 소유는 생존).
+
+## 2026-10-31 검토 후속: 끈 대상 제한·알레이 청취 태그·region 읽기 (작업 4 후속)
+
+- `canBeLeashed`(디컴파일 `y()`) 재정의를 전수 반영: 박쥐·판다·거북·`WaterAnimal`(false; 돌고래·오징어는 true)·주민·방랑 상인(false), 늑대는 분노 중이면 false, Hoglin/Zoglin 은 Enemy 여도 true. 끈 아이템을 든 주민 우클릭은 `interactLeash` 가 거절해 거래로 간다.
+- 알레이 진동 사용자가 `#allay_can_listen` 만 듣는다(걸음·블록 설치가 note_block_play 를 밀어내지 않음). 진동 틱은 바닐라처럼 `aiStep` 서버 쪽으로 옮겼다.
+- `tickLeash` 는 다른 region 엔티티를 읽지 않는다: 붙잡은 쪽이 이 region 저장소에 있으면 그때만 생존·거리를 보고, 있다가 없어지면(제거·이탈) 끈을 푼다. 처음부터 다른 region 소속이면 건너뛴다(플레이어 위치 읽기만 예외).
+- 늑대 갑옷 장착은 크리에이티브에서도 1개 줄어든다(`split(1)`).

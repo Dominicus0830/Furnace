@@ -15,6 +15,11 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Wolf extends TamableAnimal implements NeutralMob {
+    /** canBeLeashed(디컴파일 y): 늑대(cgh)는 분노 중이면 못 맨다. */
+    @Override
+    public boolean canBeLeashed() { return !isAngry(); }
+
+
     public static final int DATA_INTERESTED_ID = 19, DATA_COLLAR_COLOR = 20, DATA_REMAINING_ANGER_TIME = 21, DATA_VARIANT_ID = 22;
 
     /** wolf_variant 레지스트리 순서(알파벳 = 네트워크 번호). 기본값 pale. */
@@ -184,7 +189,8 @@ public class Wolf extends TamableAnimal implements NeutralMob {
                 // 몸통 칸 늑대 갑옷(cgh.b): 장착 -> 가위로 벗기기 -> 아르마딜로 비늘 수리 -> 기본 상호작용/앉기
                 if (name.equals("minecraft:wolf_armor") && isOwnedBy(p) && getItemBySlot(EquipmentSlot.BODY).isEmpty() && !isBaby()) {
                     setBodyArmorItem(held.withCount(1));
-                    usePlayerItem(p, hand, held);
+                    var inv = p.inventory();
+                    inv.set(hand == 0 ? inv.heldWindowSlot() : 45, held.withCount(held.count() - 1));   // split(1): 크리에이티브도 줄어든다
                     return true;
                 }
                 if (name.equals("minecraft:shears") && isOwnedBy(p) && hasArmor()

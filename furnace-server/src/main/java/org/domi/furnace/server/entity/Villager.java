@@ -30,6 +30,11 @@ import org.domi.furnace.server.world.poi.PoiType;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
 public final class Villager extends AgeableMob implements Merchant, InventoryCarrier {
+    /** canBeLeashed(디컴파일 y): AbstractVillager(cmf)는 못 맨다. */
+    @Override
+    public boolean canBeLeashed() { return false; }
+
+
     /** 바닐라 AbstractVillager 하위(주민·떠돌이 상인)인가. 대상 종류 AbstractVillager.class 대신 쓴다. */
     public static boolean isAbstractVillager(Targetable t) { return t instanceof Villager || t instanceof WanderingTrader; }
 

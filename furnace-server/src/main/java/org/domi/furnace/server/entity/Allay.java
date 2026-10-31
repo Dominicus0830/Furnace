@@ -130,9 +130,7 @@ public class Allay extends PathfinderMob implements InventoryCarrier, VibrationS
             jukeboxPos = null;
         }
         updateDuplicationCooldown();
-        // aiStep 서버 쪽: 진동 틱 + 겁먹으면 춤을 멈춘다
-        VibrationSystem.Ticker.tick(level, vibrationData, vibrationUser);
-        if (isPanicking()) setDancing(false);
+
     }
 
     @Override public boolean canPickUpLoot() { return !isOnPickupCooldown() && hasItemInHand(); }
@@ -252,6 +250,14 @@ public class Allay extends PathfinderMob implements InventoryCarrier, VibrationS
 
     // ------------------------------------------------------------------ 진동·주크박스 수신(cgk.a, cgk.b)
 
+    /** Allay.aiStep(cgk.l) 서버 쪽: 진동 틱 + 겁먹으면 춤을 멈춘다. */
+    @Override
+    protected void aiStep() {
+        super.aiStep();
+        VibrationSystem.Ticker.tick(level, vibrationData, vibrationUser);
+        if (isPanicking()) setDancing(false);
+    }
+
     @Override public DynamicGameEventListener<?> dynamicGameEventListener() { return vibrationListener; }
 
     @Override
@@ -310,6 +316,9 @@ public class Allay extends PathfinderMob implements InventoryCarrier, VibrationS
         @Override public int getListenerRadius() { return 16; }
 
         @Override public PositionSource getPositionSource() { return positionSource; }
+
+        /** cgk.b.c(): 알레이가 듣는 이벤트는 #allay_can_listen 만(걸음·블록 설치 진동이 음표 블록 소리를 밀어내지 않게). */
+        @Override public String getListenableEvents() { return GameEvent.ALLAY_CAN_LISTEN; }
 
         @Override
         public boolean canReceiveVibration(ChunkLevel level, Pos pos, GameEvent event, GameEventContext ctx) {
