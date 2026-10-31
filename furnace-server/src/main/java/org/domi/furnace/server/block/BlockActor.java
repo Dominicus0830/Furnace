@@ -187,6 +187,9 @@ public interface BlockActor {
     /** player.getFoodData().eat(nutrition, saturationModifier). */
     default void eat(int nutrition, float saturationModifier) {}
 
+    /** Player.getLuck() = generic.luck 속성 값(전리품 행운). */
+    default float luck() { return 0.0F; }
+
     /** Player.awardStat(통계 이름, 1). TODO(통계). */
     default void awardStat(String stat) {}
 

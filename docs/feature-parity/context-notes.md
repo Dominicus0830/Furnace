@@ -508,3 +508,18 @@
   ⑧ 불길한 아이템 표 평가에 쓰는 origin 은 없음(바닐라 EMPTY 문맥).
 - 추가: `Mob.dropPreservedEquipment`·`setPersistenceRequired`, `ChunkLevel.lootItems`(origin·this_entity·luck, 시드/레벨 난수/표 난수), 스폰 알을 시련 생성기에 쓰면 다음 데이터 종류만 바뀜(`ItemUse`).
 - 시험: `TrialSpawnerBlockEntityTest`(구성 병합·기본값 생략·lenient, 상태 전이 전부, 시드 고정 스폰 위치 손계산, 시선(돌/유리), 불길한 전환·효과 변환, 보상 배출 주기, 불길한 아이템 생성기 난수 순서·위치, 템플릿 NBT 승격).
+## 2026-10-31 금고 블록 엔티티 (작업 C-2)
+
+- 근거: `dsk`(VaultBlockEntity + Server/Client), `dsm`(VaultConfig), `dsn`(VaultServerData), `dso`(VaultSharedData), `dsp`(VaultState·전이), `dou`(VaultBlock), `dse`(PlayerDetector).
+  구현 `block/entity/Vault{Config,ServerData,SharedData,State,BlockEntity}`·`VaultBlock`. 구조물 템플릿 NBT(`config: {key_item: {id, count}, loot_table}`, id 있음)를 그대로 읽는다.
+- 틱(서버): 20틱마다 활성 금고 표시 아이템을 전리품 표에서 새로 뽑는다(표를 **레벨 난수**로 평가한 뒤 `nextInt(개수)` 하나 — 표 난수가 아니다). 갱신 시각이 되면 상태 한 칸:
+  inactive/active = 범위(활성 4.0 / 비활성 4.5, 블록 거리² &lt; 범위², 창작 모드 포함·관전자 제외, **이미 보상 받은 플레이어 제외**) 안에 사람이 있으면 active, 20틱 쉼. unlocking → 20틱 뒤 ejecting. ejecting = 20틱마다 목록 **끝**에서 하나를
+  (위 1.2칸, 속도 2) 내놓고, 비면 총 배출 수를 0 으로 하고 비활성 범위로 확인. 소리 높이 = 0.8 + 0.4 × 진행도, 진행도 = 총 1 이면 1, 아니면 1 − (남은 − 1)/(총 − 1).
+- 열쇠: 활성일 때만. 같은 아이템·컴포넌트이고 개수가 열쇠 이상이어야 한다(아니면 실패 소리 — 15틱에 한 번). 이미 보상을 받은 플레이어는 거절 소리. 통과하면 전리품 표를(this_entity = 플레이어, 행운 = 속성 luck, origin = 칸 가운데, 표의 난수) 평가해
+  비어 있지 않을 때만 통계 used·열쇠 소비(창작 제외)·unlocking(14틱 쉼)·보상 받은 플레이어 기록(128명 넘으면 가장 오래된 사람부터 밀림)·연결 플레이어 갱신. 이벤트 3015/3016(활성/비활성, 불길하면 데이터 1)·3017(배출).
+- 저장: DFU 규칙(가정, 시련 생성기 노트 참고)대로 `config`·`shared_data`·`server_data` 는 늘 쓰고, 안의 기본값 필드는 생략. `key_item` 은 비어 있지 않으면 늘 쓴다.
+  **바닐라 quirk**: `server_data` 를 읽을 때 `total_ejections_needed` 를 옮기지 않는다(copyFrom 이 빠뜨림) — 배출 도중 재시작하면 진행도가 `남은 수`가 되어 소리 높이가 올라간다. 그대로 포팅.
+- **미구현/다른 점**: 클라이언트 입자·주변 소리·표시 아이템 회전 생략. 금고 회전·거울(`rotate/mirror`) 훅은 아직 이 서버 블록 체계에 없다(템플릿 배치는 표 변환으로 처리). 감지기는 시련 생성기와 같은 `PlayerDetector`(시선 없음).
+  연결 플레이어는 UUID 만 들고 다른 region 플레이어도 위치만 읽는다(스케줄러 규칙의 읽기 전용 예외 — 기존 스컬크·시련 생성기와 같다).
+- 시험: `VaultBlockEntityTest`(템플릿 NBT·기본값 생략·범위 검증 거부, server/shared 왕복, 128명 제한, 진행도 손계산, 범위 경계 16/20.25, 표시 아이템 순환 난수, 열쇠 성공/실패/거절/창작/빈 보상, 배출 주기·높이, 배출 후 상태).
+

@@ -44,6 +44,10 @@ class TrialSpawnerBlockEntityTest {
         final List<String> sounds = new ArrayList<>();
         final Map<String, List<ItemStack>> loot = new HashMap<>();
         final List<long[]> lootSeeds = new ArrayList<>();
+        final List<Float> pitches = new ArrayList<>();
+        float lastLuck;
+        double[] lastOrigin;
+        RandomSource lastRandom;
 
         Lvl(long seed) { rnd = RandomSource.create(seed); }
 
@@ -58,11 +62,18 @@ class TrialSpawnerBlockEntityTest {
         }
 
         @Override public void levelEvent(BlockActor except, int type, Pos pos, int data) { events.add(new int[] {type, pos.x(), pos.y(), pos.z(), data}); }
-        @Override public void playSound(BlockActor except, Pos pos, String sound, String source, float volume, float pitch) { sounds.add(sound); }
+        @Override
+        public void playSound(BlockActor except, Pos pos, String sound, String source, float volume, float pitch) {
+            sounds.add(sound);
+            pitches.add(pitch);
+        }
 
         @Override
         public List<ItemStack> lootItems(String table, double[] origin, LootEntity self, float luck, long seed, RandomSource random) {
             lootSeeds.add(new long[] {seed});
+            lastLuck = luck;
+            lastOrigin = origin;
+            lastRandom = random;
             return loot.getOrDefault(table, List.of());
         }
 

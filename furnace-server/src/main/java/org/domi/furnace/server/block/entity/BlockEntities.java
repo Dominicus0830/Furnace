@@ -49,6 +49,7 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:skull", SkullBlockEntity::new);
         FACTORIES.put("minecraft:command_block", CommandBlockEntity::new);
         FACTORIES.put("minecraft:trial_spawner", TrialSpawnerBlockEntity::new);
+        FACTORIES.put("minecraft:vault", VaultBlockEntity::new);
     }
 
     public static boolean known(String type) { return FACTORIES.containsKey(type); }
