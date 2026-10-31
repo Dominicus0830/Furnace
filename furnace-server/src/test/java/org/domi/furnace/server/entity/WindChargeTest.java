@@ -217,7 +217,11 @@ class WindChargeTest {
     void breezeFightsIronGolemShootingWindCharges() {
         var level = new BlockPlacementTest.TestLevel();
         int floor = B.defaultState(B.id("minecraft:stone"));
-        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) level.setBlock(new Pos(x, -61, z), floor, 3);
+        // 브리즈는 난수로 옆걸음·점프해 바닥 밖 허공으로 떨어져 죽을 수 있다(실패율 약 9%). 바닥을 넓히고 둘레에 벽을 둘러 난수와 무관하게 한다.
+        for (int x = -8; x < 24; x++) for (int z = -8; z < 24; z++) {
+            level.setBlock(new Pos(x, -61, z), floor, 3);
+            if (x == -8 || x == 23 || z == -8 || z == 23) for (int y = -60; y <= -48; y++) level.setBlock(new Pos(x, y, z), floor, 3);
+        }
         Breeze breeze = new Breeze(level, level.nextEntityId());
         breeze.moveTo(8.5, -60.0, 2.5, 0, 0);
         level.addFreshEntity(breeze);

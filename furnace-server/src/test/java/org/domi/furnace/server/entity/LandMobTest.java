@@ -282,6 +282,9 @@ class LandMobTest {
         shulker.setTarget(villager);
         boolean bullet = false, levitating = false;
         for (int t = 0; t < 200; t++) {
+            // 주민 브레인이 돌아다니면 탄이 빗나가고 목표를 잃어(약 1~2%) 제자리에 묶고 목표를 유지한다
+            villager.moveTo(5.5, -60, 0.5, 0, 0);
+            if (shulker.getTarget() == null) shulker.setTarget(villager);
             tick(level, 1);
             for (Entity e : level.entities().tickSnapshot()) bullet |= e instanceof ShulkerBullet;
             levitating |= villager.hasEffect(org.domi.furnace.server.effect.MobEffect.LEVITATION);
