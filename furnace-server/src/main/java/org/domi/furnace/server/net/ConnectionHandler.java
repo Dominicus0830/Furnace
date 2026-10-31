@@ -1283,6 +1283,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x1A -> { // move_player_pos: Double x,y,z, Boolean onGround
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 boolean g = frame.readBoolean();
+                if (invalidMovement(ctx, x, y, z, 0f, 0f)) return;
                 Player p = player;
                 if (p != null && pendingTeleportId == -1 && p.isSleeping()) {
                     acceptSleeping(ctx, p, x, y, z, iyaw, ipitch);
@@ -1290,41 +1291,52 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     acceptRiding(p, iyaw, ipitch, g);
                 } else if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
                     ig = g;
-                    publishInput(p);
-                    p.pushMove(ix, iy, iz, ig);
+                    acceptMove(p, true, false);
                 }
             }
             case 0x1B -> { // move_player_pos_rot: Double x,y,z, Float yaw,pitch, Boolean onGround
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
+                if (invalidMovement(ctx, x, y, z, yaw, pitch)) return;
                 Player p = player;
                 if (p != null && pendingTeleportId == -1 && p.isSleeping()) {
-                    acceptSleeping(ctx, p, x, y, z, finiteOr0(yaw), finiteOr0(pitch));
+                    acceptSleeping(ctx, p, x, y, z, yaw, pitch);
                 } else if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
-                    acceptRiding(p, finiteOr0(yaw), finiteOr0(pitch), g);
+                    acceptRiding(p, yaw, pitch, g);
                 } else if (p != null && pendingTeleportId == -1 && acceptPosition(ctx, x, y, z)) {
-                    iyaw = finiteOr0(yaw);
-                    ipitch = finiteOr0(pitch);
+                    iyaw = yaw;
+                    ipitch = pitch;
                     ig = g;
-                    publishInput(p);
-                    p.pushMove(ix, iy, iz, ig);
+                    acceptMove(p, true, true);
                 }
             }
             case 0x1C -> { // move_player_rot: Float yaw,pitch, Boolean onGround
                 float yaw = frame.readFloat(), pitch = frame.readFloat();
                 boolean g = frame.readBoolean();
+                if (invalidMovement(ctx, 0.0, 0.0, 0.0, yaw, pitch)) return;
                 Player p = player;
                 if (p != null && pendingTeleportId == -1 && p.isSleeping()) {
-                    acceptSleeping(ctx, p, p.x(), p.y(), p.z(), finiteOr0(yaw), finiteOr0(pitch));
+                    acceptSleeping(ctx, p, p.x(), p.y(), p.z(), yaw, pitch);
                 } else if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
-                    acceptRiding(p, finiteOr0(yaw), finiteOr0(pitch), g);
+                    acceptRiding(p, yaw, pitch, g);
                 } else if (p != null && pendingTeleportId == -1 && correctionTpId == -1) {
-                    iyaw = finiteOr0(yaw);
-                    ipitch = finiteOr0(pitch);
+                    iyaw = yaw;
+                    ipitch = pitch;
                     ig = g;
-                    publishInput(p);
-                    p.pushMove(ix, iy, iz, ig);
+                    acceptMove(p, false, true);
+                }
+            }
+            case 0x1D -> { // move_player_status_only: Boolean onGround — 위치·회전 없이 땅 위 여부만(바닐라 StatusOnly)
+                boolean g = frame.readBoolean();
+                Player p = player;
+                if (p != null && pendingTeleportId == -1 && p.isSleeping()) {
+                    acceptSleeping(ctx, p, p.x(), p.y(), p.z(), iyaw, ipitch);
+                } else if (p != null && pendingTeleportId == -1 && p.vehicle() != null) {
+                    acceptRiding(p, iyaw, ipitch, g);
+                } else if (p != null && pendingTeleportId == -1 && correctionTpId == -1) {
+                    ig = g;
+                    acceptMove(p, false, false);
                 }
             }
             case 0x1E -> { // move_vehicle: Double x,y,z, Float yRot,xRot — 조종 중인 탈것의 위치(클라이언트 권위)
@@ -2734,8 +2746,26 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.publishPosition(ix, iy, iz, iyaw, ipitch, ig);
     }
 
-    private static float finiteOr0(float v) {
-        return Float.isFinite(v) ? v : 0f;
+    /**
+     * 수락한 이동 패킷 하나를 넘긴다. region 이 검증 중이면(validatesMoves) 위치 발행 없이 검증 대기열에만 넣고(받아들이면 region 이 위치를 정한다),
+     * 아니면(region 이 아직 이 플레이어를 돌리지 않음) 이전처럼 바로 발행한다.
+     */
+    private void acceptMove(Player p, boolean hasPos, boolean hasRot) {
+        if (p.validatesMoves) {
+            p.pushCheckedMove(new org.domi.furnace.server.entity.PlayerMoveValidator.Check(hasPos, hasRot, ix, iy, iz, iyaw, ipitch), ig);
+        } else {
+            publishInput(p);
+            p.pushMove(ix, iy, iz, ig);
+        }
+    }
+
+    /** containsInvalidValues: 좌표 NaN 이거나 각도가 유한하지 않으면 바닐라는 연결을 끊는다(multiplayer.disconnect.invalid_player_movement). */
+    private boolean invalidMovement(ChannelHandlerContext ctx, double x, double y, double z, float yaw, float pitch) {
+        if (Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(z) || !Float.isFinite(yaw) || !Float.isFinite(pitch)) {
+            disconnect(ctx, Text.translatable("multiplayer.disconnect.invalid_player_movement"));
+            return true;
+        }
+        return false;
     }
 
     /**

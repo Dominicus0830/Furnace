@@ -985,6 +985,12 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean gameRule(String name) { return services().gameRule(name); }
 
+    /** MinecraftServer.isFlightAllowed(allow-flight). */
+    public boolean flightAllowed() { return services().flightAllowed(); }
+
+    /** ServerTickRateManager.runsNormally. */
+    public boolean tickRunsNormally() { return services().tickRunsNormally(); }
+
     /** 팀 조회용 점수판(없으면 null). */
     public org.domi.furnace.server.scores.Scoreboard scoreboard() { return services().scoreboard(); }
 

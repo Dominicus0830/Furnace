@@ -908,11 +908,13 @@ public final class Region {
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
             if (moved) checkInsideCampfires(p);
             p.drainPending();
+            org.domi.furnace.server.entity.PlayerMoveValidator.tick(p);   // 틱 머리: 기준 위치·패킷 수·떠 있는 틱(비행 킥)
             p.currentLevel = level;
             p.ownerRegion = this;
             p.drainOwnerTasks();   // 다른 스레드가 맡긴 플레이어 작업(발전 과제·통계·점수) — 주인 스레드에서
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
+            if (level != null && world.probe() != null) org.domi.furnace.server.entity.PlayerPose.update(p, level, world.probe(), blocks);
             org.domi.furnace.server.entity.ElytraFlight.tick(p, level);   // aiStep 의 updateFallFlying·travel(겉날개)
             p.sendPendingKnockback();   // hurtMarked 가 선 틱에만 속도 패킷 한 번
             // Entity.checkInsideBlocks 의 포털 칸 + baseTick 의 handlePortal(차원을 옮기면 이 region 에서 빠진다)
@@ -1011,14 +1013,25 @@ public final class Region {
         PlayerProbe probe = world.probe();
         Player.MoveSample m;
         boolean any = false;
+        p.validatesMoves = true;   // 이 region 이 검증한다 — 연결은 위치를 발행하지 않고 검증 대기열에 넣는다
         while ((m = p.pollMove()) != null) {
             any = true;
+            if (m.teleport()) {
+                // 서버가 정한 자리: 뒤따르는 검증 패킷의 기준이 되도록 위치를 먼저 맞춘다(회전은 곧 드레인이 맞춘다)
+                p.applyMove(m.x(), m.y(), m.z(), p.yaw(), p.pitch(), p.onGround());
+                org.domi.furnace.server.entity.PlayerMoveValidator.teleported(p, m.x(), m.y(), m.z());
+            } else if (m.check() != null) {
+                // 바닐라 handleMovePlayer 검증: 되돌렸으면 이 패킷은 없던 것(위치·소모 계산 없음)
+                if (p.moveRejectHold) continue;
+                if (!org.domi.furnace.server.entity.PlayerMoveValidator.handle(level(), p, m.check(), m.onGround())) continue;
+                m = new Player.MoveSample(p.x(), p.y(), p.z(), m.onGround(), false);
+            }
             Player.MoveSample prev = p.moveAnchor();
             p.moveAnchor(m);
             if (m.teleport() || prev == null || probe == null) continue;
             boolean sneaking = p.sneaking();
-            double height = p.isFallFlying() ? 0.6 : sneaking ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
-            double eye = p.isFallFlying() ? 0.4 : sneaking ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
+            double height = p.bbHeight();
+            double eye = p.eyeY() - p.y();
             double dx = m.x() - prev.x(), dy = m.y() - prev.y(), dz = m.z() - prev.z();
             String landing = probe.onPosLegacy(blocks, m.x(), m.y(), m.z(), m.onGround());
             boolean inWater = probe.inWater(blocks, m.x(), m.y(), m.z(), height);
@@ -1459,8 +1472,8 @@ public final class Region {
             s = PlayerVitals.Surroundings.NONE;
         } else {
             boolean sneaking = p.sneaking();
-            double height = p.isFallFlying() ? 0.6 : sneaking ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
-            double eye = p.isFallFlying() ? 0.4 : sneaking ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
+            double height = p.bbHeight();
+            double eye = p.eyeY() - p.y();
             s = new PlayerVitals.Surroundings(true, probe.inWater(blocks, x, y, z, height),
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
                     probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY());

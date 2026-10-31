@@ -826,6 +826,8 @@ public final class ServerCore {
         public boolean spawnAnimals() { return settings.get().spawnAnimals; }
         public int simulationDistance() { return settings.get().simulationDistance; }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
+        public boolean flightAllowed() { return settings.get().allowFlight; }
+        public boolean tickRunsNormally() { return !tickState().frozen(); }
         public Object recipes() { return ServerCore.this.recipes(); }
         public org.domi.furnace.server.loot.LootData loot() {
             var dp = dataPacks;

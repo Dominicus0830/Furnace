@@ -136,6 +136,12 @@ public interface LevelServices {
     /** server.properties entity-broadcast-range-percentage(엔티티 추적 거리 비율). */
     default int entityBroadcastRangePercentage() { return 100; }
 
+    /** server.properties allow-flight(MinecraftServer.isFlightAllowed) — 참이면 공중에 떠 있어도 비행 킥이 없다. */
+    default boolean flightAllowed() { return false; }
+
+    /** ServerTickRateManager.runsNormally — 틱이 멈춘(/tick freeze) 동안은 거짓. 이동 속도 검사가 이때 꺼진다. */
+    default boolean tickRunsNormally() { return true; }
+
     /** 바닐라 기본값이 false 인 참/거짓 게임룰(DEFAULT 가 참으로 답하지 않을 것들). */
     java.util.Set<String> DEFAULT_FALSE_RULES = java.util.Set.of("lavaSourceConversion", "doImmediateRespawn", "doLimitedCrafting",
             "universalAnger", "reducedDebugInfo", "disableElytraMovementCheck", "disableRaids");
@@ -221,6 +227,8 @@ public interface LevelServices {
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }
         public int entityBroadcastRangePercentage() { return d.entityBroadcastRangePercentage(); }
+        public boolean flightAllowed() { return d.flightAllowed(); }
+        public boolean tickRunsNormally() { return d.tickRunsNormally(); }
         public void unpackContainerLoot(Object container) { d.unpackContainerLoot(container); }
         public Object recipes() { return d.recipes(); }
         public org.domi.furnace.server.loot.LootData loot() { return d.loot(); }

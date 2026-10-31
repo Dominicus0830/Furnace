@@ -67,6 +67,7 @@ public class PlayerActor implements BlockActor {
     @Override public void addCooldown(int itemId, int ticks) { player.addCooldown(itemId, ticks); }
     @Override public double[] knownMovement() { return player.knownMovement(); }
     @Override public boolean onGround() { return player.onGround(); }
+    @Override public java.util.List<org.domi.furnace.server.effect.MobEffectInstance> activeEffects() { return player.vitals().activeEffects(); }
 
     @Override
     public org.domi.furnace.api.text.Text startSleepInBed(BlockLevel level, Pos pos) {

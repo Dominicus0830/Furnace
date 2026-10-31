@@ -1,7 +1,7 @@
 // 플레이어 근접 공격(바닐라 Player.attack): 쿨다운 배율·치명타·질주 넉백·휘두르기 쓸기·공격 인챈트·불 붙이기. 대상은 몹·플레이어 둘 다.
 // 쓸기(sweep_attack)·피해 표시(damage_indicator)는 level_particles 로, 치명타(crit)·마법 치명타는 animate 로 보낸다.
-// TODO(효과): 힘·나약함·성급함·피로, 실명은 치명타 조건에만 쓴다. TODO(팀): isAlliedTo 는 팀이 없어 늘 거짓.
-// 철퇴: 낙하 보너스·밀도(MaceSmash), 관통(CombatRules), 돌풍·가시(EnchantEffects). TODO(살충): 살충 인챈트의 느림 효과(피해 추가만 한다).
+// 공격력·공격 속도·이동 속도·휘두르기 비율은 PlayerAttributes(힘·나약함·성급함·피로 포함)로 계산하고, 살충은 느림 IV 를 건다.
+// 철퇴: 낙하 보너스·밀도(MaceSmash), 관통(CombatRules), 돌풍·가시(EnchantEffects). TODO(팀): isAlliedTo 는 팀이 없어 늘 거짓.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -69,8 +69,8 @@ public final class PlayerMelee {
     public static Result attack(World w, Player p, Targetable target) {
         ChunkLevel level = w.level();
         ItemStack weapon = p.inventory().get(p.inventory().heldWindowSlot());
-        float f = p.autoSpinAttackTicks > 0 ? p.autoSpinAttackDmg : 1.0F + ItemTools.attackDamageBonus(weapon);
-        float g = enchantDamageBonus(weapon, target);
+        float f = p.autoSpinAttackTicks > 0 ? p.autoSpinAttackDmg : (float) PlayerAttributes.value(p, org.domi.furnace.server.attribute.Attribute.ATTACK_DAMAGE);
+        float g = (f + enchantDamageBonus(weapon, target)) - f;   // getEnchantedDamage(target, f, source) - f
         float h = p.attackStrengthScale(0.5F);
         f *= 0.2F + h * h * 0.8F;
         g *= h;
@@ -87,7 +87,8 @@ public final class PlayerMelee {
         // walkDist - walkDistO: 이번 틱 수평 이동 × 0.6 (마지막 이동 패킷의 변위로 본다) < getSpeed(0.1)
         double[] mv = p.knownMovement();
         double walked = Math.sqrt(mv[0] * mv[0] + mv[2] * mv[2]) * 0.6;
-        boolean sweep = strong && !crit && !sprintHit && p.onGround() && walked < 0.1F && ItemTools.itemName(weapon).endsWith("_sword");
+        float speed = (float) PlayerAttributes.value(p, org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED);   // getSpeed()
+        boolean sweep = strong && !crit && !sprintHit && p.onGround() && walked < speed && ItemTools.itemName(weapon).endsWith("_sword");
         float before = healthOf(target);
         boolean hurt = hurt(level, p, target, total, weapon);
         if (!hurt) {
@@ -103,8 +104,10 @@ public final class PlayerMelee {
             // 때린 쪽 속도 × (0.6, 1, 0.6) 은 클라이언트가 스스로 한다
             p.sprinting(false);
         }
+        // 바닐라: 맞은 쪽이 ServerPlayer 이고 hurtMarked 면 틱 끝을 기다리지 않고 속도 패킷을 바로 보낸다
+        if (target instanceof Player victim) victim.sendPendingKnockback();
         if (sweep) {
-            float l = 1.0F + sweepingRatio(weapon) * f;
+            float l = 1.0F + (float) PlayerAttributes.value(p, org.domi.furnace.server.attribute.Attribute.SWEEPING_DAMAGE_RATIO) * f;
             AABB box = target.boundingBox().inflate(1.0, 0.25, 1.0);
             for (LivingEntity le : level.getEntitiesOfClass(LivingEntity.class, box, e -> true)) {
                 if (le == target || (le instanceof ArmorStand as && as.isMarker()) || distSqr(p, le) >= 9.0) continue;
@@ -165,14 +168,26 @@ public final class PlayerMelee {
     }
 
     /**
-     * doPostAttackEffectsWithItemSource: 먼저 맞은 쪽 장비의 가시, 이어서 무기의 발화(불 붙이기 4초 × 레벨)·돌풍.
-     * 플레이어 대상은 불 상태가 아직 없어 발화는 넘어간다.
+     * doPostAttackEffectsWithItemSource: 먼저 맞은 쪽 장비의 가시, 이어서 무기의 발화(불 붙이기 4초 × 레벨. 플레이어 대상은 불 상태가 아직 없어 넘어간다)·돌풍,
+     * 살충(절지류에게 느림 IV).
+     * 살충: apply_mob_effect — 대상의 난수로 후보 고르기 nextInt(1) → 지속 nextFloat 보간(1.5초 ~ 1.5 + 0.5×(레벨−1)초, 반올림 ×20)
+     * → 증폭 nextFloat 보간(3 ~ 3).
      */
     static void postAttack(ChunkLevel level, Player p, ItemStack weapon, Targetable target) {
         if (isLiving(target)) EnchantEffects.thorns(level, target, p);
         int fire = ItemTools.enchantmentLevel(weapon, "minecraft:fire_aspect");
         if (fire > 0 && target instanceof LivingEntity le) le.igniteForSeconds(4.0F * fire);
         EnchantEffects.windBurst(level, p, weapon);
+        int bane = ItemTools.enchantmentLevel(weapon, "minecraft:bane_of_arthropods");
+        if (bane > 0 && target instanceof Entity e && e.type().is("minecraft:sensitive_to_bane_of_arthropods")) {
+            var rnd = e.random();
+            rnd.nextInt(1);
+            float max = 1.5F + 0.5F * (bane - 1);
+            int duration = Math.round((rnd.nextFloat() * (max - 1.5F) + 1.5F) * 20.0F);
+            int amp = Math.max(0, Math.round(rnd.nextFloat() * (3.0F - 3.0F) + 3.0F));
+            var slow = new org.domi.furnace.server.effect.MobEffectInstance(MobEffect.SLOWNESS, duration, amp);
+            if (e instanceof LivingEntity le) le.addEffect(slow);
+        }
     }
 
     private static double distSqr(Player p, Targetable t) {

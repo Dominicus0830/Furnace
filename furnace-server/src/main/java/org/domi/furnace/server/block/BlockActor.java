@@ -137,24 +137,45 @@ public interface BlockActor {
     /** 엔티티 id(파괴 단계 패킷의 주인). */
     default int entityId() { return -1; }
 
+    /** 걸려 있는 상태 효과(속성 수정자·성급함/피로 판정용). 효과가 없는 행위자는 빈 목록. */
+    default java.util.List<org.domi.furnace.server.effect.MobEffectInstance> activeEffects() { return java.util.List.of(); }
+
     /**
-     * Player.getDestroySpeed(state): 손 도구 속도(1 넘으면 + 채굴 효율 속성 = 효율 레벨²+1) × 블록 파괴 속도 속성(1),
-     * 눈이 물에 잠기면 × 물속 채굴 속도(0.2, 친수성이면 0.2·(1 + 4·레벨)), 공중이면 ÷5.
-     * TODO(효과·속성): 성급함·채굴 피로, 아이템 attribute_modifiers 의 채굴 속성.
+     * Player.getDestroySpeed(state): 손 도구 속도 → (1 넘으면) + 채굴 효율 속성(효율 인챈트 = 레벨²+1) → 성급함·전달체 힘 × (1 + (증폭+1)×0.2)
+     * → 채굴 피로 × (0.3, 0.09, 0.0027, 8.1E-4) → × 블록 파괴 속도 속성 → 눈이 물에 잠기면 × 물속 채굴 속도(0.2, 친수성이면 ×(1+4·레벨))
+     * → 공중이면 ÷ 5. float 연산 순서까지 바닐라 그대로.
      */
     default float destroySpeed(int state) {
         ItemStack hand = itemInHand(MAIN_HAND);
+        var fx = activeEffects();
+        ItemStack[] armor = {headItem(), equipment(6), equipment(7), equipment(8)};
         float f = org.domi.furnace.server.item.ItemTools.destroySpeed(hand, state);
         if (f > 1.0F) {
-            int eff = org.domi.furnace.server.item.ItemTools.enchantmentLevel(hand, "minecraft:efficiency");
-            if (eff > 0) f += (float) (eff * eff + 1);
+            f += (float) org.domi.furnace.server.entity.PlayerAttributes.value(
+                    org.domi.furnace.server.attribute.Attribute.MINING_EFFICIENCY, hand, armor, fx);
         }
-        f *= 1.0F;   // minecraft:player.block_break_speed 기본값
+        int dig = -1, fatigue = -1;   // MobEffectUtil.hasDigSpeed/getDigSpeedAmplification: 성급함과 전달체 힘 중 큰 증폭
+        for (var e : fx) {
+            if (e.effect() == org.domi.furnace.server.effect.MobEffect.HASTE || e.effect() == org.domi.furnace.server.effect.MobEffect.CONDUIT_POWER) {
+                dig = Math.max(dig, e.amplifier());
+            } else if (e.effect() == org.domi.furnace.server.effect.MobEffect.MINING_FATIGUE) {
+                fatigue = e.amplifier();
+            }
+        }
+        if (dig >= 0) f *= 1.0F + (float) (dig + 1) * 0.2F;
+        if (fatigue >= 0) {
+            f *= switch (fatigue) {
+                case 0 -> 0.3F;
+                case 1 -> 0.09F;
+                case 2 -> 0.0027F;
+                default -> 8.1E-4F;
+            };
+        }
+        f *= (float) org.domi.furnace.server.entity.PlayerAttributes.value(
+                org.domi.furnace.server.attribute.Attribute.BLOCK_BREAK_SPEED, hand, armor, fx);
         if (eyeInWater()) {
-            int aqua = org.domi.furnace.server.item.ItemTools.enchantmentLevel(headItem(), "minecraft:aqua_affinity");
-            double submerged = 0.2;
-            if (aqua > 0) submerged += 0.2 * (4.0 * aqua);
-            f *= (float) submerged;
+            f *= (float) org.domi.furnace.server.entity.PlayerAttributes.value(
+                    org.domi.furnace.server.attribute.Attribute.SUBMERGED_MINING_SPEED, hand, armor, fx);
         }
         if (!onGround()) f /= 5.0F;
         return f;
