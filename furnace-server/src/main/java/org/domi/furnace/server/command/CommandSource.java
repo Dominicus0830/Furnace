@@ -94,6 +94,12 @@ public final class CommandSource {
         return create(server, null, "Server", Text.text("Server"), 4, false, spawn.x(), spawn.y(), spawn.z(), 0f, 0f);
     }
 
+    /** RCON 소스(바닐라 RconConsoleSource.createCommandSourceStack): 이름 "Rcon", 권한 4, 월드 스폰 위치, 출력은 sink 로. */
+    public static CommandSource rcon(ServerCore server, org.domi.furnace.server.block.BlockCommandSink sink) {
+        return new CommandSource(server, null, null, server.world(), sink.textName(), sink.displayName(), 4, false, sink.x(), sink.y(), sink.z(),
+                0f, 0f, EntityAnchorArgument.Anchor.FEET, ResultCallback.EMPTY, null, java.util.Map.of(), null, sink);
+    }
+
     /** 플레이어(바닐라 ServerPlayer.createCommandSourceStack). */
     public static CommandSource player(ServerCore server, Player p) {
         Text name = Text.text(p.name()).insertion(p.name()).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + p.name() + " "));

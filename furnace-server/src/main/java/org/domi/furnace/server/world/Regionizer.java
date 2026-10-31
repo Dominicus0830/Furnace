@@ -55,6 +55,15 @@ public final class Regionizer {
     private volatile boolean gameTicks;
     private int nextId;
 
+    // ------------------------------------------------------------------ 관측(워치독·/furnace 명령 — 동작에 영향 없음)
+    /** 지금 틱 중인 region → 틱 시작 시각(nanoTime). tryTake 가 넣고 finishTick 이 뺀다. 읽기는 잠금 없이. */
+    private final ConcurrentHashMap<Region, Long> running = new ConcurrentHashMap<>();
+    /** 최근 region 틱 소요 시간(ns) 고리 버퍼. 쓰기는 틱을 도는 워커 여럿이 칸만 겹치지 않게(원자 증가), 읽기는 사본. */
+    static final int TICK_RING = 512;
+    private final java.util.concurrent.atomic.AtomicLongArray tickRing = new java.util.concurrent.atomic.AtomicLongArray(TICK_RING);
+    private final java.util.concurrent.atomic.AtomicLong tickRingNext = new java.util.concurrent.atomic.AtomicLong();
+    private volatile long tickMaxEver;
+
     // ------------------------------------------------------------------ 스케줄 계측(동작에 영향 없음)
     /** 지금 틱 중인 region 수(= 바쁜 워커 수)와 그 최대. */
     private final java.util.concurrent.atomic.AtomicInteger activeTicks = new java.util.concurrent.atomic.AtomicInteger();
@@ -443,6 +452,7 @@ public final class Regionizer {
                 head.queued = false;
                 head.ticking = true;
                 head.tickThread = Thread.currentThread();
+                running.put(head, now);
                 noteTaken(head, late);
                 publishHead();
                 // 새 머리가 자는 워커의 깰 시각보다 이르면 하나 깨운다(지금까지의 signalAll 과 같은 효과 — 같은 마감 region 을 다른 워커가 받는다)
@@ -461,12 +471,24 @@ public final class Regionizer {
             boolean game = gameTicks;
             long tickStart = game ? System.nanoTime() : 0L;
             r.runTick(game);
-            if (game) world.tickState().record(System.nanoTime() - tickStart);   // /tick query 의 틱 시간 표본
+            if (game) {
+                long took = System.nanoTime() - tickStart;
+                world.tickState().record(took);   // /tick query 의 틱 시간 표본
+                noteTickTime(r, took);
+            }
         } catch (Throwable t) {
             log.error("[TICK] region #{} 실패", r.id, t);
         }
         if (STATS) recordTick(r, t0, System.nanoTime());
         finishTick(r);
+    }
+
+    /** 틱 소요 시간을 관측용으로 남긴다(잠금 없음 — 고리 칸은 원자 증가로 나눠 쓴다). */
+    private void noteTickTime(Region r, long took) {
+        tickRing.set((int) (tickRingNext.getAndIncrement() & (TICK_RING - 1)), took);
+        r.lastTickNanos = took;
+        if (took > r.maxTickNanos) r.maxTickNanos = took;
+        if (took > tickMaxEver) tickMaxEver = took;
     }
 
     /** 끝내기(워커, 잠금 안): RUNNING → IDLE/QUEUED. */
@@ -475,6 +497,7 @@ public final class Regionizer {
         try {
             r.ticking = false;
             r.tickThread = null;
+            running.remove(r);
             activeTicks.decrementAndGet();
             afterTick(r);
         } catch (Throwable t) {
@@ -800,6 +823,93 @@ public final class Regionizer {
             lock.unlock();
         }
     }
+
+    // ------------------------------------------------------------------ 관측 조회(/furnace, 워치독)
+
+    /** 틱 소요 시간 분포(최근 표본 최대 512개 + 가동 이후 최대). */
+    public record TickTimes(int samples, long p50Nanos, long p95Nanos, long maxRecentNanos, long maxEverNanos) {}
+
+    public TickTimes tickTimes() {
+        long next = tickRingNext.get();
+        int n = (int) Math.min(next, TICK_RING);
+        long[] a = new long[n];
+        for (int i = 0; i < n; i++) a[i] = tickRing.get(i);
+        java.util.Arrays.sort(a);
+        return new TickTimes(n, n == 0 ? 0 : a[n / 2], n == 0 ? 0 : a[Math.min(n - 1, (int) (n * 0.95))], n == 0 ? 0 : a[n - 1], tickMaxEver);
+    }
+
+    /** region 한 개의 관측 사본. thread 는 지금 틱 중인 워커 이름(쉬면 null), runningNanos 는 그 틱이 돈 시간. */
+    public record RegionInfo(int id, int sections, int chunks, int inbox, String thread, long runningNanos,
+                             long lastTickNanos, long maxTickNanos, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {}
+
+    /** 살아 있는 region 들의 관측 사본(잠금 안에서 값만 복사한다 — region 상태는 만지지 않는다). */
+    public List<RegionInfo> regionInfos() {
+        long now = System.nanoTime();
+        List<RegionInfo> out = new ArrayList<>();
+        lock.lock();
+        try {
+            for (Region r : regions) {
+                int minX = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+                for (long key : r.sections) {
+                    Section sec = sections.get(key);
+                    if (sec == null) continue;
+                    int sx = (int) (key >> 32) << shift, sz = (int) key << shift;
+                    minX = Math.min(minX, sx);
+                    minZ = Math.min(minZ, sz);
+                    maxX = Math.max(maxX, sx + (1 << shift) - 1);
+                    maxZ = Math.max(maxZ, sz + (1 << shift) - 1);
+                }
+                Thread t = r.tickThread;
+                Long started = running.get(r);
+                out.add(new RegionInfo(r.id, r.sections.size(), r.present.size(), r.inbox.size(), t == null ? null : t.getName(),
+                        started == null ? 0 : now - started, r.lastTickNanos, r.maxTickNanos, minX, minZ, maxX, maxZ));
+            }
+        } finally {
+            lock.unlock();
+        }
+        return out;
+    }
+
+    /** 대기열에 든 region 수(틱 차례를 기다리는 것 — 잠금 안). */
+    public int queuedRegions() {
+        lock.lock();
+        try {
+            return queue.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** 이 차원 풀의 워커 스레드 이름·상태. */
+    public List<String[]> workerStates() { return pool.workerStates(); }
+
+    /**
+     * 워치독용(잠금 없음): 지금 틱 중인 region 중 가장 오래 돈 시간과, 큐 머리가 마감을 넘긴 시간 중 큰 값. 아무 문제 없으면 0 이하.
+     * 큐 머리 지연은 워커가 모두 막혔을 때 드러난다.
+     */
+    public long stalledNanos(long now) {
+        long worst = 0;
+        for (Long started : running.values()) worst = Math.max(worst, now - started);
+        long hd = headDue;
+        if (hd != Long.MAX_VALUE) worst = Math.max(worst, now - hd);
+        return worst;
+    }
+
+    /** 워치독용: 가장 오래 틱 중인 region 의 워커 스레드(없으면 null). */
+    public Thread longestRunningThread(long now) {
+        long worst = -1;
+        Thread t = null;
+        for (var e : running.entrySet()) {
+            long d = now - e.getValue();
+            if (d > worst) {
+                worst = d;
+                t = e.getKey().tickThread;
+            }
+        }
+        return t;
+    }
+
+    public String dimension() { return world.dimension(); }
 
     /** 살아 있는 region 수(잠금 안 — 테스트·모니터링). */
     public int regionCount() {

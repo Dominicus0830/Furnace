@@ -134,6 +134,13 @@ public final class SharedScheduler implements AutoCloseable {
 
     public int threadCount() { return workers.length; }
 
+    /** 관측: 워커마다 {이름, 스레드 상태}. */
+    public java.util.List<String[]> workerStates() {
+        java.util.List<String[]> out = new java.util.ArrayList<>();
+        for (Thread t : workers) out.add(new String[] {t.getName(), t.getState().name()});
+        return out;
+    }
+
     /** 등록된 차원 수. */
     public int dimensionCount() { return dims.size(); }
 

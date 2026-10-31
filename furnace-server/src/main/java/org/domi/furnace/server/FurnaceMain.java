@@ -92,6 +92,13 @@ public final class FurnaceMain {
             return;
         }
         ServerProperties props = settings.get();
+        if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
+            log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, none (lz4 는 Furnace 가 지원하지 않는다 — deflate 로 둔다)",
+                    props.regionFileCompression);
+        }
+        if (!props.textFilteringConfig.isEmpty()) {
+            log.warn("text-filtering-config 는 지원하지 않는다(원격 채팅 필터 서비스 미구현) — 무시한다");
+        }
         Path universe = Path.of(options.universe());
         var profileCache = new GameProfileCache(ProfileLookup.NONE, universe.resolve("usercache.json"));
         profileCache.setUsesAuthentication(props.onlineMode);
@@ -331,6 +338,8 @@ public final class FurnaceMain {
                 world, idAllocator);
         network.useNativeTransport(props.useNativeTransport);
         CountDownLatch shutdown = new CountDownLatch(1);
+        // 운영·관측 서비스(RCON·Query·워치독): 전용 IO/데몬 스레드. 종료 훅이 가장 먼저 닫는다.
+        java.util.List<AutoCloseable> remoteServices = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -340,6 +349,13 @@ public final class FurnaceMain {
                 core.plugins().pluginsImpl().disableAll();
             } catch (Throwable t) {
                 log.error("[STOP] 플러그인 끄기 실패", t);
+            }
+            for (AutoCloseable c : remoteServices) {
+                try {
+                    c.close();
+                } catch (Exception e) {
+                    log.warn("[STOP] 원격 서비스 닫기 실패", e);
+                }
             }
             network.stop();
             try {
@@ -396,6 +412,8 @@ public final class FurnaceMain {
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분).
         scheduler.global().executeDelayed(new Repeating(scheduler, core::scheduledTick, 1), 1);
 
+        startRemoteServices(core, props, config, remoteServices);
+
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler, world), 100);
 
@@ -403,6 +421,46 @@ public final class FurnaceMain {
                 String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
         core.events().call(new org.domi.furnace.api.event.server.ServerLoadEvent());
         shutdown.await();
+    }
+
+    /** 바닐라 DedicatedServer.initServer 끝: enable-query → enable-rcon → 워치독(max-tick-time &gt; 0). */
+    private static void startRemoteServices(ServerCore core, ServerProperties props, Config config, java.util.List<AutoCloseable> out) {
+        if (props.enableQuery) {
+            log.info("Starting GS4 status listener");
+            var q = org.domi.furnace.server.remote.QueryServer.create(props.serverIp, props.queryPort, new QueryInfo(core, props, config));
+            if (q != null) out.add(q);
+        }
+        if (props.enableRcon) {
+            log.info("Starting remote control listener");
+            var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand);
+            if (r != null) out.add(r);
+        }
+        if (ServerWatchdog.enabled(props.maxTickTime)) {
+            var w = new ServerWatchdog(props.maxTickTime, System::nanoTime, core::watchdogProbes,
+                    ServerWatchdog.crashHandler(Path.of("crash-reports"), ServerWatchdog::exitOrHalt));
+            w.start();
+            out.add(w);
+        }
+    }
+
+    /** Query 응답이 읽는 서버 정보(기동 때 값 + 접속자 수·이름은 매번). */
+    private record QueryInfo(ServerCore core, ServerProperties props, Config config) implements org.domi.furnace.server.remote.QueryHandler.Info {
+        @Override public String motd() { return props.motd; }
+        @Override public String levelName() { return config.levelName(); }
+        @Override public String version() { return "1.21.1"; }
+        @Override public String plugins() { return ""; }
+        @Override public int playerCount() { return core.players().size(); }
+        @Override public int maxPlayers() { return props.maxPlayers; }
+        @Override public int hostPort() { return config.port(); }
+        @Override public String hostIp() {
+            if (!props.serverIp.isEmpty()) return props.serverIp;
+            try {
+                return java.net.InetAddress.getLocalHost().getHostAddress();
+            } catch (java.net.UnknownHostException e) {
+                return "0.0.0.0";
+            }
+        }
+        @Override public String[] playerNames() { return core.players().stream().map(p -> p.name()).toArray(String[]::new); }
     }
 
     /** period 틱마다 task 를 돌리고 자신을 재예약한다. */
