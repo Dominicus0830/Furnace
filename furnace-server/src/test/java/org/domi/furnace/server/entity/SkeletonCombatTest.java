@@ -20,7 +20,7 @@ class SkeletonCombatTest {
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
     }
 
-    static final class ArenaLevel extends BlockPlacementTest.TestLevel {
+    static class ArenaLevel extends BlockPlacementTest.TestLevel {
         long time;
         long dayTime;
         Player player;

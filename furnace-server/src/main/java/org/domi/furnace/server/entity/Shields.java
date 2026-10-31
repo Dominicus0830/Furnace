@@ -135,8 +135,14 @@ public final class Shields {
 
     /** Player.blockUsingShield(attacker): 막은 쪽이 공격자 쪽으로 0.5 밀리고(blockedByShield, 이어지는 일반 넉백 0.4 로 거의 상쇄), 공격자가 도끼면 disableShield. */
     public static void blockUsingShield(Player p, Targetable attacker) {
-        p.knockback(0.5, p.x() - attacker.x(), p.z() - attacker.z());   // blockedByShield: defender.knockback(0.5, defender−attacker) — 공격자 쪽으로 0.5 (바로 뒤 일반 0.4 와 겹쳐 순수하게는 거의 안 밀린다)
+        blockedByShield(attacker, p);
         if (canDisableShield(attacker)) disableShield(p);
+    }
+
+    /** attacker.blockedByShield(defender): 기본은 막은 쪽이 공격자 쪽으로 0.5 밀린다(이어지는 일반 0.4 와 거의 상쇄). 파괴수는 기절·밀치기. */
+    public static void blockedByShield(Targetable attacker, Targetable defender) {
+        if (attacker instanceof Ravager r) r.blockedByShield(defender);
+        else defender.knockback(0.5, defender.x() - attacker.x(), defender.z() - attacker.z());
     }
 
     /** Player.disableShield: 방패 100틱 대기, 사용 끝, 엔티티 이벤트 30(본인·보는 사람). */
