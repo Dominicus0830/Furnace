@@ -387,3 +387,11 @@
 - U3 점검 결과: `InteractWithDoor`(바닐라 bwf)는 이미 있고 `VillagerGoalPackages` CORE 에 들어 있으며, `Villager` 가 `setCanOpenDoors(true)`, 길찾기는 `WALKABLE_DOOR`(DOOR_WOOD_CLOSED 통과)·철문 차단(DOOR_IRON_CLOSED)이 맞다. 시험으로 열고 지나가기·철문 불통과를 확인했다.
 - 바닐라도 그런 점(이식 그대로): 브레인이 매 틱 도는데 다음 노드가 마지막 검사 노드와 다르면 20틱 쿨다운(`decrementAndGet`)이라 문 열기·닫기 검사가 약 20틱마다 일어난다. 그래서 문 앞에서 잠깐 멈췄다 열리고, 닫을 문은 주민이 문 중심에서 3칸 안에 있는 틱에만 닫힌다(그 밖이면 닫지 않고 기억에서만 뺀다). 사용자가 "문을 안 연다/안 닫는다"고 느낀 것이 이 지연·미닫음이면 바닐라와 같은 동작이다(가정: 바닐라 실서버 대조는 못 했다).
 - 시험: `FireworkOwnerTest`, `VillagerDoorTest`.
+
+## 2026-10-31 명령 블록·명령 블록 수레 (작업 5)
+- 이식: `BaseCommandBlock`(바닐라 dbx), `CommandBlockEntity`(dqr), `CommandBlock`(dhh: neighborChanged → 예약 틱 → tick → executeChain), `MinecartCommandBlock`, 서버 수신 `set_command_block`(0x30)·`set_command_minecart`(0x31), 편집 화면용 `block_entity_data` 전송. NBT 키는 바닐라 그대로(Command, SuccessCount, CustomName, TrackOutput, LastOutput, UpdateLastExecution, LastExecution, powered, conditionMet, auto).
+- **바닐라와 다른 점(의도)**: 바닐라는 명령이 그 자리에서 동기로 돈다. 여기서는 전역 스레드 명령 큐에서 비동기로 돌고, 끝나면 소유 region 으로 돌아와 성공 횟수를 반영한 뒤 체인의 다음 칸을 잇는다. 그래서 (1) 체인은 한 게임 틱 안에 끝나지 않고 몇 틱에 걸칠 수 있다, (2) 실행 중에는 성공 횟수가 0(비교기도 0), (3) `lastExecution` 을 실행 시작 때 기록한다(같은 틱 재실행 방지는 같음), (4) 반복 블록의 재예약은 명령 완료를 기다리지 않고 바로 1틱 뒤로 건다(파이프라인), (5) 실행 도중 블록 엔티티가 지워지면 결과를 버린다.
+- 체인이 region 경계를 넘으면 다음 칸이 이 region 소유가 아니라 끊긴다(가정: 바닐라는 로드된 청크면 계속). `set_command_minecart` 는 플레이어가 있는 region 의 수레만 찾는다(바닐라는 레벨 전체).
+- 수레 소스 표시 이름은 `Entity.displayName()`(바닐라 getDisplayName 은 호버·삽입 포함, 차이는 채팅 장식뿐 — 가정). 수레 `readAdditionalSaveData` 는 바닐라의 onSyncedDataUpdated 때문에 명령이 비어 있지 않으면 로드 후 SuccessCount 가 0 이 되는 것까지 따랐다(디컴파일 확인; 실서버 대조는 못 함 — 가정).
+- 미구현: 명령 블록 편집 화면의 서버 쪽 외 검사 없음, `removeComponentsFromTag`(아이템 복사 때 CustomName 제거) 경로 없음, 명령 블록 수레 우클릭 화면은 서버에서 할 일 없음(클라이언트가 동기화 데이터로 연다).
+- 시험: `CommandBlockTest`(손계산: 체인 순서·조건부·상한·재실행 방지·꺼짐·Searge·반복 예약·set_command_block 적용·저장 키).

@@ -50,6 +50,9 @@ public interface BlockActor {
     /** ServerPlayer.openTextEdit: 그 칸 블록 갱신 + open_sign_editor. */
     default void openTextEdit(Pos pos, int state, boolean front) {}
 
+    /** ServerPlayer.openCommandBlock: 명령 블록 편집 화면용으로 블록 엔티티 데이터(saveCustomOnly)를 보낸다. */
+    default void openCommandBlock(Pos pos, int blockEntityTypeId, org.domi.furnace.server.net.io.nbt.NbtCompound tag) {}
+
     /** Entity.getDirection = Direction.fromYRot(yRot). */
     default int direction() { return Dir.fromYRot(yRot()); }
 
