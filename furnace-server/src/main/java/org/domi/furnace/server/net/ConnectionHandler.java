@@ -1477,7 +1477,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     break;
                 }
                 Player actor = player;
-                if (actor != null) handleSetCommandBlock(actor, bp, command, mode, (flags & 1) != 0, (flags & 2) != 0, (flags & 4) != 0);
+                if (actor != null) { boolean[] f = org.domi.furnace.server.block.entity.CommandBlockEntity.decodeFlags(flags); handleSetCommandBlock(actor, bp, command, mode, f[0], f[1], f[2]); }
             }
             case 0x31 -> { // set_command_minecart: 엔티티 번호(VarInt), 명령(String 32767), 출력 기록(bool)
                 int entityId = Types.readVarInt(frame);
@@ -2772,10 +2772,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
         world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
             var level = region.level();
-            if (!level.commandBlockEnabled()) {
-                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.notEnabled"), false);
-            } else if (!(actor.vitals().instabuild() && permission >= 2)) {
-                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.notAllowed"), false);
+            String deny = org.domi.furnace.server.block.entity.CommandBlockEntity.denyReason(level.commandBlockEnabled(), actor.vitals().instabuild(), permission);
+            if (deny != null) {
+                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable(deny), false);
             } else if (level.hasChunkAt(pos) && org.domi.furnace.server.block.entity.CommandBlockEntity.applyEdit(
                     level, pos, command, org.domi.furnace.server.block.entity.CommandBlockEntity.Mode.values()[mode], trackOutput, conditional, automatic)) {
                 if (!command.isEmpty()) actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.setCommand.success", command), false);
@@ -2793,10 +2792,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int permission = core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
         world.runAt(actor.x(), actor.z(), region -> {
             var level = region.level();
-            if (!level.commandBlockEnabled()) {
-                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.notEnabled"), false);
-            } else if (!(actor.vitals().instabuild() && permission >= 2)) {
-                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.notAllowed"), false);
+            String deny = org.domi.furnace.server.block.entity.CommandBlockEntity.denyReason(level.commandBlockEnabled(), actor.vitals().instabuild(), permission);
+            if (deny != null) {
+                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable(deny), false);
             } else if (level.entities().get(entityId) instanceof org.domi.furnace.server.entity.MinecartCommandBlock cart) {
                 cart.applyEdit(command, trackOutput);
                 actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.setCommand.success", command), false);

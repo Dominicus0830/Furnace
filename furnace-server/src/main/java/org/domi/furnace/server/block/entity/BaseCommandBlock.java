@@ -23,7 +23,9 @@ public abstract class BaseCommandBlock implements BlockCommandSink {
         /** 바닐라의 true, 그 자리에서 끝났다(빈 명령·꺼짐·Searge 포함). */
         RAN,
         /** 명령이 전역 스레드에서 도는 중 — 끝나면 소유 스레드에서 콜백이 불린다. */
-        PENDING
+        PENDING,
+        /** 앞선 실행이 아직 도는 중이라 건너뛴다(겹침 방지 — 호출자는 아무것도 바꾸지 않는다). */
+        BUSY
     }
 
     private static final Text AT = Text.text("@");
@@ -40,6 +42,10 @@ public abstract class BaseCommandBlock implements BlockCommandSink {
     private volatile Text customName;
     /** 마지막으로 performCommand 에 들어온 레벨(전역 스레드에서 게임룰을 읽는 데 쓴다). */
     private volatile BlockLevel activeLevel;
+    /** 비동기 실행이 진행 중인가(재진입 방지). */
+    private final java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean();
+
+    public boolean isRunning() { return running.get(); }
 
     // ------------------------------------------------------------------ 호스트(블록 엔티티/수레)가 채울 것
 
@@ -141,6 +147,7 @@ public abstract class BaseCommandBlock implements BlockCommandSink {
      * 시험용 레벨처럼 결과가 곧바로 돌아오면 RAN 으로 돌려주고 after 는 부르지 않는다(호출자가 이어서 처리).
      */
     public Performed performCommand(BlockLevel level, Consumer<BlockLevel> after) {
+        if (running.get()) return Performed.BUSY;
         activeLevel = level;
         if (level.gameTime() == lastExecution) return Performed.NOT_RUN;
         if ("Searge".equalsIgnoreCase(command)) {
@@ -152,15 +159,18 @@ public abstract class BaseCommandBlock implements BlockCommandSink {
         if (level.commandBlockEnabled() && !command.isEmpty()) {
             lastOutput = null;
             lastExecution = updateLastExecution ? level.gameTime() : -1L;
-            boolean[] flags = new boolean[2];   // [0] performCommand 가 이미 돌아왔나, [1] 돌아오기 전에 결과가 왔나
+            var returned = new java.util.concurrent.atomic.AtomicBoolean();   // performCommand 가 이미 돌아왔나
+            var early = new java.util.concurrent.atomic.AtomicBoolean();      // 돌아오기 전에 결과가 왔나
+            running.set(true);
             level.runBlockCommand(this, command, n -> level.runOnOwner(blockPos(), lv -> {
+                running.set(false);
                 if (!isValid()) return;
                 successCount = n;
-                if (flags[0]) after.accept(lv);
-                else flags[1] = true;
+                if (returned.get()) after.accept(lv);
+                else early.set(true);
             }));
-            flags[0] = true;
-            return flags[1] ? Performed.RAN : Performed.PENDING;
+            returned.set(true);
+            return early.get() ? Performed.RAN : Performed.PENDING;
         }
         lastExecution = updateLastExecution ? level.gameTime() : -1L;
         return Performed.RAN;

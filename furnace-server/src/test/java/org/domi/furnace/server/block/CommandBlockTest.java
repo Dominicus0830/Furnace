@@ -235,4 +235,108 @@ class CommandBlockTest {
         assertEquals(270f, put(l, P.above(2), "command_block", "down", false, "x").logic().yRot(), "아래 = 번호 -1 & 3 = 3");
         assertEquals(P.x() + 0.5, put(l, P.above(3), "command_block", "up", false, "x").logic().x());
     }
+
+    /** 명령이 끝나는 시점을 시험이 정하는 레벨(PENDING 경로). */
+    static final class Slow extends Lvl {
+        final List<java.util.function.IntConsumer> pending = new ArrayList<>();
+        @Override public void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
+            ran.add(command);
+            pending.add(done);
+        }
+    }
+
+    @Test
+    void pendingAppliesResultAfterCallback() {
+        var l = new Slow();
+        var be = put(l, P, "command_block", "east", false, "h");
+        int[] after = {0};
+        assertEquals(BaseCommandBlock.Performed.PENDING, be.logic().performCommand(l, lv -> after[0]++));
+        assertTrue(be.logic().isRunning());
+        assertEquals(0, be.logic().successCount());
+        assertEquals(BaseCommandBlock.Performed.BUSY, be.logic().performCommand(l, lv -> {}));
+        l.pending.get(0).accept(3);
+        assertEquals(3, be.logic().successCount());
+        assertEquals(1, after[0]);
+        assertFalse(be.logic().isRunning());
+    }
+
+    @Test
+    void repeatingDoesNotOverlapWhilePending() {
+        var l = new Slow();
+        var be = put(l, P, "repeating_command_block", "east", false, "r");
+        be.setPowered(true);
+        be.markConditionMet(l);
+        tick(l, P);
+        l.time++;
+        tick(l, P);   // 앞 실행이 안 끝났으니 건너뛴다(예약은 유지)
+        assertEquals(1, l.ran.size());
+        assertTrue(l.hasScheduledTick(P, B.id("repeating_command_block")));
+        l.pending.get(0).accept(1);
+        assertEquals(1, be.logic().successCount(), "N+1 이 성공 횟수를 지우지 않았다");
+        l.time++;
+        tick(l, P);
+        assertEquals(2, l.ran.size());
+    }
+
+    @Test
+    void chainNextRunsOnlyAfterPreviousCompletes() {
+        var l = new Slow();
+        var head = put(l, P, "command_block", "east", false, "h");
+        var c1 = put(l, P.east(), "chain_command_block", "east", false, "c1");
+        var c2 = put(l, P.relative(Dir.EAST, 2), "chain_command_block", "east", true, "c2");
+        head.setPowered(true);
+        head.markConditionMet(l);
+        tick(l, P);
+        assertEquals(List.of("h"), l.ran);
+        l.pending.get(0).accept(1);
+        assertEquals(List.of("h", "c1"), l.ran, "머리 완료 뒤에 다음 칸");
+        l.pending.get(1).accept(0);   // c1 실패 → 조건부 c2 는 안 돈다
+        assertEquals(List.of("h", "c1"), l.ran);
+        assertEquals(0, c1.logic().successCount());
+        assertEquals(0, c2.logic().successCount());
+    }
+
+    @Test
+    void chainContinuesWhenSuccessful() {
+        var l = new Slow();
+        var head = put(l, P, "command_block", "east", false, "h");
+        put(l, P.east(), "chain_command_block", "east", true, "c1");
+        head.setPowered(true);
+        head.markConditionMet(l);
+        tick(l, P);
+        l.pending.get(0).accept(2);
+        assertEquals(List.of("h", "c1"), l.ran, "성공했으니 조건부도 실행");
+    }
+
+    @Test
+    void denyReasonAndFlags() {
+        assertEquals("advMode.notEnabled", CommandBlockEntity.denyReason(false, true, 4));
+        assertEquals("advMode.notAllowed", CommandBlockEntity.denyReason(true, false, 4));
+        assertEquals("advMode.notAllowed", CommandBlockEntity.denyReason(true, true, 1));
+        assertNull(CommandBlockEntity.denyReason(true, true, 2));
+        assertArrayEquals(new boolean[] {true, false, true}, CommandBlockEntity.decodeFlags(5));
+        assertArrayEquals(new boolean[] {false, true, false}, CommandBlockEntity.decodeFlags(2));
+    }
+
+    @Test
+    void applyEditModesMapToBlocks() {
+        var l = new Lvl();
+        put(l, P, "command_block", "north", false, "x");
+        CommandBlockEntity.applyEdit(l, P, "y", CommandBlockEntity.Mode.SEQUENCE, true, false, true);
+        assertEquals(B.id("chain_command_block"), B.block(l.getBlockState(P)));
+        CommandBlockEntity.applyEdit(l, P, "y", CommandBlockEntity.Mode.REDSTONE, true, true, false);
+        assertEquals(B.id("command_block"), B.block(l.getBlockState(P)));
+        assertTrue(CONDITIONAL.is(l.getBlockState(P)));
+        assertEquals("north", FACING.valueName(l.getBlockState(P)));
+    }
+
+    @Test
+    void minecartEditAndOpOnlyNbt() {
+        var l = new Lvl();
+        var cart = new org.domi.furnace.server.entity.MinecartCommandBlock(l, 1);
+        cart.applyEdit("say a", false);
+        assertEquals("say a", cart.command());
+        assertFalse(cart.commandBlock().isTrackOutput());
+        assertTrue(new CommandBlockEntity(P, 0).onlyOpCanSetNbt());
+    }
 }

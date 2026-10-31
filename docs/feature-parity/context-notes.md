@@ -409,3 +409,6 @@
 - 시험: `EntityNbtRoundTripTest`(Team·Invisible·장비/승객 왕복·SNBT 소환→저장), `BlockEntityComponentsTest`(block_entity_data 병합·권한, 크리에이티브 셜커 드롭).
 - 정정(후속): 바닐라 `ShulkerBoxBlock.playerWillDestroy` 의 `isEmpty()` 는 내부에서 `unpackLootTable(null)` 을 먼저 한다. 처음 구현은 items 만 보고 비었다고 판단해, 전리품표가 있는 안 열린 셜커 상자를 크리에이티브로 부술 때 드롭이 없었다. 비었는지 보기 전에 `unpackContainerLoot` 를 부르도록 고쳤다(시험 `creativeBreakUnpacksLootTableBeforeEmptyCheck`). 플레이어 문맥 null 은 여전히 가정.
 - 정정: `blockEntityDataMergesIntoPlacedEntity` 의 마지막 assertFalse 는 설치로 손 아이템이 소모돼(빈 스택) 컴포넌트가 null 이라 헛통과였다. 따로 든 아이템으로 다시 적용하면 데이터의 `id` 가 saveCustomOnly 에 없어 병합 결과가 늘 달라지므로 true 다 — 바닐라 loadInto 도 같은 비교라는 것은 가정(id 제거 여부 미확인). 기대값을 true 로 고쳤다.
+- (명령 블록 후속) 알려진 차이: 바닐라는 명령이 한 게임 틱 안에 완결되지만 여기서는 비동기라 완결 시점이 틱을 넘을 수 있다. 앞 실행이 끝나기 전에 같은 블록이 다시 실행되려 하면 `BUSY` 로 건너뛴다(예약 틱은 유지) — 명령이 1틱보다 오래 걸리는 반복 블록은 바닐라보다 느리게 돈다. 체인 중간 칸이 BUSY 면 체인이 거기서 끊긴다.
+- (명령 블록 후속) 스레드 가정: `BlockCommandSink` 의 `entity()`·`displayName()`·`x/y/z/xRot/yRot` 는 전역 스레드(명령 소스 생성·메시지 출력)에서 읽는다. 블록 엔티티는 불변 좌표라 안전하지만, 수레는 소유 region 이 쓰는 위치/이름을 비소유 스레드에서 읽는다(읽기뿐, 한 틱 어긋날 수 있음 — 가정). 실행 플래그(`returned`/`early`/`running`)는 AtomicBoolean 이다.
+- (명령 블록 후속) `CommandBlockEntity.onlyOpCanSetNbt()` = true(바닐라 dqr.q). 시험: 지연 레벨(`Slow`)로 PENDING 경로·겹침 방지·체인 순서, 거부 사유/플래그/모드 매핑. ConnectionHandler 자체(채널 필요)는 단위 시험하지 못하고 그 안의 판정(`denyReason`, `decodeFlags`, `applyEdit`)을 시험한다.

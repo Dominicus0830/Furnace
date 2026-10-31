@@ -57,6 +57,9 @@ public class CommandBlockEntity extends BlockEntity {
 
     public BaseCommandBlock logic() { return logic; }
 
+    /** onlyOpCanSetNbt (바닐라 dqr.q): 아이템의 block_entity_data 는 관리자만. */
+    @Override public boolean onlyOpCanSetNbt() { return true; }
+
     /** 칸 블록 상태(BE 가 가진 사본)의 방향. */
     private int facing() { return Dir.byName(FACING.valueName(blockState)); }
 
@@ -162,6 +165,19 @@ public class CommandBlockEntity extends BlockEntity {
     protected void collectImplicitComponents(Map<String, Object> out) {
         out.put("minecraft:custom_name", logic.customName() == null ? null : FlatText.stable(logic.customName()));
     }
+
+    /**
+     * 서버 수신 set_command_block/minecart 공통 검사(바닐라 handleSetCommandBlock): 서버에서 꺼져 있으면 "advMode.notEnabled",
+     * 크리에이티브 + 권한 2 가 아니면 "advMode.notAllowed", 통과면 null.
+     */
+    public static String denyReason(boolean commandBlockEnabled, boolean instabuild, int permissionLevel) {
+        if (!commandBlockEnabled) return "advMode.notEnabled";
+        if (!(instabuild && permissionLevel >= 2)) return "advMode.notAllowed";
+        return null;
+    }
+
+    /** 패킷 플래그 byte → {출력 기록(1), 조건부(2), 항상 활성(4)}. */
+    public static boolean[] decodeFlags(int flags) { return new boolean[] {(flags & 1) != 0, (flags & 2) != 0, (flags & 4) != 0}; }
 
     /**
      * 서버 수신 set_command_block 의 적용(바닐라 handleSetCommandBlock 본문): 모드에 맞는 블록(방향 유지, 조건부 설정)으로 바꾸고

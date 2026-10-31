@@ -89,7 +89,7 @@ public class CommandBlock extends BaseEntityBlock {
                 lv.updateNeighbourForOutputSignal(pos, block);
                 executeChain(lv, pos, facing);
             });
-            if (r == BaseCommandBlock.Performed.PENDING) return;
+            if (r == BaseCommandBlock.Performed.PENDING || r == BaseCommandBlock.Performed.BUSY) return;   // BUSY: 앞 실행이 끝나기 전엔 겹쳐 돌리지 않는다
         } else {
             logic.setSuccessCount(0);
         }
@@ -120,6 +120,7 @@ public class CommandBlock extends BaseEntityBlock {
                         runChain(lv, p, facingOf(st), lim, max);
                     });
                     if (r == BaseCommandBlock.Performed.PENDING) return;
+                    if (r == BaseCommandBlock.Performed.BUSY) return;
                     if (r == BaseCommandBlock.Performed.NOT_RUN) break;
                     level.updateNeighbourForOutputSignal(pos, B.block(s));
                 } else if (be.isConditional(level)) {
