@@ -424,3 +424,13 @@
   틱: 춤추는데 주크박스를 모르거나 10칸 밖(칸 가운데 기준 제곱거리 < 100)이거나 주크박스 블록이 아니면 20틱마다 춤을 멈추고 기억을 지운다. 겁먹으면(`isPanicking`) 춤 멈춤.
 - **미구현/다른 점**: 진동 입자 패킷은 공용 `VibrationSystem` 이 아직 보내지 않는다(기존 한계). 알레이 클라이언트 춤 애니메이션 값은 서버에 불필요해 생략.
 - 시험: `AllayListenerTest`(리스너 둘과 반경, 재생/정지 이벤트, 이미 춤추는 중 두 번째 주크박스 무시, 음표 블록 기억·필터, 600틱, NBT).
+
+## 2026-10-31 불덩이 되치기 (몹 능력 감사 작업 4-4)
+
+- 근거: `cmx.e`(Player.attack), `cnp.a`(Projectile.deflect), `cnq.c`(AIM_DEFLECT), `cne.b`(onDeflection), `cjx.a/b/g`(Ghast.hurt·isInvulnerableTo).
+- **감사 문서와 다른 점(디컴파일이 정답)**: 1.21.1 에서 플레이어가 쳐서 튕길 수 있는 투사체는 태그 `#redirectable_projectile` = `fireball`(가스트 큰 불덩이), `wind_charge`, `breeze_wind_charge` 뿐이다.
+  **블레이즈의 작은 불덩이(`small_fireball`)는 이 태그에 없어 튕기지 않는다**(맞을 수도 없다). 그래서 작은 불덩이는 손대지 않았다.
+- 구현: 큰 불덩이(`LargeFireball`)가 `isPickable` 이 되어 플레이어 공격 대상이 된다. `Region.attackEntity` 가 피해 전에 `deflectAim`: 시선 단위 벡터가 새 속도, 소유자는 플레이어, `hasImpulse`, 쳐서 튕기면 `accelerationPower = 0.1`(아니면 절반). 피해·허기 소모 없이 `entity.player.attack.nodamage` 소리.
+  `AbstractHurtingProjectile.hurt` 는 이제 무적이 아니면 참(바닐라). 가스트: 직접 원인이 큰 불덩이이고 때린 쪽이 플레이어면 무적 검사를 건너뛰고 피해 1000.
+- **미구현/다른 점**: 바람 구슬(`wind_charge`, `breeze_wind_charge`)의 튕김(처음 5틱은 튕기지 않음)은 연결하지 않았다. 플레이어의 공격 쿨다운·`isAttackable` 판정, 화살 등 다른 투사체가 불덩이를 맞힐 때의 세부 동작은 `isPickable` 이 참이 된 만큼만 바뀐다(가정: 바닐라와 같다고 보았으나 따로 대조하지 못함). Breeze 의 투사체 튕김(`Breeze.java` TODO)도 아직이다.
+- 시험: `FireballDeflectTest`(yaw 0 → (0,0,1), yaw 90 → x=-1, pitch -90 → y=1, 가속 0.1/절반, 플레이어 소유 불덩이에 가스트 사망, 다른 가스트 소유는 생존).

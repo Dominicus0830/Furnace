@@ -9,6 +9,9 @@ public class LargeFireball extends Fireball {
 
     public LargeFireball(ChunkLevel level, int id) { super(EntityType.FIREBALL, level, id); }
 
+    /** redirectable_projectile 태그(fireball): 플레이어가 때릴 수 있다. */
+    @Override public boolean isPickable() { return true; }
+
     public void setExplosionPower(int p) { explosionPower = p; }
 
     @Override

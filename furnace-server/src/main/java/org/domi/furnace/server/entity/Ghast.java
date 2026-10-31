@@ -1,5 +1,4 @@
 // 바닐라 Ghast: 네더의 거대한 날아다니는 몹. 64칸 안에서 대상이 보이면 큰 불덩이(폭발력 explosionPower)를 쏜다. 가스트가 쏜 불덩이를 플레이어가 되치면 즉사한다.
-// TODO(불덩이 되치기): 플레이어가 날아오는 불덩이를 때려 방향을 바꾸는 상호작용(투사체 피격)이 필요하다.
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -20,6 +19,33 @@ public class Ghast extends FlyingMob implements Enemy {
     protected boolean shouldDespawnInPeaceful() { return true; }
 
     public static final int DATA_IS_CHARGING = 16;
+    private boolean takingPlayerFireball;
+
+    /** cjx.g: 직접 원인이 큰 불덩이이고 때린 쪽이 플레이어다(되친 불덩이). */
+    private boolean isFireballFromPlayer(Targetable attacker) { return directCause() instanceof LargeFireball && attacker instanceof Player; }
+
+    /** cjx.isInvulnerableTo: 되친 불덩이는 일반 면역을 건너뛴다(무적 플래그만 본다). */
+    @Override
+    public boolean isInvulnerableTo(Damage source) {
+        if (takingPlayerFireball) return isRemoved() || isInvulnerable() && !source.bypassesInvulnerability();
+        return super.isInvulnerableTo(source);
+    }
+
+    /** cjx.hurt: 되친 불덩이는 피해 1000(즉사), 그 밖에는 무적이면 거절. */
+    @Override
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) {
+        if (isFireballFromPlayer(attacker)) {
+            takingPlayerFireball = true;
+            try {
+                super.hurtBy(source, 1000.0F, attacker);
+            } finally {
+                takingPlayerFireball = false;
+            }
+            return true;
+        }
+        return isInvulnerableTo(source) ? false : super.hurtBy(source, amount, attacker);
+    }
+
     private int explosionPower = 1;
 
     public Ghast(ChunkLevel level, int id) {
