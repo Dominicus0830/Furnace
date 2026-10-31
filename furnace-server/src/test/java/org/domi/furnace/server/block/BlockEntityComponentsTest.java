@@ -127,15 +127,17 @@ class BlockEntityComponentsTest {
         var level = new BlockPlacementTest.TestLevel();
         var a = new BlockPlacementTest.Actor();
         a.x = 3.5; a.z = 3.5;
-        a.hands[0] = ItemTools.with(new ItemStack(item("minecraft:campfire"), 1), "minecraft:block_entity_data", campfireData());
+        ItemStack placedItem = ItemTools.with(new ItemStack(item("minecraft:campfire"), 1), "minecraft:block_entity_data", campfireData());
+        a.hands[0] = placedItem;
         Pos ground = new Pos(1, -61, 1);
         assertEquals(InteractionResult.CONSUME, BlockPlacement.useItemOn(level, a, 0, new Hit(ground, Dir.UP, 1.5, -60, 1.5, false)));
         var be = (CampfireBlockEntity) level.getBlockEntity(ground.above());
         assertEquals(7, be.cookingProgress[0]);
         assertTrue(be.components().isEmpty(), "block_entity_data 는 남은 컴포넌트가 아니다");
-        // 같은 데이터를 또 합쳐도 바뀐 게 없으면 false
-        var op = new BlockPlacementTest.Actor();
-        assertFalse(BlockPlacement.updateCustomBlockEntityTag(level, op, ground.above(), a.hands[0]));
+        // 설치로 손의 아이템이 소모되므로 따로 든 아이템으로 다시 적용한다. 데이터에 id 가 있고 saveCustomOnly 에는 없어
+        // 병합 결과가 늘 달라진다(바닐라 loadInto 와 같은 비교, 가정) — 그래서 true 이고 값은 그대로다.
+        assertTrue(BlockPlacement.updateCustomBlockEntityTag(level, new BlockPlacementTest.Actor(), ground.above(), placedItem));
+        assertEquals(7, be.cookingProgress[0]);
     }
 
     @Test
@@ -160,6 +162,29 @@ class BlockEntityComponentsTest {
         t.putShort("Delay", (short) 77);
         t.putShort("RequiredPlayerRange", (short) 5);
         return t;
+    }
+
+    @Test
+    void creativeBreakUnpacksLootTableBeforeEmptyCheck() {
+        List<ItemStack> spawned = new java.util.ArrayList<>();
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public void spawnItemEntity(double x, double y, double z, ItemStack stack) { spawned.add(stack); }
+            @Override public void unpackContainerLoot(Object c) {
+                if (c instanceof ShulkerBoxBlockEntity sb && sb.lootTable != null) {
+                    sb.lootTable = null;
+                    sb.items[0] = new ItemStack(item("minecraft:emerald"), 3);
+                }
+            }
+        };
+        int state = Blocks.get().defaultState("minecraft:shulker_box");
+        Pos p = new Pos(2, -60, 2);
+        level.setBlock(p, state, 3);
+        ((ShulkerBoxBlockEntity) level.getBlockEntity(p)).lootTable = "minecraft:chests/simple_dungeon";
+        var creative = new BlockPlacementTest.Actor();
+        creative.creative = true;
+        BlockBehaviors.of(state).playerWillDestroy(level, p, state, creative);
+        assertEquals(1, spawned.size(), "안 열린 전리품 셜커 상자도 풀린 뒤 드롭");
+        assertNotNull(spawned.get(0).patch().entries().get("minecraft:container"));
     }
 
     @Test

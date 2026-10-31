@@ -400,3 +400,5 @@
   - 바닐라 동작 주의: 컨테이너의 `CustomName`/`Items` 를 block_entity_data 로 넣어도 이어지는 `applyComponents`(custom_name·container 컴포넌트)가 덮어쓴다 — 그대로 이식했으므로 이름 붙인 상자는 `custom_name` 컴포넌트로 가야 한다(가정: 디컴파일 BaseContainerBlockEntity 의 applyImplicitComponents 기억 기준, 이 항목은 직접 재확인하지 못함).
   - 한계: 명령 블록·직소·구조 블록 블록 엔티티는 아직 없어 `onlyOpCanSetNbt` 를 달지 않았다(만들 때 true 로).
 - 시험: `EntityNbtRoundTripTest`(Team·Invisible·장비/승객 왕복·SNBT 소환→저장), `BlockEntityComponentsTest`(block_entity_data 병합·권한, 크리에이티브 셜커 드롭).
+- 정정(후속): 바닐라 `ShulkerBoxBlock.playerWillDestroy` 의 `isEmpty()` 는 내부에서 `unpackLootTable(null)` 을 먼저 한다. 처음 구현은 items 만 보고 비었다고 판단해, 전리품표가 있는 안 열린 셜커 상자를 크리에이티브로 부술 때 드롭이 없었다. 비었는지 보기 전에 `unpackContainerLoot` 를 부르도록 고쳤다(시험 `creativeBreakUnpacksLootTableBeforeEmptyCheck`). 플레이어 문맥 null 은 여전히 가정.
+- 정정: `blockEntityDataMergesIntoPlacedEntity` 의 마지막 assertFalse 는 설치로 손 아이템이 소모돼(빈 스택) 컴포넌트가 null 이라 헛통과였다. 따로 든 아이템으로 다시 적용하면 데이터의 `id` 가 saveCustomOnly 에 없어 병합 결과가 늘 달라지므로 true 다 — 바닐라 loadInto 도 같은 비교라는 것은 가정(id 제거 여부 미확인). 기대값을 true 로 고쳤다.

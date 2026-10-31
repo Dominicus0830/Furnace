@@ -60,6 +60,7 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
     @Override
     public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {
         if (level.getBlockEntity(pos) instanceof ShulkerBoxBlockEntity sb) {
+            level.unpackContainerLoot(sb);   // 바닐라 isEmpty() 가 먼저 unpackLootTable(null) 을 한다
             boolean empty = true;
             for (var s : sb.items) if (s != null && !s.isEmpty()) { empty = false; break; }
             if (player.isCreative() && !empty) {
