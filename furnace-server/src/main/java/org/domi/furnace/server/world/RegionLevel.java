@@ -85,6 +85,27 @@ public final class RegionLevel extends ChunkLevel {
     /** 이 레벨의 월드. */
     public World world() { return world; }
 
+    /**
+     * 그 칸의 소유 region 스레드에서 실행: 지금이 이 region 스레드이고 칸의 청크를 이 region 이 가졌으면 바로, 아니면 소유 region 큐로
+     * (주인이 없으면 region 을 만들지 않고 버린다). 전역 스레드의 명령 결과가 블록·엔티티 상태를 바꿀 때 쓴다.
+     */
+    @Override
+    public void runOnOwner(Pos pos, java.util.function.Consumer<org.domi.furnace.server.block.BlockLevel> task) {
+        ChunkPos cp = new ChunkPos(pos.x() >> 4, pos.z() >> 4);
+        if (region.isOwnerThread() && chunk(cp.x(), cp.z()) != null) {
+            task.accept(this);
+            return;
+        }
+        world.submitAtOwnedChunk(cp, r -> {
+            try {
+                task.accept(r.level());
+            } catch (RuntimeException e) {
+                org.slf4j.LoggerFactory.getLogger(RegionLevel.class).error("[CMDBLOCK] 소유 스레드 작업 실패 {}", pos, e);
+            }
+            return null;
+        });
+    }
+
     @Override
     public void updateSleepingPlayerList() { world.updateSleepingPlayerList(); }
 

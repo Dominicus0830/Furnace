@@ -395,3 +395,28 @@
 - **근접 전투(C)**: 공격력을 `attack_damage` 속성(기본 1 + 무기 + 힘 +3×(증폭+1)/나약함 −4×(증폭+1))으로, 쿨다운 지연을 `attack_speed` 속성(성급함 +10%·피로 −10% × (증폭+1), add_multiplied_total)으로, 쓸기 조건의 `getSpeed()` 를 `movement_speed`(0.1f, 속도/느림 효과 반영)로, 쓸기 비율을 `sweeping_damage_ratio` 속성으로 바꿨다. 인챈트 추가 피해는 바닐라처럼 `(f + 추가) − f`. 살충: `post_attack` 으로 절지류 대상에게 느림 IV(지속 `lerp(nextFloat, 1.5, 1.5+0.5×(레벨−1))`초 × 20 반올림, 난수: 대상의 `nextInt(1)` → `nextFloat` → `nextFloat`).
 - **차이·한계(전투)**: (1) `walkDist − walkDistO` 는 여전히 마지막 수락 변위 × 0.6 근사(바닐라는 틱 안 누적). (2) 철퇴·가시 등은 다른 작업 몫. (3) 살충 느림은 대상이 플레이어면 걸리지 않는다(`sensitive_to_bane_of_arthropods` 는 엔티티 종류 태그라 플레이어는 해당 없음). (4) 쓸기 대상별 `doPostAttackEffects` 는 기존대로 피해 여부와 상관없이 부른다(바닐라 디컴파일도 조건 없음).
 - 시험: `PlayerMoveValidatorTest`(임계 손계산·벽·가장자리·비행 킥), `RegionMoveValidationTest`(region 배선), `ConnectionInputTest`(NaN 끊기·0x1D), `BlockBreakingTest`(성급함·피로·속성·검증 경로), `PlayerMeleeTest`(힘/나약함·공격 속도·살충·쓸기 속도).
+
+## 2026-10-31 명령 블록·명령 블록 수레 (작업 5)
+- 이식: `BaseCommandBlock`(바닐라 dbx), `CommandBlockEntity`(dqr), `CommandBlock`(dhh: neighborChanged → 예약 틱 → tick → executeChain), `MinecartCommandBlock`, 서버 수신 `set_command_block`(0x30)·`set_command_minecart`(0x31), 편집 화면용 `block_entity_data` 전송. NBT 키는 바닐라 그대로(Command, SuccessCount, CustomName, TrackOutput, LastOutput, UpdateLastExecution, LastExecution, powered, conditionMet, auto).
+- **바닐라와 다른 점(의도)**: 바닐라는 명령이 그 자리에서 동기로 돈다. 여기서는 전역 스레드 명령 큐에서 비동기로 돌고, 끝나면 소유 region 으로 돌아와 성공 횟수를 반영한 뒤 체인의 다음 칸을 잇는다. 그래서 (1) 체인은 한 게임 틱 안에 끝나지 않고 몇 틱에 걸칠 수 있다, (2) 실행 중에는 성공 횟수가 0(비교기도 0), (3) `lastExecution` 을 실행 시작 때 기록한다(같은 틱 재실행 방지는 같음), (4) 반복 블록의 재예약은 명령 완료를 기다리지 않고 바로 1틱 뒤로 건다(파이프라인), (5) 실행 도중 블록 엔티티가 지워지면 결과를 버린다.
+- 체인이 region 경계를 넘으면 다음 칸이 이 region 소유가 아니라 끊긴다(가정: 바닐라는 로드된 청크면 계속). `set_command_minecart` 는 플레이어가 있는 region 의 수레만 찾는다(바닐라는 레벨 전체).
+- 수레 소스 표시 이름은 `Entity.displayName()`(바닐라 getDisplayName 은 호버·삽입 포함, 차이는 채팅 장식뿐 — 가정). 수레 `readAdditionalSaveData` 는 바닐라의 onSyncedDataUpdated 때문에 명령이 비어 있지 않으면 로드 후 SuccessCount 가 0 이 되는 것까지 따랐다(디컴파일 확인; 실서버 대조는 못 함 — 가정).
+- 미구현: 명령 블록 편집 화면의 서버 쪽 외 검사 없음, `removeComponentsFromTag`(아이템 복사 때 CustomName 제거) 경로 없음, 명령 블록 수레 우클릭 화면은 서버에서 할 일 없음(클라이언트가 동기화 데이터로 연다).
+- 시험: `CommandBlockTest`(손계산: 체인 순서·조건부·상한·재실행 방지·꺼짐·Searge·반복 예약·set_command_block 적용·저장 키).
+## 2026-10-31 엔티티 NBT 공백 재확인(A)·블록 엔티티 전리품/설치(B)
+- (A) 재확인: 감사 문서가 적은 CustomName·CustomNameVisible·Glowing·HasVisualFire·DeathLootTable·active_effects·AbsorptionAmount 는 HEAD 에서 이미 저장·복원된다(`EntityNbtRoundTripTest` 가 기존 보장). Entity.saveWithoutId/load, LivingEntity, Mob 을 디컴파일(bsr/btn/btp)과 키 단위로 대조해 실제로 남은 차이만 고쳤다.
+- 고침 1: `Team` — 바닐라는 LivingEntity 읽을 때만 쓰고(저장 안 함, 점수판이 저장) 이름의 팀에 `uuid.toString()` 으로 넣는다. 없는 팀은 경고만. 구현 완료.
+- 고침 2: `Invisible` — 바닐라 Entity 는 읽지도 쓰지도 않고 갑옷 거치대·아이템 액자(+발광)만 항상 기록·읽는다. 공통 Entity 에서 빼고 두 클래스로 옮겼다(예전엔 모든 엔티티가 켜진 경우 기록해, 투명 소 등이 바닐라와 다른 NBT 였다).
+- 이미 같음(점검만): Pos/Motion/Rotation/Air/Fire/UUID/Tags/Passengers(탄 것은 탈것 좌표), Health/HurtTime/HurtByTimestamp/DeathTime/attributes/FallFlying/Sleeping*/Brain, Mob 의 ArmorItems/HandItems/드롭 확률/body_armor/LeftHanded/NoAI/DeathLootTable(+Seed). `leash` 는 키 보존만(다른 워커 담당).
+- 바닐라와 다른 점(남김): Mob 로드 시 `DATA_MOB_FLAGS` 를 통째로 덮어 aggressive 비트(4)가 사라진다(로드 직후엔 원래 0 이라 영향 없음, 가정). 잘못된 `DeathLootTable` 문자열 검증 없음.
+- (B) 재확인: 블록 엔티티 → 전리품 문맥(`LootParams.BLOCK_ENTITY`), `copy_components`/`copy_name`, 셜커 상자 container 드롭, 폭발·피스톤·유체·플레이어 파괴 경로는 이미 collectComponents 를 넘기고 있었다(`BlockEntityLootTest`). 빠진 두 곳을 구현했다.
+  - 크리에이티브 셜커 파괴(`ShulkerBoxBlock.playerWillDestroy`): 내용물이 있으면 collectComponents 를 담은 상자를 칸 중심에 기본 줍기 지연으로 떨군다. 아니면 `unpackLootTable(player)` 자리에 `unpackContainerLoot`(플레이어 문맥은 가정 — null).
+  - `block_entity_data` 설치 시 적용(`BlockPlacement.updateCustomBlockEntityTag`): saveCustomOnly + 병합 → 달라졌으면 load + setChanged. `onlyOpCanSetNbt`(스포너·표지판)는 관리자 블록 권한이 있어야 한다. 기본 `BlockEntity.onlyOpCanSetNbt()` 추가.
+  - 바닐라 동작 주의: 컨테이너의 `CustomName`/`Items` 를 block_entity_data 로 넣어도 이어지는 `applyComponents`(custom_name·container 컴포넌트)가 덮어쓴다 — 그대로 이식했으므로 이름 붙인 상자는 `custom_name` 컴포넌트로 가야 한다(가정: 디컴파일 BaseContainerBlockEntity 의 applyImplicitComponents 기억 기준, 이 항목은 직접 재확인하지 못함).
+  - 한계: 명령 블록·직소·구조 블록 블록 엔티티는 아직 없어 `onlyOpCanSetNbt` 를 달지 않았다(만들 때 true 로).
+- 시험: `EntityNbtRoundTripTest`(Team·Invisible·장비/승객 왕복·SNBT 소환→저장), `BlockEntityComponentsTest`(block_entity_data 병합·권한, 크리에이티브 셜커 드롭).
+- 정정(후속): 바닐라 `ShulkerBoxBlock.playerWillDestroy` 의 `isEmpty()` 는 내부에서 `unpackLootTable(null)` 을 먼저 한다. 처음 구현은 items 만 보고 비었다고 판단해, 전리품표가 있는 안 열린 셜커 상자를 크리에이티브로 부술 때 드롭이 없었다. 비었는지 보기 전에 `unpackContainerLoot` 를 부르도록 고쳤다(시험 `creativeBreakUnpacksLootTableBeforeEmptyCheck`). 플레이어 문맥 null 은 여전히 가정.
+- 정정: `blockEntityDataMergesIntoPlacedEntity` 의 마지막 assertFalse 는 설치로 손 아이템이 소모돼(빈 스택) 컴포넌트가 null 이라 헛통과였다. 따로 든 아이템으로 다시 적용하면 데이터의 `id` 가 saveCustomOnly 에 없어 병합 결과가 늘 달라지므로 true 다 — 바닐라 loadInto 도 같은 비교라는 것은 가정(id 제거 여부 미확인). 기대값을 true 로 고쳤다.
+- (명령 블록 후속) 알려진 차이: 바닐라는 명령이 한 게임 틱 안에 완결되지만 여기서는 비동기라 완결 시점이 틱을 넘을 수 있다. 앞 실행이 끝나기 전에 같은 블록이 다시 실행되려 하면 `BUSY` 로 건너뛴다(예약 틱은 유지) — 명령이 1틱보다 오래 걸리는 반복 블록은 바닐라보다 느리게 돈다. 체인 중간 칸이 BUSY 면 체인이 거기서 끊긴다.
+- (명령 블록 후속) 스레드 가정: `BlockCommandSink` 의 `entity()`·`displayName()`·`x/y/z/xRot/yRot` 는 전역 스레드(명령 소스 생성·메시지 출력)에서 읽는다. 블록 엔티티는 불변 좌표라 안전하지만, 수레는 소유 region 이 쓰는 위치/이름을 비소유 스레드에서 읽는다(읽기뿐, 한 틱 어긋날 수 있음 — 가정). 실행 플래그(`returned`/`early`/`running`)는 AtomicBoolean 이다.
+- (명령 블록 후속) `CommandBlockEntity.onlyOpCanSetNbt()` = true(바닐라 dqr.q). 시험: 지연 레벨(`Slow`)로 PENDING 경로·겹침 방지·체인 순서, 거부 사유/플래그/모드 매핑. ConnectionHandler 자체(채널 필요)는 단위 시험하지 못하고 그 안의 판정(`denyReason`, `decodeFlags`, `applyEdit`)을 시험한다.

@@ -57,6 +57,12 @@ public class PlayerActor implements BlockActor {
         player.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(pos.x(), pos.y(), pos.z(), state));
         player.send(new org.domi.furnace.server.net.protocol.play.OpenSignEditor(pos.x(), pos.y(), pos.z(), front));
     }
+
+    @Override
+    public void openCommandBlock(Pos pos, int blockEntityTypeId, org.domi.furnace.server.net.io.nbt.NbtCompound tag) {
+        player.send(new org.domi.furnace.server.net.protocol.play.BlockEntityDataPacket(pos.x(), pos.y(), pos.z(), blockEntityTypeId, tag));
+    }
+
     @Override public boolean isOnCooldown(int itemId) { return player.isOnCooldown(itemId); }
     @Override public void addCooldown(int itemId, int ticks) { player.addCooldown(itemId, ticks); }
     @Override public double[] knownMovement() { return player.knownMovement(); }

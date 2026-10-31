@@ -1479,6 +1479,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int slot = frame.readShort();
                 if (slot >= 0 && slot < 9) inv.setSelected(slot);
             }
+            case 0x30 -> { // set_command_block: 칸, 명령(String 32767), 모드(VarInt 0 체인·1 반복·2 임펄스), 플래그 byte(1 출력 기록·2 조건부·4 항상 활성)
+                int[] bp = Types.readBlockPos(frame);
+                String command = Types.readString(frame, 32767);
+                int mode = Types.readVarInt(frame);
+                int flags = frame.readByte();
+                if (mode < 0 || mode > 2) {   // readEnum: 범위 밖 번호는 디코드 실패 → 연결 종료
+                    protocolError(ctx, "Set Command Block", new IllegalArgumentException("bad enum"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) { boolean[] f = org.domi.furnace.server.block.entity.CommandBlockEntity.decodeFlags(flags); handleSetCommandBlock(actor, bp, command, mode, f[0], f[1], f[2]); }
+            }
+            case 0x31 -> { // set_command_minecart: 엔티티 번호(VarInt), 명령(String 32767), 출력 기록(bool)
+                int entityId = Types.readVarInt(frame);
+                String command = Types.readString(frame, 32767);
+                boolean track = frame.readBoolean();
+                Player actor = player;
+                if (actor != null) handleSetCommandMinecart(actor, entityId, command, track);
+            }
             case 0x32 -> { // Set Creative Mode Slot: Short slot + Slot
                 int slot = frame.readShort();
                 ItemStack stack;
@@ -2771,6 +2790,47 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** ChatFormatting.stripFormatting. */
     static String stripFormatting(String s) { return FORMATTING_CODE.matcher(s).replaceAll(""); }
+
+    /**
+     * 바닐라 handleSetCommandBlock: 명령 블록이 꺼져 있으면 advMode.notEnabled, 크리에이티브 + 권한 2 가 아니면 advMode.notAllowed(둘 다 본인에게),
+     * 아니면 그 칸 region 스레드에서 블록 종류·조건부 상태·명령·출력 기록·항상 활성을 바꾼다. 명령이 비지 않았으면 advMode.setCommand.success.
+     */
+    private void handleSetCommandBlock(Player actor, int[] bp, String command, int mode, boolean trackOutput, boolean conditional, boolean automatic) {
+        var core = login.core;
+        if (core == null) return;
+        int permission = core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
+        var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
+        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
+            var level = region.level();
+            String deny = org.domi.furnace.server.block.entity.CommandBlockEntity.denyReason(level.commandBlockEnabled(), actor.vitals().instabuild(), permission);
+            if (deny != null) {
+                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable(deny), false);
+            } else if (level.hasChunkAt(pos) && org.domi.furnace.server.block.entity.CommandBlockEntity.applyEdit(
+                    level, pos, command, org.domi.furnace.server.block.entity.CommandBlockEntity.Mode.values()[mode], trackOutput, conditional, automatic)) {
+                if (!command.isEmpty()) actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.setCommand.success", command), false);
+            }
+        });
+    }
+
+    /**
+     * 바닐라 handleSetCommandMinecart: 같은 검사. 수레는 플레이어가 있는 region 에서만 찾는다(바닐라는 레벨 전체) — 다른 region 의 수레는 무시.
+     * 찾으면 명령·출력 기록을 바꾸고 advMode.setCommand.success 를 늘 보낸다.
+     */
+    private void handleSetCommandMinecart(Player actor, int entityId, String command, boolean trackOutput) {
+        var core = login.core;
+        if (core == null) return;
+        int permission = core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
+        world.runAt(actor.x(), actor.z(), region -> {
+            var level = region.level();
+            String deny = org.domi.furnace.server.block.entity.CommandBlockEntity.denyReason(level.commandBlockEnabled(), actor.vitals().instabuild(), permission);
+            if (deny != null) {
+                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable(deny), false);
+            } else if (level.entities().get(entityId) instanceof org.domi.furnace.server.entity.MinecartCommandBlock cart) {
+                cart.applyEdit(command, trackOutput);
+                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("advMode.setCommand.success", command), false);
+            }
+        });
+    }
 
     /** 바닐라 updateSignText: 그 칸 region 스레드에서, 청크가 있고 표지판이면 글을 바꾼다(거르기 없음). */
     private void handleSignUpdate(Player actor, int[] bp, boolean front, java.util.List<String> lines) {

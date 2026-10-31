@@ -47,7 +47,7 @@ public class BlockPlacementTest {
         @Override protected LevelServices services() { return LevelServices.DEFAULT; }
     }
 
-    static final class Actor implements BlockActor {
+    static class Actor implements BlockActor {
         final ItemStack[] hands = {ItemStack.EMPTY, ItemStack.EMPTY};
         boolean creative, sneaking;
         double x = 0.5, y = -60, z = 0.5;

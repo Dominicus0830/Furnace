@@ -1358,6 +1358,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 }
             }
         }
+        if (tag.tags().get("Team") instanceof String teamName && level != null && level.scoreboard() != null) {
+            // 바닐라: 팀이 없으면 경고만 남기고 넘어간다
+            var board = level.scoreboard();
+            var team = board.getPlayerTeam(teamName);
+            if (team != null) board.addPlayerToTeam(uuid.toString(), team);
+        }
         if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
         hurtTime = tag.getShort("HurtTime");
         hurtByTimestamp = tag.getIntOr0("HurtByTimestamp");

@@ -104,7 +104,7 @@ public final class BlockPlacement {
         int placed = level.getBlockState(pos);
         if (BLOCKS.blockOf(placed) == BLOCKS.blockOf(s)) {
             placed = updateBlockStateFromTag(pos, level, stack, placed);
-            // updateCustomBlockEntityTag: TODO(블록 엔티티) block_entity_data 적용은 아직 없다
+            updateCustomBlockEntityTag(level, player, pos, stack);
             if (e.kind() == BlockItems.Kind.SIGN || e.kind() == BlockItems.Kind.HANGING_SIGN)
                 org.domi.furnace.server.block.types.SignBlock.afterPlaced(level, pos, player, stack);   // SignItem.updateCustomBlockEntityTag
             updateBlockEntityComponents(level, pos, stack);
@@ -120,6 +120,18 @@ public final class BlockPlacement {
             player.setItemInHand(ctx.hand(), cur.withCount(cur.count() - 1));
         }
         return InteractionResult.CONSUME;
+    }
+
+    /**
+     * BlockItem.updateCustomBlockEntityTag: block_entity_data 를 놓인 칸의 블록 엔티티에 합쳐 읽는다.
+     * onlyOpCanSetNbt 종류는 관리자 블록 권한(크리에이티브 + 권한 2)이 있어야 한다.
+     */
+    public static boolean updateCustomBlockEntityTag(BlockLevel level, BlockActor player, Pos pos, ItemStack stack) {
+        if (!(org.domi.furnace.server.item.ItemTools.component(stack, "minecraft:block_entity_data")
+                instanceof org.domi.furnace.server.net.io.nbt.NbtCompound data) || data.tags().isEmpty()) return false;
+        if (!(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
+        if (be.onlyOpCanSetNbt() && (player == null || !player.canUseGameMasterBlocks())) return false;
+        return be.loadCustomDataInto(level, data);
     }
 
     /** BlockItem.updateBlockEntityComponents: 놓인 칸의 블록 엔티티가 아이템 컴포넌트를 받는다. */

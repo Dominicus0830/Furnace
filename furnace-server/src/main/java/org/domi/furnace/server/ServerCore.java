@@ -415,6 +415,23 @@ public final class ServerCore {
 
     public Commands commands() { return commands; }
 
+    /** MinecraftServer.isCommandBlockEnabled: server.properties enable-command-block. */
+    public boolean commandBlockEnabled() { return settings.get().enableCommandBlock; }
+
+    /**
+     * 명령 블록·명령 블록 수레 명령 실행(BaseCommandBlock.performCommand 의 서버 쪽): 권한 2 소스로 전역 스레드의 명령 큐에서 돌리고,
+     * 컨텍스트가 모두 끝나면(지연 결과 포함) 성공 콜백 횟수로 done 을 부른다. done 은 전역 스레드(또는 종료 중이면 호출 스레드)에서 불린다.
+     */
+    public void runBlockCommand(World w, org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
+        java.util.concurrent.atomic.AtomicInteger success = new java.util.concurrent.atomic.AtomicInteger();
+        var source = org.domi.furnace.server.command.CommandSource.block(this, w, sink).withCallback(
+                org.domi.furnace.server.command.exec.ResultCallback.sync((ok, r) -> { if (ok) success.incrementAndGet(); }));
+        commands().performPrefixedCommandAsync(source, command).whenComplete((r, ex) -> {
+            if (ex != null) log.error("[CMDBLOCK] 명령 블록 명령 실행 실패: {}", command, ex);
+            done.accept(success.get());
+        });
+    }
+
     public org.domi.furnace.server.chat.ServicesKeys servicesKeys() { return servicesKeys; }
 
     public org.domi.furnace.server.world.GameRules gameRules() { return gameRules; }
@@ -764,6 +781,10 @@ public final class ServerCore {
             scheduler().global().execute(() -> commands().performPrefixedCommand(
                     org.domi.furnace.server.command.CommandSource.sign(ServerCore.this, player, x, y, z), command));
         }
+        public boolean commandBlockEnabled() { return ServerCore.this.commandBlockEnabled(); }
+        public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
+            ServerCore.this.runBlockCommand(world, sink, command, done);
+        }
         public boolean withinBorder(int x, int z) { return border.isWithinBounds(x, z); }
         public double[] borderBounds() { return new double[] {border.getMinX(), border.getMinZ(), border.getMaxX(), border.getMaxZ()}; }
         public boolean isRaining() { return clock.isRaining(); }
@@ -863,6 +884,9 @@ public final class ServerCore {
         private boolean sky() { return w.dimensionType().hasSkyLight(); }
 
         @Override public String dimension() { return w.dimension(); }
+        @Override public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
+            ServerCore.this.runBlockCommand(w, sink, command, done);
+        }
         @Override public boolean ultraWarm() { return w.dimensionType().ultraWarm(); }
         @Override public boolean hasSkyLight() { return sky(); }
         @Override public org.domi.furnace.server.world.DimensionType dimensionType() { return w.dimensionType(); }

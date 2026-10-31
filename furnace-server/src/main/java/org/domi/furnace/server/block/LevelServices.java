@@ -149,6 +149,16 @@ public interface LevelServices {
     /** 표지판 클릭 명령(BlockLevel.runSignCommand). player 는 Player(없으면 null). */
     default void runSignCommand(Player player, int x, int y, int z, String command) {}
 
+    /** server.properties enable-command-block(MinecraftServer.isCommandBlockEnabled). 서버 없는 레벨은 꺼짐(바닐라 기본값). */
+    default boolean commandBlockEnabled() { return false; }
+
+    /**
+     * 명령 블록·명령 블록 수레의 명령 실행: 전역 스레드에서 sink 를 출력 대상(권한 2)으로 돌리고, 명령 컨텍스트가 모두 끝나면
+     * (지연 결과 포함) 성공 콜백이 불린 횟수로 done 을 부른다 — done 은 어느 스레드에서든 불릴 수 있다(받는 쪽이 소유 region 으로 넘긴다).
+     * 서버 없는 레벨은 아무것도 안 돌리고 0.
+     */
+    default void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { done.accept(0); }
+
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
         public boolean gameRule(String name) { return !DEFAULT_FALSE_RULES.contains(name); }
@@ -228,5 +238,7 @@ public interface LevelServices {
         public boolean spawnMonsters() { return d.spawnMonsters(); }
         public boolean spawnAnimals() { return d.spawnAnimals(); }
         public void runSignCommand(Player player, int x, int y, int z, String command) { d.runSignCommand(player, x, y, z, command); }
+        public boolean commandBlockEnabled() { return d.commandBlockEnabled(); }
+        public void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { d.runBlockCommand(sink, command, done); }
     }
 }

@@ -1476,7 +1476,6 @@ public abstract non-sealed class Entity implements Rider {
         tag.putIntArray("UUID", uuidToInts(uuid));
         if (hasCustomName()) tag.putString("CustomName", customNameJson != null ? customNameJson : getCustomName().toJson());
         if (isCustomNameVisible()) tag.putBoolean("CustomNameVisible", true);
-        if (isInvisible()) tag.putBoolean("Invisible", true);
         if (isSilent()) tag.putBoolean("Silent", true);
         if (isNoGravity()) tag.putBoolean("NoGravity", true);
         if (hasGlowingTag) tag.putBoolean("Glowing", true);
@@ -1548,7 +1547,6 @@ public abstract non-sealed class Entity implements Rider {
         }
         setCustomNameVisible(tag.getBoolean("CustomNameVisible"));
         entityData.set(DATA_SILENT, tag.getBoolean("Silent"));
-        setInvisible(tag.getBoolean("Invisible"));
         entityData.set(DATA_NO_GRAVITY, tag.getBoolean("NoGravity"));
         setGlowingTag(tag.getBoolean("Glowing"));
         entityData.set(DATA_TICKS_FROZEN, tag.getIntOr0("TicksFrozen"));

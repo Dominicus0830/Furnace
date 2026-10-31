@@ -1076,6 +1076,14 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
+    public boolean commandBlockEnabled() { return services().commandBlockEnabled(); }
+
+    @Override
+    public void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
+        services().runBlockCommand(sink, command, done);
+    }
+
+    @Override
     public void runSignCommand(BlockActor player, Pos pos, String command) {
         Player p = player != null && player.handle() instanceof Player pl ? pl : null;
         services().runSignCommand(p, pos.x(), pos.y(), pos.z(), command);

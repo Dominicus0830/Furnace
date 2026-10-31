@@ -113,4 +113,104 @@ class BlockEntityComponentsTest {
         banner.setComponents(LEFTOVER);
         assertTrue(banner.updateTag().contains("components"), "깃발만 saveWithoutMetadata(바닐라)");
     }
+
+    private static org.domi.furnace.server.net.io.nbt.NbtCompound campfireData() {
+        var t = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        t.putString("id", "minecraft:campfire");
+        t.putIntArray("CookingTimes", new int[]{7, 0, 0, 0});
+        return t;
+    }
+
+    /** 가정이 아니라 바닐라 동작: 컨테이너의 CustomName/Items 는 뒤이은 applyComponents 가 컴포넌트 값으로 덮으므로 컴포넌트 없는 모닥불로 시험한다. */
+    @Test
+    void blockEntityDataMergesIntoPlacedEntity() {
+        var level = new BlockPlacementTest.TestLevel();
+        var a = new BlockPlacementTest.Actor();
+        a.x = 3.5; a.z = 3.5;
+        ItemStack placedItem = ItemTools.with(new ItemStack(item("minecraft:campfire"), 1), "minecraft:block_entity_data", campfireData());
+        a.hands[0] = placedItem;
+        Pos ground = new Pos(1, -61, 1);
+        assertEquals(InteractionResult.CONSUME, BlockPlacement.useItemOn(level, a, 0, new Hit(ground, Dir.UP, 1.5, -60, 1.5, false)));
+        var be = (CampfireBlockEntity) level.getBlockEntity(ground.above());
+        assertEquals(7, be.cookingProgress[0]);
+        assertTrue(be.components().isEmpty(), "block_entity_data 는 남은 컴포넌트가 아니다");
+        // 설치로 손의 아이템이 소모되므로 따로 든 아이템으로 다시 적용한다. 데이터에 id 가 있고 saveCustomOnly 에는 없어
+        // 병합 결과가 늘 달라진다(바닐라 loadInto 와 같은 비교, 가정) — 그래서 true 이고 값은 그대로다.
+        assertTrue(BlockPlacement.updateCustomBlockEntityTag(level, new BlockPlacementTest.Actor(), ground.above(), placedItem));
+        assertEquals(7, be.cookingProgress[0]);
+    }
+
+    @Test
+    void blockEntityDataOnlyOpForSpawner() {
+        var level = new BlockPlacementTest.TestLevel();
+        int state = Blocks.get().defaultState("minecraft:spawner");
+        Pos p = new Pos(2, -60, 2);
+        level.setBlock(p, state, 3);
+        var stack = ItemTools.with(new ItemStack(item("minecraft:spawner"), 1), "minecraft:block_entity_data", spawnerData());
+        var a = new BlockPlacementTest.Actor();
+        assertFalse(BlockPlacement.updateCustomBlockEntityTag(level, a, p, stack), "권한 없으면 적용하지 않는다");
+        var op = new BlockPlacementTest.Actor() {
+            @Override public boolean canUseGameMasterBlocks() { return true; }
+        };
+        assertTrue(BlockPlacement.updateCustomBlockEntityTag(level, op, p, stack));
+        assertEquals(77, ((SpawnerBlockEntity) level.getBlockEntity(p)).saveCustomOnly().getShort("Delay"));
+    }
+
+    private static org.domi.furnace.server.net.io.nbt.NbtCompound spawnerData() {
+        var t = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        t.putString("id", "minecraft:mob_spawner");
+        t.putShort("Delay", (short) 77);
+        t.putShort("RequiredPlayerRange", (short) 5);
+        return t;
+    }
+
+    @Test
+    void creativeBreakUnpacksLootTableBeforeEmptyCheck() {
+        List<ItemStack> spawned = new java.util.ArrayList<>();
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public void spawnItemEntity(double x, double y, double z, ItemStack stack) { spawned.add(stack); }
+            @Override public void unpackContainerLoot(Object c) {
+                if (c instanceof ShulkerBoxBlockEntity sb && sb.lootTable != null) {
+                    sb.lootTable = null;
+                    sb.items[0] = new ItemStack(item("minecraft:emerald"), 3);
+                }
+            }
+        };
+        int state = Blocks.get().defaultState("minecraft:shulker_box");
+        Pos p = new Pos(2, -60, 2);
+        level.setBlock(p, state, 3);
+        ((ShulkerBoxBlockEntity) level.getBlockEntity(p)).lootTable = "minecraft:chests/simple_dungeon";
+        var creative = new BlockPlacementTest.Actor();
+        creative.creative = true;
+        BlockBehaviors.of(state).playerWillDestroy(level, p, state, creative);
+        assertEquals(1, spawned.size(), "안 열린 전리품 셜커 상자도 풀린 뒤 드롭");
+        assertNotNull(spawned.get(0).patch().entries().get("minecraft:container"));
+    }
+
+    @Test
+    void creativeBreakDropsFilledShulkerWithContents() {
+        List<ItemStack> spawned = new java.util.ArrayList<>();
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public void spawnItemEntity(double x, double y, double z, ItemStack stack) { spawned.add(stack); }
+        };
+        int state = Blocks.get().defaultState("minecraft:red_shulker_box");
+        Pos p = new Pos(2, -60, 2);
+        level.setBlock(p, state, 3);
+        var be = (ShulkerBoxBlockEntity) level.getBlockEntity(p);
+        be.items[4] = new ItemStack(item("minecraft:diamond"), 9);
+        be.customName = "\"Red\"";
+        var creative = new BlockPlacementTest.Actor();
+        creative.creative = true;
+        BlockBehaviors.of(state).playerWillDestroy(level, p, state, creative);
+        assertEquals(1, spawned.size());
+        assertEquals(item("minecraft:red_shulker_box"), spawned.get(0).itemId());
+        assertEquals("\"Red\"", spawned.get(0).patch().entries().get("minecraft:custom_name"));
+        assertNotNull(spawned.get(0).patch().entries().get("minecraft:container"));
+        // 비었으면 떨구지 않는다, 생존이어도 떨구지 않는다(표가 한다)
+        be.items[4] = ItemStack.EMPTY;
+        BlockBehaviors.of(state).playerWillDestroy(level, p, state, creative);
+        be.items[4] = new ItemStack(item("minecraft:diamond"), 1);
+        BlockBehaviors.of(state).playerWillDestroy(level, p, state, new BlockPlacementTest.Actor());
+        assertEquals(1, spawned.size());
+    }
 }

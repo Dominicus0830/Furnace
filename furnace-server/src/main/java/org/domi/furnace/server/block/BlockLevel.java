@@ -286,6 +286,18 @@ public interface BlockLevel {
      */
     default void runSignCommand(BlockActor player, Pos pos, String command) {}
 
+    /**
+     * 그 칸을 소유한 region 스레드에서 task 를 돌린다(이미 그 스레드면 바로, 아니면 큐로). 주인 region 이 없으면(청크 내려감) 버린다.
+     * task 에는 그때 그 칸을 다루는 레벨이 온다(region 이 합쳐지면 처음 레벨과 다를 수 있다). 기본 구현은 바로 실행(시험·단독 레벨).
+     */
+    default void runOnOwner(Pos pos, java.util.function.Consumer<BlockLevel> task) { task.accept(this); }
+
+    /** server.properties enable-command-block. */
+    default boolean commandBlockEnabled() { return false; }
+
+    /** 명령 블록 명령 실행(LevelServices.runBlockCommand). done 은 어느 스레드에서든 불린다. */
+    default void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { done.accept(0); }
+
     /** 행위자에게 액션바 메시지(예: build.tooHigh). */
     void sendActionBar(BlockActor actor, org.domi.furnace.api.text.Text text);
 
