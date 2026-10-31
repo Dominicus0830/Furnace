@@ -52,6 +52,11 @@ class PlayerAppearanceSyncTest {
         assertArrayEquals(exp, bytes(pkt));
     }
 
+    /** 보는 사람에게 간 set_equipment 만(방어 속성 update_attributes 는 PlayerArmorAttributeTest 가 본다). */
+    private static List<SetEquipment> equipmentPackets(PlayerVitalsTest.TestEnv env) {
+        return env.trackerPackets.stream().filter(SetEquipment.class::isInstance).map(SetEquipment.class::cast).toList();
+    }
+
     @Test
     void heldItemAndArmorAreBroadcastToTrackersOnlyWhenChanged() {
         var env = new PlayerVitalsTest.TestEnv();
@@ -59,21 +64,21 @@ class PlayerAppearanceSyncTest {
         p.vitals().env(env);
         assertNull(p.pairingEquipment());
         p.syncEquipment();
-        assertTrue(env.trackerPackets.isEmpty(), "빈 장비는 보내지 않는다");
+        assertTrue(equipmentPackets(env).isEmpty(), "빈 장비는 보내지 않는다");
 
         p.inventory().set(p.inventory().heldWindowSlot(), new ItemStack(item("minecraft:diamond_sword"), 1));
         p.inventory().set(5, new ItemStack(item("minecraft:iron_helmet"), 1));
         p.syncEquipment();
-        assertEquals(1, env.trackerPackets.size());
-        var eq = (SetEquipment) env.trackerPackets.get(0);
+        assertEquals(1, equipmentPackets(env).size());
+        var eq = equipmentPackets(env).get(0);
         assertEquals(List.of(EquipmentSlot.MAINHAND, EquipmentSlot.HEAD), eq.slots().stream().map(SetEquipment.Entry::slot).toList());
 
         p.syncEquipment();
-        assertEquals(1, env.trackerPackets.size(), "안 바뀌면 다시 보내지 않는다");
+        assertEquals(1, equipmentPackets(env).size(), "안 바뀌면 다시 보내지 않는다");
 
         p.inventory().setSelected(1);   // 빈 핫바 칸으로 바꿔 들기 → 주 손이 빈 스택
         p.syncEquipment();
-        var eq2 = (SetEquipment) env.trackerPackets.get(1);
+        var eq2 = equipmentPackets(env).get(1);
         assertEquals(1, eq2.slots().size());
         assertEquals(EquipmentSlot.MAINHAND, eq2.slots().get(0).slot());
         assertTrue(eq2.slots().get(0).stack().isEmpty());

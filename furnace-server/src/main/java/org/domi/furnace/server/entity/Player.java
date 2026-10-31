@@ -162,8 +162,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private org.domi.furnace.server.attribute.AttributeMap attributes;
 
     /**
-     * 바닐라 Player.createAttributes 의 속성 목록(/attribute 용). 차이: 이 맵의 값은 아직 전투·이동 계산에 쓰이지 않고 클라이언트로도
-     * 보내지 않는다(플레이어 능력치는 PlayerVitals 등이 따로 들고 있다).
+     * 바닐라 Player.createAttributes 의 속성 목록(/attribute 용). 차이: 이 맵의 값은 아직 전투·이동 계산에 쓰이지 않고(방어/방어 인성만
+     * 장비 수정자를 달아 클라이언트로 보낸다 — syncArmorAttributes), 플레이어 능력치는 PlayerVitals 등이 따로 들고 있다.
      */
     public synchronized org.domi.furnace.server.attribute.AttributeMap attributes() {
         if (attributes == null) {
@@ -923,9 +923,56 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 바뀐 장비를 보는 사람에게(본인 제외 — 바닐라 ChunkMap.broadcast). */
     public void syncEquipment() {
         var changes = equipmentChanges();
-        if (changes == null) return;
-        pairingEquipmentSnap = buildPairingEquipment();
-        vitals.broadcastToTrackers(new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, changes));
+        if (changes != null) {
+            pairingEquipmentSnap = buildPairingEquipment();
+            vitals.broadcastToTrackers(new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, changes));
+        }
+        syncArmorAttributes();
+    }
+
+    // 바닐라 detectEquipmentUpdates 의 속성 수정자 갈아 끼우기 + ServerEntity.sendChanges 의 update_attributes(본인 포함).
+    // 클라이언트의 방어구 아이콘은 generic.armor 속성에서 읽는다. 다른 속성은 플레이어 맵이 아직 계산에 쓰이지 않아 보내지 않는다.
+    private final ItemStack[] attributeEquipment = new ItemStack[EquipmentSlot.values().length];
+    { java.util.Arrays.fill(attributeEquipment, ItemStack.EMPTY); }
+    private volatile boolean armorAttributesSent;
+    private double sentArmor, sentToughness;
+
+    /** 리스폰·차원 이동으로 클라이언트가 새 플레이어를 만들었다 — 다음 동기에 방어 속성을 다시 보낸다. */
+    public void markArmorAttributesResend() { armorAttributesSent = false; }
+
+    /** region 스레드 전용. 바뀐 칸의 방어 수정자를 갈아 끼우고, 방어/방어 인성이 달라졌거나 처음이면 본인과 보는 사람에게 보낸다. */
+    public void syncArmorAttributes() {
+        var map = attributes();
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack cur = equipment(slot), last = attributeEquipment[slot.ordinal()];
+            if (cur.equals(last) || cur.isEmpty() && last.isEmpty()) continue;
+            attributeEquipment[slot.ordinal()] = cur;
+            for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(last)) {
+                if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
+                var a = org.domi.furnace.server.attribute.Attribute.byName(e.type());
+                var inst = a == null ? null : map.get(a);
+                if (inst != null) inst.removeModifier(e.id());
+            }
+            for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(cur)) {
+                if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
+                var a = org.domi.furnace.server.attribute.Attribute.byName(e.type());
+                var inst = a == null ? null : map.get(a);
+                if (inst != null) {
+                    inst.removeModifier(e.id());
+                    inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier(e.id(), e.amount(),
+                            org.domi.furnace.server.attribute.AttributeModifier.operationOf(e.operation())));
+                }
+            }
+        }
+        var armor = map.get(org.domi.furnace.server.attribute.Attribute.ARMOR);
+        var toughness = map.get(org.domi.furnace.server.attribute.Attribute.ARMOR_TOUGHNESS);
+        if (armorAttributesSent && armor.value() == sentArmor && toughness.value() == sentToughness) return;
+        armorAttributesSent = true;
+        sentArmor = armor.value();
+        sentToughness = toughness.value();
+        var pkt = new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entityId, java.util.List.of(armor, toughness));
+        send(pkt);
+        vitals.broadcastToTrackers(pkt);
     }
 
     /** 다른 region 스레드가 페어링 때 읽는 불변 스냅샷(소유 스레드가 동기 직후 공개). */
@@ -937,6 +984,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 죽은 뒤·엔드 뒤 리스폰: 다음 syncLivingFlags 가 본인과 보는 사람에게 기본값이 아닌 데이터를 다시 보낸다. */
     public void markEntityDataResend() {
         resendEntityData = true;
+        armorAttributesSent = false;
         runOnOwner(() -> ElytraFlight.resetForRespawn(this));   // 새 엔티티: 겉날개 상태는 소유 스레드에서 지운다
     }
 
