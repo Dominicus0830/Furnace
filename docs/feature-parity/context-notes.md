@@ -373,6 +373,6 @@
 - 시험: `CatDolphinFoxGoalsTest`(목표 표·각 목표 동작), `DoorGoalsTest`(Vindicator 3건), `MobGoalTableTest`(Rabbit 표 갱신).
 
 ## 2026-10-31 파괴수·좀비 연속 타격 (U2, U6)
-- 파괴수(cki): 나뭇잎 파괴(수평 충돌+mobGriefing, 0.2 확장 상자, 부술 게 없으면 점프)·돌진 속도·기절/포효 틱·포효 6 피해는 이미 바닐라와 같았다(시험 `LandMobTest.ravagerSmashesLeavesWhenBlocked` 로 고정). 빠져 있던 것은 방패에 막혔을 때 `blockedByShield`(포효 중 아니면 난수 50% 기절 40틱·소리·이벤트 39·push, 아니면 강한 밀치기)였고 `Shields.blockedByShield` 훅으로 구현했다. 호글린·조글린의 같은 훅(HoglinBase.throwTarget)은 아직 기본 밀치기(미구현).
+- 파괴수(cki): 나뭇잎 파괴(수평 충돌+mobGriefing, 0.2 확장 상자, 부술 게 없으면 점프)·돌진 속도·기절/포효 틱·포효 6 피해는 이미 바닐라와 같았다(시험 `LandMobTest.ravagerSmashesLeavesWhenBlocked`·`ravagerKeepsLeavesWhenMobGriefingOff` 로 고정, 후속 커밋에서 추가). 빠져 있던 것은 방패에 막혔을 때 `blockedByShield`(포효 중 아니면 난수 50% 기절 40틱·소리·이벤트 39·push, 아니면 강한 밀치기)였고 `Shields.blockedByShield` 훅으로 구현했다. 플레이어 방패 막힘의 push 는 관전자 제외, 플레이어 탑승 여부(isVehicle)는 확인하지 않음(가정: 탑승 중 플레이어 없음). 호글린·조글린의 같은 훅(HoglinBase.throwTarget)은 아직 기본 밀치기(미구현).
 - 가정: 파괴수가 나뭇잎을 못 부순다는 현상은 코드상 재현되지 않았다. 실제 경로에서 수평 충돌까지 도달하지 못하는 경우(경로 탐색이 나뭇잎 앞에서 멈춤 등)는 접속 시험으로 재확인이 필요하다.
 - 좀비 연속 두 번 때리기(U6): 바닐라에도 있는 동작으로 판단, 코드 변경 없음. 근거 `caw`(MeleeAttackGoal): `d()`(start)가 `this.i = 0` 으로 공격 대기를 비우고, `c()`(canContinueToUse)는 followingTargetEvenIfNotSeen=false 인 좀비에서 `!navigation.l()`(길 끝나면 중단)이라 붙어서 길이 끝나면 목표가 끊겼다가 `b()` 쿨다운(20틱 간격 검사) 뒤 재시작해 20틱 안이어도 즉시 한 번 더 때린다. 무적 시간(10틱 초과분만 통과)이 지난 뒤면 두 번 다 들어간다. `RavagerZombieAttackTest.zombieAttackGoalRestartSwingsImmediately` 로 고정.

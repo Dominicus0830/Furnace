@@ -137,7 +137,8 @@ public class Ravager extends Raider {
     private void pushAway(Targetable defender) {
         if (defender instanceof Entity en) {
             en.push(this);
-        } else if (defender instanceof Player) {
+        } else if (defender instanceof Player pl) {
+            if (pl.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;   // isPushable·noPhysics 거짓
             double dx = x() - defender.x(), dz = z() - defender.z();
             double d = Math.max(Math.abs(dx), Math.abs(dz));
             if (d >= 0.01F) {

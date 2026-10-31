@@ -176,6 +176,46 @@ class LandMobTest {
     }
 
     @Test
+    void ravagerSmashesLeavesWhenBlocked() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        int leaves = B.defaultState(B.id("minecraft:oak_leaves"));
+        for (int y = -60; y <= -58; y++) for (int z = -2; z <= 2; z++) level.setBlock(new Pos(2, y, z), leaves, 2);
+        var r = new Ravager(level, level.nextEntityId());
+        r.moveTo(0.5, -60, 0.5, 0, 0);
+        r.setOnGround(true);
+        level.addFreshEntity(r);
+        for (int t = 0; t < 40; t++) {
+            r.setDeltaMovement(0.3, r.vy(), 0.0);
+            tick(level, 1);
+        }
+        assertFalse(B.isTag(level.getBlockState(new Pos(2, -60, 0)), "minecraft:leaves"), "나뭇잎이 부서졌다");
+    }
+
+    @Test
+    void ravagerKeepsLeavesWhenMobGriefingOff() {
+        var level = new SkeletonCombatTest.ArenaLevel() {
+            @Override protected org.domi.furnace.server.block.LevelServices services() {
+                return new org.domi.furnace.server.block.LevelServices.Delegating(super.services()) {
+                    @Override public boolean gameRule(String n) { return !n.equals("mobGriefing") && super.gameRule(n); }
+                };
+            }
+        };
+        level.dayTime = 18000;
+        int leaves = B.defaultState(B.id("minecraft:oak_leaves"));
+        for (int y = -60; y <= -58; y++) for (int z = -2; z <= 2; z++) level.setBlock(new Pos(2, y, z), leaves, 2);
+        var r = new Ravager(level, level.nextEntityId());
+        r.moveTo(0.5, -60, 0.5, 0, 0);
+        r.setOnGround(true);
+        level.addFreshEntity(r);
+        for (int t = 0; t < 40; t++) {
+            r.setDeltaMovement(0.3, r.vy(), 0.0);
+            tick(level, 1);
+        }
+        assertTrue(B.isTag(level.getBlockState(new Pos(2, -60, 0)), "minecraft:leaves"));
+    }
+
+    @Test
     void evokerCastsFangsAndSummons() {
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 6000;

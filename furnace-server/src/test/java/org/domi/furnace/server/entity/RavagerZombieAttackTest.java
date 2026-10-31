@@ -32,28 +32,103 @@ class RavagerZombieAttackTest {
         return z;
     }
 
+    /** 기록용 파괴수: 소리 이름과 엔티티 이벤트를 모은다. */
+    private static final class RecRavager extends Ravager {
+        final java.util.List<String> sounds = new java.util.ArrayList<>();
+        final java.util.List<Byte> events = new java.util.ArrayList<>();
+        RecRavager(SkeletonCombatTest.ArenaLevel l) { super(l, l.nextEntityId()); }
+        @Override public void playSound(String s, float v, float p) { sounds.add(s); }
+        @Override public void broadcastEntityEvent(byte e) { events.add(e); }
+    }
+
+    private static long seedWhere(boolean low) {
+        for (long s = 1; ; s++) if ((org.domi.furnace.server.block.RandomSource.create(s).nextDouble() < 0.5) == low) return s;
+    }
+
+    private static RecRavager seeded(SkeletonCombatTest.ArenaLevel level, long seed) {
+        var r = new RecRavager(level);
+        r.moveTo(0.5, -60, 0.5, 0, 0);
+        r.setOnGround(true);
+        ((org.domi.furnace.server.block.LegacyRandomSource) r.random).setSeed(seed);
+        level.addFreshEntity(r);
+        return r;
+    }
+
     @Test
-    void ravagerStunsOrKnocksBackOnShieldBlock() {
+    void ravagerStunsOnLowRoll() {
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 18000;
-        boolean stunned = false, knocked = false;
-        for (int i = 0; i < 60 && !(stunned && knocked); i++) {
-            var r = ravager(level, 0.5);
-            var d = zombie(level, 2.5);
-            d.setDeltaMovement(0, 0, 0);
-            r.blockedByShield(d);
-            if (r.getStunnedTick() == 40) {
-                stunned = true;
-                assertTrue(r.isImmobile(), "기절 중에는 움직이지 못한다");
-            } else {
-                knocked = true;
-                assertEquals(0, r.getStunnedTick());
-                assertEquals(2.0, d.vx(), 1e-9, "강한 밀치기: dx/(dx²)*4");
-                assertEquals(0.2, d.vy(), 1e-9);
-            }
-            assertTrue(d.hurtMarked);
+        var r = seeded(level, seedWhere(true));
+        var d = zombie(level, 2.5);
+        d.setDeltaMovement(0, 0, 0);
+        r.sounds.clear();
+        r.events.clear();
+        r.blockedByShield(d);
+        assertEquals(40, r.getStunnedTick());
+        assertTrue(r.isImmobile());
+        assertTrue(r.sounds.contains("entity.ravager.stunned"), r.sounds.toString());
+        assertEquals(java.util.List.of((byte) 39), r.events);
+        assertTrue(d.vx() > 0.0 && d.vx() < 0.1, "push 로 조금만 밀림 vx=" + d.vx());
+        assertTrue(d.hurtMarked);
+    }
+
+    @Test
+    void ravagerKnocksBackOnHighRoll() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        var r = seeded(level, seedWhere(false));
+        var d = zombie(level, 2.5);
+        d.setDeltaMovement(0, 0, 0);
+        r.sounds.clear();
+        r.events.clear();
+        r.blockedByShield(d);
+        assertEquals(0, r.getStunnedTick());
+        assertEquals(2.0, d.vx(), 1e-9, "강한 밀치기: dx/(dx²)*4");
+        assertEquals(0.2, d.vy(), 1e-9);
+        assertFalse(r.sounds.contains("entity.ravager.stunned"));
+        assertTrue(r.events.isEmpty());
+        assertTrue(d.hurtMarked);
+    }
+
+    private static Player player(SkeletonCombatTest.ArenaLevel level, org.domi.furnace.server.world.GameMode mode, io.netty.channel.embedded.EmbeddedChannel ch) {
+        var p = new Player(7, java.util.UUID.randomUUID(), "Steve", ch);
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, mode, false);
+        p.applyMove(2.5, -60, 0.5, 90, 0, true);
+        level.player = p;
+        ch.runPendingTasks();
+        while (ch.readOutbound() != null) { }
+        return p;
+    }
+
+    private static int motionPackets(io.netty.channel.embedded.EmbeddedChannel ch) {
+        ch.runPendingTasks();
+        int n = 0;
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            io.netty.buffer.ByteBuf bb = (io.netty.buffer.ByteBuf) o;
+            if (org.domi.furnace.server.net.io.Types.readVarInt(bb) == org.domi.furnace.server.net.protocol.play.SetEntityMotion.ID) n++;
+            bb.release();
         }
-        assertTrue(stunned && knocked, "두 갈래 모두 나온다");
+        return n;
+    }
+
+    @Test
+    void ravagerStunPushesPlayerButNotSpectator() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        var ch = new io.netty.channel.embedded.EmbeddedChannel();
+        var p = player(level, org.domi.furnace.server.world.GameMode.SURVIVAL, ch);
+        var r = seeded(level, seedWhere(true));
+        r.blockedByShield(p);
+        assertEquals(40, r.getStunnedTick());
+        assertTrue(motionPackets(ch) >= 1, "플레이어가 밀렸다");
+        var ch2 = new io.netty.channel.embedded.EmbeddedChannel();
+        var sp = player(level, org.domi.furnace.server.world.GameMode.SPECTATOR, ch2);
+        var r2 = seeded(level, seedWhere(true));
+        r2.blockedByShield(sp);
+        assertEquals(40, r2.getStunnedTick());
+        assertEquals(0, motionPackets(ch2), "관전자는 밀리지 않는다");
     }
 
     @Test
@@ -73,11 +148,8 @@ class RavagerZombieAttackTest {
     void stunEndsWithRoar() {
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 18000;
-        Ravager r = null;
-        for (int i = 0; i < 60 && (r == null || r.getStunnedTick() == 0); i++) {
-            r = ravager(level, 0.5);
-            r.blockedByShield(zombie(level, 2.5));
-        }
+        var r = seeded(level, seedWhere(true));
+        r.blockedByShield(zombie(level, 2.5));
         assertEquals(40, r.getStunnedTick());
         for (int t = 0; t < 40; t++) r.tick();
         assertEquals(0, r.getStunnedTick());
