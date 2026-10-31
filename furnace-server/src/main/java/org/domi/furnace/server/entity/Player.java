@@ -534,12 +534,23 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     @Override public int id() { return entityId; }
 
     /** 눈 높이: 잠(SLEEPING_DIMENSIONS) 0.2, 웅크림 1.27, 서기 1.62. */
-    @Override public double eyeY() { return y + (fallFlying ? 0.4 : sleepingPos != null ? 0.2 : sneaking ? 1.27 : 1.62); }
+    @Override public double eyeY() { return y + (fallFlying ? 0.4 : sleepingPos != null ? 0.2 : isSwimPose() ? 0.4 : isCrouchPose() ? 1.27 : 1.62); }
+
+    /**
+     * 서버가 계산하는 자세(Player.updatePlayerPose) — 소유 region 이 매 틱 정한다.
+     * swimming: Entity 수영 플래그(질주 중 물속), crawling: 서 있을 틈이 없어 수영 자세로 눌린 경우, forcedCrouch: 서 있을 틈은 없고 웅크릴 틈은 있는 경우.
+     */
+    public volatile boolean swimming, crawling, forcedCrouch;
+
+    /** 수영·기어가기 자세(키 0.6, 눈 0.4). */
+    public boolean isSwimPose() { return swimming || crawling; }
+
+    private boolean isCrouchPose() { return sneaking || forcedCrouch; }
 
     @Override public float bbWidth() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : 0.6F; }
 
     /** 자세 크기(Player.POSES): 겉날개 0.6×0.6(눈 0.4), 잠 0.2, 웅크림 1.5, 서기 1.8. */
-    @Override public float bbHeight() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : sneaking ? 1.5F : 1.8F; }
+    @Override public float bbHeight() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : isSwimPose() || autoSpinAttackTicks > 0 ? 0.6F : isCrouchPose() ? 1.5F : 1.8F; }
 
     @Override
     public AABB boundingBox() {
@@ -799,10 +810,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private int sentPose;
 
     /** Entity.DATA_SHARED_FLAGS(0)의 웅크림(2)·질주(8)·겉날개 비행(0x80, 플래그 7) 비트. TODO(불·수영·투명·발광). */
-    public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0) | (fallFlying ? 0x80 : 0)); }
+    public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0) | (swimming ? 0x10 : 0) | (fallFlying ? 0x80 : 0)); }
 
     /** Player.updatePlayerPose: 겉날개 비행 FALL_FLYING(1), 잠 2, 회전 공격 SPIN_ATTACK(4), 웅크림 CROUCHING(5), 아니면 STANDING(0). TODO(수영 자세·끼임 검사). */
-    public int pose() { return fallFlying ? 1 : sleepingPos != null ? 2 : autoSpinAttackTicks > 0 ? 4 : sneaking ? 5 : 0; }
+    public int pose() { return fallFlying ? 1 : sleepingPos != null ? 2 : isSwimPose() ? 3 : autoSpinAttackTicks > 0 ? 4 : isCrouchPose() ? 5 : 0; }
 
     // ------------------------------------------------------------------ 겉날개 비행(LivingEntity 공유 플래그 7·fallFlyTicks) — 쓰기는 region 스레드
     private volatile boolean fallFlying;

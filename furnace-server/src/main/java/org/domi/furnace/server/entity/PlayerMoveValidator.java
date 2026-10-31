@@ -41,6 +41,20 @@ public final class PlayerMoveValidator {
         public int aboveGroundTickCount() { return aboveGroundTickCount; }
     }
 
+    /**
+     * 검증에 쓰는 몸통 높이. 서버 자세는 틱마다 한 번 갱신되어 클라이언트보다 한 틱 늦을 수 있다 — 수영·기어가기 자세이거나
+     * 질주 중 물에 닿아 곧 수영 자세가 될 수 있으면 낮은 상자(0.6)로 본다(좁은 틈을 지나는 정상 이동을 거절하지 않기 위해, 가정).
+     */
+    static double height(Player p) {
+        if (p.isSwimPose() || p.sprinting() && p.wasTouchingWater) return Math.min(p.bbHeight(), 0.6);
+        return p.bbHeight();
+    }
+
+    static AABB box(Player p) {
+        double hw = p.bbWidth() / 2.0;
+        return new AABB(p.x() - hw, p.y(), p.z() - hw, p.x() + hw, p.y() + height(p), p.z() + hw);
+    }
+
     private static double clampHorizontal(double v) { return Math.clamp(v, -3.0E7, 3.0E7); }
 
     private static double clampVertical(double v) { return Math.clamp(v, -2.0E7, 2.0E7); }
@@ -131,7 +145,7 @@ public final class PlayerMoveValidator {
                 }
             }
         }
-        AABB oldBox = p.boundingBox();
+        AABB oldBox = box(p);
         l = d - s.lastGoodX;
         m = e - s.lastGoodY;
         n = f - s.lastGoodZ;
@@ -197,7 +211,7 @@ public final class PlayerMoveValidator {
      */
     static boolean isPlayerCollidingWithBlocks(ChunkLevel level, Player p, AABB oldBox, double[] moved, double d, double e, double f) {
         double hw = p.bbWidth() / 2.0;
-        AABB box = new AABB(moved[0] - hw, moved[1], moved[2] - hw, moved[0] + hw, moved[1] + p.bbHeight(), moved[2] + hw)
+        AABB box = new AABB(moved[0] - hw, moved[1], moved[2] - hw, moved[0] + hw, moved[1] + height(p), moved[2] + hw)
                 .move(d - moved[0], e - moved[1], f - moved[2]);
         AABB old = oldBox.deflate(1.0E-5F);
         for (var shape : level.blockCollisions(box.deflate(1.0E-5F))) {
@@ -215,7 +229,7 @@ public final class PlayerMoveValidator {
     static double[] move(ChunkLevel level, Player p, double dx, double dy, double dz, boolean noPhysics) {
         double px = p.x(), py = p.y(), pz = p.z();
         if (noPhysics) return new double[] {px + dx, py + dy, pz + dz, 0.0};
-        AABB box = p.boundingBox();
+        AABB box = box(p);
         float step = 0.6F;   // step_height 속성 기본값(플레이어에게 수정자 없음)
         boolean onGround = p.onGround();
         double[] back = maybeBackOffFromEdge(level, p, box, onGround, step, dx, dy, dz);

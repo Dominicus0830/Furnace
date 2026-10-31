@@ -292,4 +292,79 @@ class PlayerMoveValidatorTest {
         PlayerMoveValidator.teleported(far, 40.5, -60, 0.5);
         assertTrue(PlayerMoveValidator.handle(l, far, pos(40.7, -60, 0.5), true));
     }
+
+    // ------------------------------------------------------------------ 수영·기어가기 자세 (오탐 방지)
+
+    /** 발 -60 ~ 천장 -59 사이 높이 1칸 통로(x = 2..4). */
+    private static Level tunnel() {
+        var l = new Level();
+        for (int x = 2; x <= 4; x++) l.setBlock(new Pos(x, -59, 0), B.defaultState("minecraft:stone"), 3);
+        return l;
+    }
+
+    @Test
+    void oneBlockTunnel_standingIsRejected_swimmingCrawlingAndSprintInWaterAreAccepted() {
+        var l = tunnel();
+        var stand = player(1.2, -60, 0.5, GameMode.SURVIVAL);
+        tick(stand, l);
+        assertFalse(PlayerMoveValidator.handle(l, stand, pos(2.4, -60, 0.5), true), "서 있는 1.8 상자는 천장에 막힌다");
+        var swim = player(1.2, -60, 0.5, GameMode.SURVIVAL);
+        swim.swimming = true;
+        tick(swim, l);
+        assertTrue(PlayerMoveValidator.handle(l, swim, pos(2.4, -60, 0.5), false));
+        assertEquals(2.4, swim.x(), 1e-12);
+        var crawl = player(1.2, -60, 0.5, GameMode.SURVIVAL);
+        crawl.crawling = true;
+        tick(crawl, l);
+        assertTrue(PlayerMoveValidator.handle(l, crawl, pos(2.4, -60, 0.5), true));
+        // 서버 자세가 한 틱 늦는 경우: 질주 중 물에 닿았다면 낮은 상자로 본다
+        var lag = player(1.2, -60, 0.5, GameMode.SURVIVAL);
+        lag.sprinting(true);
+        lag.wasTouchingWater = true;
+        tick(lag, l);
+        assertTrue(PlayerMoveValidator.handle(l, lag, pos(2.4, -60, 0.5), false));
+    }
+
+    @Test
+    void poseUpdate_crawlsWhenCeilingTooLow_andPublishesPoseFlagsAndHeight() {
+        var l = tunnel();
+        var probe = new org.domi.furnace.server.world.PlayerProbe(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"));
+        org.domi.furnace.server.world.PlayerProbe.Blocks blocks = (x, y, z) -> l.getBlockState(new Pos(x, y, z));
+        var p = player(3.5, -60, 0.5, GameMode.SURVIVAL);   // 통로 안(서 있으면 1.8 > 1)
+        assertEquals(0, p.pose());
+        PlayerPose.update(p, l, probe, blocks);
+        assertTrue(p.crawling);
+        assertFalse(p.swimming);
+        assertEquals(3, p.pose(), "SWIMMING 자세");
+        assertEquals(0.6F, p.bbHeight(), 1e-6);
+        assertEquals(0, p.sharedFlags() & 0x10, "기어가기는 수영 비트가 없다");
+        assertEquals(-60 + 0.4, p.eyeY(), 1e-9);
+        // 통로 밖으로 나오면 다시 선다
+        p.applyMove(0.5, -60, 0.5, 0, 0, true);
+        PlayerPose.update(p, l, probe, blocks);
+        assertFalse(p.crawling);
+        assertEquals(0, p.pose());
+        assertEquals(1.8F, p.bbHeight(), 1e-6);
+    }
+
+    @Test
+    void poseUpdate_sprintingUnderwaterSwims_andKeepsFlagWhileInWater() {
+        var l = new Level();
+        var probe = new org.domi.furnace.server.world.PlayerProbe(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"));
+        org.domi.furnace.server.world.PlayerProbe.Blocks blocks = (x, y, z) -> l.getBlockState(new Pos(x, y, z));
+        int water = B.defaultState("minecraft:water");
+        for (int y = -60; y <= -57; y++) l.setBlock(new Pos(0, y, 0), water, 3);
+        var p = player(0.5, -60, 0.5, GameMode.SURVIVAL);
+        PlayerPose.update(p, l, probe, blocks);
+        assertFalse(p.swimming, "질주하지 않으면 수영 아님");
+        p.sprinting(true);
+        PlayerPose.update(p, l, probe, blocks);
+        assertTrue(p.swimming, "질주 중 눈이 물속");
+        assertEquals(3, p.pose());
+        assertEquals(0x10, p.sharedFlags() & 0x10);
+        p.sprinting(false);
+        PlayerPose.update(p, l, probe, blocks);
+        assertFalse(p.swimming);
+        assertEquals(0, p.pose());
+    }
 }
