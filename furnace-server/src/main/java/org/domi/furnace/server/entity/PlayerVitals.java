@@ -107,6 +107,12 @@ public final class PlayerVitals {
     private float xpProgress;
     private int air = MAX_AIR;
     private float fallDistance;
+    // 현재 충격(폭발·철퇴) 맥락: 같은 충격 아래로 떨어질 때 낙하 피해를 면제한다(바닐라 Player.ignoreFallDamageFromCurrentImpulse 등)
+    private boolean ignoreFallFromImpulse;
+    private int impulseGrace;
+    private double[] impulsePos;
+    /** 지금 처리 중인 이동 표본의 y(위치 패킷이 쌓여 있어도 그 시점 높이로 비교). NaN 이면 플레이어 현재 y. */
+    private double moveY = Double.NaN;
     private int invulnerableTime, hurtTime, deathTime, tickCount;
 
     /** 틱마다 올라가는 시계(같은 틱 안의 밀침을 쌓는 기준). */
@@ -181,6 +187,14 @@ public final class PlayerVitals {
         deathTime = tag.getShort("DeathTime");
         if (tag.containsNumber("Air")) air = tag.getShort("Air");
         fallDistance = tag.getFloat("FallDistance");
+        ignoreFallFromImpulse = tag.getBoolean("ignore_fall_damage_from_current_explosion");
+        impulseGrace = tag.getIntOr0("current_impulse_context_reset_grace_time");
+        impulsePos = null;
+        var ipos = tag.contains("current_explosion_impact_pos") ? tag.getList("current_explosion_impact_pos") : null;
+        if (ipos != null && ipos.size() >= 3) {
+            impulsePos = new double[3];
+            for (int i = 0; i < 3; i++) impulsePos[i] = ipos.get(i) instanceof Number n ? n.doubleValue() : 0.0;
+        }
         if (tag.getBoolean("FallFlying")) {   // LivingEntity.readAdditionalSaveData — 서버 속도는 Motion 에서
             player.setFallFlying(true);
             var motion = tag.getList("Motion");
@@ -247,6 +261,15 @@ public final class PlayerVitals {
         }
         tag.putShort("Air", (short) air);
         tag.putFloat("FallDistance", fallDistance);
+        tag.putBoolean("ignore_fall_damage_from_current_explosion", ignoreFallFromImpulse);
+        tag.putInt("current_impulse_context_reset_grace_time", impulseGrace);
+        if (impulsePos != null) {
+            var ip = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_DOUBLE);
+            for (double d : impulsePos) ip.add(d);
+            tag.putList("current_explosion_impact_pos", ip);
+        } else {
+            tag.tags().remove("current_explosion_impact_pos");
+        }
         tag.putBoolean("FallFlying", player.isFallFlying());
         tag.putBoolean("Invulnerable", invulnerableFlag);
         tag.putFloat("XpP", xpProgress);
@@ -347,6 +370,46 @@ public final class PlayerVitals {
     public synchronized int air() { return air; }
 
     public synchronized float fallDistance() { return fallDistance; }
+
+    // ------------------------------------------------------------------ 현재 충격 맥락(Player.setIgnoreFallDamageFromCurrentImpulse 등)
+
+    /** setIgnoreFallDamageFromCurrentImpulse: 켜면 유예 40틱, 끄면 0. */
+    public synchronized void setIgnoreFallDamageFromCurrentImpulse(boolean v) {
+        ignoreFallFromImpulse = v;
+        impulseGrace = v ? 40 : 0;
+    }
+
+    /** 이동 표본 처리 직전에 그 표본의 y 를 알린다(Region.processMoves). */
+    public synchronized void currentMoveY(double y) { moveY = y; }
+
+    private double impulseY() { return Double.isNaN(moveY) ? player.y() : moveY; }
+
+    /** 테스트·플러그인용: 낙하 거리를 직접 정한다(Entity.fallDistance 는 공개 필드). */
+    public synchronized void setFallDistance(float d) { fallDistance = d; }
+
+    public synchronized boolean isIgnoringFallDamageFromCurrentImpulse() { return ignoreFallFromImpulse; }
+
+    public synchronized double[] currentImpulsePos() { return impulsePos == null ? null : impulsePos.clone(); }
+
+    public synchronized void setCurrentImpulsePos(double[] p) { impulsePos = p == null ? null : p.clone(); }
+
+    /** resetCurrentImpulseContext. */
+    public synchronized void resetCurrentImpulseContext() {
+        impulseGrace = 0;
+        impulsePos = null;
+        ignoreFallFromImpulse = false;
+    }
+
+    /** tryResetCurrentImpulseContext: 유예가 끝났을 때만 초기화. */
+    public synchronized void tryResetCurrentImpulseContext() {
+        if (impulseGrace == 0) resetCurrentImpulseContext();
+    }
+
+    /** Entity.onExplosionHit(source) 의 ServerPlayer 쪽: 맞은 자리를 기억하고, 원인이 윈드 차지일 때만 낙하 피해를 면제한다. */
+    public synchronized void onExplosionHit(Entity source) {
+        impulsePos = new double[] {player.x(), player.y(), player.z()};
+        setIgnoreFallDamageFromCurrentImpulse(source instanceof WindCharge);
+    }
 
     public synchronized void resetFallDistance() { fallDistance = 0.0f; }
 
@@ -527,7 +590,7 @@ public final class PlayerVitals {
         if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
             player.hurtArmor(amount);   // 바닐라 순서: 내구도를 먼저 깎고(깨지면 빠진 뒤) 방어력을 읽는다
             float armor = player.armorValue(), toughness = player.armorToughness();
-            amount = CombatRules.getDamageAfterAbsorb(amount, armor, toughness);
+            amount = CombatRules.getDamageAfterAbsorb(amount, armor, toughness, EnchantEffects.weaponOf(direct));
         }
         amount = getDamageAfterMagicAbsorb(type, amount);
         float afterAbsorb = Math.max(amount - absorption, 0.0f);
@@ -731,8 +794,18 @@ public final class PlayerVitals {
         float multiplier = fallMultiplier(block, sneaking);
         if (multiplier < 0 || abilities.mayfly) return 0;
         MobEffectInstance jump = effects.get(MobEffect.JUMP_BOOST);
+        boolean impulse = false;
+        if (ignoreFallFromImpulse && impulsePos != null) {   // ServerPlayer.causeFallDamage: 충격 높이보다 위에서 내려앉으면 면제, 아니면 그 높이까지만 센다
+            double top = impulsePos[1];
+            tryResetCurrentImpulseContext();
+            if (top < impulseY()) return 0;
+            distance = Math.min(distance, (float) (top - impulseY()));
+            impulse = true;
+        }
         float over = distance - SAFE_FALL_DISTANCE - (jump == null ? 0.0f : jump.amplifier() + 1);
-        return (float) Math.ceil((double) (over * multiplier) * 1.0);
+        float dmg = (float) Math.ceil((double) (over * multiplier) * 1.0);
+        if (impulse && dmg > 0) resetCurrentImpulseContext();
+        return dmg;
     }
 
     /** -1 = 피해 없음(가루눈). */
@@ -758,6 +831,7 @@ public final class PlayerVitals {
         java.util.List<Packet> toTrackers = new java.util.ArrayList<>(2);
         synchronized (this) {
             tickCount++;
+            if (impulseGrace > 0) impulseGrace--;
             if (invulnerableTime > 0) invulnerableTime--;
             if (spawnInvulnerableTime > 0) spawnInvulnerableTime--;
             boolean alive = health > 0.0f;

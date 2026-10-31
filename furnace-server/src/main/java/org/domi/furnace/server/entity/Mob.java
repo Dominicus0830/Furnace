@@ -653,13 +653,14 @@ public abstract class Mob extends LivingEntity {
     /** Mob.doHurtTarget: 공격력 속성만큼 때리고, 맞으면 밀치기(attack_knockback)·되받는 감속·마지막으로 때린 대상 기록. TODO(인챈트 효과·무기 후처리). */
     public boolean doHurtTarget(Targetable t) {
         float damage = (float) attributeValue(Attribute.ATTACK_DAMAGE);
-        boolean hurt = t.hurtByMob(new Damage("mob_attack", false, false, false), damage, this);
+        boolean hurt = t.hurtByMob(new Damage("mob_attack", false, false, false).withWeapon(getItemBySlot(EquipmentSlot.MAINHAND)), damage, this);
         if (hurt) {
             float kb = (float) attributeValue(Attribute.ATTACK_KNOCKBACK);
             if (kb > 0.0F) {
                 t.knockback(kb * 0.5F, org.domi.furnace.server.entity.ai.control.Mth.sin(yRot() * (float) (Math.PI / 180.0)), -org.domi.furnace.server.entity.ai.control.Mth.cos(yRot() * (float) (Math.PI / 180.0)));
                 setDeltaMovement(vx() * 0.6, vy(), vz() * 0.6);
             }
+            EnchantEffects.thorns(level, t, this);   // doPostAttackEffects: 맞은 쪽 장비의 가시
             setLastHurtMob(t);
             doPostHurtEffects(t);
         }
