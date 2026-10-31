@@ -1025,6 +1025,7 @@ public final class Region {
             boolean eyeInWater = probe.eyeInWater(blocks, m.x(), m.y(), m.z(), eye);
             String climbable = probe.climbable(blocks, m.x(), m.y(), m.z());
             boolean waterOnPath = dy < 0 && probe.waterOnPath(blocks, m.x(), prev.y(), m.y(), m.z());
+            p.vitals().currentMoveY(m.y());
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
             if (level != null && p.gameMode() != GameMode.SPECTATOR) {

@@ -619,7 +619,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected float getDamageAfterArmorAbsorb(Damage source, float amount) {
         if (DamageType.keyHasTag(source.type(), "bypasses_armor")) return amount;
         return org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterAbsorb(amount,
-                (float) attributeValue(Attribute.ARMOR), (float) attributeValue(Attribute.ARMOR_TOUGHNESS));
+                (float) attributeValue(Attribute.ARMOR), (float) attributeValue(Attribute.ARMOR_TOUGHNESS), source.weapon());
     }
 
     /** LivingEntity.getDamageAfterMagicAbsorb: 저항 효과와 방어구 보호 인챈트. */

@@ -8,11 +8,27 @@ public final class CombatRules {
 
     private CombatRules() {}
 
-    /** CombatRules.getDamageAfterAbsorb(방어력·강인함). 차이: 무기 아이템의 modifyArmorEffectiveness(철퇴 관통)는 아직 없다. */
+    /** CombatRules.getDamageAfterAbsorb(방어력·강인함), 무기 없음. */
     public static float getDamageAfterAbsorb(float damage, float armor, float toughness) {
+        return getDamageAfterAbsorb(damage, armor, toughness, null);
+    }
+
+    /**
+     * CombatRules.getDamageAfterAbsorb(entity, damage, source, armor, toughness): 무기가 있으면 armor_effectiveness 효과를 더하고 0~1 로 자른다.
+     * 1.21.1 데이터: 관통(breach)만 per_level(-0.15) 를 더한다 = -0.15 + -0.15 × (레벨 - 1) (float 그대로).
+     */
+    public static float getDamageAfterAbsorb(float damage, float armor, float toughness, ItemStack weapon) {
         float f = 2.0F + toughness / 4.0F;
         float f1 = Math.clamp(armor - damage / f, armor * 0.2F, 20.0F);
-        return damage * (1.0F - f1 / 25.0F);
+        float f2 = f1 / 25.0F;
+        if (weapon != null) f2 = Math.clamp(modifyArmorEffectiveness(weapon, f2), 0.0F, 1.0F);
+        return damage * (1.0F - f2);
+    }
+
+    /** EnchantmentHelper.modifyArmorEffectiveness: 무기의 breach 레벨 L 이면 base + (-0.15F + -0.15F × (L - 1)). */
+    public static float modifyArmorEffectiveness(ItemStack weapon, float base) {
+        int breach = ItemTools.enchantmentLevel(weapon, "minecraft:breach");
+        return breach > 0 ? base + (-0.15F + -0.15F * (breach - 1)) : base;
     }
 
     /** CombatRules.getDamageAfterMagicAbsorb: 보호량 0~20 으로 자르고 1 보호당 4%. */

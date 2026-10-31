@@ -40,7 +40,14 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     /** 엔티티가 받는 피해의 종류(바닐라 DamageSource 중 엔티티 동작이 보는 성질만). */
-    public record Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability) {
+    public record Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability, ItemStack weapon) {
+        public Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability) {
+            this(type, fire, explosion, bypassesInvulnerability, null);
+        }
+
+        /** DamageSource.getWeaponItem: 직접 때린 쪽의 주 손 무기(관통 등 방어력 보정이 본다). */
+        public Damage withWeapon(ItemStack w) { return new Damage(type, fire, explosion, bypassesInvulnerability, w); }
+
         public static final Damage IN_FIRE = new Damage("in_fire", true, false, false);
         public static final Damage ON_FIRE = new Damage("on_fire", true, false, false);
         public static final Damage LAVA = new Damage("lava", true, false, false);

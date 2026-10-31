@@ -387,3 +387,13 @@
 - U3 점검 결과: `InteractWithDoor`(바닐라 bwf)는 이미 있고 `VillagerGoalPackages` CORE 에 들어 있으며, `Villager` 가 `setCanOpenDoors(true)`, 길찾기는 `WALKABLE_DOOR`(DOOR_WOOD_CLOSED 통과)·철문 차단(DOOR_IRON_CLOSED)이 맞다. 시험으로 열고 지나가기·철문 불통과를 확인했다.
 - 바닐라도 그런 점(이식 그대로): 브레인이 매 틱 도는데 다음 노드가 마지막 검사 노드와 다르면 20틱 쿨다운(`decrementAndGet`)이라 문 열기·닫기 검사가 약 20틱마다 일어난다. 그래서 문 앞에서 잠깐 멈췄다 열리고, 닫을 문은 주민이 문 중심에서 3칸 안에 있는 틱에만 닫힌다(그 밖이면 닫지 않고 기억에서만 뺀다). 사용자가 "문을 안 연다/안 닫는다"고 느낀 것이 이 지연·미닫음이면 바닐라와 같은 동작이다(가정: 바닐라 실서버 대조는 못 했다).
 - 시험: `FireworkOwnerTest`, `VillagerDoorTest`.
+
+## 2026-10-31 철퇴(Mace)·밀도·관통·돌풍·가시
+- 철퇴 스매시(`MaceSmash`, 디컴파일 `cvb`): 조건 낙하 > 1.5 && 겉날개 아님. 보너스 = 기본(≤3: 4f, ≤8: 12+2(f-3), 그 위 22+f-8) + 밀도 `0.5F+0.5F(L-1)` × f. 치명타 배율 앞에서 더한다(`Player.attack` 순서). 맞춘 뒤(setLastHurtMob 다음, 후처리 앞) hurtEnemy: 충격 맥락 설정·속도 Y=0.01 패킷·소리(지상 대상 낙하>5 heavy)·레벨 이벤트 2013(750)·충격파(대상 기준 3.5 이내, 힘 `(3.5-거리)*0.7F*(낙하>5?2:1)*(1-넉백저항)`, y 0.7F). 후처리 뒤 postHurtEnemy 가 낙하 거리를 지운다.
+- 낙하 피해 면제: `PlayerVitals` 에 현재 충격 맥락(위치·무시 플래그·유예 40틱, NBT `ignore_fall_damage_from_current_explosion` 등 바닐라 키) 추가. 폭발이 플레이어를 맞히면 `onExplosionHit(source)`(원인이 윈드 차지일 때만 면제). 이 때문에 윈드 차지 폭발도 이제 바닐라처럼 낙하 면제를 켠다.
+- 관통: `CombatRules.getDamageAfterAbsorb(.., weapon)` 이 armor_effectiveness(-0.15F + -0.15F(L-1))를 더해 0~1 로 자른다. `Entity.Damage` 에 `weapon`(DamageSource.getWeaponItem) 추가, 플레이어 근접·`Mob.doHurtTarget` 이 채운다.
+- 돌풍: 낙하 ≥ 1.5 && 비행 아님이면 공격자 위치에서 반경 3.5, 밀림 배수 [1.2,1.75,2.2] / 너머 1.5+0.35(L-1), 원인 없는 윈드 폭발.
+- 가시(`EnchantEffects.thorns`): 맞은 쪽 장비 칸(MAINHAND, OFFHAND, FEET, LEGS, CHEST, HEAD, BODY 순, 슬롯 그룹 ANY)마다 레벨 난수 nextFloat < 0.15F+0.15F(L-1) → 때린 쪽 난수 nextFloat*4+1 피해(thorns, 원인=가시 주인) → 그 장비 내구 2(내구성 판정은 레벨 난수). 크리에이티브 주인은 내구 그대로. 플레이어 근접·쓸기·몹 근접에서 호출.
+- 미구현(근사로 켜지 않음): 착지 추가 입자(spawnExtraParticlesOnFall)·낙하-폭발 발전 과제, 투사체(화살 등)로 맞았을 때 가시, 몹 무기의 후처리 인챈트(불 속성·돌풍), 몹 무기 modifyDamage, 가시 장비 파괴 통계. 가정: 플레이어 충격파 넉백 저항은 방어구 knockback_resistance 합, 레벨 이벤트 위치는 `floor(y-1e-5)`(getOnPos 근사).
+- 물갈퀴·서리 걸음·영혼 가속·호흡·민첩한 웅크리기·물 친화: 미구현. 서버 속성(물 이동 효율 등)·플레이어 속성 시스템이 없어 근사 없이 남긴다.
+- 시험: `MaceEnchantTest`.

@@ -1,7 +1,7 @@
 // 플레이어 근접 공격(바닐라 Player.attack): 쿨다운 배율·치명타·질주 넉백·휘두르기 쓸기·공격 인챈트·불 붙이기. 대상은 몹·플레이어 둘 다.
 // 쓸기(sweep_attack)·피해 표시(damage_indicator)는 level_particles 로, 치명타(crit)·마법 치명타는 animate 로 보낸다.
 // TODO(효과): 힘·나약함·성급함·피로, 실명은 치명타 조건에만 쓴다. TODO(팀): isAlliedTo 는 팀이 없어 늘 거짓.
-// TODO(철퇴): getAttackDamageBonus(낙하 피해)·밀도·관통·돌풍. TODO(살충): 살충 인챈트의 느림 효과(피해 추가만 한다).
+// 철퇴: 낙하 보너스·밀도(MaceSmash), 관통(CombatRules), 돌풍·가시(EnchantEffects). TODO(살충): 살충 인챈트의 느림 효과(피해 추가만 한다).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -79,6 +79,7 @@ public final class PlayerMelee {
         boolean strong = h > 0.9F;
         boolean sprintHit = p.sprinting() && strong;
         if (sprintHit) sound(level, p, "minecraft:entity.player.attack.knockback");
+        f += MaceSmash.attackDamageBonus(p, weapon);   // item.getAttackDamageBonus: 치명타 배율 앞
         boolean crit = strong && p.vitals().fallDistance() > 0.0F && !p.onGround() && !p.onClimbable && !p.wasTouchingWater
                 && !p.vitals().hasEffect(MobEffect.BLINDNESS) && p.vehicle() == null && isLiving(target) && !p.sprinting();
         if (crit) f *= 1.5F;
@@ -88,7 +89,7 @@ public final class PlayerMelee {
         double walked = Math.sqrt(mv[0] * mv[0] + mv[2] * mv[2]) * 0.6;
         boolean sweep = strong && !crit && !sprintHit && p.onGround() && walked < 0.1F && ItemTools.itemName(weapon).endsWith("_sword");
         float before = healthOf(target);
-        boolean hurt = hurt(level, p, target, total);
+        boolean hurt = hurt(level, p, target, total, weapon);
         if (!hurt) {
             sound(level, p, "minecraft:entity.player.attack.nodamage");
             return Result.MISS;
@@ -109,14 +110,15 @@ public final class PlayerMelee {
                 if (le == target || (le instanceof ArmorStand as && as.isMarker()) || distSqr(p, le) >= 9.0) continue;
                 float m = (l + enchantDamageBonus(weapon, le)) * h;
                 le.knockback(0.4F, sin, -cos);
-                le.hurtBy(new Entity.Damage("player_attack", false, false, false), m, p);
-                postAttack(weapon, le);
+                le.hurtBy(new Entity.Damage("player_attack", false, false, false).withWeapon(weapon), m, p);
+                postAttack(level, p, weapon, le);
             }
             for (Player o : w.players()) {
                 if (o == p || o == target || !o.isAlive() || !o.boundingBox().intersects(box) || distSqr(p, o) >= 9.0) continue;
                 float m = (l + enchantDamageBonus(weapon, o)) * h;
                 o.knockback(0.4F, sin, -cos);
-                hurt(level, p, o, m);
+                hurt(level, p, o, m, weapon);
+                postAttack(level, p, weapon, o);
             }
             sound(level, p, "minecraft:entity.player.attack.sweep");
             if (level != null) {   // Player.sweepAttack
@@ -133,7 +135,9 @@ public final class PlayerMelee {
         if (g > 0.0F) animate(p, target, 5);   // magicCrit
         p.setLastHurtMob(target);
         int cost = isLiving(target) ? weaponDurabilityCost(weapon) : 0;   // hurtEnemy → postHurtEnemy
-        postAttack(weapon, target);
+        if (isLiving(target)) MaceSmash.hurtEnemy(w, p, weapon, target);   // Item.hurtEnemy → 철퇴 스매시
+        postAttack(level, p, weapon, target);
+        if (isLiving(target) && MaceSmash.isMace(weapon) && MaceSmash.canSmash(p)) p.vitals().resetFallDistance();   // Mace.postHurtEnemy
         float dealt = before - healthOf(target);   // 바닐라 순서: setLastHurtMob → 공격 후 효과 → 피해 표시 → 통계
         if (level != null && isLiving(target) && dealt > 2.0F) {   // damage_indicator: 입힌 양 × 0.5 개
             level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("damage_indicator"),
@@ -145,8 +149,8 @@ public final class PlayerMelee {
     }
 
     /** target.hurt(playerAttack(p), amount). 플레이어 대상은 바닐라 LivingEntity.hurt 의 0.4 넉백까지(그쪽 피해 경로엔 넉백이 없다). */
-    static boolean hurt(ChunkLevel level, Player p, Targetable target, float amount) {
-        var dmg = new Entity.Damage("player_attack", false, false, false);
+    static boolean hurt(ChunkLevel level, Player p, Targetable target, float amount, ItemStack weapon) {
+        var dmg = new Entity.Damage("player_attack", false, false, false).withWeapon(weapon);
         if (target instanceof LivingEntity le) return le.hurtBy(dmg, amount, p);
         if (target instanceof Player victim) {
             victim.shieldLevel = level;
@@ -160,10 +164,15 @@ public final class PlayerMelee {
         return target.hurtByMob(dmg, amount, null);
     }
 
-    /** doPostAttackEffects: 발화(불 붙이기 4초 × 레벨). 플레이어 대상은 불 상태가 아직 없어 넘어간다. */
-    static void postAttack(ItemStack weapon, Targetable target) {
+    /**
+     * doPostAttackEffectsWithItemSource: 먼저 맞은 쪽 장비의 가시, 이어서 무기의 발화(불 붙이기 4초 × 레벨)·돌풍.
+     * 플레이어 대상은 불 상태가 아직 없어 발화는 넘어간다.
+     */
+    static void postAttack(ChunkLevel level, Player p, ItemStack weapon, Targetable target) {
+        if (isLiving(target)) EnchantEffects.thorns(level, target, p);
         int fire = ItemTools.enchantmentLevel(weapon, "minecraft:fire_aspect");
         if (fire > 0 && target instanceof LivingEntity le) le.igniteForSeconds(4.0F * fire);
+        EnchantEffects.windBurst(level, p, weapon);
     }
 
     private static double distSqr(Player p, Targetable t) {
