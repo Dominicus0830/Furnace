@@ -1,5 +1,5 @@
 // 바닐라 Ravager: 덩치 큰 습격자 짐승. 달리다 막히면 나뭇잎을 부수고, 방패에 막히면 기절했다가 포효(주변 6 피해 + 강한 밀치기)한다.
-// TODO(방패·탑승·스폰 공간): 방패에 막혔을 때 기절(blockedByShield), 일러저 기수 태우기, 스폰 공간 검사(checkSpawnObstruction)는 해당 시스템이 생기면.
+// TODO(탑승): 일러저 기수 태우기와 기수에 따른 목표 플래그(updateControlFlags)는 탑승 시스템이 생기면.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -116,6 +116,41 @@ public class Ravager extends Raider {
         double d = Math.max(dx * dx + dz * dz, 0.001);
         e.addDeltaMovement(dx / d * 4.0, 0.2, dz / d * 4.0);
         if (e instanceof Entity en) en.hurtMarked = true;
+    }
+
+    /** Ravager.blockedByShield: 포효 중이 아니면 절반 확률로 40틱 기절(소리·이벤트 39·방패 쥔 쪽을 밀기), 아니면 강한 밀치기. */
+    public void blockedByShield(Targetable defender) {
+        if (roarTick != 0) return;
+        if (random.nextDouble() < 0.5) {
+            stunnedTick = 40;
+            playSound("entity.ravager.stunned", 1.0F, 1.0F);
+            broadcastEntityEvent((byte) 39);
+            pushAway(defender);
+        } else {
+            strongKnockback(defender);
+        }
+        if (defender instanceof Entity en) en.hurtMarked = true;
+        else if (defender instanceof Player p) p.markHurt();
+    }
+
+    /** defender.push(this): 서로 가로로 0.05 배로 밀어낸다(플레이어는 Entity 가 아니라 직접 계산). */
+    private void pushAway(Targetable defender) {
+        if (defender instanceof Entity en) {
+            en.push(this);
+        } else if (defender instanceof Player) {
+            double dx = x() - defender.x(), dz = z() - defender.z();
+            double d = Math.max(Math.abs(dx), Math.abs(dz));
+            if (d >= 0.01F) {
+                d = Math.sqrt(d);
+                dx /= d;
+                dz /= d;
+                double f = Math.min(1.0 / d, 1.0);
+                dx *= f * 0.05F;
+                dz *= f * 0.05F;
+                defender.addDeltaMovement(-dx, 0.0, -dz);
+                if (!isVehicle() && isPushable()) push(dx, 0.0, dz);
+            }
+        }
     }
 
     private void roar() {
