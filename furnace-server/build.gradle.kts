@@ -47,8 +47,12 @@ tasks.test {
 //   ./gradlew -PskipOracle=true :furnace-server:fatJar   → furnace-server/build/libs/furnace-server.jar
 //   java -Xms2G -Xmx4G -jar furnace-server.jar
 // `assemble`/`build` 에도 포함된다(테스트는 안 돈다).
+// 일반 jar 는 이름을 바꿔(furnace-server-plain.jar) fatJar 의 furnace-server.jar 와 출력이 겹치지 않게 한다.
+tasks.jar { archiveClassifier = "plain" }
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
+    // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
+    dependsOn(configurations.runtimeClasspath)
     description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
     archiveFileName = "furnace-server.jar"
     manifest { attributes["Main-Class"] = "org.domi.furnace.server.FurnaceMain" }
