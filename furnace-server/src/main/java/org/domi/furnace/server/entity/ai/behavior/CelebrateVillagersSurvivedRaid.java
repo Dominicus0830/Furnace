@@ -1,6 +1,6 @@
 // 바닐라 CelebrateVillagersSurvivedRaid(600, 600): 이긴 레이드 안에서 하늘이 보이면 축하한다.
 // 틱마다 엔티티 난수 1/100 로 축하 소리, 1/200 로(하늘이 보이면) 무작위 염료 색 BURST 폭죽(비행 0~2)을 눈높이에서 쏜다.
-// 차이: 폭죽 엔티티에 쏜 주민(owner)을 넘기지 않는다.
+// 폭죽 소유자는 쏜 주민(바닐라 new FireworkRocketEntity(level, owner, x, y, z, stack)) — 소유자는 처음엔 안 맞아 몸통에서 터지지 않는다.
 package org.domi.furnace.server.entity.ai.behavior;
 
 import java.util.LinkedHashMap;
@@ -44,12 +44,12 @@ public class CelebrateVillagersSurvivedRaid extends Behavior<Villager> {
             DyeColor color = DyeColor.values()[r.nextInt(DyeColor.values().length)];
             int flight = r.nextInt(3);
             ItemStack rocket = getFirework(color, flight);
-            level.addFreshEntity(new FireworkRocketEntity(level, level.nextEntityId(), v.x(), v.eyeY(), v.z(), rocket));
+            level.addFreshEntity(new FireworkRocketEntity(level, level.nextEntityId(), v, v.x(), v.eyeY(), v.z(), rocket));
         }
     }
 
     /** getFirework: 폭죽 로켓 하나(비행 시간, BURST 폭발 하나, 색 하나, 흐려짐·꼬리·반짝임 없음). */
-    static ItemStack getFirework(DyeColor color, int flight) {
+    public static ItemStack getFirework(DyeColor color, int flight) {
         Map<String, Object> explosion = new LinkedHashMap<>();
         explosion.put("shape", "burst");
         explosion.put("colors", List.of(SpecialRecipes.FIREWORK[color.id()]));

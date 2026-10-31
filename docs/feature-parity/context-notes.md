@@ -371,3 +371,9 @@
 - **미구현(근사 활성화 안 함)**: Dolphin `DolphinSwimWithPlayerGoal`(2) — Player 에 수영 상태(`Entity.updateSwimming` 규칙)가 없다. Parrot `LandOnOwnersShoulderGoal`(3) — 플레이어 어깨 엔티티 저장·복귀(ShoulderEntityLeft/Right)가 없어, 목표만 넣으면 앵무새가 사라진다. Dolphin `DolphinSwimToTreasureGoal` 은 전부터 구조물을 못 찾는 것으로 처리(`findNearestMapStructure` 연결 필요). Vindicator 'Johnny' 타깃·습격 무기 마법 부여는 그대로 TODO.
 - 차이·한계: (1) `CatSitOnBlockGoal` 의 열린 상자 판정은 `OpenersBlockEntity.openCount`(바닐라 `ChestBlockEntity.getOpenCount` 와 같은 값, 상자 블록 엔티티가 openers 계열일 때만). (2) `CatRelaxOnOwnerGoal` 의 끈(leash) 분기는 끈이 없어 생략. 아침 선물은 `giftLoot`(`gameplay/cat_morning_gift`)을 쓰며 주인 수면 카운터 `Player.sleepCounter()` 로 판단한다. (3) `FollowBoatGoal` 의 플레이어 입력은 `Player.inputXxa/inputZza`(탄 동안만 갱신) 이고 진행 방향은 `Dir.fromYRot(yaw)`(getDirection=getMotionDirection). (4) Dolphin `PlayWithItemsGoal` 은 `ItemEntity.isInWater()` 를 쓰므로 엔티티가 한 번 틱해야 물속 판정이 선다.
 - 시험: `CatDolphinFoxGoalsTest`(목표 표·각 목표 동작), `DoorGoalsTest`(Vindicator 3건), `MobGoalTableTest`(Rabbit 표 갱신).
+## 2026-10-31 주민 축하 폭죽 소유자(U1)·주민 문 행동 점검(U3)
+- U1 원인: `CelebrateVillagersSurvivedRaid` 가 폭죽을 소유자 없이 만들었다. 바닐라는 `new FireworkRocketEntity(level, owner, x, eyeY, z, stack)`(= 같은 난수 소비 + `setOwner`)라 소유자는 `leftOwner` 가 될 때까지 맞지 않는다. 소유자가 없으면 첫 틱에 주민 몸통에 맞아 터져 주민이 5+2 피해를 받았다. 소유자 받는 생성자를 추가해 넘긴다.
+- 같이 고침: `dealExplosionDamage` 가 붙은 대상(attachedToEntity)을 반경 루프에서 빼지 않아 겉날개 로켓이 붙은 플레이어를 두 번 때렸다. 바닐라는 `living != attachedToEntity`.
+- U3 점검 결과: `InteractWithDoor`(바닐라 bwf)는 이미 있고 `VillagerGoalPackages` CORE 에 들어 있으며, `Villager` 가 `setCanOpenDoors(true)`, 길찾기는 `WALKABLE_DOOR`(DOOR_WOOD_CLOSED 통과)·철문 차단(DOOR_IRON_CLOSED)이 맞다. 시험으로 열고 지나가기·철문 불통과를 확인했다.
+- 바닐라도 그런 점(이식 그대로): 브레인이 매 틱 도는데 다음 노드가 마지막 검사 노드와 다르면 20틱 쿨다운(`decrementAndGet`)이라 문 열기·닫기 검사가 약 20틱마다 일어난다. 그래서 문 앞에서 잠깐 멈췄다 열리고, 닫을 문은 주민이 문 중심에서 3칸 안에 있는 틱에만 닫힌다(그 밖이면 닫지 않고 기억에서만 뺀다). 사용자가 "문을 안 연다/안 닫는다"고 느낀 것이 이 지연·미닫음이면 바닐라와 같은 동작이다(가정: 바닐라 실서버 대조는 못 했다).
+- 시험: `FireworkOwnerTest`, `VillagerDoorTest`.
