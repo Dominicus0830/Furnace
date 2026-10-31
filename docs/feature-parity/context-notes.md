@@ -381,3 +381,9 @@
 - 파괴수(cki): 나뭇잎 파괴(수평 충돌+mobGriefing, 0.2 확장 상자, 부술 게 없으면 점프)·돌진 속도·기절/포효 틱·포효 6 피해는 이미 바닐라와 같았다(시험 `LandMobTest.ravagerSmashesLeavesWhenBlocked`·`ravagerKeepsLeavesWhenMobGriefingOff` 로 고정, 후속 커밋에서 추가). 빠져 있던 것은 방패에 막혔을 때 `blockedByShield`(포효 중 아니면 난수 50% 기절 40틱·소리·이벤트 39·push, 아니면 강한 밀치기)였고 `Shields.blockedByShield` 훅으로 구현했다. 플레이어 방패 막힘의 push 는 관전자 제외, 플레이어 탑승 여부(isVehicle)는 확인하지 않음(가정: 탑승 중 플레이어 없음). 호글린·조글린의 같은 훅(HoglinBase.throwTarget)은 아직 기본 밀치기(미구현).
 - 가정: 파괴수가 나뭇잎을 못 부순다는 현상은 코드상 재현되지 않았다. 실제 경로에서 수평 충돌까지 도달하지 못하는 경우(경로 탐색이 나뭇잎 앞에서 멈춤 등)는 접속 시험으로 재확인이 필요하다.
 - 좀비 연속 두 번 때리기(U6): 바닐라에도 있는 동작으로 판단, 코드 변경 없음. 근거 `caw`(MeleeAttackGoal): `d()`(start)가 `this.i = 0` 으로 공격 대기를 비우고, `c()`(canContinueToUse)는 followingTargetEvenIfNotSeen=false 인 좀비에서 `!navigation.l()`(길 끝나면 중단)이라 붙어서 길이 끝나면 목표가 끊겼다가 `b()` 쿨다운(20틱 간격 검사) 뒤 재시작해 20틱 안이어도 즉시 한 번 더 때린다. 무적 시간(10틱 초과분만 통과)이 지난 뒤면 두 번 다 들어간다. `RavagerZombieAttackTest.zombieAttackGoalRestartSwingsImmediately` 로 고정.
+## 2026-10-31 주민 축하 폭죽 소유자(U1)·주민 문 행동 점검(U3)
+- U1 원인: `CelebrateVillagersSurvivedRaid` 가 폭죽을 소유자 없이 만들었다. 바닐라는 `new FireworkRocketEntity(level, owner, x, eyeY, z, stack)`(= 같은 난수 소비 + `setOwner`)라 소유자는 `leftOwner` 가 될 때까지 맞지 않는다. 소유자가 없으면 첫 틱에 주민 몸통에 맞아 터져 주민이 5+2 피해를 받았다. 소유자 받는 생성자를 추가해 넘긴다.
+- 같이 고침: `dealExplosionDamage` 가 붙은 대상(attachedToEntity)을 반경 루프에서 빼지 않아 겉날개 로켓이 붙은 플레이어를 두 번 때렸다. 바닐라는 `living != attachedToEntity`.
+- U3 점검 결과: `InteractWithDoor`(바닐라 bwf)는 이미 있고 `VillagerGoalPackages` CORE 에 들어 있으며, `Villager` 가 `setCanOpenDoors(true)`, 길찾기는 `WALKABLE_DOOR`(DOOR_WOOD_CLOSED 통과)·철문 차단(DOOR_IRON_CLOSED)이 맞다. 시험으로 열고 지나가기·철문 불통과를 확인했다.
+- 바닐라도 그런 점(이식 그대로): 브레인이 매 틱 도는데 다음 노드가 마지막 검사 노드와 다르면 20틱 쿨다운(`decrementAndGet`)이라 문 열기·닫기 검사가 약 20틱마다 일어난다. 그래서 문 앞에서 잠깐 멈췄다 열리고, 닫을 문은 주민이 문 중심에서 3칸 안에 있는 틱에만 닫힌다(그 밖이면 닫지 않고 기억에서만 뺀다). 사용자가 "문을 안 연다/안 닫는다"고 느낀 것이 이 지연·미닫음이면 바닐라와 같은 동작이다(가정: 바닐라 실서버 대조는 못 했다).
+- 시험: `FireworkOwnerTest`, `VillagerDoorTest`.

@@ -28,6 +28,12 @@ public class FireworkRocketEntity extends Projectile {
         lifetime = 10 * flight + random.nextInt(6) + random.nextInt(7);
     }
 
+    /** new FireworkRocketEntity(level, owner, x, y, z, stack): 난수 소비는 owner 없는 생성자와 같고 소유자만 정한다. */
+    public FireworkRocketEntity(ChunkLevel level, int id, Targetable owner, double x, double y, double z, ItemStack stack) {
+        this(level, id, x, y, z, stack);
+        setOwner(owner);
+    }
+
     /** new FireworkRocketEntity(level, stack, shooter): 그 자리에서 만들고(난수 소비 같음) 소유자·붙은 대상을 정한다. */
     public FireworkRocketEntity(ChunkLevel level, int id, ItemStack stack, Player shooter) {
         this(level, id, shooter.x(), shooter.y(), shooter.z(), stack);
@@ -165,6 +171,7 @@ public class FireworkRocketEntity extends Projectile {
         Damage src = new Damage("fireworks", false, true, false);
         AABB box = boundingBox().inflate(5.0);
         for (Entity e : level.getEntities(this, box, en -> en instanceof LivingEntity)) {
+            if ((Object) e == p) continue;   // 바닐라: living != attachedToEntity (붙은 대상은 위에서 따로 맞았다)
             double d = (e.x() - x()) * (e.x() - x()) + (e.y() - y()) * (e.y() - y()) + (e.z() - z()) * (e.z() - z());
             if (d > 25.0 || !canSee(e.x(), e.y(), e.z()) && !canSee(e.x(), e.y() + 0.5 * e.bbHeight(), e.z())) continue;
             ((LivingEntity) e).hurtByVia(src, amount * (float) Math.sqrt((5.0 - Math.sqrt(d)) / 5.0), getOwner(), this);
