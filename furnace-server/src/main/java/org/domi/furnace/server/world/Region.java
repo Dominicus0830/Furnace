@@ -1997,6 +1997,8 @@ public final class Region {
                 Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
                 var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
                 if (bd != null) a.send(bd);
+                var ba = bp == null ? null : bp.pairingAttributes();   // 속성(update_attributes) — 엔티티 데이터 다음, 장비 앞
+                if (ba != null) a.send(ba);
                 var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
                 if (be != null) a.send(be);
                 var bv = bp == null ? null : bp.vehicle();
