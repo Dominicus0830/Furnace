@@ -1,6 +1,6 @@
 // 바닐라 VibrationSystem: 진동 수신(Listener) → 후보 선택(VibrationSelector, 같은 틱 안에서 가까운 것·주파수 높은 것) →
 // 이동(거리만큼 틱) → 도착(User.onReceiveVibration). 차단: #occludes_vibration_signals 가 여섯 방향 모두 가로막으면 막힌다.
-// 차이: 진동 입자 패킷은 아직 보내지 않는다(받는 플레이어 수만 세어 재전송 표시 상태를 맞춘다). AVOID_VIBRATION 발전 과제 미구현.
+// 차이: 진동 입자 패킷은 아직 보내지 않는다(받는 플레이어 수만 세어 재전송 표시 상태를 맞춘다).
 package org.domi.furnace.server.world.gameevent;
 
 import java.util.Optional;
@@ -214,7 +214,9 @@ public interface VibrationSystem {
             if (e != null) {
                 if (isSpectator(e)) return false;
                 if (isSteppingCarefully(e) && event.is(GameEvent.IGNORE_VIBRATIONS_SNEAKING)) {
-                    // TODO(발전 과제): canTriggerAvoidVibration 이고 플레이어면 avoid_vibration 기준
+                    if (canTriggerAvoidVibration() && e instanceof org.domi.furnace.server.entity.Player sp) {   // 바닐라: 조심스레 걸어 진동을 피함
+                        sp.triggerAdvancement(a -> a.triggerPlayerOnly("minecraft:avoid_vibration"));
+                    }
                     return false;
                 }
                 if (e instanceof Entity en && en.dampensVibrations()) return false;

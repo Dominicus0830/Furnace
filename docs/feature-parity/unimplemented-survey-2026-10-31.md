@@ -19,7 +19,7 @@
 | 7 | 명령 블록·명령 블록 수레 실행, `set_command_block`/`set_command_minecart` 패킷, `enable-command-block` 미소비 | 한 묶음 |
 | 8 | 시련 스포너·금고, `trial_omen` 효과 | 월드젠이 시련의 방을 배치하지만 죽은 블록 |
 | 9 | 솔질 블록(의심스러운 모래/자갈) + 솔 아이템 | 고고학 불가 |
-| 10 | 발전 과제 트리거 약 33/56종 호출 지점 없음 | `advancement-triggers-2026-10-28.md` |
+| 10 | ~~발전 과제 트리거 약 33/56종 호출 지점 없음~~ → 2026-10-31 작업 E 로 56종 모두 연결(근사 목록은 문서) | `advancement-triggers-2026-10-28.md` |
 | 11 | RCON·Query 서버 없음, 파싱만 하고 안 쓰는 server.properties 키 다수 | 아래 3장 |
 | 12 | 방랑 상인 타이머 level.dat 미저장, 마을 포위(VillageSiege) 없음, 습격자 목표 AI 없음 | |
 | 13 | 플러그인 API: 이벤트 15종, Entity/World/ItemStack/Inventory 타입 없음 | |

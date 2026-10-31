@@ -1491,7 +1491,13 @@ public final class Region {
             if (!p.isSleeping()) p.awardStat("minecraft:time_since_rest", 1);
         }
         var adv = p.advancements();
-        if (adv != null) adv.tickPlayer();
+        if (adv != null) {
+            var v = p.vitals();
+            var veh = p.vehicle();
+            adv.tickPlayer(new org.domi.furnace.server.advancement.PlayerAdvancements.TickState(new double[] {p.x(), p.y(), p.z()}, v.tickCount(),
+                    v.hasEffect(org.domi.furnace.server.effect.MobEffect.LEVITATION), v.fallDistance(), v.health() > 0.0F,
+                    veh == null ? 0 : veh.isInLava() ? 1 : -1, v.currentImpulsePos(), v.currentImpulseCause()));
+        }
     }
 
     /**
@@ -1508,10 +1514,17 @@ public final class Region {
         if (!level.hasChunksAt(x0, z0, x1, z1)) return;
         var adv = p.advancements();
         boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
+        boolean slide = adv != null && adv.hasListeners("minecraft:slide_down_block");
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             if (org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.CampfireBlock cf) cf.entityInsidePlayer(s, p.vitals());
             if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+            // HoneyBlock.entityInside → maybeDoSlideAchievement: 미끄러지는 중이면 20틱마다 slide_down_block (플레이어 이동은 서버가 아는 변위로)
+            if (slide && level.gameTime() % 20L == 0L && org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.HoneyBlock
+                    && org.domi.furnace.server.block.types.HoneyBlock.isSlidingDown(new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(),
+                            p.x(), p.y(), p.z(), p.serverMovement()[1], 0.6)) {
+                adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+            }
         }
     }
 
@@ -1791,7 +1804,15 @@ public final class Region {
         }
         if (level != null) level.afterDimensionTransition(t);
         var adv = p.advancements();
-        if (adv != null && fromDimension != null) adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, world.dimension()});
+        if (adv != null && fromDimension != null) {
+            adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, world.dimension()});
+            // 바닐라 triggerDimensionChangeTriggers: 네더 → 오버월드면 nether_travel(들어갈 때 오버월드 위치 → 지금), 네더가 아니면 기록을 지운다
+            var entered = p.enteredNetherPosition;
+            if ("minecraft:the_nether".equals(fromDimension) && "minecraft:overworld".equals(world.dimension()) && entered != null) {
+                adv.triggerMoved("minecraft:nether_travel", entered, new double[] {p.x(), p.y(), p.z()}, 0, null);
+            }
+            if (!"minecraft:the_nether".equals(world.dimension())) p.enteredNetherPosition = null;
+        }
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */

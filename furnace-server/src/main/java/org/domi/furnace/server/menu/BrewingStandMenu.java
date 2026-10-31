@@ -45,7 +45,16 @@ public class BrewingStandMenu extends ContainerBackedMenu {
 
         @Override public int getMaxStackSize() { return 1; }
 
-        // TODO(발전 과제): 꺼낼 때 potion 이 있으면 brewed_potion 조건 발동.
+        /** PotionSlot.onTake: 꺼낸 물약에 potion 이 있으면 brewed_potion(플레이어, potion). */
+        @Override public void onTake(MenuPlayer player, ItemStack stack) {
+            String potion = org.domi.furnace.server.item.PotionBrewing.potionOf(stack);
+            var sp = player.entityPlayer();
+            if (potion != null && sp != null) {
+                String id = potion.indexOf(':') < 0 ? "minecraft:" + potion : potion;
+                sp.triggerAdvancement(a -> a.triggerBrewed(id));
+            }
+            super.onTake(player, stack);
+        }
 
         static boolean mayPlaceItem(ItemStack s) { return PotionBrewing.isBottleSlotItem(s); }
     }

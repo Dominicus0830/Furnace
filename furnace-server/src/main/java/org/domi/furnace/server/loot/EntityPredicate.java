@@ -8,7 +8,17 @@ import java.util.Map;
 import java.util.Set;
 
 public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<String, ItemPredicate> equipment,
-                              JsonObject typeSpecific, LocationPredicate location, Bounds[] distance, boolean unsupported) {
+                              JsonObject typeSpecific, LocationPredicate location, Bounds[] distance, boolean unsupported,
+                              Map<String, EffectPredicate> effects, org.domi.furnace.server.net.io.nbt.NbtCompound nbt, Bounds[] movement,
+                              LocationPredicate steppingOn, LocationPredicate movementAffectedBy, Integer periodicTick,
+                              EntityPredicate vehicle, EntityPredicate passenger, EntityPredicate targetedEntity, String team,
+                              Map<String, ItemPredicate> slots) {
+
+    /** 바닐라 EntityEffectPredicate.MobEffectInstancePredicate. */
+    public record EffectPredicate(Bounds amplifier, Bounds duration, Boolean ambient, Boolean visible) {}
+
+    /** nbt 조건이 하나라도 읽혔나(떠 두는 쪽이 NBT 를 미리 복사할지 정하는 용도). */
+    public static volatile boolean nbtUsed;
 
     private static final Set<String> SLOTS = Set.of("head", "chest", "legs", "feet", "body", "mainhand", "offhand");
 
@@ -21,6 +31,14 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
         JsonObject typeSpecific = null;
         LocationPredicate location = null;
         Bounds[] distance = null;
+        Map<String, EffectPredicate> effects = null;
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt = null;
+        Bounds[] movement = null;
+        LocationPredicate steppingOn = null, affectedBy = null;
+        Integer periodic = null;
+        EntityPredicate vehicle = null, passenger = null, targeted = null;
+        String team = null;
+        Map<String, ItemPredicate> slots = null;
         for (var f : o.entrySet()) {
             switch (f.getKey()) {
                 case "type" -> type = HolderSet.parse("minecraft:entity_type", f.getValue(), regs);
@@ -33,28 +51,57 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 }
                 case "type_specific" -> typeSpecific = f.getValue().getAsJsonObject();
                 case "location" -> location = LocationPredicate.parse(f.getValue(), regs);
-                case "distance" -> {   // 바닐라 DistancePredicate: x, y, z, horizontal, absolute
+                case "distance" -> distance = parseDistance(f.getValue());
+                case "effects" -> {
+                    effects = new LinkedHashMap<>();
+                    for (var x : f.getValue().getAsJsonObject().entrySet()) {
+                        JsonObject v = x.getValue().getAsJsonObject();
+                        effects.put(LootJson.id(x.getKey()), new EffectPredicate(Bounds.parse(v.get("amplifier")), Bounds.parse(v.get("duration")),
+                                v.has("ambient") ? v.get("ambient").getAsBoolean() : null, v.has("visible") ? v.get("visible").getAsBoolean() : null));
+                    }
+                }
+                case "nbt" -> {
+                    try {
+                        nbt = org.domi.furnace.server.command.arguments.TagParser.parseTag(f.getValue().getAsString());
+                    } catch (org.domi.furnace.server.command.brigadier.CommandSyntaxException ex) {
+                        throw new LootParseException("엔티티 조건 nbt 를 읽을 수 없다: " + ex.getMessage());
+                    }
+                    nbtUsed = true;
+                }
+                case "movement" -> {   // 바닐라 MovementPredicate: x, y, z, speed, horizontal_speed, vertical_speed, fall_distance
                     JsonObject d = f.getValue().getAsJsonObject();
-                    distance = new Bounds[]{Bounds.parse(d.get("x")), Bounds.parse(d.get("y")), Bounds.parse(d.get("z")),
-                            Bounds.parse(d.get("horizontal")), Bounds.parse(d.get("absolute"))};
+                    movement = new Bounds[]{Bounds.parse(d.get("x")), Bounds.parse(d.get("y")), Bounds.parse(d.get("z")), Bounds.parse(d.get("speed")),
+                            Bounds.parse(d.get("horizontal_speed")), Bounds.parse(d.get("vertical_speed")), Bounds.parse(d.get("fall_distance"))};
+                }
+                case "stepping_on" -> steppingOn = LocationPredicate.parse(f.getValue(), regs);
+                case "movement_affected_by" -> affectedBy = LocationPredicate.parse(f.getValue(), regs);
+                case "periodic_tick" -> periodic = f.getValue().getAsInt();
+                case "vehicle" -> vehicle = parse(f.getValue(), regs);
+                case "passenger" -> passenger = parse(f.getValue(), regs);
+                case "targeted_entity" -> targeted = parse(f.getValue(), regs);
+                case "team" -> team = f.getValue().getAsString();
+                case "slots" -> {
+                    slots = new LinkedHashMap<>();
+                    for (var x : f.getValue().getAsJsonObject().entrySet()) {
+                        if (org.domi.furnace.server.command.arguments.SlotRanges.byName(x.getKey()) == null) throw new LootParseException("모르는 슬롯 범위: " + x.getKey());
+                        slots.put(x.getKey(), ItemPredicate.parse(x.getValue(), regs));
+                    }
                 }
                 default -> unsupported = true;
             }
         }
         if (unsupported) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class).warn("아직 지원하지 않는 엔티티 조건 필드: {}", o.keySet());
-        return new EntityPredicate(type, flags, equipment, typeSpecific, location, distance, unsupported);
+        return new EntityPredicate(type, flags, equipment, typeSpecific, location, distance, unsupported, effects, nbt, movement,
+                steppingOn, affectedBy, periodic, vehicle, passenger, targeted, team, slots);
     }
 
     public boolean matches(LootContext ctx, double[] origin, LootEntity entity) {
         if (entity == null || unsupported) return false;
         LootRegistries regs = ctx.registries();
         if (type != null && !type.contains(entity.type(), regs)) return false;
-        if (distance != null) {   // DistancePredicate.matches(origin, entity 위치): 축은 절댓값, horizontal·absolute 는 제곱 비교
+        if (distance != null) {
             double[] pos = entity.position();
-            if (origin == null || pos == null) return false;
-            float dx = (float) (origin[0] - pos[0]), dy = (float) (origin[1] - pos[1]), dz = (float) (origin[2] - pos[2]);   // 바닐라도 float
-            if (!distance[0].matches(Math.abs(dx)) || !distance[1].matches(Math.abs(dy)) || !distance[2].matches(Math.abs(dz))) return false;
-            if (!matchesSqr(distance[3], dx * dx + dz * dz) || !matchesSqr(distance[4], dx * dx + dy * dy + dz * dz)) return false;
+            if (origin == null || pos == null || !matchesDistance(distance, origin, pos)) return false;
         }
         for (var f : flags.entrySet()) {
             boolean actual = switch (f.getKey()) {
@@ -71,7 +118,67 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
         for (var q : equipment.entrySet()) if (!q.getValue().test(entity.equipment(q.getKey()), regs)) return false;
         if (location != null && !location.matches(ctx, entity.position())) return false;
         if (typeSpecific != null && !typeSpecific(ctx, entity)) return false;
+        return matchesExtra(ctx, origin, entity);
+    }
+
+    /** 바닐라 EntityPredicate.matches 의 나머지 필드(이동·효과·위치 래퍼·탈것·승객·표적·팀·슬롯·주기·NBT). */
+    private boolean matchesExtra(LootContext ctx, double[] origin, LootEntity entity) {
+        LootRegistries regs = ctx.registries();
+        if (movement != null) {
+            double[] v = entity.velocity();
+            if (v == null) return false;
+            double x = v[0] * 20.0, y = v[1] * 20.0, z = v[2] * 20.0;   // getKnownMovement().scale(20)
+            if (!movement[0].matches(x) || !movement[1].matches(y) || !movement[2].matches(z)) return false;
+            if (!matchesSqr(movement[3], x * x + y * y + z * z) || !matchesSqr(movement[4], x * x + z * z)) return false;
+            if (!movement[5].matches(Math.abs(y)) || !movement[6].matches(entity.fallDistance())) return false;
+        }
+        if (steppingOn != null && !steppingOn.matches(ctx, entity.steppingOnPos())) return false;
+        if (movementAffectedBy != null && !movementAffectedBy.matches(ctx, entity.movementAffectedByPos())) return false;
+        if (effects != null) {
+            var actual = entity.effects();
+            for (var e : effects.entrySet()) {
+                LootEntity.Effect a = actual.get(e.getKey());
+                EffectPredicate p = e.getValue();
+                if (a == null || !p.amplifier().matches(a.amplifier()) || !p.duration().matches(a.duration())) return false;
+                if (p.ambient() != null && p.ambient() != a.ambient()) return false;
+                if (p.visible() != null && p.visible() != a.visible()) return false;
+            }
+        }
+        if (vehicle != null && !vehicle.matches(ctx, origin, entity.vehicle())) return false;
+        if (targetedEntity != null && !targetedEntity.matches(ctx, origin, entity.targetedEntity())) return false;
+        if (team != null && !team.equals(entity.team())) return false;
+        if (slots != null) {
+            for (var q : slots.entrySet()) {
+                boolean any = false;
+                for (LootStack s : entity.slotItems(q.getKey())) if (q.getValue().test(s, regs)) { any = true; break; }
+                if (!any) return false;
+            }
+        }
+        if (passenger != null) {
+            boolean any = false;
+            for (LootEntity p : entity.passengers()) if (passenger.matches(ctx, origin, p)) { any = true; break; }
+            if (!any) return false;
+        }
+        if (periodicTick != null && periodicTick != 0 && entity.tickCount() % periodicTick != 0) return false;
+        if (nbt != null) {
+            var tag = entity.nbt();
+            if (tag == null || !org.domi.furnace.server.net.io.nbt.NbtTags.compareNbt(nbt, tag, true)) return false;
+        }
         return true;
+    }
+
+    /** 바닐라 DistancePredicate: x, y, z, horizontal, absolute. */
+    public static Bounds[] parseDistance(JsonElement e) {
+        JsonObject d = e.getAsJsonObject();
+        return new Bounds[]{Bounds.parse(d.get("x")), Bounds.parse(d.get("y")), Bounds.parse(d.get("z")),
+                Bounds.parse(d.get("horizontal")), Bounds.parse(d.get("absolute"))};
+    }
+
+    /** DistancePredicate.matches(a, b): 축은 절댓값, horizontal·absolute 는 제곱 비교, 차이는 바닐라처럼 float. */
+    public static boolean matchesDistance(Bounds[] d, double[] a, double[] b) {
+        float dx = (float) (a[0] - b[0]), dy = (float) (a[1] - b[1]), dz = (float) (a[2] - b[2]);
+        if (!d[0].matches(Math.abs(dx)) || !d[1].matches(Math.abs(dy)) || !d[2].matches(Math.abs(dz))) return false;
+        return matchesSqr(d[3], dx * dx + dz * dz) && matchesSqr(d[4], dx * dx + dy * dy + dz * dz);
     }
 
     /** MinMaxBounds.Doubles.matchesSqr: 경계를 제곱해 비교. */

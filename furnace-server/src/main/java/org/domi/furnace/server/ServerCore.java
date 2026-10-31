@@ -230,14 +230,7 @@ public final class ServerCore {
     public static org.domi.furnace.server.loot.LootEntity playerLootEntity(Player p) { return lootEntity(p); }
 
     /** 전리품 조건이 보는 플레이어(바닐라 ADVANCEMENT_ENTITY 의 this_entity). */
-    private static org.domi.furnace.server.loot.LootEntity lootEntity(Player p) {
-        return new org.domi.furnace.server.loot.LootEntity() {
-            public String type() { return "minecraft:player"; }
-            public double[] position() { return new double[]{p.x(), p.y(), p.z()}; }
-            public boolean isCrouching() { return p.sneaking(); }
-            public boolean isSprinting() { return p.sprinting(); }
-        };
-    }
+    private static org.domi.furnace.server.loot.LootEntity lootEntity(Player p) { return org.domi.furnace.server.entity.LootEntities.of(p); }
 
     private volatile org.domi.furnace.server.map.ExplorerMaps.Backend explorerBackend;
 
@@ -293,8 +286,38 @@ public final class ServerCore {
 
             public void giveExperience(int points) { p.vitals().giveExperiencePoints(points); }
 
-            public void giveLoot(String table) {
-                org.slf4j.LoggerFactory.getLogger("Furnace").warn("발전 과제 전리품 보상은 아직 인벤토리에 넣지 못한다: {}", table);
+            /**
+             * 바닐라 AdvancementRewards.grant 의 전리품: 표를 ADVANCEMENT_REWARD 문맥(this_entity = 플레이어, origin = 플레이어 위치)으로 굴려
+             * 하나씩 인벤토리에 넣고(들어가면 픽업 소리 0.2, 플레이어 난수), 못 넣은 분은 던지되 줍기 지연 없이 그 플레이어만 줍게 한다.
+             * 하나라도 들어갔으면 열린 창을 동기화한다. 플레이어 주인 스레드에서 부른다(award 가 거기서 돈다).
+             */
+            public void giveLoot(String tableName) {
+                var level = p.currentLevel;
+                boolean any = false;
+                for (ItemStack st : giftLoot(lootWorld, tableName, lootEntity(p), p.x(), p.y(), p.z())) {
+                    ItemStack left = p.inventory().add(st, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(st),
+                            org.domi.furnace.server.item.ItemTools.damage(st) > 0);
+                    if (left.isEmpty()) {
+                        if (level != null) {
+                            var r = p.random();
+                            level.playSound(null, p.x(), p.y(), p.z(), "minecraft:entity.item.pickup", "players", 0.2F,
+                                    ((r.nextFloat() - r.nextFloat()) * 0.7F + 1.0F) * 2.0F);
+                        }
+                        any = true;
+                    } else {
+                        final ItemStack rest = left;
+                        world.runAt(p.x(), p.z(), region -> {
+                            var ie = region.playerDrop(p, rest, false, false);
+                            if (ie != null) {
+                                ie.setNoPickUpDelay();
+                                ie.setTarget(p.uuid());
+                            }
+                        });
+                    }
+                }
+                if (any) {
+                    synchronized (p.menuLock()) { p.containerMenu().broadcastChanges(); }
+                }
             }
 
             public void broadcast(Text message) { broadcastSystemMessage(message, false); }
@@ -313,15 +336,18 @@ public final class ServerCore {
 
             public org.domi.furnace.server.loot.LootRegistries registries() { return dataPacks.loot().registries(); }
 
-            // 바닐라는 award 안에서 바로 실행한다. 함수 관리자는 전역 스레드 전용이라 전역으로 넘긴다(다음 전역 틱 차이).
+            // 바닐라는 award 안에서 바로 실행한다. 함수 관리자는 전역 스레드 전용이라 region 스레드에서는 전역으로 넘긴다(다음 전역 틱 차이).
             public void runFunction(String function) {
                 // 실행 주체(위치·회전)는 플레이어 소유 스레드인 여기서 만든다
                 var source = org.domi.furnace.server.command.CommandSource.player(ServerCore.this, p).withSilent().withPermission(2);
                 var id = org.domi.furnace.server.data.ResourceId.parse(function);
-                scheduler().global().execute(() -> {
+                Runnable run = () -> {
                     var fm = functions();
                     if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source));
-                });
+                };
+                // 전역 스레드에서 부여했으면(/advancement grant 등) 바닐라처럼 award 안에서 바로, region 스레드면 다음 전역 틱에
+                if (((org.domi.furnace.api.concurrent.ThreadOwner) scheduler().global()).isOwnerThread()) run.run();
+                else scheduler().global().execute(run);
             }
         };
         var adv = new org.domi.furnace.server.advancement.PlayerAdvancements(world.worldDir(), p.uuid(), dp.advancements(), host);
@@ -349,6 +375,7 @@ public final class ServerCore {
         if (chest.lootTable == null || dataPacks == null || dataPacks.loot() == null) return;
         String table = chest.lootTable;
         chest.lootTable = null;
+        generatedLoot(opener, table);
         fillLoot(chest.items, table, chest.lootSeed, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5}, opener);
     }
 
@@ -357,8 +384,16 @@ public final class ServerCore {
         String table = entity.lootTable();
         if (table == null || dataPacks == null || dataPacks.loot() == null) return;
         entity.setLootTable(null);
+        generatedLoot(opener, table);
         var e = entity.asEntity();
         fillLoot(entity.chestVehicleItems(), table, entity.lootTableSeed(), new double[]{e.x(), e.y(), e.z()}, opener);
+    }
+
+    /** 바닐라 unpackLootTable: 플레이어가 열어 전리품이 풀리면 전리품을 만들기 전에 player_generates_container_loot. */
+    private static void generatedLoot(Player opener, String table) {
+        if (opener == null) return;
+        String id = table.indexOf(':') < 0 ? "minecraft:" + table : table;
+        opener.triggerAdvancement(a -> a.triggerContainerLoot(id));
     }
 
     /** LootTable.fill(container, params, seed): 빈 칸에 전리품을 흩어 넣는다. 데이터 팩이 없으면 아무것도. */
@@ -1021,7 +1056,7 @@ public final class ServerCore {
     }
 
     /** 블록 상태 → 전리품 블록 상태(블록 이름과 전체 속성). */
-    private static org.domi.furnace.server.loot.LootBlockState lootBlockState(int state) {
+    public static org.domi.furnace.server.loot.LootBlockState lootBlockState(int state) {
         var blocks = org.domi.furnace.server.block.Blocks.get();
         java.util.Map<String, String> props = new java.util.LinkedHashMap<>();
         for (var p : blocks.propsOf(blocks.blockOf(state))) props.put(p.name(), p.valueName(state));

@@ -471,6 +471,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private volatile org.domi.furnace.server.advancement.PlayerAdvancements advancements;
 
+    /** 바닐라 enteredNetherPosition: 오버월드에서 네더로 들어갈 때의 오버월드 위치(nether_travel 거리 기준). 아니면 null. */
+    public volatile double[] enteredNetherPosition;
+
     /** 발전 과제 진행(바닐라 ServerPlayer.getAdvancements). 데이터 팩 없이 뜬 서버면 null. */
     public org.domi.furnace.server.advancement.PlayerAdvancements advancements() { return advancements; }
 
@@ -678,6 +681,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             boolean armorItem = name.endsWith("_helmet") || name.endsWith("_chestplate") || name.endsWith("_leggings") || name.endsWith("_boots");
             if (!armorItem || !org.domi.furnace.server.item.ItemTools.isDamageable(stack)) continue;
             int nd = org.domi.furnace.server.item.ItemTools.damage(stack) + n;
+            AdvTriggers.durability(this, stack, nd);
             if (nd >= org.domi.furnace.server.item.ItemTools.maxDamage(stack)) {
                 inventory.set(ws, ItemStack.EMPTY);
                 var ev = new org.domi.furnace.server.net.protocol.play.EntityEvent(entityId, (byte) (49 + i));
@@ -1077,6 +1081,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         var r = ownerRegion;
         if (r != null && ownerTasks.isEmpty() && r.ownsPlayer(this)) task.run();
         else ownerTasks.add(task);
+    }
+
+    /**
+     * 발전 과제 트리거를 플레이어 주인 스레드에서 부른다(발전 과제가 없는 서버면 아무것도 안 한다).
+     * 호출 쪽 스레드에서만 볼 수 있는 값(상대 엔티티 등)은 람다 밖에서 {@code KillCredit.lootOf} 로 떠서 넘긴다.
+     */
+    public void triggerAdvancement(java.util.function.Consumer<org.domi.furnace.server.advancement.PlayerAdvancements> f) {
+        if (advancements == null) return;
+        runOnOwner(() -> {
+            var a = advancements;
+            if (a != null) f.accept(a);
+        });
     }
 
     /** 주인 region 이 플레이어 틱마다 부른다. */

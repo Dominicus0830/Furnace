@@ -489,3 +489,17 @@
 - 검증 쪽 안전장치: 서버 자세는 틱당 한 번 갱신되어 한 틱 늦을 수 있으므로 `PlayerMoveValidator.height` 는 수영·기어가기 자세이거나 질주 중 물에 닿았으면(곧 수영) 0.6 상자로 충돌을 본다(가정: 오탐보다 관대함을 택함).
 - 차이·한계: 수영 시작 조건의 "발 위치 블록이 물 FluidState" 는 "몸이 물에 닿음"으로 근사. 서 있을 틈 판정은 블록 충돌만(엔티티 충돌 없음). 관전자/탑승 시 틈 판정 생략은 바닐라와 같다.
 - 시험: `PlayerMoveValidatorTest` — 높이 1칸 통로에서 서 있으면 거절, 수영·기어가기·질주+물 접촉은 수락; 천장 아래 기어가기 자세·0.6 키·눈 0.4·수영 비트 없음; 물속 질주 시 수영 플래그·pose 3·비트 0x10 및 해제.
+
+## 2026-10-31 발전 과제 트리거 연결·엔티티 조건·보상 (작업 E)
+
+- 근거: 디컴파일 `an`(CriteriaTriggers)의 각 필드 호출(`an.X.a(`)과 각 `*Trigger` 클래스, `bv`(EntityPredicate)·`di`(effects)·`dj`(movement)·`dz`(slots)·`dk`(nbt), `dhr`(Crafter), `dro`(SculkCatalyst), `cnl`(FishingHook), `btm`(LightningBolt), `cnd`(AbstractArrow), `aqv`(ServerPlayer tick/reset/effect 훅), `coi`(Raid), `btn`(LivingEntity.hurt).
+- 호출 지점 목록과 한계는 `advancement-triggers-2026-10-28.md` 의 "2026-10-31 추가 연결"에 있다. 56종 모두 호출 지점이 생겼다.
+- **함정 1 — trigger 이름 매핑**: 코드 TODO 의 `RAID_OMEN`·`RAID_WIN` 은 실제 트리거 이름이 아니다. 습격 징조 흡수 때는 `voluntary_exile`, 습격 승리 때는 `hero_of_the_village`(둘 다 플레이어 조건만 본다).
+- **함정 2 — 값 순서**: `item_durability_changed` 의 delta 는 `지금 피해 - 새 피해`(깎이면 음수), durability 는 `최대 - 새 피해`. `player_hurt_entity` 의 dealt 는 방패로 막기 전 피해(`LivingEntity.hurt` 맨 앞 `f = amount`), taken 은 막은 뒤(막으면 0).
+- **함정 3 — 발동 시점**: `using_item` 은 쓰는 동안 매 틱(`ServerPlayer.updateUsingItem`), `levitation` 도 매 틱, `slide_down_block` 은 20틱마다, `bee_nest_destroyed` 의 벌 수는 벌을 내보낸 **뒤** 남은 수, `player_generates_container_loot` 는 전리품을 만들기 **전**, `summoned_entity`(위더)는 엔티티를 넣기 **전**, (골렘)은 넣은 **뒤**.
+- `Projectile.onHitBlock` 이 이제 맞은 블록의 `BlockBehavior.onProjectileHit` 을 부른다(이전엔 빈 함수). 지금 오버라이드는 `TargetBlock` 뿐이지만, 같은 TODO 를 가진 블록들(초·모닥불·TNT·장식 항아리 …)을 이어 붙일 자리다. `AbstractArrow.onHitBlock` 은 바닐라처럼 `super` 를 먼저 부른다.
+- EntityPredicate 의 effects·nbt·vehicle·passenger·targeted_entity·stepping_on·movement_affected_by·movement·team·slots·periodic_tick 지원(미지원이라 조건 전체가 거짓이던 문제). `LootEntity` 에 기본 메서드가 늘었고, `entity/LootEntities` 가 살아 있는 엔티티 값을 돌려준다. `LivingEntity.lootEntity()` 와 `ServerCore.lootEntity(Player)` 는 이를 쓴다(몹의 장비 칸이 전리품 조건에 보이게 된 부수 효과 — 전엔 늘 빈 칸).
+- 스레드: 모든 호출은 `Player.triggerAdvancement`(= `runOnOwner`) 안에서 플레이어 주인 스레드가 평가한다. 다른 region 엔티티 값은 호출 쪽에서 `KillCredit.lootOf` 로 떠서 넘긴다. NBT 복사는 `EntityPredicate.nbtUsed`(nbt 조건이 읽힌 적 있음)일 때만 — 실제 바닐라 발전 과제에는 nbt 조건이 없어 평소엔 복사 비용이 없다.
+- 보상: 전리품이 인벤토리로 들어간다(이전엔 경고만). 함수는 전역 스레드에서 부여하면 즉시, region 스레드에서 부여하면 다음 전역 틱(함수 관리자 전역 전용이라 같은 틱 보장 불가 — 가정: 한 틱 차이는 관측 영향이 작다).
+- **가정(확인 못 함)**: 플레이어 `getKnownMovement` 와 서버가 아는 변위의 차이, 효과를 건 순간 대신 틱 끝에 시작 위치를 잡는 levitation 의 위치 오차, `player_interacted_with_entity` 의 SUCCESS/CONSUME_PARTIAL 구분, 갑옷 거치대·끈 매듭 상호작용 경로.
+

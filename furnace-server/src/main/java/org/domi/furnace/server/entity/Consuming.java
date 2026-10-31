@@ -48,6 +48,10 @@ public final class Consuming {
         PlayerInventory inv = p.inventory();
         int ws = p.usingHand == 0 ? inv.heldWindowSlot() : 45;
         ItemStack s = inv.get(ws);
+        var adv = p.advancements();
+        if (adv != null && !s.isEmpty() && adv.hasListeners("minecraft:using_item")) {   // ServerPlayer.updateUsingItem: 쓰는 동안 매 틱 using_item
+            adv.trigger("minecraft:using_item", org.domi.furnace.server.ServerCore.lootStackOf(s));
+        }
         if (RangedWeapons.usesRelease(s)) {   // 활·쇠뇌·삼지창: 놓을 때 처리
             RangedWeapons.tick(p, region == null ? null : region.level(), s);
             return;

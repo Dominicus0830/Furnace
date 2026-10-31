@@ -1,5 +1,5 @@
 // 바닐라 ZombieVillager: 주민 데이터(종류·직업·레벨)와 거래·경험치를 갖고, 약화 효과 + 황금 사과로 치료(3600~6000틱)하면 주민으로 돌아온다.
-// 소문(Gossips)은 NBT 목록으로 들고 있다가 치료되면 주민에게 넘기고, 치료한 플레이어에게 ZOMBIE_VILLAGER_CURED 평판. TODO(발전 과제): cured_zombie_villager.
+// 소문(Gossips)은 NBT 목록으로 들고 있다가 치료되면 주민에게 넘기고, 치료한 플레이어에게 ZOMBIE_VILLAGER_CURED 평판.
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -112,7 +112,13 @@ public class ZombieVillager extends Zombie {
         v.overrideXp(villagerXp);
         if (conversionStarter != null) {
             UUID starter = conversionStarter;
-            level.forEachPlayer(p -> { if (p.uuid().equals(starter)) v.onReputationEvent(Villager.ReputationEvent.ZOMBIE_VILLAGER_CURED, p); });
+            var zombieSnap = KillCredit.lootOf(this);
+            var villagerSnap = KillCredit.lootOf(v);
+            level.forEachPlayer(p -> {
+                if (!p.uuid().equals(starter)) return;
+                p.triggerAdvancement(a -> a.triggerCured(zombieSnap, villagerSnap));   // 바닐라: 평판 이벤트 직전에 cured_zombie_villager
+                v.onReputationEvent(Villager.ReputationEvent.ZOMBIE_VILLAGER_CURED, p);
+            });
         }
         v.addEffect(new MobEffectInstance(MobEffect.NAUSEA, 200, 0));
         if (!isSilent()) level.levelEvent(null, 1027, blockPosition(), 0);

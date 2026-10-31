@@ -6,6 +6,7 @@ import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.loot.LootDamageSource;
 import org.domi.furnace.server.loot.LootEntity;
+import org.domi.furnace.server.loot.LootStack;
 import org.domi.furnace.server.scores.ObjectiveCriteria;
 import org.domi.furnace.server.scores.ScoreHolder;
 
@@ -13,29 +14,35 @@ public final class KillCredit {
 
     private KillCredit() {}
 
-    /** 전리품 조건이 보는 엔티티(플레이어·살아 있는 것·그 밖은 종류와 위치만). 그 엔티티 소유 스레드에서 지금 값을 떠 둔다. */
+    /** 전리품 조건이 보는 엔티티(바닐라 EntityPredicate 가 읽는 값 전부). 그 엔티티 소유 스레드에서 지금 값을 떠 둔다. */
     public static LootEntity lootOf(Rider r) {
         if (r == null) return null;
-        if (r instanceof Player p) return snapshot(ServerCore.playerLootEntity(p));
-        if (r instanceof LivingEntity l) return snapshot(l.lootEntity());
-        String type = r.typeName();
-        double[] pos = {r.x(), r.y(), r.z()};
-        return new LootEntity() {
-            public String type() { return type; }
-            public double[] position() { return pos; }
-        };
+        return snapshot(LootEntities.of(r));
     }
 
     /**
-     * 다른 스레드(플레이어 주인)에서 나중에 볼 수 있게 값을 떠 둔 사본. 장비·종류별 값(typeSpecific)은 원본에 묻는다
-     * (가정: 처치 직후 한 틱 안에는 바뀌지 않는다).
+     * 다른 스레드(플레이어 주인)에서 나중에 볼 수 있게 값을 떠 둔 사본. 종류별 값(typeSpecific)·슬롯 범위는 원본에 묻는다
+     * (가정: 처치 직후 한 틱 안에는 바뀌지 않는다). NBT 는 nbt 조건이 데이터 팩에 있을 때만 미리 복사한다.
      */
-    public static LootEntity snapshot(LootEntity e) {
+    public static LootEntity snapshot(LootEntity e) { return snapshot(e, 0); }
+
+    private static LootEntity snapshot(LootEntity e, int depth) {
         if (e == null) return null;
         String type = e.type();
         boolean fire = e.isOnFire(), crouch = e.isCrouching(), sprint = e.isSprinting(), swim = e.isSwimming(), baby = e.isBaby(), ground = e.onGround();
         double[] pos = e.position() == null ? null : e.position().clone();
-        float luck = e.luck();
+        float luck = e.luck(), fall = e.fallDistance();
+        java.util.Map<String, LootStack> eq = new java.util.HashMap<>();
+        for (String slot : new String[] {"mainhand", "offhand", "head", "chest", "legs", "feet", "body"}) eq.put(slot, e.equipment(slot));
+        var effects = new java.util.LinkedHashMap<>(e.effects());
+        double[] stepping = clone(e.steppingOnPos()), affected = clone(e.movementAffectedByPos()), vel = clone(e.velocity());
+        String team = e.team();
+        int ticks = e.tickCount();
+        var nbt = org.domi.furnace.server.loot.EntityPredicate.nbtUsed ? e.nbt() : null;
+        LootEntity vehicle = depth == 0 ? snapshot(e.vehicle(), 1) : null;
+        LootEntity target = depth == 0 ? snapshot(e.targetedEntity(), 1) : null;
+        java.util.List<LootEntity> passengers = new java.util.ArrayList<>();
+        if (depth == 0) for (LootEntity p : e.passengers()) passengers.add(snapshot(p, 1));
         return new LootEntity() {
             public String type() { return type; }
             public boolean isOnFire() { return fire; }
@@ -46,10 +53,24 @@ public final class KillCredit {
             public boolean onGround() { return ground; }
             public double[] position() { return pos; }
             public float luck() { return luck; }
-            public org.domi.furnace.server.loot.LootStack equipment(String slot) { return e.equipment(slot); }
+            public LootStack equipment(String slot) { return eq.containsKey(slot) ? eq.get(slot) : e.equipment(slot); }
             public Object typeSpecific(String key) { return e.typeSpecific(key); }
+            public java.util.Map<String, Effect> effects() { return effects; }
+            public org.domi.furnace.server.net.io.nbt.NbtCompound nbt() { return nbt; }
+            public LootEntity vehicle() { return vehicle; }
+            public java.util.List<LootEntity> passengers() { return passengers; }
+            public LootEntity targetedEntity() { return target; }
+            public double[] steppingOnPos() { return stepping; }
+            public double[] movementAffectedByPos() { return affected; }
+            public double[] velocity() { return vel; }
+            public float fallDistance() { return fall; }
+            public String team() { return team; }
+            public java.util.List<LootStack> slotItems(String range) { return e.slotItems(range); }
+            public int tickCount() { return ticks; }
         };
     }
+
+    private static double[] clone(double[] a) { return a == null ? null : a.clone(); }
 
     /** killing_blow 가 보는 피해 원인. 태그는 damage_type 태그 표, 원인·직접 엔티티는 같은 객체면 같은 LootEntity(is_direct). */
     public static LootDamageSource source(String type, Rider causing, Rider direct) {

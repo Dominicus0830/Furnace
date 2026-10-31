@@ -252,7 +252,7 @@ public final class BlockBreaking {
         }
         int newDamage = ItemTools.damage(stack) + amount;
         ItemStack damaged = ItemTools.withDamage(stack, newDamage);
-        // TODO(발전 과제): CriteriaTriggers.ITEM_DURABILITY_CHANGED
+        org.domi.furnace.server.entity.AdvTriggers.durability(player.handle(), stack, newDamage);   // 바닐라: 깎기 전 스택으로 item_durability_changed
         if (newDamage >= ItemTools.maxDamage(stack)) {
             player.setItemInHand(hand, damaged.withCount(damaged.count() - 1));
             player.onEquippedItemBroken(hand, stack);

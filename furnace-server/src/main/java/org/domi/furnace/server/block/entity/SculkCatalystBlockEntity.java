@@ -90,7 +90,16 @@ public class SculkCatalystBlockEntity extends BlockEntity implements GameEventLi
                 if (living.dropsExperience() && i > 0) {
                     // BlockPos.containing(pos.relative(UP, 0.5))
                     sculkSpreader.addCursors(new Pos((int) Math.floor(pos.x()), (int) Math.floor(pos.y() + 0.5), (int) Math.floor(pos.z())), i);
-                    // TODO(발전 과제): kill_mob_near_sculk_catalyst — 처치 트리거들이 아직 연결돼 있지 않다.
+                    // 바닐라: 킬 크레딧이 플레이어면 kill_mob_near_sculk_catalyst(죽은 몹, 마지막 피해 — 없으면 player_attack)
+                    if (living.getKillCredit() instanceof org.domi.furnace.server.entity.Player killer) {
+                        String type = living.getLastDamageType() == null ? "player_attack" : living.getLastDamageType();
+                        var attacker = living.getLastDamageAttacker();
+                        var causing = living.getLastDamageType() == null ? killer
+                                : attacker instanceof org.domi.furnace.server.entity.Rider r ? r : null;
+                        var dead = org.domi.furnace.server.entity.KillCredit.lootOf(living);
+                        var src = org.domi.furnace.server.entity.KillCredit.source(type, causing, causing);
+                        killer.triggerAdvancement(a -> a.triggerKill("minecraft:kill_mob_near_sculk_catalyst", dead, src));
+                    }
                 }
                 living.skipDropExperience();
                 Optional<Vec3> p = positionSource.getPosition(level);

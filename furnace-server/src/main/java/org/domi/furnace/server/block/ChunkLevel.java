@@ -1325,7 +1325,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         golem.moveTo(bottom.x() + 0.5, bottom.y() + 0.05, bottom.z() + 0.5, 0.0F, 0.0F);
         addFreshEntity(golem);
-        // TODO(발전 과제): 5칸 안 플레이어에게 summoned_entity
+        org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, golem, 5.0);   // 바닐라: 골렘 상자 5칸 안 플레이어에게 summoned_entity
     }
 
     @Override
@@ -1355,6 +1355,7 @@ public abstract class ChunkLevel implements BlockLevel {
         wither.moveTo(bottomCenter.x() + 0.5, bottomCenter.y() + 0.55, bottomCenter.z() + 0.5, yaw, 0.0F);
         wither.setYBodyRot(yaw);
         wither.makeInvulnerable();
+        org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, wither, 50.0);   // 바닐라: 소환 전에 상자 50칸 안 플레이어에게 summoned_entity
         addFreshEntity(wither);
     }
 

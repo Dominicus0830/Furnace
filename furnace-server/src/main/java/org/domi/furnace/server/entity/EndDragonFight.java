@@ -1,7 +1,7 @@
 // 바닐라 EndDragonFight: 엔드의 드래곤 전투 상태. 보스 바(분홍, 음악·안개), 드래곤 찾기/새로 만들기, 기둥 수정 수 세기,
 // 처치 시 출구 포털(받침대)·관문·드래곤 알, 출구 포털 둘레의 수정 4개로 부활(수정 기둥 재생성 → 드래곤 소환).
 // 근사(가정): 출구 포털 찾기(BlockPattern)는 기억한 위치나 받침대 기반암 기둥으로, 활성 포털 검사는 받침대 둘레 칸으로 본다.
-// 청크 티켓(TicketType.DRAGON)·소환 발전 과제·level.dat 저장 연결은 없다(엔드 World 호스팅 뒤).
+// 청크 티켓(TicketType.DRAGON)·level.dat 저장 연결은 없다(엔드 World 호스팅 뒤).
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;
@@ -489,7 +489,11 @@ public final class EndDragonFight {
         if (stage == RespawnStage.END) {
             respawnStage = null;
             dragonKilled = false;
-            createNewDragon();
+            EnderDragon dragon = createNewDragon();
+            if (dragon != null) {   // 바닐라: 보스 바를 보는 플레이어 모두에게 summoned_entity(드래곤)
+                var snap = KillCredit.lootOf(dragon);
+                for (Player p : new ArrayList<>(barPlayers)) p.triggerAdvancement(a -> a.triggerSummoned(snap));
+            }
         } else {
             respawnStage = stage;
         }

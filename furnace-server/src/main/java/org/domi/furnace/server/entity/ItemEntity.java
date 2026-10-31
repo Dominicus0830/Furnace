@@ -194,6 +194,7 @@ public final class ItemEntity extends Entity {
         player.take(this, count);
         discard();
         player.awardStat("minecraft:picked_up:" + ItemTools.itemName(s), count);
+        AdvTriggers.pickedUpByPlayer(this, s.withCount(count), player);   // 바닐라: ServerPlayer.onItemPickup(count 되돌린 스택)
     }
 
     // ------------------------------------------------------------------ 줍기 지연·수명

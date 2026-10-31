@@ -229,7 +229,12 @@ public abstract class Projectile extends Entity {
 
     protected void onHitEntity(Hit hit) {}
 
-    protected void onHitBlock(Hit hit) {}
+    /** Projectile.onHitBlock: 맞은 블록의 onProjectileHit(하위 클래스는 super 를 부른다). */
+    protected void onHitBlock(Hit hit) {
+        if (hit.blockPos() == null || !(level instanceof org.domi.furnace.server.block.BlockLevel bl)) return;
+        int state = bl.getBlockState(hit.blockPos());
+        org.domi.furnace.server.block.B.behavior(state).onProjectileHit(bl, state, hit, this);
+    }
 
     /** Projectile.updateRotation: 이동 방향으로 0.2 보간. */
     protected static float lerpRotation(float old, float cur) {

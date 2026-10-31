@@ -3,7 +3,7 @@
 //   확률 0.15F×레벨(=0.15F + 0.15F×(L-1)) 를 레벨 난수(ServerLevel.random)로 굴리고, 성공하면 때린 쪽 난수로
 //   randomBetween(1, 5) 피해(thorns, 원인 = 가시 주인)를 준 뒤 그 장비 내구도 2 를 깎는다.
 // 소유권: 때리는 쪽·맞는 쪽을 가진 region 스레드에서만 부른다.
-// 차이: 가시 아이템 파괴 통계(item_broken)와 내구도 변경 발전 과제는 아직 없다. 투사체 맞음(화살 등) 경로는 연결하지 않았다.
+// 차이: 가시 아이템 파괴 통계(item_broken)는 아직 없다. 투사체 맞음(화살 등) 경로는 연결하지 않았다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.Explosion;
@@ -94,6 +94,10 @@ public final class EnchantEffects {
         if (owner instanceof Player p) {
             int ws = windowSlot(p, slot);
             if (ws < 0) return;
+            if (result != stack) {   // 깎였다 → item_durability_changed(깎기 전 스택, 새 피해 값). 부서졌으면 새 값은 최대 내구 이상(가정: 정확한 합은 hurtStack 안에만 있다)
+                int nd = ItemTools.damage(result);
+                AdvTriggers.durability(p, stack, broke[0] ? Math.max(nd, ItemTools.maxDamage(stack)) : nd);
+            }
             p.inventory().set(ws, result);
             if (broke[0]) {
                 var ev = new EntityEvent(p.id(), breakEvent(slot));

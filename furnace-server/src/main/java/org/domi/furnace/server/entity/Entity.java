@@ -1681,7 +1681,7 @@ public abstract non-sealed class Entity implements Rider {
 
     /**
      * 바닐라 Entity.startRiding 본문(Rider 공용): 같은 탈것이면 거짓, 탈것이 승객을 못 받으면 거짓, 탈것 사슬에 내가 있으면 거짓.
-     * 이미 탔으면 내리고, 자세를 서기로 바꾸고, 연결한다. TODO(발전 과제): started_riding 트리거.
+     * 이미 탔으면 내리고, 자세를 서기로 바꾸고, 연결한다. 끝에서 탈것 + 승객 전체의 플레이어에게 started_riding.
      */
     static boolean mount(Rider r, Entity v, boolean force) {
         if (v == r.vehicle()) return false;
@@ -1692,7 +1692,16 @@ public abstract non-sealed class Entity implements Rider {
         if (r instanceof Entity e) e.setPose(POSE_STANDING);
         r.setVehicleField(v);
         v.addPassenger(r);
+        notifyStartedRiding(v);
         return true;
+    }
+
+    /** 바닐라 startRiding 끝: 탈것과 그 승객들(getSelfAndPassengers) 중 플레이어마다 started_riding. */
+    private static void notifyStartedRiding(Entity v) {
+        for (Rider p : v.passengers()) {
+            if (p instanceof Player pl) pl.triggerAdvancement(a -> a.triggerPlayerOnly("minecraft:started_riding"));
+            else if (p instanceof Entity e) notifyStartedRiding(e);
+        }
     }
 
     /** canRide(vehicle): 웅크리지 않았고 다시 타기 기다림이 끝났다. */

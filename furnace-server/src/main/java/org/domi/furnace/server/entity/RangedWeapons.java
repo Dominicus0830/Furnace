@@ -283,7 +283,9 @@ public final class RangedWeapons {
         weapon = ItemTools.with(weapon, CHARGED, List.of());
         actor.setItemInHand(hand, weapon);
         shoot(level, actor, p, hand, weapon, list, speed, inaccuracy, true);
-        // TODO(발전 과제): CriteriaTriggers.SHOT_CROSSBOW
+        ItemStack after = actor.itemInHand(hand);   // 바닐라는 같은 스택 객체(쏘면서 깎인 뒤) — 부서졌으면 쏘기 전 스택
+        var shotItem = org.domi.furnace.server.ServerCore.lootStackOf(after.isEmpty() ? weapon : after);
+        p.triggerAdvancement(a -> a.triggerItem("minecraft:shot_crossbow", shotItem));
         p.awardStat("minecraft:used:minecraft:crossbow", 1);
     }
 

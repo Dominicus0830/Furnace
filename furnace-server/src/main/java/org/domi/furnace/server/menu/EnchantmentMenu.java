@@ -132,11 +132,16 @@ public class EnchantmentMenu extends AbstractContainerMenu {
                 final var en = e;
                 target = EnchantTools.update(target, m -> m.merge(en.id(), en.level(), Math::max));
             }
-            enchantSlots.set(0, target);   // TODO(발전 과제): enchanted_item 조건
+            enchantSlots.set(0, target);
             player.awardStat("minecraft:enchant_item", 1);
             if (!player.isCreative() || !lapis.isEmpty()) {
                 ItemStack rest = lapis.withCount(lapis.count() - cost);
                 enchantSlots.set(1, rest.isEmpty() ? ItemStack.EMPTY : rest);
+            }
+            var sp = player.entityPlayer();   // 바닐라: 통계 다음, setChanged 전에 enchanted_item(플레이어, 마법 부여한 스택, 비용)
+            if (sp != null) {
+                var enchanted = org.domi.furnace.server.ServerCore.lootStackOf(target);
+                sp.triggerAdvancement(a -> a.triggerEnchanted(enchanted, cost));
             }
             enchantSlots.setChanged();
             enchantmentSeed.set(player.enchantmentSeed());
