@@ -720,9 +720,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 지난 생존 틱 기준 사다리·덩굴 위인가(onClimbable). */
     public boolean onClimbable;
 
-    /** getCurrentItemAttackStrengthDelay: 1 / 공격 속도 × 20. 공격 속도 = 기본 4 + 주 손 아이템 attack_speed(add_value). TODO(효과): 성급함·피로. */
+    /** getCurrentItemAttackStrengthDelay: 1 / 공격 속도 × 20. 공격 속도 = attack_speed 속성(기본 4 + 주 손 아이템, 성급함 +10%·피로 −10% × (증폭+1)). */
     public float attackStrengthDelay() {
-        double speed = 4.0 + org.domi.furnace.server.item.ItemTools.attributeBonus(inventory.get(inventory.heldWindowSlot()), "minecraft:generic.attack_speed", "mainhand");
+        double speed = PlayerAttributes.value(this, org.domi.furnace.server.attribute.Attribute.ATTACK_SPEED);
         return (float) (1.0 / speed * 20.0);
     }
 
@@ -1118,12 +1118,30 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 수락된 위치 패킷 하나(낙하·허기 소모 판정용). netty 가 넣고 소유 region 이 순서대로 꺼낸다.
      * teleport=true 는 서버가 위치를 정한 것(스폰·리스폰·텔레포트) — 이동량 없이 기준점만 옮긴다.
      */
-    public record MoveSample(double x, double y, double z, boolean onGround, boolean teleport) {}
+    public record MoveSample(double x, double y, double z, boolean onGround, boolean teleport, PlayerMoveValidator.Check check) {
+        public MoveSample(double x, double y, double z, boolean onGround, boolean teleport) { this(x, y, z, onGround, teleport, null); }
+    }
+
+    /**
+     * 이동 패킷 검증 상태(ServerGamePacketListenerImpl 의 firstGood/lastGood·패킷 수·떠 있는 틱) — 소유 region 스레드 전용.
+     */
+    public final PlayerMoveValidator.State moveState = new PlayerMoveValidator.State();
+
+    /** region 이 이동 패킷을 검증하는 중인가(소유 region 이 매 틱 켠다). 켜져 있으면 연결은 위치를 발행하지 않고 검증 대기열에만 넣는다. */
+    public volatile boolean validatesMoves;
+
+    /** 검증이 되돌림을 정한 뒤 연결이 텔레포트를 보내기 전까지의 사이 — 이 동안 들어온 검증 대기 패킷은 버린다. */
+    public volatile boolean moveRejectHold;
 
     private final java.util.concurrent.ConcurrentLinkedQueue<MoveSample> moves = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
     public void pushMove(double x, double y, double z, boolean onGround) {
         if (moves.size() < 256) moves.add(new MoveSample(x, y, z, onGround, false));
+    }
+
+    /** 검증 대기 이동 패킷(연결이 넣고 소유 region 이 순서대로 검증한다). */
+    public void pushCheckedMove(PlayerMoveValidator.Check c, boolean onGround) {
+        if (moves.size() < 256) moves.add(new MoveSample(c.x(), c.y(), c.z(), onGround, false, c));
     }
 
     public void pushTeleport(double x, double y, double z) {
@@ -1139,7 +1157,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public MoveSample pollMove() { return moves.poll(); }
 
-    public void clearMoves() { moves.clear(); }
+    /** 이동 대기열을 비운다. 서버가 위치를 정하는 텔레포트의 첫 단계라, 검증이 정한 되돌림 대기(moveRejectHold)도 여기서 푼다. */
+    public void clearMoves() {
+        moves.clear();
+        moveRejectHold = false;
+    }
+
+    /** 이 플레이어에게 서버 텔레포트를 시킬 연결이 있는가. */
+    public boolean hasTeleporter() { return teleporter != null; }
 
     // 클라이언트 언어(client_information, 소문자 en_us 형식).
     private volatile String locale = "en_us";

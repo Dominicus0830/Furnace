@@ -157,4 +157,113 @@ class BlockBreakingTest {
         assertFalse(breaking.isDestroyingBlock());
         assertEquals(List.of(pos), host.resent);
     }
+
+    // ------------------------------------------------------------------ 성급함·채굴 피로·속성 (Player.getDestroySpeed) — 기대값은 바닐라 공식 손계산
+
+    private static BreakerActor withEffects(Player p, ItemStack hand, ItemStack head, boolean eyeInWater,
+                                            org.domi.furnace.server.effect.MobEffectInstance... fx) {
+        return new BreakerActor(p, hand, ItemStack.EMPTY, head, 0, eyeInWater, 36) {
+            @Override public List<org.domi.furnace.server.effect.MobEffectInstance> activeEffects() { return List.of(fx); }
+        };
+    }
+
+    private static org.domi.furnace.server.effect.MobEffectInstance fx(org.domi.furnace.server.effect.MobEffect e, int amp) {
+        return new org.domi.furnace.server.effect.MobEffectInstance(e, 600, amp);
+    }
+
+    @Test
+    void destroySpeed_hasteMultipliesByOnePlusAmpPlusOneTimesPointTwo() {
+        var level = new BlockPlacementTest.TestLevel();
+        int stone = B.defaultState("minecraft:stone");
+        BlockBehavior b = BlockBehaviors.of(stone);
+        Player p = player(GameMode.SURVIVAL, true);
+        ItemStack pick = stack("minecraft:diamond_pickaxe");
+        var haste = org.domi.furnace.server.effect.MobEffect.HASTE;
+        // 성급함 I: 8 × (1 + 1×0.2) = 9.6, II: 8 × 1.4 = 11.2
+        assertEquals(8.0F * (1.0F + 1 * 0.2F) / 1.5F / 30.0F, b.getDestroyProgress(stone, withEffects(p, pick, ItemStack.EMPTY, false, fx(haste, 0)), level, Pos.ZERO), 1e-7);
+        assertEquals(8.0F * (1.0F + 2 * 0.2F) / 1.5F / 30.0F, b.getDestroyProgress(stone, withEffects(p, pick, ItemStack.EMPTY, false, fx(haste, 1)), level, Pos.ZERO), 1e-7);
+        // 전달체 힘도 같은 식, 둘 다면 증폭이 큰 쪽(성급함 II 와 전달체 I → 1.4)
+        var conduit = org.domi.furnace.server.effect.MobEffect.CONDUIT_POWER;
+        assertEquals(8.0F * (1.0F + 1 * 0.2F) / 1.5F / 30.0F, b.getDestroyProgress(stone, withEffects(p, pick, ItemStack.EMPTY, false, fx(conduit, 0)), level, Pos.ZERO), 1e-7);
+        assertEquals(8.0F * (1.0F + 2 * 0.2F) / 1.5F / 30.0F,
+                b.getDestroyProgress(stone, withEffects(p, pick, ItemStack.EMPTY, false, fx(haste, 1), fx(conduit, 0)), level, Pos.ZERO), 1e-7);
+    }
+
+    @Test
+    void destroySpeed_miningFatigueTable() {
+        var level = new BlockPlacementTest.TestLevel();
+        int stone = B.defaultState("minecraft:stone");
+        BlockBehavior b = BlockBehaviors.of(stone);
+        Player p = player(GameMode.SURVIVAL, true);
+        ItemStack pick = stack("minecraft:diamond_pickaxe");
+        var fatigue = org.domi.furnace.server.effect.MobEffect.MINING_FATIGUE;
+        float[] table = {0.3F, 0.09F, 0.0027F, 8.1E-4F, 8.1E-4F};   // 증폭 0·1·2·3 이상
+        for (int amp = 0; amp < 5; amp++) {
+            assertEquals(8.0F * table[amp] / 1.5F / 30.0F,
+                    b.getDestroyProgress(stone, withEffects(p, pick, ItemStack.EMPTY, false, fx(fatigue, amp)), level, Pos.ZERO), 1e-9, "피로 증폭 " + amp);
+        }
+        // 성급함 I 과 피로 I 이 같이: 8 × 1.2 × 0.3
+        assertEquals(8.0F * (1.0F + 1 * 0.2F) * 0.3F / 1.5F / 30.0F,
+                b.getDestroyProgress(stone, withEffects(p, pick, ItemStack.EMPTY, false,
+                        fx(org.domi.furnace.server.effect.MobEffect.HASTE, 0), fx(fatigue, 0)), level, Pos.ZERO), 1e-7);
+    }
+
+    @Test
+    void destroySpeed_orderOfEfficiencyHasteWaterAndAir() {
+        var level = new BlockPlacementTest.TestLevel();
+        int stone = B.defaultState("minecraft:stone");
+        BlockBehavior b = BlockBehaviors.of(stone);
+        Player ground = player(GameMode.SURVIVAL, true), air = player(GameMode.SURVIVAL, false);
+        ItemStack pick = enchanted("minecraft:diamond_pickaxe", "minecraft:efficiency", 3);   // 8 + 3² + 1 = 18
+        var haste = fx(org.domi.furnace.server.effect.MobEffect.HASTE, 0);
+        // 효율은 성급함 앞(더한 뒤 곱한다): (8 + 10) × 1.2
+        assertEquals((8.0F + 10.0F) * (1.0F + 1 * 0.2F) / 1.5F / 30.0F, b.getDestroyProgress(stone, withEffects(ground, pick, ItemStack.EMPTY, false, haste), level, Pos.ZERO), 1e-7);
+        // 눈이 물에 잠기면 × 0.2(친수성 없음), 친수성 머리 장비면 × 0.2 × (1 + 4) = 1.0
+        assertEquals(18.0F * 1.2F * (float) 0.2 / 1.5F / 30.0F, b.getDestroyProgress(stone, withEffects(ground, pick, ItemStack.EMPTY, true, haste), level, Pos.ZERO), 1e-7);
+        ItemStack helmet = enchanted("minecraft:turtle_helmet", "minecraft:aqua_affinity", 1);
+        assertEquals(18.0F * 1.2F * 1.0F / 1.5F / 30.0F, b.getDestroyProgress(stone, withEffects(ground, pick, helmet, true, haste), level, Pos.ZERO), 1e-7);
+        // 공중이면 마지막에 ÷ 5
+        assertEquals(18.0F * 1.2F * (float) 0.2 / 5.0F / 1.5F / 30.0F, b.getDestroyProgress(stone, withEffects(air, pick, ItemStack.EMPTY, true, haste), level, Pos.ZERO), 1e-7);
+    }
+
+    @Test
+    void destroySpeed_itemAttributeModifiers_blockBreakSpeedAndMiningEfficiency() {
+        var level = new BlockPlacementTest.TestLevel();
+        int stone = B.defaultState("minecraft:stone");
+        BlockBehavior b = BlockBehaviors.of(stone);
+        Player p = player(GameMode.SURVIVAL, true);
+        Map<String, Object> mods = Map.of("modifiers", List.of(
+                Map.of("type", "minecraft:player.block_break_speed", "id", "test:speed", "amount", 1.0, "operation", "add_value", "slot", "mainhand"),
+                Map.of("type", "minecraft:player.mining_efficiency", "id", "test:eff", "amount", 2.0, "operation", "add_value", "slot", "mainhand")));
+        ItemStack pick = new ItemStack(ItemContext.id("minecraft:item", "minecraft:diamond_pickaxe"), 1, ComponentPatch.of(Map.of("minecraft:attribute_modifiers", mods)));
+        // (8 + 2) × (1 + 1) = 20. 도구 속도가 1 이하(맨손)면 채굴 효율은 더하지 않는다
+        assertEquals(20.0F / 1.5F / 30.0F, b.getDestroyProgress(stone, actor(p, pick), level, Pos.ZERO), 1e-7);
+        ItemStack stick = new ItemStack(ItemContext.id("minecraft:item", "minecraft:stick"), 1, ComponentPatch.of(Map.of("minecraft:attribute_modifiers", mods)));
+        assertEquals(1.0F * 2.0F / 1.5F / 100.0F, b.getDestroyProgress(stone, actor(p, stick), level, Pos.ZERO), 1e-7);
+    }
+
+    @Test
+    void miningFatigue_changesServerSideStopValidation() {
+        var level = new BlockPlacementTest.TestLevel();
+        Pos pos = new Pos(0, -60, 0);
+        int stone = B.defaultState("minecraft:stone");
+        ItemStack pick = stack("minecraft:diamond_pickaxe");
+        var fatigue = fx(org.domi.furnace.server.effect.MobEffect.MINING_FATIGUE, 0);
+        // 진행도/틱 = 8 × 0.3 / 1.5 / 30 = 0.05333; 경과 12 → 13 × 0.05333 = 0.693 < 0.7(지연 파괴), 경과 13 → 14 × 0.05333 = 0.747 ≥ 0.7
+        for (int elapsed : new int[] {12, 13}) {
+            level.setBlock(pos, stone, 3);
+            Player p = player(GameMode.SURVIVAL, true);
+            var breaking = new BlockBreaking();
+            var host = new Host();
+            breaking.handleAction(level, withEffects(p, pick, ItemStack.EMPTY, false, fatigue), host, pos, BlockBreaking.START_DESTROY_BLOCK, 320, true);
+            for (int i = 0; i < elapsed; i++) breaking.tick(level, () -> withEffects(p, pick, ItemStack.EMPTY, false, fatigue), host);
+            breaking.handleAction(level, withEffects(p, pick, ItemStack.EMPTY, false, fatigue), host, pos, BlockBreaking.STOP_DESTROY_BLOCK, 320, true);
+            if (elapsed == 12) {
+                assertTrue(breaking.hasDelayedDestroy(), "경과 12 는 0.7 미만 → 지연 파괴");
+                assertEquals("minecraft:stone", B.describe(level.getBlockState(pos)));
+            } else {
+                assertEquals("minecraft:air", B.describe(level.getBlockState(pos)), "경과 13 은 0.7 이상 → 바로 부서짐");
+            }
+        }
+    }
 }

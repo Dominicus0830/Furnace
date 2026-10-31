@@ -294,6 +294,9 @@ public final class PlayerVitals {
 
     public synchronized boolean isFlying() { return abilities.flying; }
 
+    /** Abilities.mayfly. */
+    public synchronized boolean mayfly() { return abilities.mayfly; }
+
     public synchronized boolean isCreative() { return gameMode == GameMode.CREATIVE; }
 
     public synchronized boolean mayBuild() { return abilities.mayBuild; }

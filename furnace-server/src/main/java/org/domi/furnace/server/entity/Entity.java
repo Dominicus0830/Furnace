@@ -1058,13 +1058,17 @@ public abstract non-sealed class Entity implements Rider {
      * 엔티티 충돌(보트·셜커)·월드 보더 모양은 아직 목록에 없다(블록 충돌만).
      */
     protected double[] collide(double dx, double dy, double dz) {
-        AABB box = bb;
+        return collideMove(level, bb, onGround(), maxUpStep(), dx, dy, dz);
+    }
+
+    /** Entity.collide 본체 — 엔티티 없이 상자·땅 위 여부·오르기 높이만으로 부른다(플레이어 이동 검증도 쓴다). */
+    public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, AABB box, boolean onGround, float step,
+                                       double dx, double dy, double dz) {
         var shapes = level.blockCollisions(box.expandTowards(dx, dy, dz));
         double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz} : collideWithShapes(dx, dy, dz, box, shapes);
         boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
         boolean below = cy && dy < 0.0;
-        float step = maxUpStep();
-        if (step > 0.0F && (below || onGround()) && (cx || cz)) {
+        if (step > 0.0F && (below || onGround) && (cx || cz)) {
             AABB base = below ? box.move(0.0, r[1], 0.0) : box;
             AABB search = base.expandTowards(dx, step, dz);
             if (!below) search = search.expandTowards(0.0, -1.0E-5F, 0.0);

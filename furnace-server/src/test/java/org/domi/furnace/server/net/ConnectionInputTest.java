@@ -164,14 +164,13 @@ class ConnectionInputTest {
     }
 
     @Test
-    void teleportAndNonFinite_areRejected_withSingleCorrection_thenResumeAfterConfirm() throws Exception {
+    void teleportAndInfinite_areRejected_withSingleCorrection_thenResumeAfterConfirm() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         double x0 = p.x();
         move(ch, 5_000_000, -60, 0);
-        move(ch, Double.NaN, -60, 0);
         move(ch, 0.5, Double.POSITIVE_INFINITY, 0.5);
         p.drainPending();
-        assertEquals(x0, p.x(), "급이동/NaN/무한대는 반영되지 않는다");
+        assertEquals(x0, p.x(), "급이동/무한대는 반영되지 않는다");
         // 보정 텔레포트는 연쇄로 쏟아지지 않고 한 번만 나간다(확인 전의 옛 위치 패킷은 조용히 버림)
         assertEquals(1, count(drainOutbound(), SyncPlayerPosition.ID), "보정은 한 번만 보내야 한다");
 
@@ -184,6 +183,45 @@ class ConnectionInputTest {
         move(ch, x0 + 1, -60, 0);
         p.drainPending();
         assertEquals(x0 + 1, p.x(), "확인 후엔 정상 이동 수락 재개");
+    }
+
+    /** 바닐라 containsInvalidValues: 좌표 NaN·비유한 각도는 보정이 아니라 연결을 끊는다. */
+    @Test
+    void nanPositionOrNonFiniteRotation_disconnects() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        move(ch, Double.NaN, -60, 0);
+        List<int[]> out = drainOutbound();
+        assertEquals(1, count(out, 0x1D), "Disconnect(play) 가 나간다");
+        assertEquals(0, count(out, SyncPlayerPosition.ID));
+        assertFalse(ch.isActive());
+    }
+
+    @Test
+    void nonFiniteRotation_disconnects() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        ch.writeInbound(frame(0x1C, b -> { b.writeFloat(Float.POSITIVE_INFINITY); b.writeFloat(0f); b.writeBoolean(true); }));
+        assertEquals(1, count(drainOutbound(), 0x1D));
+        assertFalse(ch.isActive());
+    }
+
+    /** move_player_status_only(0x1D): 위치·회전은 그대로, 땅 위 여부만 바뀐다. */
+    @Test
+    void statusOnlyPacket_updatesOnGroundOnly() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        move(ch, 3, -60, 3);
+        ch.writeInbound(frame(0x1C, b -> { b.writeFloat(40f); b.writeFloat(5f); b.writeBoolean(true); }));
+        p.drainPending();
+        assertTrue(p.onGround());
+        ch.writeInbound(frame(0x1D, b -> b.writeBoolean(false)));
+        p.drainPending();
+        assertFalse(p.onGround());
+        assertEquals(3.0, p.x());
+        assertEquals(3.0, p.z());
+        assertEquals(40f, p.yaw());
+        assertEquals(5f, p.pitch());
+        ch.writeInbound(frame(0x1D, b -> b.writeBoolean(true)));
+        p.drainPending();
+        assertTrue(p.onGround());
     }
 
     /** 보정 텔레포트의 회전은 마지막으로 수락한 회전이어야 한다(region이 아직 drain 안 한 옛 값이 아니라). */
