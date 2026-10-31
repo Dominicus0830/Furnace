@@ -1,5 +1,5 @@
 // 바닐라 Allay: 날아다니는 도우미 정령. 주운 것과 같은 아이템을 찾아 주워 와 좋아하는 플레이어에게 던져 준다. 춤추는 중 자수정 조각으로 복제한다.
-// TODO(게임 이벤트): 음표 블록 소리·주크박스 재생을 듣는 진동 수신기가 없어 춤과 음표 블록 호감은 아직 일어나지 않는다. TODO(끈·탑승·애니메이션): 해당 규칙이 생기면.
+// 진동 수신기(음표 블록 호감)와 주크박스 수신기(춤)를 가진다. TODO(탑승·애니메이션): 해당 규칙이 생기면.
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -17,13 +17,26 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemStackCodecs;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
+import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.world.gameevent.DynamicGameEventListener;
+import org.domi.furnace.server.world.gameevent.GameEvent;
+import org.domi.furnace.server.world.gameevent.GameEventContext;
+import org.domi.furnace.server.world.gameevent.GameEventListener;
+import org.domi.furnace.server.world.gameevent.PositionSource;
+import org.domi.furnace.server.world.gameevent.VibrationSystem;
 
-public class Allay extends PathfinderMob implements InventoryCarrier {
+public class Allay extends PathfinderMob implements InventoryCarrier, VibrationSystem {
     public static final int DATA_DANCING = 16, DATA_CAN_DUPLICATE = 17;
     public static final float[] THROW_SOUND_PITCHES = {0.5625F, 0.625F, 0.75F, 0.9375F, 1.0F, 1.0F, 1.125F, 1.25F, 1.5F, 1.875F, 2.0F, 2.25F, 2.5F, 3.0F, 3.75F, 4.0F};
     public static final int DUPLICATION_COOLDOWN_TICKS = 6000;
     private final MobInventory inventory = new MobInventory(1);
     private long duplicationCooldown;
+    /** 주크박스가 있는 칸(cq). 춤추는 동안만 안다(저장하지 않는다). */
+    private Pos jukeboxPos;
+    private VibrationSystem.Data vibrationData = new VibrationSystem.Data();
+    private final VibrationSystem.User vibrationUser = new AllayVibrationUser();
+    private final DynamicGameEventListener<VibrationSystem.Listener> vibrationListener = new DynamicGameEventListener<>(new VibrationSystem.Listener(this));
+    private final DynamicGameEventListener<JukeboxListener> jukeboxListener = new DynamicGameEventListener<>(new JukeboxListener());
 
     public Allay(ChunkLevel level, int id) {
         super(EntityType.ALLAY, level, id);
@@ -112,8 +125,13 @@ public class Allay extends PathfinderMob implements InventoryCarrier {
     public void tick() {
         super.tick();
         if (isAlive() && tickCount % 10 == 0) heal(1.0F);
-        if (isDancing() && tickCount % 20 == 0) setDancing(false);   // TODO(게임 이벤트): 주크박스가 멈췄는지 확인
+        if (isDancing() && shouldStopDancing() && tickCount % 20 == 0) {
+            setDancing(false);
+            jukeboxPos = null;
+        }
         updateDuplicationCooldown();
+        // aiStep 서버 쪽: 진동 틱 + 겁먹으면 춤을 멈춘다
+        VibrationSystem.Ticker.tick(level, vibrationData, vibrationUser);
         if (isPanicking()) setDancing(false);
     }
 
@@ -217,6 +235,7 @@ public class Allay extends PathfinderMob implements InventoryCarrier {
         writeInventoryToSave(tag);
         tag.putLong("DuplicationCooldown", duplicationCooldown);
         tag.putBoolean("CanDuplicate", canDuplicate());
+        tag.putCompound(VibrationSystem.Data.NBT_TAG_KEY, vibrationData.save());
     }
 
     @Override
@@ -225,5 +244,85 @@ public class Allay extends PathfinderMob implements InventoryCarrier {
         readInventoryFromSave(tag);
         duplicationCooldown = tag.getLong("DuplicationCooldown");
         entityData.set(DATA_CAN_DUPLICATE, tag.getBoolean("CanDuplicate"));
+        if (tag.tags().get(VibrationSystem.Data.NBT_TAG_KEY) instanceof NbtCompound l) {
+            VibrationSystem.Data d = VibrationSystem.Data.load(l);
+            if (d != null) vibrationData = d;
+        }
+    }
+
+    // ------------------------------------------------------------------ 진동·주크박스 수신(cgk.a, cgk.b)
+
+    @Override public DynamicGameEventListener<?> dynamicGameEventListener() { return vibrationListener; }
+
+    @Override
+    public java.util.List<DynamicGameEventListener<?>> dynamicGameEventListeners() { return java.util.List.of(vibrationListener, jukeboxListener); }
+
+    @Override public Data getVibrationData() { return vibrationData; }
+
+    @Override public User getVibrationUser() { return vibrationUser; }
+
+    /** shouldStopDancing(gp): 주크박스를 모르거나, 10칸 안(칸 가운데 기준 제곱거리 < 100)이 아니거나, 그 칸이 주크박스가 아니다. */
+    private boolean shouldStopDancing() {
+        if (jukeboxPos == null) return true;
+        double dx = x() - (jukeboxPos.x() + 0.5), dy = y() - (jukeboxPos.y() + 0.5), dz = z() - (jukeboxPos.z() + 0.5);
+        double r = GameEvent.JUKEBOX_PLAY.notificationRadius;
+        return !(dx * dx + dy * dy + dz * dz < r * r) || !org.domi.furnace.server.block.B.is(level.getBlockState(jukeboxPos), "minecraft:jukebox");
+    }
+
+    /** setJukeboxPlaying(b): 시작 때 아직 춤추지 않으면 그 칸을 기억하고 춤춘다. 멈춤은 기억한 칸(또는 모를 때)일 때만. */
+    public void setJukeboxPlaying(Pos pos, boolean playing) {
+        if (playing) {
+            if (!isDancing()) {
+                jukeboxPos = pos;
+                setDancing(true);
+            }
+        } else if (pos.equals(jukeboxPos) || jukeboxPos == null) {
+            jukeboxPos = null;
+            setDancing(false);
+        }
+    }
+
+    /** cgk.a: jukebox_play / jukebox_stop_play 를 바로 받는다(진동 이동 시간 없음). */
+    private final class JukeboxListener implements GameEventListener {
+        private final PositionSource source = PositionSource.entity(Allay.this, EntityType.ALLAY.eyeHeight());
+
+        @Override public PositionSource getListenerSource() { return source; }
+
+        @Override public int getListenerRadius() { return GameEvent.JUKEBOX_PLAY.notificationRadius; }
+
+        @Override
+        public boolean handleGameEvent(ChunkLevel level, GameEvent event, GameEventContext ctx, Vec3 pos) {
+            if (event == GameEvent.JUKEBOX_PLAY) {
+                setJukeboxPlaying(new Pos((int) Math.floor(pos.x()), (int) Math.floor(pos.y()), (int) Math.floor(pos.z())), true);
+                return true;
+            } else if (event == GameEvent.JUKEBOX_STOP_PLAY) {
+                setJukeboxPlaying(new Pos((int) Math.floor(pos.x()), (int) Math.floor(pos.y()), (int) Math.floor(pos.z())), false);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /** cgk.b: 반경 16. 좋아하는 음표 블록이 있으면 그 칸 소리만, 없으면 어느 것이든 받는다. 음표 블록 소리면 그 칸을 기억한다. */
+    private final class AllayVibrationUser implements VibrationSystem.User {
+        private final PositionSource positionSource = PositionSource.entity(Allay.this, EntityType.ALLAY.eyeHeight());
+
+        @Override public int getListenerRadius() { return 16; }
+
+        @Override public PositionSource getPositionSource() { return positionSource; }
+
+        @Override
+        public boolean canReceiveVibration(ChunkLevel level, Pos pos, GameEvent event, GameEventContext ctx) {
+            if (isNoAi()) return false;
+            var liked = getBrain().getMemory(MemoryModuleType.LIKED_NOTEBLOCK_POSITION);
+            if (liked.isEmpty()) return true;
+            var g = liked.get();
+            return g.dimension().equals(level.dimension()) && g.pos().equals(pos);
+        }
+
+        @Override
+        public void onReceiveVibration(ChunkLevel level, Pos pos, GameEvent event, Object source, Object projectileOwner, float distance) {
+            if (event == GameEvent.NOTE_BLOCK_PLAY) AllayAi.hearNoteblock(Allay.this, pos);
+        }
     }
 }

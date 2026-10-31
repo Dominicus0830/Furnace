@@ -415,3 +415,12 @@
   장비 패킷은 기존 `detectEquipmentUpdates`(BODY 칸 포함)가 보낸다.
 - **미구현/다른 점**: 갑옷 방어 속성(11)이 `bypasses_wolf_armor` 피해 경로의 방어 계산에 쓰이는 것과 그때의 `hurtArmor`(몸통 칸 내구도)는 `LivingEntity` 에 `hurtArmor` 가 몹용으로 없어 연결하지 않았다. 갑옷이 부서질 때의 깨짐 사운드·엔티티 이벤트(47+슬롯)는 `hurtEquipped` 가 하는 만큼만. 새끼 늑대 변종(번식)은 바이옴이 아니라 부모 중 하나.
 - 시험: `WolfVariantArmorTest`(바이옴 표, NBT, 금 단계 경계 3/4·19/20·43/44, 흡수 5→내구 5, 2.1→3, magic 은 늑대가 맞음).
+
+## 2026-10-31 알레이 음표 블록·주크박스 수신 (몹 능력 감사 작업 4-3)
+
+- 근거: `cgk`(Allay), `cgk.a`(주크박스 리스너), `cgk.b`(진동 사용자), `AllayAi.hearNoteblock`. 알레이는 리스너 둘을 가진다(`Entity.dynamicGameEventListeners()` 새로 추가, `ChunkLevel` 의 등록·이동·해제 4곳이 모두 돈다).
+  (1) 진동 수신기: 반경 16, 기억한 음표 블록(`LIKED_NOTEBLOCK_POSITION`)이 없으면 모든 진동을 받고, 있으면 그 칸·그 차원만. `note_block_play` 만 반응해 `hearNoteblock`(없으면 기억+600틱, 같은 칸이면 600틱 갱신). 틱마다 `VibrationSystem.Ticker`. NBT `listener` 저장/복원.
+  (2) 주크박스 수신기: 반경 10, `jukebox_play` → 아직 안 추면 그 칸을 기억하고 춤, `jukebox_stop_play` → 기억한 칸(또는 기억 없음)일 때만 멈춤. 기억한 칸은 저장하지 않는다(바닐라도 그렇다).
+  틱: 춤추는데 주크박스를 모르거나 10칸 밖(칸 가운데 기준 제곱거리 < 100)이거나 주크박스 블록이 아니면 20틱마다 춤을 멈추고 기억을 지운다. 겁먹으면(`isPanicking`) 춤 멈춤.
+- **미구현/다른 점**: 진동 입자 패킷은 공용 `VibrationSystem` 이 아직 보내지 않는다(기존 한계). 알레이 클라이언트 춤 애니메이션 값은 서버에 불필요해 생략.
+- 시험: `AllayListenerTest`(리스너 둘과 반경, 재생/정지 이벤트, 이미 춤추는 중 두 번째 주크박스 무시, 음표 블록 기억·필터, 600틱, NBT).

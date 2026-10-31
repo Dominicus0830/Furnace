@@ -1715,7 +1715,7 @@ public abstract class ChunkLevel implements BlockLevel {
         e.setLevel(this);
         if (!entities.add(e)) return false;
         startTracking(e);
-        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().add(this);
+        for (var l : e.dynamicGameEventListeners()) l.add(this);
         return true;
     }
 
@@ -1743,13 +1743,13 @@ public abstract class ChunkLevel implements BlockLevel {
         e.setLevel(this);
         if (!entities.add(e)) return;
         if (e.tracker == null) startTracking(e);
-        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().add(this);
+        for (var l : e.dynamicGameEventListeners()) l.add(this);
     }
 
     /** 엔티티가 지워졌다(setRemoved) — 저장소에서 빼고 보는 사람에게 지운다. */
     public void entityRemoved(Entity e) {
         if (!entities.remove(e)) return;
-        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().remove(this);
+        for (var l : e.dynamicGameEventListeners()) l.remove(this);
         if (e.tracker != null) {
             e.tracker.broadcastRemoved();
             e.tracker = null;
@@ -1759,7 +1759,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 엔티티의 구역이 바뀌었다(setPosRaw). */
     public void entitySectionChanged(Entity e, long oldKey) {
         entities.moved(e, oldKey);
-        if (e.dynamicGameEventListener() != null) e.dynamicGameEventListener().move(this);   // onSectionChange
+        for (var l : e.dynamicGameEventListeners()) l.move(this);   // onSectionChange
     }
 
     public java.util.List<Entity> getEntities(Entity except, AABB box, java.util.function.Predicate<? super Entity> filter) {
