@@ -329,6 +329,7 @@ public final class FurnaceMain {
         core.plugins().pluginsImpl().loadAll();
         // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
         org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
+        org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();

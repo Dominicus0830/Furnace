@@ -504,3 +504,9 @@
 - **region-file-compression**: `Compression.configure` — `deflate`(기본)·`gzip`·`none` 지원, 청크 헤더의 압축 종류 바이트(1/2/3)를 쓰고 읽는다. **`lz4` 는 미지원**: 바닐라가 쓰는 LZ4 블록 스트림(`net.jpountz`) 라이브러리가 없다. lz4 로 저장된 월드는 읽지도 못한다(읽기도 type 4 미지원 — 기존). 잘못된 값이면 바닐라처럼 오류를 로그하고 deflate 를 유지한다. 프로세스 전역 하나(바닐라 `RegionFileVersion.configure` 동일).
 - **text-filtering-config**: 구현하지 않는다. 바닐라는 원격 채팅 필터 서비스(HTTP)에 연결하는 `ServerTextFilter` 를 만드는 설정인데 Furnace 에는 필터 서비스 연동이 없다. 비어 있지 않으면 기동 때 경고만 한다.
 - 시험: `RconProtocolTest`·`RconServerTest`(루프백 소켓 왕복: 로그인·명령·인증 실패 -1·분할·예외·알 수 없는 종류·길이 위반 끊기·연결별 인증)·`RconCoreTest`(IO 스레드에서 전역 스레드 명령, 출력 수집)·`QueryHandlerTest`(바이트 단위: 핸드셰이크·basic·full·캐시·30초 청소·잘못된 챌린지)·`QueryServerTest`(UDP 루프백)·`ServerWatchdogTest`(판정·스레드 경로·크래시 리포트)·`OpsConfigWiringTest`(max-world-size, 워치독 프로브)·`SpawnNpcsRegionTest`·`RegionCompressionConfigTest`.
+
+## 2026-10-31 관측 명령 /furnace threads|regions|profile (작업 G-2)
+- `FurnaceAdminCommands`(권한 3, 기동 때 따로 등록 — 바닐라 트리 대조 대상 아님). 전역: 대기 작업 수(`GlobalThread.queueLength`, ThreadPoolExecutor 직접 사용)·전역 틱 시간. 차원별: region 수·대기열·워커 상태·틱 시간 p50/p95/최근 최대/가동 후 최대(`TickTimeRing` 512 표본)·큐 지연 분포(기존 `Regionizer.schedStats`)·region 목록·느린 region 상위 3.
+- 소유권: 명령은 전역 스레드에서 돌고 `Regionizer` 자신의 잠금 안에서 값만 복사한다. region 소유 상태(청크·엔티티·플레이어)는 읽지 않는다.
+- 한계: 틱 시간은 region 틱 전체 소요이며 구간별 분해는 없다(`-Dfurnace.tickstats=true`). 워커 상태는 Thread.getState 스냅숏. 실서버 부하 중 출력은 확인하지 못했다(가정: 정상).
+- 시험: `FurnaceAdminCommandsTest`, `RegionizerObservabilityTest`, `GlobalThreadQueueTest`.

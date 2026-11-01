@@ -395,6 +395,21 @@ public final class ServerCore {
     private volatile long globalBeat = System.nanoTime();
     private volatile Thread globalTickThread;
 
+    /** 전역 틱(scheduledTick) 소요 시간 분포 — /furnace 관측용. */
+    private final org.domi.furnace.server.sched.TickTimeRing globalTickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
+
+    public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
+
+    /** 전역 스레드 이름(관측용). */
+    public String globalThreadName() {
+        return scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g ? g.ownerName() : "global";
+    }
+
+    /** 전역 스레드의 대기 작업 수(관측용). */
+    public int globalQueueLength() {
+        return scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g ? g.queueLength() : 0;
+    }
+
     /** 워치독이 볼 곳들: 전역 틱 + 차원마다 region 틱. 잠금 없이 휘발성 값만 읽는다. */
     public List<ServerWatchdog.Probe> watchdogProbes() {
         List<ServerWatchdog.Probe> out = new ArrayList<>();
@@ -522,8 +537,17 @@ public final class ServerCore {
      * 시간·날씨·보더를 멈추고 /tick step 으로 요청한 만큼만 낸다.
      */
     public void scheduledTick() {
-        globalBeat = System.nanoTime();   // 워치독이 보는 전역 틱 박동
+        long t0 = System.nanoTime();
+        globalBeat = t0;   // 워치독이 보는 전역 틱 박동
         globalTickThread = Thread.currentThread();
+        try {
+            scheduledTick0();
+        } finally {
+            globalTickRing.record(System.nanoTime() - t0);
+        }
+    }
+
+    private void scheduledTick0() {
         commands.queue().tick();   // 명령 컨텍스트 경과 틱(정지 중에도 센다 — head-of-line 관측)
         var ts = tickState();
         if (ts.sprinting()) {

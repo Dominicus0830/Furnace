@@ -58,11 +58,8 @@ public final class Regionizer {
     // ------------------------------------------------------------------ 관측(워치독·/furnace 명령 — 동작에 영향 없음)
     /** 지금 틱 중인 region → 틱 시작 시각(nanoTime). tryTake 가 넣고 finishTick 이 뺀다. 읽기는 잠금 없이. */
     private final ConcurrentHashMap<Region, Long> running = new ConcurrentHashMap<>();
-    /** 최근 region 틱 소요 시간(ns) 고리 버퍼. 쓰기는 틱을 도는 워커 여럿이 칸만 겹치지 않게(원자 증가), 읽기는 사본. */
-    static final int TICK_RING = 512;
-    private final java.util.concurrent.atomic.AtomicLongArray tickRing = new java.util.concurrent.atomic.AtomicLongArray(TICK_RING);
-    private final java.util.concurrent.atomic.AtomicLong tickRingNext = new java.util.concurrent.atomic.AtomicLong();
-    private volatile long tickMaxEver;
+    /** 최근 region 틱 소요 시간(ns) 분포(잠금 없이 기록). */
+    private final org.domi.furnace.server.sched.TickTimeRing tickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
 
     // ------------------------------------------------------------------ 스케줄 계측(동작에 영향 없음)
     /** 지금 틱 중인 region 수(= 바쁜 워커 수)와 그 최대. */
@@ -483,12 +480,11 @@ public final class Regionizer {
         finishTick(r);
     }
 
-    /** 틱 소요 시간을 관측용으로 남긴다(잠금 없음 — 고리 칸은 원자 증가로 나눠 쓴다). */
+    /** 틱 소요 시간을 관측용으로 남긴다(잠금 없음). */
     private void noteTickTime(Region r, long took) {
-        tickRing.set((int) (tickRingNext.getAndIncrement() & (TICK_RING - 1)), took);
+        tickRing.record(took);
         r.lastTickNanos = took;
         if (took > r.maxTickNanos) r.maxTickNanos = took;
-        if (took > tickMaxEver) tickMaxEver = took;
     }
 
     /** 끝내기(워커, 잠금 안): RUNNING → IDLE/QUEUED. */
@@ -827,16 +823,7 @@ public final class Regionizer {
     // ------------------------------------------------------------------ 관측 조회(/furnace, 워치독)
 
     /** 틱 소요 시간 분포(최근 표본 최대 512개 + 가동 이후 최대). */
-    public record TickTimes(int samples, long p50Nanos, long p95Nanos, long maxRecentNanos, long maxEverNanos) {}
-
-    public TickTimes tickTimes() {
-        long next = tickRingNext.get();
-        int n = (int) Math.min(next, TICK_RING);
-        long[] a = new long[n];
-        for (int i = 0; i < n; i++) a[i] = tickRing.get(i);
-        java.util.Arrays.sort(a);
-        return new TickTimes(n, n == 0 ? 0 : a[n / 2], n == 0 ? 0 : a[Math.min(n - 1, (int) (n * 0.95))], n == 0 ? 0 : a[n - 1], tickMaxEver);
-    }
+    public org.domi.furnace.server.sched.TickTimeRing.Stats tickTimes() { return tickRing.stats(); }
 
     /** region 한 개의 관측 사본. thread 는 지금 틱 중인 워커 이름(쉬면 null), runningNanos 는 그 틱이 돈 시간. */
     public record RegionInfo(int id, int sections, int chunks, int inbox, String thread, long runningNanos,
