@@ -218,6 +218,22 @@ class ItemEffectsTest {
     }
 
     @Test
+    void leashReleaseBeatsNameTagButNameTagBeatsLeadAttach() {
+        Lvl level = new Lvl();
+        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        var cow = new Cow(level, level.nextEntityId());
+        level.addFreshEntity(cow);
+        var tag = ItemTools.with(item("name_tag", 1), "minecraft:custom_name", "\"B\"");
+        p.inventory().set(p.inventory().heldWindowSlot(), tag);
+        cow.setLeashedTo(p, true);
+        assertFalse(ItemEffects.nameTag(p, 0, tag, cow), "내가 맨 몹은 이름표가 아니라 끈 풀기");
+        assertFalse(cow.hasCustomName());
+        assertTrue(cow.interactLeash(p, 0, tag));
+        assertNull(cow.getLeashHolder());
+        assertTrue(ItemEffects.nameTag(p, 0, tag, cow), "끈이 풀린 뒤에는 이름이 붙는다");
+    }
+
+    @Test
     void chorusTargetNeedsSolidFloorAndEmptyBody() {
         Lvl level = new Lvl();
         Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());

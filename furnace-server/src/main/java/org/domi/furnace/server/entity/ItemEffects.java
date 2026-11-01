@@ -127,6 +127,7 @@ public final class ItemEffects {
     public static boolean nameTag(Player p, int hand, ItemStack held, LivingEntity target) {
         if (held.isEmpty() || !ItemTools.itemName(held).equals("minecraft:name_tag")) return false;
         if (!(ItemTools.component(held, "minecraft:custom_name") instanceof String json)) return false;
+        if (target instanceof Mob m0 && m0.getLeashHolder() == p) return false;   // Mob.interact: 내가 맨 끈 풀기가 이름표보다 먼저(끈 맺기 lead 는 이름표가 앞선다)
         if (target instanceof Mob && !target.isAlive()) return false;   // Mob.interact: 죽었으면 PASS
         if (target.isAlive()) {
             try {

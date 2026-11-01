@@ -1800,7 +1800,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             try {
                 out = title == null ? org.domi.furnace.server.entity.BookEditing.write(cur, pages)
                         : org.domi.furnace.server.entity.BookEditing.sign(cur, title, pages, p.name());
-            } catch (org.domi.furnace.server.item.CodecException e) {
+            } catch (RuntimeException e) {   // 코덱 한도 초과 등: 연결을 끊지 않고 무시
+                log.warn("edit_book 무시 ({}): {}", p.name(), e.toString());
                 return;
             }
             if (out == null) return;
