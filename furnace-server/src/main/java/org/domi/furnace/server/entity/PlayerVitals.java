@@ -392,12 +392,18 @@ public final class PlayerVitals {
 
     public synchronized boolean isIgnoringFallDamageFromCurrentImpulse() { return ignoreFallFromImpulse; }
 
+    /** 현재 충격(폭발)을 일으킨 쪽의 값(fall_after_explosion 의 cause). 없으면 null. */
+    public synchronized org.domi.furnace.server.loot.LootEntity currentImpulseCause() { return impulseCause; }
+
+    private org.domi.furnace.server.loot.LootEntity impulseCause;
+
     public synchronized double[] currentImpulsePos() { return impulsePos == null ? null : impulsePos.clone(); }
 
     public synchronized void setCurrentImpulsePos(double[] p) { impulsePos = p == null ? null : p.clone(); }
 
     /** resetCurrentImpulseContext. */
     public synchronized void resetCurrentImpulseContext() {
+        impulseCause = null;
         impulseGrace = 0;
         impulsePos = null;
         ignoreFallFromImpulse = false;
@@ -411,6 +417,7 @@ public final class PlayerVitals {
     /** Entity.onExplosionHit(source) 의 ServerPlayer 쪽: 맞은 자리를 기억하고, 원인이 윈드 차지일 때만 낙하 피해를 면제한다. */
     public synchronized void onExplosionHit(Entity source) {
         impulsePos = new double[] {player.x(), player.y(), player.z()};
+        impulseCause = source == null ? null : KillCredit.lootOf(source);
         setIgnoreFallDamageFromCurrentImpulse(source instanceof WindCharge);
     }
 
@@ -423,13 +430,39 @@ public final class PlayerVitals {
 
     private void setHealthRaw(float h) { health = Math.clamp(h, 0.0f, maxHealthLocked()); }
 
-    /** 최대 체력: 20 + 체력 강화 효과(4 × (단계+1)). */
+    // 최대 체력 속성의 입력: 기본값과 효과 밖 수정자(장비·/attribute)는 Player.syncAttributes 가 넘기고, 효과 수정자는 지금 효과에서 바로 합성한다
+    // (바닐라는 효과를 걸자마자 수정자를 단다 — 체력 강화로 최대 체력이 곧바로 오른다).
+    private volatile double maxHealthBase = MAX_HEALTH;
+    private volatile java.util.List<org.domi.furnace.server.attribute.AttributeModifier> maxHealthExtra = java.util.List.of();
+    private volatile double oxygenBonus;
+
+    /** 속성 맵에서 넘어온 입력(소유 region 스레드). 최대 체력이 줄었으면 체력을 자른다(LivingEntity.onAttributeUpdated). */
+    public synchronized void attributeInputs(double maxHealthBase, java.util.List<org.domi.furnace.server.attribute.AttributeModifier> extra, double oxygenBonus) {
+        this.maxHealthBase = maxHealthBase;
+        this.maxHealthExtra = java.util.List.copyOf(extra);
+        this.oxygenBonus = oxygenBonus;
+        if (health > maxHealthLocked()) health = maxHealthLocked();
+    }
+
+    /** 최대 체력 = 속성 generic.max_health 값(기본 20 + 체력 강화 4 × (단계+1) + 그 밖의 수정자), float 로 줄인다. */
     private float maxHealthLocked() {
-        MobEffectInstance hb = effects.get(MobEffect.HEALTH_BOOST);
-        return MAX_HEALTH + (hb == null ? 0 : 4.0f * (hb.amplifier() + 1));
+        if (effects.isEmpty() && maxHealthExtra.isEmpty()) return (float) org.domi.furnace.server.attribute.Attribute.MAX_HEALTH.sanitize(maxHealthBase);
+        java.util.Map<String, org.domi.furnace.server.attribute.AttributeModifier> mods =
+                PlayerAttributes.effectModifiers(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, new java.util.ArrayList<>(effects.values()));
+        for (var m : maxHealthExtra) mods.put(m.id(), m);
+        return (float) PlayerAttributes.compute(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, maxHealthBase, mods.values());
     }
 
     public synchronized float maxHealth() { return maxHealthLocked(); }
+
+    /**
+     * LivingEntity.decreaseAirSupply: 산소 보너스 b 가 0 보다 크면 난수(nextDouble)가 1/(b+1) 이상일 때 공기를 안 깎는다.
+     * b 가 0 이하면 난수를 쓰지 않고 1 깎는다(단락 평가 그대로). 난수는 플레이어 난수.
+     */
+    private int decreaseAirSupply(int current) {
+        double b = oxygenBonus;
+        return b > 0.0 && player.random().nextDouble() >= 1.0 / (b + 1.0) ? current : current - 1;
+    }
 
     /** 최대 흡수량: 흡수 효과 4 × (단계+1). */
     private float maxAbsorptionLocked() {
@@ -529,6 +562,7 @@ public final class PlayerVitals {
         boolean newHurt;
         boolean blocked = false;
         float blockedAmount = 0.0f;
+        float dealt = 0.0f;   // 발전 과제 dealt: 막기 전 피해(난이도 배율 뒤)
         synchronized (this) {
             if (isInvulnerableTo(type)) return false;
             boolean fallOnPvpServer = env.pvp() && type.isFall();
@@ -552,6 +586,7 @@ public final class PlayerVitals {
                 if (d == Difficulty.HARD) amount = amount * 3.0f / 2.0f;
             }
             if (amount == 0.0f) return false;
+            dealt = amount;
             if (amount > 0.0f && shield != null
                     && Shields.isDamageSourceBlocked(player.isBlocking(), player.yaw(), player.x(), player.z(), shield)) {
                 Shields.hurtCurrentlyUsedShield(player, amount, shield.level());
@@ -585,6 +620,19 @@ public final class PlayerVitals {
         }
         if (died && !checkTotemDeathProtection(type)) die(type, causing, direct);
         if (blockedAmount > 0.0f && blockedAmount < 3.4028235E37F) player.awardStat("minecraft:damage_blocked_by_shield", Math.round(blockedAmount * 10.0f));
+        {   // 바닐라 LivingEntity.hurt 끝: 맞은 쪽이 플레이어 → entity_hurt_player, 때린 쪽(원인)이 플레이어 → player_hurt_entity
+            final float fDealt = dealt, fTaken = amount;
+            final boolean fBlocked = blocked;
+            var padv = player.advancements();
+            var dmg = padv != null && (padv.hasListeners("minecraft:entity_hurt_player")
+                    || causing instanceof Player cp0 && cp0.advancements() != null && cp0.advancements().hasListeners("minecraft:player_hurt_entity"))
+                    ? KillCredit.source(type.key(), causing, direct) : null;
+            if (dmg != null && padv != null) player.triggerAdvancement(a -> a.triggerEntityHurtPlayer(dmg, fDealt, fTaken, fBlocked));
+            if (dmg != null && causing instanceof Player ap) {
+                var victim = KillCredit.lootOf(player);
+                ap.triggerAdvancement(a -> a.triggerHurtEntity(victim, dmg, fDealt, fTaken, fBlocked));
+            }
+        }
         return !blocked;
     }
 
@@ -853,7 +901,7 @@ public final class PlayerVitals {
                 if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
                 if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
                     if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING)) {
-                        air--;
+                        air = decreaseAirSupply(air);
                         if (air == -20) {
                             air = 0;
                             after.add(() -> hurt(DamageType.DROWN, 2.0f));
@@ -884,6 +932,10 @@ public final class PlayerVitals {
             }
         }
         for (Runnable r : after) r.run();
+        if (effectsExpired) {   // 끝난 효과마다 바닐라는 onEffectRemoved 에서 effects_changed — 잠금 밖에서 한 번
+            effectsExpired = false;
+            notifyEffectsChanged();
+        }
         runPendingEffectHurts();
         applyPendingStarve();
         final int epoch;
@@ -1250,8 +1302,14 @@ public final class PlayerVitals {
         }
         flushEffectPackets();
         runPendingEffectHurts();
+        if (changed) notifyEffectsChanged();
         return changed;
     }
+
+    /** 바닐라 onEffectAdded/Updated/Removed → EFFECTS_CHANGED.trigger(player, source). 효과를 준 쪽(source)은 아직 넘기지 않아 null. */
+    private void notifyEffectsChanged() { player.triggerAdvancement(a -> a.triggerEffectsChanged(null)); }
+
+    private volatile boolean effectsExpired;
 
     /** 마시기 같은 즉시 효과(근접도 1.0). */
     public void applyInstantaneousEffect(MobEffect effect, int amplifier, double proximity) {
@@ -1268,6 +1326,7 @@ public final class PlayerVitals {
             if (removed) onEffectRemovedLocked(e);
         }
         flushEffectPackets();
+        if (removed) notifyEffectsChanged();
         return removed;
     }
 
@@ -1282,6 +1341,7 @@ public final class PlayerVitals {
             }
         }
         flushEffectPackets();
+        if (n > 0) notifyEffectsChanged();
         return n;
     }
 
@@ -1299,6 +1359,7 @@ public final class PlayerVitals {
             if (!alive) {
                 effects.remove(e.effect());
                 onEffectRemovedLocked(e);
+                effectsExpired = true;
             } else if (e.duration() % 600 == 0) {
                 pendingEffectPackets.add(org.domi.furnace.server.net.protocol.play.UpdateMobEffect.of(player.entityId(), e, false));
             }

@@ -24,10 +24,19 @@ public class FrostedIceBlock extends IceBlock {
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        // TODO(빛): (random.nextInt(3) == 0 || 이웃 4 미만) && getMaxLocalRawBrightness(pos) > 11 - age - lightBlock && slightlyMelt
-        //  → 녹으면 이웃 얼음에도 틱. 빛 계산 전에는 녹지 않고 다시 예약만 한다(난수 순서는 같게).
-        random.nextInt(3);
-        level.scheduleTick(pos, block, nextInt(random, 20, 40));
+        // (random.nextInt(3) == 0 || 이웃 4 미만) && getMaxLocalRawBrightness(pos) > 11 - age - lightBlock && slightlyMelt
+        //   → 녹았으면 이웃 얼음도 녹여 보고(안 녹으면 다시 예약). 아니면 20~40틱 뒤 다시.
+        if ((random.nextInt(3) == 0 || fewerNeighboursThan(level, pos, 4))
+                && level.getMaxLocalRawBrightness(pos) > 11 - AGE.intValue(state) - LIGHT_BLOCK
+                && slightlyMelt(state, level, pos)) {
+            for (int d : Dir.ALL) {
+                Pos n = pos.relative(d);
+                int ns = level.getBlockState(n);
+                if (B.is(ns, block) && !slightlyMelt(ns, level, n)) level.scheduleTick(n, block, nextInt(random, 20, 40));
+            }
+        } else {
+            level.scheduleTick(pos, block, nextInt(random, 20, 40));
+        }
     }
 
     /** slightlyMelt: 나이 +1, 3 이면 녹는다. */

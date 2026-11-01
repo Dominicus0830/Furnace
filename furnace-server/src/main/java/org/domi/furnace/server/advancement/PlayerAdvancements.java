@@ -334,6 +334,146 @@ public final class PlayerAdvancements {
         trigger("minecraft:villager_trade", new Criterion.TradeEvent(entityContext(host.playerContext(), villager), result));
     }
 
+    // ------------------------------------------------------------------ 나머지 트리거들 (각 바닐라 *Trigger.trigger 와 같은 인자)
+
+    private static LootContext ctxOrNull(LootContext pc, org.domi.furnace.server.loot.LootEntity e) { return e == null ? null : entityContext(pc, e); }
+
+    /**
+     * ItemUsedOnLocationTrigger 꼴 위치 사건(allay_drop_item_on_block …): 칸 중심 위치, 그 칸의 블록 상태, 도구(아이템), 플레이어.
+     */
+    public void triggerLocation(String trigger, int x, int y, int z, org.domi.furnace.server.loot.LootBlockState state,
+                                org.domi.furnace.server.loot.LootStack tool) {
+        if (!hasListeners(trigger)) return;
+        LootContext pc = host.playerContext();
+        var params = new org.domi.furnace.server.loot.LootParams()
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[] {x + 0.5, y + 0.5, z + 0.5})
+                .with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, pc.param(org.domi.furnace.server.loot.LootParams.THIS_ENTITY))
+                .with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, state)
+                .with(org.domi.furnace.server.loot.LootParams.TOOL, tool);
+        trigger(trigger, new Criterion.LocationEvent(new LootContext(pc.data(), pc.world(), params, pc.random())));
+    }
+
+    /** 사건 없이 플레이어 조건만 보는 트리거(hero_of_the_village, voluntary_exile, started_riding, avoid_vibration …). */
+    public void triggerPlayerOnly(String trigger) { trigger(trigger, null); }
+
+    /** SummonedEntityTrigger.trigger(player, entity). */
+    public void triggerSummoned(org.domi.furnace.server.loot.LootEntity entity) {
+        if (!hasListeners("minecraft:summoned_entity")) return;
+        trigger("minecraft:summoned_entity", entityContext(host.playerContext(), entity));
+    }
+
+    /** ConstructBeaconTrigger.trigger(player, level). */
+    public void triggerConstructBeacon(int level) { trigger("minecraft:construct_beacon", level); }
+
+    /** EnchantedItemTrigger.trigger(player, item, levels). */
+    public void triggerEnchanted(org.domi.furnace.server.loot.LootStack item, int levels) {
+        trigger("minecraft:enchanted_item", new Criterion.ItemIntEvent(item, levels));
+    }
+
+    /** BrewedPotionTrigger.trigger(player, potion). potion 은 "minecraft:..." id. */
+    public void triggerBrewed(String potion) { trigger("minecraft:brewed_potion", potion); }
+
+    /** CuredZombieVillagerTrigger.trigger(player, zombie, villager). */
+    public void triggerCured(org.domi.furnace.server.loot.LootEntity zombie, org.domi.furnace.server.loot.LootEntity villager) {
+        if (!hasListeners("minecraft:cured_zombie_villager")) return;
+        LootContext pc = host.playerContext();
+        trigger("minecraft:cured_zombie_villager", new Criterion.CuredEvent(entityContext(pc, zombie), entityContext(pc, villager)));
+    }
+
+    /** ItemDurabilityTrigger.trigger(player, stack, newDamage). */
+    public void triggerDurability(org.domi.furnace.server.loot.LootStack item, int newDamage) {
+        trigger("minecraft:item_durability_changed", new Criterion.ItemIntEvent(item, newDamage));
+    }
+
+    /** UsingItemTrigger.trigger(player, stack). */
+    public void triggerItem(String trigger, org.domi.furnace.server.loot.LootStack item) { trigger(trigger, item); }
+
+    /**
+     * levitation·nether_travel·fall_from_height·ride_entity_in_lava·fall_after_explosion.
+     * @param now 지금 플레이어 위치, cause 는 fall_after_explosion 의 폭발 원인(없으면 null)
+     */
+    public void triggerMoved(String trigger, double[] start, double[] now, int duration, org.domi.furnace.server.loot.LootEntity cause) {
+        if (!hasListeners(trigger)) return;
+        LootContext pc = host.playerContext();
+        trigger(trigger, new Criterion.MovedEvent(start, now, pc, duration, ctxOrNull(pc, cause)));
+    }
+
+    /** PlayerHurtEntityTrigger.trigger(player, victim, source, dealt, taken, blocked). */
+    public void triggerHurtEntity(org.domi.furnace.server.loot.LootEntity victim, org.domi.furnace.server.loot.LootDamageSource source,
+                                  float dealt, float taken, boolean blocked) {
+        if (!hasListeners("minecraft:player_hurt_entity")) return;
+        LootContext pc = host.playerContext();
+        trigger("minecraft:player_hurt_entity", new Criterion.HurtEvent(entityContext(pc, victim), pc,
+                pc.param(org.domi.furnace.server.loot.LootParams.ORIGIN), source, dealt, taken, blocked));
+    }
+
+    /** EntityHurtPlayerTrigger.trigger(player, source, dealt, taken, blocked). */
+    public void triggerEntityHurtPlayer(org.domi.furnace.server.loot.LootDamageSource source, float dealt, float taken, boolean blocked) {
+        if (!hasListeners("minecraft:entity_hurt_player")) return;
+        LootContext pc = host.playerContext();
+        trigger("minecraft:entity_hurt_player", new Criterion.HurtEvent(null, pc,
+                pc.param(org.domi.furnace.server.loot.LootParams.ORIGIN), source, dealt, taken, blocked));
+    }
+
+    /** FishingRodHookedTrigger.trigger(player, rod, hook, loot): hooked = 낚시찌에 걸린 엔티티(없으면 낚시찌 자신이 아니라 null 불가 — 호출 쪽이 넘긴다). */
+    public void triggerFishing(org.domi.furnace.server.loot.LootStack rod, org.domi.furnace.server.loot.LootEntity hooked,
+                               org.domi.furnace.server.loot.LootStack hookedItem, List<org.domi.furnace.server.loot.LootStack> loot) {
+        if (!hasListeners("minecraft:fishing_rod_hooked")) return;
+        trigger("minecraft:fishing_rod_hooked", new Criterion.FishingEvent(rod, entityContext(host.playerContext(), hooked), hookedItem, loot));
+    }
+
+    /** ChanneledLightningTrigger / KilledByCrossbowTrigger: 피해자 목록(killed_by_crossbow 는 서로 다른 종류 수까지 센다). */
+    public void triggerVictims(String trigger, List<org.domi.furnace.server.loot.LootEntity> victims) {
+        if (!hasListeners(trigger)) return;
+        LootContext pc = host.playerContext();
+        List<LootContext> ctxs = new ArrayList<>();
+        HashSet<String> types = new HashSet<>();
+        for (var v : victims) {
+            ctxs.add(entityContext(pc, v));
+            types.add(v.type());
+        }
+        trigger(trigger, new Criterion.VictimsEvent(ctxs, types.size()));
+    }
+
+    /** TargetBlockTrigger.trigger(player, projectile, hitPos, signal). */
+    public void triggerTargetHit(org.domi.furnace.server.loot.LootEntity projectile, int signal) {
+        if (!hasListeners("minecraft:target_hit")) return;
+        trigger("minecraft:target_hit", new Criterion.TargetHitEvent(entityContext(host.playerContext(), projectile), signal));
+    }
+
+    /** PickedUpItemTrigger / PlayerInteractTrigger: (player, stack, entity). entity 는 null 일 수 있다. */
+    public void triggerItemEntity(String trigger, org.domi.furnace.server.loot.LootStack item, org.domi.furnace.server.loot.LootEntity entity) {
+        if (!hasListeners(trigger)) return;
+        trigger(trigger, new Criterion.ItemEntityEvent(item, ctxOrNull(host.playerContext(), entity)));
+    }
+
+    /** LightningStrikeTrigger.trigger(player, lightning, bystanders). */
+    public void triggerLightning(org.domi.furnace.server.loot.LootEntity lightning, List<org.domi.furnace.server.loot.LootEntity> bystanders) {
+        if (!hasListeners("minecraft:lightning_strike")) return;
+        LootContext pc = host.playerContext();
+        List<LootContext> bs = new ArrayList<>();
+        for (var b : bystanders) bs.add(entityContext(pc, b));
+        trigger("minecraft:lightning_strike", new Criterion.LightningEvent(entityContext(pc, lightning), bs));
+    }
+
+    /** BeeNestDestroyedTrigger.trigger(player, state, tool, bees). */
+    public void triggerBeeNest(org.domi.furnace.server.loot.LootBlockState block, org.domi.furnace.server.loot.LootStack tool, int bees) {
+        trigger("minecraft:bee_nest_destroyed", new Criterion.BeeEvent(block, tool, bees));
+    }
+
+    /** SlideDownBlockTrigger.trigger(player, state). */
+    public void triggerBlockState(String trigger, org.domi.furnace.server.loot.LootBlockState block) { trigger(trigger, block); }
+
+    /** PlayerTrigger 계열 container loot: (player, lootTable id). */
+    public void triggerContainerLoot(String table) { trigger("minecraft:player_generates_container_loot", table); }
+
+    /** EffectsChangedTrigger.trigger(player, source). */
+    public void triggerEffectsChanged(org.domi.furnace.server.loot.LootEntity source) {
+        if (!hasListeners("minecraft:effects_changed")) return;
+        LootContext pc = host.playerContext();
+        trigger("minecraft:effects_changed", new Criterion.EffectsEvent(pc, ctxOrNull(pc, source)));
+    }
+
     /** 바닐라 EntityPredicate.createContext(player, entity): this_entity = 상대, origin = 플레이어 위치. */
     private static LootContext entityContext(LootContext pc, org.domi.furnace.server.loot.LootEntity entity) {
         var params = new org.domi.furnace.server.loot.LootParams()
@@ -347,9 +487,56 @@ public final class PlayerAdvancements {
     /**
      * 플레이어 틱 하나 — 바닐라 doTick 의 location(20틱마다, 다음 틱에 보내진다)과 ServerPlayer.tick 끝의 tick 트리거·flushDirty.
      */
-    public void tickPlayer() {
+    public void tickPlayer() { tickPlayer(null); }
+
+    /**
+     * 플레이어가 이동·상태 기록에 쓰는 한 틱의 값(ServerPlayer.tick 끝에서 보는 것들).
+     * @param vehicleLava 0 = 탈것 없음, 1 = 탈것이 용암 속, -1 = 탈것이 용암 밖
+     * @param impulsePos 현재 충격(폭발) 위치(없으면 null), impulseCause 그 원인
+     */
+    public record TickState(double[] pos, int tickCount, boolean levitating, float fallDistance, boolean alive, int vehicleLava,
+                            double[] impulsePos, org.domi.furnace.server.loot.LootEntity impulseCause) {}
+
+    // 바닐라 ServerPlayer 의 levitationStartPos / startingToFallPosition / enteredLavaOnVehiclePosition (소유 region 스레드에서만 바꾼다)
+    private double[] levitationStart;
+    private int levitationStartTick;
+    private double[] fallStart;
+    private double[] lavaStart;
+
+    /**
+     * 틱 하나: location(20틱마다), tick, 그 뒤 ServerPlayer.tick 순서대로 levitation → trackStartFallingPosition → trackEnteredOrExitedLavaOnVehicle,
+     * flushDirty. 차이(가정): 효과를 건 순간이 아니라 틱 끝에서 시작 위치를 잡고, fall_from_height 는 resetFallDistance 호출 순간이 아니라
+     * 다음 틱 끝에서 낙하 거리가 0 이 된 것을 보고 부른다.
+     */
+    public void tickPlayer(TickState st) {
         if (++ticks % 20 == 0) trigger("minecraft:location", null);
         trigger("minecraft:tick", null);
+        if (st != null) {
+            if (st.levitating()) {
+                if (levitationStart == null) {
+                    levitationStart = st.pos().clone();
+                    levitationStartTick = st.tickCount();
+                }
+                triggerMoved("minecraft:levitation", levitationStart, st.pos(), st.tickCount() - levitationStartTick, null);
+            } else {
+                levitationStart = null;
+            }
+            if (fallStart != null && st.fallDistance() <= 0.0F) {   // resetFallDistance: 살아 있을 때만 fall_from_height
+                if (st.alive()) triggerMoved("minecraft:fall_from_height", fallStart, st.pos(), 0, null);
+                fallStart = null;
+            }
+            if (st.fallDistance() > 0.0F && fallStart == null) {
+                fallStart = st.pos().clone();
+                if (st.impulsePos() != null && st.impulsePos()[1] <= st.pos()[1]) {
+                    triggerMoved("minecraft:fall_after_explosion", st.impulsePos(), st.pos(), 0, st.impulseCause());
+                }
+            }
+            if (st.vehicleLava() == 1) {
+                if (lavaStart == null) lavaStart = st.pos().clone();
+                else triggerMoved("minecraft:ride_entity_in_lava", lavaStart, st.pos(), 0, null);
+            }
+            if (lavaStart != null && st.vehicleLava() != 1) lavaStart = null;
+        }
         flushDirty();
     }
 

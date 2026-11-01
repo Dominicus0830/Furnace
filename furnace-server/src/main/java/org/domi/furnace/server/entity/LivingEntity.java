@@ -46,6 +46,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return level.gameTime() - lastDamageStamp > 40L ? null : lastDamageAttacker;
     }
 
+    /** getKillCredit: 마지막으로 때린 플레이어(없으면 마지막으로 때린 몹). */
+    public Targetable getKillCredit() { return lastHurtByPlayer != null ? lastHurtByPlayer : lastHurtByMob; }
+
     /** getLastDamageSource(): 최근 40틱 안에 입은 피해의 종류(없으면 null). */
     public String getLastDamageType() {
         return level.gameTime() - lastDamageStamp > 40L ? null : lastDamageType;
@@ -201,6 +204,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (isSleeping()) stopSleeping();
         noActionTime = 0;
         if (amount < 0.0F) amount = 0.0F;
+        final float dealt = amount;   // 발전 과제 player_hurt_entity·entity_hurt_player 의 dealt(막기 전 피해)
         boolean blocked = false;
         Entity srcEntity = pendingDirect != null ? pendingDirect : attacker instanceof Entity ae ? ae : null;
         if (amount > 0.0F && Shields.isDamageSourceBlocked(isBlocking(), yRot(), x(), z(), pendingPos != null ? new Shields.Source(source.type(), true, pendingPos[0], pendingPos[2], attacker, false, false, null)
@@ -268,6 +272,16 @@ public abstract class LivingEntity extends Entity implements Targetable {
             }
         } else if (fresh) {
             playHurtSound(source);
+        }
+        if (attacker instanceof Player ap && ap.advancements() != null && ap.advancements().hasListeners("minecraft:player_hurt_entity")) {
+            // 바닐라: 끝에서 source.getEntity() 가 플레이어면 player_hurt_entity(dealt, taken, blocked) — 듣는 조건이 있을 때만 값을 뜬다
+            var victim = KillCredit.lootOf(this);
+            Rider causing = attacker instanceof Rider r ? r : null;
+            Rider direct = pendingDirect != null ? pendingDirect : pendingDirectId == -2 ? null : causing;
+            var dmg = KillCredit.source(source.type(), causing, direct);
+            final float taken = amount;
+            final boolean wasBlocked = blocked;
+            ap.triggerAdvancement(a -> a.triggerHurtEntity(victim, dmg, dealt, taken, wasBlocked));
         }
         return !blocked;
     }
@@ -776,14 +790,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     /** 전리품 조건이 보는 이 엔티티. */
-    public org.domi.furnace.server.loot.LootEntity lootEntity() {
-        return new org.domi.furnace.server.loot.LootEntity() {
-            public String type() { return LivingEntity.this.type.name(); }
-            public boolean isOnFire() { return LivingEntity.this.isOnFire(); }
-            public boolean onGround() { return LivingEntity.this.onGround(); }
-            public double[] position() { return new double[]{x(), y(), z()}; }
-        };
-    }
+    public org.domi.furnace.server.loot.LootEntity lootEntity() { return LootEntities.of(this); }
 
     protected void tickDeath() {
         deathTime++;

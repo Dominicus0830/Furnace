@@ -162,14 +162,15 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private org.domi.furnace.server.attribute.AttributeMap attributes;
 
     /**
-     * 바닐라 Player.createAttributes 의 속성 목록(/attribute 용). 차이: 이 맵의 값은 아직 전투·이동 계산에 쓰이지 않고(방어/방어 인성만
-     * 장비 수정자를 달아 클라이언트로 보낸다 — syncArmorAttributes), 플레이어 능력치는 PlayerVitals 등이 따로 들고 있다.
+     * 바닐라 Player.createAttributes 의 속성 목록. 장비·효과·달리기 수정자는 syncAttributes 가 매 틱 맞추고, 바뀐 속성만
+     * update_attributes 로 본인과 보는 사람에게 간다. 최대 체력·산소 보너스는 PlayerVitals 로 넘겨 쓴다(syncAttributes).
+     * 공격력·채굴 속도 같은 계산은 PlayerAttributes.value 가 같은 수정자 함수(modifiers)로 직접 합성한다.
      */
     public synchronized org.domi.furnace.server.attribute.AttributeMap attributes() {
         if (attributes == null) {
             var m = new org.domi.furnace.server.attribute.AttributeMap();
             m.add(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, 20.0).add(org.domi.furnace.server.attribute.Attribute.KNOCKBACK_RESISTANCE, 0.0)
-                    .add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, 0.7).add(org.domi.furnace.server.attribute.Attribute.ARMOR, 0.0)
+                    .add(org.domi.furnace.server.attribute.Attribute.ATTACK_KNOCKBACK, 0.0).add(org.domi.furnace.server.attribute.Attribute.ARMOR, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.ARMOR_TOUGHNESS, 0.0).add(org.domi.furnace.server.attribute.Attribute.MAX_ABSORPTION, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.STEP_HEIGHT, 0.6).add(org.domi.furnace.server.attribute.Attribute.SCALE, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.GRAVITY, 0.08).add(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE, 3.0)
@@ -177,7 +178,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                     .add(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS, 0.0).add(org.domi.furnace.server.attribute.Attribute.BURNING_TIME, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_EFFICIENCY, 0.0)
-                    .add(org.domi.furnace.server.attribute.Attribute.ATTACK_DAMAGE, 1.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, (double) 0.1F)
+                    .add(org.domi.furnace.server.attribute.Attribute.ATTACK_DAMAGE, 1.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED, PlayerAttributes.base(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED))
                     .add(org.domi.furnace.server.attribute.Attribute.ATTACK_SPEED, 4.0).add(org.domi.furnace.server.attribute.Attribute.LUCK, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.BLOCK_INTERACTION_RANGE, 4.5).add(org.domi.furnace.server.attribute.Attribute.ENTITY_INTERACTION_RANGE, 3.0)
                     .add(org.domi.furnace.server.attribute.Attribute.BLOCK_BREAK_SPEED, 1.0).add(org.domi.furnace.server.attribute.Attribute.SUBMERGED_MINING_SPEED, 0.2)
@@ -471,6 +472,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private volatile org.domi.furnace.server.advancement.PlayerAdvancements advancements;
 
+    /** 바닐라 enteredNetherPosition: 오버월드에서 네더로 들어갈 때의 오버월드 위치(nether_travel 거리 기준). 아니면 null. */
+    public volatile double[] enteredNetherPosition;
+
     /** 발전 과제 진행(바닐라 ServerPlayer.getAdvancements). 데이터 팩 없이 뜬 서버면 null. */
     public org.domi.furnace.server.advancement.PlayerAdvancements advancements() { return advancements; }
 
@@ -534,7 +538,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     @Override public int id() { return entityId; }
 
     /** 눈 높이: 잠(SLEEPING_DIMENSIONS) 0.2, 웅크림 1.27, 서기 1.62. */
-    @Override public double eyeY() { return y + (fallFlying ? 0.4 : sleepingPos != null ? 0.2 : isSwimPose() ? 0.4 : isCrouchPose() ? 1.27 : 1.62); }
+    @Override public double eyeY() { return y + (fallFlying ? 0.4 : sleepingPos != null ? 0.2 : isSwimPose() || autoSpinAttackTicks > 0 ? 0.4 : isCrouchPose() ? 1.27 : 1.62); }
 
     /**
      * 서버가 계산하는 자세(Player.updatePlayerPose) — 소유 region 이 매 틱 정한다.
@@ -678,6 +682,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             boolean armorItem = name.endsWith("_helmet") || name.endsWith("_chestplate") || name.endsWith("_leggings") || name.endsWith("_boots");
             if (!armorItem || !org.domi.furnace.server.item.ItemTools.isDamageable(stack)) continue;
             int nd = org.domi.furnace.server.item.ItemTools.damage(stack) + n;
+            AdvTriggers.durability(this, stack, nd);
             if (nd >= org.domi.furnace.server.item.ItemTools.maxDamage(stack)) {
                 inventory.set(ws, ItemStack.EMPTY);
                 var ev = new org.domi.furnace.server.net.protocol.play.EntityEvent(entityId, (byte) (49 + i));
@@ -938,52 +943,87 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             pairingEquipmentSnap = buildPairingEquipment();
             vitals.broadcastToTrackers(new org.domi.furnace.server.net.protocol.play.SetEquipment(entityId, changes));
         }
-        syncArmorAttributes();
+        syncAttributes();
     }
 
-    // 바닐라 detectEquipmentUpdates 의 속성 수정자 갈아 끼우기 + ServerEntity.sendChanges 의 update_attributes(본인 포함).
-    // 클라이언트의 방어구 아이콘은 generic.armor 속성에서 읽는다. 다른 속성은 플레이어 맵이 아직 계산에 쓰이지 않아 보내지 않는다.
+    // 바닐라 detectEquipmentUpdates 의 속성 수정자 갈아 끼우기(+ 효과 추가/제거·달리기 설정) + ServerEntity.sendChanges 의 update_attributes(본인 포함).
+    // 입장(리스폰) 첫 동기엔 syncable 전부, 이후엔 바뀐 속성만 보낸다. 수정자 목록은 PlayerAttributes.modifiers 한 곳에서 나온다.
     private final ItemStack[] attributeEquipment = new ItemStack[EquipmentSlot.values().length];
     { java.util.Arrays.fill(attributeEquipment, ItemStack.EMPTY); }
     private volatile boolean armorAttributesSent;
-    private double sentArmor, sentToughness;
+    private boolean attributeInputsKnown;
+    private java.util.List<Object> lastEffectSignature = java.util.List.of();
+    private boolean lastSprintForAttributes;
+    /** 이 동기가 단 수정자 id(속성별) — /attribute 로 사람이 단 수정자는 건드리지 않으려고 따로 기억한다. */
+    private final java.util.Map<org.domi.furnace.server.attribute.Attribute, java.util.Set<String>> managedModifiers = new java.util.HashMap<>();
+    private volatile org.domi.furnace.server.net.protocol.play.UpdateAttributes pairingAttributesSnap;
+    private int lastLocationVersion = -1;
+    /** 위치 변화 인챈트(영혼 가속·서리 걸음)의 상태 — region 스레드 전용. */
+    public final PlayerLocationEffects.State locationEffects = new PlayerLocationEffects.State();
 
-    /** 리스폰·차원 이동으로 클라이언트가 새 플레이어를 만들었다 — 다음 동기에 방어 속성을 다시 보낸다. */
+    /** 리스폰·차원 이동으로 클라이언트가 새 플레이어를 만들었다 — 다음 동기에 속성을 전부 다시 보낸다. */
     public void markArmorAttributesResend() { armorAttributesSent = false; }
 
-    /** region 스레드 전용. 바뀐 칸의 방어 수정자를 갈아 끼우고, 방어/방어 인성이 달라졌거나 처음이면 본인과 보는 사람에게 보낸다. */
-    public void syncArmorAttributes() {
+    /** 다른 region 스레드가 페어링 때 읽는 syncable 속성 스냅샷(불변 사본). 아직 동기 전이면 null. */
+    public org.domi.furnace.server.net.protocol.play.UpdateAttributes pairingAttributes() { return pairingAttributesSnap; }
+
+    /**
+     * region 스레드 전용. 장비·효과·달리기가 바뀌었으면 맵의 수정자를 맞추고, 최대 체력·산소 보너스를 PlayerVitals 로 넘기고,
+     * 바뀐 속성(처음이면 syncable 전부)을 본인과 보는 사람에게 보낸다.
+     */
+    public void syncAttributes() {
         var map = attributes();
+        boolean changed = !attributeInputsKnown;
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack cur = equipment(slot), last = attributeEquipment[slot.ordinal()];
             if (cur.equals(last) || cur.isEmpty() && last.isEmpty()) continue;
             attributeEquipment[slot.ordinal()] = cur;
-            for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(last)) {
-                if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
-                var a = org.domi.furnace.server.attribute.Attribute.byName(e.type());
-                var inst = a == null ? null : map.get(a);
-                if (inst != null) inst.removeModifier(e.id());
-            }
-            for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(cur)) {
-                if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
-                var a = org.domi.furnace.server.attribute.Attribute.byName(e.type());
-                var inst = a == null ? null : map.get(a);
-                if (inst != null) {
-                    inst.removeModifier(e.id());
-                    inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier(e.id(), e.amount(),
-                            org.domi.furnace.server.attribute.AttributeModifier.operationOf(e.operation())));
-                }
-            }
+            changed = true;
         }
-        var armor = map.get(org.domi.furnace.server.attribute.Attribute.ARMOR);
-        var toughness = map.get(org.domi.furnace.server.attribute.Attribute.ARMOR_TOUGHNESS);
-        if (armorAttributesSent && armor.value() == sentArmor && toughness.value() == sentToughness) return;
+        java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects = vitals.activeEffects();
+        java.util.List<Object> sig = new java.util.ArrayList<>(effects.size() * 2);
+        for (var e : effects) { sig.add(e.effect()); sig.add(e.amplifier()); }
+        boolean sprint = sprinting;
+        if (!sig.equals(lastEffectSignature) || sprint != lastSprintForAttributes || locationEffects.version() != lastLocationVersion) changed = true;
+        if (changed) {
+            lastEffectSignature = sig;
+            lastSprintForAttributes = sprint;
+            lastLocationVersion = locationEffects.version();
+            attributeInputsKnown = true;
+            reconcileModifiers(map, effects, sprint);
+        }
+        pushVitalsInputs(map, effects);
+        boolean first = !armorAttributesSent;
+        java.util.List<org.domi.furnace.server.attribute.AttributeInstance> out = first ? map.syncable() : map.takeDirty();
+        if (first) map.takeDirty();
+        if (out.isEmpty()) return;
         armorAttributesSent = true;
-        sentArmor = armor.value();
-        sentToughness = toughness.value();
-        var pkt = new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entityId, java.util.List.of(armor, toughness));
+        var pkt = org.domi.furnace.server.net.protocol.play.UpdateAttributes.snapshot(entityId, out);
+        pairingAttributesSnap = first ? pkt : org.domi.furnace.server.net.protocol.play.UpdateAttributes.snapshot(entityId, map.syncable());
         send(pkt);
         vitals.broadcastToTrackers(pkt);
+    }
+
+    /** 속성마다 원하는 수정자(PlayerAttributes.modifiers)와 맵을 맞춘다. 같은 수정자는 그대로 둬 바뀜 표시가 서지 않는다. */
+    private void reconcileModifiers(org.domi.furnace.server.attribute.AttributeMap map, java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects, boolean sprint) {
+        for (var inst : map.all()) {
+            var attr = inst.attribute();
+            var want = PlayerAttributes.modifiers(attr, attributeEquipment, effects, sprint, locationEffects.modifiers(attr));
+            var had = managedModifiers.get(attr);
+            if (had != null) for (String id : had) if (!want.containsKey(id)) inst.removeModifier(id);
+            for (var m : want.values()) if (!m.equals(inst.getModifier(m.id()))) inst.addOrReplaceModifier(m);
+            if (want.isEmpty()) managedModifiers.remove(attr);
+            else managedModifiers.put(attr, new java.util.HashSet<>(want.keySet()));
+        }
+    }
+
+    /** 최대 체력(기본값 + 효과 밖 수정자)과 산소 보너스를 PlayerVitals 가 쓰도록 넘기고, 최대 체력이 줄었으면 체력을 자른다. */
+    private void pushVitalsInputs(org.domi.furnace.server.attribute.AttributeMap map, java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects) {
+        var hp = map.get(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH);
+        var fromEffects = PlayerAttributes.effectModifiers(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, effects).keySet();
+        java.util.List<org.domi.furnace.server.attribute.AttributeModifier> extra = new java.util.ArrayList<>();
+        for (var m : hp.modifiers().values()) if (!fromEffects.contains(m.id())) extra.add(m);
+        vitals.attributeInputs(hp.baseValue(), extra, map.value(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS));
     }
 
     /** 다른 region 스레드가 페어링 때 읽는 불변 스냅샷(소유 스레드가 동기 직후 공개). */
@@ -996,6 +1036,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void markEntityDataResend() {
         resendEntityData = true;
         armorAttributesSent = false;
+        runOnOwner(() -> PlayerLocationEffects.reset(this));   // 새 엔티티: 위치 효과 상태도 처음부터
         runOnOwner(() -> ElytraFlight.resetForRespawn(this));   // 새 엔티티: 겉날개 상태는 소유 스레드에서 지운다
     }
 
@@ -1077,6 +1118,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         var r = ownerRegion;
         if (r != null && ownerTasks.isEmpty() && r.ownsPlayer(this)) task.run();
         else ownerTasks.add(task);
+    }
+
+    /**
+     * 발전 과제 트리거를 플레이어 주인 스레드에서 부른다(발전 과제가 없는 서버면 아무것도 안 한다).
+     * 호출 쪽 스레드에서만 볼 수 있는 값(상대 엔티티 등)은 람다 밖에서 {@code KillCredit.lootOf} 로 떠서 넘긴다.
+     */
+    public void triggerAdvancement(java.util.function.Consumer<org.domi.furnace.server.advancement.PlayerAdvancements> f) {
+        if (advancements == null) return;
+        runOnOwner(() -> {
+            var a = advancements;
+            if (a != null) f.accept(a);
+        });
     }
 
     /** 주인 region 이 플레이어 틱마다 부른다. */

@@ -3,6 +3,10 @@
 // 양동이로 뜨기는 BucketPickup. 블록 동작은 그 밖에 없다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Shape;
+
+import org.domi.furnace.server.block.BlockActor;
+
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -20,4 +24,8 @@ public class PowderSnowBlock extends BlockBehavior {
         if (entity.isOnFire() && level.gameRule("mobGriefing") && entity.mayInteract(level, pos)) level.destroyBlock(pos, false);
         entity.setSharedFlagOnFire(false);
     }
+
+    /** getVisualShape: 빈 모양. */
+    @Override
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return Shape.EMPTY; }
 }

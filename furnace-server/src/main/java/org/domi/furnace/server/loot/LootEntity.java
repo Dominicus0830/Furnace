@@ -29,4 +29,39 @@ public interface LootEntity {
     default Object typeSpecific(String key) { return null; }
 
     default float luck() { return 0.0f; }
+
+    /** 걸린 상태 효과(효과 id → 상태). 없으면 빈 맵. */
+    default java.util.Map<String, Effect> effects() { return java.util.Map.of(); }
+
+    /** 상태 효과 한 개의 값(EntityEffectPredicate.MobEffectInstancePredicate 가 보는 것). */
+    record Effect(int amplifier, int duration, boolean ambient, boolean visible) {}
+
+    /** 저장 NBT(NbtPredicate.getEntityTagToCompare — saveWithoutId + 플레이어는 SelectedItem). 모르면 null. */
+    default org.domi.furnace.server.net.io.nbt.NbtCompound nbt() { return null; }
+
+    default LootEntity vehicle() { return null; }
+
+    default java.util.List<LootEntity> passengers() { return java.util.List.of(); }
+
+    /** Mob.getTarget(). 몹이 아니거나 없으면 null. */
+    default LootEntity targetedEntity() { return null; }
+
+    /** 서 있는 칸 중심 위치(Vec3.atCenterOf(getOnPos)). */
+    default double[] steppingOnPos() { return null; }
+
+    /** 이동에 영향을 주는 아래 칸의 아래 중앙(Vec3.atBottomCenterOf(getBlockPosBelowThatAffectsMyMovement)). */
+    default double[] movementAffectedByPos() { return null; }
+
+    /** 속도(블록/틱). 모르면 null. */
+    default double[] velocity() { return null; }
+
+    default float fallDistance() { return 0.0f; }
+
+    /** 팀 이름. 없으면 null. */
+    default String team() { return null; }
+
+    /** 슬롯 범위 이름(weapon.mainhand, container.0 …)의 칸 스택 목록. 모르는 이름이면 빈 목록. */
+    default java.util.List<LootStack> slotItems(String range) { return java.util.List.of(); }
+
+    default int tickCount() { return 0; }
 }

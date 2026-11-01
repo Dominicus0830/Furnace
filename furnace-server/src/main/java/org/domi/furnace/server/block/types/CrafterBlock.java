@@ -2,7 +2,7 @@
 // 앞에 용기가 있으면 깔때기 규칙으로 넣고(제작기거나 결과가 용기 한도를 넘으면 한 개씩), 남으면 아이템으로 쏘아 낸다(속도 6, levelEvent 1049·2010).
 // 남은 재료(양동이 등)도 같은 방식으로 내보낸 뒤 칸마다 하나씩 줄인다. 제작하면 crafting=true 를 6틱 동안.
 // 우클릭하면 제작기 화면(CrafterMenu, crafter_3x3)을 연다.
-// TODO(발전 과제): 17×17×17 안 플레이어에게 crafter_recipe_crafted.
+// 월드에 내놓은 아이템마다 17×17×17 안 플레이어에게 crafter_recipe_crafted(레시피, 만들 때의 재료 칸들).
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.B;
@@ -116,9 +116,12 @@ public class CrafterBlock extends BaseEntityBlock {
         be.setCraftingTicksRemaining(6);
         level.setBlock(pos, CRAFTING.with(state, true), 2);
         result = org.domi.furnace.server.map.MapItems.postProcess(result);   // onCraftedBySystem
-        dispenseItem(level, pos, be, result, state);
+        var ingredients = new java.util.ArrayList<org.domi.furnace.server.loot.LootStack>();   // 바닐라 getItems(): 줄이기 전 아홉 칸
+        for (ItemStack s : be.items) ingredients.add(org.domi.furnace.server.ServerCore.lootStackOf(s));
+        var recipeId = entry.id();
+        dispenseItem(level, pos, be, result, state, recipeId, ingredients);
         for (ItemStack rest : rm.remainingItems(input)) {
-            if (!rest.isEmpty()) dispenseItem(level, pos, be, rest, state);
+            if (!rest.isEmpty()) dispenseItem(level, pos, be, rest, state, recipeId, ingredients);
         }
         for (int i = 0; i < be.items.length; i++) {
             ItemStack s = be.items[i];
@@ -127,7 +130,8 @@ public class CrafterBlock extends BaseEntityBlock {
         be.setChanged(level);
     }
 
-    private static void dispenseItem(BlockLevel level, Pos pos, CrafterBlockEntity be, ItemStack stack, int state) {
+    private static void dispenseItem(BlockLevel level, Pos pos, CrafterBlockEntity be, ItemStack stack, int state,
+                                     org.domi.furnace.server.data.ResourceId recipeId, java.util.List<org.domi.furnace.server.loot.LootStack> ingredients) {
         int dir = front(state);
         HopperBlockEntity.Inv target = HopperBlockEntity.getContainerAt(level, pos.relative(dir));
         HopperBlockEntity.Inv self = null;   // addItem 의 원천(깔때기 쿨다운 판정에만 쓰인다 — 제작기는 깔때기가 아니다)
@@ -149,6 +153,10 @@ public class CrafterBlock extends BaseEntityBlock {
         if (!copy.isEmpty()) {
             double x = pos.x() + 0.5 + Dir.DX[dir] * 0.7, y = pos.y() + 0.5 + Dir.DY[dir] * 0.7, z = pos.z() + 0.5 + Dir.DZ[dir] * 0.7;
             spawnItem(level, copy, 6, dir, x, y, z);
+            var box = org.domi.furnace.server.entity.AABB.of(pos.x() + 0.5 - 8.5, pos.y() + 0.5 - 8.5, pos.z() + 0.5 - 8.5,
+                    pos.x() + 0.5 + 8.5, pos.y() + 0.5 + 8.5, pos.z() + 0.5 + 8.5);
+            level.forEachPlayerIn(box, p -> p.triggerAdvancement(a ->
+                    a.trigger("minecraft:crafter_recipe_crafted", new org.domi.furnace.server.advancement.Criterion.RecipeCraftedEvent(recipeId, ingredients))));
             level.levelEvent(null, 1049, pos, 0);
             level.levelEvent(null, 2010, pos, dir);
         }

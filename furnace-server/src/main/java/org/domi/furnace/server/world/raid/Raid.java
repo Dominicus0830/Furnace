@@ -276,7 +276,7 @@ public final class Raid {
         raidOmenLevel = Math.max(0, Math.min(raidOmenLevel, MAX_RAID_OMEN_LEVEL));
         if (!hasFirstWaveSpawned()) {
             p.awardStat("minecraft:raid_trigger", 1);
-            // TODO(발전 과제): CriteriaTriggers.RAID_OMEN.trigger(player)
+            p.triggerAdvancement(a -> a.triggerPlayerOnly("minecraft:voluntary_exile"));   // 바닐라 VOLUNTARY_EXILE
         }
         return true;
     }
@@ -364,7 +364,7 @@ public final class Raid {
                         if (p != null && !p.isSpectator()) {
                             p.vitals().addEffect(new MobEffectInstance(MobEffect.HERO_OF_THE_VILLAGE, 48000, raidOmenLevel - 1, false, false, true));
                             p.awardStat("minecraft:raid_win", 1);
-                            // TODO(발전 과제): CriteriaTriggers.RAID_WIN.trigger(player)
+                            p.triggerAdvancement(a -> a.triggerPlayerOnly("minecraft:hero_of_the_village"));   // 바닐라 HERO_OF_THE_VILLAGE
                         }
                     }
                 }

@@ -109,7 +109,10 @@ public class BeaconBlockEntity extends BlockEntity {
             boolean active = levels > 0;
             if (!wasActive && active) {
                 level.playSound(null, pos, "minecraft:block.beacon.activate", "blocks", 1.0F, 1.0F);
-                // TODO(발전 과제): 근처 플레이어에게 construct_beacon 조건 발동.
+                // 바닐라: AABB(x, y, z, x, y-4, z).inflate(10, 5, 10) 안 플레이어에게 construct_beacon(단수)
+                int lv = levels;
+                level.forEachPlayerIn(AABB.of(pos.x(), pos.y() - 4, pos.z(), pos.x(), pos.y(), pos.z()).inflate(10.0, 5.0, 10.0),
+                        pl -> pl.triggerAdvancement(a -> a.triggerConstructBeacon(lv)));
             } else if (wasActive && !active) {
                 level.playSound(null, pos, "minecraft:block.beacon.deactivate", "blocks", 1.0F, 1.0F);
             }

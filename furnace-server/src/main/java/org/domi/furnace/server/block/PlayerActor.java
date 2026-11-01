@@ -32,7 +32,7 @@ public class PlayerActor implements BlockActor {
     @Override public double x() { return player.x(); }
     @Override public double y() { return player.y(); }
     @Override public double z() { return player.z(); }
-    @Override public double eyeHeight() { return player.sneaking() ? 1.27 : 1.62; }
+    @Override public double eyeHeight() { return player.eyeY() - player.y(); }
     @Override public boolean isSecondaryUseActive() { return player.sneaking(); }
     @Override public boolean mayBuild() { return player.vitals().mayBuild(); }
     @Override public boolean canEat(boolean ignoreHunger) { return player.vitals().canEat(ignoreHunger); }
@@ -51,6 +51,7 @@ public class PlayerActor implements BlockActor {
 
     @Override public Object handle() { return player; }
     @Override public java.util.UUID uuid() { return player.uuid(); }
+    @Override public float luck() { return (float) org.domi.furnace.server.entity.PlayerAttributes.value(player, org.domi.furnace.server.attribute.Attribute.LUCK); }
 
     @Override
     public void openTextEdit(Pos pos, int state, boolean front) {
@@ -66,6 +67,11 @@ public class PlayerActor implements BlockActor {
     @Override public boolean isOnCooldown(int itemId) { return player.isOnCooldown(itemId); }
     @Override public void addCooldown(int itemId, int ticks) { player.addCooldown(itemId, ticks); }
     @Override public double[] knownMovement() { return player.knownMovement(); }
+    @Override public void openBook(int hand) { player.send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand)); }
+    @Override public void startUsingItem(int hand, int ticks) {
+        player.usingHand = hand;
+        player.usingTicks = ticks;
+    }
     @Override public boolean onGround() { return player.onGround(); }
     @Override public java.util.List<org.domi.furnace.server.effect.MobEffectInstance> activeEffects() { return player.vitals().activeEffects(); }
 

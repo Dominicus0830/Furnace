@@ -183,7 +183,7 @@ public abstract class BaseSpawner {
     }
 
     /** EntityType.loadEntityRecursive(tag, level, e → moveTo(x, y, z, 자기 회전)). 태그가 id 뿐이면 load 는 건너뛴다(같은 결과). */
-    private static Entity loadEntity(ChunkLevel level, NbtCompound tag, String id, double x, double y, double z) {
+    static Entity loadEntity(ChunkLevel level, NbtCompound tag, String id, double x, double y, double z) {
         Entity e;
         try {
             e = org.domi.furnace.server.entity.Entities.create(level, id);

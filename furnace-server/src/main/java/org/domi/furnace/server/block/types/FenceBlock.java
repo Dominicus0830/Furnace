@@ -1,6 +1,8 @@
 // 바닐라 FenceBlock: 울타리. 단단한 면(연결 예외 블록 제외)·같은 계열 울타리(나무끼리·네더 벽돌끼리)·옆으로 선 울타리 문에 붙는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Shape;
+
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -60,4 +62,8 @@ public class FenceBlock extends CrossCollisionBlock {
         }
         return super.updateShape(state, dir, neighborState, level, pos, neighborPos);
     }
+
+    /** getVisualShape: 외곽 모양(충돌 모양은 1.5 높이). */
+    @Override
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return getShape(state, level, pos); }
 }

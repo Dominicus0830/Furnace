@@ -9,7 +9,7 @@ import java.util.Map;
 public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, String dimension,
                                 HolderSet blocks, Map<String, JsonElement> state, boolean unsupported) {
 
-    static LocationPredicate parse(JsonElement e, LootRegistries regs) {
+    public static LocationPredicate parse(JsonElement e, LootRegistries regs) {
         JsonObject o = e.getAsJsonObject();
         Bounds x = Bounds.ANY, y = Bounds.ANY, z = Bounds.ANY;
         HolderSet biomes = null, blocks = null;

@@ -57,4 +57,33 @@ class ConsumingTest {
         assertEquals(10, v.foodLevel());
         assertEquals(-1, player.usingHand);
     }
+
+    @Test
+    void ominousBottleGivesBadOmenWithComponentAmplifierAndLeavesNoBottle() {
+        ItemStack bottle = org.domi.furnace.server.item.ItemTools.with(TestRecipes.item("ominous_bottle", 2), "minecraft:ominous_bottle_amplifier", 3);
+        hold(bottle);
+        assertTrue(Consuming.tryStart(player, 0, bottle), "배고픔과 무관하게 마실 수 있다");
+        run(31);
+        assertFalse(v.hasEffect(MobEffect.BAD_OMEN), "32틱이 지나야 한다");
+        run(1);
+        MobEffectInstance bad = v.getEffect(MobEffect.BAD_OMEN);
+        assertNotNull(bad);
+        assertEquals(120000, bad.duration());
+        assertEquals(3, bad.amplifier());
+        assertFalse(bad.visible(), "입자는 없다");
+        assertTrue(bad.showIcon(), "아이콘은 있다");
+        assertFalse(bad.ambient());
+        assertEquals(1, player.inventory().get(player.inventory().heldWindowSlot()).count(), "병은 하나 줄고 빈 병은 남지 않는다");
+    }
+
+    @Test
+    void ominousBottleWithoutComponentIsAmplifierZeroAndCreativeKeepsIt() {
+        v.setGameMode(GameMode.CREATIVE);
+        ItemStack bottle = TestRecipes.item("ominous_bottle", 1);
+        hold(bottle);
+        assertTrue(Consuming.tryStart(player, 0, bottle));
+        run(32);
+        assertEquals(0, v.getEffect(MobEffect.BAD_OMEN).amplifier());
+        assertEquals(1, player.inventory().get(player.inventory().heldWindowSlot()).count(), "창작 모드는 소비하지 않는다");
+    }
 }

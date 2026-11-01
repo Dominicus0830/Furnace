@@ -44,7 +44,12 @@ public class BeehiveBlock extends BaseEntityBlock {
                 level.updateNeighbourForOutputSignal(pos, block());
                 angerNearbyBees(level, pos);
             }
-            // TODO(발전 과제): CriteriaTriggers.BEE_NEST_DESTROYED(state, tool, 벌 수)
+            if (player != null && player.handle() instanceof Player sp) {   // 바닐라: 내보낸 뒤의 남은 벌 수로 bee_nest_destroyed
+                var block = org.domi.furnace.server.ServerCore.lootBlockState(state);
+                var toolSnap = org.domi.furnace.server.ServerCore.lootStackOf(tool);
+                int bees = hive.getOccupantCount();
+                sp.triggerAdvancement(a -> a.triggerBeeNest(block, toolSnap, bees));
+            }
         }
     }
 

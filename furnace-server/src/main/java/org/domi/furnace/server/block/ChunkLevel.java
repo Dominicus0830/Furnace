@@ -952,7 +952,7 @@ public abstract class ChunkLevel implements BlockLevel {
         boolean[] blocked = {false};
         services().forEachPlayer(p -> {
             if (blocked[0] || p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
-            double h = p.sneaking() ? 1.5 : 1.8;
+            double h = p.bbHeight();
             double x0 = p.x() - 0.3, y0 = p.y(), z0 = p.z() - 0.3, x1 = p.x() + 0.3, y1 = p.y() + h, z1 = p.z() + 0.3;
             // getEntities(bounds) 는 상자끼리 겹침(경계 제외)으로 먼저 거른 뒤 모양과 맞대 본다
             if (x1 <= b[0] || x0 >= b[3] || y1 <= b[1] || y0 >= b[4] || z1 <= b[2] || z0 >= b[5]) return;
@@ -1207,8 +1207,19 @@ public abstract class ChunkLevel implements BlockLevel {
         return services().giftLoot(lootTable, self, x, y, z);
     }
 
+    /** 고고학 전리품 평가(services 위임). */
+    public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
+        return services().chestLoot(lootTable, seed, x, y, z, player, luck);
+    }
+
     public java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool, float luck) {
         return services().fishingLoot(hook, x, y, z, tool, luck);
+    }
+
+    /** 일반 전리품 평가(services 위임): origin·this_entity·luck, 난수는 seed → random → 표 순. */
+    public java.util.List<ItemStack> lootItems(String lootTable, double[] origin, org.domi.furnace.server.loot.LootEntity thisEntity, float luck,
+            long seed, RandomSource random) {
+        return services().lootItems(lootTable, origin, thisEntity, luck, seed, random);
     }
 
     /** 데이터 팩 전리품 데이터(인챈트 정의·마법 부여 제공자). 데이터 팩이 없으면 null. */
@@ -1338,7 +1349,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         golem.moveTo(bottom.x() + 0.5, bottom.y() + 0.05, bottom.z() + 0.5, 0.0F, 0.0F);
         addFreshEntity(golem);
-        // TODO(발전 과제): 5칸 안 플레이어에게 summoned_entity
+        org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, golem, 5.0);   // 바닐라: 골렘 상자 5칸 안 플레이어에게 summoned_entity
     }
 
     @Override
@@ -1368,6 +1379,7 @@ public abstract class ChunkLevel implements BlockLevel {
         wither.moveTo(bottomCenter.x() + 0.5, bottomCenter.y() + 0.55, bottomCenter.z() + 0.5, yaw, 0.0F);
         wither.setYBodyRot(yaw);
         wither.makeInvulnerable();
+        org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, wither, 50.0);   // 바닐라: 소환 전에 상자 50칸 안 플레이어에게 summoned_entity
         addFreshEntity(wither);
     }
 
@@ -2086,7 +2098,7 @@ public abstract class ChunkLevel implements BlockLevel {
         int[] n = {entities.getEntities(null, box, e -> !e.isIgnoringBlockTriggers() && !e.isSpectator() && (!livingOnly || e.isLiving())).size()};
         services().forEachPlayer(p -> {
             if (p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
-            double h = p.sneaking() ? 1.5 : 1.8;
+            double h = p.bbHeight();
             if (box.intersects(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3)) n[0]++;
         });
         return n[0];

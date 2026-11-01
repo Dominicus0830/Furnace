@@ -1,6 +1,10 @@
 // 바닐라 IronBarsBlock: 철창·유리판. 단단한 면(연결 예외 제외)·다른 철창/유리판·담장에 붙는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Shape;
+
+import org.domi.furnace.server.block.BlockActor;
+
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -36,4 +40,8 @@ public class IronBarsBlock extends CrossCollisionBlock {
     public static boolean attachsTo(int state, boolean sturdy) {
         return !B.isExceptionForConnection(state) && sturdy || B.behavior(state) instanceof IronBarsBlock || B.isTag(state, "minecraft:walls");
     }
+
+    /** getVisualShape: 빈 모양. */
+    @Override
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return Shape.EMPTY; }
 }

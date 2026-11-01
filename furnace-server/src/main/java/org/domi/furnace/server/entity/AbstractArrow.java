@@ -23,6 +23,8 @@ public abstract class AbstractArrow extends Projectile {
     private int lastStateInGround = -1;
     private String soundEvent = "entity.arrow.hit";
     private java.util.Set<Integer> piercedEntities;
+    /** 관통으로 죽인 생물들(killed_by_crossbow 용 — 관통 화살이 처음 맞을 때 만든다). */
+    private java.util.List<LivingEntity> piercedAndKilled;
     protected ItemStack pickupItem = ItemStack.EMPTY;
     /** 쏜 무기(firedFromWeapon) — 힘·밀어내기 계산용. 무기 없이 생긴 화살은 null. */
     private ItemStack firedFromWeapon;
@@ -69,6 +71,11 @@ public abstract class AbstractArrow extends Projectile {
     protected double defaultGravity() { return 0.05; }
 
     public ItemStack getWeaponItem() { return firedFromWeapon; }
+
+    /** 쇠뇌로 쏜 화살인가(바닐라 shotFromCrossbow 플래그 — 쇠뇌가 만든 발사체에만 켜진다). */
+    public boolean isShotFromCrossbow() {
+        return firedFromWeapon != null && "minecraft:crossbow".equals(org.domi.furnace.server.item.ItemTools.itemName(firedFromWeapon));
+    }
 
     /**
      * AbstractArrow(type, owner, level, pickupItem, firedFromWeapon) 생성자의 나머지: 줍는 아이템(intangible_projectile 이면 창조 전용),
@@ -232,6 +239,7 @@ public abstract class AbstractArrow extends Projectile {
         int damage = (int) Math.ceil(Math.clamp(fspeed * base, 0.0, 2.147483647E9));
         if (getPierceLevel() > 0) {
             if (piercedEntities == null) piercedEntities = new java.util.HashSet<>(5);
+            if (piercedAndKilled == null) piercedAndKilled = new java.util.ArrayList<>(5);
             if (piercedEntities.size() >= getPierceLevel() + 1) {
                 discard();
                 return;
@@ -258,6 +266,17 @@ public abstract class AbstractArrow extends Projectile {
             if (target instanceof LivingEntity le) {
                 doKnockback(le);
                 doPostHurtEffects(le);
+                if (!le.isAlive() && piercedAndKilled != null) piercedAndKilled.add(le);
+                // 바닐라: 쇠뇌로 쏜 화살이 죽였으면 killed_by_crossbow(관통이면 지금까지 죽인 목록, 아니면 이번 대상)
+                if (owner instanceof Player op && isShotFromCrossbow()) {
+                    if (piercedAndKilled != null) {
+                        var victims = AdvTriggers.lootOfAll(piercedAndKilled);
+                        op.triggerAdvancement(a -> a.triggerVictims("minecraft:killed_by_crossbow", victims));
+                    } else if (!le.isAlive()) {
+                        var victims = AdvTriggers.lootOfAll(java.util.List.of(le));
+                        op.triggerAdvancement(a -> a.triggerVictims("minecraft:killed_by_crossbow", victims));
+                    }
+                }
             }
             playSound(soundEvent, 1.0F, 1.2F / (random.nextFloat() * 0.2F + 0.9F));
             if (getPierceLevel() <= 0) discard();
@@ -295,6 +314,7 @@ public abstract class AbstractArrow extends Projectile {
     @Override
     protected void onHitBlock(Hit hit) {
         lastStateInGround = level.getBlockState(hit.blockPos());
+        super.onHitBlock(hit);
         // 박힌 지점으로 속도 방향의 0.05 만큼 뒤로 붙는다
         double len = Math.sqrt(vx() * vx() + vy() * vy() + vz() * vz());
         double ox = hit.x() - x(), oy = hit.y() - y(), oz = hit.z() - z();

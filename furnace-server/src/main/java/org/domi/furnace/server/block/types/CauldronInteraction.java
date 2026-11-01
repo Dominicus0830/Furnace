@@ -26,7 +26,7 @@ public interface CauldronInteraction {
 
         Table(String name) { this.name = name; }
 
-        CauldronInteraction get(ItemStack stack) {
+        public CauldronInteraction get(ItemStack stack) {
             CauldronInteraction i = stack.isEmpty() ? null : map.get(stack.itemId());
             return i != null ? i : (s, l, p, pl, h, st) -> ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
@@ -99,8 +99,14 @@ public interface CauldronInteraction {
                         level.gameEvent("minecraft:fluid_place", pos, null, -1);
                         return ItemInteractionResult.sidedSuccess(false);
                     });
-                    // TODO(컴포넌트): 물든 가죽 갑옷·말 갑옷·늑대 갑옷 씻기(DYED_COLOR 지움, clean_armor), 깃발 무늬 한 겹 지우기(clean_banner),
-                    // 색 셜커 상자 → 흰 셜커 상자(clean_shulker_box). 셋 다 성공하면 lowerFillLevel. 지금은 PASS_TO_DEFAULT.
+                    // 물든 가죽 갑옷·말 갑옷·늑대 갑옷(DYED_ITEM), 깃발(BANNER), 색 셜커 상자(SHULKER_BOX) 씻기 — 바닐라 등록 순서와 대상 그대로
+                    for (String dyed : new String[] {"leather_helmet", "leather_chestplate", "leather_leggings", "leather_boots", "leather_horse_armor", "wolf_armor"}) {
+                        t.put(dyed, CauldronInteraction.Builder::cleanDyedItem);
+                    }
+                    for (String color : COLORS) {
+                        t.put(color + "_banner", CauldronInteraction.Builder::cleanBanner);
+                        t.put(color + "_shulker_box", CauldronInteraction.Builder::cleanShulkerBox);
+                    }
                 }
                 case "lava" -> {
                     t.put("bucket", (state, level, pos, player, hand, stack) ->
@@ -115,6 +121,45 @@ public interface CauldronInteraction {
                 default -> throw new IllegalArgumentException(name);
             }
             return t;
+        }
+
+        private static final String[] COLORS = {"white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray", "cyan", "purple",
+                "blue", "brown", "green", "red", "black"};
+
+        /** DYED_ITEM: #dyeable 이면서 dyed_color 가 있어야. 색을 지우고 통계 clean_armor, 물 한 단계. */
+        static ItemInteractionResult cleanDyedItem(int state, BlockLevel level, Pos pos, BlockActor player, int hand, ItemStack stack) {
+            if (!org.domi.furnace.server.item.ItemTags.is(stack, "minecraft:dyeable") || !stack.patch().entries().containsKey("minecraft:dyed_color")
+                    || stack.patch().entries().get("minecraft:dyed_color") == null) {
+                return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+            }
+            Map<String, Object> m = new LinkedHashMap<>(stack.patch().entries());
+            m.remove("minecraft:dyed_color");
+            player.setItemInHand(hand, new ItemStack(stack.itemId(), stack.count(), ComponentPatch.ofNormalized(m)));
+            player.awardStat("minecraft:clean_armor");
+            LayeredCauldronBlock.lowerFillLevel(state, level, pos);
+            return ItemInteractionResult.sidedSuccess(false);
+        }
+
+        /** BANNER: 무늬가 있어야. 하나만 떼어(copyWithCount(1)) 마지막 무늬 한 겹을 지운 것을 건네고, 통계 clean_banner, 물 한 단계. */
+        static ItemInteractionResult cleanBanner(int state, BlockLevel level, Pos pos, BlockActor player, int hand, ItemStack stack) {
+            if (!(stack.patch().entries().get("minecraft:banner_patterns") instanceof java.util.List<?> layers) || layers.isEmpty()) {
+                return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+            }
+            ItemStack one = org.domi.furnace.server.item.ItemTools.with(stack.withCount(1), "minecraft:banner_patterns",
+                    new java.util.ArrayList<Object>(layers.subList(0, layers.size() - 1)));
+            player.setItemInHand(hand, player.createFilledResult(stack, one, false));
+            player.awardStat("minecraft:clean_banner");
+            LayeredCauldronBlock.lowerFillLevel(state, level, pos);
+            return ItemInteractionResult.sidedSuccess(false);
+        }
+
+        /** SHULKER_BOX: 색 셜커 상자 하나를 흰(무색) 셜커 상자로 바꾸고(내용물 컴포넌트는 그대로), 통계 clean_shulker_box, 물 한 단계. */
+        static ItemInteractionResult cleanShulkerBox(int state, BlockLevel level, Pos pos, BlockActor player, int hand, ItemStack stack) {
+            ItemStack plain = new ItemStack(item("shulker_box"), 1, stack.patch().normalizedFor("minecraft:shulker_box"));
+            player.setItemInHand(hand, player.createFilledResult(stack, plain, false));
+            player.awardStat("minecraft:clean_shulker_box");
+            LayeredCauldronBlock.lowerFillLevel(state, level, pos);
+            return ItemInteractionResult.sidedSuccess(false);
         }
 
         /** addDefaultInteractions: 용암·물·가루눈 양동이를 비워 그 가마솥(가득)으로. */

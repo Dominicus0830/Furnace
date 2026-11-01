@@ -63,7 +63,7 @@ public final class ExperienceOrb extends Entity {
         if (tickCount % 20 == 1) scanForEntities();
         if (followingPlayer != null && (followingPlayer.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || followingPlayer.vitals().isDeadOrDying())) followingPlayer = null;
         if (followingPlayer != null) {
-            double dx = followingPlayer.x() - x(), dy = followingPlayer.y() + (followingPlayer.sneaking() ? 1.27 : 1.62) / 2.0 - y(), dz = followingPlayer.z() - z();
+            double dx = followingPlayer.x() - x(), dy = followingPlayer.y() + (followingPlayer.eyeY() - followingPlayer.y()) / 2.0 - y(), dz = followingPlayer.z() - z();
             double d = dx * dx + dy * dy + dz * dz;
             if (d < 64.0) {
                 double f = 1.0 - Math.sqrt(d) / 8.0;

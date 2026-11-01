@@ -15,7 +15,18 @@ public class TargetBlock extends BlockBehavior {
 
     public TargetBlock(int block) { super(block); }
 
-    // TODO(엔티티): onProjectileHit — updateRedstoneOutput(level, state, 맞은 면·자리, 화살이면 20 아니면 8) 후 쏜 플레이어에게 통계·target_hit 발전 과제.
+    /** onProjectileHit: 신호를 정하고(화살이면 20틱, 그 밖은 8틱), 쏜 사람이 플레이어면 통계 target_hit 과 발전 과제 target_hit. */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        int duration = projectile instanceof org.domi.furnace.server.entity.AbstractArrow ? 20 : 8;
+        int power = updateRedstoneOutput(level, state, hit.blockPos(), hit.face(), hit.x(), hit.y(), hit.z(), duration);
+        if (projectile.getOwner() instanceof org.domi.furnace.server.entity.Player p) {
+            p.awardStat("minecraft:target_hit", 1);
+            var snap = org.domi.furnace.server.entity.KillCredit.lootOf(projectile);
+            p.triggerAdvancement(a -> a.triggerTargetHit(snap, power));
+        }
+    }
 
     /** updateRedstoneOutput: 신호 세기를 정하고, 예약 틱이 없으면 켜고 끌 틱을 건다. 세기를 돌려준다. */
     public static int updateRedstoneOutput(BlockLevel level, int state, Pos pos, int face, double hitX, double hitY, double hitZ, int duration) {

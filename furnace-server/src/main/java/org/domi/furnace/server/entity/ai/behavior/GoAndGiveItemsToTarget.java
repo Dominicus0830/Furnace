@@ -1,5 +1,4 @@
 // 바닐라 GoAndGiveItemsToTarget: 가방에 아이템이 있으면 대상(좋아하는 플레이어·음표 블록) 쪽으로 가서 하나씩 던져 준다.
-// TODO(발전 과제): 블록 위에 아이템을 떨군 발전 과제 트리거.
 package org.domi.furnace.server.entity.ai.behavior;
 
 import java.util.Map;
@@ -46,6 +45,14 @@ public class GoAndGiveItemsToTarget<E extends Mob & InventoryCarrier> extends Be
             ItemStack stack = mob.getInventory().removeItem(0, 1);
             if (!stack.isEmpty()) {
                 throwItem(mob, stack, new double[] {p[0], p[1] + 1.0, p[2]});
+                if (mob instanceof Allay allay) {   // 바닐라: 좋아하는 플레이어에게 allay_drop_item_on_block(대상 칸, 던진 아이템)
+                    org.domi.furnace.server.entity.AllayAi.getLikedPlayer(mob).ifPresent(liked -> {
+                        int bx = (int) Math.floor(p[0]), by = (int) Math.floor(p[1]), bz = (int) Math.floor(p[2]);
+                        var block = org.domi.furnace.server.ServerCore.lootBlockState(level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz)));
+                        var item = org.domi.furnace.server.ServerCore.lootStackOf(stack);
+                        liked.triggerAdvancement(a -> a.triggerLocation("minecraft:allay_drop_item_on_block", bx, by, bz, block, item));
+                    });
+                }
                 mob.getBrain().setMemory(MemoryModuleType.ITEM_PICKUP_COOLDOWN_TICKS, ITEM_PICKUP_COOLDOWN_AFTER_THROWING);
             }
         }

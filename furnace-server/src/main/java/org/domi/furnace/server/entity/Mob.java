@@ -379,12 +379,28 @@ public abstract class Mob extends LivingEntity {
         }
     }
 
-    public void onItemPickup(ItemEntity ie) {}
+    /** LivingEntity.onItemPickup: 던진 쪽이 플레이어면 thrown_item_picked_up_by_entity. */
+    public void onItemPickup(ItemEntity ie) { AdvTriggers.pickedUpByEntity(ie, ie.getItem(), this); }
 
     /** Mob.removeWhenFarAway: 멀리 있으면 사라져도 되나(기본 참, 동물은 거짓). */
     public boolean removeWhenFarAway(double distSqr) { return true; }
 
     public boolean isPersistenceRequired() { return persistenceRequired; }
+
+    /** Mob.setPersistenceRequired. */
+    public void setPersistenceRequired() { persistenceRequired = true; }
+
+    /** Mob.dropPreservedEquipment(): 드롭 확률이 1 초과인(반드시 떨구는) 장비를 칸에서 빼 바닥에 떨군다. 시련 생성기가 몹을 치울 때 쓴다. */
+    public void dropPreservedEquipment() {
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = getItemBySlot(slot);
+            if (stack.isEmpty()) continue;
+            if (getEquipmentDropChance(slot) > 1.0) {
+                setItemSlot(slot, ItemStack.EMPTY);
+                spawnAtLocation(stack);
+            }
+        }
+    }
 
     /** 몹 수 세기에서 빠지는가(유지 몹). */
     public boolean isPersistentForCaps() { return persistenceRequired || requiresCustomPersistence(); }

@@ -37,11 +37,16 @@ public class BrushableBlock extends BaseEntityBlock {
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        // TODO(블록 엔티티): BrushableBlockEntity.checkReset — 솔질이 멈춘 뒤 dusted 를 되돌린다.
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BrushableBlockEntity be) be.checkReset(level);
         if (FallingBlock.isFree(level.getBlockState(pos.below())) && pos.y() >= level.minBuildHeight()) {
             Object e = level.spawnFallingBlock(pos, state);
             if (e instanceof org.domi.furnace.server.entity.FallingBlockEntity f) f.disableDrop();
         }
+    }
+
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.BrushableBlockEntity(pos, state);
     }
 
     @Override

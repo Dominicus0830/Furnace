@@ -420,12 +420,13 @@ public class FishingHook extends Projectile {
         int i = 0;
         if (hookedIn != null) {
             pullEntity(hookedIn);
-            // TODO(발전 과제): CriteriaTriggers.FISHING_ROD_HOOKED
+            fishingTrigger(p, rod, List.of());
             broadcastEntityEvent((byte) 31);
             i = hookedIn instanceof ItemEntity ? 3 : 5;
         } else if (nibble > 0) {
             // TODO(행운 속성): player.getLuck() — 플레이어 속성이 아직 없어 0
             List<ItemStack> list = level.fishingLoot(lootEntity(), x(), y(), z(), rod, luck + 0.0F);
+            fishingTrigger(p, rod, list);
             for (ItemStack s : list) {
                 var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), s);
                 double dx = p.x() - x(), dy = p.y() - y(), dz = p.z() - z();
@@ -439,6 +440,17 @@ public class FishingHook extends Projectile {
         if (onGround()) i = 2;
         discard();
         return i;
+    }
+
+    /** FISHING_ROD_HOOKED.trigger(player, rod, hook, loot): 문맥 엔티티는 걸린 엔티티(없으면 낚시찌 자신). */
+    private void fishingTrigger(Player p, ItemStack rod, List<ItemStack> loot) {
+        Object h = hookedIn;
+        var ent = h instanceof Rider r ? KillCredit.lootOf(r) : KillCredit.snapshot(lootEntity());
+        var hookedItem = h instanceof ItemEntity ie ? org.domi.furnace.server.ServerCore.lootStackOf(ie.getItem()) : null;
+        var rodSnap = org.domi.furnace.server.ServerCore.lootStackOf(rod);
+        var lootSnap = new java.util.ArrayList<org.domi.furnace.server.loot.LootStack>();
+        for (ItemStack s : loot) lootSnap.add(org.domi.furnace.server.ServerCore.lootStackOf(s));
+        p.triggerAdvancement(a -> a.triggerFishing(rodSnap, ent, hookedItem, lootSnap));
     }
 
     /** pullEntity: 소유자 쪽으로 차이 × 0.1 만큼 속도를 더한다. */

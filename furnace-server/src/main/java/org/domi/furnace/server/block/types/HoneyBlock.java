@@ -36,11 +36,16 @@ public class HoneyBlock extends HalfTransparentBlock {
     }
 
     private static boolean isSlidingDown(Pos pos, Entity entity) {
-        if (entity.onGround()) return false;
-        if (entity.y() > pos.y() + 0.9375 - 1.0E-7) return false;
-        if (entity.vy() >= -0.08) return false;
-        double dx = Math.abs(pos.x() + 0.5 - entity.x()), dz = Math.abs(pos.z() + 0.5 - entity.z());
-        double f = 0.4375 + entity.bbWidth() / 2.0F;
+        return isSlidingDown(pos, entity.onGround(), entity.x(), entity.y(), entity.z(), entity.vy(), entity.bbWidth());
+    }
+
+    /** HoneyBlock.isSlidingDown 의 값 꼴(플레이어는 Entity 가 아니라 값으로 받는다). */
+    public static boolean isSlidingDown(Pos pos, boolean onGround, double x, double y, double z, double vy, double bbWidth) {
+        if (onGround) return false;
+        if (y > pos.y() + 0.9375 - 1.0E-7) return false;
+        if (vy >= -0.08) return false;
+        double dx = Math.abs(pos.x() + 0.5 - x), dz = Math.abs(pos.z() + 0.5 - z);
+        double f = 0.4375 + (float) bbWidth / 2.0F;
         return dx + 1.0E-7 > f || dz + 1.0E-7 > f;
     }
 }

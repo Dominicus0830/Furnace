@@ -52,6 +52,10 @@ public class BlockBehavior {
 
     public void onPlace(int state, BlockLevel level, Pos pos, int oldState, boolean moved) {}
 
+    /** Block.onProjectileHit: 투사체가 이 블록에 맞았다(Projectile.onHitBlock 이 맞은 블록에 부른다). */
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {}
+
     /** onRemove 기본: 블록 엔티티가 있던 블록이 다른 블록이 되면 블록 엔티티를 지운다. */
     /** EntityBlock.newBlockEntity — 블록 엔티티를 가진 블록이 만든다(아직 이식하지 않은 종류는 null). */
     public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) { return null; }
@@ -214,6 +218,9 @@ public class BlockBehavior {
     // ------------------------------------------------------------------ 모양
 
     public Shape getShape(int state, BlockLevel level, Pos pos) { return INFO.shape(state); }
+
+    /** getVisualShape(state, level, pos): 시선 검사(ClipContext.Block.VISUAL)가 보는 모양 — 기본은 충돌 모양. */
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return getCollisionShape(state, level, pos, entity); }
 
     // ------------------------------------------------------------------ 엔티티(바닐라 BlockBehaviour·Block 의 엔티티 훅)
 

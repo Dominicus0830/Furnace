@@ -124,6 +124,7 @@ public final class Shields {
         }
         if (amount <= 0) return false;
         int nd = ItemTools.damage(stack) + amount;
+        AdvTriggers.durability(p, stack, nd);
         ItemStack damaged = ItemTools.withDamage(stack, nd);
         if (nd >= ItemTools.maxDamage(stack)) {
             p.inventory().set(ws, damaged.withCount(damaged.count() - 1));

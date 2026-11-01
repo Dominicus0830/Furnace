@@ -1,4 +1,4 @@
-// 플레이어 방어/방어 인성 속성: 입장 때 한 번, 장비가 바뀔 때마다 update_attributes 로 본인과 보는 사람에게(방어구 아이콘의 근거).
+// 플레이어 방어/방어 인성 속성: 입장 때 syncable 전부 한 번, 장비가 바뀔 때마다 바뀐 속성만 update_attributes 로 본인과 보는 사람에게(방어구 아이콘의 근거).
 package org.domi.furnace.server.entity;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,14 +46,14 @@ class PlayerArmorAttributeTest {
     }
 
     @Test
-    void joinSendsBaseArmorOnceThenOnlyOnChange() {
+    void joinSendsAllSyncableOnceThenOnlyOnChange() {
         var env = new PlayerVitalsTest.TestEnv();
         var p = player(env);
         p.syncEquipment();
-        assertEquals(1, sent(env).size(), "입장 때 방어/방어 인성을 한 번 보낸다");
+        assertEquals(1, sent(env).size(), "입장 때 속성을 한 번 보낸다");
         var u = last(env);
         assertEquals(5, u.entityId());
-        assertEquals(2, u.attributes().size());
+        assertEquals(p.attributes().syncable().size(), u.attributes().size());
         assertEquals(0.0, value(u, Attribute.ARMOR));
         p.syncEquipment();
         assertEquals(1, sent(env).size(), "안 바뀌면 다시 보내지 않는다");

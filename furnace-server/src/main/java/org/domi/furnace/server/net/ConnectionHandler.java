@@ -1257,6 +1257,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x06 -> handleChat(frame);                                         // chat
             case 0x07 -> handleChatSessionUpdate(org.domi.furnace.server.chat.RemoteChatSession.Data.read(frame)); // chat_session_update
             case 0x0B -> handleCommandSuggestion(Types.readVarInt(frame), Types.readString(frame, 32500));
+            case 0x14 -> { // edit_book: 칸(VarInt), 쪽 목록(최대 200, 각 8192자), 제목(Optional, 128자) — 바닐라는 쪽을 앞의 100개만 쓴다
+                int slot = Types.readVarInt(frame);
+                int count = Types.readVarInt(frame);
+                if (count < 0 || count > 200) throw new org.domi.furnace.server.net.protocol.ProtocolException("Edit book pages out of bounds: " + count);
+                java.util.List<String> pages = new java.util.ArrayList<>(count);
+                for (int i = 0; i < count; i++) pages.add(Types.readString(frame, 8192));
+                String title = frame.readBoolean() ? Types.readString(frame, 128) : null;
+                Player actor = player;
+                if (actor != null) handleEditBook(actor, slot, pages, title);
+            }
             case 0x16 -> { // use_entity(interact): 엔티티 번호, 0 상호작용·1 공격·2 위치 상호작용, [x,y,z], [손], 웅크리기
                 int entityId = Types.readVarInt(frame);
                 int action = Types.readVarInt(frame);
@@ -1777,6 +1787,30 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         });
     }
 
+    /**
+     * 바닐라 handleEditBook: 핫바(0~8)·보조 손(40) 칸의 깃펜 책을 저장(제목 없음)하거나 서명(제목 있음)한다. 창 칸으로 바꿔 넣고 바뀐 칸을 방송한다.
+     * 글자 걸러내기는 없다. 값이 코덱 한도(쪽 1024자·제목 32자)를 넘으면 무시한다(바닐라는 일단 담고 이후 저장·전송에서 실패한다).
+     */
+    private void handleEditBook(Player p, int slot, java.util.List<String> pages, String title) {
+        if (!org.domi.furnace.server.entity.BookEditing.validSlot(slot)) return;
+        int ws = org.domi.furnace.server.entity.BookEditing.windowSlot(slot);
+        synchronized (p.menuLock()) {
+            ItemStack cur = p.inventory().get(ws);
+            ItemStack out;
+            try {
+                out = title == null ? org.domi.furnace.server.entity.BookEditing.write(cur, pages)
+                        : org.domi.furnace.server.entity.BookEditing.sign(cur, title, pages, p.name());
+            } catch (RuntimeException e) {   // 코덱 한도 초과 등: 연결을 끊지 않고 무시
+                log.warn("edit_book 무시 ({}): {}", p.name(), e.toString());
+                return;
+            }
+            if (out == null) return;
+            var im = p.inventoryMenu();
+            im.getSlot(ws).setByPlayer(out);
+            im.broadcastChanges();
+        }
+    }
+
     /** 바닐라 handleInteract: 6칸(제곱 36) 안의 엔티티만. 공격(1)은 때리고, 상호작용(0·2)은 주민이면 거래 화면을 연다. */
     private void handleInteractEntity(org.domi.furnace.server.world.Region region, Player p, int entityId, int action, int hand, double hitY) {
         Player tp = region.players().get(entityId);
@@ -1790,6 +1824,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         var e = region.level().entities().get(entityId);
+        final ItemStack heldBefore = p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45);   // 바닐라 handleInteract: 상호작용 전 손에 든 것의 사본
         if (e == null) {   // 엔더 드래곤 파트(본체 id+1..+8): 바닐라 getEntityOrPart
             for (int k = 1; k <= 8 && e == null; k++) {
                 if (region.level().entities().get(entityId - k) instanceof org.domi.furnace.server.entity.EnderDragon dragon) {
@@ -1814,37 +1849,60 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } else if (action == 1) {
             if (e instanceof org.domi.furnace.server.entity.LivingEntity le) region.attack(p, le);
             else if (e.isPickable()) region.attackEntity(p, e);
+        } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Mob nameMob
+                && org.domi.furnace.server.entity.ItemEffects.nameTag(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45), nameMob)) {
+            // Mob.checkAndHandleImportantInteractions: 이름표가 끈·mobInteract 보다 먼저
         } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Mob leashMob
-                && leashMob.interactLeash(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45))) {
+                && leashMob.interactLeash(p, hand, heldBefore)) {
             // Entity.interact 의 끈 맺기·풀기(mobInteract 보다 먼저)
+            interactedWith(p, heldBefore, e);
         } else if (e instanceof org.domi.furnace.server.entity.LeashFenceKnotEntity knot) {
             if (action == 0) knot.interact(p);
         } else if (e instanceof org.domi.furnace.server.entity.Boat boat) {
-            if (action == 0) boat.interact(p, hand);
+            if (action == 0 && boat.interact(p, hand)) interactedWith(p, heldBefore, e);
         } else if (e instanceof org.domi.furnace.server.entity.AbstractMinecart cart) {
             if (action == 0) {
-                if (cart instanceof org.domi.furnace.server.entity.Minecart m) m.interact(p, hand);
-                else if (cart instanceof org.domi.furnace.server.entity.MinecartFurnace f) f.interact(p, hand);
-                else if (cart instanceof org.domi.furnace.server.entity.AbstractMinecartContainer c) c.interact(p, hand);
+                boolean used = false;
+                if (cart instanceof org.domi.furnace.server.entity.Minecart m) used = m.interact(p, hand);
+                else if (cart instanceof org.domi.furnace.server.entity.MinecartFurnace f) used = f.interact(p, hand);
+                else if (cart instanceof org.domi.furnace.server.entity.AbstractMinecartContainer c) used = c.interact(p, hand);
+                if (used) interactedWith(p, heldBefore, e);
             }
         } else if (e instanceof org.domi.furnace.server.entity.HangingEntity hanging) {
             if (action == 0) hanging.interact(p, hand);
         } else if (e instanceof org.domi.furnace.server.entity.ArmorStand stand) {
             if (action == 2) stand.interactAt(p, hitY, hand);
+            else if (action == 0) {   // Player.interactOn: Entity.interact 가 PASS 면 아이템의 interactLivingEntity(이름표)
+                org.domi.furnace.server.entity.ItemEffects.nameTag(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45), stand);
+            }
         } else if (e instanceof org.domi.furnace.server.entity.WanderingTrader wt && action == 0 && hand == 0
                 && !org.domi.furnace.server.item.ItemTools.itemName(p.inventory().get(p.inventory().heldWindowSlot())).endsWith("_spawn_egg")) {
             // 바닐라 WanderingTrader.mobInteract: 거래 중이 아니고 거래가 있으면 거래 화면(레벨 1). 없으면 아무 일도 없다.
-            if (wt.canTrade()) openMerchantScreen(wt, wt.tradeTitle(), 1);
+            if (wt.canTrade()) {
+                openMerchantScreen(wt, wt.tradeTitle(), 1);
+                interactedWith(p, heldBefore, e);
+            }
         } else if (e instanceof org.domi.furnace.server.entity.Mob mob && !(e instanceof org.domi.furnace.server.entity.Villager) && action == 0) {
             var inv = p.inventory();
-            mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region);
+            if (mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region)) interactedWith(p, heldBefore, e);
         } else if (e instanceof org.domi.furnace.server.entity.Villager vv && !p.sneaking()) {
             if (vv.canTrade()) {
                 vv.updateSpecialPrices(p);   // 바닐라 startTrading: 평판·영웅 특별 가격 → 거래 화면
                 openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
             }
             else vv.playSound("entity.villager.no", 1.0F, 1.0F);
+            interactedWith(p, heldBefore, e);   // 바닐라 Villager.mobInteract 는 두 경우 모두 sidedSuccess
         }
+    }
+
+    /**
+     * 바닐라 handleInteract: 상호작용이 행동을 소비했으면 player_interacted_with_entity(상호작용 전 손 아이템 사본, 대상).
+     * 가정: 소비한 경우 늘 SUCCESS(통계 대상)로 보고 아이템을 넘긴다(CONSUME_PARTIAL 은 빈 손을 넘기는 차이가 있다).
+     */
+    private void interactedWith(Player p, ItemStack held, org.domi.furnace.server.entity.Entity target) {
+        var item = org.domi.furnace.server.ServerCore.lootStackOf(held);
+        var ent = org.domi.furnace.server.entity.KillCredit.lootOf(target);
+        p.triggerAdvancement(a -> a.triggerItemEntity("minecraft:player_interacted_with_entity", item, ent));
     }
 
     /** 바닐라 handleSetBeaconPacket. */
@@ -2533,6 +2591,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.ServerCore core = login.core;
         var vitals = p.vitals();
         String from = world.dimension();
+        if ("minecraft:overworld".equals(from) && "minecraft:the_nether".equals(target.dimension())) {
+            p.enteredNetherPosition = new double[] {p.x(), p.y(), p.z()};   // 바닐라: 오버월드 → 네더 이동 때 떠나는 위치 기록
+        }
         if (t.missingRespawnBlock()) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
         var prev = vitals.previousGameMode();
         long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;

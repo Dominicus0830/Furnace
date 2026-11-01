@@ -131,7 +131,7 @@ public class ThrownTrident extends AbstractArrow {
         var bolt = new LightningBolt(level, level.nextEntityId());
         bolt.moveTo(bx + 0.5, by, bz + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(level.random().nextFloat() * 360.0F), 0.0F);
         level.addFreshEntity(bolt);
-        // TODO(발전 과제): LightningBolt.setCause(소유 플레이어) — 번개 원인 기록이 아직 없다
+        if (getOwner() instanceof Player op) bolt.setCause(op);   // SummonEntityEffect: 쏜 사람이 플레이어면 번개 원인(channeled_lightning)
         bolt.moveTo(ox, oy, oz, bolt.yRot(), bolt.xRot());
         if (!silent) level.playSound(null, ox, oy, oz, "item.trident.thunder", source, 5.0F, 1.0F);
     }

@@ -927,6 +927,7 @@ public final class Region {
             org.domi.furnace.server.entity.Consuming.tick(p, this);
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
+            org.domi.furnace.server.entity.PlayerLocationEffects.tick(p, level, () -> onSoulSpeedBlock(p));   // 칸 이동·발 장비 변경 시 영혼 가속·서리 걸음
             p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
             pushEntities(p);
             touchEntities(p);
@@ -1066,7 +1067,7 @@ public final class Region {
     private void touchEntities(Player p) {
         if (level == null || level.entities().isEmpty()) return;
         if (p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
-        double h = p.isFallFlying() ? 0.6 : p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        double h = p.bbHeight();
         var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3)
                 .inflate(1.0, 0.5, 1.0);
         for (var e : level.getEntities(null, box, null)) {
@@ -1256,6 +1257,16 @@ public final class Region {
         writeBackHand(p, actor);
     }
 
+    /** 솔 사용 틱(BrushItem.onUseTick): 계속 쓰면 true, 시선이 블록을 벗어났으면 false. 이 플레이어가 이 region 소속일 때만. */
+    public boolean tickBrush(Player p) {
+        world.assertOwns(this);
+        if (!players.containsKey(p.entityId()) || p.usingHand < 0) return false;
+        var actor = breakerActor(p);
+        boolean keep = org.domi.furnace.server.entity.Brushing.onUseTick(level(), actor, p, p.usingHand, p.usingTicks);
+        writeBackHand(p, actor);
+        return keep;
+    }
+
     /** 사용 끝(player_action 5 — ServerPlayer.releaseUsingItem): 활·쇠뇌면 발사·장전, 아니면 그냥 멈춘다. */
     public void handleReleaseUsing(Player p) {
         world.assertOwns(this);
@@ -1277,7 +1288,7 @@ public final class Region {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
         RegionLevel l = level();
-        double eye = p.y() + (p.sneaking() ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING) - 0.3F;
+        double eye = p.eyeY() - 0.3F;
         var ie = new org.domi.furnace.server.entity.ItemEntity(l, l.nextEntityId(), p.x(), eye, p.z(), stack);
         ie.setPickUpDelay(40);
         if (includeThrower) ie.setThrower(p.uuid());
@@ -1343,7 +1354,7 @@ public final class Region {
         PlayerProbe probe = world.probe();
         boolean eyeInWater = false;
         if (probe != null && ownedChunk((int) Math.floor(p.x()) >> 4, (int) Math.floor(p.z()) >> 4) != null) {
-            double eye = p.sneaking() ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
+            double eye = p.eyeY() - p.y();
             eyeInWater = probe.eyeInWater(blocks, p.x(), p.y(), p.z(), eye);
         }
         return new org.domi.furnace.server.block.BreakerActor(p, main, off, head, inv == null ? 0 : inv.permissionLevel(), eyeInWater, held) {
@@ -1466,6 +1477,15 @@ public final class Region {
     }
 
     /** 매 틱 생존 상태 — 주변 블록을 보고 공허·익사·허기·회복·사망 틱을 돌린다. */
+    /** Entity.getBlockPosBelowThatAffectsMyMovement(getOnPos(0.500001F)) 의 블록이 #soul_speed_blocks 인가. */
+    private boolean onSoulSpeedBlock(Player p) {
+        PlayerProbe probe = world.probe();
+        if (probe == null) return false;
+        int[] o = probe.onPos(blocks, 0.500001F, p.x(), p.y(), p.z(), p.onGround());
+        int st = blocks.stateAt(o[0], o[1], o[2]);
+        return st >= 0 && org.domi.furnace.server.block.B.isTag(st, "minecraft:soul_speed_blocks");
+    }
+
     private void tickVitals(Player p) {
         PlayerProbe probe = world.probe();
         PlayerVitals.Surroundings s;
@@ -1493,7 +1513,13 @@ public final class Region {
             if (!p.isSleeping()) p.awardStat("minecraft:time_since_rest", 1);
         }
         var adv = p.advancements();
-        if (adv != null) adv.tickPlayer();
+        if (adv != null) {
+            var v = p.vitals();
+            var veh = p.vehicle();
+            adv.tickPlayer(new org.domi.furnace.server.advancement.PlayerAdvancements.TickState(new double[] {p.x(), p.y(), p.z()}, v.tickCount(),
+                    v.hasEffect(org.domi.furnace.server.effect.MobEffect.LEVITATION), v.fallDistance(), v.health() > 0.0F,
+                    veh == null ? 0 : veh.isInLava() ? 1 : -1, v.currentImpulsePos(), v.currentImpulseCause()));
+        }
     }
 
     /**
@@ -1503,17 +1529,24 @@ public final class Region {
      */
     private void checkInsideCampfires(Player p) {
         if (level == null || p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
-        double h = p.isFallFlying() ? 0.6 : p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        double h = p.bbHeight();
         int x0 = (int) Math.floor(p.x() - 0.3 + 1.0E-7), x1 = (int) Math.floor(p.x() + 0.3 - 1.0E-7);
         int y0 = (int) Math.floor(p.y() + 1.0E-7), y1 = (int) Math.floor(p.y() + h - 1.0E-7);
         int z0 = (int) Math.floor(p.z() - 0.3 + 1.0E-7), z1 = (int) Math.floor(p.z() + 0.3 - 1.0E-7);
         if (!level.hasChunksAt(x0, z0, x1, z1)) return;
         var adv = p.advancements();
         boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
+        boolean slide = adv != null && adv.hasListeners("minecraft:slide_down_block");
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             if (org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.CampfireBlock cf) cf.entityInsidePlayer(s, p.vitals());
             if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+            // HoneyBlock.entityInside → maybeDoSlideAchievement: 미끄러지는 중이면 20틱마다 slide_down_block (플레이어 이동은 서버가 아는 변위로)
+            if (slide && level.gameTime() % 20L == 0L && org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.HoneyBlock
+                    && org.domi.furnace.server.block.types.HoneyBlock.isSlidingDown(new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(),
+                            p.x(), p.y(), p.z(), p.serverMovement()[1], 0.6)) {
+                adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+            }
         }
     }
 
@@ -1530,7 +1563,7 @@ public final class Region {
 
     private boolean checkInsidePortals(Player p) {
         if (!canTriggerPortals(p)) return false;
-        double h = p.isFallFlying() ? 0.6 : p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        double h = p.bbHeight();
         var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3);
         int x0 = (int) Math.floor(box.minX() + 1.0E-7), x1 = (int) Math.floor(box.maxX() - 1.0E-7);
         int y0 = (int) Math.floor(box.minY() + 1.0E-7), y1 = (int) Math.floor(box.maxY() - 1.0E-7);
@@ -1793,7 +1826,15 @@ public final class Region {
         }
         if (level != null) level.afterDimensionTransition(t);
         var adv = p.advancements();
-        if (adv != null && fromDimension != null) adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, world.dimension()});
+        if (adv != null && fromDimension != null) {
+            adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, world.dimension()});
+            // 바닐라 triggerDimensionChangeTriggers: 네더 → 오버월드면 nether_travel(들어갈 때 오버월드 위치 → 지금), 네더가 아니면 기록을 지운다
+            var entered = p.enteredNetherPosition;
+            if ("minecraft:the_nether".equals(fromDimension) && "minecraft:overworld".equals(world.dimension()) && entered != null) {
+                adv.triggerMoved("minecraft:nether_travel", entered, new double[] {p.x(), p.y(), p.z()}, 0, null);
+            }
+            if (!"minecraft:the_nether".equals(world.dimension())) p.enteredNetherPosition = null;
+        }
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */
@@ -1999,6 +2040,8 @@ public final class Region {
                 Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
                 var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
                 if (bd != null) a.send(bd);
+                var ba = bp == null ? null : bp.pairingAttributes();   // 속성(update_attributes) — 엔티티 데이터 다음, 장비 앞
+                if (ba != null) a.send(ba);
                 var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
                 if (be != null) a.send(be);
                 var bv = bp == null ? null : bp.vehicle();
