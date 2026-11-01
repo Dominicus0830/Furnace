@@ -103,6 +103,12 @@ public final class ItemUse {
             case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl", "minecraft:experience_bottle", "minecraft:splash_potion",
                     "minecraft:lingering_potion", "minecraft:wind_charge": return throwItem(level, player, stack, n);
             case "minecraft:firework_rocket": return fireworkUse(level, player, stack);
+            case "minecraft:goat_horn": return goatHornUse(level, player, hand, stack);
+            case "minecraft:writable_book", "minecraft:written_book": {   // WritableBookItem/WrittenBookItem.use: openItemGui(서버는 서명된 책만 open_book) + 사용 통계, CONSUME
+                if (n.equals("minecraft:written_book")) player.openBook(hand);   // 미구현: resolveBookComponents(선택자·점수 컴포넌트 해석)
+                player.awardStat("minecraft:used:" + n);
+                return Holder.success(stack);
+            }
             default: break;
         }
         if (n.endsWith("_boat") || n.endsWith("_raft")) return boatUse(level, player, stack, n);
@@ -112,6 +118,27 @@ public final class ItemUse {
         if (slot >= 0) return equip(level, player, hand, stack, slot, n);
         // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책, 광산 수레.
         return Holder.pass(stack);
+    }
+
+    // ------------------------------------------------------------------ 염소 뿔(GoatHornItem.use)
+
+    /**
+     * 악기가 있으면 사용을 시작하고(use_duration 틱), 소리(기록 분류, 음량 range/16, 플레이어 본인 제외)를 낸 뒤 instrument_play 게임 이벤트,
+     * 재사용 대기 use_duration, 사용 통계. 결과 CONSUME. 악기를 모르면 FAIL.
+     */
+    private static Holder goatHornUse(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
+        var inst = org.domi.furnace.server.entity.ItemEffects.instrumentOf(stack);
+        if (inst == null) return Holder.fail(stack);
+        player.startUsingItem(hand, inst.useDuration());
+        level.playSound(player, player.x(), player.y(), player.z(), inst.sound(), "records", inst.range() / 16.0F, 1.0F);
+        if (level instanceof ChunkLevel cl) {
+            cl.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.INSTRUMENT_PLAY,
+                    new org.domi.furnace.server.entity.Vec3(player.x(), player.y(), player.z()),
+                    org.domi.furnace.server.world.gameevent.GameEventContext.of(player.handle()));
+        }
+        player.addCooldown(stack.itemId(), inst.useDuration());
+        player.awardStat("minecraft:used:minecraft:goat_horn");
+        return Holder.success(stack);
     }
 
     // ------------------------------------------------------------------ 던지는 아이템(SnowballItem·EggItem·EnderpearlItem·ExperienceBottleItem·ThrowablePotionItem·WindChargeItem)
@@ -476,6 +503,7 @@ public final class ItemUse {
             case "minecraft:firework_rocket": return fireworkOn(level, player, hand, hit, stack);
             case "minecraft:item_frame", "minecraft:glow_item_frame", "minecraft:painting": return hangingOn(level, player, hand, hit, stack, n);
             case "minecraft:lead": return leadOn(level, player, hit);
+            case "minecraft:brush": return level instanceof ChunkLevel cl ? org.domi.furnace.server.entity.Brushing.useOn(cl, player, hand) : InteractionResult.PASS;
             default: break;
         }
         if (n.endsWith("_hoe")) return hoe(level, player, hand, hit, stack);
@@ -491,7 +519,6 @@ public final class ItemUse {
             case "minecraft:command_block_minecart": return minecartOn(level, player, hand, hit, stack, org.domi.furnace.server.entity.AbstractMinecart.Type.COMMAND_BLOCK);
             default: break;
         }
-        // TODO(엔티티): 끈, 솔(오래 쓰기).
         return InteractionResult.PASS;
     }
 

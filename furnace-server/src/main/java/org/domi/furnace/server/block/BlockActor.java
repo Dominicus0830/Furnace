@@ -65,6 +65,15 @@ public interface BlockActor {
     /** ServerPlayer.setRespawnPosition(dim, pos, angle, forced, sendMessage). */
     default void setRespawnPosition(String dimension, Pos pos, float angle, boolean forced, boolean sendMessage) {}
 
+    /** ServerPlayer.openItemGui: 서명된 책을 펼치라고 알린다(open_book). 플레이어가 아니면 아무것도 안 한다. */
+    default void openBook(int hand) {}
+
+    /** LivingEntity.startUsingItem(hand): 오래 쓰기 시작(남은 사용 틱). 플레이어가 아니면 아무것도 안 한다. */
+    default void startUsingItem(int hand, int ticks) {}
+
+    /** Player.getLuck(): 행운 속성 값(전리품 문맥의 luck). */
+    default float luck() { return 0.0F; }
+
     /** 그 아이템이 재사용 대기 중인가(getCooldowns().isOnCooldown). */
     default boolean isOnCooldown(int itemId) { return false; }
 

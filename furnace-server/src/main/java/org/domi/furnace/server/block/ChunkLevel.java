@@ -1207,6 +1207,11 @@ public abstract class ChunkLevel implements BlockLevel {
         return services().giftLoot(lootTable, self, x, y, z);
     }
 
+    /** 고고학 전리품 평가(services 위임). */
+    public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
+        return services().chestLoot(lootTable, seed, x, y, z, player, luck);
+    }
+
     public java.util.List<ItemStack> fishingLoot(org.domi.furnace.server.loot.LootEntity hook, double x, double y, double z, ItemStack tool, float luck) {
         return services().fishingLoot(hook, x, y, z, tool, luck);
     }
