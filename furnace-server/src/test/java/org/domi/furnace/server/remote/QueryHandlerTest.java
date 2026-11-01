@@ -194,4 +194,17 @@ class QueryHandlerTest {
         }
         for (int v : seen) assertEquals(true, v >= 0 && v < (1 << 24));
     }
+
+    @Test
+    void challengeMapIsCapped() {
+        QueryHandler h = handler();
+        for (int i = 0; i < QueryHandler.MAX_CHALLENGES; i++) {
+            assertNotNull(h.handle(new InetSocketAddress("10.0.0.1", 1000 + i), handshakeReq(), 7));
+        }
+        assertNull(h.handle(new InetSocketAddress("10.0.0.2", 5), handshakeReq(), 7));   // 가득 차면 새 핸드셰이크 무시
+        assertNotNull(h.handle(new InetSocketAddress("10.0.0.1", 1000), handshakeReq(), 7));   // 기존 주소는 갱신 가능
+        now.addAndGet(30_001);
+        h.prune();
+        assertNotNull(h.handle(new InetSocketAddress("10.0.0.2", 5), handshakeReq(), 7));
+    }
 }

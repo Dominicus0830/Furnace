@@ -43,7 +43,9 @@ class ServerWatchdogTest {
     @Test
     void checkReportsWorstProbeOverThreshold() {
         FakeProbe a = new FakeProbe("global"), b = new FakeProbe("region");
-        var wd = new ServerWatchdog(1000, System::nanoTime, () -> List.of(a, b), s -> {});
+        AtomicLong clock = new AtomicLong(0);
+        var wd = new ServerWatchdog(1000, clock::get, () -> List.of(a, b), s -> {});
+        clock.addAndGet(TimeUnit.HOURS.toNanos(1));   // 감시 시작 후 충분히 지난 시각
         assertNull(wd.check());
         a.stalled = TimeUnit.MILLISECONDS.toNanos(1000);   // 정확히 임계는 아직 아니다
         assertNull(wd.check());
@@ -91,5 +93,22 @@ class ServerWatchdogTest {
             assertTrue(s.contains(Thread.currentThread().getName()), s);
             assertNotNull(f);
         }
+    }
+
+    @Test
+    void longStartupBeforeWatchdogStartsDoesNotTrip() {
+        AtomicLong clock = new AtomicLong(1_000_000_000_000L);
+        long created = clock.get() - TimeUnit.MINUTES.toNanos(5);   // 박동 기준이 5분 전(기동이 오래 걸림)
+        ServerWatchdog.Probe stale = new ServerWatchdog.Probe() {
+            @Override public String name() { return "global tick"; }
+            @Override public long stalledNanos(long now) { return now - created; }
+            @Override public Thread thread() { return null; }
+        };
+        var wd = new ServerWatchdog(60_000, clock::get, () -> List.of(stale), s -> {});
+        assertNull(wd.check());   // 감시 시작 전의 시간은 세지 않는다
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(59));
+        assertNull(wd.check());
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(2));
+        assertNotNull(wd.check());   // 시작 뒤 임계를 넘겨 멈추면 잡는다
     }
 }

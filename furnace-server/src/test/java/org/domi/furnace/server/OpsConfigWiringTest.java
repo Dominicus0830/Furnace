@@ -45,6 +45,7 @@ class OpsConfigWiringTest {
             ServerCore core = TestServers.core(tmp, sched);
             List<ServerWatchdog.Probe> probes = core.watchdogProbes();
             assertEquals("global tick", probes.get(0).name());
+            assertEquals(0L, probes.get(0).stalledNanos(System.nanoTime()), "첫 전역 틱 전(기동 중)에는 멈춘 것으로 보지 않는다");
             assertTrue(probes.size() >= 2);
             assertTrue(probes.get(1).name().startsWith("region tick "));
             core.scheduledTick();

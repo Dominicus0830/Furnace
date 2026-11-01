@@ -34,6 +34,35 @@ public final class RconServer implements AutoCloseable {
     private final List<Client> clients = new CopyOnWriteArrayList<>();
     private volatile boolean running = true;
 
+    /** 보안 보강(바닐라에는 없음): 동시 연결 상한, 인증 전 읽기 제한 시간, 인증 실패 지연·연결당/IP당 실패 제한. */
+    public static final int MAX_CLIENTS = 16;
+    public static final int AUTH_TIMEOUT_MILLIS = 30_000;
+    public static final int MAX_FAILS_PER_CONNECTION = 5;
+    public static final int MAX_FAILS_PER_IP = 10;
+    public static final long IP_WINDOW_MILLIS = 60_000L;
+    private volatile long failDelayMillis = 1000L;
+    private final java.util.concurrent.atomic.AtomicInteger clientSeq = new java.util.concurrent.atomic.AtomicInteger();
+    /** IP → {실패 수, 창 시작(ms)}. */
+    private final java.util.concurrent.ConcurrentHashMap<String, long[]> ipFails = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 시험용: 인증 실패 뒤 지연(ms). */
+    public void failDelayMillis(long ms) { this.failDelayMillis = ms; }
+
+    private boolean ipBlocked(String ip) {
+        long[] f = ipFails.get(ip);
+        return f != null && System.currentTimeMillis() - f[1] < IP_WINDOW_MILLIS && f[0] >= MAX_FAILS_PER_IP;
+    }
+
+    private void noteIpFail(String ip) {
+        long now = System.currentTimeMillis();
+        ipFails.compute(ip, (k, f) -> {
+            if (f == null || now - f[1] >= IP_WINDOW_MILLIS) return new long[] {1, now};
+            f[0]++;
+            return f;
+        });
+        if (ipFails.size() > 4096) ipFails.values().removeIf(f -> now - f[1] >= IP_WINDOW_MILLIS);
+    }
+
     private RconServer(ServerSocket server, String password, CommandRunner runner) {
         this.server = server;
         this.password = password;
@@ -55,6 +84,9 @@ public final class RconServer implements AutoCloseable {
         }
         try {
             ServerSocket s = new ServerSocket(port, 0, InetAddress.getByName(ip));
+            if (ip.equals("0.0.0.0") || ip.equals("::")) {
+                log.warn("RCON 은 암호화되지 않은 평문 프로토콜이다 — 모든 주소({})로 열렸다. 방화벽으로 막거나 server-ip 를 loopback 으로 제한하는 것을 권장한다", ip);
+            }
             RconServer r = open(s, password, runner);
             log.info("RCON running on {}:{}", ip, port);
             return r;
@@ -77,8 +109,16 @@ public final class RconServer implements AutoCloseable {
         while (running) {
             try {
                 Socket s = server.accept();
-                Client c = new Client(s);
                 clients.removeIf(x -> !x.thread.isAlive() && x.started);
+                if (clients.size() >= MAX_CLIENTS || ipBlocked(s.getInetAddress().getHostAddress())) {
+                    try {
+                        s.close();
+                    } catch (IOException ignored) {
+                        // 이미 닫힘
+                    }
+                    continue;
+                }
+                Client c = new Client(s);
                 clients.add(c);
                 c.start();
             } catch (IOException e) {
@@ -109,10 +149,11 @@ public final class RconServer implements AutoCloseable {
         final Thread thread;
         volatile boolean started;
         private boolean authed;
+        private int fails;
 
         Client(Socket socket) {
             this.socket = socket;
-            this.thread = new Thread(this, "RCON Client " + socket.getInetAddress());
+            this.thread = new Thread(this, "RCON Client #" + clientSeq.incrementAndGet());   // IP 는 이름에 넣지 않는다(크래시 리포트 공개 시 노출 방지)
             this.thread.setDaemon(true);
         }
 
@@ -124,6 +165,7 @@ public final class RconServer implements AutoCloseable {
         @Override
         public void run() {
             try (socket) {
+                socket.setSoTimeout(AUTH_TIMEOUT_MILLIS);   // 인증 전에는 30초 안에 말을 해야 한다
                 DataInputStream in = new DataInputStream(new java.io.BufferedInputStream(socket.getInputStream()));
                 OutputStream out = socket.getOutputStream();
                 while (running) {
@@ -163,13 +205,23 @@ public final class RconServer implements AutoCloseable {
                     out.flush();
                 }
                 case RconProtocol.TYPE_LOGIN -> {
-                    if (!req.payload().isEmpty() && req.payload().equals(password)) {
+                    if (!req.payload().isEmpty() && java.security.MessageDigest.isEqual(
+                            req.payload().getBytes(java.nio.charset.StandardCharsets.UTF_8), password.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
                         authed = true;
+                        socket.setSoTimeout(0);
                         out.write(RconProtocol.encode(req.id(), RconProtocol.TYPE_AUTH_RESPONSE, ""));
                         out.flush();
                     } else {
                         authed = false;
                         authFailed(out);
+                        noteIpFail(socket.getInetAddress().getHostAddress());
+                        if (++fails >= MAX_FAILS_PER_CONNECTION) throw new IOException("too many auth failures");
+                        try {
+                            Thread.sleep(failDelayMillis);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException(e);
+                        }
                     }
                 }
                 default -> {

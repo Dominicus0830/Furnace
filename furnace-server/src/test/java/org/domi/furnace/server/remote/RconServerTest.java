@@ -35,6 +35,7 @@ class RconServerTest {
             if (cmd.equals("empty")) return "";
             return "ran:" + cmd;
         });
+        server.failDelayMillis(0);
     }
 
     @AfterEach
@@ -172,5 +173,52 @@ class RconServerTest {
         assertNull(RconServer.create("", 0, "pw", c -> ""));
         assertNull(RconServer.create("", 70000, "pw", c -> ""));
         assertNull(RconServer.create("", 25575, "", c -> ""));
+    }
+
+    @Test
+    void connectionClosedAfterRepeatedAuthFailures() throws Exception {
+        try (Socket s = connect()) {
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            OutputStream out = s.getOutputStream();
+            for (int i = 0; i < RconServer.MAX_FAILS_PER_CONNECTION; i++) {
+                send(out, i, 3, "bad");
+                assertEquals(-1, read(in).id());
+            }
+            assertEquals(-1, s.getInputStream().read());   // 서버가 끊었다
+        }
+    }
+
+    @Test
+    void ipIsBlockedAfterTooManyFailuresAndThreadNameHasNoIp() throws Exception {
+        for (int c = 0; c < RconServer.MAX_FAILS_PER_IP / RconServer.MAX_FAILS_PER_CONNECTION; c++) {
+            try (Socket s = connect()) {
+                DataInputStream in = new DataInputStream(s.getInputStream());
+                for (int i = 0; i < RconServer.MAX_FAILS_PER_CONNECTION; i++) {
+                    send(s.getOutputStream(), i, 3, "bad");
+                    read(in);
+                }
+            }
+        }
+        try (Socket s = connect()) {
+            send(s.getOutputStream(), 1, 3, "secret");   // 맞는 비밀번호여도 IP 가 막혀 있다
+            assertEquals(-1, s.getInputStream().read());
+        }
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (t.getName().startsWith("RCON Client")) assertTrue(t.getName().matches("RCON Client #\\d+"), t.getName());
+        }
+    }
+
+    @Test
+    void connectionCapRefusesExtraClients() throws Exception {
+        List<Socket> held = new java.util.ArrayList<>();
+        try {
+            for (int i = 0; i < RconServer.MAX_CLIENTS; i++) held.add(connect());
+            Thread.sleep(300);
+            try (Socket extra = connect()) {
+                assertEquals(-1, extra.getInputStream().read());
+            }
+        } finally {
+            for (Socket s : held) s.close();
+        }
     }
 }

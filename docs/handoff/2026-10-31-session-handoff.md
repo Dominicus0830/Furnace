@@ -1,4 +1,6 @@
-# Furnace 세션 인수인계 (2026-10-31)
+# Furnace 세션 인수인계 (작성일 2026-11-01)
+
+> 파일 이름의 2026-10-31 은 작업 G 를 시작한 세션 날짜이고, 이 문서의 작성·최종 갱신일은 2026-11-01 이다.
 
 **이 문서가 `docs/handoff/2026-10-18-session-handoff.md` 의 "상태" 부분을 대체한다.** 옛 문서는 지우지 않았다. 대체 범위는 아래와 같다.
 
@@ -9,7 +11,7 @@
 | 2장(확정된 결정·설계 원칙), 3장(규칙), 4장(환경·도구), 5장(아키텍처) | **그대로 유효.** 단 CLAUDE.md/AGENTS.md 가 더 최신이면 그쪽이 우선 |
 | `CLAUDE.md` 의 "현재 다음 작업은 4-2" 문구 | 낡음(CLAUDE.md 는 사용자 소유라 고치지 않았다 — `docs/user-todo.md` 결정 기록 참고) |
 
-- 작성 시점: 2026-10-31. 기준 브랜치 `claude/quirky-wright-lra834`, 이 문서를 쓴 작업 G 의 시작점은 `8a447c1a`.
+- 작성 시점: 2026-11-01. 기준 브랜치 `claude/quirky-wright-lra834`, 이 문서를 쓴 작업 G 의 시작점은 `8a447c1a`.
 - 사용자에게는 항상 한국어. 커밋 메시지·코드 주석도 한국어, 간결하게. 커밋·PR 에 모델 ID 를 쓰지 않는다.
 - **먼저 읽을 순서:** `CLAUDE.md` → `AGENTS.md` → `.claude/rules/*.md`(경로별) → 이 문서 → 옛 인수인계서 2~3장 → `docs/user-todo.md`(사용자 결정·시험 대기) → `docs/feature-parity/unimplemented-survey-2026-10-31.md`.
 
@@ -24,12 +26,12 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 
 ## 2. 2026-10-18 이후 완료된 것 (요약 — 상세는 각 문서)
 
-**4-2 컨테이너 메뉴 프레임워크는 완료됐다.** `furnace-server/.../menu/` 에 메뉴 25종(`AbstractContainerMenu`, 제작·화로·모루·마법 부여·양조·베틀·지도 제작대·석재 절단기·숫돌·대장장이·신호기·연단·상인·말 등)이 있다(`unimplemented-survey-2026-10-31.md` 3장 "메뉴 25종은 모두 있다"). 이후 단계도 대부분 들어왔다. 옛 인수인계서 이후 비병합 커밋이 약 385개다(`git log --no-merges 3738fd79..8a447c1a`). 굵직한 것:
+**4-2 컨테이너 메뉴 프레임워크는 완료됐다.** `furnace-server/.../menu/` 에 메뉴 25종(`AbstractContainerMenu`, 제작·화로·모루·마법 부여·양조·베틀·지도 제작대·석재 절단기·숫돌·대장장이·신호기·연단·상인·말 등)이 있다(`unimplemented-survey-2026-10-31.md` 3장 "메뉴 25종은 모두 있다"). 이후 단계도 대부분 들어왔다. 옛 인수인계서(코드 기준 `3738fd79`) 이후 커밋이 많다(개수는 `git log --no-merges 3738fd79..HEAD` 로 직접 센다 — 이 문서에는 적지 않는다). 굵직한 것:
 
 - **엔티티·몹**: 몹 목표/AI 다수, 마을 주민 AI(T3 직업·WORK), 철 골렘 마을 AI, 늑대 변종·갑옷, 알레이, 가죽끈, 몹 양동이, 엔더의 눈, 생물끼리 밀기·`maxEntityCramming`, 파괴수·워든·스컬크, 습격자 순찰 등. 몹 능력은 `mob-ability-audit-2026-10-31.md`.
 - **플레이어**: 수면·밤 건너뛰기·리스폰 정박기, 겉날개, 토템, 철퇴·밀도·관통·돌풍·가시, 이동 서버 검증, 파괴 속도 효과, 수영·기어가기 자세, 근접 속성.
 - **월드**: 오버월드·네더·엔드 세 차원 호스팅과 차원 이동(`multi-dimension-2026-10-26.md`), 포털, 게임 이벤트·진동, 명령 블록 3종·수레, 제작기·스포너 블록 엔티티, 깃발·지도 표식.
-- **명령**: `/execute`·함수 시스템(매크로 포함)·`/tick sprint`·`/loot`·`/item`·`/give`·`/data`·`/place`·`/clone`·`/attribute` 등. 루트 83개 중 81개 등록(`/perf` 미구현, `/publish` 는 전용 서버에 없음).
+- **명령**: `/execute`·함수 시스템(매크로 포함)·`/tick sprint`·`/loot`·`/item`·`/give`·`/data`·`/place`·`/clone`·`/attribute` 등. 루트 83개 중 81개 등록(`/perf` 미구현, `/publish` 는 전용 서버에 없음) — 이 수치는 `unimplemented-survey-2026-10-31.md` 3장 인용이며 이 세션에서 다시 세지 않았다.
 - **스케줄러 성능**: S1~S4 공유 스케줄러(기본 꺼짐, `-Dfurnace.sharedRegionPool=true`), 측정 문서는 `docs/feature-parity/shared-scheduler-*.md`·`perf-c*.md`. 기본값을 켤지는 사용자 결정(`user-todo.md`).
 - **배포**: `start.sh`/`start.bat`(JVM 옵션), 단일 실행 jar `:furnace-server:fatJar`.
 - **설정 기본값**: `sync-chunk-writes` 기본 false(사용자 결정 2026-10-28).
@@ -39,6 +41,8 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 2. **관측 명령** `/furnace threads | regions [개수] | profile`(권한 3): 전역·차원별 region 수·대기열·워커 상태·틱 시간 p50/p95/최대·큐 지연·가장 느린 region. 기존 `Regionizer` 스케줄 계측을 재사용하고 틱 시간 고리(`TickTimeRing`)를 더했다.
 3. **CI**: `.github/workflows/ci.yml` 에 `:furnace-api:test`, `:furnace-plugin-test:classes`, `:furnace-server:fatJar` 단계 추가(러너·트리거·캐시 정책은 그대로). CLAUDE.md 수정 제안은 `docs/user-todo.md` 결정 기록에 남김.
 4. 이 문서(`docs/handoff/2026-10-31-session-handoff.md`).
+5. **독립 검토 후속(2026-11-01)**: 워치독 시작 직후 오탐(B1) 수정 — 전역 박동은 첫 `scheduledTick` 전에는 0(멈춤 아님)이고, 워치독은 "멈춘 시간"을 자신이 만들어진 뒤 경과 시간으로 상한한다(기동에 `max-tick-time` 이상 걸려도 시작 직후 크래시하지 않음, 가짜 시계 시험 있음). RCON 보안 보강(인증 실패 지연·연결당/IP당 실패 제한·동시 연결 16·인증 전 30초 제한·상수 시간 비교·스레드 이름에서 IP 제거·0.0.0.0 경고), Query 챌린지 맵 상한 1024, Query hostIp 기동 때 한 번 계산. 바닐라와 달라지는 점은 context-notes.
+6. **경고**: `region-file-compression=lz4` 는 쓰지 못할 뿐 아니라, 1.20.5+ 바닐라에서 lz4 로 저장한 월드를 가져오면 청크 읽기가 실패한다(읽기 미지원).
 
 검증 숫자(전체 시험 개수·실패·스킵)는 이 세션의 마지막 전체 실행 결과를 보고서에 적었다. 이 문서에는 적지 않는다 — 다음 세션이 직접 돌려서 확인한다.
 
@@ -65,4 +69,4 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 
 - `graphify-out/` 코드 구조 지도가 있다. 코드 위치·연결을 찾을 때는 파일을 뒤지기 전에 `graphify query` 를 쓴다(CLAUDE.md). 갱신은 로드맵 한 단계를 끝냈을 때만 한다 — 이번 작업 G 는 그 단위가 아니라서 갱신하지 않았다.
 - 바닐라 디컴파일(읽기 전용)은 세션 스크래치패드에만 있고 커밋하지 않는다(EULA). 난독화 이름은 grep 으로 찾는다. 새 컨테이너에서는 `tools/vanilla-data/README.md` 로 재생성해야 한다.
-- 이 세션이 새로 확인한 난독화 이름: `avk`(RconThread)·`avj`(RconClient)·`avi`(QueryThreadGs4)·`avd`(쿼리 응답 버퍼)·`apq`(서버 워치독)·`apn`(DedicatedServer)·`aqu`(ServerLevel, `i` = shouldDiscardEntity)·`dwr`(RegionFileVersion).
+- 이 세션이 디컴파일에서 읽은 난독화 이름(1.21.1 서버 jar 기준, 이 문서 작성 시점에 jar 로 재확인하지는 않았다 — 쓰기 전에 grep 으로 다시 확인할 것): `avk`(RconThread)·`avj`(RconClient)·`avi`(QueryThreadGs4)·`avd`(쿼리 응답 버퍼)·`apq`(서버 워치독)·`apn`(DedicatedServer)·`aqu`(ServerLevel, `i` = shouldDiscardEntity)·`dwr`(RegionFileVersion).

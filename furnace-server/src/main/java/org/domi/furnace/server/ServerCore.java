@@ -432,7 +432,8 @@ public final class ServerCore {
     public org.domi.furnace.server.plugin.EventBusImpl events() { return pluginHost.eventsImpl(); }
 
     /** 워치독용 전역 틱 박동(마지막 scheduledTick 시작 시각)과 그 스레드. */
-    private volatile long globalBeat = System.nanoTime();
+    /** 0 = 첫 전역 틱 전(기동 중). 워치독은 첫 틱 전에는 멈춘 것으로 보지 않는다. */
+    private volatile long globalBeat;
     private volatile Thread globalTickThread;
 
     /** 전역 틱(scheduledTick) 소요 시간 분포 — /furnace 관측용. */
@@ -455,7 +456,7 @@ public final class ServerCore {
         List<ServerWatchdog.Probe> out = new ArrayList<>();
         out.add(new ServerWatchdog.Probe() {
             @Override public String name() { return "global tick"; }
-            @Override public long stalledNanos(long now) { return now - globalBeat; }
+            @Override public long stalledNanos(long now) { long b = globalBeat; return b == 0 ? 0 : now - b; }
             @Override public Thread thread() { return globalTickThread; }
         });
         for (World w : worlds()) {

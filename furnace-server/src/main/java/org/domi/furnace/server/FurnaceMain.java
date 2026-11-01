@@ -428,7 +428,7 @@ public final class FurnaceMain {
     private static void startRemoteServices(ServerCore core, ServerProperties props, Config config, java.util.List<AutoCloseable> out) {
         if (props.enableQuery) {
             log.info("Starting GS4 status listener");
-            var q = org.domi.furnace.server.remote.QueryServer.create(props.serverIp, props.queryPort, new QueryInfo(core, props, config));
+            var q = org.domi.furnace.server.remote.QueryServer.create(props.serverIp, props.queryPort, new QueryInfo(core, props, config, hostIp(props)));
             if (q != null) out.add(q);
         }
         if (props.enableRcon) {
@@ -444,8 +444,18 @@ public final class FurnaceMain {
         }
     }
 
+    /** 기동 때 한 번만 계산한다(질의마다 DNS 조회를 하지 않게). */
+    private static String hostIp(ServerProperties props) {
+        if (!props.serverIp.isEmpty()) return props.serverIp;
+        try {
+            return java.net.InetAddress.getLocalHost().getHostAddress();
+        } catch (java.net.UnknownHostException e) {
+            return "0.0.0.0";
+        }
+    }
+
     /** Query 응답이 읽는 서버 정보(기동 때 값 + 접속자 수·이름은 매번). */
-    private record QueryInfo(ServerCore core, ServerProperties props, Config config) implements org.domi.furnace.server.remote.QueryHandler.Info {
+    private record QueryInfo(ServerCore core, ServerProperties props, Config config, String hostIp) implements org.domi.furnace.server.remote.QueryHandler.Info {
         @Override public String motd() { return props.motd; }
         @Override public String levelName() { return config.levelName(); }
         @Override public String version() { return "1.21.1"; }
@@ -453,14 +463,7 @@ public final class FurnaceMain {
         @Override public int playerCount() { return core.players().size(); }
         @Override public int maxPlayers() { return props.maxPlayers; }
         @Override public int hostPort() { return config.port(); }
-        @Override public String hostIp() {
-            if (!props.serverIp.isEmpty()) return props.serverIp;
-            try {
-                return java.net.InetAddress.getLocalHost().getHostAddress();
-            } catch (java.net.UnknownHostException e) {
-                return "0.0.0.0";
-            }
-        }
+        @Override public String hostIp() { return hostIp; }
         @Override public String[] playerNames() { return core.players().stream().map(p -> p.name()).toArray(String[]::new); }
     }
 

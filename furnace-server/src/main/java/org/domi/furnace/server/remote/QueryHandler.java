@@ -31,6 +31,8 @@ public final class QueryHandler {
     }
 
     static final long CLEAN_INTERVAL_MS = 30_000L;
+    /** 보안 보강(바닐라에는 없음): 챌린지 맵 크기 상한. 가득 차면 새 핸드셰이크를 무시한다(30초마다 비워진다). */
+    public static final int MAX_CHALLENGES = 1024;
     static final long FULL_CACHE_MS = 5_000L;
 
     private record Challenge(long createdAt, int token, byte[] sessionId, byte[] reply) {}
@@ -82,6 +84,7 @@ public final class QueryHandler {
     private byte[] handshake(SocketAddress from, byte[] data, int len) {
         if (len < 7) return null;   // 바닐라는 버퍼가 1460 이라 예외 없이 쓰레기를 읽는다 — 짧은 패킷은 버린다
         byte[] sid = {data[3], data[4], data[5], data[6]};
+        if (challenges.size() >= MAX_CHALLENGES && !challenges.containsKey(from)) return null;
         int token = tokens.getAsInt();
         String sidText = new String(sid, StandardCharsets.UTF_8);
         byte[] reply = String.format(Locale.ROOT, "\t%s%d\u0000", sidText, token).getBytes(StandardCharsets.UTF_8);

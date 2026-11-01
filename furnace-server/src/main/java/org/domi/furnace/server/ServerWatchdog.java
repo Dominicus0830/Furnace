@@ -37,6 +37,8 @@ public final class ServerWatchdog implements AutoCloseable {
     public record Stall(Probe probe, long stalledNanos) {}
 
     private final long maxNanos;
+    /** 감시 시작(생성) 시각. 멈춘 시간은 이보다 길게 셀 수 없다 — 기동에 오래 걸린 서버가 시작 직후 오탐으로 죽지 않게. */
+    private final long watchStart;
     private final LongSupplier clock;
     private final Supplier<? extends Collection<? extends Probe>> probes;
     private final Consumer<Stall> onStall;
@@ -47,6 +49,7 @@ public final class ServerWatchdog implements AutoCloseable {
                           Consumer<Stall> onStall) {
         this.maxNanos = TimeUnit.MILLISECONDS.toNanos(maxTickMillis);
         this.clock = nanoClock;
+        this.watchStart = nanoClock.getAsLong();
         this.probes = probes;
         this.onStall = onStall;
     }
@@ -59,7 +62,7 @@ public final class ServerWatchdog implements AutoCloseable {
         long now = clock.getAsLong();
         Stall worst = null;
         for (Probe p : probes.get()) {
-            long s = p.stalledNanos(now);
+            long s = Math.min(p.stalledNanos(now), now - watchStart);
             if (s > maxNanos && (worst == null || s > worst.stalledNanos())) worst = new Stall(p, s);
         }
         return worst;
