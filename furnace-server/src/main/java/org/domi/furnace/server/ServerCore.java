@@ -818,6 +818,9 @@ public final class ServerCore {
         public java.util.List<ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
             return ServerCore.this.giftLoot(lootWorld, lootTable, self, x, y, z);
         }
+        public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
+            return ServerCore.this.chestLoot(lootWorld, lootTable, seed, x, y, z, player, luck);
+        }
         public String biomeAt(int x, int y, int z) { return lootWorld.biomeAt(x, y, z); }
         public org.domi.furnace.server.map.ExplorerMaps.Backend explorerMaps() { return explorerMapBackend(); }
         public long seed() { return levelData.seed; }
@@ -917,6 +920,9 @@ public final class ServerCore {
         @Override public java.util.List<ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
             return ServerCore.this.giftLoot(lw, lootTable, self, x, y, z);
         }
+        @Override public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
+            return ServerCore.this.chestLoot(lw, lootTable, seed, x, y, z, player, luck);
+        }
     }
 
     /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */
@@ -998,6 +1004,24 @@ public final class ServerCore {
         for (var st : table.getRandomItems(table.context(loot, lootWorld, params, 0L))) {
             ItemStack is = dp.network().toItemStack(st);
             if (is != null && !is.isEmpty()) out.add(is);
+        }
+        return out;
+    }
+
+    /** 바닐라 BrushableBlockEntity.unpackLootTable: 표를 CHEST 문맥(origin, this_entity, luck)과 시드로 평가(최대 스택으로 나눈다). */
+    java.util.List<ItemStack> chestLoot(org.domi.furnace.server.loot.LootWorld lootWorld, String lootTable, long seed, double x, double y, double z,
+            Object player, float luck) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return java.util.List.of();
+        var loot = dp.loot();
+        var table = loot.table(lootTable);
+        var params = new org.domi.furnace.server.loot.LootParams()
+                .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{x, y, z}).luck(luck);
+        if (player instanceof Player p) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p));
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        for (var st : table.getRandomItems(table.context(loot, lootWorld, params, seed))) {
+            ItemStack is = dp.network().toItemStack(st);
+            out.add(is == null ? ItemStack.EMPTY : is);
         }
         return out;
     }

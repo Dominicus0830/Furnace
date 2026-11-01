@@ -20,6 +20,7 @@ public final class Consuming {
         switch (n) {
             case "minecraft:potion": return DRINK_TICKS;
             case "minecraft:milk_bucket": return DRINK_TICKS;
+            case "minecraft:ominous_bottle": return ItemEffects.OMINOUS_BOTTLE_TICKS;   // ItemUtils.startUsingInstantly — 허기 검사 없음
             case "minecraft:honey_bottle": return p.vitals().canEat(false) ? HONEY_TICKS : -1;
             default: break;
         }
@@ -48,6 +49,15 @@ public final class Consuming {
         PlayerInventory inv = p.inventory();
         int ws = p.usingHand == 0 ? inv.heldWindowSlot() : 45;
         ItemStack s = inv.get(ws);
+        if (n0(s).equals("minecraft:goat_horn")) {   // 염소 뿔: 사용 시간(instrument 의 use_duration)이 지나면 끝
+            if (--p.usingTicks <= 0) p.usingHand = -1;
+            return;
+        }
+        if (Brushing.isBrush(s)) {   // 솔: 매 틱 onUseTick(남은 틱은 줄이기 전 값), 시선이 블록을 벗어나면 놓는다
+            if (region == null || !region.tickBrush(p)) { p.usingHand = -1; return; }
+            if (--p.usingTicks <= 0) p.usingHand = -1;
+            return;
+        }
         if (RangedWeapons.usesRelease(s)) {   // 활·쇠뇌·삼지창: 놓을 때 처리
             RangedWeapons.tick(p, region == null ? null : region.level(), s);
             return;
@@ -62,9 +72,11 @@ public final class Consuming {
         finish(p, region, inv, ws, s);
     }
 
+    private static String n0(ItemStack s) { return s.isEmpty() ? "" : ItemTools.itemName(s); }
+
     private static int duration0(ItemStack s) {
         String n = ItemTools.itemName(s);
-        return n.equals("minecraft:potion") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:honey_bottle")
+        return n.equals("minecraft:potion") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:honey_bottle") || n.equals("minecraft:ominous_bottle")
                 || ItemTools.component(s, "minecraft:food") instanceof Map ? 1 : -1;
     }
 
@@ -72,6 +84,20 @@ public final class Consuming {
         PlayerVitals v = p.vitals();
         String n = ItemTools.itemName(s);
         String leftover = null;
+        if (n.equals("minecraft:ominous_bottle")) {   // OminousBottleItem.finishUsingItem: super(음식)를 부르지 않는다
+            consumeTrigger(p, s);
+            p.awardStat("minecraft:used:minecraft:ominous_bottle", 1);
+            if (region != null) ItemEffects.ominousBottleDrunk(p, region.level(), s);
+            if (!v.isCreative()) inv.set(ws, s.withCount(s.count() - 1));
+            return;
+        }
+        if (n.equals("minecraft:suspicious_stew") && ItemTools.component(s, "minecraft:suspicious_stew_effects") instanceof List<?> stew) {
+            for (Object o : stew) {   // SuspiciousStewItem.finishUsingItem: 음식 먹기 전에 효과부터(증폭 0, 아이콘·입자 보임)
+                if (!(o instanceof Map<?, ?> m)) continue;
+                int dur = m.get("duration") instanceof Number x ? x.intValue() : 160;
+                v.addEffect(new MobEffectInstance(MobEffect.byName(String.valueOf(m.get("id"))), dur, 0, false, true, true));
+            }
+        }
         if (ItemTools.component(s, "minecraft:food") instanceof Map<?, ?> f) {
             int nutrition = f.get("nutrition") instanceof Number x ? x.intValue() : 0;
             float sat = f.get("saturation") instanceof Number x ? x.floatValue() : 0;
@@ -95,17 +121,19 @@ public final class Consuming {
             default -> { }
         }
         boolean creative = v.isCreative();
-        if (creative) return;
-        ItemStack rest = s.withCount(s.count() - 1);
-        inv.set(ws, rest);
-        if (leftover != null) {
-            ItemStack lo = new ItemStack(ItemContext.id("minecraft:item", leftover.replace("minecraft:", "")), 1);
-            if (rest.isEmpty()) inv.set(ws, lo);
-            else {
-                ItemStack left = inv.add(lo, false, 64, false);
-                if (!left.isEmpty()) region.playerDrop(p, left, false, true);
+        if (!creative) {
+            ItemStack rest = s.withCount(s.count() - 1);
+            inv.set(ws, rest);
+            if (leftover != null) {
+                ItemStack lo = new ItemStack(ItemContext.id("minecraft:item", leftover.replace("minecraft:", "")), 1);
+                if (rest.isEmpty()) inv.set(ws, lo);
+                else {
+                    ItemStack left = inv.add(lo, false, 64, false);
+                    if (!left.isEmpty()) region.playerDrop(p, left, false, true);
+                }
             }
         }
+        if (n.equals("minecraft:chorus_fruit") && region != null) ItemEffects.chorusFruitTeleport(p, region.level());   // 먹은 뒤 순간이동(크리에이티브도)
     }
 
     private static void consumeTrigger(Player p, ItemStack s) {

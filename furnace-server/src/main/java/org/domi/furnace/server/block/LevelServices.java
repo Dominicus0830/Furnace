@@ -104,6 +104,13 @@ public interface LevelServices {
     default java.util.List<org.domi.furnace.server.entity.ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self,
             double x, double y, double z) { return java.util.List.of(); }
 
+    /**
+     * 고고학 전리품: 표를 CHEST 문맥(origin, this_entity=플레이어, luck)과 시드로 평가한다(바닐라 BrushableBlockEntity.unpackLootTable).
+     * player 는 Player(없으면 null). 데이터 팩이 없으면 빈 목록.
+     */
+    default java.util.List<org.domi.furnace.server.entity.ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z,
+            Object player, float luck) { return java.util.List.of(); }
+
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
@@ -223,6 +230,10 @@ public interface LevelServices {
         public java.util.List<org.domi.furnace.server.entity.ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self,
                 double x, double y, double z) {
             return d.giftLoot(lootTable, self, x, y, z);
+        }
+        public java.util.List<org.domi.furnace.server.entity.ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z,
+                Object player, float luck) {
+            return d.chestLoot(lootTable, seed, x, y, z, player, luck);
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }

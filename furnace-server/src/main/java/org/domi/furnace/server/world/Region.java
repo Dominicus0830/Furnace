@@ -1254,6 +1254,16 @@ public final class Region {
         writeBackHand(p, actor);
     }
 
+    /** 솔 사용 틱(BrushItem.onUseTick): 계속 쓰면 true, 시선이 블록을 벗어났으면 false. 이 플레이어가 이 region 소속일 때만. */
+    public boolean tickBrush(Player p) {
+        world.assertOwns(this);
+        if (!players.containsKey(p.entityId()) || p.usingHand < 0) return false;
+        var actor = breakerActor(p);
+        boolean keep = org.domi.furnace.server.entity.Brushing.onUseTick(level(), actor, p, p.usingHand, p.usingTicks);
+        writeBackHand(p, actor);
+        return keep;
+    }
+
     /** 사용 끝(player_action 5 — ServerPlayer.releaseUsingItem): 활·쇠뇌면 발사·장전, 아니면 그냥 멈춘다. */
     public void handleReleaseUsing(Player p) {
         world.assertOwns(this);

@@ -386,6 +386,9 @@ public abstract class Mob extends LivingEntity {
 
     public boolean isPersistenceRequired() { return persistenceRequired; }
 
+    /** Mob.setPersistenceRequired: 멀리 있어도 사라지지 않게(이름표 등). */
+    public void setPersistenceRequired() { persistenceRequired = true; }
+
     /** 몹 수 세기에서 빠지는가(유지 몹). */
     public boolean isPersistentForCaps() { return persistenceRequired || requiresCustomPersistence(); }
 

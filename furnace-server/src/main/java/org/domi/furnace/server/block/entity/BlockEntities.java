@@ -47,6 +47,7 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:bell", BellBlockEntity::new);
         FACTORIES.put("minecraft:bed", BedBlockEntity::new);
         FACTORIES.put("minecraft:skull", SkullBlockEntity::new);
+        FACTORIES.put("minecraft:brushable_block", BrushableBlockEntity::new);
         FACTORIES.put("minecraft:command_block", CommandBlockEntity::new);
     }
 
