@@ -105,6 +105,9 @@ public final class RconServer implements AutoCloseable {
 
     public int port() { return server.getLocalPort(); }
 
+    /** 시험·관측용: 지금 붙어 있는 클라이언트 수. */
+    public int clientCount() { return clients.size(); }
+
     private void acceptLoop() {
         while (running) {
             try {
@@ -213,8 +216,8 @@ public final class RconServer implements AutoCloseable {
                         out.flush();
                     } else {
                         authed = false;
+                        noteIpFail(socket.getInetAddress().getHostAddress());   // 응답을 쓰기 전에 센다(바로 재접속하는 클라이언트가 차단 검사에서 앞서지 않게)
                         authFailed(out);
-                        noteIpFail(socket.getInetAddress().getHostAddress());
                         if (++fails >= MAX_FAILS_PER_CONNECTION) throw new IOException("too many auth failures");
                         try {
                             Thread.sleep(failDelayMillis);

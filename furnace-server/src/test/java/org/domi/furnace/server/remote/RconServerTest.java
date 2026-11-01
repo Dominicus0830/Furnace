@@ -213,7 +213,9 @@ class RconServerTest {
         List<Socket> held = new java.util.ArrayList<>();
         try {
             for (int i = 0; i < RconServer.MAX_CLIENTS; i++) held.add(connect());
-            Thread.sleep(300);
+            long end = System.nanoTime() + 5_000_000_000L;
+            while (server.clientCount() < RconServer.MAX_CLIENTS && System.nanoTime() < end) Thread.sleep(5);
+            assertEquals(RconServer.MAX_CLIENTS, server.clientCount());
             try (Socket extra = connect()) {
                 assertEquals(-1, extra.getInputStream().read());
             }
