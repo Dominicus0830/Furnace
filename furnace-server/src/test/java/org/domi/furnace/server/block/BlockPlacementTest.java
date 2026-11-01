@@ -39,6 +39,20 @@ public class BlockPlacementTest {
             return chunks.computeIfAbsent((long) x << 32 | (z & 0xFFFFFFFFL), k -> gen.generate(x, z));
         }
 
+        /**
+         * 시험용: 유한 바닥(청크 ±2)의 둘레에 벽을 둘러 몹이 난수로 걸어 나가 허공에서 죽지 않게 한다.
+         * 벽은 x,z = -30 / 45, 높이 -60..-49.
+         */
+        public void wallOffArena() {
+            int stone = org.domi.furnace.server.block.B.defaultState(org.domi.furnace.server.block.B.id("minecraft:stone"));
+            for (int a = -30; a <= 45; a++) for (int y = -60; y <= -49; y++) {
+                setBlock(new Pos(a, y, -30), stone, 2);
+                setBlock(new Pos(a, y, 45), stone, 2);
+                setBlock(new Pos(-30, y, a), stone, 2);
+                setBlock(new Pos(45, y, a), stone, 2);
+            }
+        }
+
         /** 시험용: 그 청크(없으면 만든다). */
         public ChunkColumn column(int x, int z) { return chunk(x, z); }
 

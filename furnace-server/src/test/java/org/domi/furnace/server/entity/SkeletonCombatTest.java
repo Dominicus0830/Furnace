@@ -25,6 +25,8 @@ class SkeletonCombatTest {
         long dayTime;
         Player player;
 
+        ArenaLevel() { wallOffArena(); }
+
         @Override
         protected LevelServices services() {
             return new LevelServices.Delegating(LevelServices.DEFAULT) {
