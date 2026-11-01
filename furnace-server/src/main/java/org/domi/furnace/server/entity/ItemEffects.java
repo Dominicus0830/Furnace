@@ -112,8 +112,10 @@ public final class ItemEffects {
      * 아이콘만 보이게(앰비언트·입자 없음) 건다. 음식 컴포넌트(영양 1)는 쓰이지 않는다(finishUsingItem 이 super 를 부르지 않는다).
      */
     public static void ominousBottleDrunk(Player p, ChunkLevel level, ItemStack bottle) {
-        Pos pos = new Pos((int) Math.floor(p.x()), (int) Math.floor(p.y()), (int) Math.floor(p.z()));
-        level.playSound(null, pos, "minecraft:item.ominous_bottle.dispose", "players", 1.0F, 1.0F);
+        if (level != null) {   // 소리만 레벨이 필요하다. 나쁜 징조는 레벨 없이도 건다
+            Pos pos = new Pos((int) Math.floor(p.x()), (int) Math.floor(p.y()), (int) Math.floor(p.z()));
+            level.playSound(null, pos, "minecraft:item.ominous_bottle.dispose", "players", 1.0F, 1.0F);
+        }
         int amplifier = ItemTools.component(bottle, "minecraft:ominous_bottle_amplifier") instanceof Number n ? n.intValue() : 0;
         p.vitals().addEffect(new MobEffectInstance(MobEffect.byName("minecraft:bad_omen"), BAD_OMEN_TICKS, amplifier, false, false, true));
     }

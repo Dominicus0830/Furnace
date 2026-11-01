@@ -91,7 +91,7 @@ public final class Consuming {
         if (n.equals("minecraft:ominous_bottle")) {   // OminousBottleItem.finishUsingItem: super(음식)를 부르지 않는다
             consumeTrigger(p, s);
             p.awardStat("minecraft:used:minecraft:ominous_bottle", 1);
-            if (region != null) ItemEffects.ominousBottleDrunk(p, region.level(), s);
+            ItemEffects.ominousBottleDrunk(p, region == null ? null : region.level(), s);
             if (!v.isCreative()) inv.set(ws, s.withCount(s.count() - 1));
             return;
         }
