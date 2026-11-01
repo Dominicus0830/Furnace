@@ -72,7 +72,6 @@ public class PlayerActor implements BlockActor {
         player.usingHand = hand;
         player.usingTicks = ticks;
     }
-    @Override public float luck() { return (float) player.attributes().value(org.domi.furnace.server.attribute.Attribute.LUCK); }
     @Override public boolean onGround() { return player.onGround(); }
     @Override public java.util.List<org.domi.furnace.server.effect.MobEffectInstance> activeEffects() { return player.vitals().activeEffects(); }
 
