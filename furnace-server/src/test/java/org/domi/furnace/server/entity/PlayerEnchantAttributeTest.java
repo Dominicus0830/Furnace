@@ -41,6 +41,14 @@ class PlayerEnchantAttributeTest {
         return p;
     }
 
+    /** 레벨 난수를 고정한 시험용 레벨. */
+    private static BlockPlacementTest.TestLevel seededLevel(long seed) {
+        var rnd = new LegacyRandomSource(seed);
+        return new BlockPlacementTest.TestLevel() {
+            @Override public org.domi.furnace.server.block.RandomSource random() { return rnd; }
+        };
+    }
+
     private static double attr(Player p, Attribute a) {
         p.syncAttributes();
         return p.attributes().value(a);
@@ -149,7 +157,7 @@ class PlayerEnchantAttributeTest {
 
     @Test
     void soulSpeedDamagesBootsAboutFourPercentOfLocationChanges() {
-        var level = new BlockPlacementTest.TestLevel();
+        var level = seededLevel(4242L);
         var p = player();
         p.inventory().set(8, enchanted("minecraft:netherite_boots", "minecraft:soul_speed", 1));
         int moves = 1500;
@@ -158,8 +166,18 @@ class PlayerEnchantAttributeTest {
             PlayerLocationEffects.tick(p, level, () -> true);
         }
         int dmg = ItemTools.damage(p.inventory().get(8));
-        // 칸 변화 1500번 + 내구가 바뀐 틱의 장비 갱신 재실행 — 확률 0.04: 기대 약 60~120 (3σ 안쪽 넉넉히)
-        assertTrue(dmg > 25 && dmg < 220, "내구 소모 " + dmg);
+        // 시드 고정: 같은 난수열을 따로 굴려 센 값과 정확히 같아야 한다(칸 변화마다 1회 + 내구가 바뀐 다음 틱의 장비 갱신 재실행 1회)
+        var ref = new LegacyRandomSource(4242L);
+        int expected = 0, seen = -1;   // seen: 마지막으로 본 발 장비 상태(처음엔 빈 장비라 첫 틱에 장비 갱신 재실행)
+        for (int i = 0; i < moves; i++) {
+            if (ref.nextFloat() < 0.04F) expected++;
+            if (expected != seen) {
+                seen = expected;
+                if (ref.nextFloat() < 0.04F) expected++;
+            }
+        }
+        assertEquals(expected, dmg);
+        assertTrue(dmg > 0);
         // 영혼 블록이 아니면 난수는 굴리되 깎지 않는다
         int before = dmg;
         for (int i = 0; i < 300; i++) {
@@ -203,5 +221,22 @@ class PlayerEnchantAttributeTest {
         p.applyMove(0.5, -60, 0.5, 0, 0, false);   // 공중: 지면 조건 실패
         PlayerLocationEffects.tick(p, level, () -> false);
         assertTrue(B.is(level.getBlockState(new Pos(0, -61, 0)), "minecraft:water"));
+    }
+
+    @Test
+    void frostedIceMeltsStepwiseToWaterUnderSeededRandom() {
+        var level = seededLevel(99L);
+        Pos pos = new Pos(0, -61, 0);
+        level.setBlock(pos, B.defaultState("minecraft:frosted_ice"), 2, 0);
+        int maxAge = 0, ticks = 0;
+        while (B.is(level.getBlockState(pos), "minecraft:frosted_ice") && ticks < 2000) {
+            int st = level.getBlockState(pos);
+            maxAge = Math.max(maxAge, B.prop("age").intValue(st));
+            B.behavior(st).tick(st, level, pos, level.random());
+            ticks++;
+        }
+        assertEquals(3, maxAge, "age 0→3 을 거쳐");
+        assertTrue(B.is(level.getBlockState(pos), "minecraft:water"), "age 3 에서 한 번 더 녹으면 물");
+        assertTrue(ticks < 2000);
     }
 }
