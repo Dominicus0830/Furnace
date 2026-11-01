@@ -493,7 +493,7 @@
 ## 2026-10-31 발전 과제 트리거 연결·엔티티 조건·보상 (작업 E)
 
 - 근거: 디컴파일 `an`(CriteriaTriggers)의 각 필드 호출(`an.X.a(`)과 각 `*Trigger` 클래스, `bv`(EntityPredicate)·`di`(effects)·`dj`(movement)·`dz`(slots)·`dk`(nbt), `dhr`(Crafter), `dro`(SculkCatalyst), `cnl`(FishingHook), `btm`(LightningBolt), `cnd`(AbstractArrow), `aqv`(ServerPlayer tick/reset/effect 훅), `coi`(Raid), `btn`(LivingEntity.hurt).
-- 호출 지점 목록과 한계는 `advancement-triggers-2026-10-28.md` 의 "2026-10-31 추가 연결"에 있다. 56종 모두 호출 지점이 생겼다.
+- 호출 지점 목록과 한계는 `advancement-triggers-2026-10-28.md` 의 "2026-10-31 추가 연결"에 있다. 56종 모두 호출 지점이 생겼다(근사·미완 남음: effects_changed source 등).
 - **함정 1 — trigger 이름 매핑**: 코드 TODO 의 `RAID_OMEN`·`RAID_WIN` 은 실제 트리거 이름이 아니다. 습격 징조 흡수 때는 `voluntary_exile`, 습격 승리 때는 `hero_of_the_village`(둘 다 플레이어 조건만 본다).
 - **함정 2 — 값 순서**: `item_durability_changed` 의 delta 는 `지금 피해 - 새 피해`(깎이면 음수), durability 는 `최대 - 새 피해`. `player_hurt_entity` 의 dealt 는 방패로 막기 전 피해(`LivingEntity.hurt` 맨 앞 `f = amount`), taken 은 막은 뒤(막으면 0).
 - **함정 3 — 발동 시점**: `using_item` 은 쓰는 동안 매 틱(`ServerPlayer.updateUsingItem`), `levitation` 도 매 틱, `slide_down_block` 은 20틱마다, `bee_nest_destroyed` 의 벌 수는 벌을 내보낸 **뒤** 남은 수, `player_generates_container_loot` 는 전리품을 만들기 **전**, `summoned_entity`(위더)는 엔티티를 넣기 **전**, (골렘)은 넣은 **뒤**.

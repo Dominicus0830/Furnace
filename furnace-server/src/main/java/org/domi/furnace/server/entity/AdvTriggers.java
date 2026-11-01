@@ -19,6 +19,8 @@ public final class AdvTriggers {
     /** 바닐라 ITEM_DURABILITY_CHANGED.trigger(player, stack, 새 피해 값) — 깎기 전 스택으로 부른다. */
     public static void durability(Object owner, ItemStack before, int newDamage) {
         if (!(owner instanceof Player p)) return;
+        var adv = p.advancements();
+        if (adv == null || !adv.hasListeners("minecraft:item_durability_changed")) return;
         var snap = org.domi.furnace.server.ServerCore.lootStackOf(before);
         p.triggerAdvancement(a -> a.triggerDurability(snap, newDamage));
     }

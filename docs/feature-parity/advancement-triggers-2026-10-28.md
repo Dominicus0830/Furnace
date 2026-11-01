@@ -61,8 +61,8 @@
 | avoid_vibration | `VibrationSystem` 진동 판정 | 조심스레 걸을 때 |
 | crafter_recipe_crafted | `CrafterBlock.dispenseItem` | 17×17×17 안 플레이어, 월드에 내놓은 아이템마다 |
 
-## 아직 미연결
-56종 모두 호출 지점이 있다(위 "연결됨"의 기존 항목 + 이번 추가). 다만 아래 "차이·한계"의 근사를 읽을 것. 기계 자체가 없어 못 이루는 경우:
+## 아직 미연결·미완
+56종 모두 호출 지점은 있지만 근사·미완 항목이 남아 있다(아래). 특히 **effects_changed 의 source 를 넘기지 않아 kill_axolotl_target 은 달성할 수 없다**(아홀로틀 효과 부여 경로에 source 전달이 없음). 기계 자체가 없어 못 이루는 경우:
 유리병으로 드래곤의 숨결 구름 뜨기(`ItemUse.glassBottleUse` TODO)에서 오는 player_interacted_with_entity, 효과를 준 쪽(source)이 필요한 effects_changed 의 `source` 조건, 철퇴 내려치기 뒤 fall_after_explosion 의 cause 조건.
 (used_totem·used_ender_eye·impossible 은 위 "연결됨"/기존 코드로 이미 호출 지점이 있다.)
 
@@ -122,3 +122,10 @@ stepping_on(서 있는 칸 중심), movement_affected_by(이동에 영향 주는
 `AdvancementTriggersTest`(바닐라 데이터가 있을 때): 처치(entity·killing_blow·거리), 사망, 번식·길들이기·거래·먹기·양동이·enter_block 달성,
 이미 이룬 조건 재발생 시 패킷 없음, 저장·재로드 후 듣는 쪽 미등록, 처치 점수 기준 5종.
 - **작업 E**: `AdvancementTriggerWiringTest` — 바닐라 데이터 없이 임시 데이터 팩의 발전 과제 JSON 으로 트리거 36종의 사건 → 조건 비교 → 달성(맞는 경우·틀린 경우 쌍), 엔티티 조건 새 필드 통과·불일치 13가지, `TickState` 로 levitation·fall_from_height(죽었을 때 제외)·fall_after_explosion·ride_entity_in_lava, 보상 순서(경험치 → 전리품 → 함수).
+
+## 후속 정정 (2026-11-01)
+- 보상의 경험치·전리품(인벤토리·소리·창)은 `/advancement grant` 처럼 전역 스레드에서 award 해도 `Player.runOnOwner` 로 주인 스레드에서 처리한다. 함수만 전역 실행.
+- lightning_strike 는 바닐라처럼 visualOnly 를 보지 않고 flashes == 0 이면 늘 보낸다.
+- 플레이어 stepping_on / movement_affected_by 는 `blockPosition().below()` 근사다(바닐라 getOnPos(1e-5) / 0.500001 아래와 경계에서 다를 수 있음) — 차이(가정).
+- `EntityPredicate.nbtUsed` 는 `LootData.load` 때마다 false 로 되돌리고 이후 읽는 조건이 켠다.
+- `KillCredit.snapshot` 이 vehicle/passengers/target 을 호출 스레드에서 읽는다: 다른 region 엔티티면 한 틱 어긋남·읽기 경쟁 위험(가정: 위치·플래그·장비만 읽어 치명적이지 않음).

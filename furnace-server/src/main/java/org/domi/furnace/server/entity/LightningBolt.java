@@ -58,7 +58,7 @@ public class LightningBolt extends Entity {
         life--;
         if (life < 0) {
             if (flashes == 0) {
-                if (!visualOnly) lightningStrikeTriggers();
+                lightningStrikeTriggers();   // 바닐라(btm): visualOnly 를 보지 않고 flashes == 0 이면 늘 보낸다
                 discard();
             } else if (life < -level.random().nextInt(10)) {
                 flashes--;

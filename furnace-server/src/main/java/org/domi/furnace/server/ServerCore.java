@@ -284,14 +284,19 @@ public final class ServerCore {
                 if (rm != null) p.awardRecipes(ids, rm);
             }
 
-            public void giveExperience(int points) { p.vitals().giveExperiencePoints(points); }
+            public void giveExperience(int points) { p.runOnOwner(() -> p.vitals().giveExperiencePoints(points)); }
 
             /**
              * 바닐라 AdvancementRewards.grant 의 전리품: 표를 ADVANCEMENT_REWARD 문맥(this_entity = 플레이어, origin = 플레이어 위치)으로 굴려
              * 하나씩 인벤토리에 넣고(들어가면 픽업 소리 0.2, 플레이어 난수), 못 넣은 분은 던지되 줍기 지연 없이 그 플레이어만 줍게 한다.
-             * 하나라도 들어갔으면 열린 창을 동기화한다. 플레이어 주인 스레드에서 부른다(award 가 거기서 돈다).
+             * 하나라도 들어갔으면 열린 창을 동기화한다. giveLoot 가 주인 스레드(runOnOwner)로 보낸 뒤 여기서 돈다.
              */
             public void giveLoot(String tableName) {
+                // /advancement grant 는 전역 스레드에서 award 를 부른다 — 인벤토리·소리·창은 region 소유 상태라 주인 스레드로 보낸다
+                p.runOnOwner(() -> giveLootOnOwner(tableName));
+            }
+
+            private void giveLootOnOwner(String tableName) {
                 var level = p.currentLevel;
                 boolean any = false;
                 for (ItemStack st : giftLoot(lootWorld, tableName, lootEntity(p), p.x(), p.y(), p.z())) {

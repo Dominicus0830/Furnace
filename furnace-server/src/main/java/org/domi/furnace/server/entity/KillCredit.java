@@ -26,6 +26,8 @@ public final class KillCredit {
      */
     public static LootEntity snapshot(LootEntity e) { return snapshot(e, 0); }
 
+    // 가정/위험: depth 0 에서 vehicle/passengers/targetedEntity 를 지금 스레드(죽는·맞는 쪽 소유)에서 읽는다. 관계 엔티티가 다른 region 이면
+    // 값이 한 틱 어긋나거나 읽기 경쟁이 있을 수 있다(읽는 값은 위치·플래그·장비 정도라 크래시는 없다고 가정).
     private static LootEntity snapshot(LootEntity e, int depth) {
         if (e == null) return null;
         String type = e.type();
