@@ -164,6 +164,21 @@ public final class PlayerProbe {
         return s < 0 ? null : registry.nameOf(s);
     }
 
+    /**
+     * Entity.getOnPos(yOffset) 의 블록 좌표 {x,y,z}. 지지 블록이 있으면 그 x·z(yOffset 이 1e-5 이하면 지지 블록 그대로,
+     * 울타리(yOffset ≤ 0.5 일 때만)·담·울타리 문이면 지지 블록 그대로, 아니면 y 를 floor(y - yOffset) 로), 없으면 발 위치 기준.
+     * getBlockPosBelowThatAffectsMyMovement 는 yOffset 0.500001. 청크가 없어 블록을 모르면 null.
+     */
+    public int[] onPos(Blocks b, float yOffset, double x, double y, double z, boolean onGround) {
+        int[] support = onGround ? supportingBlock(b, x, y, z) : null;
+        if (support == null) return new int[] {floor(x), floor((double) (y - yOffset)), floor(z)};
+        if (!(yOffset > 1.0E-5F)) return support;
+        int s = b.stateAt(support[0], support[1], support[2]);
+        String n = s < 0 ? null : registry.nameOf(s);
+        boolean keep = n != null && ((yOffset <= 0.5 && fences.contains(n)) || walls.contains(n) || fenceGates.contains(n));
+        return keep ? support : new int[] {support[0], floor(y - yOffset), support[2]};
+    }
+
     private int[] supportingBlock(Blocks b, double x, double y, double z) {
         int by = floor(y - 1.0e-6);
         int x0 = floor(x - WIDTH / 2), x1 = floor(x + WIDTH / 2 - 1e-7);

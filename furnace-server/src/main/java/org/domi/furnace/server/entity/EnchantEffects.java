@@ -87,7 +87,7 @@ public final class EnchantEffects {
     }
 
     /** 장비 칸의 아이템을 깎는다(owner 가 크리에이티브 플레이어면 그대로). 부서지면 칸을 비우고 부서짐 이벤트. */
-    private static void damageEquipment(ChunkLevel level, Targetable owner, EquipmentSlot slot, ItemStack stack, int amount) {
+    static void damageEquipment(ChunkLevel level, Targetable owner, EquipmentSlot slot, ItemStack stack, int amount) {
         if (owner instanceof Player p && p.vitals().instabuild()) return;   // hasInfiniteMaterials
         boolean[] broke = {false};
         ItemStack result = hurtStack(level, stack, amount, broke);

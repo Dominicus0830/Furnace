@@ -925,6 +925,7 @@ public final class Region {
             org.domi.furnace.server.entity.Consuming.tick(p, this);
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
+            org.domi.furnace.server.entity.PlayerLocationEffects.tick(p, level, () -> onSoulSpeedBlock(p));   // 칸 이동·발 장비 변경 시 영혼 가속·서리 걸음
             p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
             pushEntities(p);
             touchEntities(p);
@@ -1464,6 +1465,15 @@ public final class Region {
     }
 
     /** 매 틱 생존 상태 — 주변 블록을 보고 공허·익사·허기·회복·사망 틱을 돌린다. */
+    /** Entity.getBlockPosBelowThatAffectsMyMovement(getOnPos(0.500001F)) 의 블록이 #soul_speed_blocks 인가. */
+    private boolean onSoulSpeedBlock(Player p) {
+        PlayerProbe probe = world.probe();
+        if (probe == null) return false;
+        int[] o = probe.onPos(blocks, 0.500001F, p.x(), p.y(), p.z(), p.onGround());
+        int st = blocks.stateAt(o[0], o[1], o[2]);
+        return st >= 0 && org.domi.furnace.server.block.B.isTag(st, "minecraft:soul_speed_blocks");
+    }
+
     private void tickVitals(Player p) {
         PlayerProbe probe = world.probe();
         PlayerVitals.Surroundings s;
@@ -2018,6 +2028,8 @@ public final class Region {
                 Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
                 var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
                 if (bd != null) a.send(bd);
+                var ba = bp == null ? null : bp.pairingAttributes();   // 속성(update_attributes) — 엔티티 데이터 다음, 장비 앞
+                if (ba != null) a.send(ba);
                 var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
                 if (be != null) a.send(be);
                 var bv = bp == null ? null : bp.vehicle();

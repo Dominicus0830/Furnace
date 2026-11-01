@@ -430,13 +430,39 @@ public final class PlayerVitals {
 
     private void setHealthRaw(float h) { health = Math.clamp(h, 0.0f, maxHealthLocked()); }
 
-    /** 최대 체력: 20 + 체력 강화 효과(4 × (단계+1)). */
+    // 최대 체력 속성의 입력: 기본값과 효과 밖 수정자(장비·/attribute)는 Player.syncAttributes 가 넘기고, 효과 수정자는 지금 효과에서 바로 합성한다
+    // (바닐라는 효과를 걸자마자 수정자를 단다 — 체력 강화로 최대 체력이 곧바로 오른다).
+    private volatile double maxHealthBase = MAX_HEALTH;
+    private volatile java.util.List<org.domi.furnace.server.attribute.AttributeModifier> maxHealthExtra = java.util.List.of();
+    private volatile double oxygenBonus;
+
+    /** 속성 맵에서 넘어온 입력(소유 region 스레드). 최대 체력이 줄었으면 체력을 자른다(LivingEntity.onAttributeUpdated). */
+    public synchronized void attributeInputs(double maxHealthBase, java.util.List<org.domi.furnace.server.attribute.AttributeModifier> extra, double oxygenBonus) {
+        this.maxHealthBase = maxHealthBase;
+        this.maxHealthExtra = java.util.List.copyOf(extra);
+        this.oxygenBonus = oxygenBonus;
+        if (health > maxHealthLocked()) health = maxHealthLocked();
+    }
+
+    /** 최대 체력 = 속성 generic.max_health 값(기본 20 + 체력 강화 4 × (단계+1) + 그 밖의 수정자), float 로 줄인다. */
     private float maxHealthLocked() {
-        MobEffectInstance hb = effects.get(MobEffect.HEALTH_BOOST);
-        return MAX_HEALTH + (hb == null ? 0 : 4.0f * (hb.amplifier() + 1));
+        if (effects.isEmpty() && maxHealthExtra.isEmpty()) return (float) org.domi.furnace.server.attribute.Attribute.MAX_HEALTH.sanitize(maxHealthBase);
+        java.util.Map<String, org.domi.furnace.server.attribute.AttributeModifier> mods =
+                PlayerAttributes.effectModifiers(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, new java.util.ArrayList<>(effects.values()));
+        for (var m : maxHealthExtra) mods.put(m.id(), m);
+        return (float) PlayerAttributes.compute(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, maxHealthBase, mods.values());
     }
 
     public synchronized float maxHealth() { return maxHealthLocked(); }
+
+    /**
+     * LivingEntity.decreaseAirSupply: 산소 보너스 b 가 0 보다 크면 난수(nextDouble)가 1/(b+1) 이상일 때 공기를 안 깎는다.
+     * b 가 0 이하면 난수를 쓰지 않고 1 깎는다(단락 평가 그대로). 난수는 플레이어 난수.
+     */
+    private int decreaseAirSupply(int current) {
+        double b = oxygenBonus;
+        return b > 0.0 && player.random().nextDouble() >= 1.0 / (b + 1.0) ? current : current - 1;
+    }
 
     /** 최대 흡수량: 흡수 효과 4 × (단계+1). */
     private float maxAbsorptionLocked() {
@@ -875,7 +901,7 @@ public final class PlayerVitals {
                 if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
                 if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
                     if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING)) {
-                        air--;
+                        air = decreaseAirSupply(air);
                         if (air == -20) {
                             air = 0;
                             after.add(() -> hurt(DamageType.DROWN, 2.0f));

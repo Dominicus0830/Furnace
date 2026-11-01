@@ -12,6 +12,18 @@ public record UpdateAttributes(int entityId, List<AttributeInstance> attributes)
 
     public static final int ID = 0x75;
 
+    /** 보낼 때까지 값이 바뀌지 않도록 속성(기본값·수정자)을 복사한 패킷 — 소유 스레드가 만들고 다른 스레드(netty)가 쓴다. */
+    public static UpdateAttributes snapshot(int entityId, List<AttributeInstance> src) {
+        List<AttributeInstance> copy = new java.util.ArrayList<>(src.size());
+        for (AttributeInstance i : src) {
+            AttributeInstance c = new AttributeInstance(i.attribute(), () -> {});
+            c.setBaseValue(i.baseValue());
+            for (AttributeModifier m : i.modifiers().values()) c.addOrReplaceModifier(m);
+            copy.add(c);
+        }
+        return new UpdateAttributes(entityId, copy);
+    }
+
     @Override public int id() { return ID; }
 
     @Override
