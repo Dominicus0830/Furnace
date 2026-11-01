@@ -168,7 +168,8 @@ public final class RegionFile implements Closeable {
     /** NBT 직렬 바이트를 zlib 압축해 기록. 항상 새 자리에 쓰고 헤더를 바꾼 뒤 옛 섹터를 놓는다(바닐라 RegionFile.write). */
     public void writeChunk(int chunkX, int chunkZ, byte[] nbtBytes) throws IOException {
         if (nbtBytes == null) throw new IllegalArgumentException("nbtBytes null");
-        writeCompressed(chunkX, chunkZ, Compression.deflate(nbtBytes));
+        int type = Compression.writeType();
+        writeCompressed(chunkX, chunkZ, Compression.compress(type, nbtBytes), type);
     }
 
     /**
@@ -177,6 +178,11 @@ public final class RegionFile implements Closeable {
      * 헤더가 바뀌기 전까지 옛 섹터는 비트맵에 남아 있어 새 데이터가 옛 데이터를 덮지 않는다. 섹터 할당은 바닐라와 같은 첫 적합.
      */
     synchronized void writeCompressed(int chunkX, int chunkZ, byte[] comp) throws IOException {
+        writeCompressed(chunkX, chunkZ, comp, Compression.DEFLATE);
+    }
+
+    /** type: 1 gzip / 2 zlib / 3 none — 본문을 그 종류로 압축했다는 표시. */
+    synchronized void writeCompressed(int chunkX, int chunkZ, byte[] comp, int type) throws IOException {
         long total0 = comp.length + 5L;              // len(4)+type(1)+data
         long needed0 = (total0 + SECTOR - 1) / SECTOR;
         boolean external = needed0 > MAX_SECTORS;     // 바닐라: sectors >= 256 이면 외부
@@ -203,10 +209,10 @@ public final class RegionFile implements Closeable {
         byte[] buf = new byte[needed * SECTOR];      // 섹터 패딩 포함 — 파일 길이가 항상 섹터 배수
         if (external) {
             writeIntAt(buf, 0, 1);
-            buf[4] = (byte) (2 | EXTERNAL_FLAG);      // zlib + 외부
+            buf[4] = (byte) (type | EXTERNAL_FLAG);   // 압축 종류 + 외부
         } else {
             writeIntAt(buf, 0, comp.length + 1);
-            buf[4] = 2;                               // zlib
+            buf[4] = (byte) type;                    // 압축 종류(기본 2 = zlib)
             System.arraycopy(comp, 0, buf, 5, comp.length);
         }
         pwrite((long) offset * SECTOR, buf, 0, buf.length);

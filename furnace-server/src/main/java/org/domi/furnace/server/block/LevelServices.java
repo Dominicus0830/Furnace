@@ -134,6 +134,9 @@ public interface LevelServices {
 
     default boolean spawnAnimals() { return true; }
 
+    /** server.properties spawn-npcs(끄면 마을 주민·떠돌이 상인 같은 Npc 를 틱 때 지운다). */
+    default boolean spawnNpcs() { return true; }
+
     /** server.properties simulation-distance. */
     default int simulationDistance() { return 10; }
 
@@ -262,6 +265,7 @@ public interface LevelServices {
         public int[] sharedSpawnPos() { return d.sharedSpawnPos(); }
         public boolean spawnMonsters() { return d.spawnMonsters(); }
         public boolean spawnAnimals() { return d.spawnAnimals(); }
+        public boolean spawnNpcs() { return d.spawnNpcs(); }
         public void runSignCommand(Player player, int x, int y, int z, String command) { d.runSignCommand(player, x, y, z, command); }
         public boolean commandBlockEnabled() { return d.commandBlockEnabled(); }
         public void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { d.runBlockCommand(sink, command, done); }

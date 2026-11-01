@@ -30,12 +30,17 @@ public final class CrashReport {
 
     /** 리포트를 쓰고 경로를 돌려준다. 쓰기에 실패하면 null(이미 죽어 가는 중이라 던지지 않는다). */
     public static Path write(Path dir, String description, Throwable cause, Thread thread) {
+        return write(dir, description, cause, thread, null);
+    }
+
+    /** extra 가 있으면 "-- Thread Dump --" 구역으로 끝에 붙인다(워치독이 모든 스레드의 스택을 남긴다). */
+    public static Path write(Path dir, String description, Throwable cause, Thread thread, String threadDump) {
         LocalDateTime now = LocalDateTime.now();
         try {
             Files.createDirectories(dir);
             Path file = dir.resolve("crash-" + FILE_TIME.format(now) + "-server.txt");
             for (int i = 1; Files.exists(file); i++) file = dir.resolve("crash-" + FILE_TIME.format(now) + "-server-" + i + ".txt");
-            Files.writeString(file, render(now, description, cause, thread), StandardCharsets.UTF_8);
+            Files.writeString(file, render(now, description, cause, thread, threadDump), StandardCharsets.UTF_8);
             log.error("이 크래시 리포트를 저장했다: {}", file.toAbsolutePath());
             return file;
         } catch (IOException | RuntimeException e) {
@@ -45,6 +50,10 @@ public final class CrashReport {
     }
 
     static String render(LocalDateTime now, String description, Throwable cause, Thread thread) {
+        return render(now, description, cause, thread, null);
+    }
+
+    static String render(LocalDateTime now, String description, Throwable cause, Thread thread, String threadDump) {
         StringBuilder sb = new StringBuilder();
         sb.append("---- Minecraft Crash Report ----\n");
         sb.append("// Furnace 서버가 예기치 않게 실패했다.\n\n");
@@ -68,6 +77,7 @@ public final class CrashReport {
                 .append(rt.maxMemory()).append(" bytes max\n");
         sb.append("\tCPUs: ").append(rt.availableProcessors()).append('\n');
         if (thread != null) sb.append("\tThread: ").append(thread.getName()).append('\n');
+        if (threadDump != null) sb.append("\n-- Thread Dump --\nDetails:\n\tThreads: ").append(threadDump.replace("\n", "\n\t")).append('\n');
         return sb.toString();
     }
 }

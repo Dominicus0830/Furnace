@@ -63,6 +63,8 @@ public final class Region {
     long nextTickNanos;
     /** 스케줄 계측(잠금 안에서만 쓰고 읽는다): 꺼낸 틱 수, 큐 지연(꺼낸 시각 - 마감) 합·최대(ns). */
     long schedTicks, schedDelaySum, schedDelayMax;
+    /** 관측용: 직전 틱·가장 긴 틱의 소요 시간(ns). 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). */
+    volatile long lastTickNanos, maxTickNanos;
     /** -Dfurnace.tickstats: [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍. 틱 중(이 region 이 RUNNING)에만 만진다. */
     final long[] tickStat = new long[2 + 200];
     int ticksSinceRecalc;

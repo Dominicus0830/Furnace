@@ -1242,6 +1242,19 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public boolean spawnAnimalsAllowed() { return services().spawnAnimals(); }
 
+    public boolean spawnNpcsAllowed() { return services().spawnNpcs(); }
+
+    /**
+     * ServerLevel.shouldDiscardEntity: 동물 스폰이 꺼졌으면 동물·물 동물을 지우고, 그 밖에는 Npc 스폰이 꺼졌을 때 Npc(주민·떠돌이 상인)를 지운다.
+     * 둘 다 켜져 있으면(기본) 호출하지 않는다.
+     */
+    static boolean shouldDiscardEntity(Entity e, boolean animalsOk, boolean npcsOk) {
+        if (animalsOk || !(e instanceof org.domi.furnace.server.entity.Animal || e instanceof org.domi.furnace.server.entity.WaterAnimal)) {
+            return !npcsOk && (e instanceof org.domi.furnace.server.entity.Villager || e instanceof org.domi.furnace.server.entity.WanderingTrader);
+        }
+        return true;
+    }
+
     /** Level.getNearestPlayer(x, y, z, 거리, ignoreCreativeAndSpectators): 관전자(옵션으로 크리에이티브도) 제외 가장 가까운 플레이어. 거리가 음수면 제한 없음. */
     public Player getNearestPlayer(double x, double y, double z, double dist, boolean ignoreCreative) {
         Player[] best = new Player[1];
@@ -1802,9 +1815,14 @@ public abstract class ChunkLevel implements BlockLevel {
      */
     public void tickEntities(java.util.function.LongPredicate ticking) {
         if (entities.isEmpty()) return;
+        boolean animalsOk = spawnAnimalsAllowed(), npcsOk = spawnNpcsAllowed();
         for (Entity e : entities.tickSnapshot()) {
             if (e.isRemoved()) continue;
             if (!ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) continue;
+            if ((!animalsOk || !npcsOk) && shouldDiscardEntity(e, animalsOk, npcsOk)) {   // spawn-animals / spawn-npcs=false
+                e.discard();
+                continue;
+            }
             Entity v = e.vehicle();
             if (v != null) {   // 탄 것은 탈것이 틱한다
                 if (!v.isRemoved() && v.hasPassenger(e)) continue;

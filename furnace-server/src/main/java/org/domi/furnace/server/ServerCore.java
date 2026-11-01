@@ -55,6 +55,7 @@ public final class ServerCore {
         this.clock.restore(levelData.gameTime, levelData.dayTime, levelData.clearWeatherTime, levelData.rainTime,
                 levelData.thunderTime, levelData.raining, levelData.thundering);
         // 바닐라 createLevels: 저장된 보더 설정을 적용한 뒤에 리스너를 붙인다(적용 중 변경은 접속자에게 알리지 않는다).
+        this.border.setAbsoluteMaxSize(settings.get().maxWorldSize);   // server.properties max-world-size (ServerLevel: setAbsoluteMaxSize)
         this.border.applySettings(levelData.worldBorder);
         this.border.addListener(new BorderBroadcaster());
         this.customBossEvents = new org.domi.furnace.server.bossbar.CustomBossEvents(this::playerByUuid);
@@ -430,6 +431,58 @@ public final class ServerCore {
     /** 이벤트 버스(구독자가 없으면 이벤트 객체를 만들지 않도록 hasSubscribers 로 먼저 묻는다). */
     public org.domi.furnace.server.plugin.EventBusImpl events() { return pluginHost.eventsImpl(); }
 
+    /** 워치독용 전역 틱 박동(마지막 scheduledTick 시작 시각)과 그 스레드. */
+    /** 0 = 첫 전역 틱 전(기동 중). 워치독은 첫 틱 전에는 멈춘 것으로 보지 않는다. */
+    private volatile long globalBeat;
+    private volatile Thread globalTickThread;
+
+    /** 전역 틱(scheduledTick) 소요 시간 분포 — /furnace 관측용. */
+    private final org.domi.furnace.server.sched.TickTimeRing globalTickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
+
+    public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
+
+    /** 전역 스레드 이름(관측용). */
+    public String globalThreadName() {
+        return scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g ? g.ownerName() : "global";
+    }
+
+    /** 전역 스레드의 대기 작업 수(관측용). */
+    public int globalQueueLength() {
+        return scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g ? g.queueLength() : 0;
+    }
+
+    /** 워치독이 볼 곳들: 전역 틱 + 차원마다 region 틱. 잠금 없이 휘발성 값만 읽는다. */
+    public List<ServerWatchdog.Probe> watchdogProbes() {
+        List<ServerWatchdog.Probe> out = new ArrayList<>();
+        out.add(new ServerWatchdog.Probe() {
+            @Override public String name() { return "global tick"; }
+            @Override public long stalledNanos(long now) { long b = globalBeat; return b == 0 ? 0 : now - b; }
+            @Override public Thread thread() { return globalTickThread; }
+        });
+        for (World w : worlds()) {
+            var rz = w.regionizer();
+            if (rz == null) continue;
+            out.add(new ServerWatchdog.Probe() {
+                @Override public String name() { return "region tick " + rz.dimension(); }
+                @Override public long stalledNanos(long now) { return rz.stalledNanos(now); }
+                @Override public Thread thread() { return rz.longestRunningThread(System.nanoTime()); }
+            });
+        }
+        return out;
+    }
+
+    /**
+     * RCON 명령: IO 스레드가 부른다. 전역 스레드에서 실행하고(performPrefixedCommandAsync) 컨텍스트가 끝날 때까지 기다려 출력을 돌려준다.
+     * 전역/region 스레드에서 부르면 데드락이므로 막는다(CommandFuture 가드).
+     */
+    public String runRconCommand(String command) throws Exception {
+        var spawn = world.defaultSpawn();
+        var sink = new org.domi.furnace.server.remote.RconConsole(() -> settings.get().broadcastRconToOps, spawn.x(), spawn.y(), spawn.z());
+        commands.performPrefixedCommandAsync(org.domi.furnace.server.command.CommandSource.rcon(this, sink), command)
+                .get(5, java.util.concurrent.TimeUnit.MINUTES);
+        return sink.takeOutput();
+    }
+
     /** 콘솔 명령(ServerCommandEvent → 실행). */
     public void runConsoleCommand(String command) {
         var events = events();
@@ -525,6 +578,17 @@ public final class ServerCore {
      * 시간·날씨·보더를 멈추고 /tick step 으로 요청한 만큼만 낸다.
      */
     public void scheduledTick() {
+        long t0 = System.nanoTime();
+        globalBeat = t0;   // 워치독이 보는 전역 틱 박동
+        globalTickThread = Thread.currentThread();
+        try {
+            scheduledTick0();
+        } finally {
+            globalTickRing.record(System.nanoTime() - t0);
+        }
+    }
+
+    private void scheduledTick0() {
         commands.queue().tick();   // 명령 컨텍스트 경과 틱(정지 중에도 센다 — head-of-line 관측)
         var ts = tickState();
         if (ts.sprinting()) {
@@ -872,6 +936,7 @@ public final class ServerCore {
         public int[] sharedSpawnPos() { return new int[] {levelData.spawnX, levelData.spawnY, levelData.spawnZ}; }
         public boolean spawnMonsters() { return settings.get().spawnMonsters; }
         public boolean spawnAnimals() { return settings.get().spawnAnimals; }
+        public boolean spawnNpcs() { return settings.get().spawnNpcs; }
         public int simulationDistance() { return settings.get().simulationDistance; }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
         public boolean flightAllowed() { return settings.get().allowFlight; }
