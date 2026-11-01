@@ -25,7 +25,14 @@ final class EnchantAttributes {
             new Eff("minecraft:sweeping_edge", Attribute.SWEEPING_DAMAGE_RATIO, EquipmentSlot.MAINHAND, AttributeModifier.ADD_VALUE,
                     l -> linear(1.0F, 1.0F, l) / linear(2.0F, 1.0F, l)),
             // 친수성: linear(4,+4) add_multiplied_total
-            new Eff("minecraft:aqua_affinity", Attribute.SUBMERGED_MINING_SPEED, EquipmentSlot.HEAD, AttributeModifier.ADD_MULTIPLIED_TOTAL, l -> linear(4.0F, 4.0F, l)));
+            new Eff("minecraft:aqua_affinity", Attribute.SUBMERGED_MINING_SPEED, EquipmentSlot.HEAD, AttributeModifier.ADD_MULTIPLIED_TOTAL, l -> linear(4.0F, 4.0F, l)),
+            // 호흡: linear(1,+1) → oxygen_bonus
+            new Eff("minecraft:respiration", Attribute.OXYGEN_BONUS, EquipmentSlot.HEAD, AttributeModifier.ADD_VALUE, l -> linear(1.0F, 1.0F, l)),
+            // 물갈퀴: linear(0.33333334,+0.33333334) → water_movement_efficiency
+            new Eff("minecraft:depth_strider", Attribute.WATER_MOVEMENT_EFFICIENCY, EquipmentSlot.FEET, AttributeModifier.ADD_VALUE,
+                    l -> linear(0.33333334F, 0.33333334F, l)),
+            // 민첩한 웅크리기: linear(0.15,+0.15) → sneaking_speed
+            new Eff("minecraft:swift_sneak", Attribute.SNEAKING_SPEED, EquipmentSlot.LEGS, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)));
 
     /** 그 칸의 그 아이템이 그 속성에 다는 인챈트 수정자. */
     static List<AttributeModifier> modifiers(Attribute attr, ItemStack stack, EquipmentSlot slot) {

@@ -70,9 +70,16 @@ public final class PlayerAttributes {
 
     /** 효과 + 장비 + (이동 속도면) 달리기의 합친 수정자. */
     public static Map<String, AttributeModifier> modifiers(Attribute attr, ItemStack[] bySlot, List<MobEffectInstance> effects, boolean sprinting) {
+        return modifiers(attr, bySlot, effects, sprinting, List.of());
+    }
+
+    /** 위의 합 + 위치 변화 인챈트(영혼 가속)가 켜 둔 수정자 {@code located}. */
+    public static Map<String, AttributeModifier> modifiers(Attribute attr, ItemStack[] bySlot, List<MobEffectInstance> effects, boolean sprinting,
+            Collection<AttributeModifier> located) {
         Map<String, AttributeModifier> out = effectModifiers(attr, effects);
         out.putAll(equipmentModifiers(attr, bySlot));
         if (sprinting && attr == Attribute.MOVEMENT_SPEED) out.put(SPRINT.id(), SPRINT);
+        for (AttributeModifier m : located) out.put(m.id(), m);
         return out;
     }
 
@@ -101,6 +108,6 @@ public final class PlayerAttributes {
     public static double value(Player p, Attribute attr) {
         ItemStack[] bySlot = new ItemStack[EquipmentSlot.values().length];
         for (EquipmentSlot s : EquipmentSlot.values()) bySlot[s.ordinal()] = p.equipment(s);
-        return compute(attr, base(attr), modifiers(attr, bySlot, p.vitals().activeEffects(), p.sprinting()).values());
+        return compute(attr, base(attr), modifiers(attr, bySlot, p.vitals().activeEffects(), p.sprinting(), p.locationEffects.modifiers(attr)).values());
     }
 }

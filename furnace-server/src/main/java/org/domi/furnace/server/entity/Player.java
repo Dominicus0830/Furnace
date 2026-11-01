@@ -953,6 +953,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 이 동기가 단 수정자 id(속성별) — /attribute 로 사람이 단 수정자는 건드리지 않으려고 따로 기억한다. */
     private final java.util.Map<org.domi.furnace.server.attribute.Attribute, java.util.Set<String>> managedModifiers = new java.util.HashMap<>();
     private volatile org.domi.furnace.server.net.protocol.play.UpdateAttributes pairingAttributesSnap;
+    private int lastLocationVersion = -1;
+    /** 위치 변화 인챈트(영혼 가속·서리 걸음)의 상태 — region 스레드 전용. */
+    public final PlayerLocationEffects.State locationEffects = new PlayerLocationEffects.State();
 
     /** 리스폰·차원 이동으로 클라이언트가 새 플레이어를 만들었다 — 다음 동기에 속성을 전부 다시 보낸다. */
     public void markArmorAttributesResend() { armorAttributesSent = false; }
@@ -977,10 +980,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         java.util.List<Object> sig = new java.util.ArrayList<>(effects.size() * 2);
         for (var e : effects) { sig.add(e.effect()); sig.add(e.amplifier()); }
         boolean sprint = sprinting;
-        if (!sig.equals(lastEffectSignature) || sprint != lastSprintForAttributes) changed = true;
+        if (!sig.equals(lastEffectSignature) || sprint != lastSprintForAttributes || locationEffects.version() != lastLocationVersion) changed = true;
         if (changed) {
             lastEffectSignature = sig;
             lastSprintForAttributes = sprint;
+            lastLocationVersion = locationEffects.version();
             attributeInputsKnown = true;
             reconcileModifiers(map, effects, sprint);
         }
@@ -1000,7 +1004,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private void reconcileModifiers(org.domi.furnace.server.attribute.AttributeMap map, java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects, boolean sprint) {
         for (var inst : map.all()) {
             var attr = inst.attribute();
-            var want = PlayerAttributes.modifiers(attr, attributeEquipment, effects, sprint);
+            var want = PlayerAttributes.modifiers(attr, attributeEquipment, effects, sprint, locationEffects.modifiers(attr));
             var had = managedModifiers.get(attr);
             if (had != null) for (String id : had) if (!want.containsKey(id)) inst.removeModifier(id);
             for (var m : want.values()) if (!m.equals(inst.getModifier(m.id()))) inst.addOrReplaceModifier(m);
@@ -1028,6 +1032,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void markEntityDataResend() {
         resendEntityData = true;
         armorAttributesSent = false;
+        runOnOwner(() -> PlayerLocationEffects.reset(this));   // 새 엔티티: 위치 효과 상태도 처음부터
         runOnOwner(() -> ElytraFlight.resetForRespawn(this));   // 새 엔티티: 겉날개 상태는 소유 스레드에서 지운다
     }
 

@@ -448,6 +448,15 @@ public final class PlayerVitals {
 
     public synchronized float maxHealth() { return maxHealthLocked(); }
 
+    /**
+     * LivingEntity.decreaseAirSupply: 산소 보너스 b 가 0 보다 크면 난수(nextDouble)가 1/(b+1) 이상일 때 공기를 안 깎는다.
+     * b 가 0 이하면 난수를 쓰지 않고 1 깎는다(단락 평가 그대로). 난수는 플레이어 난수.
+     */
+    private int decreaseAirSupply(int current) {
+        double b = oxygenBonus;
+        return b > 0.0 && player.random().nextDouble() >= 1.0 / (b + 1.0) ? current : current - 1;
+    }
+
     /** 최대 흡수량: 흡수 효과 4 × (단계+1). */
     private float maxAbsorptionLocked() {
         MobEffectInstance ab = effects.get(MobEffect.ABSORPTION);
@@ -870,7 +879,7 @@ public final class PlayerVitals {
                 if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
                 if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
                     if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING)) {
-                        air--;
+                        air = decreaseAirSupply(air);
                         if (air == -20) {
                             air = 0;
                             after.add(() -> hurt(DamageType.DROWN, 2.0f));
