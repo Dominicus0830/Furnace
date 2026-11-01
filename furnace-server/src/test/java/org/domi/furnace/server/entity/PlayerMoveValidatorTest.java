@@ -326,6 +326,41 @@ class PlayerMoveValidatorTest {
     }
 
     @Test
+    void poseUpdate_forcedCrouchWhenCeilingBetween1_5And1_8() {
+        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+        var l = new Level();
+        // 아래 반 블록(윗면 -59.5) 위에 서고 천장은 돌(-58): 틈 1.5 = 웅크림은 들어가고 서기 1.8 은 안 들어감
+        l.setBlock(new Pos(0, -60, 0), reg.stateIdOrAir("minecraft:oak_slab", java.util.Map.of("type", "bottom", "waterlogged", "false")), 3);
+        l.setBlock(new Pos(0, -58, 0), B.defaultState("minecraft:stone"), 3);
+        var probe = new org.domi.furnace.server.world.PlayerProbe(reg);
+        org.domi.furnace.server.world.PlayerProbe.Blocks blocks = (x, y, z) -> l.getBlockState(new Pos(x, y, z));
+        var p = player(0.5, -59.5, 0.5, GameMode.SURVIVAL);
+        PlayerPose.update(p, l, probe, blocks);
+        assertTrue(p.forcedCrouch);
+        assertFalse(p.crawling);
+        assertEquals(5, p.pose());
+        assertEquals(1.5F, p.bbHeight(), 1e-6);
+        assertEquals(-59.5 + 1.27, p.eyeY(), 1e-9);
+        assertEquals(1.5, Traveler.of(p).height(), 1e-6);
+        // 천장이 사라지면 다시 선다
+        l.setBlock(new Pos(0, -58, 0), B.defaultState("minecraft:air"), 3);
+        PlayerPose.update(p, l, probe, blocks);
+        assertFalse(p.forcedCrouch);
+        assertEquals(0, p.pose());
+        assertEquals(1.8F, p.bbHeight(), 1e-6);
+    }
+
+    @Test
+    void autoSpinAttack_eyeHeightIs0_4() {
+        var p = player(0.5, -60, 0.5, GameMode.SURVIVAL);
+        assertEquals(-60 + 1.62, p.eyeY(), 1e-9);
+        p.autoSpinAttackTicks = 10;
+        assertEquals(4, p.pose());
+        assertEquals(0.6F, p.bbHeight(), 1e-6);
+        assertEquals(-60 + 0.4, p.eyeY(), 1e-9);
+    }
+
+    @Test
     void poseUpdate_crawlsWhenCeilingTooLow_andPublishesPoseFlagsAndHeight() {
         var l = tunnel();
         var probe = new org.domi.furnace.server.world.PlayerProbe(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"));

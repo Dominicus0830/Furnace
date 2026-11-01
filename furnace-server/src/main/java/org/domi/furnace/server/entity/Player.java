@@ -534,7 +534,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     @Override public int id() { return entityId; }
 
     /** 눈 높이: 잠(SLEEPING_DIMENSIONS) 0.2, 웅크림 1.27, 서기 1.62. */
-    @Override public double eyeY() { return y + (fallFlying ? 0.4 : sleepingPos != null ? 0.2 : isSwimPose() ? 0.4 : isCrouchPose() ? 1.27 : 1.62); }
+    @Override public double eyeY() { return y + (fallFlying ? 0.4 : sleepingPos != null ? 0.2 : isSwimPose() || autoSpinAttackTicks > 0 ? 0.4 : isCrouchPose() ? 1.27 : 1.62); }
 
     /**
      * 서버가 계산하는 자세(Player.updatePlayerPose) — 소유 region 이 매 틱 정한다.
