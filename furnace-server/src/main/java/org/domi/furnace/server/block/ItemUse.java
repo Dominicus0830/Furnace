@@ -548,6 +548,17 @@ public final class ItemUse {
             }
             return InteractionResult.PASS;
         }
+        if (B.is(state, "minecraft:trial_spawner")) {
+            // 시련 생성기도 Spawner 라 알을 쓰면 다음 스폰 데이터의 종류만 바꾼다
+            if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.TrialSpawnerBlockEntity ts) {
+                ts.setEntityId(type, level.random(), level);
+                level.sendBlockUpdated(pos);
+                level.gameEvent("minecraft:block_change", pos, player, -1);
+                player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+                return InteractionResult.CONSUME;
+            }
+            return InteractionResult.PASS;
+        }
         Pos target = B.INFO.collisionShape(state).isEmpty() ? pos : pos.relative(hit.face());
         if (level.spawnMobFromEgg(type, target, true, !pos.equals(target) && hit.face() == Dir.UP)) {
             player.setItemInHand(hand, stack.withCount(stack.count() - 1));

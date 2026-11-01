@@ -1,6 +1,10 @@
 // 바닐라 SnowLayerBlock: 눈(layers 1..8). 같은 것을 들고 윗면을 누르면 한 겹씩 쌓이고, 블록빛이 11 넘으면 녹는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.Shape;
+
+import org.domi.furnace.server.block.BlockActor;
+
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -52,4 +56,8 @@ public class SnowLayerBlock extends BlockBehavior {
         if (B.is(s, block)) return LAYERS.withInt(s, Math.min(MAX_HEIGHT, LAYERS.intValue(s) + 1));
         return super.getStateForPlacement(ctx);
     }
+
+    /** getVisualShape: 층수 모양(충돌 모양보다 한 층 높다) = 외곽 모양. */
+    @Override
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return getShape(state, level, pos); }
 }

@@ -503,3 +503,49 @@
 - 보상: 전리품이 인벤토리로 들어간다(이전엔 경고만). 함수는 전역 스레드에서 부여하면 즉시, region 스레드에서 부여하면 다음 전역 틱(함수 관리자 전역 전용이라 같은 틱 보장 불가 — 가정: 한 틱 차이는 관측 영향이 작다).
 - **가정(확인 못 함)**: 플레이어 `getKnownMovement` 와 서버가 아는 변위의 차이, 효과를 건 순간 대신 틱 끝에 시작 위치를 잡는 levitation 의 위치 오차, `player_interacted_with_entity` 의 SUCCESS/CONSUME_PARTIAL 구분, 갑옷 거치대·끈 매듭 상호작용 경로.
 
+## 2026-10-31 시련 생성기 블록 엔티티 (작업 C-1)
+
+- 근거: `dsc`(TrialSpawnerBlockEntity), `dsf`(TrialSpawner), `dsg`(Config), `dsh`(Data), `dsi`(State·전이), `dse`(PlayerDetector), `doo`(블록), `btb.a`(장비 표), `btu`(OminousItemSpawner).
+  구현 `block/entity/TrialSpawner{,Config,Data,State}`·`TrialSpawnerBlockEntity`. 월드젠이 놓는 NBT(`normal_config`·`ominous_config`: spawn_potentials·total_mobs 등, 불길한 쪽은 일반 위에 병합)를 그대로 읽는다.
+- **구조물 템플릿 NBT 에는 `id` 가 없다**(trial_spawner 14곳, 금고는 있음). 바닐라는 블록이 만든 블록 엔티티에 `loadWithComponents` 하므로, `ChunkColumn.promote` 가 id 없는 생성 NBT 를 그 칸 블록의 `newBlockEntity` 에 읽힌다.
+- 시선 검사는 `ClipContext.Block.VISUAL`(디컴 `dcf.a.c`)이다 — 충돌 모양이 아니라 `getVisualShape`. `BlockBehavior.getVisualShape`(기본 = 충돌 모양)와 `Clip.clipVisual` 신설. 오버라이드: 유리류(`TransparentBlock`)·`IronBarsBlock`·가루눈 = 빈 모양,
+  울타리·눈 층 = 외곽 모양, 진흙·영혼 모래 = 꽉 찬 블록(디컴 `djz/dol/dlt/diw/dni/dkx/dnl`).
+- 난수 순서: INACTIVE 판정마다 [다음 데이터가 없고 후보가 있으면 nextInt(합)] → 몹 생성 x(nextDouble×2)·y(nextInt(3))·z(nextDouble×2) → 회전 nextFloat → finalizeSpawn → 생성 후 다음 후보 nextInt(합).
+  불길한 ACTIVE: 아이템 추첨 nextInt(합) → nextBoolean → (2명 이상이면 nextInt) → 위치 nextInt(4) → OminousItemSpawner nextInt(61) → 소리 pitch nextFloat×2.
+- 상태: 일반 감지는 (pos.asLong + 게임시각) % 20 == 0 일 때만. **COOLDOWN 중에는 일반 플레이어를 등록하지 않는다**(불길해질 때만) — 바닐라 그대로.
+- **가정**: DFU `lenientOptionalFieldOf(이름, 기본값)` 인코더는 기본값과 같은 필드를 쓰지 않는다. 그래서 저장 NBT 가 짧고, 불길한 구성의 값이 기본값과 같으면(예: simultaneous_mobs 2.0) 저장에서 빠져 **다시 읽을 때 일반 구성 값을 물려받는다**
+  (바닐라도 같은 왕복 불일치를 낳는다고 본다 — 시험 `loadMergesOminousOverNormal…` 에 기록).
+- **미구현/다른 점**: ① 클라이언트 몫(입자·주변 소리·표시용 회전 몹)은 생략, 레벨 이벤트 3011~3014·3019~3021 과 서버 소리만 보낸다. ② 표시용 몹은 "만들 수 있는가"만 본다(`Entities.create`; 안 되는 id 는 매 틱 다시 시도하지 않음).
+  ③ `current_mobs` 는 이 region 저장소에서만 찾는다 — 다른 region 으로 넘어간 몹은 추적에서 빠진다(스레드 소유권 규칙; 47칸 안이면 보통 같은 region). ④ 탈것 승객(`Passengers`)은 BaseSpawner 와 같이 미이식.
+  ⑤ 장비 표는 `Mob.equipmentSlotFor`(이름 기준)로 Equipable 을 대신한다. ⑥ 감지기 SHEEP 변종(`dse.c`)은 바닐라 데이터가 쓰지 않아 생략. ⑦ 평화로움·`doMobSpawning` 검사는 레벨 값 그대로.
+  ⑧ 불길한 아이템 표 평가에 쓰는 origin 은 없음(바닐라 EMPTY 문맥).
+- **소유권 처리**: 감지(읽기)는 기존 관행대로 접속자 전체를 훑지만, 나쁜 징조→시련 징조 변환(효과 쓰기)은 `Player.runOnOwner` 로 그 플레이어의 소유 스레드에 넘긴다(다른 region 이어도 안전; 같은 틱에 바로 보이지 않을 수 있음).
+  `current_mobs` 추적은 이 region 저장소만 보므로 region 을 넘어간 몹은 추적에서 빠져 다음 몹이 더 빨리 나올 수 있다. 표시용 몹 캐시는 `displayEntityCreated`/`failedDisplayId`(만들 수 없는 id 는 같은 id 로 재시도 안 함 — 바닐라는 매번 시도).
+  코덱 엄격도 차이: 바닐라 루트의 `target_cooldown_length`·`required_player_range` 는 lenient 가 아닌 `optionalFieldOf` 라 틀린 값이면 TrialSpawner 전체 파싱이 실패(기존 값 유지)하지만, 여기서는 필드별로 기본값에 떨어뜨린다.
+- 추가: `Mob.dropPreservedEquipment`·`setPersistenceRequired`, `ChunkLevel.lootItems`(origin·this_entity·luck, 시드/레벨 난수/표 난수), 스폰 알을 시련 생성기에 쓰면 다음 데이터 종류만 바뀜(`ItemUse`).
+- 시험: `TrialSpawnerBlockEntityTest`(구성 병합·기본값 생략·lenient, 상태 전이 전부, 시드 고정 스폰 위치 손계산, 시선(돌/유리), 불길한 전환·효과 변환, 보상 배출 주기, 불길한 아이템 생성기 난수 순서·위치, 템플릿 NBT 승격).
+## 2026-10-31 금고 블록 엔티티 (작업 C-2)
+
+- 근거: `dsk`(VaultBlockEntity + Server/Client), `dsm`(VaultConfig), `dsn`(VaultServerData), `dso`(VaultSharedData), `dsp`(VaultState·전이), `dou`(VaultBlock), `dse`(PlayerDetector).
+  구현 `block/entity/Vault{Config,ServerData,SharedData,State,BlockEntity}`·`VaultBlock`. 구조물 템플릿 NBT(`config: {key_item: {id, count}, loot_table}`, id 있음)를 그대로 읽는다.
+- 틱(서버): 20틱마다 활성 금고 표시 아이템을 전리품 표에서 새로 뽑는다(표를 **레벨 난수**로 평가한 뒤 `nextInt(개수)` 하나 — 표 난수가 아니다). 갱신 시각이 되면 상태 한 칸:
+  inactive/active = 범위(활성 4.0 / 비활성 4.5, 블록 거리² &lt; 범위², 창작 모드 포함·관전자 제외, **이미 보상 받은 플레이어 제외**) 안에 사람이 있으면 active, 20틱 쉼. unlocking → 20틱 뒤 ejecting. ejecting = 20틱마다 목록 **끝**에서 하나를
+  (위 1.2칸, 속도 2) 내놓고, 비면 총 배출 수를 0 으로 하고 비활성 범위로 확인. 소리 높이 = 0.8 + 0.4 × 진행도, 진행도 = 총 1 이면 1, 아니면 1 − (남은 − 1)/(총 − 1).
+- 열쇠: 활성일 때만. 같은 아이템·컴포넌트이고 개수가 열쇠 이상이어야 한다(아니면 실패 소리 — 15틱에 한 번). 이미 보상을 받은 플레이어는 거절 소리. 통과하면 전리품 표를(this_entity = 플레이어, 행운 = 속성 luck, origin = 칸 가운데, 표의 난수) 평가해
+  비어 있지 않을 때만 통계 used·열쇠 소비(창작 제외)·unlocking(14틱 쉼)·보상 받은 플레이어 기록(128명 넘으면 가장 오래된 사람부터 밀림)·연결 플레이어 갱신. 이벤트 3015/3016(활성/비활성, 불길하면 데이터 1)·3017(배출).
+- 저장: DFU 규칙(가정, 시련 생성기 노트 참고)대로 `config`·`shared_data`·`server_data` 는 늘 쓰고, 안의 기본값 필드는 생략. `key_item` 은 비어 있지 않으면 늘 쓴다.
+  **바닐라 quirk**: `server_data` 를 읽을 때 `total_ejections_needed` 를 옮기지 않는다(copyFrom 이 빠뜨림) — 배출 도중 재시작하면 진행도가 `남은 수`가 되어 소리 높이가 올라간다. 그대로 포팅.
+- **미구현/다른 점**: 클라이언트 입자·주변 소리·표시 아이템 회전 생략. 금고 회전·거울(`rotate/mirror`) 훅은 아직 이 서버 블록 체계에 없다(템플릿 배치는 표 변환으로 처리). 감지기는 시련 생성기와 같은 `PlayerDetector`(시선 없음).
+  연결 플레이어는 UUID 만 들고 다른 region 플레이어도 위치만 읽는다(스케줄러 규칙의 읽기 전용 예외 — 기존 스컬크·시련 생성기와 같다).
+- 시험: `VaultBlockEntityTest`(템플릿 NBT·기본값 생략·범위 검증 거부, server/shared 왕복, 128명 제한, 진행도 손계산, 범위 경계 16/20.25, 표시 아이템 순환 난수, 열쇠 성공/실패/거절/창작/빈 보상, 배출 주기·높이, 배출 후 상태).
+
+## 2026-10-31 불길한 병·시련 징조 (작업 C-3)
+
+- 근거: `cvh`(OminousBottleItem), `brs`(BadOmen), `dsh.a/transformBadOmenIntoTrialOmen`, `bsb`(MobEffects).
+- 시련/불길한 시련 열쇠(`trial_key`, `ominous_trial_key`)는 바닐라에서 평범한 아이템(`new Item`)이다 — 쓰임은 금고 블록의 `useItemOn`(C-2)뿐. 일반 `BlockPlacement.useItemOn` 경로가 `item_used_on_block` 발동까지 해 준다.
+- `trial_omen` 효과는 자체 틱 동작이 없다(`MobEffect` 기본). 효과를 보는 쪽은 시련 생성기(C-1): 일반 생성기 감지에서 시련 징조가 있으면 불길해지고(소모 안 함), 나쁜 징조만 있으면 시련 징조로 바꾼다 —
+  지속 18000 × (증폭+1), 증폭 0, 나쁜 징조 제거. 이벤트 3020(플레이어 눈 칸, 데이터 0)과 생성기(데이터 1).
+- 불길한 병(`ominous_bottle`)을 마실 수 있게 했다(`Consuming`): 32틱 마시기, 끝나면 consume_item 발동·통계 used·`item.ominous_bottle.dispose`·나쁜 징조 120000틱(증폭 = `ominous_bottle_amplifier` 컴포넌트, 기본 0; 입자 없음·아이콘 있음).
+  병은 하나 줄고 **빈 병이 남지 않는다**(`ItemStack.consume` 만). 창작 모드는 소비하지 않는다. 나쁜 징조는 마을 안에서 기존 `Raids.tickOmens` 가 습격 징조로 바꾼다.
+- **미구현/다른 점**: 불길한 병 레시피/거래/약탈자 대장 드롭은 전리품 표·기존 코드가 맡는다(이 작업 범위 밖). 마시는 소리는 블록 중심(blockPosition+0.5), 음원 분류는 플레이어("players").
+- 시험: `ConsumingTest` 불길한 병 2건(증폭 3 + 120000틱 + 효과 플래그 + 병 감소, 컴포넌트 없음 = 증폭 0 + 창작 비소비), 시련 징조 전환은 `TrialSpawnerBlockEntityTest`.

@@ -104,6 +104,15 @@ public interface LevelServices {
     default java.util.List<org.domi.furnace.server.entity.ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self,
             double x, double y, double z) { return java.util.List.of(); }
 
+    /**
+     * 일반 전리품 평가(시련 방·금고·장비 표): origin·this_entity·luck 로 평가한다. seed != 0 이면 그 시드(Legacy), 아니면 random 이 있으면 그 난수,
+     * 아니면 표의 random_sequence/월드 난수. 최대 스택으로 나눈 결과. 데이터 팩이 없으면 빈 목록.
+     */
+    default java.util.List<org.domi.furnace.server.entity.ItemStack> lootItems(String lootTable, double[] origin,
+            org.domi.furnace.server.loot.LootEntity thisEntity, float luck, long seed, org.domi.furnace.server.block.RandomSource random) {
+        return java.util.List.of();
+    }
+
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
@@ -223,6 +232,10 @@ public interface LevelServices {
         public java.util.List<org.domi.furnace.server.entity.ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self,
                 double x, double y, double z) {
             return d.giftLoot(lootTable, self, x, y, z);
+        }
+        public java.util.List<org.domi.furnace.server.entity.ItemStack> lootItems(String lootTable, double[] origin,
+                org.domi.furnace.server.loot.LootEntity thisEntity, float luck, long seed, RandomSource random) {
+            return d.lootItems(lootTable, origin, thisEntity, luck, seed, random);
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }
