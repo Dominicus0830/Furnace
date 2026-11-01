@@ -94,7 +94,7 @@ public final class Consuming {
             // 마신 뒤 병은 남지 않는다(ItemStack.consume 만).
             consumeTrigger(p, s);
             p.awardStat("minecraft:used:minecraft:ominous_bottle", 1);
-            if (region != null) region.level().playSound(null, p.x(), p.y(), p.z(), "minecraft:item.ominous_bottle.dispose", "players", 1.0F, 1.0F);
+            if (region != null) region.level().playSound(null, Math.floor(p.x()) + 0.5, Math.floor(p.y()) + 0.5, Math.floor(p.z()) + 0.5, "minecraft:item.ominous_bottle.dispose", "players", 1.0F, 1.0F);
             int amp = ItemTools.component(s, "minecraft:ominous_bottle_amplifier") instanceof Number x ? x.intValue() : 0;
             v.addEffect(new MobEffectInstance(MobEffect.BAD_OMEN, OMINOUS_BOTTLE_TICKS, amp, false, false, true));
         }

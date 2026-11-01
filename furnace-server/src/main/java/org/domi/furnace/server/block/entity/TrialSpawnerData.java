@@ -133,8 +133,11 @@ public class TrialSpawnerData {
         if (bad == null) return;
         int level = bad.amplifier() + 1;
         int duration = TRIAL_OMEN_PER_BAD_OMEN_LEVEL * level;
-        player.vitals().removeEffect(MobEffect.BAD_OMEN);
-        player.vitals().addEffect(new MobEffectInstance(MobEffect.TRIAL_OMEN, duration, 0));
+        // 다른 region 소속일 수 있는 플레이어의 효과 쓰기는 소유 스레드로 넘긴다
+        player.runOnOwner(() -> {
+            player.vitals().removeEffect(MobEffect.BAD_OMEN);
+            player.vitals().addEffect(new MobEffectInstance(MobEffect.TRIAL_OMEN, duration, 0));
+        });
     }
 
     /**

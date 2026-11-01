@@ -506,6 +506,9 @@
   ③ `current_mobs` 는 이 region 저장소에서만 찾는다 — 다른 region 으로 넘어간 몹은 추적에서 빠진다(스레드 소유권 규칙; 47칸 안이면 보통 같은 region). ④ 탈것 승객(`Passengers`)은 BaseSpawner 와 같이 미이식.
   ⑤ 장비 표는 `Mob.equipmentSlotFor`(이름 기준)로 Equipable 을 대신한다. ⑥ 감지기 SHEEP 변종(`dse.c`)은 바닐라 데이터가 쓰지 않아 생략. ⑦ 평화로움·`doMobSpawning` 검사는 레벨 값 그대로.
   ⑧ 불길한 아이템 표 평가에 쓰는 origin 은 없음(바닐라 EMPTY 문맥).
+- **소유권 처리**: 감지(읽기)는 기존 관행대로 접속자 전체를 훑지만, 나쁜 징조→시련 징조 변환(효과 쓰기)은 `Player.runOnOwner` 로 그 플레이어의 소유 스레드에 넘긴다(다른 region 이어도 안전; 같은 틱에 바로 보이지 않을 수 있음).
+  `current_mobs` 추적은 이 region 저장소만 보므로 region 을 넘어간 몹은 추적에서 빠져 다음 몹이 더 빨리 나올 수 있다. 표시용 몹 캐시는 `displayEntityCreated`/`failedDisplayId`(만들 수 없는 id 는 같은 id 로 재시도 안 함 — 바닐라는 매번 시도).
+  코덱 엄격도 차이: 바닐라 루트의 `target_cooldown_length`·`required_player_range` 는 lenient 가 아닌 `optionalFieldOf` 라 틀린 값이면 TrialSpawner 전체 파싱이 실패(기존 값 유지)하지만, 여기서는 필드별로 기본값에 떨어뜨린다.
 - 추가: `Mob.dropPreservedEquipment`·`setPersistenceRequired`, `ChunkLevel.lootItems`(origin·this_entity·luck, 시드/레벨 난수/표 난수), 스폰 알을 시련 생성기에 쓰면 다음 데이터 종류만 바뀜(`ItemUse`).
 - 시험: `TrialSpawnerBlockEntityTest`(구성 병합·기본값 생략·lenient, 상태 전이 전부, 시드 고정 스폰 위치 손계산, 시선(돌/유리), 불길한 전환·효과 변환, 보상 배출 주기, 불길한 아이템 생성기 난수 순서·위치, 템플릿 NBT 승격).
 ## 2026-10-31 금고 블록 엔티티 (작업 C-2)
@@ -531,5 +534,5 @@
   지속 18000 × (증폭+1), 증폭 0, 나쁜 징조 제거. 이벤트 3020(플레이어 눈 칸, 데이터 0)과 생성기(데이터 1).
 - 불길한 병(`ominous_bottle`)을 마실 수 있게 했다(`Consuming`): 32틱 마시기, 끝나면 consume_item 발동·통계 used·`item.ominous_bottle.dispose`·나쁜 징조 120000틱(증폭 = `ominous_bottle_amplifier` 컴포넌트, 기본 0; 입자 없음·아이콘 있음).
   병은 하나 줄고 **빈 병이 남지 않는다**(`ItemStack.consume` 만). 창작 모드는 소비하지 않는다. 나쁜 징조는 마을 안에서 기존 `Raids.tickOmens` 가 습격 징조로 바꾼다.
-- **미구현/다른 점**: 불길한 병 레시피/거래/약탈자 대장 드롭은 전리품 표·기존 코드가 맡는다(이 작업 범위 밖). 마시는 소리의 음원 분류는 플레이어("players").
+- **미구현/다른 점**: 불길한 병 레시피/거래/약탈자 대장 드롭은 전리품 표·기존 코드가 맡는다(이 작업 범위 밖). 마시는 소리는 블록 중심(blockPosition+0.5), 음원 분류는 플레이어("players").
 - 시험: `ConsumingTest` 불길한 병 2건(증폭 3 + 120000틱 + 효과 플래그 + 병 감소, 컴포넌트 없음 = 증폭 0 + 창작 비소비), 시련 징조 전환은 `TrialSpawnerBlockEntityTest`.

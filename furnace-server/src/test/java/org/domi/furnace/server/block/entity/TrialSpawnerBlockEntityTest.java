@@ -619,6 +619,8 @@ class TrialSpawnerBlockEntityTest {
         long scan = scanTime(1000);
         level.time = scan;
         be.tick(level);
+        assertNotNull(p.vitals().getEffect(MobEffect.BAD_OMEN), "효과 쓰기는 소유 스레드 작업으로 넘어간다(소유 region 이 없으면 대기)");
+        p.drainOwnerTasks();
         // 나쁜 징조 증폭 1 → 시련 징조 18000 × (1+1) = 36000틱, 증폭 0
         assertNull(p.vitals().getEffect(MobEffect.BAD_OMEN));
         MobEffectInstance trial = p.vitals().getEffect(MobEffect.TRIAL_OMEN);
