@@ -48,7 +48,7 @@ public class LookAtPlayerGoal extends Goal {
     @Override
     public void tick() {
         if (lookAt != null && !lookAt.vitals().isDeadOrDying()) {
-            double y = onlyHorizontal ? mob.eyeY() : lookAt.y() + (lookAt.sneaking() ? 1.27 : 1.62);
+            double y = onlyHorizontal ? mob.eyeY() : lookAt.eyeY();
             mob.getLookControl().setLookAt(lookAt.x(), y, lookAt.z());
             lookTime--;
         }

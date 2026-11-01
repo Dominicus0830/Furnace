@@ -1065,7 +1065,7 @@ public final class Region {
     private void touchEntities(Player p) {
         if (level == null || level.entities().isEmpty()) return;
         if (p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
-        double h = p.isFallFlying() ? 0.6 : p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        double h = p.bbHeight();
         var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3)
                 .inflate(1.0, 0.5, 1.0);
         for (var e : level.getEntities(null, box, null)) {
@@ -1276,7 +1276,7 @@ public final class Region {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
         RegionLevel l = level();
-        double eye = p.y() + (p.sneaking() ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING) - 0.3F;
+        double eye = p.eyeY() - 0.3F;
         var ie = new org.domi.furnace.server.entity.ItemEntity(l, l.nextEntityId(), p.x(), eye, p.z(), stack);
         ie.setPickUpDelay(40);
         if (includeThrower) ie.setThrower(p.uuid());
@@ -1342,7 +1342,7 @@ public final class Region {
         PlayerProbe probe = world.probe();
         boolean eyeInWater = false;
         if (probe != null && ownedChunk((int) Math.floor(p.x()) >> 4, (int) Math.floor(p.z()) >> 4) != null) {
-            double eye = p.sneaking() ? PlayerProbe.EYE_CROUCHING : PlayerProbe.EYE_STANDING;
+            double eye = p.eyeY() - p.y();
             eyeInWater = probe.eyeInWater(blocks, p.x(), p.y(), p.z(), eye);
         }
         return new org.domi.furnace.server.block.BreakerActor(p, main, off, head, inv == null ? 0 : inv.permissionLevel(), eyeInWater, held) {
@@ -1517,7 +1517,7 @@ public final class Region {
      */
     private void checkInsideCampfires(Player p) {
         if (level == null || p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
-        double h = p.isFallFlying() ? 0.6 : p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        double h = p.bbHeight();
         int x0 = (int) Math.floor(p.x() - 0.3 + 1.0E-7), x1 = (int) Math.floor(p.x() + 0.3 - 1.0E-7);
         int y0 = (int) Math.floor(p.y() + 1.0E-7), y1 = (int) Math.floor(p.y() + h - 1.0E-7);
         int z0 = (int) Math.floor(p.z() - 0.3 + 1.0E-7), z1 = (int) Math.floor(p.z() + 0.3 - 1.0E-7);
@@ -1551,7 +1551,7 @@ public final class Region {
 
     private boolean checkInsidePortals(Player p) {
         if (!canTriggerPortals(p)) return false;
-        double h = p.isFallFlying() ? 0.6 : p.sneaking() ? PlayerProbe.HEIGHT_CROUCHING : PlayerProbe.HEIGHT_STANDING;
+        double h = p.bbHeight();
         var box = new org.domi.furnace.server.entity.AABB(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3);
         int x0 = (int) Math.floor(box.minX() + 1.0E-7), x1 = (int) Math.floor(box.maxX() - 1.0E-7);
         int y0 = (int) Math.floor(box.minY() + 1.0E-7), y1 = (int) Math.floor(box.maxY() - 1.0E-7);

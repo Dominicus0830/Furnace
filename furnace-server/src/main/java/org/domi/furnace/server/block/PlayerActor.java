@@ -32,7 +32,7 @@ public class PlayerActor implements BlockActor {
     @Override public double x() { return player.x(); }
     @Override public double y() { return player.y(); }
     @Override public double z() { return player.z(); }
-    @Override public double eyeHeight() { return player.sneaking() ? 1.27 : 1.62; }
+    @Override public double eyeHeight() { return player.eyeY() - player.y(); }
     @Override public boolean isSecondaryUseActive() { return player.sneaking(); }
     @Override public boolean mayBuild() { return player.vitals().mayBuild(); }
     @Override public boolean canEat(boolean ignoreHunger) { return player.vitals().canEat(ignoreHunger); }

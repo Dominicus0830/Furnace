@@ -18,9 +18,8 @@ public record Traveler(double x, double y, double z, double vx, double vy, doubl
                 e instanceof LivingEntity || e instanceof AbstractMinecart || e instanceof Boat);
     }
 
-    /** 플레이어: 서버 쪽 속도는 차원 이동에 쓰이지 않는다(위치 패킷만 간다). 몸 크기는 자세(서기 1.8, 웅크림 1.5). */
+    /** 플레이어: 서버 쪽 속도는 차원 이동에 쓰이지 않는다(위치 패킷만 간다). 몸 크기는 자세(bbHeight). */
     public static Traveler of(Player p) {
-        double h = p.sneaking() ? org.domi.furnace.server.world.PlayerProbe.HEIGHT_CROUCHING : org.domi.furnace.server.world.PlayerProbe.HEIGHT_STANDING;
-        return new Traveler(p.x(), p.y(), p.z(), 0, 0, 0, p.yaw(), p.pitch(), 0.6, h, true, true);
+        return new Traveler(p.x(), p.y(), p.z(), 0, 0, 0, p.yaw(), p.pitch(), 0.6, p.bbHeight(), true, true);
     }
 }

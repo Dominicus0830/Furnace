@@ -952,7 +952,7 @@ public abstract class ChunkLevel implements BlockLevel {
         boolean[] blocked = {false};
         services().forEachPlayer(p -> {
             if (blocked[0] || p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
-            double h = p.sneaking() ? 1.5 : 1.8;
+            double h = p.bbHeight();
             double x0 = p.x() - 0.3, y0 = p.y(), z0 = p.z() - 0.3, x1 = p.x() + 0.3, y1 = p.y() + h, z1 = p.z() + 0.3;
             // getEntities(bounds) 는 상자끼리 겹침(경계 제외)으로 먼저 거른 뒤 모양과 맞대 본다
             if (x1 <= b[0] || x0 >= b[3] || y1 <= b[1] || y0 >= b[4] || z1 <= b[2] || z0 >= b[5]) return;
@@ -2075,7 +2075,7 @@ public abstract class ChunkLevel implements BlockLevel {
         int[] n = {entities.getEntities(null, box, e -> !e.isIgnoringBlockTriggers() && !e.isSpectator() && (!livingOnly || e.isLiving())).size()};
         services().forEachPlayer(p -> {
             if (p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
-            double h = p.sneaking() ? 1.5 : 1.8;
+            double h = p.bbHeight();
             if (box.intersects(p.x() - 0.3, p.y(), p.z() - 0.3, p.x() + 0.3, p.y() + h, p.z() + 0.3)) n[0]++;
         });
         return n[0];

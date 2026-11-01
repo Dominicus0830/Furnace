@@ -561,3 +561,7 @@
 - 미구현/차이: 영혼 가속의 tick 효과(영혼 입자·`particle.soul_escape` 소리), 서리 걸음의 `burn_from_stepping`(마그마 블록) 피해 면역(플레이어의 마그마 블록 피해 자체가 아직 없음), 얼어붙음(가루눈) 이동 속도 수정자 `minecraft:powder_snow`, 플레이어 속성 저장·복원, 물갈퀴/영혼 가속이 실제 움직임에 미치는 효과(클라이언트 예측이 속성을 읽는다 — 서버는 속성만 보낸다).  `FrostedIceBlock.tick` 의 녹는 경로는 전용 단위 시험이 없다(전체 시험에서 깨지지 않음만 확인).
 - 시험: `PlayerAttributeSyncTest`(입장 전체 전송·변경분만·선로 바이트·스냅샷·체력 강화·최대 체력 자르기·수동 수정자 보존·리스폰 재전송), `PlayerEnchantAttributeTest`(인챈트별 값·칸 제한·호흡 난수 재현·영혼 가속 활성/유지/해제·비행·내구 소모 확률·서리 걸음 25칸 원판).
 - 후속(B 검토): 서리 걸음은 `level.getBlockState`/`setBlock` 이 region 경계 밖 청크(chunkAt null)에서 실패하면 그 칸을 건너뛴다 — 반경 3~4 원판이 region 경계를 넘으면 경계 쪽 칸이 얼지 않아 바닐라와 얼음 모양이 다를 수 있다(차이). `isUnobstructed`(unobstructed 조건)는 플레이어만 보고 몹·보트 등 blocksBuilding 엔티티는 보지 않는다(`ChunkLevel.isUnobstructed` 한계) — 몹이 서 있는 칸에도 얼음이 생긴다. 시험: 영혼 가속 내구 소모는 레벨 난수를 시드 고정해 같은 난수열 재현값과 정확히 비교, `FrostedIceBlock` 녹는 경로는 시드 고정 단위 시험(age 0→3→물)을 추가했다.
+## 2026-10-31 수영·기어가기 자세 후속 정리
+- 급류 회전(autoSpinAttack) 중 눈 높이 0.4(SPIN_ATTACK 0.6/0.4). 줍기·캠프파이어·포털·플레이어 드롭·Traveler.of(Player)·물속 눈 판정·ChunkLevel 겹침 검사·경험구슬 추적·PlayerActor/LookAtPlayerGoal 눈 높이를 bbHeight()/eyeY() 로 통일.
+- 키가 float(1.8F) 기준으로 바뀐 곳은 이전 double 1.8 과 1e-7 수준으로 다르다(바닐라는 float 차원).
+- 남은 것(가정: 영향 작음): ConnectionHandler 의 상호작용 거리 검사(p.y()+1.62 하드코딩 4곳)는 자세를 반영하지 않는다.
