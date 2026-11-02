@@ -71,4 +71,11 @@ public class Skeleton extends AbstractSkeleton {
         super.readAdditionalSaveData(tag);
         if (tag.contains("StrayConversionTime") && tag.getInt("StrayConversionTime") > -1) startFreezeConversion(tag.getInt("StrayConversionTime"));
     }
+
+    /** 충전 크리퍼 폭발에 죽으면 머리를 한 번 떨군다(바닐라 dropCustomDeathLoot). */
+    @Override
+    protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {
+        super.dropCustomDeathLoot(source, byPlayer);
+        Creeper.dropSkullIfCharged(this, damageSourceEntity(), "skeleton_skull");
+    }
 }

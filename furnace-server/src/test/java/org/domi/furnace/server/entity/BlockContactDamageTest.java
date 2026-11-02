@@ -25,6 +25,21 @@ class BlockContactDamageTest {
         return c;
     }
 
+    /** Spider.makeStuckInBlock(cko:74): 거미줄이면 무시(낙하 거리도 그대로). 닭은 걸린다. */
+    @Test
+    void spidersIgnoreWeb() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        int s = Blocks.get().defaultState("minecraft:cobweb");
+        for (String type : new String[] {"minecraft:spider", "minecraft:cave_spider", "minecraft:chicken"}) {
+            var m = (Entity) Entities.create(level, type);
+            m.moveTo(0.5, -60, 0.5, 0, 0);
+            level.addFreshEntity(m);
+            m.fallDistance = 5.0F;
+            B.behavior(s).entityInside(s, level, new Pos(0, -60, 0), m);
+            assertEquals(type.endsWith("chicken") ? 0.0F : 5.0F, m.fallDistance, type);
+        }
+    }
+
     @Test
     void cactusHurtsOne() {
         var level = new SkeletonCombatTest.ArenaLevel();

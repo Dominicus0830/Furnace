@@ -79,7 +79,10 @@ public class Creeper extends Monster {
             oldSwell = swell;
             if (isIgnited()) setSwellDir(1);
             int i = getSwellDir();
-            if (i > 0 && swell == 0) playSound("entity.creeper.primed", 1.0F, 0.5F);
+            if (i > 0 && swell == 0) {
+                playSound("entity.creeper.primed", 1.0F, 0.5F);
+                gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.PRIME_FUSE);
+            }
             swell += i;
             if (swell < 0) swell = 0;
             if (swell >= maxSwell) {
@@ -123,6 +126,26 @@ public class Creeper extends Monster {
             return true;
         }
         return super.interact(p, hand, held, region);
+    }
+
+    /** 폭발로 죽은 몹이 머리를 떨군 횟수(canDropMobsSkull: 충전 상태이고 아직 0회). 저장하지 않는다. */
+    private int droppedSkulls;
+
+    public boolean canDropMobsSkull() { return isPowered() && droppedSkulls < 1; }
+
+    public void increaseDroppedSkulls() { droppedSkulls++; }
+
+    /** 죽인 원인이 충전 크리퍼(자기 자신 제외)면 한 번 소비하고 머리를 떨군다. 각 몹의 dropCustomDeathLoot 가 `super` 뒤에 부른다. */
+    static void dropSkullIfCharged(LivingEntity victim, Object attacker, String item) {
+        if (attacker == victim || !(attacker instanceof Creeper c) || !c.canDropMobsSkull()) return;
+        c.increaseDroppedSkulls();
+        victim.spawnAtLocation(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", item), 1));
+    }
+
+    @Override
+    protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {
+        super.dropCustomDeathLoot(source, byPlayer);
+        dropSkullIfCharged(this, damageSourceEntity(), "creeper_head");
     }
 
     private void explodeCreeper() {

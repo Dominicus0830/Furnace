@@ -408,4 +408,11 @@ public class Zombie extends Monster {
         inWaterTime = tag.getIntOr0("InWaterTime");   // 바닐라 getInt: 없으면 0(구조물이 남긴 좀비 주민 NBT 등)
         if (tag.contains("DrownedConversionTime") && tag.getInt("DrownedConversionTime") > -1) startUnderWaterConversion(tag.getInt("DrownedConversionTime"));
     }
+
+    /** 충전 크리퍼 폭발에 죽으면 머리를 한 번 떨군다(바닐라 dropCustomDeathLoot). */
+    @Override
+    protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {
+        super.dropCustomDeathLoot(source, byPlayer);
+        Creeper.dropSkullIfCharged(this, damageSourceEntity(), "zombie_head");
+    }
 }
