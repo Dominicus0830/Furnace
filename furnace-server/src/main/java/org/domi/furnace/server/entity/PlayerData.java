@@ -268,6 +268,7 @@ public final class PlayerData {
         root.putString("Dimension", p.dimension());
         root.putBoolean("seenCredits", p.seenCredits);
         p.saveTags(root);
+        p.saveShoulders(root);
         fill(root, p.uuid(), p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround(), slots);
         root.tags().remove("DataVersion");
         root.tags().remove(FURNACE_CRAFTING);

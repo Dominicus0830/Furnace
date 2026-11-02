@@ -916,6 +916,7 @@ public final class Region {
             p.drainOwnerTasks();   // 다른 스레드가 맡긴 플레이어 작업(발전 과제·통계·점수) — 주인 스레드에서
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
+            org.domi.furnace.server.entity.PlayerShoulders.tick(p);   // 어깨 몹 울음·내려놓기 조건(aiStep 끝)
             if (level != null && world.probe() != null) org.domi.furnace.server.entity.PlayerPose.update(p, level, world.probe(), blocks);
             org.domi.furnace.server.entity.ElytraFlight.tick(p, level);   // aiStep 의 updateFallFlying·travel(겉날개)
             p.sendPendingKnockback();   // hurtMarked 가 선 틱에만 속도 패킷 한 번

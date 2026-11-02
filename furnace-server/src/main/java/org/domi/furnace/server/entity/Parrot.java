@@ -1,5 +1,5 @@
 // 바닐라 Parrot: 날아다니는 길들이기 새. 씨앗으로 길들이고(1/10), 쿠키는 독(900틱)이라 죽는다. 근처 몹 소리를 가끔 흉내 낸다. 중력 대신 낙하 감속.
-// TODO(어깨): 주인 어깨에 앉기(LandOnOwnersShoulderGoal)·플레이어 어깨 엔티티 저장. TODO(주크박스 파티·날개짓 소리).
+// 어깨 앉기(ShoulderRidingEntity·LandOnOwnersShoulderGoal)는 PlayerShoulders 와 함께. TODO(주크박스 파티·날개짓 소리).
 package org.domi.furnace.server.entity;
 
 import java.util.List;
@@ -10,6 +10,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
+import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.control.FlyingMoveControl;
 import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.entity.ai.navigation.FlyingPathNavigation;
@@ -52,6 +53,60 @@ public class Parrot extends TamableAnimal {
     @Override
     public boolean isBaby() { return false; }
 
+    /** ShoulderRidingEntity.rideCooldownCounter: 100틱이 지나야 어깨에 앉을 수 있다. */
+    private int rideCooldownCounter;
+
+    @Override
+    public void tick() {
+        rideCooldownCounter++;
+        super.tick();
+    }
+
+    public boolean canSitOnShoulder() { return rideCooldownCounter > 100; }
+
+    /** ShoulderRidingEntity.setEntityOnShoulder: 자기 NBT(id 포함)를 플레이어 어깨에 올리고 성공하면 자신을 지운다. */
+    public boolean setEntityOnShoulder(Player p) {
+        var tag = new NbtCompound();
+        tag.putString("id", type().name());
+        saveWithoutId(tag);
+        if (PlayerShoulders.setEntityOnShoulder(p, tag)) {
+            discard();
+            return true;
+        }
+        return false;
+    }
+
+    /** LandOnOwnersShoulderGoal: 주인이 서 있을 때 몸이 겹치면 주인 어깨에 앉는다. */
+    static final class LandOnOwnersShoulderGoal extends Goal {
+        private final Parrot parrot;
+        private Player owner;
+        private boolean isSittingOnShoulder;
+
+        LandOnOwnersShoulderGoal(Parrot parrot) { this.parrot = parrot; }
+
+        @Override
+        public boolean canUse() {
+            Player o = parrot.getOwner();
+            boolean ok = o != null && !o.vitals().isSpectator() && !o.vitals().isFlying() && !PlayerShoulders.isInWater(o) && !PlayerShoulders.isInPowderSnow(o);
+            return !parrot.isOrderedToSit() && ok && parrot.canSitOnShoulder();
+        }
+
+        @Override public boolean isInterruptable() { return !isSittingOnShoulder; }
+
+        @Override
+        public void start() {
+            owner = parrot.getOwner();
+            isSittingOnShoulder = false;
+        }
+
+        @Override
+        public void tick() {
+            if (!isSittingOnShoulder && !parrot.isInSittingPose() && !parrot.isLeashed()) {
+                if (parrot.boundingBox().intersects(owner.boundingBox())) isSittingOnShoulder = parrot.setEntityOnShoulder(owner);
+            }
+        }
+    }
+
     @Override
     protected void createAttributes(AttributeMap map) {
         super.createAttributes(map);
@@ -66,6 +121,7 @@ public class Parrot extends TamableAnimal {
         goalSelector.addGoal(2, new SitWhenOrderedToDoGoal(this));
         goalSelector.addGoal(2, new FollowOwnerGoal(this, 1.0, 5.0F, 1.0F));
         goalSelector.addGoal(2, new ParrotWanderGoal(this, 1.0));
+        goalSelector.addGoal(3, new LandOnOwnersShoulderGoal(this));
         goalSelector.addGoal(3, new FollowMobGoal(this, 1.0, 3.0F, 7.0F));
     }
 
@@ -107,19 +163,24 @@ public class Parrot extends TamableAnimal {
         if (!onGround() && vy() < 0.0) setDeltaMovement(vx(), vy() * 0.6, vz());
     }
 
-    private void imitateNearbyMobs() {
-        if (isAlive() && !isSilent() && level.random().nextInt(2) == 0) {
-            List<Mob> list = level.getEntitiesOfClass(Mob.class, boundingBox().inflate(20.0), m -> IMITATIONS.containsKey(m.type().name()));
+    private void imitateNearbyMobs() { imitateNearbyMobs(level, isAlive() && !isSilent(), boundingBox(), x(), y(), z(), "neutral"); }
+
+    /** Parrot.imitateNearbyMobs(level, entity): 살아 있고 조용하지 않으면 절반 확률로 근처 몹 소리를 흉내 낸다. 흉내 냈으면 true. */
+    static boolean imitateNearbyMobs(org.domi.furnace.server.block.ChunkLevel level, boolean aliveAndNotSilent, AABB box, double x, double y, double z, String source) {
+        if (aliveAndNotSilent && level.random().nextInt(2) == 0) {
+            List<Mob> list = level.getEntitiesOfClass(Mob.class, box.inflate(20.0), m -> IMITATIONS.containsKey(m.type().name()));
             if (!list.isEmpty()) {
                 Mob m = list.get(level.random().nextInt(list.size()));
                 if (!m.isSilent()) {
-                    level.playSound(null, x(), y(), z(), IMITATIONS.get(m.type().name()), "neutral", 0.7F, getPitch(level.random()));
+                    level.playSound(null, x, y, z, IMITATIONS.get(m.type().name()), source, 0.7F, getPitch(level.random()));
+                    return true;
                 }
             }
         }
+        return false;
     }
 
-    private static float getPitch(org.domi.furnace.server.block.RandomSource r) { return (r.nextFloat() - r.nextFloat()) * 0.2F + 1.0F; }
+    static float getPitch(org.domi.furnace.server.block.RandomSource r) { return (r.nextFloat() - r.nextFloat()) * 0.2F + 1.0F; }
 
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
@@ -172,7 +233,10 @@ public class Parrot extends TamableAnimal {
     public float getVoicePitch() { return getPitch(random); }
 
     @Override
-    public String getAmbientSound() {
+    public String getAmbientSound() { return getAmbient(level, random); }
+
+    /** Parrot.getAmbient(level, random): 난이도가 평화가 아니면 1/1000 로 흉내 소리. */
+    static String getAmbient(org.domi.furnace.server.block.ChunkLevel level, org.domi.furnace.server.block.RandomSource random) {
         if (level.difficulty() != 0 && random.nextInt(1000) == 0) {
             java.util.List<String> sounds = new java.util.ArrayList<>(IMITATIONS.values());
             return sounds.get(random.nextInt(sounds.size()));

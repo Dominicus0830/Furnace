@@ -807,6 +807,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** startAutoSpinAttack(ticks, dmg, item): 회전 공격 비트를 켠다. */
     public void startAutoSpinAttack(int ticks, float dmg, ItemStack item) {
         autoSpinAttackTicks = ticks;
+        removeEntitiesOnShoulder();   // startAutoSpinAttack: 어깨의 몹을 내려놓는다
         autoSpinAttackDmg = dmg;
         autoSpinAttackItem = item;
     }
@@ -856,6 +857,52 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** Player.DATA_PLAYER_MODE_CUSTOMISATION(17, byte, 기본 0)·DATA_PLAYER_MAIN_HAND(18, byte, 기본 1=오른손) — 1.21.1 번호. */
     public static final int DATA_PLAYER_MODE_CUSTOMISATION = 17, DATA_PLAYER_MAIN_HAND = 18;
 
+    /** Player.DATA_SHOULDER_LEFT(19)·RIGHT(20) — 1.21.1 번호(compound, 기본 빈 태그). */
+    public static final int DATA_SHOULDER_LEFT = 19, DATA_SHOULDER_RIGHT = 20;
+
+    /** 어깨에 앉은 몹의 NBT(비면 빈 compound). 다른 region 의 앵무새도 앉히므로 shoulderLock 으로 지킨다. */
+    private final Object shoulderLock = new Object();
+    private org.domi.furnace.server.net.io.nbt.NbtCompound shoulderLeft = new org.domi.furnace.server.net.io.nbt.NbtCompound(),
+            shoulderRight = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+    /** timeEntitySatOnShoulder: 어깨에 앉힌 게임 시각. */
+    private long timeEntitySatOnShoulder;
+    private org.domi.furnace.server.net.io.nbt.NbtCompound sentShoulderLeft, sentShoulderRight;
+
+    Object shoulderLock() { return shoulderLock; }
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound shoulderLeft() { synchronized (shoulderLock) { return shoulderLeft; } }
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound shoulderRight() { synchronized (shoulderLock) { return shoulderRight; } }
+
+    void setShoulderLeft(org.domi.furnace.server.net.io.nbt.NbtCompound t) { synchronized (shoulderLock) { shoulderLeft = t; } }
+
+    void setShoulderRight(org.domi.furnace.server.net.io.nbt.NbtCompound t) { synchronized (shoulderLock) { shoulderRight = t; } }
+
+    long timeEntitySatOnShoulder() { synchronized (shoulderLock) { return timeEntitySatOnShoulder; } }
+
+    void timeEntitySatOnShoulder(long t) { synchronized (shoulderLock) { timeEntitySatOnShoulder = t; } }
+
+    private static boolean shoulderDiffers(org.domi.furnace.server.net.io.nbt.NbtCompound a, org.domi.furnace.server.net.io.nbt.NbtCompound b) {
+        boolean ea = a == null || a.tags().isEmpty(), eb = b == null || b.tags().isEmpty();
+        return !(ea && eb) && a != b;
+    }
+
+    private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item shoulderItem(int index, org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(index, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_COMPOUND,
+                t == null ? new org.domi.furnace.server.net.io.nbt.NbtCompound() : t);
+    }
+
+    /** ShoulderEntityLeft/Right 저장(비어 있지 않을 때만). */
+    public void saveShoulders(org.domi.furnace.server.net.io.nbt.NbtCompound out) { PlayerShoulders.save(this, out); }
+
+    public void loadShoulders(org.domi.furnace.server.net.io.nbt.NbtCompound in) { PlayerShoulders.load(this, in); }
+
+    /** 앵무새를 어깨에 앉힌다(Player.setEntityOnShoulder). 앉혔으면 true. */
+    public boolean setEntityOnShoulder(org.domi.furnace.server.net.io.nbt.NbtCompound tag) { return PlayerShoulders.setEntityOnShoulder(this, tag); }
+
+    /** 어깨의 몹을 내려놓는다(Player.removeEntitiesOnShoulder). */
+    public void removeEntitiesOnShoulder() { PlayerShoulders.removeEntitiesOnShoulder(this); }
+
     /** 클라 설정(ClientInformation)의 보이는 스킨 부위·주 손 — 연결 스레드가 쓰고 region 스레드가 syncLivingFlags 에서 보낸다. */
     private volatile byte skinParts, mainArm = 1;
     private byte sentSkinParts, sentMainArm = 1;
@@ -874,7 +921,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         boolean reset = resendEntityData;
         if (reset) {   // 리스폰: 클라가 기본값 엔티티를 새로 만들었다 — 기본값과 다른 것을 다시 보낸다
             resendEntityData = false;
-            sentSharedFlags = 0; sentPose = 0; sentLivingFlags = 0; sentSleepingPos = null; sentSkinParts = 0; sentMainArm = 1;
+            sentSharedFlags = 0; sentPose = 0; sentLivingFlags = 0; sentSleepingPos = null; sentSkinParts = 0; sentMainArm = 1; sentShoulderLeft = null; sentShoulderRight = null;
         }
         byte shared = sharedFlags(), f = livingFlags();
         int pose = pose();
@@ -888,6 +935,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         byte skin = skinParts, arm = mainArm;
         if (skin != sentSkinParts) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, skin));
         if (arm != sentMainArm) items.add(flagItem(DATA_PLAYER_MAIN_HAND, arm));
+        var sl = shoulderLeft(); var sr = shoulderRight();
+        if (shoulderDiffers(sl, sentShoulderLeft)) items.add(shoulderItem(DATA_SHOULDER_LEFT, sl));
+        if (shoulderDiffers(sr, sentShoulderRight)) items.add(shoulderItem(DATA_SHOULDER_RIGHT, sr));
         if (items.isEmpty()) {
             if (reset) pairingDataSnap = null;   // 전부 기본값
             return;
@@ -898,6 +948,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         sentSleepingPos = sp;
         sentSkinParts = skin;
         sentMainArm = arm;
+        sentShoulderLeft = sl;
+        sentShoulderRight = sr;
         pairingDataSnap = buildPairingData();
         var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, items);
         send(pkt);
@@ -1064,6 +1116,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (sentSleepingPos != null) items.add(sleepingPosItem(sentSleepingPos));
         if (sentSkinParts != 0) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, sentSkinParts));
         if (sentMainArm != 1) items.add(flagItem(DATA_PLAYER_MAIN_HAND, sentMainArm));
+        if (sentShoulderLeft != null && !sentShoulderLeft.tags().isEmpty()) items.add(shoulderItem(DATA_SHOULDER_LEFT, sentShoulderLeft));
+        if (sentShoulderRight != null && !sentShoulderRight.tags().isEmpty()) items.add(shoulderItem(DATA_SHOULDER_RIGHT, sentShoulderRight));
         return items.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, java.util.List.copyOf(items));
     }
 

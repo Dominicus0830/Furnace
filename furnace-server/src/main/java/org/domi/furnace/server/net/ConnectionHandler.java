@@ -1041,6 +1041,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (saved != null && saved.root() != null) {
             p.seenCredits = saved.root().getBoolean("seenCredits");
             p.loadTags(saved.root());
+            p.loadShoulders(saved.root());
         }
         // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
@@ -3143,6 +3144,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         extra.putString("Dimension", p.dimension());   // 바닐라 ServerPlayer.addAdditionalSaveData — 지금 레벨
         extra.putBoolean("seenCredits", p.seenCredits);
         p.saveTags(extra);
+        p.saveShoulders(extra);
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
         final var statsToSave = p.stats();
