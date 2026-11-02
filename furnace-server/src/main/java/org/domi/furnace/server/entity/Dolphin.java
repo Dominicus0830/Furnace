@@ -243,7 +243,7 @@ public class Dolphin extends WaterAnimal {
             dolphin.getNavigation().stop();
             var maps = dolphin.level().explorerMaps();
             Pos here = dolphin.blockPosition();
-            int[] found = maps == null ? null : maps.findNearestStructurePos("minecraft:on_treasure_maps", here.x(), here.y(), here.z(), 50);
+            int[] found = maps == null ? null : maps.findNearestStructurePos("minecraft:dolphin_located", here.x(), here.y(), here.z(), 50);
             if (found != null) {
                 dolphin.setTreasurePos(new Pos(found[0], found[1], found[2]));
                 dolphin.broadcastEntityEvent((byte) 38);
@@ -318,7 +318,7 @@ public class Dolphin extends WaterAnimal {
 
         @Override
         public void start() {
-            player.vitals().addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.DOLPHINS_GRACE, 100));
+            { var pl = player; pl.runOnOwner(() -> pl.vitals().addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.DOLPHINS_GRACE, 100))); }
         }
 
         @Override
@@ -334,7 +334,7 @@ public class Dolphin extends WaterAnimal {
             if (dx * dx + dy * dy + dz * dz < 6.25) dolphin.getNavigation().stop();
             else dolphin.getNavigation().moveTo(player, speedModifier);
             if (player.swimming && dolphin.level().random().nextInt(6) == 0) {
-                player.vitals().addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.DOLPHINS_GRACE, 100));
+                { var pl = player; pl.runOnOwner(() -> pl.vitals().addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.DOLPHINS_GRACE, 100))); }
             }
         }
     }

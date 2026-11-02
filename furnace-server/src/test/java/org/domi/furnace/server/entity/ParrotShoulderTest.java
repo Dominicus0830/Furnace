@@ -115,4 +115,18 @@ class ParrotShoulderTest {
         assertTrue(player.shoulderLeft().tags().isEmpty());
         assertEquals(1, level.getEntitiesOfClass(Parrot.class, player.boundingBox().inflate(3.0), x -> true).size());
     }
+
+    @Test
+    void compoundSerializerEncodesNamelessNbt() {
+        var c = new NbtCompound();
+        c.putString("id", "x");
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetEntityData(5, java.util.List.of(
+                new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(Player.DATA_SHOULDER_LEFT, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_COMPOUND, c)));
+        var buf = io.netty.buffer.Unpooled.buffer();
+        pkt.write(buf);
+        byte[] b = new byte[buf.readableBytes()];
+        buf.readBytes(b);
+        // 엔티티 5, 인덱스 19, 직렬화기 16, TAG_Compound(10), TAG_String(8) 이름 "id", 값 "x", TAG_End, 목록 끝 0xFF
+        assertArrayEquals(new byte[] {5, 19, 16, 10, 8, 0, 2, 'i', 'd', 0, 1, 'x', 0, (byte) 0xFF}, b);
+    }
 }

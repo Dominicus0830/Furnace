@@ -62,7 +62,7 @@ class DolphinTreasurePlayerTest {
         dolphin.setGotFish(true);
         assertTrue(g.canUse());
         g.start();
-        assertEquals("minecraft:on_treasure_maps@50", tag[0]);
+        assertEquals("minecraft:dolphin_located@50", tag[0]);
         assertEquals(new Pos(10, -40, 3), dolphin.getTreasurePos());
         assertTrue(g.canContinueToUse(), "아직 멀다");
         dolphin.moveTo(10.5, -40, 3.5, 0, 0);
@@ -99,6 +99,7 @@ class DolphinTreasurePlayerTest {
         player.swimming = true;
         assertTrue(g.canUse());
         g.start();
+        player.drainOwnerTasks();   // 효과는 플레이어 주인 스레드 작업으로 넘어간다
         assertTrue(player.vitals().hasEffect(MobEffect.DOLPHINS_GRACE));
         assertTrue(g.canContinueToUse());
         player.swimming = false;
