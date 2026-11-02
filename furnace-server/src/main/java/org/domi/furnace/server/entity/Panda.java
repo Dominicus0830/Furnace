@@ -319,6 +319,7 @@ public class Panda extends Animal {
             if (getEatCounter() > 80 && random.nextInt(20) == 1) {
                 if (getEatCounter() > 100 && isFoodOrCake(getItemBySlot(EquipmentSlot.MAINHAND))) {
                     setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+                    gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EAT);   // cft:343
                     sit(false);
                 }
                 eat(false);

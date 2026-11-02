@@ -39,6 +39,7 @@ public class Chicken extends Animal {
         if (isAlive() && !isBaby() && !chickenJockey && --eggTime <= 0) {
             playSound("entity.chicken.egg", 1.0F, (random.nextFloat() - random.nextFloat()) * 0.2F + 1.0F);
             spawnAtLocation(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "egg"), 1));
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_PLACE);   // cfj:61
             eggTime = random.nextInt(6000) + 6000;
         }
     }

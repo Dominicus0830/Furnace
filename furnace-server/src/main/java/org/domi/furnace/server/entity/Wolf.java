@@ -149,6 +149,10 @@ public class Wolf extends TamableAnimal implements NeutralMob {
             broadcastEntityEvent((byte) 8);
         }
         if (isShaking) {
+            if (shakeAnim == 0.0F) {   // cgh:191 털기 시작 틱에 소리와 ENTITY_ACTION(소리 높이는 난수 두 번)
+                playSound("entity.wolf.shake", 0.4F, (random.nextFloat() - random.nextFloat()) * 0.2F + 1.0F);
+                gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
+            }
             shakeAnimO = shakeAnim;
             shakeAnim += 0.05F;
             if (shakeAnimO >= 2.0F) {
@@ -157,7 +161,6 @@ public class Wolf extends TamableAnimal implements NeutralMob {
                 shakeAnimO = 0.0F;
                 shakeAnim = 0.0F;
             }
-            if (shakeAnim > 0.4F && shakeAnim - 0.05F <= 0.4F) playSound("entity.wolf.shake", 0.4F, (random.nextFloat() - random.nextFloat()) * 0.2F + 1.0F);
         }
         updatePersistentAnger(level.gameRule("universalAnger"));
     }

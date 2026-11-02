@@ -106,6 +106,7 @@ public class Sheep extends Animal {
         if (!held.isEmpty() && ItemTools.itemName(held).equals("minecraft:shears")) {
             if (readyForShearing()) {
                 shear("players");
+                gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SHEAR, p);   // 바닐라: shear 뒤 플레이어가 원인
                 var inv = p.inventory();
                 int ws = hand == 0 ? inv.heldWindowSlot() : 45;
                 PlayerActor actor = new PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);

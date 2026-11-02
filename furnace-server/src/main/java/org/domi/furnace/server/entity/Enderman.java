@@ -205,6 +205,7 @@ public class Enderman extends Monster implements NeutralMob {
         if (solid && !water) {
             double ox = x(), oy = y(), oz = z();
             boolean ok = randomTeleport(nx, ny, nz, true);
+            if (ok) level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.TELEPORT, new Vec3(ox, oy, oz), org.domi.furnace.server.world.gameevent.GameEventContext.of(this));   // cjt:226 원래 위치에서
             if (ok && !isSilent()) {
                 level.playSound(null, ox, oy, oz, "entity.enderman.teleport", soundSource(), 1.0F, 1.0F);
                 playSound("entity.enderman.teleport", 1.0F, 1.0F);
@@ -307,6 +308,7 @@ public class Enderman extends Monster implements NeutralMob {
                 int placed = carried;   // TODO(이웃 모양 갱신): Block.updateFromNeighbourShapes
                 if (canPlaceBlock(level, pos, placed, here, belowState, below)) {
                     level.setBlock(pos, placed, 3, 512);
+                    level.gameEventFrom("block_place", pos, enderman, placed);
                     enderman.setCarriedBlock(null);
                 }
             }
@@ -344,6 +346,7 @@ public class Enderman extends Monster implements NeutralMob {
             boolean same = hit.pos().equals(pos) && !hit.miss() || (hit.miss() && hit.pos().equals(pos));
             if (B.isTag(state, "minecraft:enderman_holdable") && same) {
                 level.removeBlock(pos, false);
+                level.gameEventFrom("block_destroy", pos, enderman, state);
                 enderman.setCarriedBlock(org.domi.furnace.server.block.Blocks.get().defaultState(org.domi.furnace.server.block.Blocks.get().blockOf(state)));
             }
         }

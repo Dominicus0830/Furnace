@@ -89,6 +89,7 @@ public class SnowGolem extends AbstractGolem implements RangedAttackMob {
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         if (!held.isEmpty() && ItemTools.itemName(held).equals("minecraft:shears") && readyForShearing()) {
             shear("players");
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SHEAR, p);   // 바닐라: shear 뒤 플레이어가 원인
             hurtHeldItem(p, hand, held, 1);
             return true;
         }

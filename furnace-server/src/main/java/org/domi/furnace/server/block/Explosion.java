@@ -132,6 +132,7 @@ public final class Explosion {
 
     /** Explosion.explode(): 부서질 칸과 엔티티 피해·밀림. */
     public void explode() {
+        level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EXPLODE, new org.domi.furnace.server.entity.Vec3(x, y, z), org.domi.furnace.server.world.gameevent.GameEventContext.of(source));   // dco:128 계산 전에 원인 엔티티로
         Set<Pos> set = new HashSet<>();
         List<Pos> ordered = new ArrayList<>();
         for (int j = 0; j < 16; j++) {

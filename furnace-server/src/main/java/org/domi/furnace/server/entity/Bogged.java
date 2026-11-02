@@ -37,6 +37,7 @@ public class Bogged extends AbstractSkeleton {
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         if (!held.isEmpty() && ItemTools.itemName(held).equals("minecraft:shears") && readyForShearing()) {
             shear("players");
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SHEAR, p);
             var inv = p.inventory();
             int ws = hand == 0 ? inv.heldWindowSlot() : 45;
             var actor = new org.domi.furnace.server.block.PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);

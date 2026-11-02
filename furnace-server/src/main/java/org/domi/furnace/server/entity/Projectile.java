@@ -88,7 +88,10 @@ public abstract class Projectile extends Entity {
 
     @Override
     public void tick() {
-        if (!hasBeenShot) hasBeenShot = true;
+        if (!hasBeenShot) {   // cnp:83 첫 틱에 주인이 원인인 PROJECTILE_SHOOT
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.PROJECTILE_SHOOT, getOwner());
+            hasBeenShot = true;
+        }
         if (!leftOwner) leftOwner = checkLeftOwner();
         super.tick();
     }
@@ -221,10 +224,16 @@ public abstract class Projectile extends Entity {
             } finally {
                 part.endProjectileHit();
             }
+            level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.PROJECTILE_LAND, new Vec3(hit.x(), hit.y(), hit.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(this));
             return;
         }
-        if (hit.isEntity()) onHitEntity(hit);
-        else onHitBlock(hit);
+        if (hit.isEntity()) {
+            onHitEntity(hit);
+            level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.PROJECTILE_LAND, new Vec3(hit.x(), hit.y(), hit.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(this));   // cnp:172 맞은 위치
+        } else {
+            onHitBlock(hit);
+            if (hit.blockPos() != null) level.gameEventFrom("projectile_land", hit.blockPos(), this, level.getBlockState(hit.blockPos()));   // cnp:177 칸 가운데 + 블록 상태
+        }
     }
 
     protected void onHitEntity(Hit hit) {}
