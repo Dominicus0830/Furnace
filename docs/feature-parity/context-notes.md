@@ -600,3 +600,13 @@
 - **lz4 경고**: `region-file-compression=lz4` 미지원이며 읽기도 안 된다. 1.20.5+ 바닐라에서 lz4 로 저장된 월드를 가져오면 청크 읽기가 실패한다(가져오기 전에 바닐라에서 deflate 로 바꿔 저장해야 함).
 - 시험: `RconServerTest`(연결당 실패 끊기·IP 차단·스레드 이름·연결 상한), `QueryHandlerTest.challengeMapIsCapped`.
 - **알려진 한계(RCON 보강)**: IP 차단은 NAT·loopback 뒤의 정당한 관리자까지 60초 막을 수 있다. idle 연결 16개가 상한을 채우면 관리자 접속을 방해할 수 있다(후속: IP당 동시 연결 상한). 실패 IP 맵 청소는 크기가 4096 을 넘을 때만 한다. 실패 카운트는 응답을 쓰기 전에 올린다(재접속 경합 방지).
+
+## 2026-11-02 작업 3: 네트워크·서버 기능 공백 (패킷 id 는 packets.json, 와이어는 디컴파일 대조)
+- **clientbound 추가**: hurt_animation(플레이어 피격, 방패로 막으면 생략·방향=atan2(dz,dx)-yaw), player_combat_enter/end(CombatTracker: 원인이 생물일 때 진입, 마지막 피해 300틱 뒤·사망 시 종료 — 이전엔 종료 기준이 100틱 하나였다), server_links(구성 단계, `bug-report-link` 의 report_bug 하나), player_look_at(`/tp … facing` 뒤, 앵커는 발·위치형으로만 보낸다 — 바닐라는 엔티티 대상이면 엔티티형, 결과 회전은 같다).
+- **직렬화만 있고 호출 지점 없음(근사 활성화 안 함)**: sound_entity(바닐라 엔티티 대상 playSound 호출 지점을 확인하지 못했다), delete_chat(서명 캐시 번호 체계는 있으나 삭제 요청 경로가 없다), set_simulation_distance·set_chunk_cache_radius(런타임에 시야/시뮬레이션 거리가 바뀌는 경로가 없다).
+- **serverbound**: change_difficulty/lock_difficulty·태그 질의는 권한 2 이상만. 블록 태그 질의는 로드된 칸의 saveWithoutMetadata, 엔티티 질의는 플레이어가 추적 중인 엔티티(`tracked`)나 접속 플레이어만 찾는다(추적 위치 기준 region 에서 조회 — region 경계에서 못 찾으면 바닐라와 달리 응답 없음).
+- **teleport_to_entity**: 관전자만, 접속 중인 플레이어 UUID 만 찾는다. 다른 엔티티 UUID 는 무시(바닐라는 모든 엔티티; 바닐라 관전 메뉴는 플레이어 목록뿐이라 일반 클라이언트에선 관측 차이 없음 — 가정).
+- **chunk_batch_received**: `ChunkSendRate` 가 PlayerChunkSender 를 따른다. **차이**: 첫 응답이 오기 전에는 제한하지 않는다(바닐라는 첫 배치 하나 뒤 응답을 기다린다). 응답 없이 도는 시험·접속 초기 흐름을 바꾸지 않으려는 것. 미확인 배치는 0 아래로 내리지 않는다. 기존 `chunks-per-tick`·동시 진행 상한은 위에 그대로 걸린다.
+- **custom_payload**: play 단계의 minecraft:brand 이외 채널은 `PluginMessageEvent`(IO 스레드에서 불림), 본문 32767바이트 초과는 버린다. 송신은 `Player.sendPluginMessage`(상한 1048576). 채널 등록/해제(minecraft:register)는 구현하지 않았다.
+- **리소스 팩**: 레지스트리·태그 뒤 push → 끝 상태 응답 → 구성 끝(바닐라 순서). 필수 팩은 DECLINED 만 쫓아낸다(FAILED_DOWNLOAD 등은 바닐라도 통과). 구성 단계가 아닌데 오는 끝 상태 응답은 바닐라가 예외로 끊지만 여기선 무시한다. prompt JSON 이 해석되지 않으면 안내 문구 없이 보낸다. 해시가 40자를 넘으면 잘라 보낸다(바닐라는 예외).
+- **player-idle-timeout**: `Player.lastActionTime`(ms)을 바닐라 `resetLastActionTime` 호출 지점(player_action·use_item(_on)·swing·player_command·interact·client_command·container_click/button·place_recipe·sign_update·set_carried_item(유효 슬롯)·채팅/명령)에서 갱신, 이동 패킷은 갱신하지 않는다. region 틱에서 검사해 `multiplayer.disconnect.idling` 로 킥. **차이**: use_item_on 은 바닐라가 거리 검사 통과 뒤에 갱신하지만 여기선 패킷이 형식에 맞으면 갱신한다. 틱 단위 지연은 region 틱 주기만큼.
