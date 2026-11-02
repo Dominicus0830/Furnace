@@ -120,7 +120,17 @@ public final class PlayerVitals {
     private int spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
     private float lastHurt;
     private boolean invulnerableFlag;          // 엔티티 NBT "Invulnerable"
-    private CombatTracker combat = new CombatTracker();
+    private CombatTracker combat = newCombat();
+
+    /** 전투 진입/종료를 클라이언트에 알리는 추적기(바닐라 ServerPlayer.onEnterCombat/onLeaveCombat). */
+    private CombatTracker newCombat() {
+        CombatTracker c = new CombatTracker();
+        c.hooks(new CombatTracker.Hooks() {
+            public void enterCombat() { player.send(new org.domi.furnace.server.net.protocol.play.PlayerCombatEnter()); }
+            public void leaveCombat(int duration) { player.send(new org.domi.furnace.server.net.protocol.play.PlayerCombatEnd(duration)); }
+        });
+        return c;
+    }
     private boolean inWater;
     private String lastClimbable;              // 바닐라 lastClimbablePos 의 FallLocation 이름
     private boolean removedAfterDeath;
@@ -511,6 +521,8 @@ public final class PlayerVitals {
 
     /** 마지막 hurt 가 무적 시간 밖의 새 피해였나(LivingEntity.hurt 의 넉백 조건) — 플레이어 근접 공격이 읽는다. */
     public volatile boolean lastHurtFresh;
+    /** 방패로 막은 피해였는가(막았으면 hurt_animation 이 가지 않는다). */
+    private volatile boolean lastHurtBlocked;
 
     /** 바닐라 ServerPlayer.hurt → Player.hurt → LivingEntity.hurt(원인 엔티티 없는 피해). */
     public boolean hurt(DamageType type, float amount) { return hurt(type, amount, null); }
@@ -548,12 +560,22 @@ public final class PlayerVitals {
             if (source.directEntity() instanceof Projectile pr) {
                 double[] d = pr.hurtKnockbackDirection(player);
                 player.knockback(0.4, -d[0], -d[1]);
+                indicateDamage(-d[0], -d[1]);
             } else {
                 double[] p = source.sourcePosition();
-                player.knockback(0.4, p == null ? 0.0 : p[0] - player.x(), p == null ? 0.0 : p[2] - player.z());
+                double dx = p == null ? 0.0 : p[0] - player.x(), dz = p == null ? 0.0 : p[2] - player.z();
+                player.knockback(0.4, dx, dz);
+                indicateDamage(dx, dz);
             }
         }
         return r;
+    }
+
+    /** 바닐라 ServerPlayer.indicateDamage: 방패로 막지 않았으면 피격 방향(도)을 hurt_animation 으로 보낸다(화면 기울임). */
+    private void indicateDamage(double dx, double dz) {
+        if (lastHurtBlocked) return;
+        float hurtDir = (float) (Math.atan2(dz, dx) * 180.0F / (float) Math.PI - player.yaw());
+        player.send(new org.domi.furnace.server.net.protocol.play.HurtAnimation(player.entityId(), hurtDir));
     }
 
     private boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield, Rider causing, Rider direct, double[] pos) {
@@ -610,6 +632,7 @@ public final class PlayerVitals {
             died = health <= 0.0f;
         }
         lastHurtFresh = newHurt;
+        lastHurtBlocked = blocked;
         if (newHurt && !type.noImpact() && (!blocked || amount > 0.0f)) player.markHurt();   // 완전히 막으면 markHurt 없음 → 속도 패킷 0건
         if (newHurt) {   // 막았으면 damage_event 대신 엔티티 이벤트 29(방패 소리)
             Packet ev = blocked ? new EntityEvent(player.entityId(), (byte) 29)
@@ -648,7 +671,8 @@ public final class PlayerVitals {
         setAbsorptionLocked(absorption - (amount - afterAbsorb));
         if (afterAbsorb != 0.0f) {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
-            combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct));
+            combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct),
+                    causing instanceof Player || causing instanceof LivingEntity);
             setHealthRaw(health - afterAbsorb);
         }
     }
@@ -1190,7 +1214,7 @@ public final class PlayerVitals {
         lastHurt = 0;
         spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
         player.clearHurtRecords();
-        combat = new CombatTracker();
+        combat = newCombat();
         inWater = false;
         lastClimbable = null;
         removedAfterDeath = false;

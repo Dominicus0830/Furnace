@@ -94,7 +94,13 @@ public final class TeleportCommand {
                 yaw = r[0];
                 pitch = r[1];
             }
-            moves.add(Teleports.teleport(source, t, dimension, pos[0], pos[1], pos[2], yaw, pitch));
+            var move = Teleports.teleport(source, t, dimension, pos[0], pos[1], pos[2], yaw, pitch);
+            if (look != null && t instanceof org.domi.furnace.server.entity.Player pl) {
+                // 바닐라 ServerPlayer.lookAt: 옮긴 뒤 player_look_at 을 보낸다(앵커는 발 — 엔티티 대상도 점으로 보낸다, 결과 회전은 같다)
+                double[] pt = look.point();
+                move = move.thenRun(() -> pl.send(org.domi.furnace.server.net.protocol.play.PlayerLookAt.atPosition(0, pt[0], pt[1], pt[2])));
+            }
+            moves.add(move);
         }
         // 옮김이 모두 끝난 뒤(다음 줄이 새 위치를 읽도록) 전역 스레드에서 메시지
         return EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {

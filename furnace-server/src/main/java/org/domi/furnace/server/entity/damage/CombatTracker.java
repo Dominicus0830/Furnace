@@ -1,5 +1,5 @@
 // 바닐라 CombatTracker — 최근 피해 기록으로 사망 메시지를 만든다(낙하 변형 death.fell.accident.* 포함).
-// 차이: 전투 진입/종료(player_combat_enter/end)는 아직 없다. 손에 든 이름 붙은 아이템(.item 변형)은 아직 보지 않는다.
+// 전투 진입/종료는 Hooks 로 알린다(player_combat_enter/end). 차이: 손에 든 이름 붙은 아이템(.item 변형)은 아직 보지 않는다.
 package org.domi.furnace.server.entity.damage;
 
 import java.util.ArrayList;
@@ -21,6 +21,21 @@ public final class CombatTracker {
     private final List<Entry> entries = new ArrayList<>();
     private int lastDamageTime;
     private boolean takingDamage;
+    private boolean inCombat;
+    private int combatStartTime, combatEndTime;
+
+    /** 바닐라 LivingEntity.onEnterCombat / onLeaveCombat — 플레이어는 player_combat_enter / end 패킷을 보낸다. */
+    public interface Hooks {
+        void enterCombat();
+        void leaveCombat(int duration);
+    }
+
+    private Hooks hooks;
+
+    public void hooks(Hooks h) { this.hooks = h; }
+
+    /** 바닐라 getCombatDuration. */
+    public int combatDuration(int tickCount) { return inCombat ? tickCount - combatStartTime : combatEndTime - combatStartTime; }
 
     /** @param tickCount 주인의 tickCount, fallLocation 맞은 순간의 FallLocation(없으면 null) */
     public void recordDamage(DamageType source, float damage, String fallLocation, float fallDistance, int tickCount, boolean alive) {
@@ -34,10 +49,20 @@ public final class CombatTracker {
 
     /** attacker: 원인 엔티티 이름, direct: 직접 엔티티 이름(없으면 null). */
     public void recordDamage(DamageType source, float damage, String fallLocation, float fallDistance, int tickCount, boolean alive, Text attacker, Text direct) {
+        recordDamage(source, damage, fallLocation, fallDistance, tickCount, alive, attacker, direct, false);
+    }
+
+    /** livingCause: 피해의 원인 엔티티(getEntity)가 LivingEntity 인가 — 첫 피해에서 전투에 들어가는 조건. */
+    public void recordDamage(DamageType source, float damage, String fallLocation, float fallDistance, int tickCount, boolean alive, Text attacker, Text direct, boolean livingCause) {
         recheckStatus(tickCount, alive);
         entries.add(new Entry(source, damage, fallLocation, fallDistance, attacker, direct));
         lastDamageTime = tickCount;
         takingDamage = true;
+        if (!inCombat && alive && livingCause) {
+            inCombat = true;
+            lastDamageTime = combatStartTime = combatEndTime = tickCount;
+            if (hooks != null) hooks.enterCombat();
+        }
     }
 
     public Text getDeathMessage(Text victim) { return getDeathMessage(victim, null); }
@@ -105,8 +130,13 @@ public final class CombatTracker {
 
     /** 바닐라 recheckStatus: 마지막 피해 후 100틱(전투 중이면 300) 지났거나 죽었으면 기록을 비운다. */
     public void recheckStatus(int tickCount, boolean alive) {
-        if (takingDamage && (!alive || tickCount - lastDamageTime > RESET_DAMAGE_STATUS_TIME)) {
+        int limit = inCombat ? 300 : RESET_DAMAGE_STATUS_TIME;
+        if (takingDamage && (!alive || tickCount - lastDamageTime > limit)) {
+            boolean wasInCombat = inCombat;
             takingDamage = false;
+            inCombat = false;
+            combatEndTime = tickCount;
+            if (wasInCombat && hooks != null) hooks.leaveCombat(combatDuration(tickCount));
             entries.clear();
         }
     }

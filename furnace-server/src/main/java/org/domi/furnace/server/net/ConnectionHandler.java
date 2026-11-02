@@ -707,8 +707,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void onEnterConfiguration(ChannelHandlerContext ctx) {
         send(ctx, new BrandPayload(org.domi.furnace.server.FurnaceMain.SERVER_BRAND));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
+        var links = serverLinks();
+        if (!links.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerLinksPacket(links, false));   // 바닐라 순서: brand → 서버 링크 → 기능 플래그
         send(ctx, FeatureFlags.vanilla());
         send(ctx, new KnownPacksClientbound());
+    }
+
+    /** 바닐라 DedicatedServer.serverLinks: bug-report-link 가 유효한 URI 면 report_bug 링크 하나(파싱 실패는 경고 후 없음). */
+    private java.util.List<org.domi.furnace.server.net.protocol.play.ServerLinksPacket.Entry> serverLinks() {
+        String link = login.core != null ? login.core.settings().get().bugReportLink : "";
+        if (link == null || link.isEmpty()) return java.util.List.of();
+        try {
+            return java.util.List.of(new org.domi.furnace.server.net.protocol.play.ServerLinksPacket.Entry(
+                    org.domi.furnace.server.net.protocol.play.ServerLinksPacket.KNOWN_REPORT_BUG, null, new java.net.URI(link).toString()));
+        } catch (Exception e) {
+            log.warn("Failed to parse bug link {}", link, e);
+            return java.util.List.of();
+        }
     }
 
     private void handleConfiguration(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
