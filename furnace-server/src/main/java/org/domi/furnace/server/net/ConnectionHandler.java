@@ -327,6 +327,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } else if (p.chat().visibility() == org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_HIDDEN) {
             p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(Text.translatable("chat.disabled.options").color(org.domi.furnace.api.text.NamedTextColor.RED), false));
         } else {
+            p.resetLastActionTime();   // 바닐라 resetLastActionTime — 채팅·명령도 "행동"
             login.core.scheduler().global().execute(action);
         }
     }
@@ -1300,6 +1301,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (actor != null) handleEditBook(actor, slot, pages, title);
             }
             case 0x16 -> { // use_entity(interact): 엔티티 번호, 0 상호작용·1 공격·2 위치 상호작용, [x,y,z], [손], 웅크리기
+                touchLastAction();
                 int entityId = Types.readVarInt(frame);
                 int action = Types.readVarInt(frame);
                 int hand = 0;
@@ -1406,6 +1408,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (p != null) p.setPlayerInput(xxa, zza, (flags & 1) != 0, (flags & 2) != 0);
             }
             case 0x09 -> { // client_command: 0 = 리스폰, 1 = 통계 요청
+                touchLastAction();
                 int action = Types.readVarInt(frame);
                 if (action == 0) requestRespawn(ctx);
                 else if (action == 1) {   // REQUEST_STATS: 바뀐 통계를 award_stats 로
@@ -1414,6 +1417,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             case 0x22 -> { // place_recipe: containerId(byte), 레시피 id(String), shift(bool)
+                touchLastAction();
                 int containerId = frame.readByte();
                 String recipe = Types.readString(frame, 32767);
                 boolean shift = frame.readBoolean();
@@ -1426,6 +1430,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (p != null) p.vitals().setFlying((flags & 0x02) != 0);
             }
             case 0x25 -> { // player_command: eid, action, data
+                touchLastAction();
                 Types.readVarInt(frame);
                 int action = Types.readVarInt(frame);
                 int jumpData = Types.readVarInt(frame);
@@ -1448,6 +1453,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             case 0x24 -> { // player_action: 0 시작, 1 취소, 2 완료(파괴), 3·4 버리기, 5 사용 끝, 6 손 바꾸기
+                touchLastAction();
                 int status = Types.readVarInt(frame);
                 int[] bp = Types.readBlockPos(frame);
                 frame.readByte();        // face
@@ -1497,6 +1503,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (p != null) handleSetBeacon(p, primary, secondary);
             }
             case 0x36 -> { // swing: 손(VarInt) — ServerGamePacketListenerImpl.handleAnimate → player.swing(hand): 보는 사람에게 animate(본인 제외)
+                touchLastAction();
                 int hand = Types.readVarInt(frame);
                 if (hand < 0 || hand > 1) {
                     protocolError(ctx, "Swing", new IllegalArgumentException("bad enum"));
@@ -1519,7 +1526,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
-                if (slot >= 0 && slot < 9) inv.setSelected(slot);
+                if (slot >= 0 && slot < 9) { inv.setSelected(slot); touchLastAction(); }
             }
             case 0x30 -> { // set_command_block: 칸, 명령(String 32767), 모드(VarInt 0 체인·1 반복·2 임펄스), 플래그 byte(1 출력 기록·2 조건부·4 항상 활성)
                 int[] bp = Types.readBlockPos(frame);
@@ -1584,9 +1591,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     break;
                 }
                 Player actor = player;
-                if (actor != null) handleUseItemOn(ctx, actor, hand, bp, face, cx, cy, cz, inside, seq);
+                if (actor != null) { actor.resetLastActionTime(); handleUseItemOn(ctx, actor, hand, bp, face, cx, cy, cz, inside, seq); }
             }
             case 0x35 -> { // sign_update: pos, 앞면인가, 줄 4개(각 384자)
+                touchLastAction();
                 int[] bp = Types.readBlockPos(frame);
                 boolean front = frame.readBoolean();
                 java.util.List<String> lines = new java.util.ArrayList<>(4);
@@ -1595,6 +1603,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (actor != null) handleSignUpdate(actor, bp, front, lines);
             }
             case 0x39 -> { // Use Item: hand, sequence, yRot, xRot
+                touchLastAction();
                 int hand = Types.readVarInt(frame);
                 int seq = Types.readVarInt(frame);
                 float yRot = frame.readFloat(), xRot = frame.readFloat();
@@ -1610,6 +1619,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (actor != null) world.runAt(actor.x(), actor.z(), region -> region.handleUseItem(actor, hand, seq, yRot, xRot));
             }
             case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
+                touchLastAction();
                 int containerId = Types.readVarInt(frame);
                 int stateId = Types.readVarInt(frame);
                 int slotNum = frame.readShort();
@@ -1644,6 +1654,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (p != null) handleContainerClick(p, containerId, stateId, slotNum, button, clickType, changed, newCarried);
             }
             case 0x0D -> { // Container Button Click: containerId, buttonId (VarInt 둘)
+                touchLastAction();
                 int containerId = Types.readVarInt(frame);
                 int buttonId = Types.readVarInt(frame);
                 Player p = player;
@@ -1744,6 +1755,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return -1;
         }
         return action;
+    }
+
+    /** 바닐라 ServerPlayer.resetLastActionTime — player-idle-timeout 의 기준. 이동 패킷은 갱신하지 않는다. */
+    private void touchLastAction() {
+        Player p = player;
+        if (p != null) p.resetLastActionTime();
     }
 
     private boolean hasPermission(Player p, int level) {
@@ -3100,7 +3117,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 바닐라 updateSignText: 그 칸 region 스레드에서, 청크가 있고 표지판이면 글을 바꾼다(거르기 없음). */
     private void handleSignUpdate(Player actor, int[] bp, boolean front, java.util.List<String> lines) {
-        // TODO(플레이어): resetLastActionTime(자리 비움 추방 시계)
         var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
         world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
             var level = region.level();

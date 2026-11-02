@@ -945,6 +945,7 @@ public final class ServerCore {
         public boolean spawnAnimals() { return settings.get().spawnAnimals; }
         public boolean spawnNpcs() { return settings.get().spawnNpcs; }
         public int simulationDistance() { return settings.get().simulationDistance; }
+        public int playerIdleTimeoutMinutes() { return settings.get().playerIdleTimeout.get(); }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
         public boolean flightAllowed() { return settings.get().allowFlight; }
         public boolean tickRunsNormally() { return !tickState().frozen(); }
