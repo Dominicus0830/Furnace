@@ -14,7 +14,7 @@ import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public class Boat extends Entity {
+public class Boat extends Entity implements Leashable {
 
     /** VehicleEntity: 8 맞은 시간, 9 맞은 방향, 10 피해. Boat: 11 종류, 12·13 왼쪽·오른쪽 노, 14 거품 시간. */
     public static final int DATA_ID_HURT = 8, DATA_ID_HURTDIR = 9, DATA_ID_DAMAGE = 10, DATA_ID_TYPE = 11, DATA_ID_PADDLE_LEFT = 12,
@@ -552,10 +552,138 @@ public class Boat extends Entity {
     // ------------------------------------------------------------------ 저장
 
     @Override
-    protected void addAdditionalSaveData(NbtCompound tag) { tag.putString("Type", getVariant().name); }   // TODO(끈): leash
+    protected void addAdditionalSaveData(NbtCompound tag) {
+        tag.putString("Type", getVariant().name);
+        Object leash = leashHolder instanceof LeashFenceKnotEntity k ? k.pos() : leashHolder != null ? Mob.holderUuid(leashHolder) : leashPending;
+        if (leash instanceof java.util.UUID u) {
+            NbtCompound c = new NbtCompound();
+            c.putIntArray("UUID", Entity.uuidToInts(u));
+            tag.putCompound("leash", c);
+        } else if (leash instanceof Pos pos) {
+            tag.putIntArray("leash", new int[]{pos.x(), pos.y(), pos.z()});
+        }
+    }
 
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         if (tag.tags().get("Type") instanceof String s) setVariant(Type.byName(s));
+        Object leashNbt = tag.tags().get("leash");
+        leashHolder = null;
+        leashPending = null;
+        if (leashNbt instanceof NbtCompound l && l.tags().get("UUID") instanceof int[] u && u.length == 4) {
+            leashPending = new java.util.UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
+        } else if (leashNbt instanceof int[] p && p.length == 3) {
+            leashPending = new Pos(p[0], p[1], p[2]);
+        }
+    }
+
+    // ------------------------------------------------------------------ 가죽끈(Leashable — 몹과 같은 규칙, 바닐라 cov 가 btk 를 구현)
+
+    private Rider leashHolder;
+    private Object leashPending;
+    private boolean holderSeenHere;
+
+    @Override public Rider getLeashHolder() { return leashHolder; }
+
+    @Override public boolean isLeashed() { return leashHolder != null; }
+
+    public boolean mayBeLeashed() { return leashHolder != null || leashPending != null; }
+
+    @Override public boolean canHaveALeashAttachedToIt() { return !isLeashed(); }
+
+    @Override
+    public void setLeashedTo(Rider holder, boolean broadcast) {
+        leashHolder = holder;
+        holderSeenHere = holder instanceof Entity he && level.entities().contains(he);
+        leashPending = null;
+        if (broadcast && tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.SetEntityLink(id(), holder.id()));
+        if (isPassenger()) stopRiding();
+    }
+
+    @Override
+    public void dropLeash(boolean broadcast, boolean dropItem) {
+        if (leashHolder != null) {
+            leashHolder = null;
+            if (dropItem) spawnAtLocation(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "lead"), 1));
+            if (broadcast && tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.SetEntityLink(id(), 0));
+        }
+    }
+
+    /** Boat.remove(cov.a): 파괴되는 제거면 끈을 푼다(끈 아이템 포함). */
+    @Override
+    public void remove(RemovalReason reason) {
+        if (reason.shouldDestroy() && isLeashed()) dropLeash(true, true);
+        super.remove(reason);
+    }
+
+    @Override protected void removeAfterChangingDimensions() { dropLeash(true, false); }
+
+    /** Boat.elasticRangeLeashBehaviour(cov.b): 6칸 넘으면 붙잡은 쪽 방향으로 (거리 - 6) 만큼, 가는 방향이 같으면 0.15 아니면 0.2 배로 당긴다. */
+    private void elasticRangeLeashBehaviour(Rider holder, float dist) {
+        double dx = holder.x() - x(), dy = holder.y() - y(), dz = holder.z() - z();
+        double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        double s = dist - 6.0;
+        double px = len == 0.0 ? 0.0 : dx / len * s, py = len == 0.0 ? 0.0 : dy / len * s, pz = len == 0.0 ? 0.0 : dz / len * s;
+        boolean same = vx() * px + vy() * py + vz() * pz > 0.0;
+        double k = same ? 0.15F : 0.2F;
+        setDeltaMovement(vx() + px * k, vy() + py * k, vz() + pz * k);
+    }
+
+    /** Leashable.tickLeash(b_) + restoreLeashFromSave. */
+    @Override
+    protected void tickLeash() {
+        if (leashPending != null) restoreLeashFromSave();
+        if (leashHolder == null) return;
+        if (leashHolder instanceof Entity he) {
+            if (level.entities().contains(he)) {
+                holderSeenHere = true;
+            } else {
+                if (holderSeenHere) dropLeash(true, true);
+                return;
+            }
+        }
+        if (!isAlive() || !Mob.holderAlive(leashHolder)) dropLeash(true, true);
+        Rider holder = leashHolder;
+        if (holder == null) return;
+        if (holder instanceof Player p && !p.dimensionKey().equals(level.dimension())) return;
+        float dist = Mob.distanceTo(this, holder);
+        if (dist > 10.0) {
+            dropLeash(true, true);
+        } else if (dist > 6.0) {
+            elasticRangeLeashBehaviour(holder, dist);
+            if (vy() > -0.5 && fallDistance > 1.0F) fallDistance = 1.0F;   // checkSlowFallDistance
+        }
+    }
+
+    private void restoreLeashFromSave() {
+        if (leashPending instanceof java.util.UUID id) {
+            Rider e = level.entities().get(id);
+            if (e == null) e = level.playerByUuid(id);
+            if (e != null) { setLeashedTo(e, true); return; }
+        } else if (leashPending instanceof Pos pos) {
+            setLeashedTo(LeashFenceKnotEntity.getOrCreateKnot(level, pos), true);
+            return;
+        }
+        if (tickCount > 100) {
+            spawnAtLocation(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "lead"), 1));
+            leashPending = null;
+        }
+    }
+
+    @Override
+    public boolean interactLeash(Player p, int hand, ItemStack held) {
+        if (!isAlive()) return false;
+        if (leashHolder == p) {
+            dropLeash(true, !p.hasInfiniteMaterials());
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_INTERACT, p);
+            return true;
+        }
+        if (!held.isEmpty() && org.domi.furnace.server.item.ItemTools.itemName(held).equals("minecraft:lead") && canHaveALeashAttachedToIt()) {
+            setLeashedTo(p, true);
+            var inv = p.inventory();
+            inv.set(hand == 0 ? inv.heldWindowSlot() : 45, held.withCount(held.count() - 1));
+            return true;
+        }
+        return false;
     }
 }

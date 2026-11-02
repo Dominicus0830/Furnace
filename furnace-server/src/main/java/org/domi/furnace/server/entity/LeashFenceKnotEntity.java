@@ -88,16 +88,18 @@ public class LeashFenceKnotEntity extends Entity {
     public void playPlacementSound() { playSound("entity.leash_knot.place", 1.0F, 1.0F); }
 
     /** LeashableUtil.leashableInArea(cuz.a): 칸 둘레 ±7 안에서 조건에 맞는 끈 달린 몹. */
-    public static java.util.List<Mob> leashableInArea(ChunkLevel level, Pos pos, java.util.function.Predicate<Mob> test) {
+    public static java.util.List<Leashable> leashableInArea(ChunkLevel level, Pos pos, java.util.function.Predicate<Leashable> test) {
         AABB box = new AABB(pos.x() - 7.0, pos.y() - 7.0, pos.z() - 7.0, pos.x() + 7.0, pos.y() + 7.0, pos.z() + 7.0);
-        return level.getEntitiesOfClass(Mob.class, box, test::test);
+        var out = new java.util.ArrayList<Leashable>();
+        for (Entity e : level.getEntitiesOfClass(Entity.class, box, x -> x instanceof Leashable l && test.test(l))) out.add((Leashable) e);
+        return out;
     }
 
     /** LeadItem.bindPlayerMobs(cuz.a): 플레이어가 끌던 몹을 이 칸 매듭에 묶는다. 하나라도 묶으면 true. */
     public static boolean bindPlayerMobs(Player player, ChunkLevel level, Pos pos, Object gameEventSource) {
         LeashFenceKnotEntity knot = null;
         var list = leashableInArea(level, pos, m -> m.getLeashHolder() == player);
-        for (Mob m : list) {
+        for (Leashable m : list) {
             if (knot == null) {
                 knot = getOrCreateKnot(level, pos);
                 knot.playPlacementSound();
@@ -111,7 +113,7 @@ public class LeashFenceKnotEntity extends Entity {
     public void interact(Player p) {
         boolean attached = false;
         var list = leashableInArea(level, blockPos, m -> m.getLeashHolder() == p || m.getLeashHolder() == this);
-        for (Mob m : list) {
+        for (Leashable m : list) {
             if (m.getLeashHolder() == p) {
                 m.setLeashedTo(this, true);
                 attached = true;
@@ -121,7 +123,7 @@ public class LeashFenceKnotEntity extends Entity {
         if (!attached) {
             discard();
             if (p.hasInfiniteMaterials()) {
-                for (Mob m : list) {
+                for (Leashable m : list) {
                     if (m.isLeashed() && m.getLeashHolder() == this) {
                         m.dropLeash(true, false);
                         dropped = true;

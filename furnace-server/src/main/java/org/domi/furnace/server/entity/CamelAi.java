@@ -80,7 +80,7 @@ public final class CamelAi {
 
         @Override
         protected boolean checkExtraStartConditions(ChunkLevel level, Camel camel) {
-            return !camel.isInWater() && camel.getPoseTime() >= minimalPoseTicks && camel.onGround() && camel.canChangePose();
+            return !camel.isInWater() && camel.getPoseTime() >= minimalPoseTicks && !camel.isLeashed() && camel.onGround() && !camel.hasControllingPassenger() && camel.canChangePose();
         }
 
         @Override

@@ -96,6 +96,13 @@ public abstract class AbstractHorse extends Animal {
 
     public void setEating(boolean v) { setFlag(FLAG_EATING, v); }
 
+    /** AbstractHorse.checkLeashDistance: 6칸 넘게 당기면 풀을 뜯다가 멈춘다(PathfinderMob 의 5칸 제한은 부르지 않는다). */
+    @Override
+    protected boolean checkLeashDistance(Rider holder, float dist) {
+        if (dist > 6.0F && isEating()) setEating(false);
+        return true;
+    }
+
     public boolean isStanding() { return getFlag(FLAG_STANDING); }
 
     public void setStanding(boolean v) {

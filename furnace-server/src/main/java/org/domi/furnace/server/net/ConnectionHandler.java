@@ -1853,7 +1853,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Mob nameMob
                 && org.domi.furnace.server.entity.ItemEffects.nameTag(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45), nameMob)) {
             // Mob.checkAndHandleImportantInteractions: 이름표가 끈·mobInteract 보다 먼저
-        } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Mob leashMob
+        } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Leashable leashMob
                 && leashMob.interactLeash(p, hand, heldBefore)) {
             // Entity.interact 의 끈 맺기·풀기(mobInteract 보다 먼저)
             interactedWith(p, heldBefore, e);
