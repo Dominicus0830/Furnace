@@ -1922,7 +1922,9 @@ public final class Region {
      *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다. */
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
-        int budget = Math.min(world.chunksPerTick(), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
+        int adaptive = p.chunkSendRate().nextBudget();   // 바닐라 PlayerChunkSender: 클라이언트가 알린 속도·미확인 배치 한도
+        if (adaptive <= 0) return;
+        int budget = Math.min(Math.min(world.chunksPerTick(), adaptive), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
         if (budget <= 0) return;
         List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         var it = p.pendingChunks().iterator();
@@ -1931,6 +1933,7 @@ public final class Region {
             it.remove();
         }
 
+        p.chunkSendRate().batchSent(batch.size());
         p.send(new ChunkBatchStart());
         // 실제 전송 수(stale 드롭으로 batch.size와 다를 수 있음) — ChunkBatchFinished에 정확히 보고.
         java.util.concurrent.atomic.AtomicInteger sent = new java.util.concurrent.atomic.AtomicInteger();

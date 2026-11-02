@@ -240,6 +240,17 @@ public final class DataCommands {
         return f == null ? CompletableFuture.failedFuture(BlockPosArgument.ERROR_NOT_LOADED.create()) : f;
     }
 
+    /**
+     * 바닐라 handleBlockEntityTagQuery 의 읽기: 블록 엔티티의 saveWithoutMetadata. 로드되지 않았거나 블록 엔티티가 아니면 null.
+     * 그 칸의 주인 region 에서 돌고 future 로 돌려준다(오류는 null).
+     */
+    public static CompletableFuture<NbtCompound> blockEntityTag(World world, Pos pos) {
+        return atBlockEntity(world, pos, a -> {
+            BlockAccessor b = (BlockAccessor) a;
+            return (NbtCompound) NbtTags.thaw(b.entity().saveWithoutMetadata());
+        }).exceptionally(t -> null);
+    }
+
     /** 바닐라 BlockDataAccessor. 쓰면 loadWithComponents → setChanged → sendBlockUpdated. */
     record BlockAccessor(org.domi.furnace.server.world.RegionLevel level, BlockEntity entity, Pos pos) implements DataAccessor {
         public NbtCompound getData() { return (NbtCompound) NbtTags.thaw(entity.saveWithFullMetadata()); }

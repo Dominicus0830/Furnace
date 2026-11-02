@@ -1465,6 +1465,25 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
 
     public java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight() { return chunkSendsInFlight; }
+
+    private final org.domi.furnace.server.world.ChunkSendRate chunkSendRate = new org.domi.furnace.server.world.ChunkSendRate();
+
+    /** 클라이언트가 알려 주는 틱당 청크 수에 맞춘 전송 속도(바닐라 PlayerChunkSender). */
+    public org.domi.furnace.server.world.ChunkSendRate chunkSendRate() { return chunkSendRate; }
+
+    private volatile String clientBrand;
+
+    /** 클라이언트가 minecraft:brand 로 알린 이름(없으면 null). */
+    public String clientBrand() { return clientBrand; }
+
+    public void clientBrand(String brand) { this.clientBrand = brand; }
+
+    /** 바닐라 ServerPlayer.lastActionTime(ms) — 이동 말고 행동(명령·채팅·사용·클릭 등)이 있을 때 갱신한다. player-idle-timeout 기준. */
+    private volatile long lastActionTime = System.currentTimeMillis();
+
+    public long lastActionTime() { return lastActionTime; }
+
+    public void resetLastActionTime() { this.lastActionTime = System.currentTimeMillis(); }
     public Map<Integer, double[]> tracked() { return tracked; }
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
     public Map<Integer, UUID> listed() { return listed; }

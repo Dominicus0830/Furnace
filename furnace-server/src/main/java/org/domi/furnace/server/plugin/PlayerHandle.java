@@ -99,6 +99,15 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public void kick(Text reason) { p.kick(new Disconnect(reason)); }
 
     @Override
+    public String clientBrand() { return p.clientBrand(); }
+
+    @Override
+    public void sendPluginMessage(String channel, byte[] data) {
+        if (org.domi.furnace.server.data.ResourceId.tryParse(channel) == null) throw new IllegalArgumentException("잘못된 채널 이름: " + channel);
+        p.send(new org.domi.furnace.server.net.protocol.play.CustomPayloadPacket(channel, data.clone(), true));
+    }
+
+    @Override
     public boolean performCommand(String command) { return host.commandsImpl().dispatch(this, command); }
 
     // ------------------------------------------------------------------ Audience

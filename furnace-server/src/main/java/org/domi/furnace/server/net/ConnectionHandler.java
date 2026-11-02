@@ -729,7 +729,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void handleConfiguration(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
             case 0x00 -> readClientInformation(frame); // Client Information: view distance 읽음
-            case 0x02 -> { /* Plugin Message(brand): 무시 */ }
+            case 0x02 -> handleCustomPayload(frame, false); // custom_payload: minecraft:brand 만 읽는다(바닐라는 나머지를 버린다)
             case 0x07 -> { // Serverbound Known Packs → 레지스트리 전송 후 종료
                 if (knownPacksHandled) return;                           // 반복 요청은 무시(증폭 방지)
                 knownPacksHandled = true;
@@ -1193,6 +1193,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         return;
                     }
                     ctx.channel().eventLoop().execute(() -> {
+                        p.chunkSendRate().batchSent(spawnChunks.size());   // 이 배치의 chunk_batch_received 도 센다
                         send(ctx, new ChunkBatchStart());
                         int sent = 0;
                         for (int i = 0; i < spawnChunks.size(); i++) {
@@ -1644,7 +1645,127 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null && p.containerMenu() != null) handleContainerClose(p);
             }
+            case 0x01 -> { // block_entity_tag_query: VarInt 처리 번호, 위치 — op(2)만
+                int tx = Types.readVarInt(frame);
+                int[] bp = Types.readBlockPos(frame);
+                Player p = player;
+                if (p != null && hasPermission(p, 2)) handleBlockEntityTagQuery(p, tx, bp[0], bp[1], bp[2]);
+            }
+            case 0x15 -> { // entity_tag_query: VarInt 처리 번호, VarInt 엔티티 번호 — op(2)만
+                int tx = Types.readVarInt(frame);
+                int eid = Types.readVarInt(frame);
+                Player p = player;
+                if (p != null && hasPermission(p, 2)) handleEntityTagQuery(p, tx, eid);
+            }
+            case 0x02 -> { // change_difficulty: 난이도 번호(바닐라 WRAP) — op(2)만, 잠금은 무시하지 않는다
+                int id = Types.readVarInt(frame);
+                Player p = player;
+                if (p != null && login.core != null && hasPermission(p, 2)) login.core.setDifficulty(org.domi.furnace.server.world.Difficulty.byId(id), false);
+            }
+            case 0x19 -> { // lock_difficulty: boolean — op(2)만
+                boolean locked = frame.readBoolean();
+                Player p = player;
+                if (p != null && login.core != null && hasPermission(p, 2)) login.core.setDifficultyLocked(locked);
+            }
+            case 0x08 -> { // chunk_batch_received: float 틱당 청크 수(바닐라 PlayerChunkSender.onChunkBatchReceivedByClient)
+                float cpt = frame.readFloat();
+                Player p = player;
+                if (p != null) p.chunkSendRate().onBatchReceived(cpt);
+            }
+            case 0x12 -> handleCustomPayload(frame, true); // custom_payload
+            case 0x37 -> { // teleport_to_entity: UUID — 관전자만
+                java.util.UUID target = Types.readUuid(frame);
+                Player p = player;
+                if (p != null && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) handleTeleportToEntity(p, target);
+            }
             default -> { /* 그 외 무시 */ }
+        }
+    }
+
+    private boolean hasPermission(Player p, int level) {
+        org.domi.furnace.server.ServerCore c = login.core;
+        return c != null && c.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p)) >= level;
+    }
+
+    /**
+     * custom_payload(채널 이름 문자열 + 나머지 바이트, 상한 32767바이트). minecraft:brand 는 문자열 하나로 읽어 기억하고,
+     * play 단계의 나머지 채널은 PluginMessageEvent 로 넘긴다. 잘못된 입력은 조용히 버린다.
+     */
+    private void handleCustomPayload(ByteBuf frame, boolean inPlay) {
+        try {
+            String channel = Types.readString(frame, 32767);
+            int n = frame.readableBytes();
+            if (n > org.domi.furnace.server.net.protocol.play.CustomPayloadPacket.MAX_SERVERBOUND) {
+                log.debug("custom_payload 가 너무 크다({}바이트): {}", n, channel);
+                return;
+            }
+            if (channel.equals("minecraft:brand")) {
+                String brand = Types.readString(frame, 32767);
+                this.clientBrand = brand;
+                Player p = player;
+                if (p != null) p.clientBrand(brand);
+                return;
+            }
+            if (!inPlay) return;
+            Player p = player;
+            org.domi.furnace.server.ServerCore c = login.core;
+            if (p == null || c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.player.PluginMessageEvent.class)) return;
+            byte[] data = new byte[n];
+            frame.readBytes(data);
+            c.events().call(new org.domi.furnace.api.event.player.PluginMessageEvent(c.plugins().player(p), channel, data));
+        } catch (Exception e) {
+            log.debug("custom_payload 파싱 실패", e);
+        }
+    }
+
+    private volatile String clientBrand;
+
+    /** 바닐라 handleBlockEntityTagQuery: 그 칸의 블록 엔티티 NBT(saveWithoutMetadata)를 tag_query 로. 로드 안 됐거나 블록 엔티티가 아니면 null 로 답한다(바닐라는 null 태그를 보낸다). */
+    private void handleBlockEntityTagQuery(Player p, int tx, int bx, int by, int bz) {
+        var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
+        org.domi.furnace.server.command.builtin.DataCommands.blockEntityTag(world, pos)
+                .thenAccept(tag -> p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx, tag)));
+    }
+
+    /** 바닐라 handleEntityTagQuery: 있는 엔티티면 saveWithoutId 를 tag_query 로(없으면 아무것도 안 보낸다). 플레이어가 보는(추적 중인) 엔티티만 찾는다. */
+    private void handleEntityTagQuery(Player p, int tx, int eid) {
+        if (eid == p.entityId()) {
+            sendEntityTag(p, tx, p);
+            return;
+        }
+        for (Player o : world.onlinePlayers()) {
+            if (o.entityId() == eid && !o.isDisconnected()) { sendEntityTag(p, tx, o); return; }
+        }
+        double[] at = p.tracked().get(eid);
+        if (at == null) return;   // 추적하지 않는 엔티티는 클라이언트가 알 수 없다
+        world.runAt(at[0], at[2], region -> {
+            var lvl = region.level();
+            if (lvl == null) return;
+            var e = lvl.entities().get(eid);
+            if (e == null) return;
+            p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx,
+                    (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(e.saveWithoutId(new org.domi.furnace.server.net.io.nbt.NbtCompound()))));
+        });
+    }
+
+    private void sendEntityTag(Player to, int tx, Player target) {
+        org.domi.furnace.server.net.io.nbt.NbtCompound tag;
+        synchronized (target.menuLock()) { tag = org.domi.furnace.server.entity.PlayerData.snapshotNbt(target); }
+        to.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx, (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(tag)));
+    }
+
+    /**
+     * 바닐라 handleTeleportToEntityPacket(관전자만): UUID 의 엔티티가 있는 레벨로 옮긴다. 이 서버는 접속 중인 플레이어만 찾는다
+     * (바닐라 관전자 메뉴는 플레이어 목록뿐이다 — 다른 엔티티 UUID 는 무시).
+     */
+    private void handleTeleportToEntity(Player p, java.util.UUID target) {
+        org.domi.furnace.server.ServerCore c = login.core;
+        if (c == null) return;
+        for (Player o : c.players()) {
+            if (o != p && !o.isDisconnected() && target.equals(o.uuid())) {
+                org.domi.furnace.server.command.builtin.SpectatorTeleports.toPlayer(c, p, o);
+                return;
+            }
         }
     }
 
