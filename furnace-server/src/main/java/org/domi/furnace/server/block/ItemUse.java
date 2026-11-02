@@ -98,6 +98,7 @@ public final class ItemUse {
             case "minecraft:cod_bucket", "minecraft:salmon_bucket", "minecraft:pufferfish_bucket", "minecraft:tropical_fish_bucket",
                     "minecraft:axolotl_bucket", "minecraft:tadpole_bucket": return bucketUse(level, player, hand, stack, Fluids.WATER_SOURCE);
             case "minecraft:ender_eye": return enderEyeUse(level, player, hand, stack);
+            case "minecraft:carrot_on_a_stick": return carrotOnAStickUse(player, hand, stack);
             case "minecraft:glass_bottle": return glassBottleUse(level, player, stack);
             case "minecraft:map": return emptyMapUse(level, player, stack);
             case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl", "minecraft:experience_bottle", "minecraft:splash_potion",
@@ -1031,6 +1032,22 @@ public final class ItemUse {
      * 찾아 있으면 눈 엔티티를 몸 가운데 높이에서 띄워 그 위치로 보내고(projectile_shoot, used_ender_eye, 소리 피치는 레벨 난수), 하나 쓰고 팔을 휘두른다.
      * 없으면 소모 없이 CONSUME. TODO(사용 중 표시): startUsingItem 의 생물 플래그는 플레이어에 아직 없다.
      */
+    /**
+     * FoodOnAStickItem.use(ctz): 돼지를 타고 있고 가속할 수 있으면(boost) 내구도 7을 깎는다 — 다 닳으면 낚싯대로 바뀐다. 아니면 사용 통계만 올리고 PASS.
+     * 차이: 낚싯대로 바뀔 때 부러진 막대의 다른 컴포넌트는 옮기지 않는다(transmuteCopy 는 옮김).
+     * 미구현: 뒤틀린 균류 막대(스트라이더 조종이 없다).
+     */
+    private static Holder carrotOnAStickUse(BlockActor player, int hand, ItemStack stack) {
+        if (player.handle() instanceof org.domi.furnace.server.entity.Player pl && pl.vehicle() instanceof org.domi.furnace.server.entity.Pig pig && pig.boost()) {
+            BlockBreaking.hurtAndBreak(pig.level(), player, hand, stack, 7);
+            ItemStack now = player.itemInHand(hand);
+            if (now.isEmpty()) now = new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "fishing_rod"), 1);
+            return Holder.success(now);
+        }
+        player.awardStat("minecraft:used:minecraft:carrot_on_a_stick");
+        return Holder.pass(stack);
+    }
+
     private static Holder enderEyeUse(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
         Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.NONE);
         if (!hit.miss() && B.is(level.getBlockState(hit.pos()), END_PORTAL_FRAME)) return Holder.pass(stack);
