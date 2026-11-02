@@ -600,3 +600,12 @@
 - **lz4 경고**: `region-file-compression=lz4` 미지원이며 읽기도 안 된다. 1.20.5+ 바닐라에서 lz4 로 저장된 월드를 가져오면 청크 읽기가 실패한다(가져오기 전에 바닐라에서 deflate 로 바꿔 저장해야 함).
 - 시험: `RconServerTest`(연결당 실패 끊기·IP 차단·스레드 이름·연결 상한), `QueryHandlerTest.challengeMapIsCapped`.
 - **알려진 한계(RCON 보강)**: IP 차단은 NAT·loopback 뒤의 정당한 관리자까지 60초 막을 수 있다. idle 연결 16개가 상한을 채우면 관리자 접속을 방해할 수 있다(후속: IP당 동시 연결 상한). 실패 IP 맵 청소는 크기가 4096 을 넘을 때만 한다. 실패 카운트는 응답을 쓰기 전에 올린다(재접속 경합 방지).
+
+## 2026-11-02 몹 능력 감사 후속: 게임 이벤트·머리 드롭·거미줄·돼지 타기
+- **몹 게임 이벤트 방출**(바닐라 호출 지점, 원인 엔티티·위치 그대로): `ENTITY_DAMAGE`(LivingEntity.actuallyHurt 에서 흡수 뒤 실제 피해가 있을 때, 플레이어는 PlayerVitals.actuallyHurt), `EXPLODE`(Explosion.explode 맨 앞, 원인 엔티티로. 폭죽은 owner), `PRIME_FUSE`(크리퍼 부풀기 시작), `TELEPORT`(엔더맨은 옛 위치 Vec3, 셜커는 옛 칸 가운데), `SHEAR`(양·무시룸·눈 골렘·보그드, 플레이어가 원인), `EAT`(판다), `DRINK`(마녀), `ENTITY_PLACE`(닭 알), `ENTITY_ACTION`(늑대 털기), `PROJECTILE_SHOOT`(Projectile 첫 틱, 주인이 원인)·`PROJECTILE_LAND`(맞은 위치/칸 가운데+블록 상태). 엔더맨 블록 집기/놓기는 `BLOCK_DESTROY`/`BLOCK_PLACE` 도 직접 낸다.
+- 늑대 털기 소리 시점을 바닐라(털기 시작 틱, `cs==0`)로 옮겼다(전엔 0.4 지점 통과 때). 소리 높이 난수 2회가 8틱 앞당겨진다.
+- **감사 오류 정정**: Hoglin 을 "평화로움 despawn"이라 한 것은 틀렸다. `clh.java:189` 의 `ee()` 는 `shouldDropExperience`(항상 참)이며 Furnace 는 이미 같다. Hoglin 은 `shouldDespawnInPeaceful` 을 덮지 않아 평화로움에서도 남는다(`EntityAuditFixesTest` 가 확인).
+- **충전 크리퍼 머리 드롭**: Creeper/Zombie 계열(Husk·Drowned·ZombieVillager·ZombifiedPiglin 포함)/Skeleton/WitherSkeleton/Piglin 의 `dropCustomDeathLoot` 에서 `super` 뒤(Piglin 은 인벤토리 드롭 앞)에 처리. 크리퍼당 1회(`droppedSkulls`, 저장 안 함), 크리퍼는 자기 자신의 머리 제외. Stray·Bogged 는 바닐라에서도 머리 없음(가정: 바닐라 해당 클래스가 이 코드를 안 가진다).
+- **거미줄**: WebBlock 이 Spider(CaveSpider 포함)는 건너뛴다. 가루눈·달콤한 열매 덤불은 바닐라도 거미를 막지 않는다.
+- **돼지 타기**: 안장 + 승객 없음 + 웅크리지 않음 → 탄다. 당근 낚싯대(주/보조 손)를 들면 조종(`getControllingPassenger`) — 이동은 클라이언트가 정하고 서버는 move_vehicle 로 받는다. 우클릭 가속(`ItemBasedSteering.boost`: 총 시간 `nextInt(841)+140` 동기화, 내구도 7, 닳으면 낚싯대)과 `tickRidden`(방향 따라가기·가속 진행).
+- **한계/미구현**: 돼지 내릴 자리는 기본(몸통 꼭대기, 바닐라는 DismountHelper). 낚싯대로 바뀔 때 다른 컴포넌트는 옮기지 않는다. **스트라이더 안장 상호작용·조종·뒤틀린 균류 막대·좀비 피글린 기수**, **펫 사망 메시지**(몹에 CombatTracker 가 없어 보류. 몹 피해 기록부터 필요), **Breeze 투사체 튕김** 은 미구현(근사 활성화 안 함). `PROJECTILE_LAND` 의 "엔티티 맞음" 위치는 `Hit` 좌표 그대로. Enderman `BLOCK_*` 외 몹의 블록 이벤트(양의 풀 먹기 등)는 이번에 안 건드렸다.
