@@ -50,7 +50,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public boolean isOnline() { return !p.isDisconnected(); }
 
     @Override
-    public Location location() { return new Location("minecraft:overworld", p.x(), p.y(), p.z(), p.yaw(), p.pitch()); }
+    public Location location() { return new Location(p.dimension(), p.x(), p.y(), p.z(), p.yaw(), p.pitch()); }
 
     @Override
     public GameMode gameMode() { return GameMode.byId(p.gameMode().id()); }
@@ -148,4 +148,33 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     @Override
     public String toString() { return "Player{" + p.name() + "}"; }
+
+    // ------------------------------------------------------------------ Entity / LivingEntity
+
+    @Override
+    public float maxHealth() { return p.vitals().maxHealth(); }
+
+    @Override
+    public org.domi.furnace.api.sched.TaskScheduler scheduler() {
+        var w = host.worldHandle(p.dimension());
+        return w.handle().chunkScheduler(Math.floorDiv((int) Math.floor(p.x()), 16), Math.floorDiv((int) Math.floor(p.z()), 16));
+    }
+
+    /** 같은 차원 안만. 서버 텔레포트는 연결 스레드가 보정 패킷을 보내는 스레드 안전 경로다. */
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> teleport(Location to) {
+        if (!to.world().equals(p.dimension()) || p.isDisconnected()) return java.util.concurrent.CompletableFuture.completedFuture(false);
+        if (!p.hasTeleporter()) return java.util.concurrent.CompletableFuture.completedFuture(false);
+        p.teleportTo(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
+        return java.util.concurrent.CompletableFuture.completedFuture(true);
+    }
+
+    private PlayerInventoryHandle inventory;
+
+    @Override
+    public org.domi.furnace.api.inventory.Inventory inventory() {
+        PlayerInventoryHandle i = inventory;
+        if (i == null) inventory = i = new PlayerInventoryHandle(host, p);
+        return i;
+    }
 }

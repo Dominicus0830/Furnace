@@ -1981,6 +1981,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
             } else if (!menu.isValidSlotIndex(slotNum)) {
                 log.debug("Player {} clicked invalid slot index: {}, available slots: {}", p.name(), slotNum, menu.slots.size());
+            } else if (login.core != null && !login.core.gameEvents().inventoryClick(p, menu, slotNum, button, type)) {   // 플러그인 InventoryClickEvent 취소: 적용하지 않고 전체 재전송
+                menu.sendAllDataToRemote();
             } else {
                 boolean stateMismatch = stateId != menu.getStateId();
                 menu.suppressRemoteUpdates();
@@ -2023,6 +2025,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 var region = org.domi.furnace.server.world.MenuBlockContext.current();
                 return region == null || "minecraft:crafting_table".equals(world.blockRegistry().nameOf(region.getBlock(x, y, z)));
             });
+            if (login.core != null && !login.core.gameEvents().inventoryOpen(p, menu)) return;   // 플러그인 InventoryOpenEvent 취소
             send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable("container.crafting")));
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
@@ -2127,6 +2130,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             return region == null ? 0 : region.level().random().nextInt(bound);
                         }
                     });
+            if (login.core != null && !login.core.gameEvents().inventoryOpen(p, menu)) return;   // 플러그인 InventoryOpenEvent 취소
             send(ctx, new OpenScreen(containerId, menuTypeId(menu), Text.translatable(titleKey)));
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
@@ -2195,6 +2199,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** ServerPlayer.doCloseContainer: 창의 removed(커서·제작 격자 돌려주기) → 동기 상태를 인벤토리 창에 넘기고 인벤토리 창으로 돌아간다. */
     private void doCloseContainer(Player p) {
         var menu = p.containerMenu();
+        if (login.core != null) login.core.gameEvents().inventoryClose(p, menu);   // 플러그인 InventoryCloseEvent
         menu.removed(menus);
         p.inventoryMenu().transferState(menu);
         p.setContainerMenu(p.inventoryMenu());
@@ -3012,7 +3017,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             int maxY = level.maxBuildHeight();
             if (bp[1] < maxY) {
                 org.domi.furnace.server.ServerCore c = login.core;
-                if (c == null || c.mayInteract(actor, bp[0], bp[2])) {
+                if ((c == null || c.mayInteract(actor, bp[0], bp[2]))
+                        && (c == null || c.gameEvents().playerInteract(actor, hand, bp, level.getBlockState(pos), face, before))) {   // 플러그인 PlayerInteractEvent
                     var r = org.domi.furnace.server.block.BlockPlacement.useItemOn(level, pa, hand, hit);
                     if (r.consumesAction()) pa.trigger("minecraft:any_block_use", pos, before);
                     if (face == org.domi.furnace.server.block.Dir.UP && !r.consumesAction() && bp[1] >= maxY - 1

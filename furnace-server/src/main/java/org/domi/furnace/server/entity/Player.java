@@ -1367,12 +1367,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 서버가 플레이어를 (x,y,z)로 옮긴다 — 연결의 IO 스레드가 보정 텔레포트를 보내고 이동 대기열을 비운다. */
     public void teleportTo(double x, double y, double z) {
+        if (!vitals().env().gameEvents().playerTeleport(this, x, y, z)) return;   // 플러그인 PlayerTeleportEvent 취소
         var t = teleporter;
         if (t != null) t.accept(new double[] {x, y, z});
     }
 
     /** connection.teleport(x, y, z, yRot, xRot): 회전까지 정해 보정 텔레포트. */
     public void teleportTo(double x, double y, double z, float yaw, float pitch) {
+        if (!vitals().env().gameEvents().playerTeleport(this, x, y, z)) return;   // 플러그인 PlayerTeleportEvent 취소
         var t = teleporter;
         if (t != null) t.accept(new double[] {x, y, z, yaw, pitch});
     }

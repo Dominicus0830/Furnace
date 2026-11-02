@@ -600,3 +600,18 @@
 - **lz4 경고**: `region-file-compression=lz4` 미지원이며 읽기도 안 된다. 1.20.5+ 바닐라에서 lz4 로 저장된 월드를 가져오면 청크 읽기가 실패한다(가져오기 전에 바닐라에서 deflate 로 바꿔 저장해야 함).
 - 시험: `RconServerTest`(연결당 실패 끊기·IP 차단·스레드 이름·연결 상한), `QueryHandlerTest.challengeMapIsCapped`.
 - **알려진 한계(RCON 보강)**: IP 차단은 NAT·loopback 뒤의 정당한 관리자까지 60초 막을 수 있다. idle 연결 16개가 상한을 채우면 관리자 접속을 방해할 수 있다(후속: IP당 동시 연결 상한). 실패 IP 맵 청소는 크기가 4096 을 넘을 때만 한다. 실패 카운트는 응답을 쓰기 전에 올린다(재접속 경합 방지).
+
+## 2026-11-02 플러그인 API 1단계: 엔티티·월드·아이템·인벤토리 (작업 5)
+- 설계: `docs/api/entity-world-design.md`. 원칙: 다른 region 상태는 동기로 읽거나 쓰지 않는다 — 이벤트 스냅샷 / `CompletableFuture`(소유 region 에서 실행) / `*Now`(소유 스레드 아니면 `ThreadOwnershipException`).
+- 바닐라·Paper 와 다른 점·한계:
+  - `EntityDamageEvent.damage` 는 방어력·인챈트 적용 **전** 원본 피해(Paper 는 최종 피해를 따로 준다). 취소하면 `hurtBy` 가 false 로 끝나 무적 시간·밀려남도 없다(Paper 와 같다고 **가정**, 미확인). 플레이어는 `PlayerVitals.hurt` 에서, 몹은 `LivingEntity.hurtBy` 에서 발화.
+  - `EntityDeathEvent` 는 몹만(플레이어는 기존 `PlayerDeathEvent`). 전리품 수정은 없다.
+  - `EntitySpawnEvent` 는 `addFreshEntity` 에서 발화 — 같은 UUID 중복으로 거부될 엔티티도 이벤트를 먼저 받는다. 청크 로드로 복원되는 엔티티·`loadChunkEntities` 경로는 발화하지 않는다(Paper 는 `CreatureSpawnEvent` 로 사유를 준다 — 사유 없음).
+  - `PlayerMoveEvent` 는 위치가 바뀐 이동만(회전만 바뀌면 안 부름), `from/to` 의 yaw/pitch 는 현재 값. 취소는 `teleportTo(from)` 보정이라 한 틱 어긋날 수 있다.
+  - `PlayerTeleportEvent` 는 같은 차원 `Player.teleportTo` 만. 차원 이동·원인 구분 없음. 호출한 스레드에서 불리며 region 스레드가 아닐 수 있다.
+  - `PlayerInteractEvent` 는 RIGHT_CLICK_BLOCK / 빈 손이 아닌 RIGHT_CLICK_AIR 만. LEFT_CLICK·빈 손 허공 클릭 없음.
+  - `PlayerDropItemEvent` 취소 시 아이템은 원래 칸이 아니라 첫 빈 칸으로 돌아간다(가득 차면 그대로 떨어진다).
+  - `InventoryOpenEvent` 는 제작대·블록 메뉴(`openBlockMenu`)만. 상자·상인·말·엔티티 컨테이너는 발화하지 않는다. 메뉴 종류 키는 클래스 이름에서 만든 값이라 바닐라 menu type 이름과 다를 수 있다(가정).
+  - `World.setBlock` 은 `BlockPlaceEvent/BlockBreakEvent` 를 거치지 않는다. 플래그 11 로 바로 설치 후 방송.
+  - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
+  - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.

@@ -9,7 +9,13 @@ import org.domi.furnace.api.event.EventPriority;
 import org.domi.furnace.api.event.Listener;
 import org.domi.furnace.api.event.Subscribe;
 import org.domi.furnace.api.event.block.BlockBreakEvent;
+import org.domi.furnace.api.event.entity.EntityDamageEvent;
+import org.domi.furnace.api.event.inventory.InventoryClickEvent;
+import org.domi.furnace.api.event.player.PlayerDropItemEvent;
 import org.domi.furnace.api.event.player.PlayerJoinEvent;
+import org.domi.furnace.api.event.world.ChunkLoadEvent;
+import org.domi.furnace.api.world.BlockData;
+import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.text.NamedTextColor;
 import org.domi.furnace.api.text.Text;
@@ -48,6 +54,34 @@ public final class SamplePlugin extends FurnacePlugin implements Listener {
             e.setCancelled(true);
             e.player().sendActionBar(Text.text("Too deep!").color(NamedTextColor.RED));
         }
+    }
+
+    // ------------------------------------------------------------------ 엔티티·월드·인벤토리 API 사용 예 (docs/api/entity-world-design.md)
+
+    /** 이벤트 시점 스냅샷 핸들 — 취소/값 변경은 동기, 그 밖의 상태 변경은 Future 로. */
+    @Subscribe(ignoreCancelled = true)
+    public void onDamage(EntityDamageEvent e) {
+        if (e.entity().type().equals("minecraft:villager")) e.setCancelled(true);   // 주민은 피해를 받지 않는다
+    }
+
+    /** 이벤트 처리기는 발화한 region 스레드에서 돈다: 같은 region 칸은 blockNow 로, 남의 칸은 비동기 blockAt/setBlock 으로. */
+    @Subscribe
+    public void onDrop(PlayerDropItemEvent e) {
+        if (!e.item().type().equals("minecraft:diamond")) return;
+        var world = e.player().world();
+        BlockPos below = e.player().location().blockPos().offset(0, -1, 0);
+        world.blockAt(below).thenAccept(b -> b.ifPresent(block -> logger().info(e.player().name() + " dropped a diamond over " + block.data())));
+        world.setBlock(below.offset(0, 5, 0), BlockData.parse("minecraft:glass")).thenAccept(ok -> { /* 로드된 청크면 true */ });
+    }
+
+    @Subscribe(ignoreCancelled = true)
+    public void onClick(InventoryClickEvent e) {
+        if (e.current().type().equals("minecraft:bedrock")) e.setCancelled(true);   // 스냅샷 기반 읽기
+    }
+
+    @Subscribe
+    public void onChunk(ChunkLoadEvent e) {
+        if (e.chunkX() == 0 && e.chunkZ() == 0) logger().info("spawn chunk loaded in " + e.world());
     }
 
 }

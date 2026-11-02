@@ -94,6 +94,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     protected abstract LevelServices services();
 
+    /** 플러그인 이벤트 입구(엔티티·Region 코드용). */
+    public org.domi.furnace.server.plugin.GameEvents gameEvents() { return services().gameEvents(); }
+
     /**
      * LevelChunk.setBlockState 의 블록 엔티티 부분: 있던 것이 이 상태에 맞지 않으면 지우고, 없으면 블록이 새로 만들고(newBlockEntity),
      * 있으면 상태만 바꾼다.
@@ -1752,6 +1755,7 @@ public abstract class ChunkLevel implements BlockLevel {
     public boolean addFreshEntity(Entity e) {
         if (e.isRemoved()) return false;
         e.setLevel(this);
+        if (!gameEvents().entitySpawn(e)) return false;   // 플러그인 EntitySpawnEvent 취소
         if (!entities.add(e)) return false;
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);

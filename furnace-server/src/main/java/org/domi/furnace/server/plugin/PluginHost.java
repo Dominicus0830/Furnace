@@ -47,6 +47,29 @@ public final class PluginHost implements Furnace {
 
     public PluginManagerImpl pluginsImpl() { return plugins; }
 
+    private final PluginGameEvents gameEvents = new PluginGameEvents(this);
+    private final java.util.concurrent.ConcurrentHashMap<String, WorldHandle> worldHandles = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 서버 게임 코드가 부르는 이벤트 입구. */
+    public GameEvents gameEvents() { return gameEvents; }
+
+    /** 그 차원의 월드 핸들(없는 차원이면 null). */
+    public WorldHandle worldHandle(String dimension) {
+        org.domi.furnace.server.world.World w = core.world(dimension);
+        if (w == null) return null;
+        return worldHandles.computeIfAbsent(dimension, k -> new WorldHandle(this, w));
+    }
+
+    @Override
+    public WorldHandle world(String dimension) { return worldHandle(dimension); }
+
+    @Override
+    public List<WorldHandle> worlds() {
+        List<WorldHandle> out = new ArrayList<>();
+        for (var w : core.worlds()) out.add(worldHandle(w.dimension()));
+        return out;
+    }
+
     /** 서버 플레이어의 API 손잡이(처음 요청할 때 만든다). */
     public PlayerHandle player(Player p) {
         Object h = p.apiHandle();
