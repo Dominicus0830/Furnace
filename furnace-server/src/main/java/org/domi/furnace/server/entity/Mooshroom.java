@@ -101,6 +101,7 @@ public class Mooshroom extends Cow {
 
     private void shearToCow(Player p, int hand, ItemStack held) {
         shear("players");
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SHEAR, p);   // 바닐라: shear 뒤 플레이어가 원인
         var inv = p.inventory();
         int ws = hand == 0 ? inv.heldWindowSlot() : 45;
         var actor = new org.domi.furnace.server.block.PlayerActor(p, hand == 0 ? held : ItemStack.EMPTY, hand == 1 ? held : ItemStack.EMPTY, 0);

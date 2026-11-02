@@ -1,4 +1,4 @@
-// 바닐라 Pig: 당근·감자·사탕무를 좋아하고 안장을 얹을 수 있다. TODO(타기): 안장을 얹은 돼지 타기·당근 낚싯대 가속.
+// 바닐라 Pig: 당근·감자·사탕무를 좋아하고 안장을 얹고 탈 수 있다. 당근 낚싯대를 들면 조종(가속 ItemBasedSteering). 클라이언트가 움직임을 정하고 서버는 move_vehicle 로 받는다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -62,8 +62,56 @@ public class Pig extends Animal {
 
     public void setSaddled(boolean v) { entityData.set(DATA_SADDLE, v); }
 
+    // ItemBasedSteering(bti): 가속 중 여부와 경과 틱. 총 시간은 DATA_BOOST_TIME 에 동기화(클라이언트가 속도 계수에 쓴다).
+    private boolean boosting;
+    private int boostTime;
+
+    /** 소유권 전제: 호출은 탄 플레이어의 스레드이고, 탄 돼지와 플레이어는 같은 region 이다(가정: 탑승 중 region 이 갈리지 않는다). */
+    /** ItemBasedSteering.boost(random): 가속 중이면 거짓, 아니면 시작하고 총 시간 nextInt(841)+140 틱을 동기화한다. */
+    public boolean boost() {
+        if (boosting) return false;
+        boosting = true;
+        boostTime = 0;
+        entityData.set(DATA_BOOST_TIME, random.nextInt(841) + 140);
+        return true;
+    }
+
+    /** ItemBasedSteering.tickBoost: 경과가 총 시간을 넘으면(비교 뒤 증가) 가속 끝. */
+    private void tickBoost() {
+        if (boosting && boostTime++ > (Integer) entityData.get(DATA_BOOST_TIME)) boosting = false;
+    }
+
+    /** Pig.getControllingPassenger: 안장이 있고 첫 승객이 당근 낚싯대를 들고 있는 플레이어면 그 플레이어, 아니면 Mob 기본. */
+    @Override
+    public Rider getControllingPassenger() {
+        if (isSaddled() && firstPassenger() instanceof Player p && isHoldingCarrotStick(p)) return p;
+        return super.getControllingPassenger();
+    }
+
+    private static boolean isHoldingCarrotStick(Player p) {
+        var inv = p.inventory();
+        return ItemTools.itemName(inv.get(inv.heldWindowSlot())).equals("minecraft:carrot_on_a_stick")
+                || ItemTools.itemName(inv.get(45)).equals("minecraft:carrot_on_a_stick");
+    }
+
+    /** Pig.tickRidden: 탄 플레이어의 방향(pitch 는 절반)을 따르고 가속 시간을 진행한다. */
+    @Override
+    protected void tickRidden(Player p) {
+        super.tickRidden(p);
+        setYRot(p.yaw());
+        setXRot(p.pitch() * 0.5F);
+        yHeadRot = yBodyRot = yRot();
+        yRotO = yRot();
+        tickBoost();
+    }
+
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
+        // Pig.mobInteract(cfv:85): 먹이가 아니고 안장이 있고 승객이 없고 웅크리지 않았으면 탄다
+        if (!isFood(held) && isSaddled() && !isVehicle() && !p.sneaking()) {
+            p.startRiding(this, false);
+            return true;
+        }
         if (super.interact(p, hand, held, region)) return true;
         if (!held.isEmpty() && ItemTools.itemName(held).equals("minecraft:saddle") && isAlive() && !isBaby() && !isSaddled()) {
             level.playSound(null, x(), y(), z(), "entity.pig.saddle", "neutral", 0.5F, 1.0F);

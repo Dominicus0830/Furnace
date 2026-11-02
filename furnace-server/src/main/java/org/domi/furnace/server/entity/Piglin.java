@@ -83,6 +83,7 @@ public class Piglin extends AbstractPiglin implements CrossbowAttackMob, Invento
     @Override
     protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {
         super.dropCustomDeathLoot(source, byPlayer);
+        Creeper.dropSkullIfCharged(this, damageSourceEntity(), "piglin_head");   // 머리 다음에 인벤토리(바닐라 순서)
         for (ItemStack s : inventory.removeAllItems()) spawnAtLocation(s);
     }
 

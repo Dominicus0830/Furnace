@@ -77,6 +77,7 @@ public class Witch extends Raider implements RangedAttackMob {
                     if (ItemTools.itemName(held).equals("minecraft:potion")) {
                         for (MobEffectInstance e : Consuming.potionEffects(held)) addEffect(e);
                     }
+                    gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.DRINK);   // ckt:81
                     attributes().get(Attribute.MOVEMENT_SPEED).removeModifier(SPEED_MODIFIER_DRINKING_ID);
                 }
             } else {

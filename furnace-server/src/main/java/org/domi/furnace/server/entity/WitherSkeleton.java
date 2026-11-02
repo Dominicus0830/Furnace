@@ -48,4 +48,11 @@ public class WitherSkeleton extends AbstractSkeleton {
     @Override protected String getDeathSound() { return "entity.wither_skeleton.death"; }
 
     @Override String getStepSound() { return "entity.wither_skeleton.step"; }
+
+    /** 충전 크리퍼 폭발에 죽으면 머리를 한 번 떨군다(바닐라 dropCustomDeathLoot). */
+    @Override
+    protected void dropCustomDeathLoot(Damage source, boolean byPlayer) {
+        super.dropCustomDeathLoot(source, byPlayer);
+        Creeper.dropSkullIfCharged(this, damageSourceEntity(), "wither_skeleton_skull");
+    }
 }

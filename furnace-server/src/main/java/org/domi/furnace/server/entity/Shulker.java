@@ -245,6 +245,7 @@ public class Shulker extends AbstractGolem implements Enemy {
                         setAttachFace(d);
                         playSound("entity.shulker.teleport", 1.0F, 1.0F);
                         setPos(p.x() + 0.5, p.y(), p.z() + 0.5);
+                        level.gameEventFrom("teleport", pos, this, -1);   // ckj:321 옛 칸 가운데
                         entityData.set(DATA_PEEK_ID, (byte) 0);
                         setTarget(null);
                         return true;

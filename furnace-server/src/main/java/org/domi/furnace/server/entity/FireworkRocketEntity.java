@@ -138,6 +138,7 @@ public class FireworkRocketEntity extends Projectile {
 
     private void explode() {
         broadcastEntityEvent((byte) 17);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EXPLODE, getOwner());   // cnk:135
         dealExplosionDamage();
         discard();
     }

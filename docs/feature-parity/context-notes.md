@@ -611,3 +611,14 @@
 - **generate-structures=false** 재확인(최신 HEAD): `server.properties` → `LevelData.generate_features` → `FurnaceMain.applyWorldGenOptions` 가 오버월드·네더·엔드 모든 `NoiseWorldSource` 의 `StructureEngine.setStructuresEnabled` 를 끈다. 이미 동작하며(`WorldGenOptionsTest`) 수정할 것 없음. 평지(`SuperflatWorldSource`)는 구조물을 아직 만들지 않는다.
 - **검증 한계(가정, oracle 미검증)**: 샌드박스에서 worldgen oracle 을 쓸 수 없어 위 세 항목은 디컴파일을 한 줄씩 대조한 손계산 시험(`NetherFossilStructureTest`, `VoidAndBonusFeaturesTest`)만 있다. 실제 네더 지형(영혼 모래 골짜기)에서의 화석 위치·바닐라 `.mca` 대조는 하지 않았다. base column 은 기존 `TerrainAccess.baseBlock`(노이즈 채움, Beardifier 없음)을 그대로 쓴다.
 - 시험 한계: `/place` 의 "아직 구현 안 됨" 경로는 루트 Noop 이 없어져 PlaceCommandTest 에서 더는 직접 시험하지 않는다. Noop 판정(`containsNoop`)은 단위로만 간접 확인된다.
+## 2026-11-02 몹 능력 감사 후속: 게임 이벤트·머리 드롭·거미줄·돼지 타기
+- **몹 게임 이벤트 방출**(바닐라 호출 지점, 원인 엔티티·위치 그대로): `ENTITY_DAMAGE`(LivingEntity.actuallyHurt 에서 흡수 뒤 실제 피해가 있을 때, 플레이어는 PlayerVitals.actuallyHurt), `EXPLODE`(Explosion.explode 맨 앞, 원인 엔티티로. 폭죽은 owner), `PRIME_FUSE`(크리퍼 부풀기 시작), `TELEPORT`(엔더맨은 옛 위치 Vec3, 셜커는 옛 칸 가운데), `SHEAR`(양·무시룸·눈 골렘·보그드, 플레이어가 원인), `EAT`(판다), `DRINK`(마녀), `ENTITY_PLACE`(닭 알), `ENTITY_ACTION`(늑대 털기), `PROJECTILE_SHOOT`(Projectile 첫 틱, 주인이 원인)·`PROJECTILE_LAND`(맞은 위치/칸 가운데+블록 상태). 엔더맨 블록 집기/놓기는 `BLOCK_DESTROY`/`BLOCK_PLACE` 도 직접 낸다.
+- 늑대 털기 소리 시점을 바닐라(털기 시작 틱, `cs==0`)로 옮겼다(전엔 0.4 지점 통과 때). 소리 높이 난수 2회가 8틱 앞당겨진다.
+- **감사 오류 정정**: Hoglin 을 "평화로움 despawn"이라 한 것은 틀렸다. `clh.java:189` 의 `ee()` 는 `shouldDropExperience`(항상 참)이며 Furnace 는 이미 같다. Hoglin 은 `shouldDespawnInPeaceful` 을 덮지 않아 평화로움에서도 남는다(`EntityAuditFixesTest` 가 확인).
+- **충전 크리퍼 머리 드롭**: Creeper/Zombie 계열(Husk·Drowned·ZombieVillager·ZombifiedPiglin 포함)/Skeleton/WitherSkeleton/Piglin 의 `dropCustomDeathLoot` 에서 `super` 뒤(Piglin 은 인벤토리 드롭 앞)에 처리. 크리퍼당 1회(`droppedSkulls`, 저장 안 함), 크리퍼는 자기 자신의 머리 제외. Stray·Bogged 는 바닐라에서도 머리 없음(가정: 바닐라 해당 클래스가 이 코드를 안 가진다).
+- **거미줄**: WebBlock 이 Spider(CaveSpider 포함)는 건너뛴다. 가루눈·달콤한 열매 덤불은 바닐라도 거미를 막지 않는다.
+- **돼지 타기**: 안장 + 승객 없음 + 웅크리지 않음 → 탄다. 당근 낚싯대(주/보조 손)를 들면 조종(`getControllingPassenger`) — 이동은 클라이언트가 정하고 서버는 move_vehicle 로 받는다. 우클릭 가속(`ItemBasedSteering.boost`: 총 시간 `nextInt(841)+140` 동기화, 내구도 7, 닳으면 낚싯대)과 `tickRidden`(방향 따라가기·가속 진행).
+- **한계/미구현**: 돼지 내릴 자리는 기본(몸통 꼭대기, 바닐라는 DismountHelper). 낚싯대로 바뀔 때 다른 컴포넌트는 옮기지 않는다. **스트라이더 안장 상호작용·조종·뒤틀린 균류 막대·좀비 피글린 기수**, **Breeze 투사체 튕김** 은 미구현(근사 활성화 안 함). `PROJECTILE_LAND` 의 "엔티티 맞음" 위치는 `Hit` 좌표 그대로. Enderman `BLOCK_*` 외 몹의 블록 이벤트(양의 풀 먹기 등)는 이번에 안 건드렸다.
+- **후속(같은 날)**: 펫 사망 메시지는 구현됨 — `LivingEntity.getCombatTracker`(원인·직접 엔티티 이름 기록)와 `TamableAnimal.die`(주인에게 `runOnOwner` 로 전송, `getKillCredit` 이름을 넘겨 `.player` 변형 포함). 차이: 몹은 낙하 위치(fallLocation)를 기록하지 않아 낙하 사망 메시지가 `death.fell.accident.*` 변형 없이 일반형으로 나온다. 전투 기록의 alive 인자는 바닐라처럼 피해 전 체력>0.
+- 몹 `actuallyHurt` 가 이제 흡수 체력을 먼저 깎는다(바닐라 btn.f). 전엔 몹 흡수 체력이 피해를 막지 않았다. 체력·전투 기록·`ENTITY_DAMAGE` 는 흡수를 뺀 값이 0 이 아닐 때만.
+- 돼지 `boost()` 소유권 전제: 탄 플레이어의 스레드에서 부르고, 탄 돼지와 플레이어는 같은 region 이다(가정: 탑승 중 region 이 갈리지 않는다).

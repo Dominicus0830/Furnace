@@ -650,6 +650,9 @@ public final class PlayerVitals {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
             combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct));
             setHealthRaw(health - afterAbsorb);
+            var lv = player.currentLevel;   // 바닐라 Player.actuallyHurt 끝의 gameEvent(ENTITY_DAMAGE)
+            if (lv != null) lv.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE,
+                    new Vec3(player.x(), player.y(), player.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
         }
     }
 
