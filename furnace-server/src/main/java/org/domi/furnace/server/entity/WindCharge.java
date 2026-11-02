@@ -8,6 +8,9 @@ public class WindCharge extends AbstractWindCharge {
     private static final Explosion.Calculator CALC = new Explosion.WindCalculator(1.22F);
     private int noDeflectTicks = 5;
 
+    /** 시험용: 튕김 금지 틱을 정한다. */
+    void noDeflectTicks(int n) { noDeflectTicks = n; }
+
     public WindCharge(ChunkLevel level, int id) { super(EntityType.WIND_CHARGE, level, id); }
 
     @Override
@@ -20,6 +23,10 @@ public class WindCharge extends AbstractWindCharge {
     protected boolean canHitTarget(Targetable t) {
         return (noDeflectTicks <= 0 || t != getOwner()) && super.canHitTarget(t);
     }
+
+    /** WindCharge.deflect: 던진 직후 5틱은 튕겨 내지 못한다. */
+    @Override
+    protected boolean canDeflect() { return noDeflectTicks <= 0; }
 
     @Override
     protected void explode(double x, double y, double z) {

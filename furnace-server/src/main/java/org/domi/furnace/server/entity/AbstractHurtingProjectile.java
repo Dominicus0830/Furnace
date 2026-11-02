@@ -47,7 +47,7 @@ public abstract class AbstractHurtingProjectile extends Projectile {
             super.tick();
             if (shouldBurn()) setRemainingFireTicks(1);
             Hit hit = findHit(x(), y(), z(), x() + vx(), y() + vy(), z() + vz());
-            if (hit != null) onHit(hit);
+            if (hit != null) hitTargetOrDeflectSelf(hit);
             double dx = vx(), dy = vy(), dz = vz();
             double nx = x() + dx, ny = y() + dy, nz = z() + dz;
             double h = Math.sqrt(dx * dx + dz * dz);
