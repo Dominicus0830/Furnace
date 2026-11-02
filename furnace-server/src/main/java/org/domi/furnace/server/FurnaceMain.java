@@ -304,6 +304,7 @@ public final class FurnaceMain {
             w.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
             w.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
             w.setRegistries(blockRegistry, itemRegistry);
+            if (type == org.domi.furnace.server.world.DimensionType.OVERWORLD) w.wanderingTraderState(level.wanderingTrader);
             if (type == org.domi.furnace.server.world.DimensionType.END) {   // ServerLevel: 엔드는 드래곤 전투를 가진다(level.dat DragonFight)
                 w.enableDragonFight(level.dragonFightData());
                 w.dragonFightSaver(d -> level.dragonFight = d);

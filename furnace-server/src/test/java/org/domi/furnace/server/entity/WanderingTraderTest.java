@@ -246,4 +246,85 @@ class WanderingTraderTest {
         assertFalse(t.isInvisible(), "낮에는 우유로 푼다");
         assertFalse(t.isUsingItem());
     }
+
+    /** 게임 시간이 한 틱씩 가는 레벨(공유 타이머의 틱당 한 번 제한을 보려고). */
+    private static final class Ticking extends BlockPlacementTest.TestLevel {
+        long time;
+        @Override public long gameTime() { return time; }
+    }
+
+    @Test
+    void levelDataPersistsTraderTimerAndId() {
+        var d = org.domi.furnace.server.world.storage.LevelData.create("w", 1L, true, false, GameMode.SURVIVAL, false,
+                org.domi.furnace.server.world.Difficulty.NORMAL, List.of("vanilla"), List.of());
+        assertEquals(24000, d.wanderingTrader.spawnDelay(), "새 월드는 24000 / 25 로 시작(바닐라 생성자 0/0 규칙)");
+        assertEquals(25, d.wanderingTrader.spawnChance());
+        assertNull(d.wanderingTrader.traderId());
+        var id = java.util.UUID.fromString("12345678-9abc-def0-1234-56789abcdef0");
+        d.wanderingTrader.setSpawnDelay(-1200);
+        d.wanderingTrader.setSpawnChance(75);
+        d.wanderingTrader.setTraderId(id);
+        NbtCompound nbt = d.toNbt(0L);
+        assertEquals(-1200, nbt.getIntOr0("WanderingTraderSpawnDelay"));
+        assertEquals(75, nbt.getIntOr0("WanderingTraderSpawnChance"));
+        assertArrayEquals(new int[] {0x12345678, 0x9abcdef0, 0x12345678, 0x9abcdef0}, nbt.getIntArray("WanderingTraderId"));
+        var back = org.domi.furnace.server.world.storage.LevelData.fromNbt(nbt);
+        assertEquals(-1200, back.wanderingTrader.spawnDelay());
+        assertEquals(75, back.wanderingTrader.spawnChance());
+        assertEquals(id, back.wanderingTrader.traderId());
+        // 0 / 0 이면 기본값으로
+        nbt.putInt("WanderingTraderSpawnDelay", 0);
+        nbt.putInt("WanderingTraderSpawnChance", 0);
+        var zero = org.domi.furnace.server.world.storage.LevelData.fromNbt(nbt);
+        assertEquals(24000, zero.wanderingTrader.spawnDelay());
+        assertEquals(25, zero.wanderingTrader.spawnChance());
+    }
+
+    @Test
+    void sharedTimerRunsOncePerGameTickAcrossSpawners() {
+        var level = new Ticking();
+        var state = new org.domi.furnace.server.world.WanderingTraderState();
+        state.setSpawnDelay(24000);
+        state.setSpawnChance(25);
+        var a = new WanderingTraderSpawner(RandomSource.create(1));
+        var b = new WanderingTraderSpawner(RandomSource.create(2));
+        a.attach(state);
+        b.attach(state);
+        for (int i = 0; i < 1200; i++) {
+            level.time = i + 1;
+            a.tick(level, List.of());
+            b.tick(level, List.of());   // 같은 틱의 두 번째 region 은 타이머를 돌리지 못한다
+        }
+        assertEquals(22800, state.spawnDelay(), "1200틱에 1200 만 줄어든다(스포너 둘이어도)");
+        assertEquals(1200, state.tickDelay());
+    }
+
+    @Test
+    void sharedStateRecordsSpawnedTraderId() {
+        for (long seed = 0; seed < 400; seed++) {
+            var level = new Ticking();
+            var state = new org.domi.furnace.server.world.WanderingTraderState();
+            state.setSpawnDelay(1);
+            state.setSpawnChance(75);
+            var spawner = new WanderingTraderSpawner(RandomSource.create(seed));
+            spawner.attach(state);
+            var p = player(8.5, 8.5);
+            int n = 0;
+            for (int i = 0; i < 1200; i++) {
+                level.time = i + 1;
+                n += spawner.tick(level, List.of(p));
+            }
+            if (n == 0) {
+                assertNull(state.traderId());
+                continue;
+            }
+            WanderingTrader trader = level.entities().tickSnapshot().stream().filter(e -> e instanceof WanderingTrader)
+                    .map(e -> (WanderingTrader) e).findFirst().orElseThrow();
+            assertEquals(trader.uuid(), state.traderId());
+            assertEquals(25, state.spawnChance());
+            assertEquals(24000, state.spawnDelay());
+            return;
+        }
+        fail("400개 시드 안에 스폰이 한 번도 없다");
+    }
 }

@@ -1,7 +1,7 @@
 // 바닐라 WanderingTraderSpawner(CustomSpawner): 하루(24000틱)마다 25~75% 확률(실패할 때마다 25씩 증가)로 플레이어 근처에 방랑 상인과 짐 라마 2마리를 낸다.
 // 마을 종: 플레이어 근처 48칸의 MEETING POI(PoiManager.find, 첫 것)가 있으면 그 둘레, 없으면 플레이어 위치.
-// TODO(저장): spawnDelay/spawnChance 는 level.dat 의 WanderingTraderSpawnDelay/Chance, 상인 UUID 는 WanderingTraderId 에 저장해야 하나
-//   런타임이 아직 level.dat 에 되쓰지 않아(LevelData 는 읽은 값을 그대로 보존) region 레벨의 필드로만 둔다.
+// 저장: 오버월드 월드가 공유 상태(WanderingTraderState)를 붙여 주면 지연·확률·상인 번호를 level.dat 에 저장·복원한다
+//   (같은 게임 틱에는 한 region 만 타이머를 돌린다). 붙지 않으면(시험·단독 레벨) 이 스포너의 필드만 쓴다.
 package org.domi.furnace.server.entity.spawn;
 
 import org.domi.furnace.server.block.BlockInfo;
@@ -32,6 +32,15 @@ public final class WanderingTraderSpawner {
     /** 난수 주입(시험). 바닐라도 스포너 전용 난수(RandomSource.create())를 따로 쓴다. */
     public WanderingTraderSpawner(RandomSource random) { this.random = random; }
 
+    private org.domi.furnace.server.world.WanderingTraderState shared;
+
+    /** 월드 공유 상태를 붙인다(한 번). 바닐라 생성자처럼 지연·확률이 0/0 이면 기본값으로 시작한다. */
+    public void attach(org.domi.furnace.server.world.WanderingTraderState state) {
+        if (shared == state) return;
+        shared = state;
+        state.normalize();
+    }
+
     public int spawnDelay() { return spawnDelay; }
 
     public int spawnChance() { return spawnChance; }
@@ -44,6 +53,25 @@ public final class WanderingTraderSpawner {
     /** 낸 상인 수(0/1). players: 이 레벨(region)의 플레이어. */
     public int tick(ChunkLevel level, java.util.List<Player> players) {
         if (!level.gameRule("doTraderSpawning")) return 0;
+        var st = shared;
+        if (st != null) {
+            if (!st.claimTick(level.gameTime())) return 0;   // 같은 틱에 다른 region 이 이미 돌렸다
+            tickDelay = st.tickDelay();
+            spawnDelay = st.spawnDelay();
+            spawnChance = st.spawnChance();
+        }
+        try {
+            return tickTimer(level, players, st);
+        } finally {
+            if (st != null) {   // 살아 있는 값을 그대로 공유 상태(= level.dat)에 둔다
+                st.setTickDelay(tickDelay);
+                st.setSpawnDelay(spawnDelay);
+                st.setSpawnChance(spawnChance);
+            }
+        }
+    }
+
+    private int tickTimer(ChunkLevel level, java.util.List<Player> players, org.domi.furnace.server.world.WanderingTraderState st) {
         if (--tickDelay > 0) return 0;
         tickDelay = DEFAULT_TICK_DELAY;
         spawnDelay -= DEFAULT_TICK_DELAY;
@@ -73,6 +101,7 @@ public final class WanderingTraderSpawner {
         if (level.biomeIs(spawnPos, "minecraft:without_wandering_trader_spawns")) return false;
         if (!(spawnEvent(level, TRADER, spawnPos) instanceof WanderingTrader trader)) return false;
         for (int i = 0; i < 2; i++) tryToSpawnLlamaFor(level, trader, 4);
+        if (shared != null) shared.setTraderId(trader.uuid());
         trader.setDespawnDelay(48000);
         trader.setWanderTarget(villagePos);
         trader.restrictTo(villagePos, 16);
