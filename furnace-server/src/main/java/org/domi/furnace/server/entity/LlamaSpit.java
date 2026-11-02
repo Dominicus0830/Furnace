@@ -24,7 +24,7 @@ public class LlamaSpit extends Projectile {
         super.tick();
         double dx = vx(), dy = vy(), dz = vz();
         Hit hit = findHit(x(), y(), z(), x() + dx, y() + dy, z() + dz);
-        if (hit != null) onHit(hit);
+        if (hit != null) hitTargetOrDeflectSelf(hit);
         double nx = x() + dx, ny = y() + dy, nz = z() + dz;
         double h = Math.sqrt(dx * dx + dz * dz);
         setYRot(lerpRotation(yRotO, (float) (Mth.atan2(dx, dz) * 180.0F / (float) Math.PI)));

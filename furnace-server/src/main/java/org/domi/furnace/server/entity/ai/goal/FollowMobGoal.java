@@ -66,7 +66,7 @@ public class FollowMobGoal extends Goal {
 
     @Override
     public void tick() {
-        if (followingMob != null) {
+        if (followingMob != null && !mob.isLeashed()) {
             mob.getLookControl().setLookAt(followingMob, 10.0F, mob.getMaxHeadXRot());
             if (--timeToRecalcPath <= 0) {
                 timeToRecalcPath = adjustedTickDelay(10);

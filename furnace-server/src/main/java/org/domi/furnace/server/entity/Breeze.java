@@ -1,6 +1,6 @@
 // 바닐라 Breeze: 바람을 다루는 시련의 몹. 브레인으로 움직이며 대상 주위를 미끄러지다 바람 폭탄을 쏘고(BreezeWindCharge), 대상 뒤쪽으로 길게 뛴다.
 // 플레이어·철 골렘만 공격한다. 애니메이션·입자는 클라이언트 몫이라 생략하되 엔티티 난수는 같은 수만큼 쓴다.
-// TODO(투사체 튕김): 날아오는 투사체를 튕겨 내는 규칙(getProjectileDeflection, deflects_projectiles)은 투사체 쪽 구현 때.
+// 날아오는 투사체는 바람 구슬이 아니면 튕겨 낸다(projectileDeflection).
 package org.domi.furnace.server.entity;
 
 import java.util.Optional;
@@ -122,6 +122,14 @@ public class Breeze extends Monster {
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
         if (attacker instanceof Breeze) return false;
         return super.hurtBy(source, amount, attacker);
+    }
+
+    /** Breeze.getProjectileDeflection: 바람 구슬(wind_charge·breeze_wind_charge)이 아니면 소리를 내며 반대로 튕긴다. */
+    @Override
+    public Projectile.Deflection projectileDeflection(Projectile p) {
+        String n = p.type().name();
+        if (!n.equals("minecraft:breeze_wind_charge") && !n.equals("minecraft:wind_charge")) return Projectile.Deflection.BREEZE;
+        return Projectile.Deflection.NONE;
     }
 
     @Override public int getMaxHeadXRot() { return 25; }

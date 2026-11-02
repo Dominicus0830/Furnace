@@ -315,6 +315,9 @@ public final class PlayerVitals {
 
     public synchronized boolean isSpectator() { return gameMode == GameMode.SPECTATOR; }
 
+    /** 마지막 환경 조사에서 몸이 물속이었나(Entity.isInWater). */
+    public synchronized boolean isInWater() { return inWater; }
+
     public synchronized boolean isFlying() { return abilities.flying; }
 
     /** Abilities.mayfly. */
@@ -344,6 +347,7 @@ public final class PlayerVitals {
             abilities.applyGameMode(mode);
             abilitiesPkt = abilities.packet();
         }
+        if (mode == GameMode.SPECTATOR) player.removeEntitiesOnShoulder();   // ServerPlayer.setGameMode: 관전자가 되면 어깨의 몹을 내려놓는다
         player.send(abilitiesPkt);
         env.broadcastAll(PlayerInfoUpdate.updateGameMode(player.uuid(), mode.id()));
         player.send(new GameEvent(GameEvent.CHANGE_GAME_MODE, mode.id()));
@@ -575,6 +579,7 @@ public final class PlayerVitals {
             }
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
+            player.removeEntitiesOnShoulder();   // Player.hurt: 피해를 받으면 어깨의 몹을 내려놓는다
             // LivingEntity.hurt: 자고 있으면 깬다(Player.stopSleeping = stopSleepInBed(true, true))
             if (player.isSleeping()) PlayerSleeping.stopSleepInBed(player, player.currentLevel, true, true);
             if (attacker != null) player.setLastHurtByMob(attacker);
@@ -738,6 +743,7 @@ public final class PlayerVitals {
         } else {
             player.send(new PlayerCombatKill(player.entityId(), Text.empty()));
         }
+        player.removeEntitiesOnShoulder();   // ServerPlayer.die: 어깨의 몹을 내려놓는다
         DeathListener l = deathListener;
         if (l != null && !spectator) l.onDeath(outcome.keepInventory());
         var board = player.scoreboard();   // 바닐라 ServerPlayer.die: deathCount 기준 +1

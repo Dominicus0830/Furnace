@@ -53,6 +53,9 @@ public interface Targetable {
 
     default int getLastHurtMobTimestamp() { return 0; }
 
+    /** Entity.deflection(projectile): 맞은 투사체를 튕겨 내는 방식(브리즈만 다르다). */
+    default Projectile.Deflection projectileDeflection(Projectile p) { return Projectile.Deflection.NONE; }
+
     /** 투사체가 맞출 수 있나(Entity.isPickable & !spectator). */
     default boolean isPickable() { return isAlive(); }
 }

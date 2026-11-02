@@ -138,7 +138,7 @@ public class ShulkerBullet extends Projectile {
             setDeltaMovement(vx() + (targetDeltaX - vx()) * 0.2, vy() + (targetDeltaY - vy()) * 0.2, vz() + (targetDeltaZ - vz()) * 0.2);
         }
         Hit hit = findHit(x(), y(), z(), x() + vx(), y() + vy(), z() + vz());
-        if (hit != null) onHit(hit);
+        if (hit != null) hitTargetOrDeflectSelf(hit);
         if (isRemoved()) return;
         checkInsideBlocks();
         double nx = x() + vx(), ny = y() + vy(), nz = z() + vz();

@@ -1,5 +1,5 @@
 // 바닐라 Dolphin: 물속을 부드럽게 헤엄치고, 물 위로 뛰어오르며, 숨이 모자라면 수면으로 올라온다. 마르면(moistness) 피해를 입는다.
-// TODO(보물): 가장 가까운 보물 구조물을 못 찾는 것으로 처리(구조물 위치 탐색 필요). TODO(플레이어와 헤엄): Player 수영 상태가 없어 DolphinSwimWithPlayerGoal 은 넣지 않았다.
+// 보물 찾기는 레벨의 ExplorerMaps.Backend(구조물 탐색)가 있을 때만 작동한다(없으면 못 찾은 것으로 처리).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -101,7 +101,7 @@ public class Dolphin extends WaterAnimal {
         goalSelector.addGoal(0, new BreathAirGoal(this));
         goalSelector.addGoal(0, new TryFindWaterGoal(this));
         goalSelector.addGoal(1, new DolphinSwimToTreasureGoal(this));
-        // 2: DolphinSwimWithPlayerGoal(4.0) — Player 수영 상태(isSwimming)가 없어 넣지 않는다
+        goalSelector.addGoal(2, new DolphinSwimWithPlayerGoal(this, 4.0));
         goalSelector.addGoal(4, new RandomSwimmingGoal(this, 1.0, 10));
         goalSelector.addGoal(4, new RandomLookAroundGoal(this));
         goalSelector.addGoal(5, new LookAtPlayerGoal(this, 6.0F));
@@ -202,6 +202,14 @@ public class Dolphin extends WaterAnimal {
         }
     }
 
+    /** gl(): 길찾기 목표 칸 중심이 돌고래 위치에서 12 미만인가. */
+    boolean closeToNextPos() {
+        Pos t = getNavigation().getTargetPos();
+        if (t == null) return false;
+        double dx = t.x() + 0.5 - x(), dy = t.y() + 0.5 - y(), dz = t.z() + 0.5 - z();
+        return dx * dx + dy * dy + dz * dz < 144.0;
+    }
+
     @Override protected String swimSplashSound() { return "entity.dolphin.splash"; }
 
     @Override public String getAmbientSound() { return isInWater() ? "entity.dolphin.ambient_water" : "entity.dolphin.ambient"; }
@@ -226,25 +234,108 @@ public class Dolphin extends WaterAnimal {
 
         @Override
         public boolean canContinueToUse() {
-            Pos p = dolphin.getTreasurePos();
-            double dx = p.x() + 0.5 - dolphin.x(), dy = p.y() + 0.5 - dolphin.y(), dz = p.z() + 0.5 - dolphin.z();
-            boolean near = dx * dx + dy * dy + dz * dz < 16.0;
-            return !near && !stuck && dolphin.getAirSupply() >= 100;
+            return !closeTo(dolphin, 4.0) && !stuck && dolphin.getAirSupply() >= 100;
         }
 
         @Override
         public void start() {
             stuck = false;
             dolphin.getNavigation().stop();
-            // TODO(구조물): findNearestMapStructure(ON_TREASURE_MAPS, pos, 50) — 아직 못 찾는 것으로 처리
-            stuck = true;
+            var maps = dolphin.level().explorerMaps();
+            Pos here = dolphin.blockPosition();
+            int[] found = maps == null ? null : maps.findNearestStructurePos("minecraft:dolphin_located", here.x(), here.y(), here.z(), 50);
+            if (found != null) {
+                dolphin.setTreasurePos(new Pos(found[0], found[1], found[2]));
+                dolphin.broadcastEntityEvent((byte) 38);
+            } else {
+                stuck = true;
+            }
+        }
+
+        /** Vec3i.closerToCenterThan: 목표 x·z 에 돌고래 칸 높이를 합친 칸의 중심까지 4 미만인가(바닐라 jd.a(x, y, z) 칸). */
+        private static boolean closeTo(Dolphin d, double dist) {
+            Pos p = d.getTreasurePos();
+            double dx = p.x() + 0.5 - d.x(), dy = Math.floor(d.y()) + 0.5 - d.y(), dz = p.z() + 0.5 - d.z();
+            return dx * dx + dy * dy + dz * dz < dist * dist;
+        }
+
+        @Override
+        public void tick() {
+            if (dolphin.closeToNextPos() || dolphin.getNavigation().isDone()) {
+                Pos tp = dolphin.getTreasurePos();
+                double[] center = {tp.x() + 0.5, tp.y() + 0.5, tp.z() + 0.5};
+                double[] pos = org.domi.furnace.server.entity.ai.util.DefaultRandomPos.getPosTowards(dolphin, 16, 1, center, Math.PI / 8);
+                if (pos == null) pos = org.domi.furnace.server.entity.ai.util.DefaultRandomPos.getPosTowards(dolphin, 8, 4, center, Math.PI / 2);
+                if (pos != null) {
+                    Pos bp = new Pos((int) Math.floor(pos[0]), (int) Math.floor(pos[1]), (int) Math.floor(pos[2]));
+                    if (!Fluids.isWater(dolphin.level().getFluidState(bp))
+                            || !org.domi.furnace.server.block.Pathfinding.isPathfindable(dolphin.level().getBlockState(bp), org.domi.furnace.server.block.Pathfinding.WATER)) {
+                        pos = org.domi.furnace.server.entity.ai.util.DefaultRandomPos.getPosTowards(dolphin, 8, 5, center, Math.PI / 2);
+                    }
+                }
+                if (pos == null) {
+                    stuck = true;
+                    return;
+                }
+                dolphin.getLookControl().setLookAt(pos[0], pos[1], pos[2], dolphin.getMaxHeadYRot() + 20, dolphin.getMaxHeadXRot());
+                dolphin.getNavigation().moveTo(pos[0], pos[1], pos[2], 1.3);
+                if (dolphin.level().random().nextInt(adjustedTickDelay(80)) == 0) dolphin.broadcastEntityEvent((byte) 38);
+            }
         }
 
         @Override
         public void stop() {
-            Pos p = dolphin.getTreasurePos();
-            double dx = p.x() + 0.5 - dolphin.x(), dy = p.y() - dolphin.y(), dz = p.z() + 0.5 - dolphin.z();
-            if (dx * dx + dy * dy + dz * dz < 16.0 || stuck) dolphin.setGotFish(false);
+            if (closeTo(dolphin, 4.0) || stuck) dolphin.setGotFish(false);
+        }
+    }
+
+    /** DolphinSwimWithPlayerGoal: 헤엄치는 플레이어(10칸 안)를 따라가며, 가끔 돌고래의 가호(100틱)를 준다. */
+    static final class DolphinSwimWithPlayerGoal extends Goal {
+        private static final org.domi.furnace.server.entity.ai.targeting.TargetingConditions SWIM_WITH_PLAYER_TARGETING =
+                org.domi.furnace.server.entity.ai.targeting.TargetingConditions.forNonCombat().range(10.0).ignoreLineOfSight();
+        private final Dolphin dolphin;
+        private final double speedModifier;
+        private Player player;
+
+        DolphinSwimWithPlayerGoal(Dolphin dolphin, double speedModifier) {
+            this.dolphin = dolphin;
+            this.speedModifier = speedModifier;
+            setFlags(java.util.EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            player = dolphin.level().getNearestPlayer(SWIM_WITH_PLAYER_TARGETING, dolphin, dolphin.x(), dolphin.y(), dolphin.z());
+            return player != null && player.swimming && dolphin.getTarget() != player;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            if (player == null || !player.swimming) return false;
+            double dx = dolphin.x() - player.x(), dy = dolphin.y() - player.y(), dz = dolphin.z() - player.z();
+            return dx * dx + dy * dy + dz * dz < 256.0;
+        }
+
+        @Override
+        public void start() {
+            { var pl = player; pl.runOnOwner(() -> pl.vitals().addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.DOLPHINS_GRACE, 100))); }
+        }
+
+        @Override
+        public void stop() {
+            player = null;
+            dolphin.getNavigation().stop();
+        }
+
+        @Override
+        public void tick() {
+            dolphin.getLookControl().setLookAt(player.x(), player.eyeY(), player.z(), dolphin.getMaxHeadYRot() + 20, dolphin.getMaxHeadXRot());
+            double dx = dolphin.x() - player.x(), dy = dolphin.y() - player.y(), dz = dolphin.z() - player.z();
+            if (dx * dx + dy * dy + dz * dz < 6.25) dolphin.getNavigation().stop();
+            else dolphin.getNavigation().moveTo(player, speedModifier);
+            if (player.swimming && dolphin.level().random().nextInt(6) == 0) {
+                { var pl = player; pl.runOnOwner(() -> pl.vitals().addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.DOLPHINS_GRACE, 100))); }
+            }
         }
     }
 

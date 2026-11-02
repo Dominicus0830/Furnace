@@ -773,8 +773,12 @@ public abstract non-sealed class Entity implements Rider {
 
     public void remove(RemovalReason reason) { setRemoved(reason); }
 
+    /** Entity.removeAfterChangingDimensions: 차원 이동으로 빠질 때 끈 달린 것은 끈을 푼다(Leashable.dropLeash(true, false)). */
+    protected void removeAfterChangingDimensions() {}
+
     public final void setRemoved(RemovalReason reason) {
         if (removalReason == null) removalReason = reason;
+        if (removalReason == RemovalReason.CHANGED_DIMENSION) removeAfterChangingDimensions();
         if (removalReason.shouldDestroy()) stopRiding();
         if (!passengers.isEmpty()) for (Rider r : passengers) r.stopRiding();
         if (level != null) level.entityRemoved(this);

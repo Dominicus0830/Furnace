@@ -16,7 +16,7 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public abstract class Mob extends LivingEntity {
+public abstract class Mob extends LivingEntity implements Leashable {
 
     /** Mob.DATA_MOB_FLAGS_ID = 15: 1 NoAI, 2 왼손잡이, 4 공격 중. */
     public static final int DATA_MOB_FLAGS = 15;
@@ -839,6 +839,9 @@ public abstract class Mob extends LivingEntity {
         float f = (float) (self.x() - o.x()), g = (float) (self.y() - o.y()), h = (float) (self.z() - o.z());
         return (float) Math.sqrt(f * f + g * g + h * h);
     }
+
+    @Override
+    protected void removeAfterChangingDimensions() { dropLeash(true, false); }
 
     /** setLeashedTo(holder, broadcast)(b): 이으면 타고 있던 탈것에서 내린다. */
     public void setLeashedTo(Rider holder, boolean broadcast) {

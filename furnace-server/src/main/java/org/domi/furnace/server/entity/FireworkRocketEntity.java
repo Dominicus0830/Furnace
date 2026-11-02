@@ -124,7 +124,7 @@ public class FireworkRocketEntity extends Projectile {
         if (!noPhysics) {
             Hit hit = findHit(x(), y(), z(), x() + vx(), y() + vy(), z() + vz());
             if (hit != null) {
-                onHit(hit);
+                hitTargetOrDeflectSelf(hit);
                 hasImpulse = true;
             }
         }

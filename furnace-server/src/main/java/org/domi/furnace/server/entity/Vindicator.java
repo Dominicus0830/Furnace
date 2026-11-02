@@ -1,5 +1,4 @@
 // 바닐라 Vindicator: 도끼를 든 일러저. 플레이어·주민·철 골렘을 노린다. 'Johnny' 이름이면 모든 생명체를 공격한다.
-// TODO(습격·이름표): 습격 무기 마법 부여, 이름표 Johnny 감지.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -31,6 +30,7 @@ public class Vindicator extends AbstractIllager {
         targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, true));
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Villager.class, true));
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, IronGolem.class, true));
+        targetSelector.addGoal(4, new VindicatorJohnnyAttackGoal(this));
         goalSelector.addGoal(8, new RandomStrollGoal(this, 0.6));
         goalSelector.addGoal(9, new InteractGoal(this, 3.0F, 1.0F));
         goalSelector.addGoal(10, new LookAtMobGoal(this, Mob.class, 8.0F, 0.02F));
@@ -78,7 +78,46 @@ public class Vindicator extends AbstractIllager {
 
     @Override
     public void applyRaidBuffs(int wave, boolean captain) {
-        // TODO(습격): 파도에 따라 도끼 마법(날카로움/힘) 부여
+        ItemStack axe = stackOf("minecraft:iron_axe");
+        var raid = getCurrentRaid();
+        if (raid == null) return;
+        // Raid.getEnchantOdds: 불길한 징조 레벨 2 → 0.1, 3 → 0.25, 4 → 0.5, 5 → 0.75, 그 밖은 0
+        int omen = raid.raidOmenLevel();
+        float odds = omen == 2 ? 0.1F : omen == 3 ? 0.25F : omen == 4 ? 0.5F : omen == 5 ? 0.75F : 0.0F;
+        if (random.nextFloat() <= odds) {
+            // 파도가 보통 난이도의 습격 수(5)를 넘으면 post_wave_5 제공자
+            String provider = wave > org.domi.furnace.server.world.raid.Raid.getNumGroups(2) ? "minecraft:raid/vindicator_post_wave_5" : "minecraft:raid/vindicator";
+            var difficulty = level.getCurrentDifficultyAt(blockPosition());
+            axe = org.domi.furnace.server.item.EnchantTools.enchantFromProvider(axe, level.lootData(), provider, difficulty.specialMultiplier(), random);
+        }
+        setItemSlot(EquipmentSlot.MAINHAND, axe);
+    }
+
+    /** Vindicator.setCustomName: 이름이 정확히 "Johnny" 가 되면 영구히 모든 생명체를 노린다. */
+    @Override
+    public void setCustomName(org.domi.furnace.api.text.Text name) {
+        super.setCustomName(name);
+        if (!isJohnny && name != null && name.getString().equals("Johnny")) isJohnny = true;
+    }
+
+    boolean isJohnny() { return isJohnny; }
+
+    /** Vindicator.VindicatorJohnnyAttackGoal: 'Johnny' 이면 간격 없이 보이고 닿는 모든 생명체(갑옷 거치대 제외)를 노린다. */
+    static final class VindicatorJohnnyAttackGoal extends NearestAttackableTargetGoal {
+        private final Vindicator vindicator;
+
+        VindicatorJohnnyAttackGoal(Vindicator mob) {
+            super(mob, LivingEntity.class, 0, true, true, t -> !(t instanceof ArmorStand));
+            this.vindicator = mob;
+        }
+
+        @Override public boolean canUse() { return vindicator.isJohnny && super.canUse(); }
+
+        @Override
+        public void start() {
+            super.start();
+            vindicator.setNoActionTime(0);
+        }
     }
 
     @Override public String getAmbientSound() { return "entity.vindicator.ambient"; }

@@ -1,5 +1,4 @@
 // 바닐라 Fox: 낮에 자고, 몰래 다가가(crouch) 덮치는(pounce) 여우. 입에 아이템을 물고 있고, 신뢰하는 플레이어 2명(Trusted)을 기억한다. 눈 바이옴은 흰 여우.
-// TODO(먹이 효과): 입에 문 음식의 효과는 확률만 적용한다.
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;
@@ -308,18 +307,24 @@ public class Fox extends Animal {
         if (isDefending() && random.nextFloat() < 0.05F) playSound("entity.fox.aggro", 1.0F, 1.0F);
     }
 
-    /** ItemStack.finishUsingItem(food) 의 단순형: 먹는 소리와 확률 효과(난수만), 하나 소비. */
-    private ItemStack finishEating(ItemStack s) {
-        playSound("entity.generic.eat", 1.0F, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
+    /**
+     * ItemStack.finishUsingItem(food) → LivingEntity.eat: 여우 먹는 소리(피치의 난수는 레벨 난수), 효과마다 엔티티 난수 < 확률이면 걸고,
+     * 하나 소비한 뒤 EAT 게임 이벤트.
+     */
+    ItemStack finishEating(ItemStack s) {
+        var lr = level.random();
+        level.playSound(null, x(), y(), z(), "entity.fox.eat", "neutral", 1.0F, 1.0F + (lr.nextFloat() - lr.nextFloat()) * 0.4F);
         if (ItemTools.component(s, "minecraft:food") instanceof java.util.Map<?, ?> f && f.get("effects") instanceof List<?> fx) {
             for (Object o : fx) {
-                if (o instanceof java.util.Map<?, ?> m) {
+                if (o instanceof java.util.Map<?, ?> m && m.get("effect") instanceof java.util.Map<?, ?> e) {
                     float prob = m.get("probability") instanceof Number x ? x.floatValue() : 1.0F;
-                    random.nextFloat();   // 확률 판정 — TODO(효과 적용)
+                    if (random.nextFloat() < prob) addEffect(Consuming.fromMap(e));
                 }
             }
         }
-        return s.withCount(s.count() - 1);
+        ItemStack rest = s.withCount(s.count() - 1);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EAT);
+        return rest;
     }
 
     @Override

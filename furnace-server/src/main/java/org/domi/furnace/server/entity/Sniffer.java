@@ -88,7 +88,7 @@ public class Sniffer extends Animal {
 
     public boolean isTempted() { return getBrain().getMemory(MemoryModuleType.IS_TEMPTED).orElse(false); }
 
-    public boolean canSniff() { return !isTempted() && !isPanicking() && !isInWater() && !isInLove() && onGround(); }
+    public boolean canSniff() { return !isTempted() && !isPanicking() && !isInWater() && !isInLove() && onGround() && !isPassenger() && !isLeashed(); }
 
     public boolean isSearching() { return getState() == State.SEARCHING; }
 

@@ -219,6 +219,13 @@ public class Camel extends AbstractHorse {
 
     @Override protected String getEatingSound() { return "entity.camel.eat"; }
 
+    /** Camel.checkLeashDistance: 6칸 넘게 당기면 앉아 있다가 일어난다(AbstractHorse 의 먹기 해제는 부르지 않는다). */
+    @Override
+    protected boolean checkLeashDistance(Rider holder, float dist) {
+        if (dist > 6.0F && isCamelSitting() && !isInPoseTransition() && canChangePose()) standUp();
+        return true;
+    }
+
     private static class CamelMoveControl extends MoveControl {
         private final Camel camel;
 
@@ -229,7 +236,7 @@ public class Camel extends AbstractHorse {
 
         @Override
         public void tick() {
-            if (operation == Operation.MOVE_TO && camel.isCamelSitting() && !camel.isInPoseTransition() && camel.canChangePose()) camel.standUp();
+            if (operation == Operation.MOVE_TO && !camel.isLeashed() && camel.isCamelSitting() && !camel.isInPoseTransition() && camel.canChangePose()) camel.standUp();
             super.tick();
         }
     }

@@ -37,12 +37,16 @@ class PlayerSleepingTest {
         String dim;
         Player player;
         int sleepListUpdates;
+        org.domi.furnace.server.map.ExplorerMaps.Backend maps;
+        long gameTime;
         final java.util.List<String> giftTables = new java.util.ArrayList<>();
 
         @Override
         protected LevelServices services() {
             return new LevelServices.Delegating(LevelServices.DEFAULT) {
                 @Override public long dayTime() { return dayTime; }
+                @Override public long gameTime() { return gameTime; }
+                @Override public org.domi.furnace.server.map.ExplorerMaps.Backend explorerMaps() { return maps; }
                 @Override public String dimension() { return dim != null ? dim : type.levelKey(); }
                 @Override public DimensionType dimensionType() { return type; }
                 @Override public void forEachPlayer(Consumer<Player> c) { if (player != null) c.accept(player); }

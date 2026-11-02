@@ -28,20 +28,80 @@ public abstract class Projectile extends Entity {
         }
     }
 
+    /** ProjectileDeflection: NONE 튕기지 않음, AIM 튕긴 쪽의 시선(단위), REVERSE 반대로 반 속도·방향 170~190도 틀기, BREEZE 브리즈 튕김 소리 + REVERSE. */
+    public enum Deflection { NONE, AIM, REVERSE, BREEZE }
+
+    /** tags/entity_type redirectable_projectile(fireball·wind_charge·breeze_wind_charge): 맞을 수 있고 튕겨 낼 수 있다(Projectile.isPickable). */
+    public boolean isRedirectable() {
+        String n = type().name();
+        return n.equals("minecraft:fireball") || n.equals("minecraft:wind_charge") || n.equals("minecraft:breeze_wind_charge");
+    }
+
+    @Override public boolean isPickable() { return isRedirectable(); }
+
+    private Targetable lastDeflectedBy;
+
     /**
-     * Projectile.deflect(AIM_DEFLECT, deflecter, owner, byAttack)(cnp.a + cnq.c): 서버에서 던진 쪽의 시선 방향 단위 벡터를 속도로 하고
-     * 주인을 owner 로 바꾼 뒤 onDeflection. 튕김을 받지 않으면(canDeflect 거짓) false. 시선이 거의 0 이면 속도 0.
+     * Projectile.deflect(deflection, deflecter, owner, byAttack): 서버에서 방식대로 속도를 바꾸고 주인을 owner 로 바꾼 뒤 onDeflection.
+     * 튕김을 받지 않으면(canDeflect 거짓) false. AIM 은 튕긴 쪽이 없으면(null) 속도를 건드리지 않는다.
      */
-    public boolean deflectAim(Player deflecter, Targetable newOwner, boolean byAttack) {
+    public boolean deflect(Deflection d, Targetable deflecter, Targetable newOwner, boolean byAttack) {
         if (!canDeflect()) return false;
-        double[] v = org.domi.furnace.server.block.Clip.viewVector(deflecter.pitch(), deflecter.yaw());
-        double len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-        if (len < 1.0E-5) setDeltaMovement(0.0, 0.0, 0.0);
-        else setDeltaMovement(v[0] / len, v[1] / len, v[2] / len);
-        hasImpulse = true;
+        switch (d) {
+            case AIM -> {
+                if (deflecter != null) {
+                    double[] v = lookOf(deflecter);
+                    double len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+                    if (len < 1.0E-5) setDeltaMovement(0.0, 0.0, 0.0);
+                    else setDeltaMovement(v[0] / len, v[1] / len, v[2] / len);
+                    hasImpulse = true;
+                }
+            }
+            case BREEZE -> {
+                if (deflecter instanceof Entity e) level.playSound(null, e.x(), e.y(), e.z(), "entity.breeze.deflect", "hostile", 1.0F, 1.0F);
+                reverse();
+            }
+            case REVERSE -> reverse();
+            case NONE -> { }
+        }
         setOwner(newOwner);
         onDeflection(byAttack);
         return true;
+    }
+
+    /** ProjectileDeflection.REVERSE: 속도 -0.5배, 바라보는 방향 170 + 난수(0~20)도 틀기. */
+    private void reverse() {
+        float turn = 170.0F + random.nextFloat() * 20.0F;
+        setDeltaMovement(vx() * -0.5, vy() * -0.5, vz() * -0.5);
+        setYRot(yRot() + turn);
+        yRotO += turn;
+        hasImpulse = true;
+    }
+
+    private static double[] lookOf(Targetable t) {
+        if (t instanceof Player p) return org.domi.furnace.server.block.Clip.viewVector(p.pitch(), p.yaw());
+        if (t instanceof Entity e) return org.domi.furnace.server.block.Clip.viewVector(e.xRot(), e.yRot());
+        return new double[] {0.0, 0.0, 0.0};
+    }
+
+    /** Projectile.deflect(AIM_DEFLECT, deflecter, owner, byAttack): 시선 방향 단위 벡터가 속도가 된다(플레이어 공격). */
+    public boolean deflectAim(Player deflecter, Targetable newOwner, boolean byAttack) { return deflect(Deflection.AIM, deflecter, newOwner, byAttack); }
+
+    /**
+     * Projectile.hitTargetOrDeflectSelf: 맞은 엔티티가 튕기는 쪽(브리즈)이면 이 투사체가 튕겨 나가고 onHit 은 부르지 않는다. 튕겼으면 true.
+     * 그 밖에는 redirectable_projectile 을 맞췄을 때 그쪽을 시선 방향으로 튕긴 뒤 onHit(엔티티 적중: 이 투사체는 Targetable 이 아닌 투사체를 아직 못 맞춘다).
+     */
+    protected boolean hitTargetOrDeflectSelf(Hit hit) {
+        if (hit.isEntity() && !(hit.target() instanceof EnderDragonPart)) {
+            Targetable t = hit.target();
+            Deflection d = t.projectileDeflection(this);
+            if (d != Deflection.NONE) {
+                if (t != lastDeflectedBy && deflect(d, t, getOwner(), false)) lastDeflectedBy = t;
+                return true;
+            }
+        }
+        onHit(hit);
+        return false;
     }
 
     /** 튕김을 받는가(바람 구슬은 처음 5틱 동안 거짓). */

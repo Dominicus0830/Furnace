@@ -1,5 +1,5 @@
 // 바닐라 Rabbit: 깡충깡충 뛰는 이동·점프 제어, 변종(털 색·킬러 토끼), 당근 밭 털기, 늑대·플레이어·몬스터에게서 도망.
-// TODO: 킬러 토끼의 이름 표시(사용자 지정 이름 기능 필요), 점프 입자·소리 분류(킬러 토끼 hostile).
+// 점프 입자는 클라이언트 몫이라 생략.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -190,6 +190,7 @@ public class Rabbit extends Animal {
             targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, true));
             targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Wolf.class, true));
             attributes().get(Attribute.ATTACK_DAMAGE).addOrReplaceModifier(new AttributeModifier(EVIL_ATTACK_MODIFIER, 5.0, AttributeModifier.ADD_VALUE));
+            if (!hasCustomName()) setCustomName(org.domi.furnace.api.text.Text.translatable("entity.minecraft.killer_bunny"));   // 이름 없으면 킬러 토끼
         } else {
             attributes().get(Attribute.ATTACK_DAMAGE).removeModifier(EVIL_ATTACK_MODIFIER);
         }

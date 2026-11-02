@@ -180,7 +180,7 @@ public abstract class AbstractArrow extends Projectile {
                 }
             }
             if (hit != null && !noPhysics) {
-                onHit(hit);
+                hitTargetOrDeflectSelf(hit);
                 hasImpulse = true;
                 break;
             }
