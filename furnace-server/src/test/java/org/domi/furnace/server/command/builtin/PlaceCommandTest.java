@@ -101,8 +101,8 @@ class PlaceCommandTest {
         assertEquals(List.of("Placed \"minecraft:oak\" at 24, 200, 24"), run("place feature minecraft:oak 24 200 24"));
         assertTrue(B.is(at(24, 200, 24), "minecraft:oak_log"));
         // 아직 구현하지 않은 feature 는 성공으로 위장하지 않는다
-        assertEquals(List.of("Placing feature minecraft:bonus_chest is not supported yet"), run("place feature minecraft:bonus_chest 24 200 40"));
-        assertTrue(B.isAir(at(24, 200, 40)));
+        // bonus_chest 는 이제 구현됨(루트 Noop 은 더 없다) — origin 청크 안 어딘가에 놓인다
+        assertEquals(List.of("Placed \"minecraft:bonus_chest\" at 24, 200, 40"), run("place feature minecraft:bonus_chest 24 200 40"));
     }
 
     @Test

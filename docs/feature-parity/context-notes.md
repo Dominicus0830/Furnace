@@ -600,3 +600,13 @@
 - **lz4 경고**: `region-file-compression=lz4` 미지원이며 읽기도 안 된다. 1.20.5+ 바닐라에서 lz4 로 저장된 월드를 가져오면 청크 읽기가 실패한다(가져오기 전에 바닐라에서 deflate 로 바꿔 저장해야 함).
 - 시험: `RconServerTest`(연결당 실패 끊기·IP 차단·스레드 이름·연결 상한), `QueryHandlerTest.challengeMapIsCapped`.
 - **알려진 한계(RCON 보강)**: IP 차단은 NAT·loopback 뒤의 정당한 관리자까지 60초 막을 수 있다. idle 연결 16개가 상한을 채우면 관리자 접속을 방해할 수 있다(후속: IP당 동시 연결 상한). 실패 IP 맵 청소는 크기가 4096 을 넘을 때만 한다. 실패 카운트는 응답을 쓰기 전에 올린다(재접속 경합 방지).
+
+## 2026-11-02 월드젠 잔여: nether_fossil · void_start_platform · bonus_chest (작업 4)
+- **nether_fossil**: `NetherFossilStructure`(디컴파일 `ema` + `elz`) 이식. 난수 순서: `nextInt(16)`(x) → `nextInt(16)`(z) → 높이 uniform(`absolute 32` ~ `below_top 2` = 32..125, `nextInt(94)`) → 위에서 아래로 base column 탐색(위 칸 공기 && 아래 칸 영혼 모래 또는 윗면 단단) → y ≤ 해수면(32)이면 시작점 없음. 조각 생성은 바이옴 검사 뒤: `Rotation.getRandom`(`nextInt(4)`)이 템플릿 선택(`nextInt(14)`)보다 먼저. 위치는 단단한 아래 칸 좌표. 조각은 postProcess 때 쓰기 상자를 템플릿 전체 상자로 넓힌다(청크 경계로 잘리지 않는 바닐라 quirk, 재현).
+- **FeaturePlacer 수정**: 바닐라는 `placeInChunk` 호출마다 새 `getWritableArea` 상자를 만든다. Furnace 는 청크당 하나를 공유해서 상자를 넓히는 조각(화석)이 뒤 구조물·피처에 새는 문제가 있어 호출마다 새로 만들게 했다. 다른 조각은 상자를 바꾸지 않으므로 기존 결과 불변.
+- **void_start_platform**: `VoidStartPlatformFeature` 이식(청크 (0,0) 체커보드 거리 1 이내에서만, 중심 (8, origin.y+3, 8) 조약돌 + 반경 16 돌). 바닐라 origin 은 청크 최소 y(`SectionPos.origin`)인데 Furnace `PlacedFeature.placeWithBiomeCheck` 가 y=0 을 넘기고 있어 `view.minBuildHeight()` 로 고쳤다(biome-only 배치 외에는 y 를 새로 정하므로 다른 피처 결과 불변). the_void 바이옴은 `possibleBiomes`(53개)에 없어 일반 월드에서는 호출되지 않는다.
+- **bonus_chest**: `BonusChestFeature` 이식(열 셔플 `Util.toShuffledList` → MOTION_BLOCKING_NO_LEAVES 위 첫 빈 칸에 상자 + `spawn_bonus_chest` 표 시드 `nextLong` + 사방 횃불 `canSurvive`). `/place feature minecraft:bonus_chest` 로 쓸 수 있다.
+  - **미연결(바닐라와 다른 점)**: 바닐라는 월드 생성 시 `MinecraftServer.setInitialSpawn` 이 `level.random`(비결정 시드)으로 이 피처를 스폰 지점에 놓는다. 전용 서버에는 설정이 없고(`level.dat` 의 `bonus_chest` 만 읽는다) Furnace 의 스폰 결정 코드에는 연결하지 않았다. 난수원이 비결정이라 재현 대상도 아니다.
+  - 중심 청크 밖 읽기/쓰기는 월드젠 뷰 제약을 따른다(`/place` 격자 뷰에서는 반경 안에서 정상).
+- **generate-structures=false** 재확인(최신 HEAD): `server.properties` → `LevelData.generate_features` → `FurnaceMain.applyWorldGenOptions` 가 오버월드·네더·엔드 모든 `NoiseWorldSource` 의 `StructureEngine.setStructuresEnabled` 를 끈다. 이미 동작하며(`WorldGenOptionsTest`) 수정할 것 없음. 평지(`SuperflatWorldSource`)는 구조물을 아직 만들지 않는다.
+- **검증 한계(가정, oracle 미검증)**: 샌드박스에서 worldgen oracle 을 쓸 수 없어 위 세 항목은 디컴파일을 한 줄씩 대조한 손계산 시험(`NetherFossilStructureTest`, `VoidAndBonusFeaturesTest`)만 있다. 실제 네더 지형(영혼 모래 골짜기)에서의 화석 위치·바닐라 `.mca` 대조는 하지 않았다. base column 은 기존 `TerrainAccess.baseBlock`(노이즈 채움, Beardifier 없음)을 그대로 쓴다.

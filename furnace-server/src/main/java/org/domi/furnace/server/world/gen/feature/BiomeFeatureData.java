@@ -69,7 +69,8 @@ public final class BiomeFeatureData {
         "minecraft:huge_fungus", "minecraft:nether_forest_vegetation", "minecraft:twisting_vines", "minecraft:weeping_vines",
         "minecraft:netherrack_replace_blobs", "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
         "minecraft:glowstone_blob",
-        "minecraft:end_spike", "minecraft:end_island", "minecraft:end_gateway", "minecraft:chorus_plant", "minecraft:end_platform"
+        "minecraft:end_spike", "minecraft:end_island", "minecraft:end_gateway", "minecraft:chorus_plant", "minecraft:end_platform",
+        "minecraft:void_start_platform", "minecraft:bonus_chest"
     );
 
     private final Map<String, List<List<PlacedFeature>>> biomeFeatures; // 삽입(=load) 순서 보존
@@ -488,6 +489,12 @@ public final class BiomeFeatureData {
             }
             if (type.equals("minecraft:end_platform")) {
                 return new EndPlatformFeature(registry);
+            }
+            if (type.equals("minecraft:bonus_chest")) {
+                return new BonusChestFeature(registry);
+            }
+            if (type.equals("minecraft:void_start_platform")) {
+                return new VoidStartPlatformFeature(registry);
             }
             if (type.equals("minecraft:chorus_plant")) {
                 return new ChorusPlantFeature(registry);

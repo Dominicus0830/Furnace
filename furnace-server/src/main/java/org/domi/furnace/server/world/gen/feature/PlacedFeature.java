@@ -15,7 +15,8 @@ public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> p
     /** vanilla biome placement filter 포함 배치. validBiomeIds = null이면 biome check 없음. */
     public boolean placeWithBiomeCheck(FeatureWorldView view, WorldgenRandom random,
                                        int blockX, int blockZ, Set<Integer> validBiomeIds) {
-        return placeAt(view, random, new BlockPos(blockX, 0, blockZ), validBiomeIds);
+        // 바닐라 applyBiomeDecoration: origin = SectionPos.of(chunk, minSection).origin() → y = 최소 건축 높이 (void_start_platform 이 origin.y 를 쓴다)
+        return placeAt(view, random, new BlockPos(blockX, view.minBuildHeight(), blockZ), validBiomeIds);
     }
 
     /** 주어진 origin에서 placement modifier 적용 후 feature 배치. 내포 placed feature(random_patch inner 등)용. */

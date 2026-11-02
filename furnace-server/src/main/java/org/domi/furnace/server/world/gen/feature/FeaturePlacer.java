@@ -61,8 +61,6 @@ public final class FeaturePlacer {
         WorldgenRandom featureRandom = new XoroshiroWorldgenRandom();
         // 바닐라 WorldGenRegion.getRandom() — 이 청크(cx,cz) 원점에 fork, 구조물+feature 전체가 순차 공유 소비.
         NoiseRandom regionRandom = regionRandomFactory.at(cx * 16, 0, cz * 16);
-        BoundingBox writableBox = new BoundingBox(
-            cx * 16, Integer.MIN_VALUE / 2, cz * 16, cx * 16 + 15, Integer.MAX_VALUE / 2, cz * 16 + 15);
 
         if (DEBUG) {
             System.out.printf("FURNACE decorate cx=%d cz=%d decorationSeed=%d biomes=%s%n",
@@ -84,6 +82,9 @@ public final class FeaturePlacer {
                             seeded = true;
                         }
                         synchronized (start) {
+                            // 바닐라: 호출마다 새 쓰기 상자(getWritableArea) — 조각이 상자를 넓혀도(네더 화석) 다음 시작점에 새지 않는다
+                            BoundingBox writableBox = new BoundingBox(
+                                cx * 16, Integer.MIN_VALUE / 2, cz * 16, cx * 16 + 15, Integer.MAX_VALUE / 2, cz * 16 + 15);
                             start.placeInChunk(structureEngine, view, featureRandom, regionRandom, writableBox, cx, cz);
                         }
                     }

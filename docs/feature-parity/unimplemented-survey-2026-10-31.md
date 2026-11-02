@@ -62,7 +62,7 @@ command_block(3종), trial_spawner, vault, brushable_block(suspicious sand/grave
 - 화이트리스트, 밴, op, 월드 보더(차원 간 공유), 서버 목록 핑은 구현됨.
 
 ## 4. 월드 생성·월드 시스템
-- `NoopFeature` 로 남은 루트: `bonus_chest`, `void_start_platform`. 구조물 type 중 `nether_fossil` 만 미등록.
+- (2026-11-02 갱신: `bonus_chest`·`void_start_platform`·`nether_fossil` 모두 이식됨 — context-notes 참고)
 - 순정 대조 미검증 구조물: 정글 신전, 늪 오두막, 해저 신전, 전초기지, 고대 도시, 시련의 방, 보루, 트레일 유적. 사막 피라미드는 근사(허용 불일치 700~1850칸).
 - 다중 청크 decoration 은 center 청크 1개만 읽고 쓰는 구조 제약(이웃과 겹치는 나무·균류).
 - 커스텀 월드 타입(large_biomes, amplified, debug) 무시. `/locate biome|poi` 일부, 돌고래 보물 탐색, 지도 `skipKnownStructures` 한계.
