@@ -185,6 +185,7 @@ public final class ItemEntity extends Entity {
         ItemStack s = getItem();
         int count = s.count();
         if (pickupDelay != 0 || target != null && !target.equals(player.uuid())) return;
+        if (!level.gameEvents().playerPickup(player, s)) return;   // 플러그인 PlayerPickupItemEvent 취소
         ItemStack left = player.inventory().add(s, player.hasInfiniteMaterials(), ItemStackCodecs.maxStackSize(s), ItemTools.damage(s) > 0);
         // Inventory.add 는 마지막 시도에서 다 넣었을 때만 참이다 — 일부만 들어가면 스택만 줄고 줍기 처리는 하지 않는다
         if (!left.isEmpty()) {

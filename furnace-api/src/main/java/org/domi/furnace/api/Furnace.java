@@ -12,6 +12,7 @@ import org.domi.furnace.api.permission.PermissionManager;
 import org.domi.furnace.api.plugin.PluginManager;
 import org.domi.furnace.api.sched.FurnaceScheduler;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.api.world.World;
 
 public interface Furnace {
 
@@ -54,6 +55,12 @@ public interface Furnace {
     int maxPlayers();
 
     Text motd();
+
+    /** 차원 키(minecraft:overworld)의 월드, 없으면 null. */
+    World world(String dimension);
+
+    /** 모든 차원 월드(오버월드 먼저). */
+    java.util.List<? extends World> worlds();
 
     CommandSender console();
 

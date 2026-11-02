@@ -4,12 +4,15 @@ package org.domi.furnace.api.entity;
 import java.net.InetSocketAddress;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.command.CommandSender;
+import org.domi.furnace.api.inventory.Inventory;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.world.Location;
 
-public interface Player extends CommandSender {
+public interface Player extends CommandSender, LivingEntity {
 
+    @Override
     UUID uniqueId();
 
     /** 바닐라 Player.getDisplayName: 이름 + "/tell 이름" 제안 클릭 + 삽입. */
@@ -18,6 +21,7 @@ public interface Player extends CommandSender {
     boolean isOnline();
 
     /** 마지막으로 알려진 위치. */
+    @Override
     Location location();
 
     GameMode gameMode();
@@ -25,6 +29,7 @@ public interface Player extends CommandSender {
     /** 바닐라 setGameMode: 같으면 false. PlayerGameModeChangeEvent 를 거친다. */
     boolean setGameMode(GameMode mode);
 
+    @Override
     float health();
 
     /** 0..최대 체력으로 잘린다. 0 이면 죽는다. */
@@ -65,4 +70,31 @@ public interface Player extends CommandSender {
 
     /** 이 플레이어로서 명령을 실행 큐에 넣는다(앞의 '/' 는 없어도 된다). 접수 여부를 돌려준다(결과는 나중에 정해진다). */
     boolean performCommand(String command);
+
+    /** 플레이어 인벤토리 핸들(비동기 접근). */
+    Inventory inventory();
+
+    @Override
+    default String type() { return "minecraft:player"; }
+
+    @Override
+    default Text customName() { return null; }
+
+    @Override
+    default boolean isValid() { return isOnline(); }
+
+    /** 플레이어 핸들은 항상 최신 값을 읽으므로 자기 자신. */
+    @Override
+    default CompletableFuture<Player> refresh() { return CompletableFuture.completedFuture(this); }
+
+    @Override
+    default CompletableFuture<Void> updateHealth(float health) {
+        setHealth(health);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    default CompletableFuture<Boolean> remove() {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("플레이어는 remove 할 수 없다 — kick 을 쓴다"));
+    }
 }

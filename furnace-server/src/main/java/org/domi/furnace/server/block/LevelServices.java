@@ -181,6 +181,9 @@ public interface LevelServices {
      */
     default void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { done.accept(0); }
 
+    /** 플러그인 이벤트 입구. 서버 없는 레벨은 아무것도 안 부른다. */
+    default org.domi.furnace.server.plugin.GameEvents gameEvents() { return org.domi.furnace.server.plugin.GameEvents.NONE; }
+
     /** 기본값(서버 없이 쓰는 테스트·도구용). */
     LevelServices DEFAULT = new LevelServices() {
         public boolean gameRule(String name) { return !DEFAULT_FALSE_RULES.contains(name); }
@@ -212,6 +215,7 @@ public interface LevelServices {
         public boolean gameRule(String name) { return d.gameRule(name); }
         public int gameRuleInt(String name) { return d.gameRuleInt(name); }
         public int difficulty() { return d.difficulty(); }
+        public org.domi.furnace.server.plugin.GameEvents gameEvents() { return d.gameEvents(); }
         public org.domi.furnace.server.scores.Scoreboard scoreboard() { return d.scoreboard(); }
         public boolean worldAdventure() { return d.worldAdventure(); }
         public boolean withinBorder(int x, int z) { return d.withinBorder(x, z); }

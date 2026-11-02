@@ -164,7 +164,13 @@ public final class EventBusImpl implements EventBus {
             h.fn().accept(event);
         } catch (Throwable t) {
             // Bukkit: "Could not pass event X to Plugin vY"
-            log.error("Could not pass event {} to {}", event.eventName(), h.plugin().description().fullName(), t);
+            String who;
+            try {
+                who = h.plugin().description().fullName();
+            } catch (RuntimeException ex) {   // 설명이 없는 플러그인 객체여도 로그 때문에 발행이 끊기면 안 된다
+                who = h.plugin().getClass().getName();
+            }
+            log.error("Could not pass event {} to {}", event.eventName(), who, t);
         }
     }
 

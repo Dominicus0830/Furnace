@@ -662,3 +662,18 @@
 - **방랑 상인 타이머 원자화**: `claimTick`·읽기·감소·쓰기를 `state.lock()` 으로 묶었고, level.dat 저장도 같은 잠금으로 (delay, chance) 쌍을 한 번에 읽는다. 승자 region 에 플레이어가 없으면 타이머를 소비하지 않는다. 상인 대상 플레이어는 여전히 타이머를 돌리는 region 의 플레이어 중에서 고른다(바닐라는 차원 전체) — 차이.
 - **알·발사기 마녀**: 스폰 알과 발사기로 낸 마녀도 스폰 이유를 받아 습격에 참여한다(`spawnMobFromEgg(..., SpawnReason)`).
 - **포위 좀비 난이도**: `finalizeSpawn` 을 `moveTo` 앞에 불러 원점 기준 난이도를 쓰는 바닐라 순서를 `VillageSiegeTest` 가 고정한다.
+## 2026-11-02 플러그인 API 1단계: 엔티티·월드·아이템·인벤토리 (작업 5)
+- 설계: `docs/api/entity-world-design.md`. 원칙: 다른 region 상태는 동기로 읽거나 쓰지 않는다 — 이벤트 스냅샷 / `CompletableFuture`(소유 region 에서 실행) / `*Now`(소유 스레드 아니면 `ThreadOwnershipException`).
+- 바닐라·Paper 와 다른 점·한계:
+  - `EntityDamageEvent.damage` 는 방어력·인챈트 적용 **전** 원본 피해(Paper 는 최종 피해를 따로 준다). 취소하면 `hurtBy` 가 false 로 끝나 무적 시간·밀려남도 없다(Paper 와 같다고 **가정**, 미확인). 플레이어는 `PlayerVitals.hurt` 에서, 몹은 `LivingEntity.hurtBy` 에서 발화.
+  - `EntityDeathEvent` 는 몹만(플레이어는 기존 `PlayerDeathEvent`). 전리품 수정은 없다.
+  - `EntitySpawnEvent` 는 `addFreshEntity` 에서 발화 — 같은 UUID 중복으로 거부될 엔티티도 이벤트를 먼저 받는다. 청크 로드로 복원되는 엔티티·`loadChunkEntities` 경로는 발화하지 않는다(Paper 는 `CreatureSpawnEvent` 로 사유를 준다 — 사유 없음).
+  - `PlayerMoveEvent` 는 위치가 바뀐 이동만(회전만 바뀌면 안 부름), `from/to` 의 yaw/pitch 는 현재 값. 취소는 `teleportTo(from)` 보정이라 한 틱 어긋날 수 있다.
+  - `PlayerTeleportEvent` 는 같은 차원 `Player.teleportTo` 만. 차원 이동·원인 구분 없음. 호출한 스레드에서 불리며 region 스레드가 아닐 수 있다.
+  - `PlayerInteractEvent` 는 RIGHT_CLICK_BLOCK / 빈 손이 아닌 RIGHT_CLICK_AIR 만. LEFT_CLICK·빈 손 허공 클릭 없음.
+  - `PlayerDropItemEvent` 취소 시 아이템은 원래 칸이 아니라 첫 빈 칸으로 돌아간다(가득 차면 그대로 떨어진다).
+  - `InventoryOpenEvent` 는 제작대·블록 메뉴(`openBlockMenu`)만. 상자·상인·말·엔티티 컨테이너는 발화하지 않는다. 메뉴 종류 키는 클래스 이름에서 만든 값이라 바닐라 menu type 이름과 다를 수 있다(가정).
+  - `World.setBlock` 은 `BlockPlaceEvent/BlockBreakEvent` 를 거치지 않는다. 플래그 11 로 바로 설치 후 방송.
+  - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
+  - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.
+- 후속(검토 반영): `PlayerMoveEvent` 취소는 `applyMove(prev)` 로 서버 위치를 되돌린 뒤 `Player.correctTo`(이벤트 우회 보정)로 텔레포트하며 `moveRejectHold` 를 건다 — 검증기(`PlayerMoveValidator.reject`)도 같은 `correctTo` 를 쓰도록 바꿔, 텔레포트 리스너가 보정을 삼키지 못한다(Paper 의 정확한 동작은 미확인, **가정**). 검증 대기 패킷은 hold 동안 버려진다. `EntitySpawnEvent` 는 목록 추가 뒤 발화·취소 시 되돌림, 승객 묶음은 전부 아니면 전무(Paper 는 개별 엔티티 단위일 수 있다 — 미확인). `Interact` 취소는 손 슬롯 `ContainerSetSlot(-2)` 재전송(블록은 기존 재전송). 플레이어 인벤토리 쓰기는 `runOnOwner`(소유 틱에서 적용되므로 Future 가 최대 한 틱 늦게 완료). 서버 스레드에서 미완료 `RegionFuture.get()/join()` 은 예외.

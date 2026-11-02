@@ -58,6 +58,9 @@ public final class PlayerVitals {
             return new DeathOutcome(message, keepInventory, keepInventory);
         }
 
+        /** 플러그인 이벤트 입구(피해·텔레포트). 기본은 아무것도 안 한다. */
+        default org.domi.furnace.server.plugin.GameEvents gameEvents() { return org.domi.furnace.server.plugin.GameEvents.NONE; }
+
         /** 게임 모드가 바뀌기 직전(플러그인 PlayerGameModeChangeEvent) — false 면 바꾸지 않는다. */
         default boolean allowGameModeChange(Player player, GameMode mode) { return true; }
 
@@ -584,6 +587,9 @@ public final class PlayerVitals {
 
     private boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield, Rider causing, Rider direct, double[] pos) {
         lastHurtFresh = false;
+        float evAmount = env.gameEvents().playerDamage(player, type.key(), amount);   // 플러그인 EntityDamageEvent
+        if (evAmount < 0.0F) return false;
+        amount = evAmount;
         boolean died;
         boolean newHurt;
         boolean blocked = false;

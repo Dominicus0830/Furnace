@@ -428,6 +428,9 @@ public final class ServerCore {
     /** 플러그인 호스트(Furnace API 파사드·이벤트 버스·플러그인 관리자). */
     public org.domi.furnace.server.plugin.PluginHost plugins() { return pluginHost; }
 
+    /** 서버 게임 코드가 플러그인 이벤트를 부르는 입구(ConnectionHandler 등). */
+    public org.domi.furnace.server.plugin.GameEvents gameEvents() { return pluginHost.gameEvents(); }
+
     /** 이벤트 버스(구독자가 없으면 이벤트 객체를 만들지 않도록 hasSubscribers 로 먼저 묻는다). */
     public org.domi.furnace.server.plugin.EventBusImpl events() { return pluginHost.eventsImpl(); }
 
@@ -838,6 +841,7 @@ public final class ServerCore {
     public void setDefaultGameMode(org.domi.furnace.server.world.GameMode mode) { levelData.gameType = mode; }
 
     private final org.domi.furnace.server.entity.PlayerVitals.Env vitalsEnv = new org.domi.furnace.server.entity.PlayerVitals.Env() {
+        public org.domi.furnace.server.plugin.GameEvents gameEvents() { return pluginHost.gameEvents(); }
         public org.domi.furnace.server.world.Difficulty difficulty() { return levelData.difficulty; }
         public boolean gameRule(String name) { return gameRules.getBoolean(name); }
         public boolean pvp() { return settings.get().pvp; }
@@ -885,6 +889,7 @@ public final class ServerCore {
     private final org.domi.furnace.server.block.LevelServices levelServices = new org.domi.furnace.server.block.LevelServices() {
         public boolean gameRule(String name) { return gameRules.getBoolean(name); }
         public int gameRuleInt(String name) { return gameRules.getInt(name); }
+        public org.domi.furnace.server.plugin.GameEvents gameEvents() { return pluginHost == null ? org.domi.furnace.server.plugin.GameEvents.NONE : pluginHost.gameEvents(); }
         public int difficulty() { return levelData.difficulty.id(); }
         public org.domi.furnace.server.scores.Scoreboard scoreboard() { return scoreboard; }
         public boolean worldAdventure() { return levelData.gameType == org.domi.furnace.server.world.GameMode.ADVENTURE; }

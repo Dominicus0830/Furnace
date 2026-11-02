@@ -375,6 +375,7 @@ public final class Region {
             installStats[2] += t2 - t1;
             installStats[3] += t3 - t2;
         }
+        world.levelServices().gameEvents().chunkLoad(world.dimension(), cp.x(), cp.z());   // 플러그인 ChunkLoadEvent
         f.complete(col);
     }
 
@@ -732,6 +733,7 @@ public final class Region {
                     col.clearDirty();
                 }
                 world.removeChunk(cx, cz);
+                world.levelServices().gameEvents().chunkUnload(world.dimension(), cx, cz);   // 플러그인 ChunkUnloadEvent
             }
             if (level != null) level.raids().park(cx, cz);   // 중심 청크가 내려간 습격은 저장소로
             if (level != null) level.chunkUnloaded();
@@ -1036,6 +1038,16 @@ public final class Region {
                 m = new Player.MoveSample(p.x(), p.y(), p.z(), m.onGround(), false);
             }
             Player.MoveSample prev = p.moveAnchor();
+            if (!m.teleport() && prev != null && (m.x() != prev.x() || m.y() != prev.y() || m.z() != prev.z())
+                    && !world.levelServices().gameEvents().playerMove(p, prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch(), m.x(), m.y(), m.z(), p.yaw(), p.pitch())) {
+                // 플러그인 PlayerMoveEvent 취소: 검증기가 이미 옮긴 서버 위치를 되돌리고 보정 텔레포트(검증 거부와 같은 방식, 이벤트 우회)
+                p.applyMove(prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch(), prev.onGround());
+                if (p.hasTeleporter()) {
+                    p.moveRejectHold = true;
+                    p.correctTo(prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch());
+                }
+                continue;
+            }
             p.moveAnchor(m);
             if (m.teleport() || prev == null || probe == null) continue;
             boolean sneaking = p.sneaking();
@@ -1249,6 +1261,10 @@ public final class Region {
         if (!players.containsKey(p.entityId())) return;
         var actor = breakerActor(p);
         if (actor.itemInHand(hand).isEmpty()) return;
+        if (!world.levelServices().gameEvents().playerInteract(p, hand, null, 0, 0, actor.itemInHand(hand))) {   // 플러그인 PlayerInteractEvent(허공 우클릭) 취소
+            p.send(new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, hand == 0 ? actor.heldWindowSlot() : 45, actor.itemInHand(hand)));   // 클라이언트 예측 되돌림
+            return;
+        }
         if (p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && org.domi.furnace.server.entity.Consuming.tryStart(p, hand, actor.itemInHand(hand))) return;
         float y = wrapDegrees(yRot), x = wrapDegrees(xRot);
         if (x != p.pitch() || y != p.yaw()) p.applyRotation(y, Math.clamp(x, -90.0F, 90.0F), p.onGround());   // absRotateTo
@@ -1293,6 +1309,10 @@ public final class Region {
     public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower) {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
+        if (!world.levelServices().gameEvents().playerDrop(p, stack)) {   // 플러그인 PlayerDropItemEvent 취소: 인벤토리로 돌려준다(원래 칸이 아닌 첫 빈 칸)
+            stack = p.inventory().add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), false);
+            if (stack.isEmpty()) return null;
+        }
         RegionLevel l = level();
         double eye = p.eyeY() - 0.3F;
         var ie = new org.domi.furnace.server.entity.ItemEntity(l, l.nextEntityId(), p.x(), eye, p.z(), stack);

@@ -94,6 +94,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     protected abstract LevelServices services();
 
+    /** 플러그인 이벤트 입구(엔티티·Region 코드용). */
+    public org.domi.furnace.server.plugin.GameEvents gameEvents() { return services().gameEvents(); }
+
     /**
      * LevelChunk.setBlockState 의 블록 엔티티 부분: 있던 것이 이 상태에 맞지 않으면 지우고, 없으면 블록이 새로 만들고(newBlockEntity),
      * 있으면 상태만 바꾼다.
@@ -1756,10 +1759,18 @@ public abstract class ChunkLevel implements BlockLevel {
     public EntityTracker.Viewers viewers() { return viewers; }
 
     /** addFreshEntity: 넣고(같은 UUID 가 있으면 거부) 추적을 시작한다 — 볼 수 있는 플레이어에게 바로 스폰. */
-    public boolean addFreshEntity(Entity e) {
+    public boolean addFreshEntity(Entity e) { return addFreshEntity(e, true); }
+
+    private boolean addFreshEntity(Entity e, boolean fireEvent) {
         if (e.isRemoved()) return false;
+        ChunkLevel before = e.level();
         e.setLevel(this);
         if (!entities.add(e)) return false;
+        if (fireEvent && !gameEvents().entitySpawn(e)) {   // 플러그인 EntitySpawnEvent 취소: 추적·리스너 등록 전이라 목록과 레벨만 되돌린다
+            entities.remove(e);
+            e.setLevel(before);
+            return false;
+        }
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
         return true;
@@ -1771,7 +1782,20 @@ public abstract class ChunkLevel implements BlockLevel {
         all.add(e);
         e.collectIndirectPassengers(all);
         for (var r : all) if (r instanceof Entity x && entities.containsUuid(x.uuid())) return false;
-        for (var r : all) if (r instanceof Entity x) addFreshEntity(x);
+        // 플러그인 EntitySpawnEvent: 하나라도 취소하면 전부 넣지 않는다(전부 아니면 전무)
+        java.util.List<Entity> fired = new java.util.ArrayList<>();
+        java.util.List<ChunkLevel> before = new java.util.ArrayList<>();
+        for (var r : all) {
+            if (!(r instanceof Entity x)) continue;
+            fired.add(x);
+            before.add(x.level());
+            x.setLevel(this);
+            if (!gameEvents().entitySpawn(x)) {
+                for (int i = 0; i < fired.size(); i++) fired.get(i).setLevel(before.get(i));
+                return false;
+            }
+        }
+        for (Entity x : fired) addFreshEntity(x, false);
         return true;
     }
 
