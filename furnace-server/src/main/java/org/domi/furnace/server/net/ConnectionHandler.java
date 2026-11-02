@@ -739,8 +739,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 // 레지스트리 뒤, Finish 앞(바닐라 순서). 데이터 팩이 있으면 거기서 읽은 태그, 없으면 미리 만든 태그 파일.
                 var dp = login.core != null ? login.core.dataPacks() : null;
                 send(ctx, new UpdateTags(dp != null ? dp.tags() : TAGS));
-                send(ctx, new FinishConfiguration());
-                finishConfigSent = true;
+                // 바닐라 구성 작업 순서: 레지스트리·태그 → server_resource_pack(응답이 끝 상태일 때까지 기다림) → 구성 끝
+                var pack = serverPack();
+                if (pack != null) {
+                    send(ctx, packPush(pack, false));
+                    awaitingPack = true;
+                } else {
+                    send(ctx, new FinishConfiguration());
+                    finishConfigSent = true;
+                }
+            }
+            case 0x06 -> { // resource_pack(구성): UUID, VarInt 상태
+                int action = readPackResponse(ctx, frame);
+                if (action < 0) return;
+                if (awaitingPack && ResourcePackResponses.isTerminal(action)) {
+                    awaitingPack = false;
+                    send(ctx, new FinishConfiguration());
+                    finishConfigSent = true;
+                }
             }
             case 0x03 -> { // Acknowledge Finish Configuration
                 if (!finishConfigSent) { ctx.close(); return; }          // Finish를 보내기 전의 ack는 프로토콜 위반
@@ -1672,6 +1688,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null) p.chunkSendRate().onBatchReceived(cpt);
             }
+            case 0x2B -> readPackResponse(ctx, frame); // resource_pack(play): 필수 팩 거절만 쫓아낸다
             case 0x12 -> handleCustomPayload(frame, true); // custom_payload
             case 0x37 -> { // teleport_to_entity: UUID — 관전자만
                 java.util.UUID target = Types.readUuid(frame);
@@ -1680,6 +1697,53 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             default -> { /* 그 외 무시 */ }
         }
+    }
+
+    private volatile boolean awaitingPack;
+
+    /** server.properties 의 리소스 팩(resource-pack 이 비어 있으면 null). */
+    private org.domi.furnace.server.config.ServerProperties.ResourcePackInfo serverPack() {
+        if (login.core == null) return null;
+        return login.core.settings().get().serverResourcePackInfo.orElse(null);
+    }
+
+    private static org.domi.furnace.server.net.protocol.play.ResourcePackPush packPush(
+            org.domi.furnace.server.config.ServerProperties.ResourcePackInfo i, boolean inPlay) {
+        Text prompt = null;
+        if (i.prompt() != null) {
+            try {
+                prompt = org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(i.prompt());
+            } catch (RuntimeException e) {
+                log.warn("Failed to parse resource pack prompt '{}'", i.prompt(), e);
+            }
+        }
+        String hash = i.hash().length() > org.domi.furnace.server.net.protocol.play.ResourcePackPush.MAX_HASH
+                ? i.hash().substring(0, org.domi.furnace.server.net.protocol.play.ResourcePackPush.MAX_HASH) : i.hash();
+        return new org.domi.furnace.server.net.protocol.play.ResourcePackPush(i.id(), i.url(), hash, i.isRequired(), prompt, inPlay);
+    }
+
+    /**
+     * resource_pack 응답 읽기(구성·play 공통). 상태가 범위 밖이면 연결을 닫는다(-1). 필수 팩을 거절하면 바닐라 메시지로 쫓아낸다(-1).
+     * 그 밖에는 상태 번호를 돌려준다.
+     */
+    private int readPackResponse(ChannelHandlerContext ctx, ByteBuf frame) {
+        java.util.UUID id;
+        int action;
+        try {
+            id = Types.readUuid(frame);
+            action = Types.readVarInt(frame);
+        } catch (RuntimeException e) {
+            ctx.close();
+            return -1;
+        }
+        if (action < 0 || action >= ResourcePackResponses.ACTION_COUNT) { ctx.close(); return -1; }
+        var pack = serverPack();
+        if (pack != null && ResourcePackResponses.kicksRequired(action, pack.isRequired())) {
+            log.info("Disconnecting {} due to resource pack {} rejection", playerName, id);
+            kick(ctx, Text.translatable("multiplayer.requiredTexturePrompt.disconnect"));
+            return -1;
+        }
+        return action;
     }
 
     private boolean hasPermission(Player p, int level) {
