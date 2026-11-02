@@ -15,6 +15,9 @@ public final class WanderingTraderState {
     private volatile int tickDelay = 1200;
     private final AtomicLong lastClaimedTick = new AtomicLong(Long.MIN_VALUE);
 
+    /** 스포너 본체(읽기→감소→쓰기)와 level.dat 저장이 같이 쓰는 자물쇠 — 지연·확률 쌍을 한 번에 읽고 쓴다. */
+    public Object lock() { return this; }
+
     public int spawnDelay() { return spawnDelay; }
     public int spawnChance() { return spawnChance; }
     public UUID traderId() { return traderId; }
@@ -35,7 +38,7 @@ public final class WanderingTraderState {
     }
 
     /** WanderingTraderSpawner 생성자: 지연·확률이 모두 0 이면 24000 / 25 로 시작한다. */
-    public void normalize() {
+    public synchronized void normalize() {
         if (spawnDelay == 0 && spawnChance == 0) {
             spawnDelay = 24000;
             spawnChance = 25;
@@ -43,7 +46,7 @@ public final class WanderingTraderState {
     }
 
     /** level.dat Data 에서 읽는다(없으면 0 → normalize 가 기본값). */
-    public void read(NbtCompound data) {
+    public synchronized void read(NbtCompound data) {
         spawnDelay = data.getIntOr0("WanderingTraderSpawnDelay");
         spawnChance = data.getIntOr0("WanderingTraderSpawnChance");
         int[] id = data.getIntArray("WanderingTraderId");
@@ -52,7 +55,7 @@ public final class WanderingTraderState {
     }
 
     /** level.dat Data 에 쓴다(상인 번호는 있을 때만 — 바닐라 ServerLevelData). */
-    public void write(NbtCompound data) {
+    public synchronized void write(NbtCompound data) {
         data.putInt("WanderingTraderSpawnDelay", spawnDelay);
         data.putInt("WanderingTraderSpawnChance", spawnChance);
         UUID id = traderId;

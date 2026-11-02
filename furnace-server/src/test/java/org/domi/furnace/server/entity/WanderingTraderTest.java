@@ -290,10 +290,12 @@ class WanderingTraderTest {
         var b = new WanderingTraderSpawner(RandomSource.create(2));
         a.attach(state);
         b.attach(state);
+        var p = player(8.5, 8.5);
         for (int i = 0; i < 1200; i++) {
             level.time = i + 1;
-            a.tick(level, List.of());
-            b.tick(level, List.of());   // 같은 틱의 두 번째 region 은 타이머를 돌리지 못한다
+            a.tick(level, List.of());   // 플레이어 없는 region 은 타이머를 소비하지 않는다
+            a.tick(level, List.of(p));
+            b.tick(level, List.of(p));   // 같은 틱의 두 번째 region 은 타이머를 돌리지 못한다
         }
         assertEquals(22800, state.spawnDelay(), "1200틱에 1200 만 줄어든다(스포너 둘이어도)");
         assertEquals(1200, state.tickDelay());

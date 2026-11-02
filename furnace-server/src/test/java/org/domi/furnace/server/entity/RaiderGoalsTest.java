@@ -136,4 +136,15 @@ class RaiderGoalsTest {
         pillager.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(pillager.blockPosition()));
         assertTrue(pillager.canJoinRaid(), "마녀가 아니면 자연 스폰도 참여");
     }
+
+    @Test
+    void eggAndDispenserWitchesJoinRaids() {
+        for (var reason : new org.domi.furnace.server.entity.spawn.SpawnReason[] {org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG,
+                org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER}) {
+            var level = new RaidLevel();
+            assertTrue(level.spawnMobFromEgg("minecraft:witch", new org.domi.furnace.server.block.Pos(8, -61, 8), true, false, reason));
+            Witch w = (Witch) level.entities().tickSnapshot().stream().filter(e -> e instanceof Witch).findFirst().orElseThrow();
+            assertTrue(w.canJoinRaid(), reason.name());
+        }
+    }
 }

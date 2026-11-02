@@ -1473,6 +1473,12 @@ public abstract class ChunkLevel implements BlockLevel {
      */
     @Override
     public boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown) {
+        return spawnMobFromEgg(entityType, pos, snapToGround, extendDown, org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG);
+    }
+
+    @Override
+    public boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
         if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return false;
         double d0 = 0.0;
@@ -1485,7 +1491,8 @@ public abstract class ChunkLevel implements BlockLevel {
         mob.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
         mob.setYHeadRot(mob.yRot());
         mob.setYBodyRot(mob.yRot());
-        if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG);
+        if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(reason);
+        if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
         mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
         addFreshEntityWithPassengers(mob);
         mob.makeSound(mob.ambientSoundForSpawn());

@@ -54,16 +54,17 @@ public final class WanderingTraderSpawner {
     public int tick(ChunkLevel level, java.util.List<Player> players) {
         if (!level.gameRule("doTraderSpawning")) return 0;
         var st = shared;
-        if (st != null) {
+        if (st == null) return tickTimer(level, players, null);
+        // 플레이어가 없는 region 은 타이머를 소비하지 않는다(그 틱은 플레이어 있는 region 이 돌린다)
+        if (players.isEmpty()) return 0;
+        synchronized (st.lock()) {
             if (!st.claimTick(level.gameTime())) return 0;   // 같은 틱에 다른 region 이 이미 돌렸다
             tickDelay = st.tickDelay();
             spawnDelay = st.spawnDelay();
             spawnChance = st.spawnChance();
-        }
-        try {
-            return tickTimer(level, players, st);
-        } finally {
-            if (st != null) {   // 살아 있는 값을 그대로 공유 상태(= level.dat)에 둔다
+            try {
+                return tickTimer(level, players, st);
+            } finally {   // 살아 있는 값을 그대로 공유 상태(= level.dat)에 둔다
                 st.setTickDelay(tickDelay);
                 st.setSpawnDelay(spawnDelay);
                 st.setSpawnChance(spawnChance);

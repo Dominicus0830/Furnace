@@ -21,6 +21,13 @@ class VillageSiegeTest {
     /** 빛 0(어둡다)·모든 칸이 마을인 밤 레벨 — 몹 스폰 규칙의 난수 소비를 고정한다(하늘빛 nextInt(32), 밝기 nextInt(8)). */
     static class SiegeLevel extends PatrolSpawnerTest.PatrolLevel {
         boolean village = true;
+        final java.util.List<Pos> difficultyAt = new java.util.ArrayList<>();
+
+        @Override
+        public org.domi.furnace.server.entity.DifficultyInstance getCurrentDifficultyAt(Pos pos) {
+            difficultyAt.add(pos);
+            return super.getCurrentDifficultyAt(pos);
+        }
 
         SiegeLevel(long seed) {
             super(seed);
@@ -152,5 +159,15 @@ class VillageSiegeTest {
         assertEquals(0, siege.tick(level, players, true));
         assertFalse(siege.hasSetupSiege());
         assertEquals(VillageSiege.State.DONE, siege.state());
+    }
+
+    @Test
+    void zombieDifficultyIsTakenAtOriginBeforeMoveTo() {
+        var level = new SiegeLevel(seed(true));
+        var siege = new VillageSiege();
+        siege.tick(level, List.of(player(GameMode.SURVIVAL)), true);
+        // 바닐라: finalizeSpawn(getCurrentDifficultyAt(zombie.blockPosition())) 이 moveTo 보다 먼저 — 아직 원점
+        assertEquals(List.of(new Pos(0, 0, 0)), level.difficultyAt);
+        assertNotEquals(new Pos(0, 0, 0), zombies(level).get(0).blockPosition());
     }
 }

@@ -181,6 +181,10 @@ public interface BlockLevel {
     /** 스폰 알: 그 종류 몹을 만든다(EntityType.spawn). 만들었으면 true. 몹이 없는 레벨은 false. */
     default boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown) { return false; }
 
+    /** 스폰 이유를 지정하는 변형(발사기 = DISPENSER). 기본은 이유를 무시하고 위 메서드로. */
+    default boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason) { return spawnMobFromEgg(entityType, pos, snapToGround, extendDown); }
+
     /** LevelReader.getMaxLocalRawBrightness(pos) = getRawBrightness(pos, skyDarken). */
     default int getMaxLocalRawBrightness(Pos pos) { return getRawBrightness(pos, skyDarken()); }
 
