@@ -103,6 +103,14 @@ class PlaceCommandTest {
         // 아직 구현하지 않은 feature 는 성공으로 위장하지 않는다
         // bonus_chest 는 이제 구현됨(루트 Noop 은 더 없다) — origin 청크 안 어딘가에 놓인다
         assertEquals(List.of("Placed \"minecraft:bonus_chest\" at 24, 200, 40"), run("place feature minecraft:bonus_chest 24 200 40"));
+        // 성공 메시지만이 아니라 chunk (1,2) 안에 상자 블록이 실제로 놓였는지 확인
+        int chests = onRegion(l -> {
+            int n = 0;
+            for (int x = 16; x < 32; x++) for (int z = 32; z < 48; z++) for (int y = 0; y < 320; y++)
+                if (B.is(l.getBlockState(new Pos(x, y, z)), "minecraft:chest")) n++;
+            return n;
+        });
+        assertEquals(1, chests);
     }
 
     @Test
