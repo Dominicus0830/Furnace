@@ -745,6 +745,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (pack != null) {
                     send(ctx, packPush(pack, false));
                     awaitingPack = true;
+                    scheduleConfigKeepAlive(ctx);   // 큰 팩을 내려받는 동안 읽기 타임아웃(30초)에 걸리지 않게 바닐라처럼 15초마다 핑
                 } else {
                     send(ctx, new FinishConfiguration());
                     finishConfigSent = true;
@@ -1712,10 +1713,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private volatile boolean awaitingPack;
 
+    /**
+     * 구성 단계 keep-alive(바닐라는 구성 단계에서도 15초마다 보낸다). 팩 응답을 기다리는 동안에만 돈다 — 팩이 없는 서버의 접속 순서는 그대로다.
+     * 클라이언트는 구성 keep_alive(0x04)로 답하고, 그 입력이 읽기 타임아웃을 갱신한다. 응답 검사는 읽기 타임아웃에 맡긴다.
+     */
+    private void scheduleConfigKeepAlive(ChannelHandlerContext c) {
+        c.executor().schedule(() -> {
+            if (!awaitingPack || !c.channel().isActive() || state != ConnectionState.CONFIGURATION) return;
+            send(c, new org.domi.furnace.server.net.protocol.configuration.ConfigKeepAlive(System.nanoTime()));
+            scheduleConfigKeepAlive(c);
+        }, CONFIG_KEEPALIVE_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /** 구성 keep-alive 간격(초). 읽기 타임아웃(30초)의 절반. */
+    static final int CONFIG_KEEPALIVE_SECONDS = 15;
+
     /** server.properties 의 리소스 팩(resource-pack 이 비어 있으면 null). */
     private org.domi.furnace.server.config.ServerProperties.ResourcePackInfo serverPack() {
-        if (login.core == null) return null;
-        return login.core.settings().get().serverResourcePackInfo.orElse(null);
+        return login.resourcePack;
     }
 
     private static org.domi.furnace.server.net.protocol.play.ResourcePackPush packPush(
@@ -1808,24 +1823,33 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 .thenAccept(tag -> p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx, tag)));
     }
 
-    /** 바닐라 handleEntityTagQuery: 있는 엔티티면 saveWithoutId 를 tag_query 로(없으면 아무것도 안 보낸다). 플레이어가 보는(추적 중인) 엔티티만 찾는다. */
+    /**
+     * 바닐라 handleEntityTagQuery: 같은 레벨에서 있는 엔티티면 saveWithoutId 를 tag_query 로(없으면 아무것도 안 보낸다).
+     * 질의 플레이어가 추적 중인(tracked) 엔티티만 찾는다. tracked 는 질의 플레이어의 소유 region 이 갱신하는 맵이라 그 region 에서 읽고,
+     * 대상 엔티티·플레이어의 NBT 는 그 대상의 소유 region(추적 위치의 region)에서 읽어 응답을 보낸다. 소유 region 이 아니면(이동 중) 버린다.
+     */
     private void handleEntityTagQuery(Player p, int tx, int eid) {
-        if (eid == p.entityId()) {
-            sendEntityTag(p, tx, p);
-            return;
-        }
-        for (Player o : world.onlinePlayers()) {
-            if (o.entityId() == eid && !o.isDisconnected()) { sendEntityTag(p, tx, o); return; }
-        }
-        double[] at = p.tracked().get(eid);
-        if (at == null) return;   // 추적하지 않는 엔티티는 클라이언트가 알 수 없다
-        world.runAt(at[0], at[2], region -> {
-            var lvl = region.level();
-            if (lvl == null) return;
-            var e = lvl.entities().get(eid);
-            if (e == null) return;
-            p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx,
-                    (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(e.saveWithoutId(new org.domi.furnace.server.net.io.nbt.NbtCompound()))));
+        world.runAt(p.x(), p.z(), own -> {
+            if (own.players().get(p.entityId()) != p) return;   // 이 틱의 소유 region 이 아님(차원 이동·넘기기 중)
+            if (eid == p.entityId()) {
+                sendEntityTag(p, tx, p);
+                return;
+            }
+            double[] at = p.tracked().get(eid);
+            if (at == null) return;   // 추적하지 않는 엔티티는 클라이언트가 알 수 없다
+            world.runAt(at[0], at[2], region -> {
+                Player target = region.players().get(eid);
+                if (target != null) {
+                    if (!target.isDisconnected()) sendEntityTag(p, tx, target);
+                    return;
+                }
+                var lvl = region.level();
+                if (lvl == null) return;
+                var e = lvl.entities().get(eid);
+                if (e == null) return;
+                p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx,
+                        (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(e.saveWithoutId(new org.domi.furnace.server.net.io.nbt.NbtCompound()))));
+            });
         });
     }
 
