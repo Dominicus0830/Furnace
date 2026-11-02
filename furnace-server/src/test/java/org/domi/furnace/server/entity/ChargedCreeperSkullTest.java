@@ -74,4 +74,32 @@ class ChargedCreeperSkullTest {
         kill(level, "minecraft:zombie", creeper(level, false));
         assertEquals(0, skulls(level, "minecraft:zombie_head"));
     }
+
+    @Test
+    void creeperDoesNotDropOwnHead() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var c = creeper(level, true);
+        c.hurtByVia(BOOM, 1000.0F, c, c);
+        assertEquals(0, skulls(level, "minecraft:creeper_head"));
+        assertTrue(c.canDropMobsSkull(), "자기 자신이면 횟수를 쓰지 않는다");
+    }
+
+    @Test
+    void piglinHeadDropsBeforeInventory() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var by = creeper(level, true);
+        var pg = (Piglin) Entities.create(level, "minecraft:piglin");
+        pg.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(pg);
+        pg.addToInventory(new ItemStack(ItemContext.id("minecraft:item", "stick"), 1));
+        pg.hurtByVia(BOOM, 1000.0F, by, by);
+        int headId = -1, stickId = -1;
+        for (var e : level.getEntities(null, new AABB(-4, -62, -4, 8, -57, 12), x -> x instanceof ItemEntity)) {
+            String n = ItemTools.itemName(((ItemEntity) e).getItem());
+            if (n.equals("minecraft:piglin_head")) headId = e.id();
+            if (n.equals("minecraft:stick")) stickId = e.id();
+        }
+        assertTrue(headId >= 0 && stickId >= 0);
+        assertTrue(headId < stickId, "머리가 인벤토리보다 먼저");
+    }
 }

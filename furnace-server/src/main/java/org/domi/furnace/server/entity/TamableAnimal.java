@@ -85,7 +85,7 @@ public abstract class TamableAnimal extends Animal {
     @Override
     public void die(Damage source) {
         if (!isRemoved() && !dead && level.gameRule("showDeathMessages") && getOwner() instanceof Player owner) {
-            var msg = getCombatTracker().getDeathMessage(displayName());
+            var msg = getCombatTracker().getDeathMessage(displayName(), getKillCredit() == null ? null : getKillCredit().displayName());
             owner.runOnOwner(() -> owner.sendSystemMessage(msg, false));   // 주인은 다른 region 일 수 있어 그 스레드에서 보낸다
         }
         super.die(source);

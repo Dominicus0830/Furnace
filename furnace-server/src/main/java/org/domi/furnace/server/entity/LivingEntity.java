@@ -645,13 +645,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected void actuallyHurt(Damage source, float amount) {
         amount = getDamageAfterArmorAbsorb(source, amount);
         amount = getDamageAfterMagicAbsorb(source, amount);
-        if (amount != 0.0F) {
+        // btn.f: 흡수 체력을 먼저 깎고 남은 값이 0 이 아닐 때만 체력·전투 기록·ENTITY_DAMAGE
+        float afterAbsorb = Math.max(amount - absorptionAmount, 0.0F);
+        absorptionAmount = Math.max(absorptionAmount - (amount - afterAbsorb), 0.0F);
+        if (afterAbsorb != 0.0F) {
             Rider causing = hurtAttacker instanceof Rider r ? r : null;
             Rider direct = pendingDirect != null ? pendingDirect : causing;
-            getCombatTracker().recordDamage(DamageType.byKey(source.type()), amount, null, fallDistance, tickCount, health() - amount > 0.0F,
+            // alive 는 피해 전 isAlive()(바닐라와 같다). 차이: 낙하 위치(fallLocation)는 몹에서 기록하지 않는다(null)
+            getCombatTracker().recordDamage(DamageType.byKey(source.type()), afterAbsorb, null, fallDistance, tickCount, health() > 0.0F,
                     org.domi.furnace.server.entity.damage.DamageSource.nameOf(causing), org.domi.furnace.server.entity.damage.DamageSource.nameOf(direct));
-            setHealth(health() - amount);
-            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE);   // btn:1542, 흡수 뒤 실제 피해가 있을 때
+            setHealth(health() - afterAbsorb);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE);   // btn:1542
         }
     }
 

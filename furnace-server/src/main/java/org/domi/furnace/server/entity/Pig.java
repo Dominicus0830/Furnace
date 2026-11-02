@@ -66,6 +66,7 @@ public class Pig extends Animal {
     private boolean boosting;
     private int boostTime;
 
+    /** 소유권 전제: 호출은 탄 플레이어의 스레드이고, 탄 돼지와 플레이어는 같은 region 이다(가정: 탑승 중 region 이 갈리지 않는다). */
     /** ItemBasedSteering.boost(random): 가속 중이면 거짓, 아니면 시작하고 총 시간 nextInt(841)+140 틱을 동기화한다. */
     public boolean boost() {
         if (boosting) return false;

@@ -122,4 +122,23 @@ class MobGameEventsTest {
         assertEquals(oy, evs.get(0).pos.y());
         assertEquals(oz, evs.get(0).pos.z());
     }
+
+    /** 흡수 체력이 피해를 다 받으면 체력·ENTITY_DAMAGE 없음, 넘치는 만큼만 체력과 이벤트(btn.f). */
+    @Test
+    void entityDamageUsesValueAfterAbsorption() {
+        var level = new RecLevel();
+        Zombie z = spawn(level, "minecraft:zombie", 0.5, 0.5);
+        var bypass = new Entity.Damage("starve", false, false, true);
+        z.absorptionAmount = 5.0F;
+        float hp = z.health();
+        level.events.clear();
+        z.hurtBy(bypass, 3.0F, null);
+        assertEquals(hp, z.health());
+        assertEquals(2.0F, z.absorptionAmount);
+        assertTrue(level.of(GameEvent.ENTITY_DAMAGE).isEmpty());
+        z.hurtBy(bypass, 4.0F, null);
+        assertEquals(hp - 2.0F, z.health());
+        assertEquals(0.0F, z.absorptionAmount);
+        assertEquals(1, level.of(GameEvent.ENTITY_DAMAGE).size());
+    }
 }
