@@ -81,6 +81,16 @@ public abstract class TamableAnimal extends Animal {
         return u == null ? null : level.getTargetableByUuid(u) instanceof Player p ? p : null;
     }
 
+    /** TamableAnimal.die(bul:195): 주인이 접속 중이고 showDeathMessages 면 전투 기록의 사망 메시지를 주인에게 보낸다. */
+    @Override
+    public void die(Damage source) {
+        if (!isRemoved() && !dead && level.gameRule("showDeathMessages") && getOwner() instanceof Player owner) {
+            var msg = getCombatTracker().getDeathMessage(displayName());
+            owner.runOnOwner(() -> owner.sendSystemMessage(msg, false));   // 주인은 다른 region 일 수 있어 그 스레드에서 보낸다
+        }
+        super.die(source);
+    }
+
     public void tame(Player p) {
         setTame(true, true);
         setOwnerUUID(p.uuid());

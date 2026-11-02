@@ -199,6 +199,25 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     /** 때린 쪽이 있을 때(밀려나는 방향·damage_event 의 원인·마지막으로 맞은 기록). */
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
+        hurtAttacker = attacker;
+        try {
+            return hurtByInner(source, amount, attacker);
+        } finally {
+            hurtAttacker = null;
+        }
+    }
+
+    /** 피해를 처리하는 동안의 원인 엔티티(전투 기록에 이름을 남긴다). */
+    private Targetable hurtAttacker;
+    private org.domi.furnace.server.entity.damage.CombatTracker combatTracker;
+
+    /** LivingEntity.getCombatTracker: 최근 피해 기록(사망 메시지용 — 지금은 길들인 펫 주인에게 보내는 데만 쓴다). */
+    public org.domi.furnace.server.entity.damage.CombatTracker getCombatTracker() {
+        if (combatTracker == null) combatTracker = new org.domi.furnace.server.entity.damage.CombatTracker();
+        return combatTracker;
+    }
+
+    private boolean hurtByInner(Damage source, float amount, Targetable attacker) {
         if (isInvulnerableTo(source) || level == null) return false;
         if (isDeadOrDying()) return false;
         if (isSleeping()) stopSleeping();
@@ -626,7 +645,14 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected void actuallyHurt(Damage source, float amount) {
         amount = getDamageAfterArmorAbsorb(source, amount);
         amount = getDamageAfterMagicAbsorb(source, amount);
-        if (amount != 0.0F) setHealth(health() - amount);
+        if (amount != 0.0F) {
+            Rider causing = hurtAttacker instanceof Rider r ? r : null;
+            Rider direct = pendingDirect != null ? pendingDirect : causing;
+            getCombatTracker().recordDamage(DamageType.byKey(source.type()), amount, null, fallDistance, tickCount, health() - amount > 0.0F,
+                    org.domi.furnace.server.entity.damage.DamageSource.nameOf(causing), org.domi.furnace.server.entity.damage.DamageSource.nameOf(direct));
+            setHealth(health() - amount);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE);   // btn:1542, 흡수 뒤 실제 피해가 있을 때
+        }
     }
 
     /** LivingEntity.getDamageAfterArmorAbsorb: CombatRules.getDamageAfterAbsorb(damage, armor, toughness). */
