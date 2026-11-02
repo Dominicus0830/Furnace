@@ -67,12 +67,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     /** 핸들 시점 위치의 region 에서 uuid 로 찾아 task 를 돈다. 그 region 에 없으면 null 로 완료. */
     <T> CompletableFuture<T> onOwner(java.util.function.BiFunction<Region, Entity, T> task) {
         World w = serverWorld();
-        if (w == null) return CompletableFuture.completedFuture(null);
+        if (w == null) return RegionFuture.wrap(CompletableFuture.completedFuture(null));
         CompletableFuture<T> f = w.submitAtOwnedChunk(chunk(), r -> {
             Entity cur = r.level().entities().get(uuid);
             return cur == null || cur.isRemoved() ? null : task.apply(r, cur);
         });
-        return f != null ? f : CompletableFuture.completedFuture(null);
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(null));
     }
 
     @Override
@@ -82,7 +82,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public CompletableFuture<Boolean> teleport(Location to) {
-        if (!to.world().equals(location.world())) return CompletableFuture.completedFuture(false);
+        if (!to.world().equals(location.world())) return RegionFuture.wrap(CompletableFuture.completedFuture(false));
         World w = serverWorld();
         return onOwner((r, cur) -> {
             // 목적지 청크가 같은 region 것일 때만 — 다른 region 으로 넘기는 이동은 다음 단계(핸드오프 필요)

@@ -3018,7 +3018,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (bp[1] < maxY) {
                 org.domi.furnace.server.ServerCore c = login.core;
                 if ((c == null || c.mayInteract(actor, bp[0], bp[2]))
-                        && (c == null || c.gameEvents().playerInteract(actor, hand, bp, level.getBlockState(pos), face, before))) {   // 플러그인 PlayerInteractEvent
+                        && interactAllowed(c, actor, hand, bp, face, before, handSlot, level, pos)) {   // 플러그인 PlayerInteractEvent
                     var r = org.domi.furnace.server.block.BlockPlacement.useItemOn(level, pa, hand, hit);
                     if (r.consumesAction()) pa.trigger("minecraft:any_block_use", pos, before);
                     if (face == org.domi.furnace.server.block.Dir.UP && !r.consumesAction() && bp[1] >= maxY - 1
@@ -3045,6 +3045,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 inv.replace(slot, expect, now);
             }
         });
+    }
+
+    /**
+     * 플러그인 PlayerInteractEvent(블록 우클릭) 허가. 구독자가 없으면 아무것도 평가하지 않는다. 취소하면 손 아이템을 다시 보낸다 —
+     * 블록 상태는 호출 뒤의 sendBlockState 가 이미 다시 보낸다(클라이언트가 예측한 설치·소모를 되돌린다).
+     */
+    private boolean interactAllowed(org.domi.furnace.server.ServerCore c, Player actor, int hand, int[] bp, int face, ItemStack held, int handSlot,
+            org.domi.furnace.server.block.ChunkLevel level, org.domi.furnace.server.block.Pos pos) {
+        if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerInteractEvent.class)) return true;
+        if (c.gameEvents().playerInteract(actor, hand, bp, level.getBlockState(pos), face, held)) return true;
+        actor.send(new ContainerSetSlot(-2, 0, handSlot, inv.get(handSlot)));
+        return false;
     }
 
     /** 그 칸의 지금 상태를 행위자에게(ClientboundBlockUpdatePacket(level, pos)). 다른 region 의 칸은 그 region 에서 읽어 보낸다. */

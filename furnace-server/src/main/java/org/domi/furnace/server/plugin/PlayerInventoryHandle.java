@@ -36,15 +36,27 @@ final class PlayerInventoryHandle implements org.domi.furnace.api.inventory.Inve
         return CompletableFuture.completedFuture(ApiConvert.item(p.inventory().get(PlayerInventory.windowSlot(slot)), items()));
     }
 
+    /** 쓰기는 플레이어 소유 스레드에서(Player.runOnOwner) — 접속이 끊겼으면 IllegalStateException 으로 완료. 읽기는 PlayerInventory 가 내부 동기화돼 있어 즉시. */
     @Override
     public CompletableFuture<Void> set(int slot, ItemStack item) {
-        if (slot < 0 || slot >= SIZE) return CompletableFuture.failedFuture(new IndexOutOfBoundsException("slot " + slot));
+        if (slot < 0 || slot >= SIZE) return RegionFuture.wrap(CompletableFuture.failedFuture(new IndexOutOfBoundsException("slot " + slot)));
+        if (p.isDisconnected()) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalStateException("접속 중이 아니다")));
+        org.domi.furnace.server.entity.ItemStack converted;
         try {
-            p.inventory().set(PlayerInventory.windowSlot(slot), ApiConvert.item(item, items()));
+            converted = ApiConvert.item(item, items());
         } catch (IllegalArgumentException e) {
-            return CompletableFuture.failedFuture(e);
+            return RegionFuture.wrap(CompletableFuture.failedFuture(e));
         }
-        return CompletableFuture.completedFuture(null);
+        RegionFuture<Void> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            try {
+                p.inventory().set(PlayerInventory.windowSlot(slot), converted);
+                f.complete(null);
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
     }
 
     @Override

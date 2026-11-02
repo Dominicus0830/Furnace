@@ -23,7 +23,9 @@ Bukkit 은 "메인 스레드 한 개"를 가정하지만 Furnace 는 region 스�
 | 플레이어 핸들 | `Player.health()` 등 기존 | 아무 스레드 | 최근 값(기존 계약 유지) |
 
 - 이벤트마다 "어느 스레드에서 불리는가"를 Javadoc 첫 줄에 적는다. 이벤트 처리기는 **발화한 스레드**에서 돈다. 처리기 안에서 같은 region 의 상태는 `*Now` 로 읽어도 되고, 다른 region 은 반드시 비동기 메서드로.
-- 비동기 메서드의 Future 는 `Future.get()` 으로 region 스레드에서 기다리면 안 된다(데드락 위험, scheduler.md 규칙 6). `thenAccept` 로 잇는다.
+- 비동기 메서드의 Future 는 `Future.get()`/`join()` 으로 region·전역 스레드에서 기다리면 안 된다. 데드락 시나리오: region A 의 처리기가 `world.blockAt(B 의 칸).get()` 으로 기다리는 동안 A 스레드는 멈추고, B 의 처리기도 A 의 칸을 `get()` 으로 기다리면 둘 다 영영 못 돈다(scheduler.md 규칙 6). 서버가 돌려주는 Future 는 `RegionFuture` 라서 서버 스레드(스레드 이름 `furnace-region*`/`furnace-global`)에서 **미완료 상태로** `get()`/`join()` 하면 `IllegalStateException` 으로 거부한다. `thenAccept`/`thenApply` 로 잇는다(파생 Future 도 같은 가드). 일반(비서버) 스레드에서는 기다려도 된다.
+- 이벤트 처리기가 던진 예외는 이벤트 버스가 로그만 남기고 다음 처리기로 넘어간다 — `EntityDeathEvent` 리스너가 죽어도 사망 처리는 계속된다(시험으로 확인).
+- 플레이어 인벤토리: 읽기는 `PlayerInventory` 가 내부 `synchronized` 라 아무 스레드에서 즉시 완료. **쓰기는 `Player.runOnOwner` 로 소유 스레드에서** 적용하고 그때 Future 가 완료된다(접속이 끊겼으면 실패). 클라이언트 동기화는 다음 틱 창 broadcastChanges.
 - 로드되지 않은 청크: `blockAt` 은 `Optional.empty()`, `setBlock` 은 `false`. 청크를 새로 만들게 하지 않는다(임의 좌표 요청으로 region 이 늘어나는 것을 막는다).
 - 엔티티 이동: `Entity.scheduler()` 는 **핸들을 만든 시점 위치**의 region 스케줄러다. 그 사이 다른 region 으로 넘어갔으면 `refresh()` 는 `null` 로 끝난다(`isValid` 가 거짓). 엔티티별 스케줄러(Folia `EntityScheduler`)는 다음 단계.
 
@@ -57,10 +59,10 @@ Bukkit 은 "메인 스레드 한 개"를 가정하지만 Furnace 는 region 스�
 |---|---|---|---|
 | `EntityDamageEvent` | O | 맞는 엔티티의 region | `LivingEntity.hurtBy` 시작 (취소 = 피해 안 받음, `false` 반환). `damage` 는 방어 계산 **전** 원본 값 |
 | `EntityDeathEvent` | X | 죽는 엔티티의 region | `LivingEntity.die` 의 `dead = true` 직후 |
-| `EntitySpawnEvent` | O | 넣는 레벨의 region | `ChunkLevel.addFreshEntity` (취소 = 넣지 않음). 청크 로드로 되살린 엔티티는 제외 |
-| `PlayerMoveEvent` | O | 플레이어의 region | `Region.processMoves` 검증 통과 직후 (취소 = 이전 자리로 보정 텔레포트) |
+| `EntitySpawnEvent` | O | 넣는 레벨의 region | `ChunkLevel.addFreshEntity` — 목록에 넣은 **뒤** 발화하고 취소하면 목록에서 빼고 레벨을 원래대로(추적 시작 전). 승객 묶음(`addFreshEntityWithPassengers`)은 하나라도 취소하면 전부 넣지 않는다(전부 아니면 전무). 청크 로드로 되살린 엔티티는 제외 |
+| `PlayerMoveEvent` | O | 플레이어의 region | `Region.processMoves` 검증 통과 직후 (취소 = 서버 위치를 이전 자리로 되돌리고 검증 거부와 같은 방식으로 보정 텔레포트 `Player.correctTo` — `PlayerTeleportEvent` 를 거치지 않는다) |
 | `PlayerTeleportEvent` | O | 호출한 스레드 | `Player.teleportTo` (같은 차원). 차원 이동은 다음 단계 |
-| `PlayerInteractEvent` | O | 클릭한 칸의 region | `handleUseItemOn`(RIGHT_CLICK_BLOCK), `Region.handleUseItem`(RIGHT_CLICK_AIR) |
+| `PlayerInteractEvent` | O | 클릭한 칸의 region | `handleUseItemOn`(RIGHT_CLICK_BLOCK), `Region.handleUseItem`(RIGHT_CLICK_AIR). 구독자가 없으면 블록 상태 조회도 하지 않는다. 취소하면 클라이언트 예측을 되돌린다: 블록/이웃 상태 재전송(기존 sendBlockState) + 손 슬롯 `ContainerSetSlot` 재전송 |
 | `PlayerDropItemEvent` | O | 플레이어의 region | `Region.playerDrop` 시작 (취소 = 인벤토리로 돌려줌) |
 | `PlayerPickupItemEvent` | O | 아이템이 있는 region | `ItemEntity.playerTouch` 시작 |
 | `InventoryClickEvent` | O | 메뉴 처리 스레드(블록 메뉴는 그 블록의 region) | `applyContainerClick` (취소 = 서버가 클릭을 재현하지 않고 전체 재전송) |
@@ -99,6 +101,9 @@ ApiConvert              : 서버 ItemStack ↔ API ItemStack, 서버 Player → 
 ## 7. 1단계 구현 범위와 다음 단계
 
 구현(1단계): 위 3장 타입 전부, 4장 이벤트 13종 전부의 API 와 서버 발화. 단 아래 **한계**가 있다(바닐라/Paper 와 다른 점은 `docs/feature-parity/context-notes.md` 2026-11-02 에 기록).
+
+후속 검토(2026-11-02)로 해결한 것: 이동 취소 보정 어긋남(B1), 스폰 취소 후 레벨/목록 잔재와 승객 부분 추가(B2), 플레이어 인벤토리 쓰기 소유 스레드, Interact 취소 재동기화, 구독자 없을 때 인자 평가 비용, 서버 스레드 `get()` 가드.
+남은 한계: `PlayerMoveEvent` 취소 직후 서버가 보정 ack 를 기다리는 동안(moveRejectHold) 도착한 이동 패킷은 버려진다(검증 거부와 같은 동작). 가드는 스레드 이름 규약에 기대므로 이름을 바꾸면 `RegionFuture.onServerThread` 도 고쳐야 한다. `CompletableFuture` 를 직접 만든 사용자 코드(`new CompletableFuture`)의 `get()` 은 막지 못한다.
 
 다음 단계(미구현):
 1. `EntityScheduler`(엔티티를 따라가는 스케줄러) — 지금은 핸들 시점 위치의 region 스케줄러.

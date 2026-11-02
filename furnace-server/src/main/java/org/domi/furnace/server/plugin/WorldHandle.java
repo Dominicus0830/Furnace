@@ -68,7 +68,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public CompletableFuture<Optional<Block>> blockAt(BlockPos pos) {
         CompletableFuture<Optional<Block>> f = world.submitAtOwnedChunk(new ChunkPos(pos.chunkX(), pos.chunkZ()), r -> read(r, pos));
-        return f != null ? f : CompletableFuture.completedFuture(Optional.empty());
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(Optional.empty()));
     }
 
     @Override
@@ -77,7 +77,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         try {
             state = ApiConvert.stateId(data, world.blockRegistry());
         } catch (IllegalArgumentException e) {
-            return CompletableFuture.failedFuture(e);
+            return RegionFuture.wrap(CompletableFuture.failedFuture(e));
         }
         CompletableFuture<Boolean> f = world.submitAtOwnedChunk(new ChunkPos(pos.chunkX(), pos.chunkZ()), r -> {
             if (!inHeight(pos.y()) || !r.chunkLoaded(new ChunkPos(pos.chunkX(), pos.chunkZ()))) return false;
@@ -86,7 +86,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             level.broadcastChanges();
             return ok;
         });
-        return f != null ? f : CompletableFuture.completedFuture(false);
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(false));
     }
 
     @Override

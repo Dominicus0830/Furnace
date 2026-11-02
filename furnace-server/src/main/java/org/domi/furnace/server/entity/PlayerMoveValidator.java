@@ -186,7 +186,7 @@ public final class PlayerMoveValidator {
         p.applyMove(x, y, z, yaw, pitch, p.onGround());
         if (p.hasTeleporter()) {
             p.moveRejectHold = true;
-            p.teleportTo(x, y, z, yaw, pitch);   // 연결(IO 스레드)이 대기열을 비우며 hold 를 풀고 SyncPlayerPosition 을 보낸다
+            p.correctTo(x, y, z, yaw, pitch);   // 연결(IO 스레드)이 대기열을 비우며 hold 를 풀고 SyncPlayerPosition 을 보낸다
         }
     }
 

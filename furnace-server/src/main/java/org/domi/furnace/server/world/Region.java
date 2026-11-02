@@ -1034,7 +1034,12 @@ public final class Region {
             Player.MoveSample prev = p.moveAnchor();
             if (!m.teleport() && prev != null && (m.x() != prev.x() || m.y() != prev.y() || m.z() != prev.z())
                     && !world.levelServices().gameEvents().playerMove(p, prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch(), m.x(), m.y(), m.z(), p.yaw(), p.pitch())) {
-                p.teleportTo(prev.x(), prev.y(), prev.z());   // 플러그인 PlayerMoveEvent 취소: 이전 자리로 보정
+                // 플러그인 PlayerMoveEvent 취소: 검증기가 이미 옮긴 서버 위치를 되돌리고 보정 텔레포트(검증 거부와 같은 방식, 이벤트 우회)
+                p.applyMove(prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch(), prev.onGround());
+                if (p.hasTeleporter()) {
+                    p.moveRejectHold = true;
+                    p.correctTo(prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch());
+                }
                 continue;
             }
             p.moveAnchor(m);
@@ -1250,7 +1255,10 @@ public final class Region {
         if (!players.containsKey(p.entityId())) return;
         var actor = breakerActor(p);
         if (actor.itemInHand(hand).isEmpty()) return;
-        if (!world.levelServices().gameEvents().playerInteract(p, hand, null, 0, 0, actor.itemInHand(hand))) return;   // 플러그인 PlayerInteractEvent(허공 우클릭)
+        if (!world.levelServices().gameEvents().playerInteract(p, hand, null, 0, 0, actor.itemInHand(hand))) {   // 플러그인 PlayerInteractEvent(허공 우클릭) 취소
+            p.send(new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, hand == 0 ? actor.heldWindowSlot() : 45, actor.itemInHand(hand)));   // 클라이언트 예측 되돌림
+            return;
+        }
         if (p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && org.domi.furnace.server.entity.Consuming.tryStart(p, hand, actor.itemInHand(hand))) return;
         float y = wrapDegrees(yRot), x = wrapDegrees(xRot);
         if (x != p.pitch() || y != p.yaw()) p.applyRotation(y, Math.clamp(x, -90.0F, 90.0F), p.onGround());   // absRotateTo

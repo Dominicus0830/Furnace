@@ -305,4 +305,135 @@ class EntityWorldApiTest {
         assertEquals(List.of("8.5->9.5", "9.5->13.5"), log);
         assertEquals(9.5, anchorX[0], "취소된 이동은 기준점이 되지 않는다");
     }
+
+    // ------------------------------------------------------------------ 후속 검토 반영
+
+    @Test
+    void passengerSpawnCancelIsAllOrNothingAndRestoresLevel() throws Exception {
+        host.eventsImpl().subscribe(plugin, EntitySpawnEvent.class, e -> e.setCancelled(e.entity().customName() != null));
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            var level = r.level();
+            Cow vehicle = new Cow(level, level.nextEntityId());
+            vehicle.moveTo(8, -50, 8, 0, 0);
+            var rider = new org.domi.furnace.server.entity.Zombie(level, level.nextEntityId());
+            rider.moveTo(8, -50, 8, 0, 0);
+            rider.setCustomName(org.domi.furnace.api.text.Text.text("no"));
+            rider.startRiding(vehicle, true);
+            boolean cancelled = level.addFreshEntityWithPassengers(vehicle);
+            boolean vehicleIn = level.entities().contains(vehicle);
+            boolean riderIn = level.entities().contains(rider);
+            rider.setCustomName(null);
+            boolean ok = level.addFreshEntityWithPassengers(vehicle);
+            return new Object[] {cancelled, vehicleIn, riderIn, ok, level.entities().contains(vehicle), level.entities().contains(rider)};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(false, out[0], "승객 하나라도 취소되면 전체 실패");
+        assertEquals(false, out[1], "탈것도 들어가지 않는다");
+        assertEquals(false, out[2]);
+        assertEquals(true, out[3], "취소 사유가 사라지면 정상 추가");
+        assertEquals(true, out[4]);
+        assertEquals(true, out[5]);
+    }
+
+    @Test
+    void cancelledMoveOnCheckedPathCorrectsOnceBypassingTeleportEvent() throws Exception {
+        List<String> teleportEvents = new ArrayList<>();
+        List<double[]> corrections = new java.util.concurrent.CopyOnWriteArrayList<>();
+        int[] moveEvents = {0};
+        host.eventsImpl().subscribe(plugin, PlayerMoveEvent.class, e -> { moveEvents[0]++; e.setCancelled(true); });
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.player.PlayerTeleportEvent.class, e -> { teleportEvents.add("tp"); e.setCancelled(true); });
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        p.inventory(new PlayerInventory());
+        p.applyMove(8.5, -60, 8.5, 0, 0, true);
+        p.teleporter(t -> { corrections.add(t); p.clearMoves(); });   // 연결이 하는 일: 보정을 보내고 대기열·hold 를 비운다
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            r.adopt(p);
+            p.pushMove(8.5, -60, 8.5, true);   // 기준점
+            p.pushCheckedMove(new org.domi.furnace.server.entity.PlayerMoveValidator.Check(true, false, 8.7, -60, 8.5, 0, 0), true);
+            r.tick();
+            double x1 = p.x();
+            int c1 = corrections.size();
+            r.tick();   // 이동 없음 — 보정이 되풀이되면 안 된다
+            r.tick();
+            return new Object[] {x1, c1, corrections.size(), p.moveRejectHold};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(8.5, (double) out[0], 1e-9, "취소하면 서버 위치도 이전 자리로 돌아간다(검증기가 옮겨 둔 값을 되돌림)");
+        assertEquals(1, (int) out[1], "보정은 정확히 한 번");
+        assertEquals(1, (int) out[2], "무한 보정 루프 없음");
+        assertEquals(false, out[3], "hold 는 연결이 대기열을 비울 때 풀린다");
+        assertEquals(1, moveEvents[0]);
+        assertTrue(teleportEvents.isEmpty(), "보정은 PlayerTeleportEvent 를 거치지 않는다(취소돼도 사라지지 않는다)");
+        assertEquals(5, corrections.get(0).length, "회전까지 담은 보정");
+        assertEquals(8.5, corrections.get(0)[0], 1e-9);
+    }
+
+    @Test
+    void futureGetOnServerThreadIsRejected() throws Exception {
+        var w = api();
+        BlockPos pos = new BlockPos(1, 10, 1);
+        Object r = w.scheduler(pos).submit(() -> {
+            var pending = w.blockAt(new BlockPos(2, 10, 2));   // 이 작업이 끝난 뒤에야 돈다 -> 아직 미완료
+            try {
+                pending.get();
+                return "no-throw";
+            } catch (IllegalStateException e) {
+                return "rejected";
+            } catch (Exception e) {
+                return e.toString();
+            }
+        }).get(10, TimeUnit.SECONDS);
+        assertEquals("rejected", r, "region 스레드에서 미완료 Future 를 get() 하면 데드락이므로 거부");
+        assertTrue(w.blockAt(new BlockPos(2, 10, 2)).get(10, TimeUnit.SECONDS).isPresent(), "일반 스레드에서는 기다릴 수 있다");
+    }
+
+    @Test
+    void playerInventorySetRunsOnOwnerAndCancelledDeathListenerExceptionIsIsolated() throws Exception {
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        p.inventory(new PlayerInventory());
+        p.applyMove(8.5, -60, 8.5, 0, 0, true);
+        var inv = host.player(p).inventory();
+        host.eventsImpl().subscribe(plugin, EntityDeathEvent.class, e -> { throw new IllegalStateException("리스너 고장"); });
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            r.adopt(p);
+            r.tick();   // 소유 region 표시
+            var f = inv.set(0, new org.domi.furnace.api.item.ItemStack("minecraft:dirt", 4));
+            r.tick();
+            var level = r.level();
+            Cow cow = new Cow(level, level.nextEntityId());
+            cow.moveTo(8, -50, 8, 0, 0);
+            level.addFreshEntity(cow);
+            cow.kill();
+            return new Object[] {f.isDone() && !f.isCompletedExceptionally(), p.inventory().get(36).count(), cow.isDeadOrDying()};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(true, out[0], "쓰기 Future 는 소유 스레드에서 완료");
+        assertEquals(4, out[1]);
+        assertEquals(true, out[2], "죽음 리스너 예외가 죽음 처리를 막지 않는다");
+        assertEquals(4, inv.get(0).get(10, TimeUnit.SECONDS).amount());
+        assertTrue(inv.set(99, org.domi.furnace.api.item.ItemStack.EMPTY).isCompletedExceptionally());
+    }
+
+    @Test
+    void cancelledAirInteractResyncsHeldSlot() throws Exception {
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.player.PlayerInteractEvent.class, e -> e.setCancelled(true));
+        EmbeddedChannel ch = new EmbeddedChannel();
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", ch);
+        PlayerInventory inv = new PlayerInventory();
+        p.inventory(inv);
+        inv.set(36, org.domi.furnace.server.block.B.stack("minecraft:dirt", 3));
+        p.inventoryHost(new Player.InventoryHost() {
+            public org.domi.furnace.server.entity.ItemStack slot(int w) { return inv.get(w); }
+            public int selected() { return 0; }
+            public void replace(int w, org.domi.furnace.server.entity.ItemStack expect, org.domi.furnace.server.entity.ItemStack now) { inv.replace(w, expect, now); }
+            public int permissionLevel() { return 0; }
+        });
+        p.applyMove(8.5, -60, 8.5, 0, 0, true);
+        core.world().submitAtChunk(C00, r -> {
+            r.adopt(p);
+            r.handleUseItem(p, 0, 1, 0f, 0f);
+            return null;
+        }).get(30, TimeUnit.SECONDS);
+        ch.runPendingTasks();
+        ch.flushOutbound();
+        assertFalse(ch.outboundMessages().isEmpty(), "취소하면 손 슬롯을 다시 보내는 패킷이 나간다");
+        assertEquals(3, inv.get(36).count(), "서버 아이템은 그대로");
+    }
 }
