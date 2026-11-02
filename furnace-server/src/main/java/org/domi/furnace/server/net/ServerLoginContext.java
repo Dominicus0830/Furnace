@@ -53,6 +53,14 @@ public final class ServerLoginContext {
         return this;
     }
 
+    /** server.properties 의 리소스 팩(없으면 null). 바닐라처럼 기동 때 한 번 읽는다. */
+    volatile ServerProperties.ResourcePackInfo resourcePack;
+
+    public ServerLoginContext resourcePack(ServerProperties.ResourcePackInfo info) {
+        this.resourcePack = info;
+        return this;
+    }
+
     /** null 이면 Velocity 포워딩 꺼짐. */
     volatile org.domi.furnace.server.net.auth.VelocityForwarding velocity;
     private final Random random = new Random();
@@ -95,7 +103,7 @@ public final class ServerLoginContext {
         // 서명 채팅 강제는 Mojang 프로필 공개키를 검증할 수 있어야 한다(2-5 에서 키 조회와 함께 켠다).
         return new ServerLoginContext(p.onlineMode, p.preventProxyConnections, p.acceptsTransfers, p.enableStatus,
                 p.hideOnlinePlayers, false, p.logIps, p.maxPlayers, p.motd, keys, new SessionService(), lists, cache,
-                loadFavicon(iconFile));
+                loadFavicon(iconFile)).resourcePack(p.serverResourcePackInfo.orElse(null));
     }
 
     /** server-icon.png(64x64)를 PNG 로 다시 인코딩해 data URI 로. 없거나 크기가 다르면 null. */

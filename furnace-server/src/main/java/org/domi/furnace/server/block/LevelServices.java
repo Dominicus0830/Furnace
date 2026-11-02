@@ -140,6 +140,9 @@ public interface LevelServices {
     /** server.properties simulation-distance. */
     default int simulationDistance() { return 10; }
 
+    /** server.properties player-idle-timeout(분, 0 이면 끔). */
+    default int playerIdleTimeoutMinutes() { return 0; }
+
     /** RandomizableContainer.unpackLootTable(null): 열지 않은 전리품 상자를 채운다(부술 때). 데이터 팩이 없으면 아무것도. */
     default void unpackContainerLoot(Object container) {}
 
@@ -254,6 +257,7 @@ public interface LevelServices {
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }
+        public int playerIdleTimeoutMinutes() { return d.playerIdleTimeoutMinutes(); }
         public int entityBroadcastRangePercentage() { return d.entityBroadcastRangePercentage(); }
         public boolean flightAllowed() { return d.flightAllowed(); }
         public boolean tickRunsNormally() { return d.tickRunsNormally(); }

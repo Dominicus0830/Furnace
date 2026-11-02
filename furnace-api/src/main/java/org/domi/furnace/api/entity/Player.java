@@ -54,6 +54,15 @@ public interface Player extends CommandSender {
     /** 사유를 보여 주고 연결을 끊는다. */
     void kick(Text reason);
 
+    /** 클라이언트가 minecraft:brand 로 알린 이름(예: "vanilla"), 아직 모르면 null. */
+    String clientBrand();
+
+    /**
+     * 플러그인 채널로 바이트를 보낸다(play 단계 custom_payload). 채널은 "네임스페이스:이름" 소문자 형식, 본문은 최대 1048576바이트.
+     * 어느 스레드에서 불러도 된다. 접속이 끊겼으면 아무 일도 없다.
+     */
+    void sendPluginMessage(String channel, byte[] data);
+
     /** 이 플레이어로서 명령을 실행 큐에 넣는다(앞의 '/' 는 없어도 된다). 접수 여부를 돌려준다(결과는 나중에 정해진다). */
     boolean performCommand(String command);
 }

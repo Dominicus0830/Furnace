@@ -788,6 +788,13 @@ public final class ServerCore {
         for (Player p : players()) p.send(packet);
     }
 
+    /** 바닐라 MinecraftServer.setDifficultyLocked: 잠금 상태를 바꾸고 모두에게 알린다. */
+    public void setDifficultyLocked(boolean locked) {
+        levelData.difficultyLocked = locked;
+        var packet = new org.domi.furnace.server.net.protocol.play.ChangeDifficulty(levelData.difficulty.id(), levelData.difficultyLocked);
+        for (Player p : players()) p.send(packet);
+    }
+
     /**
      * 바닐라 DedicatedServer.isUnderSpawnProtection(오버월드): OP 가 한 명이라도 있고, 이 플레이어가 OP 가 아니며,
      * spawn-protection > 0 이고 월드 스폰과의 체비셰프 거리가 그 이하인가.
@@ -938,6 +945,7 @@ public final class ServerCore {
         public boolean spawnAnimals() { return settings.get().spawnAnimals; }
         public boolean spawnNpcs() { return settings.get().spawnNpcs; }
         public int simulationDistance() { return settings.get().simulationDistance; }
+        public int playerIdleTimeoutMinutes() { return settings.get().playerIdleTimeout.get(); }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
         public boolean flightAllowed() { return settings.get().allowFlight; }
         public boolean tickRunsNormally() { return !tickState().frozen(); }
