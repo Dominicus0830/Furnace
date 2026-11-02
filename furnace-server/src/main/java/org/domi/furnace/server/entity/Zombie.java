@@ -286,8 +286,10 @@ public class Zombie extends Monster {
         super.finalizeSpawn(r, difficulty);
         float special = difficulty.specialMultiplier();
         setCanPickUpLoot(r.nextFloat() < 0.55F * special);
-        boolean baby = getSpawnAsBabyOdds(r);   // spawnData == null 이면 ZombieGroupData(아기 확률, nextBoolean) 를 새로 만든다
-        boolean jockey = r.nextBoolean();
+        // 바닐라 1.21.1(ckw.finalizeSpawn): spawnData == null 이면 new ZombieGroupData(getSpawnAsBabyOdds(r), true) — 두 번째 값은 상수 true 라
+        // 난수를 쓰지 않는다(예전 nextBoolean 은 모든 좀비 스폰의 난수를 한 번 더 소비하던 오류).
+        boolean baby = getSpawnAsBabyOdds(r);
+        boolean jockey = true;
         finishFinalizeSpawn(r, difficulty, baby, jockey);
     }
 

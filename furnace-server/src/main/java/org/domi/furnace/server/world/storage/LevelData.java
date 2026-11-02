@@ -54,6 +54,9 @@ public final class LevelData {
     /** 커스텀 보스바(level.dat CustomBossEvents) — 서버가 저장 때 갈아 끼운다. null 이면 읽은 값(없으면 빈 compound). */
     public volatile NbtCompound customBossEvents;
 
+    /** 방랑 상인 타이머(level.dat WanderingTraderSpawnDelay/Chance/Id) — 오버월드 스포너들이 공유하고 저장 때 그대로 쓴다. */
+    public final org.domi.furnace.server.world.WanderingTraderState wanderingTrader = new org.domi.furnace.server.world.WanderingTraderState();
+
     /** 예약된 함수(/schedule, level.dat ScheduledEvents) — 서버가 저장 때 갈아 끼운다. null 이면 읽은 값(없으면 빈 목록). */
     public volatile NbtList scheduledEvents;
 
@@ -80,6 +83,8 @@ public final class LevelData {
 
     private LevelData(NbtCompound raw) {
         this.raw = raw;
+        wanderingTrader.read(raw);
+        wanderingTrader.normalize();
     }
 
     /** 새 월드(바닐라 Main 의 LevelSettings + WorldOptions). */
@@ -221,8 +226,7 @@ public final class LevelData {
         d.put("thundering", b(thundering));
         d.putInt("thunderTime", thunderTime);
         worldBorder.write(d);
-        putIfAbsent(d, "WanderingTraderSpawnDelay", 24000);
-        putIfAbsent(d, "WanderingTraderSpawnChance", 25);
+        wanderingTrader.write(d);
         NbtCompound bars = customBossEvents;
         if (bars != null) d.putCompound("CustomBossEvents", bars);
         else putIfAbsent(d, "CustomBossEvents", new NbtCompound());

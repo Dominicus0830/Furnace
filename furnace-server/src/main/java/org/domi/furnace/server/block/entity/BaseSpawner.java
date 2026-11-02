@@ -167,6 +167,11 @@ public abstract class BaseSpawner {
                     continue;
                 }
                 boolean onlyId = tag.tags().size() == 1 && tag.tags().get("id") instanceof String;
+                if (onlyId) {
+                    // 바닐라 finalizeSpawn(…, SPAWNER, …): 주민 종류(바이옴)·습격자 마녀 참여가 스폰 이유로 갈린다
+                    if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.SPAWNER);
+                    if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.SPAWNER);
+                }
                 if (onlyId) mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
                 // TODO(엔티티): sd.equipment() 가 있으면 mob.equip(장비 전리품 표)
             }

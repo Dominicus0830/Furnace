@@ -369,6 +369,10 @@ public final class TrialSpawner {
         if (e instanceof Mob mob) {
             if (!mob.checkSpawnObstruction(level)) return Optional.empty();
             boolean onlyId = tag.tags().size() == 1 && tag.tags().get("id") instanceof String;
+            if (onlyId) {
+                if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.TRIAL_SPAWNER);
+                if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.TRIAL_SPAWNER);
+            }
             if (onlyId) mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
             mob.setPersistenceRequired();
             if (sd.equipment() instanceof NbtCompound eq) applyEquipment(level, mob, eq);

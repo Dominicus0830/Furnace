@@ -21,7 +21,7 @@
 | 9 | 솔질 블록(의심스러운 모래/자갈) + 솔 아이템 | 고고학 불가 |
 | 10 | 발전 과제 트리거: 56종 호출 지점은 연결(작업 E)했으나 근사·미완 남음(effects_changed source → kill_axolotl_target 달성 불가 등) | `advancement-triggers-2026-10-28.md` |
 | 11 | RCON·Query 서버 없음, 파싱만 하고 안 쓰는 server.properties 키 다수 | 아래 3장 |
-| 12 | 방랑 상인 타이머 level.dat 미저장, 마을 포위(VillageSiege) 없음, 습격자 목표 AI 없음 | |
+| 12 | ~~방랑 상인 타이머 level.dat 미저장, 마을 포위(VillageSiege) 없음, 습격자 목표 AI 없음~~ **완료(2026-11-02)** — 포위·타이머 저장 구현, 습격자 AI 는 이미 있었음(context-notes 2026-11-02) | |
 | 13 | 플러그인 API: 이벤트 15종, Entity/World/ItemStack/Inventory 타입 없음 | |
 | 14 | 스레드·region 현황 명령, 틱 프로파일러, 워치독 없음 | 멀티스레드 서버 특성상 필요 |
 

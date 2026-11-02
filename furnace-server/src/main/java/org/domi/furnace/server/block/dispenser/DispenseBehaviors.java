@@ -85,7 +85,7 @@ public final class DispenseBehaviors {
             int dir = s.facing();
             String n = ItemTools.itemName(stack);
             String type = "minecraft:" + n.substring("minecraft:".length(), n.length() - "_spawn_egg".length());
-            s.level().spawnMobFromEgg(type, s.front(), dir != Dir.UP, false);
+            s.level().spawnMobFromEgg(type, s.front(), dir != Dir.UP, false, org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER);
             s.level().gameEvent("minecraft:entity_place", s.pos(), null, -1);
             return stack.withCount(stack.count() - 1);
         }

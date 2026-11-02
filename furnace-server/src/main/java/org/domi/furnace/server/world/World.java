@@ -1013,6 +1013,13 @@ public final class World {
     // 드래곤 티켓을 걸어 둔 동안 참(그 동안 (0,0) 둘레 반경 9 를 붙잡는다)
     private volatile boolean dragonTicket;
 
+    private volatile WanderingTraderState wanderingTraderState;
+
+    /** 오버월드의 방랑 상인 타이머(level.dat 와 공유). 없으면 스포너가 region 마다 따로 센다(시험·단독 월드). */
+    public WanderingTraderState wanderingTraderState() { return wanderingTraderState; }
+
+    public void wanderingTraderState(WanderingTraderState s) { this.wanderingTraderState = s; }
+
     /** 이 월드(엔드)에 드래곤 전투를 단다 — 저장된 EndDragonFight.Data 로 시작. */
     public void enableDragonFight(NbtCompound data) { this.dragonFightData = data == null ? new NbtCompound() : data; }
 
