@@ -656,3 +656,9 @@
   - **다른 점**: 바닐라는 지연을 24000 으로 되돌린 값을 바로 data 에 쓰지 않고 다음 감소 때 쓴다(저장 직후 재시작하면 ≤0 으로 읽혀 곧 다시 굴린다). 여기서는 살아 있는 값을 그대로 둬 저장값이 항상 현재 값이다. 상인 스폰 자체는 타이머를 이긴 region 의 플레이어 중에서 고른다(바닐라는 차원 전체) — 그 region 에 플레이어가 없으면 "플레이어 없음 → 확률만 초기화" 경로를 탈 수 있다.
 - **스폰 이유**: 몹 생성기(`BaseSpawner`)·시련 생성기가 주민/습격자에 SPAWNER/TRIAL_SPAWNER 이유를 넘기게 했다(바닐라 `finalizeSpawn(…, SPAWNER, …)`) — 생성기 마녀가 습격에 참여하고, 생성기 주민은 그 자리 바이옴의 종류를 받는다. 발사기 스폰 알은 SPAWN_EGG 로 남긴다(주민 쪽 결과는 DISPENSER 와 같다).
 - 시험: `VillageSiegeTest`, `WanderingTraderTest`(level.dat 왕복·공유 타이머·상인 번호), `RaiderGoalsTest`(축하·마을로 향하기·깃발 줍기·마녀 참여 이유). 생성기 → 주민/습격자 이유 연결(`BaseSpawner`·`TrialSpawner`)은 시험 레벨에서 몹이 서지 않아 직접 시험하지 못했다(`finalizeSpawn` 쪽 분기만 시험) — 가정.
+
+## 2026-11-02 마을 포위 후속 — 좀비 finalizeSpawn 난수 정정 외
+- **좀비 finalizeSpawn 난수(parity 수정)**: `Zombie.finalizeSpawn` 이 바닐라(1.21.1 ckw)에 없는 `nextBoolean()` 을 하나 더 소비해, 이후 난수가 모든 좀비 스폰에서 한 칸씩 밀려 있었다. 바닐라는 `new ZombieGroupData(getSpawnAsBabyOdds(r), true)` 로 두 번째 값이 상수 `true` 라 난수를 쓰지 않는다. 상수로 고쳤고 `ZombieFinalizeRandomTest` 가 시드 50개에서 `nextBoolean` 호출 0 을 고정한다.
+- **방랑 상인 타이머 원자화**: `claimTick`·읽기·감소·쓰기를 `state.lock()` 으로 묶었고, level.dat 저장도 같은 잠금으로 (delay, chance) 쌍을 한 번에 읽는다. 승자 region 에 플레이어가 없으면 타이머를 소비하지 않는다. 상인 대상 플레이어는 여전히 타이머를 돌리는 region 의 플레이어 중에서 고른다(바닐라는 차원 전체) — 차이.
+- **알·발사기 마녀**: 스폰 알과 발사기로 낸 마녀도 스폰 이유를 받아 습격에 참여한다(`spawnMobFromEgg(..., SpawnReason)`).
+- **포위 좀비 난이도**: `finalizeSpawn` 을 `moveTo` 앞에 불러 원점 기준 난이도를 쓰는 바닐라 순서를 `VillageSiegeTest` 가 고정한다.
