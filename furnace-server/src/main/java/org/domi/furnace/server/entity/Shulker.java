@@ -1,5 +1,5 @@
 // 바닐라 Shulker: 블록 면에 붙어 사는 몹. 껍데기(peek)를 열면 대상에게 셜커 탄환을 쏘고, 닫으면 방어력 +20. 맞으면 순간이동한다.
-// 속도·밀기 없음. TODO(플레이어 밀기·팀): 껍데기가 열릴 때 플레이어 밀기(MOVER_SHULKER)와 팀 기반 방어 목표는 해당 시스템이 생기면.
+// 속도·밀기 없음. TODO(플레이어 밀기): 껍데기가 열릴 때 플레이어 밀기(MOVER_SHULKER).
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -55,7 +55,7 @@ public class Shulker extends AbstractGolem implements Enemy {
         goalSelector.addGoal(8, new RandomLookAroundGoal(this));
         targetSelector.addGoal(1, new HurtByTargetGoal(this, getClass()).setAlertOthers());
         targetSelector.addGoal(2, new ShulkerNearestAttackableTargetGoal(this));
-        // TODO(팀): targetSelector 3 = ShulkerDefenseAttackGoal(같은 팀의 적 몹)
+        targetSelector.addGoal(3, new ShulkerDefenseAttackGoal(this));
     }
 
     @Override
@@ -375,6 +375,26 @@ public class Shulker extends AbstractGolem implements Enemy {
         }
 
         @Override public void tick() { peekTime--; }
+    }
+
+    /** ShulkerDefenseAttackGoal: 팀에 속해 있으면 보이는 적대 몹(Enemy)을 노린다(빛이 닿지 않아도 됨). 탐색 상자는 붙은 면 기준. */
+    static class ShulkerDefenseAttackGoal extends NearestAttackableTargetGoal {
+        private final Shulker shulker;
+
+        ShulkerDefenseAttackGoal(Shulker shulker) {
+            super(shulker, LivingEntity.class, 10, true, false, t -> t instanceof Enemy);
+            this.shulker = shulker;
+        }
+
+        @Override
+        public boolean canUse() { return shulker.getTeam() == null ? false : super.canUse(); }
+
+        @Override
+        protected AABB getTargetSearchArea(double range) {
+            int axis = Dir.axis(shulker.getAttachFace());
+            if (axis == Dir.AXIS_X) return mob.boundingBox().inflate(4.0, range, range);
+            return axis == Dir.AXIS_Z ? mob.boundingBox().inflate(range, range, 4.0) : mob.boundingBox().inflate(range, 4.0, range);
+        }
     }
 
     static class ShulkerNearestAttackableTargetGoal extends NearestAttackableTargetGoal {

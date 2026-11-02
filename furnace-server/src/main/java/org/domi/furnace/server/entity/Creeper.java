@@ -1,5 +1,5 @@
 // 바닐라 Creeper: 대상이 가까우면 멈춰 부풀어(도화선 30틱) 폭발한다. 부싯돌·화염구로 점화, 떨어지면 도화선이 빨리 탄다.
-// TODO: 번개를 맞아 충전(powered)되는 것(번개 개체 필요), 폭발 뒤 남는 효과 구름, 다른 크리퍼 폭발로 머리 떨구기.
+// TODO: 충전된 다른 크리퍼 폭발로 죽을 때 머리 떨구기(Damage 에 원인 엔티티가 없다), 폭발 직후 triggerOnDeathMobEffects.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -129,8 +129,51 @@ public class Creeper extends Monster {
         float f = isPowered() ? 2.0F : 1.0F;
         dead = true;
         level.explode(this, x(), y(), z(), explosionRadius * f, false, level.destroyType("MOB"));
+        spawnLingeringCloud();
         discard();
     }
+
+    /** Creeper.spawnLingeringCloud: 걸린 효과가 있으면 반경 2.5 효과 구름을 남긴다(사용마다 -0.5, 대기 10, 지속은 기본의 절반). */
+    private void spawnLingeringCloud() {
+        var effects = getActiveEffects();
+        if (effects.isEmpty()) return;
+        AreaEffectCloud cloud = new AreaEffectCloud(level, level.nextEntityId());
+        cloud.moveTo(x(), y(), z(), 0.0F, 0.0F);
+        cloud.setRadius(2.5F);
+        cloud.setRadiusOnUse(-0.5F);
+        cloud.setWaitTime(10);
+        cloud.setDuration(cloud.durationTicks() / 2);
+        cloud.setRadiusPerTick(-cloud.getRadius() / cloud.durationTicks());
+        var list = new java.util.ArrayList<org.domi.furnace.server.effect.MobEffectInstance>();
+        for (var e : effects) list.add(new org.domi.furnace.server.effect.MobEffectInstance(e));
+        cloud.setEffects(list, effectsColor(list));
+        level.addFreshEntity(cloud);
+    }
+
+    /** PotionContents.getColor(effects): 보이는 효과 색을 (증폭 + 1) 비중으로 평균한다. 보이는 것이 없으면 기본 -13083194. */
+    static int effectsColor(java.util.List<org.domi.furnace.server.effect.MobEffectInstance> list) {
+        int r = 0, g = 0, b = 0, count = 0;
+        for (var e : list) {
+            if (!e.visible()) continue;
+            int c = e.effect().color(), amp = e.amplifier() + 1;
+            r += amp * (c >> 16 & 255);
+            g += amp * (c >> 8 & 255);
+            b += amp * (c & 255);
+            count += amp;
+        }
+        if (count == 0) return -13083194;
+        return r / count << 16 | g / count << 8 | b / count;
+    }
+
+    /** Creeper.setTarget: 염소는 대상으로 삼지 않는다. */
+    @Override
+    public void setTarget(Targetable t) {
+        if (!(t instanceof Goat)) super.setTarget(t);
+    }
+
+    /** Creeper.doHurtTarget: 때리지 않는다(맞닿으면 부푼다). */
+    @Override
+    public boolean doHurtTarget(Targetable t) { return true; }
 
     public int getSwellDir() { return (Integer) entityData.get(DATA_SWELL_DIR); }
 
