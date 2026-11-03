@@ -677,3 +677,8 @@
   - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
   - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.
 - 후속(검토 반영): `PlayerMoveEvent` 취소는 `applyMove(prev)` 로 서버 위치를 되돌린 뒤 `Player.correctTo`(이벤트 우회 보정)로 텔레포트하며 `moveRejectHold` 를 건다 — 검증기(`PlayerMoveValidator.reject`)도 같은 `correctTo` 를 쓰도록 바꿔, 텔레포트 리스너가 보정을 삼키지 못한다(Paper 의 정확한 동작은 미확인, **가정**). 검증 대기 패킷은 hold 동안 버려진다. `EntitySpawnEvent` 는 목록 추가 뒤 발화·취소 시 되돌림, 승객 묶음은 전부 아니면 전무(Paper 는 개별 엔티티 단위일 수 있다 — 미확인). `Interact` 취소는 손 슬롯 `ContainerSetSlot(-2)` 재전송(블록은 기존 재전송). 플레이어 인벤토리 쓰기는 `runOnOwner`(소유 틱에서 적용되므로 Future 가 최대 한 틱 늦게 완료). 서버 스레드에서 미완료 `RegionFuture.get()/join()` 은 예외.
+
+## 2026-11-03 봇 접속 시험에서 찾은 것
+- 엔티티 디스크 덧붙이기(`World.appendEntitiesAsync` → `AnvilWorldSource.appendEntities`): 빈 `Entities` 리스트는 디스크에서 TAG_END 리스트로 읽힌다. 거기에 compound 를 `add` 하면 쓰기에서 `미지원 태그: 0` 으로 실패해 덧붙이려던 엔티티가 사라졌다. 빈·다른 종류 리스트면 compound 리스트를 새로 만든다(바닐라 ListTag 는 빈 리스트에 첫 원소가 들어올 때 종류가 정해진다).
+- F3+I 엔티티·블록 엔티티 질의 응답(`tag_query`)은 `NbtTags.freeze` 꼴(배열 = byte[]/int[]/long[])로 보낸다. `thaw`(NbtArray)는 `/data` 경로 연산 전용이라 `NbtWriter` 가 쓰지 못한다.
+- 확인함(봇): 레지스트리 전송은 클라이언트의 알려진 팩 응답과 상관없이 내용을 생략한다(바닐라는 팩을 모르는 클라이언트에 내용을 보낸다) — 바닐라 클라이언트는 영향 없음, 고치지 않음.
