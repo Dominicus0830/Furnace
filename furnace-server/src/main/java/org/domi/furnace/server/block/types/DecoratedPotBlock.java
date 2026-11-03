@@ -118,7 +118,16 @@ public class DecoratedPotBlock extends BaseEntityBlock {
         return super.playerWillDestroy(level, pos, s, player);
     }
 
-    // TODO(엔티티): onProjectileHit — 깰 수 있는 투사체면 금 가게 하고 부순다.
+    /** onProjectileHit: 투사체가 mayInteract·mayBreak 면 금 간 상태로 바꾸고(플래그 4) 부순다 — 조각이 떨어진다. */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        Pos pos = hit.blockPos();
+        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)) {
+            level.setBlock(pos, CRACKED.with(state, true), BlockLevel.UPDATE_INVISIBLE);
+            level.destroyBlockByEntity(pos, true, projectile);
+        }
+    }
 
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) {

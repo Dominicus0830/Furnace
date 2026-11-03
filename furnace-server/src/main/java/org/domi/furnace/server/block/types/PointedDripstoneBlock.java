@@ -46,7 +46,18 @@ public class PointedDripstoneBlock extends BlockBehavior {
         return THICKNESS.with(state, calculateDripstoneThickness(level, pos, tip, mergeOpposite));
     }
 
-    // TODO(엔티티): onProjectileHit(속도 0.6 넘는 삼지창이면 부순다)·fallOn(석순 끝이면 피해 2배).
+    // TODO(엔티티): fallOn(석순 끝이면 피해 2배).
+
+    /** onProjectileHit: mayInteract·mayBreak 이고 속도 0.6 넘는 삼지창이면 부순다(destroyBlock(pos, true) — 부순 엔티티 없음). */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        Pos pos = hit.blockPos();
+        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level) && projectile instanceof org.domi.furnace.server.entity.ThrownTrident
+                && Math.sqrt(projectile.vx() * projectile.vx() + projectile.vy() * projectile.vy() + projectile.vz() * projectile.vz()) > 0.6) {
+            level.destroyBlock(pos, true);
+        }
+    }
 
     @Override
     public String fallDamageType() { return "falling_stalactite"; }

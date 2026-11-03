@@ -58,7 +58,7 @@ command_block(3종), trial_spawner, vault, brushable_block(suspicious sand/grave
 - 메뉴 25종은 모두 있다. 낙하·허기·재생·게임 모드 기본 분기는 구현됨.
 ### 서버
 - RCON, Query 없음. 파싱만 하고 쓰이지 않는 키: `spawn-npcs`, `allow-flight`, `enable-command-block`, `max-tick-time`, `max-world-size`, `region-file-compression`, `text-filtering-config`, `enable-jmx-monitoring`, `bug-report-link`, `resource-pack*`, `broadcast-rcon-to-ops`.
-- 게임룰 51종 중 참조 0건: `commandBlockOutput`, `projectilesCanBreakBlocks`, `spawnChunkRadius`, `spectatorsGenerateChunks`.
+- 게임룰 51종 중 참조 0건: `commandBlockOutput`, `spawnChunkRadius`, `spectatorsGenerateChunks`. (`projectilesCanBreakBlocks` 는 2026-11-03 연결)
 - 화이트리스트, 밴, op, 월드 보더(차원 간 공유), 서버 목록 핑은 구현됨.
 
 ## 4. 월드 생성·월드 시스템

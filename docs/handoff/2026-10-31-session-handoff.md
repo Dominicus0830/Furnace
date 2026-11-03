@@ -67,6 +67,9 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 - 돌고래-플레이어·보물 찾기, 앵무새 어깨, 바람 구슬 되치기·브리즈 튕김, 보트·말·낙타 끈, 일러저 Johnny 등.
 - **플러그인 API 1단계**: 설계 문서 `docs/api/entity-world-design.md`, `World`·`Block`·`Entity`·`ItemStack`·`Inventory` 타입과 이벤트 13종. 다른 region 상태를 동기로 읽는 메서드는 만들지 않았다(스냅샷·`CompletableFuture`·소유 스레드 검사, 서버 스레드에서 미완료 Future 의 `get()` 거부).
 
+**2026-11-03**
+- 투사체-블록 반응(`Block.onProjectileHit`): 양초·모닥불·TNT 점화, 자수정·종·큰 흘림잎, 후렴화·장식 단지·점적석 파괴와 `Projectile.mayInteract`/`mayBreak`, 게임룰 `projectilesCanBreakBlocks` 연결. `onHitBlock` 에서 `super` 를 안 부르던 투사체 6종 수정. 상세 `context-notes.md` "투사체-블록 반응".
+
 **동작이 바뀌어 알아야 하는 것**: `spawn-animals=false`·`spawn-npcs=false` 는 기존 동물·주민도 지운다(바닐라와 같음) / 방랑 상인 스포너 오버월드 전용 / 몹 흡수 체력이 피해를 막는다 / `Zombie.finalizeSpawn` 난수 순서 정정 / 일반 jar 이름이 `furnace-server-plain.jar` 로 바뀌고 `furnace-server.jar` 는 fatJar 만 만든다.
 
 검증 숫자(전체 시험 개수·실패·스킵)는 이 세션의 마지막 전체 실행 결과를 보고서에 적었다. 이 문서에는 적지 않는다 — 다음 세션이 직접 돌려서 확인한다.

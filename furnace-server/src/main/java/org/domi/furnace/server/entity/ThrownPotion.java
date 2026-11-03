@@ -16,7 +16,10 @@ public class ThrownPotion extends ThrowableProjectile {
     protected void onHitEntity(Hit hit) { splash(hit.target()); }
 
     @Override
-    protected void onHitBlock(Hit hit) { splash(null); }
+    protected void onHitBlock(Hit hit) {
+        super.onHitBlock(hit);
+        splash(null);
+    }
 
     @Override
     protected void onHit(Hit hit) {

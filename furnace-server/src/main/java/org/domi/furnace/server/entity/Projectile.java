@@ -305,6 +305,25 @@ public abstract class Projectile extends Entity {
         org.domi.furnace.server.block.B.behavior(state).onProjectileHit(bl, state, hit, this);
     }
 
+    /**
+     * Projectile.mayInteract(level, pos): 쏜 쪽이 플레이어면 그 플레이어의 mayInteract(스폰 보호 밖이고 월드 보더 안),
+     * 아니면 쏜 쪽이 없거나 게임룰 mobGriefing.
+     */
+    @Override
+    public boolean mayInteract(org.domi.furnace.server.block.BlockLevel level, Pos pos) {
+        Targetable o = getOwner();
+        if (o instanceof Player p) {
+            Player.InventoryHost inv = p.inventoryHost();
+            return (inv == null || inv.mayInteract(pos.x(), pos.z())) && level.withinBorder(pos);
+        }
+        return o == null || level.gameRule("mobGriefing");
+    }
+
+    /** Projectile.mayBreak(level): impact_projectiles 종류이고 게임룰 projectilesCanBreakBlocks. */
+    public boolean mayBreak(org.domi.furnace.server.block.BlockLevel level) {
+        return type().is("minecraft:impact_projectiles") && level.gameRule("projectilesCanBreakBlocks");
+    }
+
     /** Projectile.updateRotation: 이동 방향으로 0.2 보간. */
     protected static float lerpRotation(float old, float cur) {
         while (cur - old < -180.0F) old -= 360.0F;

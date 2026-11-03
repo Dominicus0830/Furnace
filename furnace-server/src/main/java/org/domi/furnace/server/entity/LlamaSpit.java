@@ -62,5 +62,8 @@ public class LlamaSpit extends Projectile {
     }
 
     @Override
-    protected void onHitBlock(Hit hit) { discard(); }
+    protected void onHitBlock(Hit hit) {
+        super.onHitBlock(hit);
+        discard();
+    }
 }
