@@ -677,3 +677,15 @@
   - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
   - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.
 - 후속(검토 반영): `PlayerMoveEvent` 취소는 `applyMove(prev)` 로 서버 위치를 되돌린 뒤 `Player.correctTo`(이벤트 우회 보정)로 텔레포트하며 `moveRejectHold` 를 건다 — 검증기(`PlayerMoveValidator.reject`)도 같은 `correctTo` 를 쓰도록 바꿔, 텔레포트 리스너가 보정을 삼키지 못한다(Paper 의 정확한 동작은 미확인, **가정**). 검증 대기 패킷은 hold 동안 버려진다. `EntitySpawnEvent` 는 목록 추가 뒤 발화·취소 시 되돌림, 승객 묶음은 전부 아니면 전무(Paper 는 개별 엔티티 단위일 수 있다 — 미확인). `Interact` 취소는 손 슬롯 `ContainerSetSlot(-2)` 재전송(블록은 기존 재전송). 플레이어 인벤토리 쓰기는 `runOnOwner`(소유 틱에서 적용되므로 Future 가 최대 한 틱 늦게 완료). 서버 스레드에서 미완료 `RegionFuture.get()/join()` 은 예외.
+
+## 2026-11-03 스트라이더: 안장·조종·뒤틀린 균류 막대·기수
+- 바닐라 1.21.1 `ckq`(Strider)·`bti`(ItemBasedSteering)·`ctz`(FoodOnAStickItem) 디컴파일 대조로 이식.
+- **ItemBasedSteering 분리**: 돼지와 스트라이더가 같은 클래스(`entity/ItemBasedSteering`)로 안장(동기화 데이터)·가속(`nextInt(841)+140`, 비교 뒤 증가)·저장(`Saddle`)·`boostFactor` 를 쓴다. 돼지 동작은 그대로(PigRidingTest 통과).
+- **조종**: 안장 + 첫 승객이 뒤틀린 균류 막대(주/보조 손)를 든 플레이어면 그가 조종, 아니면 Mob 기본(좀비 피글린 기수가 조종). `tickRidden` = 방향 따라가기 → `tickBoost` → 기본. `getRiddenSpeed`(속도 × 떨면 0.35/아니면 0.55 × 가속 배율)는 바닐라 값으로 두었지만 서버 이동에는 쓰지 않는다(조종은 클라이언트, move_vehicle).
+- **뒤틀린 균류 막대 사용**: `ItemUse.foodOnAStickUse` 가 당근 낚싯대와 공용. 탈것이 막대 종류의 엔티티(당근 → 돼지, 균류 → 스트라이더)이고 `boost` 가 되면 내구도(당근 7, 균류 1), 아니면 사용 통계 + PASS. 돼지에 탄 채 균류 막대는 아무 일 없음.
+- **상호작용**: 먹이 아님 + 안장 + 승객 없음 + 웅크리지 않음 → 탄다. 아니면 Animal(먹이·번식) → 처리 안 됐으면 안장 아이템(SaddleItem: 살아 있고 새끼 아님, 소리 출처 neutral, `EQUIP` 게임 이벤트). 먹이로 처리됐으면 조용하지 않을 때 `strider.eat`(피치 `1 + (r-r)·0.2`, 엔티티 난수).
+- **틱**: 유혹 중 `nextInt(140)==0` → happy, 아니면 패닉 중 `nextInt(60)==0` → retreat(엔티티 난수, AI 여부와 무관하게 매 틱). 떨기 = 따뜻하지 않음 **또는 탄 탈것이 떠는 스트라이더**. 기본 틱 → 용암 위 뜨기 → `checkInsideBlocks`. `checkFallDamage` 는 `checkInsideBlocks` 후 용암 안이면 낙하 거리 초기화(이전의 `causeFallDamage` 재정의는 바닐라에 없어 제거). ambient 소리 조건을 "떨지 않음"에서 바닐라의 "유혹 중 아님"으로 정정. `nextStep = moveDist + 0.6`.
+- **내릴 자리**: 승객 시선 방향과 ±22.5°·±45° 다섯 탈출 벡터 × (몸통 꼭대기 → 바닥 −0.5) 칸 후보를 순서대로, 용암 칸은 건너뛰고 바닥·몸 충돌 검사. 없으면 (x, 몸통 꼭대기, z). `canAddPassenger` = 승객 없음 && 눈이 용암에 잠기지 않음(`Entity.isEyeInLava` 추가).
+- **기수 스폰(finalizeSpawn)**: 새끼면 그대로. 레벨 난수로 `nextInt(30)==0` → 좀비 피글린(아기 여부 `Zombie.getSpawnAsBabyOdds` 를 먼저 뽑고, `ZombieGroupData(baby, false)` = 닭 기수 금지로 `finalizeSpawnWithGroup`) 탑승 → 주 손 뒤틀린 균류 막대 → 내 안장(소리 없음). 아니면 `nextInt(10)==0` → 새끼 스트라이더(나이 −24000) 탑승. 기수면 그룹 = 아기 확률 0, 아니면 0.5. 들어온 그룹은 버린다(바닐라와 같음). 기수는 레벨에 넣지 않고 태우기만 — 부른 쪽 `addFreshEntityWithPassengers`.
+- **다른 점·한계**: 승객 부착점의 걷기 흔들림(`walkAnimation` 기반 y 오프셋)은 서버에 걷기 애니메이션 상태가 없어 0(서 있을 때 값). 걸음 소리(`step`/`step_lava`)는 엔티티 걸음 소리 전반과 함께 미구현. `shouldPassengersInheritMalus` 는 값만 있고 길찾기가 아직 안 본다. 바닐라 StriderPathNavigation 의 `hasValidPathType`(용암·불 경로 허용)은 Furnace 길찾기에 그 훅이 없어 없음(경로 비용은 생성자의 malus 로 같음). 내릴 때 고른 자세로 승객 자세를 바꾸지 않는다(다른 탈것과 같은 TODO). 돼지와 같은 소유권 전제(탄 플레이어와 스트라이더는 같은 region).
+- 시험: `StriderTest` 12개(안장·타기·조종·가속·막대 사용·내릴 자리·기수 세 경로와 난수 호출 순서·저장·안장 드롭·떨기 상속). 일부러 기수 확률·용암 건너뛰기·떨기 상속을 틀리게 바꾸면 5개가 실패하는 것을 확인했다.

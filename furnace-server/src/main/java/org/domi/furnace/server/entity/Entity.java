@@ -1470,6 +1470,9 @@ public abstract non-sealed class Entity implements Rider {
 
     public boolean isEyeInWater() { return eyeInWater; }
 
+    /** isEyeInFluid(lava). */
+    public boolean isEyeInLava() { return eyeInLava; }
+
     // ------------------------------------------------------------------ 저장(Entity.saveWithoutId / load)
 
     /** saveWithoutId: 공통 필드 뒤 addAdditionalSaveData. */
