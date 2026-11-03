@@ -135,7 +135,8 @@ public final class PlayerVitals {
         return c;
     }
     private boolean inWater;
-    private String lastClimbable;              // 바닐라 lastClimbablePos 의 FallLocation 이름
+    private String lastClimbable;              // 매달린 순간의 FallLocation 이름(칸을 다시 볼 수 없을 때만 쓴다)
+    private org.domi.furnace.server.block.Pos lastClimbablePos;   // 바닐라 lastClimbablePos: 마지막으로 매달린 칸
     private boolean removedAfterDeath;
 
     private float lastSentHealth = -1.0e8f;
@@ -742,9 +743,24 @@ public final class PlayerVitals {
     /** 이 플레이어를 보는 사람 모두에게(본인 제외) 패킷. */
     public void broadcastToTrackers(Packet p) { env.broadcastToTrackers(player.entityId(), p); }
 
+    /** 블록은 주인 region 스레드에서만 읽는다(아니면 -1). */
+    private int ownerBlockAt(int x, int y, int z) {
+        var r = player.ownerRegion;
+        return r != null && r.ownsPlayer(player) ? r.getBlock(x, y, z) : -1;
+    }
+    private volatile org.domi.furnace.server.world.PlayerProbe.Blocks blockLookup = this::ownerBlockAt;
+
+    /** 낙하 위치 이름을 정할 때 매달렸던 칸의 블록을 읽는 곳(시험용). null 이면 주인 region. */
+    void setBlockLookup(org.domi.furnace.server.world.PlayerProbe.Blocks lookup) { blockLookup = lookup == null ? this::ownerBlockAt : lookup; }
+
     /** 바닐라 FallLocation.getCurrentFallLocation: 마지막으로 매달린 블록, 없고 물속이면 water. */
     private String fallLocation() {
-        if (lastClimbable != null) return lastClimbable;
+        if (lastClimbablePos != null) {
+            // 바닐라처럼 그 칸의 지금 블록으로 이름을 정한다(사다리가 부서졌으면 other_climbable). 못 읽으면 매달린 순간의 이름.
+            var p = lastClimbablePos;
+            int st = blockLookup.stateAt(p.x(), p.y(), p.z());
+            return st >= 0 ? LivingEntity.fallLocationOf(st) : lastClimbable;
+        }
         return inWater ? "water" : null;
     }
 
@@ -832,6 +848,7 @@ public final class PlayerVitals {
             if (landingBlock != null && onGround) {
                 fallDistance = 0.0f;
                 lastClimbable = null;
+                lastClimbablePos = null;
             }
             if (dy > 0.0) fallDistance = 0.0f;
             checkMovementStatistics(dx, dy, dz, onGround, sprinting, sneaking, inWaterNow, eyeInWater, climbable);
@@ -930,6 +947,8 @@ public final class PlayerVitals {
                 if (inWater) fallDistance = 0.0f;
                 if (s.climbable() != null && gameMode != GameMode.SPECTATOR) {
                     lastClimbable = s.climbable();
+                    lastClimbablePos = new org.domi.furnace.server.block.Pos(
+                            (int) Math.floor(player.x()), (int) Math.floor(player.y()), (int) Math.floor(player.z()));
                     fallDistance = 0.0f;   // travel → handleOnClimbable → resetFallDistance
                 }
                 if (s.stuckInBlock()) fallDistance = 0.0f;   // 거미줄·가루눈·달콤한 열매 덤불: makeStuckInBlock
@@ -1232,6 +1251,7 @@ public final class PlayerVitals {
         combat = newCombat();
         inWater = false;
         lastClimbable = null;
+        lastClimbablePos = null;
         removedAfterDeath = false;
         abilities.flying = false;
         abilities.flyingSpeed = 0.05f;

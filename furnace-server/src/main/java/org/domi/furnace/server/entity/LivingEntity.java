@@ -1316,11 +1316,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
     // ---- 사다리 오르기(onClimbable)
     private org.domi.furnace.server.block.Pos lastClimbablePos;
 
-    /** LivingEntity.onClimbable: 관전자가 아니고 사다리·덩굴 같은 오를 수 있는 블록 안이다. */
+    /**
+     * LivingEntity.onClimbable: 관전자가 아니고 사다리·덩굴 같은 #climbable 블록 안이거나,
+     * 열린 다락문이고 바로 아래가 같은 방향 사다리다(trapdoorUsableAsLadder).
+     */
     public boolean onClimbable() {
+        if (isSpectator()) return false;
         org.domi.furnace.server.block.Pos pos = blockPosition();
         int st = level.getBlockState(pos);
-        if (org.domi.furnace.server.block.B.isTag(st, "minecraft:climbable")) {
+        if (org.domi.furnace.server.block.B.isTag(st, "minecraft:climbable")
+                || org.domi.furnace.server.block.types.TrapDoorBlock.isTrapDoor(st)
+                    && org.domi.furnace.server.block.types.TrapDoorBlock.usableAsLadder(st, level.getBlockState(pos.below()))) {
             lastClimbablePos = pos;
             return true;
         }
@@ -1340,7 +1346,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     /** FallLocation.blockToFallLocation: 사다리·다락문 → ladder, 덩굴 → vines, … 그 밖 → other_climbable. */
-    static String fallLocationOf(int state) {
+    public static String fallLocationOf(int state) {
         if (B.is(state, "minecraft:ladder") || B.isTag(state, "minecraft:trapdoors")) return "ladder";
         if (B.is(state, "minecraft:vine")) return "vines";
         if (B.is(state, "minecraft:weeping_vines") || B.is(state, "minecraft:weeping_vines_plant")) return "weeping_vines";
