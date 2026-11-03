@@ -4,6 +4,7 @@ package org.domi.furnace.server.command;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +32,7 @@ class EntityOpsFailureTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         try {
             ServerCore core = TestServers.core(tmp, sched);
-            var ch = new EmbeddedChannel();
+            var ch = new ConcurrentEmbeddedChannel();
             var p = new Player(5, UUID.randomUUID(), "Steve", ch);
             CommandSource src = CommandSource.player(core, p).withPermission(2);
             CompletableFuture<Integer> bad = new CompletableFuture<>();

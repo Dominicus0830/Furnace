@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import org.domi.furnace.server.net.io.FrameDecoder;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ConnectionState;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class FrameLimitTest {
 
     private static EmbeddedChannel channel() {
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         ch.pipeline().addLast("frameDecoder", new FrameDecoder());
         ch.pipeline().addLast("handler", new ConnectionHandler("t", -1, null, null, null));
         return ch;

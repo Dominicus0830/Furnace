@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -83,7 +84,7 @@ class RegionizerTest {
         assertEquals(ownerId(0), ownerId(3));
 
         // 양 끝 청크는 구독자로 붙잡고, 다리(1·2)는 구독자가 없어 퇴출 → 다시 둘로
-        Player keeper = new Player(99, UUID.randomUUID(), "k", new EmbeddedChannel());
+        Player keeper = new Player(99, UUID.randomUUID(), "k", new ConcurrentEmbeddedChannel());
         w.subscribeChunk(new ChunkPos(0, 0), keeper);
         w.subscribeChunk(new ChunkPos(48, 0), keeper);
         w.startTicking();

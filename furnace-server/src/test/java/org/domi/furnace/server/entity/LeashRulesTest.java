@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
 import org.domi.furnace.server.item.ItemContext;
@@ -38,7 +39,7 @@ class LeashRulesTest {
     }
 
     private static Player playerWithLead(int count) {
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         var inv = p.inventory();
         inv.set(inv.heldWindowSlot(), new ItemStack(ItemContext.id("minecraft:item", "lead"), count));
         return p;

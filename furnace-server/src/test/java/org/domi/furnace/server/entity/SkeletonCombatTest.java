@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -43,7 +44,7 @@ class SkeletonCombatTest {
     void skeletonShootsArrowsThatHitSurvivalPlayer() {
         var level = new ArenaLevel();
         level.dayTime = 18000;   // 낮이면 스켈레톤이 햇빛에 타 죽어(난수) 화살을 못 쏠 수 있다
-        var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(10.5, -60, 0.5, 90, 0, true);
@@ -84,7 +85,7 @@ class SkeletonCombatTest {
     @Test
     void creeperSwellsAndExplodesNearPlayer() {
         var level = new ArenaLevel();
-        var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(2.5, -60, 0.5, 90, 0, true);

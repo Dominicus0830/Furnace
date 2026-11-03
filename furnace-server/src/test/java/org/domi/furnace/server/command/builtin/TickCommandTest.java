@@ -172,7 +172,7 @@ class TickCommandTest {
     void heldRegionDoesNotRunPlayerTicks_whileWaitingForSlowGlobal() throws Exception {
         var world = core.world();
         var p = new org.domi.furnace.server.entity.Player(world.entityIds().next(), java.util.UUID.randomUUID(), "A",
-                new io.netty.channel.embedded.EmbeddedChannel());
+                new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.applyMove(8.5, -60, 8.5, 0, 0, true);
         world.submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> {
             r.adopt(p);

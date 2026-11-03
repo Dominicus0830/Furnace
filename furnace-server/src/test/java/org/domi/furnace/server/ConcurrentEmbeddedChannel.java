@@ -21,8 +21,8 @@ public class ConcurrentEmbeddedChannel extends EmbeddedChannel {
     // 필드 초기화식을 두지 않는다 — 부모 생성자가 eventLoop() 를 부르며 먼저 채운 값을 덮어쓰지 않게.
     private GuardedLoop guarded;
 
-    public ConcurrentEmbeddedChannel() {
-        super();
+    public ConcurrentEmbeddedChannel(io.netty.channel.ChannelHandler... handlers) {
+        super(handlers);
         eventLoop();   // 다른 스레드에 넘기기 전에 감싼 루프를 만든다
     }
 

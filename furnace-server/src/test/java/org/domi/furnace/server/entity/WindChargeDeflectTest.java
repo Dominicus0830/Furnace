@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
 import org.junit.jupiter.api.BeforeAll;
@@ -19,7 +20,7 @@ class WindChargeDeflectTest {
     }
 
     private static Player player(float yaw, float pitch) {
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.applyRotation(yaw, pitch, true);
         return p;
     }

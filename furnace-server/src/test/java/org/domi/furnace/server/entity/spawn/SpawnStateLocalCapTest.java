@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.spawn;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -48,7 +49,7 @@ class SpawnStateLocalCapTest {
         Random rnd = new Random(42);
         List<Player> players = new ArrayList<>();
         for (int i = 0; i < 12; i++) {
-            Player p = new Player(i + 1, UUID.randomUUID(), "P" + i, new EmbeddedChannel());
+            Player p = new Player(i + 1, UUID.randomUUID(), "P" + i, new ConcurrentEmbeddedChannel());
             p.publishPosition(rnd.nextInt(400) - 200 + 0.5, -60, rnd.nextInt(400) - 200 + 0.5, 0, 0, true);
             p.drainPending();
             if (i % 5 == 0) p.vitals().loadGameTypes(null, GameMode.SPECTATOR, true);

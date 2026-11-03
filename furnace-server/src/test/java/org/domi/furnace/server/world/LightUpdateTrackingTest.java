@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import org.domi.furnace.server.entity.Player;
@@ -21,7 +22,7 @@ class LightUpdateTrackingTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         ChunkPos c = new ChunkPos(0, 0);
         for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) w.subscribeChunk(new ChunkPos(dx, dz), p).ready = true;
         assertFalse(w.onTrackedBorder(c, p), "둘레를 모두 받았으면 안쪽");

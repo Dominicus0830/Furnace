@@ -5,6 +5,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -155,7 +156,7 @@ class TeleportAcrossDimensionsTest {
         assertEquals(6.5, moved.z(), 1e-9);
 
         // 플레이어: 차원 변경 경로(속도 0, 도착 뒤 처리 없음)로 넘긴다
-        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.applyMove(0.5, -60, 0.5, 0, 0, true);
         var changes = new LinkedBlockingQueue<Object[]>();
         p.dimensionChanger((target, t, cd) -> changes.add(new Object[] {target, t}));

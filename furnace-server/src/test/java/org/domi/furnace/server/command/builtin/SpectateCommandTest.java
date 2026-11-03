@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -109,7 +110,7 @@ class SpectateCommandTest {
 
     @Test
     void errorsMatchVanilla() throws Exception {
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = spectator(ch, 0.5, 0.5);
         var other = cow(2.5, 0.5);
         var src = CommandSource.player(core, p).withPermission(2);
@@ -131,7 +132,7 @@ class SpectateCommandTest {
 
     @Test
     void switchSendsPositionThenCameraThenMessage_andStopRestoresSelf() throws Exception {
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = spectator(ch, 0.5, 0.5);
         var cow = cow(4.5, 0.5);
         var src = CommandSource.player(core, p).withPermission(2);
@@ -157,7 +158,7 @@ class SpectateCommandTest {
 
     @Test
     void correctionTeleportKeepsTheSpectatorsOwnRotation() throws Exception {
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = spectator(ch, 0.5, 0.5);
         p.applyMove(0.5, -60, 0.5, 33f, 7f, true);
         var cow = cow(4.5, 0.5);   // 소의 회전은 90/10
@@ -173,8 +174,8 @@ class SpectateCommandTest {
 
     @Test
     void thirdArgumentSelectsWhichPlayerSpectates() throws Exception {
-        var a = spectator(new EmbeddedChannel(), "Alpha", 0.5, 0.5);
-        var chB = new EmbeddedChannel();
+        var a = spectator(new ConcurrentEmbeddedChannel(), "Alpha", 0.5, 0.5);
+        var chB = new ConcurrentEmbeddedChannel();
         var b = spectator(chB, "Bravo", 1.5, 0.5);
         var cow = cow(3.5, 0.5);
         var console = CommandSource.console(core).withPermission(2);
@@ -192,7 +193,7 @@ class SpectateCommandTest {
     @Test
     void cameraFollowsTargetEveryTick_andSneakReturnsToSelf() throws Exception {
         var world = core.world();
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = spectator(ch, 0.5, 0.5);
         var cow = cow(4.5, 0.5);
         var src = CommandSource.player(core, p).withPermission(2);
@@ -219,7 +220,7 @@ class SpectateCommandTest {
     @Test
     void cameraReturnsWhenTargetDiesOrModeChanges() throws Exception {
         var world = core.world();
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = spectator(ch, 0.5, 0.5);
         var cow = cow(4.5, 0.5);
         var src = CommandSource.player(core, p).withPermission(2);

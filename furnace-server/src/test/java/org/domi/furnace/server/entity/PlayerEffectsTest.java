@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
@@ -22,7 +23,7 @@ class PlayerEffectsTest {
 
     private static final PlayerVitals.Surroundings DRY = new PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
 
-    private final EmbeddedChannel channel = new EmbeddedChannel();
+    private final EmbeddedChannel channel = new ConcurrentEmbeddedChannel();
     private final Player player = new Player(7, UUID.randomUUID(), "Steve", channel);
     private final PlayerVitals v = player.vitals();
 
@@ -119,7 +120,7 @@ class PlayerEffectsTest {
         v.addEffect(new MobEffectInstance(MobEffect.NIGHT_VISION, 600, 0, false, false));
         v.addEffect(new MobEffectInstance(MobEffect.STRENGTH, 300, 1, true, true));
         NbtCompound tag = v.saveData();
-        var back = new Player(8, UUID.randomUUID(), "Alex", new EmbeddedChannel()).vitals();
+        var back = new Player(8, UUID.randomUUID(), "Alex", new ConcurrentEmbeddedChannel()).vitals();
         back.env(new PlayerVitalsTest.TestEnv());
         back.load(tag);
         assertEquals(2, back.activeEffects().size());

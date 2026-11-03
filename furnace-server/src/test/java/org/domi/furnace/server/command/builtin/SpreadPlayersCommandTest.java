@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -117,8 +118,8 @@ class SpreadPlayersCommandTest {
 
     @Test
     void placementUsesBlockCenterAndAveragesNearestDistance() {
-        var p1 = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
-        var p2 = new Player(2, UUID.randomUUID(), "B", new EmbeddedChannel());
+        var p1 = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
+        var p2 = new Player(2, UUID.randomUUID(), "B", new ConcurrentEmbeddedChannel());
         var ps = new SpreadPlayersCommand.Position[] {new SpreadPlayersCommand.Position(), new SpreadPlayersCommand.Position()};
         ps[0].x = 1.7;
         ps[0].z = -2.2;
@@ -139,9 +140,9 @@ class SpreadPlayersCommandTest {
 
     @Test
     void respectTeamsPutsEveryoneAtTheSamePosition() {
-        var a = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
-        var b = new Player(2, UUID.randomUUID(), "B", new EmbeddedChannel());
-        var c = new Player(3, UUID.randomUUID(), "C", new EmbeddedChannel());
+        var a = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
+        var b = new Player(2, UUID.randomUUID(), "B", new ConcurrentEmbeddedChannel());
+        var c = new Player(3, UUID.randomUUID(), "C", new ConcurrentEmbeddedChannel());
         var ps = new SpreadPlayersCommand.Position[] {new SpreadPlayersCommand.Position()};
         ps[0].x = 10.2;
         ps[0].z = 20.9;
@@ -161,7 +162,7 @@ class SpreadPlayersCommandTest {
         try {
             ServerCore core = TestServers.core(tmp, sched);
             var src = CommandSource.console(core);
-            var e = assertThrows(CommandSyntaxException.class, () -> SpreadPlayersCommand.spread(src, new Vec2Argument.Vec2(0, 0), 1, 10, -1000, false, List.<Rider>of(new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel()))));
+            var e = assertThrows(CommandSyntaxException.class, () -> SpreadPlayersCommand.spread(src, new Vec2Argument.Vec2(0, 0), 1, 10, -1000, false, List.<Rider>of(new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel()))));
             assertEquals("commands.spreadplayers.failed.invalid.height", e.getRawMessage().translationKey());
         } finally {
             sched.close();

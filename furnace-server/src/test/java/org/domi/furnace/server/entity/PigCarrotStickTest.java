@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
 import org.domi.furnace.server.block.ItemUse;
@@ -32,7 +33,7 @@ class PigCarrotStickTest {
         Pig pig = new Pig(level, level.nextEntityId());
         pig.moveTo(0.5, -60, 0.5, 0, 0);
         pig.setSaddled(true);
-        Player p = new Player(952, UUID.randomUUID(), "rider", new EmbeddedChannel());
+        Player p = new Player(952, UUID.randomUUID(), "rider", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.teleporter(t -> {});
         p.applyMove(2.5, -60, 0.5, 0, 0, true);

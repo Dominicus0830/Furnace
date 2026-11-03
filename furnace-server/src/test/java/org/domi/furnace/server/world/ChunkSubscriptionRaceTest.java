@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -24,9 +25,9 @@ class ChunkSubscriptionRaceTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, io);
         ChunkPos cp = new ChunkPos(0, 0);
-        Player stable = new Player(1, UUID.randomUUID(), "stable", new EmbeddedChannel());
+        Player stable = new Player(1, UUID.randomUUID(), "stable", new ConcurrentEmbeddedChannel());
         List<Player> churners = new ArrayList<>();
-        for (int i = 0; i < 4; i++) churners.add(new Player(10 + i, UUID.randomUUID(), "c" + i, new EmbeddedChannel()));
+        for (int i = 0; i < 4; i++) churners.add(new Player(10 + i, UUID.randomUUID(), "c" + i, new ConcurrentEmbeddedChannel()));
         var pool = Executors.newFixedThreadPool(5);
         try {
             for (int round = 0; round < 3000; round++) {

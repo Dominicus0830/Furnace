@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -30,7 +31,7 @@ class ChunkEvictionTest {
         var io = Executors.newFixedThreadPool(2);
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         w.configurePersistence(1_000_000, 3);   // 자동 저장은 끄고(퇴출 경로만 본다) 퇴출 유예 3틱
-        Player p = new Player(1, UUID.randomUUID(), "P", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "P", new ConcurrentEmbeddedChannel());
         ChunkPos clean = new ChunkPos(0, 0), edited = new ChunkPos(1, 0), watched = new ChunkPos(2, 0);
         w.subscribeChunk(watched, p);           // 계속 구독
 

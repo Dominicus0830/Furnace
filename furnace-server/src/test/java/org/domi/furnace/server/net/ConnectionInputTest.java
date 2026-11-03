@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -76,7 +77,7 @@ class ConnectionInputTest {
         world.worldDir(tmp);                 // 저장 위치/인벤토리를 실제 world/ 가 아닌 임시 폴더에서 읽는다
         world.defaultSpawn(spawn);
         handler = new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator());
-        ch = new EmbeddedChannel(handler);
+        ch = new ConcurrentEmbeddedChannel(handler);
         ch.writeInbound(frame(0x00, b -> { Types.writeVarInt(b, 767); Types.writeString(b, "localhost");
             b.writeShort(25565); Types.writeVarInt(b, 2); }));
         ch.writeInbound(frame(0x00, b -> { Types.writeString(b, "Tester"); Types.writeUuid(b, new UUID(0, 0)); }));
@@ -480,6 +481,16 @@ class ConnectionInputTest {
     /** 조건이 참이 될 때까지 채널 작업을 돌리며 기다린다. */
     private interface Cond { boolean test() throws Exception; }
 
+    /**
+     * 창이 열릴 때까지 기다린 뒤, 연 작업이 돈 region 에 빈 작업을 하나 더 보내 끝까지 돌았음을 확인한다. openResolved 는
+     * setContainerMenu 로 창을 먼저 걸고 그 뒤 setSynchronizer 에서 첫 내용·데이터 칸 패킷을 보내므로, hasOpenContainer 만 보고
+     * 바로 꺼내면 그 패킷들이 아직 안 나왔을 수 있다(furnace_opensWithFourDataSlots 가 0개로 간헐 실패).
+     */
+    private void awaitOpen(String what, int blockX, int blockZ) throws Exception {
+        await(what, () -> p.hasOpenContainer());
+        world.submitAtChunk(org.domi.furnace.server.world.ChunkPos.ofBlock(blockX, blockZ), r -> null).get(10, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     private void await(String what, Cond cond) throws Exception {
         long deadline = System.nanoTime() + 10_000_000_000L;
         while (!cond.test()) {
@@ -506,7 +517,7 @@ class ConnectionInputTest {
         java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, x, y, z);
-        await("상자 창 열림", () -> p.hasOpenContainer());
+        awaitOpen("상자 창 열림", x, z);
         return chest[0];
     }
 
@@ -595,7 +606,7 @@ class ConnectionInputTest {
         java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openCraftingTable", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, 2, -60, 2);
-        await("제작대 창 열림", () -> p.hasOpenContainer());
+        awaitOpen("제작대 창 열림", 2, 2);
         List<int[]> opened = drainOutbound();
         assertEquals(1, count(opened, 0x33), "open_screen 한 번");
         assertEquals(1, count(opened, ContainerSetContent.ID));
@@ -628,7 +639,7 @@ class ConnectionInputTest {
         java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, x, y, z);
-        await("용기 창 열림", () -> p.hasOpenContainer());
+        awaitOpen("용기 창 열림", x, z);
         return be[0];
     }
 
@@ -656,7 +667,7 @@ class ConnectionInputTest {
         java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, 2, -60, 2);
-        await("엔더 상자 창 열림", () -> p.hasOpenContainer());
+        awaitOpen("엔더 상자 창 열림", 2, 2);
         var menu = p.containerMenu();
         assertEquals("minecraft:generic_9x3", menu.menuType());
         assertEquals(9, menu.getSlot(4).getItem().count());
@@ -673,7 +684,7 @@ class ConnectionInputTest {
         java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openStonecutter", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, 2, -60, 2);
-        await("석재 절단기 창 열림", () -> p.hasOpenContainer());
+        awaitOpen("석재 절단기 창 열림", 2, 2);
         var menu = p.containerMenu();
         assertEquals("minecraft:stonecutter", menu.menuType());
         assertEquals(38, menu.slots.size());
@@ -691,7 +702,7 @@ class ConnectionInputTest {
         java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openAnvil", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, 2, -60, 2);
-        await("모루 창 열림", () -> p.hasOpenContainer());
+        awaitOpen("모루 창 열림", 2, 2);
         var menu = (org.domi.furnace.server.menu.AnvilMenu) p.containerMenu();
         menu.getSlot(0).set(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:iron_sword"), 1));
         drainOutbound();
@@ -780,7 +791,7 @@ class ConnectionInputTest {
         java.lang.reflect.Method m = ConnectionHandler.class.getDeclaredMethod("openContainer", int.class, int.class, int.class);
         m.setAccessible(true);
         m.invoke(handler, 2, -60, 2);   // 왼쪽을 눌렀다
-        await("더블 상자 창 열림", () -> p.hasOpenContainer());
+        awaitOpen("더블 상자 창 열림", 2, 2);
         var menu = p.containerMenu();
         assertEquals("minecraft:generic_9x6", menu.menuType());
         assertEquals(90, menu.slots.size());
@@ -911,7 +922,7 @@ class ConnectionInputTest {
     @Test
     void duplicateLogin_kicksExistingSession() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        EmbeddedChannel second = new EmbeddedChannel(new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator()));
+        EmbeddedChannel second = new ConcurrentEmbeddedChannel(new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator()));
         second.writeInbound(frame(0x00, b -> { Types.writeVarInt(b, 767); Types.writeString(b, "localhost");
             b.writeShort(25565); Types.writeVarInt(b, 2); }));
         second.writeInbound(frame(0x00, b -> { Types.writeString(b, "Tester"); Types.writeUuid(b, new UUID(0, 0)); }));

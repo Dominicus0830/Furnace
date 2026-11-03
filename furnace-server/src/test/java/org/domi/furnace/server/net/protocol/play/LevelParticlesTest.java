@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Player;
@@ -111,7 +112,7 @@ class LevelParticlesTest {
 
     @Test
     void distanceFilter_32_and_forced512() {
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.setPosRaw(0.5, 64, 0.5);   // 칸 가운데 (0.5, 64.5, 0.5)
         assertTrue(ChunkLevel.particleInRange(p, false, 31.0, 64.5, 0.5));
         assertFalse(ChunkLevel.particleInRange(p, false, 32.5, 64.5, 0.5));

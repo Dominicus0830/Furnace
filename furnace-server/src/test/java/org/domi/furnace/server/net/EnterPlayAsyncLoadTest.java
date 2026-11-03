@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -99,7 +100,7 @@ class EnterPlayAsyncLoadTest {
         ManualPool pool = new ManualPool();
         World w = world(pool);
         ConnectionHandler h = new ConnectionHandler("t", -1, sched, w, new EntityIdAllocator());
-        EmbeddedChannel ch = new EmbeddedChannel(h);
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel(h);
         toAck(ch);
         // 읽기가 끝나기 전: 플레이어 없음, play 패킷은 보관
         ch.writeInbound(clientInfo(5, "ko_kr"));
@@ -122,7 +123,7 @@ class EnterPlayAsyncLoadTest {
         ManualPool pool = new ManualPool();
         World w = world(pool);
         ConnectionHandler h = new ConnectionHandler("t", -1, sched, w, new EntityIdAllocator());
-        EmbeddedChannel ch = new EmbeddedChannel(h);
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel(h);
         toAck(ch);
         ByteBuf held = clientInfo(5, "ko_kr");
         held.retain();   // 해제 여부를 보려고 하나 더 쥔다
@@ -142,7 +143,7 @@ class EnterPlayAsyncLoadTest {
         World w = world(pool);
         pool.shutdown();
         ConnectionHandler h = new ConnectionHandler("t", -1, sched, w, new EntityIdAllocator());
-        EmbeddedChannel ch = new EmbeddedChannel(h);
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel(h);
         toAck(ch);
         ch.runPendingTasks();
         assertNotNull(field(h, "player"), "IO 풀이 거부하면 예전처럼 동기로 읽고 진입한다");
@@ -166,7 +167,7 @@ class EnterPlayAsyncLoadTest {
         });
         saving.await();
         ConnectionHandler h = new ConnectionHandler("t", -1, sched, w, new EntityIdAllocator());
-        EmbeddedChannel ch = new EmbeddedChannel(h);
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel(h);
         toAck(ch);
         long deadline = System.nanoTime() + 10_000_000_000L;
         while (field(h, "player") == null) {
@@ -183,7 +184,7 @@ class EnterPlayAsyncLoadTest {
     void blockedChunkIoPoolDoesNotDelayEnterPlay() throws Exception {
         World w = world(null);   // ioPool = 실행하지 않는 ManualPool
         ConnectionHandler h = new ConnectionHandler("t", -1, sched, w, new EntityIdAllocator());
-        EmbeddedChannel ch = new EmbeddedChannel(h);
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel(h);
         long t0 = System.nanoTime();
         toAck(ch);
         while (field(h, "player") == null) {

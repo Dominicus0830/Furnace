@@ -220,7 +220,7 @@ class WardenTest {
     /** 사용자 버그 C2: 소환 가능한 비명체를 같은 플레이어가 대기(200틱) 간격으로 울리면 경고 단계 1→2→3→4, 4단계에 워든이 나온다. */
     @Test
     void shriekerWarningLevelsRiseAndSummonAtFour() {
-        Player p = new Player(1, java.util.UUID.randomUUID(), "A", new io.netty.channel.embedded.EmbeddedChannel());
+        Player p = new Player(1, java.util.UUID.randomUUID(), "A", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.applyMove(4.5, -60, 4.5, 0, 0, true);
         Lvl l = new Lvl() {
             final LevelServices withPlayer = new LevelServices.Delegating(svc) {

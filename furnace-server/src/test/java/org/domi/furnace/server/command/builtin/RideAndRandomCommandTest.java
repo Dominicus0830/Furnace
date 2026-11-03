@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -69,7 +70,7 @@ class RideAndRandomCommandTest {
         assertEquals("commands.ride.mount.failure.loop",
                 key(assertThrows(CommandSyntaxException.class, () -> RideCommand.mount(console, cows[1], cows[0]))));
         // 플레이어는 탈것이 될 수 없다
-        var p = new Player(11, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(11, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         assertEquals("commands.ride.mount.failure.cant_ride_players",
                 key(assertThrows(CommandSyntaxException.class, () -> RideCommand.mount(console, cows[1], p))));
         core.commands().performPrefixedCommandAsync(console, "ride @e[tag=rider,limit=1] dismount").join();

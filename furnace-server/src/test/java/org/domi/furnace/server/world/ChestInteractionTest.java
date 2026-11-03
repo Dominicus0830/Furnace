@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -100,7 +101,7 @@ class ChestInteractionTest {
         w.setRegistries(reg, items);
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player viewer = new Player(1, UUID.randomUUID(), "V", ch);
         // 그 체스트를 열어둔 상태로 시뮬레이션: 인벤토리 창 + 그 상자의 ChestMenu, 닫기는 연결이 하듯 ContainerClose 를 보내고 인벤토리 창으로 돌아간다
         viewer.initMenus(new org.domi.furnace.server.menu.InventoryMenu(viewer.inventory(), null));

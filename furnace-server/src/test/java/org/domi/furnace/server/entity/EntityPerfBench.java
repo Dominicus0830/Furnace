@@ -2,6 +2,7 @@
 package org.domi.furnace.server.entity;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -38,7 +39,7 @@ class EntityPerfBench {
     void walkingMobPackets() {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         var level = new Arena();
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = new Player(5, UUID.randomUUID(), "Bench", ch);
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
@@ -68,7 +69,7 @@ class EntityPerfBench {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int count = Integer.getInteger("furnace.bench.count", 300);
         var level = new Arena();
-        var p = new Player(5, UUID.randomUUID(), "Bench", new EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "Bench", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(0.5, -60, 0.5, 0, 0, true);

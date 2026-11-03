@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +30,7 @@ class PlayerSwingPickTest {
 
     @Test
     void swing_broadcastsAnimateAndRespectsHalfDuration() {
-        Player p = new Player(7, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(7, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         List<Packet> sent = trackerPackets(p);
         p.swing(1, false);
         assertEquals(List.of(new Animate(7, Animate.SWING_OFF_HAND)), sent);

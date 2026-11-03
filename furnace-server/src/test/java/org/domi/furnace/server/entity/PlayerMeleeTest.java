@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.List;
 import java.util.UUID;
 import org.domi.furnace.server.item.EnchantTools;
@@ -25,7 +26,7 @@ class PlayerMeleeTest {
     private static ItemStack item(String name) { return new ItemStack(ItemContext.id("minecraft:item", name), 1, null); }
 
     private static Player player(int id, double x, float yaw, PlayerVitalsTest.TestEnv env) {
-        var p = new Player(id, UUID.randomUUID(), "P" + id, new EmbeddedChannel());
+        var p = new Player(id, UUID.randomUUID(), "P" + id, new ConcurrentEmbeddedChannel());
         p.vitals().env(env);
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(x, -60, 0.5, yaw, 0, true);
@@ -305,7 +306,7 @@ class PlayerMeleeTest {
         var env = new PlayerVitalsTest.TestEnv();
         var level = new ZombieCombatTest.ArenaLevel();
         var a = player(1, 0.5, -90, env);
-        var vch = new EmbeddedChannel();
+        var vch = new ConcurrentEmbeddedChannel();
         var v = new Player(2, UUID.randomUUID(), "P2", vch);
         v.vitals().env(env);
         v.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);

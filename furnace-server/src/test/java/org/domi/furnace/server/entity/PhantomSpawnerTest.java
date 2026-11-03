@@ -37,7 +37,7 @@ class PhantomSpawnerTest {
     }
 
     private Player player(int sinceRest) {
-        var p = new Player(9, java.util.UUID.randomUUID(), "Alex", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(9, java.util.UUID.randomUUID(), "Alex", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(8.5, 70, 8.5, 0, 0, true);

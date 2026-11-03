@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.UUID;
@@ -72,7 +73,7 @@ class KillCommandTest {
     @Test
     void killsOrdinaryEntitiesOnTheirRegion_returnsCount_andSendsVanillaMessages() throws Exception {
         Cow[] all = cows(3, "herd");
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = new Player(10, UUID.randomUUID(), "Steve", ch);
         p.applyMove(0, -60, 0, 0, 0, true);
         var src = CommandSource.player(core, p).withPermission(2);
@@ -159,7 +160,7 @@ class KillCommandTest {
     @Test
     void creativePlayerIsKilledOnItsRegion_mixedWithEntities() throws Exception {
         Cow[] c = cows(1, null);
-        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.inventory(new org.domi.furnace.server.entity.PlayerInventory());
         p.applyMove(0.5, -60, 0.5, 0, 0, true);
         var in = new CountDownLatch(1);

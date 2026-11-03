@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +32,7 @@ class SpawnBatchTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "A", ch);
         p.applyMove(0, -60, 0, 0, 0, true);
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();

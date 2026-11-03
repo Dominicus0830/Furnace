@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -189,7 +190,7 @@ class ItemEffectsTest {
     @Test
     void ominousBottleGivesBadOmenWithAmplifier() {
         Lvl level = new Lvl();
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         var bottle = ItemTools.with(item("ominous_bottle", 1), "minecraft:ominous_bottle_amplifier", 3);
         ItemEffects.ominousBottleDrunk(p, level, bottle);
         var fx = p.vitals().activeEffects();
@@ -204,7 +205,7 @@ class ItemEffectsTest {
     @Test
     void nameTagNamesLivingEntityAndConsumesOneUnlessCreative() {
         Lvl level = new Lvl();
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         var cow = new Cow(level, level.nextEntityId());
         var tag = ItemTools.with(item("name_tag", 2), "minecraft:custom_name", "\"Bessie\"");
         int ws = p.inventory().heldWindowSlot();
@@ -220,7 +221,7 @@ class ItemEffectsTest {
     @Test
     void leashReleaseBeatsNameTagButNameTagBeatsLeadAttach() {
         Lvl level = new Lvl();
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         var cow = new Cow(level, level.nextEntityId());
         level.addFreshEntity(cow);
         var tag = ItemTools.with(item("name_tag", 1), "minecraft:custom_name", "\"B\"");
@@ -236,7 +237,7 @@ class ItemEffectsTest {
     @Test
     void chorusTargetNeedsSolidFloorAndEmptyBody() {
         Lvl level = new Lvl();
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         // 슈퍼플랫: 바닥 y=-61 잔디 → 윗면 -60. y=-50 에서 내려가면 d3 = -60 에 선다
         double[] t = ItemEffects.randomTeleportTarget(p, level, 5.5, -50.0, 5.5);
         assertNotNull(t);

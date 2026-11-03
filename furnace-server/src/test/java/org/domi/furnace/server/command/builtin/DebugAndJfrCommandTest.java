@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -34,7 +35,7 @@ class DebugAndJfrCommandTest {
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        ch = new EmbeddedChannel();
+        ch = new ConcurrentEmbeddedChannel();
         op = CommandSource.player(core, new Player(7, UUID.randomUUID(), "Op", ch)).withPermission(4);
     }
 

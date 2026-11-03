@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +59,7 @@ class TriggerTeamMsgCommandTest {
     final java.util.Map<Player, EmbeddedChannel> channels = new java.util.HashMap<>();
 
     private Player player(String name) {
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), name, ch);
         channels.put(p, ch);
         p.scoreboard(core.scoreboard());

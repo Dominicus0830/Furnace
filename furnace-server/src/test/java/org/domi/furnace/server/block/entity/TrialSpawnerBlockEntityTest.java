@@ -5,6 +5,7 @@ package org.domi.furnace.server.block.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -159,7 +160,7 @@ class TrialSpawnerBlockEntityTest {
     }
 
     static Player player(Lvl level, UUID id, double x, double y, double z) {
-        Player p = new Player(level.players.size() + 1, id, "P" + (level.players.size() + 1), new EmbeddedChannel());
+        Player p = new Player(level.players.size() + 1, id, "P" + (level.players.size() + 1), new ConcurrentEmbeddedChannel());
         p.applyMove(x, y, z, 0, 0, true);
         level.players.add(p);
         return p;

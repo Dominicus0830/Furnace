@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.List;
 import java.util.UUID;
 import org.domi.furnace.server.item.ItemContext;
@@ -60,7 +61,7 @@ class PlayerAppearanceSyncTest {
     @Test
     void heldItemAndArmorAreBroadcastToTrackersOnlyWhenChanged() {
         var env = new PlayerVitalsTest.TestEnv();
-        var p = new Player(9, UUID.randomUUID(), "P9", new EmbeddedChannel());
+        var p = new Player(9, UUID.randomUUID(), "P9", new ConcurrentEmbeddedChannel());
         p.vitals().env(env);
         assertNull(p.pairingEquipment());
         p.syncEquipment();
@@ -91,7 +92,7 @@ class PlayerAppearanceSyncTest {
     @Test
     void skinPartsAndMainHandGoToEntityData17And18() {
         var env = new PlayerVitalsTest.TestEnv();
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = new Player(5, UUID.randomUUID(), "P5", ch);
         p.vitals().env(env);
         p.syncLivingFlags();
@@ -123,7 +124,7 @@ class PlayerAppearanceSyncTest {
     @Test
     void respawnWithAllDefaultsClearsPairingSnapshot() {
         var env = new PlayerVitalsTest.TestEnv();
-        var p = new Player(6, UUID.randomUUID(), "P6", new EmbeddedChannel());
+        var p = new Player(6, UUID.randomUUID(), "P6", new ConcurrentEmbeddedChannel());
         p.vitals().env(env);
         p.sneaking(true);
         p.syncLivingFlags();

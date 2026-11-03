@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.item.ItemContext;
@@ -26,7 +27,7 @@ class ShieldTest {
     private static ItemStack item(String name) { return new ItemStack(ItemContext.id("minecraft:item", name), 1, null); }
 
     /** x=7.5 에서 -x 쪽(yaw 90)을 보는 플레이어, 주 손에 방패. */
-    private static Player player(ZombieCombatTest.ArenaLevel level, GameMode mode) { return player(level, mode, new EmbeddedChannel()); }
+    private static Player player(ZombieCombatTest.ArenaLevel level, GameMode mode) { return player(level, mode, new ConcurrentEmbeddedChannel()); }
 
     private static Player player(ZombieCombatTest.ArenaLevel level, GameMode mode, EmbeddedChannel ch) {
         var p = new Player(7, UUID.randomUUID(), "Steve", ch);
@@ -186,7 +187,7 @@ class ShieldTest {
     void fullyBlockedPlayerGetsNoMotionPacket_unblockedGetsOne() {
         // 바닐라: 완전히 막으면 markHurt 가 안 서서 속도 패킷 0건(안 밀림), 못 막은 피격은 hurtMarked 로 틱 끝에 한 번
         var level = new ZombieCombatTest.ArenaLevel();
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = player(level, GameMode.SURVIVAL, ch);
         raise(p, 5);
         motionPackets(ch);   // 비우기

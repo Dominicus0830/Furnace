@@ -120,7 +120,7 @@ class AnimalBreedingTest {
         var level = new BlockPlacementTest.TestLevel();
         var w = new Wolf(level, level.nextEntityId());
         assertEquals(8.0F, w.health(), 0.001);
-        var p = new Player(3, java.util.UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(3, java.util.UUID.randomUUID(), "Steve", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         w.tame(p);
         assertTrue(w.isTame());
         assertEquals(40.0F, w.health(), 0.001);

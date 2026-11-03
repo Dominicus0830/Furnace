@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import org.domi.furnace.api.sched.RegionPos;
 import org.junit.jupiter.api.Test;
 import java.util.UUID;
@@ -11,7 +12,7 @@ class PlayerPublishTest {
 
     @Test
     void publishThenDrain_appliesPosition() {
-        Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
         p.publishPosition(100, -60, 200, 90f, 10f, true);
         assertEquals(0, p.x()); // 드레인 전엔 미적용
         p.drainPending();
@@ -21,7 +22,7 @@ class PlayerPublishTest {
 
     @Test
     void disconnect_flag() {
-        Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
         assertFalse(p.isDisconnected());
         p.markDisconnected();
         assertTrue(p.isDisconnected());

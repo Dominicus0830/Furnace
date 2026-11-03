@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -70,7 +71,7 @@ class SpectateAcrossDimensionsTest {
             made.countDown();
         });
         assertTrue(made.await(10, TimeUnit.SECONDS));
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "Spec", ch);
         p.vitals().setGameMode(GameMode.SPECTATOR);
         p.applyMove(0.5, -60, 0.5, 0, 0, true);

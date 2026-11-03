@@ -6,6 +6,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +94,7 @@ class ChunkSendPacketOrderGoldenTest {
             for (int x = -3; x <= 4; x++) for (int z = -3; z <= 3; z++) warm.add(w.serializedChunkBody(new ChunkPos(x, z)));
             for (var f : warm) f.get(30, TimeUnit.SECONDS);
 
-            EmbeddedChannel chA = new EmbeddedChannel(), chB = new EmbeddedChannel();
+            EmbeddedChannel chA = new ConcurrentEmbeddedChannel(), chB = new ConcurrentEmbeddedChannel();
             Player a = new Player(1, UUID.randomUUID(), "A", chA);
             Player b = new Player(2, UUID.randomUUID(), "B", chB);
             a.publishPosition(8.5, -60, 8.5, 0, 0, true);

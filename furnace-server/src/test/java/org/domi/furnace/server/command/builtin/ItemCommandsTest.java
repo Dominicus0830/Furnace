@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -114,7 +115,7 @@ class ItemCommandsTest {
         assertEquals(27, SlotsArgument.slots().parse(new StringReader("inventory.*")).size());
     }
 
-    private static Player player() { return new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel()); }
+    private static Player player() { return new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel()); }
 
     @Test
     void giveSplitsIntoMaxStacksThenDropsWhenFull() throws Exception {

@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -69,7 +70,7 @@ class PlayerSleepingTest {
     }
 
     static Player player(Lvl level, double x, double y, double z) {
-        var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(x, y, z, 0, 0, true);

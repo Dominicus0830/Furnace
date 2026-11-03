@@ -193,7 +193,7 @@ class NetherPortalTravelTest {
 
     @Test
     void spectatorCannotTriggerPortals() {
-        var p = new Player(1, java.util.UUID.randomUUID(), "A", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(1, java.util.UUID.randomUUID(), "A", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         assertTrue(org.domi.furnace.server.world.Region.canTriggerPortals(p));
         p.vitals().setGameMode(org.domi.furnace.server.world.GameMode.SPECTATOR);
         assertFalse(org.domi.furnace.server.world.Region.canTriggerPortals(p), "관전자는 포털을 탈 수 없다");

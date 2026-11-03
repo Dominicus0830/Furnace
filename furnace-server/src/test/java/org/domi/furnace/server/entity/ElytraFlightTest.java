@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -32,7 +33,7 @@ class ElytraFlightTest {
     private final PlayerVitalsTest.TestEnv env = new PlayerVitalsTest.TestEnv();
 
     private Player player(boolean elytra) {
-        var p = new Player(11, UUID.randomUUID(), "E", new EmbeddedChannel());
+        var p = new Player(11, UUID.randomUUID(), "E", new ConcurrentEmbeddedChannel());
         p.vitals().env(env);
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         if (elytra) p.inventory().set(ElytraFlight.CHEST_SLOT, item("minecraft:elytra"));

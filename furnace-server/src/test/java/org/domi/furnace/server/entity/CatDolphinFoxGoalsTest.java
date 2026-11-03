@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -298,7 +299,7 @@ class CatDolphinFoxGoalsTest {
         var boat = new Boat(level, level.nextEntityId());
         boat.moveTo(0.5, -59.5, 0.5, 0, 0);
         level.addFreshEntity(boat);
-        var player = new Player(970, UUID.randomUUID(), "rower", new EmbeddedChannel());
+        var player = new Player(970, UUID.randomUUID(), "rower", new ConcurrentEmbeddedChannel());
         player.teleporter(t -> {});
         assertTrue(boat.interact(player, 0));
         var dolphin = new Dolphin(level, level.nextEntityId());

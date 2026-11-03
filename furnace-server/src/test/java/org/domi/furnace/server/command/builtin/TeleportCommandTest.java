@@ -5,6 +5,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -40,7 +41,7 @@ class TeleportCommandTest {
     void tearDown() { sched.close(); }
 
     private Player player(String name, double x, double y, double z, float yaw, float pitch, BlockingQueue<double[]> moves) {
-        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), name, new EmbeddedChannel());
+        var p = new Player(core.world().entityIds().next(), UUID.randomUUID(), name, new ConcurrentEmbeddedChannel());
         p.applyMove(x, y, z, yaw, pitch, true);
         p.teleporter(moves::add);
         // 명령은 플레이어를 가진 region 에서(소유 확인 뒤) 옮긴다 — 위치의 region 에 넣어 둔다
@@ -129,7 +130,7 @@ class TeleportCommandTest {
     @Test
     void errorKeys() {
         var d = core.commands().getDispatcher();
-        var p = new Player(10, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(10, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.applyMove(0, 64, 0, 0, 0, true);
         var src = CommandSource.player(core, p).withPermission(2);
         assertEquals("commands.teleport.invalidPosition",

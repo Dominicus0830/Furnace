@@ -203,7 +203,7 @@ class ExecuteE1Test {
 
     @Test
     void playerAndSelfSelectorsFinishInTheSameTick() throws Exception {
-        var p = new Player(5, UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "Steve", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         CommandSource src = CommandSource.player(core, p).withPermission(2);
         var g = (GlobalThread) sched.global();
         boolean doneInline = g.submit(() -> {

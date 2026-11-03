@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +32,7 @@ class RegionMoveValidationTest {
     void regionValidatesQueuedMoves_rejectsTeleportHackAndHoldsUntilConnectionClears() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
         World w = world(sched);
-        Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
         List<double[]> teleports = new ArrayList<>();
         p.teleporter(teleports::add);
         p.publishPosition(0.5, -60, 0.5, 0, 0, true);

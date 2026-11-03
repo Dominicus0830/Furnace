@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
 import org.domi.furnace.server.block.LegacyRandomSource;
@@ -91,7 +92,7 @@ class VillagerGossipTest {
     void reputationEventsAndSpecialPrice() {
         var level = new BlockPlacementTest.TestLevel();
         var v = new Villager(level, level.nextEntityId());
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         v.onReputationEvent(Villager.ReputationEvent.ZOMBIE_VILLAGER_CURED, p);
         assertEquals(20 * 5 + 25, v.getPlayerReputation(p));
         v.onReputationEvent(Villager.ReputationEvent.TRADE, p);

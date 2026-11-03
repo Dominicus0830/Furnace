@@ -4,6 +4,7 @@ package org.domi.furnace.server.plugin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -259,7 +260,7 @@ class EntityWorldApiTest {
         List<String> log = new ArrayList<>();
         bus.subscribe(plugin, PlayerDropItemEvent.class, e -> { log.add("drop:" + e.item().type()); e.setCancelled(true); });
         bus.subscribe(plugin, PlayerPickupItemEvent.class, e -> { log.add("pickup:" + e.item().type()); e.setCancelled(true); });
-        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.inventory(new PlayerInventory());
         p.applyMove(8.5, -60, 8.5, 0, 0, true);
         Object[] out = core.world().submitAtChunk(C00, r -> {
@@ -288,7 +289,7 @@ class EntityWorldApiTest {
             log.add(String.format("%.1f->%.1f", e.from().x(), e.to().x()));
             e.setCancelled(e.to().x() > 12);
         });
-        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.inventory(new PlayerInventory());
         p.applyMove(8.5, -60, 8.5, 0, 0, true);
         // processMoves 는 private — Region.tick 이 대기열을 비운다. 첫 샘플은 기준점(이벤트 없음)
@@ -341,7 +342,7 @@ class EntityWorldApiTest {
         int[] moveEvents = {0};
         host.eventsImpl().subscribe(plugin, PlayerMoveEvent.class, e -> { moveEvents[0]++; e.setCancelled(true); });
         host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.player.PlayerTeleportEvent.class, e -> { teleportEvents.add("tp"); e.setCancelled(true); });
-        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.inventory(new PlayerInventory());
         p.applyMove(8.5, -60, 8.5, 0, 0, true);
         p.teleporter(t -> { corrections.add(t); p.clearMoves(); });   // 연결이 하는 일: 보정을 보내고 대기열·hold 를 비운다
@@ -387,7 +388,7 @@ class EntityWorldApiTest {
 
     @Test
     void playerInventorySetRunsOnOwnerAndCancelledDeathListenerExceptionIsIsolated() throws Exception {
-        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.inventory(new PlayerInventory());
         p.applyMove(8.5, -60, 8.5, 0, 0, true);
         var inv = host.player(p).inventory();
@@ -414,7 +415,7 @@ class EntityWorldApiTest {
     @Test
     void cancelledAirInteractResyncsHeldSlot() throws Exception {
         host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.player.PlayerInteractEvent.class, e -> e.setCancelled(true));
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", ch);
         PlayerInventory inv = new PlayerInventory();
         p.inventory(inv);
