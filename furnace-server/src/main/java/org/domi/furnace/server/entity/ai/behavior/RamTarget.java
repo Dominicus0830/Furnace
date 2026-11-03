@@ -73,11 +73,11 @@ public class RamTarget extends Behavior<Goat> {
             float f1 = Math.clamp(goat.getSpeed() * RAM_SPEED_FORCE_FACTOR, 0.2F, 3.0F) + f;
             target.knockback(f1 * getKnockbackForce.applyAsDouble(goat), ramDirection[0], ramDirection[2]);
             finishRam(level, goat);
-            level.playSound(null, goat.x(), goat.y(), goat.z(), getImpactSound.apply(goat), "neutral", 1.0F, 1.0F);
+            level.playSound(null, goat, getImpactSound.apply(goat), "neutral", 1.0F, 1.0F);
         } else if (hasRammedHornBreakingBlock(level, goat)) {
-            level.playSound(null, goat.x(), goat.y(), goat.z(), getImpactSound.apply(goat), "neutral", 1.0F, 1.0F);
+            level.playSound(null, goat, getImpactSound.apply(goat), "neutral", 1.0F, 1.0F);
             boolean dropped = goat.dropHorn();
-            if (dropped) level.playSound(null, goat.x(), goat.y(), goat.z(), getHornBreakSound.apply(goat), "neutral", 1.0F, 1.0F);
+            if (dropped) level.playSound(null, goat, getHornBreakSound.apply(goat), "neutral", 1.0F, 1.0F);
             finishRam(level, goat);
         } else {
             Optional<WalkTarget> walk = brain.getMemory(MemoryModuleType.WALK_TARGET);

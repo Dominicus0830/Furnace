@@ -210,6 +210,7 @@ class RconServerTest {
 
     @Test
     void connectionCapRefusesExtraClients() throws Exception {
+        server.maxClientsPerIp(RconServer.MAX_CLIENTS);   // 루프백 한 주소로 전체 상한을 채운다
         List<Socket> held = new java.util.ArrayList<>();
         try {
             for (int i = 0; i < RconServer.MAX_CLIENTS; i++) held.add(connect());
@@ -222,5 +223,32 @@ class RconServerTest {
         } finally {
             for (Socket s : held) s.close();
         }
+    }
+
+    @Test
+    void perIpCapRefusesExtraClientsAndFreesSlotOnClose() throws Exception {
+        List<Socket> held = new java.util.ArrayList<>();
+        try {
+            for (int i = 0; i < RconServer.MAX_CLIENTS_PER_IP; i++) held.add(connect());
+            awaitClients(RconServer.MAX_CLIENTS_PER_IP);
+            try (Socket extra = connect()) {
+                assertEquals(-1, extra.getInputStream().read());   // 같은 IP 의 다섯 번째는 바로 닫힌다
+            }
+            held.remove(0).close();   // 하나를 닫으면 자리가 난다
+            awaitClients(RconServer.MAX_CLIENTS_PER_IP - 1);
+            try (Socket again = connect()) {
+                DataInputStream in = new DataInputStream(again.getInputStream());
+                send(again.getOutputStream(), 1, 3, "secret");
+                assertEquals(new Reply(1, 2, ""), read(in));
+            }
+        } finally {
+            for (Socket s : held) s.close();
+        }
+    }
+
+    private void awaitClients(int n) throws InterruptedException {
+        long end = System.nanoTime() + 5_000_000_000L;
+        while (server.clientCount() != n && System.nanoTime() < end) Thread.sleep(5);
+        assertEquals(n, server.clientCount());
     }
 }

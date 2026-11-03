@@ -83,7 +83,7 @@ public class PrepareRamNearestTarget<E extends PathfinderMob> extends Behavior<E
                 if (reachedRamPositionTimestamp.isEmpty()) reachedRamPositionTimestamp = Optional.of(gameTime);
                 if (gameTime - reachedRamPositionTimestamp.get() >= ramPrepareTime) {
                     brain.setMemory(MemoryModuleType.RAM_TARGET, getEdgeOfBlock(pos, c.targetPosition()));
-                    level.playSound(null, mob.x(), mob.y(), mob.z(), getPrepareRamSound.apply(mob), "neutral", 1.0F, mob.getVoicePitch());
+                    level.playSound(null, mob, getPrepareRamSound.apply(mob), "neutral", 1.0F, mob.getVoicePitch());
                     ramCandidate = Optional.empty();
                 }
             }

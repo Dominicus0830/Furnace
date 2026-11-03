@@ -131,7 +131,9 @@ public final class ItemUse {
         var inst = org.domi.furnace.server.entity.ItemEffects.instrumentOf(stack);
         if (inst == null) return Holder.fail(stack);
         player.startUsingItem(hand, inst.useDuration());
-        level.playSound(player, player.x(), player.y(), player.z(), inst.sound(), "records", inst.range() / 16.0F, 1.0F);
+        // InstrumentItem.play: level.playSound(player, player, …, RECORDS) — 엔티티에 붙는 소리, 분류 이름은 "record"
+        if (level instanceof ChunkLevel cl) cl.playSoundOn(player, player, inst.sound(), "record", inst.range() / 16.0F, 1.0F);
+        else level.playSound(player, player.x(), player.y(), player.z(), inst.sound(), "record", inst.range() / 16.0F, 1.0F);
         if (level instanceof ChunkLevel cl) {
             cl.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.INSTRUMENT_PLAY,
                     new org.domi.furnace.server.entity.Vec3(player.x(), player.y(), player.z()),
@@ -401,7 +403,7 @@ public final class ItemUse {
         if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
         ItemStack rest = player.instabuild() ? stack : stack.withCount(stack.count() - 1);
         player.awardStat("minecraft:used:minecraft:map");
-        cl.playSound(null, player.x(), player.y(), player.z(), "minecraft:ui.cartography_table.take_result", "players", 1.0F, 1.0F);
+        cl.playSoundOn(null, player, "minecraft:ui.cartography_table.take_result", "players", 1.0F, 1.0F);
         ItemStack map = org.domi.furnace.server.map.MapItems.create(cl.dimension(), (int) Math.floor(player.x()), (int) Math.floor(player.z()),
                 (byte) 0, true, false);
         if (rest.isEmpty()) return Holder.success(map);

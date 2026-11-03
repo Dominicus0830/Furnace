@@ -102,6 +102,17 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public String clientBrand() { return p.clientBrand(); }
 
     @Override
+    public void deleteChatMessage(byte[] signature) {
+        if (signature == null || signature.length != org.domi.furnace.server.chat.MessageSignature.BYTES)
+            throw new IllegalArgumentException("서명은 256바이트여야 한다");
+        var packed = p.chat().pack(new org.domi.furnace.server.chat.MessageSignature(signature.clone()));
+        p.send(new org.domi.furnace.server.net.protocol.play.DeleteChat(packed.id(), packed.full() == null ? null : packed.full().bytes()));
+    }
+
+    @Override
+    public java.util.Set<String> listeningPluginChannels() { return p.pluginChannels().snapshot(); }
+
+    @Override
     public void sendPluginMessage(String channel, byte[] data) {
         if (org.domi.furnace.server.data.ResourceId.tryParse(channel) == null) throw new IllegalArgumentException("잘못된 채널 이름: " + channel);
         p.send(new org.domi.furnace.server.net.protocol.play.CustomPayloadPacket(channel, data.clone(), true));

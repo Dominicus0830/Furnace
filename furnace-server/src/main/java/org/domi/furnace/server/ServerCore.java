@@ -949,7 +949,7 @@ public final class ServerCore {
         public boolean spawnMonsters() { return settings.get().spawnMonsters; }
         public boolean spawnAnimals() { return settings.get().spawnAnimals; }
         public boolean spawnNpcs() { return settings.get().spawnNpcs; }
-        public int simulationDistance() { return settings.get().simulationDistance; }
+        public int simulationDistance() { return ServerCore.this.simulationDistance(); }
         public int playerIdleTimeoutMinutes() { return settings.get().playerIdleTimeout.get(); }
         public int entityBroadcastRangePercentage() { return settings.get().entityBroadcastRangePercentage; }
         public boolean flightAllowed() { return settings.get().allowFlight; }
@@ -987,6 +987,41 @@ public final class ServerCore {
     }
 
     /** 모든 차원 월드(오버월드 먼저). */
+    /** 실행 중 바꾼 시뮬레이션 거리(-1 = server.properties 값). */
+    private volatile int simulationDistanceOverride = -1;
+
+    /** 지금 시뮬레이션 거리(바닐라 PlayerList.getSimulationDistance). */
+    public int simulationDistance() {
+        int o = simulationDistanceOverride;
+        return o >= 0 ? o : settings.get().simulationDistance;
+    }
+
+    /** 지금 시야 거리(오버월드 기준 — 모든 차원이 같은 값을 쓴다). */
+    public int viewDistance() { return worlds().get(0).viewDistance(); }
+
+    /**
+     * 바닐라 PlayerList.setViewDistance: 모든 플레이어에게 set_chunk_cache_radius 를 보내고 모든 차원의 시야 거리를 바꾼다.
+     * 플레이어별 전송 거리는 min(새 값, 클라이언트 렌더 거리)로 다시 잡는다(클라이언트가 설정을 바꿨을 때와 같은 길 — 다음 틱부터 청크를 더 보내거나 내린다).
+     * 값은 2~32 로 자른다(ChunkMap.setServerViewDistance). 어느 스레드에서 불러도 된다.
+     */
+    public void setViewDistance(int vd) {
+        int v = Math.clamp(vd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
+        for (World w : worlds()) w.viewDistance(v);
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(v);
+        for (Player p : players()) {
+            p.viewDistance(Math.min(v, p.clientViewDistance()));
+            p.send(pkt);
+        }
+    }
+
+    /** 바닐라 PlayerList.setSimulationDistance: 모든 플레이어에게 set_simulation_distance 를 보낸다. region 은 다음 틱부터 새 값을 쓴다. 2~32 로 자른다. */
+    public void setSimulationDistance(int sd) {
+        int v = Math.clamp(sd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
+        simulationDistanceOverride = v;
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetSimulationDistance(v);
+        for (Player p : players()) p.send(pkt);
+    }
+
     public List<World> worlds() {
         var d = dimensions;
         return d == null ? List.of(world) : d.all();

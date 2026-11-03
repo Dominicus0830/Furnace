@@ -390,7 +390,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             var events = core.events();
             if (events.hasSubscribers(org.domi.furnace.api.event.player.AsyncChatEvent.class)) {
                 Text original = msg.decoratedContent();
-                var ev = events.call(new org.domi.furnace.api.event.player.AsyncChatEvent(core.plugins().player(p), message, original));
+                var ev = events.call(new org.domi.furnace.api.event.player.AsyncChatEvent(core.plugins().player(p), message, original,
+                        msg.signature() == null ? null : msg.signature().bytes()));
                 if (ev.isCancelled()) {
                     detectRateSpam();
                     return;
@@ -777,6 +778,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
             Player p = this.player;
             if (p != null) p.locale(clientLocale);
+            if (p != null) p.clientViewDistance(clientViewDistance);
             if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
             this.chatVisibility = Types.readVarInt(frame); // chat mode: 0 전부, 1 시스템만, 2 숨김
             if (p != null) p.chat().visibility(chatVisibility);
@@ -924,6 +926,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        p.clientBrand(clientBrand);   // 바닐라 클라이언트는 brand 를 구성 단계에서 보낸다 — Player 가 생기기 전이라 여기서 넘긴다
+        p.pluginChannels(pluginChannels);
         p.dimension(world.dimension());
         p.inventory(inv);
         p.inventoryHost(new Player.InventoryHost() {
@@ -1001,7 +1005,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             var rules = coreJ.gameRules();
             var level = coreJ.levelData();
             send(ctx, new LoginPlay(eid, level.hardcore, java.util.List.of("minecraft:overworld", "minecraft:the_end", "minecraft:the_nether"),
-                    props.maxPlayers, world.viewDistance(), props.simulationDistance, rules.getBoolean("reducedDebugInfo"),
+                    props.maxPlayers, world.viewDistance(), coreJ.simulationDistance(), rules.getBoolean("reducedDebugInfo"),
                     !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, world.dimension(),
                     LoginPlay.obfuscateSeed(level.seed), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(), false,
                     vitals.lastDeathDimension(), vitals.lastDeathPos(), coreJ.enforceSecureProfile()));
@@ -1062,6 +1066,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.pushTeleport(sx, sy, sz);
+        p.clientViewDistance(clientViewDistance);
         p.viewDistance(effVd);
         this.player = p;
         // 서버가 플레이어를 옮긴다(엔더 진주 등): 어느 스레드에서 불러도 IO 스레드에서 한다.
@@ -1155,6 +1160,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
         if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
+        if (login.core != null) login.core.plugins().sendRegisteredChannels(p);   // CraftBukkit sendSupportedChannels: 서버 플러그인이 받는 채널을 알린다
         if (login.core != null) announceJoin(login.core, p);
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
@@ -1803,6 +1809,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (p != null) p.clientBrand(brand);
                 return;
             }
+            // Bukkit 관례: 클라이언트(모드)가 듣는 채널을 알린다. 구성·play 두 단계 모두 받는다(Fabric 은 구성 단계에서 보낸다). 플러그인 메시지 이벤트로는 넘기지 않는다.
+            if (channel.equals(PluginChannels.REGISTER) || channel.equals(PluginChannels.UNREGISTER)) {
+                byte[] data = new byte[n];
+                frame.readBytes(data);
+                if (channel.equals(PluginChannels.REGISTER)) pluginChannels.register(data);
+                else pluginChannels.unregister(data);
+                return;
+            }
             if (!inPlay) return;
             Player p = player;
             org.domi.furnace.server.ServerCore c = login.core;
@@ -1816,6 +1830,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private volatile String clientBrand;
+    /** 이 연결의 클라이언트가 등록한 플러그인 채널(구성 단계부터 모으고 play 진입 때 Player 에 넘긴다). */
+    private final PluginChannels pluginChannels = new PluginChannels();
 
     /** 바닐라 handleBlockEntityTagQuery: 그 칸의 블록 엔티티 NBT(saveWithoutMetadata)를 tag_query 로. 로드 안 됐거나 블록 엔티티가 아니면 null 로 답한다(바닐라는 null 태그를 보낸다). */
     private void handleBlockEntityTagQuery(Player p, int tx, int bx, int by, int bz) {

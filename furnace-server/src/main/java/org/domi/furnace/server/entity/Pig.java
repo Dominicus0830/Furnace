@@ -114,7 +114,7 @@ public class Pig extends Animal {
         }
         if (super.interact(p, hand, held, region)) return true;
         if (!held.isEmpty() && ItemTools.itemName(held).equals("minecraft:saddle") && isAlive() && !isBaby() && !isSaddled()) {
-            level.playSound(null, x(), y(), z(), "entity.pig.saddle", "neutral", 0.5F, 1.0F);
+            level.playSound(null, this, "entity.pig.saddle", "neutral", 0.5F, 1.0F);
             setSaddled(true);
             if (!p.vitals().isCreative()) {
                 var inv = p.inventory();

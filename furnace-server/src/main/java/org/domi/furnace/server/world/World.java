@@ -34,7 +34,7 @@ public final class World {
     private final ChunkWorkerPool chunkPool;
     private final FurnaceScheduler scheduler;
     private final Regionizer regionizer;
-    private final int viewDistance;
+    private volatile int viewDistance;   // 실행 중 바꿀 수 있다(ServerCore.setViewDistance)
     private final int entityViewDistance;
     private final int blockDirectBits;
     private final int biomeDirectBits;
@@ -1221,6 +1221,9 @@ public final class World {
     /** 살아 있는 region 수(테스트·모니터링용). */
     public int regionCount() { return regionizer.regionCount(); }
     public int viewDistance() { return viewDistance; }
+
+    /** 바닐라 ChunkMap.setServerViewDistance(2~32 로 자른다). 플레이어별 거리·패킷은 ServerCore.setViewDistance 가 맞춘다. */
+    public void viewDistance(int vd) { this.viewDistance = Math.clamp(vd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE); }
     public int entityViewDistance() { return entityViewDistance; }
     public int blockDirectBits() { return blockDirectBits; }
     public int biomeDirectBits() { return biomeDirectBits; }

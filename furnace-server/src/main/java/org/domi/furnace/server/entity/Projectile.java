@@ -58,7 +58,7 @@ public abstract class Projectile extends Entity {
                 }
             }
             case BREEZE -> {
-                if (deflecter instanceof Entity e) level.playSound(null, e.x(), e.y(), e.z(), "entity.breeze.deflect", "hostile", 1.0F, 1.0F);
+                if (deflecter instanceof Entity e) level.playSound(null, e, "entity.breeze.deflect", "hostile", 1.0F, 1.0F);
                 reverse();
             }
             case REVERSE -> reverse();

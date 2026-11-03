@@ -141,12 +141,12 @@ public final class DispenserEquip {
             }
             if (e instanceof Pig p && !p.isSaddled() && p.isAlive() && !p.isBaby()) {
                 p.setSaddled(true);
-                level.playSound(null, p.x(), p.y(), p.z(), "minecraft:entity.pig.saddle", "blocks", 0.5F, 1.0F);
+                level.playSound(null, p, "minecraft:entity.pig.saddle", "blocks", 0.5F, 1.0F);
                 return stack.withCount(stack.count() - 1);
             }
             if (e instanceof Strider s && !s.isSaddled() && s.isAlive() && !s.isBaby()) {
                 s.entityData.set(Strider.DATA_SADDLE_ID, true);
-                level.playSound(null, s.x(), s.y(), s.z(), "minecraft:entity.strider.saddle", "blocks", 0.5F, 1.0F);
+                level.playSound(null, s, "minecraft:entity.strider.saddle", "blocks", 0.5F, 1.0F);
                 return stack.withCount(stack.count() - 1);
             }
         }

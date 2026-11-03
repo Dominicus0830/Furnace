@@ -112,7 +112,7 @@ public class Goat extends Animal {
             return true;
         }
         boolean ok = super.interact(p, hand, held, region);
-        if (ok && isFood(held)) level.playSound(null, x(), y(), z(), getEatSound(), "neutral", 1.0F, 0.8F + level.random().nextFloat() * 0.4F);
+        if (ok && isFood(held)) level.playSound(null, this, getEatSound(), "neutral", 1.0F, 0.8F + level.random().nextFloat() * 0.4F);
         return ok;
     }
 

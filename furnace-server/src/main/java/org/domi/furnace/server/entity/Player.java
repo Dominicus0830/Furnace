@@ -405,6 +405,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public int viewDistance() { return viewDistance; }
     public void viewDistance(int vd) { this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd); }
 
+    private volatile int clientViewDistance = Config.MAX_VIEW_DISTANCE;
+
+    /** 클라이언트가 client_information 으로 알린 렌더 거리(서버 시야 거리가 바뀔 때 다시 min 을 잡는 데 쓴다). */
+    public int clientViewDistance() { return clientViewDistance; }
+
+    public void clientViewDistance(int vd) { this.clientViewDistance = vd; }
+
     /** 패킷을 이 플레이어 채널로 전송(IO eventLoop 마샬). region 스레드서 호출 안전. */
     public void send(Packet packet) { send(packet, () -> true); }
 
@@ -1538,6 +1545,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public String clientBrand() { return clientBrand; }
 
     public void clientBrand(String brand) { this.clientBrand = brand; }
+
+    private volatile org.domi.furnace.server.net.PluginChannels pluginChannels = new org.domi.furnace.server.net.PluginChannels();
+
+    /** 클라이언트가 minecraft:register 로 알린 채널(연결과 같은 객체 — 접속 뒤 등록·해제도 반영된다). */
+    public org.domi.furnace.server.net.PluginChannels pluginChannels() { return pluginChannels; }
+
+    public void pluginChannels(org.domi.furnace.server.net.PluginChannels channels) { this.pluginChannels = channels; }
 
     /** 바닐라 ServerPlayer.lastActionTime(ms) — 이동 말고 행동(명령·채팅·사용·클릭 등)이 있을 때 갱신한다. player-idle-timeout 기준. */
     private volatile long lastActionTime = System.currentTimeMillis();

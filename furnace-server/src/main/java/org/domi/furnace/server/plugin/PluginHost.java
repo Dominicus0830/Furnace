@@ -91,6 +91,78 @@ public final class PluginHost implements Furnace {
         return CommandSource.console(core);
     }
 
+    // ------------------------------------------------------------------ 플러그인 채널(minecraft:register)
+
+    /** 플러그인 → 그 플러그인이 받겠다고 등록한 채널. */
+    private final java.util.concurrent.ConcurrentHashMap<FurnacePlugin, java.util.Set<String>> channelOwners = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String checkChannel(String channel) {
+        org.domi.furnace.server.data.ResourceId id = org.domi.furnace.server.data.ResourceId.tryParse(channel);
+        if (id == null || !id.toString().equals(channel)) throw new IllegalArgumentException("잘못된 채널 이름: " + channel);
+        if (channel.equals(org.domi.furnace.server.net.PluginChannels.REGISTER) || channel.equals(org.domi.furnace.server.net.PluginChannels.UNREGISTER)
+                || channel.equals("minecraft:brand")) throw new IllegalArgumentException("예약된 채널: " + channel);
+        return channel;
+    }
+
+    @Override
+    public int viewDistance() { return core.viewDistance(); }
+
+    @Override
+    public void setViewDistance(int chunks) { core.setViewDistance(chunks); }
+
+    @Override
+    public int simulationDistance() { return core.simulationDistance(); }
+
+    @Override
+    public void setSimulationDistance(int chunks) { core.setSimulationDistance(chunks); }
+
+    @Override
+    public synchronized void registerPluginChannel(FurnacePlugin owner, String channel) {
+        java.util.Objects.requireNonNull(owner, "owner");
+        checkChannel(channel);
+        boolean fresh = !pluginChannels().contains(channel);
+        channelOwners.computeIfAbsent(owner, k -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(channel);
+        if (fresh) broadcastChannels(org.domi.furnace.server.net.PluginChannels.REGISTER, java.util.List.of(channel));
+    }
+
+    @Override
+    public synchronized void unregisterPluginChannel(FurnacePlugin owner, String channel) {
+        java.util.Set<String> mine = channelOwners.get(owner);
+        if (mine == null || !mine.remove(channel)) return;
+        if (mine.isEmpty()) channelOwners.remove(owner);
+        if (!pluginChannels().contains(channel)) broadcastChannels(org.domi.furnace.server.net.PluginChannels.UNREGISTER, java.util.List.of(channel));
+    }
+
+    @Override
+    public java.util.SortedSet<String> pluginChannels() {
+        java.util.TreeSet<String> all = new java.util.TreeSet<>();
+        for (java.util.Set<String> s : channelOwners.values()) all.addAll(s);
+        return java.util.Collections.unmodifiableSortedSet(all);
+    }
+
+    /** 플러그인이 꺼질 때 그 플러그인의 채널을 모두 내린다(다른 플러그인이 같은 채널을 쓰면 남는다). */
+    synchronized void removeChannels(FurnacePlugin plugin) {
+        java.util.Set<String> mine = channelOwners.remove(plugin);
+        if (mine == null) return;
+        java.util.Set<String> left = pluginChannels();
+        java.util.List<String> gone = new java.util.ArrayList<>();
+        for (String c : mine) if (!left.contains(c)) gone.add(c);
+        if (!gone.isEmpty()) broadcastChannels(org.domi.furnace.server.net.PluginChannels.UNREGISTER, gone);
+    }
+
+    /** 접속 직후 한 번: 서버가 받는 채널이 있으면 minecraft:register 로 알린다(없으면 보내지 않는다). */
+    public void sendRegisteredChannels(Player p) {
+        java.util.Set<String> all = pluginChannels();
+        if (all.isEmpty()) return;
+        p.send(new org.domi.furnace.server.net.protocol.play.CustomPayloadPacket(org.domi.furnace.server.net.PluginChannels.REGISTER,
+                org.domi.furnace.server.net.PluginChannels.encode(all), true));
+    }
+
+    private void broadcastChannels(String which, java.util.Collection<String> names) {
+        byte[] body = org.domi.furnace.server.net.PluginChannels.encode(names);
+        for (Player p : core.players()) p.send(new org.domi.furnace.server.net.protocol.play.CustomPayloadPacket(which, body, true));
+    }
+
     /** 플러그인이 꺼질 때 그 플러그인이 남긴 권한 첨부를 모두 뗀다. */
     void removeAttachments(FurnacePlugin plugin) {
         console.perms().removeAttachments(plugin);

@@ -68,7 +68,7 @@ public class GoAndGiveItemsToTarget<E extends Mob & InventoryCarrier> extends Be
         var level = mob.level();
         if (level.gameTime() % 7L == 0L && level.random().nextDouble() < 0.9) {
             float pitch = Allay.THROW_SOUND_PITCHES[level.random().nextInt(Allay.THROW_SOUND_PITCHES.length)];
-            level.playSound(null, mob.x(), mob.y(), mob.z(), "entity.allay.item_thrown", "neutral", 1.0F, pitch);
+            level.playSound(null, mob, "entity.allay.item_thrown", "neutral", 1.0F, pitch);
         }
     }
 }
