@@ -73,7 +73,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 
 ## 3. 남아 있는 큰 구멍 (우선순위는 `unimplemented-survey-2026-10-31.md` 1장 — 단, 그 문서의 일부 항목은 이후 구현돼 낡았다. 착수 전에 코드를 직접 확인한다)
 
-- **플러그인 API는 1단계다.** 설계 문서 7장 "다음 단계": `LEFT_CLICK`, 상자·상인·엔티티 컨테이너 `Inventory`, 엔티티를 따라가는 `EntityScheduler`, `PersistentDataContainer`, `Chunk` 객체, 엔티티 스폰·조회 API, `PlayerMoveEvent` 의 회전, 이벤트 세분화(`DamageCause` 등). Paper/Bukkit 어댑터(5단계 `furnace-compat-paper`)는 아직 없다.
+- **플러그인 API는 2단계까지다(2026-11-03).** 2단계로 `LEFT_CLICK`·`PlayerInteractEntityEvent`, 상자·엔티티·상인 `Inventory`/거래, `EntityScheduler`, `PersistentDataContainer`(엔티티·청크·플레이어, Paper 와 같은 저장 키), `Chunk` 핸들, 엔티티 스폰·주변 조회가 들어왔다(설계 문서 8장, 처리 상태는 8.6). 남은 것: UUID 전역 엔티티 조회, `Mob`/`Item` 타입·장비·효과, 최종 피해·`DamageCause` 하위 이벤트, 텔레포트 원인·차원, `InventoryOpenEvent` 경로 확장, 큰 상자 합친 보기·`InventoryView`, 아이템 영속 데이터, `PlayerMoveEvent` 의 회전. Paper/Bukkit 어댑터(5단계 `furnace-compat-paper`)는 아직 없다. 2단계 접속 시험은 `docs/user-todo.md`.
 - **스트라이더**(안장·조종·뒤틀린 균류 막대·좀비 피글린 기수), 몹 낙하 위치 기록(몹 사망 메시지의 낙하형), 순찰·팬텀·고양이 스포너의 오버월드 전용화.
 - **region 단위로 동작하는 차이**: 마을 포위 상태·상인 대상 플레이어 선택·앵무새 어깨 앉히기·돌고래의 플레이어 효과 부여 일부(소유권 위임 미완), 명령 블록 체인이 region 경계를 넘으면 끊김.
 - **명령 블록은 비동기라 바닐라처럼 한 틱에 체인이 끝나지 않는다**(순서는 보존, 시간이 다름). 한 틱 완결이 필요한 회로는 박자가 다를 수 있다.
@@ -88,7 +88,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 
 1. **사용자 접속 시험 결과 반영** — `docs/user-todo.md` 의 접속 시험 요청 표. 실패한 항목부터 바닐라 디컴파일로 대조해 고친다. **이번 라운드 신규 기능(이동 취소 보정, 리소스팩, 마을 포위, 앵무새 어깨, 돼지 조종, 시련의 방 등)의 접속 시험 항목은 `user-todo.md` 에 아직 정리하지 않았다.**
 2. **실제 클라이언트 확인이 한 번도 없다.** 지금까지 검증은 단위 시험·전체 시험까지다. 가장 위험한 것: 플레이어 이동 서버 검증(정상 플레이가 뒤로 끌려가지 않는지), 리소스팩 접속 흐름, 플러그인 API 이벤트 발화 비용.
-3. **플러그인 API 2단계**(위 3장) → 이후 5단계 어댑터.
+3. **플러그인 API 2단계는 끝났다(2026-11-03, 접속 시험 대기).** 남은 API(위 3장) → 이후 5단계 어댑터.
 4. **미구현 우선순위**(`unimplemented-survey-2026-10-31.md`)에서 아직 남은 것: 스트라이더, region 단위 차이 정리, 월드젠 순정 대조(oracle 이 되는 환경에서).
 5. 작업 G 후속: RCON/Query 를 실제 클라이언트(`mcrcon`, `mcstatus`)로, `/furnace` 명령을 부하 중, 워치독을 일부러 멈춰 본 실측. 결과는 `context-notes.md` 에 '확인함/가정' 구분해 적는다.
 6. **불안정 시험 근본 원인**: `TabListTest`, `GeneratedVillageProfessionTest`.

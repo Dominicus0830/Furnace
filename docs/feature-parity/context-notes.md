@@ -677,3 +677,16 @@
   - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
   - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.
 - 후속(검토 반영): `PlayerMoveEvent` 취소는 `applyMove(prev)` 로 서버 위치를 되돌린 뒤 `Player.correctTo`(이벤트 우회 보정)로 텔레포트하며 `moveRejectHold` 를 건다 — 검증기(`PlayerMoveValidator.reject`)도 같은 `correctTo` 를 쓰도록 바꿔, 텔레포트 리스너가 보정을 삼키지 못한다(Paper 의 정확한 동작은 미확인, **가정**). 검증 대기 패킷은 hold 동안 버려진다. `EntitySpawnEvent` 는 목록 추가 뒤 발화·취소 시 되돌림, 승객 묶음은 전부 아니면 전무(Paper 는 개별 엔티티 단위일 수 있다 — 미확인). `Interact` 취소는 손 슬롯 `ContainerSetSlot(-2)` 재전송(블록은 기존 재전송). 플레이어 인벤토리 쓰기는 `runOnOwner`(소유 틱에서 적용되므로 Future 가 최대 한 틱 늦게 완료). 서버 스레드에서 미완료 `RegionFuture.get()/join()` 은 예외.
+
+## 2026-11-03 플러그인 API 2단계: EntityScheduler·영속 데이터·Chunk·스폰/조회·칸·상인·왼쪽 클릭
+- 설계: `docs/api/entity-world-design.md` 8장. 새 동기 접근은 없다(사본 또는 소유 스레드 Future).
+- 바닐라·Paper 와 다른 점·한계·가정:
+  - `EntityScheduler` 의 retired 는 엔티티를 내린 스레드에서 바로 불린다(Folia 와 같다고 **가정**). 차원 이동도 retire 한다 — Furnace 의 차원 이동은 엔티티를 새로 만드므로(`setRemoved(CHANGED_DIMENSION)`). 플레이어는 접속 종료에서만 retire(죽음·리스폰·차원 이동으로는 retire 하지 않는다 — 같은 `Player` 객체가 이어진다).
+  - `EntityScheduler` 작업은 `RegionLevel.tickBlocks` 의 블록 이벤트 뒤·엔티티 틱 앞에서 돈다(Folia 는 region 틱 앞부분 — 순서 차이는 **가정**, 플러그인 관측에 영향 적음). 엔티티 틱 청크 밖의 엔티티도 돈다.
+  - 영속 데이터 키 검사는 `NamespacedKey` 규칙(소문자). Paper 의 `PersistentDataType.LIST`·사용자 정의 종류는 없다(값은 보존).
+  - `World.nearbyEntities` 는 center 칸 region 이 가진 것만 — region 경계 근처에서는 Bukkit `getNearbyEntities` 보다 적게 나올 수 있다.
+  - `World.inventoryAt` 은 큰 상자를 반쪽(27칸)으로 돌려준다(Bukkit 은 `DoubleChestInventory` 54칸). 열지 않은 전리품 상자는 채우지 않는다(Bukkit `getInventory` 도 채우지 않는다고 **가정**).
+  - `Merchant.setTrades` 는 수요·특가를 0 으로 둔다(Bukkit `MerchantRecipe` 는 demand/specialPrice 를 가진다 — 다음 단계).
+  - LEFT_CLICK_AIR: Spigot 은 휘두르기 패킷의 손과 상관없이 주 손으로 발화하지만, Furnace 는 왼손(hand 1) 휘두르기에서 발화하지 않는다(**가정**: 왼손 휘두르기는 왼쪽 클릭이 아니다). Spigot 의 "아이템을 막 버린 틱이면 발화 안 함" 같은 예외 처리는 없다. 시선 추적은 엔티티 상자를 부풀리지 않는다(Spigot rayTrace raySize 0).
+  - `PlayerInteractEntityEvent` 는 INTERACT 만(INTERACT_AT 의 `PlayerInteractAtEntityEvent` 없음). 다른 플레이어 우클릭은 발화하지 않는다(서버가 플레이어 상호작용을 처리하지 않는 경로).
+- 검증: `PluginApiStage2Test`(11개), `EntityTasksTest`(4개) — region 넘김 뒤 작업이 새 region 스레드에서 도는 것, retired, 저장 왕복(BukkitValues·ChunkBukkitValues·플레이어 파일), 청크를 만들지 않는 것, 상자 부서진 뒤 실패, LEFT_CLICK 취소가 크리에이티브 즉시 파괴를 막는 것. 실제 클라이언트 확인은 없다(`docs/user-todo.md`).

@@ -1074,6 +1074,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (saved != null && saved.root() != null) {
             p.seenCredits = saved.root().getBoolean("seenCredits");
             p.loadTags(saved.root());
+            p.loadPersistentData(saved.root());
             p.loadShoulders(saved.root());
         }
         // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
@@ -1458,10 +1459,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 touchLastAction();
                 int status = Types.readVarInt(frame);
                 int[] bp = Types.readBlockPos(frame);
-                frame.readByte();        // face
+                int face = frame.readByte();        // face
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
-                if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], seq);
+                if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], face, seq);
                 if (actor != null && status == 5) world.runAt(actor.x(), actor.z(), r -> r.handleReleaseUsing(actor));   // 사용 끝(release)
                 if (actor != null && (status == 3 || status == 4) && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
                     dropFromSelected(status == 3);   // DROP_ALL_ITEMS · DROP_ITEM
@@ -1512,7 +1513,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     break;
                 }
                 Player actor = player;
-                if (actor != null) world.runAt(actor.x(), actor.z(), r -> actor.swing(hand, false));
+                if (actor != null) world.runAt(actor.x(), actor.z(), r -> {
+                    r.swingLeftClick(actor, hand);   // 플러그인 LEFT_CLICK_AIR(Spigot: 휘두르기 앞, 취소해도 휘두르기는 보인다)
+                    actor.swing(hand, false);
+                });
             }
             case 0x20 -> { // pick_item: 인벤토리 번호(VarInt) — handlePickItem(서바이벌 휠클릭; 크리에이티브 복제는 클라이언트가 set_creative_mode_slot 으로)
                 int slot = Types.readVarInt(frame);
@@ -1879,14 +1883,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 블록 파괴 요청(player_action 0 시작·1 취소·2 완료 — 바닐라 handlePlayerAction → ServerPlayerGameMode.handleBlockBreakAction → ack).
      * 거리·높이·스폰 보호·게임 모드 판정과 서바이벌 진행도 검증·드롭은 그 플레이어의 region 에서(BlockBreaking).
      */
-    private void handleBlockBreak(Player actor, int status, int bx, int by, int bz, int seq) {
+    private void handleBlockBreak(Player actor, int status, int bx, int by, int bz, int face, int seq) {
         org.domi.furnace.server.ServerCore core = login.core;
         var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
         world.runAtRequested(bx, bz, actor.x(), actor.z(), region -> {
             // 이미 로드된 청크만 — 임의 좌표 요청이 청크를 새로 생성(수백 ms)시키지 못하게 한다.
             if (by >= world.dimensionType().minY() && by < world.dimensionType().maxY() && region.chunkLoaded(ChunkPos.ofBlock(bx, bz))) {
                 boolean mayInteract = core == null || core.mayInteract(actor, bx, bz);
-                region.handleBlockBreakAction(actor, pos, status, mayInteract);
+                region.handleBlockBreakAction(actor, pos, status, face, mayInteract);
             }
             region.level().ackBlockChangesUpTo(actor, seq);   // 바닐라: 처리 뒤 ack(실제 전송은 틱 끝 변경 방송 뒤)
         });
@@ -2085,6 +2089,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (e == null || e.isRemoved()) return;
         double dx = p.x() - e.x(), dy = p.y() + 1.62 - e.y(), dz = p.z() - e.z();
         if (dx * dx + dy * dy + dz * dz >= 36.0) return;
+        if (action == 0 && !region.level().gameEvents().playerInteractEntity(p, e, hand, heldBefore)) {
+            // 플러그인 PlayerInteractEntityEvent 취소: 아무 상호작용도 하지 않고, 클라이언트가 예측한 손 아이템 변화를 되돌린다
+            int handSlot = hand == 0 ? p.inventory().heldWindowSlot() : 45;
+            p.send(new ContainerSetSlot(-2, 0, handSlot, p.inventory().get(handSlot)));
+            return;
+        }
         if (action == 1 && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) {
             // ServerPlayer.attack: 관전자의 왼쪽 클릭은 공격 대신 그 엔티티의 시점으로
             if (e instanceof org.domi.furnace.server.entity.LivingEntity || e.isPickable()) region.setCamera(p, e);
@@ -3402,6 +3412,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         extra.putString("Dimension", p.dimension());   // 바닐라 ServerPlayer.addAdditionalSaveData — 지금 레벨
         extra.putBoolean("seenCredits", p.seenCredits);
         p.saveTags(extra);
+        p.savePersistentData(extra);
         p.saveShoulders(extra);
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();

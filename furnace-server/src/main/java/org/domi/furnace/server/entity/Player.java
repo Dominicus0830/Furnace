@@ -389,7 +389,39 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public boolean inputJumping() { return inputJumping; }
 
-    public void markDisconnected() { this.disconnected = true; bumpRoster(); }
+    public void markDisconnected() {
+        this.disconnected = true;
+        bumpRoster();
+        apiTasks.retire();   // 플러그인 EntityScheduler: 접속 종료 = 엔티티가 사라짐
+    }
+
+    // ------------------------------------------------------------------ 플러그인(EntityScheduler·영속 데이터)
+
+    private final EntityTasks apiTasks = new EntityTasks(this);
+    /** 플러그인 영속 데이터(BukkitValues). 저장 스냅샷은 연결 스레드가 뜨므로 이 객체의 모니터로 보호한다. */
+    private final org.domi.furnace.server.net.io.nbt.NbtCompound persistentData = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+
+    public EntityTasks apiTasks() { return apiTasks; }
+
+    /** 영속 데이터를 잠근 채 다룬다(f 안에서만 그 compound 를 쓴다). */
+    public <T> T withPersistentData(java.util.function.Function<org.domi.furnace.server.net.io.nbt.NbtCompound, T> f) {
+        synchronized (persistentData) { return f.apply(persistentData); }
+    }
+
+    /** 플레이어 파일의 BukkitValues 를 읽는다(접속 때). */
+    public void loadPersistentData(org.domi.furnace.server.net.io.nbt.NbtCompound root) {
+        synchronized (persistentData) {
+            persistentData.tags().clear();
+            if (root.tags().get("BukkitValues") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound c) persistentData.tags().putAll(c.copy().tags());
+        }
+    }
+
+    /** 저장 꼴에 BukkitValues 를 쓴다(비었으면 쓰지 않는다 — 저장 쪽이 옛 값을 지운다). */
+    public void savePersistentData(org.domi.furnace.server.net.io.nbt.NbtCompound out) {
+        synchronized (persistentData) {
+            if (!persistentData.tags().isEmpty()) out.putCompound("BukkitValues", persistentData.copy());
+        }
+    }
 
     // 접속자 집합(입장·퇴장·퇴장 표시)이 바뀔 때마다 오르는 전역 번호. 탭 목록 동기화가 바뀐 틱에만 전원을 훑게 한다(E-11).
     private static final java.util.concurrent.atomic.AtomicLong ROSTER_EPOCH = new java.util.concurrent.atomic.AtomicLong();
@@ -1190,6 +1222,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void drainOwnerTasks() {
         Runnable t;
         while ((t = ownerTasks.poll()) != null) t.run();
+        apiTasks.tick();   // 플러그인 EntityScheduler 작업
     }
 
     /** 바닐라 ServerPlayer.resetStat: 통계를 0 으로, 그 통계 기준 점수도 0. */

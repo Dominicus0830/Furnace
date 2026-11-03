@@ -111,7 +111,7 @@ public final class PlayerData {
 
     /** PlayerVitals.save 가 쓰는 선택 필드 — 값이 없어지면 파일에서도 지워야 하는 것. */
     private static final String[] VITALS_KEYS = {"previousPlayerGameType", "SpawnX", "SpawnY", "SpawnZ", "SpawnForced",
-            "SpawnAngle", "SpawnDimension", "LastDeathLocation", "raid_omen_position", "Tags"};
+            "SpawnAngle", "SpawnDimension", "LastDeathLocation", "raid_omen_position", "Tags", "BukkitValues"};
 
     private static NbtCompound readExisting(Path f) {
         if (!Files.exists(f)) return new NbtCompound();
@@ -268,6 +268,7 @@ public final class PlayerData {
         root.putString("Dimension", p.dimension());
         root.putBoolean("seenCredits", p.seenCredits);
         p.saveTags(root);
+        p.savePersistentData(root);
         p.saveShoulders(root);
         fill(root, p.uuid(), p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround(), slots);
         root.tags().remove("DataVersion");

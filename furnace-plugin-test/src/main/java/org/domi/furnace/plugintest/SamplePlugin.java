@@ -12,10 +12,13 @@ import org.domi.furnace.api.event.block.BlockBreakEvent;
 import org.domi.furnace.api.event.entity.EntityDamageEvent;
 import org.domi.furnace.api.event.inventory.InventoryClickEvent;
 import org.domi.furnace.api.event.player.PlayerDropItemEvent;
+import org.domi.furnace.api.event.player.PlayerInteractEntityEvent;
+import org.domi.furnace.api.event.player.PlayerInteractEvent;
 import org.domi.furnace.api.event.player.PlayerJoinEvent;
 import org.domi.furnace.api.event.world.ChunkLoadEvent;
 import org.domi.furnace.api.world.BlockData;
 import org.domi.furnace.api.world.BlockPos;
+import org.domi.furnace.api.persistence.PersistentDataType;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.text.NamedTextColor;
 import org.domi.furnace.api.text.Text;
@@ -27,6 +30,7 @@ public final class SamplePlugin extends FurnacePlugin implements Listener {
         saveDefaultConfig();
         server().events().register(this, this);
         server().commands().register(this, "hello", (sender, args) -> hello(sender, args));
+        server().commands().register(this, "samplespawn", (sender, args) -> spawnHere(sender));
         long period = config().root().getInt("tip-interval-seconds", 300) * 20L;
         if (period > 0) {
             tasks().runGlobalRepeating(() -> server().broadcast(
@@ -84,4 +88,62 @@ public final class SamplePlugin extends FurnacePlugin implements Listener {
         if (e.chunkX() == 0 && e.chunkZ() == 0) logger().info("spawn chunk loaded in " + e.world());
     }
 
+
+    // ------------------------------------------------------------------ 2단계 API 사용 예 (막대기를 들고 시험)
+
+    private static boolean holdingStick(org.domi.furnace.api.item.ItemStack item) { return item.type().equals("minecraft:stick"); }
+
+    /**
+     * 막대기로: 블록 왼쪽 클릭 = 청크 영속 데이터에 클릭 수를 세고 부수기 취소, 허공 왼쪽 클릭 = 주변 8칸 엔티티 수,
+     * 용기 오른쪽 클릭 = 칸 수와 첫 칸 내용.
+     */
+    @Subscribe(ignoreCancelled = true)
+    public void onInteract(PlayerInteractEvent e) {
+        if (!holdingStick(e.item())) return;
+        Player p = e.player();
+        switch (e.action()) {
+            case LEFT_CLICK_BLOCK -> {
+                e.setCancelled(true);
+                var chunk = p.world().chunkAt(e.clickedBlock().pos());
+                int[] n = new int[1];
+                chunk.editPersistentData(pdc -> {
+                    n[0] = pdc.getOrDefault("sample:clicks", PersistentDataType.INTEGER, 0) + 1;
+                    pdc.set("sample:clicks", PersistentDataType.INTEGER, n[0]);
+                }).thenAccept(ok -> p.sendActionBar(Text.text(e.clickedBlock().type() + " — clicks in chunk " + chunk.x() + "," + chunk.z() + ": " + n[0])));
+            }
+            case LEFT_CLICK_AIR -> p.world().nearbyEntities(p.location(), 8)
+                    .thenAccept(list -> p.sendActionBar(Text.text("entities within 8: " + (list.size() - 1))));
+            case RIGHT_CLICK_BLOCK -> p.world().inventoryAt(e.clickedBlock().pos()).thenAccept(inv -> inv.ifPresent(i ->
+                    i.get(0).thenAccept(first -> p.sendMessage(Text.text(i.type() + " has " + i.size() + " slots, slot 0 = " + first.type() + " x" + first.amount())))));
+            default -> {}
+        }
+    }
+
+    /** 막대기로 엔티티 오른쪽 클릭: 상호작용을 막고, 엔티티 영속 데이터에 찌른 횟수를 세고, 2초 뒤 엔티티 스케줄러로 알린다. 상인이면 거래 수. */
+    @Subscribe(ignoreCancelled = true)
+    public void onInteractEntity(PlayerInteractEntityEvent e) {
+        if (!holdingStick(e.item())) return;
+        e.setCancelled(true);
+        Player p = e.player();
+        var target = e.target();
+        int[] n = new int[1];
+        target.editPersistentData(pdc -> {
+            n[0] = pdc.getOrDefault("sample:pokes", PersistentDataType.INTEGER, 0) + 1;
+            pdc.set("sample:pokes", PersistentDataType.INTEGER, n[0]);
+        }).thenAccept(ok -> p.sendMessage(Text.text(target.type() + " poked " + n[0] + " times (saved with the entity)")));
+        target.entityScheduler().execute(() -> p.sendMessage(Text.text(target.type() + " is still here after 2s")),
+                () -> p.sendMessage(Text.text(target.type() + " is gone")), 40);
+        if (target instanceof org.domi.furnace.api.entity.Merchant m) m.trades().thenAccept(t -> p.sendMessage(Text.text("trades: " + t.size())));
+        target.container().thenAccept(c -> c.ifPresent(inv -> p.sendMessage(Text.text("container: " + inv.size() + " slots"))));
+    }
+
+    /** /samplespawn — 바라보는 쪽 2칸 앞에 좀비. */
+    private void spawnHere(CommandSender sender) {
+        if (!(sender instanceof Player p)) return;
+        var at = p.location();
+        double yaw = Math.toRadians(at.yaw());
+        var spot = new org.domi.furnace.api.world.Location(at.world(), at.x() - Math.sin(yaw) * 2, at.y(), at.z() + Math.cos(yaw) * 2);
+        p.world().spawnEntity("minecraft:zombie", spot).whenComplete((z, err) ->
+                p.sendMessage(Text.text(err != null ? "spawn failed: " + err.getMessage() : z == null ? "spawn cancelled" : "spawned " + z.uniqueId())));
+    }
 }

@@ -778,6 +778,8 @@ public abstract non-sealed class Entity implements Rider {
 
     public final void setRemoved(RemovalReason reason) {
         if (removalReason == null) removalReason = reason;
+        EntityTasks tasks = apiTasks;
+        if (tasks != null) tasks.retire();   // 플러그인 EntityScheduler: 남은 작업 대신 retired
         if (removalReason == RemovalReason.CHANGED_DIMENSION) removeAfterChangingDimensions();
         if (removalReason.shouldDestroy()) stopRiding();
         if (!passengers.isEmpty()) for (Rider r : passengers) r.stopRiding();
@@ -1509,6 +1511,8 @@ public abstract non-sealed class Entity implements Rider {
             tag.put("Tags", tagList);
         }
         addAdditionalSaveData(tag);
+        NbtCompound pdc = persistentData;
+        if (pdc != null && !pdc.tags().isEmpty()) tag.putCompound("BukkitValues", pdc.copy());   // 플러그인 영속 데이터(Paper 와 같은 키)
         if (!passengers.isEmpty()) {
             NbtList list = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
             for (Rider r : passengers) {
@@ -1578,6 +1582,35 @@ public abstract non-sealed class Entity implements Rider {
             for (int i = 0; i < n; i++) commandTags.add(tagList.get(i) instanceof String t ? t : "");
         }
         readAdditionalSaveData(tag);
+        persistentData = tag.tags().get("BukkitValues") instanceof NbtCompound pdc && !pdc.tags().isEmpty() ? pdc.copy() : null;
+    }
+
+    // ------------------------------------------------------------------ 플러그인(EntityScheduler·영속 데이터)
+
+    private volatile EntityTasks apiTasks;
+    /** 플러그인 영속 데이터(BukkitValues) — 소유 region 스레드에서만. 없으면 null. */
+    private NbtCompound persistentData;
+
+    /** 플러그인 작업 대기열(처음 부를 때 만든다, 아무 스레드). */
+    public EntityTasks apiTasks() {
+        EntityTasks t = apiTasks;
+        if (t != null) return t;
+        synchronized (this) {
+            if (apiTasks == null) {
+                apiTasks = new EntityTasks(this);
+                if (removalReason != null) apiTasks.retire();
+            }
+            return apiTasks;
+        }
+    }
+
+    /** 대기열이 있으면(없으면 null). 소유 region 스레드가 틱마다. */
+    public EntityTasks apiTasksOrNull() { return apiTasks; }
+
+    /** 영속 데이터 — create 면 없을 때 빈 것을 만든다. 소유 region 스레드에서만. */
+    public NbtCompound persistentData(boolean create) {
+        if (persistentData == null && create) persistentData = new NbtCompound();
+        return persistentData;
     }
 
     private static double num(NbtList list, int i) { return list.get(i) instanceof Number n ? n.doubleValue() : 0.0; }

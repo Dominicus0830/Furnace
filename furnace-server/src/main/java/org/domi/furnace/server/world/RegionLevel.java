@@ -271,6 +271,7 @@ public final class RegionLevel extends ChunkLevel {
         java.util.function.LongPredicate entityTicking = k -> chunk((int) (k >> 32), (int) k) != null && blockEntityTicking.test(k);
         trackEntities(entityTicking, inRegion);   // 바닐라 ChunkMap.tick — 청크 틱 끝 방송 뒤
         runBlockEvents();
+        runEntityTasks();   // 플러그인 EntityScheduler — /tick freeze 중에도 돈다(플러그인 논리는 게임 틱 정지와 무관)
         if (frozen) return;   // 정지 중에는 엔티티·블록 엔티티·드래곤 전투를 틱하지 않는다
         world.tickDragonFight(region, this);   // 바닐라 ServerLevel.tick: 엔티티 틱 바로 앞
         tickEntities(entityTicking);

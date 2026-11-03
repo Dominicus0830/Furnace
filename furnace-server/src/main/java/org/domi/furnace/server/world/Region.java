@@ -390,6 +390,21 @@ public final class Region {
         }));
     }
 
+    /** 이 region 이 가진 로드된 청크(없으면 null, 로드를 걸지 않는다). 플러그인 API 용. */
+    public ChunkColumn ownedColumn(ChunkPos cp) {
+        world.assertOwns(this);
+        return ownedChunk(cp.x(), cp.z());
+    }
+
+    /** 청크를 저장 대상으로 표시한다(플러그인이 청크 영속 데이터를 고쳤을 때). 이 region 이 가진 로드된 청크여야 한다. */
+    public void markChunkChanged(ChunkPos cp) {
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(cp.x(), cp.z());
+        if (col == null) return;
+        col.markDirty();
+        dirtyChunks.add(cp);
+    }
+
     /** 이 region 스레드에서 그 청크가 이미 로드돼 있는가. 클라 요청이 임의 좌표의 청크를 새로 생성시키지 못하게 하는 게이트용. */
     public boolean chunkLoaded(ChunkPos cp) {
         world.assertOwns(this);
@@ -1358,10 +1373,48 @@ public final class Region {
 
     /** 플레이어 블록 부수기 요청(player_action 0·1·2). 그 플레이어가 이 region 소속일 때만 — ack 는 부르는 쪽이. */
     public void handleBlockBreakAction(Player p, org.domi.furnace.server.block.Pos pos, int action, boolean mayInteract) {
+        handleBlockBreakAction(p, pos, action, 1, mayInteract);
+    }
+
+    /**
+     * 팔 휘두르기(swing 패킷)의 플러그인 LEFT_CLICK_AIR — Spigot handleAnimate 와 같이 눈에서 시선 방향 4.5칸(크리에이티브 5칸)에
+     * 블록(OUTLINE, 유체 무시)도 집을 수 있는 엔티티도 없을 때만. 구독자가 없으면 시선 추적도 하지 않는다.
+     * 가정: 왼손(hand 1) 휘두르기는 왼쪽 클릭이 아니므로 발화하지 않는다.
+     */
+    public void swingLeftClick(Player p, int hand) {
+        world.assertOwns(this);
+        if (hand != 0 || !players.containsKey(p.entityId())) return;
+        var ev = world.levelServices().gameEvents();
+        if (!ev.wantsInteract()) return;
+        double ex = p.x(), ey = p.eyeY(), ez = p.z();
+        double[] v = org.domi.furnace.server.block.Clip.viewVector(p.pitch(), p.yaw());
+        double reach = p.gameMode() == GameMode.CREATIVE ? 5.0 : 4.5;
+        double tx = ex + v[0] * reach, ty = ey + v[1] * reach, tz = ez + v[2] * reach;
+        if (!org.domi.furnace.server.block.Clip.clip(level(), ex, ey, ez, tx, ty, tz, org.domi.furnace.server.block.Clip.FluidMode.NONE).miss()) return;
+        var sweep = new org.domi.furnace.server.entity.AABB(Math.min(ex, tx), Math.min(ey, ty), Math.min(ez, tz),
+                Math.max(ex, tx), Math.max(ey, ty), Math.max(ez, tz)).inflate(1.0);
+        for (var e : level().getEntities(null, sweep, e -> e.isPickable() && !e.isSpectator() && !e.isRemoved())) {
+            if (rayHits(e.boundingBox(), ex, ey, ez, tx, ty, tz)) return;
+        }
+        for (Player o : players.values()) {
+            if (o != p && !o.isSpectator() && !o.isDisconnected() && rayHits(o.boundingBox(), ex, ey, ez, tx, ty, tz)) return;
+        }
+        Player.InventoryHost inv = p.inventoryHost();
+        ItemStack held = inv == null ? ItemStack.EMPTY : inv.slot(36 + inv.selected());
+        ev.playerLeftClick(p, null, 0, -1, held);
+    }
+
+    private static boolean rayHits(org.domi.furnace.server.entity.AABB bb, double fx, double fy, double fz, double tx, double ty, double tz) {
+        boolean inside = fx >= bb.minX() && fx <= bb.maxX() && fy >= bb.minY() && fy <= bb.maxY() && fz >= bb.minZ() && fz <= bb.maxZ();
+        return inside || bb.clip(fx, fy, fz, tx, ty, tz) != null;
+    }
+
+    /** face: 누른 면(0 아래 … 5 동) — 플러그인 LEFT_CLICK_BLOCK 에 실린다. */
+    public void handleBlockBreakAction(Player p, org.domi.furnace.server.block.Pos pos, int action, int face, boolean mayInteract) {
         world.assertOwns(this);
         if (!players.containsKey(p.entityId())) return;
         var actor = breakerActor(p);
-        p.breaking().handleAction(level(), actor, breakHost(p), pos, action, level().maxBuildHeight(), mayInteract);
+        p.breaking().handleAction(level(), actor, breakHost(p, face, actor), pos, action, level().maxBuildHeight(), mayInteract);
         writeBackHand(p, actor);
     }
 
@@ -1410,8 +1463,17 @@ public final class Region {
         }.withInventory(inv);
     }
 
-    private org.domi.furnace.server.block.BlockBreaking.Host breakHost(Player p) {
+    private org.domi.furnace.server.block.BlockBreaking.Host breakHost(Player p) { return breakHost(p, -1, null); }
+
+    private org.domi.furnace.server.block.BlockBreaking.Host breakHost(Player p, int face, org.domi.furnace.server.block.BreakerActor actor) {
         return new org.domi.furnace.server.block.BlockBreaking.Host() {
+            public boolean allowStartDestroy(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos) {
+                var ev = world.levelServices().gameEvents();
+                if (ev == org.domi.furnace.server.plugin.GameEvents.NONE) return true;
+                ItemStack held = actor == null ? ItemStack.EMPTY : actor.itemInHand(org.domi.furnace.server.block.BlockActor.MAIN_HAND);
+                return ev.playerLeftClick(p, new int[] {pos.x(), pos.y(), pos.z()}, level.getBlockState(pos), face, held);
+            }
+
             public void sendBlockUpdate(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos) {
                 p.send(new BlockUpdate(pos.x(), pos.y(), pos.z(), level.getBlockState(pos)));
             }

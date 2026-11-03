@@ -178,6 +178,40 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         return java.util.concurrent.CompletableFuture.completedFuture(true);
     }
 
+    private volatile EntitySchedulerImpl entityScheduler;
+
+    @Override
+    public org.domi.furnace.api.entity.EntityScheduler entityScheduler() {
+        EntitySchedulerImpl s = entityScheduler;
+        if (s == null) entityScheduler = s = new EntitySchedulerImpl(p.apiTasks());
+        return s;
+    }
+
+    /** 플레이어는 최근 값(지금 내용의 사본). */
+    @Override
+    public org.domi.furnace.api.persistence.PersistentDataView persistentData() {
+        return p.withPersistentData(NbtPersistentData::snapshot);
+    }
+
+    /** 플레이어 소유 스레드에서(접속이 끊겼으면 false). */
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> editPersistentData(java.util.function.Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) {
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(false));
+        RegionFuture<Boolean> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            try {
+                p.withPersistentData(tag -> {
+                    edit.accept(new NbtPersistentData(tag, false));
+                    return null;
+                });
+                f.complete(true);
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
+    }
+
     private PlayerInventoryHandle inventory;
 
     @Override
