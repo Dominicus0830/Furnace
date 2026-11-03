@@ -501,7 +501,7 @@
   - 차이: 긴 명령(예: 아주 큰 `/fill`)이 전역 스레드를 임계 넘게 잡으면 전역 박동이 끊겨 크래시로 판정된다 — 바닐라도 서버 스레드에서 명령이 길면 같다. `/tick sprint` 중에는 박동이 40ms 예산마다 돌아 영향 없다(가정: 실측 안 함). 실제 크래시·종료 경로는 시험에서 `exit` 훅을 바꿔 끼워 확인했고, 실서버에서 일부러 멈춰 본 적은 없다.
 - **spawn-npcs**: `ChunkLevel.tickEntities` 가 `shouldDiscardEntity`(ServerLevel 동일)로 Npc(주민·방랑 상인)를 지운다. 같은 함수가 동물 스폰이 꺼졌을 때 `Animal`·`WaterAnimal` 도 지운다(바닐라 동작 — 기존엔 spawn-animals=false 가 자연 스폰만 막고 이미 있는 동물은 그대로였다). 스폰(NaturalSpawner 등)에서 Npc 를 막는 경로는 없다 — 바닐라도 스폰 단계는 막지 않고 틱에서 지운다(근거: `aqu.i` 호출은 엔티티 틱 한 곳뿐이다).
 - **max-world-size**: 월드 보더의 절대 한계(`absoluteMaxSize`)로 연결(`ServerCore` 생성자). 바닐라 `ServerLevel` 도 같은 값을 `setAbsoluteMaxSize` 로 넣는다. `/worldborder` 인자 범위 상수(MAX_SIZE)는 바닐라처럼 고정.
-- **region-file-compression**: `Compression.configure` — `deflate`(기본)·`gzip`·`none` 지원, 청크 헤더의 압축 종류 바이트(1/2/3)를 쓰고 읽는다. **`lz4` 는 미지원**: 바닐라가 쓰는 LZ4 블록 스트림(`net.jpountz`) 라이브러리가 없다. lz4 로 저장된 월드는 읽지도 못한다(읽기도 type 4 미지원 — 기존). 잘못된 값이면 바닐라처럼 오류를 로그하고 deflate 를 유지한다. 프로세스 전역 하나(바닐라 `RegionFileVersion.configure` 동일).
+- **region-file-compression**: `Compression.configure` — `deflate`(기본)·`gzip`·`none`·`lz4` 지원, 청크 헤더의 압축 종류 바이트(1/2/3/4)를 쓰고 읽는다. lz4 는 2026-11-03 에 추가(아래 "lz4 지역 파일"). 잘못된 값이면 바닐라처럼 오류를 로그하고 deflate 를 유지한다. 프로세스 전역 하나(바닐라 `RegionFileVersion.configure` 동일).
 - **text-filtering-config**: 구현하지 않는다. 바닐라는 원격 채팅 필터 서비스(HTTP)에 연결하는 `ServerTextFilter` 를 만드는 설정인데 Furnace 에는 필터 서비스 연동이 없다. 비어 있지 않으면 기동 때 경고만 한다.
 - 시험: `RconProtocolTest`·`RconServerTest`(루프백 소켓 왕복: 로그인·명령·인증 실패 -1·분할·예외·알 수 없는 종류·길이 위반 끊기·연결별 인증)·`RconCoreTest`(IO 스레드에서 전역 스레드 명령, 출력 수집)·`QueryHandlerTest`(바이트 단위: 핸드셰이크·basic·full·캐시·30초 청소·잘못된 챌린지)·`QueryServerTest`(UDP 루프백)·`ServerWatchdogTest`(판정·스레드 경로·크래시 리포트)·`OpsConfigWiringTest`(max-world-size, 워치독 프로브)·`SpawnNpcsRegionTest`·`RegionCompressionConfigTest`.
 
@@ -597,7 +597,7 @@
 - **B1 워치독 오탐**: `globalBeat` 초기값이 ServerCore 생성 시각이라 플러그인 로드·스폰 청크 생성·함수 로드가 `max-tick-time` 보다 오래 걸리면 첫 전역 틱 전에 "정지"로 판정돼 크래시했다. 수정: (1) `globalBeat` 초기값 0 = 첫 전역 틱 전, 이때 프로브는 0 을 돌려준다. (2) `ServerWatchdog.check` 가 멈춘 시간을 "감시 시작(생성) 이후 경과"로 상한한다 — region 프로브(큐 머리 지연 등)에도 같은 보호. 시험: 가짜 시계(`ServerWatchdogTest.longStartupBeforeWatchdogStartsDoesNotTrip`)와 첫 틱 전 프로브 0(`OpsConfigWiringTest`).
 - **RCON 보강(바닐라에 없음 — 바닐라와 달라지는 점)**: 인증 실패마다 1초 지연, 연결당 5회 실패 시 끊기, IP 당 60초 창 10회 실패 시 그 IP 의 새 연결을 즉시 끊기, 동시 연결 상한 16(초과분은 즉시 끊김), 인증 전 소켓 읽기 30초 제한(인증 뒤 무제한), 비밀번호 비교는 `MessageDigest.isEqual`(UTF-8 바이트), 스레드 이름은 `RCON Client #n`(IP 제거), 모든 주소(0.0.0.0/::)로 열리면 "평문 프로토콜, 방화벽/loopback 권장" 경고. 바닐라는 이 중 아무것도 없다. 정상 사용(올바른 비밀번호 한 번)에는 영향 없음. 한계: IP 제한은 프록시 뒤 공용 IP 를 한꺼번에 막을 수 있고, 메모리 내 맵이라 재시작하면 초기화된다.
 - **Query 보강**: 챌린지 맵 상한 1024(가득 차면 새 주소의 핸드셰이크를 무시, 30초 청소로 비워짐). 바닐라는 무제한. `hostIp` 는 기동 때 한 번만 계산(바닐라는 생성 시 한 번 — 동일).
-- **lz4 경고**: `region-file-compression=lz4` 미지원이며 읽기도 안 된다. 1.20.5+ 바닐라에서 lz4 로 저장된 월드를 가져오면 청크 읽기가 실패한다(가져오기 전에 바닐라에서 deflate 로 바꿔 저장해야 함).
+- **lz4 경고**: (2026-11-03 해소) lz4 읽기·쓰기를 구현했다.
 - 시험: `RconServerTest`(연결당 실패 끊기·IP 차단·스레드 이름·연결 상한), `QueryHandlerTest.challengeMapIsCapped`.
 - **알려진 한계(RCON 보강)**: IP 차단은 NAT·loopback 뒤의 정당한 관리자까지 60초 막을 수 있다. idle 연결 16개가 상한을 채우면 관리자 접속을 방해할 수 있다(후속: IP당 동시 연결 상한). 실패 IP 맵 청소는 크기가 4096 을 넘을 때만 한다. 실패 카운트는 응답을 쓰기 전에 올린다(재접속 경합 방지).
 
@@ -677,3 +677,13 @@
   - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
   - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.
 - 후속(검토 반영): `PlayerMoveEvent` 취소는 `applyMove(prev)` 로 서버 위치를 되돌린 뒤 `Player.correctTo`(이벤트 우회 보정)로 텔레포트하며 `moveRejectHold` 를 건다 — 검증기(`PlayerMoveValidator.reject`)도 같은 `correctTo` 를 쓰도록 바꿔, 텔레포트 리스너가 보정을 삼키지 못한다(Paper 의 정확한 동작은 미확인, **가정**). 검증 대기 패킷은 hold 동안 버려진다. `EntitySpawnEvent` 는 목록 추가 뒤 발화·취소 시 되돌림, 승객 묶음은 전부 아니면 전무(Paper 는 개별 엔티티 단위일 수 있다 — 미확인). `Interact` 취소는 손 슬롯 `ContainerSetSlot(-2)` 재전송(블록은 기존 재전송). 플레이어 인벤토리 쓰기는 `runOnOwner`(소유 틱에서 적용되므로 Future 가 최대 한 틱 늦게 완료). 서버 스레드에서 미완료 `RegionFuture.get()/join()` 은 예외.
+
+## 2026-11-03 lz4 지역 파일 · 플레이어 속성 저장
+
+- **lz4 지역 파일(type 4)**: `world/anvil/Lz4Block` 이 lz4-java `LZ4BlockInputStream/LZ4BlockOutputStream` 형식을 외부 라이브러리 없이 구현한다(블록 = `LZ4Block` 매직 + 토큰 + 압축 길이 + 원래 길이 + XXHash32(씨앗 0x9747b28c, 하위 28비트) 체크섬, 64KB 블록, 길이 0 끝 블록). 해제는 체크섬·경계를 검사하고 손상 시 IOException.
+  - **가정**: 바닐라 1.21.1 `RegionFileVersion` 의 lz4 가 lz4-java 블록 스트림 기본 생성자라는 것은 기억에 기댄 것이다. 이 컨테이너엔 디컴파일이 없어 재확인 못 했다. 형식 자체는 lz4-java 1.8.0 jar(스크래치패드에만, 커밋 안 함)와 양방향 400건 대조로 확인했다(그쪽 출력 → 우리 해제, 우리 출력 → 그쪽 해제, 크기 0~30만 바이트). 실제 바닐라 lz4 `.mca` 로는 아직 안 열어 봤다.
+  - 압축 바이트는 lz4-java 와 같지 않다(탐욕 해시 압축). 저장 결과 바이트는 관측 결과가 아니므로 parity 대상이 아니다. 크기는 lz4-java 와 거의 같았다(28만 바이트 반복 데이터에서 1654 대 1655).
+  - 시험: `Lz4BlockTest`(lz4-java 가 만든 고정 벡터 해제, 체크섬, XXH32 공개 시험값, 크기별 왕복, 손상 거부), `RegionCompressionConfigTest`(lz4 설정·region 파일 왕복).
+- **플레이어 속성 저장·복원**: 플레이어 NBT `attributes`(바닐라 LivingEntity 와 같은 키·형식: id, base, modifiers{id, amount, operation}). 장비·효과·달리기·위치 효과 수정자(`Player.managedModifiers`)는 바닐라 transient 와 같게 빼고, `/attribute` 로 단 수정자와 기본값만 저장한다. 저장은 연결 스레드에서 하므로 소유 스레드가 `syncAttributes` 에서 바뀐 때만(`AttributeMap.version`) 불변 스냅샷을 떠 둔다. 접속 때는 바닐라 readAdditionalSaveData 순서대로 속성 → 체력 순으로 읽어 늘린 최대 체력 위의 체력이 20 으로 잘리지 않는다. 한 번도 동기 전이면 저장에 붙이지 않아 파일의 기존 값이 남는다.
+  - 남은 차이(가정): 바닐라 리스폰은 새 ServerPlayer 를 만들며 `restoreFrom` 이 속성을 어떻게 옮기는지(1.21.1 에서 기본값만 옮기는지) 디컴파일로 확인하지 못했다. Furnace 는 리스폰해도 같은 객체라 속성이 그대로 남는다.
+  - 시험: `PlayerAttributeSaveTest`.
