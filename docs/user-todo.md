@@ -83,10 +83,16 @@
 | 보너스 상자 | `/place feature minecraft:bonus_chest` | 상자가 놓임(스폰 지점 자동 배치는 아직 안 함) |
 | 플러그인 API | `furnace-plugin-test` 의 SamplePlugin 을 로드: 피해 취소, 드롭 시 블록 설정, 인벤토리 클릭 취소, 청크 로드 | 이벤트가 발화하고 취소가 동작. 플러그인이 `get()` 으로 다른 region 을 기다리면 거부됨 |
 
+# 접속 시험 요청 (2026-11-03, Paper/Spigot 월드 가져오기)
+| 항목 | 방법 | 기대 결과 |
+|---|---|---|
+| Paper/Spigot 월드 가져오기 | Paper(또는 Spigot) 서버 폴더의 `world`, `world_nether`, `world_the_end` 를 Furnace 폴더에 그대로 두고 처음 기동(먼저 백업 권장). 네더·엔드에 가서 기존 건축물 확인 | 로그에 "Paper/Spigot 월드 배치를 감지했다 … 가져오기 완료"가 찍히고 네더·엔드가 새로 생성되지 않고 그대로. 드래곤을 잡았던 월드면 엔드에 드래곤이 다시 나오지 않음. `world_nether`·`world_the_end` 원본은 그대로 남음(확인 뒤 지워도 됨) |
+
 # 사용자 결정 필요 (새로 추가)
 - **`CLAUDE.md` 갱신:** 2026-11-03 에 반영했다(인수인계서를 먼저 읽도록 안내, "현재 다음 작업은 4-2" 문구를 정정, 커밋 전 규칙에 `:furnace-api:test` 추가).
 - **`spawn-animals=false` / `spawn-npcs=false`:** 이제 바닐라처럼 이미 있는 동물·주민도 지웁니다(이전에는 자연 스폰만 막았음). 이 옵션으로 운영 중이라면 첫 기동 때 기존 동물이 사라집니다.
 - **RCON:** 평문 프로토콜입니다. 공개 포트에 열지 말고 방화벽/loopback 권장. 인증 실패 제한(연결당 5회, IP당 60초 10회)과 연결 상한 16이 걸려 있어 NAT 뒤에서는 정당한 관리자도 막힐 수 있습니다.
+- **Paper/Spigot 월드 가져오기 (2026-11-03):** 첫 기동 때 `world_nether/DIM-1`·`world_the_end/DIM1` 을 `world/` 안으로 **복사**합니다(원본 보존). 네더·엔드 크기만큼 디스크가 더 필요하고, 확인 뒤 원본은 직접 지우세요. Bukkit 월드별 게임 규칙·날씨는 가져오지 않고 주 `world/level.dat` 값을 씁니다. 상세: `docs/feature-parity/bukkit-world-import-2026-11-03.md`
 - **lz4 지역 파일 압축:** 읽기 미지원. 바닐라 1.20.5+ 서버의 `region-file-compression=lz4` 월드를 가져오면 청크를 읽지 못합니다.
 
 # 알려진 미구현 (이번 라운드 이후)
