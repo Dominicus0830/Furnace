@@ -153,13 +153,17 @@ public final class ItemEntity extends Entity {
     }
 
     @Override
-    public boolean hurt(Damage source, float amount) {
+    public boolean hurt(Damage source, float amount) { return hurtBy(source, amount, null); }
+
+    @Override
+    public boolean hurtBy(Damage source, float amount, Targetable attacker) {
         if (isInvulnerableTo(source)) return false;
         ItemStack s = getItem();
         if (!s.isEmpty() && "minecraft:nether_star".equals(ItemTools.itemName(s)) && source.explosion()) return false;
         if (source.fire() && ItemTools.component(s, "minecraft:fire_resistant") != null) return false;   // canBeHurtBy
         markHurt();
         health = (int) ((float) health - amount);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE, attacker);   // cjh: source.getEntity()
         if (health <= 0) {
             onDestroyed(s);
             discard();

@@ -78,6 +78,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 - **region 단위로 동작하는 차이**: 마을 포위 상태·상인 대상 플레이어 선택·앵무새 어깨 앉히기·돌고래의 플레이어 효과 부여 일부(소유권 위임 미완), 명령 블록 체인이 region 경계를 넘으면 끊김.
 - **명령 블록은 비동기라 바닐라처럼 한 틱에 체인이 끝나지 않는다**(순서는 보존, 시간이 다름). 한 틱 완결이 필요한 회로는 박자가 다를 수 있다.
 - 월드젠: 일부 구조물은 순정 대조 미검증(정글 신전·늪 오두막·해저 신전·전초기지·고대 도시·시련의 방·보루·트레일 유적, 사막 피라미드는 근사), `nether_fossil`·`void_start_platform`·`bonus_chest` 도 oracle 미검증, `bonus_chest` 는 월드 생성 때 스폰 지점 자동 배치 미연결, 다중 청크 decoration 구조 제약, 커스텀 월드 타입 무시.
+- 게임 이벤트: 엔티티·아이템 쪽 누락분은 2026-11-03 에 채웠다(`entity-game-events-2026-11-03.md`). 남은 것은 몹 일반 장착 이벤트(불변 `ItemStack` 때문에 "교체"와 "제자리 수정"을 먼저 나눠야 함)·낙타 돌진·스폰 알 물에 쓰기.
 - 발전 과제: 일부 조건은 못 이룬다(`effects_changed` 의 `source`, 철퇴 뒤 `fall_after_explosion` 의 원인, 드래곤의 숨결 `interacted`). 못 걸고 있는 패킷 4종: `sound_entity`·`delete_chat`·`set_simulation_distance`·`set_chunk_cache_radius`(직렬화만 있음).
 - 운영: RCON IP당 동시 연결 상한 없음, 월드 주기 백업·메트릭 내보내기 없음, `enable-jmx-monitoring` 등 일부 키는 파싱만. 플러그인 채널 등록(`minecraft:register`) 미구현. lz4 지역 파일 읽기 미지원(1.20.5+ 바닐라 lz4 월드를 가져오면 청크 읽기 실패).
 - 플레이어 속성 맵의 저장·복원 없음(`/attribute base set` 값은 재접속하면 사라짐), 영혼 가속 입자·소리, 서리 걸음 마그마 면역.

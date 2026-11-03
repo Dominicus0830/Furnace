@@ -364,13 +364,15 @@ public abstract class AbstractHorse extends Animal {
 
     /**
      * LivingEntity.onEquipItem(BODY, old, new): 둘 다 비지 않았고 다른 것이며 첫 틱이 아니면, 새 것이 몸통에 입는 장비일 때
-     * 그 장착 소리(엔티티 난수 씨앗). TODO(게임 이벤트): equip/unequip.
+     * 그 장착 소리(엔티티 난수 씨앗), 그리고 새 것이 장착 아이템(Equipable — 몸통 갑옷·양탄자)이면 equip, 아니면 unequip.
      */
     public void onBodyArmorEquip(ItemStack oldItem, ItemStack newItem) {
         boolean bothEmpty = newItem.isEmpty() && oldItem.isEmpty();
         if (bothEmpty || org.domi.furnace.server.menu.Stacks.isSameItemSameComponents(oldItem, newItem) || firstTick) return;
         String sound = bodyEquipSound(newItem);
         if (!isSilent() && sound != null) level.playSeededSound(null, x(), y(), z(), sound, soundSource(), 1.0F, 1.0F, random.nextLong());
+        boolean equipable = sound != null || !newItem.isEmpty() && ItemTags.is(newItem, "minecraft:wool_carpets");
+        gameEvent(equipable ? org.domi.furnace.server.world.gameevent.GameEvent.EQUIP : org.domi.furnace.server.world.gameevent.GameEvent.UNEQUIP);
     }
 
     /** Equipable.get(stack) 이 몸통 칸이면 그 장착 소리(말 갑옷은 재료별, 늑대 갑옷), 아니면 null. */
@@ -534,6 +536,8 @@ public abstract class AbstractHorse extends Animal {
                 var inv = p.inventory();
                 inv.set(hand == 0 ? inv.heldWindowSlot() : 45, held.withCount(held.count() - 1));
                 equipSaddle(held.withCount(1));
+                level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EQUIP, new Vec3(x(), y(), z()),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(this));   // SaddleItem.interactLivingEntity
                 return true;
             }
             if (canUseBodySlot() && isBodyArmorItem(held) && !isWearingBodyArmor()) {
@@ -585,7 +589,10 @@ public abstract class AbstractHorse extends Animal {
             modifyTemper(temperDelta);
             used = true;
         }
-        if (used) eating();
+        if (used) {
+            eating();
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EAT);
+        }
         return used;
     }
 

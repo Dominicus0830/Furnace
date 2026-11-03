@@ -158,6 +158,7 @@ public class Boat extends Entity implements Leashable {
         setHurtTime(10);
         markHurt();
         setDamage(getDamage() + amount * 10.0F);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE, attacker);   // VehicleEntity.hurt: source.getEntity()
         boolean creative = attacker instanceof Player p && p.vitals().isCreative();
         if ((creative || !(getDamage() > 40.0F))) {
             if (creative) discard();
@@ -273,7 +274,7 @@ public class Boat extends Entity implements Leashable {
         random.nextFloat();   // 입자 z
         if (random.nextInt(20) == 0) {
             random.nextFloat();   // playLocalSound 높낮이 — 서버에서는 소리가 나지 않는다
-            // TODO(게임 이벤트): splash
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SPLASH, getControllingPassenger());   // cov:l 조종자가 출처
         }
     }
 

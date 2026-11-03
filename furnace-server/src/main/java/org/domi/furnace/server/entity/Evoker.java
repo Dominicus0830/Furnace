@@ -130,6 +130,8 @@ public class Evoker extends SpellcasterIllager {
                 EvokerFangs fangs = new EvokerFangs(level, level.nextEntityId());
                 fangs.init(x, pos.y() + yOffset, z, angle, delay, Evoker.this);
                 level.addFreshEntity(fangs);
+                level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_PLACE, new Vec3(x, pos.y() + yOffset, z),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(Evoker.this));
             }
         }
 
@@ -165,6 +167,7 @@ public class Evoker extends SpellcasterIllager {
                 vex.setBoundOrigin(pos);
                 vex.setLimitedLife(20 * (30 + random.nextInt(90)));
                 level.addFreshEntity(vex);
+                level.gameEventFrom("minecraft:entity_place", pos, Evoker.this, -1);
             }
         }
 

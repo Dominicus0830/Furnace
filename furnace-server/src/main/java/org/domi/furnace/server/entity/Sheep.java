@@ -95,8 +95,9 @@ public class Sheep extends Animal {
         super.finalizeSpawn(r, difficulty);
     }
 
-    /** Sheep.ate: 양털이 다시 자란다(아기는 나이 -60 으로 앞당긴다). */
+    /** Sheep.ate: Mob.ate(eat 게임 이벤트) 뒤 양털이 다시 자란다(아기는 나이 -60 으로 앞당긴다). */
     private void ate() {
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EAT);
         setSheared(false);
         if (isBaby()) ageUp(60);
     }

@@ -294,8 +294,10 @@ public class Shulker extends AbstractGolem implements Enemy {
         if (v == 0) {
             attributes().get(Attribute.ARMOR).addOrReplaceModifier(COVERED_ARMOR_MODIFIER);
             playSound("entity.shulker.close", 1.0F, 1.0F);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.CONTAINER_CLOSE);
         } else {
             playSound("entity.shulker.open", 1.0F, 1.0F);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.CONTAINER_OPEN);
         }
         entityData.set(DATA_PEEK_ID, (byte) v);
     }

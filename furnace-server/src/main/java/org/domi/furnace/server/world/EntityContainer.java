@@ -11,8 +11,17 @@ import org.domi.furnace.server.menu.Stacks;
 public final class EntityContainer implements Container {
 
     private final ContainerEntity entity;
+    private final org.domi.furnace.server.entity.Player opener;
+    private final OpenableContainer.RegionRunner runner;
 
-    public EntityContainer(ContainerEntity entity) { this.entity = entity; }
+    public EntityContainer(ContainerEntity entity) { this(entity, null, null); }
+
+    /** opener·runner 가 있으면 닫을 때 엔티티의 region 에서 stopOpen(container_close)을 부른다. */
+    public EntityContainer(ContainerEntity entity, org.domi.furnace.server.entity.Player opener, OpenableContainer.RegionRunner runner) {
+        this.entity = entity;
+        this.opener = opener;
+        this.runner = runner;
+    }
 
     public ContainerEntity entity() { return entity; }
 
@@ -61,4 +70,23 @@ public final class EntityContainer implements Container {
     }
 
     @Override public int[] containerPos() { return MenuBlockContext.blockPos(entity.asEntity()); }
+
+    /**
+     * stopOpen: 엔티티 용기의 stopOpen(상자 배·상자 수레의 container_close)을 그 엔티티를 가진 region 스레드에서.
+     * 지금 스레드가 그 엔티티를 가진 region 이면 바로, 아니면 엔티티 자리의 region 으로 보낸다(그 사이 지워졌거나 옮겨 갔으면 생략).
+     */
+    @Override public void stopOpen(MenuPlayer player) {
+        if (opener == null) return;
+        var e = entity.asEntity();
+        Region cur = MenuBlockContext.current();
+        if (cur != null && cur.level().entities().get(e.id()) == e) {
+            if (!e.isRemoved()) entity.stopOpen(opener);
+        } else if (runner != null) {
+            runner.runAt(e.x(), e.z(), r -> MenuBlockContext.runIn(r, () -> {
+                if (!e.isRemoved() && r.level().entities().get(e.id()) == e) entity.stopOpen(opener);
+            }));
+        } else if (cur == null && !e.isRemoved()) {
+            entity.stopOpen(opener);   // region 이 없는 단독 레벨(시험)
+        }
+    }
 }

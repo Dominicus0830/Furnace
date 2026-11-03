@@ -15,6 +15,9 @@ public interface ContainerEntity {
 
     Entity asEntity();
 
+    /** Container.stopOpen(player): 창을 닫았다 — 엔티티의 region 스레드에서 부른다. 상자 배·상자 수레는 container_close(깔때기 수레는 없음). */
+    default void stopOpen(Player p) { }
+
     /** interactWithContainerVehicle(player): 창을 연다(서버에서는 늘 CONSUME). */
     default void interactWithContainerVehicle(Player p) {
         Player.InventoryHost host = p.inventoryHost();

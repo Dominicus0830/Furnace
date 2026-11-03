@@ -1352,9 +1352,23 @@ public abstract non-sealed class Entity implements Rider {
         }
     }
 
-    /** doWaterSplashEffect: 물에 처음 들어갈 때 첨벙 소리(입자는 서버에서 보내지 않는다). */
+    /**
+     * doWaterSplashEffect: 물에 처음 들어갈 때 첨벙 소리(입자는 서버에서 보내지 않는다)와 splash 게임 이벤트.
+     * 세기는 조종하는 승객이 있으면 그 승객의 움직임 × 0.9, 없으면 내 움직임 × 0.2.
+     */
     protected void doWaterSplashEffect() {
-        float f = Math.min(1.0F, (float) Math.sqrt(vx * vx * 0.2F + vy * vy + vz * vz * 0.2F) * 0.2F);
+        Rider ctl = getControllingPassenger();
+        double mx = vx, my = vy, mz = vz;
+        float k = 0.2F;
+        if (ctl instanceof Entity ce) {
+            mx = ce.vx; my = ce.vy; mz = ce.vz;
+            k = 0.9F;
+        } else if (ctl instanceof Player cp) {
+            double[] m = cp.knownMovement();
+            mx = m[0]; my = m[1]; mz = m[2];
+            k = 0.9F;
+        }
+        float f = Math.min(1.0F, (float) Math.sqrt(mx * mx * 0.2F + my * my + mz * mz * 0.2F) * k);
         playSound(f < 0.25F ? swimSplashSound() : swimHighSpeedSplashSound(), f, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
         float w = bbWidth();
         for (int i = 0; (float) i < 1.0F + w * 20.0F; i++) {
@@ -1366,6 +1380,7 @@ public abstract non-sealed class Entity implements Rider {
             random.nextDouble();
             random.nextDouble();
         }
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SPLASH);
     }
 
     protected String swimSplashSound() { return "minecraft:entity.generic.splash"; }
@@ -1718,7 +1733,7 @@ public abstract non-sealed class Entity implements Rider {
     /** couldAcceptPassenger. */
     protected boolean couldAcceptPassenger() { return true; }
 
-    /** addPassenger: 서버에서 플레이어는 첫 승객이 플레이어가 아니면 맨 앞에 넣는다(조종자가 된다). TODO(게임 이벤트): entity_mount. */
+    /** addPassenger: 서버에서 플레이어는 첫 승객이 플레이어가 아니면 맨 앞에 넣는다(조종자가 된다). 그 승객을 출처로 entity_mount. */
     protected void addPassenger(Rider r) {
         if (r.vehicle() != this) throw new IllegalStateException("Use x.startRiding(y), not y.addPassenger(x)");
         if (passengers.isEmpty()) {
@@ -1729,9 +1744,10 @@ public abstract non-sealed class Entity implements Rider {
             else l.add(r);
             passengers = java.util.List.copyOf(l);
         }
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_MOUNT, r);
     }
 
-    /** removePassenger: 빼고 그 승객의 다시 타기 기다림을 60 틱으로. TODO(게임 이벤트): entity_dismount. */
+    /** removePassenger: 빼고 그 승객의 다시 타기 기다림을 60 틱으로, 그 승객을 출처로 entity_dismount. */
     protected void removePassenger(Rider r) {
         if (r.vehicle() == this) throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
         if (passengers.size() == 1 && passengers.get(0) == r) {
@@ -1742,6 +1758,7 @@ public abstract non-sealed class Entity implements Rider {
             passengers = java.util.List.copyOf(l);
         }
         r.setBoardingCooldown(60);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DISMOUNT, r);
     }
 
     /** removeVehicle: 연결만 끊는다. */

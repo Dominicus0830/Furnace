@@ -44,7 +44,7 @@ command_block(3종), trial_spawner, vault, brushable_block(suspicious sand/grave
 ### 효과·인챈트
 - 효과: `wind_charged`, `weaving`, `oozing`, `infested` 발동 로직 없음. `luck`/`unluck` 의 전리품·낚시 반영 TODO.
 - 인챈트: 위 1장 6번. 보호·날카로움·강타·효율·내구성·수선·무한·관통·급류 등은 구현됨.
-- 게임 이벤트(진동) 관련 TODO 11건, 투사체-블록 반응 다수(TNT/양초/모닥불 점화, 종, 장식 항아리 등).
+- 게임 이벤트(진동) 관련 TODO 11건, 투사체-블록 반응 다수(TNT/양초/모닥불 점화, 종, 장식 항아리 등). (2026-11-03: 엔티티·아이템 쪽 게임 이벤트는 `entity-game-events-2026-11-03.md` 에서 채움, 남은 것도 그 문서)
 
 ## 3. 명령·네트워크·플레이어·서버 기능
 ### 명령

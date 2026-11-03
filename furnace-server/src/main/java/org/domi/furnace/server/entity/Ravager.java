@@ -172,6 +172,7 @@ public class Ravager extends Raider {
             random.nextGaussian();
             random.nextGaussian();
         }
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
     }
 
     @Override

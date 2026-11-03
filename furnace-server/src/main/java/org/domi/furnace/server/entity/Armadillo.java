@@ -134,6 +134,7 @@ public class Armadillo extends Animal {
         if (isAlive() && !isBaby() && --scuteTime <= 0) {
             playSound("entity.armadillo.scute_drop", 1.0F, (random.nextFloat() - random.nextFloat()) * 0.2F + 1.0F);
             spawnAtLocation(new ItemStack(ItemContext.id("minecraft:item", "armadillo_scute"), 1));
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_PLACE);
             scuteTime = pickNextScuteDropTime();
         }
         super.customServerAiStep();
@@ -178,6 +179,7 @@ public class Armadillo extends Animal {
         if (!isScared()) {
             stopInPlace();
             resetLove();
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
             makeSound("entity.armadillo.roll");
             switchToState(ArmadilloState.ROLLING);
         }
@@ -185,6 +187,7 @@ public class Armadillo extends Animal {
 
     public void rollOut() {
         if (isScared()) {
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
             makeSound("entity.armadillo.unroll_finish");
             switchToState(ArmadilloState.IDLE);
         }
@@ -236,6 +239,7 @@ public class Armadillo extends Animal {
     public boolean brushOffScute() {
         if (isBaby()) return false;
         spawnAtLocation(new ItemStack(ItemContext.id("minecraft:item", "armadillo_scute"), 1));
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_INTERACT);
         playSound("entity.armadillo.brush", 1.0F, 1.0F);
         return true;
     }
