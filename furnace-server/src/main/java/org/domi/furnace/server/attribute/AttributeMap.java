@@ -15,11 +15,13 @@ public final class AttributeMap {
     private final Set<AttributeInstance> dirty = new LinkedHashSet<>();
     // 바닐라 attributesToUpdate: 동기화와 별개로 LivingEntity.refreshDirtyAttributes 가 비운다(최대 체력 클램프 등)
     private final Set<AttributeInstance> toUpdate = new LinkedHashSet<>();
+    /** 기본값·수정자가 바뀔 때마다 오른다(저장용 스냅샷을 다시 뜰지 판단). */
+    private int version;
 
     public AttributeInstance register(Attribute a) {
         return instances.computeIfAbsent(a, k -> {
             AttributeInstance[] self = new AttributeInstance[1];
-            self[0] = new AttributeInstance(k, () -> { dirty.add(self[0]); toUpdate.add(self[0]); });
+            self[0] = new AttributeInstance(k, () -> { dirty.add(self[0]); toUpdate.add(self[0]); version++; });
             return self[0];
         });
     }
@@ -30,6 +32,8 @@ public final class AttributeMap {
         toUpdate.clear();   // 처음 설정은 바뀜으로 치지 않는다(처음 보일 때 전부 보낸다)
         return this;
     }
+
+    public int version() { return version; }
 
     public boolean has(Attribute a) { return instances.containsKey(a); }
 
@@ -70,23 +74,25 @@ public final class AttributeMap {
         return out;
     }
 
-    public NbtList save() {
+    public NbtList save() { return save((a, id) -> false); }
+
+    /** skip 이 참인 수정자는 빼고 저장한다(바닐라 AttributeInstance.save 는 permanent 수정자만 — 장비·효과 같은 transient 는 뺀다). */
+    public NbtList save(java.util.function.BiPredicate<Attribute, String> skip) {
         NbtList list = new NbtList((byte) 10);
         for (AttributeInstance i : instances.values()) {
             NbtCompound t = new NbtCompound();
             t.putString("id", i.attribute().name());
             t.put("base", i.baseValue());
-            if (!i.modifiers().isEmpty()) {
-                NbtList mods = new NbtList((byte) 10);
-                for (AttributeModifier m : i.modifiers().values()) {
-                    NbtCompound mt = new NbtCompound();
-                    mt.putString("id", m.id());
-                    mt.put("amount", m.amount());
-                    mt.putString("operation", m.operationName());
-                    mods.add(mt);
-                }
-                t.putList("modifiers", mods);
+            NbtList mods = new NbtList((byte) 10);
+            for (AttributeModifier m : i.modifiers().values()) {
+                if (skip.test(i.attribute(), m.id())) continue;
+                NbtCompound mt = new NbtCompound();
+                mt.putString("id", m.id());
+                mt.put("amount", m.amount());
+                mt.putString("operation", m.operationName());
+                mods.add(mt);
             }
+            if (mods.size() > 0) t.putList("modifiers", mods);
             list.add(t);
         }
         return list;
