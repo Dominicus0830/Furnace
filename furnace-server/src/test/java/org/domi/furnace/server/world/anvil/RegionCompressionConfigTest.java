@@ -11,7 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** region-file-compression: deflate/gzip/none 로 쓴 청크를 같은 코드가 읽고, 압축 종류 바이트가 맞게 기록된다. */
+/** region-file-compression: deflate/gzip/none/lz4 로 쓴 청크를 같은 코드가 읽고, 압축 종류 바이트가 맞게 기록된다. */
 class RegionCompressionConfigTest {
 
     @TempDir Path tmp;
@@ -29,8 +29,10 @@ class RegionCompressionConfigTest {
         assertEquals(Compression.NONE, Compression.writeType());
         assertTrue(Compression.configure("deflate"));
         assertEquals(Compression.DEFLATE, Compression.writeType());
-        assertFalse(Compression.configure("lz4"));   // 미지원 — 이전 설정 유지
-        assertFalse(Compression.configure("zstd"));
+        assertTrue(Compression.configure("lz4"));
+        assertEquals(Compression.LZ4, Compression.writeType());
+        assertTrue(Compression.configure("deflate"));
+        assertFalse(Compression.configure("zstd"));   // 모르는 값 — 이전 설정 유지
         assertEquals(Compression.DEFLATE, Compression.writeType());
     }
 
@@ -38,7 +40,7 @@ class RegionCompressionConfigTest {
     void compressDecompressRoundTrip() throws Exception {
         byte[] data = new byte[5000];
         new Random(3).nextBytes(data);
-        for (int t : new int[] {Compression.GZIP, Compression.DEFLATE, Compression.NONE}) {
+        for (int t : new int[] {Compression.GZIP, Compression.DEFLATE, Compression.NONE, Compression.LZ4}) {
             assertArrayEquals(data, Compression.decompress(t, Compression.compress(t, data)), "type " + t);
         }
     }
@@ -47,7 +49,7 @@ class RegionCompressionConfigTest {
     void regionFileStoresTypeByteAndReadsBack() throws Exception {
         byte[] nbt = new byte[3000];
         new Random(9).nextBytes(nbt);
-        for (String name : new String[] {"gzip", "none", "deflate"}) {
+        for (String name : new String[] {"gzip", "none", "lz4", "deflate"}) {
             Compression.configure(name);
             Path f = tmp.resolve("r." + name + ".mca");
             try (RegionFile rf = new RegionFile(f)) {
