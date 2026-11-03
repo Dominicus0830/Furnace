@@ -691,4 +691,5 @@
 - 엔티티 없는 레벨을 위해 `BlockLevel` 에 `spawnTadpole`·`spawnBabySniffer`·`angerNearbyPiglins` 기본 빈 메서드를 두고 `ChunkLevel` 에서 구현했다(`spawnBabyTurtle`·`spawnSilverfishAt` 와 같은 방식).
 - **고친 버그**: `PiglinAi.setAngerTarget` 이 대상을 `(Entity)` 로 캐스팅해 UUID 를 읽어, 대상이 **플레이어면 ClassCastException** 이었다(Furnace 플레이어는 `Entity` 가 아니다). 지금까지 호출부가 없어 드러나지 않았다. `uuidOf(Targetable)` 로 나눠 고쳤다.
 - 탈것 파괴에서 부순 쪽을 알아야 해서 `AbstractMinecart.destroy(Damage)` → `destroy(Damage, Targetable)`, `Boat.destroy()` → `destroy(Targetable)` 로 넓혔다(`hurtBy` 가 이미 attacker 를 받는다).
+- **금 방어구와 분노**: `isWearingGold` 는 피글린이 플레이어를 보자마자 공격하는 대상(NEAREST_VISIBLE_ATTACKABLE_PLAYER)에서만 빼고, `angerNearbyPiglins` 는 한가함·시야만 본다(clo 바이트코드의 필터 람다 2개 + setAngerTarget). 그래서 금을 입어도 상자를 열거나 금을 캐면 화낸다(봇 시험에서 금 투구 착용 상태로 angry_at 확인).
 - **시험 교훈**: 금을 걸치지 않은 플레이어가 가까이 있으면 피글린이 바로 FIGHT 로 가 `isIdle` 이 거짓이라 분노가 걸리지 않는다(바닐라도 같다). 시험에서는 플레이어에게 금 투구를 입히고, "IDLE ∧ 플레이어를 봄"이 될 때까지 틱을 돌린다. 오버월드에서는 피글린이 약 300틱 뒤 좀비 피글린으로 변하므로 폴링 상한을 그 안(200틱)에 둔다. 시험: `entity/HatchSpawnAndPiglinAngerTest`(10개).
