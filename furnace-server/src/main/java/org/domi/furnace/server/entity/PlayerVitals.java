@@ -653,6 +653,13 @@ public final class PlayerVitals {
             env.broadcastToTrackers(player.entityId(), ev);
         }
         if (died && !checkTotemDeathProtection(type)) die(type, causing, direct);
+        if (!blocked || amount > 0.0f) {   // 바닐라 LivingEntity.hurt 끝: 효과마다 onMobHurt(벌레 들끓음)
+            var lv = player.currentLevel;
+            if (lv != null && hasAnyEffect()) {
+                var t = org.domi.furnace.server.effect.MobEffectTriggers.Target.of(lv, player);
+                for (MobEffectInstance e : activeEffects()) org.domi.furnace.server.effect.MobEffectTriggers.onMobHurt(t, e.effect(), e.amplifier());
+            }
+        }
         if (blockedAmount > 0.0f && blockedAmount < 3.4028235E37F) player.awardStat("minecraft:damage_blocked_by_shield", Math.round(blockedAmount * 10.0f));
         {   // 바닐라 LivingEntity.hurt 끝: 맞은 쪽이 플레이어 → entity_hurt_player, 때린 쪽(원인)이 플레이어 → player_hurt_entity
             final float fDealt = dealt, fTaken = amount;
@@ -1302,6 +1309,8 @@ public final class PlayerVitals {
     public MobEffect.Host effectHost() { return effectHost; }
 
     public synchronized boolean hasEffect(MobEffect e) { return effects.containsKey(e); }
+
+    public synchronized boolean hasAnyEffect() { return !effects.isEmpty(); }
 
     public synchronized MobEffectInstance getEffect(MobEffect e) {
         MobEffectInstance i = effects.get(e);

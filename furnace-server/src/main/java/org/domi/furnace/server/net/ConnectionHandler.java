@@ -2750,7 +2750,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (p == null || !p.vitals().isDeadOrDying() || respawnPending) return;
         respawnPending = true;
         World from = world;
-        org.domi.furnace.server.world.RespawnFinder.find(from, p, false, o -> ctx.executor().execute(() -> respawnResolved(ctx, from, o)));
+        Runnable find = () -> org.domi.furnace.server.world.RespawnFinder.find(from, p, false, o -> ctx.executor().execute(() -> respawnResolved(ctx, from, o)));
+        if (!p.vitals().hasAnyEffect()) {
+            find.run();
+            return;
+        }
+        // PlayerList.respawn: removePlayerImmediately(KILLED) 가 먼저 — 죽은 자리 region 에서 효과 발동(돌풍·거미줄·슬라임) 뒤 리스폰 위치를 찾는다
+        from.runAt(p.x(), p.z(), r -> {
+            try {
+                org.domi.furnace.server.effect.MobEffectTriggers.triggerOnDeath(r.level(), p, org.domi.furnace.server.entity.Entity.RemovalReason.KILLED);
+            } finally {
+                ctx.executor().execute(find);
+            }
+        });
     }
 
     /** 리스폰 위치가 정해졌다(연결 스레드): 다른 차원이면 지금 차원에서 떼어 낸 뒤, 리스폰을 보낸다. */
