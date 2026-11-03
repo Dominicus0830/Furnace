@@ -271,6 +271,8 @@ public final class FurnaceMain {
         world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
         world.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
         world.setRegistries(blockRegistry, itemRegistry);
+        // 방랑 상인 타이머는 오버월드만 가진다(level.dat). 예전엔 네더·엔드 반복문 안에서 OVERWORLD 를 검사해 한 번도 붙지 않았다
+        world.wanderingTraderState(levelData.wanderingTrader);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         world.entityIds(idAllocator);   // 플레이어와 다른 엔티티가 같은 id 공간을 쓴다
         // 다른 차원(바닐라 createLevels: 오버월드 → 네더 → 엔드). 차원마다 저장 폴더(DIM-1, DIM1)·생성기·region 이 따로이고,
@@ -304,7 +306,6 @@ public final class FurnaceMain {
             w.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
             w.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
             w.setRegistries(blockRegistry, itemRegistry);
-            if (type == org.domi.furnace.server.world.DimensionType.OVERWORLD) w.wanderingTraderState(level.wanderingTrader);
             if (type == org.domi.furnace.server.world.DimensionType.END) {   // ServerLevel: 엔드는 드래곤 전투를 가진다(level.dat DragonFight)
                 w.enableDragonFight(level.dragonFightData());
                 w.dragonFightSaver(d -> level.dragonFight = d);

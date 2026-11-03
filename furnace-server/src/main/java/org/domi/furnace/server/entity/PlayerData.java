@@ -152,6 +152,9 @@ public final class PlayerData {
             Path tmp = Files.createTempFile(f.getParent(), id + "-", ".dat");
             try (var os = Files.newOutputStream(tmp)) {
                 NbtIo.writeGzip(os, root, "");
+            } catch (IOException | RuntimeException e) {
+                Files.deleteIfExists(tmp);   // 쓰다 실패하면 임시 파일을 남기지 않는다
+                throw e;
             }
             if (Files.exists(f)) {
                 Files.move(f, f.resolveSibling(id + ".dat_old"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);

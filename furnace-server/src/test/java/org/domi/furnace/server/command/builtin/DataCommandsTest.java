@@ -187,6 +187,28 @@ class DataCommandsTest {
         assertEquals("commands.data.entity.invalid", key(assertThrows(CommandSyntaxException.class, () -> pa.setData(new NbtCompound()))));
     }
 
+    @Test
+    void readingPlayerDataDoesNotCorruptLiveShoulderTag() throws Exception {
+        // 봇 시험(2026-11-03): /data get entity @s 뒤 어깨 앵무새의 int[] 가 제자리에서 NbtArray 로 바뀌어 플레이어 저장이 실패했다
+        var p = new Player(5, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var in = new NbtCompound();
+        var parrot = new NbtCompound();
+        parrot.putString("id", "minecraft:parrot");
+        parrot.putIntArray("Owner", new int[] {1, 2, 3, 4});
+        in.putCompound("ShoulderEntityLeft", parrot);
+        org.domi.furnace.server.entity.PlayerShoulders.load(p, in);
+
+        NbtCompound data = new DataCommands.EntityAccessor(p).getData();
+        assertTrue(((NbtCompound) data.tags().get("ShoulderEntityLeft")).tags().get("Owner") instanceof org.domi.furnace.server.net.io.nbt.NbtArray,
+                "돌려준 트리는 경로 연산용으로 풀려 있다");
+        assertInstanceOf(int[].class, p.shoulderLeft().tags().get("Owner"), "살아 있는 어깨 태그는 그대로");
+        NbtCompound snap = org.domi.furnace.server.entity.PlayerData.snapshotNbt(p);
+        assertDoesNotThrow(() -> NbtIo.writeGzip(new java.io.ByteArrayOutputStream(), snap, ""), "저장 직렬화가 성공해야 한다");
+
+        ((NbtCompound) snap.tags().get("ShoulderEntityLeft")).putString("id", "minecraft:cow");
+        assertEquals("minecraft:parrot", p.shoulderLeft().tags().get("id"), "저장본은 복사본이다");
+    }
+
     // ------------------------------------------------------------------ 동시성·새 파서 경로
 
     @Test
@@ -210,6 +232,40 @@ class DataCommandsTest {
             for (var f : fs) f.get();
             pool.shutdown();
             assertEquals(threads * each, core.world().commandStorage().get("t:c").getList("l").size());
+        } finally {
+            sched.close();
+        }
+    }
+
+    @Test
+    void setblockAndFillLoadBlockEntityNbtAndClearOldContents() throws Exception {
+        // 봇 시험(2026-11-03): /setblock chest{Items:[…]} 가 빈 상자를 놓았다(BlockInput.place 의 loadWithComponents 누락)
+        installItems();
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"),
+                    org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+            var c00 = new org.domi.furnace.server.world.ChunkPos(0, 0);
+            core.world().submitAtChunk(c00, r -> r.chunkAtBlocking(c00)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            var src = CommandSource.console(core).withSilent();
+            core.commands().performPrefixedCommandAsync(src, "setblock 1 -60 1 chest{Items:[{Slot:3b,id:\"minecraft:diamond\",count:5}]}").join();
+            core.commands().performPrefixedCommandAsync(src, "fill 2 -60 1 3 -60 1 barrel{Items:[{Slot:0b,id:\"minecraft:stone\",count:1}]}").join();
+            Object[] out = core.world().submitAtChunk(c00, r -> {
+                var level = r.level();
+                var chest = (org.domi.furnace.server.block.entity.ContainerBlockEntity) level.getBlockEntity(new org.domi.furnace.server.block.Pos(1, -60, 1));
+                var barrel = (org.domi.furnace.server.block.entity.ContainerBlockEntity) level.getBlockEntity(new org.domi.furnace.server.block.Pos(3, -60, 1));
+                return new Object[] {chest.items[3].count(), barrel.items[0].count()};
+            }).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(5, out[0], "상자 3번 칸에 다이아몬드 5개");
+            assertEquals(1, out[1], "fill 도 칸마다 NBT 를 불러온다");
+
+            // 내용물이 든 상자를 다른 블록으로 바꾸면 쏟지 않는다(Clearable.tryClear)
+            core.commands().performPrefixedCommandAsync(src, "setblock 1 -60 1 stone").join();
+            int items = core.world().submitAtChunk(c00, r -> r.level().getEntities(null,
+                    new org.domi.furnace.server.entity.AABB(-5, -64, -5, 8, -50, 8), e -> e instanceof org.domi.furnace.server.entity.ItemEntity).size())
+                    .get(30, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(0, items, "바꾼 상자의 내용물이 바닥에 떨어지지 않는다");
         } finally {
             sched.close();
         }
