@@ -1821,7 +1821,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void handleBlockEntityTagQuery(Player p, int tx, int bx, int by, int bz) {
         var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
         org.domi.furnace.server.command.builtin.DataCommands.blockEntityTag(world, pos)
-                .thenAccept(tag -> p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx, tag)));
+                .thenAccept(tag -> p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx,
+                        tag == null ? null : (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(tag))));
     }
 
     /**
@@ -1849,15 +1850,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 var e = lvl.entities().get(eid);
                 if (e == null) return;
                 p.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx,
-                        (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(e.saveWithoutId(new org.domi.furnace.server.net.io.nbt.NbtCompound()))));
+                        (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(e.saveWithoutId(new org.domi.furnace.server.net.io.nbt.NbtCompound()))));
             });
         });
     }
 
+    // 응답 NBT 는 배열을 byte[]/int[]/long[] 꼴(freeze)로 보낸다 — /data 경로 연산용 NbtArray(thaw)는 NbtWriter 가 못 쓴다
+    // (2026-11-03 봇 시험: UUID int 배열 때문에 엔티티 질의 응답이 쓰기 예외로 사라졌다).
     private void sendEntityTag(Player to, int tx, Player target) {
         org.domi.furnace.server.net.io.nbt.NbtCompound tag;
         synchronized (target.menuLock()) { tag = org.domi.furnace.server.entity.PlayerData.snapshotNbt(target); }
-        to.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx, (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(tag)));
+        to.send(new org.domi.furnace.server.net.protocol.play.TagQuery(tx, (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(tag)));
     }
 
     /**
