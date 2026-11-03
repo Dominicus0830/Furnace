@@ -946,6 +946,32 @@ public final class World {
                 if (prev != null && prev.longValue() == until) runAtChunk(cp, r -> r.loadChunk(cp));   // 새로 걸렸거나 늘었다 — 올려 둔다(이미 있으면 그대로)
             }
         }
+        markEntityTicking(cx, cz, radius - 2, until);
+    }
+
+    /**
+     * 티켓 레벨 33 − 거리 의 엔티티 틱 범위(레벨 31 이하 = ENTITY_TICKING): 가운데에서 거리 − 2 청크 안. 포털 티켓(거리 3)은 반경 1,
+     * 드래곤(9)은 반경 7. 그 청크는 플레이어가 없어도 엔티티·블록 엔티티가 틱을 받는다(엔더 진주가 관문·포털 너머에서 계속 난다).
+     */
+    private final ConcurrentHashMap<Long, Long> entityTickets = new ConcurrentHashMap<>();
+
+    private void markEntityTicking(int cx, int cz, int radius, long until) {
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) entityTickets.merge(Regionizer.chunkKey(cx + dx, cz + dz), until, Math::max);
+        }
+    }
+
+    /** 그 청크에 엔티티 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드는 따로 본다. */
+    boolean entityTicketed(int cx, int cz) {
+        if (entityTickets.isEmpty()) return false;
+        long key = Regionizer.chunkKey(cx, cz);
+        Long until = entityTickets.get(key);
+        if (until == null) return false;
+        if (until < gameTime()) {
+            entityTickets.remove(key, until);
+            return false;
+        }
+        return true;
     }
 
     private volatile TickState tickState = new TickState();
@@ -1060,6 +1086,7 @@ public final class World {
         }
         long until = gameTime() + 40;
         for (int dz = -9; dz <= 9; dz++) for (int dx = -9; dx <= 9; dx++) tickets.merge(Regionizer.chunkKey(dx, dz), until, Math::max);
+        markEntityTicking(0, 0, 7, until);
     }
 
     /** 저장용: 중앙 청크 주인 region 스레드에서 전투 상태를 떠 둔다(저장 스레드는 이 사본만 읽는다). */
@@ -1103,6 +1130,11 @@ public final class World {
         public void runAtSource(int blockX, int blockZ, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
             runAt(blockX, blockZ, r -> task.accept(r.level()));
         }
+
+        @Override
+        public void withLoadedChunks(int centerX, int centerZ, int createRadius, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
+            withTravelChunks(new org.domi.furnace.server.entity.PortalTravel(dimension(), centerX, centerZ, 0, createRadius, lvl -> null), task);
+        }
     };
 
     /** 이 월드에서 출발하는 차원 이동 경로(블록 레벨 서비스가 내준다). */
@@ -1117,6 +1149,27 @@ public final class World {
      */
     public void completeTravel(org.domi.furnace.server.entity.PortalTravel plan,
                                java.util.function.BiConsumer<org.domi.furnace.server.block.ChunkLevel, org.domi.furnace.server.entity.DimensionTransition> arrive) {
+        withTravelChunks(plan, lvl -> {
+            if (lvl == null) {
+                arrive.accept(null, null);
+                return;
+            }
+            org.domi.furnace.server.entity.DimensionTransition t;
+            try {
+                t = plan.complete().apply(lvl);
+            } catch (RuntimeException e) {
+                log.error("[PORTAL] 목적지 계산 실패 {}", plan.targetDimension(), e);
+                t = null;
+            }
+            arrive.accept(t == null ? null : lvl, t);
+        });
+    }
+
+    /**
+     * plan 의 탐색·생성 반경 청크를 올리고 한 region 에 모이면 그 region 스레드에서 task(레벨). 청크 준비에 실패하면 task(null).
+     * plan.complete 는 쓰지 않는다.
+     */
+    public void withTravelChunks(org.domi.furnace.server.entity.PortalTravel plan, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
         CompletableFuture.supplyAsync(() -> travelChunks(plan), ioLane(plan.centerX() >> 4, plan.centerZ() >> 4))
                 .thenCompose(list -> {
                     List<CompletableFuture<ChunkColumn>> fs = new ArrayList<>(list.size());
@@ -1126,16 +1179,15 @@ public final class World {
                 .whenComplete((list, err) -> {
                     if (err != null) {
                         log.warn("[PORTAL] 목적 청크 준비 실패 {}", plan.targetDimension(), err);
-                        arrive.accept(null, null);
+                        task.accept(null);
                         return;
                     }
-                    finishTravel(plan, list, arrive, 0);
+                    finishTravel(plan, list, task, 0);
                 });
     }
 
     private void finishTravel(org.domi.furnace.server.entity.PortalTravel plan, List<ChunkPos> chunks,
-                              java.util.function.BiConsumer<org.domi.furnace.server.block.ChunkLevel, org.domi.furnace.server.entity.DimensionTransition> arrive,
-                              int attempt) {
+                              java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task, int attempt) {
         ChunkPos center = ChunkPos.ofBlock(plan.centerX(), plan.centerZ());
         runAtChunk(center, r -> {
             boolean gathered = true;
@@ -1143,17 +1195,10 @@ public final class World {
                 if (!regionizer.owns(r, cp.x(), cp.z())) { gathered = false; break; }
             }
             if (!gathered && attempt < TRAVEL_GATHER_TICKS) {   // 합치기는 틱 사이에만 — 다음 틱에 다시 본다
-                r.schedule(Regionizer.chunkKey(center.x(), center.z()), r2 -> finishTravel(plan, chunks, arrive, attempt + 1), 1);
+                r.schedule(Regionizer.chunkKey(center.x(), center.z()), r2 -> finishTravel(plan, chunks, task, attempt + 1), 1);
                 return;
             }
-            org.domi.furnace.server.entity.DimensionTransition t;
-            try {
-                t = plan.complete().apply(r.level());
-            } catch (RuntimeException e) {
-                log.error("[PORTAL] 목적지 계산 실패 {}", plan.targetDimension(), e);
-                t = null;
-            }
-            arrive.accept(t == null ? null : r.level(), t);
+            task.accept(r.level());
         });
     }
 

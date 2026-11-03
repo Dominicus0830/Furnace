@@ -74,6 +74,12 @@ public interface LevelServices {
 
         /** 원천 레벨 스레드에서: 되돌릴 때 그 칸 주인 region 에서 task(그 레벨). */
         void runAtSource(int blockX, int blockZ, java.util.function.Consumer<ChunkLevel> task);
+
+        /**
+         * 이 차원(원천 레벨과 같은 차원)에서: (centerX, centerZ) 둘레 createRadius 블록 안 청크를 생성해서라도 올리고, 그 청크들이
+         * 한 region 에 모이면 그 region 스레드에서 task(레벨). 청크를 준비하지 못하면 task(null). 어느 스레드에서 불러도 된다.
+         */
+        default void withLoadedChunks(int centerX, int centerZ, int createRadius, java.util.function.Consumer<ChunkLevel> task) { task.accept(null); }
     }
 
     /** 그 칸의 바이옴(Level.getBiome — 확대 지터 포함)이 태그에 드는가. 모르면 거짓. */

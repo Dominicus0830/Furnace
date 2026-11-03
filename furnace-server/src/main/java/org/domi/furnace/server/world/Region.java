@@ -1159,6 +1159,7 @@ public final class Region {
         int cx = (int) (key >> 32), cz = (int) key;
         var forced = world.forcedChunksOrNull();
         if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
+        if (world.entityTicketed(cx, cz)) return true;   // 포털·드래곤 티켓의 엔티티 틱 범위
         int range = Math.max(world.levelServices().simulationDistance(), 2) - 1;
         for (Player p : players.values()) {
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
@@ -1608,6 +1609,8 @@ public final class Region {
                     return true;
                 }
                 p.setAsInsidePortal(ep, pos);
+            } else if (b instanceof org.domi.furnace.server.block.types.EndGatewayBlock gw) {
+                gw.entityInsidePlayer(level, pos, p);
             }
         }
         return false;
@@ -1634,6 +1637,10 @@ public final class Region {
         boolean canUse = p.vehicle() == null && !p.vitals().isDeadOrDying();
         if (pp.processPlayerPortalTeleportation(level, p.vitals().invulnerableAbility(), canUse)) {
             p.portalCooldown = Player.DIMENSION_CHANGING_DELAY;
+            if (pp.portal().withinLevel()) {
+                sendWithinLevel(p, pp);
+                return true;
+            }
             var travel = world.travelService();
             var plan = pp.prepareTravel(level, org.domi.furnace.server.entity.Traveler.of(p));
             if (plan == null || plan.targetDimension().equals(world.dimension()) || !travel.isLevelEnabled(plan.targetDimension())) return false;
@@ -1647,6 +1654,26 @@ public final class Region {
             p.portalProcess(null);
         }
         return false;
+    }
+
+    /**
+     * 같은 레벨 안으로 보내는 포털(엔드 관문): 바닐라 ServerPlayer.changeDimension 의 같은 차원 쪽(connection.teleport(위치, 목적 회전)
+     * → resetPosition → 도착 칸 포털 티켓). 출구 청크를 비동기로 올리는 동안은 이 region 에서 떼어 두고(다시 들어가지 못하게),
+     * 정해지면 떠난 자리 region 에 되돌린 뒤 보정 텔레포트한다. 목적지가 없으면 제자리로만 되돌린다.
+     */
+    void sendWithinLevel(Player p, org.domi.furnace.server.entity.PortalProcessor pp) {
+        var entry = pp.getEntryPosition();
+        var traveler = org.domi.furnace.server.entity.Traveler.of(p);
+        var src = level;
+        detachForDimensionChange(p);
+        World w = world;
+        pp.portal().travelWithinLevel(src, entry, traveler, (target, t) -> w.runAt(p.x(), p.z(), r -> {
+            r.adopt(p);
+            if (t != null) {
+                p.teleportTo(t.x(), t.y(), t.z(), t.yRot(), t.xRot());
+                if (t.ticketPos() != null) w.placePortalTicket(t.ticketPos().x(), t.ticketPos().z());
+            }
+        }));
     }
 
     /**

@@ -14,6 +14,18 @@ public final class EndIslandFeature implements ConfiguredFeature {
 
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
+        place(random, (bx, by, bz) -> view.setBlock(bx, by, bz, endStone), x, y, z);
+        return true;
+    }
+
+    /** 칸 하나를 end_stone 으로. */
+    @FunctionalInterface
+    public interface Setter {
+        void set(int x, int y, int z);
+    }
+
+    /** 섬 모양만(월드젠 뷰·살아 있는 레벨 공용 — 엔드 관문 출구 섬). */
+    public static void place(WorldgenRandom random, Setter setter, int x, int y, int z) {
         float radius = (float) random.nextInt(3) + 4.0F;
         for (int dy = 0; radius > 0.5F; dy--) {
             // Mth.floor(-r) / Mth.ceil(r)
@@ -21,13 +33,12 @@ public final class EndIslandFeature implements ConfiguredFeature {
             for (int dx = lo; dx <= hi; dx++) {
                 for (int dz = lo; dz <= hi; dz++) {
                     if ((float) (dx * dx + dz * dz) <= (radius + 1.0F) * (radius + 1.0F)) {
-                        view.setBlock(x + dx, y + dy, z + dz, endStone);
+                        setter.set(x + dx, y + dy, z + dz);
                     }
                 }
             }
             radius -= (float) random.nextInt(2) + 0.5F;
         }
-        return true;
     }
 
     private static int floor(float v) {
