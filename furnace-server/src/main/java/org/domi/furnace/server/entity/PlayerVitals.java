@@ -402,6 +402,15 @@ public final class PlayerVitals {
     /** 이동 표본 처리 직전에 그 표본의 y 를 알린다(Region.processMoves). */
     public synchronized void currentMoveY(double y) { moveY = y; }
 
+    /** 이번 이동의 착지 블록이 위를 향한 점적석 끝(석순 tip)인가 — 이름만으로는 모르므로 Region 이 상태를 보고 알려 준다. */
+    public synchronized void landingStalagmite(boolean v) { landingStalagmite = v; }
+
+    /** 지난 onMove 에서 블록 fallOn 이 불렸나(땅에 닿았고 낙하 거리가 0 보다 컸다) — Region 이 블록 쪽 fallOn(거북 알)을 부른다. */
+    public synchronized boolean landedOnLastMove() { return landed; }
+
+    private boolean landingStalagmite, landed;
+    private DamageType fallDamageType = DamageType.FALL;
+
     private double impulseY() { return Double.isNaN(moveY) ? player.y() : moveY; }
 
     /** 테스트·플러그인용: 낙하 거리를 직접 정한다(Entity.fallDistance 는 공개 필드). */
@@ -821,13 +830,17 @@ public final class PlayerVitals {
     public void onMove(double dx, double dy, double dz, boolean wasOnGround, boolean onGround, boolean sprinting, boolean sneaking,
                        boolean inWaterNow, boolean eyeInWater, String climbable, String landingBlock, boolean waterOnPath) {
         float fallDamage = 0;
+        DamageType fallType;
         synchronized (this) {
+            fallDamageType = DamageType.FALL;
+            landed = false;
             if (wasOnGround && !onGround && dy > 0.0) causeFoodExhaustionLocked(sprinting ? 0.2f : 0.05f);   // jumpFromGround
             if (waterOnPath && fallDistance != 0.0f && dx * dx + dy * dy + dz * dz >= 1.0) fallDistance = 0.0f;
             if (landingBlock != null) fallDamage = checkFallDamage(dy, onGround, inWaterNow, landingBlock, sneaking);
+            fallType = fallDamageType;
         }
         // 바닐라 fallOn → causeFallDamage → hurt 는 낙하 거리를 초기화하기 전에 일어난다(전투 기록이 낙하 거리를 본다).
-        if (fallDamage > 0) hurt(DamageType.FALL, fallDamage);
+        if (fallDamage > 0) hurt(fallType, fallDamage);
         synchronized (this) {
             if (landingBlock != null && onGround) {
                 fallDistance = 0.0f;
@@ -871,7 +884,10 @@ public final class PlayerVitals {
         }
         float damage = 0;
         if (onGround) {
-            if (fallDistance > 0.0f) damage = fallOn(landingBlock, fallDistance, sneaking);
+            if (fallDistance > 0.0f) {
+                landed = true;
+                damage = fallOn(landingBlock, fallDistance, sneaking);
+            }
             // 초기화는 피해를 준 뒤(onMove)
         } else if (dy < 0.0) {
             fallDistance -= (float) dy;
@@ -882,6 +898,11 @@ public final class PlayerVitals {
     /** 블록별 Block.fallOn → Player/LivingEntity.causeFallDamage. 비행 가능하면 피해 없음. */
     private float fallOn(String block, float distance, boolean sneaking) {
         float multiplier = fallMultiplier(block, sneaking);
+        if (landingStalagmite && "minecraft:pointed_dripstone".equals(block)) {   // PointedDripstoneBlock.fallOn: 석순 끝은 거리 + 2, 배수 2
+            distance += 2.0F;
+            multiplier = 2.0F;
+            fallDamageType = DamageType.byKey("stalagmite");
+        }
         if (multiplier < 0 || abilities.mayfly) return 0;
         MobEffectInstance jump = effects.get(MobEffect.JUMP_BOOST);
         boolean impulse = false;

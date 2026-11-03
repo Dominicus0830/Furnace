@@ -149,7 +149,7 @@ public class FallingBlockEntity extends Entity {
     private ItemStack itemStack() { return new ItemStack(BlockItems.asItemId(B.block(blockState)), 1); }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) {
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
         if (!hurtEntities) return false;
         int i = (int) Math.ceil(distance - 1.0F);
         if (i < 0) return false;

@@ -83,7 +83,11 @@ public class CropBlock extends BushBlock implements BonemealableBlock {
 
     protected static boolean hasSufficientLight(BlockLevel level, Pos pos) { return level.getRawBrightness(pos, 0) >= 8; }
 
-    // TODO(엔티티): entityInside — 파괴수가 지나가면(mobGriefing) 부순다.
+    /** entityInside: 파괴수가 지나가고 mobGriefing 이면 부순다(떨굼, 부순 엔티티 = 파괴수). */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (entity instanceof org.domi.furnace.server.entity.Ravager && level.gameRule("mobGriefing")) level.destroyBlockByEntity(pos, true, entity);
+    }
 
     @Override
     public boolean isValidBonemealTarget(BlockLevel level, Pos pos, int state) { return !isMaxAge(state); }

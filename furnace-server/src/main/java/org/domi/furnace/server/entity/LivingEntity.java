@@ -836,11 +836,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) {
-        boolean flag = super.causeFallDamage(distance, multiplier);   // 승객에게도
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
+        boolean flag = super.causeFallDamage(distance, multiplier, source);   // 승객에게도
         int dmg = calculateFallDamage(distance, multiplier);
         if (dmg > 0) {
-            hurt(new Damage("fall", false, false, false), dmg);
+            hurt(source, dmg);
             return true;
         }
         return flag;

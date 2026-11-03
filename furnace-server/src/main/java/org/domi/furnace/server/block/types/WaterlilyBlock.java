@@ -10,7 +10,12 @@ public class WaterlilyBlock extends BushBlock {
 
     public WaterlilyBlock(int block) { super(block); }
 
-    // TODO(엔티티): entityInside — 보트가 닿으면 destroyBlock(pos, true, 보트).
+    /** entityInside: 보트가 닿으면 부순다(떨굼, 부순 엔티티 = 보트). */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        super.entityInside(state, level, pos, entity);
+        if (entity instanceof org.domi.furnace.server.entity.Boat) level.destroyBlockByEntity(pos, true, entity);
+    }
 
     @Override
     protected boolean mayPlaceOn(int state, BlockLevel level, Pos pos) {

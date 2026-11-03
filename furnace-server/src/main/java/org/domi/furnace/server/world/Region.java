@@ -913,9 +913,10 @@ public final class Region {
             p.tickRiding();
             tickCamera(p);
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
+            double tickX = p.x(), tickZ = p.z();   // 바닐라 xOld·zOld(틱 머리 setOldPosAndRot)
             boolean moved = processMoves(p);
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
-            if (moved) checkInsideCampfires(p);
+            if (moved) checkInsideBlocksPlayer(p, p.x() - tickX, p.z() - tickZ);
             p.drainPending();
             org.domi.furnace.server.entity.PlayerMoveValidator.tick(p);   // 틱 머리: 기준 위치·패킷 수·떠 있는 틱(비행 킥)
             p.currentLevel = level;
@@ -1054,14 +1055,24 @@ public final class Region {
             double height = p.bbHeight();
             double eye = p.eyeY() - p.y();
             double dx = m.x() - prev.x(), dy = m.y() - prev.y(), dz = m.z() - prev.z();
-            String landing = probe.onPosLegacy(blocks, m.x(), m.y(), m.z(), m.onGround());
+            int[] landingPos = probe.onPosLegacyPos(blocks, m.x(), m.y(), m.z(), m.onGround());
+            int landingState = blocks.stateAt(landingPos[0], landingPos[1], landingPos[2]);
+            String landing = landingState < 0 ? null : probe.nameOf(landingState);
             boolean inWater = probe.inWater(blocks, m.x(), m.y(), m.z(), height);
             boolean eyeInWater = probe.eyeInWater(blocks, m.x(), m.y(), m.z(), eye);
             String climbable = probe.climbable(blocks, m.x(), m.y(), m.z());
             boolean waterOnPath = dy < 0 && probe.waterOnPath(blocks, m.x(), prev.y(), m.y(), m.z());
             p.vitals().currentMoveY(m.y());
+            p.vitals().landingStalagmite(landingState >= 0 && org.domi.furnace.server.block.B.behavior(landingState)
+                    instanceof org.domi.furnace.server.block.types.PointedDripstoneBlock
+                    && org.domi.furnace.server.block.types.PointedDripstoneBlock.isStalagmiteTip(landingState));
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
+            // Block.fallOn 의 블록 쪽(피해는 위에서): 거북 알은 1/3 로 하나 깨진다
+            if (level != null && landingState >= 0 && p.gameMode() != GameMode.SPECTATOR && p.vitals().landedOnLastMove()
+                    && org.domi.furnace.server.block.B.behavior(landingState) instanceof org.domi.furnace.server.block.types.TurtleEggBlock egg) {
+                egg.fallOnPlayer(level, new org.domi.furnace.server.block.Pos(landingPos[0], landingPos[1], landingPos[2]), landingState);
+            }
             if (level != null && p.gameMode() != GameMode.SPECTATOR) {
                 p.movementEmission.onMove(level, p, m.x(), m.y(), m.z(), dx, dy, dz, m.onGround(), inWater);
             }
@@ -1549,11 +1560,12 @@ public final class Region {
     }
 
     /**
-     * Entity.checkInsideBlocks 중 모닥불만(바닐라 handleMovePlayer 의 player.move 뒤): 몸통(1e-7 안쪽)이 걸친 칸의 켜진 모닥불이
-     * 플레이어에게 불 피해를 준다. 나머지 블록의 entityInside 는 플레이어에게 아직 연결되지 않았다.
+     * Entity.checkInsideBlocks 의 플레이어 쪽(바닐라 handleMovePlayer 의 player.move 뒤): 몸통(1e-7 안쪽)이 걸친 칸의 켜진 모닥불은
+     * 불 피해, 큰 흘림잎은 기울기, 달콤한 열매 덤불은 이번 틱 가로 변위(dx, dz = 위치 - xOld·zOld)로 피해. 나머지 블록의
+     * entityInside 는 플레이어에게 아직 연결되지 않았다(끼임·속도는 클라이언트가 계산한다).
      * 같은 칸 순회에서 ServerPlayer.onInsideBlock(state) → enter_block 트리거(공기 포함, 칸마다 entityInside 다음).
      */
-    private void checkInsideCampfires(Player p) {
+    private void checkInsideBlocksPlayer(Player p, double tickDx, double tickDz) {
         if (level == null || p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
         double h = p.bbHeight();
         int x0 = (int) Math.floor(p.x() - 0.3 + 1.0E-7), x1 = (int) Math.floor(p.x() + 0.3 - 1.0E-7);
@@ -1565,7 +1577,15 @@ public final class Region {
         boolean slide = adv != null && adv.hasListeners("minecraft:slide_down_block");
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
-            if (org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.CampfireBlock cf) cf.entityInsidePlayer(s, p.vitals());
+            var beh = org.domi.furnace.server.block.B.behavior(s);
+            if (beh instanceof org.domi.furnace.server.block.types.CampfireBlock cf) {
+                cf.entityInsidePlayer(s, p.vitals());
+            } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
+                bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
+            } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock
+                    && org.domi.furnace.server.block.types.SweetBerryBushBlock.hurtsPlayer(s, tickDx, tickDz)) {
+                p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("sweet_berry_bush"), 1.0F);
+            }
             if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
             // HoneyBlock.entityInside → maybeDoSlideAchievement: 미끄러지는 중이면 20틱마다 slide_down_block (플레이어 이동은 서버가 아는 변위로)
             if (slide && level.gameTime() % 20L == 0L && org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.HoneyBlock

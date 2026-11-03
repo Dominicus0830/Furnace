@@ -113,7 +113,7 @@ public class Strider extends Animal {
     }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) { return !isInLava() && super.causeFallDamage(distance, multiplier); }
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) { return !isInLava() && super.causeFallDamage(distance, multiplier, source); }
 
     @Override
     public void tick() {

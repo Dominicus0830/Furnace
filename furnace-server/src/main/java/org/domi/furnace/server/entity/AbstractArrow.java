@@ -202,6 +202,7 @@ public abstract class AbstractArrow extends Projectile {
         setDeltaMovement(vx() * inertia, vy() * inertia, vz() * inertia);
         if (!noPhysics) applyGravity();
         setPos(nx, ny, nz);
+        checkInsideBlocks();   // 날아가며 지난 칸: 불·나무 압력판·인계철선·화살 버튼
     }
 
     protected float waterInertia() { return 0.6F; }

@@ -46,7 +46,18 @@ public class PointedDripstoneBlock extends BlockBehavior {
         return THICKNESS.with(state, calculateDripstoneThickness(level, pos, tip, mergeOpposite));
     }
 
-    // TODO(엔티티): fallOn(석순 끝이면 피해 2배).
+    /** fallOn: 위를 향한 끝(석순 tip)에 떨어지면 거리 + 2, 배수 2 의 석순 피해. 아니면 기본 낙하. */
+    @Override
+    public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {
+        if (isStalagmiteTip(state)) {
+            entity.causeFallDamage(fallDistance + 2.0F, 2.0F, org.domi.furnace.server.entity.Entity.Damage.STALAGMITE);
+        } else {
+            super.fallOn(level, state, pos, entity, fallDistance);
+        }
+    }
+
+    /** 위를 향한 tip(합쳐진 tip_merge 는 아님). */
+    public static boolean isStalagmiteTip(int state) { return tipDir(state) == Dir.UP && TIP.equals(thickness(state)); }
 
     /** onProjectileHit: mayInteract·mayBreak 이고 속도 0.6 넘는 삼지창이면 부순다(destroyBlock(pos, true) — 부순 엔티티 없음). */
     @Override

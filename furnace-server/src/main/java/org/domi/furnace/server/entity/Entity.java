@@ -55,6 +55,8 @@ public abstract non-sealed class Entity implements Rider {
         public static final Damage CRAMMING = new Damage("cramming", false, false, false);
         public static final Damage CACTUS = new Damage("cactus", false, false, false);
         public static final Damage WITHER = new Damage("wither", false, false, false);
+        public static final Damage FALL = new Damage("fall", false, false, false);
+        public static final Damage STALAGMITE = new Damage("stalagmite", false, false, false);
         public static final Damage SWEET_BERRY_BUSH = new Damage("sweet_berry_bush", false, false, false);
         public static final Damage EXPLOSION = new Damage("explosion", false, true, false);
         public static final Damage OUT_OF_WORLD = new Damage("out_of_world", false, false, true);
@@ -684,9 +686,9 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않고, 승객에게 넘긴다(fall_damage_immune 종류는 넘기지 않는다). */
-    public boolean causeFallDamage(float distance, float multiplier) {
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
         if (typeInTag("minecraft:fall_damage_immune")) return false;
-        if (!passengers.isEmpty()) for (Rider r : passengers) if (r instanceof Entity e) e.causeFallDamage(distance, multiplier);   // TODO(플레이어 낙하): 탄 플레이어
+        if (!passengers.isEmpty()) for (Rider r : passengers) if (r instanceof Entity e) e.causeFallDamage(distance, multiplier, source);   // TODO(플레이어 낙하): 탄 플레이어
         return false;
     }
 

@@ -2137,6 +2137,12 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
+    public Object firstArrowIn(double x0, double y0, double z0, double x1, double y1, double z1) {
+        var l = entities.getEntitiesOfClass(org.domi.furnace.server.entity.AbstractArrow.class, new AABB(x0, y0, z0, x1, y1, z1), e -> !e.isSpectator());
+        return l.isEmpty() ? null : l.get(0);
+    }
+
+    @Override
     public int countTriggeringEntities(double x0, double y0, double z0, double x1, double y1, double z1, boolean livingOnly) {
         AABB box = new AABB(x0, y0, z0, x1, y1, z1);
         int[] n = {entities.getEntities(null, box, e -> !e.isIgnoringBlockTriggers() && !e.isSpectator() && (!livingOnly || e.isLiving())).size()};

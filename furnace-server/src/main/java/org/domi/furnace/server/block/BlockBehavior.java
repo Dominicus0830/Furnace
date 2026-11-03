@@ -232,7 +232,7 @@ public class BlockBehavior {
 
     /** fallOn(level, state, pos, entity, fallDistance): 떨어져 내려앉았다 — 기본은 낙하 피해(배수 1). */
     public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {
-        entity.causeFallDamage(fallDistance, 1.0F);
+        entity.causeFallDamage(fallDistance, 1.0F, org.domi.furnace.server.entity.Entity.Damage.FALL);
     }
 
     /** updateEntityAfterFallOn(level, entity): 세로로 부딪힌 뒤 — 기본은 세로 속도를 0 으로(곱하기 0). */

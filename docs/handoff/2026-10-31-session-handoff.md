@@ -69,6 +69,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 
 **2026-11-03**
 - 투사체-블록 반응(`Block.onProjectileHit`): 양초·모닥불·TNT 점화, 자수정·종·큰 흘림잎, 후렴화·장식 단지·점적석 파괴와 `Projectile.mayInteract`/`mayBreak`, 게임룰 `projectilesCanBreakBlocks` 연결. `onHitBlock` 에서 `super` 를 안 부르던 투사체 6종 수정. 상세 `context-notes.md` "투사체-블록 반응".
+- 엔티티 블록 훅: 큰 흘림잎 기울기, 석순 낙하 피해(× 2), 파괴수 작물 짓밟기, 달콤한 열매 덤불, 수련잎·보트, 개구리알·떨어지는 블록, 레드스톤 광석·거북 알 밟기, 화살 버튼과 플레이어 쪽(마그마 피해 포함). `causeFallDamage` 에 피해 종류 인자, 화살 `checkInsideBlocks`. 상세 `context-notes.md` "엔티티 블록 훅".
 
 **동작이 바뀌어 알아야 하는 것**: `spawn-animals=false`·`spawn-npcs=false` 는 기존 동물·주민도 지운다(바닐라와 같음) / 방랑 상인 스포너 오버월드 전용 / 몹 흡수 체력이 피해를 막는다 / `Zombie.finalizeSpawn` 난수 순서 정정 / 일반 jar 이름이 `furnace-server-plain.jar` 로 바뀌고 `furnace-server.jar` 는 fatJar 만 만든다.
 
