@@ -115,7 +115,9 @@ class PlayerEnchantAttributeTest {
 
     @Test
     void soulSpeedAddsModifiersOnSoulBlockAndKeepsThemWhileAirborne() {
-        var level = new BlockPlacementTest.TestLevel();
+        // 영혼 블록 위 틱마다 4% 로 부츠가 닳는데, 첫 틱 마지막 계산에서 닳으면 다음 틱에 장비 변경으로 효과를 다시 계산해
+        // 공중 유지를 못 본다(바닐라도 같음). 레벨 난수를 첫 두 nextFloat 이 0.04 이상인 시드로 고정한다.
+        var level = seededLevel(1L);
         var p = player();
         p.inventory().set(8, enchanted("minecraft:diamond_boots", "minecraft:soul_speed", 2));
         // 영혼 블록 위: 속도 +0.0405 + 0.0105 = 0.051, 이동 효율 +1.0
