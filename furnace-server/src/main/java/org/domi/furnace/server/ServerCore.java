@@ -1002,9 +1002,9 @@ public final class ServerCore {
     /**
      * 바닐라 PlayerList.setViewDistance: 모든 플레이어에게 set_chunk_cache_radius 를 보내고 모든 차원의 시야 거리를 바꾼다.
      * 플레이어별 전송 거리는 min(새 값, 클라이언트 렌더 거리)로 다시 잡는다(클라이언트가 설정을 바꿨을 때와 같은 길 — 다음 틱부터 청크를 더 보내거나 내린다).
-     * 값은 2~32 로 자른다(ChunkMap.setServerViewDistance). 어느 스레드에서 불러도 된다.
+     * 값은 2~32 로 자른다(ChunkMap.setServerViewDistance). 어느 스레드에서 불러도 된다(호출끼리는 직렬화).
      */
-    public void setViewDistance(int vd) {
+    public synchronized void setViewDistance(int vd) {   // 동시 호출이 섞이면 월드 값과 클라이언트에 보낸 값이 어긋난다 — 한 번에 하나
         int v = Math.clamp(vd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
         for (World w : worlds()) w.viewDistance(v);
         var pkt = new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(v);
@@ -1015,7 +1015,7 @@ public final class ServerCore {
     }
 
     /** 바닐라 PlayerList.setSimulationDistance: 모든 플레이어에게 set_simulation_distance 를 보낸다. region 은 다음 틱부터 새 값을 쓴다. 2~32 로 자른다. */
-    public void setSimulationDistance(int sd) {
+    public synchronized void setSimulationDistance(int sd) {
         int v = Math.clamp(sd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
         simulationDistanceOverride = v;
         var pkt = new org.domi.furnace.server.net.protocol.play.SetSimulationDistance(v);
