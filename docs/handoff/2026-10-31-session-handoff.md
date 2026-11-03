@@ -74,7 +74,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 ## 3. 남아 있는 큰 구멍 (우선순위는 `unimplemented-survey-2026-10-31.md` 1장 — 단, 그 문서의 일부 항목은 이후 구현돼 낡았다. 착수 전에 코드를 직접 확인한다)
 
 - **플러그인 API는 1단계다.** 설계 문서 7장 "다음 단계": `LEFT_CLICK`, 상자·상인·엔티티 컨테이너 `Inventory`, 엔티티를 따라가는 `EntityScheduler`, `PersistentDataContainer`, `Chunk` 객체, 엔티티 스폰·조회 API, `PlayerMoveEvent` 의 회전, 이벤트 세분화(`DamageCause` 등). Paper/Bukkit 어댑터(5단계 `furnace-compat-paper`)는 아직 없다.
-- **스트라이더**(안장·조종·뒤틀린 균류 막대·좀비 피글린 기수), 몹 낙하 위치 기록(몹 사망 메시지의 낙하형), 순찰·팬텀·고양이 스포너의 오버월드 전용화.
+- **스트라이더**(안장·조종·뒤틀린 균류 막대·좀비 피글린 기수), ~~몹 낙하 위치 기록~~(2026-11-03 구현, context-notes), 순찰·팬텀·고양이 스포너의 오버월드 전용화.
 - **region 단위로 동작하는 차이**: 마을 포위 상태·상인 대상 플레이어 선택·앵무새 어깨 앉히기·돌고래의 플레이어 효과 부여 일부(소유권 위임 미완), 명령 블록 체인이 region 경계를 넘으면 끊김.
 - **명령 블록은 비동기라 바닐라처럼 한 틱에 체인이 끝나지 않는다**(순서는 보존, 시간이 다름). 한 틱 완결이 필요한 회로는 박자가 다를 수 있다.
 - 월드젠: 일부 구조물은 순정 대조 미검증(정글 신전·늪 오두막·해저 신전·전초기지·고대 도시·시련의 방·보루·트레일 유적, 사막 피라미드는 근사), `nether_fossil`·`void_start_platform`·`bonus_chest` 도 oracle 미검증, `bonus_chest` 는 월드 생성 때 스폰 지점 자동 배치 미연결, 다중 청크 decoration 구조 제약, 커스텀 월드 타입 무시.
@@ -82,7 +82,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 - 운영: RCON IP당 동시 연결 상한 없음, 월드 주기 백업·메트릭 내보내기 없음, `enable-jmx-monitoring` 등 일부 키는 파싱만. 플러그인 채널 등록(`minecraft:register`) 미구현. lz4 지역 파일 읽기 미지원(1.20.5+ 바닐라 lz4 월드를 가져오면 청크 읽기 실패).
 - 플레이어 속성 맵의 저장·복원 없음(`/attribute base set` 값은 재접속하면 사라짐), 영혼 가속 입자·소리, 서리 걸음 마그마 면역.
 - 테스트: 바닐라 데이터가 없는 환경에서 `assumeTrue` 로 조용히 스킵되는 시험(AGENTS.md 규칙 5 와 긴장), 테스트 없는 패키지(bossbar·effect·function·profiling·sound·trade).
-- **불안정 시험**: `TabListTest`(단독 약 4000회에 1회 실패, 원인 미확정)와 `GeneratedVillageProfessionTest`(전체 스위트에서 한 번 실패, 단독 3회 통과, 낮 시간을 직접 조작하며 틱을 돌리는 방식). `LandMobTest`·`WindChargeTest` 의 간헐 실패는 `ArenaLevel` 둘레 벽·바닥 확장으로 고쳤다(몹이 허공으로 떨어져 죽던 것).
+- **불안정 시험**: `TabListTest`(단독 약 4000회에 1회 실패, 원인 미확정)와 `GeneratedVillageProfessionTest`(전체 스위트에서 한 번 실패, 단독 3회 통과, 낮 시간을 직접 조작하며 틱을 돌리는 방식). `LandMobTest.shulkerShootsBullet`(2026-11-03 전체 스위트에서 한 번 "공중 부양" 단언 실패, 단독 3회 통과 — 원인 미확인). `LandMobTest`·`WindChargeTest` 의 이전 간헐 실패는 `ArenaLevel` 둘레 벽·바닥 확장으로 고쳤다(몹이 허공으로 떨어져 죽던 것).
 
 ## 4. 다음 할 일 (제안 순서)
 

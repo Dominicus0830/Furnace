@@ -677,3 +677,10 @@
   - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
   - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.
 - 후속(검토 반영): `PlayerMoveEvent` 취소는 `applyMove(prev)` 로 서버 위치를 되돌린 뒤 `Player.correctTo`(이벤트 우회 보정)로 텔레포트하며 `moveRejectHold` 를 건다 — 검증기(`PlayerMoveValidator.reject`)도 같은 `correctTo` 를 쓰도록 바꿔, 텔레포트 리스너가 보정을 삼키지 못한다(Paper 의 정확한 동작은 미확인, **가정**). 검증 대기 패킷은 hold 동안 버려진다. `EntitySpawnEvent` 는 목록 추가 뒤 발화·취소 시 되돌림, 승객 묶음은 전부 아니면 전무(Paper 는 개별 엔티티 단위일 수 있다 — 미확인). `Interact` 취소는 손 슬롯 `ContainerSetSlot(-2)` 재전송(블록은 기존 재전송). 플레이어 인벤토리 쓰기는 `runOnOwner`(소유 틱에서 적용되므로 Future 가 최대 한 틱 늦게 완료). 서버 스레드에서 미완료 `RegionFuture.get()/join()` 은 예외.
+
+## 2026-11-03 몹 낙하 위치(FallLocation) 기록
+- 바닐라(btn·brp): `CombatTracker.recordDamage` 가 맞은 순간 `FallLocation.getCurrentFallLocation(mob)` 을 기록한다. 몹도 플레이어와 같다. 지금까지 몹은 null 을 넣어 사다리·덩굴 낙하사가 `death.fell.accident.generic` 으로만 나왔다.
+- `LivingEntity.currentFallLocation()`: `lastClimbablePos`(onClimbable 이 이미 기록하던 칸)가 있으면 **그 칸의 지금 블록**으로 이름을 정하고(부서져 공기면 other_climbable — 바닐라와 같음), 없고 물속이면 water. 표는 brp.a(dtc): 사다리·`#trapdoors` → ladder, vine → vines, 우는/뒤틀린 덩굴(+plant), 비계, 그 밖 other_climbable.
+- `LivingEntity.checkFallDamage` 를 덮어 땅에 닿으면 `lastClimbablePos` 를 지운다(바닐라 btn.a(DZLdtc;Ljd;)V 끝). 벌은 바닐라처럼 checkFallDamage 가 비어 있어 지워지지 않는다.
+- **아직 다른 점**: 바닐라 LivingEntity.checkFallDamage 앞부분(물 상태 갱신, onChangedBlock, 안전 낙하 거리 초과 시 착지 블록 입자)은 넣지 않았다. 다락문을 사다리로 쓰는 오르기(`trapdoorUsableAsLadder`)는 몹·플레이어 모두 없다. 플레이어(`PlayerVitals`)는 매달린 순간의 블록 이름을 저장해, 사다리가 부서진 뒤 떨어져도 ladder 로 나온다(바닐라는 other_climbable).
+- 시험: `MobFallLocationTest`(사다리·덩굴·부서진 사다리·일반 낙하·블록 표).
