@@ -48,6 +48,7 @@ public final class ConfigLoader {
         int spawnChunkRadius = parseInt(props, "spawn-chunk-radius", Config.DEFAULT.spawnChunkRadius());
         int chunksPerTick = parseInt(props, "chunks-per-tick", Config.DEFAULT.chunksPerTick());
         String velocitySecret = props.getProperty("velocity-secret", Config.DEFAULT.velocitySecret()).strip();
+        String bungeeRaw = props.getProperty("bungeecord", Boolean.toString(Config.DEFAULT.bungeecord())).strip();
         // 잘못된 값이 런타임 한참 뒤(0 나눗셈, 빈 경로 등)에 터지지 않게 기동 시점에 거르고 어느 키가 문제인지 알려준다.
         require(tick > 0, "tick-nanos", tick, "1 이상");
         require(port >= 0 && port <= 65535, "port", port, "0~65535");
@@ -73,9 +74,17 @@ public final class ConfigLoader {
         require(evictionGrace >= 1, "chunk-eviction-grace-ticks", evictionGrace, "1 이상");
         require(spawnChunkRadius >= 0, "spawn-chunk-radius", spawnChunkRadius, "0 이상");
         require(chunksPerTick >= 1, "chunks-per-tick", chunksPerTick, "1 이상");
+        if (!bungeeRaw.equalsIgnoreCase("true") && !bungeeRaw.equalsIgnoreCase("false")) {
+            throw new IllegalArgumentException("설정 'bungeecord' 값 '" + bungeeRaw + "' 이(가) 잘못됐습니다: true 또는 false");
+        }
+        boolean bungeecord = Boolean.parseBoolean(bungeeRaw);
+        // 두 포워딩은 핸드셰이크·로그인 질의를 서로 다르게 해석한다 — 함께 켜면 어느 쪽 정보를 믿을지 모호해진다.
+        if (bungeecord && !velocitySecret.isEmpty()) {
+            throw new IllegalArgumentException("설정 'bungeecord=true' 와 'velocity-secret' 은 함께 쓸 수 없습니다: 프록시에 맞는 한쪽만 켜세요");
+        }
         return new Config(name, tick, port, compression, viewDistance, entityViewDistance,
                 sectionShift, mergeRadius, regionThreads, levelName, levelSeed, ioThreads, autosaveTicks, evictionGrace,
-                spawnChunkRadius, chunksPerTick, velocitySecret);
+                spawnChunkRadius, chunksPerTick, velocitySecret, bungeecord);
     }
 
     /** 파일에 있지만 server.properties 가 정해서 무시되는 키들(기동 시 경고용). */

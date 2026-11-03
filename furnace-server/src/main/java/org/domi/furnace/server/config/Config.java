@@ -3,6 +3,7 @@ package org.domi.furnace.server.config;
 
 /**
  * velocitySecret: 비어 있지 않으면 Velocity 모던 포워딩을 켠다(Paper proxies.velocity.secret).
+ * bungeecord: BungeeCord 레거시 IP 포워딩(Spigot settings.bungeecord, 기본 꺼짐). Velocity 포워딩과 함께 켤 수 없다.
  * regionSectionShift·regionMergeRadius: 동적 region(Folia 방식)의 구역 크기(2^shift 청크)와 합치기 반경(구역 단위),
  * regionThreads: region 을 돌리는 작업 스레드 수. 기본은 차원마다 이만큼(-Dfurnace.sharedRegionPool=true 면 서버 전체 공유 풀의 크기).
  */
@@ -10,7 +11,7 @@ public record Config(String serverName, long tickNanos, int port, int compressio
                      int viewDistance, int entityViewDistance, int regionSectionShift, int regionMergeRadius, int regionThreads,
                      String levelName, long levelSeed, int ioThreads, int autosaveTicks,
                      int chunkEvictionGraceTicks, int spawnChunkRadius, int chunksPerTick,
-                     String velocitySecret) {
+                     String velocitySecret, boolean bungeecord) {
 
     /** view-distance 하한 — 서버가 LoginPlay로 알리는 최소 반경(클라 렌더 거리 하한과 같다). */
     public static final int MIN_VIEW_DISTANCE = 2;
@@ -31,11 +32,11 @@ public record Config(String serverName, long tickNanos, int port, int compressio
         int view = Math.clamp(sp.viewDistance, MIN_VIEW_DISTANCE, MAX_VIEW_DISTANCE);
         String level = worldOverride != null ? worldOverride : sp.levelName;
         return new Config(sp.motd, tickNanos, port, compression, view, entityViewDistance, regionSectionShift, regionMergeRadius, regionThreads,
-                level, seed, ioThreads, autosaveTicks, chunkEvictionGraceTicks, spawnChunkRadius, chunksPerTick, velocitySecret);
+                level, seed, ioThreads, autosaveTicks, chunkEvictionGraceTicks, spawnChunkRadius, chunksPerTick, velocitySecret, bungeecord);
     }
 
     public static final Config DEFAULT =
             new Config("Furnace Server", 50_000_000L, 25565, 256, 5, 8, 4, 1,
                     Runtime.getRuntime().availableProcessors(),
-                    "world", 0L, 4, 6000, 100, 2, 16, "");
+                    "world", 0L, 4, 6000, 100, 2, 16, "", false);
 }

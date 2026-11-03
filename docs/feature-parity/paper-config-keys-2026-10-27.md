@@ -32,7 +32,7 @@
 |---|---|---|---|---|---|
 | `proxies.velocity.enabled` | Velocity 모던 포워딩 사용 | false **기억** | 아니오(프록시) | 부분: `velocity-secret` 이 비어 있지 않으면 켜짐(`Config.java` 주석) | 완료 |
 | `proxies.velocity.secret` | 포워딩 비밀키 | 빈 값 **기억** | 아니오 | 있음: `velocity-secret` (`config/Config.java`) | 완료 |
-| `proxies.bungee-cord.online-mode` | BungeeCord 레거시 포워딩 | false **기억** | 아니오 | 없음 | 하 (Velocity 만 지원) |
+| `proxies.bungee-cord.online-mode` | BungeeCord 레거시 포워딩 | false **기억** | 아니오 | 없음(포워딩 자체는 `bungeecord` 로 지원, 2026-11-03) | 하 |
 | `proxies.proxy-protocol` | PROXY 프로토콜 수신 | false **가정** | 아니오 | 없음 | 하 |
 | `unsupported-settings.allow-piston-duplication` | 피스톤 복제 익스플로잇 허용 | false **기억** | **예** | 없음 | 하 |
 | `unsupported-settings.allow-permanent-block-break-exploits` | 영구 블록 파괴 익스플로잇 허용 | false **기억** | **예** | 없음 | 하 |
@@ -114,7 +114,7 @@
 
 | 키 경로 | 의미 | 기본값 | 바닐라와 다름 | Furnace 현황 | 우선순위 |
 |---|---|---|---|---|---|
-| `settings.bungeecord` | BungeeCord 호환 | false **기억** | 아니오 | 없음(Velocity 만) | 하 |
+| `settings.bungeecord` | BungeeCord 호환 | false **기억** | 아니오 | 있음: `bungeecord` (furnace.properties, 기본 false) | 완료(2026-11-03) |
 | `settings.attribute.maxHealth.max` / `movementSpeed.max` | 속성 상한 | **UNVERIFIED** (movementSpeed 상한 1024 또는 2048 중 무엇인지 확인 필요) | **예**(바닐라 상한과 다를 수 있음) | 없음 | 하 |
 | `settings.player-shuffle` | 플레이어 틱 순서 섞기 | 0 **가정** | **예**(순서가 바뀜) | 없음 | 하 (결정성 깨짐) |
 | `settings.netty-threads` | Netty 스레드 수 | 4 **가정** | 아니오 | 부분(의미 다름): `io-threads` 는 청크 I/O | 하 |
@@ -189,6 +189,7 @@
 | `spawn-chunk-radius` | 스폰 청크 반경 | 2 | Furnace 고유(Paper 키 아님) |
 | `chunks-per-tick` | 플레이어당 틱 청크 전송 상한 | 16 | 2.2절 메모 참고. Paper 대응 키 없음 |
 | `velocity-secret` | Velocity 포워딩 비밀키 | 빈 값(끔) | Paper `proxies.velocity.secret` 과 같은 의미 |
+| `bungeecord` | BungeeCord 레거시 IP 포워딩 | false | Spigot `settings.bungeecord` 와 같은 의미. `velocity-secret` 과 함께 켜면 기동 실패 |
 
 ### 5.2 `server.properties` (바닐라 키, Furnace 가 읽음)
 
@@ -203,6 +204,7 @@
 | Paper/bukkit/spigot 키 | Furnace 키 / 동작 | 현황 | 근거 |
 |---|---|---|---|
 | `proxies.velocity.secret` | `velocity-secret` | **있음** | `Config.java` |
+| `settings.bungeecord` | `bungeecord` | **있음**(2026-11-03) | `Config.java`, `net/auth/BungeeForwarding.java` |
 | `logging.log-player-ip-addresses` | `log-ips` | **있음** | `ServerProperties.java:89`, `ConnectionHandler.java:655-657`(false 면 주소 가림, 바닐라 `getLoggableAddress` 와 같은 역할) |
 | `view-distance` | `view-distance` | **있음** | 바닐라 키 |
 | `spawn-animals` / `spawn-monsters` / `spawn-npcs` | 같은 이름 | **있음**(토글) | 바닐라 키. 상한 값은 아래 `spawn-limits` 행 |
@@ -228,7 +230,7 @@
 
 1. **상 (검증 우선)**: 스폰 상한·디스폰 거리 상수의 바닐라 값 검증(이미 구현), 화살·아이템 디스폰 틱, `ticks-per` 의 바닐라 주기 확인, 자동 저장 기본값 확인. 설정 키를 노출하기 전에 바닐라 값을 기본으로 맞춘다.
 2. **중 (기본 꺼짐 옵션)**: 기본값에서 바닐라 동작을 바꾸지 않고, 켰을 때만 바뀌는 기능이다. 성능 튜닝은 `experiment.*` 실험 플래그 뒤에 두고 바닐라 결과와 대조한 뒤에만 켠다. 보안·진단(패킷 제한, 접속 제한, 틱 경고, 틱당 접속 상한)은 기본 꺼짐 옵션으로 둔다. 종류별 엔티티 추적 거리도 여기에 둔다(바닐라 공식과 다르므로 실험 플래그).
-3. **하 (비목표)**: `unsupported-settings.*`, 스코어보드 금지 해제, 속성 상한 상향, 플레이어 순서 섞기, 광석 은닉, 스포너 몹 약화, BungeeCord 레거시, Bukkit 명령 별칭 파일, 저장 끄기 옵션, `dab` 와 `tick-rates` 같은 AI 틱 감속.
+3. **하 (비목표)**: `unsupported-settings.*`, 스코어보드 금지 해제, 속성 상한 상향, 플레이어 순서 섞기, 광석 은닉, 스포너 몹 약화, Bukkit 명령 별칭 파일, 저장 끄기 옵션, `dab` 와 `tick-rates` 같은 AI 틱 감속.
 
 ---
 

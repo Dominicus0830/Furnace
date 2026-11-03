@@ -149,14 +149,23 @@ public final class FurnaceMain {
         if (!props.onlineMode) {
             log.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
             log.warn("The server will make no attempt to authenticate usernames. Beware.");
-            log.warn("While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.");
-            log.warn("To change this, set \"online-mode\" to \"true\" in the server.properties file.");
+            // Spigot DedicatedServer: BungeeCord 포워딩이면 방화벽 안내로 바꾼다.
+            if (config.bungeecord()) {
+                log.warn("Whilst this makes it possible to use BungeeCord, unless access to your server is properly restricted, it also opens up the ability for hackers to connect with any username they choose.");
+                log.warn("Please see http://www.spigotmc.org/wiki/firewall-guide/ for further information.");
+            } else {
+                log.warn("While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.");
+                log.warn("To change this, set \"online-mode\" to \"true\" in the server.properties file.");
+            }
+        } else if (config.bungeecord()) {
+            // Furnace 안내: BungeeCord 는 서버와 암호화하지 않으므로 online-mode=true 면 모든 접속이 세션 인증에서 막힌다.
+            log.warn("BungeeCord 포워딩이 켜져 있지만 online-mode=true 입니다. BungeeCord 뒤에서는 server.properties 의 online-mode 를 false 로 두세요.");
         }
         log.info("Preparing level \"{}\"", config.levelName());
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
-                profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret());
+                profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord());
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());

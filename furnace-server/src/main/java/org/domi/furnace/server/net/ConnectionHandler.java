@@ -105,7 +105,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private volatile int clientSkinParts, clientMainArm = 1;   // ClientInformation 의 스킨 부위·주 손(플레이어 생성 전에도 받는다)
     private int chatVisibility = org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_FULL;
     private int velocityMessageId;
-    private java.net.InetSocketAddress forwardedAddress;   // Velocity 포워딩으로 받은 실제 주소          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
+    private java.net.InetSocketAddress forwardedAddress;   // Velocity·BungeeCord 포워딩으로 받은 실제 주소
+    private org.domi.furnace.server.net.auth.BungeeForwarding.Forwarded bungeeForwarded;   // BungeeCord 핸드셰이크에서 꺼낸 UUID·속성          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
     private boolean transferred;            // 전송(intent 3)으로 들어온 연결
     private java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
     private io.netty.util.concurrent.ScheduledFuture<?> slowLoginTimer;
@@ -185,6 +186,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     // 단계별 프레임 상한(1.21.1 기준). 핸드셰이크: id(1) + 프로토콜 VarInt(5) + 주소 문자열(255자 → 최대 765B + 길이 3)
     // + 포트(2) + 다음 단계 VarInt(5) = 781B. 상태: 요청(id 만)·핑(id + long) = 9B. 그 뒤는 바닐라 21비트 프레임(2 MiB).
     static final int HANDSHAKE_FRAME_MAX = 1024;
+    // BungeeCord 레거시 포워딩을 켜면 주소 칸이 Short.MAX_VALUE 자(최대 3B/자 + 길이 3)까지 늘어난다: 1 + 5 + 98304 + 2 + 5.
+    static final int FORWARDED_HANDSHAKE_FRAME_MAX = 1 + 5 + (3 + Short.MAX_VALUE * 3) + 2 + 5;
     static final int STATUS_FRAME_MAX = 64;
     private ConnectionState frameLimitState;
 
@@ -199,7 +202,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void applyFrameLimit(ChannelHandlerContext ctx) {
         frameLimitState = state;
         org.domi.furnace.server.net.io.FrameDecoder fd = ctx.pipeline().get(org.domi.furnace.server.net.io.FrameDecoder.class);
-        if (fd != null) fd.maxLength(frameLimit(state));
+        if (fd != null) fd.maxLength(state == ConnectionState.HANDSHAKE && login.bungeecord ? FORWARDED_HANDSHAKE_FRAME_MAX : frameLimit(state));
     }
 
     @Override
@@ -212,7 +215,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             ctx.close();
             return;
         }
-        Handshake hs = Handshake.read(frame);
+        Handshake hs = Handshake.read(frame, login.bungeecord ? Handshake.MAX_FORWARDED_ADDRESS : Handshake.MAX_ADDRESS);
         // 바닐라 ServerHandshakePacketListenerImpl
         switch (hs.nextState()) {
             case 1 -> {
@@ -220,30 +223,46 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 // enable-status=false 면 응답하지 않고 끊는다(Ignoring status request). 상태 조회는 버전과 무관하게 허용.
                 if (!login.enableStatus) ctx.close();
             }
-            case 2 -> beginLogin(ctx, hs.protocolVersion(), false);
+            case 2 -> beginLogin(ctx, hs, false);
             case 3 -> {
                 state = ConnectionState.LOGIN;
                 if (!login.acceptsTransfers) {
                     disconnect(ctx, Text.translatable("multiplayer.disconnect.transfers_disabled"));
                 } else {
-                    beginLogin(ctx, hs.protocolVersion(), true);
+                    beginLogin(ctx, hs, true);
                 }
             }
             default -> ctx.close();
         }
     }
 
-    private void beginLogin(ChannelHandlerContext ctx, int protocolVersion, boolean transfer) {
+    private void beginLogin(ChannelHandlerContext ctx, Handshake hs, boolean transfer) {
         state = ConnectionState.LOGIN;
         transferred = transfer;
+        int protocolVersion = hs.protocolVersion();
         if (protocolVersion != PROTOCOL_VERSION) {
             String key = protocolVersion < 754 ? "multiplayer.disconnect.outdated_client" : "multiplayer.disconnect.incompatible";
             disconnect(ctx, Text.translatable(key, VERSION_NAME));
             return;
         }
+        // Spigot ServerHandshakePacketListenerImpl.beginLogin: 버전 검사 뒤 주소 칸의 레거시 포워딩을 읽는다.
+        if (login.bungeecord) {
+            var fwd = org.domi.furnace.server.net.auth.BungeeForwarding.parse(hs.serverAddress());
+            if (fwd == null) {
+                disconnect(ctx, Text.text(org.domi.furnace.server.net.auth.BungeeForwarding.NOT_FORWARDED));
+                return;
+            }
+            int port = ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa ? isa.getPort() : 0;
+            forwardedAddress = new java.net.InetSocketAddress(fwd.address(), port);
+            bungeeForwarded = fwd;
+        } else if (org.domi.furnace.server.net.auth.BungeeForwarding.looksForwarded(hs.serverAddress())) {
+            disconnect(ctx, Text.text(org.domi.furnace.server.net.auth.BungeeForwarding.UNEXPECTED_FORWARD));
+            return;
+        }
         // 바닐라: 로그인 단계 600틱(30초) 안에 끝나지 않으면 끊는다.
         slowLoginTimer = ctx.executor().schedule(() -> {
-            if (state == ConnectionState.LOGIN && loginPhase != LoginPhase.ACCEPTED) {
+            // 이미 끊긴 연결(밴·포워딩 거절 등)에 "Took too long to log in" 을 한 번 더 찍지 않는다
+            if (ctx.channel().isActive() && state == ConnectionState.LOGIN && loginPhase != LoginPhase.ACCEPTED) {
                 disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
             }
         }, 30, java.util.concurrent.TimeUnit.SECONDS);
@@ -290,6 +309,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 } else if (login.onlineMode) {
                     loginPhase = LoginPhase.KEY;
                     send(ctx, new EncryptionRequest("", login.keyPair.getPublic().getEncoded(), verifyToken, true));
+                } else if (bungeeForwarded != null) {
+                    // Spigot initUUID: 이름은 클라이언트가 보낸 것, UUID·속성은 프록시가 알려 준 것.
+                    startVerifying(ctx, new org.domi.furnace.server.players.GameProfile(bungeeForwarded.uuid(), playerName,
+                            bungeeForwarded.properties()));
                 } else {
                     startVerifying(ctx, org.domi.furnace.server.players.GameProfile.offline(playerName));
                 }
@@ -583,7 +606,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         startVerifying(ctx, fwd.profile());
     }
 
-    /** 실제 클라이언트 주소(Velocity 포워딩이면 프록시가 알려 준 주소). */
+    /** 실제 클라이언트 주소(Velocity·BungeeCord 포워딩이면 프록시가 알려 준 주소). */
     private java.net.SocketAddress clientAddress(ChannelHandlerContext ctx) {
         return forwardedAddress != null ? forwardedAddress : ctx.channel().remoteAddress();
     }
