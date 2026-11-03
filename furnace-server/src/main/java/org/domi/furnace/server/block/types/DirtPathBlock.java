@@ -17,8 +17,8 @@ public class DirtPathBlock extends BlockBehavior {
 
     @Override
     public int getStateForPlacement(PlaceContext ctx) {
-        // TODO(엔티티): Block.pushEntitiesUp(흙길, 흙, level, pos)
-        return !canSurvive(defaultState(), ctx.level(), ctx.clickedPos()) ? B.defaultState(DIRT) : super.getStateForPlacement(ctx);
+        return !canSurvive(defaultState(), ctx.level(), ctx.clickedPos())
+                ? ctx.level().pushEntitiesUp(defaultState(), B.defaultState(DIRT), ctx.clickedPos()) : super.getStateForPlacement(ctx);
     }
 
     @Override

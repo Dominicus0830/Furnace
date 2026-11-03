@@ -318,6 +318,15 @@ public abstract non-sealed class Entity implements Rider {
     public void teleportTo(double nx, double ny, double nz) { moveTo(nx, ny, nz, yRot, xRot); }
 
     /**
+     * Entity.teleportRelative(dx, dy, dz) → teleportTo(x + dx, …): 서버 레벨에서는 moveTo(회전 그대로) 뒤 승객 자리를 다시 맞춘다
+     * (teleportPassengers). 주인 region 스레드에서만 부른다.
+     */
+    public void teleportRelative(double dx, double dy, double dz) {
+        moveTo(x + dx, y + dy, z + dz, yRot, xRot);
+        reapplyPosition();
+    }
+
+    /**
      * Entity.teleportTo(level, x, y, z, 상대 없음, yRot, xRot) 의 같은 레벨 경로: 위아래 각을 ±90 으로 자르고 옮긴 뒤 승객 자리를
      * 다시 맞춘다(reapplyPosition). 머리 각도는 호출한 쪽(LivingEntity)이 맞춘다. 주인 region 스레드에서만 부른다.
      */

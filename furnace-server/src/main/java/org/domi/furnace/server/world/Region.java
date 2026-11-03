@@ -1826,6 +1826,7 @@ public final class Region {
         p.pendingChunks().clear();
         p.lastCenter(null);
         p.queuedCenter(null);
+        p.trackedViewDistance(-1);
         for (Integer eid : p.tracked().keySet()) world.removeTracker(eid, p);
         p.tracked().clear();
         p.missingTicks().clear();
@@ -1881,13 +1882,19 @@ public final class Region {
         if (uuid != null) a.send(new PlayerInfoRemove(java.util.List.of(uuid)));
     }
 
-    /** 중심 이동 시 시야 청크를 pending 큐에 적재(+구독), 시야 밖은 언로드. 전송은 sendQueuedChunks가 틱당 스로틀. */
+    /**
+     * 중심 이동 또는 시야 거리 변경 시 시야 청크를 pending 큐에 적재(+구독), 시야 밖은 언로드. 전송은 sendQueuedChunks가 틱당 스로틀.
+     * 바닐라 ChunkMap.updateChunkTracking: 중심과 거리가 둘 다 그대로일 때만 건너뛴다 — 거리만 바뀌어도 그 틱에 차이를 반영한다.
+     * SetCenterChunk 는 중심이 바뀔 때만 보낸다(applyChunkTrackingView).
+     */
     private void updateChunks(Player p) {
         ChunkPos center = p.chunkPos();
-        if (center.equals(p.lastCenter()) && center.equals(p.queuedCenter())) return;
         int vd = Math.min(world.viewDistance(), p.viewDistance()); // 서버 상한 + 클라 요청
+        boolean vdChanged = vd != p.trackedViewDistance();
+        if (!vdChanged && center.equals(p.lastCenter()) && center.equals(p.queuedCenter())) return;
         List<ChunkPos> toForget = new ArrayList<>();
-        if (!center.equals(p.lastCenter())) {
+        boolean moved = !center.equals(p.lastCenter());
+        if (moved || vdChanged) {
             // 시야 밖이 된 청크는 대기 청크가 많든 적든 항상 정리한다(구독 해제·대기열 제거). 예전엔 대기가 512를 넘으면 건너뛰어
             // 클라가 버린 청크가 구독에 남고 오래된 위치의 대기 청크가 계속 생성·직렬화됐다.
             var it = p.loadedChunks().iterator();
@@ -1900,11 +1907,11 @@ public final class Region {
                     if (!p.pendingChunks().remove(cp)) toForget.add(cp);
                 }
             }
-            p.send(new SetCenterChunk(center.x(), center.z()));
+            if (moved) p.send(new SetCenterChunk(center.x(), center.z()));
             for (ChunkPos cp : toForget) p.send(new UnloadChunk(cp.x(), cp.z()));
             p.lastCenter(center);
         }
-        if (center.equals(p.queuedCenter())) return;
+        if (!vdChanged && center.equals(p.queuedCenter())) return;
         // 대기열은 언제나 지금 시야 전체를 담고 새 중심 기준으로 정렬한다(대기열은 좌표뿐이라 싸다). 실제 작업량은
         // sendQueuedChunks 의 동시 진행 상한이 막는다 — 예전처럼 대기가 많다고 새 중심의 청크를 안 넣으면 큰 시야에서
         // 플레이어 바로 옆 청크가 대기열에 없어 한참 비어 보였다.
@@ -1923,6 +1930,7 @@ public final class Region {
         p.pendingChunks().addAll(toQueue);
         reorderPendingNearestFirst(center, p.pendingChunks());
         p.queuedCenter(center);
+        p.trackedViewDistance(vd);
     }
 
     /** chunks를 중심 거리 오름차순 정렬 — 스폰/근접 청크 먼저 전송해 클라가 즉시 "로드된 청크"에 스폰(낙하 방지). */

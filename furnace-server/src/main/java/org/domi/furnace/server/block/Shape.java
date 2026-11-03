@@ -56,6 +56,77 @@ public final class Shape {
         return new Shape(r);
     }
 
+    /**
+     * Shapes.joinUnoptimized(a, b, ONLY_SECOND): b 에만 있는 부분. a 가 비면 b 그대로, a == b 거나 b 가 비면 빈 모양.
+     * 격자는 바닐라 IndexMerger 처럼 잡는다 — 둘 다 큐브 격자면 더 고운 쪽(DiscreteCubeMerger, 2 의 거듭제곱이라 최소공배수 = 큰 쪽),
+     * 아니면 두 격자 좌표의 합집합(IndirectMerger). 엔티티가 모양에 걸쳐 있을 때 collide 결과가 칸 경계에 달려서다.
+     */
+    public static Shape joinOnlySecond(Shape a, Shape b) {
+        if (a == b || b.isEmpty()) return EMPTY;
+        if (a.isEmpty()) return b;
+        Grid ga = a.base.grid(), gb = b.base.grid();
+        double[][] coords = new double[3][];
+        for (int axis = 0; axis < 3; axis++) {
+            double[] ca = ga.coords[axis], cb = gb.coords[axis];
+            double oa = a.offset(axis), ob = b.offset(axis);
+            int ra = cubeRes(ca, oa), rb = cubeRes(cb, ob);
+            if (ra > 0 && rb > 0) {
+                int res = Math.max(ra, rb);
+                double[] r = new double[res + 1];
+                for (int i = 0; i <= res; i++) r[i] = (double) i / res;
+                coords[axis] = r;
+            } else {
+                double[] all = new double[ca.length + cb.length];
+                for (int i = 0; i < ca.length; i++) all[i] = ca[i] + oa;
+                for (int i = 0; i < cb.length; i++) all[ca.length + i] = cb[i] + ob;
+                Arrays.sort(all);
+                double[] r = new double[all.length];
+                int n = 0;
+                for (double v : all) if (n == 0 || v > r[n - 1] + 1.0E-7) r[n++] = v;   // IndirectMerger: EPS 안의 좌표는 하나로
+                coords[axis] = Arrays.copyOf(r, n);
+            }
+        }
+        int sx = coords[0].length - 1, sy = coords[1].length - 1, sz = coords[2].length - 1;
+        boolean[] full = new boolean[Math.max(0, sx * sy * sz)];
+        double[] out = new double[0];
+        int n = 0;
+        for (int x = 0; x < sx; x++) {
+            double cx = (coords[0][x] + coords[0][x + 1]) / 2;
+            for (int y = 0; y < sy; y++) {
+                double cy = (coords[1][y] + coords[1][y + 1]) / 2;
+                for (int z = 0; z < sz; z++) {
+                    double cz = (coords[2][z] + coords[2][z + 1]) / 2;
+                    if (b.containsPoint(cx, cy, cz) && !a.containsPoint(cx, cy, cz)) {
+                        full[(x * sy + y) * sz + z] = true;
+                        if (n + 6 > out.length) out = Arrays.copyOf(out, Math.max(12, out.length * 2));
+                        out[n++] = coords[0][x]; out[n++] = coords[1][y]; out[n++] = coords[2][z];
+                        out[n++] = coords[0][x + 1]; out[n++] = coords[1][y + 1]; out[n++] = coords[2][z + 1];
+                    }
+                }
+            }
+        }
+        if (n == 0) return EMPTY;
+        Shape r = new Shape(Arrays.copyOf(out, n));
+        r.grid = new Grid(coords, full, sy, sz);
+        return r;
+    }
+
+    /** 격자가 [0,1] 의 1/res 등간격(res = 2^b, b ≤ 3, 큐브 격자)이면 res, 아니면 0. */
+    private static int cubeRes(double[] c, double off) {
+        int res = c.length - 1;
+        if (off != 0 || res < 1 || res > 8 || Integer.bitCount(res) != 1) return 0;
+        for (int i = 0; i <= res; i++) if (Math.abs(c[i] - (double) i / res) >= 1.0E-7) return 0;
+        return res;
+    }
+
+    /** 점이 어느 상자 안인가(아래 경계 포함, 위 경계 제외 — 격자 칸 가운데 판정용). */
+    private boolean containsPoint(double x, double y, double z) {
+        for (int i = 0; i < boxes.length; i += 6) {
+            if (boxes[i] <= x && x < boxes[i + 3] && boxes[i + 1] <= y && y < boxes[i + 4] && boxes[i + 2] <= z && z < boxes[i + 5]) return true;
+        }
+        return false;
+    }
+
     public Shape move(double dx, double dy, double dz) {
         if (boxes.length == 0 || dx == 0 && dy == 0 && dz == 0) return this;
         double[] b = boxes.clone();

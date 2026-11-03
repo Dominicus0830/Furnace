@@ -258,6 +258,12 @@ public interface BlockLevel {
     /** Level.getHeight(WORLD_SURFACE, x, z): 가장 높은 블록 바로 위 y. 높이 지도가 없는 레벨은 상한. */
     default int worldSurfaceHeight(int x, int z) { return maxBuildHeight(); }
 
+    /**
+     * Block.pushEntitiesUp(from, to, level, pos): from → to 로 바뀌며 새로 생긴 충돌 부분에 걸친 엔티티를 그 위로 올린다. to 를 돌려준다.
+     * 엔티티가 없는 레벨(월드 생성 등)은 아무것도 하지 않는다.
+     */
+    default int pushEntitiesUp(int from, int to, Pos pos) { return to; }
+
     /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). 플레이어가 없는 레벨은 아무도 없다. */
     default void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<org.domi.furnace.server.entity.Player> c) {}
 

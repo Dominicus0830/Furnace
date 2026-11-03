@@ -584,8 +584,9 @@ public abstract class ChunkLevel implements BlockLevel {
                     Prop layers = blocks.prop("layers");
                     int j = layers.intValue(s);
                     if (j < Math.min(max, 8)) {
-                        // TODO(엔티티): Block.pushEntitiesUp(눈, 한 겹 더 쌓인 눈, level, pos)
-                        setBlockAndUpdate(top, layers.withInt(s, j + 1));
+                        int more = layers.withInt(s, j + 1);
+                        pushEntitiesUp(s, more, top);
+                        setBlockAndUpdate(top, more);
                     }
                 } else {
                     setBlockAndUpdate(top, blocks.defaultState(SNOW));
@@ -1443,6 +1444,30 @@ public abstract class ChunkLevel implements BlockLevel {
         org.domi.furnace.server.entity.Player[] found = new org.domi.furnace.server.entity.Player[1];
         services().forEachPlayer(p -> { if (uuid.equals(p.uuid())) found[0] = p; });
         return found[0];
+    }
+
+    /**
+     * Block.pushEntitiesUp: joinUnoptimized(from 충돌, to 충돌, ONLY_SECOND) 을 칸으로 옮긴 모양이 비면 끝. 아니면 그 경계 상자와 겹치는
+     * 관전자 아닌 엔티티마다 상자를 1 올려 모양 쪽으로 -1 만큼 내린 충돌 거리 d 를 구해 teleportRelative(0, 1 + d, 0).
+     * 엔티티는 모양이 아니라 경계 상자와만 겹치면 된다(바닐라 getEntities(null, shape.bounds())).
+     */
+    @Override
+    public int pushEntitiesUp(int from, int to, Pos pos) {
+        Shape s = Shape.joinOnlySecond(B.behavior(from).getCollisionShape(from, this, pos, null),
+                B.behavior(to).getCollisionShape(to, this, pos, null)).move(pos.x(), pos.y(), pos.z());
+        if (s.isEmpty()) return to;
+        double[] b = s.bounds();
+        org.domi.furnace.server.entity.AABB box = new org.domi.furnace.server.entity.AABB(b[0], b[1], b[2], b[3], b[4], b[5]);
+        for (Entity e : getEntities(null, box, t -> !t.isSpectator())) {
+            double d = s.collide(1, e.boundingBox().move(0.0, 1.0, 0.0), -1.0);
+            e.teleportRelative(0.0, 1.0 + d, 0.0);
+        }
+        forEachPlayerIn(box, p -> {
+            if (p.isSpectator()) return;
+            double d = s.collide(1, p.boundingBox().move(0.0, 1.0, 0.0), -1.0);
+            p.teleportRelative(0.0, 1.0 + d, 0.0);
+        });
+        return to;
     }
 
     /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). */
