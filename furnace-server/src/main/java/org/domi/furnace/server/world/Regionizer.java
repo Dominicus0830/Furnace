@@ -60,6 +60,8 @@ public final class Regionizer {
     private final ConcurrentHashMap<Region, Long> running = new ConcurrentHashMap<>();
     /** 최근 region 틱 소요 시간(ns) 분포(잠금 없이 기록). */
     private final org.domi.furnace.server.sched.TickTimeRing tickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
+    /** 이 차원 region 틱 전부의 시간 창별 소요 시간(/mspt). */
+    private final org.domi.furnace.server.sched.TickWindows tickWindows = new org.domi.furnace.server.sched.TickWindows();
 
     // ------------------------------------------------------------------ 스케줄 계측(동작에 영향 없음)
     /** 지금 틱 중인 region 수(= 바쁜 워커 수)와 그 최대. */
@@ -471,7 +473,7 @@ public final class Regionizer {
             if (game) {
                 long took = System.nanoTime() - tickStart;
                 world.tickState().record(took);   // /tick query 의 틱 시간 표본
-                noteTickTime(r, took);
+                noteTickTime(r, tickStart, took);
             }
         } catch (Throwable t) {
             log.error("[TICK] region #{} 실패", r.id, t);
@@ -481,8 +483,10 @@ public final class Regionizer {
     }
 
     /** 틱 소요 시간을 관측용으로 남긴다(잠금 없음). */
-    private void noteTickTime(Region r, long took) {
+    private void noteTickTime(Region r, long start, long took) {
         tickRing.record(took);
+        tickWindows.record(start, took);
+        r.tickStarts.record(start);
         r.lastTickNanos = took;
         if (took > r.maxTickNanos) r.maxTickNanos = took;
     }
@@ -835,26 +839,59 @@ public final class Regionizer {
         List<RegionInfo> out = new ArrayList<>();
         lock.lock();
         try {
-            for (Region r : regions) {
-                int minX = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-                for (long key : r.sections) {
-                    Section sec = sections.get(key);
-                    if (sec == null) continue;
-                    int sx = (int) (key >> 32) << shift, sz = (int) key << shift;
-                    minX = Math.min(minX, sx);
-                    minZ = Math.min(minZ, sz);
-                    maxX = Math.max(maxX, sx + (1 << shift) - 1);
-                    maxZ = Math.max(maxZ, sz + (1 << shift) - 1);
-                }
-                Thread t = r.tickThread;
-                Long started = running.get(r);
-                out.add(new RegionInfo(r.id, r.sections.size(), r.present.size(), r.inbox.size(), t == null ? null : t.getName(),
-                        started == null ? 0 : now - started, r.lastTickNanos, r.maxTickNanos, minX, minZ, maxX, maxZ));
-            }
+            for (Region r : regions) out.add(info(r, now));
         } finally {
             lock.unlock();
         }
         return out;
+    }
+
+    /** region 하나의 관측 사본(잠금 안). */
+    private RegionInfo info(Region r, long now) {
+        int minX = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (long key : r.sections) {
+            Section sec = sections.get(key);
+            if (sec == null) continue;
+            int sx = (int) (key >> 32) << shift, sz = (int) key << shift;
+            minX = Math.min(minX, sx);
+            minZ = Math.min(minZ, sz);
+            maxX = Math.max(maxX, sx + (1 << shift) - 1);
+            maxZ = Math.max(maxZ, sz + (1 << shift) - 1);
+        }
+        Thread t = r.tickThread;
+        Long started = running.get(r);
+        return new RegionInfo(r.id, r.sections.size(), r.present.size(), r.inbox.size(), t == null ? null : t.getName(),
+                started == null ? 0 : now - started, r.lastTickNanos, r.maxTickNanos, minX, minZ, maxX, maxZ);
+    }
+
+    /** region 틱 시간 창별 소요 시간(/mspt). */
+    public org.domi.furnace.server.sched.TickWindows tickWindows() { return tickWindows; }
+
+    /** /tps 용: region 하나의 최근 틱 속도. tps 는 TickStartRing.rate 값. */
+    public record RegionRate(RegionInfo region, double tps) {}
+
+    /**
+     * 최근 windowNanos 동안 틱 속도가 가장 낮은 region(같으면 id 가 작은 쪽). 기록이 minHistoryNanos 보다 짧은 region(막 생긴 region)은
+     * 빼고, 잴 수 있는 region 이 없으면 null. 잠금 안에서 각 region 의 시작 시각 고리만 읽는다.
+     */
+    public RegionRate slowestRegion(long now, long windowNanos, long minHistoryNanos) {
+        lock.lock();
+        try {
+            Region worst = null;
+            double worstTps = Double.NaN;
+            for (Region r : regions) {
+                if (!r.alive || r.yielded) continue;
+                double tps = r.tickStarts.rate(now, windowNanos, minHistoryNanos);
+                if (Double.isNaN(tps)) continue;
+                if (worst == null || tps < worstTps || (tps == worstTps && r.id < worst.id)) {
+                    worst = r;
+                    worstTps = tps;
+                }
+            }
+            return worst == null ? null : new RegionRate(info(worst, now), worstTps);
+        } finally {
+            lock.unlock();
+        }
     }
 
     /** 대기열에 든 region 수(틱 차례를 기다리는 것 — 잠금 안). */

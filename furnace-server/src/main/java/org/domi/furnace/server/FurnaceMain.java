@@ -331,6 +331,7 @@ public final class FurnaceMain {
         // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
         org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
         org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
@@ -411,8 +412,8 @@ public final class FurnaceMain {
             if (world.autosaveEnabled()) saveLevelData.run();
         }, config.autosaveTicks()), config.autosaveTicks());
         ConsoleInput.start(core);
-        // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분).
-        scheduler.global().executeDelayed(new Repeating(scheduler, core::scheduledTick, 1), 1);
+        // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
+        new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
         startRemoteServices(core, props, config, remoteServices);
 
@@ -477,6 +478,66 @@ public final class FurnaceMain {
             } finally {
                 scheduler.global().executeDelayed(this, period);
             }
+        }
+    }
+
+    /**
+     * 고정 박자 반복(전역 틱) — 바닐라 MinecraftServer.runServer 의 박자: 마감을 주기만큼 앞으로 옮겨(nextTickTimeNanos += nanosPerTick)
+     * 작업 시간·스케줄 지연이 다음 박동을 미루지 않게 하고, 밀리면 따라잡는다. Repeating(끝난 뒤 50ms)으로 돌리면 박동이 50ms + 작업 시간마다라
+     * 초당 약 19.8회로 늘 처지고 게임 시간이 1% 남짓 느리게 갔다(/tps 로 발견).
+     * 과부하: 바닐라처럼 1초 + 20틱 넘게 밀렸고 지난 경고 뒤 10초 + 100틱이 지났으면 "Can't keep up!" 을 찍고 밀린 틱을 건너뛴다.
+     */
+    static final class FixedRateBeat implements Runnable {
+        /** 바닐라 OVERLOADED_THRESHOLD_NANOS(1초)·OVERLOADED_TICKS_THRESHOLD(20)·OVERLOADED_WARNING_INTERVAL_NANOS(10초)·…_TICKS(100). */
+        static final long OVERLOADED_THRESHOLD_NANOS = 1_000_000_000L;
+        static final long OVERLOADED_WARNING_INTERVAL_NANOS = 10_000_000_000L;
+        private final FurnaceSchedulerImpl scheduler;
+        private final Runnable task;
+        final long period;
+        /** 이번 박동의 마감(바닐라 nextTickTimeNanos)과 마지막 과부하 경고 때의 마감(lastOverloadWarningNanos). */
+        long next, lastWarning;
+
+        FixedRateBeat(FurnaceSchedulerImpl scheduler, Runnable task, long periodNanos) {
+            this.scheduler = scheduler;
+            this.task = task;
+            this.period = periodNanos;
+        }
+
+        void start() {
+            next = System.nanoTime() + period;
+            lastWarning = next;
+            schedule();
+        }
+
+        @Override
+        public void run() {
+            try {
+                long now = System.nanoTime(), behind = now - next;
+                long skipped = checkOverload(now);
+                if (skipped > 0) log.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", behind / 1_000_000L, skipped);
+                next += period;
+                task.run();
+            } finally {
+                schedule();
+            }
+        }
+
+        /** 박동 머리(바닐라와 같은 조건): 크게 밀렸고 경고 간격이 지났으면 밀린 틱 수만큼 마감을 건너뛰고 그 수를 돌려준다. 아니면 0. */
+        long checkOverload(long now) {
+            long behind = now - next;
+            if (behind > OVERLOADED_THRESHOLD_NANOS + 20L * period && next - lastWarning >= OVERLOADED_WARNING_INTERVAL_NANOS + 100L * period) {
+                long ticks = behind / period;
+                next += ticks * period;
+                lastWarning = next;
+                return ticks;
+            }
+            return 0;
+        }
+
+        private void schedule() {
+            long delay = Math.max(0L, next - System.nanoTime());
+            java.util.concurrent.CompletableFuture.runAsync(this, java.util.concurrent.CompletableFuture.delayedExecutor(
+                    delay, java.util.concurrent.TimeUnit.NANOSECONDS, r -> scheduler.global().execute(r)));
         }
     }
 
