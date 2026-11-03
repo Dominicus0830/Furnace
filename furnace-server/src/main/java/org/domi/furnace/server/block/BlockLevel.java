@@ -166,6 +166,21 @@ public interface BlockLevel {
     /** 거북알이 부화할 때 아기 거북 하나(나이 -24000, 집 = pos)를 만든다. index 는 알 번호. */
     default void spawnBabyTurtle(Pos pos, int index) {}
 
+    /**
+     * 개구리알이 부화할 때 올챙이 하나를 만든다(FrogspawnBlock.spawnTadpoles 의 한 번).
+     * x·z 는 칸 좌표에 더할 오프셋, yRot 은 몸 방향. 올챙이는 persistenceRequired 다.
+     */
+    default void spawnTadpole(Pos pos, double xOffset, double zOffset, float yRot) {}
+
+    /** 스니퍼 알이 부화할 때 아기 스니퍼를 칸 가운데(getCenter)에 만든다. yRot 은 몸 방향. */
+    default void spawnBabySniffer(Pos pos, float yRot) {}
+
+    /**
+     * PiglinAi.angerNearbyPiglins: 플레이어 상자에서 16칸 안의 한가한 피글린을 그 플레이어에게 화나게 한다.
+     * 엔티티가 없는 레벨·플레이어가 아닌 행위자는 아무것도 안 한다.
+     */
+    default void angerNearbyPiglins(BlockActor player, boolean requireLineOfSight) {}
+
     /** 호박 머리로 완성된 골렘을 만든다(눈 골렘 또는 플레이어가 만든 철 골렘). bottom 은 모양의 맨 아래 가운데 칸. */
     default void spawnGolem(boolean iron, Pos bottom) {}
 

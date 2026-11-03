@@ -32,7 +32,7 @@
 - 몹 목표 누락: 좀비 계열(거북알·마을 이동·철 골렘/아기 거북 타깃·`alertOthers`), 거미/해골/슬라임의 철 골렘·거북 타깃, 늑대(라마 회피·거북·해골), 토끼(늑대 회피), 철 골렘 마을 AI(DefendVillage·MoveBackToVillage), 마녀 타깃, 고양이 3종, 돌고래 3종, 여우, 앵무 어깨, 엔더마이트 타깃, 수호자 아홀로틀
 - Pig·Strider·Camel 안장은 얹지만 올라타지 못함, 늑대 변종 없음, 마을 포위(VillageSiege) 없음, 엔티티 동결(가루눈) 없음, 복어 접촉 독 없음, Mob 장비 교체 단순화, 팀 `isAlliedTo`, 끈(리쉬), 스포너 수레, 알레이 진동 수신
 - 블록 엔티티 12종 없음(skull·conduit·command/structure/jigsaw·end_gateway·end_portal·enchanting_table·brushable·trial_spawner·vault), 가마솥 씻기, 깃발 무늬 블록 이전, 엔티티 접촉 훅(버튼 화살·작물·거북알 등), 비교기 액자, 수상한 스튜/후렴과일/불길한 병, 산양 뿔·망원경·책 열기/편집, TNT 점화 도구 소모
-- 월드: 서리 얼음 영구, 개구리알/스니퍼알 부화 새끼 없음, 오버월드 포탈 좀비 피글린, 스폰 청크 상시 로드, `nether_fossil` 미생성, 커스텀 generator(large_biomes·amplified·debug) 무시, 지도는 region 보유 청크만
+- 월드: 서리 얼음 영구, ~~개구리알/스니퍼알 부화 새끼 없음~~(2026-11-03 구현), 오버월드 포탈 좀비 피글린, 스폰 청크 상시 로드, `nether_fossil` 미생성, 커스텀 generator(large_biomes·amplified·debug) 무시, 지도는 region 보유 청크만
 - 네트워크: custom_payload(플러그인 채널·brand)·hurt_animation·set_entity_link·set_camera·resource_pack 미송신/무시, 이동 검증("moved too quickly") 없음, idle-timeout 킥 없음
 - 플레이어: 성급함·채굴 피로·힘·나약함 미반영, thorns·호흡·frost_walker, 수영/기어가기/불/투명/발광 플래그 미동기, 이동 통계 없음
 - 명령: `/spectate` `/debug` `/jfr` `/perf` `/publish` 미등록(구현 중), `/kick` 권한 레벨 2(바닐라 3), 블록 엔티티 Clearable/NBT, 채팅 필터, 아이템 술어는 count·damage 만

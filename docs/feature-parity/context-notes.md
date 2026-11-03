@@ -677,3 +677,18 @@
   - `Entity.teleport` 는 같은 차원·같은 region 안만 true(다른 region 으로 넘기는 이동은 핸드오프가 필요해 false). `Entity.scheduler()` 는 핸들 시점 위치의 region 스케줄러다.
   - 기존 `BlockBreakEvent/BlockPlaceEvent` 는 차원을 `"minecraft:overworld"` 로 하드코딩해 둔다(이번 작업에서 발견, 미수정). `PlayerHandle.location()` 은 실제 차원으로 고침.
 - 후속(검토 반영): `PlayerMoveEvent` 취소는 `applyMove(prev)` 로 서버 위치를 되돌린 뒤 `Player.correctTo`(이벤트 우회 보정)로 텔레포트하며 `moveRejectHold` 를 건다 — 검증기(`PlayerMoveValidator.reject`)도 같은 `correctTo` 를 쓰도록 바꿔, 텔레포트 리스너가 보정을 삼키지 못한다(Paper 의 정확한 동작은 미확인, **가정**). 검증 대기 패킷은 hold 동안 버려진다. `EntitySpawnEvent` 는 목록 추가 뒤 발화·취소 시 되돌림, 승객 묶음은 전부 아니면 전무(Paper 는 개별 엔티티 단위일 수 있다 — 미확인). `Interact` 취소는 손 슬롯 `ContainerSetSlot(-2)` 재전송(블록은 기존 재전송). 플레이어 인벤토리 쓰기는 `runOnOwner`(소유 틱에서 적용되므로 Future 가 최대 한 틱 늦게 완료). 서버 스레드에서 미완료 `RegionFuture.get()/join()` 은 예외.
+
+## 2026-11-03 올챙이·아기 스니퍼 생성과 피글린 분노 연결
+바닐라 1.21.1 바이트코드(`javap -c -p`, 난독화 이름 djc=FrogspawnBlock, dnh=SnifferEggBlock, clo=PiglinAi, dfy=Block, cow=ChestBoat, cox=ContainerEntity, cpa=MinecartChest)로 대조했다.
+
+- **개구리알 부화**(`FrogspawnBlock.hatch`): 블록을 지우고 `block.frogspawn.hatch` 소리 뒤 `nextIntBetweenInclusive(2, 6)` 마리. 마리마다 **x 오프셋 → z 오프셋 → 방향** 순서로 난수를 쓴다. 오프셋은 `clamp(nextDouble, 0.2, 0.8)` 인데 바닐라 상수는 float 를 넓힌 값(0.20000000298023224 / 0.7999999970197678)이라 그대로 썼다. 방향은 `nextIntBetweenInclusive(1, 361)`(1~361, 바닐라 그대로 — wrapDegrees 하지 않는다), y 는 **칸 y − 0.5**, 올챙이는 `setPersistenceRequired`. 블록 틱 난수(`random` 인자)를 쓴다.
+- **스니퍼 알 부화**(`SnifferEggBlock.tick`): hatch 2 면 소리 → `destroyBlock` → 아기 스니퍼(`setBaby(true)`) 를 **`pos.getCenter()`(x+0.5, y+0.5, z+0.5)** 에, 방향은 `wrapDegrees(level.random.nextFloat() × 360)`(레벨 난수, 블록 틱 난수가 아니다). 이전 주석의 "칸 아래 가운데"는 틀렸다. persistence 는 걸지 않는다. 스니퍼의 아기 나이는 -48000(`Sniffer.setBaby`).
+- **피글린 분노 호출부 7곳**(바닐라와 같은 지점·같은 `requireLineOfSight`):
+  - `Block.playerWillDestroy`: 파괴 효과(2001) 뒤, 게임 이벤트 앞. 상태가 `#minecraft:guarded_by_piglins`(금 블록·금 광석·상자류 등)일 때 **시야 불필요(false)**.
+  - 통·상자·엔더 상자·셜커 상자 `useWithoutItem`(통계 뒤), 상자 수레 `interact`, 상자 배 `interact`·`openCustomInventoryScreen`: 모두 **시야 필요(true)**.
+  - `ContainerEntity.chestVehicleDestroyed`(상자 수레·상자 배 파괴): `doEntityDrops` 가 꺼져 있으면 바닐라가 먼저 return 하므로 **분노도 없다**. 부순 쪽이 플레이어일 때만.
+  - 깔때기 수레는 분노시키지 않는다(바닐라도 상자 수레만).
+- 엔티티 없는 레벨을 위해 `BlockLevel` 에 `spawnTadpole`·`spawnBabySniffer`·`angerNearbyPiglins` 기본 빈 메서드를 두고 `ChunkLevel` 에서 구현했다(`spawnBabyTurtle`·`spawnSilverfishAt` 와 같은 방식).
+- **고친 버그**: `PiglinAi.setAngerTarget` 이 대상을 `(Entity)` 로 캐스팅해 UUID 를 읽어, 대상이 **플레이어면 ClassCastException** 이었다(Furnace 플레이어는 `Entity` 가 아니다). 지금까지 호출부가 없어 드러나지 않았다. `uuidOf(Targetable)` 로 나눠 고쳤다.
+- 탈것 파괴에서 부순 쪽을 알아야 해서 `AbstractMinecart.destroy(Damage)` → `destroy(Damage, Targetable)`, `Boat.destroy()` → `destroy(Targetable)` 로 넓혔다(`hurtBy` 가 이미 attacker 를 받는다).
+- **시험 교훈**: 금을 걸치지 않은 플레이어가 가까이 있으면 피글린이 바로 FIGHT 로 가 `isIdle` 이 거짓이라 분노가 걸리지 않는다(바닐라도 같다). 시험에서는 플레이어에게 금 투구를 입히고, "IDLE ∧ 플레이어를 봄"이 될 때까지 틱을 돌린다. 오버월드에서는 피글린이 약 300틱 뒤 좀비 피글린으로 변하므로 폴링 상한을 그 안(200틱)에 둔다. 시험: `entity/HatchSpawnAndPiglinAngerTest`(10개).

@@ -162,13 +162,13 @@ public class Boat extends Entity implements Leashable {
         if ((creative || !(getDamage() > 40.0F))) {
             if (creative) discard();
         } else {
-            destroy();
+            destroy(attacker);
         }
         return true;
     }
 
-    /** destroy(source): 지우고 엔티티 드롭 규칙이면 배 아이템(TODO(이름표): 사용자 지정 이름을 아이템 이름으로). */
-    protected void destroy() {
+    /** destroy(source): 지우고 엔티티 드롭 규칙이면 배 아이템(TODO(이름표): 사용자 지정 이름을 아이템 이름으로). attacker 는 부순 쪽(없으면 null). */
+    protected void destroy(Targetable attacker) {
         kill();
         if (level.gameRule("doEntityDrops")) spawnAtLocation(new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", dropItem().substring(10)), 1));
     }
