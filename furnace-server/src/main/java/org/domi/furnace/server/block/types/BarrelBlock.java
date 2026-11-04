@@ -24,7 +24,7 @@ public class BarrelBlock extends BaseEntityBlock {
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
         player.openContainer(pos);
         player.awardStat("minecraft:open_barrel");
-        // TODO(엔티티): PiglinAi.angerNearbyPiglins(player, true).
+        level.angerNearbyPiglins(player, true);
         return InteractionResult.CONSUME;
     }
 

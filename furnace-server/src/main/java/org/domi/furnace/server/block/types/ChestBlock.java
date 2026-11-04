@@ -116,7 +116,7 @@ public class ChestBlock extends AbstractChestBlock {
         if (!blocked) {
             player.openContainer(pos);
             player.awardStat(openChestStat());
-            // TODO(엔티티): PiglinAi.angerNearbyPiglins(player, true).
+            level.angerNearbyPiglins(player, true);
         }
         return InteractionResult.CONSUME;
     }

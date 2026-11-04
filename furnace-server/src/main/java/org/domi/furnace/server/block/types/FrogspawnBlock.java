@@ -46,10 +46,16 @@ public class FrogspawnBlock extends BlockBehavior {
         level.playSound(null, pos, "minecraft:block.frogspawn.hatch", "blocks", 1.0F, 1.0F);
         int n = random.nextIntBetweenInclusive(2, 6);
         for (int i = 1; i <= n; i++) {
-            // TODO(엔티티): 올챙이 생성(위치 x·z 오프셋 clamp(nextDouble, 0.2, 0.8), 방향 1~361, 나이 고정). 난수는 같은 순서로 뽑는다.
-            random.nextDouble();
-            random.nextDouble();
-            random.nextIntBetweenInclusive(1, 361);
+            // 바닐라 spawnTadpoles: x 오프셋 → z 오프셋 → 방향(1~361) 순서로 난수를 뽑는다.
+            double xOffset = randomTadpolePositionOffset(random);
+            double zOffset = randomTadpolePositionOffset(random);
+            float yRot = random.nextIntBetweenInclusive(1, 361);
+            level.spawnTadpole(pos, xOffset, zOffset, yRot);
         }
+    }
+
+    /** getRandomTadpolePositionOffset: clamp(nextDouble, 0.2, 0.8) — 바닐라 경계는 float 상수를 넓힌 값이다. */
+    private static double randomTadpolePositionOffset(RandomSource random) {
+        return Math.clamp(random.nextDouble(), (double) 0.2F, (double) 0.8F);
     }
 }

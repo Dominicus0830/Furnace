@@ -41,11 +41,14 @@ public abstract class AbstractMinecartContainer extends AbstractMinecart impleme
 
     @Override public Entity asEntity() { return this; }
 
-    /** destroy(source): 수레 아이템(그 안의 kill → remove 가 내용물을 먼저 쏟는다) 뒤 chestVehicleDestroyed. TODO(피글린): 플레이어가 부수면 화내기. */
+    /** destroy(source): 수레 아이템(그 안의 kill → remove 가 내용물을 먼저 쏟는다) 뒤 chestVehicleDestroyed — 플레이어가 부수면 피글린 분노. */
     @Override
-    protected void destroy(Damage source) {
-        super.destroy(source);
-        if (level.gameRule("doEntityDrops")) dropContents();
+    protected void destroy(Damage source, Targetable attacker) {
+        super.destroy(source, attacker);
+        if (level.gameRule("doEntityDrops")) {   // chestVehicleDestroyed: 규칙이 꺼져 있으면 피글린 분노도 없다
+            dropContents();
+            if (attacker instanceof Player p) PiglinAi.angerNearbyPiglins(level, p, true);
+        }
     }
 
     /** remove: 없애는 이유(죽음·버림)면 내용물을 쏟는다. */
