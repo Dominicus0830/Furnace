@@ -20,7 +20,12 @@ public abstract class AbstractCandleBlock extends BlockBehavior {
         return LIT.has(state) && (B.isTag(state, "minecraft:candles") || B.isTag(state, "minecraft:candle_cakes")) && LIT.is(state);
     }
 
-    // TODO(엔티티): onProjectileHit — 불붙은 투사체가 닿고 canBeLit 이면 setLit(true).
+    /** onProjectileHit: 불붙은 투사체가 닿고 canBeLit 이면 켠다(mayInteract 는 보지 않는다). */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        if (projectile.isOnFire() && canBeLit(state)) setLit(level, state, hit.blockPos(), true);
+    }
 
     protected boolean canBeLit(int state) { return !LIT.is(state); }
 

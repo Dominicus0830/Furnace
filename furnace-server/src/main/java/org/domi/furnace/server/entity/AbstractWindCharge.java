@@ -41,6 +41,7 @@ public abstract class AbstractWindCharge extends AbstractHurtingProjectile {
 
     @Override
     protected void onHitBlock(Hit hit) {
+        super.onHitBlock(hit);   // 바닐라는 먼저 맞은 블록의 onProjectileHit
         explode(x(), y(), z());
     }
 

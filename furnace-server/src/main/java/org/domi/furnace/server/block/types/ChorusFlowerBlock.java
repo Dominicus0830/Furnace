@@ -155,5 +155,11 @@ public class ChorusFlowerBlock extends BlockBehavior {
         if (!branched) level.setBlock(branchPos.above(height), AGE.withInt(B.defaultState(CHORUS_FLOWER), DEAD_AGE), 2);
     }
 
-    // TODO(엔티티): onProjectileHit — 맞힌 투사체가 부술 수 있으면 destroyBlock(pos, true, 투사체).
+    /** onProjectileHit: 투사체가 mayInteract·mayBreak 면 부수고 떨군다(부순 엔티티는 투사체). */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        Pos pos = hit.blockPos();
+        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)) level.destroyBlockByEntity(pos, true, projectile);
+    }
 }

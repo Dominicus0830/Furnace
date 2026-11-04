@@ -65,5 +65,19 @@ public class TntBlock extends BlockBehavior {
         return ItemInteractionResult.CONSUME;
     }
 
-    // TODO(엔티티): onProjectileHit — 불붙은 투사체에 맞으면 점화.
+    /** onProjectileHit: 불붙은 투사체이고 mayInteract 면 쏜 쪽(생물일 때)을 주인으로 점화하고 블록을 없앤다. */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        Pos pos = hit.blockPos();
+        org.domi.furnace.server.entity.Targetable owner = projectile.getOwner();
+        if (projectile.isOnFire() && projectile.mayInteract(level, pos)) {
+            boolean living = owner instanceof org.domi.furnace.server.entity.LivingEntity || owner instanceof org.domi.furnace.server.entity.Player;
+            org.domi.furnace.server.entity.Targetable igniter = living ? owner : null;
+            level.spawnPrimedTntOwned(pos, igniter, -1);
+            level.playSound(null, pos.x() + 0.5, pos.y(), pos.z() + 0.5, "minecraft:entity.tnt.primed", "blocks", 1.0F, 1.0F);
+            level.gameEventFrom("minecraft:prime_fuse", pos, igniter, -1);
+            level.removeBlock(pos, false);
+        }
+    }
 }
