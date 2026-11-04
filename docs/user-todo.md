@@ -140,7 +140,13 @@
 |---|---|---|
 | Paper/Spigot 월드 가져오기 | Paper(또는 Spigot) 서버 폴더의 `world`, `world_nether`, `world_the_end` 를 Furnace 폴더에 그대로 두고 처음 기동(먼저 백업 권장). 네더·엔드에 가서 기존 건축물 확인 | 로그에 "Paper/Spigot 월드 배치를 감지했다 … 가져오기 완료"가 찍히고 네더·엔드가 새로 생성되지 않고 그대로. 드래곤을 잡았던 월드면 엔드에 드래곤이 다시 나오지 않음. `world_nether`·`world_the_end` 원본은 그대로 남음(확인 뒤 지워도 됨) |
 
+# 접속 시험 요청 (2026-11-03 BungeeCord 레거시 포워딩, 서버 단위·봇 시험 통과, 실제 프록시 미확인)
+| 항목 | 방법 | 기대 결과 |
+|---|---|---|
+| BungeeCord 포워딩 | `furnace.properties` 에 `bungeecord=true`, `server.properties` 에 `online-mode=false`. BungeeCord(`config.yml` 의 `ip_forward: true`, `online_mode: true`) 뒤에 Furnace 를 두고 프록시로 접속 | 정품 UUID·스킨으로 입장, 서버 로그의 접속 주소가 실제 클라이언트 IP. `/ban-ip <실제 IP>` 가 그 사람만 막음. 프록시를 거치지 않고 직접 접속하면 "If you wish to use IP forwarding…" 로 거절 |
+
 # 사용자 결정 필요 (새로 추가)
+- **BungeeCord 레거시 포워딩(2026-11-03 구현, 기본 꺼짐):** 사용자가 지원을 결정한 항목이 아니라 Paper·Spigot 대비 미구현 목록에서 고른 후보라 `bungeecord=false` 가 기본입니다. 레거시 포워딩은 서명이 없어 서버 포트가 열려 있으면 누구나 아무 UUID 로 들어올 수 있습니다 — 켤 때는 방화벽으로 프록시만 접속하게 하세요. 새 프록시는 Velocity 모던 포워딩(`velocity-secret`)을 권합니다. 두 설정은 함께 켤 수 없습니다(기동 실패).
 - **`CLAUDE.md` 갱신:** 2026-11-03 에 반영했다(인수인계서를 먼저 읽도록 안내, "현재 다음 작업은 4-2" 문구를 정정, 커밋 전 규칙에 `:furnace-api:test` 추가).
 - **`spawn-animals=false` / `spawn-npcs=false`:** 이제 바닐라처럼 이미 있는 동물·주민도 지웁니다(이전에는 자연 스폰만 막았음). 이 옵션으로 운영 중이라면 첫 기동 때 기존 동물이 사라집니다.
 - **RCON:** 평문 프로토콜입니다. 공개 포트에 열지 말고 방화벽/loopback 권장. 인증 실패 제한(연결당 5회, IP당 60초 10회)과 연결 상한 16이 걸려 있어 NAT 뒤에서는 정당한 관리자도 막힐 수 있습니다.
