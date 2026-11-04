@@ -748,3 +748,19 @@
   - `Shape.joinOnlySecond` 의 격자는 IndexMerger 를 따른다: 둘 다 큐브 격자면 더 고운 쪽, 아니면 좌표 합집합. 엔티티가 새 부분에 걸쳐 있을 때 collide 결과가 칸 경계에 달려서다. `NonOverlappingMerger`·IndirectMerger 의 범위 밖 좌표 버림은 빈 칸 쪽에만 영향이라 따라 하지 않았다(결과 같음, 손 계산).
   - 엔티티를 훑는 순서: 비플레이어 엔티티 다음 플레이어(바닐라는 엔티티 구역 순서). 각자 독립으로 움직이고 난수를 쓰지 않아 결과는 같다.
 - **봇 확인(오프라인 서버 + mineflayer, 2026-11-03)**: 서버 시야 6, 움직이지 않고 렌더 거리 6→2 에서 unload 144·center 0, 2→6 에서 청크 144, 6→12 는 아무것도 안 옴. 경작지 위 갑옷 거치대가 말라 흙이 되자 y −60.0625 → −60. 경작지 위 플레이어는 `player_position`(x 0, y 0.0625, z 0, 회전 0, 깃발 0x1F) 한 번을 받고 −60 에 섬. 실제 클라이언트 화면(구멍이 메워지는지)은 미확인.
+
+## 2026-11-03 올챙이·아기 스니퍼 생성과 피글린 분노 연결
+바닐라 1.21.1 바이트코드(`javap -c -p`, 난독화 이름 djc=FrogspawnBlock, dnh=SnifferEggBlock, clo=PiglinAi, dfy=Block, cow=ChestBoat, cox=ContainerEntity, cpa=MinecartChest)로 대조했다.
+
+- **개구리알 부화**(`FrogspawnBlock.hatch`): 블록을 지우고 `block.frogspawn.hatch` 소리 뒤 `nextIntBetweenInclusive(2, 6)` 마리. 마리마다 **x 오프셋 → z 오프셋 → 방향** 순서로 난수를 쓴다. 오프셋은 `clamp(nextDouble, 0.2, 0.8)` 인데 바닐라 상수는 float 를 넓힌 값(0.20000000298023224 / 0.7999999970197678)이라 그대로 썼다. 방향은 `nextIntBetweenInclusive(1, 361)`(1~361, 바닐라 그대로 — wrapDegrees 하지 않는다), y 는 **칸 y − 0.5**, 올챙이는 `setPersistenceRequired`. 블록 틱 난수(`random` 인자)를 쓴다.
+- **스니퍼 알 부화**(`SnifferEggBlock.tick`): hatch 2 면 소리 → `destroyBlock` → 아기 스니퍼(`setBaby(true)`) 를 **`pos.getCenter()`(x+0.5, y+0.5, z+0.5)** 에, 방향은 `wrapDegrees(level.random.nextFloat() × 360)`(레벨 난수, 블록 틱 난수가 아니다). 이전 주석의 "칸 아래 가운데"는 틀렸다. persistence 는 걸지 않는다. 스니퍼의 아기 나이는 -48000(`Sniffer.setBaby`).
+- **피글린 분노 호출부 7곳**(바닐라와 같은 지점·같은 `requireLineOfSight`):
+  - `Block.playerWillDestroy`: 파괴 효과(2001) 뒤, 게임 이벤트 앞. 상태가 `#minecraft:guarded_by_piglins`(금 블록·금 광석·상자류 등)일 때 **시야 불필요(false)**.
+  - 통·상자·엔더 상자·셜커 상자 `useWithoutItem`(통계 뒤), 상자 수레 `interact`, 상자 배 `interact`·`openCustomInventoryScreen`: 모두 **시야 필요(true)**.
+  - `ContainerEntity.chestVehicleDestroyed`(상자 수레·상자 배 파괴): `doEntityDrops` 가 꺼져 있으면 바닐라가 먼저 return 하므로 **분노도 없다**. 부순 쪽이 플레이어일 때만.
+  - 깔때기 수레는 분노시키지 않는다(바닐라도 상자 수레만).
+- 엔티티 없는 레벨을 위해 `BlockLevel` 에 `spawnTadpole`·`spawnBabySniffer`·`angerNearbyPiglins` 기본 빈 메서드를 두고 `ChunkLevel` 에서 구현했다(`spawnBabyTurtle`·`spawnSilverfishAt` 와 같은 방식).
+- **고친 버그**: `PiglinAi.setAngerTarget` 이 대상을 `(Entity)` 로 캐스팅해 UUID 를 읽어, 대상이 **플레이어면 ClassCastException** 이었다(Furnace 플레이어는 `Entity` 가 아니다). 지금까지 호출부가 없어 드러나지 않았다. `uuidOf(Targetable)` 로 나눠 고쳤다.
+- 탈것 파괴에서 부순 쪽을 알아야 해서 `AbstractMinecart.destroy(Damage)` → `destroy(Damage, Targetable)`, `Boat.destroy()` → `destroy(Targetable)` 로 넓혔다(`hurtBy` 가 이미 attacker 를 받는다).
+- **금 방어구와 분노**: `isWearingGold` 는 피글린이 플레이어를 보자마자 공격하는 대상(NEAREST_VISIBLE_ATTACKABLE_PLAYER)에서만 빼고, `angerNearbyPiglins` 는 한가함·시야만 본다(clo 바이트코드의 필터 람다 2개 + setAngerTarget). 그래서 금을 입어도 상자를 열거나 금을 캐면 화낸다(봇 시험에서 금 투구 착용 상태로 angry_at 확인).
+- **시험 교훈**: 금을 걸치지 않은 플레이어가 가까이 있으면 피글린이 바로 FIGHT 로 가 `isIdle` 이 거짓이라 분노가 걸리지 않는다(바닐라도 같다). 시험에서는 플레이어에게 금 투구를 입히고, "IDLE ∧ 플레이어를 봄"이 될 때까지 틱을 돌린다. 오버월드에서는 피글린이 약 300틱 뒤 좀비 피글린으로 변하므로 폴링 상한을 그 안(200틱)에 둔다. 시험: `entity/HatchSpawnAndPiglinAngerTest`(10개).

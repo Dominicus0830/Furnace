@@ -67,10 +67,12 @@ public class BlockBehavior {
     // ------------------------------------------------------------------ 파괴
 
     /**
-     * Block.playerWillDestroy: 파괴 효과(2001, 부순 사람 제외) → piglin 분노(엔티티 체계 전에는 없음) → 게임 이벤트. 돌려준 상태가 이후 destroy 에 쓰인다.
+     * Block.playerWillDestroy: 파괴 효과(2001, 부순 사람 제외) → piglin 분노(#guarded_by_piglins) → 게임 이벤트. 돌려준 상태가 이후 destroy 에 쓰인다.
      */
     public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {
         level.levelEvent(player, 2001, pos, state);
+        // 금 블록·상자류를 캐면 주변 피글린이 화낸다(캐기는 시야를 보지 않는다).
+        if (B.isTag(state, "minecraft:guarded_by_piglins")) level.angerNearbyPiglins(player, false);
         level.gameEvent("minecraft:block_destroy", pos, player, state);
         return state;
     }

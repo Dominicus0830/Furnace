@@ -1,5 +1,5 @@
 // 바닐라 PiglinAi: 피글린 브레인 구성과 규칙 — 금 아이템 감상·물물교환, 금 갑옷이 없는 플레이어 공격, 호글린 사냥/도피, 석궁 사격, 축하.
-// TODO(탑승): 아기 피글린이 아기 호글린을 타는 활동(RIDE)은 탑승 규칙이 생기면. TODO(자극): 상자 열기·금 블록 캐기로 피글린을 화나게 하는 호출부(angerNearbyPiglins)는 연결 전.
+// TODO(탑승): 아기 피글린이 아기 호글린을 타는 활동(RIDE)은 탑승 규칙이 생기면. 상자 열기·금 블록 캐기 자극(angerNearbyPiglins)은 블록·탈것 쪽에서 부른다.
 package org.domi.furnace.server.entity;
 
 import java.util.Collections;
@@ -415,13 +415,18 @@ public final class PiglinAi {
     public static void setAngerTarget(AbstractPiglin piglin, Targetable target) {
         if (Sensor.isEntityAttackableIgnoringLineOfSight(piglin, target)) {
             piglin.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
-            piglin.getBrain().setMemoryWithExpiry(MemoryModuleType.ANGRY_AT, ((Entity) uuidHolder(target)).uuid(), ANGER_DURATION);
+            piglin.getBrain().setMemoryWithExpiry(MemoryModuleType.ANGRY_AT, uuidOf(target), ANGER_DURATION);
             if (isType(target, EntityType.HOGLIN) && piglin.canHunt()) dontKillAnyMoreHoglinsForAWhile(piglin);
             if (target.isPlayer() && piglin.level().gameRule("universalAnger")) piglin.getBrain().setMemoryWithExpiry(MemoryModuleType.UNIVERSAL_ANGER, true, ANGER_DURATION);
         }
     }
 
-    private static Object uuidHolder(Targetable t) { return t; }
+    /** 바닐라 target.getUUID() — Furnace 플레이어는 Entity 가 아니라서 따로 읽는다. */
+    private static java.util.UUID uuidOf(Targetable target) {
+        if (target instanceof Entity e) return e.uuid();
+        if (target instanceof Player p) return p.uuid();
+        throw new IllegalArgumentException("UUID 를 모르는 분노 대상: " + target);
+    }
 
     private static void setAngerTargetToNearestTargetablePlayerIfFound(AbstractPiglin piglin, Targetable fallback) {
         Optional<Player> p = getNearestVisibleTargetablePlayer(piglin);

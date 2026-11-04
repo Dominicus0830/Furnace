@@ -171,7 +171,7 @@ public abstract class AbstractMinecart extends Entity {
         if ((creative || !(getDamage() > 40.0F)) && !shouldSourceDestroy(source)) {
             if (creative) discard();
         } else {
-            destroy(source);
+            destroy(source, attacker);
         }
         return true;
     }
@@ -179,8 +179,8 @@ public abstract class AbstractMinecart extends Entity {
     /** shouldSourceDestroy: 기본 아니오(TNT 수레는 불·폭발). */
     protected boolean shouldSourceDestroy(Damage source) { return false; }
 
-    /** destroy(source) = destroy(getDropItem()). */
-    protected void destroy(Damage source) { destroyAsItem(dropItem()); }
+    /** destroy(source) = destroy(getDropItem()). attacker 는 부순 쪽(없으면 null). */
+    protected void destroy(Damage source, Targetable attacker) { destroyAsItem(dropItem()); }
 
     /** destroy(item): 지우고 엔티티 드롭 규칙이면 그 아이템(TODO(이름표): 사용자 지정 이름을 아이템 이름으로). */
     protected final void destroyAsItem(String item) {

@@ -1401,6 +1401,31 @@ public abstract class ChunkLevel implements BlockLevel {
         addFreshEntity(turtle);
     }
 
+    /** FrogspawnBlock.spawnTadpoles 의 한 마리: 위치는 칸 + 오프셋, y 는 칸 y − 0.5. persistenceRequired 를 건다. */
+    @Override
+    public void spawnTadpole(Pos pos, double xOffset, double zOffset, float yRot) {
+        var tadpole = new org.domi.furnace.server.entity.Tadpole(this, nextEntityId());
+        tadpole.moveTo(pos.x() + xOffset, pos.y() - 0.5, pos.z() + zOffset, yRot, 0.0F);
+        tadpole.setPersistenceRequired();
+        addFreshEntity(tadpole);
+    }
+
+    /** SnifferEggBlock.hatchSniffer: 아기 스니퍼를 칸 가운데(+0.5, +0.5, +0.5)에 만든다. */
+    @Override
+    public void spawnBabySniffer(Pos pos, float yRot) {
+        var sniffer = new org.domi.furnace.server.entity.Sniffer(this, nextEntityId());
+        sniffer.setBaby(true);
+        sniffer.moveTo(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, yRot, 0.0F);
+        addFreshEntity(sniffer);
+    }
+
+    @Override
+    public void angerNearbyPiglins(BlockActor player, boolean requireLineOfSight) {
+        if (player != null && player.handle() instanceof org.domi.furnace.server.entity.Player p) {
+            org.domi.furnace.server.entity.PiglinAi.angerNearbyPiglins(this, p, requireLineOfSight);
+        }
+    }
+
     @Override
     public void spawnSilverfishAt(Pos pos) {
         var sf = new org.domi.furnace.server.entity.Silverfish(this, nextEntityId());

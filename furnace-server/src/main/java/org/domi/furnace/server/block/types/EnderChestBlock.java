@@ -29,7 +29,7 @@ public class EnderChestBlock extends AbstractChestBlock {
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity && !ChestBlock.isChestBlockedAt(level, pos)) {
             player.openContainer(pos);
             player.awardStat("minecraft:open_enderchest");
-            // TODO(엔티티): PiglinAi.angerNearbyPiglins(player, true).
+            level.angerNearbyPiglins(player, true);
         }
         return InteractionResult.CONSUME;
     }

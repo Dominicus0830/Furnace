@@ -30,7 +30,7 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
         if (canOpen(state, level, pos, be)) {
             player.openContainer(pos);
             player.awardStat("minecraft:open_shulker_box");
-            // TODO(엔티티): PiglinAi.angerNearbyPiglins(player, true)
+            level.angerNearbyPiglins(player, true);
         }
         return InteractionResult.CONSUME;
     }

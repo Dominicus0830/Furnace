@@ -41,7 +41,7 @@ public class MinecartTNT extends AbstractMinecart {
 
     /** destroy(source): 불·폭발이 아니고 느리면 수레 아이템, 아니면 (아직 안 탔으면) 도화선 + 난수 0~38 틱. */
     @Override
-    protected void destroy(Damage source) {
+    protected void destroy(Damage source, Targetable attacker) {
         double d = vx() * vx() + vz() * vz();
         if (!ignitesTnt(source) && !(d >= 0.01F)) {
             destroyAsItem(dropItem());
