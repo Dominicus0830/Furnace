@@ -1,6 +1,5 @@
-// Anvil 청크 압축(gzip=type 1 / zlib=deflate=type 2 / none=type 3) 헬퍼. 쓰기 방식은 server.properties region-file-compression 이 고른다
-// (바닐라 RegionFileVersion.configure 와 같이 프로세스 전역 하나). lz4(type 4)는 바닐라 전용 LZ4 블록 형식 라이브러리가 없어 쓰지 못한다 —
-// 읽기도 미지원이라 lz4 로 저장된 월드는 열 수 없다(docs/feature-parity/context-notes.md).
+// Anvil 청크 압축(gzip=type 1 / zlib=deflate=type 2 / none=type 3 / lz4=type 4) 헬퍼. 쓰기 방식은 server.properties region-file-compression 이
+// 고른다(바닐라 RegionFileVersion.configure 와 같이 프로세스 전역 하나). lz4 는 lz4-java 블록 스트림 형식을 직접 구현한 Lz4Block 을 쓴다.
 package org.domi.furnace.server.world.anvil;
 
 import java.io.ByteArrayInputStream;
@@ -14,18 +13,19 @@ public final class Compression {
 
     private Compression() {}
 
-    public static final int GZIP = 1, DEFLATE = 2, NONE = 3;
+    public static final int GZIP = 1, DEFLATE = 2, NONE = 3, LZ4 = 4;
     private static volatile int writeType = DEFLATE;
 
     /** 새로 쓰는 청크의 압축 종류. */
     public static int writeType() { return writeType; }
 
-    /** region-file-compression 값을 적용한다. 모르는 값(lz4 포함)이면 거짓 — 이전 설정을 유지한다. */
+    /** region-file-compression 값을 적용한다. 모르는 값이면 거짓 — 이전 설정을 유지한다. */
     public static boolean configure(String name) {
         Integer t = switch (name) {
             case "deflate" -> DEFLATE;
             case "gzip" -> GZIP;
             case "none" -> NONE;
+            case "lz4" -> LZ4;
             default -> null;
         };
         if (t == null) return false;
@@ -47,6 +47,7 @@ public final class Compression {
                 yield bos.toByteArray();
             }
             case NONE -> data.clone();
+            case LZ4 -> Lz4Block.compress(data);
             default -> deflate(data);
         };
     }
@@ -71,6 +72,7 @@ public final class Compression {
     }
 
     public static byte[] decompress(int type, byte[] data) throws IOException {
+        if (type == LZ4) return Lz4Block.decompress(data);
         ByteArrayInputStream in = new ByteArrayInputStream(data);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         java.io.InputStream dec = switch (type) {
