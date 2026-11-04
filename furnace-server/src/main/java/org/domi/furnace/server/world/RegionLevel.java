@@ -225,6 +225,21 @@ public final class RegionLevel extends ChunkLevel {
     private final org.domi.furnace.server.entity.spawn.VillageSiege villageSiege = new org.domi.furnace.server.entity.spawn.VillageSiege();
     private final org.domi.furnace.server.entity.spawn.WanderingTraderSpawner traderSpawner = new org.domi.furnace.server.entity.spawn.WanderingTraderSpawner();
 
+    /**
+     * ServerLevel.tickCustomSpawners. 바닐라 MinecraftServer.createLevels 는 특수 스포너 다섯(팬텀 → 순찰 → 고양이 → 포위 → 상인,
+     * 이 순서로 돈다)을 오버월드에만 주고 다른 차원에는 빈 목록을 준다 — 네더·엔드에서는 아무것도 돌지 않고 레벨 난수도 쓰지 않는다.
+     */
+    void tickCustomSpawners(java.util.List<Player> here, boolean spawnMonsters, boolean spawnAnimals) {
+        if (!"minecraft:overworld".equals(dimension())) return;
+        phantomSpawner.tick(this, here, spawnMonsters);
+        patrolSpawner.tick(this, here, spawnMonsters);
+        catSpawner.tick(this, here, spawnAnimals);
+        villageSiege.tick(this, here, spawnMonsters);
+        var traderState = world.wanderingTraderState();
+        if (traderState != null) traderSpawner.attach(traderState);
+        traderSpawner.tick(this, here);
+    }
+
     /** @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다. */
     void tickBlocks(long[] tickingChunks, int count, int spawnCount, java.util.function.LongPredicate blockEntityTicking,
                     java.util.function.Predicate<Player> inRegion, boolean frozen) {
@@ -255,15 +270,7 @@ public final class RegionLevel extends ChunkLevel {
             if (spawnCount > 0 && gameRule("doMobSpawning")) {
                 java.util.List<Player> here = new java.util.ArrayList<>();
                 services().forEachPlayer(pl -> { if (inRegion.test(pl)) here.add(pl); });
-                phantomSpawner.tick(this, here, spawnMonsters);
-                patrolSpawner.tick(this, here, spawnMonsters);   // 바닐라 customSpawners 순서: 팬텀 → 순찰 → 고양이 → 포위 → 상인
-                catSpawner.tick(this, here, spawnAnimals);
-                if ("minecraft:overworld".equals(dimension())) {   // 바닐라 customSpawners 의 포위·상인은 오버월드에만 있다
-                    villageSiege.tick(this, here, spawnMonsters);
-                    var traderState = world.wanderingTraderState();
-                    if (traderState != null) traderSpawner.attach(traderState);
-                    traderSpawner.tick(this, here);
-                }
+                tickCustomSpawners(here, spawnMonsters, spawnAnimals);
             }
         }
         broadcastChanges();
