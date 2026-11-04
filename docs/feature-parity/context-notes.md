@@ -822,3 +822,8 @@
 - 남은 TODO(엔티티)(이번에 안 한 것): 개구리알 올챙이·스니퍼 알 아기 스니퍼 생성, 독서대 아이템 엔티티 위치, 가루눈 엔티티별 충돌 모양, `Block.pushEntitiesUp`(흙길·경작지·점적석·눈 등), 피글린 분노(상자·통·셜커 상자·엔더 상자), 비교기 아이템 액자, 지옥문 좀비 피글린 스폰, 엔드 관문 순간 이동.
 - 시험: `EntityBlockHookTest`(10개).
 - 봇 시험(오프라인 서버 + mineflayer, 평지, `gamerule naturalRegeneration false` 로 회복을 끄고 봐야 피해가 보인다 — 평화 난이도 회복이 피해를 가린다): 마그마 걷기 피해·웅크리면 없음, 나이 2 덤불을 지나며 20 → 16, 덤불 안 좌우 15 → 4, 나이 0 은 없음, 레드스톤 광석 밟자 lit, 흘림잎 위에 서자 unstable → partial(0.5초) → full(1초)·플레이어가 떨어짐, 거북 알 20초 걷기로 9칸 중 2칸 줄고·12번 떨어지자 4개 모두 깨짐·웅크려 밟으면 그대로, 석순 끝 6칸 낙하 20 → 12(풀 위 20 → 17), 나무 버튼은 화살에 켜지고 꽂혀 있는 동안 유지·화살을 지우면 꺼짐·돌 버튼은 안 켜짐, 화살로 나무 압력판 켜짐, 보트 자리 수련잎 사라짐, 떨어진 모래에 개구리알 사라짐, 파괴수 10초에 밀 81 → 60(mobGriefing false 면 81 그대로). `/setblock … thickness=frustum` 은 바닐라처럼 updateFromNeighbourShapes 로 tip 이 된다(끝이 아닌 점적석 착지는 단위 시험으로만 확인).
+
+## 2026-11-04 몹 장착 이벤트 — 불변 ItemStack 과 "제자리 수정"
+- 바닐라가 장비 스택을 그 자리에서 고치는 곳(hurtAndBreak·setDamageValue·shrink·쇠뇌 CHARGED_PROJECTILES·enchantItemFromProvider·copyAndClear)을 Furnace 는 새 스택을 넣어 흉내 낸다. 이런 곳은 `setItemSlot` 이 아니라 `updateItemSlot` 을 쓴다 — `setItemSlot` 은 바닐라처럼 `onEquipItem`(장착 소리·equip/unequip, 엔티티 난수 nextLong)을 부른다.
+- 새 호출 지점을 쓸 때는 바닐라 원본이 `setItemSlot`/`setItemInHand` 를 부르는지 바이트코드(`a:(Lbsy;Lcuq;)V`, `a:(Lbqq;Lcuq;)V`)로 확인한다. 함정: `Mob.convertTo` 는 새 몹에만 setItemSlot, 옛 몹은 copyAndClear(이벤트 없음). 여우가 다 먹어 비면 바닐라는 setItemSlot 을 안 부른다.
+- onEquipItem 은 `firstTick` 이면 아무것도 안 하므로 스폰(finalizeSpawn) 중 장비 변경은 이벤트·난수가 없다.

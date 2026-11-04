@@ -119,13 +119,24 @@ public abstract class Mob extends LivingEntity implements Leashable {
         };
     }
 
+    /** Mob.setItemSlot: 칸을 바꾸고 onEquipItem(old, new). */
     @Override
     public void setItemSlot(EquipmentSlot slot, ItemStack stack) {
+        onEquipItem(slot, storeItemSlot(slot, stack), stack);
+    }
+
+    /** 제자리 수정(LivingEntity.updateItemSlot) — 장착 소리·게임 이벤트 없이 칸만 바꾼다. */
+    @Override
+    public void updateItemSlot(EquipmentSlot slot, ItemStack stack) { storeItemSlot(slot, stack); }
+
+    private ItemStack storeItemSlot(EquipmentSlot slot, ItemStack stack) {
+        ItemStack old;
         switch (slot.type()) {
-            case HAND -> handItems[slot.index()] = stack;
-            case HUMANOID_ARMOR -> armorItems[slot.index()] = stack;
-            case ANIMAL_ARMOR -> bodyArmorItem = stack;
+            case HAND -> { old = handItems[slot.index()]; handItems[slot.index()] = stack; }
+            case HUMANOID_ARMOR -> { old = armorItems[slot.index()]; armorItems[slot.index()] = stack; }
+            default -> { old = bodyArmorItem; bodyArmorItem = stack; }
         }
+        return old;
     }
 
     public float getEquipmentDropChance(EquipmentSlot slot) {
@@ -217,8 +228,9 @@ public abstract class Mob extends LivingEntity implements Leashable {
         }
         int newDamage = ItemTools.damage(stack) + amount;
         ItemStack damaged = ItemTools.withDamage(stack, newDamage);
-        if (newDamage >= ItemTools.maxDamage(stack)) setItemSlot(slot, damaged.withCount(damaged.count() - 1));
-        else setItemSlot(slot, damaged);
+        // hurtAndBreak 는 스택을 그 자리에서 고친다(부서져도 shrink) — 장착 이벤트 없음
+        if (newDamage >= ItemTools.maxDamage(stack)) updateItemSlot(slot, damaged.withCount(damaged.count() - 1));
+        else updateItemSlot(slot, damaged);
     }
 
     /** usePlayerItem(player, hand, stack): 크리에이티브가 아니면 손에 든 것 하나를 소비한다(stack.consume(1, player)). */
@@ -245,7 +257,7 @@ public abstract class Mob extends LivingEntity implements Leashable {
                 ItemStack item = getItemBySlot(slot);
                 if (!item.isEmpty()) {
                     target.setItemSlot(slot, item);
-                    setItemSlot(slot, ItemStack.EMPTY);
+                    updateItemSlot(slot, ItemStack.EMPTY);   // copyAndClear: 옛 몹 칸은 제자리에서 비운다(이벤트 없음)
                     target.setDropChance(slot, getEquipmentDropChance(slot));
                 }
             }
@@ -572,7 +584,7 @@ public abstract class Mob extends LivingEntity implements Leashable {
     private void enchantSpawnedEquipment(EquipmentSlot slot, org.domi.furnace.server.block.RandomSource r, float chance, DifficultyInstance difficulty) {
         ItemStack s = getItemBySlot(slot);
         if (!s.isEmpty() && r.nextFloat() < chance * difficulty.specialMultiplier()) {
-            setItemSlot(slot, org.domi.furnace.server.item.EnchantTools.enchantFromProvider(s, level.lootData(), MOB_SPAWN_EQUIPMENT,
+            updateItemSlot(slot, org.domi.furnace.server.item.EnchantTools.enchantFromProvider(s, level.lootData(), MOB_SPAWN_EQUIPMENT,
                     difficulty.specialMultiplier(), r));
         }
     }

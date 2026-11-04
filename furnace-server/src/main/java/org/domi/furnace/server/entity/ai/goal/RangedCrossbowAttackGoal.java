@@ -44,7 +44,7 @@ public class RangedCrossbowAttackGoal<T extends Mob & CrossbowAttackMob> extends
             mob.stopUsingItem();
             mob.setChargingCrossbow(false);
             EquipmentSlot slot = mob.getUsedItemHand() == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
-            mob.setItemSlot(slot, org.domi.furnace.server.item.ItemTools.with(mob.getItemBySlot(slot), "minecraft:charged_projectiles", java.util.List.of()));
+            mob.updateItemSlot(slot, org.domi.furnace.server.item.ItemTools.with(mob.getItemBySlot(slot), "minecraft:charged_projectiles", java.util.List.of()));
         }
     }
 

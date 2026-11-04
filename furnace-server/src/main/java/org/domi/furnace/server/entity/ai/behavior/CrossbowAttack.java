@@ -42,7 +42,7 @@ public class CrossbowAttack<E extends Mob & CrossbowAttackMob> extends Behavior<
         if (mob.isHolding("minecraft:crossbow")) {
             mob.setChargingCrossbow(false);
             EquipmentSlot slot = mob.getWeaponHoldingHand("minecraft:crossbow") == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
-            mob.setItemSlot(slot, org.domi.furnace.server.item.ItemTools.with(mob.getItemBySlot(slot), "minecraft:charged_projectiles", java.util.List.of()));
+            mob.updateItemSlot(slot, org.domi.furnace.server.item.ItemTools.with(mob.getItemBySlot(slot), "minecraft:charged_projectiles", java.util.List.of()));
         }
     }
 

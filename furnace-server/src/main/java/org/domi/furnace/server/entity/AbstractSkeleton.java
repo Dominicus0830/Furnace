@@ -62,7 +62,7 @@ public abstract class AbstractSkeleton extends Monster implements RangedAttackMo
                         broadcastEntityEvent((byte) 52);
                         setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
                     } else {
-                        setItemSlot(EquipmentSlot.HEAD, helmet);
+                        updateItemSlot(EquipmentSlot.HEAD, helmet);   // setDamageValue: 제자리
                     }
                 }
                 burn = false;

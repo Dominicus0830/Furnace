@@ -111,7 +111,7 @@ public class Pillager extends AbstractIllager implements CrossbowAttackMob {
         if (r.nextInt(300) == 0) {
             ItemStack s = getItemBySlot(EquipmentSlot.MAINHAND);
             if (ItemTools.itemName(s).equals("minecraft:crossbow")) {
-                setItemSlot(EquipmentSlot.MAINHAND, ItemTools.with(s, ItemTools.ENCHANTMENTS, Map.of("levels", Map.of("minecraft:piercing", 1))));
+                updateItemSlot(EquipmentSlot.MAINHAND, ItemTools.with(s, ItemTools.ENCHANTMENTS, Map.of("levels", Map.of("minecraft:piercing", 1))));
             }
         }
         enchantSpawnedArmor(r, difficulty);
