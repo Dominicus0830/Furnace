@@ -1081,6 +1081,9 @@ public abstract non-sealed class Entity implements Rider {
         stuckZ = mz;
     }
 
+    /** 다음 이동에 걸린 stuckSpeedMultiplier(시험용, 0 이면 없음). */
+    double[] stuckSpeedMultiplier() { return new double[] {stuckX, stuckY, stuckZ}; }
+
     /** Entity.maxUpStep: 걸어 오를 수 있는 높이. 기본 0, LivingEntity 는 step_height 속성. */
     public float maxUpStep() { return 0.0F; }
 

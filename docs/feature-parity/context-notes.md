@@ -764,3 +764,13 @@
 - 탈것 파괴에서 부순 쪽을 알아야 해서 `AbstractMinecart.destroy(Damage)` → `destroy(Damage, Targetable)`, `Boat.destroy()` → `destroy(Targetable)` 로 넓혔다(`hurtBy` 가 이미 attacker 를 받는다).
 - **금 방어구와 분노**: `isWearingGold` 는 피글린이 플레이어를 보자마자 공격하는 대상(NEAREST_VISIBLE_ATTACKABLE_PLAYER)에서만 빼고, `angerNearbyPiglins` 는 한가함·시야만 본다(clo 바이트코드의 필터 람다 2개 + setAngerTarget). 그래서 금을 입어도 상자를 열거나 금을 캐면 화낸다(봇 시험에서 금 투구 착용 상태로 angry_at 확인).
 - **시험 교훈**: 금을 걸치지 않은 플레이어가 가까이 있으면 피글린이 바로 FIGHT 로 가 `isIdle` 이 거짓이라 분노가 걸리지 않는다(바닐라도 같다). 시험에서는 플레이어에게 금 투구를 입히고, "IDLE ∧ 플레이어를 봄"이 될 때까지 틱을 돌린다. 오버월드에서는 피글린이 약 300틱 뒤 좀비 피글린으로 변하므로 폴링 상한을 그 안(200틱)에 둔다. 시험: `entity/HatchSpawnAndPiglinAngerTest`(10개).
+
+## 2026-11-03 1.21 효과 발동 4종(wind_charged·weaving·oozing·infested)
+- 바닐라 1.21.1 바이트코드(`javap -c -p`) 대조: 효과 클래스 bsi(돌풍)·bsh(거미줄)·bsc(슬라임)·brv(좀벌레), 난수 함수는 bsb 의 람다(거미줄 randomBetweenInclusive(2,3), 슬라임 2 고정, 좀벌레 확률 0.1·randomBetweenInclusive(1,2)). 구현은 `effect/MobEffectTriggers`.
+- **호출 지점**: `LivingEntity.remove(KILLED|DISCARDED)` → triggerOnDeathMobEffects(효과마다 onMobRemoved 후 효과 맵 비우기, 발동은 KILLED 만). 몹은 죽고 20틱 뒤(tickDeath) 시체 자리에서. `LivingEntity.hurt` 끝(죽음·피격 소리 뒤, 발전 과제 앞)에서 막지 않았으면 onMobHurt.
+- **플레이어**: 바닐라는 리스폰(`PlayerList.respawn` → `removePlayerImmediately(KILLED)`) 때 발동한다 — 죽은 순간이 아니다. Furnace 는 리스폰 요청 때 죽은 자리 region 에서 발동한 뒤 리스폰 위치를 찾는다. 끝 관문 귀환(CHANGED_DIMENSION)은 발동 안 함. 거미줄은 플레이어면 mobGriefing 과 무관.
+- **난수 순서**: 돌풍 반경 3 + 대상 nextFloat×2. 거미줄은 randomInCube(15 번, 뽑을 때마다 x·y·z nextInt(3) — 다 차면 더 안 뽑음) 후 바닐라 `Vec3i.hashCode` 순 HashSet 순서로 설치·levelEvent 3018. 슬라임은 레벨 난수로 yRot. 좀벌레는 대상 난수 nextFloat(확률) → 마리 수 → (마리마다) 방향 randomBetween(−π/2, π/2), 레벨 난수 yRot, 넣은 뒤 entity.silverfish.hurt(레벨 난수 씨앗). 속도 회전은 JOML 1.10.5 `Vector3f.rotateY`(FASTMATH 꺼짐, cosFromSin)를 그대로 옮겼다(바이트코드 대조).
+- **같이 고친 것**: 브리즈 윈드 차지 소리가 `entity.wind_charge.wind_burst` 였는데 바닐라 cog 는 `entity.breeze.wind_burst`(avp.cQ) — 돌풍 효과와 같은 소리로 정정. 거미줄 속 weaving 몹 감속 (0.5, 0.25, 0.5). `Explosion.withSourcePlayer`: 원인이 플레이어인 폭발에서 그 플레이어를 밀림 대상에서 뺀다(Level.getEntities(source, …)).
+- **가정·한계**: 플레이어 좀벌레 속도는 `Player.serverMovement()`(서버가 아는 근사 deltaMovement)로 계산 — 바닐라 ServerPlayer 의 서버 deltaMovement 와 같다는 보장 없음. 효과 입자 목록(LivingEntity DATA_EFFECT_PARTICLES) 동기화는 원래 없다(이 효과들의 전용 입자 small_gust·item_cobweb·item_slime·infested 도 안 보임). `/effect` 명령은 지금 플레이어만 대상으로 받는다(몹은 소환 NBT `active_effects` 로 걸어야 함).
+- 시험: `MobEffectTriggersTest`(11개). 봇 시험(오프라인 서버, `tools/bot-test` 방식, 스크립트 pr16.js): 몹 oozing → 슬라임 2, 몹 weaving → 거미줄 2(바닥 층만), mobGriefing=false 몹 → 0, wind_charged → 폭발 패킷 1(반경 4.11, breeze 돌풍 소리 id 198)·옆 좀비 +x 로 밀림, 몹 infested → 10번 안에 좀벌레, 플레이어 oozing·weaving(mobGriefing=false)·infested → 리스폰 뒤 슬라임 2·거미줄 3·좀벌레. 봇은 입자·소리 재생은 못 본다.
+

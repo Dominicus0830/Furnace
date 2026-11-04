@@ -295,6 +295,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
         } else if (fresh) {
             playHurtSound(source);
         }
+        if (!blocked || amount > 0.0F) {   // 바닐라 hurt 끝: 막지 않았으면 효과마다 onMobHurt(벌레 들끓음)
+            if (!activeEffects.isEmpty()) {
+                var t = org.domi.furnace.server.effect.MobEffectTriggers.Target.of(this);
+                for (var e : java.util.List.copyOf(activeEffects.values())) org.domi.furnace.server.effect.MobEffectTriggers.onMobHurt(t, e.effect(), e.amplifier());
+            }
+        }
         if (attacker instanceof Player ap && ap.advancements() != null && ap.advancements().hasListeners("minecraft:player_hurt_entity")) {
             // 바닐라: 끝에서 source.getEntity() 가 플레이어면 player_hurt_entity(dealt, taken, blocked) — 듣는 조건이 있을 때만 값을 뜬다
             var victim = KillCredit.lootOf(this);
@@ -829,6 +835,20 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected void tickDeath() {
         deathTime++;
         if (deathTime >= 20 && !isRemoved()) remove(RemovalReason.KILLED);
+    }
+
+    /** LivingEntity.remove: 죽음·버림이면 효과마다 onMobRemoved(돌풍·거미줄·슬라임)를 부르고 효과를 비운 뒤(triggerOnDeathMobEffects) 뺀다. */
+    @Override
+    public void remove(RemovalReason reason) {
+        if (reason == RemovalReason.KILLED || reason == RemovalReason.DISCARDED) triggerOnDeathMobEffects(reason);
+        super.remove(reason);
+    }
+
+    protected void triggerOnDeathMobEffects(RemovalReason reason) {
+        if (activeEffects.isEmpty()) return;
+        var t = org.domi.furnace.server.effect.MobEffectTriggers.Target.of(this);
+        for (var e : java.util.List.copyOf(activeEffects.values())) org.domi.furnace.server.effect.MobEffectTriggers.onMobRemoved(t, e.effect(), e.amplifier(), reason);
+        activeEffects.clear();
     }
 
     protected int calculateFallDamage(float distance, float multiplier) {
