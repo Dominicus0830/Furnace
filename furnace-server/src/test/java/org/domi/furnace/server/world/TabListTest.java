@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -36,9 +37,9 @@ class TabListTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(),
                 16, 20, 20, reg.directBits(), 7, Executors.newSingleThreadExecutor());
-        chObs = new EmbeddedChannel();
+        chObs = new ConcurrentEmbeddedChannel();
         obs = new Player(1, UUID.randomUUID(), "obs", chObs);
-        tgt = new Player(2, UUID.randomUUID(), "tgt", new EmbeddedChannel());
+        tgt = new Player(2, UUID.randomUUID(), "tgt", new ConcurrentEmbeddedChannel());
         obs.publishPosition(10, -60, 10, 0, 0, true);
         obs.drainPending();
         tgt.publishPosition(tgtX, -60, 10, 0, 0, true);

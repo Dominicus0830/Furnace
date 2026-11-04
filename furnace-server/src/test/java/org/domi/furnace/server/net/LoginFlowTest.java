@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ class LoginFlowTest {
                     reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
             world.worldDir(tmp);
         }
-        return new EmbeddedChannel(new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator()));
+        return new ConcurrentEmbeddedChannel(new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator()));
     }
 
     private void handshake(EmbeddedChannel ch, int protocol, int next) {

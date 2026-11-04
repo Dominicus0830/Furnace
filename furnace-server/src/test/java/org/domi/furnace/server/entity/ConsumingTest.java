@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
@@ -13,7 +14,7 @@ import org.domi.furnace.server.world.GameMode;
 import org.junit.jupiter.api.Test;
 
 class ConsumingTest {
-    private final Player player = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+    private final Player player = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
     private final PlayerVitals v = player.vitals();
 
     ConsumingTest() throws Exception {

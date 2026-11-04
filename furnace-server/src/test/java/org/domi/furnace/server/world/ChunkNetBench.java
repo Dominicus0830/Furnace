@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.io.InputStream;
 import java.util.Random;
 import java.util.zip.Deflater;
@@ -68,8 +69,8 @@ class ChunkNetBench {
     @Test
     void encoderDecoderPerPacket() {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
-        EmbeddedChannel enc = new EmbeddedChannel(new CompressionEncoder(256));
-        EmbeddedChannel dec = new EmbeddedChannel(new CompressionDecoder(256));
+        EmbeddedChannel enc = new ConcurrentEmbeddedChannel(new CompressionEncoder(256));
+        EmbeddedChannel dec = new ConcurrentEmbeddedChannel(new CompressionDecoder(256));
         ByteBuf[] frame = new ByteBuf[1];
         double encUs = timeUs(() -> {
             enc.writeOutbound(Unpooled.wrappedBuffer(body));
@@ -104,7 +105,7 @@ class ChunkNetBench {
         byte[] cached = java.util.Arrays.copyOfRange(body, 1, body.length);
         EmbeddedChannel[] chs = new EmbeddedChannel[10];
         for (int i = 0; i < chs.length; i++) {
-            chs[i] = new EmbeddedChannel();
+            chs[i] = new ConcurrentEmbeddedChannel();
             chs[i].pipeline().addLast("compress", new CompressionEncoder(256));
         }
         double perChannel = timeUs(() -> {

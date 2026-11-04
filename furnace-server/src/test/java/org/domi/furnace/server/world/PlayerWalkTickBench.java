@@ -6,6 +6,7 @@ package org.domi.furnace.server.world;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -70,7 +71,7 @@ class PlayerWalkTickBench {
         double[][] pos = new double[n][2];
         double[][] dir = new double[n][2];
         for (int i = 0; i < n; i++) {
-            chs[i] = new EmbeddedChannel();
+            chs[i] = new ConcurrentEmbeddedChannel();
             ps[i] = new Player(i + 1, UUID.randomUUID(), "P" + i, chs[i]);
             double a = 2 * Math.PI * i / n;
             dir[i][0] = Math.cos(a);

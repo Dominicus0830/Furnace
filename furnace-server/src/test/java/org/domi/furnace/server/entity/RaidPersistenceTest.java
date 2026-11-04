@@ -150,7 +150,7 @@ class RaidPersistenceTest {
 
     @Test
     void raidOmenPositionSaved() {
-        var p = new Player(9, UUID.randomUUID(), "Alex", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(9, UUID.randomUUID(), "Alex", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.setRaidOmenPosition(new Pos(5, 64, -7));
@@ -158,7 +158,7 @@ class RaidPersistenceTest {
         p.vitals().save(tag);
         assertArrayEquals(new int[] {5, 64, -7}, (int[]) tag.tags().get("raid_omen_position"));
 
-        var q = new Player(10, UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        var q = new Player(10, UUID.randomUUID(), "Steve", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         q.vitals().env(new PlayerVitalsTest.TestEnv());
         q.vitals().load(tag);
         assertEquals(new Pos(5, 64, -7), q.raidOmenPosition());

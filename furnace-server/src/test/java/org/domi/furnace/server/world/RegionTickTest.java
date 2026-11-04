@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
@@ -23,7 +24,7 @@ class RegionTickTest {
     void adoptAndTick_onRegionThread_loadsChunks() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
         World w = world(sched);
-        Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
         p.publishPosition(0, -60, 0, 0, 0, true);
         RegionPos rp = new RegionPos(0, 0);   // 청크 좌표
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
@@ -37,7 +38,7 @@ class RegionTickTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
         World w = world(sched);
         RegionPos rp = new RegionPos(0, 0);
-        Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
         // 메인 스레드서 직접 adopt → 비소유 → AssertionError(-ea)
         assertThrows(Throwable.class, () -> w.regionAt(rp).adopt(p));
         sched.close();

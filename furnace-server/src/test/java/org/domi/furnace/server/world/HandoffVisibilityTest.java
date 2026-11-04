@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
@@ -21,9 +22,9 @@ class HandoffVisibilityTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 1, 8, 8, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
         RegionPos r00 = new RegionPos(0, 0);
-        Player a = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player a = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         a.applyMove(0, -60, 0, 0, 0, true);
-        Player b = new Player(2, UUID.randomUUID(), "B", new EmbeddedChannel());
+        Player b = new Player(2, UUID.randomUUID(), "B", new ConcurrentEmbeddedChannel());
         b.applyMove(5, -60, 0, 0, 0, true); // 같은 청크(0,0) → region(0,0)
         sched.region(r00).execute(() -> { w.regionAt(r00).adopt(a); w.regionAt(r00).adopt(b); }).get();
         // 첫 틱: A가 B를 추적

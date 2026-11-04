@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.exec;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -45,7 +46,7 @@ class SelectorOptionsTest {
         core.world().awaitChunk(new org.domi.furnace.server.world.ChunkPos(0, 0));
         cows = DeferredResultTest.spawnCows(core, 2);
         core.world().submitAtChunk(new org.domi.furnace.server.world.ChunkPos(0, 0), r -> cows[0].addTag("a")).orTimeout(10, TimeUnit.SECONDS).join();
-        steve = new Player(5, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        steve = new Player(5, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         self = CommandSource.player(core, steve).withPermission(2);
     }
 

@@ -4,6 +4,7 @@ package org.domi.furnace.server.block;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -32,7 +33,7 @@ class BeaconEffectsTest {
     }
 
     static Player player(Lvl l, double x, double y, double z) {
-        Player p = new Player(1 + l.players.size(), UUID.randomUUID(), "P", new EmbeddedChannel());
+        Player p = new Player(1 + l.players.size(), UUID.randomUUID(), "P", new ConcurrentEmbeddedChannel());
         p.publishPosition(x, y, z, 0, 0, true);
         p.drainPending();
         l.players.add(p);

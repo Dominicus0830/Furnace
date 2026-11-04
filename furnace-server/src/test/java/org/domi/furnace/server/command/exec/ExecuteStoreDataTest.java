@@ -252,7 +252,7 @@ class ExecuteStoreDataTest {
 
     @Test
     void playerTargetIsRejectedSilentlyAndTheChainContinues() throws Exception {
-        var p = new Player(5, UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "Steve", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         CommandSource src = CommandSource.player(core, p).withPermission(2);
         List<String> sent = Collections.synchronizedList(new ArrayList<>());
         core.addConsoleListener(t -> sent.add(t.getString()));

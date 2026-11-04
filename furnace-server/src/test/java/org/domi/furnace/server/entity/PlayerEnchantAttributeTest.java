@@ -6,6 +6,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.block.B;
@@ -33,7 +34,7 @@ class PlayerEnchantAttributeTest {
     }
 
     private static Player player() {
-        var p = new Player(5, UUID.randomUUID(), "A", new EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(0.5, -60, 0.5, 0, 0, true);

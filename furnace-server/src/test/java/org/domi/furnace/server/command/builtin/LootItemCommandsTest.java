@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,7 @@ class LootItemCommandsTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         core.addConsoleListener(t -> out.add(t.getString()));
-        player = new Player(5, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        player = new Player(5, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
     }
 
     @AfterEach

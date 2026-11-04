@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.item.ItemContext;
@@ -40,7 +41,7 @@ class PlayerArmorAttributeTest {
     }
 
     private static Player player(PlayerVitalsTest.TestEnv env) {
-        var p = new Player(5, UUID.randomUUID(), "A", new EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.vitals().env(env);
         return p;
     }

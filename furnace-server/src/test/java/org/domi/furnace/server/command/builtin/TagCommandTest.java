@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.UUID;
@@ -61,16 +62,16 @@ class TagCommandTest {
 
     @Test
     void playerTagsRoundTrip() {
-        var p = new Player(5, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         assertTrue(p.addTag("x"));
         var out = new NbtCompound();
         p.saveTags(out);
         assertEquals(1, out.getList("Tags").size());
-        var q = new Player(6, UUID.randomUUID(), "Alex", new EmbeddedChannel());
+        var q = new Player(6, UUID.randomUUID(), "Alex", new ConcurrentEmbeddedChannel());
         q.loadTags(out);
         assertEquals(Set.of("x"), q.getTags());
         var empty = new NbtCompound();
-        new Player(7, UUID.randomUUID(), "Bob", new EmbeddedChannel()).saveTags(empty);
+        new Player(7, UUID.randomUUID(), "Bob", new ConcurrentEmbeddedChannel()).saveTags(empty);
         assertFalse(empty.contains("Tags"));
     }
 
@@ -80,7 +81,7 @@ class TagCommandTest {
         var cow = new Cow(level, level.nextEntityId());
         var tagged = new Cow(level, level.nextEntityId());
         tagged.addTag("foo");
-        var p = new Player(5, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.addTag("bar");
         EntitySelector withFoo = parse("@e[tag=foo]"), notFoo = parse("@e[tag=!foo]"), none = parse("@e[tag=]"), anyTag = parse("@e[tag=!]");
         assertFalse(withFoo.matchesFilters(cow));
@@ -106,7 +107,7 @@ class TagCommandTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         try {
             ServerCore core = TestServers.core(tmp, sched);
-            var p = new Player(5, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+            var p = new Player(5, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
             CommandSource src = CommandSource.player(core, p).withPermission(2);
             var d = core.commands().getDispatcher();
             assertEquals(1, d.execute("tag @s add foo", src));

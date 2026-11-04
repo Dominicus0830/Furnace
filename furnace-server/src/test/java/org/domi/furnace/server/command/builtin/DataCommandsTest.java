@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -182,7 +183,7 @@ class DataCommandsTest {
         assertEquals(id, cow.uuid(), "UUID 는 되돌린다");
         assertTrue(cow.isNoGravity());
 
-        var p = new Player(5, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         var pa = new DataCommands.EntityAccessor(p);
         assertEquals("commands.data.entity.invalid", key(assertThrows(CommandSyntaxException.class, () -> pa.setData(new NbtCompound()))));
     }

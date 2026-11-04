@@ -22,7 +22,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 작업 습관은 옛 문서 3.4 와 같다. 이번 세션에서 확인된 환경 규칙:
 - 테스트는 `ORG_GRADLE_PROJECT_skipOracle=true flock /tmp/furnace-gradle.lock ./gradlew --offline :furnace-server:test` 를 백그라운드로 돌리고 로그를 기다린다. 락 대기가 길다(여러 세션이 gradle 을 공유).
 - 격리 worktree 에서 일하고 푸시하지 않는다(사용자가 요청할 때만). 메인 디렉터리에서 파일 수정·checkout 을 하지 않는다.
-- 불안정 시험은 `TabListTest` 하나로 알려져 있다. 그것만 실패하면 단독으로 다시 돌려 확인하고 보고한다.
+- 불안정 시험 `TabListTest`·`GeneratedVillageProfessionTest` 는 2026-11-03 근본 원인을 고쳤다(`context-notes.md` 같은 날짜 절). 새 시험에서 플레이어 채널이 필요하면 `new EmbeddedChannel()` 대신 `ConcurrentEmbeddedChannel` 을 쓴다.
 
 ## 2. 2026-10-18 이후 완료된 것 (요약 — 상세는 각 문서)
 
@@ -82,7 +82,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 - 운영: RCON IP당 동시 연결 상한 없음, 월드 주기 백업·메트릭 내보내기 없음, `enable-jmx-monitoring` 등 일부 키는 파싱만. 플러그인 채널 등록(`minecraft:register`) 미구현. lz4 지역 파일 읽기 미지원(1.20.5+ 바닐라 lz4 월드를 가져오면 청크 읽기 실패).
 - 플레이어 속성 맵의 저장·복원 없음(`/attribute base set` 값은 재접속하면 사라짐), 영혼 가속 입자·소리, 서리 걸음 마그마 면역.
 - 테스트: 바닐라 데이터가 없는 환경에서 `assumeTrue` 로 조용히 스킵되는 시험(AGENTS.md 규칙 5 와 긴장), 테스트 없는 패키지(bossbar·effect·function·profiling·sound·trade).
-- **불안정 시험**: `TabListTest`(단독 약 4000회에 1회 실패, 원인 미확정)와 `GeneratedVillageProfessionTest`(전체 스위트에서 한 번 실패, 단독 3회 통과, 낮 시간을 직접 조작하며 틱을 돌리는 방식). `LandMobTest`·`WindChargeTest` 의 간헐 실패는 `ArenaLevel` 둘레 벽·바닥 확장으로 고쳤다(몹이 허공으로 떨어져 죽던 것).
+- **불안정 시험**: `TabListTest`(시험 채널 작업 큐 경합)와 `GeneratedVillageProfessionTest`(고정 600틱 여유 부족)는 2026-11-03 고쳤다(`context-notes.md`). `LandMobTest`·`WindChargeTest` 의 간헐 실패는 `ArenaLevel` 둘레 벽·바닥 확장으로 고쳤다(몹이 허공으로 떨어져 죽던 것).
 
 ## 4. 다음 할 일 (제안 순서)
 
@@ -91,7 +91,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 3. **플러그인 API 2단계**(위 3장) → 이후 5단계 어댑터.
 4. **미구현 우선순위**(`unimplemented-survey-2026-10-31.md`)에서 아직 남은 것: 스트라이더, region 단위 차이 정리, 월드젠 순정 대조(oracle 이 되는 환경에서).
 5. 작업 G 후속: RCON/Query 를 실제 클라이언트(`mcrcon`, `mcstatus`)로, `/furnace` 명령을 부하 중, 워치독을 일부러 멈춰 본 실측. 결과는 `context-notes.md` 에 '확인함/가정' 구분해 적는다.
-6. **불안정 시험 근본 원인**: `TabListTest`, `GeneratedVillageProfessionTest`.
+6. ~~불안정 시험 근본 원인~~ — 2026-11-03 완료(`TabListTest`, `GeneratedVillageProfessionTest`).
 7. **사용자 결정 대기**(바로 하지 않는다): CI 러너·트리거·캐시·외부 접근, 공유 스케줄러 S4 기본값, `CLAUDE.md` 의 커밋 전 규칙에 `:furnace-api:test` 추가 및 "현재 다음 작업" 문구 갱신, Mojang jar 히스토리 정리 시점.
 
 ## 5. 지도·도구

@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -82,7 +83,7 @@ class BoatTest {
         Boat b = new Boat(level, level.nextEntityId());
         b.moveTo(0.5, -59.5, 0.5, 0, 0);
         level.addFreshEntity(b);
-        Player p = new Player(960, UUID.randomUUID(), "rower", new EmbeddedChannel());
+        Player p = new Player(960, UUID.randomUUID(), "rower", new ConcurrentEmbeddedChannel());
         p.teleporter(t -> {});
         assertTrue(b.interact(p, 0));
         assertSame(p, b.getControllingPassenger());
@@ -144,7 +145,7 @@ class BoatTest {
         Boat c = new Boat(level, level.nextEntityId());
         c.moveTo(0.5, -60, 0.5, 0, 0);
         level.addFreshEntity(c);
-        Player p = new Player(961, UUID.randomUUID(), "builder", new EmbeddedChannel());
+        Player p = new Player(961, UUID.randomUUID(), "builder", new ConcurrentEmbeddedChannel());
         p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.CREATIVE, false);
         c.hurtBy(dmg, 1.0F, p);
         assertTrue(c.isRemoved());

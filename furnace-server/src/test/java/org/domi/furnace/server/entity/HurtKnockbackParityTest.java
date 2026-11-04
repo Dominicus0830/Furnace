@@ -95,7 +95,7 @@ class HurtKnockbackParityTest {
     @Test
     void playerDamageSourceProjectileUsesVelocity() {
         var level = new ZombieCombatTest.ArenaLevel();
-        var ch = new io.netty.channel.embedded.EmbeddedChannel();
+        var ch = new org.domi.furnace.server.ConcurrentEmbeddedChannel();
         var p = new Player(7, java.util.UUID.randomUUID(), "Steve", ch);
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.SURVIVAL, false);

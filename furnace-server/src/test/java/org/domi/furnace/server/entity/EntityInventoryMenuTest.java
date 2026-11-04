@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -116,7 +117,7 @@ class EntityInventoryMenuTest {
     }
 
     private static Player player(Host host) {
-        Player p = new Player(950, UUID.randomUUID(), "opener", new EmbeddedChannel());
+        Player p = new Player(950, UUID.randomUUID(), "opener", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.teleporter(t -> {});
         p.applyMove(2.5, -60, 0.5, 30.0F, 20.0F, true);

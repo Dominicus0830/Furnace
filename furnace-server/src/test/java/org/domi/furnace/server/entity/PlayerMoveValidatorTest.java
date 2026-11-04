@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -40,7 +41,7 @@ class PlayerMoveValidatorTest {
     }
 
     private static Player player(double x, double y, double z, GameMode mode) {
-        var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, mode, false);
         p.applyMove(x, y, z, 0, 0, true);

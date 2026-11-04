@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -107,7 +108,7 @@ class AttributeCommandTest {
     @Test
     void playerHasVanillaDefaults() throws Exception {
         var console = CommandSource.console(core);
-        var p = new Player(11, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(11, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         assertEquals(20, AttributeCommand.opGet(console, p, Attribute.MAX_HEALTH, 1.0));
         assertEquals(4, AttributeCommand.opGet(console, p, Attribute.ATTACK_SPEED, 1.0));
         assertEquals(4, AttributeCommand.opGet(console, p, Attribute.BLOCK_INTERACTION_RANGE, 1.0));

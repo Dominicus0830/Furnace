@@ -117,13 +117,13 @@ class RavagerZombieAttackTest {
     void ravagerStunPushesPlayerButNotSpectator() {
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 18000;
-        var ch = new io.netty.channel.embedded.EmbeddedChannel();
+        var ch = new org.domi.furnace.server.ConcurrentEmbeddedChannel();
         var p = player(level, org.domi.furnace.server.world.GameMode.SURVIVAL, ch);
         var r = seeded(level, seedWhere(true));
         r.blockedByShield(p);
         assertEquals(40, r.getStunnedTick());
         assertTrue(motionPackets(ch) >= 1, "플레이어가 밀렸다");
-        var ch2 = new io.netty.channel.embedded.EmbeddedChannel();
+        var ch2 = new org.domi.furnace.server.ConcurrentEmbeddedChannel();
         var sp = player(level, org.domi.furnace.server.world.GameMode.SPECTATOR, ch2);
         var r2 = seeded(level, seedWhere(true));
         r2.blockedByShield(sp);

@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -57,9 +58,9 @@ class DeltaMoveOverflowTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
         RegionPos r00 = new RegionPos(0, 0);
-        EmbeddedChannel chObs = new EmbeddedChannel();
+        EmbeddedChannel chObs = new ConcurrentEmbeddedChannel();
         Player obs = new Player(1, UUID.randomUUID(), "obs", chObs);
-        Player tgt = new Player(2, UUID.randomUUID(), "tgt", new EmbeddedChannel());
+        Player tgt = new Player(2, UUID.randomUUID(), "tgt", new ConcurrentEmbeddedChannel());
         obs.publishPosition(0, -60, 0, 0, 0, true);
         obs.drainPending();
         tgt.publishPosition(5, -60, 5, 0, 0, true);

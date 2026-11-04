@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import org.domi.furnace.api.sched.RegionPos;
@@ -34,7 +35,7 @@ class EntityRegionTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
-        Player p = new Player(w.entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(w.entityIds().next(), UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.inventory(new PlayerInventory());
         p.applyMove(0.5, -60, 0.5, 0, 0, true);
         ItemEntity[] item = new ItemEntity[1];
@@ -62,7 +63,7 @@ class EntityRegionTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
-        Player p = new Player(w.entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(w.entityIds().next(), UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.inventory(new PlayerInventory());
         p.applyMove(8.5, -60, 8.5, 0, 0, true);
         int[] count = new int[1];

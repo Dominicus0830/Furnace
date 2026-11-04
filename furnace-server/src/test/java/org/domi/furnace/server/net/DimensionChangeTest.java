@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -96,7 +97,7 @@ class DimensionChangeTest {
         dims.register(over);
         dims.register(nether);
         handler = new ConnectionHandler("t", -1, sched, over, new EntityIdAllocator());
-        ch = new EmbeddedChannel(handler);
+        ch = new ConcurrentEmbeddedChannel(handler);
         ch.writeInbound(frame(0x00, b -> { Types.writeVarInt(b, 767); Types.writeString(b, "localhost");
             b.writeShort(25565); Types.writeVarInt(b, 2); }));
         ch.writeInbound(frame(0x00, b -> { Types.writeString(b, "Tester"); Types.writeUuid(b, new UUID(0, 0)); }));

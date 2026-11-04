@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.Player;
@@ -32,7 +33,7 @@ class EmptyRegionEvictionTest {
             awaitRegions(w, 0);
 
             // 2) 플레이어가 편입된 region 은 청크가 없어도 남는다
-            Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
+            Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
             p.publishPosition(8, -60, 8, 0, 0, true);
             p.drainPending();
             RegionPos prp = new RegionPos(0, 0);

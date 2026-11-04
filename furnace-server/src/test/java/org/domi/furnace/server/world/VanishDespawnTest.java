@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
@@ -23,9 +24,9 @@ class VanishDespawnTest {
                 java.util.concurrent.Executors.newSingleThreadExecutor());
         RegionPos r00 = new RegionPos(0, 0);
         RegionPos r10 = new RegionPos(1, 0);
-        Player a = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player a = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         a.applyMove(0, -60, 0, 0, 0, true);
-        Player b = new Player(2, UUID.randomUUID(), "B", new EmbeddedChannel());
+        Player b = new Player(2, UUID.randomUUID(), "B", new ConcurrentEmbeddedChannel());
         b.applyMove(20, -60, 0, 0, 0, true);
         sched.region(r00).execute(() -> w.regionAt(r00).adopt(a)).get();
         sched.region(r10).execute(() -> w.regionAt(r10).adopt(b)).get();

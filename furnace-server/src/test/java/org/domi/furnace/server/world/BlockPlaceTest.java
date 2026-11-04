@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import org.domi.furnace.api.sched.RegionPos;
@@ -33,7 +34,7 @@ class BlockPlaceTest {
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         int stone = reg.defaultStateId("minecraft:stone");
         RegionPos rp = new RegionPos(0, 0);
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.applyMove(0, -60, 0, 0, 0, true); // 발밑 블록 (0,-60,0) 점유
         boolean[] res = new boolean[2];
         sched.region(rp).execute(() -> {

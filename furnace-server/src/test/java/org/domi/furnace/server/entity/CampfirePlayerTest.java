@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Blocks;
@@ -21,7 +22,7 @@ class CampfirePlayerTest {
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
     }
 
-    private final Player player = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+    private final Player player = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
     private final PlayerVitals v = player.vitals();
 
     CampfirePlayerTest() {

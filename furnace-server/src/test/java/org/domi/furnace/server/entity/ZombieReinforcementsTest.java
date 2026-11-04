@@ -41,7 +41,7 @@ class ZombieReinforcementsTest {
     private static Dark arena() {
         var level = new Dark();
         for (int x = -32; x < 48; x++) for (int z = -32; z < 48; z++) level.setBlock(new Pos(x, -61, z), B.defaultState("minecraft:grass_block"), 3);
-        var p = new Player(9, java.util.UUID.randomUUID(), "Alex", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(9, java.util.UUID.randomUUID(), "Alex", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(8.5, -60, 8.5, 0, 0, true);

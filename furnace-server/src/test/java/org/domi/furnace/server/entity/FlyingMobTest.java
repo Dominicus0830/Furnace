@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.world.GameMode;
 import org.junit.jupiter.api.BeforeAll;
@@ -32,7 +33,7 @@ class FlyingMobTest {
     }
 
     private static Player survivalPlayer(SkeletonCombatTest.ArenaLevel level, double x, double y, double z) {
-        var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(x, y, z, 90, 0, true);

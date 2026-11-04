@@ -37,6 +37,10 @@ class GeneratedVillageProfessionTest {
         return fut.get(300, TimeUnit.SECONDS);
     }
 
+    private static long employed(List<String> state) {
+        return state.stream().filter(s -> !s.startsWith("none") && !s.startsWith("nitwit")).count();
+    }
+
     @Test
     void structureVillagersTakeJobsAndWork() throws Exception {
         var sched = new FurnaceSchedulerImpl(50_000_000L, 1);
@@ -67,28 +71,35 @@ class GeneratedVillageProfessionTest {
                         pm.getInSquare(t -> t == PoiTypes.MEETING, c, 60, PoiManager.Occupancy.ANY).size()};
             });
             assertTrue(poi[0] >= 3 && poi[1] >= 3 && poi[2] >= 1, "직업 " + poi[0] + " 집 " + poi[1] + " 종 " + poi[2]);
-            // (B) 600틱(낮 1500→2100): 직업을 얻고 일한다
+            // (B) 낮 1500 부터 틱을 돌리며 20틱마다 본다: 직업을 얻은 주민이 둘 이상이고, 일과(2000틱~)에 그중 하나가 직업 블록 근처에서
+            // WORK 면 통과. 직업 획득은 AcquirePoi 난수 대기·경쟁(농부 둘이 퇴비통 하나를 두고 다투면 먼 쪽으로 다시 찾음)에 따라
+            // 180~450틱, WORK 근처 도달은 500~670틱이 걸렸다(무작위 시드 84회 측정). 예전 고정 600틱은 이 꼬리에 걸려 간헐 실패했다.
+            // 상한 2400틱(낮 3900)도 WORK 시간대(2000~9000) 안이다. 주민 4명 중 하나는 바보이고, 하나는 대장간 카운터 위에서 벽에 박힌
+            // 용광로까지 2칸 안으로 못 내려가 무직으로 남는다(길 목표가 용광로 위 고체 기둥 끝 y=78 이 되는 바닐라 GroundPathNavigation 그대로 — 가정,
+            // 바닐라 실서버로 대조하지는 않았다). 그래서 직업을 얻을 수 있는 둘이 모두 얻어야 한다.
             List<String> state = at(core, r -> {
-                for (int i = 0; i < 600; i++) {
+                List<String> out = new ArrayList<>();
+                for (int i = 1; i <= 2400; i++) {
                     clock.advanceGameTime();
                     clock.setDayTime(clock.dayTime() + 1);
                     r.tick();
-                }
-                List<String> out = new ArrayList<>();
-                for (var e : r.level().entities().tickSnapshot()) {
-                    if (!(e instanceof Villager v)) continue;
-                    var b = v.villagerBrain();
-                    var job = b.getMemory(MemoryModuleType.JOB_SITE);
-                    String near = job.map(g -> {
-                        double dx = g.pos().x() + 0.5 - v.x(), dz = g.pos().z() + 0.5 - v.z();
-                        return Math.sqrt(dx * dx + dz * dz) < 10 ? "near" : "far";
-                    }).orElse("-");
-                    out.add(v.profession() + "/" + (b.isActive(Activity.WORK) ? "work" : "other") + "/" + near);
+                    if (i % 20 != 0) continue;
+                    out.clear();
+                    for (var e : r.level().entities().tickSnapshot()) {
+                        if (!(e instanceof Villager v)) continue;
+                        var b = v.villagerBrain();
+                        var job = b.getMemory(MemoryModuleType.JOB_SITE);
+                        String near = job.map(g -> {
+                            double dx = g.pos().x() + 0.5 - v.x(), dz = g.pos().z() + 0.5 - v.z();
+                            return Math.sqrt(dx * dx + dz * dz) < 10 ? "near" : "far";
+                        }).orElse("-");
+                        out.add(v.profession() + "/" + (b.isActive(Activity.WORK) ? "work" : "other") + "/" + near);
+                    }
+                    if (employed(out) >= 2 && out.stream().anyMatch(st -> st.endsWith("/work/near"))) break;
                 }
                 return out;
             });
-            long employed = state.stream().filter(s -> !s.startsWith("none") && !s.startsWith("nitwit")).count();
-            assertTrue(employed >= 2, "직업을 얻은 주민 " + state);
+            assertTrue(employed(state) >= 2, "직업을 얻은 주민 " + state);
             assertTrue(state.stream().anyMatch(s -> s.endsWith("/work/near")), "일과에 직업 블록 근처에서 WORK " + state);
         } finally {
             sched.close();

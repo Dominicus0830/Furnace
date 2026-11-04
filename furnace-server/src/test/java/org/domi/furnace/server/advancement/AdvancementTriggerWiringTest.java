@@ -510,7 +510,7 @@ class AdvancementTriggerWiringTest {
 
     static org.domi.furnace.server.entity.Player survivalPlayer() {
         org.domi.furnace.server.item.ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
-        var p = new org.domi.furnace.server.entity.Player(7, UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new org.domi.furnace.server.entity.Player(7, UUID.randomUUID(), "Steve", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.SURVIVAL, false);
         var dry = new org.domi.furnace.server.entity.PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
         for (int i = 0; i < 60; i++) p.vitals().tick(dry);   // 접속 무적 지나기

@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.List;
 import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -52,7 +53,7 @@ class MobDeathLootTest {
         var level = new DropLevel();
         var pig = new Pig(level, level.nextEntityId());
         pig.setPos(0.5, -60, 0.5);
-        var player = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var player = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         assertTrue(pig.hurtBy(HIT, 100f, player));
         assertEquals(5, orbTotal(level));
         assertEquals(1, items(level).size());
@@ -74,7 +75,7 @@ class MobDeathLootTest {
         var level = new DropLevel();
         var pig = new Pig(level, level.nextEntityId());
         pig.setPos(0.5, -60, 0.5);
-        var player = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var player = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         pig.hurtBy(HIT, 3f, player);
         pig.invulnerableTime = 0;
         pig.hurt(FALL, 100f);

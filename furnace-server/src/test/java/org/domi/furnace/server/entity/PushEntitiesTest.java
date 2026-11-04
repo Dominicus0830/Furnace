@@ -218,7 +218,7 @@ class PushEntitiesTest {
     }
 
     private static Player player(GameMode mode) {
-        var p = new Player(7, java.util.UUID.randomUUID(), "Steve", new io.netty.channel.embedded.EmbeddedChannel());
+        var p = new Player(7, java.util.UUID.randomUUID(), "Steve", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, mode, false);
         p.applyMove(0.5, -60, 0.5, 0, 0, true);

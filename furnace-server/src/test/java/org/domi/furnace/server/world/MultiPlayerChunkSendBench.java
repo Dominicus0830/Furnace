@@ -5,6 +5,7 @@ package org.domi.furnace.server.world;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -81,7 +82,7 @@ class MultiPlayerChunkSendBench {
 
         EmbeddedChannel[] chs = new EmbeddedChannel[players];
         for (int i = 0; i < players; i++) {
-            chs[i] = new EmbeddedChannel();
+            chs[i] = new ConcurrentEmbeddedChannel();
             chs[i].pipeline().addLast("compress", new CompressionEncoder(256));
         }
         int snap0 = w.bodySnapshots.get();

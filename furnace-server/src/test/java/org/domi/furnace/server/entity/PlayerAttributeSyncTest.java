@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -21,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class PlayerAttributeSyncTest {
 
     private static Player player(PlayerVitalsTest.TestEnv env) {
-        var p = new Player(5, UUID.randomUUID(), "A", new EmbeddedChannel());
+        var p = new Player(5, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         p.vitals().env(env);
         return p;
     }

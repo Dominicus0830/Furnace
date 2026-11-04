@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -179,7 +180,7 @@ class RidingTest {
         Chicken c = chicken(level);
         Zombie z = zombie(level);
         z.startRiding(c);
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         Player viewer = new Player(900, UUID.randomUUID(), "viewer", ch);
         viewer.applyMove(0.5, -60, 5.5, 0, 0, true);
         var tracker = new EntityTracker(c, 160);
@@ -214,7 +215,7 @@ class RidingTest {
         c.moveTo(0.5, -60, 0.5, 0, 0);
         Zombie z = zombie(level);
         assertTrue(z.startRiding(c));
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(901, UUID.randomUUID(), "rider", ch);
         List<double[]> teleports = new ArrayList<>();
         p.teleporter(teleports::add);
@@ -254,7 +255,7 @@ class RidingTest {
         var level = new BlockPlacementTest.TestLevel();
         var c = new TwoSeatChicken(level);
         c.moveTo(0.5, -60, 0.5, 0, 0);
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(902, UUID.randomUUID(), "driver", ch);
         p.teleporter(t -> {});
         assertEquals(VehicleMoves.Result.IGNORED, VehicleMoves.handle(p, 1, -60, 1, 0, 0), "안 탔다");
@@ -324,7 +325,7 @@ class RidingTest {
     void respawnDetachesPlayerWithoutTeleport() {
         var level = new BlockPlacementTest.TestLevel();
         Chicken c = chicken(level);
-        Player p = new Player(903, UUID.randomUUID(), "ghost", new EmbeddedChannel());
+        Player p = new Player(903, UUID.randomUUID(), "ghost", new ConcurrentEmbeddedChannel());
         List<double[]> teleports = new ArrayList<>();
         p.teleporter(teleports::add);
         assertTrue(p.startRiding(c, false));

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,7 @@ class ConfigResourcePackFlowTest {
                 reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
         world.worldDir(tmp);
         var login = ServerLoginContext.offline("t").resourcePack(pack);
-        EmbeddedChannel ch = new EmbeddedChannel(new ConnectionHandler(login, -1, sched, world, new EntityIdAllocator()));
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel(new ConnectionHandler(login, -1, sched, world, new EntityIdAllocator()));
         ch.writeInbound(frame(0x00, b -> { Types.writeVarInt(b, 767); Types.writeString(b, "localhost"); b.writeShort(25565); Types.writeVarInt(b, 2); }));
         ch.writeInbound(frame(0x00, b -> { Types.writeString(b, "Tester"); Types.writeUuid(b, new UUID(0, 0)); }));
         ch.writeInbound(frame(0x03, null));   // → 구성

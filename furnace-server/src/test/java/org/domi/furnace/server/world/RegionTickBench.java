@@ -2,6 +2,7 @@
 package org.domi.furnace.server.world;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import org.domi.furnace.api.sched.RegionPos;
@@ -62,7 +63,7 @@ class RegionTickBench {
         });
         RegionPos rp = new RegionPos((int) Math.floor(sx) >> 4, (int) Math.floor(sz) >> 4);
         final double cx0 = sx, cy0 = sy, cz0 = sz;
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(w.entityIds().next(), UUID.randomUUID(), "A", ch);
         p.inventory(new PlayerInventory());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);

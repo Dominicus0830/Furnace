@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.LegacyRandomSource;
@@ -24,7 +25,7 @@ class EnderDragonTest {
     private static final Entity.Damage PLAYER_HIT = new Entity.Damage("player_attack", false, false, false);
 
     private static Player player(DimensionTestLevel level, double x, double y, double z) {
-        var p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        var p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         p.applyMove(x, y, z, 0, 0, true);

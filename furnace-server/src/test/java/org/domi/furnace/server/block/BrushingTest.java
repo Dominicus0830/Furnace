@@ -5,6 +5,7 @@ package org.domi.furnace.server.block;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -240,7 +241,7 @@ class BrushingTest {
         actor.z = 1.5;
         actor.xRot = 90;   // 바로 아래 — 블록 윗면
         actor.hands[0] = item("brush", 1);
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         level.time = 20;
         // 경과 1~4틱: 아무 일 없음
         for (int remaining = 200; remaining > 196; remaining--) assertTrue(Brushing.onUseTick(level, actor, p, 0, remaining));
@@ -265,7 +266,7 @@ class BrushingTest {
         actor.z = 1.5;
         actor.xRot = 90;
         actor.hands[0] = item("brush", 1);
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         for (int i = 0; i < 9; i++) be.brush(level, 100L + 10 * i, actor, Dir.UP);
         level.time = 190;
         assertTrue(Brushing.onUseTick(level, actor, p, 0, 196));   // 경과 5 → 열 번째 솔질
@@ -295,7 +296,7 @@ class BrushingTest {
 
     @Test
     void playerActorStartsUsingForTwoHundredTicks() {
-        Player p = new Player(1, UUID.randomUUID(), "A", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         new PlayerActor(p).startUsingItem(1, Brushing.USE_DURATION);
         assertEquals(1, p.usingHand);
         assertEquals(200, p.usingTicks);

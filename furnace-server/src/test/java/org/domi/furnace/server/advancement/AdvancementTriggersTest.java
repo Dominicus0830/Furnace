@@ -5,6 +5,7 @@ package org.domi.furnace.server.advancement;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -147,7 +148,7 @@ class AdvancementTriggersTest {
     @Test
     void totemTriggersUsedTotem(@TempDir Path dir) {
         org.domi.furnace.server.item.ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
-        Player p = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        Player p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.SURVIVAL, false);
         var dry = new org.domi.furnace.server.entity.PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
         for (int i = 0; i < 60; i++) p.vitals().tick(dry);   // 접속 무적 지나기
@@ -189,8 +190,8 @@ class AdvancementTriggersTest {
     @Test
     void killScoreUpdatesCriteria() {
         ServerScoreboard board = new ServerScoreboard(List::of, null);
-        Player killer = new Player(1, UUID.randomUUID(), "K", new EmbeddedChannel());
-        Player victim = new Player(2, UUID.randomUUID(), "V", new EmbeddedChannel());
+        Player killer = new Player(1, UUID.randomUUID(), "K", new ConcurrentEmbeddedChannel());
+        Player victim = new Player(2, UUID.randomUUID(), "V", new ConcurrentEmbeddedChannel());
         killer.scoreboard(board);
         victim.scoreboard(board);
         Objective total = board.addObjective("total", ObjectiveCriteria.KILL_COUNT_ALL, Text.text("t"), ObjectiveCriteria.RenderType.INTEGER, false, null);

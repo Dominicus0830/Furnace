@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -47,7 +48,7 @@ class DamageCommandTest {
     private static final java.util.List<Text> broadcasts = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private static Player player(GameMode mode) {
-        Player p = new Player(21, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+        Player p = new Player(21, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitals.Env() {
             public Difficulty difficulty() { return Difficulty.NORMAL; }
             public boolean gameRule(String name) { return !name.equals("keepInventory") && !name.equals("doImmediateRespawn"); }

@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -153,7 +154,7 @@ class MinecartTest {
         var level = floor();
         for (int z = -6; z <= 6; z++) rail(level, new Pos(0, -60, z), "minecraft:rail", "north_south");
         Minecart m = cart(level, 0.5, Y + 0.0625, 0.5);
-        Player p = new Player(970, UUID.randomUUID(), "rider", new EmbeddedChannel());
+        Player p = new Player(970, UUID.randomUUID(), "rider", new ConcurrentEmbeddedChannel());
         p.teleporter(t -> {});
         assertTrue(m.interact(p, 0));
         assertSame(m, p.vehicle());
@@ -164,7 +165,7 @@ class MinecartTest {
         double v = pz * 0.1;
         assertEquals(0.5 + v * 0.75, m.z(), 1e-9, "탄 수레는 0.75 배로 움직인다");
         assertEquals(v * 0.997, m.vz(), 1e-9, "탄 수레 감속 0.997");
-        assertFalse(m.interact(new Player(971, UUID.randomUUID(), "other", new EmbeddedChannel()), 0), "이미 누가 탔다");
+        assertFalse(m.interact(new Player(971, UUID.randomUUID(), "other", new ConcurrentEmbeddedChannel()), 0), "이미 누가 탔다");
     }
 
     @Test
@@ -260,7 +261,7 @@ class MinecartTest {
         for (int x = -6; x <= 6; x++) rail(level, new Pos(x, -60, 0), "minecraft:rail", "east_west");
         MinecartFurnace f = (MinecartFurnace) AbstractMinecart.create(level, 0.5, Y + 0.0625, 0.5, AbstractMinecart.Type.FURNACE);
         level.addFreshEntity(f);
-        Player p = new Player(972, UUID.randomUUID(), "stoker", new EmbeddedChannel());
+        Player p = new Player(972, UUID.randomUUID(), "stoker", new ConcurrentEmbeddedChannel());
         p.teleporter(t -> {});
         p.inventory().set(p.inventory().heldWindowSlot(), new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "coal"), 2));
         f.interact(p, 0);

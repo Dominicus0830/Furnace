@@ -64,7 +64,7 @@ class SculkCatalystRegionTest {
             z.moveTo(6.5, -60.0, 4.5, 0, 0);
             l.addFreshEntity(z);
             // 플레이어가 때려 죽인다(실서버 경로: hurtBy → die, 처치 크레딧·통계 포함)
-            var p = new org.domi.furnace.server.entity.Player(l.nextEntityId(), java.util.UUID.randomUUID(), "A", new io.netty.channel.embedded.EmbeddedChannel());
+            var p = new org.domi.furnace.server.entity.Player(l.nextEntityId(), java.util.UUID.randomUUID(), "A", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
             p.setPosRaw(8.5, -60.0, 4.5);
             z.hurtBy(new Entity.Damage("minecraft:player_attack", false, false, false), 1000.0F, p);
             assertTrue(z.isDeadOrDying(), "죽었다");

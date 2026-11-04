@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.Map;
 import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -27,7 +28,7 @@ class TotemAndProtectionTest {
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
     }
 
-    private final Player player = new Player(7, UUID.randomUUID(), "Steve", new EmbeddedChannel());
+    private final Player player = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
     private final PlayerVitals v = player.vitals();
     private final PlayerVitalsTest.TestEnv env = new PlayerVitalsTest.TestEnv();
 
@@ -43,7 +44,7 @@ class TotemAndProtectionTest {
     static void pastSpawnInvulnerability(PlayerVitals pv) { for (int i = 0; i < 60; i++) pv.tick(DRY); }
 
     static Player fresh(int id) {
-        Player p = new Player(id, UUID.randomUUID(), "P" + id, new EmbeddedChannel());
+        Player p = new Player(id, UUID.randomUUID(), "P" + id, new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
         pastSpawnInvulnerability(p.vitals());

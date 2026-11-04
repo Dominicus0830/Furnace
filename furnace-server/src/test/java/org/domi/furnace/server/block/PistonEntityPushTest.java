@@ -3,6 +3,7 @@ package org.domi.furnace.server.block;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.domi.furnace.server.block.entity.ShulkerBoxBlockEntity;
@@ -163,7 +164,7 @@ class PistonEntityPushTest {
     @Test
     void player_isNotMovedServerSide_andGetsNoCorrectionPacket() {
         TimedLevel l = upPiston("minecraft:stone");
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(900_123, UUID.randomUUID(), "P", ch);
         p.inventory(new PlayerInventory());
         p.applyMove(0.5, -58.0, 0.5, 0, 0, true);

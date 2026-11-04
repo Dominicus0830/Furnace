@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -75,7 +76,7 @@ class MapRegionTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(w.entityIds().next(), UUID.randomUUID(), "A", ch);
         p.inventory(new PlayerInventory());
         p.applyMove(0.5, -60, 0.5, 0, 0, true);

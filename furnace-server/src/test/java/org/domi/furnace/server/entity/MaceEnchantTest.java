@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.List;
 import java.util.UUID;
 import org.domi.furnace.server.block.LegacyRandomSource;
@@ -37,7 +38,7 @@ class MaceEnchantTest {
     }
 
     private static Player player(int id, double x, float yaw, PlayerVitalsTest.TestEnv env) {
-        var ch = new EmbeddedChannel();
+        var ch = new ConcurrentEmbeddedChannel();
         var p = new Player(id, UUID.randomUUID(), "P" + id, ch);
         CHANNELS.put(p, ch);
         p.vitals().env(env);

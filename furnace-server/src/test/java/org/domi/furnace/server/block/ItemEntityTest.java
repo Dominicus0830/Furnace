@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -229,7 +230,7 @@ class ItemEntityTest {
     // ------------------------------------------------------------------ 줍기·추적
 
     private static Player player(double x, double y, double z) {
-        Player p = new Player(900_000 + (int) (Math.random() * 1000), UUID.randomUUID(), "P", new EmbeddedChannel());
+        Player p = new Player(900_000 + (int) (Math.random() * 1000), UUID.randomUUID(), "P", new ConcurrentEmbeddedChannel());
         p.inventory(new PlayerInventory());
         p.applyMove(x, y, z, 0, 0, true);
         return p;

@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -28,7 +29,7 @@ class HorseRemountTest {
     }
 
     private static Player player() {
-        Player p = new Player(951, UUID.randomUUID(), "rider", new EmbeddedChannel());
+        Player p = new Player(951, UUID.randomUUID(), "rider", new ConcurrentEmbeddedChannel());
         p.vitals().env(new PlayerVitalsTest.TestEnv());
         p.teleporter(t -> {});
         p.applyMove(2.5, -60, 0.5, 30.0F, 20.0F, true);

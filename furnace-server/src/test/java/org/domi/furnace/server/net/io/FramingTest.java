@@ -5,18 +5,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import org.junit.jupiter.api.Test;
 
 class FramingTest {
 
     @Test
     void encodeThenDecode_roundTrips() {
-        EmbeddedChannel enc = new EmbeddedChannel(new FrameEncoder());
+        EmbeddedChannel enc = new ConcurrentEmbeddedChannel(new FrameEncoder());
         ByteBuf payload = Unpooled.wrappedBuffer(new byte[]{1, 2, 3, 4, 5});
         assertTrue(enc.writeOutbound(payload));
         ByteBuf framed = enc.readOutbound();
 
-        EmbeddedChannel dec = new EmbeddedChannel(new FrameDecoder());
+        EmbeddedChannel dec = new ConcurrentEmbeddedChannel(new FrameDecoder());
         assertTrue(dec.writeInbound(framed));
         ByteBuf out = dec.readInbound();
         assertEquals(5, out.readableBytes());
@@ -26,7 +27,7 @@ class FramingTest {
 
     @Test
     void decoder_buffersPartialFrame() {
-        EmbeddedChannel dec = new EmbeddedChannel(new FrameDecoder());
+        EmbeddedChannel dec = new ConcurrentEmbeddedChannel(new FrameDecoder());
         assertFalse(dec.writeInbound(Unpooled.wrappedBuffer(new byte[]{3})));
         assertFalse(dec.writeInbound(Unpooled.wrappedBuffer(new byte[]{9, 9})));
         assertTrue(dec.writeInbound(Unpooled.wrappedBuffer(new byte[]{9})));
@@ -40,7 +41,7 @@ class FramingTest {
 
     @Test
     void decoder_throws_whenLengthExceedsMax() {
-        EmbeddedChannel dec = new EmbeddedChannel(new FrameDecoder());
+        EmbeddedChannel dec = new ConcurrentEmbeddedChannel(new FrameDecoder());
         ByteBuf buf = Unpooled.buffer();
         Types.writeVarInt(buf, 2 * 1024 * 1024 + 1); // 2 MiB 상한 초과
         assertThrows(Exception.class, () -> dec.writeInbound(buf));
@@ -51,7 +52,7 @@ class FramingTest {
     void decoder_honorsPerStateLimit() {
         FrameDecoder fd = new FrameDecoder();
         fd.maxLength(1024);
-        EmbeddedChannel dec = new EmbeddedChannel(fd);
+        EmbeddedChannel dec = new ConcurrentEmbeddedChannel(fd);
         ByteBuf ok = Unpooled.buffer();
         Types.writeVarInt(ok, 1024);
         ok.writeZero(1024);

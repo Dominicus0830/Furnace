@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -36,7 +37,7 @@ class PlayerVitalsTest {
         public void broadcastToTrackers(int entityId, Packet packet) { trackerPackets.add(packet); }
     }
 
-    private final EmbeddedChannel channel = new EmbeddedChannel();
+    private final EmbeddedChannel channel = new ConcurrentEmbeddedChannel();
     private final Player player = new Player(7, UUID.randomUUID(), "Steve", channel);
     private final PlayerVitals v = player.vitals();
     private final TestEnv env = new TestEnv();
