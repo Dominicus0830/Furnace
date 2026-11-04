@@ -8,6 +8,7 @@ import org.domi.furnace.api.event.inventory.InventoryClickEvent;
 import org.domi.furnace.api.event.inventory.InventoryCloseEvent;
 import org.domi.furnace.api.event.inventory.InventoryOpenEvent;
 import org.domi.furnace.api.event.player.PlayerDropItemEvent;
+import org.domi.furnace.api.event.player.PlayerInteractEntityEvent;
 import org.domi.furnace.api.event.player.PlayerInteractEvent;
 import org.domi.furnace.api.event.player.PlayerMoveEvent;
 import org.domi.furnace.api.event.player.PlayerPickupItemEvent;
@@ -86,6 +87,25 @@ public final class PluginGameEvents implements GameEvents {
         var action = blockPos == null ? PlayerInteractEvent.Action.RIGHT_CLICK_AIR : PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK;
         String f = blockPos == null || face < 0 || face >= FACES.length ? null : FACES[face];
         return !bus().call(new PlayerInteractEvent(host.player(p), action, ApiConvert.item(inHand, items()), block, f, hand == 0)).isCancelled();
+    }
+
+    @Override
+    public boolean wantsInteract() { return bus().hasSubscribers(PlayerInteractEvent.class); }
+
+    @Override
+    public boolean playerLeftClick(Player p, int[] blockPos, int blockState, int face, ItemStack inHand) {
+        if (!bus().hasSubscribers(PlayerInteractEvent.class)) return true;
+        Block block = blockPos == null ? null
+                : new Block(p.dimension(), new BlockPos(blockPos[0], blockPos[1], blockPos[2]), ApiConvert.block(blockState, host.core().world().blockRegistry()));
+        var action = blockPos == null ? PlayerInteractEvent.Action.LEFT_CLICK_AIR : PlayerInteractEvent.Action.LEFT_CLICK_BLOCK;
+        String f = blockPos == null || face < 0 || face >= FACES.length ? null : FACES[face];
+        return !bus().call(new PlayerInteractEvent(host.player(p), action, ApiConvert.item(inHand, items()), block, f, true)).isCancelled();
+    }
+
+    @Override
+    public boolean playerInteractEntity(Player p, Entity target, int hand, ItemStack inHand) {
+        if (!bus().hasSubscribers(PlayerInteractEntityEvent.class)) return true;
+        return !bus().call(new PlayerInteractEntityEvent(host.player(p), EntityHandle.of(host, target), ApiConvert.item(inHand, items()), hand == 0)).isCancelled();
     }
 
     @Override

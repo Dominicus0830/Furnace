@@ -1,4 +1,6 @@
-# 엔티티·월드·아이템·인벤토리 플러그인 API 설계 (1단계)
+# 엔티티·월드·아이템·인벤토리 플러그인 API 설계 (1·2단계)
+
+> 2026-11-03: 2단계를 더했다(8장). 1~7장은 1단계 기록이며, 7장 "다음 단계" 목록의 처리 상태는 8.6 을 본다.
 
 대상: `furnace-api` 의 `org.domi.furnace.api.{world,entity,item,inventory,event.*}`. 서버 구현은 `furnace-server/.../plugin/`.
 근거: `docs/handoff/...` 2.3.3 어댑터 대비 원칙 9개, `.claude/rules/scheduler.md`, `docs/api/text.md`(텍스트는 자체 `Text`).
@@ -117,3 +119,48 @@ ApiConvert              : 서버 ItemStack ↔ API ItemStack, 서버 Player → 
 9. `PersistentDataContainer`(원칙 7), `Chunk` 객체(`World.chunkAt`), `ChunkLoadEvent.isNewChunk` 의 정확한 판정.
 10. 월드 쓰기: `setBlock` 의 `BlockPlaceEvent/BlockBreakEvent` 우회 여부 옵션, 블록 엔티티 데이터.
 11. 기존 `BlockBreakEvent/BlockPlaceEvent` 의 하드코딩된 `"minecraft:overworld"` 를 실제 차원으로(이 작업에서 발견, 이 단계에서는 건드리지 않음).
+
+## 8. 2단계 (2026-11-03)
+
+원칙은 1장 그대로다. 새로 생긴 동기 접근은 없다 — 모든 살아 있는 상태는 소유 스레드에서 실행한 결과를 `RegionFuture` 로 받거나, 핸들을 만든 시점의 사본이다.
+
+### 8.1 EntityScheduler (엔티티를 따라가는 스케줄러)
+- `Entity.entityScheduler()` → `EntityScheduler { execute(task, retired, delay), runDelayed, runAtFixedRate, isRetired }` (Folia 와 같은 뜻).
+- 서버 쪽은 엔티티 객체에 붙은 대기열 `server.entity.EntityTasks` 다. 엔티티가 다른 region 으로 넘어가면(`handOffEntities` → `adoptEntity`) 대기열도 같이 넘어가고, 그 엔티티를 가진 region 이 매 틱 `ChunkLevel.runEntityTasks()` 로 돌린다(엔티티 틱 청크 밖이어도, `/tick freeze` 중에도). 플레이어는 `Player.drainOwnerTasks()` 끝에서.
+- 대기 작업이 있는 대기열이 서버에 하나도 없으면(`EntityTasks.anyPending()`) 레벨이 엔티티를 훑지 않는다 — 플러그인이 안 쓰면 비용 0. 쓰면 그 틱에 region 의 엔티티 수만큼 필드 읽기.
+- 엔티티가 사라지면(`Entity.setRemoved` 의 모든 사유: 죽음·제거·청크와 함께 내림·차원 이동, 플레이어는 `markDisconnected`) 남은 작업 대신 `retired` 를 한 번 부른다 — **그 엔티티를 내린 스레드에서**(플레이어는 접속 종료를 처리한 스레드). retire 뒤 예약은 거부(false/null). 대기열은 retire 때 엔티티 참조를 놓는다.
+- 지연은 엔티티가 있는 region 의 틱. 0 과 1 은 다음 틱. 반복은 실행이 끝난 뒤 다음을 잰다. 예외는 로그만 남기고 반복은 이어진다.
+
+### 8.2 영속 데이터 (PersistentDataContainer)
+- API: `api.persistence.{PersistentDataType, PersistentDataView, PersistentDataContainer}`. 키는 `namespace:path`(Bukkit `NamespacedKey` 규칙). 종류: BYTE·SHORT·INTEGER·LONG·FLOAT·DOUBLE·STRING·BYTE/INTEGER/LONG_ARRAY·BOOLEAN(byte 0/1, Bukkit 과 같은 저장 꼴)·TAG_CONTAINER.
+- 저장 위치는 Paper 와 같다: 엔티티 NBT `BukkitValues`, 청크 NBT `ChunkBukkitValues`, 플레이어 파일 `BukkitValues`. 그래서 Paper 월드의 값을 그대로 읽고, Paper 로 돌아가도 남는다. 모르는 꼴의 값(Paper 플러그인이 쓴 목록 등)은 건드리지 않고 보존한다.
+- 읽기: `Entity.persistentData()` 는 **핸들 시점 사본**(플레이어는 지금 값의 사본). `Chunk.persistentData()` 는 Future.
+- 쓰기: `editPersistentData(Consumer)` — 엔티티는 EntityScheduler 대기열로 엔티티를 가진 region 에서(넘어가도 따라간다), 청크는 그 청크 region 에서, 플레이어는 `runOnOwner`. 콜백이 받은 컨테이너를 밖으로 가지고 나가지 않는다. 청크는 고친 뒤 저장 대상으로 표시하고, 비면 키를 지운다.
+- 플레이어 영속 데이터는 연결 스레드가 저장 스냅샷을 뜨므로 `Player.withPersistentData` 모니터로 보호한다(엔티티·청크는 소유 스레드 전용이라 잠금 없음).
+- 아이템의 영속 데이터(`PublicBukkitValues`)는 아직 없다(`ItemStack.components` 의 `minecraft:custom_data` SNBT 를 직접 다루면 된다).
+
+### 8.3 Chunk·엔티티 조회·스폰
+- `World.chunkAt(x, z)` → `Chunk`: 좌표뿐인 불변 핸들(청크를 로드하지 않는다). `isLoaded()`(최근 값), `scheduler()`, `entities()`(플레이어 포함), 영속 데이터. 로드되지 않은 청크는 빈 값/false 로 끝나고 청크를 만들지 않는다. `ChunkLoadEvent/ChunkUnloadEvent.chunk()` 편의.
+- `World.isChunkLoaded(x, z)`.
+- `World.spawnEntity(type, Location)` — `/summon` 과 같은 경로(`Entities.load` + 몹 `finalizeSpawn`(COMMAND)). Bukkit `spawnEntity` 도 COMMAND 로 finalizeSpawn 한다. `EntitySpawnEvent` 취소 → null. 모르는 종류·플레이어·낚시찌 → IllegalArgumentException, 청크 미로드 → IllegalStateException(청크를 만들지 않는다).
+- `World.nearbyEntities(center, radius)` — center 칸 region 에서 상자 질의 후 거리 제곱 비교, 플레이어 포함. **그 region 밖(다른 region 이 가진 청크)의 엔티티는 빠진다**(다른 region 을 동기로 읽지 않는다는 원칙). radius 0..128.
+- UUID 로 서버 전체에서 엔티티 찾기(`World.entity(UUID)`)는 아직 없다 — 전역 색인이 없다.
+
+### 8.4 블록·엔티티 칸, 상인
+- `World.inventoryAt(BlockPos)` → `Optional<Inventory>`: 용기 블록 엔티티(`ContainerBlockEntity` — 상자·통·셜커 상자·깔때기·발사기·공급기·화로류·양조기·제작기·조각된 책장·장식 단지; 모닥불은 Bukkit 처럼 제외). 쓰기는 `MenuBlockContext.runIn` 안에서 `BlockEntityContainer.set` — 메뉴 클릭과 같은 부수 효과(저장 표시·비교기·제작기 잠금 풀기). 큰 상자는 반쪽만. 그 사이 블록 엔티티가 바뀌거나 부서졌으면 IllegalStateException. 열지 않은 전리품 상자는 채우지 않는다(빈 칸으로 보인다).
+- `Entity.container()` → `Optional<Inventory>`: 상자 배·상자/깔때기 수레(`ContainerEntity`, `EntityContainer.set` 의 칸 최대 개수 자르기 포함), 주민·알레이·피글린 소지품(`InventoryCarrier`), 플레이어는 `inventory()`. 엔티티 대기열로 실행되므로 엔티티를 따라가고, 다음 틱에 완료된다.
+- `Merchant extends LivingEntity`(주민·떠돌이 상인 핸들): `trades()`/`setTrades(List<MerchantRecipe>)`/`isTrading()`. `MerchantRecipe` = 재료 1·2, 결과, uses/maxUses, xp, priceMultiplier, rewardExp. 재료는 바닐라 `ItemCost` 로 바뀐다 — 넣은 컴포넌트가 조건이 되고 지운 컴포넌트는 조건이 아니다. 수요(demand)·특가(specialPrice)는 0 으로 새로 시작한다. `trades()` 는 바닐라 `getOffers` 처럼 거래가 아직 없는 주민이면 거래표를 만든다(난수 소비, Bukkit 도 같다). `setTrades` 는 그 경로를 타지 않는다. 열려 있는 거래 창은 갱신하지 않는다.
+- 말·당나귀 인벤토리, 엔더 상자, 큰 상자 합친 보기, `InventoryHolder`/`InventoryView` 는 아직 없다.
+
+### 8.5 이벤트
+| 이벤트 | 취소 | 발화 스레드 | 서버 발화 지점 |
+|---|---|---|---|
+| `PlayerInteractEvent` LEFT_CLICK_BLOCK | O | 플레이어의 region | `BlockBreaking.handleAction` START — 거리·높이·스폰 보호 검사 뒤, 크리에이티브 즉시 파괴 앞(Paper `ServerPlayerGameMode` 와 같은 자리). 취소 = 부수기 시작 안 함 + 블록 재전송 |
+| `PlayerInteractEvent` LEFT_CLICK_AIR | O | 플레이어의 region | swing 패킷(`Region.swingLeftClick`) — 눈에서 4.5칸(크리에이티브 5) 안에 블록(OUTLINE, 유체 무시)도 집을 수 있는 엔티티·다른 플레이어도 없을 때(Spigot handleAnimate 의 rayTrace). 구독자가 없으면 시선 추적도 안 한다. 취소해도 휘두르기는 보인다 |
+| `PlayerInteractEntityEvent` | O | 대상 엔티티의 region | `handleInteractEntity` 의 INTERACT(0), 거리 검사 뒤 모든 상호작용 앞. 취소 = 아무 상호작용 없음 + 손 슬롯 재전송 |
+
+`Action.isLeftClick()/isRightClick()` 편의를 더했다.
+
+### 8.6 7장 "다음 단계" 처리 상태
+1 EntityScheduler — **완료**(8.1). 2 엔티티 조회·스폰 — **스폰·주변·청크별 조회 완료**, UUID 전역 조회·AI/속성/효과/탑승은 남음. 3 `damage()/heal()/getEquipment()`·`Mob`·`Item` 타입 — 남음. 4 블록·엔티티 컨테이너 Inventory — **완료**(8.4), `InventoryView/Holder`·클릭 후 결과 수정은 남음. 5 최종 피해·`DamageCause` 하위 이벤트 — 남음. 6 텔레포트 원인·차원 — 남음. 7 `InventoryOpenEvent` 경로 확장 — 남음. 8 LEFT_CLICK·`PlayerInteractEntityEvent` — **완료**(8.5). 9 `PersistentDataContainer`·`Chunk` — **완료**(8.2·8.3), `ChunkLoadEvent.isNewChunk` 는 남음. 10·11 — 남음. 그 밖에 `PlayerMoveEvent` 회전만 바뀐 이동은 여전히 발화하지 않는다.
+

@@ -21,6 +21,9 @@ public final class BlockBreaking {
 
         /** 그 칸을 지금 region 이 만질 수 있는가(다른 region 칸이면 지연 파괴를 미룬다). */
         default boolean owns(Pos pos) { return true; }
+
+        /** 부수기 시작 허가(Paper 의 PlayerInteractEvent LEFT_CLICK_BLOCK — 거리·높이·스폰 보호 검사 뒤, 크리에이티브 즉시 파괴 앞). 거짓이면 블록을 되돌려 보낸다. */
+        default boolean allowStartDestroy(BlockLevel level, Pos pos) { return true; }
     }
 
     private int gameTicks;
@@ -51,6 +54,10 @@ public final class BlockBreaking {
         switch (action) {
             case START_DESTROY_BLOCK -> {
                 if (!mayInteract) {
+                    host.sendBlockUpdate(level, pos);
+                    return;
+                }
+                if (!host.allowStartDestroy(level, pos)) {
                     host.sendBlockUpdate(level, pos);
                     return;
                 }
