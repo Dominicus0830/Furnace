@@ -445,6 +445,10 @@ public abstract non-sealed class Entity implements Rider {
         if (portalProcess.processPortalTeleportation(level, this, canUsePortal(false))) {
             setPortalCooldown();
             var travel = level.dimensionTravel();
+            if (travel != null && portalProcess.portal().withinLevel()) {
+                teleportWithinLevel(portalProcess.portal(), portalProcess.getEntryPosition(), travel);
+                return;
+            }
             if (travel != null) {
                 PortalTravel plan = portalProcess.prepareTravel(level, Traveler.of(this));
                 if (plan != null && !plan.targetDimension().equals(level.dimension()) && travel.isLevelEnabled(plan.targetDimension())
@@ -468,10 +472,24 @@ public abstract non-sealed class Entity implements Rider {
      * 새로 만들어 넣는다(바닐라 changeDimension 의 create + restoreFrom + addDuringTeleport). 목적지가 없으면 원천에 되돌린다.
      */
     private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
-        moveAcross(plan, travel, (e, t) -> {
-            e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
-            e.setDeltaMovement(t.vx(), t.vy(), t.vz());
-        }, null);
+        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null);
+    }
+
+    /** changeDimension 이 옮긴 엔티티를 놓는 방식: moveTo(위치, 목적 yRot, 지금 xRot) 후 목적 속도. */
+    private static final java.util.function.BiConsumer<Entity, DimensionTransition> PORTAL_PLACE = (e, t) -> {
+        e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
+        e.setDeltaMovement(t.vx(), t.vy(), t.vz());
+    };
+
+    /**
+     * 같은 레벨 안으로 보내는 포털(엔드 관문): 바닐라는 같은 엔티티를 그 자리로 옮기지만(changeDimension 의 같은 차원 쪽), 출구가
+     * 다른 region 스레드 소유일 수 있어 다른 차원 이동과 같이 이쪽에서 빼고 목적지 region 에 같은 종류를 새로 만든다(UUID·저장 데이터 유지).
+     * 목적지가 없으면 원래 자리에 되살린다.
+     */
+    private void teleportWithinLevel(Portal portal, Pos entry, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
+        final ChunkLevel src = level;
+        final Traveler tr = Traveler.of(this);
+        moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null);
     }
 
     /**
@@ -487,14 +505,15 @@ public abstract non-sealed class Entity implements Rider {
         float p = Math.clamp(pitch, -90.0F, 90.0F);
         PortalTravel plan = new PortalTravel(dimension, floor(tx), floor(tz), 0, 0,
                 lvl -> new DimensionTransition(lvl, tx, ty, tz, 0, 0, 0, yaw, p));
-        moveAcross(plan, travel, (e, t) -> {
+        moveAcross(arrive -> travel.travel(plan, arrive), travel, (e, t) -> {
             e.moveTo(tx, ty, tz, yaw, p);
             if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
         }, done);
         return true;
     }
 
-    private void moveAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
+    private void moveAcross(java.util.function.Consumer<java.util.function.BiConsumer<ChunkLevel, DimensionTransition>> route,
+                            org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
                             java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done) {
         stopRiding();
         ejectPassengers();
@@ -504,7 +523,7 @@ public abstract non-sealed class Entity implements Rider {
         final String typeName = type.name();
         final double ox = x, oz = z;
         setRemoved(RemovalReason.CHANGED_DIMENSION);
-        travel.travel(plan, (target, t) -> {
+        route.accept((target, t) -> {
             try {
                 arriveAcross(target, t, travel, tag, cooldown, process, typeName, ox, oz, place);
             } finally {

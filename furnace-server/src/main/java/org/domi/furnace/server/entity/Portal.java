@@ -11,6 +11,16 @@ public interface Portal {
     /** 플레이어의 getPortalTransitionTime(invulnerable = 능력의 무적 — 크리에이티브·관전). */
     default int getPlayerTransitionTime(ChunkLevel level, boolean invulnerable) { return 0; }
 
+    /** 같은 레벨 안으로 보내는 포털(엔드 관문)인가 — 그러면 서버는 prepareTravel 대신 travelWithinLevel 을 쓴다. */
+    default boolean withinLevel() { return false; }
+
+    /**
+     * 같은 레벨 안으로 보내는 포털의 서버판: 원천 레벨 스레드에서 부르고, 목적지를 정하면 arrive(레벨, 목적지)를 목적지 칸 region
+     * 스레드에서 부른다. 목적지가 없으면 arrive(null, null)(어느 스레드든). 목적 청크를 비동기로 올리므로 바로 오지 않을 수 있다.
+     */
+    default void travelWithinLevel(ChunkLevel level, Pos pos, Traveler traveler,
+                                   java.util.function.BiConsumer<ChunkLevel, DimensionTransition> arrive) { arrive.accept(null, null); }
+
     /** 원천 쪽 계획(목적 차원이 없으면 null). 원천 레벨 스레드에서 부른다. */
     PortalTravel prepareTravel(ChunkLevel level, Traveler traveler, Pos pos);
 
