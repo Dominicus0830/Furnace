@@ -90,7 +90,7 @@ public class PointedDripstoneBlock extends BlockBehavior {
         if (B.is(info.sourceState, MUD) && fluid == Fluids.T_WATER) {
             int clay = B.defaultState(CLAY);
             level.setBlockAndUpdate(info.pos, clay);
-            // TODO(엔티티): Block.pushEntitiesUp(진흙, 점토, level, pos).
+            level.pushEntitiesUp(info.sourceState, clay, info.pos);
             level.gameEvent("minecraft:block_change", info.pos, null, clay);
             level.levelEvent(null, 1504, tip, 0);
         } else {

@@ -1074,6 +1074,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.player = p;
         // 서버가 플레이어를 옮긴다(엔더 진주 등): 어느 스레드에서 불러도 IO 스레드에서 한다.
         p.teleporter(t -> ctx.executor().execute(() -> {
+            if (t.length == 8) { teleportPlayerRelative(ctx, t[0], t[1], t[2], t[5], t[6], t[7]); return; }   // Player.teleportRelative
             if (t.length >= 5) { iyaw = (float) t[3]; ipitch = (float) t[4]; }
             teleportPlayer(ctx, t[0], t[1], t[2]);
         }));
@@ -3014,6 +3015,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 서버가 정한 위치로 플레이어를 옮긴다(IO 스레드): 이동 대기열을 비우고, 클라이언트가 확인하기 전까지 옛 위치 패킷은 버린다. */
+    /**
+     * ServerGamePacketListenerImpl.teleport(…, RelativeMovement.ALL): 수락 위치는 절대 (x,y,z), 패킷에는 차이(dx,dy,dz)와 회전 0 을
+     * 상대 깃발 다섯 개와 함께 보낸다.
+     */
+    private void teleportPlayerRelative(ChannelHandlerContext ctx, double x, double y, double z, double dx, double dy, double dz) {
+        Player p = this.player;
+        if (p == null || p.isDisconnected()) return;
+        p.clearMoves();
+        ix = x;
+        iy = y;
+        iz = z;
+        ig = false;
+        correctionTpId = ++teleportId;
+        send(ctx, new SyncPlayerPosition(dx, dy, dz, 0.0F, 0.0F, SyncPlayerPosition.RELATIVE_ALL, correctionTpId));
+        p.pushTeleport(x, y, z);
+        publishInput(p);
+    }
+
     private void teleportPlayer(ChannelHandlerContext ctx, double x, double y, double z) {
         Player p = this.player;
         if (p == null || p.isDisconnected()) return;

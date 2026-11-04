@@ -1502,6 +1502,17 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (t != null) t.accept(new double[] {x, y, z});
     }
 
+    /**
+     * ServerPlayer.teleportRelative(dx, dy, dz): connection.teleport(x + dx, …, RelativeMovement.ALL) — 다섯 축 모두 상대값으로 보내
+     * 클라이언트가 자기 위치에 dx·dy·dz 를 더한다(회전은 0 을 더한다). Paper 처럼 PlayerTeleportEvent 를 거친다.
+     */
+    public void teleportRelative(double dx, double dy, double dz) {
+        double nx = x() + dx, ny = y() + dy, nz = z() + dz;
+        if (!vitals().env().gameEvents().playerTeleport(this, nx, ny, nz)) return;
+        var t = teleporter;
+        if (t != null) t.accept(new double[] {nx, ny, nz, Double.NaN, Double.NaN, dx, dy, dz});
+    }
+
     /** connection.teleport(x, y, z, yRot, xRot): 회전까지 정해 보정 텔레포트. */
     public void teleportTo(double x, double y, double z, float yaw, float pitch) {
         if (!vitals().env().gameEvents().playerTeleport(this, x, y, z)) return;   // 플러그인 PlayerTeleportEvent 취소
@@ -1595,6 +1606,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public ChunkPos queuedCenter() { return queuedCenter; }
     public void queuedCenter(ChunkPos c) { this.queuedCenter = c; }
     public void lastCenter(ChunkPos c) { this.lastCenter = c; }
+    private int trackedViewDistance = -1;        // 시야 청크를 마지막으로 잡을 때 쓴 거리(-1=아직 안 함). region 스레드 전용
+    /** 바닐라 ChunkTrackingView.Positioned.viewDistance — 지금 추적 범위가 쓰는 거리. */
+    public int trackedViewDistance() { return trackedViewDistance; }
+    public void trackedViewDistance(int vd) { this.trackedViewDistance = vd; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
 
