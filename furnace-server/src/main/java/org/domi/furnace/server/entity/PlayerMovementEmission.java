@@ -57,13 +57,21 @@ public final class PlayerMovementEmission {
         return false;
     }
 
-    /** 발밑 블록의 stepOn 중 플레이어에게 의미 있는 것(조각 감지기 STEP 진동·비명체 비명). */
+    /** 발밑 블록의 stepOn 중 플레이어에게 의미 있는 것(조각 감지기 STEP 진동·비명체 비명·레드스톤 광석 켜기·거북 알 깨기·마그마 피해). */
     private static void stepOn(ChunkLevel level, Pos pos, int state, Player p) {
         int b = B.block(state);
         if (b == SCULK_SENSOR || b == CALIBRATED) {
             org.domi.furnace.server.block.types.SculkSensorBlock.stepOnBy(level, pos, state, p, new Vec3(p.x(), p.y(), p.z()));
         } else if (b == SHRIEKER) {
             org.domi.furnace.server.block.types.SculkShriekerBlock.stepOnBy(level, pos, state, p);
+        } else if (B.behavior(state) instanceof org.domi.furnace.server.block.types.MagmaBlock) {
+            // MagmaBlock.stepOn: 웅크리지 않은 생물에게 hot_floor 1. 서리 보행자 장화는 damage_immunity(burn_from_stepping)로 면역
+            if (!p.sneaking() && org.domi.furnace.server.item.ItemTools.enchantmentLevel(p.equipment(EquipmentSlot.FEET), "minecraft:frost_walker") <= 0)
+                p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("hot_floor"), 1.0F);
+        } else if (B.behavior(state) instanceof org.domi.furnace.server.block.types.RedStoneOreBlock) {
+            org.domi.furnace.server.block.types.RedStoneOreBlock.stepOnBy(level, pos, state, p.sneaking());
+        } else if (B.behavior(state) instanceof org.domi.furnace.server.block.types.TurtleEggBlock egg) {
+            egg.stepOnPlayer(level, pos, state, p.sneaking());
         }
     }
 }

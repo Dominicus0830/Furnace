@@ -17,7 +17,38 @@ public class TurtleEggBlock extends BlockBehavior {
 
     public TurtleEggBlock(int block) { super(block); }
 
-    // TODO(엔티티): stepOn(1/100)·fallOn(1/3) — 거북·박쥐가 아닌 생물이 밟으면 destroyEgg.
+    /** stepOn: 웅크리지 않았으면 1/100 로 알 하나를 깬다. */
+    @Override
+    public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {
+        if (!entity.isSteppingCarefully()) destroyEgg(level, state, pos, canDestroyEgg(level, entity), 100);
+        super.stepOn(level, pos, state, entity);
+    }
+
+    /** fallOn: 좀비(종류 포함)가 아니면 1/3 로 알 하나를 깬다. 그다음 기본 낙하 피해. */
+    @Override
+    public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {
+        if (!(entity instanceof org.domi.furnace.server.entity.Zombie)) destroyEgg(level, state, pos, canDestroyEgg(level, entity), 3);
+        super.fallOn(level, state, pos, entity, fallDistance);
+    }
+
+    /** 플레이어(Entity 가 아니다) 쪽 stepOn — 플레이어는 늘 깰 수 있다. */
+    public void stepOnPlayer(BlockLevel level, Pos pos, int state, boolean sneaking) {
+        if (!sneaking) destroyEgg(level, state, pos, true, 100);
+    }
+
+    /** 플레이어 쪽 fallOn(낙하 피해는 PlayerVitals 가 따로 준다). */
+    public void fallOnPlayer(BlockLevel level, Pos pos, int state) { destroyEgg(level, state, pos, true, 3); }
+
+    /** destroyEgg: 깰 수 있는 엔티티면 레벨 난수 nextInt(chance) == 0 일 때 알 하나 줄이기. */
+    private void destroyEgg(BlockLevel level, int state, Pos pos, boolean canDestroy, int chance) {
+        if (canDestroy && level.random().nextInt(chance) == 0 && B.is(state, block)) decreaseEggs(level, pos, state);
+    }
+
+    /** canDestroyEgg: 거북·박쥐는 못 깨고, 생물이면 mobGriefing 일 때(플레이어는 늘). */
+    private static boolean canDestroyEgg(BlockLevel level, org.domi.furnace.server.entity.Entity entity) {
+        if (entity instanceof org.domi.furnace.server.entity.Turtle || entity instanceof org.domi.furnace.server.entity.Bat) return false;
+        return entity instanceof org.domi.furnace.server.entity.LivingEntity && level.gameRule("mobGriefing");
+    }
 
     /** decreaseEggs: 깨지는 소리, 하나뿐이면 부서지고 아니면 하나 줄인다. */
     private void decreaseEggs(BlockLevel level, Pos pos, int state) {

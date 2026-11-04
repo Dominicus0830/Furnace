@@ -35,7 +35,11 @@ public class PitcherCropBlock extends DoublePlantBlock implements BonemealableBl
     @Override
     protected boolean mayPlaceOn(int state, BlockLevel level, Pos pos) { return B.is(state, FARMLAND); }
 
-    // TODO(엔티티): entityInside — 파괴수.
+    /** entityInside: 파괴수가 지나가고 mobGriefing 이면 부순다(떨굼, 부순 엔티티 = 파괴수). */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (entity instanceof org.domi.furnace.server.entity.Ravager && level.gameRule("mobGriefing")) level.destroyBlockByEntity(pos, true, entity);
+    }
 
     @Override
     public boolean canBeReplaced(int state, PlaceContext ctx) { return false; }

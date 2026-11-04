@@ -31,7 +31,25 @@ public class SweetBerryBushBlock extends BushBlock implements BonemealableBlock 
         }
     }
 
-    // TODO(엔티티): entityInside — 끼여 느려지고 움직이면 달콤한 열매 덤불 피해 1.
+    /**
+     * entityInside: 여우·벌이 아닌 생물은 (0.8, 0.75, 0.8) 로 끼이고, 자란(나이 1 이상) 덤불에서 옆으로 움직였으면
+     * (xOld·zOld 와 0.003 이상 차이) 달콤한 열매 덤불 피해 1.
+     */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (!(entity instanceof org.domi.furnace.server.entity.LivingEntity) || entity instanceof org.domi.furnace.server.entity.Fox
+                || entity instanceof org.domi.furnace.server.entity.Bee) return;
+        entity.makeStuckInBlock(0.8F, 0.75, 0.8F);
+        if (AGE.intValue(state) > 0 && (entity.xOld != entity.x() || entity.zOld != entity.z())
+                && hurtsMoving(entity.x() - entity.xOld, entity.z() - entity.zOld)) {
+            entity.hurt(org.domi.furnace.server.entity.Entity.Damage.SWEET_BERRY_BUSH, 1.0F);
+        }
+    }
+
+    /** 플레이어 쪽(Region): 나이 1 이상이고 이번 이동의 가로 변위가 0.003 이상이면 피해. 끼임은 클라이언트가 계산한다. */
+    public static boolean hurtsPlayer(int state, double dx, double dz) { return AGE.intValue(state) > 0 && (dx != 0.0 || dz != 0.0) && hurtsMoving(dx, dz); }
+
+    private static boolean hurtsMoving(double dx, double dz) { return Math.abs(dx) >= 0.003F || Math.abs(dz) >= 0.003F; }
 
     @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {

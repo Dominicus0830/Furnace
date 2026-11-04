@@ -14,7 +14,7 @@ public class HoneyBlock extends HalfTransparentBlock {
     public void fallOn(BlockLevel level, int state, Pos pos, Entity entity, float fallDistance) {
         entity.playSound("minecraft:block.honey_block.slide", 1.0F, 1.0F);
         entity.broadcastEntityEvent((byte) 54);
-        if (entity.causeFallDamage(fallDistance, 0.2F)) {
+        if (entity.causeFallDamage(fallDistance, 0.2F, org.domi.furnace.server.entity.Entity.Damage.FALL)) {
             BlockInfo info = BlockInfo.get();
             entity.playSound(info.fallSound(block), info.soundVolume(block) * 0.5F, info.soundPitch(block) * 0.75F);
         }

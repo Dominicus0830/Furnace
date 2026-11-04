@@ -125,7 +125,7 @@ public class Bat extends PathfinderMob {
     }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) { return false; }
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) { return false; }
 
     @Override
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {

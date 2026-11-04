@@ -110,9 +110,9 @@ public class Breeze extends Monster {
     @Override protected String getDeathSound() { return "entity.breeze.death"; }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) {
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
         if (distance > 3.0F) playSound("entity.breeze.land", 1.0F, 1.0F);
-        return super.causeFallDamage(distance, multiplier);
+        return super.causeFallDamage(distance, multiplier, source);
     }
 
     @Override

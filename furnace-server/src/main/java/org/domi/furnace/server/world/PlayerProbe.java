@@ -146,22 +146,26 @@ public final class PlayerProbe {
      * 청크가 없으면 null.
      */
     public String onPosLegacy(Blocks b, double x, double y, double z, boolean onGround) {
+        int s = onPosLegacyState(b, x, y, z, onGround);
+        return s < 0 ? null : registry.nameOf(s);
+    }
+
+    /** onPosLegacy 의 블록 상태(청크가 없으면 -1). */
+    public int onPosLegacyState(Blocks b, double x, double y, double z, boolean onGround) {
+        int[] p = onPosLegacyPos(b, x, y, z, onGround);
+        return b.stateAt(p[0], p[1], p[2]);
+    }
+
+    /** onPosLegacy 의 블록 좌표 {x,y,z}. */
+    public int[] onPosLegacyPos(Blocks b, double x, double y, double z, boolean onGround) {
         int[] support = onGround ? supportingBlock(b, x, y, z) : null;
-        int bx, by, bz;
         if (support != null) {
             int s = b.stateAt(support[0], support[1], support[2]);
             String n = s < 0 ? null : registry.nameOf(s);
-            if (n != null && (fences.contains(n) || walls.contains(n) || fenceGates.contains(n))) return n;
-            bx = support[0];
-            by = floor(y - 0.2);
-            bz = support[2];
-        } else {
-            bx = floor(x);
-            by = floor(y - 0.2);
-            bz = floor(z);
+            if (n != null && (fences.contains(n) || walls.contains(n) || fenceGates.contains(n))) return support;
+            return new int[] {support[0], floor(y - 0.2), support[2]};
         }
-        int s = b.stateAt(bx, by, bz);
-        return s < 0 ? null : registry.nameOf(s);
+        return new int[] {floor(x), floor(y - 0.2), floor(z)};
     }
 
     /**

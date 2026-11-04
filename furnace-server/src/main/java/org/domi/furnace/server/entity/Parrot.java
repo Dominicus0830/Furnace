@@ -219,7 +219,7 @@ public class Parrot extends TamableAnimal {
     public AgeableMob getBreedOffspring(ChunkLevel level, AgeableMob partner) { return null; }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) { return false; }
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) { return false; }
 
     @Override
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {

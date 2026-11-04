@@ -8,6 +8,6 @@ public class HayBlock extends RotatedPillarBlock {
     @Override
     public void fallOn(org.domi.furnace.server.block.BlockLevel level, int state, org.domi.furnace.server.block.Pos pos,
                        org.domi.furnace.server.entity.Entity entity, float fallDistance) {
-        entity.causeFallDamage(fallDistance, 0.2F);
+        entity.causeFallDamage(fallDistance, 0.2F, org.domi.furnace.server.entity.Entity.Damage.FALL);
     }
 }
