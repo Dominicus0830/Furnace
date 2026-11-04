@@ -97,7 +97,7 @@ public class SnowGolem extends AbstractGolem implements RangedAttackMob {
     }
 
     public void shear(String source) {
-        level.playSound(null, x(), y(), z(), "entity.snow_golem.shear", source, 1.0F, 1.0F);
+        level.playSound(null, this, "entity.snow_golem.shear", source, 1.0F, 1.0F);
         setPumpkin(false);
         spawnAtLocation(new ItemStack(ItemContext.id("minecraft:item", "carved_pumpkin"), 1), 1.7F);
     }

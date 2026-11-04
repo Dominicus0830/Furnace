@@ -116,7 +116,7 @@ public class LongJumpToRandomPos<E extends PathfinderMob> extends Behavior<E> {
                 double d = len + mob.getJumpBoostPower();
                 mob.setDeltaMovement(chosenJump[0] * (d / len), chosenJump[1] * (d / len), chosenJump[2] * (d / len));
                 mob.getBrain().setMemory(MemoryModuleType.LONG_JUMP_MID_JUMP, true);
-                level.playSound(null, mob.x(), mob.y(), mob.z(), getJumpSound.apply(mob), "neutral", 1.0F, 1.0F);
+                level.playSound(null, mob, getJumpSound.apply(mob), "neutral", 1.0F, 1.0F);
             }
         } else {
             findJumpTries--;

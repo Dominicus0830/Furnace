@@ -249,7 +249,7 @@ public class Sniffer extends Animal {
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         boolean food = isFood(held);
         boolean ok = super.interact(p, hand, held, region);
-        if (ok && food) level.playSound(null, x(), y(), z(), "entity.sniffer.eat", "neutral", 1.0F, 0.8F + level.random().nextFloat() * 0.4F);
+        if (ok && food) level.playSound(null, this, "entity.sniffer.eat", "neutral", 1.0F, 0.8F + level.random().nextFloat() * 0.4F);
         return ok;
     }
 

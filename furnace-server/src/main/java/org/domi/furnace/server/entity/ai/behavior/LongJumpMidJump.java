@@ -31,7 +31,7 @@ public class LongJumpMidJump extends Behavior<PathfinderMob> {
     protected void stop(ChunkLevel level, PathfinderMob mob, long gameTime) {
         if (mob.onGround()) {
             mob.setDeltaMovement(mob.vx() * 0.1F, mob.vy(), mob.vz() * 0.1F);
-            level.playSound(null, mob.x(), mob.y(), mob.z(), landingSound, "neutral", 2.0F, 1.0F);
+            level.playSound(null, mob, landingSound, "neutral", 2.0F, 1.0F);
         }
         mob.setDiscardFriction(false);
         mob.setPose(Entity.POSE_STANDING);
