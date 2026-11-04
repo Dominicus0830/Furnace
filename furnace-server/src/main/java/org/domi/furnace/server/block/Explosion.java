@@ -74,6 +74,13 @@ public final class Explosion {
     private final List<Pos> toBlow = new ArrayList<>();
     private final Map<Player, double[]> hitPlayers = new LinkedHashMap<>();
     private final boolean playerSource;
+    /** 원인이 플레이어일 때(Player 는 Entity 가 아니다): 게임 이벤트의 원인, 밀림·피해 대상에서 뺀다(Level.getEntities(source, …)). */
+    private Player sourcePlayer;
+
+    public Explosion withSourcePlayer(Player p) {
+        sourcePlayer = p;
+        return this;
+    }
 
     public Explosion(ChunkLevel level, Entity source, double x, double y, double z, float radius, boolean fire, BlockInteraction interaction) {
         this.level = level;
@@ -132,7 +139,7 @@ public final class Explosion {
 
     /** Explosion.explode(): 부서질 칸과 엔티티 피해·밀림. */
     public void explode() {
-        level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EXPLODE, new org.domi.furnace.server.entity.Vec3(x, y, z), org.domi.furnace.server.world.gameevent.GameEventContext.of(source));   // dco:128 계산 전에 원인 엔티티로
+        level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EXPLODE, new org.domi.furnace.server.entity.Vec3(x, y, z), org.domi.furnace.server.world.gameevent.GameEventContext.of(source != null ? source : sourcePlayer));   // dco:128 계산 전에 원인 엔티티로
         Set<Pos> set = new HashSet<>();
         List<Pos> ordered = new ArrayList<>();
         for (int j = 0; j < 16; j++) {
@@ -182,6 +189,7 @@ public final class Explosion {
         List<Player> players = new ArrayList<>();
         level.forEachPlayerIn(box, players::add);
         for (Player p : players) {
+            if (p == sourcePlayer) continue;
             double[] kb = affect(p.x(), p.y(), p.eyeY(), p.z(), p.boundingBox(), f2, p);
             if (kb == null) continue;
             if (!p.vitals().isSpectator() && (!p.vitals().isCreative() || !p.vitals().isFlying())) {

@@ -42,7 +42,7 @@ command_block(3종), trial_spawner, vault, brushable_block(suspicious sand/grave
 - 의심스러운 스튜·불길한 병·합창 열매(순간이동)·염소 뿔 효과 없음, 끈·이름표·책과 깃펜(`edit_book`, `open_book`) 없음, 가마솥 가죽 갑옷/깃발 세탁 없음, 뒤틀린 균사 낚싯대 없음.
 - `entity_data`/`bucket_entity_data` 가 스폰 알·수레 등에 적용되지 않는 곳이 남음. 화로 경험치는 구슬 없이 바로 더함.
 ### 효과·인챈트
-- 효과: `wind_charged`, `weaving`, `oozing`, `infested` 발동 로직 없음. `luck`/`unluck` 의 전리품·낚시 반영 TODO.
+- 효과: ~~`wind_charged`, `weaving`, `oozing`, `infested` 발동 로직 없음~~ (2026-11-03 구현, `effect/MobEffectTriggers`). `luck`/`unluck` 의 전리품·낚시 반영 TODO.
 - 인챈트: 위 1장 6번. 보호·날카로움·강타·효율·내구성·수선·무한·관통·급류 등은 구현됨.
 - 게임 이벤트(진동) 관련 TODO 11건, 투사체-블록 반응 다수(TNT/양초/모닥불 점화, 종, 장식 항아리 등).
 
