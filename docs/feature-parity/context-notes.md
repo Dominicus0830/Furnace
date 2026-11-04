@@ -785,3 +785,9 @@
 - 몹은 `LivingEntity.updateInvisibilityStatus`(효과가 바뀔 때)와 NBT 불러오기에서, 플레이어는 `Player.syncLivingFlags`(매 틱, 바뀌었을 때만 보냄)에서 맞추고 페어링 데이터에도 넣는다.
 - 즉시 효과는 바닐라 HealOrHarmMobEffect 처럼 "치유 쪽이면 4<<단계, 피해 쪽이면 6<<단계" — 언데드는 즉시 회복이 6 피해, 즉시 피해가 4 치유(전엔 숫자가 뒤바뀌어 있었다).
 
+## 2026-11-03 몹 낙하 위치(FallLocation) 기록
+- 바닐라(btn·brp): `CombatTracker.recordDamage` 가 맞은 순간 `FallLocation.getCurrentFallLocation(mob)` 을 기록한다. 몹도 플레이어와 같다. 지금까지 몹은 null 을 넣어 사다리·덩굴 낙하사가 `death.fell.accident.generic` 으로만 나왔다.
+- `LivingEntity.currentFallLocation()`: `lastClimbablePos`(onClimbable 이 이미 기록하던 칸)가 있으면 **그 칸의 지금 블록**으로 이름을 정하고(부서져 공기면 other_climbable — 바닐라와 같음), 없고 물속이면 water. 표는 brp.a(dtc): 사다리·`#trapdoors` → ladder, vine → vines, 우는/뒤틀린 덩굴(+plant), 비계, 그 밖 other_climbable.
+- `LivingEntity.checkFallDamage` 를 덮어 땅에 닿으면 `lastClimbablePos` 를 지운다(바닐라 btn.a(DZLdtc;Ljd;)V 끝). 벌은 바닐라처럼 checkFallDamage 가 비어 있어 지워지지 않는다.
+- **아직 다른 점**: 바닐라 LivingEntity.checkFallDamage 앞부분(물 상태 갱신, onChangedBlock, 안전 낙하 거리 초과 시 착지 블록 입자)은 넣지 않았다. 다락문을 사다리로 쓰는 오르기(`trapdoorUsableAsLadder`)는 몹·플레이어 모두 없다. 플레이어(`PlayerVitals`)는 매달린 순간의 블록 이름을 저장해, 사다리가 부서진 뒤 떨어져도 ladder 로 나온다(바닐라는 other_climbable).
+- 시험: `MobFallLocationTest`(사다리·덩굴·부서진 사다리·일반 낙하·블록 표).
