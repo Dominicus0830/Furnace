@@ -267,6 +267,7 @@ public class FishingHook extends Projectile {
     /** onHitBlock: 맞은 점까지의 거리만큼으로 속도를 줄인다. */
     @Override
     protected void onHitBlock(Hit hit) {
+        super.onHitBlock(hit);   // 바닐라는 먼저 맞은 블록의 onProjectileHit
         double len = Math.sqrt(sq(vx(), vy(), vz()));
         double dist = Math.sqrt(sq(hit.x() - x(), hit.y() - y(), hit.z() - z()));
         if (len < 1.0E-4) setDeltaMovement(0.0, 0.0, 0.0);

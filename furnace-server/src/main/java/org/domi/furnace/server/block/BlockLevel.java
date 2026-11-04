@@ -67,6 +67,9 @@ public interface BlockLevel {
 
     default boolean destroyBlock(Pos pos, boolean dropBlock) { return destroyBlock(pos, dropBlock, null, UPDATE_LIMIT); }
 
+    /** Level.destroyBlock(pos, drop, entity): 부순 쪽이 블록 행위자가 아닌 엔티티(투사체 등)일 때. 게임 이벤트 원인만 엔티티로 싣는다. */
+    default boolean destroyBlockByEntity(Pos pos, boolean dropBlock, Object entity) { return destroyBlock(pos, dropBlock); }
+
     // ------------------------------------------------------------------ 이웃·모양 갱신
 
     void updateNeighborsAt(Pos pos, int sourceBlock);
@@ -186,6 +189,9 @@ public interface BlockLevel {
 
     /** 점화된 TNT 엔티티를 만든다(fuse < 0 이면 기본 80틱). 엔티티가 없는 레벨은 아무것도 안 한다. */
     default void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {}
+
+    /** spawnPrimedTnt 와 같되 주인을 생물로 바로 준다(불붙은 투사체를 쏜 쪽). */
+    default void spawnPrimedTntOwned(Pos pos, org.domi.furnace.server.entity.Targetable owner, int fuse) {}
 
     /** FallingBlockEntity.fall(level, pos, state): 그 자리를 유체(없으면 공기)로 바꾸고 떨어지는 블록 엔티티를 만든다. 만든 엔티티(없으면 null). */
     default Object spawnFallingBlock(Pos pos, int state) { return null; }

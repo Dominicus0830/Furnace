@@ -23,6 +23,7 @@ public class SmallFireball extends Fireball {
 
     @Override
     protected void onHitBlock(Hit hit) {
+        super.onHitBlock(hit);   // 바닐라는 먼저 맞은 블록의 onProjectileHit
         Targetable owner = getOwner();
         if (!(owner instanceof Mob) || level.gameRule("mobGriefing")) {
             Pos pos = hit.blockPos().relative(hit.face());

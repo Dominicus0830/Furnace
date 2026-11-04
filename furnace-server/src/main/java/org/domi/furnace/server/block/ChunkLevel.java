@@ -312,13 +312,21 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override
     public boolean destroyBlock(Pos pos, boolean dropBlock, BlockActor breaker, int recursionLeft) {
+        return destroyBlock(pos, dropBlock, breaker, breaker, recursionLeft);
+    }
+
+    /** 투사체처럼 BlockActor 가 아닌 엔티티가 부술 때: 전리품의 this 엔티티는 비우고(TODO(전리품): 엔티티를 싣기) 게임 이벤트 원인은 그 엔티티. */
+    @Override
+    public boolean destroyBlockByEntity(Pos pos, boolean dropBlock, Object entity) { return destroyBlock(pos, dropBlock, null, entity, UPDATE_LIMIT); }
+
+    private boolean destroyBlock(Pos pos, boolean dropBlock, BlockActor breaker, Object eventSource, int recursionLeft) {
         int s = getBlockState(pos);
         if (info.isAir(s)) return false;
         int f = getFluidState(pos);
         if (!B.isTag(s, "minecraft:fire")) levelEvent(null, 2001, pos, s);
         if (dropBlock) dropResources(s, pos, info.hasBlockEntity(s) ? getBlockEntity(pos) : null, breaker, ItemStack.EMPTY);
         boolean ok = setBlock(pos, Fluids.createLegacyBlock(f), UPDATE_ALL, recursionLeft);
-        if (ok) gameEvent("minecraft:block_destroy", pos, breaker, s);
+        if (ok) gameEventFrom("minecraft:block_destroy", pos, eventSource, s);
         return ok;
     }
 
@@ -1451,7 +1459,12 @@ public abstract class ChunkLevel implements BlockLevel {
     /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
     @Override
     public void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {
-        org.domi.furnace.server.entity.Targetable owner = igniter != null && igniter.handle() instanceof Player p ? p : null;
+        spawnPrimedTntOwned(pos, igniter != null && igniter.handle() instanceof Player p ? p : null, fuse);
+    }
+
+    /** 점화한 생물(Targetable — 투사체를 쏜 몹 포함)을 바로 주인으로. */
+    @Override
+    public void spawnPrimedTntOwned(Pos pos, org.domi.furnace.server.entity.Targetable owner, int fuse) {
         var tnt = new org.domi.furnace.server.entity.PrimedTnt(this, nextEntityId(), pos.x() + 0.5, pos.y(), pos.z() + 0.5, owner);
         if (fuse >= 0) tnt.setFuse(fuse);
         else if (fuse == -2) tnt.setFuse(random().nextInt(tnt.getFuse() / 4) + tnt.getFuse() / 8);   // 폭발에 휘말린 TNT: 생성 난수 다음에 도화선 난수

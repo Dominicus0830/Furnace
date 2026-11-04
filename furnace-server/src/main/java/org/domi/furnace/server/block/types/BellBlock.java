@@ -29,7 +29,17 @@ public class BellBlock extends BaseEntityBlock {
         }
     }
 
-    // TODO(엔티티): onProjectileHit — 투사체가 맞힌 면으로 울린다.
+    /** onProjectileHit: 맞힌 면으로 울린다(알맞은 면 판정 포함). 쏜 쪽이 플레이어면 그 플레이어가 울린 것. */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        org.domi.furnace.server.entity.Player player = projectile.getOwner() instanceof org.domi.furnace.server.entity.Player p ? p : null;
+        Pos pos = hit.blockPos();
+        // onHit(level, state, hit, player, true) — 플레이어가 BlockActor 가 아니라 같은 순서로 풀어 쓴다
+        if (isProperHit(state, hit.face(), hit.y() - pos.y())) {
+            if (attemptToRing(player, level, pos, hit.face()) && player != null) player.awardStat("minecraft:bell_ring", 1);
+        }
+    }
 
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
@@ -41,8 +51,7 @@ public class BellBlock extends BaseEntityBlock {
         int dir = hit.face();
         Pos pos = hit.pos();
         if (!checkHit || isProperHit(state, dir, hit.y() - pos.y())) {
-            attemptToRing(player, level, pos, dir);
-            player.awardStat("minecraft:bell_ring");
+            if (attemptToRing(player, level, pos, dir) && player != null) player.awardStat("minecraft:bell_ring");
             return true;
         }
         return false;
@@ -61,12 +70,12 @@ public class BellBlock extends BaseEntityBlock {
     }
 
     /** attemptToRing: 블록 엔티티가 있으면 onHit(흔들림 + 블록 이벤트 1) + 소리 + BLOCK_CHANGE. dir 이 -1 이면 종이 보는 방향. */
-    public boolean attemptToRing(BlockActor source, BlockLevel level, Pos pos, int dir) {
+    public boolean attemptToRing(Object source, BlockLevel level, Pos pos, int dir) {
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BellBlockEntity bell) {
             if (dir < 0) dir = facing(level.getBlockState(pos));
             bell.onHit(level, dir);
             level.playSound(null, pos, "minecraft:block.bell.use", "blocks", 2.0F, 1.0F);
-            level.gameEvent("minecraft:block_change", pos, source, -1);
+            level.gameEventFrom("minecraft:block_change", pos, source, -1);
             return true;
         }
         return false;

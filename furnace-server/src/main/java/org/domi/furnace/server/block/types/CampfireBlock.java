@@ -105,7 +105,15 @@ public class CampfireBlock extends BaseEntityBlock {
         return true;
     }
 
-    // TODO(엔티티): onProjectileHit — 불붙은 투사체가 닿으면 켠다(플래그 11).
+    /** onProjectileHit: 불붙은 투사체이고 mayInteract 이며 꺼져 있고 물에 잠기지 않았으면 켠다(플래그 11). */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        Pos pos = hit.blockPos();
+        if (projectile.isOnFire() && projectile.mayInteract(level, pos) && !LIT.is(state) && !WATERLOGGED.is(state)) {
+            level.setBlock(pos, LIT.with(state, true), 11);
+        }
+    }
 
     /** isSmokeyPos: 아래 5칸 안에 켜진 모닥불이 있는가(가운데 기둥을 막는 블록이 있으면 그 바로 아래만 본다 — 벌집 연기 판정). */
     public static boolean isSmokeyPos(BlockLevel level, Pos pos) {

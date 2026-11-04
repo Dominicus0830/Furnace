@@ -67,5 +67,5 @@ public class LightningRodBlock extends DirectionalBlock {
     @Override
     public boolean isSignalSource(int state) { return true; }
 
-    // TODO(엔티티·날씨): onProjectileHit — 뇌우 중 삼지창에 맞으면 벼락.
+    // 1.21 에는 onProjectileHit 가 없다 — 집전 삼지창이 피뢰침을 맞히면 치는 벼락은 마법 효과 hit_block(ThrownTrident.onHitBlock)이 맡는다.
 }

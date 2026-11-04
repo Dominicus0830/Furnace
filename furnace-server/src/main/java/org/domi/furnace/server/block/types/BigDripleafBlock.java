@@ -57,7 +57,12 @@ public class BigDripleafBlock extends HorizontalDirectionalBlock implements Bone
         return level.setBlock(pos, FACING.with(s, Dir.NAME[facing]), 3);
     }
 
-    // TODO(엔티티): onProjectileHit — 투사체에 맞으면 완전히 기울어진다(소리 tilt_down).
+    /** onProjectileHit: 맞으면 바로 완전히 기울어진다(소리 tilt_down, 100틱 뒤 되돌림). */
+    @Override
+    public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
+                                org.domi.furnace.server.entity.Projectile projectile) {
+        setTiltAndScheduleTick(state, level, hit.blockPos(), "full", true);
+    }
 
     @Override
     public boolean canSurvive(int state, BlockLevel level, Pos pos) {
