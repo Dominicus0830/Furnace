@@ -65,9 +65,9 @@ public class FarmBlock extends BlockBehavior {
         super.fallOn(level, state, pos, entity, fallDistance);
     }
 
-    /** turnToDirt: 흙으로(위 엔티티 밀어 올리기는 엔티티 체계 뒤) + BLOCK_CHANGE 게임 이벤트. */
+    /** turnToDirt: 위 엔티티를 밀어 올리고(pushEntitiesUp) 흙으로 + BLOCK_CHANGE 게임 이벤트. */
     public static void turnToDirt(BlockActor entity, int state, BlockLevel level, Pos pos) {
-        int dirt = B.defaultState(DIRT);   // TODO(엔티티): Block.pushEntitiesUp
+        int dirt = level.pushEntitiesUp(state, B.defaultState(DIRT), pos);
         level.setBlockAndUpdate(pos, dirt);
         level.gameEvent("minecraft:block_change", pos, entity, dirt);
     }

@@ -1093,7 +1093,7 @@ public final class ItemUse {
         int state = level.getBlockState(pos);
         if (!B.is(state, END_PORTAL_FRAME) || EndPortalFrameBlock.hasEye(state)) return InteractionResult.PASS;
         int s = EndPortalFrameBlock.eyeProp().with(state, true);
-        // TODO(엔티티): Block.pushEntitiesUp(state, s, level, pos)
+        level.pushEntitiesUp(state, s, pos);
         level.setBlock(pos, s, 2);
         level.updateNeighbourForOutputSignal(pos, END_PORTAL_FRAME);
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));

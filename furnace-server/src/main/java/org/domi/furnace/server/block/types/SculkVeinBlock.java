@@ -70,7 +70,7 @@ public class SculkVeinBlock extends MultifaceBlock implements SculkBehaviour {
             if (!B.isTag(bs, tag)) continue;
             int sculk = B.defaultState(SCULK);
             level.setBlock(p, sculk, 3);
-            // TODO(엔티티): Block.pushEntitiesUp(bs, sculk, level, p) — 대체 블록은 대개 꽉 찬 블록이라 영향이 없다.
+            level.pushEntitiesUp(bs, sculk, p);
             level.playSound(null, p, "minecraft:block.sculk.spread", "blocks", 1.0F, 1.0F);
             veinSpreader.spreadAll(sculk, level, p, spreader.isWorldGeneration());
             int opp = Dir.opposite(d);

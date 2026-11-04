@@ -739,3 +739,12 @@
 - 바닐라 1.21.1 `MinecraftServer.createLevels` 는 특수 스포너 다섯(팬텀 dzk → 순찰 dzj → 고양이 cmg → 포위 ceq → 상인 cmr)을 `ImmutableList.of(...)` 로 묶어 오버월드 `ServerLevel` 에만 주고, 다른 차원은 `ImmutableList.of()`(빈 목록)로 만든다(`javap -c -p` 로 확인).
 - 전에는 팬텀·순찰·고양이가 모든 차원에서 돌아 네더·엔드에서 순찰대가 나올 수 있었고(바닐라 순찰은 하늘·마을 검사만 해서 네더에서도 굴림이 통과할 수 있다), 레벨 난수 소비도 바닐라와 달랐다. `RegionLevel.tickCustomSpawners` 로 묶어 다섯 모두 `minecraft:overworld` 일 때만 돈다. 순서는 그대로.
 - 시험: `CustomSpawnerDimensionTest` — 네더 region 에서 돌려도 팬텀·순찰·고양이 타이머가 0 그대로(= 레벨 난수를 쓰지 않음), 오버월드에서는 바닐라 범위로 다시 걸린다. 플레이어 없이 시험하므로 채널이 필요 없다.
+
+## 2026-11-03 시야 거리 변경 즉시 반영, Block.pushEntitiesUp
+- **시야 거리**: `Region.updateChunks` 가 중심 청크가 그대로면 바로 돌아가서, 클라이언트 렌더 거리(client_information)가 바뀌어도 청크 경계를 넘어야 청크를 더 보내거나 내렸다. 바닐라 `ChunkMap.updateChunkTracking` 처럼 지금 추적 범위의 (중심, 거리)를 기억해(`Player.trackedViewDistance`) 둘 중 하나라도 바뀌면 그 틱에 차이를 반영한다. `SetCenterChunk` 는 중심이 바뀔 때만 보낸다(`applyChunkTrackingView`). 서버 상한보다 크게 요청하면 실제 거리가 그대로라 아무것도 안 보낸다. 실행 중 서버 시야 거리를 바꾸는 `ServerCore.setViewDistance`(PR #4)도 `Player.viewDistance` 만 바꾸면 같은 길로 반영된다.
+- **시뮬레이션 거리**: region 이 매 틱 `simulationDistance()` 를 다시 읽으므로(무작위 틱·블록 엔티티 틱 대상) 값이 바뀌면 다음 틱부터 쓴다 — 고칠 것 없음. 기준 브랜치에는 실행 중 바꾸는 길 자체가 없다(PR #4 의 `setSimulationDistance`).
+- **pushEntitiesUp**(바닐라 `Block.pushEntitiesUp`, `javap -c -p` 로 dfy 대조): `Shapes.joinUnoptimized(from 충돌, to 충돌, ONLY_SECOND)` 을 칸으로 옮겨 비면 끝, 아니면 그 경계 상자와 겹치는 관전자 아닌 엔티티마다 상자를 1 올려 모양 쪽으로 -1 의 Y 충돌 거리 d 를 구해 `teleportRelative(0, 1 + d, 0)`. 엔티티는 `moveTo`(회전 유지) + 승객 재배치, 플레이어는 `ServerPlayer.teleportRelative` 처럼 다섯 축 모두 상대값 깃발(0x1F)로 `player_position`(dy, 회전 0)을 보낸다. Paper 처럼 `PlayerTeleportEvent` 를 거친다.
+  - 호출 지점 6곳(바닐라와 같은 수, 순서 대조): 경작지·흙길 → 흙(`FarmBlock.turnToDirt`, 설치 전), 흙길 설치가 안 될 때 흙(`DirtPathBlock.getStateForPlacement`), 엔더의 눈 끼우기(설치 전), 눈 쌓임 한 겹 더(`tickPrecipitation`, 설치 전), 점적석 진흙 → 점토(설치 후), 스컬크 맥 → 스컬크(설치 후).
+  - `Shape.joinOnlySecond` 의 격자는 IndexMerger 를 따른다: 둘 다 큐브 격자면 더 고운 쪽, 아니면 좌표 합집합. 엔티티가 새 부분에 걸쳐 있을 때 collide 결과가 칸 경계에 달려서다. `NonOverlappingMerger`·IndirectMerger 의 범위 밖 좌표 버림은 빈 칸 쪽에만 영향이라 따라 하지 않았다(결과 같음, 손 계산).
+  - 엔티티를 훑는 순서: 비플레이어 엔티티 다음 플레이어(바닐라는 엔티티 구역 순서). 각자 독립으로 움직이고 난수를 쓰지 않아 결과는 같다.
+- **봇 확인(오프라인 서버 + mineflayer, 2026-11-03)**: 서버 시야 6, 움직이지 않고 렌더 거리 6→2 에서 unload 144·center 0, 2→6 에서 청크 144, 6→12 는 아무것도 안 옴. 경작지 위 갑옷 거치대가 말라 흙이 되자 y −60.0625 → −60. 경작지 위 플레이어는 `player_position`(x 0, y 0.0625, z 0, 회전 0, 깃발 0x1F) 한 번을 받고 −60 에 섬. 실제 클라이언트 화면(구멍이 메워지는지)은 미확인.
