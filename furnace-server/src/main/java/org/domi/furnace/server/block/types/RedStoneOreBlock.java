@@ -23,7 +23,16 @@ public class RedStoneOreBlock extends BlockBehavior {
     @Override
     public void attack(int state, BlockLevel level, Pos pos, BlockActor player) { interact(state, level, pos); }
 
-    // TODO(엔티티): stepOn — 웅크리지 않은 엔티티가 밟으면 interact.
+    /** stepOn: 웅크리지 않은 엔티티가 밟으면 켠다(플레이어는 PlayerMovementEmission 이 {@link #stepOnBy} 로). */
+    @Override
+    public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {
+        stepOnBy(level, pos, state, entity.isSteppingCarefully());
+        super.stepOn(level, pos, state, entity);
+    }
+
+    public static void stepOnBy(BlockLevel level, Pos pos, int state, boolean steppingCarefully) {
+        if (!steppingCarefully) interact(state, level, pos);
+    }
 
     @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {

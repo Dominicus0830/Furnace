@@ -12,7 +12,7 @@ public class SlimeBlock extends HalfTransparentBlock {
     @Override
     public void fallOn(BlockLevel level, int state, Pos pos, Entity entity, float fallDistance) {
         if (entity.isSuppressingBounce()) super.fallOn(level, state, pos, entity, fallDistance);
-        else entity.causeFallDamage(fallDistance, 0.0F);
+        else entity.causeFallDamage(fallDistance, 0.0F, org.domi.furnace.server.entity.Entity.Damage.FALL);
     }
 
     @Override

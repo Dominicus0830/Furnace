@@ -74,16 +74,25 @@ public class ButtonBlock extends FaceAttachedHorizontalDirectionalBlock {
         if (POWERED.is(state)) checkPressed(state, level, pos);
     }
 
-    // TODO(엔티티): entityInside — 화살에 눌리는 버튼(canButtonBeActivatedByArrows).
+    /** entityInside: 화살로 눌리는 종류(나무)이고 꺼져 있으면 checkPressed. */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (type.canButtonBeActivatedByArrows() && !POWERED.is(state)) checkPressed(state, level, pos);
+    }
 
-    /** checkPressed: 눌러 둔 화살이 없으면 꺼진다(엔티티 체계 전에는 화살이 없다). */
+    /** checkPressed: 이 칸 모양(감싸는 상자) 안에 화살이 있으면 켜고, 없으면 끈다. 바뀌면 이웃·소리·게임 이벤트(출처 = 화살). */
     protected void checkPressed(int state, BlockLevel level, Pos pos) {
-        boolean pressed = false;   // TODO(엔티티): 이 칸 모양 안의 화살
+        Object arrow = null;
+        if (type.canButtonBeActivatedByArrows()) {
+            double[] b = getShape(state, level, pos).bounds();
+            if (b != null) arrow = level.firstArrowIn(b[0] + pos.x(), b[1] + pos.y(), b[2] + pos.z(), b[3] + pos.x(), b[4] + pos.y(), b[5] + pos.z());
+        }
+        boolean pressed = arrow != null;
         if (pressed != POWERED.is(state)) {
             level.setBlock(pos, POWERED.with(state, pressed), 3);
             updateNeighbours(state, level, pos);
             playSound(null, level, pos, pressed);
-            level.gameEvent(pressed ? "minecraft:block_activate" : "minecraft:block_deactivate", pos, null, -1);
+            level.gameEventFrom(pressed ? "minecraft:block_activate" : "minecraft:block_deactivate", pos, arrow, -1);
         }
         if (pressed) level.scheduleTick(pos, block, ticksToStayPressed);
     }

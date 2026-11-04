@@ -34,7 +34,11 @@ public class FrogspawnBlock extends BlockBehavior {
         }
     }
 
-    // TODO(엔티티): entityInside — 떨어지는 블록 엔티티가 닿으면 부서진다.
+    /** entityInside: 떨어지는 블록 엔티티가 닿으면 부서진다(떨굼 없음). */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        if (entity instanceof org.domi.furnace.server.entity.FallingBlockEntity) level.destroyBlock(pos, false);
+    }
 
     private static boolean mayPlaceOn(BlockLevel level, Pos pos) {
         int f = level.getFluidState(pos), above = level.getFluidState(pos.above());

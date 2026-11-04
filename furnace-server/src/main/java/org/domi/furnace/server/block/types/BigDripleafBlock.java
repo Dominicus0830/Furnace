@@ -95,7 +95,21 @@ public class BigDripleafBlock extends HorizontalDirectionalBlock implements Bone
         }
     }
 
-    // TODO(엔티티): entityInside — 기울지 않은 잎 위에 선 엔티티가 있고 신호가 없으면 불안정으로.
+    /** entityInside: 기울지 않았고, 잎 위(y + 0.6875 초과)에 땅을 디딘 엔티티가 있고, 신호가 없으면 불안정으로(소리 없음). */
+    @Override
+    public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        entityInsideAt(state, level, pos, entity.onGround(), entity.y());
+    }
+
+    /** entityInside 본문 — 플레이어(Entity 가 아니다)는 Region 이 땅 디딤·발 높이로 부른다. */
+    public void entityInsideAt(int state, BlockLevel level, Pos pos, boolean onGround, double y) {
+        if ("none".equals(TILT.valueName(state)) && canEntityTilt(pos, onGround, y) && !level.hasNeighborSignal(pos)) {
+            setTiltAndScheduleTick(state, level, pos, "unstable", false);
+        }
+    }
+
+    /** canEntityTilt: 땅을 디뎠고 발이 잎 높이(0.6875)보다 위. */
+    private static boolean canEntityTilt(Pos pos, boolean onGround, double y) { return onGround && y > (double) (pos.y() + 0.6875F); }
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {

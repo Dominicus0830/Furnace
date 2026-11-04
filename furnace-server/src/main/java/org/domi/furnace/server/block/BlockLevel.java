@@ -37,6 +37,9 @@ public interface BlockLevel {
      */
     default int countTriggeringEntities(double x0, double y0, double z0, double x1, double y1, double z1, boolean livingOnly) { return 0; }
 
+    /** Level.getEntitiesOfClass(AbstractArrow, 상자) 의 첫 화살(없으면 null) — 화살로 눌리는 버튼. */
+    default Object firstArrowIn(double x0, double y0, double z0, double x1, double y1, double z1) { return null; }
+
     /** EntityGetter.isUnobstructed(null, shape): 건설을 막는 엔티티(관전자 제외)의 상자와 겹치지 않는가. shape 는 월드 좌표. */
     boolean isUnobstructed(Shape worldShape);
 

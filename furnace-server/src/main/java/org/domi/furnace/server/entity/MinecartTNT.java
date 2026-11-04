@@ -67,12 +67,12 @@ public class MinecartTNT extends AbstractMinecart {
 
     /** causeFallDamage: 3 이상 떨어지면 (거리/10)² 세기로 터진다. */
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) {
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
         if (distance >= 3.0F) {
             float f = distance / 10.0F;
             explode(f * f);
         }
-        return super.causeFallDamage(distance, multiplier);
+        return super.causeFallDamage(distance, multiplier, source);
     }
 
     @Override

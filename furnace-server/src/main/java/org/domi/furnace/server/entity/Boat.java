@@ -533,7 +533,7 @@ public class Boat extends Entity implements Leashable {
                     resetFallDistance();
                     return;
                 }
-                causeFallDamage(fallDistance, 1.0F);
+                causeFallDamage(fallDistance, 1.0F, org.domi.furnace.server.entity.Entity.Damage.FALL);
                 if (!isRemoved()) {
                     kill();
                     if (level.gameRule("doEntityDrops")) {

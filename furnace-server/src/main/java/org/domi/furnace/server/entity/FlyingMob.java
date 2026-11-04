@@ -8,7 +8,7 @@ public abstract class FlyingMob extends Mob {
     protected FlyingMob(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) { return false; }
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) { return false; }
 
     @Override
     protected void travel(float inX, float inY, float inZ) {

@@ -48,8 +48,8 @@ public class Creeper extends Monster {
     }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) {
-        boolean r = super.causeFallDamage(distance, multiplier);
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
+        boolean r = super.causeFallDamage(distance, multiplier, source);
         swell += (int) (distance * 1.5F);
         if (swell > maxSwell - 5) swell = maxSwell - 5;
         return r;

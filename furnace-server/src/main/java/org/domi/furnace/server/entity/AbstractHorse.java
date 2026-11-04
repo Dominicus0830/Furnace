@@ -222,11 +222,11 @@ public abstract class AbstractHorse extends Animal {
 
     /** AbstractHorse.causeFallDamage: 피해가 있으면 나와 승객의 승객까지 같은 피해(LivingEntity 의 것을 부르지 않는다). */
     @Override
-    public boolean causeFallDamage(float distance, float multiplier) {
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
         if (distance > 1.0F) playSound("entity.horse.land", 0.4F, 1.0F);
         int dmg = calculateFallDamage(distance, multiplier);
         if (dmg <= 0) return false;
-        Damage fall = new Damage("fall", false, false, false);
+        Damage fall = source;
         hurt(fall, dmg);
         if (isVehicle()) {
             java.util.List<Rider> riders = new java.util.ArrayList<>();
