@@ -444,6 +444,14 @@ public final class ServerCore {
 
     public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
 
+    /** 전역 틱 시작 시각(/tps — 15분 × 20회를 덮는 2^15 칸)과 시간 창별 소요 시간(/mspt). 전역 스레드만 쓴다. */
+    private final org.domi.furnace.server.sched.TickStartRing globalTickStarts = new org.domi.furnace.server.sched.TickStartRing(1 << 15);
+    private final org.domi.furnace.server.sched.TickWindows globalTickWindows = new org.domi.furnace.server.sched.TickWindows();
+
+    public org.domi.furnace.server.sched.TickStartRing globalTickStarts() { return globalTickStarts; }
+
+    public org.domi.furnace.server.sched.TickWindows globalTickWindows() { return globalTickWindows; }
+
     /** 전역 스레드 이름(관측용). */
     public String globalThreadName() {
         return scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g ? g.ownerName() : "global";
@@ -584,10 +592,13 @@ public final class ServerCore {
         long t0 = System.nanoTime();
         globalBeat = t0;   // 워치독이 보는 전역 틱 박동
         globalTickThread = Thread.currentThread();
+        globalTickStarts.record(t0);
         try {
             scheduledTick0();
         } finally {
-            globalTickRing.record(System.nanoTime() - t0);
+            long took = System.nanoTime() - t0;
+            globalTickRing.record(took);
+            globalTickWindows.record(t0, took);
         }
     }
 

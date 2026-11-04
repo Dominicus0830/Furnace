@@ -81,7 +81,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 - **명령 블록은 비동기라 바닐라처럼 한 틱에 체인이 끝나지 않는다**(순서는 보존, 시간이 다름). 한 틱 완결이 필요한 회로는 박자가 다를 수 있다.
 - 월드젠: 일부 구조물은 순정 대조 미검증(정글 신전·늪 오두막·해저 신전·전초기지·고대 도시·시련의 방·보루·트레일 유적, 사막 피라미드는 근사), `nether_fossil`·`void_start_platform`·`bonus_chest` 도 oracle 미검증, `bonus_chest` 는 월드 생성 때 스폰 지점 자동 배치 미연결, 다중 청크 decoration 구조 제약, 커스텀 월드 타입 무시.
 - 발전 과제: 일부 조건은 못 이룬다(`effects_changed` 의 `source`, 철퇴 뒤 `fall_after_explosion` 의 원인, 드래곤의 숨결 `interacted`). (패킷 4종 `sound_entity`·`delete_chat`·`set_simulation_distance`·`set_chunk_cache_radius` 는 2026-11-03 에 연결 — context-notes 같은 날짜 절. 남은 것: 보그드 털 깎기·염료로 양 물들이기가 없어 그 소리도 없음.)
-- 운영: 월드 주기 백업·메트릭 내보내기 없음, `enable-jmx-monitoring` 등 일부 키는 파싱만. (RCON IP당 동시 연결 상한 4·플러그인 채널 등록 `minecraft:register` 는 2026-11-03 에 구현.) (lz4 지역 파일 읽기·쓰기는 2026-11-03 구현 — 실제 바닐라 lz4 월드로는 미확인)
+- 운영: `/tps`·`/mspt` 는 2026-11-03 구현(`docs/feature-parity/tps-mspt-2026-11-03.md` — 서버 TPS 정의, 전역 박동을 바닐라 고정 박자로 고쳐 게임 시간이 1% 느리던 것도 수정). 플러그인용 `getTPS()` 는 없음. 월드 주기 백업·메트릭 내보내기 없음, `enable-jmx-monitoring` 등 일부 키는 파싱만. (RCON IP당 동시 연결 상한 4·플러그인 채널 등록 `minecraft:register` 는 2026-11-03 에 구현.) (lz4 지역 파일 읽기·쓰기는 2026-11-03 구현 — 실제 바닐라 lz4 월드로는 미확인)
 - 영혼 가속 입자·소리, 서리 걸음 마그마 면역. (플레이어 속성 저장·복원은 2026-11-03 구현)
 - 테스트: 바닐라 데이터가 없는 환경에서 `assumeTrue` 로 조용히 스킵되는 시험(AGENTS.md 규칙 5 와 긴장), 테스트 없는 패키지(bossbar·effect·function·profiling·sound·trade).
 - **불안정 시험**: `TabListTest`(시험 채널 작업 큐 경합)와 `GeneratedVillageProfessionTest`(고정 600틱 여유 부족)는 2026-11-03 고쳤다(`context-notes.md`). `LandMobTest`·`WindChargeTest` 의 간헐 실패는 `ArenaLevel` 둘레 벽·바닥 확장으로 고쳤다(몹이 허공으로 떨어져 죽던 것).

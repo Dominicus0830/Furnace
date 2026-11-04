@@ -65,6 +65,8 @@ public final class Region {
     long schedTicks, schedDelaySum, schedDelayMax;
     /** 관측용: 직전 틱·가장 긴 틱의 소요 시간(ns). 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). */
     volatile long lastTickNanos, maxTickNanos;
+    /** 관측용(/tps): 최근 게임 틱 시작 시각. 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). 20 TPS 로 6.4초를 덮는다. */
+    final org.domi.furnace.server.sched.TickStartRing tickStarts = new org.domi.furnace.server.sched.TickStartRing(128);
     /** -Dfurnace.tickstats: [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍. 틱 중(이 region 이 RUNNING)에만 만진다. */
     final long[] tickStat = new long[2 + 200];
     int ticksSinceRecalc;
