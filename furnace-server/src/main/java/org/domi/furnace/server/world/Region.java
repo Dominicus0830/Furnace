@@ -1052,6 +1052,14 @@ public final class Region {
             } else if (m.check() != null) {
                 // 바닐라 handleMovePlayer 검증: 되돌렸으면 이 패킷은 없던 것(위치·소모 계산 없음)
                 if (p.moveRejectHold) continue;
+                if (p.vehicle() != null) {
+                    // 바닐라 handleMovePlayer 의 isPassenger 분기: 탄 동안 받은 위치는 버리고 회전만 받는다.
+                    // 타기 직전에 보낸 걸음 패킷이 탄 뒤에 검증되면 탈것 위 자리와 비교해 moved wrongly 로 되돌리던 것을 막는다.
+                    var c = m.check();
+                    if (c.hasRot()) p.applyRotation(org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(c.yaw()),
+                            org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(c.pitch()), p.onGround());
+                    continue;
+                }
                 if (!org.domi.furnace.server.entity.PlayerMoveValidator.handle(level(), p, m.check(), m.onGround())) continue;
                 m = new Player.MoveSample(p.x(), p.y(), p.z(), m.onGround(), false);
             }

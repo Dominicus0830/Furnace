@@ -69,4 +69,31 @@ class RegionMoveValidationTest {
         assertEquals(0.9, p.x(), 1e-12);
         sched.close();
     }
+    @Test
+    void movePacketQueuedBeforeMountingIsNotRejectedAfterMount() throws Exception {
+        // 봇 접속 시험(2026-11-04): 말에 탈 때마다 "moved wrongly" 와 되돌림 텔레포트가 나갔다.
+        // 타기 직전에 보낸 걸음 패킷이 탄 뒤 검증되며 탈것 위 자리와 비교된 것 — 바닐라는 탄 동안 위치를 버리고 회전만 받는다.
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
+        World w = world(sched);
+        Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
+        List<double[]> teleports = new ArrayList<>();
+        p.teleporter(teleports::add);
+        p.publishPosition(0.5, -60, 0.5, 0, 0, true);
+        RegionPos rp = new RegionPos(0, 0);
+        sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
+        sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
+        sched.region(rp).execute(() -> {
+            var horse = new org.domi.furnace.server.entity.Horse(w.regionAt(rp).level(), 9999);
+            horse.moveTo(3.5, -60, 3.5, 0, 0);
+            p.setVehicleField(horse);
+            p.setRidingPos(3.5, -59.16, 3.5);   // 탄 자리(positionRider)
+        }).get();
+        p.pushCheckedMove(check(0.6, 0.5, 45f), true);   // 타기 전에 보낸 걸음
+        sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
+        assertTrue(teleports.isEmpty(), "탄 동안 받은 위치 패킷으로 되돌리지 않는다");
+        assertFalse(p.moveRejectHold);
+        assertEquals(3.5, p.x(), 1e-9, "위치는 탈것 자리 그대로");
+        assertEquals(45f, p.yaw(), 1e-6, "회전은 받는다");
+        sched.close();
+    }
 }
