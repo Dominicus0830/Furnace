@@ -26,7 +26,7 @@ public final class DismountHelper {
     }
 
     /** 승객의 내릴 자세들(getDismountPoses)과 자세별 몸(getLocalBoundsForPose): 플레이어는 서기·웅크리기·헤엄, 나머지는 지금 몸. */
-    private static float[][] dismountBounds(Rider r) {
+    static float[][] dismountBounds(Rider r) {
         if (r instanceof Player) return new float[][] {{0.6F, 1.8F}, {0.6F, 1.5F}, {0.6F, 0.6F}};
         Entity e = (Entity) r;
         return new float[][] {{e.bbWidth(), e.bbHeight()}};

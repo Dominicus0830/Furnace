@@ -295,10 +295,15 @@ public class Zombie extends Monster {
 
     /** 감염·변환으로 만든 좀비용: 그룹 데이터 (false, true) 라서 아기·기수 난수를 뽑지 않는다. */
     public void finalizeSpawnForConversion(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        finalizeSpawnWithGroup(r, difficulty, false, true);
+    }
+
+    /** 그룹 데이터 ZombieGroupData(baby, canSpawnJockey) 를 받은 finalizeSpawn — 아기 난수는 부른 쪽이 이미 뽑았다(스트라이더 기수 등). */
+    public void finalizeSpawnWithGroup(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, boolean baby, boolean canSpawnJockey) {
         super.finalizeSpawn(r, difficulty);
         float special = difficulty.specialMultiplier();
         setCanPickUpLoot(r.nextFloat() < 0.55F * special);
-        finishFinalizeSpawn(r, difficulty, false, true);
+        finishFinalizeSpawn(r, difficulty, baby, canSpawnJockey);
     }
 
     private void finishFinalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, boolean baby, boolean jockey) {
