@@ -213,7 +213,7 @@ public class Wolf extends TamableAnimal implements NeutralMob {
                     playSound("item.wolf_armor.repair", 1.0F, 1.0F);
                     ItemStack body = getItemBySlot(EquipmentSlot.BODY);
                     int repair = (int) (ItemTools.maxDamage(body) * 0.125F);
-                    setItemSlot(EquipmentSlot.BODY, ItemTools.withDamage(body, Math.max(0, ItemTools.damage(body) - repair)));
+                    updateItemSlot(EquipmentSlot.BODY, ItemTools.withDamage(body, Math.max(0, ItemTools.damage(body) - repair)));
                     return true;
                 }
                 boolean handled = super.interact(p, hand, held, region);
@@ -246,15 +246,8 @@ public class Wolf extends TamableAnimal implements NeutralMob {
     /** hasArmor(cgh.gA): 몸통 칸이 늑대 갑옷이다. */
     public boolean hasArmor() { return ItemTools.itemName(getItemBySlot(EquipmentSlot.BODY)).equals("minecraft:wolf_armor"); }
 
-    /** Mob.setBodyArmorItem: 몸통 칸을 넣고(떨굼 확률 2) 장착 소리를 낸다. */
-    public void setBodyArmorItem(ItemStack s) {
-        ItemStack old = getItemBySlot(EquipmentSlot.BODY);
-        setItemSlotAndDropWhenKilled(EquipmentSlot.BODY, s);
-        boolean bothEmpty = s.isEmpty() && old.isEmpty();
-        if (bothEmpty || org.domi.furnace.server.menu.Stacks.isSameItemSameComponents(old, s) || firstTick) return;
-        String sound = AbstractHorse.bodyEquipSound(s);
-        if (!isSilent() && sound != null) level.playSeededSound(null, x(), y(), z(), sound, soundSource(), 1.0F, 1.0F, random.nextLong());
-    }
+    /** Mob.setBodyArmorItem: 몸통 칸을 넣는다(떨굼 확률 2) — 장착 소리·equip/unequip 은 setItemSlot 의 onEquipItem 이. */
+    public void setBodyArmorItem(ItemStack s) { setItemSlotAndDropWhenKilled(EquipmentSlot.BODY, s); }
 
     private boolean armorAbsorbs(Damage source) { return hasArmor() && !DamageType.keyHasTag(source.type(), "bypasses_wolf_armor"); }
 

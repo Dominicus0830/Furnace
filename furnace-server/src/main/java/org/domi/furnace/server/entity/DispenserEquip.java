@@ -39,6 +39,7 @@ public final class DispenserEquip {
         if (n.endsWith("_boots")) return EquipmentSlot.FEET;
         if (n.equals("minecraft:shield")) return EquipmentSlot.OFFHAND;
         if (n.equals("minecraft:wolf_armor") || n.endsWith("_horse_armor")) return EquipmentSlot.BODY;
+        if (n.endsWith("_carpet") && org.domi.furnace.server.item.ItemTags.is(stack, "minecraft:wool_carpets")) return EquipmentSlot.BODY;   // WoolCarpetBlock
         return null;
     }
 
@@ -72,7 +73,7 @@ public final class DispenserEquip {
         return false;
     }
 
-    /** setItemSlot + onEquipItem(빈 칸에 새 장비: 첫 틱이 아니고 조용하지 않으며 장착 칸이 맞으면 장착 소리, 씨앗은 엔티티 난수). */
+    /** setItemSlot + onEquipItem. 플레이어는 인벤토리 칸이라 여기서 직접(빈 칸에 새 장비: 장착 칸이 맞으면 장착 소리, 씨앗은 엔티티 난수). */
     private static void setItemSlot(ChunkLevel level, Object o, EquipmentSlot slot, ItemStack stack) {
         if (o instanceof Player p) {
             var inv = p.inventory();
@@ -95,14 +96,7 @@ public final class DispenserEquip {
             if (slot.type() == EquipmentSlot.Type.HUMANOID_ARMOR) equipEvent(level, p.x(), p.y(), p.z(), p, stack);
             return;
         }
-        LivingEntity e = (LivingEntity) o;
-        e.setItemSlot(slot, stack);
-        if (e.firstTick || e.isSpectator()) return;
-        if (!e.isSilent() && equipableSlot(stack) == slot) {
-            e.level.playSound(null, e.x(), e.y(), e.z(), org.domi.furnace.server.block.ItemUse.equipSound(ItemTools.itemName(stack)), e.soundSource(), 1.0F, 1.0F);
-            e.random.nextLong();
-        }
-        equipEvent(level, e.x(), e.y(), e.z(), e, stack);   // doesEmitEquipEvent 기본 true
+        ((LivingEntity) o).setItemSlot(slot, stack);   // 몹·거치대: setItemSlot 안의 onEquipItem 이 소리·게임 이벤트를 낸다
     }
 
     /** onEquipItem 의 게임 이벤트: 새 것이 장착 아이템이면 EQUIP, 아니면 UNEQUIP(엔티티 위치, 엔티티 출처). */

@@ -94,7 +94,7 @@ public class Zombie extends Monster {
                             broadcastEntityEvent((byte) 52);   // 머리 장비 부서짐
                             setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
                         } else {
-                            setItemSlot(EquipmentSlot.HEAD, helmet);
+                            updateItemSlot(EquipmentSlot.HEAD, helmet);   // setDamageValue: 제자리
                         }
                     }
                     burn = false;

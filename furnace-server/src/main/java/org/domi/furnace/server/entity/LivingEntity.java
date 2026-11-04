@@ -699,7 +699,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             ItemStack s = getItemBySlot(slot);
             if (!s.isEmpty() && "minecraft:totem_of_undying".equals(org.domi.furnace.server.item.ItemTools.itemName(s))) {
                 used = s;   // 바닐라: 줄이기 전 스택 복사
-                setItemSlot(slot, s.withCount(s.count() - 1));
+                updateItemSlot(slot, s.withCount(s.count() - 1));   // shrink(1): 제자리
                 break;
             }
         }
@@ -1009,7 +1009,34 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** getItemBySlot: 종류별 장비 칸(기본: 없음). */
     public ItemStack getItemBySlot(EquipmentSlot slot) { return ItemStack.EMPTY; }
 
+    /** setItemSlot: 칸을 다른 스택으로 바꾼다 — 바닐라처럼 onEquipItem(장착 소리·equip/unequip)을 부른다(몹·갑옷 거치대). */
     public void setItemSlot(EquipmentSlot slot, ItemStack stack) {}
+
+    /**
+     * 제자리 수정: 바닐라가 칸의 스택을 그 자리에서 고치는 곳(내구도 깎기·부서짐, 쇠뇌 장전·발사, 토템 하나 쓰기, 마법 부여)을 Furnace 는
+     * 불변 ItemStack 때문에 새 스택으로 바꿔 넣는다. 그 경우는 이것을 써서 onEquipItem 을 부르지 않는다.
+     */
+    public void updateItemSlot(EquipmentSlot slot, ItemStack stack) {}
+
+    /**
+     * LivingEntity.onEquipItem(slot, old, new): 둘 다 비었거나 같은 아이템·컴포넌트이거나 첫 틱이면 없음. 관전자가 아니면,
+     * 조용하지 않고 새 것이 이 칸에 입는 장착 아이템이면 그 장착 소리(엔티티 난수 씨앗), doesEmitEquipEvent 면 장착 아이템이면 equip, 아니면 unequip.
+     */
+    public void onEquipItem(EquipmentSlot slot, ItemStack oldItem, ItemStack newItem) {
+        if (newItem.isEmpty() && oldItem.isEmpty() || org.domi.furnace.server.menu.Stacks.isSameItemSameComponents(oldItem, newItem) || firstTick) return;
+        if (level == null || isSpectator()) return;
+        EquipmentSlot equipSlot = DispenserEquip.equipableSlot(newItem);
+        if (!isSilent() && equipSlot == slot) {
+            level.playSeededSound(null, x(), y(), z(), org.domi.furnace.server.block.ItemUse.equipSound(org.domi.furnace.server.item.ItemTools.itemName(newItem)), soundSource(),
+                    1.0F, 1.0F, random.nextLong());
+        }
+        if (doesEmitEquipEvent(slot)) {
+            gameEvent(equipSlot != null ? org.domi.furnace.server.world.gameevent.GameEvent.EQUIP : org.domi.furnace.server.world.gameevent.GameEvent.UNEQUIP);
+        }
+    }
+
+    /** doesEmitEquipEvent: 몹·거치대는 모든 칸(플레이어만 방어구 칸 — ConnectionHandler 쪽). */
+    protected boolean doesEmitEquipEvent(EquipmentSlot slot) { return true; }
 
     public ItemStack getMainHandItem() { return getItemBySlot(EquipmentSlot.MAINHAND); }
 

@@ -446,6 +446,7 @@ public final class ItemUse {
     /** Equipable.getEquipSound — 갑옷 재질별. */
     public static String equipSound(String n) {
         if (n.equals("minecraft:elytra")) return "minecraft:item.armor.equip_elytra";
+        if (n.endsWith("_carpet")) return "minecraft:entity.llama.swag";   // WoolCarpetBlock(장착 아이템인 양털 양탄자만 여기 온다)
         String m = n.substring("minecraft:".length());
         if (m.startsWith("leather_")) return "minecraft:item.armor.equip_leather";
         if (m.startsWith("chainmail_")) return "minecraft:item.armor.equip_chain";

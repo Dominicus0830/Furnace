@@ -71,12 +71,25 @@ public class ArmorStand extends LivingEntity {
         };
     }
 
+    /** ArmorStand.setItemSlot: 손·방어구 칸을 바꾸고 onEquipItem(old, new). 몸통 칸은 없다. */
     @Override
     public void setItemSlot(EquipmentSlot slot, ItemStack stack) {
+        ItemStack old;
+        switch (slot.type()) {
+            case HAND -> { old = handItems[slot.index()]; handItems[slot.index()] = stack; }
+            case HUMANOID_ARMOR -> { old = armorItems[slot.index()]; armorItems[slot.index()] = stack; }
+            default -> { return; }
+        }
+        onEquipItem(slot, old, stack);
+    }
+
+    /** 제자리 수정 — 장착 소리·게임 이벤트 없이. */
+    @Override
+    public void updateItemSlot(EquipmentSlot slot, ItemStack stack) {
         switch (slot.type()) {
             case HAND -> handItems[slot.index()] = stack;
             case HUMANOID_ARMOR -> armorItems[slot.index()] = stack;
-            case ANIMAL_ARMOR -> { }
+            default -> { }
         }
     }
 

@@ -35,7 +35,7 @@ public final class Crossbow {
         if (power >= 1.0F && !isCharged(crossbow)) {
             ItemStack arrow = projectileFor(mob);
             ItemStack loaded = ItemTools.with(crossbow, CHARGED, List.of(Map.of("id", "minecraft:arrow", "count", 1)));
-            mob.setItemSlot(slot, loaded);
+            mob.updateItemSlot(slot, loaded);   // 장전은 스택을 그 자리에서 고친다
             mob.level().playSound(null, mob.x(), mob.y(), mob.z(), "item.crossbow.loading_end", mob.soundSource(), 1.0F,
                     1.0F / (mob.level().random().nextFloat() * 0.5F + 1.0F) + 0.2F);
         }
@@ -54,7 +54,7 @@ public final class Crossbow {
         if (pierce > 0) arrow.setPierceLevel((byte) pierce);
         shootProjectile(shooter, arrow, speed, inaccuracy, target);
         shooter.level().addFreshEntity(arrow);
-        shooter.setItemSlot(slot, ItemTools.with(shooter.getItemBySlot(slot), CHARGED, List.of()));
+        shooter.updateItemSlot(slot, ItemTools.with(shooter.getItemBySlot(slot), CHARGED, List.of()));
         shooter.hurtEquipped(slot, 1);
     }
 
