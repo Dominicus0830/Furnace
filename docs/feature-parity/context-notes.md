@@ -827,3 +827,8 @@
 - 바닐라가 장비 스택을 그 자리에서 고치는 곳(hurtAndBreak·setDamageValue·shrink·쇠뇌 CHARGED_PROJECTILES·enchantItemFromProvider·copyAndClear)을 Furnace 는 새 스택을 넣어 흉내 낸다. 이런 곳은 `setItemSlot` 이 아니라 `updateItemSlot` 을 쓴다 — `setItemSlot` 은 바닐라처럼 `onEquipItem`(장착 소리·equip/unequip, 엔티티 난수 nextLong)을 부른다.
 - 새 호출 지점을 쓸 때는 바닐라 원본이 `setItemSlot`/`setItemInHand` 를 부르는지 바이트코드(`a:(Lbsy;Lcuq;)V`, `a:(Lbqq;Lcuq;)V`)로 확인한다. 함정: `Mob.convertTo` 는 새 몹에만 setItemSlot, 옛 몹은 copyAndClear(이벤트 없음). 여우가 다 먹어 비면 바닐라는 setItemSlot 을 안 부른다.
 - onEquipItem 은 `firstTick` 이면 아무것도 안 하므로 스폰(finalizeSpawn) 중 장비 변경은 이벤트·난수가 없다.
+
+## 탄 채 접속 종료(RootVehicle, 2026-11-04)
+- 바닐라 ServerPlayer.addAdditionalSaveData·PlayerList.remove/placeNewPlayer 와 같은 결과: 플레이어 하나만 태운 뿌리 탈것은 그 플레이어 데이터의 `RootVehicle {Attach, Entity}` 로 저장하고, 퇴장 때 승객째 월드에서 뺀다(UNLOADED_WITH_PLAYER). 접속 때 승객째 불러 Attach 의 것에 강제로 태우고, 못 태우면 지운다("Couldn't reattach entity to player"). 그런 탈것은 청크 엔티티 저장에서 빠진다(Entity.shouldBeSaved — `Entity.savedWithChunk`).
+- 구조(Furnace 자체): 플레이어 본체 저장은 연결 스레드, 탈것은 주인 region 스레드가 떠서 같은 플레이어 데이터 실행기에 `RootVehicle` 만 덧쓴다(`PlayerData.saveRootVehicle`). 본체 저장은 이 키를 건드리지 않으므로 두 저장의 순서가 바뀌어도 같다. 자동 저장은 `runOnOwner` 로 탈것을 다시 쓰거나(탄 동안) 지운다(내렸으면). 종료(`World.flushAll`)는 청크를 쓰기 전에 끊긴 플레이어의 탈것부터 옮긴다.
+- 차이: 끊긴 직후 아주 빨리 다시 들어와 region 이 퇴장을 처리하기 전에 데이터를 읽으면 그 접속에서는 타지 않고, 탈것은 다음 접속 때 돌아온다(복제는 없다 — 같은 UUID 가 월드에 있으면 넣지 않는다).

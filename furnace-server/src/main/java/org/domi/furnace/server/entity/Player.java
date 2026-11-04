@@ -257,6 +257,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private int ridingGeneration;
 
+    /** 플레이어 데이터 파일에 RootVehicle 이 남아 있다고 아는가(주인 region 스레드 전용, PlayerVehicleSave). */
+    public boolean rootVehicleOnDisk;
+    /** 퇴장 때 탈것 처리를 마쳤다(두 번 하지 않는다). */
+    boolean quitMountHandled;
+
     /** 나가거나 다시 태어나 옛 플레이어가 사라진 경우(바닐라는 옛 ServerPlayer 를 지운다): 내릴 자리 없이 연결만 끊는다. */
     public void detachFromVehicle() { Entity.unlinkVehicle(this); }
 
