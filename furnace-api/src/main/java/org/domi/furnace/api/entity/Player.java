@@ -68,6 +68,15 @@ public interface Player extends CommandSender, LivingEntity {
      */
     void sendPluginMessage(String channel, byte[] data);
 
+    /**
+     * 이 플레이어의 채팅 창에서 그 서명의 메시지를 지운다(delete_chat — Paper Player.deleteMessage). 서명은 AsyncChatEvent.signature() 의 256바이트.
+     * 바닐라 서버는 이 패킷을 쓰지 않는다. 클라이언트가 그 메시지를 받지 않았으면 아무 일도 없다.
+     */
+    void deleteChatMessage(byte[] signature);
+
+    /** 클라이언트가 minecraft:register 로 듣겠다고 알린 채널(사본). 바닐라 클라이언트는 비어 있다. */
+    java.util.Set<String> listeningPluginChannels();
+
     /** 이 플레이어로서 명령을 실행 큐에 넣는다(앞의 '/' 는 없어도 된다). 접수 여부를 돌려준다(결과는 나중에 정해진다). */
     boolean performCommand(String command);
 

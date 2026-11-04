@@ -840,6 +840,42 @@ public abstract class ChunkLevel implements BlockLevel {
         });
     }
 
+    /**
+     * Level.playSound(except, entity, 소리, 분류, 크기, 높이) → ServerLevel.playSeededSound 엔티티 변형: sound_entity 를 보낸다.
+     * 클라이언트가 소리를 그 엔티티에 붙여 따라 움직인다. 받는 범위·씨앗은 위치 변형과 같다(엔티티의 지금 위치 기준).
+     */
+    public void playSound(BlockActor except, Entity entity, String sound, String source, float volume, float pitch) {
+        playSeededSound(except, entity.id(), entity.x(), entity.y(), entity.z(), sound, source, volume, pitch, soundRandom.nextLong());
+    }
+
+    /** 플레이어(엔티티 계층 밖)에 붙는 소리 — 위와 같다. */
+    public void playSound(BlockActor except, Player player, String sound, String source, float volume, float pitch) {
+        playSeededSound(except, player.entityId(), player.x(), player.y(), player.z(), sound, source, volume, pitch, soundRandom.nextLong());
+    }
+
+    /** BlockActor 의 손잡이가 엔티티나 플레이어면 거기에 붙이고, 아니면 그 위치에서 낸다. */
+    public void playSoundOn(BlockActor except, BlockActor on, String sound, String source, float volume, float pitch) {
+        switch (on.handle()) {
+            case Entity e -> playSound(except, e, sound, source, volume, pitch);
+            case Player p -> playSound(except, p, sound, source, volume, pitch);
+            case null, default -> playSound(except, on.x(), on.y(), on.z(), sound, source, volume, pitch);
+        }
+    }
+
+    public void playSeededSound(BlockActor except, int entityId, double x, double y, double z, String sound, String source,
+                                float volume, float pitch, long seed) {
+        Integer id = ItemContext.installed() ? ItemContext.id("minecraft:sound_event", sound) : null;
+        double range = volume > 1.0F ? 16.0 * volume : 16.0;
+        org.domi.furnace.server.net.protocol.play.SoundEntity pkt = new org.domi.furnace.server.net.protocol.play.SoundEntity(
+                id == null ? -1 : id, sound, SoundPacket.source(source), entityId, volume, pitch, seed);
+        Object skip = except == null ? null : except.handle();
+        services().forEachPlayer(p -> {
+            if (p == skip) return;
+            double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
+            if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
+        });
+    }
+
     @Override
     public void levelEvent(BlockActor except, int type, Pos pos, int data) {
         LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, false);

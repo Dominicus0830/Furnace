@@ -333,6 +333,7 @@ public final class PluginManagerImpl implements PluginManager {
         host.eventsImpl().unregisterAll(p);
         host.commandsImpl().unregisterAll(p);
         host.removeAttachments(p);
+        host.removeChannels(p);
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
     }
 

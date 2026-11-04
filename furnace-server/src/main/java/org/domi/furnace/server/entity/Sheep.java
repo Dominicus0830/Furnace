@@ -120,7 +120,7 @@ public class Sheep extends Animal {
     }
 
     public void shear(String source) {
-        level.playSound(null, x(), y(), z(), "entity.sheep.shear", source, 1.0F, 1.0F);
+        level.playSound(null, this, "entity.sheep.shear", source, 1.0F, 1.0F);
         setSheared(true);
         int n = 1 + random.nextInt(3);
         for (int i = 0; i < n; i++) {

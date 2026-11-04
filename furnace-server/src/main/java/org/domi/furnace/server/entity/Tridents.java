@@ -73,13 +73,13 @@ public final class Tridents {
             t.shootFromRotation(p.pitch(), p.yaw(), 0.0F, SHOOT_POWER, 1.0F, p.knownMovement(), p.onGround());
             if (p.hasInfiniteMaterials()) t.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
             level.addFreshEntity(t);
-            level.playSound(null, t.x(), t.y(), t.z(), sound, "players", 1.0F, 1.0F);
+            level.playSound(null, t, sound, "players", 1.0F, 1.0F);
             if (!p.hasInfiniteMaterials()) actor.setItemInHand(hand, ItemStack.EMPTY);
         }
         p.awardStat("minecraft:used:minecraft:trident", 1);
         if (spin > 0.0F) {
             p.startAutoSpinAttack(SPIN_TICKS, SPIN_DAMAGE, cur);
-            level.playSound(null, p.x(), p.y(), p.z(), sound, "players", 1.0F, 1.0F);
+            level.playSound(null, p, sound, "players", 1.0F, 1.0F);
         }
     }
 

@@ -55,6 +55,9 @@ public final class PlayerChatState {
         return lastSeen.trackedMessagesCount() <= MAX_PENDING;
     }
 
+    /** 이 수신자 캐시 기준으로 서명을 압축한다(캐시에 있으면 id, 없으면 전체 — 지우기 패킷용, 캐시는 바꾸지 않는다). */
+    public synchronized MessageSignature.Packed pack(MessageSignature sig) { return sig.pack(signatureCache); }
+
     /** 스팸 카운터를 올리고, 기준(200)을 넘었는지 돌려준다. */
     public synchronized boolean incrementSpamAndCheck() {
         long now = System.nanoTime();

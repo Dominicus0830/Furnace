@@ -73,7 +73,7 @@ public class ShootTongue extends Behavior<Frog> {
     }
 
     private void eatEntity(ChunkLevel level, Frog frog) {
-        level.playSound(null, frog.x(), frog.y(), frog.z(), eatSound, "neutral", 2.0F, 1.0F);
+        level.playSound(null, frog, eatSound, "neutral", 2.0F, 1.0F);
         Optional<Entity> target = frog.getTongueTarget();
         if (target.isPresent()) {
             Entity e = target.get();
@@ -92,7 +92,7 @@ public class ShootTongue extends Behavior<Frog> {
             case MOVE_TO_TARGET:
                 double dx = target.x() - frog.x(), dy = target.y() - frog.y(), dz = target.z() - frog.z();
                 if (Math.sqrt(dx * dx + dy * dy + dz * dz) < EATING_DISTANCE) {
-                    level.playSound(null, frog.x(), frog.y(), frog.z(), tongueSound, "neutral", 2.0F, 1.0F);
+                    level.playSound(null, frog, tongueSound, "neutral", 2.0F, 1.0F);
                     frog.setPose(Entity.POSE_USING_TONGUE);
                     double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
                     // target.setDeltaMovement(target.position().vectorTo(frog.position()).normalize().scale(0.75))

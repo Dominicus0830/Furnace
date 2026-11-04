@@ -145,18 +145,18 @@ public class Allay extends PathfinderMob implements InventoryCarrier, VibrationS
         if (isDancing() && isDuplicationItem(held) && canDuplicate()) {
             duplicateAllay();
             broadcastEntityEvent((byte) 18);
-            level.playSound(new org.domi.furnace.server.block.PlayerActor(p), x(), y(), z(), "block.amethyst_block.chime", "neutral", 2.0F, 1.0F);
+            level.playSound(new org.domi.furnace.server.block.PlayerActor(p), this, "block.amethyst_block.chime", "neutral", 2.0F, 1.0F);
             usePlayerItem(p, hand, held);
             return true;
         } else if (inHand.isEmpty() && !held.isEmpty()) {
             setItemSlot(EquipmentSlot.MAINHAND, held.withCount(1));
             usePlayerItem(p, hand, held);
-            level.playSound(new org.domi.furnace.server.block.PlayerActor(p), x(), y(), z(), "entity.allay.item_given", "neutral", 2.0F, 1.0F);
+            level.playSound(new org.domi.furnace.server.block.PlayerActor(p), this, "entity.allay.item_given", "neutral", 2.0F, 1.0F);
             getBrain().setMemory(MemoryModuleType.LIKED_PLAYER, p.uuid());
             return true;
         } else if (!inHand.isEmpty() && hand == 0 && held.isEmpty()) {
             setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
-            level.playSound(new org.domi.furnace.server.block.PlayerActor(p), x(), y(), z(), "entity.allay.item_taken", "neutral", 2.0F, 1.0F);
+            level.playSound(new org.domi.furnace.server.block.PlayerActor(p), this, "entity.allay.item_taken", "neutral", 2.0F, 1.0F);
             swing(0);
             for (ItemStack s : inventory.removeAllItems()) BehaviorUtils.throwItem(this, s, new double[] {x(), y(), z()});
             getBrain().eraseMemory(MemoryModuleType.LIKED_PLAYER);

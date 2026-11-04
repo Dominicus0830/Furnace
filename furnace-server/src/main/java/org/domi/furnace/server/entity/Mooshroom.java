@@ -111,7 +111,7 @@ public class Mooshroom extends Cow {
 
     /** Shearable.shear(source): 소리 → 소로 바뀌고 버섯 5개. */
     public void shear(String source) {
-        level.playSound(null, x(), y(), z(), "entity.mooshroom.shear", source, 1.0F, 1.0F);
+        level.playSound(null, this, "entity.mooshroom.shear", source, 1.0F, 1.0F);
         Cow cow = new Cow(level, level.nextEntityId());
         cow.moveTo(x(), y(), z(), yRot(), xRot());
         cow.setHealth(health());

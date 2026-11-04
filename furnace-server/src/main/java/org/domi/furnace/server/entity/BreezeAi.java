@@ -234,7 +234,7 @@ public final class BreezeAi {
             var brain = b.getBrain();
             if (!brain.hasMemoryValue(MemoryModuleType.BREEZE_JUMP_INHALING)) brain.setMemoryWithExpiry(MemoryModuleType.BREEZE_JUMP_INHALING, Unit.INSTANCE, INHALING);
             b.setPose(Entity.POSE_INHALING);
-            level.playSound(null, b.x(), b.y(), b.z(), "minecraft:entity.breeze.charge", "hostile", 1.0F, 1.0F);
+            level.playSound(null, b, "minecraft:entity.breeze.charge", "hostile", 1.0F, 1.0F);
             brain.getMemory(MemoryModuleType.BREEZE_JUMP_TARGET).ifPresent(p -> b.lookAtEyes(p.x() + 0.5, p.y() + 0.5, p.z() + 0.5));
         }
 

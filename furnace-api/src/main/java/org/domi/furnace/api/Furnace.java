@@ -86,6 +86,31 @@ public interface Furnace {
 
     PluginManager plugins();
 
+    /** 서버 시야 거리(청크). */
+    int viewDistance();
+
+    /** 시야 거리를 바꾼다(2~32 로 자름, 모든 차원). 접속자에게 set_chunk_cache_radius 를 보내고 청크 전송 범위를 다시 잡는다. */
+    void setViewDistance(int chunks);
+
+    /** 시뮬레이션 거리(청크). */
+    int simulationDistance();
+
+    /** 시뮬레이션 거리를 바꾼다(2~32 로 자름). 접속자에게 set_simulation_distance 를 보낸다. */
+    void setSimulationDistance(int chunks);
+
+    /**
+     * 플러그인이 이 채널의 메시지를 받는다고 알린다(Bukkit registerIncomingPluginChannel). 접속하는 클라이언트와 지금 접속자에게
+     * minecraft:register 로 보낸다. 채널은 "네임스페이스:이름" 소문자 형식이고 minecraft:register·unregister·brand 는 쓸 수 없다.
+     * 받은 메시지는 그대로 PluginMessageEvent 로 온다(등록과 관계없이). 플러그인이 꺼지면 그 플러그인의 등록은 자동으로 풀린다.
+     */
+    void registerPluginChannel(org.domi.furnace.api.plugin.FurnacePlugin owner, String channel);
+
+    /** 등록을 푼다. 다른 플러그인도 같은 채널을 등록했으면 클라이언트에는 계속 등록돼 있다. */
+    void unregisterPluginChannel(org.domi.furnace.api.plugin.FurnacePlugin owner, String channel);
+
+    /** 모든 플러그인이 등록한 채널(이름순). */
+    java.util.SortedSet<String> pluginChannels();
+
     /** 서버를 정상 종료한다(/stop 과 같다). */
     void shutdown();
 }

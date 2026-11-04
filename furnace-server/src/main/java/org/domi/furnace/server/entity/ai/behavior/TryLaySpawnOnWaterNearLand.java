@@ -26,7 +26,7 @@ public final class TryLaySpawnOnWaterNearLand {
                             Pos above = adj.above();
                             if (B.isAir(level.getBlockState(above))) {
                                 level.setBlock(above, Blocks.get().defaultState(block), 3);
-                                level.playSound(null, mob.x(), mob.y(), mob.z(), "entity.frog.lay_spawn", "neutral", 1.0F, 1.0F);
+                                level.playSound(null, mob, "entity.frog.lay_spawn", "neutral", 1.0F, 1.0F);
                                 mob.getBrain().eraseMemory(MemoryModuleType.IS_PREGNANT);
                                 return true;
                             }

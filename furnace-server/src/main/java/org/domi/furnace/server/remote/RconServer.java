@@ -34,8 +34,11 @@ public final class RconServer implements AutoCloseable {
     private final List<Client> clients = new CopyOnWriteArrayList<>();
     private volatile boolean running = true;
 
-    /** 보안 보강(바닐라에는 없음): 동시 연결 상한, 인증 전 읽기 제한 시간, 인증 실패 지연·연결당/IP당 실패 제한. */
+    /** 보안 보강(바닐라에는 없음): 동시 연결 상한(전체·IP당), 인증 전 읽기 제한 시간, 인증 실패 지연·연결당/IP당 실패 제한. */
     public static final int MAX_CLIENTS = 16;
+    /** 한 IP 가 동시에 붙잡을 수 있는 연결 수 — 한 주소가 전체 상한을 다 차지해 관리 도구가 못 붙는 일을 막는다. */
+    public static final int MAX_CLIENTS_PER_IP = 4;
+    private volatile int maxClientsPerIp = MAX_CLIENTS_PER_IP;
     public static final int AUTH_TIMEOUT_MILLIS = 30_000;
     public static final int MAX_FAILS_PER_CONNECTION = 5;
     public static final int MAX_FAILS_PER_IP = 10;
@@ -47,6 +50,16 @@ public final class RconServer implements AutoCloseable {
 
     /** 시험용: 인증 실패 뒤 지연(ms). */
     public void failDelayMillis(long ms) { this.failDelayMillis = ms; }
+
+    /** 시험용: IP당 동시 연결 상한(시험은 모두 루프백 한 주소라 전체 상한 시험에서 올린다). */
+    public void maxClientsPerIp(int n) { this.maxClientsPerIp = n; }
+
+    /** 지금 살아 있는 연결 가운데 그 IP 의 수(수락 스레드에서만 부른다). */
+    private int clientsFrom(String ip) {
+        int n = 0;
+        for (Client c : clients) if (c.ip.equals(ip)) n++;
+        return n;
+    }
 
     private boolean ipBlocked(String ip) {
         long[] f = ipFails.get(ip);
@@ -105,15 +118,20 @@ public final class RconServer implements AutoCloseable {
 
     public int port() { return server.getLocalPort(); }
 
-    /** 시험·관측용: 지금 붙어 있는 클라이언트 수. */
-    public int clientCount() { return clients.size(); }
+    /** 시험·관측용: 지금 붙어 있는(스레드가 살아 있는) 클라이언트 수. */
+    public int clientCount() {
+        int n = 0;
+        for (Client c : clients) if (c.thread.isAlive()) n++;
+        return n;
+    }
 
     private void acceptLoop() {
         while (running) {
             try {
                 Socket s = server.accept();
                 clients.removeIf(x -> !x.thread.isAlive() && x.started);
-                if (clients.size() >= MAX_CLIENTS || ipBlocked(s.getInetAddress().getHostAddress())) {
+                String ip = s.getInetAddress().getHostAddress();
+                if (clients.size() >= MAX_CLIENTS || clientsFrom(ip) >= maxClientsPerIp || ipBlocked(ip)) {
                     try {
                         s.close();
                     } catch (IOException ignored) {
@@ -121,7 +139,7 @@ public final class RconServer implements AutoCloseable {
                     }
                     continue;
                 }
-                Client c = new Client(s);
+                Client c = new Client(s, ip);
                 clients.add(c);
                 c.start();
             } catch (IOException e) {
@@ -149,13 +167,15 @@ public final class RconServer implements AutoCloseable {
 
     private final class Client implements Runnable {
         final Socket socket;
+        final String ip;
         final Thread thread;
         volatile boolean started;
         private boolean authed;
         private int fails;
 
-        Client(Socket socket) {
+        Client(Socket socket, String ip) {
             this.socket = socket;
+            this.ip = ip;
             this.thread = new Thread(this, "RCON Client #" + clientSeq.incrementAndGet());   // IP 는 이름에 넣지 않는다(크래시 리포트 공개 시 노출 방지)
             this.thread.setDaemon(true);
         }
@@ -216,7 +236,7 @@ public final class RconServer implements AutoCloseable {
                         out.flush();
                     } else {
                         authed = false;
-                        noteIpFail(socket.getInetAddress().getHostAddress());   // 응답을 쓰기 전에 센다(바로 재접속하는 클라이언트가 차단 검사에서 앞서지 않게)
+                        noteIpFail(ip);   // 응답을 쓰기 전에 센다(바로 재접속하는 클라이언트가 차단 검사에서 앞서지 않게)
                         authFailed(out);
                         if (++fails >= MAX_FAILS_PER_CONNECTION) throw new IOException("too many auth failures");
                         try {
