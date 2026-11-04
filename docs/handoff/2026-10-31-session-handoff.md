@@ -76,7 +76,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 ## 3. 남아 있는 큰 구멍 (우선순위는 `unimplemented-survey-2026-10-31.md` 1장 — 단, 그 문서의 일부 항목은 이후 구현돼 낡았다. 착수 전에 코드를 직접 확인한다)
 
 - **플러그인 API는 2단계까지다(2026-11-03).** 2단계로 `LEFT_CLICK`·`PlayerInteractEntityEvent`, 상자·엔티티·상인 `Inventory`/거래, `EntityScheduler`, `PersistentDataContainer`(엔티티·청크·플레이어, Paper 와 같은 저장 키), `Chunk` 핸들, 엔티티 스폰·주변 조회가 들어왔다(설계 문서 8장, 처리 상태는 8.6). 남은 것: UUID 전역 엔티티 조회, `Mob`/`Item` 타입·장비·효과, 최종 피해·`DamageCause` 하위 이벤트, 텔레포트 원인·차원, `InventoryOpenEvent` 경로 확장, 큰 상자 합친 보기·`InventoryView`, 아이템 영속 데이터, `PlayerMoveEvent` 의 회전. Paper/Bukkit 어댑터(5단계 `furnace-compat-paper`)는 아직 없다. 2단계 접속 시험은 `docs/user-todo.md`.
-- ~~스트라이더~~(2026-11-03 구현, context-notes 참고), ~~몹 낙하 위치 기록~~(2026-11-03 구현, context-notes), 순찰·팬텀·고양이 스포너의 오버월드 전용화.
+- ~~스트라이더~~(2026-11-03 구현, context-notes 참고), ~~몹 낙하 위치 기록~~(2026-11-03 구현, context-notes), ~~다락문 사다리 오르기·플레이어 낙하 위치 칸 저장~~(2026-11-03 구현), 순찰·팬텀·고양이 스포너의 오버월드 전용화.
 - **region 단위로 동작하는 차이**: 마을 포위 상태·상인 대상 플레이어 선택·앵무새 어깨 앉히기·돌고래의 플레이어 효과 부여 일부(소유권 위임 미완), 명령 블록 체인이 region 경계를 넘으면 끊김.
 - **명령 블록은 비동기라 바닐라처럼 한 틱에 체인이 끝나지 않는다**(순서는 보존, 시간이 다름). 한 틱 완결이 필요한 회로는 박자가 다를 수 있다.
 - 월드젠: 일부 구조물은 순정 대조 미검증(정글 신전·늪 오두막·해저 신전·전초기지·고대 도시·시련의 방·보루·트레일 유적, 사막 피라미드는 근사), `nether_fossil`·`void_start_platform`·`bonus_chest` 도 oracle 미검증, `bonus_chest` 는 월드 생성 때 스폰 지점 자동 배치 미연결, 다중 청크 decoration 구조 제약, 커스텀 월드 타입 무시.

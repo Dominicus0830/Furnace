@@ -789,5 +789,12 @@
 - 바닐라(btn·brp): `CombatTracker.recordDamage` 가 맞은 순간 `FallLocation.getCurrentFallLocation(mob)` 을 기록한다. 몹도 플레이어와 같다. 지금까지 몹은 null 을 넣어 사다리·덩굴 낙하사가 `death.fell.accident.generic` 으로만 나왔다.
 - `LivingEntity.currentFallLocation()`: `lastClimbablePos`(onClimbable 이 이미 기록하던 칸)가 있으면 **그 칸의 지금 블록**으로 이름을 정하고(부서져 공기면 other_climbable — 바닐라와 같음), 없고 물속이면 water. 표는 brp.a(dtc): 사다리·`#trapdoors` → ladder, vine → vines, 우는/뒤틀린 덩굴(+plant), 비계, 그 밖 other_climbable.
 - `LivingEntity.checkFallDamage` 를 덮어 땅에 닿으면 `lastClimbablePos` 를 지운다(바닐라 btn.a(DZLdtc;Ljd;)V 끝). 벌은 바닐라처럼 checkFallDamage 가 비어 있어 지워지지 않는다.
-- **아직 다른 점**: 바닐라 LivingEntity.checkFallDamage 앞부분(물 상태 갱신, onChangedBlock, 안전 낙하 거리 초과 시 착지 블록 입자)은 넣지 않았다. 다락문을 사다리로 쓰는 오르기(`trapdoorUsableAsLadder`)는 몹·플레이어 모두 없다. 플레이어(`PlayerVitals`)는 매달린 순간의 블록 이름을 저장해, 사다리가 부서진 뒤 떨어져도 ladder 로 나온다(바닐라는 other_climbable).
+- **아직 다른 점**: 바닐라 LivingEntity.checkFallDamage 앞부분(물 상태 갱신, onChangedBlock, 안전 낙하 거리 초과 시 착지 블록 입자)은 넣지 않았다. ~~다락문을 사다리로 쓰는 오르기(`trapdoorUsableAsLadder`)는 몹·플레이어 모두 없다. 플레이어(`PlayerVitals`)는 매달린 순간의 블록 이름을 저장해, 사다리가 부서진 뒤 떨어져도 ladder 로 나온다(바닐라는 other_climbable).~~ → 아래 2026-11-03 다락문 절에서 고침.
 - 시험: `MobFallLocationTest`(사다리·덩굴·부서진 사다리·일반 낙하·블록 표).
+
+## 2026-11-03 다락문 사다리 오르기·플레이어 낙하 위치 칸 저장
+- 바닐라(btn.p_ = LivingEntity.onClimbable): 관전자가 아니고, 발 칸이 `#climbable` 이면 매달린다. 아니면 그 칸 블록이 `TrapDoorBlock`(instanceof — 철·구리 다락문 포함)이고 `trapdoorUsableAsLadder`(btn.c(jd,dtc)): 열림(open)이고 바로 아래 칸이 사다리(`Blocks.LADDER`)이며 사다리 facing == 다락문 facing 이면 매달린다. 두 경우 모두 `lastClimbablePos` 를 그 칸으로.
+- Furnace: 판정을 `TrapDoorBlock.isTrapDoor` / `TrapDoorBlock.usableAsLadder` 로 두고 몹(`LivingEntity.onClimbable`)과 플레이어(`PlayerProbe.climbable`) 모두 쓴다. 몹 `onClimbable` 에 관전자 검사도 넣었다(몹은 언제나 false 라 동작 차이 없음).
+- 플레이어 낙하 위치: 이전에는 매달린 순간의 블록 이름을 저장해, 사다리가 부서진 뒤 떨어져도 ladder 였다. 이제 `PlayerVitals.lastClimbablePos`(칸)를 저장하고, 맞은 순간 그 칸의 **지금** 블록으로 이름을 정한다(`LivingEntity.fallLocationOf`, 바닐라 FallLocation.getCurrentFallLocation). 땅에 닿거나 리스폰하면 지운다.
+- **아직 다른 점**: 블록은 플레이어 주인 region 스레드에서만 읽는다(`Region.getBlock`, 미로드 청크는 공기 → other_climbable). 주인 스레드가 아닌 곳에서 피해가 기록되면 매달린 순간의 이름으로 물러선다(바닐라에는 없는 경로).
+- 시험: `PlayerFallLocationTest`(다락문 판정 표·부서진/바뀐 칸·물러섬), `MobFallLocationTest.openTrapdoorAboveLadderIsClimbable`, `TrapdoorLadderFallE2ETest`(실제 소켓 클라이언트로 오프라인 접속 → /setblock 으로 사다리·다락문 → /tp 로 다락문 칸에 매달림 → 옆으로 비켜 25칸 낙하 → 사망 화면 `death.fell.accident.ladder`, 미리 다락문을 부수면 `other_climbable`). 이 접속 시험은 블록 레지스트리를 `World.setRegistries` 로 걸어야 `PlayerProbe` 가 돈다(`TestServers.core` 는 걸지 않는다).
