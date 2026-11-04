@@ -22,6 +22,8 @@ import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.domi.furnace.server.world.RegionLevel;
 
 public final class BlockCommands {
@@ -64,7 +66,7 @@ public final class BlockCommands {
                     level.destroyBlock(pos, true);
                     place = !B.isAir(input.state()) || !level.isEmptyBlock(pos);
                 } else {
-                    // TODO(블록 엔티티): Clearable.tryClear — 바꾸기 전에 담긴 내용물을 비운다(쏟지 않게).
+                    CloneCommand.tryClear(level.getBlockEntity(pos));   // Clearable.tryClear — 바꿀 때 내용물을 쏟지 않게
                     place = true;
                 }
                 if (place && !place(level, pos, input, 2)) throw SETBLOCK_FAILED.create();
@@ -133,7 +135,7 @@ public final class BlockCommands {
                         }
                     };
                     if (what == null) continue;
-                    // TODO(블록 엔티티): Clearable.tryClear.
+                    CloneCommand.tryClear(level.getBlockEntity(pos));
                     if (place(level, pos, what, 2)) {
                         changed.add(pos);
                         count++;
@@ -161,7 +163,14 @@ public final class BlockCommands {
         int s = B.updateFromNeighbourShapes(input.state(), level, pos);
         if (B.isAir(s)) s = input.state();
         if (!level.setBlock(pos, s, flags)) return false;
-        // TODO(블록 엔티티): input.nbt() 가 있으면 블록 엔티티에 loadWithComponents(x·y·z 는 칸 좌표로) 후 setChanged.
+        if (input.nbt() instanceof NbtCompound tag) {
+            // loadWithComponents(바닐라는 setChanged 없이 불러오기만)
+            if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
+                NbtCompound t = (NbtCompound) NbtTags.freeze(NbtTags.copy(tag));
+                be.load(t);
+                be.loadComponents(t);
+            }
+        }
         return true;
     }
 }

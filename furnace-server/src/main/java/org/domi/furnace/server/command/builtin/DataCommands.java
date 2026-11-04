@@ -170,7 +170,7 @@ public final class DataCommands {
             } else {
                 tag = ((Entity) entity).saveWithoutId(new NbtCompound());
             }
-            return (NbtCompound) NbtTags.thaw(tag);
+            return (NbtCompound) NbtTags.thaw(NbtTags.copy(tag));   // thaw 는 제자리라 살아 있는 상태(어깨 몹 등)를 망가뜨리지 않게 복사본에
         }
 
         public void setData(NbtCompound tag) throws CommandSyntaxException {
@@ -247,13 +247,13 @@ public final class DataCommands {
     public static CompletableFuture<NbtCompound> blockEntityTag(World world, Pos pos) {
         return atBlockEntity(world, pos, a -> {
             BlockAccessor b = (BlockAccessor) a;
-            return (NbtCompound) NbtTags.thaw(b.entity().saveWithoutMetadata());
+            return (NbtCompound) NbtTags.thaw(NbtTags.copy(b.entity().saveWithoutMetadata()));
         }).exceptionally(t -> null);
     }
 
     /** 바닐라 BlockDataAccessor. 쓰면 loadWithComponents → setChanged → sendBlockUpdated. */
     record BlockAccessor(org.domi.furnace.server.world.RegionLevel level, BlockEntity entity, Pos pos) implements DataAccessor {
-        public NbtCompound getData() { return (NbtCompound) NbtTags.thaw(entity.saveWithFullMetadata()); }
+        public NbtCompound getData() { return (NbtCompound) NbtTags.thaw(NbtTags.copy(entity.saveWithFullMetadata())); }
 
         public void setData(NbtCompound tag) {
             NbtCompound t = (NbtCompound) NbtTags.freeze(NbtTags.copy(tag));
@@ -306,7 +306,7 @@ public final class DataCommands {
 
     /** 바닐라 StorageDataAccessor. */
     record StorageAccessor(org.domi.furnace.server.world.CommandStorage storage, String id) implements DataAccessor {
-        public NbtCompound getData() { return (NbtCompound) NbtTags.thaw(storage.get(id)); }
+        public NbtCompound getData() { return (NbtCompound) NbtTags.thaw(NbtTags.copy(storage.get(id))); }
 
         public void setData(NbtCompound tag) { storage.set(id, (NbtCompound) NbtTags.freeze(NbtTags.copy(tag))); }
 

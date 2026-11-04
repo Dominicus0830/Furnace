@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen;
 
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.anvil.AnvilChunkCodec;
 import org.domi.furnace.server.world.anvil.RegionFileStore;
@@ -189,6 +190,24 @@ public final class AnvilWorldSource implements WorldSource {
         if (es == null) return null;
         byte[] bytes = es.readChunk(chunkX, chunkZ);
         return bytes == null ? null : NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes)));
+    }
+
+    /**
+     * 디스크의 그 청크 엔티티 묶음에 덧붙인다(읽고 → 더하고 → 쓰기). 호출자가 {@link #entityLock} 을 잡는다.
+     * 디스크의 Entities 가 빈 리스트면 원소 종류가 TAG_END 로 읽힌다 — 그대로 compound 를 넣으면 쓰기에서 터지므로 compound 리스트로 새로 만든다.
+     */
+    public void appendEntities(int chunkX, int chunkZ, java.util.List<NbtCompound> tags) throws IOException {
+        NbtCompound root = readEntities(chunkX, chunkZ);
+        if (root == null) {
+            root = new NbtCompound();
+            root.putInt("DataVersion", org.domi.furnace.server.world.anvil.AnvilChunkCodec.DATA_VERSION);
+            root.putIntArray("Position", new int[] {chunkX, chunkZ});
+        }
+        NbtList list = root.tags().get("Entities") instanceof NbtList l && l.size() > 0 && l.elementType() == NbtIo.TAG_COMPOUND
+                ? l : new NbtList(NbtIo.TAG_COMPOUND);
+        for (NbtCompound t : tags) list.add(t);
+        root.putList("Entities", list);
+        writeEntities(chunkX, chunkZ, root);
     }
 
     public void writeEntities(int chunkX, int chunkZ, NbtCompound root) throws IOException {

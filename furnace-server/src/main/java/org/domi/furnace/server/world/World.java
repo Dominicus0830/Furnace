@@ -482,17 +482,7 @@ public final class World {
         ioLane(chunkX, chunkZ).execute(() -> {
             synchronized (anvil.entityLock(chunkX, chunkZ)) {
                 try {
-                    NbtCompound root = anvil.readEntities(chunkX, chunkZ);
-                    if (root == null) {
-                        root = new NbtCompound();
-                        root.putInt("DataVersion", org.domi.furnace.server.world.anvil.AnvilChunkCodec.DATA_VERSION);
-                        root.putIntArray("Position", new int[] {chunkX, chunkZ});
-                    }
-                    org.domi.furnace.server.net.io.nbt.NbtList list = root.tags().get("Entities") instanceof org.domi.furnace.server.net.io.nbt.NbtList l
-                            ? l : new org.domi.furnace.server.net.io.nbt.NbtList(NbtIo.TAG_COMPOUND);
-                    for (NbtCompound t : tags) list.add(t);
-                    root.putList("Entities", list);
-                    anvil.writeEntities(chunkX, chunkZ, root);
+                    anvil.appendEntities(chunkX, chunkZ, tags);
                 } catch (Exception e) {
                     org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 덧붙이기 실패", chunkX, chunkZ, e);
                 }

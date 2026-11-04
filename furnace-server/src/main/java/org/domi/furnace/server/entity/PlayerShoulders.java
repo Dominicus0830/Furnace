@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtTags;
 
 public final class PlayerShoulders {
     private PlayerShoulders() { }
@@ -86,7 +87,11 @@ public final class PlayerShoulders {
     }
 
     public static void save(Player p, NbtCompound out) {
-        NbtCompound l = p.shoulderLeft(), r = p.shoulderRight();
+        NbtCompound l, r;
+        synchronized (p.shoulderLock()) {   // 바닐라 save 는 tag.put(…, getShoulderEntityLeft()) 처럼 복사본을 넣는다
+            l = (NbtCompound) NbtTags.copy(p.shoulderLeft());
+            r = (NbtCompound) NbtTags.copy(p.shoulderRight());
+        }
         if (!l.tags().isEmpty()) out.putCompound("ShoulderEntityLeft", l);
         if (!r.tags().isEmpty()) out.putCompound("ShoulderEntityRight", r);
     }
