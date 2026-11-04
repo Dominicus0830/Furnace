@@ -889,6 +889,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(index, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE, v);
     }
 
+    /** LivingEntity.DATA_EFFECT_PARTICLES(10)·DATA_EFFECT_AMBIENCE_ID(11) — 마지막으로 보낸 값. */
+    private java.util.List<org.domi.furnace.server.net.protocol.play.ParticleOptions> sentEffectParticles = java.util.List.of();
+    private boolean sentEffectAmbient;
+
+    private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item effectParticlesItem(java.util.List<org.domi.furnace.server.net.protocol.play.ParticleOptions> l) {
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(LivingEntity.DATA_EFFECT_PARTICLES, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_PARTICLES, l);
+    }
+
+    private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item effectAmbientItem(boolean v) {
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(LivingEntity.DATA_EFFECT_AMBIENT, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BOOLEAN, v);
+    }
+
     private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item poseItem(int pose) {
         return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(6, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_POSE, pose);
     }
@@ -955,12 +967,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         this.mainArm = (byte) (mainArm == 0 ? 0 : 1);
     }
 
-    /** 바뀐 엔티티 데이터(공유 플래그 0·자세 6·사용 중 플래그 8)를 본인과 보는 사람에게(ServerEntity.sendDirtyEntityData). */
+    /** 바뀐 엔티티 데이터(공유 플래그 0·자세 6·사용 중 플래그 8·효과 입자 10·11 등)를 본인과 보는 사람에게(ServerEntity.sendDirtyEntityData). */
     public void syncLivingFlags() {
         boolean reset = resendEntityData;
         if (reset) {   // 리스폰: 클라가 기본값 엔티티를 새로 만들었다 — 기본값과 다른 것을 다시 보낸다
             resendEntityData = false;
             sentSharedFlags = 0; sentPose = 0; sentLivingFlags = 0; sentSleepingPos = null; sentSkinParts = 0; sentMainArm = 1; sentShoulderLeft = null; sentShoulderRight = null;
+            sentEffectParticles = java.util.List.of(); sentEffectAmbient = false;
         }
         byte shared = sharedFlags(), f = livingFlags();
         int pose = pose();
@@ -969,6 +982,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         sharedFlagsForce = false;
         if (pose != sentPose) items.add(poseItem(pose));
         if (f != sentLivingFlags) items.add(flagItem(8, f));
+        var ep = vitals.effectParticles();   // 효과 입자: 클라이언트가 이 목록을 보고 몸 주위에 뿌린다
+        Boolean ambNow = vitals.effectsAmbient();
+        boolean amb = ambNow == null ? sentEffectAmbient : ambNow;
+        if (!ep.equals(sentEffectParticles)) items.add(effectParticlesItem(ep));
+        if (amb != sentEffectAmbient) items.add(effectAmbientItem(amb));
         var sp = sleepingPos;
         if (!java.util.Objects.equals(sp, sentSleepingPos)) items.add(sleepingPosItem(sp));
         byte skin = skinParts, arm = mainArm;
@@ -984,6 +1002,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         sentSharedFlags = shared;
         sentPose = pose;
         sentLivingFlags = f;
+        sentEffectParticles = ep;
+        sentEffectAmbient = amb;
         sentSleepingPos = sp;
         sentSkinParts = skin;
         sentMainArm = arm;
@@ -1188,6 +1208,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (sentSharedFlags != 0) items.add(flagItem(0, sentSharedFlags));
         if (sentPose != 0) items.add(poseItem(sentPose));
         if (sentLivingFlags != 0) items.add(flagItem(8, sentLivingFlags));
+        if (!sentEffectParticles.isEmpty()) items.add(effectParticlesItem(sentEffectParticles));
+        if (sentEffectAmbient) items.add(effectAmbientItem(true));
         if (sentSleepingPos != null) items.add(sleepingPosItem(sentSleepingPos));
         if (sentSkinParts != 0) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, sentSkinParts));
         if (sentMainArm != 1) items.add(flagItem(DATA_PLAYER_MAIN_HAND, sentMainArm));

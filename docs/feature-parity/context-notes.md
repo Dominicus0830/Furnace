@@ -159,7 +159,7 @@
 - 퇴비통의 깔때기 용기(WorldlyContainerHolder)는 부를 때마다 새로 만든다. 뼛가루를 빼면 `removeItem` 과 깔때기의 `setChanged` 에서 두 번 비운다(바닐라 그대로 — 두 번째는 상태가 같아 게임 이벤트만).
 
 ## 2026-10-27 이동·엔티티 명령(/tp /ride /random /tag /spreadplayers /forceload /tick)
-- **선택자가 플레이어 말고 일반 엔티티도 고른다.** 엔티티는 region 이 나눠 갖는 상태라 `EntitySelector.findRiders` 가 모든 region 에서 후보를 모아 합친 future 를 돌려준다. 명령은 `EntityArgument.withEntities/withEntity` 로 받고, 이미 끝났으면 그 자리에서(오류도 그대로 던진다), 아니면 1 을 돌려준 뒤 끝나는 시점에 실행한다. 그 안에서 엔티티를 바꾸는 일은 반드시 그 엔티티의 주인 region 으로 보낸다(`EntityOps.onOwner`, `Teleports.teleport`). 기존 `/kill`·`/effect` 는 아직 플레이어만 본다.
+- **선택자가 플레이어 말고 일반 엔티티도 고른다.** 엔티티는 region 이 나눠 갖는 상태라 `EntitySelector.findRiders` 가 모든 region 에서 후보를 모아 합친 future 를 돌려준다. 명령은 `EntityArgument.withEntities/withEntity` 로 받고, 이미 끝났으면 그 자리에서(오류도 그대로 던진다), 아니면 1 을 돌려준 뒤 끝나는 시점에 실행한다. 그 안에서 엔티티를 바꾸는 일은 반드시 그 엔티티의 주인 region 으로 보낸다(`EntityOps.onOwner`, `Teleports.teleport`). `/kill`·`/effect` 도 이제 일반 엔티티를 고른다(`/effect` 는 살아 있는 엔티티만 세고, 효과는 그 엔티티의 주인 region 에서 건다 — 2026-11-04).
 - 결과 순서: 플레이어(접속 순) 다음 엔티티 id 순. 바닐라는 레벨의 엔티티 조회 순서라 `@e` 의 임의 순서가 다를 수 있다. 선택자 `name=` 은 일반 엔티티에 커스텀 이름 저장이 없어 맞는 것이 없다.
 - 엔티티 `Tags`(HashSet 순서 그대로 저장, 최대 1024). 플레이어는 플레이어 파일의 `Tags`(VITALS_KEYS 에 넣어 없어지면 지운다). 선택자 `tag=` 는 빈 값이면 "태그 없음", `!` 는 반대.
 - `/tp`: 다른 차원으로 옮기는 길이 아직 없어 차원이 다르면 실패한다(바닐라는 차원 이동). 플레이어는 포스트 텔레포트 티켓(5틱)을 걸고 탈것에서 내리고 깨운 뒤 `Player.teleportTo(…yaw, pitch)`, 그 밖은 `Entity.teleportSameLevel`. `facing` 은 옮긴 뒤 위치 기준(바닐라 `Mth.atan2` 근사식).
@@ -778,3 +778,10 @@
 - 엔티티 디스크 덧붙이기(`World.appendEntitiesAsync` → `AnvilWorldSource.appendEntities`): 빈 `Entities` 리스트는 디스크에서 TAG_END 리스트로 읽힌다. 거기에 compound 를 `add` 하면 쓰기에서 `미지원 태그: 0` 으로 실패해 덧붙이려던 엔티티가 사라졌다. 빈·다른 종류 리스트면 compound 리스트를 새로 만든다(바닐라 ListTag 는 빈 리스트에 첫 원소가 들어올 때 종류가 정해진다).
 - F3+I 엔티티·블록 엔티티 질의 응답(`tag_query`)은 `NbtTags.freeze` 꼴(배열 = byte[]/int[]/long[])로 보낸다. `thaw`(NbtArray)는 `/data` 경로 연산 전용이라 `NbtWriter` 가 쓰지 못한다.
 - 확인함(봇): 레지스트리 전송은 클라이언트의 알려진 팩 응답과 상관없이 내용을 생략한다(바닐라는 팩을 모르는 클라이언트에 내용을 보낸다) — 바닐라 클라이언트는 영향 없음, 고치지 않음.
+
+## 효과 입자(2026-11-04)
+- 몸에서 나는 효과 입자는 서버가 뿌리지 않는다. 바닐라 1.20.5+ 는 `LivingEntity.DATA_EFFECT_PARTICLES`(엔티티 데이터 10, 직렬화기 18 = `List<ParticleOptions>`)와 `DATA_EFFECT_AMBIENCE_ID`(11, boolean)를 보내고 클라이언트가 그 목록에서 골라 뿌린다. 예전 Furnace 는 10 을 1.20.4 식 int 색으로 정의만 해 두고 보내지 않았다.
+- 목록 = 입자를 보이는 효과마다 `MobEffect.particle(ambient)`. 기본은 효과 색 entity_effect(알파 255, 환경 효과면 38 = floor(0.15·255)), 고유 입자 6종: trial_omen·raid_omen·wind_charged→small_gust·weaving→item_cobweb·oozing→item_slime·infested(1.21.1 `bsb`·`brx` 바이트코드 확인). 효과가 없으면 목록만 비우고 11 은 그대로 둔다(바닐라 removeEffectParticles).
+- 몹은 `LivingEntity.updateInvisibilityStatus`(효과가 바뀔 때)와 NBT 불러오기에서, 플레이어는 `Player.syncLivingFlags`(매 틱, 바뀌었을 때만 보냄)에서 맞추고 페어링 데이터에도 넣는다.
+- 즉시 효과는 바닐라 HealOrHarmMobEffect 처럼 "치유 쪽이면 4<<단계, 피해 쪽이면 6<<단계" — 언데드는 즉시 회복이 6 피해, 즉시 피해가 4 치유(전엔 숫자가 뒤바뀌어 있었다).
+
