@@ -113,6 +113,8 @@ public class Sniffer extends Animal {
 
     @Override
     public void tick() {
+        // emitDiggingParticles: 파는 동안 10틱마다 머리 칸에서 entity_action(입자·소리는 클라이언트의 애니메이션 시간이 있어야 해 서버에선 없음)
+        if (getState() == State.DIGGING && tickCount % 10 == 0) level.gameEventFrom("minecraft:entity_action", getHeadBlock(), this, -1);
         super.tick();
         if (getState() == State.DIGGING) dropSeed();
     }

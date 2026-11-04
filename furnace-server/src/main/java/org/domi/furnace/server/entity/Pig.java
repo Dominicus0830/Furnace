@@ -101,6 +101,7 @@ public class Pig extends Animal {
                 var inv = p.inventory();
                 inv.set(hand == 0 ? inv.heldWindowSlot() : 45, held.withCount(held.count() - 1));
             }
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EQUIP);   // SaddleItem.interactLivingEntity
             return true;
         }
         return false;

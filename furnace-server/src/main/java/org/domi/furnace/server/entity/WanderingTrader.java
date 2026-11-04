@@ -194,6 +194,7 @@ public final class WanderingTrader extends PathfinderMob implements Merchant {
             case "minecraft:potion" -> {
                 for (MobEffectInstance e : Consuming.potionEffects(held)) addEffect(e);
                 leftover = "glass_bottle";
+                gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.DRINK);   // PotionItem.finishUsingItem
             }
             case "minecraft:milk_bucket" -> {
                 removeAllEffects();

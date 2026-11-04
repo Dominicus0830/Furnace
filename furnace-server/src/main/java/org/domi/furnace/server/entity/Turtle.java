@@ -182,7 +182,10 @@ public class Turtle extends Animal {
         super.aiStep();
         if (isAlive() && isLayingEgg() && layEggCounter >= 1 && layEggCounter % 5 == 0) {
             Pos pos = blockPosition();
-            if (TurtleEggBlock.onSand(level, pos)) level.levelEvent(null, 2001, pos, level.getBlockState(pos.below()));
+            if (TurtleEggBlock.onSand(level, pos)) {
+                level.levelEvent(null, 2001, pos, level.getBlockState(pos.below()));
+                gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
+            }
         }
     }
 

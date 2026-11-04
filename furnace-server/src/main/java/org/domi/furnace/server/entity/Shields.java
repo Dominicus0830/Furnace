@@ -82,8 +82,7 @@ public final class Shields {
     public static boolean tryStart(Player p, int hand, ItemStack s) {
         if (!isShield(s)) return false;
         if (p.isOnCooldown(s.itemId())) return false;
-        p.usingHand = hand;
-        p.usingTicks = USE_DURATION;
+        p.startUsingItem(hand, USE_DURATION);
         return true;
     }
 
@@ -105,7 +104,7 @@ public final class Shields {
         var ev = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) (47 + hand));
         p.send(ev);
         p.vitals().broadcastToTrackers(ev);
-        p.usingHand = -1;
+        p.stopUsingItem();
         if (level != null) {
             float pitch = 0.8F + level.random().nextFloat() * 0.4F;
             playSoundExceptSelf(p, level, "minecraft:item.shield.break", 0.8F, pitch);
@@ -150,7 +149,7 @@ public final class Shields {
     public static void disableShield(Player p) {
         int id = shieldId();
         if (id >= 0) p.addCooldown(id, DISABLE_TICKS);
-        p.usingHand = -1;
+        p.stopUsingItem();
         var ev = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) 30);
         p.send(ev);
         p.vitals().broadcastToTrackers(ev);

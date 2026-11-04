@@ -157,6 +157,7 @@ public class Camel extends AbstractHorse {
             String eat = getEatingSound();
             if (eat != null) level.playSound(null, x(), y(), z(), eat, soundSource(), 1.0F, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.2F);
         }
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EAT);
         return true;
     }
 
@@ -180,6 +181,7 @@ public class Camel extends AbstractHorse {
         if (!isCamelSitting()) {
             playSound("entity.camel.sit", 1.0F, 1.0F);
             setPose(POSE_SITTING);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
             resetLastPoseChangeTick(-level.gameTime());
         }
     }
@@ -188,12 +190,14 @@ public class Camel extends AbstractHorse {
         if (isCamelSitting()) {
             playSound("entity.camel.stand", 1.0F, 1.0F);
             setPose(POSE_STANDING);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
             resetLastPoseChangeTick(level.gameTime());
         }
     }
 
     public void standUpInstantly() {
         setPose(POSE_STANDING);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
         resetLastPoseChangeTickToFullStand(level.gameTime());
     }
 

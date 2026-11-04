@@ -346,7 +346,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         entityData.set(DATA_LIVING_FLAGS, (byte) (on ? b | flag : b & ~flag));
     }
 
-    /** LivingEntity.startUsingItem(hand): 쓰는 아이템 지속시간을 72000 으로 둔다(활). */
+    /** LivingEntity.startUsingItem(hand): 쓰는 아이템 지속시간을 72000 으로 두고(활) item_interact_start. */
     public void startUsingItem(int hand) {
         ItemStack s = getItemBySlot(hand == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
         if (s.isEmpty() || isUsingItem()) return;
@@ -354,10 +354,14 @@ public abstract class LivingEntity extends Entity implements Targetable {
         useItemRemaining = getUseDuration(s);
         setLivingEntityFlag(1, true);
         setLivingEntityFlag(2, hand == 1);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_START);
     }
 
+    /** LivingEntity.stopUsingItem: 쓰던 중이었으면 item_interact_finish. */
     public void stopUsingItem() {
+        boolean was = isUsingItem();
         setLivingEntityFlag(1, false);
+        if (was) gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH);
         useItemRemaining = 0;
     }
 
@@ -716,6 +720,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             }
         }
         if (used == null) return false;
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH);   // btn:g 토템 사용
         setHealth(1.0F);
         removeAllEffects();
         addEffect(new org.domi.furnace.server.effect.MobEffectInstance(org.domi.furnace.server.effect.MobEffect.REGENERATION, 900, 1));

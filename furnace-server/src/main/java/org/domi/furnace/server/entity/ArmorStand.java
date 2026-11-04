@@ -224,12 +224,12 @@ public class ArmorStand extends LivingEntity {
             return false;
         }
         if (DamageType.keyHasTag(source.type(), "ignites_armor_stands")) {
-            if (isOnFire()) causeDamage(source, 0.15F);
+            if (isOnFire()) causeDamage(source, 0.15F, attacker);
             else igniteForSeconds(5.0F);
             return false;
         }
         if (DamageType.keyHasTag(source.type(), "burns_armor_stands") && health() > 0.5F) {
-            causeDamage(source, 4.0F);
+            causeDamage(source, 4.0F, attacker);
             return false;
         }
         boolean canBreak = DamageType.keyHasTag(source.type(), "can_break_armor_stand");
@@ -245,6 +245,7 @@ public class ArmorStand extends LivingEntity {
         long now = level.gameTime();
         if (now - lastHit > 5L && !alwaysKills) {
             broadcastEntityEvent((byte) 32);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE, attacker);   // ciw:301 source.getEntity()
             lastHit = now;
         } else {
             brokenByPlayer(attacker);
@@ -258,13 +259,14 @@ public class ArmorStand extends LivingEntity {
         return d == null ? attacker : d instanceof Targetable t ? t : attacker;
     }
 
-    private void causeDamage(Damage source, float amount) {
+    private void causeDamage(Damage source, float amount, Targetable attacker) {
         float h = health() - amount;
         if (h <= 0.5F) {
             brokenByAnything();
             kill();
         } else {
             setHealth(h);
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE, attacker);   // ciw:41 source.getEntity()
         }
     }
 

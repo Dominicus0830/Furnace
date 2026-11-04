@@ -69,8 +69,7 @@ public class PlayerActor implements BlockActor {
     @Override public double[] knownMovement() { return player.knownMovement(); }
     @Override public void openBook(int hand) { player.send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand)); }
     @Override public void startUsingItem(int hand, int ticks) {
-        player.usingHand = hand;
-        player.usingTicks = ticks;
+        player.startUsingItem(hand, ticks);
     }
     @Override public boolean onGround() { return player.onGround(); }
     @Override public java.util.List<org.domi.furnace.server.effect.MobEffectInstance> activeEffects() { return player.vitals().activeEffects(); }

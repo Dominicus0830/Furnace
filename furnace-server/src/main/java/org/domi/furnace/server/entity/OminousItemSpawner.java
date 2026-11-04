@@ -53,6 +53,8 @@ public class OminousItemSpawner extends Entity {
         var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), stack);
         level.addFreshEntity(ie);
         level.levelEvent(null, 3021, blockPosition(), 1);
+        level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_PLACE, new Vec3(x(), y(), z()),
+                org.domi.furnace.server.world.gameevent.GameEventContext.of(ie));   // btu:w 나온 엔티티가 출처, 자리는 생성기
         setItem(ItemStack.EMPTY);
     }
 

@@ -143,8 +143,7 @@ public final class RangedWeapons {
     }
 
     static void start(Player p, int hand, int ticks) {
-        p.usingHand = hand;
-        p.usingTicks = ticks;
+        p.startUsingItem(hand, ticks);
     }
 
     // ------------------------------------------------------------------ 사용 중(LivingEntity.updateUsingItem)
@@ -152,7 +151,7 @@ public final class RangedWeapons {
     /** 틱마다: onUseTick(남은 틱) 후 하나 줄인다. 활은 72000틱이 다 되면 그냥 끝(쇠뇌는 놓을 때까지 계속). */
     public static void tick(Player p, ChunkLevel level, ItemStack stack) {
         onUseTick(p, level, stack, p.usingTicks);
-        if (--p.usingTicks == 0 && (isBow(stack) || Tridents.isTrident(stack))) p.usingHand = -1;
+        if (--p.usingTicks == 0 && (isBow(stack) || Tridents.isTrident(stack))) p.stopUsingItem();
     }
 
     /** CrossbowItem.onUseTick: 장전 진행 0.2·0.5 에서 시작·중간 소리(한 번씩). */
@@ -188,7 +187,7 @@ public final class RangedWeapons {
             crossbowRelease(level, actor, p, hand, remaining);
             tick(p, level, actor.itemInHand(hand));
         }
-        p.usingHand = -1;
+        p.stopUsingItem();
     }
 
     /** BowItem.getPowerForTime: (t² + 2t)/3, t = 틱/20, 최대 1. */
