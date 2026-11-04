@@ -1321,6 +1321,14 @@ public final class PlayerVitals {
         return out;
     }
 
+    /** 바닐라 updateSynchronizedMobEffectParticles 의 입자 목록(효과가 없으면 빈 목록). */
+    public synchronized java.util.List<org.domi.furnace.server.net.protocol.play.ParticleOptions> effectParticles() {
+        return MobEffectInstance.visibleParticles(effects.values());
+    }
+
+    /** 모든 효과가 환경 효과인가. 효과가 없으면 null — 바닐라 removeEffectParticles 는 환경 표시를 그대로 둔다. */
+    public synchronized Boolean effectsAmbient() { return effects.isEmpty() ? null : MobEffectInstance.allAmbient(effects.values()); }
+
     /** 바닐라 addEffect: 새로 걸면 패킷 + 시작 효과, 이미 있으면 update(더 센 쪽). 바뀌었으면 true. */
     public boolean addEffect(MobEffectInstance incoming) {
         boolean changed;

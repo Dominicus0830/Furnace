@@ -129,4 +129,23 @@ class PlayerEffectsTest {
         assertEquals(2, v.removeAllEffects());
         assertTrue(v.activeEffects().isEmpty());
     }
+
+    @Test
+    void effectParticlesAreSyncedToViewersAndStayForNewViewers() {
+        player.syncLivingFlags();
+        assertNull(player.pairingData(), "효과가 없으면 보낼 데이터 없음");
+        v.addEffect(new MobEffectInstance(MobEffect.SPEED, 200, 0, true, true));
+        player.syncLivingFlags();
+        var items = player.pairingData().items();
+        var particles = items.stream().filter(i -> i.index() == LivingEntity.DATA_EFFECT_PARTICLES).findFirst().orElseThrow();
+        assertEquals(java.util.List.of(MobEffect.SPEED.particle(true)), particles.value());
+        assertTrue(items.stream().anyMatch(i -> i.index() == LivingEntity.DATA_EFFECT_AMBIENT && Boolean.TRUE.equals(i.value())), "환경 효과만 있으면 ambient");
+        // 지우면 목록은 비고(기본값), ambient 는 바닐라 removeEffectParticles 처럼 그대로
+        v.removeAllEffects();
+        player.syncLivingFlags();
+        var after = player.pairingData();
+        assertNotNull(after);
+        assertTrue(after.items().stream().noneMatch(i -> i.index() == LivingEntity.DATA_EFFECT_PARTICLES));
+        assertTrue(after.items().stream().anyMatch(i -> i.index() == LivingEntity.DATA_EFFECT_AMBIENT));
+    }
 }

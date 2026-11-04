@@ -20,7 +20,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
 
     /** 엔티티 데이터 번호(LivingEntity): 8 생활 플래그, 9 체력, 10 효과 색, 11 효과 앰비언트, 12 화살 수, 13 침 수, 14 자는 위치. */
-    public static final int DATA_LIVING_FLAGS = 8, DATA_HEALTH = 9, DATA_EFFECT_COLOR = 10, DATA_EFFECT_AMBIENT = 11, DATA_ARROW_COUNT = 12,
+    public static final int DATA_LIVING_FLAGS = 8, DATA_HEALTH = 9, DATA_EFFECT_PARTICLES = 10, DATA_EFFECT_AMBIENT = 11, DATA_ARROW_COUNT = 12,
             DATA_STINGER_COUNT = 13, DATA_SLEEPING_POS = 14;
 
     public int invulnerableTime, hurtTime, hurtDuration, deathTime;
@@ -114,7 +114,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         super.defineSynchedData();
         entityData.define(DATA_LIVING_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
         entityData.define(DATA_HEALTH, SetEntityData.SERIALIZER_FLOAT, 1.0F);
-        entityData.define(DATA_EFFECT_COLOR, SetEntityData.SERIALIZER_INT, 0);
+        entityData.define(DATA_EFFECT_PARTICLES, SetEntityData.SERIALIZER_PARTICLES, java.util.List.of());   // 1.20.5+ List<ParticleOptions>
         entityData.define(DATA_EFFECT_AMBIENT, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_ARROW_COUNT, SetEntityData.SERIALIZER_INT, 0);
         entityData.define(DATA_STINGER_COUNT, SetEntityData.SERIALIZER_INT, 0);
@@ -435,10 +435,20 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return changed;
     }
 
-    /** LivingEntity.updateInvisibilityStatus: 효과가 바뀌면 투명 효과가 있을 때만 투명으로 둔다(효과가 하나도 없으면 해제). */
+    /**
+     * LivingEntity.updateInvisibilityStatus: 효과가 바뀌면 투명 효과가 있을 때만 투명으로 두고(효과가 하나도 없으면 해제),
+     * 몸에서 나는 효과 입자 목록을 맞춘다 — 입자는 클라이언트가 이 목록을 보고 스스로 뿌린다.
+     */
     private void updateInvisibilityStatus() {
         setInvisible(!activeEffects.isEmpty() && hasEffect(org.domi.furnace.server.effect.MobEffect.INVISIBILITY));
+        updateEffectParticles();
         syncGlowingFlag();   // 바닐라 updateGlowingStatus(같은 effectsDirty 시점에 이어서 부른다)
+    }
+
+    /** 바닐라 updateSynchronizedMobEffectParticles / removeEffectParticles: 효과가 없으면 목록만 비우고 환경 표시는 그대로 둔다. */
+    private void updateEffectParticles() {
+        entityData.set(DATA_EFFECT_PARTICLES, org.domi.furnace.server.effect.MobEffectInstance.visibleParticles(activeEffects.values()));
+        if (!activeEffects.isEmpty()) entityData.set(DATA_EFFECT_AMBIENT, org.domi.furnace.server.effect.MobEffectInstance.allAmbient(activeEffects.values()));
     }
 
     /** LivingEntity.isCurrentlyGlowing(서버): 발광 효과가 있거나 Glowing 태그. */
@@ -1398,6 +1408,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
                     if (e != null) activeEffects.put(e.effect(), e);
                 }
             }
+            updateEffectParticles();   // 바닐라는 effectsDirty 초기값 true 로 첫 틱에 맞춘다 — 불러온 효과의 입자도 보인다
         }
         if (tag.tags().get("Team") instanceof String teamName && level != null && level.scoreboard() != null) {
             // 바닐라: 팀이 없으면 경고만 남기고 넘어간다

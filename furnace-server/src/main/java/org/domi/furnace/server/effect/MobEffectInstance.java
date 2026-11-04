@@ -59,6 +59,23 @@ public final class MobEffectInstance implements Comparable<MobEffectInstance> {
 
     public MobEffect effect() { return effect; }
 
+    /** 바닐라 getParticleOptions: 이 효과가 몸에서 내는 입자. */
+    public org.domi.furnace.server.net.protocol.play.ParticleOptions particleOptions() { return effect.particle(ambient); }
+
+    /** 바닐라 updateSynchronizedMobEffectParticles 의 목록: 입자를 보이는 효과들의 입자(걸린 순서). */
+    public static java.util.List<org.domi.furnace.server.net.protocol.play.ParticleOptions> visibleParticles(java.util.Collection<MobEffectInstance> effects) {
+        if (effects.isEmpty()) return java.util.List.of();
+        var out = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.ParticleOptions>(effects.size());
+        for (MobEffectInstance e : effects) if (e.visible) out.add(e.particleOptions());
+        return java.util.List.copyOf(out);
+    }
+
+    /** 바닐라 LivingEntity.areAllEffectsAmbient: 모든 효과가 환경 효과인가(비어 있으면 true). */
+    public static boolean allAmbient(java.util.Collection<MobEffectInstance> effects) {
+        for (MobEffectInstance e : effects) if (!e.ambient) return false;
+        return true;
+    }
+
     public int duration() { return duration; }
 
     public int amplifier() { return amplifier; }
