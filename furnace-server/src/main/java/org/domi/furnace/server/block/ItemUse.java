@@ -98,7 +98,8 @@ public final class ItemUse {
             case "minecraft:cod_bucket", "minecraft:salmon_bucket", "minecraft:pufferfish_bucket", "minecraft:tropical_fish_bucket",
                     "minecraft:axolotl_bucket", "minecraft:tadpole_bucket": return bucketUse(level, player, hand, stack, Fluids.WATER_SOURCE);
             case "minecraft:ender_eye": return enderEyeUse(level, player, hand, stack);
-            case "minecraft:carrot_on_a_stick": return carrotOnAStickUse(player, hand, stack);
+            case "minecraft:carrot_on_a_stick": return foodOnAStickUse(player, hand, stack, false);
+            case "minecraft:warped_fungus_on_a_stick": return foodOnAStickUse(player, hand, stack, true);
             case "minecraft:glass_bottle": return glassBottleUse(level, player, stack);
             case "minecraft:map": return emptyMapUse(level, player, stack);
             case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl", "minecraft:experience_bottle", "minecraft:splash_potion",
@@ -1033,18 +1034,23 @@ public final class ItemUse {
      * 없으면 소모 없이 CONSUME. TODO(사용 중 표시): startUsingItem 의 생물 플래그는 플레이어에 아직 없다.
      */
     /**
-     * FoodOnAStickItem.use(ctz): 돼지를 타고 있고 가속할 수 있으면(boost) 내구도 7을 깎는다 — 다 닳으면 낚싯대로 바뀐다. 아니면 사용 통계만 올리고 PASS.
+     * FoodOnAStickItem.use(ctz): 탄 탈것이 그 막대의 종류(당근 낚싯대 → 돼지, 뒤틀린 균류 막대 → 스트라이더)이고 가속할 수 있으면(boost)
+     * 내구도를 깎는다(당근 7, 뒤틀린 균류 1) — 다 닳으면 낚싯대로 바뀐다. 아니면 사용 통계만 올리고 PASS.
      * 차이: 낚싯대로 바뀔 때 부러진 막대의 다른 컴포넌트는 옮기지 않는다(transmuteCopy 는 옮김).
-     * 미구현: 뒤틀린 균류 막대(스트라이더 조종이 없다).
      */
-    private static Holder carrotOnAStickUse(BlockActor player, int hand, ItemStack stack) {
-        if (player.handle() instanceof org.domi.furnace.server.entity.Player pl && pl.vehicle() instanceof org.domi.furnace.server.entity.Pig pig && pig.boost()) {
-            BlockBreaking.hurtAndBreak(pig.level(), player, hand, stack, 7);
-            ItemStack now = player.itemInHand(hand);
-            if (now.isEmpty()) now = new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "fishing_rod"), 1);
-            return Holder.success(now);
+    private static Holder foodOnAStickUse(BlockActor player, int hand, ItemStack stack, boolean warped) {
+        if (player.handle() instanceof org.domi.furnace.server.entity.Player pl) {
+            var v = pl.vehicle();
+            boolean boosted = warped ? v instanceof org.domi.furnace.server.entity.Strider s && s.boost()
+                    : v instanceof org.domi.furnace.server.entity.Pig pig && pig.boost();
+            if (boosted) {
+                BlockBreaking.hurtAndBreak(v.level(), player, hand, stack, warped ? 1 : 7);
+                ItemStack now = player.itemInHand(hand);
+                if (now.isEmpty()) now = new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "fishing_rod"), 1);
+                return Holder.success(now);
+            }
         }
-        player.awardStat("minecraft:used:minecraft:carrot_on_a_stick");
+        player.awardStat(warped ? "minecraft:used:minecraft:warped_fungus_on_a_stick" : "minecraft:used:minecraft:carrot_on_a_stick");
         return Holder.pass(stack);
     }
 

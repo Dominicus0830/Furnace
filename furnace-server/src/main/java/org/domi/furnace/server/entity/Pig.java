@@ -58,40 +58,21 @@ public class Pig extends Animal {
         }
     }
 
-    public boolean isSaddled() { return (Boolean) entityData.get(DATA_SADDLE); }
+    private final ItemBasedSteering steering = new ItemBasedSteering(entityData, DATA_BOOST_TIME, DATA_SADDLE);
 
-    public void setSaddled(boolean v) { entityData.set(DATA_SADDLE, v); }
+    public boolean isSaddled() { return steering.hasSaddle(); }
 
-    // ItemBasedSteering(bti): 가속 중 여부와 경과 틱. 총 시간은 DATA_BOOST_TIME 에 동기화(클라이언트가 속도 계수에 쓴다).
-    private boolean boosting;
-    private int boostTime;
+    public void setSaddled(boolean v) { steering.setSaddle(v); }
 
     /** 소유권 전제: 호출은 탄 플레이어의 스레드이고, 탄 돼지와 플레이어는 같은 region 이다(가정: 탑승 중 region 이 갈리지 않는다). */
-    /** ItemBasedSteering.boost(random): 가속 중이면 거짓, 아니면 시작하고 총 시간 nextInt(841)+140 틱을 동기화한다. */
-    public boolean boost() {
-        if (boosting) return false;
-        boosting = true;
-        boostTime = 0;
-        entityData.set(DATA_BOOST_TIME, random.nextInt(841) + 140);
-        return true;
-    }
-
-    /** ItemBasedSteering.tickBoost: 경과가 총 시간을 넘으면(비교 뒤 증가) 가속 끝. */
-    private void tickBoost() {
-        if (boosting && boostTime++ > (Integer) entityData.get(DATA_BOOST_TIME)) boosting = false;
-    }
+    /** Pig.boost: ItemBasedSteering.boost(엔티티 난수). */
+    public boolean boost() { return steering.boost(random); }
 
     /** Pig.getControllingPassenger: 안장이 있고 첫 승객이 당근 낚싯대를 들고 있는 플레이어면 그 플레이어, 아니면 Mob 기본. */
     @Override
     public Rider getControllingPassenger() {
-        if (isSaddled() && firstPassenger() instanceof Player p && isHoldingCarrotStick(p)) return p;
+        if (isSaddled() && firstPassenger() instanceof Player p && ItemBasedSteering.isHolding(p, "minecraft:carrot_on_a_stick")) return p;
         return super.getControllingPassenger();
-    }
-
-    private static boolean isHoldingCarrotStick(Player p) {
-        var inv = p.inventory();
-        return ItemTools.itemName(inv.get(inv.heldWindowSlot())).equals("minecraft:carrot_on_a_stick")
-                || ItemTools.itemName(inv.get(45)).equals("minecraft:carrot_on_a_stick");
     }
 
     /** Pig.tickRidden: 탄 플레이어의 방향(pitch 는 절반)을 따르고 가속 시간을 진행한다. */
@@ -102,7 +83,7 @@ public class Pig extends Animal {
         setXRot(p.pitch() * 0.5F);
         yHeadRot = yBodyRot = yRot();
         yRotO = yRot();
-        tickBoost();
+        steering.tickBoost();
     }
 
     @Override
@@ -143,12 +124,12 @@ public class Pig extends Animal {
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
         super.addAdditionalSaveData(tag);
-        tag.putBoolean("Saddle", isSaddled());
+        steering.addAdditionalSaveData(tag);
     }
 
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
-        setSaddled(tag.getBoolean("Saddle"));
+        steering.readAdditionalSaveData(tag);
     }
 }
