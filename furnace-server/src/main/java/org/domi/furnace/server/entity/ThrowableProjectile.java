@@ -36,6 +36,7 @@ public abstract class ThrowableProjectile extends Projectile {
         super.tick();
         Hit hit = findHit(x(), y(), z(), x() + vx(), y() + vy(), z() + vz());
         if (hit != null) hitTargetOrDeflectSelf(hit);
+        checkInsideBlocks();   // 바닐라 ThrowableProjectile.tick: 맞음 처리 뒤, 움직이기 전 — 관문·지옥문 등 entityInside
         double dx = vx(), dy = vy(), dz = vz();
         double nx = x() + dx, ny = y() + dy, nz = z() + dz;
         double h = Math.sqrt(dx * dx + dz * dz);

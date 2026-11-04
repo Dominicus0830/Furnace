@@ -310,21 +310,7 @@ public final class EndDragonFight {
 
     /** EndGatewayFeature(출구 없음)를 살아 있는 레벨에. */
     private void placeGateway(Pos o) {
-        int gateway = B.defaultState("minecraft:end_gateway"), bedrock = B.defaultState("minecraft:bedrock"), air = B.defaultState("minecraft:air");
-        for (int z = o.z() - 1; z <= o.z() + 1; z++) {
-            for (int y = o.y() - 2; y <= o.y() + 2; y++) {
-                for (int x = o.x() - 1; x <= o.x() + 1; x++) {
-                    boolean sx = x == o.x(), sy = y == o.y(), sz = z == o.z(), edgeY = Math.abs(y - o.y()) == 2;
-                    int s;
-                    if (sx && sy && sz) s = gateway;
-                    else if (sy) s = air;
-                    else if (edgeY && sx && sz) s = bedrock;
-                    else if ((sx || sz) && !edgeY) s = bedrock;
-                    else s = air;
-                    level.setBlock(new Pos(x, y, z), s, 3);
-                }
-            }
-        }
+        org.domi.furnace.server.block.entity.EndGatewayBlockEntity.placeGatewayPortal(level, o, null, false);
     }
 
     /** spawnExitPortal(active): 처음이면 받침대 높이 바로 아래(기반암이면 해수면까지 더 내려감)를 기억하고 받침대를 놓는다. */

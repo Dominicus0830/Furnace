@@ -3,8 +3,9 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.Pos;
 
+/** @param enderPearl 엔더 진주(엔드 관문은 진주를 아래로 (0, -1, 0) 보낸다). */
 public record Traveler(double x, double y, double z, double vx, double vy, double vz, float yRot, float xRot,
-                       double width, double height, boolean isPlayer, boolean resetPortalDepth) {
+                       double width, double height, boolean isPlayer, boolean resetPortalDepth, boolean enderPearl) {
 
 
     public Pos blockPosition() { return new Pos(Entity.floor(x), Entity.floor(y), Entity.floor(z)); }
@@ -15,11 +16,11 @@ public record Traveler(double x, double y, double z, double vx, double vy, doubl
      */
     public static Traveler of(Entity e) {
         return new Traveler(e.x(), e.y(), e.z(), e.vx(), e.vy(), e.vz(), e.yRot(), e.xRot(), e.bbWidth(), e.bbHeight(), false,
-                e instanceof LivingEntity || e instanceof AbstractMinecart || e instanceof Boat);
+                e instanceof LivingEntity || e instanceof AbstractMinecart || e instanceof Boat, e instanceof ThrownEnderpearl);
     }
 
     /** 플레이어: 서버 쪽 속도는 차원 이동에 쓰이지 않는다(위치 패킷만 간다). 몸 크기는 자세(bbHeight). */
     public static Traveler of(Player p) {
-        return new Traveler(p.x(), p.y(), p.z(), 0, 0, 0, p.yaw(), p.pitch(), 0.6, p.bbHeight(), true, true);
+        return new Traveler(p.x(), p.y(), p.z(), 0, 0, 0, p.yaw(), p.pitch(), 0.6, p.bbHeight(), true, true, false);
     }
 }
