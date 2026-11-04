@@ -1045,6 +1045,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             reconcileModifiers(map, effects, sprint);
         }
         pushVitalsInputs(map, effects);
+        refreshAttributesSave(map);
         boolean first = !armorAttributesSent;
         java.util.List<org.domi.furnace.server.attribute.AttributeInstance> out = first ? map.syncable() : map.takeDirty();
         if (first) map.takeDirty();
@@ -1067,6 +1068,41 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             if (want.isEmpty()) managedModifiers.remove(attr);
             else managedModifiers.put(attr, new java.util.HashSet<>(want.keySet()));
         }
+    }
+
+    // 속성 저장(바닐라 LivingEntity "attributes"): 기본값 + /attribute 로 단 수정자. 장비·효과·달리기·위치 효과 수정자(managedModifiers)는
+    // 바닐라 transient 라 빼고 저장한다. 저장은 연결 스레드에서 하므로 소유 스레드가 바뀔 때마다 불변 스냅샷을 떠 둔다.
+    private int attributesSaveVersion = -1;
+    private volatile org.domi.furnace.server.net.io.nbt.NbtList attributesSave;
+
+    private void refreshAttributesSave(org.domi.furnace.server.attribute.AttributeMap map) {
+        if (map.version() == attributesSaveVersion && attributesSave != null) return;
+        attributesSaveVersion = map.version();
+        attributesSave = map.save((a, id) -> {
+            var managed = managedModifiers.get(a);
+            return managed != null && managed.contains(id);
+        });
+    }
+
+    /** 저장용 "attributes" 를 붙인다(아무 스레드). 아직 한 번도 동기 전이면 붙이지 않아 파일의 기존 값이 남는다. */
+    public void saveAttributes(org.domi.furnace.server.net.io.nbt.NbtCompound out) {
+        var l = attributesSave;
+        if (l != null) out.putList("attributes", l);
+    }
+
+    /**
+     * 접속 때(region 에 넣기 전) 저장된 속성을 읽는다. 바닐라 readAdditionalSaveData 처럼 체력보다 먼저 — 최대 체력을 PlayerVitals 에
+     * 넘겨 두어야 늘린 최대 체력 위의 체력이 20 으로 잘리지 않는다.
+     */
+    public void loadAttributes(org.domi.furnace.server.net.io.nbt.NbtCompound in) {
+        if (!(in.tags().get("attributes") instanceof org.domi.furnace.server.net.io.nbt.NbtList l)) return;
+        var map = attributes();
+        map.load(l);
+        attributesSave = l;
+        attributesSaveVersion = map.version();
+        var hp = map.get(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH);
+        vitals.attributeInputs(hp.baseValue(), java.util.List.copyOf(hp.modifiers().values()),
+                map.value(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS));
     }
 
     /** 최대 체력(기본값 + 효과 밖 수정자)과 산소 보너스를 PlayerVitals 가 쓰도록 넘기고, 최대 체력이 줄었으면 체력을 자른다. */

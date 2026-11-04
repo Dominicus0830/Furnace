@@ -990,7 +990,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var vitals = p.vitals();
         if (coreJ != null) vitals.env(coreJ.vitalsEnv());
         vitals.deathListener(keepInventory -> ctx.channel().eventLoop().execute(() -> onPlayerDied(keepInventory)));
-        if (saved != null && saved.root() != null) vitals.load(saved.root());
+        if (saved != null && saved.root() != null) {
+            p.loadAttributes(saved.root());   // 바닐라 순서: attributes → active_effects → Health
+            vitals.load(saved.root());
+        }
         org.domi.furnace.server.world.GameMode forced = coreJ != null ? coreJ.forcedGameMode() : null;
         org.domi.furnace.server.world.GameMode defaultMode = coreJ != null ? coreJ.defaultGameMode() : org.domi.furnace.server.world.GameMode.CREATIVE;
         vitals.loadGameTypes(saved != null ? saved.root() : null, forced != null ? forced : defaultMode, forced != null);
@@ -3403,6 +3406,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         extra.putBoolean("seenCredits", p.seenCredits);
         p.saveTags(extra);
         p.saveShoulders(extra);
+        p.saveAttributes(extra);
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
         final var statsToSave = p.stats();

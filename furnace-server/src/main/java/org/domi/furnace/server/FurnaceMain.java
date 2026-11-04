@@ -93,7 +93,7 @@ public final class FurnaceMain {
         }
         ServerProperties props = settings.get();
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
-            log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, none (lz4 는 Furnace 가 지원하지 않는다 — deflate 로 둔다)",
+            log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none",
                     props.regionFileCompression);
         }
         if (!props.textFilteringConfig.isEmpty()) {
