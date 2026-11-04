@@ -24,6 +24,18 @@ public class TrapDoorBlock extends HorizontalDirectionalBlock {
         this.type = BlockSetType.of(block);
     }
 
+    /**
+     * LivingEntity.trapdoorUsableAsLadder: 열린 다락문이고 바로 아래가 같은 방향을 보는 사다리면 오를 수 있다
+     * (#climbable 이 아니어도). {@code trap} 이 다락문(TrapDoorBlock)인지는 부르는 쪽이 확인한다.
+     */
+    public static boolean usableAsLadder(int trap, int below) {
+        if (!OPEN.is(trap)) return false;
+        return below >= 0 && B.is(below, "minecraft:ladder") && FACING.get(below) == FACING.get(trap);
+    }
+
+    /** 이 상태가 다락문(TrapDoorBlock, 구리 다락문 포함)인가 — 바닐라 instanceof TrapDoorBlock. */
+    public static boolean isTrapDoor(int state) { return state >= 0 && B.behavior(state) instanceof TrapDoorBlock; }
+
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
         if (!type.canOpenByHand()) return InteractionResult.PASS;

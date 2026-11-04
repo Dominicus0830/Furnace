@@ -106,20 +106,20 @@ public final class PlayerProbe {
         return s >= 0 && registry.nameOf(s).equals("minecraft:bubble_column");
     }
 
-    /** LivingEntity.onClimbable + FallLocation.blockToFallLocation: 매달린 블록의 낙하 위치 이름, 아니면 null. */
+    /**
+     * LivingEntity.onClimbable + FallLocation.blockToFallLocation: 매달린 블록의 낙하 위치 이름, 아니면 null.
+     * #climbable 이 아니어도 열린 다락문 바로 아래가 같은 방향 사다리면 매달린다(trapdoorUsableAsLadder, 이름은 ladder).
+     */
     public String climbable(Blocks b, double x, double y, double z) {
-        int s = b.stateAt(floor(x), floor(y), floor(z));
+        int bx = floor(x), by = floor(y), bz = floor(z);
+        int s = b.stateAt(bx, by, bz);
         if (s < 0) return null;
-        String n = registry.nameOf(s);
-        if (!climbable.contains(n)) return null;
-        return switch (n) {
-            case "minecraft:ladder" -> "ladder";
-            case "minecraft:vine" -> "vines";
-            case "minecraft:weeping_vines", "minecraft:weeping_vines_plant" -> "weeping_vines";
-            case "minecraft:twisting_vines", "minecraft:twisting_vines_plant" -> "twisting_vines";
-            case "minecraft:scaffolding" -> "scaffolding";
-            default -> "other_climbable";
-        };
+        if (climbable.contains(registry.nameOf(s))) return org.domi.furnace.server.entity.LivingEntity.fallLocationOf(s);
+        if (org.domi.furnace.server.block.types.TrapDoorBlock.isTrapDoor(s)
+                && org.domi.furnace.server.block.types.TrapDoorBlock.usableAsLadder(s, b.stateAt(bx, by - 1, bz))) {
+            return org.domi.furnace.server.entity.LivingEntity.fallLocationOf(s);
+        }
+        return null;
     }
 
     /** 몸이 거미줄·가루눈·달콤한 열매 덤불 안에 있는가(makeStuckInBlock → 낙하 거리 초기화). */

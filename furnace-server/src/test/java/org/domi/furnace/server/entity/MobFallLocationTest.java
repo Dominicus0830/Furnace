@@ -86,4 +86,31 @@ class MobFallLocationTest {
         assertEquals("scaffolding", LivingEntity.fallLocationOf(state("minecraft:scaffolding")));
         assertEquals("other_climbable", LivingEntity.fallLocationOf(state("minecraft:cave_vines")));
     }
+
+    private static int with(int s, String prop, String value) { return B.prop(prop).with(s, value); }
+
+    /** LivingEntity.trapdoorUsableAsLadder: 열린 다락문 바로 아래가 같은 방향 사다리면 몹도 매달린다. */
+    @Test
+    void openTrapdoorAboveLadderIsClimbable() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.setBlock(new Pos(5, -50, 5), state("minecraft:stone"), 2);
+        level.setBlock(new Pos(5, -49, 5), with(state("minecraft:ladder"), "facing", "north"), 2);
+        Pos trap = new Pos(5, -48, 5);
+        int open = with(with(state("minecraft:spruce_trapdoor"), "open", "true"), "facing", "north");
+        level.setBlock(trap, open, 2);
+        var wolf = (Wolf) Entities.create(level, "minecraft:wolf");
+        wolf.moveTo(5.5, -48, 5.5, 0, 0);
+        level.addFreshEntity(wolf);
+        assertTrue(wolf.onClimbable(), "열린 다락문 + 같은 방향 사다리");
+        assertEquals(trap, wolf.lastClimbablePos());
+        assertEquals("ladder", wolf.currentFallLocation());
+
+        level.setBlock(trap, with(open, "open", "false"), 2);
+        assertFalse(wolf.onClimbable(), "닫힌 다락문");
+        level.setBlock(trap, with(open, "facing", "south"), 2);
+        assertFalse(wolf.onClimbable(), "방향이 다름");
+        level.setBlock(trap, open, 2);
+        level.setBlock(new Pos(5, -49, 5), state("minecraft:stone"), 2);
+        assertFalse(wolf.onClimbable(), "아래가 사다리가 아님");
+    }
 }
