@@ -18,7 +18,7 @@ public interface NeutralMob {
 
     Targetable getTarget();
 
-    void setTarget(Targetable t);
+    boolean setTarget(Targetable t);
 
     void setLastHurtByMob(Targetable t);
 

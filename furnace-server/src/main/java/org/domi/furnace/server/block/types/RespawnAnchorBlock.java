@@ -64,6 +64,7 @@ public class RespawnAnchorBlock extends org.domi.furnace.server.block.BlockBehav
      * 가운데에서 BAD_RESPAWN_POINT 폭발(5.0, 불, BLOCK).
      */
     private static void explode(BlockLevel level, Pos pos) {
+        int exploded = level.getBlockState(pos);
         level.removeBlock(pos, false);
         boolean water = false;
         for (int d : new int[] {Dir.NORTH, Dir.EAST, Dir.SOUTH, Dir.WEST}) {
@@ -72,7 +73,7 @@ public class RespawnAnchorBlock extends org.domi.furnace.server.block.BlockBehav
         boolean inWater = water || Fluids.isWater(level.getFluidState(pos.above()));
         if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) {
             cl.explodeBadRespawnPoint(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, inWater ? pos : null,
-                    org.domi.furnace.server.block.BlockInfo.get().explosionResistance(org.domi.furnace.server.block.B.id("water")));
+                    org.domi.furnace.server.block.BlockInfo.get().explosionResistance(org.domi.furnace.server.block.B.id("water")), exploded);
         }
     }
 

@@ -143,6 +143,8 @@ public final class PlayerVitals {
     private int lastSentFood = -99999999;
     private boolean lastFoodSaturationZero = true;
     private int lastSentExp = -99999999;
+    /** 플러그인 레벨 변화 이벤트의 기준 레벨(-1 = 아직 없음). */
+    private int levelEventLast = -1;
     // 바닐라 ServerPlayer.lastRecorded*: 점수판 읽기 전용 기준(health·food·air·armor·xp·level) 갱신용
     private float lastRecordedHealthAndAbsorption = Float.MIN_VALUE;
     private int lastRecordedFoodLevel = Integer.MIN_VALUE, lastRecordedAirLevel = Integer.MIN_VALUE, lastRecordedArmor = Integer.MIN_VALUE,
@@ -1032,10 +1034,19 @@ public final class PlayerVitals {
         runPendingEffectHurts();
         applyPendingStarve();
         final int epoch;
+        int levelFrom = -1, levelTo = -1;
         synchronized (this) {
             collectChanges(toSelf, toTrackers);
             epoch = respawnEpoch;
+            // 플러그인 PlayerLevelChangeEvent: CraftBukkit 처럼 틱마다 지난번 레벨과 비교(처음 틱은 기준만 잡는다)
+            if (levelEventLast == -1) levelEventLast = xpLevel;
+            if (levelEventLast != xpLevel) {
+                levelFrom = levelEventLast;
+                levelTo = xpLevel;
+                levelEventLast = xpLevel;
+            }
         }
+        if (levelFrom != levelTo) env.gameEvents().playerLevelChange(player, levelFrom, levelTo);
         // 모은 뒤 리스폰이 끼면(연결 스레드) 낡은 체력 0 등이 Respawn 패킷 뒤에 가서 클라가 죽은 채로 남는다 — 쓰는 순간 세대를 비교해 버린다
         for (Packet p : toSelf) player.send(p, () -> respawnEpoch == epoch);
         for (Packet p : toTrackers) env.broadcastToTrackers(player.entityId(), p);

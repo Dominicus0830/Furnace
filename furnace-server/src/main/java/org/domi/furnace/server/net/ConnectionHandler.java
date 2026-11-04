@@ -280,7 +280,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     online.add(new org.domi.furnace.server.players.GameProfile(p.uuid(), p.name()));
                     listing.add(p.allowsListing());
                 }
-                send(ctx, new StatusResponse(login.statusJson(online, listing)));
+                java.net.InetAddress addr = ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
+                send(ctx, new StatusResponse(login.statusJson(online, listing, pluginEvents(), addr)));   // 플러그인 ServerListPingEvent
             }
             case 0x01 -> { // Ping Request → Pong 후 종료(바닐라)
                 ByteBuf buf = ctx.alloc().buffer();
@@ -1463,7 +1464,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x23 -> { // player_abilities(serverbound): 비행 시작/끝 — 비행 가능할 때만 반영
                 byte flags = frame.readByte();
                 Player p = player;
-                if (p != null) p.vitals().setFlying((flags & 0x02) != 0);
+                if (p != null) {
+                    boolean fly = (flags & 0x02) != 0;
+                    var ge = pluginEvents();
+                    // 플러그인 PlayerToggleFlightEvent: 날 수 있고 상태가 바뀔 때만(Bukkit). 취소하면 능력 패킷을 다시 보내 클라이언트 비행을 되돌린다
+                    if (ge.has(org.domi.furnace.api.event.player.PlayerToggleFlightEvent.class) && p.vitals().mayfly() && p.vitals().isFlying() != fly) {
+                        p.runOnOwner(() -> {
+                            if (ge.playerToggle(p, 2, fly)) p.vitals().setFlying(fly);
+                            else p.send(p.vitals().abilitiesPacket());
+                        });
+                    } else {
+                        p.vitals().setFlying(fly);
+                    }
+                }
             }
             case 0x25 -> { // player_command: eid, action, data
                 touchLastAction();
@@ -1473,13 +1486,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player p = player;
                 if (p != null) {
                     switch (action) {
-                        case 0 -> p.sneaking(true);      // PRESS_SHIFT_KEY
-                        case 1 -> p.sneaking(false);     // RELEASE_SHIFT_KEY
+                        case 0 -> toggle(p, 0, true, () -> p.sneaking(true));      // PRESS_SHIFT_KEY
+                        case 1 -> toggle(p, 0, false, () -> p.sneaking(false));    // RELEASE_SHIFT_KEY
                         case 2 -> world.runAt(p.x(), p.z(), region -> {   // STOP_SLEEPING: 침대에서 나가기 버튼
                             if (p.isSleeping()) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, region.level(), false, true);
                         });
-                        case 3 -> p.sprinting(true);     // START_SPRINTING
-                        case 4 -> p.sprinting(false);    // STOP_SPRINTING
+                        case 3 -> toggle(p, 1, true, () -> p.sprinting(true));     // START_SPRINTING
+                        case 4 -> toggle(p, 1, false, () -> p.sprinting(false));   // STOP_SPRINTING
                         case 5, 6, 7 -> { int act = action; int data = jumpData; world.runAt(p.x(), p.z(), region -> handleRidingCommand(p, act, data)); }
                         case 8 -> world.runAt(p.x(), p.z(), region -> {   // START_FALL_FLYING: 안 되면 stopFallFlying(플래그 다시 보냄)
                             if (region.hasPlayer(p)) org.domi.furnace.server.entity.ElytraFlight.handleStartCommand(p);
@@ -1497,6 +1510,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 Player actor = player;
                 if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], face, seq);
                 if (actor != null && status == 5) world.runAt(actor.x(), actor.z(), r -> r.handleReleaseUsing(actor));   // 사용 끝(release)
+                if (actor != null && status == 6) actor.runOnOwner(() -> swapHands(actor));   // SWAP_ITEM_WITH_OFFHAND(F 키)
                 if (actor != null && (status == 3 || status == 4) && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
                     dropFromSelected(status == 3);   // DROP_ALL_ITEMS · DROP_ITEM
                 }
@@ -1565,7 +1579,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
-                if (slot >= 0 && slot < 9) { inv.setSelected(slot); touchLastAction(); }
+                if (slot >= 0 && slot < 9) {
+                    Player p = player;
+                    var ge = pluginEvents();
+                    if (p != null && ge.has(org.domi.furnace.api.event.player.PlayerItemHeldEvent.class)) {
+                        // 플러그인 PlayerItemHeldEvent: 소유 스레드에서 묻는다. 취소하면 이전 칸을 다시 보낸다
+                        p.runOnOwner(() -> {
+                            int prev = inv.selected();
+                            if (ge.playerItemHeld(p, prev, slot)) inv.setSelected(slot);
+                            else p.send(new SetHeldSlot(prev));
+                        });
+                    } else {
+                        inv.setSelected(slot);
+                    }
+                    touchLastAction();
+                }
             }
             case 0x30 -> { // set_command_block: 칸, 명령(String 32767), 모드(VarInt 0 체인·1 반복·2 임펄스), 플래그 byte(1 출력 기록·2 조건부·4 항상 활성)
                 int[] bp = Types.readBlockPos(frame);
@@ -2773,6 +2801,38 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
+    /** 플러그인 이벤트 입구(코어가 없는 시험 연결은 NONE). */
+    private org.domi.furnace.server.plugin.GameEvents pluginEvents() {
+        var c = login.core;
+        return c == null ? org.domi.furnace.server.plugin.GameEvents.NONE : c.gameEvents();
+    }
+
+    /** 웅크림(0)·달리기(1) 전환: 플러그인이 들으면 소유 스레드에서 물은 뒤 적용, 아니면 지금처럼 바로 적용. */
+    private void toggle(Player p, int kind, boolean on, Runnable apply) {
+        var ge = pluginEvents();
+        var type = kind == 0 ? org.domi.furnace.api.event.player.PlayerToggleSneakEvent.class : org.domi.furnace.api.event.player.PlayerToggleSprintEvent.class;
+        if (!ge.has(type)) { apply.run(); return; }
+        p.runOnOwner(() -> { if (ge.playerToggle(p, kind, on)) apply.run(); });
+    }
+
+    /**
+     * 바닐라 handlePlayerAction(SWAP_ITEM_WITH_OFFHAND), 플레이어 소유 스레드: 관전자가 아니면 보조 손 ← 주 손, 주 손 ← 보조 손, 쓰던 아이템을 멈춘다.
+     * 클라이언트는 예측하지 않으므로 바뀐 칸은 평소 인벤토리 동기화로 간다. 플러그인 PlayerSwapHandItemsEvent 로 취소하거나 결과를 바꿀 수 있다.
+     */
+    private void swapHands(Player p) {
+        if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+        int ws = inv.heldWindowSlot();
+        ItemStack main = inv.get(ws), off = inv.get(45);
+        ItemStack[] now = pluginEvents().playerSwapHands(p, off, main);
+        if (now == null) return;
+        synchronized (inv) {   // 이벤트 사이에 창 클릭(연결 스레드)이 칸을 바꿨으면 버린다 — 두 칸을 한 번에
+            if (inv.get(ws) != main || inv.get(45) != off) return;
+            inv.set(45, now[1]);
+            inv.set(ws, now[0]);
+        }
+        p.stopUsingItem();
+    }
+
     /** 플레이어가 서 있는 칸의 region 에서 아이템을 던진다. */
     private void spawnDrop(ItemStack stack, boolean dropAround, boolean includeThrower) {
         Player p = player;
@@ -3010,9 +3070,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     depleteSoundSeed));
         }
         if (respawnFrom != null) {   // 다른 차원에서 왔다 — 이제 이 차원 region 에 넣는다
+            String changedFrom = respawnFrom;
             respawnFrom = null;
             var t = new org.domi.furnace.server.entity.DimensionTransition(null, x, y, z, 0, 0, 0, yaw, pitch);
-            world.runAt(x, z, r -> r.adoptAfterDimensionChange(p, t, null));
+            world.runAt(x, z, r -> r.adoptAfterDimensionChange(p, t, null, changedFrom));
         }
     }
 
@@ -3596,7 +3657,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void kickDuplicateSession(java.util.UUID uuid) {
         for (Player other : world.onlinePlayers()) {
             if (other != player && !other.isDisconnected() && uuid.equals(other.uuid())) {
-                other.kick(new Disconnect(Text.translatable("multiplayer.disconnect.duplicate_login")));
+                other.kickForced(new Disconnect(Text.translatable("multiplayer.disconnect.duplicate_login")));
             }
         }
     }

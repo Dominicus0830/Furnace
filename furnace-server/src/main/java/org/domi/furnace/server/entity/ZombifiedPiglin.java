@@ -87,13 +87,13 @@ public class ZombifiedPiglin extends Zombie implements NeutralMob {
     private void playAngerSound() { playSound("entity.zombified_piglin.angry", getSoundVolume() * 2.0F, getVoicePitch() * 1.8F); }
 
     @Override
-    public void setTarget(Targetable t) {
+    public boolean setTarget(Targetable t) {
         if (getTarget() == null && t != null) {
             playFirstAngerSoundIn = 0 + random.nextInt(2);   // UniformInt.of(0, 1)
             ticksUntilNextAlert = 4 + random.nextInt(3);
         }
         if (t instanceof Player p) setLastHurtByPlayer(p);
-        super.setTarget(t);
+        return super.setTarget(t);
     }
 
     @Override public void startPersistentAngerTimer() { setRemainingPersistentAngerTime(20 + random.nextInt(20)); }

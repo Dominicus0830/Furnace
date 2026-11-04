@@ -25,6 +25,7 @@ srv/stop.sh $D
 ```
 - `pr2.js` lz4·속성(1 → 재시작 → 2), `pr3*.js` 스트라이더, `pr4*.js` RCON·채널·소리·시야 거리(`probe-plugin` 필요, `enable-rcon=true rcon.password=testpw`),
   `pr5*.js` 플러그인 API 2단계(SamplePlugin, 1 → 재시작 → 2), `pr7.js` 펫 낙하 메시지, `pr8.js <차원> <틱>` 특수 스포너, `base1.js`·`base2.js` 기존 항목.
+- `round4/ev.js` 플러그인 API 3단계 이벤트 33항목(시험 플러그인 `round4/probe` 를 `plugins/` 에 넣고 띄운다: `javac -cp furnace-api.jar -d out round4/probe/EventProbe.java && cp round4/probe/furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`).
 - `probe-plugin`: `javac -cp furnace-api.jar -d out probe/ProbePlugin.java && cp furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`
 
 ## 한계

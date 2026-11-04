@@ -1,0 +1,7 @@
+name: EventProbe
+version: 1.0.0
+main: probe.EventProbe
+description: 3단계 이벤트 봇 시험
+commands:
+  evcancel:
+    description: 취소할 이벤트 이름들(none = 비움)

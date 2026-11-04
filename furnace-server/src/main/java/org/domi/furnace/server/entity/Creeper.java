@@ -190,8 +190,8 @@ public class Creeper extends Monster {
 
     /** Creeper.setTarget: 염소는 대상으로 삼지 않는다. */
     @Override
-    public void setTarget(Targetable t) {
-        if (!(t instanceof Goat)) super.setTarget(t);
+    public boolean setTarget(Targetable t) {
+        return !(t instanceof Goat) && super.setTarget(t);
     }
 
     /** Creeper.doHurtTarget: 때리지 않는다(맞닿으면 부푼다). */

@@ -1483,8 +1483,8 @@ public abstract class ChunkLevel implements BlockLevel {
      * 리스폰 지점 폭발(침대·정박기의 level.explode(null, badRespawnPointExplosion(center), 계산기, center, 5.0, 불, BLOCK)).
      * overridePos 가 null 이 아니면 그 칸의 폭발 저항을 resistance 로(정박기 옆 물).
      */
-    public Explosion explodeBadRespawnPoint(double x, double y, double z, Pos overridePos, float resistance) {
-        Explosion e = new Explosion(this, null, x, y, z, 5.0F, true, destroyType("BLOCK")).badRespawnPoint(overridePos, resistance);
+    public Explosion explodeBadRespawnPoint(double x, double y, double z, Pos overridePos, float resistance, int explodedState) {
+        Explosion e = new Explosion(this, null, x, y, z, 5.0F, true, destroyType("BLOCK")).badRespawnPoint(overridePos, resistance).explodedBlock(explodedState);
         e.explode();
         e.finalizeExplosion(true);
         return e;

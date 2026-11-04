@@ -91,6 +91,9 @@ public abstract class TamableAnimal extends Animal {
         super.die(source);
     }
 
+    /** 플러그인 EntityTameEvent — 길들이기 확률에 성공한 뒤 묻는다(false 면 실패로 처리). */
+    protected boolean tameAllowed(Player p) { return level.gameEvents().entityTame(this, p); }
+
     public void tame(Player p) {
         setTame(true, true);
         setOwnerUUID(p.uuid());

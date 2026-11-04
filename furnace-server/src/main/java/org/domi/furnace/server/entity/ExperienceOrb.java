@@ -138,7 +138,7 @@ public final class ExperienceOrb extends Entity {
             player.takeXpDelay = 2;
             player.take(this, 1);
             int rest = repairPlayerItems(player, value);
-            if (rest > 0) player.vitals().giveExperiencePoints(rest);
+            if (rest > 0) player.vitals().giveExperiencePoints(level.gameEvents().playerExpChange(player, rest));   // 플러그인 PlayerExpChangeEvent
             count--;
             if (count == 0) discard();
         }

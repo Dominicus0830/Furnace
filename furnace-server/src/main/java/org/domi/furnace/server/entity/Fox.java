@@ -353,9 +353,9 @@ public class Fox extends Animal {
     }
 
     @Override
-    public void setTarget(Targetable t) {
+    public boolean setTarget(Targetable t) {
         if (isDefending() && t == null) setDefending(false);
-        super.setTarget(t);
+        return super.setTarget(t);
     }
 
     @Override

@@ -82,6 +82,14 @@ public final class Explosion {
         return this;
     }
 
+    /** 엔티티 없이 블록이 터졌을 때 그 블록 상태(침대·정박기 — 플러그인 BlockExplodeEvent 의 종류). 0 이면 중심 칸을 읽는다. */
+    private int explodedState;
+
+    public Explosion explodedBlock(int state) {
+        explodedState = state;
+        return this;
+    }
+
     public Explosion(ChunkLevel level, Entity source, double x, double y, double z, float radius, boolean fire, BlockInteraction interaction) {
         this.level = level;
         this.source = source;
@@ -255,6 +263,15 @@ public final class Explosion {
     public void finalizeExplosion(boolean particles) {
         level.playSound(null, x, y, z, soundName, "blocks", 4.0F, (1.0F + (level.random().nextFloat() - level.random().nextFloat()) * 0.2F) * 0.7F);
         boolean destroy = interaction != BlockInteraction.KEEP;
+        boolean breaking = destroy && interaction != BlockInteraction.TRIGGER_BLOCK;
+        // 바닐라는 섞은 뒤 패킷을 보낸다(ServerLevel.explode) — 패킷은 난수를 쓰지 않으므로 앞당겨도 난수 순서는 같다
+        if (breaking) shuffle(toBlow, level.random());
+        // 플러그인 EntityExplodeEvent/BlockExplodeEvent(CraftBukkit 처럼 섞은 뒤): 목록을 고치거나, 취소하면 블록·불·패킷 모두 없음
+        if (destroy && !level.gameEvents().explode(level.dimension(), source, sourcePlayer, x, y, z,
+                explodedState != 0 ? explodedState : level.getBlockState(new Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))), toBlow)) {
+            toBlow.clear();
+            return;
+        }
         // 패킷: 4096(64칸) 안 플레이어들
         int sound = org.domi.furnace.server.item.ItemContext.id("minecraft:sound_event", soundName);
         level.forEachPlayer(p -> {
@@ -271,10 +288,8 @@ public final class Explosion {
                 BlockBehaviors.of(st).onExplosionHit(st, level, pos, this);
             }
         }
-        if (destroy && interaction != BlockInteraction.TRIGGER_BLOCK) {
+        if (breaking) {
             List<Object[]> drops = new ArrayList<>();   // {ItemStack, Pos}
-            org.domi.furnace.server.block.RandomSource rnd = level.random();
-            shuffle(toBlow, rnd);
             for (Pos pos : toBlow) {
                 int state = level.getBlockState(pos);
                 if (BlockInfo.get().isAir(state)) continue;

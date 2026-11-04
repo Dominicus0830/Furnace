@@ -827,3 +827,14 @@
 - 바닐라가 장비 스택을 그 자리에서 고치는 곳(hurtAndBreak·setDamageValue·shrink·쇠뇌 CHARGED_PROJECTILES·enchantItemFromProvider·copyAndClear)을 Furnace 는 새 스택을 넣어 흉내 낸다. 이런 곳은 `setItemSlot` 이 아니라 `updateItemSlot` 을 쓴다 — `setItemSlot` 은 바닐라처럼 `onEquipItem`(장착 소리·equip/unequip, 엔티티 난수 nextLong)을 부른다.
 - 새 호출 지점을 쓸 때는 바닐라 원본이 `setItemSlot`/`setItemInHand` 를 부르는지 바이트코드(`a:(Lbsy;Lcuq;)V`, `a:(Lbqq;Lcuq;)V`)로 확인한다. 함정: `Mob.convertTo` 는 새 몹에만 setItemSlot, 옛 몹은 copyAndClear(이벤트 없음). 여우가 다 먹어 비면 바닐라는 setItemSlot 을 안 부른다.
 - onEquipItem 은 `firstTick` 이면 아무것도 안 하므로 스폰(finalizeSpawn) 중 장비 변경은 이벤트·난수가 없다.
+
+## 2026-11-04 플러그인 API 3단계 이벤트(22종)
+- 추가: 플레이어 `PlayerToggleSneak/Sprint/FlightEvent`·`PlayerItemHeldEvent`·`PlayerSwapHandItemsEvent`·`PlayerItemConsumeEvent`·`PlayerChangedWorldEvent`·`PlayerKickEvent`·`PlayerExpChangeEvent`·`PlayerLevelChangeEvent`·`PlayerAdvancementDoneEvent`·`PlayerBedEnter/LeaveEvent`, 엔티티 `EntityExplodeEvent`·`ProjectileLaunchEvent`·`ProjectileHitEvent`·`ItemSpawnEvent`·`EntityTameEvent`·`EntityBreedEvent`·`EntityTargetEvent`, 블록 `BlockExplodeEvent`, 서버 `ServerListPingEvent`. 서버 입구는 `GameEvents`(구독자 없으면 이벤트 객체도 안 만든다, `has(type)`).
+- **바닐라 구멍 메움**: F 키 손 바꾸기(`player_action` 6)가 아예 처리되지 않았다. 바닐라 handlePlayerAction 대로 관전자 제외, 보조 ← 주, 주 ← 보조, stopUsingItem(플레이어 소유 스레드). 클라이언트는 예측하지 않는다.
+- **스레드**: 웅크림·달리기·비행·칸 변경은 netty 에서 바로 상태를 바꾸던 것을, 해당 이벤트 구독자가 있을 때만 `Player.runOnOwner` 로 넘겨 소유 스레드에서 묻고 적용한다(구독자가 없으면 예전과 같다). 발전 과제 달성은 준 스레드(인벤토리 변화로 오는 레시피 과제는 netty 스레드), 킥은 요청한 스레드, 서버 목록은 netty 스레드.
+- **Bukkit 과 같게 한 것**: 투사체·아이템 스폰은 `EntitySpawnEvent` 하위(그래서 `EntitySpawnEvent` 는 final 이 아니다). 폭발 이벤트는 엔티티 피해·밀림 뒤, 섞은 뒤 블록 부수기 전(취소면 블록·불·폭발 패킷 없음). 길들이기는 확률 난수 뒤(취소면 실패 연기). 번식은 새끼를 만든 뒤(취소면 사랑 상태 유지). 대상 지정은 대상이 바뀔 때만, 취소면 하위 클래스 부수 효과도 건너뛴다(`Mob.setTarget` 이 boolean). 레벨 변화는 CraftBukkit 처럼 틱마다 비교. 경험치 이벤트는 구슬 줍기만(`/xp` 제외). 비행 취소면 능력 패킷을 다시 보낸다. 칸 변경 취소면 이전 칸을 다시 보낸다. 같은 계정 중복 접속 킥은 취소 불가라 이벤트 없음(`Player.kickForced`).
+- **바닐라 쪽 정렬**: 폭발 패킷의 칸 목록을 섞은 뒤 보낸다(바닐라 ServerLevel.explode 순서, 패킷은 난수를 쓰지 않아 난수 순서는 그대로).
+- **아직 없는 것(의도)**: 폭발 `yield`, 소비 아이템 바꾸기(`setItem`), 침대 진입 실패 결과(`BedEnterResult` — 검사를 다 통과한 경우만 발화), 브레인 몹(피글린·호글린·워든)의 공격 기억 대상 지정, 개구리·거북·스니퍼·아르마딜로 등 알·특수 번식, `CreatureSpawnEvent`(스폰 이유), 블록 물리·레드스톤·피스톤·유체·성장 같은 블록 이벤트와 인벤토리 제작·화로·호퍼 이벤트(다음 묶음).
+- **발견(손대지 않음, 가정)**: 바람 폭발(TRIGGER_BLOCK)은 바닐라가 toBlow 를 섞는데(`Util.shuffle`, 레벨 난수) Furnace 는 섞지 않는다 — 레벨 난수 순서가 한 번 다를 수 있다. 확인 후 따로 고칠 것.
+- 시험: `PluginApiStage3Test`(서버 단위 10개), 봇 `tools/bot-test/round4/ev.js` + `probe/EventProbe`(33개 확인).
+

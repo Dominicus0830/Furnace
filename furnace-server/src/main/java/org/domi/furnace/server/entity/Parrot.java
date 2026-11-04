@@ -187,7 +187,7 @@ public class Parrot extends TamableAnimal {
         if (!isTame() && ItemTags.is(held, "minecraft:parrot_food")) {
             usePlayerItem(p, hand, held);
             playSound("entity.parrot.eat", 1.0F, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.2F);
-            if (random.nextInt(10) == 0) {
+            if (random.nextInt(10) == 0 && tameAllowed(p)) {
                 tame(p);
                 broadcastEntityEvent((byte) 7);
             } else {
