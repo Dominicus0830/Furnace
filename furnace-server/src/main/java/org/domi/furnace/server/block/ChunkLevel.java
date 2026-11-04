@@ -1805,6 +1805,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (fireEvent && !gameEvents().entitySpawn(e)) {   // 플러그인 EntitySpawnEvent 취소: 추적·리스너 등록 전이라 목록과 레벨만 되돌린다
             entities.remove(e);
             e.setLevel(before);
+            retireApiTasks(e);
             return false;
         }
         startTracking(e);
@@ -1827,7 +1828,10 @@ public abstract class ChunkLevel implements BlockLevel {
             before.add(x.level());
             x.setLevel(this);
             if (!gameEvents().entitySpawn(x)) {
-                for (int i = 0; i < fired.size(); i++) fired.get(i).setLevel(before.get(i));
+                for (int i = 0; i < fired.size(); i++) {
+                    fired.get(i).setLevel(before.get(i));
+                    retireApiTasks(fired.get(i));
+                }
                 return false;
             }
         }
@@ -1841,6 +1845,12 @@ public abstract class ChunkLevel implements BlockLevel {
         if (range == 0) return;
         e.tracker = new EntityTracker(e, services().entityBroadcastRangePercentage() * range / 100);
         e.tracker.updatePlayers(trackingPlayers(), viewers);
+    }
+
+    /** 스폰이 취소된 엔티티: 이벤트 처리기가 핸들로 예약한 플러그인 작업은 영영 돌 수 없으니 retired 로 끝낸다. */
+    private static void retireApiTasks(Entity e) {
+        var t = e.apiTasksOrNull();
+        if (t != null) t.retire();
     }
 
     /** 다른 region 에서 넘어온 엔티티(추적 상태째). */
@@ -1874,6 +1884,18 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public <T extends Entity> java.util.List<T> getEntitiesOfClass(Class<T> cls, AABB box, java.util.function.Predicate<? super T> filter) {
         return entities.getEntitiesOfClass(cls, box, filter);
+    }
+
+    /**
+     * 플러그인 EntityScheduler 작업(Folia 처럼 엔티티 틱과 별개로, 이 레벨이 가진 모든 엔티티 — 틱 청크 밖이어도).
+     * 대기 작업이 있는 엔티티가 서버 어디에도 없으면 훑지 않는다.
+     */
+    public void runEntityTasks() {
+        if (entities.isEmpty() || !org.domi.furnace.server.entity.EntityTasks.anyPending()) return;
+        for (Entity e : entities.tickSnapshot()) {
+            var t = e.apiTasksOrNull();
+            if (t != null && !e.isRemoved()) t.tick();
+        }
     }
 
     /**

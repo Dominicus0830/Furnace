@@ -721,3 +721,16 @@
 - **delete_chat**: 바닐라 서버는 이 패킷을 **보내지 않는다**(디컴파일에서 `acw` 생성 호출 0곳 — 코덱만 있음). Paper 의 `Player.deleteMessage` 처럼 플러그인 API `Player.deleteChatMessage(byte[] 서명)` 으로만 보낸다. 서명은 `AsyncChatEvent.signature()`(서명 없는 채팅이면 null). 수신자 서명 캐시에 있으면 캐시 번호, 없으면 서명 256바이트 전체(바닐라 `MessageSignature.pack`).
 - **set_chunk_cache_radius / set_simulation_distance**: 바닐라는 `PlayerList.setViewDistance / setSimulationDistance`(aur:705·716)에서만 보낸다 — 전용 서버는 기동 때 한 번 부르고(접속자 없음) 실행 중에는 바꾸는 길이 없어 사실상 안 나간다. Furnace 는 플러그인 API `Furnace.setViewDistance / setSimulationDistance` 로 실행 중 바꿀 수 있게 하고 그때 보낸다. 값은 2~32 로 자른다(`ChunkMap.setServerViewDistance` 와 같게, 시뮬레이션 거리도 같은 범위로 — 가정). 시야 거리는 모든 차원 `World` 값과 플레이어별 전송 거리 `min(새 값, 클라이언트 렌더 거리)` 를 바꾸고(클라이언트가 설정을 바꿨을 때와 같은 길), 시뮬레이션 거리는 `LevelServices.simulationDistance()` 를 통해 region 이 다음 틱부터 읽는다. 새 접속자의 login 패킷도 바뀐 값을 쓴다. 명령(`/furnace` 등)으로 바꾸는 길은 만들지 않았다.
 - 시험: `RconServerTest.perIpCapRefusesExtraClientsAndFreesSlotOnClose`, `PluginChannelsTest`, `ClientChannelRegisterFlowTest`(구성 단계 brand·register → Player, play 단계 unregister), `ChannelsAndDistanceTest`(서버 채널 알림·철회, delete_chat 바이트, 거리 변경 패킷·자르기), `SoundEntityBroadcastTest`(엔티티 번호·범위·except, 털 깎기가 위치 소리를 안 보냄).
+
+## 2026-11-03 플러그인 API 2단계: EntityScheduler·영속 데이터·Chunk·스폰/조회·칸·상인·왼쪽 클릭
+- 설계: `docs/api/entity-world-design.md` 8장. 새 동기 접근은 없다(사본 또는 소유 스레드 Future).
+- 바닐라·Paper 와 다른 점·한계·가정:
+  - `EntityScheduler` 의 retired 는 엔티티를 내린 스레드에서 바로 불린다(Folia 와 같다고 **가정**). 차원 이동도 retire 한다 — Furnace 의 차원 이동은 엔티티를 새로 만드므로(`setRemoved(CHANGED_DIMENSION)`). 플레이어는 접속 종료에서만 retire(죽음·리스폰·차원 이동으로는 retire 하지 않는다 — 같은 `Player` 객체가 이어진다).
+  - `EntityScheduler` 작업은 `RegionLevel.tickBlocks` 의 블록 이벤트 뒤·엔티티 틱 앞에서 돈다(Folia 는 region 틱 앞부분 — 순서 차이는 **가정**, 플러그인 관측에 영향 적음). 엔티티 틱 청크 밖의 엔티티도 돈다.
+  - 영속 데이터 키 검사는 `NamespacedKey` 규칙(소문자). Paper 의 `PersistentDataType.LIST`·사용자 정의 종류는 없다(값은 보존).
+  - `World.nearbyEntities` 는 center 칸 region 이 가진 것만 — region 경계 근처에서는 Bukkit `getNearbyEntities` 보다 적게 나올 수 있다.
+  - `World.inventoryAt` 은 큰 상자를 반쪽(27칸)으로 돌려준다(Bukkit 은 `DoubleChestInventory` 54칸). 열지 않은 전리품 상자는 채우지 않는다(Bukkit `getInventory` 도 채우지 않는다고 **가정**).
+  - `Merchant.setTrades` 는 수요·특가를 0 으로 둔다(Bukkit `MerchantRecipe` 는 demand/specialPrice 를 가진다 — 다음 단계).
+  - LEFT_CLICK_AIR: Spigot 은 휘두르기 패킷의 손과 상관없이 주 손으로 발화하지만, Furnace 는 왼손(hand 1) 휘두르기에서 발화하지 않는다(**가정**: 왼손 휘두르기는 왼쪽 클릭이 아니다). Spigot 의 "아이템을 막 버린 틱이면 발화 안 함" 같은 예외 처리는 없다. 시선 추적은 엔티티 상자를 부풀리지 않는다(Spigot rayTrace raySize 0).
+  - `PlayerInteractEntityEvent` 는 INTERACT 만(INTERACT_AT 의 `PlayerInteractAtEntityEvent` 없음). 다른 플레이어 우클릭은 발화하지 않는다(서버가 플레이어 상호작용을 처리하지 않는 경로).
+- 검증: `PluginApiStage2Test`(11개), `EntityTasksTest`(4개) — region 넘김 뒤 작업이 새 region 스레드에서 도는 것, retired, 저장 왕복(BukkitValues·ChunkBukkitValues·플레이어 파일), 청크를 만들지 않는 것, 상자 부서진 뒤 실패, LEFT_CLICK 취소가 크리에이티브 즉시 파괴를 막는 것. 실제 클라이언트 확인은 없다(`docs/user-todo.md`).

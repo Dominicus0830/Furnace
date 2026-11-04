@@ -34,6 +34,15 @@ public interface GameEvents {
     /** blockPos 가 null 이면 공중 클릭. false 면 취소. */
     default boolean playerInteract(Player p, int hand, int[] blockPos, int blockState, int face, ItemStack inHand) { return true; }
 
+    /** PlayerInteractEvent 구독자가 있는가 — 발화 전에 비싼 계산(시선 추적)을 할지 정한다. */
+    default boolean wantsInteract() { return false; }
+
+    /** 왼쪽 클릭: blockPos 가 null 이면 허공(LEFT_CLICK_AIR), 아니면 부수기 시작(LEFT_CLICK_BLOCK). false 면 취소. */
+    default boolean playerLeftClick(Player p, int[] blockPos, int blockState, int face, ItemStack inHand) { return true; }
+
+    /** 엔티티 오른쪽 클릭(INTERACT). false 면 취소. target 의 region 스레드에서. */
+    default boolean playerInteractEntity(Player p, Entity target, int hand, ItemStack inHand) { return true; }
+
     default boolean playerDrop(Player p, ItemStack stack) { return true; }
 
     default boolean playerPickup(Player p, ItemStack stack) { return true; }

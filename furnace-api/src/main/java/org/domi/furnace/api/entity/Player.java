@@ -3,6 +3,7 @@ package org.domi.furnace.api.entity;
 
 import java.net.InetSocketAddress;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.command.CommandSender;
@@ -101,6 +102,10 @@ public interface Player extends CommandSender, LivingEntity {
         setHealth(health);
         return CompletableFuture.completedFuture(null);
     }
+
+    /** 플레이어 인벤토리. */
+    @Override
+    default CompletableFuture<Optional<Inventory>> container() { return CompletableFuture.completedFuture(Optional.of(inventory())); }
 
     @Override
     default CompletableFuture<Boolean> remove() {
