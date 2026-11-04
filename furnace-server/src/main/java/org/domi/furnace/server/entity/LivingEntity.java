@@ -670,8 +670,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (afterAbsorb != 0.0F) {
             Rider causing = hurtAttacker instanceof Rider r ? r : null;
             Rider direct = pendingDirect != null ? pendingDirect : causing;
-            // alive 는 피해 전 isAlive()(바닐라와 같다). 차이: 낙하 위치(fallLocation)는 몹에서 기록하지 않는다(null)
-            getCombatTracker().recordDamage(DamageType.byKey(source.type()), afterAbsorb, null, fallDistance, tickCount, health() > 0.0F,
+            // alive 는 피해 전 isAlive()(바닐라와 같다). 낙하 위치는 CombatTracker.recordDamage 처럼 맞은 순간의 것
+            getCombatTracker().recordDamage(DamageType.byKey(source.type()), afterAbsorb, currentFallLocation(), fallDistance, tickCount, health() > 0.0F,
                     org.domi.furnace.server.entity.damage.DamageSource.nameOf(causing), org.domi.furnace.server.entity.damage.DamageSource.nameOf(direct));
             setHealth(health() - afterAbsorb);
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE);   // btn:1542
@@ -1355,6 +1355,35 @@ public abstract class LivingEntity extends Entity implements Targetable {
             return true;
         }
         return false;
+    }
+
+    /** LivingEntity.getLastClimbablePos: 마지막으로 매달렸던 칸(땅에 닿으면 지워진다), 없으면 null. */
+    public org.domi.furnace.server.block.Pos lastClimbablePos() { return lastClimbablePos; }
+
+    /**
+     * FallLocation.getCurrentFallLocation: 마지막으로 매달렸던 칸이 있으면 그 칸의 <b>지금</b> 블록으로 이름을 정하고
+     * (부서져 공기가 됐으면 other_climbable), 없고 물속이면 water, 아니면 null.
+     */
+    public String currentFallLocation() {
+        if (lastClimbablePos != null) return fallLocationOf(level.getBlockState(lastClimbablePos));
+        return isInWater() ? "water" : null;
+    }
+
+    /** FallLocation.blockToFallLocation: 사다리·다락문 → ladder, 덩굴 → vines, … 그 밖 → other_climbable. */
+    static String fallLocationOf(int state) {
+        if (B.is(state, "minecraft:ladder") || B.isTag(state, "minecraft:trapdoors")) return "ladder";
+        if (B.is(state, "minecraft:vine")) return "vines";
+        if (B.is(state, "minecraft:weeping_vines") || B.is(state, "minecraft:weeping_vines_plant")) return "weeping_vines";
+        if (B.is(state, "minecraft:twisting_vines") || B.is(state, "minecraft:twisting_vines_plant")) return "twisting_vines";
+        if (B.is(state, "minecraft:scaffolding")) return "scaffolding";
+        return "other_climbable";
+    }
+
+    /** LivingEntity.checkFallDamage 끝: 땅에 닿으면 lastClimbablePos 를 지운다(착지 입자·onChangedBlock 은 아직 없다). */
+    @Override
+    protected void checkFallDamage(double dy, boolean ground, int state, org.domi.furnace.server.block.Pos pos) {
+        super.checkFallDamage(dy, ground, state, pos);
+        if (ground) lastClimbablePos = null;
     }
 
     protected boolean isSuppressingSlidingDownLadder() { return isShiftKeyDown(); }
