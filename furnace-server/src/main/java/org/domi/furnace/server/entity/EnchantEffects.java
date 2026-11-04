@@ -105,7 +105,7 @@ public final class EnchantEffects {
                 p.vitals().broadcastToTrackers(ev);
             }
         } else if (owner instanceof LivingEntity le) {
-            le.setItemSlot(slot, result);
+            le.updateItemSlot(slot, result);   // hurtAndBreak: 제자리
             if (broke[0]) le.broadcastEntityEvent(breakEvent(slot));
         }
     }

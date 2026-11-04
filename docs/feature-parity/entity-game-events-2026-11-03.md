@@ -31,9 +31,7 @@
 | entity_interact | 아르마딜로 솔질(cgn.go) | `brushOffScute` | 자기 |
 
 ## 남긴 것
-- **몹 일반 장착 이벤트**(`Mob.setItemSlot → onEquipItem` 의 소리·equip/unequip): 바닐라는 몹 칸이 바뀔 때마다 부른다. Furnace 는 `ItemStack` 이 불변이라
-  내구도 깎기·쇠뇌 장전처럼 바닐라가 스택을 제자리에서 고치는 곳도 `setItemSlot` 을 부른다(84곳). 그대로 걸면 투구가 햇빛에 닳을 때마다 장착 소리가 난다.
-  "교체"와 "제자리 수정"을 나눈 뒤에 한다.
+- ~~몹 일반 장착 이벤트~~ → 2026-11-04 `mob-equip-game-events-2026-11-04.md` 에서 "교체"(`setItemSlot`)와 "제자리 수정"(`updateItemSlot`)을 나눠 넣었다.
 - 낙타 돌진(`entity_action`)은 돌진 자체가 아직 없다. 스폰 알을 물에 쓰기(`entity_place`)도 기능이 없다.
 - 상자 배·상자 수레를 열 때 피글린 분노(`TODO(피글린)`)는 블록 쪽 피글린 훅 작업과 함께 한다. 스트라이더 안장 equip 은 스트라이더 PR(#3) 쪽.
 - `Player.interactOn` 의 아이템 상호작용(`entity_interact`)은 이름표만 확인했다(염료·가위 등 다른 아이템 경로는 각 몹 코드에 흩어져 있어 전수 확인 못 함).

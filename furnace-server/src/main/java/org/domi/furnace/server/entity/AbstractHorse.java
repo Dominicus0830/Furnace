@@ -327,13 +327,13 @@ public abstract class AbstractHorse extends Animal {
                 ItemStack cur = get(0);
                 if (cur.isEmpty() || amount <= 0) return ItemStack.EMPTY;
                 int n = Math.min(amount, cur.count());
-                setItemSlot(EquipmentSlot.BODY, cur.withCount(cur.count() - n));   // split: 그 자리에서 줄인다
+                updateItemSlot(EquipmentSlot.BODY, cur.withCount(cur.count() - n));   // split: 그 자리에서 줄인다
                 return cur.withCount(n);
             }
 
             @Override public ItemStack removeNoUpdate(int i) { return remove(i, Integer.MAX_VALUE); }
 
-            @Override public void replaceInPlace(int i, ItemStack s) { if (i == 0) setItemSlot(EquipmentSlot.BODY, s); }
+            @Override public void replaceInPlace(int i, ItemStack s) { if (i == 0) updateItemSlot(EquipmentSlot.BODY, s); }
 
             @Override public void setChanged() { }
 
@@ -355,38 +355,11 @@ public abstract class AbstractHorse extends Animal {
     /** isWearingBodyArmor. */
     public boolean isWearingBodyArmor() { return !getItemBySlot(EquipmentSlot.BODY).isEmpty(); }
 
-    /** Mob.setBodyArmorItem → setItemSlotAndDropWhenKilled(BODY): setItemSlot 안에서 onEquipItem 이 장착 소리를 낸다. */
-    public void setBodyArmorItem(ItemStack s) {
-        ItemStack old = getItemBySlot(EquipmentSlot.BODY);
-        setItemSlotAndDropWhenKilled(EquipmentSlot.BODY, s);
-        onBodyArmorEquip(old, s);
-    }
+    /** Mob.setBodyArmorItem → setItemSlotAndDropWhenKilled(BODY): setItemSlot 안에서 onEquipItem 이 장착 소리·equip/unequip 을 낸다. */
+    public void setBodyArmorItem(ItemStack s) { setItemSlotAndDropWhenKilled(EquipmentSlot.BODY, s); }
 
-    /**
-     * LivingEntity.onEquipItem(BODY, old, new): 둘 다 비지 않았고 다른 것이며 첫 틱이 아니면, 새 것이 몸통에 입는 장비일 때
-     * 그 장착 소리(엔티티 난수 씨앗), 그리고 새 것이 장착 아이템(Equipable — 몸통 갑옷·양탄자)이면 equip, 아니면 unequip.
-     */
-    public void onBodyArmorEquip(ItemStack oldItem, ItemStack newItem) {
-        boolean bothEmpty = newItem.isEmpty() && oldItem.isEmpty();
-        if (bothEmpty || org.domi.furnace.server.menu.Stacks.isSameItemSameComponents(oldItem, newItem) || firstTick) return;
-        String sound = bodyEquipSound(newItem);
-        if (!isSilent() && sound != null) level.playSeededSound(null, x(), y(), z(), sound, soundSource(), 1.0F, 1.0F, random.nextLong());
-        boolean equipable = sound != null || !newItem.isEmpty() && ItemTags.is(newItem, "minecraft:wool_carpets");
-        gameEvent(equipable ? org.domi.furnace.server.world.gameevent.GameEvent.EQUIP : org.domi.furnace.server.world.gameevent.GameEvent.UNEQUIP);
-    }
-
-    /** Equipable.get(stack) 이 몸통 칸이면 그 장착 소리(말 갑옷은 재료별, 늑대 갑옷), 아니면 null. */
-    static String bodyEquipSound(ItemStack s) {
-        if (s.isEmpty()) return null;
-        return switch (ItemTools.itemName(s)) {
-            case "minecraft:leather_horse_armor" -> "item.armor.equip_leather";
-            case "minecraft:iron_horse_armor" -> "item.armor.equip_iron";
-            case "minecraft:golden_horse_armor" -> "item.armor.equip_gold";
-            case "minecraft:diamond_horse_armor" -> "item.armor.equip_diamond";
-            case "minecraft:wolf_armor" -> "item.armor.equip_wolf";
-            default -> null;
-        };
-    }
+    /** ArmorSlot.setByPlayer 의 owner.onEquipItem(BODY, old, new) — 뒤따르는 set 의 setItemSlot 이 한 번 더 부른다(바닐라와 같음). */
+    public void onBodyArmorEquip(ItemStack oldItem, ItemStack newItem) { onEquipItem(EquipmentSlot.BODY, oldItem, newItem); }
 
     /** equipBodyArmor(player, stack): 하나를 입히고 손의 것을 하나 쓴다(크리에이티브면 그대로). */
     protected void equipBodyArmor(Player p, int hand, ItemStack held) {

@@ -135,7 +135,7 @@ public class SkeletonHorse extends AbstractHorse {
         private static void enchant(Skeleton s, EquipmentSlot slot, DifficultyInstance diff) {
             ItemStack st = org.domi.furnace.server.item.EnchantTools.update(s.getItemBySlot(slot), java.util.Map::clear);
             st = org.domi.furnace.server.item.EnchantTools.enchantFromProvider(st, s.level().lootData(), Mob.MOB_SPAWN_EQUIPMENT, diff.specialMultiplier(), s.random());
-            s.setItemSlot(slot, st);
+            s.updateItemSlot(slot, st);   // 바닐라는 같은 스택을 고쳐 다시 넣는다(같은 것 — 이벤트 없음)
         }
     }
 

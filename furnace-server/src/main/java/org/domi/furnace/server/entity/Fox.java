@@ -285,7 +285,7 @@ public class Fox extends Animal {
                 if (ticksSinceEaten > 600) {
                     ItemStack result = finishEating(s);
                     if (!result.isEmpty()) setItemSlot(EquipmentSlot.MAINHAND, result);
-                    else setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+                    else updateItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);   // finishUsingItem 이 제자리에서 다 썼다 — 바닐라는 setItemSlot 을 안 부른다
                     ticksSinceEaten = 0;
                 } else if (ticksSinceEaten > 560 && random.nextFloat() < 0.1F) {
                     playSound("entity.fox.eat", 1.0F, 1.0F);
