@@ -117,6 +117,28 @@ public final class MobEffect {
         return id == null ? 0 : id;
     }
 
+    /** 환경(비콘·전달체) 효과 입자의 알파: 바닐라 MobEffect.AMBIENT_ALPHA = floor(0.15 * 255). */
+    public static final int AMBIENT_PARTICLE_ALPHA = 38;
+
+    /**
+     * 바닐라 MobEffect.createParticleOptions: 몸에서 나는 입자. 대부분은 효과 색의 entity_effect(환경 효과면 반투명)이고,
+     * 고유 입자를 쓰는 6종(1.21.1 MobEffects 바이트코드 확인)은 색 없이 그 입자를 쓴다.
+     */
+    public org.domi.furnace.server.net.protocol.play.ParticleOptions particle(boolean ambient) {
+        String special = switch (name) {
+            case "minecraft:trial_omen" -> "minecraft:trial_omen";
+            case "minecraft:raid_omen" -> "minecraft:raid_omen";
+            case "minecraft:wind_charged" -> "minecraft:small_gust";
+            case "minecraft:weaving" -> "minecraft:item_cobweb";
+            case "minecraft:oozing" -> "minecraft:item_slime";
+            case "minecraft:infested" -> "minecraft:infested";
+            default -> null;
+        };
+        if (special != null) return new org.domi.furnace.server.net.protocol.play.ParticleOptions.Simple(special);
+        int alpha = ambient ? AMBIENT_PARTICLE_ALPHA : 255;
+        return new org.domi.furnace.server.net.protocol.play.ParticleOptions.Color(alpha << 24 | color & 0xFFFFFF);
+    }
+
     /** 번역 키(effect.minecraft.speed → "effect.minecraft.speed"). */
     public String translationKey() { return "effect." + name.replace(':', '.'); }
 
@@ -197,14 +219,15 @@ public final class MobEffect {
         return true;
     }
 
-    /** applyInstantenousEffect(근접도): 마시면 1.0, 투척이면 거리에 따라. */
+    /**
+     * applyInstantenousEffect(근접도): 마시면 1.0, 투척이면 거리에 따라. 바닐라 HealOrHarmMobEffect 처럼 치유 쪽이면 4 << 단계,
+     * 피해 쪽이면 6 << 단계 — 언데드는 치유 효과가 피해 쪽(6)이 되고 피해 효과가 치유 쪽(4)이 된다.
+     */
     public void applyInstantenousEffect(Host h, int amplifier, double proximity) {
-        if (kind == Kind.INSTANT_HEALTH) {
-            int i = (int) (proximity * (4 << amplifier) + 0.5);
-            if (!h.invertedHealAndHarm()) h.heal(i); else h.hurtBy("magic", i);
-        } else if (kind == Kind.INSTANT_DAMAGE) {
-            int i = (int) (proximity * (6 << amplifier) + 0.5);
-            if (h.invertedHealAndHarm()) h.heal(i); else h.hurtBy("magic", i);
+        if (kind == Kind.INSTANT_HEALTH || kind == Kind.INSTANT_DAMAGE) {
+            boolean heals = (kind == Kind.INSTANT_HEALTH) != h.invertedHealAndHarm();
+            if (heals) h.heal((int) (proximity * (4 << amplifier) + 0.5));
+            else h.hurtBy("magic", (int) (proximity * (6 << amplifier) + 0.5));
         } else {
             applyEffectTick(h, amplifier);
         }
