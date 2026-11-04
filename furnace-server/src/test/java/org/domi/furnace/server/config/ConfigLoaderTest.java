@@ -132,4 +132,20 @@ class ConfigLoaderTest {
         Assumptions.assumeTrue(Files.exists(real), "furnace.properties 없음(.gitignore 대상)");
         assertDoesNotThrow(() -> ConfigLoader.load(real, w -> { }));
     }
+
+    @Test
+    void bungeecord_defaultOff_parsesBoolean_andRejectsVelocityTogether(@TempDir Path dir) throws Exception {
+        assertFalse(ConfigLoader.load(dir.resolve("absent.properties")).bungeecord(), "기본은 꺼짐(Spigot settings.bungeecord=false)");
+        Path f = dir.resolve("furnace.properties");
+        Files.writeString(f, "bungeecord=TRUE\n");
+        assertTrue(ConfigLoader.load(f).bungeecord());
+        Files.writeString(f, "bungeecord=yes\n");
+        IllegalArgumentException bad = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(bad.getMessage().contains("bungeecord"), bad.getMessage());
+        Files.writeString(f, "bungeecord=true\nvelocity-secret=s3cret\n");
+        IllegalArgumentException both = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(both.getMessage().contains("bungeecord") && both.getMessage().contains("velocity-secret"), both.getMessage());
+        Files.writeString(f, "bungeecord=false\nvelocity-secret=s3cret\n");
+        assertEquals("s3cret", ConfigLoader.load(f).velocitySecret());
+    }
 }

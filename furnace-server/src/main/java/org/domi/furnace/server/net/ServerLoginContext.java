@@ -87,7 +87,17 @@ public final class ServerLoginContext {
 
     /** Velocity 모던 포워딩 비밀(빈 값이면 끔). */
     public ServerLoginContext velocitySecret(String secret) {
+        if (bungeecord && secret != null && !secret.isEmpty()) throw new IllegalStateException("BungeeCord 포워딩과 Velocity 포워딩은 함께 켤 수 없다");
         this.velocity = secret == null || secret.isEmpty() ? null : new org.domi.furnace.server.net.auth.VelocityForwarding(secret);
+        return this;
+    }
+
+    /** BungeeCord 레거시 IP 포워딩(Spigot settings.bungeecord). 켜면 핸드셰이크 주소 칸에서 실제 IP·UUID·속성을 읽는다. */
+    volatile boolean bungeecord;
+
+    public ServerLoginContext bungeecord(boolean enabled) {
+        if (enabled && velocity != null) throw new IllegalStateException("BungeeCord 포워딩과 Velocity 포워딩은 함께 켤 수 없다");
+        this.bungeecord = enabled;
         return this;
     }
 
