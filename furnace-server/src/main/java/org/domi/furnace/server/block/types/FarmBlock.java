@@ -65,6 +65,19 @@ public class FarmBlock extends BlockBehavior {
         super.fallOn(level, state, pos, entity, fallDistance);
     }
 
+    /**
+     * 플레이어가 내려앉았을 때의 fallOn(플레이어는 Entity 가 아니라 따로 부른다). 플레이어는 mobGriefing 과 상관없이 밟는다.
+     * 낙하 피해(super.fallOn)는 PlayerVitals 가 처리한다.
+     */
+    public static void playerFallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.block.BlockActor player, float fallDistance,
+                                    double bbWidth, double bbHeight) {
+        if (level.random().nextFloat() < fallDistance - 0.5F && (float) (bbWidth * bbWidth * bbHeight) > 0.512F) {
+            turnToDirt(player, state, level, pos);
+        }
+    }
+
+    public static boolean isFarmland(int state) { return B.is(state, "minecraft:farmland"); }
+
     /** turnToDirt: 위 엔티티를 밀어 올리고(pushEntitiesUp) 흙으로 + BLOCK_CHANGE 게임 이벤트. */
     public static void turnToDirt(BlockActor entity, int state, BlockLevel level, Pos pos) {
         int dirt = level.pushEntitiesUp(state, B.defaultState(DIRT), pos);

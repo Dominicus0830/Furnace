@@ -98,6 +98,8 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 
 ## 5. 지도·도구
 
+- **오프라인 봇 접속 시험**(2026-11-03): `tools/bot-test/` — 서버를 `online-mode=false` 로 띄우고 mineflayer 봇으로 명령·패킷·메시지를 확인한다. 바닐라 데이터는 `main` 브랜치의 `tools/vanilla-data` 에서 꺼내 쓴다(README). 결과 `docs/feature-parity/bot-connection-test-2026-11-03.md`. 이동·조종·화면·소리는 봇으로 못 본다.
+
 - `graphify-out/` 코드 구조 지도가 있다. 코드 위치·연결을 찾을 때는 파일을 뒤지기 전에 `graphify query` 를 쓴다(CLAUDE.md). 갱신은 로드맵 한 단계를 끝냈을 때만 한다 — 이번 작업 G 는 그 단위가 아니라서 갱신하지 않았다.
 - 바닐라 디컴파일(읽기 전용)은 세션 스크래치패드에만 있고 커밋하지 않는다(EULA). 난독화 이름은 grep 으로 찾는다. 새 컨테이너에서는 `tools/vanilla-data/README.md` 로 재생성해야 한다.
 - 이 세션이 디컴파일에서 읽은 난독화 이름(1.21.1 서버 jar 기준, 이 문서 작성 시점에 jar 로 재확인하지는 않았다 — 쓰기 전에 grep 으로 다시 확인할 것): `avk`(RconThread)·`avj`(RconClient)·`avi`(QueryThreadGs4)·`avd`(쿼리 응답 버퍼)·`apq`(서버 워치독)·`apn`(DedicatedServer)·`aqu`(ServerLevel, `i` = shouldDiscardEntity)·`dwr`(RegionFileVersion).

@@ -829,6 +829,7 @@ public final class PlayerVitals {
                        boolean inWaterNow, boolean eyeInWater, String climbable, String landingBlock, boolean waterOnPath) {
         float fallDamage = 0;
         synchronized (this) {
+            landedFallDistance = 0.0f;
             if (wasOnGround && !onGround && dy > 0.0) causeFoodExhaustionLocked(sprinting ? 0.2f : 0.05f);   // jumpFromGround
             if (waterOnPath && fallDistance != 0.0f && dx * dx + dy * dy + dz * dz >= 1.0) fallDistance = 0.0f;
             if (landingBlock != null) fallDamage = checkFallDamage(dy, onGround, inWaterNow, landingBlock, sneaking);
@@ -878,13 +879,21 @@ public final class PlayerVitals {
         }
         float damage = 0;
         if (onGround) {
-            if (fallDistance > 0.0f) damage = fallOn(landingBlock, fallDistance, sneaking);
+            if (fallDistance > 0.0f) {
+                landedFallDistance = fallDistance;   // 블록별 fallOn(경작지 밟기) 용 — 비행 가능해도 부른다
+                damage = fallOn(landingBlock, fallDistance, sneaking);
+            }
             // 초기화는 피해를 준 뒤(onMove)
         } else if (dy < 0.0) {
             fallDistance -= (float) dy;
         }
         return damage;
     }
+
+    private float landedFallDistance;
+
+    /** 마지막 onMove 에서 내려앉으며 Block.fallOn 에 넘긴 낙하 거리(내려앉지 않았으면 0). */
+    public synchronized float landedFallDistance() { return landedFallDistance; }
 
     /** 블록별 Block.fallOn → Player/LivingEntity.causeFallDamage. 비행 가능하면 피해 없음. */
     private float fallOn(String block, float distance, boolean sneaking) {

@@ -1079,6 +1079,17 @@ public final class Region {
             p.vitals().currentMoveY(m.y());
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
+            float landed = p.vitals().landedFallDistance();
+            if (landed > 0.0f && level != null) {
+                // 바닐라 doCheckFallDamage → Block.fallOn(getOnPosLegacy 칸). 피해는 위 onMove 가 이미 처리했다
+                int[] at = probe.onPos(blocks, 0.2f, m.x(), m.y(), m.z(), m.onGround());
+                var onPos = new org.domi.furnace.server.block.Pos(at[0], at[1], at[2]);
+                int state = level.getBlockState(onPos);
+                if (org.domi.furnace.server.block.types.FarmBlock.isFarmland(state)) {
+                    org.domi.furnace.server.block.types.FarmBlock.playerFallOn(level, state, onPos, new org.domi.furnace.server.block.PlayerActor(p),
+                            landed, p.bbWidth(), p.bbHeight());
+                }
+            }
             if (level != null && p.gameMode() != GameMode.SPECTATOR) {
                 p.movementEmission.onMove(level, p, m.x(), m.y(), m.z(), dx, dy, dz, m.onGround(), inWater);
             }

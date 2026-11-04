@@ -774,3 +774,7 @@
 - **가정·한계**: 플레이어 좀벌레 속도는 `Player.serverMovement()`(서버가 아는 근사 deltaMovement)로 계산 — 바닐라 ServerPlayer 의 서버 deltaMovement 와 같다는 보장 없음. 효과 입자 목록(LivingEntity DATA_EFFECT_PARTICLES) 동기화는 원래 없다(이 효과들의 전용 입자 small_gust·item_cobweb·item_slime·infested 도 안 보임). `/effect` 명령은 지금 플레이어만 대상으로 받는다(몹은 소환 NBT `active_effects` 로 걸어야 함).
 - 시험: `MobEffectTriggersTest`(11개). 봇 시험(오프라인 서버, `tools/bot-test` 방식, 스크립트 pr16.js): 몹 oozing → 슬라임 2, 몹 weaving → 거미줄 2(바닥 층만), mobGriefing=false 몹 → 0, wind_charged → 폭발 패킷 1(반경 4.11, breeze 돌풍 소리 id 198)·옆 좀비 +x 로 밀림, 몹 infested → 10번 안에 좀벌레, 플레이어 oozing·weaving(mobGriefing=false)·infested → 리스폰 뒤 슬라임 2·거미줄 3·좀벌레. 봇은 입자·소리 재생은 못 본다.
 
+## 2026-11-03 봇 접속 시험에서 찾은 것
+- 엔티티 디스크 덧붙이기(`World.appendEntitiesAsync` → `AnvilWorldSource.appendEntities`): 빈 `Entities` 리스트는 디스크에서 TAG_END 리스트로 읽힌다. 거기에 compound 를 `add` 하면 쓰기에서 `미지원 태그: 0` 으로 실패해 덧붙이려던 엔티티가 사라졌다. 빈·다른 종류 리스트면 compound 리스트를 새로 만든다(바닐라 ListTag 는 빈 리스트에 첫 원소가 들어올 때 종류가 정해진다).
+- F3+I 엔티티·블록 엔티티 질의 응답(`tag_query`)은 `NbtTags.freeze` 꼴(배열 = byte[]/int[]/long[])로 보낸다. `thaw`(NbtArray)는 `/data` 경로 연산 전용이라 `NbtWriter` 가 쓰지 못한다.
+- 확인함(봇): 레지스트리 전송은 클라이언트의 알려진 팩 응답과 상관없이 내용을 생략한다(바닐라는 팩을 모르는 클라이언트에 내용을 보낸다) — 바닐라 클라이언트는 영향 없음, 고치지 않음.
