@@ -131,6 +131,16 @@ public final class FurnaceMain {
             }
         }
         levelData.setModdedInfo(SERVER_BRAND, true);
+        // Paper/Spigot 에서 넘어온 월드: <level>_nether/DIM-1, <level>_the_end/DIM1 을 바닐라 위치로 복사(원본 보존).
+        try {
+            var imported = org.domi.furnace.server.world.storage.BukkitWorldImport.run(universe, levelName, worldDir, levelData);
+            // 엔드 드래곤 전투를 가져왔으면 바로 level.dat 에 남긴다 — DIM1 이 생긴 뒤에는 다시 가져오지 않는다.
+            if (imported.dragonFightImported()) storage.saveLevelData(levelData);
+        } catch (java.io.IOException e) {
+            log.error("Paper/Spigot 월드 폴더를 가져오지 못했다 — 원본은 그대로다. 디스크 공간·권한을 확인하고 다시 켜라", e);
+            storage.close();
+            return;
+        }
         long seed = levelData.seed;
         Path furnaceProps = Path.of("furnace.properties");
         for (String k : ConfigLoader.ignoredVanillaKeys(furnaceProps)) {
