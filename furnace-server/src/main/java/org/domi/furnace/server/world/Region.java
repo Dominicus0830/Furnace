@@ -1599,6 +1599,22 @@ public final class Region {
         return st >= 0 && org.domi.furnace.server.block.B.isTag(st, "minecraft:soul_speed_blocks");
     }
 
+    /**
+     * Player.doWaterSplashEffect(관전자는 안 함) → Entity.doWaterSplashEffect: 첨벙 소리(본인 제외)와 splash 게임 이벤트.
+     * 배를 타고 있으면 바닐라는 물에 닿지 않은 것으로 본다. firstTick 대신 물 상태를 한 번이라도 잰 뒤부터 본다(접속 직후 물속이면 첨벙 없음).
+     */
+    private void playerWaterSplash(Player p) {
+        if (p.isSpectator() || p.vehicle() instanceof org.domi.furnace.server.entity.Boat) return;
+        double[] m = p.knownMovement();
+        float f = Math.min(1.0F, (float) Math.sqrt(m[0] * m[0] * 0.2F + m[1] * m[1] + m[2] * m[2] * 0.2F) * 0.2F);
+        java.util.concurrent.ThreadLocalRandom r = java.util.concurrent.ThreadLocalRandom.current();
+        level.playSound(new org.domi.furnace.server.block.PlayerActor(p), p.x(), p.y(), p.z(),
+                f < 0.25F ? "minecraft:entity.player.splash" : "minecraft:entity.player.splash.high_speed", "players", f,
+                1.0F + (r.nextFloat() - r.nextFloat()) * 0.4F);
+        level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.SPLASH,
+                new org.domi.furnace.server.entity.Vec3(p.x(), p.y(), p.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(p));
+    }
+
     private void tickVitals(Player p) {
         PlayerProbe probe = world.probe();
         PlayerVitals.Surroundings s;
@@ -1613,6 +1629,8 @@ public final class Region {
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
                     probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY());
         }
+        if (s.inWater() && !p.wasTouchingWater && p.waterStateKnown && s.chunkLoaded() && level != null) playerWaterSplash(p);
+        p.waterStateKnown = s.chunkLoaded();
         p.wasTouchingWater = s.inWater();
         p.onClimbable = s.climbable() != null;
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)

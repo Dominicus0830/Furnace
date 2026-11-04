@@ -166,7 +166,7 @@ public abstract class AbstractMinecart extends Entity {
         setHurtTime(10);
         markHurt();
         setDamage(getDamage() + amount * 10.0F);
-        // TODO(게임 이벤트): entity_damage
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE, attacker);   // VehicleEntity.hurt: source.getEntity()
         boolean creative = attacker instanceof Player p && p.vitals().isCreative();
         if ((creative || !(getDamage() > 40.0F)) && !shouldSourceDestroy(source)) {
             if (creative) discard();

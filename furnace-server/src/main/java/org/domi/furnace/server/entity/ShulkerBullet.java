@@ -206,13 +206,20 @@ public class ShulkerBullet extends Projectile {
     @Override
     protected void onHit(Hit hit) {
         super.onHit(hit);
-        discard();
+        destroy();
     }
 
     @Override
     public boolean hurt(Damage source, float amount) {
         playSound("entity.shulker_bullet.hurt", 1.0F, 1.0F);
-        discard();
+        destroy();
         return true;
+    }
+
+    /** destroy: 지우고 그 자리에서 자기를 출처로 entity_damage(cns:t). */
+    private void destroy() {
+        discard();
+        if (level != null) level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE, new Vec3(x(), y(), z()),
+                org.domi.furnace.server.world.gameevent.GameEventContext.of(this));
     }
 }

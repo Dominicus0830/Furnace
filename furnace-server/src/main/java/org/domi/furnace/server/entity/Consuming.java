@@ -36,12 +36,11 @@ public final class Consuming {
         if (Shields.isShield(s)) return Shields.tryStart(p, hand, s);
         int d = duration(p, s);
         if (d < 0) return false;
-        p.usingHand = hand;
-        p.usingTicks = d;
+        p.startUsingItem(hand, d);
         return true;
     }
 
-    public static void stop(Player p) { p.usingHand = -1; }
+    public static void stop(Player p) { p.stopUsingItem(); }
 
     /** 틱마다: 손의 아이템이 바뀌었으면 취소, 다 되면 끝낸다. */
     public static void tick(Player p, org.domi.furnace.server.world.Region region) {
@@ -54,12 +53,12 @@ public final class Consuming {
             adv.trigger("minecraft:using_item", org.domi.furnace.server.ServerCore.lootStackOf(s));
         }
         if (n0(s).equals("minecraft:goat_horn")) {   // 염소 뿔: 사용 시간(instrument 의 use_duration)이 지나면 끝
-            if (--p.usingTicks <= 0) p.usingHand = -1;
+            if (--p.usingTicks <= 0) p.stopUsingItem();
             return;
         }
         if (Brushing.isBrush(s)) {   // 솔: 매 틱 onUseTick(남은 틱은 줄이기 전 값), 시선이 블록을 벗어나면 놓는다
-            if (region == null || !region.tickBrush(p)) { p.usingHand = -1; return; }
-            if (--p.usingTicks <= 0) p.usingHand = -1;
+            if (region == null || !region.tickBrush(p)) { p.stopUsingItem(); return; }
+            if (--p.usingTicks <= 0) p.stopUsingItem();
             return;
         }
         if (RangedWeapons.usesRelease(s)) {   // 활·쇠뇌·삼지창: 놓을 때 처리
@@ -67,12 +66,12 @@ public final class Consuming {
             return;
         }
         if (Shields.isShield(s)) {   // 방패: 72000틱이 다 되면 그냥 끝(finishUsingItem 은 그대로)
-            if (--p.usingTicks <= 0) p.usingHand = -1;
+            if (--p.usingTicks <= 0) p.stopUsingItem();
             return;
         }
-        if (s.isEmpty() || duration0(s) < 0) { p.usingHand = -1; return; }
+        if (s.isEmpty() || duration0(s) < 0) { p.stopUsingItem(); return; }
         if (--p.usingTicks > 0) return;
-        p.usingHand = -1;
+        p.stopUsingItem();
         finish(p, region, inv, ws, s);
     }
 
@@ -82,6 +81,11 @@ public final class Consuming {
         String n = ItemTools.itemName(s);
         return n.equals("minecraft:potion") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:honey_bottle") || n.equals("minecraft:ominous_bottle")
                 || ItemTools.component(s, "minecraft:food") instanceof Map ? 1 : -1;
+    }
+
+    private static void gameEventAt(Player p, org.domi.furnace.server.world.gameevent.GameEvent event) {
+        var level = p.currentLevel;
+        if (level != null) level.gameEvent(event, new Vec3(p.x(), p.y(), p.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(p));
     }
 
     private static void finish(Player p, org.domi.furnace.server.world.Region region, PlayerInventory inv, int ws, ItemStack s) {
@@ -115,6 +119,7 @@ public final class Consuming {
                 }
             }
             if (f.get("using_converts_to") instanceof Map<?, ?> c && c.get("id") instanceof String id) leftover = id;
+            gameEventAt(p, org.domi.furnace.server.world.gameevent.GameEvent.EAT);   // LivingEntity.eat 끝
         }
         // 바닐라 HoneyBottle·MilkBucket·PotionItem.finishUsingItem: 고유 효과 전에 consume_item(꿀은 음식 경로와 합쳐 두 번)
         if (n.equals("minecraft:honey_bottle") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:potion")) consumeTrigger(p, s);
@@ -124,6 +129,7 @@ public final class Consuming {
             case "minecraft:potion" -> { applyPotion(v, s); leftover = "minecraft:glass_bottle"; }
             default -> { }
         }
+        if (n.equals("minecraft:potion")) gameEventAt(p, org.domi.furnace.server.world.gameevent.GameEvent.DRINK);   // PotionItem.finishUsingItem 끝(우유는 없음)
         boolean creative = v.isCreative();
         if (!creative) {
             ItemStack rest = s.withCount(s.count() - 1);

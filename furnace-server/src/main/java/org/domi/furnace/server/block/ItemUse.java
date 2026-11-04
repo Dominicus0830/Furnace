@@ -476,10 +476,11 @@ public final class ItemUse {
             player.setItemInHand(BlockActor.MAIN_HAND, stack);
         } else {
             player.setEquipment(slot, stack);
-            // LivingEntity.onEquipItem: 같은 아이템·컴포넌트가 아니면 장착 소리(모두에게)
+            // LivingEntity.onEquipItem: 같은 아이템·컴포넌트가 아니면 장착 소리(모두에게)와 equip(Player.doesEmitEquipEvent: 방어구 칸)
             if (current.isEmpty() || current.itemId() != stack.itemId() || !current.patch().equals(stack.patch())) {
                 level.playSound(null, player.x(), player.y(), player.z(), equipSound(n), "players", 1.0F, 1.0F);
                 player.nextEntityLong();   // playSeededSound 의 씨앗(엔티티 난수)
+                if (slot >= 5 && slot <= 8) playerGameEvent(level, player, org.domi.furnace.server.world.gameevent.GameEvent.EQUIP);
             }
         }
         return Holder.success(toHand);
@@ -750,16 +751,26 @@ public final class ItemUse {
         level.playSound(null, pos, "minecraft:item.firecharge.use", "blocks", 1.0F, (r.nextFloat() - r.nextFloat()) * 0.2F + 1.0F);
     }
 
+    /** player.gameEvent(event): 플레이어 자리, 플레이어 출처(서버 레벨에서만). */
+    static void playerGameEvent(BlockLevel level, BlockActor player, org.domi.furnace.server.world.gameevent.GameEvent event) {
+        if (player != null && level instanceof ChunkLevel cl) {
+            cl.gameEvent(event, new org.domi.furnace.server.entity.Vec3(player.x(), player.y(), player.z()),
+                    org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
+        }
+    }
+
     /** BoneMealItem.useOn: 자라는 블록이면 키우고, 아니면 단단한 면 앞의 물에 해초·산호. */
     private static InteractionResult boneMeal(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
         Pos pos = hit.pos();
         Pos rel = pos.relative(hit.face());
         if (growCrop(level, player, hand, stack, pos)) {
-            level.levelEvent(null, 1505, pos, 15);   // ITEM_INTERACT_FINISH 게임 이벤트는 엔티티 체계에서
+            playerGameEvent(level, player, org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH);   // csq: context.getPlayer().gameEvent
+            level.levelEvent(null, 1505, pos, 15);
             return InteractionResult.sidedSuccess(false);
         }
         int state = level.getBlockState(pos);
         if (B.isFaceSturdy(state, level, pos, hit.face()) && growWaterPlant(level, player, hand, stack, rel, hit.face())) {
+            playerGameEvent(level, player, org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH);
             level.levelEvent(null, 1505, rel, 15);
             return InteractionResult.sidedSuccess(false);
         }

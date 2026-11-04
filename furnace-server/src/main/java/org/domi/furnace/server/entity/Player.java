@@ -751,6 +751,29 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 먹기·마시기 중인 손(없으면 -1)과 남은 틱 — region 스레드 전용. */
     public int usingHand = -1, usingTicks;
 
+    /**
+     * LivingEntity.startUsingItem 의 서버 쪽: 쓰는 손·남은 틱을 두고, 쓰던 중이 아니었으면 item_interact_start 게임 이벤트.
+     * 손·틱을 바꾸는 곳은 모두 이것과 stopUsingItem 을 거친다(region 스레드).
+     */
+    public void startUsingItem(int hand, int ticks) {
+        boolean was = usingHand >= 0;
+        usingHand = hand;
+        usingTicks = ticks;
+        if (!was) itemInteractEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_START);
+    }
+
+    /** LivingEntity.stopUsingItem: 쓰던 중이었으면 멈추고 item_interact_finish(다 먹음·놓음·취소 모두). */
+    public void stopUsingItem() {
+        if (usingHand < 0) return;
+        usingHand = -1;
+        itemInteractEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH);
+    }
+
+    private void itemInteractEvent(org.domi.furnace.server.world.gameevent.GameEvent event) {
+        var level = currentLevel;
+        if (level != null) level.gameEvent(event, new Vec3(x(), y(), z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(this));
+    }
+
     private byte sentLivingFlags;
     private boolean usedOffhand;
 
@@ -772,6 +795,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public ItemStack autoSpinAttackItem;
     /** 지난 틱 기준 물에 닿았는가(Entity.wasTouchingWater) — region 이 생존 틱에서 갱신. */
     public boolean wasTouchingWater;
+    /** wasTouchingWater 를 실제로 잰 적이 있는가(첨벙 판정의 firstTick 대용). */
+    public boolean waterStateKnown;
     /** 지난 생존 틱 기준 사다리·덩굴 위인가(onClimbable). */
     public boolean onClimbable;
 

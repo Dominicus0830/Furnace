@@ -71,23 +71,29 @@ public class ChestBoat extends Boat implements ContainerEntity {
     }
 
     /**
-     * interact: 웅크리지 않았으면 배처럼 타 본다. 자리가 남았는데 웅크리지 않았으면 PASS, 아니면 상자 창(열면 주변 피글린이 화낸다).
-     * TODO(게임 이벤트): container_open.
+     * interact: 웅크리지 않았으면 배처럼 타 본다. 자리가 남았는데 웅크리지 않았으면 PASS, 아니면 상자 창.
+     * 열면 그 플레이어를 출처로 container_open, 주변 피글린이 화낸다.
      */
     @Override
     public boolean interact(Player p, int hand) {
         if (!p.sneaking() && super.interact(p, hand)) return true;
         if (canAddPassenger(p) && !p.sneaking()) return false;
         interactWithContainerVehicle(p);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.CONTAINER_OPEN, p);
         PiglinAi.angerNearbyPiglins(level, p, true);
         return true;
     }
 
-    /** openCustomInventoryScreen: 타고 인벤토리 키를 누르면 상자 창(피글린 분노까지). TODO(게임 이벤트). */
+    /** openCustomInventoryScreen: 타고 인벤토리 키를 누르면 상자 창과 container_open(피글린 분노까지). */
     public void openCustomInventoryScreen(Player p) {
         interactWithContainerVehicle(p);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.CONTAINER_OPEN, p);
         PiglinAi.angerNearbyPiglins(level, p, true);
     }
+
+    /** stopOpen: 창을 닫으면 내 자리에서 그 플레이어를 출처로 container_close. */
+    @Override
+    public void stopOpen(Player p) { gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.CONTAINER_CLOSE, p); }
 
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {

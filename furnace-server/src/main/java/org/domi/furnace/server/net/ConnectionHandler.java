@@ -2040,7 +2040,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 return;
             }
             var inventory = p.inventoryMenu().inventoryContainer();
-            var c = new org.domi.furnace.server.world.EntityContainer(entity);
+            var c = new org.domi.furnace.server.world.EntityContainer(entity, p, world::runAt);
             org.domi.furnace.server.menu.AbstractContainerMenu menu = entity instanceof org.domi.furnace.server.entity.MinecartHopper
                     ? new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, null, menus)
                     : org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, null, menus);

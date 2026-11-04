@@ -16,11 +16,18 @@ public class MinecartChest extends AbstractMinecartContainer {
 
     @Override public int getDefaultDisplayOffset() { return 8; }
 
-    /** interact: 창을 열고 주변 피글린을 화나게 한다. TODO(게임 이벤트): container_open. */
+    /** interact: 창을 열고 그 플레이어를 출처로 container_open, 주변 피글린을 화나게 한다. */
     @Override
     public boolean interact(Player p, int hand) {
         boolean r = super.interact(p, hand);
-        if (r) PiglinAi.angerNearbyPiglins(level, p, true);
+        if (r) {
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.CONTAINER_OPEN, p);
+            PiglinAi.angerNearbyPiglins(level, p, true);
+        }
         return r;
     }
+
+    /** stopOpen: 창을 닫으면 내 자리에서 그 플레이어를 출처로 container_close. */
+    @Override
+    public void stopOpen(Player p) { gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.CONTAINER_CLOSE, p); }
 }
