@@ -38,6 +38,7 @@ public class GoalSelector {
     }
 
     private static boolean goalContainsAnyFlags(WrappedGoal goal, EnumSet<Goal.Flag> flags) {
+        if (flags.isEmpty()) return false;   // 막힌 칸이 없는 경우가 대부분 — 목표의 칸 집합을 돌지 않는다
         for (Goal.Flag f : goal.getFlags()) if (flags.contains(f)) return true;
         return false;
     }

@@ -60,6 +60,7 @@ public final class AttributeMap {
 
     /** 바뀐 속성들을 꺼내고 비운다(getAttributesToSync — 동기화 대상 전부 sendable 로 본다). */
     public List<AttributeInstance> takeDirty() {
+        if (dirty.isEmpty()) return List.of();   // 틱마다 엔티티마다 불린다 — 바뀐 것이 없으면 목록·반복자를 만들지 않는다
         List<AttributeInstance> out = new ArrayList<>();
         for (AttributeInstance i : dirty) if (i.attribute().syncable()) out.add(i);
         dirty.clear();
@@ -68,6 +69,7 @@ public final class AttributeMap {
 
     /** 갱신 대기 속성을 꺼내고 비운다(바닐라 getAttributesToUpdate + clear). */
     public List<Attribute> takeToUpdate() {
+        if (toUpdate.isEmpty()) return List.of();
         List<Attribute> out = new ArrayList<>();
         for (AttributeInstance i : toUpdate) out.add(i.attribute());
         toUpdate.clear();
