@@ -38,7 +38,10 @@ public final class FishingRods {
                 p.fishing = null;
                 return false;
             }
-            level.addFreshEntity(hook);
+            if (!level.addFreshEntity(hook)) {   // 플러그인이 낚싯대 던지기를 취소
+                if (p.fishing == hook) p.fishing = null;
+                return true;
+            }
             p.awardStat("minecraft:used:minecraft:fishing_rod", 1);
             playerEvent(level, p, org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_START);
         }

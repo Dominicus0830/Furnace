@@ -199,7 +199,10 @@ public final class ItemUse {
             t.setItem(stack);
         }
         proj.shootFromRotation(player.xRot(), player.yRot(), zOffset, power, 1.0F, player.knownMovement(), player.onGround());
-        cl.addFreshEntity(proj);
+        if (!cl.addFreshEntity(proj)) {   // 플러그인이 던지기를 취소: 소모 없이, 클라이언트가 줄인 손 아이템을 되돌린다
+            player.resyncHands();
+            return Holder.fail(stack);
+        }
         if (n.equals("minecraft:wind_charge")) {
             throwSound(cl, player, "entity.wind_charge.throw", "neutral");
             player.addCooldown(stack.itemId(), 10);
@@ -239,7 +242,10 @@ public final class ItemUse {
         boat.setVariant(org.domi.furnace.server.entity.Boat.Type.byName(type));
         boat.setYRot(player.yRot());
         if (!cl.noCollision(boat.boundingBox())) return Holder.fail(stack);
-        cl.addFreshEntity(boat);
+        if (!cl.addFreshEntity(boat)) {
+            player.resyncHands();
+            return Holder.fail(stack);
+        }
         level.gameEvent("minecraft:entity_place", new Pos((int) Math.floor(hit.x()), (int) Math.floor(hit.y()), (int) Math.floor(hit.z())), player, -1);
         ItemStack out = player.isCreative() ? stack : stack.withCount(stack.count() - 1);
         player.awardStat("minecraft:used:" + n);
@@ -555,7 +561,10 @@ public final class ItemUse {
             Prop shape = B.prop("shape");
             double d = shape.has(state) && shape.valueName(state).startsWith("ascending_") ? 0.5 : 0.0;
             var cart = org.domi.furnace.server.entity.AbstractMinecart.create(cl, pos.x() + 0.5, pos.y() + 0.0625 + d, pos.z() + 0.5, type);
-            cl.addFreshEntity(cart);
+            if (!cl.addFreshEntity(cart)) {
+                player.resyncHands();
+                return InteractionResult.FAIL;
+            }
             cl.gameEvent("minecraft:entity_place", pos, player, -1);
         }
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
@@ -632,7 +641,10 @@ public final class ItemUse {
         stand.setPose(0, new float[] {head[0] + f, head[1] + g, head[2]});
         float[] body = stand.pose(1).clone();
         stand.setPose(1, new float[] {body[0], body[1] + (r.nextFloat() * 10.0F - 5.0F), body[2]});
-        cl.addFreshEntity(stand);
+        if (!cl.addFreshEntity(stand)) {
+            player.resyncHands();
+            return InteractionResult.FAIL;
+        }
         cl.playSound(null, bx, by, bz, "minecraft:entity.armor_stand.place", "blocks", 0.75F, 0.8F);
         cl.gameEvent("minecraft:entity_place", pos, player, -1);
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
@@ -653,9 +665,12 @@ public final class ItemUse {
             entity = new org.domi.furnace.server.entity.ItemFrame(cl, cl.nextEntityId(), pos, face, itemName.equals("minecraft:glow_item_frame"));
         }
         if (!entity.survives()) return InteractionResult.CONSUME;
+        if (!cl.addFreshEntity(entity)) {
+            player.resyncHands();
+            return InteractionResult.FAIL;
+        }
         entity.playPlacementSound();
         cl.gameEvent("minecraft:entity_place", pos, player, -1);
-        cl.addFreshEntity(entity);
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         return InteractionResult.sidedSuccess(false);
     }
@@ -665,7 +680,10 @@ public final class ItemUse {
         if (!(player.handle() instanceof org.domi.furnace.server.entity.Player p) || !p.isFallFlying()) return Holder.pass(stack);
         if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
         var rocket = new org.domi.furnace.server.entity.FireworkRocketEntity(cl, cl.nextEntityId(), stack, p);
-        cl.addFreshEntity(rocket);
+        if (!cl.addFreshEntity(rocket)) {
+            player.resyncHands();
+            return Holder.fail(stack);
+        }
         ItemStack out = player.isCreative() ? stack : stack.withCount(stack.count() - 1);
         player.awardStat("minecraft:used:minecraft:firework_rocket");
         return Holder.success(out);
@@ -678,7 +696,10 @@ public final class ItemUse {
         var rocket = new org.domi.furnace.server.entity.FireworkRocketEntity(cl, cl.nextEntityId(),
                 hit.x() + Dir.DX[f] * 0.15, hit.y() + Dir.DY[f] * 0.15, hit.z() + Dir.DZ[f] * 0.15, stack);
         if (player.handle() instanceof org.domi.furnace.server.entity.Targetable t) rocket.setOwner(t);
-        cl.addFreshEntity(rocket);
+        if (!cl.addFreshEntity(rocket)) {
+            player.resyncHands();
+            return InteractionResult.FAIL;
+        }
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         return InteractionResult.sidedSuccess(false);
     }
@@ -695,7 +716,10 @@ public final class ItemUse {
         var crystal = new org.domi.furnace.server.entity.EndCrystal(cl, cl.nextEntityId());
         crystal.moveTo(x + 0.5, y, z + 0.5, 0.0F, 0.0F);
         crystal.setShowBottom(false);
-        cl.addFreshEntity(crystal);
+        if (!cl.addFreshEntity(crystal)) {
+            player.resyncHands();
+            return InteractionResult.FAIL;
+        }
         cl.gameEvent("minecraft:entity_place", above, player, -1);
         if (cl.dragonFight() != null) cl.dragonFight().tryRespawn();
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
@@ -1090,9 +1114,12 @@ public final class ItemUse {
         eye.setItem(stack);
         Pos target = new Pos(found[0], found[1], found[2]);
         eye.signalTo(target);
+        if (!cl.addFreshEntity(eye)) {
+            player.resyncHands();
+            return Holder.fail(stack);
+        }
         cl.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.PROJECTILE_SHOOT, new org.domi.furnace.server.entity.Vec3(eye.x(), eye.y(), eye.z()),
                 org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
-        cl.addFreshEntity(eye);
         player.usedEnderEye(target);
         float pitch = 0.33F + cl.random().nextFloat() * (0.5F - 0.33F);   // Mth.lerp(random.nextFloat(), 0.33F, 0.5F)
         cl.playSound(null, player.x(), player.y(), player.z(), "minecraft:entity.ender_eye.launch", "neutral", 1.0F, pitch);

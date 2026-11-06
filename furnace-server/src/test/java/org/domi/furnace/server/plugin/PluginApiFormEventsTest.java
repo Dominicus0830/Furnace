@@ -309,6 +309,61 @@ class PluginApiFormEventsTest {
                 "exit:minecraft:cow<minecraft:boat:false", "dismount:minecraft:cow<minecraft:boat"), log);
     }
 
+    /** 이벤트 취소 계약: EntityMountEvent·EntityDismountEvent 도 VehicleEnter·Exit 처럼 취소하면 탄 상태가 그대로다. */
+    @Test
+    void entityMountAndDismountCancelKeepRidingState() throws Exception {
+        boolean[] cancel = {true};
+        on(EntityMountEvent.class, e -> e.setCancelled(cancel[0]));
+        on(EntityDismountEvent.class, e -> e.setCancelled(cancel[0]));
+        boolean[] res = at(r -> {
+            var level = r.level();
+            Boat boat = new Boat(level, level.nextEntityId());
+            boat.moveTo(8, -60, 8, 0, 0);
+            Cow cow = new Cow(level, level.nextEntityId());
+            cow.moveTo(8, -60, 8, 0, 0);
+            level.addFreshEntity(boat);
+            level.addFreshEntity(cow);
+            boolean blocked = !cow.startRiding(boat) && cow.vehicle() == null;
+            cancel[0] = false;
+            boolean mounted = cow.startRiding(boat) && cow.vehicle() == boat;
+            cancel[0] = true;
+            cow.stopRiding();
+            boolean stays = cow.vehicle() == boat;
+            cancel[0] = false;
+            cow.stopRiding();
+            return new boolean[] {blocked, mounted, stays, cow.vehicle() == null};
+        });
+        assertTrue(res[0], "EntityMountEvent 취소면 타지 못한다");
+        assertTrue(res[1], "대조: 허용하면 탄다");
+        assertTrue(res[2], "EntityDismountEvent 취소면 계속 탄다");
+        assertTrue(res[3], "대조: 허용하면 내린다");
+    }
+
+    /** 이벤트 취소 계약: BrewingStandFuelEvent 를 취소하면 블레이즈 가루도 연료도 그대로다. */
+    @Test
+    void brewingFuelCancelKeepsBlazePowderAndFuel() throws Exception {
+        boolean[] cancel = {true};
+        on(BrewingStandFuelEvent.class, e -> e.setCancelled(cancel[0]));
+        Pos p = new Pos(8, -50, 8);
+        int[] res = at(r -> {
+            var l = r.level();
+            l.setBlock(p, B.defaultState("minecraft:brewing_stand"), 3);
+            var be = (BrewingStandBlockEntity) l.getBlockEntity(p);
+            be.items[0] = org.domi.furnace.server.item.ItemTools.with(B.stack("minecraft:potion", 1), "minecraft:potion_contents", java.util.Map.of("potion", "minecraft:water"));
+            be.items[3] = B.stack("minecraft:nether_wart", 2);
+            be.items[4] = B.stack("minecraft:blaze_powder", 3);
+            for (int i = 0; i < 5; i++) be.tick(l);
+            int cancelledFuel = be.fuel, cancelledPowder = be.items[4].count();
+            cancel[0] = false;
+            for (int i = 0; i < 5; i++) be.tick(l);
+            return new int[] {cancelledFuel, cancelledPowder, be.fuel, be.items[4].count()};
+        });
+        assertEquals(0, res[0], "취소하면 연료가 차지 않는다");
+        assertEquals(3, res[1], "취소하면 블레이즈 가루가 그대로");
+        assertEquals(19, res[2], "대조: 허용하면 연료가 20 으로 차고 양조를 시작하며 하나 줄었다");
+        assertEquals(2, res[3]);
+    }
+
     // ------------------------------------------------------------------ 양조
 
     @Test

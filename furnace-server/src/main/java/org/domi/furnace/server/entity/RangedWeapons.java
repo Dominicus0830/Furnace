@@ -207,7 +207,12 @@ public final class RangedWeapons {
         float power = bowPower(ticks);
         if (power < 0.1) return;
         List<ItemStack> list = draw(p, actor, weapon, ammo);
-        if (!list.isEmpty()) shoot(level, actor, p, hand, weapon, list, power * 3.0F, 1.0F, power == 1.0F);
+        if (!list.isEmpty() && shoot(level, actor, p, hand, weapon, list, power * 3.0F, 1.0F, power == 1.0F) == 0) {
+            // 플러그인이 발사를 모두 취소: 뽑은 탄약을 돌려놓고, 클라이언트가 먼저 줄인 칸을 되돌린다(소리·통계 없음)
+            setSlot(p, actor, ammo.windowSlot(), ammo.stack());
+            org.domi.furnace.server.plugin.ClientResync.inventory(p);
+            return;
+        }
         level.playSound(null, p.x(), p.y(), p.z(), "entity.arrow.shoot", "players", 1.0F,
                 1.0F / (level.random().nextFloat() * 0.4F + 1.2F) + power * 0.5F);
         p.awardStat("minecraft:used:minecraft:bow", 1);
@@ -279,9 +284,14 @@ public final class RangedWeapons {
         ItemStack weapon = actor.itemInHand(hand);
         List<ItemStack> list = chargedProjectiles(weapon);
         if (list.isEmpty()) return;
+        ItemStack loaded = weapon;
         weapon = ItemTools.with(weapon, CHARGED, List.of());
         actor.setItemInHand(hand, weapon);
-        shoot(level, actor, p, hand, weapon, list, speed, inaccuracy, true);
+        if (shoot(level, actor, p, hand, weapon, list, speed, inaccuracy, true) == 0) {   // 플러그인이 발사를 모두 취소: 장전된 채로
+            actor.setItemInHand(hand, loaded);
+            org.domi.furnace.server.plugin.ClientResync.inventory(p);
+            return;
+        }
         ItemStack after = actor.itemInHand(hand);   // 바닐라는 같은 스택 객체(쏘면서 깎인 뒤) — 부서졌으면 쏘기 전 스택
         var shotItem = org.domi.furnace.server.ServerCore.lootStackOf(after.isEmpty() ? weapon : after);
         p.triggerAdvancement(a -> a.triggerItem("minecraft:shot_crossbow", shotItem));
@@ -294,8 +304,9 @@ public final class RangedWeapons {
      * shoot: 퍼짐 각을 개수로 나눠 가운데·왼쪽·오른쪽 순으로(0, −d, +d, …) 발사체를 만들고 쏜 뒤 월드에 넣고, 발마다 무기 내구도
      * (폭죽 3, 화살 1). 무기가 부서지면 멈춘다.
      */
-    static void shoot(ChunkLevel level, BlockActor actor, Player p, int hand, ItemStack weapon, List<ItemStack> list, float speed,
+    static int shoot(ChunkLevel level, BlockActor actor, Player p, int hand, ItemStack weapon, List<ItemStack> list, float speed,
             float inaccuracy, boolean crit) {
+        int launched = 0;
         float spread = projectileSpread(weapon);
         float step = list.size() == 1 ? 0.0F : 2.0F * spread / (list.size() - 1);
         float offset = (list.size() - 1) % 2 * step / 2.0F;
@@ -309,10 +320,12 @@ public final class RangedWeapons {
             Projectile proj = createProjectile(level, p, weapon, ammo, crit, crossbow);
             if (crossbow) crossbowShootProjectile(level, p, proj, i, speed, inaccuracy, angle);
             else proj.shootFromRotation(p.pitch(), p.yaw() + angle, 0.0F, speed, inaccuracy, p.knownMovement(), p.onGround());
-            level.addFreshEntity(proj);
+            if (!level.addFreshEntity(proj)) continue;   // 플러그인이 발사를 취소: 이 발은 내구도도 쓰지 않는다
+            launched++;
             BlockBreaking.hurtAndBreak(level, actor, hand, actor.itemInHand(hand), crossbow && isFirework(ammo) ? 3 : 1);
             if (actor.itemInHand(hand).isEmpty()) break;
         }
+        return launched;
     }
 
     /** createProjectile: 쇠뇌의 폭죽은 로켓(눈 − 0.15, 비스듬히), 나머지는 ArrowItem.createArrow(+ 치명타, 쇠뇌면 맞는 소리 바꿈). */
