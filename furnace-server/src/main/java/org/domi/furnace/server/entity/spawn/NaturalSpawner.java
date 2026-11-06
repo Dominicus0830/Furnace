@@ -126,6 +126,12 @@ public final class NaturalSpawner {
         return b == null ? null : b.indexOf(':') < 0 ? "minecraft:" + b : b;
     }
 
+    /** getRoughBiome: 전하 계산은 확대 지터 없는 quart 바이옴을 쓴다(바닐라 createState). */
+    static String roughBiomeName(ChunkLevel level, Pos pos) {
+        String b = level.roughBiomeAt(pos.x(), pos.y(), pos.z());
+        return b == null ? null : b.indexOf(':') < 0 ? "minecraft:" + b : b;
+    }
+
     /** NaturalSpawner.createState: region 의 엔티티를 세어 종류별 수·지역 상한·전하를 모은다. */
     public static SpawnState createState(int spawnableChunkCount, Iterable<Entity> entities, ChunkLevel level) {
         List<Player> players = new ArrayList<>();
@@ -137,7 +143,7 @@ public final class NaturalSpawner {
             MobCategory cat = EntityMeta.category(e.type().name());
             if (cat == MobCategory.MISC) continue;
             Pos pos = e.blockPosition();
-            BiomeSpawns.SpawnCost cost = BiomeSpawns.cost(biomeName(level, pos), e.type().name());
+            BiomeSpawns.SpawnCost cost = BiomeSpawns.cost(roughBiomeName(level, pos), e.type().name());
             if (cost != null) state.addCharge(pos, cost.charge());
             state.addMobToLocalCaps(pos.x() >> 4, pos.z() >> 4, cat);
             state.counts.merge(cat, 1, Integer::sum);
@@ -209,7 +215,7 @@ public final class NaturalSpawner {
                     group = mob.finalizeSpawnGroup(rnd, level.getCurrentDifficultyAt(mob.blockPosition()), group);
                     spawned++;
                     inCluster++;
-                    level.addFreshEntityWithPassengers(mob);
+                    level.addFreshEntityWithPassengers(mob.spawnReason("NATURAL"));
                     state.afterSpawn(mob, level);
                     if (spawned >= mob.getMaxSpawnClusterSize()) return;
                     if (mob.isMaxGroupSizeReached(inCluster)) break;
@@ -324,7 +330,7 @@ public final class NaturalSpawner {
                         mob.moveTo(d0, pos.y(), d1, rnd.nextFloat() * 360.0F, 0.0F);
                         if (mob.checkSpawnRules(level, SpawnReason.CHUNK_GENERATION) && mob.checkSpawnObstruction(level)) {
                             group = mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), group);
-                            level.addFreshEntityWithPassengers(mob);
+                            level.addFreshEntityWithPassengers(mob.spawnReason("CHUNK_GEN"));
                             placed = true;
                         }
                     }

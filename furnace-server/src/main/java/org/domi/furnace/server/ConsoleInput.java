@@ -1,10 +1,15 @@
 // 콘솔 입력(바닐라 DedicatedServer "Server console handler") — 표준 입력의 각 줄을 콘솔 권한(4)으로 전역 스레드에서 실행한다.
+// 월드를 불러오기 전에 먼저 열린다: 그때까지 들어온 줄 중 stop 은 바로 종료하고, 나머지(월드가 필요한 명령)는 줄을 세워 두었다가
+// 서버가 준비되면(attach) 들어온 순서대로 실행한다.
 package org.domi.furnace.server;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import org.domi.furnace.server.command.CommandSource;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.IntConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,23 +17,68 @@ public final class ConsoleInput {
 
     private static final Logger log = LoggerFactory.getLogger(ConsoleInput.class);
 
-    private ConsoleInput() {}
+    private final List<String> pending = new ArrayList<>();
+    private final IntConsumer exit;
+    private ServerCore core;
 
-    public static void start(ServerCore core) {
+    private ConsoleInput(IntConsumer exit) { this.exit = exit; }
+
+    /** 월드 로딩 전에 부른다. 반환값에 서버 준비 후 attach(core) 를 부른다. */
+    public static ConsoleInput startEarly() {
+        ConsoleInput in = new ConsoleInput(System::exit);
+        in.thread(new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8)));
+        return in;
+    }
+
+    /** 시험용: 읽기·종료 동작을 바꿔 쓴다. 스레드를 만들지 않고 줄 단위로 line() 을 부르게 한다. */
+    static ConsoleInput forTest(IntConsumer exit) { return new ConsoleInput(exit); }
+
+    private void thread(BufferedReader reader) {
         Thread t = new Thread(() -> {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
             try {
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    String command = line.strip();
-                    if (command.isEmpty()) continue;
-                    core.scheduler().global().execute(() -> core.runConsoleCommand(command));
-                }
+                while ((line = reader.readLine()) != null) line(line);
             } catch (Exception e) {
                 log.error("Exception handling console input", e);
             }
         }, "Server console handler");
         t.setDaemon(true);
         t.start();
+    }
+
+    /** 서버가 준비됐다 — 기다리던 줄을 순서대로 실행하고 이후 줄은 바로 실행한다. */
+    public void attach(ServerCore core) {
+        List<String> queued;
+        synchronized (this) {
+            this.core = core;
+            queued = new ArrayList<>(pending);
+            pending.clear();
+        }
+        for (String c : queued) run(core, c);
+    }
+
+    void line(String raw) {
+        String command = raw.strip();
+        if (command.isEmpty()) return;
+        ServerCore c;
+        synchronized (this) {
+            c = core;
+            if (c == null) {
+                String bare = (command.startsWith("/") ? command.substring(1) : command).strip().toLowerCase(Locale.ROOT);
+                if (bare.equals("stop")) {
+                    log.info("Stopping the server before it finished starting");
+                    exit.accept(0);
+                    return;
+                }
+                pending.add(command);
+                log.info("The server is still starting — '{}' will run when the world is ready", command);
+                return;
+            }
+        }
+        run(c, command);
+    }
+
+    private static void run(ServerCore core, String command) {
+        core.scheduler().global().execute(() -> core.runConsoleCommand(command));
     }
 }

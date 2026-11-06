@@ -54,6 +54,19 @@ public interface MenuPlayer {
     /** 플러그인 PrepareItemCraftEvent: 결과 칸에 둘 스택(recipe 는 없으면 null). */
     default ItemStack prepareCraft(AbstractContainerMenu menu, String recipe, ItemStack result) { return result; }
 
+    /** 플러그인 PrepareItemEnchantEvent: 최종 제안 세 칸, null 이면 취소. */
+    default org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] prepareEnchant(AbstractContainerMenu menu, int[] table, ItemStack item, int bookshelves,
+                                                                                 org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] offers) { return offers; }
+
+    /** 플러그인 EnchantItemEvent: 최종 값, null 이면 취소. */
+    default org.domi.furnace.server.plugin.GameEvents.EnchantApply enchantItem(AbstractContainerMenu menu, int[] table, ItemStack item, int button, int cost,
+                                                                             java.util.Map<String, Integer> enchants) {
+        return new org.domi.furnace.server.plugin.GameEvents.EnchantApply(cost, enchants);
+    }
+
+    /** 플러그인 PrepareAnvilEvent: 바꾼 값, null 이면 그대로. */
+    default org.domi.furnace.server.plugin.GameEvents.AnvilPrepared prepareAnvil(AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) { return null; }
+
     /** 바닐라 ItemStack.onCraftedBy(level, player, count) — crafted 통계와 아이템 훅. */
     default void onItemCrafted(ItemStack stack, int count) { }
 

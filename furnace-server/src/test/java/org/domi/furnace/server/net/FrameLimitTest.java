@@ -40,8 +40,10 @@ class FrameLimitTest {
         ByteBuf hs = maxHandshake(1);
         assertTrue(hs.readableBytes() <= ConnectionHandler.frameLimit(ConnectionState.HANDSHAKE));
         hs.release();
-        assertEquals(Integer.MAX_VALUE, ConnectionHandler.frameLimit(ConnectionState.LOGIN));
-        assertEquals(Integer.MAX_VALUE, ConnectionHandler.frameLimit(ConnectionState.PLAY));
+        // 로그인·구성은 바닐라가 받는 가장 큰 패킷까지(핸드셰이크·상태 다음), 플레이는 바닐라 21비트 프레임
+        assertEquals(ConnectionLimits.LOGIN_FRAME_DEFAULT, ConnectionHandler.frameLimit(ConnectionState.LOGIN));
+        assertEquals(ConnectionLimits.CONFIGURATION_FRAME_DEFAULT, ConnectionHandler.frameLimit(ConnectionState.CONFIGURATION));
+        assertEquals(ConnectionLimits.HARD_FRAME_MAX, ConnectionHandler.frameLimit(ConnectionState.PLAY));
     }
 
     @Test

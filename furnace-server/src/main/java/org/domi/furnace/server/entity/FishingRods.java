@@ -34,6 +34,10 @@ public final class FishingRods {
             level.playSound(null, p.x(), p.y(), p.z(), "entity.fishing_bobber.throw", "neutral", 0.5F,
                     0.4F / (level.random().nextFloat() * 0.4F + 0.8F));
             var hook = new FishingHook(p, level, level.nextEntityId(), luck(stack), lureSpeed(stack));
+            if (level.gameEvents().playerFish(p, hook, null, null, org.domi.furnace.server.plugin.GameEvents.FISH_FISHING, 0) < 0) {   // 플러그인 PlayerFishEvent(FISHING) 취소
+                p.fishing = null;
+                return false;
+            }
             if (!level.addFreshEntity(hook)) {   // 플러그인이 낚싯대 던지기를 취소
                 if (p.fishing == hook) p.fishing = null;
                 return true;
