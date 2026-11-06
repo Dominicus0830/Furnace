@@ -246,14 +246,14 @@ public final class PluginBootstrapper {
 
     private Prepared prepare(Candidate c) {
         PluginDescription d = c.description();
+        if (!apiVersionOk(d, c.file())) {
+            failures.add(d.name());
+            return null;
+        }
         List<String> failed = new ArrayList<>();
         for (String dep : d.depend()) if (find(dep) == null) failed.add(dep);
         if (!failed.isEmpty()) {
             log.error("Could not load '{}' in folder '{}': 의존 플러그인 {} 을(를) 불러오지 못했다", dir.relativize(c.file()), dir.getFileName(), failed);
-            failures.add(d.name());
-            return null;
-        }
-        if (!apiVersionOk(d, c.file())) {
             failures.add(d.name());
             return null;
         }
@@ -435,7 +435,12 @@ public final class PluginBootstrapper {
 
         public java.util.logging.Logger logger() { return logger; }
 
-        public Path dataFolder() { return dir.resolve(d.name()); }
+        public Path configFolder() { return dir.resolve(d.name()); }
+
+        public Path dataFolder() {
+            Path root = settings.dataRoot();
+            return root == null ? configFolder() : root.resolve(d.name());
+        }
 
         public Path file() { return file; }
 

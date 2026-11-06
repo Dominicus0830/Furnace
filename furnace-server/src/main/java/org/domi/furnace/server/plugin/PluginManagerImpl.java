@@ -74,7 +74,7 @@ public final class PluginManagerImpl implements PluginManager {
     /** 부트스트랩을 마친 플러그인을 의존 순서대로 만들고 onLoad 까지 부른다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
     public void loadAll(PluginBootstrapper boot) {
         this.boot = boot;
-        failures.addAll(boot.failures());
+        failures.addAll(boot.failures());   // 찾기·순서·api-version·부트스트랩 단계 실패
         for (PluginBootstrapper.Prepared p : List.copyOf(boot.prepared())) load(p);
         failFastCheck("불러오기");
     }
@@ -97,6 +97,8 @@ public final class PluginManagerImpl implements PluginManager {
             return null;
         }
         java.util.logging.Logger jul = c.logger();
+        Level start = settings.levelFor(d.name());
+        if (start != null) jul.setLevel(start);
         plugin.init(new Context(d, c.file(), loader, jul, boot.registries(d)));
         Loaded l = new Loaded(plugin, d, c.file(), loader);
         plugins.add(l);
