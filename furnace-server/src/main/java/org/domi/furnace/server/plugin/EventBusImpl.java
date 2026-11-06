@@ -121,11 +121,8 @@ public final class EventBusImpl implements EventBus {
 
     private Handler[] handlers(Class<?> type) {
         Handler[] hs = baked.get(type);
-        if (hs == null) {
-            hs = bake(type);
-            baked.put(type, hs);
-        }
-        return hs;
+        // computeIfAbsent: 등록이 바뀌어 baked.clear() 되는 사이에 낡은 목록을 구워 넣는 경합을 막는다(clear 는 같은 칸 잠금을 기다린다)
+        return hs != null ? hs : baked.computeIfAbsent(type, this::bake);
     }
 
     /** 이 클래스와 모든 상위 클래스·인터페이스에 등록된 처리기를 우선순위·등록 순서로. */
