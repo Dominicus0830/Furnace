@@ -1,0 +1,13 @@
+name: VirtualProbe
+version: 1.0.0
+main: probe.VirtualProbe
+description: K1 가상 엔티티·NPC·가짜 탭 줄 봇 시험
+commands:
+  vnpc:
+    description: 가짜 플레이어 NPC 를 내 앞에 세운다
+  vmob:
+    description: 가상 마을 주민을 내 앞에 세운다
+  vtab:
+    description: 가짜 탭 줄을 더한다
+  vclear:
+    description: 이 플러그인의 가상 엔티티를 모두 지운다

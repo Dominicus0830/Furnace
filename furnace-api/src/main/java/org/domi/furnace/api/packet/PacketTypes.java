@@ -5,6 +5,9 @@
 package org.domi.furnace.api.packet;
 
 import org.domi.furnace.api.packet.clientbound.ClientboundAddEntityPacket;
+import org.domi.furnace.api.packet.clientbound.ClientboundPlayerInfoRemovePacket;
+import org.domi.furnace.api.packet.clientbound.ClientboundPlayerInfoUpdatePacket;
+import org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket;
 import org.domi.furnace.api.packet.clientbound.ClientboundAnimatePacket;
 import org.domi.furnace.api.packet.clientbound.ClientboundBlockUpdatePacket;
 import org.domi.furnace.api.packet.clientbound.ClientboundClearTitlesPacket;
@@ -118,8 +121,8 @@ public final class PacketTypes {
         public static final PacketType<OpaquePacket> PLAYER_COMBAT_END = opaque("player_combat_end");
         public static final PacketType<OpaquePacket> PLAYER_COMBAT_ENTER = opaque("player_combat_enter");
         public static final PacketType<OpaquePacket> PLAYER_COMBAT_KILL = opaque("player_combat_kill");
-        public static final PacketType<OpaquePacket> PLAYER_INFO_REMOVE = opaque("player_info_remove");
-        public static final PacketType<OpaquePacket> PLAYER_INFO_UPDATE = opaque("player_info_update");
+        public static final PacketType<ClientboundPlayerInfoRemovePacket> PLAYER_INFO_REMOVE = typed("player_info_remove", ClientboundPlayerInfoRemovePacket.class);
+        public static final PacketType<ClientboundPlayerInfoUpdatePacket> PLAYER_INFO_UPDATE = typed("player_info_update", ClientboundPlayerInfoUpdatePacket.class);
         public static final PacketType<OpaquePacket> PLAYER_LOOK_AT = opaque("player_look_at");
         public static final PacketType<OpaquePacket> PLAYER_POSITION = opaque("player_position");
         public static final PacketType<OpaquePacket> RECIPE = opaque("recipe");
@@ -145,7 +148,7 @@ public final class PacketTypes {
         public static final PacketType<OpaquePacket> SET_CHUNK_CACHE_RADIUS = opaque("set_chunk_cache_radius");
         public static final PacketType<OpaquePacket> SET_DEFAULT_SPAWN_POSITION = opaque("set_default_spawn_position");
         public static final PacketType<OpaquePacket> SET_DISPLAY_OBJECTIVE = opaque("set_display_objective");
-        public static final PacketType<OpaquePacket> SET_ENTITY_DATA = opaque("set_entity_data");
+        public static final PacketType<ClientboundSetEntityDataPacket> SET_ENTITY_DATA = typed("set_entity_data", ClientboundSetEntityDataPacket.class);
         public static final PacketType<OpaquePacket> SET_ENTITY_LINK = opaque("set_entity_link");
         public static final PacketType<ClientboundSetEntityMotionPacket> SET_ENTITY_MOTION = typed("set_entity_motion", ClientboundSetEntityMotionPacket.class);
         public static final PacketType<OpaquePacket> SET_EQUIPMENT = opaque("set_equipment");
