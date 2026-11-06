@@ -875,3 +875,13 @@
 - **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
 - 플러그인 레시피는 `PluginRecipes`(소유자·원본 서버 레시피)에 따로 적어 두고 `/reload` 뒤 `ServerCore` 리로드 리스너에서 `reapply` 로 새 매니저에 입힌다(패킷 보내기 전). 변환은 데이터 팩 파서의 검사를 같게 하려고 `recipe/ApiRecipes` 가 서버 `Recipe` 레코드를 직접 만든다(JSON 을 거치지 않는다 — 결과 컴포넌트가 SNBT 라서).
 - 시험 함정: 서버 아이템 레지스트리 `idOf` 는 `minecraft:` 접두가 있어야 한다(없으면 -1 이라 특수 레시피 매칭에서 NPE 처럼 보인다). `Furnace.server()` 는 전역이라 서버 단위 시험에서는 `snapshot.live()`·`BlockEvent.liveBlock()` 을 못 쓴다.
+
+## 2026-11-06 구조물 블록·직소 블록
+- 바닐라 `StructureBlockEntity`/`JigsawBlockEntity`·`StructureBlock`·`JigsawBlock`·패킷 3종(0x34 `update_structure_block`, 0x33 `update_jigsaw_block`, 0x17 `generate_structure`)을 바이트코드와 대조해 이식. 편집 화면은 클라이언트가 블록 엔티티 데이터(`saveCustomOnly` 갱신 태그)만 보고 연다. 권한은 창조 모드 + 권한 2 이상, 아니면 패킷을 조용히 버린다.
+- 저장소는 `TemplateManager`(월드 `generated/<ns>/structures/<경로>.nbt` → 내장). 신호 저장(`saveStructure(level, false)`)은 메모리 템플릿만 갈아 끼우고 파일을 쓰지 않는다. 파일 쓰기는 `.tmp` 에 쓴 뒤 옮긴다.
+- 놓기는 월드젠 `TemplatePlacer.placeInWorld` 를 `LiveGrid`(로드된 청크 복사본 → flag 2 로 되돌림)에서 돌린다. `LiveGrid` 는 `/place` 에서 꺼내 공용으로 만들었다. 범위 밖 청크가 있으면 `GridException`.
+- **함정 1** `LiveGrid.commit` 이 아이템이 든 템플릿 상자를 `generatedBlockEntity`(생성 NBT)로만 남겨 청크를 다시 읽기 전까지 `execute if items`/열기가 "컨테이너 아님" 이었다 → 아이템이 든 상자는 바로 `ChestBlockEntity` 로 만든다(`/place template` 도 같이 고쳐짐).
+- **함정 2** 새 직소 블록 엔티티의 `joint` 는 `rollable`(필드 기본값)이다. `aligned` 기본은 저장 NBT 에 `joint` 가 없거나 이름이 틀렸을 때만(앞면이 수평이면 aligned, 수직이면 rollable).
+- **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
+- 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
+
