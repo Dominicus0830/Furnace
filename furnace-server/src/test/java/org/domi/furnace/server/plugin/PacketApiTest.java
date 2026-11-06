@@ -164,6 +164,22 @@ class PacketApiTest {
                 new ClientboundSoundPacket("minecraft:entity.experience_orb.pickup", null, SoundCategory.PLAYERS, 1, 2, 3, 0.5f, 1.2f, 99L),
                 new ClientboundSoundPacket("mypack:custom.boom", 32f, SoundCategory.AMBIENT, 1, 2, 3, 1f, 1f, 5L),
                 new ClientboundCustomPayloadPacket("x:y", new byte[]{1, 2, 3}),
+                ClientboundSetEntityDataPacket.of(7,
+                        ClientboundSetEntityDataPacket.entry(0, ClientboundSetEntityDataPacket.Value.ofByte(0x22)),
+                        ClientboundSetEntityDataPacket.entry(2, ClientboundSetEntityDataPacket.Value.ofOptionalText(Text.text("npc", NamedTextColor.GOLD))),
+                        ClientboundSetEntityDataPacket.entry(3, ClientboundSetEntityDataPacket.Value.ofBoolean(true)),
+                        ClientboundSetEntityDataPacket.entry(6, ClientboundSetEntityDataPacket.Value.ofPose(5)),
+                        ClientboundSetEntityDataPacket.entry(8, ClientboundSetEntityDataPacket.Value.ofFloat(1.5f)),
+                        ClientboundSetEntityDataPacket.entry(9, ClientboundSetEntityDataPacket.Value.ofInt(300)),
+                        ClientboundSetEntityDataPacket.entry(10, ClientboundSetEntityDataPacket.Value.ofLong(1L << 40)),
+                        ClientboundSetEntityDataPacket.entry(11, ClientboundSetEntityDataPacket.Value.ofString("s")),
+                        ClientboundSetEntityDataPacket.entry(12, ClientboundSetEntityDataPacket.Value.ofText(Text.text("t"))),
+                        ClientboundSetEntityDataPacket.entry(13, ClientboundSetEntityDataPacket.Value.ofOptionalText(null))),
+                ClientboundPlayerInfoUpdatePacket.add(u, "Npc", List.of(org.domi.furnace.api.entity.ProfileProperty.textures("dGV4", "sig"), new org.domi.furnace.api.entity.ProfileProperty("x", "y", null)),
+                        org.domi.furnace.api.entity.GameMode.CREATIVE, true, 12, Text.text("표시")),
+                ClientboundPlayerInfoUpdatePacket.latency(u, 80),
+                ClientboundPlayerInfoUpdatePacket.listed(u, false),
+                ClientboundPlayerInfoRemovePacket.of(u, UUID.randomUUID()),
                 new ServerboundChatPacket("hello", java.time.Instant.ofEpochMilli(5000), 42L, new byte[256], 3, 0b101),
                 new ServerboundChatCommandPacket("gamemode creative"),
                 new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.PERFORM_RESPAWN),
@@ -192,6 +208,29 @@ class PacketApiTest {
         for (PacketDirection d : PacketDirection.values()) {
             for (PacketType<?> t : PacketTypes.all(d)) if (t.typed()) assertTrue(covered.contains(t), "왕복 시험이 빠진 타입 래퍼: " + t);
         }
+    }
+
+    @Test
+    void decodesServerWrittenEntityDataAndPlayerInfo() {
+        UUID u = UUID.randomUUID();
+        ByteBuf body = Unpooled.buffer();
+        new org.domi.furnace.server.net.protocol.play.SetEntityData(9, List.of(
+                new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(0, 0, (byte) 0x20),
+                new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(9, 3, 4.5f),
+                new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(7, 7, org.domi.furnace.server.entity.ItemStack.EMPTY))).write(body);
+        var d = (ClientboundSetEntityDataPacket) codec.decode(PacketTypes.Clientbound.SET_ENTITY_DATA, org.domi.furnace.server.net.protocol.play.SetEntityData.ID, body);
+        assertEquals(9, d.entityId());
+        assertEquals(new ClientboundSetEntityDataPacket.ByteValue((byte) 0x20), d.entries().get(0).value());
+        assertEquals(new ClientboundSetEntityDataPacket.FloatValue(4.5f), d.entries().get(1).value());
+        assertEquals(new ClientboundSetEntityDataPacket.Unsupported(7), d.entries().get(2).value(), "읽지 못하는 종류는 거기서 멈춘다");
+        assertTrue(d.hasUnsupported());
+        assertThrows(IllegalArgumentException.class, () -> codec.encode(d, Unpooled.buffer()), "읽지 못한 값이 있으면 다시 보낼 수 없다");
+
+        ByteBuf info = Unpooled.buffer();
+        new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(List.of(new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(u, "Bob",
+                List.of(new org.domi.furnace.server.players.GameProfile.Property("textures", "v", "sg")), null, 1, 33))).write(info);
+        // 서버 쪽 add 는 채팅 세션 초기화 비트를 늘 켠다(없으면 빈 옵션) — 이 래퍼는 그 비트를 읽지 않으므로 거절한다
+        assertThrows(IllegalArgumentException.class, () -> codec.decode(PacketTypes.Clientbound.PLAYER_INFO_UPDATE, org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.ID, info));
     }
 
     @Test

@@ -75,7 +75,7 @@ public final class Consuming {
         p.stopUsingItem();
         // 플러그인 PlayerItemConsumeEvent 취소: 효과·소비 없이, 클라이언트가 먼저 줄인 손 칸을 되돌린다
         if (!p.vitals().env().gameEvents().playerConsume(p, s, hand)) {
-            p.send(new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, ws, inv.get(ws)));
+            org.domi.furnace.server.plugin.ClientResync.slot(p, ws);
             return;
         }
         finish(p, region, inv, ws, s);

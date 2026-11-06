@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.domi.furnace.api.entity.Hand;
+import org.domi.furnace.api.entity.ProfileProperty;
 import org.domi.furnace.api.packet.OpaquePacket;
 import org.domi.furnace.api.packet.Packet;
 import org.domi.furnace.api.packet.PacketDirection;
@@ -360,6 +361,151 @@ public final class Protocol767 implements ProtocolCodec {
                     o.writeBytes(data);
                     return id(Clientbound.CUSTOM_PAYLOAD);
                 });
+        codec(Clientbound.SET_ENTITY_DATA, (id, b) -> decodeEntityData(b), (p, o) -> {
+            Types.writeVarInt(o, p.entityId());
+            for (ClientboundSetEntityDataPacket.Entry e : p.entries()) writeDataEntry(o, e);
+            o.writeByte(0xFF);
+            return id(Clientbound.SET_ENTITY_DATA);
+        });
+        codec(Clientbound.PLAYER_INFO_REMOVE, (id, b) -> {
+            int n = Types.readVarInt(b);
+            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("항목 수 오류: " + n);
+            List<java.util.UUID> l = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) l.add(Types.readUuid(b));
+            return new ClientboundPlayerInfoRemovePacket(l);
+        }, (p, o) -> {
+            Types.writeVarInt(o, p.uuids().size());
+            for (java.util.UUID u : p.uuids()) Types.writeUuid(o, u);
+            return id(Clientbound.PLAYER_INFO_REMOVE);
+        });
+        codec(Clientbound.PLAYER_INFO_UPDATE, (id, b) -> decodePlayerInfo(b), (p, o) -> {
+            int mask = 0;
+            for (ClientboundPlayerInfoUpdatePacket.Action a : p.actions()) mask |= 1 << a.ordinal();
+            if ((mask & 0x02) != 0) throw new IllegalArgumentException("채팅 세션 초기화는 보낼 수 없다");
+            o.writeByte(mask);
+            Types.writeVarInt(o, p.entries().size());
+            for (ClientboundPlayerInfoUpdatePacket.Entry e : p.entries()) {
+                Types.writeUuid(o, e.uuid());
+                if ((mask & 0x01) != 0) {
+                    Types.writeString(o, e.name());
+                    Types.writeVarInt(o, e.properties().size());
+                    for (ProfileProperty pp : e.properties()) {
+                        Types.writeString(o, pp.name());
+                        Types.writeString(o, pp.value());
+                        o.writeBoolean(pp.signature() != null);
+                        if (pp.signature() != null) Types.writeString(o, pp.signature());
+                    }
+                }
+                if ((mask & 0x04) != 0) Types.writeVarInt(o, e.gameMode().id());
+                if ((mask & 0x08) != 0) o.writeBoolean(e.listed());
+                if ((mask & 0x10) != 0) Types.writeVarInt(o, e.latencyMs());
+                if ((mask & 0x20) != 0) {
+                    o.writeBoolean(e.displayName() != null);
+                    if (e.displayName() != null) NetworkText.write(o, e.displayName());
+                }
+            }
+            return id(Clientbound.PLAYER_INFO_UPDATE);
+        });
+    }
+
+    // 엔티티 데이터 직렬화기 번호(1.21.1 EntityDataSerializers 등록 순서) — 서버 SetEntityData 와 같다.
+    private static final int S_BYTE = 0, S_INT = 1, S_LONG = 2, S_FLOAT = 3, S_STRING = 4, S_COMPONENT = 5, S_OPT_COMPONENT = 6, S_BOOLEAN = 8, S_POSE = 21;
+
+    private static void writeDataEntry(ByteBuf o, ClientboundSetEntityDataPacket.Entry e) {
+        var v = e.value();
+        int ser = switch (v) {
+            case ClientboundSetEntityDataPacket.ByteValue x -> S_BYTE;
+            case ClientboundSetEntityDataPacket.IntValue x -> S_INT;
+            case ClientboundSetEntityDataPacket.LongValue x -> S_LONG;
+            case ClientboundSetEntityDataPacket.FloatValue x -> S_FLOAT;
+            case ClientboundSetEntityDataPacket.StringValue x -> S_STRING;
+            case ClientboundSetEntityDataPacket.TextValue x -> S_COMPONENT;
+            case ClientboundSetEntityDataPacket.OptionalTextValue x -> S_OPT_COMPONENT;
+            case ClientboundSetEntityDataPacket.BooleanValue x -> S_BOOLEAN;
+            case ClientboundSetEntityDataPacket.PoseValue x -> S_POSE;
+            case ClientboundSetEntityDataPacket.Unsupported x -> throw new IllegalArgumentException("읽지 못한 값 종류는 보낼 수 없다: " + x.serializer());
+        };
+        o.writeByte(e.index());
+        Types.writeVarInt(o, ser);
+        switch (v) {
+            case ClientboundSetEntityDataPacket.ByteValue x -> o.writeByte(x.value());
+            case ClientboundSetEntityDataPacket.IntValue x -> Types.writeVarInt(o, x.value());
+            case ClientboundSetEntityDataPacket.LongValue x -> Types.writeVarLong(o, x.value());
+            case ClientboundSetEntityDataPacket.FloatValue x -> o.writeFloat(x.value());
+            case ClientboundSetEntityDataPacket.StringValue x -> Types.writeString(o, x.value());
+            case ClientboundSetEntityDataPacket.TextValue x -> NetworkText.write(o, x.value());
+            case ClientboundSetEntityDataPacket.OptionalTextValue x -> {
+                o.writeBoolean(x.value() != null);
+                if (x.value() != null) NetworkText.write(o, x.value());
+            }
+            case ClientboundSetEntityDataPacket.BooleanValue x -> o.writeBoolean(x.value());
+            case ClientboundSetEntityDataPacket.PoseValue x -> Types.writeVarInt(o, x.pose());
+            case ClientboundSetEntityDataPacket.Unsupported x -> throw new IllegalStateException();
+        }
+    }
+
+    private static ClientboundSetEntityDataPacket decodeEntityData(ByteBuf b) {
+        int eid = Types.readVarInt(b);
+        List<ClientboundSetEntityDataPacket.Entry> out = new ArrayList<>();
+        while (true) {
+            int index = b.readUnsignedByte();
+            if (index == 0xFF) break;
+            int ser = Types.readVarInt(b);
+            ClientboundSetEntityDataPacket.Value v = switch (ser) {
+                case S_BYTE -> ClientboundSetEntityDataPacket.Value.ofByte(b.readByte());
+                case S_INT -> ClientboundSetEntityDataPacket.Value.ofInt(Types.readVarInt(b));
+                case S_LONG -> ClientboundSetEntityDataPacket.Value.ofLong(Types.readVarLong(b));
+                case S_FLOAT -> ClientboundSetEntityDataPacket.Value.ofFloat(b.readFloat());
+                case S_STRING -> ClientboundSetEntityDataPacket.Value.ofString(Types.readString(b, STRING_MAX));
+                case S_COMPONENT -> ClientboundSetEntityDataPacket.Value.ofText(NetworkText.read(b));
+                case S_OPT_COMPONENT -> ClientboundSetEntityDataPacket.Value.ofOptionalText(b.readBoolean() ? NetworkText.read(b) : null);
+                case S_BOOLEAN -> ClientboundSetEntityDataPacket.Value.ofBoolean(b.readBoolean());
+                case S_POSE -> ClientboundSetEntityDataPacket.Value.ofPose(Types.readVarInt(b));
+                default -> null;
+            };
+            if (v == null) {   // 길이를 알 수 없는 종류 — 여기서 멈춘다
+                out.add(new ClientboundSetEntityDataPacket.Entry(index, new ClientboundSetEntityDataPacket.Unsupported(ser)));
+                b.skipBytes(b.readableBytes());
+                break;
+            }
+            out.add(new ClientboundSetEntityDataPacket.Entry(index, v));
+        }
+        return new ClientboundSetEntityDataPacket(eid, out);
+    }
+
+    private static ClientboundPlayerInfoUpdatePacket decodePlayerInfo(ByteBuf b) {
+        int mask = b.readUnsignedByte();
+        if ((mask & 0x02) != 0) throw new IllegalArgumentException("채팅 세션 초기화는 읽지 않는다");
+        java.util.EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions = java.util.EnumSet.noneOf(ClientboundPlayerInfoUpdatePacket.Action.class);
+        for (ClientboundPlayerInfoUpdatePacket.Action a : ClientboundPlayerInfoUpdatePacket.Action.values()) if ((mask & (1 << a.ordinal())) != 0) actions.add(a);
+        int n = Types.readVarInt(b);
+        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("항목 수 오류: " + n);
+        List<ClientboundPlayerInfoUpdatePacket.Entry> es = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            java.util.UUID uuid = Types.readUuid(b);
+            String name = null;
+            List<ProfileProperty> props = List.of();
+            org.domi.furnace.api.entity.GameMode mode = null;
+            boolean listed = false;
+            int latency = 0;
+            org.domi.furnace.api.text.Text display = null;
+            if ((mask & 0x01) != 0) {
+                name = Types.readString(b, 16);
+                int pc = Types.readVarInt(b);
+                if (pc < 0 || pc > 16) throw new IllegalArgumentException("속성 수 오류: " + pc);
+                props = new ArrayList<>(pc);
+                for (int k = 0; k < pc; k++) {
+                    String pn = Types.readString(b, 64), pv = Types.readString(b, STRING_MAX);
+                    props.add(new ProfileProperty(pn, pv, b.readBoolean() ? Types.readString(b, 1024) : null));
+                }
+            }
+            if ((mask & 0x04) != 0) mode = org.domi.furnace.api.entity.GameMode.byId(Types.readVarInt(b));
+            if ((mask & 0x08) != 0) listed = b.readBoolean();
+            if ((mask & 0x10) != 0) latency = Types.readVarInt(b);
+            if ((mask & 0x20) != 0 && b.readBoolean()) display = NetworkText.read(b);
+            es.add(new ClientboundPlayerInfoUpdatePacket.Entry(uuid, name, props, mode, listed, latency, display));
+        }
+        return new ClientboundPlayerInfoUpdatePacket(actions, es);
     }
 
     // ------------------------------------------------------------------ 클라이언트→서버

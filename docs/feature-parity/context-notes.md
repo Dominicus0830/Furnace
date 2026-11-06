@@ -891,6 +891,14 @@
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
 
+## 2026-11-06 이벤트 취소 계약(취소하면 상태 그대로, 화면 되돌리기는 코어가)
+- 규칙·이벤트별 표: `docs/api/event-cancel-contract.md`. 도우미 `plugin/ClientResync`(칸·창 전체·단축 칸·능력·블록+블록 엔티티·드롭 되돌림).
+- 고친 것: ① 창 -2 패킷에 **창 칸 번호**(36+선택, 45)를 보내던 5곳(우클릭·엔티티 클릭·먹기 취소 — 갑옷 칸을 덮을 수 있었다)을 Inventory 번호로. ② `BlockPlaceEvent` 취소 시 손 칸 재전송 없음. ③ `PlayerDropItemEvent` 취소가 첫 빈 칸에 돌려주고 재전송 없음 → 든 칸으로(CraftBukkit). ④ 던지기·배·수레·거치대·액자·불꽃·수정·엔더의 눈·낚싯대는 취소돼도 아이템을 소모했다 → 소모 없이 재전송, 활·쇠뇌·삼지창은 탄약·내구도·장전 되돌림. ⑤ 부수기·왼쪽 클릭·우클릭 취소 때 블록 엔티티(표지판 글 등)가 안 따라갔다.
+- 시험: `CancelResyncE2ETest`(진짜 연결 핸들러, 28개), `CancelContractTest`(새 취소 가능 이벤트가 표·문서에 없으면 실패), 화로·침대 취소는 각 단위 시험. 합성 데이터 팩 `SyntheticRecipes` 로 바닐라 데이터 없이 화로 시험.
+- 시험 함정: 시험 스케줄러는 스스로 틱하지 않는다 — `submitAtChunk(p.chunkPos(), r -> r.tick())` 로 돌려야 ack·이동·먹기가 진행된다. 접속 직후 `p.drainPending()` 전엔 플레이어 위치가 0,0,0.
+- 한계: 웅크림·달리기 취소는 되돌릴 방법이 없음(클라이언트 입력, Paper 동일). 부싯돌은 취소해도 닳음(CraftBukkit 동일).
+
+
 ## 2026-11-06 플러그인 UI API: 메뉴·사이드바·보스바
 - 추가(furnace-api): `menu.Menu`(+`MenuType`·`MenuClick`·`ClickKind`), `bossbar.BossBar`, `scoreboard.Sidebar`. `Audience` 에 `showBossBar/hideBossBar/showSidebar/hideSidebar`, `Player` 에 `openMenu(Menu)/closeMenu()/currentMenu()`. 모두 레지스트리 키·`Text`·`ItemStack`(API) 만 쓰는 버전 중립 타입이고 상태는 API 객체가 갖는다(서버는 리스너로 따라간다).
 - 메뉴: 상자 1~6줄·발사기 3×3·깔때기 5칸. **기본은 모든 클릭 취소**(플레이어 인벤토리 칸 쉬프트 클릭·끌기 포함), 처리기가 `click.allow()` 를 부르면 바닐라대로. 처리기는 연결 스레드에서 불리고 던진 예외는 기록 후 취소. `Menu.set/button/clear/fillEmpty/border` 로 내용을 바꾸면 보고 있는 사람 화면이 `broadcastChanges` 로 따라온다. 열기/닫기는 `InventoryHost.openPluginMenu/execute` 로 연결 이벤트 루프에서(처리기 안에서 `close()` 해도 클릭이 끝난 뒤에 닫힌다). InventoryOpen/Close/ClickEvent 는 그대로 발화(처리기가 거부한 클릭은 InventoryClickEvent 를 거치지 않는다). 서버 `AbstractContainerMenu.pluginOwner` 가 `MenuSession` 표식.
@@ -969,6 +977,15 @@
 - 플러그인이 `server().scheduler()`·엔티티/청크/월드 `scheduler()`·`entityScheduler()`·`asyncExecutor()` 를 바로 쓰는 작업은 `ProfiledScheduling` 이 감싼다: **작업 객체 클래스의 클래스로더**(람다는 정의한 클래스의 로더)가 `PluginClassLoader` 면 그 플러그인 몫. 서버·API 클래스 작업은 감싸지 않는다(PluginTasks 의 guard 람다도 API 클래스라 두 번 감싸지 않는다). `TaskScheduler` 기본 `runAtFixedRate/runLater` 는 작업을 API 클래스(Repeating/Once)로 싸므로 감싸기를 먼저 하고 원래 스케줄러에 넘긴다. `submit` 도 FutureTask 로 싸기 전에 `newTaskFor` 에서 감싼다.
 - 시험에서 TestPlugins 클래스는 앱 클래스패스에 있어 부모 우선 위임으로 PluginClassLoader 가 아니라 앱 로더가 정의한다 → 클래스로더 귀속 시험은 시험 안에서 javac 로 플러그인을 컴파일해 jar 로 만든다(`PluginProfilerTest.compileProbePlugin`).
 - 명령: `/timings on|off|reset|report [플러그인]|export`(권한 3, `timings/plugins-*.txt`). 기동 때부터 재려면 `-Dfurnace.profiler=true`. "틱당" = 자기 시간 ÷ (측정 시간/50ms) — region 이 여럿이면 여러 스레드 합이라 50ms 를 넘을 수 있다.
+
+## 2026-11-06 가상 엔티티·NPC·가짜 탭 줄 (묶음 K1, 불만 표 49번)
+
+- API `org.domi.furnace.api.virtual`(`VirtualEntities`·`VirtualEntity`·`VirtualPlayer`·`VirtualTabList`), 입구 `Furnace.virtualEntities()`. 서버 `plugin/VirtualEntitiesImpl`(PluginHost.virtualImpl). 설명 `docs/api/virtual-entities.md`.
+- 패킷 래퍼 셋 추가: `SET_ENTITY_DATA`(값 종류 9개, 나머지는 `Unsupported` 로 멈춤), `PLAYER_INFO_UPDATE`(채팅 세션 비트는 거절), `PLAYER_INFO_REMOVE`.
+- 추적은 전역 스레드 2틱 주기(`runAtFixedRate`). 클릭은 `PacketServiceImpl.listenInternal`(소유자 없는 내부 구독, 첫 가상 엔티티를 만들 때 한 번 등록)로 INTERACT 를 잡아 취소하고 주 손 우클릭·공격만 처리기로 넘긴다.
+- 정리: `PluginManagerImpl.disable()` 에서 `virtualImpl().removeAll(plugin)`. 새 "플러그인에 맡기는 것" API 는 여기에 해제를 넣는다는 규칙(B8) 그대로.
+- 함정: 플레이어 엔티티는 `player_info_update` 가 `add_entity` 보다 먼저여야 스킨이 그려진다. 차원 이동 때 클라이언트는 엔티티를 잃지만 탭 정보는 남는다.
+- 시험: `VirtualEntitiesTest` 6개(추적·보이기·NPC 순서·클릭·정리·탭), `PacketApiTest` 왕복 확장, 봇 `tools/bot-test/round11/virtual.js` 11/11(minecraft-protocol 이 실제로 패킷을 해석).
 
 ## 2026-11-06 region 경계 차이 2: 명령 블록 체인 한 틱
 - 그동안 명령 블록 명령은 전역 스레드 명령 큐에서 비동기로 돌고 끝나면 소유 region 으로 돌아와 체인을 이었다 — 체인 한 칸마다 region 왕복이라 첫 칸에서 끝 칸까지 5~8틱(봇 실측). 바닐라는 그 예약 틱 안에 끝난다.

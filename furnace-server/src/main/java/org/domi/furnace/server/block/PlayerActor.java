@@ -42,6 +42,7 @@ public class PlayerActor implements BlockActor {
     @Override public boolean isCreative() { return player.gameMode() == GameMode.CREATIVE; }
     @Override public int permissionLevel() { return permissionLevel; }
     @Override public ItemStack itemInHand(int hand) { return hands[hand]; }
+    @Override public void resyncHands() { org.domi.furnace.server.plugin.ClientResync.hands(player); }
 
     @Override
     public void setItemInHand(int hand, ItemStack stack) {

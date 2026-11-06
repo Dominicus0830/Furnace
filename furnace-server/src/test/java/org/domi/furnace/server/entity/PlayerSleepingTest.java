@@ -60,6 +60,10 @@ class PlayerSleepingTest {
         }
 
         @Override public void updateSleepingPlayerList() { sleepListUpdates++; }
+
+        org.domi.furnace.server.plugin.GameEvents events = org.domi.furnace.server.plugin.GameEvents.NONE;
+
+        @Override public org.domi.furnace.server.plugin.GameEvents gameEvents() { return events; }
     }
 
     static final Pos FOOT = new Pos(0, -60, 0), HEAD = new Pos(0, -60, 1);
@@ -118,6 +122,25 @@ class PlayerSleepingTest {
         // 이미 자는 중이면 OTHER_PROBLEM(메시지 없음)
         assertEquals(PlayerSleeping.Problem.OTHER_PROBLEM, PlayerSleeping.startSleepInBed(p, level, HEAD));
         assertNull(PlayerSleeping.Problem.OTHER_PROBLEM.message());
+    }
+
+    /** 플러그인 PlayerBedEnterEvent 취소: 자지 않고 침대도 비어 있다(서버 주도라 되돌려 보낼 예측 없음). */
+    @Test
+    void bedEnterCancelLeavesPlayerAwakeAndBedFree() {
+        var level = new Lvl();
+        placeBed(level);
+        level.dayTime = 13000;
+        int[] asked = {0};
+        level.events = new org.domi.furnace.server.plugin.GameEvents() {
+            @Override public boolean playerBedEnter(Player p, String dimension, int x, int y, int z, int bedState) { asked[0]++; return false; }
+        };
+        var p = player(level, 1.5, -60, 0.5);
+        assertEquals(PlayerSleeping.Problem.OTHER_PROBLEM, PlayerSleeping.startSleepInBed(p, level, HEAD));
+        assertEquals(1, asked[0]);
+        assertFalse(p.isSleeping());
+        assertFalse(B.prop("occupied").is(level.getBlockState(HEAD)));
+        // 리스폰 지점은 바닐라·CraftBukkit 처럼 이벤트 앞 단계(낮에 눌러도 정해지는 곳)에서 이미 정해진다 — 취소와 무관
+        assertEquals(0, level.sleepListUpdates);
     }
 
     @Test

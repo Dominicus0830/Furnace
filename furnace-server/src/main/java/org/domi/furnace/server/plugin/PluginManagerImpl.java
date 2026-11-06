@@ -266,6 +266,7 @@ public final class PluginManagerImpl implements PluginManager {
         host.difficulty().unregisterAll(p);
         org.domi.furnace.server.loot.EnchantmentToggles.removeOwner(p.name());   // 이 플러그인이 끈 마법부여
         host.packetsImpl().unregisterAll(p);
+        host.virtualImpl().removeAll(p);   // 가상 엔티티·가짜 탭 줄
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
         PluginBootstrapper b = boot;
         if (b != null) b.forget(l.description().name());   // 플러그인 레지스트리 몫·수명주기 훅

@@ -19,11 +19,23 @@ class EnchantmentMenuTest {
     static final class P extends CraftingMenuTest.Player {
         int level = 40, seed = 12345;
         LootRegistries regs;
+        boolean cancelPrepare, cancelApply;
+        int prepared, applied;
         P(PlayerInventory inv, org.domi.furnace.server.recipe.RecipeManager rm) { super(inv, rm); }
         @Override public int experienceLevel() { return level; }
         @Override public int enchantmentSeed() { return seed; }
         @Override public void onEnchantmentPerformed(int l) { level -= l; seed = seed * 31 + 7; }
         @Override public LootRegistries lootRegistries() { return regs; }
+        @Override public org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] prepareEnchant(AbstractContainerMenu menu, int[] table, ItemStack item, int bookshelves,
+                                                                                               org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] offers) {
+            prepared++;
+            return cancelPrepare ? null : offers;
+        }
+        @Override public org.domi.furnace.server.plugin.GameEvents.EnchantApply enchantItem(AbstractContainerMenu menu, int[] table, ItemStack item, int button, int cost,
+                                                                                          java.util.Map<String, Integer> enchants) {
+            applied++;
+            return cancelApply ? null : new org.domi.furnace.server.plugin.GameEvents.EnchantApply(cost, enchants);
+        }
     }
 
     P player;
@@ -104,5 +116,37 @@ class EnchantmentMenuTest {
         assertEquals("minecraft:diamond_sword", ItemTools.itemName(menu.getSlot(0).getItem()));
         menu.clicked(idxLapis, 0, ClickType.QUICK_MOVE, player);
         assertEquals(4, menu.getSlot(1).getItem().count());
+    }
+
+    /** 이벤트 취소 계약: PrepareItemEnchantEvent 를 취소하면 제안이 하나도 없다(재료는 그대로). */
+    @Test
+    void prepareEnchantCancelOffersNothing() {
+        player.cancelPrepare = true;
+        menu.getSlot(0).set(it("diamond_sword", 1));
+        menu.getSlot(1).set(it("lapis_lazuli", 5));
+        assertTrue(player.prepared >= 1, "이벤트는 불렸다");
+        for (int i = 0; i < 3; i++) assertEquals(0, menu.costs[i], "취소했으면 " + i + "번 칸에 제안이 없다");
+        assertEquals("minecraft:diamond_sword", ItemTools.itemName(menu.getSlot(0).getItem()));
+        assertEquals(5, menu.getSlot(1).getItem().count());
+    }
+
+    /** 이벤트 취소 계약: EnchantItemEvent 를 취소하면 아이템·청금석·레벨·시드가 그대로다. */
+    @Test
+    void enchantItemCancelKeepsItemLapisLevelsAndSeed() {
+        menu.getSlot(0).set(it("diamond_sword", 1));
+        menu.getSlot(1).set(it("lapis_lazuli", 5));
+        var swordBefore = menu.getSlot(0).getItem();
+        player.cancelApply = true;
+        assertTrue(menu.clickMenuButton(player, 2), "버튼 처리는 끝난다");
+        assertEquals(1, player.applied);
+        assertSame(swordBefore, menu.getSlot(0).getItem());
+        assertTrue(EnchantTools.levels(menu.getSlot(0).getItem(), EnchantTools.ENCHANTMENTS).isEmpty(), "마법이 붙지 않았다");
+        assertEquals(5, menu.getSlot(1).getItem().count());
+        assertEquals(40, player.level);
+        assertEquals(12345, player.seed);
+        assertEquals(0, sounds);
+        player.cancelApply = false;   // 대조: 허용하면 부여된다
+        assertTrue(menu.clickMenuButton(player, 2));
+        assertFalse(EnchantTools.levels(menu.getSlot(0).getItem(), EnchantTools.ENCHANTMENTS).isEmpty());
     }
 }
