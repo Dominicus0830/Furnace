@@ -212,10 +212,6 @@ class GeneratedChunkSaveTest {
     private static final long LOOP_LIMIT_NANOS = 180_000_000_000L;
 
     /**
-     * 방금 틱이 저장 대상을 하나도 줄이지 못했으면(IO 레인 역압으로 건너뜀 — 틱을 쉬지 않고 돌리는 시험이 IO 스레드보다 앞서간 경우)
-     * IO 가 따라올 틈을 주고 true. 그런 틱은 예산을 쓴 틱이 아니라서 틱 비용 통계에 넣지 않는다.
-     */
-    /**
      * 저장이 여러 틱에 나뉘었는가. 틱 수 고정 하한(예전 "> 10")은 청크당 저장 비용이 줄면(청크 IO 최적화) 그대로 깨진다 —
      * 예산이 지켜졌다면 필요한 틱 수는 총 CPU / (기준 틱 + 예산 4 ms + 여유) 이상이다. 한 틱에 몰리면 1 이 된다.
      * 여유는 넉넉히 6 ms(GC·JIT 로 한 틱이 길어져도 총합만 늘고 틱 수는 안 늘므로). 예산 크기 자체는 중앙값 단언이 본다.
@@ -225,6 +221,10 @@ class GeneratedChunkSaveTest {
         assertTrue(ticks >= need, what + " 여러 틱에 나뉜다: 틱 " + ticks + " < 필요 " + need + " (합계 " + totalCpu / 1e6 + " ms)");
     }
 
+    /**
+     * 방금 틱이 저장 대상을 하나도 줄이지 못했으면(IO 레인 역압으로 건너뜀 — 틱을 쉬지 않고 돌리는 시험이 IO 스레드보다 앞서간 경우)
+     * IO 가 따라올 틈을 주고 true. 그런 틱은 예산을 쓴 틱이 아니라서 틱 비용 통계에 넣지 않는다.
+     */
     private static boolean idleTick(Region r, int pendingBefore) {
         if (r.dirtyChunkCount() < pendingBefore) return false;
         java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
