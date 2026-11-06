@@ -94,6 +94,9 @@ public interface Furnace {
     /** 패킷 API — 보내기·가로채기·수정(버전 중립 타입). */
     org.domi.furnace.api.packet.PacketService packets();
 
+    /** 가상 엔티티·가짜 플레이어(NPC)·가짜 탭 줄 — 패킷 API 위에 쌓은 서비스. */
+    default org.domi.furnace.api.virtual.VirtualEntities virtualEntities() { throw new UnsupportedOperationException("virtualEntities"); }
+
     PermissionManager permissions();
 
     PluginManager plugins();
