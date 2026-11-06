@@ -74,6 +74,12 @@ public final class PluginManagerImpl implements PluginManager {
     public void loadAll() { loadAll(PluginBootstrapper.bootstrap(dir, settings)); }
 
     /** 부트스트랩을 마친 플러그인을 의존 순서대로 만들고 onLoad 까지 부른다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
+    /** 플러그인이 등록한 게임 레지스트리 항목(바이옴·차원 타입). 부트스트랩 전이면 null. */
+    public GameRegistryStore gameRegistries() {
+        PluginBootstrapper b = boot;
+        return b == null ? null : b.gameRegistries();
+    }
+
     public void loadAll(PluginBootstrapper boot) {
         this.boot = boot;
         failures.addAll(boot.failures());   // 찾기·순서·api-version·부트스트랩 단계 실패

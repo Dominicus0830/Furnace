@@ -87,6 +87,13 @@ public final class ServerCore {
     /** /bossbar 로 만든 커스텀 보스바. */
     public org.domi.furnace.server.bossbar.CustomBossEvents customBossEvents() { return customBossEvents; }
 
+    private volatile org.domi.furnace.server.net.registry.RegistrySet registries;
+
+    /** 클라이언트와 동기하는 레지스트리(플러그인 바이옴·차원 타입 포함). 없으면 null — 접속 처리가 바닐라 목록을 쓴다. */
+    public org.domi.furnace.server.net.registry.RegistrySet registries() { return registries; }
+
+    public void registries(org.domi.furnace.server.net.registry.RegistrySet set) { this.registries = set; }
+
     private volatile org.domi.furnace.server.data.DataPackManager dataPacks;
 
     /** 데이터 팩(없으면 null — 바닐라 데이터를 못 구했거나 테스트). */

@@ -75,7 +75,14 @@ import org.slf4j.LoggerFactory;
 public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     private static final Logger log = LoggerFactory.getLogger(ConnectionHandler.class);
-    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    private static final RegistrySet VANILLA_REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+
+    /** 클라이언트에 보내는 동기 레지스트리 — 서버가 시작 때 만든 세트(플러그인 바이옴·차원 타입 포함), 없으면 바닐라. */
+    private RegistrySet registries() {
+        var core = login != null ? login.core : null;
+        RegistrySet r = core != null ? core.registries() : null;
+        return r != null ? r : VANILLA_REGISTRIES;
+    }
     private static final org.domi.furnace.server.net.registry.TagSet TAGS =
             org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
 
@@ -887,8 +894,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x07 -> { // Serverbound Known Packs → 레지스트리 전송 후 종료
                 if (knownPacksHandled) return;                           // 반복 요청은 무시(증폭 방지)
                 knownPacksHandled = true;
-                for (String registry : REGISTRIES.registryKeys()) {
-                    send(ctx, new RegistryData(registry, REGISTRIES.entries(registry)));
+                for (String registry : registries().registryKeys()) {
+                    send(ctx, new RegistryData(registry, registries().entries(registry), registries()));
                 }
                 // 레지스트리 뒤, Finish 앞(바닐라 순서). 데이터 팩이 있으면 거기서 읽은 태그, 없으면 미리 만든 태그 파일.
                 var dp = login.core != null ? login.core.dataPacks() : null;
@@ -1127,7 +1134,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void onEnterPlay(ChannelHandlerContext ctx, org.domi.furnace.server.entity.PlayerData.Snapshot saved) {
         int eid = idAllocator.next();
         int dimIndex = Math.max(0,
-                REGISTRIES.indexOf("minecraft:dimension_type", "minecraft:overworld"));
+                registries().indexOf("minecraft:dimension_type", "minecraft:overworld"));
         int effVd = effectiveViewDistance();
         org.domi.furnace.server.ServerCore coreJ = login.core;
         // 저장 데이터는 beginEnterPlay 가 먼저 읽었다 — 게임 모드·체력 등이 LoginPlay 부터 들어간다(바닐라 placeNewPlayer: load → loadGameTypes).
@@ -1137,7 +1144,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (w != null) world = w;
             else log.warn("Unknown respawn dimension {}, defaulting to overworld", savedDim);
         }
-        dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
+        dimIndex = Math.max(0, registries().indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
         if (login.core != null) login.core.plugins().packetsImpl().attach(p);   // 플러그인 패킷 리스너 — 첫 play 패킷(login)부터
         p.clientBrand(clientBrand);   // 바닐라 클라이언트는 brand 를 구성 단계에서 보낸다 — Player 가 생기기 전이라 여기서 넘긴다
@@ -1249,7 +1256,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (target != world) {
                     world = target;
                     p.dimension(world.dimension());
-                    dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
+                    dimIndex = Math.max(0, registries().indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
                 }
                 sx = l.x(); sy = l.y(); sz = l.z(); syaw = l.yaw(); spitch = l.pitch();
             }
@@ -3278,7 +3285,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private int dimensionTypeIndex(World w) {
-        return Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", w.dimensionType().typeKey()));
+        return Math.max(0, registries().indexOf("minecraft:dimension_type", w.dimensionType().typeKey()));
     }
 
     /**

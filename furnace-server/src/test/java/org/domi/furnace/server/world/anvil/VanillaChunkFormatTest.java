@@ -112,6 +112,28 @@ class VanillaChunkFormatTest {
         assertEquals(java.nio.file.Path.of("w", "DIM-1"), dim.storageDir(java.nio.file.Path.of("w")));
     }
 
+    @Test
+    void pluginBiomeIsSavedByNameAndFallsBackToPlainsWhenThePluginIsGone() {
+        var base = REGISTRIES;
+        var extended = base.withExtras(java.util.List.of(new org.domi.furnace.server.net.registry.RegistrySet.Extra(
+                "minecraft:worldgen/biome", "glow:cave", new NbtCompound())));
+        var withPlugin = extended.entries("minecraft:worldgen/biome");
+        int cave = withPlugin.indexOf("glow:cave");
+        assertEquals(base.entries("minecraft:worldgen/biome").size(), cave, "플러그인 바이옴은 바닐라 뒤");
+        int plains = withPlugin.indexOf("minecraft:plains");
+        var items = ItemRegistry.load("items/1.21.1.txt");
+        AnvilChunkCodec saver = new AnvilChunkCodec(REG, items, withPlugin, plains, -64, 24);
+        ChunkColumn col = new ChunkColumn(plains, REG.directBits(), 7, -64, 24);
+        col.sections()[4].setBiome(1, 2, 3, cave);
+        NbtCompound nbt = saver.toNbt(col, 0, 0);
+        assertTrue(nbt.getList("sections").size() > 0);
+        assertEquals(cave, saver.fromNbt(nbt).sections()[4].getBiome(1, 2, 3), "플러그인이 있으면 이름으로 돌아온다");
+        AnvilChunkCodec without = new AnvilChunkCodec(REG, items, base.entries("minecraft:worldgen/biome"),
+                base.entries("minecraft:worldgen/biome").indexOf("minecraft:plains"), -64, 24);
+        assertEquals(base.entries("minecraft:worldgen/biome").indexOf("minecraft:plains"), without.fromNbt(nbt).sections()[4].getBiome(1, 2, 3),
+                "플러그인이 빠지면 그 칸은 평원으로 읽힌다(월드는 열린다)");
+    }
+
     private static void assertNbtEquals(Object expected, Object actual, String path) {
         if (expected instanceof NbtCompound e) {
             assertInstanceOf(NbtCompound.class, actual, path);
