@@ -27,4 +27,7 @@ public interface PluginContext {
     Path file();
 
     ClassLoader classLoader();
+
+    /** 이 플러그인 이름으로 묶인 플러그인 레지스트리 보기. */
+    org.domi.furnace.api.registry.PluginRegistries registries();
 }

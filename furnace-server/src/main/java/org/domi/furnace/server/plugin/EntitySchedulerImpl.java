@@ -2,29 +2,37 @@
 package org.domi.furnace.server.plugin;
 
 import org.domi.furnace.api.entity.EntityScheduler;
+import org.domi.furnace.api.profiler.PluginProfiler;
 import org.domi.furnace.api.sched.ScheduledTask;
 import org.domi.furnace.server.entity.EntityTasks;
 
 final class EntitySchedulerImpl implements EntityScheduler {
 
     private final EntityTasks tasks;
+    /** 작업 시간을 만든 플러그인 몫으로 잰다(/timings). */
+    private final ProfiledScheduling profiled;
 
-    EntitySchedulerImpl(EntityTasks tasks) { this.tasks = tasks; }
+    EntitySchedulerImpl(EntityTasks tasks, ProfiledScheduling profiled) {
+        this.tasks = tasks;
+        this.profiled = profiled;
+    }
+
+    private Runnable w(Runnable r) { return r == null ? null : profiled.wrap(r, PluginProfiler.Kind.TASK); }
 
     @Override
     public boolean execute(Runnable task, Runnable retired, long delayTicks) {
-        return tasks.schedule(task, retired, delayTicks, 0) != null;
+        return tasks.schedule(w(task), w(retired), delayTicks, 0) != null;
     }
 
     @Override
     public ScheduledTask runDelayed(Runnable task, Runnable retired, long delayTicks) {
-        return handle(tasks.schedule(task, retired, delayTicks, 0));
+        return handle(tasks.schedule(w(task), w(retired), delayTicks, 0));
     }
 
     @Override
     public ScheduledTask runAtFixedRate(Runnable task, Runnable retired, long initialDelayTicks, long periodTicks) {
         if (periodTicks <= 0) throw new IllegalArgumentException("periodTicks 는 1 이상: " + periodTicks);
-        return handle(tasks.schedule(task, retired, initialDelayTicks, periodTicks));
+        return handle(tasks.schedule(w(task), w(retired), initialDelayTicks, periodTicks));
     }
 
     @Override

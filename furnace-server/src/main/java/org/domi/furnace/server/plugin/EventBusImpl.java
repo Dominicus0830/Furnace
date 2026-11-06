@@ -35,6 +35,8 @@ import org.domi.furnace.api.event.EventSubscription;
 import org.domi.furnace.api.event.Listener;
 import org.domi.furnace.api.event.Subscribe;
 import org.domi.furnace.api.plugin.FurnacePlugin;
+import org.domi.furnace.api.profiler.PluginProfiler;
+import org.domi.furnace.api.profiler.Timing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,19 +45,34 @@ public final class EventBusImpl implements EventBus {
     private static final Logger log = LoggerFactory.getLogger("Furnace");
     private static final Handler[] NONE = new Handler[0];
 
-    /** 등록된 처리기 하나. owner 는 리스너 객체(람다 등록이면 null). */
+    /** 등록된 처리기 하나. owner 는 리스너 객체(람다 등록이면 null). timing 은 /timings 측정 구간. */
     private record Handler(FurnacePlugin plugin, Class<?> type, EventPriority priority, boolean ignoreCancelled, Consumer<Event> fn,
-                           Object owner, long order, String where) {}
+                           Object owner, long order, String where, Timing timing) {}
 
     private final ConcurrentHashMap<Class<?>, List<Handler>> byType = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Class<?>, Handler[]> baked = new ConcurrentHashMap<>();
     private final AtomicLong order = new AtomicLong();
     /** 호출 통계. null 이면 꺼진 상태(발행 경로에는 null 검사 하나만 남는다). */
     private final Stats stats;
+    /** 플러그인별 시간(/timings). 꺼져 있으면 발행 경로에 isRunning() 읽기 하나만 남는다. */
+    private final PluginProfiler profiler;
 
-    public EventBusImpl() { this(Stats.enabledByConfig()); }
+    public EventBusImpl() { this(PluginProfiler.NONE); }
 
-    EventBusImpl(boolean statsOn) { this.stats = statsOn ? new Stats() : null; }
+    public EventBusImpl(PluginProfiler profiler) { this(Stats.enabledByConfig(), profiler); }
+
+    EventBusImpl(boolean statsOn) { this(statsOn, PluginProfiler.NONE); }
+
+    EventBusImpl(boolean statsOn, PluginProfiler profiler) {
+        this.stats = statsOn ? new Stats() : null;
+        this.profiler = profiler;
+    }
+
+    /** 리스너 구간 이름: "이벤트 리스너클래스(패키지 뗌)[.메서드]". */
+    private Timing timing(FurnacePlugin plugin, Class<?> type, Object listener, String method) {
+        String name = type.getSimpleName() + " " + ProfiledScheduling.taskName(listener) + (method == null ? "" : "." + method);
+        return profiler.timing(plugin, PluginProfiler.Kind.LISTENER, name);
+    }
 
     @Override
     public void register(FurnacePlugin plugin, Listener listener) {
@@ -77,8 +94,9 @@ public final class EventBusImpl implements EventBus {
                 continue;
             }
             warnIfDeprecated(plugin, m.getParameterTypes()[0]);
+            String where = listener.getClass().getName() + "." + m.getName();
             add(new Handler(plugin, m.getParameterTypes()[0], s.priority(), s.ignoreCancelled(), fn, listener, order.incrementAndGet(),
-                    listener.getClass().getName() + "." + m.getName()));
+                    where, timing(plugin, m.getParameterTypes()[0], listener, m.getName())));
         }
     }
 
@@ -127,8 +145,9 @@ public final class EventBusImpl implements EventBus {
     public <E extends Event> EventSubscription subscribe(FurnacePlugin plugin, Class<E> type, EventPriority priority, boolean ignoreCancelled,
                                                          Consumer<? super E> handler) {
         warnIfDeprecated(plugin, type);
+        String where = handler.getClass().getName();
         Handler h = new Handler(plugin, type, priority, ignoreCancelled, e -> handler.accept((E) e), null, order.incrementAndGet(),
-                handler.getClass().getName());
+                where, timing(plugin, type, handler, null));
         add(h);
         return () -> remove(x -> x == h);
     }
@@ -181,7 +200,7 @@ public final class EventBusImpl implements EventBus {
     @Override
     public <E extends Event> E call(E event) {
         Handler[] hs = handlers(event.getClass());
-        if (stats != null) return callTimed(event, hs);
+        if (stats != null || profiler.isRunning()) return callTimed(event, hs);
         for (Handler h : hs) {
             if (h.ignoreCancelled() && event instanceof Cancellable c && c.isCancelled()) continue;
             if (!h.plugin().isEnabled()) continue;
@@ -220,20 +239,25 @@ public final class EventBusImpl implements EventBus {
         }
     }
 
-    /** 통계가 켜졌을 때의 발행 경로. 처리 순서·취소·예외 처리는 call 과 같고, 시간만 잰다. */
+    /** 통계나 프로파일러가 켜졌을 때의 발행 경로. 처리 순서·취소·예외 처리는 call 과 같고, 시간만 잰다. */
     private <E extends Event> E callTimed(E event, Handler[] hs) {
-        long start = System.nanoTime();
+        Stats stats = this.stats;
+        long start = stats != null ? System.nanoTime() : 0;
         Handler slow = null;
         long slowNs = -1;
         for (Handler h : hs) {
             if (h.ignoreCancelled() && event instanceof Cancellable c && c.isCancelled()) continue;
             if (!h.plugin().isEnabled()) continue;
-            long t0 = System.nanoTime();
+            long t0 = stats != null ? System.nanoTime() : 0;
+            long token = h.timing().start();
             invokeChecked(h, event);
+            h.timing().stop(token);
+            if (stats == null) continue;
             long dt = System.nanoTime() - t0;
             stats.listener(h, dt);
             if (dt > slowNs) { slowNs = dt; slow = h; }
         }
+        if (stats == null) return event;
         long total = System.nanoTime() - start;
         stats.record(event.getClass(), total);
         if (total > Stats.SLOW_NS) {

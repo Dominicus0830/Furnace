@@ -718,6 +718,15 @@ public final class ServerCore {
         long gameTimeNow = clock.advanceGameTime();
         scheduledEvents.tick(gameTimeNow, () -> !commands.queue().isClosed(), functions::runScheduled);
         clock.advanceDayTime(gameRules, all);
+        // 바닐라 ServerLevel.tick: 시간 진행 뒤 청크 틱의 특수 스포너 — 차원에 하나뿐인 포위·상인은 여기서 게임 틱마다 한 번
+        var spawners = world.dimensionSpawners();
+        if (spawners != null) {
+            try {
+                spawners.tick();
+            } catch (RuntimeException e) {
+                log.error("[SPAWN] 포위·상인 스포너 실패", e);
+            }
+        }
     }
 
     /**

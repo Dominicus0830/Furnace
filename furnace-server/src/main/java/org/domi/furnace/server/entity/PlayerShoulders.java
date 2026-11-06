@@ -1,5 +1,6 @@
 // 플레이어 어깨에 앉은 몹(바닐라 Player.setEntityOnShoulder / removeEntitiesOnShoulder / playShoulderEntityAmbientSound / NBT ShoulderEntityLeft·Right).
-// 어깨 몹은 엔티티가 아니라 NBT 로만 들고 있다. 앵무새(다른 region)도 앉히므로 상태는 Player 의 shoulderLock 으로 지킨다.
+// 어깨 몹은 엔티티가 아니라 NBT 로만 들고 있다. 앉히기는 앵무새와 플레이어가 같은 region(몸이 겹친다)일 때만, 내려놓은 몹은 플레이어 region
+// 스레드에서 세운다. 어깨 NBT 는 저장(IO)·명령 스레드도 읽으므로 Player 의 shoulderLock 으로 지킨다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -25,6 +26,7 @@ public final class PlayerShoulders {
      * 조건 조사는 잠금 밖에서 한다(PlayerVitals 잠금과 순서가 꼬이지 않게).
      */
     public static boolean setEntityOnShoulder(Player p, NbtCompound tag) {
+        if (!p.onOwnerThread()) return false;   // 몸이 겹쳐야 앉으므로 같은 region 이다 — 다른 region 의 플레이어 상태는 읽지 않는다
         if (p.isPassenger() || !p.onGround() || isInWater(p) || isInPowderSnow(p)) return false;
         ChunkLevel level = p.currentLevel;
         long now = level == null ? 0L : level.gameTime();
@@ -41,7 +43,11 @@ public final class PlayerShoulders {
         }
     }
 
-    /** Player.removeEntitiesOnShoulder: 앉힌 지 20틱이 지났으면 두 어깨의 몹을 플레이어 자리에서 다시 세상에 내보낸다. */
+    /**
+     * Player.removeEntitiesOnShoulder: 앉힌 지 20틱이 지났으면 두 어깨의 몹을 플레이어 자리에서 다시 세상에 내보낸다.
+     * 어깨는 부른 스레드에서 바로 비우고(다른 앵무새가 그 사이 앉지 못하게), 몹은 플레이어를 가진 region 스레드에서 세운다 —
+     * 다른 스레드(명령의 /gamemode·/damage, 다른 region 의 피해)에서 불리면 다음 플레이어 틱에 그 자리에서 내보낸다.
+     */
     public static void removeEntitiesOnShoulder(Player p) {
         ChunkLevel level = p.currentLevel;
         NbtCompound left, right;
@@ -49,11 +55,32 @@ public final class PlayerShoulders {
             if (level == null || p.timeEntitySatOnShoulder() + 20L >= level.gameTime()) return;
             left = p.shoulderLeft();
             right = p.shoulderRight();
+            if (left.tags().isEmpty() && right.tags().isEmpty()) return;
             p.setShoulderLeft(new NbtCompound());
             p.setShoulderRight(new NbtCompound());
         }
-        respawn(p, level, left);
-        respawn(p, level, right);
+        if (p.onOwnerThread()) {
+            respawn(p, level, left);
+            respawn(p, level, right);
+            return;
+        }
+        p.runOnOwner(() -> {
+            ChunkLevel here = p.currentLevel;
+            if (here == null) {   // 그 사이 접속이 끊겼다 — 어깨로 되돌려 저장되게 한다(몹을 잃지 않게)
+                restore(p, left, right);
+                return;
+            }
+            respawn(p, here, left);
+            respawn(p, here, right);
+        });
+    }
+
+    /** 내보내지 못한 어깨 몹을 빈 어깨에 되돌린다. */
+    private static void restore(Player p, NbtCompound left, NbtCompound right) {
+        synchronized (p.shoulderLock()) {
+            if (!left.tags().isEmpty() && p.shoulderLeft().tags().isEmpty()) p.setShoulderLeft(left);
+            if (!right.tags().isEmpty() && p.shoulderRight().tags().isEmpty()) p.setShoulderRight(right);
+        }
     }
 
     /** Player.respawnEntityOnShoulder: 주인(TamableAnimal)을 이 플레이어로 하고 (x, y + 0.7, z) 에 다시 세운다. */
