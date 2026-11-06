@@ -4,12 +4,12 @@ package org.domi.furnace.api.event.entity;
 
 import org.domi.furnace.api.entity.Entity;
 import org.domi.furnace.api.event.Cancellable;
-import org.domi.furnace.api.world.Block;
+import org.domi.furnace.api.world.BlockSnapshot;
 
 public final class ProjectileHitEvent extends EntityEvent implements Cancellable {
 
     private final Entity hitEntity;
-    private final Block hitBlock;
+    private final BlockSnapshot hitBlock;
     private final String hitFace;
     private boolean cancelled;
 
@@ -19,7 +19,7 @@ public final class ProjectileHitEvent extends EntityEvent implements Cancellable
     @Override
     public void setCancelled(boolean cancelled) { this.cancelled = cancelled; }
 
-    public ProjectileHitEvent(Entity projectile, Entity hitEntity, Block hitBlock, String hitFace) {
+    public ProjectileHitEvent(Entity projectile, Entity hitEntity, BlockSnapshot hitBlock, String hitFace) {
         super(projectile);
         this.hitEntity = hitEntity;
         this.hitBlock = hitBlock;
@@ -28,7 +28,7 @@ public final class ProjectileHitEvent extends EntityEvent implements Cancellable
 
     public Entity hitEntity() { return hitEntity; }
 
-    public Block hitBlock() { return hitBlock; }
+    public BlockSnapshot hitBlock() { return hitBlock; }
 
     /** 맞은 면(down, up, north, south, west, east) — 블록 적중이 아니면 null. */
     public String hitFace() { return hitFace; }

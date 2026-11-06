@@ -642,6 +642,7 @@ public final class World {
     /** announceSleepStatus: 밤을 건너뛸 수 있는 규칙이면 이 차원 모두에게 액션바(전용 서버는 늘 알린다). */
     private void announceSleepStatus(java.util.List<Player> players) {
         if (!canSleepThroughNights()) return;
+        if (!org.domi.furnace.server.config.OperatorOptions.current().announceSleepStatus()) return;   // announce-sleep-status=false
         int pct = levelServices.gameRuleInt("playersSleepingPercentage");
         org.domi.furnace.api.text.Text msg = sleepStatus.areEnoughSleeping(pct)
                 ? org.domi.furnace.api.text.Text.translatable("sleep.skipping_night")

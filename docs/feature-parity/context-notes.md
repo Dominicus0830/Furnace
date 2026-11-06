@@ -892,6 +892,12 @@
 - 남은 region 차이(이번에 손대지 않음): 팬텀·순찰·고양이 스포너는 여전히 region 마다 타이머가 따로다(바닐라는 차원 하나 — 순찰 nextTick·팬텀 nextTick 이 region 수만큼). 돌고래의 플레이어 효과 부여 일부. 명령 블록 체인은 둘째 묶음.
 - 시험: `VillageSiegeTest`(서버 길 3개: 보고 순서로 첫 사람, 늦은 답 버림, 떠남·무응답 재시도), `WanderingTraderTest.serverTimerRunsWithoutPlayersAndResetsChanceOnLateSpawn`. 봇 `tools/bot-test/round8/`: 두 봇을 3000칸 떨어뜨려(서로 다른 region) 둘 다 종 격자 마을·deep_dark(자연 스폰 없음)에 두고 60밤 — 고친 뒤 포위 9밤 모두 먼저 들어온 봇 쪽, 고치기 전 jar 는 10밤 중 2밤이 뒤에 들어온 봇 쪽. 어깨: 콘솔 `/gamemode spectator`·`/damage` 뒤 어깨가 비고 앵무새가 봇 자리(거리 0)에 섰다.
 
+## 2026-11-06 블록·레시피 API (묶음 D1)
+- 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
+- **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
+- 플러그인 레시피는 `PluginRecipes`(소유자·원본 서버 레시피)에 따로 적어 두고 `/reload` 뒤 `ServerCore` 리로드 리스너에서 `reapply` 로 새 매니저에 입힌다(패킷 보내기 전). 변환은 데이터 팩 파서의 검사를 같게 하려고 `recipe/ApiRecipes` 가 서버 `Recipe` 레코드를 직접 만든다(JSON 을 거치지 않는다 — 결과 컴포넌트가 SNBT 라서).
+- 시험 함정: 서버 아이템 레지스트리 `idOf` 는 `minecraft:` 접두가 있어야 한다(없으면 -1 이라 특수 레시피 매칭에서 NPE 처럼 보인다). `Furnace.server()` 는 전역이라 서버 단위 시험에서는 `snapshot.live()`·`BlockEvent.liveBlock()` 을 못 쓴다.
+
 ## 2026-11-06 아이템 컴포넌트 타입 API · 아이템 영속 데이터
 - 플러그인 API `ItemStack`(불변 record, 컴포넌트는 SNBT) 위에 타입 있는 층을 얹었다: `ItemComponent<T>`(id + 값 종류)·`ItemComponents`(26종: 이름·로어·희귀도·수치 8·불괴·마법 부여 2·광택 덮어쓰기·염색·속성 변경치·표시 4·문자열/목록/맵 5)·`ItemComponent.raw(id)`(57종 전부를 SNBT 문자열로).
   `ItemStack.get/has/getOrDefault/with/without`, `persistentData()`, `withPersistentData(콜백)`. 값 타입은 버전 중립(레지스트리 키 문자열·`Text`·record) — 저장 꼴과의 변환은 서버 `ItemSupportImpl`(API 쪽 입구는 `ItemSupport`, `PluginHost` 가 설치).

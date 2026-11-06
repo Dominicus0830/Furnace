@@ -26,10 +26,16 @@ public interface World {
     int loadedChunkCount();
 
     /**
-     * 그 칸의 블록. 소유 region 스레드에서 읽는다. 청크가 로드돼 있지 않으면 empty(청크를 만들지 않는다).
+     * 그 칸의 살아 있는 손잡이. 아무것도 읽지 않고 만들기도 싸다 — 읽기·쓰기는 {@link Block} 의 규칙(소유 스레드 동기, 아니면 Async)을 따른다.
+     * 아무 스레드.
+     */
+    Block block(BlockPos pos);
+
+    /**
+     * 그 칸의 블록 복사본. 소유 region 스레드에서 읽는다. 청크가 로드돼 있지 않으면 empty(청크를 만들지 않는다).
      * 아무 스레드에서 부를 수 있다. 결과를 같은 region 스레드에서 {@code get()} 으로 기다리지 말 것.
      */
-    CompletableFuture<Optional<Block>> blockAt(BlockPos pos);
+    CompletableFuture<Optional<BlockSnapshot>> blockAt(BlockPos pos);
 
     /**
      * 그 칸을 data 로 바꾼다(이웃 갱신 + 클라이언트 방송, 바닐라 setBlock 플래그 11). 소유 region 스레드에서 실행된다.
@@ -42,7 +48,7 @@ public interface World {
      * 동기 읽기 — 호출한 스레드가 그 칸을 가진 region 스레드일 때만 된다(예: 그 region 에서 발화한 이벤트 처리기 안).
      * 아니면 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}.
      */
-    Optional<Block> blockNow(BlockPos pos);
+    Optional<BlockSnapshot> blockNow(BlockPos pos);
 
     /** 그 칸을 가진 region 의 스케줄러. */
     TaskScheduler scheduler(BlockPos pos);
@@ -80,6 +86,19 @@ public interface World {
      * 그 사이 블록이 부서졌으면 IllegalStateException 으로 완료된다.
      */
     CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos);
+
+    // ------------------------------------------------------------------ region 정보
+
+    /**
+     * 그 청크를 가진 region 의 관측 사본. 그 청크의 구역이 어느 region 에도 속하지 않으면 empty. 아무 스레드,
+     * 값은 잰 순간의 것이다(region 은 합쳐지거나 나뉜다).
+     */
+    default java.util.Optional<RegionInfo> regionAt(int chunkX, int chunkZ) { return java.util.Optional.empty(); }
+
+    default java.util.Optional<RegionInfo> regionAt(BlockPos pos) { return regionAt(pos.chunkX(), pos.chunkZ()); }
+
+    /** 이 차원의 살아 있는 region 모두(id 순). */
+    default List<RegionInfo> regions() { return List.of(); }
 
     // ------------------------------------------------------------------ 블록 엔티티 NBT (/data block 과 같은 의미)
 
