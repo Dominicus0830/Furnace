@@ -389,6 +389,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         player.sendSystemMessage(Text.empty().append(e.component()).color(org.domi.furnace.api.text.NamedTextColor.RED), false);
     }
 
+    /** chat.strict-order=false 로 체인에 이어 붙인 순서 어긋난 메시지·명령은 여기서 버린다(알림만 보낸다). */
+    private boolean dropIfOutOfOrder() {
+        if (!player.chat().decoder().consumeOutOfOrder()) return false;
+        handleMessageDecodeFailure(new org.domi.furnace.server.chat.SignedMessageChain.DecodeException(
+                org.domi.furnace.server.chat.SignedMessageChain.DecodeException.OUT_OF_ORDER_CHAT));
+        return true;
+    }
+
     private void handleChat(ByteBuf frame) {
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
@@ -410,6 +418,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 handleMessageDecodeFailure(e);
                 return;
             }
+            if (dropIfOutOfOrder()) return;
             msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
             var events = core.events();
             if (events.hasSubscribers(org.domi.furnace.api.event.player.AsyncChatEvent.class)) {
@@ -422,8 +431,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
                 if (!ev.message().equals(original)) msg = msg.withUnsignedContent(ev.message());
             }
-            core.broadcastChatMessage(msg, p, org.domi.furnace.server.chat.ChatType.CHAT.bind(
-                    org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName()));
+            var bound = org.domi.furnace.server.chat.ChatType.CHAT.bind(
+                    org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName());
+            if (org.domi.furnace.server.config.OperatorOptions.current().unsignedChatAsSystem()) core.broadcastChatAsSystem(msg, bound);
+            else core.broadcastChatMessage(msg, p, bound);
             detectRateSpam();
         });
     }
@@ -520,6 +531,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 handleMessageDecodeFailure(e);
                 return;
             }
+            if (dropIfOutOfOrder()) return;
             // 서명 체인은 원문으로 진행했다 — 플러그인이 취소했으면 여기서 끝, 바꿨으면 서명 없이 바뀐 명령을 실행한다.
             if (changed == null) {
                 detectRateSpam();
@@ -732,7 +744,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     private void onEnterConfiguration(ChannelHandlerContext ctx) {
-        send(ctx, new BrandPayload(org.domi.furnace.server.FurnaceMain.SERVER_BRAND));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
+        send(ctx, new BrandPayload(org.domi.furnace.server.config.OperatorOptions.current().serverBrand()));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
         var links = serverLinks();
         if (!links.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerLinksPacket(links, false));   // 바닐라 순서: brand → 서버 링크 → 기능 플래그
         send(ctx, FeatureFlags.vanilla());

@@ -16,6 +16,8 @@ public final class ConfigLoader {
 
     private ConfigLoader() {}
 
+    static Logger log() { return log; }
+
     public static Config load(Path path) {
         return load(path, log::warn);
     }
