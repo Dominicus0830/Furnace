@@ -220,6 +220,39 @@ class EntityWorldApiTest {
         assertTrue(log.contains("death:minecraft:cow"), log.toString());
     }
 
+    /** 피해 계산 단계 이벤트: 플러그인 핸들·원인이 실리고, 바꾼 단계가 체력에 반영된다. 구독을 풀면 바닐라 계산. */
+    @Test
+    void damageCalculateEventExposesStagesAndAppliesChanges() throws Exception {
+        List<String> log = new ArrayList<>();
+        var bus = host.eventsImpl();
+        bus.subscribe(plugin, org.domi.furnace.api.event.entity.EntityDamageCalculateEvent.class, e -> {
+            log.add(e.entity().type() + ":" + e.cause() + ":" + e.base() + ":" + (e.attacker() == null ? "-" : e.attacker().type()));
+            e.setBase(e.base() * 2f);
+            e.skip(org.domi.furnace.api.event.entity.DamageStage.ARMOR);
+        });
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            var level = r.level();
+            Cow cow = new Cow(level, level.nextEntityId());
+            cow.moveTo(8, -50, 8, 0, 0);
+            level.addFreshEntity(cow);
+            Cow attacker = new Cow(level, level.nextEntityId());
+            attacker.moveTo(9, -50, 8, 0, 0);
+            level.addFreshEntity(attacker);
+            float h0 = cow.health();
+            cow.hurtBy(new org.domi.furnace.server.entity.Entity.Damage("mob_attack", false, false, false), 3f, attacker);
+            float lost = h0 - cow.health();
+            bus.unregisterAll(plugin);
+            Cow plain = new Cow(level, level.nextEntityId());
+            plain.moveTo(10, -50, 8, 0, 0);
+            level.addFreshEntity(plain);
+            plain.hurt(new org.domi.furnace.server.entity.Entity.Damage("mob_attack", false, false, false), 3f);
+            return new Object[] {lost, plain.maxHealth() - plain.health()};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(6f, (float) out[0], 0f, "base 2배 + 방어력 건너뛰기");
+        assertEquals(3f, (float) out[1], 0f, "구독 해제 뒤는 바닐라(소는 방어력 0)");
+        assertEquals(List.of("minecraft:cow:minecraft:mob_attack:3.0:minecraft:cow"), log);
+    }
+
     @Test
     void entityHandleMutationsRunOnOwningRegionAndRefreshSeesNewState() throws Exception {
         UUID[] id = new UUID[1];

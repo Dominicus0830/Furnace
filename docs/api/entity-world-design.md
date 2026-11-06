@@ -60,6 +60,7 @@ Bukkit 은 "메인 스레드 한 개"를 가정하지만 Furnace 는 region 스�
 | 이벤트 | 취소 | 발화 스레드 | 서버 발화 지점 |
 |---|---|---|---|
 | `EntityDamageEvent` | O | 맞는 엔티티의 region | `LivingEntity.hurtBy` 시작 (취소 = 피해 안 받음, `false` 반환). `damage` 는 방어 계산 **전** 원본 값 |
+| `EntityDamageCalculateEvent` | X | 맞는 엔티티의 region | `LivingEntity.actuallyHurt`·`PlayerVitals.actuallyHurt` (체력을 깎기 직전, 피해 > 0 이고 구독자가 있을 때만). 방어력→저항→보호 인챈트→엔티티 고유(마녀)→흡수 체력 단계별로 input/output/줄인 양을 읽고, 줄이는 양·적용 여부·시작 값(base)을 바꾼다. 기본은 바닐라와 비트 단위로 같다. 상세는 아래 4.1 |
 | `EntityDeathEvent` | X | 죽는 엔티티의 region | `LivingEntity.die` 의 `dead = true` 직후 |
 | `EntitySpawnEvent` | O | 넣는 레벨의 region | `ChunkLevel.addFreshEntity` — 목록에 넣은 **뒤** 발화하고 취소하면 목록에서 빼고 레벨을 원래대로(추적 시작 전). 승객 묶음(`addFreshEntityWithPassengers`)은 하나라도 취소하면 전부 넣지 않는다(전부 아니면 전무). 청크 로드로 되살린 엔티티는 제외 |
 | `PlayerMoveEvent` | O | 플레이어의 region | `Region.processMoves` 검증 통과 직후 (취소 = 서버 위치를 이전 자리로 되돌리고 검증 거부와 같은 방식으로 보정 텔레포트 `Player.correctTo` — `PlayerTeleportEvent` 를 거치지 않는다) |
@@ -74,6 +75,19 @@ Bukkit 은 "메인 스레드 한 개"를 가정하지만 Furnace 는 region 스�
 | `ChunkUnloadEvent` | X | 그 청크의 region | `Region.evictIdleChunks` 에서 내리기 직전 이후 |
 
 공통 규칙: 서버는 `hasSubscribers(type)` 를 먼저 묻고 없으면 이벤트 객체·핸들을 만들지 않는다. `gameEvents()` 는 구독자가 없으면 정적 상수를 돌려주는 `GameEvents.NONE` 이라 호출 지점 비용은 가상 호출 한 번과 boolean 하나다.
+
+### 4.1 피해 계산 단계 (`EntityDamageCalculateEvent`)
+
+```
+base ─ARMOR→ ─RESISTANCE→ ─ENCHANTMENT→ ─ENTITY→ ─ABSORPTION→ finalDamage(체력에서 깎이는 값)
+```
+- `EntityDamageEvent`(취소·원본 값 수정)는 그대로다. 그 뒤, 무적 시간·난이도 배율·방패를 거친 값이 `base` 로 들어와 이 이벤트가 불린다. 방패가 전부 막아 피해가 0 이거나 늑대 갑옷이 대신 받는 경우는 불리지 않는다.
+- 단계마다 `input`·`output`·`reduction`(= input − output)·`applies`(바닐라 조건: bypasses_armor·bypasses_effects·bypasses_resistance·bypasses_enchantments 태그, 저항 효과·보호 인챈트 유무)를 읽는다. `ENTITY` 는 엔티티 고유 경감(1.21.1 은 마녀의 마법 85% 감소), `ABSORPTION` 의 reduction 이 흡수 체력에서 빠지는 양이다.
+- 바꾸기: `setBase`(모든 단계 다시 계산), `setReduction`(그 단계가 줄이는 양을 고정), `scaleReduction`(바닐라 양에 배율), `setApplied`/`skip`(적용 여부 강제 — 바닐라가 건너뛰는 피해에 방어력을 쳐 줄 수도 있다), `reset`. 바꾼 단계 뒤는 새 input 으로 바닐라 식을 다시 계산한다. 흡수 단계는 가진 흡수 체력을 넘게 줄이지 못한다.
+- 아무것도 안 바꾸면 바닐라 경로와 **비트 단위로 같다**(시험 `DamageStagesTest` 가 피해 종류·양 조합으로 비교). 구독자가 없으면 규칙 객체도 만들지 않는다.
+- 방어구 내구도는 이벤트 전에 이미 닳았다(바닐라 순서 — 방어력은 닳은 뒤 값). `base` 를 바꿔도 내구도 소모는 안 바뀐다. 플레이어는 이 이벤트가 `PlayerVitals` 잠금 안에서 불리므로 처리기에서 오래 걸리는 일을 하지 말 것.
+- 버전 중립: 단계 이름은 개념이고 식은 서버가 넘기는 `DamageRules` 가 가진다. 마인크래프트 버전이 바뀌어 식이 달라져도 API 는 그대로다.
+- 시험: `EntityDamageCalculateEventTest`(api 8), `DamageStagesTest`(server 8), `EntityWorldApiTest.damageCalculateEventExposesStagesAndAppliesChanges`, 봇 `tools/bot-test/round9/damage.js`(8).
 
 ## 5. 서버 구현 구조
 
@@ -112,7 +126,7 @@ ApiConvert              : 서버 ItemStack ↔ API ItemStack, 서버 Player → 
 2. 엔티티 조회·스폰 API(`World.spawn`, `World.entities(region)`), 엔티티 AI/속성/효과/탑승.
 3. `LivingEntity` 의 `Player` 외 구현이 `damage()`/`heal()`/`getEquipment()` 를 갖게 하기. `Mob`, `Item`(드롭 엔티티) 타입.
 4. 블록 엔티티·상자 컨테이너를 `Inventory` 로 노출, `InventoryView`/`InventoryHolder`, 클릭 후 결과 아이템 수정.
-5. `EntityDamageEvent` 최종 피해(방어/인챈트 적용 후)와 `DamageCause` 별 하위 이벤트(`EntityDamageByEntityEvent` 등).
+5. ~~`EntityDamageEvent` 최종 피해(방어/인챈트 적용 후)~~ — `EntityDamageCalculateEvent`(단계별 계산, 2026-11-06)로 해결. `DamageCause` 별 하위 이벤트(`EntityDamageByEntityEvent` 등)는 남음(계산 이벤트에 `attacker()`·`directEntity()` 가 있다).
 6. `PlayerTeleportEvent` 차원 이동 경로·`TeleportCause` 구분, 플레이어 핸들 `Player.world()` 정확한 차원(지금은 `Location.world` 사용).
 7. `InventoryOpenEvent` 를 상자·엔티티 컨테이너·상인·말 인벤토리 경로에도 연결.
 8. `PlayerInteractEvent` 의 LEFT_CLICK, 엔티티 상호작용(`PlayerInteractEntityEvent`).

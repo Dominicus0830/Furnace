@@ -35,6 +35,8 @@ class PlayerVitalsTest {
         public void broadcastAll(Packet packet) {}
         List<Packet> trackerPackets = new ArrayList<>();
         public void broadcastToTrackers(int entityId, Packet packet) { trackerPackets.add(packet); }
+        org.domi.furnace.server.plugin.GameEvents events = org.domi.furnace.server.plugin.GameEvents.NONE;
+        public org.domi.furnace.server.plugin.GameEvents gameEvents() { return events; }
     }
 
     private final EmbeddedChannel channel = new ConcurrentEmbeddedChannel();

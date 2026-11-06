@@ -350,7 +350,7 @@
 | `EntityTickEvent` | 엔티티 틱 (비활성화·감속) | C E |
 | `EntityMoveEvent` | 몹 이동 | C E |
 | `EntityDamageEvent` | 피해 (원인, 최종 데미지 계산 단계 노출) | C M E |
-| `EntityDamageCalculateEvent` | 데미지 공식 각 단계(방어력, 인챈트, 저항) 개입 | M E |
+| `EntityDamageCalculateEvent` | 데미지 공식 각 단계(방어력, 인챈트, 저항) 개입 — **구현됨(2026-11-06, `docs/api/entity-world-design.md` 4.1)** | M E |
 | `EntityKnockbackEvent` | 넉백 벡터 수정 | C M E |
 | `EntityDeathEvent` | 사망 (드롭, 경험치 수정) | M E |
 | `EntityTargetEvent` | 몹이 타깃 선택 | C M E |

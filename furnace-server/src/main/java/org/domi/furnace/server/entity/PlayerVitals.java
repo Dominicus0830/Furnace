@@ -691,14 +691,23 @@ public final class PlayerVitals {
 
     /** 바닐라 Player.actuallyHurt: 방어구(내구도 소모 후 CombatRules) → 저항 효과 → 보호 인챈트 → 흡수 → 소모 → 기록 → 체력. 몹과 같은 CombatRules. */
     private void actuallyHurt(DamageType type, float amount, Rider causing, Rider direct) {
-        if (!type.bypassesArmor()) {   // getDamageAfterArmorAbsorb: 방어구 내구도를 깎고 CombatRules.getDamageAfterAbsorb
-            player.hurtArmor(amount);   // 바닐라 순서: 내구도를 먼저 깎고(깨지면 빠진 뒤) 방어력을 읽는다
-            float armor = player.armorValue(), toughness = player.armorToughness();
-            amount = CombatRules.getDamageAfterAbsorb(amount, armor, toughness, EnchantEffects.weaponOf(direct));
+        if (!type.bypassesArmor()) player.hurtArmor(amount);   // getDamageAfterArmorAbsorb: 방어구 내구도를 먼저 깎는다(깨지면 빠진 뒤 방어력을 읽는다 — 바닐라 순서)
+        float afterAbsorb;
+        var damageEvents = env.gameEvents();
+        if (amount > 0.0f && damageEvents.wantsDamageCalc()) {   // 플러그인 EntityDamageCalculateEvent: 단계마다 바닐라 식 + 플러그인이 바꾼 값
+            var calc = damageEvents.playerDamageCalc(player, type.key(), causing, direct, amount, absorption, new StageRules(type, direct));
+            float beforeAbsorb = calc.input(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
+            afterAbsorb = calc.output(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
+            setAbsorptionLocked(absorption - (beforeAbsorb - afterAbsorb));
+        } else {
+            if (!type.bypassesArmor()) {   // CombatRules.getDamageAfterAbsorb
+                float armor = player.armorValue(), toughness = player.armorToughness();
+                amount = CombatRules.getDamageAfterAbsorb(amount, armor, toughness, EnchantEffects.weaponOf(direct));
+            }
+            amount = getDamageAfterMagicAbsorb(type, amount);
+            afterAbsorb = Math.max(amount - absorption, 0.0f);
+            setAbsorptionLocked(absorption - (amount - afterAbsorb));
         }
-        amount = getDamageAfterMagicAbsorb(type, amount);
-        float afterAbsorb = Math.max(amount - absorption, 0.0f);
-        setAbsorptionLocked(absorption - (amount - afterAbsorb));
         if (afterAbsorb != 0.0f) {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
             combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct),
@@ -707,6 +716,43 @@ public final class PlayerVitals {
             var lv = player.currentLevel;   // 바닐라 Player.actuallyHurt 끝의 gameEvent(ENTITY_DAMAGE)
             if (lv != null) lv.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE,
                     new Vec3(player.x(), player.y(), player.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
+        }
+    }
+
+    /** 피해 계산 단계 이벤트에 넘기는 바닐라 식 — 플레이어의 지금 방어력·효과·방어구로 계산한다. 엔티티 고유 경감(ENTITY)은 없다. */
+    private final class StageRules implements org.domi.furnace.api.event.entity.DamageRules {
+        private final DamageType type;
+        private final ItemStack weapon;
+        private final MobEffectInstance resistance;
+        private final float protection;
+
+        StageRules(DamageType type, Rider direct) {
+            this.type = type;
+            this.weapon = EnchantEffects.weaponOf(direct);
+            this.resistance = effects.get(MobEffect.RESISTANCE);
+            PlayerInventory inv = player.inventory();
+            this.protection = CombatRules.damageProtection(type.key(), inv.get(5), inv.get(6), inv.get(7), inv.get(8));
+        }
+
+        @Override
+        public boolean applies(org.domi.furnace.api.event.entity.DamageStage stage) {
+            return switch (stage) {
+                case ARMOR -> !type.bypassesArmor();
+                case RESISTANCE -> resistance != null && !type.bypassesEffects() && !type.bypassesResistance();
+                case ENCHANTMENT -> protection > 0.0f && !type.bypassesEffects() && !type.bypassesEnchantments();
+                case ENTITY -> false;
+                case ABSORPTION -> true;
+            };
+        }
+
+        @Override
+        public float apply(org.domi.furnace.api.event.entity.DamageStage stage, float input) {
+            return switch (stage) {
+                case ARMOR -> CombatRules.getDamageAfterAbsorb(input, player.armorValue(), player.armorToughness(), weapon);
+                case RESISTANCE -> resistance == null ? input : CombatRules.afterResistance(input, resistance.amplifier());
+                case ENCHANTMENT -> protection > 0.0f ? CombatRules.getDamageAfterMagicAbsorb(input, protection) : input;
+                case ENTITY, ABSORPTION -> input;
+            };
         }
     }
 

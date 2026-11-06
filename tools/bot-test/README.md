@@ -27,6 +27,7 @@ srv/stop.sh $D
   `pr5*.js` 플러그인 API 2단계(SamplePlugin, 1 → 재시작 → 2), `pr7.js` 펫 낙하 메시지, `pr8.js <차원> <틱>` 특수 스포너, `base1.js`·`base2.js` 기존 항목.
 - `round4/ev.js` 플러그인 API 3단계 이벤트 33항목(시험 플러그인 `round4/probe` 를 `plugins/` 에 넣고 띄운다: `javac -cp furnace-api.jar -d out round4/probe/EventProbe.java && cp round4/probe/furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`).
 - `round5/ev.js` 플러그인 API 3단계 둘째 묶음(블록·인벤토리 이벤트) 31항목 — 시험 플러그인 `round5/probe`(BlockEventProbe, `/evcancel`·`/evmode`)를 위와 같은 방법으로 묶어 넣는다.
+- `round9/damage.js` 피해 계산 단계 이벤트 8항목 — 시험 플러그인 `round9/probe`(DamageProbe, `/dmgmode`)를 같은 방법으로 묶어 넣는다. 체력 비교는 `naturalRegeneration` 을 끄고.
 - `round6/` user-todo 정리용 6차(시야 거리·바람 구슬·철퇴·장착 소리·포탈·양조·스트라이더·습격·돌고래·투사체) — `round6/README.md`.
 - `round7/conduit.js` 전달체(conduit) 활성화·전달체의 힘·적대 몹 공격 — `round7/README.md`.
 - `probe-plugin`: `javac -cp furnace-api.jar -d out probe/ProbePlugin.java && cp furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`

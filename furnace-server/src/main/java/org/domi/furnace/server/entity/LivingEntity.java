@@ -666,19 +666,67 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     protected void actuallyHurt(Damage source, float amount) {
-        amount = getDamageAfterArmorAbsorb(source, amount);
-        amount = getDamageAfterMagicAbsorb(source, amount);
-        // btn.f: 흡수 체력을 먼저 깎고 남은 값이 0 이 아닐 때만 체력·전투 기록·ENTITY_DAMAGE
-        float afterAbsorb = Math.max(amount - absorptionAmount, 0.0F);
-        absorptionAmount = Math.max(absorptionAmount - (amount - afterAbsorb), 0.0F);
+        Rider causing = hurtAttacker instanceof Rider r ? r : null;
+        Rider direct = pendingDirect != null ? pendingDirect : causing;
+        var damageEvents = level.gameEvents();
+        float afterAbsorb;
+        if (amount > 0.0F && damageEvents.wantsDamageCalc()) {   // 플러그인 EntityDamageCalculateEvent: 단계마다 바닐라 식 + 플러그인이 바꾼 값
+            var calc = damageEvents.entityDamageCalc(this, source.type(), causing, direct, amount, absorptionAmount, new StageRules(source));
+            float beforeAbsorb = calc.input(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
+            afterAbsorb = calc.output(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
+            absorptionAmount = Math.max(absorptionAmount - (beforeAbsorb - afterAbsorb), 0.0F);
+        } else {
+            amount = getDamageAfterArmorAbsorb(source, amount);
+            amount = getDamageAfterMagicAbsorb(source, amount);
+            // btn.f: 흡수 체력을 먼저 깎고 남은 값이 0 이 아닐 때만 체력·전투 기록·ENTITY_DAMAGE
+            afterAbsorb = Math.max(amount - absorptionAmount, 0.0F);
+            absorptionAmount = Math.max(absorptionAmount - (amount - afterAbsorb), 0.0F);
+        }
         if (afterAbsorb != 0.0F) {
-            Rider causing = hurtAttacker instanceof Rider r ? r : null;
-            Rider direct = pendingDirect != null ? pendingDirect : causing;
             // alive 는 피해 전 isAlive()(바닐라와 같다). 낙하 위치는 CombatTracker.recordDamage 처럼 맞은 순간의 것
             getCombatTracker().recordDamage(DamageType.byKey(source.type()), afterAbsorb, currentFallLocation(), fallDistance, tickCount, health() > 0.0F,
                     org.domi.furnace.server.entity.damage.DamageSource.nameOf(causing), org.domi.furnace.server.entity.damage.DamageSource.nameOf(direct));
             setHealth(health() - afterAbsorb);
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE);   // btn:1542
+        }
+    }
+
+    /** 피해 계산 단계 이벤트에 넘기는 바닐라 식 — 이 엔티티의 지금 속성·효과·장비로 계산한다. */
+    private final class StageRules implements org.domi.furnace.api.event.entity.DamageRules {
+        private final Damage source;
+        private final org.domi.furnace.server.effect.MobEffectInstance resistance;
+        private final float protection;
+
+        StageRules(Damage source) {
+            this.source = source;
+            this.resistance = getEffect(org.domi.furnace.server.effect.MobEffect.RESISTANCE);
+            this.protection = org.domi.furnace.server.entity.damage.CombatRules.damageProtection(source.type(),
+                    getItemBySlot(EquipmentSlot.HEAD), getItemBySlot(EquipmentSlot.CHEST), getItemBySlot(EquipmentSlot.LEGS), getItemBySlot(EquipmentSlot.FEET), getItemBySlot(EquipmentSlot.BODY));
+        }
+
+        @Override
+        public boolean applies(org.domi.furnace.api.event.entity.DamageStage stage) {
+            return switch (stage) {
+                case ARMOR -> !DamageType.keyHasTag(source.type(), "bypasses_armor");
+                case RESISTANCE -> resistance != null && !DamageType.keyHasTag(source.type(), "bypasses_effects")
+                        && !DamageType.keyHasTag(source.type(), "bypasses_resistance");
+                case ENCHANTMENT -> protection > 0.0F && !DamageType.keyHasTag(source.type(), "bypasses_effects")
+                        && !DamageType.keyHasTag(source.type(), "bypasses_enchantments");
+                case ENTITY -> entityStageApplies(source);
+                case ABSORPTION -> true;
+            };
+        }
+
+        @Override
+        public float apply(org.domi.furnace.api.event.entity.DamageStage stage, float input) {
+            return switch (stage) {
+                case ARMOR -> org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterAbsorb(input,
+                        (float) attributeValue(Attribute.ARMOR), (float) attributeValue(Attribute.ARMOR_TOUGHNESS), source.weapon());
+                case RESISTANCE -> resistance == null ? input : org.domi.furnace.server.entity.damage.CombatRules.afterResistance(input, resistance.amplifier());
+                case ENCHANTMENT -> protection > 0.0F ? org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterMagicAbsorb(input, protection) : input;
+                case ENTITY -> entityStage(source, input);
+                case ABSORPTION -> input;
+            };
         }
     }
 
@@ -689,8 +737,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 (float) attributeValue(Attribute.ARMOR), (float) attributeValue(Attribute.ARMOR_TOUGHNESS), source.weapon());
     }
 
-    /** LivingEntity.getDamageAfterMagicAbsorb: 저항 효과와 방어구 보호 인챈트. */
+    /** LivingEntity.getDamageAfterMagicAbsorb: 저항 효과, 방어구 보호 인챈트, 그다음 엔티티 고유 경감(마녀). */
     protected float getDamageAfterMagicAbsorb(Damage source, float amount) {
+        amount = afterResistanceAndProtection(source, amount);
+        return entityStageApplies(source) ? entityStage(source, amount) : amount;
+    }
+
+    private float afterResistanceAndProtection(Damage source, float amount) {
         if (DamageType.keyHasTag(source.type(), "bypasses_effects")) return amount;
         var res = getEffect(org.domi.furnace.server.effect.MobEffect.RESISTANCE);
         if (res != null && !DamageType.keyHasTag(source.type(), "bypasses_resistance")) {
@@ -703,6 +756,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (prot > 0.0F) amount = org.domi.furnace.server.entity.damage.CombatRules.getDamageAfterMagicAbsorb(amount, prot);
         return amount;
     }
+
+    /** 엔티티 고유 경감이 이 피해에 적용되는가(보호 인챈트 뒤, 흡수 앞 — 바닐라에서는 마녀의 getDamageAfterMagicAbsorb 끝). */
+    protected boolean entityStageApplies(Damage source) { return false; }
+
+    /** 엔티티 고유 경감 식. entityStageApplies 가 참일 때 불린다. */
+    protected float entityStage(Damage source, float amount) { return amount; }
 
     /**
      * LivingEntity.checkTotemDeathProtection(1.21.1): bypasses_invulnerability 가 아니면 주 손 → 보조 손 순으로 불사의 토템을 찾아

@@ -869,3 +869,12 @@
 - 차이(region): 대상이 다른 region 으로 넘어가면 이 스레드가 건드리지 않고 놓는다(8칸 안이라 경계 근처에서만).
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
+
+## 2026-11-06 피해 계산 단계 API (`EntityDamageCalculateEvent`)
+- 위시리스트의 `EntityDamageCalculateEvent`/`DamageModifierEvent` 를 하나로 냈다. 방어력→저항→보호 인챈트→엔티티 고유(마녀)→흡수 체력 단계별로 읽고 바꾼다(`docs/api/entity-world-design.md` 4.1). 기본 결과는 바닐라와 비트 단위로 같다.
+- 서버 쪽: `LivingEntity.actuallyHurt`·`PlayerVitals.actuallyHurt` 가 `GameEvents.wantsDamageCalc()` 가 참일 때만 `StageRules`(그 엔티티의 현재 속성·효과·장비로 바닐라 식을 계산)를 만들어 이벤트를 부르고, 구독자가 없으면 예전 경로 그대로. 흡수 체력 소비는 `input(ABSORPTION) - output(ABSORPTION)` 으로 같은 식.
+- 마녀의 `getDamageAfterMagicAbsorb` 오버라이드는 `LivingEntity.entityStageApplies/entityStage` 훅으로 바꿨다(결과 같음: 보호 인챈트 뒤, bypasses_effects 여도 적용).
+- 방어구 내구도(`Player.hurtArmor`)는 이벤트 전에 닳는다 — 바닐라가 내구도를 먼저 깎고 방어력을 읽는 순서를 지키려는 것. 그래서 `base` 를 바꿔도 내구도 소모는 안 바뀐다.
+- 알아 둘 것: bypass 태그 피해(예: `generic`)는 방어력 단계가 `applies=false` 다. 봇 시험에서 `generic` 으로 방어력 시험을 하다 헷갈렸다 — 방어력 시험은 `cactus`·`mob_attack` 으로.
+- 봇 함정: 피해 직후 체력을 읽을 때 `naturalRegeneration` 을 꺼야 한다(체력 비교가 틀어진다).
+- 시험: api 8 + server `DamageStagesTest` 8 + `EntityWorldApiTest` 1, 봇 `tools/bot-test/round9/damage.js` 8항목 전부 통과.

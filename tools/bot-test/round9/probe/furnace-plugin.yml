@@ -1,0 +1,7 @@
+name: DamageProbe
+version: 1.0.0
+main: probe.DamageProbe
+description: 피해 계산 단계 이벤트 봇 시험
+commands:
+  dmgmode:
+    description: 단계 바꾸기 모드(none, noarmor, halfarmor, double, noabsorb, forcearmor, noresist, none)
