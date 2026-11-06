@@ -143,6 +143,81 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public void resetTitle() { p.send(new ClearTitles(true)); }
 
+    // 플러그인 보스바·사이드바·메뉴
+
+    private final java.util.concurrent.ConcurrentHashMap<org.domi.furnace.api.bossbar.BossBar, BossBarBinding> bossBars = new java.util.concurrent.ConcurrentHashMap<>();
+    private SidebarBinding sidebar;   // this 로 동기화
+
+    @Override
+    public void showBossBar(org.domi.furnace.api.bossbar.BossBar bar) {
+        java.util.Objects.requireNonNull(bar, "bar");
+        if (p.isDisconnected()) return;
+        BossBarBinding[] fresh = new BossBarBinding[1];
+        bossBars.computeIfAbsent(bar, b -> fresh[0] = new BossBarBinding(p, b));
+        if (fresh[0] != null) fresh[0].show();
+    }
+
+    @Override
+    public void hideBossBar(org.domi.furnace.api.bossbar.BossBar bar) {
+        BossBarBinding b = bossBars.remove(bar);
+        if (b != null) b.hide();
+    }
+
+    @Override
+    public synchronized void showSidebar(org.domi.furnace.api.scoreboard.Sidebar s) {
+        java.util.Objects.requireNonNull(s, "sidebar");
+        if (p.isDisconnected()) return;
+        if (sidebar != null) {
+            if (sidebar.sidebar() == s) return;
+            sidebar.hide(null);   // 곧 다른 사이드바가 걸리니 서버 것을 되살리지 않는다
+        }
+        sidebar = new SidebarBinding(p, s);
+        sidebar.show();
+    }
+
+    @Override
+    public synchronized void hideSidebar(org.domi.furnace.api.scoreboard.Sidebar s) {
+        if (sidebar == null || sidebar.sidebar() != s) return;
+        var real = host.core().scoreboard().getDisplayObjective(org.domi.furnace.server.scores.DisplaySlot.SIDEBAR);
+        sidebar.hide(real);
+        sidebar = null;
+    }
+
+    @Override
+    public void openMenu(org.domi.furnace.api.menu.Menu menu) {
+        java.util.Objects.requireNonNull(menu, "menu");
+        if (p.isDisconnected()) return;
+        var session = new MenuSession(this, menu, host);   // 모르는 아이템이면 여기서 IllegalArgumentException
+        var ih = p.inventoryHost();
+        if (ih != null) ih.openPluginMenu(session);
+    }
+
+    @Override
+    public void closeMenu() {
+        var ih = p.inventoryHost();
+        if (ih == null) return;
+        ih.execute(() -> {
+            var m = p.containerMenu();
+            if (m != null && m.pluginOwner() instanceof MenuSession ms && ms.player() == this) ih.closeContainer(m);
+        });
+    }
+
+    @Override
+    public org.domi.furnace.api.menu.Menu currentMenu() {
+        var m = p.containerMenu();
+        return m != null && m.pluginOwner() instanceof MenuSession ms && ms.player() == this ? ms.api() : null;
+    }
+
+    /** 접속이 끊겼다 — 보스바·사이드바가 쥔 구독을 푼다(패킷 없이). */
+    public void dispose() {
+        for (BossBarBinding b : bossBars.values()) b.detach();
+        bossBars.clear();
+        synchronized (this) {
+            if (sidebar != null) sidebar.detach();
+            sidebar = null;
+        }
+    }
+
     @Override
     public void sendPlayerListHeaderAndFooter(Text header, Text footer) { p.send(new TabListHeaderFooter(p.localize(header), p.localize(footer))); }
 

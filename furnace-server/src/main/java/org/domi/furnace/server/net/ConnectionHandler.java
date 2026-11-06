@@ -989,6 +989,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openHorseInventory(p, horse, container, columns));
             }
 
+            public void openPluginMenu(org.domi.furnace.server.plugin.MenuSession session) {
+                ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openPluginMenu(p, session));
+            }
+
+            public void execute(Runnable task) { ctx.channel().eventLoop().execute(task); }
+
             public void openEntityContainer(org.domi.furnace.server.entity.ContainerEntity entity) {
                 // createMenu: 전리품 표가 있으면 관전자는 못 열고, 아니면 연 플레이어로 표를 푼다(엔티티 region 에서)
                 boolean blocked = entity.lootTable() != null && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR;
@@ -2084,6 +2090,22 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
             menu.setSynchronizer(menus);
+        }
+    }
+
+    /** 플러그인 Menu 화면 열기: 열린 창을 닫고 → 번호를 올리고 → 메뉴 → InventoryOpenEvent(취소되면 그만) → open_screen. */
+    private void openPluginMenu(Player p, org.domi.furnace.server.plugin.MenuSession session) {
+        if (player != p || p.isDisconnected()) return;
+        synchronized (p.menuLock()) {
+            if (p.hasOpenContainer()) closeContainer(p);
+            int containerId = p.nextContainerCounter();
+            var menu = session.createMenu(containerId, p.inventoryMenu().inventoryContainer(), menus);
+            if (login.core != null && !login.core.gameEvents().inventoryOpen(p, menu)) return;
+            send(ctx, new OpenScreen(containerId, menuTypeId(menu), p.localize(session.title())));
+            menu.addSlotListener(menus);
+            p.setContainerMenu(menu);
+            menu.setSynchronizer(menus);
+            session.opened();
         }
     }
 
@@ -3522,6 +3544,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg)).quitMessage();
                 }
                 core.customBossEvents().onPlayerDisconnect(p);
+                if (p.apiHandle() instanceof org.domi.furnace.server.plugin.PlayerHandle ph) ph.dispose();   // 플러그인 보스바·사이드바 구독 정리
                 world.playerOffline(p.entityId());   // 방송 대상에서 먼저 뺀다(바닐라: 퇴장자는 자기 퇴장 메시지를 받지 않는다)
                 p.markDisconnected();
                 if (msg != null) core.broadcastSystemMessage(msg, false);

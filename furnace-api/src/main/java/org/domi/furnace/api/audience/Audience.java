@@ -23,6 +23,17 @@ public interface Audience {
     /** 탭 목록 머리말·꼬리말. */
     default void sendPlayerListHeaderAndFooter(Text header, Text footer) {}
 
+    /** 보스바를 보여 준다(이미 보이면 아무 일도 없다). 보스바를 바꾸면 보는 사람 화면이 따라온다. */
+    default void showBossBar(org.domi.furnace.api.bossbar.BossBar bar) {}
+
+    default void hideBossBar(org.domi.furnace.api.bossbar.BossBar bar) {}
+
+    /** 화면 오른쪽 점수판을 보여 준다(이미 다른 사이드바가 보이면 바뀐다). 사이드바를 바꾸면 보는 사람 화면이 따라온다. */
+    default void showSidebar(org.domi.furnace.api.scoreboard.Sidebar sidebar) {}
+
+    /** 이 사이드바가 보이는 중이면 숨긴다. */
+    default void hideSidebar(org.domi.furnace.api.scoreboard.Sidebar sidebar) {}
+
     /** 여러 대상을 하나로 — 같은 메시지는 한 번만 인코딩된다(Text 가 인코딩을 품는다). */
     static Audience audience(Collection<? extends Audience> members) {
         return new Audience() {
@@ -31,6 +42,10 @@ public interface Audience {
             public void showTitle(Title t) { for (Audience a : members) a.showTitle(t); }
             public void clearTitle() { for (Audience a : members) a.clearTitle(); }
             public void resetTitle() { for (Audience a : members) a.resetTitle(); }
+            public void showBossBar(org.domi.furnace.api.bossbar.BossBar b) { for (Audience a : members) a.showBossBar(b); }
+            public void hideBossBar(org.domi.furnace.api.bossbar.BossBar b) { for (Audience a : members) a.hideBossBar(b); }
+            public void showSidebar(org.domi.furnace.api.scoreboard.Sidebar s) { for (Audience a : members) a.showSidebar(s); }
+            public void hideSidebar(org.domi.furnace.api.scoreboard.Sidebar s) { for (Audience a : members) a.hideSidebar(s); }
             public void sendPlayerListHeaderAndFooter(Text h, Text f) { for (Audience a : members) a.sendPlayerListHeaderAndFooter(h, f); }
         };
     }
