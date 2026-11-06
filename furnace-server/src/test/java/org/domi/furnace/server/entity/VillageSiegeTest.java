@@ -35,6 +35,7 @@ class VillageSiegeTest {
         }
 
         @Override public boolean isCloseToVillage(Pos pos, int i) { return village; }
+        @Override public long gameTime() { return day; }
         @Override public int getSkyLight(Pos pos) { return 0; }
         @Override public int getBlockLight(Pos pos) { return 0; }
         @Override public int getRawBrightness(Pos pos, int skyDarken) { return 0; }
@@ -169,5 +170,128 @@ class VillageSiegeTest {
         // 바닐라: finalizeSpawn(getCurrentDifficultyAt(zombie.blockPosition())) 이 moveTo 보다 먼저 — 아직 원점
         assertEquals(List.of(new Pos(0, 0, 0)), level.difficultyAt);
         assertNotEquals(new Pos(0, 0, 0), zombies(level).get(0).blockPosition());
+    }
+
+    // ------------------------------------------------------------------ 서버 길: 차원 하나의 포위, region 보고, 넘긴 일은 늦게 돈다
+
+    private static Player player(int eid, double x, double z) {
+        var p = new Player(eid, java.util.UUID.randomUUID(), "P" + eid, new org.domi.furnace.server.ConcurrentEmbeddedChannel());
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
+        p.applyMove(x, -60, z, 0, 0, true);
+        return p;
+    }
+
+    /** 넘긴 일을 모아 두었다가 run 에서 돌리는 Host(서버의 다음 region 틱 흉내). */
+    static final class Deferred implements VillageSiege.Host {
+        final SiegeLevel level;
+        final List<Player> players;
+        final RandomSource roll;
+        final java.util.ArrayDeque<Runnable> work = new java.util.ArrayDeque<>();
+
+        Deferred(SiegeLevel level, List<Player> players, RandomSource roll) {
+            this.level = level;
+            this.players = players;
+            this.roll = roll;
+        }
+
+        @Override public boolean isDay() { return level.isDay(); }
+        @Override public float timeOfDay() { return VillageSiege.timeOfDay(level.day); }
+        @Override public long gameTime() { return level.day; }
+        @Override public RandomSource random() { return roll; }
+        @Override public Player candidate(VillageSiege siege) { return siege.reportedCandidate(players, level.day); }
+        @Override public void onPlayer(Player p, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> w) { work.add(() -> w.accept(level)); }
+        @Override public void atBlock(int x, int z, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> w) { work.add(() -> w.accept(level)); }
+
+        void run() { while (!work.isEmpty()) work.poll().run(); }
+    }
+
+    @Test
+    void serverSiegePicksFirstPlayerInLevelOrderFromRegionReports() {
+        var level = new SiegeLevel(1L);
+        Player first = player(5, 8.5, 8.5), second = player(7, 60.5, 60.5);
+        var host = new Deferred(level, List.of(first, second), RandomSource.create(seed(true)));
+        var siege = new VillageSiege();
+
+        siege.report(level, List.of(first, second));   // 자정 전: 찾는 중이 아니라 보고를 받지 않는다
+        assertNull(siege.reportedCandidate(host.players, level.day));
+
+        assertEquals(0, siege.tick(host, true), "자정 굴림 — 아직 아무 region 도 알리지 않았다");
+        assertEquals(VillageSiege.State.TONIGHT, siege.state());
+        // 두 region 이 서로 다른 순서로 알린다: 나중 플레이어의 region 이 먼저
+        siege.report(level, List.of(second));
+        siege.report(level, List.of(first));
+        assertSame(first, siege.reportedCandidate(host.players, level.day), "바닐라 level.players() 순서의 첫 사람");
+
+        level.day = 18001L;
+        assertEquals(0, siege.tick(host, true), "플레이어 region 에 맡기고 답을 기다린다");
+        assertFalse(siege.hasSetupSiege());
+        assertEquals(0, siege.tick(host, true), "답이 오기 전에는 다시 맡기지 않는다");
+        assertEquals(1, host.work.size());
+        host.run();
+        assertTrue(siege.hasSetupSiege());
+        assertEquals(20, siege.zombiesToSpawn());
+        Pos c = siege.spawnPos();
+        Pos fp = first.blockPosition();
+        double d = Math.hypot(c.x() - fp.x(), c.z() - fp.z());
+        assertTrue(d > 30 && d < 34, "첫 플레이어 둘레 32칸 원: " + d);
+
+        assertEquals(1, siege.tick(host, true));
+        assertEquals(19, siege.zombiesToSpawn());
+        assertEquals(0, zombies(level).size(), "스폰은 그 칸 region 에서 — 아직 안 돌았다");
+        host.run();
+        assertEquals(1, zombies(level).size());
+        for (int i = 0; i < 3 * 19 + 3; i++) {
+            siege.tick(host, true);
+            host.run();
+        }
+        assertEquals(20, zombies(level).size(), "밤 하나에 한 번, 20마리");
+        assertEquals(VillageSiege.State.DONE, siege.state());
+    }
+
+    @Test
+    void serverSiegeDropsLateSetupAnswerAfterDaybreak() {
+        var level = new SiegeLevel(1L);
+        Player p = player(5, 8.5, 8.5);
+        var host = new Deferred(level, List.of(p), RandomSource.create(seed(true)));
+        var siege = new VillageSiege();
+        siege.tick(host, true);
+        siege.report(level, List.of(p));
+        level.day = 18001L;
+        siege.tick(host, true);
+        assertEquals(1, host.work.size());
+        level.day = 24000L + 6000L;   // 답이 오기 전에 날이 밝았다
+        siege.tick(host, true);
+        host.run();
+        assertFalse(siege.hasSetupSiege(), "늦은 답은 버린다");
+        assertEquals(VillageSiege.State.DONE, siege.state());
+        assertEquals(0, zombies(level).size());
+    }
+
+    @Test
+    void serverSiegeRetriesWhenPlayerLeftVillageOrRegionNeverAnswered() {
+        var level = new SiegeLevel(1L);
+        Player p = player(5, 8.5, 8.5);
+        var host = new Deferred(level, List.of(p), RandomSource.create(seed(true)));
+        var siege = new VillageSiege();
+        siege.tick(host, true);
+        siege.report(level, List.of(p));
+        level.day = 18001L;
+        siege.tick(host, true);
+        level.village = false;   // 맡긴 사이 마을을 떠났다
+        host.run();
+        assertFalse(siege.hasSetupSiege());
+        assertNull(siege.reportedCandidate(host.players, level.day), "떠난 사람의 보고는 지운다");
+        level.village = true;
+        siege.report(level, List.of(p));
+        level.day = 18002L;
+        siege.tick(host, true);
+        host.work.clear();   // 맡은 region 이 답하지 않는다(접속 종료)
+        level.day = 18002L + 41L;
+        siege.report(level, List.of(p));
+        siege.tick(host, true);
+        assertEquals(1, host.work.size(), "기다림이 지나면 다시 맡긴다");
+        host.run();
+        assertTrue(siege.hasSetupSiege());
     }
 }

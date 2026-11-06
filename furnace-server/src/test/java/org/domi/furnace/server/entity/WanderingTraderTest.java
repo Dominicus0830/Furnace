@@ -293,9 +293,9 @@ class WanderingTraderTest {
         var p = player(8.5, 8.5);
         for (int i = 0; i < 1200; i++) {
             level.time = i + 1;
-            a.tick(level, List.of());   // 플레이어 없는 region 은 타이머를 소비하지 않는다
-            a.tick(level, List.of(p));
-            b.tick(level, List.of(p));   // 같은 틱의 두 번째 region 은 타이머를 돌리지 못한다
+            a.tick(level, List.of());   // 플레이어가 없어도 타이머는 돈다(바닐라)
+            a.tick(level, List.of(p));   // 같은 게임 틱에 다시 불러도 한 번만 돈다
+            b.tick(level, List.of(p));
         }
         assertEquals(22800, state.spawnDelay(), "1200틱에 1200 만 줄어든다(스포너 둘이어도)");
         assertEquals(1200, state.tickDelay());
@@ -325,6 +325,79 @@ class WanderingTraderTest {
             assertEquals(trader.uuid(), state.traderId());
             assertEquals(25, state.spawnChance());
             assertEquals(24000, state.spawnDelay());
+            return;
+        }
+        fail("400개 시드 안에 스폰이 한 번도 없다");
+    }
+
+    /** 서버 길 흉내: 차원 전체 플레이어, 스폰은 모아 두었다가 나중에(다음 region 틱). */
+    private static final class Deferred implements WanderingTraderSpawner.Host {
+        final Ticking level;
+        final List<Player> players;
+        final RandomSource levelRandom = RandomSource.create(11);
+        final java.util.ArrayDeque<Runnable> work = new java.util.ArrayDeque<>();
+        final java.util.List<Player> asked = new java.util.ArrayList<>();
+
+        Deferred(Ticking level, List<Player> players) {
+            this.level = level;
+            this.players = players;
+        }
+
+        @Override public boolean gameRule(String name) { return level.gameRule(name); }
+        @Override public long gameTime() { return level.time; }
+        @Override public RandomSource levelRandom() { return levelRandom; }
+        @Override public List<Player> players() { return players; }
+        @Override public RandomSource workRandom(RandomSource spawner) { return RandomSource.create(spawner.nextLong()); }
+
+        @Override
+        public void onPlayer(Player p, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> w) {
+            asked.add(p);
+            work.add(() -> w.accept(level));
+        }
+    }
+
+    @Test
+    void serverTimerRunsWithoutPlayersAndResetsChanceOnLateSpawn() {
+        // 플레이어가 없어도 타이머는 돌고, 그때 굴림에 이기면 "플레이어 없음 = 성공"으로 확률이 25 로 돌아간다(바닐라 spawn 이 참)
+        var empty = new Ticking();
+        var st0 = new org.domi.furnace.server.world.WanderingTraderState();
+        st0.setSpawnDelay(1);
+        st0.setSpawnChance(75);
+        var s0 = new WanderingTraderSpawner(RandomSource.create(0));
+        s0.attach(st0);
+        var none = new Deferred(empty, List.of());
+        for (int i = 0; i < 1200; i++) {
+            empty.time = i + 1;
+            s0.tick(none);
+        }
+        assertEquals(24000, st0.spawnDelay(), "플레이어가 없어도 1200틱이면 굴린다");
+
+        for (long seed = 0; seed < 400; seed++) {
+            var level = new Ticking();
+            var st = new org.domi.furnace.server.world.WanderingTraderState();
+            st.setSpawnDelay(1);
+            st.setSpawnChance(75);
+            var spawner = new WanderingTraderSpawner(RandomSource.create(seed));
+            spawner.attach(st);
+            Player a = player(8.5, 8.5), b = player(-8.5, -8.5);
+            var host = new Deferred(level, List.of(a, b));
+            int now = 0;
+            for (int i = 0; i < 1200; i++) {
+                level.time = i + 1;
+                now += spawner.tick(host);
+            }
+            assertEquals(0, now, "스폰은 플레이어 region 으로 넘어가 그 자리에서는 0");
+            if (host.work.isEmpty()) continue;
+            assertEquals(1, host.asked.size());
+            assertTrue(host.asked.get(0) == a || host.asked.get(0) == b, "차원 전체 플레이어 중 하나");
+            assertEquals(75, st.spawnChance(), "답이 오기 전에는 오른 확률 그대로");
+            host.work.poll().run();
+            if (level.entities().tickSnapshot().stream().noneMatch(e -> e instanceof WanderingTrader)) continue;
+            WanderingTrader trader = level.entities().tickSnapshot().stream().filter(e -> e instanceof WanderingTrader)
+                    .map(e -> (WanderingTrader) e).findFirst().orElseThrow();
+            assertEquals(host.asked.get(0).blockPosition(), trader.wanderTarget(), "고른 플레이어 둘레");
+            assertEquals(25, st.spawnChance(), "늦게 온 성공도 확률을 25 로");
+            assertEquals(trader.uuid(), st.traderId());
             return;
         }
         fail("400개 시드 안에 스폰이 한 번도 없다");

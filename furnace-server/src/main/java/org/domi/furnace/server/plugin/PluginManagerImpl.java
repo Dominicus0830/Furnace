@@ -28,6 +28,8 @@ import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.plugin.PluginContext;
 import org.domi.furnace.api.plugin.PluginDescription;
 import org.domi.furnace.api.plugin.PluginManager;
+import org.domi.furnace.api.profiler.PluginProfiler;
+import org.domi.furnace.api.profiler.Timing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,6 +92,7 @@ public final class PluginManagerImpl implements PluginManager {
                 if (!FurnacePlugin.class.isAssignableFrom(main)) throw new IllegalArgumentException("main 클래스가 FurnacePlugin 을 상속하지 않는다: " + d.main());
                 plugin = (FurnacePlugin) main.getDeclaredConstructor().newInstance();
             }
+            loader.plugin = plugin;
         } catch (Throwable t) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), t);
             failures.add(d.name());
@@ -103,11 +106,15 @@ public final class PluginManagerImpl implements PluginManager {
         Loaded l = new Loaded(plugin, d, c.file(), loader);
         plugins.add(l);
         jul.info("Loading " + d.fullName());
+        Timing timing = host.profiler().timing(plugin, PluginProfiler.Kind.LIFECYCLE, "onLoad");
+        long t0 = timing.start();
         try {
             plugin.onLoad();
         } catch (Throwable t) {
             log.error("Error occurred while loading {} (Is it up to date?)", d.fullName(), t);
             failures.add(d.name());
+        } finally {
+            timing.stop(t0);
         }
         return l;
     }
@@ -211,6 +218,8 @@ public final class PluginManagerImpl implements PluginManager {
                 p.logger().warning("Plugin " + l.description().fullName() + " tried to register permission '" + perm.name() + "' but it's already registered");
             }
         }
+        Timing timing = host.profiler().timing(p, PluginProfiler.Kind.LIFECYCLE, "onEnable");
+        long t0 = timing.start();
         try {
             p.setEnabled(true);
         } catch (Throwable t) {
@@ -218,6 +227,8 @@ public final class PluginManagerImpl implements PluginManager {
             failures.add(l.description().name());
             disable(p);
             return;
+        } finally {
+            timing.stop(t0);
         }
         host.eventsImpl().call(new PluginEnableEvent(p));
     }
@@ -236,10 +247,14 @@ public final class PluginManagerImpl implements PluginManager {
         if (p.isEnabled()) {
             host.eventsImpl().call(new PluginDisableEvent(p));
             p.logger().info("Disabling " + l.description().fullName());
+            Timing timing = host.profiler().timing(p, PluginProfiler.Kind.LIFECYCLE, "onDisable");
+            long t0 = timing.start();
             try {
                 p.setEnabled(false);
             } catch (Throwable t) {
                 log.error("Error occurred while disabling {} (Is it up to date?)", l.description().fullName(), t);
+            } finally {
+                timing.stop(t0);
             }
         }
         host.eventsImpl().unregisterAll(p);
@@ -347,6 +362,7 @@ public final class PluginManagerImpl implements PluginManager {
             for (Loaded l : rev) {
                 disable(l.plugin());
                 plugins.remove(l);
+                host.profiler().forget(l.plugin());   // 프로파일러 구간이 옛 인스턴스를 쥐고 있지 않게
                 PluginBootstrapper.Prepared prep = b.find(l.description().name());
                 if (prep != null && prep.loader() == l.loader()) b.detach(prep);
             }
@@ -435,6 +451,11 @@ public final class PluginManagerImpl implements PluginManager {
         return null;
     }
 
+    /** 그 클래스를 정의한 플러그인(플러그인 jar 의 클래스·그 안에서 만든 람다). 서버·API·JDK 클래스면 null. */
+    static FurnacePlugin pluginOf(Class<?> c) {
+        return c.getClassLoader() instanceof PluginClassLoader l ? l.plugin : null;
+    }
+
     // ------------------------------------------------------------------ PluginManager
 
     @Override
@@ -480,6 +501,8 @@ public final class PluginManagerImpl implements PluginManager {
         private final Path shadow;
         /** 이 로더가 클래스를 빌려 온 플러그인 이름 — 그 플러그인을 다시 읽으면 이 플러그인도 다시 읽어야 한다. */
         private final Set<String> borrowed = ConcurrentHashMap.newKeySet();
+        /** 이 jar 의 플러그인(메인 클래스를 만든 뒤 정해진다) — 프로파일러가 작업 클래스로 주인을 찾을 때 쓴다. */
+        volatile FurnacePlugin plugin;
 
         PluginClassLoader(Path jar, PluginBootstrapper group) throws MalformedURLException { this(jar, group, false); }
 
