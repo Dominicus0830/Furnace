@@ -90,6 +90,16 @@ public final class ChunkSection {
         return scratch != null ? scratch[idx] : blocks.get(idx);
     }
 
+    /** 섹션 로컬 인덱스(y*256+z*16+x)의 블록. scratch 를 열지 않는다. */
+    int blockAt(int idx) {
+        return scratch != null ? scratch[idx] : blocks.get(idx);
+    }
+
+    /** 모든 칸이 한 값이면 그 값, 아니면(또는 scratch 가 열려 있으면) -1. */
+    int uniformBlock() {
+        return scratch != null ? -1 : blocks.singleValueOr(-1);
+    }
+
     public void fillBiome(int biomeId) {
         for (int i = 0; i < 64; i++) biomes.set(i, biomeId);
     }
@@ -112,6 +122,18 @@ public final class ChunkSection {
         int count = 0;
         for (int i = 0; i < 4096; i++) if (!isAir(source[sourceOffset + i])) count++;
         nonAirCount = (short) count;
+    }
+
+    /** replaceBlocks(펼친 배열) 과 같은 결과를 팔레트 값 + 칸별 인덱스에서. scratch 가 열려 있으면 펼쳐서 예전 경로. */
+    void replaceBlocksIndexed(int[] paletteVals, BitStorage indices) {
+        if (scratch != null) {
+            int[] flat = new int[4096];
+            for (int i = 0; i < 4096; i++) flat[i] = paletteVals[indices.get(i)];
+            replaceBlocks(flat, 0);
+            return;
+        }
+        tickingCount = -1;
+        nonAirCount = (short) blocks.loadIndexed(paletteVals, indices);
     }
 
     public void replaceBiomes(int[] source, int sourceOffset) {

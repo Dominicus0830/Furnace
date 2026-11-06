@@ -301,7 +301,7 @@ public final class Region {
         claim(cp);
         CompletableFuture<ChunkColumn> sourceFuture =
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
-                        ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.genPool())
+                        ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.ioDecodeExecutor(), world.genPool())
                         : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
         // 청크 안쪽 조명은 생성 스레드에서 미리 계산한다(region 틱 스레드가 청크당 ~2ms 를 쓰던 것) — 이웃과의 가장자리는 올릴 때 맞춘다.
         final boolean sky = level().hasSkyLight();
