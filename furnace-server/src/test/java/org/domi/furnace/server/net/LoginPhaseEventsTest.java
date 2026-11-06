@@ -61,6 +61,7 @@ class LoginPhaseEventsTest {
             public PluginDescription description() { return d; }
             public org.domi.furnace.api.Furnace server() { return host; }
             public java.util.logging.Logger logger() { return java.util.logging.Logger.getLogger("lpe"); }
+            public Path configFolder() { return tmp.resolve("lpe"); }
             public Path dataFolder() { return tmp.resolve("lpe"); }
             public Path file() { return tmp.resolve("lpe.jar"); }
             public ClassLoader classLoader() { return getClass().getClassLoader(); }

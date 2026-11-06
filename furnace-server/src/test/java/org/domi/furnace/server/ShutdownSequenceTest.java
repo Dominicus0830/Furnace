@@ -78,6 +78,7 @@ class ShutdownSequenceTest {
             public PluginDescription description() { return d; }
             public org.domi.furnace.api.Furnace server() { return host; }
             public java.util.logging.Logger logger() { return java.util.logging.Logger.getLogger("cleanup"); }
+            public Path configFolder() { return tmp.resolve("cleanup"); }
             public Path dataFolder() { return tmp.resolve("cleanup"); }
             public Path file() { return tmp.resolve("cleanup.jar"); }
             public ClassLoader classLoader() { return getClass().getClassLoader(); }
