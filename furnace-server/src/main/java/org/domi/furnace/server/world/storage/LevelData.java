@@ -172,6 +172,30 @@ public final class LevelData {
         raw.putCompound("WorldGenSettings", wgs);
     }
 
+    /**
+     * 새 노이즈 월드: 오버월드 생성기의 noise_settings 를 바꿔 기록한다(바닐라 WorldPresets large_biomes·amplified —
+     * 바이옴 원천은 multi_noise overworld 그대로). 네더·엔드는 기본값.
+     */
+    public void useNoiseOverworld(String noiseSettings) {
+        NbtCompound wgs = raw.contains("WorldGenSettings") ? raw.getCompound("WorldGenSettings") : new NbtCompound();
+        NbtCompound dims = defaultDimensions();
+        dims.putCompound("minecraft:overworld", dimension("minecraft:overworld", noiseSettings, multiNoise("minecraft:overworld")));
+        wgs.putCompound("dimensions", dims);
+        raw.putCompound("WorldGenSettings", wgs);
+    }
+
+    /**
+     * 오버월드 노이즈 생성기의 noise_settings id(네임스페이스 없으면 minecraft:). 생성기가 없으면(새 월드 기본) minecraft:overworld,
+     * 노이즈 생성기가 아니거나 settings 가 id 가 아닌 직접 정의(compound)면 null.
+     */
+    public String overworldNoiseSettings() {
+        NbtCompound gen = overworldGenerator();
+        if (gen == null) return "minecraft:overworld";
+        if (!"minecraft:noise".equals(gen.tags().get("type"))) return null;
+        if (!(gen.tags().get("settings") instanceof String id)) return null;
+        return id.indexOf(':') >= 0 ? id : "minecraft:" + id;
+    }
+
     /** 브랜드 기록(바닐라 setModdedInfo: 처음 보는 브랜드면 추가, 수정 여부는 누적). */
     public void setModdedInfo(String brand, boolean modded) {
         if (!serverBrands.contains(brand)) serverBrands.add(brand);

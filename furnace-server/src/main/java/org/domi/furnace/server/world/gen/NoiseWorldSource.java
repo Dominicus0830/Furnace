@@ -158,6 +158,21 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return create(Dimension.OVERWORLD, seed, reg, registries);
     }
 
+    /** 오버월드 노이즈 설정 — 바닐라 월드 프리셋 normal/large_biomes/amplified 가 쓰는 noise_settings id. */
+    public static final java.util.Set<String> OVERWORLD_NOISE_SETTINGS =
+            java.util.Set.of("minecraft:overworld", "minecraft:large_biomes", "minecraft:amplified");
+
+    /**
+     * 오버월드를 지정한 noise_settings 로 만든다(바닐라 WorldPresets: large_biomes·amplified 는 같은 차원·바이옴 원천에
+     * 노이즈 라우터만 다르다 — 큰 바이옴 기후 노이즈, 증폭 지형 depth/factor/jaggedness).
+     */
+    public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries, String noiseSettings) {
+        if (!OVERWORLD_NOISE_SETTINGS.contains(noiseSettings)) {
+            throw new IllegalArgumentException("지원하지 않는 오버월드 noise_settings: " + noiseSettings);
+        }
+        return create(Dimension.OVERWORLD, noiseSettings, seed, reg, registries);
+    }
+
     public static NoiseWorldSource nether(long seed, BlockRegistry reg, RegistrySet registries) {
         return create(Dimension.NETHER, seed, reg, registries);
     }
@@ -167,9 +182,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     public static NoiseWorldSource create(Dimension dim, long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(dim, dim.noiseSettings, seed, reg, registries);
+    }
+
+    private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries) {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        JsonObject settingsJson = data.noiseSettings(dim.noiseSettings);
-        NoiseSettings settings = NoiseSettings.fromJson(dim.noiseSettings, settingsJson);
+        JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
+        NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
         NoiseRouter router = NoiseRouter.build(data, settings, seed);
 
         int stoneId = reg.defaultStateId(settings.defaultBlock());  // overworld stone, nether netherrack

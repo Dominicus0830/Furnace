@@ -219,6 +219,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean inventoryClick(Player p, AbstractContainerMenu menu, int slot, int button, ClickType type) {
+        if (menu.pluginOwner() instanceof MenuSession ms && !ms.click(menu, slot, button, type)) return false;   // 플러그인 Menu 처리기
         String recipe = craftRecipe(menu, slot, type);
         if (recipe != null) {   // 제작 결과 칸을 꺼내는 클릭은 하위 CraftItemEvent(InventoryClickEvent 구독자도 받는다)
             if (!bus().hasSubscribers(CraftItemEvent.class)) return true;
@@ -250,6 +251,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public void inventoryClose(Player p, AbstractContainerMenu menu) {
+        if (menu.pluginOwner() instanceof MenuSession ms) ms.closed();
         if (!bus().hasSubscribers(InventoryCloseEvent.class)) return;
         bus().call(new InventoryCloseEvent(host.player(p), ApiConvert.snapshot(menu, items())));
     }
