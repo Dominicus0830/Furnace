@@ -1,4 +1,4 @@
-// D2 데이터 주도 레지스트리 봇 시험: 월드 데이터 팩(round11/pack)의 늑대 변종·마법부여·그림이 구성 단계 RegistryData 에
+// D2 데이터 주도 레지스트리 봇 시험: 월드 데이터 팩(round12/pack)의 늑대 변종·마법부여·그림이 구성 단계 RegistryData 에
 // 데이터째 실리는지, 그 번호로 아이템·엔티티가 오가는지. 서버 폴더는 newsrv.sh 로 만들고 pack 을 world/datapacks/d2 로 복사해 띄운다.
 const { makeBot, spawned, cmd, sleep } = require('../lib');
 

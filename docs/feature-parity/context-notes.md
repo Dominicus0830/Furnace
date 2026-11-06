@@ -932,7 +932,7 @@
 - 마법부여 `effects` 는 아직 계산하지 않는다 — 데이터 팩 마법부여는 정의(선택·비용·모루)까지만 바닐라와 같다. 효과 엔진은 후속 과제.
 - 마법부여 끄기는 레지스트리에서 빼지 않고 선택 지점(`Enchantments.resolve`·`selectForTable`·`enchantItemFromTag`·`Single` 제공자·책 거래)에서만 거른다. 아무것도 끄지 않으면 경로가 그대로라 난수 소비가 같다.
 - 난이도 프로필 배율은 1 이면 곱하지 않는다(float 결과 보존). 프로필은 저장하지 않는다.
-- 봇 확인(2026-11-06, `tools/bot-test/round11/registries.js`): 월드 데이터 팩의 늑대 변종·마법부여·그림이 RegistryData 에 데이터째 실리고 mineflayer 가 읽음, 사용자 마법부여 칼 지급·변종 늑대 소환·저장 이름까지 8항목 PASS.
+- 봇 확인(2026-11-06, `tools/bot-test/round12/registries.js`): 월드 데이터 팩의 늑대 변종·마법부여·그림이 RegistryData 에 데이터째 실리고 mineflayer 가 읽음, 사용자 마법부여 칼 지급·변종 늑대 소환·저장 이름까지 8항목 PASS.
 
 ## 2026-11-06 블록·레시피 API (묶음 D1)
 - 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
