@@ -61,6 +61,8 @@ ctx.registries().registry("core:abilities", Ability.class).register("addon:fly",
 - 훅 종류(`LifecycleEventType`)·키는 문자열 리소스 위치이고 마인크래프트 내부 타입을 드러내지 않는다. 마인크래프트 버전이 바뀌어도 이름은 유지하고, 없어지는 단계는 폐기 기간(두 마이너)을 거친다.
 - 플러그인 데이터 팩은 데이터 팩 형식(`pack_format`)으로 버전을 가리고, 바닐라와 같은 형식 범위·오버레이 규칙을 따른다.
 
-## 6. 아직 없는 것(다음 묶음)
+## 6. 게임 레지스트리 훅(D2)
 
-- 게임 레지스트리(마법부여·바이옴·차원 타입·몹 변종)에 항목을 더하는 훅: 지금 동적 레지스트리는 `registries/1.21.1.txt` 고정 목록이라 D2·W2 가 데이터 팩에서 읽게 바꾸면서 `LifecycleEvents` 에 훅을 더한다.
+- `LifecycleEvents.GAME_REGISTRIES`: 늑대·그림 변종, 마법부여, 현수막 무늬·갑옷 장식·음반(JSON)을 더하고 태그에 넣는다.
+  동기화 레지스트리는 이제 데이터 팩에서 읽는다(바이옴·차원 타입·피해 유형·채팅 유형은 아직 내장 목록 — W2 몫).
+  자세한 것은 [game-registries.md](game-registries.md).

@@ -82,9 +82,12 @@ public class Wolf extends TamableAnimal implements NeutralMob {
         var defs = dyn == null ? java.util.Map.<String, com.google.gson.JsonObject>of() : dyn.definitions(REGISTRY);
         if (defs.isEmpty()) return vanillaVariantForBiome(biome);
         var order = dyn.registries().entries(REGISTRY);
+        String vanilla = "minecraft:" + VARIANTS[vanillaVariantForBiome(biome)];
         for (int i = 0; i < order.size(); i++) {
-            var def = defs.get(order.get(i));
-            if (def != null && biomesContain(def.get("biomes"), biome)) return i;
+            String id = order.get(i);
+            var def = defs.get(id);
+            // 정의가 없는 항목은 바닐라 데이터 없이 돈 내장 변종 — 내장 표로 본다
+            if (def != null ? biomesContain(def.get("biomes"), biome) : id.equals(vanilla) && (!id.equals("minecraft:pale") || biome.equals("minecraft:taiga"))) return i;
         }
         return paleIndex();
     }

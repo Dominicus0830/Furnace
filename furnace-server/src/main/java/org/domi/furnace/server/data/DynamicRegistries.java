@@ -110,21 +110,17 @@ public final class DynamicRegistries {
                     entries.put(id, new Def(json.getAsJsonObject(), PackRepository.VANILLA.equals(pack), pack));
                 }
             }
-            List<String> baseEntries = base.entries(registry);
+            // 내장 목록(바닐라 core 팩)은 늘 있다 — 바닐라 데이터를 읽지 못하고 돌 때(시험 등)도 번호가 클라와 맞게 정의 없이 넣는다
+            for (String b : base.entries(registry)) entries.putIfAbsent(ResourceId.parse(b), new Def(null, true, null));
             List<String> ids = new ArrayList<>(entries.size());
             for (ResourceId id : entries.keySet()) ids.add(id.toString());
-            if (rm == null || !ids.containsAll(baseEntries)) {
-                // 바닐라 팩을 읽지 못했다 — 내장 목록 그대로(번호가 클라와 어긋나지 않게)
-                if (rm != null) log.warn("{}: 바닐라 항목이 빠져 내장 목록을 쓴다", registry);
-                continue;
-            }
             Map<String, NbtCompound> data = new LinkedHashMap<>();
             Map<String, JsonObject> d = new LinkedHashMap<>();
             Map<String, String> src = new LinkedHashMap<>();
             for (var e : entries.entrySet()) {
                 String id = e.getKey().toString();
-                d.put(id, e.getValue().json());
-                src.put(id, e.getValue().source());
+                if (e.getValue().json() != null) d.put(id, e.getValue().json());
+                if (e.getValue().source() != null) src.put(id, e.getValue().source());
                 if (!e.getValue().known()) data.put(id, JsonNbt.compound(e.getValue().json()));
             }
             set = set.with(registry, ids, data);
@@ -136,7 +132,7 @@ public final class DynamicRegistries {
 
     public RegistrySet registries() { return registries; }
 
-    /** 그 레지스트리 항목의 정의(레지스트리 순서). 데이터 팩에서 읽지 못한 레지스트리면 빈 맵. */
+    /** 그 레지스트리 항목의 정의(레지스트리 순서). 바닐라 데이터를 읽지 못했으면 바닐라 항목은 빠져 있다(내장 정의를 쓴다). */
     public Map<String, JsonObject> definitions(String registry) { return definitions.getOrDefault(registry, Map.of()); }
 
     /** 항목 정의(없으면 null). */

@@ -27,6 +27,7 @@ srv/stop.sh $D
   `pr5*.js` 플러그인 API 2단계(SamplePlugin, 1 → 재시작 → 2), `pr7.js` 펫 낙하 메시지, `pr8.js <차원> <틱>` 특수 스포너, `base1.js`·`base2.js` 기존 항목.
 - `round4/ev.js` 플러그인 API 3단계 이벤트 33항목(시험 플러그인 `round4/probe` 를 `plugins/` 에 넣고 띄운다: `javac -cp furnace-api.jar -d out round4/probe/EventProbe.java && cp round4/probe/furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`).
 - `round5/ev.js` 플러그인 API 3단계 둘째 묶음(블록·인벤토리 이벤트) 31항목 — 시험 플러그인 `round5/probe`(BlockEventProbe, `/evcancel`·`/evmode`)를 위와 같은 방법으로 묶어 넣는다.
+- `round11/registries.js` 데이터 주도 레지스트리(D2) 8항목 — 서버 폴더를 만든 뒤 `round11/pack` 을 `<서버>/world/datapacks/d2` 로 복사하고 띄운다. 늑대 변종 번호 0(`d2:aaa`)의 엔티티 메타데이터는 mineflayer 가 holder(0=인라인)로 잘못 읽어 PartialReadError 를 찍지만 접속·판정에는 영향 없다(바닐라 1.21.1 은 `holderRegistry` = 번호만, 기존 ashen 도 같다).
 - `round10/ui.js` 플러그인 UI API(메뉴·보스바·사이드바) 10항목 — `round10/README.md`.
 - `round8/` 플러그인 API 3단계 셋째 묶음 이벤트(`ev.js` + `probe/Stage3cProbe`, 구역 form enchant anvil brew vehicle fish portal book spawn).
 - `round6/` user-todo 정리용 6차(시야 거리·바람 구슬·철퇴·장착 소리·포탈·양조·스트라이더·습격·돌고래·투사체) — `round6/README.md`.

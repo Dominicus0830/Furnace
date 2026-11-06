@@ -917,6 +917,15 @@
 - 남은 region 차이(이번에 손대지 않음): 팬텀·순찰·고양이 스포너는 여전히 region 마다 타이머가 따로다(바닐라는 차원 하나 — 순찰 nextTick·팬텀 nextTick 이 region 수만큼). 돌고래의 플레이어 효과 부여 일부. 명령 블록 체인은 둘째 묶음.
 - 시험: `VillageSiegeTest`(서버 길 3개: 보고 순서로 첫 사람, 늦은 답 버림, 떠남·무응답 재시도), `WanderingTraderTest.serverTimerRunsWithoutPlayersAndResetsChanceOnLateSpawn`. 봇 `tools/bot-test/round8/`: 두 봇을 3000칸 떨어뜨려(서로 다른 region) 둘 다 종 격자 마을·deep_dark(자연 스폰 없음)에 두고 60밤 — 고친 뒤 포위 9밤 모두 먼저 들어온 봇 쪽, 고치기 전 jar 는 10밤 중 2밤이 뒤에 들어온 봇 쪽. 어깨: 콘솔 `/gamemode spectator`·`/damage` 뒤 어깨가 비고 앵무새가 봇 자리(거리 0)에 섰다.
 
+## 2026-11-06 데이터 주도 동기화 레지스트리·게임 레지스트리 훅 (묶음 D2, 불만 표 27·32·37번)
+- 마법부여·늑대/그림 변종·현수막 무늬·갑옷 장식·음반은 이제 시작 때 데이터 팩에서 읽는다(`DynamicRegistries`). 바닐라 데이터만이면 순서가 `registries/1.21.1.txt` 와 같고(시험이 대조), 데이터 팩·플러그인 항목은 RegistryData 에 NBT 를 싣는다. `RegistrySet.current()` 가 지금 표 — 정적 `RegistrySet.load` 로 번호를 캐시하면 데이터 팩 항목이 끼는 순간 번호가 어긋난다(늑대 pale=3 같은 상수 금지, `Wolf.paleIndex()`).
+- 함정: 시험에서 `DataPackManager.start(..., initialEnabled=List.of())` 로 월드 팩을 두면 vanilla 팩이 자동 추가 순서상 월드 팩 "위"로 가서 덮어쓰기가 안 보인다. 실제 새 월드처럼 `List.of("vanilla")` 로 시작한다.
+- JSON→NBT 는 NbtOps 규칙: 정수는 가장 작은 타입, 바이트·정수·롱만의 리스트는 배열 태그(short 리스트는 리스트), 섞인 리스트는 `{"": 값}` 으로 싼다.
+- 마법부여 `effects` 는 아직 계산하지 않는다 — 데이터 팩 마법부여는 정의(선택·비용·모루)까지만 바닐라와 같다. 효과 엔진은 후속 과제.
+- 마법부여 끄기는 레지스트리에서 빼지 않고 선택 지점(`Enchantments.resolve`·`selectForTable`·`enchantItemFromTag`·`Single` 제공자·책 거래)에서만 거른다. 아무것도 끄지 않으면 경로가 그대로라 난수 소비가 같다.
+- 난이도 프로필 배율은 1 이면 곱하지 않는다(float 결과 보존). 프로필은 저장하지 않는다.
+- 봇 확인(2026-11-06, `tools/bot-test/round11/registries.js`): 월드 데이터 팩의 늑대 변종·마법부여·그림이 RegistryData 에 데이터째 실리고 mineflayer 가 읽음, 사용자 마법부여 칼 지급·변종 늑대 소환·저장 이름까지 8항목 PASS.
+
 ## 2026-11-06 블록·레시피 API (묶음 D1)
 - 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
 - **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
