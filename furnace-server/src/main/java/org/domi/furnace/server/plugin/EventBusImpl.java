@@ -2,8 +2,11 @@
 // 등록이 바뀌면 구운 배열만 버린다. 발행은 배열 한 번 훑기라 잠금·할당이 없다.
 package org.domi.furnace.server.plugin;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
@@ -23,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
+import org.domi.furnace.api.DeprecatedApi;
 import org.domi.furnace.api.event.Cancellable;
 import org.domi.furnace.api.event.Event;
 import org.domi.furnace.api.event.EventBus;
@@ -76,41 +80,71 @@ public final class EventBusImpl implements EventBus {
         for (Class<?> c = listener.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             for (Method m : c.getDeclaredMethods()) if (m.isAnnotationPresent(Subscribe.class)) methods.add(m);
         }
-        MethodHandles.Lookup lookup = MethodHandles.lookup();
         for (Method m : methods) {
             Subscribe s = m.getAnnotation(Subscribe.class);
             if (m.getParameterCount() != 1 || !Event.class.isAssignableFrom(m.getParameterTypes()[0]) || Modifier.isStatic(m.getModifiers())) {
                 log.error("[{}] @Subscribe 메서드는 Event 하나를 받는 인스턴스 메서드여야 한다: {}", plugin.name(), m);
                 continue;
             }
-            MethodHandle mh;
+            Consumer<Event> fn;
             try {
-                m.setAccessible(true);
-                mh = lookup.unreflect(m).bindTo(listener);
-            } catch (ReflectiveOperationException | RuntimeException e) {
-                log.error("[{}] 리스너 메서드에 접근할 수 없다: {}", plugin.name(), m, e);
+                fn = dispatcher(m, listener);
+            } catch (Throwable t) {
+                log.error("[{}] 리스너 메서드에 접근할 수 없다: {}", plugin.name(), m, t);
                 continue;
             }
-            MethodHandle target = mh;
-            Consumer<Event> fn = e -> {
-                try {
-                    target.invoke(e);
-                } catch (RuntimeException | Error ex) {
-                    throw ex;
-                } catch (Throwable t) {
-                    throw new RuntimeException(t);
-                }
-            };
+            warnIfDeprecated(plugin, m.getParameterTypes()[0]);
             String where = listener.getClass().getName() + "." + m.getName();
             add(new Handler(plugin, m.getParameterTypes()[0], s.priority(), s.ignoreCancelled(), fn, listener, order.incrementAndGet(),
                     where, timing(plugin, m.getParameterTypes()[0], listener, m.getName())));
         }
     }
 
+    /**
+     * 리스너 메서드를 부르는 Consumer. 기본은 LambdaMetafactory 로 만든 호출 지점이라 JIT 가 직접 호출처럼 인라인할 수 있다.
+     * 만들 수 없으면(접근 제한·특수 메서드) MethodHandle 로 돌아간다.
+     */
+    @SuppressWarnings("unchecked")
+    private static Consumer<Event> dispatcher(Method m, Object listener) throws ReflectiveOperationException {
+        Class<?> decl = m.getDeclaringClass();
+        MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(decl, MethodHandles.lookup());
+        MethodHandle impl = lookup.unreflect(m);
+        if (!decl.isInterface()) {
+            try {
+                CallSite site = LambdaMetafactory.metafactory(lookup, "accept", MethodType.methodType(Consumer.class, decl),
+                        MethodType.methodType(void.class, Object.class), impl, MethodType.methodType(void.class, m.getParameterTypes()[0]));
+                return (Consumer<Event>) site.getTarget().invoke(listener);
+            } catch (Throwable t) {
+                // 아래 MethodHandle 경로로 대체
+            }
+        }
+        MethodHandle target = impl.bindTo(listener);
+        return e -> {
+            try {
+                target.invoke(e);
+            } catch (RuntimeException | Error ex) {
+                throw ex;
+            } catch (Throwable t) {
+                throw new RuntimeException(t);
+            }
+        };
+    }
+
+    private final Set<Class<?>> deprecationWarned = ConcurrentHashMap.newKeySet();
+
+    /** 폐기된 이벤트(@DeprecatedApi)에 처리기를 달면 클래스마다 한 번 알린다. */
+    private void warnIfDeprecated(FurnacePlugin plugin, Class<?> type) {
+        DeprecatedApi d = type.getAnnotation(DeprecatedApi.class);
+        if (d == null || !deprecationWarned.add(type)) return;
+        log.warn("[{}] 폐기된 이벤트 {} 를 받고 있다 (v{} 부터 폐기, v{} 이후 제거{})", plugin.name(), type.getSimpleName(), d.since(), d.removeIn(),
+                d.replacement().isEmpty() ? "" : ", 대체: " + d.replacement());
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public <E extends Event> EventSubscription subscribe(FurnacePlugin plugin, Class<E> type, EventPriority priority, boolean ignoreCancelled,
                                                          Consumer<? super E> handler) {
+        warnIfDeprecated(plugin, type);
         String where = handler.getClass().getName();
         Handler h = new Handler(plugin, type, priority, ignoreCancelled, e -> handler.accept((E) e), null, order.incrementAndGet(),
                 where, timing(plugin, type, handler, null));
@@ -170,9 +204,24 @@ public final class EventBusImpl implements EventBus {
         for (Handler h : hs) {
             if (h.ignoreCancelled() && event instanceof Cancellable c && c.isCancelled()) continue;
             if (!h.plugin().isEnabled()) continue;
-            invoke(h, event);
+            invokeChecked(h, event);
         }
         return event;
+    }
+
+    private final Set<Handler> monitorWarned = ConcurrentHashMap.newKeySet();
+
+    /** MONITOR 는 관찰 전용이다 — 취소 상태를 바꾸면 그 처리기마다 한 번 경고한다(다른 우선순위에는 검사 비용이 없다). */
+    private void invokeChecked(Handler h, Event event) {
+        if (h.priority() != EventPriority.MONITOR || !(event instanceof Cancellable c)) {
+            invoke(h, event);
+            return;
+        }
+        boolean before = c.isCancelled();
+        invoke(h, event);
+        if (c.isCancelled() != before && monitorWarned.add(h)) {
+            log.warn("[{}] MONITOR 처리기 {} 가 {} 의 취소 상태를 바꿨다 — MONITOR 는 결과를 바꾸지 말고 관찰만 해야 한다", h.plugin().name(), h.where(), event.eventName());
+        }
     }
 
     private void invoke(Handler h, Event event) {
@@ -201,7 +250,7 @@ public final class EventBusImpl implements EventBus {
             if (!h.plugin().isEnabled()) continue;
             long t0 = stats != null ? System.nanoTime() : 0;
             long token = h.timing().start();
-            invoke(h, event);
+            invokeChecked(h, event);
             h.timing().stop(token);
             if (stats == null) continue;
             long dt = System.nanoTime() - t0;

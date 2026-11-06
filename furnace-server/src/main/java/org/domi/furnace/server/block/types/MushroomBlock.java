@@ -27,12 +27,13 @@ public class MushroomBlock extends BushBlock implements BonemealableBlock {
                 }
             }
         }
+        final Pos origin = pos;
         Pos target = pos.offset(random.nextInt(3) - 1, random.nextInt(2) - random.nextInt(2), random.nextInt(3) - 1);
         for (int i = 0; i < 4; i++) {
             if (level.isEmptyBlock(target) && B.canSurvive(state, level, target)) pos = target;
             target = pos.offset(random.nextInt(3) - 1, random.nextInt(2) - random.nextInt(2), random.nextInt(3) - 1);
         }
-        if (level.isEmptyBlock(target) && B.canSurvive(state, level, target)) level.setBlock(target, state, 2);
+        if (level.isEmptyBlock(target) && B.canSurvive(state, level, target)) B.spread(level, origin, target, state, 2);   // 플러그인 BlockSpreadEvent
     }
 
     @Override

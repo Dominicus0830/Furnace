@@ -93,7 +93,7 @@ public final class PlayerSleeping {
 
     /** LivingEntity.startSleeping: 내리고, 침대를 점유, 자는 자세, 침대 위(0.5, 0.6875, 0.5), 멈춤. 자세·자는 칸은 다음 동기화에 보낸다. */
     static void startSleeping(Player p, ChunkLevel level, Pos pos) {
-        if (p.vehicle() != null) p.stopRiding();
+        if (p.vehicle() != null) Entity.stopRidingForced(p);
         int st = level.getBlockState(pos);
         if (B.isTag(st, "minecraft:beds")) level.setBlock(pos, B.prop("occupied").with(st, true), 3);
         p.setPosRaw(pos.x() + 0.5, pos.y() + 0.6875, pos.z() + 0.5);

@@ -22,7 +22,10 @@ public class CoralFanBlock extends BaseCoralFanBlock {
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        if (!scanForWater(state, level, pos)) level.setBlock(pos, WATERLOGGED.with(B.defaultState(dead), false), 2);
+        if (!scanForWater(state, level, pos)) {
+            int deadState = WATERLOGGED.with(B.defaultState(dead), false);
+            if (B.fade(level, pos, deadState)) level.setBlock(pos, deadState, 2);   // 플러그인 BlockFadeEvent
+        }
     }
 
     @Override

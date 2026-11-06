@@ -492,7 +492,7 @@ public final class Raid {
             r.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(pos));
             r.applyRaidBuffs(wave, false);
             r.setOnGround(true);
-            level.addFreshEntityWithPassengers(r);
+            level.addFreshEntityWithPassengers(r.spawnReason("RAID"));
         }
     }
 
