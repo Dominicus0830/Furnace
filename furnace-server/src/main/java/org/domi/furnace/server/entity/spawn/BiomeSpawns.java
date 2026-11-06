@@ -22,6 +22,8 @@ public final class BiomeSpawns {
     private record Settings(float probability, Map<MobCategory, List<SpawnerData>> spawners, Map<String, SpawnCost> costs) {}
 
     private static final Map<String, Settings> BY_BIOME = new HashMap<>();
+    /** 플러그인 바이옴(GameRegistryStore)의 설정 — 바닐라 표보다 먼저 본다. 플러그인이 꺼지면 빠진다. */
+    private static final Map<String, Settings> CUSTOM = new java.util.concurrent.ConcurrentHashMap<>();
 
     static {
         try (var in = BiomeSpawns.class.getClassLoader().getResourceAsStream("entities/biome_spawners-1.21.1.json")) {
@@ -53,7 +55,20 @@ public final class BiomeSpawns {
 
     private static final Settings EMPTY = new Settings(0.1F, Map.of(), Map.of());
 
-    private static Settings of(String biome) { return BY_BIOME.getOrDefault(biome == null ? "" : biome, EMPTY); }
+    private static Settings of(String biome) {
+        if (biome == null) return EMPTY;
+        Settings c = CUSTOM.get(biome);
+        return c != null ? c : BY_BIOME.getOrDefault(biome, EMPTY);
+    }
+
+    /** 플러그인 바이옴의 스폰 설정을 정한다(다시 부르면 갈아 끼운다). 목록은 복사해 둔다. */
+    public static void putCustom(String biome, float probability, Map<MobCategory, List<SpawnerData>> spawners, Map<String, SpawnCost> costs) {
+        Map<MobCategory, List<SpawnerData>> copy = new HashMap<>();
+        spawners.forEach((k, v) -> copy.put(k, List.copyOf(v)));
+        CUSTOM.put(biome, new Settings(probability, copy, Map.copyOf(costs)));
+    }
+
+    public static void removeCustom(String biome) { CUSTOM.remove(biome); }
 
     public static float creatureSpawnProbability(String biome) { return of(biome).probability(); }
 

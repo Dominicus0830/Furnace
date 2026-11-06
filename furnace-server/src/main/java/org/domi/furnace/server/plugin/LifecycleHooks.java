@@ -57,6 +57,19 @@ final class LifecycleHooks {
         }
     }
 
+    /** 한 플러그인의 그 종류 처리기만 순서대로 부른다(핫 리로드 때 그 플러그인 것만 다시 돌릴 때). */
+    @SuppressWarnings("unchecked")
+    <R> void fireOwner(String owner, LifecycleEventType<R> type, R registrar) {
+        for (Handler h : handlers) {
+            if (h.type() != type || !h.owner().equals(owner)) continue;
+            try {
+                ((LifecycleEventHandler<R>) h.handler()).run(registrar);
+            } catch (Throwable t) {
+                h.logger().log(Level.SEVERE, "수명주기 훅 " + type + " 처리 중 예외", t);
+            }
+        }
+    }
+
     /** 그 플러그인의 처리기를 모두 뗀다. */
     void removeOwner(String owner) { handlers.removeIf(h -> h.owner().equals(owner)); }
 

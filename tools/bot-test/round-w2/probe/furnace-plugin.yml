@@ -1,0 +1,8 @@
+name: Glow
+version: 1.0.0
+main: probe.GlowProbe
+bootstrapper: probe.GlowBoot
+description: 커스텀 바이옴·차원 타입 등록(W2) 봇 시험
+commands:
+  gbget: {description: 내 위치 바이옴 보기}
+  gbset: {description: 내 위치 바이옴 바꾸기 (인자 = 바이옴 키)}

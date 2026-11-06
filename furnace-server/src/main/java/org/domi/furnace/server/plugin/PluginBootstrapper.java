@@ -50,6 +50,7 @@ public final class PluginBootstrapper {
     private final List<String> failures = new CopyOnWriteArrayList<>();
     private final PluginRegistryStore registries = new PluginRegistryStore();
     private final LifecycleHooks lifecycle = new LifecycleHooks();
+    private final GameRegistryStore gameRegistries = new GameRegistryStore();
     /** 부트스트랩을 마친 플러그인(의존 순서). 클래스로더끼리 서로 찾는 범위이기도 하다. */
     private final List<Prepared> prepared = new CopyOnWriteArrayList<>();
 
@@ -84,6 +85,37 @@ public final class PluginBootstrapper {
 
     LifecycleHooks lifecycle() { return lifecycle; }
 
+    public GameRegistryStore gameRegistries() { return gameRegistries; }
+
+    /**
+     * 게임 레지스트리 훅(GAME_REGISTRIES)을 돌려 플러그인 바이옴·차원 타입을 모으고, base(바닐라) 뒤에 붙인 전송용 세트를 돌려 준다.
+     * 서버 시작 때 한 번 — 부른 뒤 저장소는 고정되어 새 키는 더할 수 없다.
+     */
+    public org.domi.furnace.server.net.registry.RegistrySet collectGameRegistries(org.domi.furnace.server.net.registry.RegistrySet base) {
+        gameRegistries.begin(base);
+        List<GameRegistryStore.Registrar> opened = new ArrayList<>();
+        lifecycle.fire(LifecycleEvents.GAME_REGISTRIES, owner -> {
+            Prepared p = find(owner);
+            GameRegistryStore.Registrar r = gameRegistries.registrar(owner, p.description().namespace(), p.logger());
+            opened.add(r);
+            return r;
+        });
+        opened.forEach(GameRegistryStore.Registrar::close);
+        gameRegistries.freeze();
+        return gameRegistries.extend(base);
+    }
+
+    /** 핫 리로드로 다시 부트스트랩한 플러그인 하나의 게임 레지스트리 훅을 돌린다(이미 있는 자기 키를 갱신·재활성만 한다). */
+    private void reregisterGameRegistries(Prepared p) {
+        if (!gameRegistries.isFrozen()) return;   // 시작 때 훅이 아직 안 돌았다(그때 한꺼번에 돈다)
+        GameRegistryStore.Registrar r = gameRegistries.registrar(p.description().name(), p.description().namespace(), p.logger());
+        try {
+            lifecycle.fireOwner(p.description().name(), LifecycleEvents.GAME_REGISTRIES, r);
+        } finally {
+            r.close();
+        }
+    }
+
     /** 그 플러그인에 묶인 레지스트리 보기. */
     PluginRegistries registries(PluginDescription d) { return registries.view(d.name(), d.namespace()); }
 
@@ -91,6 +123,7 @@ public final class PluginBootstrapper {
     void forget(String name) {
         registries.removeOwner(name);
         lifecycle.removeOwner(name);
+        gameRegistries.deactivateOwner(name);
     }
 
     /** 불러오기에 실패한 플러그인을 뺀다(정리 + 클래스로더 닫기). */
@@ -348,7 +381,11 @@ public final class PluginBootstrapper {
     }
 
     /** jar 를 다시 읽어 부트스트랩까지 한다(실패하면 로그 후 null). 의존 플러그인은 이미 준비돼 있어야 한다. */
-    Prepared reprepare(Candidate c) { return prepare(c); }
+    Prepared reprepare(Candidate c) {
+        Prepared p = prepare(c);
+        if (p != null) reregisterGameRegistries(p);
+        return p;
+    }
 
     /** 다시 읽기 전에 빼 둔다: 레지스트리 몫·훅을 정리하고 클래스 찾기 범위에서 뺀다. 클래스로더는 닫지 않는다(호출자가 나중에). */
     void detach(Prepared p) {

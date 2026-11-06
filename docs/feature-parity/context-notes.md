@@ -891,6 +891,15 @@
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
 
+## 2026-11-06 커스텀 바이옴·차원 타입 등록 (W2, 불만 표 39번)
+- 추가(furnace-api): `plugin.lifecycle.GameRegistrar` + `LifecycleEvents.GAME_REGISTRIES`(부트스트랩에서 등록, 서버 시작 때 레지스트리 고정 전 한 번), `worldgen.BiomeDefinition`·`DimensionTypeDefinition`(값 객체·빌더·equals, 필드 이름 버전 중립)·`SpawnCategory`, `World.biomeAt/setBiome`(기본 구현은 UnsupportedOperationException).
+- 서버: `GameRegistryStore`(플러그인 항목·소유자·활성 여부) + `GameRegistryCodec`(정의 → 네트워크 NBT, 소리는 항상 `{sound_id}` 직접 형식 — 참조 형식은 클라에 없는 id 면 레지스트리 전체가 거부된다). `RegistrySet.withExtras` 가 바닐라 뒤에 등록 순서로 붙이고 `data(registry, entry)` 로 전송 본문을 쥔다. `RegistryData` 가 본문 있는 항목만 `hasData=true` + 네트워크 NBT 로 보낸다(바닐라는 그대로 false).
+- 인덱스: 바닐라 바이옴 64개(차원 타입 4개) 인덱스는 그대로, 플러그인 것은 뒤. **고정 뒤에는 지우지 않는다** — 플러그인이 꺼지면 항목은 비활성으로만 표시하고(클라이언트가 받은 id 공간 유지) 서버 쪽 상태(`BiomeWeather.CUSTOM` 날씨 성질·`BiomeSpawns.CUSTOM` 스폰 목록)는 걷는다. 핫 리로드(`reprepare`)는 그 플러그인의 훅만 다시 돌려 이미 있는 자기 키를 갱신·재활성(정의가 바뀌면 "다시 접속해야 받는다" 경고), 새 키는 거부(재시작 필요).
+- 연결: `FurnaceMain` 이 `pluginBoot.collectGameRegistries(바닐라 세트)` 로 만든 세트를 월드젠(`NoiseWorldSource`·`AnvilChunkCodec`)·`biomeDirectBits`·`DataPackManager`(태그·/fillbiome·/locate·execute if biome)·`ServerCore.registries()`(접속 처리의 `RegistryData`·차원 인덱스)에 같이 쓴다. 청크 바이옴 팔레트 비트 수는 클라이언트가 레지스트리 크기로 계산하므로 확장 세트 크기를 써야 한다. `WorldgenData.biomeFrozenModifier` 는 바닐라 JSON 이 없는 이름(플러그인 바이옴)이면 false.
+- 청크 저장은 이름으로: 플러그인이 빠지면 그 칸은 평원으로 읽히고(월드는 열린다) 다시 넣으면 돌아온다(`VanillaChunkFormatTest`).
+- 차원 타입은 등록·전송까지다. 그 타입을 쓰는 차원(월드)을 만드는 것은 다중 월드(W1): 만들 때 `GameRegistryStore.dimensionType(key).definition()` 으로 정의를 읽어 서버 `DimensionType` 을 구성하고 `Respawn`/`Login` 의 차원 인덱스는 `ServerCore.registries().indexOf("minecraft:dimension_type", key)`(ConnectionHandler 가 이미 그렇게 읽는다).
+- 시험: `GameRegistryTest`(7), `VanillaChunkFormatTest`(+1), 봇 `tools/bot-test/round-w2/glow.js` 11/11(레지스트리 본문 수신·접속·setBiome→chunk_biomes·/fillbiome·execute if biome). 문서 `docs/api/bootstrap-registries.md` 6장.
+
 ## 2026-11-06 플러그인 UI API: 메뉴·사이드바·보스바
 - 추가(furnace-api): `menu.Menu`(+`MenuType`·`MenuClick`·`ClickKind`), `bossbar.BossBar`, `scoreboard.Sidebar`. `Audience` 에 `showBossBar/hideBossBar/showSidebar/hideSidebar`, `Player` 에 `openMenu(Menu)/closeMenu()/currentMenu()`. 모두 레지스트리 키·`Text`·`ItemStack`(API) 만 쓰는 버전 중립 타입이고 상태는 API 객체가 갖는다(서버는 리스너로 따라간다).
 - 메뉴: 상자 1~6줄·발사기 3×3·깔때기 5칸. **기본은 모든 클릭 취소**(플레이어 인벤토리 칸 쉬프트 클릭·끌기 포함), 처리기가 `click.allow()` 를 부르면 바닐라대로. 처리기는 연결 스레드에서 불리고 던진 예외는 기록 후 취소. `Menu.set/button/clear/fillEmpty/border` 로 내용을 바꾸면 보고 있는 사람 화면이 `broadcastChanges` 로 따라온다. 열기/닫기는 `InventoryHost.openPluginMenu/execute` 로 연결 이벤트 루프에서(처리기 안에서 `close()` 해도 클릭이 끝난 뒤에 닫힌다). InventoryOpen/Close/ClickEvent 는 그대로 발화(처리기가 거부한 클릭은 InventoryClickEvent 를 거치지 않는다). 서버 `AbstractContainerMenu.pluginOwner` 가 `MenuSession` 표식.

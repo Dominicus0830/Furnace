@@ -12,4 +12,11 @@ public final class LifecycleEvents {
      */
     public static final LifecycleEventType<DatapackRegistrar> DATAPACK_DISCOVERY =
             new LifecycleEventType<>("furnace:datapack_discovery", DatapackRegistrar.class);
+
+    /**
+     * 게임 레지스트리 등록. 서버 시작 때 레지스트리를 고정하기 전에 한 번 불린다(데이터 팩을 읽기 전). 여기서 등록한 바이옴·차원 타입은
+     * 클라이언트가 구성 단계에서 받는 레지스트리에 들어가고, 바이옴은 /fillbiome·/locate·태그·청크 저장에서 바닐라 바이옴처럼 쓰인다.
+     */
+    public static final LifecycleEventType<GameRegistrar> GAME_REGISTRIES =
+            new LifecycleEventType<>("furnace:game_registries", GameRegistrar.class);
 }
