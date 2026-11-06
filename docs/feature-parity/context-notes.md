@@ -872,4 +872,4 @@
 
 ## 행운·불운 전리품·낚시 반영 (2026-11-06)
 - 바닐라처럼 플레이어 행운(`generic.luck` 속성 = 기본값 + luck/unluck 효과 수정자)을 전리품 문맥에 합산: 낚시 = 낚싯대 바다의 행운 + 플레이어 행운(`FishingHook.retrieve`), 몹 처치 = 마지막으로 때린 플레이어 행운(`ServerCore.entityDrops`), 상자·상자 탈것 열기 = 연 플레이어 행운(`fillLoot`). 고고학·금고는 이미 반영돼 있었다. 행운은 `Player.attributes()` 의 살아 있는 값을 읽어 `/attribute … base set` 도 반영된다.
-- 봇 시험 `tools/bot-test/round8`(luck.js·fish.js, 돌 100 / 흙 100 quality 100 표): 불운 → 흙 0%, 보통 ≈50%, 행운 → 흙 쪽으로 쏠림, 낚시(행운 100)에서 흙만.
+- 봇 시험 `tools/bot-test/round9`(luck.js·fish.js, 돌 100 / 흙 100 quality 100 표): 불운 → 흙 0%, 보통 ≈50%, 행운 → 흙 쪽으로 쏠림, 낚시(행운 100)에서 흙만.
