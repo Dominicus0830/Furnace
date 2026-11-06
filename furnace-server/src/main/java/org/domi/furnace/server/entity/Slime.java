@@ -117,7 +117,7 @@ public class Slime extends Mob implements Enemy {
                     if (persistenceRequired) child.persistenceRequired = true;
                     child.setSize(newSize, true);
                     child.moveTo(x() + ox, y() + 0.5, z() + oz, random.nextFloat() * 360.0F, 0.0F);
-                    level.addFreshEntity(child);
+                    level.addFreshEntity(child.spawnReason("SLIME_SPLIT"));
                 }
             }
         }

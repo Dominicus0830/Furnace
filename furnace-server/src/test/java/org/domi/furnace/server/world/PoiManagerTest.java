@@ -154,6 +154,10 @@ class PoiManagerTest {
     void closeToVillageBySectionDistance() {
         Lvl l = new Lvl();
         l.setBlock(new Pos(0, -50, 0), BELL, 3);   // 섹션 (0,-4,0)
+        // 바닐라 isVillageCenter 는 점유된(IS_OCCUPIED) 마을 POI 만 센다 — 아무도 안 쓰는 종은 마을이 아니다
+        assertFalse(l.isVillage(new Pos(0, -50, 0)));
+        assertEquals(7, l.poiManager().sectionsToVillage(0, -4, 0));
+        assertEquals(new Pos(0, -50, 0), l.poiManager().take(org.domi.furnace.server.world.poi.PoiTypes.VILLAGE, (t, q) -> true, new Pos(0, -50, 0), 1));
         assertTrue(l.isVillage(new Pos(17, -50, 0)));
         assertFalse(l.isVillage(new Pos(33, -50, 0)));
         assertTrue(l.isCloseToVillage(new Pos(33, -50, 33), 2));
@@ -162,6 +166,8 @@ class PoiManagerTest {
         assertEquals(3, l.poiManager().sectionsToVillage(3, -4, 0));
         assertEquals(7, l.poiManager().sectionsToVillage(8, -4, 0));
         assertFalse(l.isCloseToVillage(Pos.ZERO, 7), "6 넘으면 거짓");
+        l.poiManager().release(new Pos(0, -50, 0));
+        assertFalse(l.isVillage(new Pos(0, -50, 0)), "놓으면 다시 마을이 아니다");
         // 마을 POI 가 아닌 종류(꿀벌집·피뢰침)는 세지 않는다
         Lvl l2 = new Lvl();
         l2.setBlock(new Pos(0, -50, 0), B.defaultState("lightning_rod"), 3);

@@ -78,6 +78,14 @@ public interface Player extends CommandSender, LivingEntity {
      */
     void deleteChatMessage(byte[] signature);
 
+    /**
+     * 패킷을 보낸다(Furnace.server().packets().send 와 같다). 어느 스레드에서 불러도 된다. 접속이 끊겼으면 아무 일도 없다.
+     * 서버 상태는 바뀌지 않는다 — 이 플레이어 화면에만 보인다.
+     */
+    default void sendPacket(org.domi.furnace.api.packet.ClientboundPacket packet) {
+        org.domi.furnace.api.Furnace.server().packets().send(this, packet);
+    }
+
     /** 클라이언트가 minecraft:register 로 듣겠다고 알린 채널(사본). 바닐라 클라이언트는 비어 있다. */
     java.util.Set<String> listeningPluginChannels();
 
