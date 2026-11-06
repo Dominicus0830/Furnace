@@ -95,7 +95,14 @@ public final class RegionFileStore {
 
     /** 압축해제된 NBT 바이트(없으면 null). 파일별 락 직렬화. */
     public byte[] readChunk(int chunkX, int chunkZ) throws IOException {
-        return withFile(chunkX, chunkZ, rf -> rf.readChunk(chunkX, chunkZ));
+        // 파일 잠금 안에서는 압축 본문만 읽고, 압축 풀기(순수 CPU)는 잠금 밖에서 — 쓰기 쪽 F-01 과 같은 꼴
+        RegionFile.Payload p = readPayload(chunkX, chunkZ);
+        return p == null ? null : p.decompress();
+    }
+
+    /** 압축 본문만(없으면 null). 압축 풀기는 부르는 쪽이 원하는 스레드에서 {@link RegionFile.Payload#decompress()}. */
+    public RegionFile.Payload readPayload(int chunkX, int chunkZ) throws IOException {
+        return withFile(chunkX, chunkZ, rf -> rf.readPayload(chunkX, chunkZ));
     }
 
     /** 디스크에 그 청크가 있는가(region 파일이 없으면 만들지 않고 거짓). */

@@ -127,7 +127,18 @@ public final class RegionFile implements Closeable {
     /** 헤더에 그 청크 자리가 있는가. */
     public synchronized boolean hasChunk(int chunkX, int chunkZ) { return locations[index(chunkX, chunkZ)] != 0; }
 
-    public synchronized byte[] readChunk(int chunkX, int chunkZ) throws IOException {
+    public byte[] readChunk(int chunkX, int chunkZ) throws IOException {
+        Payload p = readPayload(chunkX, chunkZ);
+        return p == null ? null : p.decompress();
+    }
+
+    /** 압축된 본문과 그 압축 종류. 압축 풀기는 파일 잠금 밖에서 한다(RegionFileStore). */
+    public record Payload(int type, byte[] data) {
+        public byte[] decompress() throws IOException { return Compression.decompress(type, data); }
+    }
+
+    /** 헤더·길이 검사 후 압축 본문만 읽는다(없거나 깨졌으면 null). 외부(.mcc) 청크면 그 파일 내용. */
+    synchronized Payload readPayload(int chunkX, int chunkZ) throws IOException {
         int loc = locations[index(chunkX, chunkZ)];
         if (loc == 0) return null;
         int offset = loc >>> 8, count = loc & 0xFF;
@@ -153,11 +164,11 @@ public final class RegionFile implements Closeable {
                 LOG.error("[REGION] {} 외부 청크 파일 없음: {}", path, ext);
                 return null;
             }
-            return Compression.decompress(compType & ~EXTERNAL_FLAG, Files.readAllBytes(ext));
+            return new Payload(compType & ~EXTERNAL_FLAG, Files.readAllBytes(ext));
         }
         byte[] comp = new byte[len - 1];
         raf.readFully(comp);
-        return Compression.decompress(compType, comp);
+        return new Payload(compType, comp);
     }
 
     /** 바닐라 RegionFile.getExternalChunkPath: 같은 디렉토리의 c.<x>.<z>.mcc (절대 청크 좌표). */
