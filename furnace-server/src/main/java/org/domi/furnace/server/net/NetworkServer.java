@@ -28,7 +28,7 @@ public final class NetworkServer {
     private final World world;
     private final EntityIdAllocator idAllocator;
 
-    private volatile int readTimeoutSeconds = 30;   // 바닐라 ReadTimeoutHandler(30)와 같다. 핸드셰이크 후 침묵하는 소켓을 정리
+    private volatile int readTimeoutSeconds = -1;   // 기본은 ConnectionLimits(바닐라 ReadTimeoutHandler(30)와 같다). 테스트가 덮어쓴다
     private final io.netty.channel.group.ChannelGroup allChannels =
             new io.netty.channel.group.DefaultChannelGroup(io.netty.util.concurrent.GlobalEventExecutor.INSTANCE);
 
@@ -40,6 +40,7 @@ public final class NetworkServer {
     /** 테스트용: start() 전에 읽기 타임아웃(초)을 바꾼다. */
     void readTimeoutSeconds(int seconds) { this.readTimeoutSeconds = seconds; }
 
+    private final java.util.concurrent.atomic.AtomicBoolean proxyWarned = new java.util.concurrent.atomic.AtomicBoolean();
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private final ServerLoginContext loginContext;
@@ -78,6 +79,10 @@ public final class NetworkServer {
             channelType = NioServerSocketChannel.class;
             log.info("Using default channel type");
         }
+        if (loginContext.limits().proxyProtocol()) {
+            log.warn("PROXY 프로토콜이 켜져 있습니다(proxy-protocol=true): 모든 접속이 PROXY 헤더를 보내야 하며, 앞단 밖에서 직접 접속할 수 있으면 주소를 속일 수 있습니다.{}",
+                    loginContext.limits().proxyTrusted().isEmpty() ? " 'proxy-protocol.trusted' 로 앞단 주소를 제한하세요." : "");
+        }
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
                 .channel(channelType)
@@ -88,8 +93,16 @@ public final class NetworkServer {
                     @Override
                     protected void initChannel(io.netty.channel.Channel ch) {
                         allChannels.add(ch);
+                        ConnectionLimits limits = loginContext.limits();
+                        if (limits.proxyProtocol()) {
+                            // PROXY 헤더는 연결의 첫 바이트들 — 다른 어떤 핸들러보다 앞에서 읽는다.
+                            ch.pipeline().addLast("haproxySniffer", new ProxyProtocolHandler.Sniffer(proxyWarned))
+                                    .addLast("haproxyDecoder", new io.netty.handler.codec.haproxy.HAProxyMessageDecoder())
+                                    .addLast("haproxyHandler", new ProxyProtocolHandler(limits, proxyWarned));
+                        }
                         ch.pipeline()
-                                .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(readTimeoutSeconds))
+                                .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(
+                                        readTimeoutSeconds > 0 ? readTimeoutSeconds : limits.readTimeoutSeconds()))
                                 .addLast("writabilityGuard", new WritabilityGuard())
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())

@@ -257,7 +257,7 @@ public class WalkNodeEvaluator extends NodeEvaluator {
         long key = new Pos(x, y, z).asLong();
         PathType cached = pathTypesByPosCache.get(key);
         if (cached == null) {
-            cached = getPathTypeOfMob(new PathfindingContext(level, mob), x, y, z, mob);
+            cached = hooked(x, y, z, getPathTypeOfMob(new PathfindingContext(level, mob), x, y, z, mob));
             pathTypesByPosCache.put(key, cached);
         }
         return cached;
@@ -337,8 +337,24 @@ public class WalkNodeEvaluator extends NodeEvaluator {
     }
 
     /** WalkNodeEvaluator.getPathTypeFromState(level, pos): 칸 하나의 블록으로 정해지는 종류. */
-    public static PathType getPathTypeFromState(PathfindingContext ctx, Pos pos) {
-        int s = ctx.getBlockState(pos);
+    public static PathType getPathTypeFromState(PathfindingContext ctx, Pos pos) { return pathTypeOfState(ctx.getBlockState(pos)); }
+
+    /**
+     * 결과는 블록 상태 하나로만 정해진다(태그·유체·LAND 길찾기 가능 여부 모두 상태의 성질) — 상태별로 한 번만 계산해 둔다.
+     * 바닐라 PathTypeCache 와 같은 목적(칸마다 문자열 태그 조회 13번을 배열 한 번으로). 여러 region 스레드가 같은 값을 써도 무해하다.
+     */
+    private static volatile PathType[] stateMemo;
+
+    static PathType pathTypeOfState(int s) {
+        PathType[] m = stateMemo;
+        if (m == null) stateMemo = m = new PathType[B.BLOCKS.stateCount()];
+        if (s < 0 || s >= m.length) return computePathTypeOfState(s);
+        PathType t = m[s];
+        if (t == null) m[s] = t = computePathTypeOfState(s);
+        return t;
+    }
+
+    private static PathType computePathTypeOfState(int s) {
         if (B.isAir(s)) return PathType.OPEN;
         if (B.isTag(s, "minecraft:trapdoors") || B.is(s, "minecraft:lily_pad") || B.is(s, "minecraft:big_dripleaf")) return PathType.TRAPDOOR;
         if (B.is(s, "minecraft:powder_snow")) return PathType.POWDER_SNOW;

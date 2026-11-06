@@ -35,6 +35,7 @@
 | 구조물 경계 표시 | 구조물 블록을 켜고 보면 경계 상자·모서리 표시, 불러온 구조물이 눈으로 바닐라와 같은지(계단 방향·문·침대·상자 내용) | 바닐라와 같음 |
 | 직소 블록 화면 | 직소 블록 우클릭 화면(풀·이름·대상·최종 상태·결합 종류·우선순위)과 "생성" 버튼이 마을 같은 조각을 펼치는지(노이즈 월드) | 바닐라와 같음 |
 | 외부 프로그램 | 바닐라 1.21.1 `region-file-compression=lz4` 월드 ↔ Furnace, 실제 Paper/Spigot 월드 폴더로 첫 기동, 실제 BungeeCord(`ip_forward: true`) 뒤 접속, Fabric 클라이언트 접속 | 이 환경은 Mojang·papermc·md-5 호스트가 막혀 못 돌림. lz4 형식은 바닐라 바이트코드와 대조해 같음 |
+| PROXY 프로토콜 (N2) | `furnace.properties` 에 `proxy-protocol=true` (+ `proxy-protocol.trusted=<HAProxy 주소>`) 를 두고 실제 HAProxy(`send-proxy-v2`)나 nginx stream(`proxy_protocol on`) 뒤로 접속 | 접속은 되고 서버 로그·`/ban-ip`·플러그인이 프록시가 아니라 실제 클라이언트 IP 로 봄. 헤더 없는 직접 접속은 거부됨. 이 환경에는 앞단 프로그램이 없어 EmbeddedChannel·소켓 시험까지만 함 (`docs/feature-parity/connection-defenses-2026-11-06.md`) |
 
 ---
 

@@ -890,6 +890,17 @@
 - 접속 종료 시 `PlayerHandle.dispose()` 가 구독을 푼다(메뉴는 닫힘 경로의 `inventoryClose`).
 - 시험: `PluginUiApiTest`(서버 단위 9개), 봇 `tools/bot-test/round10/ui.js` + `probe/UiProbe` — 10/10 PASS(실제 접속에서 메뉴 열림·장식 칸 취소·allow·버튼+닫기, 보스바·사이드바 패킷 순서).
 - 아직 없는 것: 메뉴 제목 실시간 변경(open_screen 재전송), 페이지 나누기 도우미, 사이드바 점수 숫자 표시, 보스바 서버 `/bossbar` 와의 연동.
+## 2026-11-06 아이템 컴포넌트 타입 API · 아이템 영속 데이터
+- 플러그인 API `ItemStack`(불변 record, 컴포넌트는 SNBT) 위에 타입 있는 층을 얹었다: `ItemComponent<T>`(id + 값 종류)·`ItemComponents`(26종: 이름·로어·희귀도·수치 8·불괴·마법 부여 2·광택 덮어쓰기·염색·속성 변경치·표시 4·문자열/목록/맵 5)·`ItemComponent.raw(id)`(57종 전부를 SNBT 문자열로).
+  `ItemStack.get/has/getOrDefault/with/without`, `persistentData()`, `withPersistentData(콜백)`. 값 타입은 버전 중립(레지스트리 키 문자열·`Text`·record) — 저장 꼴과의 변환은 서버 `ItemSupportImpl`(API 쪽 입구는 `ItemSupport`, `PluginHost` 가 설치).
+- 바닐라 규칙은 서버 코덱을 그대로 거친다: 범위(damage ≥ 0, max_stack_size 1~99, 로어 256줄…)·마법 부여 레지스트리 검사를 어기면 IllegalArgumentException.
+  `get` 은 스택에 붙은 값 → 아이템 기본값(`ItemPrototypes`) 순(바닐라 ItemStack.get). `with` 로 기본값과 같은 값을 넣으면 붙이지 않고 기본으로 되돌린다(PatchedDataComponentMap.set). `without` 은 아이템에 기본값이 있을 때만 "지움" 표시, 없으면 그냥 뗀다.
+- 아이템 영속 데이터는 Paper 와 같은 자리 `custom_data` 의 `PublicBukkitValues`(키는 `namespace:path` 문자열). 스택이 불변이라 어느 스레드에서도 읽고(사본), `withPersistentData` 는 새 스택을 돌려준다(바뀐 것이 없으면 같은 스택). 다 비우면 PublicBukkitValues, 그래서 custom_data 가 비면 컴포넌트도 뗀다 — 마지막 줄은 Paper 원문 대조 못 한 **가정**.
+  custom_data 의 다른 키·PublicBukkitValues 의 모르는 값은 건드리지 않고 보존.
+- `PersistentDataType.list(원소종류)` 추가(Paper 의 LIST 와 같은 NBT 리스트 꼴): 엔티티·청크·아이템 영속 데이터 모두. 중첩 목록·섞인 종류는 거부.
+- 이후 버전 지원 대비: 컴포넌트 필드 이름·형식이 바뀌는 버전(1.21.2+, 1.21.5+)은 `ItemSupport` 구현만 바꾸면 되고 API 타입은 그대로다. 아직 타입이 없는 컴포넌트(food·tool·potion_contents·book·trim·fireworks…)는 `raw` 로 쓴다.
+- 시험: `ItemComponentsApiTest`(14) — 코덱 범위, 기본값 처리, raw, 서버 변환·저장 왕복, 영속 데이터 보존·목록.
+
 ## 2026-11-06 구조물 블록·직소 블록
 - 바닐라 `StructureBlockEntity`/`JigsawBlockEntity`·`StructureBlock`·`JigsawBlock`·패킷 3종(0x34 `update_structure_block`, 0x33 `update_jigsaw_block`, 0x17 `generate_structure`)을 바이트코드와 대조해 이식. 편집 화면은 클라이언트가 블록 엔티티 데이터(`saveCustomOnly` 갱신 태그)만 보고 연다. 권한은 창조 모드 + 권한 2 이상, 아니면 패킷을 조용히 버린다.
 - 저장소는 `TemplateManager`(월드 `generated/<ns>/structures/<경로>.nbt` → 내장). 신호 저장(`saveStructure(level, false)`)은 메모리 템플릿만 갈아 끼우고 파일을 쓰지 않는다. 파일 쓰기는 `.tmp` 에 쓴 뒤 옮긴다.
