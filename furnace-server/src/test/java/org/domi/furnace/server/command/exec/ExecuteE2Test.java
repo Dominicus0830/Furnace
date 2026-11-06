@@ -177,6 +177,26 @@ class ExecuteE2Test {
     }
 
     @Test
+    void blockNbtMatchesBlockEntityPartiallyLikeVanilla() {
+        run("setblock 5 -60 5 minecraft:chest{CustomName:'\"Box\"'}");
+        run("item replace block 5 -60 5 container.2 with minecraft:stone 3");
+        // 바닐라: saveWithFullMetadata 와 부분 일치 — 내용이 맞으면 통과
+        assertEquals(new CommandResult(true, 1, 1), run("execute if block 5 -60 5 minecraft:chest{CustomName:'\"Box\"'}"));
+        assertEquals(new CommandResult(true, 1, 1), run("execute if block 5 -60 5 minecraft:chest{Items:[{Slot:2b,id:\"minecraft:stone\"}]}"));
+        assertEquals(new CommandResult(true, 1, 1), run("execute if block 5 -60 5 #minecraft:guarded_by_piglins{Items:[{count:3}]}"));
+        // id·x·y·z 도 비교 대상(full metadata)
+        assertEquals(new CommandResult(true, 1, 1), run("execute if block 5 -60 5 minecraft:chest{id:\"minecraft:chest\",x:5,y:-60,z:5}"));
+        assertEquals(new CommandResult(false, 0, 1), run("execute if block 5 -60 5 minecraft:chest{x:6}"));
+        assertEquals(1, run("execute if block 5 -60 5 minecraft:chest{} run probe").callbacks());
+        // 내용이 다르면 실패, unless 는 반대
+        assertEquals(new CommandResult(false, 0, 1), run("execute if block 5 -60 5 minecraft:chest{Items:[{count:4}]}"));
+        assertEquals(new CommandResult(true, 1, 1), run("execute unless block 5 -60 5 minecraft:chest{CustomName:'\"Other\"'}"));
+        // 블록 엔티티가 없는 블록에 NBT 를 걸면 (빈 {} 라도) 실패
+        set(7, -60, 5, "minecraft:stone");
+        assertEquals(new CommandResult(false, 0, 1), run("execute if block 7 -60 5 minecraft:stone{}"));
+    }
+
+    @Test
     void loadedAndDimensionAreBooleans() {
         int before = core.world().regionCount();
         // 바닐라 ENTITY_TICKING: 플레이어도 forceload 도 없으면 로드돼 있어도 거짓

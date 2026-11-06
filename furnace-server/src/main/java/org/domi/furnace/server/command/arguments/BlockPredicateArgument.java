@@ -8,11 +8,13 @@ import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
+import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.ArgumentType;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
+import org.domi.furnace.server.net.io.nbt.NbtTags;
 
 public final class BlockPredicateArgument implements ArgumentType<BlockPredicateArgument.Predicate> {
 
@@ -64,8 +66,8 @@ public final class BlockPredicateArgument implements ArgumentType<BlockPredicate
 
     private static boolean nbtMatches(BlockLevel level, Pos pos, Object nbt) {
         if (nbt == null) return true;
-        // TODO(블록 엔티티): NbtUtils.compareNbt(nbt, 블록 엔티티 saveWithFullMetadata, 부분 일치) — 블록 엔티티 저장 꼴이 갖춰지면.
-        return false;
+        // 바닐라: 블록 엔티티가 있어야 하고, saveWithFullMetadata(id·x·y·z 포함)와 부분 일치(NbtUtils.compareNbt(nbt, tag, true)).
+        return level.getBlockEntity(pos) instanceof BlockEntity be && NbtTags.compareNbt(nbt, be.saveWithFullMetadata(), true);
     }
 
     @Override
