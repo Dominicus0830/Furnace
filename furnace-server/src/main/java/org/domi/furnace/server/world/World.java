@@ -304,6 +304,7 @@ public final class World {
     public List<CompletableFuture<Void>> flushAll() {
         org.domi.furnace.server.map.MapStore.saveDirty();   // 바뀐 지도 데이터·idcounts
         List<CompletableFuture<Void>> fs = new ArrayList<>(forEachRegion(r -> {
+            r.releaseDisconnectedMounts();
             r.saveDirtyChunks();
             r.publishRaids();
             var saver = dragonFightSaver;

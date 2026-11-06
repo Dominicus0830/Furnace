@@ -624,6 +624,13 @@ public final class Region {
         if (level != null) level.raids().publishSnapshots();
     }
 
+    /** 저장·종료(flushAll): 청크를 쓰기 전에 끊긴 플레이어의 탈것을 그 플레이어 데이터로 옮긴다(틱을 기다리지 않는다). */
+    public void releaseDisconnectedMounts() {
+        for (Player p : players.values()) {
+            if (p.isDisconnected()) org.domi.furnace.server.entity.PlayerVehicleSave.onDisconnect(p, world.playerIo(), world.worldDir());
+        }
+    }
+
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
     public void saveDirtyChunks() {
         autosaveEntityQueue = null;
@@ -908,6 +915,7 @@ public final class Region {
             if (p.isDisconnected()) {
                 // ServerPlayer.disconnect: 자고 있었으면 깨운다(목록 갱신은 빠진 뒤 — onTrackingEnd)
                 if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, false);
+                org.domi.furnace.server.entity.PlayerVehicleSave.onDisconnect(p, world.playerIo(), world.worldDir());   // PlayerList.remove 의 탈것
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
                 for (Integer eid : p.tracked().keySet()) world.removeTracker(eid, p);

@@ -1761,6 +1761,22 @@ public abstract non-sealed class Entity implements Rider {
         }
     }
 
+    /** hasExactlyOnePlayerPassenger: 승객의 승객까지 센 플레이어가 꼭 하나. */
+    public final boolean hasExactlyOnePlayerPassenger() {
+        if (passengers.isEmpty()) return false;
+        java.util.List<Rider> all = new java.util.ArrayList<>();
+        collectIndirectPassengers(all);
+        int n = 0;
+        for (Rider r : all) if (r instanceof Player) n++;
+        return n == 1;
+    }
+
+    /**
+     * Entity.shouldBeSaved 의 탈것 부분: 승객이 아니고, 플레이어 하나만 태운 탈것이 아니다
+     * (그런 탈것은 그 플레이어 데이터의 RootVehicle 로 저장된다).
+     */
+    public final boolean savedWithChunk() { return vehicle == null && !hasExactlyOnePlayerPassenger(); }
+
     /** startRiding(vehicle) = startRiding(vehicle, false). */
     public boolean startRiding(Entity v) { return startRiding(v, false); }
 
