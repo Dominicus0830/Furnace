@@ -212,6 +212,16 @@ class GeneratedChunkSaveTest {
     private static final long LOOP_LIMIT_NANOS = 180_000_000_000L;
 
     /**
+     * 저장이 여러 틱에 나뉘었는가. 틱 수 고정 하한(예전 "> 10")은 청크당 저장 비용이 줄면(청크 IO 최적화) 그대로 깨진다 —
+     * 예산이 지켜졌다면 필요한 틱 수는 총 CPU / (기준 틱 + 예산 4 ms + 여유) 이상이다. 한 틱에 몰리면 1 이 된다.
+     * 여유는 넉넉히 6 ms(GC·JIT 로 한 틱이 길어져도 총합만 늘고 틱 수는 안 늘므로). 예산 크기 자체는 중앙값 단언이 본다.
+     */
+    private static void assertSpread(long ticks, long totalCpu, long baseCpu, String what) {
+        long need = Math.max(3, totalCpu / (baseCpu + 10_000_000L));
+        assertTrue(ticks >= need, what + " 여러 틱에 나뉜다: 틱 " + ticks + " < 필요 " + need + " (합계 " + totalCpu / 1e6 + " ms)");
+    }
+
+    /**
      * 방금 틱이 저장 대상을 하나도 줄이지 못했으면(IO 레인 역압으로 건너뜀 — 틱을 쉬지 않고 돌리는 시험이 IO 스레드보다 앞서간 경우)
      * IO 가 따라올 틈을 주고 true. 그런 틱은 예산을 쓴 틱이 아니라서 틱 비용 통계에 넣지 않는다.
      */
@@ -276,7 +286,7 @@ class GeneratedChunkSaveTest {
         assertEquals(n * n, result[0], "생성 청크 전부 저장 대상");
         assertEquals(0, result[5], "결국 다 저장된다");
         // 첫 몇 틱은 JIT·클래스 로딩으로 한 항목이 길 수 있다 — 분산 여부는 p95 로, 몰림이 없는지는 최대로 본다
-        assertTrue(result[4] > 10, "여러 틱에 나뉜다: " + result[4]);
+        assertSpread(result[4], result[3], result[1], "자동 저장");
         // 한 틱의 값은 GC·JIT·다른 스레드에 흔들리므로 중앙값(틱 절반이 이 안)과 '큰 쪽 몇 개를 뺀' 최댓값으로 본다
         assertTrue(result[7] < result[1] + 10_000_000L, "중앙 틱 CPU 는 기준 틱 + 예산 근처: " + result[7] / 1e6 + " ms");
         assertTrue(result[9] < result[1] + 100_000_000L, "한 틱에 몰리지 않는다(상위 2개 제외 최대): " + result[9] / 1e6 + " ms");
@@ -319,7 +329,7 @@ class GeneratedChunkSaveTest {
         System.out.printf("[F-14] 퇴출 256청크: 틱 최대=%.2fms 중앙=%.2fms p95=%.2fms 합계=%.2fms 틱수=%d%n",
                 res[0] / 1e6, res[4] / 1e6, res[5] / 1e6, res[1] / 1e6, res[2]);
         assertEquals(0, res[3], "결국 다 저장·퇴출된다");
-        assertTrue(res[2] > 10, "여러 틱에 나뉜다: " + res[2]);
+        assertSpread(res[2], res[1], res[6], "퇴출");
         assertTrue(res[4] < res[6] + 10_000_000L, "중앙 틱 CPU 는 기준 틱 + 예산 근처: " + res[4] / 1e6 + " ms");
         io.shutdown();
         sched.close();
@@ -340,7 +350,7 @@ class GeneratedChunkSaveTest {
             Region r = w.regionAt(R00);
             long base = baselineTickCpu(r, mx);   // 저장 없는 틱의 비용(중앙값)
             w.configurePersistence(1, 1);   // 다음 틱에 퇴출·자동 저장이 함께 시작
-            long max = 0;
+            long max = 0, total = 0;
             long[] each = new long[10_000];
             int ticks = 0;
             long loopDeadline = System.nanoTime() + LOOP_LIMIT_NANOS;
@@ -352,16 +362,17 @@ class GeneratedChunkSaveTest {
                 w.configurePersistence(1_000_000, 1);
                 if (idleTick(r, pending)) continue;
                 max = Math.max(max, d);
+                total += d;
                 each[ticks++] = d;
             }
             long[] sorted = java.util.Arrays.copyOf(each, ticks);
             java.util.Arrays.sort(sorted);
-            return new long[]{base, max, sorted[ticks / 2], sorted[(int) (ticks * 0.95)], ticks, r.dirtyChunkCount()};
+            return new long[]{base, max, sorted[ticks / 2], sorted[(int) (ticks * 0.95)], ticks, r.dirtyChunkCount(), total};
         }).get();
         System.out.printf("[F-14] 퇴출+자동저장 겹침: 기준=%.2fms 최대=%.2fms 중앙=%.2fms p95=%.2fms 틱수=%d%n",
                 res[0] / 1e6, res[1] / 1e6, res[2] / 1e6, res[3] / 1e6, res[4]);
         assertEquals(0, res[5]);
-        assertTrue(res[4] > 10, "여러 틱에 나뉜다");
+        assertSpread(res[4], res[6], res[0], "퇴출+자동 저장");
         // 예산 하나면 중앙 틱 ≈ 기준 + 4 ms(+ 한 항목), 예산이 둘이면 + 8 ms 이상. 틱 하나의 값(p95·최댓값)은 GC·JIT 에 흔들리지만
         // 중앙값은 그렇지 않다 — 기준 틱(중앙값) 대비 상대로, 둘 사이(+5.5 ms)를 경계로 한다.
         assertTrue(res[2] < res[0] + 5_500_000L, "중앙 틱 CPU 는 기준 + 예산 하나 근처: " + res[2] / 1e6 + " ms");
