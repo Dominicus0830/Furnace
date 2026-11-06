@@ -197,21 +197,13 @@ public final class AnvilChunkCodec {
 
     /** PalettedContainer.pack 의 블록 상태 형식. */
     private NbtCompound blockStatesFromArray(int[] blocks) {
-        Map<Integer, Integer> indexOf = new HashMap<>();
-        List<Integer> palette = new ArrayList<>();
-        for (int v : blocks) {
-            if (!indexOf.containsKey(v)) { indexOf.put(v, palette.size()); palette.add(v); }
-        }
+        FirstSeen fs = FIRST_SEEN.get();
+        int distinct = fs.index(blocks);
         NbtList paletteList = new NbtList(NbtIo.TAG_COMPOUND);
-        for (int stateId : palette) paletteList.add(paletteEntryOf(stateId));
+        for (int i = 0; i < distinct; i++) paletteList.add(paletteEntryOf(fs.values[i]));
         NbtCompound bs = new NbtCompound();
         bs.putList("palette", paletteList);
-        if (palette.size() > 1) {
-            int bits = Math.max(4, ceillog2(palette.size()));
-            BitStorage store = new BitStorage(bits, 4096);
-            for (int i = 0; i < 4096; i++) store.set(i, indexOf.get(blocks[i]));
-            bs.putLongArray("data", store.data());
-        }
+        if (distinct > 1) bs.putLongArray("data", fs.pack(Math.max(4, ceillog2(distinct)), blocks.length));
         return bs;
     }
 
@@ -224,19 +216,60 @@ public final class AnvilChunkCodec {
             out.putList("palette", paletteList);
             return out;
         }
-        Map<Integer, Integer> indexOf = new HashMap<>();
-        List<Integer> palette = new ArrayList<>();
-        for (int v : biomes) {
-            if (!indexOf.containsKey(v)) { indexOf.put(v, palette.size()); palette.add(v); }
+        FirstSeen fs = FIRST_SEEN.get();
+        int distinct = fs.index(biomes);
+        for (int i = 0; i < distinct; i++) {
+            int id = fs.values[i];
+            paletteList.add(id >= 0 && id < biomeNames.size() ? biomeNames.get(id) : "minecraft:plains");
         }
-        for (int id : palette) paletteList.add(id >= 0 && id < biomeNames.size() ? biomeNames.get(id) : "minecraft:plains");
         out.putList("palette", paletteList);
-        if (palette.size() > 1) {
-            BitStorage store = new BitStorage(ceillog2(palette.size()), 64);
-            for (int i = 0; i < 64; i++) store.set(i, indexOf.get(biomes[i]));
-            out.putLongArray("data", store.data());
-        }
+        if (distinct > 1) out.putLongArray("data", fs.pack(ceillog2(distinct), biomes.length));
         return out;
+    }
+
+    private static final ThreadLocal<FirstSeen> FIRST_SEEN = ThreadLocal.withInitial(FirstSeen::new);
+
+    /**
+     * 값 → 첫 등장 순 팔레트 인덱스(예전 HashMap<Integer,Integer> 와 같은 순서·결과). 칸마다 박싱·해시맵을 타던 것이
+     * 저장 toNbt 비용의 대부분이었다. 스레드마다 작업 배열 하나를 다시 쓴다(세대 번호로 비우기 생략). 재진입하지 않는다.
+     */
+    static final class FirstSeen {
+        private static final int CAP = 8192;   // 4096 칸이 모두 달라도 적재율 1/2
+        private final int[] keys = new int[CAP], ids = new int[CAP], stamp = new int[CAP];
+        final int[] values = new int[4096];
+        private final int[] cellIds = new int[4096];
+        private int gen;
+
+        /** 칸 배열의 팔레트를 만들고 서로 다른 값 수를 돌려준다. values[0..n) 이 팔레트, cellIds 가 칸별 인덱스. */
+        int index(int[] cells) {
+            if (++gen == 0) { java.util.Arrays.fill(stamp, 0); gen = 1; }
+            int g = gen, n = 0, mask = CAP - 1;
+            for (int i = 0; i < cells.length; i++) {
+                int v = cells[i];
+                int h = v * 0x9E3779B9;
+                int s = (h ^ (h >>> 16)) & mask;
+                while (true) {
+                    if (stamp[s] != g) {
+                        stamp[s] = g;
+                        keys[s] = v;
+                        ids[s] = n;
+                        values[n] = v;
+                        cellIds[i] = n++;
+                        break;
+                    }
+                    if (keys[s] == v) { cellIds[i] = ids[s]; break; }
+                    s = (s + 1) & mask;
+                }
+            }
+            return n;
+        }
+
+        /** 직전 index 의 칸별 인덱스를 bits 비트로 묶는다. */
+        long[] pack(int bits, int size) {
+            BitStorage store = new BitStorage(bits, size);
+            for (int i = 0; i < size; i++) store.set(i, cellIds[i]);
+            return store.data();
+        }
     }
 
     private static int ceillog2(int n) { return 32 - Integer.numberOfLeadingZeros(n - 1); }
@@ -470,9 +503,7 @@ public final class AnvilChunkCodec {
         int bits = Math.max(4, ceillog2(paletteIds.length));
         BitStorage store = BitStorage.wrap(bits, 4096, data);
         if (bulk) {
-            int[] blocks = new int[4096];
-            for (int idx = 0; idx < 4096; idx++) blocks[idx] = paletteIds[store.get(idx)];
-            col.loadSectionBlocks(sectionIdx, blocks);
+            col.loadSectionIndexed(sectionIdx, paletteIds, store);   // 펼치지 않고 팔레트 인덱스 그대로(같은 결과)
             return;
         }
         for (int idx = 0; idx < 4096; idx++) {

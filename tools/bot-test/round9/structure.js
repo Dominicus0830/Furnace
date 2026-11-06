@@ -143,7 +143,7 @@ function findFile(rel) { for (const d of [SRV + '/world/generated', SRV + '/gene
     cmd('gamemode creative Tester');
     // 상호작용: 구조물 블록/직소 블록을 우클릭해도 서버가 막지 않는다(화면은 클라이언트가 연다) — 오류 없이 지나가는지만
     await sleep(500);
-    fs.writeFileSync(SRV + '/round8-part1.json', JSON.stringify(res));
+    fs.writeFileSync(SRV + '/round9-part1.json', JSON.stringify(res));
   } else if (phase === 'flat' && part === '2') {
     // 재시작 뒤: 블록 엔티티가 저장돼 있고, 메모리가 비었어도 파일에서 불러온다
     ok('restart.blockEntityPersisted', await has(bot, [2, -55, 2], '{name:"bot:house",sizeX:3,sizeY:2,posY:1,mode:"SAVE"}'));

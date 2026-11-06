@@ -34,6 +34,11 @@ final class PaletteStorage {
         return palette == null ? raw : palette[raw];
     }
 
+    /** 단일값 상태면 그 값, 아니면 none. */
+    int singleValueOr(int none) {
+        return bits == 0 ? singleValue : none;
+    }
+
     void set(int index, int value) {
         if (bits == 0) {
             if (value == singleValue) return;
@@ -64,6 +69,63 @@ final class PaletteStorage {
             for (int i = 0; i < size; i++) storage.set(i, src[offset + i]);
         }
     }
+
+    /**
+     * {@code load(펼친 배열)} 과 똑같은 상태(팔레트 첫 등장 순·비트 수·역맵)를, 팔레트 값과 칸별 팔레트 인덱스(디스크 NBT 꼴)에서 바로 만든다.
+     * 칸마다 값 해시를 두 번(서로 다른 값 세기 + idFor) 타던 것을 인덱스 배열 조회로 바꾼다. 팔레트 값이 겹쳐도(모르는 이름 → 공기 둘) 하나로 합친다.
+     * 인덱스가 팔레트 밖이면 예전 경로처럼 ArrayIndexOutOfBoundsException. 반환: 공기가 아닌 칸 수.
+     */
+    int loadIndexed(int[] vals, BitStorage idx) {
+        int[] remap = new int[vals.length];
+        Arrays.fill(remap, -1);
+        int[] cell = CELL.get();
+        int[] dv = DISTINCT.get();
+        int[] count = COUNT.get();
+        int n = 0;
+        for (int i = 0; i < size; i++) {
+            int k = idx.get(i);
+            int r = remap[k];
+            if (r < 0) {
+                int v = vals[k];
+                for (int j = 0; j < n; j++) if (dv[j] == v) { r = j; break; }
+                if (r < 0) { count[n] = 0; dv[n] = v; r = n++; }
+                remap[k] = r;
+            }
+            count[r]++;
+            cell[i] = r;
+        }
+        int nonAir = 0;
+        for (int j = 0; j < n; j++) if (!ChunkSection.isAir(dv[j])) nonAir += count[j];
+        if (n == 1) {
+            bits = 0;
+            singleValue = dv[0];
+            palette = null;
+            storage = null;
+            paletteSize = 0;
+            lookupKeys = null;
+            lookupVals = null;
+            return nonAir;
+        }
+        int needed = 32 - Integer.numberOfLeadingZeros(n - 1);
+        if (needed <= maxIndirect) {
+            initIndirect(Math.max(needed, minIndirect));
+            for (int j = 0; j < n; j++) {
+                palette[j] = dv[j];
+                if (lookupKeys != null) insert(dv[j], j);
+            }
+            paletteSize = n;
+            for (int i = 0; i < size; i++) storage.set(i, cell[i]);
+        } else {
+            initDirect();
+            for (int i = 0; i < size; i++) storage.set(i, dv[cell[i]]);
+        }
+        return nonAir;
+    }
+
+    // loadIndexed 작업 배열(스레드마다 하나, 재진입 없음). 크기는 칸 수 4096 상한.
+    private static final ThreadLocal<int[]> CELL = ThreadLocal.withInitial(() -> new int[4096]);
+    private static final ThreadLocal<int[]> DISTINCT = ThreadLocal.withInitial(() -> new int[4096]);
+    private static final ThreadLocal<int[]> COUNT = ThreadLocal.withInitial(() -> new int[4096]);
 
     int[] unpack() {
         int[] out = new int[size];
