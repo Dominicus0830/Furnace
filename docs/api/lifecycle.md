@@ -51,3 +51,35 @@ API 는 버전 중립이다: 내부 패킷 타입을 드러내지 않고, 단계
 - `onDisable` 동안 접속자는 아직 접속해 있다(메시지·킥·데이터 저장 가능).
 - `tasks()` 로 맡긴 작업은 `onDisable` 이 끝나면 취소된다. 끝까지 돌아야 하는 작업은 `onDisable` 안에서 기다린다.
 - `onDisable` 에서 리로드와 종료를 가르려면 `server().isStopping()`.
+
+## 4. 구성 단계에서 클라이언트와 주고받기 (`PlayerConnection`)
+
+`AsyncPlayerConfigureEvent`(가상 스레드)에서 구성 단계를 멈춰 놓고 클라이언트와 주고받을 수 있다(불만 표 6번). 모든 메서드는 어느 스레드에서나 부를 수 있고, 패킷은 연결의 이벤트 루프로 넘겨 보낸다.
+
+| 메서드 | 단계 | 하는 일 |
+|---|---|---|
+| `sendResourcePack(ResourcePack)` → `Future<ResourcePackStatus>` | 구성·플레이 | 리소스 팩을 내려받게 하고, **끝 상태 응답**(적용 성공·거절·다운로드 실패·잘못된 주소·재적용 실패·버림)이 오면 완료. `ACCEPTED`·`DOWNLOADED` 는 중간 상태라 Future 가 안 끝난다. 필수 팩을 거절하면 서버가 내보낸다(Future 는 `DECLINED`) |
+| `removeResourcePack(id)` / `removeAllResourcePacks()` | 구성·플레이 | 팩을 빼고, 기다리던 Future 는 `DISCARDED` 로 완료 |
+| `requestCookie(key)` → `Future<byte[]>` | 구성 | 클라이언트에 저장된 쿠키 읽기(없으면 `null`). 요청하지 않은 쿠키 응답은 버린다 |
+| `storeCookie(key, value)` | 구성 | 쿠키 저장(키 `namespace:path`, 값 최대 5120바이트) |
+| `transfer(host, port)` | 구성·플레이 | 다른 서버로 옮기기 |
+| `quitReason()` | 끊긴 뒤 | 끊긴 이유(아래) |
+
+- 서버 `resource-pack`(server.properties)과 따로 센다: 플러그인 팩의 응답은 서버 팩 대기를 끝내지 않는다.
+- 구성 단계가 이미 끝났다(구성 끝 패킷을 보냈다)거나 허용되지 않는 단계면, Future 는 `IllegalStateException` 으로 완료되고 `void` 메서드는 그 예외를 던진다. 잘못된 인자(쿠키 키 꼴, 5120바이트 초과)는 `IllegalArgumentException`.
+- **끊기면 풀린다**: 연결이 끊기면 기다리던 모든 Future 가 `ConnectionClosedException` 으로 끝나 `get()` 에서 풀려난다(Paper 에서 구성 처리기 스레드가 누수되던 #13365 와 같은 문제를 막는다). 그래도 1초 뒤 구성 이벤트 처리기가 안 돌아오면(다른 일로 블로킹 중) 그 스레드에 인터럽트를 건다. 연결이 이미 끊겼으면 처리기를 돌리지 않는다.
+- 응답을 영원히 안 주는 클라이언트에 대비한 시간 제한은 부르는 쪽이 건다(`future.orTimeout(10, SECONDS)`). 서버 쪽 한도는 `connection.configuration.timeout-seconds`(기본 없음).
+- Future 의 후속 처리(`thenApply` 등)는 네트워크 스레드가 아니라 플러그인 비동기 실행기에서 돈다.
+- 구독자가 없으면 흐름과 패킷은 바닐라와 같다.
+
+## 5. 끊긴 이유 (`QuitReason`)
+
+`PlayerQuitEvent.reason()`(플레이에 들어온 뒤)와 `PlayerConnection.quitReason()`(어느 단계든, 끊긴 뒤)가 같은 값을 준다. 처음 남긴 이유가 이긴다.
+
+| 값 | 언제 |
+|---|---|
+| `DISCONNECTED` | 클라이언트가 스스로 나갔다(서버가 끊은 것이 아님) |
+| `KICKED` | 사유를 보여 주고 서버가 내보냈다(킥·밴·허용 목록·중복 로그인·플러그인·자리비움·스팸·채팅 검증 실패 등) |
+| `TIMED_OUT` | 읽기 타임아웃·keep-alive 무응답·로그인 30초 같은 접속 단계 시간 제한 |
+| `ERRONEOUS_STATE` | 잘못된 패킷·디코드 실패·속도 제한 초과 — 서버가 사유 없이(또는 "Too many packets"로) 닫았다 |
+| `SERVER_SHUTDOWN` | 서버 종료 때 내보냄(관리자 킥과 구분) |

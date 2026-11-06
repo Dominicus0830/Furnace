@@ -65,7 +65,7 @@ command_block(3종), trial_spawner, vault, brushable_block(suspicious sand/grave
 - (2026-11-02 갱신: `bonus_chest`·`void_start_platform`·`nether_fossil` 모두 이식됨 — context-notes 참고)
 - 순정 대조 미검증 구조물: 정글 신전, 늪 오두막, 해저 신전, 전초기지, 고대 도시, 시련의 방, 보루, 트레일 유적. 사막 피라미드는 근사(허용 불일치 700~1850칸).
 - 다중 청크 decoration 은 center 청크 1개만 읽고 쓰는 구조 제약(이웃과 겹치는 나무·균류).
-- 커스텀 월드 타입(large_biomes, amplified, debug) 무시. `/locate biome|poi` 일부, 돌고래 보물 탐색, 지도 `skipKnownStructures` 한계.
+- 커스텀 월드 타입 debug·single_biome_surface 무시(large_biomes·amplified 는 2026-11-06 구현). `/locate biome|poi` 일부, 돌고래 보물 탐색, 지도 `skipKnownStructures` 한계.
 - 엔드 활성 출구 포털 판정, 드래곤 공격 후 마법 부여 효과, 사용자 이름 보스바.
 - 방랑 상인 타이머 미저장, 마을 포위·좀비 피글린(포탈) 없음, 개구리알 부화·거북알 밟기 등 엔티티 접촉 훅 TODO. — 2026-11-02 에 방랑 상인 타이머·마을 포위를, 2026-11-03 에 개구리알 부화(올챙이)·스니퍼 알 부화(아기 스니퍼)·피글린 분노 호출부를 구현했다. 남은 것: 포탈 좀비 피글린, 개구리알 `entityInside`(떨어지는 블록), 거북알 밟기.
 - 스폰 청크 상시 로드 없음, 청크 티켓 체계 구현 정도 미확인. 전리품 조건의 모르는 EntityPredicate/LocationPredicate 필드는 항상 거짓, 전리품 함수 15종 미지원(데이터팩·플러그인 표에만 영향).
