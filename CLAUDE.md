@@ -3,8 +3,8 @@
 Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(Java 21 / Gradle)다. 목표는 바닐라/Paper 와 관측 결과가 똑같으면서 더 빠른 서버다.
 
 ## 시작할 때
-1. `docs/handoff/2026-10-31-session-handoff.md` 를 먼저 읽는다(2026-11-03 갱신, 현재 상태·남은 구멍·다음 할 일·작업 방식 교훈). 옛 `docs/handoff/2026-10-18-session-handoff.md` 는 2장(확정된 결정), 3장(규칙), 4~5장(환경·아키텍처)만 유효하다. 그 문서의 1.3·6~8장은 낡았다.
-2. 다음 작업은 인수인계서 4장 "다음 할 일"을 따른다. **4-2 컨테이너 메뉴 프레임워크는 완료됐다.** 사용자 접속 시험 대기 항목은 `docs/user-todo.md`.
+1. `docs/handoff/2026-10-31-session-handoff.md` 를 먼저 읽는다(2026-11-04 갱신, 현재 상태·남은 구멍·다음 할 일·작업 방식 교훈). 옛 `docs/handoff/2026-10-18-session-handoff.md` 는 2장(확정된 결정), 3장(규칙), 4~5장(환경·아키텍처)만 유효하다. 그 문서의 1.3·6~8장은 낡았다.
+2. 다음 작업은 인수인계서 4장 "다음 할 일"을 따른다. **4-2 컨테이너 메뉴 프레임워크는 완료됐다.** 사용자 접속 시험 대기 항목은 `docs/user-todo.md`. 실제 클라이언트 없이 접속 시험을 할 때는 오프라인 서버 + mineflayer 봇(`tools/bot-test/README.md`, 결과 `docs/feature-parity/bot-connection-test-*.md`).
 3. `LLM-Wiki/` 는 개발 지식 베이스다. `wiki/Furnace/` 에 과거 작업 기록이 있다.
 
 ## 규칙 (요약, 상세는 인수인계 문서 3장)

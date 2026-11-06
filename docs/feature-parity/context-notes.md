@@ -832,3 +832,11 @@
 - 바닐라 ServerPlayer.addAdditionalSaveData·PlayerList.remove/placeNewPlayer 와 같은 결과: 플레이어 하나만 태운 뿌리 탈것은 그 플레이어 데이터의 `RootVehicle {Attach, Entity}` 로 저장하고, 퇴장 때 승객째 월드에서 뺀다(UNLOADED_WITH_PLAYER). 접속 때 승객째 불러 Attach 의 것에 강제로 태우고, 못 태우면 지운다("Couldn't reattach entity to player"). 그런 탈것은 청크 엔티티 저장에서 빠진다(Entity.shouldBeSaved — `Entity.savedWithChunk`).
 - 구조(Furnace 자체): 플레이어 본체 저장은 연결 스레드, 탈것은 주인 region 스레드가 떠서 같은 플레이어 데이터 실행기에 `RootVehicle` 만 덧쓴다(`PlayerData.saveRootVehicle`). 본체 저장은 이 키를 건드리지 않으므로 두 저장의 순서가 바뀌어도 같다. 자동 저장은 `runOnOwner` 로 탈것을 다시 쓰거나(탄 동안) 지운다(내렸으면). 종료(`World.flushAll`)는 청크를 쓰기 전에 끊긴 플레이어의 탈것부터 옮긴다.
 - 차이: 끊긴 직후 아주 빨리 다시 들어와 region 이 퇴장을 처리하기 전에 데이터를 읽으면 그 접속에서는 타지 않고, 탈것은 다음 접속 때 돌아온다(복제는 없다 — 같은 UUID 가 월드에 있으면 넣지 않는다).
+
+## 2026-11-04 탄 동안 받은 걸음 패킷(봇 3차 접속 시험)
+- 바닐라 `handleMovePlayer` 는 `player.isPassenger()` 면 패킷 위치를 버리고 회전만 받는다(검증 없음). Furnace 는 연결 스레드가 탄 여부를 보고 `acceptRiding` 으로 보내지만, **타기 직전에 검증 대기열에 들어간 패킷**은 region 이 탄 뒤에 꺼내 검증해 `moved wrongly` 로 되돌렸다(탈것 위 자리와 땅 위 위치 비교).
+- `Region.processMoves` 에서 `p.vehicle() != null` 이면 위치를 버리고 회전만 받는다. 시험 `RegionMoveValidationTest.movePacketQueuedBeforeMountingIsNotRejectedAfterMount`.
+- 같은 종류의 함정: 연결 스레드가 본 상태(탔음·잠·텔레포트 대기)와 region 이 검증할 때의 상태가 다를 수 있다. 검증 대기열을 꺼내는 쪽에서 상태를 다시 본다.
+- 파괴수 나뭇잎(U2): 바닐라 `cki.m_`(Ravager.aiStep) 디컴파일 대조로 Furnace 와 같음 확인. 1.21.1 에는 파괴수 전용 길찾기 클래스가 없고 `setPathfindingMalus(LEAVES, 0)` 뿐이다.
+- 디컴파일: Vineflower 1.10.1 은 구글 Maven 미러(`maven-central.storage-download.googleapis.com`)에서 받을 수 있다. 난독화 클래스는 `main` 의 `tools/vanilla-data/server-1.21.1/*.class`, 이름은 `EntityType`(bsx) 의 `ldc "ravager"` 다음 invokedynamic 람다로 찾는다.
+
