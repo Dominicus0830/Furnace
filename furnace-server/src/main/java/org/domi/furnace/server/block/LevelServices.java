@@ -129,6 +129,9 @@ public interface LevelServices {
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
+    /** NaturalSpawner.getRoughBiome: 확대 지터 없이 그 칸이 든 quart 의 바이옴 이름(높이는 월드 안으로 자른다). 기본은 biomeAt. */
+    default String roughBiomeAt(int x, int y, int z) { return biomeAt(x, y, z); }
+
     /** 월드 시드(슬라임 청크 …). */
     default long seed() { return 0L; }
 
@@ -266,6 +269,7 @@ public interface LevelServices {
             return d.chestLoot(lootTable, seed, x, y, z, player, luck);
         }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
+        public String roughBiomeAt(int x, int y, int z) { return d.roughBiomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }
         public int playerIdleTimeoutMinutes() { return d.playerIdleTimeoutMinutes(); }
         public int entityBroadcastRangePercentage() { return d.entityBroadcastRangePercentage(); }

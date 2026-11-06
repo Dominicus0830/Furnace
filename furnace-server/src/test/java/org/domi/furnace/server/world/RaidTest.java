@@ -79,6 +79,8 @@ class RaidTest {
             }
         };
         l.setBlock(new Pos(0, -50, 0), B.defaultState("bell"), 3);
+        // 바닐라 isVillage 는 점유된 마을 POI 만 센다 — 주민이 종을 차지한 상태로 둔다
+        l.poiManager().take(org.domi.furnace.server.world.poi.PoiTypes.VILLAGE, (t, q) -> true, new Pos(0, -50, 0), 1);
         Raid r = new Raid(1, l, new Pos(0, -50, 0));
         assertEquals(5, r.numGroups());
         for (int i = 0; i < 150; i++) r.tick();

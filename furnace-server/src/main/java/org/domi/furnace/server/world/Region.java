@@ -492,9 +492,25 @@ public final class Region {
     }
 
     /** 바이옴 quart 의 레지스트리 id(청크가 없거나 이 region 것이 아니면 -1). 이 region 스레드에서만. */
+    /** ownedChunk 와 같은 답을 레벨의 조회 캐시로(레벨이 아직 없으면 바로 찾는다). */
+    private ChunkColumn cachedChunk(int cx, int cz) {
+        RegionLevel l = level;
+        return l != null ? l.chunkCached(cx, cz) : ownedChunk(cx, cz);
+    }
+
+    /** ChunkAccess.getNoiseBiome(블록 좌표 >> 2): quart y 를 [최저, 최고] 로 잘라 그 청크의 바이옴 id(청크가 없으면 -1). */
+    public int noiseBiomeIdAtBlock(int x, int y, int z) {
+        world.assertOwns(this);
+        ChunkColumn col = cachedChunk(x >> 4, z >> 4);
+        if (col == null) return -1;
+        int minQ = col.minY() >> 2, maxQ = minQ + col.sections().length * 4 - 1;
+        int qy = Math.max(minQ, Math.min(maxQ, y >> 2));
+        return col.sections()[((qy << 2) - col.minY()) >> 4].getBiome(x >> 2 & 3, qy & 3, z >> 2 & 3);
+    }
+
     public int biomeIdAtQuart(int qx, int qy, int qz) {
         world.assertOwns(this);
-        ChunkColumn col = ownedChunk(qx >> 2, qz >> 2);
+        ChunkColumn col = cachedChunk(qx >> 2, qz >> 2);   // 스폰 시도마다 불린다 — 해시 맵 두 번 대신 레벨 조회 캐시
         if (col == null) return -1;
         int sec = ((qy << 2) - col.minY()) >> 4;
         if (sec < 0 || sec >= col.sections().length) return -1;
@@ -1774,13 +1790,18 @@ public final class Region {
         boolean canUse = p.vehicle() == null && !p.vitals().isDeadOrDying();
         if (pp.processPlayerPortalTeleportation(level, p.vitals().invulnerableAbility(), canUse)) {
             p.portalCooldown = Player.DIMENSION_CHANGING_DELAY;
+            var events = world.levelServices().gameEvents();
+            int cause = pp.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock ? org.domi.furnace.server.plugin.GameEvents.PORTAL_END
+                    : pp.portal().withinLevel() ? org.domi.furnace.server.plugin.GameEvents.PORTAL_GATEWAY : org.domi.furnace.server.plugin.GameEvents.PORTAL_NETHER;
             if (pp.portal().withinLevel()) {
+                if (!events.playerPortal(p, world.dimension(), cause)) return false;   // 플러그인 PlayerPortalEvent 취소
                 sendWithinLevel(p, pp);
                 return true;
             }
             var travel = world.travelService();
             var plan = pp.prepareTravel(level, org.domi.furnace.server.entity.Traveler.of(p));
             if (plan == null || plan.targetDimension().equals(world.dimension()) || !travel.isLevelEnabled(plan.targetDimension())) return false;
+            if (!events.playerPortal(p, plan.targetDimension(), cause)) return false;   // 플러그인 PlayerPortalEvent 취소
             if (world.dimensionType() == DimensionType.END && pp.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock) {
                 sendAcrossToRespawn(p);   // findRespawnPositionAndUseSpawnBlock(false, DO_NOTHING)
                 return true;
@@ -1882,7 +1903,7 @@ public final class Region {
             p.teleportTo(p.x(), p.y(), p.z(), yaw, pitch);
             p.send(new org.domi.furnace.server.net.protocol.play.SetCamera(p.id()));
             world.otherWorld(dimension).addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);
-            if (p.vehicle() != null) p.stopRiding();
+            if (p.vehicle() != null) org.domi.furnace.server.entity.Entity.stopRidingForced(p);
             if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, true);
             Runnable finish = () -> {
                 p.send(new org.domi.furnace.server.net.protocol.play.SetCamera(p.id()));
@@ -1893,7 +1914,7 @@ public final class Region {
         }
         p.cameraField(target);
         world.addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);   // POST_TELEPORT 티켓
-        if (p.vehicle() != null) p.stopRiding();
+        if (p.vehicle() != null) org.domi.furnace.server.entity.Entity.stopRidingForced(p);
         if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, true);
         p.teleportTo(x, y, z, yaw, pitch);
         p.send(new org.domi.furnace.server.net.protocol.play.SetCamera(now.id()));

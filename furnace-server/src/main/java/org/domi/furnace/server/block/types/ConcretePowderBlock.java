@@ -21,7 +21,7 @@ public class ConcretePowderBlock extends FallingBlock {
     /** onLand(떨어진 블록이 내려앉을 때): 물에 닿으면 콘크리트. */
     @Override
     public void onLand(BlockLevel level, Pos pos, int state, int replaced, boolean silent) {
-        if (shouldSolidify(level, pos, replaced)) level.setBlock(pos, B.defaultState(concrete), 3);
+        if (shouldSolidify(level, pos, replaced)) B.form(level, pos, B.defaultState(concrete), 3);   // 플러그인 BlockFormEvent
     }
 
     @Override
@@ -51,6 +51,7 @@ public class ConcretePowderBlock extends FallingBlock {
 
     @Override
     public int updateShape(int state, int dir, int neighborState, BlockLevel level, Pos pos, Pos neighborPos) {
-        return touchesLiquid(level, pos) ? B.defaultState(concrete) : super.updateShape(state, dir, neighborState, level, pos, neighborPos);
+        return touchesLiquid(level, pos) && level.gameEvents().blockForm(level.dimension(), pos, state, B.defaultState(concrete))   // 플러그인 BlockFormEvent
+                ? B.defaultState(concrete) : super.updateShape(state, dir, neighborState, level, pos, neighborPos);
     }
 }
