@@ -19,6 +19,8 @@ import org.domi.furnace.api.command.CommandRegistry;
 import org.domi.furnace.api.command.CommandSender;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.plugin.PluginDescription;
+import org.domi.furnace.api.profiler.PluginProfiler;
+import org.domi.furnace.api.profiler.Timing;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.command.CommandSource;
@@ -62,11 +64,11 @@ final class CommandRegistryImpl implements CommandRegistry {
         for (String n : names) {
             String ns = namespace + ":" + n;
             if (dispatcher().getRoot().getChild(ns) == null) {
-                dispatcher().register(node(ns, effective));
+                dispatcher().register(node(plugin, ns, n, effective));
                 registered.add(ns);
             }
             if (dispatcher().getRoot().getChild(n) == null) {
-                dispatcher().register(node(n, effective));
+                dispatcher().register(node(plugin, n, n, effective));
                 registered.add(n);
             } else {
                 log.warn("[{}] 명령 '{}' 은(는) 이미 있어 '{}' 로만 등록한다", plugin.name(), n, ns);
@@ -91,36 +93,45 @@ final class CommandRegistryImpl implements CommandRegistry {
         return n;
     }
 
-    private LiteralArgumentBuilder<CommandSource> node(String name, BasicCommand cmd) {
+    /** name 은 트리에 붙는 이름, label 은 /timings 에 보일 이름(플러그인: 접두어 없이 — 두 이름의 시간을 한 줄로 모은다). */
+    private LiteralArgumentBuilder<CommandSource> node(FurnacePlugin plugin, String name, String label, BasicCommand cmd) {
+        Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
         return literal(name)
                 .requires(src -> cmd.canUse(host.sender(src)))
-                .executes(ctx -> run(cmd, ctx, new String[0]))
+                .executes(ctx -> run(cmd, exec, ctx, new String[0]))
                 .then(argument("args", Arguments.greedyString())
-                        .suggests((ctx, b) -> suggest(cmd, ctx, b))
-                        .executes(ctx -> run(cmd, ctx, ctx.getArgument("args", String.class).split(" ", -1))));
+                        .suggests((ctx, b) -> suggest(cmd, tab, ctx, b))
+                        .executes(ctx -> run(cmd, exec, ctx, ctx.getArgument("args", String.class).split(" ", -1))));
     }
 
-    private int run(BasicCommand cmd, CommandContext<CommandSource> ctx, String[] args) {
+    private int run(BasicCommand cmd, Timing timing, CommandContext<CommandSource> ctx, String[] args) {
         CommandSender sender = host.sender(ctx.getSource());
+        long t0 = timing.start();
         try {
             cmd.execute(sender, args);
         } catch (Throwable t) {
             log.error("Command exception: /{}", ctx.getInput(), t);
             sender.sendMessage(Text.translatable("command.failed").color(org.domi.furnace.api.text.NamedTextColor.RED));
             return 0;
+        } finally {
+            timing.stop(t0);
         }
         return 1;
     }
 
-    private CompletableFuture<Suggestions> suggest(BasicCommand cmd, CommandContext<CommandSource> ctx, SuggestionsBuilder b) {
+    private CompletableFuture<Suggestions> suggest(BasicCommand cmd, Timing timing, CommandContext<CommandSource> ctx, SuggestionsBuilder b) {
         String remaining = b.getRemaining();
         String[] args = remaining.split(" ", -1);
         List<String> candidates;
+        long t0 = timing.start();
         try {
             candidates = cmd.suggest(host.sender(ctx.getSource()), args);
         } catch (Throwable t) {
             log.error("자동완성 실패: /{}", ctx.getInput(), t);
             return Suggestions.empty();
+        } finally {
+            timing.stop(t0);
         }
         int lastSpace = remaining.lastIndexOf(' ');
         SuggestionsBuilder off = b.createOffset(b.getStart() + lastSpace + 1);
