@@ -324,6 +324,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public boolean startRiding(Entity v, boolean force) { return Entity.mount(this, v, force); }
 
+    private boolean dismountForced;
+
+    @Override public boolean dismountForced() { return dismountForced; }
+
+    @Override public void setDismountForced(boolean forced) { dismountForced = forced; }
+
     /** ServerPlayer.stopRiding → LivingEntity.dismountVehicle → ServerPlayer.dismountTo(연결이 순간이동시킨다). */
     @Override
     public void stopRiding() {
@@ -353,7 +359,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      */
     public void tickRiding() {
         if (vehicle != null && ridingGeneration != spawnGeneration) detachFromVehicle();
-        if (vehicle != null && vehicle.isRemoved()) stopRiding();
+        if (vehicle != null && vehicle.isRemoved()) Entity.stopRidingForced(this);
         if (boardingCooldown > 0) boardingCooldown--;
         Entity root = Entity.rootVehicleOf(this);
         if (root != null && root.getControllingPassenger() == this) {

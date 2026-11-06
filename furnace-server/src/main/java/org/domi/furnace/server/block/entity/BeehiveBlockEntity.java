@@ -171,7 +171,7 @@ public class BeehiveBlockEntity extends BlockEntity {
     /** addOccupant(entity): 3마리 미만이면 태운 것을 내리고 담는다. 꽃 위치를 넘겨받고(벌집에 없거나 1/2), 소리·게임 이벤트, 엔티티는 없앤다. */
     public void addOccupant(BlockLevel level, Entity e) {
         if (stored.size() >= MAX_OCCUPANTS) return;
-        e.stopRiding();
+        Entity.stopRidingForced(e);
         e.ejectPassengers();
         storeBee(Occupant.of(e));
         if (level != null) {

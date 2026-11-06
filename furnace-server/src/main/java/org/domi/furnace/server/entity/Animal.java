@@ -111,7 +111,7 @@ public abstract class Animal extends AgeableMob {
                 if (!ge.entityBreed(child, this, partner, breeder)) return;
             }
             finalizeBreeding(level, partner, child);
-            level.addFreshEntity(child);
+            level.addFreshEntity(child.spawnReason("BREEDING"));
         }
     }
 

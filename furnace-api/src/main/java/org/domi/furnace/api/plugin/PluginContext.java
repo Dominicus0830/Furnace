@@ -14,7 +14,13 @@ public interface PluginContext {
     /** "[플러그인] 메시지" 형식으로 서버 로그에 쓰는 로거. */
     Logger logger();
 
-    /** plugins/<이름>/ — 처음 쓸 때 만들어진다. */
+    /** 관리자가 고치는 설정 파일 폴더 — plugins/<이름>/. 처음 쓸 때 만들어진다. */
+    Path configFolder();
+
+    /**
+     * 플러그인이 만든 데이터 폴더. 기본은 configFolder() 와 같은 plugins/<이름>/ 이고,
+     * 서버 설정 plugins.data-root 가 있으면 <data-root>/<이름>/ 로 갈라진다.
+     */
     Path dataFolder();
 
     /** 플러그인 jar. */

@@ -14,7 +14,10 @@ public interface BootstrapContext {
     /** "[플러그인] 메시지" 형식 로거(나중에 FurnacePlugin.logger() 와 같은 것). */
     Logger logger();
 
-    /** plugins/<이름>/ (만들지는 않는다). */
+    /** 설정 폴더 plugins/<이름>/ (만들지는 않는다). */
+    Path configFolder();
+
+    /** 데이터 폴더(만들지는 않는다). 기본은 configFolder() 와 같고, 서버 설정 plugins.data-root 가 있으면 거기 아래. */
     Path dataFolder();
 
     /** 플러그인 jar. */

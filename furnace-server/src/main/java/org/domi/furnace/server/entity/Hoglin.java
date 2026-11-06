@@ -166,7 +166,7 @@ public class Hoglin extends Animal implements Enemy, HoglinBase {
 
     private void finishConversion() {
         Zoglin zoglin = new Zoglin(level, level.nextEntityId());
-        zoglin = convertTo(zoglin, true);
+        zoglin = convertTo(zoglin, true, "PIGLIN_ZOMBIFIED");
         if (zoglin != null) zoglin.addEffect(new MobEffectInstance(MobEffect.NAUSEA, 200, 0));
     }
 

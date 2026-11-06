@@ -28,6 +28,21 @@ public final class Types {
         return value;
     }
 
+    public static long readVarLong(ByteBuf buf) {
+        long value = 0;
+        int position = 0;
+        byte current;
+        do {
+            current = buf.readByte();
+            value |= (long) (current & SEGMENT_BITS) << position;
+            position += 7;
+            if (position > 70) {
+                throw new ProtocolException("VarLong too long");
+            }
+        } while ((current & CONTINUE_BIT) != 0);
+        return value;
+    }
+
     public static void writeVarInt(ByteBuf buf, int value) {
         while ((value & ~SEGMENT_BITS) != 0) {
             buf.writeByte((value & SEGMENT_BITS) | CONTINUE_BIT);

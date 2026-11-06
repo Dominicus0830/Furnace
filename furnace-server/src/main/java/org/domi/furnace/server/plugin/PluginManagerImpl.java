@@ -39,6 +39,21 @@ public final class PluginManagerImpl implements PluginManager {
     /** 이 관리자가 이어받은 부트스트랩 결과(loadAll 전에는 null). */
     private volatile PluginBootstrapper boot;
 
+    private volatile PluginSettings settings = PluginSettings.DEFAULT;
+    /** 불러오기·켜기에서 실패한 플러그인 이름(plugins.fail-fast 가 켜져 있으면 시작을 멈추는 근거). */
+    private final List<String> failures = new CopyOnWriteArrayList<>();
+
+    public void settings(PluginSettings s) { this.settings = s; }
+
+    public PluginSettings settings() { return settings; }
+
+    /** plugins.fail-fast=true 이고 실패가 있었으면 던진다 — 서버 시작이 멈춘다. */
+    private void failFastCheck(String stage) {
+        if (settings.failFast() && !failures.isEmpty()) {
+            throw new IllegalStateException("plugins.fail-fast: 플러그인 " + stage + " 실패 — " + failures);
+        }
+    }
+
     record Loaded(FurnacePlugin plugin, PluginDescription description, Path file, PluginClassLoader loader) {}
 
     PluginManagerImpl(PluginHost host, Path dir) {
@@ -49,12 +64,14 @@ public final class PluginManagerImpl implements PluginManager {
     // ------------------------------------------------------------------ 불러오기
 
     /** 부트스트랩부터 onLoad 까지 한 번에(서버가 부트스트랩을 따로 돌리지 않았을 때 — 시험 등). */
-    public void loadAll() { loadAll(PluginBootstrapper.bootstrap(dir)); }
+    public void loadAll() { loadAll(PluginBootstrapper.bootstrap(dir, settings)); }
 
     /** 부트스트랩을 마친 플러그인을 의존 순서대로 만들고 onLoad 까지 부른다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
     public void loadAll(PluginBootstrapper boot) {
         this.boot = boot;
+        failures.addAll(boot.failures());   // 찾기·순서·api-version·부트스트랩 단계 실패
         for (PluginBootstrapper.Prepared p : List.copyOf(boot.prepared())) load(p);
+        failFastCheck("불러오기");
     }
 
     private void load(PluginBootstrapper.Prepared c) {
@@ -70,10 +87,13 @@ public final class PluginManagerImpl implements PluginManager {
             }
         } catch (Throwable t) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), t);
+            failures.add(d.name());
             boot.drop(c);
             return;
         }
         java.util.logging.Logger jul = c.logger();
+        Level start = settings.levelFor(d.name());
+        if (start != null) jul.setLevel(start);
         plugin.init(new Context(d, c.file(), loader, jul, boot.registries(d)));
         Loaded l = new Loaded(plugin, d, c.file(), loader);
         plugins.add(l);
@@ -82,6 +102,7 @@ public final class PluginManagerImpl implements PluginManager {
             plugin.onLoad();
         } catch (Throwable t) {
             log.error("Error occurred while loading {} (Is it up to date?)", d.fullName(), t);
+            failures.add(d.name());
         }
     }
 
@@ -96,10 +117,12 @@ public final class PluginManagerImpl implements PluginManager {
      */
     private static final class PluginLogger extends java.util.logging.Logger {
         private final String prefix;
+        private final String pluginName;
         private final Logger out;
 
         PluginLogger(String name, String prefix, Logger out) {
             super("furnace.plugin." + name, null);
+            this.pluginName = name;
             this.prefix = prefix;
             this.out = out;
             setLevel(Level.INFO);
@@ -112,10 +135,16 @@ public final class PluginManagerImpl implements PluginManager {
             if (f != null && !f.isLoggable(r)) return;
             String msg = prefix + FORMAT.formatMessage(r);
             int lv = r.getLevel().intValue();
-            if (lv >= Level.SEVERE.intValue()) out.error(msg, r.getThrown());
-            else if (lv >= Level.WARNING.intValue()) out.warn(msg, r.getThrown());
-            else if (lv >= Level.INFO.intValue()) out.info(msg, r.getThrown());
-            else out.debug(msg, r.getThrown());
+            // 로그 패턴의 %X{plugin} 으로 어느 플러그인의 줄인지 구조적으로 걸러 볼 수 있다
+            org.slf4j.MDC.put("plugin", pluginName);
+            try {
+                if (lv >= Level.SEVERE.intValue()) out.error(msg, r.getThrown());
+                else if (lv >= Level.WARNING.intValue()) out.warn(msg, r.getThrown());
+                else if (lv >= Level.INFO.intValue()) out.info(msg, r.getThrown());
+                else out.debug(msg, r.getThrown());
+            } finally {
+                org.slf4j.MDC.remove("plugin");
+            }
         }
     }
 
@@ -143,7 +172,12 @@ public final class PluginManagerImpl implements PluginManager {
 
         public java.util.logging.Logger logger() { return logger; }
 
-        public Path dataFolder() { return dir.resolve(d.name()); }
+        public Path configFolder() { return dir.resolve(d.name()); }
+
+        public Path dataFolder() {
+            Path root = settings.dataRoot();
+            return root == null ? configFolder() : root.resolve(d.name());
+        }
 
         public Path file() { return file; }
 
@@ -157,6 +191,7 @@ public final class PluginManagerImpl implements PluginManager {
     /** 불러온 플러그인을 순서대로 켠다. */
     public void enableAll() {
         for (Loaded l : plugins) enable(l);
+        failFastCheck("켜기");
     }
 
     private void enable(Loaded l) {
@@ -174,6 +209,7 @@ public final class PluginManagerImpl implements PluginManager {
             p.setEnabled(true);
         } catch (Throwable t) {
             log.error("Error occurred while enabling {} (Is it up to date?)", l.description().fullName(), t);
+            failures.add(l.description().name());
             disable(p);
             return;
         }
@@ -234,6 +270,13 @@ public final class PluginManagerImpl implements PluginManager {
         List<FurnacePlugin> out = new ArrayList<>(plugins.size());
         for (Loaded l : plugins) out.add(l.plugin());
         return out;
+    }
+
+    @Override
+    public void setLogLevel(String pluginName, Level level) {
+        FurnacePlugin p = plugin(pluginName);
+        if (p == null) throw new IllegalArgumentException("그런 플러그인이 없다: " + pluginName);
+        p.logger().setLevel(level);
     }
 
     @Override

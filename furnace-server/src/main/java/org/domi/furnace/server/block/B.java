@@ -29,6 +29,25 @@ public final class B {
         return true;
     }
 
+    /** CraftEventFactory.handleBlockFormEvent: 플러그인 BlockFormEvent 가 허락하면 setBlock(flags) 하고 true. */
+    public static boolean form(BlockLevel level, Pos pos, int newState, int flags) {
+        if (!level.gameEvents().blockForm(level.dimension(), pos, level.getBlockState(pos), newState)) return false;
+        level.setBlock(pos, newState, flags);
+        return true;
+    }
+
+    /** CraftEventFactory.handleBlockSpreadEvent: 플러그인 BlockSpreadEvent 가 허락하면 setBlock(flags) 하고 true. */
+    public static boolean spread(BlockLevel level, Pos source, Pos pos, int newState, int flags) {
+        if (!level.gameEvents().blockSpread(level.dimension(), pos, source, level.getBlockState(pos), newState)) return false;
+        level.setBlock(pos, newState, flags);
+        return true;
+    }
+
+    /** CraftEventFactory.callBlockFadeEvent: 플러그인 BlockFadeEvent 가 허락하는가(바꾸는 일은 부른 쪽이). */
+    public static boolean fade(BlockLevel level, Pos pos, int newState) {
+        return level.gameEvents().blockFade(level.dimension(), pos, level.getBlockState(pos), newState);
+    }
+
     public static int defaultState(String name) { return BLOCKS.defaultState(id(name)); }
 
     public static Prop prop(String name) { return BLOCKS.prop(name); }

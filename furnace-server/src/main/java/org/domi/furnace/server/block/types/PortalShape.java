@@ -104,6 +104,9 @@ public final class PortalShape {
 
     /** createPortalBlocks: 틀 안을 지옥문(축)으로 채운다(플래그 18 — 이웃 알림·모양 갱신 없음). */
     public void createPortalBlocks() {
+        var cells = new java.util.ArrayList<Pos>(width * height);
+        for (int h = 0; h < height; h++) for (int i = 0; i < width; i++) cells.add(bottomLeft.relative(Dir.UP, h).relative(rightDir, i));
+        if (!level.gameEvents().portalCreate(level.dimension(), cells)) return;   // 플러그인 PortalCreateEvent 취소
         int portal = AXIS.with(B.defaultState(NETHER_PORTAL), Dir.axisName(axis));
         for (int h = 0; h < height; h++) {
             for (int i = 0; i < width; i++) level.setBlock(bottomLeft.relative(Dir.UP, h).relative(rightDir, i), portal, 18);

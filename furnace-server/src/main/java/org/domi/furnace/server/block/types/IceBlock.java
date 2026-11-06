@@ -37,6 +37,7 @@ public class IceBlock extends HalfTransparentBlock {
 
     /** melt: 뜨거운 차원이면 사라지고, 아니면 물이 되어 이웃에 알린다. */
     protected void melt(int state, BlockLevel level, Pos pos) {
+        if (!B.fade(level, pos, level.ultraWarm() ? B.defaultState("air") : meltsInto())) return;   // 플러그인 BlockFadeEvent
         if (level.ultraWarm()) {
             level.removeBlock(pos, false);
         } else {

@@ -22,6 +22,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
+import org.domi.furnace.api.ApiVersion;
 import org.domi.furnace.api.config.ConfigFormat;
 import org.domi.furnace.api.config.ConfigSection;
 import org.domi.furnace.api.plugin.PluginDescription;
@@ -45,6 +46,9 @@ public final class PluginBootstrapper {
     public static final String BUKKIT_FOLDER = "bukkit-plugins";
 
     private final Path dir;
+    private final PluginSettings settings;
+    /** 찾기·순서·api-version·부트스트랩 단계에서 실패한 jar·플러그인 이름(plugins.fail-fast 의 근거). */
+    private final List<String> failures = new CopyOnWriteArrayList<>();
     private final PluginRegistryStore registries = new PluginRegistryStore();
     private final LifecycleHooks lifecycle = new LifecycleHooks();
     /** 부트스트랩을 마친 플러그인(의존 순서). 클래스로더끼리 서로 찾는 범위이기도 하다. */
@@ -54,16 +58,21 @@ public final class PluginBootstrapper {
     record Prepared(PluginDescription description, Path file, PluginManagerImpl.PluginClassLoader loader, java.util.logging.Logger logger,
                     PluginBootstrap bootstrap, BootstrapContext context) {}
 
-    private PluginBootstrapper(Path dir) {
+    private PluginBootstrapper(Path dir, PluginSettings settings) {
         this.dir = dir;
+        this.settings = settings;
     }
 
     /** plugins/ 를 훑어 의존 순서대로 부트스트랩까지 한다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
-    public static PluginBootstrapper bootstrap(Path dir) {
-        PluginBootstrapper b = new PluginBootstrapper(dir);
+    public static PluginBootstrapper bootstrap(Path dir) { return bootstrap(dir, PluginSettings.DEFAULT); }
+
+    public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings) {
+        PluginBootstrapper b = new PluginBootstrapper(dir, settings);
         b.run();
         return b;
     }
+
+    List<String> failures() { return failures; }
 
     public Path directory() { return dir; }
 
@@ -113,12 +122,17 @@ public final class PluginBootstrapper {
                 d = readDescription(jar);
             } catch (Exception e) {
                 log.error("Could not load '{}' in folder '{}'", dir.relativize(jar), dir.getFileName(), e);
+                failures.add(jar.getFileName().toString());
                 continue;
             }
-            if (d == null) continue;
+            if (d == null) {
+                failures.add(jar.getFileName().toString());
+                continue;
+            }
             Candidate prev = byName.putIfAbsent(d.name(), new Candidate(jar, d));
             if (prev != null) {
                 log.error("Ambiguous plugin name `{}' for files `{}' and `{}' in `{}'", d.name(), prev.file(), jar, dir.getFileName());
+                failures.add(d.name());
             }
         }
         for (Candidate c : order(byName)) prepare(c);
@@ -178,6 +192,7 @@ public final class PluginBootstrapper {
                     log.error("Could not load '{}' in folder '{}': Unknown/missing dependency plugins: {}. Please download and install these plugins to run '{}'.",
                             dir.relativize(c.file()), dir.getFileName(), missing, c.description().name());
                     it.remove();
+                    failures.add(c.description().name());
                     changed = true;
                 }
             }
@@ -208,6 +223,7 @@ public final class PluginBootstrapper {
             if (pick == null) {
                 for (Candidate c : remaining.values()) {
                     log.error("Could not load '{}' in folder '{}': 의존 관계가 순환한다", dir.relativize(c.file()), dir.getFileName());
+                    failures.add(c.description().name());
                 }
                 break;
             }
@@ -221,10 +237,15 @@ public final class PluginBootstrapper {
 
     private void prepare(Candidate c) {
         PluginDescription d = c.description();
+        if (!apiVersionOk(d, c.file())) {
+            failures.add(d.name());
+            return;
+        }
         List<String> failed = new ArrayList<>();
         for (String dep : d.depend()) if (find(dep) == null) failed.add(dep);
         if (!failed.isEmpty()) {
             log.error("Could not load '{}' in folder '{}': 의존 플러그인 {} 을(를) 불러오지 못했다", dir.relativize(c.file()), dir.getFileName(), failed);
+            failures.add(d.name());
             return;
         }
         PluginManagerImpl.PluginClassLoader loader;
@@ -232,9 +253,12 @@ public final class PluginBootstrapper {
             loader = new PluginManagerImpl.PluginClassLoader(c.file(), this);
         } catch (MalformedURLException e) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), e);
+            failures.add(d.name());
             return;
         }
         java.util.logging.Logger logger = PluginManagerImpl.pluginLogger(d);
+        java.util.logging.Level start = settings.levelFor(d.name());
+        if (start != null) logger.setLevel(start);
         LifecycleHooks.Registrar hooks = lifecycle.registrar(d.name(), logger);
         Context ctx = new Context(d, c.file(), logger, hooks, registries(d));
         PluginBootstrap boot = null;
@@ -248,6 +272,7 @@ public final class PluginBootstrapper {
                 boot.bootstrap(ctx);
             } catch (Throwable t) {
                 log.error("Could not bootstrap '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), t);
+                failures.add(d.name());
                 hooks.close();
                 forget(d.name());
                 PluginManagerImpl.closeQuietly(loader);
@@ -256,6 +281,31 @@ public final class PluginBootstrapper {
         }
         hooks.close();
         prepared.add(new Prepared(d, c.file(), loader, logger, boot, ctx));
+    }
+
+    /**
+     * api-version 검사. 없거나 읽을 수 없으면 경고, 서버보다 새 API(major 가 다르거나 minor 가 큼)를 요구하면 불러오지 않는다,
+     * 서버가 받아 주는 가장 오래된 버전보다 낮으면 경고한다.
+     */
+    private boolean apiVersionOk(PluginDescription d, Path file) {
+        if (d.apiVersion() == null) {
+            log.warn("Plugin {} 에 api-version 이 없다 — 지금 API({}) 로 간주한다. furnace-plugin 설명 파일에 api-version 을 적어라", d.fullName(), ApiVersion.CURRENT);
+            return true;
+        }
+        ApiVersion v = ApiVersion.parse(d.apiVersion());
+        if (v == null) {
+            log.warn("Plugin {} 의 api-version '{}' 을 읽을 수 없다 — 지금 API({}) 로 간주한다", d.fullName(), d.apiVersion(), ApiVersion.CURRENT);
+            return true;
+        }
+        if (!ApiVersion.serverSatisfies(v)) {
+            log.error("Could not load '{}' in folder '{}': 플러그인이 요구하는 API {} 를 이 서버({})가 제공하지 않는다", dir.relativize(file), dir.getFileName(),
+                    v, ApiVersion.CURRENT);
+            return false;
+        }
+        if (v.compareTo(ApiVersion.OLDEST_SUPPORTED) < 0) {
+            log.warn("Plugin {} 은 오래된 API {} 로 만들어졌다(서버 {}, 지원 하한 {}) — 업데이트를 받아라", d.fullName(), v, ApiVersion.CURRENT, ApiVersion.OLDEST_SUPPORTED);
+        }
+        return true;
     }
 
     private Prepared find(String name) {
@@ -334,7 +384,12 @@ public final class PluginBootstrapper {
 
         public java.util.logging.Logger logger() { return logger; }
 
-        public Path dataFolder() { return dir.resolve(d.name()); }
+        public Path configFolder() { return dir.resolve(d.name()); }
+
+        public Path dataFolder() {
+            Path root = settings.dataRoot();
+            return root == null ? configFolder() : root.resolve(d.name());
+        }
 
         public Path file() { return file; }
 

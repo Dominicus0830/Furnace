@@ -63,7 +63,7 @@ public final class PlayerShoulders {
         if (e == null) return;
         if (e instanceof TamableAnimal t) t.setOwnerUUID(p.uuid());
         e.setPos(p.x(), p.y() + 0.7F, p.z());
-        level.addFreshEntity(e);
+        level.addFreshEntity(e.spawnReason("SHOULDER_ENTITY"));
     }
 
     /** Player.playShoulderEntityAmbientSound: 1/200 로 앉은 앵무새가 소리를 낸다(근처 몹 흉내, 아니면 앵무새 울음). */

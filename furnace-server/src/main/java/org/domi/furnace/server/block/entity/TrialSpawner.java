@@ -377,7 +377,7 @@ public final class TrialSpawner {
             mob.setPersistenceRequired();
             if (sd.equipment() instanceof NbtCompound eq) applyEquipment(level, mob, eq);
         }
-        if (!level.addFreshEntityWithPassengers(e)) return Optional.empty();
+        if (!level.addFreshEntityWithPassengers(e.spawnReason("TRIAL_SPAWNER"))) return Optional.empty();
         int flame = isOminous ? 1 : 0;
         level.levelEvent(null, 3011, pos, flame);
         level.levelEvent(null, 3012, at, flame);
