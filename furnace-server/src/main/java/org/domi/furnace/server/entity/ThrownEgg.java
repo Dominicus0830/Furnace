@@ -25,7 +25,7 @@ public class ThrownEgg extends ThrowableProjectile {
                 Chicken chicken = new Chicken(level, level.nextEntityId());
                 chicken.setAge(-24000);
                 chicken.moveTo(x(), y(), z(), yRot(), 0.0F);
-                level.addFreshEntity(chicken);
+                level.addFreshEntity(chicken.spawnReason("EGG"));
             }
         }
         broadcastEntityEvent((byte) 3);

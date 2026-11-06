@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.entity.Entity;
 import org.domi.furnace.api.inventory.Inventory;
+import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.sched.TaskScheduler;
 
 public interface World {
@@ -92,4 +93,25 @@ public interface World {
 
     /** 이 차원의 살아 있는 region 모두(id 순). */
     default List<RegionInfo> regions() { return List.of(); }
+
+    // ------------------------------------------------------------------ 블록 엔티티 NBT (/data block 과 같은 의미)
+
+    /**
+     * 그 칸 블록 엔티티(상자·표지판·생성기·신호기 …)의 NBT 사본(/data get block 과 같은 내용 — x·y·z·id·components 포함).
+     * 그 칸을 가진 region 스레드에서 읽는다. 로드되지 않았거나 블록 엔티티가 없으면 empty(청크를 만들지 않는다).
+     */
+    CompletableFuture<Optional<NbtCompound>> blockEntityNbt(BlockPos pos);
+
+    /**
+     * 그 칸을 가진 region 스레드에서 블록 엔티티 NBT 를 읽어 edit 로 고치고, 바뀌었으면 다시 싣는다(/data modify·merge block 과 같은 경로:
+     * 바닐라 loadWithComponents → setChanged → 클라이언트 갱신). 바뀌었으면 true, 그대로거나 블록 엔티티가 없거나 로드되지 않았으면 false.
+     * 위치 키(x·y·z)를 바꿔도 블록 엔티티는 옮겨지지 않는다(바닐라와 같다).
+     */
+    CompletableFuture<Boolean> editBlockEntityNbt(BlockPos pos, java.util.function.Consumer<NbtCompound> edit);
+
+    /** patch 를 합친다(/data merge block). 바뀌었으면 true. */
+    default CompletableFuture<Boolean> mergeBlockEntityNbt(BlockPos pos, NbtCompound patch) {
+        NbtCompound p = patch.copy();
+        return editBlockEntityNbt(pos, n -> n.merge(p));
+    }
 }

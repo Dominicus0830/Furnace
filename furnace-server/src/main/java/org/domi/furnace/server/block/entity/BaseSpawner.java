@@ -175,7 +175,7 @@ public abstract class BaseSpawner {
                 if (onlyId) mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
                 // TODO(엔티티): sd.equipment() 가 있으면 mob.equip(장비 전리품 표)
             }
-            if (!level.addFreshEntityWithPassengers(e)) {
+            if (!level.addFreshEntityWithPassengers(e.spawnReason("SPAWNER"))) {
                 delay(level, pos);
                 return;
             }

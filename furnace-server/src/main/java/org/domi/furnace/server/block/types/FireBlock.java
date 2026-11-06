@@ -79,12 +79,12 @@ public class FireBlock extends BaseFireBlock {
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
         level.scheduleTick(pos, block, fireTickDelay(level.random()));
         if (!level.gameRule("doFireTick")) return;
-        if (!canSurvive(state, level, pos)) level.removeBlock(pos, false);
+        if (!canSurvive(state, level, pos)) extinguish(level, pos);
         int below = level.getBlockState(pos.below());
         boolean infiniburn = B.isTag(below, infiniburnTag(level));
         int age = AGE.intValue(state);
         if (!infiniburn && level.isRaining() && isNearRain(level, pos) && random.nextFloat() < 0.2F + age * 0.03F) {
-            level.removeBlock(pos, false);
+            extinguish(level, pos);
             return;
         }
         int newAge = Math.min(15, age + random.nextInt(3) / 2);
@@ -95,11 +95,11 @@ public class FireBlock extends BaseFireBlock {
         if (!infiniburn) {
             if (!isValidFireLocation(level, pos)) {
                 Pos b = pos.below();
-                if (!B.isFaceSturdy(level.getBlockState(b), level, b, Dir.UP) || age > 3) level.removeBlock(pos, false);
+                if (!B.isFaceSturdy(level.getBlockState(b), level, b, Dir.UP) || age > 3) extinguish(level, pos);
                 return;
             }
             if (age == 15 && random.nextInt(4) == 0 && !canBurn(level.getBlockState(pos.below()))) {
-                level.removeBlock(pos, false);
+                extinguish(level, pos);
                 return;
             }
         }
@@ -126,12 +126,17 @@ public class FireBlock extends BaseFireBlock {
                             int a = Math.min(15, age + random.nextInt(5) / 4);
                             if (!B.is(level.getBlockState(p), FIRE)   // 플러그인 BlockIgniteEvent(번짐) — 이미 불이면 묻지 않는다
                                     && !level.gameEvents().blockIgnite(level.dimension(), p, org.domi.furnace.server.plugin.GameEvents.IGNITE_SPREAD, pos, null)) continue;
-                            level.setBlock(p, stateWithAge(level, p, a), 3);
+                            B.spread(level, pos, p, stateWithAge(level, p, a), 3);   // 플러그인 BlockSpreadEvent
                         }
                     }
                 }
             }
         }
+    }
+
+    /** fireExtinguished: 플러그인 BlockFadeEvent 가 허락하면 불을 지운다. */
+    private static void extinguish(BlockLevel level, Pos pos) {
+        if (B.fade(level, pos, B.defaultState("air"))) level.removeBlock(pos, false);
     }
 
     private static String infiniburnTag(BlockLevel level) {

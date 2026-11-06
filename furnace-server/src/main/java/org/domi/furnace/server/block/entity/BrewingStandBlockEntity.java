@@ -57,6 +57,7 @@ public class BrewingStandBlockEntity extends ContainerBlockEntity {
     }
 
     private void doBrew(BlockLevel level) {
+        if (!level.gameEvents().brew(level.dimension(), pos, items, fuel)) return;   // 플러그인 BrewEvent 취소: 병도 재료도 그대로
         ItemStack ing = items[3];
         for (int i = 0; i < 3; i++) items[i] = PotionBrewing.mix(ing, items[i]);
         ItemStack rest = ing.withCount(ing.count() - 1);
@@ -73,8 +74,10 @@ public class BrewingStandBlockEntity extends ContainerBlockEntity {
     public void tick(BlockLevel level) {
         ItemStack fuelStack = items[4];
         if (fuel <= 0 && "minecraft:blaze_powder".equals(org.domi.furnace.server.item.ItemTools.itemName(fuelStack))) {
-            fuel = 20;
-            items[4] = fuelStack.withCount(fuelStack.count() - 1);
+            var burn = level.gameEvents().brewingFuel(level.dimension(), pos, fuelStack, 20);   // 플러그인 BrewingStandFuelEvent
+            if (burn == null) return;
+            fuel = burn.fuelPower();
+            if (fuel > 0 && burn.consuming()) items[4] = fuelStack.withCount(fuelStack.count() - 1);
             setChanged(level);
         }
         boolean brewable = isBrewable();

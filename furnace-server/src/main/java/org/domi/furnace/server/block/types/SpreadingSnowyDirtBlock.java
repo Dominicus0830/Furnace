@@ -29,7 +29,7 @@ public abstract class SpreadingSnowyDirtBlock extends SnowyDirtBlock {
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (!canBeGrass(state, level, pos)) {
-            level.setBlockAndUpdate(pos, B.defaultState(DIRT));
+            if (B.fade(level, pos, B.defaultState(DIRT))) level.setBlockAndUpdate(pos, B.defaultState(DIRT));   // 플러그인 BlockFadeEvent
             return;
         }
         if (level.getMaxLocalRawBrightness(pos.above()) >= 9) {
@@ -38,7 +38,7 @@ public abstract class SpreadingSnowyDirtBlock extends SnowyDirtBlock {
                 int dx = random.nextInt(3) - 1, dy = random.nextInt(5) - 3, dz = random.nextInt(3) - 1;
                 Pos p = pos.offset(dx, dy, dz);
                 if (B.is(level.getBlockState(p), DIRT) && canPropagate(def, level, p)) {
-                    level.setBlockAndUpdate(p, SNOWY.with(def, B.is(level.getBlockState(p.above()), SNOW)));
+                    B.spread(level, pos, p, SNOWY.with(def, B.is(level.getBlockState(p.above()), SNOW)), 3);   // 플러그인 BlockSpreadEvent
                 }
             }
         }

@@ -35,6 +35,11 @@ public sealed interface Rider permits Entity, Player {
     /** 내릴 때(removePassenger) 다시 타기까지 기다림(boardingCooldown = 60). */
     void setBoardingCooldown(int ticks);
 
+    /** 내리는 일을 플러그인이 취소할 수 없는 경우(탈것이 사라짐·순간이동·차원 이동·접속 종료)에 stopRiding 동안 켜 둔다. */
+    boolean dismountForced();
+
+    void setDismountForced(boolean forced);
+
     /** stopRiding: 탈것에서 내린다(살아 있는 것은 내릴 자리로 옮긴다). */
     void stopRiding();
 

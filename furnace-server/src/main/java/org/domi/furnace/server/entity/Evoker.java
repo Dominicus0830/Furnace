@@ -166,7 +166,7 @@ public class Evoker extends SpellcasterIllager {
                 vex.setOwner(Evoker.this);
                 vex.setBoundOrigin(pos);
                 vex.setLimitedLife(20 * (30 + random.nextInt(90)));
-                level.addFreshEntity(vex);
+                level.addFreshEntity(vex.spawnReason("SPELL"));
                 level.gameEventFrom("minecraft:entity_place", pos, Evoker.this, -1);
             }
         }
