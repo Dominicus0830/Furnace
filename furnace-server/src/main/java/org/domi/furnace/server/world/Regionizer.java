@@ -894,6 +894,37 @@ public final class Regionizer {
         }
     }
 
+    /** 플러그인 API 용: 관측 사본에 최근 틱 속도(window 동안)를 더한 값. */
+    public record RegionView(RegionInfo info, double tps) {}
+
+    /** 모든 살아 있는 region 의 보기(id 순, 잠금 안에서 값만 복사). */
+    public List<RegionView> regionViews(long windowNanos, long minHistoryNanos) {
+        long now = System.nanoTime();
+        List<RegionView> out = new ArrayList<>();
+        lock.lock();
+        try {
+            for (Region r : regions) out.add(new RegionView(info(r, now), r.tickStarts.rate(now, windowNanos, minHistoryNanos)));
+        } finally {
+            lock.unlock();
+        }
+        out.sort(java.util.Comparator.comparingInt(v -> v.info().id()));
+        return out;
+    }
+
+    /** 그 청크 구역의 주인 region 보기(없으면 null). */
+    public RegionView regionViewAt(int cx, int cz, long windowNanos, long minHistoryNanos) {
+        long now = System.nanoTime();
+        lock.lock();
+        try {
+            Section s = sections.get(sectionKeyOfChunk(cx, cz));
+            Region r = s == null ? null : resolve(s.owner);
+            if (r == null || !r.alive) return null;
+            return new RegionView(info(r, now), r.tickStarts.rate(now, windowNanos, minHistoryNanos));
+        } finally {
+            lock.unlock();
+        }
+    }
+
     /** 대기열에 든 region 수(틱 차례를 기다리는 것 — 잠금 안). */
     public int queuedRegions() {
         lock.lock();
