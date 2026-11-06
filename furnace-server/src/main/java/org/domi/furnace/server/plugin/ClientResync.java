@@ -22,7 +22,7 @@ public final class ClientResync {
     public static void slot(Player p, int windowSlot) {
         int index = PlayerInventory.inventoryIndex(windowSlot);
         if (index < 0) {   // 제작 결과·제작 칸은 인벤토리 번호가 없다 — 인벤토리 창(0)의 칸으로
-            p.send(new ContainerSetSlot(0, p.inventoryMenu().getStateId(), windowSlot, p.inventory().get(windowSlot)));
+            p.send(new ContainerSetSlot(0, p.inventoryMenu() == null ? 0 : p.inventoryMenu().getStateId(), windowSlot, p.inventory().get(windowSlot)));
             return;
         }
         p.send(new ContainerSetSlot(-2, 0, index, p.inventory().get(windowSlot)));
@@ -42,9 +42,8 @@ public final class ClientResync {
     /** 열린 창(없으면 인벤토리 창)의 모든 칸과 커서를 다시 보낸다 — Bukkit updateInventory. */
     public static void inventory(Player p) {
         synchronized (p.menuLock()) {
-            var menu = p.containerMenu();
-            if (menu != null) menu.sendAllDataToRemote();
-            else p.inventoryMenu().sendAllDataToRemote();
+            var menu = p.containerMenu() != null ? p.containerMenu() : p.inventoryMenu();
+            if (menu != null) menu.sendAllDataToRemote();   // 연결이 없는 시험용 플레이어는 창이 없다
         }
     }
 
