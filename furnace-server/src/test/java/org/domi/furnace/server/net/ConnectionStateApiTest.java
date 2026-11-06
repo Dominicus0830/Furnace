@@ -59,7 +59,7 @@ class ConnectionStateApiTest {
         var host = core.plugins();
         plugin.init(new PluginContext() {
             final PluginDescription d = new PluginDescription("csa", "1", "x", "", List.of(), null, null, List.of(), List.of(), List.of(),
-                    null, java.util.Map.of(), List.of());
+                    null, java.util.Map.of(), List.of(), null);
             public PluginDescription description() { return d; }
             public org.domi.furnace.api.Furnace server() { return host; }
             public java.util.logging.Logger logger() { return java.util.logging.Logger.getLogger("csa"); }
@@ -67,6 +67,7 @@ class ConnectionStateApiTest {
             public Path dataFolder() { return tmp.resolve("csa"); }
             public Path file() { return tmp.resolve("csa.jar"); }
             public ClassLoader classLoader() { return getClass().getClassLoader(); }
+            public org.domi.furnace.api.registry.PluginRegistries registries() { return null; }
         });
         plugin.setEnabled(true);
         ServerLoginContext login = new ServerLoginContext(false, false, false, true, false, false, true, 20, "t",

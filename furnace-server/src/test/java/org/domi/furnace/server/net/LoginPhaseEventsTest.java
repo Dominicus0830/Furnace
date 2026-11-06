@@ -57,7 +57,7 @@ class LoginPhaseEventsTest {
         var host = core.plugins();
         plugin.init(new PluginContext() {
             final PluginDescription d = new PluginDescription("lpe", "1", "x", "", List.of(), null, null, List.of(), List.of(), List.of(),
-                    null, java.util.Map.of(), List.of());
+                    null, java.util.Map.of(), List.of(), null);
             public PluginDescription description() { return d; }
             public org.domi.furnace.api.Furnace server() { return host; }
             public java.util.logging.Logger logger() { return java.util.logging.Logger.getLogger("lpe"); }
@@ -65,6 +65,7 @@ class LoginPhaseEventsTest {
             public Path dataFolder() { return tmp.resolve("lpe"); }
             public Path file() { return tmp.resolve("lpe.jar"); }
             public ClassLoader classLoader() { return getClass().getClassLoader(); }
+            public org.domi.furnace.api.registry.PluginRegistries registries() { return null; }
         });
         plugin.setEnabled(true);
         // 목록 검사(PlayerLoginEvent)가 돌도록 서버의 PlayerLists 를 넣은 오프라인 로그인 문맥
