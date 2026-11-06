@@ -447,14 +447,18 @@ public abstract non-sealed class Entity implements Rider {
         if (portalProcess.processPortalTeleportation(level, this, canUsePortal(false))) {
             setPortalCooldown();
             var travel = level.dimensionTravel();
+            int cause = portalProcess.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock ? org.domi.furnace.server.plugin.GameEvents.PORTAL_END
+                    : portalProcess.portal().withinLevel() ? org.domi.furnace.server.plugin.GameEvents.PORTAL_GATEWAY : org.domi.furnace.server.plugin.GameEvents.PORTAL_NETHER;
             if (travel != null && portalProcess.portal().withinLevel()) {
+                if (!level.gameEvents().entityPortal(this, level.dimension(), cause)) return;   // 플러그인 EntityPortalEvent 취소
                 teleportWithinLevel(portalProcess.portal(), portalProcess.getEntryPosition(), travel);
                 return;
             }
             if (travel != null) {
                 PortalTravel plan = portalProcess.prepareTravel(level, Traveler.of(this));
                 if (plan != null && !plan.targetDimension().equals(level.dimension()) && travel.isLevelEnabled(plan.targetDimension())
-                        && canChangeDimensions(level.dimension(), plan.targetDimension())) {
+                        && canChangeDimensions(level.dimension(), plan.targetDimension())
+                        && level.gameEvents().entityPortal(this, plan.targetDimension(), cause)) {   // 플러그인 EntityPortalEvent 취소
                     travelAcross(plan, travel);
                 }
                 return;

@@ -2123,6 +2123,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         synchronized (p.menuLock()) {
             ItemStack cur = p.inventory().get(ws);
             ItemStack out;
+            var core = login.core;
+            if (core != null && org.domi.furnace.server.entity.BookEditing.write(cur, java.util.List.of()) != null) {   // 깃펜 책일 때만 플러그인 PlayerEditBookEvent
+                var edit = core.gameEvents().editBook(p, slot, org.domi.furnace.server.entity.BookEditing.pagesOf(cur), pages, title);
+                if (edit == null) return;
+                pages = edit.pages();
+                title = edit.title();
+            }
             try {
                 out = title == null ? org.domi.furnace.server.entity.BookEditing.write(cur, pages)
                         : org.domi.furnace.server.entity.BookEditing.sign(cur, title, pages, p.name());

@@ -16,6 +16,11 @@ import org.domi.furnace.api.event.entity.EntityTargetEvent;
 import org.domi.furnace.api.event.entity.ItemSpawnEvent;
 import org.domi.furnace.api.event.entity.ProjectileHitEvent;
 import org.domi.furnace.api.event.entity.ProjectileLaunchEvent;
+import org.domi.furnace.api.event.entity.EntityPortalEvent;
+import org.domi.furnace.api.event.player.PlayerEditBookEvent;
+import org.domi.furnace.api.event.player.PlayerFishEvent;
+import org.domi.furnace.api.event.player.PlayerPortalEvent;
+import org.domi.furnace.api.event.world.PortalCreateEvent;
 import org.domi.furnace.api.event.player.PlayerAdvancementDoneEvent;
 import org.domi.furnace.api.event.player.PlayerBedEnterEvent;
 import org.domi.furnace.api.event.player.PlayerBedLeaveEvent;
@@ -605,5 +610,47 @@ public final class PluginGameEvents implements GameEvents {
         var mount = EntityHandle.of(host, vehicle);
         if (ve && bus().call(new VehicleExitEvent(mount, who, cancellable)).isCancelled() && cancellable) return false;
         return !me || !bus().call(new EntityDismountEvent(who, mount, cancellable)).isCancelled() || !cancellable;
+    }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 낚시·차원문·책
+
+    private static final PlayerFishEvent.State[] FISH_STATES = {PlayerFishEvent.State.FISHING, PlayerFishEvent.State.CAUGHT_FISH, PlayerFishEvent.State.CAUGHT_ENTITY,
+            PlayerFishEvent.State.IN_GROUND, PlayerFishEvent.State.FAILED_ATTEMPT, PlayerFishEvent.State.REEL_IN, PlayerFishEvent.State.BITE, PlayerFishEvent.State.LURED};
+
+    @Override
+    public int playerFish(Player p, Entity hook, Entity caughtEntity, Player caughtPlayer, int state, int exp) {
+        if (!bus().hasSubscribers(PlayerFishEvent.class)) return exp;
+        org.domi.furnace.api.entity.Entity caught = caughtPlayer != null ? host.player(caughtPlayer) : caughtEntity != null ? EntityHandle.of(host, caughtEntity) : null;
+        var ev = bus().call(new PlayerFishEvent(host.player(p), caught, EntityHandle.of(host, hook), FISH_STATES[state], exp));
+        return ev.isCancelled() ? -1 : ev.expToDrop();
+    }
+
+    private static final PlayerPortalEvent.Cause[] PORTAL_CAUSES = {PlayerPortalEvent.Cause.NETHER_PORTAL, PlayerPortalEvent.Cause.END_PORTAL, PlayerPortalEvent.Cause.END_GATEWAY};
+
+    @Override
+    public boolean playerPortal(Player p, String toDimension, int cause) {
+        if (!bus().hasSubscribers(PlayerPortalEvent.class)) return true;
+        return !bus().call(new PlayerPortalEvent(host.player(p), new Location(p.dimension(), p.x(), p.y(), p.z(), p.yaw(), p.pitch()), toDimension, PORTAL_CAUSES[cause])).isCancelled();
+    }
+
+    @Override
+    public boolean entityPortal(Entity e, String toDimension, int cause) {
+        if (!bus().hasSubscribers(EntityPortalEvent.class)) return true;
+        return !bus().call(new EntityPortalEvent(EntityHandle.of(host, e), new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot()), toDimension, PORTAL_CAUSES[cause])).isCancelled();
+    }
+
+    @Override
+    public boolean portalCreate(String dimension, java.util.List<org.domi.furnace.server.block.Pos> blocks) {
+        if (!bus().hasSubscribers(PortalCreateEvent.class)) return true;
+        java.util.List<BlockPos> list = new java.util.ArrayList<>(blocks.size());
+        for (var b : blocks) list.add(bp(b));
+        return !bus().call(new PortalCreateEvent(dimension, list, PortalCreateEvent.Reason.FIRE)).isCancelled();
+    }
+
+    @Override
+    public BookEdit editBook(Player p, int slot, java.util.List<String> previousPages, java.util.List<String> pages, String title) {
+        if (!bus().hasSubscribers(PlayerEditBookEvent.class)) return new BookEdit(pages, title);
+        var ev = bus().call(new PlayerEditBookEvent(host.player(p), slot, previousPages, pages, title));
+        return ev.isCancelled() ? null : new BookEdit(ev.pages(), ev.title());
     }
 }
