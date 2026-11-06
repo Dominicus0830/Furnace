@@ -336,12 +336,13 @@ public final class Regionizer {
         try {
             if (closed || !r.queued || r.ticking || !r.alive || r.yielded || r.drainPass) return;
             long now = System.nanoTime();
-            if (r.nextTickNanos - now <= 0) return;   // 곧 틱이다(틱 머리에서 작업 큐를 비운다)
+            // 틱 시각이 이미 됐어도 drain 차례로 표시한다: 워커가 모두 기다리는 스레드에 잡혀 있으면 이 틱은 돌 수 없고,
+            // 기다리는 스레드가 helpDrainAny 로 대신 돌릴 수 있는 것은 drain 차례뿐이다(부하가 걸린 서버에서 틱이 밀릴 때).
             queue.remove(r);
             r.savedNextTickNanos = r.nextTickNanos;
             r.drainPass = true;
             PENDING_DRAINS.incrementAndGet();
-            r.nextTickNanos = now;
+            if (now - r.nextTickNanos < 0) r.nextTickNanos = now;
             queue.add(r);
             long prev = headDue;
             publishHead();
