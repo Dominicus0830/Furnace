@@ -1350,6 +1350,16 @@ public final class ServerCore {
         for (Player p : players()) sendChatMessage(p, message, false, bound);
     }
 
+    /**
+     * chat.unsigned-as-system: 서명 없는 시스템 메시지로 보낸다 — 클라이언트가 신고 대상으로 잡지 않는다. 채팅을 보는 설정인 플레이어에게만.
+     */
+    public void broadcastChatAsSystem(org.domi.furnace.server.chat.PlayerChatMessage message,
+                                      org.domi.furnace.server.chat.ChatType.Bound bound) {
+        logChatMessage(message.decoratedContent(), bound, null);
+        Text line = bound.decorate(message.decoratedContent());
+        for (Player p : players()) if (p.chat().acceptsChatMessages()) p.sendSystemMessage(line, false);
+    }
+
     /** 바닐라 ServerPlayer.sendChatMessage: 채팅을 모두 보는 설정일 때만. 시스템 출처면 disguised_chat. */
     public void sendChatMessage(Player receiver, org.domi.furnace.server.chat.PlayerChatMessage message, boolean filtered,
                                 org.domi.furnace.server.chat.ChatType.Bound bound) {
