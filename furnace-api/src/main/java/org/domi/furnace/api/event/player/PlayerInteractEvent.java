@@ -6,7 +6,7 @@ package org.domi.furnace.api.event.player;
 import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.Cancellable;
 import org.domi.furnace.api.item.ItemStack;
-import org.domi.furnace.api.world.Block;
+import org.domi.furnace.api.world.BlockSnapshot;
 
 public final class PlayerInteractEvent extends PlayerEvent implements Cancellable {
 
@@ -20,7 +20,7 @@ public final class PlayerInteractEvent extends PlayerEvent implements Cancellabl
 
     private final Action action;
     private final ItemStack item;
-    private final Block block;
+    private final BlockSnapshot block;
     private final String face;
     private final boolean mainHand;
     private boolean cancelled;
@@ -32,7 +32,7 @@ public final class PlayerInteractEvent extends PlayerEvent implements Cancellabl
     public void setCancelled(boolean cancelled) { this.cancelled = cancelled; }
 
     /** block/face 는 *_AIR 이면 null. face 는 down/up/north/south/west/east. */
-    public PlayerInteractEvent(Player player, Action action, ItemStack item, Block block, String face, boolean mainHand) {
+    public PlayerInteractEvent(Player player, Action action, ItemStack item, BlockSnapshot block, String face, boolean mainHand) {
         super(player);
         this.action = action;
         this.item = item;
@@ -46,7 +46,7 @@ public final class PlayerInteractEvent extends PlayerEvent implements Cancellabl
     /** 손에 든 아이템(빈 손이면 EMPTY). */
     public ItemStack item() { return item; }
 
-    public Block clickedBlock() { return block; }
+    public BlockSnapshot clickedBlock() { return block; }
 
     public String blockFace() { return face; }
 

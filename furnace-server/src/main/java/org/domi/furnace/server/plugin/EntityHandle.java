@@ -17,6 +17,7 @@ import org.domi.furnace.api.persistence.PersistentDataContainer;
 import org.domi.furnace.api.persistence.PersistentDataView;
 import org.domi.furnace.api.sched.TaskScheduler;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.command.builtin.DataCommands;
 import org.domi.furnace.api.world.Location;
 import org.domi.furnace.server.entity.ContainerEntity;
 import org.domi.furnace.server.entity.Entity;
@@ -66,9 +67,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         }
     }
 
+    EntityTasks tasks() { return tasks; }
+
     /** 소유 region 스레드에서 만든다. */
     public static EntityHandle of(PluginHost host, Entity e) {
-        if (e instanceof org.domi.furnace.server.trade.Merchant && e instanceof LivingEntity le) return new MerchantHandle(host, le);
+        if (e instanceof org.domi.furnace.server.trade.Merchant && e instanceof org.domi.furnace.server.entity.Mob m) return new MerchantHandle(host, m);
+        if (e instanceof org.domi.furnace.server.entity.Mob m) return new MobHandle(host, m);
         return e instanceof LivingEntity le ? new Living(host, le) : new EntityHandle(host, e);
     }
 
@@ -102,6 +106,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public EntityScheduler entityScheduler() { return new EntitySchedulerImpl(tasks); }
+
+    /** 엔티티를 따라가는 대기열(Internals 가 살아 있는 엔티티를 찾을 때). */
+    EntityTasks tasks() { return tasks; }
 
     /** 핸들 시점 위치의 region 에서 uuid 로 찾아 task 를 돈다. 그 region 에 없으면 null 로 완료. */
     <T> CompletableFuture<T> onOwner(java.util.function.BiFunction<Region, Entity, T> task) {
@@ -191,6 +198,29 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         return RegionFuture.wrap(CompletableFuture.completedFuture(Optional.of(new OwnedInventory(host, containerType, containerSize, runner))));
     }
 
+    // ------------------------------------------------------------------ NBT(/data entity 경로)
+
+    @Override
+    public CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> readNbt() {
+        return onEntity(e -> ApiNbt.toApi(DataCommands.entityData(e)), null, true);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> editNbt(Consumer<org.domi.furnace.api.nbt.NbtCompound> edit) {
+        java.util.Objects.requireNonNull(edit, "edit");
+        return onEntity(e -> editEntityNbt(e, edit), null, true);
+    }
+
+    /** 주인 스레드에서: 읽고 고치고 바뀌었으면 싣는다. */
+    static boolean editEntityNbt(org.domi.furnace.server.entity.Rider e, Consumer<org.domi.furnace.api.nbt.NbtCompound> edit) {
+        var nbt = ApiNbt.toApi(DataCommands.entityData(e));
+        var before = nbt.copy();
+        edit.accept(nbt);
+        if (nbt.equals(before)) return false;
+        DataCommands.setEntityData(e, ApiNbt.toServer(nbt));
+        return true;
+    }
+
     /** 소유 스레드에서: 그 엔티티의 살아 있는 칸. */
     private static OwnedInventory.Slots slotsOf(Entity e) {
         if (e instanceof ContainerEntity ce) {
@@ -245,12 +275,34 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         }
     }
 
+    /** AI 가 있는 몹. AI 는 소유 스레드에서 MobAi 로 다룬다. */
+    static class MobHandle extends Living implements org.domi.furnace.api.entity.Mob {
+
+        MobHandle(PluginHost host, org.domi.furnace.server.entity.Mob e) { super(host, e); }
+
+        @Override
+        public <T> CompletableFuture<T> editAi(Function<? super org.domi.furnace.api.entity.ai.MobAi, ? extends T> action) {
+            return onEntity(e -> e instanceof org.domi.furnace.server.entity.Mob m ? (T) action.apply(new MobAiImpl(host, m)) : null, null, true);
+        }
+
+        @Override
+        public Optional<org.domi.furnace.api.entity.ai.MobAi> aiNow() {
+            // 엔티티를 따라가는 대기열이 지금의 몹을 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다
+            if (!(tasks().owner() instanceof org.domi.furnace.server.entity.Mob m)) return Optional.empty();
+            if (!m.level().isOwnerThread()) {
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("aiNow() 는 그 몹을 가진 region 스레드에서만 부를 수 있다 (현재 "
+                        + Thread.currentThread().getName() + ") — editAi 를 쓴다");
+            }
+            return m.isRemoved() ? Optional.empty() : Optional.of(new MobAiImpl(host, m));
+        }
+    }
+
     /** 주민·떠돌이 상인. */
-    static final class MerchantHandle extends Living implements org.domi.furnace.api.entity.Merchant {
+    static final class MerchantHandle extends MobHandle implements org.domi.furnace.api.entity.Merchant {
 
         private final boolean trading;
 
-        MerchantHandle(PluginHost host, LivingEntity e) {
+        MerchantHandle(PluginHost host, org.domi.furnace.server.entity.Mob e) {
             super(host, e);
             this.trading = ((org.domi.furnace.server.trade.Merchant) e).tradingPlayer() != null;
         }

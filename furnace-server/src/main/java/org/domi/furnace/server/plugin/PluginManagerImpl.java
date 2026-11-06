@@ -244,6 +244,8 @@ public final class PluginManagerImpl implements PluginManager {
         host.commandsImpl().unregisterAll(p);
         host.removeAttachments(p);
         host.removeChannels(p);
+        host.recipes().removeAll(p);
+        host.packetsImpl().unregisterAll(p);
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
         PluginBootstrapper b = boot;
         if (b != null) b.forget(l.description().name());   // 플러그인 레지스트리 몫·수명주기 훅
@@ -457,6 +459,12 @@ public final class PluginManagerImpl implements PluginManager {
     public boolean isEnabled(String name) {
         FurnacePlugin p = plugin(name);
         return p != null && p.isEnabled();
+    }
+
+    /** 이 클래스로더로 불러온 플러그인 이름(아니면 null). */
+    String pluginNameOf(ClassLoader cl) {
+        for (Loaded l : plugins) if (l.loader() == cl) return l.description().name();
+        return null;
     }
 
     /** 플러그인 jar 하나의 클래스로더: 서버(부모) → 자기 jar → 다른 플러그인 jar 순으로 찾는다. */

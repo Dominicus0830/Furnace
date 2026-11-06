@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.entity.Entity;
 import org.domi.furnace.api.inventory.Inventory;
+import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.sched.TaskScheduler;
 
 public interface World {
@@ -25,10 +26,16 @@ public interface World {
     int loadedChunkCount();
 
     /**
-     * 그 칸의 블록. 소유 region 스레드에서 읽는다. 청크가 로드돼 있지 않으면 empty(청크를 만들지 않는다).
+     * 그 칸의 살아 있는 손잡이. 아무것도 읽지 않고 만들기도 싸다 — 읽기·쓰기는 {@link Block} 의 규칙(소유 스레드 동기, 아니면 Async)을 따른다.
+     * 아무 스레드.
+     */
+    Block block(BlockPos pos);
+
+    /**
+     * 그 칸의 블록 복사본. 소유 region 스레드에서 읽는다. 청크가 로드돼 있지 않으면 empty(청크를 만들지 않는다).
      * 아무 스레드에서 부를 수 있다. 결과를 같은 region 스레드에서 {@code get()} 으로 기다리지 말 것.
      */
-    CompletableFuture<Optional<Block>> blockAt(BlockPos pos);
+    CompletableFuture<Optional<BlockSnapshot>> blockAt(BlockPos pos);
 
     /**
      * 그 칸을 data 로 바꾼다(이웃 갱신 + 클라이언트 방송, 바닐라 setBlock 플래그 11). 소유 region 스레드에서 실행된다.
@@ -41,7 +48,7 @@ public interface World {
      * 동기 읽기 — 호출한 스레드가 그 칸을 가진 region 스레드일 때만 된다(예: 그 region 에서 발화한 이벤트 처리기 안).
      * 아니면 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}.
      */
-    Optional<Block> blockNow(BlockPos pos);
+    Optional<BlockSnapshot> blockNow(BlockPos pos);
 
     /** 그 칸을 가진 region 의 스케줄러. */
     TaskScheduler scheduler(BlockPos pos);
@@ -79,4 +86,25 @@ public interface World {
      * 그 사이 블록이 부서졌으면 IllegalStateException 으로 완료된다.
      */
     CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos);
+
+    // ------------------------------------------------------------------ 블록 엔티티 NBT (/data block 과 같은 의미)
+
+    /**
+     * 그 칸 블록 엔티티(상자·표지판·생성기·신호기 …)의 NBT 사본(/data get block 과 같은 내용 — x·y·z·id·components 포함).
+     * 그 칸을 가진 region 스레드에서 읽는다. 로드되지 않았거나 블록 엔티티가 없으면 empty(청크를 만들지 않는다).
+     */
+    CompletableFuture<Optional<NbtCompound>> blockEntityNbt(BlockPos pos);
+
+    /**
+     * 그 칸을 가진 region 스레드에서 블록 엔티티 NBT 를 읽어 edit 로 고치고, 바뀌었으면 다시 싣는다(/data modify·merge block 과 같은 경로:
+     * 바닐라 loadWithComponents → setChanged → 클라이언트 갱신). 바뀌었으면 true, 그대로거나 블록 엔티티가 없거나 로드되지 않았으면 false.
+     * 위치 키(x·y·z)를 바꿔도 블록 엔티티는 옮겨지지 않는다(바닐라와 같다).
+     */
+    CompletableFuture<Boolean> editBlockEntityNbt(BlockPos pos, java.util.function.Consumer<NbtCompound> edit);
+
+    /** patch 를 합친다(/data merge block). 바뀌었으면 true. */
+    default CompletableFuture<Boolean> mergeBlockEntityNbt(BlockPos pos, NbtCompound patch) {
+        NbtCompound p = patch.copy();
+        return editBlockEntityNbt(pos, n -> n.merge(p));
+    }
 }
