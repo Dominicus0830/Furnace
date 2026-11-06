@@ -908,3 +908,11 @@
 - **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
 - 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
 
+
+## 2026-11-06 플러그인별 시간 프로파일러(/timings)
+- API: `Furnace.profiler()` → `PluginProfiler`(start/stop/reset/report, `timing(plugin, kind, name)` 로 플러그인이 자기 구간도 잰다), `Timing`(start 가 음수면 꺼짐 — 그대로 stop 에 넘기면 아무것도 안 함).
+- 서버: `plugin/PluginProfilerImpl`. 구간은 LongAdder 묶음이라 region 스레드 여럿이 잠금 없이 동시에 기록한다. 겹친 구간은 스레드별 틀 스택으로 **자기 시간**을 나눈다 — 리스너 안에서 다른 플러그인 이벤트가 돌아도 두 번 세지 않는다. 스레드 종류(region·전역·그 밖)는 스레드가 처음 잴 때 한 번 정한다.
+- 잰 곳: 이벤트 리스너(`EventBusImpl.callTimed` — 꺼져 있으면 `call` 은 `isRunning()` 하나만 더 읽는다), 플러그인 명령 실행·자동완성(`CommandRegistryImpl`, 이름공간 붙은 이름과 같은 줄), `PluginTasks`(플러그인을 안다), onLoad/onEnable/onDisable.
+- 플러그인이 `server().scheduler()`·엔티티/청크/월드 `scheduler()`·`entityScheduler()`·`asyncExecutor()` 를 바로 쓰는 작업은 `ProfiledScheduling` 이 감싼다: **작업 객체 클래스의 클래스로더**(람다는 정의한 클래스의 로더)가 `PluginClassLoader` 면 그 플러그인 몫. 서버·API 클래스 작업은 감싸지 않는다(PluginTasks 의 guard 람다도 API 클래스라 두 번 감싸지 않는다). `TaskScheduler` 기본 `runAtFixedRate/runLater` 는 작업을 API 클래스(Repeating/Once)로 싸므로 감싸기를 먼저 하고 원래 스케줄러에 넘긴다. `submit` 도 FutureTask 로 싸기 전에 `newTaskFor` 에서 감싼다.
+- 시험에서 TestPlugins 클래스는 앱 클래스패스에 있어 부모 우선 위임으로 PluginClassLoader 가 아니라 앱 로더가 정의한다 → 클래스로더 귀속 시험은 시험 안에서 javac 로 플러그인을 컴파일해 jar 로 만든다(`PluginProfilerTest.compileProbePlugin`).
+- 명령: `/timings on|off|reset|report [플러그인]|export`(권한 3, `timings/plugins-*.txt`). 기동 때부터 재려면 `-Dfurnace.profiler=true`. "틱당" = 자기 시간 ÷ (측정 시간/50ms) — region 이 여럿이면 여러 스레드 합이라 50ms 를 넘을 수 있다.
