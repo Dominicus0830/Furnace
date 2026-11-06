@@ -39,7 +39,7 @@ public final class PhantomSpawner {
                 if (!(Entities.create(level, "minecraft:phantom") instanceof Mob phantom)) continue;
                 phantom.moveTo(spawnPos.x() + 0.5, spawnPos.y(), spawnPos.z() + 0.5, 0.0F, 0.0F);
                 phantom.finalizeSpawn(random, difficulty);
-                level.addFreshEntity(phantom);
+                level.addFreshEntity(phantom.spawnReason("NATURAL"));
                 count++;
             }
         }

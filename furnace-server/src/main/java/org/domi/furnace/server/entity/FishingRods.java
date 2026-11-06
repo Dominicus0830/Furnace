@@ -33,7 +33,12 @@ public final class FishingRods {
         } else {
             level.playSound(null, p.x(), p.y(), p.z(), "entity.fishing_bobber.throw", "neutral", 0.5F,
                     0.4F / (level.random().nextFloat() * 0.4F + 0.8F));
-            level.addFreshEntity(new FishingHook(p, level, level.nextEntityId(), luck(stack), lureSpeed(stack)));
+            var hook = new FishingHook(p, level, level.nextEntityId(), luck(stack), lureSpeed(stack));
+            if (level.gameEvents().playerFish(p, hook, null, null, org.domi.furnace.server.plugin.GameEvents.FISH_FISHING, 0) < 0) {   // 플러그인 PlayerFishEvent(FISHING) 취소
+                p.fishing = null;
+                return false;
+            }
+            level.addFreshEntity(hook);
             p.awardStat("minecraft:used:minecraft:fishing_rod", 1);
             playerEvent(level, p, org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_START);
         }

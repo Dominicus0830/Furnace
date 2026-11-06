@@ -63,7 +63,7 @@ public final class ItemEffects {
             double d0 = p.x() + (r.nextDouble() - 0.5) * 16.0;
             double d1 = Math.clamp(p.y() + (double) (r.nextInt(16) - 8), (double) min, (double) max);
             double d2 = p.z() + (r.nextDouble() - 0.5) * 16.0;
-            if (p.isPassenger()) p.stopRiding();
+            if (p.isPassenger()) Entity.stopRidingForced(p);
             Vec3 old = new Vec3(p.x(), p.y(), p.z());
             double[] to = randomTeleportTarget(p, level, d0, d1, d2);
             if (to != null) {

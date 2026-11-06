@@ -62,7 +62,7 @@ public abstract class AbstractPiglin extends Monster {
     public boolean isConverting() { return !level.piglinSafe() && !isImmuneToZombification() && !isNoAi(); }
 
     protected void finishConversion() {
-        ZombifiedPiglin z = convertTo(new ZombifiedPiglin(level, level.nextEntityId()), true);
+        ZombifiedPiglin z = convertTo(new ZombifiedPiglin(level, level.nextEntityId()), true, "PIGLIN_ZOMBIFIED");
         if (z != null) z.addEffect(new MobEffectInstance(MobEffect.NAUSEA, 200, 0));
     }
 

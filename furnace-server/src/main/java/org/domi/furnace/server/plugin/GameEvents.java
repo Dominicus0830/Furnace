@@ -183,4 +183,78 @@ public interface GameEvents {
     default ItemStack inventoryMove(String dimension, org.domi.furnace.server.block.entity.HopperBlockEntity.Inv source, double sx, double sy, double sz,
                                     org.domi.furnace.server.block.entity.HopperBlockEntity.Inv destination, double dx, double dy, double dz,
                                     ItemStack item, boolean initiatorIsSource) { return item; }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 블록 번짐·형성·소멸(그 블록의 region 스레드)
+
+    /** 눈·얼음·흑요석·콘크리트처럼 블록이 만들어지기 직전(pos 의 oldState 가 newState 로). false 면 취소. */
+    default boolean blockForm(String dimension, Pos pos, int oldState, int newState) { return true; }
+
+    /** 풀·균사체·버섯·덩굴·불이 source 에서 pos 로 번지기 직전. false 면 취소. */
+    default boolean blockSpread(String dimension, Pos pos, Pos source, int oldState, int newState) { return true; }
+
+    /** 얼음·눈 녹음, 불 꺼짐, 산호 죽음, 풀→흙 같은 소멸 직전(newState 는 공기일 수 있음). false 면 취소. */
+    default boolean blockFade(String dimension, Pos pos, int oldState, int newState) { return true; }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 마법 부여·모루·양조
+
+    /** 마법 부여대의 제안 한 칸(단서 마법 부여 id·레벨·비용). */
+    record EnchantOffer(String enchantment, int level, int cost) {}
+
+    /** 제안 세 칸(해당 없으면 null 칸)을 정한 뒤: 최종 제안, null 이면 취소. 메뉴 스레드에서. */
+    default EnchantOffer[] prepareEnchant(Player p, AbstractContainerMenu menu, int[] table, ItemStack item, int bookshelves, EnchantOffer[] offers) { return offers; }
+
+    /** 마법 부여 결과(비용·부여할 마법). */
+    record EnchantApply(int expLevelCost, java.util.Map<String, Integer> enchants) {}
+
+    /** 제안을 눌러 부여하기 직전: 최종 값, null 이면 취소. */
+    default EnchantApply enchantItem(Player p, AbstractContainerMenu menu, int[] table, ItemStack item, int button, int cost, java.util.Map<String, Integer> enchants) {
+        return new EnchantApply(cost, enchants);
+    }
+
+    /** 모루 결과 값. */
+    record AnvilPrepared(ItemStack result, int repairCost) {}
+
+    /** 모루 결과를 정한 직후: 바꾼 값, null 이면 그대로(구독자 없음 포함). */
+    default AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) { return null; }
+
+    /** 양조가 끝나 병을 바꾸기 직전(items 는 양조대 다섯 칸). false 면 취소. */
+    default boolean brew(String dimension, Pos pos, ItemStack[] items, int fuelLevel) { return true; }
+
+    /** 양조대 연료 결과(consuming 이 false 면 블레이즈 가루를 줄이지 않는다). */
+    record BrewFuel(int fuelPower, boolean consuming) {}
+
+    /** 블레이즈 가루를 연료로 쓰기 직전: null 이면 취소(그 틱 전체를 멈춘다). */
+    default BrewFuel brewingFuel(String dimension, Pos pos, ItemStack fuel, int fuelPower) { return new BrewFuel(fuelPower, true); }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 탈것
+
+    /** 탈것에 타기 직전(탈것의 region 스레드). false 면 취소. */
+    default boolean entityMount(org.domi.furnace.server.entity.Rider rider, Entity vehicle) { return true; }
+
+    /** 탈것에서 내리기 직전(cancellable 이 false 면 취소해도 소용없다 — 호출한 쪽이 반환값을 무시한다). false 면 취소. */
+    default boolean entityDismount(org.domi.furnace.server.entity.Rider rider, Entity vehicle, boolean cancellable) { return true; }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 낚시·차원문·책
+
+    int FISH_FISHING = 0, FISH_CAUGHT_FISH = 1, FISH_CAUGHT_ENTITY = 2, FISH_IN_GROUND = 3, FISH_FAILED_ATTEMPT = 4, FISH_REEL_IN = 5, FISH_BITE = 6, FISH_LURED = 7;
+
+    /** 낚시 상태 변화(hook 의 region 스레드). 취소면 -1, 아니면 떨어뜨릴 경험치. caughtEntity·caughtPlayer 는 얻은 아이템·걸린 것(없으면 둘 다 null). */
+    default int playerFish(Player p, Entity hook, Entity caughtEntity, Player caughtPlayer, int state, int exp) { return exp; }
+
+    int PORTAL_NETHER = 0, PORTAL_END = 1, PORTAL_GATEWAY = 2;
+
+    /** 플레이어가 차원문으로 넘어가기 직전(목적 차원만 안다). false 면 취소. */
+    default boolean playerPortal(Player p, String toDimension, int cause) { return true; }
+
+    /** 플레이어가 아닌 엔티티가 차원문으로 넘어가기 직전. false 면 취소. */
+    default boolean entityPortal(Entity e, String toDimension, int cause) { return true; }
+
+    /** 불로 지옥문을 만들기 직전(blocks 는 채울 칸). false 면 취소. */
+    default boolean portalCreate(String dimension, java.util.List<Pos> blocks) { return true; }
+
+    /** 책 편집 결과(제목이 null 이 아니면 서명). */
+    record BookEdit(java.util.List<String> pages, String title) {}
+
+    /** 깃펜 책 저장·서명 직전(연결 스레드): 최종 값, null 이면 취소. */
+    default BookEdit editBook(Player p, int slot, java.util.List<String> previousPages, java.util.List<String> pages, String title) { return new BookEdit(pages, title); }
 }

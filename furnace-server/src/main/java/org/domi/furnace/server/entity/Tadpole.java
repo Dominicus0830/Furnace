@@ -120,7 +120,7 @@ public class Tadpole extends AbstractFish {
         frog.setNoAi(isNoAi());
         frog.persistenceRequired = true;
         playSound("entity.tadpole.grow_up", 0.15F, 1.0F);
-        level.addFreshEntity(frog);
+        level.addFreshEntity(frog.spawnReason("METAMORPHOSIS"));
         discard();
     }
 
