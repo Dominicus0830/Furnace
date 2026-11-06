@@ -1453,6 +1453,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public void apiHandle(Object h) { this.apiHandle = h; }
 
+    // 플러그인이 보는 연결(접속 단계 이벤트와 같은 객체). 연결 없이 만든 시험용 Player 는 null.
+    private volatile org.domi.furnace.api.net.PlayerConnection connection;
+
+    public org.domi.furnace.api.net.PlayerConnection connection() { return connection; }
+
+    public void connection(org.domi.furnace.api.net.PlayerConnection c) { this.connection = c; }
+
     // 실제 접속 주소(Velocity 포워딩이면 프록시가 알려 준 주소).
     private volatile java.net.SocketAddress remoteAddress;
 

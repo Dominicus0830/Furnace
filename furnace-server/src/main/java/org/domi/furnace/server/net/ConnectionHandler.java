@@ -87,7 +87,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final AtomicBoolean awaitingKeepAlive = new AtomicBoolean(false);
     private volatile long lastKeepAliveId;
 
-    private ConnectionState state = ConnectionState.HANDSHAKE;
+    private volatile ConnectionState state = ConnectionState.HANDSHAKE;   // volatile: 플러그인 PlayerConnection.phase() 가 다른 스레드에서 읽는다
+    /** 플러그인이 보는 이 연결(접속 단계 이벤트·Player.connection() 이 같은 객체). */
+    private final ConnectionInfo info = new ConnectionInfo(this);
+    private boolean configureEventFired;    // AsyncPlayerConfigureEvent 는 처음 구성 때 한 번
+    private volatile boolean awaitingConfigure;   // 플러그인 구성 이벤트가 끝나기를 기다리는 중(구성 keep-alive 를 보낸다)
     private static final int PROTOCOL_VERSION = 767;                 // 1.21.1
     private static final String VERSION_NAME = "1.21.1";
     // 패킷 속도 제한(바닐라 rate-limit/Paper packet-limiter 대응): 버스트 400개, 초당 200개 회복. 초과 시 킥.
@@ -105,7 +109,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private volatile int clientSkinParts, clientMainArm = 1;   // ClientInformation 의 스킨 부위·주 손(플레이어 생성 전에도 받는다)
     private int chatVisibility = org.domi.furnace.server.chat.PlayerChatState.VISIBILITY_FULL;
     private int velocityMessageId;
-    private java.net.InetSocketAddress forwardedAddress;   // Velocity·BungeeCord 포워딩으로 받은 실제 주소
+    private volatile java.net.InetSocketAddress forwardedAddress;   // Velocity·BungeeCord 포워딩으로 받은 실제 주소
     private org.domi.furnace.server.net.auth.BungeeForwarding.Forwarded bungeeForwarded;   // BungeeCord 핸드셰이크에서 꺼낸 UUID·속성          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
     private boolean transferred;            // 전송(intent 3)으로 들어온 연결
     private java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
@@ -216,6 +220,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         Handshake hs = Handshake.read(frame, login.bungeecord ? Handshake.MAX_FORWARDED_ADDRESS : Handshake.MAX_ADDRESS);
+        info.hostname = ConnectionInfo.hostnameOf(hs.serverAddress());
+        info.hostPort = hs.serverPort();
+        info.protocolVersion = hs.protocolVersion();
         // 바닐라 ServerHandshakePacketListenerImpl
         switch (hs.nextState()) {
             case 1 -> {
@@ -239,6 +246,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void beginLogin(ChannelHandlerContext ctx, Handshake hs, boolean transfer) {
         state = ConnectionState.LOGIN;
         transferred = transfer;
+        info.transferred = transfer;
         int protocolVersion = hs.protocolVersion();
         if (protocolVersion != PROTOCOL_VERSION) {
             String key = protocolVersion < 754 ? "multiplayer.disconnect.outdated_client" : "multiplayer.disconnect.incompatible";
@@ -258,6 +266,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } else if (org.domi.furnace.server.net.auth.BungeeForwarding.looksForwarded(hs.serverAddress())) {
             disconnect(ctx, Text.text(org.domi.furnace.server.net.auth.BungeeForwarding.UNEXPECTED_FORWARD));
             return;
+        }
+        // 플러그인 PlayerHandshakeEvent: 버전·포워딩 검사를 통과한 로그인 연결만(상태 조회는 ServerListPingEvent). 구독자 없으면 객체도 안 만든다.
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerHandshakeEvent.class)) {
+            var ev = core.events().call(new org.domi.furnace.api.event.player.PlayerHandshakeEvent(info));
+            if (ev.isCancelled()) {
+                disconnect(ctx, ev.kickMessage());
+                return;
+            }
         }
         // 바닐라: 로그인 단계 600틱(30초) 안에 끝나지 않으면 끊는다.
         slowLoginTimer = ctx.executor().schedule(() -> {
@@ -300,6 +317,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 LoginStart start = LoginStart.read(frame);
                 if (!isValidPlayerName(start.name())) { protocolError(ctx, "Invalid characters in username"); return; }
                 this.playerName = start.name();
+                info.name = start.name();
                 if (login.velocity != null) {
                     // Paper: 프록시에게 실제 주소·프로필을 묻는다(암호화·세션 인증 생략).
                     loginPhase = LoginPhase.KEY;
@@ -657,13 +675,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         loginPhase = LoginPhase.VERIFYING;
         this.playerName = profile.name();
         this.playerUuid = profile.id();
+        info.name = profile.name();
+        info.uniqueId = profile.id();
         this.profileProperties = profile.properties();
         org.domi.furnace.server.ServerCore core = login.core;
         if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.class)) {
             // 플러그인이 블로킹 작업(DB 등)을 해도 되도록 가상 스레드에서 부르고, 결과를 들고 연결 스레드로 돌아온다.
             java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
             core.plugins().asyncExecutor().execute(() -> {
-                var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr));
+                var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr, info));
                 ctx.channel().eventLoop().execute(() -> {
                     if (!ctx.channel().isActive()) return;
                     if (ev.result() != org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
@@ -688,7 +708,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerLoginEvent.class)) {
                 java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
                 var ev = core.events().call(new org.domi.furnace.api.event.player.PlayerLoginEvent(profile.name(), profile.id(), addr,
-                        loginResult(reason), reason));
+                        loginResult(reason), reason, info));
                 reason = ev.result() == org.domi.furnace.api.event.player.PlayerLoginEvent.Result.ALLOWED ? null : ev.kickMessage();
             }
             if (reason != null) { disconnect(ctx, reason); return; }
@@ -772,8 +792,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     awaitingPack = true;
                     scheduleConfigKeepAlive(ctx);   // 큰 팩을 내려받는 동안 읽기 타임아웃(30초)에 걸리지 않게 바닐라처럼 15초마다 핑
                 } else {
-                    send(ctx, new FinishConfiguration());
-                    finishConfigSent = true;
+                    finishConfiguration(ctx);
                 }
             }
             case 0x06 -> { // resource_pack(구성): UUID, VarInt 상태
@@ -781,8 +800,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (action < 0) return;
                 if (awaitingPack && ResourcePackResponses.isTerminal(action)) {
                     awaitingPack = false;
-                    send(ctx, new FinishConfiguration());
-                    finishConfigSent = true;
+                    finishConfiguration(ctx);
                 }
             }
             case 0x03 -> { // Acknowledge Finish Configuration
@@ -792,6 +810,57 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             default -> log.debug("미처리 config 패킷 id=0x{}", Integer.toHexString(packetId));
         }
+    }
+
+    /**
+     * 구성 작업이 다 끝났다 → 구성 끝(FinishConfiguration). 플러그인 AsyncPlayerConfigureEvent 구독자가 있으면 처음 한 번은
+     * 가상 스레드에서 이벤트를 부르고(블로킹 허용) 돌아와서 보낸다 — 기다리는 동안 구성 keep-alive 로 클라이언트 시간 초과를 막는다.
+     * 구독자가 없으면 바닐라와 똑같이 바로 보낸다.
+     */
+    private void finishConfiguration(ChannelHandlerContext ctx) {
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (!configureEventFired && core != null
+                && core.events().hasSubscribers(org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent.class)) {
+            configureEventFired = true;
+            awaitingConfigure = true;
+            try {
+                core.plugins().asyncExecutor().execute(() -> {
+                    org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent ev = null;
+                    try {
+                        ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent(info));
+                    } catch (Throwable t) {
+                        log.error("AsyncPlayerConfigureEvent 처리 실패: {}", playerName, t);
+                    }
+                    final var done = ev;
+                    try {
+                        ctx.channel().eventLoop().execute(() -> {
+                            awaitingConfigure = false;
+                            // 끊겼거나(플러그인이 PlayerConnection.disconnect 를 불렀을 때 포함) 단계가 바뀌었으면 구성 끝을 보내지 않는다
+                            if (!ctx.channel().isActive() || kickReason != null || state != ConnectionState.CONFIGURATION) return;
+                            if (done != null && !done.isAllowed()) {
+                                disconnect(ctx, done.kickMessage());
+                                return;
+                            }
+                            sendFinishConfiguration(ctx);
+                        });
+                    } catch (java.util.concurrent.RejectedExecutionException closed) {
+                        awaitingConfigure = false;   // 이벤트루프가 끝났다(서버 종료)
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException closed) {
+                awaitingConfigure = false;   // 플러그인 실행기가 닫혔다(종료 중) — 이벤트 없이 진행
+                sendFinishConfiguration(ctx);
+                return;
+            }
+            scheduleConfigKeepAlive(ctx);
+            return;
+        }
+        sendFinishConfiguration(ctx);
+    }
+
+    private void sendFinishConfiguration(ChannelHandlerContext ctx) {
+        send(ctx, new FinishConfiguration());
+        finishConfigSent = true;
     }
 
     /** ClientInformation 파싱 — locale 건너뛰고 view distance(byte) 읽음. config·play 양쪽서 호출. */
@@ -1026,6 +1095,38 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.world.GameMode defaultMode = coreJ != null ? coreJ.defaultGameMode() : org.domi.furnace.server.world.GameMode.CREATIVE;
         vitals.loadGameTypes(saved != null ? saved.root() : null, forced != null ? forced : defaultMode, forced != null);
         var prevMode = vitals.previousGameMode();
+        p.connection(info);
+        p.remoteAddress(clientAddress(ctx));
+        // 플러그인 PlayerCreateEvent: Player 가 생긴 직후·플레이 패킷(login·권한·명령 트리) 전 — 여기서 붙인 권한이 첫 명령 트리부터 반영된다.
+        if (coreJ != null && coreJ.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerCreateEvent.class)) {
+            coreJ.events().call(new org.domi.furnace.api.event.player.PlayerCreateEvent(coreJ.plugins().player(p), info));
+        }
+        // 첫 위치: 저장된 자리, 없으면 흩뿌린 월드 스폰(새 플레이어 — 회전 0, ServerPlayer 생성자), 그것도 없으면 월드 기본 스폰.
+        SpawnPoint fallbackSpawn = world.defaultSpawn();
+        var first = firstSpawn;
+        firstSpawn = null;
+        double sx = saved != null ? saved.x() : first != null ? first.x() : fallbackSpawn.playerX();
+        double sy = saved != null ? saved.y() : first != null ? first.y() : fallbackSpawn.playerY();
+        double sz = saved != null ? saved.z() : first != null ? first.z() : fallbackSpawn.playerZ();
+        float syaw = saved != null ? saved.yaw() : first != null ? first.yaw() : 0.0F;
+        float spitch = saved != null ? saved.pitch() : 0f;
+        // 플러그인 PlayerSpawnLocationEvent: 차원을 알리기(LoginPlay) 전에 첫 위치·차원을 바꿀 수 있다. 없는 차원이면 무시.
+        if (coreJ != null && coreJ.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerSpawnLocationEvent.class)) {
+            var ev = coreJ.events().call(new org.domi.furnace.api.event.player.PlayerSpawnLocationEvent(coreJ.plugins().player(p),
+                    new org.domi.furnace.api.world.Location(world.dimension(), sx, sy, sz, syaw, spitch), saved == null));
+            org.domi.furnace.api.world.Location l = ev.spawnLocation();
+            World target = coreJ.world(l.world());
+            if (target == null) {
+                log.warn("PlayerSpawnLocationEvent: 없는 차원 {} — 기본 위치로 들어간다: {}", l.world(), playerName);
+            } else if (Double.isFinite(l.x()) && Double.isFinite(l.y()) && Double.isFinite(l.z())) {
+                if (target != world) {
+                    world = target;
+                    p.dimension(world.dimension());
+                    dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
+                }
+                sx = l.x(); sy = l.y(); sz = l.z(); syaw = l.yaw(); spitch = l.pitch();
+            }
+        }
         // 바닐라처럼 서버의 view distance를 보낸다(클라 렌더 거리는 min(자기 설정, 이 값)). 스트리밍은 effVd(= min(서버, 클라 요청))로 한다.
         if (coreJ != null) {
             var props = coreJ.settings().get();
@@ -1055,21 +1156,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             // 바닐라 placeNewPlayer → sendPlayerPermissionLevel: 권한 레벨 이벤트 + 쓸 수 있는 명령 트리
             int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
             send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
-            send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.forProfile(core, playerName, level)));
+            // 바닐라 sendCommands 처럼 플레이어 소스로 거른다 — 플러그인 명령의 권한(PlayerCreateEvent 에서 붙인 첨부 포함)이 첫 트리부터 맞다.
+            send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.player(core, p)));
         }
         if (saved != null && saved.root() != null && saved.root().tags().get("recipeBook") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound book) {
             p.recipeBook().load(book, recipes);
         }
         send(ctx, p.recipeBook().initPacket());
-        // 저장된 위치 있으면 그 자리, 없으면 seed 기반 월드 기본 스폰.
+        // 첫 위치(sx..spitch)는 위에서 정했다(PlayerSpawnLocationEvent). 나침반 스폰은 들어갈 차원의 것.
         SpawnPoint defaultSpawn = world.defaultSpawn();
-        var first = firstSpawn;   // 새 플레이어: 흩뿌린 자리(회전 0 — ServerPlayer 생성자)
-        firstSpawn = null;
-        double sx = saved != null ? saved.x() : first != null ? first.x() : defaultSpawn.playerX();
-        double sy = saved != null ? saved.y() : first != null ? first.y() : defaultSpawn.playerY();
-        double sz = saved != null ? saved.z() : first != null ? first.z() : defaultSpawn.playerZ();
-        float syaw = saved != null ? saved.yaw() : first != null ? first.yaw() : 0.0F;   // 새 플레이어는 회전 0(ServerPlayer 생성자)
-        float spitch = saved != null ? saved.pitch() : 0f;
         if (saved != null) inv.load(saved.slots());
         menus = new ServerMenus(p);
         p.initMenus(new org.domi.furnace.server.menu.InventoryMenu(inv, menus));
@@ -1089,7 +1184,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.chat().visibility(chatVisibility);
         p.locale(clientLocale);
         p.clientOptions(clientSkinParts, clientMainArm);
-        p.remoteAddress(clientAddress(ctx));
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.pushTeleport(sx, sy, sz);
@@ -1791,7 +1885,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      */
     private void scheduleConfigKeepAlive(ChannelHandlerContext c) {
         c.executor().schedule(() -> {
-            if (!awaitingPack || !c.channel().isActive() || state != ConnectionState.CONFIGURATION) return;
+            if (!(awaitingPack || awaitingConfigure) || !c.channel().isActive() || state != ConnectionState.CONFIGURATION) return;
             send(c, new org.domi.furnace.server.net.protocol.configuration.ConfigKeepAlive(System.nanoTime()));
             scheduleConfigKeepAlive(c);
         }, CONFIG_KEEPALIVE_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
@@ -3661,6 +3755,46 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         ChannelHandlerContext c = this.ctx;
         if (c == null) return;
         c.channel().eventLoop().execute(() -> kick(c, Text.translatable("multiplayer.disconnect.server_shutdown")));
+    }
+
+    // ------------------------------------------------------------------ ConnectionInfo(플러그인 PlayerConnection) 용
+
+    boolean isChannelOpen() {
+        ChannelHandlerContext c = this.ctx;
+        return c != null && c.channel().isActive();
+    }
+
+    ConnectionState connectionState() { return state; }
+
+    java.net.InetSocketAddress apiAddress() {
+        java.net.InetSocketAddress f = forwardedAddress;
+        if (f != null) return f;
+        ChannelHandlerContext c = this.ctx;
+        return c != null && c.channel().remoteAddress() instanceof java.net.InetSocketAddress isa ? isa : null;
+    }
+
+    String clientBrandValue() { return clientBrand; }
+
+    String clientLocaleValue() { return clientLocale; }
+
+    /** 플러그인 PlayerConnection.disconnect: 플레이 중이면 Player.kick(PlayerKickEvent), 그 전이면 단계에 맞는 끊기 패킷. */
+    void disconnectFromApi(Text reason) {
+        ChannelHandlerContext c = this.ctx;
+        if (c == null || !c.channel().isActive()) return;
+        Player p = player;
+        if (p != null) {
+            p.kick(new Disconnect(reason));
+            return;
+        }
+        try {
+            c.channel().eventLoop().execute(() -> {
+                if (!c.channel().isActive()) return;
+                if (player != null) { player.kick(new Disconnect(reason)); return; }
+                disconnect(c, reason);
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closed) {
+            // 이벤트루프가 끝났다 — 이미 닫히는 중
+        }
     }
 
     /** 바닐라 StringUtil.isValidPlayerName: 길이 1..16, 문자 코드 33..126만. */

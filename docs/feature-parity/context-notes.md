@@ -869,3 +869,11 @@
 - 차이(region): 대상이 다른 region 으로 넘어가면 이 스레드가 건드리지 않고 놓는다(8칸 안이라 경계 근처에서만).
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
+
+## 2026-11-06 접속 단계 이벤트·종료 순서 계약 (불만 표 4·8번)
+- 계약 문서: `docs/api/lifecycle.md`. 새 API: `api.net.PlayerConnection`(연결 하나에 하나, `id()` 로 단계 사이를 잇는다)·`ConnectionPhase`, 이벤트 `PlayerHandshakeEvent`(취소 가능)·`AsyncPlayerConfigureEvent`(가상 스레드, 블로킹 허용, 구성 끝 직전)·`PlayerCreateEvent`(플레이 패킷 전)·`PlayerSpawnLocationEvent`(LoginPlay 전, 차원도 바꿈)·`ServerShutdownEvent`, `Furnace.isStopping()`, `Player.connection()`. 기존 `AsyncPlayerPreLoginEvent`·`PlayerLoginEvent` 에 `connection()`(옛 생성자 유지).
+- 바닐라 흐름 변화: 첫 명령 트리를 `CommandSource.forProfile`(플레이어 없음 → 플러그인 명령 권한을 콘솔로 판정하던 구멍) 대신 바닐라 `sendCommands` 처럼 `CommandSource.player(core, p)` 로 거른다. 바닐라 명령은 권한 레벨만 보므로 트리는 같다. 첫 위치 계산(sx..spitch)을 LoginPlay 앞으로 옮겼다(값·패킷 순서는 같다).
+- 구성 대기 중 keep-alive: `scheduleConfigKeepAlive` 조건을 `awaitingPack || awaitingConfigure` 로. 플러그인이 `PlayerConnection.disconnect` 로 끊었으면(`kickReason`) 구성 끝을 보내지 않는다.
+- 종료: `FurnaceMain` 의 종료 훅을 `ShutdownSequence`(단계 enum 순서 = 계약, 단계별 예외 격리, 한 번만)로 바꿨다. 순서는 이전과 같다(이벤트 단계만 추가). region 정지는 모든 onDisable 뒤라 Folia #353 같은 문제는 없다 — 시험 `ShutdownSequenceTest.pluginsDisableWhileRegionsStillRun`.
+- 시험: `LoginPhaseEventsTest`(실제 소켓 7개: 순서·같은 연결·스레드, 핸드셰이크 취소, 구성 블로킹 후 거부, 첫 명령 트리 권한, 첫 위치 바꾸기·없는 차원 무시, 구성 중 disconnect), `ShutdownSequenceTest`(3개). 봇 probe(`tools/bot-test/round4/probe/EventProbe`)에 접속 단계 describe 추가(연결 번호 `#n`).
+- 남은 것(불만 표): 7번 종료 이유(`PlayerQuitEvent` 이유 enum, P2), 102번 구성 단계 패킷 제한, 구성 단계 플러그인 메시지 보내기·받기(`PlayerConnection.sendPluginMessage`), 상태 조회 연결의 `ServerListPingEvent.connection()`.

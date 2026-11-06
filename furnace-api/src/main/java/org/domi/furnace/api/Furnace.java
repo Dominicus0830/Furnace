@@ -113,4 +113,10 @@ public interface Furnace {
 
     /** 서버를 정상 종료한다(/stop 과 같다). */
     void shutdown();
+
+    /**
+     * 종료가 시작됐는가(ServerShutdownEvent 이후 true). onDisable 에서 "리로드인가 종료인가"를 가릴 때 쓴다.
+     * 종료 순서는 docs/api/lifecycle.md.
+     */
+    boolean isStopping();
 }

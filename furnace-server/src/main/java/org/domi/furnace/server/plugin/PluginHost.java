@@ -238,6 +238,20 @@ public final class PluginHost implements Furnace {
     @Override
     public void shutdown() { core.halt(); }
 
+    private volatile boolean stopping;
+
+    @Override
+    public boolean isStopping() { return stopping; }
+
+    /** 종료 1단계: 종료 중 표시를 켜고 ServerShutdownEvent 를 한 번 부른다(두 번째 호출은 아무것도 안 한다). */
+    public void beginShutdown() {
+        synchronized (this) {
+            if (stopping) return;
+            stopping = true;
+        }
+        events.call(new org.domi.furnace.api.event.server.ServerShutdownEvent());
+    }
+
     /** 서버 종료 마지막 — 비동기 실행기를 닫는다. */
     public void close() { async.shutdown(); }
 }
