@@ -882,6 +882,16 @@
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
 
+## 2026-11-06 region 경계 차이 1: 마을 포위·방랑 상인 대상·앵무새 어깨
+- **마을 포위·방랑 상인을 차원에 하나로**(`world/DimensionSpawners`): 그동안 region 마다 `VillageSiege` 가 따로 있어 자정 굴림이 region 수만큼 일어났고(두 region 이면 포위 확률 약 19%), 포위 대상도 그 region 플레이어 중 첫 사람이었다. 상인은 타이머를 이긴 region 의 플레이어 중에서 골랐고, 플레이어가 없는 동안 타이머가 멈췄다. 이제 오버월드 `World` 에 스포너 하나씩을 두고 **전역 틱**(`ServerCore.tick`, 시간이 한 틱 간 뒤 — 바닐라 `ServerLevel.tick` 의 tickTime → 청크 틱 순서)이 게임 틱마다 한 번 돌린다. 조건은 바닐라 `ServerChunkCache.tickChunks`(aqs `t()` 바이트코드: `runsNormally` && `doMobSpawning` 일 때 `tickCustomSpawners(spawnEnemies, spawnFriendlies)`, 플레이어 수 조건 없음)와 같다. 낮 판정은 `BlockLevel.skyDarken(비, 천둥, timeOfDay) < 4`.
+  - 포위 플레이어 고르기: region 이 자기 틱(`RegionLevel.tickCustomSpawners`)에서 "마을 안·비관전·바이옴 조건"을 채우는 자기 플레이어를 `VillageSiege.report` 로 알리고, 전역 틱이 차원 플레이어 순서(엔티티 번호 순 — 바닐라 `level.players()` 의 들어온 순 대신, 가정)에서 최근 2틱 안에 보고된 첫 사람을 고른다. 32칸 원 점 10번 굴림은 그 플레이어 region 스레드에서(`Player.runOnOwner`), 좀비 스폰은 중심점 청크 region 에서(`submitAtOwnedChunk`). 답이 40틱 안에 안 오면(접속 종료) 다시 고르고, 날이 밝은 뒤 온 답은 버린다(맡김 번호).
+  - 상인: 타이머·굴림은 전역(플레이어가 없어도 돈다 — 그때 이기면 바닐라처럼 "플레이어 없음 = 성공"으로 확률 25), 대상은 차원 전체 살아 있는 플레이어 중 하나(`getRandomPlayer`), 그 뒤 마을 종 찾기·스폰은 그 플레이어 region 스레드에서 스포너 난수에서 갈라 낸 새 난수로. 스폰 성공은 늦게 와도 `WanderingTraderState` 잠금 안에서 확률을 25 로 되돌리고 상인 번호를 적는다.
+  - **다른 점(의도, 관측 차이 없음 수준)**: 넘긴 일은 그 region 의 다음 틱 머리에 돌아 바닐라보다 한 틱 안쪽으로 늦다(포위의 첫 좀비는 2틱쯤, 상인은 1틱쯤). 난수는 region/전역 난수라 바닐라와 수열이 다르다(원래도 같지 않았다).
+  - 단독 레벨(시험)은 `VillageSiege.Host.of`·`WanderingTraderSpawner.Host.of` 로 그 자리에서 해 바닐라와 같은 한 틱·같은 난수 순서다(기존 손계산 시험 그대로 통과).
+- **앵무새 어깨**: 앉히기는 앵무새 region 이 주인을 가졌을 때만(몸이 겹쳐야 앉으므로 같은 region — 다른 region 의 주인 상태는 읽지 않는다, 이 목표는 플래그가 없어 다른 목표를 막지 않으므로 결과가 같다). 내려놓기는 어깨를 부른 스레드에서 바로 비우고, 몹은 플레이어 region 스레드에서 세운다 — 명령(`/gamemode spectator`·`/damage`, 전역 스레드)에서 불리면 다음 플레이어 틱에 그 자리에. 그 사이 끊기면 어깨로 되돌려 저장한다.
+- 남은 region 차이(이번에 손대지 않음): 팬텀·순찰·고양이 스포너는 여전히 region 마다 타이머가 따로다(바닐라는 차원 하나 — 순찰 nextTick·팬텀 nextTick 이 region 수만큼). 돌고래의 플레이어 효과 부여 일부. 명령 블록 체인은 둘째 묶음.
+- 시험: `VillageSiegeTest`(서버 길 3개: 보고 순서로 첫 사람, 늦은 답 버림, 떠남·무응답 재시도), `WanderingTraderTest.serverTimerRunsWithoutPlayersAndResetsChanceOnLateSpawn`. 봇 `tools/bot-test/round8/`: 두 봇을 3000칸 떨어뜨려(서로 다른 region) 둘 다 종 격자 마을·deep_dark(자연 스폰 없음)에 두고 60밤 — 고친 뒤 포위 9밤 모두 먼저 들어온 봇 쪽, 고치기 전 jar 는 10밤 중 2밤이 뒤에 들어온 봇 쪽. 어깨: 콘솔 `/gamemode spectator`·`/damage` 뒤 어깨가 비고 앵무새가 봇 자리(거리 0)에 섰다.
+
 ## 2026-11-06 블록·레시피 API (묶음 D1)
 - 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
 - **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
