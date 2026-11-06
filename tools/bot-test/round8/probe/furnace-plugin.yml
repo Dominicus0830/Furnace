@@ -1,0 +1,9 @@
+name: Stage3cProbe
+version: 1.0.0
+main: probe.Stage3cProbe
+description: 3단계 셋째 묶음 이벤트 봇 시험
+commands:
+  evcancel:
+    description: 취소할 이벤트 이름들(none = 비움)
+  evmode:
+    description: 값 바꾸기 모드(enchantlapis, anvil39, nobook, fishexp, none)

@@ -1774,13 +1774,18 @@ public final class Region {
         boolean canUse = p.vehicle() == null && !p.vitals().isDeadOrDying();
         if (pp.processPlayerPortalTeleportation(level, p.vitals().invulnerableAbility(), canUse)) {
             p.portalCooldown = Player.DIMENSION_CHANGING_DELAY;
+            var events = world.levelServices().gameEvents();
+            int cause = pp.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock ? org.domi.furnace.server.plugin.GameEvents.PORTAL_END
+                    : pp.portal().withinLevel() ? org.domi.furnace.server.plugin.GameEvents.PORTAL_GATEWAY : org.domi.furnace.server.plugin.GameEvents.PORTAL_NETHER;
             if (pp.portal().withinLevel()) {
+                if (!events.playerPortal(p, world.dimension(), cause)) return false;   // 플러그인 PlayerPortalEvent 취소
                 sendWithinLevel(p, pp);
                 return true;
             }
             var travel = world.travelService();
             var plan = pp.prepareTravel(level, org.domi.furnace.server.entity.Traveler.of(p));
             if (plan == null || plan.targetDimension().equals(world.dimension()) || !travel.isLevelEnabled(plan.targetDimension())) return false;
+            if (!events.playerPortal(p, plan.targetDimension(), cause)) return false;   // 플러그인 PlayerPortalEvent 취소
             if (world.dimensionType() == DimensionType.END && pp.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock) {
                 sendAcrossToRespawn(p);   // findRespawnPositionAndUseSpawnBlock(false, DO_NOTHING)
                 return true;
@@ -1882,7 +1887,7 @@ public final class Region {
             p.teleportTo(p.x(), p.y(), p.z(), yaw, pitch);
             p.send(new org.domi.furnace.server.net.protocol.play.SetCamera(p.id()));
             world.otherWorld(dimension).addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);
-            if (p.vehicle() != null) p.stopRiding();
+            if (p.vehicle() != null) org.domi.furnace.server.entity.Entity.stopRidingForced(p);
             if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, true);
             Runnable finish = () -> {
                 p.send(new org.domi.furnace.server.net.protocol.play.SetCamera(p.id()));
@@ -1893,7 +1898,7 @@ public final class Region {
         }
         p.cameraField(target);
         world.addTicket((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, 1, 5);   // POST_TELEPORT 티켓
-        if (p.vehicle() != null) p.stopRiding();
+        if (p.vehicle() != null) org.domi.furnace.server.entity.Entity.stopRidingForced(p);
         if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, true);
         p.teleportTo(x, y, z, yaw, pitch);
         p.send(new org.domi.furnace.server.net.protocol.play.SetCamera(now.id()));

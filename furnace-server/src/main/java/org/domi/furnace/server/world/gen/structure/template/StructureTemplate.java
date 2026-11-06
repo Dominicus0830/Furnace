@@ -32,6 +32,9 @@ public final class StructureTemplate {
     private final List<List<BlockInfo>> palettes;
     private final List<EntityInfo> entities;
 
+    /** 바닐라 StructureTemplate.author — 파일에는 저장되지 않는다(구조물 블록의 작성자 칸 전달용). */
+    private volatile String author = "";
+
     private StructureTemplate(int sx, int sy, int sz, List<List<BlockInfo>> palettes, List<EntityInfo> entities) {
         this.sizeX = sx;
         this.sizeY = sy;
@@ -39,6 +42,21 @@ public final class StructureTemplate {
         this.palettes = palettes;
         this.entities = entities;
     }
+
+    /** 아직 아무것도 채우지 않은 템플릿(바닐라 new StructureTemplate()) — 크기 0, 팔레트 없음. */
+    public static StructureTemplate empty() { return new StructureTemplate(0, 0, 0, List.of(), List.of()); }
+
+    /**
+     * 월드에서 읽어 만든 템플릿(바닐라 fillFromWorld 의 결과). blocks 는 이미 저장 순서(꽉 찬 블록 → 그 밖 → 블록 엔티티 있는 블록)로 정렬돼 있어야 한다.
+     * 팔레트는 하나.
+     */
+    public static StructureTemplate ofWorld(int sx, int sy, int sz, List<BlockInfo> blocks, List<EntityInfo> entities) {
+        return new StructureTemplate(sx, sy, sz, List.of(List.copyOf(blocks)), List.copyOf(entities));
+    }
+
+    public String author() { return author; }
+
+    public void author(String a) { this.author = a; }
 
     public List<List<BlockInfo>> palettes() { return palettes; }
 
@@ -79,7 +97,7 @@ public final class StructureTemplate {
         }
     }
 
-    static StructureTemplate fromNbt(BlockRegistry registry, NbtCompound root) {
+    public static StructureTemplate fromNbt(BlockRegistry registry, NbtCompound root) {
         NbtList size = root.getList("size");
         int sx = (Integer) size.get(0), sy = (Integer) size.get(1), sz = (Integer) size.get(2);
         NbtList blocks = root.getList("blocks");
@@ -139,6 +157,113 @@ public final class StructureTemplate {
         all.addAll(other);   // 바닐라 buildInfoLists: 꽉 찬 블록 → 그 밖 → NBT 블록
         all.addAll(withNbt);
         return all;
+    }
+
+    /**
+     * 바닐라 fillFromWorld 의 분류·정렬: NBT 가 있으면 NBT 목록, 아니면 꽉 찬 블록이면 첫 목록, 아니면 그 밖 목록. 각각 y → x → z 로 정렬한 뒤
+     * 꽉 찬 블록 → 그 밖 → NBT 순으로 잇는다(loadPalette 와 같은 순서).
+     */
+    public static List<BlockInfo> orderForSave(List<BlockInfo> infos) {
+        BlockAttrs attrs = BlockAttrs.get();
+        List<BlockInfo> full = new ArrayList<>(), withNbt = new ArrayList<>(), other = new ArrayList<>();
+        for (BlockInfo info : infos) {
+            if (info.nbt() != null) withNbt.add(info);
+            else if (isFullCube(attrs, info.state())) full.add(info);
+            else other.add(info);
+        }
+        Comparator<BlockInfo> order = Comparator.<BlockInfo>comparingInt(BlockInfo::y).thenComparingInt(BlockInfo::x).thenComparingInt(BlockInfo::z);
+        full.sort(order);
+        other.sort(order);
+        withNbt.sort(order);
+        List<BlockInfo> all = new ArrayList<>(infos.size());
+        all.addAll(full);
+        all.addAll(other);
+        all.addAll(withNbt);
+        return all;
+    }
+
+    /** 바닐라 DataVersion(1.21.1). */
+    public static final int DATA_VERSION = 3955;
+
+    /**
+     * 바닐라 StructureTemplate.save: 팔레트가 하나면 palette, 여럿이면 palettes. 칸은 첫 팔레트 순서대로 {pos, state, nbt?}, 상태 번호는 첫 팔레트에서
+     * 처음 나온 순서. 팔레트가 비면 빈 blocks·palette. 끝에 entities·size·DataVersion.
+     */
+    public NbtCompound toNbt(BlockStateTable table) {
+        NbtCompound root = new NbtCompound();
+        if (palettes.isEmpty()) {
+            root.putList("blocks", new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND));
+            root.putList("palette", new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND));
+        } else {
+            List<BlockInfo> first = palettes.get(0);
+            List<java.util.LinkedHashMap<Integer, Integer>> ids = new ArrayList<>();   // 팔레트별 상태 → 번호(처음 나온 순서)
+            for (int i = 0; i < palettes.size(); i++) ids.add(new java.util.LinkedHashMap<>());
+            NbtList blocks = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+            java.util.Map<Integer, Integer> firstIds = ids.get(0);
+            for (int i = 0; i < first.size(); i++) {
+                BlockInfo info = first.get(i);
+                NbtCompound b = new NbtCompound();
+                b.putList("pos", intList(info.x(), info.y(), info.z()));
+                Integer id = firstIds.get(info.state());
+                if (id == null) {
+                    id = firstIds.size();
+                    firstIds.put(info.state(), id);
+                }
+                b.putInt("state", id);
+                if (info.nbt() != null) b.putCompound("nbt", info.nbt());
+                blocks.add(b);
+                for (int p = 1; p < palettes.size(); p++) ids.get(p).put(palettes.get(p).get(i).state(), id);
+            }
+            root.putList("blocks", blocks);
+            if (palettes.size() == 1) {
+                root.putList("palette", paletteNbt(table, firstIds));
+            } else {
+                NbtList all = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_LIST);
+                for (var m : ids) all.add(paletteNbt(table, m));
+                root.putList("palettes", all);
+            }
+        }
+        NbtList es = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        for (EntityInfo e : entities) {
+            NbtCompound c = new NbtCompound();
+            NbtList pos = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_DOUBLE);
+            pos.add(e.x()); pos.add(e.y()); pos.add(e.z());
+            c.putList("pos", pos);
+            c.putList("blockPos", intList(e.bx(), e.by(), e.bz()));
+            if (e.nbt() != null) c.putCompound("nbt", e.nbt());
+            es.add(c);
+        }
+        root.putList("entities", es);
+        root.putList("size", intList(sizeX, sizeY, sizeZ));
+        root.putInt("DataVersion", DATA_VERSION);
+        return root;
+    }
+
+    private static NbtList intList(int... v) {
+        NbtList l = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_INT);
+        for (int i : v) l.add(i);
+        return l;
+    }
+
+    /** 번호 순서(맵 삽입 순서)대로 {Name, Properties?}. */
+    private static NbtList paletteNbt(BlockStateTable table, java.util.Map<Integer, Integer> ids) {
+        NbtList out = new NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        for (int state : ids.keySet()) {
+            NbtCompound e = new NbtCompound();
+            String key = table.key(state);
+            int sc = key.indexOf(';');
+            e.putString("Name", sc < 0 ? key : key.substring(0, sc));
+            if (sc >= 0) {
+                NbtCompound props = new NbtCompound();
+                for (String kv : key.substring(sc + 1).split(",")) {
+                    int eq = kv.indexOf('=');
+                    props.putString(kv.substring(0, eq), kv.substring(eq + 1));
+                }
+                e.putCompound("Properties", props);
+            }
+            out.add(e);
+        }
+        return out;
     }
 
     /** 바닐라: !block.hasDynamicShape() && state.isCollisionShapeFullBlock — 충돌 모양의 6면이 모두 가득인 블록으로 근사. */

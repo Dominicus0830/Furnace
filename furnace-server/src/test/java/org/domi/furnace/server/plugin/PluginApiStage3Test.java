@@ -129,7 +129,7 @@ class PluginApiStage3Test {
         assertTrue(log.contains("spawn:ProjectileLaunchEvent:minecraft:snowball"), "EntitySpawnEvent 구독자도 투사체를 받는다: " + log);
         assertTrue(log.contains("item:minecraft:item"));
         assertTrue(log.contains("spawn:ItemSpawnEvent:minecraft:item"));
-        assertTrue(log.contains("spawn:EntitySpawnEvent:minecraft:cow"));
+        assertTrue(log.contains("spawn:CreatureSpawnEvent:minecraft:cow"), "생물은 EntitySpawnEvent 의 하위 CreatureSpawnEvent 로 온다: " + log);
         assertFalse(log.contains("item:minecraft:cow"));
     }
 

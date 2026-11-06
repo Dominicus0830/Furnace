@@ -1,5 +1,5 @@
-// 메뉴·보스바·사이드바 API 봇 시험 — round9/probe/UiProbe 를 넣은 서버에서. "RESULT 이름 PASS|FAIL 근거".
-// SRV=<서버 폴더> node round9/ui.js
+// 메뉴·보스바·사이드바 API 봇 시험 — round10/probe/UiProbe 를 넣은 서버에서. "RESULT 이름 PASS|FAIL 근거".
+// SRV=<서버 폴더> node round10/ui.js
 const fs = require('fs');
 const { makeBot, spawned, sleep, chat } = require('../lib');
 const SRV = process.env.SRV;

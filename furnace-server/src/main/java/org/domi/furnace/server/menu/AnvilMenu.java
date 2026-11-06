@@ -65,6 +65,16 @@ public class AnvilMenu extends ItemCombinerMenu {
     private void empty() {
         resultSlots.set(0, ItemStack.EMPTY);
         cost.set(0);
+        if (firePrepare()) broadcastChanges();
+    }
+
+    /** 플러그인 PrepareAnvilEvent — 바뀐 값이 있으면 결과 칸·비용에 적용하고 true. */
+    private boolean firePrepare() {
+        var r = player.prepareAnvil(this, resultSlots.get(0), cost.get(), itemName);
+        if (r == null) return false;
+        resultSlots.set(0, r.result());
+        cost.set(r.repairCost());
+        return true;
     }
 
     @Override
@@ -162,6 +172,7 @@ public class AnvilMenu extends ItemCombinerMenu {
             result = EnchantTools.update(result, m -> { m.clear(); m.putAll(fin); });
         }
         resultSlots.set(0, result);
+        firePrepare();
         broadcastChanges();
     }
 
