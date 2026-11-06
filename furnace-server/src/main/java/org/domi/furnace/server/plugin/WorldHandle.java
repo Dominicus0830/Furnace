@@ -216,4 +216,40 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             }
         };
     }
+
+    // ------------------------------------------------------------------ 블록 엔티티 NBT(/data block 경로)
+
+    /** 그 칸 주인 region 에서: 로드돼 있고 블록 엔티티가 있으면 op, 아니면 none. 주인 region 이 없으면 none(region 을 만들지 않는다). */
+    private <T> CompletableFuture<T> atBlockEntity(BlockPos pos, T none,
+                                                   java.util.function.BiFunction<org.domi.furnace.server.world.RegionLevel, org.domi.furnace.server.block.entity.BlockEntity, T> op) {
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        CompletableFuture<T> f = world.submitAtOwnedChunk(new ChunkPos(pos.chunkX(), pos.chunkZ()), r -> {
+            var level = r.level();
+            if (level == null || !inHeight(pos.y()) || !level.hasChunkAt(p)) return none;
+            return level.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be ? op.apply(level, be) : none;
+        });
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(none));
+    }
+
+    @Override
+    public CompletableFuture<Optional<org.domi.furnace.api.nbt.NbtCompound>> blockEntityNbt(BlockPos pos) {
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        return atBlockEntity(pos, Optional.empty(),
+                (level, be) -> Optional.of(ApiNbt.toApi(org.domi.furnace.server.command.builtin.DataCommands.blockEntityData(level, be, p))));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> editBlockEntityNbt(BlockPos pos, java.util.function.Consumer<org.domi.furnace.api.nbt.NbtCompound> edit) {
+        java.util.Objects.requireNonNull(edit, "edit");
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        return atBlockEntity(pos, false, (level, be) -> {
+            var nbt = ApiNbt.toApi(org.domi.furnace.server.command.builtin.DataCommands.blockEntityData(level, be, p));
+            var before = nbt.copy();
+            edit.accept(nbt);
+            if (nbt.equals(before)) return false;
+            org.domi.furnace.server.command.builtin.DataCommands.setBlockEntityData(level, be, p, ApiNbt.toServer(nbt));
+            level.broadcastChanges();
+            return true;
+        });
+    }
 }
