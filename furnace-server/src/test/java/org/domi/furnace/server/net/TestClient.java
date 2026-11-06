@@ -26,6 +26,14 @@ public final class TestClient implements AutoCloseable {
         this.in = new DataInputStream(socket.getInputStream());
     }
 
+    /** 연결만 연다(핸드셰이크부터 시험이 직접 보낸다). */
+    public static TestClient open(int port) throws Exception {
+        Socket s = new Socket();
+        s.connect(new InetSocketAddress("127.0.0.1", port), 2000);
+        s.setSoTimeout(15000);
+        return new TestClient(s);
+    }
+
     /** 접속해 플레이 단계까지 들어간다(LoginPlay 를 받을 때까지 읽는다). */
     public static TestClient join(int port, String name) throws Exception {
         Socket s = new Socket();
@@ -43,6 +51,9 @@ public final class TestClient implements AutoCloseable {
         c.await(0x2B);
         return c;
     }
+
+    /** 읽기 대기 한도(밀리초)를 바꾼다. 일부러 아무것도 안 오는 것을 확인할 때 짧게. */
+    public void socketTimeout(int millis) throws Exception { socket.setSoTimeout(millis == 0 ? 15000 : millis); }
 
     public void write(int id, Consumer<ByteBuf> body) throws Exception {
         ByteBuf b = Unpooled.buffer();

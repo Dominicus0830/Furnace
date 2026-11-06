@@ -83,7 +83,7 @@
 | 상 | **엔드 관문 순간이동(`end_gateway` 블록 엔티티)** | `SRV/block/types/EndGatewayBlock.java:1` "엔티티 순간 이동은 TODO, 블록 동작은 없다". 드래곤 처치 후 바깥 섬으로 갈 수 없음 | — |
 | 완료 | ~~전달체(`conduit`) 활성화·효과·적대 몹 공격~~ | 2026-11-06 `SRV/block/entity/ConduitBlockEntity.java`(바닐라 dqt 바이트코드 대조, 봇 7차 `tools/bot-test/round7/conduit.js`) | — |
 | ~~중~~ 완료(2026-11-06) | 구조물 블록·직소 블록 블록 엔티티와 패킷(`set_structure_block`/`set_jigsaw_block`/`jigsaw_generate`) | `StructureBlockEntity`·`JigsawBlockEntity`·`TemplateManager` 구현. 남음: 데이터 팩 템플릿·.snbt | — |
-| 중 | 커스텀 월드 타입(`large_biomes`·`amplified`·`debug`) | `level-type` 무시(grep 0건) | — |
+| 중 | 커스텀 월드 타입(`debug`·`single_biome_surface`) | 경고 뒤 normal 로 생성. `large_biomes`·`amplified` 는 2026-11-06 구현 | — |
 | 중 | 행운(`luck`/`unluck`) 전리품·낚시 반영 | 앞 조사 2장 TODO, 재확인 필요(가정) | — |
 | 중 | 포털로 좀비 피글린 스폰 | 없음(앞 조사 4장) | 스레드-몹(피글린 분노)과 이웃 — 분노 쪽이 끝난 뒤 |
 | 중 | ~~명령 블록 체인 한 틱 완결~~ | 2026-11-06 구현(틱 예산 안에서 결과를 기다림) | — |

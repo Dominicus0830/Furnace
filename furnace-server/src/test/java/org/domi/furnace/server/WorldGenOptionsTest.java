@@ -36,4 +36,26 @@ class WorldGenOptionsTest {
         // /locate 는 구조물 스위치와 무관하게 예측으로 찾는다(바닐라 LocateCommand → StructureCheck)
         assertEquals(f, off.structureLocator().findNearest(StructureRegistry.structureTag("minecraft:village"), 0, 70, 0, 100));
     }
+
+    @org.junit.jupiter.api.io.TempDir java.nio.file.Path tmp;
+
+    private LevelData levelFor(String levelType) throws Exception {
+        java.nio.file.Path f = tmp.resolve(levelType.replace(':', '_') + ".properties");
+        java.nio.file.Files.writeString(f, "level-type=" + levelType.replace(":", "\\:") + "\n");
+        var props = new org.domi.furnace.server.config.ServerPropertiesFile(f).get();
+        LevelData d = level(true);
+        FurnaceMain.applyLevelType(d, props);
+        return d;
+    }
+
+    @Test
+    void levelTypeSelectsOverworldGenerator() throws Exception {
+        assertEquals("minecraft:amplified", FurnaceMain.overworldNoiseSettings(levelFor("minecraft:amplified")));
+        assertEquals("minecraft:large_biomes", FurnaceMain.overworldNoiseSettings(levelFor("LARGE_BIOMES")));
+        assertEquals("minecraft:overworld", FurnaceMain.overworldNoiseSettings(levelFor("minecraft:normal")));
+        // 바닐라: largebiomes 는 minecraft:largebiomes 로 읽혀 없는 프리셋 → 경고 뒤 normal
+        assertEquals("minecraft:overworld", FurnaceMain.overworldNoiseSettings(levelFor("largebiomes")));
+        // 네임스페이스 없는 flat 도 평지(이전에는 minecraft:flat 만 알아봤다)
+        assertEquals("minecraft:flat", levelFor("flat").overworldGenerator().tags().get("type"));
+    }
 }

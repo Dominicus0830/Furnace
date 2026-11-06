@@ -131,9 +131,7 @@ public final class FurnaceMain {
             levelData = LevelData.create(props.levelName, props.levelSeed.orElseGet(() -> new java.util.Random().nextLong()),
                     props.generateStructures, false, props.gameMode, props.hardcore, props.difficulty,
                     props.initialEnabledPacks, List.of("bundle", "trade_rebalance"));
-            if ("minecraft:flat".equals(props.levelType)) {
-                levelData.useFlatOverworld(org.domi.furnace.server.world.gen.SuperflatWorldSource.settingsNbt(props.generatorSettings));
-            }
+            applyLevelType(levelData, props);
         }
         levelData.setModdedInfo(org.domi.furnace.server.config.OperatorOptions.current().serverBrand(), true);
         // Paper/Spigot 에서 넘어온 월드: <level>_nether/DIM-1, <level>_the_end/DIM1 을 바닐라 위치로 복사(원본 보존).
@@ -207,7 +205,7 @@ public final class FurnaceMain {
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "region", props.syncChunkWrites);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                 registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
-        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
+        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries, overworldNoiseSettings(levelData));
         applyWorldGenOptions(levelData, noiseSource);
         // 오버월드 생성기: level.dat 의 생성기가 minecraft:flat 이면 평지(바닐라 FlatLevelSource 층), 아니면 노이즈
         var generator = levelData.overworldGenerator();
@@ -377,62 +375,84 @@ public final class FurnaceMain {
         // 운영·관측 서비스(RCON·Query·워치독): 전용 IO/데몬 스레드. 종료 훅이 가장 먼저 닫는다.
         java.util.List<AutoCloseable> remoteServices = new java.util.concurrent.CopyOnWriteArrayList<>();
 
+        // 종료 순서 계약(ShutdownSequence.Step 순서, docs/api/lifecycle.md): 종료 이벤트 → 플러그인 끄기(접속자·region 살아 있음)
+        // → 원격 서비스 → 네트워크 → region 저장 → 저장소 → 스케줄러 → 플러그인 클래스로더. region 정지는 onDisable 이 다 끝난 뒤다.
+        ShutdownSequence stop = new ShutdownSequence()
+                .on(ShutdownSequence.Step.SHUTDOWN_EVENT, () -> {
+                    log.info("종료 중 — dirty 청크/플레이어 flush");
+                    core.plugins().beginShutdown();
+                })
+                // CraftBukkit 처럼 플러그인을 먼저 끈다(플레이어가 아직 접속해 있을 때 onDisable 이 돈다).
+                .on(ShutdownSequence.Step.DISABLE_PLUGINS, () -> core.plugins().pluginsImpl().disableAll())
+                .on(ShutdownSequence.Step.CLOSE_REMOTE_SERVICES, () -> {
+                    for (AutoCloseable c : remoteServices) {
+                        try {
+                            c.close();
+                        } catch (Exception e) {
+                            log.warn("[STOP] 원격 서비스 닫기 실패", e);
+                        }
+                    }
+                })
+                .on(ShutdownSequence.Step.STOP_NETWORK, network::stop)
+                .on(ShutdownSequence.Step.FLUSH_WORLDS, () -> {
+                    // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
+                    java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
+                    for (World w : dimensions.all()) fs.addAll(w.flushAll());
+                    // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 타임아웃을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
+                    long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+                    for (var f : fs) {
+                        try {
+                            f.get(Math.max(1, flushDeadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
+                        } catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException e) {
+                            log.error("[STOP] region flush 실패/지연", e);
+                        } catch (InterruptedException e) {
+                            log.error("[STOP] region flush 대기 중단", e);   // 인터럽트 표시는 다시 세우지 않는다 — 뒤 단계(저장소 닫기)가 대기를 건너뛰지 않게
+                        }
+                    }
+                    // 플레이어 데이터(퇴장 저장·통계·발전 과제)는 전용 직렬 실행기에서 돈다 — 데몬 스레드라 여기서 비운다
+                    try {
+                        if (!org.domi.furnace.server.entity.PlayerData.awaitIo(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                            log.error("[STOP] 플레이어 데이터 저장이 30초 안에 끝나지 않았다");
+                        }
+                    } catch (InterruptedException e) {
+                        log.error("[STOP] 플레이어 데이터 저장 대기 중단", e);
+                    }
+                })
+                .on(ShutdownSequence.Step.CLOSE_STORAGE, () -> {
+                    try {
+                        ioPool.shutdown();
+                        genPool.shutdown();
+                        ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
+                        genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
+                        long failed = 0;
+                        for (World w : dimensions.all()) failed += w.saveFailures();
+                        if (failed > 0) log.error("[STOP] 재시도 끝에 실패한 저장 {}건 — 해당 청크/엔티티는 디스크에 최신이 아닐 수 있다", failed);
+                        else log.info("[STOP] 저장 실패 0건");
+                        regionStore.closeAll();
+                        entityStore.closeAll();
+                        poiStore.closeAll();
+                        for (var st : extraStores) st.closeAll();
+                        saveLevelData.run();
+                        storage.close();
+                    } catch (Exception e) {
+                        log.error("[STOP] flush 실패", e);
+                    }
+                })
+                .on(ShutdownSequence.Step.STOP_SCHEDULER, () -> {
+                    chunkPool.shutdown();
+                    scheduler.close();
+                })
+                .on(ShutdownSequence.Step.CLOSE_PLUGINS, () -> {
+                    core.plugins().pluginsImpl().closeAll();
+                    core.plugins().close();
+                });
         // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("종료 중 — dirty 청크/플레이어 flush");
-            // CraftBukkit 처럼 플러그인을 먼저 끈다(플레이어가 아직 접속해 있을 때 onDisable 이 돈다).
             try {
-                core.plugins().pluginsImpl().disableAll();
-            } catch (Throwable t) {
-                log.error("[STOP] 플러그인 끄기 실패", t);
+                stop.run();
+            } finally {
+                shutdown.countDown();
             }
-            for (AutoCloseable c : remoteServices) {
-                try {
-                    c.close();
-                } catch (Exception e) {
-                    log.warn("[STOP] 원격 서비스 닫기 실패", e);
-                }
-            }
-            network.stop();
-            try {
-                // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
-                java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
-                for (World w : dimensions.all()) fs.addAll(w.flushAll());
-                // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 타임아웃을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
-                long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-                for (var f : fs) {
-                    try {
-                        f.get(Math.max(1, flushDeadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
-                    } catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException e) {
-                        log.error("[STOP] region flush 실패/지연", e);
-                    }
-                }
-                // 플레이어 데이터(퇴장 저장·통계·발전 과제)는 전용 직렬 실행기에서 돈다 — 데몬 스레드라 여기서 비운다
-                if (!org.domi.furnace.server.entity.PlayerData.awaitIo(30, java.util.concurrent.TimeUnit.SECONDS)) {
-                    log.error("[STOP] 플레이어 데이터 저장이 30초 안에 끝나지 않았다");
-                }
-                ioPool.shutdown();
-                genPool.shutdown();
-                ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
-                genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
-                long failed = 0;
-                for (World w : dimensions.all()) failed += w.saveFailures();
-                if (failed > 0) log.error("[STOP] 재시도 끝에 실패한 저장 {}건 — 해당 청크/엔티티는 디스크에 최신이 아닐 수 있다", failed);
-                else log.info("[STOP] 저장 실패 0건");
-                regionStore.closeAll();
-                entityStore.closeAll();
-                poiStore.closeAll();
-                for (var st : extraStores) st.closeAll();
-                saveLevelData.run();
-                storage.close();
-            } catch (Exception e) {
-                log.error("[STOP] flush 실패", e);
-            }
-            chunkPool.shutdown();
-            scheduler.close();
-            core.plugins().pluginsImpl().closeAll();
-            core.plugins().close();
-            shutdown.countDown();
         }, "furnace-shutdown"));
 
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
@@ -616,6 +636,35 @@ public final class FurnaceMain {
      * 바닐라 WorldOptions.generateStructures(level.dat WorldGenSettings.generate_features): 끄면 STRUCTURE_STARTS 단계가 시작점을 만들지 않는다
      * (ChunkStatusTasks.generateStructureStarts). 모든 차원에 같은 값. 이미 저장된 청크의 구조물은 그대로다.
      */
+    /** 새 월드: server.properties level-type(바닐라 WorldDimensionData.create)으로 오버월드 생성기를 정한다. */
+    static void applyLevelType(LevelData levelData, ServerProperties props) {
+        var preset = org.domi.furnace.server.world.storage.WorldPreset.resolve(props.levelType);
+        if (preset == null) {
+            log.warn("Failed to parse level-type {}, defaulting to {}", props.levelType, "minecraft:normal");
+            return;
+        }
+        switch (preset) {
+            case NORMAL -> { }
+            case FLAT -> levelData.useFlatOverworld(
+                    org.domi.furnace.server.world.gen.SuperflatWorldSource.settingsNbt(props.generatorSettings));
+            case LARGE_BIOMES, AMPLIFIED -> levelData.useNoiseOverworld(preset.noiseSettings);
+            default -> log.warn("level-type {} 는 아직 지원하지 않는다 — {} 로 만든다", preset.id, "minecraft:normal");
+        }
+    }
+
+    /** level.dat 오버월드 노이즈 생성기의 noise_settings — Furnace 가 모르는 설정이면 경고하고 기본 오버월드. */
+    static String overworldNoiseSettings(LevelData levelData) {
+        String id = levelData.overworldNoiseSettings();
+        var gen = levelData.overworldGenerator();
+        boolean flat = gen != null && "minecraft:flat".equals(gen.tags().get("type"));
+        if (id != null && NoiseWorldSource.OVERWORLD_NOISE_SETTINGS.contains(id)) return id;
+        if (!flat) {
+            log.warn("level.dat 의 오버월드 생성기({})는 지원하지 않는다 — minecraft:overworld 노이즈 설정으로 생성한다",
+                    id != null ? id : gen != null ? gen.tags().get("type") : "?");
+        }
+        return "minecraft:overworld";
+    }
+
     static void applyWorldGenOptions(LevelData levelData, NoiseWorldSource source) {
         source.structureEngine().setStructuresEnabled(levelData.generateFeatures);
     }

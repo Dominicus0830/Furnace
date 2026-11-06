@@ -186,7 +186,13 @@ public class OracleMain {
 
         // Get OVERWORLD NoiseGeneratorSettings and clone with aquifer + oreVeins disabled
         HolderLookup<NoiseGeneratorSettings> noiseSettingsReg = registries.lookupOrThrow(Registries.NOISE_SETTINGS);
-        NoiseGeneratorSettings overworldSettings = noiseSettingsReg.getOrThrow(NoiseGeneratorSettings.OVERWORLD).value();
+        // -Doracle.noiseSettings=large_biomes|amplified: 월드 타입별 오버월드(기본 overworld)
+        ResourceKey<NoiseGeneratorSettings> settingsKey = switch (System.getProperty("oracle.noiseSettings", "overworld")) {
+            case "large_biomes" -> NoiseGeneratorSettings.LARGE_BIOMES;
+            case "amplified" -> NoiseGeneratorSettings.AMPLIFIED;
+            default -> NoiseGeneratorSettings.OVERWORLD;
+        };
+        NoiseGeneratorSettings overworldSettings = noiseSettingsReg.getOrThrow(settingsKey).value();
 
         NoiseGeneratorSettings noAquiferSettings = new NoiseGeneratorSettings(
             overworldSettings.noiseSettings(),
@@ -217,7 +223,7 @@ public class OracleMain {
         MultiNoiseBiomeSource biomeSource = MultiNoiseBiomeSource.createFromPreset(overworldPreset);
 
         // Aquifer-enabled resources (real overworld settings)
-        Holder<NoiseGeneratorSettings> aquiferSettingsHolder = noiseSettingsReg.getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        Holder<NoiseGeneratorSettings> aquiferSettingsHolder = noiseSettingsReg.getOrThrow(settingsKey);
         RandomState aquiferRandomState = RandomState.create(aquiferSettingsHolder.value(), noiseGetter, seed);
         NoiseBasedChunkGenerator aquiferGenerator = new NoiseBasedChunkGenerator(biomeSource, aquiferSettingsHolder);
         Aquifer.FluidStatus lavaStatusAq = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
