@@ -118,6 +118,35 @@ class SignedChatTest {
     }
 
     @Test
+    void relaxedOrderKeepsChain() throws Exception {
+        KeyPair services = rsa(2048), player = rsa(2048);
+        UUID id = UUID.randomUUID(), session = UUID.randomUUID();
+        ServicesKeys keys = new ServicesKeys();
+        keys.setProfileKeys(List.of(services.getPublic()));
+        RemoteChatSession s = new RemoteChatSession.Data(session, profileKey(services, player, id, Instant.now().plusSeconds(3600)))
+                .validate(id, keys.profileKeySignatureValidator());
+        var decoder = s.createMessageDecoder(id, false);
+        ClientSigner client = new ClientSigner(player.getPrivate(), id, session);
+        Instant now = Instant.now();
+        SignedMessageBody first = new SignedMessageBody("a", now, 1, LastSeenMessages.EMPTY);
+        decoder.unpack(client.sign(first), first);
+        assertFalse(decoder.consumeOutOfOrder());
+        // 시각이 거꾸로 간 메시지: 예외 없이 체인에 이어 붙고 버리라는 표시만 남는다
+        SignedMessageBody earlier = new SignedMessageBody("b", now.minusSeconds(10), 2, LastSeenMessages.EMPTY);
+        assertEquals(1, decoder.unpack(client.sign(earlier), earlier).link().index());
+        assertTrue(decoder.consumeOutOfOrder());
+        assertFalse(decoder.consumeOutOfOrder(), "읽으면 지워진다");
+        // 다음 정상 메시지는 이어진다(엄격 모드면 chain_broken)
+        SignedMessageBody next = new SignedMessageBody("c", now.plusSeconds(1), 3, LastSeenMessages.EMPTY);
+        assertEquals(2, decoder.unpack(client.sign(next), next).link().index());
+        assertFalse(decoder.consumeOutOfOrder());
+        // 서명이 틀리면 완화 모드여도 체인이 끊긴다
+        SignedMessageBody forged = new SignedMessageBody("d", now.minusSeconds(20), 4, LastSeenMessages.EMPTY);
+        MessageSignature bad = client.sign(new SignedMessageBody("x", forged.timeStamp(), 4, LastSeenMessages.EMPTY));
+        assertThrows(SignedMessageChain.DecodeException.class, () -> decoder.unpack(bad, forged));
+    }
+
+    @Test
     void unsignedDecoderFollowsEnforcement() throws Exception {
         UUID id = UUID.randomUUID();
         PlayerChatMessage m = SignedMessageChain.Decoder.unsigned(id, () -> false).unpack(null, SignedMessageBody.unsigned("hi"));

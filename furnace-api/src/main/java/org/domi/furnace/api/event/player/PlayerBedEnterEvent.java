@@ -3,11 +3,11 @@ package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.Cancellable;
-import org.domi.furnace.api.world.Block;
+import org.domi.furnace.api.world.BlockSnapshot;
 
 public final class PlayerBedEnterEvent extends PlayerEvent implements Cancellable {
 
-    private final Block bed;
+    private final BlockSnapshot bed;
     private boolean cancelled;
 
     @Override
@@ -16,11 +16,11 @@ public final class PlayerBedEnterEvent extends PlayerEvent implements Cancellabl
     @Override
     public void setCancelled(boolean cancelled) { this.cancelled = cancelled; }
 
-    public PlayerBedEnterEvent(Player player, Block bed) {
+    public PlayerBedEnterEvent(Player player, BlockSnapshot bed) {
         super(player);
         this.bed = bed;
     }
 
     /** 침대 머리 칸. */
-    public Block bed() { return bed; }
+    public BlockSnapshot bed() { return bed; }
 }

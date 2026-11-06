@@ -93,9 +93,13 @@ public final class FurnaceMain {
         }
         ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
         ServerProperties props = settings.get();
+        org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
-            log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none",
+            log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
                     props.regionFileCompression);
+        }
+        if (org.domi.furnace.server.world.anvil.Compression.writeType() == org.domi.furnace.server.world.anvil.Compression.ZSTD) {
+            log.warn("region-file-compression=zstd: 바닐라·Paper 는 이 월드를 읽지 못한다. 되돌리려면 RegionConvert 도구로 deflate 로 변환한다");
         }
         if (!props.textFilteringConfig.isEmpty()) {
             log.warn("text-filtering-config 는 지원하지 않는다(원격 채팅 필터 서비스 미구현) — 무시한다");
@@ -129,7 +133,7 @@ public final class FurnaceMain {
                     props.initialEnabledPacks, List.of("bundle", "trade_rebalance"));
             applyLevelType(levelData, props);
         }
-        levelData.setModdedInfo(SERVER_BRAND, true);
+        levelData.setModdedInfo(org.domi.furnace.server.config.OperatorOptions.current().serverBrand(), true);
         // Paper/Spigot 에서 넘어온 월드: <level>_nether/DIM-1, <level>_the_end/DIM1 을 바닐라 위치로 복사(원본 보존).
         try {
             var imported = org.domi.furnace.server.world.storage.BukkitWorldImport.run(universe, levelName, worldDir, levelData);
@@ -354,6 +358,7 @@ public final class FurnaceMain {
         org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
         org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
@@ -434,6 +439,7 @@ public final class FurnaceMain {
             if (world.autosaveEnabled()) saveLevelData.run();
         }, config.autosaveTicks()), config.autosaveTicks());
         console.attach(core);
+        InterruptConfirm.installIfEnabled(org.domi.furnace.server.config.OperatorOptions.current());
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
