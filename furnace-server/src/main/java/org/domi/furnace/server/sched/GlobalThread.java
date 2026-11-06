@@ -21,7 +21,10 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
         this.name = name;
         // newSingleThreadExecutor 와 같은 단일 스레드·무한 큐 — 대기 작업 수를 관측하려고 큐를 직접 쥔다(/furnace threads)
         this.exec = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), r -> {
-            Thread t = new Thread(r, name);
+            Thread t = new Thread(() -> {
+                GLOBAL.set(true);
+                r.run();
+            }, name);
             this.thread = t;
             return t;
         });
@@ -32,6 +35,11 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
             throw new RuntimeException("GlobalThread prime 실패", e);
         }
     }
+
+    private static final ThreadLocal<Boolean> GLOBAL = ThreadLocal.withInitial(() -> false);
+
+    /** 지금 스레드가 (어느 서버든) 전역 스레드인가 — 명령이 region 에 보내는 작업을 가려낼 때 쓴다. */
+    public static boolean isGlobalThread() { return GLOBAL.get(); }
 
     @Override
     public boolean isOwnerThread() {

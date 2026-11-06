@@ -101,6 +101,7 @@ public final class Regionizer {
         this.ownsPool = true;
         pool.register(this);
         pool.start();
+        LIVE.add(this);
     }
 
     /** 이미 있는 풀에 건다(ownsPool=false — close 는 이 차원만 떼고 풀은 멈추지 않는다). */
@@ -113,6 +114,7 @@ public final class Regionizer {
         this.pool = pool;
         this.ownsPool = false;
         pool.register(this);
+        LIVE.add(this);
     }
 
     public int shift() { return shift; }
@@ -289,24 +291,133 @@ public final class Regionizer {
 
     /** 그 청크의 주인 region 큐에 작업을 넣는다. 그 사이 주인이 죽었으면(합쳐짐·나뉨) 죽은 큐를 비워 다시 보낸다. */
     void enqueue(long chunkKey, java.util.function.Consumer<Region> task) {
+        enqueue(chunkKey, task, org.domi.furnace.server.sched.GlobalThread.isGlobalThread());
+    }
+
+    /** urgent: 전역(명령) 스레드가 보낸 작업 — 명령 블록이 결과를 기다리는 동안 골라 돌린다(Region.awaitUrgent). */
+    void enqueue(long chunkKey, java.util.function.Consumer<Region> task, boolean urgent) {
         Region r = ownerForTask(chunkX(chunkKey), chunkZ(chunkKey));
-        r.inbox.add(new Region.Task(chunkKey, task));
+        r.inbox.add(new Region.Task(chunkKey, task, urgent));
         if (!r.alive) reroute(r);
+        else if (urgent) urgentArrived(r);
     }
 
     /** 주인 region 이 이미 있을 때만 작업을 넣는다(조회성 — region 을 만들지 않는다). 주인이 없으면 false. */
     boolean enqueueIfOwned(long chunkKey, java.util.function.Consumer<Region> task) {
         Region r = ownerOf(chunkX(chunkKey), chunkZ(chunkKey));
         if (r == null) return false;
-        r.inbox.add(new Region.Task(chunkKey, task));
+        boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread();
+        r.inbox.add(new Region.Task(chunkKey, task, urgent));
         if (!r.alive) reroute(r);
+        else if (urgent) urgentArrived(r);
         return true;
     }
 
     /** 죽은 region 의 남은 작업을 지금 주인에게. */
     void reroute(Region dead) {
         Region.Task t;
-        while ((t = dead.inbox.poll()) != null) enqueue(t.chunkKey(), t.run());
+        while ((t = dead.inbox.poll()) != null) enqueue(t.chunkKey(), t.run(), t.urgent());
+    }
+
+    // ------------------------------------------------------------------ 명령 블록 기다림(전역 스레드가 보낸 작업을 빨리 돌리기)
+
+    /**
+     * 급한 작업이 r 에 들어왔다: r 이 명령 결과를 기다리는 중이면 깨우고, 어딘가에서 명령 블록이 기다리는 중이고 r 이 쉬고 있으면
+     * 다음 틱을 기다리지 않고 급한 작업만 돌리는 차례(drain)를 곧바로 준다 — 그래야 @e 처럼 모든 region 을 도는 명령이 한 틱 안에 끝난다.
+     */
+    private void urgentArrived(Region r) {
+        Thread w = r.urgentWaiter;
+        if (w != null) {
+            java.util.concurrent.locks.LockSupport.unpark(w);
+            return;
+        }
+        if (Region.URGENT_WAITERS.get() == 0) return;
+        lock.lock();
+        try {
+            if (closed || !r.queued || r.ticking || !r.alive || r.yielded || r.drainPass) return;
+            long now = System.nanoTime();
+            // 틱 시각이 이미 됐어도 drain 차례로 표시한다: 워커가 모두 기다리는 스레드에 잡혀 있으면 이 틱은 돌 수 없고,
+            // 기다리는 스레드가 helpDrainAny 로 대신 돌릴 수 있는 것은 drain 차례뿐이다(부하가 걸린 서버에서 틱이 밀릴 때).
+            queue.remove(r);
+            r.savedNextTickNanos = r.nextTickNanos;
+            r.drainPass = true;
+            PENDING_DRAINS.incrementAndGet();
+            if (now - r.nextTickNanos < 0) r.nextTickNanos = now;
+            queue.add(r);
+            long prev = headDue;
+            publishHead();
+            if (SharedScheduler.earlier(headDue, prev)) pool.wake(headDue);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** 살아 있는 Regionizer(서버 전체) — 기다리는 region 스레드가 남의 drain 차례를 대신 돌릴 때 찾는다. */
+    private static final java.util.concurrent.CopyOnWriteArrayList<Regionizer> LIVE = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** 아직 돌지 않은 drain 차례 수(서버 전체, 힌트). */
+    private static final java.util.concurrent.atomic.AtomicInteger PENDING_DRAINS = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 명령 결과를 기다리는 region 스레드가 부른다: 워커가 모자라(기다리는 스레드가 워커를 쥐고 있다) 아직 못 돈 남의 drain 차례가 있으면
+     * 하나를 이 스레드에서 대신 돌린다. 돌렸으면 참. 그 동안 이 스레드는 두 region 을 함께 쥔다(남의 급한 작업만 돈다).
+     */
+    static boolean helpDrainAny() {
+        if (PENDING_DRAINS.get() <= 0) return false;
+        for (Regionizer rz : LIVE) {
+            Region r = rz.takeDrain();
+            if (r != null) {
+                rz.runDrainPass(r);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 대기열에서 drain 차례인 쉬는 region 하나를 꺼내 이 스레드가 쥔다(없으면 null). */
+    private Region takeDrain() {
+        lock.lock();
+        try {
+            if (closed) return null;
+            for (Region r : queue) {
+                if (!r.drainPass || !r.queued || r.ticking || !r.alive || r.yielded) continue;
+                queue.remove(r);
+                r.queued = false;
+                r.ticking = true;
+                r.tickThread = Thread.currentThread();
+                running.put(r, System.nanoTime());
+                activeTicks.incrementAndGet();
+                publishHead();
+                return r;
+            }
+            return null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** drain 차례(워커, 잠금 밖): 급한 작업만 돌리고 원래 다음 틱 시각으로 돌려 놓는다. 틱 수·계측·나누기는 건드리지 않는다. */
+    private void runDrainPass(Region r) {
+        try {
+            r.runUrgentDrain();
+        } catch (Throwable t) {
+            log.error("[TICK] region #{} 급한 작업 처리 실패", r.id, t);
+        }
+        lock.lock();
+        try {
+            r.ticking = false;
+            r.tickThread = null;
+            running.remove(r);
+            activeTicks.decrementAndGet();
+            r.drainPass = false;
+            PENDING_DRAINS.decrementAndGet();
+            r.nextTickNanos = r.savedNextTickNanos;
+            resolveMerges(r);   // 이 차례 동안 양보하고 기다리는 상대가 있으면 흡수(틱 뒤와 같다)
+            if (r.alive && !r.yielded) schedule(r);
+        } catch (Throwable t) {
+            log.error("[REGION] region #{} drain 뒤 정리 실패", r.id, t);
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -320,7 +431,9 @@ public final class Regionizer {
             for (Region r : regions) {
                 long sk = r.sections.isEmpty() ? 0 : r.sections.iterator().next();
                 RegionWide w = new RegionWide(task);
-                r.inbox.add(new Region.Task(chunkKey(chunkX(sk) << shift, chunkZ(sk) << shift), w));
+                boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread();
+                r.inbox.add(new Region.Task(chunkKey(chunkX(sk) << shift, chunkZ(sk) << shift), w, urgent));
+                if (urgent) urgentArrived(r);
                 out.add(w.done);
             }
         } finally {
@@ -465,6 +578,10 @@ public final class Regionizer {
 
     /** 틱 하나(워커, 잠금 밖): 본문 → /tick 표본 → 계측 → 끝내기. 순서는 예전 workerLoop 와 같다. */
     void runOne(Region r) {
+        if (r.drainPass) {
+            runDrainPass(r);
+            return;
+        }
         long t0 = STATS ? System.nanoTime() : 0L;
         try {
             boolean game = gameTicks;
@@ -500,6 +617,8 @@ public final class Regionizer {
             running.remove(r);
             activeTicks.decrementAndGet();
             afterTick(r);
+            // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
+            if (Region.URGENT_WAITERS.get() > 0 && r.alive && r.hasUrgentTask()) urgentArrived(r);
         } catch (Throwable t) {
             log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
         } finally {
@@ -763,7 +882,7 @@ public final class Regionizer {
                     n.inbox.add(task);
                 }
             } else {
-                enqueue(task.chunkKey(), task.run());
+                enqueue(task.chunkKey(), task.run(), task.urgent());
             }
         }
         for (Region n : created) schedule(n);
@@ -780,6 +899,10 @@ public final class Regionizer {
     }
 
     private void kill(Region r) {
+        if (r.drainPass) {
+            r.drainPass = false;
+            PENDING_DRAINS.decrementAndGet();
+        }
         r.alive = false;
         regions.remove(r);
         reroute(r);
@@ -1014,6 +1137,7 @@ public final class Regionizer {
         } finally {
             lock.unlock();
         }
+        LIVE.remove(this);
         pool.unregister(this);   // 잠금을 놓은 뒤(R1)
         if (ownsPool) pool.close();
     }
