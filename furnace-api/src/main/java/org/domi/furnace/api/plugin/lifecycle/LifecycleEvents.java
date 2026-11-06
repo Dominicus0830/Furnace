@@ -12,4 +12,11 @@ public final class LifecycleEvents {
      */
     public static final LifecycleEventType<DatapackRegistrar> DATAPACK_DISCOVERY =
             new LifecycleEventType<>("furnace:datapack_discovery", DatapackRegistrar.class);
+
+    /**
+     * 게임 레지스트리 항목 더하기(몹 변종·그림·마법부여 등). 서버 시작 때 데이터 팩을 고른 직후 한 번 불린다.
+     * 여기서 더한 항목은 서버가 도는 동안 고정이다(바닐라 동적 레지스트리와 같다).
+     */
+    public static final LifecycleEventType<GameRegistryRegistrar> GAME_REGISTRIES =
+            new LifecycleEventType<>("furnace:game_registries", GameRegistryRegistrar.class);
 }

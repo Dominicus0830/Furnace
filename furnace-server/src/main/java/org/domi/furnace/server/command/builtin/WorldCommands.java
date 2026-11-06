@@ -123,14 +123,27 @@ public final class WorldCommands {
 
     public static void registerGameRule(CommandDispatcher<CommandSource> d) {
         LiteralArgumentBuilder<CommandSource> l = literal("gamerule").requires(s -> s.hasPermission(2));
-        for (GameRules.Rule rule : GameRules.RULES.values()) {
-            var value = rule.isBoolean()
-                    ? argument("value", Arguments.bool()).executes(c -> setRule(c.getSource(), rule, c.getArgument("value", Boolean.class) ? 1 : 0))
-                    : argument("value", rule.min() == Integer.MIN_VALUE ? Arguments.integer() : Arguments.integer(rule.min(), rule.max()))
-                            .executes(c -> setRule(c.getSource(), rule, c.getArgument("value", Integer.class)));
-            l.then(literal(rule.name()).executes(c -> queryRule(c.getSource(), rule)).then(value));
-        }
+        for (GameRules.Rule rule : GameRules.RULES.values()) l.then(ruleNode(rule));
         d.register(l);
+    }
+
+    private static LiteralArgumentBuilder<CommandSource> ruleNode(GameRules.Rule rule) {
+        var value = rule.isBoolean()
+                ? argument("value", Arguments.bool()).executes(c -> setRule(c.getSource(), rule, c.getArgument("value", Boolean.class) ? 1 : 0))
+                : argument("value", rule.min() == Integer.MIN_VALUE ? Arguments.integer() : Arguments.integer(rule.min(), rule.max()))
+                        .executes(c -> setRule(c.getSource(), rule, c.getArgument("value", Integer.class)));
+        return literal(rule.name()).executes(c -> queryRule(c.getSource(), rule)).then(value);
+    }
+
+    /** 플러그인 규칙을 /gamerule 아래에 붙인다(바닐라 규칙 뒤). 트리 재전송은 부르는 쪽 몫. */
+    public static void addGameRule(CommandDispatcher<CommandSource> d, GameRules.Rule rule) {
+        d.register(literal("gamerule").requires(s -> s.hasPermission(2)).then(ruleNode(rule)));
+    }
+
+    /** /gamerule 아래의 그 규칙을 뗀다. */
+    public static void removeGameRule(CommandDispatcher<CommandSource> d, String name) {
+        var node = d.getRoot().getChild("gamerule");
+        if (node != null) node.removeChild(name);
     }
 
     private static int setRule(CommandSource source, GameRules.Rule rule, int value) {

@@ -1829,7 +1829,8 @@ public abstract class ChunkLevel implements BlockLevel {
             moon = MOON_BRIGHTNESS_PER_PHASE[(int) (dayTime() / 24000L % 8L + 8L) % 8];
             inhabited = col.inhabitedTime();
         }
-        return new org.domi.furnace.server.entity.DifficultyInstance(difficulty(), dayTime(), inhabited, moon);
+        return new org.domi.furnace.server.entity.DifficultyInstance(difficulty(), dayTime(), inhabited, moon,
+                org.domi.furnace.server.world.DifficultyModifiers.local());
     }
 
     /** 새 엔티티 id(서버 전역 — 플레이어와 같은 발급기). 기본은 테스트용 따로 센 값. */

@@ -67,7 +67,7 @@ public final class Enchantments {
         List<Enchantment> candidates = new ArrayList<>();
         for (String id : regs.tag("minecraft:enchantment", "minecraft:in_enchanting_table")) {
             Enchantment e = regs.enchantment(id);
-            if (e != null) candidates.add(e);
+            if (e != null && !EnchantmentToggles.isDisabled(id)) candidates.add(e);
         }
         List<TableEnchant> out = new ArrayList<>();
         for (Instance i : select(r, new LootStack(item, 1), cost, candidates, regs)) out.add(new TableEnchant(i.enchantment().id(), i.level()));
@@ -88,10 +88,10 @@ public final class Enchantments {
      */
     public static LootStack enchantItemFromTag(NoiseRandom r, LootStack stack, int levels, String tag, LootRegistries regs) {
         List<Enchantment> candidates = new ArrayList<>();
-        if (tag == null) candidates.addAll(regs.enchantments().values());
+        if (tag == null) candidates.addAll(EnchantmentToggles.enabled(new ArrayList<>(regs.enchantments().values())));
         else for (String id : regs.tag("minecraft:enchantment", tag)) {
             Enchantment e = regs.enchantment(id);
-            if (e != null) candidates.add(e);
+            if (e != null && !EnchantmentToggles.isDisabled(id)) candidates.add(e);
         }
         return enchantItem(r, stack, levels, candidates, regs);
     }
@@ -151,12 +151,13 @@ public final class Enchantments {
         return null;
     }
 
+    /** 집합(null 이면 모든 마법부여)의 정의 — 꺼진 마법부여는 뺀다(EnchantmentToggles). */
     static List<Enchantment> resolve(HolderSet set, LootRegistries regs) {
-        if (set == null) return new ArrayList<>(regs.enchantments().values());
+        if (set == null) return EnchantmentToggles.enabled(new ArrayList<>(regs.enchantments().values()));
         List<Enchantment> out = new ArrayList<>();
         for (String id : set.resolve(regs)) {
             Enchantment e = regs.enchantment(id);
-            if (e != null) out.add(e);
+            if (e != null && !EnchantmentToggles.isDisabled(id)) out.add(e);
         }
         return Collections.unmodifiableList(out);
     }

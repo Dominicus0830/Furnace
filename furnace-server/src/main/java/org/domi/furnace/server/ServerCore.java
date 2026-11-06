@@ -817,12 +817,57 @@ public final class ServerCore {
         }
     }
 
-    /** 바닐라 MinecraftServer.setDifficulty: 하드코어면 HARD 고정, 바뀐 값을 모두에게 알린다. */
+    /** 바닐라 MinecraftServer.setDifficulty: 하드코어면 HARD 고정, 바뀐 값을 모두에게 알린다. 플러그인 난이도 프로필은 내린다. */
     public void setDifficulty(org.domi.furnace.server.world.Difficulty difficulty, boolean ignoreLock) {
         if (!ignoreLock && levelData.difficultyLocked) return;
-        levelData.difficulty = levelData.hardcore ? org.domi.furnace.server.world.Difficulty.HARD : difficulty;
+        synchronized (difficultyLock) {
+            clearProfileState();
+            levelData.difficulty = levelData.hardcore ? org.domi.furnace.server.world.Difficulty.HARD : difficulty;
+        }
         var packet = new org.domi.furnace.server.net.protocol.play.ChangeDifficulty(levelData.difficulty.id(), levelData.difficultyLocked);
         for (Player p : players()) p.send(packet);
+    }
+
+    // ------------------------------------------------------------------ 난이도 프로필(불만 표 37번, 플러그인 전용·저장 안 함)
+
+    private final Object difficultyLock = new Object();
+    private volatile org.domi.furnace.api.world.DifficultyProfile difficultyProfile;   // null = 바닐라
+    private volatile String difficultyProfileOwner;
+
+    /** 지금 플러그인 프로필(없으면 null). */
+    public org.domi.furnace.api.world.DifficultyProfile difficultyProfile() { return difficultyProfile; }
+
+    public String difficultyProfileOwner() { return difficultyProfileOwner; }
+
+    /** 프로필을 건다: 난이도는 base 로(클라에 알린다), 배율은 DifficultyModifiers 로. 하드코어에서 base 가 HARD 가 아니면 IllegalStateException. */
+    public void setDifficultyProfile(String owner, org.domi.furnace.api.world.DifficultyProfile profile) {
+        var base = org.domi.furnace.server.world.Difficulty.valueOf(profile.base().name());
+        if (levelData.hardcore && base != org.domi.furnace.server.world.Difficulty.HARD) {
+            throw new IllegalStateException("하드코어 월드의 난이도는 HARD 뿐이다");
+        }
+        synchronized (difficultyLock) {
+            levelData.difficulty = base;
+            difficultyProfile = profile;
+            difficultyProfileOwner = owner;
+            org.domi.furnace.server.world.DifficultyModifiers.set(profile.playerDamageMultiplier(), profile.localDifficultyMultiplier());
+        }
+        var packet = new org.domi.furnace.server.net.protocol.play.ChangeDifficulty(levelData.difficulty.id(), levelData.difficultyLocked);
+        for (Player p : players()) p.send(packet);
+    }
+
+    /** 프로필을 내린다(owner 가 null 이면 누구 것이든, 아니면 그 주인 것일 때만). 난이도(base)는 그대로. 내렸으면 true. */
+    public boolean clearDifficultyProfile(String owner) {
+        synchronized (difficultyLock) {
+            if (difficultyProfile == null || (owner != null && !owner.equals(difficultyProfileOwner))) return false;
+            clearProfileState();
+            return true;
+        }
+    }
+
+    private void clearProfileState() {
+        difficultyProfile = null;
+        difficultyProfileOwner = null;
+        org.domi.furnace.server.world.DifficultyModifiers.reset();
     }
 
     /** 바닐라 MinecraftServer.setDifficultyLocked: 잠금 상태를 바꾸고 모두에게 알린다. */

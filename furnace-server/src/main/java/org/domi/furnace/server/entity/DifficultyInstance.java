@@ -6,8 +6,14 @@ public final class DifficultyInstance {
     private final float effectiveDifficulty;
 
     public DifficultyInstance(int difficulty, long dayTime, long inhabitedTime, float moonBrightness) {
+        this(difficulty, dayTime, inhabitedTime, moonBrightness, 1.0F);
+    }
+
+    /** localMultiplier: 난이도 프로필의 지역 난이도 배율(1 이면 바닐라 그대로). */
+    public DifficultyInstance(int difficulty, long dayTime, long inhabitedTime, float moonBrightness, float localMultiplier) {
         this.difficulty = difficulty;
-        this.effectiveDifficulty = calculate(difficulty, dayTime, inhabitedTime, moonBrightness);
+        float e = calculate(difficulty, dayTime, inhabitedTime, moonBrightness);
+        this.effectiveDifficulty = localMultiplier == 1.0F ? e : e * localMultiplier;
     }
 
     public int difficulty() { return difficulty; }

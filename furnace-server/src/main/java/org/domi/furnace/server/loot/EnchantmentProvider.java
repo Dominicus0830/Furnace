@@ -51,7 +51,7 @@ public sealed interface EnchantmentProvider {
             Enchantment e = regs.enchantment(enchantment);
             int l = level.sample(random);
             if (e != null) l = Mth.clamp(l, 1, e.maxLevel());
-            upgrade(levels, enchantment, l);
+            if (!EnchantmentToggles.isDisabled(enchantment)) upgrade(levels, enchantment, l);   // 꺼졌으면 난수만 쓰고 붙이지 않는다
         }
     }
 

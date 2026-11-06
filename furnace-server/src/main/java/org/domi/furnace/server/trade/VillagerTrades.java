@@ -690,7 +690,8 @@ public final class VillagerTrades {
     static ItemListing enchantBookForEmeralds(int xp) {
         return (ctx, r) -> {
             LootRegistries regs = ctx.loot() == null ? null : ctx.loot().registries();
-            List<String> tradeable = regs == null ? List.of() : regs.tag("minecraft:enchantment", "minecraft:tradeable");
+            List<String> tradeable = regs == null ? List.of()
+                    : org.domi.furnace.server.loot.EnchantmentToggles.enabledIds(regs.tag("minecraft:enchantment", "minecraft:tradeable"));
             int cost;
             ItemStack book;
             if (!tradeable.isEmpty()) {

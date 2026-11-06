@@ -289,10 +289,13 @@ public final class FurnaceMain {
             Path vanillaRoot = org.domi.furnace.server.data.VanillaData.ensure(Path.of("."));
             dataPacks = org.domi.furnace.server.data.DataPackManager.start(vanillaRoot, worldDir, levelData,
                     org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), newWorld,
-                    props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot::discoverPacks);
+                    props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot.dataPackHooks());
         } catch (Exception e) {
             log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
         }
+        // 마법부여 끄기(운영 설정, 기본 없음) — 레지스트리를 읽은 뒤라 데이터 팩·플러그인 마법부여도 끌 수 있다
+        org.domi.furnace.server.loot.EnchantmentToggles.load(furnaceProps,
+                id -> org.domi.furnace.server.net.registry.RegistrySet.current().indexOf("minecraft:enchantment", id) >= 0, log::warn);
         saveLevelData.run();
         log.info("월드 시드={}, 기본 스폰=({}, {}, {})",
                 config.levelSeed(), defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z());

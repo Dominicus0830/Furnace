@@ -22,9 +22,27 @@ public class Wolf extends TamableAnimal implements NeutralMob {
 
     public static final int DATA_INTERESTED_ID = 19, DATA_COLLAR_COLOR = 20, DATA_REMAINING_ANGER_TIME = 21, DATA_VARIANT_ID = 22;
 
-    /** wolf_variant 레지스트리 순서(알파벳 = 네트워크 번호). 기본값 pale. */
+    /** 바닐라 wolf_variant 레지스트리 순서(알파벳 = 데이터 팩·플러그인 변종이 없을 때의 네트워크 번호). 기본값 pale. */
     public static final String[] VARIANTS = {"ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped", "woods"};
     public static final int VARIANT_PALE = 3;
+    private static final String REGISTRY = "minecraft:wolf_variant";
+
+    /** 지금 레지스트리에서 pale 의 번호(WolfVariants.DEFAULT). 데이터 팩·플러그인 변종이 앞에 끼면 3 이 아닐 수 있다. */
+    public static int paleIndex() {
+        int i = org.domi.furnace.server.net.registry.RegistrySet.current().indexOf(REGISTRY, "minecraft:pale");
+        return i >= 0 ? i : VARIANT_PALE;
+    }
+
+    /** 번호 → 변종 id(범위 밖이면 pale). */
+    public static String variantName(int index) {
+        var l = org.domi.furnace.server.net.registry.RegistrySet.current().entries(REGISTRY);
+        return index >= 0 && index < l.size() ? l.get(index) : "minecraft:pale";
+    }
+
+    /** 변종 id → 번호(없으면 -1). namespace 가 없으면 minecraft. */
+    public static int variantIndex(String name) {
+        return org.domi.furnace.server.net.registry.RegistrySet.current().indexOf(REGISTRY, name.indexOf(':') < 0 ? "minecraft:" + name : name);
+    }
     private boolean isWet, isShaking;
     private float shakeAnim, shakeAnimO;
     private UUID persistentAngerTarget;
@@ -48,7 +66,7 @@ public class Wolf extends TamableAnimal implements NeutralMob {
         entityData.define(DATA_INTERESTED_ID, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_COLLAR_COLOR, SetEntityData.SERIALIZER_INT, DyeColor.RED.id());
         entityData.define(DATA_REMAINING_ANGER_TIME, SetEntityData.SERIALIZER_INT, 0);
-        entityData.define(DATA_VARIANT_ID, SetEntityData.SERIALIZER_WOLF_VARIANT, VARIANT_PALE);
+        entityData.define(DATA_VARIANT_ID, SetEntityData.SERIALIZER_WOLF_VARIANT, paleIndex());
     }
 
     public int getVariant() { return (Integer) entityData.get(DATA_VARIANT_ID); }
@@ -56,10 +74,47 @@ public class Wolf extends TamableAnimal implements NeutralMob {
     public void setVariant(int v) { entityData.set(DATA_VARIANT_ID, v); }
 
     /**
-     * WolfVariants.getSpawnVariant(cgj.a): 변종 데이터(wolf_variant/*.json)의 biomes 가 이 바이옴을 담는 첫 것, 없으면 pale.
-     * 변종들의 바이옴은 서로 겹치지 않아 순서는 결과에 영향이 없다. 난수는 쓰지 않는다.
+     * WolfVariants.getSpawnVariant(cgj.a): 레지스트리 순서로 변종 데이터(wolf_variant/*.json)의 biomes 가 이 바이옴을 담는 첫 것,
+     * 없으면 pale. 난수는 쓰지 않는다. 데이터 팩·플러그인 변종도 같은 규칙으로 고른다.
      */
     public static int variantForBiome(String biome) {
+        var dyn = org.domi.furnace.server.data.DynamicRegistries.current();
+        var defs = dyn == null ? java.util.Map.<String, com.google.gson.JsonObject>of() : dyn.definitions(REGISTRY);
+        if (defs.isEmpty()) return vanillaVariantForBiome(biome);
+        var order = dyn.registries().entries(REGISTRY);
+        for (int i = 0; i < order.size(); i++) {
+            var def = defs.get(order.get(i));
+            if (def != null && biomesContain(def.get("biomes"), biome)) return i;
+        }
+        return paleIndex();
+    }
+
+    /** HolderSet<Biome> 꼴(태그 "#id", id 하나, id 목록)이 바이옴을 담는가. 태그는 지금 데이터 팩 태그로 본다. */
+    static boolean biomesContain(com.google.gson.JsonElement set, String biome) {
+        if (set == null || biome == null) return false;
+        if (set.isJsonArray()) {
+            for (var e : set.getAsJsonArray()) if (e.isJsonPrimitive() && normalize(e.getAsString()).equals(biome)) return true;
+            return false;
+        }
+        if (!set.isJsonPrimitive()) return false;
+        String s = set.getAsString();
+        if (!s.startsWith("#")) return normalize(s).equals(biome);
+        String tag = normalize(s.substring(1));
+        if (org.domi.furnace.server.item.ItemContext.hasTag("minecraft:worldgen/biome", tag)) {
+            Integer id = org.domi.furnace.server.item.ItemContext.id("minecraft:worldgen/biome", biome);
+            return id != null && org.domi.furnace.server.item.ItemContext.isInTag("minecraft:worldgen/biome", tag, id);
+        }
+        try {
+            return org.domi.furnace.server.world.gen.BiomeTags.is(biome, tag);
+        } catch (RuntimeException e) {
+            return false;   // 모르는 태그
+        }
+    }
+
+    private static String normalize(String id) { return id.indexOf(':') < 0 ? "minecraft:" + id : id; }
+
+    /** 바닐라 변종만 있을 때의 결과(데이터 팩을 읽지 않고 돌 때). 바닐라 변종들의 바이옴은 겹치지 않아 순서와 무관하다. */
+    static int vanillaVariantForBiome(String biome) {
         return switch (biome) {
             case "minecraft:taiga" -> 3;
             case "minecraft:grove" -> 5;
@@ -358,7 +413,7 @@ public class Wolf extends TamableAnimal implements NeutralMob {
     protected void addAdditionalSaveData(NbtCompound tag) {
         super.addAdditionalSaveData(tag);
         tag.putByte("CollarColor", (byte) getCollarColor().id());
-        tag.putString("variant", "minecraft:" + VARIANTS[Math.floorMod(getVariant(), VARIANTS.length)]);
+        tag.putString("variant", variantName(getVariant()));
         addPersistentAngerSaveData(tag);
     }
 
@@ -366,8 +421,8 @@ public class Wolf extends TamableAnimal implements NeutralMob {
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
         if (tag.tags().get("variant") instanceof String vs) {
-            String name = vs.startsWith("minecraft:") ? vs.substring(10) : vs;
-            for (int i = 0; i < VARIANTS.length; i++) if (VARIANTS[i].equals(name)) setVariant(i);
+            int i = variantIndex(vs);   // 없는 변종(지운 데이터 팩)이면 바닐라처럼 그대로 둔다(기본 pale)
+            if (i >= 0) setVariant(i);
         }
         if (tag.contains("CollarColor")) setCollarColor(DyeColor.byId(tag.getByte("CollarColor")));
         readPersistentAngerSaveData(tag);
