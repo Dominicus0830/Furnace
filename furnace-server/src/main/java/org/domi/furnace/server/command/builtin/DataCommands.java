@@ -161,6 +161,31 @@ public final class DataCommands {
         return f;
     }
 
+    // ---- 플러그인 API(Entity.readNbt/editNbt, World.blockEntityNbt/editBlockEntityNbt)가 /data 와 같은 경로를 쓰도록 — 모두 주인 스레드에서
+
+    /** /data get entity 의 내용(배열은 NbtArray 로 풀린 새 트리). */
+    public static NbtCompound entityData(Rider entity) { return new EntityAccessor(entity).getData(); }
+
+    /** /data 쓰기: 바닐라 Entity.load + UUID 유지. 플레이어는 거부(바닐라 commands.data.entity.invalid) — UnsupportedOperationException. */
+    public static void setEntityData(Rider entity, NbtCompound tag) {
+        if (entity instanceof Player) throw new UnsupportedOperationException("플레이어 NBT 는 쓸 수 없다(바닐라 /data 와 같다)");
+        try {
+            new EntityAccessor(entity).setData(tag);
+        } catch (CommandSyntaxException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
+    /** /data get block 의 내용. */
+    public static NbtCompound blockEntityData(org.domi.furnace.server.world.RegionLevel level, BlockEntity be, Pos pos) {
+        return new BlockAccessor(level, be, pos).getData();
+    }
+
+    /** /data 쓰기: loadWithComponents → setChanged → sendBlockUpdated. */
+    public static void setBlockEntityData(org.domi.furnace.server.world.RegionLevel level, BlockEntity be, Pos pos, NbtCompound tag) {
+        new BlockAccessor(level, be, pos).setData(tag);
+    }
+
     /** 바닐라 EntityDataAccessor. 플레이어는 읽기만(쓰면 commands.data.entity.invalid). */
     record EntityAccessor(Rider entity) implements DataAccessor {
         public NbtCompound getData() {

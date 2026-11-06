@@ -34,6 +34,7 @@
 | 구조물 경계 표시 | 구조물 블록을 켜고 보면 경계 상자·모서리 표시, 불러온 구조물이 눈으로 바닐라와 같은지(계단 방향·문·침대·상자 내용) | 바닐라와 같음 |
 | 직소 블록 화면 | 직소 블록 우클릭 화면(풀·이름·대상·최종 상태·결합 종류·우선순위)과 "생성" 버튼이 마을 같은 조각을 펼치는지(노이즈 월드) | 바닐라와 같음 |
 | 외부 프로그램 | 바닐라 1.21.1 `region-file-compression=lz4` 월드 ↔ Furnace, 실제 Paper/Spigot 월드 폴더로 첫 기동, 실제 BungeeCord(`ip_forward: true`) 뒤 접속, Fabric 클라이언트 접속 | 이 환경은 Mojang·papermc·md-5 호스트가 막혀 못 돌림. lz4 형식은 바닐라 바이트코드와 대조해 같음 |
+| PROXY 프로토콜 (N2) | `furnace.properties` 에 `proxy-protocol=true` (+ `proxy-protocol.trusted=<HAProxy 주소>`) 를 두고 실제 HAProxy(`send-proxy-v2`)나 nginx stream(`proxy_protocol on`) 뒤로 접속 | 접속은 되고 서버 로그·`/ban-ip`·플러그인이 프록시가 아니라 실제 클라이언트 IP 로 봄. 헤더 없는 직접 접속은 거부됨. 이 환경에는 앞단 프로그램이 없어 EmbeddedChannel·소켓 시험까지만 함 (`docs/feature-parity/connection-defenses-2026-11-06.md`) |
 
 ---
 
@@ -96,6 +97,7 @@
 
 ## 완료·결정 기록 (할 일 아님, 참고용)
 
+- **Paper·Spigot 불만 조사 결정 D1~D5 (2026-11-06 사용자 결정, 모두 제안대로 수용)**: D1 3단계 이벤트 마무리 뒤 Bukkit/Paper 호환 어댑터 1차(이벤트·명령·스케줄러·인벤토리)를 먼저 하고 고유 API 확장은 그다음, D2 공식 패킷 API 를 낸다, D3 바닐라 결과를 바꾸는 운영 옵션은 수요 큰 것만 기본 꺼짐으로(활성 범위·엔티티 제한 같은 게임플레이 변경은 넣지 않음), D4 핫 리로드는 개발 모드 설정에서만, D5 `apiVersion` + semver, 대체 API 를 먼저 내고 폐기는 최소 두 마이너 버전 유지. **1.21.1 이후 버전도 지원할 계획** — 플러그인 API·패킷 API 는 마인크래프트 버전에 묶이지 않게 설계한다 (`docs/feature-parity/paper-spigot-dev-complaints-2026-11-06.md` 5장)
 - **확정 버그 U1~U7 (2026-10-31 접속 시험)**: 모두 처리. U1 습격 축하 폭죽 자해는 수정 후 봇 6차로 주민 생존 확인. U2 파괴수 나뭇잎·U4 말 재탑승·U6 좀비 연타는 바닐라와 같은 동작으로 결론. U5 방어구 표시는 수정. U7 몹 능력 점검은 `docs/feature-parity/mob-ability-audit-2026-10-31.md`
 - **바닐라와 같은 동작 (버그 아님, 2026-10-28 디컴파일 조사)**: 벌이 한 번 쏘고 다시 안 쏨, 앉은 드래곤이 화살을 튕겨 냄(피해 0, 1초 불), 활 맞은 드래곤 넉백, 폭발 무적 시간, 부활 드래곤 알은 첫 처치 때만 생성
 - **엔더 드래곤 한 줄 대조 (2026-10-28)**: 난수 순서·죽음 연출·normalize·폭발 면역 확정, 차이 15건 수정 (`docs/feature-parity/dragon-parity-recheck-2026-10-28.md`)

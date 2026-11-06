@@ -22,8 +22,20 @@ public final class SharedChunkFrames {
     /** 공유 프레임 생성(압축) 횟수 — 테스트·벤치용. */
     public static final java.util.concurrent.atomic.AtomicLong ENCODES = new java.util.concurrent.atomic.AtomicLong();
 
-    /** 채널 이벤트 루프에서 부른다. 보낼 메시지(ByteBuf 또는 Precompressed)를 만든다. */
+    /**
+     * 채널 이벤트 루프에서 부른다. 보낼 메시지(ByteBuf 또는 Precompressed)를 만든다.
+     * 플러그인 패킷 리스너가 붙은 연결이면 먼저 거친다 — 취소되면 null(보내지 않는다).
+     */
     public static Object encode(Channel ch, Packet packet) {
+        org.domi.furnace.server.net.PacketTap tap = ch.attr(org.domi.furnace.server.net.PacketTap.KEY).get();
+        if (tap != null) {
+            Packet out = tap.outbound(packet);
+            if (out == null) {
+                packet.discard();
+                return null;
+            }
+            packet = out;
+        }
         if (packet instanceof LevelChunkWithLight l && l.shared() != null
                 && ch.pipeline().get("compress") instanceof CompressionEncoder enc) {
             byte[] frame = frame(enc, l.shared());

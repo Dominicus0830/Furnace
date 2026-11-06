@@ -25,6 +25,9 @@ public record LevelChunkWithLight(ByteBuf body, byte[] shared) implements Packet
     }
 
     @Override
+    public void discard() { body.release(); }
+
+    @Override
     public void write(ByteBuf buf) {
         buf.writeBytes(body);
         body.release();

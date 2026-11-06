@@ -17,7 +17,58 @@ public final class EntityStore {
 
     private final LinkedHashMap<Integer, Entity> byId = new LinkedHashMap<>();
     private final Map<UUID, Entity> byUuid = new HashMap<>();
-    private final TreeMap<Long, ArrayList<Entity>> sections = new TreeMap<>();
+    /** 구역 키 순서(inChunk 의 바닐라 순서용). 조회는 bySection(해시)으로 한다 — 같은 Section 을 가리킨다. */
+    private final TreeMap<Long, Section> sections = new TreeMap<>();
+    private final LongMap<Section> bySection = new LongMap<>();
+
+    /**
+     * 구역 하나(바닐라 EntitySection + ClassInstanceMultiMap): 넣은 순서 목록과, 한 번이라도 찾은 클래스별 목록.
+     * 클래스별 목록은 전체 목록을 그 클래스로 거른 것과 순서까지 같다(넣기·빼기를 같이 한다).
+     */
+    private static final class Section {
+        final ArrayList<Entity> all = new ArrayList<>();
+        private Class<?>[] classes = new Class<?>[0];
+        private ArrayList<Entity>[] lists = newLists(0);
+
+        @SuppressWarnings("unchecked")
+        private static ArrayList<Entity>[] newLists(int n) { return (ArrayList<Entity>[]) new ArrayList[n]; }
+
+        void add(Entity e) {
+            all.add(e);
+            for (int i = 0; i < classes.length; i++) if (classes[i].isInstance(e)) lists[i].add(e);
+        }
+
+        void remove(Entity e) {
+            all.remove(e);
+            for (int i = 0; i < classes.length; i++) if (classes[i].isInstance(e)) lists[i].remove(e);
+        }
+
+        /** 그 클래스의 엔티티(넣은 순서). Entity 이상이면 전체 목록. */
+        ArrayList<Entity> find(Class<?> cls) {
+            if (cls == null || cls.isAssignableFrom(Entity.class)) return all;
+            for (int i = 0; i < classes.length; i++) if (classes[i] == cls) return lists[i];
+            ArrayList<Entity> l = new ArrayList<>();
+            for (int i = 0, n = all.size(); i < n; i++) if (cls.isInstance(all.get(i))) l.add(all.get(i));
+            int n = classes.length;
+            classes = java.util.Arrays.copyOf(classes, n + 1);
+            lists = java.util.Arrays.copyOf(lists, n + 1);
+            classes[n] = cls;
+            lists[n] = l;
+            return l;
+        }
+    }
+
+    private Section section(long key) { return bySection.get(key); }
+
+    private Section sectionOrNew(long key) {
+        Section s = bySection.get(key);
+        if (s == null) {
+            s = new Section();
+            bySection.put(key, s);
+            sections.put(key, s);
+        }
+        return s;
+    }
 
     public boolean isEmpty() { return byId.isEmpty(); }
 
@@ -37,7 +88,7 @@ public final class EntityStore {
         if (byUuid.containsKey(e.uuid())) return false;
         byId.put(e.id(), e);
         byUuid.put(e.uuid(), e);
-        sections.computeIfAbsent(e.sectionKey(), k -> new ArrayList<>()).add(e);
+        sectionOrNew(e.sectionKey()).add(e);
         return true;
     }
 
@@ -52,14 +103,17 @@ public final class EntityStore {
     public void moved(Entity e, long oldKey) {
         if (!byId.containsKey(e.id())) return;
         removeFromSection(e, oldKey);
-        sections.computeIfAbsent(e.sectionKey(), k -> new ArrayList<>()).add(e);
+        sectionOrNew(e.sectionKey()).add(e);
     }
 
     private void removeFromSection(Entity e, long key) {
-        ArrayList<Entity> list = sections.get(key);
-        if (list == null) return;
-        list.remove(e);
-        if (list.isEmpty()) sections.remove(key);
+        Section s = bySection.get(key);
+        if (s == null) return;
+        s.remove(e);
+        if (s.all.isEmpty()) {
+            bySection.remove(key);
+            sections.remove(key);
+        }
     }
 
     /** 틱 목록 사본(넣은 순서) — 틱 중에 넣은 엔티티는 다음 틱부터 돈다. */
@@ -70,7 +124,10 @@ public final class EntityStore {
     // ------------------------------------------------------------------ 상자 조회(바닐라 EntitySectionStorage.getEntities)
 
     /** 상자와 겹치는 엔티티를 바닐라 순서로(구역 범위는 x·z ±2, y -4..+0 넓힌다). */
-    public void forEachIn(AABB box, Consumer<Entity> out) {
+    public void forEachIn(AABB box, Consumer<Entity> out) { forEachIn(box, null, out); }
+
+    /** forEachIn 을 그 클래스 엔티티만(바닐라 EntityTypeTest — 구역의 클래스별 목록만 훑는다). */
+    public void forEachIn(AABB box, Class<?> cls, Consumer<Entity> out) {
         int x0 = Entity.floor(box.minX() - 2.0) >> 4, y0 = Entity.floor(box.minY() - 4.0) >> 4, z0 = Entity.floor(box.minZ() - 2.0) >> 4;
         int x1 = Entity.floor(box.maxX() + 2.0) >> 4, y1 = Entity.floor(box.maxY() + 0.0) >> 4, z1 = Entity.floor(box.maxZ() + 2.0) >> 4;
         // TreeMap 순서(마스크된 z, y 순)를 유지하면서 칸마다 직접 조회한다(열 전체 스캔·목록 복사 없이).
@@ -78,8 +135,9 @@ public final class EntityStore {
         for (int sx = x0; sx <= x1; sx++) {
             for (int sz : zs) {
                 for (int sy : ys) {
-                    ArrayList<Entity> list = sections.get(Entity.sectionKey(sx, sy, sz));
-                    if (list == null) continue;
+                    Section sec = section(Entity.sectionKey(sx, sy, sz));
+                    if (sec == null) continue;
+                    ArrayList<Entity> list = sec.find(cls);
                     ArrayList<Entity> hit = null;
                     for (int i = 0, n = list.size(); i < n; i++) {
                         Entity ent = list.get(i);
@@ -105,8 +163,9 @@ public final class EntityStore {
                 int sz = wrapZ ? zs[zi] : z0 + zi;
                 for (int yi = 0, yn = wrapY ? ys.length : y1 - y0 + 1; yi < yn; yi++) {
                     int sy = wrapY ? ys[yi] : y0 + yi;
-                    ArrayList<Entity> list = sections.get(Entity.sectionKey(sx, sy, sz));
-                    if (list == null) continue;
+                    Section sec = section(Entity.sectionKey(sx, sy, sz));
+                    if (sec == null) continue;
+                    ArrayList<Entity> list = sec.all;
                     for (int i = 0, n = list.size(); i < n; i++) {
                         Entity ent = list.get(i);
                         if (ent.boundingBox().intersects(box)) out.accept(ent);
@@ -134,7 +193,7 @@ public final class EntityStore {
     public List<Entity> inChunk(int cx, int cz) {
         List<Entity> out = new ArrayList<>();
         long from = Entity.sectionKey(cx, 0, cz), to = Entity.sectionKey(cx, -1, cz);
-        for (var list : sections.subMap(from, true, to, true).values()) out.addAll(list);
+        for (Section sec : sections.subMap(from, true, to, true).values()) out.addAll(sec.all);
         return out;
     }
 
@@ -149,7 +208,7 @@ public final class EntityStore {
     @SuppressWarnings("unchecked")
     public <T extends Entity> List<T> getEntitiesOfClass(Class<T> cls, AABB box, Predicate<? super T> filter) {
         List<T> out = new ArrayList<>();
-        forEachIn(box, e -> {
+        forEachIn(box, cls, e -> {
             if (cls.isInstance(e) && (filter == null || filter.test((T) e))) out.add((T) e);
         });
         return out;
@@ -162,6 +221,7 @@ public final class EntityStore {
         other.byId.clear();
         other.byUuid.clear();
         other.sections.clear();
+        other.bySection.clear();
     }
 
     /** 청크 조건에 맞는 엔티티를 target 으로 옮긴다. */
@@ -175,5 +235,78 @@ public final class EntityStore {
             }
         }
         return moved;
+    }
+
+    /** long 키 열린 주소 해시(구역 조회를 Long 상자 없이). */
+    static final class LongMap<V> {
+        private long[] keys = new long[16];
+        private Object[] vals = new Object[16];
+        private int size;
+
+        private static int mix(long k) {
+            long h = k * 0x9E3779B97F4A7C15L;
+            return (int) (h ^ h >>> 32);
+        }
+
+        @SuppressWarnings("unchecked")
+        V get(long k) {
+            int m = keys.length - 1;
+            for (int i = mix(k) & m; ; i = i + 1 & m) {
+                Object v = vals[i];
+                if (v == null) return null;
+                if (keys[i] == k) return (V) v;
+            }
+        }
+
+        void put(long k, V v) {
+            if ((size + 1) * 2 > keys.length) grow();
+            int m = keys.length - 1;
+            for (int i = mix(k) & m; ; i = i + 1 & m) {
+                if (vals[i] == null) { keys[i] = k; vals[i] = v; size++; return; }
+                if (keys[i] == k) { vals[i] = v; return; }
+            }
+        }
+
+        void remove(long k) {
+            int m = keys.length - 1;
+            int i = mix(k) & m;
+            while (true) {
+                if (vals[i] == null) return;
+                if (keys[i] == k) break;
+                i = i + 1 & m;
+            }
+            size--;
+            // 뒤로 당기기(묘비 없이)
+            for (int j = i + 1 & m; vals[j] != null; j = j + 1 & m) {
+                int home = mix(keys[j]) & m;
+                if ((j - home & m) >= (j - i & m)) {
+                    keys[i] = keys[j];
+                    vals[i] = vals[j];
+                    i = j;
+                }
+            }
+            vals[i] = null;
+        }
+
+        void clear() {
+            java.util.Arrays.fill(vals, null);
+            size = 0;
+        }
+
+        int size() { return size; }
+
+        private void grow() {
+            long[] ok = keys;
+            Object[] ov = vals;
+            keys = new long[ok.length * 2];
+            vals = new Object[ok.length * 2];
+            size = 0;
+            for (int i = 0; i < ok.length; i++) {
+                if (ov[i] != null) {
+                    @SuppressWarnings("unchecked") V v = (V) ov[i];
+                    put(ok[i], v);
+                }
+            }
+        }
     }
 }
