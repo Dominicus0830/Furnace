@@ -1,4 +1,4 @@
-// Anvil 청크 압축(gzip=type 1 / zlib=deflate=type 2 / none=type 3 / lz4=type 4) 헬퍼. 쓰기 방식은 server.properties region-file-compression 이
+// Anvil 청크 압축(gzip=type 1 / zlib=deflate=type 2 / none=type 3 / lz4=type 4 / zstd=type 5, 바닐라 아님) 헬퍼. 쓰기 방식은 server.properties region-file-compression 이
 // 고른다(바닐라 RegionFileVersion.configure 와 같이 프로세스 전역 하나). lz4 는 lz4-java 블록 스트림 형식을 직접 구현한 Lz4Block 을 쓴다.
 package org.domi.furnace.server.world.anvil;
 
@@ -11,7 +11,9 @@ public final class Compression {
 
     private Compression() {}
 
-    public static final int GZIP = 1, DEFLATE = 2, NONE = 3, LZ4 = 4;
+    public static final int GZIP = 1, DEFLATE = 2, NONE = 3, LZ4 = 4,
+            /** 바닐라에 없는 종류(Furnace 전용). 이걸로 쓴 region 파일은 바닐라·Paper 가 못 읽는다 — {@link RegionConvert} 로 되돌린다. */
+            ZSTD = 5;
     private static volatile int writeType = DEFLATE;
 
     /** 새로 쓰는 청크의 압축 종류. */
@@ -24,6 +26,7 @@ public final class Compression {
             case "gzip" -> GZIP;
             case "none" -> NONE;
             case "lz4" -> LZ4;
+            case "zstd" -> ZSTD;
             default -> null;
         };
         if (t == null) return false;
@@ -46,6 +49,7 @@ public final class Compression {
             }
             case NONE -> data.clone();
             case LZ4 -> Lz4Block.compress(data);
+            case ZSTD -> zstd(data);
             default -> deflate(data);
         };
     }
@@ -83,6 +87,7 @@ public final class Compression {
 
     public static byte[] decompress(int type, byte[] data) throws IOException {
         if (type == LZ4) return Lz4Block.decompress(data);
+        if (type == ZSTD) return unzstd(data);
         if (type == DEFLATE) return inflate(data);
         ByteArrayInputStream in = new ByteArrayInputStream(data);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -124,6 +129,28 @@ public final class Compression {
             return n == out.length ? out : java.util.Arrays.copyOf(out, n);
         } finally {
             inf.end();
+        }
+    }
+
+    /** zstd 프레임(내용 크기를 헤더에 담는다). 순수 자바(aircompressor). */
+    static byte[] zstd(byte[] data) {
+        io.airlift.compress.zstd.ZstdCompressor c = new io.airlift.compress.zstd.ZstdCompressor();
+        byte[] out = new byte[c.maxCompressedLength(data.length)];
+        int n = c.compress(data, 0, data.length, out, 0, out.length);
+        return java.util.Arrays.copyOf(out, n);
+    }
+
+    static byte[] unzstd(byte[] data) throws IOException {
+        io.airlift.compress.zstd.ZstdDecompressor d = new io.airlift.compress.zstd.ZstdDecompressor();
+        try {
+            long size = io.airlift.compress.zstd.ZstdDecompressor.getDecompressedSize(data, 0, data.length);
+            if (size < 0 || size > (1 << 28)) throw new IOException("zstd: 해제 크기 이상: " + size);
+            byte[] out = new byte[(int) size];
+            int n = d.decompress(data, 0, data.length, out, 0, out.length);
+            if (n != out.length) throw new IOException("zstd: 해제 길이 불일치");
+            return out;
+        } catch (io.airlift.compress.MalformedInputException | IllegalArgumentException | IndexOutOfBoundsException e) {
+            throw new IOException("zstd: 본문이 깨졌다", e);
         }
     }
 }
