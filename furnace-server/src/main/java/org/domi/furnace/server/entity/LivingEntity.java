@@ -1443,11 +1443,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
      */
     public boolean onClimbable() {
         if (isSpectator()) return false;
+        int st = inBlockState();   // 바닐라 getInBlockState(틱·칸 바뀜마다 다시 읽는 캐시) — 밀기 후보마다 불려 블록 조회를 아낀다
+        boolean climbable = org.domi.furnace.server.block.B.isTag(st, "minecraft:climbable");
+        if (!climbable && !org.domi.furnace.server.block.types.TrapDoorBlock.isTrapDoor(st)) return false;
         org.domi.furnace.server.block.Pos pos = blockPosition();
-        int st = level.getBlockState(pos);
-        if (org.domi.furnace.server.block.B.isTag(st, "minecraft:climbable")
-                || org.domi.furnace.server.block.types.TrapDoorBlock.isTrapDoor(st)
-                    && org.domi.furnace.server.block.types.TrapDoorBlock.usableAsLadder(st, level.getBlockState(pos.below()))) {
+        if (climbable || org.domi.furnace.server.block.types.TrapDoorBlock.usableAsLadder(st, level.getBlockState(pos.below()))) {
             lastClimbablePos = pos;
             return true;
         }

@@ -31,6 +31,7 @@ srv/stop.sh $D
 - `round8/` 플러그인 API 3단계 셋째 묶음 이벤트(`ev.js` + `probe/Stage3cProbe`, 구역 form enchant anvil brew vehicle fish portal book spawn).
 - `round6/` user-todo 정리용 6차(시야 거리·바람 구슬·철퇴·장착 소리·포탈·양조·스트라이더·습격·돌고래·투사체) — `round6/README.md`.
 - `round7/conduit.js` 전달체(conduit) 활성화·전달체의 힘·적대 몹 공격 — `round7/README.md`.
+- `entity/entity.js` 엔티티 AI·틱 묶음(빈 종 마을 판정·좀비 표적·울타리 돌기, `perf` 인자면 소 600마리 `/tick query`) — `docs/feature-parity/perf-entity-2026-11-06.md`.
 - `probe-plugin`: `javac -cp furnace-api.jar -d out probe/ProbePlugin.java && cp furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`
 
 ## 한계

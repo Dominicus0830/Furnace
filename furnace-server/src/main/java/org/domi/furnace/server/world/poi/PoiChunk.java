@@ -8,6 +8,8 @@ public final class PoiChunk {
     private final int minSection;
     private final PoiSection[] sections;
     private boolean dirty;
+    /** null 이 아닌 섹션 수(섹션은 한 번 생기면 지우지 않는다) — 0 이면 마을 거리 훑기가 이 열을 건너뛴다. */
+    private int present;
     private final Runnable setDirty = () -> dirty = true;
 
     public PoiChunk(int minSection, int sectionCount) {
@@ -32,12 +34,16 @@ public final class PoiChunk {
         PoiSection s = sections[i];
         if (s == null) {
             sections[i] = s = new PoiSection(setDirty);
+            present++;
             dirty = true;
         }
         return s;
     }
 
     public boolean dirty() { return dirty; }
+
+    /** 섹션이 하나라도 있는가. */
+    public boolean hasSections() { return present > 0; }
 
     public void clearDirty() { dirty = false; }
 
@@ -70,6 +76,7 @@ public final class PoiChunk {
                 }
                 int i = y - minSection;
                 if (i < 0 || i >= sectionCount || !(e.getValue() instanceof NbtCompound sc)) continue;
+                if (c.sections[i] == null) c.present++;
                 c.sections[i] = PoiSection.load(sc, c.setDirty);
             }
         }
