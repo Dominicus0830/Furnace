@@ -158,11 +158,13 @@ public interface BlockLevel {
      * Level.skyDarken(updateSkyBrightness): 해 높이·비·천둥으로 정한 하늘빛 감소량(0..11).
      * 바닐라는 틱 머리에 한 번 계산해 두지만 같은 틱 안에서는 값이 같다.
      */
-    default int skyDarken() {
-        float rain = rainLevel();
+    default int skyDarken() { return skyDarken(rainLevel(), thunderLevel(), B.timeOfDay(this)); }
+
+    /** skyDarken 의 계산(비 세기·천둥 세기·timeOfDay 로) — 레벨 없이(전역 스레드) 쓸 때. */
+    static int skyDarken(float rain, float thunder, float timeOfDay) {
         double d0 = 1.0 - rain * 5.0F / 16.0;
-        double d1 = 1.0 - thunderLevel() * rain * 5.0F / 16.0;
-        double d2 = 0.5 + 2.0 * Math.clamp(Dir.cos(B.timeOfDay(this) * (float) (Math.PI * 2)), -0.25, 0.25);
+        double d1 = 1.0 - thunder * rain * 5.0F / 16.0;
+        double d2 = 0.5 + 2.0 * Math.clamp(Dir.cos(timeOfDay * (float) (Math.PI * 2)), -0.25, 0.25);
         return (int) ((1.0 - d2 * d0 * d1) * 11.0);
     }
 
