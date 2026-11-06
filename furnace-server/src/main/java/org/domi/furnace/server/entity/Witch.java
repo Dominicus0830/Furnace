@@ -111,12 +111,10 @@ public class Witch extends Raider implements RangedAttackMob {
         return dx * dx + dy * dy + dz * dz;
     }
 
-    @Override
-    protected float getDamageAfterMagicAbsorb(Damage source, float amount) {
-        amount = super.getDamageAfterMagicAbsorb(source, amount);
-        if (DamageTypeHelper.isMagic(source)) amount *= 0.15F;
-        return amount;
-    }
+    /** Witch.getDamageAfterMagicAbsorb: 보호 인챈트까지 거친 뒤 witch_resistant_to 피해는 85% 줄인다(피해 계산의 ENTITY 단계). */
+    @Override protected boolean entityStageApplies(Damage source) { return DamageTypeHelper.isMagic(source); }
+
+    @Override protected float entityStage(Damage source, float amount) { return amount * 0.15F; }
 
     private static final class DamageTypeHelper {
         static boolean isMagic(Damage d) { return org.domi.furnace.server.entity.damage.DamageType.keyHasTag(d.type(), "witch_resistant_to"); }

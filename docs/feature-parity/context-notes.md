@@ -873,6 +873,15 @@
 - **봇 시험 함정**: mineflayer `putTargetItem`/`rename`/`enchant` 는 이 서버에서 timeout 이 나므로(서버는 정상) `clickWindow`·원시 패킷(`name_item {name}`, `enchant_item`)으로 보낸다. 취소 모드는 블록을 놓기 *전에* 켜야 하고(무작위 틱이 빠르면 놓는 도중 이벤트가 난다), `mark()` 는 명령 앞에 둔다. 슬라임은 peaceful 에서 사라지니 분열 시험만 easy.
 
 
+## 2026-11-06 피해 계산 단계 API (`EntityDamageCalculateEvent`)
+- 위시리스트의 `EntityDamageCalculateEvent`/`DamageModifierEvent` 를 하나로 냈다. 방어력→저항→보호 인챈트→엔티티 고유(마녀)→흡수 체력 단계별로 읽고 바꾼다(`docs/api/entity-world-design.md` 4.1). 기본 결과는 바닐라와 비트 단위로 같다.
+- 서버 쪽: `LivingEntity.actuallyHurt`·`PlayerVitals.actuallyHurt` 가 `GameEvents.wantsDamageCalc()` 가 참일 때만 `StageRules`(그 엔티티의 현재 속성·효과·장비로 바닐라 식을 계산)를 만들어 이벤트를 부르고, 구독자가 없으면 예전 경로 그대로. 흡수 체력 소비는 `input(ABSORPTION) - output(ABSORPTION)` 으로 같은 식.
+- 마녀의 `getDamageAfterMagicAbsorb` 오버라이드는 `LivingEntity.entityStageApplies/entityStage` 훅으로 바꿨다(결과 같음: 보호 인챈트 뒤, bypasses_effects 여도 적용).
+- 방어구 내구도(`Player.hurtArmor`)는 이벤트 전에 닳는다 — 바닐라가 내구도를 먼저 깎고 방어력을 읽는 순서를 지키려는 것. 그래서 `base` 를 바꿔도 내구도 소모는 안 바뀐다.
+- 알아 둘 것: bypass 태그 피해(예: `generic`)는 방어력 단계가 `applies=false` 다. 봇 시험에서 `generic` 으로 방어력 시험을 하다 헷갈렸다 — 방어력 시험은 `cactus`·`mob_attack` 으로.
+- 봇 함정: 피해 직후 체력을 읽을 때 `naturalRegeneration` 을 꺼야 한다(체력 비교가 틀어진다).
+- 시험: api 8 + server `DamageStagesTest` 8 + `EntityWorldApiTest` 1, 봇 `tools/bot-test/round9/damage.js` 8항목 전부 통과.
+
 ## 2026-11-06 전달체(conduit) 블록 엔티티
 - 그동안 `ConduitBlock` 은 물 잠김만 있고 블록 엔티티가 없어 전달체를 지어도 아무 일도 없었다. `ConduitBlockEntity` 를 바닐라 1.21.1 `dqt.b(serverTick)` 바이트코드와 대조해 넣었다.
 - 40틱마다: 둘레 3×3×3 이 모두 물인지 → 5×5×5 세 축 평면 바깥 고리(42칸)의 프리즈머린·벽돌·어두운 프리즈머린·바다 랜턴 수. 16 이상이면 활성(바뀌면 activate/deactivate 소리), 42 면 사냥.

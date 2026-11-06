@@ -1,6 +1,8 @@
 // GameEvents 의 플러그인 구현 — 구독자가 없으면 이벤트·핸들을 만들지 않고 바로 허용한다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.event.entity.DamageRules;
+import org.domi.furnace.api.event.entity.EntityDamageCalculateEvent;
 import org.domi.furnace.api.event.entity.CreatureSpawnEvent;
 import org.domi.furnace.api.event.entity.EntityDamageEvent;
 import org.domi.furnace.api.event.entity.EntityDismountEvent;
@@ -104,6 +106,27 @@ public final class PluginGameEvents implements GameEvents {
         if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
         var ev = bus().call(new EntityDamageEvent(host.player(p), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount));
         return ev.isCancelled() ? -1f : ev.damage();
+    }
+
+    @Override
+    public boolean wantsDamageCalc() { return bus().hasSubscribers(EntityDamageCalculateEvent.class); }
+
+    @Override
+    public EntityDamageCalculateEvent entityDamageCalc(LivingEntity e, String cause, org.domi.furnace.server.entity.Rider causing,
+                                                       org.domi.furnace.server.entity.Rider direct, float base, float absorption, DamageRules rules) {
+        return bus().call(new EntityDamageCalculateEvent(EntityHandle.of(host, e), causeKey(cause), riderHandle(causing), riderHandle(direct), base, absorption, rules));
+    }
+
+    @Override
+    public EntityDamageCalculateEvent playerDamageCalc(Player p, String cause, org.domi.furnace.server.entity.Rider causing,
+                                                       org.domi.furnace.server.entity.Rider direct, float base, float absorption, DamageRules rules) {
+        return bus().call(new EntityDamageCalculateEvent(host.player(p), causeKey(cause), riderHandle(causing), riderHandle(direct), base, absorption, rules));
+    }
+
+    private static String causeKey(String cause) { return cause.indexOf(':') < 0 ? "minecraft:" + cause : cause; }
+
+    private org.domi.furnace.api.entity.Entity riderHandle(org.domi.furnace.server.entity.Rider r) {
+        return r instanceof Player p ? host.player(p) : r instanceof Entity e ? EntityHandle.of(host, e) : null;
     }
 
     @Override

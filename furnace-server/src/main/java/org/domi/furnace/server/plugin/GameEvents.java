@@ -20,6 +20,21 @@ public interface GameEvents {
     /** 플레이어판 entityDamage. */
     default float playerDamage(Player p, String cause, float amount) { return amount; }
 
+    /**
+     * EntityDamageCalculateEvent 구독자가 있는가 — 없으면 호출하는 쪽이 바닐라 계산을 그대로 한다(규칙 객체를 만들지 않는다).
+     */
+    default boolean wantsDamageCalc() { return false; }
+
+    /** 피해 계산 단계 이벤트를 부른다(몹 등). wantsDamageCalc 가 참일 때만. 돌려준 이벤트의 단계 값이 계산 결과다. */
+    default org.domi.furnace.api.event.entity.EntityDamageCalculateEvent entityDamageCalc(LivingEntity e, String cause,
+            org.domi.furnace.server.entity.Rider causing, org.domi.furnace.server.entity.Rider direct, float base, float absorption,
+            org.domi.furnace.api.event.entity.DamageRules rules) { return null; }
+
+    /** 플레이어판 entityDamageCalc. */
+    default org.domi.furnace.api.event.entity.EntityDamageCalculateEvent playerDamageCalc(Player p, String cause,
+            org.domi.furnace.server.entity.Rider causing, org.domi.furnace.server.entity.Rider direct, float base, float absorption,
+            org.domi.furnace.api.event.entity.DamageRules rules) { return null; }
+
     default void entityDeath(LivingEntity e) {}
 
     /** false 면 넣지 않는다. */
