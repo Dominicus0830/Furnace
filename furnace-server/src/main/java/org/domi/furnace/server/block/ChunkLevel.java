@@ -583,7 +583,7 @@ public abstract class ChunkLevel implements BlockLevel {
         Pos top = new Pos(pos.x(), col.motionBlockingBlockY(pos.x() & 15, pos.z() & 15) + 1, pos.z());
         Pos below = top.below();
         var climate = org.domi.furnace.server.world.BiomeWeather.of(services().biomeAt(top.x(), top.y(), top.z()));
-        if (shouldFreeze(climate, below)) setBlockAndUpdate(below, blocks.defaultState("minecraft:ice"));
+        if (shouldFreeze(climate, below)) B.form(this, below, blocks.defaultState("minecraft:ice"), UPDATE_ALL);   // 플러그인 BlockFormEvent
         if (isRaining()) {
             int max = gameRuleInt("snowAccumulationHeight");
             if (max > 0 && shouldSnow(climate, top)) {
@@ -594,10 +594,10 @@ public abstract class ChunkLevel implements BlockLevel {
                     if (j < Math.min(max, 8)) {
                         int more = layers.withInt(s, j + 1);
                         pushEntitiesUp(s, more, top);
-                        setBlockAndUpdate(top, more);
+                        B.form(this, top, more, UPDATE_ALL);   // 플러그인 BlockFormEvent
                     }
                 } else {
-                    setBlockAndUpdate(top, blocks.defaultState(SNOW));
+                    B.form(this, top, blocks.defaultState(SNOW), UPDATE_ALL);   // 플러그인 BlockFormEvent
                 }
             }
             String precip = climate.precipitationAt(below.x(), below.y(), below.z());
@@ -1978,7 +1978,7 @@ public abstract class ChunkLevel implements BlockLevel {
             Entity v = e.vehicle();
             if (v != null) {   // 탄 것은 탈것이 틱한다
                 if (!v.isRemoved() && v.hasPassenger(e)) continue;
-                e.stopRiding();
+                Entity.stopRidingForced(e);
             }
             try {
                 e.setOldPosAndRot();
@@ -1997,13 +1997,13 @@ public abstract class ChunkLevel implements BlockLevel {
         if (r instanceof Player p) {
             // 끊긴 플레이어는 주인 region 이 퇴장 처리에서 탈것을 저장하고 내린다(PlayerVehicleSave) — 그전에 내리면 탈것이 저장되지 않는다
             if (p.isDisconnected()) return;
-            if (p.vehicle() != vehicle) p.stopRiding();
+            if (p.vehicle() != vehicle) Entity.stopRidingForced(p);
             else p.rideTick();
             return;
         }
         Entity e = (Entity) r;
         if (e.isRemoved() || e.vehicle() != vehicle) {
-            e.stopRiding();
+            Entity.stopRidingForced(e);
         } else if (entities.contains(e)) {
             e.setOldPosAndRot();
             e.tickCount++;

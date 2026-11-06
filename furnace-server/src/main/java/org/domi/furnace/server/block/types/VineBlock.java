@@ -93,27 +93,27 @@ public class VineBlock extends BlockBehavior {
                 boolean hasCw = has(state, cw), hasCcw = has(state, ccw);
                 Pos cwPos = rel.relative(cw), ccwPos = rel.relative(ccw);
                 if (hasCw && isAcceptableNeighbour(level, cwPos, cw)) {
-                    level.setBlock(rel, FACE[cw].with(defaultState(), true), 2);
+                    B.spread(level, pos, rel, FACE[cw].with(defaultState(), true), 2);
                 } else if (hasCcw && isAcceptableNeighbour(level, ccwPos, ccw)) {
-                    level.setBlock(rel, FACE[ccw].with(defaultState(), true), 2);
+                    B.spread(level, pos, rel, FACE[ccw].with(defaultState(), true), 2);
                 } else {
                     int opp = Dir.opposite(dir);
                     if (hasCw && level.isEmptyBlock(cwPos) && isAcceptableNeighbour(level, pos.relative(cw), opp)) {
-                        level.setBlock(cwPos, FACE[opp].with(defaultState(), true), 2);
+                        B.spread(level, pos, cwPos, FACE[opp].with(defaultState(), true), 2);
                     } else if (hasCcw && level.isEmptyBlock(ccwPos) && isAcceptableNeighbour(level, pos.relative(ccw), opp)) {
-                        level.setBlock(ccwPos, FACE[opp].with(defaultState(), true), 2);
+                        B.spread(level, pos, ccwPos, FACE[opp].with(defaultState(), true), 2);
                     } else if (random.nextFloat() < 0.05 && isAcceptableNeighbour(level, rel.above(), Dir.UP)) {
-                        level.setBlock(rel, UP.with(defaultState(), true), 2);
+                        B.spread(level, pos, rel, UP.with(defaultState(), true), 2);
                     }
                 }
             } else if (isAcceptableNeighbour(level, rel, dir)) {
-                level.setBlock(pos, FACE[dir].with(state, true), 2);
+                B.spread(level, pos, pos, FACE[dir].with(state, true), 2);
             }
             return;
         }
         if (dir == Dir.UP && pos.y() < level.maxBuildHeight() - 1) {
             if (canSupportAtFace(level, pos, dir)) {
-                level.setBlock(pos, UP.with(state, true), 2);
+                B.spread(level, pos, pos, UP.with(state, true), 2);
                 return;
             }
             if (level.isEmptyBlock(abovePos)) {
@@ -122,7 +122,7 @@ public class VineBlock extends BlockBehavior {
                 for (int d : Dir.HORIZONTAL) {
                     if (random.nextBoolean() || !isAcceptableNeighbour(level, abovePos.relative(d), d)) s = FACE[d].with(s, false);
                 }
-                if (hasHorizontalConnection(s)) level.setBlock(abovePos, s, 2);
+                if (hasHorizontalConnection(s)) B.spread(level, pos, abovePos, s, 2);
                 return;
             }
         }
@@ -132,7 +132,7 @@ public class VineBlock extends BlockBehavior {
             if (B.isAir(belowState) || B.is(belowState, block)) {
                 int base = B.isAir(belowState) ? defaultState() : belowState;
                 int spread = copyRandomFaces(state, base, random);
-                if (base != spread && hasHorizontalConnection(spread)) level.setBlock(below, spread, 2);
+                if (base != spread && hasHorizontalConnection(spread)) B.spread(level, pos, below, spread, 2);
             }
         }
     }

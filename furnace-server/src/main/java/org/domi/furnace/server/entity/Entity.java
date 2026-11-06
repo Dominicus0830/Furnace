@@ -517,7 +517,7 @@ public abstract non-sealed class Entity implements Rider {
     private void moveAcross(java.util.function.Consumer<java.util.function.BiConsumer<ChunkLevel, DimensionTransition>> route,
                             org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
                             java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done) {
-        stopRiding();
+        stopRidingForced(this);
         ejectPassengers();
         final NbtCompound tag = saveWithoutId(new NbtCompound());
         final int cooldown = portalCooldown;
@@ -565,7 +565,7 @@ public abstract non-sealed class Entity implements Rider {
     public Entity changeDimension(DimensionTransition t) {
         if (isRemoved()) return null;
         ChunkLevel target = t.newLevel();
-        stopRiding();
+        stopRidingForced(this);
         ejectPassengers();
         Entity e = target == level ? this : Entities.create(target, type.name());
         if (e == null) return null;
@@ -811,8 +811,8 @@ public abstract non-sealed class Entity implements Rider {
         EntityTasks tasks = apiTasks;
         if (tasks != null) tasks.retire();   // 플러그인 EntityScheduler: 남은 작업 대신 retired
         if (removalReason == RemovalReason.CHANGED_DIMENSION) removeAfterChangingDimensions();
-        if (removalReason.shouldDestroy()) stopRiding();
-        if (!passengers.isEmpty()) for (Rider r : passengers) r.stopRiding();
+        if (removalReason.shouldDestroy()) stopRidingForced(this);
+        if (!passengers.isEmpty()) for (Rider r : passengers) stopRidingForced(r);
         if (level != null) level.entityRemoved(this);
     }
 
@@ -1792,6 +1792,7 @@ public abstract non-sealed class Entity implements Rider {
         if (!v.couldAcceptPassenger()) return false;
         for (Entity e = v; e.vehicle != null; e = e.vehicle) if (e.vehicle == r) return false;
         if (!force && !(r.canRide(v) && v.canAddPassenger(r))) return false;
+        if (v.level != null && !v.level.gameEvents().entityMount(r, v)) return false;   // 플러그인 VehicleEnterEvent·EntityMountEvent 취소
         if (r.isPassenger()) r.stopRiding();
         if (r instanceof Entity e) e.setPose(POSE_STANDING);
         r.setVehicleField(v);
@@ -1852,6 +1853,8 @@ public abstract non-sealed class Entity implements Rider {
     static void unlinkVehicle(Rider r) {
         Entity v = r.vehicle();
         if (v != null) {
+            boolean forced = r.dismountForced() || v.isRemoved();
+            if (v.level != null && !v.level.gameEvents().entityDismount(r, v, !forced) && !forced) return;   // 플러그인 VehicleExitEvent·EntityDismountEvent 취소
             r.setVehicleField(null);
             v.removePassenger(r);
         }
@@ -1861,9 +1864,22 @@ public abstract non-sealed class Entity implements Rider {
     @Override
     public void stopRiding() { removeVehicle(); }
 
+    private boolean dismountForced;
+
+    @Override public boolean dismountForced() { return dismountForced; }
+
+    @Override public void setDismountForced(boolean forced) { dismountForced = forced; }
+
+    /** 플러그인 EntityDismountEvent 를 취소할 수 없는 stopRiding(CraftBukkit stopRiding(true)). */
+    public static void stopRidingForced(Rider r) {
+        boolean was = r.dismountForced();
+        r.setDismountForced(true);
+        try { r.stopRiding(); } finally { r.setDismountForced(was); }
+    }
+
     /** ejectPassengers: 뒤에서부터 내린다. */
     public void ejectPassengers() {
-        for (int i = passengers.size() - 1; i >= 0; i--) passengers.get(i).stopRiding();
+        for (int i = passengers.size() - 1; i >= 0; i--) stopRidingForced(passengers.get(i));
     }
 
     /** positionRider(passenger): 내 승객이면 setPos 로 옮긴다. */

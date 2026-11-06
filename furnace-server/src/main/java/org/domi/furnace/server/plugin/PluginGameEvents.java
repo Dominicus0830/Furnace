@@ -2,6 +2,10 @@
 package org.domi.furnace.server.plugin;
 
 import org.domi.furnace.api.event.entity.EntityDamageEvent;
+import org.domi.furnace.api.event.entity.EntityDismountEvent;
+import org.domi.furnace.api.event.entity.EntityMountEvent;
+import org.domi.furnace.api.event.vehicle.VehicleEnterEvent;
+import org.domi.furnace.api.event.vehicle.VehicleExitEvent;
 import org.domi.furnace.api.event.entity.EntityDeathEvent;
 import org.domi.furnace.api.event.block.BlockExplodeEvent;
 import org.domi.furnace.api.event.entity.EntityBreedEvent;
@@ -28,7 +32,10 @@ import org.domi.furnace.api.event.player.PlayerToggleSprintEvent;
 import org.domi.furnace.api.event.server.ServerListPingEvent;
 import org.domi.furnace.api.event.block.BlockBurnEvent;
 import org.domi.furnace.api.event.block.BlockFromToEvent;
+import org.domi.furnace.api.event.block.BlockFadeEvent;
+import org.domi.furnace.api.event.block.BlockFormEvent;
 import org.domi.furnace.api.event.block.BlockGrowEvent;
+import org.domi.furnace.api.event.block.BlockSpreadEvent;
 import org.domi.furnace.api.event.block.BlockIgniteEvent;
 import org.domi.furnace.api.event.block.BlockPhysicsEvent;
 import org.domi.furnace.api.event.block.BlockPistonEvent;
@@ -36,7 +43,12 @@ import org.domi.furnace.api.event.block.BlockPistonExtendEvent;
 import org.domi.furnace.api.event.block.BlockPistonRetractEvent;
 import org.domi.furnace.api.event.block.BlockRedstoneEvent;
 import org.domi.furnace.api.event.block.LeavesDecayEvent;
+import org.domi.furnace.api.event.inventory.BrewEvent;
+import org.domi.furnace.api.event.inventory.BrewingStandFuelEvent;
 import org.domi.furnace.api.event.inventory.CraftItemEvent;
+import org.domi.furnace.api.event.inventory.EnchantItemEvent;
+import org.domi.furnace.api.event.inventory.PrepareAnvilEvent;
+import org.domi.furnace.api.event.inventory.PrepareItemEnchantEvent;
 import org.domi.furnace.api.event.inventory.FurnaceBurnEvent;
 import org.domi.furnace.api.event.inventory.FurnaceSmeltEvent;
 import org.domi.furnace.api.event.inventory.InventoryClickEvent;
@@ -489,5 +501,109 @@ public final class PluginGameEvents implements GameEvents {
         java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(inv.size());
         for (int i = 0; i < inv.size(); i++) list.add(ApiConvert.item(inv.get(i), items()));
         return new org.domi.furnace.api.inventory.InventorySnapshot(inv.typeKey(), list);
+    }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 블록 번짐·형성·소멸
+
+    @Override
+    public boolean blockForm(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
+        if (!bus().hasSubscribers(BlockFormEvent.class)) return true;
+        return !bus().call(new BlockFormEvent(dimension, bp(pos), data(oldState), data(newState))).isCancelled();
+    }
+
+    @Override
+    public boolean blockSpread(String dimension, org.domi.furnace.server.block.Pos pos, org.domi.furnace.server.block.Pos source, int oldState, int newState) {
+        if (!bus().hasSubscribers(BlockSpreadEvent.class)) return true;
+        return !bus().call(new BlockSpreadEvent(dimension, bp(pos), bp(source), data(oldState), data(newState))).isCancelled();
+    }
+
+    @Override
+    public boolean blockFade(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
+        if (!bus().hasSubscribers(BlockFadeEvent.class)) return true;
+        return !bus().call(new BlockFadeEvent(dimension, bp(pos), data(oldState), data(newState))).isCancelled();
+    }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 마법 부여·모루·양조
+
+    private static BlockPos tablePos(int[] t) { return t == null ? null : new BlockPos(t[0], t[1], t[2]); }
+
+    @Override
+    public EnchantOffer[] prepareEnchant(Player p, AbstractContainerMenu menu, int[] table, ItemStack item, int bookshelves, EnchantOffer[] offers) {
+        if (!bus().hasSubscribers(PrepareItemEnchantEvent.class)) return offers;
+        java.util.List<org.domi.furnace.api.inventory.EnchantmentOffer> list = new java.util.ArrayList<>(3);
+        for (EnchantOffer o : offers) list.add(o == null ? null : new org.domi.furnace.api.inventory.EnchantmentOffer(o.enchantment(), o.level(), o.cost()));
+        var ev = bus().call(new PrepareItemEnchantEvent(host.player(p), ApiConvert.snapshot(menu, items()), tablePos(table), ApiConvert.item(item, items()), bookshelves, list));
+        if (ev.isCancelled()) return null;
+        EnchantOffer[] out = new EnchantOffer[3];
+        for (int i = 0; i < 3 && i < list.size(); i++) {
+            var o = list.get(i);
+            out[i] = o == null ? null : new EnchantOffer(o.enchantment(), o.level(), o.cost());
+        }
+        return out;
+    }
+
+    @Override
+    public EnchantApply enchantItem(Player p, AbstractContainerMenu menu, int[] table, ItemStack item, int button, int cost, java.util.Map<String, Integer> enchants) {
+        if (!bus().hasSubscribers(EnchantItemEvent.class)) return new EnchantApply(cost, enchants);
+        var map = new java.util.LinkedHashMap<>(enchants);
+        var ev = bus().call(new EnchantItemEvent(host.player(p), ApiConvert.snapshot(menu, items()), tablePos(table), ApiConvert.item(item, items()), button, cost, map));
+        return ev.isCancelled() ? null : new EnchantApply(ev.expLevelCost(), ev.enchants());
+    }
+
+    @Override
+    public AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) {
+        if (!bus().hasSubscribers(PrepareAnvilEvent.class)) return null;
+        var given = ApiConvert.item(result, items());
+        var ev = bus().call(new PrepareAnvilEvent(host.player(p), ApiConvert.snapshot(menu, items()), given, repairCost, renameText));
+        return new AnvilPrepared(fromApi(ev.result(), given, result), ev.repairCost());
+    }
+
+    @Override
+    public boolean brew(String dimension, org.domi.furnace.server.block.Pos pos, ItemStack[] stacks, int fuelLevel) {
+        if (!bus().hasSubscribers(BrewEvent.class)) return true;
+        java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(stacks.length);
+        for (ItemStack s : stacks) list.add(ApiConvert.item(s, items()));
+        return !bus().call(new BrewEvent(dimension, bp(pos), new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", list), fuelLevel)).isCancelled();
+    }
+
+    @Override
+    public BrewFuel brewingFuel(String dimension, org.domi.furnace.server.block.Pos pos, ItemStack fuel, int fuelPower) {
+        if (!bus().hasSubscribers(BrewingStandFuelEvent.class)) return new BrewFuel(fuelPower, true);
+        var ev = bus().call(new BrewingStandFuelEvent(dimension, bp(pos), ApiConvert.item(fuel, items()), fuelPower));
+        return ev.isCancelled() ? null : new BrewFuel(ev.fuelPower(), ev.isConsuming());
+    }
+
+    // ------------------------------------------------------------------ 3단계 셋째 묶음: 탈것
+
+    private org.domi.furnace.api.entity.Entity api(org.domi.furnace.server.entity.Rider r) {
+        return r instanceof Player p ? host.player(p) : EntityHandle.of(host, (Entity) r);
+    }
+
+    /** CraftBukkit Vehicle: 보트·광산 수레. 이벤트는 타는 쪽이 살아 있는 것(플레이어 포함)일 때만. */
+    private static boolean isVehicleEvent(org.domi.furnace.server.entity.Rider rider, Entity vehicle) {
+        return (vehicle instanceof org.domi.furnace.server.entity.Boat || vehicle instanceof org.domi.furnace.server.entity.AbstractMinecart)
+                && (rider instanceof Player || rider instanceof LivingEntity);
+    }
+
+    @Override
+    public boolean entityMount(org.domi.furnace.server.entity.Rider rider, Entity vehicle) {
+        boolean ve = bus().hasSubscribers(VehicleEnterEvent.class) && isVehicleEvent(rider, vehicle);
+        boolean me = bus().hasSubscribers(EntityMountEvent.class);
+        if (!ve && !me) return true;
+        var who = api(rider);
+        var mount = EntityHandle.of(host, vehicle);
+        if (ve && bus().call(new VehicleEnterEvent(mount, who)).isCancelled()) return false;
+        return !me || !bus().call(new EntityMountEvent(who, mount)).isCancelled();
+    }
+
+    @Override
+    public boolean entityDismount(org.domi.furnace.server.entity.Rider rider, Entity vehicle, boolean cancellable) {
+        boolean ve = bus().hasSubscribers(VehicleExitEvent.class) && isVehicleEvent(rider, vehicle);
+        boolean me = bus().hasSubscribers(EntityDismountEvent.class);
+        if (!ve && !me) return true;
+        var who = api(rider);
+        var mount = EntityHandle.of(host, vehicle);
+        if (ve && bus().call(new VehicleExitEvent(mount, who, cancellable)).isCancelled() && cancellable) return false;
+        return !me || !bus().call(new EntityDismountEvent(who, mount, cancellable)).isCancelled() || !cancellable;
     }
 }
