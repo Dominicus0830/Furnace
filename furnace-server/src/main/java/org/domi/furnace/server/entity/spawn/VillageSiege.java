@@ -220,7 +220,7 @@ public final class VillageSiege {
         if (!(Entities.create(level, ZOMBIE) instanceof Zombie zombie)) return;
         zombie.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(zombie.blockPosition()));   // moveTo 전이라 원점 기준(바닐라 순서)
         zombie.moveTo(v[0], v[1], v[2], level.random().nextFloat() * 360.0F, 0.0F);
-        level.addFreshEntityWithPassengers(zombie);
+        level.addFreshEntityWithPassengers(zombie.spawnReason("VILLAGE_INVASION"));
     }
 
     /** 둘레 16x16 에서 10번: x 다음 z 를 뽑고, 마을 안이며 좀비 EVENT 스폰 규칙을 만족하는 첫 칸의 바닥 가운데. 난수는 칸마다 x, z(+ 규칙 안의 어둠 굴림). */

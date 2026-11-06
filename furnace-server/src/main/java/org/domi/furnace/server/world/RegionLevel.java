@@ -19,8 +19,9 @@ public final class RegionLevel extends ChunkLevel {
     /** 이번 틱에 ack 할 플레이어 → 가장 큰 sequence(바닐라 ackBlockChangesUpTo). */
     private final Map<Player, Integer> pendingAcks = new LinkedHashMap<>();
     // 같은 청크 연속 조회를 싸게(퇴출·주인 변경 때 비운다)
-    // 64칸 직접 사상 캐시 — 충돌·경로·스폰이 이웃 청크를 번갈아 읽으므로 한 칸짜리로는 해시 맵(소유 확인 + 로드 맵)을 두 번씩 타게 된다.
-    private static final int CACHE = 64;
+    // 1024칸 직접 사상 캐시 — 충돌·경로·스폰이 이웃 청크를 번갈아 읽으므로 한 칸짜리로는 해시 맵(소유 확인 + 로드 맵)을 두 번씩 타게 된다.
+    // 좀비의 마을 거리(sectionsToVillage)는 13×13 청크를 훑으므로 64칸·약한 해시로는 거의 다 빗나갔다(perf-entity-2026-11-06).
+    private static final int CACHE = 1024;
     private final int[] cacheX = new int[CACHE], cacheZ = new int[CACHE];
     private final ChunkColumn[] cacheCol = new ChunkColumn[CACHE];
 
@@ -36,8 +37,11 @@ public final class RegionLevel extends ChunkLevel {
     public org.domi.furnace.server.world.raid.RaidStore raidStore() { return world.raidStore(); }
 
     @Override
+    public boolean isOwnerThread() { return region.isOwnerThread(); }
+
+    @Override
     protected ChunkColumn chunk(int chunkX, int chunkZ) {
-        int i = (chunkX * 31 ^ chunkZ) & (CACHE - 1);
+        int i = (chunkX * 0x9E3779B9 + chunkZ) * 0x85EBCA6B >>> 22;   // 상위 10비트(CACHE = 1024)
         ChunkColumn hit = cacheCol[i];
         if (hit != null && cacheX[i] == chunkX && cacheZ[i] == chunkZ) return hit;
         ChunkColumn c = region.ownedChunk(chunkX, chunkZ);
@@ -48,6 +52,9 @@ public final class RegionLevel extends ChunkLevel {
         }
         return c;
     }
+
+    /** Region 이 쓰는 같은 조회(캐시 경유) — 이 region 소유 로드 청크, 아니면 null. */
+    ChunkColumn chunkCached(int chunkX, int chunkZ) { return chunk(chunkX, chunkZ); }
 
     /** 청크가 내려가거나 주인이 바뀌면 조회 캐시를 비운다. */
     void chunkUnloaded() { clearChunkCache(); }

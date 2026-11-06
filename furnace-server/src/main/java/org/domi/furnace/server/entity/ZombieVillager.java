@@ -95,7 +95,7 @@ public class ZombieVillager extends Zombie {
     }
 
     private void finishConversion() {
-        Villager v = convertTo(new Villager(level, level.nextEntityId()), false);
+        Villager v = convertTo(new Villager(level, level.nextEntityId()), false, "CURED");
         if (v == null) return;
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             if (slot == EquipmentSlot.MAINHAND || slot == EquipmentSlot.OFFHAND) continue;

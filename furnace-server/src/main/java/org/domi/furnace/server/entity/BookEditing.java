@@ -30,6 +30,19 @@ public final class BookEditing {
         return m;
     }
 
+    /** 깃펜 책의 쪽(글자 그대로). 깃펜 책이 아니거나 내용이 없으면 빈 목록. */
+    public static List<String> pagesOf(ItemStack book) {
+        List<String> out = new ArrayList<>();
+        if (!is(book, "minecraft:writable_book") || !(ItemTools.component(book, "minecraft:writable_book_content") instanceof Map<?, ?> content)) return out;
+        if (content.get("pages") instanceof List<?> pages) {
+            for (Object page : pages) {
+                if (page instanceof Map<?, ?> m && m.get("raw") != null) out.add(String.valueOf(m.get("raw")));
+                else if (page instanceof String s) out.add(s);
+            }
+        }
+        return out;
+    }
+
     /** updateBookContents: 깃펜 책이면 쪽만 바꾼 새 스택, 아니면 null. 쪽은 앞의 100개만. */
     public static ItemStack write(ItemStack book, List<String> pages) {
         if (!is(book, "minecraft:writable_book")) return null;

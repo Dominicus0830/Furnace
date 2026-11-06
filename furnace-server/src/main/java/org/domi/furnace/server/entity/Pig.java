@@ -52,7 +52,7 @@ public class Pig extends Animal {
             ZombifiedPiglin piglin = new ZombifiedPiglin(level, level.nextEntityId());
             piglin.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:golden_sword"), 1));
             piglin.persistenceRequired = true;
-            convertTo(piglin, false);
+            convertTo(piglin, false, "LIGHTNING");
         } else {
             super.thunderHit(level, bolt);
         }

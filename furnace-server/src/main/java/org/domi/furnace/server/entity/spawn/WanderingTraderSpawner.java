@@ -208,7 +208,7 @@ public final class WanderingTraderSpawner {
         mob.setYHeadRot(mob.yRot());
         mob.setYBodyRot(mob.yRot());
         mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
-        level.addFreshEntity(mob);
+        level.addFreshEntity(mob.spawnReason("NATURAL"));
         mob.makeSound(mob.ambientSoundForSpawn());
         return mob;
     }

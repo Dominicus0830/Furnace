@@ -46,7 +46,7 @@ public class FarmBlock extends BlockBehavior {
         int m = MOISTURE.intValue(state);
         if (!isNearWater(level, pos) && !level.isRainingAt(pos.above())) {
             if (m > 0) level.setBlock(pos, MOISTURE.withInt(state, m - 1), 2);
-            else if (!shouldMaintainFarmland(level, pos)) turnToDirt(null, state, level, pos);
+            else if (!shouldMaintainFarmland(level, pos) && B.fade(level, pos, B.defaultState(DIRT))) turnToDirt(null, state, level, pos);   // 플러그인 BlockFadeEvent
         } else if (m < 7) {
             level.setBlock(pos, MOISTURE.withInt(state, 7), 2);
         }

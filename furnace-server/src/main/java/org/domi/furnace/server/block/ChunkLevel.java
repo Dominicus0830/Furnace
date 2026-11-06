@@ -583,7 +583,7 @@ public abstract class ChunkLevel implements BlockLevel {
         Pos top = new Pos(pos.x(), col.motionBlockingBlockY(pos.x() & 15, pos.z() & 15) + 1, pos.z());
         Pos below = top.below();
         var climate = org.domi.furnace.server.world.BiomeWeather.of(services().biomeAt(top.x(), top.y(), top.z()));
-        if (shouldFreeze(climate, below)) setBlockAndUpdate(below, blocks.defaultState("minecraft:ice"));
+        if (shouldFreeze(climate, below)) B.form(this, below, blocks.defaultState("minecraft:ice"), UPDATE_ALL);   // 플러그인 BlockFormEvent
         if (isRaining()) {
             int max = gameRuleInt("snowAccumulationHeight");
             if (max > 0 && shouldSnow(climate, top)) {
@@ -594,10 +594,10 @@ public abstract class ChunkLevel implements BlockLevel {
                     if (j < Math.min(max, 8)) {
                         int more = layers.withInt(s, j + 1);
                         pushEntitiesUp(s, more, top);
-                        setBlockAndUpdate(top, more);
+                        B.form(this, top, more, UPDATE_ALL);   // 플러그인 BlockFormEvent
                     }
                 } else {
-                    setBlockAndUpdate(top, blocks.defaultState(SNOW));
+                    B.form(this, top, blocks.defaultState(SNOW), UPDATE_ALL);   // 플러그인 BlockFormEvent
                 }
             }
             String precip = climate.precipitationAt(below.x(), below.y(), below.z());
@@ -1244,6 +1244,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public EntityStore entities() { return entities; }
 
+    /** 지금 스레드가 이 레벨을 가진 스레드인가(region 레벨은 region 틱 스레드, 시험용 레벨은 늘 그렇다고 본다). */
+    public boolean isOwnerThread() { return true; }
+
     /** 엔티티 사망 전리품 평가(services 위임). */
     public java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z,
             String damageType, Player attacker, Player lastPlayer, long seed) {
@@ -1356,6 +1359,9 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public String biomeAt(int x, int y, int z) { return services().biomeAt(x, y, z); }
 
+    /** NaturalSpawner.getRoughBiome(pos, chunk): 확대 지터 없는 quart 바이옴. */
+    public String roughBiomeAt(int x, int y, int z) { return services().roughBiomeAt(x, y, z); }
+
     // ------------------------------------------------------------------ 지형 생성 기능(묘목·뼛가루)
 
     /** 이 레벨이 쓰는 feature 표. 기본은 내장 1.21.1 데이터(노이즈 생성기가 있는 월드는 RegionLevel 이 그 표를 준다). */
@@ -1396,7 +1402,7 @@ public abstract class ChunkLevel implements BlockLevel {
             golem = new org.domi.furnace.server.entity.SnowGolem(this, nextEntityId());
         }
         golem.moveTo(bottom.x() + 0.5, bottom.y() + 0.05, bottom.z() + 0.5, 0.0F, 0.0F);
-        addFreshEntity(golem);
+        addFreshEntity(golem.spawnReason(iron ? "BUILD_IRONGOLEM" : "BUILD_SNOWMAN"));
         org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, golem, 5.0);   // 바닐라: 골렘 상자 5칸 안 플레이어에게 summoned_entity
     }
 
@@ -1406,7 +1412,7 @@ public abstract class ChunkLevel implements BlockLevel {
         turtle.setAge(-24000);
         turtle.setHomePos(pos);
         turtle.moveTo(pos.x() + 0.3 * index + 0.2, pos.y(), pos.z() + 0.3, 0.0F, 0.0F);
-        addFreshEntity(turtle);
+        addFreshEntity(turtle.spawnReason("EGG"));
     }
 
     /** FrogspawnBlock.spawnTadpoles 의 한 마리: 위치는 칸 + 오프셋, y 는 칸 y − 0.5. persistenceRequired 를 건다. */
@@ -1438,7 +1444,7 @@ public abstract class ChunkLevel implements BlockLevel {
     public void spawnSilverfishAt(Pos pos) {
         var sf = new org.domi.furnace.server.entity.Silverfish(this, nextEntityId());
         sf.moveTo(pos.x() + 0.5, pos.y(), pos.z() + 0.5, 0.0F, 0.0F);
-        addFreshEntity(sf);
+        addFreshEntity(sf.spawnReason("SILVERFISH_BLOCK"));
         sf.spawnAnim();
     }
 
@@ -1453,7 +1459,7 @@ public abstract class ChunkLevel implements BlockLevel {
         wither.setYBodyRot(yaw);
         wither.makeInvulnerable();
         org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, wither, 50.0);   // 바닐라: 소환 전에 상자 50칸 안 플레이어에게 summoned_entity
-        addFreshEntity(wither);
+        addFreshEntity(wither.spawnReason("BUILD_WITHER"));
     }
 
     /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
@@ -1602,7 +1608,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(reason);
         if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
         mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
-        addFreshEntityWithPassengers(mob);
+        addFreshEntityWithPassengers(mob.spawnReason(reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG"));
         mob.makeSound(mob.ambientSoundForSpawn());
         return mob;
     }
@@ -1984,7 +1990,7 @@ public abstract class ChunkLevel implements BlockLevel {
             Entity v = e.vehicle();
             if (v != null) {   // 탄 것은 탈것이 틱한다
                 if (!v.isRemoved() && v.hasPassenger(e)) continue;
-                e.stopRiding();
+                Entity.stopRidingForced(e);
             }
             try {
                 e.setOldPosAndRot();
@@ -2003,13 +2009,13 @@ public abstract class ChunkLevel implements BlockLevel {
         if (r instanceof Player p) {
             // 끊긴 플레이어는 주인 region 이 퇴장 처리에서 탈것을 저장하고 내린다(PlayerVehicleSave) — 그전에 내리면 탈것이 저장되지 않는다
             if (p.isDisconnected()) return;
-            if (p.vehicle() != vehicle) p.stopRiding();
+            if (p.vehicle() != vehicle) Entity.stopRidingForced(p);
             else p.rideTick();
             return;
         }
         Entity e = (Entity) r;
         if (e.isRemoved() || e.vehicle() != vehicle) {
-            e.stopRiding();
+            Entity.stopRidingForced(e);
         } else if (entities.contains(e)) {
             e.setOldPosAndRot();
             e.tickCount++;
