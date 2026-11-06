@@ -122,4 +122,22 @@ public interface Player extends CommandSender, LivingEntity {
     default CompletableFuture<Boolean> remove() {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("플레이어는 remove 할 수 없다 — kick 을 쓴다"));
     }
+
+    // ------------------------------------------------------------------ 레시피 북
+
+    /**
+     * 레시피 키(minecraft:oak_planks 처럼 레지스트리에 있는 것)를 레시피 북에 배우게 한다(/recipe give 와 같다). 모르는 키·특수 레시피는 건너뛴다.
+     * 새로 배운 수로 완료. 플레이어를 가진 region 스레드에서 실행된다.
+     */
+    default CompletableFuture<Integer> discoverRecipes(java.util.Collection<String> keys) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("discoverRecipes"));
+    }
+
+    /** 레시피 북에서 잊게 한다(/recipe take 와 같다). 잊은 수로 완료. */
+    default CompletableFuture<Integer> undiscoverRecipes(java.util.Collection<String> keys) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("undiscoverRecipes"));
+    }
+
+    /** 지금 레시피 북에 있는가(최근 값). */
+    default boolean hasDiscoveredRecipe(String key) { return false; }
 }

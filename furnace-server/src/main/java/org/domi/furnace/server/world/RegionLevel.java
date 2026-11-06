@@ -37,6 +37,9 @@ public final class RegionLevel extends ChunkLevel {
     public org.domi.furnace.server.world.raid.RaidStore raidStore() { return world.raidStore(); }
 
     @Override
+    public boolean isOwnerThread() { return region.isOwnerThread(); }
+
+    @Override
     protected ChunkColumn chunk(int chunkX, int chunkZ) {
         int i = (chunkX * 0x9E3779B9 + chunkZ) * 0x85EBCA6B >>> 22;   // 상위 10비트(CACHE = 1024)
         ChunkColumn hit = cacheCol[i];

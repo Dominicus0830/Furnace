@@ -890,6 +890,12 @@
 - 시험: `LoginPhaseEventsTest`(실제 소켓 7개: 순서·같은 연결·스레드, 핸드셰이크 취소, 구성 블로킹 후 거부, 첫 명령 트리 권한, 첫 위치 바꾸기·없는 차원 무시, 구성 중 disconnect), `ShutdownSequenceTest`(3개). 봇 probe(`tools/bot-test/round4/probe/EventProbe`)에 접속 단계 describe 추가(연결 번호 `#n`).
 - 남은 것(불만 표): 7번 종료 이유(`PlayerQuitEvent` 이유 enum, P2), 102번 구성 단계 패킷 제한, 구성 단계 플러그인 메시지 보내기·받기(`PlayerConnection.sendPluginMessage`), 상태 조회 연결의 `ServerListPingEvent.connection()`.
 
+## 2026-11-06 블록·레시피 API (묶음 D1)
+- 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
+- **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
+- 플러그인 레시피는 `PluginRecipes`(소유자·원본 서버 레시피)에 따로 적어 두고 `/reload` 뒤 `ServerCore` 리로드 리스너에서 `reapply` 로 새 매니저에 입힌다(패킷 보내기 전). 변환은 데이터 팩 파서의 검사를 같게 하려고 `recipe/ApiRecipes` 가 서버 `Recipe` 레코드를 직접 만든다(JSON 을 거치지 않는다 — 결과 컴포넌트가 SNBT 라서).
+- 시험 함정: 서버 아이템 레지스트리 `idOf` 는 `minecraft:` 접두가 있어야 한다(없으면 -1 이라 특수 레시피 매칭에서 NPE 처럼 보인다). `Furnace.server()` 는 전역이라 서버 단위 시험에서는 `snapshot.live()`·`BlockEvent.liveBlock()` 을 못 쓴다.
+
 ## 2026-11-06 아이템 컴포넌트 타입 API · 아이템 영속 데이터
 - 플러그인 API `ItemStack`(불변 record, 컴포넌트는 SNBT) 위에 타입 있는 층을 얹었다: `ItemComponent<T>`(id + 값 종류)·`ItemComponents`(26종: 이름·로어·희귀도·수치 8·불괴·마법 부여 2·광택 덮어쓰기·염색·속성 변경치·표시 4·문자열/목록/맵 5)·`ItemComponent.raw(id)`(57종 전부를 SNBT 문자열로).
   `ItemStack.get/has/getOrDefault/with/without`, `persistentData()`, `withPersistentData(콜백)`. 값 타입은 버전 중립(레지스트리 키 문자열·`Text`·record) — 저장 꼴과의 변환은 서버 `ItemSupportImpl`(API 쪽 입구는 `ItemSupport`, `PluginHost` 가 설치).
