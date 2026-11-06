@@ -46,6 +46,14 @@ public abstract class NodeEvaluator {
 
     public abstract PathType getPathTypeOfMob(PathfindingContext ctx, int x, int y, int z, Mob mob);
 
+    /** 노드 칸 종류에 몹의 플러그인 훅을 씌운다(훅이 없으면 그대로). 칸별 기억(pathTypesByPosCache)에 넣기 전에 한 번. */
+    protected final PathType hooked(int x, int y, int z, PathType vanilla) {
+        PathTypeHook h = mob.pathTypeHook();
+        if (h == null) return vanilla;
+        PathType t = h.apply(x, y, z, vanilla);
+        return t == null ? vanilla : t;
+    }
+
     public abstract PathType getPathType(PathfindingContext ctx, int x, int y, int z);
 
     public PathType getPathType(Mob mob, Pos pos) {
