@@ -61,6 +61,9 @@ public abstract class FurnacePlugin {
 
     public final PluginTasks tasks() { return tasks; }
 
+    /** 플러그인끼리 공유하는 정의 레지스트리(이 플러그인 소유로 기록된다 — 꺼지면 정리). */
+    public final org.domi.furnace.api.registry.PluginRegistries registries() { return context.registries(); }
+
     /** plugins/<이름>/ (없으면 만든다). */
     public final Path dataFolder() {
         Path p = context.dataFolder();
