@@ -24,18 +24,36 @@ import org.domi.furnace.server.entity.Player;
 public final class PluginHost implements Furnace {
 
     private final ServerCore core;
-    private final EventBusImpl events = new EventBusImpl();
+    /** 플러그인별 시간(/timings). 전역 스레드 판별은 core 가 생긴 뒤에 쓰이므로 람다로 미룬다. */
+    private final PluginProfilerImpl profiler = new PluginProfilerImpl(this::onGlobalThread);
+    private final ProfiledScheduling profiled = new ProfiledScheduling(profiler, PluginManagerImpl::pluginOf);
+    private final EventBusImpl events = new EventBusImpl(profiler);
     private final PermissionManagerImpl permissions = new PermissionManagerImpl();
     private final CommandRegistryImpl commands = new CommandRegistryImpl(this);
     private final ConsoleSender console;
     private final PluginManagerImpl plugins;
     private final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
+    /** 플러그인에 주는 실행기·스케줄러 — 작업 시간을 만든 플러그인 몫으로 잰다. */
+    private final ExecutorService profiledAsync = profiled.wrap(async);
+    private volatile FurnaceScheduler profiledScheduler;
 
     public PluginHost(ServerCore core, Path pluginsDir) {
         this.core = core;
         this.console = new ConsoleSender(core, permissions);
         this.plugins = new PluginManagerImpl(this, pluginsDir);
+        if (PluginProfilerImpl.enabledByConfig()) profiler.start();
     }
+
+    private boolean onGlobalThread() {
+        return core != null && core.scheduler() != null && core.scheduler().global() instanceof org.domi.furnace.api.concurrent.ThreadOwner o
+                && o.isOwnerThread();
+    }
+
+    @Override
+    public PluginProfilerImpl profiler() { return profiler; }
+
+    /** 플러그인에 주는 스케줄러·실행기를 감싸는 곳(핸들들이 쓴다). */
+    ProfiledScheduling profiled() { return profiled; }
 
     public ServerCore core() { return core; }
 
@@ -218,10 +236,14 @@ public final class PluginHost implements Furnace {
     public boolean dispatchCommand(CommandSender sender, String commandLine) { return commands.dispatch(sender, commandLine); }
 
     @Override
-    public FurnaceScheduler scheduler() { return core.scheduler(); }
+    public FurnaceScheduler scheduler() {
+        FurnaceScheduler s = profiledScheduler;
+        if (s == null) profiledScheduler = s = profiled.wrap(core.scheduler());
+        return s;
+    }
 
     @Override
-    public ExecutorService asyncExecutor() { return async; }
+    public ExecutorService asyncExecutor() { return profiledAsync; }
 
     @Override
     public EventBus events() { return events; }

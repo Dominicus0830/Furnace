@@ -105,7 +105,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     }
 
     @Override
-    public TaskScheduler scheduler(BlockPos pos) { return world.chunkScheduler(pos.chunkX(), pos.chunkZ()); }
+    public TaskScheduler scheduler(BlockPos pos) { return host.profiled().wrap(world.chunkScheduler(pos.chunkX(), pos.chunkZ())); }
 
     // ------------------------------------------------------------------ 청크
 

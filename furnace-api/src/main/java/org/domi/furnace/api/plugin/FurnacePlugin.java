@@ -24,7 +24,7 @@ public abstract class FurnacePlugin {
     public final void init(PluginContext ctx) {
         if (context != null) throw new IllegalStateException("이미 초기화된 플러그인: " + ctx.description().name());
         this.context = ctx;
-        this.tasks = new PluginTasks(this, ctx.server().scheduler(), ctx.server().asyncExecutor());
+        this.tasks = new PluginTasks(this, ctx.server().scheduler(), ctx.server().asyncExecutor(), ctx.server().profiler());
     }
 
     /** 로더 전용 — 켜짐 상태를 바꾸고 수명 함수를 부른다. */

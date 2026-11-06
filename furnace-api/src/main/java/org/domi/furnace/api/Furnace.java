@@ -78,6 +78,9 @@ public interface Furnace {
     /** 블로킹 작업용 실행기(가상 스레드). */
     Executor asyncExecutor();
 
+    /** 플러그인별 시간 프로파일러(/timings). 서버가 주지 않으면 아무것도 재지 않는 것. */
+    default org.domi.furnace.api.profiler.PluginProfiler profiler() { return org.domi.furnace.api.profiler.PluginProfiler.NONE; }
+
     EventBus events();
 
     CommandRegistry commands();
