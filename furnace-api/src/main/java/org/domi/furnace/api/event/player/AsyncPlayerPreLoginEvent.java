@@ -4,6 +4,7 @@ package org.domi.furnace.api.event.player;
 import java.net.InetAddress;
 import java.util.UUID;
 import org.domi.furnace.api.event.Event;
+import org.domi.furnace.api.net.PlayerConnection;
 import org.domi.furnace.api.text.Text;
 
 public final class AsyncPlayerPreLoginEvent extends Event {
@@ -15,12 +16,21 @@ public final class AsyncPlayerPreLoginEvent extends Event {
     private final InetAddress address;
     private Result result = Result.ALLOWED;
     private Text kickMessage = Text.empty();
+    private final PlayerConnection connection;
 
     public AsyncPlayerPreLoginEvent(String name, UUID uniqueId, InetAddress address) {
+        this(name, uniqueId, address, null);
+    }
+
+    public AsyncPlayerPreLoginEvent(String name, UUID uniqueId, InetAddress address, PlayerConnection connection) {
         this.name = name;
         this.uniqueId = uniqueId;
         this.address = address;
+        this.connection = connection;
     }
+
+    /** 이 접속의 연결(핸드셰이크 정보·연결 번호). 서버가 부를 때는 null 이 아니다. */
+    public PlayerConnection connection() { return connection; }
 
     public String name() { return name; }
 

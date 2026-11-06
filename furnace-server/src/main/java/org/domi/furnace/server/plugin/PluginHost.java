@@ -284,6 +284,20 @@ public final class PluginHost implements Furnace {
     @Override
     public void shutdown() { core.halt(); }
 
+    private volatile boolean stopping;
+
+    @Override
+    public boolean isStopping() { return stopping; }
+
+    /** 종료 1단계: 종료 중 표시를 켜고 ServerShutdownEvent 를 한 번 부른다(두 번째 호출은 아무것도 안 한다). */
+    public void beginShutdown() {
+        synchronized (this) {
+            if (stopping) return;
+            stopping = true;
+        }
+        events.call(new org.domi.furnace.api.event.server.ServerShutdownEvent());
+    }
+
     private final InternalsImpl internals = new InternalsImpl(this);
 
     /** 공식 내부 접근 다리. 처음 부른 플러그인은 로그에 남는다. */

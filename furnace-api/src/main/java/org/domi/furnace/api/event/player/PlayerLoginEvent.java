@@ -4,6 +4,7 @@ package org.domi.furnace.api.event.player;
 import java.net.InetAddress;
 import java.util.UUID;
 import org.domi.furnace.api.event.Event;
+import org.domi.furnace.api.net.PlayerConnection;
 import org.domi.furnace.api.text.Text;
 
 public final class PlayerLoginEvent extends Event {
@@ -15,14 +16,23 @@ public final class PlayerLoginEvent extends Event {
     private final InetAddress address;
     private Result result;
     private Text kickMessage;
+    private final PlayerConnection connection;
 
     public PlayerLoginEvent(String name, UUID uniqueId, InetAddress address, Result result, Text kickMessage) {
+        this(name, uniqueId, address, result, kickMessage, null);
+    }
+
+    public PlayerLoginEvent(String name, UUID uniqueId, InetAddress address, Result result, Text kickMessage, PlayerConnection connection) {
+        this.connection = connection;
         this.name = name;
         this.uniqueId = uniqueId;
         this.address = address;
         this.result = result;
         this.kickMessage = kickMessage == null ? Text.empty() : kickMessage;
     }
+
+    /** 이 접속의 연결(핸드셰이크 정보·연결 번호). 서버가 부를 때는 null 이 아니다. */
+    public PlayerConnection connection() { return connection; }
 
     public String name() { return name; }
 
