@@ -1396,7 +1396,7 @@ public abstract class ChunkLevel implements BlockLevel {
             golem = new org.domi.furnace.server.entity.SnowGolem(this, nextEntityId());
         }
         golem.moveTo(bottom.x() + 0.5, bottom.y() + 0.05, bottom.z() + 0.5, 0.0F, 0.0F);
-        addFreshEntity(golem);
+        addFreshEntity(golem.spawnReason(iron ? "BUILD_IRONGOLEM" : "BUILD_SNOWMAN"));
         org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, golem, 5.0);   // 바닐라: 골렘 상자 5칸 안 플레이어에게 summoned_entity
     }
 
@@ -1406,7 +1406,7 @@ public abstract class ChunkLevel implements BlockLevel {
         turtle.setAge(-24000);
         turtle.setHomePos(pos);
         turtle.moveTo(pos.x() + 0.3 * index + 0.2, pos.y(), pos.z() + 0.3, 0.0F, 0.0F);
-        addFreshEntity(turtle);
+        addFreshEntity(turtle.spawnReason("EGG"));
     }
 
     /** FrogspawnBlock.spawnTadpoles 의 한 마리: 위치는 칸 + 오프셋, y 는 칸 y − 0.5. persistenceRequired 를 건다. */
@@ -1438,7 +1438,7 @@ public abstract class ChunkLevel implements BlockLevel {
     public void spawnSilverfishAt(Pos pos) {
         var sf = new org.domi.furnace.server.entity.Silverfish(this, nextEntityId());
         sf.moveTo(pos.x() + 0.5, pos.y(), pos.z() + 0.5, 0.0F, 0.0F);
-        addFreshEntity(sf);
+        addFreshEntity(sf.spawnReason("SILVERFISH_BLOCK"));
         sf.spawnAnim();
     }
 
@@ -1453,7 +1453,7 @@ public abstract class ChunkLevel implements BlockLevel {
         wither.setYBodyRot(yaw);
         wither.makeInvulnerable();
         org.domi.furnace.server.entity.AdvTriggers.summonedNear(this, wither, 50.0);   // 바닐라: 소환 전에 상자 50칸 안 플레이어에게 summoned_entity
-        addFreshEntity(wither);
+        addFreshEntity(wither.spawnReason("BUILD_WITHER"));
     }
 
     /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
@@ -1596,7 +1596,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(reason);
         if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
         mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
-        addFreshEntityWithPassengers(mob);
+        addFreshEntityWithPassengers(mob.spawnReason(reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG"));
         mob.makeSound(mob.ambientSoundForSpawn());
         return true;
     }

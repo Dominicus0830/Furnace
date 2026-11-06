@@ -1,6 +1,7 @@
 // GameEvents 의 플러그인 구현 — 구독자가 없으면 이벤트·핸들을 만들지 않고 바로 허용한다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.event.entity.CreatureSpawnEvent;
 import org.domi.furnace.api.event.entity.EntityDamageEvent;
 import org.domi.furnace.api.event.entity.EntityDismountEvent;
 import org.domi.furnace.api.event.entity.EntityMountEvent;
@@ -121,6 +122,16 @@ public final class PluginGameEvents implements GameEvents {
         if (e instanceof org.domi.furnace.server.entity.ItemEntity) {
             if (!bus().hasSubscribers(ItemSpawnEvent.class)) return true;
             return !bus().call(new ItemSpawnEvent(EntityHandle.of(host, e))).isCancelled();
+        }
+        if (e instanceof LivingEntity) {   // CraftBukkit 처럼 살아 있는 것은 스폰 이유가 붙은 CreatureSpawnEvent(EntitySpawnEvent 구독자도 받는다)
+            if (!bus().hasSubscribers(CreatureSpawnEvent.class)) return true;
+            CreatureSpawnEvent.SpawnReason reason;
+            try {
+                reason = CreatureSpawnEvent.SpawnReason.valueOf(e.spawnReason());
+            } catch (IllegalArgumentException ex) {
+                reason = CreatureSpawnEvent.SpawnReason.DEFAULT;
+            }
+            return !bus().call(new CreatureSpawnEvent(EntityHandle.of(host, e), reason)).isCancelled();
         }
         if (!bus().hasSubscribers(EntitySpawnEvent.class)) return true;
         return !bus().call(new EntitySpawnEvent(EntityHandle.of(host, e))).isCancelled();

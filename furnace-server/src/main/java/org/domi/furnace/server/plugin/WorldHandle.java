@@ -143,7 +143,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                 if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND);
                 mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
             }
-            if (!level.addFreshEntityWithPassengers(e)) return null;   // EntitySpawnEvent 취소(또는 UUID 겹침)
+            if (!level.addFreshEntityWithPassengers(e.spawnReason("CUSTOM"))) return null;   // EntitySpawnEvent 취소(또는 UUID 겹침)
             return EntityHandle.of(host, e);
         });
         return RegionFuture.wrap(f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp)));

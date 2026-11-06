@@ -1870,6 +1870,13 @@ public abstract non-sealed class Entity implements Rider {
 
     private boolean dismountForced;
 
+    /** 플러그인 CreatureSpawnEvent 의 스폰 이유(CraftBukkit SpawnReason 이름). 레벨에 넣기 전에 정하며, 없으면 DEFAULT. */
+    private String spawnReason;
+
+    public String spawnReason() { return spawnReason == null ? "DEFAULT" : spawnReason; }
+
+    public Entity spawnReason(String reason) { spawnReason = reason; return this; }
+
     @Override public boolean dismountForced() { return dismountForced; }
 
     @Override public void setDismountForced(boolean forced) { dismountForced = forced; }
