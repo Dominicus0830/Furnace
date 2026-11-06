@@ -1040,6 +1040,24 @@ public final class World {
 
     public void wanderingTraderState(WanderingTraderState s) { this.wanderingTraderState = s; }
 
+    private volatile DimensionSpawners dimensionSpawners;
+
+    /**
+     * 차원에 하나뿐인 특수 스포너(마을 포위·방랑 상인) — 오버월드만(바닐라 createLevels 가 다른 차원엔 빈 목록을 준다), 다른 차원은 null.
+     * 전역 틱이 tick 을 부른다.
+     */
+    public DimensionSpawners dimensionSpawners() {
+        if (!"minecraft:overworld".equals(dimension())) return null;
+        DimensionSpawners d = dimensionSpawners;
+        if (d == null) {
+            synchronized (this) {
+                d = dimensionSpawners;
+                if (d == null) dimensionSpawners = d = new DimensionSpawners(this);
+            }
+        }
+        return d;
+    }
+
     /** 이 월드(엔드)에 드래곤 전투를 단다 — 저장된 EndDragonFight.Data 로 시작. */
     public void enableDragonFight(NbtCompound data) { this.dragonFightData = data == null ? new NbtCompound() : data; }
 
