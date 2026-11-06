@@ -51,6 +51,9 @@ public interface MenuPlayer {
     /** 바닐라 triggerRecipeCrafted — recipe_crafted 발전 과제 조건. */
     default void triggerRecipeCrafted(org.domi.furnace.server.data.ResourceId recipe, List<ItemStack> grid) { }
 
+    /** 플러그인 PrepareItemCraftEvent: 결과 칸에 둘 스택(recipe 는 없으면 null). */
+    default ItemStack prepareCraft(AbstractContainerMenu menu, String recipe, ItemStack result) { return result; }
+
     /** 바닐라 ItemStack.onCraftedBy(level, player, count) — crafted 통계와 아이템 훅. */
     default void onItemCrafted(ItemStack stack, int count) { }
 

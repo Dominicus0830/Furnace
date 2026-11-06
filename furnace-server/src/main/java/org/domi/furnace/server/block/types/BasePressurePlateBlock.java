@@ -55,6 +55,7 @@ public abstract class BasePressurePlateBlock extends BlockBehavior {
 
     private void checkPressed(BlockActor entity, BlockLevel level, Pos pos, int state, int old) {
         int signal = signalStrength(level, pos);
+        if (old != signal) signal = level.gameEvents().blockRedstone(level.dimension(), pos, state, old, signal);   // 플러그인 BlockRedstoneEvent
         boolean was = old > 0, now = signal > 0;
         if (old != signal) {
             level.setBlock(pos, setSignalForState(state, signal), 2);

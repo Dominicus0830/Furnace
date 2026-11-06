@@ -133,7 +133,9 @@ public class RedStoneWireBlock extends BlockBehavior {
 
     private void updatePowerStrength(BlockLevel level, Pos pos, int state) {
         int target = calculateTargetStrength(level, pos);
-        if (POWER.intValue(state) == target) return;
+        int old = POWER.intValue(state);
+        if (old != target) target = level.gameEvents().blockRedstone(level.dimension(), pos, state, old, target);   // 플러그인 BlockRedstoneEvent
+        if (old == target) return;
         if (level.getBlockState(pos) == state) level.setBlock(pos, POWER.withInt(state, target), 2);
         for (Pos p : hashSetOrder(pos)) level.updateNeighborsAt(p, block);
     }

@@ -164,6 +164,7 @@ public final class FluidTicker {
         int belowState = level.getBlockState(below);
         int newFluid = getNewLiquid(level, below, belowState, water);
         if (canSpreadTo(level, pos, bs, Dir.DOWN, below, belowState, level.getFluidState(below), Fluids.type(newFluid))) {
+            if (!level.gameEvents().blockFromTo(level.dimension(), pos, bs, below, Dir.DOWN)) return;   // 플러그인 BlockFromToEvent 취소(옆으로도 안 흐른다, CraftBukkit)
             spreadTo(level, below, belowState, Dir.DOWN, newFluid, water);
             if (sourceNeighborCount(level, pos, water) >= 3) spreadToSides(level, pos, state, bs, water);
         } else if (Fluids.isSource(state) || !isWaterHole(level, Fluids.type(newFluid), pos, bs, below, belowState, water)) {
@@ -181,7 +182,10 @@ public final class FluidTicker {
             if (f < 0) continue;
             Pos np = pos.relative(dir);
             int ns = level.getBlockState(np);
-            if (canSpreadTo(level, pos, bs, dir, np, ns, level.getFluidState(np), Fluids.type(f))) spreadTo(level, np, ns, dir, f, water);
+            if (canSpreadTo(level, pos, bs, dir, np, ns, level.getFluidState(np), Fluids.type(f))
+                    && level.gameEvents().blockFromTo(level.dimension(), pos, bs, np, dir)) {   // 플러그인 BlockFromToEvent
+                spreadTo(level, np, ns, dir, f, water);
+            }
         }
     }
 
@@ -360,6 +364,7 @@ public final class FluidTicker {
                 int s = level.getBlockState(p);
                 if (B.isAir(s)) {
                     if (hasFlammableNeighbours(level, p)) {
+                        if (!level.gameEvents().blockIgnite(level.dimension(), p, org.domi.furnace.server.plugin.GameEvents.IGNITE_LAVA, pos, null)) continue;   // 플러그인 BlockIgniteEvent
                         level.setBlockAndUpdate(p, BaseFireBlock.getState(level, p));
                         return;
                     }
@@ -371,7 +376,8 @@ public final class FluidTicker {
             for (int k = 0; k < 3; k++) {
                 Pos p = pos.offset(random.nextInt(3) - 1, 0, random.nextInt(3) - 1);
                 if (!isLoaded(level, p)) return;
-                if (level.isEmptyBlock(p.above()) && isFlammable(level, p)) {
+                if (level.isEmptyBlock(p.above()) && isFlammable(level, p)
+                        && level.gameEvents().blockIgnite(level.dimension(), p.above(), org.domi.furnace.server.plugin.GameEvents.IGNITE_LAVA, pos, null)) {
                     level.setBlockAndUpdate(p.above(), BaseFireBlock.getState(level, p));   // 바닐라도 불 모양은 아래 칸 기준
                 }
             }

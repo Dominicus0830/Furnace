@@ -118,7 +118,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
     /** ejectItems: 바라보는 쪽 용기가 그 면에서 꽉 차지 않았으면 칸 순서대로 하나씩 넣어 본다. */
     private boolean ejectItems(BlockLevel level, int state, Inv self) {
         int facing = facing(state);
-        Inv target = getContainerAt(level, pos.relative(facing));
+        Pos tp = pos.relative(facing);
+        Inv target = getContainerAt(level, tp);
         if (target == null) return false;
         int dir = Dir.opposite(facing);
         if (isFullContainer(target, dir)) return false;
@@ -126,7 +127,15 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
             ItemStack s = self.get(i);
             if (s.isEmpty()) continue;
             int count = s.count();
-            ItemStack rest = addItem(self, target, self.removeItem(i, 1), dir);
+            ItemStack moving = level.gameEvents().inventoryMove(level.dimension(), self, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5,
+                    target, tp.x() + 0.5, tp.y() + 0.5, tp.z() + 0.5, self.removeItem(i, 1), true);   // 플러그인 InventoryMoveItemEvent
+            if (moving == null) {   // 취소: 되돌리고 쉰다(CraftBukkit 처럼 다른 칸은 보지 않는다)
+                self.put(i, s.withCount(count));
+                if (count == 1) self.setItem(i, s);
+                setCooldown(MOVE_ITEM_SPEED);
+                return false;
+            }
+            ItemStack rest = addItem(self, target, moving, dir);
             if (rest.isEmpty()) {
                 target.setChanged();
                 return true;
@@ -164,7 +173,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         Inv source = getContainerAt(level, above, state, hopper.levelX(), hopper.levelY() + 1.0, hopper.levelZ());
         if (source != null) {
             for (int slot : getSlots(source, Dir.DOWN)) {
-                if (tryTakeInItemFromSlot(self, source, slot, Dir.DOWN)) return true;
+                if (tryTakeInItemFromSlot(level, hopper, self, source, above, slot, Dir.DOWN)) return true;   // 취소돼도 다음 칸을 본다(CraftBukkit)
             }
             return false;
         }
@@ -177,11 +186,20 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         return false;
     }
 
-    private static boolean tryTakeInItemFromSlot(Inv hopper, Inv source, int slot, int dir) {
+    /** 플러그인 InventoryMoveItemEvent 가 취소하면 되돌리고 false(블록 깔때기는 쉰다). */
+    private static boolean tryTakeInItemFromSlot(BlockLevel level, Hopper h, Inv hopper, Inv source, Pos sourcePos, int slot, int dir) {
         ItemStack s = source.get(slot);
         if (!s.isEmpty() && canTakeItemFromContainer(hopper, source, s, slot, dir)) {
             int count = s.count();
-            ItemStack rest = addItem(source, hopper, source.removeItem(slot, 1), -1);
+            ItemStack moving = level.gameEvents().inventoryMove(level.dimension(), source, sourcePos.x() + 0.5, sourcePos.y() + 0.5, sourcePos.z() + 0.5,
+                    hopper, h.levelX(), h.levelY(), h.levelZ(), source.removeItem(slot, 1), false);
+            if (moving == null) {
+                source.put(slot, s.withCount(count));
+                if (count == 1) source.setItem(slot, s);
+                if (h instanceof HopperBlockEntity hb) hb.setCooldown(MOVE_ITEM_SPEED);
+                return false;
+            }
+            ItemStack rest = addItem(source, hopper, moving, -1);
             if (rest.isEmpty()) {
                 source.setChanged();
                 return true;
@@ -367,6 +385,9 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
             for (int i = 0; i < size(); i++) if (!get(i).isEmpty()) return false;
             return true;
         }
+
+        /** 플러그인 이벤트에 보일 용기 종류(블록 엔티티·엔티티 종류 키). */
+        default String typeKey() { return "minecraft:container"; }
     }
 
     private static boolean isItem(ItemStack s, String name) { return name.equals(ItemTools.itemName(s)); }
@@ -393,6 +414,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         private void unpack() { if (be.lootTable != null) level.unpackContainerLoot(be); }
 
         @Override public int size() { return be.items.length; }
+
+        @Override public String typeKey() { return be.type(); }
 
         @Override
         public ItemStack get(int i) {
@@ -520,6 +543,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
         @Override public int size() { return JukeboxBlockEntity.CONTAINER_SIZE; }
 
+        @Override public String typeKey() { return "minecraft:jukebox"; }
+
         @Override public ItemStack get(int i) { return be.getItem(i); }
 
         @Override public void setItem(int i, ItemStack s) { be.setItem(i, s, level); }
@@ -566,6 +591,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         }
 
         @Override public int size() { return kind == NONE ? 0 : 1; }
+
+        @Override public String typeKey() { return "minecraft:composter"; }
 
         @Override public int maxStackSize() { return kind == NONE ? 99 : 1; }
 
@@ -637,6 +664,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
         @Override public int size() { return a.size() + b.size(); }
 
+        @Override public String typeKey() { return a.typeKey(); }
+
         @Override public ItemStack get(int i) { return i >= a.size() ? b.get(i - a.size()) : a.get(i); }
 
         @Override public void setItem(int i, ItemStack s) { if (i >= a.size()) b.setItem(i - a.size(), s); else a.setItem(i, s); }
@@ -659,8 +688,15 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
     /** 용기 엔티티(상자·깔때기 수레, 상자 배). setChanged 는 없다. */
     static final class EntityInv implements Inv {
         private final ItemStack[] items;
+        private final String type;
 
-        EntityInv(ContainerEntity e) { this.items = e.chestVehicleItems(); }
+        EntityInv(ContainerEntity e) {
+            this.items = e.chestVehicleItems();
+            String t = e instanceof Entity en ? en.typeName() : "container";
+            this.type = t.indexOf(':') < 0 ? "minecraft:" + t : t;
+        }
+
+        @Override public String typeKey() { return type; }
 
         @Override public int size() { return items.length; }
 

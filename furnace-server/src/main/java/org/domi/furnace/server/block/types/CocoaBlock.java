@@ -24,7 +24,7 @@ public class CocoaBlock extends HorizontalDirectionalBlock implements Bonemealab
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (level.random().nextInt(5) == 0) {   // 바닐라는 인자가 아니라 레벨 난수를 쓴다
             int age = AGE.intValue(state);
-            if (age < 2) level.setBlock(pos, AGE.withInt(state, age + 1), 2);
+            if (age < 2) B.grow(level, pos, AGE.withInt(state, age + 1), 2);
         }
     }
 
@@ -58,6 +58,6 @@ public class CocoaBlock extends HorizontalDirectionalBlock implements Bonemealab
 
     @Override
     public void performBonemeal(BlockLevel level, RandomSource random, Pos pos, int state) {
-        level.setBlock(pos, AGE.withInt(state, AGE.intValue(state) + 1), 2);
+        B.grow(level, pos, AGE.withInt(state, AGE.intValue(state) + 1), 2);
     }
 }

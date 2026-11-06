@@ -2,6 +2,7 @@
 // 엔티티·Region 코드는 플러그인 구현을 모르고 LevelServices.gameEvents() 로만 접근한다. 호출 지점은 "허가 여부" 한 줄이다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.LivingEntity;
@@ -120,4 +121,51 @@ public interface GameEvents {
 
     /** 서버 목록 응답 덮어쓰기(motdJson 이 null 이면 MOTD 는 그대로). */
     record StatusOverride(String motdJson, int online, int max, boolean hidePlayers) {}
+
+    // ------------------------------------------------------------------ 3단계 둘째 묶음: 블록(모두 그 블록의 region 스레드)
+
+    /** 이웃·모양 갱신 직전(sourceBlock 은 블록 id, 상태 아님). false 면 이 갱신을 무시한다. 아주 자주 불리므로 구독자가 없으면 곧바로 true. */
+    default boolean blockPhysics(String dimension, Pos pos, int state, Pos sourcePos, int sourceBlock) { return true; }
+
+    /** 레드스톤 세기 변화 직전: 적용할 새 세기. */
+    default int blockRedstone(String dimension, Pos pos, int state, int oldCurrent, int newCurrent) { return newCurrent; }
+
+    /** 피스톤 움직임 직전(extending 이 아니면 줄어듦, blocks 는 밀·부술 칸). false 면 취소. */
+    default boolean piston(String dimension, Pos pos, int dir, boolean sticky, boolean extending, java.util.List<Pos> blocks) { return true; }
+
+    /** 유체가 pos 에서 to 로 흐르기 직전(dir 은 Dir 번호). false 면 취소. */
+    default boolean blockFromTo(String dimension, Pos pos, int state, Pos to, int dir) { return true; }
+
+    /** 자라기 직전(pos 의 oldState 가 newState 로). false 면 취소. */
+    default boolean blockGrow(String dimension, Pos pos, int oldState, int newState) { return true; }
+
+    /** 불이 pos 를 태우기 직전. false 면 취소. */
+    default boolean blockBurn(String dimension, Pos pos, int state, Pos fire) { return true; }
+
+    /** 불이 붙기 직전(cause: IGNITE_*). false 면 취소. */
+    default boolean blockIgnite(String dimension, Pos pos, int cause, Pos ignitingPos, Player player) { return true; }
+
+    int IGNITE_SPREAD = 0, IGNITE_LAVA = 1, IGNITE_FLINT_AND_STEEL = 2, IGNITE_FIREBALL = 3;
+
+    /** 잎이 사라지기 직전. false 면 취소. */
+    default boolean leavesDecay(String dimension, Pos pos, int state) { return true; }
+
+    // ------------------------------------------------------------------ 3단계 둘째 묶음: 인벤토리
+
+    /** 제작 결과를 정하기 직전(recipe 는 없으면 null): 결과 칸에 둘 스택. 메뉴 스레드에서. */
+    default ItemStack prepareCraft(Player p, AbstractContainerMenu menu, String recipe, ItemStack result) { return result; }
+
+    /** 화로가 연료를 태우기 직전: null 이면 취소. 화로 region 스레드에서. */
+    default FurnaceBurn furnaceBurn(String dimension, Pos pos, int state, ItemStack fuel, int burnTime) { return new FurnaceBurn(burnTime, true); }
+
+    /** 화로 연료 이벤트 결과(consumeFuel 이 false 면 연료를 줄이지 않는다). */
+    record FurnaceBurn(int burnTime, boolean consumeFuel) {}
+
+    /** 화로가 굽기 직전: 나올 스택, null 이면 취소. */
+    default ItemStack furnaceSmelt(String dimension, Pos pos, int state, ItemStack source, ItemStack result) { return result; }
+
+    /** 깔때기가 옮기기 직전: 옮길 스택, null 이면 취소. 좌표는 각 용기를 찾은 자리. */
+    default ItemStack inventoryMove(String dimension, org.domi.furnace.server.block.entity.HopperBlockEntity.Inv source, double sx, double sy, double sz,
+                                    org.domi.furnace.server.block.entity.HopperBlockEntity.Inv destination, double dx, double dy, double dz,
+                                    ItemStack item, boolean initiatorIsSource) { return item; }
 }

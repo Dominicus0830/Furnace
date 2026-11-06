@@ -34,7 +34,7 @@ public class CactusBlock extends BlockBehavior {
             if (h < 3) {
                 int age = AGE.intValue(state);
                 if (age == 15) {
-                    level.setBlockAndUpdate(above, defaultState());
+                    if (!B.grow(level, above, defaultState(), 3)) return;   // 플러그인 BlockGrowEvent 취소
                     int reset = AGE.withInt(state, 0);
                     level.setBlock(pos, reset, 4);
                     level.neighborChanged(reset, above, block, pos, false);

@@ -2599,6 +2599,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return c == null ? null : c.recipes();
         }
 
+        @Override public ItemStack prepareCraft(org.domi.furnace.server.menu.AbstractContainerMenu menu, String recipe, ItemStack result) {
+            var c = login.core;
+            return c == null ? result : c.gameEvents().prepareCraft(p, menu, recipe, result);   // 플러그인 PrepareItemCraftEvent
+        }
+
         @Override public boolean doLimitedCrafting() {
             var c = login.core;
             return c != null && c.gameRules().getBoolean("doLimitedCrafting");

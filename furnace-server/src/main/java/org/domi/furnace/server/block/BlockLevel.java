@@ -271,6 +271,9 @@ public interface BlockLevel {
     /** 차원 id(minecraft:overworld …). */
     String dimension();
 
+    /** 플러그인 이벤트 입구(서버 레벨만 실제 구현, 나머지는 모두 허용). */
+    default org.domi.furnace.server.plugin.GameEvents gameEvents() { return org.domi.furnace.server.plugin.GameEvents.NONE; }
+
     boolean ultraWarm();
 
     /** dimensionType().hasSkyLight(). */

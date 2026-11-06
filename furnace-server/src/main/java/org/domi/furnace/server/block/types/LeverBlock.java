@@ -30,6 +30,8 @@ public class LeverBlock extends FaceAttachedHorizontalDirectionalBlock {
 
     /** pull: 켜짐을 뒤집고 이웃 알림, 소리, 게임 이벤트. */
     public void pull(int state, BlockLevel level, Pos pos, BlockActor player) {
+        boolean on = !POWERED.is(state);
+        if (level.gameEvents().blockRedstone(level.dimension(), pos, state, on ? 0 : 15, on ? 15 : 0) > 0 != on) return;   // 플러그인 BlockRedstoneEvent 가 되돌림
         state = POWERED.cycle(state);
         level.setBlock(pos, state, 3);
         updateNeighbours(state, level, pos);

@@ -23,6 +23,6 @@ public class NetherWartBlock extends BushBlock {
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
         int age = AGE.intValue(state);
-        if (age < 3 && random.nextInt(10) == 0) level.setBlock(pos, AGE.withInt(state, age + 1), 2);
+        if (age < 3 && random.nextInt(10) == 0) B.grow(level, pos, AGE.withInt(state, age + 1), 2);
     }
 }

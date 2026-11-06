@@ -709,6 +709,11 @@ public final class ItemUse {
         if (!CampfireBlock.canLight(state) && !CandleBlock.canLight(state) && !CandleCakeBlock.canLight(state)) {
             Pos fire = pos.relative(hit.face());
             if (!BaseFireBlock.canBePlacedAt(level, fire, player.direction())) return InteractionResult.FAIL;
+            if (!level.gameEvents().blockIgnite(level.dimension(), fire, org.domi.furnace.server.plugin.GameEvents.IGNITE_FLINT_AND_STEEL, null,
+                    player instanceof PlayerActor pa ? pa.player() : null)) {   // 플러그인 BlockIgniteEvent 취소: 그래도 닳는다(CraftBukkit)
+                BlockBreaking.hurtAndBreak(level, player, hand, stack, 1);
+                return InteractionResult.PASS;
+            }
             level.playSound(player, fire, "minecraft:item.flintandsteel.use", "blocks", 1.0F, level.random().nextFloat() * 0.4F + 0.8F);
             level.setBlock(fire, BaseFireBlock.getState(level, fire), 11);
             level.gameEvent("minecraft:block_place", pos, player, -1);
@@ -730,6 +735,12 @@ public final class ItemUse {
         boolean done = false;
         if (!CampfireBlock.canLight(state) && !CandleBlock.canLight(state) && !CandleCakeBlock.canLight(state)) {
             pos = pos.relative(hit.face());
+            if (BaseFireBlock.canBePlacedAt(level, pos, player.direction())
+                    && !level.gameEvents().blockIgnite(level.dimension(), pos, org.domi.furnace.server.plugin.GameEvents.IGNITE_FIREBALL, null,
+                    player instanceof PlayerActor pa ? pa.player() : null)) {   // 플러그인 BlockIgniteEvent 취소: 그래도 하나 쓴다(CraftBukkit)
+                if (!player.instabuild()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+                return InteractionResult.PASS;
+            }
             if (BaseFireBlock.canBePlacedAt(level, pos, player.direction())) {
                 fireChargeSound(level, pos);
                 level.setBlockAndUpdate(pos, BaseFireBlock.getState(level, pos));

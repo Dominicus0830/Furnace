@@ -22,6 +22,13 @@ public final class B {
 
     public static int defaultState(int block) { return BLOCKS.defaultState(block); }
 
+    /** CraftEventFactory.handleBlockGrowEvent: 플러그인 BlockGrowEvent 가 허락하면 setBlock(flags) 하고 true. */
+    public static boolean grow(BlockLevel level, Pos pos, int newState, int flags) {
+        if (!level.gameEvents().blockGrow(level.dimension(), pos, level.getBlockState(pos), newState)) return false;
+        level.setBlock(pos, newState, flags);
+        return true;
+    }
+
     public static int defaultState(String name) { return BLOCKS.defaultState(id(name)); }
 
     public static Prop prop(String name) { return BLOCKS.prop(name); }

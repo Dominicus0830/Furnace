@@ -39,6 +39,7 @@ public class ButtonBlock extends FaceAttachedHorizontalDirectionalBlock {
 
     /** press: 켜고 이웃 알림, 꺼질 틱 예약, 소리, 게임 이벤트. */
     public void press(int state, BlockLevel level, Pos pos, BlockActor player) {
+        if (level.gameEvents().blockRedstone(level.dimension(), pos, state, 0, 15) <= 0) return;   // 플러그인 BlockRedstoneEvent 가 되돌림
         level.setBlock(pos, POWERED.with(state, true), 3);
         updateNeighbours(state, level, pos);
         level.scheduleTick(pos, block, ticksToStayPressed);
@@ -88,6 +89,10 @@ public class ButtonBlock extends FaceAttachedHorizontalDirectionalBlock {
             if (b != null) arrow = level.firstArrowIn(b[0] + pos.x(), b[1] + pos.y(), b[2] + pos.z(), b[3] + pos.x(), b[4] + pos.y(), b[5] + pos.z());
         }
         boolean pressed = arrow != null;
+        if (pressed != POWERED.is(state)
+                && level.gameEvents().blockRedstone(level.dimension(), pos, state, pressed ? 0 : 15, pressed ? 15 : 0) > 0 != pressed) {
+            pressed = !pressed;   // 플러그인 BlockRedstoneEvent 가 되돌림
+        }
         if (pressed != POWERED.is(state)) {
             level.setBlock(pos, POWERED.with(state, pressed), 3);
             updateNeighbours(state, level, pos);

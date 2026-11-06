@@ -22,6 +22,7 @@ public class LeavesBlock extends BlockBehavior {
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if (decaying(state)) {
+            if (!level.gameEvents().leavesDecay(level.dimension(), pos, state)) return;   // 플러그인 LeavesDecayEvent 취소
             level.dropResources(state, pos);
             level.removeBlock(pos, false);
         }

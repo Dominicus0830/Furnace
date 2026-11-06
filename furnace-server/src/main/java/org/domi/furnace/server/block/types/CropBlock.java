@@ -36,7 +36,7 @@ public class CropBlock extends BushBlock implements BonemealableBlock {
             int age = age(state);
             if (age < maxAge()) {
                 float speed = getGrowthSpeed(block, level, pos);
-                if (random.nextInt((int) (25.0F / speed) + 1) == 0) level.setBlock(pos, stateForAge(age + 1), 2);
+                if (random.nextInt((int) (25.0F / speed) + 1) == 0) B.grow(level, pos, stateForAge(age + 1), 2);
             }
         }
     }
@@ -44,7 +44,7 @@ public class CropBlock extends BushBlock implements BonemealableBlock {
     /** growCrops: 뼛가루. */
     public void growCrops(BlockLevel level, Pos pos, int state) {
         int age = Math.min(age(state) + bonemealAgeIncrease(level), maxAge());
-        level.setBlock(pos, stateForAge(age), 2);
+        B.grow(level, pos, stateForAge(age), 2);
     }
 
     protected int bonemealAgeIncrease(BlockLevel level) { return FrostedIceBlock.nextInt(level.random(), 2, 5); }
