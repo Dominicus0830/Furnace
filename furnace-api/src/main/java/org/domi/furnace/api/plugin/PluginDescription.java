@@ -15,10 +15,12 @@ import org.domi.furnace.api.permission.PermissionDefault;
  * @param softDepend 있으면 먼저 켜지는 플러그인
  * @param loadBefore 이 플러그인보다 나중에 켜져야 하는 플러그인
  * @param prefix     로그 접두어(없으면 이름)
+ * @param bootstrapper 부트스트랩 클래스(PluginBootstrap 구현, 없으면 null) — 레지스트리·데이터 팩·월드 전에 불린다
  */
 public record PluginDescription(String name, String version, String main, String description, List<String> authors, String website,
                                 String apiVersion, List<String> depend, List<String> softDepend, List<String> loadBefore, String prefix,
-                                Map<String, CommandInfo> commands, List<Permission> permissions) {
+                                Map<String, CommandInfo> commands, List<Permission> permissions,
+                                String bootstrapper) {
 
     /** 설명 파일의 명령 항목(실제 실행기는 코드에서 등록한다 — 설명·별칭·권한은 여기서 채워진다). */
     public record CommandInfo(String description, List<String> aliases, String permission, String usage) {}
@@ -37,6 +39,9 @@ public record PluginDescription(String name, String version, String main, String
 
     /** 로그에 쓰는 이름(prefix 가 있으면 그것). */
     public String logPrefix() { return prefix != null ? prefix : name; }
+
+    /** 키 namespace — 이름을 소문자로, 공백은 '_' 로(영속 데이터·플러그인 레지스트리·플러그인 데이터 팩이 쓴다). */
+    public String namespace() { return name.toLowerCase(java.util.Locale.ROOT).replace(' ', '_'); }
 
     /** "이름 v버전". */
     public String fullName() { return name + " v" + version; }
@@ -73,7 +78,7 @@ public record PluginDescription(String name, String version, String main, String
         }
         return new PluginDescription(name, version, main, s.getString("description", ""), authors, s.getString("website", null),
                 s.getString("api-version", null), strings(s, "depend"), strings(s, "softdepend"), strings(s, "loadbefore"),
-                s.getString("prefix", null), commands, permissions);
+                s.getString("prefix", null), commands, permissions, s.getString("bootstrapper", null));
     }
 
     private static void readPermission(String node, ConfigSection p, PermissionDefault fallback, List<Permission> out) {

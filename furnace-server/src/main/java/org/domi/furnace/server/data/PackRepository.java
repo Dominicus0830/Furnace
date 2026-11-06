@@ -2,6 +2,7 @@
 //  - vanilla: 첫 실행 때 풀어 둔 바닐라 데이터(내장 메타데이터: 설명 dataPack.vanilla.description, 형식 48, 기능 vanilla), 아래쪽.
 //  - 기능 팩: 바닐라 데이터의 data/minecraft/datapacks/<이름>(bundle·trade_rebalance), id = 이름, 위쪽, 새로 보여도 자동으로 켜지지 않음.
 //  - 월드 팩: <월드>/datapacks/ 의 폴더(pack.mcmeta 있음)·.zip, id = "file/<파일 이름>", 위쪽.
+//  - 플러그인 팩(Furnace): 플러그인이 데이터 팩 찾기 훅으로 알린 jar 안 폴더, id = "plugin/<namespace>/<id>", 위쪽, 월드 팩처럼 자동으로 켜짐.
 package org.domi.furnace.server.data;
 
 import java.io.IOException;
@@ -31,6 +32,11 @@ public final class PackRepository {
 
     private final Path vanillaRoot;   // null 이면 vanilla 팩 없음(테스트)
     private final Path worldPacks;    // null 이면 월드 팩 없음
+    /** 찾을 때마다 부르는 플러그인 팩 목록(없으면 null). */
+    private volatile java.util.function.Supplier<List<JarPack>> pluginPacks;
+
+    /** jar(zip) 안 폴더 하나로 된 팩. prefix 는 "" 이거나 '/' 로 끝난다. */
+    public record JarPack(String id, Text title, Path jar, String prefix) {}
     private Map<String, Pack> available = Map.of();
     private List<Pack> selected = List.of();
 
@@ -38,6 +44,9 @@ public final class PackRepository {
         this.vanillaRoot = vanillaRoot;
         this.worldPacks = worldPacks;
     }
+
+    /** 플러그인 팩 공급자를 단다(다음 reload 부터 반영). */
+    public void pluginPacks(java.util.function.Supplier<List<JarPack>> supplier) { this.pluginPacks = supplier; }
 
     /** 다시 찾는다(선택은 id 로 유지). */
     public synchronized void reload() {
@@ -122,6 +131,13 @@ public final class PackRepository {
             }
             discoverFolder(worldPacks, name -> "file/" + name, Pack.Source.WORLD, out);
         }
+        var plugins = pluginPacks;
+        if (plugins != null) {
+            for (JarPack jp : plugins.get()) {
+                Pack pack = create(jp.id(), jp.title(), Pack.Source.PLUGIN, overlays -> openZip(jp.id(), jp.jar(), jp.prefix(), overlays));
+                if (pack != null && out.putIfAbsent(jp.id(), pack) != null) log.warn("Duplicate pack id {}, ignoring", jp.id());
+            }
+        }
         return out;
     }
 
@@ -145,7 +161,7 @@ public final class PackRepository {
                     opener = overlays -> openFolder(id, p, overlays);
                 } else if (Files.isRegularFile(p) && fileName.endsWith(".zip")) {
                     String id = idOf.apply(fileName);
-                    opener = overlays -> openZip(id, p, overlays);
+                    opener = overlays -> openZip(id, p, "", overlays);
                 } else {
                     log.info("Found non-pack entry '{}', ignoring", p);
                     continue;
@@ -168,13 +184,13 @@ public final class PackRepository {
         return new PackResources.Composite(main, o);
     }
 
-    private static PackResources openZip(String id, Path file, List<String> overlays) {
+    private static PackResources openZip(String id, Path file, String prefix, List<String> overlays) {
         try {
             ZipFile zip = new ZipFile(file.toFile());
-            PackResources main = new PackResources.ZipPack(id, zip, "");
+            PackResources main = new PackResources.ZipPack(id, zip, prefix);
             if (overlays.isEmpty()) return main;
             List<PackResources> o = new ArrayList<>();
-            for (String d : overlays) o.add(new PackResources.ZipPack(id, zip, d + "/"));
+            for (String d : overlays) o.add(new PackResources.ZipPack(id, zip, prefix + d + "/"));
             return new PackResources.Composite(main, o);
         } catch (IOException e) {
             throw new java.io.UncheckedIOException("팩 " + id + " 을(를) 열 수 없다", e);
