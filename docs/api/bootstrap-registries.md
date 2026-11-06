@@ -8,13 +8,14 @@
 | 순서 | 하는 일 | 플러그인 쪽 |
 |---|---|---|
 | 1 | 설정 읽기 | |
-| 2 | **플러그인 부트스트랩**: jar 찾기 → 의존 순서 → 클래스로더 → `bootstrapper` 호출 | `PluginBootstrap.bootstrap(ctx)` |
+| 2 | **플러그인 부트스트랩**: jar 찾기 → 의존 순서 → api-version 검사 → 클래스로더 → `bootstrapper` 호출 | `PluginBootstrap.bootstrap(ctx)` |
 | 3 | 블록·아이템·동기화 레지스트리 읽기, 월드 생성기 준비 | |
 | 4 | 데이터 팩 찾기·켜기(태그·레시피·전리품·발전 과제·함수) | `LifecycleEvents.DATAPACK_DISCOVERY` 처리기 |
 | 5 | 월드·차원 준비 | |
 | 6 | 메인 인스턴스 만들기(`createPlugin` 또는 인자 없는 생성자) → `onLoad` | `FurnacePlugin.onLoad` |
 | 7 | 스폰 준비 → `onEnable` → 함수 파싱 → 접속 받기 | `FurnacePlugin.onEnable` |
 
+- 찾기·순서·api-version·부트스트랩 단계의 실패도 `plugins.fail-fast`(B1) 판단에 들어간다. 플러그인별 로거 수준(`plugins.log-level.*`)은 부트스트랩부터 적용된다.
 - 부트스트랩 중에는 `Furnace.server()`·월드·플레이어·스케줄러가 없다(`IllegalStateException`).
 - `bootstrapper` 가 던지면 그 플러그인은 불러오지 않고, 그 플러그인이 등록한 레지스트리·항목·훅을 모두 되돌린다. 그 플러그인을 `depend` 로 둔 플러그인도 빠진다(`softdepend` 는 그대로 뜬다).
 - 수명주기 훅 등록은 자기 부트스트랩이 도는 동안만 된다(그 뒤에는 `IllegalStateException`). 플러그인이 꺼지면 훅도 떨어진다.
