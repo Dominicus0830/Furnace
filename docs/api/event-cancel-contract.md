@@ -94,6 +94,7 @@
 | `PortalCreateEvent` | `SERVER_DRIVEN` | - | 지옥문 틀 안이 비어 있다 |
 | `PlayerEditBookEvent` | `SERVER_DRIVEN` | - | 책 내용·서명 |
 | `PlayerFishEvent` | `SERVER_DRIVEN` | - | 낚시찌 연결·낚싯대 내구도 |
+| `PlayerHandshakeEvent` | `SERVER_DRIVEN` | - | 로그인(끊기 패킷만 나가고 Player 도 만들어지지 않는다) |
 | `ServerCommandEvent` | `SERVER_DRIVEN` | - | 콘솔 명령 실행 |
 
 ## 5. 알려진 한계
