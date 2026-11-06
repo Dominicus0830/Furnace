@@ -1,6 +1,6 @@
-// 8차: 엔티티 AI·틱 성능 묶음(PR perf-entity) 확인 — 좀비 표적(클래스별 조회), 벽 돌아가기(길찾기 칸 종류 캐시),
+// 엔티티 AI·틱 성능 묶음(PR perf-entity) 확인 — 좀비 표적(클래스별 조회), 벽 돌아가기(길찾기 칸 종류 캐시),
 // 점유 안 된 종만 있는 곳은 마을이 아님(바닐라 isVillageCenter), 소 600마리 틱 시간(/tick query).
-// 사용: SRV=<서버 폴더> node round8/entity.js [perf]   — perf 면 틱 시간만 잰다(전/후 jar 비교용)
+// 사용: SRV=<서버 폴더> node entity/entity.js [perf]   — perf 면 틱 시간만 잰다(전/후 jar 비교용)
 const U = require('../round2/u'); const { sleep, chat, ask } = U;
 const count = async (bot, sel) => { const m = await ask(bot, `/execute if entity ${sel}`, /Test (passed|failed)/); const x = m && m.match(/count: (\d+)/); return x ? +x[1] : 0; };
 const num = async (bot, sel, path) => { const m = await ask(bot, `/data get entity ${sel} ${path}`, /data:|Found no|No entity/i, 2000); const x = m && m.match(/data: (-?[\d.]+)/); return x ? +x[1] : null; };

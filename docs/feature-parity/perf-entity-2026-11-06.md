@@ -52,7 +52,7 @@
 2. **스폰 전하 바이옴**: `NaturalSpawner.createState` 는 바닐라에서 `getRoughBiome(pos, chunk)` = `chunk.getNoiseBiome(x>>2, y>>2, z>>2)`(높이는 월드 안으로 자름, `ddh.a(jd,duy)` javap 확인).
    Furnace 는 확대 지터 바이옴을 써서 바이옴 경계(영혼 모래 골짜기·뒤틀린 숲의 전하)에서 달랐다.
 
-## 봇 시험(`tools/bot-test/round8/entity.js`)
+## 봇 시험(`tools/bot-test/entity/entity.js`)
 | 항목 | 전 jar | 후 jar |
 |---|---|---|
 | A. 빈 종만 있는 곳 나쁜 징조 → 습격 징조 | 생김(바닐라와 다름) | 안 생김(바닐라) |

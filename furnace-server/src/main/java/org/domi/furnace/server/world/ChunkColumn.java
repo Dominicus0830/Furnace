@@ -546,6 +546,27 @@ public final class ChunkColumn {
         touch();
     }
 
+    /** {@link #loadSectionBlocks} 와 같되 디스크 NBT 꼴(팔레트 값 + 칸별 팔레트 인덱스) 그대로 받는다(펼치지 않음). */
+    public void loadSectionIndexed(int sectionIdx, int[] paletteVals, BitStorage indices) {
+        ChunkSection section = ownSection(sectionIdx);
+        section.replaceBlocksIndexed(paletteVals, indices);
+        if (section.nonAirCount() > 0 || hasNonAirZero(paletteVals, indices)) {
+            java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
+            java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
+            dirty = true;
+        }
+        touch();
+    }
+
+    /** loadSectionBlocks 의 "AIR(0) 아닌 칸이 있는가" — 동굴·빈 공간 공기(isAir 지만 0 아님)만 있는 섹션도 참이다. */
+    private static boolean hasNonAirZero(int[] paletteVals, BitStorage indices) {
+        boolean any = false;
+        for (int v : paletteVals) if (v != ChunkSection.AIR) { any = true; break; }
+        if (!any) return false;
+        for (int i = 0; i < 4096; i++) if (paletteVals[indices.get(i)] != ChunkSection.AIR) return true;
+        return false;
+    }
+
     public void loadGenerated(int[] blockIds, int[] biomeIds) {
         for (int i = 0; i < sectionCount; i++) {
             ownSection(i).replaceBlocks(blockIds, i * 4096);
@@ -569,13 +590,17 @@ public final class ChunkColumn {
                 int surfaceValue = 0;
                 int oceanFloorValue = 0;
                 for (int sec = sectionCount - 1; sec >= 0 && (surfaceValue == 0 || oceanFloorValue == 0); sec--) {
-                    int[] blocks = sectionBlocks(sec);
+                    // scratch 를 열지 않고 읽는다 — 디스크 로드 청크가 표면 위 섹션마다 int[4096] 을 쥐고 있던 것.
+                    // 한 값뿐인 섹션(대부분 공기)은 맨 위 칸 하나로 판정이 끝난다(아래 칸도 같은 값이라 결과가 같다).
+                    ChunkSection section = sections[sec];
+                    int uniform = section.uniformBlock();
                     for (int ly = 15; ly >= 0; ly--) {
-                        int stateId = blocks[ly * 256 + lz * 16 + lx];
+                        int stateId = uniform >= 0 ? uniform : section.blockAt(ly * 256 + lz * 16 + lx);
                         int y1 = sec * 16 + ly + 1;
                         if (surfaceValue == 0 && !ChunkSection.isAir(stateId)) surfaceValue = y1;
                         if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) oceanFloorValue = y1;
                         if (surfaceValue != 0 && oceanFloorValue != 0) break;
+                        if (uniform >= 0) break;
                     }
                 }
                 int index = lz * 16 + lx;
@@ -761,11 +786,38 @@ public final class ChunkColumn {
 
     /** vanilla MOTION_BLOCKING_NO_LEAVES 최상단 블록 y (잎 제외) — 구조물 지면 높이용, 매 호출 스캔. */
     public int motionBlockingNoLeavesBlockY(int x, int z) {
-        for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
-            int st = getBlock(x, y, z);
-            if (isMotionBlockingBlock(st) && !isLeaves(st)) return y;
+        return minY + topLocalY(x, z, TOP_MB_NO_LEAVES);
+    }
+
+    private static final int TOP_MB_NO_LEAVES = 0, TOP_MB = 1, TOP_OCEAN_FLOOR = 2;
+
+    private static boolean topMatch(int kind, int st) {
+        return switch (kind) {
+            case TOP_MB_NO_LEAVES -> isMotionBlockingBlock(st) && !isLeaves(st);
+            case TOP_MB -> isMotionBlockingBlock(st);
+            default -> isOceanFloorBlock(st);
+        };
+    }
+
+    /**
+     * 그 기둥에서 조건을 만족하는 가장 높은 칸의 (y - minY), 없으면 -1. 위에서 아래로 한 칸씩 getBlock 하던 것과 같은 결과를,
+     * 섹션 단위로 읽는다 — 한 값뿐인 섹션(대부분 하늘 공기)은 값 하나로 판정하고 건너뛴다. scratch 는 열지 않는다.
+     * 저장 스냅샷(region 스레드)이 기둥 256개 × 표면 위 수백 칸을 getBlock 으로 훑던 비용이 컸다.
+     */
+    private int topLocalY(int x, int z, int kind) {
+        int column = z * 16 + x;
+        for (int sec = sectionCount - 1; sec >= 0; sec--) {
+            ChunkSection section = sections[sec];
+            int uniform = section.uniformBlock();
+            if (uniform >= 0) {
+                if (topMatch(kind, uniform)) return sec * 16 + 15;
+                continue;
+            }
+            for (int ly = 15; ly >= 0; ly--) {
+                if (topMatch(kind, section.blockAt(ly * 256 + column))) return sec * 16 + ly;
+            }
         }
-        return minY - 1;
+        return -1;
     }
 
     private static volatile boolean[] leavesTable;
@@ -801,12 +853,7 @@ public final class ChunkColumn {
     }
 
     private int recomputeMotionBlockingHeight(int x, int z) {
-        for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
-            if (isMotionBlockingBlock(getBlock(x, y, z))) {
-                return (y - minY) + 1;
-            }
-        }
-        return 0;
+        return topLocalY(x, z, TOP_MB) + 1;
     }
 
     /**
@@ -822,12 +869,7 @@ public final class ChunkColumn {
     }
 
     private int recomputeOceanFloorHeight(int x, int z) {
-        for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
-            if (isOceanFloorBlock(getBlock(x, y, z))) {
-                return (y - minY) + 1;
-            }
-        }
-        return 0;
+        return topLocalY(x, z, TOP_OCEAN_FLOOR) + 1;
     }
 
     /**
