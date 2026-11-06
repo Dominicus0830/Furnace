@@ -91,6 +91,11 @@ public final class NbtIo {
         return readCompoundPayload(in);
     }
 
+    /** 스트림에서 이름 없는 루트(네트워크 NBT: [type][payload]) 하나를 읽는다 — 그 태그의 바이트만큼만 읽는다. */
+    public static Object readUnnamed(java.io.DataInput in) throws java.io.IOException {
+        return readPayload(in, in.readByte());
+    }
+
     /** 이름 없는 루트(플레이 단계 네트워크 NBT: [type][payload]) 하나 — 어떤 태그든 값 객체로. */
     public static Object readUnnamed(byte[] bytes) {
         try {

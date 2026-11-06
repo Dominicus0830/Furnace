@@ -294,6 +294,14 @@ public class FishingHook extends Projectile {
         return hookedIn instanceof Player p && p.isDisconnected();
     }
 
+    // ------------------------------------------------------------------ 플러그인 PlayerFishEvent
+
+    /** 취소면 -1, 아니면 expToDrop. 소유 플레이어가 없으면 이벤트를 부르지 않는다. */
+    private int fishEvent(int state, Entity caughtEntity, Player caughtPlayer, int exp) {
+        Player p = getPlayerOwner();
+        return p == null ? exp : level.gameEvents().playerFish(p, this, caughtEntity, caughtPlayer, state, exp);
+    }
+
     // ------------------------------------------------------------------ 입질(catchingFish)
 
     /** catchingFish: 비 +1(25%), 하늘 막힘 −1(50%) 속도로 타이머를 줄인다. 난수 호출 순서는 바닐라와 같다. */
@@ -308,6 +316,7 @@ public class FishingHook extends Projectile {
                 timeUntilLured = 0;
                 timeUntilHooked = 0;
                 setBiting(false);
+                fishEvent(org.domi.furnace.server.plugin.GameEvents.FISH_FAILED_ATTEMPT, null, null, 0);   // 플러그인 PlayerFishEvent(FAILED_ATTEMPT)
             }
         } else if (timeUntilHooked > 0) {
             timeUntilHooked -= i;
@@ -324,6 +333,7 @@ public class FishingHook extends Projectile {
                     // FISHING 입자 2개
                 }
             } else {
+                if (fishEvent(org.domi.furnace.server.plugin.GameEvents.FISH_BITE, null, null, 0) < 0) return;   // 플러그인 PlayerFishEvent(BITE) 취소
                 playSound("entity.fishing_bobber.splash", 0.25F, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
                 // BUBBLE·FISHING 입자
                 nibble = nextInt(random, 20, 40);
@@ -345,6 +355,7 @@ public class FishingHook extends Projectile {
                 if (B.is(st, WATER)) random.nextInt(2);   // SPLASH 입자 개수 2 + nextInt(2)
             }
             if (timeUntilLured <= 0) {
+                if (fishEvent(org.domi.furnace.server.plugin.GameEvents.FISH_LURED, null, null, 0) < 0) return;   // 플러그인 PlayerFishEvent(LURED) 취소
                 fishAngle = nextFloat(random, 0.0F, 360.0F);
                 timeUntilHooked = nextInt(random, 20, 80);
             }
@@ -420,6 +431,8 @@ public class FishingHook extends Projectile {
         if (p == null || shouldStopFishing(p)) return 0;
         int i = 0;
         if (hookedIn != null) {
+            if (fishEvent(org.domi.furnace.server.plugin.GameEvents.FISH_CAUGHT_ENTITY, hookedIn instanceof Entity he ? he : null,
+                    hookedIn instanceof Player hp ? hp : null, 0) < 0) return 0;   // 플러그인 PlayerFishEvent(CAUGHT_ENTITY) 취소
             pullEntity(hookedIn);
             fishingTrigger(p, rod, List.of());
             broadcastEntityEvent((byte) 31);
@@ -432,13 +445,19 @@ public class FishingHook extends Projectile {
                 var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), s);
                 double dx = p.x() - x(), dy = p.y() - y(), dz = p.z() - z();
                 ie.setDeltaMovement(dx * 0.1, dy * 0.1 + Math.sqrt(Math.sqrt(dx * dx + dy * dy + dz * dz)) * 0.08, dz * 0.1);
+                int exp = fishEvent(org.domi.furnace.server.plugin.GameEvents.FISH_CAUGHT_FISH, ie, null, random.nextInt(6) + 1);   // 플러그인 PlayerFishEvent(CAUGHT_FISH)
+                if (exp < 0) return 0;
                 level.addFreshEntity(ie);
-                level.addFreshEntity(new ExperienceOrb(level, level.nextEntityId(), p.x(), p.y() + 0.5, p.z() + 0.5, random.nextInt(6) + 1));
+                if (exp > 0) level.addFreshEntity(new ExperienceOrb(level, level.nextEntityId(), p.x(), p.y() + 0.5, p.z() + 0.5, exp));
                 if (ItemContext.isInTag("minecraft:item", "minecraft:fishes", s.itemId())) p.awardStat("minecraft:fish_caught", 1);
             }
             i = 1;
         }
-        if (onGround()) i = 2;
+        if (onGround()) {
+            if (fishEvent(org.domi.furnace.server.plugin.GameEvents.FISH_IN_GROUND, null, null, 0) < 0) return 0;   // 플러그인 PlayerFishEvent(IN_GROUND) 취소
+            i = 2;
+        }
+        if (i == 0 && fishEvent(org.domi.furnace.server.plugin.GameEvents.FISH_REEL_IN, null, null, 0) < 0) return 0;   // 플러그인 PlayerFishEvent(REEL_IN) 취소
         discard();
         return i;
     }

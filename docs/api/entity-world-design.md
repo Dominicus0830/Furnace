@@ -164,3 +164,7 @@ ApiConvert              : 서버 ItemStack ↔ API ItemStack, 서버 Player → 
 ### 8.6 7장 "다음 단계" 처리 상태
 1 EntityScheduler — **완료**(8.1). 2 엔티티 조회·스폰 — **스폰·주변·청크별 조회 완료**, UUID 전역 조회·AI/속성/효과/탑승은 남음. 3 `damage()/heal()/getEquipment()`·`Mob`·`Item` 타입 — 남음. 4 블록·엔티티 컨테이너 Inventory — **완료**(8.4), `InventoryView/Holder`·클릭 후 결과 수정은 남음. 5 최종 피해·`DamageCause` 하위 이벤트 — 남음. 6 텔레포트 원인·차원 — 남음. 7 `InventoryOpenEvent` 경로 확장 — 남음. 8 LEFT_CLICK·`PlayerInteractEntityEvent` — **완료**(8.5). 9 `PersistentDataContainer`·`Chunk` — **완료**(8.2·8.3), `ChunkLoadEvent.isNewChunk` 는 남음. 10·11 — 남음. 그 밖에 `PlayerMoveEvent` 회전만 바뀐 이동은 여전히 발화하지 않는다.
 
+
+## 9. NBT 데이터 API·내부 접근 다리 (2026-11-06)
+
+`Entity.readNbt/editNbt/mergeNbt`, `World.blockEntityNbt/editBlockEntityNbt/mergeBlockEntityNbt`(`/data` 와 같은 경로, 버전 중립 `org.domi.furnace.api.nbt` 타입)와 서버 내부 객체 다리 `org.domi.furnace.api.internal.Internals` 는 `docs/api/internals.md` 에 정리했다. 스레드 규칙은 이 문서 1·2장을 그대로 따른다(`*Now` 는 소유 스레드만, 나머지는 Future).

@@ -10,4 +10,7 @@ public interface Packet {
 
     /** 패킷 body를 buf에 기록(id는 ConnectionHandler가 앞에 씀). */
     void write(ByteBuf buf);
+
+    /** 보내지 않고 버릴 때(플러그인이 취소) 쥔 자원을 놓는다. 기본은 할 일 없음. */
+    default void discard() {}
 }

@@ -119,7 +119,7 @@ public class Mooshroom extends Cow {
         cow.setYHeadRot(yHeadRot());
         cow.setAge(getAge());
         discard();
-        level.addFreshEntity(cow);
+        level.addFreshEntity(cow.spawnReason("SHEARED"));
         String item = mushroomType().equals("red") ? "red_mushroom" : "brown_mushroom";
         for (int i = 0; i < 5; i++) {
             level.addFreshEntity(new ItemEntity(level, level.nextEntityId(), x(), y() + dimH, z(), new ItemStack(ItemContext.id("minecraft:item", item), 1)));

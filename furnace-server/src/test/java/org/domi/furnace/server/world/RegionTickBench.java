@@ -56,6 +56,10 @@ class RegionTickBench {
                 if (!w.ownsChunkOnCurrentThread(bx, bz)) return null;
                 return nameOf.apply(w.regionizer().ownerOf(bx, bz).biomeIdAtQuart(q[0], q[1], q[2]));
             }
+            @Override public String roughBiomeAt(int x, int y, int z) {   // ServerCore 와 같은 길(확대 없음)
+                if (!w.ownsChunkOnCurrentThread(x >> 4, z >> 4)) return null;
+                return nameOf.apply(w.regionizer().ownerOf(x >> 4, z >> 4).noiseBiomeIdAtBlock(x, y, z));
+            }
             @Override public boolean biomeIs(int x, int y, int z, String tag) {
                 String b = biomeAt(x, y, z);
                 return b != null && biomeNames.subList(0, biomeNames.size() / 2).contains(b);
@@ -89,6 +93,13 @@ class RegionTickBench {
         long[] samples = new long[ticks];
         long[] rawSamples = new long[ticks];
         long[] ph = new long[5];
+        // -Dfurnace.bench.cpujfr=true: region 스레드 CPU 샘플(jdk.ExecutionSample 2ms)을 자기·포함 비율로 찍는다
+        jdk.jfr.Recording rec = null;
+        if (Boolean.getBoolean("furnace.bench.cpujfr")) {
+            rec = new jdk.jfr.Recording();
+            rec.enable("jdk.ExecutionSample").withPeriod(java.time.Duration.ofMillis(2)).withStackTrace();
+            rec.start();
+        }
         long cpu0 = MultiDimensionTickBench.processCpuNanos(), wall0 = System.nanoTime();
         for (int t = 0; t < ticks; t++) {
             // 반지름 24 블록 원을 걷는다(틱당 ~0.2 블록 — 걷기 속도)
@@ -109,11 +120,24 @@ class RegionTickBench {
                 rawSamples[tt] = samples[tt];
                 if (tt >= Integer.getInteger("furnace.bench.skip", ticks / 4)) for (int i = 0; i < 5; i++) ph[i] += r.phaseSum[i] - before[i];
             }).get();
-            ch.runPendingTasks();
-            Object o;
-            while ((o = ch.readOutbound()) != null) io.netty.util.ReferenceCountUtil.release(o);
+            // 엔티티가 많으면 EmbeddedChannel 의 보류 작업이 재귀로 깊어진다 — 큰 스택 스레드에서 비운다
+            Thread dr = new Thread(null, () -> {
+                ch.runPendingTasks();
+                Object o;
+                while ((o = ch.readOutbound()) != null) io.netty.util.ReferenceCountUtil.release(o);
+            }, "bench-drain", 1L << 30);
+            dr.start();
+            dr.join();
         }
         long cpu = MultiDimensionTickBench.processCpuNanos() - cpu0, wall = System.nanoTime() - wall0;
+        if (rec != null) {
+            rec.stop();
+            java.nio.file.Path f = java.nio.file.Files.createTempFile("rbench", ".jfr");
+            rec.dump(f);
+            rec.close();
+            cpuProfile(f, Integer.getInteger("furnace.bench.top", 40));
+            java.nio.file.Files.deleteIfExists(f);
+        }
         System.out.printf("RBENCH cpu=%.0fms wall=%.0fms (틱 %d)%n", cpu / 1e6, wall / 1e6, ticks);
         if (Boolean.getBoolean("furnace.bench.dump")) {
             StringBuilder sbd = new StringBuilder("RBENCH per-tick ms:");
@@ -138,5 +162,55 @@ class RegionTickBench {
         ioPool.shutdown();
         genPool.shutdown();
         sched.close();
+    }
+
+    /** region 스레드 CPU 샘플: 자기(맨 위 프레임)·포함(스택에 한 번이라도) 상위 n. */
+    static void cpuProfile(java.nio.file.Path file, int n) throws Exception {
+        java.util.Map<String, int[]> self = new java.util.HashMap<>(), incl = new java.util.HashMap<>();
+        java.util.Map<String, java.util.Map<String, int[]>> callers = new java.util.HashMap<>();
+        int depth = Integer.getInteger("furnace.bench.callers", 5);
+        int total = 0;
+        try (var rf = new jdk.jfr.consumer.RecordingFile(file)) {
+            while (rf.hasMoreEvents()) {
+                var e = rf.readEvent();
+                if (!e.getEventType().getName().equals("jdk.ExecutionSample")) continue;
+                var th = e.getThread("sampledThread");
+                if (th == null || th.getJavaName() == null || !th.getJavaName().startsWith("furnace-region")) continue;
+                var st = e.getStackTrace();
+                if (st == null || st.getFrames().isEmpty()) continue;
+                total++;
+                var fr = st.getFrames();
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                for (int i = 0; i < fr.size(); i++) {
+                    var m = fr.get(i).getMethod();
+                    String k = m.getType().getName().replace("org.domi.furnace.server.", "") + "." + m.getName();
+                    if (i == 0) {
+                        self.computeIfAbsent(k, x -> new int[1])[0]++;
+                        StringBuilder sb = new StringBuilder();
+                        for (int j = 1; j < Math.min(fr.size(), 1 + depth); j++) {
+                            var mj = fr.get(j).getMethod();
+                            sb.append(" <- ").append(mj.getType().getName().replace("org.domi.furnace.server.", "")).append('.').append(mj.getName()).append(':').append(fr.get(j).getLineNumber());
+                        }
+                        callers.computeIfAbsent(k, x -> new java.util.HashMap<>()).computeIfAbsent(sb.toString(), x -> new int[1])[0]++;
+                    }
+                    if (seen.add(k)) incl.computeIfAbsent(k, x -> new int[1])[0]++;
+                }
+            }
+        }
+        System.out.printf("RPROF 샘플=%d%n", total);
+        for (var pair : java.util.List.of(java.util.Map.entry("self", self), java.util.Map.entry("incl", incl))) {
+            var l = new java.util.ArrayList<>(pair.getValue().entrySet());
+            l.sort((a, b) -> b.getValue()[0] - a.getValue()[0]);
+            for (int i = 0; i < Math.min(n, l.size()); i++)
+                System.out.printf("RPROF %s %5.1f%% %s%n", pair.getKey(), 100.0 * l.get(i).getValue()[0] / total, l.get(i).getKey());
+        }
+        var ls = new java.util.ArrayList<>(self.entrySet());
+        ls.sort((a, b) -> b.getValue()[0] - a.getValue()[0]);
+        for (int i = 0; i < Math.min(12, ls.size()); i++) {
+            var cl = new java.util.ArrayList<>(callers.get(ls.get(i).getKey()).entrySet());
+            cl.sort((a, b) -> b.getValue()[0] - a.getValue()[0]);
+            for (int j = 0; j < Math.min(3, cl.size()); j++)
+                System.out.printf("RCALL %s %5.1f%%%s%n", ls.get(i).getKey(), 100.0 * cl.get(j).getValue()[0] / total, cl.get(j).getKey());
+        }
     }
 }

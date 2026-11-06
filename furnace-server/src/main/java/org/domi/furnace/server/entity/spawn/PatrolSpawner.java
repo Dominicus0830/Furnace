@@ -76,7 +76,7 @@ public final class PatrolSpawner {
         pm.setPos(pos.x(), pos.y(), pos.z());
         pm.setFinalizeReason(SpawnReason.PATROL);
         pm.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(pos));
-        level.addFreshEntityWithPassengers(pm);
+        level.addFreshEntityWithPassengers(pm.spawnReason("PATROL"));
         return true;
     }
 }

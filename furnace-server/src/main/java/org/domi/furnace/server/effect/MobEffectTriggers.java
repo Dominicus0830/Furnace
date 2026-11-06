@@ -153,7 +153,7 @@ public final class MobEffectTriggers {
         Slime slime = new Slime(level, level.nextEntityId());
         slime.setSize(2, true);
         slime.moveTo(x, y, z, level.random().nextFloat() * 360.0F, 0.0F);
-        level.addFreshEntity(slime);
+        level.addFreshEntity(slime.spawnReason("INFECTION"));
     }
 
     // ------------------------------------------------------------------ 벌레 들끓음(infested)
@@ -179,7 +179,7 @@ public final class MobEffectTriggers {
         float[] rot = rotateY(vx, vz, g);
         sf.moveTo(x, y, z, level.random().nextFloat() * 360.0F, 0.0F);
         sf.setDeltaMovement(rot[0], vy, rot[1]);
-        level.addFreshEntity(sf);
+        level.addFreshEntity(sf.spawnReason("INFECTION"));
         sf.playSound("minecraft:entity.silverfish.hurt", 1.0F, 1.0F);
     }
 

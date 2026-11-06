@@ -8,6 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.inventory.Inventory;
+import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.persistence.PersistentDataContainer;
 import org.domi.furnace.api.persistence.PersistentDataView;
 import org.domi.furnace.api.sched.TaskScheduler;
@@ -62,4 +63,26 @@ public interface Entity {
 
     /** 엔티티를 지운다(플레이어는 UnsupportedOperationException 으로 완료). 이미 없으면 false. */
     CompletableFuture<Boolean> remove();
+
+    // ------------------------------------------------------------------ NBT (/data entity 와 같은 의미 — 내부 객체 없이 대부분의 상태에 닿는다)
+
+    /**
+     * 엔티티의 저장 NBT 사본(/data get entity 와 같은 내용 — 플레이어도 읽힌다). 엔티티를 가진 region 스레드에서 읽는다.
+     * 엔티티가 사라졌으면 IllegalStateException 으로 완료. 키 이름·구조는 마인크래프트 데이터 버전을 따른다.
+     */
+    CompletableFuture<NbtCompound> readNbt();
+
+    /**
+     * 엔티티를 가진 region 스레드에서 NBT 를 읽어 edit 로 고치고, 바뀌었으면 엔티티에 다시 싣는다(/data modify·merge entity 와 같은 경로:
+     * 바닐라 Entity.load, UUID 는 바뀌지 않는다). 바뀌었으면 true, 그대로면 false(싣지 않는다).
+     * 플레이어는 바닐라처럼 쓸 수 없다(UnsupportedOperationException 으로 완료). 엔티티가 사라졌으면 IllegalStateException.
+     * edit 는 그 region 스레드에서 돈다 — 받은 묶음을 밖으로 들고 나가지 않는다.
+     */
+    CompletableFuture<Boolean> editNbt(Consumer<NbtCompound> edit);
+
+    /** patch 를 합친다(/data merge entity, 묶음은 안쪽으로 합치고 리스트는 통째로 바뀐다). 바뀌었으면 true. */
+    default CompletableFuture<Boolean> mergeNbt(NbtCompound patch) {
+        NbtCompound p = patch.copy();
+        return editNbt(n -> n.merge(p));
+    }
 }

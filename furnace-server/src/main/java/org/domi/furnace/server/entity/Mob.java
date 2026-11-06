@@ -245,8 +245,12 @@ public abstract class Mob extends LivingEntity implements Leashable {
     public double getFluidJumpThreshold() { return dimEye < 0.4 ? 0.0 : 0.4; }
 
     /** Mob.convertTo(type, keepEquipment): 이 몹 자리에 대신 쓸 새 몹(target)을 위치·아기·무AI·유지 설정을 넘겨 추가하고 자신은 지운다. */
-    public <T extends Mob> T convertTo(T target, boolean keepEquipment) {
+    public <T extends Mob> T convertTo(T target, boolean keepEquipment) { return convertTo(target, keepEquipment, "DEFAULT"); }
+
+    /** convertTo 에 플러그인 CreatureSpawnEvent 의 스폰 이유(CraftBukkit SpawnReason 이름)를 붙인 것. */
+    public <T extends Mob> T convertTo(T target, boolean keepEquipment, String spawnReason) {
         if (isRemoved() || target == null) return null;
+        target.spawnReason(spawnReason);
         target.moveTo(x(), y(), z(), yRot(), xRot());
         if (isBaby()) target.setBabyForConversion(true);
         target.setNoAi(isNoAi());

@@ -90,8 +90,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private ConnectionState state = ConnectionState.HANDSHAKE;
     private static final int PROTOCOL_VERSION = 767;                 // 1.21.1
     private static final String VERSION_NAME = "1.21.1";
-    // 패킷 속도 제한(바닐라 rate-limit/Paper packet-limiter 대응): 버스트 400개, 초당 200개 회복. 초과 시 킥.
-    private final TokenBucket packetBucket = new TokenBucket(400, 200);
+    // 패킷 속도 제한(Paper packet-limiter 대응): 단계마다 토큰 버킷(기본 버스트 400개, 초당 200개 회복, ConnectionLimits). 초과 시 킥.
+    // 단계가 바뀔 때 그 단계의 버킷으로 바꾼다. null 이면 이 단계는 제한 없음.
+    private TokenBucket packetBucket;
+    // server.properties rate-limit(바닐라 RateKickingConnection): 초당 평균 수신 패킷 수. 0 이면 없음.
+    private ReceiveRateWatch rateWatch;
+    private io.netty.util.concurrent.ScheduledFuture<?> rateTick;
+    // 지금 단계에 허용된 시간(connection.<단계>.timeout-seconds). 단계가 바뀌면 다시 건다.
+    private io.netty.util.concurrent.ScheduledFuture<?> stateDeadline;
     // 이동 예산: 버스트 400블록, 초당 400블록 회복(합법적 최고 속도 약 100~200블록/초의 2배 이상). 초과 이동은 보정 텔레포트.
     private final TokenBucket moveBucket = new TokenBucket(400, 400);
     private boolean loginSuccessSent;       // Login Start 처리 후에만 Login Acknowledged 수락
@@ -109,7 +115,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private org.domi.furnace.server.net.auth.BungeeForwarding.Forwarded bungeeForwarded;   // BungeeCord 핸드셰이크에서 꺼낸 UUID·속성          // 상태 요청은 연결당 1회(바닐라 ServerStatusPacketListenerImpl)
     private boolean transferred;            // 전송(intent 3)으로 들어온 연결
     private java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
-    private io.netty.util.concurrent.ScheduledFuture<?> slowLoginTimer;
     private boolean knownPacksHandled;      // Known Packs 응답은 연결당 1회(레지스트리 재전송 증폭 방지)
     private boolean finishConfigSent;       // FinishConfiguration을 보낸 뒤에만 PLAY 진입 수락
     // D-14: ack 뒤 PlayerData.load 를 플레이어 데이터 실행기(world.playerIo)에서 읽는 동안 도착한 play 패킷(id, 남은 본문). 이벤트루프 전용.
@@ -163,7 +168,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.ctx = ctx;
         int packetId = Types.readVarInt(frame);
         // 속도 제한은 모든 단계에 건다 — 로그인 전 단계에서 무제한으로 패킷을 처리하지 않게(바닐라 클라는 이 단계에 몇 개만 보낸다)
-        if (!packetBucket.tryAcquire(1)) { kick(ctx, "Too many packets"); return; }
+        if (rateWatch != null) rateWatch.onPacket();
+        if (packetBucket != null && !packetBucket.tryAcquire(1)) {
+            log.warn("{} 패킷 속도 초과({} 단계), 연결 종료", loggableAddress(ctx), state);
+            kick(ctx, "Too many packets");
+            return;
+        }
         if (pendingPlayFrames != null) {   // 플레이어 데이터 읽는 중 — 들어온 순서대로 보관
             pendingPlayFrames.add(new Object[]{packetId, frame.retain()});
             return;
@@ -177,37 +187,123 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case STATUS -> handleStatus(ctx, packetId, frame);
             case LOGIN -> handleLogin(ctx, packetId, frame);
             case CONFIGURATION -> handleConfiguration(ctx, packetId, frame);
-            case PLAY -> handlePlay(ctx, packetId, frame);
+            case PLAY -> dispatchPlay(ctx, packetId, frame, false);
             default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
-        if (state != frameLimitState) applyFrameLimit(ctx);
+        if (state != frameLimitState) applyStateLimits(ctx);
+    }
+
+    /** play 패킷: 플러그인 패킷 리스너(붙어 있으면)를 거친 뒤 처리한다 — 취소면 버리고, 바뀌었으면 바뀐 프레임을 처리한다. */
+    private void dispatchPlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame, boolean fromPlugin) {
+        PacketTap tap = ctx.channel().attr(PacketTap.KEY).get();
+        if (tap == null) {
+            handlePlay(ctx, packetId, frame);
+            return;
+        }
+        ByteBuf r = tap.inbound(packetId, frame, fromPlugin);
+        if (r == null) return;
+        if (r == frame) {
+            handlePlay(ctx, packetId, frame);
+            return;
+        }
+        try {
+            handlePlay(ctx, Types.readVarInt(r), r);
+        } finally {
+            r.release();
+        }
+    }
+
+    /**
+     * 플러그인이 넣은 클라이언트→서버 패킷(PacketService.receive). 이벤트 루프에서 진짜 패킷과 똑같이 처리한다(검사 포함).
+     * frame 은 [VarInt id][본문]이고 이 메서드가 release 한다. play 단계가 아니면 버린다. 처리 중 예외는 연결을 끊지 않고 기록만 한다.
+     */
+    public void injectPlay(ByteBuf frame, boolean silent) {
+        ChannelHandlerContext c = this.ctx;
+        if (c == null) {
+            frame.release();
+            return;
+        }
+        try {
+            c.executor().execute(() -> {
+                try {
+                    if (state != ConnectionState.PLAY || player == null || pendingPlayFrames != null || !c.channel().isActive()) return;
+                    int id = Types.readVarInt(frame);
+                    if (silent) handlePlay(c, id, frame);
+                    else dispatchPlay(c, id, frame, true);
+                } catch (RuntimeException e) {
+                    log.warn("플러그인이 넣은 패킷 처리 실패: {}", e.toString());
+                } finally {
+                    frame.release();
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closed) {
+            frame.release();
+        }
     }
 
     // 단계별 프레임 상한(1.21.1 기준). 핸드셰이크: id(1) + 프로토콜 VarInt(5) + 주소 문자열(255자 → 최대 765B + 길이 3)
-    // + 포트(2) + 다음 단계 VarInt(5) = 781B. 상태: 요청(id 만)·핑(id + long) = 9B. 그 뒤는 바닐라 21비트 프레임(2 MiB).
+    // + 포트(2) + 다음 단계 VarInt(5) = 781B. 상태: 요청(id 만)·핑(id + long) = 9B. 로그인·구성은 바닐라가 받는 가장 큰 패킷,
+    // 플레이는 바닐라 21비트 프레임(2 MiB). 값은 ConnectionLimits(connection.<단계>.max-frame-bytes)에서 바꿀 수 있다.
     static final int HANDSHAKE_FRAME_MAX = 1024;
     // BungeeCord 레거시 포워딩을 켜면 주소 칸이 Short.MAX_VALUE 자(최대 3B/자 + 길이 3)까지 늘어난다: 1 + 5 + 98304 + 2 + 5.
     static final int FORWARDED_HANDSHAKE_FRAME_MAX = 1 + 5 + (3 + Short.MAX_VALUE * 3) + 2 + 5;
     static final int STATUS_FRAME_MAX = 64;
     private ConnectionState frameLimitState;
 
+    /** 기본 설정에서 이 단계가 받는 프레임 최대 길이. */
     static int frameLimit(ConnectionState s) {
-        return switch (s) {
-            case HANDSHAKE -> HANDSHAKE_FRAME_MAX;
-            case STATUS -> STATUS_FRAME_MAX;
-            default -> Integer.MAX_VALUE;   // FrameDecoder 가 2 MiB 로 자른다
-        };
+        return ConnectionLimits.DEFAULT.of(s).maxFrameBytes();
     }
 
-    private void applyFrameLimit(ChannelHandlerContext ctx) {
+    private ConnectionLimits limits() { return login.limits; }
+
+    /** 단계가 바뀔 때마다 부른다: 프레임 상한·패킷 속도 버킷·단계 시간 제한을 새 단계 것으로 바꾼다. */
+    private void applyStateLimits(ChannelHandlerContext ctx) {
         frameLimitState = state;
+        ConnectionLimits.StateLimits sl = limits().of(state);
         org.domi.furnace.server.net.io.FrameDecoder fd = ctx.pipeline().get(org.domi.furnace.server.net.io.FrameDecoder.class);
-        if (fd != null) fd.maxLength(state == ConnectionState.HANDSHAKE && login.bungeecord ? FORWARDED_HANDSHAKE_FRAME_MAX : frameLimit(state));
+        if (fd != null) {
+            int max = sl.maxFrameBytes();
+            if (state == ConnectionState.HANDSHAKE && login.bungeecord) max = Math.max(max, FORWARDED_HANDSHAKE_FRAME_MAX);
+            fd.maxLength(max);
+        }
+        packetBucket = sl.packetsPerSecond() > 0 ? new TokenBucket(sl.packetsBurst(), sl.packetsPerSecond()) : null;
+        if (stateDeadline != null) { stateDeadline.cancel(false); stateDeadline = null; }
+        if (sl.timeoutSeconds() > 0 && ctx.channel().isActive()) {
+            ConnectionState armed = state;
+            stateDeadline = ctx.executor().schedule(() -> {
+                // 이미 끊긴 연결(밴·포워딩 거절 등)에 사유를 한 번 더 찍지 않는다
+                if (!ctx.channel().isActive() || state != armed) return;
+                if (armed == ConnectionState.LOGIN) {
+                    // 바닐라: 로그인 단계 600틱(30초) 안에 끝나지 않으면 끊는다.
+                    disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
+                } else {
+                    log.debug("{} 단계 시간 초과({}초), 연결 종료: {}", armed, sl.timeoutSeconds(), loggableAddress(ctx));
+                    kick(ctx, Text.translatable("disconnect.timeout"));
+                }
+            }, sl.timeoutSeconds(), java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
+
+    private void startRateWatch(ChannelHandlerContext ctx) {
+        int limit = limits().vanillaRateLimit();
+        if (limit <= 0 || rateWatch != null) return;
+        ReceiveRateWatch watch = new ReceiveRateWatch(limit);
+        rateWatch = watch;
+        rateTick = ctx.executor().scheduleAtFixedRate(() -> {
+            if (watch.tickSecond()) {
+                log.warn("Player exceeded rate-limit (sent {} packets per second)", watch.average());
+                rateTick.cancel(false);
+                kick(ctx, Text.translatable("disconnect.exceeded_packet_rate"));
+            }
+        }, 1, 1, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
-        applyFrameLimit(ctx);
+        this.ctx = ctx;
+        applyStateLimits(ctx);
+        startRateWatch(ctx);
     }
 
     private void handleHandshake(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
@@ -259,13 +355,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             disconnect(ctx, Text.text(org.domi.furnace.server.net.auth.BungeeForwarding.UNEXPECTED_FORWARD));
             return;
         }
-        // 바닐라: 로그인 단계 600틱(30초) 안에 끝나지 않으면 끊는다.
-        slowLoginTimer = ctx.executor().schedule(() -> {
-            // 이미 끊긴 연결(밴·포워딩 거절 등)에 "Took too long to log in" 을 한 번 더 찍지 않는다
-            if (ctx.channel().isActive() && state == ConnectionState.LOGIN && loginPhase != LoginPhase.ACCEPTED) {
-                disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
-            }
-        }, 30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private void handleStatus(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
@@ -280,7 +369,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     online.add(new org.domi.furnace.server.players.GameProfile(p.uuid(), p.name()));
                     listing.add(p.allowsListing());
                 }
-                java.net.InetAddress addr = ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
+                java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
                 send(ctx, new StatusResponse(login.statusJson(online, listing, pluginEvents(), addr)));   // 플러그인 ServerListPingEvent
             }
             case 0x01 -> { // Ping Request → Pong 후 종료(바닐라)
@@ -325,7 +414,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x03 -> { // Login Acknowledged
                 if (loginPhase != LoginPhase.PROTOCOL_SWITCHING) { protocolError(ctx, "Unexpected login acknowledgement packet"); return; }
                 loginPhase = LoginPhase.ACCEPTED;
-                if (slowLoginTimer != null) slowLoginTimer.cancel(false);
                 state = ConnectionState.CONFIGURATION;
                 onEnterConfiguration(ctx);
             }
@@ -401,7 +489,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
-        String message = Types.readString(frame, 256);
+        String message = Types.readString(frame, limits().chatLength());
         java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
         long salt = frame.readLong();
         org.domi.furnace.server.chat.MessageSignature signature =
@@ -510,7 +598,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
-        String command = Types.readString(frame, 256);
+        String command = Types.readString(frame, limits().commandLength());
         java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
         long salt = frame.readLong();
         int n = Types.readVarInt(frame);
@@ -621,8 +709,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 실제 클라이언트 주소(Velocity·BungeeCord 포워딩이면 프록시가 알려 준 주소). */
-    private java.net.SocketAddress clientAddress(ChannelHandlerContext ctx) {
-        return forwardedAddress != null ? forwardedAddress : ctx.channel().remoteAddress();
+    java.net.SocketAddress clientAddress(ChannelHandlerContext ctx) {
+        if (forwardedAddress != null) return forwardedAddress;
+        java.net.InetSocketAddress proxied = ProxyProtocolHandler.sourceOf(ctx.channel());   // PROXY 프로토콜 헤더로 받은 실제 주소
+        return proxied != null ? proxied : ctx.channel().remoteAddress();
     }
 
     /** 바닐라 handleKey: 토큰 확인 → 공유 비밀 복호화 → 스트림 암호 켜기 → 세션 서버에 hasJoined(비동기). */
@@ -647,7 +737,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         String name = playerName;
-        java.net.InetAddress ip = login.preventProxyConnections && ctx.channel().remoteAddress() instanceof java.net.InetSocketAddress isa
+        java.net.InetAddress ip = login.preventProxyConnections && clientAddress(ctx) instanceof java.net.InetSocketAddress isa
                 ? isa.getAddress() : null;
         login.sessions.hasJoinedServer(name, serverIdHash, ip).whenComplete((profile, err) -> ctx.executor().execute(() -> {
             if (!ctx.channel().isActive()) return;
@@ -962,6 +1052,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        if (login.core != null) login.core.plugins().packetsImpl().attach(p);   // 플러그인 패킷 리스너 — 첫 play 패킷(login)부터
         p.clientBrand(clientBrand);   // 바닐라 클라이언트는 brand 를 구성 단계에서 보낸다 — Player 가 생기기 전이라 여기서 넘긴다
         p.pluginChannels(pluginChannels);
         p.dimension(world.dimension());
@@ -1340,7 +1431,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
             case 0x03 -> handleChatAck(Types.readVarInt(frame));                    // chat_ack
-            case 0x04 -> handleChatCommand(Types.readString(frame, 256));          // chat_command
+            case 0x04 -> handleChatCommand(Types.readString(frame, limits().commandLength()));          // chat_command
             case 0x05 -> handleSignedChatCommand(frame);                            // chat_command_signed
             case 0x06 -> handleChat(frame);                                         // chat
             case 0x07 -> handleChatSessionUpdate(org.domi.furnace.server.chat.RemoteChatSession.Data.read(frame)); // chat_session_update
@@ -1350,7 +1441,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int count = Types.readVarInt(frame);
                 if (count < 0 || count > 200) throw new org.domi.furnace.server.net.protocol.ProtocolException("Edit book pages out of bounds: " + count);
                 java.util.List<String> pages = new java.util.ArrayList<>(count);
-                for (int i = 0; i < count; i++) pages.add(Types.readString(frame, 8192));
+                int pageMax = limits().bookPageLength() > 0 ? Math.min(8192, limits().bookPageLength()) : 8192;   // limits.item.book-page
+                for (int i = 0; i < count; i++) pages.add(Types.readString(frame, pageMax));
                 String title = frame.readBoolean() ? Types.readString(frame, 128) : null;
                 Player actor = player;
                 if (actor != null) handleEditBook(actor, slot, pages, title);
@@ -2175,6 +2267,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         synchronized (p.menuLock()) {
             ItemStack cur = p.inventory().get(ws);
             ItemStack out;
+            var core = login.core;
+            if (core != null && org.domi.furnace.server.entity.BookEditing.write(cur, java.util.List.of()) != null) {   // 깃펜 책일 때만 플러그인 PlayerEditBookEvent
+                var edit = core.gameEvents().editBook(p, slot, org.domi.furnace.server.entity.BookEditing.pagesOf(cur), pages, title);
+                if (edit == null) return;
+                pages = edit.pages();
+                title = edit.title();
+            }
             try {
                 out = title == null ? org.domi.furnace.server.entity.BookEditing.write(cur, pages)
                         : org.domi.furnace.server.entity.BookEditing.sign(cur, title, pages, p.name());
@@ -2654,6 +2753,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         @Override public ItemStack prepareCraft(org.domi.furnace.server.menu.AbstractContainerMenu menu, String recipe, ItemStack result) {
             var c = login.core;
             return c == null ? result : c.gameEvents().prepareCraft(p, menu, recipe, result);   // 플러그인 PrepareItemCraftEvent
+        }
+
+        @Override public org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] prepareEnchant(org.domi.furnace.server.menu.AbstractContainerMenu menu, int[] table,
+                ItemStack item, int bookshelves, org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] offers) {
+            var c = login.core;
+            return c == null ? offers : c.gameEvents().prepareEnchant(p, menu, table, item, bookshelves, offers);   // 플러그인 PrepareItemEnchantEvent
+        }
+
+        @Override public org.domi.furnace.server.plugin.GameEvents.EnchantApply enchantItem(org.domi.furnace.server.menu.AbstractContainerMenu menu, int[] table,
+                ItemStack item, int button, int cost, java.util.Map<String, Integer> enchants) {
+            var c = login.core;
+            return c == null ? new org.domi.furnace.server.plugin.GameEvents.EnchantApply(cost, enchants) : c.gameEvents().enchantItem(p, menu, table, item, button, cost, enchants);   // 플러그인 EnchantItemEvent
+        }
+
+        @Override public org.domi.furnace.server.plugin.GameEvents.AnvilPrepared prepareAnvil(org.domi.furnace.server.menu.AbstractContainerMenu menu, ItemStack result,
+                int repairCost, String renameText) {
+            var c = login.core;
+            return c == null ? null : c.gameEvents().prepareAnvil(p, menu, result, repairCost, renameText);   // 플러그인 PrepareAnvilEvent
         }
 
         @Override public boolean doLimitedCrafting() {
@@ -3632,6 +3749,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        if (stateDeadline != null) { stateDeadline.cancel(false); stateDeadline = null; }
+        if (rateTick != null) { rateTick.cancel(false); rateTick = null; }
         java.util.ArrayDeque<Object[]> queued = pendingPlayFrames;
         if (queued != null) {   // 저장 데이터 읽는 중에 끊김 — 보관 패킷 해제(finishEnterPlay 는 비활성 채널이라 진입하지 않는다)
             pendingPlayFrames = null;
@@ -3760,7 +3879,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
     void send(ChannelHandlerContext ctx, Packet packet) {
-        ctx.write(org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet));
+        Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet);
+        if (msg == null) return;   // 플러그인 패킷 리스너가 취소
+        ctx.write(msg);
         scheduleFlush(ctx);
     }
 
@@ -3831,6 +3952,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     void state(ConnectionState newState) {
         this.state = newState;
+        ChannelHandlerContext c = this.ctx;
+        if (c != null && newState != frameLimitState) applyStateLimits(c);   // 시험용: 단계 제한도 새 단계 것으로
     }
 
     @Override
@@ -3858,8 +3981,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 아이템 스택(바닐라 ItemStack.OPTIONAL_STREAM_CODEC) — 컴포넌트 패치까지 정확히 읽는다. */
-    private static ItemStack readSlot(ByteBuf frame) {
-        return org.domi.furnace.server.item.ItemStackCodecs.readStack(frame);
+    private ItemStack readSlot(ByteBuf frame) {
+        ItemStack s = org.domi.furnace.server.item.ItemStackCodecs.readStack(frame);
+        ItemValidation.check(s, limits());   // item-validation 상한(기본 꺼짐 = 바닐라)
+        return s;
     }
 
     /** 바닐라처럼 패킷 디코드 실패는 연결을 끊는다(클라이언트 화면: 네트워크 프로토콜 오류). */
