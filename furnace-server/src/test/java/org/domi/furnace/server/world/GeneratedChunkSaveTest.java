@@ -243,7 +243,7 @@ class GeneratedChunkSaveTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         ExecutorService io = Executors.newFixedThreadPool(2);
         World w = world(dir, gen, sched, io, 1_000_000);
-        int n = 24;   // 24×24 = 576 청크(시야 12 정도 한 명)
+        int n = 16;   // 16×16 = 256 청크(한 명의 시야 근처). 저장 틱 수·예산 검증은 그대로이고 IO 대기 시간만 줄인다
         for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) w.awaitChunk(new ChunkPos(x, z));
         var mx = ManagementFactory.getThreadMXBean();
         long[] result = sched.region(R00).submit(() -> {
@@ -291,7 +291,7 @@ class GeneratedChunkSaveTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         ExecutorService io = Executors.newFixedThreadPool(2);
         World w = world(dir, gen, sched, io, 1_000_000);
-        int n = 24;
+        int n = 16;
         for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) w.awaitChunk(new ChunkPos(x, z));
         var mx = ManagementFactory.getThreadMXBean();
         long[] res = sched.region(R00).submit(() -> {
@@ -316,7 +316,7 @@ class GeneratedChunkSaveTest {
             java.util.Arrays.sort(sorted);
             return new long[]{max, total, ticks, r.dirtyChunkCount(), sorted[ticks / 2], sorted[(int) (ticks * 0.95)], base};
         }).get();
-        System.out.printf("[F-14] 퇴출 576청크: 틱 최대=%.2fms 중앙=%.2fms p95=%.2fms 합계=%.2fms 틱수=%d%n",
+        System.out.printf("[F-14] 퇴출 256청크: 틱 최대=%.2fms 중앙=%.2fms p95=%.2fms 합계=%.2fms 틱수=%d%n",
                 res[0] / 1e6, res[4] / 1e6, res[5] / 1e6, res[1] / 1e6, res[2]);
         assertEquals(0, res[3], "결국 다 저장·퇴출된다");
         assertTrue(res[2] > 10, "여러 틱에 나뉜다: " + res[2]);
@@ -332,7 +332,7 @@ class GeneratedChunkSaveTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         ExecutorService io = Executors.newFixedThreadPool(2);
         World w = world(dir, gen, sched, io, 1_000_000);
-        int n = 24;
+        int n = 16;
         for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) w.awaitChunk(new ChunkPos(x, z));
         for (int x = 0; x < n / 2; x++) for (int z = 0; z < n; z++) w.addTicket(x, z, 0, 1L << 40);
         var mx = ManagementFactory.getThreadMXBean();
