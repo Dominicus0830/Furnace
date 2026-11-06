@@ -30,6 +30,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         this.perms = new PermissibleBase(host.permissionsImpl(), this::isOp);
     }
 
+    @Override
+    public void sendPacket(org.domi.furnace.api.packet.ClientboundPacket packet) { host.packets().send(this, packet); }
+
     /** 서버 내부 플레이어. */
     public Player handle() { return p; }
 

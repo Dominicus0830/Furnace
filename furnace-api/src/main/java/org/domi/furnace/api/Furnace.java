@@ -82,6 +82,9 @@ public interface Furnace {
 
     CommandRegistry commands();
 
+    /** 패킷 API — 보내기·가로채기·수정(버전 중립 타입). */
+    org.domi.furnace.api.packet.PacketService packets();
+
     PermissionManager permissions();
 
     PluginManager plugins();

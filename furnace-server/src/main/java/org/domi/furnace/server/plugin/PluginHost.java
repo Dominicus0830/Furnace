@@ -47,6 +47,15 @@ public final class PluginHost implements Furnace {
 
     public PluginManagerImpl pluginsImpl() { return plugins; }
 
+    private final org.domi.furnace.server.plugin.packet.PacketServiceImpl packets = new org.domi.furnace.server.plugin.packet.PacketServiceImpl(this,
+            new org.domi.furnace.server.plugin.packet.Protocol767(() -> core().world().blockRegistry()));
+
+    /** 패킷 API 구현(연결에 가로채기 지점을 붙이는 쪽). */
+    public org.domi.furnace.server.plugin.packet.PacketServiceImpl packetsImpl() { return packets; }
+
+    @Override
+    public org.domi.furnace.api.packet.PacketService packets() { return packets; }
+
     private final PluginGameEvents gameEvents = new PluginGameEvents(this);
     private final java.util.concurrent.ConcurrentHashMap<String, WorldHandle> worldHandles = new java.util.concurrent.ConcurrentHashMap<>();
 
