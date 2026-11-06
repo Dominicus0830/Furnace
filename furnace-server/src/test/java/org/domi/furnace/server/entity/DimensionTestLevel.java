@@ -19,6 +19,10 @@ public class DimensionTestLevel extends ChunkLevel {
     long time;
     Player player;
     long seed;
+    /** 플러그인 이벤트 시험용(기본은 모두 허용). */
+    org.domi.furnace.server.plugin.GameEvents events = org.domi.furnace.server.plugin.GameEvents.NONE;
+    /** 서버 차원 이동 시험용 대역(기본은 없음 = 예전 단일 스레드 경로). */
+    LevelServices.DimensionTravel travel;
     /** 차원 타입(높이·좌표 비). 기본은 오버월드. */
     org.domi.furnace.server.world.DimensionType type = org.domi.furnace.server.world.DimensionType.OVERWORLD;
 
@@ -43,6 +47,8 @@ public class DimensionTestLevel extends ChunkLevel {
         });
     }
 
+    @Override public org.domi.furnace.server.plugin.GameEvents gameEvents() { return events; }
+
     @Override protected void markDirty(int x, int z) {}
 
     @Override protected void broadcastToChunk(int x, int z, Packet p) {}
@@ -55,6 +61,7 @@ public class DimensionTestLevel extends ChunkLevel {
             @Override public long gameTime() { return time; }
             @Override public long seed() { return seed; }
             @Override public ChunkLevel otherLevel(String d) { return others.get(d); }
+            @Override public DimensionTravel dimensionTravel() { return travel; }
             @Override public void forEachPlayer(Consumer<Player> c) { if (player != null) c.accept(player); }
         };
     }

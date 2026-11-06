@@ -22,6 +22,8 @@ import org.domi.furnace.api.event.entity.EntitySpawnEvent;
 import org.domi.furnace.api.event.entity.ProjectileLaunchEvent;
 import org.domi.furnace.api.event.inventory.InventoryClickEvent;
 import org.domi.furnace.api.event.player.PlayerDropItemEvent;
+import org.domi.furnace.api.event.player.PlayerEditBookEvent;
+import org.domi.furnace.api.event.player.PlayerFishEvent;
 import org.domi.furnace.api.event.player.PlayerInteractEntityEvent;
 import org.domi.furnace.api.event.player.PlayerInteractEvent;
 import org.domi.furnace.api.event.player.PlayerItemConsumeEvent;
@@ -434,6 +436,45 @@ class CancelResyncE2ETest {
         useItem(0, 4);
         until(() -> !log.isEmpty(), "낚시찌 스폰 이벤트");
         assertNull(p.fishing, "취소된 낚시찌가 플레이어에게 남으면 다음 우클릭이 회수로 간다");
+    }
+
+    @Test
+    void fishCastCancelThrowsNoHookAndLeavesRodAlone() throws Exception {
+        give(HOT0, "minecraft:fishing_rod", 1);
+        ItemStack before = p.inventory().get(HOT0);
+        boolean[] cancel = {true};
+        List<String> log = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(PlayerFishEvent.class, e -> { log.add(e.state().name()); e.setCancelled(cancel[0]); });
+        useItem(0, 4);
+        until(() -> !log.isEmpty(), "낚시 이벤트");
+        tick(3);
+        assertEquals(List.of("FISHING"), log);
+        assertNull(p.fishing, "취소하면 낚시찌가 연결되지 않는다");
+        assertEquals(0, (int) at(r -> r.level().getEntities(null, new org.domi.furnace.server.entity.AABB(p.x() - 8, p.y() - 8, p.z() - 8, p.x() + 8, p.y() + 8, p.z() + 8),
+                e -> e instanceof org.domi.furnace.server.entity.FishingHook).size()), "낚시찌 엔티티가 생기지 않는다");
+        assertTrue(before.sameItemSameComponents(p.inventory().get(HOT0)), "낚싯대는 그대로");
+        cancel[0] = false;   // 대조: 허용하면 던져진다
+        useItem(0, 5);
+        until(() -> p.fishing != null, "허용하면 낚시찌가 연결된다");
+    }
+
+    // ------------------------------------------------------------------ 책 편집
+
+    @Test
+    void editBookCancelLeavesBookAlone() throws Exception {
+        give(HOT0, "minecraft:writable_book", 1);
+        ItemStack before = p.inventory().get(HOT0);
+        boolean[] cancel = {true};
+        List<String> log = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(PlayerEditBookEvent.class, e -> { log.add(e.pages().toString()); e.setCancelled(cancel[0]); });
+        Runnable edit = () -> send(frame(0x14, b -> { Types.writeVarInt(b, 0); Types.writeVarInt(b, 1); Types.writeString(b, "hello"); b.writeBoolean(false); }));
+        edit.run();
+        until(() -> !log.isEmpty(), "책 편집 이벤트");
+        tick(3);
+        assertTrue(before.sameItemSameComponents(p.inventory().get(HOT0)), "취소하면 책 내용이 그대로");
+        cancel[0] = false;   // 대조: 허용하면 저장된다
+        edit.run();
+        until(() -> !before.sameItemSameComponents(p.inventory().get(HOT0)), "허용하면 책이 바뀐다");
     }
 
     // ------------------------------------------------------------------ 버리기

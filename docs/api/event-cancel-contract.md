@@ -79,6 +79,21 @@
 | `PlayerKickEvent` | `SERVER_DRIVEN` | - | 연결 |
 | `AsyncChatEvent` | `SERVER_DRIVEN` | - | 채팅 방송(스팸 감시는 그대로 센다) |
 | `PlayerCommandPreprocessEvent` | `SERVER_DRIVEN` | - | 명령 실행 |
+| `BlockFadeEvent` | `SERVER_DRIVEN` | - | 사라지려던 블록(산호·얼음·불 등) |
+| `BlockFormEvent` | `SERVER_DRIVEN` | - | 생기려던 블록(흑요석·눈·번지는 버섯 — `BlockSpreadEvent` 포함) |
+| `BrewEvent` | `SERVER_DRIVEN` | - | 병, 재료 |
+| `BrewingStandFuelEvent` | `SERVER_DRIVEN` | - | 블레이즈 가루, 연료 |
+| `PrepareItemEnchantEvent` | `SERVER_DRIVEN` | - | 제안 세 칸이 모두 비고, 재료는 그대로 |
+| `EnchantItemEvent` | `SERVER_DRIVEN` | - | 아이템, 청금석, 경험 레벨, 마법 부여 시드 |
+| `EntityMountEvent` | `SERVER_DRIVEN` | - | 타는 상태(탈 수 없다) |
+| `EntityDismountEvent` | `SERVER_DRIVEN` | - | 타는 상태(자발적 하차만 취소 가능, 죽음·강제 하차는 취소할 수 없다) |
+| `VehicleEnterEvent` | `SERVER_DRIVEN` | - | 타는 상태 |
+| `VehicleExitEvent` | `SERVER_DRIVEN` | - | 타는 상태 |
+| `EntityPortalEvent` | `SERVER_DRIVEN` | - | 엔티티 위치·차원 |
+| `PlayerPortalEvent` | `SERVER_DRIVEN` | - | 플레이어 위치·차원(리스폰 패킷이 나가지 않는다) |
+| `PortalCreateEvent` | `SERVER_DRIVEN` | - | 지옥문 틀 안이 비어 있다 |
+| `PlayerEditBookEvent` | `SERVER_DRIVEN` | - | 책 내용·서명 |
+| `PlayerFishEvent` | `SERVER_DRIVEN` | - | 낚시찌 연결·낚싯대 내구도 |
 | `ServerCommandEvent` | `SERVER_DRIVEN` | - | 콘솔 명령 실행 |
 
 ## 5. 알려진 한계

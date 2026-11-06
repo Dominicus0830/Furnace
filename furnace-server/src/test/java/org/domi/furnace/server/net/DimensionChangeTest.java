@@ -189,6 +189,44 @@ class DimensionChangeTest {
         assertTrue(Files.exists(tmp.resolve("DIM-1").resolve("region").resolve("r.0.0.mca")), "네더 청크는 DIM-1/region 에");
     }
 
+    /** 이벤트 취소 계약: PlayerPortalEvent 를 취소하면 넘어가지 않는다 — 플레이어는 오버월드에 남고 리스폰 패킷도 나가지 않는다(서버 시작 변화라 되돌릴 화면이 없다). */
+    @Test
+    void playerPortalCancelKeepsPlayerInOverworld() throws Exception {
+        start(new SpawnPoint(16, -60, 0, 0f));
+        Player p = (Player) field("player");
+        var asked = new java.util.concurrent.atomic.AtomicInteger();
+        over.levelServices(new org.domi.furnace.server.block.LevelServices.Delegating(over.levelServices()) {
+            @Override public org.domi.furnace.server.plugin.GameEvents gameEvents() {
+                return new org.domi.furnace.server.plugin.GameEvents() {
+                    @Override public boolean playerPortal(Player pl, String toDimension, int cause) {
+                        asked.incrementAndGet();
+                        assertEquals("minecraft:the_nether", toDimension);
+                        return false;
+                    }
+                };
+            }
+        });
+        over.submitAtChunk(new ChunkPos(1, 0), r -> {
+            r.level().setBlock(new Pos(16, -60, 0), portalX(), 18);
+            r.level().setBlock(new Pos(16, -59, 0), portalX(), 18);
+            return null;
+        }).get();
+        drain();
+        over.startTicking();
+        nether.startTicking();
+        List<Integer> out = new ArrayList<>();
+        long deadline = System.nanoTime() + 20_000_000_000L;
+        while (asked.get() == 0) {
+            out.addAll(drain());
+            assertTrue(System.nanoTime() < deadline, "PlayerPortalEvent 가 불리지 않음");
+            Thread.sleep(10);
+        }
+        for (int i = 0; i < 20; i++) { Thread.sleep(25); out.addAll(drain()); }   // 취소 뒤에도 넘어가지 않는지 한참 본다
+        assertFalse(out.contains(Respawn.ID), "리스폰 패킷이 나갔다: " + hex(out));
+        assertEquals("minecraft:overworld", p.dimension());
+        assertSame(over, field("world"));
+    }
+
     private static int indexFrom(List<Integer> l, int id, int from) {
         for (int i = from; i < l.size(); i++) if (l.get(i) == id) return i;
         return -1;

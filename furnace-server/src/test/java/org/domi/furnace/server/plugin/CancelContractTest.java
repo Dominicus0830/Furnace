@@ -35,6 +35,8 @@ class CancelContractTest {
     private static final String BLOCKS = "plugin.PluginApiBlockEventsTest#";
     private static final String STAGE3 = "plugin.PluginApiStage3Test#";
     private static final String WORLD = "plugin.EntityWorldApiTest#";
+    private static final String FORM = "plugin.PluginApiFormEventsTest#";
+    private static final String ENCHANT = "menu.EnchantmentMenuTest#";
 
     /** 이벤트 클래스 단순 이름 → 종류와 이를 증명하는 시험("패키지.클래스#메서드", org.domi.furnace.server 기준). */
     static final Map<String, Entry> TABLE = new TreeMap<>();
@@ -87,6 +89,22 @@ class CancelContractTest {
         TABLE.put("PlayerKickEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "kickEventChangesReasonOrCancels"));
         TABLE.put("AsyncChatEvent", new Entry(Kind.SERVER_DRIVEN, E2E + "chatCancelBroadcastsNothing"));
         TABLE.put("PlayerCommandPreprocessEvent", new Entry(Kind.SERVER_DRIVEN, E2E + "commandPreprocessCancelRunsNothing"));
+        // --- 3단계 셋째 묶음(블록 형성·탈것·양조·마법 부여·포털·책·낚시) — 모두 서버가 시작하거나 서버 답을 기다리는 변화
+        TABLE.put("BlockFadeEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "coralBlockFadeCancelKeepsLiveCoral"));
+        TABLE.put("BlockFormEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "lavaMeetingWaterFormsObsidianUnlessCancelled", FORM + "mushroomSpreadEventHasSourceAndCancelBlocksIt"));
+        TABLE.put("BrewEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "brewingFuelAndBrewEventsCanBeCancelledOrTuned"));
+        TABLE.put("BrewingStandFuelEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "brewingFuelCancelKeepsBlazePowderAndFuel"));
+        TABLE.put("PrepareItemEnchantEvent", new Entry(Kind.SERVER_DRIVEN, ENCHANT + "prepareEnchantCancelOffersNothing"));
+        TABLE.put("EnchantItemEvent", new Entry(Kind.SERVER_DRIVEN, ENCHANT + "enchantItemCancelKeepsItemLapisLevelsAndSeed"));
+        TABLE.put("EntityMountEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "entityMountAndDismountCancelKeepRidingState"));
+        TABLE.put("EntityDismountEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "entityMountAndDismountCancelKeepRidingState"));
+        TABLE.put("VehicleEnterEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "vehicleAndMountEventsFireInOrderAndCancelStopsRiding"));
+        TABLE.put("VehicleExitEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "vehicleAndMountEventsFireInOrderAndCancelStopsRiding"));
+        TABLE.put("EntityPortalEvent", new Entry(Kind.SERVER_DRIVEN, "entity.PortalCancelTest#entityPortalCancelStopsTheTravel"));
+        TABLE.put("PlayerPortalEvent", new Entry(Kind.SERVER_DRIVEN, "net.DimensionChangeTest#playerPortalCancelKeepsPlayerInOverworld"));
+        TABLE.put("PortalCreateEvent", new Entry(Kind.SERVER_DRIVEN, "entity.PortalCancelTest#portalCreateCancelLeavesTheFrameEmpty"));
+        TABLE.put("PlayerEditBookEvent", new Entry(Kind.SERVER_DRIVEN, E2E + "editBookCancelLeavesBookAlone"));
+        TABLE.put("PlayerFishEvent", new Entry(Kind.SERVER_DRIVEN, E2E + "fishCastCancelThrowsNoHookAndLeavesRodAlone"));
         // --- 서버
         TABLE.put("ServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginSystemTest#eventBusOrdersByPriorityAndHonorsCancellation"));
     }
