@@ -22,7 +22,7 @@ public class CoralBlock extends BlockBehavior {
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        if (!scanForWater(level, pos)) level.setBlock(pos, B.defaultState(dead), 2);
+        if (!scanForWater(level, pos) && B.fade(level, pos, B.defaultState(dead))) level.setBlock(pos, B.defaultState(dead), 2);   // 플러그인 BlockFadeEvent
     }
 
     @Override

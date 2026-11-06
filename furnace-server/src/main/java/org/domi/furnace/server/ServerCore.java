@@ -177,6 +177,17 @@ public final class ServerCore {
             return id >= 0 && id < names.size() ? names.get(id) : null;
         }
 
+        /** NaturalSpawner.getRoughBiome: 확대 지터 없이 ChunkAccess.getNoiseBiome(x>>2, y>>2, z>>2) — 지금 스레드가 그 region 을 가진 경우에만. */
+        public String roughBiomeAt(int x, int y, int z) {
+            var dp = dataPacks;
+            if (dp == null || dp.loot() == null) return null;
+            int cx = x >> 4, cz = z >> 4;
+            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
+            int id = world.regionizer().ownerOf(cx, cz).noiseBiomeIdAtBlock(x, y, z);
+            var names = dp.loot().registries().entries("minecraft:worldgen/biome");
+            return id >= 0 && id < names.size() ? names.get(id) : null;
+        }
+
         /** 그 칸 청크를 지금 스레드가 가진 region 에서만 읽는다(아니면 null — 위치 조건은 거짓). */
         public org.domi.furnace.server.loot.LootBlockState blockAt(int x, int y, int z) {
             int cx = x >> 4, cz = z >> 4;

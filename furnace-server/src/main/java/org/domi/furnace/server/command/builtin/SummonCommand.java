@@ -93,7 +93,7 @@ public final class SummonCommand {
                 // 바닐라 finalizeSpawn(level, difficulty, COMMAND, null): 무리 데이터 경로라야 말 능력치·아기 판정까지 돈다
                 mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
             }
-            if (!level.addFreshEntityWithPassengers(e)) throw ERROR_DUPLICATE_UUID.create();
+            if (!level.addFreshEntityWithPassengers(e.spawnReason("COMMAND"))) throw ERROR_DUPLICATE_UUID.create();
             return e;
         });
     }

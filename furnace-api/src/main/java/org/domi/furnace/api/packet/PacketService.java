@@ -1,0 +1,62 @@
+// 패킷 API 입구 — Furnace.server().packets(). 보내기·받은 것처럼 넣기·가로채기(관찰·수정·취소)를 버전 중립 타입으로 한다.
+//
+// 스레드: 모든 메서드는 어느 스레드에서 불러도 된다. 리스너는 그 플레이어 연결의 네트워크 스레드에서, 패킷 순서대로 불린다
+// (한 플레이어의 패킷은 늘 같은 스레드라 리스너 안에서 그 플레이어 상태를 잠금 없이 다뤄도 순서가 섞이지 않는다).
+// 범위: play 단계 패킷만 다룬다(로그인·구성 단계는 아니다). 구독자가 없는 종류는 서버가 아무 비용도 쓰지 않는다.
+//
+// 예)
+//   packets.listen(this, PacketTypes.Serverbound.INTERACT, e -> {
+//       if (e.packet().entityId() == npcId) { e.setCancelled(true); onNpcClick(e.player()); }
+//   });
+//   player.sendPacket(new ClientboundBlockUpdatePacket(pos, BlockData.of("minecraft:diamond_block")));
+package org.domi.furnace.api.packet;
+
+import java.util.Collection;
+import org.domi.furnace.api.entity.Player;
+import org.domi.furnace.api.event.EventPriority;
+import org.domi.furnace.api.event.EventSubscription;
+import org.domi.furnace.api.plugin.FurnacePlugin;
+
+public interface PacketService {
+
+    /** NORMAL 우선순위로 그 종류를 가로챈다. 플러그인이 꺼지면 자동으로 풀린다. */
+    default <P extends Packet> EventSubscription listen(FurnacePlugin owner, PacketType<P> type, PacketListener<P> listener) {
+        return listen(owner, type, EventPriority.NORMAL, listener);
+    }
+
+    /** 우선순위를 정해 가로챈다(LOWEST 먼저, MONITOR 마지막 — MONITOR 는 관찰만). */
+    <P extends Packet> EventSubscription listen(FurnacePlugin owner, PacketType<P> type, EventPriority priority, PacketListener<P> listener);
+
+    /** 여러 종류를 한 리스너로. setPacket 은 원래 종류와 같은 값만 받는다. */
+    EventSubscription listen(FurnacePlugin owner, EventPriority priority, PacketListener<Packet> listener, PacketType<?>... types);
+
+    /** 이 플레이어에게 보낸다. 다른 플러그인의 리스너도 이 패킷을 본다(isPluginPacket = true). 접속이 끊겼으면 아무 일도 없다. */
+    void send(Player player, ClientboundPacket packet);
+
+    /** 리스너를 거치지 않고 보낸다. */
+    void sendSilently(Player player, ClientboundPacket packet);
+
+    /** 접속한 모든 플레이어에게 보낸다(바이트는 한 번만 만든다). */
+    void broadcast(ClientboundPacket packet);
+
+    /**
+     * 그 플레이어의 클라이언트가 보낸 것처럼 서버에 넣는다(리스너를 거친다). 서버는 진짜 패킷과 똑같이 검사하고 처리한다.
+     * 그 연결의 네트워크 스레드에서 차례대로 처리된다.
+     */
+    void receive(Player player, ServerboundPacket packet);
+
+    /** 리스너를 거치지 않고 넣는다. */
+    void receiveSilently(Player player, ServerboundPacket packet);
+
+    /** 실행 중인 서버 버전에 이 패킷이 있는가(PacketTypes 는 여러 버전을 합친 목록이다). */
+    boolean isSupported(PacketType<?> type);
+
+    /** 이 서버 버전에서 다루는 모든 종류. */
+    Collection<PacketType<?>> supportedTypes(PacketDirection direction);
+
+    /** 서버 엔티티와 겹치지 않는 새 엔티티 번호 — 가상 엔티티(ClientboundAddEntityPacket)에 쓴다. */
+    int nextEntityId();
+
+    /** 클라이언트 프로토콜 번호(1.21.1 = 767). 버전별 분기가 꼭 필요할 때만 쓴다. */
+    int protocolVersion();
+}

@@ -192,9 +192,13 @@ public abstract class BlockEntity {
         org.domi.furnace.server.net.io.nbt.NbtTags.merge(saved, data);
         if (org.domi.furnace.server.net.io.nbt.NbtTags.equal(saved, before)) return false;
         load(saved);
+        afterLoad(level);
         setChanged(level);
         return true;
     }
+
+    /** 레벨에 놓인 뒤 NBT 를 읽은 경우의 후처리(바닐라 loadAdditional 안의 level != null 분기 — 구조물 블록의 블록 상태 맞추기). */
+    protected void afterLoad(BlockLevel level) {}
 
     /** BlockEntityType.isValid(state): 이 종류가 그 블록 상태에 붙을 수 있는가. */
     public boolean isValid(int state) { return true; }
