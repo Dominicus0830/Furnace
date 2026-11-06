@@ -13,6 +13,9 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.DimensionTransition;
 import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.entity.Mob;
+import org.domi.furnace.server.entity.spawn.SpawnPlacements;
+import org.domi.furnace.server.entity.spawn.SpawnReason;
 import org.domi.furnace.server.entity.Portal;
 import org.domi.furnace.server.entity.PortalTravel;
 import org.domi.furnace.server.entity.Traveler;
@@ -30,7 +33,14 @@ public class NetherPortalBlock extends BlockBehavior implements Portal {
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
         if ("minecraft:overworld".equals(level.dimension()) && level.gameRule("doMobSpawning")
                 && random.nextInt(2000) < level.difficulty()) {
-            // TODO(엔티티): 지옥문 맨 아래까지 내려가 그 위에 좀비 피글린 생성(isValidSpawn), 포탈 쿨다운 설정
+            // 바닐라: 지옥문 맨 아래 칸(지옥문이 아닌 첫 칸)이 스폰 가능한 바닥이면 그 위에 STRUCTURE 로 좀비 피글린을 낳고 포털 쿨다운을 건다.
+            Pos p = pos;
+            while (B.is(level.getBlockState(p), block)) p = p.below();
+            if (level instanceof ChunkLevel cl
+                    && SpawnPlacements.isValidSpawn(level.getBlockState(p), cl, p, "minecraft:zombified_piglin")) {
+                Mob mob = cl.spawnMob("minecraft:zombified_piglin", p.above(), false, false, SpawnReason.STRUCTURE);
+                if (mob != null) mob.setPortalCooldown();
+            }
         }
     }
 
