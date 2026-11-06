@@ -131,7 +131,7 @@ public class Zombie extends Monster {
                     if (!hasNearbyAlivePlayer(x, y, z, 7.0) && zombie.checkSpawnObstruction(level) && level.noCollision(zombie.boundingBox())) {
                         zombie.setTarget(target);
                         zombie.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(zombie.blockPosition()));
-                        level.addFreshEntityWithPassengers(zombie);
+                        level.addFreshEntityWithPassengers(zombie.spawnReason("REINFORCEMENTS"));
                         var chance = attributes().get(Attribute.SPAWN_REINFORCEMENTS);
                         var caller = chance.getModifier("minecraft:reinforcement_caller_charge");
                         double charge = caller != null ? caller.amount() : 0.0;
@@ -192,7 +192,7 @@ public class Zombie extends Monster {
             zv.setNoAi(v.isNoAi());
             zv.persistenceRequired = true;
             v.discard();
-            level.addFreshEntity(zv);
+            level.addFreshEntity(zv.spawnReason("INFECTION"));
             if (!isSilent()) level.levelEvent(null, 1026, blockPosition(), 0);
             ok = false;
         }
@@ -245,7 +245,7 @@ public class Zombie extends Monster {
 
     protected void convertToZombieType(Zombie target) {
         if (target == null) return;
-        Zombie z = convertTo(target, true);
+        Zombie z = convertTo(target, true, "DROWNED");
         if (z != null) {
             z.handleAttributes(z.level.getCurrentDifficultyAt(z.blockPosition()).specialMultiplier());
             z.setCanBreakDoors(z.supportsBreakDoorGoal() && canBreakDoors());
@@ -324,7 +324,7 @@ public class Zombie extends Monster {
                     c.finalizeSpawnGroup(r, difficulty, null);
                     c.setChickenJockey(true);
                     startRiding(c);
-                    level.addFreshEntity(c);
+                    level.addFreshEntity(c.spawnReason("JOCKEY"));
                 }
             }
         }

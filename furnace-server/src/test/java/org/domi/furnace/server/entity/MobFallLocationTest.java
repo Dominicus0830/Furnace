@@ -89,6 +89,12 @@ class MobFallLocationTest {
 
     private static int with(int s, String prop, String value) { return B.prop(prop).with(s, value); }
 
+    private static void rehome(Entity e) {
+        double x = e.x(), y = e.y(), z = e.z();
+        e.moveTo(x, y + 1, z, 0, 0);
+        e.moveTo(x, y, z, 0, 0);
+    }
+
     /** LivingEntity.trapdoorUsableAsLadder: 열린 다락문 바로 아래가 같은 방향 사다리면 몹도 매달린다. */
     @Test
     void openTrapdoorAboveLadderIsClimbable() {
@@ -105,9 +111,12 @@ class MobFallLocationTest {
         assertEquals(trap, wolf.lastClimbablePos());
         assertEquals("ladder", wolf.currentFallLocation());
 
+        // 바닐라처럼 발 칸 블록(getInBlockState)은 틱 시작·칸 이동 때 다시 읽는다 — 블록을 바꾼 뒤 한 칸 옮겼다 돌아와 캐시를 비운다
         level.setBlock(trap, with(open, "open", "false"), 2);
+        rehome(wolf);
         assertFalse(wolf.onClimbable(), "닫힌 다락문");
         level.setBlock(trap, with(open, "facing", "south"), 2);
+        rehome(wolf);
         assertFalse(wolf.onClimbable(), "방향이 다름");
         level.setBlock(trap, open, 2);
         level.setBlock(new Pos(5, -49, 5), state("minecraft:stone"), 2);

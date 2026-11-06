@@ -25,6 +25,7 @@ public class EnchantmentMenu extends AbstractContainerMenu {
     public final int[] costs = new int[3];
     public final int[] enchantClue = {-1, -1, -1};
     public final int[] levelClue = {-1, -1, -1};
+    private final String[] clueName = new String[3];
 
     public EnchantmentMenu(int containerId, Container playerInventory, MenuPlayer owner, int[] blockPos, BlockAccess access) {
         super("minecraft:enchantment", containerId);
@@ -94,6 +95,7 @@ public class EnchantmentMenu extends AbstractContainerMenu {
                 costs[i] = getEnchantmentCost(random, i, power, item);
                 enchantClue[i] = -1;
                 levelClue[i] = -1;
+                clueName[i] = null;
                 if (costs[i] < i + 1) costs[i] = 0;
             }
             for (int i = 0; i < 3; i++) {
@@ -104,13 +106,45 @@ public class EnchantmentMenu extends AbstractContainerMenu {
                         Integer id = ItemContext.id("minecraft:enchantment", pick.id());
                         enchantClue[i] = id == null ? -1 : id;
                         levelClue[i] = pick.level();
+                        clueName[i] = pick.id();
                     }
                 }
             }
+            if (!applyPlugin(item)) return;
             broadcastChanges();
         } else {
             for (int i = 0; i < 3; i++) { costs[i] = 0; enchantClue[i] = -1; levelClue[i] = -1; }
         }
+    }
+
+    /** 플러그인 PrepareItemEnchantEvent(CraftBukkit 처럼 단서가 있는 칸만 제안): 취소면 세 칸을 비우고 false. */
+    private boolean applyPlugin(ItemStack item) {
+        var offers = new org.domi.furnace.server.plugin.GameEvents.EnchantOffer[3];
+        for (int i = 0; i < 3; i++) {
+            if (clueName[i] != null) offers[i] = new org.domi.furnace.server.plugin.GameEvents.EnchantOffer(clueName[i], levelClue[i], costs[i]);
+        }
+        var now = owner.prepareEnchant(this, blockPos, item, access.enchantingPower(), offers);
+        if (now == offers) {
+            // 구독자가 없다: 예전 동작 그대로(단서 없는 칸의 비용도 남는다)
+            return true;
+        }
+        for (int i = 0; i < 3; i++) {
+            var o = now == null ? null : now[i];
+            if (o == null) {
+                costs[i] = 0;
+                enchantClue[i] = -1;
+                levelClue[i] = -1;
+                clueName[i] = null;
+            } else {
+                costs[i] = o.cost();
+                clueName[i] = o.enchantment();
+                Integer id = o.enchantment() == null ? null : ItemContext.id("minecraft:enchantment", o.enchantment());
+                enchantClue[i] = id == null ? -1 : id;
+                levelClue[i] = id == null ? -1 : o.level();
+            }
+        }
+        if (now == null) broadcastChanges();
+        return now != null;
     }
 
     @Override
@@ -122,15 +156,19 @@ public class EnchantmentMenu extends AbstractContainerMenu {
         if (costs[id] <= 0 || item.isEmpty() || (player.experienceLevel() < cost || player.experienceLevel() < costs[id]) && !player.isCreative()) return false;
         List<Enchantments.TableEnchant> list = getEnchantmentList(item, id, costs[id]);
         if (!list.isEmpty()) {
+            var chosen = new java.util.LinkedHashMap<String, Integer>();
+            for (var e : list) chosen.merge(e.id(), e.level(), Math::max);
+            var apply = player.enchantItem(this, blockPos, item, id, costs[id], chosen);   // 플러그인 EnchantItemEvent
+            if (apply == null || apply.enchants().isEmpty() || apply.expLevelCost() > player.experienceLevel() && !player.isCreative()) return true;
             player.onEnchantmentPerformed(cost);
             ItemStack target = item;
             if ("minecraft:book".equals(ItemTools.itemName(item))) {
                 Integer eb = ItemContext.id("minecraft:item", "minecraft:enchanted_book");
                 if (eb != null) target = new ItemStack(eb, item.count(), item.patch().normalizedFor("minecraft:enchanted_book"));
             }
-            for (var e : list) {
+            for (var e : apply.enchants().entrySet()) {
                 final var en = e;
-                target = EnchantTools.update(target, m -> m.merge(en.id(), en.level(), Math::max));
+                target = EnchantTools.update(target, m -> m.merge(en.getKey(), en.getValue(), Math::max));
             }
             enchantSlots.set(0, target);
             player.awardStat("minecraft:enchant_item", 1);

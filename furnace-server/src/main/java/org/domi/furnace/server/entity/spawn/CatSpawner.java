@@ -64,7 +64,7 @@ public final class CatSpawner {
         if (!(Entities.create(level, CAT) instanceof Cat cat)) return 0;
         cat.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(pos), null);
         cat.moveTo(pos.x() + 0.5, pos.y(), pos.z() + 0.5, 0.0F, 0.0F);   // moveTo(BlockPos): 칸 아래 가운데
-        level.addFreshEntityWithPassengers(cat);
+        level.addFreshEntityWithPassengers(cat.spawnReason("NATURAL"));
         return 1;
     }
 }

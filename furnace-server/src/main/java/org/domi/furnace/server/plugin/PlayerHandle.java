@@ -30,6 +30,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         this.perms = new PermissibleBase(host.permissionsImpl(), this::isOp);
     }
 
+    @Override
+    public void sendPacket(org.domi.furnace.api.packet.ClientboundPacket packet) { host.packets().send(this, packet); }
+
     /** 서버 내부 플레이어. */
     public Player handle() { return p; }
 
@@ -224,6 +227,25 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
             }
         });
         return f;
+    }
+
+    /** /data get entity 와 같은 경로 — 플레이어 NBT 스냅샷은 인벤토리 잠금 아래에서 떠서 아무 스레드에서 바로 읽는다(바닐라 /data 와 같다). */
+    @Override
+    public java.util.concurrent.CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> readNbt() {
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("접속이 끊긴 플레이어: " + p.name())));
+        try {
+            return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(
+                    ApiNbt.toApi(org.domi.furnace.server.command.builtin.DataCommands.entityData(p))));
+        } catch (Throwable t) {
+            return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(t));
+        }
+    }
+
+    /** 바닐라 /data 처럼 플레이어 NBT 는 쓸 수 없다. */
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> editNbt(java.util.function.Consumer<org.domi.furnace.api.nbt.NbtCompound> edit) {
+        return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(
+                new UnsupportedOperationException("플레이어 NBT 는 쓸 수 없다(바닐라 /data 와 같다) — Player API 나 Internals 를 쓴다")));
     }
 
     private PlayerInventoryHandle inventory;

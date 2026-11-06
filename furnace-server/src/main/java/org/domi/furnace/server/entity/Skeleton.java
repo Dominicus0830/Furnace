@@ -47,7 +47,7 @@ public class Skeleton extends AbstractSkeleton {
     }
 
     private void doFreezeConversion() {
-        Stray stray = convertTo(new Stray(level, level.nextEntityId()), true);
+        Stray stray = convertTo(new Stray(level, level.nextEntityId()), true, "FROZEN");
         if (stray != null && !isSilent()) level.levelEvent(null, 1048, blockPosition(), 0);
     }
 

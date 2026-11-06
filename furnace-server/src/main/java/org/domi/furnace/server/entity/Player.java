@@ -324,6 +324,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public boolean startRiding(Entity v, boolean force) { return Entity.mount(this, v, force); }
 
+    private boolean dismountForced;
+
+    @Override public boolean dismountForced() { return dismountForced; }
+
+    @Override public void setDismountForced(boolean forced) { dismountForced = forced; }
+
     /** ServerPlayer.stopRiding → LivingEntity.dismountVehicle → ServerPlayer.dismountTo(연결이 순간이동시킨다). */
     @Override
     public void stopRiding() {
@@ -353,7 +359,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      */
     public void tickRiding() {
         if (vehicle != null && ridingGeneration != spawnGeneration) detachFromVehicle();
-        if (vehicle != null && vehicle.isRemoved()) stopRiding();
+        if (vehicle != null && vehicle.isRemoved()) Entity.stopRidingForced(this);
         if (boardingCooldown > 0) boardingCooldown--;
         Entity root = Entity.rootVehicleOf(this);
         if (root != null && root.getControllingPassenger() == this) {
@@ -449,6 +455,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public void clientViewDistance(int vd) { this.clientViewDistance = vd; }
 
+    /** 이 플레이어의 네트워크 채널. */
+    public Channel channel() { return channel; }
+
     /** 패킷을 이 플레이어 채널로 전송(IO eventLoop 마샬). region 스레드서 호출 안전. */
     public void send(Packet packet) { send(packet, () -> true); }
 
@@ -456,7 +465,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void send(Packet packet, java.util.function.BooleanSupplier current) {
         channel.eventLoop().execute(() -> {
             if (!current.getAsBoolean()) return;
-            channel.write(org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, packet));
+            Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, packet);
+            if (msg == null) return;   // 플러그인 패킷 리스너가 취소
+            channel.write(msg);
             // 보낼 때마다 flush(시스템 호출) 하지 않고, 같은 순간에 쌓인 패킷은 한 번에 내보낸다(플래그는 이벤트 루프 스레드에서만 만진다).
             if (!flushPending) {
                 flushPending = true;

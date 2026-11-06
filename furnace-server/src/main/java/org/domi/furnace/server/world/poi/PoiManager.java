@@ -209,29 +209,52 @@ public final class PoiManager {
     /** sectionsToVillage: 마을 POI 가 있는 가장 가까운 섹션까지 체비셰프 섹션 거리, 6 넘으면 7. */
     public int sectionsToVillage(int sx, int sy, int sz) { return sectionsToVillage(sx, sy, sz, MAX_VILLAGE_DISTANCE); }
 
+    // sectionsToVillage 의 열 조회 재사용(한 호출 안에서 d 마다 같은 열을 다시 찾지 않게). 레벨 주인 스레드만 부른다.
+    private PoiChunk[] colScratch = new PoiChunk[0];
+    private int[] colStamp = new int[0];
+    private int colGen;
+
     private int sectionsToVillage(int sx, int sy, int sz, int limit) {
+        int w = 2 * limit + 1;
+        if (colScratch.length < w * w) {
+            colScratch = new PoiChunk[w * w];
+            colStamp = new int[w * w];
+        }
+        if (++colGen == 0) {
+            java.util.Arrays.fill(colStamp, 0);
+            colGen = 1;
+        }
+        int found = MAX_VILLAGE_DISTANCE + 1;
+        search:
         for (int d = 0; d <= limit; d++) {
             for (int x = sx - d; x <= sx + d; x++) {
                 for (int z = sz - d; z <= sz + d; z++) {
-                    PoiChunk c = columns.poi(x, z);
+                    int i = (x - sx + limit) * w + (z - sz + limit);
+                    if (colStamp[i] != colGen) {
+                        colStamp[i] = colGen;
+                        PoiChunk got = columns.poi(x, z);
+                        colScratch[i] = got != null && got.hasSections() ? got : null;   // 빈 열은 섹션을 볼 것도 없다
+                    }
+                    PoiChunk c = colScratch[i];
                     if (c == null) continue;
                     boolean edgeXZ = Math.abs(x - sx) == d || Math.abs(z - sz) == d;
                     for (int y = sy - d; y <= sy + d; y++) {
                         if (!edgeXZ && Math.abs(y - sy) != d) continue;   // 껍질만
                         PoiSection s = c.section(y);
-                        if (s != null && hasVillage(s)) return d;
+                        if (s != null && isVillageCenter(s)) {
+                            found = d;
+                            break search;
+                        }
                     }
                 }
             }
         }
-        return MAX_VILLAGE_DISTANCE + 1;
+        java.util.Arrays.fill(colScratch, null);   // 청크 참조를 붙잡아 두지 않는다
+        return found;
     }
 
-    private static boolean hasVillage(PoiSection s) {
-        boolean[] f = {false};
-        s.forEachRecord(PoiTypes.VILLAGE, Occupancy.ANY, r -> f[0] = true);
-        return f[0];
-    }
+    /** 바닐라 PoiManager.isVillageCenter: 마을 POI 중 <b>점유된</b> 것(IS_OCCUPIED)이 있는 섹션만 마을 중심이다. */
+    private static boolean isVillageCenter(PoiSection s) { return s.anyRecord(PoiTypes.VILLAGE, Occupancy.IS_OCCUPIED); }
 
     /** ServerLevel.isCloseToVillage(pos, i). */
     public boolean isCloseToVillage(Pos pos, int i) {

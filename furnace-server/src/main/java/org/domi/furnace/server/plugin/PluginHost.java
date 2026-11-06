@@ -33,6 +33,7 @@ public final class PluginHost implements Furnace {
 
     public PluginHost(ServerCore core, Path pluginsDir) {
         this.core = core;
+        org.domi.furnace.api.item.ItemSupport.install(ItemSupportImpl.INSTANCE);
         this.console = new ConsoleSender(core, permissions);
         this.plugins = new PluginManagerImpl(this, pluginsDir);
     }
@@ -46,6 +47,15 @@ public final class PluginHost implements Furnace {
     CommandRegistryImpl commandsImpl() { return commands; }
 
     public PluginManagerImpl pluginsImpl() { return plugins; }
+
+    private final org.domi.furnace.server.plugin.packet.PacketServiceImpl packets = new org.domi.furnace.server.plugin.packet.PacketServiceImpl(this,
+            new org.domi.furnace.server.plugin.packet.Protocol767(() -> core().world().blockRegistry()));
+
+    /** 패킷 API 구현(연결에 가로채기 지점을 붙이는 쪽). */
+    public org.domi.furnace.server.plugin.packet.PacketServiceImpl packetsImpl() { return packets; }
+
+    @Override
+    public org.domi.furnace.api.packet.PacketService packets() { return packets; }
 
     private final PluginGameEvents gameEvents = new PluginGameEvents(this);
     private final java.util.concurrent.ConcurrentHashMap<String, WorldHandle> worldHandles = new java.util.concurrent.ConcurrentHashMap<>();
@@ -250,6 +260,15 @@ public final class PluginHost implements Furnace {
             stopping = true;
         }
         events.call(new org.domi.furnace.api.event.server.ServerShutdownEvent());
+    }
+
+    private final InternalsImpl internals = new InternalsImpl(this);
+
+    /** 공식 내부 접근 다리. 처음 부른 플러그인은 로그에 남는다. */
+    @Override
+    public InternalsImpl internals() {
+        internals.noteCaller();
+        return internals;
     }
 
     /** 서버 종료 마지막 — 비동기 실행기를 닫는다. */
