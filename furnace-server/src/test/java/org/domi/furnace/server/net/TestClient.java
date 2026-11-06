@@ -52,6 +52,9 @@ public final class TestClient implements AutoCloseable {
         return c;
     }
 
+    /** 읽기 대기 한도(밀리초)를 바꾼다. 일부러 아무것도 안 오는 것을 확인할 때 짧게. */
+    public void socketTimeout(int millis) throws Exception { socket.setSoTimeout(millis == 0 ? 15000 : millis); }
+
     public void write(int id, Consumer<ByteBuf> body) throws Exception {
         ByteBuf b = Unpooled.buffer();
         Types.writeVarInt(b, id);

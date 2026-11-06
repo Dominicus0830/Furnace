@@ -910,3 +910,12 @@
 - **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
 - 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
 
+
+## 2026-11-06 접속 상태 머신 N1 — 구성 단계 주고받기·끊긴 이유 (불만 표 5·6·7번)
+- 5(연결 ID)는 접속 단계 이벤트 PR 에서 이미 `PlayerConnection.id()` 로 들어갔다. 이 묶음은 6·7번과 그 둘레.
+- 6: `PlayerConnection` 에 리소스 팩(`sendResourcePack`/`removeResourcePack`/`removeAllResourcePacks`)·쿠키(`requestCookie`/`storeCookie`)·`transfer`. 코드는 `ConnectionHandler.api*`. 구성 패킷 `CookieRequest`(0x00)·`ResourcePackPop`(0x08)·`StoreCookie`(0x0A)·`ConfigTransfer`(0x0B)를 새로 넣었다(serverbound `cookie_response` 0x01).
+  - 대기 Future 는 `pluginPacks`/`pendingCookies` 맵에 있고 `channelInactive` → `releaseWaiters` 가 `ConnectionClosedException` 으로 끝낸다. 완료는 `completeAsync`(플러그인 실행기)라 후속 처리가 netty 스레드를 막지 않는다. 구성 이벤트 처리기 스레드는 `configureThread` 로 기억했다가, 끊긴 뒤 1초(`CONFIGURE_INTERRUPT_GRACE_MS`)에도 안 돌아오면 인터럽트한다.
+  - 함정: 서버 리소스 팩 대기(`awaitingPack`)는 응답이 어느 팩 것인지 몰랐다 → `readPackResponse` 가 플러그인 팩 응답이면 `lastPackResponseWasPlugin` 을 켜서 구성 진행에 쓰지 않는다. 구성 끝 패킷을 보낸 뒤에는 구성 패킷을 더 보낼 수 없다(`canSendDuringConfigurationOrPlay`).
+  - play 단계의 쿠키(요청·저장)는 없다(구성만). 구성 중 플러그인 채널 수신도 없다.
+- 7: `QuitReason`(DISCONNECTED·KICKED·TIMED_OUT·ERRONEOUS_STATE·SERVER_SHUTDOWN) 를 `PlayerQuitEvent.reason()` 와 `PlayerConnection.quitReason()` 에. `ConnectionHandler.markQuit` 가 처음 남긴 이유만 남기고, `kick`(기본 KICKED)·`closeFlushed`(ERRONEOUS_STATE)·타임아웃 세 곳·종료가 이유를 정한다. 아무 표시가 없으면 `Player.kickReason()` 이 있으면 KICKED, 없으면 DISCONNECTED.
+- 시험: `ConnectionStateApiTest` 17개(실제 소켓: 팩·쿠키·전송·끊김 정리·QuitReason 여섯 가지).

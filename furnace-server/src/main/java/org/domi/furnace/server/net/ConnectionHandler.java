@@ -16,6 +16,10 @@ import org.domi.furnace.server.net.protocol.ConnectionState;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.configuration.BrandPayload;
 import org.domi.furnace.server.net.protocol.configuration.ConfigDisconnect;
+import org.domi.furnace.server.net.protocol.configuration.ConfigTransfer;
+import org.domi.furnace.server.net.protocol.configuration.CookieRequest;
+import org.domi.furnace.server.net.protocol.configuration.ResourcePackPop;
+import org.domi.furnace.server.net.protocol.configuration.StoreCookie;
 import org.domi.furnace.server.net.protocol.configuration.FeatureFlags;
 import org.domi.furnace.server.net.protocol.configuration.UpdateTags;
 import org.domi.furnace.server.net.protocol.configuration.FinishConfiguration;
@@ -175,7 +179,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (rateWatch != null) rateWatch.onPacket();
         if (packetBucket != null && !packetBucket.tryAcquire(1)) {
             log.warn("{} 패킷 속도 초과({} 단계), 연결 종료", loggableAddress(ctx), state);
-            kick(ctx, "Too many packets");
+            kick(ctx, Text.text("Too many packets"), org.domi.furnace.api.net.QuitReason.ERRONEOUS_STATE);
             return;
         }
         if (pendingPlayFrames != null) {   // 플레이어 데이터 읽는 중 — 들어온 순서대로 보관
@@ -280,10 +284,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (!ctx.channel().isActive() || state != armed) return;
                 if (armed == ConnectionState.LOGIN) {
                     // 바닐라: 로그인 단계 600틱(30초) 안에 끝나지 않으면 끊는다.
+                    markQuit(org.domi.furnace.api.net.QuitReason.TIMED_OUT);
                     disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
                 } else {
                     log.debug("{} 단계 시간 초과({}초), 연결 종료: {}", armed, sl.timeoutSeconds(), loggableAddress(ctx));
-                    kick(ctx, Text.translatable("disconnect.timeout"));
+                    kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);
                 }
             }, sl.timeoutSeconds(), java.util.concurrent.TimeUnit.SECONDS);
         }
@@ -865,6 +870,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void handleConfiguration(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
             case 0x00 -> readClientInformation(frame); // Client Information: view distance 읽음
+            case 0x01 -> handleCookieResponse(ctx, frame); // cookie_response: 플러그인이 requestCookie 로 요청한 것만 받는다
             case 0x02 -> handleCustomPayload(frame, false); // custom_payload: minecraft:brand 만 읽는다(바닐라는 나머지를 버린다)
             case 0x07 -> { // Serverbound Known Packs → 레지스트리 전송 후 종료
                 if (knownPacksHandled) return;                           // 반복 요청은 무시(증폭 방지)
@@ -888,7 +894,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x06 -> { // resource_pack(구성): UUID, VarInt 상태
                 int action = readPackResponse(ctx, frame);
                 if (action < 0) return;
-                if (awaitingPack && ResourcePackResponses.isTerminal(action)) {
+                if (awaitingPack && !lastPackResponseWasPlugin && ResourcePackResponses.isTerminal(action)) {
                     awaitingPack = false;
                     finishConfiguration(ctx);
                 }
@@ -916,10 +922,22 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             try {
                 core.plugins().asyncExecutor().execute(() -> {
                     org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent ev = null;
-                    try {
-                        ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent(info));
-                    } catch (Throwable t) {
-                        log.error("AsyncPlayerConfigureEvent 처리 실패: {}", playerName, t);
+                    boolean run;
+                    synchronized (configureLock) {   // 연결이 이미 끊겼으면 돌리지 않고, 돌리는 동안 끊기면 channelInactive 가 인터럽트로 깨운다
+                        run = !configureWaitersClosed;
+                        if (run) configureThread = Thread.currentThread();
+                    }
+                    if (run) {
+                        try {
+                            ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent(info));
+                        } catch (Throwable t) {
+                            if (ctx.channel().isActive()) log.error("AsyncPlayerConfigureEvent 처리 실패: {}", playerName, t);
+                        } finally {
+                            synchronized (configureLock) {
+                                configureThread = null;
+                                Thread.interrupted();   // 끊김 인터럽트가 실행기 스레드에 남지 않게
+                            }
+                        }
                     }
                     final var done = ev;
                     try {
@@ -2061,6 +2079,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return -1;
         }
         if (action < 0 || action >= ResourcePackResponses.ACTION_COUNT) { closeFlushed(ctx); return -1; }
+        // 플러그인이 sendResourcePack 으로 보낸 팩의 응답: 끝 상태면 Future 를 끝내고, 필수 팩 거절이면 쫓아낸다
+        PendingPack mine = pluginPacks.get(id);
+        lastPackResponseWasPlugin = mine != null;
+        if (mine != null) {
+            var status = org.domi.furnace.api.net.ResourcePackStatus.values()[action];
+            if (status.isTerminal() && pluginPacks.remove(id, mine)) completeAsync(mine.future(), status, null);
+            if (ResourcePackResponses.kicksRequired(action, mine.required())) {
+                log.info("Disconnecting {} due to resource pack {} rejection", playerName, id);
+                kick(ctx, Text.translatable("multiplayer.requiredTexturePrompt.disconnect"));
+                return -1;
+            }
+            return action;
+        }
         var pack = serverPack();
         if (pack != null && ResourcePackResponses.kicksRequired(action, pack.isRequired())) {
             log.info("Disconnecting {} due to resource pack {} rejection", playerName, id);
@@ -3831,6 +3862,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        org.domi.furnace.api.net.QuitReason quit = finalQuitReason();
+        releaseWaiters();   // 기다리던 리소스 팩·쿠키 Future 와 구성 이벤트 처리기를 풀어 준다(스레드가 매달리지 않게)
         if (stateDeadline != null) { stateDeadline.cancel(false); stateDeadline = null; }
         if (rateTick != null) { rateTick.cancel(false); rateTick = null; }
         java.util.ArrayDeque<Object[]> queued = pendingPlayFrames;
@@ -3847,7 +3880,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 log.info("{} lost connection: {}", p.name(), why.getString());
                 Text msg = Text.translatable("multiplayer.player.left", p.displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
                 if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerQuitEvent.class)) {
-                    msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg)).quitMessage();
+                    msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg, quit)).quitMessage();
                 }
                 core.customBossEvents().onPlayerDisconnect(p);
                 world.playerOffline(p.entityId());   // 방송 대상에서 먼저 뺀다(바닐라: 퇴장자는 자기 퇴장 메시지를 받지 않는다)
@@ -3950,7 +3983,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void sendKeepAlive() {
         if (awaitingKeepAlive.get()) {
             log.info("KeepAlive 응답 없음, 종료: {}", playerName);
-            kick(ctx, Text.translatable("disconnect.timeout"));
+            kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);
             return;
         }
         lastKeepAliveId = System.nanoTime();
@@ -3982,6 +4015,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 밀린 쓰기를 먼저 내보낸 뒤 닫는다 — 닫으면 flush 안 된 쓰기는 버려지기 때문이다. */
     private void closeFlushed(ChannelHandlerContext ctx) {
+        markQuit(org.domi.furnace.api.net.QuitReason.ERRONEOUS_STATE);   // 사유 없이 닫는 곳은 잘못된 패킷·상태뿐이다
         ctx.flush();
         ctx.close();
     }
@@ -3990,7 +4024,223 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     void kickForShutdown() {
         ChannelHandlerContext c = this.ctx;
         if (c == null) return;
-        c.channel().eventLoop().execute(() -> kick(c, Text.translatable("multiplayer.disconnect.server_shutdown")));
+        c.channel().eventLoop().execute(() -> kick(c, Text.translatable("multiplayer.disconnect.server_shutdown"),
+                org.domi.furnace.api.net.QuitReason.SERVER_SHUTDOWN));
+    }
+
+    // ------------------------------------------------------------------ 끊긴 이유(QuitReason)
+
+    private final java.util.concurrent.atomic.AtomicReference<org.domi.furnace.api.net.QuitReason> quitReason = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /** 끊는 이유를 남긴다. 처음 남긴 것만 남는다(킥 패킷을 보낸 뒤 닫는 흐름이 그 이유를 덮어쓰지 않게). */
+    void markQuit(org.domi.furnace.api.net.QuitReason r) { quitReason.compareAndSet(null, r); }
+
+    /** 끊긴 뒤의 최종 이유: 서버가 남긴 이유가 있으면 그것, 없으면 사유 있는 킥이었는지(Player.kick) 보고, 아니면 클라이언트가 스스로 나간 것. */
+    org.domi.furnace.api.net.QuitReason finalQuitReason() {
+        Player p = player;
+        quitReason.compareAndSet(null, p != null && p.kickReason() != null
+                ? org.domi.furnace.api.net.QuitReason.KICKED : org.domi.furnace.api.net.QuitReason.DISCONNECTED);
+        return quitReason.get();
+    }
+
+    /** 플러그인 PlayerConnection.quitReason: 연결이 끊기기 전에는 null. */
+    org.domi.furnace.api.net.QuitReason quitReasonOrNull() { return isChannelOpen() ? null : finalQuitReason(); }
+
+    // ------------------------------------------------------------------ 구성·플레이 중 플러그인이 주고받기(PlayerConnection 의 sendResourcePack·쿠키·transfer)
+
+    /** 플러그인이 보낸 리소스 팩 한 개를 기다리는 중. */
+    private record PendingPack(java.util.concurrent.CompletableFuture<org.domi.furnace.api.net.ResourcePackStatus> future, boolean required) { }
+
+    private final java.util.concurrent.ConcurrentHashMap<UUID, PendingPack> pluginPacks = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.CompletableFuture<byte[]>> pendingCookies = new java.util.concurrent.ConcurrentHashMap<>();
+    private boolean lastPackResponseWasPlugin;     // 방금 읽은 팩 응답이 플러그인 팩의 것(서버 리소스 팩 대기에 쓰지 않는다) — 이벤트 루프 전용
+    private final Object configureLock = new Object();
+    private Thread configureThread;                // AsyncPlayerConfigureEvent 를 돌리는 중인 스레드(끊기면 깨운다)
+    private boolean configureWaitersClosed;        // 연결이 끊겼다 — 더 돌리지 않는다
+
+    private static final java.util.regex.Pattern COOKIE_KEY = java.util.regex.Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
+
+    /** 응답이 netty 스레드가 아니라 플러그인 실행기에서 완료되게 한다(thenApply 같은 후속 처리가 이벤트 루프를 막지 않게). 실행기가 닫혔으면 직접. */
+    private <T> void completeAsync(java.util.concurrent.CompletableFuture<T> f, T value, Throwable error) {
+        Runnable r = () -> { if (error != null) f.completeExceptionally(error); else f.complete(value); };
+        var core = login.core;
+        if (core != null) {
+            try {
+                core.plugins().asyncExecutor().execute(r);
+                return;
+            } catch (java.util.concurrent.RejectedExecutionException closed) {
+                // 종료 중 — 아래에서 직접
+            }
+        }
+        r.run();
+    }
+
+    /** 연결이 끊겼다: 기다리던 Future 를 ConnectionClosedException 으로 끝내고, 구성 이벤트 처리기가 블로킹 중이면 인터럽트로 깨운다. */
+    private void releaseWaiters() {
+        var closed = new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다");
+        for (var e : pluginPacks.entrySet()) {
+            if (pluginPacks.remove(e.getKey(), e.getValue())) completeAsync(e.getValue().future(), null, closed);
+        }
+        for (var e : pendingCookies.entrySet()) {
+            if (pendingCookies.remove(e.getKey(), e.getValue())) completeAsync(e.getValue(), null, closed);
+        }
+        Thread running;
+        synchronized (configureLock) {
+            configureWaitersClosed = true;
+            running = configureThread;
+        }
+        if (running != null) {
+            // 위에서 끝낸 Future 를 기다리던 처리기는 스스로 돌아온다. 그래도 남아 있는(다른 일로 블로킹 중인) 처리기만 유예 뒤에 인터럽트로 깨운다
+            io.netty.util.concurrent.GlobalEventExecutor.INSTANCE.schedule(() -> {
+                synchronized (configureLock) {
+                    if (configureThread == running) running.interrupt();
+                }
+            }, CONFIGURE_INTERRUPT_GRACE_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /** 연결이 끊긴 뒤 구성 이벤트 처리기가 안 돌아오면 인터럽트를 거는 유예(밀리초). */
+    static final long CONFIGURE_INTERRUPT_GRACE_MS = 1000;
+
+    /** 구성·플레이 중 패킷을 보낼 수 있는가: 구성 단계는 구성 끝(Finish)을 보내기 전까지만. 이벤트 루프에서 확인한다. */
+    private boolean canSendDuringConfigurationOrPlay() {
+        return state == ConnectionState.PLAY || (state == ConnectionState.CONFIGURATION && !finishConfigSent);
+    }
+
+    private static <T> java.util.concurrent.CompletableFuture<T> notAllowed(String what) {
+        return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException(what));
+    }
+
+    private static boolean eventLoopRun(ChannelHandlerContext c, Runnable r) {
+        try {
+            c.channel().eventLoop().execute(r);
+            return true;
+        } catch (java.util.concurrent.RejectedExecutionException closed) {
+            return false;
+        }
+    }
+
+    java.util.concurrent.CompletableFuture<org.domi.furnace.api.net.ResourcePackStatus> apiSendResourcePack(org.domi.furnace.api.net.ResourcePack pack) {
+        java.util.Objects.requireNonNull(pack, "pack");
+        ChannelHandlerContext c = this.ctx;
+        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+        ConnectionState st = state;
+        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) return notAllowed("리소스 팩은 구성·플레이 단계에서만 보낼 수 있다: " + st);
+        var fresh = new PendingPack(new java.util.concurrent.CompletableFuture<>(), pack.required());
+        PendingPack prev = pluginPacks.putIfAbsent(pack.id(), fresh);
+        if (prev != null) return prev.future();
+        Runnable send = () -> {
+            if (!c.channel().isActive() || !canSendDuringConfigurationOrPlay()) {
+                pluginPacks.remove(pack.id(), fresh);
+                fresh.future().completeExceptionally(c.channel().isActive()
+                        ? new IllegalStateException("리소스 팩을 보낼 수 없는 단계다: " + state)
+                        : new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+                return;
+            }
+            send(c, new org.domi.furnace.server.net.protocol.play.ResourcePackPush(pack.id(), pack.url(), pack.hash(), pack.required(), pack.prompt(), state == ConnectionState.PLAY));
+        };
+        if (!eventLoopRun(c, send)) {
+            pluginPacks.remove(pack.id(), fresh);
+            fresh.future().completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+        }
+        return fresh.future();
+    }
+
+    void apiRemoveResourcePack(UUID id) {
+        ChannelHandlerContext c = this.ctx;
+        if (c == null || !c.channel().isActive()) return;
+        requireConfigurationOrPlay();
+        eventLoopRun(c, () -> {
+            if (!c.channel().isActive() || !canSendDuringConfigurationOrPlay()) return;
+            if (id != null) {
+                PendingPack pp = pluginPacks.remove(id);
+                if (pp != null) completeAsync(pp.future(), org.domi.furnace.api.net.ResourcePackStatus.DISCARDED, null);   // 바닐라 클라이언트는 뺀 팩에 DISCARDED 로 답한다
+            } else {
+                for (var e : pluginPacks.entrySet()) {
+                    if (pluginPacks.remove(e.getKey(), e.getValue())) completeAsync(e.getValue().future(), org.domi.furnace.api.net.ResourcePackStatus.DISCARDED, null);
+                }
+            }
+            send(c, new ResourcePackPop(id, state == ConnectionState.PLAY));
+        });
+    }
+
+    private void requireConfigurationOrPlay() {
+        ConnectionState st = state;
+        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) throw new IllegalStateException("구성·플레이 단계에서만 쓸 수 있다: " + st);
+    }
+
+    private void requireConfiguration(String what) {
+        if (state != ConnectionState.CONFIGURATION) throw new IllegalStateException(what + " 은(는) 구성 단계에서만 쓸 수 있다: " + state);
+    }
+
+    private static String checkCookieKey(String key) {
+        java.util.Objects.requireNonNull(key, "key");
+        if (key.length() > 32767 || !COOKIE_KEY.matcher(key).matches()) throw new IllegalArgumentException("쿠키 키는 namespace:path 꼴이어야 한다: " + key);
+        return key;
+    }
+
+    java.util.concurrent.CompletableFuture<byte[]> apiRequestCookie(String key) {
+        checkCookieKey(key);
+        ChannelHandlerContext c = this.ctx;
+        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+        if (state != ConnectionState.CONFIGURATION) return notAllowed("쿠키 요청은 구성 단계에서만 쓸 수 있다: " + state);
+        var fresh = new java.util.concurrent.CompletableFuture<byte[]>();
+        var prev = pendingCookies.putIfAbsent(key, fresh);
+        if (prev != null) return prev;
+        if (!eventLoopRun(c, () -> {
+            if (!c.channel().isActive() || state != ConnectionState.CONFIGURATION || finishConfigSent) {
+                pendingCookies.remove(key, fresh);
+                fresh.completeExceptionally(c.channel().isActive() ? new IllegalStateException("쿠키를 요청할 수 없는 단계다: " + state)
+                        : new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+                return;
+            }
+            send(c, new CookieRequest(key));
+        })) {
+            pendingCookies.remove(key, fresh);
+            fresh.completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+        }
+        return fresh;
+    }
+
+    void apiStoreCookie(String key, byte[] value) {
+        checkCookieKey(key);
+        var pkt = new StoreCookie(key, java.util.Objects.requireNonNull(value, "value").clone());
+        ChannelHandlerContext c = this.ctx;
+        if (c == null || !c.channel().isActive()) return;
+        requireConfiguration("쿠키 저장");
+        eventLoopRun(c, () -> {
+            if (c.channel().isActive() && state == ConnectionState.CONFIGURATION && !finishConfigSent) send(c, pkt);
+        });
+    }
+
+    void apiTransfer(String host, int port) {
+        java.util.Objects.requireNonNull(host, "host");
+        if (port < 0 || port > 65535) throw new IllegalArgumentException("port: " + port);
+        ChannelHandlerContext c = this.ctx;
+        if (c == null || !c.channel().isActive()) return;
+        requireConfigurationOrPlay();
+        eventLoopRun(c, () -> {
+            if (!c.channel().isActive() || !canSendDuringConfigurationOrPlay()) return;
+            send(c, state == ConnectionState.PLAY ? new org.domi.furnace.server.net.protocol.play.Transfer(host, port) : new ConfigTransfer(host, port));
+        });
+    }
+
+    /** 구성 cookie_response(0x01): 키 + Optional<바이트 배열>(바닐라 상한 5120). 요청한 적 없는 응답은 버린다. */
+    private void handleCookieResponse(ChannelHandlerContext ctx, ByteBuf frame) {
+        String key = Types.readString(frame, 32767);
+        byte[] payload = null;
+        if (frame.readBoolean()) {
+            int n = Types.readVarInt(frame);
+            if (n < 0 || n > StoreCookie.MAX_PAYLOAD || n > frame.readableBytes()) { closeFlushed(ctx); return; }
+            payload = new byte[n];
+            frame.readBytes(payload);
+        }
+        var f = pendingCookies.remove(key);
+        if (f == null) {
+            log.debug("요청하지 않은 쿠키 응답 무시: {} ({})", key, playerName);
+            return;
+        }
+        completeAsync(f, payload, null);
     }
 
     // ------------------------------------------------------------------ ConnectionInfo(플러그인 PlayerConnection) 용
@@ -4049,6 +4299,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     void kick(ChannelHandlerContext ctx, Text reason) {
+        kick(ctx, reason, org.domi.furnace.api.net.QuitReason.KICKED);
+    }
+
+    /** 끊는 이유(QuitReason)를 함께 남기는 kick — 처음 남긴 이유가 이긴다(markQuit). */
+    void kick(ChannelHandlerContext ctx, Text reason, org.domi.furnace.api.net.QuitReason why) {
+        markQuit(why);
         kickReason = reason;
         Packet pkt = switch (state) {
             case LOGIN -> new LoginDisconnect(reason);
@@ -4082,7 +4338,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         if (cause instanceof io.netty.handler.timeout.ReadTimeoutException) {
             log.debug("읽기 타임아웃, 종료: {}", playerName);   // 정상적인 유휴 정리 — 경고 로그 대상 아님
-            kick(ctx, Text.translatable("disconnect.timeout"));
+            kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);
             return;
         }
         log.warn("커넥션 오류, 종료: {}", cause.toString());
