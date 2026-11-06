@@ -827,3 +827,11 @@
 - 바닐라가 장비 스택을 그 자리에서 고치는 곳(hurtAndBreak·setDamageValue·shrink·쇠뇌 CHARGED_PROJECTILES·enchantItemFromProvider·copyAndClear)을 Furnace 는 새 스택을 넣어 흉내 낸다. 이런 곳은 `setItemSlot` 이 아니라 `updateItemSlot` 을 쓴다 — `setItemSlot` 은 바닐라처럼 `onEquipItem`(장착 소리·equip/unequip, 엔티티 난수 nextLong)을 부른다.
 - 새 호출 지점을 쓸 때는 바닐라 원본이 `setItemSlot`/`setItemInHand` 를 부르는지 바이트코드(`a:(Lbsy;Lcuq;)V`, `a:(Lbqq;Lcuq;)V`)로 확인한다. 함정: `Mob.convertTo` 는 새 몹에만 setItemSlot, 옛 몹은 copyAndClear(이벤트 없음). 여우가 다 먹어 비면 바닐라는 setItemSlot 을 안 부른다.
 - onEquipItem 은 `firstTick` 이면 아무것도 안 하므로 스폰(finalizeSpawn) 중 장비 변경은 이벤트·난수가 없다.
+
+## 2026-11-04 탄 동안 받은 걸음 패킷(봇 3차 접속 시험)
+- 바닐라 `handleMovePlayer` 는 `player.isPassenger()` 면 패킷 위치를 버리고 회전만 받는다(검증 없음). Furnace 는 연결 스레드가 탄 여부를 보고 `acceptRiding` 으로 보내지만, **타기 직전에 검증 대기열에 들어간 패킷**은 region 이 탄 뒤에 꺼내 검증해 `moved wrongly` 로 되돌렸다(탈것 위 자리와 땅 위 위치 비교).
+- `Region.processMoves` 에서 `p.vehicle() != null` 이면 위치를 버리고 회전만 받는다. 시험 `RegionMoveValidationTest.movePacketQueuedBeforeMountingIsNotRejectedAfterMount`.
+- 같은 종류의 함정: 연결 스레드가 본 상태(탔음·잠·텔레포트 대기)와 region 이 검증할 때의 상태가 다를 수 있다. 검증 대기열을 꺼내는 쪽에서 상태를 다시 본다.
+- 파괴수 나뭇잎(U2): 바닐라 `cki.m_`(Ravager.aiStep) 디컴파일 대조로 Furnace 와 같음 확인. 1.21.1 에는 파괴수 전용 길찾기 클래스가 없고 `setPathfindingMalus(LEAVES, 0)` 뿐이다.
+- 디컴파일: Vineflower 1.10.1 은 구글 Maven 미러(`maven-central.storage-download.googleapis.com`)에서 받을 수 있다. 난독화 클래스는 `main` 의 `tools/vanilla-data/server-1.21.1/*.class`, 이름은 `EntityType`(bsx) 의 `ldc "ravager"` 다음 invokedynamic 람다로 찾는다.
+
