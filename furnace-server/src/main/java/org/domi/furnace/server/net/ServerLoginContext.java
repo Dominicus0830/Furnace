@@ -61,6 +61,16 @@ public final class ServerLoginContext {
         return this;
     }
 
+    /** 접속 방어 설정(단계별 패킷 속도·크기·시간 초과, 길이 상한, PROXY 프로토콜). 기본은 지금까지의 동작. */
+    volatile ConnectionLimits limits = ConnectionLimits.DEFAULT;
+
+    public ServerLoginContext limits(ConnectionLimits limits) {
+        this.limits = limits == null ? ConnectionLimits.DEFAULT : limits;
+        return this;
+    }
+
+    public ConnectionLimits limits() { return limits; }
+
     /** null 이면 Velocity 포워딩 꺼짐. */
     volatile org.domi.furnace.server.net.auth.VelocityForwarding velocity;
     private final Random random = new Random();
