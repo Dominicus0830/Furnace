@@ -87,7 +87,8 @@ public class Parrot extends TamableAnimal {
         @Override
         public boolean canUse() {
             Player o = parrot.getOwner();
-            boolean ok = o != null && !o.vitals().isSpectator() && !o.vitals().isFlying() && !PlayerShoulders.isInWater(o) && !PlayerShoulders.isInPowderSnow(o);
+            // 주인이 다른 region 이면(몸이 겹칠 수 없을 만큼 멀다) 쓰지 않는다 — 이 목표는 다른 목표를 막지 않으므로 바닐라와 결과가 같다
+            boolean ok = o != null && o.onOwnerThread() && !o.vitals().isSpectator() && !o.vitals().isFlying() && !PlayerShoulders.isInWater(o) && !PlayerShoulders.isInPowderSnow(o);
             return !parrot.isOrderedToSit() && ok && parrot.canSitOnShoulder();
         }
 

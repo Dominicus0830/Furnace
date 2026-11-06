@@ -255,7 +255,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public org.domi.furnace.api.sched.TaskScheduler scheduler() {
         var w = host.worldHandle(p.dimension());
-        return w.handle().chunkScheduler(Math.floorDiv((int) Math.floor(p.x()), 16), Math.floorDiv((int) Math.floor(p.z()), 16));
+        return host.profiled().wrap(w.handle().chunkScheduler(Math.floorDiv((int) Math.floor(p.x()), 16), Math.floorDiv((int) Math.floor(p.z()), 16)));
     }
 
     /** 같은 차원 안만. 서버 텔레포트는 연결 스레드가 보정 패킷을 보내는 스레드 안전 경로다. */
@@ -272,7 +272,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public org.domi.furnace.api.entity.EntityScheduler entityScheduler() {
         EntitySchedulerImpl s = entityScheduler;
-        if (s == null) entityScheduler = s = new EntitySchedulerImpl(p.apiTasks());
+        if (s == null) entityScheduler = s = new EntitySchedulerImpl(p.apiTasks(), host.profiled());
         return s;
     }
 
@@ -327,5 +327,53 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         PlayerInventoryHandle i = inventory;
         if (i == null) inventory = i = new PlayerInventoryHandle(host, p);
         return i;
+    }
+
+    // ------------------------------------------------------------------ 레시피 북
+
+    private static java.util.List<org.domi.furnace.server.data.ResourceId> recipeIds(java.util.Collection<String> keys) {
+        java.util.List<org.domi.furnace.server.data.ResourceId> out = new java.util.ArrayList<>();
+        for (String k : keys) {
+            var id = org.domi.furnace.server.data.ResourceId.tryParse(k);
+            if (id != null) out.add(id);
+        }
+        return out;
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Integer> discoverRecipes(java.util.Collection<String> keys) {
+        var rm = host.core().recipes();
+        if (rm == null || p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(0));
+        var ids = recipeIds(keys);
+        RegionFuture<Integer> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            try {
+                f.complete(p.awardRecipes(ids, rm));
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Integer> undiscoverRecipes(java.util.Collection<String> keys) {
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(0));
+        var ids = recipeIds(keys);
+        RegionFuture<Integer> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            try {
+                f.complete(p.resetRecipes(ids));
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
+    }
+
+    @Override
+    public boolean hasDiscoveredRecipe(String key) {
+        var id = org.domi.furnace.server.data.ResourceId.tryParse(key);
+        return id != null && p.recipeBook().contains(id);
     }
 }

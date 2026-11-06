@@ -70,7 +70,7 @@ import org.domi.furnace.api.event.player.PlayerPickupItemEvent;
 import org.domi.furnace.api.event.player.PlayerTeleportEvent;
 import org.domi.furnace.api.event.world.ChunkLoadEvent;
 import org.domi.furnace.api.event.world.ChunkUnloadEvent;
-import org.domi.furnace.api.world.Block;
+import org.domi.furnace.api.world.BlockSnapshot;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.api.world.Location;
 import org.domi.furnace.server.entity.Entity;
@@ -157,7 +157,7 @@ public final class PluginGameEvents implements GameEvents {
     public boolean playerInteract(Player p, int hand, int[] blockPos, int blockState, int face, ItemStack inHand) {
         if (!bus().hasSubscribers(PlayerInteractEvent.class)) return true;
         var reg = host.core().world().blockRegistry();
-        Block block = blockPos == null ? null : new Block(p.dimension(), new BlockPos(blockPos[0], blockPos[1], blockPos[2]), ApiConvert.block(blockState, reg));
+        BlockSnapshot block = blockPos == null ? null : new BlockSnapshot(p.dimension(), new BlockPos(blockPos[0], blockPos[1], blockPos[2]), ApiConvert.block(blockState, reg));
         var action = blockPos == null ? PlayerInteractEvent.Action.RIGHT_CLICK_AIR : PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK;
         String f = blockPos == null || face < 0 || face >= FACES.length ? null : FACES[face];
         return !bus().call(new PlayerInteractEvent(host.player(p), action, ApiConvert.item(inHand, items()), block, f, hand == 0)).isCancelled();
@@ -169,8 +169,8 @@ public final class PluginGameEvents implements GameEvents {
     @Override
     public boolean playerLeftClick(Player p, int[] blockPos, int blockState, int face, ItemStack inHand) {
         if (!bus().hasSubscribers(PlayerInteractEvent.class)) return true;
-        Block block = blockPos == null ? null
-                : new Block(p.dimension(), new BlockPos(blockPos[0], blockPos[1], blockPos[2]), ApiConvert.block(blockState, host.core().world().blockRegistry()));
+        BlockSnapshot block = blockPos == null ? null
+                : new BlockSnapshot(p.dimension(), new BlockPos(blockPos[0], blockPos[1], blockPos[2]), ApiConvert.block(blockState, host.core().world().blockRegistry()));
         var action = blockPos == null ? PlayerInteractEvent.Action.LEFT_CLICK_AIR : PlayerInteractEvent.Action.LEFT_CLICK_BLOCK;
         String f = blockPos == null || face < 0 || face >= FACES.length ? null : FACES[face];
         return !bus().call(new PlayerInteractEvent(host.player(p), action, ApiConvert.item(inHand, items()), block, f, true)).isCancelled();
@@ -336,7 +336,7 @@ public final class PluginGameEvents implements GameEvents {
     @Override
     public boolean playerBedEnter(Player p, String dimension, int x, int y, int z, int bedState) {
         if (!bus().hasSubscribers(PlayerBedEnterEvent.class)) return true;
-        var bed = new Block(dimension, new BlockPos(x, y, z), ApiConvert.block(bedState, host.core().world().blockRegistry()));
+        var bed = new BlockSnapshot(dimension, new BlockPos(x, y, z), ApiConvert.block(bedState, host.core().world().blockRegistry()));
         return !bus().call(new PlayerBedEnterEvent(host.player(p), bed)).isCancelled();
     }
 
@@ -378,7 +378,7 @@ public final class PluginGameEvents implements GameEvents {
     public boolean projectileHit(Entity projectile, Entity hitEntity, Player hitPlayer, org.domi.furnace.server.block.Pos hitBlock, int blockState, int face) {
         if (!bus().hasSubscribers(ProjectileHitEvent.class)) return true;
         org.domi.furnace.api.entity.Entity target = hitPlayer != null ? host.player(hitPlayer) : hitEntity != null ? EntityHandle.of(host, hitEntity) : null;
-        Block block = hitBlock == null ? null : new Block(projectile.dimensionKey(), new BlockPos(hitBlock.x(), hitBlock.y(), hitBlock.z()),
+        BlockSnapshot block = hitBlock == null ? null : new BlockSnapshot(projectile.dimensionKey(), new BlockPos(hitBlock.x(), hitBlock.y(), hitBlock.z()),
                 ApiConvert.block(blockState, host.core().world().blockRegistry()));
         String f = hitBlock == null || face < 0 || face >= FACES.length ? null : FACES[face];
         return !bus().call(new ProjectileHitEvent(EntityHandle.of(host, projectile), target, block, f)).isCancelled();

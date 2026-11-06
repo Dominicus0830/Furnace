@@ -642,6 +642,7 @@ public final class World {
     /** announceSleepStatus: 밤을 건너뛸 수 있는 규칙이면 이 차원 모두에게 액션바(전용 서버는 늘 알린다). */
     private void announceSleepStatus(java.util.List<Player> players) {
         if (!canSleepThroughNights()) return;
+        if (!org.domi.furnace.server.config.OperatorOptions.current().announceSleepStatus()) return;   // announce-sleep-status=false
         int pct = levelServices.gameRuleInt("playersSleepingPercentage");
         org.domi.furnace.api.text.Text msg = sleepStatus.areEnoughSleeping(pct)
                 ? org.domi.furnace.api.text.Text.translatable("sleep.skipping_night")
@@ -1034,6 +1035,24 @@ public final class World {
     public WanderingTraderState wanderingTraderState() { return wanderingTraderState; }
 
     public void wanderingTraderState(WanderingTraderState s) { this.wanderingTraderState = s; }
+
+    private volatile DimensionSpawners dimensionSpawners;
+
+    /**
+     * 차원에 하나뿐인 특수 스포너(마을 포위·방랑 상인) — 오버월드만(바닐라 createLevels 가 다른 차원엔 빈 목록을 준다), 다른 차원은 null.
+     * 전역 틱이 tick 을 부른다.
+     */
+    public DimensionSpawners dimensionSpawners() {
+        if (!"minecraft:overworld".equals(dimension())) return null;
+        DimensionSpawners d = dimensionSpawners;
+        if (d == null) {
+            synchronized (this) {
+                d = dimensionSpawners;
+                if (d == null) dimensionSpawners = d = new DimensionSpawners(this);
+            }
+        }
+        return d;
+    }
 
     /** 이 월드(엔드)에 드래곤 전투를 단다 — 저장된 EndDragonFight.Data 로 시작. */
     public void enableDragonFight(NbtCompound data) { this.dragonFightData = data == null ? new NbtCompound() : data; }

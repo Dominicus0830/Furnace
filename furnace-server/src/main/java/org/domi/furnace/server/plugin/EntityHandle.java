@@ -67,8 +67,6 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         }
     }
 
-    EntityTasks tasks() { return tasks; }
-
     /** 소유 region 스레드에서 만든다. */
     public static EntityHandle of(PluginHost host, Entity e) {
         if (e instanceof org.domi.furnace.server.trade.Merchant && e instanceof org.domi.furnace.server.entity.Mob m) return new MerchantHandle(host, m);
@@ -101,11 +99,11 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     @Override
     public TaskScheduler scheduler() {
         ChunkPos cp = chunk();
-        return serverWorld().chunkScheduler(cp.x(), cp.z());
+        return host.profiled().wrap(serverWorld().chunkScheduler(cp.x(), cp.z()));
     }
 
     @Override
-    public EntityScheduler entityScheduler() { return new EntitySchedulerImpl(tasks); }
+    public EntityScheduler entityScheduler() { return new EntitySchedulerImpl(tasks, host.profiled()); }
 
     /** 엔티티를 따라가는 대기열(Internals 가 살아 있는 엔티티를 찾을 때). */
     EntityTasks tasks() { return tasks; }

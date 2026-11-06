@@ -73,10 +73,19 @@ public interface Furnace {
      */
     boolean dispatchCommand(CommandSender sender, String commandLine);
 
+    /** 서버가 아는 블록 종류 표(속성·값 범위·기본 상태). */
+    org.domi.furnace.api.world.BlockTypes blockTypes();
+
+    /** 레시피 레지스트리(데이터 팩 + 플러그인). */
+    org.domi.furnace.api.recipe.RecipeRegistry recipes();
+
     FurnaceScheduler scheduler();
 
     /** 블로킹 작업용 실행기(가상 스레드). */
     Executor asyncExecutor();
+
+    /** 플러그인별 시간 프로파일러(/timings). 서버가 주지 않으면 아무것도 재지 않는 것. */
+    default org.domi.furnace.api.profiler.PluginProfiler profiler() { return org.domi.furnace.api.profiler.PluginProfiler.NONE; }
 
     EventBus events();
 

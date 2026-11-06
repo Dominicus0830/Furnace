@@ -111,6 +111,7 @@ public final class ServerCore {
             for (Player p : players()) p.send(packet);
             var recipes = dp.recipes();
             if (recipes == null) return;
+            if (pluginHost != null) pluginHost.recipes().reapply(recipes);   // 플러그인 레시피·제거 기록을 새 매니저에 입힌다(보내기 전에)
             var recipePacket = new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody());
             for (Player p : players()) {
                 p.send(recipePacket);
@@ -717,6 +718,15 @@ public final class ServerCore {
         long gameTimeNow = clock.advanceGameTime();
         scheduledEvents.tick(gameTimeNow, () -> !commands.queue().isClosed(), functions::runScheduled);
         clock.advanceDayTime(gameRules, all);
+        // 바닐라 ServerLevel.tick: 시간 진행 뒤 청크 틱의 특수 스포너 — 차원에 하나뿐인 포위·상인은 여기서 게임 틱마다 한 번
+        var spawners = world.dimensionSpawners();
+        if (spawners != null) {
+            try {
+                spawners.tick();
+            } catch (RuntimeException e) {
+                log.error("[SPAWN] 포위·상인 스포너 실패", e);
+            }
+        }
     }
 
     /**
@@ -1348,6 +1358,16 @@ public final class ServerCore {
         boolean trusted = message.hasSignature() && !message.hasExpiredServer(java.time.Instant.now());
         logChatMessage(message.decoratedContent(), bound, trusted ? null : "Not Secure");
         for (Player p : players()) sendChatMessage(p, message, false, bound);
+    }
+
+    /**
+     * chat.unsigned-as-system: 서명 없는 시스템 메시지로 보낸다 — 클라이언트가 신고 대상으로 잡지 않는다. 채팅을 보는 설정인 플레이어에게만.
+     */
+    public void broadcastChatAsSystem(org.domi.furnace.server.chat.PlayerChatMessage message,
+                                      org.domi.furnace.server.chat.ChatType.Bound bound) {
+        logChatMessage(message.decoratedContent(), bound, null);
+        Text line = bound.decorate(message.decoratedContent());
+        for (Player p : players()) if (p.chat().acceptsChatMessages()) p.sendSystemMessage(line, false);
     }
 
     /** 바닐라 ServerPlayer.sendChatMessage: 채팅을 모두 보는 설정일 때만. 시스템 출처면 disguised_chat. */

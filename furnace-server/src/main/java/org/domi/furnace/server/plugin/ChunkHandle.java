@@ -47,7 +47,7 @@ final class ChunkHandle implements org.domi.furnace.api.world.Chunk {
     public boolean isLoaded() { return world.handle().isChunkLoaded(x, z); }
 
     @Override
-    public TaskScheduler scheduler() { return world.handle().chunkScheduler(x, z); }
+    public TaskScheduler scheduler() { return host.profiled().wrap(world.handle().chunkScheduler(x, z)); }
 
     /** 그 청크의 region 에서 task(로드되지 않았으면 그 region 에 넘기지 않고 notLoaded). */
     private <T> CompletableFuture<T> onChunk(java.util.function.BiFunction<Region, ChunkColumn, T> task, T notLoaded) {

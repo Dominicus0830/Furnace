@@ -26,7 +26,7 @@ public abstract class FurnacePlugin {
     public final void init(PluginContext ctx) {
         if (context != null) throw new IllegalStateException("이미 초기화된 플러그인: " + ctx.description().name());
         this.context = ctx;
-        this.tasks = new PluginTasks(this, ctx.server().scheduler(), ctx.server().asyncExecutor());
+        this.tasks = new PluginTasks(this, ctx.server().scheduler(), ctx.server().asyncExecutor(), ctx.server().profiler());
     }
 
     /** 로더 전용 — 켜짐 상태를 바꾸고 수명 함수를 부른다. */
@@ -65,6 +65,9 @@ public abstract class FurnacePlugin {
     public final Logger logger() { return context.logger(); }
 
     public final PluginTasks tasks() { return tasks; }
+
+    /** 플러그인끼리 공유하는 정의 레지스트리(이 플러그인 소유로 기록된다 — 꺼지면 정리). */
+    public final org.domi.furnace.api.registry.PluginRegistries registries() { return context.registries(); }
 
     /** 데이터 폴더(없으면 만든다). 기본은 plugins/<이름>/ — 서버 설정 plugins.data-root 가 있으면 거기 아래로 갈라진다. */
     public final Path dataFolder() { return ensure(context.dataFolder()); }

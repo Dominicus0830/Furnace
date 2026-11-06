@@ -1340,6 +1340,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         });
     }
 
+    /** 지금 스레드가 이 플레이어를 가진 region 스레드인가. region 에 붙은 적 없는 플레이어(시험·단독 레벨)는 참으로 본다. */
+    public boolean onOwnerThread() {
+        var r = ownerRegion;
+        return r == null || r.ownsPlayer(this);
+    }
+
     /** 주인 region 이 플레이어 틱마다 부른다. */
     public void drainOwnerTasks() {
         Runnable t;

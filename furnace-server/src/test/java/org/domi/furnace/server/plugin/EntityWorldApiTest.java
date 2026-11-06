@@ -132,6 +132,23 @@ class EntityWorldApiTest {
         assertInstanceOf(ThreadOwnershipException.class, ex.getCause(), "region 안에서도 남의 칸을 동기로 읽을 수 없다");
     }
 
+    @Test
+    void regionInfoApiReportsOwnerOfLoadedChunk() throws Exception {
+        var w = api();
+        var info = w.regionAt(0, 0).orElseThrow();
+        assertEquals("minecraft:overworld", info.dimension());
+        assertTrue(info.chunkCount() >= 1);
+        assertTrue(info.boundsContain(0, 0));
+        assertTrue(info.lastTickNanos() >= 0 && info.maxTickNanos() >= info.lastTickNanos());
+        assertTrue(Double.isNaN(info.tps()) || info.tps() >= 0, "tps 는 NaN 이거나 음수가 아니다");
+        assertEquals(info.id(), w.regionAt(new BlockPos(5, 10, 5)).orElseThrow().id(), "블록 좌표 편의 메서드");
+        assertTrue(w.regions().stream().anyMatch(r -> r.id() == info.id()));
+        assertTrue(w.regions().stream().allMatch(r -> r.dimension().equals("minecraft:overworld")));
+        assertEquals(Optional.empty(), w.regionAt(500_000, 500_000), "구역이 없는 먼 청크");
+        // 소유 스레드 이름은 틱 중일 때만 있다 — 값이 있으면 비어 있지 않다
+        for (var r : w.regions()) if (r.ownerThread() != null) assertFalse(r.ownerThread().isEmpty());
+    }
+
     // ------------------------------------------------------------------ 아이템 변환
 
     @Test

@@ -47,7 +47,15 @@ public final class DataPackManager implements AutoCloseable {
      */
     public static DataPackManager start(Path vanillaRoot, Path worldDir, LevelData levelData, RegistrySet dynamicRegistries,
                                         boolean newWorld, List<String> initialEnabled, List<String> initialDisabled) {
+        return start(vanillaRoot, worldDir, levelData, dynamicRegistries, newWorld, initialEnabled, initialDisabled, null);
+    }
+
+    /** pluginPacks: 팩을 찾을 때마다 부르는 플러그인 팩 공급자(부트스트랩 단계의 데이터 팩 찾기 훅). null 이면 없음. */
+    public static DataPackManager start(Path vanillaRoot, Path worldDir, LevelData levelData, RegistrySet dynamicRegistries,
+                                        boolean newWorld, List<String> initialEnabled, List<String> initialDisabled,
+                                        java.util.function.Supplier<List<PackRepository.JarPack>> pluginPacks) {
         PackRepository repo = new PackRepository(vanillaRoot, worldDir.resolve("datapacks"));
+        if (pluginPacks != null) repo.pluginPacks(pluginPacks);
         DataPackManager m = new DataPackManager(repo, new TagRegistries(dynamicRegistries), levelData);
         List<String> enabled = newWorld ? initialEnabled : levelData.enabledPacks;
         List<String> disabled = newWorld ? initialDisabled : levelData.disabledPacks;
