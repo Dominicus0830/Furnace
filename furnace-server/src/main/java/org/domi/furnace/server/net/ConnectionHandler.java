@@ -212,7 +212,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void handleHandshake(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         if (packetId != Handshake.ID) {
-            ctx.close();
+            closeFlushed(ctx);
             return;
         }
         Handshake hs = Handshake.read(frame, login.bungeecord ? Handshake.MAX_FORWARDED_ADDRESS : Handshake.MAX_ADDRESS);
@@ -221,7 +221,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 1 -> {
                 state = ConnectionState.STATUS;
                 // enable-status=false 면 응답하지 않고 끊는다(Ignoring status request). 상태 조회는 버전과 무관하게 허용.
-                if (!login.enableStatus) ctx.close();
+                if (!login.enableStatus) closeFlushed(ctx);
             }
             case 2 -> beginLogin(ctx, hs, false);
             case 3 -> {
@@ -232,7 +232,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     beginLogin(ctx, hs, true);
                 }
             }
-            default -> ctx.close();
+            default -> closeFlushed(ctx);
         }
     }
 
@@ -271,7 +271,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void handleStatus(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
             case 0x00 -> { // Status Request — 연결당 한 번(두 번째는 "Status request has been handled" 로 종료)
-                if (statusHandled) { ctx.close(); return; }
+                if (statusHandled) { closeFlushed(ctx); return; }
                 statusHandled = true;
                 java.util.List<org.domi.furnace.server.players.GameProfile> online = new java.util.ArrayList<>();
                 java.util.List<Boolean> listing = new java.util.ArrayList<>();
@@ -289,7 +289,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 new PongResponse(frame.readLong()).write(buf);
                 ctx.writeAndFlush(buf).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
             }
-            default -> ctx.close();
+            default -> closeFlushed(ctx);
         }
     }
 
@@ -329,7 +329,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 state = ConnectionState.CONFIGURATION;
                 onEnterConfiguration(ctx);
             }
-            default -> ctx.close();
+            default -> closeFlushed(ctx);
         }
     }
 
@@ -786,7 +786,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             case 0x03 -> { // Acknowledge Finish Configuration
-                if (!finishConfigSent) { ctx.close(); return; }          // Finish를 보내기 전의 ack는 프로토콜 위반
+                if (!finishConfigSent) { closeFlushed(ctx); return; }          // Finish를 보내기 전의 ack는 프로토콜 위반
                 state = ConnectionState.PLAY;
                 beginEnterPlay(ctx);
             }
@@ -1700,7 +1700,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int clickTypeId = Types.readVarInt(frame);
                 int numChanged = Types.readVarInt(frame);
                 if (numChanged < 0 || numChanged > MAX_CLICK_CHANGED_SLOTS) {   // 바닐라는 128 초과를 거부한다
-                    ctx.close();
+                    closeFlushed(ctx);
                     break;
                 }
                 java.util.Map<Integer, ItemStack> changed = new java.util.HashMap<>();
@@ -1831,10 +1831,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             id = Types.readUuid(frame);
             action = Types.readVarInt(frame);
         } catch (RuntimeException e) {
-            ctx.close();
+            closeFlushed(ctx);
             return -1;
         }
-        if (action < 0 || action >= ResourcePackResponses.ACTION_COUNT) { ctx.close(); return -1; }
+        if (action < 0 || action >= ResourcePackResponses.ACTION_COUNT) { closeFlushed(ctx); return -1; }
         var pack = serverPack();
         if (pack != null && ResourcePackResponses.kicksRequired(action, pack.isRequired())) {
             log.info("Disconnecting {} due to resource pack {} rejection", playerName, id);
@@ -2328,7 +2328,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } catch (RuntimeException e) {
             menu.resumeRemoteUpdates();
             log.warn("컨테이너 클릭 처리 중 오류({}), 연결 종료: {}", menu, e.toString());
-            ctx.close();
+            closeFlushed(ctx);
         }
     }
 
@@ -3633,7 +3633,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
     void send(ChannelHandlerContext ctx, Packet packet) {
-        ctx.writeAndFlush(org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet));
+        ctx.write(org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet));
+        scheduleFlush(ctx);
+    }
+
+    // 같은 이벤트 루프 순간에 쌓인 패킷(접속 직후 스폰 청크 수백 개 등)은 시스템 호출 한 번으로 내보낸다.
+    // 쓰기 순서는 그대로고, 플래그는 이벤트 루프 스레드에서만 만진다(Player.send 와 같은 방식).
+    private boolean flushPending;
+
+    private void scheduleFlush(ChannelHandlerContext ctx) {
+        if (flushPending) return;
+        flushPending = true;
+        ctx.executor().execute(() -> {
+            flushPending = false;
+            ctx.flush();
+        });
+    }
+
+    /** 밀린 쓰기를 먼저 내보낸 뒤 닫는다 — 닫으면 flush 안 된 쓰기는 버려지기 때문이다. */
+    private void closeFlushed(ChannelHandlerContext ctx) {
+        ctx.flush();
+        ctx.close();
     }
 
     /** 서버 종료: 이벤트 루프에서 현재 단계에 맞는 Disconnect로 사유를 알리고 닫는다. */
@@ -3666,7 +3686,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case PLAY -> new Disconnect(reason);
             default -> null;
         };
-        if (pkt == null) { ctx.close(); return; }
+        if (pkt == null) { closeFlushed(ctx); return; }
         ByteBuf buf = ctx.alloc().buffer();
         Types.writeVarInt(buf, pkt.id());
         pkt.write(buf);
@@ -3694,7 +3714,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         log.warn("커넥션 오류, 종료: {}", cause.toString());
-        ctx.close();
+        closeFlushed(ctx);
     }
 
     private static final int MAX_CLICK_CHANGED_SLOTS = 128;
@@ -3718,7 +3738,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** 바닐라처럼 패킷 디코드 실패는 연결을 끊는다(클라이언트 화면: 네트워크 프로토콜 오류). */
     private void protocolError(ChannelHandlerContext ctx, String packet, RuntimeException e) {
         log.warn("{} 패킷 디코드 실패, 연결 종료: {}", packet, e.toString());
-        ctx.close();
+        closeFlushed(ctx);
     }
 
     /** 용기를 열 때 region 스레드에서 정한 것: 주 블록 엔티티·(더블 상자의) 둘째·제목. */
