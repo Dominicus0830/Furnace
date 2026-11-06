@@ -96,6 +96,13 @@ public abstract class Mob extends LivingEntity implements Leashable {
 
     public void setPathfindingMalus(PathType type, float malus) { pathfindingMalus.put(type, malus); }
 
+    /** 플러그인 칸 판정 훅(없으면 null — 바닐라 그대로). */
+    private org.domi.furnace.server.entity.ai.navigation.PathTypeHook pathTypeHook;
+
+    public org.domi.furnace.server.entity.ai.navigation.PathTypeHook pathTypeHook() { return pathTypeHook; }
+
+    public void setPathTypeHook(org.domi.furnace.server.entity.ai.navigation.PathTypeHook hook) { pathTypeHook = hook; }
+
     /** 서 있는 칸으로 칠 수 있는 유체인가(canStandOnFluid) — 기본 아니오. */
     public boolean canStandOnFluid(int fluid) { return false; }
 

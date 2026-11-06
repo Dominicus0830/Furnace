@@ -257,7 +257,7 @@ public class WalkNodeEvaluator extends NodeEvaluator {
         long key = new Pos(x, y, z).asLong();
         PathType cached = pathTypesByPosCache.get(key);
         if (cached == null) {
-            cached = getPathTypeOfMob(new PathfindingContext(level, mob), x, y, z, mob);
+            cached = hooked(x, y, z, getPathTypeOfMob(new PathfindingContext(level, mob), x, y, z, mob));
             pathTypesByPosCache.put(key, cached);
         }
         return cached;
