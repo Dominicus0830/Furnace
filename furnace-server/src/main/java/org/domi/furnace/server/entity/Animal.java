@@ -103,6 +103,13 @@ public abstract class Animal extends AgeableMob {
         if (child != null) {
             child.setBaby(true);
             child.moveTo(x(), y(), z(), 0.0F, 0.0F);
+            // 플러그인 EntityBreedEvent 취소: 새끼도 쿨다운도 없이(사랑 상태 유지 — CraftBukkit 과 같다)
+            var ge = level.gameEvents();
+            if (ge.has(org.domi.furnace.api.event.entity.EntityBreedEvent.class)) {
+                Player breeder = loveCausePlayer();
+                if (breeder == null) breeder = partner.loveCausePlayer();
+                if (!ge.entityBreed(child, this, partner, breeder)) return;
+            }
             finalizeBreeding(level, partner, child);
             level.addFreshEntity(child);
         }

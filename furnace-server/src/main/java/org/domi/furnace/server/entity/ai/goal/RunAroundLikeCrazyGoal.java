@@ -42,7 +42,8 @@ public class RunAroundLikeCrazyGoal extends Goal {
             if (rider instanceof org.domi.furnace.server.entity.Player p) {   // 플레이어만 템퍼 판정
                 int temper = horse.getTemper();
                 int max = horse.getMaxTemper();
-                if (max > 0 && horse.random().nextInt(max) < temper) {
+                // 플러그인 EntityTameEvent 취소면 실패 쪽(CraftBukkit 과 같은 자리)
+                if (max > 0 && horse.random().nextInt(max) < temper && horse.level().gameEvents().entityTame(horse, p)) {
                     horse.tameWithName(p);
                     return;
                 }

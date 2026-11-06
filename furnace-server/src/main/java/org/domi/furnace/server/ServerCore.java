@@ -328,6 +328,8 @@ public final class ServerCore {
 
             public void broadcast(Text message) { broadcastSystemMessage(message, false); }
 
+            public Text advancementDone(String advancement, Text message) { return gameEvents().playerAdvancementDone(p, advancement, message); }
+
             public boolean announceAdvancements() { return gameRule("announceAdvancements"); }
 
             public Text displayName() { return p.displayName(); }

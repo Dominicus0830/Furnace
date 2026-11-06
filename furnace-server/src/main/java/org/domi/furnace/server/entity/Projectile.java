@@ -92,6 +92,7 @@ public abstract class Projectile extends Entity {
      * 그 밖에는 redirectable_projectile 을 맞췄을 때 그쪽을 시선 방향으로 튕긴 뒤 onHit(엔티티 적중: 이 투사체는 Targetable 이 아닌 투사체를 아직 못 맞춘다).
      */
     protected boolean hitTargetOrDeflectSelf(Hit hit) {
+        if (!pluginAllowsHit(hit)) return false;   // 플러그인 ProjectileHitEvent 취소(Paper preHitTargetOrDeflectSelf): 이번 적중을 무시
         if (hit.isEntity() && !(hit.target() instanceof EnderDragonPart)) {
             Targetable t = hit.target();
             Deflection d = t.projectileDeflection(this);
@@ -102,6 +103,16 @@ public abstract class Projectile extends Entity {
         }
         onHit(hit);
         return false;
+    }
+
+    private boolean pluginAllowsHit(Hit hit) {
+        var ge = level.gameEvents();
+        if (!ge.has(org.domi.furnace.api.event.entity.ProjectileHitEvent.class)) return true;
+        Targetable t = hit.target();
+        Entity hitEntity = t instanceof EnderDragonPart part ? part.parent : t instanceof Entity e ? e : null;
+        Player hitPlayer = t instanceof Player p ? p : null;
+        Pos bp = hit.isEntity() ? null : hit.blockPos();
+        return ge.projectileHit(this, hitEntity, hitPlayer, bp, bp == null ? 0 : level.getBlockState(bp), hit.face());
     }
 
     /** 튕김을 받는가(바람 구슬은 처음 5틱 동안 거짓). */

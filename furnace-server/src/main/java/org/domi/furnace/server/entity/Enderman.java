@@ -56,8 +56,8 @@ public class Enderman extends Monster implements NeutralMob {
     }
 
     @Override
-    public void setTarget(Targetable t) {
-        super.setTarget(t);
+    public boolean setTarget(Targetable t) {
+        if (!super.setTarget(t)) return false;
         var speed = attributes().get(Attribute.MOVEMENT_SPEED);
         if (t == null) {
             targetChangeTime = 0;
@@ -69,6 +69,7 @@ public class Enderman extends Monster implements NeutralMob {
             entityData.set(DATA_CREEPY, true);
             if (!speed.hasModifier(SPEED_MODIFIER_ATTACKING_ID)) speed.addOrReplaceModifier(SPEED_MODIFIER_ATTACKING);
         }
+        return true;
     }
 
     @Override

@@ -625,7 +625,15 @@ public abstract class Mob extends LivingEntity implements Leashable {
         return brain == null ? null : brain.getMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.ATTACK_TARGET).orElse(null);
     }
 
-    public void setTarget(Targetable t) { target = t; }
+    /**
+     * 공격 대상을 정한다. 대상이 바뀌면 플러그인 EntityTargetEvent 를 먼저 묻고, 취소되면 그대로 두고 false(CraftBukkit 처럼 하위 클래스는
+     * super 가 false 면 부수 효과를 건너뛴다). 같은 대상이면 묻지 않는다.
+     */
+    public boolean setTarget(Targetable t) {
+        if (t != target && !level.gameEvents().entityTarget(this, t instanceof Entity e ? e : null, t instanceof Player p ? p : null)) return false;
+        target = t;
+        return true;
+    }
 
     protected boolean hasTarget() { return target != null; }
 

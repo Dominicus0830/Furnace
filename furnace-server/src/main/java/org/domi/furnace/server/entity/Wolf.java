@@ -283,7 +283,7 @@ public class Wolf extends TamableAnimal implements NeutralMob {
     }
 
     private void tryToTame(Player p) {
-        if (random.nextInt(3) == 0) {
+        if (random.nextInt(3) == 0 && tameAllowed(p)) {
             tame(p);
             navigation.stop();
             setTarget(null);

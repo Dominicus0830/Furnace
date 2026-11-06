@@ -144,12 +144,20 @@ public final class ServerLoginContext {
      * sample: 접속자 중 임의 시작점부터 최대 12명, 목록 공개를 끈 사람은 익명, 섞어서. hide-online-players 면 생략.
      */
     String statusJson(List<GameProfile> online, List<Boolean> allowsListing) {
+        return statusJson(online, allowsListing, org.domi.furnace.server.plugin.GameEvents.NONE, null);
+    }
+
+    /** 플러그인 ServerListPingEvent 가 MOTD·인원·목록 숨김을 바꿀 수 있다(바꾸지 않으면 위와 같은 JSON). */
+    String statusJson(List<GameProfile> online, List<Boolean> allowsListing, org.domi.furnace.server.plugin.GameEvents events, java.net.InetAddress address) {
+        var ov = events.serverListPing(address, motd, online.size(), maxPlayers, hideOnlinePlayers);
         JsonObject o = new JsonObject();
-        o.add("description", new JsonPrimitive(motd));
+        if (ov != null && ov.motdJson() != null) o.add("description", com.google.gson.JsonParser.parseString(ov.motdJson()));
+        else o.add("description", new JsonPrimitive(motd));
         JsonObject players = new JsonObject();
-        players.addProperty("max", maxPlayers);
-        players.addProperty("online", online.size());
-        if (!hideOnlinePlayers && !online.isEmpty()) {
+        players.addProperty("max", ov != null ? ov.max() : maxPlayers);
+        players.addProperty("online", ov != null ? ov.online() : online.size());
+        boolean hide = ov != null ? ov.hidePlayers() : hideOnlinePlayers;
+        if (!hide && !online.isEmpty()) {
             int n = Math.min(online.size(), MAX_SAMPLE);
             int start = online.size() - n == 0 ? 0 : random.nextInt(online.size() - n + 1);
             List<GameProfile> sample = new ArrayList<>(n);

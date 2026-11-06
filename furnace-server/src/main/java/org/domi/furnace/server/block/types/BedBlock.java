@@ -42,7 +42,7 @@ public class BedBlock extends HorizontalDirectionalBlock {
             Pos other = pos.relative(Dir.opposite(facing(state)));
             if (B.is(level.getBlockState(other), block)) level.removeBlock(other, false);
             // level.explode(null, badRespawnPointExplosion(가운데), null, 가운데, 5.0, 불, BLOCK)
-            if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) cl.explodeBadRespawnPoint(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, null, 0.0F);
+            if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) cl.explodeBadRespawnPoint(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, null, 0.0F, state);
             return InteractionResult.SUCCESS;
         }
         if (OCCUPIED.is(state)) {

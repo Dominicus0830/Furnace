@@ -56,6 +56,8 @@ public final class PlayerSleeping {
             AABB box = new AABB(cx - 8.0, cy - 5.0, cz - 8.0, cx + 8.0, cy + 5.0, cz + 8.0);
             if (!level.getEntitiesOfClass(Monster.class, box, m -> m.isPreventingPlayerRest(p)).isEmpty()) return Problem.NOT_SAFE;
         }
+        // 플러그인 PlayerBedEnterEvent 취소: 조용히 실패(OTHER_PROBLEM 은 메시지가 없다)
+        if (!level.gameEvents().playerBedEnter(p, level.dimension(), pos.x(), pos.y(), pos.z(), level.getBlockState(pos))) return Problem.OTHER_PROBLEM;
         // Player.startSleepInBed → ServerPlayer.startSleeping(시간 통계 초기화) → LivingEntity.startSleeping
         if (p.stats() != null) p.stats().set("minecraft:time_since_rest", 0);
         startSleeping(p, level, pos);
@@ -104,7 +106,9 @@ public final class PlayerSleeping {
      * 그리고 위치·회전 텔레포트.
      */
     public static void stopSleepInBed(Player p, ChunkLevel level, boolean wakeImmediately, boolean updateLevelList) {
-        if (p.isSleeping()) {
+        boolean wasSleeping = p.isSleeping();
+        Pos bed = p.sleepingPos();
+        if (wasSleeping) {
             var pkt = new Animate(p.entityId(), Animate.WAKE_UP);
             p.send(pkt);
             p.vitals().broadcastToTrackers(pkt);
@@ -113,6 +117,7 @@ public final class PlayerSleeping {
         if (updateLevelList && level != null) level.updateSleepingPlayerList();
         p.sleepCounter(wakeImmediately ? 0 : 100);
         p.teleportTo(p.x(), p.y(), p.z(), p.yaw(), p.pitch());
+        if (wasSleeping) p.vitals().env().gameEvents().playerBedLeave(p, level != null ? level.dimension() : p.dimension(), bed);   // 플러그인 PlayerBedLeaveEvent
     }
 
     /** LivingEntity.stopSleeping: 침대가 아직 있으면 점유를 풀고 BedBlock.findStandUpPosition(없으면 머리 칸 위)으로, 침대 쪽을 본다. */

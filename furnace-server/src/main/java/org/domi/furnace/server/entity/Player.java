@@ -477,6 +477,16 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전. */
     public void kick(Packet packet) {
+        if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d && !isDisconnected()) {   // 플러그인 PlayerKickEvent: 사유 바꾸기·취소
+            org.domi.furnace.api.text.Text reason = vitals().env().gameEvents().playerKick(this, d.reason());
+            if (reason == null) return;
+            if (reason != d.reason()) packet = new org.domi.furnace.server.net.protocol.play.Disconnect(reason);
+        }
+        kickForced(packet);
+    }
+
+    /** 취소할 수 없는 내보내기(같은 계정 중복 접속) — 플러그인 이벤트 없이. */
+    public void kickForced(Packet packet) {
         if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d) {
             kickReason = d.reason();
             org.domi.furnace.api.text.Text r = localize(d.reason());

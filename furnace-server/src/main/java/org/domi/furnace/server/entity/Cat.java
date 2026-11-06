@@ -197,7 +197,7 @@ public class Cat extends TamableAnimal {
             }
         } else if (isFood(held)) {
             usePlayerItem(p, hand, held);
-            if (random.nextInt(3) == 0) {
+            if (random.nextInt(3) == 0 && tameAllowed(p)) {
                 tame(p);
                 setOrderedToSit(true);
                 broadcastEntityEvent((byte) 7);

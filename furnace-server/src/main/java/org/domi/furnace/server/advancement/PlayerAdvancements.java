@@ -61,6 +61,9 @@ public final class PlayerAdvancements {
 
         LootRegistries registries();
 
+        /** 달성 직전(플러그인 PlayerAdvancementDoneEvent): 알릴 문구를 돌려준다(null = 알리지 않음). 기본은 그대로. */
+        default Text advancementDone(String advancement, Text message) { return message; }
+
         /** 바닐라 AdvancementRewards.function: 플레이어를 실행 주체로, 권한 2, 출력 없이 함수 실행. 함수가 없으면 아무것도 안 한다. */
         default void runFunction(String function) {}
     }
@@ -195,11 +198,12 @@ public final class PlayerAdvancements {
             progressChanged.add(a.id());
             changed = true;
             if (!wasDone && p.isDone()) {
-                grantRewards(a.rewards());
                 DisplayInfo d = a.display();
-                if (d != null && d.announceChat && host.announceAdvancements()) {
-                    host.broadcast(Text.translatable("chat.type.advancement." + d.frame.name, host.displayName(), name(a)));
-                }
+                Text msg = d != null && d.announceChat && host.announceAdvancements()
+                        ? Text.translatable("chat.type.advancement." + d.frame.name, host.displayName(), name(a)) : null;
+                msg = host.advancementDone(a.id().toString(), msg);   // 플러그인 PlayerAdvancementDoneEvent(보상 전, CraftBukkit 순서)
+                grantRewards(a.rewards());
+                if (msg != null) host.broadcast(msg);
             }
         }
         if (!wasDone && p.isDone()) markForVisibilityUpdate(a);

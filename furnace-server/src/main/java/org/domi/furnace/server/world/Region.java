@@ -1999,6 +1999,11 @@ public final class Region {
 
     /** 차원 이동 도착(목적 region 스레드): 다음 틱에 체력·경험치를 다시 보내고 편입, 도착 뒤 처리(포털 티켓), 발전 과제(from 이 null 이면 없음 — 죽어서 리스폰). */
     public void adoptAfterDimensionChange(Player p, org.domi.furnace.server.entity.DimensionTransition t, String fromDimension) {
+        adoptAfterDimensionChange(p, t, fromDimension, fromDimension);
+    }
+
+    /** changedFrom: 플러그인 PlayerChangedWorldEvent 의 떠나온 차원(다른 차원 리스폰은 발전 과제 없이 이것만, null 이면 안 부른다). */
+    public void adoptAfterDimensionChange(Player p, org.domi.furnace.server.entity.DimensionTransition t, String fromDimension, String changedFrom) {
         p.vitals().resetSentInfo();
         adopt(p);
         // EntityCallbacks.onTrackingStart/End: 들어온 차원과 떠난 차원의 잠 목록
@@ -2018,6 +2023,7 @@ public final class Region {
             }
             if (!"minecraft:the_nether".equals(world.dimension())) p.enteredNetherPosition = null;
         }
+        if (changedFrom != null && !changedFrom.equals(world.dimension())) world.levelServices().gameEvents().playerChangedWorld(p, changedFrom);
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */
