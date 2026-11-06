@@ -60,6 +60,9 @@ public interface Player extends CommandSender, LivingEntity {
     /** 사유를 보여 주고 연결을 끊는다. */
     void kick(Text reason);
 
+    /** 이 플레이어의 연결(접속 단계 이벤트와 같은 객체·같은 id). */
+    org.domi.furnace.api.net.PlayerConnection connection();
+
     /** 클라이언트가 minecraft:brand 로 알린 이름(예: "vanilla"), 아직 모르면 null. */
     String clientBrand();
 
