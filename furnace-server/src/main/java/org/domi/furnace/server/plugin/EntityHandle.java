@@ -67,8 +67,6 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         }
     }
 
-    EntityTasks tasks() { return tasks; }
-
     /** 소유 region 스레드에서 만든다. */
     public static EntityHandle of(PluginHost host, Entity e) {
         if (e instanceof org.domi.furnace.server.trade.Merchant && e instanceof org.domi.furnace.server.entity.Mob m) return new MerchantHandle(host, m);
