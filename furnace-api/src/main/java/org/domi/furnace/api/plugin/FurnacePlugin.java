@@ -19,6 +19,8 @@ public abstract class FurnacePlugin {
     private volatile boolean enabled;
     private volatile PluginTasks tasks;
     private Config config;
+    private final java.util.ArrayDeque<AutoCloseable> owned = new java.util.ArrayDeque<>();
+    private boolean closing;
 
     /** 로더 전용 — 한 번만 부를 수 있다. */
     public final void init(PluginContext ctx) {
@@ -31,6 +33,7 @@ public abstract class FurnacePlugin {
     public final void setEnabled(boolean v) {
         if (enabled == v) return;
         if (v) {
+            synchronized (owned) { closing = false; }
             enabled = true;
             onEnable();
         } else {
@@ -39,6 +42,8 @@ public abstract class FurnacePlugin {
             } finally {
                 enabled = false;
                 tasks.cancelAll();
+                synchronized (owned) { closing = true; }
+                closeOwned();
             }
         }
     }
@@ -61,15 +66,50 @@ public abstract class FurnacePlugin {
 
     public final PluginTasks tasks() { return tasks; }
 
-    /** plugins/<이름>/ (없으면 만든다). */
-    public final Path dataFolder() {
-        Path p = context.dataFolder();
+    /** 데이터 폴더(없으면 만든다). 기본은 plugins/<이름>/ — 서버 설정 plugins.data-root 가 있으면 거기 아래로 갈라진다. */
+    public final Path dataFolder() { return ensure(context.dataFolder()); }
+
+    /** 설정 폴더 plugins/<이름>/ (없으면 만든다). config.yml 같은 관리자용 파일이 있는 곳. */
+    public final Path configFolder() { return ensure(context.configFolder()); }
+
+    private static Path ensure(Path p) {
         try {
             Files.createDirectories(p);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
         return p;
+    }
+
+    /**
+     * 이 플러그인이 꺼질 때 자동으로 닫을 자원(열린 메뉴·핸들 등)을 맡긴다. onDisable 뒤 등록 역순으로 닫히고,
+     * 이미 꺼진 뒤에 맡기면 바로 닫는다. 닫다가 난 예외는 로그만 남기고 나머지를 계속 닫는다.
+     */
+    public final <T extends AutoCloseable> T own(T resource) {
+        boolean closeNow;
+        synchronized (owned) {
+            closeNow = closing;
+            if (!closeNow) owned.push(resource);
+        }
+        if (closeNow) closeQuiet(resource);
+        return resource;
+    }
+
+    private void closeOwned() {
+        java.util.List<AutoCloseable> list;
+        synchronized (owned) {
+            list = new java.util.ArrayList<>(owned);   // ArrayDeque.push 는 앞에 넣으므로 이미 등록 역순
+            owned.clear();
+        }
+        for (AutoCloseable c : list) closeQuiet(c);
+    }
+
+    private void closeQuiet(AutoCloseable c) {
+        try {
+            c.close();
+        } catch (Throwable t) {
+            logger().log(java.util.logging.Level.WARNING, "자원을 닫다가 예외", t);
+        }
     }
 
     /** jar 안의 리소스(없으면 null). */
@@ -102,12 +142,19 @@ public abstract class FurnacePlugin {
     /** jar 안의 기본 설정을 데이터 폴더에 없을 때만 복사한다. */
     public final void saveDefaultConfig() {
         String name = configFileName();
-        if (resource(name) != null) saveResource(name, false);
+        if (resource(name) == null) return;
+        Path target = configFolder().resolve(name);
+        if (Files.exists(target)) return;
+        try (InputStream in = resource(name)) {
+            Files.copy(in, target);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public final synchronized void reloadConfig() {
         String name = configFileName();
-        Path file = dataFolder().resolve(name);
+        Path file = configFolder().resolve(name);
         try {
             config = Config.loadOrEmpty(file);
             try (InputStream in = resource(name)) {
@@ -132,7 +179,7 @@ public abstract class FurnacePlugin {
     /** 데이터 폴더나 jar 에 있는 설정 파일 이름(yml → toml → json, 아무것도 없으면 config.yml). */
     private String configFileName() {
         for (String n : new String[]{"config.yml", "config.yaml", "config.toml", "config.json"}) {
-            if (Files.exists(context.dataFolder().resolve(n)) || resource(n) != null) return n;
+            if (Files.exists(context.configFolder().resolve(n)) || resource(n) != null) return n;
         }
         return "config.yml";
     }

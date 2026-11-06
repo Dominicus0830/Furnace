@@ -91,6 +91,7 @@ public final class FurnaceMain {
             log.info("You need to agree to the EULA in order to run the server. Go to eula.txt for more info.");
             return;
         }
+        ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
         ServerProperties props = settings.get();
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none",
@@ -173,7 +174,9 @@ public final class FurnaceMain {
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
-                profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord());
+                profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
+                .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
+                        .withVanillaRateLimit(props.rateLimitPacketsPerSecond));
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
@@ -345,6 +348,7 @@ public final class FurnaceMain {
         core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
         // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
         org.domi.furnace.api.Furnace.setServer(core.plugins());
+        core.plugins().pluginsImpl().settings(org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps));
         core.plugins().pluginsImpl().loadAll();
         // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
         org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
@@ -429,7 +433,7 @@ public final class FurnaceMain {
         scheduler.global().executeDelayed(new Repeating(scheduler, () -> {
             if (world.autosaveEnabled()) saveLevelData.run();
         }, config.autosaveTicks()), config.autosaveTicks());
-        ConsoleInput.start(core);
+        console.attach(core);
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 

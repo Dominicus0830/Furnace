@@ -98,7 +98,7 @@ final class Teleports {
                                        java.util.concurrent.CompletableFuture<Void> done) {
         org.domi.furnace.server.command.EntityOps.runOnPlayerOwner(source, p, region -> {
             try {
-                if (p.vehicle() != null) p.stopRiding();
+                if (p.vehicle() != null) org.domi.furnace.server.entity.Entity.stopRidingForced(p);
                 if (p.isSleeping()) PlayerSleeping.stopSleepInBed(p, region.level(), true, true);
                 if (p.dimension().equals(dimension) || source.getServer().world(dimension) == null) {
                     p.teleportTo(x, y, z, yaw, pitch);

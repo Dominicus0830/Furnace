@@ -7,6 +7,9 @@ import java.util.Set;
 import org.domi.furnace.api.persistence.PersistentDataContainer;
 import org.domi.furnace.api.persistence.PersistentDataType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.net.io.nbt.NbtTags;
 
 final class NbtPersistentData implements PersistentDataContainer {
 
@@ -48,12 +51,55 @@ final class NbtPersistentData implements PersistentDataContainer {
     /** 저장된 NBT 값 → API 값. 종류가 맞지 않으면 null. 배열은 사본. */
     @SuppressWarnings("unchecked")
     private <T> T convert(Object v, PersistentDataType<T> type) {
+        PersistentDataType<?> elem = type.elementType();
+        if (elem != null) {
+            if (!(v instanceof NbtList l)) return null;
+            java.util.List<Object> out = new java.util.ArrayList<>(l.size());
+            for (Object item : l.items()) {
+                Object c = convert(item, elem);
+                if (c == null) return null;
+                out.add(c);
+            }
+            return (T) java.util.Collections.unmodifiableList(out);
+        }
         if (type == PersistentDataType.BOOLEAN) return v instanceof Byte b ? (T) Boolean.valueOf(b != 0) : null;
         if (type == PersistentDataType.TAG_CONTAINER) return v instanceof NbtCompound c ? (T) new NbtPersistentData(readOnly ? c.copy() : c, readOnly) : null;
         if (v instanceof byte[] a) return type == PersistentDataType.BYTE_ARRAY ? (T) a.clone() : null;
         if (v instanceof int[] a) return type == PersistentDataType.INTEGER_ARRAY ? (T) a.clone() : null;
         if (v instanceof long[] a) return type == PersistentDataType.LONG_ARRAY ? (T) a.clone() : null;
         return type.javaType().isInstance(v) ? (T) v : null;
+    }
+
+    /** API 값 → NBT 값. 종류에 맞지 않으면 IllegalArgumentException. */
+    private static Object toNbt(Object value, PersistentDataType<?> type) {
+        PersistentDataType<?> elem = type.elementType();
+        if (elem != null) {
+            if (!(value instanceof java.util.List<?> list)) throw new IllegalArgumentException(value.getClass().getSimpleName() + " 는 " + type + " 값이 아니다");
+            NbtList out = new NbtList(NbtIo.TAG_END);
+            for (Object item : list) {
+                if (item == null) throw new IllegalArgumentException("목록에 null 을 넣을 수 없다");
+                Object nbt = toNbt(item, elem);
+                if (!out.addTag(out.size(), nbt, NbtTags.typeOf(nbt))) throw new IllegalArgumentException("목록 원소의 종류가 섞였다");
+            }
+            return out;
+        }
+        if (type == PersistentDataType.BOOLEAN) {
+            if (!(value instanceof Boolean b)) throw new IllegalArgumentException(value.getClass().getSimpleName() + " 는 " + type + " 값이 아니다");
+            return (byte) (b ? 1 : 0);
+        }
+        if (type == PersistentDataType.TAG_CONTAINER) {
+            if (!(value instanceof NbtPersistentData c)) throw new IllegalArgumentException("중첩 컨테이너는 newContainer() 로 만든 것만");
+            return c.tag.copy();
+        }
+        if (value instanceof byte[] a) return type == PersistentDataType.BYTE_ARRAY ? a.clone() : mismatch(value, type);
+        if (value instanceof int[] a) return type == PersistentDataType.INTEGER_ARRAY ? a.clone() : mismatch(value, type);
+        if (value instanceof long[] a) return type == PersistentDataType.LONG_ARRAY ? a.clone() : mismatch(value, type);
+        if (type.javaType().isInstance(value)) return value;
+        return mismatch(value, type);
+    }
+
+    private static Object mismatch(Object value, PersistentDataType<?> type) {
+        throw new IllegalArgumentException(value.getClass().getSimpleName() + " 는 " + type + " 값이 아니다");
     }
 
     @Override
@@ -71,17 +117,7 @@ final class NbtPersistentData implements PersistentDataContainer {
         writable();
         PersistentDataType.checkKey(key);
         if (value == null) throw new IllegalArgumentException("값이 null — 지우려면 remove");
-        Object nbt;
-        if (type == PersistentDataType.BOOLEAN) nbt = (byte) ((Boolean) value ? 1 : 0);
-        else if (type == PersistentDataType.TAG_CONTAINER) {
-            if (!(value instanceof NbtPersistentData c)) throw new IllegalArgumentException("중첩 컨테이너는 newContainer() 로 만든 것만");
-            nbt = c.tag.copy();
-        } else if (value instanceof byte[] a) nbt = a.clone();
-        else if (value instanceof int[] a) nbt = a.clone();
-        else if (value instanceof long[] a) nbt = a.clone();
-        else if (type.javaType().isInstance(value)) nbt = value;
-        else throw new IllegalArgumentException(value.getClass().getSimpleName() + " 는 " + type + " 값이 아니다");
-        tag.tags().put(key, nbt);
+        tag.tags().put(key, toNbt(value, type));
     }
 
     @Override

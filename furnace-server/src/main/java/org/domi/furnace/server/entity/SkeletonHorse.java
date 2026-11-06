@@ -95,14 +95,14 @@ public class SkeletonHorse extends AbstractHorse {
             level.addFreshEntity(bolt);
             Skeleton rider = createSkeleton(diff, horse);
             rider.startRiding(horse);
-            level.addFreshEntityWithPassengers(rider);
+            level.addFreshEntityWithPassengers(rider.spawnReason("TRAP"));
             for (int i = 0; i < 3; i++) {
                 SkeletonHorse h = createHorse(diff);
                 Skeleton s = createSkeleton(diff, h);
                 s.startRiding(h);
                 h.addDeltaMovement(horse.random().triangle(0.0, 1.1485), 0.0, horse.random().triangle(0.0, 1.1485));
                 h.hasImpulse = true;
-                level.addFreshEntityWithPassengers(h);
+                level.addFreshEntityWithPassengers(h.spawnReason("TRAP"));
             }
         }
 

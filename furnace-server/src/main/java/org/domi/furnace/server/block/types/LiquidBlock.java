@@ -70,13 +70,11 @@ public class LiquidBlock extends BlockBehavior {
                 Pos n = pos.relative(Dir.opposite(d));
                 if (Fluids.isWater(level.getFluidState(n))) {
                     int b = Fluids.isSource(level.getFluidState(pos)) ? OBSIDIAN : COBBLESTONE;
-                    level.setBlockAndUpdate(pos, B.defaultState(b));
-                    fizz(level, pos);
+                    if (B.form(level, pos, B.defaultState(b), 3)) fizz(level, pos);   // 플러그인 BlockFormEvent
                     return false;
                 }
                 if (soulSoil && B.is(level.getBlockState(n), BLUE_ICE)) {
-                    level.setBlockAndUpdate(pos, B.defaultState(BASALT));
-                    fizz(level, pos);
+                    if (B.form(level, pos, B.defaultState(BASALT), 3)) fizz(level, pos);   // 플러그인 BlockFormEvent
                     return false;
                 }
             }

@@ -37,7 +37,7 @@ public class SnowLayerBlock extends BlockBehavior {
 
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        if (level.getBlockLight(pos) > 11) {
+        if (level.getBlockLight(pos) > 11 && B.fade(level, pos, B.defaultState("air"))) {   // 플러그인 BlockFadeEvent
             level.dropResources(state, pos);
             level.removeBlock(pos, false);
         }

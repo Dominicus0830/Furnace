@@ -40,10 +40,10 @@
 | 우선 | 항목 | Furnace 현황(근거) | 겹침 |
 |---|---|---|---|
 | 상 | **Bukkit/Paper 플러그인 실행(호환 어댑터)** | 없음. `SRV/plugin/PluginManagerImpl.java:2,49` 가 `plugins/bukkit-plugins/` jar 를 **세기만** 한다. 기존 Paper 플러그인은 하나도 못 돌린다 | 장기(5단계 `furnace-compat-paper`, 확정된 방향) |
-| 상 | 이벤트 확충 — 블록 | 있는 것: Break·Place·Explode(3단계), 3단계 둘째 ~~물리·레드스톤(가루·레버·버튼·압력판·램프)·피스톤 확장/수축·유체 흐름·성장·불타기·점화·잎 썩음~~. 없는 것: 번짐/형성/소멸(`BlockSpread/Form/FadeEvent`)·발사기·표지판 변경·중계기 등 나머지 레드스톤 부품 | — |
-| 상 | 이벤트 확충 — 엔티티 | 있는 것: Damage·Death·Spawn, 3단계 ~~폭발·대상 지정·길들이기·번식·투사체 발사/적중·아이템 스폰~~. 없는 것: 활 쏘기·변신·연소·회복·허기 변화·효과 변화·아이템 병합/디스폰·탈것 승하차·`CreatureSpawnEvent` | PR#5 는 상호작용(`PlayerInteractEntityEvent`)만 |
-| 상 | 이벤트 확충 — 플레이어 | 3단계 ~~웅크림/달리기/비행 전환·아이템 소비·손 바꾸기·들고 있는 칸 변경·침대·경험치/레벨 변화·발전 과제 달성·차원 변경·킥~~. 없는 것: 낚시·포털·책 편집·양동이·리소스팩 상태·명령 탭 완성 | — |
-| 상 | 이벤트 확충 — 인벤토리 | 있는 것: Open·Close·Click, 3단계 둘째 ~~제작(`CraftItemEvent`/`PrepareItemCraftEvent`)·화로 연료/제련·호퍼 이동(`InventoryMoveItemEvent`)~~. 없는 것: 드래그·마법 부여·모루·양조·화로 꺼내기·깔때기 줍기·거래 선택 | PR#5 상인 API |
+| 상 | 이벤트 확충 — 블록 | 있는 것: Break·Place·Explode(3단계), 3단계 둘째 ~~물리·레드스톤(가루·레버·버튼·압력판·램프)·피스톤 확장/수축·유체 흐름·성장·불타기·점화·잎 썩음~~. 3단계 셋째 ~~번짐·형성·소멸(`BlockSpread/Form/FadeEvent`)~~. 없는 것: 발사기·표지판 변경·중계기 등 나머지 레드스톤 부품 | — |
+| 상 | 이벤트 확충 — 엔티티 | 있는 것: Damage·Death·Spawn, 3단계 ~~폭발·대상 지정·길들이기·번식·투사체 발사/적중·아이템 스폰~~. 3단계 셋째 ~~탈것 승하차·`CreatureSpawnEvent`~~. 없는 것: 활 쏘기·변신·연소·회복·허기 변화·효과 변화·아이템 병합/디스폰 | PR#5 는 상호작용(`PlayerInteractEntityEvent`)만 |
+| 상 | 이벤트 확충 — 플레이어 | 3단계 ~~웅크림/달리기/비행 전환·아이템 소비·손 바꾸기·들고 있는 칸 변경·침대·경험치/레벨 변화·발전 과제 달성·차원 변경·킥~~. 3단계 셋째 ~~낚시·포털·책 편집~~. 없는 것: 양동이·리소스팩 상태·명령 탭 완성 | — |
+| 상 | 이벤트 확충 — 인벤토리 | 있는 것: Open·Close·Click, 3단계 둘째 ~~제작(`CraftItemEvent`/`PrepareItemCraftEvent`)·화로 연료/제련·호퍼 이동(`InventoryMoveItemEvent`)~~. 3단계 셋째 ~~마법 부여·모루·양조~~. 없는 것: 드래그·화로 꺼내기·깔때기 줍기·거래 선택 | PR#5 상인 API |
 | 상 | 이벤트 확충 — 서버 | 3단계 ~~서버 목록 핑(`ServerListPingEvent`)~~(MOTD·인원·목록 숨김). 없는 것: 아이콘·버전 바꾸기(Paper)·탭 완성·방송 | — |
 | 중 | 비동기 이벤트 표시 | `API/event/Event.java` 에 `isAsync` 없음. `AsyncChatEvent`·`AsyncPlayerPreLoginEvent` 는 이름만 비동기 | — |
 | 중 | 스코어보드·팀 API | 서버 내부 `SRV/scores` 는 있으나 API 타입 없음(플러그인 사이드바·태그 불가) | — |
@@ -82,7 +82,7 @@
 | 상 | **1.21 효과 발동: `wind_charged`·`weaving`·`oozing`·`infested`** | 효과 정의·물약 양조만 있고(`SRV/effect/MobEffect.java:73` 등) 죽을 때 돌풍·거미줄·슬라임·좀벌레를 내는 로직 없음(정의 파일 밖 참조 0건) | — |
 | 상 | **엔드 관문 순간이동(`end_gateway` 블록 엔티티)** | `SRV/block/types/EndGatewayBlock.java:1` "엔티티 순간 이동은 TODO, 블록 동작은 없다". 드래곤 처치 후 바깥 섬으로 갈 수 없음 | — |
 | 완료 | ~~전달체(`conduit`) 활성화·효과·적대 몹 공격~~ | 2026-11-06 `SRV/block/entity/ConduitBlockEntity.java`(바닐라 dqt 바이트코드 대조, 봇 7차 `tools/bot-test/round7/conduit.js`) | — |
-| 중 | 구조물 블록·직소 블록 블록 엔티티와 패킷(`set_structure_block`/`set_jigsaw_block`/`jigsaw_generate`) | 블록 엔티티 없음(목록 `SRV/block/entity/`). 월드젠 처리기만 있음 | — |
+| ~~중~~ 완료(2026-11-06) | 구조물 블록·직소 블록 블록 엔티티와 패킷(`set_structure_block`/`set_jigsaw_block`/`jigsaw_generate`) | `StructureBlockEntity`·`JigsawBlockEntity`·`TemplateManager` 구현. 남음: 데이터 팩 템플릿·.snbt | — |
 | 중 | 커스텀 월드 타입(`debug`·`single_biome_surface`) | 경고 뒤 normal 로 생성. `large_biomes`·`amplified` 는 2026-11-06 구현 | — |
 | 중 | 행운(`luck`/`unluck`) 전리품·낚시 반영 | 앞 조사 2장 TODO, 재확인 필요(가정) | — |
 | 중 | 포털로 좀비 피글린 스폰 | 없음(앞 조사 4장) | 스레드-몹(피글린 분노)과 이웃 — 분노 쪽이 끝난 뒤 |
@@ -95,8 +95,8 @@
 | 우선 | 항목 | Furnace 현황(근거) | 겹침 |
 |---|---|---|---|
 | 상 | **BungeeCord(레거시) IP 포워딩** | 없음. Velocity 모던 포워딩만(`SRV/net/auth/VelocityForwarding.java`). BungeeCord·Waterfall 뒤에 두면 모든 플레이어가 프록시 IP·오프라인 UUID 가 된다. 이전 문서는 "하(Velocity 만)"로 제안했으나 사용자 결정 기록은 없음 | — |
-| 중 | PROXY 프로토콜(HAProxy, `proxies.proxy-protocol`) | 없음 | — |
-| 중 | 아이템·패킷 크기 검증(Paper `item-validation`, 책 페이지 한도 등) | 없음. 패킷 속도 제한만(`SRV/net/ConnectionHandler.java:93`) | — |
+| 중 | PROXY 프로토콜(HAProxy, `proxies.proxy-protocol`) | **구현됨, 기본 꺼짐** (`proxy-protocol`, `connection-defenses-2026-11-06.md`) | — |
+| 중 | 아이템·패킷 크기 검증(Paper `item-validation`, 책 페이지 한도 등) | **구현됨, 기본 꺼짐(바닐라 한도)**. 단계별 속도·프레임·시간 제한 포함 (`connection-defenses-2026-11-06.md`) | — |
 | 하 | 옛 클라이언트(1.6 이하) 서버 목록 핑(0xFE) | 없음 | — |
 | 완료 | 온라인 인증·암호화·압축·epoll·transfer·쿠키·리소스팩·서버 링크 | `SRV/net/auth/*`, `SRV/net/NetworkServer.java:67` | PR#4 패킷 4종 |
 
