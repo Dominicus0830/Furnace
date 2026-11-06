@@ -28,6 +28,7 @@ srv/stop.sh $D
 - `round4/ev.js` 플러그인 API 3단계 이벤트 33항목(시험 플러그인 `round4/probe` 를 `plugins/` 에 넣고 띄운다: `javac -cp furnace-api.jar -d out round4/probe/EventProbe.java && cp round4/probe/furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`).
 - `round5/ev.js` 플러그인 API 3단계 둘째 묶음(블록·인벤토리 이벤트) 31항목 — 시험 플러그인 `round5/probe`(BlockEventProbe, `/evcancel`·`/evmode`)를 위와 같은 방법으로 묶어 넣는다.
 - `round10/ui.js` 플러그인 UI API(메뉴·보스바·사이드바) 10항목 — `round10/README.md`.
+- `round11/virtual.js` 가상 엔티티·NPC·가짜 탭 줄(K1) 11항목 — `round11/README.md`.
 - `round8/` 플러그인 API 3단계 셋째 묶음 이벤트(`ev.js` + `probe/Stage3cProbe`, 구역 form enchant anvil brew vehicle fish portal book spawn).
 - `round6/` user-todo 정리용 6차(시야 거리·바람 구슬·철퇴·장착 소리·포탈·양조·스트라이더·습격·돌고래·투사체) — `round6/README.md`.
 - `round7/conduit.js` 전달체(conduit) 활성화·전달체의 힘·적대 몹 공격 — `round7/README.md`.

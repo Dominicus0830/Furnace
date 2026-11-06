@@ -61,19 +61,20 @@ public final class PacketServiceImpl implements PacketService {
     @Override
     @SuppressWarnings("unchecked")
     public <P extends Packet> EventSubscription listen(FurnacePlugin owner, PacketType<P> type, EventPriority priority, PacketListener<P> listener) {
+        Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(type, "type");
         return add(owner, priority, (PacketListener<Packet>) (PacketListener<?>) listener, List.of(type));
     }
 
     @Override
     public EventSubscription listen(FurnacePlugin owner, EventPriority priority, PacketListener<Packet> listener, PacketType<?>... types) {
+        Objects.requireNonNull(owner, "owner");
         if (types.length == 0) throw new IllegalArgumentException("종류가 하나는 있어야 한다");
         for (PacketType<?> t : types) Objects.requireNonNull(t, "type");
         return add(owner, priority, listener, List.of(types));
     }
 
     private EventSubscription add(FurnacePlugin owner, EventPriority priority, PacketListener<Packet> fn, List<PacketType<?>> types) {
-        Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(priority, "priority");
         Objects.requireNonNull(fn, "listener");
         Object token = new Object();
@@ -89,6 +90,12 @@ public final class PacketServiceImpl implements PacketService {
                 if (regs.removeIf(r -> r.token == token)) rebuild();
             }
         };
+    }
+
+    /** 서버 내부 기능이 쓰는 구독(소유 플러그인 없음 — 플러그인이 꺼져도 남는다). */
+    @SuppressWarnings("unchecked")
+    public <P extends Packet> EventSubscription listenInternal(PacketType<P> type, EventPriority priority, PacketListener<P> listener) {
+        return add(null, priority, (PacketListener<Packet>) (PacketListener<?>) listener, List.of(type));
     }
 
     /** 플러그인이 꺼질 때 그 플러그인의 리스너를 모두 뗀다. */
@@ -304,6 +311,7 @@ public final class PacketServiceImpl implements PacketService {
     }
 
     private static String name(FurnacePlugin p) {
+        if (p == null) return "Furnace";
         try {
             return p.name();
         } catch (RuntimeException e) {   // 로더 밖에서 만든 플러그인(시험)

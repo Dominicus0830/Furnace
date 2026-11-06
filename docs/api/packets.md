@@ -1,5 +1,7 @@
 # Furnace 패킷 API
 
+> 이 API 위에 쌓은 가상 엔티티·NPC·가짜 탭 줄은 [virtual-entities.md](virtual-entities.md).
+
 플러그인이 패킷을 **보내고**, 클라이언트가 보낸 것처럼 **넣고**, 오가는 패킷을 **가로채서 읽고·바꾸고·버리는** API 다(ProtocolLib 이 하던 일).
 `furnace-api` 의 `org.domi.furnace.api.packet` 에 있고, 입구는 `Furnace.server().packets()` 와 `Player.sendPacket`.
 
@@ -46,9 +48,9 @@ packets.listen(this, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> e.setCancelle
 - 목록은 play 단계 전체(서버→클라이언트 124종, 클라이언트→서버 55종)다. 바닐라의 이동 패킷 넷(`move_player_pos`·`_pos_rot`·`_rot`·`_status_only`)은 `MOVE_PLAYER` 하나로 묶었다(버전마다 갈래가 달라질 수 있어서). 보낼 때 `hasPosition`·`hasRotation` 으로 알맞은 것이 골라진다.
 - 다른 버전에 없는 패킷은 `isSupported(type)` 가 false 이고, 구독해도 불리지 않는다.
 
-### 타입 래퍼가 있는 종류 (31)
+### 타입 래퍼가 있는 종류 (34)
 
-서버→클라이언트: `SYSTEM_CHAT`, `SET_ACTION_BAR_TEXT`, `SET_TITLE_TEXT`, `SET_SUBTITLE_TEXT`, `SET_TITLES_ANIMATION`, `CLEAR_TITLES`, `DISCONNECT`, `SET_TIME`, `BLOCK_UPDATE`, `ADD_ENTITY`, `REMOVE_ENTITIES`, `TELEPORT_ENTITY`, `SET_ENTITY_MOTION`, `ROTATE_HEAD`, `ANIMATE`, `SOUND`, `CUSTOM_PAYLOAD`.
+서버→클라이언트: `SYSTEM_CHAT`, `SET_ACTION_BAR_TEXT`, `SET_TITLE_TEXT`, `SET_SUBTITLE_TEXT`, `SET_TITLES_ANIMATION`, `CLEAR_TITLES`, `DISCONNECT`, `SET_TIME`, `BLOCK_UPDATE`, `ADD_ENTITY`, `SET_ENTITY_DATA`, `PLAYER_INFO_UPDATE`, `PLAYER_INFO_REMOVE`, `REMOVE_ENTITIES`, `TELEPORT_ENTITY`, `SET_ENTITY_MOTION`, `ROTATE_HEAD`, `ANIMATE`, `SOUND`, `CUSTOM_PAYLOAD`.
 
 클라이언트→서버: `CHAT`, `CHAT_COMMAND`, `CLIENT_COMMAND`, `CLIENT_INFORMATION`, `CUSTOM_PAYLOAD`, `INTERACT`, `MOVE_PLAYER`, `PLAYER_ACTION`, `PLAYER_COMMAND`, `SET_CARRIED_ITEM`, `SIGN_UPDATE`, `SWING`, `USE_ITEM`, `USE_ITEM_ON`.
 
@@ -89,7 +91,7 @@ packets.listen(this, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> e.setCancelle
 
 ## 다음에 더할 것
 
-엔티티 메타데이터(`set_entity_data`: 발광·투명·이름표 — 직렬화 종류 전체가 필요), 플레이어 정보(`player_info_update`: NPC 스킨·탭 목록), 장비(`set_equipment`: 아이템 와이어 변환), 입자(`level_particles`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘어도 기존 API 는 그대로다 — `OpaquePacket` 이던 종류가 타입 래퍼로 바뀐다(D5: API 는 semver, 래퍼 추가는 마이너).
+장비(`set_equipment`: 아이템 와이어 변환), 엔티티 메타데이터의 나머지 값 종류(아이템·입자·NBT), 입자(`level_particles`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘어도 기존 API 는 그대로다 — `OpaquePacket` 이던 종류가 타입 래퍼로 바뀐다(D5: API 는 semver, 래퍼 추가는 마이너).
 
 ## 서버 구현 위치
 

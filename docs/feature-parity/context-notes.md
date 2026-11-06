@@ -969,6 +969,15 @@
 - 시험에서 TestPlugins 클래스는 앱 클래스패스에 있어 부모 우선 위임으로 PluginClassLoader 가 아니라 앱 로더가 정의한다 → 클래스로더 귀속 시험은 시험 안에서 javac 로 플러그인을 컴파일해 jar 로 만든다(`PluginProfilerTest.compileProbePlugin`).
 - 명령: `/timings on|off|reset|report [플러그인]|export`(권한 3, `timings/plugins-*.txt`). 기동 때부터 재려면 `-Dfurnace.profiler=true`. "틱당" = 자기 시간 ÷ (측정 시간/50ms) — region 이 여럿이면 여러 스레드 합이라 50ms 를 넘을 수 있다.
 
+## 2026-11-06 가상 엔티티·NPC·가짜 탭 줄 (묶음 K1, 불만 표 49번)
+
+- API `org.domi.furnace.api.virtual`(`VirtualEntities`·`VirtualEntity`·`VirtualPlayer`·`VirtualTabList`), 입구 `Furnace.virtualEntities()`. 서버 `plugin/VirtualEntitiesImpl`(PluginHost.virtualImpl). 설명 `docs/api/virtual-entities.md`.
+- 패킷 래퍼 셋 추가: `SET_ENTITY_DATA`(값 종류 9개, 나머지는 `Unsupported` 로 멈춤), `PLAYER_INFO_UPDATE`(채팅 세션 비트는 거절), `PLAYER_INFO_REMOVE`.
+- 추적은 전역 스레드 2틱 주기(`runAtFixedRate`). 클릭은 `PacketServiceImpl.listenInternal`(소유자 없는 내부 구독, 첫 가상 엔티티를 만들 때 한 번 등록)로 INTERACT 를 잡아 취소하고 주 손 우클릭·공격만 처리기로 넘긴다.
+- 정리: `PluginManagerImpl.disable()` 에서 `virtualImpl().removeAll(plugin)`. 새 "플러그인에 맡기는 것" API 는 여기에 해제를 넣는다는 규칙(B8) 그대로.
+- 함정: 플레이어 엔티티는 `player_info_update` 가 `add_entity` 보다 먼저여야 스킨이 그려진다. 차원 이동 때 클라이언트는 엔티티를 잃지만 탭 정보는 남는다.
+- 시험: `VirtualEntitiesTest` 6개(추적·보이기·NPC 순서·클릭·정리·탭), `PacketApiTest` 왕복 확장, 봇 `tools/bot-test/round11/virtual.js` 11/11(minecraft-protocol 이 실제로 패킷을 해석).
+
 ## 2026-11-06 region 경계 차이 2: 명령 블록 체인 한 틱
 - 그동안 명령 블록 명령은 전역 스레드 명령 큐에서 비동기로 돌고 끝나면 소유 region 으로 돌아와 체인을 이었다 — 체인 한 칸마다 region 왕복이라 첫 칸에서 끝 칸까지 5~8틱(봇 실측). 바닐라는 그 예약 틱 안에 끝난다.
 - 이제 `BaseCommandBlock.performCommand` 가 명령을 보낸 뒤 그 자리에서 결과를 기다린다(`BlockLevel.awaitCommand` → `Region.awaitUrgent`). 기다리는 동안 region 은 **전역 스레드가 보낸 작업만**(`Region.Task.urgent`, `GlobalThread.isGlobalThread()` 로 표시) 작업 큐에서 골라 돌린다 — 명령이 이 region 의 칸·엔티티를 만지는 왕복과 결과 콜백이 그 안에서 처리되어, 콜백이 performCommand 가 돌아오기 전에 불리므로 RAN(바닐라 true)으로 끝나고 체인이 그대로 이어진다. 성공 횟수(비교기)도 바로 보인다.
