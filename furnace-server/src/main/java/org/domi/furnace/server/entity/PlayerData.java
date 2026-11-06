@@ -109,6 +109,24 @@ public final class PlayerData {
         }
     }
 
+    /**
+     * RootVehicle 만 덧쓴다(null 이면 지운다). 탈것은 주인 region 스레드가 떠서 같은 실행기로 넘긴다 — 본체 저장은 이 키를 건드리지 않는다.
+     * 파일이 없고 지울 것이면 아무것도 쓰지 않는다.
+     */
+    public static void saveRootVehicle(Path worldDir, UUID id, NbtCompound rootVehicle) {
+        synchronized (lock(id)) {
+            Path f = file(worldDir, id);
+            if (rootVehicle == null && !Files.exists(f)) return;
+            NbtCompound root = readExisting(f);
+            if (rootVehicle == null) {
+                if (root.tags().remove(PlayerVehicleSave.KEY) == null) return;
+            } else {
+                root.put(PlayerVehicleSave.KEY, rootVehicle);
+            }
+            write(worldDir, id, root);
+        }
+    }
+
     /** PlayerVitals.save 가 쓰는 선택 필드 — 값이 없어지면 파일에서도 지워야 하는 것. */
     private static final String[] VITALS_KEYS = {"previousPlayerGameType", "SpawnX", "SpawnY", "SpawnZ", "SpawnForced",
             "SpawnAngle", "SpawnDimension", "LastDeathLocation", "raid_omen_position", "Tags", "BukkitValues"};

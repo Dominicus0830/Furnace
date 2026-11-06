@@ -1104,6 +1104,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }));
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
         p.dimensionChanger((target, t, cooldown) -> ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown)));
+        joinSavedRoot = saved != null ? saved.root() : null;   // RootVehicle 은 region 에 들어간 뒤 태운다
         if (saved != null && saved.root() != null) {
             p.seenCredits = saved.root().getBoolean("seenCredits");
             p.loadTags(saved.root());
@@ -1265,7 +1266,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             }
                         }
                         send(ctx, new ChunkBatchFinished(sent));
-                        world.runAt(sx, sz, r -> r.adopt(p));
+                        final var savedRoot = joinSavedRoot;
+                        joinSavedRoot = null;
+                        world.runAt(sx, sz, r -> {
+                            r.adopt(p);
+                            org.domi.furnace.server.entity.PlayerVehicleSave.restore(p, r.level(), savedRoot);   // placeNewPlayer 의 RootVehicle
+                        });
                         spawnChunksDelivered = true;
                         maybeReleaseSpawnGate();
                     });
@@ -3571,6 +3577,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
+    /** 접속 때 읽은 플레이어 데이터(RootVehicle 을 region 편입 때 태운다). 이벤트 루프 전용. */
+    private org.domi.furnace.server.net.io.nbt.NbtCompound joinSavedRoot;
+
     /** 바닐라처럼 20틱(1초)마다 월드 시간을 보낸다 — 모든 플레이어가 같은 시계를 본다. */
     private void scheduleTimeUpdate(ChannelHandlerContext c) {
         c.executor().schedule(() -> {
@@ -3587,6 +3596,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         c.executor().schedule(() -> {
             if (!c.channel().isActive()) return;
             savePlayerSnapshot();
+            Player p = player;   // 탈것(RootVehicle)은 주인 region 이 떠서 덧쓴다
+            if (p != null) {
+                var io = world.playerIo();
+                var dir = world.worldDir();
+                p.runOnOwner(() -> org.domi.furnace.server.entity.PlayerVehicleSave.autosave(p, io, dir));
+            }
             scheduleAutosave(c);
         }, periodMs, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
