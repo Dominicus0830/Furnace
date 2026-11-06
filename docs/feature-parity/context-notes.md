@@ -869,3 +869,9 @@
 - 차이(region): 대상이 다른 region 으로 넘어가면 이 스레드가 건드리지 않고 놓는다(8칸 안이라 경계 근처에서만).
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
+
+## 2026-11-06 블록·레시피 API (묶음 D1)
+- 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
+- **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
+- 플러그인 레시피는 `PluginRecipes`(소유자·원본 서버 레시피)에 따로 적어 두고 `/reload` 뒤 `ServerCore` 리로드 리스너에서 `reapply` 로 새 매니저에 입힌다(패킷 보내기 전). 변환은 데이터 팩 파서의 검사를 같게 하려고 `recipe/ApiRecipes` 가 서버 `Recipe` 레코드를 직접 만든다(JSON 을 거치지 않는다 — 결과 컴포넌트가 SNBT 라서).
+- 시험 함정: 서버 아이템 레지스트리 `idOf` 는 `minecraft:` 접두가 있어야 한다(없으면 -1 이라 특수 레시피 매칭에서 NPE 처럼 보인다). `Furnace.server()` 는 전역이라 서버 단위 시험에서는 `snapshot.live()`·`BlockEvent.liveBlock()` 을 못 쓴다.
