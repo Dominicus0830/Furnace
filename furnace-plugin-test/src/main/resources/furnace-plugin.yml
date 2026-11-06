@@ -1,6 +1,7 @@
 name: Sample
 version: 1.0.0
 main: org.domi.furnace.plugintest.SamplePlugin
+bootstrapper: org.domi.furnace.plugintest.SampleBootstrap
 description: Furnace API sample plugin
 authors: [domi]
 commands:
