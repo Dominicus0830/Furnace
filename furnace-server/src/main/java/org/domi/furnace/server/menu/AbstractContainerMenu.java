@@ -39,6 +39,13 @@ public abstract class AbstractContainerMenu {
     private MenuSynchronizer synchronizer;
     private boolean suppressRemoteUpdates;
 
+    private volatile Object pluginOwner;
+
+    /** 플러그인 Menu 가 연 창이면 그 세션(plugin.MenuSession), 아니면 null. */
+    public Object pluginOwner() { return pluginOwner; }
+
+    public void pluginOwner(Object owner) { this.pluginOwner = owner; }
+
     protected AbstractContainerMenu(String menuType, int containerId) {
         this.menuType = menuType;
         this.containerId = containerId;

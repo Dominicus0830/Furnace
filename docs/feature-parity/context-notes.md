@@ -882,6 +882,14 @@
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
 
+## 2026-11-06 플러그인 UI API: 메뉴·사이드바·보스바
+- 추가(furnace-api): `menu.Menu`(+`MenuType`·`MenuClick`·`ClickKind`), `bossbar.BossBar`, `scoreboard.Sidebar`. `Audience` 에 `showBossBar/hideBossBar/showSidebar/hideSidebar`, `Player` 에 `openMenu(Menu)/closeMenu()/currentMenu()`. 모두 레지스트리 키·`Text`·`ItemStack`(API) 만 쓰는 버전 중립 타입이고 상태는 API 객체가 갖는다(서버는 리스너로 따라간다).
+- 메뉴: 상자 1~6줄·발사기 3×3·깔때기 5칸. **기본은 모든 클릭 취소**(플레이어 인벤토리 칸 쉬프트 클릭·끌기 포함), 처리기가 `click.allow()` 를 부르면 바닐라대로. 처리기는 연결 스레드에서 불리고 던진 예외는 기록 후 취소. `Menu.set/button/clear/fillEmpty/border` 로 내용을 바꾸면 보고 있는 사람 화면이 `broadcastChanges` 로 따라온다. 열기/닫기는 `InventoryHost.openPluginMenu/execute` 로 연결 이벤트 루프에서(처리기 안에서 `close()` 해도 클릭이 끝난 뒤에 닫힌다). InventoryOpen/Close/ClickEvent 는 그대로 발화(처리기가 거부한 클릭은 InventoryClickEvent 를 거치지 않는다). 서버 `AbstractContainerMenu.pluginOwner` 가 `MenuSession` 표식.
+- 사이드바: 서버 점수판을 건드리지 않고 그 플레이어에게만 목표(`fs…`)·점수 패킷. 줄 i 의 점수 = 줄 수 − i(큰 점수가 위), 숫자는 blank 형식으로 숨김, 최대 15줄, 40자 제한 없음. 바뀐 줄만 다시 보내고 줄 수가 바뀌면 전부. 숨기면 서버 점수판의 사이드바 목표를 되돌려 건다. 한 플레이어에 하나(새로 보이면 교체).
+- 보스바: 서버 `/bossbar` 와 무관한 일회용(UUID 별도), 이름·진행도(0..1 자름)·색·모양·옵션 변경 시 해당 패킷만. `Text` 는 플레이어 로케일로 `localize`.
+- 접속 종료 시 `PlayerHandle.dispose()` 가 구독을 푼다(메뉴는 닫힘 경로의 `inventoryClose`).
+- 시험: `PluginUiApiTest`(서버 단위 9개), 봇 `tools/bot-test/round10/ui.js` + `probe/UiProbe` — 10/10 PASS(실제 접속에서 메뉴 열림·장식 칸 취소·allow·버튼+닫기, 보스바·사이드바 패킷 순서).
+- 아직 없는 것: 메뉴 제목 실시간 변경(open_screen 재전송), 페이지 나누기 도우미, 사이드바 점수 숫자 표시, 보스바 서버 `/bossbar` 와의 연동.
 ## 2026-11-06 접속 단계 이벤트·종료 순서 계약 (불만 표 4·8번)
 - 계약 문서: `docs/api/lifecycle.md`. 새 API: `api.net.PlayerConnection`(연결 하나에 하나, `id()` 로 단계 사이를 잇는다)·`ConnectionPhase`, 이벤트 `PlayerHandshakeEvent`(취소 가능)·`AsyncPlayerConfigureEvent`(가상 스레드, 블로킹 허용, 구성 끝 직전)·`PlayerCreateEvent`(플레이 패킷 전)·`PlayerSpawnLocationEvent`(LoginPlay 전, 차원도 바꿈)·`ServerShutdownEvent`, `Furnace.isStopping()`, `Player.connection()`. 기존 `AsyncPlayerPreLoginEvent`·`PlayerLoginEvent` 에 `connection()`(옛 생성자 유지).
 - 바닐라 흐름 변화: 첫 명령 트리를 `CommandSource.forProfile`(플레이어 없음 → 플러그인 명령 권한을 콘솔로 판정하던 구멍) 대신 바닐라 `sendCommands` 처럼 `CommandSource.player(core, p)` 로 거른다. 바닐라 명령은 권한 레벨만 보므로 트리는 같다. 첫 위치 계산(sx..spitch)을 LoginPlay 앞으로 옮겼다(값·패킷 순서는 같다).

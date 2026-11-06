@@ -92,6 +92,18 @@ public interface Player extends CommandSender, LivingEntity {
     /** 이 플레이어로서 명령을 실행 큐에 넣는다(앞의 '/' 는 없어도 된다). 접수 여부를 돌려준다(결과는 나중에 정해진다). */
     boolean performCommand(String command);
 
+    /**
+     * 메뉴 화면을 연다(열린 다른 화면은 닫힌다). 어느 스레드에서 불러도 되며 연결 스레드에서 이뤄진다.
+     * InventoryOpenEvent 가 취소되면 열리지 않는다.
+     */
+    default void openMenu(org.domi.furnace.api.menu.Menu menu) { throw new UnsupportedOperationException("메뉴를 열 수 없는 플레이어"); }
+
+    /** 열린 메뉴 화면이 이 플레이어의 것이면 닫는다(다른 화면이면 건드리지 않는다). */
+    default void closeMenu() {}
+
+    /** 지금 보고 있는 메뉴, 없으면 null. */
+    default org.domi.furnace.api.menu.Menu currentMenu() { return null; }
+
     /** 플레이어 인벤토리 핸들(비동기 접근). */
     Inventory inventory();
 
