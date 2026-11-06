@@ -360,6 +360,7 @@ public final class FurnaceMain {
         org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
         org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
