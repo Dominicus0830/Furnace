@@ -238,6 +238,15 @@ public final class PluginHost implements Furnace {
     @Override
     public void shutdown() { core.halt(); }
 
+    private final InternalsImpl internals = new InternalsImpl(this);
+
+    /** 공식 내부 접근 다리. 처음 부른 플러그인은 로그에 남는다. */
+    @Override
+    public InternalsImpl internals() {
+        internals.noteCaller();
+        return internals;
+    }
+
     /** 서버 종료 마지막 — 비동기 실행기를 닫는다. */
     public void close() { async.shutdown(); }
 }

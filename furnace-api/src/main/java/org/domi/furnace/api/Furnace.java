@@ -111,6 +111,14 @@ public interface Furnace {
     /** 모든 플러그인이 등록한 채널(이름순). */
     java.util.SortedSet<String> pluginChannels();
 
+    /**
+     * 서버 내부 객체("NMS")에 닿는 공식 다리. 안정 API 로 안 되는 일에만 쓰고, 내부 클래스는 버전마다 바뀔 수 있다
+     * ({@link org.domi.furnace.api.internal.Internals} 문서, docs/api/internals.md).
+     */
+    default org.domi.furnace.api.internal.Internals internals() {
+        throw new UnsupportedOperationException("이 서버 구현은 내부 접근을 제공하지 않는다");
+    }
+
     /** 서버를 정상 종료한다(/stop 과 같다). */
     void shutdown();
 }
