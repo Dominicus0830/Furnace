@@ -334,6 +334,12 @@ public interface BlockLevel {
     /** server.properties enable-command-block. */
     default boolean commandBlockEnabled() { return false; }
 
+    /**
+     * 명령 블록이 방금 보낸 명령의 결과를 이 틱 안에서 기다린다(이 레벨 스레드에서). 기다리는 동안 명령이 이 레벨에 보낸 작업을 돌리므로
+     * 결과 콜백(runOnOwner)도 그 안에서 불릴 수 있다. done 이 참이 되면 참, 이번 틱 예산을 넘기면 거짓. 기본은 기다리지 않는다.
+     */
+    default boolean awaitCommand(java.util.function.BooleanSupplier done) { return done.getAsBoolean(); }
+
     /** 명령 블록 명령 실행(LevelServices.runBlockCommand). done 은 어느 스레드에서든 불린다. */
     default void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { done.accept(0); }
 

@@ -114,6 +114,9 @@ public final class RegionLevel extends ChunkLevel {
     }
 
     @Override
+    public boolean awaitCommand(java.util.function.BooleanSupplier done) { return region.awaitUrgent(done); }
+
+    @Override
     public void updateSleepingPlayerList() { world.updateSleepingPlayerList(); }
 
     @Override

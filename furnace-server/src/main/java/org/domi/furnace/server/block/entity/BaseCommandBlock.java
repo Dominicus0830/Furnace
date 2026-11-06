@@ -1,6 +1,7 @@
 // 바닐라 BaseCommandBlock: 명령 블록·명령 블록 수레가 공유하는 명령 한 줄 + 마지막 출력 + 성공 횟수 + 저장.
-// Furnace 차이: 명령은 전역 스레드의 명령 큐에서 비동기로 돈다(바닐라는 그 자리에서 동기). 그래서 performCommand 는 끝났음을 알리는 콜백을 받고,
-// 결과(성공 횟수)는 소유 region 스레드로 돌아와 반영한다. lastExecution 은 바닐라와 달리 실행 시작 때 기록한다(같은 틱 재실행 방지는 그대로).
+// Furnace 구조: 명령은 전역 스레드의 명령 큐에서 돈다(바닐라는 그 자리에서 동기). performCommand 는 그 틱 안에서 결과를 기다리고
+// (기다리는 동안 명령이 이 region 에 보낸 작업을 돌린다 — Region.awaitUrgent) 끝나면 바닐라처럼 RAN 이다. 틱 예산을 넘기면 끝났음을 알리는
+// 콜백으로 소유 region 스레드에서 성공 횟수를 반영하고 이어 간다. lastExecution 은 실행 시작 때 기록한다(같은 틱 재실행 방지는 그대로).
 package org.domi.furnace.server.block.entity;
 
 import java.time.LocalTime;
@@ -169,6 +170,9 @@ public abstract class BaseCommandBlock implements BlockCommandSink {
                 if (returned.get()) after.accept(lv);
                 else early.set(true);
             }));
+            // 바닐라는 그 자리에서 끝난다: 이 틱 안에서 결과를 기다린다(명령이 이 region 에 보낸 왕복과 결과 콜백을 기다리며 돌린다).
+            // 예산을 넘기면 예전처럼 PENDING — 결과는 소유 스레드로 돌아와 after 로 잇는다.
+            level.awaitCommand(() -> early.get() || !running.get());
             returned.set(true);
             return early.get() ? Performed.RAN : Performed.PENDING;
         }

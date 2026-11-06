@@ -1,6 +1,7 @@
 // 바닐라 CommandBlock: 명령 블록 3종(command_block 임펄스, repeating_command_block 반복, chain_command_block 체인). 바라보는 방향의 반대로 놓인다.
 // 신호 → 1틱 뒤 예약 틱 → 명령 실행 → 뒤따르는 체인 블록들을 maxCommandChainLength 까지 차례로 실행 → 비교기 갱신.
-// Furnace 차이: 명령은 전역 스레드에서 비동기로 돌므로(BaseCommandBlock.performCommand), 체인의 다음 칸은 명령이 끝나 소유 region 으로 돌아온 뒤 이어서 실행한다.
+// Furnace 구조: 명령은 전역 스레드에서 돌지만 performCommand 가 그 틱 안에서 결과를 기다려(Region.awaitUrgent) 바닐라처럼 체인이 한 틱에 끝난다.
+// 틱 예산(기본 20ms)을 넘기면 그 칸부터는 명령이 끝나 소유 region 으로 돌아온 뒤 이어서 실행한다(예전 방식).
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.B;

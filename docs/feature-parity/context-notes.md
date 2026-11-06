@@ -926,3 +926,12 @@
 - 플러그인이 `server().scheduler()`·엔티티/청크/월드 `scheduler()`·`entityScheduler()`·`asyncExecutor()` 를 바로 쓰는 작업은 `ProfiledScheduling` 이 감싼다: **작업 객체 클래스의 클래스로더**(람다는 정의한 클래스의 로더)가 `PluginClassLoader` 면 그 플러그인 몫. 서버·API 클래스 작업은 감싸지 않는다(PluginTasks 의 guard 람다도 API 클래스라 두 번 감싸지 않는다). `TaskScheduler` 기본 `runAtFixedRate/runLater` 는 작업을 API 클래스(Repeating/Once)로 싸므로 감싸기를 먼저 하고 원래 스케줄러에 넘긴다. `submit` 도 FutureTask 로 싸기 전에 `newTaskFor` 에서 감싼다.
 - 시험에서 TestPlugins 클래스는 앱 클래스패스에 있어 부모 우선 위임으로 PluginClassLoader 가 아니라 앱 로더가 정의한다 → 클래스로더 귀속 시험은 시험 안에서 javac 로 플러그인을 컴파일해 jar 로 만든다(`PluginProfilerTest.compileProbePlugin`).
 - 명령: `/timings on|off|reset|report [플러그인]|export`(권한 3, `timings/plugins-*.txt`). 기동 때부터 재려면 `-Dfurnace.profiler=true`. "틱당" = 자기 시간 ÷ (측정 시간/50ms) — region 이 여럿이면 여러 스레드 합이라 50ms 를 넘을 수 있다.
+
+## 2026-11-06 region 경계 차이 2: 명령 블록 체인 한 틱
+- 그동안 명령 블록 명령은 전역 스레드 명령 큐에서 비동기로 돌고 끝나면 소유 region 으로 돌아와 체인을 이었다 — 체인 한 칸마다 region 왕복이라 첫 칸에서 끝 칸까지 5~8틱(봇 실측). 바닐라는 그 예약 틱 안에 끝난다.
+- 이제 `BaseCommandBlock.performCommand` 가 명령을 보낸 뒤 그 자리에서 결과를 기다린다(`BlockLevel.awaitCommand` → `Region.awaitUrgent`). 기다리는 동안 region 은 **전역 스레드가 보낸 작업만**(`Region.Task.urgent`, `GlobalThread.isGlobalThread()` 로 표시) 작업 큐에서 골라 돌린다 — 명령이 이 region 의 칸·엔티티를 만지는 왕복과 결과 콜백이 그 안에서 처리되어, 콜백이 performCommand 가 돌아오기 전에 불리므로 RAN(바닐라 true)으로 끝나고 체인이 그대로 이어진다. 성공 횟수(비교기)도 바로 보인다.
+- **다른 region 이 필요한 명령**(`@e` 는 모든 region 을 돈다): 명령 블록이 기다리는 동안(`Region.URGENT_WAITERS > 0`) 급한 작업을 받은 쉬는 region 은 다음 틱을 기다리지 않고 급한 작업만 도는 차례(drain)를 곧바로 받는다(`Regionizer.urgentArrived` — 틱 수·계측·나누기는 건드리지 않고 원래 다음 틱 시각으로 돌아간다). 틱 중이던 region 은 틱이 끝나자마자. 워커가 모자라면(기다리는 스레드가 워커를 쥐고 있다) 기다리는 스레드가 그 drain 을 대신 돈다(`helpDrainAny` — 그 동안 두 region 을 함께 쥔다).
+- **틱 예산**: 한 region 틱에서 기다린 시간 합이 `-Dfurnace.commandBlockWaitMicros`(기본 20000µs) 를 넘으면 그 칸부터는 예전처럼 비동기로 이어 간다(체인 순서는 그대로, 시간만 늦어짐). 서버 시작 직후 첫 명령은 명령 트리·클래스 로딩으로 예산을 넘길 수 있다.
+- 기다리는 동안 돌리는 작업은 전역 스레드가 보낸 것 전부다(다른 사람의 채팅 명령 왕복 포함) — 바닐라에서 명령이 그 자리에서 도는 것과 같은 자리라 결과는 같다고 본다(가정). 다른 출처(연결·IO·다른 region)의 작업은 그대로 다음 틱 머리에 돈다.
+- 남은 차이: 체인이 로드되지 않은 청크로 이어지면 끊긴다(바닐라 getBlockState 는 청크를 그 자리에서 불러온다). 이웃 청크는 region 불변식(구역 반경)상 늘 같은 region 이라 로드된 청크 사이에서는 끊기지 않는다. `set_command_minecart` 는 여전히 플레이어 region 의 수레만 찾는다.
+- 시험: `CommandBlockOneTickTest`(체인 세 칸이 예약 틱 호출 하나 안에 끝나고 성공 횟수 111, 3200칸 떨어진 다른 region 의 돼지를 찾는 `@e` 체인도 같은 호출 안에). 봇 `tools/bot-test/round8/cmdchain.js`: 임펄스+체인 5칸(첫 칸·끝 칸이 `time query gametime` 을 점수로, 중간은 3000칸 떨어진 다른 봇 옆 돼지를 `@e` 로) 10번 — 이 PR 은 차이 10번 모두 0, 기준 브랜치 jar 는 5~8틱.

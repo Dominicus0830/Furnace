@@ -45,8 +45,8 @@ public final class Region {
     /** 한 틱에 작업 큐를 비우는 시간 예산(틱의 절반) — 폭주하는 작업이 게임 틱을 굶기지 못하게. */
     private static final long DRAIN_BUDGET_NANOS = 25_000_000L;
 
-    /** 청크 키가 붙은 작업. */
-    record Task(long chunkKey, Consumer<Region> run) {}
+    /** 청크 키가 붙은 작업. urgent: 전역(명령) 스레드가 보냈다 — 명령 블록이 결과를 기다리는 동안 이것만 골라 돌린다. */
+    record Task(long chunkKey, Consumer<Region> run, boolean urgent) {}
 
     private record Delayed(long dueTick, long chunkKey, Consumer<Region> run) {}
 
@@ -76,6 +76,19 @@ public final class Region {
     /** 이 region 구역의 "있는" 청크 키(로드·로드 중·시야). 쓰기는 Regionizer 잠금 안. */
     final Set<Long> present = ConcurrentHashMap.newKeySet();
     final ConcurrentLinkedQueue<Task> inbox = new ConcurrentLinkedQueue<>();
+
+    // ---- 명령 블록 기다림(awaitUrgent)
+    /** 명령 블록이 명령 결과를 기다리는 region 수(서버 전체). 0 보다 크면 쉬는 region 도 급한 작업을 곧바로 돌린다(Regionizer.urgentArrived). */
+    static final java.util.concurrent.atomic.AtomicInteger URGENT_WAITERS = new java.util.concurrent.atomic.AtomicInteger();
+    /** 한 틱에 명령 블록이 명령 결과를 기다리는 데 쓸 수 있는 시간 합(ns). 넘으면 예전처럼 결과를 다음 틱 이후에 반영한다. */
+    static final long URGENT_WAIT_BUDGET_NANOS = Long.getLong("furnace.commandBlockWaitMicros", 20_000L) * 1_000L;
+    /** 지금 명령 결과를 기다리는 이 region 의 스레드(급한 작업이 오면 깨운다). */
+    volatile Thread urgentWaiter;
+    /** Regionizer 잠금 안: 이번 차례는 급한 작업만(drain) — 끝나면 savedNextTickNanos 로 돌아간다. */
+    boolean drainPass;
+    long savedNextTickNanos;
+    /** 이번 틱에 기다린 시간(ns, 이 region 스레드만). */
+    private long urgentWaitUsed;
 
     // ---- 이 region 스레드만 다루는 상태
     private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> Long.compare(a.dueTick, b.dueTick));
@@ -113,12 +126,13 @@ public final class Region {
         // /tick sprint lockstep: 전역을 앞서면 이번 차례는 작업 큐만 비우고 틱(지연 작업 시계·월드·플레이어 처리)은 하지 않는다
         sprintHeld = gameTick && sprintHoldsNow();
         if (!sprintHeld) tickCount++;
+        urgentWaitUsed = 0L;
         long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Task t;
         int n = 0;
         while ((t = inbox.poll()) != null) {
             if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
-            else rz().enqueue(t.chunkKey(), t.run());
+            else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
             if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
         }
         if (sprintHeld) return;
@@ -128,6 +142,59 @@ public final class Region {
             else rz().enqueue(d.chunkKey, d.run);
         }
         if (gameTick) tick();
+    }
+
+    /**
+     * 이 region 스레드에서(틱 중): done 이 참이 될 때까지, 작업 큐에서 전역(명령) 스레드가 보낸 작업만 골라 돌리며 기다린다.
+     * 명령 블록이 바닐라처럼 명령을 그 자리에서 끝내게 하는 길 — 명령이 이 region 의 칸·엔티티를 만지는 왕복이 기다리는 동안 처리된다.
+     * 기다리는 동안 쉬는 다른 region 도 급한 작업만 곧바로 돌린다(Regionizer.urgentArrived). 이번 틱 예산을 다 쓰면 거짓(호출자는 예전처럼 비동기로).
+     */
+    public boolean awaitUrgent(java.util.function.BooleanSupplier done) {
+        if (done.getAsBoolean()) return true;
+        if (!isOwnerThread()) return false;
+        long start = System.nanoTime();
+        long deadline = start + (URGENT_WAIT_BUDGET_NANOS - urgentWaitUsed);
+        if (deadline - start <= 0) return false;
+        Thread prev = urgentWaiter;
+        urgentWaiter = Thread.currentThread();
+        URGENT_WAITERS.incrementAndGet();
+        try {
+            while (true) {
+                runUrgentTasks();
+                if (done.getAsBoolean()) return true;
+                if (Regionizer.helpDrainAny()) continue;   // 워커가 모자라 못 돈 남의 급한 작업(예: @e 가 도는 다른 region)
+                long now = System.nanoTime();
+                if (now - deadline >= 0) return false;
+                java.util.concurrent.locks.LockSupport.parkNanos(this, Math.min(deadline - now, 1_000_000L));
+            }
+        } finally {
+            URGENT_WAITERS.decrementAndGet();
+            urgentWaiter = prev;
+            urgentWaitUsed += System.nanoTime() - start;
+        }
+    }
+
+    /** 작업 큐에서 급한 작업만 꺼내 돌린다(넣은 순서대로, 나머지는 그대로 둔다). 이 region 이 아닌 칸이면 지금 주인에게. */
+    private void runUrgentTasks() {
+        for (var it = inbox.iterator(); it.hasNext(); ) {
+            Task t = it.next();
+            if (!t.urgent()) continue;
+            it.remove();
+            if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
+            else rz().enqueue(t.chunkKey(), t.run(), true);
+        }
+    }
+
+    /** 작업 큐에 급한 작업이 있는가(아무 스레드, 힌트). */
+    boolean hasUrgentTask() {
+        for (Task t : inbox) if (t.urgent()) return true;
+        return false;
+    }
+
+    /** drain 차례(틱 사이, 이 region 스레드): 급한 작업만 돌린다. 틱 사이 합치기·나누기가 있었을 수 있어 칸 조회 캐시를 먼저 비운다. */
+    void runUrgentDrain() {
+        if (level != null) level.chunkUnloaded();
+        runUrgentTasks();
     }
 
     /**
