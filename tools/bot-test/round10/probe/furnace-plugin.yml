@@ -1,0 +1,11 @@
+name: UiProbe
+version: 1.0.0
+main: probe.UiProbe
+description: 메뉴·보스바·사이드바 API 봇 시험
+commands:
+  uimenu: {description: 메뉴 열기}
+  uibar: {description: 보스바 보이기}
+  uibarset: {description: 보스바 바꾸기}
+  uisb: {description: 사이드바 보이기}
+  uisbset: {description: 사이드바 바꾸기}
+  uihide: {description: 숨기기}

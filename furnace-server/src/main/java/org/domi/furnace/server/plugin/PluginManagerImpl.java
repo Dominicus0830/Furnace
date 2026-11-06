@@ -7,10 +7,15 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Filter;
 import java.util.logging.Level;
@@ -76,7 +81,7 @@ public final class PluginManagerImpl implements PluginManager {
         failFastCheck("불러오기");
     }
 
-    private void load(PluginBootstrapper.Prepared c) {
+    private Loaded load(PluginBootstrapper.Prepared c) {
         PluginDescription d = c.description();
         PluginClassLoader loader = c.loader();
         FurnacePlugin plugin;
@@ -92,7 +97,7 @@ public final class PluginManagerImpl implements PluginManager {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), t);
             failures.add(d.name());
             boot.drop(c);
-            return;
+            return null;
         }
         java.util.logging.Logger jul = c.logger();
         Level start = settings.levelFor(d.name());
@@ -111,6 +116,7 @@ public final class PluginManagerImpl implements PluginManager {
         } finally {
             timing.stop(t0);
         }
+        return l;
     }
 
     /** "[접두어] 메시지" 로 서버 로그(slf4j)에 쓰는 JUL 로거. */
@@ -264,8 +270,173 @@ public final class PluginManagerImpl implements PluginManager {
 
     /** 서버 종료 마지막 — 클래스로더를 닫는다. */
     public void closeAll() {
-        for (Loaded l : plugins) closeQuietly(l.loader());
-        plugins.clear();
+        HotReload.Watcher w = watcher;
+        watcher = null;
+        if (w != null) w.stop();
+        synchronized (reloadLock) {
+            for (Loaded l : plugins) closeQuietly(l.loader());
+            plugins.clear();
+            if (settings.devMode()) HotReload.clearShadowDir(dir);
+        }
+    }
+
+    // ------------------------------------------------------------------ 핫 리로드(개발 모드, D4)
+
+    /** 다시 읽기는 한 번에 하나(전역 스레드 + 종료 경로). */
+    private final Object reloadLock = new Object();
+    private volatile HotReload.Watcher watcher;
+    /** 옛 클래스로더를 닫기까지 기다리는 틱(그 사이 다른 스레드에서 끝나 가는 옛 작업이 클래스를 마저 읽게). 시험은 0. */
+    volatile long retireDelayTicks = 100;
+    /** 옛 클래스로더가 회수됐는지 볼 때까지의 시간(ms, 음수면 보지 않는다). */
+    volatile long leakCheckMillis = 15_000;
+
+    @Override
+    public boolean devMode() { return settings.devMode(); }
+
+    @Override
+    public CompletableFuture<List<String>> reload(String name) {
+        if (!settings.devMode()) return PluginManager.super.reload(name);
+        if (name == null || name.isBlank()) return CompletableFuture.failedFuture(new IllegalArgumentException("플러그인 이름이 없다"));
+        // 전역 스레드의 다음 차례에 돈다 — 플러그인이 자기 명령 처리기 안에서 자기를 다시 읽게 해도 자기 코드가 스택에 없을 때 바뀐다
+        return host.scheduler().global().submit(() -> reloadNow(name));
+    }
+
+    /** 개발 모드 jar 감시를 켠다(plugins.dev-mode.auto-reload). enableAll 뒤에 한 번. */
+    public void startWatcher() { startWatcher(1000); }
+
+    void startWatcher(long periodMillis) {
+        if (!settings.autoReload() || watcher != null) return;
+        HotReload.Watcher w = new HotReload.Watcher(dir, periodMillis, this::jarChanged);
+        watcher = w;
+        w.start();
+        log.info("[핫 리로드] plugins/*.jar 변경을 감시한다");
+    }
+
+    HotReload.Watcher watcher() { return watcher; }
+
+    /** 감시가 알린 jar 변경 → 그 jar 의 플러그인(없어졌으면 그 파일에서 읽었던 플러그인)을 다시 읽는다. */
+    private void jarChanged(Path jar) {
+        String name = null;
+        PluginBootstrapper b = boot;
+        if (Files.exists(jar) && b != null) {
+            PluginBootstrapper.Candidate c = b.findOnDiskFile(jar);
+            if (c != null) name = c.description().name();
+        } else {
+            for (Loaded l : plugins) if (l.file().equals(jar)) name = l.description().name();
+        }
+        if (name == null) return;
+        String n = name;
+        log.info("[핫 리로드] {} 가 바뀌었다 — {} 를 다시 읽는다", dir.relativize(jar), n);
+        reload(n).exceptionally(t -> {
+            log.error("[핫 리로드] {} 다시 읽기 실패", n, t);
+            return List.of();
+        });
+    }
+
+    /**
+     * 지금 스레드에서 다시 읽는다(전역 스레드에서 부른다). 순서: 새 jar 의 설명 파일 확인 → 대상과 기대는 플러그인을 켠 순서의 반대로 끄기
+     * (구독·명령·작업·권한·채널·레지스트리·훅·맡긴 자원 자동 정리) → 클래스 찾기 범위에서 빼기 → 켠 순서대로 새 클래스로더로 부트스트랩·onLoad·onEnable
+     * → 옛 클래스로더는 retireDelayTicks 뒤에 닫는다.
+     */
+    List<String> reloadNow(String name) {
+        if (!settings.devMode()) throw new IllegalStateException("핫 리로드는 개발 모드(plugins.dev-mode=true)에서만 된다");
+        PluginBootstrapper b = boot;
+        if (b == null) throw new IllegalStateException("아직 플러그인을 불러오지 않았다");
+        synchronized (reloadLock) {
+            long t0 = System.nanoTime();
+            Loaded target = findLoaded(name);
+            PluginBootstrapper.Candidate fresh = b.findOnDisk(name);
+            if (target == null && fresh == null) throw new IllegalArgumentException("그런 플러그인이 없다: " + name);
+            if (target != null && fresh == null && Files.exists(target.file())) {
+                // 덮어쓰는 도중이거나 깨진 jar — 옛 것을 그대로 둔다
+                throw new IllegalStateException(target.file().getFileName() + " 에서 " + name + " 의 설명 파일을 읽을 수 없다 — 지금 것을 그대로 둔다");
+            }
+            // 1. 다시 읽을 묶음: 대상 + 그것에 (연쇄로) 기대는 플러그인, 켠 순서대로
+            List<Loaded> group = target == null ? List.of() : dependentsOf(target);
+            List<String> names = new ArrayList<>();
+            if (target == null) names.add(fresh.description().name());
+            for (Loaded l : group) names.add(l.description().name());
+            // 2. 끄기(역순) + 범위에서 빼기
+            List<Loaded> rev = new ArrayList<>(group);
+            java.util.Collections.reverse(rev);
+            for (Loaded l : rev) {
+                disable(l.plugin());
+                plugins.remove(l);
+                host.profiler().forget(l.plugin());   // 프로파일러 구간이 옛 인스턴스를 쥐고 있지 않게
+                PluginBootstrapper.Prepared prep = b.find(l.description().name());
+                if (prep != null && prep.loader() == l.loader()) b.detach(prep);
+            }
+            // 3. 다시 읽기(켠 순서). 대상 jar 가 없어졌으면 대상은 내리기만 한다
+            List<String> back = new ArrayList<>();
+            for (String n : names) {
+                PluginBootstrapper.Candidate c = n.equalsIgnoreCase(name) ? fresh : b.findOnDisk(n);
+                if (c == null) {
+                    log.warn("[핫 리로드] {} 의 jar 가 plugins/ 에 없다 — 내리기만 한다", n);
+                    continue;
+                }
+                PluginBootstrapper.Prepared prep = b.reprepare(c);
+                if (prep == null) continue;
+                Loaded l = load(prep);
+                if (l == null) continue;
+                enable(l);
+                if (l.plugin().isEnabled()) back.add(l.description().name());
+            }
+            // 4. 옛 클래스로더 정리(늦게 — 다른 스레드에서 끝나 가는 옛 작업이 있을 수 있다)
+            for (Loaded l : group) retireLater(l);
+            log.info("[핫 리로드] {} 다시 읽음 — 켜짐 {} ({} ms)", names, back, (System.nanoTime() - t0) / 1_000_000);
+            return back;
+        }
+    }
+
+    /** 대상과, 대상에 (연쇄로) 기대는 불러온 플러그인 — 켠 순서. */
+    private List<Loaded> dependentsOf(Loaded target) {
+        Set<String> set = new java.util.HashSet<>();
+        set.add(key(target.description().name()));
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (Loaded l : plugins) {
+                String k = key(l.description().name());
+                if (set.contains(k)) continue;
+                if (reliesOn(l, set)) {
+                    set.add(k);
+                    grew = true;
+                }
+            }
+        }
+        List<Loaded> out = new ArrayList<>();
+        for (Loaded l : plugins) if (set.contains(key(l.description().name()))) out.add(l);
+        return out;
+    }
+
+    /** l 이 set 의 어느 플러그인 뒤에 켜져야 하거나 그 클래스를 쓰는가. */
+    private boolean reliesOn(Loaded l, Set<String> set) {
+        PluginDescription d = l.description();
+        for (String dep : d.depend()) if (set.contains(key(dep))) return true;
+        for (String dep : d.softDepend()) if (set.contains(key(dep))) return true;
+        for (String s : set) {
+            Loaded o = findLoaded(s);
+            if (o != null) for (String lb : o.description().loadBefore()) if (key(lb).equals(key(d.name()))) return true;
+        }
+        for (String borrowed : l.loader().borrowed()) if (set.contains(borrowed)) return true;
+        return false;
+    }
+
+    private static String key(String name) { return name.toLowerCase(Locale.ROOT); }
+
+    private Loaded findLoaded(String name) {
+        for (Loaded l : plugins) if (l.description().name().equalsIgnoreCase(name)) return l;
+        return null;
+    }
+
+    private void retireLater(Loaded l) {
+        String n = l.description().name();
+        long delay = retireDelayTicks;
+        if (delay <= 0) {
+            HotReload.retire(n, l.loader(), leakCheckMillis);
+            return;
+        }
+        host.scheduler().global().executeDelayed(() -> HotReload.retire(n, l.loader(), leakCheckMillis), delay);
     }
 
     static void closeQuietly(URLClassLoader l) {
@@ -326,13 +497,26 @@ public final class PluginManagerImpl implements PluginManager {
         }
 
         private final PluginBootstrapper group;
+        /** 개발 모드에서 읽는 jar 사본(닫은 뒤 지운다). 아니면 null. */
+        private final Path shadow;
+        /** 이 로더가 클래스를 빌려 온 플러그인 이름 — 그 플러그인을 다시 읽으면 이 플러그인도 다시 읽어야 한다. */
+        private final Set<String> borrowed = ConcurrentHashMap.newKeySet();
         /** 이 jar 의 플러그인(메인 클래스를 만든 뒤 정해진다) — 프로파일러가 작업 클래스로 주인을 찾을 때 쓴다. */
         volatile FurnacePlugin plugin;
 
-        PluginClassLoader(Path jar, PluginBootstrapper group) throws MalformedURLException {
+        PluginClassLoader(Path jar, PluginBootstrapper group) throws MalformedURLException { this(jar, group, false); }
+
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy) throws MalformedURLException {
             super(new URL[]{jar.toUri().toURL()}, PluginHost.class.getClassLoader());
             this.group = group;
+            this.shadow = shadowCopy ? jar : null;
         }
+
+        void borrowedFrom(String plugin) { borrowed.add(plugin.toLowerCase(Locale.ROOT)); }
+
+        Set<String> borrowed() { return borrowed; }
+
+        Path shadow() { return shadow; }
 
         @Override
         protected Class<?> findClass(String name) throws ClassNotFoundException {

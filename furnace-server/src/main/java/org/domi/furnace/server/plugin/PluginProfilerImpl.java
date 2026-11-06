@@ -82,6 +82,11 @@ public final class PluginProfilerImpl implements PluginProfiler {
         for (Section s : sections.values()) s.clear();
     }
 
+    /** 핫 리로드로 버린 플러그인 인스턴스의 구간을 지운다(남겨 두면 옛 클래스로더가 회수되지 않는다). */
+    void forget(FurnacePlugin plugin) {
+        sections.keySet().removeIf(k -> k.plugin() == plugin);
+    }
+
     @Override
     public Section timing(FurnacePlugin plugin, Kind kind, String name) {
         Objects.requireNonNull(plugin, "plugin");

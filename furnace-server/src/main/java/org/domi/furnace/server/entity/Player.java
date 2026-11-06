@@ -144,6 +144,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         /** ServerPlayer.openHorseInventory(horse, container): 말이 있는 region 스레드에서 부른다. */
         default void openHorseInventory(AbstractHorse horse, org.domi.furnace.server.menu.Container container) {}
 
+        /** 플러그인 Menu 를 연다(연결 스레드에서 이뤄진다). 어느 스레드에서든. */
+        default void openPluginMenu(org.domi.furnace.server.plugin.MenuSession session) {}
+
+        /** 이 플레이어의 연결 스레드에서 실행한다. 어느 스레드에서든. */
+        default void execute(Runnable task) { task.run(); }
+
         /** ServerPlayer.openMenu(엔티티 용기 — 상자 배·상자/깔때기 수레): 그 엔티티가 있는 region 스레드에서 부른다. */
         default void openEntityContainer(ContainerEntity entity) {}
     }

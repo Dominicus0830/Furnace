@@ -29,6 +29,7 @@
 | 운영 옵션(O1) | `furnace.properties` 에 `server-brand=내서버` → F3 의 서버 브랜드, `confirm-interrupt=true` → 콘솔 Ctrl+C 한 번은 안내만·5초 안에 두 번째에 종료, `announce-sleep-status=false` → 침대에서 "x/y 명 자는 중" 액션바 없음 | 설정대로 동작. 꺼 두면(기본) 바닐라와 같음 |
 | 소리 (귀로) | 털 깎기·안장·삼지창 등 움직이는 몹에서 난 소리가 몹을 따라가는지, 염소 뿔 소리가 "음반/소리 블록" 음량 설정을 따르는지, 종·자수정·첨벙 소리 | 바닐라와 같음 |
 | 플러그인 취소 화면 | 플러그인이 블록 설치·부수기, 아이템 버리기·던지기·먹기, 창 클릭, 단축 칸, 비행, 이동을 취소했을 때(규칙: `docs/api/event-cancel-contract.md`, 2026-11-06 코어가 되돌려 보내게 함) | 취소한 순간 고스트 블록·사라진 아이템·떠 있는 상태가 없고 손에 든 아이템 개수가 서버와 같음. 웅크림·달리기 취소는 클라이언트 입력이라 어긋나는 게 정상(Paper 와 같음). 끈끈이 피스톤 줄이기도 다시 확인 |
+| 플러그인 UI API | 플러그인으로 `Menu`(3줄 상점)·사이드바·보스바를 띄웠을 때 화면 | 메뉴 칸을 눌러도 아이템이 안 집히고 제목·아이템이 정상, 사이드바 글이 위에서 아래 순서로 숫자 없이, 보스바 색·칸 모양이 맞음 (2026-11-06 새로 만듦, 봇은 패킷만 확인) |
 | 플러그인 레시피 (D1) | 플러그인이 `Furnace.recipes()` 로 레시피를 등록·제거한 뒤 접속 중인 클라이언트의 제작대·2×2·레시피 북, 레시피를 내린 뒤 레시피 북 목록 | 등록한 레시피가 바로 맞고 내리면 사라짐. 서버는 `update_recipes` 를 다시 보내고 `recipe` REMOVE 로 잊게 함 — 클라이언트가 목록 갱신을 그대로 받아들이는지 화면에서만 확인 가능 |
 | F 키 손 바꾸기 | 두 손이 바뀌고 다른 사람에게도 보이는지, 먹는 중에 바꾸면 멈추는지 | 바닐라와 같음 (2026-11-04 새로 구현) |
 | 주민 문 (U3) | 문 앞 주민이 다시 안 열리는 상황을 보시면 가까운 주민에게 `/data get entity @e[type=villager,limit=1,sort=nearest] Brain.memories` 결과를 알려 주세요 | 코드는 바닐라와 줄 단위로 같음. 재현될 때만 필요 |
@@ -38,6 +39,18 @@
 | 외부 프로그램 | 바닐라 1.21.1 `region-file-compression=lz4` 월드 ↔ Furnace, 실제 Paper/Spigot 월드 폴더로 첫 기동, 실제 BungeeCord(`ip_forward: true`) 뒤 접속, Fabric 클라이언트 접속 | 이 환경은 Mojang·papermc·md-5 호스트가 막혀 못 돌림. lz4 형식은 바닐라 바이트코드와 대조해 같음 |
 | PROXY 프로토콜 (N2) | `furnace.properties` 에 `proxy-protocol=true` (+ `proxy-protocol.trusted=<HAProxy 주소>`) 를 두고 실제 HAProxy(`send-proxy-v2`)나 nginx stream(`proxy_protocol on`) 뒤로 접속 | 접속은 되고 서버 로그·`/ban-ip`·플러그인이 프록시가 아니라 실제 클라이언트 IP 로 봄. 헤더 없는 직접 접속은 거부됨. 이 환경에는 앞단 프로그램이 없어 EmbeddedChannel·소켓 시험까지만 함 (`docs/feature-parity/connection-defenses-2026-11-06.md`) |
 | 구성 단계 리소스 팩·쿠키 (N1) | 플러그인이 `AsyncPlayerConfigureEvent` 에서 `connection().sendResourcePack(...)`·`requestCookie`·`storeCookie`·`transfer` 를 부르게 해 실제 클라이언트로 접속 | 팩 받기 화면이 뜨고 끝나면 입장, 필수 팩 거절 시 "서버 리소스 팩 필요" 로 끊김, 쿠키를 다시 접속해도(전송 뒤에도) 읽힘. 구성 패킷 번호(0x00·0x08·0x0A·0x0B)는 문서·기억 기준이라 이 확인이 실제 클라이언트로 처음 보는 것 |
+
+### 월드 타입 large_biomes·amplified (2026-11-06 구현) — 바닐라 서버와 한 번 대조
+`level-type=minecraft:large_biomes` / `minecraft:amplified` 로 새 월드를 만들면 이제 바닐라와 같은 노이즈 설정(바닐라 jar 데이터와 바이트 일치)으로 생성하고 level.dat 에도 그 생성기를 기록한다. 이 환경은 Mojang·papermc 가 막혀 바닐라를 직접 돌린 대조는 못 했다.
+- 확인법: 바닐라 1.21.1 서버와 Furnace 를 같은 `server.properties`(`level-seed=12345`, `level-type=` 아래 값)로 새로 만들어 → 처음 뜬 뒤 끄고 level.dat 의 `SpawnX/Y/Z` 비교, 또는 접속해 아래 좌표로 `/tp` 후 F3 의 바이옴·지면 높이 비교.
+
+| level-type | 월드 스폰(Furnace) | 확인 좌표 (x, z → 지형 맨 위 블록 y(물 포함), 바이옴) |
+|---|---|---|
+| `minecraft:amplified` | 96, 258, -32 | (500, 0) → 197 grove · (-500, -500) → 148 birch_forest · (2000, -2000) → 86 snowy_taiga |
+| `minecraft:large_biomes` | 51, 65, -672 | (0, 0) → 62 deep_frozen_ocean · (500, 0) → 62 frozen_ocean |
+| (비교용) `minecraft:normal` | 96, 136, -32 | (500, 0) → 136 grove · (-500, -500) → 95 birch_forest |
+
+지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 아직 미지원(경고 뒤 normal).
 
 ---
 

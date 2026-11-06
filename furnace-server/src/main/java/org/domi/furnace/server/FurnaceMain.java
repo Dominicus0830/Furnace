@@ -131,9 +131,7 @@ public final class FurnaceMain {
             levelData = LevelData.create(props.levelName, props.levelSeed.orElseGet(() -> new java.util.Random().nextLong()),
                     props.generateStructures, false, props.gameMode, props.hardcore, props.difficulty,
                     props.initialEnabledPacks, List.of("bundle", "trade_rebalance"));
-            if ("minecraft:flat".equals(props.levelType)) {
-                levelData.useFlatOverworld(org.domi.furnace.server.world.gen.SuperflatWorldSource.settingsNbt(props.generatorSettings));
-            }
+            applyLevelType(levelData, props);
         }
         levelData.setModdedInfo(org.domi.furnace.server.config.OperatorOptions.current().serverBrand(), true);
         // Paper/Spigot 에서 넘어온 월드: <level>_nether/DIM-1, <level>_the_end/DIM1 을 바닐라 위치로 복사(원본 보존).
@@ -207,7 +205,7 @@ public final class FurnaceMain {
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "region", props.syncChunkWrites);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                 registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
-        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries);
+        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries, overworldNoiseSettings(levelData));
         applyWorldGenOptions(levelData, noiseSource);
         // 오버월드 생성기: level.dat 의 생성기가 minecraft:flat 이면 평지(바닐라 FlatLevelSource 층), 아니면 노이즈
         var generator = levelData.overworldGenerator();
@@ -459,6 +457,7 @@ public final class FurnaceMain {
 
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
         core.plugins().pluginsImpl().enableAll();
+        core.plugins().pluginsImpl().startWatcher();   // plugins.dev-mode.auto-reload 일 때만
         core.loadFunctions();   // 플러그인(onLoad·onEnable)·Furnace 명령이 모두 등록된 뒤 함수를 파싱한다 — 그 명령을 쓰는 함수가 시작 때 빠지지 않게
         network.start();
 
@@ -638,6 +637,35 @@ public final class FurnaceMain {
      * 바닐라 WorldOptions.generateStructures(level.dat WorldGenSettings.generate_features): 끄면 STRUCTURE_STARTS 단계가 시작점을 만들지 않는다
      * (ChunkStatusTasks.generateStructureStarts). 모든 차원에 같은 값. 이미 저장된 청크의 구조물은 그대로다.
      */
+    /** 새 월드: server.properties level-type(바닐라 WorldDimensionData.create)으로 오버월드 생성기를 정한다. */
+    static void applyLevelType(LevelData levelData, ServerProperties props) {
+        var preset = org.domi.furnace.server.world.storage.WorldPreset.resolve(props.levelType);
+        if (preset == null) {
+            log.warn("Failed to parse level-type {}, defaulting to {}", props.levelType, "minecraft:normal");
+            return;
+        }
+        switch (preset) {
+            case NORMAL -> { }
+            case FLAT -> levelData.useFlatOverworld(
+                    org.domi.furnace.server.world.gen.SuperflatWorldSource.settingsNbt(props.generatorSettings));
+            case LARGE_BIOMES, AMPLIFIED -> levelData.useNoiseOverworld(preset.noiseSettings);
+            default -> log.warn("level-type {} 는 아직 지원하지 않는다 — {} 로 만든다", preset.id, "minecraft:normal");
+        }
+    }
+
+    /** level.dat 오버월드 노이즈 생성기의 noise_settings — Furnace 가 모르는 설정이면 경고하고 기본 오버월드. */
+    static String overworldNoiseSettings(LevelData levelData) {
+        String id = levelData.overworldNoiseSettings();
+        var gen = levelData.overworldGenerator();
+        boolean flat = gen != null && "minecraft:flat".equals(gen.tags().get("type"));
+        if (id != null && NoiseWorldSource.OVERWORLD_NOISE_SETTINGS.contains(id)) return id;
+        if (!flat) {
+            log.warn("level.dat 의 오버월드 생성기({})는 지원하지 않는다 — minecraft:overworld 노이즈 설정으로 생성한다",
+                    id != null ? id : gen != null ? gen.tags().get("type") : "?");
+        }
+        return "minecraft:overworld";
+    }
+
     static void applyWorldGenOptions(LevelData levelData, NoiseWorldSource source) {
         source.structureEngine().setStructuresEnabled(levelData.generateFeatures);
     }
