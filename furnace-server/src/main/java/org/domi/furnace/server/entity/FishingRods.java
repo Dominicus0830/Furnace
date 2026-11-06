@@ -33,7 +33,11 @@ public final class FishingRods {
         } else {
             level.playSound(null, p.x(), p.y(), p.z(), "entity.fishing_bobber.throw", "neutral", 0.5F,
                     0.4F / (level.random().nextFloat() * 0.4F + 0.8F));
-            level.addFreshEntity(new FishingHook(p, level, level.nextEntityId(), luck(stack), lureSpeed(stack)));
+            var hook = new FishingHook(p, level, level.nextEntityId(), luck(stack), lureSpeed(stack));
+            if (!level.addFreshEntity(hook)) {   // 플러그인이 낚싯대 던지기를 취소
+                if (p.fishing == hook) p.fishing = null;
+                return true;
+            }
             p.awardStat("minecraft:used:minecraft:fishing_rod", 1);
             playerEvent(level, p, org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_START);
         }

@@ -20,7 +20,6 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.PlayerVitals;
 import org.domi.furnace.server.entity.Rider;
-import org.domi.furnace.server.net.protocol.play.BlockUpdate;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchFinished;
 import org.domi.furnace.server.net.protocol.play.ChunkBatchStart;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
@@ -435,7 +434,7 @@ public final class Region {
         world.assertOwns(this);
         ChunkColumn col = ownedChunk(bx >> 4, bz >> 4);
         if (col == null) return;
-        actor.send(new BlockUpdate(bx, by, bz, col.getBlock(bx & 15, by, bz & 15)));
+        org.domi.furnace.server.plugin.ClientResync.block(actor, level(), new org.domi.furnace.server.block.Pos(bx, by, bz));
     }
 
     /** 이 region 의 블록 레벨(처음 쓸 때 만든다 — 블록 자료 적재가 무겁다). */
@@ -1318,7 +1317,7 @@ public final class Region {
         var actor = breakerActor(p);
         if (actor.itemInHand(hand).isEmpty()) return;
         if (!world.levelServices().gameEvents().playerInteract(p, hand, null, 0, 0, actor.itemInHand(hand))) {   // 플러그인 PlayerInteractEvent(허공 우클릭) 취소
-            p.send(new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, hand == 0 ? actor.heldWindowSlot() : 45, actor.itemInHand(hand)));   // 클라이언트 예측 되돌림
+            org.domi.furnace.server.plugin.ClientResync.hand(p, hand);   // 클라이언트 예측 되돌림
             return;
         }
         if (p.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR && org.domi.furnace.server.entity.Consuming.tryStart(p, hand, actor.itemInHand(hand))) return;
@@ -1373,8 +1372,11 @@ public final class Region {
     public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, boolean callEvent) {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
-        if (callEvent && !world.levelServices().gameEvents().playerDrop(p, stack)) {   // 플러그인 PlayerDropItemEvent 취소: 인벤토리로 돌려준다(원래 칸이 아닌 첫 빈 칸)
-            stack = p.inventory().add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), false);
+        if (callEvent && !world.levelServices().gameEvents().playerDrop(p, stack)) {
+            // 플러그인 PlayerDropItemEvent 취소(CraftBukkit): 든 칸으로 돌려놓고 — 안 되면 첫 빈 칸 — 클라이언트가 먼저 비운 칸·커서를 되돌려 보낸다
+            stack = org.domi.furnace.server.plugin.ClientResync.returnToSlot(p, p.inventory().heldWindowSlot(), stack);
+            if (!stack.isEmpty()) stack = p.inventory().add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), false);
+            org.domi.furnace.server.plugin.ClientResync.inventory(p);
             if (stack.isEmpty()) return null;
         }
         RegionLevel l = level();
@@ -1524,7 +1526,7 @@ public final class Region {
             }
 
             public void sendBlockUpdate(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos) {
-                p.send(new BlockUpdate(pos.x(), pos.y(), pos.z(), level.getBlockState(pos)));
+                org.domi.furnace.server.plugin.ClientResync.block(p, level, pos);
             }
 
             public boolean allowBreak(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos, int state) {

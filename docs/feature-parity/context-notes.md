@@ -869,3 +869,10 @@
 - 차이(region): 대상이 다른 region 으로 넘어가면 이 스레드가 건드리지 않고 놓는다(8칸 안이라 경계 근처에서만).
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
+
+## 2026-11-06 이벤트 취소 계약(취소하면 상태 그대로, 화면 되돌리기는 코어가)
+- 규칙·이벤트별 표: `docs/api/event-cancel-contract.md`. 도우미 `plugin/ClientResync`(칸·창 전체·단축 칸·능력·블록+블록 엔티티·드롭 되돌림).
+- 고친 것: ① 창 -2 패킷에 **창 칸 번호**(36+선택, 45)를 보내던 5곳(우클릭·엔티티 클릭·먹기 취소 — 갑옷 칸을 덮을 수 있었다)을 Inventory 번호로. ② `BlockPlaceEvent` 취소 시 손 칸 재전송 없음. ③ `PlayerDropItemEvent` 취소가 첫 빈 칸에 돌려주고 재전송 없음 → 든 칸으로(CraftBukkit). ④ 던지기·배·수레·거치대·액자·불꽃·수정·엔더의 눈·낚싯대는 취소돼도 아이템을 소모했다 → 소모 없이 재전송, 활·쇠뇌·삼지창은 탄약·내구도·장전 되돌림. ⑤ 부수기·왼쪽 클릭·우클릭 취소 때 블록 엔티티(표지판 글 등)가 안 따라갔다.
+- 시험: `CancelResyncE2ETest`(진짜 연결 핸들러, 26개), `CancelContractTest`(새 취소 가능 이벤트가 표·문서에 없으면 실패), 화로·침대 취소는 각 단위 시험. 합성 데이터 팩 `SyntheticRecipes` 로 바닐라 데이터 없이 화로 시험.
+- 시험 함정: 시험 스케줄러는 스스로 틱하지 않는다 — `submitAtChunk(p.chunkPos(), r -> r.tick())` 로 돌려야 ack·이동·먹기가 진행된다. 접속 직후 `p.drainPending()` 전엔 플레이어 위치가 0,0,0.
+- 한계: 웅크림·달리기 취소는 되돌릴 방법이 없음(클라이언트 입력, Paper 동일). 부싯돌은 취소해도 닳음(CraftBukkit 동일).
