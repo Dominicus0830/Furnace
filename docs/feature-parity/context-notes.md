@@ -876,3 +876,13 @@
 - 시험: `CancelResyncE2ETest`(진짜 연결 핸들러, 26개), `CancelContractTest`(새 취소 가능 이벤트가 표·문서에 없으면 실패), 화로·침대 취소는 각 단위 시험. 합성 데이터 팩 `SyntheticRecipes` 로 바닐라 데이터 없이 화로 시험.
 - 시험 함정: 시험 스케줄러는 스스로 틱하지 않는다 — `submitAtChunk(p.chunkPos(), r -> r.tick())` 로 돌려야 ack·이동·먹기가 진행된다. 접속 직후 `p.drainPending()` 전엔 플레이어 위치가 0,0,0.
 - 한계: 웅크림·달리기 취소는 되돌릴 방법이 없음(클라이언트 입력, Paper 동일). 부싯돌은 취소해도 닳음(CraftBukkit 동일).
+
+## 2026-11-06 구조물 블록·직소 블록
+- 바닐라 `StructureBlockEntity`/`JigsawBlockEntity`·`StructureBlock`·`JigsawBlock`·패킷 3종(0x34 `update_structure_block`, 0x33 `update_jigsaw_block`, 0x17 `generate_structure`)을 바이트코드와 대조해 이식. 편집 화면은 클라이언트가 블록 엔티티 데이터(`saveCustomOnly` 갱신 태그)만 보고 연다. 권한은 창조 모드 + 권한 2 이상, 아니면 패킷을 조용히 버린다.
+- 저장소는 `TemplateManager`(월드 `generated/<ns>/structures/<경로>.nbt` → 내장). 신호 저장(`saveStructure(level, false)`)은 메모리 템플릿만 갈아 끼우고 파일을 쓰지 않는다. 파일 쓰기는 `.tmp` 에 쓴 뒤 옮긴다.
+- 놓기는 월드젠 `TemplatePlacer.placeInWorld` 를 `LiveGrid`(로드된 청크 복사본 → flag 2 로 되돌림)에서 돌린다. `LiveGrid` 는 `/place` 에서 꺼내 공용으로 만들었다. 범위 밖 청크가 있으면 `GridException`.
+- **함정 1** `LiveGrid.commit` 이 아이템이 든 템플릿 상자를 `generatedBlockEntity`(생성 NBT)로만 남겨 청크를 다시 읽기 전까지 `execute if items`/열기가 "컨테이너 아님" 이었다 → 아이템이 든 상자는 바로 `ChestBlockEntity` 로 만든다(`/place template` 도 같이 고쳐짐).
+- **함정 2** 새 직소 블록 엔티티의 `joint` 는 `rollable`(필드 기본값)이다. `aligned` 기본은 저장 NBT 에 `joint` 가 없거나 이름이 틀렸을 때만(앞면이 수평이면 aligned, 수직이면 rollable).
+- **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
+- 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
+

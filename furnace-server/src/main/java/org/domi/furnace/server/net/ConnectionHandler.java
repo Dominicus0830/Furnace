@@ -1601,6 +1601,46 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     touchLastAction();
                 }
             }
+            case 0x17 -> { // jigsaw_generate: 칸, 단계 수(VarInt), 직소 블록 유지(bool) — handleJigsawGenerate
+                int[] bp = Types.readBlockPos(frame);
+                int levels = Types.readVarInt(frame);
+                boolean keep = frame.readBoolean();
+                Player actor = player;
+                if (actor != null) handleJigsawGenerate(actor, bp, levels, keep);
+            }
+            case 0x33 -> { // set_jigsaw_block: 칸, 이름·대상·풀(ResourceLocation 문자열), 최종 상태(String), 연결 종류(String), 선택 우선순위·배치 우선순위(VarInt)
+                int[] bp = Types.readBlockPos(frame);
+                String name = Types.readString(frame, 32767), target = Types.readString(frame, 32767), pool = Types.readString(frame, 32767);
+                String finalState = Types.readString(frame, 32767), joint = Types.readString(frame, 32767);
+                int selection = Types.readVarInt(frame), placement = Types.readVarInt(frame);
+                org.domi.furnace.server.data.ResourceId n = org.domi.furnace.server.data.ResourceId.tryParse(name), t = org.domi.furnace.server.data.ResourceId.tryParse(target),
+                        pl = org.domi.furnace.server.data.ResourceId.tryParse(pool);
+                if (n == null || t == null || pl == null) {   // readResourceLocation 이 잘못된 이름이면 디코드 실패 → 연결 종료
+                    protocolError(ctx, "Set Jigsaw Block", new IllegalArgumentException("bad resource location"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) handleSetJigsawBlock(actor, bp, n, t, pl, finalState, joint, selection, placement);
+            }
+            case 0x34 -> { // set_structure_block: 칸, 동작·모드(VarInt), 이름(String), 오프셋 3 byte(±48), 크기 3 byte(0~48), 미러·회전(VarInt), 메타데이터(String 128), 완전성 float(0~1), 시드 VarLong, 플래그 byte(1 엔티티 무시·2 공기 보기·4 상자 보기)
+                int[] bp = Types.readBlockPos(frame);
+                int update = Types.readVarInt(frame), mode = Types.readVarInt(frame);
+                String name = Types.readString(frame, 32767);
+                int[] offset = {Math.max(-48, Math.min(48, frame.readByte())), Math.max(-48, Math.min(48, frame.readByte())), Math.max(-48, Math.min(48, frame.readByte()))};
+                int[] size = {Math.max(0, Math.min(48, frame.readByte())), Math.max(0, Math.min(48, frame.readByte())), Math.max(0, Math.min(48, frame.readByte()))};
+                int mirror = Types.readVarInt(frame), rotation = Types.readVarInt(frame);
+                String metadata = Types.readString(frame, 128);
+                float integrity = Math.max(0.0F, Math.min(1.0F, frame.readFloat()));
+                long seed = Types.readVarLong(frame);
+                int flags = frame.readByte();
+                if (update < 0 || update > 3 || mode < 0 || mode > 3 || mirror < 0 || mirror > 2 || rotation < 0 || rotation > 3) {   // readEnum: 범위 밖 번호는 디코드 실패
+                    protocolError(ctx, "Set Structure Block", new IllegalArgumentException("bad enum"));
+                    break;
+                }
+                Player actor = player;
+                if (actor != null) handleSetStructureBlock(actor, bp, update, mode, name, offset, size, mirror, rotation, metadata, integrity, seed,
+                        (flags & 1) != 0, (flags & 2) != 0, (flags & 4) != 0);
+            }
             case 0x30 -> { // set_command_block: 칸, 명령(String 32767), 모드(VarInt 0 체인·1 반복·2 임펄스), 플래그 byte(1 출력 기록·2 조건부·4 항상 활성)
                 int[] bp = Types.readBlockPos(frame);
                 String command = Types.readString(frame, 32767);
@@ -3260,6 +3300,81 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** ChatFormatting.stripFormatting. */
     static String stripFormatting(String s) { return FORMATTING_CODE.matcher(s).replaceAll(""); }
+
+    /** canUseGameMasterBlocks = 크리에이티브 + 권한 2 이상. */
+    private boolean canUseGameMasterBlocks(Player actor) {
+        var core = login.core;
+        return core != null && actor.vitals().instabuild() && core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor)) >= 2;
+    }
+
+    /**
+     * 바닐라 handleSetStructureBlock: 권한이 없으면 아무 일도 없다. 블록 엔티티에 필드를 쓰고, 이름이 있으면 동작(저장·불러오기·크기 감지)을 해
+     * 결과를 본인에게 채팅 메시지로 알린다. 이름이 올바르지 않으면 invalid_structure_name. 끝에 setChanged 와 블록 갱신 방송.
+     */
+    private void handleSetStructureBlock(Player actor, int[] bp, int update, int mode, String name, int[] offset, int[] size, int mirror, int rotation,
+                                         String metadata, float integrity, long seed, boolean ignoreEntities, boolean showAir, boolean showBoundingBox) {
+        if (!canUseGameMasterBlocks(actor)) return;
+        var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
+        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
+            var level = region.level();
+            if (!level.hasChunkAt(pos) || !(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.StructureBlockEntity be)) return;
+            be.applyEdit(org.domi.furnace.server.block.entity.StructureBlockEntity.Mode.values()[mode], name, offset, size, mirror, rotation, metadata,
+                    ignoreEntities, showAir, showBoundingBox, integrity, seed, level);
+            var type = org.domi.furnace.server.block.entity.StructureBlockEntity.UpdateType.values()[update];
+            if (be.hasStructureName()) {
+                String s = be.getStructureName();
+                switch (type) {
+                    case SAVE_AREA -> actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable(
+                            be.saveStructure(level) ? "structure_block.save_success" : "structure_block.save_failure", s), false);
+                    case LOAD_AREA -> {
+                        if (!be.isStructureLoadable(level)) actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("structure_block.load_not_found", s), false);
+                        else if (be.placeStructureIfSameSize(level)) actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("structure_block.load_success", s), false);
+                        else actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("structure_block.load_prepare", s), false);
+                    }
+                    case SCAN_AREA -> actor.sendSystemMessage(be.detectSize(level)
+                            ? org.domi.furnace.api.text.Text.translatable("structure_block.size_success", s)
+                            : org.domi.furnace.api.text.Text.translatable("structure_block.size_failure"), false);
+                    default -> { }
+                }
+            } else {
+                actor.sendSystemMessage(org.domi.furnace.api.text.Text.translatable("structure_block.invalid_structure_name", name), false);
+            }
+            be.setChanged(level);
+            level.sendBlockUpdated(pos);
+        });
+    }
+
+    /** 바닐라 handleSetJigsawBlock: 권한이 없으면 아무 일도 없다. 블록 엔티티가 직소 블록이면 필드를 쓰고 setChanged + 블록 갱신 방송. */
+    private void handleSetJigsawBlock(Player actor, int[] bp, org.domi.furnace.server.data.ResourceId name, org.domi.furnace.server.data.ResourceId target,
+                                      org.domi.furnace.server.data.ResourceId pool, String finalState, String joint, int selection, int placement) {
+        if (!canUseGameMasterBlocks(actor)) return;
+        var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
+        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
+            var level = region.level();
+            if (!level.hasChunkAt(pos) || !(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.JigsawBlockEntity be)) return;
+            be.setName(name);
+            be.setTarget(target);
+            be.setPool(pool);
+            be.setFinalState(finalState);
+            var j = org.domi.furnace.server.block.entity.JigsawBlockEntity.JointType.byName(joint);
+            be.setJoint(j != null ? j : org.domi.furnace.server.block.entity.JigsawBlockEntity.JointType.ALIGNED);   // 패킷 디코드의 orElse(ALIGNED)
+            be.setPlacementPriority(placement);
+            be.setSelectionPriority(selection);
+            be.setChanged(level);
+            level.sendBlockUpdated(pos);
+        });
+    }
+
+    /** 바닐라 handleJigsawGenerate: 권한이 없으면 아무 일도 없다. 직소 블록이면 앞 칸에서 구조물을 펼친다. */
+    private void handleJigsawGenerate(Player actor, int[] bp, int levels, boolean keepJigsaws) {
+        if (!canUseGameMasterBlocks(actor)) return;
+        var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
+        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
+            var level = region.level();
+            if (!level.hasChunkAt(pos) || !(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.JigsawBlockEntity be)) return;
+            be.generate(level, levels, keepJigsaws);
+        });
+    }
 
     /**
      * 바닐라 handleSetCommandBlock: 명령 블록이 꺼져 있으면 advMode.notEnabled, 크리에이티브 + 권한 2 가 아니면 advMode.notAllowed(둘 다 본인에게),
