@@ -31,8 +31,10 @@ class RegionCompressionConfigTest {
         assertEquals(Compression.DEFLATE, Compression.writeType());
         assertTrue(Compression.configure("lz4"));
         assertEquals(Compression.LZ4, Compression.writeType());
+        assertTrue(Compression.configure("zstd"));
+        assertEquals(Compression.ZSTD, Compression.writeType());
         assertTrue(Compression.configure("deflate"));
-        assertFalse(Compression.configure("zstd"));   // 모르는 값 — 이전 설정 유지
+        assertFalse(Compression.configure("brotli"));   // 모르는 값 — 이전 설정 유지
         assertEquals(Compression.DEFLATE, Compression.writeType());
     }
 
@@ -40,7 +42,7 @@ class RegionCompressionConfigTest {
     void compressDecompressRoundTrip() throws Exception {
         byte[] data = new byte[5000];
         new Random(3).nextBytes(data);
-        for (int t : new int[] {Compression.GZIP, Compression.DEFLATE, Compression.NONE, Compression.LZ4}) {
+        for (int t : new int[] {Compression.GZIP, Compression.DEFLATE, Compression.NONE, Compression.LZ4, Compression.ZSTD}) {
             assertArrayEquals(data, Compression.decompress(t, Compression.compress(t, data)), "type " + t);
         }
     }
@@ -49,7 +51,7 @@ class RegionCompressionConfigTest {
     void regionFileStoresTypeByteAndReadsBack() throws Exception {
         byte[] nbt = new byte[3000];
         new Random(9).nextBytes(nbt);
-        for (String name : new String[] {"gzip", "none", "lz4", "deflate"}) {
+        for (String name : new String[] {"gzip", "none", "lz4", "deflate", "zstd"}) {
             Compression.configure(name);
             Path f = tmp.resolve("r." + name + ".mca");
             try (RegionFile rf = new RegionFile(f)) {

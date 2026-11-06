@@ -36,15 +36,16 @@ const num = async (bot, sel, path) => { const m = await ask(bot, `/data get enti
   await chat(bot, '/effect clear @s', 200);
   await chat(bot, '/gamemode creative', 200);
   // B. 좀비가 주민을 노린다(NearestAttackableTargetGoal 이 주민 클래스만 훑음)
-  await chat(bot, '/tp @s 600.5 -55 600.5', 3000);
+  // 봇은 상자 밖(615,615)에 둔다 — 상자 안 주민 자리에 서 있으면 봇 몸이 좀비를 밀어내 좀비가 주민을 한 번만 치고 멈춘 것처럼 보인다(2026-11-06 확인)
+  await chat(bot, '/tp @s 615.5 -60 615.5', 3000);
   await chat(bot, '/fill 595 -61 595 606 -57 606 glass hollow', 300);
   await chat(bot, '/fill 596 -60 596 605 -58 605 air', 300);
   await chat(bot, '/summon villager 600.5 -60 600.5 {PersistenceRequired:1b,NoAI:1b}', 200);
   await chat(bot, '/summon zombie 604.5 -60 604.5 {PersistenceRequired:1b}', 200);
   const hp0 = await num(bot, '@e[type=villager,limit=1,sort=nearest]', 'Health');
   let hp = hp0, gone = false;
-  for (let i = 0; i < 30; i++) { await sleep(1000); hp = await num(bot, '@e[type=villager,limit=1,sort=nearest]', 'Health'); if (hp == null) { gone = true; break; } if (hp < hp0) break; }
-  console.log('RESULT B 주민 체력', hp0, '→', hp, gone ? '(죽거나 좀비 주민이 됨)' : '', '(기대: 줄어듦)');
+  for (let i = 0; i < 30; i++) { await sleep(1000); hp = await num(bot, '@e[type=villager,limit=1,sort=nearest]', 'Health'); if (hp == null) { gone = true; break; } if (hp < hp0 - 3) break; }   // 한 대(3)가 아니라 두 대 이상 맞는지
+  console.log('RESULT B 주민 체력', hp0, '→', hp, gone ? '(죽거나 좀비 주민이 됨)' : '', '(기대: 6 이상 줄어듦 — 좀비가 계속 침)');
   // C. 울타리를 돌아 플레이어에게 온다(길찾기). 울타리(1.5칸)는 넘지 못하지만 눈높이 시야는 지나가 표적은 잡는다.
   await chat(bot, '/kill @e[type=!player]', 300);
   await chat(bot, '/tp @s 700.5 -60 708.5', 3000);

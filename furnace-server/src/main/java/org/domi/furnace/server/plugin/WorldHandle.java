@@ -62,6 +62,27 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public int loadedChunkCount() { return world.loadedChunkCount(); }
 
+    private static final long REGION_TPS_WINDOW = 5_000_000_000L, REGION_TPS_MIN_HISTORY = 1_000_000_000L;
+
+    private org.domi.furnace.api.world.RegionInfo toApi(org.domi.furnace.server.world.Regionizer.RegionView v) {
+        var i = v.info();
+        return new org.domi.furnace.api.world.RegionInfo(i.id(), world.dimension(), i.chunks(), i.minChunkX(), i.minChunkZ(),
+                i.maxChunkX(), i.maxChunkZ(), i.thread(), v.tps(), i.lastTickNanos(), i.maxTickNanos());
+    }
+
+    @Override
+    public Optional<org.domi.furnace.api.world.RegionInfo> regionAt(int chunkX, int chunkZ) {
+        var v = world.regionizer().regionViewAt(chunkX, chunkZ, REGION_TPS_WINDOW, REGION_TPS_MIN_HISTORY);
+        return Optional.ofNullable(v == null ? null : toApi(v));
+    }
+
+    @Override
+    public List<org.domi.furnace.api.world.RegionInfo> regions() {
+        List<org.domi.furnace.api.world.RegionInfo> out = new ArrayList<>();
+        for (var v : world.regionizer().regionViews(REGION_TPS_WINDOW, REGION_TPS_MIN_HISTORY)) out.add(toApi(v));
+        return out;
+    }
+
     private boolean inHeight(int y) { return y >= world.dimensionType().minY() && y < world.dimensionType().maxY(); }
 
     private Optional<BlockSnapshot> read(Region r, BlockPos pos) {
