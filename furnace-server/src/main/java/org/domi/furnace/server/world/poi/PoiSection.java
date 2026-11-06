@@ -42,6 +42,15 @@ public final class PoiSection {
         }
     }
 
+    /** getRecords(종류 조건, 점유 조건).findAny().isPresent() — 하나라도 있으면 바로 참. */
+    boolean anyRecord(Predicate<PoiType> typePred, PoiManager.Occupancy occ) {
+        for (var e : byType.entrySet()) {
+            if (!typePred.test(e.getKey())) continue;
+            for (PoiRecord r : e.getValue()) if (occ.test(r)) return true;
+        }
+        return false;
+    }
+
     public boolean isEmpty() { return records.isEmpty(); }
 
     /** add(pos, type). */

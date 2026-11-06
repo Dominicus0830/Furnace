@@ -17,6 +17,7 @@ import org.domi.furnace.api.persistence.PersistentDataContainer;
 import org.domi.furnace.api.persistence.PersistentDataView;
 import org.domi.furnace.api.sched.TaskScheduler;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.command.builtin.DataCommands;
 import org.domi.furnace.api.world.Location;
 import org.domi.furnace.server.entity.ContainerEntity;
 import org.domi.furnace.server.entity.Entity;
@@ -102,6 +103,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public EntityScheduler entityScheduler() { return new EntitySchedulerImpl(tasks, host.profiled()); }
+
+    /** 엔티티를 따라가는 대기열(Internals 가 살아 있는 엔티티를 찾을 때). */
+    EntityTasks tasks() { return tasks; }
 
     /** 핸들 시점 위치의 region 에서 uuid 로 찾아 task 를 돈다. 그 region 에 없으면 null 로 완료. */
     <T> CompletableFuture<T> onOwner(java.util.function.BiFunction<Region, Entity, T> task) {
@@ -189,6 +193,29 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             }
         };
         return RegionFuture.wrap(CompletableFuture.completedFuture(Optional.of(new OwnedInventory(host, containerType, containerSize, runner))));
+    }
+
+    // ------------------------------------------------------------------ NBT(/data entity 경로)
+
+    @Override
+    public CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> readNbt() {
+        return onEntity(e -> ApiNbt.toApi(DataCommands.entityData(e)), null, true);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> editNbt(Consumer<org.domi.furnace.api.nbt.NbtCompound> edit) {
+        java.util.Objects.requireNonNull(edit, "edit");
+        return onEntity(e -> editEntityNbt(e, edit), null, true);
+    }
+
+    /** 주인 스레드에서: 읽고 고치고 바뀌었으면 싣는다. */
+    static boolean editEntityNbt(org.domi.furnace.server.entity.Rider e, Consumer<org.domi.furnace.api.nbt.NbtCompound> edit) {
+        var nbt = ApiNbt.toApi(DataCommands.entityData(e));
+        var before = nbt.copy();
+        edit.accept(nbt);
+        if (nbt.equals(before)) return false;
+        DataCommands.setEntityData(e, ApiNbt.toServer(nbt));
+        return true;
     }
 
     /** 소유 스레드에서: 그 엔티티의 살아 있는 칸. */

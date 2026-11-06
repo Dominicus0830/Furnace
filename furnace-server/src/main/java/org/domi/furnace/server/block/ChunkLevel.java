@@ -1356,6 +1356,9 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public String biomeAt(int x, int y, int z) { return services().biomeAt(x, y, z); }
 
+    /** NaturalSpawner.getRoughBiome(pos, chunk): 확대 지터 없는 quart 바이옴. */
+    public String roughBiomeAt(int x, int y, int z) { return services().roughBiomeAt(x, y, z); }
+
     // ------------------------------------------------------------------ 지형 생성 기능(묘목·뼛가루)
 
     /** 이 레벨이 쓰는 feature 표. 기본은 내장 1.21.1 데이터(노이즈 생성기가 있는 월드는 RegionLevel 이 그 표를 준다). */

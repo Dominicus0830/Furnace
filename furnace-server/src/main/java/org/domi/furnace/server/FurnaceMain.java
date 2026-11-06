@@ -176,7 +176,9 @@ public final class FurnaceMain {
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
-                profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord());
+                profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
+                .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
+                        .withVanillaRateLimit(props.rateLimitPacketsPerSecond));
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());

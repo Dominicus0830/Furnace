@@ -191,9 +191,9 @@ public final class EntitySelectorParser {
             case "dy" -> { deltaY = reader.readDouble(); worldLimited = true; }
             case "dz" -> { deltaZ = reader.readDouble(); worldLimited = true; }
             case "x_rotation", "y_rotation" -> {
-                MinMaxBounds b = MinMaxBounds.fromReader(reader, false);
+                MinMaxBounds b = MinMaxBounds.fromReaderDegrees(reader);
                 boolean pitch = name.equals("x_rotation");
-                predicates.add(p -> b.matches(wrapDegrees(pitch ? p.riderXRot() : p.riderYRot())));
+                predicates.add(p -> b.matchesDegrees(pitch ? p.riderXRot() : p.riderYRot()));
             }
             case "limit" -> {
                 if (currentEntity || limited) inapplicable(name, optionStart);
@@ -432,12 +432,5 @@ public final class EntitySelectorParser {
             public boolean onGround() { return e.onGround(); }
             public double[] position() { return new double[]{e.x(), e.y(), e.z()}; }
         };
-    }
-
-    private static double wrapDegrees(float v) {
-        double d = v % 360.0;
-        if (d >= 180.0) d -= 360.0;
-        if (d < -180.0) d += 360.0;
-        return d;
     }
 }
