@@ -885,9 +885,15 @@
 ## 2026-11-06 이벤트 취소 계약(취소하면 상태 그대로, 화면 되돌리기는 코어가)
 - 규칙·이벤트별 표: `docs/api/event-cancel-contract.md`. 도우미 `plugin/ClientResync`(칸·창 전체·단축 칸·능력·블록+블록 엔티티·드롭 되돌림).
 - 고친 것: ① 창 -2 패킷에 **창 칸 번호**(36+선택, 45)를 보내던 5곳(우클릭·엔티티 클릭·먹기 취소 — 갑옷 칸을 덮을 수 있었다)을 Inventory 번호로. ② `BlockPlaceEvent` 취소 시 손 칸 재전송 없음. ③ `PlayerDropItemEvent` 취소가 첫 빈 칸에 돌려주고 재전송 없음 → 든 칸으로(CraftBukkit). ④ 던지기·배·수레·거치대·액자·불꽃·수정·엔더의 눈·낚싯대는 취소돼도 아이템을 소모했다 → 소모 없이 재전송, 활·쇠뇌·삼지창은 탄약·내구도·장전 되돌림. ⑤ 부수기·왼쪽 클릭·우클릭 취소 때 블록 엔티티(표지판 글 등)가 안 따라갔다.
-- 시험: `CancelResyncE2ETest`(진짜 연결 핸들러, 26개), `CancelContractTest`(새 취소 가능 이벤트가 표·문서에 없으면 실패), 화로·침대 취소는 각 단위 시험. 합성 데이터 팩 `SyntheticRecipes` 로 바닐라 데이터 없이 화로 시험.
+- 시험: `CancelResyncE2ETest`(진짜 연결 핸들러, 28개), `CancelContractTest`(새 취소 가능 이벤트가 표·문서에 없으면 실패), 화로·침대 취소는 각 단위 시험. 합성 데이터 팩 `SyntheticRecipes` 로 바닐라 데이터 없이 화로 시험.
 - 시험 함정: 시험 스케줄러는 스스로 틱하지 않는다 — `submitAtChunk(p.chunkPos(), r -> r.tick())` 로 돌려야 ack·이동·먹기가 진행된다. 접속 직후 `p.drainPending()` 전엔 플레이어 위치가 0,0,0.
 - 한계: 웅크림·달리기 취소는 되돌릴 방법이 없음(클라이언트 입력, Paper 동일). 부싯돌은 취소해도 닳음(CraftBukkit 동일).
+
+## 2026-11-06 블록·레시피 API (묶음 D1)
+- 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
+- **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
+- 플러그인 레시피는 `PluginRecipes`(소유자·원본 서버 레시피)에 따로 적어 두고 `/reload` 뒤 `ServerCore` 리로드 리스너에서 `reapply` 로 새 매니저에 입힌다(패킷 보내기 전). 변환은 데이터 팩 파서의 검사를 같게 하려고 `recipe/ApiRecipes` 가 서버 `Recipe` 레코드를 직접 만든다(JSON 을 거치지 않는다 — 결과 컴포넌트가 SNBT 라서).
+- 시험 함정: 서버 아이템 레지스트리 `idOf` 는 `minecraft:` 접두가 있어야 한다(없으면 -1 이라 특수 레시피 매칭에서 NPE 처럼 보인다). `Furnace.server()` 는 전역이라 서버 단위 시험에서는 `snapshot.live()`·`BlockEvent.liveBlock()` 을 못 쓴다.
 
 ## 2026-11-06 아이템 컴포넌트 타입 API · 아이템 영속 데이터
 - 플러그인 API `ItemStack`(불변 record, 컴포넌트는 SNBT) 위에 타입 있는 층을 얹었다: `ItemComponent<T>`(id + 값 종류)·`ItemComponents`(26종: 이름·로어·희귀도·수치 8·불괴·마법 부여 2·광택 덮어쓰기·염색·속성 변경치·표시 4·문자열/목록/맵 5)·`ItemComponent.raw(id)`(57종 전부를 SNBT 문자열로).

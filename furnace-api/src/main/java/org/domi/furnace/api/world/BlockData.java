@@ -44,6 +44,33 @@ public record BlockData(String type, Map<String, String> properties) {
         return new BlockData(type, m);
     }
 
+    // ------------------------------------------------------------------ 타입 있는 속성
+
+    /** 이 상태가 그 속성을 적어 두었는가(적지 않은 속성은 기본값이라는 뜻이라 false 일 수 있다 — 정확한 값은 서버가 채운 읽기 결과에서 본다). */
+    public boolean has(BlockProperty<?> property) { return properties.containsKey(property.name()); }
+
+    /** 속성 값, 적혀 있지 않으면 empty. 값 형식이 속성 종류와 맞지 않으면 IllegalArgumentException. */
+    public <T> java.util.Optional<T> property(BlockProperty<T> property) {
+        String v = properties.get(property.name());
+        return v == null ? java.util.Optional.empty() : java.util.Optional.of(property.parse(v));
+    }
+
+    /** 속성 값. 적혀 있지 않으면 NoSuchElementException. 서버가 읽어 준 상태(World.blockNow …)는 속성을 모두 적고 있다. */
+    public <T> T get(BlockProperty<T> property) {
+        return property(property).orElseThrow(() -> new java.util.NoSuchElementException("속성 없음: " + property.name() + " (" + this + ")"));
+    }
+
+    /** 속성을 바꾼 새 상태. 그 블록이 가진 속성인지와 값 범위는 쓸 때(setBlock) 서버가 확인한다. */
+    public <T> BlockData with(BlockProperty<T> property, T value) { return with(property.name(), property.format(value)); }
+
+    /** 속성을 지운 새 상태(기본값으로 돌아간다). */
+    public BlockData without(BlockProperty<?> property) {
+        if (!properties.containsKey(property.name())) return this;
+        TreeMap<String, String> m = new TreeMap<>(properties);
+        m.remove(property.name());
+        return new BlockData(type, m);
+    }
+
     public boolean isAir() { return type.equals("minecraft:air") || type.equals("minecraft:cave_air") || type.equals("minecraft:void_air"); }
 
     @Override

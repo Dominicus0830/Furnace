@@ -56,13 +56,51 @@ public final class RecipeManager {
         public boolean isSpecial() { return recipe.isSpecial(); }
     }
 
-    private final Map<ResourceId, Recipe> byName;
-    private final byte[] networkBody;
+    /** 한 시점의 레시피 표와 거기서 만든 색인·네트워크 본문. 바꿀 때마다 새로 만들어 통째로 바꿔 끼운다(읽는 쪽은 락이 없다). */
+    private static final class State {
+        final Map<ResourceId, Recipe> byName;
+        final byte[] networkBody;
+        final List<CraftingEntry> crafting;
+        final List<StonecuttingEntry> stonecutting;
+        final List<SmithingEntry> smithing;
+        final Map<String, List<CookingEntry>> cooking;
+
+        State(Map<ResourceId, Recipe> byName, RecipeContext ctx) {
+            this.byName = byName;
+            // 바닐라 byType(CRAFTING) — 레시피 맵 순서 그대로(getRecipeFor 가 첫 일치를 고르므로 순서가 결과를 정한다)
+            List<CraftingEntry> c = new ArrayList<>();
+            for (var e : byName.entrySet()) if (e.getValue().isCrafting()) c.add(new CraftingEntry(e.getKey(), e.getValue()));
+            this.crafting = List.copyOf(c);
+            List<StonecuttingEntry> sc = new ArrayList<>();
+            for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Stonecutting r) sc.add(new StonecuttingEntry(e.getKey(), r));
+            this.stonecutting = List.copyOf(sc);
+            List<SmithingEntry> sm = new ArrayList<>();
+            for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Smithing r) sm.add(new SmithingEntry(e.getKey(), r));
+            this.smithing = List.copyOf(sm);
+            Map<String, List<CookingEntry>> ck = new HashMap<>();
+            for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Cooking r) ck.computeIfAbsent(r.type(), k -> new ArrayList<>()).add(new CookingEntry(e.getKey(), r));
+            this.cooking = ck;
+            // 패킷은 바닐라 getOrderedRecipes = byType.values() 순서 — 레시피 타입이 처음 나온 순으로 묶는다
+            Map<String, List<Map.Entry<ResourceId, Recipe>>> byType = new LinkedHashMap<>();
+            for (var e : byName.entrySet()) byType.computeIfAbsent(recipeType(e.getValue().type()), k -> new ArrayList<>()).add(e);
+            ByteBuf buf = Unpooled.buffer(128 * 1024);
+            Types.writeVarInt(buf, byName.size());
+            for (var group : byType.values()) {
+                for (var e : group) {
+                    Types.writeString(buf, e.getKey().toString());
+                    Types.writeVarInt(buf, ctx.serializerId(e.getValue().type()));
+                    e.getValue().encode(buf, ctx);
+                }
+            }
+            byte[] body = new byte[buf.readableBytes()];
+            buf.readBytes(body);
+            buf.release();
+            this.networkBody = body;
+        }
+    }
+
+    private volatile State state;
     private final RecipeContext ctx;
-    private final List<CraftingEntry> crafting;
-    private final List<StonecuttingEntry> stonecutting;
-    private final List<SmithingEntry> smithing;
-    private final Map<String, List<CookingEntry>> cooking;
 
     public record CookingEntry(ResourceId id, Recipe.Cooking recipe) { }
     private final Recipe.TrimData trims;
@@ -71,24 +109,24 @@ public final class RecipeManager {
 
     public record StonecuttingEntry(ResourceId id, Recipe.Stonecutting recipe) { }
 
-    private RecipeManager(Map<ResourceId, Recipe> byName, byte[] networkBody, RecipeContext ctx, Recipe.TrimData trims) {
+    private RecipeManager(Map<ResourceId, Recipe> byName, RecipeContext ctx, Recipe.TrimData trims) {
         this.trims = trims;
-        this.byName = byName;
-        this.networkBody = networkBody;
         this.ctx = ctx;
-        // 바닐라 byType(CRAFTING) — 레시피 맵 순서 그대로(getRecipeFor 가 첫 일치를 고르므로 순서가 결과를 정한다)
-        List<CraftingEntry> c = new ArrayList<>();
-        for (var e : byName.entrySet()) if (e.getValue().isCrafting()) c.add(new CraftingEntry(e.getKey(), e.getValue()));
-        this.crafting = List.copyOf(c);
-        List<StonecuttingEntry> sc = new ArrayList<>();
-        for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Stonecutting r) sc.add(new StonecuttingEntry(e.getKey(), r));
-        this.stonecutting = List.copyOf(sc);
-        List<SmithingEntry> sm = new ArrayList<>();
-        for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Smithing r) sm.add(new SmithingEntry(e.getKey(), r));
-        this.smithing = List.copyOf(sm);
-        Map<String, List<CookingEntry>> ck = new HashMap<>();
-        for (var e : byName.entrySet()) if (e.getValue() instanceof Recipe.Cooking r) ck.computeIfAbsent(r.type(), k -> new ArrayList<>()).add(new CookingEntry(e.getKey(), r));
-        this.cooking = ck;
+        this.state = new State(byName, ctx);
+    }
+
+    /**
+     * 레시피를 한 번에 바꾼다(플러그인 등록·제거). remove 를 먼저 적용하고 add 를 맵 끝에 붙인다(제작은 맵 순서의 첫 일치라 데이터 팩 레시피가 먼저 맞는다).
+     * 새 표를 다 만든 뒤 한 번에 바꿔 끼우므로 읽는 쪽은 옛 표나 새 표 중 하나만 본다. 모든 스레드에서 불러도 된다.
+     * @return 실제로 지운 id
+     */
+    public synchronized List<ResourceId> change(Map<ResourceId, Recipe> add, java.util.Collection<ResourceId> remove) {
+        Map<ResourceId, Recipe> next = new LinkedHashMap<>(state.byName);
+        List<ResourceId> removed = new ArrayList<>();
+        for (ResourceId id : remove) if (next.remove(id) != null) removed.add(id);
+        next.putAll(add);
+        state = new State(next, ctx);
+        return removed;
     }
 
     public static RecipeManager load(ResourceManager rm, RecipeContext ctx) {
@@ -113,22 +151,7 @@ public final class RecipeManager {
             }
         }
         log.info("Loaded {} recipes", byName.size());
-        // 패킷은 바닐라 getOrderedRecipes = byType.values() 순서 — 레시피 타입이 처음 나온 순으로 묶는다
-        Map<String, List<Map.Entry<ResourceId, Recipe>>> byType = new LinkedHashMap<>();
-        for (var e : byName.entrySet()) byType.computeIfAbsent(recipeType(e.getValue().type()), k -> new ArrayList<>()).add(e);
-        ByteBuf buf = Unpooled.buffer(128 * 1024);
-        Types.writeVarInt(buf, byName.size());
-        for (var group : byType.values()) {
-            for (var e : group) {
-                Types.writeString(buf, e.getKey().toString());
-                Types.writeVarInt(buf, ctx.serializerId(e.getValue().type()));
-                e.getValue().encode(buf, ctx);
-            }
-        }
-        byte[] body = new byte[buf.readableBytes()];
-        buf.readBytes(body);
-        buf.release();
-        return new RecipeManager(byName, body, ctx, loadTrims(rm));
+        return new RecipeManager(byName, ctx, loadTrims(rm));
     }
 
     /** 데이터 팩의 trim_material(ingredient)·trim_pattern(template_item)을 읽는다. */
@@ -161,14 +184,14 @@ public final class RecipeManager {
     public List<SmithingEntry> findSmithing(org.domi.furnace.server.entity.ItemStack t, org.domi.furnace.server.entity.ItemStack b,
             org.domi.furnace.server.entity.ItemStack a) {
         List<SmithingEntry> out = new ArrayList<>();
-        for (SmithingEntry e : smithing) if (e.recipe().matches(t, b, a, ctx)) out.add(e);
+        for (SmithingEntry e : state.smithing) if (e.recipe().matches(t, b, a, ctx)) out.add(e);
         out.sort(java.util.Comparator.comparing(e -> descriptionId(e.recipe().sortItem())));
         return out;
     }
 
     /** 칸 확인용(Menu 의 mayPlace): 그 칸에 놓을 수 있는 레시피가 하나라도 있는가. slot 0 거푸집, 1 밑감, 2 재료. */
     public boolean smithingAccepts(int slot, org.domi.furnace.server.entity.ItemStack s) {
-        for (SmithingEntry e : smithing) {
+        for (SmithingEntry e : state.smithing) {
             if (slot == 0 ? e.recipe().isTemplate(s, ctx) : slot == 1 ? e.recipe().isBase(s, ctx) : e.recipe().isAddition(s, ctx)) return true;
         }
         return false;
@@ -177,25 +200,25 @@ public final class RecipeManager {
     /** 바닐라 getRecipeFor(SMELTING/BLASTING/SMOKING, input): 레시피 맵 순서의 첫 일치. type = minecraft:smelting 등. */
     public CookingEntry findCooking(String type, org.domi.furnace.server.entity.ItemStack input) {
         if (input.isEmpty()) return null;
-        for (CookingEntry e : cooking.getOrDefault(type, List.of())) if (e.recipe().ingredient().test(input, ctx)) return e;
+        for (CookingEntry e : state.cooking.getOrDefault(type, List.of())) if (e.recipe().ingredient().test(input, ctx)) return e;
         return null;
     }
 
-    public List<SmithingEntry> smithingRecipes() { return smithing; }
+    public List<SmithingEntry> smithingRecipes() { return state.smithing; }
 
     public Recipe.TrimData trims() { return trims; }
 
-    public Recipe recipe(ResourceId id) { return byName.get(id); }
+    public Recipe recipe(ResourceId id) { return state.byName.get(id); }
 
-    public Collection<ResourceId> ids() { return byName.keySet(); }
+    public Collection<ResourceId> ids() { return state.byName.keySet(); }
 
-    public int size() { return byName.size(); }
+    public int size() { return state.byName.size(); }
 
     public RecipeContext context() { return ctx; }
 
     /** 제작대 레시피 id → 항목(없거나 제작대 레시피가 아니면 null). */
     public CraftingEntry craftingEntry(ResourceId id) {
-        Recipe r = byName.get(id);
+        Recipe r = state.byName.get(id);
         return r != null && r.isCrafting() ? new CraftingEntry(id, r) : null;
     }
 
@@ -204,8 +227,10 @@ public final class RecipeManager {
      */
     public CraftingEntry findCrafting(CraftingInput input, CraftingEntry last) {
         if (input.isEmpty()) return null;
-        if (last != null && last.recipe().matches(input, ctx)) return last;
-        for (CraftingEntry e : crafting) if (e.recipe().matches(input, ctx)) return e;
+        State st = state;
+        // 지난 레시피는 아직 표에 있을 때만(플러그인이 내렸거나 바꿨으면 다시 찾는다)
+        if (last != null && st.byName.get(last.id()) == last.recipe() && last.recipe().matches(input, ctx)) return last;
+        for (CraftingEntry e : st.crafting) if (e.recipe().matches(input, ctx)) return e;
         return null;
     }
 
@@ -214,7 +239,7 @@ public final class RecipeManager {
      */
     public List<StonecuttingEntry> findStonecutting(org.domi.furnace.server.entity.ItemStack input) {
         List<StonecuttingEntry> out = new ArrayList<>();
-        for (StonecuttingEntry e : stonecutting) if (e.recipe().ingredient().test(input, ctx)) out.add(e);
+        for (StonecuttingEntry e : state.stonecutting) if (e.recipe().ingredient().test(input, ctx)) out.add(e);
         out.sort(java.util.Comparator.comparing(e -> descriptionId(e.recipe().result().item())));
         return out;
     }
@@ -234,5 +259,5 @@ public final class RecipeManager {
     }
 
     /** update_recipes 본문(레시피 수 + 각 id·직렬화기·내용). */
-    public byte[] networkBody() { return networkBody; }
+    public byte[] networkBody() { return state.networkBody; }
 }

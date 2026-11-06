@@ -11,6 +11,10 @@ public record RemoteChatSession(UUID sessionId, ProfilePublicKey profilePublicKe
         return new SignedMessageChain(profileId, sessionId).decoder(profilePublicKey);
     }
 
+    public SignedMessageChain.Decoder createMessageDecoder(UUID profileId, boolean strictOrder) {
+        return new SignedMessageChain(profileId, sessionId, strictOrder).decoder(profilePublicKey);
+    }
+
     public Data asData() { return new Data(sessionId, profilePublicKey.data()); }
 
     public record Data(UUID sessionId, ProfilePublicKey.Data profilePublicKey) {
