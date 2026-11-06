@@ -55,6 +55,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     // ── 보간 대상 함수 ────────────────────────────────────────────────────
     private final DensityFunction wrappedFinalDensity;
+    private final NoiseRouter router;   // 예비 지표 높이 공유 캐시
     private final DensityFunction pslDensity; // PSL 스캔용 initial density — cache_2d 동적 캐시로 컬럼당 2D 1회
 
     // ── ore vein: solid 블록 override (overworld 전용, 항상 활성) ──
@@ -110,6 +111,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     public NoiseChunk(int chunkX, int chunkZ, NoiseRouter router, NoiseSettings settings,
                       org.domi.furnace.server.world.BlockRegistry reg) {
+        this.router = router;
         this.cellWidth  = settings.cellWidth();
         this.cellHeight = settings.cellHeight();
         this.cellCountXZ = 16 / this.cellWidth;   // 4
@@ -140,8 +142,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         };
         // vein DF는 NoiseChunk context로 평가 → 반드시 wrap(interpolated 노드 등록·셀 보간).
         // overworld는 ore_veins_enabled=true. reg 없으면(테스트) 비활성.
-        this.wrappedVeinToggle = reg == null ? null : router.veinToggle().mapAll(this::wrap);
-        this.oreVeinifier = reg == null ? null : new OreVeinifier(
+        this.wrappedVeinToggle = reg == null || !settings.oreVeinsEnabled() ? null : router.veinToggle().mapAll(this::wrap);
+        this.oreVeinifier = reg == null || !settings.oreVeinsEnabled() ? null : new OreVeinifier(
             this.wrappedVeinToggle,
             router.veinRidged().mapAll(this::wrap),
             router.veinGap().mapAll(this::wrap),
@@ -156,6 +158,22 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     }
 
     private double[][][][] buildClimateCache() {
+        // W-09: 구조상 Y-불변인 차원(오버월드는 depth 외 5개)은 j=0 에서 한 번만 평가하고 위로 복사한다.
+        boolean[] yInv = new boolean[6];
+        for (int d = 0; d < 6; d++) yInv[d] = isYInvariant(wrappedClimate[d]);
+        return buildClimateCache(yInv);
+    }
+
+    /** 테스트용: 게이트 없이 전 칸 평가한 기후 캐시(새 NoiseChunk 상태에 영향 없음 — DF 는 순수, 캐시는 메모이즈뿐). */
+    double[][][][] climateCacheUngatedForTest() { return buildClimateCache(new boolean[6]); }
+
+    double[][][][] climateCacheForTest() { return climateCache; }
+
+    double[][][][] rebuildClimateCacheForTest() { return buildClimateCache(); }
+
+    boolean climateYInvariantForTest(int d) { return isYInvariant(wrappedClimate[d]); }
+
+    private double[][][][] buildClimateCache(boolean[] yInv) {
         int xn = noiseSizeXZ + 1;   // 5
         int yn = cellCountY + 1;    // 49
         int zn = noiseSizeXZ + 1;   // 5
@@ -169,12 +187,20 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     DensityFunction.SinglePointContext ctx =
                         new DensityFunction.SinglePointContext(bx, by, bz);
                     for (int d = 0; d < 6; d++) {
-                        cache[d][i][j][k] = wrappedClimate[d].compute(ctx);
+                        cache[d][i][j][k] = j > 0 && yInv[d] ? cache[d][i][0][k] : wrappedClimate[d].compute(ctx);
                     }
                 }
             }
         }
         return cache;
+    }
+
+    /** 래핑된 DF 가 blockY 에 의존하지 않음이 구조상 확실한가. FlatCache 는 청크 쿼트 범위 안에서 XZ 표만 읽는다. */
+    private boolean isYInvariant(DensityFunction df) {
+        if (df instanceof FlatCache) return true;
+        if (df instanceof Cache2D c) return isYInvariant(c.wrapped());
+        if (df instanceof DensityFunctions.MarkerOrMarked) return false;   // 보간·셀 캐시는 청크 상태 의존
+        return DensityFunctions.yInvariantNode(df, this::isYInvariant);
     }
 
     /**
@@ -188,6 +214,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      */
     public void fillTarget(int localQX, int absQY, int localQZ, long[] out) {
         int cy = absQY >>> 1;
+        // 노이즈 높이 위 쿼트(네더 y128+): 기후 DF 가 y 불변인 차원이라 최상단 셀 값으로 충분.
+        if (cy >= cellCountY) { cy = cellCountY - 1; absQY = cy * 2 + 1; }
         double ty = (absQY & 1) * 0.5;
         for (int d = 0; d < 6; d++) {
             double v0 = climateCache[d][localQX][cy][localQZ];
@@ -269,6 +297,14 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     // ─────────────────────────────────────────────────────────────────────
     // wrap: marker → 셀 인식 구현체로 교체
     // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * 이 NoiseChunk의 wrap 규칙(FlatCache = 쿼트 XZ 정렬값, 청크 밖은 직접 계산 등)을 그대로 적용한 DF — 바닐라는 aquifer에
+     * NoiseChunk가 mapAll(wrap)한 라우터를 넘기므로 erosion/depth의 flat_cache가 청크 문맥에 따라 쿼트 정렬값을 돌려준다.
+     */
+    public DensityFunction wrappedForAquifer(DensityFunction df) {
+        return df.mapAll(this::wrap);
+    }
 
     private DensityFunction wrap(DensityFunction df) {
         return wrapped.computeIfAbsent(df, this::wrapNew);
@@ -539,12 +575,33 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         return mask;
     }
 
+    // 디버그: -Dfurnace.aqwatch=x,y,z;x,y,z — 해당 칸의 density·aquifer 결과를 stdout에 남긴다.
+    private static final int[][] AQ_WATCH = parseAqWatch(System.getProperty("furnace.aqwatch"));
+
+    private static int[][] parseAqWatch(String v) {
+        if (v == null) return null;
+        String[] parts = v.split(";");
+        int[][] out = new int[parts.length][];
+        for (int i = 0; i < parts.length; i++) {
+            String[] p = parts[i].split(",");
+            out[i] = new int[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()), Integer.parseInt(p[2].trim())};
+        }
+        return out;
+    }
+
     /**
      * 전체 청크(16×height×16)에 대해 블록 state ID를 반환한다.
      * density > 0 → stoneId, density ≤ 0 → aquifer.computeSubstance(this, density).
      * 인덱스 = (y - minY) * 256 + lz * 16 + lx (stoneMask 와 동일).
      * all-fluid 셀은 aquifer에 정확한 density를 전달하기 위해 skip 하지 않는다.
      */
+    /** 바닐라 NoiseChunk 의 beardifier — final density 에 블록 단위로 더해진다(cacheAllInCell(add(final, beardifier))). null = 없음. */
+    private org.domi.furnace.server.world.gen.structure.Beardifier beardifier;
+
+    public void setBeardifier(org.domi.furnace.server.world.gen.structure.Beardifier b) {
+        this.beardifier = b == null || b.isEmpty() ? null : b;
+    }
+
     public int[] generateBlockIds(int stoneId, Aquifer aquifer) {
         int minY   = this.cellNoiseMinY * this.cellHeight;
         int height = this.cellCountY   * this.cellHeight;
@@ -563,7 +620,11 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     selectCellYZ(cy, cz);
 
                     cellBoundsOf(this.wrappedFinalDensity, cellBoundsScratch);
-                    if (cellBoundsScratch[0] > SKIP_EPS
+                    boolean beardHere = beardifier != null && beardifier.mayAffect(
+                        chunkBlockX + cx * this.cellWidth, (this.cellNoiseMinY + cy) * this.cellHeight, chunkBlockZ + cz * this.cellWidth,
+                        chunkBlockX + cx * this.cellWidth + this.cellWidth - 1, (this.cellNoiseMinY + cy) * this.cellHeight + this.cellHeight - 1,
+                        chunkBlockZ + cz * this.cellWidth + this.cellWidth - 1);
+                    if (!beardHere && cellBoundsScratch[0] > SKIP_EPS
                         && (!cellOverlapsVeinRange(cy) || canSkipVeinForCell(cy))) {
                         // all-stone skip (aquifer not called). vein y범위 셀이어도 veinToggle bound로
                         // 셀 전체 NO_VEIN이 보장되면(canSkipVeinForCell) per-block oreVeinifier 없이 skip.
@@ -601,6 +662,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                 updateForZ(blockZ, tz);
 
                                 double density = this.wrappedFinalDensity.compute(this);
+                                if (beardHere) density += beardifier.compute(blockX, blockY, blockZ);
                                 int lx = blockX & 15;
                                 int lz = blockZ & 15;
                                 int yOff = blockY - minY;
@@ -614,8 +676,22 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                         blocks[idx] = vein != OreVeinifier.NO_VEIN ? vein : stoneId;
                                     } else {
                                         int substance = aquifer.computeSubstance(this, density);
-                                        // NO_CARVE (-1) means barrier prevents fluid: use defaultBlock (stone)
-                                        blocks[idx] = substance == Aquifer.NO_CARVE ? stoneId : substance;
+                                        if (AQ_WATCH != null) {
+                                            for (int[] w : AQ_WATCH) {
+                                                if (w[0] == blockX && w[1] == blockY && w[2] == blockZ) {
+                                                    System.out.println("FAQ " + blockX + " " + blockY + " " + blockZ + " density=" + density + " -> " + substance);
+                                                }
+                                            }
+                                        }
+                                        if (substance == Aquifer.NO_CARVE) {
+                                            // 바닐라 material rule 체인 [aquifer, oreVeinifier]: aquifer가 null(장벽으로 유체가 막힘)을 돌려주면
+                                            // 다음 규칙인 oreVeinifier가 실행되고, 그래도 null이면 기본 블록(stone)이다.
+                                            int vein = this.oreVeinifier == null
+                                                ? OreVeinifier.NO_VEIN : this.oreVeinifier.veinStateId(this);
+                                            blocks[idx] = vein != OreVeinifier.NO_VEIN ? vein : stoneId;
+                                        } else {
+                                            blocks[idx] = substance;
+                                        }
                                     }
                                 }
                             }
@@ -665,6 +741,14 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      * 0.390625 threshold = 25/64 (vanilla SurfaceSystem.hasPreliminarySurface)
      */
     public int getPreliminarySurfaceLevel(int quartX, int quartZ) {
+        int cached = router.cachedPreliminarySurface(quartX, quartZ);
+        if (cached != Integer.MIN_VALUE) return cached;
+        int level = computePreliminarySurfaceLevel(quartX, quartZ);
+        router.cachePreliminarySurface(quartX, quartZ, level);
+        return level;
+    }
+
+    private int computePreliminarySurfaceLevel(int quartX, int quartZ) {
         int bx = quartToBlock(quartX);
         int bz = quartToBlock(quartZ);
         int minY = cellNoiseMinY * cellHeight;

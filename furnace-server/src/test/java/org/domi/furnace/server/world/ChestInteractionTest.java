@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -34,6 +35,7 @@ class ChestInteractionTest {
         w.setRegistries(reg, items);
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             assertTrue(r.placeBlock(3, -60, 3, chestState));
@@ -56,6 +58,7 @@ class ChestInteractionTest {
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
         ChunkPos cp = new ChunkPos(0, 0);
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.placeBlock(3, -60, 3, chestState);
@@ -78,6 +81,7 @@ class ChestInteractionTest {
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.setChestItem(3, -60, 3, 0, new ItemStack(1, 1, null)); // 체스트 없음 — 예외 없이 무시
@@ -97,10 +101,28 @@ class ChestInteractionTest {
         w.setRegistries(reg, items);
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player viewer = new Player(1, UUID.randomUUID(), "V", ch);
-        viewer.openChest(7, 3, -60, 3); // 그 체스트를 열어둔 상태로 시뮬레이션
+        // 그 체스트를 열어둔 상태로 시뮬레이션: 인벤토리 창 + 그 상자의 ChestMenu, 닫기는 연결이 하듯 ContainerClose 를 보내고 인벤토리 창으로 돌아간다
+        viewer.initMenus(new org.domi.furnace.server.menu.InventoryMenu(viewer.inventory(), null));
+        ChestBlockEntity openedChest = ChestBlockEntity.empty(3, -60, 3);
+        var openedMenu = org.domi.furnace.server.menu.ChestMenu.threeRows(7, viewer.inventoryMenu().inventoryContainer(),
+                new BlockEntityContainer(openedChest), new int[]{3, -60, 3}, null);
+        viewer.setContainerMenu(openedMenu);
+        viewer.inventoryHost(new Player.InventoryHost() {
+            public ItemStack slot(int windowSlot) { return ItemStack.EMPTY; }
+            public int selected() { return 0; }
+            public void replace(int windowSlot, ItemStack expect, ItemStack now) { }
+            public int permissionLevel() { return 0; }
+            public void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {
+                if (viewer.containerMenu() == expect) {
+                    viewer.send(new ContainerClose(expect.containerId));
+                    viewer.setContainerMenu(viewer.inventoryMenu());
+                }
+            }
+        });
 
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.placeBlock(3, -60, 3, chestState);
@@ -121,7 +143,7 @@ class ChestInteractionTest {
             out.release();
         }
         assertTrue(sawClose, "열어둔 플레이어에게 강제 ContainerClose 전송돼야(§3.5)");
-        assertEquals(-1, viewer.openContainerId(), "세션이 닫힘 상태로 리셋돼야");
+        assertFalse(viewer.hasOpenContainer(), "세션이 닫힘 상태로 리셋돼야");
         io.shutdown(); sched.close();
     }
 
@@ -140,6 +162,7 @@ class ChestInteractionTest {
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(0, 0);
 
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)로 설치
         sched.region(rp).execute(() -> {
             Region r = w.regionAt(rp);
             r.placeBlock(2, -60, 2, chestState);

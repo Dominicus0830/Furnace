@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -48,7 +49,7 @@ class ChunkDeliveryOrderTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ChunkWorkerPool pool = new ChunkWorkerPool(1);
         World w = world(sched, pool, reg);
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "P", ch);
 
         CountDownLatch gate = new CountDownLatch(1);
@@ -77,7 +78,7 @@ class ChunkDeliveryOrderTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World w = world(sched, new ChunkWorkerPool(1), reg);
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "P", ch);
 
         World.Subscription sub = w.subscribeChunk(C00, p);
@@ -97,7 +98,7 @@ class ChunkDeliveryOrderTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         World w = world(sched, new ChunkWorkerPool(1), reg);
-        EmbeddedChannel ch = new EmbeddedChannel();
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "P", ch);
 
         World.Subscription stale = w.subscribeChunk(C00, p);

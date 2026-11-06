@@ -28,6 +28,21 @@ public final class Types {
         return value;
     }
 
+    public static long readVarLong(ByteBuf buf) {
+        long value = 0;
+        int position = 0;
+        byte current;
+        do {
+            current = buf.readByte();
+            value |= (long) (current & SEGMENT_BITS) << position;
+            position += 7;
+            if (position > 70) {
+                throw new ProtocolException("VarLong too long");
+            }
+        } while ((current & CONTINUE_BIT) != 0);
+        return value;
+    }
+
     public static void writeVarInt(ByteBuf buf, int value) {
         while ((value & ~SEGMENT_BITS) != 0) {
             buf.writeByte((value & SEGMENT_BITS) | CONTINUE_BIT);
@@ -75,7 +90,7 @@ public final class Types {
 
     /** 회전 각도를 256분할 byte로. degrees * 256 / 360. */
     public static void writeAngle(ByteBuf buf, float degrees) {
-        buf.writeByte((int) (degrees * 256.0f / 360.0f) & 0xFF);
+        buf.writeByte((int) Math.floor(degrees * 256.0f / 360.0f) & 0xFF);   // 바닐라 Mth.floor — 음수 각도도 내림
     }
 
     /** 블록 좌표를 바닐라 Position long으로 패킹. */

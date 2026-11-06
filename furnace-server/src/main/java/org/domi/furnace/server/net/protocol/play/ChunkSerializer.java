@@ -12,7 +12,6 @@ import org.domi.furnace.server.world.Palette;
 
 public final class ChunkSerializer {
 
-    private static final int LIGHT_SECTIONS = ChunkColumn.SECTION_COUNT + 2; // 26
     private static final byte[] FULL_SKYLIGHT = new byte[2048];
     static {
         java.util.Arrays.fill(FULL_SKYLIGHT, (byte) 0xFF);
@@ -22,6 +21,17 @@ public final class ChunkSerializer {
 
     public static void serialize(ByteBuf buf, ChunkSnapshot snap,
                                  int blockDirectBits, int biomeDirectBits) {
+        serialize(buf, snap, blockDirectBits, biomeDirectBits, ChunkColumn.MIN_Y, true);
+    }
+
+    /**
+     * 차원별: 빛 섹션은 (minY>>4)-1 부터 섹션 수 + 2 개. 하늘빛이 없는 차원(네더·엔드)은 바닐라처럼 하늘빛 마스크를 모두 비운다
+     * (하늘빛 층 리스너가 없어 채움·빈 표시 둘 다 없다).
+     */
+    public static void serialize(ByteBuf buf, ChunkSnapshot snap, int blockDirectBits, int biomeDirectBits,
+                                 int minY, boolean hasSkyLight) {
+        final int LIGHT_SECTIONS = snap.sections().length + 2;
+        final int lightBase = (minY >> 4) - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
         buf.writeInt(snap.chunkX());
         buf.writeInt(snap.chunkZ());
 
@@ -57,19 +67,41 @@ public final class ChunkSerializer {
             }
         }
 
-        // --- 라이트 ---
-        long allSectionsMask = (1L << LIGHT_SECTIONS) - 1; // 26비트
-        writeBitSet(buf, new long[]{allSectionsMask});  // skyLightMask
-        writeBitSet(buf, new long[0]);                  // blockLightMask
-        writeBitSet(buf, new long[0]);                  // emptySkyLightMask
-        writeBitSet(buf, new long[]{allSectionsMask});  // emptyBlockLightMask
-
-        Types.writeVarInt(buf, LIGHT_SECTIONS); // skyLight 배열 수
+        // --- 라이트 --- (ClientboundLightUpdatePacketData: 모두 0 이면 empty 마스크, 아니면 데이터)
+        byte[][] sky = snap.light() == null ? null : snap.light().sky();
+        byte[][] blk = snap.light() == null ? null : snap.light().block();
+        long skyMask = 0, blockMask = 0, emptySky = 0, emptyBlock = 0;
         for (int i = 0; i < LIGHT_SECTIONS; i++) {
-            Types.writeVarInt(buf, 2048);
-            buf.writeBytes(FULL_SKYLIGHT);
+            if (sky == null) {
+                if (hasSkyLight) skyMask |= 1L << i;     // 빛이 없는 청크: 예전 동작(하늘빛 전부 15)
+                continue;
+            }
+            if (hasSkyLight) {
+                if (isZero(sky[lightBase + i])) emptySky |= 1L << i; else skyMask |= 1L << i;
+            }
+            if (isZero(blk[lightBase + i])) emptyBlock |= 1L << i; else blockMask |= 1L << i;
         }
-        Types.writeVarInt(buf, 0); // blockLight 배열 수
+        if (sky == null) emptyBlock = (1L << LIGHT_SECTIONS) - 1;
+        writeBitSet(buf, new long[]{skyMask});
+        writeBitSet(buf, new long[]{blockMask});
+        writeBitSet(buf, new long[]{emptySky});
+        writeBitSet(buf, new long[]{emptyBlock});
+        writeLayers(buf, sky, skyMask, lightBase, LIGHT_SECTIONS);
+        writeLayers(buf, blk, blockMask, lightBase, LIGHT_SECTIONS);
+    }
+
+    private static boolean isZero(byte[] a) {
+        for (byte b : a) if (b != 0) return false;
+        return true;
+    }
+
+    private static void writeLayers(ByteBuf buf, byte[][] layers, long mask, int base, int count) {
+        Types.writeVarInt(buf, Long.bitCount(mask));
+        for (int i = 0; i < count; i++) {
+            if ((mask & (1L << i)) == 0) continue;
+            Types.writeVarInt(buf, 2048);
+            buf.writeBytes(layers == null ? FULL_SKYLIGHT : layers[base + i]);
+        }
     }
 
     private static void writeBitSet(ByteBuf buf, long[] longs) {

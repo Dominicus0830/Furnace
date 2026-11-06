@@ -34,6 +34,7 @@ public final class RegionThread implements TaskScheduler, ThreadOwner, AutoClose
         // 모든 필드를 start() 이전에 할당한다. Thread.start()는 happens-before라
         // loop()가 위 필드를 안전하게 본다. start() 뒤로 필드 할당을 옮기면 가시성 버그가 생긴다.
         this.thread = new Thread(this::loop, name);
+        this.thread.setPriority(Thread.MAX_PRIORITY - 1);
         this.thread.start();
     }
 
@@ -83,7 +84,13 @@ public final class RegionThread implements TaskScheduler, ThreadOwner, AutoClose
         return f;
     }
 
+    private static final ThreadLocal<Boolean> REGION = ThreadLocal.withInitial(() -> false);
+
+    /** 지금 스레드가 region 틱 스레드인가(블로킹 대기 금지 검사용). */
+    public static boolean isRegionThread() { return REGION.get(); }
+
     private void loop() {
+        REGION.set(true);
         TickTimer timer = new TickTimer(tickNanos);
         timer.start(System.nanoTime());
         long lastSecond = System.nanoTime();
@@ -106,7 +113,7 @@ public final class RegionThread implements TaskScheduler, ThreadOwner, AutoClose
 
             long sleep = timer.remaining(System.nanoTime());
             if (sleep > 0) {
-                LockSupport.parkNanos(sleep);
+                PreciseWait.parkUntil(System.nanoTime() + sleep);
             }
             timer.advance(System.nanoTime());
         }

@@ -48,10 +48,19 @@ public record BeehiveDecorator(float probability) implements TreeDecorator {
         context.view().setBlock(chosen.x(), chosen.y(), chosen.z(), context.config().beeNestStateId());
         context.decorations().add(chosen);
 
-        // 벌집 tile-entity 데이터(벌 개체 저장)는 fixture가 blockstate만 비교하므로 실제로 만들지 않지만,
-        // vanilla BeehiveBlockEntity.storeBee가 소비하는 RNG draw 수는 스트림 동기화를 위해 그대로 소비한다.
+        // vanilla: getBlockEntity(pos, BEEHIVE) 에 2~3 마리 storeBee(Occupant.create(nextInt(599))). 생성 블록 엔티티 NBT 로 남긴다.
         int beeCount = 2 + context.random().nextInt(2);
-        for (int i = 0; i < beeCount; i++) context.random().nextInt(599);
+        var bees = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        for (int i = 0; i < beeCount; i++) {
+            bees.add(org.domi.furnace.server.block.entity.BeehiveBlockEntity.Occupant.create(context.random().nextInt(599)).save());
+        }
+        var nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        nbt.putString("id", "minecraft:beehive");
+        nbt.putInt("x", chosen.x());
+        nbt.putInt("y", chosen.y());
+        nbt.putInt("z", chosen.z());
+        nbt.putList("bees", bees);
+        context.view().putGeneratedBlockEntity(chosen.x(), chosen.y(), chosen.z(), nbt);
     }
 
     // vanilla Util.shuffle과 동일한 Fisher-Yates(뒤에서부터, nextInt(i)로 스왑).

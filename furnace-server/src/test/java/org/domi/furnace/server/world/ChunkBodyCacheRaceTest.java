@@ -24,6 +24,7 @@ class ChunkBodyCacheRaceTest {
     private record Env(FurnaceSchedulerImpl sched, ChunkWorkerPool pool, World w, BlockRegistry reg) {}
 
     private static Env env() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));   // 블록 부수기가 아이템 레지스트리를 쓴다
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ChunkWorkerPool pool = new ChunkWorkerPool(1);
@@ -35,7 +36,7 @@ class ChunkBodyCacheRaceTest {
     /** 소유 스레드서 현재 청크를 직접 직렬화한 "정답" 본문. */
     private static byte[] freshBody(Env e) throws Exception {
         return e.sched().region(R00).submit(() -> {
-            ChunkColumn col = e.w().regionAt(R00).chunkAt(C00);
+            ChunkColumn col = e.w().regionAt(R00).chunkAtBlocking(C00);
             ByteBuf b = Unpooled.buffer();
             ChunkSerializer.serialize(b, ChunkSnapshot.of(0, 0, col), e.reg().directBits(), 7);
             byte[] out = new byte[b.readableBytes()];
@@ -48,11 +49,8 @@ class ChunkBodyCacheRaceTest {
     private static void awaitSnapshotTaken(Env e) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
-            boolean taken = e.sched().region(R00).submit(() -> {
-                Region r = e.w().regionAt(R00);
-                return r.chunkLoaded(C00) && r.chunkAt(C00).cachedSnapshot() != null;
-            }).get(10, TimeUnit.SECONDS);
-            if (taken) return;
+            if (e.w().bodySnapshots.get() > 0) return;
+            Thread.onSpinWait();
         }
         fail("스냅샷이 제한 시간 안에 떠지지 않음");
     }
@@ -89,6 +87,68 @@ class ChunkBodyCacheRaceTest {
         e.sched().region(R00).execute(() -> { }).get(10, TimeUnit.SECONDS);
         byte[] b = e.w().serializedChunkBody(C00).get(10, TimeUnit.SECONDS);
         assertSame(a, b, "변경 없는 청크는 같은 본문 인스턴스를 재사용해야 한다(캐시 이득 유지)");
+        e.sched().close();
+    }
+
+    /** 직렬화가 끝나기 전 같은 청크를 여럿이 요청하면 한 번만 직렬화하고 같은 본문(같은 압축 프레임 키)을 나눠 받는다. */
+    @Test
+    void concurrentRequests_shareOneSerialization() throws Exception {
+        Env e = env();
+        CountDownLatch gate = new CountDownLatch(1);
+        e.pool().submit(() -> { try { gate.await(); } catch (InterruptedException ignored) { } return null; });
+        CompletableFuture<byte[]> a = e.w().serializedChunkBody(C00);
+        awaitSnapshotTaken(e);
+        CompletableFuture<byte[]> b = e.w().serializedChunkBody(C00);
+        CompletableFuture<byte[]> c = e.w().serializedChunkBody(C00);
+        e.sched().region(R00).execute(() -> { }).get(10, TimeUnit.SECONDS);   // b·c 가 주인 스레드를 지나가게
+        gate.countDown();
+        byte[] ba = a.get(10, TimeUnit.SECONDS);
+        assertSame(ba, b.get(10, TimeUnit.SECONDS));
+        assertSame(ba, c.get(10, TimeUnit.SECONDS));
+        assertEquals(1, e.w().bodySnapshots.get(), "동시 요청은 스냅샷·직렬화를 한 번만 해야 한다");
+        assertArrayEquals(freshBody(e), ba, "공유 본문은 직접 직렬화한 것과 같아야 한다");
+        e.sched().close();
+    }
+
+    /** 직렬화 중 편집이 끼면 그 뒤 요청은 진행 중인 낡은 본문에 붙지 않고 새로 직렬화한다. */
+    @Test
+    void editDuringInflight_laterRequestDoesNotJoinStale() throws Exception {
+        Env e = env();
+        CountDownLatch gate = new CountDownLatch(1);
+        e.pool().submit(() -> { try { gate.await(); } catch (InterruptedException ignored) { } return null; });
+        CompletableFuture<byte[]> first = e.w().serializedChunkBody(C00);
+        awaitSnapshotTaken(e);
+        e.sched().region(R00).execute(() -> e.w().regionAt(R00).breakBlock(0, -61, 0)).get(10, TimeUnit.SECONDS);
+        CompletableFuture<byte[]> second = e.w().serializedChunkBody(C00);
+        e.sched().region(R00).execute(() -> { }).get(10, TimeUnit.SECONDS);
+        gate.countDown();
+        byte[] stale = first.get(10, TimeUnit.SECONDS);
+        byte[] fresh = freshBody(e);
+        assertFalse(Arrays.equals(stale, fresh));
+        assertArrayEquals(fresh, second.get(10, TimeUnit.SECONDS));
+        assertEquals(2, e.w().bodySnapshots.get(), "편집 뒤 요청은 새로 직렬화해야 한다");
+        e.sched().close();
+    }
+
+    /** 직렬화가 실패하면 기다리던 요청은 모두 예외로 끝나고, 그 뒤 요청은 실패를 물려받지 않고 새로 직렬화한다. */
+    @Test
+    void failedSerialization_waitersFail_nextRequestRetries() throws Exception {
+        Env e = env();
+        CountDownLatch gate = new CountDownLatch(1);
+        e.pool().submit(() -> { try { gate.await(); } catch (InterruptedException ignored) { } return null; });
+        e.w().serializeFaultHook = () -> { throw new IllegalStateException("주입된 실패"); };
+        CompletableFuture<byte[]> a = e.w().serializedChunkBody(C00);
+        awaitSnapshotTaken(e);
+        CompletableFuture<byte[]> b = e.w().serializedChunkBody(C00);
+        e.sched().region(R00).execute(() -> { }).get(10, TimeUnit.SECONDS);
+        gate.countDown();
+        assertThrows(java.util.concurrent.ExecutionException.class, () -> a.get(10, TimeUnit.SECONDS));
+        assertThrows(java.util.concurrent.ExecutionException.class, () -> b.get(10, TimeUnit.SECONDS));
+        assertEquals(1, e.w().bodySnapshots.get());
+        e.w().serializeFaultHook = null;
+        byte[] c = e.w().serializedChunkBody(C00).get(10, TimeUnit.SECONDS);
+        assertEquals(2, e.w().bodySnapshots.get(), "실패 뒤 요청은 새로 직렬화해야 한다");
+        assertArrayEquals(freshBody(e), c);
         e.sched().close();
     }
 }

@@ -216,12 +216,17 @@ public class Harness {
         int cz0 = Integer.parseInt(a[3]), cz1 = Integer.parseInt(a[4]);
         String outPrefix = a[5];
         List<Path> worlds = new ArrayList<>();
-        for (int i = 6; i < a.length; i++) worlds.add(Path.of(a[i]));
+        String dimEnv = System.getenv("DIM");
+        for (int i = 6; i < a.length; i++) worlds.add("nether".equals(dimEnv) ? Path.of(a[i]).resolve("DIM-1") : "end".equals(dimEnv) ? Path.of(a[i]).resolve("DIM1") : Path.of(a[i]));
 
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         List<String> biomeNames = registries.entries("minecraft:worldgen/biome");
-        NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, registries);
+        String dim = System.getenv("DIM");   // nether | end — 해당 차원 소스와 DIM-1/DIM1 region 을 쓴다
+        NoiseWorldSource src = "nether".equals(dim) ? NoiseWorldSource.nether(seed, reg, registries)
+            : "end".equals(dim) ? NoiseWorldSource.end(seed, reg, registries) : NoiseWorldSource.overworld(seed, reg, registries);
+        // HARNESS_NO_STRUCT=1 이면 구조물 끔(순정 generate-structures=false 월드와 비교용).
+        if ("1".equals(System.getenv("HARNESS_NO_STRUCT"))) src.structureEngine().setStructuresEnabled(false);
 
         int[] furToIntern = new int[reg.totalStateCount() + 64];
         Arrays.fill(furToIntern, -1);
@@ -233,8 +238,24 @@ public class Harness {
         int done = 0, total = (cx1 - cx0 + 1) * (cz1 - cz0 + 1);
         int nonFull = 0;
 
+        // HARNESS_CHUNKLIST=파일("cx cz" 줄들)이면 사각형 안에서 목록에 있는 청크만 비교한다(고립 대조군용).
+        Set<Long> only = null;
+        String listFile = System.getenv("HARNESS_CHUNKLIST");
+        if (listFile != null && !listFile.isBlank()) {
+            only = new HashSet<>();
+            for (String line : java.nio.file.Files.readAllLines(Path.of(listFile))) {
+                String[] t = line.trim().split("\\s+");
+                if (t.length == 2) only.add(((long) Integer.parseInt(t[0]) << 32) ^ (Integer.parseInt(t[1]) & 0xFFFFFFFFL));
+            }
+        }
+        // HARNESS_REPLAY=ranks파일이면 요청 청크 독립 계산 대신 순정의 decorate 순서를 공유 월드에서 재생한다(Replay 참조).
+        Replay replay = null;
+        String replayFile = System.getenv("HARNESS_REPLAY");
+        if (replayFile != null && !replayFile.isBlank()) replay = new Replay(src, Path.of(replayFile));
         for (int cz = cz0; cz <= cz1; cz++) {
             for (int cx = cx0; cx <= cx1; cx++) {
+                if (replay != null && !replay.valid(cx, cz)) continue;
+                if (only != null && !only.contains(((long) cx << 32) ^ (cz & 0xFFFFFFFFL))) continue;
                 List<Map<String, Object>> vroots = new ArrayList<>();
                 for (Path w : worlds) {
                     Map<String, Object> r = readChunk(w, cx, cz);
@@ -245,12 +266,12 @@ public class Harness {
                 short[][] v = new short[worlds.size()][];
                 for (int i = 0; i < v.length; i++) v[i] = vanillaBlocks(vroots.get(i));
 
-                ChunkColumn col = "carvers".equals(System.getenv("FURNACE_MODE")) ? src.generateWithCarvers(cx, cz) : src.generateWithFeatures(cx, cz);
+                ChunkColumn col = replay != null ? replay.column(cx, cz) : "carvers".equals(System.getenv("FURNACE_MODE")) ? src.generateWithCarvers(cx, cz) : src.generateWithFeatures(cx, cz);
                 short[] f = new short[16 * 16 * H];
                 for (int y = MIN_Y; y < MIN_Y + H; y++)
                     for (int z = 0; z < 16; z++)
                         for (int x = 0; x < 16; x++) {
-                            int sid = col.getBlock(x, y, z);
+                            int sid = (y < col.minY() || y > col.maxY()) ? 0 : col.getBlock(x, y, z);
                             if (sid >= furToIntern.length) furToIntern = Arrays.copyOf(furToIntern, sid + 1024);
                             int iv = furToIntern[sid];
                             if (iv < 0) {
@@ -293,9 +314,10 @@ public class Harness {
                 String[] vb = vanillaBiomes(vroots.get(0));
                 int[] fb = src.sampleBiomes(cx, cz);
                 int bm = 0;
-                for (int i = 0; i < 1536; i++) {
+                int bOff = (Math.floorDiv(col.minY(), 16) + 4) * 64;
+                for (int i = 0; i < fb.length; i++) {
                     String fn = (fb[i] >= 0 && fb[i] < biomeNames.size()) ? biomeNames.get(fb[i]) : "?";
-                    if (!fn.equals(vb[i])) bm++;
+                    if (!fn.equals(vb[i + bOff])) bm++;
                 }
                 // heightmaps
                 int wsm = 0, mbm = 0;

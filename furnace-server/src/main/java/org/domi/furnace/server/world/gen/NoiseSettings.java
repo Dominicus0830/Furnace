@@ -22,7 +22,10 @@ public record NoiseSettings(
         String defaultBlock,
         String defaultFluid,
         int lavaFloorY,
-        boolean aquifersEnabled
+        boolean aquifersEnabled,
+        String name,
+        boolean legacyRandomSource,
+        boolean oreVeinsEnabled
 ) {
 
     /** 오버월드 lava floor Y 상수 */
@@ -33,6 +36,11 @@ public record NoiseSettings(
      * noiseSettingsJson: data.noiseSettings("minecraft:overworld") 의 반환값.
      */
     public static NoiseSettings fromJson(JsonObject noiseSettingsJson) {
+        return fromJson("minecraft:overworld", noiseSettingsJson);
+    }
+
+    /** name: noise_settings id(라우터 JSON 위치). legacy_random_source/ore_veins_enabled 도 읽는다. */
+    public static NoiseSettings fromJson(String name, JsonObject noiseSettingsJson) {
         JsonObject noise = noiseSettingsJson.get("noise").getAsJsonObject();
         int minY           = noise.get("min_y").getAsInt();
         int height         = noise.get("height").getAsInt();
@@ -49,7 +57,11 @@ public record NoiseSettings(
 
         boolean aquifersEnabled = noiseSettingsJson.get("aquifers_enabled").getAsBoolean();
 
+        // 바닐라 globalFluidPicker: y < min(-54, seaLevel) 이면 용암, 아니면 기본 유체(seaLevel 아래).
+        int lavaFloor = Math.min(LAVA_FLOOR_Y, seaLevel);
+        boolean legacy = noiseSettingsJson.has("legacy_random_source") && noiseSettingsJson.get("legacy_random_source").getAsBoolean();
+        boolean oreVeins = noiseSettingsJson.has("ore_veins_enabled") && noiseSettingsJson.get("ore_veins_enabled").getAsBoolean();
         return new NoiseSettings(minY, height, cellWidth, cellHeight, seaLevel,
-                defaultBlock, defaultFluid, LAVA_FLOOR_Y, aquifersEnabled);
+                defaultBlock, defaultFluid, lavaFloor, aquifersEnabled, name, legacy, oreVeins);
     }
 }

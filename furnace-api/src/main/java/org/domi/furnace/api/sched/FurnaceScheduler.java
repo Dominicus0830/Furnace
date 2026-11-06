@@ -7,8 +7,9 @@ public interface FurnaceScheduler {
     GlobalScheduler global();
 
     /**
-     * 주어진 region 좌표를 소유한 스레드의 스케줄러. 절대 null이 아니다.
-     * 같은 RegionPos는 항상 같은 스레드로 라우팅되며(결정적 매핑), 여러 RegionPos가 한 스레드를 공유할 수 있다.
+     * 그 청크(RegionPos = 청크 좌표)를 가진 region 의 스케줄러. 절대 null 이 아니다.
+     * region 은 동적이라(가까운 청크끼리 합쳐지고 멀어지면 나뉨) 작업은 실행 시점의 주인 region 에서, 그 region 의 다른 작업과
+     * 같은 스레드 순서로 돈다. 지연 작업은 남은 틱을 지키며 합치기·나누기를 따라간다.
      */
     TaskScheduler region(RegionPos pos);
 }

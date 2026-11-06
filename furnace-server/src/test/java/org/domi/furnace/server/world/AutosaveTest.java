@@ -53,12 +53,12 @@ class AutosaveTest {
                 16, 5, 5, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
 
+        w.awaitChunk(new ChunkPos(0, 0));   // 운영 비동기 로드 경로(finishLoad)
+        w.awaitChunk(new ChunkPos(1, 0));
         sched.region(rp).execute(() -> {
             Region region = w.regionAt(rp);
-            region.chunkAt(new ChunkPos(0, 0));
-            region.chunkAt(new ChunkPos(1, 0));
             region.breakBlock(0, -61, 0);
-            assertEquals(1, region.dirtyChunkCount());
+            assertEquals(2, region.dirtyChunkCount(), "새로 생성된 두 청크 모두 저장 대상(바닐라)");
             region.saveDirtyChunks();
             assertEquals(0, region.dirtyChunkCount());
         }).get();
@@ -86,6 +86,8 @@ class AutosaveTest {
             Region region = w.regionAt(rp);
             region.breakBlock(0, -61, 0);
             for (int i = 0; i < 3; i++) region.tick();
+            // 자동 저장은 틱마다 예산 안에서 나눠 한다(IO 밀림이면 다음 틱) — 비워질 때까지 몇 틱 더(상한)
+            for (int i = 0; i < 200 && region.dirtyChunkCount() != 0; i++) region.tick();
             assertEquals(0, region.dirtyChunkCount(), "autosave tick should drain dirty chunk set");
         }).get();
 

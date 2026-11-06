@@ -7,7 +7,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import java.net.InetSocketAddress;
 import org.domi.furnace.api.sched.FurnaceScheduler;
@@ -33,15 +32,28 @@ public final class NetworkServer {
     private final io.netty.channel.group.ChannelGroup allChannels =
             new io.netty.channel.group.DefaultChannelGroup(io.netty.util.concurrent.GlobalEventExecutor.INSTANCE);
 
+    private volatile boolean useNativeTransport = true;   // server.properties use-native-transport(바닐라 기본 true)
+
+    /** start() 전에: epoll 을 쓸 수 있으면 쓸지(바닐라 ServerConnectionListener.startTcpServerListener 와 같은 선택). */
+    public void useNativeTransport(boolean v) { this.useNativeTransport = v; }
+
     /** 테스트용: start() 전에 읽기 타임아웃(초)을 바꾼다. */
     void readTimeoutSeconds(int seconds) { this.readTimeoutSeconds = seconds; }
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private final ServerLoginContext loginContext;
     private Channel channel;
 
     public NetworkServer(int port, int compressionThreshold, String serverName,
                          FurnaceScheduler scheduler, World world, EntityIdAllocator idAllocator) {
+        this(port, compressionThreshold, ServerLoginContext.offline(serverName), scheduler, world, idAllocator);
+    }
+
+    public NetworkServer(int port, int compressionThreshold, ServerLoginContext loginContext,
+                         FurnaceScheduler scheduler, World world, EntityIdAllocator idAllocator) {
+        this.loginContext = loginContext;
+        String serverName = loginContext.motd;
         this.port = port;
         this.compressionThreshold = compressionThreshold;
         this.serverName = serverName;
@@ -52,22 +64,37 @@ public final class NetworkServer {
 
     /** 서버 기동. 실제 바인딩된 포트 반환(port=0이면 OS 배정 포트). */
     public int start() {
-        bossGroup = new NioEventLoopGroup(1);
-        workerGroup = new NioEventLoopGroup();
+        // 바닐라: Epoll.isAvailable() && use-native-transport 면 epoll, 아니면 NIO("Using epoll channel type"/"Using default channel type")
+        boolean epoll = useNativeTransport && io.netty.channel.epoll.Epoll.isAvailable();
+        Class<? extends io.netty.channel.ServerChannel> channelType;
+        if (epoll) {
+            bossGroup = new io.netty.channel.epoll.EpollEventLoopGroup(1);
+            workerGroup = new io.netty.channel.epoll.EpollEventLoopGroup();
+            channelType = io.netty.channel.epoll.EpollServerSocketChannel.class;
+            log.info("Using epoll channel type");
+        } else {
+            bossGroup = new NioEventLoopGroup(1);
+            workerGroup = new NioEventLoopGroup();
+            channelType = NioServerSocketChannel.class;
+            log.info("Using default channel type");
+        }
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
-                .channel(NioServerSocketChannel.class)
+                .channel(channelType)
                 .childOption(ChannelOption.TCP_NODELAY, true)
-                .childHandler(new ChannelInitializer<SocketChannel>() {
+                .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK,
+                        new io.netty.channel.WriteBufferWaterMark(512 * 1024, 2 * 1024 * 1024))
+                .childHandler(new ChannelInitializer<io.netty.channel.Channel>() {
                     @Override
-                    protected void initChannel(SocketChannel ch) {
+                    protected void initChannel(io.netty.channel.Channel ch) {
                         allChannels.add(ch);
                         ch.pipeline()
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(readTimeoutSeconds))
+                                .addLast("writabilityGuard", new WritabilityGuard())
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",
-                                        new ConnectionHandler(serverName, compressionThreshold,
+                                        new ConnectionHandler(loginContext, compressionThreshold,
                                                 scheduler, world, idAllocator));
                     }
                 });

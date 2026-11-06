@@ -32,7 +32,7 @@ class AsyncLoadTest {
         ChunkColumn c2 = sched.region(rp).submit(() -> w.regionAt(rp).loadChunk(cp)).get().get();
         assertNotNull(c1);
         assertSame(c1, c2);
-        assertFalse(c1.dirty()); // 로드 직후 clean
+        assertTrue(c1.dirty()); // 새로 생성된 청크는 바닐라처럼 저장 대상
         io.shutdown();
         store.closeAll();
         sched.close();

@@ -17,7 +17,12 @@ public class RunVanilla {
     }
 
     static long regionBytes(Path dir) throws IOException {
-        Path r = dir.resolve("world").resolve("region");
+        // RV_DIM=minecraft:the_nether|minecraft:the_end 이면 그 차원 폴더(DIM-1 / DIM1)의 region.
+        String dim = System.getenv("RV_DIM");
+        Path w = dir.resolve("world");
+        if ("minecraft:the_nether".equals(dim)) w = w.resolve("DIM-1");
+        else if ("minecraft:the_end".equals(dim)) w = w.resolve("DIM1");
+        Path r = w.resolve("region");
         if (!Files.exists(r)) return 0;
         try (var s = Files.list(r)) {
             return s.mapToLong(p -> { try { return Files.size(p); } catch (IOException e) { return 0; } }).sum();
@@ -78,14 +83,30 @@ public class RunVanilla {
         w.println("tick freeze");
         Thread.sleep(1000);
 
+        // RV_CHUNKLIST=파일("cx cz" 줄들)이면 사각형 대신 지정 청크만 1개씩 forceload — 서로 멀리 떨어진 청크의
+        // 3x3 decoration이 겹치지 않게 해서 이웃 순서·경합에 오염되지 않은 "고립 대조군"을 만든다.
+        String listFile = System.getenv("RV_CHUNKLIST");
+        if (listFile != null && !listFile.isBlank()) {
+            for (String line : Files.readAllLines(Path.of(listFile))) {
+                String[] ct = line.trim().split("\\s+");
+                if (ct.length != 2) continue;
+                int lx = Integer.parseInt(ct[0]) * 16, lz = Integer.parseInt(ct[1]) * 16;
+                String dimPrefix0 = System.getenv("RV_DIM") != null ? "execute in " + System.getenv("RV_DIM") + " run " : "";
+                w.println(dimPrefix0 + "forceload add " + lx + " " + lz + " " + (lx + 15) + " " + (lz + 15));
+                Thread.sleep(300);
+            }
+            System.out.println("forceload sent, chunk list");
+        }
         // 16x16 청크 타일로 분할(forceload 한 번에 최대 256청크)
         List<int[]> tiles = new ArrayList<>();
+        if (listFile != null && !listFile.isBlank()) { /* 목록 모드 — 타일 생략 */ } else
         for (int z = cz0; z <= cz1; z += 16)
             for (int x = cx0; x <= cx1; x += 16)
                 tiles.add(new int[]{x, z, Math.min(x + 15, cx1), Math.min(z + 15, cz1)});
         if (reverse) Collections.reverse(tiles);
         for (int[] ti : tiles) {
-            w.println("forceload add " + (ti[0] * 16) + " " + (ti[1] * 16) + " " + (ti[2] * 16 + 15) + " " + (ti[3] * 16 + 15));
+            String dimPrefix = System.getenv("RV_DIM") != null ? "execute in " + System.getenv("RV_DIM") + " run " : "";
+            w.println(dimPrefix + "forceload add " + (ti[0] * 16) + " " + (ti[1] * 16) + " " + (ti[2] * 16 + 15) + " " + (ti[3] * 16 + 15));
             Thread.sleep(1500);
         }
         System.out.println("forceload sent, tiles=" + tiles.size());

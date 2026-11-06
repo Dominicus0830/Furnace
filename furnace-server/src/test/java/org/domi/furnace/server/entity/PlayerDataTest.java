@@ -14,7 +14,7 @@ class PlayerDataTest {
         UUID id = UUID.randomUUID();
         ItemStack[] slots = new ItemStack[46];
         java.util.Arrays.fill(slots, ItemStack.EMPTY);
-        slots[36] = new ItemStack(123, 64, new byte[]{1, 2, 3});
+        slots[36] = new ItemStack(123, 64, org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 3)));
         PlayerData.save(dir, id, 12.5, -60, -7.25, 90f, 10f, true, slots);
         PlayerData.Snapshot snapshot = PlayerData.load(dir, id);
         assertNotNull(snapshot);
@@ -26,7 +26,7 @@ class PlayerDataTest {
         assertTrue(snapshot.onGround());
         assertEquals(123, snapshot.slots()[36].itemId());
         assertEquals(64, snapshot.slots()[36].count());
-        assertArrayEquals(new byte[]{1, 2, 3}, snapshot.slots()[36].components());
+        assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 3)), snapshot.slots()[36].patch());
         assertNull(PlayerData.load(dir, UUID.randomUUID())); // 없음
     }
 
@@ -50,7 +50,9 @@ class PlayerDataTest {
         pool.shutdown();
         assertNotNull(PlayerData.load(dir, id));
         try (var st = java.nio.file.Files.list(dir.resolve("playerdata"))) {
-            assertEquals(1, st.count(), "임시/손상 파일이 남으면 안 된다");
+            // 바닐라처럼 <uuid>.dat 과 이전본 <uuid>.dat_old 만 남고 임시/손상 파일은 없어야 한다.
+            assertEquals(java.util.Set.of(id + ".dat", id + ".dat_old"),
+                    st.map(p -> p.getFileName().toString()).collect(java.util.stream.Collectors.toSet()));
         }
     }
 

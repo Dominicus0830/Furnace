@@ -9,7 +9,15 @@ import org.domi.furnace.server.net.protocol.ProtocolException;
 
 public final class FrameDecoder extends ByteToMessageDecoder {
 
-    private static final int MAX_PACKET = 2 * 1024 * 1024; // 2 MiB 안전 상한
+    private static final int MAX_PACKET = 2 * 1024 * 1024; // 2 MiB 안전 상한(바닐라 Varint21FrameDecoder 의 21비트 길이와 같은 규모)
+
+    // 단계별 프레임 상한(채널 이벤트루프 전용). 로그인 전 단계에서 2 MiB 까지 버퍼링되지 않게 ConnectionHandler 가 줄인다.
+    private int maxLength = MAX_PACKET;
+
+    /** 지금 단계에서 받을 프레임 최대 길이(바이트). 2 MiB 를 넘길 수 없다. */
+    public void maxLength(int max) { this.maxLength = Math.min(max, MAX_PACKET); }
+
+    public int maxLength() { return maxLength; }
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
@@ -29,7 +37,7 @@ public final class FrameDecoder extends ByteToMessageDecoder {
             }
             if ((b & 0x80) == 0) break;
         }
-        if (length < 0 || length > MAX_PACKET) {
+        if (length < 0 || length > maxLength) {
             throw new ProtocolException("Frame length out of bounds: " + length);
         }
         if (in.readableBytes() < length) {

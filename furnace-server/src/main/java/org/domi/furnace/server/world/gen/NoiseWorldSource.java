@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * router/settings/ids 는 생성 시 한 번만 빌드하며 generate() 는 thread-safe.
  */
-public final class NoiseWorldSource implements WorldSource {
+public final class NoiseWorldSource implements WorldSource, org.domi.furnace.server.world.gen.structure.TerrainAccess {
 
     private final NoiseRouter router;
     private final NoiseSettings settings;
@@ -55,6 +55,7 @@ public final class NoiseWorldSource implements WorldSource {
     private final OverworldCarvers overworldCarvers;
     private final FeaturePlacer featurePlacer;
     private final StructurePlacementCatalog structurePlacementCatalog;
+    private final org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine;
     private final List<SpawnTarget> spawnTargets;
     private final ChunkPipeline pipeline;
     private volatile SpawnPoint defaultSpawn;
@@ -62,6 +63,14 @@ public final class NoiseWorldSource implements WorldSource {
     // 키: (cx<<32)^cz, 값: lz*16+lx 인덱스의 (height-1). generate()는 seed+좌표만의 순수 함수라 메모이제이션 안전.
     // bounded LRU(256) — 무제한 ConcurrentHashMap이던 것을 pristine 캐시와 같은 이유로 bounded화.
     private static final int SURFACE_HEIGHT_CACHE_SIZE = 256;
+    private final Map<Long, ChunkColumn> terrainCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, ChunkColumn> eldest) {
+                return size() > 24;
+            }
+        });
+    private WorldgenData worldgenData;
     private final Map<Long, int[]> surfaceHeightCache = java.util.Collections.synchronizedMap(
         new java.util.LinkedHashMap<>(16, 0.75f, true) {
             @Override
@@ -75,6 +84,7 @@ public final class NoiseWorldSource implements WorldSource {
                               int stoneId, int waterId, int lavaId,
                               long seed, BlockRegistry reg, int biomeDirectBits, OverworldCarvers overworldCarvers,
                               FeaturePlacer featurePlacer, StructurePlacementCatalog structurePlacementCatalog,
+                              org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine,
                               List<SpawnTarget> spawnTargets) {
         this.router             = router;
         this.settings           = settings;
@@ -90,6 +100,12 @@ public final class NoiseWorldSource implements WorldSource {
         this.overworldCarvers   = overworldCarvers;
         this.featurePlacer      = featurePlacer;
         this.structurePlacementCatalog = structurePlacementCatalog;
+        this.structureEngine    = structureEngine;
+        structureEngine.setRingTerrain(this);
+        if (featurePlacer != null) {
+            featurePlacer.setStructureEngine(structureEngine);
+            structureEngine.setPlacedFeatureSource(id -> featurePlacer.biomeData().placedFeatureById(id));
+        }
         this.spawnTargets       = spawnTargets;
         this.pipeline           = new ChunkPipeline(this);
     }
@@ -101,16 +117,72 @@ public final class NoiseWorldSource implements WorldSource {
      * @param reg        블록 레지스트리 (state id 해석용)
      * @param registries 바이옴 레지스트리 (BiomeSampler 로드용)
      */
+    /** 차원별 생성 설정 — 노이즈 설정 id, 차원 높이(dimension_type), 바이옴 파라미터 목록. */
+    public enum Dimension {
+        OVERWORLD("minecraft:overworld", -64, 24, "biome_parameters.json", "minecraft:overworld", ""),
+        NETHER("minecraft:nether", 0, 16, "biome_parameters_nether.json", "minecraft:the_nether", "DIM-1"),
+        END("minecraft:end", 0, 16, null, "minecraft:the_end", "DIM1");
+
+        final String noiseSettings;
+        /** 차원(레벨) id. */
+        public final String levelId;
+        /** 월드 폴더 안의 차원 폴더(바닐라 DimensionType.getStorageFolder: 오버월드는 월드 폴더 자체). */
+        public final String storageFolder;
+        public final int minY;
+        public final int sectionCount;
+        final String biomeParameters;
+
+        Dimension(String noiseSettings, int minY, int sectionCount, String biomeParameters, String levelId, String storageFolder) {
+            this.noiseSettings = noiseSettings;
+            this.levelId = levelId;
+            this.storageFolder = storageFolder;
+            this.minY = minY;
+            this.sectionCount = sectionCount;
+            this.biomeParameters = biomeParameters;
+        }
+
+        /** 이 차원의 저장 폴더(region/, entities/, poi/ 의 부모). */
+        public java.nio.file.Path storageDir(java.nio.file.Path worldDir) {
+            return storageFolder.isEmpty() ? worldDir : worldDir.resolve(storageFolder);
+        }
+    }
+
+    /**
+     * 오버월드 NoiseWorldSource 를 생성한다.
+     *
+     * @param seed       월드 시드
+     * @param reg        블록 레지스트리 (state id 해석용)
+     * @param registries 바이옴 레지스트리 (BiomeSampler 로드용)
+     */
     public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(Dimension.OVERWORLD, seed, reg, registries);
+    }
+
+    public static NoiseWorldSource nether(long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(Dimension.NETHER, seed, reg, registries);
+    }
+
+    public static NoiseWorldSource end(long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(Dimension.END, seed, reg, registries);
+    }
+
+    public static NoiseWorldSource create(Dimension dim, long seed, BlockRegistry reg, RegistrySet registries) {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
+        JsonObject settingsJson = data.noiseSettings(dim.noiseSettings);
+        NoiseSettings settings = NoiseSettings.fromJson(dim.noiseSettings, settingsJson);
         NoiseRouter router = NoiseRouter.build(data, settings, seed);
 
-        int stoneId = reg.defaultStateId(settings.defaultBlock());  // minecraft:stone
-        int waterId = reg.defaultStateId(settings.defaultFluid());  // minecraft:water
+        int stoneId = reg.defaultStateId(settings.defaultBlock());  // overworld stone, nether netherrack
+        int waterId = reg.defaultStateId(settings.defaultFluid());  // 기본 유체(네더는 용암)
         int lavaId  = reg.defaultStateId("minecraft:lava");
 
-        BiomeSampler biomeSampler = BiomeSampler.load(data, registries);
+        JsonArray params = switch (dim) {
+            case OVERWORLD -> data.biomeParameters();
+            case NETHER -> data.resourceArray(dim.biomeParameters);
+            case END -> endBiomeList();
+        };
+        BiomeSampler biomeSampler = dim == Dimension.END ? BiomeSampler.theEnd(registries, router, dim.sectionCount)
+                                                         : BiomeSampler.load(params, registries, dim.sectionCount);
 
         java.util.List<String> biomeEntries = registries.entries("minecraft:worldgen/biome");
         String[] registryBiomeNames = biomeEntries.toArray(new String[0]);
@@ -119,23 +191,52 @@ public final class NoiseWorldSource implements WorldSource {
         SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed,
             registryBiomeNames, biomeSampler, router);
 
-        OverworldCarvers overworldCarvers = OverworldCarvers.load();
-        // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=biome_parameters.json 첫등장 distinct).
-        // registry 전체 순서를 쓰면 nether/end biome이 섞여 광석 index가 어긋난다.
-        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possibleBiomeOrder(data, registries), biomeEntries, reg, seed);
+        OverworldCarvers overworldCarvers = switch (dim) {
+            case OVERWORLD -> OverworldCarvers.load();
+            case NETHER -> OverworldCarvers.loadNether();
+            case END -> OverworldCarvers.none();
+        };
+        // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=파라미터 목록 첫등장 distinct).
+        // registry 전체 순서를 쓰면 다른 차원 biome이 섞여 광석 index가 어긋난다.
+        List<String> possible = possibleBiomeOrder(params, registries);
+        // WorldGenerationContext: minGenY = max(차원 min, 생성기 min), genDepth = min(차원 높이, 노이즈 높이)
+        int genMinY = Math.max(dim.minY, settings.minY());
+        int genDepth = Math.min(dim.sectionCount * 16, settings.height());
+        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth, settings.seaLevel(), router);
         StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
-        List<SpawnTarget> spawnTargets = loadSpawnTargets(data.noiseSettings("minecraft:overworld"));
+        List<SpawnTarget> spawnTargets = loadSpawnTargets(settingsJson);
+        org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine =
+            new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possible));
 
-        return new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
+        structureEngine.setBiomeRegistryNames(registryBiomeNames);
+        NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,
-                                    featurePlacer, structurePlacementCatalog, spawnTargets);
+                                    featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
+        source.worldgenData = data;
+        source.dimension = dim;
+        return source;
     }
 
+    private Dimension dimension = Dimension.OVERWORLD;
+
+    /** TheEndBiomeSource.possibleBiomes 순서(the_end, highlands, midlands, small islands, barrens) — 파라미터 목록 형식으로. */
+    private static JsonArray endBiomeList() {
+        JsonArray a = new JsonArray();
+        for (String b : new String[]{"minecraft:the_end", "minecraft:end_highlands", "minecraft:end_midlands", "minecraft:small_end_islands", "minecraft:end_barrens"}) {
+            JsonObject o = new JsonObject();
+            o.addProperty("biome", b);
+            a.add(o);
+        }
+        return a;
+    }
+
+    public Dimension dimension() { return dimension; }
+
     /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
-    private static List<String> possibleBiomeOrder(WorldgenData data, RegistrySet registries) {
+    private static List<String> possibleBiomeOrder(JsonArray params, RegistrySet registries) {
         java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
-        for (com.google.gson.JsonElement el : data.biomeParameters()) {
+        for (com.google.gson.JsonElement el : params) {
             String name = el.getAsJsonObject().get("biome").getAsString();
             if (registries.indexOf("minecraft:worldgen/biome", name) < 0) continue;
             seen.add(name);
@@ -144,10 +245,11 @@ public final class NoiseWorldSource implements WorldSource {
     }
 
     private static FeaturePlacer loadFeaturePlacer(
-            WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed) {
+            WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed,
+            int genMinY, int genDepth, int seaLevel, NoiseRouter router) {
         try {
-            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg);
-            return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData), reg);
+            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg, genMinY, genDepth, seaLevel);
+            return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData), reg, router.random());
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().startsWith("Worldgen resource not found:")) {
                 return null;
@@ -329,8 +431,60 @@ public final class NoiseWorldSource implements WorldSource {
         return new Parameter(point, point);
     }
 
+    /** generate()가 이미 샘플한 biome id를 함께 돌려줘, 호출부가 같은 청크의 biome을 다시 샘플하지 않게 한다. */
+    /** noiseChunk: 이 청크를 만든 NoiseChunk — 카버가 다시 쓴다(바닐라 getOrCreateNoiseChunk). 보간은 끝난 상태. */
+    /** aquifer: 지형 채우기에 쓴 aquifer — 카버가 그대로 다시 쓴다(바닐라 noiseChunk.aquifer(); 캐시는 위치의 순수 함수). */
+    public record Generated(ChunkColumn col, int[] biomeIds, NoiseChunk noiseChunk, Aquifer aquifer) {
+        public Generated(ChunkColumn col, int[] biomeIds) { this(col, biomeIds, null, null); }
+    }
+
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
+        return generateWithBiomes(chunkX, chunkZ).col();
+    }
+
+    public Generated generateWithBiomes(int chunkX, int chunkZ) {
+        return generateWithBiomes(chunkX, chunkZ, null);
+    }
+
+    /** 실제 월드 청크용: 주변 terrain_adaptation 구조물의 Beardifier 를 적용한 지형. 높이 질의용 generate() 는 바닐라처럼 beard 없음. */
+    public Generated generateWorldChunk(int chunkX, int chunkZ) {
+        return generateWithBiomes(chunkX, chunkZ, beardifierFor(chunkX, chunkZ));
+    }
+
+    // 시작점 캐시(Beardifier 전용 — 장식에 쓰지 않으므로 조각 상태가 바뀌지 않는다)
+    private final Map<Long, List<org.domi.furnace.server.world.gen.structure.StructureStart>> beardStartCache =
+        java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, List<org.domi.furnace.server.world.gen.structure.StructureStart>> eldest) {
+                return size() > 4096;
+            }
+        });
+
+    /** Beardifier.forStructuresInChunk — 반경 8 청크 시작점 중 (확장된) 상자가 이 청크와 겹치는 terrain_adaptation 구조물. */
+    public org.domi.furnace.server.world.gen.structure.Beardifier beardifierFor(int cx, int cz) {
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> refs = new ArrayList<>();
+        int minX = cx * 16, minZ = cz * 16;
+        for (int dz = -8; dz <= 8; dz++) {
+            for (int dx = -8; dx <= 8; dx++) {
+                int nx = cx + dx, nz = cz + dz;
+                List<org.domi.furnace.server.world.gen.structure.StructureStart> starts = beardStartCache.get(chunkKey(nx, nz));
+                if (starts == null) {
+                    starts = structureStartsFresh(nx, nz);
+                    beardStartCache.put(chunkKey(nx, nz), starts);
+                }
+                for (var s : starts) {
+                    if ("none".equals(s.terrainAdaptation())) continue;
+                    var b = s.boundingBox();
+                    if (b.maxX() >= minX && b.minX() <= minX + 15 && b.maxZ() >= minZ && b.minZ() <= minZ + 15) refs.add(s);
+                }
+            }
+        }
+        if (refs.isEmpty()) return null;
+        return org.domi.furnace.server.world.gen.structure.Beardifier.forChunk(refs, cx, cz);
+    }
+
+    private Generated generateWithBiomes(int chunkX, int chunkZ, org.domi.furnace.server.world.gen.structure.Beardifier beard) {
         int minY      = settings.minY();       // -64
         int height    = settings.height();     // 384
         int seaLevel  = settings.seaLevel();   // 63
@@ -340,9 +494,16 @@ public final class NoiseWorldSource implements WorldSource {
         Aquifer aquifer = settings.aquifersEnabled()
             ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
             : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
+        nc.setBeardifier(beard);
         int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
 
-        ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits);
+        ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits, dimension.minY, dimension.sectionCount);
+        if (blockIds.length != dimension.sectionCount * 4096) {
+            // 노이즈 높이가 차원 높이보다 낮다(네더 0..127 / 차원 0..255) — 나머지는 공기.
+            int[] full = new int[dimension.sectionCount * 4096];
+            System.arraycopy(blockIds, 0, full, (minY - dimension.minY) * 256, blockIds.length);
+            blockIds = full;
+        }
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
         col.loadGenerated(blockIds, biomeIds);
@@ -351,12 +512,29 @@ public final class NoiseWorldSource implements WorldSource {
         col.rebuildHeightmapsAfterSurface();
         col.clearDirty();
 
-        return col;
+        return new Generated(col, biomeIds, nc, aquifer);
+    }
+
+    /** 청크 biome id 배열에 등장하는 biome 이름 집합 — FeaturePlacer의 neighborBiomes 구성 단위(청크당 한 번만 계산해 재사용). */
+    public Set<String> biomeNamesOf(int[] biomeIds) {
+        boolean[] seen = new boolean[registryBiomeNames.length];
+        HashSet<String> names = new HashSet<>();
+        for (int biomeId : biomeIds) {
+            if (biomeId >= 0 && biomeId < registryBiomeNames.length && !seen[biomeId]) {
+                seen[biomeId] = true;
+                names.add(registryBiomeNames[biomeId]);
+            }
+        }
+        return names;
     }
 
     private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc) {
+        applyCarvers(col, chunkX, chunkZ, nc, null);
+    }
+
+    private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc, Aquifer reuse) {
         CarvingMask mask = new CarvingMask(settings.minY(), settings.height());
-        Aquifer aquifer = settings.aquifersEnabled()
+        Aquifer aquifer = reuse != null ? reuse : settings.aquifersEnabled()
             ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
             : new DisabledAquifer(settings.seaLevel(), settings.lavaFloorY(), waterId, lavaId);
 
@@ -388,6 +566,26 @@ public final class NoiseWorldSource implements WorldSource {
         applyCarvers(col, cx, cz, nc);
     }
 
+    /** 생성 결과의 NoiseChunk 를 다시 써서 카버를 돌린다(새 NoiseChunk 를 만드는 비용 — 기후 캐시·DF 감싸기 — 을 아낀다). */
+    public void applyCarvers(Generated g, int cx, int cz) {
+        if (g.noiseChunk() != null) applyCarvers(g.col(), cx, cz, g.noiseChunk(), g.aquifer());
+        else applyCarvers(g.col(), cx, cz, new NoiseChunk(cx, cz, router, settings, reg));
+    }
+
+    /** 디버그: quart 좌표(월드 quart x, 월드 quart y=블록y/4, 월드 quart z)의 기후 타깃 6개(온도·습도·대륙성·침식·깊이·기이함). */
+    public long[] climateTarget(int quartX, int quartY, int quartZ) {
+        org.domi.furnace.server.world.gen.df.DensityFunction.SinglePointContext ctx =
+            new org.domi.furnace.server.world.gen.df.DensityFunction.SinglePointContext(quartX * 4, quartY * 4, quartZ * 4);
+        return new long[] {
+            BiomeSampler.quantize((float) router.temperature().compute(ctx)),
+            BiomeSampler.quantize((float) router.humidity().compute(ctx)),
+            BiomeSampler.quantize((float) router.continents().compute(ctx)),
+            BiomeSampler.quantize((float) router.erosion().compute(ctx)),
+            BiomeSampler.quantize((float) router.depth().compute(ctx)),
+            BiomeSampler.quantize((float) router.ridges().compute(ctx))
+        };
+    }
+
     public int[] sampleBiomes(int cx, int cz) {
         NoiseChunk nc = new NoiseChunk(cx, cz, router, settings, reg);
         return biomeSampler.sampleChunk(cx, cz, nc);
@@ -405,21 +603,104 @@ public final class NoiseWorldSource implements WorldSource {
      * 블록은 쓰지 않는다(S2b 이후). 높이 조회는 매 호출마다 해당 청크를 SURFACE 상태로 재생성해 조회한다(캐시는 S3+).
      */
     public List<org.domi.furnace.server.world.gen.structure.StructureStart> applyStructureStarts(int cx, int cz) {
-        List<StructureSetPlacement> placements = structurePlacementCatalog.placementsForChunk(seed, cx, cz);
-        if (placements.isEmpty()) return List.of();
+        return structureEngine.createStarts(cx, cz, this);
+    }
 
-        List<org.domi.furnace.server.world.gen.structure.StructureStart> result = new ArrayList<>();
-        for (StructureSetPlacement set : placements) {
-            for (String structureId : set.structureIds()) {
-                if (!org.domi.furnace.server.world.gen.structure.DesertPyramidStructure.ID.equals(structureId)) {
-                    continue; // 다른 구조물은 S4+ 범위
-                }
-                org.domi.furnace.server.world.gen.structure.DesertPyramidStructure.generate(
-                    seed, cx, cz, settings.seaLevel(), this::worldSurfaceHeightAt, this::biomeNameAt
-                ).ifPresent(result::add);
+    // 공유해도 되는 시작점 결과 캐시 — 위치만의 함수라 결과가 바뀌지 않는다.
+    // 빈 결과(대부분의 청크)와 jigsaw 조각만으로 된 결과(마을·고대 도시 등 — 배치 중 조각 상태가 바뀌지 않고 afterPlace 도 없다)만 넣는다.
+    // 다른 구조물(요새·폐광·사막 신전 …)은 장식 중 조각 상태(높이 등)가 바뀌므로 매번 새로 만든다.
+    private final java.util.concurrent.ConcurrentHashMap<Long, List<org.domi.furnace.server.world.gen.structure.StructureStart>> sharedStarts =
+        new java.util.concurrent.ConcurrentHashMap<>();
+    private static final int SHARED_START_CACHE_LIMIT = 1 << 18;
+
+    /** 공유 캐시에 결과가 있으면 그것(없으면 null). */
+    public List<org.domi.furnace.server.world.gen.structure.StructureStart> cachedStructureStarts(int cx, int cz) {
+        return sharedStarts.get(chunkKey(cx, cz));
+    }
+
+    /** 이미 시작점이 없다고 알려진 청크인가. */
+    public boolean knownNoStructureStarts(int cx, int cz) {
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> l = sharedStarts.get(chunkKey(cx, cz));
+        return l != null && l.isEmpty();
+    }
+
+    /** {@link #applyStructureStarts} 와 같은 결과 — 공유해도 되는 결과는 기억해 다음 호출을 건너뛴다. */
+    public List<org.domi.furnace.server.world.gen.structure.StructureStart> structureStartsFresh(int cx, int cz) {
+        long key = chunkKey(cx, cz);
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> cached = sharedStarts.get(key);
+        if (cached != null) return cached;
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> starts = applyStructureStarts(cx, cz);
+        if (shareable(starts)) {
+            if (sharedStarts.size() >= SHARED_START_CACHE_LIMIT) sharedStarts.clear();
+            starts = List.copyOf(starts);
+            sharedStarts.put(key, starts);
+        }
+        return starts;
+    }
+
+    private static boolean shareable(List<org.domi.furnace.server.world.gen.structure.StructureStart> starts) {
+        for (var s : starts) {
+            for (var piece : s.pieces()) {
+                if (!(piece instanceof org.domi.furnace.server.world.gen.structure.JigsawPiece)) return false;
             }
         }
-        return result;
+        return true;
+    }
+
+    private volatile org.domi.furnace.server.world.gen.structure.StructureLocator locator;
+
+    /** 구조물 찾기(/locate structure, 탐험 지도) — 생성과 같은 배치·선택으로 판정한다. */
+    public org.domi.furnace.server.world.gen.structure.StructureLocator structureLocator() {
+        var l = locator;
+        if (l == null) locator = l = new org.domi.furnace.server.world.gen.structure.StructureLocator(structureEngine(), this);
+        return l;
+    }
+
+    /** 월드 생성기에서 노이즈 생성기(디스크 래퍼면 그 안쪽). 없으면 null. */
+    public static NoiseWorldSource of(WorldSource s) {
+        if (s instanceof AnvilWorldSource a) s = a.base();
+        return s instanceof NoiseWorldSource n ? n : null;
+    }
+
+    public org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine() {
+        return structureEngine;
+    }
+
+    // ---- TerrainAccess ----
+    @Override public int seaLevel() { return settings.seaLevel(); }
+
+    @Override public int minY() { return settings.minY(); }
+
+    @Override public int genDepth() { return settings.height(); }
+
+    @Override
+    public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
+        return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
+    }
+
+    @Override
+    public int baseBlock(int blockX, int blockY, int blockZ) {
+        int cx = Math.floorDiv(blockX, 16);
+        int cz = Math.floorDiv(blockZ, 16);
+        long key = chunkKey(cx, cz);
+        // synchronizedMap.computeIfAbsent 는 생성(수십 ms) 동안 맵 전체를 잠근다 — 락 밖에서 계산한다(순수 함수라 중복 계산도 같은 값).
+        ChunkColumn c = terrainCache.get(key);
+        if (c == null) {
+            ChunkColumn fresh = generate(cx, cz);
+            c = terrainCache.putIfAbsent(key, fresh);
+            if (c == null) c = fresh;
+        }
+        return c.getBlock(blockX - cx * 16, blockY, blockZ - cz * 16);
+    }
+
+    @Override
+    public boolean coldEnoughToSnow(String biome, int x, int y, int z) {
+        return BiomeClimate.coldEnoughToSnow(worldgenData.biomeTemperature(biome), worldgenData.biomeFrozenModifier(biome), x, y, z);
+    }
+
+    @Override
+    public String biomeAt(int blockX, int blockY, int blockZ) {
+        return biomeNameAt(blockX, blockY, blockZ);
     }
 
     /**
@@ -429,21 +710,70 @@ public final class NoiseWorldSource implements WorldSource {
     int worldSurfaceHeightAt(int blockX, int blockZ) {
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
-        int[] heights = surfaceHeightCache.computeIfAbsent(chunkKey(cx, cz), k -> computeSurfaceHeights(cx, cz));
+        int[] heights = surfaceHeightsFor(cx, cz);
         int lx = blockX - cx * 16;
         int lz = blockZ - cz * 16;
         return heights[lz * 16 + lx];
     }
 
+    /** OCEAN_FLOOR_WG 상당 getFirstOccupiedHeight — 같은 청크 캐시의 뒤쪽 256칸. */
+    int oceanFloorWgHeightAt(int blockX, int blockZ) {
+        int cx = Math.floorDiv(blockX, 16);
+        int cz = Math.floorDiv(blockZ, 16);
+        int[] heights = surfaceHeightsFor(cx, cz);
+        return heights[256 + (blockZ - cz * 16) * 16 + (blockX - cx * 16)];
+    }
+
+    /** 높이 캐시 조회 — 계산은 락 밖에서 한다(순수 함수라 두 스레드가 동시에 계산해도 같은 값, 먼저 넣은 쪽을 쓴다). */
+    private int[] surfaceHeightsFor(int cx, int cz) {
+        long key = chunkKey(cx, cz);
+        int[] heights = surfaceHeightCache.get(key);
+        if (heights != null) return heights;
+        int[] fresh = computeSurfaceHeights(cx, cz);
+        heights = surfaceHeightCache.putIfAbsent(key, fresh);
+        return heights != null ? heights : fresh;
+    }
+
+    /**
+     * 구조물 배치용 높이(바닐라 getBaseHeight = iterateNoiseColumn: 노이즈·대수층·광맥만, 표면 규칙 없음).
+     * 예전에는 표면 규칙·바이옴까지 다 한 청크를 만들어 높이를 읽었다 — 노이즈 블록만으로 충분하고 더 바닐라와 같다.
+     */
     private int[] computeSurfaceHeights(int cx, int cz) {
-        ChunkColumn c = generate(cx, cz);
-        int[] heights = new int[256];
+        int[] ids = noiseBlockIds(cx, cz);
+        int[] heights = new int[512];
+        int minY = settings.minY(), maxY = settings.minY() + settings.height() - 1;
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
-                heights[lz * 16 + lx] = height(c, lx, lz, HeightKind.WORLD_SURFACE) - 1;
+                int column = lz * 16 + lx;
+                int ws = minY, of = minY;
+                for (int y = maxY; y >= minY; y--) {
+                    int state = ids[(y - dimension.minY) * 256 + column];
+                    if (ws == minY && !ChunkSection.isAir(state)) ws = y + 1;
+                    if (isSolid(state)) { of = y + 1; break; }
+                }
+                heights[column] = ws - 1;
+                heights[256 + column] = of - 1;
             }
         }
         return heights;
+    }
+
+    /** 노이즈 단계 블록만(대수층·광맥 포함, beard·표면·바이옴 없음) — 차원 높이 배열(섹션 순, y·z·x). */
+    private int[] noiseBlockIds(int chunkX, int chunkZ) {
+        int minY = settings.minY();
+        int seaLevel = settings.seaLevel();
+        int lavaFloor = settings.lavaFloorY();
+        NoiseChunk nc = new NoiseChunk(chunkX, chunkZ, router, settings, reg);
+        Aquifer aquifer = settings.aquifersEnabled()
+            ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
+            : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
+        int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
+        if (blockIds.length != dimension.sectionCount * 4096) {
+            int[] full = new int[dimension.sectionCount * 4096];
+            System.arraycopy(blockIds, 0, full, (minY - dimension.minY) * 256, blockIds.length);
+            blockIds = full;
+        }
+        return blockIds;
     }
 
     private static long chunkKey(int cx, int cz) {
@@ -460,6 +790,15 @@ public final class NoiseWorldSource implements WorldSource {
         return surfaceHeightCache;
     }
 
+    /** BiomeSource.getNoiseBiome(quart 좌표, climate sampler) 의 레지스트리 id(/locate biome). */
+    public int noiseBiomeIdAtQuart(int qx, int qy, int qz) { return biomeSampler.sampleQuart(qx, qy, qz, router); }
+
+    /** 레지스트리 id → 바이옴 이름(모르면 ""). */
+    public String biomeName(int id) { return (id >= 0 && id < registryBiomeNames.length) ? registryBiomeNames[id] : ""; }
+
+    /** BiomeSource.possibleBiomes 의 레지스트리 id. */
+    public java.util.Set<Integer> possibleBiomeIds() { return biomeSampler.possibleBiomeIds(); }
+
     /** vanilla getNoiseBiome(quart 좌표) — 구조물 validBiome 판정용. */
     private String biomeNameAt(int blockX, int blockY, int blockZ) {
         int qx = Math.floorDiv(blockX, 4);
@@ -473,7 +812,15 @@ public final class NoiseWorldSource implements WorldSource {
         return structurePlacementCatalog.placementsForChunk(seed, chunkX, chunkZ);
     }
 
+    public org.domi.furnace.server.world.gen.pipeline.ChunkPipeline pipeline() { return pipeline; }
+
+    /** 서버 경로 — 공유 월드 장식(바닐라처럼 청크마다 장식 한 번). */
     public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {
+        return pipeline.generateShared(chunkX, chunkZ).join();
+    }
+
+    /** 대조 도구용 — 청크 하나를 주변 3×3 장식까지 독립적으로 만든다(공유 상태 없음, 순정 featurespill 픽스처와 같은 의미). */
+    public ChunkColumn generateIsolated(int chunkX, int chunkZ) {
         return pipeline.generateFull(chunkX, chunkZ).join();
     }
 

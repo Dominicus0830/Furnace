@@ -1,6 +1,8 @@
 // 바닐라 density_function JSON 트리를 DensityFunction 인스턴스로 빌드하는 파서
 package org.domi.furnace.server.world.gen.df;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -32,23 +34,37 @@ import java.util.Map;
 public final class DensityFunctionParser {
 
     private final WorldgenData data;
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory positionalFactory;
+    private final PositionalRandom positionalFactory;
 
     /** 이미 파싱한 id → DensityFunction 캐시 (DAG 공유 참조 처리 + 무한루프 방지) */
     private final Map<String, DensityFunction> cache = new HashMap<>();
 
+    private final long seed;
+    /** noise_settings.legacy_random_source (네더·엔드) — RandomState 가 LegacyRandomSource 기반이 되고 일부 노이즈가 특례로 만들어진다. */
+    private final boolean legacy;
+
     public DensityFunctionParser(WorldgenData data, long seed) {
-        this.data = data;
-        this.positionalFactory = new XoroshiroRandomSource(seed).forkPositional();
+        this(data, seed, false);
     }
 
+    public DensityFunctionParser(WorldgenData data, long seed, boolean legacy) {
+        this.data = data;
+        this.seed = seed;
+        this.legacy = legacy;
+        this.positionalFactory = legacy ? new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed).forkPositional()
+                                        : new XoroshiroRandomSource(seed).forkPositional();
+    }
+
+    /** RandomState.random (차원 난수 팩토리). */
+    public PositionalRandom positional() { return positionalFactory; }
+
     /** 바닐라 RandomState: aquiferRandom = positionalFactory.fromHashOf("minecraft:aquifer").forkPositional() */
-    public XoroshiroRandomSource.XoroshiroPositionalRandomFactory aquiferRandom() {
+    public PositionalRandom aquiferRandom() {
         return positionalFactory.fromHashOf("minecraft:aquifer").forkPositional();
     }
 
     /** 바닐라 RandomState: oreRandom = positionalFactory.fromHashOf("minecraft:ore").forkPositional() */
-    public XoroshiroRandomSource.XoroshiroPositionalRandomFactory oreRandom() {
+    public PositionalRandom oreRandom() {
         return positionalFactory.fromHashOf("minecraft:ore").forkPositional();
     }
 
@@ -128,8 +144,7 @@ public final class DensityFunctionParser {
             case "beardifier" -> DensityFunctions.constant(0.0);
 
             // -- end_islands: 오버월드에서는 사용 안 함 --
-            case "end_islands" ->
-                throw new UnsupportedOperationException("end_islands is not used in overworld");
+            case "end_islands" -> DensityFunctions.endIslands(seed);
 
             // -- markers / cache --
             case "interpolated"    -> DensityFunctions.interpolated(parseElement(obj.get("argument")));
@@ -240,7 +255,8 @@ public final class DensityFunctionParser {
                 double yFactor  = obj.get("y_factor").getAsDouble();
                 double smear    = obj.get("smear_scale_multiplier").getAsDouble();
                 // 바닐라 RandomState: random.fromHashOf(ResourceLocation.withDefaultNamespace("terrain"))
-                XoroshiroRandomSource rng = positionalFactory.fromHashOf("minecraft:terrain");
+                NoiseRandom rng = legacy ? new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed)
+                                         : positionalFactory.fromHashOf("minecraft:terrain");
                 yield DensityFunctions.oldBlendedNoise(new BlendedNoise(rng, xzScale, yScale, xzFactor, yFactor, smear));
             }
 
@@ -258,9 +274,26 @@ public final class DensityFunctionParser {
      * 시딩: positionalFactory.fromHashOf(noiseId)
      */
     private NormalNoise loadNoise(String noiseId) {
+        if (legacy) {
+            // RandomState: legacy 차원은 temperature/vegetation 을 옛 네더 바이옴 방식으로, offset(shift) 을 진폭 0 으로 만든다.
+            switch (noiseId) {
+                case "minecraft:temperature" -> {
+                    return NormalNoise.createLegacyNetherBiome(new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed),
+                        new NormalNoise.NoiseParameters(-7, new double[]{1.0, 1.0}));
+                }
+                case "minecraft:vegetation" -> {
+                    return NormalNoise.createLegacyNetherBiome(new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed + 1L),
+                        new NormalNoise.NoiseParameters(-7, new double[]{1.0, 1.0}));
+                }
+                case "minecraft:offset" -> {
+                    return NormalNoise.create(positionalFactory.fromHashOf("minecraft:offset"), new NormalNoise.NoiseParameters(0, new double[]{0.0}));
+                }
+                default -> { }
+            }
+        }
         JsonElement paramsEl = data.noiseParams(noiseId);
         NormalNoise.NoiseParameters params = parseNoiseParams(paramsEl);
-        XoroshiroRandomSource rng = positionalFactory.fromHashOf(noiseId);
+        NoiseRandom rng = positionalFactory.fromHashOf(noiseId);
         return NormalNoise.create(rng, params);
     }
 

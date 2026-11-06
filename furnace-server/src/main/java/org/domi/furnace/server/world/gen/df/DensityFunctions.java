@@ -101,6 +101,30 @@ public final class DensityFunctions {
         return new Marker(Marker.Type.CacheAllInCell, wrapped);
     }
 
+    /**
+     * W-09: 노드가 blockY 에 의존하지 않음이 구조상 확실한가(보수적 — 모르면 false).
+     * 자식·셀 래퍼(Marker 구현체) 판정은 child 에 맡긴다. yScale 0 노이즈는 y*0 = ±0 이 비영 오프셋과 더해져 비트가 같다.
+     */
+    public static boolean yInvariantNode(DensityFunction df, java.util.function.Predicate<DensityFunction> child) {
+        return switch (df) {
+            case Constant c -> true;
+            case BlendAlpha a -> true;
+            case BlendOffset o -> true;
+            case ShiftA s -> true;
+            case ShiftB s -> true;
+            case EndIslands e -> true;
+            case Noise n -> n.yScale() == 0.0;
+            case ShiftedNoise s -> s.yScale() == 0.0 && child.test(s.shiftX()) && child.test(s.shiftY()) && child.test(s.shiftZ());
+            case Ap2 a -> child.test(a.argument1()) && child.test(a.argument2());
+            case MulOrAdd m -> child.test(m.input());
+            case Clamp c -> child.test(c.input());
+            case Mapped m -> child.test(m.input());
+            case RangeChoice r -> child.test(r.input()) && child.test(r.whenInRange()) && child.test(r.whenOutOfRange());
+            case BlendDensity b -> child.test(b.input());
+            default -> false;
+        };
+    }
+
     // blend 노드
     public static DensityFunction blendAlpha()  { return BlendAlpha.INSTANCE;  }
     public static DensityFunction blendOffset() { return BlendOffset.INSTANCE; }
@@ -349,6 +373,46 @@ public final class DensityFunctions {
     // ================================================================
     // YClampedGradient  — vanilla: Mth.clampedMap(blockY, fromY, toY, fromValue, toValue)
     // ================================================================
+
+    /** 바닐라 EndIslandDensityFunction — LegacyRandom(seed) 를 17292 회 소비한 SimplexNoise 로 섬 높이를 만든다. */
+    static final class EndIslands implements DensityFunction.SimpleFunction {
+        private final org.domi.furnace.server.world.gen.noise.SimplexNoise islandNoise;
+
+        EndIslands(long seed) {
+            org.domi.furnace.server.world.gen.carver.LegacyRandom r = new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed);
+            r.consumeCount(17292);
+            this.islandNoise = new org.domi.furnace.server.world.gen.noise.SimplexNoise(r);
+        }
+
+        static float heightValue(org.domi.furnace.server.world.gen.noise.SimplexNoise noise, int x, int z) {
+            int i = x / 2, j = z / 2, k = x % 2, l = z % 2;
+            float f = 100.0F - (float) Math.sqrt((float) (x * x + z * z)) * 8.0F;
+            f = Math.max(-100.0F, Math.min(80.0F, f));
+            for (int i1 = -12; i1 <= 12; i1++) {
+                for (int j1 = -12; j1 <= 12; j1++) {
+                    long k1 = (long) (i + i1), l1 = (long) (j + j1);
+                    if (k1 * k1 + l1 * l1 > 4096L && noise.getValue((double) k1, (double) l1) < (double) -0.9F) {
+                        float f1 = (Math.abs((float) k1) * 3439.0F + Math.abs((float) l1) * 147.0F) % 13.0F + 9.0F;
+                        float f2 = (float) (k - i1 * 2), f3 = (float) (l - j1 * 2);
+                        float f4 = 100.0F - (float) Math.sqrt(f2 * f2 + f3 * f3) * f1;
+                        f4 = Math.max(-100.0F, Math.min(80.0F, f4));
+                        f = Math.max(f, f4);
+                    }
+                }
+            }
+            return f;
+        }
+
+        @Override
+        public double compute(DensityFunction.FunctionContext ctx) {
+            return ((double) heightValue(islandNoise, ctx.blockX() / 8, ctx.blockZ() / 8) - 8.0) / 128.0;
+        }
+
+        @Override public double minValue() { return -0.84375; }
+        @Override public double maxValue() { return 0.5625; }
+    }
+
+    public static DensityFunction endIslands(long seed) { return new EndIslands(seed); }
 
     record YClampedGradient(int fromY, int toY, double fromValue, double toValue)
             implements DensityFunction.SimpleFunction {

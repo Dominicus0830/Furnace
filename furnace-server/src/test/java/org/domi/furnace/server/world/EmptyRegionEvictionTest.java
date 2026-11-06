@@ -1,15 +1,17 @@
-// 빈 region(플레이어·청크·로딩 0)이 tickThread서 제거되고, 플레이어 있는 region은 유지되는지 검증
+// 아무것도 없는 곳으로 보낸 작업이 만든 region 은 곧 사라지고, 플레이어가 있는 region 은 남는지 검증
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
+
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import java.util.UUID;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.Test;
-import java.util.UUID;
 
 class EmptyRegionEvictionTest {
 
@@ -21,27 +23,31 @@ class EmptyRegionEvictionTest {
     }
 
     @Test
-    void emptyRegion_removedByTick_playerRegionKept() throws Exception {
-        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1); // region thread 1개
+    void emptyRegion_disappears_playerRegionKept() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(10_000_000L, 1);
         World w = world(sched);
+        try {
+            // 1) 아무 청크도 없는 곳으로 작업 → 그 구역의 region 이 생겼다가 다음 틱 끝 정리에서 사라진다
+            RegionPos empty = new RegionPos(5000, 5000);
+            sched.region(empty).execute(() -> w.regionAt(empty)).get();
+            awaitRegions(w, 0);
 
-        // 1) 플레이어 없이 빈 region 생성
-        RegionPos empty = new RegionPos(50, 50);
-        sched.region(empty).execute(() -> w.regionAt(empty)).get();
-        assertEquals(1, w.regionCount(), "빈 region 생성됨");
+            // 2) 플레이어가 편입된 region 은 청크가 없어도 남는다
+            Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
+            p.publishPosition(8, -60, 8, 0, 0, true);
+            p.drainPending();
+            RegionPos prp = new RegionPos(0, 0);
+            sched.region(prp).execute(() -> w.regionAt(prp).adopt(p)).get();
+            Thread.sleep(100);
+            assertEquals(1, w.regionCount(), "플레이어 region 은 유지");
+        } finally {
+            sched.close();
+        }
+    }
 
-        // 2) tick 1회 → 빈 region 제거
-        sched.region(empty).execute(() -> w.tickThread(0)).get();
-        assertEquals(0, w.regionCount(), "빈 region이 tick서 제거됨");
-
-        // 3) 플레이어 편입된 region은 tick 후에도 유지. (8,8)은 region(0,0) — drain 후에도 같은 region이라 핸드오프 없음.
-        Player p = new Player(1, UUID.randomUUID(), "Dom", new EmbeddedChannel());
-        p.publishPosition(8, -60, 8, 0, 0, true);
-        RegionPos prp = p.regionPos(16);
-        sched.region(prp).execute(() -> w.regionAt(prp).adopt(p)).get();
-        sched.region(prp).execute(() -> w.tickThread(0)).get();
-        assertTrue(w.regionCount() >= 1, "플레이어 region은 유지(+로드된 청크 region)");
-
-        sched.close();
+    private static void awaitRegions(World w, int n) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (w.regionCount() != n && System.currentTimeMillis() < deadline) Thread.sleep(10);
+        assertEquals(n, w.regionCount());
     }
 }

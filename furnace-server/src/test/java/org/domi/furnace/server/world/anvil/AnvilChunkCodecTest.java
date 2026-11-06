@@ -61,7 +61,7 @@ class AnvilChunkCodecTest {
         ItemStack[] items = new ItemStack[27];
         java.util.Arrays.fill(items, ItemStack.EMPTY);
         items[0] = new ItemStack(5, 12, null);
-        items[26] = new ItemStack(9, 3, new byte[]{1, 2, 3});
+        items[26] = new ItemStack(9, 3, org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 4)));
         col.putChest(new ChestBlockEntity(16, 5, 33, items));
 
         NbtCompound nbt = codec.toNbt(col, 1, 2);
@@ -72,10 +72,10 @@ class AnvilChunkCodecTest {
         assertEquals(ItemStack.EMPTY, restored.items[1]);
         assertEquals(5, restored.items[0].itemId());
         assertEquals(12, restored.items[0].count());
-        assertNull(restored.items[0].components());
+        assertTrue(restored.items[0].patch().isEmpty());
         assertEquals(9, restored.items[26].itemId());
         assertEquals(3, restored.items[26].count());
-        assertArrayEquals(new byte[]{1, 2, 3}, restored.items[26].components());
+        assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 4)), restored.items[26].patch());
     }
 
     /** 바닐라 월드의 블록 엔티티(아이템 든 상자, 화로, 표지판 등)가 있어도 청크 로드가 예외 없이 되어야 한다. */
@@ -84,7 +84,10 @@ class AnvilChunkCodecTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
-        NbtCompound nbt = codec.toNbt(new SuperflatWorldSource(reg, 0).generate(0, 0), 0, 0);
+        var base = new SuperflatWorldSource(reg, 0).generate(0, 0);
+        base.setBlock(4, -60, 4, reg.defaultStateId("minecraft:furnace"));   // 블록 엔티티는 맞는 블록 위에서만 읽힌다(isValid)
+        base.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));
+        NbtCompound nbt = codec.toNbt(base, 0, 0);
 
         NbtList bes = new NbtList(NbtIo.TAG_COMPOUND);
         NbtCompound chest = new NbtCompound();
@@ -110,7 +113,7 @@ class AnvilChunkCodecTest {
         furnace.putList("Items", fItems);
         bes.add(furnace);
         NbtCompound sign = new NbtCompound();
-        sign.putString("id", "minecraft:sign");
+        sign.putString("id", "minecraft:conduit");   // 아직 이식하지 않은 종류(표지판·침대는 이식됨)
         sign.putInt("x", 5); sign.putInt("y", -60); sign.putInt("z", 5);
         bes.add(sign);
         nbt.putList("block_entities", bes);
@@ -119,6 +122,6 @@ class AnvilChunkCodecTest {
         ChestBlockEntity c = col.chestAt(1, -60, 2);
         assertNotNull(c, "바닐라 상자는 블록 엔티티로 읽혀야 한다");
         assertEquals(7, c.items[3].count());
-        assertEquals(1, col.blockEntities().size(), "화로·표지판은 (미지원이므로) 상자로 둔갑하면 안 된다");
+        assertEquals(2, col.blockEntities().size(), "상자·화로는 읽히고, 미지원 종류(전달체)는 상자로 둔갑하면 안 된다");
     }
 }

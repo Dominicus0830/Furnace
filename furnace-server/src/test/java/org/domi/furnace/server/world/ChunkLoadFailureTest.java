@@ -35,7 +35,7 @@ class ChunkLoadFailureTest {
             assertThrows(ExecutionException.class, () -> first.get().get());
 
             boolean[] empty = new boolean[1];
-            sched.region(rp).execute(() -> empty[0] = w.regionAt(rp).isEmpty()).get();
+            sched.region(rp).execute(() -> empty[0] = w.regionAt(rp).isIdleEmpty()).get();
             assertTrue(empty[0], "실패한 로드가 loading에 남아 region이 reap되지 않는다");
 
             CompletableFuture<CompletableFuture<ChunkColumn>> second = new CompletableFuture<>();

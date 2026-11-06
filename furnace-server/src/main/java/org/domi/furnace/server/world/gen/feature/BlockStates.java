@@ -50,4 +50,13 @@ public final class BlockStates {
     public static boolean hasValue(BlockRegistry registry, int stateId, String property, String value) {
         return registry.canonicalKeyOf(stateId).contains(property + "=" + value);
     }
+
+    /**
+     * BlockState.hasPostProcess — 바닐라 1.21.1 에서 true 인 블록은 magma_block, brown_mushroom, red_mushroom 뿐이다
+     * (순정 jar 의 모든 상태를 열거해 확인). WorldGenRegion.setBlock 이 이런 상태를 쓰면 청크에 후처리 표시를 남긴다.
+     */
+    public static boolean hasPostProcess(BlockRegistry registry, int stateId) {
+        String name = registry.nameOf(stateId);
+        return name.equals("minecraft:magma_block") || name.equals("minecraft:brown_mushroom") || name.equals("minecraft:red_mushroom");
+    }
 }

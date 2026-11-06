@@ -1,0 +1,139 @@
+// 바닐라 TeleportCommand: /teleport(=/tp) [대상] <좌표 [회전 | facing …] | 도착 엔티티>.
+// 좌표는 절대·'~' 상대·'^' 국소. 엔티티와 플레이어를 가리지 않고 옮긴다. 좌표 이동은 실행 소스의 차원으로, 엔티티 이동은 도착 엔티티의 차원으로.
+// 차이: 일반 엔티티가 대상이면 반환값이 늘 1 이고 결과는 나중에 메시지로 온다(context-notes 의 "반환값 차이").
+package org.domi.furnace.server.command.builtin;
+
+import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.command.EntityOps;
+import static org.domi.furnace.server.command.Commands.argument;
+import static org.domi.furnace.server.command.Commands.literal;
+
+import java.util.List;
+import java.util.Locale;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.arguments.EntityAnchorArgument;
+import org.domi.furnace.server.command.arguments.EntityArgument;
+import org.domi.furnace.server.command.arguments.RotationArgument;
+import org.domi.furnace.server.command.arguments.Vec2Argument;
+import org.domi.furnace.server.command.arguments.Vec3Argument;
+import org.domi.furnace.server.command.brigadier.CommandContext;
+import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
+import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
+import org.domi.furnace.server.entity.Rider;
+
+public final class TeleportCommand {
+    private TeleportCommand() { }
+
+    static final SimpleCommandExceptionType INVALID_POSITION = new SimpleCommandExceptionType(Text.translatable("commands.teleport.invalidPosition"));
+
+    /** 바라볼 점({x, y, z}) — facing 절이 없으면 null. */
+    private record LookAt(double[] point) { }
+
+    public static void register(CommandDispatcher<CommandSource> d) {
+        var node = d.register(literal("teleport").requires(s -> s.hasPermission(2))
+                .then(argument("location", Vec3Argument.vec3())
+                        .executes(c -> EntityOps.result(c.getSource(), toPosition(c, self(c.getSource()), Vec3Argument.getVec3(c, "location"), sourceRotation(c.getSource()), null))))
+                .then(argument("destination", EntityArgument.entity())
+                        .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntityAsync(c, "destination", dest -> toEntityAsync(c.getSource(), self(c.getSource()), dest.get(0))))))
+                .then(argument("targets", EntityArgument.entities())
+                        .then(argument("location", Vec3Argument.vec3())
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                        t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, null))))
+                                .then(argument("rotation", RotationArgument.rotation())
+                                        .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                                t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"),
+                                                        RotationArgument.getRotation(c, "rotation").get(c.getSource()), null)))))
+                                .then(literal("facing")
+                                        .then(literal("entity")
+                                                .then(argument("facingEntity", EntityArgument.entity())
+                                                        .executes(c -> facingEntity(c, EntityAnchorArgument.Anchor.FEET))
+                                                        .then(argument("facingAnchor", EntityAnchorArgument.anchor())
+                                                                .executes(c -> facingEntity(c, EntityAnchorArgument.getAnchor(c, "facingAnchor"))))))
+                                        .then(argument("facingLocation", Vec3Argument.vec3())
+                                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                                        t -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null,
+                                                                new LookAt(Vec3Argument.getVec3(c, "facingLocation")))))))))
+                        .then(argument("destination", EntityArgument.entity())
+                                .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
+                                        t -> EntityArgument.withEntityAsync(c, "destination",
+                                                dest -> toEntityAsync(c.getSource(), t, dest.get(0)))))))));
+        d.register(literal("tp").requires(s -> s.hasPermission(2)).redirect(node));
+    }
+
+    private static int facingEntity(CommandContext<CommandSource> c, EntityAnchorArgument.Anchor anchor) throws CommandSyntaxException {
+        return EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets", t -> EntityArgument.withEntityAsync(c, "facingEntity",
+                f -> toPosition(c, t, Vec3Argument.getVec3(c, "location"), null, new LookAt(anchor.apply(f.get(0)))))));
+    }
+
+    private static List<Rider> self(CommandSource source) throws CommandSyntaxException {
+        return List.of(source.getEntityOrException());
+    }
+
+    private static Vec2Argument.Vec2 sourceRotation(CommandSource source) { return new Vec2Argument.Vec2(source.xRot(), source.yRot()); }
+
+    /** 좌표로 옮긴다. rotation(x=pitch, y=yaw)이 null 이면 각자 지금 회전을 유지한다. */
+    private static CompletableFuture<Integer> toPosition(CommandContext<CommandSource> c, List<Rider> targets, double[] pos, Vec2Argument.Vec2 rotation, LookAt look)
+            throws CommandSyntaxException {
+        return toPositionAsync(c.getSource(), targets, pos, rotation, look);
+    }
+
+    static CompletableFuture<Integer> toPositionAsync(CommandSource source, List<Rider> targets, double[] pos, Vec2Argument.Vec2 rotation, LookAt look)
+            throws CommandSyntaxException {
+        if (!Teleports.inSpawnableBounds(pos[0], pos[1], pos[2])) throw INVALID_POSITION.create();
+        String dimension = source.level().dimension();
+        List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(targets.size());
+        for (Rider t : targets) {
+            float yaw = Teleports.wrapDegrees(rotation == null ? t.riderYRot() : rotation.y());
+            float pitch = Teleports.wrapDegrees(rotation == null ? t.riderXRot() : rotation.x());
+            // 바닐라는 facing(lookAt)을 teleportTo 가 돌려준 뒤 원래 엔티티에 한다 — 다른 차원으로 간 일반 엔티티는 이미 새 엔티티라 안 바뀐다
+            boolean lookApplies = t instanceof org.domi.furnace.server.entity.Player || t.dimensionKey().equals(dimension);
+            if (look != null && lookApplies) {
+                float[] r = Teleports.lookAt(pos[0], pos[1], pos[2], look.point());
+                yaw = r[0];
+                pitch = r[1];
+            }
+            var move = Teleports.teleport(source, t, dimension, pos[0], pos[1], pos[2], yaw, pitch);
+            if (look != null && t instanceof org.domi.furnace.server.entity.Player pl) {
+                // 바닐라 ServerPlayer.lookAt: 옮긴 뒤 player_look_at 을 보낸다(앵커는 발 — 엔티티 대상도 점으로 보낸다, 결과 회전은 같다)
+                double[] pt = look.point();
+                move = move.thenRun(() -> pl.send(org.domi.furnace.server.net.protocol.play.PlayerLookAt.atPosition(0, pt[0], pt[1], pt[2])));
+            }
+            moves.add(move);
+        }
+        // 옮김이 모두 끝난 뒤(다음 줄이 새 위치를 읽도록) 전역 스레드에서 메시지
+        return EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
+            if (targets.size() == 1) {
+                Rider t = targets.get(0);
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.location.single", t.displayName(),
+                        format(pos[0]), format(pos[1]), format(pos[2])), true);
+            } else {
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.location.multiple", targets.size(),
+                        format(pos[0]), format(pos[1]), format(pos[2])), true);
+            }
+            return CompletableFuture.completedFuture(targets.size());
+        });
+    }
+
+    /** 도착 엔티티의 위치·회전으로 옮긴다. */
+    static CompletableFuture<Integer> toEntityAsync(CommandSource source, List<Rider> targets, Rider destination) throws CommandSyntaxException {
+        double x = destination.x(), y = destination.y(), z = destination.z();
+        if (!Teleports.inSpawnableBounds(x, y, z)) throw INVALID_POSITION.create();
+        String dimension = destination.dimensionKey();
+        float yaw = Teleports.wrapDegrees(destination.riderYRot()), pitch = Teleports.wrapDegrees(destination.riderXRot());
+        List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(targets.size());
+        for (Rider t : targets) moves.add(Teleports.teleport(source, t, dimension, x, y, z, yaw, pitch));
+        return EntityOps.awaitAsync(source, CompletableFuture.allOf(moves.toArray(new CompletableFuture[0])), v -> {
+            if (targets.size() == 1) {
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.entity.single", targets.get(0).displayName(), destination.displayName()), true);
+            } else {
+                source.sendSuccess(() -> Text.translatable("commands.teleport.success.entity.multiple", targets.size(), destination.displayName()), true);
+            }
+            return CompletableFuture.completedFuture(targets.size());
+        });
+    }
+
+    /** String.format(Locale.ROOT, "%f", v). */
+    static String format(double v) { return String.format(Locale.ROOT, "%f", v); }
+}

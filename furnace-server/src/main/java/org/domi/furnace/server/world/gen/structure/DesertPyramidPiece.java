@@ -1,10 +1,10 @@
 // 사막 피라미드 조각 — 바닐라 DesertPyramidPiece.postProcess 라인단위 이식(블록+RNG 소비만, loot 내용물 제외).
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
-import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 
 import java.util.Map;
 
@@ -18,6 +18,15 @@ public final class DesertPyramidPiece extends StructurePiece {
     /** vanilla ScatteredFeaturePiece.heightPosition — 최초 postProcess 호출에서 1회만 계산.-1=미계산. */
     private int heightPosition = -1;
     private final boolean[] hasPlacedChest = new boolean[4];
+    /** 바닐라 potentialSuspiciousSandWorldPositions — 월드 좌표 {x,y,z}. */
+    final java.util.List<int[]> potentialSuspiciousSand = new java.util.ArrayList<>();
+    /** 바닐라 randomCollapsedRoofPos. */
+    int[] randomCollapsedRoofPos = {0, 0, 0};
+    long worldSeed;
+
+    private void recordSand(int x, int y, int z) {
+        potentialSuspiciousSand.add(new int[]{getWorldX(x, z), getWorldY(y), getWorldZ(x, z)});
+    }
 
     public DesertPyramidPiece(WorldgenRandom random, int minBlockX, int minBlockZ) {
         this(Direction.randomHorizontal(random), minBlockX, minBlockZ);
@@ -29,7 +38,7 @@ public final class DesertPyramidPiece extends StructurePiece {
 
     @Override
     public void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random,
-            XoroshiroRandomSource regionRandom, BoundingBox writableBox) {
+            NoiseRandom regionRandom, BoundingBox writableBox) {
         // vanilla: this.updateHeightPositionToLowestGroundHeight(level, -random.nextInt(3)) — 인자가 항상 먼저 평가된다.
         int heightArg = -random.nextInt(3);
         if (!updateHeightPositionToLowestGroundHeight(view, heightArg)) {
@@ -233,8 +242,7 @@ public final class DesertPyramidPiece extends StructurePiece {
             if (!hasPlacedChest[idx]) {
                 int dx = direction.stepX() * 2;
                 int dz = direction.stepZ() * 2;
-                // vanilla BuiltInLootTables.DESERT_PYRAMID — loot 내용물은 생성하지 않는다(Do NOT).
-                hasPlacedChest[idx] = createChest(view, writableBox, random, chest, 10 + dx, -11, 10 + dz);
+                hasPlacedChest[idx] = createChest(view, writableBox, random, chest, 10 + dx, -11, 10 + dz, "minecraft:chests/desert_pyramid");
             }
         }
 
@@ -268,7 +276,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         boolean any = false;
         for (int z = boundingBox.minZ(); z <= boundingBox.maxZ(); z++) {
             for (int x = boundingBox.minX(); x <= boundingBox.maxX(); x++) {
-                int y = view.getSurfaceY(x, z) + 1; // getSurfaceY는 최상단 비-공기 y, heightmapPos는 그 위 1칸
+                int y = view.getMotionBlockingNoLeavesY(x, z) + 1; // getSurfaceY는 최상단 비-공기 y, heightmapPos는 그 위 1칸
                 min = Math.min(min, y);
                 any = true;
             }
@@ -282,7 +290,7 @@ public final class DesertPyramidPiece extends StructurePiece {
     // ---- 지하실(addCellar) — 바닐라와 동일 블록 배치 + level.getRandom()(regionRandom) 소비 재현 ----
 
     private void addCellar(FeatureWorldView view, BoundingBox writableBox, BlockRegistry blocks,
-                            XoroshiroRandomSource regionRandom,
+                            NoiseRandom regionRandom,
                             int sandstone, int sand, int cutSandstone, int chiseledSandstone,
                             int orangeTerracotta, int blueTerracotta) {
         // 바닐라 Blocks.SANDSTONE_STAIRS.defaultBlockState()(facing=north).rotate(COUNTERCLOCKWISE_90) == facing west(로컬).
@@ -293,7 +301,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         addCellarRoom(view, writableBox, regionRandom, px, py, pz, sandstone, sand, cutSandstone, chiseledSandstone, orangeTerracotta, blueTerracotta);
     }
 
-    private void addCellarStairs(FeatureWorldView view, BoundingBox writableBox, XoroshiroRandomSource regionRandom,
+    private void addCellarStairs(FeatureWorldView view, BoundingBox writableBox, NoiseRandom regionRandom,
                                   int stairsCcw, int sand, int sandstone, int x, int y, int z) {
         placeBlock(view, writableBox, stairsCcw, 13, -1, 17);
         placeBlock(view, writableBox, stairsCcw, 14, -2, 17);
@@ -313,7 +321,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         placeBlock(view, writableBox, sand, x, y + 1, z + 4);
     }
 
-    private void addCellarRoom(FeatureWorldView view, BoundingBox writableBox, XoroshiroRandomSource regionRandom,
+    private void addCellarRoom(FeatureWorldView view, BoundingBox writableBox, NoiseRandom regionRandom,
                                 int x, int y, int z,
                                 int sandstone, int sand, int cutSandstone, int chiseledSandstone, int orangeTerracotta, int blueTerracotta) {
         generateBox(view, writableBox, x - 3, y + 1, z - 3, x - 3, y + 1, z + 2, cutSandstone, cutSandstone, true);
@@ -328,16 +336,26 @@ public final class DesertPyramidPiece extends StructurePiece {
         generateBox(view, writableBox, x + 3, -1, z - 3, x + 3, -1, z + 2, cutSandstone, cutSandstone, true);
         generateBox(view, writableBox, x - 3, -1, z - 3, x + 3, -1, z - 2, cutSandstone, cutSandstone, true);
         generateBox(view, writableBox, x - 3, -1, z + 3, x + 3, -1, z + 3, cutSandstone, cutSandstone, true);
-        // placeSandBox(suspicious sand 후보 위치) — 블록 미배치(위치 기록/장식용, RNG 미소비)
-        // placeCollapsedRoof: 5x5(x-2..x+2, z-2..z+2) 각 칸마다 level.getRandom().nextFloat()<0.33F 소비 후 블록 배치.
-        // 이후 randomCollapsedRoofPos 계산용 별도 RandomSource.create(level.getSeed())...는 regionRandom을 소비하지 않고
-        // 블록도 배치하지 않으므로(장식용 위치 마커) 재현 불필요.
+        // placeSandBox(x-2, y+1, z-2, x+2, y+3, z+2): 위치만 기록(y→x→z 순)
+        for (int yy = y + 1; yy <= y + 3; yy++)
+            for (int xx = x - 2; xx <= x + 2; xx++)
+                for (int zz = z - 2; zz <= z + 2; zz++) recordSand(xx, yy, zz);
         int roofY = y + 4;
         for (int rx = x - 2; rx <= x + 2; rx++) {
             for (int rz = z - 2; rz <= z + 2; rz++) {
                 int roofState = (regionRandom.nextFloat() < 0.33F) ? sandstone : sand;
                 placeBlock(view, writableBox, roofState, rx, roofY, rz);
             }
+        }
+        {
+            // RandomSource.create(level.getSeed()).forkPositional().at(worldPos(x-2, roofY, z-2))
+            org.domi.furnace.server.world.gen.carver.LegacyRandom base = new org.domi.furnace.server.world.gen.carver.LegacyRandom(view.worldSeed());
+            long fork = base.nextLong();
+            long ps = org.domi.furnace.server.world.gen.structure.template.PlaceSettings.getSeed(getWorldX(x - 2, z - 2), getWorldY(roofY), getWorldZ(x - 2, z - 2));
+            org.domi.furnace.server.world.gen.carver.LegacyRandom pr = new org.domi.furnace.server.world.gen.carver.LegacyRandom(ps ^ fork);
+            int rx = pr.nextInt(5) + (x - 2);
+            int rz = pr.nextInt(5) + (z - 2);
+            randomCollapsedRoofPos = new int[]{getWorldX(rx, rz), getWorldY(roofY), getWorldZ(rx, rz)};
         }
         placeBlock(view, writableBox, blueTerracotta, x, y, z);
         placeBlock(view, writableBox, orangeTerracotta, x + 1, y, z - 1);
@@ -349,14 +367,69 @@ public final class DesertPyramidPiece extends StructurePiece {
         placeBlock(view, writableBox, orangeTerracotta, x, y, z + 2);
         placeBlock(view, writableBox, orangeTerracotta, x, y, z - 2);
         placeBlock(view, writableBox, orangeTerracotta, x + 3, y, z);
+        recordSand(x + 3, y + 1, z);
+        recordSand(x + 3, y + 2, z);
         placeBlock(view, writableBox, cutSandstone, x + 4, y + 1, z);
         placeBlock(view, writableBox, chiseledSandstone, x + 4, y + 2, z);
         placeBlock(view, writableBox, orangeTerracotta, x - 3, y, z);
+        recordSand(x - 3, y + 1, z);
+        recordSand(x - 3, y + 2, z);
         placeBlock(view, writableBox, cutSandstone, x - 4, y + 1, z);
         placeBlock(view, writableBox, chiseledSandstone, x - 4, y + 2, z);
         placeBlock(view, writableBox, orangeTerracotta, x, y, z + 3);
+        recordSand(x, y + 1, z + 3);
+        recordSand(x, y + 2, z + 3);
         placeBlock(view, writableBox, orangeTerracotta, x, y, z - 3);
+        recordSand(x, y + 1, z - 3);
+        recordSand(x, y + 2, z - 3);
         placeBlock(view, writableBox, cutSandstone, x, y + 1, z - 4);
         placeBlock(view, writableBox, chiseledSandstone, x, -2, z - 4);
+    }
+
+    /** 바닐라 DesertPyramidStructure.afterPlace — 의심스러운 모래(고고학) 배치. */
+    static void afterPlace(PostCtx c, StructureStart start) {
+        java.util.TreeSet<int[]> set = new java.util.TreeSet<>((a, b) -> a[1] != b[1] ? Integer.compare(a[1], b[1])
+            : a[2] != b[2] ? Integer.compare(a[2], b[2]) : Integer.compare(a[0], b[0]));   // Vec3i.compareTo: y, z, x
+        for (StructurePiece p : start.pieces()) {
+            if (p instanceof DesertPyramidPiece d) {
+                set.addAll(d.potentialSuspiciousSand);
+                placeSuspiciousSand(c, d.randomCollapsedRoofPos);
+            }
+        }
+        java.util.List<int[]> list = new java.util.ArrayList<>(set);
+        BoundingBox bb = null;   // pieces.calculateBoundingBox(): 높이 보정 이후의 현재 상자
+        for (StructurePiece p : start.pieces()) bb = bb == null ? p.boundingBox() : BoundingBox.encapsulate(bb, p.boundingBox());
+        int cx = bb.minX() + (bb.maxX() - bb.minX() + 1) / 2;
+        int cy = bb.minY() + (bb.maxY() - bb.minY() + 1) / 2;
+        int cz = bb.minZ() + (bb.maxZ() - bb.minZ() + 1) / 2;
+        org.domi.furnace.server.world.gen.carver.LegacyRandom base = new org.domi.furnace.server.world.gen.carver.LegacyRandom(c.view.worldSeed());
+        long fork = base.nextLong();
+        org.domi.furnace.server.world.gen.carver.LegacyRandom r = new org.domi.furnace.server.world.gen.carver.LegacyRandom(
+            org.domi.furnace.server.world.gen.structure.template.PlaceSettings.getSeed(cx, cy, cz) ^ fork);
+        for (int i = list.size(); i > 1; i--) {
+            int j = r.nextInt(i);
+            list.set(i - 1, list.set(j, list.get(i - 1)));
+        }
+        int n = Math.min(set.size(), r.nextInt(4) + 5);
+        int sand = c.blocks().defaultStateId("minecraft:sand");
+        for (int[] p : list) {
+            if (n > 0) {
+                n--;
+                placeSuspiciousSand(c, p);
+            } else if (c.writableBox.isInside(p[0], p[1], p[2])) {
+                c.view.setBlock(p[0], p[1], p[2], sand);
+            }
+        }
+    }
+
+    private static void placeSuspiciousSand(PostCtx c, int[] p) {
+        if (!c.writableBox.isInside(p[0], p[1], p[2])) return;
+        c.view.setBlock(p[0], p[1], p[2], c.blocks().defaultStateId("minecraft:suspicious_sand"));
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        nbt.putString("id", "minecraft:brushable_block");
+        nbt.putInt("x", p[0]); nbt.putInt("y", p[1]); nbt.putInt("z", p[2]);
+        nbt.putString("LootTable", "minecraft:archaeology/desert_pyramid");
+        nbt.putLong("LootTableSeed", ((long) (p[0] & 0x3FFFFFF) << 38) | ((long) (p[2] & 0x3FFFFFF) << 12) | (p[1] & 0xFFFL));   // BlockPos.asLong
+        c.view.putGeneratedBlockEntity(p[0], p[1], p[2], nbt);
     }
 }

@@ -9,37 +9,22 @@ public final class ChunkColumn {
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
     public static final int DEFAULT_BIOME_DIRECT_BITS = 7;
     private static final int UNSET_HEIGHT = Integer.MIN_VALUE;
-    private static final int WATER_MIN_STATE = 80;
-    private static final int WATER_MAX_STATE = 95;
-    private static final int LAVA_MIN_STATE = 96;
-    private static final int LAVA_MAX_STATE = 111;
     private static final int CAVE_AIR_STATE = 12958;
     private static final int VOID_AIR_STATE = 12959;
-    // 수중 식물: vanilla OCEAN_FLOOR heightmap에서 제외됨 (Material.PLANT = not solid)
-    private static final int SEAGRASS_STATE = 2008;
-    private static final int TALL_SEAGRASS_UPPER_STATE = 2009;
-    private static final int TALL_SEAGRASS_LOWER_STATE = 2010;
-    private static final int KELP_PLANT_STATE = 12786;
-    private static final int KELP_MIN_STATE = 12760;
-    private static final int KELP_MAX_STATE = 12785;
-    // glow_lichen: Material.REPLACEABLE_PLANT, blocksMotion=false → OCEAN_FLOOR 제외 대상
-    private static final int GLOW_LICHEN_MIN_STATE = 6869;
-    private static final int GLOW_LICHEN_MAX_STATE = 6996;
-    // 지상 식물(short_grass/fern/dead_bush): blocksMotion=false → vanilla OCEAN_FLOOR heightmap에서 제외됨.
-    // patch_grass_forest 등 grass 계열 feature가 이 블록을 심으면(스크린 이전 지형은 여전히 dirt/grass_block),
-    // OCEAN_FLOOR가 이를 바닥으로 잘못 세면 surface_water_depth_filter(WORLD_SURFACE - OCEAN_FLOOR)가
-    // diff=0으로 오판해 vanilla가 스킵할 후보를 통과시킨다(tree-overlap-residual task, round2 확정).
-    private static final int SHORT_GRASS_STATE = 2005;
-    private static final int FERN_STATE = 2006;
-    private static final int DEAD_BUSH_STATE = 2007;
 
-    private final ChunkSection[] sections = new ChunkSection[SECTION_COUNT];
+    /** 차원의 최저 블록 y 와 섹션 수(오버월드 -64/24, 네더·엔드 0/16). */
+    private final int minY;
+    private final int sectionCount;
+    private final int heightmapBits;
+    private final ChunkSection[] sections;
     private final int[] surface = new int[256]; // heightmap 값(0 = 바닥 아래 없음) — WORLD_SURFACE(!isAir, 항상 라이브)
     private final int[] surfaceWg = new int[256]; // WORLD_SURFACE_WG 미러 — carve 완료 시 얼어붙음(wgOceanFloor와 동일 패턴)
     private final int[] oceanFloor = new int[256];
     private final int[] wgOceanFloor = new int[256];
     private final int[] motionBlocking = new int[256]; // vanilla MOTION_BLOCKING(blocksMotion || fluid) 전용, 항상 라이브
-    private final java.util.Map<Long, ChestBlockEntity> blockEntities = new java.util.HashMap<>();
+    private final java.util.Map<Long, org.domi.furnace.server.block.entity.BlockEntity> blockEntities = new java.util.HashMap<>();
+    /** 월드젠(구조물 템플릿)이 만든 블록 엔티티 NBT — 키 = blockEntityKey(로컬 x,y,z). 저장/복원 연동 전 단계의 보관소. */
+    private java.util.Map<Long, org.domi.furnace.server.net.io.nbt.NbtCompound> generatedBlockEntities;
     private boolean dirty;
     // 수정 카운터(단조 증가, 소유 스레드 전용). 비동기 직렬화가 "스냅샷 이후 청크가 바뀌었는가"를 dirty 플래그가 아니라
     // 이 값으로 판정한다 — dirty는 autosave가 clearDirty()로 내리므로 캐시 유효성과는 다른 의미다.
@@ -49,12 +34,16 @@ public final class ChunkColumn {
     // (round12: OreFeature의 OCEAN_FLOOR_WG 게이트가 carve 이후 decoration 중 라이브로 계속 갱신되던 버그 수정).
     private boolean wgHeightmapsFrozen;
     private byte[] cachedSerializedBody;
+    // 지금 직렬화 중인 본문(현재 modCount 기준). 같은 버전을 동시에 요청한 플레이어들이 하나의 결과(같은 byte[])를 받아
+    // 스냅샷·직렬화·공유 압축 프레임이 한 번씩만 돈다. touch() 가 비운다. 주인 region 스레드 전용.
+    private java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody;
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
 
     public ChunkColumn(int biomeId) {
-        for (int i = 0; i < SECTION_COUNT; i++) {
+        this(MIN_Y, SECTION_COUNT);
+        for (int i = 0; i < sectionCount; i++) {
             sections[i] = new ChunkSection();
             sections[i].fillBiome(biomeId);
         }
@@ -64,7 +53,12 @@ public final class ChunkColumn {
     }
 
     public ChunkColumn(int biomeId, int directBits, int biomeDirectBits) {
-        for (int i = 0; i < SECTION_COUNT; i++) {
+        this(biomeId, directBits, biomeDirectBits, MIN_Y, SECTION_COUNT);
+    }
+
+    public ChunkColumn(int biomeId, int directBits, int biomeDirectBits, int minY, int sectionCount) {
+        this(minY, sectionCount);
+        for (int i = 0; i < sectionCount; i++) {
             sections[i] = new ChunkSection(directBits, biomeDirectBits);
             sections[i].fillBiome(biomeId);
         }
@@ -73,7 +67,19 @@ public final class ChunkColumn {
         java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
     }
 
-    private ChunkColumn() {}
+    private ChunkColumn(int minY, int sectionCount) {
+        this.minY = minY;
+        this.sectionCount = sectionCount;
+        this.heightmapBits = 32 - Integer.numberOfLeadingZeros(sectionCount * 16);   // ceil(log2(height + 1))
+        this.sections = new ChunkSection[sectionCount];
+    }
+
+    public int minY() { return minY; }
+
+    public int sectionCount() { return sectionCount; }
+
+    /** 블록 좌표 상한(포함). */
+    public int maxY() { return minY + sectionCount * 16 - 1; }
 
     /**
      * 독립된 상태를 가진 깊은 복사본(ChunkPipeline pristine 캐시용 — CARVERS 상태를 캐시해두고 매 요청마다
@@ -82,8 +88,8 @@ public final class ChunkColumn {
      * 항상 null이므로(decoration 전에는 조회된 적 없음) 복사하지 않고 null로 둔다(최초 조회 시 재계산, 기존과 동일 동작).
      */
     public ChunkColumn copy() {
-        ChunkColumn c = new ChunkColumn();
-        for (int i = 0; i < SECTION_COUNT; i++) c.sections[i] = sections[i].copy();
+        ChunkColumn c = new ChunkColumn(minY, sectionCount);
+        for (int i = 0; i < sectionCount; i++) c.sections[i] = sections[i].copy();
         System.arraycopy(surface, 0, c.surface, 0, surface.length);
         System.arraycopy(surfaceWg, 0, c.surfaceWg, 0, surfaceWg.length);
         System.arraycopy(oceanFloor, 0, c.oceanFloor, 0, oceanFloor.length);
@@ -92,48 +98,375 @@ public final class ChunkColumn {
         c.blockEntities.putAll(blockEntities);
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
+        c.structures = structures;
         return c;
     }
 
+    /** 쓰기 시 복사 사본: 섹션은 원본과 같이 쓰다가 처음 쓸 때 그 섹션만 복사한다(블록 쪽 feature 배치용, 사본이 사는 동안 원본을 바꾸지 않는다는 전제). */
+    public ChunkColumn cowCopy() {
+        ChunkColumn c = new ChunkColumn(minY, sectionCount);
+        System.arraycopy(sections, 0, c.sections, 0, sectionCount);
+        c.sharedSections = new boolean[sectionCount];
+        java.util.Arrays.fill(c.sharedSections, true);
+        System.arraycopy(surface, 0, c.surface, 0, surface.length);
+        System.arraycopy(surfaceWg, 0, c.surfaceWg, 0, surfaceWg.length);
+        System.arraycopy(oceanFloor, 0, c.oceanFloor, 0, oceanFloor.length);
+        System.arraycopy(wgOceanFloor, 0, c.wgOceanFloor, 0, wgOceanFloor.length);
+        System.arraycopy(motionBlocking, 0, c.motionBlocking, 0, motionBlocking.length);
+        c.blockEntities.putAll(blockEntities);
+        c.dirty = dirty;
+        c.wgHeightmapsFrozen = wgHeightmapsFrozen;
+        c.structures = structures;
+        return c;
+    }
+
+    /** cowCopy 의 아직 공유 중인 섹션 표시(보통 null). */
+    private boolean[] sharedSections;
+
+    private ChunkSection ownSection(int i) {
+        if (sharedSections != null && sharedSections[i]) {
+            sections[i] = sections[i].copy();
+            sharedSections[i] = false;
+        }
+        return sections[i];
+    }
+
+    private void ownAllSections() {
+        if (sharedSections != null) for (int i = 0; i < sectionCount; i++) ownSection(i);
+    }
+
     public ChunkSection[] sections() {
+        ownAllSections();
         return sections;
     }
 
     public int[] sectionBlocks(int sectionIndex) {
-        return sections[sectionIndex].openScratch();
+        return ownSection(sectionIndex).openScratch();
     }
 
     // key = ((x&0x3FFFFFF)<<38) | ((z&0x3FFFFFF)<<12) | (y&0xFFF) — Types.writeBlockPos와 동형(자체 인코딩, 프로토콜과 무관)
+    public void putGeneratedBlockEntity(int x, int y, int z, org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+        if (generatedBlockEntities == null) generatedBlockEntities = new java.util.HashMap<>();
+        generatedBlockEntities.put(blockEntityKey(x, y, z), nbt);
+    }
+
+    // 바닐라 ChunkAccess.markPosForPostprocessing — 청크가 FULL이 될 때 neighbour shape 갱신을 받을 칸(로컬 x,z + 월드 y).
+    private java.util.Set<Long> postProcessMarks;
+
+    public void markPosForPostprocessing(int lx, int y, int lz) {
+        if (postProcessMarks == null) postProcessMarks = new java.util.LinkedHashSet<>();
+        postProcessMarks.add(((long) lx << 40) | ((long) lz << 32) | (y & 0xFFFFFFFFL));
+    }
+
+    /** 표시된 칸 {lx, y, lz} 목록(표시 순서). */
+    public java.util.List<int[]> postProcessMarks() {
+        java.util.List<int[]> out = new java.util.ArrayList<>();
+        if (postProcessMarks != null) {
+            for (long k : postProcessMarks) out.add(new int[]{(int) (k >> 40) & 0xFF, (int) k, (int) (k >> 32) & 0xFF});
+        }
+        return out;
+    }
+
+    public void clearPostProcessMarks() { postProcessMarks = null; }
+
+    // 월드젠 중 구조물 등이 스폰한 엔티티(NBT: id, Pos, Rotation …) — 청크 로드/저장 쪽에서 소비한다.
+    private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
+
+    private boolean freshlyGenerated;
+
+    /** 방금 생성기로 만든 청크(디스크에서 읽은 것이 아님) — 올릴 때 한 번 동물을 놓는다(NaturalSpawner.spawnMobsForChunkGeneration). */
+    public boolean freshlyGenerated() { return freshlyGenerated; }
+
+    public void freshlyGenerated(boolean v) { this.freshlyGenerated = v; }
+
+    private boolean lightPrecomputed;
+
+    /** 빛을 생성 스레드에서 미리 계산해 뒀다(이웃과 가장자리만 맞추면 된다). */
+    public boolean lightPrecomputed() { return lightPrecomputed; }
+
+    public void lightPrecomputed(boolean v) { this.lightPrecomputed = v; }
+
+    public void addGeneratedEntity(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+        if (generatedEntities == null) generatedEntities = new java.util.ArrayList<>();
+        generatedEntities.add(nbt);
+    }
+
+    /** 월드젠 엔티티 목록을 비운다(저장 대상으로 표시는 부르는 쪽 — addWorldGenChunkEntities 가 markDirty). */
+    public void clearGeneratedEntities() { generatedEntities = null; touch(); }
+
+    public java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities() {
+        return generatedEntities == null ? java.util.List.of() : generatedEntities;
+    }
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound generatedBlockEntity(int x, int y, int z) {
+        return generatedBlockEntities == null ? null : generatedBlockEntities.get(blockEntityKey(x, y, z));
+    }
+
+    public java.util.Map<Long, org.domi.furnace.server.net.io.nbt.NbtCompound> generatedBlockEntities() {
+        return generatedBlockEntities == null ? java.util.Map.of() : generatedBlockEntities;
+    }
+
     private static long blockEntityKey(int x, int y, int z) {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFFL);
     }
 
     public ChestBlockEntity chestAt(int x, int y, int z) {
+        var be = blockEntities.get(blockEntityKey(x, y, z));
+        if (be == null && generatedBlockEntities != null) return adoptGeneratedChest(x, y, z);
+        return be instanceof ChestBlockEntity c ? c : null;
+    }
+
+    /** 월드젠이 남긴 상자 NBT(LootTable·LootTableSeed, 아이템 없음)를 처음 쓸 때 상자 블록 엔티티로 바꾼다. */
+    private ChestBlockEntity adoptGeneratedChest(int x, int y, int z) {
+        long local = blockEntityKey(x & 15, y, z & 15);
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt = generatedBlockEntities.get(local);
+        if (nbt == null) return null;
+        Object id = nbt.tags().get("id");
+        if (!"minecraft:chest".equals(id) && !"minecraft:trapped_chest".equals(id)) return null;
+        if (nbt.contains("Items") && nbt.getList("Items").size() > 0) return null;   // 아이템이 든 생성 상자는 아직 해석하지 않는다
+        ChestBlockEntity c = ChestBlockEntity.empty((String) id, x, y, z);
+        if (nbt.tags().get("LootTable") instanceof String t) {
+            c.lootTable = t;
+            c.lootSeed = nbt.tags().get("LootTableSeed") instanceof Long l ? l : 0L;
+        }
+        generatedBlockEntities.remove(local);
+        blockEntities.put(blockEntityKey(x, y, z), c);
+        touch();
+        return c;
+    }
+
+    public void putChest(ChestBlockEntity chest) { putBlockEntity(chest); }
+
+    /** 구역 y 별 게임 이벤트 리스너(바닐라 LevelChunk.gameEventListenerRegistrySections). 저장하지 않는다. */
+    private java.util.Map<Integer, org.domi.furnace.server.world.gameevent.GameEventListenerRegistry> listenerRegistries;
+
+    /** getListenerRegistry(sectionY): create 면 없을 때 만든다(비면 스스로 빠진다). 없으면 null. */
+    public org.domi.furnace.server.world.gameevent.GameEventListenerRegistry listenerRegistry(int sectionY, boolean create) {
+        if (listenerRegistries == null) {
+            if (!create) return null;
+            listenerRegistries = new java.util.HashMap<>();
+        }
+        var r = listenerRegistries.get(sectionY);
+        if (r == null && create) {
+            r = new org.domi.furnace.server.world.gameevent.GameEventListenerRegistry(() -> listenerRegistries.remove(sectionY));
+            listenerRegistries.put(sectionY, r);
+        }
+        return r;
+    }
+
+    /** 그 칸의 블록 엔티티(상자 포함, 없으면 null). 월드젠이 남긴 NBT 는 포함하지 않는다. */
+    public org.domi.furnace.server.block.entity.BlockEntity blockEntityAt(int x, int y, int z) {
         return blockEntities.get(blockEntityKey(x, y, z));
     }
 
-    public void putChest(ChestBlockEntity chest) {
-        blockEntities.put(blockEntityKey(chest.x, chest.y, chest.z), chest);
+    /** 블록 엔티티를 그 칸에 둔다(같은 칸의 월드젠 NBT 는 지운다 — 바닐라 setBlockEntity 가 이전 것을 갈아 치우듯). */
+    public void putBlockEntity(org.domi.furnace.server.block.entity.BlockEntity be) {
+        var p = be.pos();
+        var old = blockEntities.put(blockEntityKey(p.x(), p.y(), p.z()), be);
+        if (old != null && old != be) old.setRemoved();
+        if (generatedBlockEntities != null) generatedBlockEntities.remove(blockEntityKey(p.x() & 15, p.y(), p.z() & 15));
         touch();
     }
 
     public void removeBlockEntityAt(int x, int y, int z) {
-        blockEntities.remove(blockEntityKey(x, y, z));
+        var old = blockEntities.remove(blockEntityKey(x, y, z));
+        if (old != null) old.setRemoved();
+        if (generatedBlockEntities != null) generatedBlockEntities.remove(blockEntityKey(x & 15, y, z & 15));
         touch();
     }
 
-    public java.util.Map<Long, ChestBlockEntity> blockEntities() {
+    /** 블록별: 블록 엔티티가 있어야 하는가(newBlockEntity 가 만든다, 또는 상자·덫 상자 — 상자는 ChestBlockEntity 별도 경로). */
+    private static volatile boolean[] HAS_BE;
+
+    private static boolean[] hasBlockEntityTable() {
+        boolean[] t = HAS_BE;
+        if (t != null) return t;
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        t = new boolean[blocks.blockCount()];
+        var origin = new org.domi.furnace.server.block.Pos(0, 0, 0);
+        for (int b = 0; b < t.length; b++) {
+            int s = blocks.defaultState(b);
+            t[b] = org.domi.furnace.server.block.BlockBehaviors.ofBlock(b).newBlockEntity(origin, s) != null;
+        }
+        t[blocks.block("minecraft:chest")] = true;
+        t[blocks.block("minecraft:trapped_chest")] = true;
+        return HAS_BE = t;
+    }
+
+    /**
+     * LevelChunk.registerAllBlockEntitiesAfterLevelLoad 의 promotePendingBlockEntity 부분(청크를 올리기 전, 소유 스레드 밖에서 아직 공개 전인 청크에).
+     * 월드젠·저장 파일이 남긴 NBT 중 이식한 종류는 블록 엔티티로 바꾼다. 상자는 adoptGeneratedChest 로(아이템이 든 생성 상자는 아직 NBT 로 남는다).
+     * 상자도 청크 패킷 block_entities 에 있어야 클라이언트가 그린다.
+     * dummyScan 이면 바닐라 WorldGenRegion.setBlock 의 "DUMMY" NBT 처럼, 블록 엔티티가 있어야 할 칸에 없으면 newBlockEntity 로 만든다.
+     * 침대·종은 블록 엔티티가 없으면 클라이언트가 그리지 않는다(사용자 테스트 D1·D3).
+     */
+    public void promotePendingBlockEntities(int chunkX, int chunkZ, boolean dummyScan) {
+        long before = modCount;
+        promote(chunkX, chunkZ, dummyScan);
+        // 바뀌었으면 저장 대상으로 — 디스크 청크도 한 번 다시 써서 승격·채운 블록 엔티티를 영속시킨다(다음 로드부터는 할 일이 없다)
+        if (modCount != before) markDirty();
+    }
+
+    private void promote(int chunkX, int chunkZ, boolean dummyScan) {
+        if (generatedBlockEntities != null && !generatedBlockEntities.isEmpty()) {
+            java.util.List<int[]> keys = new java.util.ArrayList<>();
+            forEachGeneratedBlockEntity((lx, y, lz, nbt) -> {
+                Object id = nbt.tags().get("id");
+                if (id instanceof String s && ("minecraft:chest".equals(s) || "minecraft:trapped_chest".equals(s)
+                        || org.domi.furnace.server.block.entity.BlockEntities.known(s))) keys.add(new int[]{lx, y, lz});
+                else if (id == null) keys.add(new int[]{lx, y, lz});   // 구조물 템플릿 NBT 는 id 가 없을 수 있다(시련 생성기) — 종류는 블록이 정한다
+            });
+            for (int[] k : keys) {
+                var nbt = generatedBlockEntities.get(blockEntityKey(k[0], k[1], k[2]));
+                Object cid = nbt.tags().get("id");
+                if ("minecraft:chest".equals(cid) || "minecraft:trapped_chest".equals(cid)) {
+                    int cs = getBlock(k[0], k[1], k[2]);
+                    if (chestMatches(cs, cid)) adoptGeneratedChest((chunkX << 4) + k[0], k[1], (chunkZ << 4) + k[2]);
+                    continue;
+                }
+                int state = getBlock(k[0], k[1], k[2]);
+                var pos = new org.domi.furnace.server.block.Pos((chunkX << 4) + k[0], k[1], (chunkZ << 4) + k[2]);
+                org.domi.furnace.server.block.entity.BlockEntity be;
+                if (cid == null) {
+                    // StructureTemplate.placeInWorld: 블록이 만든 블록 엔티티에 loadWithComponents(nbt)
+                    be = org.domi.furnace.server.block.BlockBehaviors.of(state).newBlockEntity(pos, state);
+                    if (be == null || !org.domi.furnace.server.block.entity.BlockEntities.known(be.type())) continue;
+                    be.load(nbt);
+                    be.loadComponents(nbt);
+                } else {
+                    be = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, state, nbt);
+                }
+                if (be != null && be.isValid(state)) putBlockEntity(be);
+            }
+        }
+        if (!dummyScan) return;
+        boolean[] has = hasBlockEntityTable();
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        int baseX = chunkX, baseZ = chunkZ;
+        for (int i = 0; i < sectionCount; i++) {
+            ChunkSection cs = sections[i];
+            if (cs == null || cs.hasOnlyAir()) continue;
+            boolean any = false;
+            for (int s : cs.blocks()) if (has[blocks.blockOf(s)]) { any = true; break; }
+            if (!any) continue;
+            int by = minY + (i << 4);
+            for (int y = 0; y < 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int x = 0; x < 16; x++) {
+                        int s = cs.getBlock(x, y, z);
+                        if (!has[blocks.blockOf(s)]) continue;
+                        int wy = by + y;
+                        if (blockEntities.containsKey(blockEntityKey((baseX << 4) + x, wy, (baseZ << 4) + z))) continue;
+                        if (generatedBlockEntities != null && generatedBlockEntities.containsKey(blockEntityKey(x, wy, z))) continue;
+                        var pos = new org.domi.furnace.server.block.Pos((baseX << 4) + x, wy, (baseZ << 4) + z);
+                        String chestId = chestIdOf(s);
+                        if (chestId != null) {
+                            putBlockEntity(ChestBlockEntity.empty(chestId, pos.x(), pos.y(), pos.z()));
+                            continue;
+                        }
+                        var be = org.domi.furnace.server.block.BlockBehaviors.of(s).newBlockEntity(pos, s);
+                        if (be != null) putBlockEntity(be);
+                    }
+                }
+            }
+        }
+    }
+
+    private static String chestIdOf(int state) {
+        String n = org.domi.furnace.server.block.Blocks.get().nameOfState(state);
+        return "minecraft:chest".equals(n) || "minecraft:trapped_chest".equals(n) ? n : null;
+    }
+
+    /** 그 칸 블록이 NBT 의 상자 종류와 같은가(BlockEntityType.isValid). */
+    private static boolean chestMatches(int state, Object id) { return id.equals(chestIdOf(state)); }
+
+    /** 생성·로드된 미지원 블록 엔티티를 (로컬 x, 월드 y, 로컬 z, NBT) 로 순회. */
+    public void forEachGeneratedBlockEntity(GeneratedBlockEntityVisitor v) {
+        if (generatedBlockEntities == null) return;
+        for (var e : generatedBlockEntities.entrySet()) {
+            long k = e.getKey();
+            int lx = (int) (k >>> 38) & 0x3FFFFFF;
+            int lz = (int) (k >>> 12) & 0x3FFFFFF;
+            int y = ((int) k << 20) >> 20;
+            v.visit(lx, y, lz, e.getValue());
+        }
+    }
+
+    @FunctionalInterface
+    public interface GeneratedBlockEntityVisitor {
+        void visit(int lx, int y, int lz, org.domi.furnace.server.net.io.nbt.NbtCompound nbt);
+    }
+
+    // 저장 파일에서 읽었지만 서버가 해석하지 않는 청크 NBT 키(구조물 시작점·틱 목록·다른 서버의 확장 키 등) — 저장 시 그대로 되돌린다.
+    private org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt;
+    private long inhabitedTime;
+    /** 빛 데이터(빛 엔진이 켠 뒤에만 있다). 복사본에는 따라가지 않는다. */
+    private org.domi.furnace.server.light.ChunkLight light;
+
+    public org.domi.furnace.server.light.ChunkLight light() { return light; }
+
+    public void light(org.domi.furnace.server.light.ChunkLight l) { this.light = l; }
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt() { return extraNbt; }
+
+    public void extraNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) { this.extraNbt = nbt; }
+
+    // POI(poi/ 지역 파일). poiNbt 는 디스크에서 읽은 원본(복구 전), poi 는 블록과 맞춘 뒤의 것. 복사본에는 따라가지 않는다.
+    private org.domi.furnace.server.net.io.nbt.NbtCompound poiNbt;
+    private org.domi.furnace.server.world.poi.PoiChunk poi;
+
+    public org.domi.furnace.server.net.io.nbt.NbtCompound poiNbt() { return poiNbt; }
+
+    public void poiNbt(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) { this.poiNbt = nbt; }
+
+    public org.domi.furnace.server.world.poi.PoiChunk poi() { return poi; }
+
+    public void poi(org.domi.furnace.server.world.poi.PoiChunk p) { this.poi = p; this.poiNbt = null; }
+
+    // 구조물 시작점·참조(청크 NBT `structures`). 생성 스레드나 불러오기에서 한 번 정하고 바꾸지 않는다.
+    private volatile org.domi.furnace.server.world.gen.structure.ChunkStructures structures =
+        org.domi.furnace.server.world.gen.structure.ChunkStructures.EMPTY;
+
+    public org.domi.furnace.server.world.gen.structure.ChunkStructures structures() { return structures; }
+
+    public void structures(org.domi.furnace.server.world.gen.structure.ChunkStructures s) {
+        this.structures = s == null ? org.domi.furnace.server.world.gen.structure.ChunkStructures.EMPTY : s;
+    }
+
+    // 엔티티 저장(entities/ 지역 파일): 아직 다루지 못하는 종류의 엔티티는 원본 NBT 그대로 들고 있다가 다시 쓴다.
+    private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> foreignEntities = new java.util.ArrayList<>();
+    private boolean entitiesOnDisk;
+    private boolean entitiesLoaded;
+
+    public java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> foreignEntities() { return foreignEntities; }
+
+    /** 디스크에 이 청크의 엔티티 묶음이 있는가(비어서 쓸 필요가 없는지 — 바닐라 EntityStorage.emptyChunks 의 반대). */
+    public boolean entitiesOnDisk() { return entitiesOnDisk; }
+
+    public void entitiesOnDisk(boolean v) { entitiesOnDisk = v; }
+
+    /** 디스크의 엔티티를 불러왔는가(불러오기 전에는 저장하지 않는다 — 덮어쓰면 잃는다). */
+    public boolean entitiesLoaded() { return entitiesLoaded; }
+
+    public void entitiesLoaded(boolean v) { entitiesLoaded = v; }
+
+    public long inhabitedTime() { return inhabitedTime; }
+
+    public void inhabitedTime(long t) { this.inhabitedTime = t; }
+
+    public java.util.Map<Long, org.domi.furnace.server.block.entity.BlockEntity> blockEntities() {
         return blockEntities;
     }
 
     public void compactSections() {
+        ownAllSections();
         for (ChunkSection section : sections) section.compact();
     }
 
     /** worldY 절대좌표에 블록 설정. */
     public void setBlock(int x, int worldY, int z, int stateId) {
-        int local = worldY - MIN_Y;
-        sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        int local = worldY - minY;
+        ownSection(local >> 4).setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         updateWgOceanFloor(x, worldY, z, stateId);
@@ -144,8 +477,8 @@ public final class ChunkColumn {
     }
 
     public void setGeneratedBlock(int x, int worldY, int z, int stateId) {
-        int local = worldY - MIN_Y;
-        sections[local >> 4].setBlock(x, local & 15, z, stateId);
+        int local = worldY - minY;
+        ownSection(local >> 4).setBlock(x, local & 15, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         touch();
@@ -155,6 +488,7 @@ public final class ChunkColumn {
     private void touch() {
         modCount++;
         cachedSerializedBody = null;
+        inflightSerializedBody = null;
         cachedMotionBlockingHeightmap = null;
         cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
@@ -172,12 +506,17 @@ public final class ChunkColumn {
     }
     public byte[] cachedSerializedBody() { return cachedSerializedBody; }
     public void cachedSerializedBody(byte[] body) { this.cachedSerializedBody = body; }
+    public java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody() { return inflightSerializedBody; }
+    public void inflightSerializedBody(java.util.concurrent.CompletableFuture<byte[]> f) { this.inflightSerializedBody = f; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 
+    /** worldY 가 든 구역이 공기뿐인가(바닐라 LevelChunkSection.hasOnlyAir). */
+    public boolean sectionHasOnlyAir(int worldY) { return sections[(worldY - minY) >> 4].hasOnlyAir(); }
+
     /** worldY 절대좌표 블록 조회. */
     public int getBlock(int x, int worldY, int z) {
-        int local = worldY - MIN_Y;
+        int local = worldY - minY;
         return sections[local >> 4].getBlock(x, local & 15, z);
     }
 
@@ -186,13 +525,51 @@ public final class ChunkColumn {
      * quartX, quartZ 0..3, quartY 0..95 (블록 y = -64 + quartY*4).
      */
     public void setBiome(int quartX, int quartY, int quartZ, int biomeId) {
-        sections[quartY / 4].setBiome(quartX, quartY % 4, quartZ, biomeId);
+        ownSection(quartY / 4).setBiome(quartX, quartY % 4, quartZ, biomeId);
         touch();
     }
 
+    /**
+     * N-09: 디스크 로드 전용 — 전부 AIR(0)인 새 섹션에 4096 블록을 한 번에 넣는다. 블록마다 setBlock 한 것과 결과가 같도록
+     * 높이맵 캐시를 미설정으로 돌리고 dirty 를 세운다. 표면·WG 높이맵은 호출 측이 rebuildHeightmapsAfterSurface 로 다시 만든다.
+     */
+    public void loadSectionBlocks(int sectionIdx, int[] blocks) {
+        ownSection(sectionIdx).replaceBlocks(blocks, 0);
+        for (int i = 0; i < 4096; i++) {
+            if (blocks[i] != ChunkSection.AIR) {
+                java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
+                java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
+                dirty = true;
+                break;
+            }
+        }
+        touch();
+    }
+
+    /** {@link #loadSectionBlocks} 와 같되 디스크 NBT 꼴(팔레트 값 + 칸별 팔레트 인덱스) 그대로 받는다(펼치지 않음). */
+    public void loadSectionIndexed(int sectionIdx, int[] paletteVals, BitStorage indices) {
+        ChunkSection section = ownSection(sectionIdx);
+        section.replaceBlocksIndexed(paletteVals, indices);
+        if (section.nonAirCount() > 0 || hasNonAirZero(paletteVals, indices)) {
+            java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
+            java.util.Arrays.fill(motionBlocking, UNSET_HEIGHT);
+            dirty = true;
+        }
+        touch();
+    }
+
+    /** loadSectionBlocks 의 "AIR(0) 아닌 칸이 있는가" — 동굴·빈 공간 공기(isAir 지만 0 아님)만 있는 섹션도 참이다. */
+    private static boolean hasNonAirZero(int[] paletteVals, BitStorage indices) {
+        boolean any = false;
+        for (int v : paletteVals) if (v != ChunkSection.AIR) { any = true; break; }
+        if (!any) return false;
+        for (int i = 0; i < 4096; i++) if (paletteVals[indices.get(i)] != ChunkSection.AIR) return true;
+        return false;
+    }
+
     public void loadGenerated(int[] blockIds, int[] biomeIds) {
-        for (int i = 0; i < SECTION_COUNT; i++) {
-            sections[i].replaceBlocks(blockIds, i * 4096);
+        for (int i = 0; i < sectionCount; i++) {
+            ownSection(i).replaceBlocks(blockIds, i * 4096);
             sections[i].replaceBiomes(biomeIds, i * 64);
         }
         rebuildSurface(blockIds);
@@ -212,14 +589,18 @@ public final class ChunkColumn {
             for (int lx = 0; lx < 16; lx++) {
                 int surfaceValue = 0;
                 int oceanFloorValue = 0;
-                for (int sec = SECTION_COUNT - 1; sec >= 0 && (surfaceValue == 0 || oceanFloorValue == 0); sec--) {
-                    int[] blocks = sectionBlocks(sec);
+                for (int sec = sectionCount - 1; sec >= 0 && (surfaceValue == 0 || oceanFloorValue == 0); sec--) {
+                    // scratch 를 열지 않고 읽는다 — 디스크 로드 청크가 표면 위 섹션마다 int[4096] 을 쥐고 있던 것.
+                    // 한 값뿐인 섹션(대부분 공기)은 맨 위 칸 하나로 판정이 끝난다(아래 칸도 같은 값이라 결과가 같다).
+                    ChunkSection section = sections[sec];
+                    int uniform = section.uniformBlock();
                     for (int ly = 15; ly >= 0; ly--) {
-                        int stateId = blocks[ly * 256 + lz * 16 + lx];
+                        int stateId = uniform >= 0 ? uniform : section.blockAt(ly * 256 + lz * 16 + lx);
                         int y1 = sec * 16 + ly + 1;
-                        if (surfaceValue == 0 && stateId != ChunkSection.AIR) surfaceValue = y1;
+                        if (surfaceValue == 0 && !ChunkSection.isAir(stateId)) surfaceValue = y1;
                         if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) oceanFloorValue = y1;
                         if (surfaceValue != 0 && oceanFloorValue != 0) break;
+                        if (uniform >= 0) break;
                     }
                 }
                 int index = lz * 16 + lx;
@@ -238,14 +619,14 @@ public final class ChunkColumn {
             for (int lx = 0; lx < 16; lx++) {
                 int surfaceValue = 0;
                 int oceanFloorValue = 0;
-                for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
-                    int idx = (y - MIN_Y) * 256 + lz * 16 + lx;
+                for (int y = minY + sectionCount * 16 - 1; y >= minY; y--) {
+                    int idx = (y - minY) * 256 + lz * 16 + lx;
                     int stateId = blockIds[idx];
-                    if (surfaceValue == 0 && stateId != ChunkSection.AIR) {
-                        surfaceValue = (y - MIN_Y) + 1;
+                    if (surfaceValue == 0 && !ChunkSection.isAir(stateId)) {
+                        surfaceValue = (y - minY) + 1;
                     }
                     if (oceanFloorValue == 0 && isOceanFloorBlock(stateId)) {
-                        oceanFloorValue = (y - MIN_Y) + 1;
+                        oceanFloorValue = (y - minY) + 1;
                     }
                     if (surfaceValue != 0 && oceanFloorValue != 0) {
                         break;
@@ -265,12 +646,12 @@ public final class ChunkColumn {
     }
 
     public int surfaceBlockY(int x, int z) {
-        return MIN_Y + surface[z * 16 + x] - 1;
+        return minY + surface[z * 16 + x] - 1;
     }
 
     /** WORLD_SURFACE_WG 전용 조회 — carve 완료 이후 값이 얼어붙는다(oceanFloorBlockY의 WG류와 대응). */
     public int worldSurfaceWgBlockY(int x, int z) {
-        return MIN_Y + surfaceWg[z * 16 + x] - 1;
+        return minY + surfaceWg[z * 16 + x] - 1;
     }
 
     public int oceanFloorBlockY(int x, int z) {
@@ -280,7 +661,7 @@ public final class ChunkColumn {
             value = recomputeOceanFloorHeight(x, z);
             oceanFloor[index] = value;
         }
-        return MIN_Y + value - 1;
+        return minY + value - 1;
     }
 
     /**
@@ -296,15 +677,15 @@ public final class ChunkColumn {
     private void updateWgOceanFloor(int x, int worldY, int z, int stateId) {
         if (wgHeightmapsFrozen) return;
         int index = z * 16 + x;
-        int first = wgOceanFloor[index]; // firstAvailable - MIN_Y
+        int first = wgOceanFloor[index]; // firstAvailable - minY
         if (first == UNSET_HEIGHT) return; // loadGenerated 이전 — 미프라임 상태는 갱신 대상 아님
-        int y = worldY - MIN_Y;
+        int y = worldY - minY;
         if (y <= first - 2) return;
         if (isOceanFloorBlock(stateId)) {
             if (y >= first) wgOceanFloor[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
-                if (isOceanFloorBlock(getBlock(x, MIN_Y + i, z))) {
+                if (isOceanFloorBlock(getBlock(x, minY + i, z))) {
                     wgOceanFloor[index] = i + 1;
                     return;
                 }
@@ -324,14 +705,14 @@ public final class ChunkColumn {
         int index = z * 16 + x;
         int first = surface[index];
         if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
-        int y = worldY - MIN_Y;
+        int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
         if (!isAir) {
             if (y >= first) surface[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
-                int below = getBlock(x, MIN_Y + i, z);
+                int below = getBlock(x, minY + i, z);
                 if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
                     surface[index] = i + 1;
                     return;
@@ -347,14 +728,14 @@ public final class ChunkColumn {
         int index = z * 16 + x;
         int first = surfaceWg[index];
         if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
-        int y = worldY - MIN_Y;
+        int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
         if (!isAir) {
             if (y >= first) surfaceWg[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
-                int below = getBlock(x, MIN_Y + i, z);
+                int below = getBlock(x, minY + i, z);
                 if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
                     surfaceWg[index] = i + 1;
                     return;
@@ -367,9 +748,9 @@ public final class ChunkColumn {
     public int wgOceanFloorHeight(int x, int z) {
         int value = wgOceanFloor[z * 16 + x];
         if (value == UNSET_HEIGHT || value == 0) {
-            return MIN_Y;
+            return minY;
         }
-        return MIN_Y + value;
+        return minY + value;
     }
 
     /**
@@ -378,16 +759,87 @@ public final class ChunkColumn {
      * oceanFloor[]와 동일한 "invalidate to UNSET_HEIGHT + lazy 전체 재스캔" 패턴 — 증분 갱신 로직 없이도
      * setBlock/setGeneratedBlock/loadGenerated 시 무효화되면 다음 조회에서 항상 실제 블록 기준으로 재계산된다.
      */
+    /** 저장용 OCEAN_FLOOR(blocksMotion) 높이맵 — 호출마다 계산. */
+    public long[] oceanFloorHeightmap() {
+        BitStorage bs = new BitStorage(heightmapBits, 256);
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            bs.set(i, oceanFloorBlockY(x, z) - minY + 1);
+        }
+        return bs.data();
+    }
+
+    /** 저장용 MOTION_BLOCKING_NO_LEAVES 높이맵 — 호출마다 계산. */
+    public long[] motionBlockingNoLeavesHeightmap() {
+        BitStorage bs = new BitStorage(heightmapBits, 256);
+        for (int i = 0; i < 256; i++) bs.set(i, motionBlockingNoLeavesBlockY(i & 15, i >> 4) - minY + 1);
+        return bs.data();
+    }
+
     public long[] motionBlockingHeightmap() {
         if (cachedMotionBlockingHeightmap != null) return cachedMotionBlockingHeightmap;
-        BitStorage bs = new BitStorage(HEIGHTMAP_BITS, 256);
+        BitStorage bs = new BitStorage(heightmapBits, 256);
         for (int i = 0; i < 256; i++) bs.set(i, motionBlockingHeightValue(i & 15, i >> 4));
         cachedMotionBlockingHeightmap = bs.data();
         return cachedMotionBlockingHeightmap;
     }
 
+    /** vanilla MOTION_BLOCKING_NO_LEAVES 최상단 블록 y (잎 제외) — 구조물 지면 높이용, 매 호출 스캔. */
+    public int motionBlockingNoLeavesBlockY(int x, int z) {
+        return minY + topLocalY(x, z, TOP_MB_NO_LEAVES);
+    }
+
+    private static final int TOP_MB_NO_LEAVES = 0, TOP_MB = 1, TOP_OCEAN_FLOOR = 2;
+
+    private static boolean topMatch(int kind, int st) {
+        return switch (kind) {
+            case TOP_MB_NO_LEAVES -> isMotionBlockingBlock(st) && !isLeaves(st);
+            case TOP_MB -> isMotionBlockingBlock(st);
+            default -> isOceanFloorBlock(st);
+        };
+    }
+
+    /**
+     * 그 기둥에서 조건을 만족하는 가장 높은 칸의 (y - minY), 없으면 -1. 위에서 아래로 한 칸씩 getBlock 하던 것과 같은 결과를,
+     * 섹션 단위로 읽는다 — 한 값뿐인 섹션(대부분 하늘 공기)은 값 하나로 판정하고 건너뛴다. scratch 는 열지 않는다.
+     * 저장 스냅샷(region 스레드)이 기둥 256개 × 표면 위 수백 칸을 getBlock 으로 훑던 비용이 컸다.
+     */
+    private int topLocalY(int x, int z, int kind) {
+        int column = z * 16 + x;
+        for (int sec = sectionCount - 1; sec >= 0; sec--) {
+            ChunkSection section = sections[sec];
+            int uniform = section.uniformBlock();
+            if (uniform >= 0) {
+                if (topMatch(kind, uniform)) return sec * 16 + 15;
+                continue;
+            }
+            for (int ly = 15; ly >= 0; ly--) {
+                if (topMatch(kind, section.blockAt(ly * 256 + column))) return sec * 16 + ly;
+            }
+        }
+        return -1;
+    }
+
+    private static volatile boolean[] leavesTable;
+
+    private static boolean isLeaves(int stateId) {
+        boolean[] t = leavesTable;
+        if (t == null) {
+            BlockRegistry reg = fluidRegistry();
+            t = new boolean[reg.totalStateCount()];
+            for (int i = 0; i < t.length; i++) {
+                String key = reg.canonicalKeyOf(i);
+                if (key == null) continue;
+                int semi = key.indexOf(';');
+                t[i] = (semi < 0 ? key : key.substring(0, semi)).endsWith("_leaves");
+            }
+            leavesTable = t;
+        }
+        return stateId >= 0 && stateId < t.length && t[stateId];
+    }
+
     public int motionBlockingBlockY(int x, int z) {
-        return MIN_Y + motionBlockingHeightValue(x, z) - 1;
+        return minY + motionBlockingHeightValue(x, z) - 1;
     }
 
     private int motionBlockingHeightValue(int x, int z) {
@@ -401,12 +853,7 @@ public final class ChunkColumn {
     }
 
     private int recomputeMotionBlockingHeight(int x, int z) {
-        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
-            if (isMotionBlockingBlock(getBlock(x, y, z))) {
-                return (y - MIN_Y) + 1;
-            }
-        }
-        return 0;
+        return topLocalY(x, z, TOP_MB) + 1;
     }
 
     /**
@@ -415,109 +862,95 @@ public final class ChunkColumn {
      */
     public long[] worldSurfaceHeightmap() {
         if (cachedWorldSurfaceHeightmap != null) return cachedWorldSurfaceHeightmap;
-        BitStorage bs = new BitStorage(HEIGHTMAP_BITS, 256);
+        BitStorage bs = new BitStorage(heightmapBits, 256);
         for (int i = 0; i < 256; i++) bs.set(i, surface[i]);
         cachedWorldSurfaceHeightmap = bs.data();
         return cachedWorldSurfaceHeightmap;
     }
 
     private int recomputeOceanFloorHeight(int x, int z) {
-        for (int y = MIN_Y + SECTION_COUNT * 16 - 1; y >= MIN_Y; y--) {
-            if (isOceanFloorBlock(getBlock(x, y, z))) {
-                return (y - MIN_Y) + 1;
-            }
-        }
-        return 0;
-    }
-
-    // MOTION_BLOCKING 전용 이름 분류에 쓰는 지연 로드 레지스트리(ChunkColumn은 생성자에 registry를 받지 않는
-    // 기존 설계라, 다른 곳들처럼 명시적 주입 대신 FurnaceMain과 동일 리소스를 1회 지연 로드해 재사용한다).
-    private static volatile BlockRegistry motionBlockingNameRegistry;
-
-    private static BlockRegistry motionBlockingNameRegistry() {
-        BlockRegistry r = motionBlockingNameRegistry;
-        if (r == null) {
-            r = BlockRegistry.load("blocks/1.21.1.txt");
-            motionBlockingNameRegistry = r;
-        }
-        return r;
+        return topLocalY(x, z, TOP_OCEAN_FLOOR) + 1;
     }
 
     /**
-     * vanilla MOTION_BLOCKING(blocksMotion() || fluid) 술어 — isOceanFloorBlock(blocksMotion 근사: 공기/유체/
-     * 식물 제외)에서 fluid를 다시 포함시키고, blocksMotion=false인 무충돌 장식 블록(레일·레드스톤류·버튼·
-     * 압력판·토치·표지판·현수막·사다리·덩굴 등, isNonMotionBlockingByName 참조)을 추가로 제외한다.
+     * vanilla MOTION_BLOCKING 술어 {@code state.blocksMotion() || !state.getFluidState().isEmpty()}.
+     * blocksMotion은 바닐라에서 export한 정확한 값(BlockAttrs)이고, 유체 상태는 물/용암·버블 기둥·켈프·해초·waterlogged 블록이다.
      */
     private static boolean isMotionBlockingBlock(int stateId) {
-        if (isFluid(stateId)) return true;
-        if (!isOceanFloorBlock(stateId)) return false;
-        return !isNonMotionBlockingByName(motionBlockingNameRegistry().nameOf(stateId));
+        boolean[] t = motionBlockingTable;
+        if (t == null) {
+            // blocksMotion || fluid 를 상태별 한 표로 합쳐 둔다(같은 술어, 조회 1회).
+            boolean[] motion = blocksMotionTable();
+            boolean[] fluid = hasFluidTable();
+            t = new boolean[Math.max(motion.length, fluid.length)];
+            for (int i = 0; i < t.length; i++) {
+                t[i] = (i < motion.length && motion[i]) || (i < fluid.length && fluid[i]);
+            }
+            motionBlockingTable = t;
+        }
+        return stateId >= 0 && stateId < t.length && t[stateId];
     }
+
+    private static volatile boolean[] motionBlockingTable;
 
     /**
-     * 근사: vanilla BlockBehaviour::blocksMotion은 실제로는 콜리전 shape 부피(≥0.7291666)로 계산되는데,
-     * 이 저장소엔 블록별 콜리전 shape 데이터가 없다(motionblocking-predicate task 조사 결과) — 이름 기반으로
-     * "무충돌/얇은 장식" 블록을 화이트리스트해 blocksMotion=false로 근사한다. 범위: 레일류, 레드스톤 부품
-     * (와이어·리피터·컴퍼레이터·레버·트립와이어·버튼·압력판), 토치·랜턴·양초, 표지판·현수막, 사다리, 덩굴류
-     * (vine/lily_pad/sea_pickle/cobweb/end_rod), 새싹, 짧은/키큰 식물·꽃·버섯·작물류(짧은잔디/양치/죽은덤불은
-     * isLandPlant가 이미 처리). **커버 안 된 항목**(포인티드 드립스톤, 이끼 카펫 예외 케이스, 눈더미 높이별
-     * 콜리전, 스캐폴딩, 조각술 감지기 등)은 기존 동작대로 blocksMotion=true로 남는다 — 이번 조사에서 실측
-     * 확증하지 못해 회귀 위험 최소화 차원에서 손대지 않았다(surgical 원칙, 아래 result.md Issues 참조).
+     * vanilla OCEAN_FLOOR/OCEAN_FLOOR_WG 술어 {@code BlockBehaviour.BlockStateBase::blocksMotion}.
+     * 잎·통나무는 포함이고 덩굴·묘목·꽃·카펫류·수중 식물은 제외라서 surface_water_depth_filter(WORLD_SURFACE − OCEAN_FLOOR)와
+     * 나무/식생 배치 후보 판정이 바닐라와 같아진다.
      */
-    private static boolean isNonMotionBlockingByName(String name) {
-        String n = name.startsWith("minecraft:") ? name.substring("minecraft:".length()) : name;
-        if (n.endsWith("_rail") || n.equals("rail")) return true;
-        if (n.endsWith("_button")) return true;
-        if (n.endsWith("_pressure_plate")) return true;
-        if (n.endsWith("torch")) return true; // torch/wall_torch/redstone_torch/redstone_wall_torch/soul_torch/soul_wall_torch
-        if (n.endsWith("_sign")) return true; // 서있는/벽/현수 표지판 전부 "_sign"으로 끝남
-        if (n.endsWith("_banner")) return true;
-        if (n.endsWith("candle")) return true; // *_candle_cake는 "cake"로 끝나 매치 안 됨(별개 취급, 미확인)
-        if (n.endsWith("lantern")) return true;
-        if (n.endsWith("_sapling") || n.equals("sapling")) return true;
-        switch (n) {
-            case "redstone_wire", "repeater", "comparator", "lever", "tripwire", "tripwire_hook",
-                 "ladder", "vine", "lily_pad", "sea_pickle", "end_rod", "cobweb", "bamboo_sapling",
-                 "sugar_cane", "bamboo", "sweet_berry_bush",
-                 "wheat", "carrots", "potatoes", "beetroots", "nether_wart",
-                 "tall_grass", "large_fern", "sunflower", "lilac", "rose_bush", "peony",
-                 "brown_mushroom", "red_mushroom",
-                 "dandelion", "poppy", "blue_orchid", "allium", "azure_bluet",
-                 "red_tulip", "orange_tulip", "white_tulip", "pink_tulip",
-                 "oxeye_daisy", "cornflower", "lily_of_the_valley", "wither_rose" -> {
-                return true;
-            }
-            default -> {
-                return false;
-            }
-        }
-    }
-
-    // vanilla OCEAN_FLOOR/OCEAN_FLOOR_WG의 isOpaque 술어는 BlockBehaviour::blocksMotion —
-    // 잎(leaves)은 blocksMotion=true라서 vanilla는 잎도 바닥으로 센다(MOTION_BLOCKING_NO_LEAVES와만 다름).
     private static boolean isOceanFloorBlock(int stateId) {
-        return stateId != ChunkSection.AIR && stateId != CAVE_AIR_STATE && stateId != VOID_AIR_STATE
-            && !isFluid(stateId)
-            && !isWaterPlant(stateId)
-            && !isLandPlant(stateId);
+        boolean[] table = blocksMotionTable();
+        return stateId >= 0 && stateId < table.length && table[stateId];
     }
 
-    private static boolean isLandPlant(int stateId) {
-        return stateId == SHORT_GRASS_STATE || stateId == FERN_STATE || stateId == DEAD_BUSH_STATE;
+    private static volatile boolean[] blocksMotionTable;
+    private static volatile boolean[] hasFluidTable;
+
+    private static boolean[] blocksMotionTable() {
+        boolean[] t = blocksMotionTable;
+        if (t == null) {
+            BlockAttrs attrs = BlockAttrs.get();
+            int n = fluidRegistry().totalStateCount();
+            t = new boolean[n];
+            for (int i = 0; i < n; i++) t[i] = attrs.blocksMotion(i);
+            blocksMotionTable = t;
+        }
+        return t;
     }
 
-    private static boolean isWaterPlant(int stateId) {
-        return stateId == SEAGRASS_STATE
-            || stateId == TALL_SEAGRASS_UPPER_STATE
-            || stateId == TALL_SEAGRASS_LOWER_STATE
-            || stateId == KELP_PLANT_STATE
-            || (stateId >= KELP_MIN_STATE && stateId <= KELP_MAX_STATE)
-            || (stateId >= GLOW_LICHEN_MIN_STATE && stateId <= GLOW_LICHEN_MAX_STATE);
+    private static boolean[] hasFluidTable() {
+        boolean[] t = hasFluidTable;
+        if (t == null) {
+            BlockRegistry r = fluidRegistry();
+            int n = r.totalStateCount();
+            t = new boolean[n];
+            for (int i = 0; i < n; i++) {
+                String key = r.canonicalKeyOf(i);
+                if (key == null) continue;
+                int semi = key.indexOf(';');
+                String name = semi < 0 ? key : key.substring(0, semi);
+                t[i] = switch (name) {
+                    case "minecraft:water", "minecraft:lava", "minecraft:bubble_column", "minecraft:kelp",
+                         "minecraft:kelp_plant", "minecraft:seagrass", "minecraft:tall_seagrass" -> true;
+                    default -> semi >= 0 && key.indexOf("waterlogged=true", semi) >= 0;
+                };
+            }
+            hasFluidTable = t;
+        }
+        return t;
     }
 
-    private static boolean isFluid(int stateId) {
-        return stateId >= WATER_MIN_STATE && stateId <= WATER_MAX_STATE
-            || stateId >= LAVA_MIN_STATE && stateId <= LAVA_MAX_STATE;
+    // 높이맵 술어 표를 만들 때 쓰는 지연 로드 레지스트리(ChunkColumn은 생성자에 registry를 받지 않는 기존 설계라, 다른 곳들처럼
+    // 명시적 주입 대신 FurnaceMain과 동일 리소스를 1회 지연 로드해 재사용한다).
+    private static volatile BlockRegistry fluidRegistry;
+
+    private static BlockRegistry fluidRegistry() {
+        BlockRegistry r = fluidRegistry;
+        if (r == null) {
+            r = BlockRegistry.load("blocks/1.21.1.txt");
+            fluidRegistry = r;
+        }
+        return r;
     }
 
 }

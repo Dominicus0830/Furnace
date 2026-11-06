@@ -43,12 +43,15 @@ class NetworkServerTest {
             NetworkServer server = new NetworkServer(occupied.getLocalPort(), -1, "Furnace Server", sched,
                     world, new EntityIdAllocator());
             Throwable thrown = assertThrows(Throwable.class, server::start);
-            assertTrue(thrown instanceof java.net.BindException, "BindException이 그대로 전달돼야: " + thrown);
+            // NIO 는 BindException, epoll 은 NativeIoException(IOException, "Address already in use")
+            assertTrue(thrown instanceof java.net.BindException
+                    || (thrown instanceof java.io.IOException && String.valueOf(thrown.getMessage()).contains("Address already in use")),
+                    "bind 실패 예외가 그대로 전달돼야: " + thrown);
             long deadline = System.nanoTime() + 5_000_000_000L;
             long alive;
             do {
                 alive = Thread.getAllStackTraces().keySet().stream()
-                        .filter(t -> t.getName().startsWith("nioEventLoopGroup") && t.isAlive()).count();
+                        .filter(t -> (t.getName().startsWith("nioEventLoopGroup") || t.getName().startsWith("epollEventLoopGroup")) && t.isAlive()).count();
                 if (alive == 0) break;
                 Thread.sleep(50);
             } while (System.nanoTime() < deadline);
@@ -113,7 +116,7 @@ class NetworkServerTest {
             Thread.sleep(300);   // LoginSuccess가 도착할 시간
             server.stop();
             byte[] all = s.getInputStream().readAllBytes();
-            assertTrue(new String(all, java.nio.charset.StandardCharsets.ISO_8859_1).contains("Server closed"),
+            assertTrue(new String(all, java.nio.charset.StandardCharsets.ISO_8859_1).contains("multiplayer.disconnect.server_shutdown"),
                     "종료 사유가 클라이언트에 전달돼야 한다");
         } finally {
             sched.close();

@@ -7,6 +7,9 @@ public final class EntityIdAllocator {
 
     private final AtomicInteger next = new AtomicInteger(0);
 
+    /** 연달은 id count 개를 잡고 첫 id 를 돌려준다. */
+    public int reserve(int count) { return next.getAndAdd(count) + 1; }
+
     public int next() {
         return next.incrementAndGet();
     }

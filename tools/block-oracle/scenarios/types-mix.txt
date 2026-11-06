@@ -1,0 +1,88 @@
+# 여러 블록 종류 섞어 놓기: 울타리·벽·상자 짝·사다리·덩굴·레드스톤(레버→가루→중계기→램프)·다락문·버튼·양초·눈·반 블록·레일·화분
+tp 2.5 -60 -3.5 0 30
+item 0 oak_fence 64
+item 1 cobblestone_wall 64
+item 2 stone 64
+item 3 chest 64
+item 4 ladder 64
+item 5 vine 64
+hold 0
+use 0 -61 0 up
+use 1 -61 0 up
+use 1 -61 1 up
+hold 1
+use 3 -61 0 up
+use 4 -61 0 up
+hold 2
+use 4 -60 0 up
+# 상자 두 개(북쪽을 보고 놓음 → 남쪽을 향하고 짝을 맺는다)
+tp 8.5 -60 -3.5 0 30
+look 180 30
+hold 3
+use 6 -61 0 up
+use 7 -61 0 up
+look 0 30
+hold 2
+use 9 -61 0 up
+use 10 -61 0 up
+hold 4
+use 9 -60 0 south 0.5 0.5 1.0
+hold 5
+use 10 -60 0 south 0.5 0.5 1.0
+# 레드스톤: 레버 → 가루 두 칸 → 중계기(동쪽으로 보냄) → 램프
+tp 14.5 -60 -3.5 0 30
+item 0 lever 64
+item 1 redstone 64
+item 3 repeater 64
+item 4 redstone_lamp 64
+item 6 oak_trapdoor 64
+item 7 stone_button 64
+item 8 candle 64
+hold 0
+use 12 -61 0 up
+hold 1
+use 13 -61 0 up
+use 14 -61 0 up
+look -90 30
+hold 3
+use 15 -61 0 up
+hold 4
+use 16 -61 0 up
+look 0 30
+hold 2
+use 12 -60 0 up
+wait 10
+# 다락문(돌 옆면 위쪽), 버튼, 양초 두 개
+tp 20.5 -60 -3.5 0 30
+hold 2
+use 20 -61 0 up
+hold 6
+use 20 -60 0 south 0.5 0.8 1.0
+hold 7
+use 20 -60 0 west 0.0 0.5 0.5
+hold 8
+use 22 -61 0 up
+use 22 -60 0 up
+# 눈 세 겹, 반 블록 겹치기, 레일 굽이, 화분에 양귀비
+tp 26.5 -60 -3.5 0 30
+item 0 snow 64
+item 1 stone_slab 64
+item 3 rail 64
+item 4 flower_pot 64
+item 5 poppy 64
+hold 0
+use 24 -61 0 up
+use 24 -60 0 up
+use 24 -60 0 up
+hold 1
+use 25 -61 0 up
+use 25 -60 0 up
+hold 3
+use 26 -61 0 up
+use 27 -61 0 up
+use 27 -61 1 up
+hold 4
+use 28 -61 0 up
+hold 5
+use 28 -60 0 up
+wait 20

@@ -27,6 +27,8 @@ public record LeaveVineDecorator(float probability) implements TreeDecorator {
 
     // vanilla addHangingVine — 시작 칸은 무조건 배치(호출부에서 공기 확인 완료), 그 아래로 공기인 동안 최대 4칸 추가.
     private void addHangingVine(Context context, BlockPos start, TreeFeature.Direction facing) {
+        if (org.domi.furnace.server.world.gen.carver.RandomTrace.isActive())
+            org.domi.furnace.server.world.gen.carver.RandomTrace.log("leave_vine start=" + start.x() + "," + start.y() + "," + start.z() + " facing=" + facing);
         context.view().setBlock(start.x(), start.y(), start.z(), context.config().vineStateId(facing));
         context.decorations().add(start);
         BlockPos current = new BlockPos(start.x(), start.y() - 1, start.z());

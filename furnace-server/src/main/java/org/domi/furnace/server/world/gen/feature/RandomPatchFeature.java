@@ -17,6 +17,9 @@ public final class RandomPatchFeature implements ConfiguredFeature {
         this.feature = feature;
     }
 
+    /** RandomPatchConfiguration.feature(): 시도마다 놓는 내부 placed feature. */
+    public PlacedFeature feature() { return feature; }
+
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
         int i1 = xzSpread + 1;

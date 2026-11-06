@@ -17,7 +17,7 @@ class ConfigLoaderTest {
         assertEquals(256, c.compressionThreshold());
         assertEquals(5, c.viewDistance());
         assertEquals(8, c.entityViewDistance());
-        assertEquals(16, c.regionSize());
+        assertEquals(4, c.regionSectionShift());   // 기본: 구역 16×16 청크
         assertTrue(c.regionThreads() >= 1);
         assertEquals("world", c.levelName());
         assertEquals(4, c.ioThreads());
@@ -28,7 +28,7 @@ class ConfigLoaderTest {
     @Test
     void load_overridesFromFile(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("furnace.properties");
-        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\nport=25500\ncompression-threshold=-1\nview-distance=8\nentity-view-distance=12\nregion-size=8\nregion-threads=2\n"
+        Files.writeString(f, "server-name=My Server\ntick-nanos=25000000\nport=25500\ncompression-threshold=-1\nview-distance=8\nentity-view-distance=12\nregion-section-shift=5\nregion-threads=2\n"
                 + "level-name=myworld\nio-threads=2\nautosave-ticks=1200\nchunk-eviction-grace-ticks=40\n");
         Config c = ConfigLoader.load(f);
         assertEquals("My Server", c.serverName());
@@ -37,7 +37,7 @@ class ConfigLoaderTest {
         assertEquals(-1, c.compressionThreshold());
         assertEquals(8, c.viewDistance());
         assertEquals(12, c.entityViewDistance());
-        assertEquals(8, c.regionSize());
+        assertEquals(5, c.regionSectionShift());
         assertEquals(2, c.regionThreads());
         assertEquals("myworld", c.levelName());
         assertEquals(2, c.ioThreads());
@@ -47,7 +47,7 @@ class ConfigLoaderTest {
 
     @Test
     void load_rejectsInvalidValues_withKeyName(@TempDir Path dir) throws Exception {
-        for (String bad : new String[]{"region-size=0", "region-threads=0", "view-distance=1", "view-distance=0", "view-distance=-1", "entity-view-distance=0",
+        for (String bad : new String[]{"region-section-shift=0", "region-merge-radius=0", "region-threads=0", "view-distance=1", "view-distance=0", "view-distance=-1", "entity-view-distance=0",
                 "port=70000", "tick-nanos=0", "compression-threshold=-5", "io-threads=0", "autosave-ticks=0",
                 "chunk-eviction-grace-ticks=0", "chunks-per-tick=0", "spawn-chunk-radius=-1", "level-name= "}) {
             Path f = dir.resolve("bad.properties");
@@ -64,9 +64,9 @@ class ConfigLoaderTest {
         Files.writeString(f, "port=abc\n");
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
         assertTrue(e.getMessage().contains("port"));
-        Files.writeString(f, "region-size=99999999999\n");
+        Files.writeString(f, "region-section-shift=99999999999\n");
         e = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
-        assertTrue(e.getMessage().contains("region-size"));
+        assertTrue(e.getMessage().contains("region-section-shift"));
     }
 
     /** view-distance 상한(32) 초과는 거부하지 않고 32로 조정 + WARN 1건(청크 전송은 어차피 32로 포화, 엔티티 경로는 이 값이 유일한 방어선). */
@@ -131,5 +131,21 @@ class ConfigLoaderTest {
         Path real = Path.of("furnace.properties");
         Assumptions.assumeTrue(Files.exists(real), "furnace.properties 없음(.gitignore 대상)");
         assertDoesNotThrow(() -> ConfigLoader.load(real, w -> { }));
+    }
+
+    @Test
+    void bungeecord_defaultOff_parsesBoolean_andRejectsVelocityTogether(@TempDir Path dir) throws Exception {
+        assertFalse(ConfigLoader.load(dir.resolve("absent.properties")).bungeecord(), "기본은 꺼짐(Spigot settings.bungeecord=false)");
+        Path f = dir.resolve("furnace.properties");
+        Files.writeString(f, "bungeecord=TRUE\n");
+        assertTrue(ConfigLoader.load(f).bungeecord());
+        Files.writeString(f, "bungeecord=yes\n");
+        IllegalArgumentException bad = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(bad.getMessage().contains("bungeecord"), bad.getMessage());
+        Files.writeString(f, "bungeecord=true\nvelocity-secret=s3cret\n");
+        IllegalArgumentException both = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(both.getMessage().contains("bungeecord") && both.getMessage().contains("velocity-secret"), both.getMessage());
+        Files.writeString(f, "bungeecord=false\nvelocity-secret=s3cret\n");
+        assertEquals("s3cret", ConfigLoader.load(f).velocitySecret());
     }
 }

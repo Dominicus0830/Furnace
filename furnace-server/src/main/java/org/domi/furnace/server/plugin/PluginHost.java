@@ -1,0 +1,243 @@
+// 플러그인이 보는 서버(Furnace 파사드) — 이벤트·명령·권한·플러그인 관리자·스케줄러를 한데 묶는다.
+package org.domi.furnace.server.plugin;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.domi.furnace.api.Furnace;
+import org.domi.furnace.api.command.CommandRegistry;
+import org.domi.furnace.api.command.CommandSender;
+import org.domi.furnace.api.event.EventBus;
+import org.domi.furnace.api.permission.PermissionManager;
+import org.domi.furnace.api.plugin.FurnacePlugin;
+import org.domi.furnace.api.plugin.PluginManager;
+import org.domi.furnace.api.sched.FurnaceScheduler;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.entity.Player;
+
+public final class PluginHost implements Furnace {
+
+    private final ServerCore core;
+    private final EventBusImpl events = new EventBusImpl();
+    private final PermissionManagerImpl permissions = new PermissionManagerImpl();
+    private final CommandRegistryImpl commands = new CommandRegistryImpl(this);
+    private final ConsoleSender console;
+    private final PluginManagerImpl plugins;
+    private final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
+
+    public PluginHost(ServerCore core, Path pluginsDir) {
+        this.core = core;
+        this.console = new ConsoleSender(core, permissions);
+        this.plugins = new PluginManagerImpl(this, pluginsDir);
+    }
+
+    public ServerCore core() { return core; }
+
+    public EventBusImpl eventsImpl() { return events; }
+
+    PermissionManagerImpl permissionsImpl() { return permissions; }
+
+    CommandRegistryImpl commandsImpl() { return commands; }
+
+    public PluginManagerImpl pluginsImpl() { return plugins; }
+
+    private final PluginGameEvents gameEvents = new PluginGameEvents(this);
+    private final java.util.concurrent.ConcurrentHashMap<String, WorldHandle> worldHandles = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 서버 게임 코드가 부르는 이벤트 입구. */
+    public GameEvents gameEvents() { return gameEvents; }
+
+    /** 그 차원의 월드 핸들(없는 차원이면 null). */
+    public WorldHandle worldHandle(String dimension) {
+        org.domi.furnace.server.world.World w = core.world(dimension);
+        if (w == null) return null;
+        return worldHandles.computeIfAbsent(dimension, k -> new WorldHandle(this, w));
+    }
+
+    @Override
+    public WorldHandle world(String dimension) { return worldHandle(dimension); }
+
+    @Override
+    public List<WorldHandle> worlds() {
+        List<WorldHandle> out = new ArrayList<>();
+        for (var w : core.worlds()) out.add(worldHandle(w.dimension()));
+        return out;
+    }
+
+    /** 서버 플레이어의 API 손잡이(처음 요청할 때 만든다). */
+    public PlayerHandle player(Player p) {
+        Object h = p.apiHandle();
+        if (h instanceof PlayerHandle ph) return ph;
+        synchronized (p) {
+            if (!(p.apiHandle() instanceof PlayerHandle)) p.apiHandle(new PlayerHandle(p, this));
+            return (PlayerHandle) p.apiHandle();
+        }
+    }
+
+    /** 명령 소스 → API 발신자. */
+    CommandSender sender(CommandSource src) {
+        return src.getPlayer() != null ? player(src.getPlayer()) : console;
+    }
+
+    /** API 발신자 → 명령 소스. */
+    CommandSource source(CommandSender sender) {
+        if (sender instanceof PlayerHandle ph) return CommandSource.player(core, ph.handle());
+        return CommandSource.console(core);
+    }
+
+    // ------------------------------------------------------------------ 플러그인 채널(minecraft:register)
+
+    /** 플러그인 → 그 플러그인이 받겠다고 등록한 채널. */
+    private final java.util.concurrent.ConcurrentHashMap<FurnacePlugin, java.util.Set<String>> channelOwners = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String checkChannel(String channel) {
+        org.domi.furnace.server.data.ResourceId id = org.domi.furnace.server.data.ResourceId.tryParse(channel);
+        if (id == null || !id.toString().equals(channel)) throw new IllegalArgumentException("잘못된 채널 이름: " + channel);
+        if (channel.equals(org.domi.furnace.server.net.PluginChannels.REGISTER) || channel.equals(org.domi.furnace.server.net.PluginChannels.UNREGISTER)
+                || channel.equals("minecraft:brand")) throw new IllegalArgumentException("예약된 채널: " + channel);
+        return channel;
+    }
+
+    @Override
+    public int viewDistance() { return core.viewDistance(); }
+
+    @Override
+    public void setViewDistance(int chunks) { core.setViewDistance(chunks); }
+
+    @Override
+    public int simulationDistance() { return core.simulationDistance(); }
+
+    @Override
+    public void setSimulationDistance(int chunks) { core.setSimulationDistance(chunks); }
+
+    @Override
+    public synchronized void registerPluginChannel(FurnacePlugin owner, String channel) {
+        java.util.Objects.requireNonNull(owner, "owner");
+        checkChannel(channel);
+        boolean fresh = !pluginChannels().contains(channel);
+        channelOwners.computeIfAbsent(owner, k -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(channel);
+        if (fresh) broadcastChannels(org.domi.furnace.server.net.PluginChannels.REGISTER, java.util.List.of(channel));
+    }
+
+    @Override
+    public synchronized void unregisterPluginChannel(FurnacePlugin owner, String channel) {
+        java.util.Set<String> mine = channelOwners.get(owner);
+        if (mine == null || !mine.remove(channel)) return;
+        if (mine.isEmpty()) channelOwners.remove(owner);
+        if (!pluginChannels().contains(channel)) broadcastChannels(org.domi.furnace.server.net.PluginChannels.UNREGISTER, java.util.List.of(channel));
+    }
+
+    @Override
+    public java.util.SortedSet<String> pluginChannels() {
+        java.util.TreeSet<String> all = new java.util.TreeSet<>();
+        for (java.util.Set<String> s : channelOwners.values()) all.addAll(s);
+        return java.util.Collections.unmodifiableSortedSet(all);
+    }
+
+    /** 플러그인이 꺼질 때 그 플러그인의 채널을 모두 내린다(다른 플러그인이 같은 채널을 쓰면 남는다). */
+    synchronized void removeChannels(FurnacePlugin plugin) {
+        java.util.Set<String> mine = channelOwners.remove(plugin);
+        if (mine == null) return;
+        java.util.Set<String> left = pluginChannels();
+        java.util.List<String> gone = new java.util.ArrayList<>();
+        for (String c : mine) if (!left.contains(c)) gone.add(c);
+        if (!gone.isEmpty()) broadcastChannels(org.domi.furnace.server.net.PluginChannels.UNREGISTER, gone);
+    }
+
+    /** 접속 직후 한 번: 서버가 받는 채널이 있으면 minecraft:register 로 알린다(없으면 보내지 않는다). */
+    public void sendRegisteredChannels(Player p) {
+        java.util.Set<String> all = pluginChannels();
+        if (all.isEmpty()) return;
+        p.send(new org.domi.furnace.server.net.protocol.play.CustomPayloadPacket(org.domi.furnace.server.net.PluginChannels.REGISTER,
+                org.domi.furnace.server.net.PluginChannels.encode(all), true));
+    }
+
+    private void broadcastChannels(String which, java.util.Collection<String> names) {
+        byte[] body = org.domi.furnace.server.net.PluginChannels.encode(names);
+        for (Player p : core.players()) p.send(new org.domi.furnace.server.net.protocol.play.CustomPayloadPacket(which, body, true));
+    }
+
+    /** 플러그인이 꺼질 때 그 플러그인이 남긴 권한 첨부를 모두 뗀다. */
+    void removeAttachments(FurnacePlugin plugin) {
+        console.perms().removeAttachments(plugin);
+        for (Player p : core.players()) if (p.apiHandle() instanceof PlayerHandle ph) ph.perms().removeAttachments(plugin);
+    }
+
+    // ------------------------------------------------------------------ Furnace
+
+    @Override
+    public String name() { return "Furnace"; }
+
+    @Override
+    public String version() {
+        String v = PluginHost.class.getPackage().getImplementationVersion();
+        return v != null ? v : "dev";
+    }
+
+    @Override
+    public String minecraftVersion() { return "1.21.1"; }
+
+    @Override
+    public Collection<PlayerHandle> onlinePlayers() {
+        List<PlayerHandle> out = new ArrayList<>();
+        for (Player p : core.players()) out.add(player(p));
+        return out;
+    }
+
+    @Override
+    public PlayerHandle player(UUID id) {
+        Player p = core.playerByUuid(id);
+        return p == null ? null : player(p);
+    }
+
+    @Override
+    public PlayerHandle player(String name) {
+        Player p = core.playerByName(name);
+        return p == null ? null : player(p);
+    }
+
+    @Override
+    public int maxPlayers() { return core.settings().get().maxPlayers; }
+
+    @Override
+    public Text motd() { return Text.text(core.settings().get().motd); }
+
+    @Override
+    public CommandSender console() { return console; }
+
+    @Override
+    public void broadcast(Text message) { core.broadcastSystemMessage(message, false); }
+
+    @Override
+    public boolean dispatchCommand(CommandSender sender, String commandLine) { return commands.dispatch(sender, commandLine); }
+
+    @Override
+    public FurnaceScheduler scheduler() { return core.scheduler(); }
+
+    @Override
+    public ExecutorService asyncExecutor() { return async; }
+
+    @Override
+    public EventBus events() { return events; }
+
+    @Override
+    public CommandRegistry commands() { return commands; }
+
+    @Override
+    public PermissionManager permissions() { return permissions; }
+
+    @Override
+    public PluginManager plugins() { return plugins; }
+
+    @Override
+    public void shutdown() { core.halt(); }
+
+    /** 서버 종료 마지막 — 비동기 실행기를 닫는다. */
+    public void close() { async.shutdown(); }
+}

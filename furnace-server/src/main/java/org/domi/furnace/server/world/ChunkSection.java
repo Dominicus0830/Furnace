@@ -4,6 +4,10 @@ package org.domi.furnace.server.world;
 public final class ChunkSection {
 
     public static final int AIR = 0;
+    /** 1.21.1 의 공기 상태(air·void_air·cave_air) — 바닐라 nonEmptyBlockCount 는 isAir 가 아닌 칸만 센다. */
+    private static final int VOID_AIR = 12958, CAVE_AIR = 12959;
+
+    public static boolean isAir(int stateId) { return stateId == AIR || stateId == VOID_AIR || stateId == CAVE_AIR; }
     private static final int DEFAULT_DIRECT_BITS = 15;
     private static final int DEFAULT_BIOME_DIRECT_BITS = 7;
 
@@ -11,6 +15,29 @@ public final class ChunkSection {
     private final PaletteStorage biomes;
     private short nonAirCount = 0;
     private int[] scratch;
+    /** 무작위 틱 받는 칸 수(바닐라 tickingBlockCount — 블록 또는 그 유체가 무작위 틱). -1 이면 다시 세야 한다. */
+    private int tickingCount = -1;
+
+    /** 상태별 무작위 틱 여부(블록 동작 쪽이 건다). 없으면 무작위 틱을 하지 않는다. */
+    private static volatile boolean[] randomTicking;
+
+    public static void randomTickingTable(boolean[] table) { randomTicking = table; }
+
+    /** LevelChunkSection.isRandomlyTicking: 무작위 틱 받는 칸이 하나라도 있는가. */
+    public boolean isRandomlyTicking() {
+        boolean[] t = randomTicking;
+        if (t == null) return false;
+        if (tickingCount < 0) {
+            int n = 0;
+            if (scratch != null) {
+                for (int v : scratch) if (t[v]) n++;
+            } else {
+                for (int i = 0; i < 4096; i++) if (t[blocks.get(i)]) n++;
+            }
+            tickingCount = n;
+        }
+        return tickingCount > 0;
+    }
 
     public ChunkSection() {
         this(DEFAULT_DIRECT_BITS, DEFAULT_BIOME_DIRECT_BITS);
@@ -30,7 +57,9 @@ public final class ChunkSection {
 
     /** 독립된 backing 저장소를 가진 깊은 복사본(pristine 청크 캐시용, ChunkPipeline 참조). */
     ChunkSection copy() {
-        return new ChunkSection(blocks.copy(), biomes.copy(), nonAirCount, scratch == null ? null : scratch.clone());
+        ChunkSection c = new ChunkSection(blocks.copy(), biomes.copy(), nonAirCount, scratch == null ? null : scratch.clone());
+        c.tickingCount = tickingCount;
+        return c;
     }
 
     private static int blockIndex(int x, int y, int z) {
@@ -44,8 +73,14 @@ public final class ChunkSection {
     public void setBlock(int x, int y, int z, int stateId) {
         int idx = blockIndex(x, y, z);
         int old = scratch != null ? scratch[idx] : blocks.get(idx);
-        if (old == AIR && stateId != AIR) nonAirCount++;
-        else if (old != AIR && stateId == AIR) nonAirCount--;
+        boolean wasAir = isAir(old), nowAir = isAir(stateId);
+        if (wasAir && !nowAir) nonAirCount++;
+        else if (!wasAir && nowAir) nonAirCount--;
+        if (tickingCount >= 0) {
+            boolean[] t = randomTicking;
+            if (t[old]) tickingCount--;
+            if (t[stateId]) tickingCount++;
+        }
         if (scratch != null) scratch[idx] = stateId;
         else blocks.set(idx, stateId);
     }
@@ -53,6 +88,16 @@ public final class ChunkSection {
     public int getBlock(int x, int y, int z) {
         int idx = blockIndex(x, y, z);
         return scratch != null ? scratch[idx] : blocks.get(idx);
+    }
+
+    /** 섹션 로컬 인덱스(y*256+z*16+x)의 블록. scratch 를 열지 않는다. */
+    int blockAt(int idx) {
+        return scratch != null ? scratch[idx] : blocks.get(idx);
+    }
+
+    /** 모든 칸이 한 값이면 그 값, 아니면(또는 scratch 가 열려 있으면) -1. */
+    int uniformBlock() {
+        return scratch != null ? -1 : blocks.singleValueOr(-1);
     }
 
     public void fillBiome(int biomeId) {
@@ -68,19 +113,34 @@ public final class ChunkSection {
     }
 
     public void replaceBlocks(int[] source, int sourceOffset) {
+        tickingCount = -1;
         if (scratch != null) {
             System.arraycopy(source, sourceOffset, scratch, 0, 4096);
         } else {
             blocks.load(source, sourceOffset);
         }
         int count = 0;
-        for (int i = 0; i < 4096; i++) if (source[sourceOffset + i] != AIR) count++;
+        for (int i = 0; i < 4096; i++) if (!isAir(source[sourceOffset + i])) count++;
         nonAirCount = (short) count;
+    }
+
+    /** replaceBlocks(펼친 배열) 과 같은 결과를 팔레트 값 + 칸별 인덱스에서. scratch 가 열려 있으면 펼쳐서 예전 경로. */
+    void replaceBlocksIndexed(int[] paletteVals, BitStorage indices) {
+        if (scratch != null) {
+            int[] flat = new int[4096];
+            for (int i = 0; i < 4096; i++) flat[i] = paletteVals[indices.get(i)];
+            replaceBlocks(flat, 0);
+            return;
+        }
+        tickingCount = -1;
+        nonAirCount = (short) blocks.loadIndexed(paletteVals, indices);
     }
 
     public void replaceBiomes(int[] source, int sourceOffset) {
         biomes.load(source, sourceOffset);
     }
+
+    public boolean hasOnlyAir() { return nonAirCount == 0; }
 
     public short nonAirCount() {
         return nonAirCount;
@@ -94,13 +154,25 @@ public final class ChunkSection {
         return biomes.unpack();
     }
 
+    /** 스냅샷용 블록 사본: 팔레트 원본 그대로(풀지 않음). scratch 가 열려 있으면 null — 그때는 {@link #blocks()} 를 쓴다. */
+    PaletteStorage blocksReadCopy() {
+        return scratch != null ? null : blocks.readCopy();
+    }
+
+    /** 스냅샷용 바이옴 사본(팔레트 원본 그대로). */
+    PaletteStorage biomesReadCopy() {
+        return biomes.readCopy();
+    }
+
     int[] openScratch() {
+        tickingCount = -1;   // 바깥에서 scratch 를 직접 고친다
         if (scratch == null) scratch = blocks.unpack();
         return scratch;
     }
 
     void compact() {
         if (scratch == null) return;
+        tickingCount = -1;
         blocks.load(scratch, 0);
         int count = 0;
         for (int value : scratch) if (value != AIR) count++;

@@ -1,6 +1,8 @@
 // 표층 규칙을 noise fill 이후 ChunkColumn에 적용하는 오케스트레이터
 package org.domi.furnace.server.world.gen.surface;
 
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -27,11 +29,11 @@ public final class SurfaceSystem {
     private final SurfaceRule rule;
     private final NoiseSettings settings;
     private final WorldgenData worldgenData;
-    private final XoroshiroRandomSource.XoroshiroPositionalRandomFactory randomFactory;
+    private final PositionalRandom randomFactory;
     private final Map<String, NormalNoise> noiseCache = new ConcurrentHashMap<>();
     // vertical_gradient용 positional factory 캐시 — fromHashOf는 매 호출 MD5 다이제스트를 수행하는
     // randomName만의 순수 함수라 캐시해도 RNG 스트림 불변 (M-opt P0, buildNoise의 noiseCache와 동일 패턴).
-    private final Map<String, XoroshiroRandomSource.XoroshiroPositionalRandomFactory> gradientFactoryCache = new ConcurrentHashMap<>();
+    private final Map<String, PositionalRandom> gradientFactoryCache = new ConcurrentHashMap<>();
     private final NormalNoise surfaceNoise;
     private final NormalNoise surfaceSecondaryNoise;
     private final int waterId;
@@ -61,7 +63,7 @@ public final class SurfaceSystem {
         this.worldgenData        = worldgenData;
         this.waterId             = waterId;
         this.defaultBlockId      = defaultBlockId;
-        this.randomFactory       = new XoroshiroRandomSource(seed).forkPositional();
+        this.randomFactory       = router.random();   // RandomState.random (legacy 차원은 LegacyPositionalRandom)
         this.surfaceNoise        = buildNoise("minecraft:surface");
         this.surfaceSecondaryNoise = buildNoise("minecraft:surface_secondary");
         this.registryBiomeNames  = registryBiomeNames;
@@ -78,10 +80,12 @@ public final class SurfaceSystem {
         this.clayBands = generateBands(randomFactory.fromHashOf("minecraft:clay_bands"), reg);
         this.packedIceId = reg.defaultStateId("minecraft:packed_ice");
         this.snowBlockId = reg.defaultStateId("minecraft:snow_block");
+        this.interpret = Boolean.getBoolean("furnace.surfaceInterp");
+        this.compiled = compile(rule);
     }
 
     /** SurfaceSystem.generateBands — 192칸 점토 밴드 테이블. RNG 호출 순서는 바닐라와 동일. */
-    private static int[] generateBands(XoroshiroRandomSource rnd, BlockRegistry reg) {
+    private static int[] generateBands(NoiseRandom rnd, BlockRegistry reg) {
         int white = reg.defaultStateId("minecraft:white_terracotta");
         int orange = reg.defaultStateId("minecraft:orange_terracotta");
         int terracotta = reg.defaultStateId("minecraft:terracotta");
@@ -109,7 +113,7 @@ public final class SurfaceSystem {
         return bands;
     }
 
-    private static void makeBands(XoroshiroRandomSource rnd, int[] bands, int minWidth, int state) {
+    private static void makeBands(NoiseRandom rnd, int[] bands, int minWidth, int state) {
         int n = 6 + rnd.nextInt(15 - 6 + 1);            // nextIntBetweenInclusive(6, 15)
         for (int i = 0; i < n; i++) {
             int width = minWidth + rnd.nextInt(3);
@@ -128,7 +132,7 @@ public final class SurfaceSystem {
                                        BlockRegistry reg, long seed,
                                        String[] registryBiomeNames,
                                        BiomeSampler biomeSampler, NoiseRouter router) {
-        var noiseSettingsJson = data.noiseSettings("minecraft:overworld");
+        var noiseSettingsJson = data.noiseSettings(settings.name());
         SurfaceRule rule = new SurfaceRuleParser(reg).parse(
             noiseSettingsJson.get("surface_rule").getAsJsonObject());
         int waterId       = reg.defaultStateId(settings.defaultFluid());
@@ -139,7 +143,7 @@ public final class SurfaceSystem {
 
     private NormalNoise buildNoise(String noiseId) {
         return noiseCache.computeIfAbsent(noiseId, id -> {
-            XoroshiroRandomSource rng = randomFactory.fromHashOf(id);
+            NoiseRandom rng = randomFactory.fromHashOf(id);
             var params = worldgenData.noiseParams(id);
             JsonObject p = params.getAsJsonObject();
             int firstOctave = p.get("firstOctave").getAsInt();
@@ -155,8 +159,8 @@ public final class SurfaceSystem {
         int minY     = settings.minY();
         int maxY     = minY + settings.height() - 1;
         int seaLevel = settings.seaLevel();
-        int[][] sectionBlocks = new int[ChunkColumn.SECTION_COUNT][];
-        for (int i = 0; i < ChunkColumn.SECTION_COUNT; i++) {
+        int[][] sectionBlocks = new int[col.sectionCount()][];
+        for (int i = 0; i < col.sectionCount(); i++) {
             sectionBlocks[i] = col.sectionBlocks(i);
         }
 
@@ -176,6 +180,10 @@ public final class SurfaceSystem {
         ctx.worldgenData  = worldgenData;
         ctx.surfaceYGrid  = surfaceYGrid;
         ctx.biomeCache = new HashMap<>();
+        ctx.chunkBiomeIds = biomeIds;
+        ctx.chunkQuartX0 = chunkX * 4;
+        ctx.chunkQuartZ0 = chunkZ * 4;
+        initCompiledCaches(ctx);
 
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
@@ -192,6 +200,7 @@ public final class SurfaceSystem {
 
                 ctx.blockX = worldX;
                 ctx.blockZ = worldZ;
+                ctx.column++;
                 ctx.stoneDepthAbove = 0;
                 // waterY: Y one above the topmost fluid block (vanilla waterHeight = i9+1).
                 // Integer.MIN_VALUE = no fluid found.
@@ -199,7 +208,7 @@ public final class SurfaceSystem {
 
                 // 바닐라: 컬럼 biome은 (x, heightmap+1, z)에서 조회. eroded_badlands는 규칙 적용 전에 기둥을 먼저 세운다.
                 int h = surfaceY + 1;
-                String columnBiome = biomeNameAt(worldX, h, worldZ, ctx.biomeCache);
+                String columnBiome = biomeNameAt(worldX, h, worldZ, ctx);
                 if (columnBiome.equals("minecraft:eroded_badlands")) {
                     erodedBadlandsExtension(sectionBlocks, columnIndex, worldX, worldZ, h, minY);
                     surfaceYGrid[columnIndex] = topNonAirY(sectionBlocks, columnIndex, minY, maxY);
@@ -207,8 +216,8 @@ public final class SurfaceSystem {
 
                 // stoneBottomY: cached bottom of current solid column for stoneDepthBelow.
                 int stoneBottomY = Integer.MAX_VALUE;
-                int sectionIndex = ChunkColumn.SECTION_COUNT - 1;
-                int localY = 15;
+                int sectionIndex = (maxY - col.minY()) >> 4;
+                int localY = (maxY - col.minY()) & 15;
                 int[] blocks = sectionBlocks[sectionIndex];
                 int blockIndex = localY * 256 + columnIndex;
 
@@ -255,9 +264,8 @@ public final class SurfaceSystem {
 
                         // only apply surface rule to the defaultBlock (stone)
                         if (block == defaultBlockId) {
-                            ctx.biomeName = null;
-                            Integer result = eval(rule, ctx);
-                            if (result != null) blocks[blockIndex] = result;
+                            int result = applyRule(ctx);
+                            if (result >= 0) blocks[blockIndex] = result;
                         }
                     }
 
@@ -283,8 +291,8 @@ public final class SurfaceSystem {
         }
     }
 
-    private String biomeNameAt(int x, int y, int z, Map<Long, Integer> cache) {
-        int biomeId = biomeAtBlock(x, y, z, cache);
+    private String biomeNameAt(int x, int y, int z, SurfaceContext ctx) {
+        int biomeId = biomeAtBlock(x, y, z, ctx);
         return (biomeId >= 0 && biomeId < registryBiomeNames.length) ? registryBiomeNames[biomeId] : "minecraft:plains";
     }
 
@@ -344,7 +352,7 @@ public final class SurfaceSystem {
             g = 0.0;
         }
         double top = e;
-        XoroshiroRandomSource r = randomFactory.at(x, 0, z);
+        NoiseRandom r = randomFactory.at(x, 0, z);
         int maxSnow = 2 + r.nextInt(4);
         int snowFloor = seaLevel + 18 + r.nextInt(10);
         int snowCount = 0;
@@ -416,9 +424,220 @@ public final class SurfaceSystem {
         ctx.stoneDepthAbove = 1;
         ctx.stoneDepthBelow = 1;
         ctx.waterY = hasFluid ? y + 1 : Integer.MIN_VALUE;
-        ctx.biomeName = null;
+        initCompiledCaches(ctx);
+        ctx.column = 1;
+        int r = applyRule(ctx);
+        return r >= 0 ? r : null;
+    }
 
-        return eval(rule, ctx);
+    /** 이 블록에 규칙을 적용한 결과 상태(없으면 -1). */
+    private int applyRule(SurfaceContext ctx) {
+        ctx.biomeName = null;
+        ctx.biomeIdValid = false;
+        if (interpret) {
+            Integer r = eval(rule, ctx);
+            return r != null ? r : -1;
+        }
+        return compiled.apply(ctx);
+    }
+
+    // ================================================================== 컴파일된 표면 규칙
+    //
+    // 규칙 트리(SurfaceRule 레코드)를 블록마다 해석하던 것을, 시작할 때 한 번 노드 객체로 바꿔 둔다(바닐라 SurfaceRules 의
+    // RuleSource → SurfaceRule 람다와 같은 생각). 결과는 해석기와 같다:
+    //  - (x, 0, z) 에서만 읽는 값(노이즈 임계값·보조 깊이 노이즈·점토 밴드 오프셋)은 기둥마다 한 번 구한다(바닐라 LazyXZCondition).
+    //  - 바이옴 조건은 바이옴 id 표로, 온도는 id 별로 미리 읽은 값으로 본다(이름 문자열·맵 조회 없음).
+    //  - y 기준점(above_bottom·below_top)과 vertical_gradient 의 난수 팩토리는 미리 풀어 둔다.
+    // 캐시는 노드가 아니라 SurfaceContext 에 둔다(여러 생성 스레드가 같은 컴파일 결과를 쓴다).
+    // -Dfurnace.surfaceInterp=true 면 예전 해석기를 쓴다(대조용).
+
+    private final boolean interpret;
+    private final CRule compiled;
+    private static final int SLOT_SECONDARY = 0, SLOT_BAND = 1;
+    private int xzSlots = 2;
+    private final Map<String, Integer> noiseSlots = new java.util.HashMap<>();
+
+    private void initCompiledCaches(SurfaceContext ctx) {
+        ctx.xzValue = new double[xzSlots];
+        ctx.xzColumn = new int[xzSlots];
+        java.util.Arrays.fill(ctx.xzColumn, Integer.MIN_VALUE);
+        ctx.column = 0;
+    }
+
+    private abstract static class CRule { abstract int apply(SurfaceContext c); }
+    private abstract static class CCond { abstract boolean test(SurfaceContext c); }
+
+    private int biomeIdOf(SurfaceContext c) {
+        if (!c.biomeIdValid) {
+            c.biomeId = biomeAtBlock(c.blockX, c.blockY, c.blockZ, c);
+            c.biomeIdValid = true;
+        }
+        return c.biomeId;
+    }
+
+    private double secondaryAt(SurfaceContext c) {
+        if (c.xzColumn[SLOT_SECONDARY] != c.column) {
+            c.xzValue[SLOT_SECONDARY] = surfaceSecondaryNoise.getValue(c.blockX, 0, c.blockZ);
+            c.xzColumn[SLOT_SECONDARY] = c.column;
+        }
+        return c.xzValue[SLOT_SECONDARY];
+    }
+
+    private int bandAt(SurfaceContext c) {
+        if (c.xzColumn[SLOT_BAND] != c.column) {
+            c.xzValue[SLOT_BAND] = (int) Math.round(clayBandsOffsetNoise.getValue(c.blockX, 0.0, c.blockZ) * 4.0);
+            c.xzColumn[SLOT_BAND] = c.column;
+        }
+        int offset = (int) c.xzValue[SLOT_BAND];
+        return clayBands[(c.blockY + offset + clayBands.length) % clayBands.length];
+    }
+
+    private CRule compile(SurfaceRule r) {
+        return switch (r) {
+            case SurfaceRule.Sequence seq -> {
+                CRule[] parts = seq.rules().stream().map(this::compile).toArray(CRule[]::new);
+                yield new CRule() {
+                    int apply(SurfaceContext c) {
+                        for (CRule p : parts) {
+                            int v = p.apply(c);
+                            if (v >= 0) return v;
+                        }
+                        return -1;
+                    }
+                };
+            }
+            case SurfaceRule.IfTrue it -> {
+                CCond cond = compile(it.condition());
+                CRule then = compile(it.then());
+                yield new CRule() {
+                    int apply(SurfaceContext c) { return cond.test(c) ? then.apply(c) : -1; }
+                };
+            }
+            case SurfaceRule.Block b -> {
+                int state = b.blockStateId();
+                yield new CRule() { int apply(SurfaceContext c) { return state; } };
+            }
+            case SurfaceRule.Bandlands __ -> new CRule() { int apply(SurfaceContext c) { return bandAt(c); } };
+        };
+    }
+
+    private int resolveConstY(SurfaceRule.YOffset offset) {
+        int minY = settings.minY(), maxY = minY + settings.height() - 1;
+        return switch (offset) {
+            case SurfaceRule.YOffset.Absolute a -> a.y();
+            case SurfaceRule.YOffset.AboveBottom ab -> minY + ab.offset();
+            case SurfaceRule.YOffset.BelowTop bt -> maxY - bt.offset();
+        };
+    }
+
+    private CCond compile(SurfaceRule.SurfaceCondition cond) {
+        return switch (cond) {
+            case SurfaceRule.SurfaceCondition.VerticalGradient vg -> {
+                int trueY = resolveConstY(vg.trueAtAndBelow()), falseY = resolveConstY(vg.falseAtAndAbove());
+                PositionalRandom factory = gradientFactoryCache.computeIfAbsent(vg.randomName(),
+                    name -> randomFactory.fromHashOf(name).forkPositional());
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        if (c.blockY <= trueY) return true;
+                        if (c.blockY >= falseY) return false;
+                        double gradient = (double) (c.blockY - trueY) / (double) (falseY - trueY);
+                        return (double) factory.at(c.blockX, c.blockY, c.blockZ).nextFloat() < (1.0 - gradient);
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.AbovePreliminarySurface __ -> new CCond() {
+                boolean test(SurfaceContext c) { return c.blockY >= c.preliminarySurfaceLevel; }
+            };
+            case SurfaceRule.SurfaceCondition.StoneDepth sd -> {
+                boolean floor = sd.surfaceType() == SurfaceRule.SurfaceType.FLOOR;
+                int range = sd.secondaryDepthRange(), offset = sd.offset();
+                boolean addSurface = sd.addSurfaceDepth();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        int depth = floor ? c.stoneDepthAbove : c.stoneDepthBelow;
+                        int secondary = range == 0 ? 0 : (int) map(secondaryAt(c), -1.0, 1.0, 0.0, range);
+                        int maxDepth = offset + 1 + secondary;
+                        if (addSurface) maxDepth += c.surfaceDepth;
+                        return depth <= maxDepth;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.BiomeIs bi -> {
+                boolean[] match = new boolean[registryBiomeNames.length];
+                for (int i = 0; i < match.length; i++) match[i] = bi.biomes().contains(registryBiomeNames[i]);
+                boolean fallback = bi.biomes().contains("minecraft:plains");
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        int id = biomeIdOf(c);
+                        return id >= 0 && id < match.length ? match[id] : fallback;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.YAbove ya -> {
+                int anchor = resolveConstY(ya.anchor());
+                int mult = ya.surfaceDepthMultiplier();
+                boolean addStone = ya.addStoneDepth();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        return c.blockY + (addStone ? c.stoneDepthAbove : 0) >= anchor + mult * c.surfaceDepth;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.Water w -> {
+                int offset = w.offset(), mult = w.surfaceDepthMultiplier();
+                boolean addStone = w.addStoneDepth();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        if (c.waterY == Integer.MIN_VALUE) return true;
+                        int add = addStone ? c.stoneDepthAbove : 0;
+                        return c.blockY + add >= c.waterY + offset + mult * c.surfaceDepth;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.NoiseThreshold nt -> {
+                NormalNoise noise = buildNoise(nt.noiseId());
+                int slot = noiseSlots.computeIfAbsent(nt.noiseId(), k -> xzSlots++);
+                double min = nt.minInclusive(), max = nt.maxExclusive();
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        if (c.xzColumn[slot] != c.column) {
+                            c.xzValue[slot] = noise.getValue(c.blockX, 0, c.blockZ);
+                            c.xzColumn[slot] = c.column;
+                        }
+                        double v = c.xzValue[slot];
+                        return v >= min && v <= max;
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.Temperature __ -> {
+                float[] temp = new float[registryBiomeNames.length];
+                boolean[] frozen = new boolean[registryBiomeNames.length];
+                for (int i = 0; i < temp.length; i++) {
+                    temp[i] = worldgenData.biomeTemperature(registryBiomeNames[i]);
+                    frozen[i] = worldgenData.biomeFrozenModifier(registryBiomeNames[i]);
+                }
+                float fbTemp = worldgenData.biomeTemperature("minecraft:plains");
+                boolean fbFrozen = worldgenData.biomeFrozenModifier("minecraft:plains");
+                yield new CCond() {
+                    boolean test(SurfaceContext c) {
+                        int id = biomeIdOf(c);
+                        boolean in = id >= 0 && id < temp.length;
+                        return BiomeClimate.coldEnoughToSnow(in ? temp[id] : fbTemp, in ? frozen[id] : fbFrozen,
+                            c.blockX, c.blockY, c.blockZ);
+                    }
+                };
+            }
+            case SurfaceRule.SurfaceCondition.Steep __ -> new CCond() {
+                boolean test(SurfaceContext c) { return evalSteep(c); }
+            };
+            case SurfaceRule.SurfaceCondition.Not n -> {
+                CCond inner = compile(n.inner());
+                yield new CCond() { boolean test(SurfaceContext c) { return !inner.test(c); } };
+            }
+            case SurfaceRule.SurfaceCondition.Hole __ -> new CCond() {
+                boolean test(SurfaceContext c) { return c.surfaceDepth <= 0; }
+            };
+        };
     }
 
     private Integer eval(SurfaceRule rule, SurfaceContext ctx) {
@@ -441,14 +660,24 @@ public final class SurfaceSystem {
 
     private String biomeName(SurfaceContext ctx) {
         if (ctx.biomeName != null) return ctx.biomeName;
-        int biomeId = biomeAtBlock(ctx.blockX, ctx.blockY, ctx.blockZ, ctx.biomeCache);
+        int biomeId = biomeAtBlock(ctx.blockX, ctx.blockY, ctx.blockZ, ctx);
         ctx.biomeName = (biomeId >= 0 && biomeId < registryBiomeNames.length)
             ? registryBiomeNames[biomeId] : "minecraft:plains";
         return ctx.biomeName;
     }
 
-    private int biomeAtBlock(int blockX, int blockY, int blockZ, Map<Long, Integer> cache) {
+    private int biomeAtBlock(int blockX, int blockY, int blockZ, SurfaceContext ctx) {
+        Map<Long, Integer> cache = ctx.biomeCache;
         QuartKey q = biomeManagerQuart(blockX, blockY, blockZ);
+        int[] chunkBiomes = ctx.chunkBiomeIds;
+        if (chunkBiomes != null) {
+            int rx = q.x() - ctx.chunkQuartX0;
+            int rz = q.z() - ctx.chunkQuartZ0;
+            int ry = q.y() - (settings.minY() >> 2);
+            if (rx >= 0 && rx < 4 && rz >= 0 && rz < 4 && ry >= 0 && ry < settings.height() >> 2) {
+                return chunkBiomes[(ry * 4 + rz) * 4 + rx];
+            }
+        }
         long key = packQuart(q.x(), q.y(), q.z());
         Integer cached = cache.get(key);
         if (cached != null) return cached;
@@ -458,9 +687,11 @@ public final class SurfaceSystem {
     }
 
     private static long packQuart(int x, int y, int z) {
-        return ((long)(x & 0x3FFFFFF) << 38)
+        long k = ((long)(x & 0x3FFFFFF) << 38)
             | ((long)(y & 0xFFF) << 26)
             | (long)(z & 0x3FFFFFF);
+        // 캐시 키 전용 — 홀수 곱(64비트 전단사)으로 비트를 섞는다. 그대로 쓰면 Long.hashCode 가 몰려 HashMap 버킷이 트리가 됐다.
+        return k * 0x9E3779B97F4A7C15L;
     }
 
     private QuartKey biomeManagerQuart(int blockX, int blockY, int blockZ) {
@@ -582,7 +813,7 @@ public final class SurfaceSystem {
         if (ctx.blockY <= trueY)  return true;
         if (ctx.blockY >= falseY) return false;
         double gradient = (double)(ctx.blockY - trueY) / (double)(falseY - trueY);
-        XoroshiroRandomSource rng = gradientFactoryCache
+        NoiseRandom rng = gradientFactoryCache
             .computeIfAbsent(vg.randomName(), name -> randomFactory.fromHashOf(name).forkPositional())
             .at(ctx.blockX, ctx.blockY, ctx.blockZ);
         // 바닐라: (double) nextFloat() < map(y, trueY, falseY, 1.0, 0.0)

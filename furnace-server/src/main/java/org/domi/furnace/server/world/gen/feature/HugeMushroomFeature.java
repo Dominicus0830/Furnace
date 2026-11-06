@@ -55,7 +55,7 @@ public final class HugeMushroomFeature implements ConfiguredFeature {
     }
 
     private boolean isValidPosition(FeatureWorldView view, int x, int y, int z, int height) {
-        if (y >= ChunkColumn.MIN_Y + 1 && y + height + 1 < ChunkColumn.MAX_Y + 1) {
+        if (y >= view.minY() + 1 && y + height + 1 < (view.maxY() + 1)) {
             int below = view.getBlock(x, y - 1, z);
             if (!dirt.contains(below) && !mushroomGrow.contains(below)) return false;
             for (int dy = 0; dy <= height; dy++) {

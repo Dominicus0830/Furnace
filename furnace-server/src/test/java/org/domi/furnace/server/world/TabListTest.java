@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -23,7 +24,7 @@ import org.junit.jupiter.api.Test;
 class TabListTest {
 
     private static final RegionPos A = new RegionPos(0, 0);
-    private static final RegionPos B = new RegionPos(1, 0);   // region-size 16청크 = 256블록 → x=300은 B
+    private static final RegionPos B = new RegionPos(18, 0);   // 청크 좌표 — x=300 은 청크 18
 
     private FurnaceSchedulerImpl sched;
     private World w;
@@ -36,9 +37,9 @@ class TabListTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(),
                 16, 20, 20, reg.directBits(), 7, Executors.newSingleThreadExecutor());
-        chObs = new EmbeddedChannel();
+        chObs = new ConcurrentEmbeddedChannel();
         obs = new Player(1, UUID.randomUUID(), "obs", chObs);
-        tgt = new Player(2, UUID.randomUUID(), "tgt", new EmbeddedChannel());
+        tgt = new Player(2, UUID.randomUUID(), "tgt", new ConcurrentEmbeddedChannel());
         obs.publishPosition(10, -60, 10, 0, 0, true);
         obs.drainPending();
         tgt.publishPosition(tgtX, -60, 10, 0, 0, true);
@@ -46,7 +47,7 @@ class TabListTest {
         w.playerOnline(obs);
         w.playerOnline(tgt);
         sched.region(A).execute(() -> w.regionAt(A).adopt(obs)).get();
-        RegionPos tr = RegionGrid.regionPos(tgtX, 10, 16);
+        RegionPos tr = new RegionPos(Math.floorDiv((int) Math.floor(tgtX), 16), 0);   // RegionPos = 청크 좌표
         sched.region(tr).execute(() -> w.regionAt(tr).adopt(tgt)).get();
     }
 
@@ -127,7 +128,7 @@ class TabListTest {
     @Test
     void farAwayOnlinePlayer_isListedAndKept_untilDisconnect() throws Exception {
         setup(50_000);
-        RegionPos far = RegionGrid.regionPos(50_000, 10, 16);
+        RegionPos far = new RegionPos(50_000 >> 4, 0);
         tick(far);
         List<Integer> all = new ArrayList<>();
         for (int t = 0; t < 8; t++) { tick(A); all.addAll(ids()); }
@@ -166,7 +167,7 @@ class TabListTest {
         setup(300);
         meet(B);
         tgt.publishPosition(50_000, -60, 10, 0, 0, true);   // 후보(이웃 region) 범위 밖
-        RegionPos far = RegionGrid.regionPos(50_000, 10, 16);
+        RegionPos far = new RegionPos(50_000 >> 4, 0);
         tick(B);                                             // B가 drain 후 대상을 handoff
         sched.region(far).execute(() -> w.regionAt(far).adopt(tgt)).get();
         tick(far);

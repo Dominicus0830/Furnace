@@ -16,8 +16,18 @@
 | 도구 | 입력 | 출력 |
 |---|---|---|
 | `extract_tags.py <generated> <registries/1.21.1.txt> <출력>` | 태그 JSON + registries.json | `registries/tags-1.21.1.txt` (Update Tags 패킷용, 숫자 id) |
+| `extract_builtin_registries.py <reports/registries.json> <출력>` | registries.json | `registries/builtin-1.21.1.txt` (태그 있는 내장 레지스트리의 protocol_id 순서 — 데이터 팩 태그를 숫자 id 로 바꿀 때) |
 | `extract_block_tags.py <generated> <출력>` | 블록 태그 JSON | `worldgen/1.21.1/block_tags.txt` (월드젠용, 블록 이름) |
+| `extract_item_components.py <reports/items.json> <출력>` | items.json | `items/components_1.21.1.json.gz` (아이템 이름 → 기본 컴포넌트 — 전리품의 컴포넌트 패치 비교·최대 스택·내구도) |
+| `ExportItemProps.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `items/properties_1.21.1.txt` (아이템별 최대 스택·최대 내구도·인챈트 수치 `Item.getEnchantmentValue`) |
+| `extract_block_definitions.py <reports/blocks.json> <출력>` | blocks.json | `blocks/definitions_1.21.1.txt` (블록별 정의 종류·상태 범위·기본 상태·속성 배치·매개변수 — 블록 동작 틀용) |
+| `ExportBlockShapes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/blockshapes_1.21.1.txt.gz` (상태별 outline·collision·support·occlusion·interaction 모양, 위치 어긋남 블록은 기준 모양) |
+| `ExportNoteInstruments.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/instruments_1.21.1.txt` (소리 블록 악기 — harp 가 아닌 블록을 악기별로) |
+| `ExportItemDefaultAttributes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `items/default_attributes_1.21.1.txt` (`Item.getDefaultAttributeModifiers` — 방어구·늑대 갑옷의 방어/강인함/밀려남 저항. 컴포넌트 attribute_modifiers 가 비면 이것을 쓴다) |
+| `ExportPathfindable.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/pathfindable_1.21.1.txt` (상태마다 한 글자: 비트 1 땅·2 물·4 공중 `BlockState.isPathfindable`) |
+| `ExportBlockLight.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/blocklight_1.21.1.txt` (3줄: 빛 차단 0~15 / 빛 가림에 모양 사용 / canOcclude — 상태마다 한 글자) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
+| `ExportMapColors.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 실행에 guava 필요) | `blocks/mapcolors_1.21.1.txt` (MapColor 번호 → RGB 62개. `stateflags` 의 상태별 mapColor 칸은 RGB 값이라 지도 알고리즘의 색 번호로 되돌릴 때 쓴다) |
 
 `ExportBlockAttrs`는 난독화된 클래스 이름(`akt`, `dfy`, `dtc`, `dcl` …)을 직접 참조한다. 다른 버전에는 그대로 쓸 수 없고, Vineflower로 디컴파일해 이름을 다시 찾아야 한다.
 실행: `ab.a(); akt.a();`(SharedConstants 버전 설정 + Bootstrap) 후 블록 레지스트리 `lt.e`를 순회한다.

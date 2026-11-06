@@ -1,0 +1,6 @@
+# 자동 생성(tools/vanilla-data/ExportCraftRemainders.java, 바닐라 1.21.1): 아이템 제작후남는아이템
+minecraft:water_bucket minecraft:bucket
+minecraft:lava_bucket minecraft:bucket
+minecraft:milk_bucket minecraft:bucket
+minecraft:dragon_breath minecraft:glass_bottle
+minecraft:honey_bottle minecraft:glass_bottle

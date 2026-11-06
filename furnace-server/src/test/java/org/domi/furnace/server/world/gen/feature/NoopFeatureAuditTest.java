@@ -27,23 +27,8 @@ class NoopFeatureAuditTest {
     private static final String DIR = "worldgen/1.21.1/worldgen/configured_feature";
 
     // survey(tasks/worldgen-gap-survey) 확인된 미구현 루트 타입. 이 목록 밖의 새 폴백은 fail.
-    private static final Set<String> KNOWN_UNIMPLEMENTED_TYPES = Set.of(
-        "minecraft:coral_tree", "minecraft:coral_claw", "minecraft:coral_mushroom",
-        "minecraft:sea_pickle", "minecraft:root_system",
-        "minecraft:chorus_plant",
-        "minecraft:nether_forest_vegetation", "minecraft:huge_fungus",
-        "minecraft:twisting_vines", "minecraft:weeping_vines", "minecraft:sculk_patch",
-        "minecraft:netherrack_replace_blobs", "minecraft:block_pile",
-        "minecraft:fossil",
-        "minecraft:basalt_columns", "minecraft:basalt_pillar", "minecraft:delta_feature",
-        "minecraft:glowstone_blob", "minecraft:dripstone_cluster", "minecraft:large_dripstone",
-        "minecraft:monster_room",
-        "minecraft:lake", "minecraft:desert_well", "minecraft:bonus_chest",
-        "minecraft:end_island", "minecraft:end_spike", "minecraft:end_platform", "minecraft:end_gateway",
-        // 이 audit(파일 스캔) 실행 중 신규 확인된 미구현 타입(survey 목록에 없었음) — void_start_platform.json
-        // (엔드 스폰 발판) 1개 파일뿐이라 영향 범위 작음.
-        "minecraft:void_start_platform"
-    );
+    // 2026-11-02: bonus_chest·void_start_platform 이식으로 루트 타입 미구현은 없다(빈 목록).
+    private static final Set<String> KNOWN_UNIMPLEMENTED_TYPES = Set.of();
 
     @Test
     void allConfiguredFeatureFiles_fallbackTypesAreAllowlisted() throws Exception {

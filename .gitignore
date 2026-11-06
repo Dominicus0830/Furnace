@@ -54,3 +54,24 @@ worldgen-oracle/logs/
 
 # 런타임 로그(서버/오라클)
 logs/
+
+### Claude 작업 트리 ###
+.claude/worktrees/
+
+### graphify ###
+graphify-out/*
+!graphify-out/graph.html
+!graphify-out/GRAPH_REPORT.md
+
+### Mojang 산출물(EULA: 커밋 금지, 로컬 사본만 사용) ###
+tools/vanilla-data/*.jar
+tools/vanilla-data/libraries/
+tools/vanilla-data/versions/
+tools/vanilla-data/server-1.21.1/**/*.class
+
+### 서버 실행 산출물 ###
+/debug/
+/*/debug/
+
+# 로컬 JVM 옵션
+jvm.args

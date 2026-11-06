@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -30,17 +31,17 @@ class ChunkEvictionTest {
         var io = Executors.newFixedThreadPool(2);
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         w.configurePersistence(1_000_000, 3);   // 자동 저장은 끄고(퇴출 경로만 본다) 퇴출 유예 3틱
-        Player p = new Player(1, UUID.randomUUID(), "P", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "P", new ConcurrentEmbeddedChannel());
         ChunkPos clean = new ChunkPos(0, 0), edited = new ChunkPos(1, 0), watched = new ChunkPos(2, 0);
         w.subscribeChunk(watched, p);           // 계속 구독
 
         boolean[] has = new boolean[3];
         sched.region(R00).execute(() -> {
             Region r = w.regionAt(R00);
-            r.chunkAt(clean);
-            r.chunkAt(edited);
+            r.chunkAtBlocking(clean);
+            r.chunkAtBlocking(edited);
             r.breakBlock(16, -61, 0);            // edited 청크의 (0,-61,0) — 슈퍼플랫 풀 블록을 공기로
-            r.chunkAt(watched);
+            r.chunkAtBlocking(watched);
             for (int i = 0; i < 10; i++) r.tick();   // 퇴출 유예(3틱) 경과
             has[0] = r.chunkLoaded(clean);
             has[1] = r.chunkLoaded(edited);
@@ -50,12 +51,12 @@ class ChunkEvictionTest {
         io.shutdown();
         assertTrue(io.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS), "IO 풀 미종료");
 
-        assertFalse(has[0], "구독 없고 미편집 → 퇴출");
+        assertFalse(has[0], "구독 없는 생성 청크 → 저장 후 퇴출");
         assertFalse(has[1], "구독 없는 편집 청크도 저장 후 퇴출");
         assertTrue(has[2], "구독 중인 청크는 보관");
 
         RegionFileStore check = new RegionFileStore(dir);
-        assertNull(check.readChunk(0, 0), "미편집 청크는 디스크에 저장되지 않는다(재접속 시 재생성)");
+        assertNotNull(check.readChunk(0, 0), "새로 생성된 청크도 바닐라처럼 퇴출 전에 저장된다");
         assertNotNull(check.readChunk(1, 0), "편집된 청크는 퇴출 전에 저장된다");
         AnvilWorldSource reloaded = new AnvilWorldSource(dir, check, new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));
         assertEquals(ChunkSection.AIR, reloaded.generate(1, 0).getBlock(0, -61, 0), "저장된 편집이 재로딩에서 보존돼야 한다");

@@ -25,8 +25,31 @@ public final class BiomeSampler {
     private final long[] groupDepthMax;   // [g]
     private final int[][] groupEntryIdx;  // [g][k] → entries index
 
+    private final ClimateRTree rtree;
+    /** 바이옴을 채울 섹션 수(오버월드 24, 네더 16). */
+    private final int sectionCount;
+    /** TheEndBiomeSource 모드: [the_end, end_highlands, end_midlands, small_end_islands, end_barrens] 레지스트리 id (null 이면 multi-noise). */
+    private int[] endBiomes;
+    private DensityFunction endErosion;
+
     private BiomeSampler(List<BiomeEntry> entries) {
+        this(entries, 24);
+    }
+
+    private BiomeSampler(List<BiomeEntry> entries, int sectionCount) {
+        this.sectionCount = sectionCount;
         this.entries = entries;
+        List<ClimateRTree.Leaf> leaves = new ArrayList<>(entries.size());
+        for (BiomeEntry e : entries) {
+            long[] mn = new long[7];
+            long[] mx = new long[7];
+            System.arraycopy(e.paramsMin(), 0, mn, 0, 6);
+            System.arraycopy(e.paramsMax(), 0, mx, 0, 6);
+            mn[6] = e.offset();
+            mx[6] = e.offset();
+            leaves.add(new ClimateRTree.Leaf(mn, mx, e.registryId()));
+        }
+        this.rtree = entries.isEmpty() ? null : new ClimateRTree(leaves);
 
         Map<Long, List<Integer>> byDepth = new HashMap<>();
         List<Long> keyOrder = new ArrayList<>();
@@ -92,11 +115,23 @@ public final class BiomeSampler {
 
     public List<BiomeEntry> entries() { return entries; }
 
+    /** BiomeSource.possibleBiomes: 파라미터 목록의 바이옴(끝은 5종) 레지스트리 id. */
+    public java.util.Set<Integer> possibleBiomeIds() {
+        java.util.Set<Integer> out = new java.util.LinkedHashSet<>();
+        if (endBiomes != null) for (int id : endBiomes) out.add(id);
+        for (BiomeEntry e : entries) out.add(e.registryId());
+        return out;
+    }
+
     // -- 로드 & 샘플링 --
 
     /** biome_parameters.json 에서 BiomeSampler 를 빌드한다. 레지스트리에 없는 바이옴(예: pale_garden)은 건너뛴다. */
     public static BiomeSampler load(WorldgenData data, RegistrySet registries) {
-        JsonArray arr = data.biomeParameters();
+        return load(data.biomeParameters(), registries, 24);
+    }
+
+    /** 파라미터 목록(biome_parameters*.json 형식)과 섹션 수로 빌드 — 네더 프리셋 등. */
+    public static BiomeSampler load(JsonArray arr, RegistrySet registries, int sectionCount) {
         List<BiomeEntry> entries = new ArrayList<>(arr.size());
         for (JsonElement el : arr) {
             JsonObject obj = el.getAsJsonObject();
@@ -114,7 +149,26 @@ public final class BiomeSampler {
             long offset = obj.get("offset").getAsLong();
             entries.add(new BiomeEntry(min, max, offset, id));
         }
-        return new BiomeSampler(entries);
+        return new BiomeSampler(entries, sectionCount);
+    }
+
+    /** 바닐라 TheEndBiomeSource — 중앙 섬(청크 거리² ≤ 4096) 은 the_end, 그 밖은 섹션 중심 erosion(end_islands) 값으로 4종. */
+    public static BiomeSampler theEnd(RegistrySet registries, NoiseRouter router, int sectionCount) {
+        BiomeSampler b = new BiomeSampler(new ArrayList<>(), sectionCount);
+        String[] names = {"minecraft:the_end", "minecraft:end_highlands", "minecraft:end_midlands", "minecraft:small_end_islands", "minecraft:end_barrens"};
+        b.endBiomes = new int[5];
+        for (int i = 0; i < 5; i++) b.endBiomes[i] = registries.indexOf("minecraft:worldgen/biome", names[i]);
+        b.endErosion = router.erosion();
+        return b;
+    }
+
+    private int endBiome(int blockX, int blockY, int blockZ) {
+        int sx = blockX >> 4, sz = blockZ >> 4;
+        if ((long) sx * sx + (long) sz * sz <= 4096L) return endBiomes[0];
+        double e = endErosion.compute(new DensityFunction.SinglePointContext((sx * 2 + 1) * 8, blockY, (sz * 2 + 1) * 8));
+        if (e > 0.25) return endBiomes[1];
+        if (e >= -0.0625) return endBiomes[2];
+        return e < -0.21875 ? endBiomes[3] : endBiomes[4];
     }
 
     /** quarter-block 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
@@ -124,6 +178,7 @@ public final class BiomeSampler {
 
     /** Vanilla noise-biome quart 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
     public int sampleQuart(int worldQuartX, int worldQuartY, int worldQuartZ, NoiseRouter router) {
+        if (endBiomes != null) return endBiome(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
         int bx = worldQuartX * 4;
         int by = worldQuartY * 4;
         int bz = worldQuartZ * 4;
@@ -150,66 +205,28 @@ public final class BiomeSampler {
      * 타이브레이크(min fitness → min entry index)도 그룹 내/간 min-idx 추적으로 보존.
      */
     public int[] sampleChunk(int cx, int cz, NoiseChunk noiseChunk) {
-        int[] result = new int[1536];
-        int n = entries.size();
-        if (n == 0) return result;
+        int[] result = new int[sectionCount * 64];
+        if (endBiomes != null) {
+            // 청크 안 모든 쿼트가 같은 섹션 xz 라 한 번만 계산(erosion 은 y 불변).
+            java.util.Arrays.fill(result, endBiome(cx * 16, 0, cz * 16));
+            return result;
+        }
+        if (rtree == null) return result;
 
+        // 바닐라 ChunkAccess.fillBiomesFromNoise 순서: 섹션을 아래에서 위로, 섹션 안에서 x 바깥 · y 가운데 · z 안쪽.
+        // R-tree는 직전 결과 leaf를 탐색 출발점으로 쓰므로(거리 동률 시 직전 leaf 우선) 이 순서를 지켜야 동률이 같아진다.
+        // 청크 첫 쿼리의 직전 leaf는 바닐라에선 스레드 이력이라 알 수 없어 null로 시작한다.
         long[] target = new long[6];
-        int g = groupDepthMin.length;
-        long[] gMinConst = new long[g];
-        int[]  gMinIdx   = new int[g];
-
-        for (int qz = 0; qz < 4; qz++) {
+        ClimateRTree.Leaf last = null;
+        for (int section = 0; section < sectionCount; section++) {
             for (int qx = 0; qx < 4; qx++) {
-                if (!noiseChunk.isClimateColumnYInvariant(qx, qz)) {
-                    // 폴백: 5차원이 Y-가변이면 quart 별 전체 linear (정확성 유지)
-                    for (int qy = 0; qy < 96; qy++) {
+                for (int dy = 0; dy < 4; dy++) {
+                    int qy = section * 4 + dy;
+                    for (int qz = 0; qz < 4; qz++) {
                         noiseChunk.fillTarget(qx, qy, qz, target);
-                        result[qy * 16 + qz * 4 + qx] = findBestEntry(target);
+                        last = rtree.search(target, last);
+                        result[qy * 16 + qz * 4 + qx] = last.value;
                     }
-                    continue;
-                }
-
-                // 컬럼당 1 pass: 그룹별 (min constPart, min entry idx)
-                noiseChunk.fillTarget(qx, 0, qz, target);
-                for (int gi = 0; gi < g; gi++) {
-                    long minConst = Long.MAX_VALUE;
-                    int minIdx = Integer.MAX_VALUE;
-                    for (int i : groupEntryIdx[gi]) {
-                        BiomeEntry e = entries.get(i);
-                        long[] mn = e.paramsMin();
-                        long[] mx = e.paramsMax();
-                        long c = e.offset() * e.offset();
-                        for (int d = 0; d < 6; d++) {
-                            if (d == 4) continue;
-                            long dd = paramDistance(mn[d], mx[d], target[d]);
-                            c += dd * dd;
-                        }
-                        if (c < minConst || (c == minConst && i < minIdx)) {
-                            minConst = c;
-                            minIdx = i;
-                        }
-                    }
-                    gMinConst[gi] = minConst;
-                    gMinIdx[gi]   = minIdx;
-                }
-
-                for (int qy = 0; qy < 96; qy++) {
-                    noiseChunk.fillTarget(qx, qy, qz, target);
-                    long dt = target[4];
-
-                    long bestFit = Long.MAX_VALUE;
-                    int bestIdx = Integer.MAX_VALUE;
-                    for (int gi = 0; gi < g; gi++) {
-                        long dd = paramDistance(groupDepthMin[gi], groupDepthMax[gi], dt);
-                        long f = gMinConst[gi] + dd * dd;
-                        int idx = gMinIdx[gi];
-                        if (f < bestFit || (f == bestFit && idx < bestIdx)) {
-                            bestFit = f;
-                            bestIdx = idx;
-                        }
-                    }
-                    result[qy * 16 + qz * 4 + qx] = entries.get(bestIdx).registryId();
                 }
             }
         }
@@ -217,16 +234,7 @@ public final class BiomeSampler {
     }
 
     private int findBestEntry(long[] target) {
-        if (entries.isEmpty()) return 0;
-        int bestId = entries.get(0).registryId();
-        long bestFitness = Long.MAX_VALUE;
-        for (BiomeEntry entry : entries) {
-            long f = fitnessWithCutoff(entry.paramsMin(), entry.paramsMax(), entry.offset(), target, bestFitness);
-            if (f < bestFitness) {
-                bestFitness = f;
-                bestId = entry.registryId();
-            }
-        }
-        return bestId;
+        if (rtree == null) return 0;
+        return rtree.search(target, null).value;
     }
 }

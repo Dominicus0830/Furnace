@@ -13,19 +13,15 @@ class ContainerPacketsTest {
     @Test
     void openScreen_id_and_wireLayout() {
         assertEquals(0x33, OpenScreen.ID);
-        OpenScreen p = new OpenScreen(3, 2, "Chest");
+        org.domi.furnace.api.text.Text title = org.domi.furnace.api.text.Text.translatable("container.chest");
+        OpenScreen p = new OpenScreen(3, 2, title);
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
         assertEquals(3, Types.readVarInt(buf));   // containerId
         assertEquals(2, Types.readVarInt(buf));   // menuTypeId(GENERIC_9x3)
-        assertEquals(0x0a, buf.readByte());       // title NBT: 루트 compound
-        assertEquals(0x08, buf.readByte());       // "text": TAG_STRING
-        assertEquals(4, buf.readUnsignedShort());
-        assertEquals("text", readAscii(buf, 4));
-        assertEquals(5, buf.readUnsignedShort());
-        assertEquals("Chest", readAscii(buf, 5));
-        assertEquals(0x00, buf.readByte());       // 루트 종료
-        assertFalse(buf.isReadable());
+        byte[] rest = new byte[buf.readableBytes()];
+        buf.readBytes(rest);
+        assertArrayEquals(title.networkNbt(), rest, "제목은 번역 키 컴포넌트의 네트워크 NBT");
         buf.release();
     }
 
@@ -64,9 +60,9 @@ class ContainerPacketsTest {
     }
 
     @Test
-    void containerSetContent_componentsBlob_reusedVerbatim() {
-        byte[] blob = new byte[]{0x00, 0x00}; // numAdd=0,numRemove=0 opaque(0x32 원본과 동형)
-        ItemStack stack = new ItemStack(7, 1, blob);
+    void containerSetContent_componentPatch_writtenLikeVanilla() {
+        // custom_model_data(종류 id 13) = 7 하나를 더한 패치
+        ItemStack stack = new ItemStack(7, 1, org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 7)));
         ContainerSetContent p = new ContainerSetContent(1, 0, new ItemStack[]{stack}, ItemStack.EMPTY);
         ByteBuf buf = Unpooled.buffer();
         p.write(buf);
@@ -75,8 +71,10 @@ class ContainerPacketsTest {
         Types.readVarInt(buf); // items.length
         assertEquals(1, Types.readVarInt(buf));   // count
         assertEquals(7, Types.readVarInt(buf));   // itemId
-        assertEquals(0x00, buf.readByte());       // blob byte 0
-        assertEquals(0x00, buf.readByte());       // blob byte 1
+        assertEquals(1, Types.readVarInt(buf));   // 더한 수
+        assertEquals(0, Types.readVarInt(buf));   // 지운 수
+        assertEquals(13, Types.readVarInt(buf));  // custom_model_data
+        assertEquals(7, Types.readVarInt(buf));   // 값
         buf.release();
     }
 

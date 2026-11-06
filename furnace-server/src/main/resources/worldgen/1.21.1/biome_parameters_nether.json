@@ -1,0 +1,7 @@
+[
+  {"biome":"minecraft:nether_wastes","temperature":[0,0],"humidity":[0,0],"continentalness":[0,0],"erosion":[0,0],"depth":[0,0],"weirdness":[0,0],"offset":0},
+  {"biome":"minecraft:soul_sand_valley","temperature":[0,0],"humidity":[-5000,-5000],"continentalness":[0,0],"erosion":[0,0],"depth":[0,0],"weirdness":[0,0],"offset":0},
+  {"biome":"minecraft:crimson_forest","temperature":[4000,4000],"humidity":[0,0],"continentalness":[0,0],"erosion":[0,0],"depth":[0,0],"weirdness":[0,0],"offset":0},
+  {"biome":"minecraft:warped_forest","temperature":[0,0],"humidity":[5000,5000],"continentalness":[0,0],"erosion":[0,0],"depth":[0,0],"weirdness":[0,0],"offset":3750},
+  {"biome":"minecraft:basalt_deltas","temperature":[-5000,-5000],"humidity":[0,0],"continentalness":[0,0],"erosion":[0,0],"depth":[0,0],"weirdness":[0,0],"offset":1750}
+]

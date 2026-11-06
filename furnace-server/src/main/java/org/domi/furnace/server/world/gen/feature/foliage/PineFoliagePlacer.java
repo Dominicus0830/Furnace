@@ -39,4 +39,10 @@ public final class PineFoliagePlacer extends FoliagePlacer {
             }
         }
     }
+
+    // vanilla PineFoliagePlacer.shouldSkipLocation — 기본(블롭) 규칙과 달리 RNG를 소비하지 않는다.
+    @Override
+    protected boolean shouldSkipLocation(WorldgenRandom random, int absX, int y, int absZ, int radius, boolean giantTrunk) {
+        return absX == radius && absZ == radius && radius > 0;
+    }
 }

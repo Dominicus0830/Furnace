@@ -1,0 +1,216 @@
+// 말 탑승: 빈손으로 올라타기, 길들이기(RunAroundLikeCrazyGoal 템퍼 판정의 난수 순서), 안장 얹기와 조종, 탄 동안 서버 이동(회전만·속도 0),
+// 내릴 자리(DismountHelper), 점프 명령.
+package org.domi.furnace.server.entity;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import java.util.UUID;
+import org.domi.furnace.server.block.BlockPlacementTest;
+import org.domi.furnace.server.block.LegacyRandomSource;
+import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.attribute.Attribute;
+import org.domi.furnace.server.entity.ai.goal.RunAroundLikeCrazyGoal;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class HorseRidingTest {
+
+    @BeforeAll
+    static void install() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    private static Horse horse(BlockPlacementTest.TestLevel level) {
+        Horse h = new Horse(level, level.nextEntityId());
+        h.moveTo(0.5, -60, 0.5, 0, 0);
+        h.setOnGround(true);
+        return h;
+    }
+
+    private static Player player() {
+        Player p = new Player(950, UUID.randomUUID(), "rider", new ConcurrentEmbeddedChannel());
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.teleporter(t -> {});
+        p.applyMove(2.5, -60, 0.5, 30.0F, 20.0F, true);
+        return p;
+    }
+
+    /** 엔티티 난수를 씨앗 있는 것으로 바꾼다(시험에서 바닐라 순서를 그대로 따라 보기 위해). */
+    private static void seed(Entity e, long seed) throws Exception {
+        var f = Entity.class.getDeclaredField("random");
+        f.setAccessible(true);
+        f.set(e, new LegacyRandomSource(seed));
+    }
+
+    private static ItemStack item(String name, int count) {
+        return new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", name), count);
+    }
+
+    @Test
+    void emptyHandMountsUntamedHorseWithoutControl() {
+        var level = new BlockPlacementTest.TestLevel();
+        Horse h = horse(level);
+        Player p = player();
+        assertTrue(h.interact(p, 0, ItemStack.EMPTY, null));
+        assertSame(h, p.vehicle());
+        assertTrue(h.hasPlayerPassenger());
+        assertEquals(h.yRot(), p.yaw(), "타면서 말 방향을 본다");
+        assertNull(h.getControllingPassenger(), "안장이 없으면 조종하지 못한다");
+        assertFalse(h.isImmobile());
+    }
+
+    @Test
+    void tamingRollsFollowVanillaOrder() throws Exception {
+        for (int temper : new int[] {0, 100}) {
+            var level = new BlockPlacementTest.TestLevel();
+            Horse h = horse(level);
+            seed(h, 1234L);
+            Player p = player();
+            h.setTemper(temper);
+            p.startRiding(h, true);
+            var goal = new RunAroundLikeCrazyGoal(h, 1.2);
+            RandomSource mirror = new LegacyRandomSource(1234L);
+            int expectTick = -1;
+            for (int t = 0; t < 1000 && expectTick < 0; t++) if (mirror.nextInt(25) == 0) expectTick = t;
+            int tick = -1;
+            for (int t = 0; t < 1000; t++) {
+                goal.tick();
+                if (h.isTamed() || !h.isVehicle()) {
+                    tick = t;
+                    break;
+                }
+            }
+            assertEquals(expectTick, tick, "nextInt(reducedTickDelay(50)) == 0 인 틱");
+            boolean tamed = mirror.nextInt(100) < temper;
+            assertEquals(tamed, h.isTamed());
+            if (tamed) {
+                assertSame(h, p.vehicle(), "길들여지면 그대로 탄다");
+                assertEquals(p.uuid(), h.getOwnerUUID());
+            } else {
+                assertEquals(5, h.getTemper(), "실패하면 템퍼 +5");
+                assertNull(p.vehicle(), "떨어뜨린다");
+                assertTrue(h.isStanding(), "화나서 선다");
+                mirror.nextFloat();   // makeMad 소리의 getVoicePitch
+                mirror.nextFloat();
+            }
+            assertEquals(mirror.nextInt(), h.random().nextInt(), "그 뒤 난수 위치가 같다");
+        }
+    }
+
+    @Test
+    void saddleThenRiderControlsAndServerOnlyRotates() {
+        var level = new BlockPlacementTest.TestLevel();
+        Horse h = horse(level);
+        h.setTamed(true);
+        Player p = player();
+        int slot = p.inventory().heldWindowSlot();
+        p.inventory().set(slot, item("saddle", 2));
+        assertTrue(h.interact(p, 0, p.inventory().get(slot), null));
+        assertTrue(h.isSaddled());
+        assertEquals(1, p.inventory().get(slot).count(), "안장 하나를 쓴다");
+        assertNull(p.vehicle(), "안장을 얹을 때는 타지 않는다");
+        p.inventory().set(slot, ItemStack.EMPTY);
+        assertTrue(h.interact(p, 0, ItemStack.EMPTY, null));
+        assertSame(p, h.getControllingPassenger());
+        assertTrue(h.canJump());
+        p.applyRotation(90.0F, 40.0F, true);
+        h.setDeltaMovement(0.3, 0.0, 0.3);
+        double x = h.x();
+        h.setOldPosAndRot();
+        h.tickCount++;
+        h.tick();
+        assertEquals(90.0F, h.yRot(), "몸 방향 = 플레이어 시선");
+        assertEquals(20.0F, h.xRot(), "세로는 절반");
+        assertEquals(90.0F, h.yHeadRot());
+        assertEquals(x, h.x(), 1e-9, "서버는 스스로 움직이지 않는다(move_vehicle 이 정한다)");
+        h.handleStartJump(50);
+        assertTrue(h.isStanding(), "점프 시작에 뒷발로 선다");
+    }
+
+    @Test
+    void dismountGoesToSideOfHorse() {
+        var level = new BlockPlacementTest.TestLevel();
+        Horse h = horse(level);
+        Player p = player();
+        p.startRiding(h, true);
+        Vec3 at = h.getDismountLocationForPassenger(p);
+        // 오른손잡이: yRot + 90 쪽 — 방향 (-sin, cos)(90°) = (-1, 0), 거리 (말 폭 + 0.6 + 1e-5)/2
+        double d = (h.bbWidth() + 0.6F + 1.0E-5F) / 2.0;
+        assertEquals(0.5 - d, at.x(), 1e-5);
+        assertEquals(-60.0, at.y(), 1e-9, "바닥 위");
+        assertEquals(0.5, at.z(), 1e-5);
+    }
+
+    /** 사용자 버그 C1: 최대 체력은 15 + nextInt(8) + nextInt(9) 이고, 첫 틱에 체력(기본 53)이 그 값으로 깎인다(refreshDirtyAttributes). */
+    @Test
+    void spawnedHorseHealthClampedToRandomizedMax() {
+        for (long seed = 1; seed <= 20; seed++) {
+            BlockPlacementTest.TestLevel level = new BlockPlacementTest.TestLevel();
+            ((LegacyRandomSource) level.random()).setSeed(seed);
+            RandomSource ref = RandomSource.create(seed);
+            ref.nextInt(7);   // Horse.finalizeSpawn: 색
+            ref.nextInt(5);   // 무늬
+            float max = 15.0F + ref.nextInt(8) + ref.nextInt(9);
+            Horse h = horse(level);
+            h.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(h.blockPosition()), null);
+            assertEquals(max, h.maxHealth(), "시드 " + seed);
+            assertTrue(level.addFreshEntity(h));
+            h.tick();
+            assertEquals(max, h.health(), "첫 틱 뒤 체력 = 최대 체력");
+            assertTrue(h.health() >= 15.0F && h.health() <= 30.0F);
+        }
+    }
+
+    /** T5(a): /summon·알은 무리 데이터 경로(finalizeSpawnGroup)로 Horse.finalizeSpawn 을 불러 능력치를 굴린다. 예전엔 Mob 2인자 경로라 기본값(체력 53)이 남았다. */
+    @Test
+    void summonAndEggPathRandomizeAttributesInVanillaOrder() {
+        for (long seed = 1; seed <= 10; seed++) {
+            var level = new BlockPlacementTest.TestLevel();
+            ((LegacyRandomSource) level.random()).setSeed(seed);
+            RandomSource ref = RandomSource.create(seed);
+            ref.nextInt(7);   // 색
+            ref.nextInt(5);   // 무늬
+            float hp = 15.0F + ref.nextInt(8) + ref.nextInt(9);
+            double speed = (0.45F + ref.nextDouble() * 0.3 + ref.nextDouble() * 0.3 + ref.nextDouble() * 0.3) * 0.25;
+            double jump = 0.4F + ref.nextDouble() * 0.2 + ref.nextDouble() * 0.2 + ref.nextDouble() * 0.2;
+            Horse h = horse(level);
+            // SummonCommand.summonAt 과 같은 호출
+            h.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(h.blockPosition()), null);
+            assertEquals(hp, h.maxHealth(), "시드 " + seed);
+            assertEquals(speed, h.attributes().get(Attribute.MOVEMENT_SPEED).baseValue(), 1e-12);
+            assertEquals(jump, h.attributes().get(Attribute.JUMP_STRENGTH).baseValue(), 1e-12);
+            assertTrue(hp >= 15 && hp <= 30);
+            assertTrue(speed >= 0.1125 && speed <= 0.3375);
+            assertTrue(jump >= 0.4 && jump <= 1.0);
+            assertTrue(level.addFreshEntity(h));
+            h.tick();
+            assertEquals(hp, h.health(), "첫 틱 뒤 체력 = 최대 체력");
+        }
+        // 알 경로(EntityType.spawn): 체력이 기본 53 이 아니라 범위 안
+        var level = new BlockPlacementTest.TestLevel();
+        for (int i = 0; i < 8; i++) assertTrue(level.spawnMobFromEgg("minecraft:horse", new org.domi.furnace.server.block.Pos(i, -60, 0), true, false));
+        var hs = level.getEntitiesOfClass(Horse.class, new AABB(-50, -80, -50, 50, 80, 50), e -> true);
+        assertEquals(8, hs.size());
+        for (Horse h : hs) assertTrue(h.maxHealth() >= 15 && h.maxHealth() <= 30, "알 말 체력 " + h.maxHealth());
+    }
+
+    /** T5(b): 내리면 승객 boardingCooldown = 60(Entity.removePassenger). 그동안 canRide 가 거짓이라 우클릭해도 못 탄다(바닐라도 3초). */
+    @Test
+    void remountBlockedForSixtyTicksAfterDismount() {
+        var level = new BlockPlacementTest.TestLevel();
+        Horse h = horse(level);
+        Player p = player();
+        assertTrue(h.interact(p, 0, ItemStack.EMPTY, null));
+        p.stopRiding();
+        assertNull(p.vehicle());
+        for (int t = 0; t < 59; t++) p.tickRiding();
+        h.interact(p, 0, ItemStack.EMPTY, null);
+        assertNull(p.vehicle(), "59틱째는 아직 못 탄다");
+        p.tickRiding();
+        assertTrue(h.interact(p, 0, ItemStack.EMPTY, null));
+        assertSame(h, p.vehicle(), "60틱 뒤 다시 탄다");
+    }
+}

@@ -1,0 +1,10 @@
+name: Probe
+version: 1.0.0
+main: probe.ProbePlugin
+commands:
+  probe:
+    description: probe
+  vd:
+    description: vd
+  sd:
+    description: sd

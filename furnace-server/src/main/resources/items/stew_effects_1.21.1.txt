@@ -1,0 +1,15 @@
+# 자동 생성(tools/vanilla-data/ExportStewEffects.java, 바닐라 1.21.1): 아이템 효과:지속틱 …
+minecraft:dandelion minecraft:saturation:7
+minecraft:poppy minecraft:night_vision:100
+minecraft:blue_orchid minecraft:saturation:7
+minecraft:allium minecraft:fire_resistance:80
+minecraft:azure_bluet minecraft:blindness:160
+minecraft:red_tulip minecraft:weakness:180
+minecraft:orange_tulip minecraft:weakness:180
+minecraft:white_tulip minecraft:weakness:180
+minecraft:pink_tulip minecraft:weakness:180
+minecraft:oxeye_daisy minecraft:regeneration:160
+minecraft:cornflower minecraft:jump_boost:120
+minecraft:lily_of_the_valley minecraft:poison:240
+minecraft:wither_rose minecraft:wither:160
+minecraft:torchflower minecraft:night_vision:100

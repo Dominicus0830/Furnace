@@ -42,6 +42,13 @@ public final class BoundingBox {
         minZ += dz; maxZ += dz;
     }
 
+    /** 바닐라 BoundingBox.encapsulate(BoundingBox) — 이 박스를 직접 확장한다. */
+    public BoundingBox encapsulate(int x0, int y0, int z0, int x1, int y1, int z1) {
+        minX = Math.min(minX, x0); minY = Math.min(minY, y0); minZ = Math.min(minZ, z0);
+        maxX = Math.max(maxX, x1); maxY = Math.max(maxY, y1); maxZ = Math.max(maxZ, z1);
+        return this;
+    }
+
     /** 이 박스와 다른 박스를 모두 포함하는 최소 박스. */
     public static BoundingBox encapsulate(BoundingBox a, BoundingBox b) {
         return new BoundingBox(

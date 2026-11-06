@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import org.domi.furnace.api.sched.RegionPos;
@@ -21,12 +22,12 @@ class StaleChunkTrimTest {
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 20, 20,
                 reg.directBits(), 7, io);
-        Player p = new Player(1, UUID.randomUUID(), "p", new EmbeddedChannel());
+        Player p = new Player(1, UUID.randomUUID(), "p", new ConcurrentEmbeddedChannel());
         p.viewDistance(20);
         p.publishPosition(8, -60, 8, 0, 0, true);
         p.drainPending();
         RegionPos rp = new RegionPos(0, 0);
-        RegionPos far = RegionGrid.regionPos(16 * 400 + 8, 8, 16);
+        RegionPos far = new RegionPos(400, 0);   // 청크 좌표
         try {
             sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
             sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();   // 41x41=1681청크 큐잉(>512)
