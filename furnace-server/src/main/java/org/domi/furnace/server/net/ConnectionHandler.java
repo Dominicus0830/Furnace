@@ -177,10 +177,58 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case STATUS -> handleStatus(ctx, packetId, frame);
             case LOGIN -> handleLogin(ctx, packetId, frame);
             case CONFIGURATION -> handleConfiguration(ctx, packetId, frame);
-            case PLAY -> handlePlay(ctx, packetId, frame);
+            case PLAY -> dispatchPlay(ctx, packetId, frame, false);
             default -> log.debug("미처리 패킷: state={}, id=0x{}", state, Integer.toHexString(packetId));
         }
         if (state != frameLimitState) applyFrameLimit(ctx);
+    }
+
+    /** play 패킷: 플러그인 패킷 리스너(붙어 있으면)를 거친 뒤 처리한다 — 취소면 버리고, 바뀌었으면 바뀐 프레임을 처리한다. */
+    private void dispatchPlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame, boolean fromPlugin) {
+        PacketTap tap = ctx.channel().attr(PacketTap.KEY).get();
+        if (tap == null) {
+            handlePlay(ctx, packetId, frame);
+            return;
+        }
+        ByteBuf r = tap.inbound(packetId, frame, fromPlugin);
+        if (r == null) return;
+        if (r == frame) {
+            handlePlay(ctx, packetId, frame);
+            return;
+        }
+        try {
+            handlePlay(ctx, Types.readVarInt(r), r);
+        } finally {
+            r.release();
+        }
+    }
+
+    /**
+     * 플러그인이 넣은 클라이언트→서버 패킷(PacketService.receive). 이벤트 루프에서 진짜 패킷과 똑같이 처리한다(검사 포함).
+     * frame 은 [VarInt id][본문]이고 이 메서드가 release 한다. play 단계가 아니면 버린다. 처리 중 예외는 연결을 끊지 않고 기록만 한다.
+     */
+    public void injectPlay(ByteBuf frame, boolean silent) {
+        ChannelHandlerContext c = this.ctx;
+        if (c == null) {
+            frame.release();
+            return;
+        }
+        try {
+            c.executor().execute(() -> {
+                try {
+                    if (state != ConnectionState.PLAY || player == null || pendingPlayFrames != null || !c.channel().isActive()) return;
+                    int id = Types.readVarInt(frame);
+                    if (silent) handlePlay(c, id, frame);
+                    else dispatchPlay(c, id, frame, true);
+                } catch (RuntimeException e) {
+                    log.warn("플러그인이 넣은 패킷 처리 실패: {}", e.toString());
+                } finally {
+                    frame.release();
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closed) {
+            frame.release();
+        }
     }
 
     // 단계별 프레임 상한(1.21.1 기준). 핸드셰이크: id(1) + 프로토콜 VarInt(5) + 주소 문자열(255자 → 최대 765B + 길이 3)
@@ -950,6 +998,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         dimIndex = Math.max(0, REGISTRIES.indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        if (login.core != null) login.core.plugins().packetsImpl().attach(p);   // 플러그인 패킷 리스너 — 첫 play 패킷(login)부터
         p.clientBrand(clientBrand);   // 바닐라 클라이언트는 brand 를 구성 단계에서 보낸다 — Player 가 생기기 전이라 여기서 넘긴다
         p.pluginChannels(pluginChannels);
         p.dimension(world.dimension());
@@ -3633,7 +3682,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
     void send(ChannelHandlerContext ctx, Packet packet) {
-        ctx.write(org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet));
+        Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet);
+        if (msg == null) return;   // 플러그인 패킷 리스너가 취소
+        ctx.write(msg);
         scheduleFlush(ctx);
     }
 
