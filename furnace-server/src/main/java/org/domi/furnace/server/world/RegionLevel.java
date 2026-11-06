@@ -50,6 +50,9 @@ public final class RegionLevel extends ChunkLevel {
         return c;
     }
 
+    /** Region 이 쓰는 같은 조회(캐시 경유) — 이 region 소유 로드 청크, 아니면 null. */
+    ChunkColumn chunkCached(int chunkX, int chunkZ) { return chunk(chunkX, chunkZ); }
+
     /** 청크가 내려가거나 주인이 바뀌면 조회 캐시를 비운다. */
     void chunkUnloaded() { clearChunkCache(); }
 

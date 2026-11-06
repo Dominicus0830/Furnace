@@ -12,6 +12,8 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 
 public final class AttributeMap {
     private final Map<Attribute, AttributeInstance> instances = new LinkedHashMap<>();
+    /** 같은 인스턴스를 속성 번호로(틱마다 많이 부르는 value/get 을 해시 없이). 인스턴스는 빼지 않는다. */
+    private AttributeInstance[] byId = new AttributeInstance[0];
     private final Set<AttributeInstance> dirty = new LinkedHashSet<>();
     // 바닐라 attributesToUpdate: 동기화와 별개로 LivingEntity.refreshDirtyAttributes 가 비운다(최대 체력 클램프 등)
     private final Set<AttributeInstance> toUpdate = new LinkedHashSet<>();
@@ -22,6 +24,8 @@ public final class AttributeMap {
         return instances.computeIfAbsent(a, k -> {
             AttributeInstance[] self = new AttributeInstance[1];
             self[0] = new AttributeInstance(k, () -> { dirty.add(self[0]); toUpdate.add(self[0]); version++; });
+            if (k.id() >= byId.length) byId = java.util.Arrays.copyOf(byId, Math.max(k.id() + 1, byId.length * 2));
+            byId[k.id()] = self[0];
             return self[0];
         });
     }
@@ -35,17 +39,20 @@ public final class AttributeMap {
 
     public int version() { return version; }
 
-    public boolean has(Attribute a) { return instances.containsKey(a); }
+    public boolean has(Attribute a) { return get(a) != null; }
 
-    public AttributeInstance get(Attribute a) { return instances.get(a); }
+    public AttributeInstance get(Attribute a) {
+        int id = a.id();
+        return id < byId.length ? byId[id] : null;
+    }
 
     public double value(Attribute a) {
-        AttributeInstance i = instances.get(a);
+        AttributeInstance i = get(a);
         return i == null ? a.defaultValue() : i.value();
     }
 
     public double baseValue(Attribute a) {
-        AttributeInstance i = instances.get(a);
+        AttributeInstance i = get(a);
         return i == null ? a.defaultValue() : i.baseValue();
     }
 

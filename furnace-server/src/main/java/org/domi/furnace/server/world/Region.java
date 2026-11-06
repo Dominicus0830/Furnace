@@ -492,10 +492,16 @@ public final class Region {
     }
 
     /** 바이옴 quart 의 레지스트리 id(청크가 없거나 이 region 것이 아니면 -1). 이 region 스레드에서만. */
+    /** ownedChunk 와 같은 답을 레벨의 조회 캐시로(레벨이 아직 없으면 바로 찾는다). */
+    private ChunkColumn cachedChunk(int cx, int cz) {
+        RegionLevel l = level;
+        return l != null ? l.chunkCached(cx, cz) : ownedChunk(cx, cz);
+    }
+
     /** ChunkAccess.getNoiseBiome(블록 좌표 >> 2): quart y 를 [최저, 최고] 로 잘라 그 청크의 바이옴 id(청크가 없으면 -1). */
     public int noiseBiomeIdAtBlock(int x, int y, int z) {
         world.assertOwns(this);
-        ChunkColumn col = ownedChunk(x >> 4, z >> 4);
+        ChunkColumn col = cachedChunk(x >> 4, z >> 4);
         if (col == null) return -1;
         int minQ = col.minY() >> 2, maxQ = minQ + col.sections().length * 4 - 1;
         int qy = Math.max(minQ, Math.min(maxQ, y >> 2));
@@ -504,7 +510,7 @@ public final class Region {
 
     public int biomeIdAtQuart(int qx, int qy, int qz) {
         world.assertOwns(this);
-        ChunkColumn col = ownedChunk(qx >> 2, qz >> 2);
+        ChunkColumn col = cachedChunk(qx >> 2, qz >> 2);   // 스폰 시도마다 불린다 — 해시 맵 두 번 대신 레벨 조회 캐시
         if (col == null) return -1;
         int sec = ((qy << 2) - col.minY()) >> 4;
         if (sec < 0 || sec >= col.sections().length) return -1;
