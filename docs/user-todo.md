@@ -23,6 +23,7 @@
 | F 키 손 바꾸기 | 두 손이 바뀌고 다른 사람에게도 보이는지, 먹는 중에 바꾸면 멈추는지 | 바닐라와 같음 (2026-11-04 새로 구현) |
 | 주민 문 (U3) | 문 앞 주민이 다시 안 열리는 상황을 보시면 가까운 주민에게 `/data get entity @e[type=villager,limit=1,sort=nearest] Brain.memories` 결과를 알려 주세요 | 코드는 바닐라와 줄 단위로 같음. 재현될 때만 필요 |
 | 외부 프로그램 | 바닐라 1.21.1 `region-file-compression=lz4` 월드 ↔ Furnace, 실제 Paper/Spigot 월드 폴더로 첫 기동, 실제 BungeeCord(`ip_forward: true`) 뒤 접속, Fabric 클라이언트 접속 | 이 환경은 Mojang·papermc·md-5 호스트가 막혀 못 돌림. lz4 형식은 바닐라 바이트코드와 대조해 같음 |
+| PROXY 프로토콜 (N2) | `furnace.properties` 에 `proxy-protocol=true` (+ `proxy-protocol.trusted=<HAProxy 주소>`) 를 두고 실제 HAProxy(`send-proxy-v2`)나 nginx stream(`proxy_protocol on`) 뒤로 접속 | 접속은 되고 서버 로그·`/ban-ip`·플러그인이 프록시가 아니라 실제 클라이언트 IP 로 봄. 헤더 없는 직접 접속은 거부됨. 이 환경에는 앞단 프로그램이 없어 EmbeddedChannel·소켓 시험까지만 함 (`docs/feature-parity/connection-defenses-2026-11-06.md`) |
 
 ---
 

@@ -907,6 +907,25 @@ class ConnectionInputTest {
         assertTrue(ch.isActive(), "컴포넌트 아이템 하나로 접속이 끊겼다");
     }
 
+    /** limits.item.display-name: 켜면 상한을 넘는 이름의 아이템은 디코드 실패처럼 연결을 끊고, 기본(꺼짐)에서는 그대로 받는다. */
+    @Test
+    void itemValidation_longCustomName_kicksOnlyWhenEnabled() throws Exception {
+        join(new SpawnPoint(0, -60, 0, 0f));
+        var named = new ItemStack(1, 1, org.domi.furnace.server.item.ComponentPatch.of(
+                java.util.Map.of("minecraft:custom_name", "\"" + "x".repeat(40) + "\"")));
+        Consumer<ByteBuf> body = b -> { b.writeShort(36); org.domi.furnace.server.item.ItemStackCodecs.writeStack(b, named); };
+        ch.writeInbound(frame(0x32, body));
+        assertTrue(ch.isActive(), "기본은 바닐라와 같아 긴 이름도 받는다");
+        assertEquals(1, slotsOf()[36].count());
+
+        var login = (ServerLoginContext) field("login");
+        java.util.Properties props = new java.util.Properties();
+        props.setProperty("limits.item.display-name", "20");
+        login.limits(ConnectionLimits.fromProperties(props, m -> {}));
+        ch.writeInbound(frame(0x32, body));
+        assertFalse(ch.isActive(), "상한(20)을 넘는 이름은 연결을 끊는다");
+    }
+
     /** 클릭 변경 슬롯 개수에 상한(바닐라 128)이 있어야 한다. */
     @Test
     void containerClick_hugeChangedCount_isRejected() throws Exception {

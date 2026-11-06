@@ -95,8 +95,8 @@
 | 우선 | 항목 | Furnace 현황(근거) | 겹침 |
 |---|---|---|---|
 | 상 | **BungeeCord(레거시) IP 포워딩** | 없음. Velocity 모던 포워딩만(`SRV/net/auth/VelocityForwarding.java`). BungeeCord·Waterfall 뒤에 두면 모든 플레이어가 프록시 IP·오프라인 UUID 가 된다. 이전 문서는 "하(Velocity 만)"로 제안했으나 사용자 결정 기록은 없음 | — |
-| 중 | PROXY 프로토콜(HAProxy, `proxies.proxy-protocol`) | 없음 | — |
-| 중 | 아이템·패킷 크기 검증(Paper `item-validation`, 책 페이지 한도 등) | 없음. 패킷 속도 제한만(`SRV/net/ConnectionHandler.java:93`) | — |
+| 중 | PROXY 프로토콜(HAProxy, `proxies.proxy-protocol`) | **구현됨, 기본 꺼짐** (`proxy-protocol`, `connection-defenses-2026-11-06.md`) | — |
+| 중 | 아이템·패킷 크기 검증(Paper `item-validation`, 책 페이지 한도 등) | **구현됨, 기본 꺼짐(바닐라 한도)**. 단계별 속도·프레임·시간 제한 포함 (`connection-defenses-2026-11-06.md`) | — |
 | 하 | 옛 클라이언트(1.6 이하) 서버 목록 핑(0xFE) | 없음 | — |
 | 완료 | 온라인 인증·암호화·압축·epoll·transfer·쿠키·리소스팩·서버 링크 | `SRV/net/auth/*`, `SRV/net/NetworkServer.java:67` | PR#4 패킷 4종 |
 
