@@ -23,8 +23,6 @@ import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 
 public final class World {
 
@@ -337,10 +335,7 @@ public final class World {
         ioLane(cx, cz).execute(() -> {
             boolean ok;
             try {
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                NbtCompound nbt = anvil.codec().toNbt(snap);
-                NbtIo.write(new DataOutputStream(bos), nbt, "");
-                byte[] bytes = bos.toByteArray();
+                byte[] bytes = NbtIo.toBytes(anvil.codec().toNbt(snap), "");
                 ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), "청크 " + cx + "," + cz + " 저장");
             } catch (Exception e) {
                 org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {},{} 직렬화 실패", cx, cz, e);
@@ -1246,6 +1241,19 @@ public final class World {
     }
 
     public ExecutorService ioPool() { return ioPool; }
+
+    /** 디스크 청크 압축 풀기·디코드(레인 밖, 순서 없음). IO 풀이 없거나 닫혔으면 부른 스레드에서. */
+    public java.util.concurrent.Executor ioDecodeExecutor() {
+        ExecutorService p = ioPool;
+        if (p == null) return Runnable::run;
+        return r -> {
+            try {
+                p.execute(r);
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                r.run();   // 종료 중 — 레인과 같이 그 자리에서
+            }
+        };
+    }
 
     private volatile java.util.concurrent.Executor playerIo;
 
