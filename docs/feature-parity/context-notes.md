@@ -873,6 +873,15 @@
 - **봇 시험 함정**: mineflayer `putTargetItem`/`rename`/`enchant` 는 이 서버에서 timeout 이 나므로(서버는 정상) `clickWindow`·원시 패킷(`name_item {name}`, `enchant_item`)으로 보낸다. 취소 모드는 블록을 놓기 *전에* 켜야 하고(무작위 틱이 빠르면 놓는 도중 이벤트가 난다), `mark()` 는 명령 앞에 둔다. 슬라임은 peaceful 에서 사라지니 분열 시험만 easy.
 
 
+## 2026-11-06 피해 계산 단계 API (`EntityDamageCalculateEvent`)
+- 위시리스트의 `EntityDamageCalculateEvent`/`DamageModifierEvent` 를 하나로 냈다. 방어력→저항→보호 인챈트→엔티티 고유(마녀)→흡수 체력 단계별로 읽고 바꾼다(`docs/api/entity-world-design.md` 4.1). 기본 결과는 바닐라와 비트 단위로 같다.
+- 서버 쪽: `LivingEntity.actuallyHurt`·`PlayerVitals.actuallyHurt` 가 `GameEvents.wantsDamageCalc()` 가 참일 때만 `StageRules`(그 엔티티의 현재 속성·효과·장비로 바닐라 식을 계산)를 만들어 이벤트를 부르고, 구독자가 없으면 예전 경로 그대로. 흡수 체력 소비는 `input(ABSORPTION) - output(ABSORPTION)` 으로 같은 식.
+- 마녀의 `getDamageAfterMagicAbsorb` 오버라이드는 `LivingEntity.entityStageApplies/entityStage` 훅으로 바꿨다(결과 같음: 보호 인챈트 뒤, bypasses_effects 여도 적용).
+- 방어구 내구도(`Player.hurtArmor`)는 이벤트 전에 닳는다 — 바닐라가 내구도를 먼저 깎고 방어력을 읽는 순서를 지키려는 것. 그래서 `base` 를 바꿔도 내구도 소모는 안 바뀐다.
+- 알아 둘 것: bypass 태그 피해(예: `generic`)는 방어력 단계가 `applies=false` 다. 봇 시험에서 `generic` 으로 방어력 시험을 하다 헷갈렸다 — 방어력 시험은 `cactus`·`mob_attack` 으로.
+- 봇 함정: 피해 직후 체력을 읽을 때 `naturalRegeneration` 을 꺼야 한다(체력 비교가 틀어진다).
+- 시험: api 8 + server `DamageStagesTest` 8 + `EntityWorldApiTest` 1, 봇 `tools/bot-test/round9/damage.js` 8항목 전부 통과.
+
 ## 2026-11-06 전달체(conduit) 블록 엔티티
 - 그동안 `ConduitBlock` 은 물 잠김만 있고 블록 엔티티가 없어 전달체를 지어도 아무 일도 없었다. `ConduitBlockEntity` 를 바닐라 1.21.1 `dqt.b(serverTick)` 바이트코드와 대조해 넣었다.
 - 40틱마다: 둘레 3×3×3 이 모두 물인지 → 5×5×5 세 축 평면 바깥 고리(42칸)의 프리즈머린·벽돌·어두운 프리즈머린·바다 랜턴 수. 16 이상이면 활성(바뀌면 activate/deactivate 소리), 42 면 사냥.
@@ -882,14 +891,13 @@
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
 
-## 2026-11-06 피해 계산 단계 API (`EntityDamageCalculateEvent`)
-- 위시리스트의 `EntityDamageCalculateEvent`/`DamageModifierEvent` 를 하나로 냈다. 방어력→저항→보호 인챈트→엔티티 고유(마녀)→흡수 체력 단계별로 읽고 바꾼다(`docs/api/entity-world-design.md` 4.1). 기본 결과는 바닐라와 비트 단위로 같다.
-- 서버 쪽: `LivingEntity.actuallyHurt`·`PlayerVitals.actuallyHurt` 가 `GameEvents.wantsDamageCalc()` 가 참일 때만 `StageRules`(그 엔티티의 현재 속성·효과·장비로 바닐라 식을 계산)를 만들어 이벤트를 부르고, 구독자가 없으면 예전 경로 그대로. 흡수 체력 소비는 `input(ABSORPTION) - output(ABSORPTION)` 으로 같은 식.
-- 마녀의 `getDamageAfterMagicAbsorb` 오버라이드는 `LivingEntity.entityStageApplies/entityStage` 훅으로 바꿨다(결과 같음: 보호 인챈트 뒤, bypasses_effects 여도 적용).
-- 방어구 내구도(`Player.hurtArmor`)는 이벤트 전에 닳는다 — 바닐라가 내구도를 먼저 깎고 방어력을 읽는 순서를 지키려는 것. 그래서 `base` 를 바꿔도 내구도 소모는 안 바뀐다.
-- 알아 둘 것: bypass 태그 피해(예: `generic`)는 방어력 단계가 `applies=false` 다. 봇 시험에서 `generic` 으로 방어력 시험을 하다 헷갈렸다 — 방어력 시험은 `cactus`·`mob_attack` 으로.
-- 봇 함정: 피해 직후 체력을 읽을 때 `naturalRegeneration` 을 꺼야 한다(체력 비교가 틀어진다).
-- 시험: api 8 + server `DamageStagesTest` 8 + `EntityWorldApiTest` 1, 봇 `tools/bot-test/round9/damage.js` 8항목 전부 통과.
+## 2026-11-06 접속 단계 이벤트·종료 순서 계약 (불만 표 4·8번)
+- 계약 문서: `docs/api/lifecycle.md`. 새 API: `api.net.PlayerConnection`(연결 하나에 하나, `id()` 로 단계 사이를 잇는다)·`ConnectionPhase`, 이벤트 `PlayerHandshakeEvent`(취소 가능)·`AsyncPlayerConfigureEvent`(가상 스레드, 블로킹 허용, 구성 끝 직전)·`PlayerCreateEvent`(플레이 패킷 전)·`PlayerSpawnLocationEvent`(LoginPlay 전, 차원도 바꿈)·`ServerShutdownEvent`, `Furnace.isStopping()`, `Player.connection()`. 기존 `AsyncPlayerPreLoginEvent`·`PlayerLoginEvent` 에 `connection()`(옛 생성자 유지).
+- 바닐라 흐름 변화: 첫 명령 트리를 `CommandSource.forProfile`(플레이어 없음 → 플러그인 명령 권한을 콘솔로 판정하던 구멍) 대신 바닐라 `sendCommands` 처럼 `CommandSource.player(core, p)` 로 거른다. 바닐라 명령은 권한 레벨만 보므로 트리는 같다. 첫 위치 계산(sx..spitch)을 LoginPlay 앞으로 옮겼다(값·패킷 순서는 같다).
+- 구성 대기 중 keep-alive: `scheduleConfigKeepAlive` 조건을 `awaitingPack || awaitingConfigure` 로. 플러그인이 `PlayerConnection.disconnect` 로 끊었으면(`kickReason`) 구성 끝을 보내지 않는다.
+- 종료: `FurnaceMain` 의 종료 훅을 `ShutdownSequence`(단계 enum 순서 = 계약, 단계별 예외 격리, 한 번만)로 바꿨다. 순서는 이전과 같다(이벤트 단계만 추가). region 정지는 모든 onDisable 뒤라 Folia #353 같은 문제는 없다 — 시험 `ShutdownSequenceTest.pluginsDisableWhileRegionsStillRun`.
+- 시험: `LoginPhaseEventsTest`(실제 소켓 7개: 순서·같은 연결·스레드, 핸드셰이크 취소, 구성 블로킹 후 거부, 첫 명령 트리 권한, 첫 위치 바꾸기·없는 차원 무시, 구성 중 disconnect), `ShutdownSequenceTest`(3개). 봇 probe(`tools/bot-test/round4/probe/EventProbe`)에 접속 단계 describe 추가(연결 번호 `#n`).
+- 남은 것(불만 표): 7번 종료 이유(`PlayerQuitEvent` 이유 enum, P2), 102번 구성 단계 패킷 제한, 구성 단계 플러그인 메시지 보내기·받기(`PlayerConnection.sendPluginMessage`), 상태 조회 연결의 `ServerListPingEvent.connection()`.
 
 ## 2026-11-06 region 경계 차이 1: 마을 포위·방랑 상인 대상·앵무새 어깨
 - **마을 포위·방랑 상인을 차원에 하나로**(`world/DimensionSpawners`): 그동안 region 마다 `VillageSiege` 가 따로 있어 자정 굴림이 region 수만큼 일어났고(두 region 이면 포위 확률 약 19%), 포위 대상도 그 region 플레이어 중 첫 사람이었다. 상인은 타이머를 이긴 region 의 플레이어 중에서 골랐고, 플레이어가 없는 동안 타이머가 멈췄다. 이제 오버월드 `World` 에 스포너 하나씩을 두고 **전역 틱**(`ServerCore.tick`, 시간이 한 틱 간 뒤 — 바닐라 `ServerLevel.tick` 의 tickTime → 청크 틱 순서)이 게임 틱마다 한 번 돌린다. 조건은 바닐라 `ServerChunkCache.tickChunks`(aqs `t()` 바이트코드: `runsNormally` && `doMobSpawning` 일 때 `tickCustomSpawners(spawnEnemies, spawnFriendlies)`, 플레이어 수 조건 없음)와 같다. 낮 판정은 `BlockLevel.skyDarken(비, 천둥, timeOfDay) < 4`.
@@ -927,6 +935,15 @@
 - **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
 - 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
 
+
+## 2026-11-06 접속 상태 머신 N1 — 구성 단계 주고받기·끊긴 이유 (불만 표 5·6·7번)
+- 5(연결 ID)는 접속 단계 이벤트 PR 에서 이미 `PlayerConnection.id()` 로 들어갔다. 이 묶음은 6·7번과 그 둘레.
+- 6: `PlayerConnection` 에 리소스 팩(`sendResourcePack`/`removeResourcePack`/`removeAllResourcePacks`)·쿠키(`requestCookie`/`storeCookie`)·`transfer`. 코드는 `ConnectionHandler.api*`. 구성 패킷 `CookieRequest`(0x00)·`ResourcePackPop`(0x08)·`StoreCookie`(0x0A)·`ConfigTransfer`(0x0B)를 새로 넣었다(serverbound `cookie_response` 0x01).
+  - 대기 Future 는 `pluginPacks`/`pendingCookies` 맵에 있고 `channelInactive` → `releaseWaiters` 가 `ConnectionClosedException` 으로 끝낸다. 완료는 `completeAsync`(플러그인 실행기)라 후속 처리가 netty 스레드를 막지 않는다. 구성 이벤트 처리기 스레드는 `configureThread` 로 기억했다가, 끊긴 뒤 1초(`CONFIGURE_INTERRUPT_GRACE_MS`)에도 안 돌아오면 인터럽트한다.
+  - 함정: 서버 리소스 팩 대기(`awaitingPack`)는 응답이 어느 팩 것인지 몰랐다 → `readPackResponse` 가 플러그인 팩 응답이면 `lastPackResponseWasPlugin` 을 켜서 구성 진행에 쓰지 않는다. 구성 끝 패킷을 보낸 뒤에는 구성 패킷을 더 보낼 수 없다(`canSendDuringConfigurationOrPlay`).
+  - play 단계의 쿠키(요청·저장)는 없다(구성만). 구성 중 플러그인 채널 수신도 없다.
+- 7: `QuitReason`(DISCONNECTED·KICKED·TIMED_OUT·ERRONEOUS_STATE·SERVER_SHUTDOWN) 를 `PlayerQuitEvent.reason()` 와 `PlayerConnection.quitReason()` 에. `ConnectionHandler.markQuit` 가 처음 남긴 이유만 남기고, `kick`(기본 KICKED)·`closeFlushed`(ERRONEOUS_STATE)·타임아웃 세 곳·종료가 이유를 정한다. 아무 표시가 없으면 `Player.kickReason()` 이 있으면 KICKED, 없으면 DISCONNECTED.
+- 시험: `ConnectionStateApiTest` 17개(실제 소켓: 팩·쿠키·전송·끊김 정리·QuitReason 여섯 가지).
 
 ## 2026-11-06 플러그인별 시간 프로파일러(/timings)
 - API: `Furnace.profiler()` → `PluginProfiler`(start/stop/reset/report, `timing(plugin, kind, name)` 로 플러그인이 자기 구간도 잰다), `Timing`(start 가 음수면 꺼짐 — 그대로 stop 에 넘기면 아무것도 안 함).
