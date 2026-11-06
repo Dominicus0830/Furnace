@@ -83,7 +83,7 @@ public class SwimNodeEvaluator extends NodeEvaluator {
     }
 
     protected PathType getCachedPathType(int x, int y, int z) {
-        return pathTypesByPosCache.computeIfAbsent(new Pos(x, y, z).asLong(), k -> getPathType(new PathfindingContext(level, mob), x, y, z));
+        return pathTypesByPosCache.computeIfAbsent(new Pos(x, y, z).asLong(), k -> hooked(x, y, z, getPathType(new PathfindingContext(level, mob), x, y, z)));
     }
 
     @Override
