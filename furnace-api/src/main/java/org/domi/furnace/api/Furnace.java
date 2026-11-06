@@ -73,6 +73,12 @@ public interface Furnace {
      */
     boolean dispatchCommand(CommandSender sender, String commandLine);
 
+    /** 서버가 아는 블록 종류 표(속성·값 범위·기본 상태). */
+    org.domi.furnace.api.world.BlockTypes blockTypes();
+
+    /** 레시피 레지스트리(데이터 팩 + 플러그인). */
+    org.domi.furnace.api.recipe.RecipeRegistry recipes();
+
     FurnaceScheduler scheduler();
 
     /** 블로킹 작업용 실행기(가상 스레드). */

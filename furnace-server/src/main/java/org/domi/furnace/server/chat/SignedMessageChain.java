@@ -34,6 +34,9 @@ public final class SignedMessageChain {
 
         default void setChainBroken() {}
 
+        /** 직전 unpack 이 순서가 어긋난 메시지를 체인에는 이어 붙이되 버려야 한다고 표시했는가(chat.strict-order=false). 읽으면 지운다. */
+        default boolean consumeOutOfOrder() { return false; }
+
         /** 세션이 없을 때: secure chat 강제면 거부, 아니면 서명 없는 메시지. */
         static Decoder unsigned(UUID sender, BooleanSupplier enforcesSecureChat) {
             return (signature, body) -> {
@@ -46,8 +49,17 @@ public final class SignedMessageChain {
     private SignedMessageLink nextLink;
     private Instant lastTimeStamp = Instant.EPOCH;
 
+    private final boolean strictOrder;
+    private boolean outOfOrder;
+
     public SignedMessageChain(UUID profileId, UUID sessionId) {
+        this(profileId, sessionId, org.domi.furnace.server.config.OperatorOptions.current().strictChatOrder());
+    }
+
+    /** strictOrder=false: 시각이 거꾸로 간 메시지는 서명을 확인해 체인에 이어 붙이되 시각 기준은 그대로 두고, 호출자가 버리게 표시한다. */
+    public SignedMessageChain(UUID profileId, UUID sessionId, boolean strictOrder) {
         this.nextLink = SignedMessageLink.root(profileId, sessionId);
+        this.strictOrder = strictOrder;
     }
 
     public Decoder decoder(ProfilePublicKey key) {
@@ -59,11 +71,12 @@ public final class SignedMessageChain {
                 if (key.data().hasExpired()) throw new DecodeException(DecodeException.EXPIRED_PROFILE_KEY);
                 SignedMessageLink link = nextLink;
                 if (link == null) throw new DecodeException(DecodeException.CHAIN_BROKEN);
-                if (body.timeStamp().isBefore(lastTimeStamp)) {
+                boolean late = body.timeStamp().isBefore(lastTimeStamp);
+                if (late && strictOrder) {
                     setChainBroken();
                     throw new DecodeException(DecodeException.OUT_OF_ORDER_CHAT);
                 }
-                lastTimeStamp = body.timeStamp();
+                if (!late) lastTimeStamp = body.timeStamp();
                 PlayerChatMessage msg = new PlayerChatMessage(link, signature, body, null, false);
                 if (!msg.verify(validator)) {
                     setChainBroken();
@@ -73,7 +86,15 @@ public final class SignedMessageChain {
                     log.warn("Received expired chat: '{}'. Is the client/server system time unsynchronized?", body.content());
                 }
                 nextLink = link.advance();
+                if (late) outOfOrder = true;
                 return msg;
+            }
+
+            @Override
+            public boolean consumeOutOfOrder() {
+                boolean r = outOfOrder;
+                outOfOrder = false;
+                return r;
             }
 
             @Override

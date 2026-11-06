@@ -12,6 +12,7 @@ import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 import org.domi.furnace.api.sched.TaskScheduler;
 import org.domi.furnace.api.world.Block;
+import org.domi.furnace.api.world.BlockSnapshot;
 import org.domi.furnace.api.world.BlockData;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.server.ServerCore;
@@ -63,16 +64,19 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
 
     private boolean inHeight(int y) { return y >= world.dimensionType().minY() && y < world.dimensionType().maxY(); }
 
-    private Optional<Block> read(Region r, BlockPos pos) {
+    private Optional<BlockSnapshot> read(Region r, BlockPos pos) {
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
         if (!inHeight(pos.y()) || !r.chunkLoaded(cp)) return Optional.empty();
         int state = r.getBlock(pos.x(), pos.y(), pos.z());
-        return Optional.of(new Block(world.dimension(), pos, ApiConvert.block(state, world.blockRegistry())));
+        return Optional.of(new BlockSnapshot(world.dimension(), pos, ApiConvert.block(state, world.blockRegistry())));
     }
 
     @Override
-    public CompletableFuture<Optional<Block>> blockAt(BlockPos pos) {
-        CompletableFuture<Optional<Block>> f = world.submitAtOwnedChunk(new ChunkPos(pos.chunkX(), pos.chunkZ()), r -> read(r, pos));
+    public Block block(BlockPos pos) { return new BlockHandle(this, pos); }
+
+    @Override
+    public CompletableFuture<Optional<BlockSnapshot>> blockAt(BlockPos pos) {
+        CompletableFuture<Optional<BlockSnapshot>> f = world.submitAtOwnedChunk(new ChunkPos(pos.chunkX(), pos.chunkZ()), r -> read(r, pos));
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(Optional.empty()));
     }
 
@@ -84,23 +88,38 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         } catch (IllegalArgumentException e) {
             return RegionFuture.wrap(CompletableFuture.failedFuture(e));
         }
-        CompletableFuture<Boolean> f = world.submitAtOwnedChunk(new ChunkPos(pos.chunkX(), pos.chunkZ()), r -> {
-            if (!inHeight(pos.y()) || !r.chunkLoaded(new ChunkPos(pos.chunkX(), pos.chunkZ()))) return false;
-            var level = r.level();
-            boolean ok = level.setBlock(new Pos(pos.x(), pos.y(), pos.z()), state, 11);
-            level.broadcastChanges();
-            return ok;
-        });
+        CompletableFuture<Boolean> f = world.submitAtOwnedChunk(new ChunkPos(pos.chunkX(), pos.chunkZ()), r -> placeOwned(r, pos, state));
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(false));
     }
 
-    @Override
-    public Optional<Block> blockNow(BlockPos pos) {
+    /** 소유 스레드에서: 그 칸을 state 로 바꾸고 방송한다(청크가 없거나 높이 밖이면 false). */
+    private boolean placeOwned(Region r, BlockPos pos, int state) {
+        if (!inHeight(pos.y()) || !r.chunkLoaded(new ChunkPos(pos.chunkX(), pos.chunkZ()))) return false;
+        var level = r.level();
+        boolean ok = level.setBlock(new Pos(pos.x(), pos.y(), pos.z()), state, 11);
+        level.broadcastChanges();
+        return ok;
+    }
+
+    /** 이 스레드가 그 칸을 가진 region 스레드여야 한다(아니면 ThreadOwnershipException). 그 region 을 돌려준다(없으면 null). */
+    Region ownedRegion(BlockPos pos, String what) {
         ThreadOwner owner = (ThreadOwner) world.chunkScheduler(pos.chunkX(), pos.chunkZ());
         if (!owner.isOwnerThread()) {
-            throw new ThreadOwnershipException("blockNow(" + pos + ") 는 그 칸을 가진 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — blockAt 을 쓴다");
+            throw new ThreadOwnershipException(what + " 는 그 칸을 가진 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
         }
-        Region r = world.regionizer().ownerOf(pos.chunkX(), pos.chunkZ());
+        return world.regionizer().ownerOf(pos.chunkX(), pos.chunkZ());
+    }
+
+    /** 소유 스레드 전용 동기 쓰기(Block.set). */
+    boolean setNow(BlockPos pos, BlockData data) {
+        int state = ApiConvert.stateId(data, world.blockRegistry());
+        Region r = ownedRegion(pos, "Block.set(" + pos + ")");
+        return r != null && placeOwned(r, pos, state);
+    }
+
+    @Override
+    public Optional<BlockSnapshot> blockNow(BlockPos pos) {
+        Region r = ownedRegion(pos, "blockNow(" + pos + ")");
         return r == null ? Optional.empty() : read(r, pos);
     }
 
