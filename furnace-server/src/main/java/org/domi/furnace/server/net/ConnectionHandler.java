@@ -1010,7 +1010,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             public boolean allowBreak(int x, int y, int z, int state) {
                 org.domi.furnace.server.ServerCore c = login.core;
                 if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.block.BlockBreakEvent.class)) return true;
-                var ev = c.events().call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld",
+                var ev = c.events().call(new org.domi.furnace.api.event.block.BlockBreakEvent(p.dimension(),
                         new org.domi.furnace.api.world.BlockPos(x, y, z), world.blockRegistry().nameOf(state), c.plugins().player(p)));
                 return !ev.isCancelled();
             }
@@ -3399,7 +3399,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 public boolean allowPlace(org.domi.furnace.server.block.Pos p, int state, org.domi.furnace.server.block.Pos against) {
                     org.domi.furnace.server.ServerCore pc = login.core;
                     if (pc == null || !pc.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
-                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent("minecraft:overworld",
+                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(actor.dimension(),
                             new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
                             new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
                     return !ev.isCancelled();
