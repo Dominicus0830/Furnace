@@ -81,7 +81,7 @@
 |---|---|---|---|
 | 상 | **1.21 효과 발동: `wind_charged`·`weaving`·`oozing`·`infested`** | 효과 정의·물약 양조만 있고(`SRV/effect/MobEffect.java:73` 등) 죽을 때 돌풍·거미줄·슬라임·좀벌레를 내는 로직 없음(정의 파일 밖 참조 0건) | — |
 | 상 | **엔드 관문 순간이동(`end_gateway` 블록 엔티티)** | `SRV/block/types/EndGatewayBlock.java:1` "엔티티 순간 이동은 TODO, 블록 동작은 없다". 드래곤 처치 후 바깥 섬으로 갈 수 없음 | — |
-| 상 | 전달체(`conduit`) 활성화·효과·적대 몹 공격 | `SRV/block/types/ConduitBlock.java:1` 물 잠김만, 블록 엔티티 없음 | — |
+| 완료 | ~~전달체(`conduit`) 활성화·효과·적대 몹 공격~~ | 2026-11-06 `SRV/block/entity/ConduitBlockEntity.java`(바닐라 dqt 바이트코드 대조, 봇 7차 `tools/bot-test/round7/conduit.js`) | — |
 | 중 | 구조물 블록·직소 블록 블록 엔티티와 패킷(`set_structure_block`/`set_jigsaw_block`/`jigsaw_generate`) | 블록 엔티티 없음(목록 `SRV/block/entity/`). 월드젠 처리기만 있음 | — |
 | 중 | 커스텀 월드 타입(`large_biomes`·`amplified`·`debug`) | `level-type` 무시(grep 0건) | — |
 | 중 | 행운(`luck`/`unluck`) 전리품·낚시 반영 | 앞 조사 2장 TODO, 재확인 필요(가정) | — |

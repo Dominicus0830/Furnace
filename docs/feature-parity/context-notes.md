@@ -861,3 +861,11 @@
 - 끈끈이 줄이기 취소: 머리를 플래그 20(클라이언트 알림 없음)으로 지운 뒤라 취소면 `sendBlockUpdated(front)` 로 알린다 — 봇에서 머리가 남아 보였다.
 - **발견(손대지 않음)**: 콘솔 `execute if block <칸> <블록>{NBT}` 의 NBT 조건이 내용과 맞아도 늘 "Test failed" 다(`execute if data block … Items[…]` 는 맞게 동작). 따로 확인할 것.
 
+## 2026-11-06 전달체(conduit) 블록 엔티티
+- 그동안 `ConduitBlock` 은 물 잠김만 있고 블록 엔티티가 없어 전달체를 지어도 아무 일도 없었다. `ConduitBlockEntity` 를 바닐라 1.21.1 `dqt.b(serverTick)` 바이트코드와 대조해 넣었다.
+- 40틱마다: 둘레 3×3×3 이 모두 물인지 → 5×5×5 세 축 평면 바깥 고리(42칸)의 프리즈머린·벽돌·어두운 프리즈머린·바다 랜턴 수. 16 이상이면 활성(바뀌면 activate/deactivate 소리), 42 면 사냥.
+  활성이면 범위 `수/7*16`(칸 거리, 위로 월드 높이만큼) 안 물·비에 닿은 플레이어에게 전달체의 힘 260틱(앰비언트), 사냥이면 ±8 상자 안 물·비에 닿은 `Enemy` 하나를 레벨 난수로 골라 마법 피해 4 + attack.target 소리. 대상이 바뀌면 블록 갱신(클라이언트 눈). 80틱마다 ambient, 60+0..39틱마다 ambient.short.
+- `Target`(int[4] UUID) 저장·로드, 로드 뒤 첫 검사에서 UUID 로 다시 찾는다. 갱신 태그는 saveCustomOnly.
+- 차이(region): 대상이 다른 region 으로 넘어가면 이 스레드가 건드리지 않고 놓는다(8칸 안이라 경계 근처에서만).
+- `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
+- 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
