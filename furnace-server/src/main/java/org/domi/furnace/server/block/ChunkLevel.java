@@ -1995,8 +1995,9 @@ public abstract class ChunkLevel implements BlockLevel {
     /** ServerLevel.tickPassenger: 지워졌거나 다른 것에 탔으면 내리고, 아니면 rideTick 뒤 그 승객의 승객. 플레이어는 자기 틱 대신 탑승 처리만. */
     private void tickPassenger(Entity vehicle, org.domi.furnace.server.entity.Rider r) {
         if (r instanceof Player p) {
-            if (p.isDisconnected()) p.detachFromVehicle();
-            else if (p.vehicle() != vehicle) p.stopRiding();
+            // 끊긴 플레이어는 주인 region 이 퇴장 처리에서 탈것을 저장하고 내린다(PlayerVehicleSave) — 그전에 내리면 탈것이 저장되지 않는다
+            if (p.isDisconnected()) return;
+            if (p.vehicle() != vehicle) p.stopRiding();
             else p.rideTick();
             return;
         }
@@ -2092,7 +2093,7 @@ public abstract class ChunkLevel implements BlockLevel {
             if (unload) {
                 java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> orphans = new java.util.ArrayList<>();
                 for (Entity e : entities.inChunk(cx, cz)) {
-                    var tag = e.save();
+                    var tag = e.savedWithChunk() ? e.save() : null;
                     if (tag != null) orphans.add(tag);
                     e.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
                 }
@@ -2103,7 +2104,7 @@ public abstract class ChunkLevel implements BlockLevel {
         var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
         java.util.List<Entity> in = entities.inChunk(cx, cz);
         for (Entity e : in) {
-            var tag = e.save();
+            var tag = e.savedWithChunk() ? e.save() : null;   // 플레이어 하나만 태운 탈것은 그 플레이어 데이터에(RootVehicle)
             if (tag != null) list.add(tag);
         }
         for (var tag : col.foreignEntities()) list.add(tag);

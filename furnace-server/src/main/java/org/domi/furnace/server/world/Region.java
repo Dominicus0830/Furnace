@@ -624,6 +624,13 @@ public final class Region {
         if (level != null) level.raids().publishSnapshots();
     }
 
+    /** 저장·종료(flushAll): 청크를 쓰기 전에 끊긴 플레이어의 탈것을 그 플레이어 데이터로 옮긴다(틱을 기다리지 않는다). */
+    public void releaseDisconnectedMounts() {
+        for (Player p : players.values()) {
+            if (p.isDisconnected()) org.domi.furnace.server.entity.PlayerVehicleSave.onDisconnect(p, world.playerIo(), world.worldDir());
+        }
+    }
+
     /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
     public void saveDirtyChunks() {
         autosaveEntityQueue = null;
@@ -908,6 +915,7 @@ public final class Region {
             if (p.isDisconnected()) {
                 // ServerPlayer.disconnect: 자고 있었으면 깨운다(목록 갱신은 빠진 뒤 — onTrackingEnd)
                 if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, false);
+                org.domi.furnace.server.entity.PlayerVehicleSave.onDisconnect(p, world.playerIo(), world.worldDir());   // PlayerList.remove 의 탈것
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
                 for (Integer eid : p.tracked().keySet()) world.removeTracker(eid, p);
@@ -1052,6 +1060,14 @@ public final class Region {
             } else if (m.check() != null) {
                 // 바닐라 handleMovePlayer 검증: 되돌렸으면 이 패킷은 없던 것(위치·소모 계산 없음)
                 if (p.moveRejectHold) continue;
+                if (p.vehicle() != null) {
+                    // 바닐라 handleMovePlayer 의 isPassenger 분기: 탄 동안 받은 위치는 버리고 회전만 받는다.
+                    // 타기 직전에 보낸 걸음 패킷이 탄 뒤에 검증되면 탈것 위 자리와 비교해 moved wrongly 로 되돌리던 것을 막는다.
+                    var c = m.check();
+                    if (c.hasRot()) p.applyRotation(org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(c.yaw()),
+                            org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(c.pitch()), p.onGround());
+                    continue;
+                }
                 if (!org.domi.furnace.server.entity.PlayerMoveValidator.handle(level(), p, m.check(), m.onGround())) continue;
                 m = new Player.MoveSample(p.x(), p.y(), p.z(), m.onGround(), false);
             }
