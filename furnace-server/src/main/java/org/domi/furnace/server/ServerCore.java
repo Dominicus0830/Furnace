@@ -111,6 +111,7 @@ public final class ServerCore {
             for (Player p : players()) p.send(packet);
             var recipes = dp.recipes();
             if (recipes == null) return;
+            if (pluginHost != null) pluginHost.recipes().reapply(recipes);   // 플러그인 레시피·제거 기록을 새 매니저에 입힌다(보내기 전에)
             var recipePacket = new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody());
             for (Player p : players()) {
                 p.send(recipePacket);

@@ -95,8 +95,11 @@ public final class FurnaceMain {
         ServerProperties props = settings.get();
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
-            log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none",
+            log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
                     props.regionFileCompression);
+        }
+        if (org.domi.furnace.server.world.anvil.Compression.writeType() == org.domi.furnace.server.world.anvil.Compression.ZSTD) {
+            log.warn("region-file-compression=zstd: 바닐라·Paper 는 이 월드를 읽지 못한다. 되돌리려면 RegionConvert 도구로 deflate 로 변환한다");
         }
         if (!props.textFilteringConfig.isEmpty()) {
             log.warn("text-filtering-config 는 지원하지 않는다(원격 채팅 필터 서비스 미구현) — 무시한다");
