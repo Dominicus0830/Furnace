@@ -889,6 +889,16 @@
 - 시험 함정: 시험 스케줄러는 스스로 틱하지 않는다 — `submitAtChunk(p.chunkPos(), r -> r.tick())` 로 돌려야 ack·이동·먹기가 진행된다. 접속 직후 `p.drainPending()` 전엔 플레이어 위치가 0,0,0.
 - 한계: 웅크림·달리기 취소는 되돌릴 방법이 없음(클라이언트 입력, Paper 동일). 부싯돌은 취소해도 닳음(CraftBukkit 동일).
 
+## 2026-11-06 region 경계 차이 1: 마을 포위·방랑 상인 대상·앵무새 어깨
+- **마을 포위·방랑 상인을 차원에 하나로**(`world/DimensionSpawners`): 그동안 region 마다 `VillageSiege` 가 따로 있어 자정 굴림이 region 수만큼 일어났고(두 region 이면 포위 확률 약 19%), 포위 대상도 그 region 플레이어 중 첫 사람이었다. 상인은 타이머를 이긴 region 의 플레이어 중에서 골랐고, 플레이어가 없는 동안 타이머가 멈췄다. 이제 오버월드 `World` 에 스포너 하나씩을 두고 **전역 틱**(`ServerCore.tick`, 시간이 한 틱 간 뒤 — 바닐라 `ServerLevel.tick` 의 tickTime → 청크 틱 순서)이 게임 틱마다 한 번 돌린다. 조건은 바닐라 `ServerChunkCache.tickChunks`(aqs `t()` 바이트코드: `runsNormally` && `doMobSpawning` 일 때 `tickCustomSpawners(spawnEnemies, spawnFriendlies)`, 플레이어 수 조건 없음)와 같다. 낮 판정은 `BlockLevel.skyDarken(비, 천둥, timeOfDay) < 4`.
+  - 포위 플레이어 고르기: region 이 자기 틱(`RegionLevel.tickCustomSpawners`)에서 "마을 안·비관전·바이옴 조건"을 채우는 자기 플레이어를 `VillageSiege.report` 로 알리고, 전역 틱이 차원 플레이어 순서(엔티티 번호 순 — 바닐라 `level.players()` 의 들어온 순 대신, 가정)에서 최근 2틱 안에 보고된 첫 사람을 고른다. 32칸 원 점 10번 굴림은 그 플레이어 region 스레드에서(`Player.runOnOwner`), 좀비 스폰은 중심점 청크 region 에서(`submitAtOwnedChunk`). 답이 40틱 안에 안 오면(접속 종료) 다시 고르고, 날이 밝은 뒤 온 답은 버린다(맡김 번호).
+  - 상인: 타이머·굴림은 전역(플레이어가 없어도 돈다 — 그때 이기면 바닐라처럼 "플레이어 없음 = 성공"으로 확률 25), 대상은 차원 전체 살아 있는 플레이어 중 하나(`getRandomPlayer`), 그 뒤 마을 종 찾기·스폰은 그 플레이어 region 스레드에서 스포너 난수에서 갈라 낸 새 난수로. 스폰 성공은 늦게 와도 `WanderingTraderState` 잠금 안에서 확률을 25 로 되돌리고 상인 번호를 적는다.
+  - **다른 점(의도, 관측 차이 없음 수준)**: 넘긴 일은 그 region 의 다음 틱 머리에 돌아 바닐라보다 한 틱 안쪽으로 늦다(포위의 첫 좀비는 2틱쯤, 상인은 1틱쯤). 난수는 region/전역 난수라 바닐라와 수열이 다르다(원래도 같지 않았다).
+  - 단독 레벨(시험)은 `VillageSiege.Host.of`·`WanderingTraderSpawner.Host.of` 로 그 자리에서 해 바닐라와 같은 한 틱·같은 난수 순서다(기존 손계산 시험 그대로 통과).
+- **앵무새 어깨**: 앉히기는 앵무새 region 이 주인을 가졌을 때만(몸이 겹쳐야 앉으므로 같은 region — 다른 region 의 주인 상태는 읽지 않는다, 이 목표는 플래그가 없어 다른 목표를 막지 않으므로 결과가 같다). 내려놓기는 어깨를 부른 스레드에서 바로 비우고, 몹은 플레이어 region 스레드에서 세운다 — 명령(`/gamemode spectator`·`/damage`, 전역 스레드)에서 불리면 다음 플레이어 틱에 그 자리에. 그 사이 끊기면 어깨로 되돌려 저장한다.
+- 남은 region 차이(이번에 손대지 않음): 팬텀·순찰·고양이 스포너는 여전히 region 마다 타이머가 따로다(바닐라는 차원 하나 — 순찰 nextTick·팬텀 nextTick 이 region 수만큼). 돌고래의 플레이어 효과 부여 일부. 명령 블록 체인은 둘째 묶음.
+- 시험: `VillageSiegeTest`(서버 길 3개: 보고 순서로 첫 사람, 늦은 답 버림, 떠남·무응답 재시도), `WanderingTraderTest.serverTimerRunsWithoutPlayersAndResetsChanceOnLateSpawn`. 봇 `tools/bot-test/round8/`: 두 봇을 3000칸 떨어뜨려(서로 다른 region) 둘 다 종 격자 마을·deep_dark(자연 스폰 없음)에 두고 60밤 — 고친 뒤 포위 9밤 모두 먼저 들어온 봇 쪽, 고치기 전 jar 는 10밤 중 2밤이 뒤에 들어온 봇 쪽. 어깨: 콘솔 `/gamemode spectator`·`/damage` 뒤 어깨가 비고 앵무새가 봇 자리(거리 0)에 섰다.
+
 ## 2026-11-06 블록·레시피 API (묶음 D1)
 - 설계·사용법은 `docs/api/block-recipe-api.md`. `Block`(살아 있는 칸)/`BlockSnapshot`(복사) 분리, 타입 있는 속성(`BlockProperty`·`BlockType`), 레시피 레지스트리(`Furnace.recipes()`).
 - **RecipeManager 는 이제 바뀐다**: 레시피 표·색인·네트워크 본문을 한 `State` 에 묶고 `volatile` 로 바꿔 끼운다(`change(add, remove)`, 쓰는 쪽만 `synchronized`). 읽는 쪽(`findCrafting` 등)은 락이 없다. `findCrafting(input, last)` 의 지난 레시피는 아직 표에 같은 객체로 있을 때만 쓴다(플러그인이 내렸거나 바꿨으면 다시 찾는다).
@@ -915,3 +925,11 @@
 - **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
 - 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
 
+
+## 2026-11-06 플러그인별 시간 프로파일러(/timings)
+- API: `Furnace.profiler()` → `PluginProfiler`(start/stop/reset/report, `timing(plugin, kind, name)` 로 플러그인이 자기 구간도 잰다), `Timing`(start 가 음수면 꺼짐 — 그대로 stop 에 넘기면 아무것도 안 함).
+- 서버: `plugin/PluginProfilerImpl`. 구간은 LongAdder 묶음이라 region 스레드 여럿이 잠금 없이 동시에 기록한다. 겹친 구간은 스레드별 틀 스택으로 **자기 시간**을 나눈다 — 리스너 안에서 다른 플러그인 이벤트가 돌아도 두 번 세지 않는다. 스레드 종류(region·전역·그 밖)는 스레드가 처음 잴 때 한 번 정한다.
+- 잰 곳: 이벤트 리스너(`EventBusImpl.callTimed` — 꺼져 있으면 `call` 은 `isRunning()` 하나만 더 읽는다), 플러그인 명령 실행·자동완성(`CommandRegistryImpl`, 이름공간 붙은 이름과 같은 줄), `PluginTasks`(플러그인을 안다), onLoad/onEnable/onDisable.
+- 플러그인이 `server().scheduler()`·엔티티/청크/월드 `scheduler()`·`entityScheduler()`·`asyncExecutor()` 를 바로 쓰는 작업은 `ProfiledScheduling` 이 감싼다: **작업 객체 클래스의 클래스로더**(람다는 정의한 클래스의 로더)가 `PluginClassLoader` 면 그 플러그인 몫. 서버·API 클래스 작업은 감싸지 않는다(PluginTasks 의 guard 람다도 API 클래스라 두 번 감싸지 않는다). `TaskScheduler` 기본 `runAtFixedRate/runLater` 는 작업을 API 클래스(Repeating/Once)로 싸므로 감싸기를 먼저 하고 원래 스케줄러에 넘긴다. `submit` 도 FutureTask 로 싸기 전에 `newTaskFor` 에서 감싼다.
+- 시험에서 TestPlugins 클래스는 앱 클래스패스에 있어 부모 우선 위임으로 PluginClassLoader 가 아니라 앱 로더가 정의한다 → 클래스로더 귀속 시험은 시험 안에서 javac 로 플러그인을 컴파일해 jar 로 만든다(`PluginProfilerTest.compileProbePlugin`).
+- 명령: `/timings on|off|reset|report [플러그인]|export`(권한 3, `timings/plugins-*.txt`). 기동 때부터 재려면 `-Dfurnace.profiler=true`. "틱당" = 자기 시간 ÷ (측정 시간/50ms) — region 이 여럿이면 여러 스레드 합이라 50ms 를 넘을 수 있다.

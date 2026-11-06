@@ -15,7 +15,9 @@ public final class Pack {
     /** 바닐라 PackSource — 이름 꾸밈과 "새로 발견하면 자동으로 켜는가". */
     public enum Source {
         DEFAULT(null, true), BUILT_IN("pack.source.builtin", true), FEATURE("pack.source.feature", false),
-        WORLD("pack.source.world", true), SERVER("pack.source.server", true);
+        WORLD("pack.source.world", true), SERVER("pack.source.server", true),
+        /** Furnace 플러그인이 jar 안에서 알린 팩 — 월드 팩처럼 새로 보이면 자동으로 켠다. 바닐라에 번역 키가 없어 글자 그대로 꾸민다. */
+        PLUGIN(null, true);
 
         private final String key;
         public final boolean addAutomatically;
@@ -24,6 +26,7 @@ public final class Pack {
 
         /** "이름 (출처)" 회색 — 바닐라 PackSource.decorating. */
         public Text decorate(Text name) {
+            if (this == PLUGIN) return Text.translatable("pack.nameAndSource", name, Text.text("plugin")).color(NamedTextColor.GRAY);
             return key == null ? name : Text.translatable("pack.nameAndSource", name, Text.translatable(key)).color(NamedTextColor.GRAY);
         }
     }

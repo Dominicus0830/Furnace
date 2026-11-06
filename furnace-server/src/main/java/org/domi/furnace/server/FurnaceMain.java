@@ -190,6 +190,10 @@ public final class FurnaceMain {
         boolean sharedRegionPool = Boolean.getBoolean("furnace.sharedRegionPool");
         org.domi.furnace.server.world.SharedScheduler regionPool = sharedRegionPool
                 ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-") : null;
+        // 플러그인 부트스트랩: 레지스트리·데이터 팩·월드보다 먼저(Paper 부트스트랩과 같은 자리). onLoad 는 월드 준비 뒤.
+        org.domi.furnace.server.plugin.PluginSettings pluginSettings = org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps);
+        org.domi.furnace.server.plugin.PluginBootstrapper pluginBoot =
+                org.domi.furnace.server.plugin.PluginBootstrapper.bootstrap(Path.of("plugins"), pluginSettings);
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
         ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
@@ -287,7 +291,7 @@ public final class FurnaceMain {
             Path vanillaRoot = org.domi.furnace.server.data.VanillaData.ensure(Path.of("."));
             dataPacks = org.domi.furnace.server.data.DataPackManager.start(vanillaRoot, worldDir, levelData,
                     org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), newWorld,
-                    props.initialEnabledPacks, props.initialDisabledPacks);
+                    props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot::discoverPacks);
         } catch (Exception e) {
             log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
         }
@@ -354,12 +358,13 @@ public final class FurnaceMain {
         core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
         // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
         org.domi.furnace.api.Furnace.setServer(core.plugins());
-        core.plugins().pluginsImpl().settings(org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps));
-        core.plugins().pluginsImpl().loadAll();
+        core.plugins().pluginsImpl().settings(pluginSettings);
+        core.plugins().pluginsImpl().loadAll(pluginBoot);
         // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
         org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
         org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
