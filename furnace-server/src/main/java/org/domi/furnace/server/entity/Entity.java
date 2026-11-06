@@ -1058,6 +1058,9 @@ public abstract non-sealed class Entity implements Rider {
         return level.isRainingAt(blockPosition()) || level.isRainingAt(new Pos(floor(x), floor(bb.maxY()), floor(z)));
     }
 
+    /** Entity.isInWaterOrRain: 물에 닿았거나 비를 맞는다(거품 기둥은 따로 보지 않는다). */
+    public boolean isInWaterOrRain() { return isInWater() || isInRain(); }
+
     public boolean isInWaterRainOrBubble() { return isInWater() || isInRain() || isInBubbleColumn(); }
 
     public boolean isInPowderSnow() { return isInPowderSnow; }

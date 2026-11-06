@@ -29,7 +29,7 @@ public final class Tridents {
     public static final float SPIN_DAMAGE = 8.0F;
 
     /** Entity.isInWaterOrRain: 물에 닿았거나(지난 틱) 발 칸·머리 높이 칸에 비가 온다. */
-    static boolean isInWaterOrRain(ChunkLevel level, Player p) {
+    public static boolean isInWaterOrRain(ChunkLevel level, Player p) {
         if (p.wasTouchingWater) return true;
         if (level == null) return false;
         var pos = p.blockPosition();

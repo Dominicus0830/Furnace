@@ -1581,8 +1581,14 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
             org.domi.furnace.server.entity.spawn.SpawnReason reason) {
+        return spawnMob(entityType, pos, snapToGround, extendDown, reason) != null;
+    }
+
+    /** EntityType.spawn(level, pos, reason, snapToGround, extendDown) — 만든 몹(몹이 아니면 null). */
+    public org.domi.furnace.server.entity.Mob spawnMob(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
-        if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return false;
+        if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return null;
         double d0 = 0.0;
         if (snapToGround) {
             mob.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
@@ -1598,7 +1604,7 @@ public abstract class ChunkLevel implements BlockLevel {
         mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
         addFreshEntityWithPassengers(mob.spawnReason(reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG"));
         mob.makeSound(mob.ambientSoundForSpawn());
-        return true;
+        return mob;
     }
 
     /**
