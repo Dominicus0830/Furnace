@@ -148,6 +148,19 @@ class EntityWorldApiTest {
         assertThrows(IllegalArgumentException.class, () -> ApiConvert.item(new org.domi.furnace.api.item.ItemStack("minecraft:no_item", 1), items));
     }
 
+    /** 봇 시험(2026-11-06): 마법 부여 컴포넌트의 정규 값은 Map 이라 그대로 SNBT 로 쓰면 실패했다(/give 마법 부여 철퇴 + 드롭 구독 플러그인). */
+    @Test
+    void enchantedItemConvertsToApi() {
+        var items = core.world().itemRegistry();
+        var server = new org.domi.furnace.server.entity.ItemStack(items.idOf("minecraft:mace"), 1,
+                org.domi.furnace.server.item.ComponentPatch.of(Map.of("minecraft:enchantments", Map.of("levels", Map.of("minecraft:wind_burst", 1)))));
+        var api = ApiConvert.item(server, items);
+        String ench = api.components().get("minecraft:enchantments");
+        assertNotNull(ench);
+        assertTrue(ench.contains("minecraft:wind_burst") && ench.contains("1"), ench);
+        assertEquals(server.patch(), ApiConvert.item(api, items).patch());   // 되돌려도 같은 패치
+    }
+
     // ------------------------------------------------------------------ 엔티티·이벤트
 
     @Test
@@ -280,6 +293,24 @@ class EntityWorldApiTest {
         assertEquals(3, out[1], "취소하면 인벤토리로 돌아온다");
         assertEquals(false, out[2], "줍기 취소 = 아이템이 남는다");
         assertEquals(List.of("drop:minecraft:dirt", "pickup:minecraft:stone"), log);
+    }
+
+    /** /give 의 가짜 아이템(줍는 연출)은 CraftBukkit 처럼 PlayerDropItemEvent 를 부르지 않는다(SPIGOT-2942). */
+    @Test
+    void giveFakeDropDoesNotFireDropEvent() throws Exception {
+        List<String> log = new java.util.concurrent.CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, PlayerDropItemEvent.class, e -> log.add("drop:" + e.item().type()));
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
+        p.inventory(new PlayerInventory());
+        p.applyMove(8.5, -60, 8.5, 0, 0, true);
+        Object fake = core.world().submitAtChunk(C00, r -> {
+            r.adopt(p);
+            var ie = r.playerDrop(p, org.domi.furnace.server.block.B.stack("minecraft:dirt", 1), false, false, false);
+            r.playerDrop(p, org.domi.furnace.server.block.B.stack("minecraft:stone", 1), false, false);
+            return ie;
+        }).get(30, TimeUnit.SECONDS);
+        assertNotNull(fake, "이벤트 없이도 아이템은 떨어진다");
+        assertEquals(List.of("drop:minecraft:stone"), log);
     }
 
     @Test

@@ -1,5 +1,6 @@
-// region 압축 type 4(lz4). 바닐라 RegionFileVersion 의 lz4 는 lz4-java 의 LZ4BlockInputStream/LZ4BlockOutputStream 형식이다(가정 —
-// 이 환경에 1.21.1 디컴파일이 없어 재확인 못 함. 형식은 lz4-java 1.8.0 이 만든 바이트로 대조 시험함). 외부 라이브러리 없이 직접 구현한다.
+// region 압축 type 4(lz4). 바닐라 RegionFileVersion(dwr)의 lz4 는 lz4-java 의 기본 생성자 new LZ4BlockOutputStream(out)·
+// new LZ4BlockInputStream(in) 이다(2026-11-06 1.21.1 바이트코드로 확인 — 블록 64KB·빠른 압축기·XXHash32 씨앗 기본값).
+// 형식은 lz4-java 1.8.0 이 만든 바이트로 대조 시험함. 외부 라이브러리 없이 직접 구현한다.
 // 블록 = "LZ4Block"(8) + 토큰(방식 0x10 RAW / 0x20 LZ4 | 크기 레벨) + 압축 길이 + 원래 길이 + XXHash32 체크섬(모두 LE int). 길이 0 블록이 끝.
 package org.domi.furnace.server.world.anvil;
 

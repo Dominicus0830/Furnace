@@ -27,10 +27,20 @@ public final class ApiConvert {
         java.util.Set<String> removed = new java.util.TreeSet<>();
         for (var e : s.patch().entries().entrySet()) {
             if (e.getValue() == null) removed.add(e.getKey());
-            else comps.put(e.getKey(), Snbt.write(e.getValue()));
+            else comps.put(e.getKey(), Snbt.write(toNbt(e.getKey(), e.getValue())));
         }
         String name = items == null ? "minecraft:air" : items.nameOf(s.itemId());
         return new org.domi.furnace.api.item.ItemStack(name, s.count(), comps, removed);
+    }
+
+    /**
+     * 패치의 정규 값은 NBT 가 아니라 코덱의 값(마법 부여는 Map 등)일 수 있다 — 저장할 때처럼 그 컴포넌트의 코덱으로 NBT 로 바꾼다
+     * (예전엔 그대로 SNBT 로 쓰다 "NBT 값이 아님" 으로 실패해, 마법 부여 아이템을 /give 하면 드롭 이벤트 구독 플러그인이 있을 때 명령이 오류를 냈다).
+     * 저장되지 않는(transient) 컴포넌트는 값이 이미 NBT 꼴이다.
+     */
+    private static Object toNbt(String component, Object value) {
+        var t = org.domi.furnace.server.item.DataComponents.byName(component);
+        return t == null || t.isTransient() ? value : t.persistent().toNbt(value);
     }
 
     /** 알 수 없는 아이템·컴포넌트면 IllegalArgumentException. */
