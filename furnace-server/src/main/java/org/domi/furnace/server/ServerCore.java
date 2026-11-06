@@ -414,7 +414,11 @@ public final class ServerCore {
         var occupied = new org.domi.furnace.server.loot.LootStack("minecraft:stone", 1);
         for (int i = 0; i < slots.length; i++) if (items[i] != null && !items[i].isEmpty()) slots[i] = occupied;
         var params = new org.domi.furnace.server.loot.LootParams().with(org.domi.furnace.server.loot.LootParams.ORIGIN, origin);
-        if (opener != null) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
+        if (opener != null) {
+            // 바닐라 unpackLootTable: withLuck(player.getLuck()) + this_entity = 연 플레이어
+            params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
+            params.luck((float) opener.attributes().value(org.domi.furnace.server.attribute.Attribute.LUCK));
+        }
         table.fill(slots, loot, lootWorld, params, seed);
         for (int i = 0; i < slots.length; i++) {
             if (slots[i] != null && slots[i] != occupied) items[i] = dp.network().toItemStack(slots[i]);
@@ -1154,7 +1158,11 @@ public final class ServerCore {
                 })
                 .with(org.domi.furnace.server.loot.LootParams.ATTACKING_ENTITY, attackerEntity)
                 .with(org.domi.furnace.server.loot.LootParams.DIRECT_ATTACKING_ENTITY, attackerEntity);
-        if (lastPlayer != null) params.with(org.domi.furnace.server.loot.LootParams.LAST_DAMAGE_PLAYER, lootEntity(lastPlayer));   // TODO(행운): 플레이어 luck 속성
+        if (lastPlayer != null) {
+            // 바닐라 LivingEntity.dropFromLootTable: lastHurtByPlayer 가 있으면 withLuck(player.getLuck())
+            params.with(org.domi.furnace.server.loot.LootParams.LAST_DAMAGE_PLAYER, lootEntity(lastPlayer));
+            params.luck((float) lastPlayer.attributes().value(org.domi.furnace.server.attribute.Attribute.LUCK));
+        }
         var ctx = table.context(loot, lootWorld, params, seed);
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var st : table.getRandomItems(ctx)) {

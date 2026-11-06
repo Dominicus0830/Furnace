@@ -84,7 +84,7 @@
 | 완료 | ~~전달체(`conduit`) 활성화·효과·적대 몹 공격~~ | 2026-11-06 `SRV/block/entity/ConduitBlockEntity.java`(바닐라 dqt 바이트코드 대조, 봇 7차 `tools/bot-test/round7/conduit.js`) | — |
 | 중 | 구조물 블록·직소 블록 블록 엔티티와 패킷(`set_structure_block`/`set_jigsaw_block`/`jigsaw_generate`) | 블록 엔티티 없음(목록 `SRV/block/entity/`). 월드젠 처리기만 있음 | — |
 | 중 | 커스텀 월드 타입(`large_biomes`·`amplified`·`debug`) | `level-type` 무시(grep 0건) | — |
-| 중 | 행운(`luck`/`unluck`) 전리품·낚시 반영 | 앞 조사 2장 TODO, 재확인 필요(가정) | — |
+| ~~중~~ | ~~행운(`luck`/`unluck`) 전리품·낚시 반영~~ | 2026-11-06 구현(낚시·몹 처치·상자·고고학·금고에 플레이어 행운 합산), 봇 시험 `tools/bot-test/round8` | 완료 |
 | 중 | 포털로 좀비 피글린 스폰 | 없음(앞 조사 4장) | 스레드-몹(피글린 분노)과 이웃 — 분노 쪽이 끝난 뒤 |
 | 중 | 명령 블록 체인 한 틱 완결 | 비동기라 순서만 보존(인수인계서 3장) | — |
 | 하 | region 경계 차이(마을 포위·상인 대상·앵무새 어깨 등) | 인수인계서 3장 | — |

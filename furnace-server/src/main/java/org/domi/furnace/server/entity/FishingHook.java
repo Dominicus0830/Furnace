@@ -425,8 +425,9 @@ public class FishingHook extends Projectile {
             broadcastEntityEvent((byte) 31);
             i = hookedIn instanceof ItemEntity ? 3 : 5;
         } else if (nibble > 0) {
-            // TODO(행운 속성): player.getLuck() — 플레이어 속성이 아직 없어 0
-            List<ItemStack> list = level.fishingLoot(lootEntity(), x(), y(), z(), rod, luck + 0.0F);
+            // 바닐라: withLuck(낚싯대 바다의 행운 + player.getLuck()) — 행운·불운 효과/속성이 더해진다
+            float playerLuck = (float) p.attributes().value(org.domi.furnace.server.attribute.Attribute.LUCK);
+            List<ItemStack> list = level.fishingLoot(lootEntity(), x(), y(), z(), rod, (float) luck + playerLuck);
             fishingTrigger(p, rod, list);
             for (ItemStack s : list) {
                 var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), s);
