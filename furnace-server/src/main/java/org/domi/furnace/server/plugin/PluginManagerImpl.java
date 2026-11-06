@@ -69,7 +69,7 @@ public final class PluginManagerImpl implements PluginManager {
     // ------------------------------------------------------------------ 불러오기
 
     /** 부트스트랩부터 onLoad 까지 한 번에(서버가 부트스트랩을 따로 돌리지 않았을 때 — 시험 등). */
-    public void loadAll() { loadAll(PluginBootstrapper.bootstrap(dir)); }
+    public void loadAll() { loadAll(PluginBootstrapper.bootstrap(dir, settings)); }
 
     /** 부트스트랩을 마친 플러그인을 의존 순서대로 만들고 onLoad 까지 부른다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
     public void loadAll(PluginBootstrapper boot) {
