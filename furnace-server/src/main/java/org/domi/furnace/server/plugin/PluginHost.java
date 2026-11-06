@@ -91,6 +91,20 @@ public final class PluginHost implements Furnace {
     @Override
     public WorldHandle world(String dimension) { return worldHandle(dimension); }
 
+    private final PluginRecipes recipes = new PluginRecipes(this);
+
+    @Override
+    public PluginRecipes recipes() { return recipes; }
+
+    private volatile BlockTypesImpl blockTypes;
+
+    @Override
+    public BlockTypesImpl blockTypes() {
+        BlockTypesImpl b = blockTypes;
+        if (b == null) blockTypes = b = new BlockTypesImpl(core.world().blockRegistry());
+        return b;
+    }
+
     @Override
     public List<WorldHandle> worlds() {
         List<WorldHandle> out = new ArrayList<>();

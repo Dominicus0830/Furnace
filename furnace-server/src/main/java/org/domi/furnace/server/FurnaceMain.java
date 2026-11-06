@@ -93,6 +93,7 @@ public final class FurnaceMain {
         }
         ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
         ServerProperties props = settings.get();
+        org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none",
                     props.regionFileCompression);
@@ -131,7 +132,7 @@ public final class FurnaceMain {
                 levelData.useFlatOverworld(org.domi.furnace.server.world.gen.SuperflatWorldSource.settingsNbt(props.generatorSettings));
             }
         }
-        levelData.setModdedInfo(SERVER_BRAND, true);
+        levelData.setModdedInfo(org.domi.furnace.server.config.OperatorOptions.current().serverBrand(), true);
         // Paper/Spigot 에서 넘어온 월드: <level>_nether/DIM-1, <level>_the_end/DIM1 을 바닐라 위치로 복사(원본 보존).
         try {
             var imported = org.domi.furnace.server.world.storage.BukkitWorldImport.run(universe, levelName, worldDir, levelData);
@@ -437,6 +438,7 @@ public final class FurnaceMain {
             if (world.autosaveEnabled()) saveLevelData.run();
         }, config.autosaveTicks()), config.autosaveTicks());
         console.attach(core);
+        InterruptConfirm.installIfEnabled(org.domi.furnace.server.config.OperatorOptions.current());
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
