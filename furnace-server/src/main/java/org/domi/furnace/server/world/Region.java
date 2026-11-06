@@ -1363,9 +1363,17 @@ public final class Region {
      * 쪽으로(죽을 때), 아니면 보는 쪽으로 0.3 + 흔들림. 속도는 플레이어 난수(아이템 생성자는 레벨 난수 두 번을 먼저 쓴다).
      */
     public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower) {
+        return playerDrop(p, stack, dropAround, includeThrower, true);
+    }
+
+    /**
+     * callEvent 거짓이면 플러그인 PlayerDropItemEvent 를 부르지 않는다 — CraftBukkit 이 /give 의 가짜 아이템(줍는 연출)에 쓰는 drop(…, false)
+     * (SPIGOT-2942). 아이템은 이미 인벤토리에 들어갔으므로 취소할 것이 없다.
+     */
+    public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, boolean callEvent) {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
-        if (!world.levelServices().gameEvents().playerDrop(p, stack)) {   // 플러그인 PlayerDropItemEvent 취소: 인벤토리로 돌려준다(원래 칸이 아닌 첫 빈 칸)
+        if (callEvent && !world.levelServices().gameEvents().playerDrop(p, stack)) {   // 플러그인 PlayerDropItemEvent 취소: 인벤토리로 돌려준다(원래 칸이 아닌 첫 빈 칸)
             stack = p.inventory().add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), false);
             if (stack.isEmpty()) return null;
         }

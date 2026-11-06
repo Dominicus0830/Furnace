@@ -104,7 +104,7 @@ public final class ItemCommands {
 
     /** region 스레드에서: Player.drop(stack, false) 뒤 가짜 아이템·소리, 또는 즉시 줍기·주인 지정. */
     private static void pending(org.domi.furnace.server.world.Region region, Player p, ItemStack stack, boolean fake) {
-        var ie = region.playerDrop(p, stack, false, false);
+        var ie = region.playerDrop(p, stack, false, false, !fake);   // 가짜 아이템은 드롭 이벤트 없음(CraftBukkit GiveCommand)
         if (fake) {
             if (ie != null) ie.makeFakeItem();
             region.level().playSound(null, p.x(), p.y(), p.z(), "minecraft:entity.item.pickup", "players", 0.2F, pickupPitch(p.random()));
