@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":furnace-api"))
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("io.netty:netty-all:4.1.115.Final")
+    implementation("io.airlift:aircompressor:0.27")   // 순수 자바 zstd (region-file-compression=zstd)
     implementation("org.slf4j:slf4j-api:2.0.16")
     implementation("ch.qos.logback:logback-classic:1.5.12")
 

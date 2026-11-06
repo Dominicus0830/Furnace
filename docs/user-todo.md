@@ -91,6 +91,10 @@
 ### 서버 성능 관찰
 - 플레이어 2명부터 청크 전송이 1명일 때보다 약간 느림(N-05 청크 스냅샷 보관 제거 이후). 측정 항목으로 남김
 
+### region 정보 API · zstd 압축 (W5, 2026-11-06)
+- `World.regionAt(청크)`·`regions()` → `RegionInfo`(청크 수·범위·소유 워커 스레드·최근 5초 TPS·직전/최장 틱). 플러그인은 `Furnace.server().world(...)` 로 읽는다.
+- `region-file-compression=zstd` 는 **기본 꺼짐**이며 바닐라·Paper 가 그 월드를 못 연다(종류 바이트 5, 서버 시작 때 경고). 되돌리기·변환: `java -cp furnace-server.jar org.domi.furnace.server.world.anvil.RegionConvert <월드 폴더> <deflate|zstd|…>` (서버를 끈 채). 순수 자바(aircompressor 0.27).
+
 ### 생성 청크 저장 (F-14) 주의
 - 생성만 한 청크도 디스크에 남아 탐험한 만큼 월드 폴더가 커짐(크기 제한 없음). 디스크 여유 확인
 - 한 번 저장된 청크는 이후 월드젠 수정이 반영되지 않음. 월드젠 parity 를 실제 서버로 볼 땐 새 월드로 또는 `region/` 삭제 (`docs/feature-parity/f14-generated-chunk-save-2026-10-27.md`)

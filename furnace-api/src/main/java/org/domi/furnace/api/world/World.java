@@ -87,6 +87,19 @@ public interface World {
      */
     CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos);
 
+    // ------------------------------------------------------------------ region 정보
+
+    /**
+     * 그 청크를 가진 region 의 관측 사본. 그 청크의 구역이 어느 region 에도 속하지 않으면 empty. 아무 스레드,
+     * 값은 잰 순간의 것이다(region 은 합쳐지거나 나뉜다).
+     */
+    default java.util.Optional<RegionInfo> regionAt(int chunkX, int chunkZ) { return java.util.Optional.empty(); }
+
+    default java.util.Optional<RegionInfo> regionAt(BlockPos pos) { return regionAt(pos.chunkX(), pos.chunkZ()); }
+
+    /** 이 차원의 살아 있는 region 모두(id 순). */
+    default List<RegionInfo> regions() { return List.of(); }
+
     // ------------------------------------------------------------------ 블록 엔티티 NBT (/data block 과 같은 의미)
 
     /**
