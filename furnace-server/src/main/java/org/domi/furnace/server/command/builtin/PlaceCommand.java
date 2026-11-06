@@ -43,8 +43,7 @@ import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.entity.Entities;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
-import org.domi.furnace.server.world.ChunkColumn;
-import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.world.LiveGrid;
 import org.domi.furnace.server.world.RegionLevel;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
@@ -152,7 +151,7 @@ public final class PlaceCommand {
             random.setSeed(level.random().nextLong());
             LiveGrid grid = new LiveGrid(level, cx, cz, 2, gen.seed());
             boolean placed = feature.place(grid.view, random, p[0], p[1], p[2]);
-            grid.checkComplete();
+            complete(grid);
             if (!placed) throw ERROR_FEATURE_FAILED.create();
             grid.commit(3);   // Feature.setBlock 의 기본 flag(UPDATE_ALL)
             post.success(source, () -> Text.translatable("commands.place.feature.success", key, p[0], p[1], p[2]), true);
@@ -178,28 +177,15 @@ public final class PlaceCommand {
         return post.finish(source, EntityOps.atRegion(source.level(), p[0], p[2], region -> {
             RegionLevel level = region.level();
             if (loadedCheck) checkLoadedPos(level, p);
-            int cx = p[0] >> 4, cz = p[2] >> 4;
-            checkLoaded(level, cx, cz, cx, cz);
             // JigsawPlacement.generateJigsaw
-            List<JigsawPiece> pieces = JigsawStructure.generateForCommand(engine, gen, pool, target, maxDepth, p[0], p[1], p[2]);
-            if (pieces == null) throw ERROR_JIGSAW_FAILED.create();
-            // 바닐라는 조각이 닿는 청크를 그 자리에서 불러온다. 여기선 모두 이 region 에 로드돼 있어야 한다(아니면 일부만 놓지 않고 실패).
-            int minCx = cx, minCz = cz, maxCx = cx, maxCz = cz;
-            for (JigsawPiece piece : pieces) {
-                BoundingBox b = piece.boundingBox();
-                minCx = Math.min(minCx, b.minX() >> 4); minCz = Math.min(minCz, b.minZ() >> 4);
-                maxCx = Math.max(maxCx, b.maxX() >> 4); maxCz = Math.max(maxCz, b.maxZ() >> 4);
+            boolean ok;
+            try {
+                ok = org.domi.furnace.server.world.gen.structure.JigsawGenerate.generate(level, gen, pool, target, maxDepth, p[0], p[1], p[2], false);
+            } catch (LiveGrid.GridException e) {
+                if (e.tooLarge) throw ERROR_UNSUPPORTED.create("anything larger than 19x19 chunks");
+                throw BlockPosArgument.ERROR_NOT_LOADED.create();
             }
-            checkLoaded(level, minCx, minCz, maxCx, maxCz);
-            LiveGrid grid = LiveGrid.covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
-            WorldgenRandom random = new WorldgenRandom();
-            random.setSeed(level.random().nextLong());
-            BoundingBox infinite = new BoundingBox(Integer.MIN_VALUE / 2, Integer.MIN_VALUE / 2, Integer.MIN_VALUE / 2,
-                    Integer.MAX_VALUE / 2, Integer.MAX_VALUE / 2, Integer.MAX_VALUE / 2);
-            PostCtx ctx = new PostCtx(engine, grid.view, random, random, infinite, cx, cz, p[0], p[1], p[2]);
-            for (JigsawPiece piece : pieces) piece.place(ctx, false);
-            grid.checkComplete();
-            grid.commit(2);   // 템플릿·구조물 배치 flag(2) — 모양 갱신은 사본 안에서 이미 했다
+            if (!ok) throw ERROR_JIGSAW_FAILED.create();
             post.success(source, () -> Text.translatable("commands.place.jigsaw.success", p[0], p[1], p[2]), true);
             return 1;
         }));
@@ -229,7 +215,7 @@ public final class PlaceCommand {
             BoundingBox box = start.boundingBox();
             int minCx = box.minX() >> 4, minCz = box.minZ() >> 4, maxCx = box.maxX() >> 4, maxCz = box.maxZ() >> 4;
             checkLoaded(level, minCx, minCz, maxCx, maxCz);
-            LiveGrid grid = LiveGrid.covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
+            LiveGrid grid = covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
             WorldgenRandom random = new WorldgenRandom();
             random.setSeed(level.random().nextLong());
             // ChunkPos.rangeClosed: x 가 먼저 돈다
@@ -241,7 +227,7 @@ public final class PlaceCommand {
                     }
                 }
             }
-            grid.checkComplete();
+            complete(grid);
             grid.commit(2);   // 템플릿·구조물 배치 flag(2) — 모양 갱신은 사본 안에서 이미 했다
             post.success(source, () -> Text.translatable("commands.place.structure.success", key, p[0], p[1], p[2]), true);
             return 1;
@@ -287,11 +273,11 @@ public final class PlaceCommand {
                 st.processors.add(new Processors.BlockRot(null, integrity));
                 st.random = createRandom(seed);
             }
-            LiveGrid grid = LiveGrid.covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
+            LiveGrid grid = covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
             boolean ok = TemplatePlacer.placeInWorld(template, grid.view, engine.shapes(), engine.table(), new Processor.Ctx(grid.view, engine.table()),
                     p[0], p[1], p[2], p[0], p[1], p[2], st, createRandom(seed), 2);
             if (!ok) throw ERROR_TEMPLATE_FAILED.create();
-            grid.checkComplete();
+            complete(grid);
             grid.commit(2);   // 템플릿·구조물 배치 flag(2) — 모양 갱신은 사본 안에서 이미 했다
             post.success(source, () -> Text.translatable("commands.place.template.success", id.toString(), p[0], p[1], p[2]), true);
             return 1;
@@ -329,116 +315,22 @@ public final class PlaceCommand {
         }
     }
 
-    /**
-     * 실제 청크의 복사본 격자. 월드젠 코드는 복사본(view)에만 쓰고, commit 이 바뀐 칸을 실제 월드에 옮긴다.
-     * 반경 안에서 이 region 에 없는 청크는 null(읽으면 공기, 쓰면 버려진다).
-     */
-    static final class LiveGrid {
-        private final RegionLevel level;
-        private final int centerX, centerZ, radius, size;
-        private final ChunkColumn[] live, copy;
-        final FeatureWorldView view;
 
-        LiveGrid(RegionLevel level, int centerX, int centerZ, int radius, long seed) {
-            this.level = level;
-            this.centerX = centerX;
-            this.centerZ = centerZ;
-            this.radius = radius;
-            this.size = 2 * radius + 1;
-            live = new ChunkColumn[size * size];
-            copy = new ChunkColumn[size * size];
-            int[][] biomes = new int[size * size][];
-            for (int dz = -radius; dz <= radius; dz++) {
-                for (int dx = -radius; dx <= radius; dx++) {
-                    int i = (dz + radius) * size + (dx + radius);
-                    ChunkColumn col = level.listenerChunk(centerX + dx, centerZ + dz);
-                    if (col == null) continue;
-                    live[i] = col;
-                    copy[i] = col.copy();   // blockEntities 는 얕은 복사(같은 BE 객체) — 월드젠 코드는 BE 를 고치지 않고 생성 NBT 만 남긴다는 전제
-                    biomes[i] = biomeIds(col);
-                }
-            }
-            view = FeatureWorldView.liveGrid(copy, biomes, centerX, centerZ, radius, seed);
+    /** LiveGrid.covering: 너무 크면 ERROR_UNSUPPORTED. */
+    private static LiveGrid covering(RegionLevel level, int minCx, int minCz, int maxCx, int maxCz, long seed) throws CommandSyntaxException {
+        try {
+            return LiveGrid.covering(level, minCx, minCz, maxCx, maxCz, seed);
+        } catch (LiveGrid.GridException e) {
+            throw ERROR_UNSUPPORTED.create("anything larger than 19x19 chunks");
         }
+    }
 
-        /** 청크 범위를 덮는 가장 작은 정사각 격자. */
-        static final int MAX_GRID_RADIUS = 9;
-
-        static LiveGrid covering(RegionLevel level, int minCx, int minCz, int maxCx, int maxCz, long seed) throws CommandSyntaxException {
-            int cx = Math.floorDiv(minCx + maxCx, 2), cz = Math.floorDiv(minCz + maxCz, 2);
-            int r = Math.max(Math.max(cx - minCx, maxCx - cx), Math.max(cz - minCz, maxCz - cz));
-            // 상한: 19x19 청크(사본 약 361개). jigsaw(최대 거리 128 → 약 17x17)까지 들어간다. 넘으면 실패.
-            if (r > MAX_GRID_RADIUS) throw ERROR_UNSUPPORTED.create("anything larger than 19x19 chunks");
-            return new LiveGrid(level, cx, cz, Math.max(r, 1), seed);
-        }
-
-        /** FeatureWorldView 의 biome 배열 형식: (quartY * 4 + quartZ) * 4 + quartX, quartY 는 열 전체 기준. */
-        private static int[] biomeIds(ChunkColumn col) {
-            ChunkSection[] sections = col.sections();
-            int[] ids = new int[sections.length * 64];
-            for (int s = 0; s < sections.length; s++) {
-                for (int qy = 0; qy < 4; qy++) {
-                    for (int qz = 0; qz < 4; qz++) {
-                        for (int qx = 0; qx < 4; qx++) ids[((s * 4 + qy) * 4 + qz) * 4 + qx] = sections[s].getBiome(qx, qy, qz);
-                    }
-                }
-            }
-            return ids;
-        }
-
-        /** 바뀐 칸을 실제 월드에 놓는다(flag 2). 생성된 블록 엔티티 NBT 를 붙이고 엔티티를 세계에 넣는다. 바뀐 칸 수. */
-        /** 범위 밖·로드 안 된 청크를 읽거나 썼으면 일부만 놓인 결과다 — 옮기지 않고 실패한다. */
-        void checkComplete() throws CommandSyntaxException {
-            if (view.missingAccess() > 0) throw BlockPosArgument.ERROR_NOT_LOADED.create();
-        }
-
-        int commit(int flags) {
-            int changed = 0;
-            for (int i = 0; i < live.length; i++) {
-                ChunkColumn l = live[i], cp = copy[i];
-                if (l == null) continue;
-                int ox = (centerX + (i % size) - radius) * 16, oz = (centerZ + (i / size) - radius) * 16;
-                for (int y = l.minY(); y <= l.maxY(); y++) {
-                    for (int z = 0; z < 16; z++) {
-                        for (int x = 0; x < 16; x++) {
-                            int s = cp.getBlock(x, y, z);
-                            if (s == l.getBlock(x, y, z)) continue;
-                            level.setBlock(new Pos(ox + x, y, oz + z), s, flags);
-                            changed++;
-                        }
-                    }
-                }
-            }
-            for (int i = 0; i < live.length; i++) {
-                ChunkColumn l = live[i], cp = copy[i];
-                if (l == null) continue;
-                int ox = (centerX + (i % size) - radius) * 16, oz = (centerZ + (i / size) - radius) * 16;
-                cp.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> adoptBlockEntity(l, ox + lx, y, oz + lz, nbt));
-                for (NbtCompound e : cp.generatedEntities()) spawn(e);
-            }
-            return changed;
-        }
-
-        private void adoptBlockEntity(ChunkColumn col, int x, int y, int z, NbtCompound nbt) {
-            Pos pos = new Pos(x, y, z);
-            NbtCompound tag = nbt.copy();
-            tag.putInt("x", x);
-            tag.putInt("y", y);
-            tag.putInt("z", z);
-            String id = tag.tags().get("id") instanceof String s ? s : null;
-            if (id != null && BlockEntities.known(id)) {
-                var be = BlockEntities.loadStatic(pos, level.getBlockState(pos), tag);
-                if (be != null) level.setBlockEntity(be);
-                return;
-            }
-            // 상자·아직 모르는 종류: 청크 로드 때와 같이 생성 NBT 로 남긴다(상자는 처음 열 때 loot table 상자가 된다)
-            col.removeBlockEntityAt(x, y, z);
-            col.putGeneratedBlockEntity(x & 15, y, z & 15, tag);
-        }
-
-        private void spawn(NbtCompound nbt) {
-            Entity e = Entities.load(level, nbt.copy());
-            if (e != null) level.addFreshEntityWithPassengers(e);
+    /** 범위 밖·로드 안 된 청크를 건드렸으면 실패. */
+    private static void complete(LiveGrid grid) throws CommandSyntaxException {
+        try {
+            grid.checkComplete();
+        } catch (LiveGrid.GridException e) {
+            throw BlockPosArgument.ERROR_NOT_LOADED.create();
         }
     }
 
