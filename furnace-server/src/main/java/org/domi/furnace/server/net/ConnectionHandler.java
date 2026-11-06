@@ -2476,8 +2476,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (dx * dx + dy * dy + dz * dz >= 36.0) return;
         if (action == 0 && !region.level().gameEvents().playerInteractEntity(p, e, hand, heldBefore)) {
             // 플러그인 PlayerInteractEntityEvent 취소: 아무 상호작용도 하지 않고, 클라이언트가 예측한 손 아이템 변화를 되돌린다
-            int handSlot = hand == 0 ? p.inventory().heldWindowSlot() : 45;
-            p.send(new ContainerSetSlot(-2, 0, handSlot, p.inventory().get(handSlot)));
+            org.domi.furnace.server.plugin.ClientResync.hand(p, hand);
             return;
         }
         if (action == 1 && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) {
@@ -3800,6 +3799,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(actor.dimension(),
                             new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
                             new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
+                    if (ev.isCancelled()) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
                     return !ev.isCancelled();
                 }
             };
@@ -3852,18 +3852,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             org.domi.furnace.server.block.ChunkLevel level, org.domi.furnace.server.block.Pos pos) {
         if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerInteractEvent.class)) return true;
         if (c.gameEvents().playerInteract(actor, hand, bp, level.getBlockState(pos), face, held)) return true;
-        actor.send(new ContainerSetSlot(-2, 0, handSlot, inv.get(handSlot)));
+        org.domi.furnace.server.plugin.ClientResync.slot(actor, handSlot);
         return false;
     }
 
     /** 그 칸의 지금 상태를 행위자에게(ClientboundBlockUpdatePacket(level, pos)). 다른 region 의 칸은 그 region 에서 읽어 보낸다. */
     private void sendBlockState(Player actor, Region here, org.domi.furnace.server.block.Pos p) {
         if (p.y() < world.dimensionType().minY() || p.y() >= world.dimensionType().maxY()) {
-            actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
+            org.domi.furnace.server.plugin.ClientResync.block(actor, here.level(), p);
             return;
         }
         if (here.level().hasChunkAt(p)) {
-            actor.send(new org.domi.furnace.server.net.protocol.play.BlockUpdate(p.x(), p.y(), p.z(), here.level().getBlockState(p)));
+            org.domi.furnace.server.plugin.ClientResync.block(actor, here.level(), p);
             return;
         }
         // 다른 region 의 칸(합쳐지기 전). 주인이 없는 칸이면 클라도 그 청크가 없다 — 보낼 것 없음.

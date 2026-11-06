@@ -24,6 +24,15 @@ public final class PlayerInventory {
         return 45;
     }
 
+    /** windowSlot 의 반대: 창 칸 → Inventory 번호. 제작 결과·제작 칸(0..4)처럼 인벤토리 번호가 없는 칸은 -1. */
+    public static int inventoryIndex(int windowSlot) {
+        if (windowSlot >= 36 && windowSlot < 45) return windowSlot - 36;
+        if (windowSlot >= 9 && windowSlot < 36) return windowSlot;
+        if (windowSlot >= 5 && windowSlot <= 8) return 36 + (8 - windowSlot);
+        if (windowSlot == 45) return 40;
+        return -1;
+    }
+
     public synchronized ItemStack get(int windowSlot) {
         ItemStack s = windowSlot >= 0 && windowSlot < SIZE ? slots[windowSlot] : null;
         return s == null ? ItemStack.EMPTY : s;

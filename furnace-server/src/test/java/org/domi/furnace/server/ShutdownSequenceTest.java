@@ -11,8 +11,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import org.domi.furnace.api.event.server.ServerShutdownEvent;
 import org.domi.furnace.api.plugin.FurnacePlugin;
-import org.domi.furnace.api.plugin.PluginContext;
-import org.domi.furnace.api.plugin.PluginDescription;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.junit.jupiter.api.Test;
@@ -72,18 +70,7 @@ class ShutdownSequenceTest {
         core.world().startTicking();
         var host = core.plugins();
         CleanupPlugin plugin = new CleanupPlugin();
-        plugin.init(new PluginContext() {
-            final PluginDescription d = new PluginDescription("cleanup", "1", CleanupPlugin.class.getName(), "", List.of(), null, null,
-                    List.of(), List.of(), List.of(), null, java.util.Map.of(), List.of(), null);
-            public PluginDescription description() { return d; }
-            public org.domi.furnace.api.Furnace server() { return host; }
-            public java.util.logging.Logger logger() { return java.util.logging.Logger.getLogger("cleanup"); }
-            public Path configFolder() { return tmp.resolve("cleanup"); }
-            public Path dataFolder() { return tmp.resolve("cleanup"); }
-            public Path file() { return tmp.resolve("cleanup.jar"); }
-            public ClassLoader classLoader() { return getClass().getClassLoader(); }
-            public org.domi.furnace.api.registry.PluginRegistries registries() { return null; }
-        });
+        org.domi.furnace.server.TestPluginContexts.init(plugin, host, "cleanup", tmp);
         plugin.setEnabled(true);
         List<String> log = plugin.log;
         host.eventsImpl().subscribe(plugin, ServerShutdownEvent.class, e -> log.add("ServerShutdownEvent stopping=" + host.isStopping()));

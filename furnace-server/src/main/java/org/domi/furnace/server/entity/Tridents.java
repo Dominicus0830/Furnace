@@ -66,13 +66,18 @@ public final class Tridents {
         if (spin > 0.0F && !isInWaterOrRain(level, p)) return;
         if (tooDamaged(s)) return;
         String sound = sound(s);
+        ItemStack original = s;
         BlockBreaking.hurtAndBreak(level, actor, hand, s, 1);
         ItemStack cur = actor.itemInHand(hand);
         if (spin == 0.0F) {
             var t = new ThrownTrident(level, level.nextEntityId(), p, cur);
             t.shootFromRotation(p.pitch(), p.yaw(), 0.0F, SHOOT_POWER, 1.0F, p.knownMovement(), p.onGround());
             if (p.hasInfiniteMaterials()) t.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
-            level.addFreshEntity(t);
+            if (!level.addFreshEntity(t)) {   // 플러그인이 던지기를 취소: 내구도도 쓰지 않는다
+                actor.setItemInHand(hand, original);
+                org.domi.furnace.server.plugin.ClientResync.inventory(p);
+                return;
+            }
             level.playSound(null, t, sound, "players", 1.0F, 1.0F);
             if (!p.hasInfiniteMaterials()) actor.setItemInHand(hand, ItemStack.EMPTY);
         }

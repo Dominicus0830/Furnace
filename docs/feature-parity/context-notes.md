@@ -900,6 +900,14 @@
 - 차원 타입은 등록·전송까지다. 그 타입을 쓰는 차원(월드)을 만드는 것은 다중 월드(W1): 만들 때 `GameRegistryStore.dimensionType(key).definition()` 으로 정의를 읽어 서버 `DimensionType` 을 구성하고 `Respawn`/`Login` 의 차원 인덱스는 `ServerCore.registries().indexOf("minecraft:dimension_type", key)`(ConnectionHandler 가 이미 그렇게 읽는다).
 - 시험: `GameRegistryTest`(7), `VanillaChunkFormatTest`(+1), 봇 `tools/bot-test/round-w2/glow.js` 11/11(레지스트리 본문 수신·접속·setBiome→chunk_biomes·/fillbiome·execute if biome). 문서 `docs/api/bootstrap-registries.md` 6장.
 
+## 2026-11-06 이벤트 취소 계약(취소하면 상태 그대로, 화면 되돌리기는 코어가)
+- 규칙·이벤트별 표: `docs/api/event-cancel-contract.md`. 도우미 `plugin/ClientResync`(칸·창 전체·단축 칸·능력·블록+블록 엔티티·드롭 되돌림).
+- 고친 것: ① 창 -2 패킷에 **창 칸 번호**(36+선택, 45)를 보내던 5곳(우클릭·엔티티 클릭·먹기 취소 — 갑옷 칸을 덮을 수 있었다)을 Inventory 번호로. ② `BlockPlaceEvent` 취소 시 손 칸 재전송 없음. ③ `PlayerDropItemEvent` 취소가 첫 빈 칸에 돌려주고 재전송 없음 → 든 칸으로(CraftBukkit). ④ 던지기·배·수레·거치대·액자·불꽃·수정·엔더의 눈·낚싯대는 취소돼도 아이템을 소모했다 → 소모 없이 재전송, 활·쇠뇌·삼지창은 탄약·내구도·장전 되돌림. ⑤ 부수기·왼쪽 클릭·우클릭 취소 때 블록 엔티티(표지판 글 등)가 안 따라갔다.
+- 시험: `CancelResyncE2ETest`(진짜 연결 핸들러, 28개), `CancelContractTest`(새 취소 가능 이벤트가 표·문서에 없으면 실패), 화로·침대 취소는 각 단위 시험. 합성 데이터 팩 `SyntheticRecipes` 로 바닐라 데이터 없이 화로 시험.
+- 시험 함정: 시험 스케줄러는 스스로 틱하지 않는다 — `submitAtChunk(p.chunkPos(), r -> r.tick())` 로 돌려야 ack·이동·먹기가 진행된다. 접속 직후 `p.drainPending()` 전엔 플레이어 위치가 0,0,0.
+- 한계: 웅크림·달리기 취소는 되돌릴 방법이 없음(클라이언트 입력, Paper 동일). 부싯돌은 취소해도 닳음(CraftBukkit 동일).
+
+
 ## 2026-11-06 플러그인 UI API: 메뉴·사이드바·보스바
 - 추가(furnace-api): `menu.Menu`(+`MenuType`·`MenuClick`·`ClickKind`), `bossbar.BossBar`, `scoreboard.Sidebar`. `Audience` 에 `showBossBar/hideBossBar/showSidebar/hideSidebar`, `Player` 에 `openMenu(Menu)/closeMenu()/currentMenu()`. 모두 레지스트리 키·`Text`·`ItemStack`(API) 만 쓰는 버전 중립 타입이고 상태는 API 객체가 갖는다(서버는 리스너로 따라간다).
 - 메뉴: 상자 1~6줄·발사기 3×3·깔때기 5칸. **기본은 모든 클릭 취소**(플레이어 인벤토리 칸 쉬프트 클릭·끌기 포함), 처리기가 `click.allow()` 를 부르면 바닐라대로. 처리기는 연결 스레드에서 불리고 던진 예외는 기록 후 취소. `Menu.set/button/clear/fillEmpty/border` 로 내용을 바꾸면 보고 있는 사람 화면이 `broadcastChanges` 로 따라온다. 열기/닫기는 `InventoryHost.openPluginMenu/execute` 로 연결 이벤트 루프에서(처리기 안에서 `close()` 해도 클릭이 끝난 뒤에 닫힌다). InventoryOpen/Close/ClickEvent 는 그대로 발화(처리기가 거부한 클릭은 InventoryClickEvent 를 거치지 않는다). 서버 `AbstractContainerMenu.pluginOwner` 가 `MenuSession` 표식.
