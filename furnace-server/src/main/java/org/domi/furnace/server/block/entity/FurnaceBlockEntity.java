@@ -101,11 +101,17 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
         return out.count() < maxStack && out.count() < Stacks.maxStack(out) ? true : out.count() < Stacks.maxStack(result);
     }
 
-    private static boolean burn(RecipeManager.CookingEntry recipe, ItemStack[] items, int maxStack, RecipeManager rm) {
+    private boolean burn(BlockLevel level, RecipeManager.CookingEntry recipe, ItemStack[] items, int maxStack, RecipeManager rm) {
         if (recipe == null || !canBurn(recipe, items, maxStack, rm)) return false;
         ItemStack input = items[0], result = recipe.recipe().result().stack(rm.context()), out = items[2];
-        if (out.isEmpty()) items[2] = result;
-        else if (Stacks.isSameItemSameComponents(out, result)) items[2] = out.withCount(out.count() + 1);
+        // 플러그인 FurnaceSmeltEvent: 결과를 바꾸거나 취소(CraftBukkit 처럼 바꾼 결과가 결과 칸과 합쳐지지 않으면 굽지 않는다)
+        ItemStack made = level.gameEvents().furnaceSmelt(level.dimension(), pos, level.getBlockState(pos), input, result);
+        if (made == null) return false;
+        if (made.isEmpty()) {
+            // 아무것도 나오지 않는다
+        } else if (out.isEmpty()) items[2] = made;
+        else if (Stacks.isSameItemSameComponents(out, made)) items[2] = out.withCount(out.count() + (made == result ? 1 : made.count()));   // 바닐라는 grow(1)
+        else return false;
         if ("minecraft:wet_sponge".equals(ItemTools.itemName(input)) && !items[1].isEmpty() && "minecraft:bucket".equals(ItemTools.itemName(items[1]))) {
             Integer water = ItemContext.id("minecraft:item", "minecraft:water_bucket");
             if (water != null) items[1] = new ItemStack(water, 1);
@@ -132,11 +138,13 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
             int maxStack = 99;
             boolean burnable = rm != null && canBurn(recipe, items, maxStack, rm);
             if (!isLit() && burnable) {
-                litTime = burnDuration(fuel);
+                // 플러그인 FurnaceBurnEvent: 취소면 불을 켜지 않는다(연료도 그대로)
+                var burn = level.gameEvents().furnaceBurn(level.dimension(), pos, level.getBlockState(pos), fuel, burnDuration(fuel));
+                litTime = burn == null ? 0 : burn.burnTime();
                 litDuration = litTime;
                 if (isLit()) {
                     changed = true;
-                    if (hasFuel) {
+                    if (hasFuel && burn.consumeFuel()) {
                         ItemStack remaining = CraftRemainders.of(fuel);
                         items[1] = fuel.withCount(fuel.count() - 1);
                         if (items[1].isEmpty()) items[1] = remaining == null ? ItemStack.EMPTY : remaining;
@@ -148,7 +156,7 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
                 if (cookingProgress == cookingTotalTime) {
                     cookingProgress = 0;
                     cookingTotalTime = cookTime(rm);
-                    if (burn(recipe, items, maxStack, rm)) recipesUsed.merge(recipe.id(), 1, Integer::sum);
+                    if (burn(level, recipe, items, maxStack, rm)) recipesUsed.merge(recipe.id(), 1, Integer::sum);
                     changed = true;
                 }
             } else {

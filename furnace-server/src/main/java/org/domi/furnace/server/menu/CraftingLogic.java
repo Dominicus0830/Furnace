@@ -15,13 +15,16 @@ final class CraftingLogic {
         var recipes = owner.recipes();
         CraftingInput input = grid.asInput();
         ItemStack out = ItemStack.EMPTY;
+        String used = null;
         if (recipes != null) {
             CraftingEntry e = recipes.findCrafting(input, last);
             if (e != null && result.setRecipeUsed(owner, e)) {
                 // 바닐라는 여기서 isItemEnabled(기능 플래그)도 본다 — 실험 기능 아이템은 아직 없다.
                 out = e.recipe().assemble(input, recipes.context());
+                used = e.id().toString();
             }
         }
+        out = owner.prepareCraft(menu, used, out);   // 플러그인 PrepareItemCraftEvent
         result.set(0, out);
         menu.setRemoteSlot(0, out);
         menu.sendSlotChange(0, out);

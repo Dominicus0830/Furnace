@@ -72,6 +72,8 @@ public class PistonBaseBlock extends DirectionalBlock {
                     && (m.getProgress(0.0F) < 0.5F || level.gameTime() == m.getLastTicked() || level.isHandlingTick())) {
                 type = TRIGGER_DROP;
             }
+            // 플러그인 BlockPistonRetractEvent: 일반 피스톤은 여기서(끌 블록 없음), 끈끈이는 moveBlocks 에서 — CraftBukkit 과 같은 자리
+            if (!isSticky && !level.gameEvents().piston(level.dimension(), pos, dir, false, false, List.of())) return;
             level.blockEvent(pos, block, type, dir);
         }
     }
@@ -164,6 +166,14 @@ public class PistonBaseBlock extends DirectionalBlock {
         if (!resolver.resolve()) return false;
         Map<Key, Integer> deleted = new HashMap<>();
         List<Pos> toPush = resolver.getToPush();
+        if (extending || isSticky) {   // 플러그인 BlockPistonExtend/RetractEvent(밀 블록 + 부술 블록)
+            List<Pos> moved = new ArrayList<>(toPush);
+            moved.addAll(resolver.getToDestroy());
+            if (!level.gameEvents().piston(level.dimension(), pos, dir, isSticky, extending, moved)) {
+                if (!extending) level.sendBlockUpdated(front);   // 머리를 플래그 20(알림 없음)으로 지웠으니 클라이언트에 알린다(CraftBukkit 도 다시 보낸다)
+                return false;
+            }
+        }
         List<Integer> pushStates = new ArrayList<>();
         for (Pos p : toPush) {
             int s = level.getBlockState(p);

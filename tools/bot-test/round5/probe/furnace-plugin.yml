@@ -1,0 +1,9 @@
+name: BlockEventProbe
+version: 1.0.0
+main: probe.BlockEventProbe
+description: 3단계 둘째 묶음(블록·인벤토리) 이벤트 봇 시험
+commands:
+  evcancel:
+    description: 취소할 이벤트 이름들(none = 비움)
+  evmode:
+    description: 값 바꾸기 모드(redstone0, smeltdiamond, movediamond, craftdiamond, none)

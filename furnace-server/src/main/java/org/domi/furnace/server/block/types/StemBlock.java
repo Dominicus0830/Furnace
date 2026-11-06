@@ -33,14 +33,14 @@ public class StemBlock extends BushBlock implements BonemealableBlock {
         if (random.nextInt((int) (25.0F / speed) + 1) != 0) return;
         int age = AGE.intValue(state);
         if (age < 7) {
-            level.setBlock(pos, AGE.withInt(state, age + 1), 2);
+            B.grow(level, pos, AGE.withInt(state, age + 1), 2);
             return;
         }
         int dir = Dir.HORIZONTAL[random.nextInt(4)];
         Pos p = pos.relative(dir);
         int below = level.getBlockState(p.below());
         if (B.isAir(level.getBlockState(p)) && (B.is(below, FARMLAND) || B.isTag(below, "minecraft:dirt"))) {
-            level.setBlockAndUpdate(p, B.defaultState(fruit));
+            if (!B.grow(level, p, B.defaultState(fruit), 3)) return;   // 플러그인 BlockGrowEvent(열매 칸)
             level.setBlockAndUpdate(pos, FACING.with(B.defaultState(attachedStem), Dir.NAME[dir]));
         }
     }
@@ -55,7 +55,7 @@ public class StemBlock extends BushBlock implements BonemealableBlock {
     public void performBonemeal(BlockLevel level, RandomSource random, Pos pos, int state) {
         int age = Math.min(7, AGE.intValue(state) + FrostedIceBlock.nextInt(level.random(), 2, 5));
         int s = AGE.withInt(state, age);
-        level.setBlock(pos, s, 2);
+        if (!B.grow(level, pos, s, 2)) return;   // 플러그인 BlockGrowEvent 취소
         if (age == 7) randomTick(s, level, pos, level.random());
     }
 }

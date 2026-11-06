@@ -838,3 +838,14 @@
 - **발견(손대지 않음, 가정)**: 바람 폭발(TRIGGER_BLOCK)은 바닐라가 toBlow 를 섞는데(`Util.shuffle`, 레벨 난수) Furnace 는 섞지 않는다 — 레벨 난수 순서가 한 번 다를 수 있다. 확인 후 따로 고칠 것.
 - 시험: `PluginApiStage3Test`(서버 단위 10개), 봇 `tools/bot-test/round4/ev.js` + `probe/EventProbe`(33개 확인).
 
+## 2026-11-06 플러그인 API 3단계 둘째 묶음(블록·인벤토리 이벤트 15종)
+- 추가: 블록 `BlockPhysicsEvent`·`BlockRedstoneEvent`·`BlockPistonExtend/RetractEvent`(바탕 `BlockPistonEvent`)·`BlockFromToEvent`·`BlockGrowEvent`·`BlockBurnEvent`·`BlockIgniteEvent`·`LeavesDecayEvent`, 인벤토리 `PrepareItemCraftEvent`·`CraftItemEvent`(`InventoryClickEvent` 하위 — 그래서 `InventoryClickEvent` 는 final 이 아니다)·`FurnaceBurnEvent`·`FurnaceSmeltEvent`·`InventoryMoveItemEvent`. 입구는 같은 `GameEvents`(구독자 없으면 이벤트 객체를 만들지 않는다). `BlockLevel.gameEvents()` 기본은 NONE.
+- **발화 자리(CraftBukkit 과 같게)**: 물리는 `NeighborUpdater.executeUpdate`(neighborChanged)와 `executeShapeUpdate`(모양 갱신) 둘 다 — 취소면 그 갱신을 건너뛴다. 레드스톤은 가루 `updatePowerStrength`, 레버 `pull`, 버튼 `press`·`checkPressed`, 압력판 `checkPressed`, 램프(켜기·끄기). 레버·버튼·램프는 켜짐/꺼짐만 본다. 피스톤: 늘이기·끈끈이 줄이기는 `moveBlocks` 에서 resolve 뒤(밀 칸 + 부술 칸), 일반 피스톤 줄이기는 `checkIfExtend` 에서 블록 이벤트 걸기 전(빈 목록). 끈끈이 줄이기 취소면 머리는 들어가고 블록만 안 끌려온다. 유체: 아래 흐름 취소면 그 틱 옆 흐름도 없다. 성장: `B.grow`(handleBlockGrowEvent) — 작물(무작위·뼛가루), 줄기(나이·열매 칸), 사탕수수(취소돼도 나이 0 — CraftBukkit), 선인장, 네더 사마귀, 코코아, 달콤한 열매. 불: `checkBurnOut` 은 확률 난수 뒤, 번짐은 이미 불인 칸 제외, 용암 무작위 틱, 부싯돌(취소돼도 닳음)·화염구(취소돼도 하나 씀, 둘 다 PASS 를 돌려준다).
+- 화로: 연료 이벤트는 "불이 꺼져 있고 구울 수 있을 때" — 취소면 불을 켜지 않는다(CraftBukkit 은 틱 전체를 return 해서 막 꺼진 화로의 lit 상태 갱신까지 건너뛰는데, Furnace 는 불 켜기만 건너뛴다). 굽기 이벤트는 결과를 바꿀 수 있고, 구독자가 없을 때는 바닐라처럼 결과 칸을 grow(1) 한다.
+- 깔때기: 밀어 넣기(initiatorIsSource=true) 취소면 꺼낸 것을 되돌리고 8 틱 쉬며 다른 칸은 보지 않는다. 빨아들이기 취소면 되돌리고(블록 깔때기는 쉼) 다음 칸을 계속 본다(CraftBukkit 과 같다). 용기 종류는 `Inv.typeKey()`.
+- 제작: `PrepareItemCraftEvent` 는 `CraftingLogic.slotChangedCraftingGrid`(작업대·인벤토리 2×2, 레시피 없어도 발화) — `MenuPlayer.prepareCraft`. `CraftItemEvent` 는 결과 칸(0번) 클릭이고 결과가 있을 때(QUICK_CRAFT·PICKUP_ALL 제외) `InventoryClickEvent` 대신.
+- **아직 없는 것(의도)**: `BlockSpreadEvent`·`BlockFormEvent`·`BlockFadeEvent`(풀·균사·눈·얼음·산호·불 사라짐), 대나무·켈프·덩굴·후렴 꽃 성장, 피스톤 외 레드스톤 부품(중계기·비교기·관측기·감지 레일·덫 철사), 번개·화염구 엔티티·불화살 점화, 모닥불 `BlockCookEvent`, `FurnaceExtractEvent`·`FurnaceStartSmeltEvent`, 깔때기 아이템 엔티티 줍기 `InventoryPickupItemEvent`, 마법부여·모루·양조 이벤트, `InventoryDragEvent`, 제작기(crafter).
+- 시험: `PluginApiBlockEventsTest`(서버 단위 10개), 봇 `tools/bot-test/round5/ev.js` + `probe/BlockEventProbe`(31개).
+- 끈끈이 줄이기 취소: 머리를 플래그 20(클라이언트 알림 없음)으로 지운 뒤라 취소면 `sendBlockUpdated(front)` 로 알린다 — 봇에서 머리가 남아 보였다.
+- **발견(손대지 않음)**: 콘솔 `execute if block <칸> <블록>{NBT}` 의 NBT 조건이 내용과 맞아도 늘 "Test failed" 다(`execute if data block … Items[…]` 는 맞게 동작). 따로 확인할 것.
+

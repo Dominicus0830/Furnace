@@ -23,12 +23,13 @@ public class RedstoneLampBlock extends BlockBehavior {
         boolean lit = LIT.is(state);
         if (lit != level.hasNeighborSignal(pos)) {
             if (lit) level.scheduleTick(pos, block, 4);
-            else level.setBlock(pos, LIT.cycle(state), 2);
+            else if (level.gameEvents().blockRedstone(level.dimension(), pos, state, 0, 15) == 15) level.setBlock(pos, LIT.cycle(state), 2);   // 플러그인 BlockRedstoneEvent
         }
     }
 
     @Override
     public void tick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        if (LIT.is(state) && !level.hasNeighborSignal(pos)) level.setBlock(pos, LIT.cycle(state), 2);
+        if (LIT.is(state) && !level.hasNeighborSignal(pos)
+                && level.gameEvents().blockRedstone(level.dimension(), pos, state, 15, 0) == 0) level.setBlock(pos, LIT.cycle(state), 2);   // 플러그인 BlockRedstoneEvent
     }
 }

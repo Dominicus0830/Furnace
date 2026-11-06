@@ -105,12 +105,12 @@ public class FireBlock extends BaseFireBlock {
         }
         boolean burnout = level.biomeIs(pos, "minecraft:increased_fire_burnout");
         int k = burnout ? -50 : 0;
-        checkBurnOut(level, pos.east(), 300 + k, random, age);
-        checkBurnOut(level, pos.west(), 300 + k, random, age);
-        checkBurnOut(level, pos.below(), 250 + k, random, age);
-        checkBurnOut(level, pos.above(), 250 + k, random, age);
-        checkBurnOut(level, pos.north(), 300 + k, random, age);
-        checkBurnOut(level, pos.south(), 300 + k, random, age);
+        checkBurnOut(level, pos.east(), 300 + k, random, age, pos);
+        checkBurnOut(level, pos.west(), 300 + k, random, age, pos);
+        checkBurnOut(level, pos.below(), 250 + k, random, age, pos);
+        checkBurnOut(level, pos.above(), 250 + k, random, age, pos);
+        checkBurnOut(level, pos.north(), 300 + k, random, age, pos);
+        checkBurnOut(level, pos.south(), 300 + k, random, age, pos);
         for (int x = -1; x <= 1; x++) {
             for (int z = -1; z <= 1; z++) {
                 for (int y = -1; y <= 4; y++) {
@@ -124,6 +124,8 @@ public class FireBlock extends BaseFireBlock {
                         if (burnout) n /= 2;
                         if (n > 0 && random.nextInt(chance) <= n && (!level.isRaining() || !isNearRain(level, p))) {
                             int a = Math.min(15, age + random.nextInt(5) / 4);
+                            if (!B.is(level.getBlockState(p), FIRE)   // 플러그인 BlockIgniteEvent(번짐) — 이미 불이면 묻지 않는다
+                                    && !level.gameEvents().blockIgnite(level.dimension(), p, org.domi.furnace.server.plugin.GameEvents.IGNITE_SPREAD, pos, null)) continue;
                             level.setBlock(p, stateWithAge(level, p, a), 3);
                         }
                     }
@@ -150,10 +152,11 @@ public class FireBlock extends BaseFireBlock {
     private static int igniteOdds(int state) { return WATERLOGGED.has(state) && WATERLOGGED.is(state) ? 0 : IGNITE[B.block(state)]; }
 
     /** checkBurnOut: 그 칸이 타면 불이 옮겨 붙거나(비가 안 오면 1/2 남짓) 사라진다. TNT 는 점화. */
-    private void checkBurnOut(BlockLevel level, Pos pos, int chance, RandomSource random, int age) {
+    private void checkBurnOut(BlockLevel level, Pos pos, int chance, RandomSource random, int age, Pos fire) {
         int odds = burnOdds(level.getBlockState(pos));
         if (random.nextInt(chance) < odds) {
             int s = level.getBlockState(pos);
+            if (!level.gameEvents().blockBurn(level.dimension(), pos, s, fire)) return;   // 플러그인 BlockBurnEvent 취소(CraftBukkit 처럼 난수 뒤)
             if (random.nextInt(age + 10) < 5 && !level.isRainingAt(pos)) {
                 int a = Math.min(age + random.nextInt(5) / 4, 15);
                 level.setBlock(pos, stateWithAge(level, pos, a), 3);

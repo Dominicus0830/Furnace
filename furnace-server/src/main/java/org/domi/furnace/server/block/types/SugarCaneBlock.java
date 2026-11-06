@@ -30,7 +30,7 @@ public class SugarCaneBlock extends BlockBehavior {
             if (h < 3) {
                 int age = AGE.intValue(state);
                 if (age == 15) {
-                    level.setBlockAndUpdate(pos.above(), defaultState());
+                    B.grow(level, pos.above(), defaultState(), 3);   // 플러그인 BlockGrowEvent — 취소돼도 나이는 0(CraftBukkit)
                     level.setBlock(pos, AGE.withInt(state, 0), 4);
                 } else {
                     level.setBlock(pos, AGE.withInt(state, age + 1), 4);

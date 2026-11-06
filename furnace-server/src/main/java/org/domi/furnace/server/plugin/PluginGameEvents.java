@@ -26,7 +26,22 @@ import org.domi.furnace.api.event.player.PlayerToggleFlightEvent;
 import org.domi.furnace.api.event.player.PlayerToggleSneakEvent;
 import org.domi.furnace.api.event.player.PlayerToggleSprintEvent;
 import org.domi.furnace.api.event.server.ServerListPingEvent;
+import org.domi.furnace.api.event.block.BlockBurnEvent;
+import org.domi.furnace.api.event.block.BlockFromToEvent;
+import org.domi.furnace.api.event.block.BlockGrowEvent;
+import org.domi.furnace.api.event.block.BlockIgniteEvent;
+import org.domi.furnace.api.event.block.BlockPhysicsEvent;
+import org.domi.furnace.api.event.block.BlockPistonEvent;
+import org.domi.furnace.api.event.block.BlockPistonExtendEvent;
+import org.domi.furnace.api.event.block.BlockPistonRetractEvent;
+import org.domi.furnace.api.event.block.BlockRedstoneEvent;
+import org.domi.furnace.api.event.block.LeavesDecayEvent;
+import org.domi.furnace.api.event.inventory.CraftItemEvent;
+import org.domi.furnace.api.event.inventory.FurnaceBurnEvent;
+import org.domi.furnace.api.event.inventory.FurnaceSmeltEvent;
 import org.domi.furnace.api.event.inventory.InventoryClickEvent;
+import org.domi.furnace.api.event.inventory.InventoryMoveItemEvent;
+import org.domi.furnace.api.event.inventory.PrepareItemCraftEvent;
 import org.domi.furnace.api.event.inventory.InventoryCloseEvent;
 import org.domi.furnace.api.event.inventory.InventoryOpenEvent;
 import org.domi.furnace.api.event.player.PlayerDropItemEvent;
@@ -153,10 +168,27 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean inventoryClick(Player p, AbstractContainerMenu menu, int slot, int button, ClickType type) {
+        String recipe = craftRecipe(menu, slot, type);
+        if (recipe != null) {   // 제작 결과 칸을 꺼내는 클릭은 하위 CraftItemEvent(InventoryClickEvent 구독자도 받는다)
+            if (!bus().hasSubscribers(CraftItemEvent.class)) return true;
+            var cursor = ApiConvert.item(menu.getCarried(), items());
+            return !bus().call(new CraftItemEvent(host.player(p), ApiConvert.snapshot(menu, items()), slot, button,
+                    type.name().toLowerCase(java.util.Locale.ROOT), cursor, recipe.isEmpty() ? null : recipe)).isCancelled();
+        }
         if (!bus().hasSubscribers(InventoryClickEvent.class)) return true;
         var cursor = ApiConvert.item(menu.getCarried(), items());
         return !bus().call(new InventoryClickEvent(host.player(p), ApiConvert.snapshot(menu, items()), slot, button,
                 type.name().toLowerCase(java.util.Locale.ROOT), cursor)).isCancelled();
+    }
+
+    /** 작업대·인벤토리 2×2 결과 칸에서 꺼내는 클릭이면 레시피 id(모르면 ""), 아니면 null. */
+    private static String craftRecipe(AbstractContainerMenu menu, int slot, ClickType type) {
+        if (slot != 0 || type == ClickType.QUICK_CRAFT || type == ClickType.PICKUP_ALL) return null;
+        if (!(menu instanceof org.domi.furnace.server.menu.CraftingMenu) && !(menu instanceof org.domi.furnace.server.menu.InventoryMenu)) return null;
+        var s = menu.getSlot(0);
+        if (!(s instanceof org.domi.furnace.server.menu.ResultSlot) || !s.hasItem()) return null;
+        if (s.container instanceof org.domi.furnace.server.menu.ResultContainer rc && rc.recipeUsed() != null) return rc.recipeUsed().id().toString();
+        return "";
     }
 
     @Override
@@ -349,5 +381,113 @@ public final class PluginGameEvents implements GameEvents {
         var ev = bus().call(new ServerListPingEvent(address, motdText, online, max, hidePlayers));
         if (ev.motd() == motdText && ev.numPlayers() == online && ev.maxPlayers() == max && ev.hidePlayers() == hidePlayers) return null;
         return new StatusOverride(ev.motd() == motdText ? null : ev.motd().toJson(), ev.numPlayers(), ev.maxPlayers(), ev.hidePlayers());
+    }
+
+    // ------------------------------------------------------------------ 3단계 둘째 묶음: 블록
+
+    private org.domi.furnace.api.world.BlockData data(int state) { return ApiConvert.block(state, host.core().world().blockRegistry()); }
+
+    private static BlockPos bp(org.domi.furnace.server.block.Pos p) { return new BlockPos(p.x(), p.y(), p.z()); }
+
+    @Override
+    public boolean blockPhysics(String dimension, org.domi.furnace.server.block.Pos pos, int state, org.domi.furnace.server.block.Pos sourcePos, int sourceBlock) {
+        if (!bus().hasSubscribers(BlockPhysicsEvent.class)) return true;
+        String changed = data(org.domi.furnace.server.block.B.defaultState(sourceBlock)).type();
+        return !bus().call(new BlockPhysicsEvent(dimension, bp(pos), data(state), bp(sourcePos), changed)).isCancelled();
+    }
+
+    @Override
+    public int blockRedstone(String dimension, org.domi.furnace.server.block.Pos pos, int state, int oldCurrent, int newCurrent) {
+        if (!bus().hasSubscribers(BlockRedstoneEvent.class)) return newCurrent;
+        return bus().call(new BlockRedstoneEvent(dimension, bp(pos), data(state).type(), oldCurrent, newCurrent)).newCurrent();
+    }
+
+    @Override
+    public boolean piston(String dimension, org.domi.furnace.server.block.Pos pos, int dir, boolean sticky, boolean extending,
+                          java.util.List<org.domi.furnace.server.block.Pos> blocks) {
+        Class<? extends BlockPistonEvent> type = extending ? BlockPistonExtendEvent.class : BlockPistonRetractEvent.class;
+        if (!bus().hasSubscribers(type)) return true;
+        java.util.List<BlockPos> list = new java.util.ArrayList<>(blocks.size());
+        for (var b : blocks) list.add(bp(b));
+        String face = org.domi.furnace.server.block.Dir.NAME[dir];
+        BlockPistonEvent ev = extending ? new BlockPistonExtendEvent(dimension, bp(pos), face, sticky, list)
+                : new BlockPistonRetractEvent(dimension, bp(pos), face, sticky, list);
+        return !bus().call(ev).isCancelled();
+    }
+
+    @Override
+    public boolean blockFromTo(String dimension, org.domi.furnace.server.block.Pos pos, int state, org.domi.furnace.server.block.Pos to, int dir) {
+        if (!bus().hasSubscribers(BlockFromToEvent.class)) return true;
+        return !bus().call(new BlockFromToEvent(dimension, bp(pos), data(state).type(), bp(to), org.domi.furnace.server.block.Dir.NAME[dir])).isCancelled();
+    }
+
+    @Override
+    public boolean blockGrow(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
+        if (!bus().hasSubscribers(BlockGrowEvent.class)) return true;
+        return !bus().call(new BlockGrowEvent(dimension, bp(pos), data(oldState), data(newState))).isCancelled();
+    }
+
+    @Override
+    public boolean blockBurn(String dimension, org.domi.furnace.server.block.Pos pos, int state, org.domi.furnace.server.block.Pos fire) {
+        if (!bus().hasSubscribers(BlockBurnEvent.class)) return true;
+        return !bus().call(new BlockBurnEvent(dimension, bp(pos), data(state).type(), bp(fire))).isCancelled();
+    }
+
+    private static final BlockIgniteEvent.Cause[] IGNITE_CAUSES = {BlockIgniteEvent.Cause.SPREAD, BlockIgniteEvent.Cause.LAVA,
+            BlockIgniteEvent.Cause.FLINT_AND_STEEL, BlockIgniteEvent.Cause.FIREBALL};
+
+    @Override
+    public boolean blockIgnite(String dimension, org.domi.furnace.server.block.Pos pos, int cause, org.domi.furnace.server.block.Pos ignitingPos, Player player) {
+        if (!bus().hasSubscribers(BlockIgniteEvent.class)) return true;
+        return !bus().call(new BlockIgniteEvent(dimension, bp(pos), IGNITE_CAUSES[cause], ignitingPos == null ? null : bp(ignitingPos),
+                player == null ? null : host.player(player))).isCancelled();
+    }
+
+    @Override
+    public boolean leavesDecay(String dimension, org.domi.furnace.server.block.Pos pos, int state) {
+        if (!bus().hasSubscribers(LeavesDecayEvent.class)) return true;
+        return !bus().call(new LeavesDecayEvent(dimension, bp(pos), data(state))).isCancelled();
+    }
+
+    // ------------------------------------------------------------------ 3단계 둘째 묶음: 인벤토리
+
+    @Override
+    public ItemStack prepareCraft(Player p, AbstractContainerMenu menu, String recipe, ItemStack result) {
+        if (!bus().hasSubscribers(PrepareItemCraftEvent.class)) return result;
+        var given = ApiConvert.item(result, items());
+        var ev = bus().call(new PrepareItemCraftEvent(host.player(p), ApiConvert.snapshot(menu, items()), recipe, given));
+        return fromApi(ev.result(), given, result);
+    }
+
+    @Override
+    public FurnaceBurn furnaceBurn(String dimension, org.domi.furnace.server.block.Pos pos, int state, ItemStack fuel, int burnTime) {
+        if (!bus().hasSubscribers(FurnaceBurnEvent.class)) return new FurnaceBurn(burnTime, true);
+        var ev = bus().call(new FurnaceBurnEvent(dimension, bp(pos), data(state).type(), ApiConvert.item(fuel, items()), burnTime));
+        return ev.isCancelled() ? null : new FurnaceBurn(ev.burnTime(), ev.isBurning());
+    }
+
+    @Override
+    public ItemStack furnaceSmelt(String dimension, org.domi.furnace.server.block.Pos pos, int state, ItemStack source, ItemStack result) {
+        if (!bus().hasSubscribers(FurnaceSmeltEvent.class)) return result;
+        var given = ApiConvert.item(result, items());
+        var ev = bus().call(new FurnaceSmeltEvent(dimension, bp(pos), data(state).type(), ApiConvert.item(source, items()), given));
+        return ev.isCancelled() ? null : fromApi(ev.result(), given, result);
+    }
+
+    @Override
+    public ItemStack inventoryMove(String dimension, org.domi.furnace.server.block.entity.HopperBlockEntity.Inv source, double sx, double sy, double sz,
+                                   org.domi.furnace.server.block.entity.HopperBlockEntity.Inv destination, double dx, double dy, double dz,
+                                   ItemStack item, boolean initiatorIsSource) {
+        if (!bus().hasSubscribers(InventoryMoveItemEvent.class)) return item;
+        var given = ApiConvert.item(item, items());
+        var ev = bus().call(new InventoryMoveItemEvent(snapshot(source), new Location(dimension, sx, sy, sz), snapshot(destination),
+                new Location(dimension, dx, dy, dz), given, initiatorIsSource));
+        return ev.isCancelled() ? null : fromApi(ev.item(), given, item);
+    }
+
+    private org.domi.furnace.api.inventory.InventorySnapshot snapshot(org.domi.furnace.server.block.entity.HopperBlockEntity.Inv inv) {
+        java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(inv.size());
+        for (int i = 0; i < inv.size(); i++) list.add(ApiConvert.item(inv.get(i), items()));
+        return new org.domi.furnace.api.inventory.InventorySnapshot(inv.typeKey(), list);
     }
 }

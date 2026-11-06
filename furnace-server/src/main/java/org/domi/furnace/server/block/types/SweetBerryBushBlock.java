@@ -26,7 +26,7 @@ public class SweetBerryBushBlock extends BushBlock implements BonemealableBlock 
         int age = AGE.intValue(state);
         if (age < 3 && random.nextInt(5) == 0 && level.getRawBrightness(pos.above(), 0) >= 9) {
             int s = AGE.withInt(state, age + 1);
-            level.setBlock(pos, s, 2);
+            if (!B.grow(level, pos, s, 2)) return;
             level.gameEvent("minecraft:block_change", pos, null, s);
         }
     }
@@ -81,6 +81,6 @@ public class SweetBerryBushBlock extends BushBlock implements BonemealableBlock 
 
     @Override
     public void performBonemeal(BlockLevel level, RandomSource random, Pos pos, int state) {
-        level.setBlock(pos, AGE.withInt(state, Math.min(3, AGE.intValue(state) + 1)), 2);
+        B.grow(level, pos, AGE.withInt(state, Math.min(3, AGE.intValue(state) + 1)), 2);
     }
 }
