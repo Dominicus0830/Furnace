@@ -5,9 +5,7 @@ package org.domi.furnace.server.world.anvil;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.InflaterInputStream;
 
 public final class Compression {
 
@@ -61,28 +59,71 @@ public final class Compression {
     }
 
     public static byte[] deflate(byte[] data) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        // DeflaterOutputStream 과 같은 압축 스트림(같은 레벨·한 번에 setInput·finish)을 512B 버퍼 대신 큰 버퍼로 바로 뽑는다.
         java.util.zip.Deflater def = new java.util.zip.Deflater(LEVEL);
-        try (DeflaterOutputStream d = new DeflaterOutputStream(bos, def)) {
-            d.write(data);
+        try {
+            // 호출 순서도 DeflaterOutputStream 과 같다: 입력을 다 먹을 때까지 NO_FLUSH, 그다음 finish.
+            def.setInput(data);
+            byte[] out = new byte[Math.max(64, data.length / 4)];
+            int n = 0;
+            while (!def.needsInput()) {
+                if (n == out.length) out = java.util.Arrays.copyOf(out, out.length * 2);
+                n += def.deflate(out, n, out.length - n);
+            }
+            def.finish();
+            while (!def.finished()) {
+                if (n == out.length) out = java.util.Arrays.copyOf(out, out.length * 2);
+                n += def.deflate(out, n, out.length - n);
+            }
+            return n == out.length ? out : java.util.Arrays.copyOf(out, n);
         } finally {
-            def.end();   // 직접 만든 Deflater 는 스트림이 닫아 주지 않는다
+            def.end();
         }
-        return bos.toByteArray();
     }
 
     public static byte[] decompress(int type, byte[] data) throws IOException {
         if (type == LZ4) return Lz4Block.decompress(data);
+        if (type == DEFLATE) return inflate(data);
         ByteArrayInputStream in = new ByteArrayInputStream(data);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         java.io.InputStream dec = switch (type) {
             case 1 -> new GZIPInputStream(in);
-            case 2 -> new InflaterInputStream(in);
             case 3 -> in;
             default -> throw new IOException("미지원 압축타입: " + type);
         };
         dec.transferTo(out);
         dec.close();
         return out.toByteArray();
+    }
+
+    /**
+     * zlib 본문 풀기. InflaterInputStream 처럼 첫 zlib 스트림 끝(또는 사전 요구)에서 멈추고(뒤 쓰레기는 무시), 본문이 모자라면 EOFException,
+     * 깨졌으면 ZipException. 512B 입력 버퍼·ByteArrayOutputStream 키우기 대신 입력 전체를 한 번에 넣는다.
+     */
+    static byte[] inflate(byte[] data) throws IOException {
+        java.util.zip.Inflater inf = new java.util.zip.Inflater();
+        try {
+            inf.setInput(data);
+            byte[] out = new byte[Math.max(256, Math.min(data.length * 8, 1 << 24))];
+            int n = 0;
+            while (!inf.finished()) {
+                if (n == out.length) out = java.util.Arrays.copyOf(out, out.length * 2);
+                int got;
+                try {
+                    got = inf.inflate(out, n, out.length - n);
+                } catch (java.util.zip.DataFormatException e) {
+                    String m = e.getMessage();
+                    throw new java.util.zip.ZipException(m != null ? m : "Invalid ZLIB data format");
+                }
+                n += got;
+                if (got == 0 && !inf.finished()) {
+                    if (inf.needsDictionary()) break;   // InflaterInputStream 처럼 거기서 끝(받은 데까지)
+                    if (inf.needsInput()) throw new java.io.EOFException("Unexpected end of ZLIB input stream");
+                }
+            }
+            return n == out.length ? out : java.util.Arrays.copyOf(out, n);
+        } finally {
+            inf.end();
+        }
     }
 }
