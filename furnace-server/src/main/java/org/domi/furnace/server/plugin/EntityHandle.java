@@ -107,9 +107,6 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     @Override
     public EntityScheduler entityScheduler() { return new EntitySchedulerImpl(tasks); }
 
-    /** 엔티티를 따라가는 대기열(Internals 가 살아 있는 엔티티를 찾을 때). */
-    EntityTasks tasks() { return tasks; }
-
     /** 핸들 시점 위치의 region 에서 uuid 로 찾아 task 를 돈다. 그 region 에 없으면 null 로 완료. */
     <T> CompletableFuture<T> onOwner(java.util.function.BiFunction<Region, Entity, T> task) {
         World w = serverWorld();
