@@ -21,7 +21,31 @@ public record MinMaxBounds(Double min, Double max) {
         return (min == null || min * min <= sq) && (max == null || sq <= max * max);
     }
 
+    /** 바닐라 WrappedMinMaxBounds.matchesDegrees — 값을 -180..180 으로 접고, min>max 면 경계를 넘는 범위(f>=min 또는 f<=max). */
+    public boolean matchesDegrees(double value) {
+        double f = wrapDegrees(value);
+        if (min != null && max != null && min > max) return f >= min || f <= max;
+        return matches(f);
+    }
+
+    private static double wrapDegrees(double v) {
+        double d = v % 360.0;
+        if (d >= 180.0) d -= 360.0;
+        if (d < -180.0) d += 360.0;
+        return d;
+    }
+
+    /** 바닐라 WrappedMinMaxBounds.fromReader(Mth::wrapDegrees) — 소수 허용, 끝값을 각도로 접고, 뒤바뀐 범위(170..-170)를 허용한다. */
+    public static MinMaxBounds fromReaderDegrees(StringReader reader) throws CommandSyntaxException {
+        MinMaxBounds b = fromReader(reader, false, true);
+        return new MinMaxBounds(b.min == null ? null : wrapDegrees(b.min), b.max == null ? null : wrapDegrees(b.max));
+    }
+
     public static MinMaxBounds fromReader(StringReader reader, boolean intsOnly) throws CommandSyntaxException {
+        return fromReader(reader, intsOnly, false);
+    }
+
+    private static MinMaxBounds fromReader(StringReader reader, boolean intsOnly, boolean allowSwapped) throws CommandSyntaxException {
         if (!reader.canRead()) throw ERROR_EMPTY.createWithContext(reader);
         int start = reader.getCursor();
         try {
@@ -36,7 +60,7 @@ public record MinMaxBounds(Double min, Double max) {
                 max = min;
             }
             if (min == null && max == null) throw ERROR_EMPTY.createWithContext(reader);
-            if (min != null && max != null && min > max) throw ERROR_SWAPPED.createWithContext(reader);
+            if (!allowSwapped && min != null && max != null && min > max) throw ERROR_SWAPPED.createWithContext(reader);
             return new MinMaxBounds(min, max);
         } catch (CommandSyntaxException e) {
             reader.setCursor(start);

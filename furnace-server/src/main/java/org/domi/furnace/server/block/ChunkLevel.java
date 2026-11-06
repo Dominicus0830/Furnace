@@ -1244,6 +1244,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public EntityStore entities() { return entities; }
 
+    /** 지금 스레드가 이 레벨을 가진 스레드인가(region 레벨은 region 틱 스레드, 시험용 레벨은 늘 그렇다고 본다). */
+    public boolean isOwnerThread() { return true; }
+
     /** 엔티티 사망 전리품 평가(services 위임). */
     public java.util.List<ItemStack> entityDrops(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z,
             String damageType, Player attacker, Player lastPlayer, long seed) {

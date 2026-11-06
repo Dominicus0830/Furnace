@@ -33,6 +33,7 @@ public final class PluginHost implements Furnace {
 
     public PluginHost(ServerCore core, Path pluginsDir) {
         this.core = core;
+        org.domi.furnace.api.item.ItemSupport.install(ItemSupportImpl.INSTANCE);
         this.console = new ConsoleSender(core, permissions);
         this.plugins = new PluginManagerImpl(this, pluginsDir);
     }
