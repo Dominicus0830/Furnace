@@ -222,6 +222,25 @@ class PluginSystemTest {
     }
 
     @Test
+    void concurrentRegistrationNeverLeavesStaleHandlerArray() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        jar(dir.resolve("g.jar"), "furnace-plugin.yml", "name: Gamma\nversion: 1\nmain: org.domi.furnace.server.plugin.TestPlugins$Gamma\n",
+                TestPlugins.Gamma.class);
+        loadAll(dir);
+        FurnacePlugin g = host.plugins().plugin("Gamma");
+        for (int round = 0; round < 200; round++) {
+            var bus = new EventBusImpl(false);
+            var stop = new java.util.concurrent.atomic.AtomicBoolean();
+            Thread reader = new Thread(() -> { while (!stop.get()) bus.hasSubscribers(Ping.class); });
+            reader.start();
+            bus.subscribe(g, Ping.class, e -> e.seen.add("p"));
+            stop.set(true);
+            reader.join();
+            assertTrue(bus.hasSubscribers(Ping.class), "등록 직후 읽기와 겹쳐도 새 처리기가 보여야 한다 (round " + round + ")");
+        }
+    }
+
+    @Test
     void permissionsFollowDefaultsChildrenAndAttachments() throws Exception {
         Path dir = tmp.resolve("plugins");
         jar(dir.resolve("g.jar"), "furnace-plugin.yml", """
