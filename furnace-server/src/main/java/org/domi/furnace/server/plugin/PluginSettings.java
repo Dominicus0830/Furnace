@@ -2,6 +2,8 @@
 //   plugins.fail-fast=false        플러그인을 불러오거나 켜다가 하나라도 실패하면 서버 시작을 멈춘다
 //   plugins.data-root=             비우면 데이터 폴더 = plugins/<이름>/, 쓰면 <data-root>/<이름>/
 //   plugins.log-level.<이름>=INFO  플러그인별 로그 수준(JUL 수준 이름)
+//   plugins.dev-mode=false         개발 모드 — 켜야 플러그인 단위 핫 리로드(/plugins reload <이름>, PluginManager.reload)가 된다
+//   plugins.dev-mode.auto-reload=false  개발 모드에서 plugins/*.jar 가 바뀌면 알아서 다시 읽는다
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -16,9 +18,14 @@ import java.util.logging.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels) {
+public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload) {
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
+
+    /** 개발 모드 없이(기본). */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels) {
+        this(failFast, dataRoot, logLevels, false, false);
+    }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
@@ -54,6 +61,9 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
                 log.warn("furnace.properties 의 '{}' 값 '{}' 은 로그 수준이 아니다 — 무시한다", k, v);
             }
         }
-        return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels);
+        boolean dev = Boolean.parseBoolean(p.getProperty("plugins.dev-mode", "false").strip());
+        boolean auto = Boolean.parseBoolean(p.getProperty("plugins.dev-mode.auto-reload", "false").strip());
+        if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
+        return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto);
     }
 }

@@ -6,7 +6,6 @@ package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,6 +74,8 @@ public final class PluginBootstrapper {
     /** 찾기·부트스트랩에서 실패한 이름들. */
     List<String> failures() { return failures; }
 
+    PluginSettings settings() { return settings; }
+
     public Path directory() { return dir; }
 
     List<Prepared> prepared() { return prepared; }
@@ -102,7 +103,7 @@ public final class PluginBootstrapper {
     // ------------------------------------------------------------------ 찾기·순서
 
     /** 설명 파일을 읽은 후보. */
-    private record Candidate(Path file, PluginDescription description) {}
+    record Candidate(Path file, PluginDescription description) {}
 
     private void run() {
         try {
@@ -111,6 +112,10 @@ public final class PluginBootstrapper {
         } catch (IOException e) {
             log.error("plugins 폴더를 만들 수 없다: {}", dir, e);
             return;
+        }
+        if (settings.devMode()) {
+            log.warn("plugins.dev-mode=true — 플러그인 핫 리로드가 켜졌다. 운영 서버에서는 끄라");
+            HotReload.clearShadowDir(dir);
         }
         long bukkit = countJars(dir.resolve(BUKKIT_FOLDER));
         if (bukkit > 0) {
@@ -156,7 +161,9 @@ public final class PluginBootstrapper {
     }
 
     /** 설명 파일을 읽는다. Furnace 설명이 없으면(Bukkit 플러그인이면 안내 후) null. */
-    private PluginDescription readDescription(Path jar) throws IOException {
+    private PluginDescription readDescription(Path jar) throws IOException { return readDescription(jar, false); }
+
+    private PluginDescription readDescription(Path jar, boolean quiet) throws IOException {
         try (JarFile jf = new JarFile(jar.toFile())) {
             for (String n : DESCRIPTOR_NAMES) {
                 var entry = jf.getEntry(n);
@@ -167,6 +174,7 @@ public final class PluginBootstrapper {
                     return PluginDescription.read(s);
                 }
             }
+            if (quiet) return null;
             if (jf.getEntry("plugin.yml") != null || jf.getEntry("paper-plugin.yml") != null) {
                 log.error("Could not load '{}' in folder '{}': Paper/Bukkit 플러그인이다 — plugins/{}/ 에 넣어야 한다",
                         dir.relativize(jar), dir.getFileName(), BUKKIT_FOLDER);
@@ -236,26 +244,28 @@ public final class PluginBootstrapper {
 
     // ------------------------------------------------------------------ 부트스트랩
 
-    private void prepare(Candidate c) {
+    private Prepared prepare(Candidate c) {
         PluginDescription d = c.description();
         List<String> failed = new ArrayList<>();
         for (String dep : d.depend()) if (find(dep) == null) failed.add(dep);
         if (!failed.isEmpty()) {
             log.error("Could not load '{}' in folder '{}': 의존 플러그인 {} 을(를) 불러오지 못했다", dir.relativize(c.file()), dir.getFileName(), failed);
             failures.add(d.name());
-            return;
+            return null;
         }
         if (!apiVersionOk(d, c.file())) {
             failures.add(d.name());
-            return;
+            return null;
         }
         PluginManagerImpl.PluginClassLoader loader;
         try {
-            loader = new PluginManagerImpl.PluginClassLoader(c.file(), this);
-        } catch (MalformedURLException e) {
+            loader = settings.devMode()
+                    ? new PluginManagerImpl.PluginClassLoader(HotReload.shadowCopy(dir, c.file()), this, true)
+                    : new PluginManagerImpl.PluginClassLoader(c.file(), this);
+        } catch (IOException e) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), e);
             failures.add(d.name());
-            return;
+            return null;
         }
         java.util.logging.Logger logger = PluginManagerImpl.pluginLogger(d);
         java.util.logging.Level start = settings.levelFor(d.name());
@@ -277,11 +287,13 @@ public final class PluginBootstrapper {
                 hooks.close();
                 forget(d.name());
                 PluginManagerImpl.closeQuietly(loader);
-                return;
+                return null;
             }
         }
         hooks.close();
-        prepared.add(new Prepared(d, c.file(), loader, logger, boot, ctx));
+        Prepared out = new Prepared(d, c.file(), loader, logger, boot, ctx);
+        prepared.add(out);
+        return out;
     }
 
     /**
@@ -309,7 +321,42 @@ public final class PluginBootstrapper {
         return true;
     }
 
-    private Prepared find(String name) {
+    // ------------------------------------------------------------------ 핫 리로드(개발 모드)
+
+    /** plugins/ 에서 그 이름의 Furnace 플러그인 jar 를 찾는다(없으면 null). 다른 jar 의 오류는 로그하지 않는다. */
+    Candidate findOnDisk(String name) {
+        for (Path jar : jars(dir)) {
+            PluginDescription d;
+            try {
+                d = readDescription(jar, true);
+            } catch (Exception e) {
+                continue;
+            }
+            if (d != null && d.name().equalsIgnoreCase(name)) return new Candidate(jar, d);
+        }
+        return null;
+    }
+
+    /** 그 jar 파일 하나의 설명(Furnace 플러그인이 아니거나 읽을 수 없으면 null). */
+    Candidate findOnDiskFile(Path jar) {
+        try {
+            PluginDescription d = readDescription(jar, true);
+            return d == null ? null : new Candidate(jar, d);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** jar 를 다시 읽어 부트스트랩까지 한다(실패하면 로그 후 null). 의존 플러그인은 이미 준비돼 있어야 한다. */
+    Prepared reprepare(Candidate c) { return prepare(c); }
+
+    /** 다시 읽기 전에 빼 둔다: 레지스트리 몫·훅을 정리하고 클래스 찾기 범위에서 뺀다. 클래스로더는 닫지 않는다(호출자가 나중에). */
+    void detach(Prepared p) {
+        forget(p.description().name());
+        prepared.remove(p);
+    }
+
+    Prepared find(String name) {
         for (Prepared p : prepared) if (p.description().name().equalsIgnoreCase(name)) return p;
         return null;
     }
@@ -319,7 +366,10 @@ public final class PluginBootstrapper {
         for (Prepared p : prepared) {
             if (p.loader() == asking) continue;
             Class<?> c = p.loader().findLocal(name);
-            if (c != null) return c;
+            if (c != null) {
+                asking.borrowedFrom(p.description().name());   // 핫 리로드 때 함께 다시 읽을 대상
+                return c;
+            }
         }
         return null;
     }
