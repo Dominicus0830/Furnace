@@ -2,6 +2,18 @@
 
 2026-11-06 정리: 봇·오프라인 서버·바닐라 바이트코드 대조로 확인할 수 있는 항목은 모두 돌려 지웠다(결과 `docs/feature-parity/bot-connection-test-2026-11-06.md`). 남은 것은 실제 클라이언트가 필요한 것, 사용자 결정, 미구현 목록뿐이다. 이전 시험 상세는 `docs/feature-parity/user-test-bugs-2026-10-27.md`.
 
+# 월드 타입 large_biomes·amplified (2026-11-06 구현) — 바닐라 서버와 한 번 대조 부탁
+`level-type=minecraft:large_biomes` / `minecraft:amplified` 로 새 월드를 만들면 이제 바닐라와 같은 노이즈 설정(바닐라 jar 데이터와 바이트 일치)으로 생성하고 level.dat 에도 그 생성기를 기록합니다. 이 환경에서는 Mojang·papermc 가 막혀 바닐라를 직접 돌린 대조는 못 했습니다.
+- 확인법: 바닐라 1.21.1 서버와 Furnace 를 같은 `server.properties`(`level-seed=12345`, `level-type=` 아래 값)로 새 월드 생성 → 처음 뜬 뒤 끄고 level.dat 의 `SpawnX/Y/Z` 비교, 또는 접속해서 아래 좌표로 `/tp` 후 F3 의 바이옴·지면 높이 비교.
+
+| level-type | 월드 스폰(Furnace) | 확인 좌표 (x, z → 지형 맨 위 블록 y(물 포함), 바이옴) |
+|---|---|---|
+| `minecraft:amplified` | 96, 258, -32 | (500, 0) → 197 grove · (-500, -500) → 148 birch_forest · (2000, -2000) → 86 snowy_taiga |
+| `minecraft:large_biomes` | 51, 65, -672 | (0, 0) → 62 deep_frozen_ocean · (500, 0) → 62 frozen_ocean |
+| (비교용) `minecraft:normal` | 96, 136, -32 | (500, 0) → 136 grove · (-500, -500) → 95 birch_forest |
+
+지면 높이는 나무 등 장식 전 지형 기준이라 나무 위에 서면 몇 칸 높을 수 있습니다. `debug_all_block_states`·`single_biome_surface` 는 아직 미지원(경고 뒤 normal).
+
 # 플러그인 API 3단계 둘째 묶음 — 블록·인벤토리 이벤트 (2026-11-06)
 봇(`tools/bot-test/round5/ev.js` + 시험 플러그인 `round5/probe`)으로 31개 항목 통과. 실제 클라이언트로 남은 것:
 - 플러그인이 피스톤·물 흐름·성장·불·화로·깔때기를 취소했을 때 화면이 서버 상태와 어긋나지 않는지(끈끈이 피스톤 줄이기 취소는 봇에서 머리가 남아 보이던 것을 고쳤다).
