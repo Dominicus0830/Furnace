@@ -37,6 +37,11 @@
 | **Paper/Spigot 월드 가져오기** | 첫 기동 때 `world_nether/DIM-1`·`world_the_end/DIM1` 을 `world/` 안으로 **복사** (원본 보존). Bukkit 월드별 규칙·날씨는 안 가져오고 주 `world/level.dat` 값을 씀 | 네더·엔드 크기만큼 디스크가 더 필요. 확인 뒤 원본은 직접 지우면 됨. 이 방식이 맞는지 (`docs/feature-parity/bukkit-world-import-2026-11-03.md`) |
 | **공유 스케줄러 S4 기본값** | 병합됨, 기본 꺼짐. 켜는 법 `-Dfurnace.sharedRegionPool=true` | 기본값을 켤지. 부하 5ms 에서 지연은 줄었으나 간헐적 40~60ms 튐 원인 미확인 (`docs/feature-parity/shared-scheduler-s4-2026-10-28.md`) |
 | **CI (`.github/workflows/ci.yml`)** | 기본 ubuntu-latest 러너, push/PR 전체 트리거. `:furnace-api:test`, `:furnace-plugin-test:classes`, `:furnace-server:fatJar` 단계 포함. GitHub 에서는 아직 안 돌려 봄 | 러너 종류(자체 호스팅 여부), 브랜치 제한, 캐시 정책, 바닐라 jar 추출(3-1)용 외부 접근 허용 여부. 시작 스크립트(`start.sh`/`start.bat`)는 실제 기동을 확인하지 못함 |
+| **D1 Bukkit/Paper 호환 어댑터 시작 시점** (2026-11-06 불만 조사) | 기존 Paper 플러그인은 하나도 못 돌림(5단계 `furnace-compat-paper` 미착수). 운영자 불만의 핵심은 "내 플러그인이 도나" | 언제 시작할지. 제안: 3단계 이벤트 마무리 뒤 어댑터 1차(이벤트·명령·스케줄러·인벤토리) 먼저, 고유 API 확장은 그다음 (`docs/feature-parity/paper-spigot-dev-complaints-2026-11-06.md` 5장) |
+| **D2 공식 패킷 API** | 없음. Paper 도 없어 ProtocolLib·PacketEvents 필수, 업데이트마다 깨짐 | 낼지. 제안: 낸다(1.21.1 고정이라 깨질 일 없음, 가상 엔티티·NPC·가상 블록의 바탕) |
+| **D3 바닐라 결과를 바꾸는 운영 옵션 범위** | 원칙상 기본 꺼짐만 허용 | 어디까지 넣을지. 제안: 채팅 신고 끄기처럼 수요 큰 것만 기본 꺼짐으로, 활성 범위·엔티티 제한처럼 게임플레이를 바꾸는 것은 넣지 않음 |
+| **D4 플러그인 핫 리로드** | 없음(Paper 도 비권장) | 지원할지. 제안: 개발 모드 설정에서만 플러그인 단위 다시 읽기 |
+| **D5 API 안정성 약속** | 정책 없음 | 버전 규칙·폐기 기간. 제안: `apiVersion` + semver, 대체 API 를 먼저 내고 최소 두 마이너 버전 유지 |
 
 ---
 
