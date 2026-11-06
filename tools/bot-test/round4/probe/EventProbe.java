@@ -66,6 +66,15 @@ public final class EventProbe extends FurnacePlugin {
         if (e instanceof EntityBreedEvent x) return x.entity().type() + " breeder=" + (x.breeder() == null ? "-" : x.breeder().name());
         if (e instanceof EntityTargetEvent x) return x.entity().type() + "->" + (x.target() == null ? "null" : x.target().type());
         if (e instanceof ServerListPingEvent x) return x.motd().plainText() + " " + x.numPlayers() + "/" + x.maxPlayers();
+        // 접속 단계(같은 연결 번호 #n 으로 이어진다)
+        if (e instanceof PlayerHandshakeEvent x) return "#" + x.connection().id() + " host=" + x.connection().hostname() + ":" + x.connection().hostPort()
+                + " proto=" + x.connection().protocolVersion();
+        if (e instanceof AsyncPlayerPreLoginEvent x) return "#" + x.connection().id() + " " + x.name();
+        if (e instanceof PlayerLoginEvent x) return "#" + x.connection().id() + " " + x.name() + " " + x.result();
+        if (e instanceof AsyncPlayerConfigureEvent x) return "#" + x.connection().id() + " " + x.connection().name() + " brand=" + x.connection().clientBrand();
+        if (e instanceof PlayerCreateEvent x) return "#" + x.connection().id() + " " + x.player().name();
+        if (e instanceof PlayerSpawnLocationEvent x) return x.player().name() + " " + x.spawnLocation() + " first=" + x.isFirstJoin();
+        if (e instanceof PlayerJoinEvent x) return "#" + x.player().connection().id() + " " + x.player().name();
         return null;
     }
 }
