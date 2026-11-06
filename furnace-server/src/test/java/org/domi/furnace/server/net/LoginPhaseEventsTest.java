@@ -23,8 +23,6 @@ import org.domi.furnace.api.event.player.PlayerSpawnLocationEvent;
 import org.domi.furnace.api.net.ConnectionPhase;
 import org.domi.furnace.api.net.PlayerConnection;
 import org.domi.furnace.api.plugin.FurnacePlugin;
-import org.domi.furnace.api.plugin.PluginContext;
-import org.domi.furnace.api.plugin.PluginDescription;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.world.Location;
 import org.domi.furnace.server.ServerCore;
@@ -55,17 +53,7 @@ class LoginPhaseEventsTest {
         core = TestServers.core(tmp, sched);
         core.world().startTicking();
         var host = core.plugins();
-        plugin.init(new PluginContext() {
-            final PluginDescription d = new PluginDescription("lpe", "1", "x", "", List.of(), null, null, List.of(), List.of(), List.of(),
-                    null, java.util.Map.of(), List.of());
-            public PluginDescription description() { return d; }
-            public org.domi.furnace.api.Furnace server() { return host; }
-            public java.util.logging.Logger logger() { return java.util.logging.Logger.getLogger("lpe"); }
-            public Path configFolder() { return tmp.resolve("lpe"); }
-            public Path dataFolder() { return tmp.resolve("lpe"); }
-            public Path file() { return tmp.resolve("lpe.jar"); }
-            public ClassLoader classLoader() { return getClass().getClassLoader(); }
-        });
+        org.domi.furnace.server.TestPluginContexts.init(plugin, host, "lpe", tmp);
         plugin.setEnabled(true);
         // 목록 검사(PlayerLoginEvent)가 돌도록 서버의 PlayerLists 를 넣은 오프라인 로그인 문맥
         ServerLoginContext login = new ServerLoginContext(false, false, false, true, false, false, true, 20, "t",
