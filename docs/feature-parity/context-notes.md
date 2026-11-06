@@ -869,3 +869,7 @@
 - 차이(region): 대상이 다른 region 으로 넘어가면 이 스레드가 건드리지 않고 놓는다(8칸 안이라 경계 근처에서만).
 - `Entity.isInWaterOrRain()` 추가(물 또는 비, 거품 기둥 따로 안 봄 — 바닐라와 같음), 플레이어 쪽은 `Tridents.isInWaterOrRain` 을 공개로.
 - 시험: `ConduitBlockEntityTest`(4), 봇 `tools/bot-test/round7/conduit.js` — 15개 꺼짐/16개 효과(duration 260 앰비언트)/42개 익사체 2초마다 4 피해·Target 저장/틀 하나 빼면 멈춤/소리 4종.
+
+## 행운·불운 전리품·낚시 반영 (2026-11-06)
+- 바닐라처럼 플레이어 행운(`generic.luck` 속성 = 기본값 + luck/unluck 효과 수정자)을 전리품 문맥에 합산: 낚시 = 낚싯대 바다의 행운 + 플레이어 행운(`FishingHook.retrieve`), 몹 처치 = 마지막으로 때린 플레이어 행운(`ServerCore.entityDrops`), 상자·상자 탈것 열기 = 연 플레이어 행운(`fillLoot`). 고고학·금고는 이미 반영돼 있었다. 행운은 `Player.attributes()` 의 살아 있는 값을 읽어 `/attribute … base set` 도 반영된다.
+- 봇 시험 `tools/bot-test/round9`(luck.js·fish.js, 돌 100 / 흙 100 quality 100 표): 불운 → 흙 0%, 보통 ≈50%, 행운 → 흙 쪽으로 쏠림, 낚시(행운 100)에서 흙만.

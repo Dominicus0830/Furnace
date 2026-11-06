@@ -51,7 +51,7 @@ public class PlayerActor implements BlockActor {
 
     @Override public Object handle() { return player; }
     @Override public java.util.UUID uuid() { return player.uuid(); }
-    @Override public float luck() { return (float) org.domi.furnace.server.entity.PlayerAttributes.value(player, org.domi.furnace.server.attribute.Attribute.LUCK); }
+    @Override public float luck() { return (float) player.attributes().value(org.domi.furnace.server.attribute.Attribute.LUCK); }
 
     @Override
     public void openTextEdit(Pos pos, int state, boolean front) {
