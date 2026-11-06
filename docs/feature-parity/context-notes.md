@@ -861,6 +861,18 @@
 - 끈끈이 줄이기 취소: 머리를 플래그 20(클라이언트 알림 없음)으로 지운 뒤라 취소면 `sendBlockUpdated(front)` 로 알린다 — 봇에서 머리가 남아 보였다.
 - **발견(손대지 않음)**: 콘솔 `execute if block <칸> <블록>{NBT}` 의 NBT 조건이 내용과 맞아도 늘 "Test failed" 다(`execute if data block … Items[…]` 는 맞게 동작). 따로 확인할 것.
 
+## 2026-11-06 플러그인 API 3단계 셋째 묶음(번짐·형성·소멸, 마법 부여·모루·양조, 탈것, 낚시·차원문·책, CreatureSpawnEvent)
+- 추가: 블록 `BlockFormEvent`·`BlockSpreadEvent`·`BlockFadeEvent`, 인벤토리 `PrepareItemEnchantEvent`(+`EnchantmentOffer`)·`EnchantItemEvent`·`PrepareAnvilEvent`·`BrewEvent`·`BrewingStandFuelEvent`, 탈것 `VehicleEnterEvent`·`VehicleExitEvent`(바탕 `VehicleEvent`)·`EntityMountEvent`·`EntityDismountEvent`, `PlayerFishEvent`·`PlayerPortalEvent`·`EntityPortalEvent`·`PortalCreateEvent`·`PlayerEditBookEvent`, `CreatureSpawnEvent`(안에 `SpawnReason`). 구독자가 없으면 이벤트 객체를 만들지 않고 동작도 그대로다(`B.form/spread/fade` 도우미).
+- **번짐·형성·소멸**: 번짐 = handleBlockSpreadEvent(풀·균사체·덩굴·버섯), 형성 = handleBlockFormEvent(흑요석·조약돌·현무암·눈·얼음·콘크리트 가루·비·눈 내림), 소멸 = callBlockFadeEvent(눈 녹음·얼음 녹음·산호 죽음·경작지→흙·불 꺼짐·덮인 풀). 용암이 흑요석으로 굳는 것을 취소하면 옆의 물이 용암 칸을 대신 채운다(`canBeReplacedWith`, 바닐라 규칙).
+- **마법 부여**: 제안은 단서(clue) 마법이 있는 칸만 CraftBukkit 처럼 내보낸다. `EnchantItemEvent` 에서 마법 맵을 바꾸면 바꾼 대로 붙고, 레벨·청금석 값도 이벤트 값. 취소면 레벨·청금석이 그대로.
+- **모루**: `PrepareAnvilEvent` 가 결과 칸·비용을 바꿀 수 있고(`firePrepare`), 결과가 비었을 때도 발화한다.
+- **탈것**: `VehicleEnter/Exit` 가 `EntityMount/Dismount` 보다 먼저. **스스로 내리는 경우만 취소할 수 있다**(`cancellable`). 탈것이 사라짐·내쫓김·차원 이동·순간이동으로 강제로 내릴 땐 취소해도 무시한다(`stopRidingForced`). 이벤트는 보트·광산 수레만 `Vehicle` 로 친다.
+- **스폰**: `Entity.spawnReason("…")` 로 CraftBukkit SpawnReason 이름을 달아 `CreatureSpawnEvent` 로 보낸다(자연·소환·번식·슬라임 분열·눈 골렘 짓기·스포너·알·변환 등).
+- **아직 없는 것(의도)**: 눈 골렘 눈 흔적 `EntityBlockFormEvent`, 스컬크 번짐, `EntityPortalEnterEvent`, 차원문 목적지 좌표(비동기 계산이라 대상 차원만 준다), `PortalCreateEvent` 의 NETHER_PAIR 이유, `BrewingStartEvent`, 켈프·대나무 성장, 이끼·뼛가루 퍼짐 일부.
+- 시험: `PluginApiFormEventsTest`(서버 단위 7개), 봇 `tools/bot-test/round8/ev.js` + `probe/Stage3cProbe`(구역 form enchant anvil brew vehicle fish portal book spawn, 모두 PASS).
+- **봇 시험 함정**: mineflayer `putTargetItem`/`rename`/`enchant` 는 이 서버에서 timeout 이 나므로(서버는 정상) `clickWindow`·원시 패킷(`name_item {name}`, `enchant_item`)으로 보낸다. 취소 모드는 블록을 놓기 *전에* 켜야 하고(무작위 틱이 빠르면 놓는 도중 이벤트가 난다), `mark()` 는 명령 앞에 둔다. 슬라임은 peaceful 에서 사라지니 분열 시험만 easy.
+
+
 ## 2026-11-06 전달체(conduit) 블록 엔티티
 - 그동안 `ConduitBlock` 은 물 잠김만 있고 블록 엔티티가 없어 전달체를 지어도 아무 일도 없었다. `ConduitBlockEntity` 를 바닐라 1.21.1 `dqt.b(serverTick)` 바이트코드와 대조해 넣었다.
 - 40틱마다: 둘레 3×3×3 이 모두 물인지 → 5×5×5 세 축 평면 바깥 고리(42칸)의 프리즈머린·벽돌·어두운 프리즈머린·바다 랜턴 수. 16 이상이면 활성(바뀌면 activate/deactivate 소리), 42 면 사냥.

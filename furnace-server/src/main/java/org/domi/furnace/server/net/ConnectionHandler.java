@@ -2163,6 +2163,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         synchronized (p.menuLock()) {
             ItemStack cur = p.inventory().get(ws);
             ItemStack out;
+            var core = login.core;
+            if (core != null && org.domi.furnace.server.entity.BookEditing.write(cur, java.util.List.of()) != null) {   // 깃펜 책일 때만 플러그인 PlayerEditBookEvent
+                var edit = core.gameEvents().editBook(p, slot, org.domi.furnace.server.entity.BookEditing.pagesOf(cur), pages, title);
+                if (edit == null) return;
+                pages = edit.pages();
+                title = edit.title();
+            }
             try {
                 out = title == null ? org.domi.furnace.server.entity.BookEditing.write(cur, pages)
                         : org.domi.furnace.server.entity.BookEditing.sign(cur, title, pages, p.name());
@@ -2642,6 +2649,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         @Override public ItemStack prepareCraft(org.domi.furnace.server.menu.AbstractContainerMenu menu, String recipe, ItemStack result) {
             var c = login.core;
             return c == null ? result : c.gameEvents().prepareCraft(p, menu, recipe, result);   // 플러그인 PrepareItemCraftEvent
+        }
+
+        @Override public org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] prepareEnchant(org.domi.furnace.server.menu.AbstractContainerMenu menu, int[] table,
+                ItemStack item, int bookshelves, org.domi.furnace.server.plugin.GameEvents.EnchantOffer[] offers) {
+            var c = login.core;
+            return c == null ? offers : c.gameEvents().prepareEnchant(p, menu, table, item, bookshelves, offers);   // 플러그인 PrepareItemEnchantEvent
+        }
+
+        @Override public org.domi.furnace.server.plugin.GameEvents.EnchantApply enchantItem(org.domi.furnace.server.menu.AbstractContainerMenu menu, int[] table,
+                ItemStack item, int button, int cost, java.util.Map<String, Integer> enchants) {
+            var c = login.core;
+            return c == null ? new org.domi.furnace.server.plugin.GameEvents.EnchantApply(cost, enchants) : c.gameEvents().enchantItem(p, menu, table, item, button, cost, enchants);   // 플러그인 EnchantItemEvent
+        }
+
+        @Override public org.domi.furnace.server.plugin.GameEvents.AnvilPrepared prepareAnvil(org.domi.furnace.server.menu.AbstractContainerMenu menu, ItemStack result,
+                int repairCost, String renameText) {
+            var c = login.core;
+            return c == null ? null : c.gameEvents().prepareAnvil(p, menu, result, repairCost, renameText);   // 플러그인 PrepareAnvilEvent
         }
 
         @Override public boolean doLimitedCrafting() {

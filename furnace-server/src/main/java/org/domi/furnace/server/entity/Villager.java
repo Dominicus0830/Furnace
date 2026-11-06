@@ -458,7 +458,11 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         if (want.size() < minVillagers) return;
         IronGolem g = org.domi.furnace.server.entity.spawn.SpawnUtil.trySpawnMob(level, blockPosition(), 10, 8, 6,
                 org.domi.furnace.server.entity.spawn.SpawnUtil.LEGACY_IRON_GOLEM,
-                (l, p) -> org.domi.furnace.server.entity.spawn.SpawnUtil.place(l, new IronGolem(l, l.nextEntityId()), p));
+                (l, p) -> {
+                    IronGolem ig = new IronGolem(l, l.nextEntityId());
+                    ig.spawnReason("VILLAGE_DEFENSE");
+                    return org.domi.furnace.server.entity.spawn.SpawnUtil.place(l, ig, p);
+                });
         if (g != null) all.forEach(org.domi.furnace.server.entity.ai.sensing.GolemSensor::golemDetected);
     }
 
@@ -506,7 +510,7 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
             witch.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(witch.blockPosition()));
             witch.setNoAi(isNoAi());
             witch.persistenceRequired = true;
-            level.addFreshEntity(witch);
+            level.addFreshEntity(witch.spawnReason("LIGHTNING"));
             releaseAllPois();
             discard();
         } else {

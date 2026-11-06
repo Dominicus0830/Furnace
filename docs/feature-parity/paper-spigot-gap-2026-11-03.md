@@ -40,10 +40,10 @@
 | 우선 | 항목 | Furnace 현황(근거) | 겹침 |
 |---|---|---|---|
 | 상 | **Bukkit/Paper 플러그인 실행(호환 어댑터)** | 없음. `SRV/plugin/PluginManagerImpl.java:2,49` 가 `plugins/bukkit-plugins/` jar 를 **세기만** 한다. 기존 Paper 플러그인은 하나도 못 돌린다 | 장기(5단계 `furnace-compat-paper`, 확정된 방향) |
-| 상 | 이벤트 확충 — 블록 | 있는 것: Break·Place·Explode(3단계), 3단계 둘째 ~~물리·레드스톤(가루·레버·버튼·압력판·램프)·피스톤 확장/수축·유체 흐름·성장·불타기·점화·잎 썩음~~. 없는 것: 번짐/형성/소멸(`BlockSpread/Form/FadeEvent`)·발사기·표지판 변경·중계기 등 나머지 레드스톤 부품 | — |
-| 상 | 이벤트 확충 — 엔티티 | 있는 것: Damage·Death·Spawn, 3단계 ~~폭발·대상 지정·길들이기·번식·투사체 발사/적중·아이템 스폰~~. 없는 것: 활 쏘기·변신·연소·회복·허기 변화·효과 변화·아이템 병합/디스폰·탈것 승하차·`CreatureSpawnEvent` | PR#5 는 상호작용(`PlayerInteractEntityEvent`)만 |
-| 상 | 이벤트 확충 — 플레이어 | 3단계 ~~웅크림/달리기/비행 전환·아이템 소비·손 바꾸기·들고 있는 칸 변경·침대·경험치/레벨 변화·발전 과제 달성·차원 변경·킥~~. 없는 것: 낚시·포털·책 편집·양동이·리소스팩 상태·명령 탭 완성 | — |
-| 상 | 이벤트 확충 — 인벤토리 | 있는 것: Open·Close·Click, 3단계 둘째 ~~제작(`CraftItemEvent`/`PrepareItemCraftEvent`)·화로 연료/제련·호퍼 이동(`InventoryMoveItemEvent`)~~. 없는 것: 드래그·마법 부여·모루·양조·화로 꺼내기·깔때기 줍기·거래 선택 | PR#5 상인 API |
+| 상 | 이벤트 확충 — 블록 | 있는 것: Break·Place·Explode(3단계), 3단계 둘째 ~~물리·레드스톤(가루·레버·버튼·압력판·램프)·피스톤 확장/수축·유체 흐름·성장·불타기·점화·잎 썩음~~. 3단계 셋째 ~~번짐·형성·소멸(`BlockSpread/Form/FadeEvent`)~~. 없는 것: 발사기·표지판 변경·중계기 등 나머지 레드스톤 부품 | — |
+| 상 | 이벤트 확충 — 엔티티 | 있는 것: Damage·Death·Spawn, 3단계 ~~폭발·대상 지정·길들이기·번식·투사체 발사/적중·아이템 스폰~~. 3단계 셋째 ~~탈것 승하차·`CreatureSpawnEvent`~~. 없는 것: 활 쏘기·변신·연소·회복·허기 변화·효과 변화·아이템 병합/디스폰 | PR#5 는 상호작용(`PlayerInteractEntityEvent`)만 |
+| 상 | 이벤트 확충 — 플레이어 | 3단계 ~~웅크림/달리기/비행 전환·아이템 소비·손 바꾸기·들고 있는 칸 변경·침대·경험치/레벨 변화·발전 과제 달성·차원 변경·킥~~. 3단계 셋째 ~~낚시·포털·책 편집~~. 없는 것: 양동이·리소스팩 상태·명령 탭 완성 | — |
+| 상 | 이벤트 확충 — 인벤토리 | 있는 것: Open·Close·Click, 3단계 둘째 ~~제작(`CraftItemEvent`/`PrepareItemCraftEvent`)·화로 연료/제련·호퍼 이동(`InventoryMoveItemEvent`)~~. 3단계 셋째 ~~마법 부여·모루·양조~~. 없는 것: 드래그·화로 꺼내기·깔때기 줍기·거래 선택 | PR#5 상인 API |
 | 상 | 이벤트 확충 — 서버 | 3단계 ~~서버 목록 핑(`ServerListPingEvent`)~~(MOTD·인원·목록 숨김). 없는 것: 아이콘·버전 바꾸기(Paper)·탭 완성·방송 | — |
 | 중 | 비동기 이벤트 표시 | `API/event/Event.java` 에 `isAsync` 없음. `AsyncChatEvent`·`AsyncPlayerPreLoginEvent` 는 이름만 비동기 | — |
 | 중 | 스코어보드·팀 API | 서버 내부 `SRV/scores` 는 있으나 API 타입 없음(플러그인 사이드바·태그 불가) | — |
