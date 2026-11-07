@@ -14,6 +14,20 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
+// H4: 실제 Bukkit·Paper API 로 컴파일된 jar(Maven Central 의 실제 플러그인·플러그인 라이브러리). 클래스패스에 올리지 않고
+// 파일 경로만 시험에 넘긴다 — 바이트코드를 읽어 호환 계층과 견주고(Coverage), 플러그인 jar 는 헤드리스 서버에 올려 본다.
+val realWorld by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+
+// 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
+class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
+    override fun asArguments(): Iterable<String> =
+        listOf("-Dfurnace.realworld.jars=" + jars.files.joinToString(File.pathSeparator) { it.absolutePath })
+}
+
 dependencies {
     api(project(":furnace-api"))
     // 서버가 slf4j 를 싣고 있다 — 설명 파일 경고를 서버 로그로 보낸다
@@ -23,13 +37,69 @@ dependencies {
     testImplementation(project(":furnace-server"))
     testImplementation(project(":furnace-test"))
     testImplementation("org.slf4j:slf4j-api:2.0.16")
+    testImplementation("ch.qos.logback:logback-classic:1.5.12")   // H4: 서버 로그의 예외를 모아 플러그인 실패 원인을 읽는다
     testImplementation(platform("org.junit:junit-bom:6.0.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // 실제 플러그인(plugin.yml 이 있는 jar)
+    realWorld("me.lucko:helper:5.6.14")
+    realWorld("dev.jorel:commandapi-bukkit-plugin:10.1.2")
+    // 실제 플러그인들이 흔히 가져다 쓰는 라이브러리(실제 Bukkit API 로 컴파일됨)
+    realWorld("org.bstats:bstats-bukkit:3.2.1")
+    realWorld("org.bstats:bstats-base:3.2.1")
+    realWorld("com.github.cryptomorin:XSeries:14.0.0")
+    realWorld("org.incendo:cloud-bukkit:2.0.1")
+    realWorld("org.incendo:cloud-paper:2.0.1")
+    realWorld("dev.jorel:commandapi-bukkit-core:12.1.0")
+    realWorld("me.lucko:commodore:2.2")
+    realWorld("com.github.stefvanschie.inventoryframework:IF:0.12.2")
+    realWorld("net.kyori:adventure-platform-bukkit:4.4.1")
+    realWorld("fr.mrmicky:fastboard:2.2.2")
+    realWorld("dev.dejvokep:boosted-yaml:1.3.8")
 }
 
 tasks.test {
     useJUnitPlatform()
     enableAssertions = true
     maxHeapSize = "2g"
+    jvmArgumentProviders.add(RealWorldJars(realWorld))
+}
+
+// 저장소에 넣지 않는 추가 jar(라이선스·크기): -PextraJars=<폴더 또는 jar 경로, 경로 구분자로 여러 개>. compatReport·liveProbe 에만 붙는다.
+// 시험(test)에는 붙지 않아 기준표 시험이 사용자 jar 때문에 흔들리지 않는다.
+val extraJars: FileCollection = providers.gradleProperty("extraJars").map { v ->
+    files(v.split(File.pathSeparator).filter { it.isNotBlank() }.map { p ->
+        val f = file(p)
+        if (f.isDirectory) fileTree(f) { include("*.jar") } else f
+    })
+}.orElse(files()).get()
+val withExtras = !extraJars.isEmpty
+
+// 실제 jar 대 호환 계층 대조표를 다시 만든다(docs/feature-parity/compat-h4-coverage-2026-11-07.md).
+// 추가 jar 를 주면 저장소 문서·기준표는 건드리지 않고 build/compat-h4-extra-report.md 에 쓴다.
+val sourceSets = the<SourceSetContainer>()
+tasks.register<JavaExec>("compatReport") {
+    group = "verification"
+    description = "실제 플러그인·라이브러리 jar 가 요구하는 Bukkit API 를 호환 계층과 견준 표를 만든다"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.realworld.CoverageReport")
+    if (withExtras) {
+        args(layout.buildDirectory.file("compat-h4-extra-report.md").get().asFile.absolutePath)
+    } else {
+        args(
+            rootProject.layout.projectDirectory.file("docs/feature-parity/compat-h4-coverage-2026-11-07.md").asFile.absolutePath,
+            layout.projectDirectory.file("src/test/resources/realworld-baseline.properties").asFile.absolutePath,
+        )
+    }
+    jvmArgumentProviders.add(RealWorldJars(realWorld + extraJars))
+}
+
+// 개발용: 실제 플러그인 jar 하나를 헤드리스 서버에 올려 결과를 본다 (-Pjar=<jar 이름 접두>, 추가 jar 는 -PextraJars)
+tasks.register<JavaExec>("liveProbe") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.realworld.LiveProbeMain")
+    args(providers.gradleProperty("jar").orElse("helper").get())
+    jvmArgumentProviders.add(RealWorldJars(realWorld + extraJars))
 }

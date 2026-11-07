@@ -76,6 +76,10 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 - 읽기 기본값이 있는 곳(정직한 기본값): `PlayerKickEvent#getLeaveMessage`(영어 고정 "<이름> left the game"; Furnace 킥 이벤트에 없는 값), `CompatPlayer#getLocale`(없으면 `en_us`), `CompatEntity#teleport` 는 비동기 텔레포트의 결과를 기다리지 않고 `true`, `isDead` 는 `!isValid()`(언로드된 엔티티도 죽음으로 본다). `paper-plugin.yml` 의 `load: OMIT` 인 `required: true` 의존은 순서도 강제된다(Paper 는 순서 없음).
 - 이벤트 값 되돌려 쓰기: 처리기 전달 직전에 Furnace 의 현재 값을 Bukkit 이벤트에 맞추고(그래서 사이에 낀 Furnace 처리기의 변경이 보인다), 전달 뒤 달라진 값만 Furnace 에 쓴다.
 
+## H4: 실제 플러그인으로 잰 호환 정도
+
+실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. 현재 helper·CommandAPI 둘 다 켜지지 못한다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
+
 ## 시험
 
 `./gradlew -PskipOracle=true :furnace-compat-paper:test` — 헤드리스 서버(`furnace-test`)에 시험용 `plugin.yml` jar 를 올려 로드 순서·설정·이벤트 24종 전달·쓰기 되돌림·우선순위·취소·미지원 오류를 확인한다. 서버 쪽 SPI 는 `PluginFormatSpiTest`.

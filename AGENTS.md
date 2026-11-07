@@ -9,7 +9,7 @@ Java 21로 바닥부터 만드는 멀티스레드 Minecraft **1.21.1** 서버. �
 | `furnace-api` | 스케줄러 인터페이스, `Owned`/`ThreadOwner` |
 | `furnace-server` | 서버 본체 (`net/`, `world/`, `world/gen/`, `sched/`, `entity/`, `config/`) |
 | `furnace-plugin-test` | 플러그인 API 테스트베드 |
-| `furnace-compat-paper` | Bukkit·Paper 플러그인 호환 계층(H 묶음). H2: 명령·스케줄러 코어 — `docs/feature-parity/compat-h2-2026-11-07.md` |
+| `furnace-compat-paper` | Bukkit·Paper 플러그인 호환 계층(H 묶음). H2: 명령·스케줄러 코어 — `docs/feature-parity/compat-h2-2026-11-07.md`. H4: 실제 jar 대조·기동 시험 — `docs/feature-parity/compat-h4-2026-11-07.md` |
 | `worldgen-oracle` | paperweight-userdev로 바닐라 값을 덤프해 테스트 fixture 생성 |
 | `tools/` | `parity-audit`(바닐라 실서버 .mca 대조), `vanilla-data`(바닐라 데이터 추출) |
 
