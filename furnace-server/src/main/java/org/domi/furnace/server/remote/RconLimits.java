@@ -34,13 +34,7 @@ public record RconLimits(int maxClients, int maxClientsPerIp, int maxFailsPerCon
     /** furnace.properties 를 읽는다(파일이 없으면 기본값). 잘못된 값은 IllegalArgumentException. */
     public static RconLimits load(Path file) {
         if (!Files.exists(file)) return DEFAULT;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(file)) {
-            p.load(in);
-        } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + file, e);
-        }
-        return fromProperties(p);
+        return fromProperties(org.domi.furnace.server.config.FurnaceProps.read(file));
     }
 
     public static RconLimits fromProperties(Properties p) {

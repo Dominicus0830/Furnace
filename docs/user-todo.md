@@ -2,6 +2,11 @@
 
 2026-11-06 재구성. 구조: **1. 직접 확인할 것** → **2. 내가 결정할 것** → **3. 코디네이터가 이 파일에 필요하다고 보는 항목**. 맨 아래는 끝난 기록이라 할 일이 아니다.
 
+# 설정 도구·콘솔 편집기 (O2) — 2026-11-07
+서버 시험과 리눅스 pty 실행으로 확인(`docs/feature-parity/config-tools-o2-2026-11-07.md`). 직접 확인할 것:
+- Windows 터미널(PowerShell·cmd·Windows Terminal)에서 서버 콘솔이 줄 편집·화살표 기록·Tab 자동완성이 되고 한글을 쳐도 깨지지 않는지(JLine JNI 터미널). 안 되면 `furnace.properties` 에 `console.jline=false` 로 예전 입력으로 돌아가는지.
+- `performance` 프리셋(`config.preset=performance`)의 값(엔티티 가시 거리 6, 청크 내리기 유예 40틱)이 원하는 수준인지 — 더 넣을 키가 있으면 알려 주세요.
+
 # TPS API·`/tps` 하위 명령 (Q3) — 2026-11-07
 도미니코 결정대로 `getTPS()`(= `Furnace.tps()`)는 활성 region(플레이어 있는 region) 플레이어 가중 평균, `/tps regions|here|player|region` 으로 특정 region 값. 정의 `docs/api/tps.md`. 봇(오프라인 서버 + 시험 플러그인)으로 값·명령 확인. 실제 클라이언트로 남은 것:
 - `/tps`·`/tps regions` 의 색(초록·노랑·빨강)과 줄 모양이 채팅 창에서 읽기 좋은지.

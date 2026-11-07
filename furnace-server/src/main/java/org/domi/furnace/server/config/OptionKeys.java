@@ -8,8 +8,6 @@
 //   5. 모르는 키(오타)는 가장 비슷한 키를 알려 주며 경고한다.
 package org.domi.furnace.server.config;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -71,9 +69,42 @@ public final class OptionKeys {
             new Option("plugins.data-root", "경로", "", "", "플러그인 데이터 폴더 뿌리(비면 plugins/<이름>/)"),
             new Option("plugins.dev-mode", "ON/OFF", "false", "true|false", "개발 모드 — 플러그인 핫 리로드를 허용한다"),
             new Option("plugins.dev-mode.auto-reload", "ON/OFF", "false", "true|false", "개발 모드에서 jar 가 바뀌면 자동으로 다시 읽는다"),
+            new Option("plugins.libraries.enabled", "ON/OFF", "false", "true|false", "플러그인이 요구하는 라이브러리를 Maven Central 에서 내려받는다"),
+            new Option("plugins.libraries.offline", "ON/OFF", "false", "true|false", "내려받지 않고 캐시에 있는 것만 쓴다"),
+            new Option("plugins.libraries.transitive", "ON/OFF", "true", "true|false", "라이브러리가 요구하는 라이브러리도 함께 받는다"),
+            new Option("plugins.libraries.require-checksum", "ON/OFF", "false", "true|false", "체크섬이 미리 적혀 있지 않은 라이브러리는 거부한다"),
+            new Option("plugins.libraries.cache", "경로", "", "", "내려받은 라이브러리 폴더(비면 plugins/.libraries)"),
+            new Option("plugins.libraries.timeout-seconds", "수", "30", "1~600", "라이브러리 내려받기 시간 제한(초)"),
+            new Option("plugins.libraries.max-size-mb", "수", "64", "1~1024", "라이브러리 jar 하나의 최대 크기(MB)"),
             // 월드
             new Option("worlds.autoload", "목록", "", "이름,...", "시작 때 불러올 추가 월드"),
-            new Option("enchantments.disabled", "목록", "", "id,...", "끌 마법부여 id(예: minecraft:mending)"));
+            new Option("enchantments.disabled", "목록", "", "id,...", "끌 마법부여 id(예: minecraft:mending)"),
+            // 운영(O2 이전에 들어온 키들)
+            new Option("motd-format", "글자", "plain", "plain|legacy|markup", "server.properties motd 의 서식 해석 방식"),
+            new Option("io-uring", "ON/OFF", "false", "true|false", "Linux io_uring 전송 계층(커널·권한이 안 맞으면 epoll 로 되돌아간다)"),
+            new Option("rcon.max-clients", "수", "16", "1~10000", "RCON 동시 연결 상한"),
+            new Option("rcon.max-clients-per-ip", "수", "4", "1~10000", "RCON 주소당 연결 상한"),
+            new Option("rcon.max-fails-per-connection", "수", "5", "1~10000", "RCON 연결당 인증 실패 한도"),
+            new Option("rcon.max-fails-per-ip", "수", "10", "1~10000", "RCON 주소당 60초 인증 실패 한도"),
+            new Option("idle-pause.empty-seconds", "수", "0", "0~86400", "접속자가 없은 지 이만큼 지나면 게임 틱을 멈춘다(0 = 끔, 바닐라 1.21.1 에는 없음)"),
+            new Option("idle-pause.flush-caches", "ON/OFF", "true", "true|false", "멈추기 전에 저장하고 캐시를 비운다"),
+            new Option("backup.interval-minutes", "수", "0", "0~525600", "주기 백업 간격(분, 0 = 끔)"),
+            new Option("backup.directory", "경로", "backups", "", "백업 폴더"),
+            new Option("backup.keep", "수", "10", "0~100000", "남겨 둘 백업 수(0 = 전부)"),
+            new Option("backup.format", "글자", "zip", "zip|folder", "백업 형식"),
+            new Option("backup.skip-if-no-players", "ON/OFF", "true", "true|false", "마지막 백업 뒤 접속자가 없었으면 건너뛴다"),
+            new Option("backup.hold-timeout-seconds", "수", "10", "1~600", "백업 기준점에서 저장을 붙잡는 최대 시간(초)"),
+            new Option("metrics.prometheus.enabled", "ON/OFF", "false", "true|false", "Prometheus 메트릭 HTTP 끝점"),
+            new Option("metrics.prometheus.bind", "글자", "127.0.0.1", "", "메트릭 끝점이 열 주소"),
+            new Option("metrics.prometheus.port", "수", "9225", "0~65535", "메트릭 끝점 포트"),
+            new Option("metrics.prometheus.token", "글자", "", "", "메트릭 읽기 토큰(비면 인증 없음)"),
+            new Option("metrics.jmx.enabled", "ON/OFF", "false", "true|false", "JMX MBean 으로 메트릭을 연다"),
+            // 설정 자체(O2)
+            new Option(ConfigMigration.KEY, "수", Integer.toString(ConfigMigration.CURRENT), "1 이상", "설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak 으로 남는다)"),
+            new Option(ConfigPresets.KEY, "글자", "none", "none|vanilla|performance", "파일에 없는 키를 프리셋 값으로 채운다(파일에 적은 키가 이긴다)"),
+            new Option(JvmCheck.KEY, "ON/OFF", "true", "true|false", "기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다"),
+            new Option("console.jline", "ON/OFF", "true", "true|false", "콘솔 줄 편집·자동완성·기록(터미널이 아니면 자동으로 꺼진다)"),
+            new Option("console.history-size", "수", "500", "0~100000", "콘솔 명령 기록 줄 수(0 = 파일에 저장 안 함)"));
 
     /** 접속 방어의 단계별 키는 단계 다섯 개마다 같은 모양이라 펼쳐서 만든다. */
     public static List<Option> all() {
@@ -148,13 +179,13 @@ public final class OptionKeys {
     /** furnace.properties 를 읽어 {@link #audit(Properties, Consumer)} 를 돌린다. 파일이 없으면 아무것도 하지 않는다. */
     public static void audit(Path file, Consumer<String> warn) {
         if (!Files.exists(file)) return;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(file)) {
-            p.load(in);
-        } catch (IOException e) {
+        Properties p;
+        try {
+            p = FurnaceProps.read(file);
+        } catch (RuntimeException e) {
             return;   // 읽지 못하는 것은 각 로더가 이미 알린다
         }
-        audit(p, warn);
+        audit(p, ConfigDump.lineNumbers(file), warn);
     }
 
     /**
@@ -162,9 +193,16 @@ public final class OptionKeys {
      * 동작은 바꾸지 않는다.
      */
     public static void audit(Properties p, Consumer<String> warn) {
+        audit(p, java.util.Map.of(), warn);
+    }
+
+    /** lines: 키 → 파일 줄 번호(1부터). 있으면 오타 경고에 줄 번호를 붙인다. */
+    public static void audit(Properties p, java.util.Map<String, Integer> lines, Consumer<String> warn) {
         for (String k : unknownKeys(p)) {
             String near = suggest(k);
-            warn.accept("furnace.properties 의 '" + k + "' 는 모르는 키라 무시합니다" + (near == null ? "" : " — '" + near + "' 를 말한 건가요?"));
+            Integer line = lines.get(k);
+            warn.accept("furnace.properties 의 '" + k + "'" + (line == null ? "" : "(" + line + "번째 줄)") + " 는 모르는 키라 무시합니다"
+                    + (near == null ? "" : " — '" + near + "' 를 말한 건가요?"));
         }
         if (isTrue(p, "proxy-protocol") && p.getProperty("proxy-protocol.trusted", "").isBlank()) {
             warn.accept("proxy-protocol=true 인데 proxy-protocol.trusted 가 비어 있습니다: 누구든 PROXY 헤더로 접속 주소를 꾸밀 수 있습니다(밴·접속 제한 우회). 앞단 주소만 적고, 서버 포트는 방화벽으로 앞단에만 열어 두세요");
@@ -189,6 +227,20 @@ public final class OptionKeys {
 
     private static boolean isTrue(Properties p, String key) {
         return "true".equalsIgnoreCase(p.getProperty(key, "").strip());
+    }
+
+    /** 엄격한 정수 읽기: 없으면 def, 숫자가 아니거나 min~max 밖이면 어느 키가 문제인지 알리며 거부한다. */
+    public static int strictInt(Properties p, String key, int def, int min, int max) {
+        String v = p.getProperty(key);
+        if (v == null) return def;
+        int n;
+        try {
+            n = Integer.parseInt(v.strip());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("설정 '" + key + "' 가 숫자가 아님: " + v, e);
+        }
+        if (n < min || n > max) throw new IllegalArgumentException("설정 '" + key + "' 값 " + n + " 이(가) 잘못됐습니다: " + min + "~" + max);
+        return n;
     }
 
     /** 엄격한 ON/OFF 읽기: 없으면 def, true/false 외의 글자는 어느 키가 문제인지 알리며 거부한다. */

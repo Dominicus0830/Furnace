@@ -36,13 +36,7 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
 
     static OperatorOptions load(Path path, Consumer<String> warn) {
         if (!Files.exists(path)) return DEFAULT;
-        Properties props = new Properties();
-        try (var in = Files.newInputStream(path)) {
-            props.load(in);
-        } catch (java.io.IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + path, e);
-        }
-        return from(props, warn);
+        return from(FurnaceProps.read(path), warn);
     }
 
     static OperatorOptions from(Properties props, Consumer<String> warn) {

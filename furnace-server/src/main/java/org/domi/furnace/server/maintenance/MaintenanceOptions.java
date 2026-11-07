@@ -28,13 +28,7 @@ public record MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush,
 
     public static MaintenanceOptions load(Path path, Consumer<String> warn) {
         if (!Files.exists(path)) return DEFAULT;
-        Properties props = new Properties();
-        try (var in = Files.newInputStream(path)) {
-            props.load(in);
-        } catch (java.io.IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + path, e);
-        }
-        return from(props, warn);
+        return from(org.domi.furnace.server.config.FurnaceProps.read(path), warn);
     }
 
     public static MaintenanceOptions from(Properties props, Consumer<String> warn) {

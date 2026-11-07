@@ -49,10 +49,10 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
 
     public static PluginSettings load(Path file) {
         if (!Files.exists(file)) return DEFAULT;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(file)) {
-            p.load(in);
-        } catch (IOException e) {
+        Properties p;
+        try {
+            p = org.domi.furnace.server.config.FurnaceProps.read(file);
+        } catch (RuntimeException e) {
             return DEFAULT;
         }
         return from(p, LoggerFactory.getLogger("Furnace"));

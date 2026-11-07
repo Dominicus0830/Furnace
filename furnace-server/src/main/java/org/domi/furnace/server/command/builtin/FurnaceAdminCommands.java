@@ -1,4 +1,4 @@
-// Furnace 전용 관리 명령 /furnace threads | regions [개수] | profile — 멀티스레드 서버의 스레드·region 현황과 틱 시간 요약.
+// Furnace 전용 관리 명령 /furnace threads | regions [개수] | profile | config [all|키] — 멀티스레드 서버의 스레드·region 현황과 틱 시간 요약.
 // 바닐라에 없는 명령이라 BuiltinCommands(바닐라 트리 대조 대상)에 넣지 않고 FurnaceCommands 처럼 기동 때 따로 등록한다. 권한 3(/tick 과 같다).
 // 값은 모두 읽기 전용 계측에서 온다: Regionizer 의 스케줄 계측(큐 지연 분포)·틱 시간 고리·region 관측 사본(자기 잠금 안에서 값만 복사),
 // 전역 스레드의 틱 시간 고리와 대기 작업 수. region 이 소유한 상태(청크·엔티티·플레이어)는 만지지 않는다 — 전역 스레드에서 안전하다.
@@ -41,8 +41,20 @@ public final class FurnaceAdminCommands {
                 .then(literal("regions").executes(c -> regions(c.getSource(), DEFAULT_REGION_LIMIT))
                         .then(argument("limit", Arguments.integer(1, MAX_REGION_LIMIT))
                                 .executes(c -> regions(c.getSource(), c.getArgument("limit", Integer.class)))))
+                .then(literal("config").executes(c -> send(c.getSource(), org.domi.furnace.server.config.ConfigDump.render(null)))
+                        .then(argument("filter", Arguments.greedyString())
+                                .suggests((c, b) -> org.domi.furnace.server.command.SharedSuggestions.suggest(configFilters(), b))
+                                .executes(c -> send(c.getSource(), org.domi.furnace.server.config.ConfigDump.render(c.getArgument("filter", String.class))))))
                 .then(literal("profile").executes(c -> send(c.getSource(),
                         profileReport(global(c.getSource().getServer()), dims(c.getSource().getServer()), c.getSource().getServer().tickState().rate())))));
+    }
+
+    /** /furnace config 의 자동완성 후보: all 과 모든 키. */
+    private static List<String> configFilters() {
+        List<String> out = new ArrayList<>();
+        out.add("all");
+        for (var o : org.domi.furnace.server.config.OptionKeys.all()) out.add(o.key());
+        return out;
     }
 
     private static int regions(CommandSource source, int limit) {

@@ -128,12 +128,7 @@ public final class ConnectionLimits {
     /** furnace.properties 를 읽는다(파일이 없으면 기본값). 잘못된 값은 IllegalArgumentException. */
     public static ConnectionLimits load(Path file, Consumer<String> warn) {
         if (!Files.exists(file)) return DEFAULT;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(file)) {
-            p.load(in);
-        } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + file, e);
-        }
+        Properties p = org.domi.furnace.server.config.FurnaceProps.read(file);
         return fromProperties(p, warn);
     }
 

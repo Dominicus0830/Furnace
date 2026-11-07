@@ -11,7 +11,7 @@
 3. **엄격하게 읽는다.** `true`/`false` 가 아닌 글자, 숫자가 아닌 값, 범위 밖 값은 조용히 기본값으로 돌리지 않고 어느 키가 문제인지 말하며 기동을 멈춘다(`OptionKeys.strictBool` 등). 조정(clamp)해서 쓰는 경우에는 조정했다고 경고한다.
 4. **위험하면 경고한다.** 시작 로그에 한 줄씩 `WARN` — 대상: 보안을 푸는 값, 바닐라와 다른 게임 속도, 운영에 맞지 않는 개발용 값(`OptionKeys.audit`).
 5. **오타는 알려 준다.** 표에 없는 키는 "무시합니다 — '○○' 를 말한 건가요?" 로 경고한다. 바닐라 키(`server-name` `port` `compression-threshold` `view-distance` `level-name` `level-seed`)는 `server.properties` 가 정하므로 `furnace.properties` 에 쓰면 따로 무시 경고가 나간다.
-6. **한 곳에서 보인다.** O2 의 `/furnace config` 덤프는 `OptionKeys.all()` 을 읽어 현재 값과 기본값을 함께 보여 주면 된다.
+6. **한 곳에서 보인다.** `/furnace config` 덤프(O2)가 `OptionKeys.all()` 을 읽어 시작 때 적용된 값·기본값·출처를 함께 보여 준다. 키를 만들고 표에 안 넣으면 덤프에서도 빠지고 오타 경고가 잘못 뜬다 — `ConfigToolsTest.everyKeyAnyLoaderReadsIsInTheTable` 가 로더들의 키를 표와 맞춘다.
 7. 새 묶음(B5 라이브러리 내려받기, O4 백업·저장 레인, Q2 RCON 상한, Q3·Q5 …)의 키도 같은 규칙: 기본값=바닐라(또는 꺼짐), 표에 한 줄, 위험 값 경고.
 
 ## 2. 키 표 (`furnace.properties`)
@@ -52,6 +52,37 @@
 | `plugins.dev-mode.auto-reload` | ON/OFF | false | true|false | 개발 모드에서 jar 가 바뀌면 자동으로 다시 읽는다 |  |
 | `worlds.autoload` | 목록 | (없음) | 이름,... | 시작 때 불러올 추가 월드 |  |
 | `enchantments.disabled` | 목록 | (없음) | id,... | 끌 마법부여 id(예: minecraft:mending) |  |
+| `plugins.libraries.enabled` | ON/OFF | false | true\|false | 플러그인이 요구하는 라이브러리를 Maven Central 에서 내려받는다 | true 면 경고 |
+| `plugins.libraries.offline` | ON/OFF | false | true\|false | 내려받지 않고 캐시에 있는 것만 쓴다 |  |
+| `plugins.libraries.transitive` | ON/OFF | true | true\|false | 라이브러리가 요구하는 라이브러리도 함께 받는다 |  |
+| `plugins.libraries.require-checksum` | ON/OFF | false | true\|false | 체크섬이 미리 적혀 있지 않은 라이브러리는 거부한다 |  |
+| `plugins.libraries.cache` | 경로 | (없음) | - | 내려받은 라이브러리 폴더(비면 plugins/.libraries) |  |
+| `plugins.libraries.timeout-seconds` | 수 | 30 | 1~600 | 라이브러리 내려받기 시간 제한(초) |  |
+| `plugins.libraries.max-size-mb` | 수 | 64 | 1~1024 | 라이브러리 jar 하나의 최대 크기(MB) |  |
+| `motd-format` | 글자 | plain | plain\|legacy\|markup | server.properties motd 의 서식 해석 방식 |  |
+| `io-uring` | ON/OFF | false | true\|false | Linux io_uring 전송 계층(커널·권한이 안 맞으면 epoll 로 되돌아간다) |  |
+| `rcon.max-clients` | 수 | 16 | 1~10000 | RCON 동시 연결 상한 |  |
+| `rcon.max-clients-per-ip` | 수 | 4 | 1~10000 | RCON 주소당 연결 상한 | 기본보다 높으면 경고 |
+| `rcon.max-fails-per-connection` | 수 | 5 | 1~10000 | RCON 연결당 인증 실패 한도 |  |
+| `rcon.max-fails-per-ip` | 수 | 10 | 1~10000 | RCON 주소당 60초 인증 실패 한도 |  |
+| `idle-pause.empty-seconds` | 수 | 0 | 0~86400 | 접속자가 없은 지 이만큼 지나면 게임 틱을 멈춘다(0 = 끔, 바닐라 1.21.1 에는 없음) | 켜면 경고 |
+| `idle-pause.flush-caches` | ON/OFF | true | true\|false | 멈추기 전에 저장하고 캐시를 비운다 |  |
+| `backup.interval-minutes` | 수 | 0 | 0~525600 | 주기 백업 간격(분, 0 = 끔) | 5분 미만이면 경고 |
+| `backup.directory` | 경로 | backups | - | 백업 폴더 |  |
+| `backup.keep` | 수 | 10 | 0~100000 | 남겨 둘 백업 수(0 = 전부) | 0 이면 경고 |
+| `backup.format` | 글자 | zip | zip\|folder | 백업 형식 |  |
+| `backup.skip-if-no-players` | ON/OFF | true | true\|false | 마지막 백업 뒤 접속자가 없었으면 건너뛴다 |  |
+| `backup.hold-timeout-seconds` | 수 | 10 | 1~600 | 백업 기준점에서 저장을 붙잡는 최대 시간(초) |  |
+| `metrics.prometheus.enabled` | ON/OFF | false | true\|false | Prometheus 메트릭 HTTP 끝점 |  |
+| `metrics.prometheus.bind` | 글자 | 127.0.0.1 | - | 메트릭 끝점이 열 주소 | 루프백이 아닌데 token 이 비면 경고 |
+| `metrics.prometheus.port` | 수 | 9225 | 0~65535 | 메트릭 끝점 포트 |  |
+| `metrics.prometheus.token` | 글자 | (없음) | - | 메트릭 읽기 토큰(비면 인증 없음). 덤프에서 가린다 |  |
+| `metrics.jmx.enabled` | ON/OFF | false | true\|false | JMX MBean 으로 메트릭을 연다 |  |
+| `config-version` | 수 | 1 | 1 이상 | 설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 `.bak`) | 서버보다 새 버전이면 경고 |
+| `config.preset` | 글자 | none | none\|vanilla\|performance | 파일에 없는 키를 프리셋 값으로 채운다(파일에 적은 키가 이긴다) |  |
+| `jvm.check` | ON/OFF | true | true\|false | 기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다 |  |
+| `console.jline` | ON/OFF | true | true\|false | 콘솔 줄 편집·자동완성·기록(터미널이 아니면 자동으로 꺼진다) |  |
+| `console.history-size` | 수 | 500 | 0~100000 | 콘솔 명령 기록 줄 수(0 = 파일에 저장 안 함) |  |
 | `connection.<단계>.packets-per-second` | 수 | 200 | 0~1000000 | 접속 단계(`handshake` `status` `login` `configuration` `play`)별 초당 패킷 평균 상한, 0 = 제한 없음 | 0 이면 경고 |
 | `connection.<단계>.packets-burst` | 수 | 400 | 1~10000000 | 단계별 순간 패킷 상한 | |
 | `connection.<단계>.max-frame-bytes` | 수 | 단계별(play 2097152) | 16~2097152 | 단계별 한 패킷 최대 크기, 넘으면 조정 | 조정 시 경고 |
