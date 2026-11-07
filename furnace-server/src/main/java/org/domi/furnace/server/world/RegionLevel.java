@@ -29,6 +29,8 @@ public final class RegionLevel extends ChunkLevel {
         super(world.levelServices().maxChainedNeighborUpdates());
         this.region = region;
         this.world = world;
+        this.minY = world.dimensionType().minY();
+        this.maxY = world.dimensionType().maxY();
         this.chest = blocks.block("minecraft:chest");
         this.trappedChest = blocks.block("minecraft:trapped_chest");
     }
@@ -78,6 +80,13 @@ public final class RegionLevel extends ChunkLevel {
 
     @Override
     public DimensionType dimensionType() { return world.dimensionType(); }
+
+    // 월드의 차원 타입은 만들 때 정해지고 바뀌지 않는다 — 블록 읽기마다 world → 타입 → 값을 따라가지 않도록 높이 범위를 들고 있는다(X1).
+    private final int minY, maxY;
+
+    @Override public int minBuildHeight() { return minY; }
+
+    @Override public int maxBuildHeight() { return maxY; }
 
     @Override
     protected org.domi.furnace.server.world.gen.feature.BiomeFeatureData featureData() {
@@ -129,12 +138,6 @@ public final class RegionLevel extends ChunkLevel {
     public void afterDimensionTransition(org.domi.furnace.server.entity.DimensionTransition t) {
         if (t.ticketPos() != null) world.placePortalTicket(t.ticketPos().x(), t.ticketPos().z());
     }
-
-    @Override
-    public int minBuildHeight() { return world.dimensionType().minY(); }
-
-    @Override
-    public int maxBuildHeight() { return world.dimensionType().maxY(); }
 
     // ------------------------------------------------------------------ 엔티티
 

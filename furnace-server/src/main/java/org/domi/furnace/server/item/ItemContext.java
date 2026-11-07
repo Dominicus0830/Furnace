@@ -16,6 +16,22 @@ public final class ItemContext {
     public static void install(TagRegistries r) {
         regs = r;
         names.clear();
+        maxStackCache = new int[0];
+    }
+
+    /** 아이템 번호 → 기본 최대 수량 기억(ItemStackCodecs.defaultMaxStackSize). 설치 때 새로 만든다. 0 = 아직 안 구함. */
+    private static volatile int[] maxStackCache = new int[0];
+
+    public static int[] maxStackCache() {
+        int[] c = maxStackCache;
+        if (c.length == 0 && regs != null) {
+            int n = size("minecraft:item");
+            if (n > 0) {
+                c = new int[n];
+                maxStackCache = c;
+            }
+        }
+        return c;
     }
 
     public static TagRegistries regs() {

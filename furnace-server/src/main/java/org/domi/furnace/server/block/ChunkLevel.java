@@ -160,6 +160,8 @@ public abstract class ChunkLevel implements BlockLevel {
     private final java.util.ArrayList<BlockEntity> blockEntityTickers = new java.util.ArrayList<>();
     private final java.util.ArrayList<BlockEntity> pendingTickers = new java.util.ArrayList<>();
     private boolean tickingBlockEntities;
+    private final long[] tickMemoKey = new long[64];
+    private final boolean[] tickMemoVal = new boolean[64], tickMemoUsed = new boolean[64];
 
     /** addBlockEntityTicker: 틱 도중에 생긴 것은 다음 틱부터. */
     protected void addTicker(BlockEntity be) {
@@ -186,12 +188,25 @@ public abstract class ChunkLevel implements BlockLevel {
             pendingTickers.clear();
         }
         int w = 0;
+        // 청크별 "블록 엔티티 틱을 받는가" 판정을 이번 호출 안에서 기억한다(X1): 깔때기 수천 개가 같은 청크에 있어도 판정(강제 로드·티켓·플레이어 거리)은 청크당 한 번.
+        // 바닐라의 청크 틱 단계도 청크 맵 틱에서만 바뀌어, 블록 엔티티를 도는 동안에는 고정이다.
+        java.util.Arrays.fill(tickMemoUsed, false);
         for (int i = 0; i < blockEntityTickers.size(); i++) {
             BlockEntity be = blockEntityTickers.get(i);
             if (be.isRemoved()) continue;
             blockEntityTickers.set(w++, be);
             Pos p = be.pos();
-            if (!ticking.test((long) (p.x() >> 4) << 32 | (p.z() >> 4) & 0xFFFFFFFFL)) continue;
+            long ckey = (long) (p.x() >> 4) << 32 | (p.z() >> 4) & 0xFFFFFFFFL;
+            int slot = (int) ((ckey * 0x9E3779B97F4A7C15L) >>> 58);
+            boolean chunkTicks;
+            if (tickMemoUsed[slot] && tickMemoKey[slot] == ckey) chunkTicks = tickMemoVal[slot];
+            else {
+                chunkTicks = ticking.test(ckey);
+                tickMemoUsed[slot] = true;
+                tickMemoKey[slot] = ckey;
+                tickMemoVal[slot] = chunkTicks;
+            }
+            if (!chunkTicks) continue;
             int s = getBlockState(p);
             if (be.isValid(s)) be.tick(this);
         }
@@ -1598,8 +1613,15 @@ public abstract class ChunkLevel implements BlockLevel {
             double x, double y, double z) {
         Player[] best = new Player[1];
         double[] bestD = {-1.0};
+        // 사거리 밖(조건 검사가 어차피 거짓)인 플레이어는 조건을 부르지 않고 건너뛴다 — 검사 순서의 조건들은 모두 부수 효과 없는 판정이다(X1).
+        final double far = source == null ? Double.POSITIVE_INFINITY : conditions.farLimitSqr();
         services().forEachPlayer(p -> {
-            if (p.isDisconnected() || !conditions.test(source, p)) return;
+            if (p.isDisconnected()) return;
+            if (far != Double.POSITIVE_INFINITY) {
+                double fx = source.x() - p.x(), fy = source.y() - p.y(), fz = source.z() - p.z();
+                if (fx * fx + fy * fy + fz * fz > far) return;
+            }
+            if (!conditions.test(source, p)) return;
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             double d = dx * dx + dy * dy + dz * dz;
             if (bestD[0] == -1.0 || d < bestD[0]) {
@@ -2082,6 +2104,10 @@ public abstract class ChunkLevel implements BlockLevel {
         return entities.getEntities(except, box, filter);
     }
 
+    /** getEntities 와 같은 결과를 그 종류(인터페이스 포함)만 훑어서. */
+    public java.util.List<Entity> getEntitiesOfType(Class<?> cls, AABB box, java.util.function.Predicate<? super Entity> filter) {
+        return entities.getEntitiesOfType(cls, box, filter);
+    }
     public <T extends Entity> java.util.List<T> getEntitiesOfClass(Class<T> cls, AABB box, java.util.function.Predicate<? super T> filter) {
         return entities.getEntitiesOfClass(cls, box, filter);
     }
@@ -2332,6 +2358,7 @@ public abstract class ChunkLevel implements BlockLevel {
                     }
                     if (c == null) continue;
                     int state = y < minBuildHeight() || y >= maxBuildHeight() ? AIR_STATE : c.getBlock(x & 15, y, z & 15);
+                    if (state == AIR_STATE) continue;   // 공기는 충돌 모양이 비어 있고 칸 밖으로 나가지도 않는다(X1: 칸 대부분이 공기)
                     if (edges == 1 && !hasLargeCollisionShape(state) || edges == 2 && blocks.blockOf(state) != MOVING_PISTON) continue;
                     Pos p = new Pos(x, y, z);
                     Shape shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, this, p, null)
