@@ -1198,7 +1198,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 boolean blocked = entity.lootTable() != null && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR;
                 org.domi.furnace.server.ServerCore c = login.core;
                 if (!blocked && c != null) c.unpackLoot(entity, p);
-                ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openEntityContainer(p, entity, blocked));
+                Text title = entity.containerTitle();   // 이름·팀은 엔티티 region 에서 읽는다
+                boolean hopper = entity instanceof org.domi.furnace.server.entity.MinecartHopper;
+                ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openEntityContainer(p, entity, blocked, title, hopper));
             }
 
             public int permissionLevel() {
@@ -2346,7 +2348,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * ServerPlayer.openMenu(엔티티 용기): 열린 창을 닫고 → 번호를 올리고 → 메뉴(상자 수레·상자 배는 9×3, 깔때기 수레는 깔때기) → open_screen.
      * 관전자가 전리품 표 있는 것을 열려 하면 메뉴가 없다(container.spectatorCantOpen 를 액션 바로).
      */
-    private void openEntityContainer(Player p, org.domi.furnace.server.entity.ContainerEntity entity, boolean blocked) {
+    private void openEntityContainer(Player p, org.domi.furnace.server.entity.ContainerEntity entity, boolean blocked, Text title, boolean hopper) {
         if (player != p) return;
         synchronized (p.menuLock()) {
             if (p.hasOpenContainer()) closeContainer(p);
@@ -2358,11 +2360,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             var inventory = p.inventoryMenu().inventoryContainer();
             var c = new org.domi.furnace.server.world.EntityContainer(entity, p, world::runAt);
-            org.domi.furnace.server.menu.AbstractContainerMenu menu = entity instanceof org.domi.furnace.server.entity.MinecartHopper
+            org.domi.furnace.server.menu.AbstractContainerMenu menu = hopper
                     ? new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, null, menus)
                     : org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, null, menus);
-            String type = entity.asEntity().type().name();
-            Text title = Text.translatable("entity." + type.replace(':', '.'));   // getDisplayName: 이름표 이름은 TODO(이름표)
             send(ctx, new OpenScreen(containerId, menuTypeId(menu), title));
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
