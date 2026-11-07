@@ -14,7 +14,9 @@ import org.domi.furnace.compat.paper.fixtures.Jars;
 import org.domi.furnace.compat.paper.fixtures.KitPlugin;
 import org.domi.furnace.compat.paper.fixtures.RecorderPlugin;
 import org.domi.furnace.test.FurnaceTestServer;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
@@ -52,6 +54,7 @@ class RealWorldCompatTest {
         assertFalse(idx.hasMember(new ClassRefs.Member("org/bukkit/entity/Player", "getName", "()I", false)));
         assertFalse(idx.hasMember(new ClassRefs.Member("org/bukkit/entity/Player", "noSuchThing", "()V", false)));
         assertTrue(idx.hasMember(new ClassRefs.Member("org/bukkit/Material", "DIAMOND_SWORD", "Lorg/bukkit/Material;", true)));
+        assertFalse(idx.hasMember(new ClassRefs.Member("org/bukkit/Material", "DIAMOND_SWORD", "I", true)), "필드 형식이 다르면 없는 것");
         assertTrue(idx.hasMember(new ClassRefs.Member("org/bukkit/inventory/ItemStack", "<init>", "(Lorg/bukkit/Material;I)V", false)));
         assertFalse(idx.hasMember(new ClassRefs.Member("org/bukkit/inventory/ItemStack", "<init>", "(Lorg/bukkit/Material;ZZ)V", false)));
         // Object 메서드는 인터페이스 참조라도 해석된다
@@ -95,6 +98,7 @@ class RealWorldCompatTest {
     }
 
     @Test
+    @Timeout(value = 3, unit = TimeUnit.MINUTES)
     void realPluginsAreReportedCleanlyAndNeverTakeTheServerDown() throws Exception {
         Properties baseline = Baseline.load();
         List<Path> pluginJars = RealJars.list().stream().filter(p -> RealJars.pluginName(p) != null).toList();
@@ -115,6 +119,7 @@ class RealWorldCompatTest {
     }
 
     @Test
+    @Timeout(value = 3, unit = TimeUnit.MINUTES)
     void aFailingRealPluginDoesNotStopAnotherPluginFromEnabling() throws Exception {
         Path real = RealJars.find("helper");
         Path recorder = Jars.bukkit(tmp.resolve("recorder.jar"), """

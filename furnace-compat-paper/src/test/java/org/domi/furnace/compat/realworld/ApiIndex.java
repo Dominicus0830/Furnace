@@ -39,7 +39,7 @@ public final class ApiIndex {
     public boolean hasMember(ClassRefs.Member m) {
         Class<?> c = find(m.owner());
         if (c == null) return false;
-        if (m.field()) return hasField(c, m.name(), new HashSet<>());
+        if (m.field()) return hasField(c, m.name(), m.descriptor(), new HashSet<>());
         if (m.name().equals("<init>")) return hasConstructor(c, m.descriptor());
         return hasMethod(c, m.name(), m.descriptor(), new HashSet<>()) || objectHas(m.name(), m.descriptor());
     }
@@ -51,16 +51,16 @@ public final class ApiIndex {
         return false;
     }
 
-    private static boolean hasField(Class<?> c, String name, Set<Class<?>> seen) {
+    /** 필드는 이름과 형식(서술자)이 모두 맞아야 한다 — 다르면 런타임에 NoSuchFieldError. */
+    private static boolean hasField(Class<?> c, String name, String desc, Set<Class<?>> seen) {
         if (c == null || !seen.add(c)) return false;
         try {
-            c.getDeclaredField(name);
-            return true;
+            if (descriptor(c.getDeclaredField(name).getType()).equals(desc)) return true;
         } catch (NoSuchFieldException e) {
             // 상위로
         }
-        for (Class<?> i : c.getInterfaces()) if (hasField(i, name, seen)) return true;
-        return hasField(c.getSuperclass(), name, seen);
+        for (Class<?> i : c.getInterfaces()) if (hasField(i, name, desc, seen)) return true;
+        return hasField(c.getSuperclass(), name, desc, seen);
     }
 
     private static boolean hasMethod(Class<?> c, String name, String desc, Set<Class<?>> seen) {
