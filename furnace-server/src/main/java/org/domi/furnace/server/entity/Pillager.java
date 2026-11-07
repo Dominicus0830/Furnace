@@ -1,5 +1,4 @@
 // 바닐라 Pillager: 석궁을 든 일러저. 5칸 인벤토리를 가지고, 1/300 확률로 관통 석궁으로 태어난다.
-// TODO(습격·줍기): 습격 보너스 석궁 마법, 습격 중 깃발 줍기는 습격 시스템이 생기면.
 package org.domi.furnace.server.entity;
 
 import java.util.Map;
@@ -120,7 +119,25 @@ public class Pillager extends AbstractIllager implements CrossbowAttackMob {
     @Override
     public void performRangedAttack(Targetable target, float power) { performCrossbowAttack(this, 1.6F); }
 
-    @Override public void applyRaidBuffs(int wave, boolean captain) { }
+    /**
+     * Pillager.applyRaidBuffs: 습격 징조 확률(getEnchantOdds)을 통과하면 새 석궁에 파도별 마법 제공자를 걸어 주 무기를 바꾼다.
+     * 파도가 보통 난이도 파도 수(5)를 넘으면 pillager_post_wave_5, 쉬움 파도 수(3)를 넘으면 pillager_post_wave_3, 그 밖은 바꾸지 않는다.
+     */
+    @Override
+    public void applyRaidBuffs(int wave, boolean captain) {
+        var raid = getCurrentRaid();
+        if (raid == null) return;
+        if (random.nextFloat() <= raid.getEnchantOdds()) {
+            String provider = wave > org.domi.furnace.server.world.raid.Raid.getNumGroups(2) ? "minecraft:raid/pillager_post_wave_5"
+                    : wave > org.domi.furnace.server.world.raid.Raid.getNumGroups(1) ? "minecraft:raid/pillager_post_wave_3" : null;
+            if (provider != null) {
+                var difficulty = level.getCurrentDifficultyAt(blockPosition());
+                ItemStack crossbow = org.domi.furnace.server.item.EnchantTools.enchantFromProvider(stackOf("minecraft:crossbow"), level.lootData(), provider,
+                        difficulty.specialMultiplier(), random);
+                setItemSlot(EquipmentSlot.MAINHAND, crossbow);
+            }
+        }
+    }
 
     @Override public String getAmbientSound() { return "entity.pillager.ambient"; }
 

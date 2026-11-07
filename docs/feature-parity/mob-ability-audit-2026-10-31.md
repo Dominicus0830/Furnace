@@ -72,7 +72,7 @@
 | Llama / TraderLlama | 끈·캐러밴·카펫 장식·탑승, 상인 보호 `TraderLlamaDefendWanderingTraderGoal`(대상 1번) 없음, 상인에게 매이면 사라짐 시간을 따르는 규칙 | 목표 쌍 비교(TraderLlama 대상 1번 1개 차이), Furnace `TraderLlama.java:2`, `Llama.java:2` | 낮음~중 |
 | Wandering Trader / Villager | AbstractVillager 의 8칸 인벤토리, 거래 발전 과제, 평판 기반 특가 | Furnace `WanderingTrader.java:3`, `Villager.java:614` — 주민 본체는 U1/U3 영역이라 목록만 | 낮음 |
 | Armadillo / Axolotl / Turtle / Tadpole | 끈·탑승·발소리·밀기 관련 TODO(Armadillo `:2, 158, 243`, Axolotl `:2`, Turtle `:2`) | 위 가죽끈·doPush 행에 흡수 | 낮음 |
-| Giant, Illusioner, Evoker, Pillager | 습격 보너스 마법·승리 축하·깃발 줍기 등 습격 연동 TODO. `Raid.java` 가 이제 있으므로 해당 TODO 가 낡았을 가능성(가정). 이번에는 본문까지 읽지 않았다 | Furnace `Pillager.java:2`, `Evoker.java:2`, `Vindicator.java:81` | 낮음 |
+| Giant, Illusioner, Evoker, Pillager | 습격 보너스 마법·승리 축하·깃발 줍기 등 습격 연동 TODO. **2026-11-07(M4)**: 습격 연동은 모두 구현돼 있었고 Pillager 의 습격 보너스 석궁 마법만 비어 있어 채움 | Furnace `Pillager.java:2`, `Evoker.java:2`, `Vindicator.java:81` | 낮음 |
 
 ## 헤더 TODO 가 낡은 곳 (이미 구현됨, 주석만 고치면 됨)
 
