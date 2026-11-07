@@ -52,6 +52,14 @@ public final class DispenseBehaviors {
         return DEFAULT;
     }
 
+    /**
+     * 그 아이템이 ProjectileItem(화살·알·눈덩이·경험치 병·물약·폭죽·화염구·바람 구슬)이면 asProjectile + shoot(아래) 한 투사체(월드에는 아직 안 넣음),
+     * 아니면 null. 불길한 아이템 생성기가 쓴다.
+     */
+    public static org.domi.furnace.server.entity.Projectile projectileDown(ChunkLevel level, double x, double y, double z, Pos eventPos, ItemStack stack) {
+        return get(stack) instanceof ProjectileDispense pd ? pd.launchDown(level, x, y, z, eventPos, stack) : null;
+    }
+
     private static void register(String item, DispenseItemBehavior b) { REGISTRY.put("minecraft:" + item, b); }
 
     private static boolean isEmptyBlock(BlockLevel level, Pos p) { return B.isAir(level.getBlockState(p)); }

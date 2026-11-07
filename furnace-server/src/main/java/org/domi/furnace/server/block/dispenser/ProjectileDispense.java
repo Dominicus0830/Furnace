@@ -61,6 +61,17 @@ final class ProjectileDispense extends DefaultDispenseItemBehavior {
     @Override
     protected void playSound(BlockSource s) { s.level().levelEvent(null, event, s.pos(), 0); }
 
+    /**
+     * OminousItemSpawner.spawnItem 의 ProjectileItem 경로: asProjectile(level, 위치, 스택, 아래) → shoot(아래, 힘, 흩어짐) → 설정이 정한 이벤트(기본 1002 는 정하지 않은 것).
+     * 아직 월드에 넣지 않은 투사체를 돌려준다. (바닐라는 소유자를 생성기 엔티티로 두지만 생물이 아니라 여기서는 두지 않는다 — 생성기는 같은 틱에 사라진다.)
+     */
+    Projectile launchDown(ChunkLevel level, double x, double y, double z, org.domi.furnace.server.block.Pos eventPos, ItemStack stack) {
+        Projectile proj = factory.create(level, x, y, z, stack, Dir.DOWN);
+        if (shoots) proj.shoot(Dir.DX[Dir.DOWN], Dir.DY[Dir.DOWN], Dir.DZ[Dir.DOWN], power, uncertainty);
+        if (event != 1002) level.levelEvent(null, event, eventPos, 0);
+        return proj;
+    }
+
     // ------------------------------------------------------------------ 아이템별 asProjectile
 
     /** ArrowItem/TippedArrowItem: 줍기 허용 화살(줍는 아이템은 1개, 물부리 화살이면 효과). */
