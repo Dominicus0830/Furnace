@@ -37,5 +37,28 @@ public interface LootWorld {
 
     default String biomeAt(int x, int y, int z) { return null; }
 
+    // 아래 위치 조건 읽기는 그 칸 청크를 지금 스레드가 가진 경우에만 답한다(아니면 null → 조건은 거짓).
+
+    /** StructureManager.getStructureWithPieceAt(pos, 구조물 집합) 이 유효한가. */
+    default Boolean structureWithPieceAt(int x, int y, int z, java.util.function.Predicate<String> structureIds) { return null; }
+
+    /** CampfireBlock.isSmokeyPos. */
+    default Boolean smokeyAt(int x, int y, int z) { return null; }
+
+    /** Level.getMaxLocalRawBrightness(pos). */
+    default Integer lightAt(int x, int y, int z) { return null; }
+
+    /** Level.canSeeSky(pos). */
+    default Boolean canSeeSkyAt(int x, int y, int z) { return null; }
+
+    /** 그 칸 유체 상태 — 블록 이름 자리에 유체 이름(minecraft:water 등), 속성은 level(흐르는 것)·falling. */
+    default LootBlockState fluidAt(int x, int y, int z) { return null; }
+
+    /** 그 칸 블록 엔티티의 saveWithFullMetadata(없으면 null). */
+    default org.domi.furnace.server.net.io.nbt.NbtCompound blockEntityNbtAt(int x, int y, int z) { return null; }
+
+    /** 명령 저장소(command_storage)의 compound(없으면 null) — copy_custom_data 의 storage 원본. */
+    default org.domi.furnace.server.net.io.nbt.NbtCompound storageNbt(String storage) { return null; }
+
     default String dimension() { return "minecraft:overworld"; }
 }

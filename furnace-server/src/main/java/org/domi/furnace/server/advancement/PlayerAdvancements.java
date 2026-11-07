@@ -184,6 +184,19 @@ public final class PlayerAdvancements {
         progress.put(a.id(), p);
     }
 
+    /**
+     * 전리품 조건(type_specific player advancements)용: 그 진행을 이 객체의 잠금 안에서 판정한다.
+     * 과제가 없으면 null(바닐라 PlayerPredicate: 모르는 과제는 거짓). criterion 이 null 이면 과제 전체 완료 여부, 아니면 그 조건 하나.
+     */
+    public synchronized Boolean advancementState(ResourceId id, String criterion) {
+        Advancement a = manager.get(id);
+        if (a == null) return null;
+        AdvancementProgress p = getOrStartProgress(a);
+        if (criterion == null) return p.isDone();
+        Boolean c = p.criterionState(criterion);
+        return c == null ? null : c;
+    }
+
     /** 선택자 advancements= 용: 이 객체의 잠금 안에서 진행을 판정한다(다른 스레드의 award·revoke 와 겹치지 않게). */
     public synchronized boolean testProgress(Advancement a, java.util.function.Predicate<AdvancementProgress> test) {
         return test.test(getOrStartProgress(a));

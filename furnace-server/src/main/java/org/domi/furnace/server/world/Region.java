@@ -2358,6 +2358,50 @@ public final class Region {
         if (level != null) level.playerChangedDimension(p);
     }
 
+    /**
+     * 탈것과 함께 포털을 건너는 승객 플레이어를 뗀다(바닐라 changeDimension 의 passenger.changeDimension — 원천 region 스레드에서, 탈것에서
+     * 내린 뒤). 이 region 에 없으면 거짓(내려놓기만 한다).
+     */
+    boolean detachCarried(Player p) {
+        world.assertOwns(this);
+        if (players.get(p.entityId()) != p) return false;
+        players.remove(p.entityId());
+        // 떼기는 이 플레이어를 옛 탈것(과 보던 엔티티 모두)의 관찰자에서 빼므로, 곧 빠질 옛 탈것의 RemoveEntities 를 받지 못한다.
+        // 다른 차원은 리스폰이 클라이언트 월드를 비우지만 같은 레벨(엔드 관문)·되돌림은 옛 탈것이 남는다 — 먼저 지우라고 보낸다.
+        if (!p.tracked().isEmpty()) p.send(new RemoveEntities(java.util.List.copyOf(p.tracked().keySet())));
+        detachForDimensionChange(p);
+        return true;
+    }
+
+    /**
+     * 같은 레벨 안(엔드 관문)으로 탈것과 함께 건넌 승객 플레이어 편입(바닐라 ServerPlayer.changeDimension 의 같은 차원 쪽: connection.teleport
+     * (위치, 목적 회전) → onTransition 뒤 탈것의 startRiding(새 탈것, true)). 연결이 보정 텔레포트를 처리한 뒤 출구 칸 주인 region 에서 부른다
+     * — 내릴 때 보낸 텔레포트가 남긴 옛 자리 이동 표본은 그 보정이 이미 비웠다.
+     */
+    void adoptCarriedWithinLevel(Player p, org.domi.furnace.server.entity.DimensionTransition t, org.domi.furnace.server.entity.Entity vehicle) {
+        world.assertOwns(this);
+        p.applyMove(t.x(), t.y(), t.z(), t.yRot(), t.xRot(), p.onGround());   // 어느 region 에도 없는 동안이라 이 스레드가 써도 된다
+        adopt(p);
+        if (level != null) level.afterDimensionTransition(t);
+        remountCarried(p, vehicle);
+    }
+
+    /** 목적지가 없어 되돌린 승객 플레이어(원천 칸 주인 region 스레드): 제자리로 되돌리고 되살린 탈것에 다시 태운다. */
+    void returnCarried(Player p, org.domi.furnace.server.entity.Entity vehicle) {
+        world.assertOwns(this);
+        adopt(p);
+        remountCarried(p, vehicle);
+    }
+
+    /**
+     * 승객 플레이어를 탈것에 다시 태운다(startRiding(탈것, true)) — 그 탈것이 살아서 이 region 레벨에 있을 때만(아니면 내린 채로 둔다).
+     * 바닐라 ServerPlayer.startRiding 처럼 바로 탈것 위 자리로 옮긴다(positionRider — 연결의 보정 텔레포트는 차원 이동이 이미 보냈다).
+     */
+    private void remountCarried(Player p, org.domi.furnace.server.entity.Entity vehicle) {
+        if (vehicle == null || vehicle.isRemoved() || level == null || !level.entities().contains(vehicle)) return;
+        if (p.startRiding(vehicle, true)) vehicle.positionRider(p);
+    }
+
     /** 이 region 에 있으면 떼어 낸다(다른 차원으로 리스폰할 때 — 연결 스레드가 모든 region 에 묻는다). */
     public void removeForDimensionChange(Player p) {
         if (players.remove(p.entityId()) != null) detachForDimensionChange(p);
@@ -2390,6 +2434,8 @@ public final class Region {
             if (!"minecraft:the_nether".equals(world.dimension())) p.enteredNetherPosition = null;
         }
         if (changedFrom != null && !changedFrom.equals(world.dimension())) world.levelServices().gameEvents().playerChangedWorld(p, changedFrom);
+        // 탈것째 포털을 건넌 승객이면 건너간 새 탈것에 다시 탄다 — 바닐라는 승객의 changeDimension(발전 과제 포함)이 끝난 뒤 탈것 쪽이 태운다
+        remountCarried(p, p.takeCarriedVehicle());
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */
@@ -2448,8 +2494,11 @@ public final class Region {
             for (int dz = -vd; dz <= vd; dz++) {
                 ChunkPos cp = new ChunkPos(center.x() + dx, center.z() + dz);
                 if (p.loadedChunks().add(cp)) {   // 새로 시야 진입
-                    world.subscribeChunk(cp, p);
-                    rz().want(cp.x(), cp.z(), this);   // 시야 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
+                    // 청크를 만들지 않는 관전자(spectatorsGenerateChunks 꺼짐)는 구독·구역 확보를 보내는 때로 미룬다 — 로드돼 있을 때만 보낸다
+                    if (!skipsGeneration(p)) {
+                        world.subscribeChunk(cp, p);
+                        rz().want(cp.x(), cp.z(), this);   // 시야 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
+                    }
                     toQueue.add(cp);              // 전송 대기열(아직 미전송)
                 }
             }
@@ -2491,10 +2540,15 @@ public final class Region {
         if (budget <= 0) return;
         List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         var it = p.pendingChunks().iterator();
+        // 바닐라 ChunkMap.skipPlayer: 관전자는 spectatorsGenerateChunks 가 꺼져 있으면 청크를 만들게 하지 않고, 이미 로드된 청크만 받는다
+        boolean loadedOnly = skipsGeneration(p);
         while (it.hasNext() && batch.size() < budget) {
-            batch.add(it.next());
+            ChunkPos next = it.next();
+            if (loadedOnly && !world.isChunkLoaded(next.x(), next.z())) continue;   // 로드될 때까지 대기열에 둔다
+            batch.add(next);
             it.remove();
         }
+        if (batch.isEmpty()) return;
         sendBatch(p, batch, false);
     }
 
@@ -2517,6 +2571,8 @@ public final class Region {
         int genSlots = world.maxChunkSendsInFlight() - p.chunkPrefetches().size();
         List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         int scanned = 0;
+        // 바닐라 ChunkMap.skipPlayer: 청크를 만들지 않는 관전자는 미리 불러오기(생성·디스크 로드)를 걸지 않고 이미 로드된 것만 받는다
+        boolean loadedOnly = skipsGeneration(p);
         var it = p.pendingChunks().iterator();
         while (it.hasNext() && (batch.size() < budget || genSlots > 0) && scanned++ < AUTO_SCAN_LIMIT) {
             ChunkPos cp = it.next();
@@ -2525,7 +2581,7 @@ public final class Region {
                     batch.add(cp);
                     it.remove();
                 }
-            } else if (genSlots > 0 && p.chunkPrefetches().add(cp)) {
+            } else if (!loadedOnly && genSlots > 0 && p.chunkPrefetches().add(cp)) {
                 genSlots--;
                 // 구독은 updateChunks 가 해 두었으므로 로드된 뒤 유휴 정리로 내려가지 않는다(evictIdleChunks 는 구독자가 있으면 건너뛴다).
                 // 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고 바로 건다 — 디스크에 있는 청크는 그만큼 일찍 온다.
@@ -2560,7 +2616,12 @@ public final class Region {
         List<CompletableFuture<?>> sends = new ArrayList<>(batch.size());
         for (ChunkPos cp : batch) {
             // 구독은 updateChunks에서 큐에 넣을 때 했다. 이 구독이 청크 전달 전까지 블록 변경을 보류한다.
-            World.Subscription sub = world.subscriptionOf(cp, p);
+            World.Subscription existing = world.subscriptionOf(cp, p);
+            if (existing == null && p.loadedChunks().contains(cp)) {   // 구독을 미뤄 둔 청크(관전자 규칙) — 보내는 지금 구독한다
+                existing = world.subscribeChunk(cp, p);
+                rz().want(cp.x(), cp.z(), this);
+            }
+            final World.Subscription sub = existing;
             if (sub == null) continue;   // 그 사이 언로드됨 — 보낼 것 없음
             p.chunkSendsInFlight().incrementAndGet();
             CompletableFuture<?> f = world.serializedChunkBody(cp, inline)
@@ -2584,6 +2645,11 @@ public final class Region {
         // allOf로 모든 future(전송/예외) 완료 후 Finished 1회 — 마샬 누락에 의한 batch 미종료(클라 stall) 방지.
         return CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
                 .thenRun(() -> p.send(new ChunkBatchFinished(sent.get())));
+    }
+
+    /** 관전자이고 spectatorsGenerateChunks 가 꺼져 있나 — 이 플레이어의 시야는 청크를 새로 만들게 하지 않는다. */
+    private boolean skipsGeneration(Player p) {
+        return p.gameMode() == GameMode.SPECTATOR && !world.levelServices().gameRule("spectatorsGenerateChunks");
     }
 
     /** 청크가 플레이어의 현재 시야(per-player view distance, Chebyshev) 안인지. stale 드롭·전송 게이트용. */

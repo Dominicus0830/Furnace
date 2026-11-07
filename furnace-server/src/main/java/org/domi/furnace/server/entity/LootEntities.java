@@ -84,6 +84,7 @@ public final class LootEntities {
         public String team() { var t = e.getTeam(); return t == null ? null : t.name(); }
         public List<LootStack> slotItems(String range) { return LootEntities.slotItems(e, range); }
         public int tickCount() { return e.tickCount; }
+        public Object typeSpecific(String key) { return LootTypeSpecific.of(e, key); }
     }
 
     private static final class PlayerView implements LootEntity {
@@ -113,5 +114,36 @@ public final class LootEntities {
         public String team() { var t = p.team(); return t == null ? null : t.name(); }
         public List<LootStack> slotItems(String range) { return LootEntities.slotItems(p, range); }
         public int tickCount() { return p.vitals().tickCount(); }
+
+        public Map<String, Object> gameProfile() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", p.name());
+            long msb = p.uuid().getMostSignificantBits(), lsb = p.uuid().getLeastSignificantBits();
+            m.put("id", List.of((int) (msb >> 32), (int) msb, (int) (lsb >> 32), (int) lsb));   // UUIDUtil.CODEC: int 4개
+            List<Object> props = new ArrayList<>();
+            for (var pr : p.profileProperties()) {
+                Map<String, Object> e = new LinkedHashMap<>();
+                e.put("name", pr.name());
+                e.put("value", pr.value());
+                if (pr.signature() != null) e.put("signature", pr.signature());
+                props.add(e);
+            }
+            m.put("properties", props);
+            return m;
+        }
+
+        /** 바닐라 PlayerPredicate 가 읽는 값: gamemode(이름), level, recipe:&lt;id&gt;, advancement:&lt;id&gt;[|criterion]. 없는 것은 null. */
+        public Object typeSpecific(String key) {
+            if (key.equals("gamemode")) return p.gameMode().key();
+            if (key.equals("level")) return p.vitals().xpLevel();
+            if (key.startsWith("recipe:")) return p.recipeBook().contains(org.domi.furnace.server.data.ResourceId.parse(key.substring(7)));
+            if (key.startsWith("advancement:")) {
+                String rest = key.substring(12);
+                int slash = rest.indexOf('|');
+                String id = slash < 0 ? rest : rest.substring(0, slash);
+                return p.advancements().advancementState(org.domi.furnace.server.data.ResourceId.parse(id), slash < 0 ? null : rest.substring(slash + 1));
+            }
+            return null;
+        }
     }
 }

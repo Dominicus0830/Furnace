@@ -41,6 +41,15 @@ public final class KillCredit {
         String team = e.team();
         int ticks = e.tickCount();
         var nbt = org.domi.furnace.server.loot.EntityPredicate.nbtUsed ? e.nbt() : null;
+        // 종류별 값은 소유 스레드에서 미리 읽어 둔다(변종은 저장 NBT 를 거치므로 다른 스레드에서 읽으면 경쟁). 플레이어 기록 키는 잠금 있는 원본에 묻는다.
+        java.util.Map<String, Object> specific = new java.util.HashMap<>();
+        boolean variants = org.domi.furnace.server.loot.EntityPredicate.variantUsed;
+        for (String k : SPECIFIC_KEYS) {
+            if (!variants && k.equals("variant")) continue;
+            Object v = e.typeSpecific(k);
+            if (v != null) specific.put(k, v);
+        }
+        java.util.Map<String, Object> profile = e.gameProfile();
         LootEntity vehicle = depth == 0 ? snapshot(e.vehicle(), 1) : null;
         LootEntity target = depth == 0 ? snapshot(e.targetedEntity(), 1) : null;
         java.util.List<LootEntity> passengers = new java.util.ArrayList<>();
@@ -56,7 +65,11 @@ public final class KillCredit {
             public double[] position() { return pos; }
             public float luck() { return luck; }
             public LootStack equipment(String slot) { return eq.containsKey(slot) ? eq.get(slot) : e.equipment(slot); }
-            public Object typeSpecific(String key) { return e.typeSpecific(key); }
+            public Object typeSpecific(String key) {
+                if (key.startsWith("recipe:") || key.startsWith("advancement:")) return e.typeSpecific(key);
+                return specific.get(key);
+            }
+            public java.util.Map<String, Object> gameProfile() { return profile; }
             public java.util.Map<String, Effect> effects() { return effects; }
             public org.domi.furnace.server.net.io.nbt.NbtCompound nbt() { return nbt; }
             public LootEntity vehicle() { return vehicle; }
@@ -71,6 +84,9 @@ public final class KillCredit {
             public int tickCount() { return ticks; }
         };
     }
+
+    private static final String[] SPECIFIC_KEYS = {"size", "is_captain", "has_raid", "blocks_set_on_fire", "variant", "entity_struck",
+            "in_open_water", "gamemode", "level"};
 
     private static double[] clone(double[] a) { return a == null ? null : a.clone(); }
 

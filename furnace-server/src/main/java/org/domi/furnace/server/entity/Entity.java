@@ -475,11 +475,12 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     /**
-     * 다른 스레드 소유 차원으로: 승객을 내리고 저장 데이터를 떠서 이쪽은 CHANGED_DIMENSION 으로 뺀 뒤, 목적 region 스레드에서 같은 종류를
-     * 새로 만들어 넣는다(바닐라 changeDimension 의 create + restoreFrom + addDuringTeleport). 목적지가 없으면 원천에 되돌린다.
+     * 다른 스레드 소유 차원으로(바닐라 changeDimension 의 create + restoreFrom + addDuringTeleport): 승객을 내리고 저장 데이터를 떠서 이쪽은
+     * CHANGED_DIMENSION 으로 뺀 뒤, 목적 region 스레드에서 같은 종류를 새로 만들어 넣는다. 승객도 같은 목적지로 함께 건너가 새 탈것에
+     * 다시 탄다(carryPassengers). 목적지가 없으면 원천에 되돌린다.
      */
     private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
-        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null, plan.targetDimension());
+        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null, plan.targetDimension(), true);
     }
 
     /** changeDimension 이 옮긴 엔티티를 놓는 방식: moveTo(위치, 목적 yRot, 지금 xRot) 후 목적 속도. */
@@ -491,19 +492,19 @@ public abstract non-sealed class Entity implements Rider {
     /**
      * 같은 레벨 안으로 보내는 포털(엔드 관문): 바닐라는 같은 엔티티를 그 자리로 옮기지만(changeDimension 의 같은 차원 쪽), 출구가
      * 다른 region 스레드 소유일 수 있어 다른 차원 이동과 같이 이쪽에서 빼고 목적지 region 에 같은 종류를 새로 만든다(UUID·저장 데이터 유지).
-     * 목적지가 없으면 원래 자리에 되살린다.
+     * 승객도 함께 옮겨 다시 태운다. 목적지가 없으면 원래 자리에 되살린다.
      */
     private void teleportWithinLevel(Portal portal, Pos entry, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
         final ChunkLevel src = level;
         final Traveler tr = Traveler.of(this);
-        moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null, src.dimension());
+        moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null, src.dimension(), true);
     }
 
     /**
      * 명령 텔레포트의 다른 레벨 경로(바닐라 Entity.teleportTo(ServerLevel, …) 의 level != this.level 쪽): 승객을 내리고(unRide) 같은 종류를
      * 목적 차원에 새로 만들어 저장 데이터를 옮긴 뒤(restoreFrom — 속도도 그대로) moveTo(x, y, z, yaw, pitch)·setYHeadRot(yaw), 이쪽은
-     * CHANGED_DIMENSION 으로 뺀다. 소유 region 스레드에서 부른다. 목적 차원 길이 없으면(시험 레벨) 거짓. done 은 도착(또는 되돌림) 뒤
-     * 목적·원천 region 스레드에서 한 번 불린다.
+     * CHANGED_DIMENSION 으로 뺀다. 승객은 데려가지 않는다(바닐라 teleportTo 는 changeDimension 과 달리 승객을 내려놓기만 한다).
+     * 소유 region 스레드에서 부른다. 목적 차원 길이 없으면(시험 레벨) 거짓. done 은 도착(또는 되돌림) 뒤 목적·원천 region 스레드에서 한 번 불린다.
      */
     public boolean teleportToDimension(String dimension, double tx, double ty, double tz, float yaw, float pitch, Runnable done) {
         if (level == null || isRemoved()) return false;
@@ -515,68 +516,185 @@ public abstract non-sealed class Entity implements Rider {
         moveAcross(arrive -> travel.travel(plan, arrive), travel, (e, t) -> {
             e.moveTo(tx, ty, tz, yaw, p);
             if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
-        }, done, null);   // 바닐라 teleportTo(레벨, …) 는 changeDimension 을 거치지 않아 낙하 블록 강제 틱 훅을 켜지 않는다
+        }, done, null, false);   // 바닐라 teleportTo(레벨, …) 는 changeDimension 을 거치지 않아 낙하 블록 강제 틱 훅을 켜지 않는다
         return true;
     }
 
     /** changeDimension 이 끝난 뒤 옛 쪽에서 부르는 훅(바닐라 FallingBlockEntity.changeDimension 의 재정의 자리). 기본은 아무것도 안 한다. */
     protected void afterChangedDimension(String from, String to) {}
 
-    private void moveAcross(java.util.function.Consumer<java.util.function.BiConsumer<ChunkLevel, DimensionTransition>> route,
-                            org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
-                            java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done, String targetDimension) {
+    /** 탈것과 함께 건너가는 것 하나(떠난 쪽에서 뜬 상태). 엔티티는 저장 데이터로, 플레이어는 원천 region 에서 떼어 낸 그대로 옮긴다. */
+    private sealed interface Carried permits CarriedEntity, CarriedPlayer { }
+
+    /** 떠난 엔티티: 저장 데이터·포털 대기·종류, 그리고 함께 건너가는 그 승객들(바닐라 getPassengers 순서). */
+    private record CarriedEntity(NbtCompound tag, int cooldown, PortalProcessor process, String typeName,
+                                 java.util.List<Carried> passengers) implements Carried { }
+
+    private record CarriedPlayer(Player player) implements Carried { }
+
+    /**
+     * 바닐라 changeDimension 의 떠나는 쪽(원천 region 스레드): getPassengers 를 먼저 뜨고 unRide(내 탈것에서 내리고 승객을 내린다)한 뒤,
+     * carry 면 승객마다 같은 목적지로 changeDimension(엔티티는 저장 데이터를 떠서 빼고, 플레이어는 원천 region 에서 뗀다 — 떼지 못하면
+     * 내려놓기만 한다). 그다음 나를 떠서 CHANGED_DIMENSION 으로 뺀다.
+     */
+    private CarriedEntity depart(org.domi.furnace.server.block.LevelServices.DimensionTravel travel, String targetDimension, boolean carry) {
+        java.util.List<Rider> riders = carry ? passengers : java.util.List.of();
         stopRidingForced(this);
         ejectPassengers();
-        final NbtCompound tag = saveWithoutId(new NbtCompound());
-        final int cooldown = portalCooldown;
-        final PortalProcessor process = portalProcess;
-        final String typeName = type.name();
-        final double ox = x, oz = z;
-        final String fromDimension = level.dimension();
-        setRemoved(RemovalReason.CHANGED_DIMENSION);
-        afterChangedDimension(fromDimension, targetDimension);
-        route.accept((target, t) -> {
-            try {
-                arriveAcross(target, t, travel, tag, cooldown, process, typeName, ox, oz, place);
-            } finally {
-                if (done != null) done.run();
+        java.util.List<Carried> carried = new java.util.ArrayList<>(riders.size());
+        try {
+            for (Rider r : riders) {
+                if (r instanceof Entity e) {
+                    if (!e.isRemoved() && e.level != null) carried.add(e.depart(travel, targetDimension, true));
+                } else if (r instanceof Player p && travel.departPassenger(p)) {
+                    carried.add(new CarriedPlayer(p));
+                }
             }
-        });
+            final NbtCompound tag = saveWithoutId(new NbtCompound());
+            CarriedEntity self = new CarriedEntity(tag, portalCooldown, portalProcess, type.name(), java.util.List.copyOf(carried));
+            final String fromDimension = level.dimension();
+            setRemoved(RemovalReason.CHANGED_DIMENSION);
+            afterChangedDimension(fromDimension, targetDimension);
+            return self;
+        } catch (RuntimeException ex) {
+            // 떼어 낸 승객 플레이어가 어느 region 에도 없는 채로 남지 않게 — 제자리 region 에 내린 채로 되돌린다
+            for (Carried c : carried) forEachCarriedPlayer(c, p -> travel.returnPassenger(p, level, null));
+            throw ex;
+        }
     }
 
-    private static void arriveAcross(ChunkLevel target, DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
-                                     NbtCompound tag, int cooldown, PortalProcessor process, String typeName, double ox, double oz,
-                                     java.util.function.BiConsumer<Entity, DimensionTransition> place) {
-        if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 되살린다
-            travel.runAtSource(floor(ox), floor(oz), src -> {
-                Entity back = Entities.create(src, typeName);
-                if (back == null) return;
-                back.load(tag);
-                back.portalCooldown = cooldown;
-                back.portalProcess = process;
-                src.addFreshEntity(back);
+    /** 이 떠난 것(승객의 승객까지)에 든 플레이어마다. */
+    private static void forEachCarriedPlayer(Carried c, java.util.function.Consumer<Player> f) {
+        if (c instanceof CarriedPlayer cp) f.accept(cp.player());
+        else if (c instanceof CarriedEntity ce) for (Carried r : ce.passengers()) forEachCarriedPlayer(r, f);
+    }
+
+    private void moveAcross(java.util.function.Consumer<java.util.function.BiConsumer<ChunkLevel, DimensionTransition>> route,
+                            org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
+                            java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done, String targetDimension,
+                            boolean carryPassengers) {
+        final double ox = x, oz = z;
+        final CarriedEntity self = depart(travel, targetDimension, carryPassengers);
+        final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
+        try {
+            route.accept((target, t) -> {
+                if (!called.compareAndSet(false, true)) return;
+                try {
+                    if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 승객째 되살린다
+                        travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
+                    } else {
+                        arrive(target, t, travel, self, place);
+                    }
+                } finally {
+                    if (done != null) done.run();
+                }
             });
-            return;
+        } catch (RuntimeException ex) {
+            // 목적지 찾기를 시작하다 던졌다(도착 콜백 전) — 승객째 원래 자리에 되살리고 위로 올린다
+            if (called.compareAndSet(false, true)) {
+                try {
+                    travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
+                } finally {
+                    if (done != null) done.run();
+                }
+            }
+            throw ex;
         }
-        Entity e = Entities.create(target, typeName);
-        if (e == null) return;
-        e.load(tag);
-        e.portalCooldown = cooldown;
-        e.portalProcess = process;
-        place.accept(e, t);
-        target.addFreshEntity(e);
-        target.afterDimensionTransition(t);
+    }
+
+    /**
+     * 바닐라 changeDimension 의 도착 쪽(목적 레벨 스레드): 승객이 먼저 건너가고(passenger.changeDimension — 승객의 승객도 같은 순서), 같은
+     * 종류를 새로 만들어 저장 데이터를 옮겨 놓고 넣은 뒤, 건너간 승객을 startRiding(새 탈것, true)로 다시 태우고 도착 뒤 처리(포털 티켓)를 한다.
+     * 승객 플레이어는 연결이 차원 이동 패킷을 보내고 목적 region 에 편입될 때 다시 탄다. 만들지 못하면 null(승객은 내린 채로 건너간다).
+     */
+    private static Entity arrive(ChunkLevel target, DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
+                                 CarriedEntity c, java.util.function.BiConsumer<Entity, DimensionTransition> place) {
+        java.util.List<Player> players = carriedPlayers(c);
+        Entity e = null;
+        try {
+            java.util.List<Entity> riders = new java.util.ArrayList<>(c.passengers().size());
+            for (Carried r : c.passengers()) {
+                if (!(r instanceof CarriedEntity ce)) continue;
+                try {   // 승객 하나가 실패해도 나머지(와 그 안의 플레이어)는 건너간다 — arrive 가 제 플레이어를 꼭 보낸다
+                    Entity n = arrive(target, t, travel, ce, place);
+                    if (n != null) riders.add(n);
+                } catch (RuntimeException ex) {
+                    org.slf4j.LoggerFactory.getLogger(Entity.class).error("[PORTAL] 승객 {} 도착 실패", ce.typeName(), ex);
+                }
+            }
+            Entity made = Entities.create(target, c.typeName());
+            if (made != null) {
+                made.load(c.tag());
+                made.portalCooldown = c.cooldown();
+                made.portalProcess = c.process();
+                place.accept(made, t);
+                target.addFreshEntity(made);
+                e = made;
+                for (Entity r : riders) r.startRiding(made, true);
+                target.afterDimensionTransition(t);
+            }
+            return e;
+        } finally {
+            // 뗀 승객 플레이어는 무슨 일이 있어도 한 번 보낸다(탈것을 못 넣었으면 null — 태우지 않는다)
+            for (Player p : players) travel.arrivePassenger(p, target, t, e);
+        }
+    }
+
+    /** 바로 탄 승객 중 플레이어(승객의 승객 쪽 플레이어는 그 승객의 arrive/restore 가 맡는다). */
+    private static java.util.List<Player> carriedPlayers(CarriedEntity c) {
+        java.util.List<Player> out = new java.util.ArrayList<>(0);
+        for (Carried r : c.passengers()) if (r instanceof CarriedPlayer cp) out.add(cp.player());
+        return out;
+    }
+
+    /** 갈 곳이 없을 때(원천 레벨 스레드): 승객부터 원래 자리에 되살리고 나를 되살린 뒤 다시 태운다(바닐라는 목적지가 없으면 아무 일도 없다). */
+    private static Entity restore(ChunkLevel src, CarriedEntity c, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
+        java.util.List<Player> players = carriedPlayers(c);
+        Entity back = null;
+        try {
+            java.util.List<Entity> riders = new java.util.ArrayList<>(c.passengers().size());
+            for (Carried r : c.passengers()) {
+                if (!(r instanceof CarriedEntity ce)) continue;
+                try {
+                    Entity n = restore(src, ce, travel);
+                    if (n != null) riders.add(n);
+                } catch (RuntimeException ex) {
+                    org.slf4j.LoggerFactory.getLogger(Entity.class).error("[PORTAL] 승객 {} 되살리기 실패", ce.typeName(), ex);
+                }
+            }
+            Entity made = Entities.create(src, c.typeName());
+            if (made != null) {
+                made.load(c.tag());
+                made.portalCooldown = c.cooldown();
+                made.portalProcess = c.process();
+                src.addFreshEntity(made);
+                back = made;
+                for (Entity r : riders) r.startRiding(made, true);
+            }
+            return back;
+        } finally {
+            for (Player p : players) travel.returnPassenger(p, src, back);
+        }
     }
 
     /**
      * changeDimension: 같은 차원이면 제자리 이동, 다른 차원이면 같은 종류를 새로 만들어 저장 데이터를 옮기고(restoreFrom) 이쪽은
-     * CHANGED_DIMENSION 으로 뺀다. 승객은 내려놓는다. 목적 레벨을 같은 스레드에서 쓸 수 있을 때(시험 레벨)의 경로.
+     * CHANGED_DIMENSION 으로 뺀다. 목적 레벨을 같은 스레드에서 쓸 수 있을 때(시험 레벨)의 경로. 바닐라처럼 승객(엔티티)을 먼저 같은 목적지로
+     * 보내고 새 탈것에 강제로 다시 태운다. 플레이어 승객은 이 경로에 연결이 없어 내려놓기만 한다.
      */
     public Entity changeDimension(DimensionTransition t) {
         if (isRemoved()) return null;
         ChunkLevel target = t.newLevel();
+        java.util.List<Rider> riders = passengers;
         stopRidingForced(this);
         ejectPassengers();
+        java.util.List<Entity> moved = new java.util.ArrayList<>(riders.size());
+        for (Rider r : riders) {
+            if (r instanceof Entity pe) {
+                Entity n = pe.changeDimension(t);
+                if (n != null) moved.add(n);
+            }
+        }
         Entity e = target == level ? this : Entities.create(target, type.name());
         if (e == null) return null;
         if (e != this) {
@@ -587,6 +705,7 @@ public abstract non-sealed class Entity implements Rider {
         e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
         if (e != this) target.addFreshEntity(e);
+        for (Entity n : moved) n.startRiding(e, true);
         target.afterDimensionTransition(t);
         return e;
     }

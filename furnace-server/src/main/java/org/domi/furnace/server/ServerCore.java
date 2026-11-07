@@ -205,6 +205,65 @@ public final class ServerCore {
             return lootBlockState(world.regionizer().ownerOf(cx, cz).getBlock(x, y, z));
         }
 
+        /** 그 칸 청크를 지금 스레드가 가진 region 의 레벨(아니면 null). */
+        private org.domi.furnace.server.block.ChunkLevel levelAt(int x, int z) {
+            int cx = x >> 4, cz = z >> 4;
+            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
+            return world.regionizer().ownerOf(cx, cz).level();
+        }
+
+        public Boolean structureWithPieceAt(int x, int y, int z, java.util.function.Predicate<String> ids) {
+            var lv = levelAt(x, z);
+            if (lv == null) return null;
+            var pos = new org.domi.furnace.server.block.Pos(x, y, z);
+            for (var r : lv.structuresAt(pos)) if (ids.test(r.id()) && r.hasPieceAt(x, y, z)) return true;
+            return false;
+        }
+
+        public Boolean smokeyAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            return lv == null ? null : org.domi.furnace.server.block.types.CampfireBlock.isSmokeyPos(lv, new org.domi.furnace.server.block.Pos(x, y, z));
+        }
+
+        public Integer lightAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            return lv == null ? null : lv.getMaxLocalRawBrightness(new org.domi.furnace.server.block.Pos(x, y, z));
+        }
+
+        public Boolean canSeeSkyAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            return lv == null ? null : lv.canSeeSky(new org.domi.furnace.server.block.Pos(x, y, z));
+        }
+
+        public org.domi.furnace.server.loot.LootBlockState fluidAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            if (lv == null) return null;
+            int f = lv.getFluidState(new org.domi.furnace.server.block.Pos(x, y, z));
+            java.util.Map<String, String> props = new java.util.LinkedHashMap<>();
+            int type = org.domi.furnace.server.block.Fluids.type(f);
+            String name = switch (type) {
+                case org.domi.furnace.server.block.Fluids.T_FLOWING_WATER -> "minecraft:flowing_water";
+                case org.domi.furnace.server.block.Fluids.T_WATER -> "minecraft:water";
+                case org.domi.furnace.server.block.Fluids.T_FLOWING_LAVA -> "minecraft:flowing_lava";
+                case org.domi.furnace.server.block.Fluids.T_LAVA -> "minecraft:lava";
+                default -> "minecraft:empty";
+            };
+            if (type != org.domi.furnace.server.block.Fluids.EMPTY) {
+                if (!org.domi.furnace.server.block.Fluids.isSource(f)) props.put("level", Integer.toString(org.domi.furnace.server.block.Fluids.amount(f)));
+                props.put("falling", Boolean.toString(org.domi.furnace.server.block.Fluids.falling(f)));
+            }
+            return new org.domi.furnace.server.loot.LootBlockState(name, props);
+        }
+
+        public org.domi.furnace.server.net.io.nbt.NbtCompound blockEntityNbtAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            if (lv == null) return null;
+            return lv.getBlockEntity(new org.domi.furnace.server.block.Pos(x, y, z)) instanceof org.domi.furnace.server.block.entity.BlockEntity be
+                    ? be.saveWithFullMetadata() : null;
+        }
+
+        public org.domi.furnace.server.net.io.nbt.NbtCompound storageNbt(String storage) { return ServerCore.this.world.commandStorage().get(storage); }
+
         public String dimension() { return world.dimension(); }
         };
     }
@@ -474,6 +533,46 @@ public final class ServerCore {
     private final org.domi.furnace.server.sched.TickTimeRing globalTickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
 
     public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
+
+    /** 최근 전역 박동 n 개의 소요(ns)를 박동 번호 % n 자리에 담은 사본(JMX tickTimes). */
+    public long[] recentGlobalTickTimes(int n) { return globalTickRing.recentByTickNumber(n); }
+
+    /** 지금까지 기록한 전역 박동 수. */
+    public long globalTickCount() { return globalTickRing.count(); }
+
+    /** 지금까지 기록한 전역 박동 소요의 합(ns). */
+    public long globalTickTotalNanos() { return globalTickRing.totalNanos(); }
+
+    private volatile org.domi.furnace.server.profiling.PerfRecorder perf;
+
+    /** /perf 가 쓰는 성능 표본 기록기(처음 쓸 때 만든다). */
+    public org.domi.furnace.server.profiling.PerfRecorder perfRecorder() {
+        var p = perf;
+        if (p == null) {
+            synchronized (this) {
+                if (perf == null) perf = new org.domi.furnace.server.profiling.PerfRecorder(new PerfSource(), java.nio.file.Path.of("."));
+                p = perf;
+            }
+        }
+        return p;
+    }
+
+    private final class PerfSource implements org.domi.furnace.server.profiling.PerfRecorder.Source {
+        public long globalTicks() { return globalTickRing.count(); }
+        public long globalTickNanos() { return globalTickRing.totalNanos(); }
+        public java.util.List<org.domi.furnace.server.profiling.PerfRecorder.DimTicks> dimensions() {
+            java.util.List<org.domi.furnace.server.profiling.PerfRecorder.DimTicks> out = new java.util.ArrayList<>();
+            for (World w : worlds()) {
+                var rz = w.regionizer();
+                if (rz == null) continue;
+                var tw = rz.tickWindows();
+                out.add(new org.domi.furnace.server.profiling.PerfRecorder.DimTicks(rz.dimension(), tw.totalTicks(), tw.totalNanos()));
+            }
+            return out;
+        }
+        public int players() { return ServerCore.this.players().size(); }
+        public String levelName() { return settings().get().levelName; }
+    }
 
     /** 전역 틱 시작 시각(/tps — 15분 × 20회를 덮는 2^15 칸)과 시간 창별 소요 시간(/mspt). 전역 스레드만 쓴다. */
     private final org.domi.furnace.server.sched.TickStartRing globalTickStarts = new org.domi.furnace.server.sched.TickStartRing(1 << 15);

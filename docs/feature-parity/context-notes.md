@@ -967,7 +967,15 @@
 - **함정 1** `LiveGrid.commit` 이 아이템이 든 템플릿 상자를 `generatedBlockEntity`(생성 NBT)로만 남겨 청크를 다시 읽기 전까지 `execute if items`/열기가 "컨테이너 아님" 이었다 → 아이템이 든 상자는 바로 `ChestBlockEntity` 로 만든다(`/place template` 도 같이 고쳐짐).
 - **함정 2** 새 직소 블록 엔티티의 `joint` 는 `rollable`(필드 기본값)이다. `aligned` 기본은 저장 NBT 에 `joint` 가 없거나 이름이 틀렸을 때만(앞면이 수평이면 aligned, 수직이면 rollable).
 - **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
-- 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
+- 한계: .snbt 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다. (데이터 팩 템플릿은 Q7, 옛 DataVersion 데이터 픽서는 Q8 로 들어왔다.)
+
+## 2026-11-07 구조물 템플릿 데이터 픽서 (Q8)
+- `TemplateManager.read` 가 모든 source(generated·데이터 팩·내장)에서 `StructureDataFixer.update(root, DataVersion)` 를 거친다(바닐라 readStructure). 지원 1452~3954 → 3955, 그 밖(없음·1451 이하·3956 이상)은 경고 후 그대로. 범위표·뺀 것은 `structure-datafixer-2026-11-07.md`.
+- 구조: `FixStep`(판·하위 판 키 = v*10+sub, 블록 상태·블록 엔티티·엔티티·아이템 손잡이) 표를 판 순으로 돌리고, 각 단계마다 템플릿 전체를 **안쪽 먼저**(담긴 아이템·탑승자·스포너 엔티티·벌 → 바깥) 순회한다. 파일 DataVersion v 는 키 v*10 까지 끝난 것으로 본다(DataFixUtils.makeKey).
+- 함정 1: 바닐라 V705 아이템 훅은 tag 시대 아이템을 읽을 때 `BlockEntityTag` 에 아이템→블록 엔티티 id 를 **덮어쓰고**(EntityTag 는 없을 때만) 쓸 때 지우지 않는다. 이게 없으면 3818_5 컴포넌트화가 셜커 상자 아이템 안의 Items 를 container 로 못 옮긴다. 표는 `ItemStackFixes.ITEM_TO_BLOCK_ENTITY`.
+- 함정 2: 이름 바꾸기 표 대부분은 이름공간을 붙여 찾지만(createRenamer(Map)), 2523 능력치 표와 블록 상태 속성 고침(담장·레드스톤·가마솥·직소)의 Name 비교는 붙이지 않고 그대로 비교한다. 1904 오실롯 분리는 CatType 0 의 Trusting 을 계산만 하고 버린다(바닐라 그대로).
+- 함정 3: 일부 "고침"은 스키마 필드 이름만 바꾸는 convertUnchecked/형 캐스트다(3448 shards→sherds, 3818 Bees·EntityData). 데이터 고침 코드에 안 보여도 필드 이름은 바뀐다.
+- DFU 라이브러리는 컨테이너에서 못 받아(libraries.minecraft.net 403, Maven Central 에 없음) 실행 대조는 못 했다. 기대값은 디컴파일한 각 DataFix 를 따라 계산했고, 컴포넌트 결과는 `ComponentPatch.fromCodec` 로 다시 읽히는지 본다.
 
 
 ## 2026-11-06 접속 상태 머신 N1 — 구성 단계 주고받기·끊긴 이유 (불만 표 5·6·7번)
@@ -1110,6 +1118,14 @@
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
 
+## 2026-11-07 M19 서버 옵션·운영 잔여 (spectatorsGenerateChunks·JMX·/perf·디버그/단일 바이옴 월드·전리품)
+- 관전자 청크: 바닐라 `ChunkMap.skipPlayer` 처럼 관전자(게임룰 false)는 청크 구독·월드젠 요청을 미루고, 이미 로드된 청크만 받는다(`Region.skipsGeneration`). 게임 모드가 바뀌면 다음 틱 `updateChunks` 가 다시 판정.
+- 로그인/리스폰 패킷의 `is_flat`·`is_debug` 가 늘 false 로 하드코딩돼 있었다. 이제 월드 종류(`World.levelKind`)를 따른다 — 슈퍼플랫 월드는 이제 `is_flat=true` 를 보낸다(바닐라와 같음; 클라이언트 안개·하늘 지평선이 바뀜).
+- 전리품 함수 누락 수: 바닐라 jar 의 `LootItemFunctions` 등록표(40종)와 대조하면 14개였다(문서의 15는 오차). 컴포넌트 값은 JSON 꼴 맵·리스트로 두되 `custom_data` 만 서버 아이템 정규 값(NbtCompound).
+- `set_attributes` 난수 순서: 수정자마다 슬롯 `Util.getRandom`(nextInt) → 양 `getFloat`. `replace:false` 이고 컴포넌트가 비었으면 아이템 기본 속성 위에 얹는다(바닐라 바이트코드).
+- RaiderPredicate 는 `has_raid`·`is_captain` 기본값이 false 이고 둘 다 같아야 한다(예전 구현은 안 쓴 `is_captain` 을 "무관"으로 봤다). 엔티티 서브 조건 목록은 19종(lightning, fishing_hook, player, slime, raider, axolotl, boat, fox, mooshroom, rabbit, horse, llama, villager, parrot, tropical_fish, painting, cat, frog, wolf) — `sheep`·`salmon` 은 1.21.1 에 없다(1.21.2+).
+- 변종 값은 저장 NBT 에서 바닐라 이름으로 바꾼다(`LootTypeSpecific`): 열거형 변종은 이름 그대로, 고양이·개구리·그림·늑대·주민은 `minecraft:` id. KillCredit 스냅샷은 소유 스레드에서 이 값을 미리 읽어 둔다.
+- LocationPredicate 의 새 필드는 그 칸 청크를 지금 스레드가 가진 경우에만 읽는다(`LootWorld` 훅이 null → 거짓). 다른 region 소유 칸이면 거짓이 나올 수 있다는 것이 바닐라 `isLoaded` 검사 자리의 Furnace 쪽 한계.
 ## 2026-11-07 다차원 차이 (묶음 M10, 바이트코드)
 바닐라 1.21.1 `dcw`(Level) 생성자·`dcw$1`, `dut`(WorldBorder)·`dur$a`(DelegateBorderChangeListener), `MinecraftServer.createLevels`, `aur`(PlayerList) `sendLevelInfo`·`addWorldborderListener`, `ape`(WorldBorderCommand), `dlc`(NetherPortalBlock) `randomTick`·`getPortalDestination`, `eqy`(DerivedLevelData) 를 `javap -c` 로 대조.
 - **보더**: 차원마다 `World.border()`. 좌표 비 ≠ 1 이면 `getCenterX/Z` 만 비로 나눈다(크기·경고·피해 그대로, `createSettings` 도 나눈 중심). 오버월드가 아닌 월드는 `ServerCore.attachWorld` 가 `setAbsoluteMaxSize(max-world-size)` 뒤 `attachFollower`(지금 상태 복사 + `Delegate`)로 오버월드를 따라간다. 내린 추가 월드는 고리를 뗀다. 블록 레벨 `withinBorder`/`borderBounds`·플레이어 보더 피해는 그 차원 보더, 지옥문 출구 자르기는 목적 레벨 보더(`borderBoundsOf`). 명령·level.dat·접속·변경 패킷은 오버월드 보더(바닐라도 네더 접속자에게 오버월드 값 — 클라이언트 레벨이 자기 비로 나눈다). 보더 틱은 차원마다.
@@ -1131,6 +1147,7 @@
 - `chunks-per-tick=auto`(기본)는 준비된 청크만 배치에 넣는다. 배치에 생성 중인 청크를 넣으면 Finished 가 가장 느린 생성을 기다려 클라이언트 응답이 늦어지고 이미 있는 청크까지 막힌다.
 - `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
 - furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
+- 관전자(spectatorsGenerateChunks=false)는 auto 경로에서도 미리 불러오기(생성·디스크 로드)를 걸지 않는다(`sendQueuedChunksAuto` 의 `skipsGeneration`) — 이것을 빼면 auto 기본값에서 관전자가 땅을 만든다(M19·청크 전송 auto 합칠 때 발견).
 
 ## 2026-11-07 여럿일 때 청크 전송 (묶음 M12)
 - 원인 ①(데이터 유실): 종료 `flushAll` 한 번은 IO 레인이 밀리면(`ioBackedUp`, 레인당 256) 남은 dirty 청크를 `autosaveChunkQueue`(다음 틱)로 넘기는데 종료엔 다음 틱이 없다 → 여럿이 새 땅을 돌고 끄면 생성 청크 약 42% 유실, 재시작 뒤 재생성. `World.flushAllDrained` 가 미룬 수가 0 이 될 때까지 flushAll → `ioBarrier` 를 되풀이(역압은 지킴). 종료·`save-all` 이 쓴다. 미룬 수만 보므로 틱이 도는 save-all 이 끝없이 돌지 않는다.
@@ -1187,7 +1204,16 @@
 - **월드 보더 하차**: `DismountHelper.canDismountTo` 가 충돌 없음에 더해 상자 전체의 `WorldBorder.isWithinBounds(AABB)`(최대 모서리 −1e-5, 두 모서리 모두 안)를 본다 — 말·보트·수레·스트라이더 하차에 모두 적용. `findSafeDismountLocation`(침대·리스폰 닻 일어서기)도 칸 하나가 아니라 몸 상자 전체로 본다.
 - **같이 맞춘 것**(`findSafeDismountLocation` 바이트코드): 바닥 높이를 `nonClimbableShape`(사다리 등 climbable 태그·열린 다락문은 빈 모양)로 구한다, 위험 블록 판정에서 불 면역 몹은 타는 블록을 위험으로 안 본다, 플레이어는 자리 칸·그 위 칸이 `invalid_spawn_inside`(엔드 포털·관문)면 안 된다. 기존 수레 안의 같은 함수는 `DismountHelper` 로 합쳤다.
 - **포털 직후 수레·낙하 블록**: 수레 `tick` 이 `checkBelowWorld` 다음에 `handlePortal()` 을 부른다(전에는 수레가 포털을 못 탔다). 낙하 블록은 이동 직후 `handlePortal()` 을 부르고, **엔드가 낀 차원 이동**(`from==END || to==END`, from≠to)이면 `forceTickAfterTeleportToDuplicate` 가 켜져 이미 빠진 옛 엔티티가 그 틱 끝까지 마저 돌아 제자리에 블록을 놓거나 아이템을 떨군다 — 건너간 복사본과 함께 둘이 되는 바닐라 복제(바닐라 1.21.1 에서도 그대로). 구현은 `Entity.afterChangedDimension(from, to)` 훅.
-- **남은 차이**: `EntityType.immuneTo`(여우·위더 등 몹별 위험 블록 면역)는 Furnace 에 없어 `isBlockDangerous` 가 불 면역만 본다. 비동기 이동이 실패해(목적 월드 없음·예외) 옛 자리에 되살리는 경우에도 엔드 복제 플래그는 이미 켜져 있다(바닐라는 `changeDimension` 이 성공해야만 켠다). `/tp` 차원 이동(`teleportToDimension`)은 바닐라처럼 플래그를 켜지 않는다. 승객은 바닐라가 함께 보내고 다시 태우지만 Furnace `moveAcross` 는 내려놓는다(기존 차이) — 이제 수레가 포털을 타므로 플레이어가 탄 수레는 수레만 건너간다. 후속 묶음 후보. 돼지·말 외 일부 탈것의 `getDismountLocationForPassenger` 보더 검사는 범위 밖. 침대 하차 자세 고르기(TODO(자세))는 그대로.
+- **남은 차이**: `EntityType.immuneTo`(여우·위더 등 몹별 위험 블록 면역)는 Furnace 에 없어 `isBlockDangerous` 가 불 면역만 본다. 비동기 이동이 실패해(목적 월드 없음·예외) 옛 자리에 되살리는 경우에도 엔드 복제 플래그는 이미 켜져 있다(바닐라는 `changeDimension` 이 성공해야만 켠다). `/tp` 차원 이동(`teleportToDimension`)은 바닐라처럼 플래그를 켜지 않는다. 승객은 바닐라가 함께 보내고 다시 태운다 — 아래 "탈것째 포털" 절에서 맞췄다. 돼지·말 외 일부 탈것의 `getDismountLocationForPassenger` 보더 검사는 범위 밖. 침대 하차 자세 고르기(TODO(자세))는 그대로.
+
+## 2026-11-07 탈것째 포털 (M21 후속, 바이트코드 대조)
+`bsr.a(eqc)`(Entity.changeDimension)·`aqv.a(eqc)`(ServerPlayer.changeDimension)·`aqv.a(bsr,boolean)`(ServerPlayer.startRiding)를 `javap -c` 로 읽었다. 시험: `PassengerPortalTest`(5), `DimensionChangeTest` 수레 시험 2개.
+- **바닐라 순서**: `getPassengers()` 를 먼저 뜨고 → `unRide()`(내 탈것에서 내리고 승객을 내린다 — 플레이어는 포털 칸이면 제자리 하차 텔레포트) → 승객마다 **같은 DimensionTransition** 으로 `passenger.changeDimension(t)`(null 이 아니면 모은다, 승객의 승객도 같은 재귀) → 탈것을 만들어 restoreFrom·moveTo·addDuringTeleport → 모은 승객마다 `startRiding(새 탈것, true)` → onTransition. 그래서 승객이 먼저 만들어져 엔티티 번호가 탈것보다 작다. 승객 쪽 `canChangeDimensions`·포털 이벤트는 보지 않는다. `ServerPlayer.changeDimension` 은 스스로 내리지 않는다(이미 내려져 있다). 같은 레벨이면 `connection.teleport(위치, t 회전)` + onTransition, 다른 레벨이면 기존 리스폰 패킷 순서. `ServerPlayer.startRiding` 은 성공하면 속도 0·`positionRider`·`connection.teleport`·탈것 효과 패킷.
+- **`/tp` 다른 차원**(`Entity.teleportTo(ServerLevel, …)`)은 changeDimension 을 거치지 않고 `unRide` 만 한다 — 승객을 데려가지 않는다(Furnace `teleportToDimension` 도 그대로).
+- **Furnace 구현**: `Entity.moveAcross` 가 `depart`(승객을 같은 재귀로 떠서 빼고, 플레이어 승객은 `DimensionTravel.departPassenger` 로 원천 region 에서 뗀다) → 목적 레벨 스레드 `arrive`(승객 먼저 만들어 넣고 → 탈것 → 강제 탑승 → 플레이어는 `arrivePassenger`). 플레이어 승객은 다른 차원이면 `Player.changeDimension` 에 `carriedVehicle` 을 실어 보내고, 목적 region 이 `adoptAfterDimensionChange` 끝(발전 과제·월드 변경 이벤트 뒤)에 다시 태우고 `positionRider`. 같은 레벨(엔드 관문)이면 `correctToThen` 으로 연결이 보정 텔레포트(이동 대기열 비우기)를 끝낸 뒤 출구 칸 region 이 편입·다시 태운다 — 하차 때 보낸 옛 자리 텔레포트 표본이 남아 플레이어를 원래 region 으로 되돌리지 않게.
+- **목적지가 없을 때**: Furnace 는 비동기라 먼저 빼고 목적지를 찾는다. 못 찾으면 승객째 원래 자리에 되살리고 다시 태운다(바닐라는 목적지가 없으면 changeDimension 자체를 안 불러 그대로 탄 채 — 결과가 같다). 시험 레벨 단일 스레드 경로(`changeDimension`)도 엔티티 승객은 함께 보낸다(플레이어 승객은 연결이 없어 내려놓기만).
+- **독립 검토 반영**(`reviews/pr126-review.md`): 승객 플레이어를 떼기 전에 보던 엔티티 모두의 `RemoveEntities` 를 보낸다 — 떼기가 관찰자에서 먼저 빼서, 관문·되돌림 경로에서 클라이언트에 옛 탈것(유령 수레)이 남고 새 탈것 추적 전까지 옛 수레 위에 머물렀다(다른 차원은 리스폰이 비우므로 무해). 도착·되돌림·떠나기·목적지 찾기 중 예외가 나도 뗀 플레이어는 `arrivePassenger`/`returnPassenger` 를 꼭 한 번 받는다(finally, 승객별 격리).
+- **남은 차이**: 플레이어 승객이 둘 이상이면 다시 타는 순서가 편입 순서를 따른다(바닐라는 원래 순서). 편입하는 region 과 탈것 region 이 그 사이 갈라졌으면 다시 태우지 않고 내린 채 둔다(드묾). 같은 레벨 관문 이동은 플레이어 혼자 지날 때처럼 청크·추적을 다시 받는다(기존 `sendWithinLevel` 과 같은 방식 — 혼자 지날 때 입구 쪽 엔티티를 지우라고 보내지 않는 것은 별건 후속 후보). 다시 타기 전 빈 틱: 관문은 연결 왕복 뒤라 늘 늦게, 다른 차원은 2ms 안 넘겨받기가 안 되면 다음 작업 때 탄다 — 그동안 빈 수레는 감속이 0.96 이고 근처 몹을 태울 수 있다(그러면 플레이어는 강제로 함께 탄다, 드묾). 다시 탈 때 `ServerPlayer.startRiding` 의 보정 텔레포트·탈것 효과 패킷은 없다(Furnace 일반 탑승도 없음, positionRider 만). 탈것째 관문은 PlayerTeleportEvent 가 나가지 않고, 되돌림 경로는 하차·탑승 이벤트가 한 번씩 더 나간다. 다른 차원 도착 전에 접속이 끊기면 편입되지 않아 탈것 없이 저장된다(기존 `sendAcross` 와 같은 구조).
 
 ## 2026-11-07 걸음·헤엄 소리 전반 (묶음 M15)
 - 바닐라 1.21.1 `Entity.playStepSound` 는 블록 SoundType × 0.15 뿐이다(액체·inside_step_sound_blocks 검사 없음). 몹별 덮어쓰기는 바이트코드에서 `b(jd,dtc)` 오버라이드 34개를 전부 찾아 옮겼다. 상세·남은 차이는 `m15-step-sounds-2026-11-07.md`.

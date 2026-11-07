@@ -3,7 +3,9 @@
 //   3) 내장 템플릿(minecraft 이름공간, 1.21.1 jar 자료 — 데이터 팩을 아직 못 읽은 시험·도구용 예비).
 // 데이터 팩 리소스는 DataPackManager 가 시작·/reload 때 installDataPacks 로 걸고, 그때마다 저장소를 비운다(바닐라 onResourceManagerReload).
 // 구조물 블록 저장은 메모리 템플릿을 갈아 끼우고 generated 에 .nbt 로 쓴다.
-// 차이: .snbt 는 읽지 않는다(바닐라 1.21.1 운영 서버도 gameteststructures 의 .snbt 는 IDE 에서만 읽는다). 옛 DataVersion 파일은 데이터 픽서(Q8)를 거치지 않는다 — 경고만 남긴다.
+// 차이: .snbt 는 읽지 않는다(바닐라 1.21.1 운영 서버도 gameteststructures 의 .snbt 는 IDE 에서만 읽는다).
+// 옛 DataVersion 파일은 바닐라 readStructure 처럼 모든 source 에서 데이터 픽서(StructureDataFixer, Q8)를 거친다. 픽서가 못 다루는 판
+// (DataVersion 없음·1452 미만·3955 초과)은 경고를 남기고 그대로 읽는다.
 package org.domi.furnace.server.world.gen.structure.template;
 
 import java.io.IOException;
@@ -18,9 +20,9 @@ import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-import org.domi.furnace.server.data.PackRepository;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.data.ResourceManager;
+import org.domi.furnace.server.datafix.StructureDataFixer;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.world.BlockRegistry;
@@ -101,25 +103,31 @@ public final class TemplateManager {
         Optional<ResourceManager.Resource> res = rm.getResource(id.withPath(DIR + "/" + id.path() + EXT));
         if (res.isEmpty()) return Optional.empty();
         try (InputStream in = res.get().open().get()) {
-            NbtCompound root = NbtIo.readGzip(in);
-            warnOldDataVersion(id, root, res.get().packId());
-            return Optional.of(StructureTemplate.fromNbt(registry, root));
+            return Optional.of(read(id, NbtIo.readGzip(in), "pack " + res.get().packId()));
         } catch (IOException | RuntimeException e) {
             log.error("Couldn't load structure {} from pack {}", id, res.get().packId(), e);
             return Optional.empty();
         }
     }
 
-    /** 1.20.5(아이템·블록 엔티티 NBT 가 컴포넌트로 바뀐 버전). 이보다 옛 템플릿은 데이터 픽서 없이는 아이템·블록 엔티티가 어긋날 수 있다. */
-    static final int COMPONENT_DATA_VERSION = 3837;
+    /** 바닐라 NbtUtils.getDataVersion(tag, 500): DataVersion 이 없으면 500. */
+    static final int MISSING_DATA_VERSION = 500;
 
-    /** DataVersion 이 없거나 1.20.5 보다 옛이면 데이터 픽서(Q8)가 없어 그대로 읽는다는 경고(구조물마다 한 번 — 저장소가 캐시한다). 바닐라 팩은 건너뛴다. */
-    private static void warnOldDataVersion(ResourceId id, NbtCompound root, String packId) {
-        if (PackRepository.VANILLA.equals(packId)) return;
-        int v = root.contains("DataVersion") ? root.getInt("DataVersion") : 500;
-        if (v < COMPONENT_DATA_VERSION) {
-            log.warn("Structure {} (pack {}) has DataVersion {} older than {}; no data fixer, read as is", id, packId, v, COMPONENT_DATA_VERSION);
+    /**
+     * 바닐라 readStructure: DataVersion 을 보고 데이터 픽서로 올린 뒤 읽는다. 픽서가 다루지 못하는 판이면 경고 후 그대로 읽는다
+     * (구조물마다 한 번 — 저장소가 캐시한다).
+     */
+    private StructureTemplate read(ResourceId id, NbtCompound root, String source) {
+        int v = root.containsNumber("DataVersion") ? root.getInt("DataVersion") : MISSING_DATA_VERSION;
+        if (!StructureDataFixer.update(root, v)) {
+            if (v > StructureDataFixer.CURRENT_VERSION) {
+                log.warn("Structure {} ({}) has DataVersion {} newer than this server ({}); read as is", id, source, v, StructureDataFixer.CURRENT_VERSION);
+            } else {
+                log.warn("Structure {} ({}) has DataVersion {} older than {}; no data fixer for it, read as is",
+                    id, source, root.containsNumber("DataVersion") ? String.valueOf(v) : "(none)", StructureDataFixer.MIN_SUPPORTED_VERSION);
+            }
         }
+        return StructureTemplate.fromNbt(registry, root);
     }
 
     private Optional<StructureTemplate> loadFromGenerated(ResourceId id) {
@@ -131,7 +139,7 @@ public final class TemplateManager {
         }
         if (!Files.isRegularFile(file)) return Optional.empty();
         try (InputStream in = Files.newInputStream(file)) {
-            return Optional.of(StructureTemplate.fromNbt(registry, NbtIo.readGzip(in)));
+            return Optional.of(read(id, NbtIo.readGzip(in), "world generated"));
         } catch (IOException | RuntimeException e) {
             log.error("Couldn't load structure {}", id, e);
             return Optional.empty();
@@ -143,7 +151,7 @@ public final class TemplateManager {
         String res = "worldgen/1.21.1/structure/" + id.path() + EXT;
         try (InputStream in = TemplateManager.class.getClassLoader().getResourceAsStream(res)) {
             if (in == null) return Optional.empty();
-            return Optional.of(StructureTemplate.fromNbt(registry, NbtIo.readGzip(in)));
+            return Optional.of(read(id, NbtIo.readGzip(in), "builtin"));
         } catch (IOException | RuntimeException e) {
             log.error("Couldn't load structure {}", id, e);
             return Optional.empty();

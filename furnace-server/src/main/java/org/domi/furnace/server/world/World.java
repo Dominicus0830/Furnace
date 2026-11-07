@@ -293,6 +293,20 @@ public final class World {
     /** 로드된 청크 수(테스트·모니터링). */
     public int loadedChunkCount() { return chunks.size(); }
 
+    // 바닐라 PrimaryLevelData.specialWorldProperty(FLAT·DEBUG): 월드 하나의 모든 차원이 같은 값을 login/respawn 의 is_flat·is_debug 로 클라이언트에 알린다.
+    private volatile boolean flatLevel, debugLevel;
+
+    /** 이 월드(level.dat)의 오버월드 생성기가 평지인가 — 클라이언트의 지평선 높이·허공 안개가 달라진다. */
+    public boolean isFlatLevel() { return flatLevel; }
+
+    /** 오버월드 생성기가 디버그(모든 블록 상태 격자)인가 — 클라이언트는 저장된 블록 대신 격자 식으로 그린다. */
+    public boolean isDebugLevel() { return debugLevel; }
+
+    public void levelKind(boolean flat, boolean debug) {
+        this.flatLevel = flat;
+        this.debugLevel = debug;
+    }
+
     // ------------------------------------------------------------------ 작업 보내기
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */
@@ -1476,6 +1490,45 @@ public final class World {
         public void prewarm(org.domi.furnace.server.entity.PortalTravel plan) {
             World target = otherWorld(plan.targetDimension());
             if (target != null && target != World.this) target.prewarmTravel(plan);
+        }
+
+        @Override
+        public boolean departPassenger(org.domi.furnace.server.entity.Player p) {
+            ChunkPos c = p.chunkPos();
+            Region r = regionizer.ownerOf(c.x(), c.z());
+            return r != null && r.isOwnerThread() && r.detachCarried(p);
+        }
+
+        @Override
+        public void arrivePassenger(org.domi.furnace.server.entity.Player p, org.domi.furnace.server.block.ChunkLevel target,
+                                    org.domi.furnace.server.entity.DimensionTransition t, org.domi.furnace.server.entity.Entity vehicle) {
+            if (!(target instanceof RegionLevel rl)) {
+                runAt(p.x(), p.z(), r -> r.adopt(p));   // 목적 레벨이 region 이 아니다(있을 수 없다) — 원래 자리로
+                return;
+            }
+            World tw = rl.world();
+            if (tw == World.this) {
+                // 같은 레벨(엔드 관문): 연결이 보정 텔레포트를 처리한 뒤 출구 칸 주인 region 에 편입하고 다시 태운다
+                Runnable adopt = () -> tw.runAt(t.x(), t.z(), r -> r.adoptCarriedWithinLevel(p, t, vehicle));
+                if (!p.correctToThen(t.x(), t.y(), t.z(), t.yRot(), t.xRot(), adopt)) rl.region().adoptCarriedWithinLevel(p, t, vehicle);
+                return;
+            }
+            p.carriedVehicle(vehicle);
+            if (!p.changeDimension(tw, t, p.portalCooldown)) {   // 연결이 없다 — 원래 자리로(내린 채)
+                p.carriedVehicle(null);
+                runAt(p.x(), p.z(), r -> r.adopt(p));
+            }
+        }
+
+        @Override
+        public void returnPassenger(org.domi.furnace.server.entity.Player p, org.domi.furnace.server.block.ChunkLevel source,
+                                    org.domi.furnace.server.entity.Entity vehicle) {
+            ChunkPos c = p.chunkPos();
+            if (source instanceof RegionLevel rl && rl.world() == World.this && rl.region().isOwnerThread() && regionizer.ownerOf(c.x(), c.z()) == rl.region()) {
+                rl.region().returnCarried(p, vehicle);
+            } else {
+                runAt(p.x(), p.z(), r -> r.adopt(p));   // 탈것과 다른 region 칸이다 — 내린 채로 제자리에
+            }
         }
 
         @Override

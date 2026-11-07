@@ -14,10 +14,22 @@
 - 시련 생성기(불길한)가 화살·눈덩이·달걀 같은 발사체 아이템을 아래로 쏘는지, 그 화살은 생존 플레이어가 주울 수 없는지.
 - 알려진 차이(결정 필요 없음): 스폰 알을 동물에 써서 새끼를 만드는 동작(`spawnOffspringFromSpawnEgg`)은 아직 없다.
 
+# 탈것째 포털 건너기 (M21 후속) — 2026-11-07
+바닐라 바이트코드(`Entity.changeDimension`·`ServerPlayer.changeDimension`) 대조와 서버 시험(`PassengerPortalTest`, `DimensionChangeTest` 의 수레 시험 2개)으로 확인(`context-notes.md` "탈것째 포털"). 실제 클라이언트로 남은 것:
+- 수레를 타고 레일로 지옥문에 들어가면 수레와 함께 네더로 넘어가 **넘어간 뒤에도 수레에 타 있는지**(전에는 수레만 건너가고 플레이어는 포털 앞에 내려졌다). 엔드 포털·엔드 관문(엔드 바깥 섬으로 가는 것)도 같은지.
+- 말·돼지(당근 낚싯대)·보트를 탄 채 지옥문에 들어가도 함께 넘어가 그대로 타 있는지. 화면이 잠깐 깜빡이거나 탈것이 두 개로 보이지 않는지.
+- 두 사람이 함께 보트에 탄 채 지옥문을 지나가면 둘 다 넘어가 같은 보트에 타 있는지(앞자리·뒷자리 순서는 넘어가며 바뀔 수 있다 — 바뀌면 알려 주세요).
+
 # 이동·길찾기·보더 (M21) — 2026-11-07
 바닐라 바이트코드 대조(`context-notes.md` "M21")와 서버 시험(`MovementBorderM21Test`)으로 확인. 직접 확인·결정할 것:
 - **결정:** 엔드 포털 위에서 모래·자갈이 떨어져 포털을 타면 복사본이 건너가고 옛 쪽도 한 틱 더 돌아 아이템을 떨구는 **중력 블록 복제**가 바닐라 1.21.1 그대로 재현된다. 바닐라와 같게 두는 게 기본이지만, 서버에서 막고 싶으면 설정 키(예: 켜짐/꺼짐)로 둘 수 있다 — 원하면 알려 주세요.
-- 월드 보더 가장자리(`/worldborder set 20`)에서 말·보트에서 내릴 때 보더 밖으로 내려지지 않는지, 레일 수레가 네더·엔드 포털을 지나가는지(전에는 안 지나갔다). 단, 플레이어가 탄 수레는 수레만 건너가고 플레이어는 내려진다(바닐라는 승객과 함께 보냄 — 기존 차이, 후속 묶음 후보).
+- 월드 보더 가장자리(`/worldborder set 20`)에서 말·보트에서 내릴 때 보더 밖으로 내려지지 않는지, 레일 수레가 네더·엔드 포털을 지나가는지(전에는 안 지나갔다). 플레이어가 탄 수레는 이제 플레이어와 함께 건너간다(바로 위 절).
+
+# 옛 판 구조물 파일 읽기 (Q8) — 2026-11-07
+서버 시험(`StructureDataFixerTest`)으로 1.13~1.20 판 구조물 NBT 가 1.21.1 꼴로 바뀌는 것은 확인(범위 `docs/feature-parity/structure-datafixer-2026-11-07.md`). 실제로 확인할 것:
+- 1.16~1.20 에서 구조물 블록으로 저장한 `.nbt`(옛 월드의 `generated/<이름공간>/structures/` 나 옛 데이터 팩의 `structures/`)를 이 서버 월드의 `datapacks/<팩>/data/<이름공간>/structure/` 에 넣고 `/reload` → `/place template <이름공간>:<이름>` 으로 놓았을 때, 표지판 글·깃발 무늬·상자 안 아이템(이름·마법 부여·개수)·액자 그림·담장 모양이 옛 판에서 보던 것과 같은지.
+- 1.12 이하 판 파일이나 DataVersion 이 없는 파일을 넣으면 서버 로그에 `no data fixer for it, read as is` 경고가 한 번 나오는지(고치지 않고 그대로 읽는 것이 정상).
+- 알아 둘 차이: DataVersion 이 없는 파일(외부 도구가 판을 안 적은 경우)은 바닐라가 1.12 파일로 보고 전부 고쳐서 최신 이름도 바뀔 수 있다(예: `stone_slab` → `smooth_stone_slab`, `grass` → `short_grass`, 담장 `true` → `low`). Furnace 는 그대로 둔다.
 
 # 여러 명 청크 전송 — 압축 중복 제거 (M12 보완) — 2026-11-07
 서버 측정과 시험으로 확인(`docs/feature-parity/perf-m12-2026-11-07.md`): 같은 청크를 여러 명에게 보낼 때 이벤트 루프마다 중복 압축하던 것을 청크 풀에서 한 번만 하도록 고침. 실제 클라이언트로 남은 것:
@@ -177,7 +189,15 @@
 | `minecraft:large_biomes` | 51, 65, -672 | (0, 0) → 62 deep_frozen_ocean · (500, 0) → 62 frozen_ocean |
 | (비교용) `minecraft:normal` | 96, 136, -32 | (500, 0) → 136 grove · (-500, -500) → 95 birch_forest |
 
-지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 아직 미지원(경고 뒤 normal).
+지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 2026-11-07 구현(아래 "M19 운영 잔여").
+
+### M19 운영 잔여 (2026-11-07) — 실제 클라이언트·바닐라 서버로 한 번
+- **`debug_all_block_states`**: `level-type=minecraft:debug_all_block_states` 로 새 월드를 만들어 접속. 기대: 스폰 (0,80,0) 위 공중에 모든 블록 상태가 격자로 y=70 에 늘어서 있고 y=60 에 장벽이 깔림, 바이옴 plains, 지하는 비어 있음. 확인할 것: ① 격자 가로·세로 칸 수(Furnace 164×163, 블록 상태 26684개)가 바닐라 1.21.1 과 같은지, ② 첫 칸 근처(1,1)·(3,1) 의 블록 순서. 알려진 차이: 그 월드에서 블록을 부수거나 놓으면 서버는 저장하지만 클라이언트는 공식 값만 그린다(바닐라는 서버도 공식 값을 돌려주고 `setBlock` 이 false, 블록·유체 예약 틱과 무작위 틱·자연 스폰도 돌지 않음).
+- **`single_biome_surface`**: 같은 방식으로 `level-type=minecraft:single_biome_surface`. 기대: 보통 오버월드 지형인데 바이옴이 전부 plains. 같은 시드 `normal` 과 높이가 같아야 한다(바이옴 때문에 달라지는 것은 나무·식물·얼음뿐).
+- **`/perf start`**: 오피로 `/perf start` → 10초 뒤 자동 멈춤(또는 `/perf stop`) → `debug/profiling/<날짜>-<월드>-<버전>.zip` 생성과 채팅 안내 문구. 보고서 안의 `profiling.txt`·`metrics/ticking.csv`·`metrics/jvm.csv` 는 Furnace 전역 박동 기준이라 바닐라 보고서와 숫자·열이 다르다(알려진 차이).
+- **JMX**: `enable-jmx-monitoring=true` 로 켜고 `jconsole` 에서 `net.minecraft.server:type=Server` 의 `tickTimes`·`averageTickTime` 이 보이는지.
+- **관전자**: `spectatorsGenerateChunks=false` 일 때 관전 모드 플레이어가 아직 안 만든 땅 쪽으로 날아가도 새 청크가 안 생기고(빈 칸), 다른 플레이어가 올려 둔 청크는 보이는지. 알려진 차이: 관전자가 한 번 받은 청크는 구독이 붙잡아 다른 플레이어가 떠나도 내려가지 않는다(바닐라는 관전자에게 티켓이 없어 내려가고 다시 로드되면 다시 보냄).
+- **전리품 함수 14종·조건 필드**: 데이터 팩 예시가 필요하면 `ItemFunctionsTest`·`PredicateFieldsTest` 의 JSON 을 쓰면 된다. 실제 게임에서 `/loot`·`/item modify` 로 한 번씩 써 보는 것은 선택.
 
 ### Paper/Spigot 설정·월드 가져오기 (O3, 2026-11-07) — 실제 Paper 폴더로 한 번
 `bukkit.yml`·`spigot.yml`·`config/paper-*.yml` 이 있는 서버 폴더로 첫 기동하면 대응 키를 `furnace.properties` 로 옮기고 `furnace-config-import-report.txt`, 월드 쪽은 `furnace-world-import-report.txt` 를 남긴다(`docs/feature-parity/paper-config-import-2026-11-07.md`).
@@ -247,7 +267,7 @@
 | **Paper/Spigot 월드 가져오기** | 복사 방식 그대로 진행 | Q4 (보강) |
 | **공유 스케줄러 S4 기본값** | 스레드가 검토한 뒤 맞다고 판단되는 쪽으로 세팅(켜는 것이 맞으면 켠다). **Q5 결과: 기본 켬** — 튐은 기계 경합·GC 쪽, 공유가 모든 지표에서 같거나 나음. 끄려면 `shared-region-pool=false`. 기존 서버의 `region-threads` 는 이제 서버 전체 워커 수 (`docs/feature-parity/shared-scheduler-default-2026-11-07.md`) | Q5 (완료) |
 | **CI (`ci.yml`)** | 필요하면 수정 | Q6 |
-| **데이터 팩 구조물 템플릿** | 필요: 데이터 팩 경로를 만들고 템플릿을 읽는다(옛 DataVersion 데이터 픽서 포함) | Q7(구현됨, PR #91), Q8 |
+| **데이터 팩 구조물 템플릿** | 필요: 데이터 팩 경로를 만들고 템플릿을 읽는다(옛 DataVersion 데이터 픽서 포함) | Q7(구현됨, PR #91), Q8(구현됨, 범위표 `structure-datafixer-2026-11-07.md`) |
 | **3장 (코디네이터 항목)** | 전부 진행 | M1~M13 |
 
 - **Paper·Spigot 불만 조사 결정 D1~D5 (2026-11-06 사용자 결정, 모두 제안대로 수용)**: D1 3단계 이벤트 마무리 뒤 Bukkit/Paper 호환 어댑터 1차(이벤트·명령·스케줄러·인벤토리)를 먼저 하고 고유 API 확장은 그다음, D2 공식 패킷 API 를 낸다, D3 바닐라 결과를 바꾸는 운영 옵션은 수요 큰 것만 기본 꺼짐으로(활성 범위·엔티티 제한 같은 게임플레이 변경은 넣지 않음), D4 핫 리로드는 개발 모드 설정에서만, D5 `apiVersion` + semver, 대체 API 를 먼저 내고 폐기는 최소 두 마이너 버전 유지. **1.21.1 이후 버전도 지원할 계획** — 플러그인 API·패킷 API 는 마인크래프트 버전에 묶이지 않게 설계한다 (`docs/feature-parity/paper-spigot-dev-complaints-2026-11-06.md` 5장)
