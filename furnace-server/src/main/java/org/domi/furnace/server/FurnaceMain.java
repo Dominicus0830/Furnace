@@ -378,6 +378,7 @@ public final class FurnaceMain {
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
         network.useNativeTransport(props.useNativeTransport);
+        network.useIoUring(org.domi.furnace.server.net.TransportOptions.load(furnaceProps).ioUring());
         CountDownLatch shutdown = new CountDownLatch(1);
         // 운영·관측 서비스(RCON·Query·워치독): 전용 IO/데몬 스레드. 종료 훅이 가장 먼저 닫는다.
         java.util.List<AutoCloseable> remoteServices = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -503,6 +504,18 @@ public final class FurnaceMain {
             log.info("Starting remote control listener");
             var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand);
             if (r != null) out.add(r);
+        }
+        var metricsOpts = org.domi.furnace.server.metrics.MetricsOptions.load(Path.of("furnace.properties"), log::warn);
+        if (metricsOpts.prometheus() || metricsOpts.jmx()) {
+            var source = new org.domi.furnace.server.metrics.ServerMetrics(core);
+            if (metricsOpts.prometheus()) {
+                var p = org.domi.furnace.server.metrics.PrometheusServer.create(metricsOpts.bind(), metricsOpts.port(), metricsOpts.token(), source);
+                if (p != null) out.add(p);
+            }
+            if (metricsOpts.jmx()) {
+                var j = org.domi.furnace.server.metrics.JmxMetrics.register(source);
+                if (j != null) out.add(j);
+            }
         }
         if (ServerWatchdog.enabled(props.maxTickTime)) {
             var w = new ServerWatchdog(props.maxTickTime, System::nanoTime, core::watchdogProbes,
