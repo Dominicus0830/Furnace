@@ -481,6 +481,50 @@ public final class ServerCore {
 
     public org.domi.furnace.server.sched.TickWindows globalTickWindows() { return globalTickWindows; }
 
+    /** 활성 region(플레이어가 있는 region) 평균 TPS 의 1초 표본 기록 — getTPS 의 1분·5분·15분 값. 전역 스레드가 쓴다. */
+    private final org.domi.furnace.server.sched.ActiveTpsHistory activeTpsHistory = new org.domi.furnace.server.sched.ActiveTpsHistory();
+
+    /** 표본 창(1초)과 /tps·getTPS 의 5초 창, 잴 수 있으려면 필요한 기록 길이. */
+    static final long TPS_SAMPLE_WINDOW = 1_000_000_000L, TPS_LIVE_WINDOW = 5_000_000_000L, TPS_MIN_HISTORY = 1_000_000_000L;
+
+    private org.domi.furnace.server.world.Regionizer.ActiveSummary activeSummary(long now, long window) {
+        var sum = org.domi.furnace.server.world.Regionizer.ActiveSummary.NONE;
+        for (World w : worlds()) {
+            var rz = w.regionizer();
+            if (rz != null) sum = sum.plus(rz.activeSummary(now, window, TPS_MIN_HISTORY));
+        }
+        return sum;
+    }
+
+    /** 1초마다(전역 스레드): 활성 region 평균(없으면 전역 박동)을 한 표본으로 적는다. */
+    private void sampleActiveTps(long now) {
+        if (!activeTpsHistory.due(now)) return;
+        double v = activeSummary(now, TPS_SAMPLE_WINDOW).weightedAverage();
+        if (Double.isNaN(v)) v = globalTickStarts.rate(now, TPS_SAMPLE_WINDOW, TPS_MIN_HISTORY);
+        activeTpsHistory.record(now, v);
+    }
+
+    /** 서버 TPS(플러그인 API Furnace.tps() 와 /tps 의 바탕). 아무 스레드. 정의는 docs/api/tps.md. */
+    public org.domi.furnace.api.world.ServerTps serverTps() {
+        long now = System.nanoTime();
+        var live = activeSummary(now, TPS_LIVE_WINDOW);
+        double g5 = globalTickStarts.rate(now, 5L * SEC_NANOS, TPS_MIN_HISTORY);
+        double a5 = live.weightedAverage();
+        if (Double.isNaN(a5)) a5 = g5;
+        return new org.domi.furnace.api.world.ServerTps(a5,
+                activeAvgOrGlobal(now, 60L * SEC_NANOS), activeAvgOrGlobal(now, 300L * SEC_NANOS), activeAvgOrGlobal(now, 900L * SEC_NANOS),
+                live.activeRegions(), live.activePlayers(), live.slowestActive(), live.slowestAny(),
+                g5, globalTickStarts.rate(now, 60L * SEC_NANOS, TPS_MIN_HISTORY), globalTickStarts.rate(now, 300L * SEC_NANOS, TPS_MIN_HISTORY),
+                globalTickStarts.rate(now, 900L * SEC_NANOS, TPS_MIN_HISTORY));
+    }
+
+    private static final long SEC_NANOS = 1_000_000_000L;
+
+    private double activeAvgOrGlobal(long now, long window) {
+        double v = activeTpsHistory.average(now, window);
+        return Double.isNaN(v) ? globalTickStarts.rate(now, window, TPS_MIN_HISTORY) : v;
+    }
+
     /** 전역 스레드 이름(관측용). */
     public String globalThreadName() {
         return scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g ? g.ownerName() : "global";
@@ -623,6 +667,7 @@ public final class ServerCore {
         globalTickThread = Thread.currentThread();
         globalTickStarts.record(t0);
         try {
+            sampleActiveTps(t0);
             scheduledTick0();
         } finally {
             long took = System.nanoTime() - t0;

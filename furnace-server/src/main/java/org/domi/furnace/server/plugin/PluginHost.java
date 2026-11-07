@@ -58,6 +58,9 @@ public final class PluginHost implements Furnace {
 
     public ServerCore core() { return core; }
 
+    @Override
+    public org.domi.furnace.api.world.ServerTps tps() { return core.serverTps(); }
+
     public EventBusImpl eventsImpl() { return events; }
 
     PermissionManagerImpl permissionsImpl() { return permissions; }

@@ -64,6 +64,8 @@ public final class Region {
     long schedTicks, schedDelaySum, schedDelayMax;
     /** 관측용: 직전 틱·가장 긴 틱의 소요 시간(ns). 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). */
     volatile long lastTickNanos, maxTickNanos;
+    /** 관측용(/tps): 이 region 의 플레이어 수 — 틱이 끝날 때와 합치기·나누기·편입 때 갱신한다(아무 스레드가 읽는다). */
+    volatile int observedPlayers;
     /** 관측용(/tps): 최근 게임 틱 시작 시각. 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). 20 TPS 로 6.4초를 덮는다. */
     final org.domi.furnace.server.sched.TickStartRing tickStarts = new org.domi.furnace.server.sched.TickStartRing(128);
     /** -Dfurnace.tickstats: [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍. 틱 중(이 region 이 RUNNING)에만 만진다. */
@@ -234,6 +236,8 @@ public final class Region {
         o.delayed.clear();
         for (Player p : o.players.values()) players.put(p.entityId(), p);
         o.players.clear();
+        observedPlayers = players.size();
+        o.observedPlayers = 0;
         dirtyChunks.addAll(o.dirtyChunks);
         o.dirtyChunks.clear();
         evictGrace.putAll(o.evictGrace);
@@ -265,9 +269,11 @@ public final class Region {
             Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
             if (t != null) {
                 t.players.put(p.entityId(), p);
+                t.observedPlayers = t.players.size();
                 it.remove();
             }
         }
+        observedPlayers = players.size();
         for (var it = dirtyChunks.iterator(); it.hasNext(); ) {
             ChunkPos c = it.next();
             Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
@@ -892,6 +898,7 @@ public final class Region {
     public void adopt(Player p) {
         world.assertOwns(this);
         players.put(p.entityId(), p);
+        observedPlayers = players.size();
         world.playerOnline(p);   // 멱등 — 접속 등록이 누락돼도 탭/가시성 기준 집합에 항상 포함
     }
 
