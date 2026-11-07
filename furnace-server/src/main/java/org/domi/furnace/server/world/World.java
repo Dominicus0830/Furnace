@@ -390,11 +390,13 @@ public final class World {
      */
     public void saveChunkAsync(ChunkSnapshot snap, ChunkColumn col) {
         if (!(worldSource instanceof AnvilWorldSource anvil)) return;
+        if (snap.light() != null && virtualLights.affects(snap.chunkX(), snap.chunkZ())) snap = snap.withoutLight();   // 가짜 빛은 디스크에 남기지 않는다
+        final ChunkSnapshot snapF = snap;
         int cx = snap.chunkX(), cz = snap.chunkZ();
         ioLane(cx, cz).execute(() -> {
             boolean ok;
             try {
-                byte[] bytes = NbtIo.toBytes(anvil.codec().toNbt(snap), "");
+                byte[] bytes = NbtIo.toBytes(anvil.codec().toNbt(snapF), "");
                 ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), "청크 " + cx + "," + cz + " 저장");
             } catch (Exception e) {
                 org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {},{} 직렬화 실패", cx, cz, e);
@@ -591,6 +593,11 @@ public final class World {
 
     /** 이 차원의 저장 뿌리 — 추가 월드는 <이름>/, 기본 차원은 worldDir. */
     public java.nio.file.Path levelRoot() { var r = levelRoot; return r != null ? r : worldDir; }
+
+    private final org.domi.furnace.server.light.VirtualLights virtualLights = new org.domi.furnace.server.light.VirtualLights();
+
+    /** 이 차원의 가짜 광원(플러그인 빛 API). region 레벨들이 함께 쓴다. */
+    public org.domi.furnace.server.light.VirtualLights virtualLights() { return virtualLights; }
 
     private volatile org.domi.furnace.server.world.raid.RaidStore raidStore;
     private volatile CommandStorage commandStorage;

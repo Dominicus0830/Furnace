@@ -83,6 +83,14 @@ public final class PluginHost implements Furnace {
     @Override
     public org.domi.furnace.api.virtual.VirtualEntities virtualEntities() { return virtualEntities; }
 
+    private final LightSourcesImpl lightSources = new LightSourcesImpl(this);
+
+    /** 가짜 광원 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */
+    public LightSourcesImpl lightSourcesImpl() { return lightSources; }
+
+    @Override
+    public org.domi.furnace.api.light.LightSources lightSources() { return lightSources; }
+
     private final EntityViewsImpl entityViews = new EntityViewsImpl(this);
 
     /** 보이기·숨기기·변장 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */
