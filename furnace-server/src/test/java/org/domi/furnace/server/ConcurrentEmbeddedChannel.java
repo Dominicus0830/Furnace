@@ -32,14 +32,36 @@ public class ConcurrentEmbeddedChannel extends EmbeddedChannel {
         return guarded;
     }
 
+    // 작업 안에서 작업을 돌리지 않는다. EmbeddedChannel 은 write·flush 마다 runPendingTasks 를 다시 불러(maybeRunPendingTasks),
+    // 연결 작업 하나가 send 하는 도중에 뒤에 넣은 작업들이 그 안에서 먼저 끝난다 — 실서버 이벤트 루프는 한 작업을 끝낸 뒤에 다음을 꺼낸다.
+    // (탈것째 관문: 하차 텔레포트의 send 안에서 출구 보정 텔레포트가 먼저 돌아, 옛 자리 표본이 이동 대기열 맨 뒤에 남았다.)
+    // 바깥 호출이 큐가 빌 때까지 이어서 꺼내므로 건너뛴 작업도 같은 호출 안에서 차례대로 돈다. 잠금 안에서만 읽고 쓴다.
+    private boolean running;
+
     @Override
     public void runPendingTasks() {
-        synchronized (this) { super.runPendingTasks(); }
+        synchronized (this) {
+            if (running) return;
+            running = true;
+            try {
+                super.runPendingTasks();
+            } finally {
+                running = false;
+            }
+        }
     }
 
     @Override
     public long runScheduledPendingTasks() {
-        synchronized (this) { return super.runScheduledPendingTasks(); }
+        synchronized (this) {
+            if (running) return -1;
+            running = true;
+            try {
+                return super.runScheduledPendingTasks();
+            } finally {
+                running = false;
+            }
+        }
     }
 
     @Override
