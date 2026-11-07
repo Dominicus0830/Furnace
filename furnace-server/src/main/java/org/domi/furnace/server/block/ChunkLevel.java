@@ -1464,14 +1464,15 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** TntBlock.explode: 점화된 TNT 엔티티를 칸 가운데 윗부분에 만든다(owner 는 점화한 생물). */
     @Override
-    public void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {
-        spawnPrimedTntOwned(pos, igniter != null && igniter.handle() instanceof Player p ? p : null, fuse);
+    public void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse, org.domi.furnace.api.event.cause.CauseChain why) {
+        spawnPrimedTntOwned(pos, igniter != null && igniter.handle() instanceof Player p ? p : null, fuse, why);
     }
 
     /** 점화한 생물(Targetable — 투사체를 쏜 몹 포함)을 바로 주인으로. */
     @Override
-    public void spawnPrimedTntOwned(Pos pos, org.domi.furnace.server.entity.Targetable owner, int fuse) {
+    public void spawnPrimedTntOwned(Pos pos, org.domi.furnace.server.entity.Targetable owner, int fuse, org.domi.furnace.api.event.cause.CauseChain why) {
         var tnt = new org.domi.furnace.server.entity.PrimedTnt(this, nextEntityId(), pos.x() + 0.5, pos.y(), pos.z() + 0.5, owner);
+        if (why != null) tnt.setOrigin(why);   // 넣기 전에 — EntitySpawnEvent 도 원인을 본다
         if (fuse >= 0) tnt.setFuse(fuse);
         else if (fuse == -2) tnt.setFuse(random().nextInt(tnt.getFuse() / 4) + tnt.getFuse() / 8);   // 폭발에 휘말린 TNT: 생성 난수 다음에 도화선 난수
         addFreshEntity(tnt);
@@ -1490,7 +1491,14 @@ public abstract class ChunkLevel implements BlockLevel {
      * overridePos 가 null 이 아니면 그 칸의 폭발 저항을 resistance 로(정박기 옆 물).
      */
     public Explosion explodeBadRespawnPoint(double x, double y, double z, Pos overridePos, float resistance, int explodedState) {
-        Explosion e = new Explosion(this, null, x, y, z, 5.0F, true, destroyType("BLOCK")).badRespawnPoint(overridePos, resistance).explodedBlock(explodedState);
+        return explodeBadRespawnPoint(x, y, z, overridePos, resistance, explodedState, null);
+    }
+
+    /** causedBy: 블록을 터뜨린 쪽(쓴 플레이어 — 원인 사슬에만 쓰고 피해·게임 이벤트의 원인은 바닐라처럼 없음). */
+    public Explosion explodeBadRespawnPoint(double x, double y, double z, Pos overridePos, float resistance, int explodedState,
+                                            org.domi.furnace.api.event.cause.CauseChain causedBy) {
+        Explosion e = new Explosion(this, null, x, y, z, 5.0F, true, destroyType("BLOCK")).badRespawnPoint(overridePos, resistance).explodedBlock(explodedState)
+                .causedBy(causedBy);
         e.explode();
         e.finalizeExplosion(true);
         return e;
@@ -2049,6 +2057,19 @@ public abstract class ChunkLevel implements BlockLevel {
     /** ChunkMap.move(player): 플레이어가 움직였다 — 모든 엔티티에 대해 그 플레이어를 다시 본다. */
     public void playerMoved(Player p) {
         for (Entity e : entities.all()) if (e.tracker != null && !e.isRemoved()) e.tracker.updatePlayer(p, viewers);
+    }
+
+    /**
+     * 플러그인 보이기·변장 규칙이 바뀌었다(엔티티를 가진 region 스레드에서): viewer(null 이면 모두)에 대해 보임을 다시 정하고,
+     * respawn 이면 지금 보는 사람에게 지웠다 다시 스폰해 새 모습을 보낸다.
+     */
+    public void refreshViews(Entity e, Player viewer, boolean respawn) {
+        EntityTracker t = e.tracker;
+        if (t == null || e.isRemoved() || e.level() != this) return;
+        if (respawn) {
+            for (Player p : t.viewersSnapshot()) if (viewer == null || viewer == p) t.removePlayer(p);
+        }
+        for (Player p : trackingPlayers()) if (viewer == null || viewer == p) t.updatePlayer(p, viewers);   // 이 region 의 플레이어만(다른 차원 좌표와 섞이지 않게)
     }
 
     /** 플레이어가 나갔다 — 보는 목록에서 뺀다(패킷 없이). */

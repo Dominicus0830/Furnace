@@ -1665,6 +1665,20 @@ public abstract non-sealed class Entity implements Rider {
     /** 대기열이 있으면(없으면 null). 소유 region 스레드가 틱마다. */
     public EntityTasks apiTasksOrNull() { return apiTasks; }
 
+    /** 원인 사슬(B4): 이 엔티티를 만들었거나 켠 원인. 원인 추적이 켜져 있을 때만 적힌다(plugin.Causes.tracking). 저장하지 않는다. */
+    private org.domi.furnace.api.event.cause.CauseChain origin;
+
+    /** 적힌 원인, 없으면 바닐라가 아는 만큼(derivedOrigin — 투사체·TNT 의 주인). 엔티티 자신은 들어 있지 않다. */
+    public org.domi.furnace.api.event.cause.CauseChain origin() {
+        return origin != null ? origin : derivedOrigin();
+    }
+
+    /** 넣기(addFreshEntity) 전에 소유 스레드에서. null 이면 지운다. */
+    public void setOrigin(org.domi.furnace.api.event.cause.CauseChain origin) { this.origin = origin; }
+
+    /** 적힌 원인이 없을 때 — 기본은 모름. 주인을 아는 엔티티가 덮어쓴다. */
+    protected org.domi.furnace.api.event.cause.CauseChain derivedOrigin() { return org.domi.furnace.api.event.cause.CauseChain.NONE; }
+
     /** 영속 데이터 — create 면 없을 때 빈 것을 만든다. 소유 region 스레드에서만. */
     public NbtCompound persistentData(boolean create) {
         if (persistentData == null && create) persistentData = new NbtCompound();

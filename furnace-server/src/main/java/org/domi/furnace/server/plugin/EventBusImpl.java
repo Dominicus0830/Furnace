@@ -155,12 +155,35 @@ public final class EventBusImpl implements EventBus {
     private void add(Handler h) {
         byType.computeIfAbsent(h.type(), k -> new CopyOnWriteArrayList<>()).add(h);
         baked.clear();
+        wantsCause = computeWantsCause();
     }
 
     private void remove(java.util.function.Predicate<Handler> p) {
         boolean any = false;
         for (List<Handler> l : byType.values()) any |= l.removeIf(p);
-        if (any) baked.clear();
+        if (any) {
+            baked.clear();
+            wantsCause = computeWantsCause();
+        }
+    }
+
+    /** 원인 사슬을 엔티티에 적어 둘 이벤트들 — 이 중 하나라도(상위 타입 구독 포함) 받는 처리기가 있으면 서버가 원인을 기록한다. */
+    private static final Class<?>[] CAUSE_EVENTS = {
+            org.domi.furnace.api.event.entity.EntityExplodeEvent.class, org.domi.furnace.api.event.block.BlockExplodeEvent.class,
+            org.domi.furnace.api.event.entity.EntityDamageEvent.class, org.domi.furnace.api.event.entity.EntitySpawnEvent.class};
+
+    /** 원인 기록이 필요한가(등록이 바뀔 때만 다시 센다 — 발화 경로는 필드 읽기 하나). */
+    private volatile boolean wantsCause;
+
+    public boolean wantsCause() { return wantsCause; }
+
+    private boolean computeWantsCause() {
+        for (var en : byType.entrySet()) {
+            if (en.getValue().isEmpty()) continue;
+            Class<?> t = en.getKey();
+            for (Class<?> c : CAUSE_EVENTS) if (t.isAssignableFrom(c) || c.isAssignableFrom(t)) return true;
+        }
+        return false;
     }
 
     @Override

@@ -1,0 +1,7 @@
+name: BrainProbe
+version: 1.0.0
+main: probe.BrainProbe
+description: 두뇌 API(E2) 봇 시험
+commands:
+  br:
+    description: "두뇌 API 시험: /br 동작 몹종류 인자"

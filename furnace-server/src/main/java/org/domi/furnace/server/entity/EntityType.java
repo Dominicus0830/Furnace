@@ -16,6 +16,25 @@ public record EntityType(String name, int id, float width, float height, float e
     /** 이름(minecraft:zombie)으로 종류를 찾는다. 없으면 null. */
     public static EntityType byName(String name) { return BY_NAME.get(name); }
 
+    /** 레지스트리 번호(서버가 속성을 다루지 않는 종류도 — 클라이언트 쪽 종류 전체). 없으면 -1. */
+    public static int registryId(String name) {
+        Integer id = IDS.get(name);
+        return id == null ? -1 : id;
+    }
+
+    private static volatile String[] NAMES;
+
+    /** 레지스트리 번호 → 이름. 범위 밖이면 null. */
+    public static String registryName(int id) {
+        String[] n = NAMES;
+        if (n == null) {
+            n = new String[IDS.size()];
+            for (var e : IDS.entrySet()) n[e.getValue()] = e.getKey();
+            NAMES = n;
+        }
+        return id >= 0 && id < n.length ? n[id] : null;
+    }
+
     /** EntityType.ITEM: sized(0.25, 0.25).eyeHeight(0.2125).clientTrackingRange(6).updateInterval(20). */
     public static final EntityType ITEM = of("minecraft:item", 0.25F, 0.25F, 0.2125F, 6, 20, true, false);
 

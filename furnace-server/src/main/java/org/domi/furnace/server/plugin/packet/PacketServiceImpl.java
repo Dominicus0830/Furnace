@@ -147,6 +147,9 @@ public final class PacketServiceImpl implements PacketService {
     @Override
     public void receiveSilently(Player player, ServerboundPacket packet) { inject(player, packet, true); }
 
+    /** 서버 내부에서 보낼 때(변장 등): 버전 변환 계층으로 인코딩한 패킷. 플러그인 리스너는 거친다. */
+    public RawPacket encode(ClientboundPacket packet) { return encodeOutbound(packet, false); }
+
     private RawPacket encodeOutbound(ClientboundPacket packet, boolean silent) {
         Objects.requireNonNull(packet, "packet");
         if (packet.type().direction() != PacketDirection.CLIENTBOUND) throw new IllegalArgumentException("서버→클라이언트 패킷이 아니다: " + packet.type());

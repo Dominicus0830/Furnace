@@ -223,7 +223,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (isSleeping()) stopSleeping();
         noActionTime = 0;
         if (amount < 0.0F) amount = 0.0F;
-        float evAmount = level.gameEvents().entityDamage(this, source.type(), amount);   // 플러그인 EntityDamageEvent
+        float evAmount = level.gameEvents().entityDamage(this, source.type(), amount, attacker instanceof Rider r ? r : null, pendingDirect);   // 플러그인 EntityDamageEvent
         if (evAmount < 0.0F) return false;
         amount = evAmount;
         final float dealt = amount;   // 발전 과제 player_hurt_entity·entity_hurt_player 의 dealt(막기 전 피해)

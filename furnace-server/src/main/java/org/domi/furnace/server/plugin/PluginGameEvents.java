@@ -95,16 +95,20 @@ public final class PluginGameEvents implements GameEvents {
     private org.domi.furnace.server.world.ItemRegistry items() { return host.core().world().itemRegistry(); }
 
     @Override
-    public float entityDamage(LivingEntity e, String cause, float amount) {
+    public float entityDamage(LivingEntity e, String cause, float amount, org.domi.furnace.server.entity.Rider causing,
+                              org.domi.furnace.server.entity.Rider direct) {
         if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
-        var ev = bus().call(new EntityDamageEvent(EntityHandle.of(host, e), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount));
+        var ev = bus().call(new EntityDamageEvent(EntityHandle.of(host, e), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
+                Causes.damage(causing, direct)));
         return ev.isCancelled() ? -1f : ev.damage();
     }
 
     @Override
-    public float playerDamage(Player p, String cause, float amount) {
+    public float playerDamage(Player p, String cause, float amount, org.domi.furnace.server.entity.Rider causing,
+                              org.domi.furnace.server.entity.Rider direct) {
         if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
-        var ev = bus().call(new EntityDamageEvent(host.player(p), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount));
+        var ev = bus().call(new EntityDamageEvent(host.player(p), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
+                Causes.damage(causing, direct)));
         return ev.isCancelled() ? -1f : ev.damage();
     }
 
@@ -274,6 +278,9 @@ public final class PluginGameEvents implements GameEvents {
     public boolean has(Class<? extends org.domi.furnace.api.event.Event> type) { return bus().hasSubscribers(type); }
 
     @Override
+    public boolean tracksCause() { return bus().wantsCause(); }
+
+    @Override
     public boolean playerToggle(Player p, int kind, boolean on) {
         var type = switch (kind) {
             case 0 -> PlayerToggleSneakEvent.class;
@@ -373,7 +380,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean explode(String dimension, Entity source, Player sourcePlayer, double x, double y, double z, int blockState,
-                           java.util.List<org.domi.furnace.server.block.Pos> blocks) {
+                           java.util.List<org.domi.furnace.server.block.Pos> blocks, org.domi.furnace.server.block.Explosion explosion) {
         boolean byEntity = source != null || sourcePlayer != null;
         Class<? extends org.domi.furnace.api.event.Event> type = byEntity ? EntityExplodeEvent.class : BlockExplodeEvent.class;
         if (!bus().hasSubscribers(type)) return true;
@@ -382,11 +389,11 @@ public final class PluginGameEvents implements GameEvents {
         boolean cancelled;
         if (byEntity) {
             org.domi.furnace.api.entity.Entity who = source != null ? EntityHandle.of(host, source) : host.player(sourcePlayer);
-            cancelled = bus().call(new EntityExplodeEvent(who, new Location(dimension, x, y, z, 0f, 0f), list)).isCancelled();
+            cancelled = bus().call(new EntityExplodeEvent(who, new Location(dimension, x, y, z, 0f, 0f), list, explosion.cause())).isCancelled();
         } else {
             var center = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
             String blockType = ApiConvert.block(blockState, host.core().world().blockRegistry()).type();
-            cancelled = bus().call(new BlockExplodeEvent(dimension, center, blockType, list)).isCancelled();
+            cancelled = bus().call(new BlockExplodeEvent(dimension, center, blockType, list, explosion.causedBy())).isCancelled();
         }
         if (cancelled) return false;
         blocks.clear();

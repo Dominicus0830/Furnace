@@ -133,6 +133,13 @@ public abstract class Projectile extends Entity {
         return null;
     }
 
+    /** 원인 사슬: [쏜 쪽 shoot](주인을 아는 만큼 — 주인을 찾으러 가지 않는다). */
+    @Override
+    protected org.domi.furnace.api.event.cause.CauseChain derivedOrigin() {
+        return owner == null ? org.domi.furnace.api.event.cause.CauseChain.NONE
+                : org.domi.furnace.server.plugin.Causes.of(owner, org.domi.furnace.api.event.cause.CauseEntry.SHOOT);
+    }
+
     public int ownerId() { return owner == null ? 0 : owner.id(); }
 
     @Override

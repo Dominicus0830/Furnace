@@ -33,6 +33,15 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public void sendPacket(org.domi.furnace.api.packet.ClientboundPacket packet) { host.packets().send(this, packet); }
 
+    @Override
+    public void hideEntity(org.domi.furnace.api.plugin.FurnacePlugin plugin, org.domi.furnace.api.entity.Entity target) { host.entityViews().hide(plugin, this, target); }
+
+    @Override
+    public void showEntity(org.domi.furnace.api.plugin.FurnacePlugin plugin, org.domi.furnace.api.entity.Entity target) { host.entityViews().show(plugin, this, target); }
+
+    @Override
+    public boolean canSee(org.domi.furnace.api.entity.Entity target) { return host.entityViews().canSee(this, target); }
+
     /** 서버 내부 플레이어. */
     public Player handle() { return p; }
 

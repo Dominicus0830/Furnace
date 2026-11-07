@@ -274,6 +274,7 @@ public final class PluginManagerImpl implements PluginManager {
         host.packetsImpl().unregisterAll(p);
         host.services().unregisterAll(p);   // 이 플러그인이 올린 서비스 제공자
         host.virtualImpl().removeAll(p);   // 가상 엔티티·가짜 탭 줄
+        host.entityViewsImpl().removeAll(p);   // 보이기·숨기기·변장 규칙
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
         PluginBootstrapper b = boot;
         if (b != null) b.forget(l.description().name());   // 플러그인 레지스트리 몫·수명주기 훅

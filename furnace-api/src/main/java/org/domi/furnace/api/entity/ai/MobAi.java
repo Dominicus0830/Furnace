@@ -29,6 +29,9 @@ public interface MobAi {
     /** 두뇌(Brain)로 움직이는 몹인가(주민·피글린 등). 목표도 함께 돌지만 두뇌가 같은 일을 하면 서로 다툰다. */
     boolean usesBrain();
 
+    /** 두뇌 손잡이(기억·센서·활동·행동). 두뇌로 움직이지 않는 몹이면 빈 값. 같은 소유 스레드 규칙. */
+    Optional<org.domi.furnace.api.entity.ai.brain.MobBrain> brain();
+
     /** 지금 상태의 스냅샷 핸들. */
     Mob snapshot();
 

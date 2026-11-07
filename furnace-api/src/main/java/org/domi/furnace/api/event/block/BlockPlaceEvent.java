@@ -5,7 +5,7 @@ import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.Cancellable;
 import org.domi.furnace.api.world.BlockPos;
 
-public final class BlockPlaceEvent extends BlockEvent implements Cancellable {
+public final class BlockPlaceEvent extends BlockEvent implements Cancellable, org.domi.furnace.api.event.cause.Caused {
 
     private final Player player;
     private final String placedType;
@@ -20,6 +20,10 @@ public final class BlockPlaceEvent extends BlockEvent implements Cancellable {
     }
 
     public Player player() { return player; }
+
+    /** [놓은 플레이어 place]. */
+    @Override
+    public org.domi.furnace.api.event.cause.CauseChain causeChain() { return player == null ? org.domi.furnace.api.event.cause.CauseChain.NONE : org.domi.furnace.api.event.cause.CauseChain.of(player, org.domi.furnace.api.event.cause.CauseEntry.PLACE); }
 
     /** 놓일 블록(minecraft:oak_planks 등). */
     public String placedType() { return placedType; }
