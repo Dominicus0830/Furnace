@@ -81,10 +81,7 @@ public class Vindicator extends AbstractIllager {
         ItemStack axe = stackOf("minecraft:iron_axe");
         var raid = getCurrentRaid();
         if (raid == null) return;
-        // Raid.getEnchantOdds: 불길한 징조 레벨 2 → 0.1, 3 → 0.25, 4 → 0.5, 5 → 0.75, 그 밖은 0
-        int omen = raid.raidOmenLevel();
-        float odds = omen == 2 ? 0.1F : omen == 3 ? 0.25F : omen == 4 ? 0.5F : omen == 5 ? 0.75F : 0.0F;
-        if (random.nextFloat() <= odds) {
+        if (random.nextFloat() <= raid.getEnchantOdds()) {
             // 파도가 보통 난이도의 습격 수(5)를 넘으면 post_wave_5 제공자
             String provider = wave > org.domi.furnace.server.world.raid.Raid.getNumGroups(2) ? "minecraft:raid/vindicator_post_wave_5" : "minecraft:raid/vindicator";
             var difficulty = level.getCurrentDifficultyAt(blockPosition());
