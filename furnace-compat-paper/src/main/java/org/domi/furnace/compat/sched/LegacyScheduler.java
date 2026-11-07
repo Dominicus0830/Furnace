@@ -1,9 +1,13 @@
-// Bukkit BukkitScheduler 의 의미를 Furnace 스케줄러 위에 옮긴 것.
+// Bukkit BukkitScheduler 의 의미를 Furnace 스케줄러 위에 옮긴 것(CraftScheduler 를 따른다).
 //
 //  - "동기(sync)" 작업은 전역 스레드에서 돈다(주 스레드 대역). 옛 플러그인은 정적 필드·비스레드 안전 컬렉션을 주 스레드 하나가 쓴다고 믿으므로,
-//    region 스레드에 나누지 않고 전역 하나에 줄 세운다(같은 틱 안에서는 예약한 차례대로). 동기 작업 안에서는 PrimaryThread 가 표시된다.
+//    region 스레드에 나누지 않고 전역 하나에 줄 세운다. 동기 작업 안에서는 PrimaryThread 가 표시된다.
 //    블록·엔티티처럼 region 이 가진 상태를 만지는 일은 H3 의 어댑터가 소유 region 으로 넘긴다 — 여기서는 스레드를 고른다.
-//  - 비동기 작업은 틱에 맞춰 전역에서 "도착"을 알린 뒤 asyncExecutor(가상 스레드)로 넘어간다(Bukkit 도 틱 대기열이 먼저 돌고 풀로 넘긴다).
+//  - CraftScheduler 처럼 자기 대기열(nextRun, 번호 순)과 자기 틱 수를 갖고, 전역에 건 박동(heartbeat) 하나가 틱마다 비운다.
+//    그래서 모든 옛 작업이 한 박자를 공유하고, 같은 틱 안의 순서가 Bukkit 과 같으며(반복 작업은 처음 만든 순서를 지킨다),
+//    작업 안에서 runTask 를 하면 같은 틱에 이어서 돈다. 반복 작업의 다음 회차는 이번 비움이 끝난 뒤 들어간다.
+//    운영 서버에서 박동의 간격은 서버의 전역 지연(벽시계 50ms, 느리면 밀림)을 따르고, 시험 서버에서는 tick() 한 번이 한 박동이다.
+//  - 비동기 작업은 박동에서 "도착"한 뒤 asyncExecutor(가상 스레드)로 넘어간다(Bukkit 도 틱 대기열이 먼저 돌고 풀로 넘긴다).
 //  - 인자 규칙은 CraftScheduler 와 같다: 지연 < 0 은 0, 주기 0 은 1, 주기 < -1 은 -1(반복 없음). 지연 0 과 1 은 둘 다 다음 틱.
 //  - 작업이 예외를 던져도 반복은 이어지고(로그 한 줄), 플러그인이 꺼지면 그 플러그인의 작업은 모두 취소된다.
 package org.domi.furnace.compat.sched;
@@ -12,18 +16,22 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.profiler.PluginProfiler;
 import org.domi.furnace.api.profiler.Timing;
+import org.domi.furnace.api.sched.ScheduledTask;
 import org.domi.furnace.compat.thread.PrimaryThread;
 
 public final class LegacyScheduler {
@@ -35,8 +43,28 @@ public final class LegacyScheduler {
     private final AtomicInteger ids = new AtomicInteger();
     private final Map<Integer, Task> tasks = new ConcurrentHashMap<>();
     private final PluginTaskBook<Task> book = new PluginTaskBook<>(Task::cancel);
+    /** 대기열: (다음 실행 틱, 번호) 순. queue 의 모니터로 보호한다. */
+    private final PriorityQueue<Task> queue = new PriorityQueue<>(
+            Comparator.<Task>comparingLong(t -> t.nextRun).thenComparingInt(t -> t.id));
+    /** 마지막으로 돈 박동의 틱(처음은 0). 새 작업의 nextRun = tick + 지연 이라 지연 0·1 은 다음 박동에 돈다. */
+    private volatile long tick;
+    private final ScheduledTask heartbeat;
 
-    public LegacyScheduler(Furnace server) { this.server = server; }
+    public LegacyScheduler(Furnace server) {
+        this.server = server;
+        this.heartbeat = server.scheduler().global().runAtFixedRate(this::heartbeat, 1, 1);
+    }
+
+    /** 박동을 멈추고 남은 작업을 모두 취소한다(서버 쪽 소유자가 닫을 때). */
+    public void close() {
+        heartbeat.cancel();
+        List<Task> all;
+        synchronized (queue) {
+            all = new ArrayList<>(tasks.values());
+            queue.clear();
+        }
+        for (Task t : all) t.cancel();
+    }
 
     // ---- 예약
 
@@ -86,8 +114,8 @@ public final class LegacyScheduler {
      */
     public <T> Future<T> callSyncMethod(FurnacePlugin plugin, Callable<T> call) {
         if (call == null) throw new IllegalArgumentException("Task cannot be null");
-        CompletableFuture<T> future = new CompletableFuture<>();
-        schedule(plugin, () -> {
+        SyncFuture<T> future = new SyncFuture<>();
+        future.task = (Task) schedule(plugin, () -> {
             try {
                 future.complete(call.call());
             } catch (Throwable t) {
@@ -95,6 +123,19 @@ public final class LegacyScheduler {
             }
         }, true, 0, NO_REPEATING, () -> future.completeExceptionally(new CancellationException("task cancelled")));
         return future;
+    }
+
+    /** CraftFuture 처럼: 아직 안 돈 callable 은 cancel 하면 돌지 않는다. 이미 돌기 시작했으면 false. */
+    private static final class SyncFuture<T> extends CompletableFuture<T> {
+        volatile Task task;
+
+        @Override
+        public boolean cancel(boolean mayInterrupt) {
+            Task t = task;
+            if (isDone()) return false;
+            if (t != null && !t.cancelUnclaimed()) return false;
+            return super.cancel(mayInterrupt);
+        }
     }
 
     // ---- 조회·취소
@@ -113,10 +154,10 @@ public final class LegacyScheduler {
         return t != null && t.running.get() > 0;
     }
 
-    /** 앞으로 돌 실행이 남아 있는가(한 번 작업은 돌기 시작하면 false, 반복 작업은 취소 전까지 true). */
+    /** 취소되지 않고 목록에 있는가(Bukkit 처럼 도는 중인 한 번 작업도 끝나기 전까지 true, 반복 작업은 취소 전까지 true). */
     public boolean isQueued(int taskId) {
         Task t = tasks.get(taskId);
-        return t != null && !t.cancelled && (t.period > 0 || !t.started);
+        return t != null && !t.cancelled;
     }
 
     /** 대기 중이거나 반복 중인 작업(번호순). */
@@ -127,12 +168,12 @@ public final class LegacyScheduler {
         return out;
     }
 
-    /** 지금 비동기로 도는 작업과 그 스레드. */
+    /** 지금 비동기로 도는 작업과 그 스레드(회차가 겹치면 회차마다 하나). */
     public List<Worker> activeWorkers() {
         List<Worker> out = new ArrayList<>();
         for (Task t : tasks.values()) {
-            Thread th = t.asyncThread;
-            if (!t.sync && t.running.get() > 0 && th != null) out.add(new Worker(t.id, t.plugin, th));
+            if (t.sync) continue;
+            for (Thread th : t.asyncThreads) out.add(new Worker(t.id, t.plugin, th));
         }
         out.sort(Comparator.comparingInt(Worker::taskId));
         return out;
@@ -153,11 +194,39 @@ public final class LegacyScheduler {
         Task t = new Task(ids.incrementAndGet(), plugin, runnable, sync, period, onCancel);
         tasks.put(t.id, t);
         book.add(plugin, t);
-        t.arm(delay);
+        synchronized (queue) {
+            t.nextRun = tick + delay;
+            queue.add(t);
+        }
         return t;
     }
 
-    private final class Task implements LegacyTask, Runnable {
+    /** CraftScheduler.mainThreadHeartbeat: 이번 틱에 차례가 된 작업을 모두 비운다(그 사이 새로 들어온 지연 0 작업도 같은 틱에). */
+    private void heartbeat() {
+        long now = ++tick;
+        List<Task> again = new ArrayList<>();
+        while (true) {
+            Task t;
+            synchronized (queue) {
+                t = queue.peek();
+                if (t == null || t.nextRun > now) break;
+                queue.poll();
+            }
+            if (t.cancelled) continue;
+            t.arrive(now);
+            if (t.period > 0 && !t.cancelled) {
+                t.nextRun = now + t.period;
+                again.add(t);
+            }
+        }
+        if (!again.isEmpty()) {
+            synchronized (queue) {
+                for (Task t : again) if (!t.cancelled) queue.add(t);
+            }
+        }
+    }
+
+    private final class Task implements LegacyTask {
         final int id;
         final FurnacePlugin plugin;
         final Runnable body;
@@ -165,10 +234,11 @@ public final class LegacyScheduler {
         final long period;
         final Runnable onCancel;
         final Timing timing;
-        final AtomicInteger running = new AtomicInteger();
+        final Set<Thread> asyncThreads = ConcurrentHashMap.newKeySet();
+        /** 한 번 작업의 몸통을 "돌린다/취소한다" 중 먼저 잡은 쪽이 이긴다(취소와 도착이 엇갈려도 future 가 반드시 끝난다). */
+        final AtomicBoolean claimed = new AtomicBoolean();
+        volatile long nextRun;
         volatile boolean cancelled;
-        volatile boolean started;
-        volatile Thread asyncThread;
 
         Task(int id, FurnacePlugin plugin, Runnable body, boolean sync, long period, Runnable onCancel) {
             this.id = id;
@@ -183,48 +253,27 @@ public final class LegacyScheduler {
                     n.substring(n.lastIndexOf('.', cut) + 1));
         }
 
-        /** 전역 틱 지연으로 다음 도착을 건다. */
-        void arm(long delayTicks) {
-            try {
-                server.scheduler().global().executeDelayed(this, delayTicks);
-            } catch (RejectedExecutionException e) {
-                cancel();   // 서버 종료 중
-            }
-        }
-
-        /** 전역 스레드에서 도착. */
-        @Override
-        public void run() {
-            if (cancelled) return;
-            started = true;
+        /** 박동(전역 스레드)에서 차례가 됐다. */
+        void arrive(long now) {
             if (sync) {
                 execute();
-                finishRound();
+                if (period <= 0) retire();
             } else {
                 try {
                     server.asyncExecutor().execute(this::executeAsync);
                 } catch (RejectedExecutionException e) {
                     cancel();
-                    return;
                 }
-                finishRound();
-            }
-        }
-
-        private void finishRound() {
-            if (period > 0) {
-                if (!cancelled) arm(period);
-            } else if (sync) {
-                retire();
             }
         }
 
         private void executeAsync() {
-            asyncThread = Thread.currentThread();
+            Thread me = Thread.currentThread();
+            asyncThreads.add(me);
             try {
                 execute();
             } finally {
-                asyncThread = null;
+                asyncThreads.remove(me);
                 if (period <= 0) retire();
             }
         }
@@ -235,6 +284,7 @@ public final class LegacyScheduler {
                 cancel();
                 return;
             }
+            if (period <= 0 && !claimed.compareAndSet(false, true)) return;   // 그 사이 취소가 먼저 잡았다
             running.incrementAndGet();
             long t0 = timing.start();
             try (PrimaryThread.Scope ignored = sync ? PrimaryThread.enter() : null) {
@@ -247,10 +297,21 @@ public final class LegacyScheduler {
             }
         }
 
+        final AtomicInteger running = new AtomicInteger();
+
         /** 한 번 작업이 끝났다 — 목록에서 뺀다. */
         private void retire() {
             tasks.remove(id);
             book.remove(plugin, this);
+        }
+
+        /** future.cancel 용: 몸통이 아직 시작 전이면 취소하고 true(onCancel 은 부르지 않는다 — future 가 직접 끝난다). */
+        boolean cancelUnclaimed() {
+            if (!claimed.compareAndSet(false, true)) return false;
+            cancelled = true;
+            tasks.remove(id);
+            book.remove(plugin, this);
+            return true;
         }
 
         @Override
@@ -271,7 +332,7 @@ public final class LegacyScheduler {
             cancelled = true;
             tasks.remove(id);
             book.remove(plugin, this);
-            if (onCancel != null && !started) onCancel.run();
+            if (onCancel != null && claimed.compareAndSet(false, true)) onCancel.run();
         }
     }
 }

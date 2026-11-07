@@ -132,12 +132,24 @@ public final class LegacyCommands {
         String label = sp < 0 ? line : line.substring(0, sp);
         LegacyCommand cmd = find(label);
         if (cmd == null) return server.dispatchCommand(sender, line);
-        String[] args = sp < 0 ? new String[0] : line.substring(sp + 1).split(" ", -1);
+        String[] args = sp < 0 ? new String[0] : execArgs(line.substring(sp + 1).split(" ", -1));
+        String lower = label.toLowerCase(Locale.ROOT);   // SimpleCommandMap.dispatch 처럼 소문자로 넘긴다
         if (!PrimaryThread.isPrimary()) {
-            server.scheduler().global().execute(() -> runNow(cmd, sender, label, args));
+            server.scheduler().global().execute(() -> runNow(cmd, sender, lower, args));
             return true;
         }
-        return runNow(cmd, sender, label, args);
+        return runNow(cmd, sender, lower, args);
+    }
+
+    /** 실행 인자는 빈 칸을 버린다(Paper 의 StringUtils.split(' ') 와 같다 — "a  b " 는 [a, b]). 자동완성은 끝의 빈 칸을 지키려고 이 함수를 쓰지 않는다. */
+    static String[] execArgs(String[] raw) {
+        int n = 0;
+        for (String a : raw) if (!a.isEmpty()) n++;
+        if (n == raw.length) return raw;
+        String[] out = new String[n];
+        int i = 0;
+        for (String a : raw) if (!a.isEmpty()) out[i++] = a;
+        return out;
     }
 
     private boolean runNow(LegacyCommand cmd, CommandSender sender, String label, String[] args) {
@@ -160,10 +172,11 @@ public final class LegacyCommands {
 
         @Override
         public void execute(CommandSender sender, String label, String[] args) {
+            String[] exec = execArgs(args);
             if (PrimaryThread.isPrimary()) {
-                runNow(cmd, sender, label, args);
+                runNow(cmd, sender, label, exec);
             } else {
-                server.scheduler().global().execute(() -> runNow(cmd, sender, label, args));
+                server.scheduler().global().execute(() -> runNow(cmd, sender, label, exec));
             }
         }
 

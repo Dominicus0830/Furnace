@@ -216,4 +216,59 @@ class LegacyCommandsTest {
             public void sendMessage(org.domi.furnace.api.text.Text message) { sink.add(message.plainText()); }
         };
     }
+
+    @Test
+    void executionArgsDropEmptyTokensLikePaper() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            List<String> seen = new CopyOnWriteArrayList<>();
+            p.commands.command(p, "kit").setExecutor((s, c, l, a) -> { seen.add(l + ":" + String.join("|", a)); return true; });
+            server.execute("kit  a   b ");
+            server.onGlobal(() -> p.commands.dispatch(server.api().console(), "KIT  x  y "));
+            assertEquals(List.of("kit:a|b", "kit:x|y"), seen, "빈 인자는 버리고, dispatch 의 label 은 소문자");
+        }
+    }
+
+    @Test
+    void defaultTabCompletionHidesPlayersTheSenderCannotSee() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            var alice = server.join("Alice");
+            server.join("Alvin");
+            server.tick(10);
+            var viewer = alice.player();
+            var vanished = server.api().player("Alvin");
+            server.api().entityViews().hide(p, viewer, vanished);
+            LegacyCommand open = p.commands.command(p, "open");
+            assertEquals(List.of("Alice"), open.tabComplete(viewer, "open", new String[]{"al"}), "숨긴 플레이어 이름은 새지 않는다");
+            assertEquals(List.of("Alice", "Alvin"), open.tabComplete(server.api().console(), "open", new String[]{"al"}));
+        }
+    }
+
+    @Test
+    void slowGlobalThreadMakesTabCompletionTimeOutToEmptyList() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            var fast = new org.domi.furnace.compat.command.LegacyCommands(server.api(), 100);
+            var cmd = new LegacyCommand(p, "slowtab").setCompleter((s, c, a, args) -> List.of("never"));
+            fast.register(p, cmd);
+            java.util.concurrent.CountDownLatch block = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
+            server.api().scheduler().global().execute(() -> {
+                started.countDown();
+                try {
+                    block.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            started.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            try {
+                var s = server.internals().commands().suggestions(CommandSource.console(server.internals()), "/slowtab ne").get();
+                assertTrue(s.getList().isEmpty(), "전역이 막혀 한도(100ms)를 넘으면 빈 목록");
+            } finally {
+                block.countDown();
+            }
+        }
+    }
 }

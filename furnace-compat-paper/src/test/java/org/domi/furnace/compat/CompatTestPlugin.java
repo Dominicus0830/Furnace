@@ -22,6 +22,7 @@ public final class CompatTestPlugin extends FurnacePlugin {
 
     @Override
     public void onDisable() {
+        if (legacy != null) legacy.close();
         if (paper != null) paper.close();
     }
 }

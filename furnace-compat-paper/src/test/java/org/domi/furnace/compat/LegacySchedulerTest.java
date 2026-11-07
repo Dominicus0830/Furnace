@@ -56,7 +56,7 @@ class LegacySchedulerTest {
                 tick.set(i);
                 server.tick();
             }
-            assertEquals(List.of("d0@1", "d1@1", "neg@1", "d3@3"), log, "0·1·음수는 다음 틱, 3 은 세 번째 틱, 같은 틱 안에서는 예약 차례");
+            assertEquals(List.of("d0@1", "neg@1", "d1@1", "d3@3"), log, "0·1·음수는 다음 틱, 3 은 세 번째 틱, 같은 틱 안에서는 (다음 실행 틱, 번호) 순 — CraftScheduler 와 같다");
         }
     }
 
@@ -251,6 +251,131 @@ class LegacySchedulerTest {
             var p = server.plugin(CompatTestPlugin.class);
             assertThrows(IllegalArgumentException.class, () -> p.legacy.runTask(null, () -> {}));
             assertThrows(IllegalArgumentException.class, () -> p.legacy.runTask(p, null));
+        }
+    }
+
+    // ---- 독립 검토(PR #130) 반영
+
+    @Test
+    void sameTickOrderFollowsCreationLikeCraftScheduler() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            List<String> log = new CopyOnWriteArrayList<>();
+            AtomicInteger tick = new AtomicInteger();
+            p.legacy.runTaskTimer(p, () -> log.add("A@" + tick.get()), 1, 2);   // 먼저 만든 반복 작업
+            p.legacy.runTaskLater(p, () -> log.add("B@" + tick.get()), 3);
+            for (int i = 1; i <= 3; i++) {
+                tick.set(i);
+                server.tick();
+            }
+            assertEquals(List.of("A@1", "A@3", "B@3"), log, "같은 틱에서는 만든 순(번호) — 반복 작업은 다시 걸려도 순서를 지킨다");
+        }
+    }
+
+    @Test
+    void taskScheduledInsideTaskWithZeroDelayRunsSameTick() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            List<String> log = new CopyOnWriteArrayList<>();
+            p.legacy.runTask(p, () -> {
+                log.add("outer");
+                p.legacy.runTask(p, () -> log.add("inner"));
+                p.legacy.runTaskTimer(p, () -> log.add("timer"), 0, 1);
+            });
+            server.tick();
+            assertEquals(List.of("outer", "inner", "timer"), log, "지연 0 은 같은 박동에 이어서(반복 작업의 첫 회차도), 다음 회차는 다음 틱");
+            server.tick();
+            assertEquals(List.of("outer", "inner", "timer", "timer"), log);
+        }
+    }
+
+    @Test
+    void callSyncMethodFutureCancelStopsCallable() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
+            Future<String> f = p.legacy.callSyncMethod(p, () -> {
+                called.set(true);
+                return "x";
+            });
+            assertTrue(f.cancel(false));
+            assertTrue(f.isCancelled());
+            server.tick(2);
+            assertFalse(called.get(), "CraftFuture.cancel 은 아직 안 돈 callable 을 막는다");
+            Future<String> done = p.legacy.callSyncMethod(p, () -> "y");
+            server.tick();
+            assertEquals("y", done.get(1, TimeUnit.SECONDS));
+            assertFalse(done.cancel(false), "이미 끝난 future 는 취소할 수 없다");
+        }
+    }
+
+    @Test
+    void isQueuedStaysTrueWhileOneShotRuns() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicReference<Boolean> seen = new AtomicReference<>();
+            LegacyTask[] t = new LegacyTask[1];
+            t[0] = p.legacy.runTask(p, () -> seen.set(p.legacy.isQueued(t[0].taskId())));
+            server.tick();
+            assertEquals(Boolean.TRUE, seen.get());
+            assertFalse(p.legacy.isQueued(t[0].taskId()));
+        }
+    }
+
+    @Test
+    void concurrentCancelNeverLeavesCallSyncFutureHanging() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            List<Future<Integer>> futures = new ArrayList<>();
+            List<LegacyTask> tasks = new ArrayList<>();
+            for (int i = 0; i < 300; i++) {
+                int v = i;
+                var f = p.legacy.callSyncMethod(p, () -> v);
+                futures.add(f);
+            }
+            for (var t : p.legacy.pendingTasks()) tasks.add(t);
+            Thread canceller = new Thread(() -> {
+                for (LegacyTask t : tasks) t.cancel();
+            });
+            canceller.start();
+            server.tick(3);
+            canceller.join(10_000);
+            for (Future<Integer> f : futures) {
+                assertTrue(f.isDone() || awaitDone(f), "취소와 도착이 엇갈려도 future 는 끝난다(값 또는 취소)");
+            }
+        }
+    }
+
+    private static boolean awaitDone(Future<?> f) {
+        try {
+            f.get(2, TimeUnit.SECONDS);
+            return true;
+        } catch (CancellationException | ExecutionException e) {
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Test
+    void asyncRepeatingTaskCanOverlapAndEachRunIsAWorker() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch two = new CountDownLatch(2), release = new CountDownLatch(1);
+            LegacyTask t = p.legacy.runTaskTimerAsynchronously(p, () -> {
+                two.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }, 1, 1);
+            server.tick();
+            server.tick();
+            assertTrue(two.await(5, TimeUnit.SECONDS), "회차가 겹칠 수 있다(Bukkit 비동기 반복)");
+            assertEquals(2, p.legacy.activeWorkers().size());
+            t.cancel();
+            release.countDown();
         }
     }
 }

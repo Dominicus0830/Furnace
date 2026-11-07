@@ -1,5 +1,5 @@
 // 간단한 명령(Paper BasicCommand 와 비슷): 이름 뒤의 인자를 공백으로 나눈 배열로 받는다.
-// 실행은 전역 스레드에서(명령 큐가 전역으로 모은다), 자동완성은 명령을 친 쪽의 연결 스레드에서 불린다 — 월드를 만질 때는 region 스케줄러로 넘긴다.
+// 실행은 전역 스레드에서(명령 큐가 전역으로 모은다), 자동완성도 플레이어는 전역 스레드(ConnectionHandler 가 넘긴다)·콘솔은 콘솔 스레드에서 불린다 — 월드를 만질 때는 region 스케줄러로 넘긴다.
 package org.domi.furnace.api.command;
 
 import java.util.List;

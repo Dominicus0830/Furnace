@@ -205,18 +205,52 @@ public final class PaperSchedulers implements AutoCloseable {
         public CompatTask runDelayed(FurnacePlugin plugin, Consumer<CompatTask> task, long delay, TimeUnit unit) {
             if (delay < 0) throw new IllegalArgumentException("Delay may not be <0");
             Handle h = newHandle(plugin, task, false, "async");
-            ScheduledFuture<?> f = timer.schedule(() -> execute(h), delay, unit);
-            h.stop = () -> f.cancel(false);
+            AtomicReference<ScheduledFuture<?>> f = new AtomicReference<>();
+            h.stop = () -> {
+                ScheduledFuture<?> sf = f.get();
+                if (sf != null) sf.cancel(false);
+            };
+            f.set(timer.schedule(() -> execute(h), delay, unit));
             return h;
         }
 
+        /**
+         * Paper FoliaAsyncScheduler 처럼: 한 회차가 끝난 뒤 다음을 "목표 시각 + 주기" 로 건다 — 회차가 느리면 바로 이어서 돌고 회차를 버리지 않는다.
+         * 회차는 서로 겹치지 않는다(앞 회차가 끝나야 다음이 걸린다).
+         */
         public CompatTask runAtFixedRate(FurnacePlugin plugin, Consumer<CompatTask> task, long initialDelay, long period, TimeUnit unit) {
             if (initialDelay < 0) throw new IllegalArgumentException("Initial delay may not be <0");
             if (period <= 0) throw new IllegalArgumentException("Period may not be <= 0");
             Handle h = newHandle(plugin, task, true, "async");
-            ScheduledFuture<?> f = timer.scheduleAtFixedRate(() -> execute(h), initialDelay, period, unit);
-            h.stop = () -> f.cancel(false);
+            long periodNs = unit.toNanos(period);
+            AtomicReference<ScheduledFuture<?>> current = new AtomicReference<>();
+            h.stop = () -> {
+                ScheduledFuture<?> f = current.get();
+                if (f != null) f.cancel(false);
+            };
+            long firstTarget = System.nanoTime() + unit.toNanos(initialDelay);
+            arm(h, current, firstTarget, periodNs);
             return h;
+        }
+
+        private void arm(Handle h, AtomicReference<ScheduledFuture<?>> current, long target, long periodNs) {
+            if (h.isCancelled()) return;
+            long delay = Math.max(0, target - System.nanoTime());
+            try {
+                current.set(timer.schedule(() -> {
+                    Executor ex = server.asyncExecutor();
+                    try {
+                        ex.execute(() -> {
+                            h.run();
+                            arm(h, current, target + periodNs, periodNs);
+                        });
+                    } catch (RejectedExecutionException e) {
+                        h.cancel();
+                    }
+                }, delay, TimeUnit.NANOSECONDS));
+            } catch (RejectedExecutionException e) {
+                h.cancel();   // 타이머가 닫혔다
+            }
         }
 
         public void cancelTasks(FurnacePlugin plugin) { PaperSchedulers.this.cancelTasks(plugin); }
@@ -250,7 +284,7 @@ public final class PaperSchedulers implements AutoCloseable {
         if (plugin == null) throw new IllegalArgumentException("Plugin may not be null");
         if (task == null) throw new IllegalArgumentException("Task may not be null");
         if (!plugin.isEnabled()) throw new PluginDisabledException("Plugin attempted to register task while disabled");
-        Handle h = new Handle(plugin, task, repeating,
+        Handle h = new Handle(plugin, task, repeating, kind,
                 server.profiler().timing(plugin, "async".equals(kind) ? PluginProfiler.Kind.ASYNC : PluginProfiler.Kind.TASK, kind + " task"));
         book.add(plugin, h);
         return h;
@@ -268,7 +302,11 @@ public final class PaperSchedulers implements AutoCloseable {
         private final AtomicReference<ExecutionState> state = new AtomicReference<>(ExecutionState.IDLE);
         volatile Runnable stop = () -> {};
 
-        Handle(FurnacePlugin plugin, Consumer<CompatTask> body, boolean repeating, Timing timing) {
+        /** 로그 문장용(Paper: "Global task for …"). */
+        private final String kind;
+
+        Handle(FurnacePlugin plugin, Consumer<CompatTask> body, boolean repeating, String kind, Timing timing) {
+            this.kind = kind;
             this.plugin = plugin;
             this.body = body;
             this.repeating = repeating;
@@ -286,7 +324,8 @@ public final class PaperSchedulers implements AutoCloseable {
             try {
                 body.accept(this);
             } catch (Throwable t) {
-                plugin.logger().log(Level.SEVERE, "작업 실행 중 예외", t);
+                plugin.logger().log(Level.WARNING, Character.toUpperCase(kind.charAt(0)) + kind.substring(1) + " task for "
+                        + plugin.description().fullName() + " generated an exception", t);
             } finally {
                 timing.stop(t0);
                 ExecutionState after;

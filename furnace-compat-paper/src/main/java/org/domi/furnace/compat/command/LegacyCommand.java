@@ -153,18 +153,29 @@ public final class LegacyCommand {
         } catch (Throwable t) {
             throw new LegacyCommandException("Unhandled exception during tab completion for command '/" + alias + "' in plugin " + plugin.description().fullName(), t);
         }
-        return out != null ? out : defaultComplete(args);
+        return out != null ? out : defaultComplete(sender, args);
     }
 
-    private static List<String> defaultComplete(String[] args) {
+    private static List<String> defaultComplete(CommandSender sender, String[] args) {
         if (args.length == 0) return List.of();
         String last = args[args.length - 1].toLowerCase(Locale.ROOT);
         List<String> out = new ArrayList<>();
         for (Player p : Furnace.server().onlinePlayers()) {
-            if (p.name().toLowerCase(Locale.ROOT).startsWith(last)) out.add(p.name());
+            if (!p.name().toLowerCase(Locale.ROOT).startsWith(last)) continue;
+            if (sender instanceof Player viewer && !canSee(viewer, p)) continue;   // 숨은(vanish) 플레이어 이름을 새지 않는다
+            out.add(p.name());
         }
         out.sort(String.CASE_INSENSITIVE_ORDER);
         return out;
+    }
+
+    private static boolean canSee(Player viewer, Player target) {
+        if (viewer == target) return true;
+        try {
+            return viewer.canSee(target);
+        } catch (UnsupportedOperationException e) {
+            return true;   // 이 서버 구현은 보이기 규칙이 없다
+        }
     }
 
     /** 실행 중 예외를 로그·보낸 사람 메시지로 처리한다(Bukkit VanillaCommandWrapper 와 같다). */

@@ -184,4 +184,37 @@ class PaperSchedulersTest {
             assertEquals(3, runs.get());
         }
     }
+
+    @Test
+    void asyncFixedRateDoesNotDropSlowRuns() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicInteger runs = new AtomicInteger();
+            var task = p.paper.async().runAtFixedRate(p, t -> {
+                runs.incrementAndGet();
+                try {
+                    Thread.sleep(60);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, 0, 50, TimeUnit.MILLISECONDS);
+            Thread.sleep(1200);
+            task.cancel();
+            assertTrue(runs.get() >= 16, "Paper: 늦으면 바로 이어 돌린다(약 60ms 마다 ~20회, 회차를 버리면 13회). 실제 " + runs.get());
+        }
+    }
+
+    @Test
+    void asyncFixedRateCancelInsideFirstRunStopsTheTimer() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicInteger runs = new AtomicInteger();
+            p.paper.async().runAtFixedRate(p, t -> {
+                runs.incrementAndGet();
+                t.cancel();
+            }, 0, 10, TimeUnit.MILLISECONDS);
+            Thread.sleep(200);
+            assertEquals(1, runs.get());
+        }
+    }
 }
