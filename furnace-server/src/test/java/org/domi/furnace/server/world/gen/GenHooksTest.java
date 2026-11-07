@@ -207,13 +207,11 @@ class GenHooksTest {
         NoiseWorldSource featuresOff = source(new ChunkGenerationHooks() {
             @Override public boolean runVanilla(GenerationStage stage, int x, int z) { return stage != GenerationStage.FEATURES; }
         });
-        NoiseWorldSource bothOff = source(new ChunkGenerationHooks() {
-            @Override public boolean runVanilla(GenerationStage stage, int x, int z) {
-                return stage != GenerationStage.FEATURES && stage != GenerationStage.STRUCTURES;
-            }
-        });
         int cx = found.chunkX(), cz = found.chunkZ();
-        assertFalse(sameBlocks(featuresOff.generateIsolated(cx, cz), bothOff.generateIsolated(cx, cz)),
+        // 독립 경로의 pristine(구조물 지형 맞춤 + 동굴, 장식 전)과 장식 뒤를 비교 — 지형지물이 없으니 달라진 칸은 구조물 조각이다
+        NoiseWorldSource.Generated pristine = featuresOff.generateWorldChunk(cx, cz);
+        featuresOff.applyCarvers(pristine, cx, cz);
+        assertFalse(sameBlocks(pristine.col(), featuresOff.generateIsolated(cx, cz)),
                 "FEATURES 만 끄면 " + found.structureId() + " 조각은 그대로 놓인다");
     }
 

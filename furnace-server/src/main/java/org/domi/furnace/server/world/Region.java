@@ -491,6 +491,8 @@ public final class Region {
             var keep = old.extraNbt().copy();
             keep.tags().remove("block_ticks");
             keep.tags().remove("fluid_ticks");
+            keep.tags().remove("blending_data");         // 옛 청크 표시 — 바닐라가 이웃 새 청크의 지형 섞기를 바꾼다
+            keep.tags().remove("below_zero_retrogen");
             if (fresh.extraNbt() != null) keep.tags().putAll(fresh.extraNbt().tags());
             fresh.extraNbt(keep);
         }
@@ -577,14 +579,21 @@ public final class Region {
         }
         var done = new java.util.concurrent.CompletableFuture<Void>();
         col.pendingEntityLoad(done);
-        world.loadEntitiesAsync(cp.x(), cp.z()).whenComplete((root, err) -> world.runAtChunk(cp, r -> {
+        world.loadEntitiesAsync(cp.x(), cp.z()).whenComplete((root, err) -> {
             try {
-                if (world.loadedChunk(cp.x(), cp.z()) == col) r.level().loadChunkEntities(col, root);
-            } finally {
+                world.runAtChunk(cp, r -> {
+                    try {
+                        if (world.loadedChunk(cp.x(), cp.z()) == col) r.level().loadChunkEntities(col, root);
+                    } finally {
+                        col.pendingEntityLoad(null);
+                        done.complete(null);
+                    }
+                });
+            } catch (RuntimeException e) {   // 월드를 내리는 중(스케줄러가 받지 않는다) — 기다리는 재생성이 걸리지 않게
                 col.pendingEntityLoad(null);
                 done.complete(null);
             }
-        }));
+        });
     }
 
     /** 이 region 이 가진 로드된 청크(없으면 null, 로드를 걸지 않는다). 플러그인 API 용. */

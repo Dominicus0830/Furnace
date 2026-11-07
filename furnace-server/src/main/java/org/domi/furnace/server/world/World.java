@@ -921,7 +921,7 @@ public final class World {
         // 플레이어 청크 생성을 밀어내지 않게. 교체·재전송은 각자 region 스레드에서 이어 간다
         synchronized (regenLock) {
             fresh = regenTail.handle((v, e) -> null).thenApplyAsync(v -> regeneratedColumn(cx, cz), genPool);
-            regenTail = fresh;
+            regenTail = fresh.handle((c, e) -> null);   // 만든 청크를 다음 재생성까지 붙들지 않게
         }
         return fresh.thenCompose(col -> installRegenerated(cp, col, removeEntities, generationEntities, 3))
                 .exceptionally(e -> {
