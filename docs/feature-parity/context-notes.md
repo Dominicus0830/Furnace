@@ -967,7 +967,15 @@
 - **함정 1** `LiveGrid.commit` 이 아이템이 든 템플릿 상자를 `generatedBlockEntity`(생성 NBT)로만 남겨 청크를 다시 읽기 전까지 `execute if items`/열기가 "컨테이너 아님" 이었다 → 아이템이 든 상자는 바로 `ChestBlockEntity` 로 만든다(`/place template` 도 같이 고쳐짐).
 - **함정 2** 새 직소 블록 엔티티의 `joint` 는 `rollable`(필드 기본값)이다. `aligned` 기본은 저장 NBT 에 `joint` 가 없거나 이름이 틀렸을 때만(앞면이 수평이면 aligned, 수직이면 rollable).
 - **함정 3(봇)** `/data get block` 출력은 mineflayer 가 잘라 읽기 어렵다 — `execute if data block <칸> {필드:값}` / `execute if items block <칸> container.0 <아이템>` 의 통과 여부로 확인한다(숫자 태그는 형이 같아야 한다: `seed:5L`, `sizeX:3`). 비어 있는 서버에는 청크가 안 올라 있어 `/data get` 이 "not loaded" 라 한다 — 봇이 접속해 있을 때만 읽는다.
-- 한계: 데이터 팩 템플릿·.snbt 없음, 옛 DataVersion 데이터 픽서 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다.
+- 한계: .snbt 없음, 구조물 블록은 그 region 에서 로드된 청크만 본다. (데이터 팩 템플릿은 Q7, 옛 DataVersion 데이터 픽서는 Q8 로 들어왔다.)
+
+## 2026-11-07 구조물 템플릿 데이터 픽서 (Q8)
+- `TemplateManager.read` 가 모든 source(generated·데이터 팩·내장)에서 `StructureDataFixer.update(root, DataVersion)` 를 거친다(바닐라 readStructure). 지원 1452~3954 → 3955, 그 밖(없음·1451 이하·3956 이상)은 경고 후 그대로. 범위표·뺀 것은 `structure-datafixer-2026-11-07.md`.
+- 구조: `FixStep`(판·하위 판 키 = v*10+sub, 블록 상태·블록 엔티티·엔티티·아이템 손잡이) 표를 판 순으로 돌리고, 각 단계마다 템플릿 전체를 **안쪽 먼저**(담긴 아이템·탑승자·스포너 엔티티·벌 → 바깥) 순회한다. 파일 DataVersion v 는 키 v*10 까지 끝난 것으로 본다(DataFixUtils.makeKey).
+- 함정 1: 바닐라 V705 아이템 훅은 tag 시대 아이템을 읽을 때 `BlockEntityTag` 에 아이템→블록 엔티티 id 를 **덮어쓰고**(EntityTag 는 없을 때만) 쓸 때 지우지 않는다. 이게 없으면 3818_5 컴포넌트화가 셜커 상자 아이템 안의 Items 를 container 로 못 옮긴다. 표는 `ItemStackFixes.ITEM_TO_BLOCK_ENTITY`.
+- 함정 2: 이름 바꾸기 표 대부분은 이름공간을 붙여 찾지만(createRenamer(Map)), 2523 능력치 표와 블록 상태 속성 고침(담장·레드스톤·가마솥·직소)의 Name 비교는 붙이지 않고 그대로 비교한다. 1904 오실롯 분리는 CatType 0 의 Trusting 을 계산만 하고 버린다(바닐라 그대로).
+- 함정 3: 일부 "고침"은 스키마 필드 이름만 바꾸는 convertUnchecked/형 캐스트다(3448 shards→sherds, 3818 Bees·EntityData). 데이터 고침 코드에 안 보여도 필드 이름은 바뀐다.
+- DFU 라이브러리는 컨테이너에서 못 받아(libraries.minecraft.net 403, Maven Central 에 없음) 실행 대조는 못 했다. 기대값은 디컴파일한 각 DataFix 를 따라 계산했고, 컴포넌트 결과는 `ComponentPatch.fromCodec` 로 다시 읽히는지 본다.
 
 
 ## 2026-11-06 접속 상태 머신 N1 — 구성 단계 주고받기·끊긴 이유 (불만 표 5·6·7번)
