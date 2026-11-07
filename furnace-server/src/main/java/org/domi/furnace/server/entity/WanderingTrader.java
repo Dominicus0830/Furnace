@@ -1,6 +1,6 @@
 // 바닐라 WanderingTrader(+AbstractVillager 의 거래 부분): 방랑 상인. 거래표는 WANDERING_TRADER_TRADES 에서 처음 열 때 5+1개,
 // 사라지기까지 despawnDelay 틱, 밤엔 투명 물약·낮엔 우유, 위협에서 달아남, 사라질 위치(wander target)로 걷기.
-// AbstractVillager 의 8칸 Inventory(NBT "Inventory", /item 의 villager.0~7). TODO(트리거): 거래 발전 과제(CriteriaTriggers.TRADE)와 TALKED_TO_VILLAGER 통계는 생략.
+// AbstractVillager 의 8칸 Inventory(NBT "Inventory", /item 의 villager.0~7). TODO(트리거): 거래 발전 과제(CriteriaTriggers.TRADE)는 생략.
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -50,7 +50,18 @@ public final class WanderingTrader extends PathfinderMob implements Merchant, In
     private final MobInventory inventory = new MobInventory(8);
     private Pos wanderTarget;
 
-    public WanderingTrader(ChunkLevel level, int id) { super(EntityType.WANDERING_TRADER, level, id); }
+    public WanderingTrader(ChunkLevel level, int id) {
+        super(EntityType.WANDERING_TRADER, level, id);
+        setPathfindingMalus(org.domi.furnace.server.entity.ai.navigation.PathType.DANGER_FIRE, 16.0F);   // AbstractVillager 생성자
+        setPathfindingMalus(org.domi.furnace.server.entity.ai.navigation.PathType.DAMAGE_FIRE, -1.0F);
+    }
+
+    /** AbstractVillager.die: 죽은 뒤 거래 중이던 플레이어를 놓는다(stopTrading). */
+    @Override
+    public void die(Damage source) {
+        super.die(source);
+        setTradingPlayer(null);
+    }
 
     @Override
     protected void createAttributes(org.domi.furnace.server.attribute.AttributeMap map) {
@@ -151,7 +162,17 @@ public final class WanderingTrader extends PathfinderMob implements Merchant, In
     /** mobInteract 의 조건: 살아 있고 거래 중이 아니며 거래가 있다(손에 스폰 알이면 부르는 쪽이 거른다). */
     public boolean canTrade() { return isAlive() && !isTrading() && !offers().isEmpty(); }
 
-    public Text tradeTitle() { return Text.translatable("entity.minecraft.wandering_trader"); }
+    /**
+     * 바닐라 WanderingTrader.mobInteract: 주민 스폰 알을 들었거나 죽었거나 거래 중이거나 아기면 넘긴다. 아니면 주 손일 때 대화 통계를 올리고,
+     * 거래가 없으면 소비만, 있으면 거래 화면을 연다(OPEN_TRADE: 부르는 쪽이 연다).
+     */
+    public Villager.TradeInteract mobInteract(Player p, boolean mainHand, boolean villagerSpawnEgg) {
+        if (villagerSpawnEgg || !isAlive() || isTrading() || isBaby()) return Villager.TradeInteract.PASS;
+        if (mainHand) p.awardStat("minecraft:talked_to_villager", 1);
+        return offers().isEmpty() ? Villager.TradeInteract.CONSUME : Villager.TradeInteract.OPEN_TRADE;
+    }
+
+    public Text tradeTitle() { return hasCustomName() ? getCustomName() : Text.translatable("entity.minecraft.wandering_trader"); }
 
     // ------------------------------------------------------------------ 소리
 

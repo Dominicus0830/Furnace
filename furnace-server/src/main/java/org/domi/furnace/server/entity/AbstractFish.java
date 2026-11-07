@@ -145,4 +145,10 @@ public abstract class AbstractFish extends WaterAnimal implements Bucketable {
         public boolean canUse() { return fish.canRandomSwim() && super.canUse(); }
     }
     @Override public int getMaxSpawnClusterSize() { return 8; }
+
+    /** AbstractFish.playStepSound: 소리 없음(날거나 헤엄치는 몸). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) {}
+
+    @Override protected String getSwimSound() { return "minecraft:entity.fish.swim"; }
 }

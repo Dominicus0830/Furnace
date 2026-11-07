@@ -204,4 +204,8 @@ public class Ravager extends Raider {
     public boolean checkSpawnObstruction(ChunkLevel level) { return !level.containsAnyLiquid(boundingBox()); }
 
     @Override public String getCelebrateSound() { return "entity.ravager.celebrate"; }
+
+    /** Ravager.playStepSound: ravager.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.ravager.step", 0.15F, 1.0F); }
 }

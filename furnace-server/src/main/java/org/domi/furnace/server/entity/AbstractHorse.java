@@ -33,6 +33,8 @@ public abstract class AbstractHorse extends Animal {
     public int tailCounter;
     public int sprintCounter;
     protected int gallopSoundCounter;
+    /** canGallop: 탄 동안 질주 소리를 내는가(바닐라 기본 참). */
+    protected boolean canGallop = true;
     private int temper;
     /** 뒷발로 선 애니메이션(standAnim·standAnimO)과 점프 중 서기 미끄러짐(allowStandSliding) — 승객 위치에 쓴다. */
     protected float standAnim, standAnimO;
@@ -682,4 +684,31 @@ public abstract class AbstractHorse extends Animal {
         return super.finalizeSpawn(r, difficulty, data);
     }
     @Override public int getMaxSpawnClusterSize() { return 6; }
+
+    /**
+     * AbstractHorse.playStepSound: 액체가 아니면 발밑 블록(위 칸이 눈이면 눈) SoundType 으로 소리 크기·높이를 정한다.
+     * 탄 채로 달리면 gallopSoundCounter 를 올려 처음 5번은 step_wood, 그 뒤 3번에 한 번 gallop. 안 탔으면 나무 계열이면 step_wood, 아니면 step.
+     * 서버에서는 조종이 클라이언트 쪽이라 카운터를 0 으로 되돌리는 tickRidden 갈래가 돌지 않는다(바닐라 isLocalInstanceAuthoritative 거짓).
+     */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) {
+        if (org.domi.furnace.server.world.BlockAttrs.get().isLiquid(state)) return;
+        int above = level.getBlockState(pos.above());
+        org.domi.furnace.server.block.BlockSounds.SoundType type = org.domi.furnace.server.block.BlockSounds.get().of(state);
+        if (org.domi.furnace.server.block.B.is(above, "minecraft:snow")) type = org.domi.furnace.server.block.BlockSounds.get().of(above);
+        if (isVehicle() && canGallop) {
+            gallopSoundCounter++;
+            if (gallopSoundCounter > 5 && gallopSoundCounter % 3 == 0) playGallopSound(type);
+            else if (gallopSoundCounter <= 5) playSound("minecraft:entity.horse.step_wood", type.volume() * 0.15F, type.pitch());
+        } else if (type.isWoodForHorse()) {
+            playSound("minecraft:entity.horse.step_wood", type.volume() * 0.15F, type.pitch());
+        } else {
+            playSound("minecraft:entity.horse.step", type.volume() * 0.15F, type.pitch());
+        }
+    }
+
+    /** AbstractHorse.playGallopSound: gallop 크기 ×0.15. 짐 싣는 말(AbstractChestedHorse)이 숨소리를 더한다. */
+    protected void playGallopSound(org.domi.furnace.server.block.BlockSounds.SoundType type) {
+        playSound("minecraft:entity.horse.gallop", type.volume() * 0.15F, type.pitch());
+    }
 }

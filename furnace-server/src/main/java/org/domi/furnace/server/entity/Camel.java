@@ -347,12 +347,6 @@ public class Camel extends AbstractHorse {
 
     @Override protected String getEatingSound() { return "entity.camel.eat"; }
 
-    /** Camel.playStepSound: camel_sand_step_sound_blocks 위면 step_sand, 아니면 step. */
-    @Override
-    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) {
-        playSound(org.domi.furnace.server.block.B.isTag(state, "minecraft:camel_sand_step_sound_blocks") ? "entity.camel.step_sand" : "entity.camel.step", 1.0F, 1.0F);
-    }
-
     /** Camel.checkLeashDistance: 6칸 넘게 당기면 앉아 있다가 일어난다(AbstractHorse 의 먹기 해제는 부르지 않는다). */
     @Override
     protected boolean checkLeashDistance(Rider holder, float dist) {
@@ -373,5 +367,11 @@ public class Camel extends AbstractHorse {
             if (operation == Operation.MOVE_TO && !camel.isLeashed() && camel.isCamelSitting() && !camel.isInPoseTransition() && camel.canChangePose()) camel.standUp();
             super.tick();
         }
+    }
+
+    /** Camel.playStepSound: 모래 걸음 블록(camel_sand_step_sound_blocks) 위면 step_sand, 아니면 step. 크기 1. */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) {
+        playSound(org.domi.furnace.server.block.B.isTag(state, "minecraft:camel_sand_step_sound_blocks") ? "minecraft:entity.camel.step_sand" : "minecraft:entity.camel.step", 1.0F, 1.0F);
     }
 }

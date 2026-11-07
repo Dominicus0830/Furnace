@@ -1390,6 +1390,14 @@ public final class Region {
                     && org.domi.furnace.server.block.B.behavior(landingState) instanceof org.domi.furnace.server.block.types.TurtleEggBlock egg) {
                 egg.fallOnPlayer(level, new org.domi.furnace.server.block.Pos(landingPos[0], landingPos[1], landingPos[2]), landingState);
             }
+            if (landed > 0.0f && level != null) {
+                // Entity.checkFallDamage: fallOn 뒤 HIT_GROUND 게임 이벤트. 맥락 블록은 지지 블록(getOnPos 1e-5 아래; 지지 블록이 없을 때 바닐라는 getOnPosLegacy 칸 — 여기선 발 밑 칸으로 근사)
+                int[] support = probe.onPos(blocks, 1.0E-5f, m.x(), m.y(), m.z(), m.onGround());
+                int hitState = blocks.stateAt(support[0], support[1], support[2]);
+                level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.HIT_GROUND,
+                        new org.domi.furnace.server.entity.Vec3(m.x(), m.y(), m.z()),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(p, hitState < 0 ? landingState : hitState));
+            }
             if (level != null && p.gameMode() != GameMode.SPECTATOR) {
                 p.movementEmission.onMove(level, p, m.x(), m.y(), m.z(), dx, dy, dz, m.onGround(), inWater);
             }

@@ -40,4 +40,6 @@ public class Husk extends Zombie {
     @Override protected String getHurtSound(Damage source) { return "entity.husk.hurt"; }
 
     @Override protected String getDeathSound() { return "entity.husk.death"; }
+
+    @Override protected String getStepSound() { return "minecraft:entity.husk.step"; }
 }

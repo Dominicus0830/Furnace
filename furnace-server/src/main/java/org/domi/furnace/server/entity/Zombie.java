@@ -179,20 +179,15 @@ public class Zombie extends Monster {
         int diff = level.difficulty();
         if ((diff == 2 || diff == 3) && victim instanceof Villager v) {
             if (diff != 3 && random.nextBoolean()) return ok;
-            ZombieVillager zv = new ZombieVillager(level, level.nextEntityId());
-            zv.moveTo(v.x(), v.y(), v.z(), v.yRot(), v.xRot());
+            // 바닐라: villager.convertTo(ZOMBIE_VILLAGER) 가 먼저 새 몹을 추가하고(이름·무적·고집 복사), 그다음 finalizeSpawn(CONVERSION)·데이터를 채운다
+            ZombieVillager zv = v.convertTo(new ZombieVillager(level, level.nextEntityId()), false, "INFECTION");
+            if (zv == null) return ok;
             int[] d = v.villagerData();
+            zv.finalizeSpawnForConversion(level.random(), level.getCurrentDifficultyAt(zv.blockPosition()));
             zv.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
             zv.setGossips(v.getGossips().store());
             zv.setOffers(v.offers());
             zv.setVillagerXp(v.villagerXp());
-            zv.finalizeSpawnForConversion(level.random(), level.getCurrentDifficultyAt(zv.blockPosition()));
-            zv.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
-            zv.setBabyForConversion(v.isBaby());
-            zv.setNoAi(v.isNoAi());
-            zv.persistenceRequired = true;
-            v.discard();
-            level.addFreshEntity(zv.spawnReason("INFECTION"));
             if (!isSilent()) level.levelEvent(null, 1026, blockPosition(), 0);
             ok = false;
         }
@@ -422,4 +417,11 @@ public class Zombie extends Monster {
         super.dropCustomDeathLoot(source, byPlayer);
         Creeper.dropSkullIfCharged(this, damageSourceEntity(), "zombie_head");
     }
+
+    /** Zombie.getStepSound: 종류별 step 소리(드라운드·허스크·좀비 주민이 덮는다). */
+    protected String getStepSound() { return "minecraft:entity.zombie.step"; }
+
+    /** Zombie.playStepSound: getStepSound 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound(getStepSound(), 0.15F, 1.0F); }
 }

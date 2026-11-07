@@ -135,4 +135,8 @@ public class Breeze extends Monster {
     @Override public int getMaxHeadXRot() { return 25; }
 
     @Override public int getHeadRotSpeed() { return 30; }
+
+    /** getMovementEmission = EVENTS: 게임 이벤트만 내고 걸음·헤엄 소리는 이동으로 내지 않는다. */
+    @Override
+    protected MovementEmission getMovementEmission() { return MovementEmission.EVENTS; }
 }

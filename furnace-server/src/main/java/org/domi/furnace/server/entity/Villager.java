@@ -89,6 +89,8 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         if (getNavigation() instanceof org.domi.furnace.server.entity.ai.navigation.GroundPathNavigation g) g.setCanOpenDoors(true);
         getNavigation().setCanFloat(true);
         setCanPickUpLoot(true);
+        setPathfindingMalus(org.domi.furnace.server.entity.ai.navigation.PathType.DANGER_FIRE, 16.0F);   // AbstractVillager 생성자
+        setPathfindingMalus(org.domi.furnace.server.entity.ai.navigation.PathType.DAMAGE_FIRE, -1.0F);
         brain = makeBrain();
         registerBrainGoals(villagerBrain());
     }
@@ -206,6 +208,16 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         super.finalizeSpawn(r, difficulty);
     }
 
+    /** AbstractVillager.finalizeSpawn: 그룹 데이터가 없으면 새끼를 내지 않는 AgeableMobGroupData(false). */
+    @Override
+    public GroupData finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, GroupData data) {
+        return super.finalizeSpawn(r, difficulty, data == null ? new GroupData(false) : data);
+    }
+
+    /** Villager.removeWhenFarAway: 주민은 멀어져도 사라지지 않는다. */
+    @Override
+    public boolean removeWhenFarAway(double distSqr) { return false; }
+
     public void setAssignProfessionWhenSpawned(boolean v) { assignProfessionWhenSpawned = v; }
 
     /** playWorkSound: 직업 소리(무직·바보는 없음). */
@@ -252,11 +264,13 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
             releaseAllPois();
         }
         super.die(source);
+        setTradingPlayer(null);   // AbstractVillager.die: stopTrading
     }
 
+    /** tellWitnessesThatIWasMurdered: 눈에 보이는 몹 기억(visible_mobs) 중 평판 이벤트를 듣는 것(주민)에게 알린다. */
     private void tellWitnessesThatIWasMurdered(Targetable killer) {
-        brain.getMemory(MemoryModuleType.NEAREST_LIVING_ENTITIES).ifPresent(list -> {
-            for (Targetable t : list) if (t instanceof Villager v) v.onReputationEvent(ReputationEvent.VILLAGER_KILLED, killer);
+        brain.getMemory(MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES).ifPresent(list -> {
+            for (Targetable t : list.findAll(x -> x instanceof Villager)) ((Villager) t).onReputationEvent(ReputationEvent.VILLAGER_KILLED, killer);
         });
     }
 
@@ -344,7 +358,43 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
     @Override
     public void tick() {
         super.tick();
+        if (getUnhappyCounter() > 0) setUnhappyCounter(getUnhappyCounter() - 1);   // Villager.tick
         if (!isRemoved()) maybeDecayGossip();
+    }
+
+    /** AbstractVillager 17 불만 카운터(고개를 젓는 시간). */
+    public int getUnhappyCounter() { return (Integer) entityData.get(DATA_UNHAPPY); }
+
+    public void setUnhappyCounter(int v) { entityData.set(DATA_UNHAPPY, v); }
+
+    /** Villager.setUnhappy: 불만 카운터 40, 소리 "아니요"(아기는 높은 목소리). */
+    public void setUnhappy() {
+        setUnhappyCounter(40);
+        playSound("entity.villager.no", getSoundVolume(), getVoicePitch());   // LivingEntity.playSound(sound): 볼륨·목소리 높이(난수 2번)
+    }
+
+    /** mobInteract 결과: 넘김(PASS) / 소비했지만 거래 안 함(CONSUME) / 거래 화면을 연다(OPEN_TRADE). */
+    public enum TradeInteract { PASS, CONSUME, OPEN_TRADE }
+
+    /**
+     * 바닐라 Villager.mobInteract: 주민 스폰 알을 들었거나 죽었거나 거래·수면 중이면 넘긴다. 아기는 불만 표시. 어른은 주 손이면
+     * (거래가 없을 때 불만 표시) 대화 통계, 거래가 없으면 소비, 있으면 거래 시작(OPEN_TRADE: 특별 가격을 갱신했으니 부르는 쪽이 화면을 연다).
+     * 아이템이 villager_spawn_egg 일 때만 거른다(다른 스폰 알은 상관없다).
+     */
+    public TradeInteract mobInteract(Player p, boolean mainHand, boolean villagerSpawnEgg) {
+        if (villagerSpawnEgg || !isAlive() || tradingPlayer != null || isSleeping()) return TradeInteract.PASS;
+        if (isBaby()) {
+            setUnhappy();
+            return TradeInteract.CONSUME;
+        }
+        boolean empty = offers().isEmpty();
+        if (mainHand) {
+            if (empty) setUnhappy();
+            p.awardStat("minecraft:talked_to_villager", 1);
+        }
+        if (empty) return TradeInteract.CONSUME;
+        updateSpecialPrices(p);
+        return TradeInteract.OPEN_TRADE;
     }
 
     // ------------------------------------------------------------------ 잠
@@ -401,11 +451,18 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         foodLevel -= BREEDING_FOOD_THRESHOLD;
     }
 
+    /** ItemTags.VILLAGER_PLANTABLE_SEEDS: 데이터 팩 태그가 걸려 있으면 그것을, 아니면 바닐라 기본 태그를 본다. */
+    public static boolean isPlantableSeed(ItemStack s) {
+        if (s.isEmpty()) return false;
+        String tag = "minecraft:villager_plantable_seeds";
+        return ItemContext.hasTag("minecraft:item", tag) ? ItemContext.isInTag("minecraft:item", tag, s.itemId()) : org.domi.furnace.server.item.ItemTags.is(s, tag);
+    }
+
     /** hasFarmSeeds: 가방에 심을 씨앗(villager_plantable_seeds)이 있다. */
     public boolean hasFarmSeeds() {
         for (int i = 0; i < inventory.size(); i++) {
             ItemStack s = inventory.get(i);
-            if (!s.isEmpty() && org.domi.furnace.server.entity.ai.behavior.HarvestFarmland.PLANTABLE_SEEDS.containsKey(ItemTools.itemName(s))) return true;
+            if (isPlantableSeed(s)) return true;
         }
         return false;
     }
@@ -509,6 +566,10 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
             witch.moveTo(x(), y(), z(), yRot(), xRot());
             witch.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(witch.blockPosition()));
             witch.setNoAi(isNoAi());
+            if (hasCustomName()) {
+                witch.setCustomName(getCustomName());
+                witch.setCustomNameVisible(isCustomNameVisible());
+            }
             witch.persistenceRequired = true;
             level.addFreshEntity(witch.spawnReason("LIGHTNING"));
             releaseAllPois();
@@ -620,7 +681,7 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
 
     /**
      * 바닐라 restock: 수요를 갱신하고 사용 횟수를 0 으로 되돌린다.
-     * TODO(평판): updateSpecialPrices(gossip)는 평판이 없어 생략. 침대·직업 블록·시간에 따른 호출 시점(shouldRestock)은 일과(brain) 범위.
+     * 침대·직업 블록·시간에 따른 호출 시점(shouldRestock)은 일과(brain)가 정한다. 특별 가격(평판·영웅)은 거래를 열 때 updateSpecialPrices 가 새로 계산한다.
      */
     public void restock() {
         for (MerchantOffer o : offers()) o.updateDemand();
@@ -657,7 +718,7 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         numberOfRestocksToday = 0;
     }
 
-    /** AbstractVillager.notifyTrade: 사용 횟수 + 주변 소리 시계 되돌림 → rewardTradeXp(경험치·레벨업 대기·구슬 하나). TODO(발전 과제): villager_trade. */
+    /** AbstractVillager.notifyTrade: 사용 횟수 + 주변 소리 시계 되돌림 → rewardTradeXp(경험치·레벨업 대기·구슬 하나). 발전 과제 villager_trade 는 MerchantMenu 가 건다. */
     @Override
     public void notifyTrade(MerchantOffer offer) {
         offer.increaseUses();
@@ -699,9 +760,8 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
     }
 
     public Text tradeTitle() {
-        String prof = profession();
-        Text name = prof.equals("none") ? Text.translatable("entity.minecraft.villager") : Text.translatable("entity.minecraft.villager." + prof);
-        return Text.translatable("merchant.title", name, Text.translatable("merchant.level." + villagerLevel()));
+        // 바닐라 openTradingScreen(player, getDisplayName(), level): 이름만 보낸다(클라이언트 MerchantScreen 이 "이름 - 단계"로 감싼다)
+        return hasCustomName() ? getCustomName() : Text.translatable("entity.minecraft.villager." + profession());
     }
 
     // ------------------------------------------------------------------ 저장
@@ -717,7 +777,6 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
         tag.putCompound("VillagerData", vd);
         tag.putInt("Xp", villagerXp);
         tag.putByte("FoodLevel", (byte) foodLevel);
-        tag.putBoolean("Willing", false);
         tag.putList("Gossips", gossips.store());
         tag.putLong("LastRestock", lastRestockGameTime);
         tag.putLong("LastGossipDecay", lastGossipDecayTime);

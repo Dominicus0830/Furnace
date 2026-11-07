@@ -233,4 +233,8 @@ public class Piglin extends AbstractPiglin implements CrossbowAttackMob, Invento
     @Override protected String getDeathSound() { return "entity.piglin.death"; }
 
     @Override protected void playConvertedSound() { makeSound("entity.piglin.converted_to_zombified"); }
+
+    /** Piglin.playStepSound: piglin.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.piglin.step", 0.15F, 1.0F); }
 }
