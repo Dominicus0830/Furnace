@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.api.command.BasicCommand;
+import org.domi.furnace.api.command.CommandBuilder;
 import org.domi.furnace.api.command.CommandRegistry;
 import org.domi.furnace.api.command.CommandSender;
 import org.domi.furnace.api.plugin.FurnacePlugin;
@@ -52,6 +53,21 @@ final class CommandRegistryImpl implements CommandRegistry {
     public synchronized Collection<String> register(FurnacePlugin plugin, String label, String description, List<String> aliases,
                                                     BasicCommand command) {
         String name = normalize(label);
+        PluginDescription.CommandInfo info = plugin.description().commands().get(name);
+        BasicCommand effective = info != null && info.permission() != null && command.permission() == null ? withPermission(command, info.permission()) : command;
+        return registerNames(plugin, name, aliases, (n, ns) -> node(plugin, ns, n, effective));
+    }
+
+    @Override
+    public synchronized Collection<String> register(FurnacePlugin plugin, CommandBuilder root, String description, List<String> aliases) {
+        if (!root.isLiteral()) throw new IllegalArgumentException("명령 트리의 루트는 literal 이어야 한다");
+        String name = normalize(root.name());
+        return registerNames(plugin, name, aliases, (n, ns) -> treeNode(plugin, ns, n, root));
+    }
+
+    /** 이름·별칭·"플러그인:이름" 을 트리에 붙이고 접속자에게 다시 보낸다. build(짧은 이름, 트리에 붙는 이름). */
+    private Collection<String> registerNames(FurnacePlugin plugin, String name, List<String> aliases,
+                                             java.util.function.BiFunction<String, String, LiteralArgumentBuilder<CommandSource>> build) {
         List<String> names = new ArrayList<>();
         names.add(name);
         List<String> extra = new ArrayList<>(aliases);
@@ -59,16 +75,15 @@ final class CommandRegistryImpl implements CommandRegistry {
         if (info != null) extra.addAll(info.aliases());
         for (String a : extra) names.add(normalize(a));
         String namespace = plugin.name().toLowerCase(Locale.ROOT).replace(' ', '_');
-        BasicCommand effective = info != null && info.permission() != null && command.permission() == null ? withPermission(command, info.permission()) : command;
         Set<String> registered = new LinkedHashSet<>();
         for (String n : names) {
             String ns = namespace + ":" + n;
             if (dispatcher().getRoot().getChild(ns) == null) {
-                dispatcher().register(node(plugin, ns, n, effective));
+                dispatcher().register(build.apply(n, ns));
                 registered.add(ns);
             }
             if (dispatcher().getRoot().getChild(n) == null) {
-                dispatcher().register(node(plugin, n, n, effective));
+                dispatcher().register(build.apply(n, n));
                 registered.add(n);
             } else {
                 log.warn("[{}] 명령 '{}' 은(는) 이미 있어 '{}' 로만 등록한다", plugin.name(), n, ns);
@@ -78,6 +93,100 @@ final class CommandRegistryImpl implements CommandRegistry {
         resendTrees();
         return List.copyOf(registered);
     }
+
+    // ---- API 트리 → 서버 Brigadier 노드
+
+    private LiteralArgumentBuilder<CommandSource> treeNode(FurnacePlugin plugin, String name, String label, CommandBuilder spec) {
+        Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
+        LiteralArgumentBuilder<CommandSource> b = literal(name);
+        fill(b, spec, exec, tab);
+        return b;
+    }
+
+    private void fill(org.domi.furnace.server.command.brigadier.ArgumentBuilder<CommandSource, ?> b, CommandBuilder spec, Timing exec, Timing tab) {
+        if (spec.requirement() != null) b.requires(src -> spec.requirement().test(host.sender(src)));
+        if (spec.executor() != null) b.executes(ctx -> runTree(spec.executor(), exec, ctx));
+        for (CommandBuilder child : spec.children()) {
+            org.domi.furnace.server.command.brigadier.ArgumentBuilder<CommandSource, ?> cb;
+            if (child.isLiteral()) {
+                cb = literal(child.name());
+            } else {
+                org.domi.furnace.server.command.brigadier.RequiredArgumentBuilder<CommandSource, ?> rb = argument(child.name(), argType(child.type()));
+                if (child.suggester() != null) {
+                    CommandBuilder.Suggester sg = child.suggester();
+                    rb.suggests((ctx, sb) -> {
+                        long t0 = tab.start();
+                        try {
+                            for (String c : sg.suggest(host.sender(ctx.getSource()), sb.getRemaining())) {
+                                if (c.toLowerCase(Locale.ROOT).startsWith(sb.getRemainingLowerCase())) sb.suggest(c);
+                            }
+                        } catch (Throwable t) {
+                            log.error("자동완성 실패: /{}", ctx.getInput(), t);
+                        } finally {
+                            tab.stop(t0);
+                        }
+                        return sb.buildFuture();
+                    });
+                }
+                cb = rb;
+            }
+            fill(cb, child, exec, tab);
+            b.then(cb);
+        }
+    }
+
+    private static org.domi.furnace.server.command.brigadier.ArgumentType<?> argType(CommandBuilder.ArgType t) {
+        return switch (t) {
+            case CommandBuilder.ArgType.Bool b -> Arguments.bool();
+            case CommandBuilder.ArgType.Int i -> Arguments.integer(i.min(), i.max());
+            case CommandBuilder.ArgType.Dbl d -> Arguments.doubleArg(d.min(), d.max());
+            case CommandBuilder.ArgType.Str s -> switch (s.kind()) {
+                case WORD -> Arguments.word();
+                case QUOTABLE -> Arguments.string();
+                case GREEDY -> Arguments.greedyString();
+            };
+        };
+    }
+
+    private int runTree(CommandBuilder.Executor ex, Timing timing, CommandContext<CommandSource> ctx) {
+        CommandSender sender = host.sender(ctx.getSource());
+        CommandBuilder.Context c = new CommandBuilder.Context() {
+            public CommandSender sender() { return sender; }
+            public String input() { return ctx.getInput(); }
+            public int getInt(String n) { return ctx.getArgument(n, Integer.class); }
+            public double getDouble(String n) { return ctx.getArgument(n, Double.class); }
+            public boolean getBoolean(String n) { return ctx.getArgument(n, Boolean.class); }
+            public String getString(String n) { return ctx.getArgument(n, String.class); }
+        };
+        long t0 = timing.start();
+        try {
+            return ex.run(c);
+        } catch (Throwable t) {
+            log.error("Command exception: /{}", ctx.getInput(), t);
+            sender.sendMessage(Text.translatable("command.failed").color(org.domi.furnace.api.text.NamedTextColor.RED));
+            return 0;
+        } finally {
+            timing.stop(t0);
+        }
+    }
+
+    @Override
+    public synchronized boolean unregister(FurnacePlugin plugin, String name) {
+        Set<String> names = owned.get(plugin);
+        if (names == null || !names.remove(name)) return false;
+        dispatcher().getRoot().removeChild(name);
+        resendTrees();
+        return true;
+    }
+
+    @Override
+    public void updateCommands(CommandSender sender) {
+        if (host.source(sender).getPlayer() != null) core().commands().sendCommands(host.source(sender).getPlayer());
+    }
+
+    @Override
+    public void updateCommands() { resendTrees(); }
 
     private static BasicCommand withPermission(BasicCommand c, String permission) {
         return new BasicCommand() {
