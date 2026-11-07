@@ -27,6 +27,8 @@ public final class BiomeWeather {
 
     private static final Climate DEFAULT = new Climate(0.5F, false, true);
     private static final Map<String, Climate> CACHE = new ConcurrentHashMap<>();
+    /** 플러그인 바이옴(GameRegistryStore)의 날씨 성질 — 바닐라 JSON 보다 먼저 본다. 플러그인이 꺼지면 빠진다. */
+    private static final Map<String, Climate> CUSTOM = new ConcurrentHashMap<>();
     private static volatile WorldgenData data;
 
     private BiomeWeather() {}
@@ -34,8 +36,15 @@ public final class BiomeWeather {
     /** 바이옴 이름(minecraft:…)의 날씨 성질. 모르면 평원 같은 기본값. */
     public static Climate of(String biome) {
         if (biome == null) return DEFAULT;
+        Climate c = CUSTOM.get(biome);
+        if (c != null) return c;
         return CACHE.computeIfAbsent(biome, BiomeWeather::load);
     }
+
+    /** 플러그인 바이옴의 날씨 성질을 정한다(다시 부르면 갈아 끼운다). */
+    public static void putCustom(String biome, Climate climate) { CUSTOM.put(biome, climate); }
+
+    public static void removeCustom(String biome) { CUSTOM.remove(biome); }
 
     private static Climate load(String biome) {
         try {

@@ -5,7 +5,7 @@
 //   exclusiveSet: 함께 붙을 수 없는 마법부여(태그 하나 또는 id 목록, 비면 없음).
 //   비용: 레벨 L 의 최소·최대 비용 = base + perLevelAboveFirst × (L - 1). 마법 부여대·전리품의 레벨 선택에 쓰인다.
 //   slots: 효과가 도는 장비 칸 묶음 — any, mainhand, offhand, hand, feet, legs, chest, head, armor, body.
-// 마법 부여대·거래·전리품에 나오게 하려면 GameRegistryRegistrar.addToTag 로 바닐라 태그(minecraft:in_enchanting_table,
+// 마법 부여대·거래·전리품에 나오게 하려면 GameRegistrar.addToTag 로 바닐라 태그(minecraft:in_enchanting_table,
 // minecraft:tradeable, minecraft:on_random_loot, minecraft:non_treasure 등)에 넣는다.
 package org.domi.furnace.api.registry;
 

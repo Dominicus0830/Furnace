@@ -195,7 +195,9 @@ public final class FurnaceMain {
         BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
         ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        // 게임 레지스트리 훅: 플러그인 바이옴·차원 타입을 바닐라 항목 뒤에 붙인 세트(바닐라 인덱스는 그대로)
+        RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
         int plainsBiome = Math.max(0,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
@@ -288,7 +290,7 @@ public final class FurnaceMain {
         try {
             Path vanillaRoot = org.domi.furnace.server.data.VanillaData.ensure(Path.of("."));
             dataPacks = org.domi.furnace.server.data.DataPackManager.start(vanillaRoot, worldDir, levelData,
-                    org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), newWorld,
+                    registries, newWorld,
                     props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot.dataPackHooks());
         } catch (Exception e) {
             log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
@@ -352,6 +354,8 @@ public final class FurnaceMain {
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);
+        // 클라에 보내는 세트: 데이터 팩을 읽었으면 데이터 주도 레지스트리(변종·마법부여 등)를 다시 만든 것, 아니면 플러그인 바이옴·차원 타입까지
+        core.registries(dataPacks != null ? dataPacks.dynamicRegistries().registries() : registries);
         if (dataPacks != null) core.dataPacks(dataPacks);
         coreRef.set(core);
         loginContext.core(core);

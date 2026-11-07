@@ -36,6 +36,7 @@ public final class TestGameBoots {
                 reg.json("minecraft:banner_pattern", "game:stripe", "{\"asset_id\":\"game:stripe\",\"translation_key\":\"block.game.stripe\"}");
                 reg.addToTag("minecraft:enchantment", "minecraft:in_enchanting_table", "game:zap");
                 reg.addToTag("minecraft:painting_variant", "minecraft:placeable", "game:big");
+                reg.registerBiome("glow", org.domi.furnace.api.worldgen.BiomeDefinition.builder().temperature(0.1f).build());   // 같은 훅의 W2 몫
                 try {
                     reg.wolfVariant("other:wolf", new WolfVariant("a:b", "a:b", "a:b", List.of()));
                 } catch (RuntimeException e) {

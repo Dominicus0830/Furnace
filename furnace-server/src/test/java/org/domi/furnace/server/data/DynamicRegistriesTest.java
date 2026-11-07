@@ -82,7 +82,7 @@ class DynamicRegistriesTest {
         RegistrySet set = BUILTIN.with("minecraft:painting_variant", List.of("minecraft:alban", "x:y"), java.util.Map.of("x:y", d));
         ByteBuf buf = Unpooled.buffer();
         new RegistryData("minecraft:painting_variant", set.entries("minecraft:painting_variant"),
-                e -> set.data("minecraft:painting_variant", e)).write(buf);
+                set).write(buf);
         assertEquals("minecraft:painting_variant", Types.readString(buf, 32767));
         assertEquals(2, Types.readVarInt(buf));
         assertEquals("minecraft:alban", Types.readString(buf, 32767));

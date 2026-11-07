@@ -146,7 +146,10 @@ public final class WorldgenData {
     /** biome의 temperature_modifier == "frozen" 여부(frozen_ocean, deep_frozen_ocean). */
     public boolean biomeFrozenModifier(String biomeName) {
         return frozenModifierCache.computeIfAbsent(biomeName, n -> {
-            JsonObject b = biome(n);
+            // 플러그인 바이옴처럼 바닐라 JSON 이 없는 이름은 보정 없음(월드젠이 레지스트리 전체 이름을 훑는 곳이 있다)
+            JsonElement el = loadResource(idToPath(n, "worldgen/biome"));
+            if (el == null) return false;
+            JsonObject b = el.getAsJsonObject();
             return b.has("temperature_modifier") && "frozen".equals(b.get("temperature_modifier").getAsString());
         });
     }

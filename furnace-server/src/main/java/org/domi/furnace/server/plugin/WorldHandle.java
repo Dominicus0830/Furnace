@@ -147,6 +147,49 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public TaskScheduler scheduler(BlockPos pos) { return host.profiled().wrap(world.chunkScheduler(pos.chunkX(), pos.chunkZ())); }
 
+    // ------------------------------------------------------------------ 바이옴
+
+    private List<String> biomeNames() {
+        var regs = core().registries();
+        if (regs == null) {
+            var dp = core().dataPacks();
+            return dp != null && dp.loot() != null ? dp.loot().registries().entries(GameRegistryStore.BIOME_REGISTRY) : List.of();
+        }
+        return regs.entries(GameRegistryStore.BIOME_REGISTRY);
+    }
+
+    @Override
+    public CompletableFuture<Optional<String>> biomeAt(BlockPos pos) {
+        ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        List<String> names = biomeNames();
+        CompletableFuture<Optional<String>> f = world.submitAtOwnedChunk(cp, r -> {
+            if (!inHeight(pos.y()) || !r.chunkLoaded(cp)) return Optional.<String>empty();
+            int id = r.noiseBiomeIdAtBlock(pos.x(), pos.y(), pos.z());
+            return id >= 0 && id < names.size() ? Optional.of(names.get(id)) : Optional.<String>empty();
+        });
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(Optional.empty()));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> setBiome(BlockPos pos, String biome) {
+        if (biome == null) throw new NullPointerException("biome");
+        String key = biome.indexOf(':') < 0 ? "minecraft:" + biome : biome;
+        int id = biomeNames().indexOf(key);
+        if (id < 0) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("알 수 없는 바이옴: " + biome)));
+        GameRegistryStore store = host.pluginsImpl().gameRegistries();
+        GameRegistryStore.Entry<?> custom = store == null ? null : store.biome(key);
+        if (custom != null && !custom.active()) {
+            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("꺼진 플러그인의 바이옴: " + biome)));
+        }
+        ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        CompletableFuture<Boolean> f = world.submitAtOwnedChunk(cp, r -> {
+            if (!inHeight(pos.y()) || !r.chunkLoaded(cp)) return false;
+            int qx = (pos.x() >> 2) << 2, qy = (pos.y() >> 2) << 2, qz = (pos.z() >> 2) << 2;
+            return r.fillBiomes(qx, qy, qz, qx, qy, qz, id, b -> true) > 0;
+        });
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(false));
+    }
+
     // ------------------------------------------------------------------ 청크
 
     @Override

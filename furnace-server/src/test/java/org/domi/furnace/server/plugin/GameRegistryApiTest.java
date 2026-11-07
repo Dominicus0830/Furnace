@@ -65,7 +65,8 @@ class GameRegistryApiTest {
 
     private DataPackManager start(PluginBootstrapper boot) {
         LevelData level = LevelData.create("world", 1L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of(), List.of());
-        packs = DataPackManager.start(null, tmp.resolve("world"), level, RegistrySet.load("registries/1.21.1.txt"),
+        RegistrySet base = boot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));   // FurnaceMain 과 같은 순서
+        packs = DataPackManager.start(null, tmp.resolve("world"), level, base,
                 true, List.of(), List.of(), boot.dataPackHooks());
         return packs;
     }
@@ -95,6 +96,11 @@ class GameRegistryApiTest {
         assertTrue("Zap".equals(desc) || (desc instanceof org.domi.furnace.server.net.io.nbt.NbtCompound c && "Zap".equals(c.getString("text"))), String.valueOf(desc));
         assertTrue(regs.entries("minecraft:banner_pattern").contains("game:stripe"));
         assertEquals("plugin:Game", packs.dynamicRegistries().source("minecraft:enchantment", "game:zap"));
+
+        // 같은 훅의 바이옴(W2)은 바닐라 뒤에 붙은 채 데이터 팩 레지스트리 세트에도 남는다
+        List<String> biomes = regs.entries("minecraft:worldgen/biome");
+        assertEquals("game:glow", biomes.get(biomes.size() - 1));
+        assertNotNull(regs.data("minecraft:worldgen/biome", "game:glow"));
 
         // 남의 namespace 키는 거절
         assertNotNull(TestGameBoots.badKey);

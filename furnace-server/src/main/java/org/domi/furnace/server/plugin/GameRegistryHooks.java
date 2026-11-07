@@ -1,4 +1,4 @@
-// 게임 레지스트리 훅(LifecycleEvents.GAME_REGISTRIES)의 서버 쪽: 플러그인 등록기를 만들고, 타입 있는 정의를 데이터 팩 JSON 꼴로 바꿔
+// 게임 레지스트리 훅(LifecycleEvents.GAME_REGISTRIES)의 데이터 주도 몫(GameRegistryStore.Registrar 가 넘긴다): 타입 있는 정의를 데이터 팩 JSON 꼴로 바꿔
 // DynamicRegistries 에 넘긴다. 태그 더하기는 플러그인별로 들고 있다가 데이터를 읽을 때마다(시작·/reload) 넘기고, 플러그인이 꺼지면 뺀다.
 package org.domi.furnace.server.plugin;
 
@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.domi.furnace.api.plugin.PluginDescription;
-import org.domi.furnace.api.plugin.lifecycle.GameRegistryRegistrar;
 import org.domi.furnace.api.registry.EnchantmentDefinition;
 import org.domi.furnace.api.registry.PaintingVariant;
 import org.domi.furnace.api.registry.WolfVariant;
@@ -28,25 +27,24 @@ final class GameRegistryHooks {
     void removeOwner(String owner) { tags.removeIf(t -> t.owner().equals(owner)); }
 
     /** 그 플러그인의 등록기. 더한 항목은 out 에 모인다. */
-    GameRegistryRegistrar registrar(PluginDescription d, List<DynamicRegistries.Contribution> out) {
-        return new Registrar(d, out);
+    DataRegistrar registrar(PluginDescription d, List<DynamicRegistries.Contribution> out) {
+        return new DataRegistrar(d, out);
     }
 
-    private final class Registrar implements GameRegistryRegistrar {
+    final class DataRegistrar {
         private final PluginDescription d;
         private final List<DynamicRegistries.Contribution> out;
 
-        Registrar(PluginDescription d, List<DynamicRegistries.Contribution> out) {
+        DataRegistrar(PluginDescription d, List<DynamicRegistries.Contribution> out) {
             this.d = d;
             this.out = out;
         }
 
-        @Override
-        public String namespace() { return d.namespace(); }
-
         private String ownKey(String key) {
+            if (key == null) throw new NullPointerException("key");
+            if (key.indexOf(':') < 0) key = d.namespace() + ":" + key;   // 바이옴·차원 타입처럼 namespace 를 붙인다
             ResourceId id = ResourceId.tryParse(key);
-            if (id == null || key.indexOf(':') < 0) throw new IllegalArgumentException("잘못된 키(namespace:path): " + key);
+            if (id == null) throw new IllegalArgumentException("잘못된 키(namespace:path): " + key);
             if (!id.namespace().equals(d.namespace())) {
                 throw new IllegalArgumentException("키의 namespace 는 자기 플러그인 namespace(" + d.namespace() + ")여야 한다: " + key);
             }
@@ -61,7 +59,6 @@ final class GameRegistryHooks {
             out.add(new DynamicRegistries.Contribution(d.name(), registry, k, json));
         }
 
-        @Override
         public void wolfVariant(String key, WolfVariant v) {
             JsonObject o = new JsonObject();
             o.addProperty("wild_texture", id(v.wildTexture()));
@@ -71,7 +68,6 @@ final class GameRegistryHooks {
             add("minecraft:wolf_variant", key, o);
         }
 
-        @Override
         public void paintingVariant(String key, PaintingVariant v) {
             JsonObject o = new JsonObject();
             o.addProperty("asset_id", id(v.assetId()));
@@ -80,12 +76,10 @@ final class GameRegistryHooks {
             add("minecraft:painting_variant", key, o);
         }
 
-        @Override
         public void enchantment(String key, EnchantmentDefinition e) {
             add("minecraft:enchantment", key, enchantmentJson(e));
         }
 
-        @Override
         public void json(String registry, String key, String json) {
             String reg = ResourceId.parse(registry).toString();
             if (!DynamicRegistries.DATA_DRIVEN.contains(reg)) throw new IllegalArgumentException("항목을 더할 수 없는 레지스트리: " + registry);
@@ -99,7 +93,6 @@ final class GameRegistryHooks {
             add(reg, key, e.getAsJsonObject());
         }
 
-        @Override
         public void addToTag(String registry, String tag, String... entries) {
             String reg = ResourceId.parse(registry).toString();
             if (!org.domi.furnace.server.data.TagRegistries.SYNCED.contains(reg)) {

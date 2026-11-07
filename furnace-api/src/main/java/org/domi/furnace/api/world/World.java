@@ -87,6 +87,24 @@ public interface World {
      */
     CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos);
 
+    // ------------------------------------------------------------------ 바이옴
+
+    /**
+     * 그 칸의 바이옴 키(minecraft:plains, 플러그인 바이옴은 myplugin:glow). 바이옴은 4칸 단위 칸(quart)이라 같은 칸의 블록은 같은 값이다.
+     * 소유 region 스레드에서 읽는다. 청크가 로드돼 있지 않으면 empty(청크를 만들지 않는다). 아무 스레드.
+     */
+    default CompletableFuture<Optional<String>> biomeAt(BlockPos pos) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("biomeAt"));
+    }
+
+    /**
+     * 그 칸이 든 바이옴 칸(4x4x4)을 biome 으로 바꾸고, 그 청크를 보는 플레이어에게 바이옴을 다시 보낸다(/fillbiome 과 같은 경로).
+     * 청크가 로드돼 있지 않으면 false. 모르는 바이옴 키면 IllegalArgumentException 으로 완료된다.
+     */
+    default CompletableFuture<Boolean> setBiome(BlockPos pos, String biome) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("setBiome"));
+    }
+
     // ------------------------------------------------------------------ region 정보
 
     /**
