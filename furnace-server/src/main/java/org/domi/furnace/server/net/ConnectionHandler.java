@@ -1416,6 +1416,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
+        final ChannelHandlerContext saveCtx = ctx;
+        p.saveRequest(() -> {   // save-all·백업: 이벤트 루프에서 스냅샷 → 플레이어 데이터 실행기(넣은 뒤 완료)
+            java.util.concurrent.CompletableFuture<Void> f = new java.util.concurrent.CompletableFuture<>();
+            try {
+                saveCtx.executor().execute(() -> {
+                    try {
+                        if (saveCtx.channel().isActive()) savePlayerSnapshot();
+                        f.complete(null);
+                    } catch (Throwable t) {
+                        f.completeExceptionally(t);
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                f.complete(null);   // 이벤트 루프가 닫혔다(끊기는 중) — 퇴장 저장이 맡는다
+            }
+            return f;
+        });
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
         if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림

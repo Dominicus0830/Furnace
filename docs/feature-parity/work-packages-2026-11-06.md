@@ -38,7 +38,7 @@
 | O1 | 63, 64, 95 | 채팅 신고 끄기(`chat.unsigned-as-system`), **순서 어긋난 채팅 킥 끄기**, **서버 브랜드 설정·"x/y 명 자는 중" 메시지 끄기·Ctrl+C 종료 확인** | Sonnet medium | 1 | 모두 기본 꺼짐(D3). 아래 2.1.1 에 세부 |
 | O2 | 91, 92, 94, 96, 98 | `/furnace config` 덤프·오타 경고, `config-version` 마이그레이션·프리셋, JVM 점검 경고, 콘솔 줄 편집·자동완성(JLine), 설정값 `${ENV}` 치환 | Sonnet medium | 2 | 91·92·98 은 같은 설정 로더. 96 은 헤드리스 서버에서 JLine 이 꺼지는 경우 대비 |
 | O3 | 93 | Paper/Spigot 설정(`bukkit.yml`·`spigot.yml`·`paper-*.yml`) 대응 키 가져오기 + 못 옮긴 키 보고 | Sonnet high | 3 | 기존 월드 가져오기(`furnace-bukkit-world-import`)와 같은 첫 기동 경로. 대응 표 문서화 |
-| O4 | 75, 76, 97 | 플레이어 데이터 비동기 저장, 빈 서버 일시정지 flush, 주기 백업 | Opus high | 2 | 저장 레인 PR #38 병합 뒤. 백업은 region 스레드마다 일관된 스냅샷이 핵심 → 설계가 어려움. 기본 꺼짐 |
+| O4 | 75, 76, 97 | 플레이어 데이터 비동기 저장, 빈 서버 일시정지 flush, 주기 백업 | Opus high | 2 | 저장 레인 PR #38 병합 뒤. 백업은 region 스레드마다 일관된 스냅샷이 핵심 → 설계가 어려움. 기본 꺼짐. **구현(2026-11-07): `backup-idle-pause-o4-2026-11-07.md`** |
 
 #### 2.1.1 O1 세부 (도미니코 직접 지정: 64, 95)
 - 64 순서 어긋난 채팅 킥 끄기: 바닐라 킥은 `chat/SignedMessageChain.java` 에 구현돼 있다. 설정 키(예 `chat.kick-on-out-of-order=true`)를 만들어 `false` 면 킥 대신 해당 메시지만 버리고 서명 체인을 다시 맞춘다. 기본 `true`(바닐라).
