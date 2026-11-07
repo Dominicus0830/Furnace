@@ -79,6 +79,11 @@ public final class SharedChunkFrames {
     /** 서버가 켜질 때 네트워크 압축 임계값을 알린다(음수면 미리 압축 안 함). 임계값이 다른 연결은 예전처럼 이벤트 루프에서 압축한다. */
     public static void precompressThreshold(int threshold) { precompressThreshold = threshold; }
 
+    /** 이 임계값이 지금 켜진 값일 때만 끈다(한 JVM 에 서버가 여럿일 때 남의 값을 지우지 않게). */
+    public static void clearPrecompressThreshold(int threshold) {
+        if (precompressThreshold == threshold) precompressThreshold = -1;
+    }
+
     private record PreEnc(int threshold, CompressionEncoder enc) {}
 
     // 압축 중 쓰는 Deflater 를 스레드마다 한 개 재사용한다(파이프라인에 붙지 않은 인코더 — 이 스레드에서만 쓴다).
@@ -93,6 +98,11 @@ public final class SharedChunkFrames {
             pe = new PreEnc(threshold, new CompressionEncoder(threshold));
             PRE.set(pe);
         }
-        compressAndCache(pe.enc, body);
+        try {
+            compressAndCache(pe.enc, body);
+        } catch (RuntimeException e) {
+            // 미리 압축은 최적화일 뿐이다 — 실패해도 본문 직렬화는 성공해야 하고, 보낼 때 이벤트 루프가 예전처럼 압축한다.
+            org.slf4j.LoggerFactory.getLogger(SharedChunkFrames.class).warn("[NET] 청크 미리 압축 실패 — 보낼 때 압축한다", e);
+        }
     }
 }

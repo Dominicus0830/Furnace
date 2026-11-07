@@ -175,7 +175,7 @@ public final class NetworkServer {
     }
 
     public void stop() {
-        org.domi.furnace.server.net.io.SharedChunkFrames.precompressThreshold(-1);
+        org.domi.furnace.server.net.io.SharedChunkFrames.clearPrecompressThreshold(compressionThreshold);   // 다른 서버가 넣은 값은 건드리지 않는다
         if (channel != null) channel.close().syncUninterruptibly();
         // 접속 중인 연결에는 사유를 알리고 닫는다(예전엔 사유 없이 끊겨 클라가 "Connection lost"만 봤다).
         for (Channel c : allChannels) {
