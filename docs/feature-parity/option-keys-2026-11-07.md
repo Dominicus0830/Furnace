@@ -22,7 +22,10 @@
 | `entity-view-distance` | 수 | 8 | 1 이상 | 엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음 |  |
 | `region-section-shift` | 수 | 4 | 1~8 | 동적 region 구역 크기(2^값 청크) |  |
 | `region-merge-radius` | 수 | 1 | 1 이상 | region 합치기 반경(구역 단위) |  |
-| `region-threads` | 수 | CPU 수 | 1 이상 | region 작업 스레드 수 |  |
+| `region-threads` | 수 | CPU 수 | 1 이상 | region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다) | 워커가 코어의 2배를 넘으면 경고 |
+| `shared-region-pool` | ON/OFF | true | true|false | 모든 차원·추가 월드가 region 워커 풀 하나를 쓴다(Q5). false 면 차원마다 region-threads 개 | -D 와 충돌하면 경고 |
+| `region-pool-dim-cap` | 수 | 0 | 0 이상 | 다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1) | 공유 풀이 꺼져 있으면 쓰이지 않는다고 경고 |
+| `region-pool-starve-ticks` | 수 | 2 | 1 이상 | 차원의 가장 이른 일이 이 틱 수만큼 밀리면 그 차원을 먼저 돌린다 | 공유 풀이 꺼져 있으면 쓰이지 않는다고 경고 |
 | `io-threads` | 수 | 4 | 1 이상 | 청크 입출력 스레드 수 |  |
 | `autosave-ticks` | 수 | 6000 | 1 이상 | 자동 저장 간격(틱) |  |
 | `chunk-eviction-grace-ticks` | 수 | 100 | 1 이상 | 쓰지 않는 청크를 내리기 전 유예(틱) |  |
@@ -79,7 +82,7 @@
 - **경고 추가:** `proxy-protocol` trusted 없음, `plugins.dev-mode`, `tick-nanos` ≠ 50000000, 패킷 속도 0, 로그인 제한 시간 0.
 
 ### 키가 아닌 것(남긴 것)
-- `-Dfurnace.sharedRegionPool=true`(S4 공유 풀) — 시스템 속성이다. 기본값 검토와 키 승격은 Q5 에서 한다.
+- `-Dfurnace.sharedRegionPool`(S4 공유 풀) — Q5 에서 키 `shared-region-pool`(기본 true)로 올렸다. `-D` 는 되돌리기 스위치로 남아 파일 값보다 우선한다(`shared-scheduler-default-2026-11-07.md`).
 - `-Dfurnace.console.colors` `-Dfurnace.timer.spin` `-Dfurnace.network.compressionLevel` `-Dfurnace.region.compressionLevel` `-Dfurnace.io.backlogLimit`, 그리고 `furnace.watch` 등 월드젠 디버그용 `-D` — 성능 조정·디버그용으로 키를 만들지 않는다. 운영자가 바꿔야 할 일이 생기면 규칙 2 에 따라 키로 올린다.
 
 ## 4. `spawn-animals=false` / `spawn-npcs=false` 바닐라 대조

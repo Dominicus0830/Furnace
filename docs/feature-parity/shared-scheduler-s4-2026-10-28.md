@@ -3,6 +3,8 @@
 설계: `shared-scheduler-design-2026-10-28.md` §4·§7·§9 의 S4. 앞 단계: `shared-scheduler-s1s3-2026-10-28.md`.
 **스위치 `-Dfurnace.sharedRegionPool` 은 기본 꺼짐(false)** — 사용자 결정. 측정이 깨끗해도 기본값을 바꾸는 커밋은 하지 않았다.
 
+> **2026-11-07 갱신**: 다시 재 보고 기본값을 켰다(furnace.properties `shared-region-pool=true`). 튐 원인 조사와 설정 키는 `shared-scheduler-default-2026-11-07.md`.
+
 ## 커밋
 | 커밋 | 내용 |
 |---|---|
