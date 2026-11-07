@@ -840,6 +840,7 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** Level.playSeededSound: 씨앗을 부르는 쪽이 정한다(엔티티 난수 등). */
+    @Override
     public void playSeededSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch, long seed) {
         Integer id = ItemContext.installed() ? ItemContext.id("minecraft:sound_event", sound) : null;
         double range = volume > 1.0F ? 16.0 * volume : 16.0;
@@ -1731,6 +1732,20 @@ public abstract class ChunkLevel implements BlockLevel {
 
         public int unloadedState() { return bedrockState; }
 
+        @Override
+        public int uniformSectionState(int cx, int sy, int cz) {
+            ChunkColumn c = col(cx, cz);
+            int i = c == null ? -1 : sy - (c.minY() >> 4);
+            return i < 0 || i >= c.sectionCount() ? -1 : c.sectionUniformBlock(i);
+        }
+
+        @Override
+        public boolean sectionMayEmit(int cx, int sy, int cz) {
+            ChunkColumn c = col(cx, cz);
+            int i = c == null ? -1 : sy - (c.minY() >> 4);
+            return i < 0 || i >= c.sectionCount() || c.sectionMaybeHas(i, org.domi.furnace.server.light.LightTables.EMITS);
+        }
+
         public int extraEmission(int x, int y, int z) { return virtualLights().emission(x, y, z); }
 
         // 같은 섹션 연속 기록은 건너뛴다(전파 중 매 칸 불린다)
@@ -1809,8 +1824,16 @@ public abstract class ChunkLevel implements BlockLevel {
     public static void precomputeLight(ChunkColumn col, int cx, int cz, int bedrockState, boolean hasSkyLight) {
         col.motionBlockingHeightmap();   // 높이 지도도 첫 사용 때 틱 스레드에서 열마다 훑지 않게 미리 채운다
         if (col.light() != null) return;
-        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, (x, y, z) -> col.getBlock(x & 15, y, z & 15), bedrockState,
-                col.minY(), col.maxY() + 1, hasSkyLight));
+        final int base = col.minY() >> 4;
+        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, new org.domi.furnace.server.light.LevelLight.StateReader() {
+            @Override public int state(int x, int y, int z) { return col.getBlock(x & 15, y, z & 15); }
+
+            @Override public int uniformSectionState(int sectionY) { return col.sectionUniformBlock(sectionY - base); }
+
+            @Override public boolean sectionMayEmit(int sectionY) {
+                return col.sectionMaybeHas(sectionY - base, org.domi.furnace.server.light.LightTables.EMITS);
+            }
+        }, bedrockState, col.minY(), col.maxY() + 1, hasSkyLight));
         col.lightPrecomputed(true);
     }
 
@@ -2288,7 +2311,10 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** 칸마다 충돌 모양(월드 좌표, 몸통과 겹치는 것만)을 돌려준다. stopAtFirst 면 첫 것에서 멈춘다. */
-    private void collectCollisions(AABB box, java.util.function.BiPredicate<Pos, Shape> out) {
+    private void collectCollisions(AABB box, java.util.function.BiPredicate<Pos, Shape> out) { collectCollisions(box, null, out); }
+
+    /** entity 가 있으면 문맥 엔티티 충돌 모양(EntityCollisionContext — 가루눈처럼 엔티티마다 다른 블록)을 쓴다. */
+    private void collectCollisions(AABB box, Entity entity, java.util.function.BiPredicate<Pos, Shape> out) {
         int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
         int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
         int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
@@ -2308,7 +2334,8 @@ public abstract class ChunkLevel implements BlockLevel {
                     int state = y < minBuildHeight() || y >= maxBuildHeight() ? AIR_STATE : c.getBlock(x & 15, y, z & 15);
                     if (edges == 1 && !hasLargeCollisionShape(state) || edges == 2 && blocks.blockOf(state) != MOVING_PISTON) continue;
                     Pos p = new Pos(x, y, z);
-                    Shape shape = BlockBehaviors.of(state).getCollisionShape(state, this, p, null);
+                    Shape shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, this, p, null)
+                            : BlockBehaviors.of(state).getEntityCollisionShape(state, this, p, entity);
                     if (shape.isEmpty()) continue;
                     if (shape == Shape.BLOCK) {
                         if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
@@ -2322,9 +2349,12 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** getBlockCollisions(entity, box): 몸통과 겹치는 블록 충돌 모양들. */
-    public java.util.List<Shape> blockCollisions(AABB box) {
+    public java.util.List<Shape> blockCollisions(AABB box) { return blockCollisions(null, box); }
+
+    /** getBlockCollisions(entity, box): 문맥 엔티티가 있으면 그 엔티티 기준 충돌 모양(가루눈 등). */
+    public java.util.List<Shape> blockCollisions(Entity entity, AABB box) {
         java.util.List<Shape> out = new java.util.ArrayList<>();
-        collectCollisions(box, (p, s) -> out.add(s));
+        collectCollisions(box, entity, (p, s) -> out.add(s));
         return out;
     }
 
@@ -2350,10 +2380,12 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** findSupportingBlock(entity, box): 겹치는 충돌 블록 중 엔티티 위치에서 가운데가 가장 가까운 것(같으면 compareTo 가 큰 쪽). */
-    public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) {
+    public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) { return findSupportingBlock(null, box, ex, ey, ez); }
+
+    public Pos findSupportingBlock(Entity entity, AABB box, double ex, double ey, double ez) {
         Pos[] best = {null};
         double[] bestDist = {Double.MAX_VALUE};
-        collectCollisions(box, (p, s) -> {
+        collectCollisions(box, entity, (p, s) -> {
             double dx = p.x() + 0.5 - ex, dy = p.y() + 0.5 - ey, dz = p.z() + 0.5 - ez;
             double d = dx * dx + dy * dy + dz * dz;
             if (d < bestDist[0] || d == bestDist[0] && (best[0] == null || compareVec(best[0], p) < 0)) {
@@ -2370,6 +2402,13 @@ public abstract class ChunkLevel implements BlockLevel {
         if (a.y() != b.y()) return Integer.compare(a.y(), b.y());
         if (a.z() != b.z()) return Integer.compare(a.z(), b.z());
         return Integer.compare(a.x(), b.x());
+    }
+
+    @Override
+    public int itemFrameAnalogOutput(Pos pos, int facing) {
+        var l = entities.getEntitiesOfClass(org.domi.furnace.server.entity.ItemFrame.class,
+                new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0), f -> f != null && f.direction() == facing);
+        return l.size() == 1 ? l.get(0).getAnalogOutput() : Integer.MIN_VALUE;
     }
 
     @Override

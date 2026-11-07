@@ -1188,13 +1188,19 @@ public abstract non-sealed class Entity implements Rider {
      * 엔티티 충돌(보트·셜커)·월드 보더 모양은 아직 목록에 없다(블록 충돌만).
      */
     protected double[] collide(double dx, double dy, double dz) {
-        return collideMove(level, bb, onGround(), maxUpStep(), dx, dy, dz);
+        return collideMove(level, this, bb, onGround(), maxUpStep(), dx, dy, dz);
     }
 
     /** Entity.collide 본체 — 엔티티 없이 상자·땅 위 여부·오르기 높이만으로 부른다(플레이어 이동 검증도 쓴다). */
     public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, AABB box, boolean onGround, float step,
                                        double dx, double dy, double dz) {
-        var shapes = level.blockCollisions(box.expandTowards(dx, dy, dz));
+        return collideMove(level, null, box, onGround, step, dx, dy, dz);
+    }
+
+    /** 같되 문맥 엔티티가 있으면 블록 충돌 모양이 그 엔티티 기준이 된다(가루눈). */
+    public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, Entity self, AABB box, boolean onGround, float step,
+                                       double dx, double dy, double dz) {
+        var shapes = level.blockCollisions(self, box.expandTowards(dx, dy, dz));
         double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz} : collideWithShapes(dx, dy, dz, box, shapes);
         boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
         boolean below = cy && dy < 0.0;
@@ -1202,7 +1208,7 @@ public abstract non-sealed class Entity implements Rider {
             AABB base = below ? box.move(0.0, r[1], 0.0) : box;
             AABB search = base.expandTowards(dx, step, dz);
             if (!below) search = search.expandTowards(0.0, -1.0E-5F, 0.0);
-            var stepShapes = level.blockCollisions(search);
+            var stepShapes = level.blockCollisions(self, search);
             for (float h : stepHeightCandidates(base, stepShapes, step, (float) r[1])) {
                 double[] c = collideWithShapes(dx, h, dz, base, stepShapes);
                 if (c[0] * c[0] + c[2] * c[2] > r[0] * r[0] + r[2] * r[2]) {
@@ -1268,11 +1274,11 @@ public abstract non-sealed class Entity implements Rider {
     protected void checkSupportingBlock(boolean ground, double[] movement) {
         if (ground) {
             AABB below = new AABB(bb.minX(), bb.minY() - 1.0E-6, bb.minZ(), bb.maxX(), bb.minY(), bb.maxZ());
-            Pos found = level.findSupportingBlock(below, x, y, z);
+            Pos found = level.findSupportingBlock(this, below, x, y, z);
             if (found != null || onGroundNoBlocks) {
                 supportingBlock = found;
             } else if (movement != null) {
-                supportingBlock = level.findSupportingBlock(below.move(-movement[0], 0.0, -movement[2]), x, y, z);
+                supportingBlock = level.findSupportingBlock(this, below.move(-movement[0], 0.0, -movement[2]), x, y, z);
                 found = supportingBlock;
             }
             onGroundNoBlocks = found == null;

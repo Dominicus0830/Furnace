@@ -117,6 +117,20 @@ public final class WorldBorder {
 
     public double coordinateScale() { return coordinateScale; }
 
+    /** 같은 상태(중심·크기·보간·피해·경고)로 좌표 비만 다른 복사본 — 플레이어별 개인 보더(K3)를 그 차원 기준으로 판정할 때. 비가 같으면 자기 자신. */
+    public synchronized WorldBorder withCoordinateScale(double scale) {
+        if (scale == coordinateScale) return this;
+        WorldBorder c = new WorldBorder(millis, scale);
+        c.setAbsoluteMaxSize(absoluteMaxSize);
+        c.applySettings(createSettings());
+        return c;
+    }
+
+    /** 저장된 중심 x(좌표 비로 나누기 전, 오버월드 좌표). */
+    public synchronized double getRawCenterX() { return centerX; }
+
+    public synchronized double getRawCenterZ() { return centerZ; }
+
     // ------------------------------------------------------------------ 크기 범위
 
     private static double clamp(double v, double min, double max) { return v < min ? min : Math.min(v, max); }
