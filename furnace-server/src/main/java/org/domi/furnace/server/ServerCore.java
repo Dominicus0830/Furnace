@@ -203,6 +203,65 @@ public final class ServerCore {
             return lootBlockState(world.regionizer().ownerOf(cx, cz).getBlock(x, y, z));
         }
 
+        /** 그 칸 청크를 지금 스레드가 가진 region 의 레벨(아니면 null). */
+        private org.domi.furnace.server.block.ChunkLevel levelAt(int x, int z) {
+            int cx = x >> 4, cz = z >> 4;
+            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
+            return world.regionizer().ownerOf(cx, cz).level();
+        }
+
+        public Boolean structureWithPieceAt(int x, int y, int z, java.util.function.Predicate<String> ids) {
+            var lv = levelAt(x, z);
+            if (lv == null) return null;
+            var pos = new org.domi.furnace.server.block.Pos(x, y, z);
+            for (var r : lv.structuresAt(pos)) if (ids.test(r.id()) && r.hasPieceAt(x, y, z)) return true;
+            return false;
+        }
+
+        public Boolean smokeyAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            return lv == null ? null : org.domi.furnace.server.block.types.CampfireBlock.isSmokeyPos(lv, new org.domi.furnace.server.block.Pos(x, y, z));
+        }
+
+        public Integer lightAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            return lv == null ? null : lv.getMaxLocalRawBrightness(new org.domi.furnace.server.block.Pos(x, y, z));
+        }
+
+        public Boolean canSeeSkyAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            return lv == null ? null : lv.canSeeSky(new org.domi.furnace.server.block.Pos(x, y, z));
+        }
+
+        public org.domi.furnace.server.loot.LootBlockState fluidAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            if (lv == null) return null;
+            int f = lv.getFluidState(new org.domi.furnace.server.block.Pos(x, y, z));
+            java.util.Map<String, String> props = new java.util.LinkedHashMap<>();
+            int type = org.domi.furnace.server.block.Fluids.type(f);
+            String name = switch (type) {
+                case org.domi.furnace.server.block.Fluids.T_FLOWING_WATER -> "minecraft:flowing_water";
+                case org.domi.furnace.server.block.Fluids.T_WATER -> "minecraft:water";
+                case org.domi.furnace.server.block.Fluids.T_FLOWING_LAVA -> "minecraft:flowing_lava";
+                case org.domi.furnace.server.block.Fluids.T_LAVA -> "minecraft:lava";
+                default -> "minecraft:empty";
+            };
+            if (type != org.domi.furnace.server.block.Fluids.EMPTY) {
+                if (!org.domi.furnace.server.block.Fluids.isSource(f)) props.put("level", Integer.toString(org.domi.furnace.server.block.Fluids.amount(f)));
+                props.put("falling", Boolean.toString(org.domi.furnace.server.block.Fluids.falling(f)));
+            }
+            return new org.domi.furnace.server.loot.LootBlockState(name, props);
+        }
+
+        public org.domi.furnace.server.net.io.nbt.NbtCompound blockEntityNbtAt(int x, int y, int z) {
+            var lv = levelAt(x, z);
+            if (lv == null) return null;
+            return lv.getBlockEntity(new org.domi.furnace.server.block.Pos(x, y, z)) instanceof org.domi.furnace.server.block.entity.BlockEntity be
+                    ? be.saveWithFullMetadata() : null;
+        }
+
+        public org.domi.furnace.server.net.io.nbt.NbtCompound storageNbt(String storage) { return ServerCore.this.world.commandStorage().get(storage); }
+
         public String dimension() { return world.dimension(); }
         };
     }

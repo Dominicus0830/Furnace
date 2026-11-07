@@ -64,4 +64,7 @@ public interface LootEntity {
     default java.util.List<LootStack> slotItems(String range) { return java.util.List.of(); }
 
     default int tickCount() { return 0; }
+
+    /** 플레이어의 게임 프로필(profile 컴포넌트 정규 값: name, id(int[4]), properties). 플레이어가 아니면 null. */
+    default java.util.Map<String, Object> gameProfile() { return null; }
 }

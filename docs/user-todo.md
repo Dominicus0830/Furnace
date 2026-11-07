@@ -77,7 +77,15 @@
 | `minecraft:large_biomes` | 51, 65, -672 | (0, 0) → 62 deep_frozen_ocean · (500, 0) → 62 frozen_ocean |
 | (비교용) `minecraft:normal` | 96, 136, -32 | (500, 0) → 136 grove · (-500, -500) → 95 birch_forest |
 
-지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 아직 미지원(경고 뒤 normal).
+지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 2026-11-07 구현(아래 "M19 운영 잔여").
+
+### M19 운영 잔여 (2026-11-07) — 실제 클라이언트·바닐라 서버로 한 번
+- **`debug_all_block_states`**: `level-type=minecraft:debug_all_block_states` 로 새 월드를 만들어 접속. 기대: 스폰 (0,80,0) 위 공중에 모든 블록 상태가 격자로 y=70 에 늘어서 있고 y=60 에 장벽이 깔림, 바이옴 plains, 지하는 비어 있음. 확인할 것: ① 격자 가로·세로 칸 수(Furnace 164×163, 블록 상태 26684개)가 바닐라 1.21.1 과 같은지, ② 첫 칸 근처(1,1)·(3,1) 의 블록 순서. 알려진 차이: 그 월드에서 블록을 부수거나 놓으면 서버는 저장하지만 클라이언트는 공식 값만 그린다(바닐라는 서버도 공식 값을 돌려줌).
+- **`single_biome_surface`**: 같은 방식으로 `level-type=minecraft:single_biome_surface`. 기대: 보통 오버월드 지형인데 바이옴이 전부 plains. 같은 시드 `normal` 과 높이가 같아야 한다(바이옴 때문에 달라지는 것은 나무·식물·얼음뿐).
+- **`/perf start`**: 오피로 `/perf start` → 10초 뒤 자동 멈춤(또는 `/perf stop`) → `debug/profiling/<날짜>-<월드>-<버전>.zip` 생성과 채팅 안내 문구. 보고서 안의 `profiling.txt`·`metrics/ticking.csv`·`metrics/jvm.csv` 는 Furnace 전역 박동 기준이라 바닐라 보고서와 숫자·열이 다르다(알려진 차이).
+- **JMX**: `enable-jmx-monitoring=true` 로 켜고 `jconsole` 에서 `net.minecraft.server:type=Server` 의 `tickTimes`·`averageTickTime` 이 보이는지.
+- **관전자**: `spectatorsGenerateChunks=false` 일 때 관전 모드 플레이어가 아직 안 만든 땅 쪽으로 날아가도 새 청크가 안 생기고(빈 칸), 다른 플레이어가 올려 둔 청크는 보이는지.
+- **전리품 함수 14종·조건 필드**: 데이터 팩 예시가 필요하면 `ItemFunctionsTest`·`PredicateFieldsTest` 의 JSON 을 쓰면 된다. 실제 게임에서 `/loot`·`/item modify` 로 한 번씩 써 보는 것은 선택.
 
 ### Paper/Spigot 설정·월드 가져오기 (O3, 2026-11-07) — 실제 Paper 폴더로 한 번
 `bukkit.yml`·`spigot.yml`·`config/paper-*.yml` 이 있는 서버 폴더로 첫 기동하면 대응 키를 `furnace.properties` 로 옮기고 `furnace-config-import-report.txt`, 월드 쪽은 `furnace-world-import-report.txt` 를 남긴다(`docs/feature-parity/paper-config-import-2026-11-07.md`).

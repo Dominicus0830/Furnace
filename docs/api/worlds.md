@@ -9,7 +9,7 @@ Folia 에서 깨진 "월드 만들기·내리기"를 Furnace 의 region 스케�
 Furnace server = Furnace.server();
 WorldCreator spec = WorldCreator.named("mining")              // 폴더 = <서버 폴더>/mining/
         .environment(WorldEnvironment.NORMAL)                 // NORMAL · NETHER · THE_END
-        .generator(WorldGenerator.DEFAULT)                    // DEFAULT · LARGE_BIOMES · AMPLIFIED · FLAT · VOID
+        .generator(WorldGenerator.DEFAULT)                    // DEFAULT · LARGE_BIOMES · AMPLIFIED · SINGLE_BIOME_SURFACE · DEBUG_ALL_BLOCK_STATES · FLAT · VOID
         .seed(12345L)                                         // 비우면 주 월드 시드
         .build();
 server.createWorld(spec).thenAccept(world -> {
@@ -27,6 +27,7 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 | 이미 있는 폴더 | 그 level.dat 의 시드가 이긴다(Bukkit 과 같다). 생성기·환경은 넘긴 설명서를 쓴다. 같은 이름이 이미 올라와 있으면 같은 설명서일 때 그 월드를 돌려주고, 다르면 실패 |
 | 차원 타입 | 비우면 환경의 바닐라 타입(`minecraft:overworld`·`the_nether`·`the_end`). `minecraft:overworld_caves` 와 플러그인이 부트스트랩에서 등록한 타입(W2, [bootstrap-registries.md](bootstrap-registries.md) 6장)도 된다. 꺼진 플러그인의 타입은 거절 |
 | 높이 | 노이즈 생성기(DEFAULT·LARGE_BIOMES·AMPLIFIED)는 그 계열 원래 높이(오버월드 -64..320, 네더·엔드 0..256) 타입만 받는다(바닐라와 같은 지형을 지키려고). FLAT·VOID 는 아무 높이나 된다 |
+| 월드 타입 | `SINGLE_BIOME_SURFACE` 는 오버월드 노이즈 지형에 바이옴이 `minecraft:plains` 하나(바닐라 `FixedBiomeSource`). `DEBUG_ALL_BLOCK_STATES` 는 바닐라 `DebugLevelSource` 와 같은 격자(y=60 장벽, y=70 모든 블록 상태, 스폰 0,80,0, 바이옴 plains). 둘 다 NORMAL 환경만. `server.properties` 의 `level-type` 도 같은 값(`minecraft:single_biome_surface`·`minecraft:debug_all_block_states`)을 받고, 접속 패킷의 `is_debug`·`is_flat` 도 바닐라처럼 보낸다 |
 | 스레드 | `createWorld`·`unloadWorld` 는 아무 스레드에서 불러도 되고 바로 future 를 돌려준다. 준비(폴더 잠금·level.dat·생성기)는 월드 전용 스레드에서 차례로 돈다. 결과 future 는 전역 스레드에서 끝난다 |
 | 이벤트 | `WorldLoadEvent`(틱을 켠 뒤), `WorldUnloadEvent`(취소 가능, 이때 월드 안에 플레이어는 없다). 기본 세 차원에는 오지 않는다(그때는 `ServerLoadEvent`) |
 | 내린 월드 | 그 손잡이의 `isLoaded()` 는 false, 블록·엔티티 작업은 실패로 끝난다. 같은 이름을 다시 올리면 새 손잡이다 |

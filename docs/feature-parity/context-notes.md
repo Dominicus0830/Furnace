@@ -1056,3 +1056,12 @@
   - 엔티티 용기 창 제목: 이름표 이름이 있으면 그 이름, 없으면 종류 이름, 팀이 있으면 접두사·색·접미사(`ContainerEntity.containerTitle`).
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
+
+## 2026-11-07 M19 서버 옵션·운영 잔여 (spectatorsGenerateChunks·JMX·/perf·디버그/단일 바이옴 월드·전리품)
+- 관전자 청크: 바닐라 `ChunkMap.skipPlayer` 처럼 관전자(게임룰 false)는 청크 구독·월드젠 요청을 미루고, 이미 로드된 청크만 받는다(`Region.skipsGeneration`). 게임 모드가 바뀌면 다음 틱 `updateChunks` 가 다시 판정.
+- 로그인/리스폰 패킷의 `is_flat`·`is_debug` 가 늘 false 로 하드코딩돼 있었다. 이제 월드 종류(`World.levelKind`)를 따른다 — 슈퍼플랫 월드는 이제 `is_flat=true` 를 보낸다(바닐라와 같음; 클라이언트 안개·하늘 지평선이 바뀜).
+- 전리품 함수 누락 수: 바닐라 jar 의 `LootItemFunctions` 등록표(40종)와 대조하면 14개였다(문서의 15는 오차). 컴포넌트 값은 JSON 꼴 맵·리스트로 두되 `custom_data` 만 서버 아이템 정규 값(NbtCompound).
+- `set_attributes` 난수 순서: 수정자마다 슬롯 `Util.getRandom`(nextInt) → 양 `getFloat`. `replace:false` 이고 컴포넌트가 비었으면 아이템 기본 속성 위에 얹는다(바닐라 바이트코드).
+- RaiderPredicate 는 `has_raid`·`is_captain` 기본값이 false 이고 둘 다 같아야 한다(예전 구현은 안 쓴 `is_captain` 을 "무관"으로 봤다). 엔티티 서브 조건 목록은 19종(lightning, fishing_hook, player, slime, raider, axolotl, boat, fox, mooshroom, rabbit, horse, llama, villager, parrot, tropical_fish, painting, cat, frog, wolf) — `sheep`·`salmon` 은 1.21.1 에 없다(1.21.2+).
+- 변종 값은 저장 NBT 에서 바닐라 이름으로 바꾼다(`LootTypeSpecific`): 열거형 변종은 이름 그대로, 고양이·개구리·그림·늑대·주민은 `minecraft:` id. KillCredit 스냅샷은 소유 스레드에서 이 값을 미리 읽어 둔다.
+- LocationPredicate 의 새 필드는 그 칸 청크를 지금 스레드가 가진 경우에만 읽는다(`LootWorld` 훅이 null → 거짓). 다른 region 소유 칸이면 거짓이 나올 수 있다는 것이 바닐라 `isLoaded` 검사 자리의 Furnace 쪽 한계.

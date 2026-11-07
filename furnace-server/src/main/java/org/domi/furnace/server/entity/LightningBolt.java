@@ -39,6 +39,16 @@ public class LightningBolt extends Entity {
 
     public int blocksSetOnFire() { return blocksSetOnFire; }
 
+    /** 바닐라 getHitEntities — 맞은 엔티티 중 아직 살아 있는 것(전리품 조건 lightning.entity_struck 용). */
+    public List<Rider> hitEntities() {
+        List<Rider> out = new ArrayList<>();
+        for (Object o : hitEntities) {
+            if (o instanceof Player p) { if (!p.vitals().isDeadOrDying()) out.add(p); }
+            else if (o instanceof Entity e && e.isAlive()) out.add(e);
+        }
+        return out;
+    }
+
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
