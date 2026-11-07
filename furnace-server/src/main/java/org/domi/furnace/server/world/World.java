@@ -58,6 +58,10 @@ public final class World {
     // 이 월드의 차원(기본 오버월드 — 단일 차원 테스트·도구 호환). 저장 폴더·높이·하늘빛이 여기서 나온다.
     private volatile DimensionType dimensionType;
     private volatile Dimensions dimensions;
+    /** 이 차원의 보더(바닐라 Level.worldBorder) — 네더는 중심을 좌표 비로 나눈다. 어느 스레드든 읽는다(보더 자체가 직렬화). */
+    private final WorldBorder border;
+    /** 오버월드 보더를 따라가는 고리(오버월드가 아니고 서버에 붙었을 때). 떼어 낼 때 쓴다. */
+    private volatile WorldBorder.Delegate borderFollow;
 
     // 로드된 청크와 로드 중인 청크(월드 공용). 청크 내용은 그 청크 구역을 가진 region 스레드만 만진다.
     private final ConcurrentHashMap<Long, ChunkColumn> chunks = new ConcurrentHashMap<>();
@@ -115,6 +119,7 @@ public final class World {
                   int regionThreads, SharedScheduler pool, int sectionShift, int mergeRadius, int viewDistance, int entityViewDistance,
                   int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
         this.dimensionType = type;
+        this.border = new WorldBorder(type.coordinateScale());
         this.worldSource = worldSource;
         this.ioPool = ioPool;
         this.ioLanes = ioPool == null ? null : new org.domi.furnace.server.world.anvil.IoLanes(ioPool, IO_LANES);
@@ -215,6 +220,14 @@ public final class World {
     public Regionizer regionizer() { return regionizer; }
 
     public DimensionType dimensionType() { return dimensionType; }
+
+    /** 이 차원의 보더(바닐라 ServerLevel.getWorldBorder). */
+    public WorldBorder border() { return border; }
+
+    /** 오버월드 보더를 따라가는 고리(없으면 null). ServerCore 가 붙이고 뗀다. */
+    public WorldBorder.Delegate borderFollow() { return borderFollow; }
+
+    public void borderFollow(WorldBorder.Delegate d) { this.borderFollow = d; }
 
     /** 서버가 띄운 차원들(단일 월드 테스트면 null). */
     public Dimensions dimensions() { return dimensions; }
@@ -1411,6 +1424,12 @@ public final class World {
         }
 
         @Override
+        public void prewarm(org.domi.furnace.server.entity.PortalTravel plan) {
+            World target = otherWorld(plan.targetDimension());
+            if (target != null && target != World.this) target.prewarmTravel(plan);
+        }
+
+        @Override
         public void runAtSource(int blockX, int blockZ, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
             runAt(blockX, blockZ, r -> task.accept(r.level()));
         }
@@ -1452,22 +1471,72 @@ public final class World {
     /**
      * plan 의 탐색·생성 반경 청크를 올리고 한 region 에 모이면 그 region 스레드에서 task(레벨). 청크 준비에 실패하면 task(null).
      * plan.complete 는 쓰지 않는다.
+     * 빠른 길(M10): 범위 청크가 모두 이미 올라와 있으면 디스크 확인(IO 레인)·로드 왕복 없이 곧바로 그 region 으로 넘긴다 — 목적 region 의
+     * 다음 작업 처리(다음 게임 틱 전)에 도착한다. 바닐라는 같은 틱에 동기로 옮긴다.
      */
     public void withTravelChunks(org.domi.furnace.server.entity.PortalTravel plan, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
-        CompletableFuture.supplyAsync(() -> travelChunks(plan), ioLane(plan.centerX() >> 4, plan.centerZ() >> 4))
-                .thenCompose(list -> {
-                    List<CompletableFuture<ChunkColumn>> fs = new ArrayList<>(list.size());
-                    for (ChunkPos cp : list) fs.add(submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f));
-                    return CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).handle((v, t) -> list);
-                })
-                .whenComplete((list, err) -> {
-                    if (err != null) {
-                        log.warn("[PORTAL] 목적 청크 준비 실패 {}", plan.targetDimension(), err);
-                        task.accept(null);
-                        return;
-                    }
-                    finishTravel(plan, list, task, 0);
-                });
+        List<ChunkPos> resident = residentTravelChunks(plan);
+        if (resident != null) {
+            finishTravel(plan, resident, task, 0);
+            return;
+        }
+        loadTravelChunks(plan).whenComplete((list, err) -> {
+            if (err != null) {
+                log.warn("[PORTAL] 목적 청크 준비 실패 {}", plan.targetDimension(), err);
+                task.accept(null);
+                return;
+            }
+            finishTravel(plan, list, task, 0);
+        });
+    }
+
+    /**
+     * 차원 이동 미리 올리기(M10): 플레이어가 지옥문에서 기다리는 동안(바닐라 기본 80틱) 목적 쪽 범위 청크를 올려 둔다 — 넘어갈 때 빠른 길을 타
+     * 도착이 늦지 않게. 생성 반경 청크는 만들어서라도 올린다(바닐라는 넘어가는 그 틱에 서버를 멈추고 만든다). 결과·목적지 계산은 없다.
+     */
+    public void prewarmTravel(org.domi.furnace.server.entity.PortalTravel plan) {
+        if (unloaded || residentTravelChunks(plan) != null) return;
+        loadTravelChunks(plan).exceptionally(err -> {
+            log.debug("[PORTAL] 목적 청크 미리 올리기 실패 {}", plan.targetDimension(), err);
+            return null;
+        });
+    }
+
+    /** 범위 청크(생성 반경 전부 + 탐색 반경)가 모두 이미 올라와 있으면 그 목록, 하나라도 없으면 null(아무 스레드 — 로드 표는 동시 맵). */
+    private List<ChunkPos> residentTravelChunks(org.domi.furnace.server.entity.PortalTravel plan) {
+        int ccx = plan.centerX() >> 4, ccz = plan.centerZ() >> 4;
+        int r = travelRadiusChunks(plan);
+        List<ChunkPos> out = new ArrayList<>((2 * r + 1) * (2 * r + 1));
+        for (int dz = -r; dz <= r; dz++) {
+            for (int dx = -r; dx <= r; dx++) {
+                if (loadedChunk(ccx + dx, ccz + dz) == null) return null;
+                out.add(new ChunkPos(ccx + dx, ccz + dz));
+            }
+        }
+        return out;
+    }
+
+    private static int travelRadiusChunks(org.domi.furnace.server.entity.PortalTravel plan) {
+        int cr = plan.createRadius() < 0 ? -1 : (plan.createRadius() + 15) >> 4;
+        int sr = (plan.searchRadius() + 15) >> 4;
+        return Math.max(cr, sr);
+    }
+
+    /** 디스크 확인(IO 레인) 뒤 올라와 있지 않은 범위 청크만 올린다. 결과는 범위 청크 목록(실패한 청크도 넣는다 — 모으기가 다시 본다). */
+    private CompletableFuture<List<ChunkPos>> loadTravelChunks(org.domi.furnace.server.entity.PortalTravel plan) {
+        return CompletableFuture.supplyAsync(() -> travelChunks(plan), ioLane(plan.centerX() >> 4, plan.centerZ() >> 4))
+                .thenCompose(list -> loadMissing(list).thenApply(v -> list));
+    }
+
+    /** 올라와 있지 않은 청크만 그 주인 region 에서 올린다(이미 있는 청크는 왕복하지 않는다). 개별 실패는 삼킨다. */
+    private CompletableFuture<Void> loadMissing(List<ChunkPos> list) {
+        List<CompletableFuture<ChunkColumn>> fs = new ArrayList<>();
+        for (ChunkPos cp : list) {
+            if (loadedChunk(cp.x(), cp.z()) != null) continue;
+            fs.add(submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f));
+        }
+        if (fs.isEmpty()) return CompletableFuture.completedFuture(null);
+        return CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).handle((v, t) -> null);
     }
 
     private void finishTravel(org.domi.furnace.server.entity.PortalTravel plan, List<ChunkPos> chunks,
@@ -1475,12 +1544,23 @@ public final class World {
         ChunkPos center = ChunkPos.ofBlock(plan.centerX(), plan.centerZ());
         runAtChunk(center, r -> {
             boolean gathered = true;
+            List<ChunkPos> evicted = null;
             for (ChunkPos cp : chunks) {
                 if (!regionizer.owns(r, cp.x(), cp.z())) { gathered = false; break; }
+                if (loadedChunk(cp.x(), cp.z()) == null) {   // 확인한 뒤 내려갔다(유예가 지났다) — 다시 올린다
+                    if (evicted == null) evicted = new ArrayList<>();
+                    evicted.add(cp);
+                }
             }
-            if (!gathered && attempt < TRAVEL_GATHER_TICKS) {   // 합치기는 틱 사이에만 — 다음 틱에 다시 본다
-                r.schedule(Regionizer.chunkKey(center.x(), center.z()), r2 -> finishTravel(plan, chunks, task, attempt + 1), 1);
-                return;
+            if (attempt < TRAVEL_GATHER_TICKS) {
+                if (!gathered) {   // 합치기는 틱 사이에만 — 다음 틱에 다시 본다
+                    r.schedule(Regionizer.chunkKey(center.x(), center.z()), r2 -> finishTravel(plan, chunks, task, attempt + 1), 1);
+                    return;
+                }
+                if (evicted != null) {
+                    loadMissing(evicted).whenComplete((v, t) -> finishTravel(plan, chunks, task, attempt + 1));
+                    return;
+                }
             }
             task.accept(r.level());
         });
@@ -1491,8 +1571,7 @@ public final class World {
         int ccx = plan.centerX() >> 4, ccz = plan.centerZ() >> 4;
         List<ChunkPos> out = new ArrayList<>();
         int cr = plan.createRadius() < 0 ? -1 : (plan.createRadius() + 15) >> 4;
-        int sr = (plan.searchRadius() + 15) >> 4;
-        int r = Math.max(cr, sr);
+        int r = travelRadiusChunks(plan);
         var store = worldSource instanceof AnvilWorldSource anvil ? anvil.store() : null;
         for (int dz = -r; dz <= r; dz++) {
             for (int dx = -r; dx <= r; dx++) {

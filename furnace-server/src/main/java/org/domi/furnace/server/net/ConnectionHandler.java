@@ -1346,7 +1346,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             teleportPlayer(ctx, t[0], t[1], t[2]);
         }));
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
-        p.dimensionChanger((target, t, cooldown) -> ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown)));
+        // 패킷을 다 보내면 handoff 로 편입을 넘긴다 — 기다리던 목적 region 이 그 자리에서 편입한다(같은 틱 도착, M10).
+        p.dimensionChanger(new Player.DimensionChanger() {
+            @Override public void change(World target, org.domi.furnace.server.entity.DimensionTransition t, int cooldown) {
+                Player.ArrivalHandoff h = new Player.ArrivalHandoff();
+                h.detach();   // 기다리는 쪽 없음 — 보낸 뒤 편입 작업을 보낸다
+                change(target, t, cooldown, h);
+            }
+
+            @Override public void change(World target, org.domi.furnace.server.entity.DimensionTransition t, int cooldown, Player.ArrivalHandoff handoff) {
+                ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown, handoff));
+            }
+        });
         joinSavedRoot = saved != null ? saved.root() : null;   // RootVehicle 은 region 에 들어간 뒤 태운다
         if (saved != null && saved.root() != null) {
             p.seenCredits = saved.root().getBoolean("seenCredits");
@@ -3347,9 +3358,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 청크 중심(addDuringTeleport) → 능력 → sendLevelInfo → sendAllPlayerInfo(인벤토리·든 칸) → 효과 → 포털 소리. 그 뒤 목적 region 이
      * 편입하고(다음 틱부터 청크·체력·경험치) 포털 티켓을 건다. 플레이어는 원천 region 에서 이미 떼어졌다.
      */
-    private void applyDimensionChange(ChannelHandlerContext ctx, World target, org.domi.furnace.server.entity.DimensionTransition t, int portalCooldown) {
+    private void applyDimensionChange(ChannelHandlerContext ctx, World target, org.domi.furnace.server.entity.DimensionTransition t, int portalCooldown,
+                                      Player.ArrivalHandoff handoff) {
         Player p = player;
-        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) return;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) {
+            handoff.detach();   // 편입하지 않는다 — 기다리는 쪽을 놓아준다
+            return;
+        }
         org.domi.furnace.server.ServerCore core = login.core;
         if (worldGone(core, target)) {
             // 오는 사이 그 추가 월드를 내렸다(다중 월드) — 없는 차원으로 접속할 때처럼 오버월드로, 위치는 월드 스폰
@@ -3377,7 +3392,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         world = target;
         p.dimension(target.dimension());
         if (worldGone(core, target)) {   // 차원을 바꾸는 바로 그 순간 내렸다(내리기는 플레이어를 이미 봤으므로 여기서만 걸린다)
-            applyDimensionChange(ctx, core.world(), spawnTransition(core.world()), 0);
+            applyDimensionChange(ctx, core.world(), spawnTransition(core.world()), 0, handoff);
             return;
         }
         placeAfterDimensionChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
@@ -3388,7 +3403,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
         if (t.portalSound()) send(ctx, new org.domi.furnace.server.net.protocol.play.LevelEventPacket(1032, 0, 0, 0, 0, false));
         final var arrived = t;
-        target.runAt(t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, arrived, from));
+        handoff.sent(target, t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, arrived, from));
     }
 
     /** 내린 추가 월드인가(목록에서 떼었거나 닫혔다). */

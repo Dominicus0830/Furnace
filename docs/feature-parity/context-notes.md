@@ -1082,6 +1082,14 @@
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
 
+## 2026-11-07 다차원 차이 (묶음 M10, 바이트코드)
+바닐라 1.21.1 `dcw`(Level) 생성자·`dcw$1`, `dut`(WorldBorder)·`dur$a`(DelegateBorderChangeListener), `MinecraftServer.createLevels`, `aur`(PlayerList) `sendLevelInfo`·`addWorldborderListener`, `ape`(WorldBorderCommand), `dlc`(NetherPortalBlock) `randomTick`·`getPortalDestination`, `eqy`(DerivedLevelData) 를 `javap -c` 로 대조.
+- **보더**: 차원마다 `World.border()`. 좌표 비 ≠ 1 이면 `getCenterX/Z` 만 비로 나눈다(크기·경고·피해 그대로, `createSettings` 도 나눈 중심). 오버월드가 아닌 월드는 `ServerCore.attachWorld` 가 `setAbsoluteMaxSize(max-world-size)` 뒤 `attachFollower`(지금 상태 복사 + `Delegate`)로 오버월드를 따라간다. 내린 추가 월드는 고리를 뗀다. 블록 레벨 `withinBorder`/`borderBounds`·플레이어 보더 피해는 그 차원 보더, 지옥문 출구 자르기는 목적 레벨 보더(`borderBoundsOf`). 명령·level.dat·접속·변경 패킷은 오버월드 보더(바닐라도 네더 접속자에게 오버월드 값 — 클라이언트 레벨이 자기 비로 나눈다). 보더 틱은 차원마다.
+- **차원 이동 지연**: 범위 청크가 다 올라와 있으면 IO 레인을 건너뛰고 바로 목적 region 작업으로, 올라와 있는 청크는 로드 왕복 없음, 모은 뒤 사이에 내려간 청크는 다시 올린다. 플레이어는 지옥문 대기 시작과 60틱마다 목적 청크를 미리 올린다(`Region.prewarmPortal` → `World.prewarmTravel`). 플레이어 도착은 `Player.ArrivalHandoff`: 목적 region 스레드가 연결 스레드의 패킷 보내기를 최대 2ms 기다렸다가 틱 사이(`Region.betweenTicks`)면 그 자리에서 편입, 아니면 연결이 편입 작업을 보낸다(정확히 한 번).
+- **좀비 피글린**: 11-06 구현이 바이트코드와 같다(natural·doMobSpawning·`nextInt(2000) < 난이도`·지옥문 아래 첫 칸 `isValidSpawn`·`EntityType.spawn(pos.above(), STRUCTURE)`·몹에만 `setPortalCooldown` — 탈것에는 없음). 플러그인 생성 원인을 `NETHER_PORTAL` 로(예전엔 `SPAWNER_EGG`).
+- **수면**: 추가 월드는 그 월드 접속자로 세어 충분히 자면 깨우기만(DerivedLevelData 의 시간·날씨 setter 는 빈 메서드).
+- 남은 것: 디스크 읽기·생성이 필요한 처음 가는 목적지(포털을 지나는 엔티티)는 그만큼 늦게 도착(바닐라는 서버를 멈추고 만든다). 추가 월드 보더를 월드마다 따로 둘지는 user-todo 결정 항목.
+
 ## 2026-11-07 블록 엔티티·지도 바닐라 대조 (묶음 M8, 바이트코드)
 
 `javap -c -p` 로 BaseSpawner(`dby`)·TrialSpawner(`dsf`)·EquipmentUser(`btb`)·SignBlockEntity(`drs`)·SignText(`drt`)·ComponentUtils(`xc`)·ScoreContents(`yh`)·SelectorContents(`yi`)·GsonHelper.toStableString(`aye`)·MapItemSavedData(`eqt`)·BeehiveBlockEntity(`dqe`)·BeehiveBlock(`dfs`)를 대조했다.
