@@ -1033,5 +1033,6 @@
   - `Raid.addWaveMob`: 바닐라는 같은 UUID 의 옛 개체를 새 개체로 **바꾸고 항상 참**을 돌려준다. 이전에는 거짓을 돌려주고 옛 개체를 남겨, 청크가 내려갔다 올라온 습격자가 집합에 없어 생존 수가 모자랐다(웨이브가 일찍 끝날 수 있음).
   - `Pillager.applyRaidBuffs` 가 비어 있었다: 습격 징조 확률(`Raid.getEnchantOdds`: 단계 2→0.1, 3→0.25, 4→0.5, 5→0.75)을 통과하면 새 석궁에 파도 > 5 면 `raid/pillager_post_wave_5`, 파도 > 3 이면 `raid/pillager_post_wave_3` 제공자로 마법을 걸어 주 무기로 바꾼다(그 밖은 그대로). `Vindicator` 도 같은 `getEnchantOdds` 를 쓰게 정리.
   - `Raider.die` 영웅 후보: 바닐라는 `damageSource.getEntity()` 가 플레이어일 때만 후보. 이전에는 "100틱 안에 마지막으로 때린 플레이어"라서 길들인 늑대·낙사·불 등 다른 원인으로 죽어도 영웅이 됐다.
+- **독립 검토(읽기 전용) 결과**: 블로커 없음. 사소한 차이 기록: `updateRaiders` 의 `level.getEntity(uuid)==null` 검사는 없지만 청크가 내려가면 개체가 removed 로 표시돼 `isRemoved()` 가 덮는다. 습격 대기 위치·스폰 위치 검사는 바닐라 `isPositionEntityTicking` 대신 `hasChunkAt`(적재 여부)을 쓴다. `Vindicator.populateDefaultEquipmentSlots` 는 바닐라처럼 `getCurrentRaid()==null` 로 맞췄다.
 - **남은 차이**(구조상): 내려간 청크·다른 region 의 POI 는 조회하지 않아 중심 둘레 ±2 섹션 중 일부가 다른 region 이면 마을 판정이 모자랄 수 있다. 같은 거리 POI 선택 순서(`getInRange` 순서)는 region 청크 순서에 따른다. 보스바 진행도 `0/0`(NaN) 은 바닐라가 NaN 을 보내지만 여기서는 0 으로 보낸다.
 - 시험: `RaidParityTest`(깃발 구성·addWaveMob 교체·습격 석궁 마법 확률/파도·영웅 처치자) 신규.

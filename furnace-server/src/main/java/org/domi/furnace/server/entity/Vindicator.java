@@ -65,7 +65,7 @@ public class Vindicator extends AbstractIllager {
 
     @Override
     protected void populateDefaultEquipmentSlots(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
-        if (!hasActiveRaid()) setItemSlot(EquipmentSlot.MAINHAND, stackOf("minecraft:iron_axe"));
+        if (getCurrentRaid() == null) setItemSlot(EquipmentSlot.MAINHAND, stackOf("minecraft:iron_axe"));   // 바닐라 cks.a: getCurrentRaid()==null
     }
 
     @Override
