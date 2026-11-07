@@ -139,13 +139,8 @@ public class FireBlock extends BaseFireBlock {
         if (B.fade(level, pos, B.defaultState("air"))) level.removeBlock(pos, false);
     }
 
-    private static String infiniburnTag(BlockLevel level) {
-        return switch (level.dimension()) {
-            case "minecraft:the_nether" -> "minecraft:infiniburn_nether";
-            case "minecraft:the_end" -> "minecraft:infiniburn_end";
-            default -> "minecraft:infiniburn_overworld";
-        };
-    }
+    /** dimensionType().infiniburn(). */
+    private static String infiniburnTag(BlockLevel level) { return level.dimensionType().infiniburn(); }
 
     protected boolean isNearRain(BlockLevel level, Pos pos) {
         return level.isRainingAt(pos) || level.isRainingAt(pos.west()) || level.isRainingAt(pos.east())

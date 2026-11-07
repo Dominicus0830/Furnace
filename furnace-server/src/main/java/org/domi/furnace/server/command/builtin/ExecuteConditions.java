@@ -287,7 +287,7 @@ final class ExecuteConditions {
         IntPredicate filter = biomeFilter(s, ResourceOrTagKeyArgument.get(c, "biome"));
         List<String> names = s.getServer().dataPacks().loot().registries().entries(BIOME_REGISTRY);
         World w = s.level();
-        int[] q = BiomeZoom.quart(s.getServer().biomeZoomSeed(), p.x(), p.y(), p.z());
+        int[] q = BiomeZoom.quart(s.getServer().biomeZoomSeed(w), p.x(), p.y(), p.z());
         CompletableFuture<Boolean> loaded = atLoaded(s, p, level -> true);
         // 지터로 고른 quart 의 청크가 다른 region 일 수 있으니 그 주인에게 따로 묻는다(없으면 일치 없음)
         return ExecuteCommands.<Boolean, CompletableFuture<Integer>>onGlobal(s, loaded, ok -> {

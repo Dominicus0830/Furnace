@@ -1267,10 +1267,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             var props = coreJ.settings().get();
             var rules = coreJ.gameRules();
             var level = coreJ.levelData();
-            send(ctx, new LoginPlay(eid, level.hardcore, java.util.List.of("minecraft:overworld", "minecraft:the_end", "minecraft:the_nether"),
+            send(ctx, new LoginPlay(eid, level.hardcore, loginLevelKeys(coreJ),
                     props.maxPlayers, world.viewDistance(), coreJ.simulationDistance(), rules.getBoolean("reducedDebugInfo"),
                     !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, world.dimension(),
-                    LoginPlay.obfuscateSeed(level.seed), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(), false,
+                    coreJ.biomeZoomSeed(world), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(), false,
                     vitals.lastDeathDimension(), vitals.lastDeathPos(), coreJ.enforceSecureProfile()));
             send(ctx, new ChangeDifficulty(level.difficulty.id(), level.difficultyLocked));
         } else {
@@ -3285,6 +3285,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(world.tickState().globalStepsLeft()));
     }
 
+    /**
+     * LoginPlay 의 차원 이름 목록(바닐라 levelKeys — 클라이언트가 차원 인자 제안에 쓴다). 기본 세 차원은 예전 순서 그대로, 추가 월드는 올린 순서로 뒤에.
+     * 접속 뒤 올린 월드는 다시 접속해야 제안에 나온다(Paper 와 같다).
+     */
+    private static java.util.List<String> loginLevelKeys(org.domi.furnace.server.ServerCore core) {
+        java.util.List<String> out = new java.util.ArrayList<>(java.util.List.of("minecraft:overworld", "minecraft:the_end", "minecraft:the_nether"));
+        var dims = core.dimensions();
+        if (dims != null) for (String k : dims.levelKeys()) if (!out.contains(k)) out.add(k);
+        return out;
+    }
+
     private int dimensionTypeIndex(World w) {
         return Math.max(0, registries().indexOf("minecraft:dimension_type", w.dimensionType().typeKey()));
     }
@@ -3298,6 +3309,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         if (p == null || p.isDisconnected() || !ctx.channel().isActive()) return;
         org.domi.furnace.server.ServerCore core = login.core;
+        if (worldGone(core, target)) {
+            // 오는 사이 그 추가 월드를 내렸다(다중 월드) — 없는 차원으로 접속할 때처럼 오버월드로, 위치는 월드 스폰
+            log.warn("{} 의 목적 월드 {} 를 내렸다 — 오버월드 스폰으로 보낸다", p.name(), target.dimension());
+            target = core.world();
+            t = spawnTransition(target);
+        }
         var vitals = p.vitals();
         String from = world.dimension();
         if ("minecraft:overworld".equals(from) && "minecraft:the_nether".equals(target.dimension())) {
@@ -3305,7 +3322,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         if (t.missingRespawnBlock()) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
         var prev = vitals.previousGameMode();
-        long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
+        long hashedSeed = core != null ? core.biomeZoomSeed(target) : 0L;
         send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
                 vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), portalCooldown,
                 org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ALL));
@@ -3317,6 +3334,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         world = target;
         p.dimension(target.dimension());
+        if (worldGone(core, target)) {   // 차원을 바꾸는 바로 그 순간 내렸다(내리기는 플레이어를 이미 봤으므로 여기서만 걸린다)
+            applyDimensionChange(ctx, core.world(), spawnTransition(core.world()), 0);
+            return;
+        }
         placeAfterDimensionChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
         send(ctx, vitals.abilitiesPacket());
         sendLevelInfo(ctx, target);
@@ -3324,7 +3345,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new SetHeldSlot(inv.selected()));
         for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
         if (t.portalSound()) send(ctx, new org.domi.furnace.server.net.protocol.play.LevelEventPacket(1032, 0, 0, 0, 0, false));
-        target.runAt(t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, t, from));
+        final var arrived = t;
+        target.runAt(t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, arrived, from));
+    }
+
+    /** 내린 추가 월드인가(목록에서 떼었거나 닫혔다). */
+    private static boolean worldGone(org.domi.furnace.server.ServerCore core, World w) {
+        return core != null && w.isExtraWorld() && (w.isUnloaded() || core.world(w.dimension()) != w);
+    }
+
+    /** 그 월드 스폰 칸 가운데로 가는 이동(도착 뒤 처리 없음). */
+    private static org.domi.furnace.server.entity.DimensionTransition spawnTransition(World w) {
+        var sp = w.defaultSpawn();
+        return new org.domi.furnace.server.entity.DimensionTransition(null, sp.x() + 0.5, sp.y(), sp.z() + 0.5, 0, 0, 0, sp.yaw(), 0f);
     }
 
     /** connection.teleport + addDuringTeleport 의 청크 중심: 이동 대기열을 비우고 위치를 보낸 뒤 새 청크 중심을 알린다. */
@@ -3364,7 +3397,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, vitals.abilitiesPacket());
         if (missingRespawnBlock) send(ctx, new GameEvent(GameEvent.NO_RESPAWN_BLOCK_AVAILABLE, 0f));
         var prev = vitals.previousGameMode();
-        long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
+        long hashedSeed = core != null ? core.biomeZoomSeed(world) : 0L;
         send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(world), world.dimension(), hashedSeed,
                 vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0, (byte) 0));
         // 서버가 정한 위치로 텔레포트 — 확인 전까지 클라 이동은 받지 않는다.
@@ -3428,7 +3461,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             vitals.setRespawnPosition("minecraft:overworld", null, 0.0F, false);   // 리스폰 지점을 이어받지 않는다
         }
         var prev = vitals.previousGameMode();
-        long hashedSeed = core != null ? LoginPlay.obfuscateSeed(core.levelData().seed) : 0L;
+        long hashedSeed = core != null ? core.biomeZoomSeed(target) : 0L;
         send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
                 vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0,
                 org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ATTRIBUTES));

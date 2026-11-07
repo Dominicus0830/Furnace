@@ -23,6 +23,13 @@ public final class IoLanes {
         return lanes[index(chunkX >> 5, chunkZ >> 5)];
     }
 
+    /** 지금까지 넣은 모든 작업이 끝나면 완료(레인마다 FIFO 라 끝에 넣은 빈 작업이 돌면 앞 작업은 다 끝났다). 월드 내리기용. */
+    public java.util.concurrent.CompletableFuture<Void> barrier() {
+        java.util.concurrent.CompletableFuture<?>[] fs = new java.util.concurrent.CompletableFuture<?>[lanes.length];
+        for (int i = 0; i < lanes.length; i++) fs[i] = java.util.concurrent.CompletableFuture.runAsync(() -> { }, lanes[i]);
+        return java.util.concurrent.CompletableFuture.allOf(fs);
+    }
+
     /** 레인 대기열(아직 시작 안 한 작업) 길이 중 가장 긴 것 — region 쪽 저장 역압 기준. */
     public int maxBacklog() {
         int m = 0;

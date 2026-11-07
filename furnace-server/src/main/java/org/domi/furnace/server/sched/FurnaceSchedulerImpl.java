@@ -61,6 +61,11 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
         if (onClose != null) closeHooks.add(onClose);
     }
 
+    /** 종료 훅을 뗀다(실행 중에 내린 월드 — 이미 스스로 닫았다). 같은 객체를 넘겨야 한다. */
+    public synchronized void removeCloseHook(Runnable onClose) {
+        closeHooks.remove(onClose);
+    }
+
     public long tickNanos() { return tickNanos; }
 
     /** region 작업 스레드 수(설정값). */

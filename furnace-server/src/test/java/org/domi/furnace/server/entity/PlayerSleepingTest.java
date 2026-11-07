@@ -249,7 +249,10 @@ class PlayerSleepingTest {
         assertEquals(HEAD, p.sleepingPos());
 
         var nether = new Lvl();
-        nether.dim = "minecraft:the_nether";   // BedBlock.canSetSpawn 은 차원 키로 본다(칸 높이는 오버월드 그대로)
+        nether.dim = "minecraft:the_nether";   // BedBlock.canSetSpawn 은 차원 타입의 bedWorks 로 본다(칸 높이는 오버월드 그대로)
+        var ow = DimensionType.OVERWORLD;
+        nether.type = new DimensionType("minecraft:the_nether", "minecraft:the_nether", ow.minY(), ow.height(), ow.logicalHeight(), false, true, true,
+                false, 8.0, 18000L, false, true, true, org.domi.furnace.server.world.gen.NoiseWorldSource.Dimension.NETHER);
         placeBed(nether);
         var q = player(nether, 1.5, -60, 0.5);
         int head = nether.getBlockState(HEAD);

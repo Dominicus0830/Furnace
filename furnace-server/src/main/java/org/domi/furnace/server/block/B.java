@@ -148,11 +148,8 @@ public final class B {
 
     /** Level.getTimeOfDay(1.0F) = DimensionType.timeOfDay(dayTime) — 네더·엔드는 고정 시각(18000·6000). */
     public static float timeOfDay(BlockLevel level) {
-        long t = switch (level.dimension()) {
-            case "minecraft:the_nether" -> 18000L;
-            case "minecraft:the_end" -> 6000L;
-            default -> level.dayTime();
-        };
+        long fixed = level.dimensionType().fixedTime();
+        long t = fixed >= 0 ? fixed : level.dayTime();
         double d0 = t / 24000.0 - 0.25;
         d0 -= Math.floor(d0);
         double d1 = 0.5 - Math.cos(d0 * Math.PI) / 2.0;

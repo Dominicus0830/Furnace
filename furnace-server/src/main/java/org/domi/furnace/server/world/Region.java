@@ -2106,9 +2106,9 @@ public final class Region {
         adopt(p);
         // EntityCallbacks.onTrackingStart/End: 들어온 차원과 떠난 차원의 잠 목록
         world.updateSleepingPlayerList();
-        for (DimensionType dt : DimensionType.ALL) {
-            World other = world.otherWorld(dt.levelKey());
-            if (other != null && other != world) other.updateSleepingPlayerList();
+        var dims = world.dimensions();
+        if (dims != null) {
+            for (World other : dims.all()) if (other != world) other.updateSleepingPlayerList();
         }
         if (level != null) level.afterDimensionTransition(t);
         var adv = p.advancements();

@@ -177,7 +177,7 @@ public final class ServerCore {
         public String biomeAt(int x, int y, int z) {
             var dp = dataPacks;
             if (dp == null || dp.loot() == null) return null;
-            int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed, x, y, z);
+            int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed(world), x, y, z);
             int cx = q[0] >> 2, cz = q[2] >> 2;
             if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
             int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
@@ -222,6 +222,14 @@ public final class ServerCore {
 
     /** 바이옴 확대 지터 시드(Level.getBiome — 명령의 biome 조건용). */
     public long biomeZoomSeed() { return biomeZoomSeed; }
+
+    /** 그 월드의 바이옴 확대 지터 시드 = 클라이언트가 LoginPlay/Respawn 으로 받는 hashed seed(차원별 시드를 정하지 않았으면 서버 시드 — 바닐라). */
+    public long biomeZoomSeed(World w) {
+        return w.hasSeed() ? org.domi.furnace.server.net.protocol.play.LoginPlay.obfuscateSeed(w.seed()) : biomeZoomSeed;
+    }
+
+    /** 그 월드의 생성 시드(정하지 않았으면 서버 시드). */
+    public long seedOf(World w) { return w.hasSeed() ? w.seed() : levelData.seed; }
 
     /**
      * /execute if predicate: 명령 문맥(origin, 있으면 this_entity)에서 조건 하나를 평가한다. 난수는 월드 난수(바닐라 level.getRandom).
@@ -1058,11 +1066,33 @@ public final class ServerCore {
     /** 차원 월드를 붙인다: 오버월드가 아닌 월드에는 그 차원의 블록 레벨 서비스를 단다(게임룰·난이도·보더는 서버 공용). */
     public void dimensions(org.domi.furnace.server.world.Dimensions d) {
         this.dimensions = d;
-        for (World w : d.all()) {
-            if (w == world) continue;
-            w.levelServices(new DimensionServices(w));
-            w.tickState(world.tickState());   // /tick 상태는 차원 공용
-        }
+        for (World w : d.all()) attachWorld(w);
+    }
+
+    /** 오버월드가 아닌 월드에 그 차원의 레벨 서비스와 공용 /tick 상태를 단다(시작 때 기본 차원, 실행 중 추가 월드). */
+    public void attachWorld(World w) {
+        if (w == world) return;
+        w.levelServices(new DimensionServices(w));
+        w.tickState(world.tickState());   // /tick 상태는 차원 공용
+    }
+
+    private volatile org.domi.furnace.server.world.WorldManager worldManager;
+
+    /** 다중 월드 관리자(추가 월드 만들기·내리기). 서버 본체 없이(시험)는 null. */
+    public org.domi.furnace.server.world.WorldManager worldManager() { return worldManager; }
+
+    /** 관리자를 붙이고 서버 쪽 고리(레벨 서비스·플러그인 이벤트·W2 차원 타입)를 건다. */
+    public void worldManager(org.domi.furnace.server.world.WorldManager m) {
+        this.worldManager = m;
+        m.hooks(new org.domi.furnace.server.world.WorldManager.Hooks() {
+            @Override public void attach(World w) { attachWorld(w); }
+            @Override public void loaded(World w) { pluginHost.worldLoaded(w); }
+            @Override public boolean beforeUnload(World w, boolean save) { return pluginHost.worldUnloading(w, save); }
+            @Override public void detached(World w) { pluginHost.worldDetached(w); }
+            @Override public org.domi.furnace.api.worldgen.DimensionTypeDefinition pluginDimensionType(String key) {
+                return pluginHost.pluginDimensionType(key);
+            }
+        });
     }
 
     /** 그 차원의 월드(없으면 null). 오버월드는 world(). */

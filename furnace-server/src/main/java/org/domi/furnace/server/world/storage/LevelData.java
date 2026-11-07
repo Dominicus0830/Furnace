@@ -196,6 +196,16 @@ public final class LevelData {
         return id.indexOf(':') >= 0 ? id : "minecraft:" + id;
     }
 
+    /** Furnace 추가 월드 설명서 키(바닐라·Paper 는 모르는 키라 무시한다). */
+    public static final String FURNACE_WORLD = "furnace:world";
+
+    /** 추가 월드 설명서(level.dat 의 furnace:world 사본, 없으면 null). */
+    public NbtCompound furnaceWorld() {
+        return raw.contains(FURNACE_WORLD) ? raw.getCompound(FURNACE_WORLD).copy() : null;
+    }
+
+    public void furnaceWorld(NbtCompound spec) { raw.putCompound(FURNACE_WORLD, spec.copy()); }
+
     /** 브랜드 기록(바닐라 setModdedInfo: 처음 보는 브랜드면 추가, 수정 여부는 누적). */
     public void setModdedInfo(String brand, boolean modded) {
         if (!serverBrands.contains(brand)) serverBrands.add(brand);

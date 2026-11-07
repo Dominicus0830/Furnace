@@ -130,11 +130,67 @@ public final class World {
         this.regionizer = pool == null
                 ? new Regionizer(this, regionThreads, sectionShift, mergeRadius, tickNanos)
                 : new Regionizer(this, pool, sectionShift, mergeRadius, tickNanos);
+        this.closeHook = regionizer::close;
         if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) {
-            if (type == DimensionType.OVERWORLD) impl.installRouter((cx, cz) -> chunkScheduler(cx, cz), regionizer::close);
-            else impl.addCloseHook(regionizer::close);
+            if (type == DimensionType.OVERWORLD) impl.installRouter((cx, cz) -> chunkScheduler(cx, cz), closeHook);
+            else impl.addCloseHook(closeHook);
         }
     }
+
+    private final Runnable closeHook;
+    private volatile boolean unloaded;
+    private volatile String levelName;
+    private volatile long seed;
+    private volatile boolean hasSeed;
+    private volatile boolean extra;
+
+    /** 실행 중에 올린 추가 월드인가(다중 월드 — 내릴 수 있다). */
+    public boolean isExtraWorld() { return extra; }
+
+    /** 추가 월드 표시와 이름(폴더 이름)·시드. 등록 전에 부른다. */
+    public void markExtraWorld(String name) {
+        this.extra = true;
+        this.levelName = name;
+    }
+
+    /** 월드 이름(폴더 이름). 기본 세 차원은 null — 부르는 쪽이 level-name 으로 만든다(WorldHandle.name). */
+    public String levelName() { return levelName; }
+
+    /** 생성 시드(바닐라 BiomeManager 의 해시 시드·LoginPlay/Respawn 의 hashed seed 의 바탕). FurnaceMain/월드 관리자가 정한다. */
+    public long seed() { return seed; }
+
+    /** 시드를 정했는가(시험 월드는 안 정한다 — 그때는 서버 시드를 쓴다). */
+    public boolean hasSeed() { return hasSeed; }
+
+    public void seed(long seed) {
+        this.seed = seed;
+        this.hasSeed = true;
+    }
+
+    /** 내렸는가(다시 쓰지 않는다). */
+    public boolean isUnloaded() { return unloaded; }
+
+    /**
+     * 추가 월드 내리기의 마지막 단계: 게임 틱을 끄고 region 작업 스레드를 닫고 스케줄러 종료 훅에서 뗀다. 저장은 부르는 쪽이 먼저 끝낸다.
+     * 이 뒤 이 월드에 넣는 작업은 받아들여지지 않는다.
+     */
+    public void closeForUnload() {
+        unloaded = true;
+        regionizer.gameTicks(false);
+        if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) impl.removeCloseHook(closeHook);
+        closeHook.run();
+    }
+
+    /** 게임 틱을 끈다(내리기 시작 — 작업은 계속 처리해 저장을 끝낸다). */
+    public void stopTicking() { regionizer.gameTicks(false); }
+
+    private final java.util.concurrent.atomic.AtomicInteger incoming = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 이 월드로 오는 중인 차원 이동 수(목적 청크 준비 중). */
+    public int incomingTravels() { return incoming.get(); }
+
+    /** 로드 중인 청크 수(생성·읽기 진행 중). */
+    public int pendingChunkLoads() { return loading.size(); }
 
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
                  int regionThreads, int regionSize, int viewDistance, int entityViewDistance,
@@ -215,6 +271,7 @@ public final class World {
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */
     public void runAtChunk(ChunkPos cp, java.util.function.Consumer<Region> task) {
+        if (unloaded) throw new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension());
         regionizer.enqueue(Regionizer.chunkKey(cp.x(), cp.z()), task);
     }
 
@@ -235,6 +292,7 @@ public final class World {
 
     /** runAtChunk 의 결과판. */
     public <T> CompletableFuture<T> submitAtChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
         runAtChunk(cp, r -> {
             try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
@@ -244,6 +302,7 @@ public final class World {
 
     /** submitAtChunk 의 조회판: 그 청크에 주인 region 이 없으면 region 을 만들지 않고 null. */
     public <T> CompletableFuture<T> submitAtOwnedChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
         boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), r -> {
             try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
@@ -365,11 +424,21 @@ public final class World {
 
     public void ioBacklogLimit(int v) { ioBacklogLimit = v; }
 
+    /** 이 월드가 지금까지 IO 레인에 넣은 저장·읽기가 모두 끝나면 완료(월드 내리기 — 저장소를 닫기 전에 기다린다). */
+    public CompletableFuture<Void> ioBarrier() {
+        return ioLanes == null ? CompletableFuture.completedFuture(null) : ioLanes.barrier();
+    }
+
     /** 가장 긴 IO 레인 대기열 길이. */
     public int ioBacklog() { return ioLanes == null ? 0 : ioLanes.maxBacklog(); }
 
-    /** 저장 역압: 레인이 밀려 있으면 이번 틱 저장 제출을 멈춘다. */
-    public boolean ioBackedUp() { return ioBacklog() >= ioBacklogLimit; }
+    /** 저장 역압: 레인이 밀려 있으면 이번 틱 저장 제출을 멈춘다. 월드를 내리며 저장하는 동안(forceSave)은 미루지 않는다. */
+    public boolean ioBackedUp() { return !forceSave && ioBacklog() >= ioBacklogLimit; }
+
+    private volatile boolean forceSave;
+
+    /** 켜면 저장 역압을 무시한다(월드 내리기 — 남은 dirty 청크를 다음 틱으로 미루면 영영 저장되지 않는다). */
+    public void forceSave(boolean on) { this.forceSave = on; }
 
     private final java.util.concurrent.atomic.AtomicLong lastDiskLog = new java.util.concurrent.atomic.AtomicLong(Long.MIN_VALUE);
 
@@ -514,6 +583,15 @@ public final class World {
     public void autosaveEnabled(boolean v) { autosaveEnabled = v; }
     public void worldDir(java.nio.file.Path dir) { this.worldDir = dir; }
 
+    // 이 차원의 저장 뿌리(region·data 의 기준 폴더). 기본 세 차원은 주 월드 폴더(worldDir)와 같고, 추가 월드는 <이름>/ 이다.
+    // worldDir 는 서버 공용 데이터(playerdata·stats·advancements·generated 구조물) 자리라 추가 월드도 주 월드 폴더를 가리킨다.
+    private volatile java.nio.file.Path levelRoot;
+
+    public void levelRoot(java.nio.file.Path dir) { this.levelRoot = dir; }
+
+    /** 이 차원의 저장 뿌리 — 추가 월드는 <이름>/, 기본 차원은 worldDir. */
+    public java.nio.file.Path levelRoot() { var r = levelRoot; return r != null ? r : worldDir; }
+
     private volatile org.domi.furnace.server.world.raid.RaidStore raidStore;
     private volatile CommandStorage commandStorage;
 
@@ -524,7 +602,7 @@ public final class World {
         synchronized (this) {
             if (commandStorage == null) {
                 commandStorage = new CommandStorage(worldSource instanceof AnvilWorldSource && worldDir != null
-                        ? dimensionType.storageDir(worldDir).resolve("data") : null);
+                        ? dimensionType.storageDir(levelRoot()).resolve("data") : null);
             }
             return commandStorage;
         }
@@ -537,8 +615,8 @@ public final class World {
         synchronized (this) {
             if (raidStore == null) {
                 raidStore = worldSource instanceof AnvilWorldSource
-                        ? org.domi.furnace.server.world.raid.RaidStore.open(dimensionType.storageDir(worldDir),
-                                dimensionType == DimensionType.END ? "raids_end" : "raids")
+                        ? org.domi.furnace.server.world.raid.RaidStore.open(dimensionType.storageDir(levelRoot()),
+                                dimensionType.raidsFileId())
                         : org.domi.furnace.server.world.raid.RaidStore.detached();
             }
             return raidStore;
@@ -987,7 +1065,7 @@ public final class World {
         if (f != null) return f;
         synchronized (this) {
             if (forcedChunks == null) {
-                forcedChunks = worldSource instanceof AnvilWorldSource && worldDir != null ? ForcedChunks.open(dimensionType.storageDir(worldDir)) : ForcedChunks.detached();
+                forcedChunks = worldSource instanceof AnvilWorldSource && worldDir != null ? ForcedChunks.open(dimensionType.storageDir(levelRoot())) : ForcedChunks.detached();
             }
             return forcedChunks;
         }
@@ -1131,7 +1209,20 @@ public final class World {
                 arrive.accept(null, null);
                 return;
             }
-            target.completeTravel(plan, arrive);
+            // 오는 중인 이동을 센다 — 그동안은 그 추가 월드를 내리지 않는다(플레이어 차원은 도착 직전에야 바뀐다)
+            target.incoming.incrementAndGet();
+            try {
+                target.completeTravel(plan, (lvl, t) -> {
+                    try {
+                        arrive.accept(lvl, t);
+                    } finally {
+                        target.incoming.decrementAndGet();
+                    }
+                });
+            } catch (RuntimeException e) {
+                target.incoming.decrementAndGet();
+                throw e;
+            }
         }
 
         @Override

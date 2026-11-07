@@ -31,7 +31,7 @@ public class NetherPortalBlock extends BlockBehavior implements Portal {
 
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        if ("minecraft:overworld".equals(level.dimension()) && level.gameRule("doMobSpawning")
+        if (level.dimensionType().natural() && level.gameRule("doMobSpawning")
                 && random.nextInt(2000) < level.difficulty()) {
             // 바닐라: 지옥문 맨 아래 칸(지옥문이 아닌 첫 칸)이 스폰 가능한 바닥이면 그 위에 STRUCTURE 로 좀비 피글린을 낳고 포털 쿨다운을 건다.
             Pos p = pos;

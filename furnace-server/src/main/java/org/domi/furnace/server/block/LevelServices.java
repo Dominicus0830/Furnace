@@ -43,8 +43,11 @@ public interface LevelServices {
     /** DimensionType.hasSkyLight. */
     default boolean hasSkyLight() { return true; }
 
-    /** 이 레벨의 차원 타입(높이·천장·좌표 비). */
-    default org.domi.furnace.server.world.DimensionType dimensionType() { return org.domi.furnace.server.world.DimensionType.OVERWORLD; }
+    /** 이 레벨의 차원 타입(높이·천장·좌표 비). 기본: 차원 키가 바닐라 세 차원이면 그 타입, 아니면 오버월드. */
+    default org.domi.furnace.server.world.DimensionType dimensionType() {
+        var t = org.domi.furnace.server.world.DimensionType.byLevelKey(dimension());
+        return t != null ? t : org.domi.furnace.server.world.DimensionType.OVERWORLD;
+    }
 
     /** server.properties max-chained-neighbor-updates. */
     int maxChainedNeighborUpdates();
