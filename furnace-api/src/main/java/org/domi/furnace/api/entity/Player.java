@@ -104,6 +104,19 @@ public interface Player extends CommandSender, LivingEntity {
     /** 지금 보고 있는 메뉴, 없으면 null. */
     default org.domi.furnace.api.menu.Menu currentMenu() { return null; }
 
+    /** 이 플레이어에게서 그 엔티티(플레이어 포함)를 숨긴다 — {@link EntityViews#hide}. */
+    default void hideEntity(org.domi.furnace.api.plugin.FurnacePlugin plugin, Entity target) {
+        org.domi.furnace.api.Furnace.server().entityViews().hide(plugin, this, target);
+    }
+
+    /** {@link EntityViews#show}. */
+    default void showEntity(org.domi.furnace.api.plugin.FurnacePlugin plugin, Entity target) {
+        org.domi.furnace.api.Furnace.server().entityViews().show(plugin, this, target);
+    }
+
+    /** 규칙상 그 엔티티를 볼 수 있는가 — {@link EntityViews#canSee}. */
+    default boolean canSee(Entity target) { return org.domi.furnace.api.Furnace.server().entityViews().canSee(this, target); }
+
     /** 플레이어 인벤토리 핸들(비동기 접근). */
     Inventory inventory();
 

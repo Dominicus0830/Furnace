@@ -87,7 +87,8 @@ public final class EntityTracker {
         }
         double dx = p.x() - entity.x(), dz = p.z() - entity.z();
         double r = Math.min(range, v.viewDistance(p) * 16);
-        boolean visible = dx * dx + dz * dz <= r * r && entity.broadcastToPlayer(p) && v.chunkTracked(p, entity.chunkX(), entity.chunkZ());
+        boolean visible = dx * dx + dz * dz <= r * r && entity.broadcastToPlayer(p) && v.chunkTracked(p, entity.chunkX(), entity.chunkZ())
+                && org.domi.furnace.server.entity.view.EntityViewRules.canSee(p, entity.uuid());   // 플러그인 숨기기(규칙이 없으면 바로 참)
         if (visible) {
             if (!seenBy.containsKey(p)) {
                 seenBy.put(p, 0);
@@ -134,6 +135,9 @@ public final class EntityTracker {
     public void removePlayer(Player p) {
         if (seenBy.remove(p) != null) removePairing(p);
     }
+
+    /** 보는 사람 목록 사본(플러그인 모습 규칙이 바뀌어 다시 스폰할 때). */
+    public List<Player> viewersSnapshot() { return new ArrayList<>(seenBy.keySet()); }
 
     /** 패킷 없이 보는 사람에서 뺀다(차원 이동). */
     public void forgetPlayer(Player p) {

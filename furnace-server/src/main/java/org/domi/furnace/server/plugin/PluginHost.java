@@ -83,6 +83,14 @@ public final class PluginHost implements Furnace {
     @Override
     public org.domi.furnace.api.virtual.VirtualEntities virtualEntities() { return virtualEntities; }
 
+    private final EntityViewsImpl entityViews = new EntityViewsImpl(this);
+
+    /** 보이기·숨기기·변장 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */
+    public EntityViewsImpl entityViewsImpl() { return entityViews; }
+
+    @Override
+    public org.domi.furnace.api.entity.EntityViews entityViews() { return entityViews; }
+
     private final PluginGameEvents gameEvents = new PluginGameEvents(this);
     private final java.util.concurrent.ConcurrentHashMap<String, WorldHandle> worldHandles = new java.util.concurrent.ConcurrentHashMap<>();
 
