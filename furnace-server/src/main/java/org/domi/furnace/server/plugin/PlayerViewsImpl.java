@@ -81,7 +81,7 @@ public final class PlayerViewsImpl implements PlayerViews {
         int x0 = Math.min(min.x(), max.x()), x1 = Math.max(min.x(), max.x());
         int y0 = Math.min(min.y(), max.y()), y1 = Math.max(min.y(), max.y());
         int z0 = Math.min(min.z(), max.z()), z1 = Math.max(min.z(), max.z());
-        long count = (long) (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1);
+        long count = ((long) x1 - x0 + 1) * ((long) y1 - y0 + 1) * ((long) z1 - z0 + 1);
         if (count > MAX_FILL) throw new IllegalArgumentException("한 번에 덮을 수 있는 칸은 최대 " + MAX_FILL + " 개: " + count);
         int state = ApiConvert.stateId(Objects.requireNonNull(data, "data"), w.handle().blockRegistry());
         List<int[]> cells = new ArrayList<>((int) count);
@@ -91,7 +91,10 @@ public final class PlayerViewsImpl implements PlayerViews {
 
     private void applyBlocks(FurnacePlugin plugin, org.domi.furnace.server.entity.Player v, WorldHandle w, List<int[]> cells) {
         BlockLayer layer = v.viewLayers().blocks;
-        layer.putBlocks(plugin, w.dimension(), dimOf(w), cells);
+        BlockLayer.Dim dim = dimOf(w);
+        cells = cells.stream().filter(c -> c[1] >= dim.minY() && c[1] < dim.minY() + dim.height()).toList();   // 높이 밖은 층에도 화면에도 넣지 않는다
+        if (cells.isEmpty()) return;
+        layer.putBlocks(plugin, w.dimension(), dim, cells);
         if (!sameWorldAsViewer(v, w)) return;   // 그 월드에 있을 때 청크 전송에서 덧입는다 — 지금 화면은 다른 월드다
         sendCells(v, cells);
     }
@@ -201,7 +204,7 @@ public final class PlayerViewsImpl implements PlayerViews {
         int x0 = Math.min(min.x(), max.x()) >> 2, x1 = Math.max(min.x(), max.x()) >> 2;
         int y0 = Math.min(min.y(), max.y()) >> 2, y1 = Math.max(min.y(), max.y()) >> 2;
         int z0 = Math.min(min.z(), max.z()) >> 2, z1 = Math.max(min.z(), max.z()) >> 2;
-        long count = (long) (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1);
+        long count = ((long) x1 - x0 + 1) * ((long) y1 - y0 + 1) * ((long) z1 - z0 + 1);
         if (count > MAX_FILL / 64) throw new IllegalArgumentException("한 번에 덮을 수 있는 바이옴 칸은 최대 " + MAX_FILL / 64 + " 개: " + count);
         List<int[]> cells = new ArrayList<>((int) count);
         for (int y = y0; y <= y1; y++) for (int z = z0; z <= z1; z++) for (int x = x0; x <= x1; x++) cells.add(new int[] {x << 2, y << 2, z << 2, id});
@@ -272,8 +275,8 @@ public final class PlayerViewsImpl implements PlayerViews {
         synchronized (layers) {
             if (layers.border() == null) return;
             layers.border(null, null);
+            v.send(InitializeBorder.of(host.core().border()));
         }
-        v.send(InitializeBorder.of(host.core().border()));
     }
 
     private static final class BorderHandle implements PlayerBorder {
@@ -286,7 +289,10 @@ public final class PlayerViewsImpl implements PlayerViews {
         }
 
         private void push() {
-            if (viewer.viewLayers().border() == b) viewer.send(InitializeBorder.vanillaDefault());   // 걷힌 보더는 더 보내지 않는다
+            var layers = viewer.viewLayers();
+            synchronized (layers) {   // resetBorder 와 같은 자물쇠 — 걷힌 뒤에 자리표시 패킷이 따라가 기본 보더로 덮이는 일을 막는다
+                if (layers.border() == b) viewer.send(InitializeBorder.vanillaDefault());   // 걷힌 보더는 더 보내지 않는다
+            }
         }
 
         @Override public double centerX() { return b.getCenterX(); }

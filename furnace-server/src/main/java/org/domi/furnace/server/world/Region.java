@@ -465,7 +465,7 @@ public final class Region {
         if (col == null) return null;
         var secs = col.sections();
         int[][] out = new int[secs.length][];
-        for (int i = 0; i < secs.length; i++) out[i] = secs[i].biomes();
+        for (int i = 0; i < secs.length; i++) out[i] = secs[i].biomes().clone();   // 다른 스레드(연결 이벤트 루프)가 인코딩하므로 소유 스레드에서 복사한다
         return new org.domi.furnace.server.net.protocol.play.ChunksBiomes.Entry(cp.x(), cp.z(), out);
     }
 

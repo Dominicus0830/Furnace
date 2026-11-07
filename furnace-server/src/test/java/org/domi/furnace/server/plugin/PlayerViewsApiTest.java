@@ -118,6 +118,24 @@ class PlayerViewsApiTest {
     }
 
     @Test
+    void outOfHeightCellsAreNotSent_andExtremeCornersAreRejected() {
+        Player vp = online("Viewer");
+        var viewer = host.player(vp);
+        var views = host.playerViews();
+        drain(vp);
+        BlockPos above = new BlockPos(1, 400, 1), below = new BlockPos(1, -200, 1);
+        views.setBlocks(a, viewer, overworld(), Map.of(above, BlockData.of("minecraft:stone"), below, BlockData.of("minecraft:stone")));
+        assertTrue(views.virtualBlock(viewer, overworld(), above).isEmpty());
+        assertTrue(drain(vp).isEmpty(), "높이 밖 칸은 화면에도 보내지 않는다");
+
+        // int 로 계산하면 칸 수가 0 으로 감겨 상한을 지나치던 모서리
+        assertThrows(IllegalArgumentException.class, () -> views.fillBlocks(a, viewer, overworld(),
+                new BlockPos(Integer.MIN_VALUE, 64, 0), new BlockPos(Integer.MAX_VALUE, 64, 0), BlockData.of("minecraft:stone")));
+        assertThrows(IllegalArgumentException.class, () -> views.fillBiome(a, viewer, overworld(),
+                new BlockPos(Integer.MIN_VALUE, 64, 0), new BlockPos(Integer.MAX_VALUE, 64, 0), "minecraft:desert"));
+    }
+
+    @Test
     void ownershipAndPluginDisable() {
         Player vp = online("Viewer");
         var viewer = host.player(vp);

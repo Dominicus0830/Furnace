@@ -80,3 +80,9 @@ events.subscribe(this, AsyncChatEvent.class, e -> e.renderer((source, name, mess
 
 - 층이 없는 접속: 패킷마다 `ViewLayers.active()` 의 volatile 읽기 두어 개와 `instanceof` 몇 번(전부 이벤트 루프). 청크 공유 프레임 경로(`SharedChunkFrames`)는 그대로다.
 - 층이 있는 청크: 그 청크를 보낼 때만 한 번 풀고 다시 인코딩한다(섹션 24개 중 덮은 섹션만). 시험에서 청크 하나 다시 쓰기는 한 자릿수 ms 이하다.
+
+## 알려진 한계 (검토에서 나온 것)
+
+- `setBlock` 을 한 칸씩 수만 번 부르면 부를 때마다 그 청크의 덮어쓰기 표를 복사하므로 느려진다. 여러 칸은 `setBlocks`/`fillBlocks` 로 한 번에 넣는다.
+- 장비 덮어쓰기는 대상 엔티티가 죽어도 자동으로 걷히지 않는다(시야에서 벗어났다 돌아올 때 유지되어야 하므로). 수명이 짧은 엔티티에 입혔다면 `clearEquipment` 로 걷거나 플러그인을 끈다(끄면 전부 걷힌다).
+- 걷을 때 진짜 블록을 읽는 작업이 실패하거나 청크가 내려가 있으면 건너뛴다(청크가 올라올 때 진짜 청크가 간다).
