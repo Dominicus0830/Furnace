@@ -30,13 +30,14 @@
 | `autosave-ticks` | 수 | 6000 | 1 이상 | 자동 저장 간격(틱) |  |
 | `chunk-eviction-grace-ticks` | 수 | 100 | 1 이상 | 쓰지 않는 청크를 내리기 전 유예(틱) |  |
 | `spawn-chunk-radius` | 수 | 2 | 0 이상 | 스폰 청크 반경 |  |
-| `chunks-per-tick` | 수 | 16 | 1 이상 | 플레이어당 틱마다 보내는 청크 수 상한 |  |
+| `chunks-per-tick` | auto\|수 | auto | auto 또는 1 이상 | 플레이어당 틱마다 보내는 청크 수. auto = 클라이언트가 알린 만큼(최대 64, 바닐라), 준비된 청크만 배치로. 수 = 그 수로 고정(예전 동작, 예전 기본 16) |  |
 | `velocity-secret` | 글자 | (없음) | - | 비어 있지 않으면 Velocity 모던 포워딩을 켠다(프록시와 같은 비밀값) |  |
 | `bungeecord` | ON/OFF | false | true|false | BungeeCord 레거시 IP 포워딩. velocity-secret 과 함께 쓸 수 없다 | online-mode 조합 경고 |
 | `chat.strict-order` | ON/OFF | true | true|false | true(바닐라): 순서가 어긋난 채팅이면 서명 체인을 끊는다. false: 그 메시지만 버린다 |  |
 | `chat.unsigned-as-system` | ON/OFF | false | true|false | 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가) | true 면 경고 |
 | `server-brand` | 글자 | Furnace | - | F3 서버 브랜드와 level.dat ServerBrands |  |
 | `announce-sleep-status` | ON/OFF | true | true|false | 자는 사람 수·밤 건너뛰기 액션바 |  |
+| `motd-format` | plain|legacy|markup | plain | plain|legacy|markup | server.properties motd 해석 방식(plain=바닐라) |  |
 | `confirm-interrupt` | ON/OFF | false | true|false | 콘솔 Ctrl+C 를 두 번 눌러야 종료 |  |
 | `confirm-interrupt-seconds` | 수 | 5 | 1~60 | 두 번째 Ctrl+C 를 기다리는 초 |  |
 | `connection.read-timeout-seconds` | 수 | 30 | 1~3600 | 읽기 무응답 제한(초) |  |
@@ -55,6 +56,31 @@
 | `plugins.dev-mode.auto-reload` | ON/OFF | false | true|false | 개발 모드에서 jar 가 바뀌면 자동으로 다시 읽는다 |  |
 | `worlds.autoload` | 목록 | (없음) | 이름,... | 시작 때 불러올 추가 월드 |  |
 | `enchantments.disabled` | 목록 | (없음) | id,... | 끌 마법부여 id(예: minecraft:mending) |  |
+| `io-uring` | ON/OFF | false | true\|false | 리눅스 io_uring 으로 접속을 받는다(못 쓰면 경고 후 epoll/NIO) |  |
+| `rcon.max-clients` | 수 | 16 | 1 이상 | RCON 동시 연결 수 상한 | 낮추거나 올리면 경고(StartupWarnings) |
+| `rcon.max-clients-per-ip` | 수 | 4 | 1 이상 | RCON 주소 하나당 동시 연결 수 상한 | 위와 같음 |
+| `rcon.max-fails-per-connection` | 수 | 5 | 1 이상 | RCON 연결 하나당 인증 실패 허용 수 | 위와 같음 |
+| `rcon.max-fails-per-ip` | 수 | 10 | 1 이상 | RCON 주소 하나당 60초 인증 실패 허용 수 | 위와 같음 |
+| `metrics.prometheus.enabled` | ON/OFF | false | true\|false | Prometheus 형식 메트릭을 HTTP GET /metrics 로 내보낸다 |  |
+| `metrics.prometheus.bind` | 글자 | 127.0.0.1 | 주소 | 메트릭 HTTP 바인딩 주소 | 루프백이 아닌데 토큰이 없으면 경고 |
+| `metrics.prometheus.port` | 수 | 9225 | 0~65535 | 메트릭 HTTP 포트(0 = 빈 포트) |  |
+| `metrics.prometheus.token` | 글자 | (없음) | - | 비어 있지 않으면 Bearer 토큰이 맞아야 응답 |  |
+| `metrics.jmx.enabled` | ON/OFF | false | true\|false | 같은 값을 JMX MBean 으로 등록 |  |
+| `idle-pause.empty-seconds` | 수 | 0 | 0~86400 | 접속자가 없으면 이 초 뒤 게임 틱을 멈춘다(0 = 끔, 바닐라) | 켜면 경고 |
+| `idle-pause.flush-caches` | ON/OFF | true | true\|false | 일시정지할 때 캐시를 비운다 |  |
+| `backup.interval-minutes` | 수 | 0 | 0~525600 | 주기 백업 간격(분, 0 = 끔) | 5분 미만이면 경고 |
+| `backup.directory` | 경로 | (없음) | - | 백업 폴더(비면 backups) |  |
+| `backup.keep` | 수 | 10 | 0~100000 | 남길 백업 수(0 = 지우지 않음) | 0 이면 경고 |
+| `backup.format` | 글자 | zip | zip\|folder | 백업 형식 |  |
+| `backup.skip-if-no-players` | ON/OFF | true | true\|false | 접속자가 없었으면 백업을 건너뛴다 |  |
+| `backup.hold-timeout-seconds` | 수 | 10 | 1~600 | 백업 기준점에서 저장을 기다리는 최대 초 |  |
+| `plugins.libraries.enabled` | ON/OFF | false | true\|false | 플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다 | 켜면 안내 |
+| `plugins.libraries.offline` | ON/OFF | false | true\|false | 캐시에 있는 라이브러리만 쓴다 | enabled=false 인데 적혀 있으면 경고 |
+| `plugins.libraries.transitive` | ON/OFF | true | true\|false | 라이브러리의 compile/runtime 의존까지 받는다 | 위와 같음 |
+| `plugins.libraries.require-checksum` | ON/OFF | false | true\|false | 체크섬 기록이 없는 jar 는 받지 않는다 | 위와 같음 |
+| `plugins.libraries.cache` | 경로 | (없음) | - | 받은 라이브러리 폴더(비면 plugins/.libraries) |  |
+| `plugins.libraries.timeout-seconds` | 수 | 30 | 1~600 | 라이브러리 요청 하나의 제한 시간(초) |  |
+| `plugins.libraries.max-size-mb` | 수 | 64 | 1~1024 | 라이브러리 파일 하나의 크기 상한(MB) |  |
 | `connection.<단계>.packets-per-second` | 수 | 200 | 0~1000000 | 접속 단계(`handshake` `status` `login` `configuration` `play`)별 초당 패킷 평균 상한, 0 = 제한 없음 | 0 이면 경고 |
 | `connection.<단계>.packets-burst` | 수 | 400 | 1~10000000 | 단계별 순간 패킷 상한 | |
 | `connection.<단계>.max-frame-bytes` | 수 | 단계별(play 2097152) | 16~2097152 | 단계별 한 패킷 최대 크기, 넘으면 조정 | 조정 시 경고 |

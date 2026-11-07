@@ -26,11 +26,15 @@ class SpectatorsGenerateChunksTest {
         void close() { io.shutdown(); sched.close(); }
     }
 
-    private static Rig rig(GameMode mode, boolean spectatorsGenerate) {
+    private static Rig rig(GameMode mode, boolean spectatorsGenerate) { return rig(mode, spectatorsGenerate, false); }
+
+    /** auto = chunks-per-tick=auto(서버 기본값, 준비 안 된 청크는 미리 불러오기를 건다). */
+    private static Rig rig(GameMode mode, boolean spectatorsGenerate, boolean auto) {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 1, 1, reg.directBits(), 7, io);
+        if (auto) w.configureStreaming(w.spawnChunkRadius(), org.domi.furnace.server.config.Config.CHUNKS_PER_TICK_AUTO);
         w.levelServices(new LevelServices.Delegating(w.levelServices()) {
             @Override public boolean gameRule(String name) {
                 return name.equals("spectatorsGenerateChunks") ? spectatorsGenerate : super.gameRule(name);
@@ -99,6 +103,39 @@ class SpectatorsGenerateChunksTest {
             assertEquals(9, tickAndCountChunks(surv, 10), "생존 플레이어는 규칙과 상관없다");
         } finally {
             surv.close();
+        }
+    }
+
+    // chunks-per-tick=auto(기본값)는 준비 안 된 청크에 미리 불러오기를 건다 — 관전자 규칙이 이 경로에서도 지켜져야 한다
+    @Test
+    void autoRate_spectatorWithRuleOff_generatesNothing() throws Exception {
+        Rig r = rig(GameMode.SPECTATOR, false, true);
+        try {
+            assertEquals(0, tickAndCountChunks(r, 6), "auto 에서도 꺼져 있으면 관전자는 청크를 받지 못한다");
+            assertEquals(0, r.w.loadedChunkCount(), "auto 미리 불러오기가 청크를 만들지 않는다");
+        } finally {
+            r.close();
+        }
+    }
+
+    @Test
+    void autoRate_spectatorWithRuleOff_receivesAlreadyLoadedChunksOnly() throws Exception {
+        Rig r = rig(GameMode.SPECTATOR, false, true);
+        try {
+            r.w.awaitChunk(new ChunkPos(0, 0));
+            assertEquals(1, tickAndCountChunks(r, 6), "auto 에서도 로드된 청크 하나만 받는다");
+        } finally {
+            r.close();
+        }
+    }
+
+    @Test
+    void autoRate_survival_generates() throws Exception {
+        Rig r = rig(GameMode.SURVIVAL, false, true);
+        try {
+            assertEquals(9, tickAndCountChunks(r, 10), "auto 의 생존 플레이어는 시야 9칸을 받는다");
+        } finally {
+            r.close();
         }
     }
 }
