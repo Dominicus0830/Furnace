@@ -191,7 +191,9 @@ final class CommandRegistryImpl implements CommandRegistry {
     private static BasicCommand withPermission(BasicCommand c, String permission) {
         return new BasicCommand() {
             public void execute(CommandSender sender, String[] args) { c.execute(sender, args); }
+            public void execute(CommandSender sender, String label, String[] args) { c.execute(sender, label, args); }
             public List<String> suggest(CommandSender sender, String[] args) { return c.suggest(sender, args); }
+            public List<String> suggest(CommandSender sender, String label, String[] args) { return c.suggest(sender, label, args); }
             public String permission() { return permission; }
         };
     }
@@ -208,17 +210,18 @@ final class CommandRegistryImpl implements CommandRegistry {
         Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
         return literal(name)
                 .requires(src -> cmd.canUse(host.sender(src)))
-                .executes(ctx -> run(cmd, exec, ctx, new String[0]))
+                .executes(ctx -> run(cmd, name, exec, ctx, new String[0]))
                 .then(argument("args", Arguments.greedyString())
-                        .suggests((ctx, b) -> suggest(cmd, tab, ctx, b))
-                        .executes(ctx -> run(cmd, exec, ctx, ctx.getArgument("args", String.class).split(" ", -1))));
+                        .suggests((ctx, b) -> suggest(cmd, name, tab, ctx, b))
+                        .executes(ctx -> run(cmd, name, exec, ctx, ctx.getArgument("args", String.class).split(" ", -1))));
     }
 
-    private int run(BasicCommand cmd, Timing timing, CommandContext<CommandSource> ctx, String[] args) {
+    /** label 은 트리에 붙은 이름(사용자가 친 이름 — 별칭이나 "플러그인:이름" 일 수 있다). */
+    private int run(BasicCommand cmd, String label, Timing timing, CommandContext<CommandSource> ctx, String[] args) {
         CommandSender sender = host.sender(ctx.getSource());
         long t0 = timing.start();
         try {
-            cmd.execute(sender, args);
+            cmd.execute(sender, label, args);
         } catch (Throwable t) {
             log.error("Command exception: /{}", ctx.getInput(), t);
             sender.sendMessage(Text.translatable("command.failed").color(org.domi.furnace.api.text.NamedTextColor.RED));
@@ -229,13 +232,13 @@ final class CommandRegistryImpl implements CommandRegistry {
         return 1;
     }
 
-    private CompletableFuture<Suggestions> suggest(BasicCommand cmd, Timing timing, CommandContext<CommandSource> ctx, SuggestionsBuilder b) {
+    private CompletableFuture<Suggestions> suggest(BasicCommand cmd, String label, Timing timing, CommandContext<CommandSource> ctx, SuggestionsBuilder b) {
         String remaining = b.getRemaining();
         String[] args = remaining.split(" ", -1);
         List<String> candidates;
         long t0 = timing.start();
         try {
-            candidates = cmd.suggest(host.sender(ctx.getSource()), args);
+            candidates = cmd.suggest(host.sender(ctx.getSource()), label, args);
         } catch (Throwable t) {
             log.error("자동완성 실패: /{}", ctx.getInput(), t);
             return Suggestions.empty();
