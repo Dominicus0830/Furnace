@@ -11,6 +11,9 @@ public interface LevelServices {
 
     int difficulty();
 
+    /** 서버 설정 pvp(server.properties). 서버 없이 쓰는 레벨은 켜짐. */
+    default boolean pvp() { return true; }
+
     /** 서버 점수판(팀 충돌 규칙 조회용). 서버 없이 쓰는 레벨은 null. */
     default org.domi.furnace.server.scores.Scoreboard scoreboard() { return null; }
 
@@ -227,6 +230,7 @@ public interface LevelServices {
         public boolean gameRule(String name) { return d.gameRule(name); }
         public int gameRuleInt(String name) { return d.gameRuleInt(name); }
         public int difficulty() { return d.difficulty(); }
+        public boolean pvp() { return d.pvp(); }
         public org.domi.furnace.server.plugin.GameEvents gameEvents() { return d.gameEvents(); }
         public org.domi.furnace.server.scores.Scoreboard scoreboard() { return d.scoreboard(); }
         public boolean worldAdventure() { return d.worldAdventure(); }

@@ -55,7 +55,9 @@ public final class TeamMsgCommand {
                 .clickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/teammsg "));
         ChatType.Bound incoming = ChatType.TEAM_MSG_COMMAND_INCOMING.bind(source.getDisplayName()).withTargetName(teamName);
         ChatType.Bound outgoing = ChatType.TEAM_MSG_COMMAND_OUTGOING.bind(source.getDisplayName()).withTargetName(teamName);
-        // TODO(채팅 필터): shouldFilterMessageTo·CHAT_FILTERED_FULL — 필터가 아직 없어 늘 거르지 않는다(/msg 와 같음)
+        // 바닐라는 받는 쪽마다 shouldFilterMessageTo(보내는 쪽·받는 쪽 클라이언트가 글자 걸러내기를 켰나)로 message.filter(...)를 부르고, 걸러진 결과가
+        // 전부 비면 CHAT_FILTERED_FULL 을 보낸다. 걸러내기 서비스(text-filtering-config)가 없으면 마스크가 PASS_THROUGH 라 어느 쪽이든 원문 그대로
+        // 가고 전부 걸러지는 일도 없다. Furnace 는 그 서비스를 지원하지 않으므로(FurnaceMain 경고) 이 분기가 관측 결과를 바꾸지 않는다(/msg 와 같음).
         for (Player p : receivers) source.getServer().sendChatMessage(p, message, false, p == entity ? outgoing : incoming);
     }
 }
