@@ -1423,7 +1423,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 바닐라 getTeam: 점수판 이름(접속 이름)이 든 팀(없으면 null). */
     public org.domi.furnace.server.scores.PlayerTeam team() {
         var b = scoreboard;
-        return b == null ? null : b.getPlayersTeam(name);
+        return b == null || !b.hasTeams() ? null : b.getPlayersTeam(name);
     }
 
     /**

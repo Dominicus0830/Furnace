@@ -230,4 +230,37 @@ class TeamPvpRulesTest {
         assertEquals(before, v3.vitals().health(), "pvp 꺼짐");
         assertTrue(a3.x() > v3.x() + 1.0, "화살이 사람을 통과해 날아간다: x=" + a3.x());
     }
+
+    @Test
+    void tamedPetUsesItsOwnersTeam() {
+        var level = new Arena();
+        Player owner = player(level, "Owner", -10);
+        Wolf wolf = spawn(level, "minecraft:wolf", 0.5);
+        wolf.setOwnerUUID(owner.uuid());
+        wolf.setTame(true, false);
+        PlayerTeam red = team(level, "red", true, owner.name());
+        assertSame(red, wolf.getTeam(), "TamableAnimal.getTeam = 주인의 팀");
+        assertSame(red, wolf.team());
+        // 같은 팀 플레이어는 주인의 늑대와 아군(쓸기·충격파·워든이 건너뛴다)
+        Player mate = player(level, "Mate", 2.5);
+        level.board.addPlayerToTeam(mate.name(), red);
+        assertTrue(mate.isAlliedTo(wolf));
+        wolf.setTame(false, false);
+        assertNull(wolf.getTeam());
+    }
+
+    @Test
+    void ownHitsAreBlockedLikeOtherPlayersWhenPvpIsOff() {
+        var level = new Arena();
+        Player a = player(level, "A", 0.5);
+        float before = a.vitals().health();
+        var dmg = new Entity.Damage("arrow", false, false, false);
+        assertTrue(a.hurtByVia(dmg, 4.0F, a, null), "pvp 켜짐: 자기 피해도 들어간다");
+        level.pvp = false;
+        ((PlayerVitalsTest.TestEnv) a.vitals().env()).pvp = false;
+        float mid = a.vitals().health();
+        assertFalse(a.hurtByVia(dmg, 4.0F, a, null), "pvp 꺼짐: ServerPlayer.canHarmPlayer(자기 자신)=거짓");
+        assertEquals(mid, a.vitals().health());
+        assertTrue(mid < before);
+    }
 }
