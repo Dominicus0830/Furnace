@@ -185,6 +185,23 @@ public interface World {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("stopRaid"));
     }
 
+    /** region 번호로(같은 차원 안에서 유일). 없거나 그새 합쳐져 사라졌으면 empty. */
+    default java.util.Optional<RegionInfo> region(int id) {
+        for (RegionInfo r : regions()) if (r.id() == id) return java.util.Optional.of(r);
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * 그 청크를 가진 region 의 최근 5초 TPS(초당 게임 틱 수). region 이 없거나 막 생겨 아직 잴 수 없으면 empty.
+     * 값은 그 region 의 목표({@code /tick rate}, 기본 20)를 넘을 수 있다(/tick sprint 중). 아무 스레드.
+     */
+    default java.util.OptionalDouble tpsAt(int chunkX, int chunkZ) {
+        return regionAt(chunkX, chunkZ).filter(r -> !Double.isNaN(r.tps())).map(r -> java.util.OptionalDouble.of(r.tps()))
+                .orElse(java.util.OptionalDouble.empty());
+    }
+
+    default java.util.OptionalDouble tpsAt(BlockPos pos) { return tpsAt(pos.chunkX(), pos.chunkZ()); }
+
     // ------------------------------------------------------------------ 블록 엔티티 NBT (/data block 과 같은 의미)
 
     /**

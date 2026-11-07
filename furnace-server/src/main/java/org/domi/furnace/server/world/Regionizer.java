@@ -142,6 +142,55 @@ public final class Regionizer {
 
     boolean gameTicks() { return gameTicks; }
 
+    // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버, furnace-test)
+    // 켜면 region 은 벽시계로 게임 틱을 하지 않는다. 시험이 manualAdvance 로 낸 틱 수(manualTarget)까지만 한 틱씩 돌고, 그 사이에는
+    // 작업 큐만 비운다(지연 작업 시계도 멈춘다). 마친 틱 수가 다른 region 끼리는 합치지 않는다(sprint lockstep 과 같은 까닭).
+    // 나뉜 조각은 부모의 수를, 새로 생긴 region 은 지금 목표를 이어받는다(생긴 뒤의 틱부터 돈다). 프로덕션 서버는 켜지 않는다.
+
+    /** 수동 시계일 때 틱 사이 작업 큐를 비우러 도는 간격. */
+    static final long MANUAL_POLL_NANOS = 1_000_000L;
+    private volatile boolean manualClock;
+    private volatile long manualTarget;
+
+    /** 수동 시계를 켠다(게임 틱 시작 전에 한 번). 되돌리지 않는다. */
+    void enableManualClock() { this.manualClock = true; }
+
+    boolean isManualClock() { return manualClock; }
+
+    /** 시험 틱 하나를 낸다: 목표를 1 올리고 쉬는 region 을 곧바로 깨운다. 새 목표를 돌려준다. */
+    long manualAdvance() {
+        lock.lock();
+        try {
+            long target = ++manualTarget;
+            long now = System.nanoTime();
+            List<Region> wake = new ArrayList<>();
+            for (Region r : regions) if (r.queued && !r.ticking && r.alive && !r.yielded) wake.add(r);
+            for (Region r : wake) {
+                queue.remove(r);
+                r.nextTickNanos = now;
+                queue.add(r);
+            }
+            publishHead();
+            pool.wake(headDue);
+            return target;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** 살아 있는 모든 region 이 target 번째 시험 틱까지 마쳤는가(합쳐지기를 기다리는 region 은 흡수하는 쪽이 센다). */
+    boolean manualCaughtUp(long target) {
+        lock.lock();
+        try {
+            for (Region r : regions) if (r.alive && !r.yielded && r.manualDone < target) return false;
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    long manualTarget() { return manualTarget; }
+
     // ------------------------------------------------------------------ 키
 
     public static long chunkKey(int cx, int cz) { return (long) cx << 32 | (cz & 0xFFFFFFFFL); }
@@ -279,6 +328,7 @@ public final class Regionizer {
 
     private Region newRegion(long firstTick) {
         Region r = new Region(++nextId, world);
+        r.manualDone = manualTarget;   // 수동 시계: 생긴 뒤의 시험 틱부터 돈다
         r.inheritSteps(world.tickState().generation(), 0);   // 진행 중인 step 은 새 region 에 다시 주지 않는다
         r.inheritSprint(world.tickState().sprintGeneration(), 0, false);   // sprint 도 같다(참여하지 않는다)
         regions.add(r);
@@ -563,6 +613,8 @@ public final class Regionizer {
                 queue.poll();
                 head.queued = false;
                 head.ticking = true;
+                // 수동 시계: 이번 차례가 시험 틱인지 잠금 안에서 정한다 — 병합 판정(resolveMerges)이 틱 중인 상대의 수를 +1 로 본다
+                head.manualPass = manualClock && head.manualDone < manualTarget;
                 head.tickThread = Thread.currentThread();
                 running.put(head, now);
                 noteTaken(head, late);
@@ -584,9 +636,11 @@ public final class Regionizer {
         }
         long t0 = STATS ? System.nanoTime() : 0L;
         try {
-            boolean game = gameTicks;
+            // 수동 시계: 목표에 닿은 region 은 작업 큐만 비운다(manualPass 는 tryTake 가 잠금 안에서 정했다)
+            boolean hold = manualClock && !r.manualPass;
+            boolean game = gameTicks && !hold;
             long tickStart = game ? System.nanoTime() : 0L;
-            r.runTick(game);
+            r.runTick(gameTicks, hold);
             if (game && r.lastRunTicked) {
                 long took = System.nanoTime() - tickStart;
                 world.tickState().record(took);   // /tick query 의 틱 시간 표본
@@ -604,6 +658,7 @@ public final class Regionizer {
         tickRing.record(took);
         tickWindows.record(start, took);
         r.tickStarts.record(start);
+        r.observedPlayers = r.players().size();
         r.lastTickNanos = took;
         if (took > r.maxTickNanos) r.maxTickNanos = took;
     }
@@ -688,10 +743,18 @@ public final class Regionizer {
 
     /** 틱 끝(잠금 안): 합치기 → 나누기 → 빈 region 정리 → 다음 틱 예약. */
     private void afterTick(Region r) {
+        boolean counted = !manualClock;
+        if (r.manualPass) {
+            r.manualPass = false;
+            if (!r.sprintHeld()) {   // sprint lockstep 으로 기다린 차례는 틱을 돌지 않았다 — 세지 않고 곧 다시 돈다
+                r.manualDone++;
+                counted = true;
+            }
+        }
         updateSprintSummary(r);
         resolveMerges(r);
         if (!r.alive || r.yielded) return;
-        r.ticksSinceRecalc++;
+        if (counted) r.ticksSinceRecalc++;   // 수동 시계: 나누기 재계산 주기는 쉬는 차례가 아니라 시험 틱으로 센다
         if ((r.deadSections > 0 || r.sections.isEmpty()) && r.ticksSinceRecalc >= RECALC_INTERVAL_TICKS) {
             r.ticksSinceRecalc = 0;
             split(r);
@@ -699,7 +762,10 @@ public final class Regionizer {
         if (!r.alive) return;
         long now = System.nanoTime();
         updateSprintSummary(r);   // 병합으로 이어받은 상태까지
-        if (r.sprintPending) {
+        if (manualClock) {
+            // 수동 시계: 낸 틱이 남았으면 곧바로, 아니면 작업 큐를 비우러 잠깐 뒤에(manualAdvance 가 앞당긴다)
+            r.nextTickNanos = r.manualDone < manualTarget ? now : now + MANUAL_POLL_NANOS;
+        } else if (r.sprintPending) {
             // /tick sprint: 기다리지 않고 곧바로 다음 틱(같은 풀의 다른 region 과는 마감 순서로 번갈아). 전역을 기다린 틱이면 잠깐 뒤에.
             r.nextTickNanos = r.sprintHeld() ? now + SPRINT_HOLD_NANOS : now;
         } else {
@@ -754,6 +820,17 @@ public final class Regionizer {
         }
     }
 
+    /**
+     * 수동 시계 병합 조건(잠금 안): 마친 시험 틱 수가 같아야 한다. 틱 중인 상대는 지금 도는 시험 틱까지 센다 — 그렇지 않으면
+     * 쉬던 쪽이 양보한 뒤 상대가 틱을 마쳐 수가 달라지고, 양보한 region 은 다시 돌지 않아 영영 흡수되지 않는다.
+     */
+    private boolean manualCompatible(Region r, Region o) {
+        if (!manualClock) return true;
+        long ro = r.manualDone + (r.ticking && r.manualPass ? 1 : 0);
+        long oo = o.manualDone + (o.ticking && o.manualPass ? 1 : 0);
+        return ro == oo;
+    }
+
     /** 미룬 병합 상대 목록(없으면 null)을 돌려준다. */
     private List<Region> resolveMerges(Region r, List<Region> deferred) {
         while (!r.pendingMerges.isEmpty()) {
@@ -761,7 +838,7 @@ public final class Regionizer {
             Region o = resolve(it.next());
             it.remove();
             if (o == null || o == r || !o.alive) continue;
-            if (!sprintCompatible(r, o)) {   // 참여 region 끼리 마친 틱이 다르면 한 틱 미룬다
+            if (!sprintCompatible(r, o) || !manualCompatible(r, o)) {   // 참여 region 끼리(수동 시계면 모두) 마친 틱이 다르면 한 틱 미룬다
                 if (deferred == null) deferred = new ArrayList<>();
                 deferred.add(o);
                 continue;
@@ -853,10 +930,11 @@ public final class Regionizer {
         List<Region> created = new ArrayList<>();
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
+            n.manualDone = r.manualDone;   // 수동 시계: 부모가 마친 시험 틱 수
             n.inheritSteps(r.stepGeneration(), r.stepsLeft());   // 나뉜 조각은 부모의 남은 걸음을 물려받는다
             n.inheritSprint(r.sprintGeneration(), r.sprintLeft(), r.sprintJoined());   // sprint 틱도
             // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게. sprint 중이면 부모처럼 곧바로
-            n.nextTickNanos = r.sprintLeft() > 0 ? r.nextTickNanos : r.nextTickNanos + tickNanos;
+            n.nextTickNanos = r.sprintLeft() > 0 || manualClock ? r.nextTickNanos : r.nextTickNanos + tickNanos;
             regions.add(n);
             created.add(n);
             for (long sk : parts.get(i)) {
@@ -954,7 +1032,8 @@ public final class Regionizer {
 
     /** region 한 개의 관측 사본. thread 는 지금 틱 중인 워커 이름(쉬면 null), runningNanos 는 그 틱이 돈 시간. */
     public record RegionInfo(int id, int sections, int chunks, int inbox, String thread, long runningNanos,
-                             long lastTickNanos, long maxTickNanos, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {}
+                             long lastTickNanos, long maxTickNanos, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ,
+                             int players) {}
 
     /** 살아 있는 region 들의 관측 사본(잠금 안에서 값만 복사한다 — region 상태는 만지지 않는다). */
     public List<RegionInfo> regionInfos() {
@@ -984,7 +1063,7 @@ public final class Regionizer {
         Thread t = r.tickThread;
         Long started = running.get(r);
         return new RegionInfo(r.id, r.sections.size(), r.present.size(), r.inbox.size(), t == null ? null : t.getName(),
-                started == null ? 0 : now - started, r.lastTickNanos, r.maxTickNanos, minX, minZ, maxX, maxZ);
+                started == null ? 0 : now - started, r.lastTickNanos, r.maxTickNanos, minX, minZ, maxX, maxZ, r.observedPlayers);
     }
 
     /** region 틱 시간 창별 소요 시간(/mspt). */
@@ -1012,6 +1091,49 @@ public final class Regionizer {
                 }
             }
             return worst == null ? null : new RegionRate(info(worst, now), worstTps);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * 활성 region(플레이어가 있는 region) 요약 — /tps·getTPS 용. 잴 수 있는(기록 minHistory 이상) region 만 센다.
+     * weightedSum = Σ(플레이어 수 × TPS), 평균은 weightedSum / activePlayers. slowestAny 는 플레이어 없는 region 까지 포함한 최저.
+     */
+    public record ActiveSummary(int activeRegions, int activePlayers, double weightedSum, double slowestActive, double slowestAny) {
+        public static final ActiveSummary NONE = new ActiveSummary(0, 0, 0, Double.NaN, Double.NaN);
+
+        /** 여러 차원의 요약을 합친다. */
+        public ActiveSummary plus(ActiveSummary o) {
+            return new ActiveSummary(activeRegions + o.activeRegions, activePlayers + o.activePlayers, weightedSum + o.weightedSum,
+                    minNaN(slowestActive, o.slowestActive), minNaN(slowestAny, o.slowestAny));
+        }
+
+        /** 플레이어 가중 평균(활성 region 이 없으면 NaN). */
+        public double weightedAverage() { return activePlayers == 0 ? Double.NaN : weightedSum / activePlayers; }
+
+        private static double minNaN(double a, double b) { return Double.isNaN(a) ? b : Double.isNaN(b) ? a : Math.min(a, b); }
+    }
+
+    /** 활성 region 요약(잠금 안에서 각 region 의 시작 시각 고리·플레이어 수만 읽는다). */
+    public ActiveSummary activeSummary(long now, long windowNanos, long minHistoryNanos) {
+        lock.lock();
+        try {
+            int regionsN = 0, playersN = 0;
+            double sum = 0, slowActive = Double.NaN, slowAny = Double.NaN;
+            for (Region r : regions) {
+                if (!r.alive || r.yielded) continue;
+                double tps = r.tickStarts.rate(now, windowNanos, minHistoryNanos);
+                if (Double.isNaN(tps)) continue;
+                slowAny = Double.isNaN(slowAny) ? tps : Math.min(slowAny, tps);
+                int p = r.observedPlayers;
+                if (p <= 0) continue;
+                regionsN++;
+                playersN += p;
+                sum += p * tps;
+                slowActive = Double.isNaN(slowActive) ? tps : Math.min(slowActive, tps);
+            }
+            return new ActiveSummary(regionsN, playersN, sum, slowActive, slowAny);
         } finally {
             lock.unlock();
         }

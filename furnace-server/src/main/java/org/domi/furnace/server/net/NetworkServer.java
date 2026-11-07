@@ -73,6 +73,14 @@ public final class NetworkServer {
         this.idAllocator = idAllocator;
     }
 
+    /** 이 주소에만 묶는다(null = 모든 주소, 기본). 시험 서버는 127.0.0.1 — start 전에 부른다. */
+    private String bindHost;
+
+    public NetworkServer bindHost(String host) {
+        this.bindHost = host;
+        return this;
+    }
+
     /** 이 환경에서 io_uring 을 쓸 수 있는지(네이티브 로드 실패·커널 미지원이면 false). */
     public static boolean ioUringAvailable() {
         try {
@@ -153,7 +161,7 @@ public final class NetworkServer {
                     }
                 });
         try {
-            channel = b.bind(port).syncUninterruptibly().channel();
+            channel = (bindHost != null ? b.bind(bindHost, port) : b.bind(port)).syncUninterruptibly().channel();
         } catch (Throwable e) {   // 체크 예외(BindException)도 sneaky throw로 오므로 RuntimeException만 잡으면 안 된다
             // bind 실패(포트 점유 등) 시 non-daemon 이벤트루프 스레드가 JVM을 붙잡지 않게 정리.
             workerGroup.shutdownGracefully();

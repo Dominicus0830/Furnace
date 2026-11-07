@@ -1033,6 +1033,19 @@
 - 평지 월드는 슬라임 청크 때문에 몬스터가 바로 쌓여 "몬스터 수 == 0" 단정이 깨진다. 상한을 건 뒤 증가 여부로 본다.
 - 시험: `SpawnPolicyStateTest` 8, `SpawnPolicySpawnTest` 6, `EntityPolicyApiTest` 8, `NoPhysicsRegionTest` 1, `SpawnDiscardTest`, 봇 `round15/e3.js` 15/15 + `MODE=npcs` 1/1.
 
+## 2026-11-07 M4 약탈자·습격 바닐라 대조 (바이트코드)
+- 대조 방법: 바닐라 1.21.1 jar(`tools/vanilla-data`)를 `javap -c -p` 로 읽어 Furnace 와 줄 단위로 맞춰 봤다(Vineflower 실행은 자동 모드에서 거부됨). 대상: `Raid`(coi: 틱·파도 구성·보너스 수·스폰 위치·joinRaid·updateRaiders·소리·save), `Raids`(cok), `Raider`(coj), `PatrollingMonster`(cke)+`LongDistancePatrolGoal`(cke$a), `PatrolSpawner`(dzj), 일러저 `Pillager`(ckg)·`Vindicator`(cks)·`Vindicator.BreakDoorGoal`(cks$a)·`Ravager`·`Witch`.
+- **같음 확인**: 습격 틱 순서와 모든 상수(대기 300, 최대 48000, 112² 이탈, 30틱 바깥, 승리 40틱 대기, 축하 600), 나쁜 징조→습격 징조→습격 시작 흐름(`BadOmen`/`RaidOmen` 효과, `createOrExtendRaid` 의 마을 POI 평균 위치), 파도별 수·추가 수 난수 순서(`getPotentialBonusSpawns`), 파괴수 기수, 스폰 위치 찾기(`findRandomSpawnPos`), 습격 뿔피리, 저장 키 순서, 순찰 스포너(12000+nextInt(1200), 5일째 낮, 1/5, 24~47칸, 크기=ceil(실효 난이도)+1)와 장거리 순찰 목표(회전 90 라디안·0.4·10칸 걸음), 문 부수기·문 열기 조건.
+- **가정이었던 것 3개 확정**: ① 순찰 저장 키는 `patrol_target`(정수 배열) 맞음. ② 마녀·약탈수는 `canBeLeader()==false` 맞음. ③ 불길한 깃발은 **희귀도 구성 요소가 없고** 이름만 금색 스타일(`item_name`={translate, color:gold}) — 기존의 `rarity: uncommon` 은 틀렸다.
+- **고친 차이**:
+  - 불길한 깃발(`Raider.leaderBanner`): 희귀도 uncommon 제거, 이름에 금색. 바닐라 월드에서 온 깃발과 `ItemStack.matches` 가 어긋나(줍기·지도자 판정 실패) 있었다.
+  - `Raid.addWaveMob`: 바닐라는 같은 UUID 의 옛 개체를 새 개체로 **바꾸고 항상 참**을 돌려준다. 이전에는 거짓을 돌려주고 옛 개체를 남겨, 청크가 내려갔다 올라온 습격자가 집합에 없어 생존 수가 모자랐다(웨이브가 일찍 끝날 수 있음).
+  - `Pillager.applyRaidBuffs` 가 비어 있었다: 습격 징조 확률(`Raid.getEnchantOdds`: 단계 2→0.1, 3→0.25, 4→0.5, 5→0.75)을 통과하면 새 석궁에 파도 > 5 면 `raid/pillager_post_wave_5`, 파도 > 3 이면 `raid/pillager_post_wave_3` 제공자로 마법을 걸어 주 무기로 바꾼다(그 밖은 그대로). `Vindicator` 도 같은 `getEnchantOdds` 를 쓰게 정리.
+  - `Raider.die` 영웅 후보: 바닐라는 `damageSource.getEntity()` 가 플레이어일 때만 후보. 이전에는 "100틱 안에 마지막으로 때린 플레이어"라서 길들인 늑대·낙사·불 등 다른 원인으로 죽어도 영웅이 됐다.
+- **독립 검토(읽기 전용) 결과**: 블로커 없음. 사소한 차이 기록: `updateRaiders` 의 `level.getEntity(uuid)==null` 검사는 없지만 청크가 내려가면 개체가 removed 로 표시돼 `isRemoved()` 가 덮는다. 습격 대기 위치·스폰 위치 검사는 바닐라 `isPositionEntityTicking` 대신 `hasChunkAt`(적재 여부)을 쓴다. `Vindicator.populateDefaultEquipmentSlots` 는 바닐라처럼 `getCurrentRaid()==null` 로 맞췄다.
+- **남은 차이**(구조상): 내려간 청크·다른 region 의 POI 는 조회하지 않아 중심 둘레 ±2 섹션 중 일부가 다른 region 이면 마을 판정이 모자랄 수 있다. 같은 거리 POI 선택 순서(`getInRange` 순서)는 region 청크 순서에 따른다. 보스바 진행도 `0/0`(NaN) 은 바닐라가 NaN 을 보내지만 여기서는 0 으로 보낸다.
+- 시험: `RaidParityTest`(깃발 구성·addWaveMob 교체·습격 석궁 마법 확률/파도·영웅 처치자) 신규.
+
 ## 2026-11-07 수면·리스폰 바닐라 대조 (묶음 M9)
 - 바닐라 1.21.1 바이트코드 대조(`aqv`=ServerPlayer): `stopSleepInBed(true,true)` 를 부르는 곳은 **disconnect 와 teleportTo(level, …7인자) 둘뿐**이다. 차원 이동(changeDimension)·포털은 깨우지 않는다(자면서 포털에 들어갈 수 없다).
 - 자는 중 텔레포트: `/tp`·setCamera 는 이미 깨웠으나 플러그인 `PlayerHandle.teleport`·`Player.teleportTo`(3·5인자)·`teleportRelative`(엔더 진주 등)는 안 깨웠다. 이제 `Player.wakeThen` 이 이벤트 취소 확인 뒤 소유 스레드(`runOnOwner`)에서 깨우고 **그다음** 목적지로 보정 텔레포트한다(깨우기가 일어설 자리로 옮기는 보정이 목적지를 덮어쓰지 않게 순서 고정). 상대 텔레포트는 깬 뒤 자리 기준.

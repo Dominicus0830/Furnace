@@ -181,6 +181,19 @@ public final class World {
         closeHook.run();
     }
 
+    // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버 furnace-test 전용 — Regionizer 설명)
+
+    /** region 이 벽시계 대신 시험이 낸 틱만 돌게 한다. startTicking 전에 한 번 부른다. */
+    public void useManualClock() { regionizer.enableManualClock(); }
+
+    public boolean manualClock() { return regionizer.isManualClock(); }
+
+    /** 시험 틱 하나를 낸다. 모든 region 이 이 번호까지 돌면 {@link #manualTickDone} 이 참이 된다. */
+    public long advanceManualTick() { return regionizer.manualAdvance(); }
+
+    /** 살아 있는 모든 region 이 target 번째 시험 틱을 마쳤는가. */
+    public boolean manualTickDone(long target) { return regionizer.manualCaughtUp(target); }
+
     /** 게임 틱을 끈다(내리기 시작 — 작업은 계속 처리해 저장을 끝낸다). */
     public void stopTicking() { regionizer.gameTicks(false); }
 
@@ -341,9 +354,15 @@ public final class World {
         public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
             CompletableFuture<Void> f = new CompletableFuture<>();
             long key = Regionizer.chunkKey(cp.x(), cp.z());
-            runAtChunk(cp, r -> r.schedule(key, r2 -> {
+            java.util.function.Consumer<Region> run = r2 -> {
                 try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            }, delayTicks));
+            };
+            // 그 청크의 region 스레드 안이면 곧바로 건다 — 작업 큐를 한 번 더 거치면 다음 틱 머리에서야 걸려 한 틱 밀린다
+            // (반복 작업 runAtFixedRate(…, 1, 1) 이 두 틱마다 돌던 원인). 밖에서 부르면 예전처럼 큐를 거친다.
+            Region owner = regionizer.ownerOf(cp.x(), cp.z());
+            // 곧바로 걸 때 0 은 1 로 — 지금 돌고 있는 지연 작업 차례에서 다시 꺼내 같은 틱에 돌거나, 자기를 다시 거는 작업이 끝없이 돌지 않게
+            if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, Math.max(1, delayTicks));
+            else runAtChunk(cp, r -> r.schedule(key, run, delayTicks));
             return f;
         }
 

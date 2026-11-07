@@ -66,9 +66,55 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
 
     @Override
     public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
+        if (manual) {
+            CompletableFuture<Void> f = new CompletableFuture<>();
+            synchronized (manualQueue) {
+                // 바닐라·Bukkit 처럼 0 과 1 은 다음 틱, n 은 n 틱 뒤
+                manualQueue.add(new ManualDelayed(manualTick + Math.max(1, delayTicks), manualSeq++, task, f));
+            }
+            return f;
+        }
         Executor delayed = CompletableFuture.delayedExecutor(
                 delayTicks * 50, TimeUnit.MILLISECONDS, exec);
         return CompletableFuture.runAsync(task, delayed);
+    }
+
+    // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버 furnace-test 전용)
+    // 켜면 지연 작업은 벽시계가 아니라 advanceManualTick 이 센 틱으로 돈다. 같은 틱에 때가 된 작업은 예약 순서대로.
+
+    private volatile boolean manual;
+    private long manualTick;
+    private long manualSeq;
+    private final java.util.PriorityQueue<ManualDelayed> manualQueue = new java.util.PriorityQueue<>(
+            (a, b) -> a.due != b.due ? Long.compare(a.due, b.due) : Long.compare(a.seq, b.seq));
+
+    private record ManualDelayed(long due, long seq, Runnable task, CompletableFuture<Void> future) {}
+
+    /** 지연 작업을 틱 수로 센다. 작업을 넣기 전에 한 번 부른다. */
+    public void useManualClock() { this.manual = true; }
+
+    public boolean manualClock() { return manual; }
+
+    /** 전역 스레드에서: 시험 틱 하나 — 틱 번호를 올리고 때가 된 지연 작업을 돌린다. 지금 틱 번호를 돌려준다. */
+    public long advanceManualTick() {
+        if (!isOwnerThread()) throw new IllegalStateException("전역 스레드에서 불러야 한다");
+        long tick;
+        synchronized (manualQueue) { tick = ++manualTick; }
+        while (true) {
+            ManualDelayed d;
+            synchronized (manualQueue) {
+                d = manualQueue.peek();
+                if (d == null || d.due > tick) break;
+                manualQueue.poll();
+            }
+            try {
+                d.task.run();
+                d.future.complete(null);
+            } catch (Throwable t) {
+                d.future.completeExceptionally(t);
+            }
+        }
+        return tick;
     }
 
     @Override

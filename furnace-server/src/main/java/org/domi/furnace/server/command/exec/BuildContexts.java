@@ -32,6 +32,8 @@ public class BuildContexts {
         this.command = command;
     }
 
+    protected final String commandLine() { return commandInput; }
+
     protected void execute(CommandSource originalSource, List<CommandSource> initialSources, ExecutionContext context, Frame frame,
                            ChainModifiers initialModifiers) {
         runStages(originalSource, command, initialModifiers, initialSources, context, frame);
@@ -249,6 +251,10 @@ public class BuildContexts {
 
         @Override
         public void execute(CommandSource source, ExecutionContext context, Frame frame) {
+            if (source.getServer() != null) {
+                var events = source.getServer().gameEvents();
+                if (events.wantsFunctionCommands() && !events.functionCommand(source, commandLine(), frame.depth())) return;   // 플러그인이 이 줄만 취소
+            }
             traceCommandStart(context, frame);
             execute(source, List.of(source), context, frame, ChainModifiers.DEFAULT);
         }

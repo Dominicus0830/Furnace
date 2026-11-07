@@ -157,8 +157,9 @@ public abstract class Raider extends Monster {
     }
 
     /**
-     * Raid.getLeaderBannerInstance: 불길한 깃발(흰 깃발 + 무늬 8겹, 추가 툴팁 숨김, 이름 block.minecraft.ominous_banner, 희귀도 uncommon).
-     * 가정: 1.21.1 은 이름에 금색 스타일 대신 rarity uncommon 을 쓴다고 보았다(바닐라 jar 대조 필요).
+     * Raid.getLeaderBannerInstance: 불길한 깃발(흰 깃발 + 무늬 8겹, 추가 툴팁 숨김, 이름 block.minecraft.ominous_banner 금색).
+     * 바닐라 1.21.1(coi.a, 바이트코드 대조): 구성 요소는 banner_patterns·hide_additional_tooltip·item_name 셋뿐이고,
+     * 이름은 번역 키에 금색(GOLD) 스타일을 입힌 것이다. 희귀도 구성 요소는 없다(깃발은 기본 common).
      */
     public static ItemStack leaderBanner() {
         ItemStack s = stackOf("minecraft:white_banner");
@@ -174,8 +175,7 @@ public abstract class Raider extends Monster {
         }
         s = ItemTools.with(s, "minecraft:banner_patterns", list);
         s = ItemTools.with(s, "minecraft:hide_additional_tooltip", Map.of());
-        s = ItemTools.with(s, "minecraft:item_name", "{\"translate\":\"block.minecraft.ominous_banner\"}");
-        return ItemTools.with(s, "minecraft:rarity", "uncommon");
+        return ItemTools.with(s, "minecraft:item_name", "{\"translate\":\"block.minecraft.ominous_banner\",\"color\":\"gold\"}");
     }
 
     /** PatrollingMonster.canBeLeader(약탈수·마녀는 거짓으로 덮어쓴다). */
@@ -223,7 +223,8 @@ public abstract class Raider extends Monster {
         var raid = currentRaid;
         if (raid != null) {
             if (isPatrolLeader()) raid.removeLeader(getWave());
-            if (lastHurtByPlayer != null && lastHurtByPlayerTime > 0) raid.addHeroOfTheVillage(lastHurtByPlayer);
+            // 바닐라: damageSource.getEntity() 가 플레이어일 때만(화살이면 쏜 사람). 길들인 늑대·시간이 지난 마지막 타격은 해당 없음
+            if (damageSourceEntity() instanceof Player killer) raid.addHeroOfTheVillage(killer);
             raid.removeFromRaid(this, false);
         }
         super.die(source);

@@ -1,0 +1,6 @@
+name: Counter
+version: 1.0.0
+main: org.domi.furnace.test.sample.CounterPlugin
+commands:
+  count:
+    description: 센 틱을 알린다

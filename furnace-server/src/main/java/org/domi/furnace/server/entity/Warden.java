@@ -116,6 +116,9 @@ public class Warden extends Monster implements VibrationSystem {
 
     @Override protected float nextStep() { return moveDist + 0.55F; }
 
+    /** Warden.playStepSound: 블록과 상관없이 warden.step 크기 10. */
+    @Override protected void playStepSound(Pos pos, int state) { playSound("minecraft:entity.warden.step", 10.0F, 1.0F); }
+
     @Override protected float getSoundVolume() { return 4.0F; }
 
     @Override public String soundSource() { return "hostile"; }
