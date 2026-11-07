@@ -265,7 +265,7 @@ public class StructureBlockEntity extends BlockEntity {
      * StructureTemplate.fillFromWorld: 영역의 블록(구조물 빈 칸 제외)·블록 엔티티 NBT·엔티티(플레이어 제외)를 담은 새 템플릿.
      * 영역이 이 레벨에 로드돼 있지 않으면 null.
      */
-    static StructureTemplate fillFromWorld(RegionLevel level, BlockStateTable table, int ox, int oy, int oz, int sx, int sy, int sz, boolean includeEntities) {
+    public static StructureTemplate fillFromWorld(RegionLevel level, BlockStateTable table, int ox, int oy, int oz, int sx, int sy, int sz, boolean includeEntities) {
         int x1 = ox + sx - 1, y1 = oy + sy - 1, z1 = oz + sz - 1;
         for (int cx = ox >> 4; cx <= x1 >> 4; cx++)
             for (int cz = oz >> 4; cz <= z1 >> 4; cz++)

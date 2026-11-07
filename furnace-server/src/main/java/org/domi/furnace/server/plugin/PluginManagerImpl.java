@@ -288,6 +288,11 @@ public final class PluginManagerImpl implements PluginManager {
         } catch (RuntimeException e) {
             log.warn("{} 의 가짜 광원 정리 실패", l.description().name(), e);
         }
+        try {
+            host.chunkTicketsImpl().releaseAll(p);   // 청크 티켓
+        } catch (RuntimeException e) {
+            log.warn("{} 의 청크 티켓 정리 실패", l.description().name(), e);
+        }
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
         PluginBootstrapper b = boot;
         if (b != null) b.forget(l.description().name());   // 플러그인 레지스트리 몫·수명주기 훅
