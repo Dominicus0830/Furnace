@@ -311,9 +311,8 @@ public final class ItemCommands {
         if (custom instanceof String str) return FlatText.parse(str);
         Object name = ItemArgument.componentValue(s, "minecraft:item_name");
         if (name instanceof String str) return FlatText.parse(str);
-        String id = ItemTools.itemName(s);
-        String[] ns = id.split(":", 2);
-        return Text.translatable("item." + ns[0] + "." + ns[1]);
+        // Item.getDescriptionId: 블록 아이템은 block.<ns>.<path>(바닐라 [Structure Block]), 그 밖은 item.<ns>.<path>
+        return Text.translatable(org.domi.furnace.server.recipe.RecipeManager.descriptionId(org.domi.furnace.server.data.ResourceId.parse(ItemTools.itemName(s))));
     }
 
     /** ItemStack.getDisplayName: [이름] — 이름이 붙었으면 기울임, 희귀도 색, show_item 호버. */
