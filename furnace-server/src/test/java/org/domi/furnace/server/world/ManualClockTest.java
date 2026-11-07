@@ -1,6 +1,6 @@
 // 수동 시계(헤드리스 시험 서버 furnace-test 가 쓰는 결정적 틱)와 region 지연 작업의 기준 틱.
 // - 수동 시계: 낸 틱 수만큼만 region 게임 틱·지연 작업이 돌고, 그 사이에는 작업 큐만 비운다.
-// - 기준 틱: 작업 큐를 거쳐 다시 걸리는 반복 작업(플러그인 region runAtFixedRate)이 주기 1 이면 매 틱 돈다(예전에는 두 틱마다).
+// - 플러그인 region 스케줄러: region 스레드 안에서 다시 거는 반복 작업(runAtFixedRate)이 주기 1 이면 매 틱 돈다(예전에는 큐를 거쳐 두 틱마다).
 // - 전역 스레드 수동 지연 작업: 0·1 은 다음 틱, n 은 n 틱 뒤, 같은 틱은 넣은 차례.
 package org.domi.furnace.server.world;
 
@@ -86,7 +86,7 @@ class ManualClockTest {
         assertEquals(4, runs.get());
     }
 
-    /** 수동 시계 없이(운영): 큐를 거쳐 다시 걸리는 주기 1 반복 작업은 region 틱마다 한 번. */
+    /** 수동 시계 없이(운영): 주기 1 반복 작업은 region 틱마다 한 번. */
     @Test
     void periodOneRepeatRunsEveryTickOnRealClock() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);

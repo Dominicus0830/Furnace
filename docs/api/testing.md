@@ -116,5 +116,5 @@ class MyPluginTest {
   region 은 sprint lockstep 의 기다림처럼 작업 큐만 비운다(지연 작업 시계도 멈춘다). 마친 수가 다른 region 은 합치지 않고, 나뉜 조각은 부모 수를,
   새 region 은 지금 목표를 이어받는다. 운영 서버는 켜지 않는다.
 - `GlobalThread.useManualClock`: 전역 지연 작업을 벽시계 대신 `advanceManualTick` 이 센 틱으로 돌린다.
-- region 지연 작업의 기준 틱(`Region.scheduleBase`): 작업 큐를 비우는 동안 건 지연 작업은 "마친 틱"부터 센다. 그래서 큐를 거쳐 다시 걸리는
-  반복 작업(플러그인 region `runAtFixedRate`)이 주기 1 이면 매 틱 돈다 — 예전에는 두 틱마다 돌았다(운영 서버에도 해당하는 고침).
+- 플러그인 region 스케줄러(`World.ChunkScheduler.executeDelayed`): 그 청크의 region 스레드 안에서 부르면 작업 큐를 거치지 않고 곧바로 건다.
+  예전에는 늘 큐를 거쳐 다음 틱 머리에서 걸려 한 틱 밀렸고, 그래서 `runAtFixedRate(…, 1, 1)` 이 두 틱마다 돌았다(운영 서버에도 해당하는 고침).

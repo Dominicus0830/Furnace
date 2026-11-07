@@ -354,9 +354,14 @@ public final class World {
         public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
             CompletableFuture<Void> f = new CompletableFuture<>();
             long key = Regionizer.chunkKey(cp.x(), cp.z());
-            runAtChunk(cp, r -> r.schedule(key, r2 -> {
+            java.util.function.Consumer<Region> run = r2 -> {
                 try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            }, delayTicks));
+            };
+            // 그 청크의 region 스레드 안이면 곧바로 건다 — 작업 큐를 한 번 더 거치면 다음 틱 머리에서야 걸려 한 틱 밀린다
+            // (반복 작업 runAtFixedRate(…, 1, 1) 이 두 틱마다 돌던 원인). 밖에서 부르면 예전처럼 큐를 거친다.
+            Region owner = regionizer.ownerOf(cp.x(), cp.z());
+            if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, delayTicks);
+            else runAtChunk(cp, r -> r.schedule(key, run, delayTicks));
             return f;
         }
 
