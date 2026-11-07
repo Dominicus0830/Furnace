@@ -40,6 +40,12 @@ public interface BlockLevel {
     /** Level.getEntitiesOfClass(AbstractArrow, 상자) 의 첫 화살(없으면 null) — 화살로 눌리는 버튼. */
     default Object firstArrowIn(double x0, double y0, double z0, double x1, double y1, double z1) { return null; }
 
+    /**
+     * ComparatorBlock.getItemFrame + ItemFrame.getAnalogOutput: 그 칸 안에서 facing 쪽을 향한 아이템 액자가 정확히 하나일 때 그 신호
+     * (빈 액자 0, 아니면 돌림 % 8 + 1). 하나가 아니면 Integer.MIN_VALUE(바닐라 null → MIN_VALUE).
+     */
+    default int itemFrameAnalogOutput(Pos pos, int facing) { return Integer.MIN_VALUE; }
+
     /** EntityGetter.isUnobstructed(null, shape): 건설을 막는 엔티티(관전자 제외)의 상자와 겹치지 않는가. shape 는 월드 좌표. */
     boolean isUnobstructed(Shape worldShape);
 
@@ -123,6 +129,11 @@ public interface BlockLevel {
     void playSound(BlockActor except, Pos pos, String sound, String source, float volume, float pitch);
 
     void playSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch);
+
+    /** Level.playSeededSound: 소리 씨앗을 부르는 쪽이 정한다(노트 블록은 레벨 난수 nextLong). 구현이 없으면 씨앗 없이 낸다. */
+    default void playSeededSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch, long seed) {
+        playSound(except, x, y, z, sound, source, volume, pitch);
+    }
 
     void levelEvent(BlockActor except, int type, Pos pos, int data);
 
@@ -333,6 +344,16 @@ public interface BlockLevel {
      * 명령은 전역 스레드에서 돈다(바닐라는 그 자리에서 바로 실행). 서버가 없는 레벨은 아무것도 안 한다.
      */
     default void runSignCommand(BlockActor player, Pos pos, String command) {}
+
+    /**
+     * SignBlockEntity.loadLine: 레벨에 놓인 표지판이 글을 읽을 때 줄마다 ComponentUtils.updateForEntity(표지판 소스(플레이어 없음·권한 2·칸 가운데), 줄, null)
+     * 로 푼다(선택자·점수·NBT). 명령 오류면 원래 줄. 서버가 없는 레벨은 그대로.
+     * 결과는 apply(그 칸의 주인 레벨, 풀린 줄들)로 받는다 — 다른 region 의 엔티티를 찾지 않으면 그 자리에서, 찾으면 끝난 뒤 그 칸의 주인 스레드에서.
+     */
+    default void resolveSignLines(Pos pos, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                  java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+        apply.accept(this, lines);
+    }
 
     /**
      * 그 칸을 소유한 region 스레드에서 task 를 돌린다(이미 그 스레드면 바로, 아니면 큐로). 주인 region 이 없으면(청크 내려감) 버린다.

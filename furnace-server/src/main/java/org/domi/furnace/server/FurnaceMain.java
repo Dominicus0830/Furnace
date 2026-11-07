@@ -434,7 +434,15 @@ public final class FurnaceMain {
             // 바닐라 saveEverything: 플레이어(PlayerList.saveAll) → 청크 → level.dat. 플레이어 기록은 전용 실행기에서 — 끝날 때까지 기다린다
             java.util.List<java.util.concurrent.CompletableFuture<Void>> players = new java.util.ArrayList<>();
             for (var p : core.players()) players.add(p.requestSave());
-            for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
+            for (World w : dimensions.all()) {
+                try {
+                    int left = w.flushAllDrained(java.util.concurrent.TimeUnit.SECONDS.toNanos(60));
+                    if (left != 0) log.warn("save-all: {} 청크 {}개는 자동 저장으로 넘어갔다(IO 레인이 60초 안에 비지 않았다, -1 = 수 모름)", w.dimension(), left);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();   // 남은 차원은 건너뛰어도 level.dat 은 아래에서 저장한다
+                    break;
+                }
+            }
             saveLevelData.run();
             worldManager.saveLevelData();
             try {
@@ -475,16 +483,14 @@ public final class FurnaceMain {
                 })
                 .on(ShutdownSequence.Step.STOP_NETWORK, network::stop)
                 .on(ShutdownSequence.Step.FLUSH_WORLDS, () -> {
-                    // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때).
-                    java.util.List<java.util.concurrent.CompletableFuture<Void>> fs = new java.util.ArrayList<>();
-                    for (World w : dimensions.all()) fs.addAll(w.flushAll());
-                    // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 타임아웃을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
-                    long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-                    for (var f : fs) {
+                    // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때). 레인이 밀려도 남은 청크를 다음 틱으로
+                    // 넘기지 않고 비울 때까지 되풀이한다(종료 때는 다음 틱이 없다 — 예전엔 그 청크가 사라졌다).
+                    // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 마감을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
+                    long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+                    for (World w : dimensions.all()) {
                         try {
-                            f.get(Math.max(1, flushDeadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
-                        } catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException e) {
-                            log.error("[STOP] region flush 실패/지연", e);
+                            int left = w.flushAllDrained(Math.max(1, flushDeadline - System.nanoTime()));
+                            if (left != 0) log.error("[STOP] {} 저장 마감을 넘겼다 — 저장하지 못한 청크 {}개(-1 = 수 모름)", w.dimension(), left);
                         } catch (InterruptedException e) {
                             log.error("[STOP] region flush 대기 중단", e);   // 인터럽트 표시는 다시 세우지 않는다 — 뒤 단계(저장소 닫기)가 대기를 건너뛰지 않게
                         }

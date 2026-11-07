@@ -1,5 +1,5 @@
 // 바닐라 Slime: 크기(1~127)에 따라 체력 size², 속도 0.2+0.1×size, 공격력 size. 통통 뛰어 다니며 닿으면 때리고, 죽으면 작게 2~4마리로 갈라진다.
-// TODO: 철 골렘에게도 피해, 입자.
+// 착지 입자는 바닐라도 서버 레벨의 addParticle(아무것도 안 함)이라 보내지 않는다.
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -122,6 +122,13 @@ public class Slime extends Mob implements Enemy {
             }
         }
         super.remove(reason);
+    }
+
+    /** Slime.push(entity): 밀리고, 민 쪽이 철 골렘이고 때릴 수 있는 크기면 그 골렘을 때린다. */
+    @Override
+    public void push(Entity e) {
+        super.push(e);
+        if (e instanceof IronGolem g && isDealsDamage()) dealDamage(g);
     }
 
     @Override

@@ -9,6 +9,8 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public final class ExperienceOrb extends Entity {
+    @Override public boolean isAttackable() { return false; }
+
 
     private static final int LIFETIME = 6000;
 

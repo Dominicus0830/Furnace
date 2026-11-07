@@ -100,6 +100,11 @@ public final class ChunkSection {
         return scratch != null ? -1 : blocks.singleValueOr(-1);
     }
 
+    /** 그 상태가 있을 수도 있는가(팔레트만 본다, scratch 가 열려 있으면 true). false 면 확실히 없다. */
+    boolean maybeHasBlock(java.util.function.IntPredicate p) {
+        return scratch != null || blocks.maybeHas(p);
+    }
+
     public void fillBiome(int biomeId) {
         for (int i = 0; i < 64; i++) biomes.set(i, biomeId);
     }

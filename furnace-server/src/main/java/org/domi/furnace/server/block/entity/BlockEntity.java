@@ -197,8 +197,21 @@ public abstract class BlockEntity {
         return true;
     }
 
-    /** 레벨에 놓인 뒤 NBT 를 읽은 경우의 후처리(바닐라 loadAdditional 안의 level != null 분기 — 구조물 블록의 블록 상태 맞추기). */
-    protected void afterLoad(BlockLevel level) {}
+    /**
+     * 레벨에 놓인 뒤 NBT 를 읽은 경우의 후처리(바닐라 loadAdditional 안의 level != null 분기 — 구조물 블록의 블록 상태 맞추기, 표지판 글의 선택자·점수 풀기).
+     * 청크를 읽을 때(레벨 없이 loadStatic)는 불리지 않는다.
+     */
+    public void afterLoad(BlockLevel level) {}
+
+    /**
+     * 레벨에 놓인 블록 엔티티의 loadWithComponents(/data merge block, /setblock·/fill 의 NBT, /clone): load → afterLoad → 컴포넌트.
+     * setChanged·블록 갱신 방송은 부르는 쪽이 정한다.
+     */
+    public final void loadWithComponentsInLevel(BlockLevel level, NbtCompound tag) {
+        load(tag);
+        afterLoad(level);
+        loadComponents(tag);
+    }
 
     /** BlockEntityType.isValid(state): 이 종류가 그 블록 상태에 붙을 수 있는가. */
     public boolean isValid(int state) { return true; }

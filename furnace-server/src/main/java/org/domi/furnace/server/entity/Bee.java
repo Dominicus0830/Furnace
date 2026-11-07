@@ -870,4 +870,7 @@ public class Bee extends Animal implements NeutralMob {
         }
     }
 
+    /** Bee.playStepSound: 소리 없음(날거나 헤엄치는 몸). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) {}
 }

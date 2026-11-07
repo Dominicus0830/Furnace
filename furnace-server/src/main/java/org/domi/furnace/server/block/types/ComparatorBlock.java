@@ -70,8 +70,9 @@ public class ComparatorBlock extends DiodeBlock {
         } else if (i < 15 && B.behavior(s).isRedstoneConductor(s, level, p)) {
             p = p.relative(dir);
             s = level.getBlockState(p);
-            // TODO(엔티티): 그 칸에 이쪽을 향한 아이템 액자가 하나뿐이면 그 아날로그 신호(getItemFrame).
-            int k = B.behavior(s).hasAnalogOutputSignal(s) ? B.behavior(s).getAnalogOutputSignal(s, level, p) : Integer.MIN_VALUE;
+            // 그 칸에 이쪽을 향한 아이템 액자가 하나뿐이면 그 아날로그 신호(getItemFrame)와 블록 신호 중 큰 쪽
+            int k = Math.max(level.itemFrameAnalogOutput(p, dir),
+                    B.behavior(s).hasAnalogOutputSignal(s) ? B.behavior(s).getAnalogOutputSignal(s, level, p) : Integer.MIN_VALUE);
             if (k != Integer.MIN_VALUE) i = k;
         }
         return i;

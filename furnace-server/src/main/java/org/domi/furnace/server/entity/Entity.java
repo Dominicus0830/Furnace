@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.BlockSounds;
 import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.BlockInfo;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -478,7 +479,7 @@ public abstract non-sealed class Entity implements Rider {
      * 새로 만들어 넣는다(바닐라 changeDimension 의 create + restoreFrom + addDuringTeleport). 목적지가 없으면 원천에 되돌린다.
      */
     private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
-        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null);
+        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null, plan.targetDimension());
     }
 
     /** changeDimension 이 옮긴 엔티티를 놓는 방식: moveTo(위치, 목적 yRot, 지금 xRot) 후 목적 속도. */
@@ -495,7 +496,7 @@ public abstract non-sealed class Entity implements Rider {
     private void teleportWithinLevel(Portal portal, Pos entry, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
         final ChunkLevel src = level;
         final Traveler tr = Traveler.of(this);
-        moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null);
+        moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null, src.dimension());
     }
 
     /**
@@ -514,13 +515,16 @@ public abstract non-sealed class Entity implements Rider {
         moveAcross(arrive -> travel.travel(plan, arrive), travel, (e, t) -> {
             e.moveTo(tx, ty, tz, yaw, p);
             if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
-        }, done);
+        }, done, null);   // 바닐라 teleportTo(레벨, …) 는 changeDimension 을 거치지 않아 낙하 블록 강제 틱 훅을 켜지 않는다
         return true;
     }
 
+    /** changeDimension 이 끝난 뒤 옛 쪽에서 부르는 훅(바닐라 FallingBlockEntity.changeDimension 의 재정의 자리). 기본은 아무것도 안 한다. */
+    protected void afterChangedDimension(String from, String to) {}
+
     private void moveAcross(java.util.function.Consumer<java.util.function.BiConsumer<ChunkLevel, DimensionTransition>> route,
                             org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
-                            java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done) {
+                            java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done, String targetDimension) {
         stopRidingForced(this);
         ejectPassengers();
         final NbtCompound tag = saveWithoutId(new NbtCompound());
@@ -528,7 +532,9 @@ public abstract non-sealed class Entity implements Rider {
         final PortalProcessor process = portalProcess;
         final String typeName = type.name();
         final double ox = x, oz = z;
+        final String fromDimension = level.dimension();
         setRemoved(RemovalReason.CHANGED_DIMENSION);
+        afterChangedDimension(fromDimension, targetDimension);
         route.accept((target, t) -> {
             try {
                 arriveAcross(target, t, travel, tag, cooldown, process, typeName, ox, oz, place);
@@ -576,6 +582,7 @@ public abstract non-sealed class Entity implements Rider {
         if (e != this) {
             e.restoreFrom(this);
             setRemoved(RemovalReason.CHANGED_DIMENSION);
+            afterChangedDimension(level.dimension(), target.dimension());
         }
         e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
@@ -644,10 +651,13 @@ public abstract non-sealed class Entity implements Rider {
 
     public void setSwimming(boolean v) { setSharedFlag(FLAG_SWIMMING, v); }
 
-    /** Entity.updateSwimming: 전력 질주 중이고 물속일 때만 헤엄(몹은 대개 항상 거짓). TODO(자세): 헤엄 자세(POSE_SWIMMING) 전환 */
+    /**
+     * Entity.updateSwimming: 헤엄 중이면 질주·물에 닿음·탈것 없음이 이어지는 동안, 아니면 질주하며 물속(눈이 물 아래)이고
+     * 탈것이 없고 발 칸이 물일 때 시작한다(몹은 대개 질주하지 않아 항상 거짓). 헤엄 자세 전환은 몹에게 없다(Player 쪽 PlayerPose).
+     */
     protected void updateSwimming() {
-        if (isSwimming()) setSwimming(isSprinting() && isInWater());
-        else setSwimming(isSprinting() && isInWater() && level.isWaterAt(blockPosition()));
+        if (isSwimming()) setSwimming(isSprinting() && isInWater() && !isPassenger());
+        else setSwimming(isSprinting() && wasEyeInWater && isInWater() && !isPassenger() && level.isWaterAt(blockPosition()));
     }
 
     /** setSharedFlagOnFire: 불 표시는 실제 불 또는 HasVisualFire. */
@@ -705,6 +715,12 @@ public abstract non-sealed class Entity implements Rider {
     /** 직접 원인 엔티티(투사체)가 있는 피해. 기본은 hurtBy(직접 원인을 보는 엔티티가 재정의). */
     public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) { return hurtBy(source, amount, attacker); }
 
+    /**
+     * Entity.isAttackable: 플레이어 공격(Player.attack)이 먼저 이것을 보고, 거짓이면 쿨다운·소리·소모 없이 그대로 끝난다.
+     * 바닐라는 경험치 구슬·아이템·떨어지는 블록·끝의 눈·폭죽·화살(튕길 수 있는 투사체 제외)만 거짓이다.
+     */
+    public boolean isAttackable() { return true; }
+
     /** Entity.skipAttackInteraction: true 면 일반 공격 피해 대신 이 엔티티가 직접 처리한다(액자·그림). */
     public boolean skipAttackInteraction(Player attacker) { return false; }
 
@@ -723,7 +739,10 @@ public abstract non-sealed class Entity implements Rider {
     /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않고, 승객에게 넘긴다(fall_damage_immune 종류는 넘기지 않는다). */
     public boolean causeFallDamage(float distance, float multiplier, Damage source) {
         if (typeInTag("minecraft:fall_damage_immune")) return false;
-        if (!passengers.isEmpty()) for (Rider r : passengers) if (r instanceof Entity e) e.causeFallDamage(distance, multiplier, source);   // TODO(플레이어 낙하): 탄 플레이어
+        if (!passengers.isEmpty()) for (Rider r : passengers) {
+            if (r instanceof Entity e) e.causeFallDamage(distance, multiplier, source);
+            else if (r instanceof Player p) p.causeFallDamageAsPassenger(distance, multiplier, source);
+        }
         return false;
     }
 
@@ -968,7 +987,12 @@ public abstract non-sealed class Entity implements Rider {
         Entity e = ctl instanceof Entity ce ? ce : this;
         float f = e == this ? 0.35F : 0.4F;
         float f1 = Math.min(1.0F, (float) Math.sqrt(e.vx * e.vx * 0.2F + e.vy * e.vy + e.vz * e.vz * 0.2F) * f);
-        playSound(getSwimSound(), f1, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
+        playSwimSound(f1);
+    }
+
+    /** Entity.playSwimSound: 높이 난수 두 번. 거북(×1.5)·해골말(땅 위 0.3 고정, 아니면 min(0.1, ×25))이 크기를 바꾼다. */
+    protected void playSwimSound(float volume) {
+        playSound(getSwimSound(), volume, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
     }
 
     private static final int POWDER_SNOW = B.id("powder_snow");
@@ -1002,14 +1026,56 @@ public abstract non-sealed class Entity implements Rider {
         }
     }
 
-    /**
-     * Entity.walkingStepSound(pos, state): 걸음 소리 한 번(바닐라는 playStepSound 뒤 amethyst 군집 위면 chime).
-     * TODO(소리): 기본 걸음 소리(블록 SoundType × 0.15)와 amethyst chime 은 아직 없다 — 자기 걸음 소리를 가진 몹만 playStepSound 를 덮어 낸다.
-     */
-    protected void walkingStepSound(Pos pos, int state) { playStepSound(pos, state); }
+    /** crystalSoundIntensity·lastCrystalSoundPlayTick: 자수정 군집 위를 걸을 때 울림 소리의 세기와 마지막으로 울린 틱. */
+    private float crystalSoundIntensity;
+    private int lastCrystalSoundPlayTick;
 
-    /** Entity.playStepSound(pos, state): 몹별 걸음 소리(워든·해골 계열). 기본은 소리 없음(위 TODO). */
-    protected void playStepSound(Pos pos, int state) {}
+    /** Entity.walkingStepSound(pos, state): 걸음 소리 한 번, 그 뒤 자수정 군집 위면 울림(chime). */
+    protected void walkingStepSound(Pos pos, int state) {
+        playStepSound(pos, state);
+        if (shouldPlayAmethystStepSound(state)) playAmethystStepSound();
+    }
+
+    /** Entity.playStepSound(pos, state): 밟은 블록의 SoundType 걸음 소리, 크기 ×0.15. 몹별 소리는 덮어쓴다(액체 검사는 1.21.1 에 없다). */
+    protected void playStepSound(Pos pos, int state) {
+        BlockSounds.SoundType t = BlockSounds.get().of(state);
+        playSound(t.stepSound(), t.volume() * 0.15F, t.pitch());
+    }
+
+    /** Entity.playCombinationStepSounds(주, 부): 주 블록 걸음 소리(×0.15)와 부 블록의 소리를 작게(playMuffledStepSound). */
+    protected void playCombinationStepSounds(int primary, int secondary) {
+        BlockSounds.SoundType t = BlockSounds.get().of(primary);
+        playSound(t.stepSound(), t.volume() * 0.15F, t.pitch());
+        playMuffledStepSound(secondary);
+    }
+
+    /** Entity.playMuffledStepSound(state): 크기 ×0.05, 높이 ×0.8. */
+    protected void playMuffledStepSound(int state) {
+        BlockSounds.SoundType t = BlockSounds.get().of(state);
+        playSound(t.stepSound(), t.volume() * 0.05F, t.pitch() * 0.8F);
+    }
+
+    /** Entity.getPrimaryStepSoundBlockPos(pos): 위 칸이 inside_step_sound_blocks 또는 combination_step_sound_blocks 면 위 칸. */
+    protected Pos getPrimaryStepSoundBlockPos(Pos pos) {
+        Pos above = pos.above();
+        int s = level.getBlockState(above);
+        return B.isTag(s, "minecraft:inside_step_sound_blocks") || B.isTag(s, "minecraft:combination_step_sound_blocks") ? above : pos;
+    }
+
+    /** Entity.shouldPlayAmethystStepSound: crystal_sound_blocks 이고 마지막 울림으로부터 20틱 이상. */
+    private boolean shouldPlayAmethystStepSound(int state) {
+        return B.isTag(state, "minecraft:crystal_sound_blocks") && tickCount >= lastCrystalSoundPlayTick + 20;
+    }
+
+    /** Entity.playAmethystStepSound: 세기는 0.997^(지난 틱)로 식고 걸을 때마다 0.07 오른다(최대 1). 난수는 한 번. */
+    private void playAmethystStepSound() {
+        crystalSoundIntensity *= (float) Math.pow(0.997, tickCount - lastCrystalSoundPlayTick);
+        crystalSoundIntensity = Math.min(1.0F, crystalSoundIntensity + 0.07F);
+        float pitch = 0.5F + crystalSoundIntensity * random.nextFloat() * 1.2F;
+        float volume = 0.1F + crystalSoundIntensity * 1.2F;
+        playSound("minecraft:block.amethyst_block.chime", volume, pitch);
+        lastCrystalSoundPlayTick = tickCount;
+    }
 
     /** vibrationAndSoundEffectsFromBlock. */
     private boolean vibrationAndSoundEffectsFromBlock(Pos pos, int state, boolean playStepSound, boolean broadcastGameEvent, double wantedDy) {
@@ -1134,13 +1200,19 @@ public abstract non-sealed class Entity implements Rider {
      * 엔티티 충돌(보트·셜커)·월드 보더 모양은 아직 목록에 없다(블록 충돌만).
      */
     protected double[] collide(double dx, double dy, double dz) {
-        return collideMove(level, bb, onGround(), maxUpStep(), dx, dy, dz);
+        return collideMove(level, this, bb, onGround(), maxUpStep(), dx, dy, dz);
     }
 
     /** Entity.collide 본체 — 엔티티 없이 상자·땅 위 여부·오르기 높이만으로 부른다(플레이어 이동 검증도 쓴다). */
     public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, AABB box, boolean onGround, float step,
                                        double dx, double dy, double dz) {
-        var shapes = level.blockCollisions(box.expandTowards(dx, dy, dz));
+        return collideMove(level, null, box, onGround, step, dx, dy, dz);
+    }
+
+    /** 같되 문맥 엔티티가 있으면 블록 충돌 모양이 그 엔티티 기준이 된다(가루눈). */
+    public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, Entity self, AABB box, boolean onGround, float step,
+                                       double dx, double dy, double dz) {
+        var shapes = level.blockCollisions(self, box.expandTowards(dx, dy, dz));
         double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz} : collideWithShapes(dx, dy, dz, box, shapes);
         boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
         boolean below = cy && dy < 0.0;
@@ -1148,7 +1220,7 @@ public abstract non-sealed class Entity implements Rider {
             AABB base = below ? box.move(0.0, r[1], 0.0) : box;
             AABB search = base.expandTowards(dx, step, dz);
             if (!below) search = search.expandTowards(0.0, -1.0E-5F, 0.0);
-            var stepShapes = level.blockCollisions(search);
+            var stepShapes = level.blockCollisions(self, search);
             for (float h : stepHeightCandidates(base, stepShapes, step, (float) r[1])) {
                 double[] c = collideWithShapes(dx, h, dz, base, stepShapes);
                 if (c[0] * c[0] + c[2] * c[2] > r[0] * r[0] + r[2] * r[2]) {
@@ -1214,11 +1286,11 @@ public abstract non-sealed class Entity implements Rider {
     protected void checkSupportingBlock(boolean ground, double[] movement) {
         if (ground) {
             AABB below = new AABB(bb.minX(), bb.minY() - 1.0E-6, bb.minZ(), bb.maxX(), bb.minY(), bb.maxZ());
-            Pos found = level.findSupportingBlock(below, x, y, z);
+            Pos found = level.findSupportingBlock(this, below, x, y, z);
             if (found != null || onGroundNoBlocks) {
                 supportingBlock = found;
             } else if (movement != null) {
-                supportingBlock = level.findSupportingBlock(below.move(-movement[0], 0.0, -movement[2]), x, y, z);
+                supportingBlock = level.findSupportingBlock(this, below.move(-movement[0], 0.0, -movement[2]), x, y, z);
                 found = supportingBlock;
             }
             onGroundNoBlocks = found == null;

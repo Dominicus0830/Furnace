@@ -79,6 +79,7 @@ public class FireworkRocketEntity extends Projectile {
     public boolean isShotAtAngle() { return (Boolean) entityData.get(DATA_SHOT_AT_ANGLE); }
 
     @Override public boolean isPickable() { return false; }
+    @Override public boolean isAttackable() { return false; }
 
     private List<?> explosions() {
         return ItemTools.component(getItem(), "minecraft:fireworks") instanceof Map<?, ?> m && m.get("explosions") instanceof List<?> l ? l : List.of();

@@ -25,6 +25,9 @@ public interface LevelServices {
     /** 보더 {minX, minZ, maxX, maxZ}(기본은 최대 크기). */
     default double[] borderBounds() { return new double[] {-2.9999984E7, -2.9999984E7, 2.9999984E7, 2.9999984E7}; }
 
+    /** 그 차원 레벨의 보더 {minX, minZ, maxX, maxZ}(바닐라 server.getLevel(key).getWorldBorder()). 모르는 차원·서버 없는 레벨은 이 레벨 것. */
+    default double[] borderBoundsOf(String dimension) { return borderBounds(); }
+
     boolean isRaining();
 
     boolean isThundering();
@@ -86,6 +89,9 @@ public interface LevelServices {
          * 한 region 에 모이면 그 region 스레드에서 task(레벨). 청크를 준비하지 못하면 task(null). 어느 스레드에서 불러도 된다.
          */
         default void withLoadedChunks(int centerX, int centerZ, int createRadius, java.util.function.Consumer<ChunkLevel> task) { task.accept(null); }
+
+        /** 넘어가기 전에 목적 쪽 청크만 미리 올려 둔다(플레이어가 지옥문에서 기다리는 동안). 목적지는 정하지 않는다. 어느 스레드든. */
+        default void prewarm(org.domi.furnace.server.entity.PortalTravel plan) {}
     }
 
     /** 그 칸의 바이옴(Level.getBiome — 확대 지터 포함)이 태그에 드는가. 모르면 거짓. */
@@ -186,6 +192,12 @@ public interface LevelServices {
     /** 표지판 클릭 명령(BlockLevel.runSignCommand). player 는 Player(없으면 null). */
     default void runSignCommand(Player player, int x, int y, int z, String command) {}
 
+    /** 표지판 글 풀기(BlockLevel.resolveSignLines). 서버 없는 레벨은 그대로 level 에서 바로. */
+    default void resolveSignLines(BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                  java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+        apply.accept(level, lines);
+    }
+
     /** server.properties enable-command-block(MinecraftServer.isCommandBlockEnabled). 서버 없는 레벨은 꺼짐(바닐라 기본값). */
     default boolean commandBlockEnabled() { return false; }
 
@@ -236,6 +248,7 @@ public interface LevelServices {
         public boolean worldAdventure() { return d.worldAdventure(); }
         public boolean withinBorder(int x, int z) { return d.withinBorder(x, z); }
         public double[] borderBounds() { return d.borderBounds(); }
+        public double[] borderBoundsOf(String dimension) { return d.borderBoundsOf(dimension); }
         public boolean isRaining() { return d.isRaining(); }
         public boolean isThundering() { return d.isThundering(); }
         public float rainLevel() { return d.rainLevel(); }
@@ -292,6 +305,10 @@ public interface LevelServices {
         public boolean spawnAnimals() { return d.spawnAnimals(); }
         public boolean spawnNpcs() { return d.spawnNpcs(); }
         public void runSignCommand(Player player, int x, int y, int z, String command) { d.runSignCommand(player, x, y, z, command); }
+        public void resolveSignLines(BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                     java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+            d.resolveSignLines(level, x, y, z, lines, apply);
+        }
         public boolean commandBlockEnabled() { return d.commandBlockEnabled(); }
         public void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { d.runBlockCommand(sink, command, done); }
     }

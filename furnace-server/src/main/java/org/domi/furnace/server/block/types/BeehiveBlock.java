@@ -93,7 +93,7 @@ public class BeehiveBlock extends BaseEntityBlock {
                 used = true;
                 level.gameEvent("minecraft:fluid_pickup", pos, player, -1);
             }
-            if (used) player.awardStat("minecraft:used");
+            if (used) player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
         }
         if (!used) return super.useItemOn(stack, state, level, pos, player, hand, hit);
         if (!CampfireBlock.isSmokeyPos(level, pos)) {
@@ -140,5 +140,25 @@ public class BeehiveBlock extends BaseEntityBlock {
         }
     }
 
-    // TODO(전리품): 크리에이티브 파괴 드롭(playerWillDestroy)에 bees·block_state 싣기. 실크 터치 드롭은 표의 copy_components 가 한다.
+    /**
+     * playerWillDestroy: 크리에이티브 플레이어가 doTileDrops 일 때 부수면, 벌이 있거나 꿀이 차 있으면 블록 아이템에 블록 엔티티 컴포넌트(bees)와
+     * block_state{honey_level} 을 실어 칸 모서리(정수 좌표)에 떨군다(기본 줍기 지연). 실크 터치 드롭은 전리품 표의 copy_components 가 한다.
+     */
+    @Override
+    public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {
+        if (level instanceof ChunkLevel cl && player.isCreative() && level.gameRule("doTileDrops")
+                && level.getBlockEntity(pos) instanceof BeehiveBlockEntity hive) {
+            int honey = HONEY_LEVEL.intValue(state);
+            boolean hasBees = !hive.isEmpty();
+            if (hasBees || honey > 0) {
+                ItemStack stack = B.stack(B.BLOCKS.nameOfState(state), 1);
+                for (var e : hive.collectComponents().entrySet()) stack = org.domi.furnace.server.item.ItemTools.with(stack, e.getKey(), e.getValue());
+                stack = org.domi.furnace.server.item.ItemTools.with(stack, "minecraft:block_state", java.util.Map.of("honey_level", Integer.toString(honey)));
+                var ie = new org.domi.furnace.server.entity.ItemEntity(cl, cl.nextEntityId(), pos.x(), pos.y(), pos.z(), stack);
+                ie.setDefaultPickUpDelay();
+                cl.addFreshEntity(ie);
+            }
+        }
+        return super.playerWillDestroy(level, pos, state, player);
+    }
 }

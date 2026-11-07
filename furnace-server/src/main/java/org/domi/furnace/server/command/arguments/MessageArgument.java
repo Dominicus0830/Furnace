@@ -22,7 +22,34 @@ public final class MessageArgument implements ArgumentType<MessageArgument.Messa
     public record Part(int start, int end, EntitySelector selector) {}
 
     public record Message(String text, List<Part> parts) {
-        /** 선택자 부분을 찾은 이름들로 바꾼 텍스트. */
+        /**
+         * 선택자 부분을 찾은 이름들(회색 ", " 로 이음)로 바꾼 텍스트 — 일반 엔티티도 고른다(바닐라 Message.resolveComponent).
+         * 엔티티는 region 이 나눠 가져 읽기가 끝난 뒤 완성되는 future 다(플레이어만이면 이미 끝나 있다).
+         */
+        public java.util.concurrent.CompletableFuture<Text> toComponentAsync(CommandSource source) {
+            if (parts.isEmpty() || !source.hasPermission(2)) return java.util.concurrent.CompletableFuture.completedFuture(Text.text(text));
+            List<java.util.concurrent.CompletableFuture<List<org.domi.furnace.server.entity.Rider>>> found = new ArrayList<>(parts.size());
+            try {
+                for (Part p : parts) found.add(p.selector().findRiders(source));
+            } catch (CommandSyntaxException e) {
+                return java.util.concurrent.CompletableFuture.failedFuture(e);
+            }
+            return org.domi.furnace.server.command.EntityOps.thenOnGlobal(source, java.util.concurrent.CompletableFuture.allOf(found.toArray(new java.util.concurrent.CompletableFuture[0])), v -> {
+                Text out = Text.text(text.substring(0, parts.get(0).start()));
+                int i = parts.get(0).start();
+                for (int k = 0; k < parts.size(); k++) {
+                    Part p = parts.get(k);
+                    if (p.start() > i) out = out.append(Text.text(text.substring(i, p.start())));
+                    List<org.domi.furnace.server.entity.Rider> riders = found.get(k).join();
+                    if (!riders.isEmpty()) out = out.append(org.domi.furnace.server.command.ComponentUtils.formatList(riders, org.domi.furnace.server.command.ComponentUtils.defaultSeparator()));
+                    i = p.end();
+                }
+                if (i < text.length()) out = out.append(Text.text(text.substring(i)));
+                return out;
+            });
+        }
+
+        /** 선택자 부분을 찾은 이름들로 바꾼 텍스트(플레이어만 — 동기 경로: 강퇴·밴 사유 등). */
         public Text toComponent(CommandSource source) throws CommandSyntaxException {
             if (parts.isEmpty() || !source.hasPermission(2)) return Text.text(text);
             Text out = Text.text(text.substring(0, parts.get(0).start()));
@@ -41,17 +68,20 @@ public final class MessageArgument implements ArgumentType<MessageArgument.Messa
     public static MessageArgument message() { return new MessageArgument(); }
 
     /**
-     * 바닐라 resolveChatMessage — 서명된 인자가 있으면 그 메시지(꾸민 내용은 선택자를 펼친 것), 없으면 시스템(위장) 메시지.
+     * 바닐라 resolveChatMessage — 서명된 인자가 있으면 그 메시지(꾸민 내용은 선택자를 펼친 것), 없으면 시스템(위장) 메시지. future 판: 일반 엔티티를 고르는 선택자가 있어도 읽기가 끝난 뒤 전역 스레드에서 callback 을 부르고 result 를 돌려준다.
+     * 명령 본문은 이 future 를 EntityOps.result 로 감싸 돌려준다.
      */
-    public static void resolveChatMessage(CommandContext<CommandSource> ctx, String name,
-                                          java.util.function.Consumer<org.domi.furnace.server.chat.PlayerChatMessage> callback)
-            throws CommandSyntaxException {
+    public static java.util.concurrent.CompletableFuture<Integer> resolveChatMessageAsync(
+            CommandContext<CommandSource> ctx, String name, int result,
+            java.util.function.Consumer<org.domi.furnace.server.chat.PlayerChatMessage> callback) {
         Message message = ctx.getArgument(name, Message.class);
         CommandSource source = ctx.getSource();
-        Text component = message.toComponent(source);
-        org.domi.furnace.server.chat.PlayerChatMessage signed = source.signedArgument(name);
-        if (signed != null) callback.accept(signed.withUnsignedContent(component));
-        else callback.accept(org.domi.furnace.server.chat.PlayerChatMessage.system(message.text()).withUnsignedContent(component));
+        var signed = source.signedArgument(name);
+        return org.domi.furnace.server.command.EntityOps.thenOnGlobal(source, message.toComponentAsync(source), component -> {
+            if (signed != null) callback.accept(signed.withUnsignedContent(component));
+            else callback.accept(org.domi.furnace.server.chat.PlayerChatMessage.system(message.text()).withUnsignedContent(component));
+            return result;
+        });
     }
 
     public static Text getMessage(CommandContext<CommandSource> ctx, String name) throws CommandSyntaxException {

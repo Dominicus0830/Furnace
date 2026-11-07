@@ -100,19 +100,23 @@ public final class CommandSource {
                 0f, 0f, EntityAnchorArgument.Anchor.FEET, ResultCallback.EMPTY, null, java.util.Map.of(), null, sink);
     }
 
-    /** 플레이어(바닐라 ServerPlayer.createCommandSourceStack). */
+    /** 플레이어(바닐라 ServerPlayer.createCommandSourceStack): 표시 이름은 getDisplayName(팀 서식·클릭·호버·삽입). */
     public static CommandSource player(ServerCore server, Player p) {
-        Text name = Text.text(p.name()).insertion(p.name()).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + p.name() + " "));
-        return create(server, p, p.name(), name, server.profilePermissions(ServerCore.profileOf(p)), false,
+        return create(server, p, p.name(), p.displayName(), server.profilePermissions(ServerCore.profileOf(p)), false,
                 p.x(), p.y(), p.z(), p.yaw(), p.pitch());
     }
 
     /** 표지판 클릭 명령(SignBlockEntity.createCommandSourceStack): 권한 2, 칸 가운데, 회전 0, 이름은 플레이어(없으면 "Sign"). */
     public static CommandSource sign(ServerCore server, Player p, int x, int y, int z) {
         String name = p == null ? "Sign" : p.name();
-        Text display = p == null ? Text.text("Sign") : Text.text(p.name()).insertion(p.name()).clickEvent(
-                new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + p.name() + " "));
+        Text display = p == null ? Text.text("Sign") : p.displayName();
         return create(server, p, name, display, 2, false, x + 0.5, y + 0.5, z + 0.5, 0f, 0f);
+    }
+
+    /** 표지판이 레벨에서 글을 읽을 때의 소스(createCommandSourceStack(null, level, pos)): 플레이어 없음, 그 표지판의 월드. */
+    public static CommandSource sign(ServerCore server, World w, int x, int y, int z) {
+        return new CommandSource(server, null, null, w, "Sign", Text.text("Sign"), 2, false, x + 0.5, y + 0.5, z + 0.5, 0f, 0f,
+                EntityAnchorArgument.Anchor.FEET, ResultCallback.EMPTY, null, java.util.Map.of(), null, null);
     }
 
     /**

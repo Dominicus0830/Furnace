@@ -89,10 +89,15 @@ public abstract class Mob extends LivingEntity implements Leashable {
 
     public void onPathfindingDone() {}
 
+    /** getPathfindingMalus: 내가 조종하는 탈것이 몹이고 승객에게 비용을 물려주면(스트라이더) 그 탈것의 비용표를 쓴다. */
     public float getPathfindingMalus(PathType type) {
-        Float f = pathfindingMalus.get(type);
+        Mob owner = getControlledVehicle() instanceof Mob m && m.shouldPassengersInheritMalus() ? m : this;
+        Float f = owner.pathfindingMalus.get(type);
         return f == null ? type.malus() : f;
     }
+
+    /** shouldPassengersInheritMalus: 기본 거짓(스트라이더만 참). */
+    public boolean shouldPassengersInheritMalus() { return false; }
 
     public void setPathfindingMalus(PathType type, float malus) { pathfindingMalus.put(type, malus); }
 
@@ -261,7 +266,12 @@ public abstract class Mob extends LivingEntity implements Leashable {
         target.moveTo(x(), y(), z(), yRot(), xRot());
         if (isBaby()) target.setBabyForConversion(true);
         target.setNoAi(isNoAi());
+        if (hasCustomName()) {   // 바닐라 convertTo: 이름과 이름표 표시, 무적 여부도 넘긴다
+            target.setCustomName(getCustomName());
+            target.setCustomNameVisible(isCustomNameVisible());
+        }
         if (persistenceRequired) target.persistenceRequired = true;
+        target.setInvulnerable(isInvulnerable());
         if (keepEquipment) {
             target.setCanPickUpLoot(canPickUpLoot());
             for (EquipmentSlot slot : EquipmentSlot.values()) {
@@ -281,6 +291,24 @@ public abstract class Mob extends LivingEntity implements Leashable {
         }
         discard();
         return target;
+    }
+
+    /**
+     * 바닐라 Mob.dropPreservedEquipment(filter): 필터를 통과하지 못하는 장비(보존할 것)의 칸을 모아 돌려주고,
+     * 통과하는 장비는 드롭 확률이 1.0 을 넘을 때만 칸을 비우고 바닥에 떨군다.
+     */
+    protected java.util.Set<EquipmentSlot> dropPreservedEquipment(java.util.function.Predicate<ItemStack> filter) {
+        java.util.Set<EquipmentSlot> kept = new java.util.HashSet<>();
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack item = getItemBySlot(slot);
+            if (item.isEmpty()) continue;
+            if (!filter.test(item)) kept.add(slot);
+            else if ((double) getEquipmentDropChance(slot) > 1.0) {
+                setItemSlot(slot, ItemStack.EMPTY);
+                spawnAtLocation(item);
+            }
+        }
+        return kept;
     }
 
     /** Entity.killedEntity: 이 몹이 죽였을 때(false 면 죽은 쪽의 드롭을 막는다). */
@@ -354,6 +382,40 @@ public abstract class Mob extends LivingEntity implements Leashable {
         if (n.endsWith("_boots")) return EquipmentSlot.FEET;
         if (n.equals("minecraft:shield")) return EquipmentSlot.OFFHAND;
         return EquipmentSlot.MAINHAND;
+    }
+
+    /**
+     * EquipmentUser.equip(EquipmentTable): 장비 전리품 표({loot_table, slot_drop_chances?})를 몹 위치·몹 자신으로(시드 0) 평가해, 나온 아이템마다
+     * resolveSlot 으로 칸을 고른다 — 빈 것은 건너뛰고, 장착 아이템(Equipable)은 그 칸(이미 채웠으면 건너뜀), 나머지는 주 손(이미 채웠으면 건너뜀).
+     * 칸의 limit(방어구·몸 칸은 1개)로 자르고, slot_drop_chances(숫자 하나 = 모든 칸, 또는 칸 이름 → 숫자)에 그 칸이 있으면 떨굼 확률을 바꾼다.
+     */
+    public void equip(ChunkLevel level, NbtCompound table) {
+        if (!(table.tags().get("loot_table") instanceof String lootTable) || lootTable.equals("minecraft:empty")) return;
+        java.util.Map<EquipmentSlot, Float> chances = new java.util.EnumMap<>(EquipmentSlot.class);
+        Object sdc = table.tags().get("slot_drop_chances");
+        if (sdc instanceof Number num) {
+            for (EquipmentSlot s : EquipmentSlot.values()) chances.put(s, num.floatValue());
+        } else if (sdc instanceof NbtCompound c) {
+            for (EquipmentSlot s : EquipmentSlot.values()) if (c.tags().get(s.slotName()) instanceof Number num) chances.put(s, num.floatValue());
+        }
+        java.util.List<ItemStack> items = level.lootItems(lootTable, new double[] {x(), y(), z()}, lootEntity(), 0.0F, 0L, null);
+        java.util.List<EquipmentSlot> used = new java.util.ArrayList<>();
+        for (ItemStack item : items) {
+            EquipmentSlot slot = resolveEquipSlot(item, used);
+            if (slot == null) continue;
+            setItemSlot(slot, slot.type() == EquipmentSlot.Type.HAND ? item : item.withCount(Math.min(item.count(), 1)));
+            Float chance = chances.get(slot);
+            if (chance != null) setDropChance(slot, chance);
+            used.add(slot);
+        }
+    }
+
+    /** EquipmentUser.resolveSlot: 빈 것은 null, Equipable 이면 그 칸(이미 썼으면 null), 아니면 주 손(이미 썼으면 null). */
+    static EquipmentSlot resolveEquipSlot(ItemStack stack, java.util.List<EquipmentSlot> used) {
+        if (stack.isEmpty()) return null;
+        EquipmentSlot e = DispenserEquip.equipableSlot(stack);
+        if (e != null) return used.contains(e) ? null : e;
+        return used.contains(EquipmentSlot.MAINHAND) ? null : EquipmentSlot.MAINHAND;
     }
 
     /** canReplaceCurrentItem 의 단순형: 칸이 비어 있을 때만 바꾼다. TODO(점수): 칼·활·방어구의 공격력·방어력 비교. */

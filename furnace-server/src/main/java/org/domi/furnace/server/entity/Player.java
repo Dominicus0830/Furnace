@@ -376,10 +376,60 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         teleportTo(nx, ny, nz);
     }
 
+    /**
+     * 탄 탈것이 내려앉아 승객에게 넘어온 낙하(Entity.causeFallDamage → Player.causeFallDamage).
+     * 피해가 나면 작은/큰 낙하 소리(피해 4 초과면 큰 소리)를 본인 말고 주변에 낸다.
+     */
+    public void causeFallDamageAsPassenger(float distance, float multiplier, Entity.Damage source) {
+        runOnOwner(() -> {
+            float dmg = vitals.causePassengerFallDamage(distance, multiplier, source.type());
+            var lvl = currentLevel;
+            if ((int) dmg > 0 && lvl != null) Shields.playSoundExceptSelf(this, lvl, (int) dmg > 4 ? "minecraft:entity.player.big_fall" : "minecraft:entity.player.small_fall", 1.0F, 1.0F);
+        });
+    }
+
+    // ------------------------------------------------------------------ 불(Entity.remainingFireTicks) — 쓰기는 소유 region 스레드
+
+    /** Player.getFireImmuneTicks: 불에서 나온 뒤 20틱 안에 다시 들어서면 바로 붙지 않고, 불 속에 20틱 서 있으면 붙는다. */
+    public static final int FIRE_IMMUNE_TICKS = 20;
+
+    private volatile int remainingFireTicks = -FIRE_IMMUNE_TICKS;
+
+    /** isOnFire: 플레이어는 불에 면역인 종류가 아니다. */
+    public boolean isOnFire() { return remainingFireTicks > 0; }
+
+    public int remainingFireTicks() { return remainingFireTicks; }
+
+    public void setRemainingFireTicks(int ticks) { remainingFireTicks = ticks; }
+
+    /** Entity.clearFire: 0 으로(면역 틱으로 되돌리지 않는다). */
+    public void clearFire() { remainingFireTicks = 0; }
+
+    /** LivingEntity.igniteForTicks: 태우는 시간 속성(불 보호 인챈트가 줄인다)을 곱해 올림하고, 지금보다 길 때만 늘린다. */
+    public void igniteForTicks(int ticks) {
+        int t = (int) Math.ceil(ticks * PlayerAttributes.value(this, org.domi.furnace.server.attribute.Attribute.BURNING_TIME));
+        if (remainingFireTicks < t) remainingFireTicks = t;
+    }
+
+    public void igniteForSeconds(float seconds) { igniteForTicks(Entity.floor(seconds * 20.0F)); }
+
+    /** 다른 region 스레드(화살·불덩이·좀비)가 붙일 때: 주인 스레드에서 한다. */
+    public void igniteForSecondsLater(float seconds) { runOnOwner(() -> igniteForSeconds(seconds)); }
+
+    /** 저장 꼴의 Fire(short). */
+    public void saveFire(org.domi.furnace.server.net.io.nbt.NbtCompound out) { out.putShort("Fire", (short) remainingFireTicks); }
+
+    /** 접속 때 Fire 를 읽는다(없으면 면역 틱 그대로). */
+    public void loadFire(org.domi.furnace.server.net.io.nbt.NbtCompound in) {
+        if (in.tags().get("Fire") instanceof Short f) remainingFireTicks = f;
+    }
+
     /** 바닐라 연결의 lastVehicle·vehicleFirstGood·vehicleLastGood(region 스레드 전용, VehicleMoves 가 쓴다). */
     Entity lastVehicle;
     final double[] vehicleFirstGood = new double[3], vehicleLastGood = new double[3];
     boolean clientVehicleIsFloating;
+    /** aboveGroundVehicleTickCount: 조종하는 탈것이 계속 떠 있는 틱 수(너무 길면 "multiplayer.disconnect.flying" 킥). */
+    int aboveGroundVehicleTickCount;
 
     /**
      * region 틱마다: 바닐라 baseTick 의 탑승 부분(탈것이 지워졌으면 내림·다시 타기 기다림) 뒤
@@ -395,10 +445,19 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             vehicleFirstGood[0] = vehicleLastGood[0] = root.x();
             vehicleFirstGood[1] = vehicleLastGood[1] = root.y();
             vehicleFirstGood[2] = vehicleLastGood[2] = root.z();
-            // TODO(비행 킥): clientVehicleIsFloating 이 이어지면 "multiplayer.disconnect.flying"
+            if (clientVehicleIsFloating) {
+                if (++aboveGroundVehicleTickCount > PlayerMoveValidator.maximumFlyingTicks(VehicleMoves.gravityOf(root))) {
+                    org.slf4j.LoggerFactory.getLogger(Player.class).warn("{} was kicked for floating a vehicle too long!", name());
+                    kick(new org.domi.furnace.server.net.protocol.play.Disconnect(org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.flying")));
+                }
+            } else {
+                clientVehicleIsFloating = false;
+                aboveGroundVehicleTickCount = 0;
+            }
         } else {
             lastVehicle = null;
             clientVehicleIsFloating = false;
+            aboveGroundVehicleTickCount = 0;
         }
     }
 
@@ -736,9 +795,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return isAlive() && gm != org.domi.furnace.server.world.GameMode.CREATIVE && gm != org.domi.furnace.server.world.GameMode.SPECTATOR;
     }
 
-    /** getVisibilityPercent: 웅크리면 0.8. TODO(투명·머리 아이템): 투명이면 방어구 가림 정도, 몹 머리 아이템(해골 등)에 따른 보정. */
+    /** getVisibilityPercent: 웅크리면 ×0.8, 투명이면 ×0.7×방어구 가림, 몹과 같은 종류 머리 아이템이면 ×0.5. */
     @Override
-    public double visibilityPercent(Entity looker) { return sneaking ? 0.8 : 1.0; }
+    public double visibilityPercent(Entity looker) {
+        ItemStack head = equipment(EquipmentSlot.HEAD);
+        return Visibility.percent(sneaking, isInvisible(), Visibility.armorCoverPercentage(head, equipment(EquipmentSlot.CHEST), equipment(EquipmentSlot.LEGS), equipment(EquipmentSlot.FEET)), head, looker);
+    }
+
+    /** 투명 효과가 있는가(LivingEntity.updateInvisibilityStatus: 공유 플래그 5). */
+    public boolean isInvisible() { return vitals.hasEffect(org.domi.furnace.server.effect.MobEffect.INVISIBILITY); }
+
+    /** 발광 효과가 있는가(LivingEntity.isCurrentlyGlowing 의 서버 쪽: 공유 플래그 6). */
+    public boolean isCurrentlyGlowing() { return vitals.hasEffect(org.domi.furnace.server.effect.MobEffect.GLOWING); }
 
     @Override public boolean isPlayer() { return true; }
 
@@ -969,10 +1037,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private byte sentSharedFlags;
     private int sentPose;
 
-    /** Entity.DATA_SHARED_FLAGS(0)의 웅크림(2)·질주(8)·겉날개 비행(0x80, 플래그 7) 비트. TODO(불·수영·투명·발광). */
-    public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0) | (swimming ? 0x10 : 0) | (fallFlying ? 0x80 : 0)); }
+    /** Entity.DATA_SHARED_FLAGS(0): 불(1)·웅크림(2)·질주(8)·수영(0x10)·투명(0x20)·발광(0x40)·겉날개 비행(0x80). */
+    public byte sharedFlags() {
+        return (byte) ((isOnFire() ? 1 : 0) | (sneaking ? 2 : 0) | (sprinting ? 8 : 0) | (swimming ? 0x10 : 0)
+                | (isInvisible() ? 0x20 : 0) | (isCurrentlyGlowing() ? 0x40 : 0) | (fallFlying ? 0x80 : 0));
+    }
 
-    /** Player.updatePlayerPose: 겉날개 비행 FALL_FLYING(1), 잠 2, 회전 공격 SPIN_ATTACK(4), 웅크림 CROUCHING(5), 아니면 STANDING(0). TODO(수영 자세·끼임 검사). */
+    /** Player.updatePlayerPose: 겉날개 비행 FALL_FLYING(1), 잠 2, 수영 3, 회전 공격 SPIN_ATTACK(4), 웅크림 CROUCHING(5), 아니면 STANDING(0). 수영·기어가기·끼임 검사는 {@link PlayerPose}. */
     public int pose() {
         int o = poseOverride;
         return o >= 0 ? o : computedPose();
@@ -1332,6 +1403,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         armorAttributesSent = false;
         runOnOwner(() -> PlayerLocationEffects.reset(this));   // 새 엔티티: 위치 효과 상태도 처음부터
         runOnOwner(() -> ElytraFlight.resetForRespawn(this));   // 새 엔티티: 겉날개 상태는 소유 스레드에서 지운다
+        runOnOwner(() -> remainingFireTicks = -FIRE_IMMUNE_TICKS);   // 새 엔티티: 불도 처음 상태로
     }
 
     /** sendPairingData 의 장비(아무 스레드에서나 — 불변 스냅샷). 없으면 null. */
@@ -1475,9 +1547,16 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return !mine.isAlliedTo(other.team()) || mine.isAllowFriendlyFire();
     }
 
-    /** 바닐라 Player.getDisplayName: 팀 서식(접두사·이름·접미사·색) + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
+    /**
+     * 바닐라 Player.getDisplayName(decorateDisplayNameComponent): 팀 서식(접두사·이름·접미사·색) + "/tell 이름 " 제안 클릭 + 엔티티 호버(show_entity:
+     * minecraft:player, UUID, 이름) + 삽입 텍스트(이름).
+     */
     public org.domi.furnace.api.text.Text displayName() {
-        return org.domi.furnace.server.scores.PlayerTeam.formatNameForTeam(team(), org.domi.furnace.api.text.Text.text(name)).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));
+        org.domi.furnace.api.text.Text n = org.domi.furnace.api.text.Text.text(name);
+        return org.domi.furnace.server.scores.PlayerTeam.formatNameForTeam(team(), n)
+                .clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "))
+                .hoverEvent(org.domi.furnace.api.text.HoverEvent.showEntity("minecraft:player", uuid(), n))
+                .insertion(name);
     }
 
     // 리스폰할 때마다 증가 — 관찰자가 값이 바뀐 것을 보고 엔티티를 지웠다 다시 스폰한다(바닐라: 리스폰 = 새 ServerPlayer).
@@ -1777,18 +1856,94 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 차원 이동 도착(목적 월드, 목적지, 그때의 포털 대기) — 연결이 패킷을 보내고 목적 region 에 넣는다. */
     public interface DimensionChanger {
         void change(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown);
+
+        /** 편입 넘기기판: 연결은 패킷을 다 보낸 뒤 handoff.sent 로 편입을 맡긴다. 기본은 넘기기 없이(시험용 기록기). */
+        default void change(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown, ArrivalHandoff handoff) {
+            handoff.detach();
+            change(target, t, portalCooldown);
+        }
     }
 
     private volatile DimensionChanger dimensionChanger;
 
     public void dimensionChanger(DimensionChanger c) { this.dimensionChanger = c; }
 
-    /** 목적 region 스레드에서: 연결 스레드로 넘긴다(연결이 없으면 거짓). */
+    /** 목적 region 이 연결의 패킷 보내기를 기다리는 최대 시간(ns). 넘으면 예전처럼 연결이 편입 작업을 보낸다(한 틱 늦게 들어간다). */
+    static final long ARRIVAL_WAIT_NANOS = Long.getLong("furnace.dimensionArrivalWaitMicros", 2_000L) * 1_000L;
+
+    /**
+     * 목적 region 스레드에서: 연결 스레드로 넘긴다(연결이 없으면 거짓). 연결이 리스폰 패킷들을 보내는 동안 잠깐(ARRIVAL_WAIT_NANOS) 기다렸다가
+     * 이 스레드가 그 칸 주인 region 이고 틱 사이면 그 자리에서 편입한다 — 바닐라처럼 넘어간 그 틱에 새 차원에 있다(M10). 아니면 연결이 편입 작업을 보낸다.
+     */
     public boolean changeDimension(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown) {
         var c = dimensionChanger;
         if (c == null) return false;
-        c.change(target, t, portalCooldown);
+        ArrivalHandoff h = new ArrivalHandoff();
+        c.change(target, t, portalCooldown, h);
+        h.awaitInline(ARRIVAL_WAIT_NANOS);
         return true;
+    }
+
+    /**
+     * 차원 이동 도착 편입 넘기기(목적 region 스레드 ↔ 연결 스레드). 상태 0 기다림, 1 연결이 보냄(기다리던 쪽이 편입), 2 기다리지 않음(연결이 편입 작업을 보낸다).
+     * 둘 중 정확히 하나만 편입한다.
+     */
+    public static final class ArrivalHandoff {
+        private final java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger();
+        private volatile Thread waiter;
+        private volatile org.domi.furnace.server.world.World world;
+        private volatile double x, z;
+        private volatile java.util.function.Consumer<org.domi.furnace.server.world.Region> adopt;
+
+        /** 기다리는 쪽이 없다(연결 스레드가 편입 작업을 보낸다). */
+        public void detach() {
+            if (state.compareAndSet(0, 2)) {
+                Thread t = waiter;
+                if (t != null) java.util.concurrent.locks.LockSupport.unpark(t);   // 기다리던 쪽을 바로 놓아준다
+            }
+        }
+
+        /** 연결 스레드: 패킷을 다 보냈다 — 기다리는 쪽이 있으면 넘기고, 없으면 그 칸 주인 region 에 편입 작업을 보낸다. */
+        public void sent(org.domi.furnace.server.world.World w, double x, double z, java.util.function.Consumer<org.domi.furnace.server.world.Region> adopt) {
+            this.world = w;
+            this.x = x;
+            this.z = z;
+            this.adopt = adopt;
+            if (state.compareAndSet(0, 1)) {
+                Thread t = waiter;
+                if (t != null) java.util.concurrent.locks.LockSupport.unpark(t);
+            } else {
+                w.runAt(x, z, adopt);
+            }
+        }
+
+        /** 목적 region 스레드: nanos 까지 기다린다. 연결이 보냈으면 지금 스레드가 그 칸 주인 region(틱 사이)일 때 그 자리에서, 아니면 그 region 에 넘긴다. */
+        void awaitInline(long nanos) {
+            if (state.get() == 0 && nanos > 0) {
+                waiter = Thread.currentThread();
+                long deadline = System.nanoTime() + nanos;
+                while (state.get() == 0) {   // 1(보냄) 또는 2(detach — 편입 없음)가 되면 끝
+                    long left = deadline - System.nanoTime();
+                    if (left <= 0) break;
+                    java.util.concurrent.locks.LockSupport.parkNanos(this, left);
+                }
+                waiter = null;
+            }
+            if (state.compareAndSet(0, 2)) return;   // 기다림을 넘겼다 — 연결이 보낼 때 편입 작업을 보낸다
+            if (state.get() != 1) return;   // detach — 편입하지 않는다
+            var w = world;
+            ChunkPos cp = ChunkPos.ofBlock(x, z);
+            var r = w.regionizer().ownerOf(cp.x(), cp.z());
+            if (r != null && r.isOwnerThread() && r.betweenTicks()) {
+                try {
+                    adopt.accept(r);
+                } catch (RuntimeException e) {   // 편입 실패가 차원 이동 콜백(되돌리기 판단) 위로 올라가지 않게
+                    org.slf4j.LoggerFactory.getLogger(Player.class).error("[PORTAL] 도착 편입 실패", e);
+                }
+            } else {
+                w.runAt(x, z, adopt);
+            }
+        }
     }
 
     /** 마지막으로 받은 이동 패킷의 이동량(블록/틱) — 던지기 속도에 더해진다(바닐라 getKnownMovement). */

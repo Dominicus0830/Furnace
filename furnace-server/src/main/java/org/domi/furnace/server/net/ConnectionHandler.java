@@ -1346,13 +1346,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             teleportPlayer(ctx, t[0], t[1], t[2]);
         }));
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
-        p.dimensionChanger((target, t, cooldown) -> ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown)));
+        // 패킷을 다 보내면 handoff 로 편입을 넘긴다 — 기다리던 목적 region 이 그 자리에서 편입한다(같은 틱 도착, M10).
+        p.dimensionChanger(new Player.DimensionChanger() {
+            @Override public void change(World target, org.domi.furnace.server.entity.DimensionTransition t, int cooldown) {
+                Player.ArrivalHandoff h = new Player.ArrivalHandoff();
+                h.detach();   // 기다리는 쪽 없음 — 보낸 뒤 편입 작업을 보낸다
+                change(target, t, cooldown, h);
+            }
+
+            @Override public void change(World target, org.domi.furnace.server.entity.DimensionTransition t, int cooldown, Player.ArrivalHandoff handoff) {
+                ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown, handoff));
+            }
+        });
         joinSavedRoot = saved != null ? saved.root() : null;   // RootVehicle 은 region 에 들어간 뒤 태운다
         if (saved != null && saved.root() != null) {
             p.seenCredits = saved.root().getBoolean("seenCredits");
             p.loadTags(saved.root());
             p.loadPersistentData(saved.root());
             p.loadShoulders(saved.root());
+            p.loadFire(saved.root());
         }
         // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
@@ -2554,24 +2566,35 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             else if (action == 0) {   // Player.interactOn: Entity.interact 가 PASS 면 아이템의 interactLivingEntity(이름표)
                 org.domi.furnace.server.entity.ItemEffects.nameTag(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45), stand);
             }
-        } else if (e instanceof org.domi.furnace.server.entity.WanderingTrader wt && action == 0 && hand == 0
-                && !org.domi.furnace.server.item.ItemTools.itemName(p.inventory().get(p.inventory().heldWindowSlot())).endsWith("_spawn_egg")) {
-            // 바닐라 WanderingTrader.mobInteract: 거래 중이 아니고 거래가 있으면 거래 화면(레벨 1). 없으면 아무 일도 없다.
-            if (wt.canTrade()) {
-                openMerchantScreen(wt, wt.tradeTitle(), 1);
-                interactedWith(p, heldBefore, e);
+        } else if (e instanceof org.domi.furnace.server.entity.WanderingTrader wt && action == 0) {
+            // 바닐라 WanderingTrader.mobInteract: 거래가 있으면 거래 화면(레벨 1), 없으면 소비만. 주 손이면 대화 통계. 주민 스폰 알을 들면 넘긴다.
+            switch (wt.mobInteract(p, hand == 0, holdsVillagerSpawnEgg(p, hand))) {
+                case OPEN_TRADE -> {
+                    openMerchantScreen(wt, wt.tradeTitle(), 1);
+                    interactedWith(p, heldBefore, e);
+                }
+                case CONSUME -> interactedWith(p, heldBefore, e);
+                case PASS -> { }
             }
         } else if (e instanceof org.domi.furnace.server.entity.Mob mob && !(e instanceof org.domi.furnace.server.entity.Villager) && action == 0) {
             var inv = p.inventory();
             if (mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region)) interactedWith(p, heldBefore, e);
-        } else if (e instanceof org.domi.furnace.server.entity.Villager vv && !p.sneaking()) {
-            if (vv.canTrade()) {
-                vv.updateSpecialPrices(p);   // 바닐라 startTrading: 평판·영웅 특별 가격 → 거래 화면
-                openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
+        } else if (e instanceof org.domi.furnace.server.entity.Villager vv && action == 0) {
+            // 바닐라 Villager.mobInteract(웅크려도 같다): 아기·거래 없음은 불만 표시, 거래가 있으면 특별 가격을 갱신하고 거래 화면
+            switch (vv.mobInteract(p, hand == 0, holdsVillagerSpawnEgg(p, hand))) {
+                case OPEN_TRADE -> {
+                    openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
+                    interactedWith(p, heldBefore, e);
+                }
+                case CONSUME -> interactedWith(p, heldBefore, e);
+                case PASS -> { }
             }
-            else vv.playSound("entity.villager.no", 1.0F, 1.0F);
-            interactedWith(p, heldBefore, e);   // 바닐라 Villager.mobInteract 는 두 경우 모두 sidedSuccess
         }
+    }
+
+    /** 그 손에 든 것이 주민 스폰 알(Items.VILLAGER_SPAWN_EGG)인가. 주민·떠돌이 상인의 mobInteract 가 이것만 거른다. */
+    private static boolean holdsVillagerSpawnEgg(Player p, int hand) {
+        return org.domi.furnace.server.item.ItemTools.itemName(p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45)).equals("minecraft:villager_spawn_egg");
     }
 
     /**
@@ -3347,9 +3370,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 청크 중심(addDuringTeleport) → 능력 → sendLevelInfo → sendAllPlayerInfo(인벤토리·든 칸) → 효과 → 포털 소리. 그 뒤 목적 region 이
      * 편입하고(다음 틱부터 청크·체력·경험치) 포털 티켓을 건다. 플레이어는 원천 region 에서 이미 떼어졌다.
      */
-    private void applyDimensionChange(ChannelHandlerContext ctx, World target, org.domi.furnace.server.entity.DimensionTransition t, int portalCooldown) {
+    private void applyDimensionChange(ChannelHandlerContext ctx, World target, org.domi.furnace.server.entity.DimensionTransition t, int portalCooldown,
+                                      Player.ArrivalHandoff handoff) {
         Player p = player;
-        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) return;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) {
+            handoff.detach();   // 편입하지 않는다 — 기다리는 쪽을 놓아준다
+            return;
+        }
         org.domi.furnace.server.ServerCore core = login.core;
         if (worldGone(core, target)) {
             // 오는 사이 그 추가 월드를 내렸다(다중 월드) — 없는 차원으로 접속할 때처럼 오버월드로, 위치는 월드 스폰
@@ -3378,7 +3405,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         world = target;
         p.dimension(target.dimension());
         if (worldGone(core, target)) {   // 차원을 바꾸는 바로 그 순간 내렸다(내리기는 플레이어를 이미 봤으므로 여기서만 걸린다)
-            applyDimensionChange(ctx, core.world(), spawnTransition(core.world()), 0);
+            applyDimensionChange(ctx, core.world(), spawnTransition(core.world()), 0, handoff);
             return;
         }
         placeAfterDimensionChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
@@ -3389,7 +3416,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
         if (t.portalSound()) send(ctx, new org.domi.furnace.server.net.protocol.play.LevelEventPacket(1032, 0, 0, 0, 0, false));
         final var arrived = t;
-        target.runAt(t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, arrived, from));
+        handoff.sent(target, t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, arrived, from));
     }
 
     /** 내린 추가 월드인가(목록에서 떼었거나 닫혔다). */
@@ -4052,6 +4079,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.saveTags(extra);
         p.savePersistentData(extra);
         p.saveShoulders(extra);
+        p.saveFire(extra);
         p.saveAttributes(extra);
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();

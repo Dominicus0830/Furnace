@@ -1,0 +1,26 @@
+const { start, run, sleep } = require('./h');
+(async () => {
+  const bot = await start();
+  const t = async (line, wait) => { const r = await run(bot, line, wait); console.log(line.padEnd(80), '=>', JSON.stringify(r)); };
+  await t('/gamemode creative'); await t('/tp @s 0 -60 0');
+  await t('/effect give @s foo');
+  await t('/summon armor_stand 5 -60 0 {CustomName:\'"Alpha"\',Tags:["a"]}');
+  await sleep(300);
+  await t('/bossbar add m11:b3 {"selector":"@e[tag=a]"}');
+  await t('/bossbar get m11:b3 name');
+  await t('/bossbar set m11:b3 name {"text":"n:","extra":[{"score":{"name":"*","objective":"nope"}}]}');
+  await t('/attribute @s generic.max_health modifier add m11:mod 2 add_value');
+  await sleep(300);
+  const r = await bot.tabComplete('/attribute @s generic.max_health modifier remove ', true, false);
+  console.log('mod suggestions', JSON.stringify(r.map(x => x.match ?? x)));
+  const r2 = await bot.tabComplete('/attribute @e[tag=a] generic.max_health modifier remove ', true, false);
+  console.log('mod suggestions entity', JSON.stringify(r2.map(x => x.match ?? x)));
+  await t('/scoreboard objectives add pts dummy'); await t('/scoreboard players set @e[tag=a] pts 4');
+  await t('/tellraw @a {"score":{"name":"@e[tag=a]","objective":"pts"}}');
+  await t('/summon armor_stand 6 -60 0 {Tags:["a"]}'); await sleep(300);
+  await t('/tellraw @a {"score":{"name":"@e[tag=a]","objective":"pts"}}');
+  await t('/tellraw @a {"selector":"@e[tag=a]","separator":{"text":" | ","color":"red"}}');
+  await t('/execute store result score @s pts run say @e[tag=a]');
+  await t('/execute as @e[tag=a] run say @s');
+  bot.end(); await sleep(200); process.exit(0);
+})();

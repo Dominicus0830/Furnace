@@ -41,6 +41,8 @@ srv/stop.sh $D
 - `round9/damage.js` 피해 계산 단계 이벤트 8항목 — 시험 플러그인 `round9/probe`(DamageProbe, `/dmgmode`)를 같은 방법으로 묶어 넣는다. 체력 비교는 `naturalRegeneration` 을 끄고.
 - `entity/entity.js` 엔티티 AI·틱 묶음(빈 종 마을 판정·좀비 표적·울타리 돌기, `perf` 인자면 소 600마리 `/tick query`) — `docs/feature-parity/perf-entity-2026-11-06.md`.
 - `m1/m1.js` M1 입자·소리·알(착지 블록 입자·영혼 가속 입자/소리·스폰 알 물에 쓰기) 5항목 — 바닐라 데이터 폴더만 있으면 된다.
+- `m2/m2.js` M2 플레이어 사망 → 스컬크 촉매 흡수·경험치 구슬 5항목 — 바닐라 데이터 폴더만 있으면 된다.
+- `m15/m15.js` M15 걸음 소리(플레이어 → 다른 플레이어, 조합 블록·자수정, 소) 6항목 — 봇 둘(Tester·Walker), 바닐라 데이터 폴더만 있으면 된다.
 - `probe-plugin`: `javac -cp furnace-api.jar -d out probe/ProbePlugin.java && cp furnace-plugin.yml out/ && (cd out && jar cf ../probe.jar .)`
 
 ## 한계

@@ -1,5 +1,5 @@
 // 바닐라 Piglin: 금을 좋아하는 네더 주민. 금 주괴로 물물교환하고, 금 갑옷이 없으면 공격하며, 호글린을 사냥한다. 오버월드에서는 좀비 피글린이 된다.
-// TODO(탑승): 아기가 호글린을 타는 행동. TODO(머리): 충전된 크리퍼에 죽을 때 피글린 머리 드롭. TODO(인챈트): 방어구 교체 방지 인챈트.
+// 아기가 아기 호글린을 타는 행동은 PiglinAi(RIDE). TODO(머리): 충전된 크리퍼에 죽을 때 피글린 머리 드롭. TODO(인챈트): 방어구 교체 방지 인챈트.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -233,4 +233,8 @@ public class Piglin extends AbstractPiglin implements CrossbowAttackMob, Invento
     @Override protected String getDeathSound() { return "entity.piglin.death"; }
 
     @Override protected void playConvertedSound() { makeSound("entity.piglin.converted_to_zombified"); }
+
+    /** Piglin.playStepSound: piglin.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.piglin.step", 0.15F, 1.0F); }
 }

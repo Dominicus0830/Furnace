@@ -363,9 +363,11 @@ public final class TrialSpawner {
             return Optional.empty();
         }
         if (sd.lightLimits() != null && !sd.validPosition(level, at)) return Optional.empty();
-        Entity e = BaseSpawner.loadEntity(level, tag, id, x, y, z);
+        Entity e = BaseSpawner.loadEntityRecursive(level, tag, en -> {
+            en.moveTo(x, y, z, random.nextFloat() * 360.0F, 0.0F);
+            return en;
+        });
         if (e == null) return Optional.empty();
-        e.moveTo(e.x(), e.y(), e.z(), random.nextFloat() * 360.0F, 0.0F);
         if (e instanceof Mob mob) {
             if (!mob.checkSpawnObstruction(level)) return Optional.empty();
             boolean onlyId = tag.tags().size() == 1 && tag.tags().get("id") instanceof String;
@@ -375,7 +377,7 @@ public final class TrialSpawner {
             }
             if (onlyId) mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
             mob.setPersistenceRequired();
-            if (sd.equipment() instanceof NbtCompound eq) applyEquipment(level, mob, eq);
+            if (sd.equipment() instanceof NbtCompound eq) mob.equip(level, eq);
         }
         if (!level.addFreshEntityWithPassengers(e.spawnReason("TRIAL_SPAWNER"))) return Optional.empty();
         int flame = isOminous ? 1 : 0;
@@ -389,36 +391,6 @@ public final class TrialSpawner {
     private static boolean inLineOfSight(ChunkLevel level, Pos spawnerPos, double fx, double fy, double fz) {
         Clip.Result r = Clip.clipVisual(level, fx, fy, fz, spawnerPos.x() + 0.5, spawnerPos.y() + 0.5, spawnerPos.z() + 0.5);
         return r.pos().equals(spawnerPos) || r.miss();
-    }
-
-    // ------------------------------------------------------------------ 장비(EquipmentTable)
-
-    /**
-     * Mob.equip(EquipmentTable): 장비 전리품 표를 몹 위치·몹 자신으로 평가해, 아이템마다 칸을 고른다 — 방어구류는 그 칸(이미 썼으면 건너뜀),
-     * 나머지는 주 손(이미 썼으면 건너뜀). 방어구·몸 칸은 1개로 자르고, slot_drop_chances(숫자 하나 = 모든 칸, 또는 칸 이름 → 숫자)를 적용한다.
-     * 가정: 방어구 칸 판정은 Mob.equipmentSlotFor(이름 기준)로 Equipable 을 대신한다.
-     */
-    static void applyEquipment(ChunkLevel level, Mob mob, NbtCompound eq) {
-        if (!(eq.tags().get("loot_table") instanceof String table) || table.equals("minecraft:empty")) return;
-        java.util.Map<EquipmentSlot, Float> chances = new java.util.EnumMap<>(EquipmentSlot.class);
-        Object sdc = eq.tags().get("slot_drop_chances");
-        if (sdc instanceof Number num) {
-            for (EquipmentSlot s : EquipmentSlot.values()) chances.put(s, num.floatValue());
-        } else if (sdc instanceof NbtCompound c) {
-            for (EquipmentSlot s : EquipmentSlot.values()) if (c.tags().get(s.slotName()) instanceof Number num) chances.put(s, num.floatValue());
-        }
-        List<ItemStack> items = level.lootItems(table, new double[] {mob.x(), mob.y(), mob.z()}, mob.lootEntity(), 0.0F, 0L, null);
-        List<EquipmentSlot> used = new ArrayList<>();
-        for (ItemStack item : items) {
-            if (item.isEmpty()) continue;
-            EquipmentSlot slot = Mob.equipmentSlotFor(item);
-            if (used.contains(slot)) continue;
-            ItemStack equipped = slot.type() == EquipmentSlot.Type.HAND ? item : item.withCount(Math.min(item.count(), 1));
-            mob.setItemSlot(slot, equipped);
-            Float chance = chances.get(slot);
-            if (chance != null) mob.setDropChance(slot, chance);
-            used.add(slot);
-        }
     }
 
     // ------------------------------------------------------------------ 보상 배출

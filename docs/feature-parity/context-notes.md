@@ -1024,6 +1024,11 @@
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
 
+## 2026-11-07 명령 점검 M11
+- 텍스트 속 선택자·점수·NBT 는 `ComponentUtils.resolve`(future)로 푼다. 엔티티가 region 소유라 읽기가 비동기이므로 쓰는 쪽은 `EntityOps.result`/`thenOnGlobal` 로 이어야 한다. 전부 플레이어·저장소만 건드리면 future 가 이미 끝나 있어 동기 길과 같은 속도.
+- brigadier 는 입력과 똑같은 후보를 제안하지 않는다(`/tag x remove a` 에서 `a` 를 다시 안 띄움) — 자동완성 시험은 접두 일부로.
+- 새 시험 `TextResolveCommandsTest`(15개), 봇 `tools/bot-test/round15`. 자세한 내용 `command-audit-m11-2026-11-07.md`.
+
 ## 2026-11-07 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 (묶음 K3, 불만 표 52~54행)
 - API `Furnace.playerViews()` → `PlayerViews`(+`PlayerBorder`), `AsyncChatEvent.renderer(ChatRenderer)`. 설계·규칙 `docs/api/player-views.md`.
 - 핵심(52행): 서버 `Player` 마다 `ViewLayers`(블록·바이옴 층, 장비 덮어쓰기, 개인 `WorldBorder`)를 두고, 나가는 청크 본문·`block_update`·`section_blocks_update`·`chunks_biomes`·`set_equipment`·보더 패킷에 연결의 `ViewRewriter` 가 덧입힌다. 청크를 다시 받아도(멀리 갔다 옴) 층이 남는다 — 봇으로 확인.
@@ -1057,6 +1062,34 @@
 - **남은 차이**(구조상): 내려간 청크·다른 region 의 POI 는 조회하지 않아 중심 둘레 ±2 섹션 중 일부가 다른 region 이면 마을 판정이 모자랄 수 있다. 같은 거리 POI 선택 순서(`getInRange` 순서)는 region 청크 순서에 따른다. 보스바 진행도 `0/0`(NaN) 은 바닐라가 NaN 을 보내지만 여기서는 0 으로 보낸다.
 - 시험: `RaidParityTest`(깃발 구성·addWaveMob 교체·습격 석궁 마법 확률/파도·영웅 처치자) 신규.
 
+## 2026-11-07 M6 플레이어 전투 바닐라 대조 (바이트코드)
+- 대조 방법: 바닐라 1.21.1 `Player.attack`(cmx.e)·`Player.sweepAttack`(cmx.fV)·`MaceItem`(cvb)·`ServerPlayer.doCheckFallDamage`(aqv.a(DDDZ))·`Entity.isAttackable`(bsr.cu) 와 그 재정의 클래스를 `javap -c -p` 로 읽어 `PlayerMelee`·`MaceSmash` 와 줄 단위로 맞췄다.
+- **이미 같았던 것(고치지 않음)**: 쿨다운 배율(`0.2 + h²×0.8`, 인챈트 추가분은 `h` 곱), 질주 넉백 소리 → 치명타 조건(낙하 중·땅 아님·사다리/물/실명/탑승/질주 아님·생물 대상) → 쓸기 조건(`strong && !crit && !sprintHit && onGround && walkDist < speed && 검`) → 맞은 뒤 넉백(`knockback×0.5`, 생물 `knockback`·그 밖 `push`) → 쓸기(상자 `inflate(1, 0.25, 1)`, `1 + 쓸기 비율 × f`, 아군·표식 거치대·거리² 9 제외, 0.4 넉백 → 피해 → 공격 후 효과) → 쓸기 소리 → `sweep_attack` 입자(플레이어 + (−sin, 0.5 키, cos), count 0·속도 0) → 치명타·소리 → 마법 치명타 → `setLastHurtMob` → `hurtEnemy`(철퇴) → 공격 후 효과 → `postHurtEnemy`(내구) → 피해 표시(`damage_indicator`, 입힌 양 > 2 이면 `(int)(입힌 양×0.5)` 개, 퍼짐 (0.1, 0, 0.1), 속도 0.2) → 통계 → 허기 0.1. 힘 +3·나약함 −4 × (증폭+1) 속성 수정자(플레이어·몹 모두 `applyEffectAttributes`), 살충 느림 IV(대상 난수 `nextInt(1)` → `nextFloat`×2, 지속 1.5~(1.5+0.5×(레벨−1))초 × 20 반올림)도 일치.
+- **고친 차이 4개**:
+  1. **생물이 아닌 대상(보트·수레·액자·수정 …)과 엔더 드래곤 파트**는 `Region.attackEntity`/`attackDragonPart` 가 `1.0 + 아이템 공격력`만 써서 **힘·나약함·쿨다운·마법 부여·소리·밀치기·쓸기가 빠져 있었다**. 바닐라 `Player.attack` 은 대상 종류를 가리지 않는다. 이제 `PlayerMelee.Raw`(Entity 어댑터)로 같은 경로를 탄다. 생물 전용 단계(치명타·무기 내구도·피해 표시·통계·`setLastHurtMob`)는 `LivingEntity` 일 때만 — 바이트코드의 `instanceof btn` 분기 그대로. 나약함으로 공격력이 0 이 되면 맞히지 못하고 쿨다운만 초기화(생물과 같음). **드래곤 파트**는 바닐라 `cmx.e` 오프셋 1048~1065 에서 `entity = parent` 로 바꾸므로 무기 내구도·철퇴 스매시·철퇴 낙하 초기화는 부모 드래곤 기준이고, 공격 후 효과와 `setLastHurtMob`(null)만 파트 기준이다(독립 검토가 잡음). 튕길 수 있는 투사체를 튕기면 쿨다운도 초기화한다(오프셋 100 이 튕김보다 앞).
+  2. **`Entity.isAttackable`**: 바닐라는 경험치 구슬·아이템·떨어지는 블록·끝의 눈·폭죽·화살(튕길 수 있는 투사체 제외)만 거짓이고, 거짓이면 `Player.attack` 이 첫 줄에서 끝난다(쿨다운·소리·허기 없음). `Entity.isAttackable()` 을 만들고 `Region.attackEntity` 가 skipAttackInteraction 앞에서 본다.
+  3. **찌르기(impaling) 근접 피해**: `EnchantmentHelper.modifyDamage` 는 무기의 `minecraft:damage` 효과를 전부 합쳐 삼지창 근접에도 찌르기(`#sensitive_to_impaling` 에 2.5×레벨)가 붙는다. 던진 삼지창(ThrownTrident)에만 있었다. `enchantDamageBonus` 에 추가.
+  4. **철퇴 착지 먼지 기둥**: `MaceItem.hurtEnemy` 가 땅 위 대상(`target.onGround()`)을 칠 때 `ServerPlayer.spawnExtraParticlesOnFall` 을 켜고, `ServerPlayer.doCheckFallDamage` 는 켜진 채 땅에 닿고 낙하 거리 > 0 이면 발밑(`getOnPosLegacy`) 칸 가운데 + (0, 0.5, 0) 에 `dust_pillar`(그 칸 블록 상태)를 `(int)clamp(50×낙하, 0, 200)` 개·퍼짐 0.3·속도 0.15 로 뿌리고 표시를 끈다(LivingEntity 착지 입자보다 먼저). 표시는 NBT `spawn_extra_particles_on_fall` 로 저장·복원. `PlayerVitals.spawnExtraParticlesOnFall`, `LandingParticles.spawnMaceDustPillar`, `Region.processMoves`.
+- **남은 차이(가정)**: 쓸기 조건의 `walkDist − walkDistO` 는 마지막 수락 변위 근사, 쓸기가 닿는 다른 플레이어는 같은 region 에 있는 것만, 철퇴 충격파 레벨 이벤트의 위치는 `getOnPos` 근사(지지 블록이 울타리·담일 때만 다름). 철퇴 착지 입자 표시는 바닐라도 `ServerPlayer` 전용이라 몹에는 없다. 철퇴 먼지 기둥은 바닐라가 물 접촉 낙하 초기화보다 먼저 확인하지만 `PlayerVitals.checkFallDamage` 는 물에 닿으면 먼저 낙하 거리를 0 으로 만들어, 물에 닿는 땅 착지에서는 입자가 안 나오고 표시가 남는다(드묾). 바닐라 `handleInteract` 는 아이템·경험치 구슬·자기 자신·화살(`!isAttackable`)을 공격하면 `invalid_entity_attacked` 로 접속을 끊지만 Furnace 는 조용히 무시한다(안티치트 차이).
+- **#58 피해 단계 API와의 관계**: 이 작업은 `PlayerMelee` 의 피해 *크기* 계산과 대상 선택만 건드린다. 맞는 쪽의 방어력→저항→보호→흡수 단계(`PlayerVitals.actuallyHurt`, `EntityDamageCalculateEvent`)는 그대로고, 근접 피해량이 바뀌면 그 이벤트의 `base` 가 바뀔 뿐이다.
+- 시험: `PlayerCombatM6Test` 13개(쓸기·피해 표시 입자 값, 보트에 힘/쿨다운/나약함, 생물 전용 단계 건너뜀, isAttackable, 찌르기, 살충, 철퇴 표시·먼지 기둥·NBT). 봇(`tools/bot-test/m6/m6.js`, 오프라인 서버 + mineflayer): sweep_attack count 0 방향 +x, damage_indicator 3개·속도 0.2, 힘 II 맨손 한 방에 보트가 부서지고 힘 없이는 안 부서짐, 거미에 느림 IV, 12칸 낙하 철퇴로 맞힌 뒤 착지에 `dust_pillar` 54개(퍼짐 0.3·속도 0.15) 9항목 통과. 함정: 서버가 아는 플레이어 위치는 몇 틱 늦어, 빠르게 떨어지며 너무 일찍(6칸 밖) 치면 거리 검사에 걸려 조용히 무시된다(바닐라와 같음) — 봇은 대상 머리 바로 위에서 친다.
+
+## 2026-11-07 M5 주민 바닐라 대조 (바이트코드)
+- 대조 방법: 바닐라 1.21.1 jar 의 `Villager`(cmk)·`AbstractVillager`(cmf)·`ZombieVillager`(ckx)·`Mob.dropPreservedEquipment`(btp)를 `javap -c -p` 로 읽어 줄 단위로 맞췄다. 소문·평판·특별 가격 공식, 농부/거래 보이기/영웅 선물/뼛가루 행동, 생성 이유별 종류·직업은 이미 같았다.
+- **고친 차이**:
+  - `Villager.mobInteract`: 바닐라는 웅크려도 거래한다(전에는 `!sneaking` 이면 아무 일도 없었다). INTERACT_AT(2)에서는 열지 않는다(INTERACT 만). **주민 스폰 알(`villager_spawn_egg`)을 든 때만** 넘긴다(전에는 모든 스폰 알). 아기·거래 없는 주민(무직·바보)은 주 손일 때 고개 젓기(불만 카운터 40 + 소리 `villager.no`, 볼륨·목소리 높이는 `getSoundVolume`/`getVoicePitch` — 난수 2번, 아기는 높은 소리)이고, 주 손 상호작용은 거래 유무와 무관하게(아기 제외) `talked_to_villager` 통계가 오른다. 거래가 없으면 CONSUME(열지 않음)이고 `player_interacted_with_entity` 는 그대로 걸린다. 떠돌이 상인도 같은 통계(주 손)와 소비 규칙.
+  - 불만 카운터(`DATA_UNHAPPY`=17)를 실제로 쓴다: `tick` 에서 1씩 줄인다.
+  - `tellWitnessesThatIWasMurdered`: 바닐라는 `visible_mobs`(눈에 보이는 몹) 중 평판 이벤트를 듣는 것만 부른다. 전에는 `NEAREST_LIVING_ENTITIES`(근처 전부)라 벽 너머 주민도 평판이 깎였다.
+  - `Villager.removeWhenFarAway` = false, 생성자에 `DANGER_FIRE` 16·`DAMAGE_FIRE` -1 길찾기 가중치, `finalizeSpawn` 그룹 데이터가 없으면 새끼를 내지 않는 `GroupData(false)`.
+  - `die` 끝에 `stopTrading`(거래 중이던 플레이어를 놓고 특별 가격 되돌림). 번개로 마녀가 될 때 이름·이름표 표시를 넘긴다.
+  - 떠돌이 상인도 `AbstractVillager` 와 같게: 길찾기 가중치, `die` 끝 `stopTrading`. 거래 화면 제목은 이름(커스텀 이름이 있으면 그것, 없으면 `entity.minecraft.villager.<직업>`)만 보낸다 — 클라이언트가 "이름 - 단계"로 감싸므로 전에는 이중으로 감쌌다. `Pig.thunderHit` 은 `convertTo` 뒤 무적을 도로 끈다(바닐라 Pig 는 무적을 안 넘긴다).
+  - 저장: 바닐라에 없는 `Willing` 키를 더는 쓰지 않는다.
+  - `Mob.convertTo`: 이름·이름표 표시·무적을 새 몹에 넘긴다(바닐라 `convertTo`). 좀비의 주민 감염(`Zombie.killedEntity`)은 직접 만들던 것을 `villager.convertTo(ZOMBIE_VILLAGER)` 로 바꿔(새 몹을 먼저 추가한 뒤 finalizeSpawn·데이터 채움), 고집(persistence)을 주민 것 그대로 따른다 — 전에는 항상 켜서 좀비 주민이 사라지지 않았다.
+  - `ZombieVillager.finishConversion`: 바닐라는 귀속 저주 장비만 주민 가방의 `slot.getIndex()` 칸에 옮기고(손과 방어구의 번호가 겹쳐 뒤가 앞을 덮는 바닐라 특성 그대로), 나머지는 드롭 확률이 1.0 을 넘는 것만 떨군다(`Mob.dropPreservedEquipment(filter)` 새로 둠). 전에는 방어구를 전부 떨궜다. 또 `finalizeSpawn(CONVERSION)` 과 `refreshBrain` 을 건너뛰어 난수 소비·따라가는 거리 보정이 빠져 있었다. 나약함 없는 좀비 주민에게 황금 사과는 CONSUME(소비한 상호작용으로 처리).
+  - `villager_plantable_seeds`: 하드코딩 맵을 없애고 설치된 태그(데이터 팩이 바꾼 것)를 본다 — `Villager.isPlantableSeed`(태그가 아직 안 걸렸으면 바닐라 기본 태그). 심는 블록은 씨앗의 `BlockItem` 블록 기본 상태(바닐라 `blockItem.getBlock().defaultBlockState()`).
+- 시험: `VillagerParityTest` 12(불만·대화 통계·스폰 알·살해 목격자·감염 이름/무적/소문·치료 장비·씨앗 태그 등).
+- 남은 차이: 주민/떠돌이 상인 상호작용 성공 시 `ENTITY_INTERACT` 게임 이벤트가 안 나옴(일반 Mob 상호작용 전체의 공백), 주민 알을 든 채 주민 우클릭하면 바닐라는 새끼 주민 생성(AgeableMob.mobInteract — Furnace 에는 알로 새끼 만들기가 없음), `openMerchantScreen` 이 거래 플레이어를 이벤트 루프에서 늦게 설정(같은 틱 두 명 동시 우클릭 가능성). `Villager.releasePoi` 의 다른 차원 POI, 철 골렘 평판 -100 공격은 `DefendVillageTargetGoal` 이 이미 같음(확인만).
+
 ## 2026-11-07 수면·리스폰 바닐라 대조 (묶음 M9)
 - 바닐라 1.21.1 바이트코드 대조(`aqv`=ServerPlayer): `stopSleepInBed(true,true)` 를 부르는 곳은 **disconnect 와 teleportTo(level, …7인자) 둘뿐**이다. 차원 이동(changeDimension)·포털은 깨우지 않는다(자면서 포털에 들어갈 수 없다).
 - 자는 중 텔레포트: `/tp`·setCamera 는 이미 깨웠으나 플러그인 `PlayerHandle.teleport`·`Player.teleportTo`(3·5인자)·`teleportRelative`(엔더 진주 등)는 안 깨웠다. 이제 `Player.wakeThen` 이 이벤트 취소 확인 뒤 소유 스레드(`runOnOwner`)에서 깨우고 **그다음** 목적지로 보정 텔레포트한다(깨우기가 일어설 자리로 옮기는 보정이 목적지를 덮어쓰지 않게 순서 고정). 상대 텔레포트는 깬 뒤 자리 기준.
@@ -1085,6 +1118,21 @@
 - RaiderPredicate 는 `has_raid`·`is_captain` 기본값이 false 이고 둘 다 같아야 한다(예전 구현은 안 쓴 `is_captain` 을 "무관"으로 봤다). 엔티티 서브 조건 목록은 19종(lightning, fishing_hook, player, slime, raider, axolotl, boat, fox, mooshroom, rabbit, horse, llama, villager, parrot, tropical_fish, painting, cat, frog, wolf) — `sheep`·`salmon` 은 1.21.1 에 없다(1.21.2+).
 - 변종 값은 저장 NBT 에서 바닐라 이름으로 바꾼다(`LootTypeSpecific`): 열거형 변종은 이름 그대로, 고양이·개구리·그림·늑대·주민은 `minecraft:` id. KillCredit 스냅샷은 소유 스레드에서 이 값을 미리 읽어 둔다.
 - LocationPredicate 의 새 필드는 그 칸 청크를 지금 스레드가 가진 경우에만 읽는다(`LootWorld` 훅이 null → 거짓). 다른 region 소유 칸이면 거짓이 나올 수 있다는 것이 바닐라 `isLoaded` 검사 자리의 Furnace 쪽 한계.
+## 2026-11-07 다차원 차이 (묶음 M10, 바이트코드)
+바닐라 1.21.1 `dcw`(Level) 생성자·`dcw$1`, `dut`(WorldBorder)·`dur$a`(DelegateBorderChangeListener), `MinecraftServer.createLevels`, `aur`(PlayerList) `sendLevelInfo`·`addWorldborderListener`, `ape`(WorldBorderCommand), `dlc`(NetherPortalBlock) `randomTick`·`getPortalDestination`, `eqy`(DerivedLevelData) 를 `javap -c` 로 대조.
+- **보더**: 차원마다 `World.border()`. 좌표 비 ≠ 1 이면 `getCenterX/Z` 만 비로 나눈다(크기·경고·피해 그대로, `createSettings` 도 나눈 중심). 오버월드가 아닌 월드는 `ServerCore.attachWorld` 가 `setAbsoluteMaxSize(max-world-size)` 뒤 `attachFollower`(지금 상태 복사 + `Delegate`)로 오버월드를 따라간다. 내린 추가 월드는 고리를 뗀다. 블록 레벨 `withinBorder`/`borderBounds`·플레이어 보더 피해는 그 차원 보더, 지옥문 출구 자르기는 목적 레벨 보더(`borderBoundsOf`). 명령·level.dat·접속·변경 패킷은 오버월드 보더(바닐라도 네더 접속자에게 오버월드 값 — 클라이언트 레벨이 자기 비로 나눈다). 보더 틱은 차원마다.
+- **차원 이동 지연**: 범위 청크가 다 올라와 있으면 IO 레인을 건너뛰고 바로 목적 region 작업으로, 올라와 있는 청크는 로드 왕복 없음, 모은 뒤 사이에 내려간 청크는 다시 올린다. 플레이어는 지옥문 대기 시작과 60틱마다 목적 청크를 미리 올린다(`Region.prewarmPortal` → `World.prewarmTravel`). 플레이어 도착은 `Player.ArrivalHandoff`: 목적 region 스레드가 연결 스레드의 패킷 보내기를 최대 2ms 기다렸다가 틱 사이(`Region.betweenTicks`)면 그 자리에서 편입, 아니면 연결이 편입 작업을 보낸다(정확히 한 번).
+- **좀비 피글린**: 11-06 구현이 바이트코드와 같다(natural·doMobSpawning·`nextInt(2000) < 난이도`·지옥문 아래 첫 칸 `isValidSpawn`·`EntityType.spawn(pos.above(), STRUCTURE)`·몹에만 `setPortalCooldown` — 탈것에는 없음). 플러그인 생성 원인을 `NETHER_PORTAL` 로(예전엔 `SPAWNER_EGG`).
+- **수면**: 추가 월드는 그 월드 접속자로 세어 충분히 자면 깨우기만(DerivedLevelData 의 시간·날씨 setter 는 빈 메서드).
+- 남은 것: 디스크 읽기·생성이 필요한 처음 가는 목적지(포털을 지나는 엔티티)는 그만큼 늦게 도착(바닐라는 서버를 멈추고 만든다). 추가 월드 보더를 월드마다 따로 둘지는 user-todo 결정 항목.
+
+## 2026-11-07 블록 엔티티·지도 바닐라 대조 (묶음 M8, 바이트코드)
+
+`javap -c -p` 로 BaseSpawner(`dby`)·TrialSpawner(`dsf`)·EquipmentUser(`btb`)·SignBlockEntity(`drs`)·SignText(`drt`)·ComponentUtils(`xc`)·ScoreContents(`yh`)·SelectorContents(`yi`)·GsonHelper.toStableString(`aye`)·MapItemSavedData(`eqt`)·BeehiveBlockEntity(`dqe`)·BeehiveBlock(`dfs`)를 대조했다.
+- **이미 같았던 것(닫음)**: 깃발 무늬 컴포넌트 → 블록 엔티티(applyImplicitComponents), 깃발 부술 때 이름·무늬 드롭(copy_components + BLOCK_ENTITY 매개변수), 네더 지도 색(hasCeiling: 반경 절반·흙/돌 해시 무늬), 벌집 들고나기·꿀 레벨·저장, 표지판 저장 JSON(키 재귀 정렬 = toStableString, HTML 이스케이프 없음, 바닐라 코덱 필드 구성).
+- **고친 것**: (1) 지도 표식 회전 흔들림은 바닐라가 **네더**(`dcw.i` = the_nether) 지도에서 하는데 Furnace 는 엔드에서 하고 있었다. 깃발 표식도 toggleBanner 가 레벨을 넘기므로 네더에서 돈다(불러온 깃발은 레벨 null → 안 돈다). (2) 스포너: `loadEntityRecursive` — Passengers 를 깊이 우선으로 불러 강제로 태우고(승객 id 도 정규화), 함수는 엔티티마다(BaseSpawner 는 같은 자리·자기 회전, 시련 생성기는 엔티티마다 회전 nextFloat). (3) 스포너 `SpawnData.equipment` → `Mob.equip(EquipmentTable)`; 칸 고르기는 Equipable(늑대·말 갑옷·양털 카펫 → 몸, 방패 → 왼손) 기준으로 바꿨다(전엔 이름 판정이라 늑대 갑옷이 주 손으로 갔다). 시련 생성기도 같은 메서드를 쓴다. (4) 표지판: 레벨에 놓인 뒤 읽을 때(/data merge block, /setblock·/fill NBT, /clone, 아이템 block_entity_data, /place·구조물 블록 배치) 그때 읽은 면만 줄마다(원문 → 걸러진 것) `ComponentUtils.updateForEntity(표지판 소스, 줄, null, 0)` — 소스는 이름 "Sign"·권한 2·칸 가운데·엔티티 없음·그 월드. 명령 오류면 원래 줄. 청크 읽기는 레벨이 없어 안 푼다(바닐라와 같음). 면 색은 `fieldOf.orElse(BLACK)` 이라 틀린 색이면 검정(전엔 면 전체를 버렸다). (5) `ComponentUtils`: 점수(ScoreContents) 풀기 추가 — 이름을 선택자로 읽어 대상이 하나면 그 주인(둘 이상이면 toomany 오류), 없으면 이름 그대로, `*` 는 entity 로; 목표·점수가 없으면 빈 텍스트, 있으면 목표 숫자 형식 또는 NO_STYLE. 선택자 결과는 formatList — 하나면 표시 이름 자체(빈 텍스트로 감싸지 않음, 스타일은 바닐라 withStyle 처럼 원래 줄이 정한 값만 덮고 표시 이름의 클릭·호버·삽입은 남음 — 처음엔 통째로 바꿨다가 독립 검토에서 고침), 여럿이면 빈 텍스트에 구분자로. (6) `Player.displayName` 에 바닐라처럼 엔티티 호버(show_entity)를 붙였고, 플레이어·표지판 명령 소스의 표시 이름도 이것을 쓴다(전엔 팀 서식·호버가 빠졌다). (7) 벌집 크리에이티브 파괴(doTileDrops, 벌이 있거나 꿀 > 0): bees + block_state{honey_level} 를 실은 아이템을 칸 모서리에 떨군다(M17 줄에서 지움).
+- **M11 과 합침**: 기준 브랜치의 M11 이 `ComponentUtils.resolve`(future, 일반 엔티티 선택자·NBT 까지)를 넣어 M8 의 동기 판을 버리고 그것을 쓴다. 표지판은 `BlockLevel.resolveSignLines(pos, 줄들, apply)` — 플레이어·점수판만 쓰면 그 자리에서, 다른 region 의 엔티티를 읽으면 끝난 뒤 그 칸의 주인 region 에서 넣고(그새 표지판이 바뀌었으면 버림) 갱신을 보낸다.
+- **남은 차이**: 위의 늦게 끝나는 경우 바닐라(동기)보다 한 틱 안팎 늦게 바뀐다(최종 글은 같다). 아직 포팅 안 된 엔티티 종류의 스포너 승객은 빠진다. 지도의 미로드 청크 칠하기(기존 TODO)는 그대로.
 
 ## 2026-11-07 청크 전송 auto · furnace.properties 자동 생성
 - 청크 로딩 속도는 봇(mineflayer)으로 못 잰다 — `tools/bot-test/chunkrate/chunkrate.js` 처럼 `chunk_batch_received` 값을 정해 답하는 접속기를 쓴다. 진단·전후 수치: `perf-chunk-send-2026-11-07.md`.
@@ -1092,6 +1140,12 @@
 - `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
 - furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
 - 관전자(spectatorsGenerateChunks=false)는 auto 경로에서도 미리 불러오기(생성·디스크 로드)를 걸지 않는다(`sendQueuedChunksAuto` 의 `skipsGeneration`) — 이것을 빼면 auto 기본값에서 관전자가 땅을 만든다(M19·청크 전송 auto 합칠 때 발견).
+
+## 2026-11-07 여럿일 때 청크 전송 (묶음 M12)
+- 원인 ①(데이터 유실): 종료 `flushAll` 한 번은 IO 레인이 밀리면(`ioBackedUp`, 레인당 256) 남은 dirty 청크를 `autosaveChunkQueue`(다음 틱)로 넘기는데 종료엔 다음 틱이 없다 → 여럿이 새 땅을 돌고 끄면 생성 청크 약 42% 유실, 재시작 뒤 재생성. `World.flushAllDrained` 가 미룬 수가 0 이 될 때까지 flushAll → `ioBarrier` 를 되풀이(역압은 지킴). 종료·`save-all` 이 쓴다. 미룬 수만 보므로 틱이 도는 save-all 이 끝없이 돌지 않는다.
+- 원인 ②(CPU): 디스크 청크도 생성 풀에서 빛을 처음부터 계산(바닐라는 저장된 빛을 쓰지만, Furnace 는 시야 밖 이웃이 내려가 저장된 빛이 낡을 수 있어 그대로 둠). 빠른 경로: 블록빛 원천은 팔레트에 발광 상태가 없는 구역을 건너뜀(바닐라 `findBlockLightSources`/`maybeHas`), 하늘빛 원천 높이는 한 상태로만 찬 구역을 통째로 지남, 모든 열이 15 인 구역은 `Arrays.fill`. 대기열 항목·순서 그대로. 실제 청크 5,776개 SHA-1 동일, 1.09 → 0.35ms.
+- 함정: `ChunkColumn.sections()` 는 cowCopy 공유 섹션을 복사한다 — 읽기만 할 땐 `sectionUniformBlock`/`sectionMaybeHas`. 봇 측정은 minecraft-protocol 이 map_chunk 를 해석하면 클라이언트 CPU 가 먼저 막힌다(`multi.js` 는 0x27 을 x,z 만 읽음).
+
 ## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
 - 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.
 - **구조**: `Targetable.team()`/`isAlliedTo(other)` 기본 구현(같은 팀 = `PlayerTeam.isAlliedTo`). `LivingEntity.team()` = `getTeam()`, `Player.team()` 은 원래 있던 것. 덮어쓰기: `TamableAnimal`(길들였으면 주인·주인의 아군), `AbstractIllager`(팀 규칙 뒤, `illager_friends` 태그는 **둘 다 팀이 없을 때만** — 이전엔 팀과 무관하게 동맹이었다), `Evoker` 는 그대로.
@@ -1101,6 +1155,25 @@
 - **/teammsg 채팅 필터**: 바닐라의 `shouldFilterMessageTo` 분기는 글자 걸러내기 서비스(`text-filtering-config`)가 없으면 마스크가 PASS_THROUGH 라 관측 결과가 같다(받는 쪽 클라이언트 옵션과 무관하게 원문, "모두 걸러짐" 안내도 없음). Furnace 는 그 서비스를 아직 지원하지 않으므로(FurnaceMain 경고) 코드는 안 늘리고 주석으로 닫았다.
 - **독립 검토(읽기 전용)가 찾은 둘, 고침**: ① `TamableAnimal.getTeam` 은 길들였고 주인이 보이면 **주인의 팀**(바닐라 `bul.ck`)인데 Entity 기본(자기 UUID 의 팀)을 그대로 써서 쓸기·충격파·워든·선택자 `team=`·팀 충돌이 펫에서 틀렸다. ② `PlayerVitals.hurt` 의 `ap != player` 예외 제거 — 바닐라 `ServerPlayer.hurt` 는 자기 자신이 원인이어도 `canHarmPlayer(자기)` 를 검사해, pvp 꺼짐·아군 피해 꺼진 팀에서는 내 화살·내 TNT·내 폭죽에 안 다친다. `Player.team()` 에는 `hasTeams()` 단락 추가.
 - 시험: `TeamPvpRulesTest` 10개(같은 팀/없음, 전투 조건, 목표 지속, 길들인 동물 주인, 일러저 친구, canHarmPlayer 표, 맞는 쪽 무시, 늑대, 길들인 말, 화살 통과).
+
+## 2026-11-07 스컬크 마무리 (묶음 M2)
+- 상세는 `docs/feature-parity/m2-sculk-2026-11-07.md`. 스컬크 확산 코드(SculkSpreader·ChargeCursor·SculkBlock·SculkVeinBlock·촉매 리스너)는 바이트코드와 같음을 확인했고, SculkBehaviour 구현은 바닐라도 스컬크·맥뿐이다.
+- 빠져 있던 것: `Player` 는 `LivingEntity` 가 아니라 사망 때 `entity_die` 도, 경험치 구슬도 없었다. `PlayerVitals.die` 가 첫 줄에 `entity_die` 를 내고(주인 region 스레드), 끝에 `dropExperience` 를 한다. 촉매 리스너는 `Player` 도 받는다.
+- 함정: `PlayerVitals.die` 는 어느 스레드에서든 불릴 수 있으므로 게임 이벤트·구슬 드롭은 `player.onOwnerThread() ? 바로 : runOnOwner` 로 보낸다(순서 보존). 처치자 인챈트 보정(mob_experience)은 기본 데이터에 쓰는 곳이 없어 생략.
+
+## 2026-11-07 블록 잔여 (묶음 M17)
+- 근거: 바닐라 1.21.1 바이트코드 `dlt`(PowderSnowBlock: 충돌 모양 `b(dtc,dcc,jd,exh)` — fallDistance > 2.5 → 높이 0.9 상자, 그다음 FallingBlockEntity(`cjg`) 거나 걸을 수 있고 `isAbove` 이고 웅크리지 않으면 `dfy.b`(= 꽉 찬 블록), 아니면 빈 모양. entityInside 의 녹이기 조건은 mobGriefing 또는 플레이어) + 아는 바닐라 코드(Comparator/Lectern/Brewing/NoteBlock/DecoratedPot/FallingBlockEntity).
+- **비교기**: `BlockLevel.itemFrameAnalogOutput(pos, facing)` — 그 칸 안에서 비교기가 바라보는 쪽(`FACING`)을 향한 아이템 액자가 정확히 하나일 때만 `ItemFrame.getAnalogOutput`(빈 액자 0, 아니면 돌림 % 8 + 1), 아니면 MIN_VALUE. 단단한 블록 뒤 칸에서 블록 신호와 `max`.
+- **노트 블록**: 커스텀 머리 악기는 위 칸 `SkullBlockEntity.note_block_sound`(없으면 false, 씨앗도 안 뽑음), 소리는 `playSeededSound` 로 레벨 난수 `nextLong()` 씨앗을 패킷에 싣는다(`BlockLevel.playSeededSound` 추가). 이전엔 씨앗을 뽑고 버렸다.
+- **꾸며진 항아리**: 섬세한 손길(`#prevents_decorated_pot_shattering`)이면 금 가지 않는다. 드롭은 하드코딩을 없애고 바닐라 표(`blocks/decorated_pot` — 금 간 단지는 동적 항목 `minecraft:sherds`, 아니면 `copy_components pot_decorations`)에 맡겼다. 동적 항목은 `LootParams.sherds(컴포넌트)` 가 `ServerCore.blockDrops` 에서 이어 준다(데이터 팩이 표를 고치면 따른다). **차이**: 표가 없는 환경(데이터 팩 없는 시험 레벨)에서는 단지가 아무것도 안 떨군다 — 시험은 `TestBlockLoot` 로 바닐라 표를 평가한다.
+- **연단**: 책은 `spawnItemEntity` 로 (x+0.5+0.25·dx, y+1.0, z+0.5+0.25·dz) — 아이템 엔티티 생성자의 속도 난수(레벨 난수 2번, y 0.2). 주크박스(`popOutTheItem`)는 이미 바닐라와 같아 손대지 않았다.
+- **양조대**: 남는 아이템(용의 숨결 → 유리병)은 `Containers.dropItemStack(pos 모서리)` — `level.dropItemStack(x, y, z)`(칸 안 임의 위치).
+- **TNT·호박**: 부싯돌은 `hurtAndBreak`, 화염구는 1개 소모(`instabuild` 면 소모 없음), 통계 `used:<아이템>`. 호박은 씨앗 떨군 뒤 가위 `hurtAndBreak` → `shear` 게임 이벤트 → `used:shears`. 벌집(꿀·꿀벌집 조각)의 통계도 `used`(이름 없는 통계)였던 것을 `used:<아이템>` 으로 고쳤다.
+- **낙하 블록**: `TileEntityData` 읽기·쓰기. 내려앉은 뒤 블록 엔티티의 `saveWithoutMetadata` 에 최상위 키를 복사해 덮고(재귀 합치기 아님) 다시 읽고 `setChanged`(바닐라와 같은 순서: `onLand` 뒤).
+- **가루눈**: `BlockBehavior.getEntityCollisionShape(상태, 레벨, 칸, 엔티티)` 를 추가해 `ChunkLevel.collectCollisions(box, entity, …)` 가 엔티티 이동(`Entity.collide`·`findSupportingBlock`)에서 쓴다. 문맥 엔티티가 없는 질의(건설·플레이어 이동 검증·길찾기)는 그대로 빈 모양. 걸을 수 있는 엔티티는 `#powder_snow_walkable_mobs` 거나 가죽 장화를 신은 생물. 생물은 웅크리지 않으므로(`LivingEntity.isShiftKeyDown` 은 늘 거짓) 그 조건은 무의미하다. 떨어지는 블록이 2.5 넘게 떨어지면 0.9 높이 모양에 걸려 가루눈 칸 안(y=−59.1 처럼)에서 멈추고, 바꿀 수 없어 아이템이 된다 — 바닐라도 같다.
+- **이미 구현돼 있어 손대지 않은 것**: 투사체-블록 반응(양초·모닥불·TNT·종·장식 단지·후렴화·점적석·자수정·큰 흘림잎·과녁 — 2026-11-03 절), 주크박스 드롭 위치, 벌집 크리에이티브 드롭(M8).
+- **남은 것(가정)**: 플레이어는 엔티티 계층 밖이라 가루눈 `entityInside`(불붙은 플레이어가 mobGriefing 꺼짐에서도 녹이기)가 오지 않고, `noCollision`(스폰·길찾기)은 아직 엔티티 문맥이 없다(토끼 길찾기가 가루눈 위를 못 골랐을 수 있음).
+- 시험: `BlockRemainderM17Test`(15개), `BlockEntityLootTest.decoratedPotDropsItemWithDecorationsOrFourSherdsWhenCracked`, `ProjectileBlockHitTest.decoratedPotCracksAndShatters`(바닐라 표로 평가하도록 바꿈).
 
 ## 2026-11-07 월드젠 단계 훅·청크 재생성 (W3)
 - API `LifecycleEvents.WORLD_GENERATION` → `WorldGenerationRegistrar.register(키, ChunkGenerationHooks)`. 월드는 키만 쥔다(`WorldCreator.generationHooks`, 기본 차원은 `worldgen-hooks.*`). 서버 `plugin/GenerationHookStore`(키 → 플러그인·훅, 꺼지면 빠짐), `world/gen/GenHooks`(월드 바인딩·예외 격리·BlockData 변환). 문서 `docs/api/worldgen-hooks.md`.
@@ -1115,3 +1188,31 @@
   - 훅 격리는 `LinkageError` 도(핫 언로드 중 NoClassDefFoundError — 공유 장식 도중 터지면 원점이 반쯤 장식된 채 남는다).
   - 재생성 생성은 월드마다 한 줄로(`regenTail`) — 289개가 생성 대기 풀을 다 붙잡지 않게.
 - 시험: `GenHooksTest` 12, `GenerationHookStoreTest` 1, `RegenerateChunkTest` 2(알레이 진동 리스너·FRESH 엔티티 지우기 포함).
+
+## 2026-11-07 이동·길찾기·보더 (묶음 M21, 바이트코드 대조)
+바닐라 jar 의 `MoveControl`·`DismountHelper`(coy)·`FallingBlockEntity`(cjg)·`AbstractMinecart`(cot)·`WorldBorder`(dut)를 `javap -c` 로 읽고 옮겼다. 시험: `MovementBorderM21Test` 11개.
+- **옆걸음 확인**: `MoveControl.strafe` 가 `isWalkable(f7, f8)` 를 부른다 — 몹 내비게이션의 노드 평가기로 `BlockPos.containing(x + f7, blockY, z + f8)` 가 `PathType.WALKABLE` 이 아니면 `strafeForwards=1, strafeRight=0`(앞으로). 내비·평가기가 없으면 걸을 수 있다고 본다. 평가기 종류와 상관없이 바닐라와 같은 식이다(FlyNodeEvaluator 는 단단한 바닥 위에서는 WALKABLE 을 돌려준다).
+- **승객 비용 상속**: `Mob.getPathfindingMalus` 가 조종하는 탈것이 `shouldPassengersInheritMalus()` 인 몹(스트라이더만 참)이면 그 탈것의 비용표를 쓴다. 스트라이더에 탄 좀비 피글린의 길찾기가 용암을 0 으로, 물을 −1 로 본다.
+- **월드 보더 하차**: `DismountHelper.canDismountTo` 가 충돌 없음에 더해 상자 전체의 `WorldBorder.isWithinBounds(AABB)`(최대 모서리 −1e-5, 두 모서리 모두 안)를 본다 — 말·보트·수레·스트라이더 하차에 모두 적용. `findSafeDismountLocation`(침대·리스폰 닻 일어서기)도 칸 하나가 아니라 몸 상자 전체로 본다.
+- **같이 맞춘 것**(`findSafeDismountLocation` 바이트코드): 바닥 높이를 `nonClimbableShape`(사다리 등 climbable 태그·열린 다락문은 빈 모양)로 구한다, 위험 블록 판정에서 불 면역 몹은 타는 블록을 위험으로 안 본다, 플레이어는 자리 칸·그 위 칸이 `invalid_spawn_inside`(엔드 포털·관문)면 안 된다. 기존 수레 안의 같은 함수는 `DismountHelper` 로 합쳤다.
+- **포털 직후 수레·낙하 블록**: 수레 `tick` 이 `checkBelowWorld` 다음에 `handlePortal()` 을 부른다(전에는 수레가 포털을 못 탔다). 낙하 블록은 이동 직후 `handlePortal()` 을 부르고, **엔드가 낀 차원 이동**(`from==END || to==END`, from≠to)이면 `forceTickAfterTeleportToDuplicate` 가 켜져 이미 빠진 옛 엔티티가 그 틱 끝까지 마저 돌아 제자리에 블록을 놓거나 아이템을 떨군다 — 건너간 복사본과 함께 둘이 되는 바닐라 복제(바닐라 1.21.1 에서도 그대로). 구현은 `Entity.afterChangedDimension(from, to)` 훅.
+- **남은 차이**: `EntityType.immuneTo`(여우·위더 등 몹별 위험 블록 면역)는 Furnace 에 없어 `isBlockDangerous` 가 불 면역만 본다. 비동기 이동이 실패해(목적 월드 없음·예외) 옛 자리에 되살리는 경우에도 엔드 복제 플래그는 이미 켜져 있다(바닐라는 `changeDimension` 이 성공해야만 켠다). `/tp` 차원 이동(`teleportToDimension`)은 바닐라처럼 플래그를 켜지 않는다. 승객은 바닐라가 함께 보내고 다시 태우지만 Furnace `moveAcross` 는 내려놓는다(기존 차이) — 이제 수레가 포털을 타므로 플레이어가 탄 수레는 수레만 건너간다. 후속 묶음 후보. 돼지·말 외 일부 탈것의 `getDismountLocationForPassenger` 보더 검사는 범위 밖. 침대 하차 자세 고르기(TODO(자세))는 그대로.
+
+## 2026-11-07 걸음·헤엄 소리 전반 (묶음 M15)
+- 바닐라 1.21.1 `Entity.playStepSound` 는 블록 SoundType × 0.15 뿐이다(액체·inside_step_sound_blocks 검사 없음). 몹별 덮어쓰기는 바이트코드에서 `b(jd,dtc)` 오버라이드 34개를 전부 찾아 옮겼다. 상세·남은 차이는 `m15-step-sounds-2026-11-07.md`.
+- SoundType 표는 서버를 띄우지 못해 `Blocks.<clinit>` 바이트코드를 읽어 만든다(`tools/vanilla-data/extract_block_sound_types.py` → `blocks/soundtypes_1.21.1.txt`). 문·다락문·버튼·압력판·울타리 문·표지판은 생성자가 `properties.sound(BlockSetType/WoodType 소리)` 로 덮는다는 점이 함정이었다(처음에는 전부 STONE 으로 나왔다).
+- 플레이어는 Entity 가 아니라 `PlayerMovementEmission` 에서 걸음 소리를 낸다. 본인은 빼고 `players` 분류로 보낸다(`PlayerActor` 를 except 로).
+
+## 2026-11-07 플레이어 자세·공유 플래그·탑승 (묶음 M20)
+바닐라 1.21.1 클래스 바이트코드(`aru` ServerGamePacketListenerImpl, `btn` LivingEntity, `bsr` Entity, `cmx` Player)를 `javap -c` 로 읽고 맞췄다. 시험 `PlayerPoseFlagsM20Test`(17), `RegionPlayerFireTest`.
+- **이미 되어 있던 것**: 수영·기어가기·웅크림 자세 전환(`PlayerPose`)과 플레이어 성급함·채굴 피로 휘두르기 시간(`Player.currentSwingDuration`)은 재대조 문서가 낡았다 — 코드에 있었다. 몹(`LivingEntity.getCurrentSwingDuration`)에는 없어서 같은 식(`6−(1+증폭)` / `6+(1+증폭)×2`)으로 넣었다.
+- **탑승 비행 킥**(`handleMoveVehicle`): `clientVehicleIsFloating = 요청 dy ≥ −0.03125 && !이동 전 verticalCollisionBelow && !allow-flight && !isNoGravity && noBlocksAround(탈것)`. `요청 dy` 는 move 전의 `ty − lastGoodY − 1e-6`(move 뒤 0 으로 지우는 값이 아니다). 연결 틱에서 조종 중이면 `++aboveGroundVehicleTickCount > ceil(80 × max(0.08/중력, 1))` 일 때 `multiplayer.disconnect.flying` 킥(중력은 `Entity.getGravity`: 중력 없음 0, 생물 속성, 보트·수레 기본 0.04). 조종 중이 아니거나 안 떠 있으면 둘 다 0.
+- **탑승 낙하 피해**: `Entity.causeFallDamage` 가 승객에게 넘길 때 플레이어도 받는다(`Player.causeFallDamageAsPassenger` → `PlayerVitals.causePassengerFallDamage`: 비행 가능이면 0, 점프 강화로 안전 거리 +레벨, 충격 높이 규칙은 걸어 내려앉을 때와 같은 `fallDamage`). 피해가 나면 작은/큰(4 초과) 낙하 소리를 본인 말고 주변에. `AbstractHorse.causeFallDamage` 는 간접 승객 전부에게 같은 피해를 `hurt` 로 준다 — 플레이어 포함. 가정: 블록별 낙하 소리(`playBlockFallSound`)는 아직 없다.
+- **보트 회전**: `Boat.placeRider` 가 플레이어 승객의 서버 쪽 yaw 에 `deltaRotation` 을 더하고 배 기준 ±105도로 묶는다(클라이언트가 다음 회전 패킷으로 덮어쓰는 값이라 다른 사람이 보는 몸·머리 방향이 대상).
+- **시선 보정**(`getVisibilityPercent`): 웅크림 ×0.8, 투명 ×0.7×(방어구 찬 칸/4, 0.1 미만은 0.1), 보는 몹과 짝이 맞는 머리 아이템(해골↔해골 머리, 좀비, 피글린·피글린 브루트↔피글린 머리, 크리퍼) ×0.5. 몹(`LivingEntity`)과 플레이어가 한 식(`Visibility`)을 쓴다. 전에는 몹이 항상 1.0 이었다.
+- **플레이어 불**(`Entity.remainingFireTicks` 대응, 플레이어는 `Entity` 가 아니라 `Player` 에 따로): 초기값 `−getFireImmuneTicks` — 일반 엔티티는 1, **플레이어는 20**(`cmx.df()`). 그래서 불 블록 안에서 20틱 서 있어야 붙는다. `PlayerFire.tick`(baseTick): 물에 닿으면 `clearFire`(0), 불붙었으면 `% 20 == 0 && !용암` 일 때 `on_fire` 1 피해 뒤 감소, 용암 속이면 15초 불 + `lava` 4 피해 + 낙하 거리 절반(`lavaHurt`). `PlayerFire.afterMove`(`Entity.move` 의 끝, 이동 패킷을 받은 틱에만): 몸(1e-6 줄임)에 불·용암 블록이 없으면 `≤ 0` 일 때 −20, 비·물·가루눈·거품 기둥에서 불이 꺼지면 소리(`extinguish_fire`)와 −20. `BaseFireBlock.entityInside` 의 플레이어 버전은 `Region.checkInsideBlocksPlayer`(+1, 0 이면 8초, `in_fire` 불 1·영혼 불 2). **바닐라 ServerPlayer 는 연결 틱마다 서버에서 travel→move 를 한 번 돌고 패킷마다 move 가 한 번 더 돈다**(독립 검토 `reviews/m20-pr122-review.md`, `btn.a(exc)`·`bsr.da()`). 그래서 불 블록 + `afterMove` 는 매 틱 한 번(탄 동안 제외) + 패킷 틱마다 한 번 더 돈다(서 있으면 틱당 +1 → 20틱에 붙고, 걸으면 +2 → 약 10틱). 모닥불·열매 덤불·큰 흘림잎·진행 과제는 아직 패킷 이동에서만 돈다(원래 있던 차이, 가정). 죽으면 `clearFire`.
+  불이 붙는 길: 용암, 불 블록, 번개(`+1`/8초), 블레이즈 작은 불덩이(5초, 못 맞히면 원래대로), 불 화살(5초), 불붙은 좀비의 근접(난이도에 따라), 불 속성 검(PvP). 다른 region 스레드에서 붙일 수 있어 `igniteForSecondsLater`(소유 스레드 큐)로 한다. 접속/저장은 `Fire`(short), 리스폰하면 −20.
+  **태우는 시간 속성** `burning_time`: `LivingEntity.igniteForTicks` 가 `ceil(틱 × burning_time)`(바이트코드 `btn.g`). 불 보호 인챈트의 `minecraft:attributes`(add_multiplied_base, linear −0.15/−0.15, 방어구 네 칸)를 `EnchantAttributes` 에 넣었다 — IV 면 0.4배. 몹도 같은 override 를 쓴다.
+- **공유 플래그**(`Entity.DATA_SHARED_FLAGS`): 0 불, 5 투명(투명 효과가 있을 때), 6 발광(발광 효과 — 발광 화살 포함). 플러그인 API(`setGlowing` 같은)는 플레이어에게 없어 NBT `Glowing` 태그는 만들지 않았다.
+- `Entity.updateSwimming` 을 바닐라 식으로 맞췄다: 이미 헤엄 중이면 `질주 && 물에 닿음 && !탄 중`, 아니면 `질주 && 이전 틱 눈이 물속 && 물에 닿음 && !탄 중 && 발 칸이 물`.
+- **남은 한계**: 플레이어가 선인장·마그마·가시 같은 나머지 `entityInside` 블록에는 아직 닿지 않는다(불 블록·모닥불·큰 흘림잎·달콤한 열매 덤불만 연결). 플레이어의 얼음(`ticksFrozen`) 초기화는 불에서 다루지 않는다. 용암·물 가마솥, 물 물약 투척, 가루눈 부수기의 플레이어 경로, 몹의 불 보호(몹에는 `EnchantAttributes` 가 안 달림), 플레이어 `is_on_fire` 조건(`LootEntities.PlayerView`)은 후속. `PlayerFire.tick` 은 관전자에게 불을 돌리지 않는다(바닐라는 돌리지만 피해가 안 들어간다).

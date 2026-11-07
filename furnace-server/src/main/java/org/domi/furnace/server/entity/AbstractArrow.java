@@ -305,6 +305,9 @@ public abstract class AbstractArrow extends Projectile {
         Entity burnTarget = target instanceof Entity e ? e : target instanceof CartTarget c ? c.cart : null;   // 수레도 불이 붙는다
         int oldFire = burnTarget != null ? burnTarget.remainingFireTicks() : 0;
         if (isOnFire() && !enderman && burnTarget != null) burnTarget.igniteForSeconds(5.0F);
+        Player burnPlayer = target instanceof Player pl ? pl : null;
+        int oldPlayerFire = burnPlayer != null ? burnPlayer.remainingFireTicks() : 0;
+        if (isOnFire() && burnPlayer != null) burnPlayer.igniteForSecondsLater(5.0F);
         Entity.Damage dmg = new Entity.Damage(owner instanceof Player ? "arrow" : "arrow", false, false, false);
         boolean hurt;
         Mob attacker = owner instanceof Mob m ? m : null;
@@ -335,6 +338,7 @@ public abstract class AbstractArrow extends Projectile {
             if (getPierceLevel() <= 0) discard();
         } else {
             if (burnTarget != null) burnTarget.setRemainingFireTicks(oldFire);
+            if (burnPlayer != null) burnPlayer.runOnOwner(() -> burnPlayer.setRemainingFireTicks(oldPlayerFire));
             // 막히거나 무적이면 deflect(REVERSE) 후 속도 × 0.2. 거의 멈췄으면 (줍기 가능 시 아이템을 떨구고) 사라진다
             deflectReverse();
             setOwner(getOwner());
@@ -436,4 +440,7 @@ public abstract class AbstractArrow extends Projectile {
     }
 
     @Override public boolean isPickable() { return !inGround; }
+
+    /** AbstractArrow.isAttackable: redirectable_projectile 태그일 때만(화살은 아니다). */
+    @Override public boolean isAttackable() { return isRedirectable(); }
 }

@@ -276,14 +276,53 @@ public final class DataCommands {
         }).exceptionally(t -> null);
     }
 
+    /**
+     * 텍스트 {"nbt":…} 의 출처(바닐라 NbtContents.DataSource.getData)에서 NBT 루트들을 읽는다 — 엔티티는 선택자가 고른 것마다 주인 region 에서,
+     * 블록은 로드된 칸의 블록 엔티티(없으면 빈 목록), 저장소는 그 키의 내용(없으면 빈 compound). 선택자·좌표 문법이 틀리면 빈 목록(바닐라와 같다).
+     */
+    public static CompletableFuture<List<NbtCompound>> textSources(CommandSource source, org.domi.furnace.api.text.Content.NbtSource src) {
+        if (src instanceof org.domi.furnace.api.text.Content.NbtSource.Storage st) {
+            String id = st.id().indexOf(':') < 0 ? "minecraft:" + st.id() : st.id();
+            return CompletableFuture.completedFuture(List.of(new StorageAccessor(source.getServer().world().commandStorage(), id).getData()));
+        }
+        if (src instanceof org.domi.furnace.api.text.Content.NbtSource.Block b) {
+            Pos pos;
+            try {
+                double[] p = BlockPosArgument.blockPos().parse(new org.domi.furnace.server.command.brigadier.StringReader(b.pos())).getPosition(source);
+                pos = new Pos((int) Math.floor(p[0]), (int) Math.floor(p[1]), (int) Math.floor(p[2]));
+            } catch (CommandSyntaxException e) {
+                return CompletableFuture.completedFuture(List.of());
+            }
+            return atBlockEntity(source.level(), pos, a -> List.of(a.getData())).exceptionally(t -> List.of());
+        }
+        String selectorText = ((org.domi.furnace.api.text.Content.NbtSource.Entity) src).selector();
+        try {
+            var selector = new org.domi.furnace.server.command.arguments.EntitySelectorParser(
+                    new org.domi.furnace.server.command.brigadier.StringReader(selectorText), true).parse();
+            return selector.findRiders(source).thenCompose(riders -> {
+                List<CompletableFuture<NbtCompound>> fs = new ArrayList<>(riders.size());
+                for (Rider r : riders) fs.add(onEntity(source, r, DataAccessor::getData).exceptionally(t -> null));
+                return CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).thenApply(v -> {
+                    List<NbtCompound> out = new ArrayList<>(fs.size());
+                    for (var f : fs) {
+                        NbtCompound c = f.join();
+                        if (c != null) out.add(c);
+                    }
+                    return out;
+                });
+            });
+        } catch (CommandSyntaxException e) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+    }
+
     /** 바닐라 BlockDataAccessor. 쓰면 loadWithComponents → setChanged → sendBlockUpdated. */
     record BlockAccessor(org.domi.furnace.server.world.RegionLevel level, BlockEntity entity, Pos pos) implements DataAccessor {
         public NbtCompound getData() { return (NbtCompound) NbtTags.thaw(NbtTags.copy(entity.saveWithFullMetadata())); }
 
         public void setData(NbtCompound tag) {
             NbtCompound t = (NbtCompound) NbtTags.freeze(NbtTags.copy(tag));
-            entity.load(t);
-            entity.loadComponents(t);   // loadWithComponents
+            entity.loadWithComponentsInLevel(level, t);
             entity.setChanged(level);
             level.sendBlockUpdated(pos);
         }

@@ -51,4 +51,9 @@ public abstract class Monster extends PathfinderMob implements Enemy {
     @Override protected String getDeathSound() { return "entity.hostile.death"; }
 
     @Override protected boolean shouldDropExperience() { return true; }
+
+    /** Monster.getSwimSound·getSwimSplashSound: hostile 소리. */
+    @Override protected String getSwimSound() { return "minecraft:entity.hostile.swim"; }
+
+    @Override protected String swimSplashSound() { return "minecraft:entity.hostile.splash"; }
 }

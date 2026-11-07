@@ -56,7 +56,10 @@ public class MoveControl {
             f3 *= f4;
             float sin = Mth.sin(mob.yRot() * (float) (Math.PI / 180.0)), cos = Mth.cos(mob.yRot() * (float) (Math.PI / 180.0));
             float f7 = f2 * cos - f3 * sin, f8 = f3 * cos + f2 * sin;
-            // TODO(길찾기): 내비게이션의 노드 평가기로 그 방향이 걸을 수 있는지 확인(isWalkable) — 막히면 strafe 를 (1, 0) 으로
+            if (!isWalkable(f7, f8)) {
+                strafeForwards = 1.0F;
+                strafeRight = 0.0F;
+            }
             mob.setSpeed(f1);
             mob.setZza(strafeForwards);
             mob.setXxa(strafeRight);
@@ -87,6 +90,16 @@ public class MoveControl {
         } else {
             mob.setZza(0.0F);
         }
+    }
+
+    /** isWalkable: 내비게이션의 노드 평가기로, 몹 발밑 높이에서 그 만큼 옮긴 칸이 걸을 수 있는 칸(WALKABLE)인지. 내비게이션·평가기가 없으면 참. */
+    private boolean isWalkable(float x, float z) {
+        var nav = mob.getNavigation();
+        if (nav != null) {
+            var ev = nav.getNodeEvaluator();
+            if (ev != null && ev.getPathType(mob, new Pos(Mth.floor(mob.x() + x), mob.blockY(), Mth.floor(mob.z() + z))) != org.domi.furnace.server.entity.ai.navigation.PathType.WALKABLE) return false;
+        }
+        return true;
     }
 
     protected float rotlerp(float from, float to, float max) {

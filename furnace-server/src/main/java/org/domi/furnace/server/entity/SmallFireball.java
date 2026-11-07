@@ -12,13 +12,15 @@ public class SmallFireball extends Fireball {
     protected void onHitEntity(Hit hit) {
         Targetable target = hit.target();
         Targetable owner = getOwner();
-        int oldFire = target instanceof Entity e ? e.remainingFireTicks() : 0;
+        int oldFire = target instanceof Entity e ? e.remainingFireTicks() : target instanceof Player pl ? pl.remainingFireTicks() : 0;
         if (target instanceof Entity e) e.igniteForSeconds(5.0F);
+        else if (target instanceof Player pl) pl.igniteForSecondsLater(5.0F);
         Damage dmg = new Damage("fireball", true, false, false);
         boolean hurt;
         if (target instanceof LivingEntity le) hurt = le.hurtByVia(dmg, 5.0F, owner, this);
         else hurt = target.hurtByMob(dmg, 5.0F, owner instanceof Mob m ? m : null);
         if (!hurt && target instanceof Entity e) e.setRemainingFireTicks(oldFire);
+        else if (!hurt && target instanceof Player pl) pl.runOnOwner(() -> pl.setRemainingFireTicks(oldFire));
     }
 
     @Override

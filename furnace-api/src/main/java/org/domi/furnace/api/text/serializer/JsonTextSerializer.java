@@ -71,7 +71,7 @@ public final class JsonTextSerializer {
 
     @SuppressWarnings("unchecked")
     private static Text toText(Object o) {
-        if (o == null) throw new IllegalArgumentException("텍스트 자리에 null 이 있다");
+        if (o == null) throw new IllegalArgumentException("Unexpected null in text component");
         if (o instanceof String s) return Text.text(s);
         if (o instanceof Number || o instanceof Boolean) return Text.text(String.valueOf(o));
         if (o instanceof List<?> list) {
@@ -122,10 +122,10 @@ public final class JsonTextSerializer {
             if (m.containsKey("block")) src = new Content.NbtSource.Block(str(m.get("block")));
             else if (m.containsKey("entity")) src = new Content.NbtSource.Entity(str(m.get("entity")));
             else if (m.containsKey("storage")) src = new Content.NbtSource.Storage(str(m.get("storage")));
-            else throw new IllegalArgumentException("nbt 텍스트에 block/entity/storage 가 없다");
+            else throw new IllegalArgumentException("Missing one of block, entity or storage in nbt component");
             return new Content.Nbt(str(m.get("nbt")), Boolean.TRUE.equals(bool(m.get("interpret"))), sep == null ? null : toText(sep), src);
         }
-        throw new IllegalArgumentException("알 수 없는 텍스트 내용: " + m.keySet());
+        throw new IllegalArgumentException("Don't know how to turn " + m + " into a Component");
     }
 
     @SuppressWarnings("unchecked")
@@ -290,7 +290,7 @@ public final class JsonTextSerializer {
     }
 
     private static String str(Object o) {
-        if (o == null) throw new IllegalArgumentException("값이 없다");
+        if (o == null) throw new IllegalArgumentException("Missing value in text component");
         return o instanceof String s ? s : String.valueOf(o);
     }
 

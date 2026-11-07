@@ -46,6 +46,22 @@ class ProjectileBlockHitTest {
             };
         }
 
+        /** 장식 단지 전리품: 바닐라 표를 block_entity 컴포넌트로 평가한다(ServerCore.blockDrops 와 같은 매개변수). */
+        @Override
+        public List<ItemStack> lootDrops(String lootTable, int state, org.domi.furnace.server.block.Pos pos, BlockActor entity, ItemStack tool,
+                                         Float explosionRadius, java.util.Map<String, Object> blockEntity) {
+            try {
+                var loot = org.domi.furnace.server.loot.VanillaChestLootTest.vanillaLoot();
+                var net = new org.domi.furnace.server.loot.NetworkComponents(new org.domi.furnace.server.data.TagRegistries(
+                        org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                var bs = org.domi.furnace.server.ServerCore.lootBlockState(state);
+                return org.domi.furnace.server.loot.TestBlockLoot.drops(loot, net, lootTable, bs.block(), bs.properties(),
+                        blockEntity == null ? java.util.Map.of() : blockEntity, org.domi.furnace.server.loot.LootStack.empty());
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }
+
         @Override
         public void playSeededSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch, long seed) {
             sounds.add(sound);

@@ -255,6 +255,7 @@ public final class PlayerViewsImpl implements PlayerViews {
                 b = new WorldBorder();
                 b.setAbsoluteMaxSize(host.core().border().getAbsoluteMaxSize());
                 b.applySettings(host.core().border().createSettings());
+                layers.scaleOf(dim -> { var w = host.core().world(dim); return w != null ? w.border().coordinateScale() : 1.0; });
                 layers.border(b, plugin);
                 v.send(InitializeBorder.vanillaDefault());   // ViewRewriter 가 개인 보더 상태로 바꿔 보낸다
             } else {
@@ -295,8 +296,9 @@ public final class PlayerViewsImpl implements PlayerViews {
             }
         }
 
-        @Override public double centerX() { return b.getCenterX(); }
-        @Override public double centerZ() { return b.getCenterZ(); }
+        // 플러그인이 넣은 값(오버월드 좌표)을 그대로 돌려준다 — 네더에서 화면에 그려지는 중심은 이 값 / 8.
+        @Override public double centerX() { return b.getRawCenterX(); }
+        @Override public double centerZ() { return b.getRawCenterZ(); }
         @Override public void center(double x, double z) { b.setCenter(x, z); push(); }
         @Override public double size() { return b.getSize(); }
         @Override public void size(double blocks) { b.setSize(blocks); push(); }
@@ -315,7 +317,7 @@ public final class PlayerViewsImpl implements PlayerViews {
         @Override public void damageSafeZone(double blocks) { b.setDamageSafeZone(blocks); }
         @Override public boolean enforced() { return viewer.viewLayers().border() == b && viewer.viewLayers().borderEnforced(); }
         @Override public void enforce(boolean enforce) { if (viewer.viewLayers().border() == b) viewer.viewLayers().borderEnforced(enforce); }
-        @Override public boolean contains(double x, double z) { return b.isWithinBounds(x, z); }
+        @Override public boolean contains(double x, double z) { return viewer.viewLayers().borderFor(viewer.dimension()).isWithinBounds(x, z); }
     }
 
     // ------------------------------------------------------------------ 장비 표시
