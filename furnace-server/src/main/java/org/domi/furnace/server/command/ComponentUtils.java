@@ -28,22 +28,23 @@ public final class ComponentUtils {
 
     public static Text updateForEntity(CommandSource source, Text component, Player entity, int depth) throws CommandSyntaxException {
         if (source == null || depth > MAX_DEPTH) return component;
-        depth++;
+        int next = depth + 1;
         Content content = component.content();
         Text out;
         if (content instanceof Content.Selector sel) {
-            out = resolveSelector(source, sel, entity, depth);
+            out = resolveSelector(source, sel, entity, next);
         } else if (content instanceof Content.Score sc) {
             out = resolveScore(source, sc, entity);
         } else if (content instanceof Content.Translatable tr) {
             List<Object> args = new ArrayList<>(tr.args().size());
-            for (Object a : tr.args()) args.add(a instanceof Text t ? updateForEntity(source, t, entity, depth) : a);
+            for (Object a : tr.args()) args.add(a instanceof Text t ? updateForEntity(source, t, entity, next) : a);
             out = Text.of(new Content.Translatable(tr.key(), tr.fallback(), args), Style.empty(), List.of());
         } else {
             out = Text.of(content, Style.empty(), List.of());
         }
-        for (Text sibling : component.children()) out = out.append(updateForEntity(source, sibling, entity, depth));
-        return out.style(resolveStyle(source, component.style(), entity, depth));
+        for (Text sibling : component.children()) out = out.append(updateForEntity(source, sibling, entity, next));
+        // 바닐라 withStyle(Style): 원래 스타일에서 정한 값이 이기고, 정하지 않은 값은 풀린 결과(표시 이름의 클릭·호버 등)를 남긴다
+        return out.mergeStyle(resolveStyle(source, component.style(), entity, depth));
     }
 
     private static Style resolveStyle(CommandSource source, Style style, Player entity, int depth) throws CommandSyntaxException {

@@ -1,5 +1,5 @@
 // ComponentUtils.updateForEntity 바닐라 대조(xc·yh ScoreContents·yi SelectorContents·xc.formatList):
-// 점수는 이름·목표로 점수판을 찾아 숫자 형식(목표 형식 또는 NO_STYLE), 없으면 빈 텍스트. 선택자는 대상 하나면 그 표시 이름(원래 스타일로 바뀜),
+// 점수는 이름·목표로 점수판을 찾아 숫자 형식(목표 형식 또는 NO_STYLE), 없으면 빈 텍스트. 선택자는 대상 하나면 그 표시 이름(원래 스타일이 정한 값만 덮음),
 // 여럿이면 빈 텍스트에 구분자로 잇는다. 표지판 소스(이름 "Sign", 권한 2, 칸 가운데). 저장 문자열은 키를 정렬한 JSON(FlatText.stable).
 package org.domi.furnace.server.command;
 
@@ -119,10 +119,14 @@ class ComponentUtilsTest {
     }
 
     @Test
-    void singleSelectorResultTakesTheSelectorStyle() throws Exception {
-        // updateForEntity 는 풀린 결과의 스타일을 원래 텍스트 것으로 바꾼다 — 표시 이름의 클릭·호버는 사라진다(바닐라 setStyle)
+    void singleSelectorResultMergesTheSelectorStyle() throws Exception {
+        // 바닐라 withStyle(Style) = setStyle(원래.applyTo(풀린 것)): 원래 스타일에서 정한 값이 이기고 표시 이름의 클릭·호버·삽입은 남는다
         Player a = player(3, "Cid");
-        Text resolved = ComponentUtils.formatList(List.of(a), ComponentUtils.defaultSeparator()).style(Style.empty().color(NamedTextColor.GOLD));
-        assertEquals("{\"color\":\"gold\",\"text\":\"Cid\"}", FlatText.stable(resolved));
+        CommandSource src = CommandSource.player(core, a).withPermission(2);
+        Text sel = Text.of(new Content.Selector("@s", null), Style.empty().color(NamedTextColor.GOLD).insertion("x"), List.of());
+        Text resolved = ComponentUtils.updateForEntity(src, sel, null, 0);
+        assertEquals("{\"clickEvent\":{\"action\":\"suggest_command\",\"value\":\"/tell Cid \"},\"color\":\"gold\","
+                + "\"hoverEvent\":{\"action\":\"show_entity\",\"contents\":{\"id\":[0,3,0,3],\"name\":\"Cid\",\"type\":\"minecraft:player\"}},"
+                + "\"insertion\":\"x\",\"text\":\"Cid\"}", FlatText.stable(resolved));
     }
 }
