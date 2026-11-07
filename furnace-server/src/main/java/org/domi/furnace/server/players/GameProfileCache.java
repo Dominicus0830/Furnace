@@ -109,6 +109,13 @@ public final class GameProfileCache {
         return result;
     }
 
+    /** 캐시에 있는 이름만 본다(없거나 만료면 비어 있음). 조회·오프라인 프로필 생성·저장을 하지 않는다. */
+    public Optional<GameProfile> peek(String name) {
+        Entry e = profilesByName.get(name.toLowerCase(Locale.ROOT));
+        if (e == null || new Date().getTime() >= e.expires.getTime()) return Optional.empty();
+        return Optional.of(e.profile);
+    }
+
     public Optional<GameProfile> get(UUID id) {
         Entry e = profilesByUuid.get(id);
         if (e == null) return Optional.empty();
