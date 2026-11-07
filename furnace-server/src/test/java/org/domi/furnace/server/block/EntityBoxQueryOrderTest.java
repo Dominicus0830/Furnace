@@ -31,13 +31,13 @@ class EntityBoxQueryOrderTest {
         List<Keyed> all = new ArrayList<>();
         ItemStack stone = B.stack("minecraft:stone", 1);
         for (int i = 0; i < 400; i++) {
-            double x = rnd.nextDouble() * 60 - 30, z = rnd.nextDouble() * 60 - 30, y = rnd.nextDouble() * 50 - 62;
+            double x = rnd.nextDouble() * 60 - 30, z = rnd.nextDouble() * 60 - 30, y = rnd.nextDouble() * 112 - 62;
             ItemEntity e = new ItemEntity(level, level.nextEntityId(), x, y, z, stone, 0, 0, 0);
             assertTrue(level.addFreshEntity(e));
             all.add(new Keyed(e, Entity.floor(e.x()) >> 4, Entity.floor(e.y()) >> 4, Entity.floor(e.z()) >> 4, i));
         }
         for (int q = 0; q < 300; q++) {
-            double cx = rnd.nextDouble() * 60 - 30, cz = rnd.nextDouble() * 60 - 30, cy = rnd.nextDouble() * 50 - 62;
+            double cx = rnd.nextDouble() * 60 - 30, cz = rnd.nextDouble() * 60 - 30, cy = rnd.nextDouble() * 112 - 62;
             double hx = 1 + rnd.nextDouble() * 20, hz = 1 + rnd.nextDouble() * 20, hy = 1 + rnd.nextDouble() * 15;
             AABB box = new AABB(cx - hx, cy - hy, cz - hz, cx + hx, cy + hy, cz + hz);
             int x0 = Entity.floor(box.minX() - 2.0) >> 4, y0 = Entity.floor(box.minY() - 4.0) >> 4, z0 = Entity.floor(box.minZ() - 2.0) >> 4;
