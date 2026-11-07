@@ -558,6 +558,15 @@ public final class PlayerVitals {
     }
 
     /**
+     * hurt(type, amount, attacker, shield) 와 같되 플러그인 EntityDamageEvent 의 원인 사슬에만 쓰는 직접 엔티티(폭발한 TNT)를 준다.
+     * 피해 계산·패킷·사망 메시지는 그대로(attacker 기준).
+     */
+    public boolean hurtVia(DamageType type, float amount, Targetable attacker, Shields.Source shield, Entity eventDirect) {
+        Rider a = attacker instanceof Rider r ? r : null;
+        return hurt(type, amount, attacker, shield, a, a, null, eventDirect);
+    }
+
+    /**
      * 원인·직접 엔티티와 위치를 다 가진 피해(바닐라 DamageSource 그대로, /damage 가 쓴다). 방패 막기 위치는 명시 위치,
      * 없으면 직접 엔티티(플레이어가 직접 때렸으면 그 플레이어).
      */
@@ -598,8 +607,13 @@ public final class PlayerVitals {
     }
 
     private boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield, Rider causing, Rider direct, double[] pos) {
+        return hurt(type, amount, attacker, shield, causing, direct, pos, null);
+    }
+
+    /** eventDirect: 원인 사슬에만 쓰는 직접 엔티티(null 이면 direct). */
+    private boolean hurt(DamageType type, float amount, Targetable attacker, Shields.Source shield, Rider causing, Rider direct, double[] pos, Entity eventDirect) {
         lastHurtFresh = false;
-        float evAmount = env.gameEvents().playerDamage(player, type.key(), amount);   // 플러그인 EntityDamageEvent
+        float evAmount = env.gameEvents().playerDamage(player, type.key(), amount, causing, eventDirect != null ? eventDirect : direct);   // 플러그인 EntityDamageEvent
         if (evAmount < 0.0F) return false;
         amount = evAmount;
         boolean died;

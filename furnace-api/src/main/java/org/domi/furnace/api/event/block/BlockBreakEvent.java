@@ -5,7 +5,7 @@ import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.Cancellable;
 import org.domi.furnace.api.world.BlockPos;
 
-public final class BlockBreakEvent extends BlockEvent implements Cancellable {
+public final class BlockBreakEvent extends BlockEvent implements Cancellable, org.domi.furnace.api.event.cause.Caused {
 
     private final Player player;
     private final String blockType;
@@ -18,6 +18,10 @@ public final class BlockBreakEvent extends BlockEvent implements Cancellable {
     }
 
     public Player player() { return player; }
+
+    /** [부순 플레이어 break]. */
+    @Override
+    public org.domi.furnace.api.event.cause.CauseChain causeChain() { return player == null ? org.domi.furnace.api.event.cause.CauseChain.NONE : org.domi.furnace.api.event.cause.CauseChain.of(player, org.domi.furnace.api.event.cause.CauseEntry.BREAK); }
 
     /** 부서질 블록(minecraft:stone 등). */
     public String blockType() { return blockType; }

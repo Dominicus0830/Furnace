@@ -168,7 +168,9 @@ public class FireBlock extends BaseFireBlock {
             } else {
                 level.removeBlock(pos, false);
             }
-            if (B.behavior(s) instanceof TntBlock) TntBlock.prime(level, pos);
+            if (B.behavior(s) instanceof TntBlock) {
+                TntBlock.prime(level, pos, org.domi.furnace.server.plugin.Causes.tracking(level) ? org.domi.furnace.server.plugin.Causes.block(level.dimension(), fire, level.getBlockState(fire), org.domi.furnace.api.event.cause.CauseEntry.FIRE, null) : null);
+            }
         }
     }
 

@@ -14,11 +14,22 @@ public interface GameEvents {
 
     GameEvents NONE = new GameEvents() {};
 
-    /** 피해 직전 — 돌려주는 값이 새 피해량, 음수면 취소. 소유 region 스레드에서. */
-    default float entityDamage(LivingEntity e, String cause, float amount) { return amount; }
+    /**
+     * 피해 직전 — 돌려주는 값이 새 피해량, 음수면 취소. 소유 region 스레드에서.
+     * causing·direct 는 책임자·직접 맞힌 것(없으면 null) — 원인 사슬은 구독자가 있을 때만 만든다.
+     */
+    default float entityDamage(LivingEntity e, String cause, float amount, org.domi.furnace.server.entity.Rider causing,
+                               org.domi.furnace.server.entity.Rider direct) { return amount; }
 
     /** 플레이어판 entityDamage. */
-    default float playerDamage(Player p, String cause, float amount) { return amount; }
+    default float playerDamage(Player p, String cause, float amount, org.domi.furnace.server.entity.Rider causing,
+                               org.domi.furnace.server.entity.Rider direct) { return amount; }
+
+    /**
+     * 원인 사슬(B4)을 엔티티에 적어 둘까 — 원인을 담는 이벤트(폭발·피해·스폰)를 받는 처리기가 있을 때만 참.
+     * 거짓이면 호출하는 쪽은 사슬을 만들지 않는다(비용 0).
+     */
+    default boolean tracksCause() { return false; }
 
     /**
      * EntityDamageCalculateEvent 구독자가 있는가 — 없으면 호출하는 쪽이 바닐라 계산을 그대로 한다(규칙 객체를 만들지 않는다).
@@ -117,7 +128,7 @@ public interface GameEvents {
      * 폭발이 블록을 부수기 직전. 원인(source 또는 sourcePlayer)이 없으면 BlockExplodeEvent(중심 칸·blockState). blocks 를 그 자리에서 고친다. false 면 취소.
      */
     default boolean explode(String dimension, Entity source, Player sourcePlayer, double x, double y, double z, int blockState,
-                            java.util.List<org.domi.furnace.server.block.Pos> blocks) { return true; }
+                            java.util.List<org.domi.furnace.server.block.Pos> blocks, org.domi.furnace.server.block.Explosion explosion) { return true; }
 
     /** 투사체 적중 직전(hitEntity 나 hitPlayer, 또는 hitBlock). false 면 무시하고 계속 난다. */
     default boolean projectileHit(Entity projectile, Entity hitEntity, Player hitPlayer, org.domi.furnace.server.block.Pos hitBlock, int blockState, int face) { return true; }

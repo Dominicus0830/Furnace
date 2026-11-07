@@ -45,6 +45,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     /** 칸 종류·크기(칸이 없는 엔티티는 null). */
     private final String containerType;
     private final int containerSize;
+    /** 원인 사슬(만든 순간 — 불변이라 참조만 복사). */
+    private final org.domi.furnace.api.event.cause.CauseChain origin;
 
     EntityHandle(PluginHost host, Entity e) {
         this.host = host;
@@ -55,6 +57,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.valid = !e.isRemoved();
         this.tasks = e.apiTasks();
         this.persistentData = NbtPersistentData.snapshot(e.persistentData(false));
+        this.origin = e.origin();
         if (e instanceof ContainerEntity ce) {
             containerType = type;
             containerSize = ce.chestVehicleItems().length;
@@ -76,6 +79,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public UUID uniqueId() { return uuid; }
+
+    @Override
+    public org.domi.furnace.api.event.cause.CauseChain origin() { return origin; }
 
     @Override
     public String type() { return type; }

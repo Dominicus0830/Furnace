@@ -6,7 +6,7 @@ import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.Cancellable;
 import org.domi.furnace.api.world.BlockPos;
 
-public final class BlockIgniteEvent extends BlockEvent implements Cancellable {
+public final class BlockIgniteEvent extends BlockEvent implements Cancellable, org.domi.furnace.api.event.cause.Caused {
 
     public enum Cause {
         /** 불이 번짐(ignitingPos = 번지는 불). */
@@ -44,4 +44,16 @@ public final class BlockIgniteEvent extends BlockEvent implements Cancellable {
 
     /** 불을 붙인 플레이어(없으면 null). */
     public Player player() { return player; }
+
+    /** 플레이어면 [플레이어 ignite], 번짐이면 [불 칸 fire], 용암이면 [용암 칸 lava]. */
+    @Override
+    public org.domi.furnace.api.event.cause.CauseChain causeChain() {
+        if (player != null) return org.domi.furnace.api.event.cause.CauseChain.of(player, org.domi.furnace.api.event.cause.CauseEntry.IGNITE);
+        if (ignitingPos == null) return org.domi.furnace.api.event.cause.CauseChain.NONE;
+        return switch (cause) {
+            case SPREAD -> org.domi.furnace.api.event.cause.CauseChain.of(org.domi.furnace.api.event.cause.CauseEntry.block("minecraft:fire", world(), ignitingPos, org.domi.furnace.api.event.cause.CauseEntry.FIRE));
+            case LAVA -> org.domi.furnace.api.event.cause.CauseChain.of(org.domi.furnace.api.event.cause.CauseEntry.block("minecraft:lava", world(), ignitingPos, org.domi.furnace.api.event.cause.CauseEntry.LAVA));
+            default -> org.domi.furnace.api.event.cause.CauseChain.NONE;
+        };
+    }
 }

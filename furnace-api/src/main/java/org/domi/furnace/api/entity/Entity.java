@@ -85,4 +85,12 @@ public interface Entity {
         NbtCompound p = patch.copy();
         return editNbt(n -> n.merge(p));
     }
+
+    // ------------------------------------------------------------------ 원인 사슬
+
+    /**
+     * 이 엔티티를 만들었거나 켠 원인(핸들을 만든 순간 값) — 점화된 TNT 면 켠 플레이어·레드스톤 칸·앞선 폭발, 투사체면 쏜 쪽.
+     * 엔티티 자신은 들어 있지 않다. 모르면 {@link org.domi.furnace.api.event.cause.CauseChain#NONE}. 저장되지 않는다(다시 읽은 엔티티는 바닐라 주인만).
+     */
+    default org.domi.furnace.api.event.cause.CauseChain origin() { return org.domi.furnace.api.event.cause.CauseChain.NONE; }
 }
