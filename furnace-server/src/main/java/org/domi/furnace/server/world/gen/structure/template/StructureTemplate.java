@@ -54,6 +54,13 @@ public final class StructureTemplate {
         return new StructureTemplate(sx, sy, sz, List.of(List.copyOf(blocks)), List.copyOf(entities));
     }
 
+    /** 팔레트 하나만 남긴 보기(같은 칸 목록을 공유) — 팔레트 번호를 골라 놓을 때. 번호가 범위 밖이면 IndexOutOfBoundsException. */
+    public StructureTemplate onlyPalette(int index) {
+        StructureTemplate t = new StructureTemplate(sizeX, sizeY, sizeZ, List.of(palettes.get(index)), entities);
+        t.author = author;
+        return t;
+    }
+
     public String author() { return author; }
 
     public void author(String a) { this.author = a; }

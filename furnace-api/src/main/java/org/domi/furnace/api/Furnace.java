@@ -141,6 +141,12 @@ public interface Furnace {
     /** 가짜 광원 — 블록 없이 서버 빛 엔진에 광원을 더하고 뺀다. */
     default org.domi.furnace.api.light.LightSources lightSources() { throw new UnsupportedOperationException("lightSources"); }
 
+    /** 청크 티켓 — 플러그인이 청크를 로드된 채로 붙잡는다(소유 플러그인이 꺼지면 자동으로 풀린다). */
+    default org.domi.furnace.api.world.ChunkTickets chunkTickets() { throw new UnsupportedOperationException("chunkTickets"); }
+
+    /** 구조물 템플릿 — 바닐라 구조물 NBT 로 영역을 저장하고 놓고, 가까운 구조물을 찾는다. */
+    default org.domi.furnace.api.structure.Structures structures() { throw new UnsupportedOperationException("structures"); }
+
     /** 실제 엔티티·플레이어의 플레이어별 보이기·숨기기와 변장. */
     default org.domi.furnace.api.entity.EntityViews entityViews() { throw new UnsupportedOperationException("entityViews"); }
 

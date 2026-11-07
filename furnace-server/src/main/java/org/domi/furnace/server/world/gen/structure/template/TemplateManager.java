@@ -87,6 +87,44 @@ public final class TemplateManager {
     /** 템플릿을 메모리 저장소에 둔다(구조물 블록 저장이 fillFromWorld 결과를 갈아 끼운다). */
     public void put(ResourceId id, StructureTemplate t) { repository.put(id, Optional.of(t)); }
 
+    /**
+     * 바닐라 구조물 NBT 로 템플릿을 정의해 메모리 저장소에 둔다(플러그인 API 의 불러오기). 옛 DataVersion 은 파일을 읽을 때와 같이 데이터 픽서를 거친다.
+     * 올바른 템플릿 모양이 아니면 IllegalArgumentException. root 는 고쳐질 수 있다.
+     */
+    public StructureTemplate define(ResourceId id, NbtCompound root) {
+        pathOf(id);   // 이름 검사(올바르지 않으면 IllegalArgumentException)
+        StructureTemplate t;
+        try {
+            if (!root.contains("size") || !root.contains("blocks") || !(root.contains("palette") || root.contains("palettes"))) {
+                throw new IllegalArgumentException("구조물 NBT 에 size·blocks·palette 가 없다");
+            }
+            t = read(id, root, "plugin");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("구조물 NBT 를 읽을 수 없다: " + e, e);
+        }
+        repository.put(id, Optional.of(t));
+        return t;
+    }
+
+    /** 월드 generated/ 의 파일을 지운다(저장소 캐시는 그대로). 지웠으면 true. */
+    public boolean deleteGenerated(ResourceId id) {
+        Path file = pathOf(id);
+        try {
+            return Files.deleteIfExists(file);
+        } catch (IOException e) {
+            log.error("Failed to delete structure {}", id, e);
+            return false;
+        }
+    }
+
+    /** 메모리 저장소에 (있다고 기억된) 템플릿이 있는가 — 없음을 기억한 항목은 거짓. */
+    public boolean hasInMemory(ResourceId id) {
+        Optional<StructureTemplate> t = repository.get(id);
+        return t != null && t.isPresent();
+    }
+
     /** remove: 캐시에서만 뺀다(파일은 그대로 — 다음 get 이 다시 읽는다). */
     public void remove(ResourceId id) { repository.remove(id); }
 

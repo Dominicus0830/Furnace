@@ -1349,6 +1349,7 @@ public final class World {
     boolean ticketed(long chunkKey) {
         var forced = forcedChunks;
         if (forced != null && forced.size() > 0 && forced.contains(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey))) return true;
+        if (!pluginHolds.isEmpty() && pluginHolds.containsKey(chunkKey)) return true;   // 플러그인 티켓
         Long until = tickets.get(chunkKey);
         if (until == null) return false;
         if (until < gameTime()) {
@@ -1357,6 +1358,50 @@ public final class World {
         }
         return true;
     }
+
+    // ------------------------------------------------------------------ 플러그인 청크 티켓(Paper addPluginChunkTicket 와 같은 의미)
+
+    /** 청크 키 → 그 청크를 붙잡은 플러그인 티켓 수. 있는 동안 구독자가 없어도 내리지 않는다. */
+    private final ConcurrentHashMap<Long, Integer> pluginHolds = new ConcurrentHashMap<>();
+    /** 청크 키 → 엔티티·블록 엔티티 틱까지 주는 플러그인 티켓 수(/forceload 와 같은 단계). 붙잡기의 부분집합이다. */
+    private final ConcurrentHashMap<Long, Integer> pluginTicking = new ConcurrentHashMap<>();
+
+    /**
+     * 플러그인 티켓 하나를 건다: (cx, cz) 둘레 반경 radius 청크(정사각형)를 붙잡고, ticking 이면 엔티티·블록 엔티티도 틱을 받게 한다.
+     * 겹치는 티켓은 세어 두므로 하나를 놓아도 다른 티켓이 걸린 청크는 그대로다. 아직 안 올라온 청크는 주인 region 이 불러오고,
+     * 모두 올라오면(실패한 청크가 있으면 예외로) 끝나는 Future 를 돌려준다. 어느 스레드에서 불러도 된다.
+     */
+    public CompletableFuture<Void> addPluginTicket(int cx, int cz, int radius, boolean ticking) {
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        List<CompletableFuture<?>> loads = new ArrayList<>();
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                ChunkPos cp = new ChunkPos(cx + dx, cz + dz);
+                long key = Regionizer.chunkKey(cp.x(), cp.z());
+                pluginHolds.merge(key, 1, Integer::sum);
+                if (ticking) pluginTicking.merge(key, 1, Integer::sum);
+                loads.add(submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f));
+            }
+        }
+        return CompletableFuture.allOf(loads.toArray(new CompletableFuture[0]));
+    }
+
+    /** {@link #addPluginTicket} 로 건 티켓을 한 번 놓는다(같은 인자로). 청크는 퇴출 유예가 지나면 보통 규칙대로 내려간다. */
+    public void removePluginTicket(int cx, int cz, int radius, boolean ticking) {
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                long key = Regionizer.chunkKey(cx + dx, cz + dz);
+                pluginHolds.computeIfPresent(key, (k, v) -> v <= 1 ? null : v - 1);
+                if (ticking) pluginTicking.computeIfPresent(key, (k, v) -> v <= 1 ? null : v - 1);
+            }
+        }
+    }
+
+    /** 플러그인 티켓이 그 청크를 붙잡고 있는가. */
+    public boolean pluginHeld(int cx, int cz) { return !pluginHolds.isEmpty() && pluginHolds.containsKey(Regionizer.chunkKey(cx, cz)); }
+
+    /** 플러그인 티켓이 그 청크에 엔티티·블록 엔티티 틱을 주는가. */
+    boolean pluginTicking(int cx, int cz) { return !pluginTicking.isEmpty() && pluginTicking.containsKey(Regionizer.chunkKey(cx, cz)); }
 
     /** Entity.placePortalTicket: 그 칸 청크에 포털 티켓(거리 3, 300틱). */
     public void placePortalTicket(int blockX, int blockZ) { addTicket(blockX >> 4, blockZ >> 4, 3, 300); }

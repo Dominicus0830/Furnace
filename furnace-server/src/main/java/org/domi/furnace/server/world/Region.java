@@ -1537,6 +1537,7 @@ public final class Region {
         var forced = world.forcedChunksOrNull();
         if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
         if (world.entityTicketed(cx, cz)) return true;   // 포털·드래곤 티켓의 엔티티 틱 범위
+        if (world.pluginTicking(cx, cz)) return true;   // 플러그인 티켓(ticking)
         int range = Math.max(world.levelServices().simulationDistance(), 2) - 1;
         for (Player p : players.values()) {
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;

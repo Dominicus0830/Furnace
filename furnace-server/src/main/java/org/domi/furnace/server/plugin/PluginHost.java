@@ -94,6 +94,22 @@ public final class PluginHost implements Furnace {
     @Override
     public org.domi.furnace.api.light.LightSources lightSources() { return lightSources; }
 
+    private final ChunkTicketsImpl chunkTickets = new ChunkTicketsImpl(this);
+
+    /** 청크 티켓 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */
+    public ChunkTicketsImpl chunkTicketsImpl() { return chunkTickets; }
+
+    @Override
+    public org.domi.furnace.api.world.ChunkTickets chunkTickets() { return chunkTickets; }
+
+    private final StructuresImpl structures = new StructuresImpl(this);
+
+    /** 구조물 템플릿 구현. */
+    public StructuresImpl structuresImpl() { return structures; }
+
+    @Override
+    public org.domi.furnace.api.structure.Structures structures() { return structures; }
+
     private final EntityViewsImpl entityViews = new EntityViewsImpl(this);
 
     /** 보이기·숨기기·변장 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */

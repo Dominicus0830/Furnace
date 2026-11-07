@@ -51,7 +51,7 @@ public final class LiveGrid {
     }
 
     /** 청크 범위를 덮는 가장 작은 정사각 격자. */
-    static final int MAX_GRID_RADIUS = 9;
+    public static final int MAX_GRID_RADIUS = 9;
 
     public static LiveGrid covering(RegionLevel level, int minCx, int minCz, int maxCx, int maxCz, long seed)  {
         int cx = Math.floorDiv(minCx + maxCx, 2), cz = Math.floorDiv(minCz + maxCz, 2);
