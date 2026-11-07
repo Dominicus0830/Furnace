@@ -6,6 +6,9 @@
 서버 시험(`CommandTreeApiTest`)으로 트리 명령·필터·해제는 확인. 실제 클라이언트로 남은 것:
 - 플러그인이 명령을 런타임에 등록·해제했을 때 열린 채팅 자동완성 목록이 바로 바뀌는지, 권한 없는 계정에서 `requires` 로 숨긴 명령이 자동완성에 안 보이는지.
 
+# 번역·MOTD·함수 훅 (C2) — 2026-11-07
+서버 시험(`TranslationServiceApiTest`·`MotdFormatTest`·`FunctionHookTest`)으로 확인. 실제 클라이언트로 남은 것:
+- `furnace.properties` 에 `motd-format=markup`, `server.properties` 에 `motd=<gradient:red:blue>Furnace</gradient>` 를 넣고 멀티플레이 서버 목록과 접속 직후 화면에서 그라디언트 MOTD 가 보이는지(기본 `plain` 은 바닐라와 같음). 새 기본값은 모두 바닐라 동작이라 결정할 것은 없다.
 # 열린 인벤토리 제목 바꾸기·소리 (K4) — 2026-11-07
 서버 시험(`PluginUiApiTest`)으로 패킷 순서·열린 화면에만 보냄은 확인. 실제 클라이언트로 남은 것:
 - `Menu.setTitle` 로 열린 메뉴 제목을 바꿨을 때 창이 닫히지 않고 제목만 바뀌는지(화면이 한 번 깜빡이는 건 정상), 아이템을 커서에 든 채여도 유지되는지.

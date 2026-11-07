@@ -378,7 +378,7 @@ public final class ServerCore {
                 var id = org.domi.furnace.server.data.ResourceId.parse(function);
                 Runnable run = () -> {
                     var fm = functions();
-                    if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source));
+                    if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source, org.domi.furnace.api.event.server.FunctionExecuteEvent.Trigger.ADVANCEMENT));
                 };
                 // 전역 스레드에서 부여했으면(/advancement grant 등) 바닐라처럼 award 안에서 바로, region 스레드면 다음 전역 틱에
                 if (((org.domi.furnace.api.concurrent.ThreadOwner) scheduler().global()).isOwnerThread()) run.run();

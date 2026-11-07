@@ -204,4 +204,7 @@ public interface Furnace {
 
     /** 서비스 레지스트리(권한·경제·플레이스홀더 등 플러그인 사이 공용 인터페이스). */
     default org.domi.furnace.api.service.ServiceRegistry services() { throw new UnsupportedOperationException("services"); }
+
+    /** 플러그인 번역 서비스(번역 파일 등록, 받는 사람 언어로 렌더링). */
+    default org.domi.furnace.api.text.translation.TranslationService translations() { throw new UnsupportedOperationException("translations"); }
 }
