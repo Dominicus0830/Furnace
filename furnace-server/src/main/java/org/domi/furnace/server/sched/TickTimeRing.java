@@ -17,6 +17,7 @@ public final class TickTimeRing {
     private final int mask;
     private final AtomicLong next = new AtomicLong();
     private final AtomicLong maxEver = new AtomicLong();
+    private final java.util.concurrent.atomic.LongAdder total = new java.util.concurrent.atomic.LongAdder();
 
     /** size 는 2의 거듭제곱이어야 한다. */
     public TickTimeRing(int size) {
@@ -28,7 +29,11 @@ public final class TickTimeRing {
     public void record(long nanos) {
         ring.set((int) (next.getAndIncrement() & mask), nanos);
         maxEver.accumulateAndGet(nanos, Math::max);
+        total.add(nanos);
     }
+
+    /** 지금까지 기록한 틱 소요의 합(ns). */
+    public long totalNanos() { return total.sum(); }
 
     /**
      * 최근 틱 n 개를 바닐라 MinecraftServer.tickTimesNanos 와 같은 자리에 담은 사본: 번호가 k 인 틱의 값은 [k % n]

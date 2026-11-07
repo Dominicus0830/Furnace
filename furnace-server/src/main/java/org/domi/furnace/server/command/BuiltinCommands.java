@@ -74,7 +74,8 @@ final class BuiltinCommands {
         org.domi.furnace.server.command.builtin.WorldCommands.registerWeather(d);
         org.domi.furnace.server.command.builtin.WorldBorderCommand.register(d);
         org.domi.furnace.server.command.builtin.JfrCommand.register(d);   // JFR 을 쓸 수 있는 JVM 에서만
-        // 전용 서버 전용 (/publish 는 통합 서버 전용이라 전용 서버 트리에 없다, /perf 는 NOT_YET — VanillaCommandTreeTest)
+        org.domi.furnace.server.command.builtin.PerfCommand.register(d);
+        // 전용 서버 전용 (/publish 는 통합 서버 전용이라 전용 서버 트리에 없다 — VanillaCommandTreeTest)
         PlayerListCommands.registerBanIp(d);
         PlayerListCommands.registerBanList(d);
         PlayerListCommands.registerBan(d);

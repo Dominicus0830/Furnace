@@ -479,6 +479,40 @@ public final class ServerCore {
     /** 지금까지 기록한 전역 박동 수. */
     public long globalTickCount() { return globalTickRing.count(); }
 
+    /** 지금까지 기록한 전역 박동 소요의 합(ns). */
+    public long globalTickTotalNanos() { return globalTickRing.totalNanos(); }
+
+    private volatile org.domi.furnace.server.profiling.PerfRecorder perf;
+
+    /** /perf 가 쓰는 성능 표본 기록기(처음 쓸 때 만든다). */
+    public org.domi.furnace.server.profiling.PerfRecorder perfRecorder() {
+        var p = perf;
+        if (p == null) {
+            synchronized (this) {
+                if (perf == null) perf = new org.domi.furnace.server.profiling.PerfRecorder(new PerfSource(), java.nio.file.Path.of("."));
+                p = perf;
+            }
+        }
+        return p;
+    }
+
+    private final class PerfSource implements org.domi.furnace.server.profiling.PerfRecorder.Source {
+        public long globalTicks() { return globalTickRing.count(); }
+        public long globalTickNanos() { return globalTickRing.totalNanos(); }
+        public java.util.List<org.domi.furnace.server.profiling.PerfRecorder.DimTicks> dimensions() {
+            java.util.List<org.domi.furnace.server.profiling.PerfRecorder.DimTicks> out = new java.util.ArrayList<>();
+            for (World w : worlds()) {
+                var rz = w.regionizer();
+                if (rz == null) continue;
+                var tw = rz.tickWindows();
+                out.add(new org.domi.furnace.server.profiling.PerfRecorder.DimTicks(rz.dimension(), tw.totalTicks(), tw.totalNanos()));
+            }
+            return out;
+        }
+        public int players() { return ServerCore.this.players().size(); }
+        public String levelName() { return settings().get().levelName; }
+    }
+
     /** 전역 틱 시작 시각(/tps — 15분 × 20회를 덮는 2^15 칸)과 시간 창별 소요 시간(/mspt). 전역 스레드만 쓴다. */
     private final org.domi.furnace.server.sched.TickStartRing globalTickStarts = new org.domi.furnace.server.sched.TickStartRing(1 << 15);
     private final org.domi.furnace.server.sched.TickWindows globalTickWindows = new org.domi.furnace.server.sched.TickWindows();
