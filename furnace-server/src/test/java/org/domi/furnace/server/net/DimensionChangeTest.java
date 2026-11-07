@@ -268,6 +268,102 @@ class DimensionChangeTest {
         assertSame(over, field("world"));
     }
 
+    /**
+     * 탈것을 가진 region 스레드에서 뜬 표본: 그 플레이어가 그 region 에 있고 old 가 아닌 살아 있는 수레(그 region 레벨의)에 타 있으면
+     * {수레 x, 수레 z, 플레이어 x, 플레이어 z}, 아니면 null.
+     */
+    private static double[] ridingNewCart(World w, ChunkPos c, Player p, Object old) throws Exception {
+        return w.submitAtChunk(c, r -> {
+            if (!r.players().containsKey(p.entityId())) return null;
+            var v = p.vehicle();
+            if (!(v instanceof org.domi.furnace.server.entity.AbstractMinecart) || v == old || v.isRemoved() || !r.level().entities().contains(v)
+                    || !v.passengers().contains(p)) return null;
+            return new double[] {v.x(), v.z(), p.x(), p.z()};
+        }).get();
+    }
+
+    /**
+     * 탈것째 지옥문(바닐라 Entity.changeDimension: 승객을 먼저 changeDimension 하고 새 탈것에 startRiding(…, true)): 수레에 탄 플레이어가
+     * 수레와 함께 네더로 넘어가 건너간 새 수레에 다시 타 있다. 플레이어는 바닐라 ServerPlayer.changeDimension 순서로 리스폰 패킷을 받는다.
+     */
+    @Test
+    void playerRidingMinecartThroughNetherPortal_crossesWithCartAndRidesAgain() throws Exception {
+        start(new SpawnPoint(16, -60, 0, 0f));
+        Player p = (Player) field("player");
+        var oldCart = new org.domi.furnace.server.entity.AbstractMinecart[1];
+        over.submitAtChunk(new ChunkPos(1, 0), r -> {
+            var cart = org.domi.furnace.server.entity.AbstractMinecart.create(r.level(), 16.5, -60.0, 0.5,
+                    org.domi.furnace.server.entity.AbstractMinecart.Type.RIDEABLE);
+            r.level().addFreshEntity(cart);
+            assertTrue(p.startRiding(cart, true));
+            oldCart[0] = cart;
+            r.level().setBlock(new Pos(16, -60, 0), portalX(), 18);
+            r.level().setBlock(new Pos(16, -59, 0), portalX(), 18);
+            return null;
+        }).get();
+        drain();
+        java.util.UUID cartId = oldCart[0].uuid();
+        over.startTicking();
+        nether.startTicking();
+        List<Integer> out = new ArrayList<>();
+        double[] at;
+        long deadline = System.nanoTime() + 20_000_000_000L;
+        while (field("world") != nether || (at = ridingNewCart(nether, new ChunkPos(0, 0), p, oldCart[0])) == null) {
+            out.addAll(drain());
+            assertTrue(System.nanoTime() < deadline, "수레째 네더로 넘어가 다시 타지 않음: " + hex(out) + " vehicle=" + p.vehicle());
+            Thread.sleep(10);
+        }
+        out.addAll(drain());
+        assertTrue(out.contains(Respawn.ID), "승객 플레이어도 차원 이동 패킷을 받는다");
+        assertEquals("minecraft:the_nether", p.dimension());
+        var cart = p.vehicle();
+        assertEquals(cartId, cart.uuid(), "같은 수레(UUID)가 건너갔다");
+        assertTrue(oldCart[0].isRemoved());
+        assertEquals("minecraft:the_nether", cart.level().dimension());
+        assertEquals(3.0, at[0], 1.0, "1/8 좌표의 지옥문으로");
+        assertEquals(at[0], at[2], 1e-6, "다시 탈 때 수레 위 자리로 옮긴다(ServerPlayer.startRiding 의 positionRider)");
+        assertEquals(at[1], at[3], 1e-6);
+        assertFalse(over.submitAtChunk(new ChunkPos(1, 0), r -> r.players().containsKey(p.entityId())).get(), "오버월드에서는 빠졌다");
+    }
+
+    /** 탈것째 엔드 관문(같은 레벨 — 바닐라 ServerPlayer.changeDimension 의 같은 차원 쪽은 connection.teleport): 정확 출구로 함께 가서 다시 탄다. */
+    @Test
+    void playerRidingMinecartThroughGateway_teleportsWithCartAndRidesAgain() throws Exception {
+        start(new SpawnPoint(16, -60, 0, 0f));
+        Player p = (Player) field("player");
+        var oldCart = new org.domi.furnace.server.entity.AbstractMinecart[1];
+        over.submitAtChunk(new ChunkPos(1, 0), r -> {
+            var cart = org.domi.furnace.server.entity.AbstractMinecart.create(r.level(), 16.5, -60.0, 0.5,
+                    org.domi.furnace.server.entity.AbstractMinecart.Type.RIDEABLE);
+            r.level().addFreshEntity(cart);
+            assertTrue(p.startRiding(cart, true));
+            oldCart[0] = cart;
+            org.domi.furnace.server.block.entity.EndGatewayBlockEntity.placeGatewayPortal(r.level(), new Pos(16, -60, 0), new Pos(40, -60, 40), true);
+            return null;
+        }).get();
+        drain();
+        java.util.UUID cartId = oldCart[0].uuid();
+        over.startTicking();
+        List<Integer> out = new ArrayList<>();
+        double[] at;
+        long deadline = System.nanoTime() + 20_000_000_000L;
+        while ((at = ridingNewCart(over, new ChunkPos(2, 2), p, oldCart[0])) == null) {
+            out.addAll(drain());
+            assertTrue(System.nanoTime() < deadline, "수레째 출구로 가 다시 타지 않음: " + hex(out) + " vehicle=" + p.vehicle());
+            Thread.sleep(10);
+        }
+        out.addAll(drain());
+        assertFalse(out.contains(Respawn.ID), "같은 레벨이라 리스폰 패킷은 없다");
+        var cart = p.vehicle();
+        assertEquals(cartId, cart.uuid());
+        assertTrue(oldCart[0].isRemoved());
+        assertEquals(40.5, at[0], 1.0, "정확 출구 칸");
+        assertEquals(40.5, at[1], 1.0);
+        assertEquals(at[0], at[2], 1e-6, "수레 위 자리");
+        assertEquals(at[1], at[3], 1e-6);
+        assertEquals(40.5, (double) field("ix"), 1.0, "연결도 출구로 보정 텔레포트했다");
+    }
+
     private static int indexFrom(List<Integer> l, int id, int from) {
         for (int i = from; i < l.size(); i++) if (l.get(i) == id) return i;
         return -1;

@@ -95,6 +95,9 @@ public final class RegionLevel extends ChunkLevel {
     /** 이 레벨의 월드. */
     public World world() { return world; }
 
+    /** 이 레벨을 가진 region. */
+    Region region() { return region; }
+
     /**
      * 그 칸의 소유 region 스레드에서 실행: 지금이 이 region 스레드이고 칸의 청크를 이 region 이 가졌으면 바로, 아니면 소유 region 큐로
      * (주인이 없으면 region 을 만들지 않고 버린다). 전역 스레드의 명령 결과가 블록·엔티티 상태를 바꿀 때 쓴다.

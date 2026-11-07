@@ -2355,6 +2355,47 @@ public final class Region {
         if (level != null) level.playerChangedDimension(p);
     }
 
+    /**
+     * 탈것과 함께 포털을 건너는 승객 플레이어를 뗀다(바닐라 changeDimension 의 passenger.changeDimension — 원천 region 스레드에서, 탈것에서
+     * 내린 뒤). 이 region 에 없으면 거짓(내려놓기만 한다).
+     */
+    boolean detachCarried(Player p) {
+        world.assertOwns(this);
+        if (players.get(p.entityId()) != p) return false;
+        players.remove(p.entityId());
+        detachForDimensionChange(p);
+        return true;
+    }
+
+    /**
+     * 같은 레벨 안(엔드 관문)으로 탈것과 함께 건넌 승객 플레이어 편입(바닐라 ServerPlayer.changeDimension 의 같은 차원 쪽: connection.teleport
+     * (위치, 목적 회전) → onTransition 뒤 탈것의 startRiding(새 탈것, true)). 연결이 보정 텔레포트를 처리한 뒤 출구 칸 주인 region 에서 부른다
+     * — 내릴 때 보낸 텔레포트가 남긴 옛 자리 이동 표본은 그 보정이 이미 비웠다.
+     */
+    void adoptCarriedWithinLevel(Player p, org.domi.furnace.server.entity.DimensionTransition t, org.domi.furnace.server.entity.Entity vehicle) {
+        world.assertOwns(this);
+        p.applyMove(t.x(), t.y(), t.z(), t.yRot(), t.xRot(), p.onGround());   // 어느 region 에도 없는 동안이라 이 스레드가 써도 된다
+        adopt(p);
+        if (level != null) level.afterDimensionTransition(t);
+        remountCarried(p, vehicle);
+    }
+
+    /** 목적지가 없어 되돌린 승객 플레이어(원천 칸 주인 region 스레드): 제자리로 되돌리고 되살린 탈것에 다시 태운다. */
+    void returnCarried(Player p, org.domi.furnace.server.entity.Entity vehicle) {
+        world.assertOwns(this);
+        adopt(p);
+        remountCarried(p, vehicle);
+    }
+
+    /**
+     * 승객 플레이어를 탈것에 다시 태운다(startRiding(탈것, true)) — 그 탈것이 살아서 이 region 레벨에 있을 때만(아니면 내린 채로 둔다).
+     * 바닐라 ServerPlayer.startRiding 처럼 바로 탈것 위 자리로 옮긴다(positionRider — 연결의 보정 텔레포트는 차원 이동이 이미 보냈다).
+     */
+    private void remountCarried(Player p, org.domi.furnace.server.entity.Entity vehicle) {
+        if (vehicle == null || vehicle.isRemoved() || level == null || !level.entities().contains(vehicle)) return;
+        if (p.startRiding(vehicle, true)) vehicle.positionRider(p);
+    }
+
     /** 이 region 에 있으면 떼어 낸다(다른 차원으로 리스폰할 때 — 연결 스레드가 모든 region 에 묻는다). */
     public void removeForDimensionChange(Player p) {
         if (players.remove(p.entityId()) != null) detachForDimensionChange(p);
@@ -2387,6 +2428,8 @@ public final class Region {
             if (!"minecraft:the_nether".equals(world.dimension())) p.enteredNetherPosition = null;
         }
         if (changedFrom != null && !changedFrom.equals(world.dimension())) world.levelServices().gameEvents().playerChangedWorld(p, changedFrom);
+        // 탈것째 포털을 건넌 승객이면 건너간 새 탈것에 다시 탄다 — 바닐라는 승객의 changeDimension(발전 과제 포함)이 끝난 뒤 탈것 쪽이 태운다
+        remountCarried(p, p.takeCarriedVehicle());
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */

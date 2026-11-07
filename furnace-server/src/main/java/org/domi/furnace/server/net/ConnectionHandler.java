@@ -1345,6 +1345,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (t.length >= 5) { iyaw = (float) t[3]; ipitch = (float) t[4]; }
             teleportPlayer(ctx, t[0], t[1], t[2]);
         }));
+        p.connectionTasks(r -> ctx.executor().execute(r));   // 텔레포트 뒤에 이어 할 일(탈것째 관문을 건넌 승객 편입)
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
         // 패킷을 다 보내면 handoff 로 편입을 넘긴다 — 기다리던 목적 region 이 그 자리에서 편입한다(같은 틱 도착, M10).
         p.dimensionChanger(new Player.DimensionChanger() {
