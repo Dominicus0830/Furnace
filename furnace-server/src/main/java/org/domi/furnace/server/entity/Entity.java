@@ -1790,6 +1790,9 @@ public abstract non-sealed class Entity implements Rider {
     /** EntityType.canSerialize: 번개처럼 저장하지 않는 종류는 false. */
     public boolean shouldSave() { return true; }
 
+    /** Entity.onlyOpCanSetNbt: 아이템의 entity_data 를 관리자만 적용할 수 있는 종류(명령 블록 수레). */
+    public boolean onlyOpCanSetNbt() { return false; }
+
     /** Entity.save: 탄 것은 탈것이 저장한다(null). 아니면 saveAsPassenger(승객까지 재귀). */
     public NbtCompound save() { return vehicle != null ? null : saveAsPassenger(); }
 

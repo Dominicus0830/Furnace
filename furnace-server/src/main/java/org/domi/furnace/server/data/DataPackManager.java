@@ -137,6 +137,7 @@ public final class DataPackManager implements AutoCloseable {
         Set<String> features = new LinkedHashSet<>(repository.requestedFeatures());
         features.addAll(forcedFeatures);
         worldFeatures = orderedFeatures(features);
+        FeatureFlags.install(worldFeatures);
         saveConfig();
     }
 

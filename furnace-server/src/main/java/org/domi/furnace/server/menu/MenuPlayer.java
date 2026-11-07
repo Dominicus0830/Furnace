@@ -96,7 +96,10 @@ public interface MenuPlayer {
     /** 그 인챈트가 그 아이템에 붙을 수 있는가(Enchantment.canEnchant). */
     default boolean enchantmentSupports(String enchantment, ItemStack stack) { return true; }
 
-    /** 경험치 점수를 더한다(화로 꺼내기 등). TODO(엔티티): 바닐라는 경험치 구슬을 만들어 주운다. */
+    /** 가방 소리(item.bundle.insert / remove_one, 음량 0.8, 높이 0.8 + 난수 × 0.4)를 낸다 — 본인에게는 보내지 않는다(Player.playSound). */
+    default void playBundleSound(String sound) { }
+
+    /** 경험치 점수를 더한다(화로 꺼내기 등) — 서버는 경험치 구슬을 만들어 준다(ConnectionHandler). */
     default void awardExperience(int amount) { }
 
     // --- 마법 부여대(4-2l) ----------------------------------------------------------------------

@@ -147,8 +147,8 @@ public class AnvilMenu extends ItemCombinerMenu {
             }
         }
         if (itemName != null && !isBlank(itemName)) {
-            String current = customNameText(input);
-            if (!itemName.equals(current)) {   // TODO(번역): 이름이 없는 아이템은 기본 이름(번역)과도 비교해야 한다. 클라이언트는 기본 이름이면 ""를 보낸다.
+            String current = org.domi.furnace.server.command.builtin.ItemCommands.hoverName(input).getString();   // 이름 없는 아이템은 기본 이름(서버 언어 en_us)과 비교
+            if (!itemName.equals(current)) {
                 renameCost = 1;
                 levelCost += 1;
                 result = ItemTools.with(result, "minecraft:custom_name", new com.google.gson.JsonPrimitive(itemName).toString());

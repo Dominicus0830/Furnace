@@ -15,6 +15,14 @@ public final class FeatureFlags {
 
     private FeatureFlags() {}
 
+    private static volatile Set<String> enabled = DEFAULT;
+
+    /** 이 서버 월드에 켜진 기능 플래그(데이터 팩 구성이 정해질 때마다 DataPackManager 가 건다). */
+    public static void install(Set<String> flags) { enabled = Set.copyOf(flags); }
+
+    /** 아이템·기능이 켜져 있는가(ItemStack.isItemEnabled / Level.enabledFeatures().contains). 바닐라 플래그는 늘 켜져 있다. */
+    public static boolean isEnabled(String flag) { return VANILLA.equals(flag) || enabled.contains(flag); }
+
     public static boolean isSubset(Set<String> flags, Set<String> enabled) { return enabled.containsAll(flags); }
 
     /** 바닐라 FeatureFlags.printMissingFlags — 등록 순서로 ", " 연결. */

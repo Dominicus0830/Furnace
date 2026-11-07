@@ -239,4 +239,21 @@ class EntityGameEventsTest {
         assertInstanceOf(ItemEntity.class, only(level, GameEvent.ENTITY_PLACE));
         assertEquals(0.5, level.of(GameEvent.ENTITY_PLACE).get(0).pos().x());
     }
+
+    @Test
+    void ominousItemSpawnerShootsProjectileItemsDownward() throws Exception {   // OminousItemSpawner.spawnItem: ProjectileItem 은 asProjectile + 아래로 shoot
+        var level = new RecLevel();
+        OminousItemSpawner s = spawn(level, "minecraft:ominous_item_spawner", 0.5, 0.5);
+        var set = OminousItemSpawner.class.getDeclaredMethod("setItem", ItemStack.class);
+        set.setAccessible(true);
+        set.invoke(s, item("arrow", 1));
+        var m = OminousItemSpawner.class.getDeclaredMethod("spawnItem");
+        m.setAccessible(true);
+        level.events.clear();
+        m.invoke(s);
+        Object src = only(level, GameEvent.ENTITY_PLACE);
+        assertInstanceOf(AbstractArrow.class, src);
+        assertTrue(((AbstractArrow) src).vy() < 0, "아래로 쏜다");
+        assertEquals(AbstractArrow.Pickup.DISALLOWED, ((AbstractArrow) src).pickup, "AbstractArrow.setOwner: 주인이 불길한 생성기면 줍기 불가");
+    }
 }

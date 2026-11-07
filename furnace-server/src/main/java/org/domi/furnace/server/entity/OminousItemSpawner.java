@@ -1,5 +1,5 @@
 // 바닐라 OminousItemSpawner: 불길한 시련 방이 아이템을 내보내기 전에 잠시 머무는 보이지 않는 엔티티. 60~120틱 뒤(36틱 전에 소리) 아이템 엔티티를 만들고 사라진다.
-// TODO: 발사체 아이템(화살·물약·불덩이 …)은 아이템 대신 발사체로 쏘아 보낸다(ProjectileItem.asProjectile).
+// 발사체 아이템(화살·물약·폭죽·화염구 …)은 아이템 대신 아래로 쏜 발사체로 나온다(ProjectileItem.asProjectile + shoot).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -50,11 +50,13 @@ public class OminousItemSpawner extends Entity {
     private void spawnItem() {
         ItemStack stack = getItem();
         if (stack.isEmpty()) return;
-        var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), stack);
-        level.addFreshEntity(ie);
+        Entity out = org.domi.furnace.server.block.dispenser.DispenseBehaviors.projectileDown(level, x(), y(), z(), blockPosition(), stack);
+        if (out instanceof AbstractArrow arrow) arrow.pickup = AbstractArrow.Pickup.DISALLOWED;   // AbstractArrow.setOwner: 주인이 OminousItemSpawner 면 줍기 불가
+        if (out == null) out = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), stack);
+        level.addFreshEntity(out);
         level.levelEvent(null, 3021, blockPosition(), 1);
         level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_PLACE, new Vec3(x(), y(), z()),
-                org.domi.furnace.server.world.gameevent.GameEventContext.of(ie));   // btu:w 나온 엔티티가 출처, 자리는 생성기
+                org.domi.furnace.server.world.gameevent.GameEventContext.of(out));   // btu:w 나온 엔티티가 출처, 자리는 생성기
         setItem(ItemStack.EMPTY);
     }
 

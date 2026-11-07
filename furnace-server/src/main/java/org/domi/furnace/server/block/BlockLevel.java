@@ -225,6 +225,15 @@ public interface BlockLevel {
     default boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
             org.domi.furnace.server.entity.spawn.SpawnReason reason) { return spawnMobFromEgg(entityType, pos, snapToGround, extendDown); }
 
+    /**
+     * 아이템으로 놓는 몹(스폰 알): entityType.spawn(level, stack, player, …) — 아이템의 이름·entity_data 를 입힌다. player 가 null 이면 발사기.
+     * 기본은 아이템을 무시한다.
+     */
+    default boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason, org.domi.furnace.server.entity.ItemStack stack, BlockActor player) {
+        return spawnMobFromEgg(entityType, pos, snapToGround, extendDown, reason);
+    }
+
     /** LevelReader.getMaxLocalRawBrightness(pos) = getRawBrightness(pos, skyDarken). */
     default int getMaxLocalRawBrightness(Pos pos) { return getRawBrightness(pos, skyDarken()); }
 

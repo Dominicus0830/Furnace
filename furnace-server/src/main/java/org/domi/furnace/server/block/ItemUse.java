@@ -106,6 +106,7 @@ public final class ItemUse {
                     "minecraft:lingering_potion", "minecraft:wind_charge": return throwItem(level, player, stack, n);
             case "minecraft:firework_rocket": return fireworkUse(level, player, stack);
             case "minecraft:goat_horn": return goatHornUse(level, player, hand, stack);
+            case "minecraft:bundle": return bundleUse(level, player, stack);
             case "minecraft:writable_book", "minecraft:written_book": {   // WritableBookItem/WrittenBookItem.use: openItemGui(서버는 서명된 책만 open_book) + 사용 통계, CONSUME
                 if (n.equals("minecraft:written_book")) player.openBook(hand);   // 미구현: resolveBookComponents(선택자·점수 컴포넌트 해석)
                 player.awardStat("minecraft:used:" + n);
@@ -119,8 +120,27 @@ public final class ItemUse {
         if (e != null && e.kind() == BlockItems.Kind.PLACE_ON_WATER) return placeOnWaterUse(level, player, hand, stack, e);
         int slot = equipSlot(n);
         if (slot >= 0) return equip(level, player, hand, stack, slot, n);
-        // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책, 광산 수레.
+        // 먹기·활·쇠뇌·삼지창·방패·망원경은 Consuming 이, 낚싯대는 낚시 쪽이 맡는다.
         return Holder.pass(stack);
+    }
+
+    // ------------------------------------------------------------------ 가방(BundleItem.use)
+
+    /**
+     * BundleItem.use: 가방이 켜진 기능이고 비지 않았으면 내용을 비우고(컴포넌트를 빈 내용으로) 안의 아이템을 모두 흩어 떨구며(Player.drop(stack, true))
+     * 소리(item.bundle.drop_contents, 음량 0.8, 높이 0.8 + 레벨 난수 × 0.4, 본인 제외)와 사용 통계 후 sidedSuccess. 아니면 FAIL.
+     */
+    private static Holder bundleUse(BlockLevel level, BlockActor player, ItemStack stack) {
+        if (!org.domi.furnace.server.data.FeatureFlags.isEnabled("minecraft:bundle")) return Holder.pass(stack);
+        var contents = org.domi.furnace.server.menu.BundleContents.of(stack);
+        if (contents == null || contents.isEmpty()) return Holder.fail(stack);
+        ItemStack emptied = ItemTools.with(stack, org.domi.furnace.server.menu.BundleContents.KEY, java.util.List.of());
+        for (ItemStack s : contents.items()) player.dropAround(s);
+        if (player.handle() instanceof org.domi.furnace.server.entity.Player p) {
+            org.domi.furnace.server.entity.Shields.playSoundExceptSelf(p, level, "minecraft:item.bundle.drop_contents", 0.8F, 0.8F + level.random().nextFloat() * 0.4F);
+        }
+        player.awardStat("minecraft:used:minecraft:bundle");
+        return Holder.success(emptied);
     }
 
     // ------------------------------------------------------------------ 염소 뿔(GoatHornItem.use)
@@ -217,7 +237,8 @@ public final class ItemUse {
     /**
      * BoatItem.use: 유체까지 맞추는 시선이 빗나가면 넘긴다. 시선 5 블록 앞까지 넓힌 상자 안 맞출 수 있는 엔티티의 몸이 눈을 품으면 넘긴다.
      * 블록에 맞았으면 그 지점에 배(종류·상자 여부는 아이템 이름)를 플레이어 방향으로 놓아, 블록과 겹치면 실패, 아니면 넣고 하나 쓴다.
-     * TODO(엔티티 충돌): noCollision 의 엔티티(다른 배) 부분, EntityType.createDefaultStackConfig(이름·엔티티 데이터 컴포넌트).
+     * 아이템의 이름·entity_data 는 위치를 둔 뒤 입힌다(getBoat 의 createDefaultStackConfig) — 종류·방향은 그 뒤에 정해진다.
+     * TODO(엔티티 충돌): noCollision 의 엔티티(다른 배) 부분.
      */
     private static Holder boatUse(BlockLevel level, BlockActor player, ItemStack stack, String n) {
         if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
@@ -240,6 +261,7 @@ public final class ItemUse {
         boat.xo = hit.x();
         boat.yo = hit.y();
         boat.zo = hit.z();
+        org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, player, boat);
         boat.setVariant(org.domi.furnace.server.entity.Boat.Type.byName(type));
         boat.setYRot(player.yRot());
         if (!cl.noCollision(boat.boundingBox())) return Holder.fail(stack);
@@ -370,9 +392,30 @@ public final class ItemUse {
 
     // ------------------------------------------------------------------ 유리병·물 위에 놓기·장착
 
-    /** BottleItem.use: 원천 물에 시선을 맞추면 물병(드래곤의 숨결 구름은 엔티티 체계에서). */
+    /**
+     * BottleItem.use: 몸 상자를 2칸 넓힌 안에 엔더 드래곤이 만든 효과 구름이 살아 있으면 그 구름의 반지름을 0.5 줄이고 드래곤의 숨결 병
+     * (소리·fluid_pickup 은 플레이어 자리, player_interacted_with_entity). 아니면 원천 물에 시선을 맞추면 물병.
+     */
     private static Holder glassBottleUse(BlockLevel level, BlockActor player, ItemStack stack) {
-        // TODO(엔티티): 2칸 안 드래곤의 숨결 구름(AreaEffectCloud)이 있으면 그 구름을 줄이고 드래곤의 숨결.
+        if (level instanceof ChunkLevel cl) {
+            var body = player.handle() instanceof org.domi.furnace.server.entity.Player owner ? owner.boundingBox()
+                    : new org.domi.furnace.server.entity.AABB(player.x() - 0.3, player.y(), player.z() - 0.3, player.x() + 0.3, player.y() + 1.8, player.z() + 0.3);
+            for (var e : cl.getEntities(null, body.inflate(2.0), x -> x instanceof org.domi.furnace.server.entity.AreaEffectCloud c && c.isAlive()
+                    && c.getOwner() instanceof org.domi.furnace.server.entity.EnderDragon)) {
+                var cloud = (org.domi.furnace.server.entity.AreaEffectCloud) e;
+                cloud.setRadius(cloud.getRadius() - 0.5F);
+                cl.playSound(null, player.x(), player.y(), player.z(), "minecraft:item.bottle.fill_dragonbreath", "neutral", 1.0F, 1.0F);
+                cl.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.FLUID_PICKUP, new org.domi.furnace.server.entity.Vec3(player.x(), player.y(), player.z()),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(player.handle()));
+                if (player.handle() instanceof org.domi.furnace.server.entity.Player p) {
+                    var item = org.domi.furnace.server.ServerCore.lootStackOf(stack);
+                    var ent = org.domi.furnace.server.entity.KillCredit.lootOf(cloud);
+                    p.triggerAdvancement(a -> a.triggerItemEntity("minecraft:player_interacted_with_entity", item, ent));
+                }
+                player.awardStat("minecraft:used:minecraft:glass_bottle");
+                return Holder.success(player.createFilledResult(stack, stack("minecraft:dragon_breath")));
+            }
+        }
         Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.SOURCE_ONLY);
         if (hit.miss()) return Holder.pass(stack);
         Pos pos = hit.pos();
@@ -551,7 +594,7 @@ public final class ItemUse {
 
     /**
      * MinecartItem.useOn: 레일(#rails)이 아니면 실패. 레일 칸 가운데, 바닥 + 0.0625(경사면 + 0.5)에 그 종류 수레를 놓고 하나 쓴다.
-     * TODO(아이템 컴포넌트): createDefaultStackConfig(이름·엔티티 데이터). TODO(디스펜서): 발사기로 놓기.
+     * 아이템의 이름·entity_data 를 입힌다(createMinecart 의 createDefaultStackConfig). 발사기로 놓기는 DispenseBehaviors.MinecartDispense.
      */
     private static InteractionResult minecartOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack,
             org.domi.furnace.server.entity.AbstractMinecart.Type type) {
@@ -561,7 +604,7 @@ public final class ItemUse {
         if (level instanceof ChunkLevel cl) {
             Prop shape = B.prop("shape");
             double d = shape.has(state) && shape.valueName(state).startsWith("ascending_") ? 0.5 : 0.0;
-            var cart = org.domi.furnace.server.entity.AbstractMinecart.create(cl, pos.x() + 0.5, pos.y() + 0.0625 + d, pos.z() + 0.5, type);
+            var cart = org.domi.furnace.server.entity.AbstractMinecart.create(cl, pos.x() + 0.5, pos.y() + 0.0625 + d, pos.z() + 0.5, type, stack, player);
             if (!cl.addFreshEntity(cart)) {
                 player.resyncHands();
                 return InteractionResult.FAIL;
@@ -574,12 +617,13 @@ public final class ItemUse {
 
     /**
      * SpawnEggItem.useOn: 맞은 칸의 충돌 모양이 비었으면 그 칸, 아니면 맞은 면 앞 칸에 몹을 만든다(바닥에 맞춰 내림).
-     * 생성기면 종류만 바꾼다. TODO(ENTITY_DATA 컴포넌트): 알의 entity_data 로 종류·태그를 덮어쓴다.
+     * 생성기면 종류만 바꾼다. 알의 entity_data 가 종류(id)와 태그를 덮어쓰고(SpawnEggItem.getType, createDefaultStackConfig), 이름도 입힌다.
      */
     private static InteractionResult spawnEgg(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack, String itemName) {
         Pos pos = hit.pos();
         int state = level.getBlockState(pos);
-        String type = "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length());
+        String type = org.domi.furnace.server.entity.EntityStackConfig.eggType(stack,
+                "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length()));
         if (B.is(state, "minecraft:spawner")) {
             // 생성기면 다음 스폰 데이터의 종류만 바꾼다(shrink 는 크리에이티브에서도).
             if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SpawnerBlockEntity sp) {
@@ -603,7 +647,8 @@ public final class ItemUse {
             return InteractionResult.PASS;
         }
         Pos target = B.INFO.collisionShape(state).isEmpty() ? pos : pos.relative(hit.face());
-        if (level.spawnMobFromEgg(type, target, true, !pos.equals(target) && hit.face() == Dir.UP)) {
+        if (level.spawnMobFromEgg(type, target, true, !pos.equals(target) && hit.face() == Dir.UP,
+                org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG, stack, player)) {
             player.setItemInHand(hand, stack.withCount(stack.count() - 1));
             level.gameEvent("minecraft:entity_place", pos, player, -1);
         }
@@ -623,8 +668,9 @@ public final class ItemUse {
         int state = level.getBlockState(pos);
         if (!B.is(state, "minecraft:water") && !B.is(state, "minecraft:lava")) return Holder.pass(stack);
         if (!player.mayInteract(level, pos) || !mayUseItemAt(level, player, pos, hit.face(), stack)) return Holder.fail(stack);
-        String type = "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length());
-        var mob = cl.spawnMob(type, pos, false, false, org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG);
+        String type = org.domi.furnace.server.entity.EntityStackConfig.eggType(stack,
+                "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length()));
+        var mob = cl.spawnEntityFromStack(type, pos, false, false, org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG, "SPAWNER_EGG", stack, player);
         if (mob == null) return Holder.pass(stack);
         ItemStack rest = player.instabuild() ? stack : stack.withCount(stack.count() - 1);
         player.awardStat("minecraft:used:" + itemName);
@@ -658,18 +704,16 @@ public final class ItemUse {
         if (!cl.noCollision(box) || anyEntityIn(cl, box)) return InteractionResult.FAIL;
         var stand = new org.domi.furnace.server.entity.ArmorStand(cl, cl.nextEntityId());
         float yaw = (float) Math.floor((wrapDegrees(player.yRot() - 180.0F) + 22.5F) / 45.0F) * 45.0F;
-        stand.moveTo(bx, by, bz, yaw, 0.0F);
-        RandomSource r = cl.random();
-        float[] head = stand.pose(0).clone();
-        float f = r.nextFloat() * 5.0F, g = r.nextFloat() * 20.0F - 10.0F;
-        stand.setPose(0, new float[] {head[0] + f, head[1] + g, head[2]});
-        float[] body = stand.pose(1).clone();
-        stand.setPose(1, new float[] {body[0], body[1] + (r.nextFloat() * 10.0F - 5.0F), body[2]});
+        // EntityType.create(…, extendDown): 바닥에 맞춰 내리고 무작위 방향(난수 1회) → 이름·entity_data → 45° 단위 방향 (1.21.1 에는 무작위 자세가 없다)
+        double yOff = cl.snapOffset(stand, pos, true);
+        stand.moveTo(bx, by + yOff, bz, wrapDegrees(cl.random().nextFloat() * 360.0F), 0.0F);
+        org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, player, stand);
+        stand.moveTo(stand.x(), stand.y(), stand.z(), yaw, 0.0F);
         if (!cl.addFreshEntity(stand)) {
             player.resyncHands();
             return InteractionResult.FAIL;
         }
-        cl.playSound(null, bx, by, bz, "minecraft:entity.armor_stand.place", "blocks", 0.75F, 0.8F);
+        cl.playSound(null, stand.x(), stand.y(), stand.z(), "minecraft:entity.armor_stand.place", "blocks", 0.75F, 0.8F);
         cl.gameEvent("minecraft:entity_place", pos, player, -1);
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         return InteractionResult.sidedSuccess(false);
@@ -687,6 +731,10 @@ public final class ItemUse {
             if (entity == null) return InteractionResult.FAIL;
         } else {
             entity = new org.domi.furnace.server.entity.ItemFrame(cl, cl.nextEntityId(), pos, face, itemName.equals("minecraft:glow_item_frame"));
+        }
+        if (ItemTools.component(stack, org.domi.furnace.server.entity.EntityStackConfig.ENTITY_DATA) instanceof org.domi.furnace.server.net.io.nbt.NbtCompound data
+                && !data.tags().isEmpty()) {
+            org.domi.furnace.server.entity.EntityStackConfig.updateCustomEntityTag(player, entity, data);   // HangingEntityItem: entity_data 만(이름은 안 입힌다)
         }
         if (!entity.survives()) return InteractionResult.CONSUME;
         if (!cl.addFreshEntity(entity)) {
@@ -971,7 +1019,7 @@ public final class ItemUse {
         return InteractionResult.sidedSuccess(false);
     }
 
-    /** HoneycombItem.useOn: 구리 블록에 밀랍(3003). TODO(블록 엔티티): 표지판 밀랍은 SignApplicator. */
+    /** HoneycombItem.useOn: 구리 블록에 밀랍(3003). 표지판 밀랍은 SignBlock 이 맡는다. */
     private static InteractionResult honeycomb(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
         Pos pos = hit.pos();
         int state = level.getBlockState(pos);
@@ -1104,7 +1152,7 @@ public final class ItemUse {
     /**
      * EnderEyeItem.use: 시선이 끝없는 틀을 맞히면 넘기고(useOn 이 채운다). 아니면 반경 100(청크 단위)의 #eye_of_ender_located(스트롱홀드)를
      * 찾아 있으면 눈 엔티티를 몸 가운데 높이에서 띄워 그 위치로 보내고(projectile_shoot, used_ender_eye, 소리 피치는 레벨 난수), 하나 쓰고 팔을 휘두른다.
-     * 없으면 소모 없이 CONSUME. TODO(사용 중 표시): startUsingItem 의 생물 플래그는 플레이어에 아직 없다.
+     * 없으면 소모 없이 CONSUME. 틀을 안 맞췄으면 먼저 player.startUsingItem(hand) — 사용 중 표시(생물 플래그·item_interact_start)가 남는다.
      */
     /**
      * FoodOnAStickItem.use(ctz): 탄 탈것이 그 막대의 종류(당근 낚싯대 → 돼지, 뒤틀린 균류 막대 → 스트라이더)이고 가속할 수 있으면(boost)
@@ -1130,6 +1178,7 @@ public final class ItemUse {
     private static Holder enderEyeUse(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
         Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.NONE);
         if (!hit.miss() && B.is(level.getBlockState(hit.pos()), END_PORTAL_FRAME)) return Holder.pass(stack);
+        player.startUsingItem(hand, 0);   // EnderEyeItem.use: player.startUsingItem(hand)
         if (!(level instanceof ChunkLevel cl)) return new Holder(InteractionResult.CONSUME, stack);
         int[] found = locateEyeTarget(cl, player);
         if (found == null) return new Holder(InteractionResult.CONSUME, stack);

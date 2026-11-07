@@ -52,6 +52,14 @@ public final class DispenseBehaviors {
         return DEFAULT;
     }
 
+    /**
+     * 그 아이템이 ProjectileItem(화살·알·눈덩이·경험치 병·물약·폭죽·화염구·바람 구슬)이면 asProjectile + shoot(아래) 한 투사체(월드에는 아직 안 넣음),
+     * 아니면 null. 불길한 아이템 생성기가 쓴다.
+     */
+    public static org.domi.furnace.server.entity.Projectile projectileDown(ChunkLevel level, double x, double y, double z, Pos eventPos, ItemStack stack) {
+        return get(stack) instanceof ProjectileDispense pd ? pd.launchDown(level, x, y, z, eventPos, stack) : null;
+    }
+
     private static void register(String item, DispenseItemBehavior b) { REGISTRY.put("minecraft:" + item, b); }
 
     private static boolean isEmptyBlock(BlockLevel level, Pos p) { return B.isAir(level.getBlockState(p)); }
@@ -84,8 +92,9 @@ public final class DispenseBehaviors {
         protected ItemStack execute(BlockSource s, ItemStack stack) {
             int dir = s.facing();
             String n = ItemTools.itemName(stack);
-            String type = "minecraft:" + n.substring("minecraft:".length(), n.length() - "_spawn_egg".length());
-            s.level().spawnMobFromEgg(type, s.front(), dir != Dir.UP, false, org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER);
+            String type = org.domi.furnace.server.entity.EntityStackConfig.eggType(stack,
+                    "minecraft:" + n.substring("minecraft:".length(), n.length() - "_spawn_egg".length()));
+            s.level().spawnMobFromEgg(type, s.front(), dir != Dir.UP, false, org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER, stack, null);
             s.level().gameEvent("minecraft:entity_place", s.pos(), null, -1);
             return stack.withCount(stack.count() - 1);
         }
@@ -100,6 +109,7 @@ public final class DispenseBehaviors {
             var stand = new org.domi.furnace.server.entity.ArmorStand(cl, cl.nextEntityId());
             stand.moveTo(p.x() + 0.5, p.y(), p.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(cl.random().nextFloat() * 360.0F), 0.0F);
             stand.setYRot(BlockSource.toYRot(s.facing()));
+            org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, null, stand);   // appendDefaultStackConfig: 방향 → 이름 → entity_data
             cl.addFreshEntityWithPassengers(stand);
             return stack.withCount(stack.count() - 1);
         }
@@ -159,7 +169,9 @@ public final class DispenseBehaviors {
             }
         };
         for (String m : new String[] {"leather", "iron", "golden", "diamond"}) register(m + "_horse_armor", horseArmor);
-        // 양탄자 16색: 보류(라마 장식 칸 없음) — 기본 던지기
+        // 양탄자 16색: 라마 장식(몸통 칸) — 말 갑옷과 같은 동작(길들인 라마만, isBodyArmorItem 이 양털 카펫만 받는다)
+        for (String c : new String[] {"white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray", "cyan", "purple",
+                "blue", "brown", "green", "red", "black"}) register(c + "_carpet", horseArmor);
         register("chest", new OptionalDispenseItemBehavior() {
             @Override
             protected ItemStack execute(BlockSource s, ItemStack stack) {
@@ -463,6 +475,7 @@ public final class DispenseBehaviors {
             boat.xo = x;
             boat.yo = y + dy;
             boat.zo = z;
+            org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, null, boat);   // BoatDispenseItemBehavior: createDefaultStackConfig
             boat.setVariant(Boat.Type.byName(type));
             boat.setYRot(BlockSource.toYRot(dir));
             cl.addFreshEntity(boat);
@@ -495,7 +508,7 @@ public final class DispenseBehaviors {
                 case "minecraft:command_block_minecart" -> AbstractMinecart.Type.COMMAND_BLOCK;
                 default -> AbstractMinecart.Type.RIDEABLE;
             };
-            cl.addFreshEntity(AbstractMinecart.create(cl, x, y + dy, z, type));
+            cl.addFreshEntity(AbstractMinecart.create(cl, x, y + dy, z, type, stack, null));
             return stack.withCount(stack.count() - 1);
         }
 

@@ -877,7 +877,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new BrandPayload(org.domi.furnace.server.config.OperatorOptions.current().serverBrand()));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
         var links = serverLinks();
         if (!links.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerLinksPacket(links, false));   // 바닐라 순서: brand → 서버 링크 → 기능 플래그
-        send(ctx, FeatureFlags.vanilla());
+        send(ctx, FeatureFlags.enabled());
         send(ctx, new KnownPacksClientbound());
     }
 
@@ -3055,6 +3055,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         @Override public void awardExperience(int amount) {
             double px = p.x(), py = p.y(), pz = p.z();
             world.runAt(px, pz, region -> region.level().awardExperience(px, py, pz, amount));
+        }
+
+        /** Bundle 소리: 본인은 빼고(클라이언트가 직접 낸다), 높이는 0.8 + 레벨 난수 × 0.4. */
+        @Override public void playBundleSound(String sound) {
+            double px = p.x(), pz = p.z();
+            world.runAt(px, pz, region -> org.domi.furnace.server.entity.Shields.playSoundExceptSelf(p, region.level(), sound, 0.8F,
+                    0.8F + region.level().random().nextFloat() * 0.4F));
         }
 
         @Override public int experienceLevel() { return p.vitals().xpLevel(); }

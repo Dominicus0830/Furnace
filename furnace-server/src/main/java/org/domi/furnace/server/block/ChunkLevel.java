@@ -1635,30 +1635,55 @@ public abstract class ChunkLevel implements BlockLevel {
     /** pluginReason: 플러그인 CreatureSpawnEvent 의 원인 이름(바닐라 동작에는 영향 없음). */
     public org.domi.furnace.server.entity.Mob spawnMob(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
             org.domi.furnace.server.entity.spawn.SpawnReason reason, String pluginReason) {
+        return spawnEntityFromStack(entityType, pos, snapToGround, extendDown, reason, pluginReason, null, null) instanceof
+                org.domi.furnace.server.entity.Mob mob ? mob : null;
+    }
+
+    @Override
+    public boolean spawnMobFromEgg(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason, ItemStack stack, BlockActor player) {
+        return spawnEntityFromStack(entityType, pos, snapToGround, extendDown, reason,
+                reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG", stack, player) != null;
+    }
+
+    /** EntityType.getYOffset: 칸 위에서 아래로 떨어뜨려 바닥에 맞출 높이(extendDown 이면 한 칸 아래까지). */
+    public double snapOffset(Entity e, Pos pos, boolean extendDown) {
+        e.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
+        AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
+        if (extendDown) box = box.expandTowards(0.0, -1.0, 0.0);
+        return 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), blockCollisions(box))[1];
+    }
+
+    /**
+     * EntityType.spawn(level, stack, player, pos, reason, snapToGround, extendDown): create → 바닥에 맞춤 → moveTo(무작위 방향) → (몹이면) 머리·몸통 방향·finalizeSpawn →
+     * (몹이면) 주변 소리 → 아이템 설정(이름·entity_data, createDefaultStackConfig) → 추가. stack 이 없으면 몹만 만든다(몹이 아니면 null).
+     * 알의 entity_data 가 몹이 아닌 종류(배·수레 등)를 가리키면 그것도 만든다.
+     */
+    public Entity spawnEntityFromStack(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason, String pluginReason, ItemStack stack, BlockActor player) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
-        if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return null;
-        double d0 = 0.0;
-        if (snapToGround) {
-            mob.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
-            AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
-            if (extendDown) box = box.expandTowards(0.0, -1.0, 0.0);
-            d0 = 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, mob.boundingBox(), blockCollisions(box))[1];
+        if (e == null) return null;
+        org.domi.furnace.server.entity.Mob mob = e instanceof org.domi.furnace.server.entity.Mob m ? m : null;
+        if (mob == null && stack == null) return null;
+        double d0 = snapToGround ? snapOffset(e, pos, extendDown) : 0.0;
+        e.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
+        if (mob != null) {
+            mob.setYHeadRot(mob.yRot());
+            mob.setYBodyRot(mob.yRot());
+            if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(reason);
+            if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
+            mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
         }
-        mob.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
-        mob.setYHeadRot(mob.yRot());
-        mob.setYBodyRot(mob.yRot());
-        if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(reason);
-        if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
-        mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
-        addFreshEntityWithPassengers(mob.spawnReason(pluginReason));
-        mob.makeSound(mob.ambientSoundForSpawn());
-        return mob;
+        if (mob != null) mob.makeSound(mob.ambientSoundForSpawn());   // 바닐라 create: finalizeSpawn → 주변 소리 → 이름·entity_data
+        org.domi.furnace.server.entity.EntityStackConfig.apply(this, stack, player, e);
+        addFreshEntityWithPassengers(mob != null ? mob.spawnReason(pluginReason) : e);
+        return e;
     }
 
     /**
      * MobBucketItem.spawn → EntityType.spawn(level, 양동이, null, pos, BUCKET, true, false): create → 칸 위에서 바닥에 맞춰 내림 → moveTo(무작위 방향) →
      * 머리·몸통 방향 → finalizeSpawn(BUCKET) → 주변 소리 → 이름(custom_name) → 추가 → loadFromBucketTag → setFromBucket(true).
-     * TODO(ENTITY_DATA 컴포넌트): 양동이의 entity_data 로 덮어쓰는 updateCustomEntityTag.
+     * 이름과 entity_data 는 createDefaultStackConfig 가 입힌다(EntityStackConfig).
      */
     public org.domi.furnace.server.entity.Mob spawnMobFromBucket(String entityType, ItemStack bucket, Pos pos) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
@@ -1671,13 +1696,7 @@ public abstract class ChunkLevel implements BlockLevel {
         mob.setYBodyRot(mob.yRot());
         mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null, org.domi.furnace.server.entity.spawn.SpawnReason.BUCKET);
         mob.makeSound(mob.ambientSoundForSpawn());
-        if (org.domi.furnace.server.item.ItemTools.component(bucket, "minecraft:custom_name") instanceof String json) {
-            try {
-                mob.setCustomName(org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json));
-            } catch (RuntimeException ignored) {
-                // 읽을 수 없는 이름은 이름 없이
-            }
-        }
+        org.domi.furnace.server.entity.EntityStackConfig.apply(this, bucket, null, mob);
         addFreshEntityWithPassengers(mob);
         if (mob instanceof org.domi.furnace.server.entity.Bucketable b) {
             b.loadFromBucketTag(org.domi.furnace.server.entity.Bucketable.bucketTag(bucket));

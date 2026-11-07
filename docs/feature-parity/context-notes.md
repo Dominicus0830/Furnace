@@ -1222,6 +1222,18 @@
 - SoundType 표는 서버를 띄우지 못해 `Blocks.<clinit>` 바이트코드를 읽어 만든다(`tools/vanilla-data/extract_block_sound_types.py` → `blocks/soundtypes_1.21.1.txt`). 문·다락문·버튼·압력판·울타리 문·표지판은 생성자가 `properties.sound(BlockSetType/WoodType 소리)` 로 덮는다는 점이 함정이었다(처음에는 전부 STONE 으로 나왔다).
 - 플레이어는 Entity 가 아니라 `PlayerMovementEmission` 에서 걸음 소리를 낸다. 본인은 빼고 `players` 분류로 보낸다(`PlayerActor` 를 except 로).
 
+## 2026-11-07 아이템 사용 잔여 (묶음 M18)
+- 이미 되어 있던 것: 표지판 밀랍(SignBlock), 음식·활·방패 `startUsingItem`, 플레이어 쇠뇌, 화로 경험치 구슬(`awardExperience`), 이름 있는 수레·배. 이번에 확인만 하고 낡은 TODO 주석만 지웠다.
+- `EntityStackConfig`: `createDefaultStackConfig` — custom_name 먼저, 그다음 `entity_data` 를 엔티티를 저장한 NBT 위에 합쳐(compound 는 안으로) 다시 읽고 UUID 는 복원. `entity_data` 코덱이 `id` 를 요구하므로 id 없는 데이터는 무시된다. 명령 블록 수레(`onlyOpCanSetNbt`)는 권한 있는 플레이어가 놓을 때만, 발사기는 못 한다. 스폰 알 종류는 `entity_data.id` 가 덮고 모르는 종류면 알 기본. 배의 변종은 아이템이, 요는 배치 시점이 정한다.
+- 가방(javap 로 `BundleItem` 대조): 우클릭(SECONDARY)만, 무게는 정확한 분수(1/최대스택, 가방은 1/16+내용, 벌 든 아이템은 1), 새 스택은 맨 앞에 끼움, 셜커 상자는 못 넣음. `FeatureFlags` 는 정적 집합이라 월드 하나의 값만 반영한다(`DataPackManager` 가 설치). 클라이언트에는 아직 바닐라 플래그만 보낸다.
+- 몹 쇠뇌(javap 로 `CrossbowItem` 대조): `getProjectileShotVector` 는 회전마다 벡터를 복사한다. 퍼짐 각은 가운데→왼쪽→오른쪽 순. 첫 발만 실제 탄약을 쓰고 나머지는 줍기 불가 사본. 내구도는 발마다(폭죽 3, 화살 1). 난수 호출 순서(소리 높낮이)는 발 순서대로.
+- 불길한 아이템 생성기(`OminousItemSpawner.spawnItem`): 발사체 아이템이면 `asProjectile(생성기 위치, DOWN)` 을 아래로 shoot, 아니면 아이템 엔티티. 이어서 levelEvent 3021, gameEvent ENTITY_PLACE(새 엔티티가 원인). 소유자(Targetable 아님)는 붙이지 않지만 `setOwner` 의 관측 효과인 화살 줍기 불가(DISALLOWED)는 직접 적용한다(독립 검토 H1).
+- 용의 숨결 병: 엔더 드래곤이 만든 구름(몸 ±2 안)만, 반지름 −0.5, 소리 `item.bottle.fill_dragonbreath`(중립).
+- 시험: `EntityDataStackTest`·`DragonBreathBottleTest`·`BundleMenuTest`·`CrossbowMobTest`·`ConsumingTest`(망원경·엔더의 눈)·`AnvilMenuTest`(기본 이름)·`EntityGameEventsTest`(발사체 아이템).
+- 독립 검토(`/furnace/reviews/m18-pr124-review.md`) 뒤 고친 것: 불길한 생성기 화살 줍기 불가, `onlyOpCanSetNbt` 에 스포너 수레·낙하 블록 추가(바닐라 셋), 망원경 놓을 때 멈춤 소리, 접속 때 켜진 기능 플래그 전송(`FeatureFlags.enabled()` — 클라이언트는 꺼진 기능 아이템의 사용 패킷을 안 보낸다), 스폰 알 주변 소리를 entity_data 앞으로(Silent 알도 생성 때 한 번 운다), 갑옷 거치대는 1.21.1 에 무작위 자세가 없어 지우고 create 의 방향 난수 1회·바닥 맞춤을 넣음, 몹 쇠뇌 JOML 은 FMA 없이 a*b+c(덧셈 순서도 JOML 처럼 x*x+(y*y+z*z)).
+- 안 고친 것(기존 코드): `RangedWeapons.rotate`(사원수 transform)는 아직 `Math.fma` 를 쓴다(플레이어 다중 발사·몹의 대상 없는 갈래), 갑옷 거치대 gameEvent 위치가 거치대가 아닌 칸 위치. 낮음: 모루 기본 이름의 아이템별 getName(서명된 책·물약·머리·색 방패), 구름 소유자 늦은 조회, 구름 여럿일 때 순서, 망원경 1200틱 끝 패킷 순서, `rotateAxis` 단위 축 갈래, 대상 없이 쏠 때 yHeadRot.
+- 남은 것: 스폰 알로 동물 새끼 만들기(`spawnOffspringFromSpawnEgg`).
+
 ## 2026-11-07 플레이어 자세·공유 플래그·탑승 (묶음 M20)
 바닐라 1.21.1 클래스 바이트코드(`aru` ServerGamePacketListenerImpl, `btn` LivingEntity, `bsr` Entity, `cmx` Player)를 `javap -c` 로 읽고 맞췄다. 시험 `PlayerPoseFlagsM20Test`(17), `RegionPlayerFireTest`.
 - **이미 되어 있던 것**: 수영·기어가기·웅크림 자세 전환(`PlayerPose`)과 플레이어 성급함·채굴 피로 휘두르기 시간(`Player.currentSwingDuration`)은 재대조 문서가 낡았다 — 코드에 있었다. 몹(`LivingEntity.getCurrentSwingDuration`)에는 없어서 같은 식(`6−(1+증폭)` / `6+(1+증폭)×2`)으로 넣었다.
