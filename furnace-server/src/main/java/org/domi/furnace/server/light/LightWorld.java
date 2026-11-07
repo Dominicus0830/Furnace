@@ -8,6 +8,15 @@ public interface LightWorld {
     /** 올라와 있는 청크의 블록 상태(월드 높이 밖은 void_air). */
     int state(int x, int y, int z);
 
+    /**
+     * 올라와 있는 청크의 한 구역(sectionY = 블록 y >> 4)이 한 상태로만 차 있으면 그 상태, 모르거나 섞였으면 -1.
+     * 빠른 경로용 힌트일 뿐이다 — -1 을 돌려도 결과는 같고 느릴 뿐이다.
+     */
+    default int uniformSectionState(int chunkX, int sectionY, int chunkZ) { return -1; }
+
+    /** 그 구역에 빛을 내는 블록이 있을 수도 있는가(바닐라 findBlockLightSources 의 maybeHas). false 면 확실히 없다. 기본 true. */
+    default boolean sectionMayEmit(int chunkX, int sectionY, int chunkZ) { return true; }
+
     /** 올라오지 않은 청크 칸으로 보는 상태(바닐라: 기반암). */
     int unloadedState();
 

@@ -1087,7 +1087,7 @@ public final class ServerCore {
             return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
         public float borderDamage(Player player, double x, double y, double z) {
-            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder();
+            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder(player.dimension());
             return (own != null ? own : borderOf(player.dimension())).computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
     };
