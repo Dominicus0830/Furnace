@@ -21,6 +21,9 @@ public interface LightWorld {
     /** 계산 끝 — 캐시를 비우고 쓰기를 멈춘다. */
     default void end() {}
 
+    /** 그 칸의 가짜 발광(플러그인 빛 API — 블록 발광과 큰 쪽을 쓴다). 기본 0. */
+    default int extraEmission(int x, int y, int z) { return 0; }
+
     /** 칸의 빛 값을 썼다(LayerLightSectionStorage.setStoredLevel → sectionsAffectedByLightUpdates). sky 면 하늘빛. */
     default void lightChanged(int x, int y, int z, boolean sky) {}
 }

@@ -44,6 +44,14 @@ class OperatorOptionsTest {
     }
 
     @Test
+    void motdFormatDefaultsToPlainAndValidates() {
+        assertEquals("plain", OperatorOptions.DEFAULT.motdFormat());
+        assertEquals("markup", parse(new ArrayList<>(), "motd-format", " Markup ").motdFormat());
+        assertEquals("legacy", parse(new ArrayList<>(), "motd-format", "legacy").motdFormat());
+        assertThrows(IllegalArgumentException.class, () -> parse(new ArrayList<>(), "motd-format", "html"));
+    }
+
+    @Test
     void blankBrandFallsBack() {
         assertEquals("Furnace", parse(new ArrayList<>(), "server-brand", "  ").serverBrand());
     }

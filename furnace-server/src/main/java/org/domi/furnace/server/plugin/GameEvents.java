@@ -145,6 +145,19 @@ public interface GameEvents {
     /** 서버 목록 응답: 바꿀 값, null 이면 그대로. 네트워크 스레드에서. */
     default StatusOverride serverListPing(java.net.InetAddress address, String motd, int online, int max, boolean hidePlayers) { return null; }
 
+    /** 데이터 팩 함수 실행 직전(구독자가 없으면 호출되지 않는 것과 같다): false 면 함수 본문을 건너뛴다. */
+    default boolean functionExecute(org.domi.furnace.server.command.CommandSource source, String function,
+                                    org.domi.furnace.api.event.server.FunctionExecuteEvent.Trigger trigger, int depth) { return true; }
+
+    /** 함수 실행 구독자가 있는가 — 함수 호출마다 부르는 길목의 빠른 검사. */
+    default boolean wantsFunctionExecute() { return false; }
+
+    /** 함수 줄 하나 실행 직전: false 면 그 줄만 건너뛴다. */
+    default boolean functionCommand(org.domi.furnace.server.command.CommandSource source, String command, int depth) { return true; }
+
+    /** 구독자가 있는가 — 함수 줄마다 부르는 길목의 빠른 검사. */
+    default boolean wantsFunctionCommands() { return false; }
+
     /** 서버 목록 응답 덮어쓰기(motdJson 이 null 이면 MOTD 는 그대로). */
     record StatusOverride(String motdJson, int online, int max, boolean hidePlayers) {}
 

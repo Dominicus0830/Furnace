@@ -32,9 +32,9 @@ class FurnaceAdminCommandsTest {
 
     private static List<Regionizer.RegionInfo> regions() {
         return List.of(
-                new Regionizer.RegionInfo(1, 2, 30, 0, null, 0, 1 * MS, 2 * MS, -4, -4, 3, 3),
-                new Regionizer.RegionInfo(2, 1, 9, 5, "furnace-region-1", 12 * MS, 8 * MS, 40 * MS, 100, 100, 107, 107),
-                new Regionizer.RegionInfo(3, 1, 4, 1, null, 0, 3 * MS, 6 * MS, 200, 0, 207, 7));
+                new Regionizer.RegionInfo(1, 2, 30, 0, null, 0, 1 * MS, 2 * MS, -4, -4, 3, 3, 0),
+                new Regionizer.RegionInfo(2, 1, 9, 5, "furnace-region-1", 12 * MS, 8 * MS, 40 * MS, 100, 100, 107, 107, 2),
+                new Regionizer.RegionInfo(3, 1, 4, 1, null, 0, 3 * MS, 6 * MS, 200, 0, 207, 7, 0));
     }
 
     private static DimView dim() {

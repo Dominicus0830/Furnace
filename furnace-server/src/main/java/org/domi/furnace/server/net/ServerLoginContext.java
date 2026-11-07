@@ -162,6 +162,7 @@ public final class ServerLoginContext {
         var ov = events.serverListPing(address, motd, online.size(), maxPlayers, hideOnlinePlayers);
         JsonObject o = new JsonObject();
         if (ov != null && ov.motdJson() != null) o.add("description", com.google.gson.JsonParser.parseString(ov.motdJson()));
+        else if (Motd.isRich()) o.add("description", com.google.gson.JsonParser.parseString(Motd.parse(motd).toJson()));
         else o.add("description", new JsonPrimitive(motd));
         JsonObject players = new JsonObject();
         players.addProperty("max", ov != null ? ov.max() : maxPlayers);

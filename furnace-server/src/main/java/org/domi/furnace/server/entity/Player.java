@@ -268,6 +268,25 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 플레이어 데이터 파일에 RootVehicle 이 남아 있다고 아는가(주인 region 스레드 전용, PlayerVehicleSave). */
     public boolean rootVehicleOnDisk;
+
+    /** 연결이 단 저장 요청 입구(save-all·백업): 이벤트 루프에서 스냅샷을 떠 플레이어 데이터 실행기에 넣은 뒤 완료. 연결 전·시험은 null. */
+    private volatile java.util.function.Supplier<java.util.concurrent.CompletableFuture<Void>> saveRequest;
+
+    public void saveRequest(java.util.function.Supplier<java.util.concurrent.CompletableFuture<Void>> r) { this.saveRequest = r; }
+
+    /**
+     * 지금 상태를 저장하라고 요청한다(바닐라 PlayerList.saveAll 의 한 사람 몫). 반환 future 는 저장이 플레이어 데이터 실행기(world.playerIo)에
+     * 들어간 뒤 완료 — 실제 기록은 그 실행기 순서대로 뒤따른다. 끊겼거나 입구가 없으면 바로 완료.
+     */
+    public java.util.concurrent.CompletableFuture<Void> requestSave() {
+        var r = saveRequest;
+        if (r == null || isDisconnected()) return java.util.concurrent.CompletableFuture.completedFuture(null);
+        try {
+            return r.get();
+        } catch (RuntimeException e) {
+            return java.util.concurrent.CompletableFuture.failedFuture(e);
+        }
+    }
     /** 퇴장 때 탈것 처리를 마쳤다(두 번 하지 않는다). */
     boolean quitMountHandled;
 

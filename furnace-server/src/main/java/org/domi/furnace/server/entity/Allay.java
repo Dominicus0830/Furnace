@@ -26,6 +26,10 @@ import org.domi.furnace.server.world.gameevent.PositionSource;
 import org.domi.furnace.server.world.gameevent.VibrationSystem;
 
 public class Allay extends PathfinderMob implements InventoryCarrier, VibrationSystem {
+
+    /** 바닐라는 낙하 처리를 비운다(날아다니는 몹은 착지 입자·낙하 거리·HIT_GROUND 가 없다). */
+    @Override
+    protected void checkFallDamage(double dy, boolean ground, int state, org.domi.furnace.server.block.Pos pos) {}
     public static final int DATA_DANCING = 16, DATA_CAN_DUPLICATE = 17;
     public static final float[] THROW_SOUND_PITCHES = {0.5625F, 0.625F, 0.75F, 0.9375F, 1.0F, 1.0F, 1.125F, 1.25F, 1.5F, 1.875F, 2.0F, 2.25F, 2.5F, 3.0F, 3.75F, 4.0F};
     public static final int DUPLICATION_COOLDOWN_TICKS = 6000;

@@ -58,6 +58,9 @@ public final class PluginHost implements Furnace {
 
     public ServerCore core() { return core; }
 
+    @Override
+    public org.domi.furnace.api.world.ServerTps tps() { return core.serverTps(); }
+
     public EventBusImpl eventsImpl() { return events; }
 
     PermissionManagerImpl permissionsImpl() { return permissions; }
@@ -82,6 +85,14 @@ public final class PluginHost implements Furnace {
 
     @Override
     public org.domi.furnace.api.virtual.VirtualEntities virtualEntities() { return virtualEntities; }
+
+    private final LightSourcesImpl lightSources = new LightSourcesImpl(this);
+
+    /** 가짜 광원 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */
+    public LightSourcesImpl lightSourcesImpl() { return lightSources; }
+
+    @Override
+    public org.domi.furnace.api.light.LightSources lightSources() { return lightSources; }
 
     private final EntityViewsImpl entityViews = new EntityViewsImpl(this);
 
@@ -181,6 +192,10 @@ public final class PluginHost implements Furnace {
 
     private final ServiceRegistryImpl services = new ServiceRegistryImpl(this);
     private final AccessListsImpl access = new AccessListsImpl(this);
+    private final TranslationServiceImpl translations = new TranslationServiceImpl();
+
+    @Override
+    public TranslationServiceImpl translations() { return translations; }
 
     @Override
     public ServiceRegistryImpl services() { return services; }
@@ -366,7 +381,7 @@ public final class PluginHost implements Furnace {
     public int maxPlayers() { return core.settings().get().maxPlayers; }
 
     @Override
-    public Text motd() { return Text.text(core.settings().get().motd); }
+    public Text motd() { return org.domi.furnace.server.net.Motd.parse(core.settings().get().motd); }
 
     @Override
     public CommandSender console() { return console; }

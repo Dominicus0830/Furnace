@@ -382,9 +382,20 @@ public final class FurnaceMain {
         org.domi.furnace.server.command.builtin.WorldsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.BackupCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
+            // 바닐라 saveEverything: 플레이어(PlayerList.saveAll) → 청크 → level.dat. 플레이어 기록은 전용 실행기에서 — 끝날 때까지 기다린다
+            java.util.List<java.util.concurrent.CompletableFuture<Void>> players = new java.util.ArrayList<>();
+            for (var p : core.players()) players.add(p.requestSave());
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
+            worldManager.saveLevelData();
+            try {
+                java.util.concurrent.CompletableFuture.allOf(players.toArray(new java.util.concurrent.CompletableFuture[0])).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                java.util.concurrent.CompletableFuture.runAsync(() -> { }, world.playerIo()).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.warn("save-all: 플레이어 데이터 저장이 30초 안에 끝나지 않았다", e);
+            }
         });
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
@@ -394,6 +405,8 @@ public final class FurnaceMain {
         CountDownLatch shutdown = new CountDownLatch(1);
         // 운영·관측 서비스(RCON·Query·워치독): 전용 IO/데몬 스레드. 종료 훅이 가장 먼저 닫는다.
         java.util.List<AutoCloseable> remoteServices = new java.util.concurrent.CopyOnWriteArrayList<>();
+        // 빈 서버 일시정지·주기 백업(furnace.properties idle-pause.*, backup.*, 기본 꺼짐). 저장·복사는 유지보수 스레드에서.
+        remoteServices.add(installMaintenance(furnaceProps, core, dimensions, worldManager, world, worldDir, saveLevelData));
 
         // 종료 순서 계약(ShutdownSequence.Step 순서, docs/api/lifecycle.md): 종료 이벤트 → 플러그인 끄기(접속자·region 살아 있음)
         // → 원격 서비스 → 네트워크 → region 저장 → 저장소 → 스케줄러 → 플러그인 클래스로더. region 정지는 onDisable 이 다 끝난 뒤다.
@@ -505,6 +518,70 @@ public final class FurnaceMain {
         shutdown.await();
     }
 
+    /** 빈 서버 일시정지와 주기 백업을 건다. 닫으면 유지보수 스레드를 멈춘다(종료 훅). */
+    private static AutoCloseable installMaintenance(Path furnaceProps, ServerCore core, org.domi.furnace.server.world.Dimensions dimensions,
+                                                    org.domi.furnace.server.world.WorldManager worldManager, World world, Path worldDir,
+                                                    Runnable saveLevelData) {
+        var opts = org.domi.furnace.server.maintenance.MaintenanceOptions.load(furnaceProps, log::warn);
+        var maintenance = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "furnace-maintenance");
+            t.setDaemon(true);
+            return t;
+        });
+        var backup = new org.domi.furnace.server.maintenance.WorldBackup(opts, new org.domi.furnace.server.maintenance.WorldBackup.Hooks() {
+            @Override public java.util.List<World> worlds() { return dimensions.all(); }
+            @Override public void holdGlobal(boolean on) { core.holdGlobalTicks(on); }
+            @Override public java.util.concurrent.CompletableFuture<Void> quiesceGlobal() { return core.quiesceGlobal(); }
+            @Override public java.util.List<java.util.concurrent.CompletableFuture<Void>> requestPlayerSaves() {
+                java.util.List<java.util.concurrent.CompletableFuture<Void>> out = new java.util.ArrayList<>();
+                for (var p : core.players()) out.add(p.requestSave());
+                return out;
+            }
+            @Override public void saveLevelData() {
+                saveLevelData.run();
+                worldManager.saveLevelData();
+            }
+            @Override public java.util.concurrent.Executor playerIo() { return world.playerIo(); }
+            @Override public Path mainWorldDir() { return worldDir; }
+            @Override public boolean anyoneOnline() { return !core.players().isEmpty(); }
+            @Override public long joinCount() { return world.joinCount(); }
+        }, maintenance);
+        core.backup(backup);
+        backup.cleanStaleStaging();
+        if (opts.backupEnabled()) {
+            long period = opts.backupIntervalMinutes();
+            maintenance.scheduleWithFixedDelay(backup::runScheduled, period, period, java.util.concurrent.TimeUnit.MINUTES);
+            log.info("[BACKUP] 주기 백업 {}분마다 → {} ({}, {}개 보관)", period, opts.backupDirectory().toAbsolutePath(),
+                    opts.backupFormat().name().toLowerCase(java.util.Locale.ROOT), opts.backupKeep() == 0 ? "모두" : opts.backupKeep());
+        }
+        if (opts.idlePauseEnabled()) {
+            core.idlePause(new org.domi.furnace.server.maintenance.IdlePause(opts.idlePauseSeconds(), opts.idlePauseFlush(),
+                    new org.domi.furnace.server.maintenance.IdlePause.Hooks() {
+                        @Override public void holdWorlds(boolean on) { for (World w : dimensions.all()) w.holdTicks(on); }
+                        @Override public void saveAll() { core.saveAll(); }
+                        @Override public void flushCaches() {
+                            // 레인에 남은 저장이 끝난 뒤 지역 파일 핸들을 닫는다(다음 읽기·쓰기가 다시 연다) — 쉬는 동안 fd·버퍼 반납
+                            int closed = 0;
+                            for (World w : dimensions.all()) {
+                                w.ioBarrier().join();
+                                for (var st : w.regionFileStores()) {
+                                    try {
+                                        st.closeAll();
+                                        closed++;
+                                    } catch (java.io.IOException e) {
+                                        log.warn("[PAUSE] 지역 파일 닫기 실패 {}", st.regionDir(), e);
+                                    }
+                                }
+                            }
+                            System.gc();
+                            log.info("[PAUSE] 저장 완료, 지역 파일 저장소 {}개를 닫고 GC 를 권했다", closed);
+                        }
+                    }, maintenance));
+            log.info("[PAUSE] 접속자가 없으면 {}초 뒤 틱을 멈춘다(idle-pause.empty-seconds)", opts.idlePauseSeconds());
+        }
+        return maintenance::shutdownNow;
+    }
+
     /** 바닐라 DedicatedServer.initServer 끝: enable-query → enable-rcon → 워치독(max-tick-time &gt; 0). */
     private static void startRemoteServices(ServerCore core, ServerProperties props, Config config,
                                        org.domi.furnace.server.remote.RconLimits rconLimits, java.util.List<AutoCloseable> out) {
@@ -550,7 +627,12 @@ public final class FurnaceMain {
 
     /** Query 응답이 읽는 서버 정보(기동 때 값 + 접속자 수·이름은 매번). */
     private record QueryInfo(ServerCore core, ServerProperties props, Config config, String hostIp) implements org.domi.furnace.server.remote.QueryHandler.Info {
-        @Override public String motd() { return props.motd; }
+        @Override public String motd() {
+            // Query 는 § 코드 문자열 — 마크업·& 형식이면 해석해 § 로 다시 쓴다(plain 은 바닐라처럼 원문 그대로)
+            return org.domi.furnace.server.net.Motd.isRich()
+                    ? org.domi.furnace.api.text.serializer.LegacyTextSerializer.section().serialize(org.domi.furnace.server.net.Motd.parse(props.motd))
+                    : props.motd;
+        }
         @Override public String levelName() { return config.levelName(); }
         @Override public String version() { return "1.21.1"; }
         @Override public String plugins() { return ""; }
