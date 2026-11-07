@@ -232,7 +232,8 @@ class PluginProfilerTest {
         for (int i = 0; i < 250; i++) {
             p = plugin(host.profiler().report(), "Probe");
             if (p != null && p.globalNanos() > 0 && p.regionNanos() > 0 && p.otherNanos() > 0
-                    && p.sections().stream().filter(s -> s.kind() == Kind.TASK).count() >= 2) break;
+                    && p.sections().stream().filter(s -> s.kind() == Kind.TASK).count() >= 2
+                    && section(p, Kind.ASYNC, "ProbePlugin") != null) break;   // 비동기 람다 기록까지 기다린다(부하 때 경합)
             Thread.sleep(20);
         }
         assertNotNull(p);
