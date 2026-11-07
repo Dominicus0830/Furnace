@@ -215,7 +215,9 @@ class DimensionChangeTest {
         Player p = (Player) field("player");
         over.levelServices(new org.domi.furnace.server.block.LevelServices.Delegating(over.levelServices()) {
             @Override public int gameRuleInt(String name) {
-                return "playersNetherPortalDefaultDelay".equals(name) ? 60 : super.gameRuleInt(name);   // 3초 기다림
+                // 3초 기다림. 시험 플레이어는 ServerCore 없이 접속해 기본 게임 모드가 크리에이티브(무적)라서 바닐라
+                // getPlayerTransitionTime 은 playersNetherPortalCreativeDelay(기본 1틱)를 쓴다 — 두 규칙을 다 바꿔야 기다린다.
+                return "playersNetherPortalDefaultDelay".equals(name) || "playersNetherPortalCreativeDelay".equals(name) ? 60 : super.gameRuleInt(name);
             }
         });
         over.submitAtChunk(new ChunkPos(1, 0), r -> {

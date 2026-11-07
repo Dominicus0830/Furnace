@@ -27,13 +27,16 @@ public final class EventBridge {
         final Class<F> furnace;
         private final Function<F, B> create;
         private final BiConsumer<F, B> push;
+        /** 전달 직전에 Furnace 이벤트의 현재 값을 Bukkit 이벤트로 옮긴다(앞선 처리기들이 바꾼 값을 보이고, 되돌려 쓰기가 낡은 값을 쓰지 않게). */
+        private final BiConsumer<F, B> pull;
         private final Map<F, Object> live = Collections.synchronizedMap(new WeakHashMap<>());
 
-        Mapping(Class<B> bukkit, Class<F> furnace, Function<F, B> create, BiConsumer<F, B> push) {
+        Mapping(Class<B> bukkit, Class<F> furnace, Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull) {
             this.bukkit = bukkit;
             this.furnace = furnace;
             this.create = create;
             this.push = push;
+            this.pull = pull;
         }
 
         /** 이 Furnace 이벤트의 Bukkit 이벤트(처음 부르면 만든다). 건너뛰는 이벤트면 null. */
@@ -59,9 +62,19 @@ public final class EventBridge {
 
     private EventBridge() {}
 
+    /** 값을 되돌려 쓰지 않는 이벤트(취소 상태만 오간다). */
     static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void reg(Class<F> furnace, Class<B> bukkit,
                                                                                                     Function<F, B> create, BiConsumer<F, B> push) {
-        BY_BUKKIT.put(bukkit, new Mapping<>(bukkit, furnace, create, push));
+        BY_BUKKIT.put(bukkit, new Mapping<>(bukkit, furnace, create, push, (f, b) -> {}));
+    }
+
+    /**
+     * 값을 되돌려 쓰는 이벤트. pull 은 전달 직전에 Furnace 의 현재 값을 Bukkit 이벤트에 맞추고, push 는 전달 뒤 Bukkit 이벤트가 그 값과 달라졌을 때만
+     * Furnace 에 쓴다 — 사이에 낀 Furnace 고유 처리기의 변경을 낡은 값으로 덮어쓰지 않는다.
+     */
+    static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void reg(Class<F> furnace, Class<B> bukkit,
+                                                                                                    Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull) {
+        BY_BUKKIT.put(bukkit, new Mapping<>(bukkit, furnace, create, push, pull));
     }
 
     /** 이 Bukkit 이벤트를 받을 수 있는가(Furnace 이벤트와 이어졌는가). 플러그인이 직접 만든 이벤트는 false. */
@@ -88,6 +101,7 @@ public final class EventBridge {
                                                                                                                 org.bukkit.event.EventPriority priority, F f) {
         B b = m.bukkitFor(f);
         if (b == null) return;
+        m.pull.accept(f, b);
         org.domi.furnace.api.event.Cancellable fc = f instanceof org.domi.furnace.api.event.Cancellable c ? c : null;
         org.bukkit.event.Cancellable bc = b instanceof org.bukkit.event.Cancellable c ? c : null;
         if (fc != null && bc != null && bc.isCancelled() != fc.isCancelled()) bc.setCancelled(fc.isCancelled());   // 앞선 Furnace 처리기의 결과를 먼저 보인다

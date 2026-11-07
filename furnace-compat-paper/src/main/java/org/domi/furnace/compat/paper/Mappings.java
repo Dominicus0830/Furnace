@@ -27,7 +27,15 @@ final class Mappings {
         registerOther();
     }
 
+    private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
     private static Player p(org.domi.furnace.api.entity.Player f) { return Compat.player(f); }
+
+    /** 전달 직전: Furnace 의 현재 문구가 Bukkit 이벤트의 것과 다르면 Bukkit 쪽을 맞춘다. */
+    private static void pullText(Text current, String bukkitLegacy, Consumer<String> setter) {
+        String cur = Compat.legacy(current);
+        if (!Objects.equals(cur, bukkitLegacy)) setter.accept(cur);
+    }
 
     private static void pushText(String newLegacy, Text current, Consumer<Text> setter) {
         if (!Objects.equals(newLegacy, Compat.legacy(current))) setter.accept(Compat.text(newLegacy));
@@ -36,21 +44,27 @@ final class Mappings {
     private static void registerPlayer() {
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerJoinEvent.class, org.bukkit.event.player.PlayerJoinEvent.class,
                 f -> new org.bukkit.event.player.PlayerJoinEvent(p(f.player()), Compat.legacy(f.joinMessage())),
-                (f, b) -> pushText(b.getJoinMessage(), f.joinMessage(), t -> f.joinMessage(t)));
+                (f, b) -> pushText(b.getJoinMessage(), f.joinMessage(), t -> f.joinMessage(t)),
+                (f, b) -> pullText(f.joinMessage(), b.getJoinMessage(), b::setJoinMessage));
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerQuitEvent.class, org.bukkit.event.player.PlayerQuitEvent.class,
                 f -> new org.bukkit.event.player.PlayerQuitEvent(p(f.player()), Compat.legacy(f.quitMessage())),
-                (f, b) -> pushText(b.getQuitMessage(), f.quitMessage(), t -> f.quitMessage(t)));
+                (f, b) -> pushText(b.getQuitMessage(), f.quitMessage(), t -> f.quitMessage(t)),
+                (f, b) -> pullText(f.quitMessage(), b.getQuitMessage(), b::setQuitMessage));
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerKickEvent.class, org.bukkit.event.player.PlayerKickEvent.class,
                 f -> new org.bukkit.event.player.PlayerKickEvent(p(f.player()), Compat.legacy(f.reason()), "§e" + f.player().name() + " left the game"),
-                (f, b) -> pushText(b.getReason(), f.reason(), t -> f.setReason(t == null ? Text.empty() : t)));
+                (f, b) -> pushText(b.getReason(), f.reason(), t -> f.setReason(t == null ? Text.empty() : t)),
+                (f, b) -> pullText(f.reason(), b.getReason(), b::setReason));
         EventBridge.reg(org.domi.furnace.api.event.player.AsyncChatEvent.class, org.bukkit.event.player.AsyncPlayerChatEvent.class,
                 f -> new org.bukkit.event.player.AsyncPlayerChatEvent(f.isAsync(), p(f.player()), Compat.legacy(f.message()), new ReadOnlyPlayers(onlinePlayers())),
                 (f, b) -> {
                     pushText(b.getMessage(), f.message(), t -> f.message(t == null ? Text.empty() : t));
                     String fmt = b.getFormat();
-                    if (!"<%1$s> %2$s".equals(fmt)) {
+                    if (!Objects.equals(fmt, FORMAT_BASE.get(b))) {
                         f.renderer((source, name, message, viewer) -> Compat.text(String.format(fmt, Compat.legacy(name), Compat.legacy(message))));
                     }
+                }, (f, b) -> {
+                    pullText(f.message(), b.getMessage(), b::setMessage);
+                    FORMAT_BASE.put(b, b.getFormat());   // 이 전달에서 서식이 바뀌었는지는 이 값과 견준다(다른 처리기가 정한 renderer 를 낡은 서식으로 덮지 않게)
                 });
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerMoveEvent.class, org.bukkit.event.player.PlayerMoveEvent.class,
                 f -> new org.bukkit.event.player.PlayerMoveEvent(p(f.player()), Compat.location(f.from()), Compat.location(f.to())), (f, b) -> {});
@@ -61,6 +75,9 @@ final class Mappings {
                 (f, b) -> {
                     var loc = Compat.location(b.getRespawnLocation());
                     if (!loc.equals(f.respawnLocation())) f.respawnLocation(loc);
+                }, (f, b) -> {
+                    var cur = Compat.location(f.respawnLocation());
+                    if (cur != null && !Compat.location(b.getRespawnLocation()).equals(f.respawnLocation())) b.setRespawnLocation(cur);
                 });
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerChangedWorldEvent.class, org.bukkit.event.player.PlayerChangedWorldEvent.class,
                 f -> {
@@ -79,6 +96,8 @@ final class Mappings {
                 f -> new org.bukkit.event.player.PlayerCommandPreprocessEvent(p(f.player()), f.message()),
                 (f, b) -> {
                     if (!b.getMessage().equals(f.message())) f.message(b.getMessage());
+                }, (f, b) -> {
+                    if (!b.getMessage().equals(f.message())) b.setMessage(f.message());
                 });
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerLevelChangeEvent.class, org.bukkit.event.player.PlayerLevelChangeEvent.class,
                 f -> new org.bukkit.event.player.PlayerLevelChangeEvent(p(f.player()), f.oldLevel(), f.newLevel()), (f, b) -> {});
@@ -86,6 +105,8 @@ final class Mappings {
                 f -> new org.bukkit.event.player.PlayerExpChangeEvent(p(f.player()), f.amount()),
                 (f, b) -> {
                     if (b.getAmount() != f.amount()) f.setAmount(b.getAmount());
+                }, (f, b) -> {
+                    if (b.getAmount() != f.amount()) b.setAmount(f.amount());
                 });
     }
 
@@ -113,6 +134,8 @@ final class Mappings {
                 f -> new org.bukkit.event.entity.EntityDamageEvent(Compat.entity(f.entity()), cause(f.cause()), f.damage()),
                 (f, b) -> {
                     if ((float) b.getDamage() != f.damage()) f.setDamage((float) b.getDamage());
+                }, (f, b) -> {
+                    if ((float) b.getDamage() != f.damage()) b.setDamage(f.damage());
                 });
         EventBridge.reg(org.domi.furnace.api.event.server.PluginEnableEvent.class, org.bukkit.event.server.PluginEnableEvent.class,
                 f -> {
@@ -128,6 +151,8 @@ final class Mappings {
                 f -> new org.bukkit.event.server.ServerCommandEvent(Compat.sender(f.sender()), f.command()),
                 (f, b) -> {
                     if (!Objects.equals(b.getCommand(), f.command())) f.command(b.getCommand());
+                }, (f, b) -> {
+                    if (!Objects.equals(b.getCommand(), f.command())) b.setCommand(f.command());
                 });
         EventBridge.reg(org.domi.furnace.api.event.server.ServerLoadEvent.class, org.bukkit.event.server.ServerLoadEvent.class,
                 f -> new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP), (f, b) -> {});
@@ -153,13 +178,16 @@ final class Mappings {
             case "arrow", "trident", "mob_projectile", "fireball", "unattributed_fireball", "wither_skull", "thrown", "spit", "fireworks" -> DamageCause.PROJECTILE;
             case "in_wall" -> DamageCause.SUFFOCATION;
             case "fall", "ender_pearl" -> DamageCause.FALL;
-            case "in_fire", "campfire" -> DamageCause.FIRE;
+            case "in_fire" -> DamageCause.FIRE;
+            case "campfire" -> DamageCause.CAMPFIRE;
             case "on_fire" -> DamageCause.FIRE_TICK;
             case "lava" -> DamageCause.LAVA;
             case "drown" -> DamageCause.DROWNING;
             case "explosion", "player_explosion" -> DamageCause.ENTITY_EXPLOSION;
             case "bad_respawn_point" -> DamageCause.BLOCK_EXPLOSION;
-            case "out_of_world", "outside_border", "generic_kill" -> DamageCause.VOID;
+            case "out_of_world" -> DamageCause.VOID;
+            case "outside_border" -> DamageCause.WORLD_BORDER;
+            case "generic_kill" -> DamageCause.KILL;   // /kill (Bukkit 의 KILL·WORLD_BORDER 는 기억 기준 — 원문 대조 전
             case "lightning_bolt" -> DamageCause.LIGHTNING;
             case "starve" -> DamageCause.STARVATION;
             case "magic", "indirect_magic" -> DamageCause.MAGIC;

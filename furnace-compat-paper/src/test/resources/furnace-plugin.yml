@@ -1,0 +1,14 @@
+name: CompatTest
+version: 1.0.0
+main: org.domi.furnace.compat.CompatTestPlugin
+commands:
+  kit:
+    description: 키트
+    aliases: [k, kits]
+    permission: compat.kit
+    usage: "Usage: /<command> <name>"
+  open:
+    description: 누구나 쓴다
+  boom:
+    description: 예외를 던진다
+    usage: ""

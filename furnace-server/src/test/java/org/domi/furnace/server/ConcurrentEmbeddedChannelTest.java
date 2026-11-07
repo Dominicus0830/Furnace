@@ -35,4 +35,19 @@ class ConcurrentEmbeddedChannelTest {
         assertEquals(threads * perThread, ran.get());
         ch.finishAndReleaseAll();
     }
+
+    @Test
+    void tasksDoNotRunNestedInsideAnotherTask() {
+        ConcurrentEmbeddedChannel ch = new ConcurrentEmbeddedChannel();
+        java.util.List<String> order = new java.util.ArrayList<>();
+        ch.eventLoop().execute(() -> {
+            order.add("A-start");
+            ch.writeAndFlush("x");   // EmbeddedChannel 은 write·flush 뒤에 runPendingTasks 를 다시 부른다
+            order.add("A-end");
+        });
+        ch.eventLoop().execute(() -> order.add("B"));
+        ch.runPendingTasks();
+        assertEquals(java.util.List.of("A-start", "A-end", "B"), order);
+        ch.finishAndReleaseAll();
+    }
 }

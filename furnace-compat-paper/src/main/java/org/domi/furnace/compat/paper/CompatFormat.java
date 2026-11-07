@@ -60,7 +60,7 @@ public final class CompatFormat implements PluginFormat {
         fs.remove("api-version");
         fs.remove("bootstrapper");
         PluginDescription d = PluginDescription.read(fs);
-        descriptors.put(d.name().toLowerCase(Locale.ROOT), pdf);
+        descriptors.put(key(d.name(), d.main()), pdf);
         return d;
     }
 
@@ -122,6 +122,9 @@ public final class CompatFormat implements PluginFormat {
         return out;
     }
 
+    /** 이름이 같은 jar 가 둘일 때(부트스트랩이 하나를 버린다) 버려진 쪽 설명이 덮어쓰지 않게 main 클래스까지 키로 쓴다. */
+    private static String key(String name, String main) { return name.toLowerCase(Locale.ROOT) + "|" + main; }
+
     @Override
     public FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException {
         if (!JavaPlugin.class.isAssignableFrom(main)) {
@@ -129,7 +132,7 @@ public final class CompatFormat implements PluginFormat {
         }
         Bukkit.setServer(CompatServer.INSTANCE);
         PluginDescription d = context.description();
-        PluginDescriptionFile pdf = descriptors.get(d.name().toLowerCase(Locale.ROOT));
+        PluginDescriptionFile pdf = descriptors.get(key(d.name(), d.main()));
         if (pdf == null) pdf = new PluginDescriptionFile(d.name(), d.version(), d.main());
         BukkitPluginAdapter adapter = new BukkitPluginAdapter(pdf);
         PluginInit.expect(new PluginInit(adapter, pdf, context.logger(), context.dataFolder().toFile(), context.file().toFile(), context.classLoader()));

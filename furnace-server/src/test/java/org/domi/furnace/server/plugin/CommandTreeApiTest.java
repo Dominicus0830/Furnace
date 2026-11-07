@@ -105,6 +105,26 @@ class CommandTreeApiTest {
         host.commands().updateCommands(host.console());
     }
 
+    /** H2: 이름까지 받는 실행·자동완성은 친 이름(별칭·네임스페이스 형태 포함)을 받고, 덮어쓰지 않은 명령은 종전처럼 인자만 받는다. */
+    @Test
+    void basicCommandReceivesTypedLabelAndOldStyleStillWorks() throws Exception {
+        List<String> got = new CopyOnWriteArrayList<>();
+        host.commands().register(plugin, "labeled", "", List.of("lab"), new org.domi.furnace.api.command.BasicCommand() {
+            public void execute(org.domi.furnace.api.command.CommandSender s, String[] args) { got.add("noLabel"); }
+            public void execute(org.domi.furnace.api.command.CommandSender s, String label, String[] args) { got.add(label + "|" + String.join(",", args)); }
+            public List<String> suggest(org.domi.furnace.api.command.CommandSender s, String label, String[] args) { return List.of(label + "-x"); }
+        });
+        host.commands().register(plugin, "old", (sender, args) -> got.add("old|" + args.length));
+        host.dispatchCommand(host.console(), "labeled a b");
+        host.dispatchCommand(host.console(), "lab c");
+        host.dispatchCommand(host.console(), "alpha:labeled");
+        host.dispatchCommand(host.console(), "old 1 2");
+        barrier();
+        assertEquals(List.of("labeled|a,b", "lab|c", "alpha:labeled|", "old|2"), got);
+        var s = core.commands().suggestions(CommandSource.console(core), "/lab ").get();
+        assertEquals(List.of("lab-x"), s.getList().stream().map(x -> x.getText()).toList());
+    }
+
     private static int nodeCount(CommandTreePacket p) {
         var buf = io.netty.buffer.Unpooled.buffer();
         p.write(buf);
