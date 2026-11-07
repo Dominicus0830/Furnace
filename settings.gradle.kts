@@ -15,7 +15,7 @@ val skipOracle = providers.gradleProperty("skipOracle")
     .map { !it.equals("false", ignoreCase = true) }
     .getOrElse(false)
 
-include("furnace-api", "furnace-server", "furnace-plugin-test", "furnace-test")
+include("furnace-api", "furnace-server", "furnace-plugin-test", "furnace-test", "furnace-compat-paper")
 if (skipOracle) {
     if (gradle.startParameter.taskNames.any { it.contains("worldgen-oracle") }) {
         throw GradleException("worldgen-oracle 이 skipOracle 로 제외됨 — 플래그를 빼고 다시 실행하세요")

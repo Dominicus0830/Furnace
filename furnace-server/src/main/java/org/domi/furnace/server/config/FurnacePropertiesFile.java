@@ -122,6 +122,7 @@ public final class FurnacePropertiesFile {
                 opt("plugins.dev-mode", false, "개발 모드(플러그인 핫 리로드 /plugins reload <이름>)."),
                 opt("plugins.dev-mode.auto-reload", false, "개발 모드에서 plugins/*.jar 가 바뀌면 알아서 다시 읽는다."),
                 commented("plugins.log-level.<플러그인이름>", "INFO", "플러그인별 로그 수준(SEVERE, WARNING, INFO, FINE ...)."),
+                opt("plugins.compat.bukkit", true, "Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터. 끄면 plugins/bukkit-plugins/ 와 plugin.yml jar 를 읽지 않는다."),
                 opt("plugins.libraries.enabled", false, "플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다."),
                 commented("plugins.libraries.offline", false, "캐시에 있는 것만 쓴다(enabled=true 일 때만 — 꺼져 있을 때 적으면 경고)."),
                 commented("plugins.libraries.transitive", true, "라이브러리의 compile/runtime 의존까지 받는다(enabled=true 일 때만)."),

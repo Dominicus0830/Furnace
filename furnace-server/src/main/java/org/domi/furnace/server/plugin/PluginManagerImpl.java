@@ -40,7 +40,7 @@ public final class PluginManagerImpl implements PluginManager {
     public static final String BUKKIT_FOLDER = PluginBootstrapper.BUKKIT_FOLDER;
 
     private final PluginHost host;
-    private final Path dir;
+    private volatile Path dir;
     /** 켜는 순서대로. */
     private final List<Loaded> plugins = new CopyOnWriteArrayList<>();
     /** 이 관리자가 이어받은 부트스트랩 결과(loadAll 전에는 null). */
@@ -67,6 +67,9 @@ public final class PluginManagerImpl implements PluginManager {
         this.host = host;
         this.dir = dir;
     }
+
+    /** 플러그인 폴더를 바꾼다(시험 하니스가 임시 폴더를 쓸 때 — 부트스트랩에 준 경로와 맞춘다). 불러오기 전에만 부른다. */
+    public void directory(Path dir) { this.dir = dir; }
 
     // ------------------------------------------------------------------ 불러오기
 
@@ -97,8 +100,13 @@ public final class PluginManagerImpl implements PluginManager {
         PluginDescription d = c.description();
         PluginClassLoader loader = c.loader();
         FurnacePlugin plugin;
+        Context ctx = new Context(d, c.file(), loader, c.logger(), boot.registries(d));
         try {
             plugin = c.bootstrap() != null ? c.bootstrap().createPlugin(c.context()) : null;
+            if (plugin == null && c.format() != null) {
+                // 다른 서버 소프트웨어 형식(예: Bukkit): 형식 어댑터가 메인 클래스로 껍데기 플러그인을 만든다
+                plugin = c.format().create(ctx, Class.forName(d.main(), true, loader));
+            }
             if (plugin == null) {
                 Class<?> main = Class.forName(d.main(), true, loader);
                 if (!FurnacePlugin.class.isAssignableFrom(main)) throw new IllegalArgumentException("main 클래스가 FurnacePlugin 을 상속하지 않는다: " + d.main());
@@ -114,7 +122,7 @@ public final class PluginManagerImpl implements PluginManager {
         java.util.logging.Logger jul = c.logger();
         Level start = settings.levelFor(d.name());
         if (start != null) jul.setLevel(start);
-        plugin.init(new Context(d, c.file(), loader, jul, boot.registries(d)));
+        plugin.init(ctx);
         Loaded l = new Loaded(plugin, d, c.file(), loader);
         plugins.add(l);
         jul.info("Loading " + d.fullName());
