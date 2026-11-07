@@ -4,6 +4,7 @@
 //   plugins.log-level.<이름>=INFO  플러그인별 로그 수준(JUL 수준 이름)
 //   plugins.dev-mode=false         개발 모드 — 켜야 플러그인 단위 핫 리로드(/plugins reload <이름>, PluginManager.reload)가 된다
 //   plugins.dev-mode.auto-reload=false  개발 모드에서 plugins/*.jar 가 바뀌면 알아서 다시 읽는다
+//   plugins.libraries.*            라이브러리 자동 로딩(기본 꺼짐) — library/LibrarySettings 참고
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -15,10 +16,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
+import org.domi.furnace.server.plugin.library.LibrarySettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload) {
+public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                             LibrarySettings libraries) {
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
 
@@ -27,10 +30,18 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         this(failFast, dataRoot, logLevels, false, false);
     }
 
+    /** 라이브러리 자동 로딩 없이(기본). */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, LibrarySettings.DEFAULT);
+    }
+
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l); }
+
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
         logLevels.forEach((k, v) -> m.put(k.toLowerCase(Locale.ROOT), v));
         logLevels = Map.copyOf(m);
+        if (libraries == null) libraries = LibrarySettings.DEFAULT;
     }
 
     /** 이 플러그인에 지정된 로그 수준(없으면 null). */
@@ -64,6 +75,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         boolean dev = Boolean.parseBoolean(p.getProperty("plugins.dev-mode", "false").strip());
         boolean auto = Boolean.parseBoolean(p.getProperty("plugins.dev-mode.auto-reload", "false").strip());
         if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
-        return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto);
+        return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
+                LibrarySettings.from(p, log));
     }
 }
