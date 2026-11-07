@@ -1,5 +1,5 @@
 // 바닐라 Guardian: 물속 몬스터. 대상에게 80틱 동안 광선을 쏴(충전) 마법 피해와 일반 피해를 준다. 가시로 맞받아치고, 물 밖에서는 파닥인다.
-// TODO(오징어·아홀로틀 표적): 선택기에 Axolotl 추가(아홀로틀 구현 때). 광선 입자/소리는 클라이언트 몫.
+// 광선 입자/소리는 클라이언트 몫. (오징어·아홀로틀 표적은 구현됨)
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;

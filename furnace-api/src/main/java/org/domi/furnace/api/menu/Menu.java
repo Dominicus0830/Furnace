@@ -31,10 +31,13 @@ public final class Menu {
     /** 서버 구현이 열린 화면에 변경을 전하는 데 쓴다. 플러그인은 쓸 일이 없다. */
     public interface Listener {
         void slotChanged(Menu menu, int slot, ItemStack item);
+
+        /** 제목이 바뀌었다. */
+        default void titleChanged(Menu menu, Text title) {}
     }
 
     private final MenuType type;
-    private final Text title;
+    private volatile Text title;
     private final Object lock = new Object();
     private final ItemStack[] items;
     @SuppressWarnings("unchecked")
@@ -61,6 +64,18 @@ public final class Menu {
     public MenuType type() { return type; }
 
     public Text title() { return title; }
+
+    /**
+     * 제목을 바꾼다. 열려 있는 화면에는 같은 창 번호로 화면을 다시 열어(open_screen) 제목을 갈아 끼우고 내용·커서를 다시 보낸다 —
+     * 클라이언트에서 화면이 한 번 다시 그려지지만 창은 닫히지 않는다(Paper InventoryView.setTitle 과 같은 방식).
+     */
+    public Menu setTitle(Text title) {
+        Objects.requireNonNull(title, "title");
+        if (title.equals(this.title)) return this;
+        this.title = title;
+        for (Listener l : listeners) l.titleChanged(this, title);
+        return this;
+    }
 
     /** 위쪽 칸 수. */
     public int size() { return items.length; }

@@ -1,0 +1,26 @@
+// 플레이어에게 들려줄 소리 — 소리 이름(리소스 id)·분류·크기·높이. 분류는 클라이언트 음량 슬라이더가 따르는 묶음.
+package org.domi.furnace.api.audience;
+
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+public record Sound(String key, Source source, float volume, float pitch) {
+
+    private static final Pattern KEY = Pattern.compile("([a-z0-9_.-]+:)?[a-z0-9_./-]+");
+
+    /** 바닐라 SoundSource(선언 순서 = 네트워크 번호). */
+    public enum Source { MASTER, MUSIC, RECORD, WEATHER, BLOCK, HOSTILE, NEUTRAL, PLAYER, AMBIENT, VOICE }
+
+    public Sound {
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(source, "source");
+        if (!KEY.matcher(key).matches()) throw new IllegalArgumentException("잘못된 소리 이름: " + key);
+        if (!(volume >= 0.0F) || Float.isInfinite(volume)) throw new IllegalArgumentException("크기는 0 이상: " + volume);
+        if (!(pitch >= 0.5F && pitch <= 2.0F)) throw new IllegalArgumentException("높이는 0.5~2: " + pitch);
+    }
+
+    /** 크기 1, 높이 1. */
+    public static Sound sound(String key, Source source) { return new Sound(key, source, 1.0F, 1.0F); }
+
+    public static Sound sound(String key, Source source, float volume, float pitch) { return new Sound(key, source, volume, pitch); }
+}

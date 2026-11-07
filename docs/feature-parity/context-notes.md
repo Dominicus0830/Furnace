@@ -1033,3 +1033,13 @@
 - 스폰 보호(`spawn-protection`)는 바닐라 `DedicatedServer.isUnderSpawnProtection` 이 오버월드가 아니면 거짓(`apn`) — 네더·엔드·추가 월드에서도 걸리던 것을 고쳤다.
 - 안 고친 것(의도): 밤 건너뛰기 후 깨우기는 전역 스레드가 region 의 플레이어를 못 만져 그 플레이어의 region 으로 넘긴다(결과 같음, 그 사이 region 틱이 돌면 `Player.tick` 의 "낮이면 깨기"가 먼저 깨운다). 추가 월드(W1)의 밤 건너뛰기 판정은 주 월드 접속자만 센다(시계가 공유라 설계 판단이 필요 — 도미니코가 원하면 별 묶음).
 - 시험: `PlayerSleepingTest` +4(일어설 자리 캐시·갱신·텔레포트가 먼저 깨움·상대 텔레포트), `SetWorldSpawnDimensionTest` 2. 봇 `tools/bot-test/round-m9/sleep.js` 9/9 — 수정 전 jar 로 같은 스크립트를 돌리면 접속 종료 위치(침대 위 dist=0)·setworldspawn 거부·네더 스폰 3개가 FAIL(대조군).
+
+## 2026-11-07 컨테이너·수레·깔때기 바닐라 대조 (묶음 M3)
+- **이미 있던 것 확인(user-todo 3장이 낡았음)**: 상자/깔때기 수레·상자 배 창(`openEntityContainer`), 명령 블록 수레, 디스펜서 수레 6종 설치, 몹이 수레 밀기(`pushEntities`→`AbstractMinecart.push`), 깔때기 수레 빨아들임, `VindicatorBreakDoorGoal`, 양조기 hopper 삽입 규칙. 양조기 연료 칸은 바닐라 `BrewingStandBlockEntity.canPlaceItem(4)` 가 serverTick 의 연료 판정과 같은 단일 아이템(블레이즈 가루)만 받는 것을 `javap -c` 로 확인(가정 해소).
+- **새로 한 것**
+  - 스포너 수레(`MinecartSpawner`): 매 틱 `BaseSpawner.serverTick(level, blockPosition())`, 이벤트 1 은 엔티티 이벤트로, 저장은 `BaseSpawner.save/load`(이전엔 값만 보존하고 움직이지 않았다).
+  - 라마·상인 라마 카펫: 몸통 칸(BODY)을 늘 쓸 수 있고 `wool_carpets` 태그만 입는다(바닐라 `Llama.canUseSlot=true`, `isBodyArmorItem`). 말 인벤토리 창·우클릭·디스펜서·`body_armor_item` 저장은 기존 말 갑옷 경로를 그대로 쓴다. 당나귀·노새는 불가.
+  - 열지 않은 전리품 표(`LootTable`): 부수거나 죽어 내용물을 쏟을 때, 창 칸에 닿을 때(`EntityContainer`), 깔때기가 빨아들일 때(`EntityInv`) 먼저 표를 푼다(바닐라 `getItem`/`Containers.dropContents` 의 `unpackChestVehicleLootTable(null)`). 광산 상자 수레가 대표 사례. 푸는 길은 `ServerCore.unpackContainerLoot` 가 엔티티도 받도록 넓혔다(연 플레이어 없음 = this_entity·luck 없음).
+  - 엔티티 용기 창 제목: 이름표 이름이 있으면 그 이름, 없으면 종류 이름, 팀이 있으면 접두사·색·접미사(`ContainerEntity.containerTitle`).
+- **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
+- 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
