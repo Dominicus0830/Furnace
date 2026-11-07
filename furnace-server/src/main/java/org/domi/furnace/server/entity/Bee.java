@@ -155,7 +155,7 @@ public class Bee extends Animal implements NeutralMob {
     public boolean doHurtTarget(Targetable t) {
         boolean hurt = t.hurtByMob(new Damage("sting", false, false, false), (float) (int) attributeValue(Attribute.ATTACK_DAMAGE), this);
         if (hurt) {
-            // TODO(인챈트): EnchantmentHelper.doPostAttackEffects
+            EnchantEffects.thorns(level, t, this);   // doPostAttackEffects: 맞은 쪽 장비의 가시
             int seconds = level.difficulty() == 2 ? POISON_SECONDS_NORMAL : level.difficulty() == 3 ? POISON_SECONDS_HARD : 0;
             if (t instanceof LivingEntity le) {
                 le.entityData.set(DATA_STINGER_COUNT, (Integer) le.entityData.get(DATA_STINGER_COUNT) + 1);
