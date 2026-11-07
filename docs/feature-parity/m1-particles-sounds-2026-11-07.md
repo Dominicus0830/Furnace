@@ -21,3 +21,5 @@
 
 ## 검증
 - 단위: `ParticleSoundEventsTest` 12건, `SpawnEggWaterTest` 3건.
+- 봇(`tools/bot-test/m1/m1.js`, 오프라인 서버 + mineflayer): 13칸 낙하 착지 시 `block` 입자 1개 패킷(count 130, 속도 0.15), 영혼 모래 위 걷기 4초 동안 `soul` 속도 입자 12개(count 0, 속도 1.0)와 `soul_escape` 소리 5번(크기 0.6, 높이 0.6~1.0), 멈추면 입자 없음, 물 원천에 소 스폰 알 → 소 1마리. 5항목 모두 통과.
+- 전체 시험 `:furnace-api:test :furnace-server:test` 통과(BUILD SUCCESSFUL, 11분 44초).
