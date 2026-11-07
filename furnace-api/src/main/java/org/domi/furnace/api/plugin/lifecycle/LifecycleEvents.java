@@ -20,4 +20,13 @@ public final class LifecycleEvents {
      */
     public static final LifecycleEventType<GameRegistrar> GAME_REGISTRIES =
             new LifecycleEventType<>("furnace:game_registries", GameRegistrar.class);
+
+    /**
+     * 월드젠 단계 훅 등록(불만 표 40번). 서버 시작 때 게임 레지스트리 다음, 월드를 만들기 전에 한 번 불린다(핫 리로드로 다시 켜면 그 플러그인 것만 다시).
+     * 여기서 등록한 키를 {@link org.domi.furnace.api.world.WorldCreator.Builder#generationHooks} 나 furnace.properties 의
+     * {@code worldgen-hooks.overworld|the_nether|the_end} 가 고른다. 플러그인이 꺼지면 그 키는 비고, 그 월드의 새 청크는 바닐라로 생성된다
+     * (Paper 에서 생성기 플러그인이 빠졌을 때와 같다).
+     */
+    public static final LifecycleEventType<WorldGenerationRegistrar> WORLD_GENERATION =
+            new LifecycleEventType<>("furnace:world_generation", WorldGenerationRegistrar.class);
 }

@@ -162,6 +162,12 @@ public final class PluginHost implements Furnace {
         return e != null && e.active() ? e.definition() : null;
     }
 
+    /** 그 키의 월드젠 단계 훅(W3) — 없거나 플러그인이 꺼졌으면 null. 아무 스레드. */
+    public org.domi.furnace.api.worldgen.ChunkGenerationHooks generationHooks(String key) {
+        var store = plugins.generationHooks();
+        return store == null ? null : store.get(key);
+    }
+
     private final PluginRecipes recipes = new PluginRecipes(this);
     private final GameRegistriesImpl gameRegistries = new GameRegistriesImpl();
     private final GameRuleRegistryImpl gameRules = new GameRuleRegistryImpl(this);

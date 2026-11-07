@@ -1043,3 +1043,11 @@
   - 엔티티 용기 창 제목: 이름표 이름이 있으면 그 이름, 없으면 종류 이름, 팀이 있으면 접두사·색·접미사(`ContainerEntity.containerTitle`).
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
+
+## 2026-11-07 월드젠 단계 훅·청크 재생성 (W3)
+- API `LifecycleEvents.WORLD_GENERATION` → `WorldGenerationRegistrar.register(키, ChunkGenerationHooks)`. 월드는 키만 쥔다(`WorldCreator.generationHooks`, 기본 차원은 `worldgen-hooks.*`). 서버 `plugin/GenerationHookStore`(키 → 플러그인·훅, 꺼지면 빠짐), `world/gen/GenHooks`(월드 바인딩·예외 격리·BlockData 변환). 문서 `docs/api/worldgen-hooks.md`.
+- 훅 지점: `NoiseWorldSource.generateWithBiomes`(NOISE·SURFACE — 높이 조회 `generate()` 에도 들어가 구조물이 플러그인 지형 위에 선다), `applyCarvers`(CARVERS, WG 높이 지도 얼리기 전), `applyStructureStarts`(STRUCTURES, 고른 뒤 거르기), `FeaturePlacer.decorate`(FEATURES 끄면 지형지물만 건너뛰고 구조물 조각은 놓음, 지형지물별 거르기), `decorateOrigin` 뒤 `decorate` 훅. 평지·빈 월드는 `SuperflatWorldSource.generate` 한 곳.
+- 훅이 바뀌면(핫 리로드·다시 걸기) `NoiseWorldSource.refreshHookCaches` 가 지형·높이·시작점·pristine 캐시를 비운다(`generateIsolated` 가 부른다). 서버 경로의 공유 장식 저장소는 이미 넘친 청크가 있어 그대로 둔다.
+- 재생성: `World.regenerateChunk` → 생성 풀에서 `generateIsolated`(독립 경로) → 그 청크 region 에서 `Region.replaceRegenerated`. 빛은 옛 `ChunkLight` 를 새 컬럼에 옮기고 바뀐 칸만 `LevelLight.blockChanged` — 새 빛을 처음부터 만들면 이웃으로 번진 옛 빛이 남는다. 재전송은 구독을 새로 만들어(ready=false) 옛 직렬화 전송을 버리게 한다.
+- 함정: `RegionLevel` 의 청크 조회 캐시(`chunkUnloaded()`)를 교체 직후 비워야 옛 객체를 읽지 않는다. 시험 월드에서 구독자 없는 청크는 몇 틱 뒤 내려가므로 시험은 구독을 걸어 둔다.
+- 시험: `GenHooksTest` 10, `GenerationHookStoreTest` 1, `RegenerateChunkTest` 2.

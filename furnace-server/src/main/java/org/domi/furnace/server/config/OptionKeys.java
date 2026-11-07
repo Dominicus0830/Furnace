@@ -73,6 +73,9 @@ public final class OptionKeys {
             new Option("plugins.dev-mode.auto-reload", "ON/OFF", "false", "true|false", "개발 모드에서 jar 가 바뀌면 자동으로 다시 읽는다"),
             // 월드
             new Option("worlds.autoload", "목록", "", "이름,...", "시작 때 불러올 추가 월드"),
+            new Option("worldgen-hooks.overworld", "키", "", "namespace:path", "오버월드에 걸 플러그인 월드젠 훅(비면 바닐라)"),
+            new Option("worldgen-hooks.the_nether", "키", "", "namespace:path", "네더에 걸 플러그인 월드젠 훅(비면 바닐라)"),
+            new Option("worldgen-hooks.the_end", "키", "", "namespace:path", "엔드에 걸 플러그인 월드젠 훅(비면 바닐라)"),
             new Option("enchantments.disabled", "목록", "", "id,...", "끌 마법부여 id(예: minecraft:mending)"));
 
     /** 접속 방어의 단계별 키는 단계 다섯 개마다 같은 모양이라 펼쳐서 만든다. */

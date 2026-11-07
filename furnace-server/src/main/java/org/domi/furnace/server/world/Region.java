@@ -455,6 +455,110 @@ public final class Region {
         f.complete(col);
     }
 
+    /**
+     * 청크 재생성(W3, 불만 표 41번)의 교체 — 이 region 스레드에서 로드된 청크를 새로 생성한 fresh 로 바꾼다. 그 청크가 지금 이 region 에
+     * 로드돼 있지 않으면 null(부르는 쪽이 다시 불러와 재시도). 바꾸는 것은 그 청크 하나다: 블록·바이옴·블록 엔티티·예약 틱·구조물·POI·
+     * 높이 지도. 빛은 옛 빛에서 바뀐 칸만 다시 계산해(블록을 하나씩 바꾼 것과 같다) 이웃으로 번진 옛 빛도 지운다. 엔티티·영속 데이터·
+     * 머문 시간(InhabitedTime)은 이어 간다. 보는 플레이어에게는 새 청크를 다시 보낸다.
+     */
+    Boolean replaceRegenerated(ChunkPos cp, ChunkColumn fresh, boolean removeEntities, boolean generationEntities) {
+        world.assertOwns(this);
+        int cx = cp.x(), cz = cp.z();
+        ChunkColumn old = world.loadedChunk(cx, cz);
+        if (old == null || !rz().owns(this, cx, cz)) return null;
+        RegionLevel lv = level();
+        // 엔티티: 기본은 그대로 둔다. 지울 때도 플레이어와 플레이어를 태운 탈것은 남긴다
+        if (removeEntities) {
+            for (org.domi.furnace.server.entity.Entity e : new ArrayList<>(lv.entities().inChunk(cx, cz))) {
+                if (!e.isRemoved() && !carriesPlayer(e)) e.remove(org.domi.furnace.server.entity.Entity.RemovalReason.DISCARDED);
+            }
+        } else {
+            fresh.foreignEntities().addAll(old.foreignEntities());
+        }
+        fresh.entitiesLoaded(old.entitiesLoaded());
+        fresh.entitiesOnDisk(old.entitiesOnDisk() || removeEntities);   // 지웠으면 디스크 묶음도 다음 저장에서 비운다
+        if (!generationEntities) {
+            fresh.clearGeneratedEntities();
+            fresh.freshlyGenerated(false);
+        }
+        // 옛 블록 엔티티는 틱 목록에서 빠지고, 옛 예약 틱은 버린다
+        for (var be : old.blockEntities().values()) be.setRemoved();
+        if (lv.hasChunkTicks(cx, cz)) lv.saveChunkTicks(cx, cz, new org.domi.furnace.server.net.io.nbt.NbtCompound(), true);
+        // 플러그인 영속 데이터(ChunkBukkitValues)·모르는 최상위 키·머문 시간은 지형이 아니라 이어 간다
+        if (old.extraNbt() != null) {
+            var keep = old.extraNbt().copy();
+            keep.tags().remove("block_ticks");
+            keep.tags().remove("fluid_ticks");
+            if (fresh.extraNbt() != null) keep.tags().putAll(fresh.extraNbt().tags());
+            fresh.extraNbt(keep);
+        }
+        fresh.inhabitedTime(old.inhabitedTime());
+        // 빛: 옛 빛 배열을 이어받아 바뀐 칸만 다시 계산한다
+        var light = old.light();
+        fresh.light(light);
+        fresh.lightPrecomputed(false);
+        world.putChunk(cx, cz, fresh);
+        lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
+        if (light == null) {
+            lv.lightNewChunk(cx, cz);
+        } else {
+            var engine = lv.lightEngine();
+            int minY = fresh.minY();
+            for (int sec = 0; sec < fresh.sectionCount(); sec++) {
+                ChunkSection a = old.sections()[sec], b = fresh.sections()[sec];
+                int ua = a.uniformBlock(), ub = b.uniformBlock();
+                if (ua >= 0 && ua == ub) continue;
+                int baseY = minY + sec * 16;
+                for (int ly = 0; ly < 16; ly++)
+                    for (int lz = 0; lz < 16; lz++)
+                        for (int lx = 0; lx < 16; lx++) {
+                            int y = baseY + ly;
+                            if (old.getBlock(lx, y, lz) != fresh.getBlock(lx, y, lz)) engine.blockChanged(cx * 16 + lx, y, cz * 16 + lz);
+                        }
+            }
+        }
+        lv.runLightUpdates();
+        if (!fresh.blockEntities().isEmpty()) lv.registerBlockEntities(fresh);
+        if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
+            lv.loadChunkTicks(fresh.extraNbt());
+        }
+        if (generationEntities) {
+            lv.addWorldGenChunkEntities(fresh);
+            if (fresh.freshlyGenerated()) {
+                fresh.freshlyGenerated(false);
+                try {
+                    org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnMobsForChunkGeneration(lv, cx, cz, lv.worldSeed());
+                } catch (RuntimeException e) {
+                    org.slf4j.LoggerFactory.getLogger(Region.class).warn("[SPAWN] 재생성 청크 동물 스폰 실패 {}", cp, e);
+                }
+            }
+        }
+        fresh.markDirty();
+        dirtyChunks.add(cp);
+        // 보는 플레이어에게 새 청크를 다시 보낸다 — 새 구독(ready=false)으로 바꿔 그 사이 변경은 청크 뒤로 미루고, 아직 옛 청크를
+        // 직렬화하던 전송은 구독이 바뀌어 버려진다(그래서 아직 받지 못한 플레이어에게도 지금 보낸다)
+        for (Player p : new ArrayList<>(world.subscribers(cp))) {
+            World.Subscription sub = world.subscribeChunk(cp, p);
+            world.serializedChunkBody(cp).thenAccept(body -> {
+                if (!world.isSubscribed(cp, p, sub)) return;
+                p.send(LevelChunkWithLight.ofShared(body));
+                world.chunkDelivered(cp, p, sub);
+            }).exceptionally(ex -> {
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 재생성 청크 재전송 실패 {}", cp, ex);
+                return null;
+            });
+        }
+        return Boolean.TRUE;
+    }
+
+    private static boolean carriesPlayer(org.domi.furnace.server.entity.Entity e) {
+        for (var r : e.passengers()) {
+            if (r instanceof Player) return true;
+            if (r instanceof org.domi.furnace.server.entity.Entity pe && carriesPlayer(pe)) return true;
+        }
+        return false;
+    }
+
     /** 그 청크의 엔티티 묶음(entities/)을 IO 풀에서 읽어 와 넣는다 — 그 사이 청크가 내려갔으면 버린다. 디스크가 없으면 바로 끝. */
     private void loadEntities(ChunkPos cp, ChunkColumn col) {
         if (!(world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource)) {

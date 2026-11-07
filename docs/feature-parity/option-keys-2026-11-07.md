@@ -51,6 +51,9 @@
 | `plugins.dev-mode` | ON/OFF | false | true|false | 개발 모드 — 플러그인 핫 리로드를 허용한다 | true 면 경고 |
 | `plugins.dev-mode.auto-reload` | ON/OFF | false | true|false | 개발 모드에서 jar 가 바뀌면 자동으로 다시 읽는다 |  |
 | `worlds.autoload` | 목록 | (없음) | 이름,... | 시작 때 불러올 추가 월드 |  |
+| `worldgen-hooks.overworld` | 키 | (없음) | namespace:path | 오버월드에 걸 플러그인 월드젠 훅(비면 바닐라, `docs/api/worldgen-hooks.md`) |  |
+| `worldgen-hooks.the_nether` | 키 | (없음) | namespace:path | 네더에 걸 플러그인 월드젠 훅(비면 바닐라) |  |
+| `worldgen-hooks.the_end` | 키 | (없음) | namespace:path | 엔드에 걸 플러그인 월드젠 훅(비면 바닐라) |  |
 | `enchantments.disabled` | 목록 | (없음) | id,... | 끌 마법부여 id(예: minecraft:mending) |  |
 | `connection.<단계>.packets-per-second` | 수 | 200 | 0~1000000 | 접속 단계(`handshake` `status` `login` `configuration` `play`)별 초당 패킷 평균 상한, 0 = 제한 없음 | 0 이면 경고 |
 | `connection.<단계>.packets-burst` | 수 | 400 | 1~10000000 | 단계별 순간 패킷 상한 | |

@@ -78,6 +78,12 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public int loadedChunkCount() { return world.loadedChunkCount(); }
 
+    @Override
+    public CompletableFuture<Boolean> regenerateChunk(int chunkX, int chunkZ, org.domi.furnace.api.world.ChunkRegeneration options) {
+        java.util.Objects.requireNonNull(options, "options");
+        return world.regenerateChunk(chunkX, chunkZ, options.removeEntities(), options.generationEntities());
+    }
+
     private static final long REGION_TPS_WINDOW = 5_000_000_000L, REGION_TPS_MIN_HISTORY = 1_000_000_000L;
 
     private org.domi.furnace.api.world.RegionInfo toApi(org.domi.furnace.server.world.Regionizer.RegionView v) {

@@ -47,6 +47,7 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 
 - 명령 `/worlds list | create <이름> [normal|nether|the_end] [default|large_biomes|amplified|flat|void] [시드] | load <이름> | unload <이름> [true|false]`
   (권한 3). 들어가기는 바닐라 `/execute in minecraft:<이름> run tp @s 0 100 0`.
+  `/worlds regen [반경] | regen <청크x> <청크z> [반경]` — 청크를 처음부터 다시 생성(W3, [worldgen-hooks.md](worldgen-hooks.md) 3장).
 - `furnace.properties`
   - `worlds.autoload=mining,lobby` — 서버 시작 때 그 폴더의 level.dat 설명서로 다시 올린다(플러그인 onLoad 뒤·onEnable 앞). 기본 없음.
   - `dimension-seed.the_nether=`, `dimension-seed.the_end=` — 기본 네더·엔드의 생성 시드(불만 표 42행). 비우면 주 월드 시드(바닐라).
@@ -66,6 +67,6 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 
 ## 4. 아직 없는 것
 
-- 플러그인 생성기(청크 생성 단계 훅): W3.
+- ~~플러그인 생성기(청크 생성 단계 훅): W3.~~ → 구현됨: `WorldCreator.Builder.generationHooks(키)`·청크 재생성 `World.regenerateChunk`·`/worlds regen` — [worldgen-hooks.md](worldgen-hooks.md).
 - 평지의 구조물·지형지물, 빈 월드의 시작 발판(바닐라 "The Void" 프리셋의 `void_start_platform`).
 - 월드별 시간·날씨·게임 규칙(Paper 방식) — 필요하면 기본 꺼짐 옵션으로 더한다.
