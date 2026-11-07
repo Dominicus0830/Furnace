@@ -56,6 +56,18 @@ public interface Targetable {
     /** Entity.deflection(projectile): 맞은 투사체를 튕겨 내는 방식(브리즈만 다르다). */
     default Projectile.Deflection projectileDeflection(Projectile p) { return Projectile.Deflection.NONE; }
 
+    /** Entity.getTeam: 점수판 팀(없으면 null). Player·LivingEntity 가 채운다. */
+    default org.domi.furnace.server.scores.PlayerTeam team() { return null; }
+
+    /**
+     * Entity.isAlliedTo(entity): 같은 팀이면 참(팀이 없으면 거짓). 길들인 동물·일러저·소환사가 덮어쓴다.
+     * 몹이 대상을 고를 때(TargetingConditions)·피해를 줄 때(쓸기·충격파·송곳니)의 아군 판정.
+     */
+    default boolean isAlliedTo(Targetable other) {
+        var mine = team();
+        return mine != null && other != null && mine.isAlliedTo(other.team());
+    }
+
     /** 투사체가 맞출 수 있나(Entity.isPickable & !spectator). */
     default boolean isPickable() { return isAlive(); }
 }

@@ -52,7 +52,7 @@ public final class TargetingConditions {
         if (!target.canBeSeenAsEnemy()) return false;
         if (selector != null && !selector.test(target)) return false;
         if (source == null) return !isCombat || target.canBeSeenAsEnemy();   // TODO(평화 난이도): 출처 없는 조건
-        if (isCombat && (!target.canBeSeenAsEnemy() || !source.canAttackType(target))) return false;   // TODO(팀): isAlliedTo
+        if (isCombat && (!target.canBeSeenAsEnemy() || !source.canAttackType(target) || source.isAlliedTo(target))) return false;
         if (range > 0.0) {
             double vis = testInvisible ? target.visibilityPercent(source) : 1.0;
             double max = Math.max(range * vis, 2.0);
