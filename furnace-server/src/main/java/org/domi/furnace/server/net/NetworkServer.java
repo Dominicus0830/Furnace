@@ -101,6 +101,7 @@ public final class NetworkServer {
 
     /** 서버 기동. 실제 바인딩된 포트 반환(port=0이면 OS 배정 포트). */
     public int start() {
+        org.domi.furnace.server.net.io.SharedChunkFrames.precompressThreshold(compressionThreshold);   // 청크 풀에서 본문을 미리 압축(M12)
         // io-uring=true 면 io_uring 이 우선. 못 쓰면 바닐라와 같은 선택: Epoll.isAvailable() && use-native-transport 면 epoll, 아니면 NIO
         boolean uring = false;
         if (useIoUring) {
@@ -174,6 +175,7 @@ public final class NetworkServer {
     }
 
     public void stop() {
+        org.domi.furnace.server.net.io.SharedChunkFrames.precompressThreshold(-1);
         if (channel != null) channel.close().syncUninterruptibly();
         // 접속 중인 연결에는 사유를 알리고 닫는다(예전엔 사유 없이 끊겨 클라가 "Connection lost"만 봤다).
         for (Channel c : allChannels) {

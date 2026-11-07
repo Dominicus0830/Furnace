@@ -1067,6 +1067,8 @@ public final class World {
             ChunkSerializer.serialize(body, snap, blockDirectBits, biomeDirectBits, t.minY(), t.hasSkyLight());
             byte[] out = new byte[body.readableBytes()];
             body.getBytes(0, out);
+            // 이 풀 스레드에서 한 번만 압축한다 — 여러 플레이어의 이벤트 루프가 같은 본문을 각자 압축하지 않게(M12)
+            org.domi.furnace.server.net.io.SharedChunkFrames.precompress(out);
             return out;
         } finally {
             if (body.refCnt() > 0) body.release();
