@@ -344,6 +344,11 @@ public final class RangedWeapons {
 
     /** ArrowItem/TippedArrowItem/SpectralArrowItem.createArrow: 눈 − 0.1 에서, 줍는 아이템은 탄약 1개. 화살이 아닌 것은 일반 화살로. */
     static AbstractArrow createArrow(ChunkLevel level, Player p, ItemStack ammo, ItemStack weapon) {
+        return createArrow(level, p, p.x(), p.eyeY() - 0.1F, p.z(), ammo, weapon);
+    }
+
+    /** 몹도 같은 화살을 만든다(Crossbow). owner 의 눈 − 0.1 에서 시작. */
+    static AbstractArrow createArrow(ChunkLevel level, Targetable owner, double x, double y, double z, ItemStack ammo, ItemStack weapon) {
         String n = ItemTools.itemName(ammo);
         AbstractArrow arrow;
         if (n.equals("minecraft:spectral_arrow")) {
@@ -353,8 +358,8 @@ public final class RangedWeapons {
             if (n.equals("minecraft:tipped_arrow")) a.setPotionFromItem(ammo);
             arrow = a;
         }
-        arrow.setPos(p.x(), p.eyeY() - 0.1F, p.z());
-        arrow.initFromItem(p, ammo.withCount(1), weapon);
+        arrow.setPos(x, y, z);
+        arrow.initFromItem(owner, ammo.withCount(1), weapon);
         return arrow;
     }
 
@@ -369,7 +374,7 @@ public final class RangedWeapons {
     }
 
     /** CrossbowItem.getShotPitch: 첫 발 1.0, 홀수 번째 1/(r×0.5+1.8)+0.63, 짝수 번째 +0.43. */
-    static float shotPitch(org.domi.furnace.server.block.LegacyRandomSource r, int index) {
+    static float shotPitch(org.domi.furnace.server.block.RandomSource r, int index) {
         if (index == 0) return 1.0F;
         float base = (index & 1) == 1 ? 0.63F : 0.43F;
         return 1.0F / (r.nextFloat() * 0.5F + 1.8F) + base;
@@ -396,6 +401,33 @@ public final class RangedWeapons {
             Math.fma((xx - yy - zz + ww) * k, x, Math.fma(2 * (xy - zw) * k, y, (2 * (xz + yw) * k) * z)),
             Math.fma(2 * (xy + zw) * k, x, Math.fma((yy - xx - zz + ww) * k, y, (2 * (yz - xw) * k) * z)),
             Math.fma(2 * (xz - yw) * k, x, Math.fma(2 * (yz + xw) * k, y, ((zz - xx - yy + ww) * k) * z))};
+    }
+
+    /**
+     * JOML Vector3f.rotateAxis(angle, ax, ay, az) 제자리 판(1.10.x): 단위 사원수 (axis × sin(angle/2), cos) 로 v 를 돌린다.
+     * 몹 쇠뇌의 getProjectileShotVector 가 쓴다.
+     */
+    static float[] rotateAxis(float[] v, float angle, float ax, float ay, float az) {
+        float hangle = angle / 2.0F;
+        float sinAngle = (float) Math.sin(hangle);
+        float qx = ax * sinAngle, qy = ay * sinAngle, qz = az * sinAngle;
+        float qw = cosFromSinF(sinAngle, hangle);
+        float w2 = qw * qw, x2 = qx * qx, y2 = qy * qy, z2 = qz * qz, zw = qz * qw, xy = qx * qy, xz = qx * qz, yw = qy * qw, yz = qy * qz, xw = qx * qw;
+        float x = v[0], y = v[1], z = v[2];
+        return new float[] {
+            (w2 + x2 - z2 - y2) * x + (-zw + xy - zw + xy) * y + (yw + xz + xz + yw) * z,
+            (xy + zw + zw + xy) * x + (y2 - z2 + w2 - x2) * y + (yz + yz - xw - xw) * z,
+            (xz - yw + xz - yw) * x + (yz + yz + xw + xw) * y + (z2 - y2 - x2 + w2) * z};
+    }
+
+    /** JOML Math.cosFromSin(float, float)(빠른 수학 꺼짐). */
+    private static float cosFromSinF(float sin, float angle) {
+        float cos = (float) Math.sqrt(1.0F - sin * sin);
+        float a = angle + (float) (Math.PI * 0.5);
+        float b = a - (int) (a / (float) (Math.PI * 2)) * (float) (Math.PI * 2);
+        if (b < 0.0F) b = (float) (Math.PI * 2) + b;
+        if (b >= (float) Math.PI) return -cos;
+        return cos;
     }
 
     /** JOML Math.cosFromSin(double, double)(빠른 수학 꺼짐). */
