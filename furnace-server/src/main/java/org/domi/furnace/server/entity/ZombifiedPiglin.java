@@ -82,8 +82,6 @@ public class ZombifiedPiglin extends Zombie implements NeutralMob {
         }
     }
 
-    private boolean isAlliedTo(Targetable t) { return false; }
-
     private void playAngerSound() { playSound("entity.zombified_piglin.angry", getSoundVolume() * 2.0F, getVoicePitch() * 1.8F); }
 
     @Override

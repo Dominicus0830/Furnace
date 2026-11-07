@@ -28,6 +28,14 @@ public interface Chunk {
     /** 이 청크 안의 엔티티(플레이어 포함) 핸들. 로드되지 않았으면 빈 목록. */
     CompletableFuture<List<Entity>> entities();
 
+    /**
+     * 이 청크 안의 엔티티 수(플레이어 포함) — 종류별·자연 스폰 종류 묶음별. region 의 엔티티 색인을 읽을 뿐 핸들을 만들지 않아
+     * {@link #entities()} 보다 싸다. 로드되지 않았으면 {@link EntityCounts#EMPTY}.
+     */
+    default CompletableFuture<EntityCounts> entityCounts() {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("entityCounts"));
+    }
+
     /** 청크 영속 데이터의 사본(청크 NBT 의 ChunkBukkitValues). 로드되지 않았으면 empty. */
     CompletableFuture<Optional<PersistentDataView>> persistentData();
 

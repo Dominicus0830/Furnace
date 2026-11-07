@@ -25,6 +25,9 @@ public interface Player extends CommandSender, LivingEntity {
     @Override
     Location location();
 
+    /** 이 플레이어가 있는 region 의 최근 5초 TPS(그 플레이어가 겪는 틱 속도). 잴 수 없으면 empty. 아무 스레드. */
+    default java.util.OptionalDouble regionTps() { return org.domi.furnace.api.Furnace.server().regionTps(location()); }
+
     GameMode gameMode();
 
     /** 바닐라 setGameMode: 같으면 false. PlayerGameModeChangeEvent 를 거친다. */

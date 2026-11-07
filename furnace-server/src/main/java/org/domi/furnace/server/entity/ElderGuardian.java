@@ -41,6 +41,7 @@ public class ElderGuardian extends Guardian {
             double r2 = 50.0 * 50.0;
             level.forEachPlayer(p -> {
                 if (p.gameMode() != GameMode.SURVIVAL && p.gameMode() != GameMode.ADVENTURE) return;
+                if (isAlliedTo(p)) return;   // addEffectToPlayersAround: 출처의 아군은 제외
                 double dx = p.x() - x(), dy = p.y() - y(), dz = p.z() - z();
                 if (dx * dx + dy * dy + dz * dz >= r2) return;
                 var cur = p.vitals().getEffect(MobEffect.MINING_FATIGUE);

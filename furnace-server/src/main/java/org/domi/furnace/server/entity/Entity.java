@@ -999,11 +999,21 @@ public abstract non-sealed class Entity implements Rider {
         }
     }
 
-    /** vibrationAndSoundEffectsFromBlock. TODO(소리): 걸음 소리(블록 SoundType)는 아직 없다 — 난수를 쓰지 않으므로 상태는 같다. */
+    /**
+     * Entity.walkingStepSound(pos, state): 걸음 소리 한 번(바닐라는 playStepSound 뒤 amethyst 군집 위면 chime).
+     * TODO(소리): 기본 걸음 소리(블록 SoundType × 0.15)와 amethyst chime 은 아직 없다 — 자기 걸음 소리를 가진 몹만 playStepSound 를 덮어 낸다.
+     */
+    protected void walkingStepSound(Pos pos, int state) { playStepSound(pos, state); }
+
+    /** Entity.playStepSound(pos, state): 몹별 걸음 소리(워든·해골 계열). 기본은 소리 없음(위 TODO). */
+    protected void playStepSound(Pos pos, int state) {}
+
+    /** vibrationAndSoundEffectsFromBlock. */
     private boolean vibrationAndSoundEffectsFromBlock(Pos pos, int state, boolean playStepSound, boolean broadcastGameEvent, double wantedDy) {
         if (B.isAir(state)) return false;
         boolean climbable = B.isTag(state, "minecraft:climbable") || B.is(state, POWDER_SNOW);
         if ((onGround() || climbable || getPose() == POSE_CROUCHING && wantedDy == 0.0) && !isSwimming()) {
+            if (playStepSound) walkingStepSound(pos, state);
             if (broadcastGameEvent) {
                 level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.STEP, new Vec3(x, y, z),
                         org.domi.furnace.server.world.gameevent.GameEventContext.of(this, state));

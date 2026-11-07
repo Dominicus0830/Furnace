@@ -50,7 +50,7 @@ public final class World {
     private int chunkEvictionGraceTicks = 100;
     // 청크 스트리밍 설정(FurnaceMain서 주입). 테스트 기본값.
     private int spawnChunkRadius = 2;   // join 동기 전송 스폰 청크 반경
-    private int chunksPerTick = 16;     // 플레이어당 틱 전송 상한
+    private int chunksPerTick = 16;     // 플레이어당 틱 전송 상한(0 = auto). 서버는 configureStreaming 으로 설정값(기본 auto)을 넣는다
     private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
     private BlockRegistry blockRegistry;
     private ItemRegistry itemRegistry;
@@ -180,6 +180,19 @@ public final class World {
         if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) impl.removeCloseHook(closeHook);
         closeHook.run();
     }
+
+    // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버 furnace-test 전용 — Regionizer 설명)
+
+    /** region 이 벽시계 대신 시험이 낸 틱만 돌게 한다. startTicking 전에 한 번 부른다. */
+    public void useManualClock() { regionizer.enableManualClock(); }
+
+    public boolean manualClock() { return regionizer.isManualClock(); }
+
+    /** 시험 틱 하나를 낸다. 모든 region 이 이 번호까지 돌면 {@link #manualTickDone} 이 참이 된다. */
+    public long advanceManualTick() { return regionizer.manualAdvance(); }
+
+    /** 살아 있는 모든 region 이 target 번째 시험 틱을 마쳤는가. */
+    public boolean manualTickDone(long target) { return regionizer.manualCaughtUp(target); }
 
     /** 게임 틱을 끈다(내리기 시작 — 작업은 계속 처리해 저장을 끝낸다). */
     public void stopTicking() { regionizer.gameTicks(false); }
@@ -341,9 +354,15 @@ public final class World {
         public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
             CompletableFuture<Void> f = new CompletableFuture<>();
             long key = Regionizer.chunkKey(cp.x(), cp.z());
-            runAtChunk(cp, r -> r.schedule(key, r2 -> {
+            java.util.function.Consumer<Region> run = r2 -> {
                 try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            }, delayTicks));
+            };
+            // 그 청크의 region 스레드 안이면 곧바로 건다 — 작업 큐를 한 번 더 거치면 다음 틱 머리에서야 걸려 한 틱 밀린다
+            // (반복 작업 runAtFixedRate(…, 1, 1) 이 두 틱마다 돌던 원인). 밖에서 부르면 예전처럼 큐를 거친다.
+            Region owner = regionizer.ownerOf(cp.x(), cp.z());
+            // 곧바로 걸 때 0 은 1 로 — 지금 돌고 있는 지연 작업 차례에서 다시 꺼내 같은 틱에 돌거나, 자기를 다시 거는 작업이 끝없이 돌지 않게
+            if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, Math.max(1, delayTicks));
+            else runAtChunk(cp, r -> r.schedule(key, run, delayTicks));
             return f;
         }
 
@@ -758,6 +777,11 @@ public final class World {
     };
 
     /** 블록 레벨이 보는 서버 쪽 정보(ServerCore 가 설치한다). */
+    /** 이 월드의 자연 스폰 정책(플러그인 API·설정이 상한·필터를 건다. 아무것도 걸지 않으면 바닐라 상수). */
+    private final org.domi.furnace.server.entity.spawn.WorldSpawnPolicy spawnPolicy = new org.domi.furnace.server.entity.spawn.WorldSpawnPolicy();
+
+    public org.domi.furnace.server.entity.spawn.WorldSpawnPolicy spawnPolicy() { return spawnPolicy; }
+
     public org.domi.furnace.server.block.LevelServices levelServices() { return levelServices; }
 
     public void levelServices(org.domi.furnace.server.block.LevelServices s) { this.levelServices = s; }
@@ -972,10 +996,18 @@ public final class World {
     final java.util.concurrent.atomic.AtomicInteger bodySnapshots = new java.util.concurrent.atomic.AtomicInteger();
 
     public CompletableFuture<byte[]> serializedChunkBody(ChunkPos cp) {
-        return submitAtChunk(cp, r -> r.loadChunk(cp))
+        return serializedChunkBody(cp, false);
+    }
+
+    /**
+     * inlineOnOwner: 지금 스레드가 그 청크의 주인 region 이면 작업 큐(다음 틱에 비워짐)를 거치지 않고 바로 돈다 —
+     * 이미 로드된 청크의 본문이 같은 틱에 나간다(auto 전송). 다른 스레드에서 부르면 예전처럼 주인 region 에 넣는다.
+     */
+    public CompletableFuture<byte[]> serializedChunkBody(ChunkPos cp, boolean inlineOnOwner) {
+        return atChunk(cp, inlineOnOwner, r -> r.loadChunk(cp))
                 .thenCompose(f -> f)
                 // 컬럼 접근(dirty/캐시/스냅샷)은 항상 주인 region 스레드서 — 로드 완료 스레드(IO 풀 등)서 돌지 않게 한다.
-                .thenCompose(col -> submitAtChunk(cp, r -> {
+                .thenCompose(col -> atChunk(cp, inlineOnOwner, r -> {
                     // 캐시는 청크가 바뀔 때마다(ChunkColumn.touch) 비워진다 — 새로 생성돼 아직 저장 전(dirty)인 청크도 캐시한다.
                     byte[] cached = col.cachedSerializedBody();
                     if (cached != null) return CompletableFuture.<byte[]>completedFuture(cached);
@@ -1006,6 +1038,21 @@ public final class World {
                     }));
                     return f;
                 }).thenCompose(f -> f));
+    }
+
+    /** inline 이고 지금 스레드가 그 청크 주인 region 이면 바로 돌리고, 아니면 submitAtChunk. */
+    private <T> CompletableFuture<T> atChunk(ChunkPos cp, boolean inline, java.util.function.Function<Region, T> task) {
+        if (inline) {
+            Region r = regionizer.ownerOf(cp.x(), cp.z());
+            if (r != null && r.isOwnerThread()) {
+                try {
+                    return CompletableFuture.completedFuture(task.apply(r));
+                } catch (Throwable t) {
+                    return CompletableFuture.failedFuture(t);
+                }
+            }
+        }
+        return submitAtChunk(cp, task);
     }
 
     /** 시험용: 본문 직렬화 실패 주입(null 이면 없음). */
@@ -1503,8 +1550,10 @@ public final class World {
     /** 청크 스트리밍 설정 주입(FurnaceMain). */
     public void configureStreaming(int spawnChunkRadius, int chunksPerTick) {
         this.spawnChunkRadius = Math.max(0, spawnChunkRadius);
-        this.chunksPerTick = Math.max(1, chunksPerTick);
+        this.chunksPerTick = chunksPerTick == org.domi.furnace.server.config.Config.CHUNKS_PER_TICK_AUTO ? chunksPerTick : Math.max(1, chunksPerTick);
     }
+    /** chunks-per-tick=auto: 클라이언트가 알린 속도만 따르고, 준비된 청크만 배치에 넣는다(Region.sendQueuedChunksAuto). */
+    public boolean autoChunkRate() { return chunksPerTick == org.domi.furnace.server.config.Config.CHUNKS_PER_TICK_AUTO; }
     public int spawnChunkRadius() { return spawnChunkRadius; }
     public int chunksPerTick() { return chunksPerTick; }
 

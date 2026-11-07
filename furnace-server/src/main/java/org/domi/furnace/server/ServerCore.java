@@ -378,7 +378,7 @@ public final class ServerCore {
                 var id = org.domi.furnace.server.data.ResourceId.parse(function);
                 Runnable run = () -> {
                     var fm = functions();
-                    if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source));
+                    if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source, org.domi.furnace.api.event.server.FunctionExecuteEvent.Trigger.ADVANCEMENT));
                 };
                 // 전역 스레드에서 부여했으면(/advancement grant 등) 바닐라처럼 award 안에서 바로, region 스레드면 다음 전역 틱에
                 if (((org.domi.furnace.api.concurrent.ThreadOwner) scheduler().global()).isOwnerThread()) run.run();
@@ -480,6 +480,50 @@ public final class ServerCore {
     public org.domi.furnace.server.sched.TickStartRing globalTickStarts() { return globalTickStarts; }
 
     public org.domi.furnace.server.sched.TickWindows globalTickWindows() { return globalTickWindows; }
+
+    /** 활성 region(플레이어가 있는 region) 평균 TPS 의 1초 표본 기록 — getTPS 의 1분·5분·15분 값. 전역 스레드가 쓴다. */
+    private final org.domi.furnace.server.sched.ActiveTpsHistory activeTpsHistory = new org.domi.furnace.server.sched.ActiveTpsHistory();
+
+    /** 표본 창(1초)과 /tps·getTPS 의 5초 창, 잴 수 있으려면 필요한 기록 길이. */
+    static final long TPS_SAMPLE_WINDOW = 1_000_000_000L, TPS_LIVE_WINDOW = 5_000_000_000L, TPS_MIN_HISTORY = 1_000_000_000L;
+
+    private org.domi.furnace.server.world.Regionizer.ActiveSummary activeSummary(long now, long window) {
+        var sum = org.domi.furnace.server.world.Regionizer.ActiveSummary.NONE;
+        for (World w : worlds()) {
+            var rz = w.regionizer();
+            if (rz != null) sum = sum.plus(rz.activeSummary(now, window, TPS_MIN_HISTORY));
+        }
+        return sum;
+    }
+
+    /** 1초마다(전역 스레드): 활성 region 평균(없으면 전역 박동)을 한 표본으로 적는다. */
+    private void sampleActiveTps(long now) {
+        if (!activeTpsHistory.due(now)) return;
+        double v = activeSummary(now, TPS_SAMPLE_WINDOW).weightedAverage();
+        if (Double.isNaN(v)) v = globalTickStarts.rate(now, TPS_SAMPLE_WINDOW, TPS_MIN_HISTORY);
+        activeTpsHistory.record(now, v);
+    }
+
+    /** 서버 TPS(플러그인 API Furnace.tps() 와 /tps 의 바탕). 아무 스레드. 정의는 docs/api/tps.md. */
+    public org.domi.furnace.api.world.ServerTps serverTps() {
+        long now = System.nanoTime();
+        var live = activeSummary(now, TPS_LIVE_WINDOW);
+        double g5 = globalTickStarts.rate(now, 5L * SEC_NANOS, TPS_MIN_HISTORY);
+        double a5 = live.weightedAverage();
+        if (Double.isNaN(a5)) a5 = g5;
+        return new org.domi.furnace.api.world.ServerTps(a5,
+                activeAvgOrGlobal(now, 60L * SEC_NANOS), activeAvgOrGlobal(now, 300L * SEC_NANOS), activeAvgOrGlobal(now, 900L * SEC_NANOS),
+                live.activeRegions(), live.activePlayers(), live.slowestActive(), live.slowestAny(),
+                g5, globalTickStarts.rate(now, 60L * SEC_NANOS, TPS_MIN_HISTORY), globalTickStarts.rate(now, 300L * SEC_NANOS, TPS_MIN_HISTORY),
+                globalTickStarts.rate(now, 900L * SEC_NANOS, TPS_MIN_HISTORY));
+    }
+
+    private static final long SEC_NANOS = 1_000_000_000L;
+
+    private double activeAvgOrGlobal(long now, long window) {
+        double v = activeTpsHistory.average(now, window);
+        return Double.isNaN(v) ? globalTickStarts.rate(now, window, TPS_MIN_HISTORY) : v;
+    }
 
     /** 전역 스레드 이름(관측용). */
     public String globalThreadName() {
@@ -623,6 +667,7 @@ public final class ServerCore {
         globalTickThread = Thread.currentThread();
         globalTickStarts.record(t0);
         try {
+            sampleActiveTps(t0);
             scheduledTick0();
         } finally {
             long took = System.nanoTime() - t0;
@@ -949,7 +994,8 @@ public final class ServerCore {
 
     /** 바닐라 Level.mayInteract(ServerLevel): 스폰 보호 밖이고 월드 보더 안. */
     public boolean mayInteract(Player p, int x, int z) {
-        return !isUnderSpawnProtection(x, z, p) && border.isWithinBounds(x, z);
+        org.domi.furnace.server.world.WorldBorder own = p == null ? null : p.viewLayers().enforcedBorder();   // 플러그인이 enforce 한 개인 보더(PlayerViews)
+        return !isUnderSpawnProtection(x, z, p) && (own != null ? own : border).isWithinBounds(x, z);
     }
 
     /** 바닐라 ServerLevel.setDefaultSpawnPos: 바뀌었으면 level.dat 에 남기고 모두에게 알린다. */
@@ -1022,6 +1068,10 @@ public final class ServerCore {
         public float borderDamage(double x, double y, double z) {
             return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
+        public float borderDamage(Player player, double x, double y, double z) {
+            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder();
+            return (own != null ? own : border).computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
+        }
     };
 
     /** 블록 레벨이 보는 서버 쪽 정보(게임룰·난이도·보더·날씨·시간·접속자). */
@@ -1030,6 +1080,7 @@ public final class ServerCore {
         public int gameRuleInt(String name) { return gameRules.getInt(name); }
         public org.domi.furnace.server.plugin.GameEvents gameEvents() { return pluginHost == null ? org.domi.furnace.server.plugin.GameEvents.NONE : pluginHost.gameEvents(); }
         public int difficulty() { return levelData.difficulty.id(); }
+        public boolean pvp() { return settings.get().pvp; }
         public org.domi.furnace.server.scores.Scoreboard scoreboard() { return scoreboard; }
         public boolean worldAdventure() { return levelData.gameType == org.domi.furnace.server.world.GameMode.ADVENTURE; }
         public void runSignCommand(Player player, int x, int y, int z, String command) {
@@ -1299,8 +1350,7 @@ public final class ServerCore {
                 .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{x, y, z})
                 .with(org.domi.furnace.server.loot.LootParams.DAMAGE_SOURCE, new org.domi.furnace.server.loot.LootDamageSource() {
                     public String type() { return damageType; }
-                    // TODO(피해 종류 태그): is_fire·is_explosion 등 태그 조회
-                    public boolean is(String tag) { return false; }
+                    public boolean is(String tag) { return damageType != null && org.domi.furnace.server.entity.damage.DamageType.keyHasTag(damageType, tag); }   // damage_type 태그(is_fire·is_explosion …)
                     public org.domi.furnace.server.loot.LootEntity entity() { return attackerEntity; }
                     public org.domi.furnace.server.loot.LootEntity directEntity() { return attackerEntity; }
                 })
@@ -1499,6 +1549,35 @@ public final class ServerCore {
         logChatMessage(message.decoratedContent(), bound, null);
         Text line = bound.decorate(message.decoratedContent());
         for (Player p : players()) if (p.chat().acceptsChatMessages()) p.sendSystemMessage(line, false);
+    }
+
+    /**
+     * 플러그인 렌더러(AsyncChatEvent.renderer)로 받는 사람마다 줄을 만들어 서명 없는 시스템 메시지로 보낸다 — 채팅을 보는 설정인 플레이어에게만.
+     * 콘솔 로그에는 콘솔을 받는 사람으로 한 번 렌더한다. 렌더러가 예외를 던지면 그 사람에게는 바닐라 서식으로 보낸다.
+     */
+    public void broadcastRenderedChat(Player sender, Text senderName, Text content, org.domi.furnace.api.event.player.ChatRenderer renderer) {
+        var host = plugins();
+        var source = host.player(sender);
+        Text consoleLine;
+        try {
+            consoleLine = renderer.render(source, senderName, content, host.console());
+        } catch (RuntimeException e) {
+            log.warn("채팅 렌더러 오류(콘솔)", e);
+            consoleLine = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.console());
+        }
+        log.info("{}", consoleLine.getString());
+        for (var l : consoleListeners) l.accept(consoleLine);
+        for (Player p : players()) {
+            if (!p.chat().acceptsChatMessages()) continue;
+            Text line;
+            try {
+                line = renderer.render(source, senderName, content, host.player(p));
+            } catch (RuntimeException e) {
+                log.warn("채팅 렌더러 오류({})", p.name(), e);
+                line = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.player(p));
+            }
+            p.sendSystemMessage(line, false);
+        }
     }
 
     /** 바닐라 ServerPlayer.sendChatMessage: 채팅을 모두 보는 설정일 때만. 시스템 출처면 disguised_chat. */

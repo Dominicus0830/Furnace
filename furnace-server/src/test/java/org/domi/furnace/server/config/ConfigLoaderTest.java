@@ -59,6 +59,19 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void chunksPerTick_defaultsToAuto_acceptsAutoOrNumber(@TempDir Path dir) throws Exception {
+        assertEquals(Config.CHUNKS_PER_TICK_AUTO, ConfigLoader.load(dir.resolve("absent.properties")).chunksPerTick());
+        Path f = dir.resolve("furnace.properties");
+        Files.writeString(f, "chunks-per-tick= AUTO \n");
+        assertEquals(Config.CHUNKS_PER_TICK_AUTO, ConfigLoader.load(f).chunksPerTick());
+        Files.writeString(f, "chunks-per-tick=16\n");
+        assertEquals(16, ConfigLoader.load(f).chunksPerTick());
+        Files.writeString(f, "chunks-per-tick=fast\n");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigLoader.load(f));
+        assertTrue(e.getMessage().contains("chunks-per-tick"), e.getMessage());
+    }
+
+    @Test
     void load_rejectsNonNumeric_andOutOfIntRange(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("bad.properties");
         Files.writeString(f, "port=abc\n");

@@ -1,6 +1,7 @@
 plugins {
     id("java")
     id("application")
+    id("maven-publish")
 }
 
 repositories { mavenCentral() }
@@ -54,7 +55,8 @@ tasks.test {
 //   java -Xms2G -Xmx4G -jar furnace-server.jar
 // `assemble`/`build` 에도 포함된다(테스트는 안 돈다).
 // 일반 jar 는 이름을 바꿔(furnace-server-plain.jar) fatJar 의 furnace-server.jar 와 출력이 겹치지 않게 한다.
-tasks.jar { archiveClassifier = "plain" }
+// 배포(maven-publish)에서는 분류자 없는 주 산출물이어야 POM 소비자가 찾는다 — 그래서 분류자 대신 파일 이름만 바꾼다.
+tasks.jar { archiveClassifier = ""; archiveFileName = "furnace-server-plain.jar" }
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
@@ -71,3 +73,16 @@ val fatJar = tasks.register<Jar>("fatJar") {
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
 }
 tasks.named("assemble") { dependsOn(fatJar) }
+
+// 헤드리스 시험 서버(furnace-test)가 기대는 좌표 — publishToMavenLocal 로 함께 배포한다(docs/api/testing.md).
+// 버전은 -PfurnaceVersion=... 으로 바꾼다. jar 파일 이름(project.version)은 건드리지 않는다.
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "org.domi.furnace"
+            artifactId = "furnace-server"
+            version = (findProperty("furnaceVersion") as String?) ?: "1.21.1-SNAPSHOT"
+            from(components["java"])
+        }
+    }
+}

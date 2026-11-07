@@ -279,8 +279,10 @@ public final class PluginManagerImpl implements PluginManager {
         org.domi.furnace.server.loot.EnchantmentToggles.removeOwner(p.name());   // 이 플러그인이 끈 마법부여
         host.packetsImpl().unregisterAll(p);
         host.services().unregisterAll(p);   // 이 플러그인이 올린 서비스 제공자
+        host.translations().unregisterAll(p);   // 이 플러그인이 올린 번역 저장소
         host.virtualImpl().removeAll(p);   // 가상 엔티티·가짜 탭 줄
         host.entityViewsImpl().removeAll(p);   // 보이기·숨기기·변장 규칙
+        host.playerViewsImpl().removeAll(p);   // 가상 블록·바이옴 층, 장비 덮어쓰기, 개인 보더
         try {
             host.lightSourcesImpl().removeAll(p);   // 가짜 광원
         } catch (RuntimeException e) {

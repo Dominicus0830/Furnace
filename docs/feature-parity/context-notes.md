@@ -1024,6 +1024,39 @@
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
 
+## 2026-11-07 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 (묶음 K3, 불만 표 52~54행)
+- API `Furnace.playerViews()` → `PlayerViews`(+`PlayerBorder`), `AsyncChatEvent.renderer(ChatRenderer)`. 설계·규칙 `docs/api/player-views.md`.
+- 핵심(52행): 서버 `Player` 마다 `ViewLayers`(블록·바이옴 층, 장비 덮어쓰기, 개인 `WorldBorder`)를 두고, 나가는 청크 본문·`block_update`·`section_blocks_update`·`chunks_biomes`·`set_equipment`·보더 패킷에 연결의 `ViewRewriter` 가 덧입힌다. 청크를 다시 받아도(멀리 갔다 옴) 층이 남는다 — 봇으로 확인.
+- 함정 ①: `ConnectionHandler.send(ctx, …)` 는 `Player.send` 를 거치지 않아 K2 의 `ViewRewriter` 를 못 지났다(스폰 청크·차원 이동·`LoginPlay`/`Respawn` 이 그 길이라 차원 이름도 몰랐다). 이제 이 길도 같은 `ViewRewriter` 를 거친다(`joining` 필드로 접속 도중의 Player).
+- 함정 ②: 청크 본문 다시 쓰기는 덮을 칸이 있는 섹션만 풀어 다시 인코딩하고 나머지는 바이트 복사한다. 직접 팰릿 비트 수(`World.blockDirectBits/biomeDirectBits`)를 층이 처음 걸릴 때 월드에서 읽어 둔다. 비공기 수(`nonAirCount`)를 다시 세지 않으면 클라이언트가 섹션을 빈 것으로 건너뛴다.
+- 함정 ③: 공유 청크 프레임(`SharedChunkFrames`)은 본문 `byte[]` 동일성이 키다 — 덧입힌 본문은 `shared=null` 로 만들어 그 사람에게만 압축한다(다른 사람의 캐시를 더럽히지 않는다).
+- 개인 보더는 `WorldBorder` 인스턴스 하나를 접속에 붙인다. 서버의 `InitializeBorder` 는 개인 보더 상태로 바꿔 보내고 다른 `SetBorder*` 는 버린다. `enforce` 면 `ServerCore.mayInteract`·`Env.borderDamage(Player, …)` 가 이 보더를 쓴다.
+- 채팅 렌더러는 서명 없는 시스템 메시지(`unsigned-as-system` 과 같은 길)로 받는 사람마다 한 줄씩 보낸다.
+- 시험: `PlayerLayersTest` 12(청크 본문 다시 쓰기·소유권·재전송·차원·보더·장비), `PlayerViewsApiTest` 6, `CancelResyncE2ETest.chatRendererBuildsOneUnsignedLinePerViewer`, 봇 `tools/bot-test/round16/k3.js` 21/21(`round16/probe/K3Probe`).
+
+
+## 2026-11-07 스폰 정책·엔티티 수·자세·주민/마을/습격 API (E3)
+- 설계·바닐라 대조 `docs/api/spawn-and-villages.md`. 기본값은 바닐라 상수(70·10·15·5·5·20·5·…)이고 정책이 비어 있으면 스폰 경로가 바닐라와 같다(`WorldSpawnPolicy.state` 가 `VANILLA` 로 접힘). 활성 범위·엔티티 상한 같은 게임플레이 변경은 넣지 않았다(D3).
+- 세계 상한은 `(int)((long)상한 × 스폰 가능 청크 수 / 289)`. 플레이어 상한 0 이하면 그 플레이어 주변은 건너뛴다(바닐라 상수로는 닿지 않고 플러그인이 0 을 걸 때만 닿는 경로).
+- `spawn.limit.<카테고리>`·`spawn.player-limit.<카테고리>`(`furnace.properties`)는 월드 정책의 시작값. 0·바닐라 3배 초과·모르는 `spawn.*` 키는 경고, 숫자가 아니거나 범위 밖이면 시작 거부.
+- spawn-animals/npcs=false 는 바닐라 1.21.1 `ServerLevel.shouldDiscardEntity`(Animal·WaterAnimal·Npc)와 바이트코드·전 엔티티 종류로 대조해 같음(`SpawnDiscardTest`). 소·주민은 지워지고 좀비는 남는다(봇 `round15/e3.js MODE=npcs`).
+- 함정: `EntityHandle.onEntity` 는 region 틱이 돌아야 작업이 실행된다(엔티티 따라다니는 큐) — 시험이 틱을 안 돌리면 영영 안 끝난다. `World.raidAt` 같은 위치 조회는 로드 안 된 청크면 그 region 에 넘기지 않고 빈 결과를 돌려준다.
+- 평지 월드는 슬라임 청크 때문에 몬스터가 바로 쌓여 "몬스터 수 == 0" 단정이 깨진다. 상한을 건 뒤 증가 여부로 본다.
+- 시험: `SpawnPolicyStateTest` 8, `SpawnPolicySpawnTest` 6, `EntityPolicyApiTest` 8, `NoPhysicsRegionTest` 1, `SpawnDiscardTest`, 봇 `round15/e3.js` 15/15 + `MODE=npcs` 1/1.
+
+## 2026-11-07 M4 약탈자·습격 바닐라 대조 (바이트코드)
+- 대조 방법: 바닐라 1.21.1 jar(`tools/vanilla-data`)를 `javap -c -p` 로 읽어 Furnace 와 줄 단위로 맞춰 봤다(Vineflower 실행은 자동 모드에서 거부됨). 대상: `Raid`(coi: 틱·파도 구성·보너스 수·스폰 위치·joinRaid·updateRaiders·소리·save), `Raids`(cok), `Raider`(coj), `PatrollingMonster`(cke)+`LongDistancePatrolGoal`(cke$a), `PatrolSpawner`(dzj), 일러저 `Pillager`(ckg)·`Vindicator`(cks)·`Vindicator.BreakDoorGoal`(cks$a)·`Ravager`·`Witch`.
+- **같음 확인**: 습격 틱 순서와 모든 상수(대기 300, 최대 48000, 112² 이탈, 30틱 바깥, 승리 40틱 대기, 축하 600), 나쁜 징조→습격 징조→습격 시작 흐름(`BadOmen`/`RaidOmen` 효과, `createOrExtendRaid` 의 마을 POI 평균 위치), 파도별 수·추가 수 난수 순서(`getPotentialBonusSpawns`), 파괴수 기수, 스폰 위치 찾기(`findRandomSpawnPos`), 습격 뿔피리, 저장 키 순서, 순찰 스포너(12000+nextInt(1200), 5일째 낮, 1/5, 24~47칸, 크기=ceil(실효 난이도)+1)와 장거리 순찰 목표(회전 90 라디안·0.4·10칸 걸음), 문 부수기·문 열기 조건.
+- **가정이었던 것 3개 확정**: ① 순찰 저장 키는 `patrol_target`(정수 배열) 맞음. ② 마녀·약탈수는 `canBeLeader()==false` 맞음. ③ 불길한 깃발은 **희귀도 구성 요소가 없고** 이름만 금색 스타일(`item_name`={translate, color:gold}) — 기존의 `rarity: uncommon` 은 틀렸다.
+- **고친 차이**:
+  - 불길한 깃발(`Raider.leaderBanner`): 희귀도 uncommon 제거, 이름에 금색. 바닐라 월드에서 온 깃발과 `ItemStack.matches` 가 어긋나(줍기·지도자 판정 실패) 있었다.
+  - `Raid.addWaveMob`: 바닐라는 같은 UUID 의 옛 개체를 새 개체로 **바꾸고 항상 참**을 돌려준다. 이전에는 거짓을 돌려주고 옛 개체를 남겨, 청크가 내려갔다 올라온 습격자가 집합에 없어 생존 수가 모자랐다(웨이브가 일찍 끝날 수 있음).
+  - `Pillager.applyRaidBuffs` 가 비어 있었다: 습격 징조 확률(`Raid.getEnchantOdds`: 단계 2→0.1, 3→0.25, 4→0.5, 5→0.75)을 통과하면 새 석궁에 파도 > 5 면 `raid/pillager_post_wave_5`, 파도 > 3 이면 `raid/pillager_post_wave_3` 제공자로 마법을 걸어 주 무기로 바꾼다(그 밖은 그대로). `Vindicator` 도 같은 `getEnchantOdds` 를 쓰게 정리.
+  - `Raider.die` 영웅 후보: 바닐라는 `damageSource.getEntity()` 가 플레이어일 때만 후보. 이전에는 "100틱 안에 마지막으로 때린 플레이어"라서 길들인 늑대·낙사·불 등 다른 원인으로 죽어도 영웅이 됐다.
+- **독립 검토(읽기 전용) 결과**: 블로커 없음. 사소한 차이 기록: `updateRaiders` 의 `level.getEntity(uuid)==null` 검사는 없지만 청크가 내려가면 개체가 removed 로 표시돼 `isRemoved()` 가 덮는다. 습격 대기 위치·스폰 위치 검사는 바닐라 `isPositionEntityTicking` 대신 `hasChunkAt`(적재 여부)을 쓴다. `Vindicator.populateDefaultEquipmentSlots` 는 바닐라처럼 `getCurrentRaid()==null` 로 맞췄다.
+- **남은 차이**(구조상): 내려간 청크·다른 region 의 POI 는 조회하지 않아 중심 둘레 ±2 섹션 중 일부가 다른 region 이면 마을 판정이 모자랄 수 있다. 같은 거리 POI 선택 순서(`getInRange` 순서)는 region 청크 순서에 따른다. 보스바 진행도 `0/0`(NaN) 은 바닐라가 NaN 을 보내지만 여기서는 0 으로 보낸다.
+- 시험: `RaidParityTest`(깃발 구성·addWaveMob 교체·습격 석궁 마법 확률/파도·영웅 처치자) 신규.
+
 ## 2026-11-07 수면·리스폰 바닐라 대조 (묶음 M9)
 - 바닐라 1.21.1 바이트코드 대조(`aqv`=ServerPlayer): `stopSleepInBed(true,true)` 를 부르는 곳은 **disconnect 와 teleportTo(level, …7인자) 둘뿐**이다. 차원 이동(changeDimension)·포털은 깨우지 않는다(자면서 포털에 들어갈 수 없다).
 - 자는 중 텔레포트: `/tp`·setCamera 는 이미 깨웠으나 플러그인 `PlayerHandle.teleport`·`Player.teleportTo`(3·5인자)·`teleportRelative`(엔더 진주 등)는 안 깨웠다. 이제 `Player.wakeThen` 이 이벤트 취소 확인 뒤 소유 스레드(`runOnOwner`)에서 깨우고 **그다음** 목적지로 보정 텔레포트한다(깨우기가 일어설 자리로 옮기는 보정이 목적지를 덮어쓰지 않게 순서 고정). 상대 텔레포트는 깬 뒤 자리 기준.
@@ -1043,6 +1076,21 @@
   - 엔티티 용기 창 제목: 이름표 이름이 있으면 그 이름, 없으면 종류 이름, 팀이 있으면 접두사·색·접미사(`ContainerEntity.containerTitle`).
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
+
+## 2026-11-07 청크 전송 auto · furnace.properties 자동 생성
+- 청크 로딩 속도는 봇(mineflayer)으로 못 잰다 — `tools/bot-test/chunkrate/chunkrate.js` 처럼 `chunk_batch_received` 값을 정해 답하는 접속기를 쓴다. 진단·전후 수치: `perf-chunk-send-2026-11-07.md`.
+- `chunks-per-tick=auto`(기본)는 준비된 청크만 배치에 넣는다. 배치에 생성 중인 청크를 넣으면 Finished 가 가장 느린 생성을 기다려 클라이언트 응답이 늦어지고 이미 있는 청크까지 막힌다.
+- `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
+- furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
+## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
+- 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.
+- **구조**: `Targetable.team()`/`isAlliedTo(other)` 기본 구현(같은 팀 = `PlayerTeam.isAlliedTo`). `LivingEntity.team()` = `getTeam()`, `Player.team()` 은 원래 있던 것. 덮어쓰기: `TamableAnimal`(길들였으면 주인·주인의 아군), `AbstractIllager`(팀 규칙 뒤, `illager_friends` 태그는 **둘 다 팀이 없을 때만** — 이전엔 팀과 무관하게 동맹이었다), `Evoker` 는 그대로.
+- **PvP**: `Player.canHarmPlayer(other, pvp)` — this 쪽 서버 설정 pvp 가 꺼지면 거짓, 팀이 없거나 다른 팀이면 참, 같은 팀이면 그 팀의 아군 피해. 쓰는 곳: 맞는 쪽(`PlayerVitals.hurt`, 이미 있던 인라인 검사를 이 함수로), **화살 주인→맞은 사람**(`AbstractArrow.tick`: 못 때리면 hit·entityHit 둘 다 null — 바닐라처럼 블록 맞음도 그 틱엔 사라지고 사람을 통과한다), **늑대**(`wantsToAttack`: 주인이 맞는 사람을 못 때리면 공격 안 함, 길들인 말도 안 함 — 이쪽은 이전에 빠져 있었다). pvp 설정은 `LevelServices.pvp()`(기본 참, `ServerCore` 가 `settings.pvp`) → `ChunkLevel.pvp()`.
+- **TargetGoal.canContinueToUse**: 바닐라는 isAlliedTo 가 아니라 `getTeam()` 동일 객체 비교(`team != null && target.team == team`). 그대로 옮겼다. HurtByTargetGoal 경보는 `isAlliedTo(lastHurtByMob)` + 길들인 동물은 **주인이 같을 때만** 돕는다(이전엔 둘 다 빠짐).
+- **전리품 피해 태그**: `/loot kill`(`minecraft:magic`)과 몹 죽음 전리품(`ServerCore.entityDrops`) 의 `LootDamageSource.is(tag)` 가 늘 거짓이었다 → `DamageType.keyHasTag`. `damage_source_properties` 의 `is_fire`·`is_explosion` 등 태그 조건이 이제 맞다.
+- **/teammsg 채팅 필터**: 바닐라의 `shouldFilterMessageTo` 분기는 글자 걸러내기 서비스(`text-filtering-config`)가 없으면 마스크가 PASS_THROUGH 라 관측 결과가 같다(받는 쪽 클라이언트 옵션과 무관하게 원문, "모두 걸러짐" 안내도 없음). Furnace 는 그 서비스를 아직 지원하지 않으므로(FurnaceMain 경고) 코드는 안 늘리고 주석으로 닫았다.
+- **독립 검토(읽기 전용)가 찾은 둘, 고침**: ① `TamableAnimal.getTeam` 은 길들였고 주인이 보이면 **주인의 팀**(바닐라 `bul.ck`)인데 Entity 기본(자기 UUID 의 팀)을 그대로 써서 쓸기·충격파·워든·선택자 `team=`·팀 충돌이 펫에서 틀렸다. ② `PlayerVitals.hurt` 의 `ap != player` 예외 제거 — 바닐라 `ServerPlayer.hurt` 는 자기 자신이 원인이어도 `canHarmPlayer(자기)` 를 검사해, pvp 꺼짐·아군 피해 꺼진 팀에서는 내 화살·내 TNT·내 폭죽에 안 다친다. `Player.team()` 에는 `hasTeams()` 단락 추가.
+- 시험: `TeamPvpRulesTest` 10개(같은 팀/없음, 전투 조건, 목표 지속, 길들인 동물 주인, 일러저 친구, canHarmPlayer 표, 맞는 쪽 무시, 늑대, 길들인 말, 화살 통과).
 
 ## 2026-11-07 월드젠 단계 훅·청크 재생성 (W3)
 - API `LifecycleEvents.WORLD_GENERATION` → `WorldGenerationRegistrar.register(키, ChunkGenerationHooks)`. 월드는 키만 쥔다(`WorldCreator.generationHooks`, 기본 차원은 `worldgen-hooks.*`). 서버 `plugin/GenerationHookStore`(키 → 플러그인·훅, 꺼지면 빠짐), `world/gen/GenHooks`(월드 바인딩·예외 격리·BlockData 변환). 문서 `docs/api/worldgen-hooks.md`.

@@ -1,4 +1,5 @@
 // 채팅 — 그 플레이어의 연결 스레드에서(서버 틱과 무관하게) 불린다. 취소하면 아무에게도 가지 않는다.
+// renderer 를 정하면 받는 사람마다 따로 만든 줄을 시스템 메시지로 보낸다.
 // 내용을 바꾸면 바닐라처럼 "서명 없는 내용(unsigned_content)"으로 보낸다(서명은 원문 기준으로 유지된다).
 package org.domi.furnace.api.event.player;
 
@@ -12,6 +13,7 @@ public final class AsyncChatEvent extends PlayerEvent implements Cancellable {
     private Text message;
     private boolean cancelled;
     private final byte[] signature;
+    private ChatRenderer renderer;
 
     public AsyncChatEvent(Player player, String originalMessage, Text message) {
         this(player, originalMessage, message, null);
@@ -32,6 +34,15 @@ public final class AsyncChatEvent extends PlayerEvent implements Cancellable {
     public String originalMessage() { return originalMessage; }
 
     public Text message() { return message; }
+
+    /**
+     * 받는 사람마다 다른 서식을 쓰려면 정한다(null = 바닐라 서식). 정하면 서명 없는 시스템 메시지로 보낸다 —
+     * 채팅 신고 대상이 되지 않고, 채팅을 숨긴 사람은 받지 않는다. 불리는 스레드는 이 이벤트와 같은 연결 스레드이므로 오래 걸리는 일은 하지 않는다.
+     */
+    public void renderer(ChatRenderer renderer) { this.renderer = renderer; }
+
+    /** 정한 렌더러, 없으면 null. */
+    public ChatRenderer renderer() { return renderer; }
 
     public void message(Text message) { this.message = message; }
 

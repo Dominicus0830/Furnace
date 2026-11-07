@@ -96,7 +96,16 @@ public final class FurnaceMain {
         // Paper/Spigot 에서 넘어온 서버: bukkit.yml·spigot.yml·config/paper-*.yml 의 대응 키를 furnace.properties 로 옮긴다(첫 기동 한 번).
         // furnace.properties 를 읽는 모든 곳보다 먼저여야 한다.
         org.domi.furnace.server.config.PaperConfigImport.runIfNeeded(Path.of("."), Path.of("furnace.properties"));
+        // furnace.properties: Paper 가져오기 뒤에(먼저 만들면 모든 키가 "이미 있음"이 되어 Paper 값을 못 옮긴다). 없으면 모든 옵션(기본값·설명)으로 만들고, 새 버전에서 생긴 옵션만 끝에 덧붙인다
+        try {
+            var r = org.domi.furnace.server.config.FurnacePropertiesFile.ensure(Path.of("furnace.properties"));
+            if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.CREATED) log.info("furnace.properties 를 만들었다(모든 옵션과 설명)");
+            else if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.APPENDED) log.info("furnace.properties 에 새 옵션을 덧붙였다(적어 둔 값은 그대로)");
+        } catch (java.io.IOException e) {
+            log.warn("furnace.properties 를 쓰지 못했다 — 기본값으로 계속한다: {}", e.toString());
+        }
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
+        org.domi.furnace.server.entity.spawn.SpawnConfig.install(org.domi.furnace.server.entity.spawn.SpawnConfig.load(Path.of("furnace.properties"), log::warn));   // spawn.limit.* / spawn.player-limit.*
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
                     props.regionFileCompression);
@@ -196,10 +205,12 @@ public final class FurnaceMain {
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
-        // 롤백 스위치(기본 끔): 켜면 모든 차원이 region 워커 풀 하나를 공유하고 region-threads 는 서버 전체 워커 수가 된다
-        boolean sharedRegionPool = Boolean.getBoolean("furnace.sharedRegionPool");
-        org.domi.furnace.server.world.SharedScheduler regionPool = sharedRegionPool
-                ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-") : null;
+        // 공유 region 풀(S4, 기본 켬): 모든 차원·추가 월드가 워커 풀 하나를 쓰고 region-threads 는 서버 전체 워커 수다.
+        // furnace.properties 'shared-region-pool=false'(또는 -Dfurnace.sharedRegionPool=false)면 차원마다 따로(이전 방식).
+        var regionPoolSettings = org.domi.furnace.server.config.RegionPoolSettings.load(furnaceProps, log::warn);
+        org.domi.furnace.server.world.SharedScheduler regionPool = regionPoolSettings.shared()
+                ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-",
+                        regionPoolSettings.dimCap(), regionPoolSettings.starveTicks()) : null;
         // 플러그인 부트스트랩: 레지스트리·데이터 팩·월드보다 먼저(Paper 부트스트랩과 같은 자리). onLoad 는 월드 준비 뒤.
         org.domi.furnace.server.plugin.PluginSettings pluginSettings = org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps);
         org.domi.furnace.server.plugin.PluginBootstrapper pluginBoot =
@@ -360,6 +371,8 @@ public final class FurnaceMain {
         if (regionPool != null) scheduler.addCloseHook(regionPool::close);
         log.info("[SCHED] region 워커 {}개({}, 차원 {}개)", config.regionThreads(),
                 regionPool != null ? "서버 전체 공유" : "차원별", dimensions.all().size());
+        regionPoolSettings.warnOversubscription(config.regionThreads(), dimensions.all().size(),
+                Runtime.getRuntime().availableProcessors(), log::warn);
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);
@@ -634,7 +647,12 @@ public final class FurnaceMain {
 
     /** Query 응답이 읽는 서버 정보(기동 때 값 + 접속자 수·이름은 매번). */
     private record QueryInfo(ServerCore core, ServerProperties props, Config config, String hostIp) implements org.domi.furnace.server.remote.QueryHandler.Info {
-        @Override public String motd() { return props.motd; }
+        @Override public String motd() {
+            // Query 는 § 코드 문자열 — 마크업·& 형식이면 해석해 § 로 다시 쓴다(plain 은 바닐라처럼 원문 그대로)
+            return org.domi.furnace.server.net.Motd.isRich()
+                    ? org.domi.furnace.api.text.serializer.LegacyTextSerializer.section().serialize(org.domi.furnace.server.net.Motd.parse(props.motd))
+                    : props.motd;
+        }
         @Override public String levelName() { return config.levelName(); }
         @Override public String version() { return "1.21.1"; }
         @Override public String plugins() { return ""; }

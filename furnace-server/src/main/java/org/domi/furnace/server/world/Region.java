@@ -47,7 +47,12 @@ public final class Region {
     /** 청크 키가 붙은 작업. urgent: 전역(명령) 스레드가 보냈다 — 명령 블록이 결과를 기다리는 동안 이것만 골라 돌린다. */
     record Task(long chunkKey, Consumer<Region> run, boolean urgent) {}
 
-    private record Delayed(long dueTick, long chunkKey, Consumer<Region> run) {}
+    private record Delayed(long dueTick, long seq, long chunkKey, Consumer<Region> run) {
+        Delayed(long dueTick, long chunkKey, Consumer<Region> run) { this(dueTick, DELAYED_SEQ.getAndIncrement(), chunkKey, run); }
+    }
+
+    /** 같은 틱에 때가 된 지연 작업은 건 차례대로(Bukkit·Folia 처럼) — region 끼리 옮겨도 차례가 남게 서버 전체 번호. */
+    private static final java.util.concurrent.atomic.AtomicLong DELAYED_SEQ = new java.util.concurrent.atomic.AtomicLong();
 
     final int id;
     private final World world;
@@ -64,6 +69,8 @@ public final class Region {
     long schedTicks, schedDelaySum, schedDelayMax;
     /** 관측용: 직전 틱·가장 긴 틱의 소요 시간(ns). 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). */
     volatile long lastTickNanos, maxTickNanos;
+    /** 관측용(/tps): 이 region 의 플레이어 수 — 틱이 끝날 때와 합치기·나누기·편입 때 갱신한다(아무 스레드가 읽는다). */
+    volatile int observedPlayers;
     /** 관측용(/tps): 최근 게임 틱 시작 시각. 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). 20 TPS 로 6.4초를 덮는다. */
     final org.domi.furnace.server.sched.TickStartRing tickStarts = new org.domi.furnace.server.sched.TickStartRing(128);
     /** -Dfurnace.tickstats: [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍. 틱 중(이 region 이 RUNNING)에만 만진다. */
@@ -90,7 +97,7 @@ public final class Region {
     private long urgentWaitUsed;
 
     // ---- 이 region 스레드만 다루는 상태
-    private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> Long.compare(a.dueTick, b.dueTick));
+    private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> a.dueTick != b.dueTick ? Long.compare(a.dueTick, b.dueTick) : Long.compare(a.seq, b.seq));
     private long tickCount;
     private int latencyCounter;
     private final Map<Integer, Player> players = new HashMap<>();
@@ -124,11 +131,18 @@ public final class Region {
     /** 마지막 runTick 이 게임 틱(tick)까지 돌았는가 — 붙잡힌(백업·일시정지) 차례는 틱 시간 표본에 넣지 않는다. */
     boolean lastRunTicked;
 
-    void runTick(boolean gameTick) {
+    void runTick(boolean gameTick) { runTick(gameTick, false); }
+
+    /**
+     * manualHold: 수동 시계(헤드리스 시험 서버)에서 이번 차례가 시험이 낸 틱이 아니다 — 작업 큐만 비우고 지연 작업 시계·월드·플레이어 처리는
+     * 하지 않는다(sprint lockstep 의 기다림과 같은 길).
+     */
+    void runTick(boolean gameTick, boolean manualHold) {
         lastRunTicked = false;
         // /tick sprint lockstep: 전역을 앞서면 이번 차례는 작업 큐만 비우고 틱(지연 작업 시계·월드·플레이어 처리)은 하지 않는다
-        sprintHeld = gameTick && sprintHoldsNow();
-        if (!sprintHeld) tickCount++;
+        sprintHeld = !manualHold && gameTick && sprintHoldsNow();
+        boolean hold = sprintHeld || manualHold;
+        if (!hold) tickCount++;
         urgentWaitUsed = 0L;
         long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Task t;
@@ -138,7 +152,7 @@ public final class Region {
             else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
             if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
         }
-        if (sprintHeld) return;
+        if (hold) return;
         while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) {
             Delayed d = delayed.poll();
             if (mine(d.chunkKey)) runTask(d.run);
@@ -230,10 +244,12 @@ public final class Region {
     void absorbData(Region o) {
         present.addAll(o.present);
         o.present.clear();
-        for (Delayed d : o.delayed) delayed.add(new Delayed(tickCount + Math.max(0, d.dueTick - o.tickCount), d.chunkKey, d.run));
+        for (Delayed d : o.delayed) delayed.add(new Delayed(tickCount + Math.max(0, d.dueTick - o.tickCount), d.seq, d.chunkKey, d.run));
         o.delayed.clear();
         for (Player p : o.players.values()) players.put(p.entityId(), p);
         o.players.clear();
+        observedPlayers = players.size();
+        o.observedPlayers = 0;
         dirtyChunks.addAll(o.dirtyChunks);
         o.dirtyChunks.clear();
         evictGrace.putAll(o.evictGrace);
@@ -255,7 +271,7 @@ public final class Region {
         for (Delayed d : delayed) {
             Region t = targetOf.apply(d.chunkKey);
             if (t == null) keep.add(d);
-            else t.delayed.add(new Delayed(t.tickCount + Math.max(0, d.dueTick - tickCount), d.chunkKey, d.run));
+            else t.delayed.add(new Delayed(t.tickCount + Math.max(0, d.dueTick - tickCount), d.seq, d.chunkKey, d.run));
         }
         delayed.clear();
         delayed.addAll(keep);
@@ -265,9 +281,11 @@ public final class Region {
             Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
             if (t != null) {
                 t.players.put(p.entityId(), p);
+                t.observedPlayers = t.players.size();
                 it.remove();
             }
         }
+        observedPlayers = players.size();
         for (var it = dirtyChunks.iterator(); it.hasNext(); ) {
             ChunkPos c = it.next();
             Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
@@ -594,6 +612,17 @@ public final class Region {
                 done.complete(null);
             }
         });
+    }
+
+    /** 이 region 이 가진 로드된 청크의 바이옴 항목(섹션별 4×4×4 번호). 없으면 null — 플레이어별 바이옴 층이 한 사람에게 다시 보낼 때 쓴다. */
+    public org.domi.furnace.server.net.protocol.play.ChunksBiomes.Entry biomeEntry(ChunkPos cp) {
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(cp.x(), cp.z());
+        if (col == null) return null;
+        var secs = col.sections();
+        int[][] out = new int[secs.length][];
+        for (int i = 0; i < secs.length; i++) out[i] = secs[i].biomes().clone();   // 다른 스레드(연결 이벤트 루프)가 인코딩하므로 소유 스레드에서 복사한다
+        return new org.domi.furnace.server.net.protocol.play.ChunksBiomes.Entry(cp.x(), cp.z(), out);
     }
 
     /** 이 region 이 가진 로드된 청크(없으면 null, 로드를 걸지 않는다). 플러그인 API 용. */
@@ -1022,6 +1051,7 @@ public final class Region {
     public void adopt(Player p) {
         world.assertOwns(this);
         players.put(p.entityId(), p);
+        observedPlayers = players.size();
         world.playerOnline(p);   // 멱등 — 접속 등록이 누락돼도 탭/가시성 기준 집합에 항상 포함
     }
 
@@ -1038,6 +1068,13 @@ public final class Region {
         if (d > phaseMax[i]) phaseMax[i] = d;
         lapT = n;
     }
+
+    /**
+     * 수동 시계(헤드리스 시험 서버, Regionizer.manualClock): 이 region 이 마친 시험 틱 수. 잠금 안에서만 읽고 쓴다.
+     * manualPass 는 이번 차례가 시험 틱인지(tryTake 가 잠금 안에서 정하고 afterTick 이 센다).
+     */
+    long manualDone;
+    boolean manualPass;
 
     /** /tick step: 이 region 이 본 step 세대와 남은 걸음(region 스레드 전용). */
     private int stepGeneration;
@@ -1189,6 +1226,7 @@ public final class Region {
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
             org.domi.furnace.server.entity.PlayerLocationEffects.tick(p, level, () -> onSoulSpeedBlock(p));   // 칸 이동·발 장비 변경 시 영혼 가속·서리 걸음
+            org.domi.furnace.server.entity.PlayerLocationEffects.tickEffects(p, level, () -> onSoulSpeedBlock(p));   // 영혼 가속 tick 효과(소울 입자·소리)
             p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
             pushEntities(p);
             touchEntities(p);
@@ -1329,6 +1367,13 @@ public final class Region {
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
             float landed = p.vitals().landedFallDistance();
+            if (landed > 0.0f && level != null && landingState >= 0) {
+                // 바닐라 LivingEntity.checkFallDamage 의 착지 블록 입자(ServerPlayer.doCheckFallDamage → super): 발밑 칸 getOnPosLegacy
+                org.domi.furnace.server.entity.LandingParticles.spawn(level, m.x(), m.y(), m.z(),
+                        new org.domi.furnace.server.block.Pos((int) Math.floor(m.x()), (int) Math.floor(m.y()), (int) Math.floor(m.z())),
+                        new org.domi.furnace.server.block.Pos(landingPos[0], landingPos[1], landingPos[2]), landingState, landed,
+                        p.attributes().value(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE));
+            }
             if (landed > 0.0f && level != null) {
                 // 바닐라 doCheckFallDamage → Block.fallOn(getOnPosLegacy 칸). 피해는 위 onMove 가 이미 처리했다
                 int[] at = probe.onPos(blocks, 0.2f, m.x(), m.y(), m.z(), m.onGround());
@@ -2361,6 +2406,7 @@ public final class Region {
      *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다. */
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
+        if (world.autoChunkRate()) { sendQueuedChunksAuto(p); return; }
         int adaptive = p.chunkSendRate().nextBudget();   // 바닐라 PlayerChunkSender: 클라이언트가 알린 속도·미확인 배치 한도
         if (adaptive <= 0) return;
         int budget = Math.min(Math.min(world.chunksPerTick(), adaptive), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
@@ -2371,7 +2417,64 @@ public final class Region {
             batch.add(it.next());
             it.remove();
         }
+        sendBatch(p, batch, false);
+    }
 
+    /** auto 전송의 틱당 상한 — 바닐라 PlayerChunkSender 의 클라이언트 속도 상한(64)과 같다. 첫 응답 전에도 이만큼까지. */
+    static final int AUTO_MAX_CHUNKS_PER_TICK = (int) ChunkSendRate.MAX_CHUNKS_PER_TICK;
+    /** auto 전송이 한 틱에 대기열에서 훑는 최대 수 — 시야 32(4225청크)에서도 틱 비용을 묶는다. 가까운 것부터 훑는다. */
+    static final int AUTO_SCAN_LIMIT = 1024;
+
+    /**
+     * chunks-per-tick=auto: 바닐라 PlayerChunkSender 처럼 이미 로드된(준비된) 청크만, 클라이언트가 알린 속도(최대 64/틱)만큼 배치로 보낸다.
+     * 아직 없는 청크는 가까운 것부터 생성·디스크 로드를 미리 걸어 두고(동시 진행 상한 world.maxChunkSendsInFlight), 다 되면 다음 틱에 보낸다.
+     * 예전 방식(숫자)은 준비 안 된 청크도 배치에 넣어 배치 끝(Finished)이 가장 느린 생성을 기다렸고, 동시 진행 상한이 이미 있는 청크까지 막았다.
+     */
+    private void sendQueuedChunksAuto(Player p) {
+        // 바닐라처럼 배치는 겹치지 않는다: 앞 배치의 Finished 가 나가기 전(본문 직렬화가 다음 틱까지 걸린 경우)엔 새 배치를 열지 않는다.
+        // 겹치면 클라이언트가 재는 배치 시간(ChunkBatchSizeCalculator)이 어긋난다. 미리 불러오기는 계속한다.
+        boolean batchOpen = p.chunkBatchOpen();
+        int adaptive = p.chunkSendRate().nextBudget();   // 미확인 배치가 한도면 0 — 그래도 생성 요청은 계속 건다
+        int budget = batchOpen ? 0 : Math.min(Math.max(adaptive, 0), AUTO_MAX_CHUNKS_PER_TICK);
+        int genSlots = world.maxChunkSendsInFlight() - p.chunkPrefetches().size();
+        List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
+        int scanned = 0;
+        var it = p.pendingChunks().iterator();
+        while (it.hasNext() && (batch.size() < budget || genSlots > 0) && scanned++ < AUTO_SCAN_LIMIT) {
+            ChunkPos cp = it.next();
+            if (world.isChunkLoaded(cp.x(), cp.z())) {
+                if (batch.size() < budget) {
+                    batch.add(cp);
+                    it.remove();
+                }
+            } else if (genSlots > 0 && p.chunkPrefetches().add(cp)) {
+                genSlots--;
+                // 구독은 updateChunks 가 해 두었으므로 로드된 뒤 유휴 정리로 내려가지 않는다(evictIdleChunks 는 구독자가 있으면 건너뛴다).
+                // 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고 바로 건다 — 디스크에 있는 청크는 그만큼 일찍 온다.
+                CompletableFuture<ChunkColumn> load;
+                if (mine(Regionizer.chunkKey(cp.x(), cp.z()))) {
+                    try {
+                        load = loadChunk(cp);
+                    } catch (RuntimeException e) {
+                        load = CompletableFuture.failedFuture(e);
+                    }
+                } else {
+                    load = world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f);
+                }
+                load.whenComplete((col, ex) -> {
+                    p.chunkPrefetches().remove(cp);
+                    if (ex != null) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
+                });
+            }
+        }
+        if (!batch.isEmpty()) {
+            p.chunkBatchOpen(true);
+            sendBatch(p, batch, true).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+        }
+    }
+
+    /** 배치 하나: Start → 청크들(본문이 준비되는 대로) → Finished(실제로 보낸 수). */
+    private CompletableFuture<Void> sendBatch(Player p, List<ChunkPos> batch, boolean inline) {
         p.chunkSendRate().batchSent(batch.size());
         p.send(new ChunkBatchStart());
         // 실제 전송 수(stale 드롭으로 batch.size와 다를 수 있음) — ChunkBatchFinished에 정확히 보고.
@@ -2382,7 +2485,7 @@ public final class Region {
             World.Subscription sub = world.subscriptionOf(cp, p);
             if (sub == null) continue;   // 그 사이 언로드됨 — 보낼 것 없음
             p.chunkSendsInFlight().incrementAndGet();
-            CompletableFuture<?> f = world.serializedChunkBody(cp)
+            CompletableFuture<?> f = world.serializedChunkBody(cp, inline)
                     .whenComplete((b, ex) -> p.chunkSendsInFlight().decrementAndGet())
                     .thenAccept(body -> {
                         // gen 지연 동안 플레이어가 시야 밖으로 이동했거나(재구독 포함) 언로드됐으면 보내봐야 클라가
@@ -2401,7 +2504,7 @@ public final class Region {
             sends.add(f);
         }
         // allOf로 모든 future(전송/예외) 완료 후 Finished 1회 — 마샬 누락에 의한 batch 미종료(클라 stall) 방지.
-        CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
+        return CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
                 .thenRun(() -> p.send(new ChunkBatchFinished(sent.get())));
     }
 

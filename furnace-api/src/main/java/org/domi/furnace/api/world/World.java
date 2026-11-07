@@ -144,6 +144,80 @@ public interface World {
     /** 이 차원의 살아 있는 region 모두(id 순). */
     default List<RegionInfo> regions() { return List.of(); }
 
+    // ------------------------------------------------------------------ 스폰 정책·엔티티 수
+
+    /** 이 월드의 자연 스폰 정책(기본은 바닐라 상수 — 바꾸지 않으면 스폰 루프는 바닐라 그대로). 아무 스레드. */
+    default SpawnPolicy spawnPolicy() { throw new UnsupportedOperationException("spawnPolicy"); }
+
+    /**
+     * 지금 로드된 청크 전체의 엔티티 수(플레이어 포함). region 마다 자기 청크를 세어 합친다 — 한 region 의 결과가 아니라 서로 다른
+     * 틱 순간의 값이 섞일 수 있다. 로드되지 않은 청크의 엔티티는 세지 않는다.
+     */
+    default CompletableFuture<EntityCounts> entityCounts() {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("entityCounts"));
+    }
+
+    // ------------------------------------------------------------------ 마을·POI·습격
+
+    /**
+     * 그 칸이 마을 안인가(바닐라 isVillage — 점유된 마을 POI 가 든 구역에서 구역 1칸 이내). 그 칸을 가진 region 이 올려 둔 청크만 본다.
+     * 청크가 로드돼 있지 않으면 false.
+     */
+    default CompletableFuture<Boolean> isVillage(BlockPos pos) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("isVillage"));
+    }
+
+    /**
+     * 그 칸이 든 구역에서 마을 중심 구역까지의 구역(16칸) 거리(0 = 마을 중심 구역, 최대 6 이고 더 멀면 7). 청크가 로드돼 있지 않으면 7.
+     */
+    default CompletableFuture<Integer> sectionsToVillage(BlockPos pos) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("sectionsToVillage"));
+    }
+
+    /**
+     * center 에서 radius(칸, 구 모양 거리 안) 안의 POI. types 가 비어 있으면 모든 종류(키: minecraft:home …). 가까운 순.
+     * 그 칸을 가진 region 이 올려 둔 청크만 본다(다른 region 청크의 POI 는 빠진다). radius 는 0..128.
+     */
+    default CompletableFuture<java.util.List<PointOfInterest>> pointsOfInterest(BlockPos center, int radius, java.util.Set<String> types, PoiOccupancy occupancy) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("pointsOfInterest"));
+    }
+
+    default CompletableFuture<java.util.List<PointOfInterest>> pointsOfInterest(BlockPos center, int radius) {
+        return pointsOfInterest(center, radius, java.util.Set.of(), PoiOccupancy.ANY);
+    }
+
+    /** 지금 올라와 있는 활성 습격 전부(번호 순). 중심 청크가 내려가 쉬는 습격은 빠진다. */
+    default CompletableFuture<java.util.List<RaidInfo>> raids() {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("raids"));
+    }
+
+    /** 그 칸 가까이(바닐라 96칸 안)의 활성 습격 중 중심이 가장 가까운 것. 없으면 empty. 그 칸을 가진 region 의 습격만 본다. */
+    default CompletableFuture<Optional<RaidInfo>> raidAt(BlockPos pos) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("raidAt"));
+    }
+
+    /** 그 번호의 습격을 멈춘다(바닐라 Raid.stop — 보스바가 사라지고 습격자는 남는다). 멈췄으면 true, 모르는 번호면 false. */
+    default CompletableFuture<Boolean> stopRaid(int id) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("stopRaid"));
+    }
+
+    /** region 번호로(같은 차원 안에서 유일). 없거나 그새 합쳐져 사라졌으면 empty. */
+    default java.util.Optional<RegionInfo> region(int id) {
+        for (RegionInfo r : regions()) if (r.id() == id) return java.util.Optional.of(r);
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * 그 청크를 가진 region 의 최근 5초 TPS(초당 게임 틱 수). region 이 없거나 막 생겨 아직 잴 수 없으면 empty.
+     * 값은 그 region 의 목표({@code /tick rate}, 기본 20)를 넘을 수 있다(/tick sprint 중). 아무 스레드.
+     */
+    default java.util.OptionalDouble tpsAt(int chunkX, int chunkZ) {
+        return regionAt(chunkX, chunkZ).filter(r -> !Double.isNaN(r.tps())).map(r -> java.util.OptionalDouble.of(r.tps()))
+                .orElse(java.util.OptionalDouble.empty());
+    }
+
+    default java.util.OptionalDouble tpsAt(BlockPos pos) { return tpsAt(pos.chunkX(), pos.chunkZ()); }
+
     // ------------------------------------------------------------------ 블록 엔티티 NBT (/data block 과 같은 의미)
 
     /**

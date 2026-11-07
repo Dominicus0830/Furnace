@@ -50,6 +50,10 @@ public abstract class AbstractSkeleton extends Monster implements RangedAttackMo
 
     abstract String getStepSound();
 
+    /** AbstractSkeleton.playStepSound: 종류별 step 소리 크기 0.15. */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound(getStepSound(), 0.15F, 1.0F); }
+
     @Override
     protected void aiStep() {
         boolean burn = isSunBurnTick();

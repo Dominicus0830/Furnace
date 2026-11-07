@@ -116,6 +116,9 @@ public class Warden extends Monster implements VibrationSystem {
 
     @Override protected float nextStep() { return moveDist + 0.55F; }
 
+    /** Warden.playStepSound: 블록과 상관없이 warden.step 크기 10. */
+    @Override protected void playStepSound(Pos pos, int state) { playSound("minecraft:entity.warden.step", 10.0F, 1.0F); }
+
     @Override protected float getSoundVolume() { return 4.0F; }
 
     @Override public String soundSource() { return "hostile"; }
@@ -206,15 +209,15 @@ public class Warden extends Monster implements VibrationSystem {
 
     public Optional<Targetable> getEntityAngryAt() { return getAngerLevel().isAngry() ? angerManagement.getActiveEntity() : Optional.empty(); }
 
-    /** canTargetEntity: 같은 레벨의 살아 있는 생물, 크리에이티브·관전자 아님, 갑옷 거치대·워든 아님, 무적 아님, 월드 보더 안. */
+    /** canTargetEntity: 같은 레벨의 살아 있는 생물, 크리에이티브·관전자 아님, 같은 팀 아님, 갑옷 거치대·워든 아님, 무적 아님, 월드 보더 안. */
     public boolean canTargetEntity(Object o) {
         if (o instanceof Player p) {
             var gm = p.gameMode();
-            return !p.isDisconnected() && !p.vitals().isDeadOrDying() && gm != org.domi.furnace.server.world.GameMode.CREATIVE
+            return !isAlliedTo(p) && !p.isDisconnected() && !p.vitals().isDeadOrDying() && gm != org.domi.furnace.server.world.GameMode.CREATIVE
                     && gm != org.domi.furnace.server.world.GameMode.SPECTATOR && level.withinBorder(p.blockPosition());
         }
         if (o instanceof LivingEntity e) {
-            return e.level() == level && e != this && e.type() != EntityType.ARMOR_STAND && e.type() != EntityType.WARDEN && !e.isInvulnerable()
+            return e.level() == level && e != this && !isAlliedTo(e) && e.type() != EntityType.ARMOR_STAND && e.type() != EntityType.WARDEN && !e.isInvulnerable()
                     && !e.isDeadOrDying() && !e.isRemoved() && level.withinBorder(e.blockPosition());
         }
         return false;
@@ -239,6 +242,7 @@ public class Warden extends Monster implements VibrationSystem {
         level.forEachPlayer(p -> {
             var gm = p.gameMode();
             if (p.isDisconnected() || gm != org.domi.furnace.server.world.GameMode.SURVIVAL && gm != org.domi.furnace.server.world.GameMode.ADVENTURE) return;
+            if (source instanceof Targetable src && src.isAlliedTo(p)) return;   // 출처의 아군은 제외
             double dx = p.x() - pos.x(), dy = p.y() - pos.y(), dz = p.z() - pos.z();
             if (!(dx * dx + dy * dy + dz * dz < (double) radius * radius)) return;
             MobEffectInstance cur = p.vitals().getEffect(MobEffect.DARKNESS);
