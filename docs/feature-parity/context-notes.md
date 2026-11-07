@@ -1024,6 +1024,17 @@
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
 
+## 2026-11-07 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 (묶음 K3, 불만 표 52~54행)
+- API `Furnace.playerViews()` → `PlayerViews`(+`PlayerBorder`), `AsyncChatEvent.renderer(ChatRenderer)`. 설계·규칙 `docs/api/player-views.md`.
+- 핵심(52행): 서버 `Player` 마다 `ViewLayers`(블록·바이옴 층, 장비 덮어쓰기, 개인 `WorldBorder`)를 두고, 나가는 청크 본문·`block_update`·`section_blocks_update`·`chunks_biomes`·`set_equipment`·보더 패킷에 연결의 `ViewRewriter` 가 덧입힌다. 청크를 다시 받아도(멀리 갔다 옴) 층이 남는다 — 봇으로 확인.
+- 함정 ①: `ConnectionHandler.send(ctx, …)` 는 `Player.send` 를 거치지 않아 K2 의 `ViewRewriter` 를 못 지났다(스폰 청크·차원 이동·`LoginPlay`/`Respawn` 이 그 길이라 차원 이름도 몰랐다). 이제 이 길도 같은 `ViewRewriter` 를 거친다(`joining` 필드로 접속 도중의 Player).
+- 함정 ②: 청크 본문 다시 쓰기는 덮을 칸이 있는 섹션만 풀어 다시 인코딩하고 나머지는 바이트 복사한다. 직접 팰릿 비트 수(`World.blockDirectBits/biomeDirectBits`)를 층이 처음 걸릴 때 월드에서 읽어 둔다. 비공기 수(`nonAirCount`)를 다시 세지 않으면 클라이언트가 섹션을 빈 것으로 건너뛴다.
+- 함정 ③: 공유 청크 프레임(`SharedChunkFrames`)은 본문 `byte[]` 동일성이 키다 — 덧입힌 본문은 `shared=null` 로 만들어 그 사람에게만 압축한다(다른 사람의 캐시를 더럽히지 않는다).
+- 개인 보더는 `WorldBorder` 인스턴스 하나를 접속에 붙인다. 서버의 `InitializeBorder` 는 개인 보더 상태로 바꿔 보내고 다른 `SetBorder*` 는 버린다. `enforce` 면 `ServerCore.mayInteract`·`Env.borderDamage(Player, …)` 가 이 보더를 쓴다.
+- 채팅 렌더러는 서명 없는 시스템 메시지(`unsigned-as-system` 과 같은 길)로 받는 사람마다 한 줄씩 보낸다.
+- 시험: `PlayerLayersTest` 12(청크 본문 다시 쓰기·소유권·재전송·차원·보더·장비), `PlayerViewsApiTest` 6, `CancelResyncE2ETest.chatRendererBuildsOneUnsignedLinePerViewer`, 봇 `tools/bot-test/round16/k3.js` 21/21(`round16/probe/K3Probe`).
+
+
 ## 2026-11-07 스폰 정책·엔티티 수·자세·주민/마을/습격 API (E3)
 - 설계·바닐라 대조 `docs/api/spawn-and-villages.md`. 기본값은 바닐라 상수(70·10·15·5·5·20·5·…)이고 정책이 비어 있으면 스폰 경로가 바닐라와 같다(`WorldSpawnPolicy.state` 가 `VANILLA` 로 접힘). 활성 범위·엔티티 상한 같은 게임플레이 변경은 넣지 않았다(D3).
 - 세계 상한은 `(int)((long)상한 × 스폰 가능 청크 수 / 289)`. 플레이어 상한 0 이하면 그 플레이어 주변은 건너뛴다(바닐라 상수로는 닿지 않고 플러그인이 0 을 걸 때만 닿는 경로).
@@ -1074,3 +1085,13 @@
 - RaiderPredicate 는 `has_raid`·`is_captain` 기본값이 false 이고 둘 다 같아야 한다(예전 구현은 안 쓴 `is_captain` 을 "무관"으로 봤다). 엔티티 서브 조건 목록은 19종(lightning, fishing_hook, player, slime, raider, axolotl, boat, fox, mooshroom, rabbit, horse, llama, villager, parrot, tropical_fish, painting, cat, frog, wolf) — `sheep`·`salmon` 은 1.21.1 에 없다(1.21.2+).
 - 변종 값은 저장 NBT 에서 바닐라 이름으로 바꾼다(`LootTypeSpecific`): 열거형 변종은 이름 그대로, 고양이·개구리·그림·늑대·주민은 `minecraft:` id. KillCredit 스냅샷은 소유 스레드에서 이 값을 미리 읽어 둔다.
 - LocationPredicate 의 새 필드는 그 칸 청크를 지금 스레드가 가진 경우에만 읽는다(`LootWorld` 훅이 null → 거짓). 다른 region 소유 칸이면 거짓이 나올 수 있다는 것이 바닐라 `isLoaded` 검사 자리의 Furnace 쪽 한계.
+
+## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
+- 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.
+- **구조**: `Targetable.team()`/`isAlliedTo(other)` 기본 구현(같은 팀 = `PlayerTeam.isAlliedTo`). `LivingEntity.team()` = `getTeam()`, `Player.team()` 은 원래 있던 것. 덮어쓰기: `TamableAnimal`(길들였으면 주인·주인의 아군), `AbstractIllager`(팀 규칙 뒤, `illager_friends` 태그는 **둘 다 팀이 없을 때만** — 이전엔 팀과 무관하게 동맹이었다), `Evoker` 는 그대로.
+- **PvP**: `Player.canHarmPlayer(other, pvp)` — this 쪽 서버 설정 pvp 가 꺼지면 거짓, 팀이 없거나 다른 팀이면 참, 같은 팀이면 그 팀의 아군 피해. 쓰는 곳: 맞는 쪽(`PlayerVitals.hurt`, 이미 있던 인라인 검사를 이 함수로), **화살 주인→맞은 사람**(`AbstractArrow.tick`: 못 때리면 hit·entityHit 둘 다 null — 바닐라처럼 블록 맞음도 그 틱엔 사라지고 사람을 통과한다), **늑대**(`wantsToAttack`: 주인이 맞는 사람을 못 때리면 공격 안 함, 길들인 말도 안 함 — 이쪽은 이전에 빠져 있었다). pvp 설정은 `LevelServices.pvp()`(기본 참, `ServerCore` 가 `settings.pvp`) → `ChunkLevel.pvp()`.
+- **TargetGoal.canContinueToUse**: 바닐라는 isAlliedTo 가 아니라 `getTeam()` 동일 객체 비교(`team != null && target.team == team`). 그대로 옮겼다. HurtByTargetGoal 경보는 `isAlliedTo(lastHurtByMob)` + 길들인 동물은 **주인이 같을 때만** 돕는다(이전엔 둘 다 빠짐).
+- **전리품 피해 태그**: `/loot kill`(`minecraft:magic`)과 몹 죽음 전리품(`ServerCore.entityDrops`) 의 `LootDamageSource.is(tag)` 가 늘 거짓이었다 → `DamageType.keyHasTag`. `damage_source_properties` 의 `is_fire`·`is_explosion` 등 태그 조건이 이제 맞다.
+- **/teammsg 채팅 필터**: 바닐라의 `shouldFilterMessageTo` 분기는 글자 걸러내기 서비스(`text-filtering-config`)가 없으면 마스크가 PASS_THROUGH 라 관측 결과가 같다(받는 쪽 클라이언트 옵션과 무관하게 원문, "모두 걸러짐" 안내도 없음). Furnace 는 그 서비스를 아직 지원하지 않으므로(FurnaceMain 경고) 코드는 안 늘리고 주석으로 닫았다.
+- **독립 검토(읽기 전용)가 찾은 둘, 고침**: ① `TamableAnimal.getTeam` 은 길들였고 주인이 보이면 **주인의 팀**(바닐라 `bul.ck`)인데 Entity 기본(자기 UUID 의 팀)을 그대로 써서 쓸기·충격파·워든·선택자 `team=`·팀 충돌이 펫에서 틀렸다. ② `PlayerVitals.hurt` 의 `ap != player` 예외 제거 — 바닐라 `ServerPlayer.hurt` 는 자기 자신이 원인이어도 `canHarmPlayer(자기)` 를 검사해, pvp 꺼짐·아군 피해 꺼진 팀에서는 내 화살·내 TNT·내 폭죽에 안 다친다. `Player.team()` 에는 `hasTeams()` 단락 추가.
+- 시험: `TeamPvpRulesTest` 10개(같은 팀/없음, 전투 조건, 목표 지속, 길들인 동물 주인, 일러저 친구, canHarmPlayer 표, 맞는 쪽 무시, 늑대, 길들인 말, 화살 통과).

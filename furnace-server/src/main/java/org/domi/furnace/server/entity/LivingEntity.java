@@ -18,6 +18,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
     @Override
     protected MovementEmission getMovementEmission() { return MovementEmission.ALL; }
 
+    @Override
+    public org.domi.furnace.server.scores.PlayerTeam team() { return getTeam(); }
+
 
     /** 엔티티 데이터 번호(LivingEntity): 8 생활 플래그, 9 체력, 10 효과 색, 11 효과 앰비언트, 12 화살 수, 13 침 수, 14 자는 위치. */
     public static final int DATA_LIVING_FLAGS = 8, DATA_HEALTH = 9, DATA_EFFECT_PARTICLES = 10, DATA_EFFECT_AMBIENT = 11, DATA_ARROW_COUNT = 12,

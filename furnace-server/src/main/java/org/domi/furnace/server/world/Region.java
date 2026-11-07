@@ -484,6 +484,17 @@ public final class Region {
         }));
     }
 
+    /** 이 region 이 가진 로드된 청크의 바이옴 항목(섹션별 4×4×4 번호). 없으면 null — 플레이어별 바이옴 층이 한 사람에게 다시 보낼 때 쓴다. */
+    public org.domi.furnace.server.net.protocol.play.ChunksBiomes.Entry biomeEntry(ChunkPos cp) {
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(cp.x(), cp.z());
+        if (col == null) return null;
+        var secs = col.sections();
+        int[][] out = new int[secs.length][];
+        for (int i = 0; i < secs.length; i++) out[i] = secs[i].biomes().clone();   // 다른 스레드(연결 이벤트 루프)가 인코딩하므로 소유 스레드에서 복사한다
+        return new org.domi.furnace.server.net.protocol.play.ChunksBiomes.Entry(cp.x(), cp.z(), out);
+    }
+
     /** 이 region 이 가진 로드된 청크(없으면 null, 로드를 걸지 않는다). 플러그인 API 용. */
     public ChunkColumn ownedColumn(ChunkPos cp) {
         world.assertOwns(this);
