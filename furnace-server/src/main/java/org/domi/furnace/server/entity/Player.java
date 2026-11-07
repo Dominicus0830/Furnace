@@ -1784,18 +1784,94 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 차원 이동 도착(목적 월드, 목적지, 그때의 포털 대기) — 연결이 패킷을 보내고 목적 region 에 넣는다. */
     public interface DimensionChanger {
         void change(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown);
+
+        /** 편입 넘기기판: 연결은 패킷을 다 보낸 뒤 handoff.sent 로 편입을 맡긴다. 기본은 넘기기 없이(시험용 기록기). */
+        default void change(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown, ArrivalHandoff handoff) {
+            handoff.detach();
+            change(target, t, portalCooldown);
+        }
     }
 
     private volatile DimensionChanger dimensionChanger;
 
     public void dimensionChanger(DimensionChanger c) { this.dimensionChanger = c; }
 
-    /** 목적 region 스레드에서: 연결 스레드로 넘긴다(연결이 없으면 거짓). */
+    /** 목적 region 이 연결의 패킷 보내기를 기다리는 최대 시간(ns). 넘으면 예전처럼 연결이 편입 작업을 보낸다(한 틱 늦게 들어간다). */
+    static final long ARRIVAL_WAIT_NANOS = Long.getLong("furnace.dimensionArrivalWaitMicros", 2_000L) * 1_000L;
+
+    /**
+     * 목적 region 스레드에서: 연결 스레드로 넘긴다(연결이 없으면 거짓). 연결이 리스폰 패킷들을 보내는 동안 잠깐(ARRIVAL_WAIT_NANOS) 기다렸다가
+     * 이 스레드가 그 칸 주인 region 이고 틱 사이면 그 자리에서 편입한다 — 바닐라처럼 넘어간 그 틱에 새 차원에 있다(M10). 아니면 연결이 편입 작업을 보낸다.
+     */
     public boolean changeDimension(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown) {
         var c = dimensionChanger;
         if (c == null) return false;
-        c.change(target, t, portalCooldown);
+        ArrivalHandoff h = new ArrivalHandoff();
+        c.change(target, t, portalCooldown, h);
+        h.awaitInline(ARRIVAL_WAIT_NANOS);
         return true;
+    }
+
+    /**
+     * 차원 이동 도착 편입 넘기기(목적 region 스레드 ↔ 연결 스레드). 상태 0 기다림, 1 연결이 보냄(기다리던 쪽이 편입), 2 기다리지 않음(연결이 편입 작업을 보낸다).
+     * 둘 중 정확히 하나만 편입한다.
+     */
+    public static final class ArrivalHandoff {
+        private final java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger();
+        private volatile Thread waiter;
+        private volatile org.domi.furnace.server.world.World world;
+        private volatile double x, z;
+        private volatile java.util.function.Consumer<org.domi.furnace.server.world.Region> adopt;
+
+        /** 기다리는 쪽이 없다(연결 스레드가 편입 작업을 보낸다). */
+        public void detach() {
+            if (state.compareAndSet(0, 2)) {
+                Thread t = waiter;
+                if (t != null) java.util.concurrent.locks.LockSupport.unpark(t);   // 기다리던 쪽을 바로 놓아준다
+            }
+        }
+
+        /** 연결 스레드: 패킷을 다 보냈다 — 기다리는 쪽이 있으면 넘기고, 없으면 그 칸 주인 region 에 편입 작업을 보낸다. */
+        public void sent(org.domi.furnace.server.world.World w, double x, double z, java.util.function.Consumer<org.domi.furnace.server.world.Region> adopt) {
+            this.world = w;
+            this.x = x;
+            this.z = z;
+            this.adopt = adopt;
+            if (state.compareAndSet(0, 1)) {
+                Thread t = waiter;
+                if (t != null) java.util.concurrent.locks.LockSupport.unpark(t);
+            } else {
+                w.runAt(x, z, adopt);
+            }
+        }
+
+        /** 목적 region 스레드: nanos 까지 기다린다. 연결이 보냈으면 지금 스레드가 그 칸 주인 region(틱 사이)일 때 그 자리에서, 아니면 그 region 에 넘긴다. */
+        void awaitInline(long nanos) {
+            if (state.get() == 0 && nanos > 0) {
+                waiter = Thread.currentThread();
+                long deadline = System.nanoTime() + nanos;
+                while (state.get() == 0) {   // 1(보냄) 또는 2(detach — 편입 없음)가 되면 끝
+                    long left = deadline - System.nanoTime();
+                    if (left <= 0) break;
+                    java.util.concurrent.locks.LockSupport.parkNanos(this, left);
+                }
+                waiter = null;
+            }
+            if (state.compareAndSet(0, 2)) return;   // 기다림을 넘겼다 — 연결이 보낼 때 편입 작업을 보낸다
+            if (state.get() != 1) return;   // detach — 편입하지 않는다
+            var w = world;
+            ChunkPos cp = ChunkPos.ofBlock(x, z);
+            var r = w.regionizer().ownerOf(cp.x(), cp.z());
+            if (r != null && r.isOwnerThread() && r.betweenTicks()) {
+                try {
+                    adopt.accept(r);
+                } catch (RuntimeException e) {   // 편입 실패가 차원 이동 콜백(되돌리기 판단) 위로 올라가지 않게
+                    org.slf4j.LoggerFactory.getLogger(Player.class).error("[PORTAL] 도착 편입 실패", e);
+                }
+            } else {
+                w.runAt(x, z, adopt);
+            }
+        }
     }
 
     /** 마지막으로 받은 이동 패킷의 이동량(블록/틱) — 던지기 속도에 더해진다(바닐라 getKnownMovement). */

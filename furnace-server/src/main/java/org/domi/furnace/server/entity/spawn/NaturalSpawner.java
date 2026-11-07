@@ -1,7 +1,8 @@
 // 바닐라 NaturalSpawner + LocalMobCapCalculator + PotentialCalculator: 플레이어 근처 청크마다 종류(MobCategory)별로 몹을 자연 스폰한다.
 // 한 틱: 지역의 몹을 세어 종류별 상한(max × 청크 수 / 289)과 플레이어별 지역 상한을 보고, 청크마다 무작위 칸에서 최대 3묶음을 시도한다.
 // 이 서버는 region 별로 돌아서 몹 수·상한 계산은 region 안의 엔티티와 청크만 본다(바닐라는 차원 전체) — region 경계 근처에서만 다르다.
-// TODO: 구조물 스폰 덮어쓰기(네더 요새·늪 오두막·해저 신전·약탈자 전초기지의 mob 목록), 순찰·방랑 상인·고양이 특수 스포너(순찰 AI·POI·상인 필요). 팬텀은 PhantomSpawner, 청크 생성 동물은 spawnMobsForChunkGeneration.
+// 구조물 스폰 덮어쓰기(요새 적 하드코딩 목록 + worldgen/structure 의 spawn_overrides)는 mobsAt. 특수 스포너는 PhantomSpawner·PatrolSpawner·CatSpawner·
+// WanderingTraderSpawner·VillageSiege, 청크 생성 동물은 spawnMobsForChunkGeneration.
 package org.domi.furnace.server.entity.spawn;
 
 import java.util.ArrayList;

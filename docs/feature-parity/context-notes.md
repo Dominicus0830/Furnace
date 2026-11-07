@@ -1118,6 +1118,14 @@
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
 
+## 2026-11-07 다차원 차이 (묶음 M10, 바이트코드)
+바닐라 1.21.1 `dcw`(Level) 생성자·`dcw$1`, `dut`(WorldBorder)·`dur$a`(DelegateBorderChangeListener), `MinecraftServer.createLevels`, `aur`(PlayerList) `sendLevelInfo`·`addWorldborderListener`, `ape`(WorldBorderCommand), `dlc`(NetherPortalBlock) `randomTick`·`getPortalDestination`, `eqy`(DerivedLevelData) 를 `javap -c` 로 대조.
+- **보더**: 차원마다 `World.border()`. 좌표 비 ≠ 1 이면 `getCenterX/Z` 만 비로 나눈다(크기·경고·피해 그대로, `createSettings` 도 나눈 중심). 오버월드가 아닌 월드는 `ServerCore.attachWorld` 가 `setAbsoluteMaxSize(max-world-size)` 뒤 `attachFollower`(지금 상태 복사 + `Delegate`)로 오버월드를 따라간다. 내린 추가 월드는 고리를 뗀다. 블록 레벨 `withinBorder`/`borderBounds`·플레이어 보더 피해는 그 차원 보더, 지옥문 출구 자르기는 목적 레벨 보더(`borderBoundsOf`). 명령·level.dat·접속·변경 패킷은 오버월드 보더(바닐라도 네더 접속자에게 오버월드 값 — 클라이언트 레벨이 자기 비로 나눈다). 보더 틱은 차원마다.
+- **차원 이동 지연**: 범위 청크가 다 올라와 있으면 IO 레인을 건너뛰고 바로 목적 region 작업으로, 올라와 있는 청크는 로드 왕복 없음, 모은 뒤 사이에 내려간 청크는 다시 올린다. 플레이어는 지옥문 대기 시작과 60틱마다 목적 청크를 미리 올린다(`Region.prewarmPortal` → `World.prewarmTravel`). 플레이어 도착은 `Player.ArrivalHandoff`: 목적 region 스레드가 연결 스레드의 패킷 보내기를 최대 2ms 기다렸다가 틱 사이(`Region.betweenTicks`)면 그 자리에서 편입, 아니면 연결이 편입 작업을 보낸다(정확히 한 번).
+- **좀비 피글린**: 11-06 구현이 바이트코드와 같다(natural·doMobSpawning·`nextInt(2000) < 난이도`·지옥문 아래 첫 칸 `isValidSpawn`·`EntityType.spawn(pos.above(), STRUCTURE)`·몹에만 `setPortalCooldown` — 탈것에는 없음). 플러그인 생성 원인을 `NETHER_PORTAL` 로(예전엔 `SPAWNER_EGG`).
+- **수면**: 추가 월드는 그 월드 접속자로 세어 충분히 자면 깨우기만(DerivedLevelData 의 시간·날씨 setter 는 빈 메서드).
+- 남은 것: 디스크 읽기·생성이 필요한 처음 가는 목적지(포털을 지나는 엔티티)는 그만큼 늦게 도착(바닐라는 서버를 멈추고 만든다). 추가 월드 보더를 월드마다 따로 둘지는 user-todo 결정 항목.
+
 ## 2026-11-07 블록 엔티티·지도 바닐라 대조 (묶음 M8, 바이트코드)
 
 `javap -c -p` 로 BaseSpawner(`dby`)·TrialSpawner(`dsf`)·EquipmentUser(`btb`)·SignBlockEntity(`drs`)·SignText(`drt`)·ComponentUtils(`xc`)·ScoreContents(`yh`)·SelectorContents(`yi`)·GsonHelper.toStableString(`aye`)·MapItemSavedData(`eqt`)·BeehiveBlockEntity(`dqe`)·BeehiveBlock(`dfs`)를 대조했다.
@@ -1141,6 +1149,11 @@
 - **/teammsg 채팅 필터**: 바닐라의 `shouldFilterMessageTo` 분기는 글자 걸러내기 서비스(`text-filtering-config`)가 없으면 마스크가 PASS_THROUGH 라 관측 결과가 같다(받는 쪽 클라이언트 옵션과 무관하게 원문, "모두 걸러짐" 안내도 없음). Furnace 는 그 서비스를 아직 지원하지 않으므로(FurnaceMain 경고) 코드는 안 늘리고 주석으로 닫았다.
 - **독립 검토(읽기 전용)가 찾은 둘, 고침**: ① `TamableAnimal.getTeam` 은 길들였고 주인이 보이면 **주인의 팀**(바닐라 `bul.ck`)인데 Entity 기본(자기 UUID 의 팀)을 그대로 써서 쓸기·충격파·워든·선택자 `team=`·팀 충돌이 펫에서 틀렸다. ② `PlayerVitals.hurt` 의 `ap != player` 예외 제거 — 바닐라 `ServerPlayer.hurt` 는 자기 자신이 원인이어도 `canHarmPlayer(자기)` 를 검사해, pvp 꺼짐·아군 피해 꺼진 팀에서는 내 화살·내 TNT·내 폭죽에 안 다친다. `Player.team()` 에는 `hasTeams()` 단락 추가.
 - 시험: `TeamPvpRulesTest` 10개(같은 팀/없음, 전투 조건, 목표 지속, 길들인 동물 주인, 일러저 친구, canHarmPlayer 표, 맞는 쪽 무시, 늑대, 길들인 말, 화살 통과).
+
+## 2026-11-07 스컬크 마무리 (묶음 M2)
+- 상세는 `docs/feature-parity/m2-sculk-2026-11-07.md`. 스컬크 확산 코드(SculkSpreader·ChargeCursor·SculkBlock·SculkVeinBlock·촉매 리스너)는 바이트코드와 같음을 확인했고, SculkBehaviour 구현은 바닐라도 스컬크·맥뿐이다.
+- 빠져 있던 것: `Player` 는 `LivingEntity` 가 아니라 사망 때 `entity_die` 도, 경험치 구슬도 없었다. `PlayerVitals.die` 가 첫 줄에 `entity_die` 를 내고(주인 region 스레드), 끝에 `dropExperience` 를 한다. 촉매 리스너는 `Player` 도 받는다.
+- 함정: `PlayerVitals.die` 는 어느 스레드에서든 불릴 수 있으므로 게임 이벤트·구슬 드롭은 `player.onOwnerThread() ? 바로 : runOnOwner` 로 보낸다(순서 보존). 처치자 인챈트 보정(mob_experience)은 기본 데이터에 쓰는 곳이 없어 생략.
 
 ## 2026-11-07 월드젠 단계 훅·청크 재생성 (W3)
 - API `LifecycleEvents.WORLD_GENERATION` → `WorldGenerationRegistrar.register(키, ChunkGenerationHooks)`. 월드는 키만 쥔다(`WorldCreator.generationHooks`, 기본 차원은 `worldgen-hooks.*`). 서버 `plugin/GenerationHookStore`(키 → 플러그인·훅, 꺼지면 빠짐), `world/gen/GenHooks`(월드 바인딩·예외 격리·BlockData 변환). 문서 `docs/api/worldgen-hooks.md`.
