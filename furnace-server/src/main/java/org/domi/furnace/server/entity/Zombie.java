@@ -165,8 +165,9 @@ public class Zombie extends Monster {
         boolean hit = super.doHurtTarget(t);
         if (hit) {
             float f = level.getCurrentDifficultyAt(blockPosition()).effectiveDifficulty();
-            if (getItemBySlot(EquipmentSlot.MAINHAND).isEmpty() && isOnFire() && random.nextFloat() < f * 0.3F && t instanceof Entity e) {
-                e.igniteForSeconds(2 * (int) f);
+            if (getItemBySlot(EquipmentSlot.MAINHAND).isEmpty() && isOnFire() && random.nextFloat() < f * 0.3F) {
+                if (t instanceof Entity e) e.igniteForSeconds(2 * (int) f);
+                else if (t instanceof Player pl) pl.igniteForSecondsLater(2 * (int) f);
             }
         }
         return hit;

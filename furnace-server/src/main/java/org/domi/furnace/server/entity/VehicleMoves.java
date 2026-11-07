@@ -15,6 +15,13 @@ public final class VehicleMoves {
     /** 결과: 받아들임·무시(조종 중이 아님)·되돌림(MoveVehicle 을 보냈다). */
     public enum Result { ACCEPTED, IGNORED, REJECTED }
 
+    /** Entity.getGravity: 중력 없음이면 0, 생물은 중력 속성, 그 밖은 종류의 기본 중력(보트·수레 0.04). */
+    static double gravityOf(Entity v) {
+        if (v.isNoGravity()) return 0.0;
+        if (v instanceof LivingEntity le) return le.attributeValue(org.domi.furnace.server.attribute.Attribute.GRAVITY);
+        return v.defaultGravity();
+    }
+
     /** 값이 NaN·무한이면 연결을 끊어야 한다(multiplayer.disconnect.invalid_vehicle_movement). */
     public static boolean invalid(double x, double y, double z, float yRot, float xRot) {
         return Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(z) || !Float.isFinite(xRot) || !Float.isFinite(yRot);
@@ -38,6 +45,7 @@ public final class VehicleMoves {
         dx = tx - p.vehicleLastGood[0];
         dy = ty - p.vehicleLastGood[1] - 1.0E-6;
         dz = tz - p.vehicleLastGood[2];
+        double requestedDy = dy;   // 비행 킥 판정은 move 전에 요청한 세로 변위로 한다
         boolean wasOnGroundBelow = v.verticalCollisionBelow;
         if (v instanceof LivingEntity le && le.onClimbable()) le.resetFallDistance();
         v.move(Entity.MOVER_PLAYER, dx, dy, dz);
@@ -57,8 +65,10 @@ public final class VehicleMoves {
             p.send(MoveVehicle.of(v));
             return Result.REJECTED;
         }
-        // TODO(통계·비행 킥): checkMovementStatistics, clientVehicleIsFloating(비행 허용 아님·중력 있음·주변 블록 없음)
-        p.clientVehicleIsFloating = false;
+        // TODO(통계): checkMovementStatistics
+        // clientVehicleIsFloating: 내려앉는 중이 아니고(요청 dy ≥ -0.03125), 이동 전에 바닥에 닿아 있지 않았고, 비행 허용이 아니고, 탈것에 중력이 있고, 주변에 블록이 없다
+        p.clientVehicleIsFloating = requestedDy >= -0.03125 && !wasOnGroundBelow && !v.level().flightAllowed() && !v.isNoGravity()
+                && PlayerMoveValidator.noBlocksAround(v.level(), v.boundingBox());
         p.vehicleLastGood[0] = v.x();
         p.vehicleLastGood[1] = v.y();
         p.vehicleLastGood[2] = v.z();
