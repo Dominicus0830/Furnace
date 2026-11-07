@@ -92,6 +92,8 @@ public final class Region {
     // ---- 이 region 스레드만 다루는 상태
     private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> Long.compare(a.dueTick, b.dueTick));
     private long tickCount;
+    /** schedule 이 세는 기준 틱(runTick 이 정한다 — 작업 큐를 비우는 동안은 마친 틱, 그 뒤로는 지금 틱). */
+    private long scheduleBase;
     private int latencyCounter;
     private final Map<Integer, Player> players = new HashMap<>();
     private final Map<ChunkPos, Integer> evictGrace = new HashMap<>();
@@ -121,10 +123,20 @@ public final class Region {
     // ------------------------------------------------------------------ 틱(Regionizer 작업 스레드)
 
     /** 작업 큐 → 지연 작업 → (켜져 있으면) 게임 틱. */
-    void runTick(boolean gameTick) {
+    void runTick(boolean gameTick) { runTick(gameTick, false); }
+
+    /**
+     * manualHold: 수동 시계(헤드리스 시험 서버)에서 이번 차례가 시험이 낸 틱이 아니다 — 작업 큐만 비우고 지연 작업 시계·월드·플레이어 처리는
+     * 하지 않는다(sprint lockstep 의 기다림과 같은 길).
+     */
+    void runTick(boolean gameTick, boolean manualHold) {
         // /tick sprint lockstep: 전역을 앞서면 이번 차례는 작업 큐만 비우고 틱(지연 작업 시계·월드·플레이어 처리)은 하지 않는다
-        sprintHeld = gameTick && sprintHoldsNow();
-        if (!sprintHeld) tickCount++;
+        sprintHeld = !manualHold && gameTick && sprintHoldsNow();
+        boolean hold = sprintHeld || manualHold;
+        if (!hold) tickCount++;
+        // 작업 큐에서 거는 지연 작업은 "마친 틱"부터 센다(틱 번호를 이미 올렸으면 하나 앞) — 반복 작업이 큐를 거쳐 다시 걸려도
+        // 주기 1 이 매 틱이 되게(Folia·Bukkit 과 같은 뜻: 틱 T 중이나 그 뒤에 d 틱 지연 = 틱 T+d)
+        scheduleBase = hold ? tickCount : tickCount - 1;
         urgentWaitUsed = 0L;
         long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Task t;
@@ -134,7 +146,8 @@ public final class Region {
             else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
             if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
         }
-        if (sprintHeld) return;
+        scheduleBase = tickCount;
+        if (hold) return;
         while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) {
             Delayed d = delayed.poll();
             if (mine(d.chunkKey)) runTask(d.run);
@@ -214,7 +227,7 @@ public final class Region {
 
     /** 이 region 스레드에서: delay 틱 뒤 그 청크 주인에게서 실행(합치기·나누기 때 남은 틱을 지키며 따라간다). */
     void schedule(long chunkKey, Consumer<Region> task, long delay) {
-        delayed.add(new Delayed(tickCount + Math.max(0, delay), chunkKey, task));
+        delayed.add(new Delayed(scheduleBase + Math.max(0, delay), chunkKey, task));
     }
 
     // ------------------------------------------------------------------ 합치기·나누기(Regionizer 잠금 안, 둘 다 쉬는 중)
@@ -278,6 +291,7 @@ public final class Region {
         }
         for (Region t : created) {
             t.tickCount = tickCount;
+            t.scheduleBase = scheduleBase;
             t.autosaveCounter = autosaveCounter;
             t.latencyCounter = latencyCounter;
             if (level != null) level.splitInto(t.level(), (cx, cz) -> targetOf.apply(Regionizer.chunkKey(cx, cz)) == t);
@@ -893,6 +907,13 @@ public final class Region {
         if (d > phaseMax[i]) phaseMax[i] = d;
         lapT = n;
     }
+
+    /**
+     * 수동 시계(헤드리스 시험 서버, Regionizer.manualClock): 이 region 이 마친 시험 틱 수. 잠금 안에서만 읽고 쓴다.
+     * manualPass 는 이번 차례가 시험 틱이었는지(runOne 이 정하고 afterTick 이 센다).
+     */
+    long manualDone;
+    boolean manualPass;
 
     /** /tick step: 이 region 이 본 step 세대와 남은 걸음(region 스레드 전용). */
     private int stepGeneration;

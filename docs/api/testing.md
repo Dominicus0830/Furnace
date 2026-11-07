@@ -1,0 +1,120 @@
+# 플러그인 시험: 헤드리스 시험 서버 (`furnace-test`)
+
+플러그인을 실제 Furnace 서버 위에서 JUnit 으로 시험한다. 흉내 낸 서버(MockBukkit 같은 것)가 아니라 **운영 서버와 같은 코드**가
+한 JVM 안에서 뜬다. 다른 점은 둘뿐이다.
+
+- **메모리 월드**: 평지 오버월드 하나. 청크를 디스크에 쓰지 않고, 구독자가 없어도 내리지 않는다(시험이 만진 칸이 사라지지 않는다).
+  설정·플레이어 데이터 같은 파일은 임시 폴더에 쓰고 서버를 닫을 때 지운다.
+- **결정적 틱**: 서버는 스스로 시간을 진행하지 않는다. `tick(n)` 을 부를 때만 한 틱씩 돌고, 모든 region 이 그 틱을 마쳐야 돌아온다.
+
+## 넣기
+
+```kotlin
+// build.gradle.kts (플러그인 프로젝트)
+repositories { mavenLocal(); mavenCentral() }
+dependencies {
+    compileOnly("org.domi.furnace:furnace-api:1.21.1-SNAPSHOT")
+    testImplementation("org.domi.furnace:furnace-test:1.21.1-SNAPSHOT")
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))   // JUnit 5 아무 판
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+tasks.test { useJUnitPlatform() }
+```
+
+지금은 Furnace 저장소에서 로컬로 배포한다: `./gradlew -PskipOracle=true publishToMavenLocal`
+(`furnace-api`, `furnace-server`, `furnace-test` 셋이 `org.domi.furnace:*:1.21.1-SNAPSHOT` 으로 올라간다. 버전은 `-PfurnaceVersion=...`).
+
+## 쓰기
+
+```java
+class MyPluginTest {
+    @RegisterExtension
+    final FurnaceTestExtension furnace = FurnaceTestExtension.with(b -> b.plugin(MyPlugin.class));
+
+    @Test
+    void greetsOnJoin(FurnaceTestServer server) {
+        TestPlayer steve = server.join("Steve");            // 실제 접속 흐름(핸드셰이크 → 로그인 → 구성 → 플레이)
+        steve.awaitMessage(s -> s.contains("Welcome"));      // 입장 이벤트에서 보낸 메시지
+
+        steve.command("/home set");                          // 서버가 처리한 뒤 돌아온다
+        assertTrue(steve.messageLines().contains("Home set."));
+
+        server.tick(20 * 5);                                 // 정확히 100틱
+        assertEquals(1, server.plugin(MyPlugin.class).reminders());
+    }
+
+    @Test
+    void placesBlock(FurnaceTestServer server) {
+        var w = server.overworld();
+        var pos = new BlockPos(0, -60, 0);
+        assertTrue(server.await(w.setBlock(pos, BlockData.of("minecraft:stone"))));   // 틱 없이 끝난다
+        assertEquals("minecraft:stone", server.onRegion(pos, () -> w.blockNow(pos).orElseThrow().type()));
+        assertTrue(server.execute("fill 0 -60 0 2 -60 2 minecraft:glass").success());
+    }
+}
+```
+
+`try (var server = FurnaceTestServer.builder().plugin(MyPlugin.class).start()) { ... }` 처럼 직접 띄워도 된다.
+
+### 플러그인 올리기
+
+| 방법 | 쓰는 때 |
+|---|---|
+| `plugin(MyPlugin.class)` | 보통. 시험 클래스패스에서 `main` 이 그 클래스인 `furnace-plugin.yml`(yaml·toml·json)을 찾아, 설명 파일과 자원(`config.yml`, `datapack/` 등 — 클래스 빼고)만 담은 jar 를 만들어 올린다. 부트스트랩·`onLoad`·`onEnable`·데이터 팩 훅이 운영 서버와 같은 경로로 돈다. 메인 클래스는 시험 코드와 **같은 클래스**라 `server.plugin(MyPlugin.class)` 로 바로 캐스트된다. 설명 파일이 없으면 이름=클래스 단순 이름으로 만든다. |
+| `pluginJar(path)` | 빌드한 jar 를 그대로(운영처럼 자기 클래스로더). 의존 플러그인 jar 를 함께 올릴 때. 클래스는 시험 코드와 다른 클래스로더라 캐스트할 수 없다. |
+
+여러 클래스패스 플러그인이 같은 이름의 자원(`config.yml`)을 가지면 부모 클래스로더가 먼저 찾는 쪽이 보인다 — 그럴 때는 `pluginJar` 를 쓴다.
+불러오기·켜기가 실패하면 서버 시작이 멈춘다(`failFast(false)` 로 끌 수 있다).
+
+### 틱과 기다리기
+
+- `tick()` / `tick(n)`: 한 틱 = 전역 예약 작업(`scheduler().global()`) → 전역 틱(함수·보더·날씨·시간) → 모든 region 틱. Bukkit 처럼 전역 예약 작업은
+  시간이 오르기 전, region 작업은 그 뒤에 돈다. `runLater(10)` 은 정확히 10번째 `tick()` 에서 돈다. region 수·작업 스레드 수와 상관없이 같다.
+- 틱 사이에도 서버 스레드는 **작업 큐를 비운다**. 그래서 API future(블록 읽기·쓰기, 엔티티 조회, 명령)는 틱 없이 끝난다 — `server.await(future)`.
+- `onRegion(pos, supplier)`: 그 칸의 region 스레드에서 동기 API(`blockNow` 등)를 쓴다. `onGlobal(supplier)`: 전역 스레드에서.
+- `loadChunk(x, z)`: 청크를 올린다. 처음에는 스폰 둘레 3×3 이 올라와 있다(`spawnChunkRadius`).
+- 벽시계로는 아무것도 진행하지 않는다: `Thread.sleep` 해도 시간·반복 작업·몹이 그대로다.
+
+### 명령
+
+- `execute("give Steve diamond")`: 콘솔("Server", 레벨 4 — 운영 콘솔과 같은 발신자)로 끝까지 돌린다. `CommandOutput` 에 성공 여부·결과 값·
+  그 사이 콘솔에 나온 출력(`lines()`, `text()`)이 담긴다.
+- `consoleMessages()`: 시작부터 콘솔에 나온 모든 메시지.
+
+### 가짜 플레이어 (`TestPlayer`)
+
+- `server.join(name)`: 루프백 소켓으로 접속해 서버 접속자 목록에 들 때까지 기다린다. 오프라인 UUID. keep-alive·텔레포트 확인·청크 묶음 응답은
+  읽기 스레드가 알아서 한다.
+- `command(...)`, `chat(...)`, `moveTo(x, y, z, onGround)`, `sendPacket(id, body)`: 보낸 뒤 **장벽**을 거쳐 돌아온다 — 같은 연결의 다음 패킷이
+  서버에 닿고, 전역 스레드와 그 플레이어의 region 이 그 뒤에 넣은 빈 작업을 마칠 때까지. 바로 다음 줄에서 결과를 확인해도 된다.
+  이동처럼 서버가 **다음 틱**에 반영하는 것은 `tick()` 뒤에 본다.
+- `messages()` / `messageLines()`: 받은 시스템 메시지(명령 출력·공지·플러그인 `sendMessage`), `actionBars()`. 서버 쪽에서 직렬화 전 `Text` 를 그대로 모은다.
+  `awaitMessage(조건)` 은 비동기로 오는 메시지를 기다린다.
+- `player()`: 플러그인이 보는 플레이어 핸들. `close()`: 나가고 서버가 목록에서 뺄 때까지 기다린다.
+
+### 설정 (`FurnaceTestServer.builder()`)
+
+`flatLayers(...)`, `generator(...)`(예: 노이즈 생성기), `seed`, `gameMode`, `difficulty`(기본 NORMAL), `gameRule("doMobSpawning", "false")`,
+`viewDistance`, `spawnChunkRadius`, `regionThreads`(늘려도 틱 결과는 같다), `serverProperty(key, value)`, `timeout(ms)`(틱·기다림 한도, 기본 30초),
+`directory(path)`(임시 폴더 대신 — 닫아도 지우지 않는다).
+
+## 한계
+
+- 오버월드 하나만 띄운다(네더·엔드·추가 월드 없음 — `createWorld` 는 쓸 수 없다). 바닐라 데이터 팩(공식 서버 jar 에서 추출)은 읽지 않으므로
+  태그·전리품·레시피는 서버 내장 목록만 있다. 데이터 팩 함수(`/function`)도 없다.
+- `/tick rate`·`/tick sprint` 는 시험 서버에서 뜻이 없다(틱은 `tick()` 만 낸다). `/tick freeze` 는 운영처럼 월드 진행만 멈춘다.
+- `Furnace.server()` 정적 진입점은 지금 떠 있는 서버 하나만 가리킨다. 서버 둘을 **동시에** 띄우면 먼저 뜬 쪽이다 — 시험은 차례로 돌린다
+  (JUnit 병렬 실행을 켜지 않는다). 서버를 닫으면 다음 서버가 다시 맡는다.
+- 틱 중에 새로 생긴 region(멀리 새 청크)은 그 다음 틱부터 돈다. 청크 생성·읽기는 비동기라, 틱과 겹치게 올린 청크가 몇 번째 틱에 붙는지는
+  정해지지 않는다 — 결과를 정확히 맞춰야 하면 `loadChunk` 로 먼저 올린 뒤 틱을 낸다.
+- `internals()` 는 서버 내부(`ServerCore`)다. 공개 API 로 확인할 수 없을 때만 쓰고, 버전 사이 호환은 보장하지 않는다.
+
+## 서버 쪽 구조 (기여자용)
+
+- `Regionizer` 수동 시계(`World.useManualClock`/`advanceManualTick`/`manualTickDone`): region 마다 마친 시험 틱 수(`manualDone`)를 세고, 목표에 닿은
+  region 은 sprint lockstep 의 기다림처럼 작업 큐만 비운다(지연 작업 시계도 멈춘다). 마친 수가 다른 region 은 합치지 않고, 나뉜 조각은 부모 수를,
+  새 region 은 지금 목표를 이어받는다. 운영 서버는 켜지 않는다.
+- `GlobalThread.useManualClock`: 전역 지연 작업을 벽시계 대신 `advanceManualTick` 이 센 틱으로 돌린다.
+- region 지연 작업의 기준 틱(`Region.scheduleBase`): 작업 큐를 비우는 동안 건 지연 작업은 "마친 틱"부터 센다. 그래서 큐를 거쳐 다시 걸리는
+  반복 작업(플러그인 region `runAtFixedRate`)이 주기 1 이면 매 틱 돈다 — 예전에는 두 틱마다 돌았다(운영 서버에도 해당하는 고침).

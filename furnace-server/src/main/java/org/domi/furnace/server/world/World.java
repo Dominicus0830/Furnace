@@ -181,6 +181,19 @@ public final class World {
         closeHook.run();
     }
 
+    // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버 furnace-test 전용 — Regionizer 설명)
+
+    /** region 이 벽시계 대신 시험이 낸 틱만 돌게 한다. startTicking 전에 한 번 부른다. */
+    public void useManualClock() { regionizer.manualClock(); }
+
+    public boolean manualClock() { return regionizer.isManualClock(); }
+
+    /** 시험 틱 하나를 낸다. 모든 region 이 이 번호까지 돌면 {@link #manualTickDone} 이 참이 된다. */
+    public long advanceManualTick() { return regionizer.manualAdvance(); }
+
+    /** 살아 있는 모든 region 이 target 번째 시험 틱을 마쳤는가. */
+    public boolean manualTickDone(long target) { return regionizer.manualCaughtUp(target); }
+
     /** 게임 틱을 끈다(내리기 시작 — 작업은 계속 처리해 저장을 끝낸다). */
     public void stopTicking() { regionizer.gameTicks(false); }
 

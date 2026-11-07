@@ -142,6 +142,55 @@ public final class Regionizer {
 
     boolean gameTicks() { return gameTicks; }
 
+    // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버, furnace-test)
+    // 켜면 region 은 벽시계로 게임 틱을 하지 않는다. 시험이 manualAdvance 로 낸 틱 수(manualTarget)까지만 한 틱씩 돌고, 그 사이에는
+    // 작업 큐만 비운다(지연 작업 시계도 멈춘다). 마친 틱 수가 다른 region 끼리는 합치지 않는다(sprint lockstep 과 같은 까닭).
+    // 나뉜 조각은 부모의 수를, 새로 생긴 region 은 지금 목표를 이어받는다(생긴 뒤의 틱부터 돈다). 프로덕션 서버는 켜지 않는다.
+
+    /** 수동 시계일 때 틱 사이 작업 큐를 비우러 도는 간격. */
+    static final long MANUAL_POLL_NANOS = 1_000_000L;
+    private volatile boolean manualClock;
+    private volatile long manualTarget;
+
+    /** 수동 시계를 켠다(게임 틱 시작 전에 한 번). 되돌리지 않는다. */
+    void manualClock() { this.manualClock = true; }
+
+    boolean isManualClock() { return manualClock; }
+
+    /** 시험 틱 하나를 낸다: 목표를 1 올리고 쉬는 region 을 곧바로 깨운다. 새 목표를 돌려준다. */
+    long manualAdvance() {
+        lock.lock();
+        try {
+            long target = ++manualTarget;
+            long now = System.nanoTime();
+            List<Region> wake = new ArrayList<>();
+            for (Region r : regions) if (r.queued && !r.ticking && r.alive && !r.yielded) wake.add(r);
+            for (Region r : wake) {
+                queue.remove(r);
+                r.nextTickNanos = now;
+                queue.add(r);
+            }
+            publishHead();
+            pool.wake(headDue);
+            return target;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** 살아 있는 모든 region 이 target 번째 시험 틱까지 마쳤는가(합쳐지기를 기다리는 region 은 흡수하는 쪽이 센다). */
+    boolean manualCaughtUp(long target) {
+        lock.lock();
+        try {
+            for (Region r : regions) if (r.alive && !r.yielded && r.manualDone < target) return false;
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    long manualTarget() { return manualTarget; }
+
     // ------------------------------------------------------------------ 키
 
     public static long chunkKey(int cx, int cz) { return (long) cx << 32 | (cz & 0xFFFFFFFFL); }
@@ -279,6 +328,7 @@ public final class Regionizer {
 
     private Region newRegion(long firstTick) {
         Region r = new Region(++nextId, world);
+        r.manualDone = manualTarget;   // 수동 시계: 생긴 뒤의 시험 틱부터 돈다
         r.inheritSteps(world.tickState().generation(), 0);   // 진행 중인 step 은 새 region 에 다시 주지 않는다
         r.inheritSprint(world.tickState().sprintGeneration(), 0, false);   // sprint 도 같다(참여하지 않는다)
         regions.add(r);
@@ -584,9 +634,12 @@ public final class Regionizer {
         }
         long t0 = STATS ? System.nanoTime() : 0L;
         try {
-            boolean game = gameTicks;
+            // 수동 시계: 목표에 닿은 region 은 작업 큐만 비운다(manualPass 는 잠금 밖에서 이 워커만 쓰고, afterTick 이 잠금 안에서 센다)
+            boolean hold = manualClock && r.manualDone >= manualTarget;
+            r.manualPass = manualClock && !hold;
+            boolean game = gameTicks && !hold;
             long tickStart = game ? System.nanoTime() : 0L;
-            r.runTick(game);
+            r.runTick(gameTicks, hold);
             if (game) {
                 long took = System.nanoTime() - tickStart;
                 world.tickState().record(took);   // /tick query 의 틱 시간 표본
@@ -688,6 +741,10 @@ public final class Regionizer {
 
     /** 틱 끝(잠금 안): 합치기 → 나누기 → 빈 region 정리 → 다음 틱 예약. */
     private void afterTick(Region r) {
+        if (r.manualPass) {
+            r.manualPass = false;
+            r.manualDone++;
+        }
         updateSprintSummary(r);
         resolveMerges(r);
         if (!r.alive || r.yielded) return;
@@ -699,7 +756,10 @@ public final class Regionizer {
         if (!r.alive) return;
         long now = System.nanoTime();
         updateSprintSummary(r);   // 병합으로 이어받은 상태까지
-        if (r.sprintPending) {
+        if (manualClock) {
+            // 수동 시계: 낸 틱이 남았으면 곧바로, 아니면 작업 큐를 비우러 잠깐 뒤에(manualAdvance 가 앞당긴다)
+            r.nextTickNanos = r.manualDone < manualTarget ? now : now + MANUAL_POLL_NANOS;
+        } else if (r.sprintPending) {
             // /tick sprint: 기다리지 않고 곧바로 다음 틱(같은 풀의 다른 region 과는 마감 순서로 번갈아). 전역을 기다린 틱이면 잠깐 뒤에.
             r.nextTickNanos = r.sprintHeld() ? now + SPRINT_HOLD_NANOS : now;
         } else {
@@ -761,7 +821,7 @@ public final class Regionizer {
             Region o = resolve(it.next());
             it.remove();
             if (o == null || o == r || !o.alive) continue;
-            if (!sprintCompatible(r, o)) {   // 참여 region 끼리 마친 틱이 다르면 한 틱 미룬다
+            if (!sprintCompatible(r, o) || (manualClock && r.manualDone != o.manualDone)) {   // 참여 region 끼리(수동 시계면 모두) 마친 틱이 다르면 한 틱 미룬다
                 if (deferred == null) deferred = new ArrayList<>();
                 deferred.add(o);
                 continue;
@@ -853,10 +913,11 @@ public final class Regionizer {
         List<Region> created = new ArrayList<>();
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
+            n.manualDone = r.manualDone;   // 수동 시계: 부모가 마친 시험 틱 수
             n.inheritSteps(r.stepGeneration(), r.stepsLeft());   // 나뉜 조각은 부모의 남은 걸음을 물려받는다
             n.inheritSprint(r.sprintGeneration(), r.sprintLeft(), r.sprintJoined());   // sprint 틱도
             // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게. sprint 중이면 부모처럼 곧바로
-            n.nextTickNanos = r.sprintLeft() > 0 ? r.nextTickNanos : r.nextTickNanos + tickNanos;
+            n.nextTickNanos = r.sprintLeft() > 0 || manualClock ? r.nextTickNanos : r.nextTickNanos + tickNanos;
             regions.add(n);
             created.add(n);
             for (long sk : parts.get(i)) {

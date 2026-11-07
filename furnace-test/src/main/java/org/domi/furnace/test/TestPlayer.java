@@ -1,0 +1,343 @@
+// 시험 서버의 가짜 플레이어: 루프백 소켓으로 실제 접속 흐름(핸드셰이크 → 오프라인 로그인 → 구성 → 플레이)을 밟는 최소 클라이언트.
+// 읽기 스레드가 클라이언트가 꼭 해야 하는 답(keep-alive 되돌리기, 텔레포트 확인, 청크 묶음 받음)을 대신 한다.
+// 받은 시스템 메시지·액션바는 서버 쪽 패킷 구독으로 Text 그대로 모은다(직렬화 전 값 — NBT 를 다시 풀지 않는다).
+// command()/chat() 은 패킷을 보낸 뒤 동기화 장벽(같은 연결의 다음 패킷 → 전역 스레드 → 플레이어 region)을 거쳐, 서버가 그 패킷을
+// 처리한 뒤에 돌아온다. 그래서 바로 다음 줄에서 결과(메시지·블록·플러그인 상태)를 확인해도 된다. 틱은 진행하지 않는다.
+package org.domi.furnace.test;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import org.domi.furnace.api.entity.Player;
+import org.domi.furnace.api.event.EventPriority;
+import org.domi.furnace.api.event.EventSubscription;
+import org.domi.furnace.api.packet.PacketTypes;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.net.io.Types;
+
+public final class TestPlayer implements AutoCloseable {
+
+    /** 1.21.1 프로토콜 번호. */
+    static final int PROTOCOL = 767;
+    /** 동기화 장벽에 쓰는 플러그인 채널(서버 쪽 구독이 가로채 버린다 — 플러그인에는 가지 않는다). */
+    static final String SYNC_CHANNEL = "furnace-test:sync";
+
+    private final FurnaceTestServer server;
+    private final String name;
+    private final Socket socket;
+    private final OutputStream out;
+    private final DataInputStream in;
+    private UUID uuid;
+    private final List<Text> messages = new CopyOnWriteArrayList<>();
+    private final List<Text> actionBars = new CopyOnWriteArrayList<>();
+    private final AtomicLong syncSent = new AtomicLong();
+    private final AtomicLong syncSeen = new AtomicLong();
+    private final List<EventSubscription> subs = new CopyOnWriteArrayList<>();
+    private volatile boolean connected;
+    private volatile String disconnectReason;
+    private Thread reader;
+
+    private TestPlayer(FurnaceTestServer server, String name, Socket socket) throws IOException {
+        this.server = server;
+        this.name = name;
+        this.socket = socket;
+        this.out = socket.getOutputStream();
+        this.in = new DataInputStream(socket.getInputStream());
+    }
+
+    static TestPlayer connect(FurnaceTestServer server, int port, String name) {
+        TestPlayer p = null;
+        try {
+            Socket s = new Socket();
+            s.connect(new InetSocketAddress("127.0.0.1", port), 5000);
+            s.setSoTimeout((int) Math.min(Integer.MAX_VALUE, server.timeoutMillis()));
+            p = new TestPlayer(server, name, s);
+            p.subscribe();
+            p.login();
+            p.awaitOnline();
+            return p;
+        } catch (Exception e) {
+            if (p != null) p.closeQuietly();
+            throw new IllegalStateException("가짜 플레이어 " + name + " 접속 실패", e);
+        }
+    }
+
+    // ------------------------------------------------------------------ 접속
+
+    private void subscribe() {
+        var packets = server.internals().plugins().packetsImpl();
+        subs.add(packets.listenInternal(PacketTypes.Clientbound.SYSTEM_CHAT, EventPriority.MONITOR, e -> {
+            if (!isMe(e.player())) return;
+            (e.packet().actionBar() ? actionBars : messages).add(e.packet().message());
+        }));
+        subs.add(packets.listenInternal(PacketTypes.Clientbound.SET_ACTION_BAR_TEXT, EventPriority.MONITOR, e -> {
+            if (isMe(e.player())) actionBars.add(e.packet().text());
+        }));
+        subs.add(packets.listenInternal(PacketTypes.Serverbound.CUSTOM_PAYLOAD, EventPriority.LOWEST, e -> {
+            if (!SYNC_CHANNEL.equals(e.packet().channel()) || !isMe(e.player())) return;
+            e.setCancelled(true);
+            syncSeen.accumulateAndGet(Long.parseLong(new String(e.packet().data(), StandardCharsets.UTF_8)), Math::max);
+        }));
+    }
+
+    private boolean isMe(Player p) { return p != null && p.name().equals(name); }
+
+    private void login() throws Exception {
+        write(0x00, b -> {   // handshake → 로그인
+            Types.writeVarInt(b, PROTOCOL);
+            Types.writeString(b, "localhost");
+            b.writeShort(25565);
+            Types.writeVarInt(b, 2);
+        });
+        write(0x00, b -> {   // login start
+            Types.writeString(b, name);
+            Types.writeUuid(b, new UUID(0, 0));
+        });
+        ByteBuf success = await(0x02, 0x00);   // login success (0x00 = 로그인 단계 끊기)
+        uuid = Types.readUuid(success);
+        write(0x03, null);                       // login acknowledged → 구성
+        write(0x07, b -> Types.writeVarInt(b, 0));   // known packs: 없음
+        await(0x03, 0x02);                       // finish configuration (0x02 = 구성 단계 끊기)
+        write(0x03, null);                       // ack → 플레이
+        await(0x2B, 0x1D);                       // login(play)
+        connected = true;
+        reader = new Thread(this::readLoop, "furnace-test-player-" + name);
+        reader.setDaemon(true);
+        reader.start();
+    }
+
+    /** 서버 접속자 목록에 들 때까지(틱 없이). */
+    private void awaitOnline() {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
+        while (server.internals().playerByName(name) == null) {
+            if (!connected) throw new IllegalStateException("접속이 끊겼다: " + disconnectReason);
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("접속자 목록에 들지 않았다");
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+        }
+    }
+
+    // ------------------------------------------------------------------ 읽기(클라이언트가 꼭 하는 답)
+
+    private void readLoop() {
+        try {
+            while (connected) {
+                ByteBuf f = read();
+                int id = Types.readVarInt(f);
+                switch (id) {
+                    case 0x26 -> {   // keep_alive → 그대로 되돌린다
+                        long v = f.readLong();
+                        write(0x18, b -> b.writeLong(v));
+                    }
+                    case 0x40 -> {   // player_position → accept_teleportation
+                        f.skipBytes(8 * 3 + 4 * 2 + 1);
+                        int tp = Types.readVarInt(f);
+                        write(0x00, b -> Types.writeVarInt(b, tp));
+                    }
+                    case 0x0C -> write(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
+                    case 0x1D -> {   // disconnect
+                        disconnectReason = "disconnect";
+                        connected = false;
+                    }
+                    default -> { }
+                }
+            }
+        } catch (Exception e) {
+            if (connected && disconnectReason == null) disconnectReason = String.valueOf(e);
+        } finally {
+            connected = false;
+        }
+    }
+
+    // ------------------------------------------------------------------ 보내기
+
+    /** 명령을 보낸다(앞의 '/' 는 떼어 보낸다). 서버가 처리한 뒤 돌아온다. */
+    public TestPlayer command(String command) {
+        String c = command.startsWith("/") ? command.substring(1) : command;
+        send(0x04, b -> Types.writeString(b, c));   // chat_command(서명 없음)
+        sync();
+        return this;
+    }
+
+    /** 채팅을 보낸다(서명 없음). 서버가 처리한 뒤 돌아온다. */
+    public TestPlayer chat(String message) {
+        send(0x06, b -> {
+            Types.writeString(b, message);
+            b.writeLong(System.currentTimeMillis());
+            b.writeLong(0L);
+            b.writeBoolean(false);           // 서명 없음
+            Types.writeVarInt(b, 0);         // last seen: offset
+            b.writeBytes(new byte[3]);       // last seen: 20비트 확인 표
+        });
+        sync();
+        return this;
+    }
+
+    /** 위치를 보낸다(move_player_pos). 서버는 다음 틱에 이동을 검사·반영한다. */
+    public TestPlayer moveTo(double x, double y, double z, boolean onGround) {
+        send(0x1A, b -> {
+            b.writeDouble(x);
+            b.writeDouble(y);
+            b.writeDouble(z);
+            b.writeBoolean(onGround);
+        });
+        sync();
+        return this;
+    }
+
+    /** 원시 serverbound play 패킷(id + 본문). 다른 방법이 없을 때만. */
+    public TestPlayer sendPacket(int id, Consumer<ByteBuf> body) {
+        send(id, body);
+        sync();
+        return this;
+    }
+
+    /**
+     * 장벽: 지금까지 보낸 패킷을 서버가 처리했을 때 돌아온다. 같은 연결의 패킷은 차례로 처리되므로 장벽 패킷이 서버에 닿으면 앞 패킷은
+     * 끝났고, 그 패킷이 전역 스레드·플레이어 region 에 넘긴 일은 그 뒤에 넣은 빈 작업이 끝날 때 끝났다.
+     */
+    public void sync() {
+        long n = syncSent.incrementAndGet();
+        send(0x12, b -> {   // custom_payload
+            Types.writeString(b, SYNC_CHANNEL);
+            b.writeBytes(Long.toString(n).getBytes(StandardCharsets.UTF_8));
+        });
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
+        while (syncSeen.get() < n) {
+            if (!connected) return;   // 끊겼다(명령이 쫓아냈을 수 있다) — 시험이 isConnected 로 본다
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("서버가 패킷을 처리하지 않았다(장벽 " + n + ")");
+            java.util.concurrent.locks.LockSupport.parkNanos(200_000L);
+        }
+        server.onGlobal(() -> null);
+        var p = server.internals().playerByName(name);
+        if (p != null) {
+            var cp = p.chunkPos();
+            server.await(server.internals().world().submitAtChunk(cp, r -> null));
+        }
+    }
+
+    private void send(int id, Consumer<ByteBuf> body) {
+        if (!connected) throw new IllegalStateException(name + " 은 접속해 있지 않다(" + disconnectReason + ")");
+        try {
+            write(id, body);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    // ------------------------------------------------------------------ 받은 것
+
+    public String name() { return name; }
+
+    public UUID uuid() { return uuid; }
+
+    /** 플러그인이 보는 플레이어 핸들. 나갔으면 null. */
+    public Player player() { return server.api().player(uuid); }
+
+    public boolean isConnected() { return connected; }
+
+    /** 끊긴 까닭(서버가 끊었으면 "disconnect"). 접속 중이면 null. */
+    public String disconnectReason() { return connected ? null : disconnectReason; }
+
+    /** 받은 채팅 창 시스템 메시지(명령 출력·공지·플러그인 sendMessage), 받은 차례로. */
+    public List<Text> messages() { return List.copyOf(messages); }
+
+    /** messages() 를 글자만. */
+    public List<String> messageLines() { return messages.stream().map(Text::plainText).toList(); }
+
+    /** 받은 액션바 글. */
+    public List<Text> actionBars() { return List.copyOf(actionBars); }
+
+    /** 모은 메시지를 비운다. */
+    public void clearMessages() {
+        messages.clear();
+        actionBars.clear();
+    }
+
+    /** 글자가 조건에 맞는 메시지가 올 때까지(틱 없이) 기다린다. 비동기로 보내는 플러그인 메시지용. */
+    public Text awaitMessage(Predicate<String> match) {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
+        while (true) {
+            for (Text t : messages) if (match.test(t.plainText())) return t;
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException(name + ": 맞는 메시지가 오지 않았다. 받은 것: " + messageLines());
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+        }
+    }
+
+    // ------------------------------------------------------------------ 나가기
+
+    /** 연결을 닫고 서버가 접속자 목록에서 뺄 때까지(틱 없이) 기다린다. */
+    @Override
+    public void close() {
+        closeQuietly();
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
+        while (server.internals().playerByName(name) != null && System.nanoTime() - deadline < 0) {
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+        }
+    }
+
+    void closeQuietly() {
+        connected = false;
+        if (disconnectReason == null) disconnectReason = "closed";
+        try {
+            socket.close();
+        } catch (IOException ignored) { }
+        for (EventSubscription s : subs) {
+            try {
+                s.unsubscribe();
+            } catch (RuntimeException ignored) { }
+        }
+        subs.clear();
+        server.playerLeft(this);
+    }
+
+    // ------------------------------------------------------------------ 틀(압축 없음 — 시험 서버는 압축을 끈다)
+
+    private void write(int id, Consumer<ByteBuf> body) throws IOException {
+        ByteBuf b = Unpooled.buffer();
+        Types.writeVarInt(b, id);
+        if (body != null) body.accept(b);
+        ByteBuf f = Unpooled.buffer();
+        Types.writeVarInt(f, b.readableBytes());
+        f.writeBytes(b);
+        byte[] bytes = new byte[f.readableBytes()];
+        f.readBytes(bytes);
+        synchronized (out) {
+            out.write(bytes);
+            out.flush();
+        }
+    }
+
+    private ByteBuf read() throws IOException {
+        int len = 0, shift = 0, b;
+        do {
+            b = in.readUnsignedByte();
+            len |= (b & 0x7F) << shift;
+            shift += 7;
+        } while ((b & 0x80) != 0);
+        byte[] data = new byte[len];
+        in.readFully(data);
+        return Unpooled.wrappedBuffer(data);
+    }
+
+    /** id 인 패킷을 받을 때까지 읽는다. disconnectId 가 오면 끊긴 것으로 보고 던진다. */
+    private ByteBuf await(int id, int disconnectId) throws IOException {
+        while (true) {
+            ByteBuf f = read();
+            int got = Types.readVarInt(f);
+            if (got == id) return f.slice();
+            if (got == disconnectId) throw new IOException("서버가 접속을 거절했다(패킷 0x" + Integer.toHexString(got) + ")");
+        }
+    }
+}

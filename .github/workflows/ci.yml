@@ -22,6 +22,9 @@ jobs:
         run: ./gradlew -PskipOracle=true :furnace-plugin-test:classes
       - name: 서버 테스트
         run: ./gradlew -PskipOracle=true :furnace-server:test
+      # 헤드리스 시험 서버(플러그인 개발자용 시험 라이브러리) 자체 시험
+      - name: 시험 서버 모듈 테스트
+        run: ./gradlew -PskipOracle=true :furnace-test:test
       # 단일 실행 jar 가 만들어지는지(실행 검사는 아님). 러너·캐시·브랜치 정책은 사용자 결정 전이라 바꾸지 않았다.
       - name: fatJar 빌드
         run: ./gradlew -PskipOracle=true :furnace-server:fatJar
