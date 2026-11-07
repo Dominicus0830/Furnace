@@ -81,7 +81,7 @@ public final class ViewRewriter {
         if (border != null) {
             // 개인 보더가 있는 사람에게는 서버 보더의 변경을 보내지 않는다. 접속·차원 이동 때 서버가 보내는 초기화는 개인 보더 상태로 바꿔 보낸다.
             // (개인 보더를 바꿀 때도 이 초기화 패킷을 보낸다 — PlayerViewsImpl.pushBorder)
-            if (p instanceof InitializeBorder) { p.discard(); return InitializeBorder.of(border); }
+            if (p instanceof InitializeBorder) { p.discard(); layers.syncBorderScale(dimension); return InitializeBorder.of(border); }
             if (p instanceof SetBorderCenter || p instanceof SetBorderSize || p instanceof SetBorderLerpSize
                     || p instanceof SetBorderWarningDelay || p instanceof SetBorderWarningDistance) return null;
         }

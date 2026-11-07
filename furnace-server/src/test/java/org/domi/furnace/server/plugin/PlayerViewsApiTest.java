@@ -203,6 +203,28 @@ class PlayerViewsApiTest {
     }
 
     @Test
+    void personalBorderDividesCenterByDimensionScale() {
+        Player vp = online("Viewer");
+        var viewer = host.player(vp);
+        var border = host.playerViews().border(a, viewer);
+        border.center(800, 0);
+        border.size(200);
+        drain(vp);
+        vp.viewLayers().scaleOf(d -> 8.0);   // 네더에 있는 것처럼
+        vp.viewLayers().syncBorderScale("minecraft:the_nether");
+        assertEquals(800, border.centerX(), "플러그인이 넣은 값(오버월드 좌표) 그대로");
+        assertTrue(border.contains(100, 0), "네더 중심은 1/8 = 100");
+        assertFalse(border.contains(800, 0), "나누지 않은 중심은 밖");
+        assertEquals(200, border.size(), "크기는 나누지 않는다");
+        border.size(300);   // 다시 보냄 — 이어서 InitializeBorder.of 가 나눈 중심을 쓰는지
+        assertEquals(100.0, org.domi.furnace.server.net.protocol.play.InitializeBorder.of(vp.viewLayers().border()).centerX());
+        vp.viewLayers().syncBorderScale("minecraft:overworld");
+        vp.viewLayers().scaleOf(d -> 1.0);
+        vp.viewLayers().syncBorderScale("minecraft:overworld");
+        assertTrue(border.contains(800, 0));
+    }
+
+    @Test
     void borderOwnedByPluginIsResetWhenItIsDisabled() {
         Player vp = online("Viewer");
         var viewer = host.player(vp);
