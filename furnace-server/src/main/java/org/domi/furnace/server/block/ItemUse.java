@@ -217,7 +217,8 @@ public final class ItemUse {
     /**
      * BoatItem.use: 유체까지 맞추는 시선이 빗나가면 넘긴다. 시선 5 블록 앞까지 넓힌 상자 안 맞출 수 있는 엔티티의 몸이 눈을 품으면 넘긴다.
      * 블록에 맞았으면 그 지점에 배(종류·상자 여부는 아이템 이름)를 플레이어 방향으로 놓아, 블록과 겹치면 실패, 아니면 넣고 하나 쓴다.
-     * TODO(엔티티 충돌): noCollision 의 엔티티(다른 배) 부분, EntityType.createDefaultStackConfig(이름·엔티티 데이터 컴포넌트).
+     * 아이템의 이름·entity_data 는 위치를 둔 뒤 입힌다(getBoat 의 createDefaultStackConfig) — 종류·방향은 그 뒤에 정해진다.
+     * TODO(엔티티 충돌): noCollision 의 엔티티(다른 배) 부분.
      */
     private static Holder boatUse(BlockLevel level, BlockActor player, ItemStack stack, String n) {
         if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
@@ -240,6 +241,7 @@ public final class ItemUse {
         boat.xo = hit.x();
         boat.yo = hit.y();
         boat.zo = hit.z();
+        org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, player, boat);
         boat.setVariant(org.domi.furnace.server.entity.Boat.Type.byName(type));
         boat.setYRot(player.yRot());
         if (!cl.noCollision(boat.boundingBox())) return Holder.fail(stack);
@@ -551,7 +553,7 @@ public final class ItemUse {
 
     /**
      * MinecartItem.useOn: 레일(#rails)이 아니면 실패. 레일 칸 가운데, 바닥 + 0.0625(경사면 + 0.5)에 그 종류 수레를 놓고 하나 쓴다.
-     * TODO(아이템 컴포넌트): createDefaultStackConfig(이름·엔티티 데이터). TODO(디스펜서): 발사기로 놓기.
+     * 아이템의 이름·entity_data 를 입힌다(createMinecart 의 createDefaultStackConfig). 발사기로 놓기는 DispenseBehaviors.MinecartDispense.
      */
     private static InteractionResult minecartOn(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack,
             org.domi.furnace.server.entity.AbstractMinecart.Type type) {
@@ -561,7 +563,7 @@ public final class ItemUse {
         if (level instanceof ChunkLevel cl) {
             Prop shape = B.prop("shape");
             double d = shape.has(state) && shape.valueName(state).startsWith("ascending_") ? 0.5 : 0.0;
-            var cart = org.domi.furnace.server.entity.AbstractMinecart.create(cl, pos.x() + 0.5, pos.y() + 0.0625 + d, pos.z() + 0.5, type);
+            var cart = org.domi.furnace.server.entity.AbstractMinecart.create(cl, pos.x() + 0.5, pos.y() + 0.0625 + d, pos.z() + 0.5, type, stack, player);
             if (!cl.addFreshEntity(cart)) {
                 player.resyncHands();
                 return InteractionResult.FAIL;
@@ -574,12 +576,13 @@ public final class ItemUse {
 
     /**
      * SpawnEggItem.useOn: 맞은 칸의 충돌 모양이 비었으면 그 칸, 아니면 맞은 면 앞 칸에 몹을 만든다(바닥에 맞춰 내림).
-     * 생성기면 종류만 바꾼다. TODO(ENTITY_DATA 컴포넌트): 알의 entity_data 로 종류·태그를 덮어쓴다.
+     * 생성기면 종류만 바꾼다. 알의 entity_data 가 종류(id)와 태그를 덮어쓰고(SpawnEggItem.getType, createDefaultStackConfig), 이름도 입힌다.
      */
     private static InteractionResult spawnEgg(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack, String itemName) {
         Pos pos = hit.pos();
         int state = level.getBlockState(pos);
-        String type = "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length());
+        String type = org.domi.furnace.server.entity.EntityStackConfig.eggType(stack,
+                "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length()));
         if (B.is(state, "minecraft:spawner")) {
             // 생성기면 다음 스폰 데이터의 종류만 바꾼다(shrink 는 크리에이티브에서도).
             if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.SpawnerBlockEntity sp) {
@@ -603,7 +606,8 @@ public final class ItemUse {
             return InteractionResult.PASS;
         }
         Pos target = B.INFO.collisionShape(state).isEmpty() ? pos : pos.relative(hit.face());
-        if (level.spawnMobFromEgg(type, target, true, !pos.equals(target) && hit.face() == Dir.UP)) {
+        if (level.spawnMobFromEgg(type, target, true, !pos.equals(target) && hit.face() == Dir.UP,
+                org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG, stack, player)) {
             player.setItemInHand(hand, stack.withCount(stack.count() - 1));
             level.gameEvent("minecraft:entity_place", pos, player, -1);
         }
@@ -623,8 +627,9 @@ public final class ItemUse {
         int state = level.getBlockState(pos);
         if (!B.is(state, "minecraft:water") && !B.is(state, "minecraft:lava")) return Holder.pass(stack);
         if (!player.mayInteract(level, pos) || !mayUseItemAt(level, player, pos, hit.face(), stack)) return Holder.fail(stack);
-        String type = "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length());
-        var mob = cl.spawnMob(type, pos, false, false, org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG);
+        String type = org.domi.furnace.server.entity.EntityStackConfig.eggType(stack,
+                "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length()));
+        var mob = cl.spawnEntityFromStack(type, pos, false, false, org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG, "SPAWNER_EGG", stack, player);
         if (mob == null) return Holder.pass(stack);
         ItemStack rest = player.instabuild() ? stack : stack.withCount(stack.count() - 1);
         player.awardStat("minecraft:used:" + itemName);
@@ -659,6 +664,8 @@ public final class ItemUse {
         var stand = new org.domi.furnace.server.entity.ArmorStand(cl, cl.nextEntityId());
         float yaw = (float) Math.floor((wrapDegrees(player.yRot() - 180.0F) + 22.5F) / 45.0F) * 45.0F;
         stand.moveTo(bx, by, bz, yaw, 0.0F);
+        org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, player, stand);   // createDefaultStackConfig 뒤 방향을 다시 둔다
+        stand.moveTo(stand.x(), stand.y(), stand.z(), yaw, 0.0F);
         RandomSource r = cl.random();
         float[] head = stand.pose(0).clone();
         float f = r.nextFloat() * 5.0F, g = r.nextFloat() * 20.0F - 10.0F;
@@ -687,6 +694,10 @@ public final class ItemUse {
             if (entity == null) return InteractionResult.FAIL;
         } else {
             entity = new org.domi.furnace.server.entity.ItemFrame(cl, cl.nextEntityId(), pos, face, itemName.equals("minecraft:glow_item_frame"));
+        }
+        if (ItemTools.component(stack, org.domi.furnace.server.entity.EntityStackConfig.ENTITY_DATA) instanceof org.domi.furnace.server.net.io.nbt.NbtCompound data
+                && !data.tags().isEmpty()) {
+            org.domi.furnace.server.entity.EntityStackConfig.updateCustomEntityTag(player, entity, data);   // HangingEntityItem: entity_data 만(이름은 안 입힌다)
         }
         if (!entity.survives()) return InteractionResult.CONSUME;
         if (!cl.addFreshEntity(entity)) {

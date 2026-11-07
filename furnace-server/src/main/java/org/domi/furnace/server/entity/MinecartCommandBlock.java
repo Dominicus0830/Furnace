@@ -20,6 +20,8 @@ public class MinecartCommandBlock extends AbstractMinecart {
 
     private int lastActivated;
 
+    @Override public boolean onlyOpCanSetNbt() { return true; }
+
     private final BaseCommandBlock logic = new BaseCommandBlock() {
         @Override protected Pos blockPos() { return new Pos((int) Math.floor(x()), (int) Math.floor(y()), (int) Math.floor(z())); }
 

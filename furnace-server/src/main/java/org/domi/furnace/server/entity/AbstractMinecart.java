@@ -81,6 +81,14 @@ public abstract class AbstractMinecart extends Entity {
         return m;
     }
 
+    /** AbstractMinecart.createMinecart(…, stack, player): 만들고 위치를 둔 뒤 아이템의 이름·entity_data 를 입힌다. player 가 null 이면 발사기. */
+    public static AbstractMinecart create(ChunkLevel level, double x, double y, double z, Type type, ItemStack stack,
+            org.domi.furnace.server.block.BlockActor player) {
+        AbstractMinecart m = create(level, x, y, z, type);
+        EntityStackConfig.apply(level, stack, player, m);
+        return m;
+    }
+
     public abstract Type getMinecartType();
 
     // ------------------------------------------------------------------ 데이터

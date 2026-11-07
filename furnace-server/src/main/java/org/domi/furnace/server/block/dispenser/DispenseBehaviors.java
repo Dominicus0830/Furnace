@@ -84,8 +84,9 @@ public final class DispenseBehaviors {
         protected ItemStack execute(BlockSource s, ItemStack stack) {
             int dir = s.facing();
             String n = ItemTools.itemName(stack);
-            String type = "minecraft:" + n.substring("minecraft:".length(), n.length() - "_spawn_egg".length());
-            s.level().spawnMobFromEgg(type, s.front(), dir != Dir.UP, false, org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER);
+            String type = org.domi.furnace.server.entity.EntityStackConfig.eggType(stack,
+                    "minecraft:" + n.substring("minecraft:".length(), n.length() - "_spawn_egg".length()));
+            s.level().spawnMobFromEgg(type, s.front(), dir != Dir.UP, false, org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER, stack, null);
             s.level().gameEvent("minecraft:entity_place", s.pos(), null, -1);
             return stack.withCount(stack.count() - 1);
         }
@@ -100,6 +101,7 @@ public final class DispenseBehaviors {
             var stand = new org.domi.furnace.server.entity.ArmorStand(cl, cl.nextEntityId());
             stand.moveTo(p.x() + 0.5, p.y(), p.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(cl.random().nextFloat() * 360.0F), 0.0F);
             stand.setYRot(BlockSource.toYRot(s.facing()));
+            org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, null, stand);   // appendDefaultStackConfig: 방향 → 이름 → entity_data
             cl.addFreshEntityWithPassengers(stand);
             return stack.withCount(stack.count() - 1);
         }
@@ -463,6 +465,7 @@ public final class DispenseBehaviors {
             boat.xo = x;
             boat.yo = y + dy;
             boat.zo = z;
+            org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, null, boat);   // BoatDispenseItemBehavior: createDefaultStackConfig
             boat.setVariant(Boat.Type.byName(type));
             boat.setYRot(BlockSource.toYRot(dir));
             cl.addFreshEntity(boat);
@@ -495,7 +498,7 @@ public final class DispenseBehaviors {
                 case "minecraft:command_block_minecart" -> AbstractMinecart.Type.COMMAND_BLOCK;
                 default -> AbstractMinecart.Type.RIDEABLE;
             };
-            cl.addFreshEntity(AbstractMinecart.create(cl, x, y + dy, z, type));
+            cl.addFreshEntity(AbstractMinecart.create(cl, x, y + dy, z, type, stack, null));
             return stack.withCount(stack.count() - 1);
         }
 
