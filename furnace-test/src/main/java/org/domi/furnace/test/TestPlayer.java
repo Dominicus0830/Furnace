@@ -59,8 +59,8 @@ public final class TestPlayer implements AutoCloseable {
 
     static TestPlayer connect(FurnaceTestServer server, int port, String name) {
         TestPlayer p = null;
+        Socket s = new Socket();
         try {
-            Socket s = new Socket();
             s.connect(new InetSocketAddress("127.0.0.1", port), 5000);
             s.setSoTimeout((int) Math.min(Integer.MAX_VALUE, server.timeoutMillis()));
             p = new TestPlayer(server, name, s);
@@ -70,6 +70,9 @@ public final class TestPlayer implements AutoCloseable {
             return p;
         } catch (Exception e) {
             if (p != null) p.closeQuietly();
+            try {
+                s.close();
+            } catch (IOException ignored) { }
             throw new IllegalStateException("가짜 플레이어 " + name + " 접속 실패", e);
         }
     }
@@ -205,7 +208,8 @@ public final class TestPlayer implements AutoCloseable {
 
     /**
      * 장벽: 지금까지 보낸 패킷을 서버가 처리했을 때 돌아온다. 같은 연결의 패킷은 차례로 처리되므로 장벽 패킷이 서버에 닿으면 앞 패킷은
-     * 끝났고, 그 패킷이 전역 스레드·플레이어 region 에 넘긴 일은 그 뒤에 넣은 빈 작업이 끝날 때 끝났다.
+     * 끝났고, 그 패킷이 전역 스레드 → 플레이어 region → 연결 이벤트 루프로 넘긴 일은 그 뒤에 넣은 빈 작업이 끝날 때 끝났다.
+     * 그보다 여러 번 건너가는 일(다른 region 의 칸을 만지는 명령, region 이 다시 전역으로 넘기는 일)은 덮지 못한다 — awaitMessage 나 tick() 으로 본다.
      */
     public void sync() {
         long n = syncSent.incrementAndGet();
@@ -224,6 +228,19 @@ public final class TestPlayer implements AutoCloseable {
         if (p != null) {
             var cp = p.chunkPos();
             server.await(server.internals().world().submitAtChunk(cp, r -> null));
+            // 보낸 패킷(메시지 등)은 연결의 이벤트 루프에서 인코딩될 때 구독자가 본다 — 그 앞에 쌓인 보내기까지 끝나게
+            var ch = p.channel();
+            if (ch != null && ch.isActive()) {
+                try {
+                    ch.eventLoop().submit(() -> { }).get(server.timeoutMillis(), TimeUnit.MILLISECONDS);
+                } catch (java.util.concurrent.RejectedExecutionException | java.util.concurrent.ExecutionException e) {
+                    // 끊기는 중
+                } catch (java.util.concurrent.TimeoutException e) {
+                    throw new IllegalStateException("이벤트 루프가 응답하지 않는다", e);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
     }
 

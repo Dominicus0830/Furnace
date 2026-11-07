@@ -53,14 +53,24 @@ public final class FurnaceTestExtension implements BeforeAllCallback, AfterAllCa
         }
     }
 
+    /** static 필드일 때 서버를 연 클래스 문맥 — @Nested 클래스도 beforeAll/afterAll 을 부르므로 연 쪽에서만 닫는다. */
+    private String openedBy;
+
     @Override
     public void beforeAll(ExtensionContext context) {
         perClass = true;   // static 필드로 등록됐을 때만 불린다
+        if (server != null) return;   // 바깥 클래스가 연 서버를 @Nested 가 함께 쓴다
         open();
+        openedBy = context.getUniqueId();
     }
 
     @Override
-    public void afterAll(ExtensionContext context) { shut(); }
+    public void afterAll(ExtensionContext context) {
+        if (context.getUniqueId().equals(openedBy)) {
+            openedBy = null;
+            shut();
+        }
+    }
 
     @Override
     public void beforeEach(ExtensionContext context) { if (!perClass) open(); }

@@ -153,7 +153,7 @@ public final class Regionizer {
     private volatile long manualTarget;
 
     /** 수동 시계를 켠다(게임 틱 시작 전에 한 번). 되돌리지 않는다. */
-    void manualClock() { this.manualClock = true; }
+    void enableManualClock() { this.manualClock = true; }
 
     boolean isManualClock() { return manualClock; }
 
@@ -613,6 +613,8 @@ public final class Regionizer {
                 queue.poll();
                 head.queued = false;
                 head.ticking = true;
+                // 수동 시계: 이번 차례가 시험 틱인지 잠금 안에서 정한다 — 병합 판정(resolveMerges)이 틱 중인 상대의 수를 +1 로 본다
+                head.manualPass = manualClock && head.manualDone < manualTarget;
                 head.tickThread = Thread.currentThread();
                 running.put(head, now);
                 noteTaken(head, late);
@@ -634,9 +636,8 @@ public final class Regionizer {
         }
         long t0 = STATS ? System.nanoTime() : 0L;
         try {
-            // 수동 시계: 목표에 닿은 region 은 작업 큐만 비운다(manualPass 는 잠금 밖에서 이 워커만 쓰고, afterTick 이 잠금 안에서 센다)
-            boolean hold = manualClock && r.manualDone >= manualTarget;
-            r.manualPass = manualClock && !hold;
+            // 수동 시계: 목표에 닿은 region 은 작업 큐만 비운다(manualPass 는 tryTake 가 잠금 안에서 정했다)
+            boolean hold = manualClock && !r.manualPass;
             boolean game = gameTicks && !hold;
             long tickStart = game ? System.nanoTime() : 0L;
             r.runTick(gameTicks, hold);
@@ -741,14 +742,18 @@ public final class Regionizer {
 
     /** 틱 끝(잠금 안): 합치기 → 나누기 → 빈 region 정리 → 다음 틱 예약. */
     private void afterTick(Region r) {
+        boolean counted = !manualClock;
         if (r.manualPass) {
             r.manualPass = false;
-            r.manualDone++;
+            if (!r.sprintHeld()) {   // sprint lockstep 으로 기다린 차례는 틱을 돌지 않았다 — 세지 않고 곧 다시 돈다
+                r.manualDone++;
+                counted = true;
+            }
         }
         updateSprintSummary(r);
         resolveMerges(r);
         if (!r.alive || r.yielded) return;
-        r.ticksSinceRecalc++;
+        if (counted) r.ticksSinceRecalc++;   // 수동 시계: 나누기 재계산 주기는 쉬는 차례가 아니라 시험 틱으로 센다
         if ((r.deadSections > 0 || r.sections.isEmpty()) && r.ticksSinceRecalc >= RECALC_INTERVAL_TICKS) {
             r.ticksSinceRecalc = 0;
             split(r);
@@ -814,6 +819,17 @@ public final class Regionizer {
         }
     }
 
+    /**
+     * 수동 시계 병합 조건(잠금 안): 마친 시험 틱 수가 같아야 한다. 틱 중인 상대는 지금 도는 시험 틱까지 센다 — 그렇지 않으면
+     * 쉬던 쪽이 양보한 뒤 상대가 틱을 마쳐 수가 달라지고, 양보한 region 은 다시 돌지 않아 영영 흡수되지 않는다.
+     */
+    private boolean manualCompatible(Region r, Region o) {
+        if (!manualClock) return true;
+        long ro = r.manualDone + (r.ticking && r.manualPass ? 1 : 0);
+        long oo = o.manualDone + (o.ticking && o.manualPass ? 1 : 0);
+        return ro == oo;
+    }
+
     /** 미룬 병합 상대 목록(없으면 null)을 돌려준다. */
     private List<Region> resolveMerges(Region r, List<Region> deferred) {
         while (!r.pendingMerges.isEmpty()) {
@@ -821,7 +837,7 @@ public final class Regionizer {
             Region o = resolve(it.next());
             it.remove();
             if (o == null || o == r || !o.alive) continue;
-            if (!sprintCompatible(r, o) || (manualClock && r.manualDone != o.manualDone)) {   // 참여 region 끼리(수동 시계면 모두) 마친 틱이 다르면 한 틱 미룬다
+            if (!sprintCompatible(r, o) || !manualCompatible(r, o)) {   // 참여 region 끼리(수동 시계면 모두) 마친 틱이 다르면 한 틱 미룬다
                 if (deferred == null) deferred = new ArrayList<>();
                 deferred.add(o);
                 continue;

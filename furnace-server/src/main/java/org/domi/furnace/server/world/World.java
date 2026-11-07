@@ -184,7 +184,7 @@ public final class World {
     // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버 furnace-test 전용 — Regionizer 설명)
 
     /** region 이 벽시계 대신 시험이 낸 틱만 돌게 한다. startTicking 전에 한 번 부른다. */
-    public void useManualClock() { regionizer.manualClock(); }
+    public void useManualClock() { regionizer.enableManualClock(); }
 
     public boolean manualClock() { return regionizer.isManualClock(); }
 
@@ -360,7 +360,8 @@ public final class World {
             // 그 청크의 region 스레드 안이면 곧바로 건다 — 작업 큐를 한 번 더 거치면 다음 틱 머리에서야 걸려 한 틱 밀린다
             // (반복 작업 runAtFixedRate(…, 1, 1) 이 두 틱마다 돌던 원인). 밖에서 부르면 예전처럼 큐를 거친다.
             Region owner = regionizer.ownerOf(cp.x(), cp.z());
-            if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, delayTicks);
+            // 곧바로 걸 때 0 은 1 로 — 지금 돌고 있는 지연 작업 차례에서 다시 꺼내 같은 틱에 돌거나, 자기를 다시 거는 작업이 끝없이 돌지 않게
+            if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, Math.max(1, delayTicks));
             else runAtChunk(cp, r -> r.schedule(key, run, delayTicks));
             return f;
         }

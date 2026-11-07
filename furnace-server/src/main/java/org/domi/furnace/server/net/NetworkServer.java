@@ -63,6 +63,14 @@ public final class NetworkServer {
         this.idAllocator = idAllocator;
     }
 
+    /** 이 주소에만 묶는다(null = 모든 주소, 기본). 시험 서버는 127.0.0.1 — start 전에 부른다. */
+    private String bindHost;
+
+    public NetworkServer bindHost(String host) {
+        this.bindHost = host;
+        return this;
+    }
+
     /** 서버 기동. 실제 바인딩된 포트 반환(port=0이면 OS 배정 포트). */
     public int start() {
         // 바닐라: Epoll.isAvailable() && use-native-transport 면 epoll, 아니면 NIO("Using epoll channel type"/"Using default channel type")
@@ -112,7 +120,7 @@ public final class NetworkServer {
                     }
                 });
         try {
-            channel = b.bind(port).syncUninterruptibly().channel();
+            channel = (bindHost != null ? b.bind(bindHost, port) : b.bind(port)).syncUninterruptibly().channel();
         } catch (Throwable e) {   // 체크 예외(BindException)도 sneaky throw로 오므로 RuntimeException만 잡으면 안 된다
             // bind 실패(포트 점유 등) 시 non-daemon 이벤트루프 스레드가 JVM을 붙잡지 않게 정리.
             workerGroup.shutdownGracefully();

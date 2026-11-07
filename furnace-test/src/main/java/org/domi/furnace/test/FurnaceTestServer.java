@@ -147,6 +147,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             ServerPropertiesFile settings = new ServerPropertiesFile(props);
             PlayerLists lists = new PlayerLists(root, settings);
             this.core = new ServerCore(settings, lists, new GameProfileCache(ProfileLookup.NONE, root.resolve("usercache.json")), w, level, sched);
+            core.registries(registries);   // 바이옴 API(WorldHandle.biomeNames)·접속 레지스트리가 보는 세트(FurnaceMain 은 데이터 팩 판을 건다)
             this.host = core.plugins();
             core.addConsoleListener(t -> { synchronized (consoleLog) { consoleLog.add(t); } });
             this.ownsFurnaceHolder = TestHolder.claim(host);
@@ -167,6 +168,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             if (!started) {
                 try {
                     if (host != null) host.pluginsImpl().closeAll();
+                    if (host != null) host.close();
                 } catch (Throwable ignored) { }
                 if (chunks != null) chunks.shutdown();
                 if (io != null) io.shutdownNow();
@@ -291,7 +293,8 @@ public final class FurnaceTestServer implements AutoCloseable {
 
     /**
      * 가짜 클라이언트로 실제 접속 흐름(핸드셰이크 → 로그인 → 구성 → 플레이)을 거쳐 들어온다. 처음 부르면 루프백 포트를 연다.
-     * 접속 처리가 끝나 서버 접속자 목록에 들 때까지 기다린다(틱은 필요한 만큼만 낸다 — 첫 위치 확정).
+     * 접속 처리가 끝나 서버 접속자 목록에 들 때까지 기다린다(틱은 내지 않는다). 기본은 op 가 아니다 — 명령·채팅을 짧은 사이에 10번 넘게
+     * 보내면 바닐라 스팸 감지(벽시계)에 쫓겨나니, 그런 시험은 먼저 execute("op 이름") 를 부른다.
      */
     public TestPlayer join(String name) {
         checkOpen();
@@ -305,7 +308,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         if (network != null) return;
         ServerLoginContext login = new ServerLoginContext(false, false, false, true, false, false, false, options.maxPlayers, "Furnace test",
                 null, null, core.lists(), null, null).core(core);
-        network = new NetworkServer(0, -1, login, scheduler, world, world.entityIds());
+        network = new NetworkServer(0, -1, login, scheduler, world, world.entityIds()).bindHost("127.0.0.1");   // 오프라인 서버 — 밖에서 못 닿게
         port = network.start();
     }
 
@@ -348,35 +351,57 @@ public final class FurnaceTestServer implements AutoCloseable {
 
     // ------------------------------------------------------------------ 닫기
 
-    /** 종료 순서(FurnaceMain 과 같다): 종료 이벤트 → 플러그인 끄기 → 접속 끊기·네트워크 → 저장 IO → 스케줄러 → 클래스로더 → 임시 폴더. */
+    /**
+     * 종료 순서(FurnaceMain ShutdownSequence 와 같다): 종료 이벤트 → 플러그인 끄기(접속자 살아 있음) → 네트워크(접속자를 서버가 끊는다)
+     * → region 저장 왕복 → 플레이어 데이터 IO → 저장 풀 → 스케줄러 → 클래스로더 → 임시 폴더. 한 단계가 던져도 나머지는 돈다
+     * (시험마다 서버를 새로 띄우므로 스레드가 남으면 쌓인다). 첫 예외는 끝에 다시 던진다.
+     */
     @Override
     public void close() {
         if (closed) return;
         closed = true;
-        try {
-            host.beginShutdown();
-            host.pluginsImpl().disableAll();
-            for (TestPlayer p : List.copyOf(players)) p.closeQuietly();
-            if (network != null) network.stop();
+        RuntimeException[] first = new RuntimeException[1];
+        step(first, host::beginShutdown);
+        step(first, () -> host.pluginsImpl().disableAll());
+        step(first, () -> { if (network != null) network.stop(); });
+        step(first, () -> {   // 서버가 끊은 접속자가 목록에서 빠질 때까지(퇴장 저장이 IO 에 들어간다)
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (!core.players().isEmpty() && System.nanoTime() - deadline < 0) LockSupport.parkNanos(1_000_000L);
+        });
+        step(first, () -> { for (TestPlayer p : List.copyOf(players)) p.closeQuietly(); });
+        step(first, () -> { for (var f : world.flushAll()) await(f); });
+        step(first, () -> {
             try {
                 org.domi.furnace.server.entity.PlayerData.awaitIo(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        });
+        step(first, () -> {
             ioPool.shutdown();
             genPool.shutdown();
             try {
                 ioPool.awaitTermination(30, TimeUnit.SECONDS);
+                genPool.awaitTermination(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            chunkPool.shutdown();
-            scheduler.close();
-            host.pluginsImpl().closeAll();
-            host.close();
-        } finally {
-            if (ownsFurnaceHolder) TestHolder.release(host);
-            if (deleteRoot) deleteQuietly(root);
+        });
+        step(first, chunkPool::shutdown);
+        step(first, scheduler::close);
+        step(first, () -> host.pluginsImpl().closeAll());
+        step(first, host::close);
+        if (ownsFurnaceHolder) step(first, () -> TestHolder.release(host));
+        if (deleteRoot) deleteQuietly(root);
+        if (first[0] != null) throw first[0];
+    }
+
+    private static void step(RuntimeException[] first, Runnable r) {
+        try {
+            r.run();
+        } catch (RuntimeException e) {
+            if (first[0] == null) first[0] = e;
+            else first[0].addSuppressed(e);
         }
     }
 

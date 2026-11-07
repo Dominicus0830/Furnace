@@ -149,6 +149,70 @@ class FurnaceTestServerTest {
     }
 
     @Test
+    void biomesRoundTripThroughRegistries() {
+        try (var server = FurnaceTestServer.start()) {
+            var w = server.overworld();
+            BlockPos pos = new BlockPos(2, -60, 2);
+            assertEquals("minecraft:plains", server.await(w.biomeAt(pos)).orElseThrow(), "평지 기본 바이옴");
+            assertTrue(server.await(w.setBiome(pos, "minecraft:desert")));
+            assertEquals("minecraft:desert", server.await(w.biomeAt(pos)).orElseThrow());
+        }
+    }
+
+    @Test
+    void delayZeroSelfRescheduleRunsOncePerTick() {
+        try (var server = FurnaceTestServer.start()) {
+            var region = server.api().scheduler().region(new RegionPos(0, 0));
+            AtomicLong runs = new AtomicLong();
+            Runnable[] self = new Runnable[1];
+            self[0] = () -> { runs.incrementAndGet(); region.executeDelayed(self[0], 0); };
+            server.onRegion(new BlockPos(0, 0, 0), () -> region.executeDelayed(self[0], 0));
+            server.tick(5);   // 0 을 같은 틱에 다시 걸면 이 틱이 끝나지 않는다
+            assertEquals(5, runs.get(), "region 스레드 안의 지연 0 은 다음 틱");
+        }
+    }
+
+    @Test
+    void sameTickDelayedTasksRunInScheduleOrder() {
+        try (var server = FurnaceTestServer.start()) {
+            var region = server.api().scheduler().region(new RegionPos(0, 0));
+            var log = new java.util.concurrent.CopyOnWriteArrayList<String>();
+            server.onRegion(new BlockPos(0, 0, 0), () -> {
+                for (String s : java.util.List.of("a", "b", "c", "d")) region.runLater(() -> log.add(s), 3);
+                region.runLater(() -> log.add("early"), 2);
+                return null;
+            });
+            for (String s : java.util.List.of("x", "y", "z")) region.runLater(() -> log.add(s), 3);   // 시험 스레드에서(큐를 거친다)
+            server.tick(3);
+            assertEquals(java.util.List.of("early", "a", "b", "c", "d", "x", "y", "z"), log);
+        }
+    }
+
+    @Test
+    void manyMergesKeepEveryRegionInLockstep() {
+        try (var server = FurnaceTestServer.builder().regionThreads(4).start()) {
+            var sched = server.api().scheduler();
+            var w = server.overworld();
+            int[] xs = {32, 64, 96, 128};   // 구역(16청크) 2·4·6·8 — 서로, 스폰(구역 0)과도 따로
+            AtomicLong[] counts = new AtomicLong[xs.length + 1];
+            for (int i = 0; i < counts.length; i++) counts[i] = new AtomicLong();
+            sched.region(new RegionPos(0, 0)).runAtFixedRate(counts[0]::incrementAndGet, 1, 1);
+            for (int i = 0; i < xs.length; i++) {
+                server.loadChunk(xs[i], 0);
+                sched.region(new RegionPos(xs[i], 0)).runAtFixedRate(counts[i + 1]::incrementAndGet, 1, 1);
+            }
+            server.tick(5);
+            for (int gap : new int[] {16, 48, 80, 112}) {   // 사이 구역을 하나씩 채워 차례로 합친다
+                server.loadChunk(gap, 0);
+                server.tick(5);
+            }
+            server.tick(5);
+            assertEquals(w.regionAt(0, 0).orElseThrow().id(), w.regionAt(128, 0).orElseThrow().id(), "모두 하나로 합쳐졌다");
+            for (int i = 0; i < counts.length; i++) assertEquals(30, counts[i].get(), "region " + i);
+        }
+    }
+
+    @Test
     void pluginJarLoadsInItsOwnClassLoader(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tmp) throws Exception {
         java.nio.file.Path jar = SamplePluginJars.build(tmp, "JarProbe", "probe.JarProbe", """
                 package probe;

@@ -76,6 +76,9 @@ class MyPluginTest {
 - `onRegion(pos, supplier)`: 그 칸의 region 스레드에서 동기 API(`blockNow` 등)를 쓴다. `onGlobal(supplier)`: 전역 스레드에서.
 - `loadChunk(x, z)`: 청크를 올린다. 처음에는 스폰 둘레 3×3 이 올라와 있다(`spawnChunkRadius`).
 - 벽시계로는 아무것도 진행하지 않는다: `Thread.sleep` 해도 시간·반복 작업·몹이 그대로다.
+- 결정성의 범위: 한 region 안의 순서(같은 틱 지연 작업은 건 차례)와 "몇 번째 틱에 도는가"는 정해진다. region **사이**에 넘기는 작업
+  (A region 이 B region 에 `execute`)은 B 가 그 틱을 이미 돌았는지에 따라 같은 틱 또는 다음 틱에 붙을 수 있다 — `regionThreads(1)`(기본)이면
+  늘 같다. 전역 `runLater(0)` 은 시험 서버에서 다음 틱 머리(운영 서버는 바로 다음 전역 작업 차례)에 돈다.
 
 ### 명령
 
@@ -88,8 +91,12 @@ class MyPluginTest {
 - `server.join(name)`: 루프백 소켓으로 접속해 서버 접속자 목록에 들 때까지 기다린다. 오프라인 UUID. keep-alive·텔레포트 확인·청크 묶음 응답은
   읽기 스레드가 알아서 한다.
 - `command(...)`, `chat(...)`, `moveTo(x, y, z, onGround)`, `sendPacket(id, body)`: 보낸 뒤 **장벽**을 거쳐 돌아온다 — 같은 연결의 다음 패킷이
-  서버에 닿고, 전역 스레드와 그 플레이어의 region 이 그 뒤에 넣은 빈 작업을 마칠 때까지. 바로 다음 줄에서 결과를 확인해도 된다.
-  이동처럼 서버가 **다음 틱**에 반영하는 것은 `tick()` 뒤에 본다.
+  서버에 닿고, 전역 스레드·그 플레이어의 region·연결의 네트워크 스레드가 그 뒤에 넣은 빈 작업을 마칠 때까지. 바로 다음 줄에서 결과를 확인해도 된다.
+  이동처럼 서버가 **다음 틱**에 반영하는 것은 `tick()` 뒤에 본다. 처리 중에 다른 region·비동기 작업으로 한 번 더 넘기는 일(예: 멀리 텔레포트)은
+  장벽이 덮지 않으니 `tick()`·`awaitMessage` 로 기다린다.
+- 틱을 내지 않아도 접속은 유지된다: keep-alive 도 시험 틱으로 세고(300틱마다), 오면 읽기 스레드가 답한다. 운영과 같은 스팸 방지
+  (메시지마다 +20, 틱마다 -1, 200 넘으면 킥 — OP 는 빼고)가 켜져 있으므로 틱 없이 채팅·명령을 열 번 넘게 보내면 쫓겨난다 — 사이사이 `tick()` 을
+  내거나 OP 를 준다. 가짜 플레이어는 처음에 OP 가 아니다(`execute("op Steve")`).
 - `messages()` / `messageLines()`: 받은 시스템 메시지(명령 출력·공지·플러그인 `sendMessage`), `actionBars()`. 서버 쪽에서 직렬화 전 `Text` 를 그대로 모은다.
   `awaitMessage(조건)` 은 비동기로 오는 메시지를 기다린다.
 - `player()`: 플러그인이 보는 플레이어 핸들. `close()`: 나가고 서버가 목록에서 뺄 때까지 기다린다.
@@ -104,7 +111,8 @@ class MyPluginTest {
 
 - 오버월드 하나만 띄운다(네더·엔드·추가 월드 없음 — `createWorld` 는 쓸 수 없다). 바닐라 데이터 팩(공식 서버 jar 에서 추출)은 읽지 않으므로
   태그·전리품·레시피는 서버 내장 목록만 있다. 데이터 팩 함수(`/function`)도 없다.
-- `/tick rate`·`/tick sprint` 는 시험 서버에서 뜻이 없다(틱은 `tick()` 만 낸다). `/tick freeze` 는 운영처럼 월드 진행만 멈춘다.
+- `/tick rate`·`/tick sprint` 는 시험 서버에서 뜻이 없다(틱은 `tick()` 만 낸다 — sprint 는 쓰지 않는다). `/tick freeze` 는 운영처럼 월드 진행만 멈춘다.
+- 로그: `furnace-server` 가 logback 을 함께 끌어온다. 시험 로그를 줄이려면 시험 자원에 `logback-test.xml` 을 둔다.
 - `Furnace.server()` 정적 진입점은 지금 떠 있는 서버 하나만 가리킨다. 서버 둘을 **동시에** 띄우면 먼저 뜬 쪽이다 — 시험은 차례로 돌린다
   (JUnit 병렬 실행을 켜지 않는다). 서버를 닫으면 다음 서버가 다시 맡는다.
 - 틱 중에 새로 생긴 region(멀리 새 청크)은 그 다음 틱부터 돈다. 청크 생성·읽기는 비동기라, 틱과 겹치게 올린 청크가 몇 번째 틱에 붙는지는
@@ -117,5 +125,9 @@ class MyPluginTest {
   region 은 sprint lockstep 의 기다림처럼 작업 큐만 비운다(지연 작업 시계도 멈춘다). 마친 수가 다른 region 은 합치지 않고, 나뉜 조각은 부모 수를,
   새 region 은 지금 목표를 이어받는다. 운영 서버는 켜지 않는다.
 - `GlobalThread.useManualClock`: 전역 지연 작업을 벽시계 대신 `advanceManualTick` 이 센 틱으로 돌린다.
-- 플러그인 region 스케줄러(`World.ChunkScheduler.executeDelayed`): 그 청크의 region 스레드 안에서 부르면 작업 큐를 거치지 않고 곧바로 건다.
-  예전에는 늘 큐를 거쳐 다음 틱 머리에서 걸려 한 틱 밀렸고, 그래서 `runAtFixedRate(…, 1, 1)` 이 두 틱마다 돌았다(운영 서버에도 해당하는 고침).
+- 플러그인 region 스케줄러(`World.ChunkScheduler.executeDelayed`): 그 청크의 region 스레드 안에서 부르면 작업 큐를 거치지 않고 곧바로 건다
+  (지연은 최소 1 — 0 이면 같은 틱 안에서 다시 걸려 끝나지 않는다). 예전에는 늘 큐를 거쳐 다음 틱 머리에서 걸려 한 틱 밀렸고, 그래서
+  `runAtFixedRate(…, 1, 1)` 이 두 틱마다 돌았다(운영 서버에도 해당하는 고침).
+- region 지연 작업은 같은 틱이면 건 차례(일련번호)로 돈다 — 합치기·나누기를 거쳐도 유지된다.
+- 병합: 마친 시험 틱 수가 다른 region 은 합치지 않는다(지금 틱을 도는 중인 region 은 +1 로 센다). 양보(yield)로 큐에 다시 들어간 region 도
+  `manualAdvance` 가 깨운다.
