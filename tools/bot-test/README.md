@@ -31,11 +31,12 @@ srv/stop.sh $D
 - `round10/ui.js` 플러그인 UI API(메뉴·보스바·사이드바) 10항목 — `round10/README.md`.
 - `round-w2/glow.js` 플러그인 바이옴·차원 타입 등록(W2) 11항목 — `round-w2/README.md`(시험 플러그인 `round-w2/probe`).
 - `round13/brain.js` 두뇌 API(E2) 12항목 — `round13/README.md`(시험 플러그인 `round13/probe`).
+- `round15/e3.js` 스폰 정책·엔티티 수·자세·평판·POI API(E3) 15항목 + `MODE=npcs` 1항목 — `round15/README.md`(시험 플러그인 `round15/probe`).
 - `round11/virtual.js` 가상 엔티티·NPC·가짜 탭 줄(K1) 11항목 — `round11/README.md`.
 - `round8/` 플러그인 API 3단계 셋째 묶음 이벤트(`ev.js` + `probe/Stage3cProbe`, 구역 form enchant anvil brew vehicle fish portal book spawn).
 - `round6/` user-todo 정리용 6차(시야 거리·바람 구슬·철퇴·장착 소리·포탈·양조·스트라이더·습격·돌고래·투사체) — `round6/README.md`.
 - `round7/conduit.js` 전달체(conduit) 활성화·전달체의 힘·적대 몹 공격 — `round7/README.md`.
-- `round15/k3.js` 플레이어별 가상 블록·바이옴 층·개인 보더·장비 덮어쓰기·채팅 서식(K3) 21항목 — 시험 플러그인 `round15/probe`(K3Probe, `/kset` `/kfill` `/kbiome` `/kborder` `/kequip` `/kchat` …)를 같은 방법으로 묶어 넣는다. 봇 둘(Tester·Other)이 접속하며, 멀리 갔다 와 청크를 다시 받아도 층이 남는지 본다.
+- `round16/k3.js` 플레이어별 가상 블록·바이옴 층·개인 보더·장비 덮어쓰기·채팅 서식(K3) 21항목 — 시험 플러그인 `round16/probe`(K3Probe, `/kset` `/kfill` `/kbiome` `/kborder` `/kequip` `/kchat` …)를 같은 방법으로 묶어 넣는다. 봇 둘(Tester·Other)이 접속하며, 멀리 갔다 와 청크를 다시 받아도 층이 남는지 본다.
 - `round14/cause.js` 원인 사슬(B4) 11항목 — 시험 플러그인 `round14/probe`(CauseProbe, 원인을 담는 이벤트의 사슬을 `[CAUSE]` 로그로)를 같은 방법으로 묶어 넣는다.
 - `round9/damage.js` 피해 계산 단계 이벤트 8항목 — 시험 플러그인 `round9/probe`(DamageProbe, `/dmgmode`)를 같은 방법으로 묶어 넣는다. 체력 비교는 `naturalRegeneration` 을 끄고.
 - `entity/entity.js` 엔티티 AI·틱 묶음(빈 종 마을 판정·좀비 표적·울타리 돌기, `perf` 인자면 소 600마리 `/tick query`) — `docs/feature-parity/perf-entity-2026-11-06.md`.

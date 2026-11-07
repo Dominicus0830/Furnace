@@ -1,5 +1,5 @@
-// K3 플레이어별 가상 블록·바이옴 층·개인 보더·장비 덮어쓰기·채팅 서식 봇 시험 — round15/probe/K3Probe 를 넣은 서버에서. 결과는 "RESULT 이름 PASS|FAIL 근거" 줄.
-// SRV=<서버 폴더> node round15/k3.js
+// K3 플레이어별 가상 블록·바이옴 층·개인 보더·장비 덮어쓰기·채팅 서식 봇 시험 — round16/probe/K3Probe 를 넣은 서버에서. 결과는 "RESULT 이름 PASS|FAIL 근거" 줄.
+// SRV=<서버 폴더> node round16/k3.js
 const V = require('vec3');
 const L = require('../lib');
 const { sleep, cmd } = L;

@@ -1032,8 +1032,17 @@
 - 함정 ③: 공유 청크 프레임(`SharedChunkFrames`)은 본문 `byte[]` 동일성이 키다 — 덧입힌 본문은 `shared=null` 로 만들어 그 사람에게만 압축한다(다른 사람의 캐시를 더럽히지 않는다).
 - 개인 보더는 `WorldBorder` 인스턴스 하나를 접속에 붙인다. 서버의 `InitializeBorder` 는 개인 보더 상태로 바꿔 보내고 다른 `SetBorder*` 는 버린다. `enforce` 면 `ServerCore.mayInteract`·`Env.borderDamage(Player, …)` 가 이 보더를 쓴다.
 - 채팅 렌더러는 서명 없는 시스템 메시지(`unsigned-as-system` 과 같은 길)로 받는 사람마다 한 줄씩 보낸다.
-- 시험: `PlayerLayersTest` 12(청크 본문 다시 쓰기·소유권·재전송·차원·보더·장비), `PlayerViewsApiTest` 6, `CancelResyncE2ETest.chatRendererBuildsOneUnsignedLinePerViewer`, 봇 `tools/bot-test/round15/k3.js` 21/21(`round15/probe/K3Probe`).
+- 시험: `PlayerLayersTest` 12(청크 본문 다시 쓰기·소유권·재전송·차원·보더·장비), `PlayerViewsApiTest` 6, `CancelResyncE2ETest.chatRendererBuildsOneUnsignedLinePerViewer`, 봇 `tools/bot-test/round16/k3.js` 21/21(`round16/probe/K3Probe`).
 
+
+## 2026-11-07 스폰 정책·엔티티 수·자세·주민/마을/습격 API (E3)
+- 설계·바닐라 대조 `docs/api/spawn-and-villages.md`. 기본값은 바닐라 상수(70·10·15·5·5·20·5·…)이고 정책이 비어 있으면 스폰 경로가 바닐라와 같다(`WorldSpawnPolicy.state` 가 `VANILLA` 로 접힘). 활성 범위·엔티티 상한 같은 게임플레이 변경은 넣지 않았다(D3).
+- 세계 상한은 `(int)((long)상한 × 스폰 가능 청크 수 / 289)`. 플레이어 상한 0 이하면 그 플레이어 주변은 건너뛴다(바닐라 상수로는 닿지 않고 플러그인이 0 을 걸 때만 닿는 경로).
+- `spawn.limit.<카테고리>`·`spawn.player-limit.<카테고리>`(`furnace.properties`)는 월드 정책의 시작값. 0·바닐라 3배 초과·모르는 `spawn.*` 키는 경고, 숫자가 아니거나 범위 밖이면 시작 거부.
+- spawn-animals/npcs=false 는 바닐라 1.21.1 `ServerLevel.shouldDiscardEntity`(Animal·WaterAnimal·Npc)와 바이트코드·전 엔티티 종류로 대조해 같음(`SpawnDiscardTest`). 소·주민은 지워지고 좀비는 남는다(봇 `round15/e3.js MODE=npcs`).
+- 함정: `EntityHandle.onEntity` 는 region 틱이 돌아야 작업이 실행된다(엔티티 따라다니는 큐) — 시험이 틱을 안 돌리면 영영 안 끝난다. `World.raidAt` 같은 위치 조회는 로드 안 된 청크면 그 region 에 넘기지 않고 빈 결과를 돌려준다.
+- 평지 월드는 슬라임 청크 때문에 몬스터가 바로 쌓여 "몬스터 수 == 0" 단정이 깨진다. 상한을 건 뒤 증가 여부로 본다.
+- 시험: `SpawnPolicyStateTest` 8, `SpawnPolicySpawnTest` 6, `EntityPolicyApiTest` 8, `NoPhysicsRegionTest` 1, `SpawnDiscardTest`, 봇 `round15/e3.js` 15/15 + `MODE=npcs` 1/1.
 
 ## 2026-11-07 M4 약탈자·습격 바닐라 대조 (바이트코드)
 - 대조 방법: 바닐라 1.21.1 jar(`tools/vanilla-data`)를 `javap -c -p` 로 읽어 Furnace 와 줄 단위로 맞춰 봤다(Vineflower 실행은 자동 모드에서 거부됨). 대상: `Raid`(coi: 틱·파도 구성·보너스 수·스폰 위치·joinRaid·updateRaiders·소리·save), `Raids`(cok), `Raider`(coj), `PatrollingMonster`(cke)+`LongDistancePatrolGoal`(cke$a), `PatrolSpawner`(dzj), 일러저 `Pillager`(ckg)·`Vindicator`(cks)·`Vindicator.BreakDoorGoal`(cks$a)·`Ravager`·`Witch`.
