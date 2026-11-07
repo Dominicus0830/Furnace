@@ -466,6 +466,8 @@ public final class Region {
         int cx = cp.x(), cz = cp.z();
         ChunkColumn old = world.loadedChunk(cx, cz);
         if (old == null || !rz().owns(this, cx, cz)) return null;
+        // 디스크 엔티티를 아직 읽는 중이면 기다렸다 다시(바꾼 뒤 도착하면 버려져 엔티티가 사라지거나, FRESH 가 지우지 못한다)
+        if (!old.entitiesLoaded() && old.pendingEntityLoad() != null) return null;
         RegionLevel lv = level();
         // 엔티티: 기본은 그대로 둔다. 지울 때도 플레이어와 플레이어를 태운 탈것은 남긴다
         if (removeEntities) {
@@ -499,6 +501,14 @@ public final class Region {
         fresh.lightPrecomputed(false);
         world.putChunk(cx, cz, fresh);
         lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
+        // 남긴 엔티티의 진동 리스너(워든·알레이)는 옛 청크의 구역에 걸려 있다 — 새 청크에 다시 건다
+        for (org.domi.furnace.server.entity.Entity e : new ArrayList<>(lv.entities().inChunk(cx, cz))) {
+            if (e.isRemoved()) continue;
+            for (var l : e.dynamicGameEventListeners()) {
+                l.remove(lv);
+                l.add(lv);
+            }
+        }
         if (light == null) {
             lv.lightNewChunk(cx, cz);
         } else {
@@ -565,8 +575,15 @@ public final class Region {
             col.entitiesLoaded(true);
             return;
         }
+        var done = new java.util.concurrent.CompletableFuture<Void>();
+        col.pendingEntityLoad(done);
         world.loadEntitiesAsync(cp.x(), cp.z()).whenComplete((root, err) -> world.runAtChunk(cp, r -> {
-            if (world.loadedChunk(cp.x(), cp.z()) == col) r.level().loadChunkEntities(col, root);
+            try {
+                if (world.loadedChunk(cp.x(), cp.z()) == col) r.level().loadChunkEntities(col, root);
+            } finally {
+                col.pendingEntityLoad(null);
+                done.complete(null);
+            }
         }));
     }
 

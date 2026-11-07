@@ -917,13 +917,22 @@ public final class World {
         if (unloaded) return CompletableFuture.completedFuture(false);
         ChunkPos cp = new ChunkPos(cx, cz);
         CompletableFuture<ChunkColumn> fresh;
-        try {
-            fresh = CompletableFuture.supplyAsync(() -> regeneratedColumn(cx, cz), genPool);
-        } catch (java.util.concurrent.RejectedExecutionException e) {
-            return CompletableFuture.completedFuture(false);
+        // 생성은 한 번에 하나씩(독립 경로 하나가 이미 생성 풀을 병렬로 쓴다) — /worlds regen 8 의 289개가 생성 대기 풀을 다 붙잡아
+        // 플레이어 청크 생성을 밀어내지 않게. 교체·재전송은 각자 region 스레드에서 이어 간다
+        synchronized (regenLock) {
+            fresh = regenTail.handle((v, e) -> null).thenApplyAsync(v -> regeneratedColumn(cx, cz), genPool);
+            regenTail = fresh;
         }
-        return fresh.thenCompose(col -> installRegenerated(cp, col, removeEntities, generationEntities, 3));
+        return fresh.thenCompose(col -> installRegenerated(cp, col, removeEntities, generationEntities, 3))
+                .exceptionally(e -> {
+                    Throwable c = e instanceof java.util.concurrent.CompletionException && e.getCause() != null ? e.getCause() : e;
+                    if (c instanceof java.util.concurrent.RejectedExecutionException) return false;   // 서버가 멈추는 중
+                    throw e instanceof java.util.concurrent.CompletionException ce ? ce : new java.util.concurrent.CompletionException(e);
+                });
     }
+
+    private final Object regenLock = new Object();
+    private CompletableFuture<?> regenTail = CompletableFuture.completedFuture(null);
 
     /** 새 청크 하나(생성 풀에서). 블록 엔티티·POI 는 디스크에서 올릴 때와 같게 채운다. 빛은 교체 때 옛 빛에서 고친다. */
     ChunkColumn regeneratedColumn(int cx, int cz) {
@@ -946,6 +955,10 @@ public final class World {
                                                           int attempts) {
         if (unloaded) return CompletableFuture.completedFuture(false);
         return submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f)
+                .thenCompose(loaded -> {   // 디스크 엔티티를 읽는 중이면 끝날 때까지(교체가 그 결과를 이어받게)
+                    var pending = loaded == null ? null : loaded.pendingEntityLoad();
+                    return pending == null ? CompletableFuture.completedFuture(loaded) : pending.thenApply(v -> loaded);
+                })
                 .thenCompose(loaded -> submitAtChunk(cp, r -> r.replaceRegenerated(cp, col, removeEntities, generationEntities)))
                 .thenCompose(ok -> {
                     if (ok != null) return CompletableFuture.completedFuture(ok);

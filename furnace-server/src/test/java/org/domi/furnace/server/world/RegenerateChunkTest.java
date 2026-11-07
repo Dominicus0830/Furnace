@@ -45,6 +45,12 @@ class RegenerateChunkTest {
         return ids;
     }
 
+    @org.junit.jupiter.api.BeforeAll
+    static void install() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                RegistrySet.load("registries/1.21.1.txt")));
+    }
+
     @Test
     void flatChunkIsRestoredRelitAndResent() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
@@ -54,6 +60,7 @@ class RegenerateChunkTest {
         int glow = reg.defaultStateId("minecraft:glowstone"), chest = reg.defaultStateId("minecraft:chest");
         int grass = reg.defaultStateId("minecraft:grass_block");
         int[] lightBefore = new int[1];
+        org.domi.furnace.server.entity.Allay[] allay = new org.domi.furnace.server.entity.Allay[1];
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "P", ch);
         w.subscribeChunk(new ChunkPos(1, 0), p).ready = true;   // 구독자가 있으면 내려가지 않는다
@@ -67,6 +74,9 @@ class RegenerateChunkTest {
             lv.setBlock(new Pos(0, -61, 0), 0, 3, 512);
             lv.runLightUpdates();
             lightBefore[0] = lv.getBlockLight(new Pos(16, -60, 5));
+            allay[0] = new org.domi.furnace.server.entity.Allay(lv, lv.nextEntityId());
+            allay[0].moveTo(8.5, -60, 8.5, 0, 0);
+            lv.addFreshEntity(allay[0]);
             assertNotNull(w.loadedChunk(0, 0).blockEntityAt(2, -60, 2), "상자 블록 엔티티");
         }).get();
         assertTrue(lightBefore[0] > 0, "빛이 이웃 청크로 번져 있어야 한다");
@@ -86,6 +96,9 @@ class RegenerateChunkTest {
             assertNull(col.blockEntityAt(2, -60, 2), "상자 블록 엔티티가 사라진다");
             assertEquals(0, lv.getBlockLight(new Pos(16, -60, 5)), "이웃으로 번진 옛 빛도 지워진다");
             assertTrue(col.dirty(), "저장 대상");
+            assertFalse(allay[0].isRemoved(), "기본 재생성은 엔티티를 남긴다");
+            var listeners = col.listenerRegistry(-60 >> 4, false);
+            assertTrue(listeners != null && !listeners.isEmpty(), "남긴 알레이의 진동 리스너가 새 청크에 걸린다");
         }).get();
 
         List<Integer> seen = new ArrayList<>();
@@ -96,6 +109,10 @@ class RegenerateChunkTest {
         }
         assertTrue(seen.contains(LevelChunkWithLight.ID), "보는 플레이어에게 새 청크를 다시 보낸다: " + seen);
         assertTrue(w.isSubscribed(C00, p, w.subscriptionOf(C00, p)) && w.subscriptionOf(C00, p).ready, "다시 보낸 뒤 구독은 ready");
+
+        // FRESH: 엔티티를 지운다(평지는 생성 엔티티가 없다)
+        assertTrue(w.regenerateChunk(0, 0, true, true).get(20, TimeUnit.SECONDS));
+        sched.region(R00).execute(() -> assertTrue(allay[0].isRemoved(), "FRESH 는 엔티티를 지운다")).get();
         sched.close();
     }
 

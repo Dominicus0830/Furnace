@@ -450,6 +450,13 @@ public final class ChunkColumn {
 
     public void entitiesLoaded(boolean v) { entitiesLoaded = v; }
 
+    /** 디스크 엔티티 읽기가 진행 중이면 그 완료(엔티티를 넣은 뒤 owner 스레드에서 끝난다), 아니면 null. 청크 재생성이 기다린다. */
+    private volatile java.util.concurrent.CompletableFuture<Void> pendingEntityLoad;
+
+    public java.util.concurrent.CompletableFuture<Void> pendingEntityLoad() { return pendingEntityLoad; }
+
+    public void pendingEntityLoad(java.util.concurrent.CompletableFuture<Void> f) { pendingEntityLoad = f; }
+
     public long inhabitedTime() { return inhabitedTime; }
 
     public void inhabitedTime(long t) { this.inhabitedTime = t; }

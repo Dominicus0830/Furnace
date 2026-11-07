@@ -511,17 +511,18 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         refreshHookCaches();
     }
 
-    /** 마지막으로 캐시를 채울 때의 훅(키 → 그때 등록된 훅 객체). 바뀌었으면(핫 리로드·훅 교체) 위치만의 함수라던 캐시가 낡았다. */
-    private volatile Object hookStamp = HOOK_STAMP_UNSET;
-    private static final Object HOOK_STAMP_UNSET = new Object();
+    /** 마지막으로 캐시를 채울 때의 훅 표식({@link GenHooks#stamp}, 0 = 훅 없음). 바뀌었으면(핫 리로드·훅 교체·꺼짐) 캐시가 낡았다. */
+    private volatile long hookStamp;
 
     /**
-     * 훅이 바뀌었으면 훅 결과가 든 캐시(지형·높이·구조물 시작점·pristine)를 비운다 — 청크 재생성이 지금 훅으로 만들게.
-     * 서버 경로의 공유 장식 저장소(이미 장식이 넘친 청크)는 다시 만들 수 없어 그대로 둔다.
+     * 훅이 바뀌었으면 훅 결과가 든 캐시(지형·높이·구조물 시작점·pristine)를 비운다 — 새 청크·청크 재생성이 지금 훅으로 만들게.
+     * 서버 경로 청크 생성과 재생성 앞에서 부른다(훅 없는 월드는 volatile 읽기 하나). 서버 경로의 공유 장식 저장소(이미 장식이 넘친
+     * 청크, 만들고 있던 pristine)는 다시 만들 수 없어 그대로 둔다. 비우는 사이 돌던 생성이 옛 값을 다시 넣을 수 있다 — 캐시는 언제
+     * 비워도 되는 것들이라 다음 바뀜까지 그 몇 칸만 옛 훅 결과다.
      */
     public void refreshHookCaches() {
         GenHooks h = genHooks;
-        Object now = h == null ? null : h.stamp();
+        long now = h == null ? 0L : h.stamp();
         if (now == hookStamp) return;
         synchronized (this) {
             if (now == hookStamp) return;
@@ -883,6 +884,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     /** 서버 경로 — 공유 월드 장식(바닐라처럼 청크마다 장식 한 번). */
     public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {
+        refreshHookCaches();
         return pipeline.generateShared(chunkX, chunkZ).join();
     }
 

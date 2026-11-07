@@ -193,8 +193,44 @@ class GenHooksTest {
             @Override public void noise(GenerationChunk c) { throw new IllegalStateException("boom"); }
             @Override public void decorate(DecorationRegion r) { throw new IllegalStateException("boom"); }
             @Override public boolean feature(String id, int x, int z) { throw new IllegalStateException("boom"); }
+            // 핫 언로드 중에 클래스가 사라지면 NoClassDefFoundError — 이것도 그 훅만 건너뛴다
+            @Override public void surface(GenerationChunk c) { throw new NoClassDefFoundError("gone/Plugin"); }
+            @Override public boolean structure(String id, int x, int z) { throw new NoClassDefFoundError("gone/Plugin"); }
         });
         assertSameBlocks(source(null).generateIsolated(0, 0), bad.generateIsolated(0, 0), "던지는 훅은 건너뛰고 바닐라 그대로");
+    }
+
+    @Test
+    void featuresOffKeepsStructurePieces() {
+        StructureStart found = findStart(source(null));
+        assertNotNull(found);
+        NoiseWorldSource featuresOff = source(new ChunkGenerationHooks() {
+            @Override public boolean runVanilla(GenerationStage stage, int x, int z) { return stage != GenerationStage.FEATURES; }
+        });
+        NoiseWorldSource bothOff = source(new ChunkGenerationHooks() {
+            @Override public boolean runVanilla(GenerationStage stage, int x, int z) {
+                return stage != GenerationStage.FEATURES && stage != GenerationStage.STRUCTURES;
+            }
+        });
+        int cx = found.chunkX(), cz = found.chunkZ();
+        assertFalse(sameBlocks(featuresOff.generateIsolated(cx, cz), bothOff.generateIsolated(cx, cz)),
+                "FEATURES 만 끄면 " + found.structureId() + " 조각은 그대로 놓인다");
+    }
+
+    @Test
+    void swappingTheHookBehindTheSameKeyRefreshesCaches() {
+        BlockData gold = BlockData.of("minecraft:gold_block"), diamond = BlockData.of("minecraft:diamond_block");
+        java.util.concurrent.atomic.AtomicReference<ChunkGenerationHooks> current = new java.util.concurrent.atomic.AtomicReference<>(
+                new ChunkGenerationHooks() { @Override public void noise(GenerationChunk c) { c.setBlock(0, 250, 0, gold); } });
+        NoiseWorldSource n = NoiseWorldSource.overworld(SEED, blocks, registries);
+        GenHooks.attach(n, "test:swap", k -> current.get(), "minecraft:overworld", SEED, blocks, registries);
+        assertEquals("minecraft:gold_block", blocks.nameOf(n.generateIsolated(0, 0).getBlock(0, 250, 0)));
+        // 핫 리로드: 같은 키 뒤의 훅 객체만 바뀐다(바인딩은 그대로)
+        current.set(new ChunkGenerationHooks() { @Override public void noise(GenerationChunk c) { c.setBlock(0, 250, 0, diamond); } });
+        assertEquals("minecraft:diamond_block", blocks.nameOf(n.generateIsolated(0, 0).getBlock(0, 250, 0)), "새 훅 결과");
+        // 플러그인이 꺼짐: 키가 빠진다 → 바닐라
+        current.set(null);
+        assertSameBlocks(source(null).generateIsolated(0, 0), n.generateIsolated(0, 0), "훅이 빠지면 바닐라");
     }
 
     @Test

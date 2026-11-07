@@ -1,5 +1,5 @@
 // 월드 하나에 걸린 월드젠 단계 훅(불만 표 40번). 키만 쥐고 생성 때마다 저장소에서 훅을 찾는다 — 플러그인이 꺼지면 바닐라로 돌아간다.
-// 플러그인 예외는 기록하고 그 훅만 건너뛴다. 훅이 없는 월드에는 이 객체가 없다(생성 경로가 바닐라 그대로).
+// 플러그인 예외(RuntimeException·LinkageError — 핫 언로드 중 NoClassDefFoundError 포함)는 기록하고 그 훅만 건너뛴다. 훅이 없는 월드에는 이 객체가 없다(생성 경로가 바닐라 그대로).
 package org.domi.furnace.server.world.gen;
 
 import java.util.List;
@@ -70,10 +70,27 @@ public final class GenHooks {
 
     public long seed() { return seed; }
 
-    /** 캐시 무효화용 표식 — 이 바인딩과 지금 등록된 훅 객체가 같으면 같은 값. */
-    Object stamp() {
+    /** 훅 객체마다 새로 붙는 번호(모든 바인딩 공용 — 바인딩을 갈아 끼워도 겹치지 않게). 0 은 "훅 없음". */
+    private static final java.util.concurrent.atomic.AtomicLong STAMPS = new java.util.concurrent.atomic.AtomicLong();
+    /** 마지막으로 본 훅 — 약한 참조라 플러그인이 꺼지면 클래스로더를 붙들지 않는다. */
+    private volatile java.lang.ref.WeakReference<ChunkGenerationHooks> lastSeen = new java.lang.ref.WeakReference<>(null);
+    private volatile long lastStamp;
+
+    /**
+     * 캐시 무효화용 표식 — 지금 등록된 훅 객체가 지난번과 같으면 같은 번호, 바뀌었으면(핫 리로드·교체) 새 번호, 훅이 없으면 0.
+     * 훅 객체를 강하게 쥐지 않는다.
+     */
+    long stamp() {
         ChunkGenerationHooks h = lookup.apply(key);
-        return h == null ? this : h;
+        if (h == null) return 0L;
+        if (lastSeen.get() == h) return lastStamp;
+        synchronized (this) {
+            if (lastSeen.get() != h) {
+                lastStamp = STAMPS.incrementAndGet();
+                lastSeen = new java.lang.ref.WeakReference<>(h);
+            }
+            return lastStamp;
+        }
     }
 
     /** 지금 걸린 훅(플러그인이 꺼졌으면 null — 처음 한 번 경고). */
@@ -86,7 +103,7 @@ public final class GenHooks {
         return h;
     }
 
-    private void failed(String what, int cx, int cz, RuntimeException e) {
+    private void failed(String what, int cx, int cz, Throwable e) {
         long n = failures.incrementAndGet();
         if (n <= 10 || n % 1000 == 0) {
             LOG.warn("[WORLDGEN] 훅 '{}' {} 실패 ({},{}) — 이 훅만 건너뛴다 (누적 {}회)", key, what, cx, cz, n, e);
@@ -99,7 +116,7 @@ public final class GenHooks {
         if (h == null) return true;
         try {
             return h.runVanilla(stage, cx, cz);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             failed("runVanilla(" + stage + ")", cx, cz, e);
             return true;
         }
@@ -117,7 +134,7 @@ public final class GenHooks {
                 case CARVERS -> h.carvers(view);
                 default -> throw new IllegalArgumentException(stage.name());
             }
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             failed(stage.name().toLowerCase(java.util.Locale.ROOT), cx, cz, e);
         } finally {
             view.closed = true;
@@ -129,7 +146,7 @@ public final class GenHooks {
         if (h == null) return true;
         try {
             return h.structure(structureId, cx, cz);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             failed("structure(" + structureId + ")", cx, cz, e);
             return true;
         }
@@ -140,7 +157,7 @@ public final class GenHooks {
         if (h == null) return true;
         try {
             return h.feature(placedFeatureId, ox, oz);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             failed("feature(" + placedFeatureId + ")", ox, oz, e);
             return true;
         }
@@ -153,7 +170,7 @@ public final class GenHooks {
         RegionView r = new RegionView(view, ox, oz, decorationSeed);
         try {
             h.decorate(r);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             failed("decorate", ox, oz, e);
         } finally {
             r.closed = true;

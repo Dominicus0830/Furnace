@@ -1047,7 +1047,13 @@
 ## 2026-11-07 월드젠 단계 훅·청크 재생성 (W3)
 - API `LifecycleEvents.WORLD_GENERATION` → `WorldGenerationRegistrar.register(키, ChunkGenerationHooks)`. 월드는 키만 쥔다(`WorldCreator.generationHooks`, 기본 차원은 `worldgen-hooks.*`). 서버 `plugin/GenerationHookStore`(키 → 플러그인·훅, 꺼지면 빠짐), `world/gen/GenHooks`(월드 바인딩·예외 격리·BlockData 변환). 문서 `docs/api/worldgen-hooks.md`.
 - 훅 지점: `NoiseWorldSource.generateWithBiomes`(NOISE·SURFACE — 높이 조회 `generate()` 에도 들어가 구조물이 플러그인 지형 위에 선다), `applyCarvers`(CARVERS, WG 높이 지도 얼리기 전), `applyStructureStarts`(STRUCTURES, 고른 뒤 거르기), `FeaturePlacer.decorate`(FEATURES 끄면 지형지물만 건너뛰고 구조물 조각은 놓음, 지형지물별 거르기), `decorateOrigin` 뒤 `decorate` 훅. 평지·빈 월드는 `SuperflatWorldSource.generate` 한 곳.
-- 훅이 바뀌면(핫 리로드·다시 걸기) `NoiseWorldSource.refreshHookCaches` 가 지형·높이·시작점·pristine 캐시를 비운다(`generateIsolated` 가 부른다). 서버 경로의 공유 장식 저장소는 이미 넘친 청크가 있어 그대로 둔다.
+- 훅이 바뀌면(핫 리로드·다시 걸기) `NoiseWorldSource.refreshHookCaches` 가 지형·높이·시작점·pristine 캐시를 비운다(`generateIsolated`·`generateWithFeatures` 가 부른다). 서버 경로의 공유 장식 저장소는 이미 넘친 청크가 있어 그대로 둔다.
 - 재생성: `World.regenerateChunk` → 생성 풀에서 `generateIsolated`(독립 경로) → 그 청크 region 에서 `Region.replaceRegenerated`. 빛은 옛 `ChunkLight` 를 새 컬럼에 옮기고 바뀐 칸만 `LevelLight.blockChanged` — 새 빛을 처음부터 만들면 이웃으로 번진 옛 빛이 남는다. 재전송은 구독을 새로 만들어(ready=false) 옛 직렬화 전송을 버리게 한다.
 - 함정: `RegionLevel` 의 청크 조회 캐시(`chunkUnloaded()`)를 교체 직후 비워야 옛 객체를 읽지 않는다. 시험 월드에서 구독자 없는 청크는 몇 틱 뒤 내려가므로 시험은 구독을 걸어 둔다.
-- 시험: `GenHooksTest` 10, `GenerationHookStoreTest` 1, `RegenerateChunkTest` 2.
+- 독립 검토 뒤 고친 함정:
+  - 엔티티 로드 경합: `finishLoad` 는 디스크 엔티티 읽기를 비동기로 걸고 청크 future 를 먼저 끝낸다. 그 사이 교체하면 읽은 엔티티가 동일성 검사에 걸려 버려지고 `entitiesLoaded` 가 영영 false(FRESH 는 디스크 엔티티를 못 지운다). `ChunkColumn.pendingEntityLoad` 를 두고 재생성은 그걸 기다린다.
+  - 남긴 엔티티의 `DynamicGameEventListener` 는 구역이 같으면 다시 걸지 않아 옛 청크에 남는다 — 교체 뒤 그 청크 엔티티마다 remove/add.
+  - 캐시 무효화 표식이 훅 객체를 강하게 쥐면 꺼진 플러그인 클래스로더가 샌다 — `GenHooks.stamp()` 는 전역 번호 + 약한 참조. 표식 비교는 서버 경로 `generateWithFeatures` 앞에서도 한다(훅 없는 월드는 volatile 읽기 하나).
+  - 훅 격리는 `LinkageError` 도(핫 언로드 중 NoClassDefFoundError — 공유 장식 도중 터지면 원점이 반쯤 장식된 채 남는다).
+  - 재생성 생성은 월드마다 한 줄로(`regenTail`) — 289개가 생성 대기 풀을 다 붙잡지 않게.
+- 시험: `GenHooksTest` 12, `GenerationHookStoreTest` 1, `RegenerateChunkTest` 2(알레이 진동 리스너·FRESH 엔티티 지우기 포함).
