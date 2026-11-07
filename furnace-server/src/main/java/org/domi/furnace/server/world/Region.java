@@ -1224,7 +1224,10 @@ public final class Region {
             double tickX = p.x(), tickZ = p.z();   // 바닐라 xOld·zOld(틱 머리 setOldPosAndRot)
             boolean moved = processMoves(p);
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
-            if (moved) checkInsideBlocksPlayer(p, p.x() - tickX, p.z() - tickZ);
+            if (moved) {
+                checkInsideBlocksPlayer(p, p.x() - tickX, p.z() - tickZ);
+                org.domi.furnace.server.entity.PlayerFire.afterMove(p, level, p.wasTouchingWater);   // Entity.move 의 끝: 불·용암이 없으면 면역 틱, 비·물에서 꺼짐
+            }
             p.drainPending();
             org.domi.furnace.server.entity.PlayerMoveValidator.tick(p);   // 틱 머리: 기준 위치·패킷 수·떠 있는 틱(비행 킥)
             p.currentLevel = level;
@@ -1960,6 +1963,7 @@ public final class Region {
         p.wasTouchingWater = s.inWater();
         p.onClimbable = s.climbable() != null;
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
+        if (s.chunkLoaded()) org.domi.furnace.server.entity.PlayerFire.tick(p, level, s.inWater());   // Entity.baseTick 의 불: 물에서 꺼짐·20틱마다 1 피해·용암
         p.vitals().tick(s);
         p.wardenSpawnTracker().tick();   // ServerPlayer.tick
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계(time_since_rest 는 깨어 있을 때만)
@@ -2000,6 +2004,8 @@ public final class Region {
             var beh = org.domi.furnace.server.block.B.behavior(s);
             if (beh instanceof org.domi.furnace.server.block.types.CampfireBlock cf) {
                 cf.entityInsidePlayer(s, p.vitals());
+            } else if (beh instanceof org.domi.furnace.server.block.types.BaseFireBlock fb) {
+                org.domi.furnace.server.entity.PlayerFire.fireInside(p, fb.fireDamage());
             } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
                 bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
             } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock

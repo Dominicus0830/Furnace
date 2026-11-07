@@ -92,8 +92,10 @@ public final class PlayerMoveValidator {
     }
 
     /** getMaximumFlyingTicks: 중력 속성이 0.08 보다 작을수록 길다. 0 에 가까우면 끝없이. */
-    static int maximumFlyingTicks(Player p) {
-        double g = PlayerAttributes.value(p, org.domi.furnace.server.attribute.Attribute.GRAVITY);
+    static int maximumFlyingTicks(Player p) { return maximumFlyingTicks(PlayerAttributes.value(p, org.domi.furnace.server.attribute.Attribute.GRAVITY)); }
+
+    /** getMaximumFlyingTicks(entity): 그 엔티티의 중력(getGravity)으로. 탈것은 {@link VehicleMoves#gravityOf}. */
+    static int maximumFlyingTicks(double g) {
         if (g < 1.0E-5F) return Integer.MAX_VALUE;
         double e = 0.08 / g;
         double d = 80.0 * Math.max(e, 1.0);
@@ -191,8 +193,11 @@ public final class PlayerMoveValidator {
     }
 
     /** noBlocksAround: 몸통을 0.0625 넓히고 아래로 0.55 늘린 상자 안이 전부 공기. */
-    static boolean noBlocksAround(ChunkLevel level, Player p) {
-        AABB b = p.boundingBox().inflate(0.0625).expandTowards(0.0, -0.55, 0.0);
+    static boolean noBlocksAround(ChunkLevel level, Player p) { return noBlocksAround(level, p.boundingBox()); }
+
+    /** noBlocksAround(entity): 그 엔티티 몸통을 0.0625 넓히고 아래로 0.55 늘린 상자 안이 전부 공기(탈것에도 쓴다). */
+    static boolean noBlocksAround(ChunkLevel level, AABB body) {
+        AABB b = body.inflate(0.0625).expandTowards(0.0, -0.55, 0.0);
         int x0 = Entity.floor(b.minX()), y0 = Entity.floor(b.minY()), z0 = Entity.floor(b.minZ());
         int x1 = Entity.floor(b.maxX()), y1 = Entity.floor(b.maxY()), z1 = Entity.floor(b.maxZ());
         for (int z = z0; z <= z1; z++) {
