@@ -30,4 +30,10 @@ public interface Player extends HumanEntity, OfflinePlayer {
     int getPing();
 
     String getLocale();
+
+    /**
+     * 클라이언트가 인벤토리를 서버 값에 맞추게 한다. Furnace 는 서버 쪽 변경을 다음 틱 창 갱신에서 자동으로 보내므로 따로 할 일이 없다
+     * (그래서 아무 일도 하지 않는다).
+     */
+    void updateInventory();
 }

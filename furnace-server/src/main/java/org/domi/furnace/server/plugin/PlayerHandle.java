@@ -332,6 +332,17 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         return f;
     }
 
+    /** 플레이어 영속 데이터는 서버가 잠가 두므로 어느 스레드에서나 곧바로(접속이 끊겼으면 false). */
+    @Override
+    public boolean editPersistentDataNow(java.util.function.Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) {
+        if (p.isDisconnected()) return false;
+        p.withPersistentData(tag -> {
+            edit.accept(new NbtPersistentData(tag, false));
+            return null;
+        });
+        return true;
+    }
+
     /** /data get entity 와 같은 경로 — 플레이어 NBT 스냅샷은 인벤토리 잠금 아래에서 떠서 아무 스레드에서 바로 읽는다(바닐라 /data 와 같다). */
     @Override
     public java.util.concurrent.CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> readNbt() {
@@ -358,6 +369,27 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         PlayerInventoryHandle i = inventory;
         if (i == null) inventory = i = new PlayerInventoryHandle(host, p);
         return i;
+    }
+
+    @Override
+    public int heldSlot() { return p.inventory().selected(); }
+
+    /** 선택은 소유 스레드에서 바꾸고(그 스레드면 곧바로) 클라이언트에 SetHeldSlot 을 보낸다. */
+    @Override
+    public java.util.concurrent.CompletableFuture<Void> setHeldSlot(int slot) {
+        if (slot < 0 || slot > 8) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalArgumentException("단축 칸은 0..8: " + slot)));
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("접속 중이 아니다")));
+        RegionFuture<Void> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            try {
+                p.inventory().setSelected(slot);
+                ClientResync.heldSlot(p);
+                f.complete(null);
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
     }
 
     // ------------------------------------------------------------------ 레시피 북

@@ -253,23 +253,76 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("잘못된 위치: " + at)));
         }
         ChunkPos cp = ChunkPos.ofBlock(at.x(), at.z());
-        CompletableFuture<Entity> f = world.submitAtOwnedChunk(cp, r -> {
-            if (!r.chunkLoaded(cp)) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
-            var level = r.level();
-            // /summon 과 같은 경로(SummonCommand.summonAt): 종류 id 만 든 태그로 만들고, 몹은 finalizeSpawn(COMMAND)
-            var tag = new org.domi.furnace.server.net.io.nbt.NbtCompound();
-            tag.putString("id", id);
-            var e = org.domi.furnace.server.entity.Entities.load(level, tag);
-            if (e == null) throw new IllegalArgumentException("만들 수 없는 엔티티 종류: " + id);
-            e.moveTo(at.x(), at.y(), at.z(), at.yaw(), at.pitch());
-            if (e instanceof org.domi.furnace.server.entity.Mob mob) {
-                if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND);
-                mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
-            }
-            if (!level.addFreshEntityWithPassengers(e.spawnReason("CUSTOM"))) return null;   // EntitySpawnEvent 취소(또는 UUID 겹침)
-            return EntityHandle.of(host, e);
-        });
+        CompletableFuture<Entity> f = world.submitAtOwnedChunk(cp, r -> spawnOn(r, cp, id, at));
         return RegionFuture.wrap(f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp)));
+    }
+
+    /** 소유 스레드에서: /summon 과 같은 경로로 만든다. 스폰 이벤트가 취소되면 null. */
+    private Entity spawnOn(Region r, ChunkPos cp, String id, Location at) {
+        if (!r.chunkLoaded(cp)) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        var level = r.level();
+        // /summon 과 같은 경로(SummonCommand.summonAt): 종류 id 만 든 태그로 만들고, 몹은 finalizeSpawn(COMMAND)
+        var tag = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        tag.putString("id", id);
+        var e = org.domi.furnace.server.entity.Entities.load(level, tag);
+        if (e == null) throw new IllegalArgumentException("만들 수 없는 엔티티 종류: " + id);
+        e.moveTo(at.x(), at.y(), at.z(), at.yaw(), at.pitch());
+        if (e instanceof org.domi.furnace.server.entity.Mob mob) {
+            if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND);
+            mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
+        }
+        if (!level.addFreshEntityWithPassengers(e.spawnReason("CUSTOM"))) return null;   // EntitySpawnEvent 취소(또는 UUID 겹침)
+        return EntityHandle.of(host, e);
+    }
+
+    private String spawnableId(String type, Location at) {
+        String id = type.indexOf(':') < 0 ? "minecraft:" + type : type;
+        if (!org.domi.furnace.server.command.arguments.EntityTypes.isKnown(id) || id.equals("minecraft:player") || id.equals("minecraft:fishing_bobber")) {
+            throw new IllegalArgumentException("소환할 수 없는 엔티티 종류: " + type);
+        }
+        if (!at.world().equals(world.dimension())) throw new IllegalArgumentException("다른 차원의 위치: " + at.world());
+        if (!Double.isFinite(at.x()) || !Double.isFinite(at.y()) || !Double.isFinite(at.z()) || Math.abs(at.x()) >= 3.0E7 || Math.abs(at.z()) >= 3.0E7) {
+            throw new IllegalArgumentException("잘못된 위치: " + at);
+        }
+        return id;
+    }
+
+    @Override
+    public Entity spawnEntityNow(String type, Location at) {
+        String id = spawnableId(type, at);
+        ChunkPos cp = ChunkPos.ofBlock(at.x(), at.z());
+        Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "spawnEntityNow");
+        if (r == null) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        return spawnOn(r, cp, id, at);
+    }
+
+    /** 소유 스레드에서: 구 안의 엔티티와 플레이어. */
+    private List<Entity> nearbyOn(Region r, Location center, double radius) {
+        double r2 = radius * radius;
+        List<Entity> out = new ArrayList<>();
+        var box = new org.domi.furnace.server.entity.AABB(center.x() - radius, center.y() - radius, center.z() - radius,
+                center.x() + radius, center.y() + radius, center.z() + radius);
+        for (var e : r.level().getEntities(null, box, null)) {
+            if (e.isRemoved()) continue;
+            double dx = e.x() - center.x(), dy = e.y() - center.y(), dz = e.z() - center.z();
+            if (dx * dx + dy * dy + dz * dz <= r2) out.add(EntityHandle.of(host, e));
+        }
+        for (var p : r.players().values()) {
+            if (p.isDisconnected()) continue;
+            double dx = p.x() - center.x(), dy = p.y() - center.y(), dz = p.z() - center.z();
+            if (dx * dx + dy * dy + dz * dz <= r2) out.add(host.player(p));
+        }
+        return out;
+    }
+
+    @Override
+    public List<Entity> nearbyEntitiesNow(Location center, double radius) {
+        if (!(radius >= 0 && radius <= 128)) throw new IllegalArgumentException("radius 는 0..128: " + radius);
+        if (!center.world().equals(world.dimension())) return List.of();
+        ChunkPos cp = ChunkPos.ofBlock(center.x(), center.z());
+        Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "nearbyEntitiesNow");
+        if (r == null || !r.chunkLoaded(cp)) return List.of();
+        return nearbyOn(r, center, radius);
     }
 
     @Override
@@ -278,22 +331,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         if (!center.world().equals(world.dimension())) return RegionFuture.wrap(CompletableFuture.completedFuture(List.of()));
         ChunkPos cp = ChunkPos.ofBlock(center.x(), center.z());
         double r2 = radius * radius;
-        CompletableFuture<List<Entity>> f = world.submitAtOwnedChunk(cp, r -> {
-            List<Entity> out = new ArrayList<>();
-            var box = new org.domi.furnace.server.entity.AABB(center.x() - radius, center.y() - radius, center.z() - radius,
-                    center.x() + radius, center.y() + radius, center.z() + radius);
-            for (var e : r.level().getEntities(null, box, null)) {
-                if (e.isRemoved()) continue;
-                double dx = e.x() - center.x(), dy = e.y() - center.y(), dz = e.z() - center.z();
-                if (dx * dx + dy * dy + dz * dz <= r2) out.add(EntityHandle.of(host, e));
-            }
-            for (var p : r.players().values()) {
-                if (p.isDisconnected()) continue;
-                double dx = p.x() - center.x(), dy = p.y() - center.y(), dz = p.z() - center.z();
-                if (dx * dx + dy * dy + dz * dz <= r2) out.add(host.player(p));
-            }
-            return out;
-        });
+        CompletableFuture<List<Entity>> f = world.submitAtOwnedChunk(cp, r -> nearbyOn(r, center, radius));
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(List.of()));
     }
 

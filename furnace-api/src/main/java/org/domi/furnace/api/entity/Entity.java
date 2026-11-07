@@ -50,6 +50,13 @@ public interface Entity {
     CompletableFuture<Boolean> editPersistentData(Consumer<PersistentDataContainer> edit);
 
     /**
+     * editPersistentData 의 동기판 — 그 엔티티를 가진 region 스레드에서만(아니면 ThreadOwnershipException) 콜백을 곧바로 돌리고,
+     * 엔티티가 사라졌으면 콜백 없이 false. 플레이어는 어느 스레드에서나 된다(서버가 영속 데이터를 잠가 둔다).
+     * 읽을 때도 이 메서드의 콜백 안에서 읽으면 핸들 시점 사본이 아니라 지금 값이다.
+     */
+    default boolean editPersistentDataNow(Consumer<PersistentDataContainer> edit) { throw new UnsupportedOperationException("editPersistentDataNow"); }
+
+    /**
      * 엔티티가 가진 칸(상자 배·상자/깔때기 수레, 주민·알레이·피글린의 소지품, 플레이어 인벤토리). 칸이 없는 엔티티는 empty.
      * 돌려준 Inventory 의 읽기·쓰기는 그 엔티티를 가진 region 스레드에서 실행된다(엔티티가 사라졌으면 IllegalStateException 으로 완료).
      */

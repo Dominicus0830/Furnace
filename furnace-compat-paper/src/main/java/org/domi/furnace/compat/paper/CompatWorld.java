@@ -52,6 +52,26 @@ final class CompatWorld implements World {
     public Chunk getChunkAt(int x, int z) { return new CompatChunk(handle.dimension(), x, z); }
 
     @Override
+    public org.bukkit.entity.Entity spawnEntity(org.bukkit.Location loc, org.bukkit.entity.EntityType type) {
+        if (type == null || type == org.bukkit.entity.EntityType.UNKNOWN) throw new IllegalArgumentException("Cannot spawn an entity of type " + type);
+        org.domi.furnace.api.entity.Entity e = handle.spawnEntityNow(type.getKey().toString(), Compat.location(loc));
+        if (e == null) throw new IllegalStateException("엔티티 스폰이 취소됐다(스폰 이벤트를 취소한 플러그인이 있다): " + type);
+        return Compat.entity(e);
+    }
+
+    @Override
+    public java.util.Collection<org.bukkit.entity.Entity> getNearbyEntities(org.bukkit.Location loc, double x, double y, double z) {
+        org.domi.furnace.api.world.Location c = Compat.location(loc);
+        double r = Math.sqrt(x * x + y * y + z * z);
+        java.util.List<org.bukkit.entity.Entity> out = new ArrayList<>();
+        for (var e : handle.nearbyEntitiesNow(c, r)) {
+            var l = e.location();
+            if (Math.abs(l.x() - c.x()) <= x && Math.abs(l.y() - c.y()) <= y && Math.abs(l.z() - c.z()) <= z) out.add(Compat.entity(e));
+        }
+        return out;
+    }
+
+    @Override
     public boolean isChunkLoaded(int x, int z) { return handle.isChunkLoaded(x, z); }
 
     @Override

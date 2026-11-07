@@ -104,6 +104,15 @@ public interface World {
      */
     CompletableFuture<List<Entity>> nearbyEntities(Location center, double radius);
 
+    /**
+     * spawnEntity 의 동기판 — center 칸을 가진 region 스레드에서만(아니면 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}),
+     * 곧바로 만들고 엔티티를 돌려준다. 스폰 이벤트가 취소되면 null. 청크가 로드돼 있지 않으면 IllegalStateException, 종류·위치가 잘못이면 IllegalArgumentException.
+     */
+    default Entity spawnEntityNow(String type, Location at) { throw new UnsupportedOperationException("spawnEntityNow"); }
+
+    /** nearbyEntities 의 동기판 — center 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException), 곧바로 목록을 돌려준다. 청크가 로드돼 있지 않으면 빈 목록. */
+    default List<Entity> nearbyEntitiesNow(Location center, double radius) { throw new UnsupportedOperationException("nearbyEntitiesNow"); }
+
     // ------------------------------------------------------------------ 블록 칸
 
     /**

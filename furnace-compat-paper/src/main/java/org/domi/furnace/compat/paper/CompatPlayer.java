@@ -17,6 +17,24 @@ final class CompatPlayer extends CompatLivingEntity implements Player {
 
     org.domi.furnace.api.entity.Player handle() { return handle; }
 
+    private CompatPlayerInventory inventory;
+
+    @Override
+    public org.bukkit.inventory.PlayerInventory getInventory() {
+        CompatPlayerInventory i = inventory;
+        if (i == null) inventory = i = new CompatPlayerInventory(this);
+        return i;
+    }
+
+    @Override
+    public org.bukkit.inventory.ItemStack getItemInHand() { return getInventory().getItemInHand(); }
+
+    @Override
+    public void setItemInHand(org.bukkit.inventory.ItemStack item) { getInventory().setItemInHand(item); }
+
+    @Override
+    public void updateInventory() {}
+
     @Override
     public String getName() { return handle.name(); }
 

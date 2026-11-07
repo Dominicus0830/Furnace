@@ -306,6 +306,32 @@ class EntityWorldApiTest {
         assertFalse(living.remove().get(10, TimeUnit.SECONDS));
     }
 
+    /** H3: 동기판 spawnEntityNow·nearbyEntitiesNow·editPersistentDataNow — 소유 region 스레드에서만, 곧바로. */
+    @Test
+    void synchronousTwinsRunOnlyOnTheOwningThread() throws Exception {
+        var w = api();
+        var at = new org.domi.furnace.api.world.Location("minecraft:overworld", 8.5, -50, 8.5);
+        assertThrows(ThreadOwnershipException.class, () -> w.spawnEntityNow("minecraft:cow", at), "비소유 스레드는 거부");
+        assertThrows(ThreadOwnershipException.class, () -> w.nearbyEntitiesNow(at, 4), "비소유 스레드는 거부");
+        var key = "furnace:mark";
+        var cow = w.scheduler(new BlockPos(8, -50, 8)).submit(() -> {
+            var e = w.spawnEntityNow("minecraft:cow", at);
+            assertNotNull(e);
+            assertEquals("minecraft:cow", e.type());
+            assertTrue(w.nearbyEntitiesNow(at, 3).stream().anyMatch(n -> n.uniqueId().equals(e.uniqueId())), "방금 만든 소는 바로 보인다");
+            assertTrue(w.nearbyEntitiesNow(new org.domi.furnace.api.world.Location("minecraft:overworld", 8.5, -50, 8.5), 0).size() <= 1);
+            // 영속 데이터: 같은 스레드에서 쓰고 곧바로 읽는다
+            assertTrue(e.editPersistentDataNow(c -> c.set(key, org.domi.furnace.api.persistence.PersistentDataType.STRING, "x")));
+            var seen = new String[1];
+            assertTrue(e.editPersistentDataNow(c -> seen[0] = c.get(key, org.domi.furnace.api.persistence.PersistentDataType.STRING)));
+            assertEquals("x", seen[0]);
+            return e;
+        }).get(10, TimeUnit.SECONDS);
+        assertThrows(ThreadOwnershipException.class, () -> cow.editPersistentDataNow(c -> {}), "비소유 스레드는 거부");
+        var bad = assertThrows(ExecutionException.class, () -> w.scheduler(new BlockPos(8, -50, 8)).submit(() -> w.spawnEntityNow("minecraft:player", at)).get(10, TimeUnit.SECONDS));
+        assertInstanceOf(IllegalArgumentException.class, bad.getCause(), "플레이어는 소환할 수 없다");
+    }
+
     @Test
     void chunkLoadEventFiresOnOwningRegion() throws Exception {
         List<String> got = new java.util.concurrent.CopyOnWriteArrayList<>();
