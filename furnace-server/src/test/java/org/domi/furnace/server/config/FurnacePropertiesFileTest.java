@@ -27,6 +27,7 @@ class FurnacePropertiesFileTest {
         assertEquals(Config.DEFAULT, ConfigLoader.load(f, w -> fail("경고가 나오면 안 된다: " + w)));
         assertEquals(OperatorOptions.DEFAULT, OperatorOptions.load(f, w -> fail("경고: " + w)));
         assertEquals(PluginSettings.DEFAULT, PluginSettings.load(f));
+        assertEquals(RegionPoolSettings.DEFAULT, RegionPoolSettings.load(f, w -> fail("경고 없어야: " + w)));
         assertEquals(org.domi.furnace.server.world.WorldSettings.DEFAULT, org.domi.furnace.server.world.WorldSettings.load(f));
         ConnectionLimits c = ConnectionLimits.load(f, w -> fail("경고: " + w));
         for (ConnectionState s : ConnectionState.values()) assertEquals(ConnectionLimits.DEFAULT.of(s), c.of(s), s.name());

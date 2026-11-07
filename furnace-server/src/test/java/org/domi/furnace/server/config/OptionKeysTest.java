@@ -57,6 +57,10 @@ class OptionKeysTest {
         assertEquals(Integer.toString(c.spawnChunkRadius()), t.get("spawn-chunk-radius").def());
         assertEquals(c.chunksPerTick() == Config.CHUNKS_PER_TICK_AUTO ? "auto" : Integer.toString(c.chunksPerTick()), t.get("chunks-per-tick").def());
         assertEquals(Boolean.toString(c.bungeecord()), t.get("bungeecord").def());
+        RegionPoolSettings rp = RegionPoolSettings.DEFAULT;
+        assertEquals(Boolean.toString(rp.shared()), t.get("shared-region-pool").def());
+        assertEquals(Integer.toString(rp.dimCap()), t.get("region-pool-dim-cap").def());
+        assertEquals(Integer.toString(rp.starveTicks()), t.get("region-pool-starve-ticks").def());
         OperatorOptions o = OperatorOptions.DEFAULT;
         assertEquals(Boolean.toString(o.strictChatOrder()), t.get("chat.strict-order").def());
         assertEquals(Boolean.toString(o.unsignedChatAsSystem()), t.get("chat.unsigned-as-system").def());

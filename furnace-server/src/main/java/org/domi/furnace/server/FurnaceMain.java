@@ -105,6 +105,7 @@ public final class FurnaceMain {
             log.warn("furnace.properties 를 쓰지 못했다 — 기본값으로 계속한다: {}", e.toString());
         }
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
+        org.domi.furnace.server.entity.spawn.SpawnConfig.install(org.domi.furnace.server.entity.spawn.SpawnConfig.load(Path.of("furnace.properties"), log::warn));   // spawn.limit.* / spawn.player-limit.*
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
                     props.regionFileCompression);
@@ -204,10 +205,12 @@ public final class FurnaceMain {
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
-        // 롤백 스위치(기본 끔): 켜면 모든 차원이 region 워커 풀 하나를 공유하고 region-threads 는 서버 전체 워커 수가 된다
-        boolean sharedRegionPool = Boolean.getBoolean("furnace.sharedRegionPool");
-        org.domi.furnace.server.world.SharedScheduler regionPool = sharedRegionPool
-                ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-") : null;
+        // 공유 region 풀(S4, 기본 켬): 모든 차원·추가 월드가 워커 풀 하나를 쓰고 region-threads 는 서버 전체 워커 수다.
+        // furnace.properties 'shared-region-pool=false'(또는 -Dfurnace.sharedRegionPool=false)면 차원마다 따로(이전 방식).
+        var regionPoolSettings = org.domi.furnace.server.config.RegionPoolSettings.load(furnaceProps, log::warn);
+        org.domi.furnace.server.world.SharedScheduler regionPool = regionPoolSettings.shared()
+                ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-",
+                        regionPoolSettings.dimCap(), regionPoolSettings.starveTicks()) : null;
         // 플러그인 부트스트랩: 레지스트리·데이터 팩·월드보다 먼저(Paper 부트스트랩과 같은 자리). onLoad 는 월드 준비 뒤.
         org.domi.furnace.server.plugin.PluginSettings pluginSettings = org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps);
         org.domi.furnace.server.plugin.PluginBootstrapper pluginBoot =
@@ -361,6 +364,8 @@ public final class FurnaceMain {
         if (regionPool != null) scheduler.addCloseHook(regionPool::close);
         log.info("[SCHED] region 워커 {}개({}, 차원 {}개)", config.regionThreads(),
                 regionPool != null ? "서버 전체 공유" : "차원별", dimensions.all().size());
+        regionPoolSettings.warnOversubscription(config.regionThreads(), dimensions.all().size(),
+                Runtime.getRuntime().availableProcessors(), log::warn);
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);

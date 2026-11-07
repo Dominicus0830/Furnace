@@ -54,7 +54,10 @@ public final class FurnacePropertiesFile {
         )));
         s.add(new Section("틱·region 스레드", List.of(
                 opt("tick-nanos", d.tickNanos(), "한 틱의 길이(나노초). 50000000 = 초당 20틱(바닐라)."),
-                commented("region-threads", "", "region 을 돌리는 스레드 수. 주석이면 CPU 코어 수."),
+                commented("region-threads", "", "region 을 돌리는 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다). 주석이면 CPU 코어 수."),
+                opt("shared-region-pool", RegionPoolSettings.DEFAULT.shared(), "true 면 모든 차원·추가 월드가 region 워커 풀 하나를 함께 쓴다. false 면 차원마다 region-threads 개."),
+                opt("region-pool-dim-cap", RegionPoolSettings.DEFAULT.dimCap(), "공유 풀에서 다른 차원에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1)."),
+                opt("region-pool-starve-ticks", RegionPoolSettings.DEFAULT.starveTicks(), "차원의 가장 이른 일이 이 틱 수만큼 밀리면 그 차원을 먼저 돌린다. 1 이상."),
                 opt("region-section-shift", d.regionSectionShift(), "구역 크기 = 2^값 청크(4 → 16×16 청크). 1~8."),
                 opt("region-merge-radius", d.regionMergeRadius(), "이 반경(구역 단위) 안의 구역은 같은 region 으로 합친다. 1 이상.")
         )));
