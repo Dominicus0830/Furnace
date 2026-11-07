@@ -37,6 +37,9 @@ public final class RegionLevel extends ChunkLevel {
     public org.domi.furnace.server.world.raid.RaidStore raidStore() { return world.raidStore(); }
 
     @Override
+    public org.domi.furnace.server.light.VirtualLights virtualLights() { return world.virtualLights(); }
+
+    @Override
     public boolean isOwnerThread() { return region.isOwnerThread(); }
 
     @Override
@@ -262,7 +265,7 @@ public final class RegionLevel extends ChunkLevel {
             boolean spawnMonsters = spawnMonstersAllowed() && difficulty() != 0, spawnAnimals = spawnAnimalsAllowed();
             org.domi.furnace.server.entity.spawn.NaturalSpawner.SpawnState spawnState = null;
             if (spawnCount > 0 && gameRule("doMobSpawning") && (spawnMonsters || spawnAnimals)) {
-                spawnState = org.domi.furnace.server.entity.spawn.NaturalSpawner.createState(spawnCount, entities().tickSnapshot(), this);
+                spawnState = org.domi.furnace.server.entity.spawn.NaturalSpawner.createState(spawnCount, entities().tickSnapshot(), this, world.spawnPolicy());
             }
             boolean spawnPassives = gameTime() % 400L == 0L;
             for (int i = 0; i < count; i++) {

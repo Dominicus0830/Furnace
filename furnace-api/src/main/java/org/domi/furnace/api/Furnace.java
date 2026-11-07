@@ -87,6 +87,22 @@ public interface Furnace {
         return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("unloadWorld"));
     }
 
+    /**
+     * 서버 TPS(Paper getTPS 에 해당). Furnace 는 region 마다 따로 틱하므로 하나의 "서버 TPS"가 없다 —
+     * {@link org.domi.furnace.api.world.ServerTps} 가 플레이어가 있는 region 의 평균(플레이어 수 가중)을 기본으로, 가장 느린 region·전역 박동 값을 함께 준다.
+     * 정의는 docs/api/tps.md. 아무 스레드. 서버가 주지 않으면 값이 모두 NaN 인 {@link org.domi.furnace.api.world.ServerTps#UNKNOWN}.
+     */
+    default org.domi.furnace.api.world.ServerTps tps() { return org.domi.furnace.api.world.ServerTps.UNKNOWN; }
+
+    /**
+     * 그 위치를 가진 region 의 최근 5초 TPS. 월드가 없거나 region 이 없거나 아직 잴 수 없으면 empty. 아무 스레드.
+     * (특정 region 의 값은 {@link World#region(int)}·{@link World#regions()} 의 {@code RegionInfo.tps()} 로도 본다.)
+     */
+    default java.util.OptionalDouble regionTps(org.domi.furnace.api.world.Location where) {
+        World w = world(where.world());
+        return w == null ? java.util.OptionalDouble.empty() : w.tpsAt(where.blockPos());
+    }
+
     CommandSender console();
 
     /** 모든 플레이어와 콘솔에 시스템 메시지(바닐라 broadcastSystemMessage). */
@@ -121,6 +137,9 @@ public interface Furnace {
 
     /** 가상 엔티티·가짜 플레이어(NPC)·가짜 탭 줄 — 패킷 API 위에 쌓은 서비스. */
     default org.domi.furnace.api.virtual.VirtualEntities virtualEntities() { throw new UnsupportedOperationException("virtualEntities"); }
+
+    /** 가짜 광원 — 블록 없이 서버 빛 엔진에 광원을 더하고 뺀다. */
+    default org.domi.furnace.api.light.LightSources lightSources() { throw new UnsupportedOperationException("lightSources"); }
 
     /** 실제 엔티티·플레이어의 플레이어별 보이기·숨기기와 변장. */
     default org.domi.furnace.api.entity.EntityViews entityViews() { throw new UnsupportedOperationException("entityViews"); }
@@ -201,4 +220,7 @@ public interface Furnace {
 
     /** 서비스 레지스트리(권한·경제·플레이스홀더 등 플러그인 사이 공용 인터페이스). */
     default org.domi.furnace.api.service.ServiceRegistry services() { throw new UnsupportedOperationException("services"); }
+
+    /** 플러그인 번역 서비스(번역 파일 등록, 받는 사람 언어로 렌더링). */
+    default org.domi.furnace.api.text.translation.TranslationService translations() { throw new UnsupportedOperationException("translations"); }
 }

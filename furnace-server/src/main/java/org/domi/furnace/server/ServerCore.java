@@ -378,7 +378,7 @@ public final class ServerCore {
                 var id = org.domi.furnace.server.data.ResourceId.parse(function);
                 Runnable run = () -> {
                     var fm = functions();
-                    if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source));
+                    if (fm != null) fm.library().function(id).ifPresent(f -> fm.execute(f, source, org.domi.furnace.api.event.server.FunctionExecuteEvent.Trigger.ADVANCEMENT));
                 };
                 // 전역 스레드에서 부여했으면(/advancement grant 등) 바닐라처럼 award 안에서 바로, region 스레드면 다음 전역 틱에
                 if (((org.domi.furnace.api.concurrent.ThreadOwner) scheduler().global()).isOwnerThread()) run.run();
@@ -480,6 +480,50 @@ public final class ServerCore {
     public org.domi.furnace.server.sched.TickStartRing globalTickStarts() { return globalTickStarts; }
 
     public org.domi.furnace.server.sched.TickWindows globalTickWindows() { return globalTickWindows; }
+
+    /** 활성 region(플레이어가 있는 region) 평균 TPS 의 1초 표본 기록 — getTPS 의 1분·5분·15분 값. 전역 스레드가 쓴다. */
+    private final org.domi.furnace.server.sched.ActiveTpsHistory activeTpsHistory = new org.domi.furnace.server.sched.ActiveTpsHistory();
+
+    /** 표본 창(1초)과 /tps·getTPS 의 5초 창, 잴 수 있으려면 필요한 기록 길이. */
+    static final long TPS_SAMPLE_WINDOW = 1_000_000_000L, TPS_LIVE_WINDOW = 5_000_000_000L, TPS_MIN_HISTORY = 1_000_000_000L;
+
+    private org.domi.furnace.server.world.Regionizer.ActiveSummary activeSummary(long now, long window) {
+        var sum = org.domi.furnace.server.world.Regionizer.ActiveSummary.NONE;
+        for (World w : worlds()) {
+            var rz = w.regionizer();
+            if (rz != null) sum = sum.plus(rz.activeSummary(now, window, TPS_MIN_HISTORY));
+        }
+        return sum;
+    }
+
+    /** 1초마다(전역 스레드): 활성 region 평균(없으면 전역 박동)을 한 표본으로 적는다. */
+    private void sampleActiveTps(long now) {
+        if (!activeTpsHistory.due(now)) return;
+        double v = activeSummary(now, TPS_SAMPLE_WINDOW).weightedAverage();
+        if (Double.isNaN(v)) v = globalTickStarts.rate(now, TPS_SAMPLE_WINDOW, TPS_MIN_HISTORY);
+        activeTpsHistory.record(now, v);
+    }
+
+    /** 서버 TPS(플러그인 API Furnace.tps() 와 /tps 의 바탕). 아무 스레드. 정의는 docs/api/tps.md. */
+    public org.domi.furnace.api.world.ServerTps serverTps() {
+        long now = System.nanoTime();
+        var live = activeSummary(now, TPS_LIVE_WINDOW);
+        double g5 = globalTickStarts.rate(now, 5L * SEC_NANOS, TPS_MIN_HISTORY);
+        double a5 = live.weightedAverage();
+        if (Double.isNaN(a5)) a5 = g5;
+        return new org.domi.furnace.api.world.ServerTps(a5,
+                activeAvgOrGlobal(now, 60L * SEC_NANOS), activeAvgOrGlobal(now, 300L * SEC_NANOS), activeAvgOrGlobal(now, 900L * SEC_NANOS),
+                live.activeRegions(), live.activePlayers(), live.slowestActive(), live.slowestAny(),
+                g5, globalTickStarts.rate(now, 60L * SEC_NANOS, TPS_MIN_HISTORY), globalTickStarts.rate(now, 300L * SEC_NANOS, TPS_MIN_HISTORY),
+                globalTickStarts.rate(now, 900L * SEC_NANOS, TPS_MIN_HISTORY));
+    }
+
+    private static final long SEC_NANOS = 1_000_000_000L;
+
+    private double activeAvgOrGlobal(long now, long window) {
+        double v = activeTpsHistory.average(now, window);
+        return Double.isNaN(v) ? globalTickStarts.rate(now, window, TPS_MIN_HISTORY) : v;
+    }
 
     /** 전역 스레드 이름(관측용). */
     public String globalThreadName() {
@@ -623,6 +667,7 @@ public final class ServerCore {
         globalTickThread = Thread.currentThread();
         globalTickStarts.record(t0);
         try {
+            sampleActiveTps(t0);
             scheduledTick0();
         } finally {
             long took = System.nanoTime() - t0;
@@ -631,9 +676,50 @@ public final class ServerCore {
         }
     }
 
+    // ------------------------------------------------------------------ 전역 틱 붙잡기(백업 기준점)·빈 서버 일시정지
+
+    private final java.util.concurrent.atomic.AtomicInteger globalHolds = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 전역 게임 틱(시간·날씨·함수)을 붙잡는다 / 놓는다. 붙잡힌 동안 전역 스레드는 작업만 돌린다. 횟수로 센다. */
+    public void holdGlobalTicks(boolean on) {
+        if (on) globalHolds.incrementAndGet();
+        else if (globalHolds.decrementAndGet() < 0) globalHolds.set(0);
+    }
+
+    public boolean globalTicksHeld() { return globalHolds.get() > 0; }
+
+    /** 전역 스레드가 지금 도는 틱을 끝내면 완료(붙잡은 뒤 부른다 — 그 뒤 전역 틱은 건너뛴다). */
+    public java.util.concurrent.CompletableFuture<Void> quiesceGlobal() {
+        return java.util.concurrent.CompletableFuture.runAsync(() -> { }, r -> scheduler.global().execute(r));
+    }
+
+    private volatile org.domi.furnace.server.maintenance.WorldBackup backup;
+
+    /** 월드 백업(/furnace backup). 기동 전·시험은 null. */
+    public org.domi.furnace.server.maintenance.WorldBackup backup() { return backup; }
+
+    public void backup(org.domi.furnace.server.maintenance.WorldBackup b) { this.backup = b; }
+
+    private volatile org.domi.furnace.server.maintenance.IdlePause idlePause;
+
+    /** 빈 서버 일시정지(furnace.properties idle-pause.*). null 이면 끔(기본 — 1.21.1 바닐라에는 없다). */
+    public void idlePause(org.domi.furnace.server.maintenance.IdlePause p) { this.idlePause = p; }
+
+    public org.domi.furnace.server.maintenance.IdlePause idlePause() { return idlePause; }
+
+    /** 지금 빈 서버 일시정지 중인가. */
+    public boolean pausedWhileEmpty() {
+        var p = idlePause;
+        return p != null && p.paused();
+    }
+
     private void scheduledTick0() {
         commands.queue().tick();   // 명령 컨텍스트 경과 틱(정지 중에도 센다 — head-of-line 관측)
         var ts = tickState();
+        // 바닐라 1.21.2+ MinecraftServer.tickServer 의 pause-when-empty: 비어 있는 동안 틱을 세다가 넘으면 틱을 멈춘다(연결 처리만)
+        var pause = idlePause;
+        if (pause != null && pause.onGlobalTick(world.onlinePlayers().isEmpty(), ts.sprinting())) return;
+        if (globalTicksHeld()) return;
         if (ts.sprinting()) {
             tickSprint(ts);
             return;
@@ -897,6 +983,7 @@ public final class ServerCore {
      * spawn-protection > 0 이고 월드 스폰과의 체비셰프 거리가 그 이하인가.
      */
     public boolean isUnderSpawnProtection(int x, int z, Player p) {
+        if (!"minecraft:overworld".equals(p.dimension())) return false;   // 바닐라 DedicatedServer.isUnderSpawnProtection: 오버월드만
         if (lists.getOps().isEmpty()) return false;
         if (lists.isOp(profileOf(p))) return false;
         int radius = settings.get().spawnProtection;
@@ -918,7 +1005,10 @@ public final class ServerCore {
         levelData.spawnY = y;
         levelData.spawnZ = z;
         levelData.spawnAngle = angle;
-        world.defaultSpawn(new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle));
+        var spawn = new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle);
+        world.defaultSpawn(spawn);
+        // 네더·엔드는 공유 스폰(DerivedLevelData — 오버월드 것)이라 따라간다. 따로 level.dat 을 가진 추가 월드는 자기 스폰을 유지한다.
+        for (World w : worlds()) if (w != world && !w.isExtraWorld()) w.defaultSpawn(spawn);
         var pkt = new org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition(x, y, z, angle);
         for (Player p : players()) p.send(pkt);
     }
@@ -1055,6 +1145,7 @@ public final class ServerCore {
         }
         public void unpackContainerLoot(Object container) {
             if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(c, null);
+            else if (container instanceof org.domi.furnace.server.entity.ContainerEntity e) unpackLoot(e, null);
         }
     };
 

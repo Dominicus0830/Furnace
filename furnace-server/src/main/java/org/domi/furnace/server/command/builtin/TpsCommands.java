@@ -2,12 +2,15 @@
 // Furnace 는 region 마다 따로 틱하므로 "서버 TPS"가 하나가 아니다. 정의(docs/feature-parity/tps-mspt-2026-11-03.md):
 //   - 전역 TPS: 전역 스레드 박동(scheduledTick — 시간·날씨·명령 큐·보더)의 초당 횟수. 목표는 늘 20(박동은 /tick rate 와 무관하게 50ms 마다,
 //     rate 는 박동 하나에 몇 틱을 낼지로 건다). 창은 Paper 와 같은 5초·1분·5분·15분.
+//   - 활성 region 평균: 플레이어가 있는 region 의 TPS 를 플레이어 수로 가중한 평균(플레이어 한 명이 겪는 평균 틱 속도). 접속자가 없으면 전역 박동 값.
+//     5초는 지금 값, 1분·5분·15분은 1초마다 적은 값의 평균. getTPS()(플러그인 API Furnace.tps())가 돌려주는 값과 같다. 정의: docs/api/tps.md.
 //   - 가장 느린 region: 차원마다 최근 5초 틱 속도가 가장 낮은 region 과 그 값. 목표는 /tick rate. 막 생긴(기록 1초 미만) region 은 뺀다.
 //   - /mspt: 전역 박동과 차원별 region 틱 전부의 소요 시간 평균/최소/최대, 창은 Paper 와 같은 5초·10초·1분.
 // 표시: Paper 처럼 목표를 넘는 값은 목표로 자르고 5% 넘게 빠르면 앞에 * 를 붙인다(sprint). 색은 목표 대비 90%↑ 초록, 80%↑ 노랑, 아래는 빨강.
 // 값은 모두 읽기 전용 계측(TickStartRing·TickWindows)에서 오고 region 소유 상태는 만지지 않는다 — 전역 스레드에서 안전하다.
 package org.domi.furnace.server.command.builtin;
 
+import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
 import java.util.ArrayList;
@@ -18,7 +21,13 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.text.TextColor;
 import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.arguments.DimensionArgument;
+import org.domi.furnace.server.command.arguments.EntityArgument;
+import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
+import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
+import org.domi.furnace.api.world.ServerTps;
 import org.domi.furnace.server.sched.TickWindows;
 import org.domi.furnace.server.world.Regionizer;
 import org.domi.furnace.server.world.TickState;
@@ -39,6 +48,10 @@ public final class TpsCommands {
     /** 전역 박동은 기록 1초부터 잰다. */
     public static final long GLOBAL_MIN_HISTORY = SEC;
 
+    public static final int DEFAULT_REGION_LIMIT = 10;
+    public static final int MAX_REGION_LIMIT = 100;
+    static final SimpleCommandExceptionType NO_REGION = new SimpleCommandExceptionType(org.domi.furnace.api.text.Text.text("그 위치를 가진 region 이 없다(청크가 로드돼 있지 않다)"));
+
     /** 차원 하나의 /tps 값: region 수와 가장 느린 region(잴 수 있는 것이 없으면 null). */
     public record DimRate(String dimension, int regions, Regionizer.RegionRate slowest) {}
 
@@ -46,7 +59,16 @@ public final class TpsCommands {
     public record DimTimes(String dimension, List<TickWindows.Window> windows) {}
 
     public static void register(CommandDispatcher<CommandSource> d) {
-        d.register(literal("tps").requires(s -> s.hasPermission(3)).executes(c -> send(c.getSource(), tps(c.getSource().getServer()))));
+        d.register(literal("tps").requires(s -> s.hasPermission(3)).executes(c -> send(c.getSource(), tps(c.getSource().getServer())))
+                .then(literal("regions").executes(c -> regions(c.getSource(), DEFAULT_REGION_LIMIT))
+                        .then(argument("limit", Arguments.integer(1, MAX_REGION_LIMIT))
+                                .executes(c -> regions(c.getSource(), c.getArgument("limit", Integer.class)))))
+                .then(literal("here").executes(c -> here(c.getSource())))
+                .then(literal("player").then(argument("target", EntityArgument.player())
+                        .executes(c -> player(c.getSource(), EntityArgument.getPlayer(c, "target")))))
+                .then(literal("region").then(argument("dimension", DimensionArgument.dimension())
+                        .then(argument("id", Arguments.integer(0))
+                                .executes(c -> region(c.getSource(), DimensionArgument.getDimension(c, "dimension"), c.getArgument("id", Integer.class)))))));
         d.register(literal("mspt").requires(s -> s.hasPermission(3)).executes(c -> send(c.getSource(), mspt(c.getSource().getServer()))));
     }
 
@@ -67,7 +89,52 @@ public final class TpsCommands {
             if (rz == null) continue;
             dims.add(new DimRate(rz.dimension(), rz.regionCount(), rz.slowestRegion(now, REGION_WINDOW, REGION_MIN_HISTORY)));
         }
-        return tpsReport(global, core.tickState().rate(), dims);
+        return tpsReport(global, core.serverTps(), core.tickState().rate(), dims);
+    }
+
+    // ------------------------------------------------------------------ 특정 region
+
+    /** 한 region 의 /tps 값: 차원·관측 사본·최근 5초 TPS. */
+    public record RegionLine(String dimension, Regionizer.RegionInfo info, double tps) {}
+
+    private static List<RegionLine> allRegions(ServerCore core) {
+        List<RegionLine> out = new ArrayList<>();
+        for (World w : core.worlds()) {
+            Regionizer rz = w.regionizer();
+            if (rz == null) continue;
+            for (Regionizer.RegionView v : rz.regionViews(REGION_WINDOW, REGION_MIN_HISTORY)) out.add(new RegionLine(rz.dimension(), v.info(), v.tps()));
+        }
+        return out;
+    }
+
+    private static int regions(CommandSource source, int limit) {
+        List<RegionLine> all = allRegions(source.getServer());
+        return send(source, regionsReport(all, source.getServer().tickState().rate(), limit));
+    }
+
+    private static int region(CommandSource source, World w, int id) throws CommandSyntaxException {
+        Regionizer rz = w.regionizer();
+        Regionizer.RegionView found = null;
+        if (rz != null) for (Regionizer.RegionView v : rz.regionViews(REGION_WINDOW, REGION_MIN_HISTORY)) if (v.info().id() == id) found = v;
+        if (found == null) throw new SimpleCommandExceptionType(org.domi.furnace.api.text.Text.text(w.dimension() + " 에 region #" + id + " 가 없다(합쳐졌거나 나뉘어 사라졌을 수 있다 — /tps regions 로 번호를 본다)")).create();
+        return send(source, List.of(regionLine(new RegionLine(w.dimension(), found.info(), found.tps()), source.getServer().tickState().rate())));
+    }
+
+    private static int here(CommandSource source) throws CommandSyntaxException {
+        return at(source, source.level(), (int) Math.floor(source.x()) >> 4, (int) Math.floor(source.z()) >> 4);
+    }
+
+    private static int player(CommandSource source, org.domi.furnace.server.entity.Player p) throws CommandSyntaxException {
+        World w = source.getServer().world(p.dimension());
+        org.domi.furnace.server.world.ChunkPos c = p.chunkPos();
+        return at(source, w, c.x(), c.z());
+    }
+
+    private static int at(CommandSource source, World w, int cx, int cz) throws CommandSyntaxException {
+        Regionizer rz = w == null ? null : w.regionizer();
+        Regionizer.RegionView v = rz == null ? null : rz.regionViewAt(cx, cz, REGION_WINDOW, REGION_MIN_HISTORY);
+        if (v == null) throw NO_REGION.create();
+        return send(source, List.of(regionLine(new RegionLine(w.dimension(), v.info(), v.tps()), source.getServer().tickState().rate())));
     }
 
     static List<Text> mspt(ServerCore core) {
@@ -133,6 +200,46 @@ public final class TpsCommands {
             t = t.append(parts.get(i));
         }
         return t;
+    }
+
+    /** region 한 줄: "minecraft:overworld region #7: 14.50 — 플레이어 2명, 청크 40개, 범위 …, 직전 틱 3.00 ms, 최장 9.00 ms (목표 20.0)". */
+    public static Text regionLine(RegionLine l, float rate) {
+        Regionizer.RegionInfo r = l.info();
+        return Text.text(l.dimension() + " region #" + r.id() + ": ", NamedTextColor.GOLD).append(tpsValue(l.tps(), rate))
+                .append(Text.text(" — 플레이어 " + r.players() + "명, 청크 " + r.chunks() + "개, 범위 청크 (" + r.minChunkX() + "," + r.minChunkZ() + ")~("
+                        + r.maxChunkX() + "," + r.maxChunkZ() + "), 직전 틱 " + f2(r.lastTickNanos() / 1.0E6) + " ms, 최장 " + f2(r.maxTickNanos() / 1.0E6)
+                        + " ms (목표 " + f1(rate) + ")", NamedTextColor.GRAY));
+    }
+
+    /** /tps regions: 가장 느린 region 부터 limit 개(잴 수 없는 region 은 뒤로). */
+    public static List<Text> regionsReport(List<RegionLine> all, float rate, int limit) {
+        List<RegionLine> sorted = new ArrayList<>(all);
+        sorted.sort(java.util.Comparator.comparingDouble((RegionLine l) -> Double.isNaN(l.tps()) ? Double.MAX_VALUE : l.tps())
+                .thenComparing(RegionLine::dimension).thenComparingInt(l -> l.info().id()));
+        List<Text> out = new ArrayList<>();
+        out.add(Text.text("== region TPS (최근 5초, 느린 순 " + Math.min(limit, sorted.size()) + "/" + sorted.size() + "개) ==", NamedTextColor.GOLD));
+        for (int i = 0; i < Math.min(limit, sorted.size()); i++) out.add(regionLine(sorted.get(i), rate));
+        if (sorted.size() > limit) out.add(Text.text("… 외 " + (sorted.size() - limit) + "개 (/tps regions <개수>)", NamedTextColor.GRAY));
+        return out;
+    }
+
+    /** 활성 region 평균 한 줄. 활성 region 이 없으면 값이 전역 박동임을 밝힌다. */
+    static Text activeLine(ServerTps t, float rate) {
+        List<Text> v = new ArrayList<>();
+        v.add(tpsValue(t.active5s(), rate));
+        v.add(tpsValue(t.active1m(), rate));
+        v.add(tpsValue(t.active5m(), rate));
+        v.add(tpsValue(t.active15m(), rate));
+        String what = t.activeRegions() == 0 ? " — 플레이어가 있는 region 이 없어 전역 박동 값" : " — 플레이어 있는 region " + t.activeRegions() + "개, 플레이어 " + t.activePlayers()
+                + "명, 그중 가장 느린 region " + (Double.isNaN(t.slowestActive()) ? "-" : f2(t.slowestActive()));
+        return Text.text("활성 region 평균 TPS (최근 5초, 1분, 5분, 15분): ", NamedTextColor.GOLD).append(joined(v))
+                .append(Text.text(" (목표 " + f1(rate) + what + ")", NamedTextColor.GRAY));
+    }
+
+    public static List<Text> tpsReport(double[] global, ServerTps active, float rate, List<DimRate> dims) {
+        List<Text> out = tpsReport(global, rate, dims);
+        out.add(1, activeLine(active, rate));
+        return out;
     }
 
     public static List<Text> tpsReport(double[] global, float rate, List<DimRate> dims) {

@@ -12,13 +12,16 @@ import java.util.function.Consumer;
  * unsignedChatAsSystem: true 면 플레이어 채팅을 서명 없는 시스템 메시지로 보낸다(클라이언트 채팅 신고·"Not Secure" 표시 대상이 아니게 된다). 기본 false.
  * serverBrand: 클라이언트 F3 의 서버 브랜드와 level.dat ServerBrands. 기본은 Furnace 의 기존 값.
  * announceSleepStatus: false 면 자는 사람 수("x/y 명 자는 중")·"밤을 건너뛰는 중" 액션바를 보내지 않는다. 기본 true(바닐라).
+ * motdFormat: server.properties 의 motd 를 어떻게 읽을지. plain(기본, 바닐라 — 글자 그대로, § 코드는 클라이언트가 해석) | legacy(& 색 코드·&#RRGGBB) | markup(MiniMessage 식 태그: <gradient:red:blue>…</gradient>).
+ *   잘못된 마크업은 경고 후 글자 그대로 보낸다.
  * confirmInterrupt: true 면 콘솔 Ctrl+C(SIGINT) 를 한 번 누르면 안내만 하고, interruptConfirmSeconds 안에 한 번 더 눌러야 종료한다. 기본 false(바로 저장 후 종료).
  */
 public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSystem, String serverBrand,
-                              boolean announceSleepStatus, boolean confirmInterrupt, int interruptConfirmSeconds) {
+                              boolean announceSleepStatus, boolean confirmInterrupt, int interruptConfirmSeconds,
+                              String motdFormat) {
 
     public static final String DEFAULT_BRAND = "Furnace";
-    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5);
+    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5, "plain");
 
     private static volatile OperatorOptions current = DEFAULT;
 
@@ -61,8 +64,12 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
                 throw new IllegalArgumentException("설정 'confirm-interrupt-seconds' 값 " + seconds + " 이(가) 잘못됐습니다: 1~60");
             }
         }
+        String motdFormat = props.getProperty("motd-format", DEFAULT.motdFormat).strip().toLowerCase(java.util.Locale.ROOT);
+        if (!motdFormat.equals("plain") && !motdFormat.equals("legacy") && !motdFormat.equals("markup")) {
+            throw new IllegalArgumentException("설정 'motd-format' 값 '" + motdFormat + "' 이(가) 잘못됐습니다: plain, legacy, markup 중 하나");
+        }
         if (asSystem) warn.accept("chat.unsigned-as-system=true: 채팅이 서명 없는 시스템 메시지로 나갑니다(채팅 신고 불가, 채팅 서명 검증 없음)");
-        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds);
+        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat);
     }
 
     private static boolean bool(Properties props, String key, boolean def) {

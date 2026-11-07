@@ -25,7 +25,11 @@ public final class EntityContainer implements Container {
 
     public ContainerEntity entity() { return entity; }
 
-    private ItemStack[] items() { return entity.chestVehicleItems(); }
+    /** 칸에 닿기 전에 열지 않은 전리품 표를 푼다(바닐라 ContainerEntity 의 getItem·setItem·removeItem 이 unpackChestVehicleLootTable(null)). */
+    private ItemStack[] items() {
+        entity.unpackLootTable();
+        return entity.chestVehicleItems();
+    }
 
     @Override public int size() { return items().length; }
 

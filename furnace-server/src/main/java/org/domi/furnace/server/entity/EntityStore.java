@@ -121,6 +121,16 @@ public final class EntityStore {
 
     public Iterable<Entity> all() { return byId.values(); }
 
+    /** 청크 열(cx, cz)의 구역 minSy..maxSy 에 든 엔티티를 훑는다(지워진 것 포함 — 부른 쪽이 거른다). 목록을 복사하지 않는다. */
+    public void forEachInColumn(int cx, int cz, int minSy, int maxSy, Consumer<Entity> out) {
+        for (int sy = minSy; sy <= maxSy; sy++) {
+            Section sec = section(Entity.sectionKey(cx, sy, cz));
+            if (sec == null) continue;
+            ArrayList<Entity> list = sec.all;
+            for (int i = 0, n = list.size(); i < n; i++) out.accept(list.get(i));
+        }
+    }
+
     // ------------------------------------------------------------------ 상자 조회(바닐라 EntitySectionStorage.getEntities)
 
     /** 상자와 겹치는 엔티티를 바닐라 순서로(구역 범위는 x·z ±2, y -4..+0 넓힌다). */

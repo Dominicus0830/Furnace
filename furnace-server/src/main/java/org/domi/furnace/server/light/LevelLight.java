@@ -101,6 +101,9 @@ public final class LevelLight {
         if (sky != null) sky.checkBlock(p);
     }
 
+    /** 가짜 광원이 바뀌었거나 다시 걸 때: 블록빛만 그 칸을 다시 본다(하늘빛 원천은 블록이 그대로라 같다). 계산은 runUpdates. */
+    public void emissionChanged(int x, int y, int z) { block.checkBlock(LightEngine.pack(x, y, z)); }
+
     public boolean hasWork() { return block.hasWork() || sky != null && sky.hasWork(); }
 
     public void runUpdates() {

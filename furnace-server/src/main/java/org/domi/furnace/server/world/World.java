@@ -181,6 +181,19 @@ public final class World {
         closeHook.run();
     }
 
+    // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버 furnace-test 전용 — Regionizer 설명)
+
+    /** region 이 벽시계 대신 시험이 낸 틱만 돌게 한다. startTicking 전에 한 번 부른다. */
+    public void useManualClock() { regionizer.enableManualClock(); }
+
+    public boolean manualClock() { return regionizer.isManualClock(); }
+
+    /** 시험 틱 하나를 낸다. 모든 region 이 이 번호까지 돌면 {@link #manualTickDone} 이 참이 된다. */
+    public long advanceManualTick() { return regionizer.manualAdvance(); }
+
+    /** 살아 있는 모든 region 이 target 번째 시험 틱을 마쳤는가. */
+    public boolean manualTickDone(long target) { return regionizer.manualCaughtUp(target); }
+
     /** 게임 틱을 끈다(내리기 시작 — 작업은 계속 처리해 저장을 끝낸다). */
     public void stopTicking() { regionizer.gameTicks(false); }
 
@@ -341,9 +354,15 @@ public final class World {
         public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
             CompletableFuture<Void> f = new CompletableFuture<>();
             long key = Regionizer.chunkKey(cp.x(), cp.z());
-            runAtChunk(cp, r -> r.schedule(key, r2 -> {
+            java.util.function.Consumer<Region> run = r2 -> {
                 try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            }, delayTicks));
+            };
+            // 그 청크의 region 스레드 안이면 곧바로 건다 — 작업 큐를 한 번 더 거치면 다음 틱 머리에서야 걸려 한 틱 밀린다
+            // (반복 작업 runAtFixedRate(…, 1, 1) 이 두 틱마다 돌던 원인). 밖에서 부르면 예전처럼 큐를 거친다.
+            Region owner = regionizer.ownerOf(cp.x(), cp.z());
+            // 곧바로 걸 때 0 은 1 로 — 지금 돌고 있는 지연 작업 차례에서 다시 꺼내 같은 틱에 돌거나, 자기를 다시 거는 작업이 끝없이 돌지 않게
+            if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, Math.max(1, delayTicks));
+            else runAtChunk(cp, r -> r.schedule(key, run, delayTicks));
             return f;
         }
 
@@ -362,6 +381,7 @@ public final class World {
         org.domi.furnace.server.map.MapStore.saveDirty();   // 바뀐 지도 데이터·idcounts
         List<CompletableFuture<Void>> fs = new ArrayList<>(forEachRegion(r -> {
             r.releaseDisconnectedMounts();
+            r.saveOnlinePlayerVehicles();   // 바닐라 saveAll 의 플레이어 저장 중 탈것 몫(본체는 Player.requestSave)
             r.saveDirtyChunks();
             r.publishRaids();
             var saver = dragonFightSaver;
@@ -390,11 +410,13 @@ public final class World {
      */
     public void saveChunkAsync(ChunkSnapshot snap, ChunkColumn col) {
         if (!(worldSource instanceof AnvilWorldSource anvil)) return;
+        if (snap.light() != null && virtualLights.affects(snap.chunkX(), snap.chunkZ())) snap = snap.withoutLight();   // 가짜 빛은 디스크에 남기지 않는다
+        final ChunkSnapshot snapF = snap;
         int cx = snap.chunkX(), cz = snap.chunkZ();
         ioLane(cx, cz).execute(() -> {
             boolean ok;
             try {
-                byte[] bytes = NbtIo.toBytes(anvil.codec().toNbt(snap), "");
+                byte[] bytes = NbtIo.toBytes(anvil.codec().toNbt(snapF), "");
                 ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), "청크 " + cx + "," + cz + " 저장");
             } catch (Exception e) {
                 org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {},{} 직렬화 실패", cx, cz, e);
@@ -432,8 +454,67 @@ public final class World {
     /** 가장 긴 IO 레인 대기열 길이. */
     public int ioBacklog() { return ioLanes == null ? 0 : ioLanes.maxBacklog(); }
 
-    /** 저장 역압: 레인이 밀려 있으면 이번 틱 저장 제출을 멈춘다. 월드를 내리며 저장하는 동안(forceSave)은 미루지 않는다. */
-    public boolean ioBackedUp() { return !forceSave && ioBacklog() >= ioBacklogLimit; }
+    /** 저장 역압: 레인이 밀려 있으면 이번 틱 저장 제출을 멈춘다. 월드를 내리며 저장하는 동안(forceSave)·백업 기준점 저장 중은 미루지 않는다. */
+    public boolean ioBackedUp() { return !forceSave && snapshotSaves.get() == 0 && ioBacklog() >= ioBacklogLimit; }
+
+    // ------------------------------------------------------------------ 틱 붙잡기(백업 기준점·빈 서버 일시정지)
+
+    private final java.util.concurrent.atomic.AtomicInteger tickHolds = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger snapshotSaves = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 게임 틱을 붙잡는다(on) / 놓는다. 붙잡힌 동안 region 은 작업 큐·지연 작업만 돌리고 게임 틱(Region.tick)은 건너뛴다.
+     * 여러 곳(백업·빈 서버 일시정지)이 겹쳐 걸 수 있어 횟수로 센다.
+     */
+    public void holdTicks(boolean on) {
+        if (on) tickHolds.incrementAndGet();
+        else if (tickHolds.decrementAndGet() < 0) tickHolds.set(0);
+    }
+
+    /** 게임 틱이 붙잡혀 있는가. */
+    public boolean ticksHeld() { return tickHolds.get() > 0; }
+
+    /**
+     * 틱을 붙잡은 뒤 부른다: 모든 region 이 지금 도는 틱을 끝내면 완료. 붙잡은 뒤 시작하는 region 차례는 틱을 건너뛰므로(runTick 이
+     * 작업 큐를 비운 다음에 붙잡힘을 다시 본다) 완료 뒤에는 어느 region 도 게임 틱을 돌지 않는다.
+     */
+    public CompletableFuture<Void> quiesce() {
+        return CompletableFuture.allOf(forEachRegion(r -> { }).toArray(new CompletableFuture[0]));
+    }
+
+    /** 켜면 저장 역압을 무시한다(백업 기준점 저장 — 레인이 밀려 미루면 기준점 상태가 빠진다). 횟수로 센다. */
+    public void snapshotSaving(boolean on) {
+        if (on) snapshotSaves.incrementAndGet();
+        else if (snapshotSaves.decrementAndGet() < 0) snapshotSaves.set(0);
+    }
+
+    /**
+     * 백업 기준점: 레인마다 marker 를 넣고(지금까지 넣은 저장 뒤), marker 가 돈 레인의 파일은 그 뒤 첫 쓰기 전에 복사된다.
+     * 저장소(region·entities·poi)마다 스냅샷을 걸어 돌려준다 — 레인이 없으면(시험) 바로 기준점이다. 반환 future 는 모든 marker 가 돈 뒤 완료.
+     */
+    public CompletableFuture<Void> beginSnapshot(java.util.function.Function<java.nio.file.Path, java.nio.file.Path> destFor,
+                                                 List<org.domi.furnace.server.world.anvil.RegionFileStore.Snapshot> out) {
+        var lanes = ioLanes;
+        final boolean[] passed = new boolean[lanes == null ? 1 : lanes.laneCount()];
+        if (lanes == null) passed[0] = true;
+        org.domi.furnace.server.world.anvil.RegionFileStore.CutPassed cut = lanes == null
+                ? (rx, rz) -> true
+                : (rx, rz) -> { synchronized (passed) { return passed[lanes.laneOfRegion(rx, rz)]; } };
+        for (var store : regionFileStores()) out.add(store.beginSnapshot(destFor.apply(store.regionDir()), cut));
+        if (lanes == null) return CompletableFuture.completedFuture(null);
+        return lanes.markers(i -> () -> { synchronized (passed) { passed[i] = true; } });
+    }
+
+    /** 이 월드의 지역 파일 저장소들(region, entities, poi — 없는 것은 뺀다). */
+    public List<org.domi.furnace.server.world.anvil.RegionFileStore> regionFileStores() {
+        List<org.domi.furnace.server.world.anvil.RegionFileStore> out = new ArrayList<>(3);
+        if (worldSource instanceof AnvilWorldSource anvil) {
+            out.add(anvil.store());
+            if (anvil.entityStore() != null) out.add(anvil.entityStore());
+            if (anvil.poiStore() != null) out.add(anvil.poiStore());
+        }
+        return out;
+    }
 
     private volatile boolean forceSave;
 
@@ -592,6 +673,11 @@ public final class World {
     /** 이 차원의 저장 뿌리 — 추가 월드는 <이름>/, 기본 차원은 worldDir. */
     public java.nio.file.Path levelRoot() { var r = levelRoot; return r != null ? r : worldDir; }
 
+    private final org.domi.furnace.server.light.VirtualLights virtualLights = new org.domi.furnace.server.light.VirtualLights();
+
+    /** 이 차원의 가짜 광원(플러그인 빛 API). region 레벨들이 함께 쓴다. */
+    public org.domi.furnace.server.light.VirtualLights virtualLights() { return virtualLights; }
+
     private volatile org.domi.furnace.server.world.raid.RaidStore raidStore;
     private volatile CommandStorage commandStorage;
 
@@ -691,6 +777,11 @@ public final class World {
     };
 
     /** 블록 레벨이 보는 서버 쪽 정보(ServerCore 가 설치한다). */
+    /** 이 월드의 자연 스폰 정책(플러그인 API·설정이 상한·필터를 건다. 아무것도 걸지 않으면 바닐라 상수). */
+    private final org.domi.furnace.server.entity.spawn.WorldSpawnPolicy spawnPolicy = new org.domi.furnace.server.entity.spawn.WorldSpawnPolicy();
+
+    public org.domi.furnace.server.entity.spawn.WorldSpawnPolicy spawnPolicy() { return spawnPolicy; }
+
     public org.domi.furnace.server.block.LevelServices levelServices() { return levelServices; }
 
     public void levelServices(org.domi.furnace.server.block.LevelServices s) { this.levelServices = s; }
@@ -728,7 +819,15 @@ public final class World {
         for (Player p : players) p.sendSystemMessage(msg, true);
     }
 
-    public void playerOnline(Player p) { online.put(p); }
+    public void playerOnline(Player p) {
+        online.put(p);
+        joins.incrementAndGet();
+    }
+
+    private final java.util.concurrent.atomic.AtomicLong joins = new java.util.concurrent.atomic.AtomicLong();
+
+    /** 이 월드에 접속자가 올라온 횟수(백업 건너뛰기 판단). */
+    public long joinCount() { return joins.get(); }
 
     public void playerOffline(int eid) {
         online.remove(eid);

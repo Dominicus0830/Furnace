@@ -1028,3 +1028,45 @@
 - 텍스트 속 선택자·점수·NBT 는 `ComponentUtils.resolve`(future)로 푼다. 엔티티가 region 소유라 읽기가 비동기이므로 쓰는 쪽은 `EntityOps.result`/`thenOnGlobal` 로 이어야 한다. 전부 플레이어·저장소만 건드리면 future 가 이미 끝나 있어 동기 길과 같은 속도.
 - brigadier 는 입력과 똑같은 후보를 제안하지 않는다(`/tag x remove a` 에서 `a` 를 다시 안 띄움) — 자동완성 시험은 접두 일부로.
 - 새 시험 `TextResolveCommandsTest`(13개), 봇 `tools/bot-test/round15`. 자세한 내용 `command-audit-m11-2026-11-07.md`.
+
+## 2026-11-07 스폰 정책·엔티티 수·자세·주민/마을/습격 API (E3)
+- 설계·바닐라 대조 `docs/api/spawn-and-villages.md`. 기본값은 바닐라 상수(70·10·15·5·5·20·5·…)이고 정책이 비어 있으면 스폰 경로가 바닐라와 같다(`WorldSpawnPolicy.state` 가 `VANILLA` 로 접힘). 활성 범위·엔티티 상한 같은 게임플레이 변경은 넣지 않았다(D3).
+- 세계 상한은 `(int)((long)상한 × 스폰 가능 청크 수 / 289)`. 플레이어 상한 0 이하면 그 플레이어 주변은 건너뛴다(바닐라 상수로는 닿지 않고 플러그인이 0 을 걸 때만 닿는 경로).
+- `spawn.limit.<카테고리>`·`spawn.player-limit.<카테고리>`(`furnace.properties`)는 월드 정책의 시작값. 0·바닐라 3배 초과·모르는 `spawn.*` 키는 경고, 숫자가 아니거나 범위 밖이면 시작 거부.
+- spawn-animals/npcs=false 는 바닐라 1.21.1 `ServerLevel.shouldDiscardEntity`(Animal·WaterAnimal·Npc)와 바이트코드·전 엔티티 종류로 대조해 같음(`SpawnDiscardTest`). 소·주민은 지워지고 좀비는 남는다(봇 `round15/e3.js MODE=npcs`).
+- 함정: `EntityHandle.onEntity` 는 region 틱이 돌아야 작업이 실행된다(엔티티 따라다니는 큐) — 시험이 틱을 안 돌리면 영영 안 끝난다. `World.raidAt` 같은 위치 조회는 로드 안 된 청크면 그 region 에 넘기지 않고 빈 결과를 돌려준다.
+- 평지 월드는 슬라임 청크 때문에 몬스터가 바로 쌓여 "몬스터 수 == 0" 단정이 깨진다. 상한을 건 뒤 증가 여부로 본다.
+- 시험: `SpawnPolicyStateTest` 8, `SpawnPolicySpawnTest` 6, `EntityPolicyApiTest` 8, `NoPhysicsRegionTest` 1, `SpawnDiscardTest`, 봇 `round15/e3.js` 15/15 + `MODE=npcs` 1/1.
+
+## 2026-11-07 M4 약탈자·습격 바닐라 대조 (바이트코드)
+- 대조 방법: 바닐라 1.21.1 jar(`tools/vanilla-data`)를 `javap -c -p` 로 읽어 Furnace 와 줄 단위로 맞춰 봤다(Vineflower 실행은 자동 모드에서 거부됨). 대상: `Raid`(coi: 틱·파도 구성·보너스 수·스폰 위치·joinRaid·updateRaiders·소리·save), `Raids`(cok), `Raider`(coj), `PatrollingMonster`(cke)+`LongDistancePatrolGoal`(cke$a), `PatrolSpawner`(dzj), 일러저 `Pillager`(ckg)·`Vindicator`(cks)·`Vindicator.BreakDoorGoal`(cks$a)·`Ravager`·`Witch`.
+- **같음 확인**: 습격 틱 순서와 모든 상수(대기 300, 최대 48000, 112² 이탈, 30틱 바깥, 승리 40틱 대기, 축하 600), 나쁜 징조→습격 징조→습격 시작 흐름(`BadOmen`/`RaidOmen` 효과, `createOrExtendRaid` 의 마을 POI 평균 위치), 파도별 수·추가 수 난수 순서(`getPotentialBonusSpawns`), 파괴수 기수, 스폰 위치 찾기(`findRandomSpawnPos`), 습격 뿔피리, 저장 키 순서, 순찰 스포너(12000+nextInt(1200), 5일째 낮, 1/5, 24~47칸, 크기=ceil(실효 난이도)+1)와 장거리 순찰 목표(회전 90 라디안·0.4·10칸 걸음), 문 부수기·문 열기 조건.
+- **가정이었던 것 3개 확정**: ① 순찰 저장 키는 `patrol_target`(정수 배열) 맞음. ② 마녀·약탈수는 `canBeLeader()==false` 맞음. ③ 불길한 깃발은 **희귀도 구성 요소가 없고** 이름만 금색 스타일(`item_name`={translate, color:gold}) — 기존의 `rarity: uncommon` 은 틀렸다.
+- **고친 차이**:
+  - 불길한 깃발(`Raider.leaderBanner`): 희귀도 uncommon 제거, 이름에 금색. 바닐라 월드에서 온 깃발과 `ItemStack.matches` 가 어긋나(줍기·지도자 판정 실패) 있었다.
+  - `Raid.addWaveMob`: 바닐라는 같은 UUID 의 옛 개체를 새 개체로 **바꾸고 항상 참**을 돌려준다. 이전에는 거짓을 돌려주고 옛 개체를 남겨, 청크가 내려갔다 올라온 습격자가 집합에 없어 생존 수가 모자랐다(웨이브가 일찍 끝날 수 있음).
+  - `Pillager.applyRaidBuffs` 가 비어 있었다: 습격 징조 확률(`Raid.getEnchantOdds`: 단계 2→0.1, 3→0.25, 4→0.5, 5→0.75)을 통과하면 새 석궁에 파도 > 5 면 `raid/pillager_post_wave_5`, 파도 > 3 이면 `raid/pillager_post_wave_3` 제공자로 마법을 걸어 주 무기로 바꾼다(그 밖은 그대로). `Vindicator` 도 같은 `getEnchantOdds` 를 쓰게 정리.
+  - `Raider.die` 영웅 후보: 바닐라는 `damageSource.getEntity()` 가 플레이어일 때만 후보. 이전에는 "100틱 안에 마지막으로 때린 플레이어"라서 길들인 늑대·낙사·불 등 다른 원인으로 죽어도 영웅이 됐다.
+- **독립 검토(읽기 전용) 결과**: 블로커 없음. 사소한 차이 기록: `updateRaiders` 의 `level.getEntity(uuid)==null` 검사는 없지만 청크가 내려가면 개체가 removed 로 표시돼 `isRemoved()` 가 덮는다. 습격 대기 위치·스폰 위치 검사는 바닐라 `isPositionEntityTicking` 대신 `hasChunkAt`(적재 여부)을 쓴다. `Vindicator.populateDefaultEquipmentSlots` 는 바닐라처럼 `getCurrentRaid()==null` 로 맞췄다.
+- **남은 차이**(구조상): 내려간 청크·다른 region 의 POI 는 조회하지 않아 중심 둘레 ±2 섹션 중 일부가 다른 region 이면 마을 판정이 모자랄 수 있다. 같은 거리 POI 선택 순서(`getInRange` 순서)는 region 청크 순서에 따른다. 보스바 진행도 `0/0`(NaN) 은 바닐라가 NaN 을 보내지만 여기서는 0 으로 보낸다.
+- 시험: `RaidParityTest`(깃발 구성·addWaveMob 교체·습격 석궁 마법 확률/파도·영웅 처치자) 신규.
+
+## 2026-11-07 수면·리스폰 바닐라 대조 (묶음 M9)
+- 바닐라 1.21.1 바이트코드 대조(`aqv`=ServerPlayer): `stopSleepInBed(true,true)` 를 부르는 곳은 **disconnect 와 teleportTo(level, …7인자) 둘뿐**이다. 차원 이동(changeDimension)·포털은 깨우지 않는다(자면서 포털에 들어갈 수 없다).
+- 자는 중 텔레포트: `/tp`·setCamera 는 이미 깨웠으나 플러그인 `PlayerHandle.teleport`·`Player.teleportTo`(3·5인자)·`teleportRelative`(엔더 진주 등)는 안 깨웠다. 이제 `Player.wakeThen` 이 이벤트 취소 확인 뒤 소유 스레드(`runOnOwner`)에서 깨우고 **그다음** 목적지로 보정 텔레포트한다(깨우기가 일어설 자리로 옮기는 보정이 목적지를 덮어쓰지 않게 순서 고정). 상대 텔레포트는 깬 뒤 자리 기준.
+- 자는 중 접속 종료: 연결 스레드가 저장 위치(ix/iy/iz)를 침대 위에서 읽어 침대 위가 저장됐다. 소유 region 이 자는 동안 일어설 자리를 `Player.sleepStandUp`(x,y,z,yaw)에 떠 두고(잠들 때 + 1초마다, `PlayerSleeping.refreshStandUp`), `channelInactive` 가 자는 중이면 그 값을 저장 위치로 쓴다(바닐라: 일어선 자리·침대를 보는 방향·pitch 0). 저장을 region 쪽으로 미룰 수 있지만 종료 시 region 이 먼저 멈추면 저장이 사라질 위험이 있어 미리 떠 두는 쪽을 택했다.
+- "네더·엔드 기본 스폰 (0,64,0)" 은 이미 오래전에 공유 스폰으로 바뀌었다(FurnaceMain). 남은 틈 둘: `/setworldspawn` 이 네더·엔드 `World.defaultSpawn` 에 반영되지 않았고(도착할 때 보내는 `SetDefaultSpawnPosition` 이 옛 값), 바닐라는 오버월드가 아니면 `commands.setworldspawn.failure.not_overworld` 로 거부한다(`aok`). 둘 다 고쳤다. 따로 level.dat 을 가진 추가 월드(W1)는 자기 스폰을 유지.
+- `/spawnpoint` 는 리스폰 차원을 오버월드로 고정했으나 바닐라는 `source.getLevel().dimension()` (`aoj`) — 네더에서 쓰면 네더가 리스폰 차원(강제 지점이라 침대 검사 없음). 고쳤다.
+- 스폰 보호(`spawn-protection`)는 바닐라 `DedicatedServer.isUnderSpawnProtection` 이 오버월드가 아니면 거짓(`apn`) — 네더·엔드·추가 월드에서도 걸리던 것을 고쳤다.
+- 안 고친 것(의도): 밤 건너뛰기 후 깨우기는 전역 스레드가 region 의 플레이어를 못 만져 그 플레이어의 region 으로 넘긴다(결과 같음, 그 사이 region 틱이 돌면 `Player.tick` 의 "낮이면 깨기"가 먼저 깨운다). 추가 월드(W1)의 밤 건너뛰기 판정은 주 월드 접속자만 센다(시계가 공유라 설계 판단이 필요 — 도미니코가 원하면 별 묶음).
+- 시험: `PlayerSleepingTest` +4(일어설 자리 캐시·갱신·텔레포트가 먼저 깨움·상대 텔레포트), `SetWorldSpawnDimensionTest` 2. 봇 `tools/bot-test/round-m9/sleep.js` 9/9 — 수정 전 jar 로 같은 스크립트를 돌리면 접속 종료 위치(침대 위 dist=0)·setworldspawn 거부·네더 스폰 3개가 FAIL(대조군).
+
+## 2026-11-07 컨테이너·수레·깔때기 바닐라 대조 (묶음 M3)
+- **이미 있던 것 확인(user-todo 3장이 낡았음)**: 상자/깔때기 수레·상자 배 창(`openEntityContainer`), 명령 블록 수레, 디스펜서 수레 6종 설치, 몹이 수레 밀기(`pushEntities`→`AbstractMinecart.push`), 깔때기 수레 빨아들임, `VindicatorBreakDoorGoal`, 양조기 hopper 삽입 규칙. 양조기 연료 칸은 바닐라 `BrewingStandBlockEntity.canPlaceItem(4)` 가 serverTick 의 연료 판정과 같은 단일 아이템(블레이즈 가루)만 받는 것을 `javap -c` 로 확인(가정 해소).
+- **새로 한 것**
+  - 스포너 수레(`MinecartSpawner`): 매 틱 `BaseSpawner.serverTick(level, blockPosition())`, 이벤트 1 은 엔티티 이벤트로, 저장은 `BaseSpawner.save/load`(이전엔 값만 보존하고 움직이지 않았다).
+  - 라마·상인 라마 카펫: 몸통 칸(BODY)을 늘 쓸 수 있고 `wool_carpets` 태그만 입는다(바닐라 `Llama.canUseSlot=true`, `isBodyArmorItem`). 말 인벤토리 창·우클릭·디스펜서·`body_armor_item` 저장은 기존 말 갑옷 경로를 그대로 쓴다. 당나귀·노새는 불가.
+  - 열지 않은 전리품 표(`LootTable`): 부수거나 죽어 내용물을 쏟을 때, 창 칸에 닿을 때(`EntityContainer`), 깔때기가 빨아들일 때(`EntityInv`) 먼저 표를 푼다(바닐라 `getItem`/`Containers.dropContents` 의 `unpackChestVehicleLootTable(null)`). 광산 상자 수레가 대표 사례. 푸는 길은 `ServerCore.unpackContainerLoot` 가 엔티티도 받도록 넓혔다(연 플레이어 없음 = this_entity·luck 없음).
+  - 엔티티 용기 창 제목: 이름표 이름이 있으면 그 이름, 없으면 종류 이름, 팀이 있으면 접두사·색·접미사(`ContainerEntity.containerTitle`).
+- **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
+- 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).

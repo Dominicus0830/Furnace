@@ -8,7 +8,7 @@ public final class BlockLightEngine extends LightEngine {
     @Override protected byte[][] layers(ChunkLight cl) { return cl.block; }
 
     private int emission(long pos, int state) {
-        int e = LightTables.lightEmission(state);
+        int e = Math.max(LightTables.lightEmission(state), world.extraEmission(px(pos), py(pos), pz(pos)));
         ChunkLight cl = world.light(px(pos) >> 4, pz(pos) >> 4);
         return e > 0 && cl != null && cl.lightEnabled ? e : 0;
     }

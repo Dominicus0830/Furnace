@@ -235,7 +235,7 @@ public final class PlayerStateCommands {
     }
 
     private static int setSpawn(CommandSource source, Collection<Player> targets, int[] pos, float angle) {
-        String dimension = "minecraft:overworld";
+        String dimension = source.level().dimension();   // SetSpawnCommand: source.getLevel().dimension() — 네더·엔드에서 쓰면 그 차원이 리스폰 차원
         for (Player p : targets) p.vitals().setRespawnPosition(dimension, pos, angle, true);
         if (targets.size() == 1) {
             Player p = targets.iterator().next();
@@ -256,6 +256,11 @@ public final class PlayerStateCommands {
     }
 
     private static int setWorldSpawn(CommandSource source, int[] pos, float angle) {
+        // SetWorldSpawnCommand: 오버월드에서만 — 다른 차원은 commands.setworldspawn.failure.not_overworld
+        if (!"minecraft:overworld".equals(source.level().dimension())) {
+            source.sendFailure(Text.translatable("commands.setworldspawn.failure.not_overworld"));
+            return 0;
+        }
         source.getServer().setWorldSpawn(pos[0], pos[1], pos[2], angle);
         source.sendSuccess(() -> Text.translatable("commands.setworldspawn.success", pos[0], pos[1], pos[2], angle), true);
         return 1;
