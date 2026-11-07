@@ -47,7 +47,12 @@ public final class Region {
     /** 청크 키가 붙은 작업. urgent: 전역(명령) 스레드가 보냈다 — 명령 블록이 결과를 기다리는 동안 이것만 골라 돌린다. */
     record Task(long chunkKey, Consumer<Region> run, boolean urgent) {}
 
-    private record Delayed(long dueTick, long chunkKey, Consumer<Region> run) {}
+    private record Delayed(long dueTick, long seq, long chunkKey, Consumer<Region> run) {
+        Delayed(long dueTick, long chunkKey, Consumer<Region> run) { this(dueTick, DELAYED_SEQ.getAndIncrement(), chunkKey, run); }
+    }
+
+    /** 같은 틱에 때가 된 지연 작업은 건 차례대로(Bukkit·Folia 처럼) — region 끼리 옮겨도 차례가 남게 서버 전체 번호. */
+    private static final java.util.concurrent.atomic.AtomicLong DELAYED_SEQ = new java.util.concurrent.atomic.AtomicLong();
 
     final int id;
     private final World world;
@@ -92,7 +97,7 @@ public final class Region {
     private long urgentWaitUsed;
 
     // ---- 이 region 스레드만 다루는 상태
-    private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> Long.compare(a.dueTick, b.dueTick));
+    private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> a.dueTick != b.dueTick ? Long.compare(a.dueTick, b.dueTick) : Long.compare(a.seq, b.seq));
     private long tickCount;
     private int latencyCounter;
     private final Map<Integer, Player> players = new HashMap<>();
@@ -126,11 +131,18 @@ public final class Region {
     /** 마지막 runTick 이 게임 틱(tick)까지 돌았는가 — 붙잡힌(백업·일시정지) 차례는 틱 시간 표본에 넣지 않는다. */
     boolean lastRunTicked;
 
-    void runTick(boolean gameTick) {
+    void runTick(boolean gameTick) { runTick(gameTick, false); }
+
+    /**
+     * manualHold: 수동 시계(헤드리스 시험 서버)에서 이번 차례가 시험이 낸 틱이 아니다 — 작업 큐만 비우고 지연 작업 시계·월드·플레이어 처리는
+     * 하지 않는다(sprint lockstep 의 기다림과 같은 길).
+     */
+    void runTick(boolean gameTick, boolean manualHold) {
         lastRunTicked = false;
         // /tick sprint lockstep: 전역을 앞서면 이번 차례는 작업 큐만 비우고 틱(지연 작업 시계·월드·플레이어 처리)은 하지 않는다
-        sprintHeld = gameTick && sprintHoldsNow();
-        if (!sprintHeld) tickCount++;
+        sprintHeld = !manualHold && gameTick && sprintHoldsNow();
+        boolean hold = sprintHeld || manualHold;
+        if (!hold) tickCount++;
         urgentWaitUsed = 0L;
         long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Task t;
@@ -140,7 +152,7 @@ public final class Region {
             else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
             if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
         }
-        if (sprintHeld) return;
+        if (hold) return;
         while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) {
             Delayed d = delayed.poll();
             if (mine(d.chunkKey)) runTask(d.run);
@@ -232,7 +244,7 @@ public final class Region {
     void absorbData(Region o) {
         present.addAll(o.present);
         o.present.clear();
-        for (Delayed d : o.delayed) delayed.add(new Delayed(tickCount + Math.max(0, d.dueTick - o.tickCount), d.chunkKey, d.run));
+        for (Delayed d : o.delayed) delayed.add(new Delayed(tickCount + Math.max(0, d.dueTick - o.tickCount), d.seq, d.chunkKey, d.run));
         o.delayed.clear();
         for (Player p : o.players.values()) players.put(p.entityId(), p);
         o.players.clear();
@@ -259,7 +271,7 @@ public final class Region {
         for (Delayed d : delayed) {
             Region t = targetOf.apply(d.chunkKey);
             if (t == null) keep.add(d);
-            else t.delayed.add(new Delayed(t.tickCount + Math.max(0, d.dueTick - tickCount), d.chunkKey, d.run));
+            else t.delayed.add(new Delayed(t.tickCount + Math.max(0, d.dueTick - tickCount), d.seq, d.chunkKey, d.run));
         }
         delayed.clear();
         delayed.addAll(keep);
@@ -915,6 +927,13 @@ public final class Region {
         if (d > phaseMax[i]) phaseMax[i] = d;
         lapT = n;
     }
+
+    /**
+     * 수동 시계(헤드리스 시험 서버, Regionizer.manualClock): 이 region 이 마친 시험 틱 수. 잠금 안에서만 읽고 쓴다.
+     * manualPass 는 이번 차례가 시험 틱인지(tryTake 가 잠금 안에서 정하고 afterTick 이 센다).
+     */
+    long manualDone;
+    boolean manualPass;
 
     /** /tick step: 이 region 이 본 step 세대와 남은 걸음(region 스레드 전용). */
     private int stepGeneration;
