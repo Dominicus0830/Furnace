@@ -168,6 +168,84 @@ class PassengerPortalTest {
         assertNull(only(end, Pig.class));
     }
 
+    /** 플레이어 승객 대역: 떼기는 언제나 성공하고, 도착·되돌림 호출을 센다. 목적지 계산이 던지거나 도착 레벨이 수레 넣기에서 던질 수 있다. */
+    static final class PlayerCountingTravel implements LevelServices.DimensionTravel {
+        final DimensionTestLevel source;
+        final DimensionTestLevel target;
+        boolean throwOnTravel;
+        final java.util.List<Entity> arrivedWith = new java.util.ArrayList<>(), returnedWith = new java.util.ArrayList<>();
+        int departed;
+
+        PlayerCountingTravel(DimensionTestLevel source, DimensionTestLevel target) {
+            this.source = source;
+            this.target = target;
+        }
+
+        @Override public boolean isLevelEnabled(String dimension) { return true; }
+
+        @Override
+        public void travel(PortalTravel plan, BiConsumer<ChunkLevel, DimensionTransition> arrive) {
+            if (throwOnTravel) throw new IllegalStateException("시험: 목적지 찾기 실패");
+            arrive.accept(target, plan.complete().apply(target));
+        }
+
+        @Override public void runAtSource(int blockX, int blockZ, Consumer<ChunkLevel> task) { task.accept(source); }
+
+        @Override public boolean departPassenger(Player p) { departed++; return true; }
+
+        @Override public void arrivePassenger(Player p, ChunkLevel t, DimensionTransition tr, Entity vehicle) { arrivedWith.add(vehicle); }
+
+        @Override public void returnPassenger(Player p, ChunkLevel src, Entity vehicle) { returnedWith.add(vehicle); }
+    }
+
+    /** 수레에 플레이어와 돼지를 태운다. */
+    private static Player playerAndPigInCart(DimensionTestLevel over) {
+        AbstractMinecart[] c = new AbstractMinecart[1];
+        Pig pig = pigInCart(over, c);
+        Player p = new Player(over.nextEntityId(), java.util.UUID.randomUUID(), "A", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
+        assertTrue(p.startRiding(c[0], true));
+        assertEquals(2, c[0].passengers().size(), "플레이어와 돼지 둘 다 탔다: " + pig);
+        return p;
+    }
+
+    @Test
+    void routeThrowing_stillReturnsDetachedPlayerAndRestoresCart() {
+        var l = overAndEnd();
+        var over = l[0];
+        var travel = new PlayerCountingTravel(over, l[1]);
+        travel.throwOnTravel = true;
+        over.travel = travel;
+        playerAndPigInCart(over);
+        assertThrows(IllegalStateException.class, () -> over.tickEntities(6));
+        assertEquals(1, travel.departed);
+        assertEquals(1, travel.returnedWith.size(), "뗀 플레이어는 예외가 나도 꼭 한 번 되돌린다");
+        assertTrue(travel.arrivedWith.isEmpty());
+        AbstractMinecart back = only(over, AbstractMinecart.class);
+        assertNotNull(back, "수레도 원래 자리에 되살린다");
+        assertSame(back, travel.returnedWith.get(0), "되살린 수레에 다시 태우라고 넘긴다");
+        assertSame(back, only(over, Pig.class).vehicle());
+    }
+
+    @Test
+    void arrivalThrowing_stillSendsDetachedPlayerOn() {
+        var over = new DimensionTestLevel(EndPortalBlock.OVERWORLD);
+        var end = new DimensionTestLevel(EndPortalBlock.THE_END) {
+            @Override public boolean addFreshEntity(Entity e) {
+                if (e instanceof AbstractMinecart) throw new IllegalStateException("시험: 수레 넣기 실패");
+                return super.addFreshEntity(e);
+            }
+        };
+        DimensionTestLevel.link(over, end);
+        over.setBlock(new Pos(2, -60, 2), B.defaultState("minecraft:end_portal"), 3);
+        var travel = new PlayerCountingTravel(over, end);
+        over.travel = travel;
+        playerAndPigInCart(over);
+        assertThrows(IllegalStateException.class, () -> over.tickEntities(6));
+        assertEquals(1, travel.arrivedWith.size(), "탈것 도착이 던져도 뗀 플레이어는 꼭 한 번 보낸다");
+        assertNull(travel.arrivedWith.get(0), "탈것을 넣지 못했으니 다시 태우지 않는다");
+        assertNotNull(only(end, Pig.class), "돼지 승객은 먼저 건너갔다");
+    }
+
     @Test
     void commandTeleportToOtherDimensionLeavesPassengersBehind() {
         var l = overAndEnd();

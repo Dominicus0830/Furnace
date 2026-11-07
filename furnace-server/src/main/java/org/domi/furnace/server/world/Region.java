@@ -2363,6 +2363,9 @@ public final class Region {
         world.assertOwns(this);
         if (players.get(p.entityId()) != p) return false;
         players.remove(p.entityId());
+        // 떼기는 이 플레이어를 옛 탈것(과 보던 엔티티 모두)의 관찰자에서 빼므로, 곧 빠질 옛 탈것의 RemoveEntities 를 받지 못한다.
+        // 다른 차원은 리스폰이 클라이언트 월드를 비우지만 같은 레벨(엔드 관문)·되돌림은 옛 탈것이 남는다 — 먼저 지우라고 보낸다.
+        if (!p.tracked().isEmpty()) p.send(new RemoveEntities(java.util.List.copyOf(p.tracked().keySet())));
         detachForDimensionChange(p);
         return true;
     }

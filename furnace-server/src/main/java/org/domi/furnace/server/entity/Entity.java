@@ -542,19 +542,31 @@ public abstract non-sealed class Entity implements Rider {
         stopRidingForced(this);
         ejectPassengers();
         java.util.List<Carried> carried = new java.util.ArrayList<>(riders.size());
-        for (Rider r : riders) {
-            if (r instanceof Entity e) {
-                if (!e.isRemoved() && e.level != null) carried.add(e.depart(travel, targetDimension, true));
-            } else if (r instanceof Player p && travel.departPassenger(p)) {
-                carried.add(new CarriedPlayer(p));
+        try {
+            for (Rider r : riders) {
+                if (r instanceof Entity e) {
+                    if (!e.isRemoved() && e.level != null) carried.add(e.depart(travel, targetDimension, true));
+                } else if (r instanceof Player p && travel.departPassenger(p)) {
+                    carried.add(new CarriedPlayer(p));
+                }
             }
+            final NbtCompound tag = saveWithoutId(new NbtCompound());
+            CarriedEntity self = new CarriedEntity(tag, portalCooldown, portalProcess, type.name(), java.util.List.copyOf(carried));
+            final String fromDimension = level.dimension();
+            setRemoved(RemovalReason.CHANGED_DIMENSION);
+            afterChangedDimension(fromDimension, targetDimension);
+            return self;
+        } catch (RuntimeException ex) {
+            // 떼어 낸 승객 플레이어가 어느 region 에도 없는 채로 남지 않게 — 제자리 region 에 내린 채로 되돌린다
+            for (Carried c : carried) forEachCarriedPlayer(c, p -> travel.returnPassenger(p, level, null));
+            throw ex;
         }
-        final NbtCompound tag = saveWithoutId(new NbtCompound());
-        CarriedEntity self = new CarriedEntity(tag, portalCooldown, portalProcess, type.name(), java.util.List.copyOf(carried));
-        final String fromDimension = level.dimension();
-        setRemoved(RemovalReason.CHANGED_DIMENSION);
-        afterChangedDimension(fromDimension, targetDimension);
-        return self;
+    }
+
+    /** 이 떠난 것(승객의 승객까지)에 든 플레이어마다. */
+    private static void forEachCarriedPlayer(Carried c, java.util.function.Consumer<Player> f) {
+        if (c instanceof CarriedPlayer cp) f.accept(cp.player());
+        else if (c instanceof CarriedEntity ce) for (Carried r : ce.passengers()) forEachCarriedPlayer(r, f);
     }
 
     private void moveAcross(java.util.function.Consumer<java.util.function.BiConsumer<ChunkLevel, DimensionTransition>> route,
@@ -563,17 +575,31 @@ public abstract non-sealed class Entity implements Rider {
                             boolean carryPassengers) {
         final double ox = x, oz = z;
         final CarriedEntity self = depart(travel, targetDimension, carryPassengers);
-        route.accept((target, t) -> {
-            try {
-                if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 승객째 되살린다
-                    travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
-                } else {
-                    arrive(target, t, travel, self, place);
+        final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
+        try {
+            route.accept((target, t) -> {
+                if (!called.compareAndSet(false, true)) return;
+                try {
+                    if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 승객째 되살린다
+                        travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
+                    } else {
+                        arrive(target, t, travel, self, place);
+                    }
+                } finally {
+                    if (done != null) done.run();
                 }
-            } finally {
-                if (done != null) done.run();
+            });
+        } catch (RuntimeException ex) {
+            // 목적지 찾기를 시작하다 던졌다(도착 콜백 전) — 승객째 원래 자리에 되살리고 위로 올린다
+            if (called.compareAndSet(false, true)) {
+                try {
+                    travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
+                } finally {
+                    if (done != null) done.run();
+                }
             }
-        });
+            throw ex;
+        }
     }
 
     /**
@@ -583,52 +609,72 @@ public abstract non-sealed class Entity implements Rider {
      */
     private static Entity arrive(ChunkLevel target, DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
                                  CarriedEntity c, java.util.function.BiConsumer<Entity, DimensionTransition> place) {
-        java.util.List<Entity> riders = new java.util.ArrayList<>(c.passengers().size());
-        java.util.List<Player> players = new java.util.ArrayList<>(0);
-        for (Carried r : c.passengers()) {
-            if (r instanceof CarriedEntity ce) {
-                Entity n = arrive(target, t, travel, ce, place);
-                if (n != null) riders.add(n);
-            } else if (r instanceof CarriedPlayer cp) {
-                players.add(cp.player());
+        java.util.List<Player> players = carriedPlayers(c);
+        Entity e = null;
+        try {
+            java.util.List<Entity> riders = new java.util.ArrayList<>(c.passengers().size());
+            for (Carried r : c.passengers()) {
+                if (!(r instanceof CarriedEntity ce)) continue;
+                try {   // 승객 하나가 실패해도 나머지(와 그 안의 플레이어)는 건너간다 — arrive 가 제 플레이어를 꼭 보낸다
+                    Entity n = arrive(target, t, travel, ce, place);
+                    if (n != null) riders.add(n);
+                } catch (RuntimeException ex) {
+                    org.slf4j.LoggerFactory.getLogger(Entity.class).error("[PORTAL] 승객 {} 도착 실패", ce.typeName(), ex);
+                }
             }
+            Entity made = Entities.create(target, c.typeName());
+            if (made != null) {
+                made.load(c.tag());
+                made.portalCooldown = c.cooldown();
+                made.portalProcess = c.process();
+                place.accept(made, t);
+                target.addFreshEntity(made);
+                e = made;
+                for (Entity r : riders) r.startRiding(made, true);
+                target.afterDimensionTransition(t);
+            }
+            return e;
+        } finally {
+            // 뗀 승객 플레이어는 무슨 일이 있어도 한 번 보낸다(탈것을 못 넣었으면 null — 태우지 않는다)
+            for (Player p : players) travel.arrivePassenger(p, target, t, e);
         }
-        Entity e = Entities.create(target, c.typeName());
-        if (e != null) {
-            e.load(c.tag());
-            e.portalCooldown = c.cooldown();
-            e.portalProcess = c.process();
-            place.accept(e, t);
-            target.addFreshEntity(e);
-            for (Entity r : riders) r.startRiding(e, true);
-            target.afterDimensionTransition(t);
-        }
-        for (Player p : players) travel.arrivePassenger(p, target, t, e);
-        return e;
+    }
+
+    /** 바로 탄 승객 중 플레이어(승객의 승객 쪽 플레이어는 그 승객의 arrive/restore 가 맡는다). */
+    private static java.util.List<Player> carriedPlayers(CarriedEntity c) {
+        java.util.List<Player> out = new java.util.ArrayList<>(0);
+        for (Carried r : c.passengers()) if (r instanceof CarriedPlayer cp) out.add(cp.player());
+        return out;
     }
 
     /** 갈 곳이 없을 때(원천 레벨 스레드): 승객부터 원래 자리에 되살리고 나를 되살린 뒤 다시 태운다(바닐라는 목적지가 없으면 아무 일도 없다). */
     private static Entity restore(ChunkLevel src, CarriedEntity c, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
-        java.util.List<Entity> riders = new java.util.ArrayList<>(c.passengers().size());
-        java.util.List<Player> players = new java.util.ArrayList<>(0);
-        for (Carried r : c.passengers()) {
-            if (r instanceof CarriedEntity ce) {
-                Entity n = restore(src, ce, travel);
-                if (n != null) riders.add(n);
-            } else if (r instanceof CarriedPlayer cp) {
-                players.add(cp.player());
+        java.util.List<Player> players = carriedPlayers(c);
+        Entity back = null;
+        try {
+            java.util.List<Entity> riders = new java.util.ArrayList<>(c.passengers().size());
+            for (Carried r : c.passengers()) {
+                if (!(r instanceof CarriedEntity ce)) continue;
+                try {
+                    Entity n = restore(src, ce, travel);
+                    if (n != null) riders.add(n);
+                } catch (RuntimeException ex) {
+                    org.slf4j.LoggerFactory.getLogger(Entity.class).error("[PORTAL] 승객 {} 되살리기 실패", ce.typeName(), ex);
+                }
             }
+            Entity made = Entities.create(src, c.typeName());
+            if (made != null) {
+                made.load(c.tag());
+                made.portalCooldown = c.cooldown();
+                made.portalProcess = c.process();
+                src.addFreshEntity(made);
+                back = made;
+                for (Entity r : riders) r.startRiding(made, true);
+            }
+            return back;
+        } finally {
+            for (Player p : players) travel.returnPassenger(p, src, back);
         }
-        Entity back = Entities.create(src, c.typeName());
-        if (back != null) {
-            back.load(c.tag());
-            back.portalCooldown = c.cooldown();
-            back.portalProcess = c.process();
-            src.addFreshEntity(back);
-            for (Entity r : riders) r.startRiding(back, true);
-        }
-        for (Player p : players) travel.returnPassenger(p, src, back);
-        return back;
     }
 
     /**

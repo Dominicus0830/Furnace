@@ -127,6 +127,22 @@ class DimensionChangeTest {
         return out;
     }
 
+    /** drain 과 같되 AddEntity·RemoveEntities 의 엔티티 번호를 모은다. */
+    private List<Integer> drainIds(List<Integer> added, List<Integer> removed) {
+        ch.runPendingTasks();
+        List<Integer> out = new ArrayList<>();
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            ByteBuf bb = (ByteBuf) o;
+            int id = Types.readVarInt(bb);
+            out.add(id);
+            if (id == RemoveEntities.ID) { int n = Types.readVarInt(bb); for (int i = 0; i < n; i++) removed.add(Types.readVarInt(bb)); }
+            if (id == AddEntity.ID) added.add(Types.readVarInt(bb));
+            bb.release();
+        }
+        return out;
+    }
+
     private static int portalX() { return B.prop("axis").with(B.defaultState("minecraft:nether_portal"), "x"); }
 
     @Test
@@ -343,17 +359,22 @@ class DimensionChangeTest {
         }).get();
         drain();
         java.util.UUID cartId = oldCart[0].uuid();
+        int oldId = oldCart[0].id();
+        List<Integer> added = new ArrayList<>(), removed = new ArrayList<>();
         over.startTicking();
         List<Integer> out = new ArrayList<>();
         double[] at;
         long deadline = System.nanoTime() + 20_000_000_000L;
         while ((at = ridingNewCart(over, new ChunkPos(2, 2), p, oldCart[0])) == null) {
-            out.addAll(drain());
+            out.addAll(drainIds(added, removed));
             assertTrue(System.nanoTime() < deadline, "수레째 출구로 가 다시 타지 않음: " + hex(out) + " vehicle=" + p.vehicle());
             Thread.sleep(10);
         }
-        out.addAll(drain());
+        out.addAll(drainIds(added, removed));
         assertFalse(out.contains(Respawn.ID), "같은 레벨이라 리스폰 패킷은 없다");
+        if (added.contains(oldId)) {
+            assertTrue(removed.contains(oldId), "승객 클라이언트도 옛 수레를 지우라고 받는다(유령 수레 없음): added=" + added + " removed=" + removed);
+        }
         var cart = p.vehicle();
         assertEquals(cartId, cart.uuid());
         assertTrue(oldCart[0].isRemoved());
