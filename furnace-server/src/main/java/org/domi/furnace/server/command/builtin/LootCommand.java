@@ -435,7 +435,7 @@ public final class LootCommand {
                 .with(LootParams.DAMAGE_SOURCE, new LootDamageSource() {
                     public String type() { return "minecraft:magic"; }
 
-                    public boolean is(String tag) { return false; }   // TODO(피해 종류 태그): magic 의 태그
+                    public boolean is(String tag) { return org.domi.furnace.server.entity.damage.DamageType.keyHasTag("minecraft:magic", tag); }   // magic 의 damage_type 태그
 
                     public LootEntity entity() { return null; }
 

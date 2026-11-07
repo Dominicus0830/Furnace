@@ -29,8 +29,11 @@ public abstract class AbstractIllager extends Raider {
         return target instanceof Villager v && v.isBaby() ? false : super.canAttackType(target);
     }
 
-    /** AbstractIllager.isAlliedTo: 일러저 친구 태그끼리는 팀이 없으면 동맹. TODO(팀): 팀 시스템이 생기면 super.isAlliedTo(팀) 포함. */
+    /** AbstractIllager.isAlliedTo: 같은 팀이면 동맹, 아니면 일러저 친구 태그끼리는 둘 다 팀이 없을 때 동맹. */
+    @Override
     public boolean isAlliedTo(Targetable other) {
-        return other instanceof Entity e && e.type().is("minecraft:illager_friends");
+        if (super.isAlliedTo(other)) return true;
+        if (other instanceof Entity e && e.type().is("minecraft:illager_friends")) return getTeam() == null && e.getTeam() == null;
+        return false;
     }
 }
