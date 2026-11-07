@@ -74,6 +74,9 @@ public final class WorldManager {
         /** 플러그인이 등록한 차원 타입(W2) — 없거나 꺼졌으면 null. */
         default org.domi.furnace.api.worldgen.DimensionTypeDefinition pluginDimensionType(String key) { return null; }
 
+        /** 플러그인 월드젠 단계 훅(W3) — 없거나 꺼졌으면 null. 생성 스레드에서 불린다. */
+        default org.domi.furnace.api.worldgen.ChunkGenerationHooks generationHooks(String key) { return null; }
+
         Hooks NONE = new Hooks() {};
     }
 
@@ -223,6 +226,12 @@ public final class WorldManager {
             ld.furnaceWorld(specNbt(spec));
             long seed = ld.seed;
             WorldSource gen = generator(spec, type, family, seed);
+            if (!spec.generationHooks().isEmpty()) {
+                // 훅은 키로만 잡는다(플러그인이 꺼지면 저장소에서 빠져 바닐라로) — 첫 청크(스폰 계산) 전에 건다
+                final Hooks h = hooks;
+                org.domi.furnace.server.world.gen.GenHooks.attach(gen, spec.generationHooks(), h::generationHooks, spec.key(), seed,
+                        parts.blocks(), parts.registries());
+            }
             Built built = build(type, dir, gen);
             World w = built.world();
             w.levelRoot(dir);                                            // 청크·data 는 <이름>/
@@ -273,7 +282,7 @@ public final class WorldManager {
         // 시드를 정하지 않은 쪽은 저장된 시드를 따르므로 비교하지 않는다
         boolean seedOk = a.seed().isEmpty() || b.seed().isEmpty() || a.seed().equals(b.seed());
         return a.key().equals(b.key()) && a.environment() == b.environment() && a.generator() == b.generator()
-                && a.dimensionType().equals(b.dimensionType()) && seedOk;
+                && a.dimensionType().equals(b.dimensionType()) && a.generationHooks().equals(b.generationHooks()) && seedOk;
     }
 
     static NoiseWorldSource.Dimension family(WorldEnvironment env) {
@@ -372,6 +381,7 @@ public final class WorldManager {
         c.putString("dimension_type", spec.dimensionType());
         c.putBoolean("generate_structures", spec.generateStructures());
         c.putString("flat_biome", spec.flatBiome());
+        if (!spec.generationHooks().isEmpty()) c.putString("generation_hooks", spec.generationHooks());
         NbtList layers = new NbtList(NbtIo.TAG_COMPOUND);
         for (var l : spec.flatLayers()) {
             NbtCompound lc = new NbtCompound();
@@ -393,6 +403,7 @@ public final class WorldManager {
         if (c.tags().get("dimension_type") instanceof String t) b.dimensionType(t);
         if (c.contains("generate_structures")) b.generateStructures(((Number) c.tags().get("generate_structures")).intValue() != 0);
         if (c.tags().get("flat_biome") instanceof String fb) b.flatBiome(fb);
+        if (c.tags().get("generation_hooks") instanceof String gh) b.generationHooks(gh);
         if (c.contains("flat_layers")) {
             List<WorldCreator.FlatLayer> layers = new ArrayList<>();
             for (Object o : c.getList("flat_layers").items()) {

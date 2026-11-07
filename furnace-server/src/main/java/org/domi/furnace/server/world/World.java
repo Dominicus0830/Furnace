@@ -929,6 +929,69 @@ public final class World {
                 }));
     }
 
+    // ------------------------------------------------------------------ 청크 재생성(W3, 불만 표 41번)
+
+    /**
+     * 그 청크를 이 월드의 생성기로 처음부터 다시 만들어 바꾼다. 생성은 생성 풀에서, 교체·재전송은 그 청크를 가진 region 스레드에서
+     * 한다({@link Region#replaceRegenerated}). 노이즈 생성기는 공유 장식 상태를 쓰지 않는 독립 경로(5×5 pristine + 둘레 9개 원점 장식)로
+     * 만든다 — 같은 시드의 새 월드에서 그 청크가 처음 만들어질 때와 같은 블록이고, 이웃 청크는 건드리지 않는다.
+     * 로드돼 있지 않으면 먼저 불러온다. 내린 월드면 false.
+     */
+    public CompletableFuture<Boolean> regenerateChunk(int cx, int cz, boolean removeEntities, boolean generationEntities) {
+        if (unloaded) return CompletableFuture.completedFuture(false);
+        ChunkPos cp = new ChunkPos(cx, cz);
+        CompletableFuture<ChunkColumn> fresh;
+        // 생성은 한 번에 하나씩(독립 경로 하나가 이미 생성 풀을 병렬로 쓴다) — /worlds regen 8 의 289개가 생성 대기 풀을 다 붙잡아
+        // 플레이어 청크 생성을 밀어내지 않게. 교체·재전송은 각자 region 스레드에서 이어 간다
+        synchronized (regenLock) {
+            fresh = regenTail.handle((v, e) -> null).thenApplyAsync(v -> regeneratedColumn(cx, cz), genPool);
+            regenTail = fresh.handle((c, e) -> null);   // 만든 청크를 다음 재생성까지 붙들지 않게
+        }
+        return fresh.thenCompose(col -> installRegenerated(cp, col, removeEntities, generationEntities, 3))
+                .exceptionally(e -> {
+                    Throwable c = e instanceof java.util.concurrent.CompletionException && e.getCause() != null ? e.getCause() : e;
+                    if (c instanceof java.util.concurrent.RejectedExecutionException) return false;   // 서버가 멈추는 중
+                    throw e instanceof java.util.concurrent.CompletionException ce ? ce : new java.util.concurrent.CompletionException(e);
+                });
+    }
+
+    private final Object regenLock = new Object();
+    private CompletableFuture<?> regenTail = CompletableFuture.completedFuture(null);
+
+    /** 새 청크 하나(생성 풀에서). 블록 엔티티·POI 는 디스크에서 올릴 때와 같게 채운다. 빛은 교체 때 옛 빛에서 고친다. */
+    ChunkColumn regeneratedColumn(int cx, int cz) {
+        WorldSource src = worldSource instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a ? a.base() : worldSource;
+        ChunkColumn col;
+        if (src instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n) {
+            col = n.generateIsolated(cx, cz);
+            col.freshlyGenerated(true);   // 생성 엔티티를 넣을 때만 쓴다(교체가 지운다)
+        } else {
+            col = src.generate(cx, cz);
+        }
+        col.poi(org.domi.furnace.server.world.poi.PoiManager.restore(col, cx, cz, null));
+        col.promotePendingBlockEntities(cx, cz, true);
+        col.light(null);
+        col.lightPrecomputed(false);
+        return col;
+    }
+
+    private CompletableFuture<Boolean> installRegenerated(ChunkPos cp, ChunkColumn col, boolean removeEntities, boolean generationEntities,
+                                                          int attempts) {
+        if (unloaded) return CompletableFuture.completedFuture(false);
+        return submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f)
+                .thenCompose(loaded -> {   // 디스크 엔티티를 읽는 중이면 끝날 때까지(교체가 그 결과를 이어받게)
+                    var pending = loaded == null ? null : loaded.pendingEntityLoad();
+                    return pending == null ? CompletableFuture.completedFuture(loaded) : pending.thenApply(v -> loaded);
+                })
+                .thenCompose(loaded -> submitAtChunk(cp, r -> r.replaceRegenerated(cp, col, removeEntities, generationEntities)))
+                .thenCompose(ok -> {
+                    if (ok != null) return CompletableFuture.completedFuture(ok);
+                    // 불러온 뒤 교체 전에 내려갔거나 주인이 바뀌었다 — 다시 불러와 한 번 더
+                    return attempts > 0 ? installRegenerated(cp, col, removeEntities, generationEntities, attempts - 1)
+                            : CompletableFuture.completedFuture(false);
+                });
+    }
+
     /** 본문 직렬화용 스냅샷을 뜬 횟수(테스트가 "스냅샷이 떠졌다"를 기다리는 신호). */
     final java.util.concurrent.atomic.AtomicInteger bodySnapshots = new java.util.concurrent.atomic.AtomicInteger();
 

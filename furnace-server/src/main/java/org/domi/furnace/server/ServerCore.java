@@ -1189,6 +1189,9 @@ public final class ServerCore {
             @Override public org.domi.furnace.api.worldgen.DimensionTypeDefinition pluginDimensionType(String key) {
                 return pluginHost.pluginDimensionType(key);
             }
+            @Override public org.domi.furnace.api.worldgen.ChunkGenerationHooks generationHooks(String key) {
+                return pluginHost.generationHooks(key);
+            }
         });
     }
 

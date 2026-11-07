@@ -104,6 +104,13 @@ public final class ChunkPipeline {
         }, null, false);
     }
 
+    /** 독립 경로의 pristine 캐시를 비운다(월드젠 훅이 바뀌었을 때 — 재생성이 지금 훅으로 만들게). */
+    public void clearPristineCache() {
+        synchronized (pristineCache) {
+            pristineCache.clear();
+        }
+    }
+
     private static long chunkKey(int cx, int cz) {
         return (((long) cx) << 32) ^ (cz & 0xFFFFFFFFL);
     }

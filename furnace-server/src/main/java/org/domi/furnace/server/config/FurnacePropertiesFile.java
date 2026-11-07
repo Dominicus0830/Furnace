@@ -50,6 +50,9 @@ public final class FurnacePropertiesFile {
                 opt("worlds.autoload", "", "서버 시작 때 함께 여는 추가 월드 이름(쉼표로 구분)."),
                 commented("dimension-seed.the_nether", "", "네더 생성 시드. 주석이면 주 월드 시드(바닐라). 숫자 또는 글자."),
                 commented("dimension-seed.the_end", "", "엔드 생성 시드. 위와 같다."),
+                commented("worldgen-hooks.overworld", "", "오버월드에 걸 플러그인 월드젠 훅 키(namespace:path). 주석이면 바닐라."),
+                commented("worldgen-hooks.the_nether", "", "네더에 걸 플러그인 월드젠 훅 키. 위와 같다."),
+                commented("worldgen-hooks.the_end", "", "엔드에 걸 플러그인 월드젠 훅 키. 위와 같다."),
                 opt("enchantments.disabled", "", "끌 마법부여 id(쉼표로 구분, 예: minecraft:mending). 비우면 모두 켜짐(바닐라).")
         )));
         s.add(new Section("틱·region 스레드", List.of(

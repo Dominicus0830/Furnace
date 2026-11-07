@@ -17,9 +17,17 @@ import java.util.regex.Pattern;
  * @param generateStructures 구조물(마을·요새 …)을 만드는가. 노이즈 생성기에만 해당
  * @param flatLayers         평지 층(아래부터). 비면 바닐라 기본 층. FLAT 에서만
  * @param flatBiome          평지 바이옴. FLAT 에서만
+ * @param generationHooks    월드젠 단계 훅 키(LifecycleEvents.WORLD_GENERATION 에서 등록한 것). 빈 문자열이면 없음(바닐라)
  */
 public record WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
-                           OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome) {
+                           OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome,
+                           String generationHooks) {
+
+    /** 훅 없는 설명서(이전 판과 같은 모양). */
+    public WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
+                        OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome) {
+        this(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome, "");
+    }
 
     private static final Pattern NAME = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
     private static final Pattern KEY = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
@@ -47,6 +55,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         Objects.requireNonNull(seed, "seed");
         flatLayers = List.copyOf(flatLayers);
         flatBiome = full("flatBiome", flatBiome);
+        generationHooks = generationHooks == null || generationHooks.isEmpty() ? "" : full("generationHooks", generationHooks);
     }
 
     private static String full(String what, String id) {
@@ -61,7 +70,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
 
     public Builder toBuilder() {
         Builder b = new Builder(name).key(key).environment(environment).generator(generator).dimensionType(dimensionType)
-                .generateStructures(generateStructures).flatLayers(flatLayers).flatBiome(flatBiome);
+                .generateStructures(generateStructures).flatLayers(flatLayers).flatBiome(flatBiome).generationHooks(generationHooks);
         if (seed.isPresent()) b.seed(seed.getAsLong());
         return b;
     }
@@ -76,6 +85,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         private boolean generateStructures = true;
         private List<FlatLayer> flatLayers = List.of();
         private String flatBiome = "minecraft:plains";
+        private String generationHooks = "";
 
         private Builder(String name) { this.name = name; }
 
@@ -99,8 +109,15 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
 
         public Builder flatBiome(String biome) { this.flatBiome = biome; return this; }
 
+        /**
+         * 월드젠 단계 훅 키({@link org.domi.furnace.api.plugin.lifecycle.LifecycleEvents#WORLD_GENERATION} 에서 등록한 것).
+         * null·빈 문자열이면 없음. level.dat 설명서에 남아 다시 불러올 때도 같은 키를 쓴다 — 그때 키가 등록돼 있지 않으면 바닐라로 생성한다.
+         */
+        public Builder generationHooks(String key) { this.generationHooks = key == null ? "" : key; return this; }
+
         public WorldCreator build() {
-            return new WorldCreator(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome);
+            return new WorldCreator(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome,
+                    generationHooks);
         }
     }
 }

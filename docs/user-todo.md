@@ -75,6 +75,7 @@
 | 백업·빈 서버 일시정지 (O4) | `furnace.properties` 에 `backup.interval-minutes=10`, `idle-pause.empty-seconds=60` 을 넣고 집을 지은 뒤 `/furnace backup` → `backups/` 의 zip 을 새 서버 폴더에 풀어 켜고 접속. 모두 나간 뒤 60초 기다렸다 다시 접속 | 풀어 켠 서버에 집·상자 안 아이템·내 인벤토리·위치가 백업 순간 그대로. 콘솔에 `Server empty for 60 seconds, pausing` 이 찍히고 다시 들어가면 시간·작물이 이어서 감. 백업 중 렉(결과 메시지의 "기준점 정지 N ms")이 느껴지면 그 숫자를 알려 주세요 |
 | 구성 단계 리소스 팩·쿠키 (N1) | 플러그인이 `AsyncPlayerConfigureEvent` 에서 `connection().sendResourcePack(...)`·`requestCookie`·`storeCookie`·`transfer` 를 부르게 해 실제 클라이언트로 접속 | 팩 받기 화면이 뜨고 끝나면 입장, 필수 팩 거절 시 "서버 리소스 팩 필요" 로 끊김, 쿠키를 다시 접속해도(전송 뒤에도) 읽힘. 구성 패킷 번호(0x00·0x08·0x09·0x0A·0x0B)는 2026-11-07 바닐라 1.21.1 서버 바이트코드(`ConfigurationProtocols`)와 대조해 일치 확인함 — 남은 건 실제 클라이언트가 팩 받기 화면·쿠키를 정상 처리하는지 |
 | 가짜 광원 (W6) | 플러그인이 `lightSources().set(this, world, 칸, 15)` 로 어두운 동굴 공기 칸에 광원을 두고, 지우고, 멀리 갔다 와서 다시 보기 (`docs/api/light-sources.md`) | 두면 바로 횃불처럼 밝아지고(블록은 안 보임) 지우면 바로 어두워짐, 청크를 다시 받아도 빛이 유지됨. 서버 쪽 빛 값은 `minecraft:light` 블록과 칸마다 같음을 시험으로 확인함 |
+| 월드젠 훅·청크 재생성 (W3) | 아무 곳에 집을 짓고 횃불을 몇 개 둔 뒤 그 청크에서 `/worlds regen` (둘레까지면 `/worlds regen 1`) | 화면이 끊기지 않고 그 청크만 원래 지형으로 돌아온다(집·횃불이 사라지고 옆 청크로 번졌던 횃불 빛도 꺼짐). 다시 접속해도 그대로. 플러그인 훅(`docs/api/worldgen-hooks.md` 예시)을 건 빈 월드에서 섬이 보이는지 |
 
 ### 월드 타입 large_biomes·amplified (2026-11-06 구현) — 바닐라 서버와 한 번 대조
 `level-type=minecraft:large_biomes` / `minecraft:amplified` 로 새 월드를 만들면 이제 바닐라와 같은 노이즈 설정(바닐라 jar 데이터와 바이트 일치)으로 생성하고 level.dat 에도 그 생성기를 기록한다. 이 환경은 Mojang·papermc 가 막혀 바닐라를 직접 돌린 대조는 못 했다.

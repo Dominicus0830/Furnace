@@ -75,7 +75,7 @@
 |---|---|---|---|---|---|
 | W1 | 38, 42 | 다중 월드(만들기·내리기), 차원별 시드(기본은 같은 시드 = 바닐라) | Opus high | 2 | **결정 R3 확정(2026-11-07, 추천대로).** region 스케줄러에 레벨 추가·제거. 호환 어댑터(H*)의 선행. **구현됨**: `createWorld`/`unloadWorld`·`/worlds`·`worlds.autoload`·`dimension-seed.*`, Paper 폴더 배치 — `docs/api/worlds.md` |
 | W2 | 39 | 커스텀 바이옴·차원 타입 등록(구성 단계 레지스트리 동기) | Opus high | 3 | W1·B3 선행. **구현됨**: 바이옴 전체 + 차원 타입 등록·전송(월드에 붙이기는 W1) — `docs/api/bootstrap-registries.md` 6장 |
-| W3 | 40, 41 | 월드젠 단계 훅(노이즈·표면·동굴·장식·구조물), 청크 재생성 | Opus high | 2 | 청크 저장 성능 PR 병합 뒤. 청크 교체·재전송이 region 경계를 넘지 않게 |
+| W3 | 40, 41 | 월드젠 단계 훅(노이즈·표면·동굴·장식·구조물), 청크 재생성 | Opus high | 2 | 청크 저장 성능 PR 병합 뒤. 청크 교체·재전송이 region 경계를 넘지 않게. **구현됨**: `LifecycleEvents.WORLD_GENERATION`·`ChunkGenerationHooks`·`World.regenerateChunk`·`/worlds regen` — `docs/api/worldgen-hooks.md` |
 | W4 | 43, 46 | 구조물 템플릿 배치·저장·찾기 API, 청크 티켓 API(플러그인 소유·자동 해제) | Sonnet high | 3 | 구조물 블록 PR #42 병합 뒤. 46 은 먼저 확인 |
 | W5 | 45, 47 | region 정보 API(위치→region, region 틱 시간·소유 스레드), zstd 지역 파일 압축 옵션 | Sonnet medium | 1 | 45 는 P1. 47 은 바닐라 호환이 깨진다는 경고와 변환 도구 필요, 기본 꺼짐 |
 | W6 | 44 | 빛 조작 API(가짜 광원) | Opus medium | 3 | 자체 빛 엔진에 외부 광원 추가·제거 |

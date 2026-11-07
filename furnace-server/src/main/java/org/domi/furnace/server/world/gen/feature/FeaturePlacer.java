@@ -56,6 +56,17 @@ public final class FeaturePlacer {
      * feature들보다 먼저, 같은 featureRandom 시퀀스(F3)로 실행된다. writableArea는 이 청크(F2, 16x16)만.
      */
     public void decorate(FeatureWorldView view, Set<String> biomeSet, int cx, int cz, List<StructureStart> starts) {
+        decorate(view, biomeSet, cx, cz, starts, null);
+    }
+
+    /**
+     * hooks(W3 월드젠 훅)가 있으면: FEATURES 바닐라를 끈 원점은 지형지물을 건너뛰고(구조물 조각은 그대로 — CraftBukkit 의
+     * shouldGenerateDecorations=false 와 같다), 켠 원점도 훅이 거절한 지형지물만 건너뛴다. 지형지물마다 난수 씨앗을 다시 정하므로
+     * 하나를 빼도 다른 지형지물의 배치 난수는 그대로다(WorldGenRegion 공용 난수를 이어 쓰는 몇몇은 달라질 수 있다).
+     */
+    public void decorate(FeatureWorldView view, Set<String> biomeSet, int cx, int cz, List<StructureStart> starts,
+                         org.domi.furnace.server.world.gen.GenHooks hooks) {
+        boolean vanillaFeatures = hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.FEATURES, cx, cz);
         WorldgenRandom random = new XoroshiroWorldgenRandom();
         long decorationSeed = random.setDecorationSeed(seed, cx * 16, cz * 16);
         WorldgenRandom featureRandom = new XoroshiroWorldgenRandom();
@@ -91,6 +102,7 @@ public final class FeaturePlacer {
                     m++;
                 }
             }
+            if (!vanillaFeatures) continue;
             FeatureSorter.StepFeatureData stepData = sorter.featuresPerStep().get(step);
             TreeSet<Integer> indices = new TreeSet<>();
             for (String biome : biomeSet) {
@@ -109,6 +121,7 @@ public final class FeaturePlacer {
                 featureRandom.setFeatureSeed(decorationSeed, idx, step);
                 PlacedFeature pf = stepData.features().get(idx);
                 String featureId = biomeData.idOf(pf);
+                if (hooks != null && !hooks.feature(featureId, cx, cz)) continue;
                 long featureSeed = decorationSeed + idx + 10000L * step;
                 int[] before = BLOCK_DEBUG ? snapshotGrid(view) : null;
                 if (DEBUG) {
